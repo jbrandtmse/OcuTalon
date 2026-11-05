@@ -13,6 +13,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const webRoot = join(here, '..');
 const { default: playwrightConfig } = await import(pathToFileURL(join(webRoot, 'playwright.config.ts')).href);
 const {
+  CLEANUP_MARGIN_MS,
+  CLEANUP_RESERVE_MS,
   DEADLINE_FLOOR_MS,
   DEADLINE_MARGIN_MS,
   ONLINE_IRIS_SCRIPT_MS,
@@ -20,11 +22,15 @@ const {
   SLOW_STEP_MS,
   TELEGRAM_FIXTURE_MS,
   WAIT_CAPS,
+  asCleanup,
   boundedStep,
   capToDeadline,
+  cleanupReserve,
   effectiveWaits,
+  inCleanup,
   runBounded,
   scriptBound,
+  secs,
   slowLine,
   testTimeLeftMs,
   waitsFor,
@@ -33,6 +39,7 @@ const {
 );
 
 const read = (path) => readFileSync(join(webRoot, path), 'utf8');
+const realSetTimeout = setTimeout;
 
 describe('runBounded', () => {
   it('kills a command that does not answer and rejects naming the step and the bound', { timeout: 5000 }, async () => {
@@ -174,7 +181,26 @@ describe('by source', () => {
     const telegram = read('e2e-online/telegram.ts');
     const body = telegram.slice(telegram.indexOf('async function fixture('), telegram.indexOf('export async function startTelegram'));
     assert.match(body, /\n\s*TELEGRAM_FIXTURE_MS,\n\s*\);/);
-    assert.match(telegram, /import \{ TELEGRAM_FIXTURE_MS \} from '\.\.\/e2e\/support\/bounds';/);
+    assert.match(telegram, /import \{ TELEGRAM_FIXTURE_MS, asCleanup \} from '\.\.\/e2e\/support\/bounds';/);
+  });
+
+  it('the Telegram fixture script starts with a line that names the method, which a stopped call quotes', () => {
+    const telegram = read('e2e-online/telegram.ts');
+    const body = telegram.slice(telegram.indexOf('async function fixture('), telegram.indexOf('export async function startTelegram'));
+    assert.match(body, /\[\n\s*`Set call="TelegramPageFixture\.\$\{call\.slice\(0, call\.indexOf\('\('\)\)\}"`,\n/);
+  });
+
+  it('the clean-up helpers that the specs call in finally run as clean-ups', () => {
+    const files = { 'e2e-online/telegram.ts': ['finishTelegram', 'unpairChat'], 'e2e-online/support.ts': ['signOutGroup', 'removeSession', 'removeCounterRows', 'cleanPopulated'] };
+    for (const [file, names] of Object.entries(files)) {
+      const source = read(file);
+      for (const name of names) {
+        const from = source.indexOf(`export async function ${name}(`);
+        assert.ok(from >= 0, `${file}: ${name}`);
+        const body = source.slice(from, source.indexOf('\n}\n', from));
+        assert.match(body, /await asCleanup\(/, `${file}: ${name} runs through asCleanup`);
+      }
+    }
   });
 
   it('the shared test gives the page its waits and keeps them current when the test sets a new timeout', () => {
@@ -201,7 +227,7 @@ describe('by source', () => {
     const navigate = read('e2e/support/navigate.ts');
     assert.match(navigate, /currentWaits\(\)\?\.navigation/);
     assert.match(navigate, /effectiveWaits\(info\.timeout, info\.project\.use\)/);
-    assert.match(navigate, /gotoSettled: no answer within \$\{capped\.ms \/ 1000\} s from \$\{url\}\$\{capped\.note\}/);
+    assert.match(navigate, /gotoSettled: no answer within \$\{secs\(bound\.ms\)\} s from \$\{url\}\$\{bound\.note\}/);
     assert.match(navigate, /capToDeadline\(own\)/);
   });
 });
@@ -219,6 +245,49 @@ describe('the deadline cap', () => {
     assert.equal(capToDeadline(2000, 12_000).ms, 2000, 'a bound below the floor is never lengthened');
   });
 
+  it('keeps the clean-up reserve of the test timeout for the clean-ups: a quarter, at least the margin, at most 60 s', () => {
+    assert.equal(cleanupReserve(undefined), DEADLINE_MARGIN_MS);
+    assert.equal(cleanupReserve(12_000), DEADLINE_MARGIN_MS, 'a short test keeps the margin');
+    assert.equal(cleanupReserve(45_000), 11_250, 'the web/e2e default of 45 s keeps a quarter');
+    assert.equal(cleanupReserve(120_000), 30_000);
+    assert.equal(cleanupReserve(300_000), CLEANUP_RESERVE_MS, 'a long test keeps 60 s');
+    assert.equal(capToDeadline(90_000, 100_000, 300_000).ms, 40_000, 'a main step of a 300 s test stops 60 s before it');
+    assert.equal(capToDeadline(90_000, 100_000, 120_000).ms, 70_000, 'and of a 120 s test 30 s before it');
+    assert.equal(capToDeadline(90_000, 30_000, 45_000).ms, 18_750, 'and of a 45 s test 11.25 s before it');
+    assert.equal(capToDeadline(90_000, 50_000, 300_000).ms, DEADLINE_FLOOR_MS, 'within the reserve a main step gets the floor');
+  });
+
+  it('gives a clean-up the time left less a small margin, never only the floor', () => {
+    const cleanup = capToDeadline(150_000, 60_000, 300_000, true);
+    assert.equal(cleanup.ms, 60_000 - CLEANUP_MARGIN_MS);
+    assert.match(cleanup.note, /capped by the test timeout: 60 s left for a clean-up, the own bound is 150 s\)$/);
+    assert.equal(capToDeadline(150_000, 1500, 300_000, true).ms, 1000);
+    assert.deepEqual(capToDeadline(5000, 60_000, 300_000, true), { ms: 5000, note: '' }, 'a clean-up keeps a shorter bound of its own');
+  });
+
+  it('caps a wait with no bound of its own inside a test, and leaves it unbounded outside one', () => {
+    const capped = capToDeadline(Infinity, 100_000, 300_000);
+    assert.equal(capped.ms, 40_000);
+    assert.match(capped.note, /100 s left, no own bound\)$/);
+    assert.equal(capToDeadline(Infinity, undefined).ms, Infinity);
+  });
+
+  it('marks a clean-up through every await of its work, and nothing outside it', async () => {
+    assert.equal(inCleanup(), false);
+    const seen = await asCleanup(async () => {
+      await new Promise((done) => setTimeout(done, 1));
+      return inCleanup();
+    });
+    assert.equal(seen, true);
+    assert.equal(inCleanup(), false);
+  });
+
+  it('writes a bound in whole seconds or one decimal', () => {
+    assert.equal(secs(5000), '5');
+    assert.equal(secs(11_250), '11.3');
+    assert.equal(secs(500), '0.5');
+  });
+
   it('has no time left to count outside a running test', () => {
     assert.equal(testTimeLeftMs(), undefined);
   });
@@ -226,7 +295,7 @@ describe('the deadline cap', () => {
   it('is applied by boundedStep and runBounded, and marked by the shared test', () => {
     const bounds = read('e2e/support/bounds.ts');
     assert.match(bounds, /const \{ ms: bound, note \} = capToDeadline\(ms\);/);
-    assert.match(bounds, /const capped = ms === undefined \? undefined : capToDeadline\(ms\);/);
+    assert.match(bounds, /const capped = capToDeadline\(ms \?\? Infinity\);/);
     assert.match(read('e2e/support/fixtures.ts'), /markTestStart\(testInfo\);/);
   });
 });
@@ -289,8 +358,23 @@ describe('the slow-step breadcrumb in use', () => {
     await runBounded('sh', ['-c', 'cat > /dev/null'], 'x', undefined, 'irisScript', ' from the script starting "Set a=1"');
     assert.deepEqual(lines, ['SLOW irisScript from the script starting "Set a=1" 11 s']);
     slowClock();
-    await assert.rejects(runBounded('sh', ['-c', 'exec sleep 30'], '', 200, 'step K'), /step K: no answer within 0\.2 s/);
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.deepEqual(lines, []);
+    const dir = mkdtempSync(join(tmpdir(), 'ocutalon-slow-'));
+    try {
+      const pidFile = join(dir, 'pid');
+      await assert.rejects(runBounded('sh', ['-c', `echo $$ > '${pidFile}'; exec sleep 30`], '', 200, 'step K'), /step K: no answer within 0\.2 s/);
+      const pid = Number(readFileSync(pidFile, 'utf8'));
+      for (let tries = 0; tries < 100; tries += 1) {
+        try {
+          process.kill(pid, 0);
+        } catch {
+          break;
+        }
+        await new Promise((resolve) => realSetTimeout(resolve, 20));
+      }
+      await new Promise((resolve) => realSetTimeout(resolve, 50));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    assert.deepEqual(lines, [], 'the killed command has closed, and printed no SLOW line');
   });
 });

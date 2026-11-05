@@ -1,4 +1,4 @@
-import { TELEGRAM_FIXTURE_MS } from '../e2e/support/bounds';
+import { TELEGRAM_FIXTURE_MS, asCleanup } from '../e2e/support/bounds';
 import { chk, irisScript, quoted } from '../e2e/support/iris';
 
 /**
@@ -7,6 +7,7 @@ import { chk, irisScript, quoted } from '../e2e/support/iris';
  * run, OcuTalon.Test.Channel.TelegramPageFixture, from IRIS scripts, and needs a throwaway stack of the CI override: the Bot API base is the
  * mock's and the bot token a dummy, which the fixture's Start checks. Every method returns "" or a reason that holds no token.
  * A case calls startTelegram before it pairs a chat, and finishTelegram in `finally`, which puts back the items, the marks and the mock.
+ * finishTelegram and unpairChat run as clean-ups (bounds.ts asCleanup): they may use the test's clean-up reserve.
  */
 
 /** The fixture class of the IRIS side. */
@@ -24,10 +25,14 @@ function id(chatId: string): string {
 /** The longest the mock may take to show what a case waits for, in ms. */
 export const MOCK_MS = 90_000;
 
-/** Calls one method of the fixture and returns its reason ("" when it worked) with the values of its output variables. */
+/**
+ * Calls one method of the fixture and returns its reason ("" when it worked) with the values of its output variables. The script's first
+ * line names the method, so that a call stopped at its bound names it (irisScript's message quotes the first line).
+ */
 async function fixture(call: string, outputs: string[] = []): Promise<{ reason: string; values: Record<string, string> }> {
   const lines = await irisScript(
     [
+      `Set call="TelegramPageFixture.${call.slice(0, call.indexOf('('))}"`,
       ['Set r=""', ...outputs.map((name) => `${name}=""`)].join(','),
       `Try { Set r=${FIXTURE}.${call} } Catch ex { Set r="the call threw "_ex.Name }`,
       'Write !,"CHK|reason|",$Translate(r,$Char(13,10),"  ")',
@@ -61,7 +66,7 @@ export async function startTelegram(): Promise<string> {
 
 /** Puts back what startTelegram changed. Safe with a saved of "" (nothing to put back); throws the fixture's reason when something was not put back. */
 export async function finishTelegram(saved: string): Promise<void> {
-  const finished = await fixture(`Finish(${quoted(saved)})`);
+  const finished = await asCleanup(() => fixture(`Finish(${quoted(saved)})`));
   if (finished.reason !== '') throw new Error(`the Telegram fixture did not put everything back: ${finished.reason}`);
 }
 
@@ -86,7 +91,7 @@ export async function pairChat(sessionRef: string, chatId: string, name = 'Zz ch
 
 /** Deletes the fixture Pairing row of a Ref. */
 export async function unpairChat(pairingRef: string): Promise<void> {
-  await irisScript([`Do ##class(OcuTalon.Test.Data.Fixture).Clean(${quoted(pairingRef)})`, 'Write !,"CHK|cleaned|1"'].join('\n'));
+  await asCleanup(() => irisScript([`Do ##class(OcuTalon.Test.Data.Fixture).Clean(${quoted(pairingRef)})`, 'Write !,"CHK|cleaned|1"'].join('\n')));
 }
 
 /** Posts one private text message from the chat to the mock, once a long poll is open. Throws the fixture's reason when it was not queued. */

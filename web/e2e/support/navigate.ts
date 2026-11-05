@@ -1,7 +1,7 @@
 import { test, type Page, type Response } from '@playwright/test';
 
 // The extension: web/scripts/goto-settled.test.mjs imports this file straight into Node, which resolves no extensionless relative import.
-import { capToDeadline, effectiveWaits, reportSlow } from './bounds.ts';
+import { capToDeadline, effectiveWaits, reportSlow, secs } from './bounds.ts';
 
 /** What gotoSettled needs of a page: its goto. */
 export type Navigable = Pick<Page, 'goto'>;
@@ -29,26 +29,29 @@ export function currentWaits(): Waits | undefined {
 }
 
 /**
- * Navigates the page like page.goto and answers what it answers, within the navigation wait in force (currentWaits) unless the options carry a
- * timeout, and never later than the running test's timeout minus bounds.ts DEADLINE_MARGIN_MS (capToDeadline). A navigation that does not
- * finish in time throws `gotoSettled: no answer within <s> s from <url>`. When it fails with net::ERR_NETWORK_CHANGED or net::ERR_ABORTED it
- * logs `NAV retry <url>` and navigates once more, under the bound of the time left; the second failure, and every other error (a refused
- * connection), is thrown unchanged.
+ * Navigates the page like page.goto and answers what it answers, within its own bound (the options' timeout, 0 for none, else the navigation
+ * wait in force, currentWaits) and never past the running test's deadline (bounds.ts capToDeadline). A navigation that does not finish in
+ * time throws `gotoSettled: no answer within <s> s from <url>`. When it fails with net::ERR_NETWORK_CHANGED or net::ERR_ABORTED it logs
+ * `NAV retry <url>` and navigates once more, under the bound of the time left; the second failure, and every other error (a refused
+ * connection), is thrown unchanged. A navigation that took 10 s or more and did not time out prints a SLOW line.
  */
 export async function gotoSettled(page: Navigable, url: string, options?: Parameters<Page['goto']>[1]): Promise<Response | null> {
-  const own = options?.timeout === undefined ? currentWaits()?.navigation : undefined;
+  const own = options?.timeout === undefined ? currentWaits()?.navigation : options.timeout || Infinity;
   const go = async (): Promise<Response | null> => {
     const capped = own === undefined ? undefined : capToDeadline(own);
+    const bound = capped !== undefined && Number.isFinite(capped.ms) ? capped : undefined;
     const startedAt = Date.now();
+    let timedOut = false;
     try {
-      return await page.goto(url, capped === undefined ? options : { ...options, timeout: capped.ms });
+      return await page.goto(url, bound === undefined ? options : { ...options, timeout: bound.ms });
     } catch (error) {
-      if (capped !== undefined && error instanceof Error && error.name === 'TimeoutError') {
-        throw new Error(`gotoSettled: no answer within ${capped.ms / 1000} s from ${url}${capped.note}\n${error.message}`, { cause: error });
+      if (bound !== undefined && error instanceof Error && error.name === 'TimeoutError') {
+        timedOut = true;
+        throw new Error(`gotoSettled: no answer within ${secs(bound.ms)} s from ${url}${bound.note}\n${error.message}`, { cause: error });
       }
       throw error;
     } finally {
-      reportSlow(`gotoSettled ${url}`, startedAt);
+      if (!timedOut) reportSlow(`gotoSettled ${url}`, startedAt);
     }
   };
   try {

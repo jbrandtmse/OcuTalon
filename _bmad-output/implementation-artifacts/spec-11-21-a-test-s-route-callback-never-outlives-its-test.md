@@ -170,6 +170,36 @@ Code review 2026-11-04 (bmad-code-review, first review; four layers; diff `ac2c4
 - Rule 19 judgments: the `< 2000` ms checks in `bounded-waits.test.mjs` stay (at least 1.5 s of margin over 300 to 500 ms bounds on the hosted `web` job, which runs no stack, and they catch a bound that is too long but still under the 5 s test timeout). Every new hermetic spec is in `web/e2e/live/` (chromium project, `live:sign-in`); every new node test matches `scripts/*.test.mjs` (hosted `web` job). AC5 and AC6 carry no mutation by nature.
 - Rule 3: exempt (test harness, no user-facing surface). Rule 6: AD-22 and AD-29 match; no CI job, unit or matrix change; no product path touched. `web/e2e/sign-in/helpers.ts` untouched; Epic 7's lines in `web/e2e/support/iris.ts` intact.
 
+Code review 2026-11-05 (bmad-code-review, re-review of rework iteration 3, the last under the cap). Four layers, all run with no model override, over the diff `84cf459b..` and the working tree, `web/` only. The bar was the lead's checklist (the `[CI]` item and the Contest Planner's refinement in `epics.md`). 36 rows grouped into 19 entries: high 0, med 5, low 14. Of those, 12 were patched and 7 closed in the ledger; 8 rows were rejected.
+- [x] [Review][Patch] (med; fix-risk med; in-story) The refinement was not met. Main steps stopped 10 s before the timeout, and the `finally` clean-ups were cut to the same cap: in L6, `finishTelegram` got 5 s, `unpairChat` 4 s and `removeSession` 1 s. The fix in `bounds.ts` has two parts: a clean-up reserve of `min(60 s, max(10 s, timeout / 4))` for main steps, and `asCleanup`, which gives the shared clean-up helpers the time left less 2 s. See Design Notes, code review 2. [Acceptance+Blind+Edge] `web/e2e/support/bounds.ts:44`
+- [x] [Review][Patch] (med; fix-risk med; in-story) Some shared waits were outside the cap. These are now capped: a `gotoSettled` explicit timeout, a bound-less `irisScript`, `landedOn` and `landedOnSplash`, the `signOutGroup` GETs (now bounded, logged and skipped) and an `expect.poll` with an explicit timeout (through the shared `expect`). [Acceptance+Edge] `web/e2e-online/support.ts:32`, `web/e2e/support/fixtures.ts`, `web/e2e/support/navigate.ts`
+- [x] [Review][Patch] (med; fix-risk low; in-story) A stopped Telegram fixture call quoted `Set r=""` and named no method. Its script now starts with `Set call="TelegramPageFixture.<Method>"`. [Acceptance] `web/e2e-online/telegram.ts:32`
+- [x] [Review][Patch] (med; fix-risk low; in-story) Nothing proved the reserve and the clean-up. A new `deadline-cap.spec.ts` case covers it: an 80 s test marked as 52 s old. Its stalled `irisScript` (own bound 90 s) fails by name at 8 s, and an `unpairChat` in `finally` that takes 6 s then completes. A second case covers the `expect.poll` cap. The spec's local `withSession` repeats the one in `iris-script-bound.spec.ts`, because a spec file cannot import another without registering its tests. [Acceptance] `web/e2e/live/deadline-cap.spec.ts`
+- [x] [Review][Patch] (med; fix-risk low; in-story) The helpers were not pinned in a project that sets no waits. Two `helper-waits.spec.ts` cases were added (`loadedAfter` snapshot and `epochOf`, each with its own bound of 8 s capped to 5 s), plus `signOutGroup` and `landedOn` cases. [Verification+Edge] `web/e2e/live/helper-waits.spec.ts`
+- [x] [Review][Patch] (low) `gotoSettled` printed a SLOW line for a navigation that had timed out; it no longer does, and a node row pins it. [Blind+Edge] `web/e2e/support/navigate.ts`
+- [x] [Review][Patch] (low) Capped bounds gave fractional messages such as `27.483 s`. `secs()` now writes whole seconds or one decimal. [Blind+Edge] `web/e2e/support/bounds.ts`
+- [x] [Review][Patch] (low) The `helper-waits.spec.ts` restore left `undefined` keys on `project.use`. It now deletes the keys that were absent. [Blind+Edge+Verification]
+- [x] [Review][Patch] (low) The `deadline-cap.spec.ts` and `helper-waits.spec.ts` headers no longer matched every case; both are rewritten. [Blind+Verification]
+- [x] [Review][Patch] (low) Two wall-clock assertions in `deadline-cap.spec.ts` were tight: `> 9_000` and `1[12] s left`. They are widened to `> 7_000` and `1?\d s left`; the 5 s expectation still catches the mutation. [Blind]
+- [x] [Review][Patch] (low) The `runBounded` "not for one it killed" row slept a fixed 100 ms. It now waits until the killed command's pid is gone. [Verification] `web/scripts/bounded-waits.test.mjs`
+- [x] [Review][Patch] (low) Some behaviours had no `mutation:` line. Lines are added for the `gotoSettled` SLOW guard, the explicit timeout (now capped) and the close options (Verification, code review 2). [Verification]
+- [x] [Review][Defer] (low) A clean-up that rejects in `finally` skips the clean-ups after it and replaces the body's error. Closed as DW-712 `wontfix-accepted`. [Acceptance]
+- [x] [Review][Defer] (low) Playwright's fixed timeouts (30 s actions, explicit `expect` timeouts) are not deadline-aware. Closed as DW-713 `wontfix-accepted`. [Acceptance]
+- [x] [Review][Defer] (low) Nested bounded steps cap to the same moment, so the outer step's name can win. Closed as DW-714 `wontfix-accepted`. [Blind]
+- [x] [Review][Defer] (low) The bound of the shared test's `page.close` (`closeWait`) is pinned by source only. Closed as DW-715 `wontfix-accepted`. [Verification]
+- [x] [Review][Defer] (low) The helpers read `project.use`, so they do not see `test.use({ actionTimeout })`. Closed as DW-716 `wontfix-accepted`. [Blind]
+- [x] [Review][Defer] (low) A `Start` stopped at its bound is not undone, because `Finish("")` is a no-op. Closed as DW-717 `wontfix-theoretical`. [Acceptance]
+- [x] [Review][Defer] (low) Bare CDP calls on the L5/L6 path (`page.evaluate`, `context.newPage`) are not bounded. Closed as DW-718 `wontfix-theoretical`. [Acceptance]
+- Rejected rows:
+  - Hooks that run after a bare test timeout get 1 s, from a negative time left. This is theoretical: the reserve now keeps main steps short of the timeout.
+  - The 1 s minimum can exceed the time left when under 2 s remain. This is theoretical, for a step that starts in the last 2 s.
+  - `page.close` is bounded only on the shared context's pages, and so the claim "page.close is bounded" is said to be too broad. Rejected under Design Notes 3, as before.
+  - The time left is overstated by fixture setup that runs before `testClock`. The auto fixture runs first, as before.
+  - `deadline-cap.spec.ts` would depend on the project's navigation timeout. False: the chromium project sets none.
+  - The `route-cleanup.test.mjs` slice breaks if the generic contains `>`. This is theoretical.
+  - The spec does not carry the refinement. The AC lives in `epics.md`; the rule and its numbers are now in Design Notes.
+- Rule 3: exempt, because this changes the test harness only. Rule 6: AD-22 and AD-29 match. No product path, workflow, `ci/units.sh` or `docker/**` file is touched. `web/e2e/sign-in/helpers.ts` is untouched, and Epic 7's lines in `web/e2e/support/iris.ts` are intact: only the `irisScript` doc comment changed. Rule 14: ASCII only, and the comments state the contract.
+
 ## Spec Change Log
 
 - 2026-11-05 (rework iteration 3 of 3, trigger=ci, by the lead): the AC4 proof's second `iris (shards)` run went red on L6's test timeout with no named step; added the `[CI]` item (deadline-aware shared bounds, bounded closes, slow-step breadcrumbs).
@@ -355,6 +385,25 @@ Code review 2026-11-04 (bmad-code-review, first review; four layers; diff `ac2c4
 - Helper cases in `helper-waits.spec.ts` set the running project's waits (3 s and 4 s) so that the helper's own bound, not the cap, ends them.
 - Not found: a product-path cause for L6's hang. The CI log holds no step name and no artifact; L6 passed in 8 to 9 s on four local throwaways. (inference) The hang is a chain of slow but individually bounded steps (the fixture calls are up to 150 s each) that summed past 300 s.
 
+**Decided in code review 2 (the Contest Planner's refinement of 2026-11-05: a clean-up reserve; `epics.md` Story 11.21).** These supersede the [CI] pass's 10 s margin.
+- One mechanism, `capToDeadline` in `bounds.ts`, now with two modes. A main step runs under `min(own, max(left - reserve, floor))`. A clean-up runs under `min(own, max(left - 2 s, 1 s))`. `left` is the test timeout less the time since `testClock` marked the test. The floor is unchanged: 5 s, never more than the time left less a second, at least 1 s.
+- The reserve rule, with the floor question decided: `cleanupReserve(timeout) = min(60 s, max(10 s, floor(timeout / 4)))`. A 45 s test (the `web/e2e` default) keeps 11.25 s, so its main steps keep about 34 s. A 120 s test keeps 30 s, 180 s keeps 45 s, and 240 s or more keeps 60 s (L5 and L6 run at 300 s). A test of 40 s or less keeps the old 10 s margin. A flat 60 s reserve would leave nothing to a 45 s test. A quarter keeps a short test's main time close to today's: 45 s tests lose 1.25 s against the old margin. The live run below stayed green.
+- How a clean-up is marked: `asCleanup(work)` in `bounds.ts` runs `work` in an `AsyncLocalStorage` scope. `capToDeadline` reads that scope, so every bounded wait inside the work uses the clean-up mode with no signature change. These shared clean-up helpers run through it:
+  - `finishTelegram` and `unpairChat` (`telegram.ts`)
+  - `removeSession`, `removeCounterRows`, `cleanPopulated` and `signOutGroup` (`support.ts`)
+  - `leaveVisitor`, through `signOutGroup` and `removeSession`
+
+  No spec changed. A clean-up helper also called in a body (signOutGroup 9 times, cleanPopulated once) uses the clean-up mode there too. Each of those calls is bounded and swallows or fails fast, so this was accepted.
+- Every shared helper wait goes through the cap:
+  - `boundedStep`, which covers `loadedAfter`, `signInFromSplash`, `epochOf` and `page.close`
+  - `runBounded`, which covers `irisScript` and the Telegram fixture. A bound-less `irisScript` (the `web/e2e` projects) is now capped too, inside a test of the shared test only. `beforeAll` and `afterAll` hooks are not marked, so the 240 s `WaitRecords` hooks are not capped.
+  - `gotoSettled`. An explicit `timeout` is now its own bound and is capped as well (0 means none).
+  - `landedOn` and `landedOnSplash`. Their spec-given timeouts are capped.
+  - `signOutGroup`. Each GET is bounded by the action wait in force; a GET that does not answer in time is logged by name and skipped.
+- The shared `expect` (a Proxy in `fixtures.ts`) caps an explicit `expect.poll` timeout by the same rule. L6's polls (30 s, then 90 s twice) could otherwise run past the reserve while the `irisScript` calls inside them fail fast.
+- The Telegram fixture's script starts with `Set call="TelegramPageFixture.<Method>"`, so a stopped call names its method in `irisScript`'s message.
+- Messages write a bound in whole seconds or one decimal (`secs`). `gotoSettled` prints no SLOW line for a navigation that timed out.
+
 **Rule 1/2.**
 - Shared components: `web/e2e/support/fixtures.ts` and `web/e2e/support/bounds.ts`.
 - Integration ACs: AC1 and AC5. Consumer `live:sign-in`'s `live.spec.ts` (L8 then L9) and `socket.spec.ts` (W10 then W11) read `test` from the fixtures, and the unit shows no `route.fetch: Test ended`. Consumer `live:online-session`'s `leave.spec.ts` L5 and L6 run under the bounds and pass.
@@ -445,6 +494,18 @@ After each live unit, also after a failure, run `LANE bash ci/iris.sh teardown`.
 **Verification results ([CI] pass):**
 - `npm --prefix web run lint`: exit 0. `npm --prefix web test`: 1376 of 1376 (before the last two-line deletion; the touched files re-ran: `bounded-waits` and `route-cleanup` 42 passed). Hermetic Chromium: `route-cleanup`, `iris-script-bound`, `helper-waits` and `deadline-cap` 27 passed, then `deadline-cap` 7 passed after the last patch.
 - Lane-B throwaways (tag `e11s21impl3`), one per call, torn down after each: `live online-session` 13 passed with L5 and L6 green (L6 8 to 9 s), six runs in all, the last two after the last patch; `live sign-in --part 1/2` 142 passed and `--part 2/2` 139 passed after the review patches (142 and 137 before them). No `SLOW` line appeared in any run.
+
+**Mutations and results (code review 2, the Planner's refinement; each applied, red observed, reverted from a copy, `git status --short` and `git diff --stat` identical after):**
+- mutation: [CI]/refinement main-step reserve set to 0 (`leftMs - cleanupReserve(timeoutMs)` → `leftMs - 0`) → `deadline-cap.spec.ts` "a stalled main step fails by name before the clean-up reserve, and a clean-up in finally ... still completes" red (the main step used the whole time; the clean-up got 1 s: `irisScript: no answer within 1 s ... 0 s left for a clean-up`).
+- mutation: refinement clean-ups cut to the main cap (the `if (cleanup)` branch disabled) → the same case red (`unpairChat`'s session stopped at the 5 s floor, `20 s left`). `asCleanup` dropped from `unpairChat` → the same case red, and `bounded-waits.test.mjs` "the clean-up helpers ... run as clean-ups" red naming `unpairChat`.
+- mutation: refinement `expect.poll` cap removed from the shared `expect` → `deadline-cap.spec.ts` "expect.poll with a timeout of its own polls no longer than the cap" red (`Test timeout of 12000ms exceeded`).
+- mutation: refinement explicit `gotoSettled` timeout left uncapped → `deadline-cap.spec.ts` retry case red (`Expected: 5000, Received: 99000`).
+- mutation: refinement `landedOn`'s cap removed → `helper-waits.spec.ts` "landedOn: a wait for an address that never comes is capped by the test deadline" red (test timeout). `signOutGroup`'s GET unbounded (`await asked`) → "signOutGroup: each sign-out GET that is never answered is bounded, logged by name and skipped" red (`Received length: 0`).
+- mutation: refinement the Telegram fixture's `Set call=` line removed → `bounded-waits.test.mjs` "the Telegram fixture script starts with a line that names the method" red.
+- mutation: AC7 `currentWaits` without the share fallback (undefined when the project sets no waits) → `helper-waits.spec.ts` "the helpers, in a project that sets no waits" `loadedAfter` and `epochOf` red (test timeout).
+- mutation: [CI] `if (!timedOut)` removed from `gotoSettled`'s SLOW report → `goto-settled.test.mjs` "prints none for a navigation that timed out at its bound" red. `boundedClose` calling `close()` without the options → `deadline-cap.spec.ts` "page.close: ... the options reach the close" red.
+
+**Verification results (code review 2):** `npm --prefix web run lint` exit 0. `npm --prefix web test` passed 1384 of 1384. Hermetic Chromium `route-cleanup`, `iris-script-bound`, `helper-waits` and `deadline-cap`: 33 passed. `ci/iris.sh build`, then `live online-session` on a lane-B throwaway (tag `e11s21cr2a`, torn down after): 13 passed, with L5 (1.5 s) and L6 (8.4 s) green, every unit check passed and no SLOW line.
 
 **Shared surfaces:**
 - the import line of every spec under `web/e2e` and `web/e2e-online`

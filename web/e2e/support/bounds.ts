@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { spawn } from 'node:child_process';
 
 import { test } from '@playwright/test';
@@ -6,7 +7,7 @@ import { test } from '@playwright/test';
  * The bounds of the online units' waits (the five online projects of playwright.config.ts: online-demo, online-session, online-allowance,
  * online-demo-path and online-visitors). A wait that never answers fails on its bound and names its step, instead of running to the test
  * timeout of 120 to 300 s. The web/e2e projects set none: the shared test gives their pages a default wait of a share of the test's own timeout
- * (waitsFor), and their fixtures keep the 240 s they wait on purpose. Every number lives here only.
+ * (waitsFor), and their fixtures keep the 240 s they wait on purpose, within the test's deadline (capToDeadline). Every number lives here only.
  * Erasable TypeScript only: web/scripts/bounded-waits.test.mjs imports this file as it is.
  */
 
@@ -41,16 +42,42 @@ export function effectiveWaits(testMs: number, use: { actionTimeout?: number; na
   return { action: use?.actionTimeout || fallback.actionTimeout, navigation: use?.navigationTimeout || fallback.navigationTimeout };
 }
 
-/** How long before the running test's timeout a bounded wait must fail, in ms, so that the failure names its step and the spec's `finally` still has a moment to run. */
+/**
+ * The time a test keeps back for its clean-ups (the calls in a spec's `finally`, marked with asCleanup), in ms: a main step never runs
+ * into the last cleanupReserve(timeout) of its test. The reserve is a quarter of the test timeout (CLEANUP_RESERVE_SHARE), at least
+ * DEADLINE_MARGIN_MS and at most CLEANUP_RESERVE_MS: a 45 s test keeps 11.25 s, a 120 s test 30 s, a test of 240 s or more 60 s.
+ */
+export const CLEANUP_RESERVE_MS = 60_000;
+
+/** The share of the test timeout that the clean-up reserve takes, below CLEANUP_RESERVE_MS. */
+export const CLEANUP_RESERVE_SHARE = 1 / 4;
+
+/** The least reserve a main step leaves before the test timeout, in ms: the reserve of a short test, and of a cap outside a known timeout. */
 export const DEADLINE_MARGIN_MS = 10_000;
 
-/** The least a bounded wait is given when the test is nearly out of time, in ms (and never more than the time left less a second): the cleanup steps of a `finally` still get this much. */
+/** How long before the test timeout a clean-up step must fail, in ms, so that its failure names it and not the test timeout. */
+export const CLEANUP_MARGIN_MS = 2_000;
+
+/** The least a main step is given when the test is nearly out of its main time, in ms (and never more than the time left less a second). */
 export const DEADLINE_FLOOR_MS = 5_000;
+
+/** The clean-up reserve of a test whose timeout is testMs (see CLEANUP_RESERVE_MS); DEADLINE_MARGIN_MS when the timeout is not known. */
+export function cleanupReserve(testMs: number | undefined): number {
+  if (testMs === undefined || !Number.isFinite(testMs) || testMs <= 0) return DEADLINE_MARGIN_MS;
+  return Math.min(CLEANUP_RESERVE_MS, Math.max(DEADLINE_MARGIN_MS, Math.floor(testMs * CLEANUP_RESERVE_SHARE)));
+}
+
+/** A bound in seconds, as the messages write it: whole seconds, or one decimal. */
+export function secs(ms: number): string {
+  return String(Math.round(ms / 100) / 10);
+}
 
 /** A bounded wait that ends after at least this many ms prints one `SLOW <step> <s> s` line, so that a log shows where a slow test spent its time. */
 export const SLOW_STEP_MS = 10_000;
 
 const testStarts = new WeakMap<object, number>();
+
+const cleanupScope = new AsyncLocalStorage<boolean>();
 
 /** Records when the test of this TestInfo began (the shared test, fixtures.ts, does it for every test), which testTimeLeftMs counts from. */
 export function markTestStart(info: object, at: number = Date.now()): void {
@@ -68,17 +95,49 @@ export function testTimeLeftMs(): number | undefined {
   }
 }
 
+/** The running test's timeout in ms, or undefined outside a test. */
+function testTimeoutMs(): number | undefined {
+  try {
+    return test.info().timeout;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * The bound a wait with its own bound ownMs runs under: the smaller of ownMs and the time left before the test timeout minus
- * DEADLINE_MARGIN_MS, so that the last step of a slow chain fails naming itself before the test does. When less than the margin and the
- * floor is left, the step gets DEADLINE_FLOOR_MS, or the time left less a second if that is shorter (at least 1 s). With no test running
- * (leftMs undefined) it is ownMs. note is empty unless the deadline shortened the bound.
+ * Runs work as a clean-up: every bounded wait it starts (boundedStep, runBounded and so irisScript, gotoSettled, a page's close) may use
+ * the test's clean-up reserve, up to CLEANUP_MARGIN_MS before the test timeout, instead of stopping where the main steps stop. The shared
+ * clean-up helpers that the specs call in `finally` (finishTelegram, unpairChat, removeSession, signOutGroup, cleanPopulated and
+ * removeCounterRows; leaveVisitor through signOutGroup and removeSession) run their body through it.
  */
-export function capToDeadline(ownMs: number, leftMs: number | undefined = testTimeLeftMs()): { ms: number; note: string } {
+export function asCleanup<T>(work: () => Promise<T>): Promise<T> {
+  return cleanupScope.run(true, work);
+}
+
+/** True inside asCleanup. */
+export function inCleanup(): boolean {
+  return cleanupScope.getStore() === true;
+}
+
+/**
+ * The bound a wait with its own bound ownMs (Infinity for none) runs under, given leftMs before the test timeout of timeoutMs:
+ * - a main step: the smaller of ownMs and leftMs less the clean-up reserve (cleanupReserve), so that the last step of a slow chain fails
+ *   naming itself and the clean-ups keep their reserve; when that leaves less than DEADLINE_FLOOR_MS, the floor, or the time left less a
+ *   second if that is shorter (at least 1 s);
+ * - a clean-up (asCleanup): the smaller of ownMs and leftMs less CLEANUP_MARGIN_MS (at least 1 s).
+ * With no test running (leftMs undefined) it is ownMs. note is empty unless the deadline shortened the bound.
+ */
+export function capToDeadline(ownMs: number, leftMs: number | undefined = testTimeLeftMs(), timeoutMs: number | undefined = testTimeoutMs(), cleanup: boolean = inCleanup()): { ms: number; note: string } {
   if (leftMs === undefined) return { ms: ownMs, note: '' };
-  const floor = Math.min(DEADLINE_FLOOR_MS, Math.max(leftMs - 1000, 1000));
-  const ms = Math.min(ownMs, Math.max(leftMs - DEADLINE_MARGIN_MS, floor));
-  return ms < ownMs ? { ms, note: ` (capped by the test timeout: ${Math.max(0, Math.round(leftMs / 1000))} s left, the own bound is ${ownMs / 1000} s)` } : { ms, note: '' };
+  let ms: number;
+  if (cleanup) ms = Math.min(ownMs, Math.max(leftMs - CLEANUP_MARGIN_MS, 1000));
+  else {
+    const floor = Math.min(DEADLINE_FLOOR_MS, Math.max(leftMs - 1000, 1000));
+    ms = Math.min(ownMs, Math.max(leftMs - cleanupReserve(timeoutMs), floor));
+  }
+  if (ms >= ownMs) return { ms, note: '' };
+  const own = Number.isFinite(ownMs) ? `the own bound is ${secs(ownMs)} s` : 'no own bound';
+  return { ms, note: ` (capped by the test timeout: ${Math.max(0, Math.round(leftMs / 1000))} s left${cleanup ? ' for a clean-up' : ''}, ${own})` };
 }
 
 /** The `SLOW <step> <s> s` line of a step that took elapsedMs, or undefined when it was not slow. */
@@ -93,7 +152,7 @@ export function reportSlow(step: string, startedAt: number): void {
 }
 
 /**
- * Settles like the work, but rejects with `<step>: no answer within <bound/1000> s` when the work has not settled by the bound: ms, or less
+ * Settles like the work, but rejects with `<step>: no answer within <bound> s` when the work has not settled by the bound: ms, or less
  * when the running test's timeout leaves less (capToDeadline, which then adds a note). The work keeps running (it has no handle to stop),
  * and its late outcome is dropped. A shared helper uses it to name the step that a hang stopped at. A step that took SLOW_STEP_MS or more
  * and settled in time prints a SLOW line.
@@ -105,7 +164,7 @@ export function boundedStep<T>(work: Promise<T>, ms: number, step: string): Prom
     let over = false;
     const timer = setTimeout(() => {
       over = true;
-      reject(new Error(`${step}: no answer within ${bound / 1000} s${note}`));
+      reject(new Error(`${step}: no answer within ${secs(bound)} s${note}`));
     }, bound);
     const settle = (): boolean => {
       clearTimeout(timer);
@@ -136,12 +195,13 @@ export function scriptBound(metadata: unknown): number | undefined {
 }
 
 /**
- * Runs a command with the input on its standard input and resolves with what it wrote to its standard output once it has closed. With ms
- * set, a command that has not closed by then (or by the running test's timeout minus DEADLINE_MARGIN_MS, capToDeadline) is killed (SIGKILL)
- * and the promise rejects with `<step>: no answer within <bound/1000> s<detail>`. A command that took SLOW_STEP_MS or more prints a SLOW line.
+ * Runs a command with the input on its standard input and resolves with what it wrote to its standard output once it has closed. A command
+ * that has not closed by its bound (ms, or none when ms is undefined, either way never later than the running test's deadline,
+ * capToDeadline) is killed (SIGKILL) and the promise rejects with `<step>: no answer within <bound> s<detail>`. With no bound and no test
+ * running, it waits for the command. A command that took SLOW_STEP_MS or more prints a SLOW line.
  */
 export function runBounded(cmd: string, args: string[], input: string, ms: number | undefined, step: string, detail = ''): Promise<string> {
-  const capped = ms === undefined ? undefined : capToDeadline(ms);
+  const capped = capToDeadline(ms ?? Infinity);
   const startedAt = Date.now();
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'ignore'] });
@@ -160,12 +220,12 @@ export function runBounded(cmd: string, args: string[], input: string, ms: numbe
       if (!timedOut) reportSlow(`${step}${detail}`, startedAt);
       resolve(out);
     });
-    if (capped !== undefined) {
+    if (Number.isFinite(capped.ms)) {
       timer = setTimeout(() => {
         timedOut = true;
         child.kill('SIGKILL');
         child.stdout.destroy();
-        reject(new Error(`${step}: no answer within ${capped.ms / 1000} s${detail}${capped.note}`));
+        reject(new Error(`${step}: no answer within ${secs(capped.ms)} s${detail}${capped.note}`));
       }, capped.ms);
     }
     child.stdin.end(input);

@@ -141,4 +141,18 @@ describe('gotoSettled breadcrumb', () => {
       Date.now = realNow;
     }
   });
+
+  it('prints none for a navigation that timed out at its bound: its error names it', async () => {
+    const realNow = Date.now;
+    let clock = 0;
+    Date.now = () => (clock += 11_000);
+    try {
+      capture();
+      const timedOut = Object.assign(new Error('page.goto: Timeout 5000ms exceeded.'), { name: 'TimeoutError' });
+      await assert.rejects(gotoSettled(fakePage([timedOut]), URL_, { timeout: 5000 }), /^Error: gotoSettled: no answer within 5 s from http:\/\/stack\.invalid\/ocutalon\/\n/);
+      assert.deepEqual(lines, []);
+    } finally {
+      Date.now = realNow;
+    }
+  });
 });

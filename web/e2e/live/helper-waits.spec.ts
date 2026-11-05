@@ -5,14 +5,20 @@ import { STATE } from '../support/api';
 import { loadedAfter } from '../support/floor';
 import { expect, test, type Browser, type Page } from '../support/fixtures';
 import { gotoSettled } from '../support/navigate';
-import { epochOf, signInFromSplash } from '../../e2e-online/support';
+import { epochOf, landedOn, signInFromSplash, signOutGroup } from '../../e2e-online/support';
 
 /**
  * A wait of the shared helpers that never ends fails on its own bound, shorter than the test's timeout, and names its step (Story 11.21,
  * AC7; DW-690, DW-691): loadedAfter's sign-in and its snapshot GET, gotoSettled's navigation, the online sign-in helpers' POST answer and
- * state GET (signInFromSplash, epochOf), and a page wait with no timeout of its own, which the shared test (e2e/support/fixtures.ts) bounds by a share of the test's timeout (e2e/support/bounds.ts waitsFor) unless the project sets its own waits. Each case sets
- * the project's own waits of 3 s and 4 s (set on the running project, as the online projects set theirs), which are below the deadline cap of a 12 s test; with the bound removed, the case runs into its test timeout instead. The pages of
- * the helper cases come from browser.newContext(), as the online specs' second visitors do. Needs a local Chromium only: its server answers the pages at once and never answers /slow, /state or the sign-in POST.
+ * state GET (signInFromSplash, epochOf), and a page wait with no timeout of its own, which the shared test (e2e/support/fixtures.ts)
+ * bounds by a share of the test's timeout (e2e/support/bounds.ts waitsFor) unless the project sets its own waits.
+ * - The first cases pin the shared test's default waits, and that a project's own waits are kept.
+ * - The helper cases set the running project's waits to 3 s and 4 s, as the online projects set theirs, below the deadline cap of a 12 s
+ *   test, so each helper's own bound ends it.
+ * - The default-project helper cases set no waits: the helper takes the share of the test timeout and the deadline cap ends it.
+ * With a bound removed, a case runs into its test timeout instead. The helper pages come from browser.newContext(), as the online specs'
+ * second visitors do. Needs a local Chromium only: its server answers the pages at once and never answers /slow, /state, the sign-in POST
+ * or a sign-out (IRISLogout=end).
  */
 
 let server: Server;
@@ -34,7 +40,7 @@ test.beforeAll(async () => {
       );
       return;
     }
-    if (request.url === '/slow' || request.url === '/post' || request.url === STATE) {
+    if (request.url === '/slow' || request.url === '/post' || request.url === STATE || request.url?.includes('IRISLogout=end')) {
       held.push(response);
       return;
     }
@@ -97,7 +103,11 @@ test.describe('the helpers, in a project that sets its own waits', () => {
   });
 
   test.afterEach(() => {
-    Object.assign(test.info().project.use, before);
+    const use = test.info().project.use as Record<string, unknown>;
+    for (const [key, value] of Object.entries(before)) {
+      if (value === undefined) delete use[key];
+      else use[key] = value;
+    }
   });
 
   test('loadedAfter: a sign-in that never ends fails at its bound, naming the sign-in', async ({ browser }) => {
@@ -136,6 +146,52 @@ test.describe('the helpers, in a project that sets its own waits', () => {
     try {
       const page = await context.newPage();
       await expect(epochOf(page)).rejects.toThrow(new RegExp(`^epochOf the GET ${STATE.replace(/\//g, '\\/')}: no answer within 3 s$`));
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('signOutGroup: each sign-out GET that is never answered is bounded, logged by name and skipped', async ({ browser }) => {
+    test.setTimeout(30_000);
+    const context = await browser.newContext({ baseURL: origin });
+    const logged: string[] = [];
+    const log = console.log;
+    console.log = (...args: unknown[]) => void logged.push(args.join(' '));
+    try {
+      await signOutGroup(context);
+    } finally {
+      console.log = log;
+      await context.close();
+    }
+    expect(logged).toHaveLength(3);
+    for (const line of logged) expect(line).toMatch(/^signOutGroup the GET \/ocutalon\/\S*IRISLogout=end: no answer within 3 s$/);
+  });
+});
+
+/** A project that sets no waits (the web/e2e projects): the helpers bound themselves by the share of the test timeout, which the deadline cap of a 12 s test shortens to 5 s. */
+test.describe('the helpers, in a project that sets no waits', () => {
+  test('loadedAfter: a snapshot that is never answered fails at the capped share, naming the GET of /state', async ({ browser }) => {
+    test.setTimeout(12_000);
+    await withPage(browser, async (page) => {
+      await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(
+        new RegExp(`^loadedAfter the snapshot GET ${STATE.replace(/\//g, '\\/')}: no answer within 5 s \\(capped by the test timeout: \\d+ s left, the own bound is 8 s\\)$`),
+      );
+    });
+  });
+
+  test('landedOn: a wait for an address that never comes is capped by the test deadline', async ({ browser }) => {
+    test.setTimeout(12_000);
+    await withPage(browser, async (page) => {
+      await expect(landedOn(page, /never/, 60_000)).rejects.toThrow(/page\.waitForURL: Timeout 5000ms exceeded/);
+    });
+  });
+
+  test('epochOf: a state GET that is never answered fails at the capped share, naming the GET', async ({ browser }) => {
+    test.setTimeout(12_000);
+    const context = await browser.newContext({ baseURL: origin });
+    try {
+      const page = await context.newPage();
+      await expect(epochOf(page)).rejects.toThrow(new RegExp(`^epochOf the GET ${STATE.replace(/\//g, '\\/')}: no answer within 5 s \\(capped by the test timeout: \\d+ s left, the own bound is 8 s\\)$`));
     } finally {
       await context.close();
     }

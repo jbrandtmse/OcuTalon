@@ -1,6 +1,6 @@
-import { test as base, type BrowserContext, type Page } from '@playwright/test';
+import { expect as baseExpect, test as base, type BrowserContext, type Page } from '@playwright/test';
 
-import { boundedStep, effectiveWaits, markTestStart, waitsFor } from './bounds';
+import { boundedStep, capToDeadline, effectiveWaits, markTestStart, waitsFor } from './bounds';
 
 export * from '@playwright/test';
 
@@ -18,7 +18,8 @@ export * from '@playwright/test';
  * that sets actionTimeout or navigationTimeout keeps its own, and a wait that passes a timeout keeps that.
  *
  * Its third contract: every test is marked with the time it began (bounds.ts markTestStart), so that a bounded wait never outlasts the time
- * the test has left (capToDeadline).
+ * the test has left less its clean-up reserve (capToDeadline). The `expect` exported here is Playwright's, except that expect.poll with a
+ * timeout of its own polls no longer than that cap either, so a poll cannot use up the reserve that the spec's `finally` needs.
  *
  * Its fourth contract: page.close() on a page of the test's context takes no timeout in Playwright, so it is bounded here by the action
  * wait in force (and by the time the test has left, bounds.ts boundedStep) and fails naming `page.close`.
@@ -29,6 +30,21 @@ export function boundedClose(page: Page, waitMs: () => number): void {
   const close = page.close.bind(page);
   page.close = (options) => boundedStep(close(options), waitMs(), 'page.close');
 }
+
+type PollOptions = { timeout?: number } | string | undefined;
+
+/** Playwright's expect, whose poll caps an explicit timeout at the running test's deadline (bounds.ts capToDeadline). */
+export const expect = new Proxy(baseExpect, {
+  get(target, key, receiver) {
+    const value: unknown = Reflect.get(target, key, receiver);
+    if (key !== 'poll' || typeof value !== 'function') return value;
+    return (generator: unknown, options?: PollOptions) => {
+      const timeout = typeof options === 'object' ? options.timeout : undefined;
+      const capped = timeout ? { ...(options as object), timeout: capToDeadline(timeout).ms } : options;
+      return (value as (generator: unknown, options?: PollOptions) => unknown).call(target, generator, capped);
+    };
+  },
+});
 
 /** Removes every route of the target and lets the callbacks in flight end quietly; a target that is already closed has none to remove. */
 async function unroute(target: Page | BrowserContext): Promise<void> {

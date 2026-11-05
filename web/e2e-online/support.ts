@@ -6,7 +6,7 @@ import { STATE } from '../e2e/support/api';
 import { pageNow, runUntil } from '../e2e/support/clock';
 import { chk, fixtureUser, irisScript, quoted } from '../e2e/support/iris';
 import { loadedAfter } from '../e2e/support/floor';
-import { WAIT_SLACK_MS, boundedStep } from '../e2e/support/bounds';
+import { WAIT_SLACK_MS, asCleanup, boundedStep, capToDeadline } from '../e2e/support/bounds';
 import { currentWaits, gotoSettled } from '../e2e/support/navigate';
 import { drawnMessages, TRACE_PAGE, type Turn } from '../e2e/support/trace';
 import { signInOverHttp } from '../e2e/sign-in/helpers';
@@ -27,17 +27,24 @@ const TRACE_SIGN_OUTS = ['/ocutalon/trace/ocutalon/?IRISLogout=end', '/ocutalon/
 /**
  * Signs the context out of the whole sign-in group. Every spec calls it in `finally`, because a signed-in CSP session holds one of the
  * stack's licence connections until it times out (120 s on the online demo, Story 16.4, and only while nothing polls). A failed sign-out is
- * not a failure of the case.
+ * not a failure of the case. It runs as a clean-up (asCleanup), and each GET is bounded by the action wait in force; a GET that does not
+ * answer in time is logged and skipped.
  */
 export async function signOutGroup(target: Page | BrowserContext): Promise<void> {
   const context = 'context' in target && typeof target.context === 'function' ? target.context() : (target as BrowserContext);
-  for (const path of [SIGN_OUT, ...TRACE_SIGN_OUTS]) {
-    try {
-      await context.request.get(path);
-    } catch {
-      /* The context may be closed already. */
+  await asCleanup(async () => {
+    const wait = currentWaits()?.action;
+    for (const path of [SIGN_OUT, ...TRACE_SIGN_OUTS]) {
+      try {
+        const asked = context.request.get(path, wait === undefined ? undefined : { timeout: wait + WAIT_SLACK_MS });
+        asked.catch(() => undefined);
+        await (wait === undefined ? asked : boundedStep(asked, wait, `signOutGroup the GET ${path}`));
+      } catch (error) {
+        /* The context may be closed already. */
+        if (error instanceof Error && error.message.startsWith('signOutGroup ')) console.log(error.message);
+      }
     }
-  }
+  });
 }
 
 let probes = 0;
@@ -68,7 +75,7 @@ export async function signInFromSplash(page: Page, user?: string, password?: str
  * gives (`?since=`, `&ended=1`): a wait for an address that the page shows already returns at once. For the plain splash, use landedOnSplash.
  */
 export async function landedOn(page: Page, url: Parameters<Page['waitForURL']>[0], timeout: number): Promise<void> {
-  await page.waitForURL(url, { timeout, waitUntil: 'load' });
+  await page.waitForURL(url, { timeout: capToDeadline(timeout).ms, waitUntil: 'load' });
 }
 
 /**
@@ -78,7 +85,8 @@ export async function landedOn(page: Page, url: Parameters<Page['waitForURL']>[0
  * from the splash) then meets the location.replace that the page still has to make once the server has answered /session/end, and that
  * replace aborts it (net::ERR_ABORTED).
  */
-export async function landedOnSplash(page: Page, timeout: number): Promise<void> {
+export async function landedOnSplash(page: Page, ownTimeout: number): Promise<void> {
+  const timeout = capToDeadline(ownTimeout).ms;
   const until = Date.now() + timeout;
   await expect(page.getByRole('button', { name: 'Sign in and start', exact: true }), 'the page has left for the splash').toBeVisible({ timeout });
   await page.waitForLoadState('load', { timeout: Math.max(1, until - Date.now()) });
@@ -207,7 +215,7 @@ export async function sessionRow(epoch: string): Promise<SessionRow | undefined>
  * deliveries (Fixture.Clean), and the production messages of its trace thread. A case calls it in `finally` for each visitor it signed in.
  */
 export async function removeSession(epoch: string): Promise<void> {
-  await irisScript(
+  await asCleanup(() => irisScript(
     [
       `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT ID FROM OcuTalon_Data.Session WHERE Epoch = ?",${quoted(epoch)})`,
       'While rs.%Next() { Set r=##class(OcuTalon.Data.Session).%OpenId(rs.%Get("ID")) If $IsObject(r),r.Epoch=' +
@@ -215,7 +223,7 @@ export async function removeSession(epoch: string): Promise<void> {
         ' { Set ss=[] Do ss.%Push(r.TraceRef) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(r) Set refs=##class(OcuTalon.Test.Data.Fixture).AdoptTurns(r.Ref,r.Ref) Do ##class(OcuTalon.Test.Data.Fixture).Clean(refs) Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(ss) } }',
       'Write !,"CHK|removed|1"',
     ].join('\n'),
-  );
+  ));
 }
 
 /** A visitor of the online demo: its own browser context, signed in at the splash, and its session's identity. */
@@ -347,9 +355,9 @@ export async function counterRows(address: string): Promise<number> {
 
 /** Removes the AddressCounter rows of an address, so that a case's sign-ins leave no trace on the address limit. */
 export async function removeCounterRows(address: string): Promise<void> {
-  await irisScript(
+  await asCleanup(() => irisScript(
     `Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?",##class(OcuTalon.Data.AddressCounter).AddressHash(${quoted(address)}))\nWrite !,"CHK|dropped|1"`,
-  );
+  ));
 }
 
 /** The number of Session rows; a count that cannot be read throws, so that two failed reads never compare equal. */
@@ -563,14 +571,14 @@ export async function auditCount(mark: string, type: 'Approval' | 'Pairing', mar
 
 /** Removes what populate() made, with the reminder's waiter and the watch rows; the session's own rows are removeSession's. */
 export async function cleanPopulated(rows: Populated): Promise<void> {
-  await irisScript(
+  await asCleanup(() => irisScript(
     [
       `Do ##class(OcuTalon.Test.Schedule.ReminderFixture).RemoveAll(${quoted(rows.session)})`,
       `Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?",${quoted(rows.session)})`,
       `Do ##class(OcuTalon.Test.Data.Fixture).Clean(${quoted(`${rows.approval},${rows.pairing}`)})`,
       'Write !,"CHK|cleaned|1"',
     ].join('\n'),
-  );
+  ));
 }
 
 /** A turn of the session whose text is given, made directly (Fixture.Turn); removeSession removes it with the session. */

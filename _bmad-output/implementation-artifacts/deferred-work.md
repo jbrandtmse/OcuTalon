@@ -4044,3 +4044,38 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic40 5d96d2f6 run 41929230934 attempt 2, iris (browser) live:answers, 00:03:28Z | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: support/approvals.ts L15 DAY = new Date().toISOString().slice(0,10) at load; the page (timezoneId UTC) reads the incident as yesterday; any spec using today()/TOMORROW_AT_1413 shares the window
 - 2026-11-05T00:05:02Z status=routed owner=burndown by=orchestrator note=Fix: take the day per case (or pin the page clock with page.clock to the module's DAY), as DW-413 did with instanceDay/clearOfMidnight; one occurrence
+
+### DW-712: A shared clean-up that rejects in a spec's finally skips the clean-ups after it (L6's nested finally, L5's removeSession loop, messages/daily-cap) and replaces the body's named error
+- source: spec-11-21-a-test-s-route-callback-never-outlives-its-test.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: JS finally semantics; with the clean-up reserve a clean-up fails only when it hangs past the time actually left; a fix restructures each spec's finally (more than a one-line edit)
+- 2026-11-05T06:32:42Z status=wontfix-accepted owner=11-21-a-test-s-route-callback-never-outlives-its-test by=cr note=reopen_if=a CI red whose reported error is a clean-up's while the run left a live Telegram job or session row
+
+### DW-713: Playwright-timed waits with fixed timeouts (project 30 s action waits on fill/click, explicit expect timeouts) are not deadline-aware, so they can run into the clean-up reserve
+- source: spec-11-21-a-test-s-route-callback-never-outlives-its-test.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Each is bounded (30 s, 10 s) and names its call; clean-ups keep the time actually left less 2 s; capping them needs a wrapper around every locator action
+- 2026-11-05T06:32:42Z status=wontfix-accepted owner=11-21-a-test-s-route-callback-never-outlives-its-test by=cr note=reopen_if=a bare test timeout in CI whose last step is a Playwright action or expect with a fixed timeout
+
+### DW-714: Nested bounded steps near the deadline cap to the same moment, so the outer step's name (loadedAfter the sign-in) can win over the inner hung step (gotoSettled, the sign-in POST)
+- source: spec-11-21-a-test-s-route-callback-never-outlives-its-test.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: capToDeadline is computed per level at call time; the outer setTimeout fires before Playwright's inner timeout; the outer message is still a named step
+- 2026-11-05T06:32:43Z status=wontfix-accepted owner=11-21-a-test-s-route-callback-never-outlives-its-test by=cr note=reopen_if=a CI failure names loadedAfter the sign-in (capped) and its log shows no other step for the hang
+
+### DW-715: The bound of the shared test's page.close (closeWait: the action wait in force) is not pinned by behaviour; only boundedClose itself and the listener's source are
+- source: spec-11-21-a-test-s-route-callback-never-outlives-its-test.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: deadline-cap.spec.ts drives boundedClose directly and checks the listener is installed; bounded-waits.test.mjs pins the listener text; changing action to navigation stays green
+- 2026-11-05T06:32:43Z status=wontfix-accepted owner=11-21-a-test-s-route-callback-never-outlives-its-test by=cr note=reopen_if=a page.close failure in CI names a bound other than the action wait in force
+
+### DW-716: The shared helpers read the waits from project.use, so a spec's test.use({ actionTimeout }) is not seen by them (their bound falls back to the share of the test timeout)
+- source: spec-11-21-a-test-s-route-callback-never-outlives-its-test.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: currentWaits reads test.info().project.use; only helper-waits.spec.ts's own case uses test.use for waits, and the fallback is still below the test timeout
+- 2026-11-05T06:32:43Z status=wontfix-accepted owner=11-21-a-test-s-route-callback-never-outlives-its-test by=cr note=reopen_if=a spec under e2e or e2e-online sets actionTimeout or navigationTimeout with test.use and calls a shared helper
+
+### DW-717: If startTelegram's Start call is stopped at its bound, the partial start is not undone (Finish of an empty saved is a no-op) and TelegramIn may stay live
+- source: spec-11-21-a-test-s-route-callback-never-outlives-its-test.md | severity: low | fix-risk: high | footprint: in-story
+- evidence: TelegramPageFixture.Finish quits at once on an empty saved; Start's own longest chain is 140 s, below its 150 s bound, and L6 calls it early
+- 2026-11-05T06:32:43Z status=wontfix-theoretical owner=11-21-a-test-s-route-callback-never-outlives-its-test by=cr note=real if a CI log shows irisScript stopped on the script starting Set call=TelegramPageFixture.Start
+
+### DW-718: Bare Playwright calls on the L5/L6 path with no timeout (page.evaluate, context.newPage, exposeFunction, response.json) are not bounded
+- source: spec-11-21-a-test-s-route-callback-never-outlives-its-test.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: CDP calls that answer unless the browser is gone; no hang of them is evidenced; wrapping them globally would cut legitimate long evaluates
+- 2026-11-05T06:32:43Z status=wontfix-theoretical owner=11-21-a-test-s-route-callback-never-outlives-its-test by=cr note=real if a CI test timeout follows a log whose last named step precedes one of these calls
