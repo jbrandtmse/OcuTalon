@@ -4240,3 +4240,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-23-install-sh-accepts-build-109.md cr | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: notes-areas.txt maps 'epic 11 developer' and overrides only 11.2 and 11.8; 11.23 is judge-facing (install). release/ is outside 11.23's footprint (spec Never).
 - 2026-11-05T18:32:17Z status=wontfix-accepted owner=11-23-install-sh-accepts-build-109 by=cr note=draft notes are reviewed at the cut; reopen_if=the cut notes for the release shipping 11.23 list it under admins and developers
+
+### DW-759: release/checklist.sh CK_REGISTRY_TEXT (about line 463) says the README's two commands ran against the registry; once Story 11.24 lands, the README's IPM section gives an IPM load line and two enable commands before its two install commands, so the item undercounts what the registry check must run
+- source: spec-11-24-the-readme-s-ipm-install-works-literally-on-a-fresh-build-15.md | severity: med | fix-risk: low | footprint: out
+- evidence: release/checklist.sh:463 CK_REGISTRY_TEXT 'the README's two commands' vs README Install it with IPM (11.24: load line, enable -map -ns USER, enable -community, then two installs)
+- 2026-11-05T20:48:42Z status=routed owner=burndown by=spec_gate note=plan D9; release/ left alone in this run (dispatch ruling); a one-phrase change, e.g. 'the README's IPM commands'
