@@ -2,11 +2,11 @@
 title: 'Story 40.5: A `setting` approval in the bridge, and OcuTalon''s proposal tool'
 type: 'feature'
 created: '2026-11-05'
-status: 'in-progress'
-baseline_revision: '1f1b53757543aa468c67d9096213dadd2572ec1c'
+status: 'done'
+baseline_revision: 'a6ae0fba9860ae65e1879a81ea34ec8796b96b0d'
 baseline_commit: '1f1b53757543aa468c67d9096213dadd2572ec1c'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-40-context.md'
 warnings: [oversized]
@@ -170,7 +170,7 @@ Rejected:
 - `low` test helpers would error, not assert, if role lookup or `RefIndexOpen` failed (edge-case) -- a loud failure; adding guards adds complexity for no realistic case.
 - `low` `TestRaiseSetting` compares `RequiredRole` with the seeded `OcuTalonUser` rather than reading `ApprovalRole` (acceptance) -- same as `TestRaiseFix`; the role assignment is kind-agnostic.
 - `low` the Tasks text says `Instructions.TestToolsets` expects 9 Chat names, the test 10 (acceptance) -- recorded in Design Notes; the fix would edit the spec.
-- [ ] [CI] iris (shards-2): `OcuTalon.Test.Bridge.Decide:TestEstimateTokens` fails on 6f09f0eb -- `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls` L1840-1856 and its comment L1825 -- Chat's `AgentChars` now includes the JSON of the Persona toolset's tool (`propose_persona`), and the test still equates Chat with the prompt plus the Reminders and Watching JSON only. Measure the Persona toolset's tool JSON too, assert Chat = prompt + Reminders + Watching + Persona and the catalog bound on that sum, update the comment, and record its `mutation:` line. https://github.com/jbrandtmse/OcuTalon/actions/runs/42032277355/job/127261449968
+- [x] [CI] iris (shards-2): `OcuTalon.Test.Bridge.Decide:TestEstimateTokens` fails on 6f09f0eb -- `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls` L1840-1856 and its comment L1825 -- Chat's `AgentChars` now includes the JSON of the Persona toolset's tool (`propose_persona`), and the test still equates Chat with the prompt plus the Reminders and Watching JSON only. Measure the Persona toolset's tool JSON too, assert Chat = prompt + Reminders + Watching + Persona and the catalog bound on that sum, update the comment, and record its `mutation:` line. https://github.com/jbrandtmse/OcuTalon/actions/runs/42032277355/job/127261449968
 
 ## Spec Change Log
 
@@ -202,6 +202,17 @@ Rejected:
   - `[medium]` `patch` ValidateSetting's IncidentRef entry masked by the generic IncidentRef check (verification-gap) — new `Refusals()` row with a valid Ref; mutation recorded.
   - `[low]` `reject` extra mutation lines for the DryRun rules, Facts target and AssertRefused field-only check (verification-gap x2) — one demonstrated mutation per AC is the bar; AC 1 has four.
   - `[low]` `reject` intent-alignment: readings A to D enumerated; the diff implements A and C with the owner behind CommandsIn doubled (descriptive, 4 rows) — no divergence from the intent; the real producer and consumer are 40.6's.
+
+### 2026-11-05 — Review pass (rework 1, the `[CI]` item)
+- verdicts: 7 findings reported (blind 5, edge-case 0, verification-gap 0, intent-alignment 2 descriptive rows) — high 0, medium 0, low 5, false 0, maybe-false 0
+- findings:
+  - `[low]` `reject` only warm runs recorded; no fresh or reverse-order run, no class-rules/boundaries result (blind) — the changed test only measures JSON lengths and writes no state; `test-boundaries.sh` and `test-class-rules.sh` pass on the tree.
+  - `[low]` `reject` the variable `reminders` now holds the sum of three toolsets (blind) — the original code reused it the same way; the assertion text names all three toolsets.
+  - `[low]` `reject` `persona > 200` floor unexplained (blind) — a sanity floor only; the exact length is pinned by the equality with `AgentChars`.
+  - `[low]` `reject` measured sizes hard-coded in the mutation line (blind) — the fix edits this spec.
+  - `[low]` `reject` frontmatter counters not addressed (blind) — the fix edits this spec; `followup_review_recommended` is set from the computation below.
+  - `[low]` `reject` intent-alignment: readings A to C enumerated; the diff implements the test fallout of B (descriptive) — no divergence from the intent; the other tests that sum or pin Chat's tool JSON were searched (`Reminders and Watching`) and none remains.
+  - `[low]` `reject` intent-alignment: spec bookkeeping outside the intent (descriptive) — required by the rework contract.
 
 ## Design Notes
 
@@ -312,6 +323,9 @@ Recorded by the code-review stage (warm tag `e40s5cw`: baseline green, mutation 
 - AC 1 (a setting whose `old` and `new` are objects is accepted): mutation: `ValidateSetting`'s `If (type '= "string") && (type '= "object")` -> `If (type '= "string")` -> `Test.Bridge.Approval:TestRaiseSetting` red (Raise refuses "DryRun old is neither a string nor an object").
 - After the review patches (tag `e40s5c`, fresh): `Test.Bridge.Approval` passed (134.6 s); `shard lane-a@Tools` forward and `--reverse` passed. Warm: `Test.Agent.PersonaBlock`, `Test.Agent.Instructions` passed. `test-class-rules.sh`, `test-boundaries.sh` pass.
 
+Recorded by the rework pass for the `[CI]` item (warm tag `e40s5rw`, lane D; applied, observed red, reverted byte-identical by md5, green again on the same stack):
+- AC 4 (Chat's agent part includes the Persona toolset's tool JSON): `Test.Bridge.Decide:TestEstimateTokens` now measures the `Tools.Persona` tool JSON and asserts Chat = prompt + Reminders + Watching + Persona, with the catalog bound on that sum; mutation: `Set reminders = reminders + watching + persona` -> `Set reminders = reminders + watching` (the Persona term left out of the asserted sum) -> `TestEstimateTokens` red (the Chat sum assertion, and the catalog bound which then reads 12200 against a sum of 10555). Neighbours `Test.Agent.RequestSize` and `Test.Bridge.Gate` passed on the same warm stack. No other test pins Chat's tool JSON (`grep -rn 'Reminders and Watching' src/ocutalon/cls` found only this test and its comment).
+
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 
 **Shared surfaces:**
@@ -343,3 +357,16 @@ Blocking condition: none
 **Verification.** `(loop)`: slot D load and compile OK; Chat byte-check True; protected-file diff empty; `test-class-rules`, `test-boundaries`, `test-mock`, `test-ci-config` pass; warm CodeRules, PersonaBlock, Instructions, Constants, Bridge.Contracts, Msg.Contracts pass; fresh Approval (126 s, re-run after the patches), Tools.Persona, Bridge.Gate, Tools.Reminders, Agent.Runners, Install.SecurityOverview, Watch.Tools, Watch.Turns pass. `(once)`: `shard lane-a@Tools` forward and `--reverse`, `shard lane-a@Agent`, `live security-overview` (no DRIFT) and `live demo-path` (8 of 8 steps) pass; they ran before the review patches, which changed comments and `Test.Bridge.Approval` only, and after them `Test.Bridge.Approval` (fresh) and `Test.Agent.Instructions` (fresh) were green. Mutations are recorded under `## Verification`. Footprint extensions reported: `Bridge/Msg/ApprovalOutcome.cls`, `Bridge/Data/ApprovalRequest.cls` (comments), `Test/Watch/{Tools,Turns}.cls`, `Test/Install/SecurityOverview.cls`, `Test/Agent/Runners.cls`, `Test/Bridge/CodeRules.cls` (one-name additions, none on a line Epic 17 changed), and one row in `docs/security-overview.md`.
 
 **Residual risks.** The `Test/Agent/Runners.cls` class-comment line that lists Chat's tools (Epic 17 changed it) still omits `propose_persona`. The AC 8 mutation in the spec does not turn `TestToolRows` red (it lists every toolset of the package), so `TestProposePersonaRow` pins the agent column instead. The tool tests run against `CommandsDouble`; the real owner is Story 40.6's.
+
+### Rework pass 1 (the `[CI]` item)
+
+Status: done
+Blocking condition: none
+
+**Summary.** `Test.Bridge.Decide:TestEstimateTokens` measures the Persona toolset's tool JSON and asserts Chat = prompt + Reminders + Watching + Persona, with the catalog bound on that sum; the product is unchanged. File changed: `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls` (the test and its method comment). No other test pins Chat's tool JSON.
+
+**Review.** 7 findings: patches 0, deferred 0, rejected 7 (reasons in the triage log). Follow-up review recommended: false (no patch this pass).
+
+**Verification.** Warm lane D (`e40s5rw`): `Test.Bridge.Decide`, `Test.Agent.RequestSize`, `Test.Bridge.Gate` passed; the mutation is recorded under `## Verification`. `test-boundaries.sh` and `test-class-rules.sh` pass.
+
+**Residual risk.** `Test.Bridge.Decide.cls` is also changed on `OCT-epic17` (other hunks; no overlap with the lines edited here).
