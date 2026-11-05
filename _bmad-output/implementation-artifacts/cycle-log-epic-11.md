@@ -509,3 +509,8 @@
 2026-11-05T09:46:13Z	Story 11.21	proof_run	series=e5536511 run=3 workflow_run=41988777549 attempt=4 job=iris(browser):127154394131 result=success group_ran=true
 2026-11-05T09:46:13Z	Story 11.21	ci_resolved	story=11.21 sha=e5536511 runs=41988777549,41988777602 result=success failed=none via=none resolved_at=burndown ci_queue=0 browser_runs=127115759778(att1),127139996987(att3),127154394131(att4) shards=127128851329(att2;att1_infra_port_bind) note=U-277_proof_met
 2026-11-05T09:46:13Z	Epic 11	epic_runner_complete	stories_completed=1(11.21;part_merge_11.20+11.21) partial=11.14,11.15,11.16,11.18_backlog applied=U-277_at=2026-11-04T15:28:00Z#837 merge=part_merge_U-277
+2026-11-05T10:38:22Z	Epic 11	integrated_forward	feature=a745aa6a head=32cd776c conflicts_resolved=none note=after_part_merge_6154909a;tree_equals_feature stage=before_11.22
+2026-11-05T10:38:22Z	Epic 11	ledger_burndown_chartered	story=11.22 key=11-22-first-daily-release-burn-down entries=DW-692,DW-687,DW-698(on_OCT-epic39_ledger;not_here),DW-416,DW-636,DW-710,DW-550,DW-706 skipped=DW-690(resolved_by_11.21) out_of_scope=DW-483,DW-656,DW-657,DW-707 by=orchestrator_dispatch(owner_via_Planner_2026-11-05T01:51Z)
+2026-11-05T10:38:22Z	Epic 11	deps_hash_rerecorded	reason=burndown_inserted note=orchestrator_records_the_graph_hash;epics.md_sha256=533ada8d67498bb8
+2026-11-05T10:38:22Z	Epic 11	ledger_routed_planned	story=11.22 entries=8 excess=0 by=burndown
+2026-11-05T10:38:22Z	Epic 11	ruling	question=runner_B_next_work choice=charter_Story_11.22_first_daily_release_burn-down rejected=none why=orchestrator_dispatch_(owner_via_Planner) category=decide policy=5086036

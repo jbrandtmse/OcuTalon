@@ -4700,6 +4700,52 @@ So that the browser job fails only when something is wrong, and a red on the tru
 - DW-640: web/e2e/live/live.spec.ts L9 reported `route.fetch: Test ended` from L8's route callback (ledger; routed by the Contest Planner 2026-11-04)
 - DW-665: web/e2e/live/socket.spec.ts W11 failed the same way on v1.0.0, twice (ledger; routed by the Contest Planner 2026-11-04)
 
+### Story 11.22: First daily release burn-down
+
+As the author,
+I want the first daily release's burn-down entries fixed or closed on evidence,
+So that the harness reds the release found are gone and the API refuses oversized bodies.
+
+[ADDED 2026-11-05, Epic 11 burn-down (the owner's decision via the Contest Planner at 2026-11-05T01:51Z, with later amendments, relayed by the orchestrator): chartered by runner B after Epic 11's part merge (11.20 + 11.21), ahead of Epic 11 part 2; ranked by the Planner; it merges when done and ships in the next daily release.]
+
+**Acceptance Criteria:**
+
+**Given** a disabled production item (TelegramIn, TelegramOut) whose job is ending
+**When** `check_items_run` or `live_park_telegram` samples it
+**Then** it first waits, on a bound of its own of about 30 s, until the item has no `Ens.Job` entry in any state, then samples; on the bound it fails naming the item and the entry's state; it never counts only Alive jobs (the Planner's strict fix, ruled 2026-11-04T23:50Z)
+
+**Given** a request body larger than 256 KB on any API route
+**When** the route reads it (`BodyText`, the shared request-body reader)
+**Then** it answers 413 `body_too_large` before parsing; a route can declare a larger bound of its own (the documents upload route of Story 34.2 declares about 14 MB, the encoded size of its 10 MB file limit, U-285) without a change to the shared reader; a test on each side of 256 KB pins it; `Web/Api.cls` gets appended blocks only
+
+**Given** the leaked resolved Orders incident of DW-698 in lane-a@rest
+**When** it is replayed in CI order on one warm stack for at most 60 minutes
+**Then** a reproduction gets its fix, or the entry returns to the ledger with what was tried
+
+**Given** the two small entries DW-416 (the TLS proxy origin check) and DW-636 (install.sh finding a build 109 image)
+**When** the plan sizes each
+**Then** each is fixed here only if it takes 2 hours or less; otherwise it is returned to the ledger with its size
+
+**Given** a browser unit that fails in CI
+**When** the job ends
+**Then** its Playwright test-results (error-context.md, traces) are uploaded as a short-retention artifact holding no secret but the CI dummy key and token
+
+**Given** the DW-550 occurrences (`/state` not answering after a sign-in)
+**When** they are investigated against held CSP sessions and licence units (CI's Community licence, the demo's 8 units)
+**Then** the finding is recorded, and fixed here only if the fix is small
+
+**Given** the request fixture of the web/e2e projects (DW-706)
+**When** a request wait never answers
+**Then** it fails on a bound of its own, through an append-only edit or a shared-support alternative to `web/e2e/sign-in/helpers.ts` (Epic 40's open path); otherwise it waits for Epic 40's merge
+- DW-692: a disabled Telegram item had a live job in CI (strict fix: no Ens.Job entry in any state) (ledger; routed by the orchestrator 2026-11-05)
+- DW-687: BodyText parses any request body size; 413 body_too_large over 256 KB, a route may declare a larger bound (ledger; DW-669 (b); routed by the orchestrator 2026-11-05)
+- DW-698: lane-a@rest leaked a resolved Orders incident (reproduce first, 60-minute timebox) (ledger; routed by the orchestrator 2026-11-05)
+- DW-416: behind a TLS-terminating proxy the online-demo API POST fails the origin check (only if 2 hours or less) (ledger; routed by the orchestrator 2026-11-05)
+- DW-636: install.sh finds only a build 154 image (only if 2 hours or less) (ledger; routed by the orchestrator 2026-11-05)
+- DW-710: CI uploads no Playwright test-results on a browser-unit failure (ledger; routed by the orchestrator 2026-11-05)
+- DW-550: `/state` not answering after a sign-in: investigate held CSP sessions and licence units (ledger; routed by the orchestrator 2026-11-05)
+- DW-706: the web/e2e request fixture has no timeout (ledger; routed by the orchestrator 2026-11-05)
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
