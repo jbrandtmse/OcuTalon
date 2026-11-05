@@ -4234,3 +4234,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: low | fix-risk: low | footprint: in-story
 - evidence: irisScript (Story 11.21) has no abort signal; boundedStep rejects at DIAG_BOUND_MS while the retry loop continues; failure path of a failure path only
 - 2026-11-05T14:50:17Z status=wontfix-accepted owner=11-22-first-daily-release-burn-down by=cr note=reopen_if=a CI log shows a DIAG /state unavailable line followed by a docker exec left running after the test ended
+
+### DW-756: DW-550's DIAG /state dump (11.22, web/e2e/support/diagnose.ts via floor.ts:145) never reaches CI output: no DIAG line in the browser job log nor in the playwright-results artifact when loadedAfter's /state bound passed
+- source: OCT-epic34@2651a548 run 42086496017 iris (browser) job 127452898026 S3 session.spec.ts:135 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: runner C searched the job log and the artifact's error-context.md: no DIAG, licence or CSP text; floor.ts:145 says the lines print before the error
+- 2026-11-05T19:38:00Z status=routed owner=burndown by=Contest_Planner note=Planner 2026-11-05: follow-up for the next burn-down; make the dump reach the CI log or the uploaded artifact (e.g. testInfo.attach or stderr), proven by a forced-bound test in CI
