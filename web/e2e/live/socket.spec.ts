@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page, type PlaywrightWorkerArgs, type Route } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page, type PlaywrightWorkerArgs, type Route } from '../support/fixtures';
 
 import { envelope, signIn, signInOverHttp, stackOrigin } from '../sign-in/helpers';
 import { STATE } from '../support/api';

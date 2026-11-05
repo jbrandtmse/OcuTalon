@@ -1,4 +1,4 @@
-import { expect, test, type Page, type PlaywrightWorkerArgs } from '@playwright/test';
+import { expect, test, type Page, type PlaywrightWorkerArgs } from '../e2e/support/fixtures';
 
 import { STATE } from '../e2e/support/api';
 import { chk, fixtureUser, irisScript } from '../e2e/support/iris';

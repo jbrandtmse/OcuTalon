@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { changeSnapshot } from '../support/api';
 import { dropPhone, publishMailbox } from '../support/devices';
@@ -38,11 +38,6 @@ import { fromBottom, scrollListTo } from '../support/page';
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
-
-/** A poll or a snapshot that a routed handler is still holding when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const KIND = 'FLOOR';
 const PHONE_TAB = 'Simulated phone';

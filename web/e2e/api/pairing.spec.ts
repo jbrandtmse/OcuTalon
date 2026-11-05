@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { expect, test, type APIResponse } from '@playwright/test';
+import { expect, test, type APIResponse } from '../support/fixtures';
 
 import { README_ACCOUNT, envelope, signInOverHttp } from '../sign-in/helpers';
 import { chk, irisScript, quoted, setTelegramIncluded } from '../support/iris';

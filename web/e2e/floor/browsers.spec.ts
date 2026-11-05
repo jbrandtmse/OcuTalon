@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../support/fixtures';
 
 import { MESSAGES } from '../support/api';
 import {
@@ -28,11 +28,6 @@ import { cleanFixtureRows, fixtureUser } from '../support/iris';
  */
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
-
-/** A routed handler that is still holding a request when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const KIND = 'FLOOR';
 

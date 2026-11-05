@@ -196,8 +196,10 @@ development_status:
   11-17-the-release-s-ipm-artifact-carries-the-built-page: done
   11-18-the-update-hook-updates-the-online-demo-and-a-rehearsal-cand: backlog
   11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c: done
-  11-20-the-release-s-overview-step-hands-the-unit-files-the-contain: backlog
-  11-21-a-test-s-route-callback-never-outlives-its-test: backlog
+  11-20-the-release-s-overview-step-hands-the-unit-files-the-contain: done
+  11-21-a-test-s-route-callback-never-outlives-its-test: done
+  11-22-first-daily-release-burn-down: done
+  11-23-install-sh-accepts-build-109: backlog
   epic-11-retrospective: optional
 
   epic-12: done

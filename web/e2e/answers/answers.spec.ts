@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Response, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Response, type Route } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
 import { DRY_RUN, raise, refOf, today } from '../support/approvals';

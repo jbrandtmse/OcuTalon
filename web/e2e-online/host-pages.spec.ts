@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page } from '../e2e/support/fixtures';
 
 /**
  * Story 16.5, the two pages that the demo host serves (H1 and H2; matrix rows 14 and 15). The files are read from the repository with node

@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Request } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
 import { pointKeys, restoreKeys } from '../support/devices';

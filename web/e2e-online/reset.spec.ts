@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Request, type Route } from '@playwright/test';
+import { expect, test, type Page, type Request, type Route } from '../e2e/support/fixtures';
 
 import { pageTime } from '../src/app/chat/page-time';
 import { EVENTS, STATE, type LiveEvent } from '../e2e/support/api';

@@ -130,6 +130,14 @@ jobs:
       - name: Run the group
         if: steps.changes.outputs.run != 'false'
         run: bash ci/iris.sh group ${{ matrix.group }}
+      - name: Keep the Playwright results
+        if: failure() && steps.changes.outputs.run != 'false'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-results-${{ matrix.group }}-${{ github.run_attempt }}
+          path: web/test-results/
+          retention-days: 3
+          if-no-files-found: ignore
       - name: Skipped
         if: steps.changes.outputs.run == 'false'
         run: 'echo "iris ${{ matrix.group }} skipped: $REASON"'
