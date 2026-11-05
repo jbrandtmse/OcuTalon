@@ -157,3 +157,5 @@
 2026-11-05T03:32:14Z	Story 39.6	fresh_check	env=recipe tests=7 result=pass order=forward,reverse shard=lane-a@Eval_fwd_271s_rev_266s,lane-a@Checks_rev_192s(fwd_in_implement) hosted=test-eval-set(cr),triage-heartbeat,boundaries,class-rules
 2026-11-05T03:32:27Z	Story 39.6	committed	sha=5c1c3dba submodules= ci=pending runs=41962217105,41962217185 pushed=true amendments=none footprint_extensions=Eval/Report.cls,Eval/Record.cls,Test/Eval/Report.cls,Test/Eval/Cases.cls,Test/Eval/Record.cls,docker/tests/test-eval-set.sh,docker/tests/record-eval.sh,docker/tests/test-triage-heartbeat.sh,eval/orders-date-no-evidence/**
 2026-11-05T03:32:27Z	Story 39.6	story_cycle	plan_to_commit_min=407 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=includes_the_DW-653_re-plan_and_CI_waits
+2026-11-05T04:04:52Z	Story 39.6	ci_resolved	story=39.6 sha=5c1c3dba runs=41962217105,41962217185 result=success failed=none via=none resolved_at=next_plan
+2026-11-05T04:04:53Z	Story 39.7	stage_spawned	stage=implement spawn_at=2026-11-05T04:04:53Z model=sonnet agent_name=39-7-implement-1 cycle_iteration=1 story_base=1b1f45d0
