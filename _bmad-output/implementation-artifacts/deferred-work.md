@@ -4284,6 +4284,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Web.BodyLimit (11.22) checks every Web.Api route in OnPreDispatch; OCT-epic34's Documents extends Web.Api behind <Map Prefix="/v1/documents">, checks its own BODYMAX, declares no BodyBounds; compiled XData is inherited (slot B), so the forwarded re-check uses the leftover url
 - 2026-11-05T14:50:17Z status=escalated owner=burndown by=cr note=merge-gate item for the orchestrator: two BodyBounds declarations at the 11.22/34.2 merge; BodyLimit header documents it
+- 2026-11-05T16:52:48Z status=routed owner=34-2-add-and-remove-documents-on-a-documents-page by=orchestrator note=ruling_2026-11-05:34.2_declares_XData_BodyBounds_in_Api.cls(url_/v1/documents)_and_Documents.cls(url_"")_bytes=its_~14MB_bound;BODYMAX_stays;tests_both_sides_of_the_documents_bound_and_the_256KB_general_limit
 
 ### DW-742: wait_disabled_quiet waits the whole DISABLED_QUIET_SECONDS for a Dead Ens.Job entry, which only CleanUpDeadJobs (production start/stop/update) removes
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: low | fix-risk: low | footprint: in-story

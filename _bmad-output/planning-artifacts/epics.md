@@ -8157,6 +8157,7 @@ So that OcuTalon can answer from my own documents.
 **When** `SessionOps.End` (Story 16.4) runs
 **Then** it also calls Lane A's `OcuTalon.Docs.DropSession(sessionRef)` and `OcuTalon.Memory.DropSession(sessionRef)`, so the session's documents and memories go at sign-out, not only at the reset; until Lane A's Story 19.5 merges, the tests run against Story 34.1 (was 19.1)'s stubs and check that both are called with the session's `SessionRef` (FR-14, FR-15, AD-4, AD-21, AD-29)
 - DW-722: Document refusal reason codes and their page text are unnamed (AD-21 Documents says only 'Reason a code'), and with DocumentOps a stub until Story 19.4 nothing writes the failed row that the refusal AC shows; name the codes and their text, and say which side writes the refused row (ledger; routed by cr 2026-11-05)
+- DW-741: With Story 11.22's `Web.BodyLimit` (256 KB on every API route, checked in `Web.Api`'s `OnPreDispatch`), the documents upload declares its larger bound in `XData BodyBounds` in `Web.Api` (url `/v1/documents`) and in `Web.Documents` (url `""`), with the route's ~14 MB bound; tests prove both sides of that bound and the 256 KB limit on another route (ledger; routed by the orchestrator 2026-11-05) [AMENDED 2026-11-05, Story 34.2 lead, orchestrator ruling on DW-741: an acceptance bullet added for a ledger entry routed to this story; no other text changed]
 
 
 ## Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)

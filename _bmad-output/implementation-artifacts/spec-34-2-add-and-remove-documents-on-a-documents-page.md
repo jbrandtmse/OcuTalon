@@ -2,7 +2,7 @@
 title: 'Story 34.2: Add and remove documents on a Documents page'
 type: 'feature'
 created: '2026-11-05'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'b8ef527e820ef5bb372a10a7140572d5197f7236'
 baseline_commit: 'f619baf037d29afc999a7476a65111da2b84d2d6'
 review_loop_iteration: 0
@@ -136,6 +136,10 @@ deferred:
 - [x] [CI] iris (shards-3) live:demo-switch: `e2e/demo-switch/view.spec.ts:260` V5 "1024px: nothing scrolls across": same cause. Fix the header layout so it fits from 320 px up with the Documents link (CSS in the header/navigation files; no text change, no test weakened); keep the header nav order Chat, Settings, Documents. Do NOT edit `web/e2e-online/**` or the demo-switch specs' assertions. Run `ci/iris.sh live demo-switch` and `ci/iris.sh live online-demo` (fresh, lane-C variables) to prove both.
 - [x] [CI] Before finalizing, run the groups CI runs that the first pass did not: `ci/iris.sh shard lane-a --part k/4` (warm is fine; Eval is in lane-a@rest), `live demo-switch`, `live online-demo`, `live floor`, and every `docker/tests` check script one per call; nothing red.
 
+**Rework iteration 2 (orchestrator ruling on DW-741, after integrating feature e62a5844 with Story 11.22; trigger decision). Work ONLY these items:**
+- [ ] [Decision] DW-741: feature now carries Story 11.22's `OcuTalon.Web.BodyLimit`: `Web.Api`'s `OnPreDispatch` refuses any API body over 262,144 bytes with 413 `body_too_large` unless the dispatch class's `XData BodyBounds` (a JSON array of `{"method", "url", "bytes"}`) declares a larger bound for that method and route. So, as merged, every `POST /v1/documents` body over 256 KB is refused before `Web.Documents` runs. Declare `XData BodyBounds` in `src/ocutalon/cls/OcuTalon/Web/Api.cls` for `POST` url `/v1/documents` AND in `src/ocutalon/cls/OcuTalon/Web/Documents.cls` for `POST` url `""` (the forwarded re-check uses the remainder url), each with `bytes` = this story's `BODYMAX` bound (the same number: one source of truth if the XData can reference it, else a test pins them equal). Keep `Web.Documents`' own `BODYMAX` check. Read `Web.BodyLimit` (and its header doc) for the exact XData shape; do not change `Web.BodyLimit` or its tests (Story 11.22's). The `Api.cls` edit is one self-contained XData block (contended with Epic 40). Tests: a `POST /v1/documents` body of exactly the bound is accepted past the limit (reaches the route's own checks) and one byte over is 413 `body_too_large`; another route (e.g. `POST /v1/messages`) still refuses 262,145 bytes with 413; both Api and Documents declarations exist and equal `BODYMAX`. Update `TestDispatch` if it pins `Web.Api`'s XData blocks. Resolves DW-741.
+- [ ] [Decision] Re-run on this merged tree: `Test.Web.DocumentsApi`, the 11.22 BodyLimit tests (by class name in `Test/Web/`), shard lane-b parts 1/2 and 2/2 (warm), `live sign-in --part 1/2` (documents.spec.ts runs there, fresh), and `docker/tests` `test-class-rules.sh`, `test-storage.sh`, `test-boundaries.sh`; nothing red.
+
 **Acceptance Criteria:**
 - Given the code, when the spine is read against `### Spine edits`, then the four verbs, the routes, the Dockerfile lines and the forwarded class are in its tables and ADs with their markers, and no existing sentence changed (AD-1, AD-21, AD-23, AD-29, AD-33).
 - Given the built image, when `Test.Web.DocumentsImage` and Task 0 (b) run, then `fastembed` 0.9.0, `pdfplumber` 0.11.10 and `python-docx` 1.1.2 import, the model sits in the root-owned read-only `/opt/fastembed` named by `FASTEMBED_CACHE_DIR`, AI Hub's FastEmbed embeds with the network blocked, and each package's licence files are present.
@@ -195,6 +199,8 @@ Code review 2026-11-05 (first review; layers blind-hunter, edge-case-hunter, ver
 - (reject) Implement decision 6 still says `pageOf` matches "/documents and below" [Blind, Edge, Auditor]. The fix edits the spec under review.
 
 ## Spec Change Log
+
+- 2026-11-05 (lead, rework iteration 2, trigger decision): the branch integrated feature e62a5844 (Story 11.22's Web.BodyLimit); orchestrator ruling on DW-741: declare `XData BodyBounds` for the documents upload in `Web.Api` and `Web.Documents`. Work only the `[Decision]` items. Rework 1 (25ff58e7) has not yet been re-reviewed: one scoped re-review will cover both reworks.
 
 - 2026-11-05 (lead, rework iteration 1, trigger ci): CI on 6508ddc3 red in four jobs, all this story's (KeyProof on AddDocument.Content; build-context list; header 3 px too wide at 1024 px in online-demo R8 and demo-switch V5). Ruling U-287 (veto): uploads go into a Lane B `Data.Upload` table and `AddDocument` carries `UploadRef`. Work only the `[CI]` items under Tasks & Acceptance.
 
