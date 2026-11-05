@@ -208,3 +208,4 @@
 2026-11-05T13:02:42Z	Story 40.5	fresh_check	env=recipe(fresh_stacks_e40s5c_by_cr_after_final_patches) tests=lane-a@Tools(incl_Tools.Persona,Reminders),Test.Bridge.Approval;warm_Agent.PersonaBlock,Instructions result=pass order=forward,reverse(lane-a@Tools);forward(Bridge.Approval)
 2026-11-05T13:03:04Z	Story 40.5	committed	sha=6f09f0eb submodules= ci=pending runs=42032277355,42032277139 amendments=none footprint_extensions=Bridge/Msg/ApprovalOutcome.cls,Bridge/Data/ApprovalRequest.cls,Test/Watch/{Tools,Turns}.cls,Test/Install/SecurityOverview.cls,Test/Agent/Runners.cls,Test/Bridge/CodeRules.cls,docs/security-overview.md(one_row)
 2026-11-05T13:03:04Z	Story 40.5	story_cycle	plan_to_commit_min=245 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-05T13:03:21Z	Story 40.6	stage_spawned	stage=plan spawn_at=2026-11-05T13:03:21Z model=opus agent_name=40-6-answer-proposed-persona-plan-1 cycle_iteration=1
