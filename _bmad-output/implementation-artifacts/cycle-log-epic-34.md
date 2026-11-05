@@ -52,3 +52,5 @@
 2026-11-05T08:28:39Z	Story 34.2	ruling	question=third_party_notices_path choice=/opt/ocutalon/THIRD-PARTY-NOTICES category=decide policy=5086036
 2026-11-05T08:28:39Z	Story 34.1	ci_wait	sha=de02fc38 run=41989403902 attempt=2 job=iris(shards-3) started=2026-11-05T08:19:04Z pushed=07:45Z queue_rule=not_passed(60min) action=end_turn_CI_WAIT
 2026-11-05T08:29:25Z	Story 34.2	ruling	question=README_licence_sentence(PUBLIC_TEXT) choice=approved_verbatim_4th_bullet;path_identity_test category=veto applied=planner_approval by=orchestrator policy=5086036
+2026-11-05T08:45:47Z	Story 34.1	ci_resolved	story=34.1 sha=de02fc38 runs=41989403902,41989403953 result=success failed=none via=none resolved_at=next_plan attempts=ci:2(DW-555_flake_rerun) first_ci=flake ci_queue=~0
+2026-11-05T08:45:48Z	Story 34.2	stage_spawned	stage=implement spawn_at=2026-11-05T08:45:48Z model=sonnet agent_name=34-2-add-and-remove-documents-on-a-documents-page-implement-1 cycle_iteration=1 story_base=b9b55968
