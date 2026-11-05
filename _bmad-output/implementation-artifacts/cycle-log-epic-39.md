@@ -146,3 +146,6 @@
 2026-11-05T00:11:50Z	Epic 39	ci_rerun	run=41930634318 attempt=2 jobs=iris(shards-2) ledger=DW-698 note=second_red_on_the_same_tests_->_replay_84_classes_on_one_warm_lane-D_stack
 2026-11-05T00:40:43Z	Epic 39	ci_resolved	story=integrate_forward sha=149a8d8d runs=41930634318,41930634064 result=success failed=none via=none resolved_at=next_plan ci_queue=13 note=attempt_2;DW-698_flake_one_occurrence
 2026-11-05T00:40:44Z	Story 39.6	stage_spawned	stage=implement spawn_at=2026-11-05T00:40:44Z model=sonnet agent_name=39-6-implement-1 cycle_iteration=1 story_base=72c165b3
+2026-11-05T02:42:24Z	Story 39.6	dev_complete	spawn_at=2026-11-05T00:40:44Z model=sonnet build_sha=bf459e2a baseline_revision=2c82659c story_base=72c165b3 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=16 loc_added=919 loc_removed=100 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1 note=self_review_26_rows_3_patched
+2026-11-05T02:42:24Z	Story 39.6	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
+2026-11-05T02:42:24Z	Story 39.6	stage_spawned	stage=qa spawn_at=2026-11-05T02:42:24Z model=sonnet agent_name=39-6-qa-1 cycle_iteration=1
