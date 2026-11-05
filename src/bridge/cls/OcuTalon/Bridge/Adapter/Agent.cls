@@ -502,9 +502,10 @@ Method SaveRetried(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.
 	}
 }
 
-/// 1 when the retry of the request is late (AD-8, DW-725): Decide has already recorded the decision of the request's DecisionRef, which it does
-/// only when the retry's timer fired (or the decision ended another way), so the user was answered without this retry and its reply is dropped.
-/// An on-time retry saves and points before its reply reaches Decide, so no row exists yet. A retry with no DecisionRef is never late.
+/// 1 when the retry of the request is late (AD-8, DW-725): Decide has already recorded the decision of the request's DecisionRef. Decide records
+/// it when it concludes, and once the retry is sent it concludes before the retry's reply only when the retry's timer fires, so the user was
+/// answered without this retry and its reply is dropped. An on-time retry saves and points before its reply reaches Decide, so no row exists yet.
+/// Lateness is read once, before the save: a timer that Decide handles after this check moves nothing back. A retry with no DecisionRef is never late.
 Method RetryIsLate(request As OcuTalon.Bridge.Msg.Request) As %Boolean [ Private ]
 {
 	Quit (request.DecisionRef '= "") && ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(request.DecisionRef)

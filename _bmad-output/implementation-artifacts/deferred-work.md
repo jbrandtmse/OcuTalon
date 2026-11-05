@@ -4148,6 +4148,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T09:40:35Z status=escalated owner=burndown by=cr note=spine-level: a late retry should not move the link (e.g. no Point once the Decision row exists); needs an AD-6/AD-8 ruling
 - 2026-11-05T10:47:33Z occurrence=17-2-retry-once-on-a-second-model-before-falling-back by=cr note=docs/bridge-guide.md Second-model retry section states the current behaviour (a completed, untainted retry moves the conversation); revise that sentence when DW-725 is ruled
 - 2026-11-05T10:56:52Z status=routed owner=17-2-retry-once-on-a-second-model-before-falling-back by=orchestrator note=decided by=Contest_Planner(delegated): a late retry moves nothing; link moves only if retry answers within T2 and untainted; 17.2 rework
+- 2026-11-05T11:39:47Z status=resolved-by:17-2-retry-once-on-a-second-model-before-falling-back by=adjudication note=SaveRetried points only when RetryIsLate=0; tests (1)-(3) + mutations (60835e2d + rework re-review); residual race is DW-729
 
 ### DW-726: The retry's seed holds the first attempt's refused, cut-off or empty exchange (AnswerLinked saved it), so the second model sees the user's message twice and the user's history keeps an exchange the user never saw
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: med | footprint: in-story
@@ -4164,3 +4165,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: U-286 answer (Contest Planner, 2026-11-05T10:37:03Z#867): the section was appended at the end because docs/bridge-guide.md is contended with Epic 40
 - 2026-11-05T10:40:07Z status=routed owner=burndown by=lead note=owner condition U-286 (2): after Epic 40 merges
 - 2026-11-05T10:47:33Z occurrence=17-2-retry-once-on-a-second-model-before-falling-back by=cr note=widen the fold: the TimerSeconds row, the DecisionTokenBudget row (checked per attempt, so a retried decision may use up to twice it), the Timeouts section, The fallback route and the DecisionResponse.Model row still describe one attempt
+
+### DW-729: A second-model retry that completes within a few ms of T2 can still move the link: SaveRetried reads lateness once (RetryIsLate, the Decision row), so a timer Decide has queued but not handled, or one that fires between the check and the reply's arrival, leaves the link on a session whose reply Decide drops (residual of DW-725)
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Adapter.Agent SaveRetried checks RetryIsLate, then %Save and Point, then returns; Decide (PoolSize 1) handles the T2 alarm and the reply in queue order, so a reply queued after the alarm is dropped while the link has moved. Window: the save/Point/enqueue time plus Decide's queue latency, around T2; reachable because timeout_ms is checked per loop iteration and in-flight calls run on
+- 2026-11-05T11:38:35Z status=escalated owner=burndown by=cr note=close needs a single arbiter (Decide points on accepting the reply, or a claim Decide's timer honours): AD-6/AD-8 call; a deadline alone inverts the race
+
+### DW-730: A late first attempt with no retry can still move the link: SaveLinked rotates it on a fresh or compacted turn whose reply Decide has already dropped after its timer; the DW-725 ruling and AD-8 (2026-11-05) say a late reply of the first attempt moves nothing too
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-epic
+- evidence: Story 17.2 rework re-review 2 (rejected as outside the rework range): Adapter.Agent SaveLinked on a fresh/compacted turn after Decide's timer; pre-existing release 1 behaviour
+- 2026-11-05T11:39:48Z status=escalated owner=burndown by=lead note=for the Planner with DW-729: one arbiter (Decide points the link on accepting a reply) would close both; AD-6/AD-8 decision
