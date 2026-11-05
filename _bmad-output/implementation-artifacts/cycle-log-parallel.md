@@ -2043,3 +2043,8 @@
 2026-11-05T16:03:10Z	Epic 11	amendments_verified	amendments=3 extensions=3 ok=true
 2026-11-05T16:03:10Z	Epic 11	merge_enqueued	policy=when_green part_merge=11.22 authority="owner_decision first_daily_release_burndown 01:51Z: merges when done, ships next daily"
 2026-11-05T16:03:10Z	Epic 11	epic_merge_started	head=3379fbb9
+2026-11-05T16:03:53Z	Epic 11	decision_sheet_item	id=DW-741 decided=route_to_34-2 by=unattended(orchestrator) note="34.2 declares XData BodyBounds in Api.cls (/v1/documents) and Documents.cls (\"\"); runner C told"
+2026-11-05T16:03:53Z	Epic 11	push_rejected	target=feature merge=32686b09 error="remote rejected: fatal error in commit_refs_rules" tries=2 rulesets=none githubstatus=operational dry_run=ok action=retry_after_75s
+2026-11-05T16:05:14Z	Epic 11	epic_merged_to_feature	merge=32686b09 head=3379fbb9 part=11.22 verified_on_origin=yes note=push_succeeded_on_3rd_try(transient commit_refs_rules)
+2026-11-05T16:05:14Z	Epic 11	decision_sheet_recorded	decided=1(DW-741_to_34-2) to_action_items=0 to_x0=0 by=unattended
+2026-11-05T16:05:14Z	Epic 11	teardown_skipped	reason="11.23 next on runner B, then 31.4, Epic 11 part 2"
