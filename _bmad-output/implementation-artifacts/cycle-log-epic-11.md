@@ -563,3 +563,4 @@
 2026-11-05T18:57:52Z	Story 11.23	ledger_adjudicated	owned=1 resolved=1(DW-636) reowned=0 terminal=0 model=claude-opus-5-5
 2026-11-05T18:57:52Z	Story 11.23	smoke_complete	method=cli result=pass iterations=2 defects_caught=0 evidence=_bmad-output/implementation-artifacts/evidence/11-23-build-109-install.md(real_install.sh_on_the_loaded_109_image,lane-B_tag_e11s23b109:image_line_build_109,exit_0_in_164s,sign-in_200,demo-path_01-page.spec_6_passed;run_1_rail_test_red_on_the_CI_dummy_bot_token,run_2_with_live_no_bot_token_green;torn_down) model=claude-opus-5-5
 2026-11-05T18:57:52Z	Story 11.23	fresh_check	env=clean-checkout tests=test-install-script.sh,test-readme.sh result=pass order=forward,reverse model=claude-opus-5-5
+2026-11-05T18:59:31Z	Epic 11	integrated_forward	feature=e62a5844 head=8b24c3ed conflicts_resolved=none checks=test-install-script,test-readme,test-boundaries_pass stage=before_11.23_push
