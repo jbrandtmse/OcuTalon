@@ -67,3 +67,5 @@
 2026-11-05T11:53:21Z	Epic 17	ledger_routed_planned	story=17-8-only-decide-moves-a-conversation-s-link entries=3(DW-729,DW-730,DW-726) excess=0 by=orchestrator_ruling
 2026-11-05T11:53:21Z	Epic 17	spine_updated	ad=AD-6,AD-8,conv:Retried_turns reason=decision_sheet(DW-729,DW-730,DW-726_Planner_rulings) by=runner story=17-8 lint=ok_false_preexisting_8_placeholder
 2026-11-05T11:53:21Z	Epic 17	story_order	note=17.8_(fix-forward)_runs_next,_then_17.3_(spec_validated,ready-for-dev),17.4..17.7 reason=link_path_next_to_17.2;17.3_spec_unaffected deps_hash=orchestrator_re-records_reason=fix_forward
+2026-11-05T11:54:20Z	Epic 17	epic_context_compiled	sha=aa3d042e reason=planning_artifact_newer(17.8,spine_AD-6/AD-8) model=opus
+2026-11-05T11:54:20Z	Story 17.8	stage_spawned	stage=plan spawn_at=2026-11-05T11:54:20Z model=opus agent_name=17-8-only-decide-moves-a-conversation-s-link-plan-1 cycle_iteration=1
