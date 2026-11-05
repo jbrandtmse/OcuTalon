@@ -4156,3 +4156,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ARCHITECTURE-SPINE.md AD-8 'The retry timer' bullet vs Timeouts.RetryTimer and the spec's DW-647 AC ('the retry entries hold Derive(12)')
 - 2026-11-05T09:40:35Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=cr note=lead writes AD-8's max(MINTIMER, ...) clamp into the spine (Rule 20); 17.4's Timeouts.Apply work reads it
+
+### DW-728: docs/bridge-guide.md names RetryItem and RetryOf only in the appended Second-model retry section; fold both into the guide's Settings and Messages reference tables once Epic 40 (which also edits the guide) has merged, so the guide's structure stays consistent
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: U-286 answer (Contest Planner, 2026-11-05T10:37:03Z#867): the section was appended at the end because docs/bridge-guide.md is contended with Epic 40
+- 2026-11-05T10:40:07Z status=routed owner=burndown by=lead note=owner condition U-286 (2): after Epic 40 merges
