@@ -102,7 +102,7 @@ ClassMethod Add() As %Status
 	Set command.Name = name
 	Set command.ContentType = contentType
 	Set command.SessionRef = sessionRef
-	Set sc = ..Dispatch(command, .result, bytes)
+	Set sc = ..Dispatch(command, .result, .bytes)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
 	If result.Ok {
@@ -143,8 +143,9 @@ ClassMethod Remove(ref As %String) As %Status
 /// answer is a CommandResult with Ok 0 and the outcome not_built: a send to a disabled item is queued and waits for CommandsIn's whole timeout,
 /// longer than the web server waits, so the page would wait in vain. When bytes are given (an AddDocument) they are stored as an
 /// OcuTalon.Data.Upload row just before the submit, the command carries the row's Ref as UploadRef (a message body holds no global stream), and
-/// the row is deleted again when the submit fails or the owner does not answer Ok; an Ok answer leaves it to the owner, which takes it.
-ClassMethod Dispatch(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult, bytes As %Stream.Object = "") As %Status [ Private ]
+/// the row is deleted again when the submit fails or the owner does not answer Ok; an Ok answer leaves it to the owner, which takes it. Passed by
+/// reference, bytes is released once stored, so the caller does not hold the file while the submit waits.
+ClassMethod Dispatch(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult, ByRef bytes As %Stream.Object = "") As %Status [ Private ]
 {
 	If '..OwnerRunning() {
 		Set result = ##class(OcuTalon.Msg.CommandResult).%New()

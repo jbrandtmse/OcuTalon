@@ -8,11 +8,17 @@
 ///   - TestPutAndTake: Put stores the bytes and returns a Ref, Take returns exactly those bytes and deletes the row, a second Take and an unknown
 ///     or empty Ref return nothing, and Drop deletes one row;
 ///   - TestDropSession: DropSession deletes every upload of the session and no other session's, and a call with no SessionRef deletes nothing.
-/// The rows are made for the SessionRefs ZzUploadA and ZzUploadB and are deleted before and after the tests.
+/// The rows are made for the SessionRefs ZzUploadA and ZzUploadB and are deleted before each test and after the tests.
 Class OcuTalon.Test.Core.UploadContract Extends OcuTalon.Test.Contract
 {
 
 Method OnBeforeAllTests() As %Status
+{
+	Do ..DeleteFixtures()
+	Quit $SYSTEM.Status.OK()
+}
+
+Method OnBeforeOneTest() As %Status
 {
 	Do ..DeleteFixtures()
 	Quit $SYSTEM.Status.OK()
@@ -95,6 +101,8 @@ Method TestPutAndTake()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Upload).Take(""), "", "an empty Ref returns nothing")
 	Do source.Rewind()
 	Set second = ##class(OcuTalon.Data.Upload).Put("ZzUploadA", source, .sc)
+	Do $$$AssertStatusOK(sc, "a second Put is OK")
+	Do $$$AssertEquals(..Count("SessionRef = 'ZzUploadA'"), 1, "and stores a row")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Upload).Drop(second), 1, "Drop is OK")
 	Do $$$AssertEquals(..Count("SessionRef = 'ZzUploadA'"), 0, "and deleted the row")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Upload).Drop("ZzNoSuchUpload"), 1, "Drop of an unknown Ref is OK too")
@@ -113,11 +121,11 @@ Method TestDropSession()
 	Do $$$AssertEquals(..Count("SessionRef %STARTSWITH 'ZzUpload'"), 3, "three uploads are there")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Upload).DropSession(""), "DropSession of no session is OK")
 	Do $$$AssertEquals(..Count("SessionRef %STARTSWITH 'ZzUpload'"), 3, "and deletes nothing")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Upload).DropSession("zzuploada"), "DropSession of a Ref that differs in case is OK")
+	Do $$$AssertEquals(..Count("SessionRef %STARTSWITH 'ZzUpload'"), 3, "and deletes no upload of the session with that Ref in another case")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Upload).DropSession("ZzUploadA"), "DropSession is OK")
 	Do $$$AssertEquals(..Count("SessionRef = 'ZzUploadA'"), 0, "the session's uploads are gone")
 	Do $$$AssertEquals(..Count("SessionRef = 'ZzUploadB'"), 1, "another session's upload is still there")
-	Do $$$AssertStatusOK(##class(OcuTalon.Data.Upload).DropSession("zzuploada"), "DropSession of a Ref that differs in case is OK")
-	Do $$$AssertEquals(..Count("SessionRef = 'ZzUploadB'"), 1, "and no other session loses an upload")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Upload).DropSession("ZzUploadB"), "DropSession of the last session is OK")
 	Do $$$AssertEquals(..Count("SessionRef %STARTSWITH 'ZzUpload'"), 0, "none is left")
 }

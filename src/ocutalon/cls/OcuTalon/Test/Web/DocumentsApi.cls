@@ -1,7 +1,7 @@
 /// Tests of the documents routes (Story 34.2; AD-1, AD-4, AD-13, AD-21), called with stand-in request and response objects and a CSP session
 /// whose OcuTalon.SessionRef is a fixture session (as Test.Web.DismissApi does), through Test.Web.DocumentsProbe, whose Submit records the
 /// command instead of sending it to CommandsIn. Safe on a slot: no production is needed. Rows are fixtures (Test.Data.Fixture), removed before
-/// and after the tests; the public setting onlineDemo and the probe's globals are put back.
+/// and after the tests, with the upload rows of the test's sessions; the public setting onlineDemo and the probe's globals are put back.
 ///   - TestDispatch (Task 0 (a)): Web.Api's URL map holds exactly one Map, for /v1/documents, forwarded to Web.Documents, and the forwarded class
 ///     routes GET and POST of the empty remainder and DELETE of /:ref to List, Add and Remove; a Map of the same kind (Test.Web.DocumentsMapProbe)
 ///     reaches the probe's three routes through the forwarded role check; the whole chain from Web.Api.DispatchMap reaches Web.Documents' routes in
@@ -42,6 +42,9 @@ Property Number As %Integer;
 /// The public setting onlineDemo before the tests, "" when it was absent.
 Property SavedOnline As %String;
 
+/// The SessionRefs that Session made, comma-separated; OnAfterAllTests deletes their upload rows (a test that stops early leaves them).
+Property Sessions As %String(MAXLEN = "");
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
@@ -61,6 +64,7 @@ Method OnBeforeOneTest() As %Status
 Method OnAfterAllTests() As %Status
 {
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	For i = 1:1:$Length(..Sessions, ",") Do ##class(OcuTalon.Data.Upload).DropSession($Piece(..Sessions, ",", i))
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
 	Kill ^OcuTalonTest("DocumentsProbe")
 	Quit $$$OK
@@ -260,7 +264,8 @@ Method TestUploadRows()
 	Do $$$AssertTrue($IsObject(row), "the AddDocument names the row (UploadRef "_ref_")")
 	Do $$$AssertEquals(..Submit(1, "uploadSessionRef")_"|"_..Submit(1, "size"), a_"|5", "which holds the CSP session's Ref and the decoded bytes when the command arrives")
 	Kill row
-	Do $$$AssertEquals(##class(OcuTalon.Data.Upload).Take(ref).Read(5), "hello", "and the owner takes the bytes")
+	Set taken = ##class(OcuTalon.Data.Upload).Take(ref)
+	Do $$$AssertEquals($Select($IsObject(taken): taken.Read(5), 1: "(no upload)"), "hello", "and the owner takes the bytes")
 	Do $$$AssertEquals(..Uploads(a), 0, "which leaves no row")
 	Kill ^OcuTalonTest("DocumentsProbe")
 	// A failed submit leaves no row.
@@ -538,7 +543,9 @@ Method TestEnvelope()
 /// says which of the test's sessions it is). Returns its Ref.
 Method Session(name As %String) As %String [ Private ]
 {
-	Quit ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set ..Sessions = ..Sessions_$Select(..Sessions = "": "", 1: ",")_ref
+	Quit ref
 }
 
 /// Calls the route method of the probe as the CSP session of the session (a body is the request's content, UTF-8 bytes as the CSP server

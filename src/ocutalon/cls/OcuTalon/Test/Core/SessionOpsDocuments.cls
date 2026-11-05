@@ -1,13 +1,13 @@
 /// Tests of the step 3 drops of OcuTalon.Core.SessionOps.End (Story 34.2; AD-4, AD-21): an online-demo sign-out calls OcuTalon.Docs.DropSession,
 /// OcuTalon.Memory.DropSession and OcuTalon.Data.Upload.DropSession with the session's SessionRef. Safe on a slot: no production is needed, because the fixture sessions have no
 /// chat, reminder, watch or approval request for End to send. The sessions are fixture rows (Test.Data.Fixture), removed before and after.
-///   - TestBothDropsCalled: End calls each drop once, with the session's SessionRef, the documents first, and answers ended with the resume hash
+///   - TestBothDropsCalled: End calls the documents and memories drops once each, with the session's SessionRef, the documents first, and answers ended with the resume hash
 ///     cleared; another session's SessionRef is never passed;
 ///   - TestFailingDropFails: a drop that answers an error status or throws makes End answer failed and keeps the resume hash, a warning names the
 ///     session, and the other drops (the uploads included) and the later steps (here a pending approval request's cancel) still run;
 ///   - TestUploadsDropped: End calls the uploads drop once, with the session's SessionRef, and the real Upload.DropSession deletes the session's
 ///     upload rows and no other session's; an uploads drop that answers an error or throws makes End answer failed, keeps the resume hash and
-///     still runs the other drops;
+///     still runs the other drops and the later steps (here a pending approval request's cancel);
 ///   - TestRealStubsEnd: the real SessionOps with Lane A's DropSession stubs answers ended and clears the resume hash (Story 34.1's stubs
 ///     return OK and change nothing).
 Class OcuTalon.Test.Core.SessionOpsDocuments Extends %UnitTest.TestCase
@@ -95,6 +95,7 @@ Method TestUploadsDropped()
 		Kill ^OcuTalonTest("SessionOpsDocuments"), ^OcuTalonTest("SessionOpsUploads")
 		Set session = ..Session("upfail"_how)
 		Do ..SetResumeHash(session, "upfail"_how)
+		Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(session)
 		Set probe = ..Probe()
 		Set probe.FailUploads = how
 		Set label = "an uploads drop that "_$Select(how = "error": "answers an error", 1: "throws")
@@ -102,7 +103,8 @@ Method TestUploadsDropped()
 		Set warnings = ..Logged(text)
 		Set result = ..End(probe, "web_user", session)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", label_": Ok 0, failed")
-		Do $$$AssertEquals(..Calls(), "documents|"_session_",memories|"_session, label_": the other drops still ran")
+		Do $$$AssertEquals(..Calls(), "documents|"_session_",memories|"_session, label_": the other drops ran")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request).State, "cancelled", label_": a later step still ran, the pending request is cancelled")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session).ResumeHash, ##class(OcuTalon.Data.Session).Hash("upfail"_how), label_": the resume hash is kept")
 		Do $$$AssertEquals(..Logged(text), warnings + 1, label_": one warning names the session")
 	}

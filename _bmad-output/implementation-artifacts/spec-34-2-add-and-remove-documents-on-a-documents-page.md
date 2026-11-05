@@ -198,6 +198,41 @@ Code review 2026-11-05 (first review; layers blind-hunter, edge-case-hunter, ver
 - (low, wontfix-theoretical) The whole request body is buffered before the BODYMAX check. This is real only if the demo host's proxy allows unbounded bodies (the owner-side 14 MB check).
 - (reject) Implement decision 6 still says `pageOf` matches "/documents and below" [Blind, Edge, Auditor]. The fix edits the spec under review.
 
+### Review Findings (re-review of reworks 1 and 2)
+
+Code review 2026-11-05, scoped re-review of rework 1 (`b8ef527e..25ff58e7`) and rework 2 (`3a428c55..ca1d1da1`); layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor, full model tier. 0 high, 2 medium, 13 low; 7 rejected. Patched in the review: 1 medium and 12 low. Routed: 1 medium, as an occurrence on DW-747 (owner 19-4). Closed: 1 low as DW-748, wontfix-accepted. Checklist: all four items are confirmed fixed.
+- [CI] KeyProof: `AddDocument` carries `UploadRef` and no stream. `Data.Upload`, `Take`, `DropSession`, the route's drop on a failed submit and `SessionOps.End`'s uploads drop are all present. `Test.Eval.KeyProof` is unchanged and 7 of 7 passed on slot C.
+- [CI] Build context: the Dockerfile `COPY` names `allowed.txt` and `gate.py`, and `test-lib-live.sh` passes. `.dockerignore` is an allow-list, so `__pycache__` stays out.
+- [CI] Header: the change is CSS only, in three header files: custom properties in the 1024-1279 px drawer band. No text changed and the nav order is unchanged. `web/e2e-online/**` and the demo-switch specs have no diff.
+- [Decision] DW-741: both `XData BodyBounds` blocks hold 13,985,112, which equals `BODYMAX`, and `TestBodyBounds` pins them. `Web/BodyLimit.cls` and 11.22's tests have no diff. `Test.Web.BodyLimit` passed 4 of 4 on slot C.
+
+Rule 6: no AD mismatch. The spine edits of both reworks and of this review are plain unions with markers; the 34.1/34.2 cross-area row's field update was ruled by U-287. Rule 3: e2e D1-D13 still run against the real runtime.
+
+- [x] [Review][Patch] (medium) `TestDropSession`'s case-variant assertion could never fail [src/ocutalon/cls/OcuTalon/Test/Core/UploadContract.cls:123]. It ran `DropSession("zzuploada")` only after ZzUploadA's rows were already gone, so it would stay green without EXACT collation. The case-variant drop now runs first and asserts that all three rows remain. Mutation: `Upload.SessionRef` without EXACT now turns it red.
+- [x] [Review][Patch] (low) `Add` held the decoded file of up to 10 MB for the whole submit wait [src/ocutalon/cls/OcuTalon/Web/Documents.cls:105]. `Dispatch`'s `Set bytes = ""` released only its own copy. `bytes` is now passed by reference, so the stream is released once it is stored.
+- [x] [Review][Patch] (low) For a failing uploads drop, `TestUploadsDropped` did not show that End's later steps still run [src/ocutalon/cls/OcuTalon/Test/Core/SessionOpsDocuments.cls:96]. The uploads drop runs last, so the old "other drops still ran" check could not fail. A pending approval request is now cancelled in both cases.
+- [x] [Review][Patch] (low) `SessionOpsDocuments`' header said `TestBothDropsCalled` covers "each drop", but it does not check the uploads drop [src/ocutalon/cls/OcuTalon/Test/Core/SessionOpsDocuments.cls:5]. It now names the documents and memories drops.
+- [x] [Review][Patch] (low) In `DocumentsProbe`'s header, "a done AddDocument takes its Upload row" sat after the failed answers [src/ocutalon/cls/OcuTalon/Test/Web/DocumentsProbe.cls:7]. It now follows the done answer.
+- [x] [Review][Patch] (low) `DocumentsApi` never cleaned up Upload rows at class level. Also, `Take(ref).Read(5)` threw `<INVALID OREF>` when the row was missing, which skipped the rest of `TestUploadRows` and its cleanup [src/ocutalon/cls/OcuTalon/Test/Web/DocumentsApi.cls:265]. The Take is now guarded and turns into an assertion. `Session` records each ref, and `OnAfterAllTests` drops their uploads.
+- [x] [Review][Patch] (low) `TestPutAndTake` never checked the second `Put`, so if it failed, `Drop("")` and the zero count passed anyway [src/ocutalon/cls/OcuTalon/Test/Core/UploadContract.cls:103]. The test now asserts its status and the stored row.
+- [x] [Review][Patch] (low) `UploadContract` had no per-test cleanup, so a failure in one test turned the other's absolute counts red [src/ocutalon/cls/OcuTalon/Test/Core/UploadContract.cls:21]. `OnBeforeOneTest` now deletes the fixtures.
+- [x] [Review][Patch] (low) The spine did not record that the documents bound is declared twice, in `Web.Api` for `/v1/documents` and in `Web.Documents` for `""`, both at `BODYMAX` (DW-741) [ARCHITECTURE-SPINE.md, AD-21 "Adding and removing"]. A plain union with a marker now does.
+- [x] [Review][Patch] (low) `Upload.Take`, a Lane B API that Lane A's `DocumentOps` calls, was missing from the cross-area table [ARCHITECTURE-SPINE.md, the "Lane B contracts fixed by Story 34.2" row]. A plain union with a marker adds it. `lint_spine` shows only the 8 pre-existing `placeholder` findings.
+- [x] [Review][Patch] (low) The header-fit items had no `mutation:` line [Verification]. One is written from the observed red: CI run 42037863035 on 6508ddc3, the tree without the drawer-band block.
+- [x] [Review][Patch] (low) The Upload storage contract and its `src/short-names.tsv` row had no `mutation:` line [Verification]. Both were demonstrated and written.
+- [x] [Review][Patch] (low) Nothing demonstrated that the route keeps the upload row on an Ok answer (19.4's half of the contract) [Verification]. It was demonstrated and written.
+- [x] [Review][Defer] (medium) The Upload lifecycle has gaps [src/ocutalon/cls/OcuTalon/Web/Documents.cls:170, src/ocutalon/cls/OcuTalon/Data/Upload.cls:22]. A CommandsIn timeout drops the row while the AddDocument may still be delivered. `CreatedAt` is never read, so nothing purges old rows. An add still in flight while End runs stores its row after `DropUploads`. Deferred: an occurrence on DW-747, routed to 19-4, which builds the consumer and decides the sweep.
+- [x] [Review][Defer] (low) Story 11.22's comments read stale beside this story's `BodyBounds` [src/ocutalon/cls/OcuTalon/Test/Web/BodyLimit.cls:2, src/ocutalon/cls/OcuTalon/Web/BodyLimit.cls]. They say `ApiProbe` has "no declaration", that `POSTROUTES` covers "every POST route", and their example uses 14680064. Deferred: DW-748, wontfix-accepted. The files are 11.22's and doc-only, and the assertions still hold.
+
+**Rejected (re-review):**
+- (false) Cross-area row 1354 was edited in place, not only appended [Auditor]. Ruling U-287 explicitly says "`AddDocument`'s fields updated in this epic's own rows". The row is a table row, not an AD Rule, Binds or Prevents sentence, and it carries the marker.
+- (reject) The intent contract still says `Content` and "decoded bytes" [Auditor]. The fix edits the spec's intent block; U-287 supersedes it.
+- (low) `TestBodyBounds` stops at `OnPreDispatch` and does not show a body reaching the route through the Map [Verification-gap, Auditor]. `TestBodyBound` covers the route's own check, and e2e D8 sends a 10,485,760-byte PDF through the real chain. This repeats the rework-2 rejection.
+- (low) `Upload.Drop`'s status after a failed submit is ignored [Edge]. The sign-out `DropSession` still removes the row, and the fix adds a branch for a rare failure. This repeats the rework-1 rejection.
+- (false) A failed COUNT reads as 0, so the "no row left" assertions pass falsely [Edge]. In `DocumentsApi.Uploads` a failed count returns "", which is not equal to 0, so the assertion fails. In `SessionOpsDocuments`, the combined "0|1" assertion fails when the count fails.
+- (low) The order documents, memories, uploads is not asserted [Blind]. The spec sets no order for the uploads drop. Each drop runs in its own Try, and the failure cases pin that each one runs.
+- (low) `live sign-in --part 2/2` has not run on a tree with the drawer-band CSS [Auditor]. This is about which test runs happened, not a code defect. CI and the lead's fresh check run every part; demo-switch, online-demo, floor and sign-in 1/2 passed.
+
 ## Spec Change Log
 
 - 2026-11-05 (lead, rework iteration 2, trigger decision): the branch integrated feature e62a5844 (Story 11.22's Web.BodyLimit); orchestrator ruling on DW-741: declare `XData BodyBounds` for the documents upload in `Web.Api` and `Web.Documents`. Work only the `[Decision]` items. Rework 1 (25ff58e7) has not yet been re-reviewed: one scoped re-review will cover both reworks.
@@ -297,6 +332,10 @@ Code review 2026-11-05 (first review; layers blind-hunter, edge-case-hunter, ver
   - `[low]` `[reject]` Gap: the default-size iterations pass without any declaration -- they are controls; the declaration is pinned by the `default + 1`, `max` and `max + 1` cases and four mutation lines (no gap found: every pinning test has its `mutation:` line)
   - `[low]` `[reject]` Intent: the tests exercise OnPreDispatch and `Bound`, not a near-10 MB upload through the whole chain -- e2e D8 does exactly that and passed in `live sign-in --part 1/2` (173 passed)
   - `[low]` `[reject]` Intent: nothing covers a gateway or proxy in front of IRIS -- outside this story; the owner-side 14 MB proxy check is a recorded wontfix-theoretical row
+
+### 2026-11-05 -- Code review (re-review of reworks 1 and 2)
+- verdicts: 22 findings -- high 0, medium 2, low 18, false 2, maybe-false 0 (rejected: 2 false, 1 spec edit, 4 low)
+- dispositions: patch 13 (1 medium, 12 low; all applied), defer 2 (DW-747 occurrence, routed 19-4; DW-748 wontfix-accepted); story closes under Rule 15 (no high)
 
 ## Design Notes
 
@@ -495,6 +534,14 @@ Lane prefix `P` = `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=a
 - mutation: the `Web.Documents` BodyBounds entry's bytes one lower (13,985,111) -> `DocumentsApi` TestBodyBounds red (the declaration differs from BODYMAX, and a body of BODYMAX refused at the forwarded dispatch)
 - mutation: the `Web.Api` BodyBounds entry's bytes one higher (13,985,113) -> `DocumentsApi` TestBodyBounds red (the declaration differs from BODYMAX, and a body one byte over BODYMAX is not refused)
 - mutation: the `Web.Api` BodyBounds entry naming POST `/v1/messages` instead of `/v1/documents` -> `DocumentsApi` TestBodyBounds red (the documents route refused, and POST `/v1/messages` no longer refuses 262,145 bytes)
+
+**Code review, re-review of reworks 1 and 2 (slot C for the IRIS mutations, `test-storage.sh` for the registry one; every file backed up to the review scratch folder, mutated, run red, restored and compared with `cmp`; `git diff` of each file unchanged afterwards):**
+- mutation: `Upload.SessionRef` without `COLLATION = "EXACT"` -> `UploadContract` TestDropSession red ("and deletes no upload of the session with that Ref in another case"; the behavioural pin, beside TestRefCollation's dictionary read) (CR2)
+- mutation: `Upload` `DEFAULTGLOBAL` `^OcuTalonP.Upload` -> `^OcuTalonP.Uploads` (the storage contract) -> `UploadContract` TestRegistry red ("OcuTalon.Data.Upload sets DEFAULTGLOBAL ^OcuTalonP.Upload") (CR2)
+- mutation: the `Upload` row removed from `src/short-names.tsv` -> `docker/tests/test-storage.sh` red (`FAIL registry-row`: "class OcuTalon.Data.Upload sets Parameter DEFAULTGLOBAL but has no row") (CR2)
+- mutation: `Web.Documents.Dispatch` drops the upload on an Ok answer too (`'result.Ok` -> `1`; the row kept for the owner, Story 19.4's half) -> `DocumentsApi` TestUploadRows red ("one upload row of the session", "the AddDocument names the row", "and the owner takes the bytes") (CR2)
+- mutation: the drawer-band block of `header.ts` absent (with it the custom properties that `header-nav.ts` and `reset-countdown.ts` read), which is the tree of 6508ddc3 -> `web/e2e/demo-switch/view.spec.ts` V5 and `web/e2e-online/reset.spec.ts` R8 red in CI run 42037863035 (3 px across at 1024 px); with only the padding-and-gap fix, V5 was red locally (rework 1) (CR2, recorded from the observed runs)
+- after the review's patches, on slot C: `UploadContract` 5 of 5, `SessionOpsDocuments` 4 of 4, `DocumentsApi` 15 of 15, `Test.Eval.KeyProof` 7 of 7, `Test.Web.BodyLimit` 4 of 4; `test-storage.sh`, `test-lib-live.sh`, `test-class-rules.sh` and `test-boundaries.sh` pass.
 
 **Tests added or changed by QA:** `src/ocutalon/cls/OcuTalon/Test/Web/DocumentsApi.cls` (QA: TestNoSession, TestRealSubmitOrigin and their header lines), `web/scripts/documents-view.test.mjs` (QA: one case, unknown payload fields ignored).
 

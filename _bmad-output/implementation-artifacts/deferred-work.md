@@ -4209,6 +4209,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic11 a8868ad8 run 41957022331 iris (shards) job 127036912190 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the run's artifact list is empty; the log names only 'Test timeout of 300000ms exceeded' and the error-context path
 - 2026-11-05T04:38:50Z status=routed owner=burndown by=Contest_Planner note=Contest Planner (delegated) 2026-11-05: first-daily-release burn-down story; on failure, upload the Playwright test-results (error-context.md, traces) of the browser units as a CI artifact, no secrets (CI dummy key/token only), short retention
+- 2026-11-05T10:38:22Z status=routed owner=11-22-first-daily-release-burn-down by=burndown note=chartered: first daily release burn-down (owner via the Planner 2026-11-05T01:51Z; orchestrator dispatch); Story 11.22
+- 2026-11-05T14:52:20Z status=resolved-by:11-22-first-daily-release-burn-down by=adjudication note=each browser unit keeps web/test-results/<unit>/; a failure-only upload step keeps error-context.md and the results folder, 3-day retention; traces are excluded on purpose (orchestrator ruling 2026-11-05): the repository is public and a trace can hold the throwaway stack's per-run sign-in passwords; pinned by ci-results.test.mjs and test-ci-config.sh
 
 ### DW-719: UX text after Epic 40 merges (owner ruling U-279): UX-DR144 and EXPERIENCE.md Step 3 Documents 'Adding' must accept 'Markdown, plain text, PDF and Word (.docx) files.' (replacing 'then PDF and Word from step 6'), and the UX assumptions add 'On a local install, memories belong to each user and documents are shared by every user of the install (P23).'
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4252,6 +4254,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: src/ocutalon/cls/OcuTalon/Msg/Command/AddDocument.cls; message purge coverage not measured
 - 2026-11-05T12:23:42Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=measure the purge; drop the message bodies with the session or remove, or keep content out of the message
 - 2026-11-05T14:15:42Z status=routed owner=34-2-add-and-remove-documents-on-a-documents-page by=lead note=pulled_into_34.2_rework_1_by_ruling_U-287_(Data.Upload;AddDocument_carries_UploadRef)
+- 2026-11-05T17:41:27Z status=resolved-by:34-2-add-and-remove-documents-on-a-documents-page by=adjudication note=rework_1_25ff58e7:AddDocument_carries_UploadRef,no_stream_in_any_message;Data.Upload_rows_deleted_by_Take,by_the_route_on_a_failed_submit,and_by_SessionOps.End(Upload.DropSession);KeyProof_7/7;remaining_Upload_lifecycle_gaps_are_DW-747(19.4)
 
 ### DW-735: Web e2e D8 and D10 (web/e2e/documents/documents.spec.ts) expect the real routes to answer an error while DocumentOps is disabled and go red once Story 19.4 enables it; switch them to fulfilled answers (page.route)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4277,14 +4280,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Data.Upload.CreatedAt stored, never read; Web.Documents.Dispatch drops the row on any non-Ok end (34.2 rework 1 review)
 - 2026-11-05T16:51:33Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 builds DocumentOps's Take and decides the sweep, the timeout case and the session check
-- 2026-11-05T10:38:22Z status=routed owner=11-22-first-daily-release-burn-down by=burndown note=chartered: first daily release burn-down (owner via the Planner 2026-11-05T01:51Z; orchestrator dispatch); Story 11.22
-- 2026-11-05T14:52:20Z status=resolved-by:11-22-first-daily-release-burn-down by=adjudication note=each browser unit keeps web/test-results/<unit>/; a failure-only upload step keeps error-context.md and the results folder, 3-day retention; traces are excluded on purpose (orchestrator ruling 2026-11-05): the repository is public and a trace can hold the throwaway stack's per-run sign-in passwords; pinned by ci-results.test.mjs and test-ci-config.sh
+- 2026-11-05T17:39:16Z occurrence=34-2-add-and-remove-documents-on-a-documents-page
 
 ### DW-741: Epic 34 merge: Web.Api's OnPreDispatch refuses a POST /v1/documents body over 256 KB with 413 before OcuTalon.Web.Documents (Map-forwarded) runs; 34.2 must declare XData BodyBounds in Api.cls (url /v1/documents) and in Documents.cls (url "")
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Web.BodyLimit (11.22) checks every Web.Api route in OnPreDispatch; OCT-epic34's Documents extends Web.Api behind <Map Prefix="/v1/documents">, checks its own BODYMAX, declares no BodyBounds; compiled XData is inherited (slot B), so the forwarded re-check uses the leftover url
 - 2026-11-05T14:50:17Z status=escalated owner=burndown by=cr note=merge-gate item for the orchestrator: two BodyBounds declarations at the 11.22/34.2 merge; BodyLimit header documents it
 - 2026-11-05T16:52:48Z status=routed owner=34-2-add-and-remove-documents-on-a-documents-page by=orchestrator note=ruling_2026-11-05:34.2_declares_XData_BodyBounds_in_Api.cls(url_/v1/documents)_and_Documents.cls(url_"")_bytes=its_~14MB_bound;BODYMAX_stays;tests_both_sides_of_the_documents_bound_and_the_256KB_general_limit
+- 2026-11-05T17:41:27Z status=resolved-by:34-2-add-and-remove-documents-on-a-documents-page by=adjudication note=rework_2_ca1d1da1:XData_BodyBounds_in_Web.Api(POST_/v1/documents)_and_Web.Documents(POST_"")=BODYMAX_13985112;TestBodyBounds_both_sides_and_262145_on_/v1/messages;Web.BodyLimit_untouched
 
 ### DW-742: wait_disabled_quiet waits the whole DISABLED_QUIET_SECONDS for a Dead Ens.Job entry, which only CleanUpDeadJobs (production start/stop/update) removes
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: low | fix-risk: low | footprint: in-story
@@ -4305,3 +4308,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: low | fix-risk: low | footprint: in-story
 - evidence: irisScript (Story 11.21) has no abort signal; boundedStep rejects at DIAG_BOUND_MS while the retry loop continues; failure path of a failure path only
 - 2026-11-05T14:50:17Z status=wontfix-accepted owner=11-22-first-daily-release-burn-down by=cr note=reopen_if=a CI log shows a DIAG /state unavailable line followed by a docker exec left running after the test ended
+
+### DW-748: Story 11.22's docs read stale beside 34.2's BodyBounds: Test.Web.BodyLimit says Test.Web.ApiProbe has no declaration (it now inherits Web.Api's POST /v1/documents entry), POSTROUTES is called every POST route but omits /v1/documents, and Web.BodyLimit's header example names /v1/documents at 14680064 bytes (the real bound is 13,985,112)
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 11.22's assertions still hold (POSTROUTES omits /v1/documents; the declared-bound case uses /v1/messages); only the comments mislead; the files are Story 11.22's and outside 34.2's lane (34.2 re-review, Blind and Acceptance Auditor)
+- 2026-11-05T17:39:16Z status=wontfix-accepted owner=34-2-add-and-remove-documents-on-a-documents-page by=cr note=doc-only, another story's files; reopen_if=a Test.Web.BodyLimit case or a reader acts on the ApiProbe no-declaration claim

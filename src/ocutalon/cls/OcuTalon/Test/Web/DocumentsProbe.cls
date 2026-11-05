@@ -3,9 +3,9 @@
 /// ^OcuTalonTest("DocumentsProbe", "submits", n) (n counted in "submits"): class, origin (the class's ORIGIN, which the real Submit passes to
 /// Commands.Submit), name, contentType, uploadRef, size (the bytes of the Upload row the command names, read when the command arrives),
 /// uploadSessionRef (that row's SessionRef), sessionRef and documentRef. It answers by
-/// ^OcuTalonTest("DocumentsProbe", "answer"): "" is a done command (Ok 1, Ref zzDocRef0123456789abcd), "not_built", "not_found", "failed" and
-/// any other word are a CommandResult with Ok 0 and that Outcome (a done AddDocument takes its Upload row, as DocumentOps does, unless
-/// ^OcuTalonTest("DocumentsProbe", "keep") is set), "status" is an error status, "throw" throws an error, "okerror" is an Ok result with an error status and "none" is OK with no result. The owner item is running
+/// ^OcuTalonTest("DocumentsProbe", "answer"): "" is a done command (Ok 1, Ref zzDocRef0123456789abcd; a done AddDocument takes its Upload row,
+/// as DocumentOps does, unless ^OcuTalonTest("DocumentsProbe", "keep") is set), "not_built", "not_found", "failed" and
+/// any other word are a CommandResult with Ok 0 and that Outcome, "status" is an error status, "throw" throws an error, "okerror" is an Ok result with an error status and "none" is OK with no result. The owner item is running
 /// unless ^OcuTalonTest("DocumentsProbe", "owner") is "off". The roles of the
 /// signed-in user are the text in ^OcuTalonTest("DocumentsProbe", "roles") when it is set (comma-separated, as $Roles is), which the OcuTalon
 /// user role check and the admin check of OnPreDispatch read, and the process's own $Roles otherwise.
