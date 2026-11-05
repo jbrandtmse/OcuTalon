@@ -546,3 +546,5 @@
 2026-11-05T16:07:12Z	Epic 11	ruling	question=next_work choice=Story_11.23(DW-636)_after_11.22_merge(32686b09) why=orchestrator_dispatch category=decide policy=5086036 note=DW-741_left_open(34.2_resolves)
 2026-11-05T16:07:12Z	Epic 11	epic_context_compiled	reason=planning_artifact_newer(11.23_inserted) model=claude-opus lines=59 header=ok subagent_tokens=65578
 2026-11-05T16:07:12Z	Story 11.23	stage_spawned	stage=plan spawn_at=2026-11-05T16:07:12Z model=claude-opus agent_name=11-23-install-sh-accepts-build-109-plan-1 cycle_iteration=1 ledger_inbox=DW-636
+2026-11-05T16:18:09Z	Story 11.23	story_created	spawn_at=2026-11-05T16:07:12Z model=claude-opus path=_bmad-output/implementation-artifacts/spec-11-23-install-sh-accepts-build-109.md build_status=ready-for-dev epic_context=reused(fresh) measured=build_109_loaded_locally(arm64);install.sh_scan_images_accepts_2_refs_today subagent_tokens=257727 duration_min=10
+2026-11-05T16:18:09Z	Story 11.23	plan_clarification_requested	to=orchestrator items=PUBLIC_TEXT(README_P1-P9,install.sh_B1-B4),AD-23_Rule_wording(adds_the_109_ref;veto_window) note=implement_waits_for_the_approved_text
