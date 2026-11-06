@@ -4067,6 +4067,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Fingerprint changed and done was not 10000 inside a 0.6 s class; passed alone, in lane-b@Web and in lane-b@Schedule,Web, and in attempt 2 of the same head. Cause unknown: the fixture watch is not due for 3600 s, so a real tick does not run it, and a beat writes nothing the test reads
 - 2026-11-04T16:26:42Z status=routed owner=burndown by=harvest note=one occurrence on 092876ad; reads as a test race, cause not found
 - 2026-11-06T10:42:06Z occurrence=39-2-save-your-heartbeat-settings-and-ask-for-a-beat note=312498d6 run 42199537340 attempt 1, image shard:lane-b, the same two tests, class red in 0.46 s; HeartbeatApi runs after GuideApi (name order) so a 39.2 test cannot precede it; 39.2 changes no guide, marker, Live.Publish or session-row path (new routes only); fixture sessions are fresh refs; a tick's empty-checklist skip writes only HeartbeatBeat (not in the Fingerprint) and publishes nothing (U-283). Same as DW-453 (pre-Epic 39)
+- 2026-11-06T17:45:12Z status=routed owner=burndown by=owner note=Planner 2026-11-06: flake (test race, not a shipped-behaviour defect); to the post-merge Epic 39 follow-up with DW-453's findings (print both fingerprints on failure)
 
 ### DW-676: Beat.Read: an error status from one Ownership read or the Usage SQL read is pinned only through the whole-Read override (BrokenBeat), not per branch
 - source: spec-39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built.md | severity: low | fix-risk: low | footprint: in-story
@@ -4628,6 +4629,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the spec's Extend-don't-copy note records the copy: Lane B may not edit Lane A's test-triage-heartbeat.sh, so the overview-bullet rule exists twice
 - 2026-11-06T09:32:40Z status=routed owner=burndown by=cr note=Rule 2: a spec-forced copy is routed to the story that may edit both scripts
 - 2026-11-06T09:32:48Z status=routed owner=burndown by=cr note=footprint is in-epic (test-triage-heartbeat.sh is Lane A's in Epic 39), not out-of-footprint
+- 2026-11-06T17:45:12Z status=routed owner=burndown by=owner note=Planner 2026-11-06 (relayed by the orchestrator): no burn-down before Epic 39's merge; test hygiene goes to the post-merge Epic 39 follow-up story for Saturday's release (key epic-39-followup not yet in the tracker)
 
 ### DW-800: heartbeat-card.spec.ts HC8, HC10 and HC11 skip within 40 minutes of midnight UTC, so about 5.6 percent of runs leave the outcome texts, the run refusals and the event re-read unpinned
 - source: spec-39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now.md | severity: low | fix-risk: med | footprint: in-story

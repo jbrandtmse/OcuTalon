@@ -1357,7 +1357,7 @@ flowchart LR
 | `OcuTalon.Core.SettingsOps.RestartRunners()` (AD-21), called by `McpOps` (Lane A, step 4) | B | Story 35.2 (was 21.1) |
 | `OcuTalon.Mcp.Ops.Tools(server)` (AD-21), read by the settings page (Story 21.4) | A | fixed by Story 35.1 (was 22.1) (stub), built in Story 22.2 |
 | `OcuTalon.Checks.Msg.BeatNow` (`SessionRef`, `RequestedAt`) (AD-18): `CommandsIn` sends it for `RunHeartbeat`, and `Checks` handles it [ADDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195): the personality epics, AD-29] | A | Story 39.1 (stub), Story 39.3 |
-| `OcuTalon.Live.Payload.Heartbeat` (AD-18), read by the web layer [ADDED 2026-10-31, as above] | A (its publisher, `Checks`) | Story 39.1 |
+| `OcuTalon.Live.Payload.Heartbeat` (AD-18), read by the web layer [ADDED 2026-10-31, as above] | A (its publisher, `Checks`) | Story 39.7 [AMENDED 2026-11-06, Epic 39 close: it read Story 39.1; Story 39.7 built the payload class and its publishing] |
 | `OcuTalon.Agent.Input.Render(item, now, context)` (AD-7); `Conversation` passes `{"sessionStart":1}` [ADDED 2026-10-31, as above] | A | Story 41.1 (signature), Story 41.4 |
 | `OcuTalon.Data.Precedent.KeyFor(item)` and `.Similar(ownerRef, channel, matchKey, limit)` (AD-21), read by `Agent.Input` [ADDED 2026-10-31, as above] | B | Story 41.2 |
 | `OcuTalon.Data.DailyNote.Build(sessionRef, day)` (AD-21), read by `Agent.Input` and the web layer [ADDED 2026-10-31, as above] | B | Story 41.2 (stub), Story 41.3 |
@@ -1382,7 +1382,7 @@ flowchart LR
 | `status` (the AD-12 conditions), `reset` (the reset schedule) | `StatusMonitor` | B |
 | `breakfeed.progress` | `BreakFeedIn` | B |
 | `guide.state` | the `Live.Publish` hook | B |
-| `heartbeat` (the agent heartbeat, AD-18) [ADDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195)] | `Checks` | A (Story 39.1 stub, Story 39.3) |
+| `heartbeat` (the agent heartbeat, AD-18) [ADDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195)] | `Checks` | A (Story 39.7 [AMENDED 2026-11-06, Epic 39 close: it read Story 39.1 stub, Story 39.3; Story 39.7 publishes the event]) |
 | `document` | `DocumentOps` | A (Story 34.1 names it; Story 19.4 publishes) [ADDED 2026-11-05, Story 34.1] |
 
 ### Data model
