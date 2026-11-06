@@ -330,3 +330,17 @@
 2026-11-01T19:39:41Z	Epic 4	decision_sheet_skipped	reason=empty(no_escalated_or_decision-pending_entries;runner_decisions_for_user=none)
 2026-11-01T19:43:44Z	Epic 4	integrated_forward	feature=416b0f64 head=ce8f5c67 conflicts_resolved=none code_tree=identical_to_d2d47b16(CI_green_every_workflow) verification=web_test_1158,live_demo-path_on_merged_tree(e4ifw,0_failed) ledger=DW-530_occurrence_appended(4.9)
 2026-11-01T19:43:44Z	Epic 4	epic_runner_complete	stories_completed=3(4.8,4.9,4.10) ledger=open_before=1,resolved=0,terminal=1,chartered=0,overflow=0,to_decision_sheet=0,open_after=0,drain_ratio=1.50 decisions_for_user=none veto=U-202(kept_by_Planner)
+2026-11-06T10:07:53Z	Epic 4	epic_branch_reopened	reason=story_4.11_owner_decision from=2460339e
+2026-11-06T10:07:53Z	Epic 4	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_4.11 lane=B slot=ocutalon-slot-b
+2026-11-06T10:07:53Z	Epic 4	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-06T10:07:53Z	Epic 4	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-06T10:07:53Z	Epic 4	launch_env	depth=default watchdog=default bash_max_ms=default
+2026-11-06T10:07:53Z	Epic 4	epic_branch_checked_out	repos=. head=2460339e ci_expected=ci,lane-a bootstrap_check=pass
+2026-11-06T10:08:08Z	Epic 4	telemetry_gate	pending=1 action=none(gates.model_tier:record_only;unattended_logs_and_continues)
+2026-11-06T10:08:08Z	Epic 4	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-06T10:08:08Z	Epic 4	ledger_load	total=753 open=0 routed=122 escalated=1 decision_pending=4 terminal=626 owner_unknown=0 burndown=73 reowned_none=0 epic4_owned=0
+2026-11-06T10:08:14Z	Epic 4	retro_review_skipped	reason=no_x0_input(reopen_for_4.11;epic4_owned_ledger=0;retro_skipped_by_policy)
+2026-11-06T10:08:43Z	Epic 4	sprint_planning_complete	gate=PASS in_sync=true warnings=2(title_and_epic_list_headings) model=claude-opus-5-5
+2026-11-06T10:09:29Z	Epic 4	story_chartered	story=4.11 key=4-11-other-things-to-try epics_md_line=2818 source=owner_decision_2026-11-06T05:27Z(Contest_Planner_under_delegation)
+2026-11-06T10:09:29Z	Epic 4	deps_hash_rerecorded	reason=fix_forward note=for_orchestrator(story_4.11_inserted_inside_epic_4;no_boundary_or_dependency_statement_changed) epics_md_sha256_prefix=22bb441c12ba
+2026-11-06T10:09:29Z	Epic 4	epic_status_reopened	epic-4=in-progress(SC-5_reopen;sanctioned_by_dispatch)
