@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { expect, test, type APIResponse } from '../support/fixtures';
 
-import { README_ACCOUNT, envelope, signInOverHttp } from '../sign-in/helpers';
+import { README_ACCOUNT, envelope, expectError, signInOverHttp } from '../sign-in/helpers';
 import { chk, irisScript, quoted, setTelegramIncluded } from '../support/iris';
 
 /**
@@ -21,14 +21,6 @@ const MARK = 'telegramState';
 /** A state-changing call with the whole browser envelope; DELETE carries the body {} as the page's client sends it. */
 function call(request: Parameters<typeof signInOverHttp>[0], method: 'POST' | 'DELETE', path: string): Promise<APIResponse> {
   return request.fetch(path, { method, headers: envelope(), data: '{}' });
-}
-
-/** The error object of an answer, after checking its status and that it is the API's error shape. */
-async function expectError(response: APIResponse, status: number, code: string, message: string): Promise<void> {
-  expect(response.status(), await response.text()).toBe(status);
-  const body = (await response.json()) as { error: { code: string; message: string } };
-  expect(Object.keys(body)).toEqual(['error']);
-  expect(body.error).toEqual({ code, message });
 }
 
 /** The telegramState mark's raw value ("" when there is none). */

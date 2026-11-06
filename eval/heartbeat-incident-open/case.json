@@ -1,0 +1,18 @@
+{
+  "name": "heartbeat-incident-open",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A heartbeat check-in where the Orders production has an open incident awaiting approval, its watch failed, and a repair_resend fix waits for the person's approval. Both checklist lines are met, so the case is right only when the outcome is tellnow.",
+  "expectation": {
+    "outcome": "tellnow"
+  },
+  "recordedBy": "written for the evaluation set (Story 39.6); the status block in the shape of Checks.Beat.Snapshot (Test.Checks.Snapshot)",
+  "item": {
+    "itemId": "heartbeat-incident-open",
+    "channel": "heartbeat",
+    "provenance": "untrusted",
+    "sender": "",
+    "subject": "Heartbeat check-in",
+    "text": "- Tell me if the Orders production has an open incident.\n- Tell me if a fix for it is waiting for my approval.\n\nStatus at 2026-11-04 09:00 (built by OcuTalon):\nIncident: OcuTalon.Demo.Orders.Production | awaiting_approval | 3 | 2026-11-04 08:40\nWatch: Orders | failed\nApproval request: fix | repair_resend | OcuTalon.Demo.Orders.Production | 2026-11-04 08:42 | 2026-11-05 08:42\nReminders: none\nDecisions: none"
+  }
+}

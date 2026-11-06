@@ -46,6 +46,18 @@
 ///     POST /v1/session/end signs out: on a local install only the CSP session ends; on the online demo it submits an EndSession
 ///     command for the session (SessionOps.End, through CommandsIn), expires the resume cookie and then signs out, 204; a failed
 ///     End is 500 server_error, which neither expires the cookie nor signs out, so the session stays resumable (EndSession).
+///   - The heartbeat routes (Epic 39; AD-1, AD-4, AD-12, AD-13, AD-19, AD-26; FR-63, FR-66), beside the persona routes, for the CSP session's session
+///     only (a sessionRef in a body is ignored). GET /v1/heartbeat answers 200 with SettingsOps.Heartbeat: the person's settings and the public view of
+///     their HeartbeatBeat row (the view of the heartbeat event), with traceUrl, the checklist, sample (true only for the online demo's unsaved sample),
+///     today ({"checkIns","costUSD"}: the session's heartbeat check-ins and their cost in the daily cap's day), lastFallbackReason (only after a fallback beat)
+///     and onlineDemo (boolean); a read that fails is 500 server_error. PUT /v1/heartbeat takes {on (boolean), interval (number), from, to, checklist (strings)} and submits a
+///     SetHeartbeat (origin web_user): Ok 200 {"result":"done","message","on","interval","from","to","checklist"} as saved; a body of another shape 400
+///     bad_heartbeat and a checklist over the limit 400 bad_checklist, before anything is submitted; bad_on, bad_interval, bad_hours and bad_checklist
+///     400 with SettingsOps' message; not_built 501; any other outcome 500 not_saved with the owner's message. POST /v1/heartbeat/run never reads the
+///     body and submits a RunHeartbeat (CommandsIn sends it to Checks as a BeatNow): Ok 202 {"result":"sent"}; cooldown, cap, nokey, empty and backoff
+///     409 {"error":{"code","message"}} with availableAt beside it when Checks gave one; not_built 501; anything else 500 server_error.
+///   - The documents routes (Story 34.2; GET and POST /v1/documents, DELETE /v1/documents/:ref) are OcuTalon.Web.Documents', forwarded by
+///     the map at the end of the URL map.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -139,6 +151,18 @@ Parameter MESSAGETELEGRAMPAUSED = "Telegram is paused, so no pairing code was ma
 /// The seconds a pairing code stays valid.
 Parameter CODESECONDS = 600;
 
+/// The messages of the 409 answers of POST /v1/heartbeat/run; {time} is the time of availableAt as the catalog shows a message time (Data.Time.ForMessage,
+/// with " ET" on the online demo), and a dated time turns the "at" before it into "on".
+Parameter MESSAGERUNCOOLDOWN = "You can run it again at {time}.";
+
+Parameter MESSAGERUNCAP = "Today's cost limit has been reached.";
+
+Parameter MESSAGERUNNOKEY = "No model key is set.";
+
+Parameter MESSAGERUNEMPTY = "Your checklist is empty.";
+
+Parameter MESSAGERUNBACKOFF = "The last beat failed, so the next one waits until {time}.";
+
 XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
 <Routes>
@@ -154,6 +178,11 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/session/end" Method="POST" Call="EndSession"/>
 <Route Url="/v1/pairing/code" Method="POST" Call="Pairing"/>
 <Route Url="/v1/pairing" Method="DELETE" Call="Pairing"/>
+<Route Url="/v1/persona" Method="GET" Call="GetPersona"/>
+<Route Url="/v1/persona" Method="PUT" Call="PutPersona"/>
+<Route Url="/v1/heartbeat" Method="GET" Call="GetHeartbeat"/>
+<Route Url="/v1/heartbeat" Method="PUT" Call="PutHeartbeat"/>
+<Route Url="/v1/heartbeat/run" Method="POST" Call="RunHeartbeat"/>
 <Route Url="/v1/settings" Method="GET" Call="Settings"/>
 <Route Url="/v1/settings/models" Method="POST" Call="NotBuilt"/>
 <Route Url="/v1/settings/budgets" Method="POST" Call="SaveBudgets"/>
@@ -162,7 +191,18 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/settings/time-zone" Method="POST" Call="SaveTimeZone"/>
 <Route Url="/v1/settings/check-thresholds" Method="POST" Call="SaveCheckThresholds"/>
 <Route Url="/v1/settings/demo-mode" Method="POST" Call="SaveDemoMode"/>
+<Map Prefix="/v1/documents" Forward="OcuTalon.Web.Documents"/>
 </Routes>
+}
+
+/// The request bodies larger than Web.BodyLimit's default that a route takes (Web.BodyLimit): POST /v1/documents takes a file in base64, up to
+/// OcuTalon.Web.Documents' BODYMAX (Test.Web.DocumentsApi TestBodyBounds pins the two equal). The forwarded class declares
+/// the same route with the remainder of the path.
+XData BodyBounds [ MimeType = application/json ]
+{
+[
+{"method": "POST", "url": "/v1/documents", "bytes": 13985112}
+]
 }
 
 /// Every request, before the route is matched: the role check first, then, for /v1/settings and below it, the admin check, then the browser
@@ -579,7 +619,7 @@ ClassMethod AnswerResponse(ref As %String, kind As %String, sessionRef As %Strin
 {
 	Set code = result.Result
 	If code = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
-	If code = "not_allowed" Quit ..Fail(403, "not_allowed", $Select(kind = "fix": ..#MESSAGENOTAPPROVER, 1: ..#MESSAGENOTAPPROVERTOOL))
+	If code = "not_allowed" Quit ..Fail(403, "not_allowed", $Select(kind = "fix": ..#MESSAGENOTAPPROVER, kind = "setting": ..#MESSAGENOTAPPROVERSETTING, 1: ..#MESSAGENOTAPPROVERTOOL))
 	If code = "bad_answer" Quit ..Fail(400, "bad_answer", ..#MESSAGEBADANSWER)
 	If '$ListFind($ListBuild("done", "already_answered", "expired"), code) {
 		Quit ..ServerError($SYSTEM.Status.Error(5001, "AnswerOps answered a result that the route doesn't know: "_code))
@@ -1219,5 +1259,260 @@ ClassMethod IsCursor(value As %String) As %Boolean [ Private ]
 {
 	Quit (value ? 1.15N)
 }
+
+/// GET /v1/persona (AD-19; Epic 40): the signed-in session's persona as SettingsOps.Persona reads it, 200 {"preset","language","custom",
+/// "customOffered","pendingRef"}, every value with its JSON type. A session that can't be read and a read that fails are 500
+/// server_error, with the cause logged and no value sent.
+ClassMethod GetPersona() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set persona = ..ReadPersona(sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write persona.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// PUT /v1/persona (AD-1, AD-4, AD-19; Epic 40): saves the signed-in session's persona. The session is Ownership.SessionRef's and a
+/// sessionRef in the body is ignored. In order: the session (a failure is 500 server_error); the body (PersonaBody; a bad one is 400
+/// bad_persona and nothing is submitted); the values the preset does not use are dropped (language is "" unless the preset is language,
+/// custom is "" unless it is custom: DW-669) and a used language of more than 40 characters or a used custom of more than 1,000
+/// (UTF-16 units, as SettingsOps counts them) is 400 bad_language or bad_custom with SettingsOps' message, nothing submitted; a
+/// SetPersona with the preset and the used values, submitted with origin web_user (an error status or no result is 500 server_error).
+/// SettingsOps validates and writes, and the answer follows its result:
+///   - Ok: 200 {"result":"done","message","preset","language","custom"}, the message as the owner gave it (the Saved sentence when it gave
+///     none) and the values as it saved them; Data that can't be read is 500 server_error;
+///   - bad_preset, bad_language, bad_custom, custom_not_offered: 400 with the outcome as the code and the owner's message;
+///   - not_built: 501 not_built;
+///   - any other outcome: 500 not_saved with the owner's message as given.
+/// A refusal or a failure that came with no message carries the server_error sentence.
+ClassMethod PutPersona() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '..PersonaBody(.preset, .language, .custom) Quit ..Fail(400, "bad_persona", ##class(OcuTalon.Core.SettingsOps).#MESSAGENOTSAVED)
+	If preset '= "language" Set language = ""
+	If preset '= "custom" Set custom = ""
+	If $Length(language) > 40 Quit ..Fail(400, "bad_language", ##class(OcuTalon.Core.SettingsOps).#MESSAGEBADLANGUAGE)
+	If $Length(custom) > 1000 Quit ..Fail(400, "bad_custom", ##class(OcuTalon.Core.SettingsOps).#MESSAGEBADCUSTOM)
+	Set command = ##class(OcuTalon.Msg.Command.SetPersona).%New()
+	Set command.SessionRef = sessionRef
+	Set command.Preset = preset
+	Set command.Language = language
+	Set command.Custom = custom
+	Set sc = ..SubmitPersona(command, .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	Set outcome = result.Outcome
+	Set message = $Select(result.Message '= "": result.Message, result.Ok: ##class(OcuTalon.Core.SettingsOps).#MESSAGESAVED, 1: ..#MESSAGESERVERERROR)
+	If result.Ok {
+		Set sc = $SYSTEM.Status.OK()
+		Try {
+			Set saved = ##class(%DynamicAbstractObject).%FromJSON(result.Data)
+			Set answer = {}
+			Do answer.%Set("result", "done", "string")
+			Do answer.%Set("message", message, "string")
+			Do answer.%Set("preset", saved.preset, "string")
+			Do answer.%Set("language", saved.language, "string")
+			Do answer.%Set("custom", saved.custom, "string")
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+		If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write answer.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	If $ListFind($ListBuild("bad_preset", "bad_language", "bad_custom", "custom_not_offered"), outcome) Quit ..Fail(400, outcome, message)
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Quit ..Fail(500, "not_saved", message)
+}
+
+/// The preset, language and custom of the PUT /v1/persona body, and 1 when it is a valid one: a JSON object whose preset is a string and
+/// whose language and custom, when present, are strings (other members are ignored). An absent language or custom is "". Otherwise 0,
+/// with all three empty. The values are not judged here: SettingsOps does.
+ClassMethod PersonaBody(Output preset As %String, Output language As %String, Output custom As %String) As %Boolean [ Private ]
+{
+	Set (preset, language, custom) = ""
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
+	} Catch {
+		Set body = ""
+	}
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") Quit 0
+	If body.%GetTypeOf("preset") '= "string" Quit 0
+	Set languageType = body.%GetTypeOf("language")
+	Set customType = body.%GetTypeOf("custom")
+	If (languageType '= "string") && (languageType '= "unassigned") Quit 0
+	If (customType '= "string") && (customType '= "unassigned") Quit 0
+	Set preset = body.preset
+	If languageType = "string" Set language = body.language
+	If customType = "string" Set custom = body.custom
+	Quit 1
+}
+
+/// The persona of the session as SettingsOps.Persona reads it; sc is an error status when a part of it could not be read.
+ClassMethod ReadPersona(sessionRef As %String, Output sc As %Status) As %DynamicObject [ Private ]
+{
+	Quit ##class(OcuTalon.Core.SettingsOps).Persona(sessionRef, .sc)
+}
+
+/// Submits the SetPersona with origin web_user; result is the CommandResult. An error status means the command never reached CommandsIn.
+ClassMethod SubmitPersona(command As OcuTalon.Msg.Command.SetPersona, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+}
+
+/// GET /v1/heartbeat (AD-4, AD-12, AD-19; Epic 39): the signed-in session's heartbeat as SettingsOps.Heartbeat reads it from the rows, with
+/// traceUrl added where the view names a trace (Web.TraceLink). A session that can't be read and a read that fails are 500 server_error, with
+/// the cause logged and no value sent.
+ClassMethod GetHeartbeat() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set heartbeat = ..ReadHeartbeat(sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Do ##class(OcuTalon.Web.TraceLink).Viewer(.viewer)
+	Do ##class(OcuTalon.Web.TraceLink).Add(heartbeat, .viewer)
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write heartbeat.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// PUT /v1/heartbeat (AD-1, AD-4, AD-19; Epic 39): saves the signed-in session's heartbeat settings. The session is Ownership.SessionRef's and a
+/// sessionRef in the body is ignored. In order: the session (a failure is 500 server_error); the body (HeartbeatBody; a bad one is 400
+/// bad_heartbeat and nothing is submitted); a checklist of more than Checks.Beat CHECKLISTMAX characters is 400 bad_checklist with SettingsOps'
+/// message, nothing submitted; a SetHeartbeat with the five values (on as 1 or 0, the interval as the text of its number), submitted with origin
+/// web_user (an error status or no result is 500 server_error). SettingsOps validates and writes, and the answer follows its result:
+///   - Ok: 200 {"result":"done","message","on","interval","from","to","checklist"}, the message as the owner gave it (the Saved sentence when it
+///     gave none) and the values as it saved them; Data that can't be read is 500 server_error;
+///   - bad_on, bad_interval, bad_hours, bad_checklist: 400 with the outcome as the code and the owner's message;
+///   - not_built: 501 not_built;
+///   - any other outcome: 500 not_saved with the owner's message as given.
+/// A refusal or a failure that came with no message carries the server_error sentence.
+ClassMethod PutHeartbeat() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '..HeartbeatBody(.on, .interval, .from, .to, .checklist) Quit ..Fail(400, "bad_heartbeat", ##class(OcuTalon.Core.SettingsOps).#MESSAGENOTSAVED)
+	If $Length(checklist) > ##class(OcuTalon.Checks.Beat).#CHECKLISTMAX Quit ..Fail(400, "bad_checklist", ##class(OcuTalon.Core.SettingsOps).#MESSAGEBADCHECKLIST)
+	Set command = ##class(OcuTalon.Msg.Command.SetHeartbeat).%New()
+	Set command.SessionRef = sessionRef
+	Set command.On = $Select(on: "1", 1: "0")
+	Set command.Interval = interval
+	Set command.From = from
+	Set command.To = to
+	Set command.Checklist = checklist
+	Set sc = ..SubmitHeartbeat(command, .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	Set outcome = result.Outcome
+	Set message = $Select(result.Message '= "": result.Message, result.Ok: ##class(OcuTalon.Core.SettingsOps).#MESSAGEHEARTBEATSAVED, 1: ..#MESSAGESERVERERROR)
+	If result.Ok {
+		Set sc = $SYSTEM.Status.OK()
+		Try {
+			Set saved = ##class(%DynamicAbstractObject).%FromJSON(result.Data)
+			Set answer = {}
+			Do answer.%Set("result", "done", "string")
+			Do answer.%Set("message", message, "string")
+			Do answer.%Set("on", saved.on, "boolean")
+			Do answer.%Set("interval", saved.interval, "number")
+			Do answer.%Set("from", saved.from, "string")
+			Do answer.%Set("to", saved.to, "string")
+			Do answer.%Set("checklist", saved.checklist, "string")
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+		If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write answer.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	If $ListFind($ListBuild("bad_on", "bad_interval", "bad_hours", "bad_checklist"), outcome) Quit ..Fail(400, outcome, message)
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Quit ..Fail(500, "not_saved", message)
+}
+
+/// POST /v1/heartbeat/run (AD-1, AD-4, AD-18, AD-26; Epic 39): asks for a beat now for the signed-in session. The body is never read. The session
+/// is Ownership.SessionRef's (a failure is 500 server_error); a RunHeartbeat is submitted with origin web_user, which CommandsIn sends to Checks
+/// as a BeatNow (an error status or no result is 500 server_error). The answer follows Checks' result:
+///   - Ok: 202 {"result":"sent"};
+///   - cooldown, cap, nokey, empty, backoff: 409 {"error":{"code","message"}} with the outcome as the code and its sentence, in which {time} is the
+///     time of the result's availableAt as Tools.CommandCall.TimeLabel gives it (the catalog's time: " ET" on the online demo; "at" becomes "on"
+///     before a dated time), and availableAt (UTC) beside the error when Data has one;
+///   - not_built: 501 not_built;
+///   - anything else (failed included): 500 server_error, with the cause logged.
+ClassMethod RunHeartbeat() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set command = ##class(OcuTalon.Msg.Command.RunHeartbeat).%New()
+	Set command.SessionRef = sessionRef
+	Set sc = ..SubmitHeartbeat(command, .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Ok {
+		Set %response.ContentType = ..#CONTENTTYPE
+		Set %response.Status = ..#HTTP202ACCEPTED
+		Write {"result": "sent"}.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	Set outcome = result.Outcome
+	If $ListFind($ListBuild("cooldown", "cap", "nokey", "empty", "backoff"), outcome) {
+		Set availableAt = ""
+		Try {
+			Set availableAt = ##class(%DynamicAbstractObject).%FromJSON(result.Data).%Get("availableAt")
+		} Catch {
+			Set availableAt = ""
+		}
+		Set message = $Case(outcome, "cooldown": ..#MESSAGERUNCOOLDOWN, "cap": ..#MESSAGERUNCAP, "nokey": ..#MESSAGERUNNOKEY, "empty": ..#MESSAGERUNEMPTY, : ..#MESSAGERUNBACKOFF)
+		Set time = ##class(OcuTalon.Tools.CommandCall).TimeLabel(availableAt, ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1)
+		If (time '= "") && ($Extract(time, 1, 5) '? 2N1":"2N) Set message = $Replace(message, "at {time}", "on {time}")
+		Set message = $Replace(message, "{time}", time)
+		Quit ..Fail(409, outcome, message, , $Select(availableAt '= "": {"availableAt": (availableAt)}, 1: ""))
+	}
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Quit ..ServerError($SYSTEM.Status.Error(5001, "Checks answered the run with '"_outcome_"'"))
+}
+
+/// The on, interval, from, to and checklist of the PUT /v1/heartbeat body, and 1 when it is a valid one: a JSON object whose on is a boolean,
+/// whose interval is a number and whose from, to and checklist are strings (other members are ignored; a missing member is a bad body). on comes
+/// out as 1 or 0 and interval as the text of its number. Otherwise 0, with all five empty. The values are not judged here: SettingsOps does.
+ClassMethod HeartbeatBody(Output on As %Boolean, Output interval As %String, Output from As %String, Output to As %String, Output checklist As %String) As %Boolean [ Private ]
+{
+	Set (on, interval, from, to, checklist) = ""
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
+	} Catch {
+		Set body = ""
+	}
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") Quit 0
+	If (body.%GetTypeOf("on") '= "boolean") || (body.%GetTypeOf("interval") '= "number") Quit 0
+	If (body.%GetTypeOf("from") '= "string") || (body.%GetTypeOf("to") '= "string") || (body.%GetTypeOf("checklist") '= "string") Quit 0
+	Set on = $Select(body.on: 1, 1: 0)
+	Set interval = body.interval
+	Set from = body.from
+	Set to = body.to
+	Set checklist = body.checklist
+	Quit 1
+}
+
+/// The heartbeat of the session as SettingsOps.Heartbeat reads it; sc is an error status when a part of it could not be read.
+ClassMethod ReadHeartbeat(sessionRef As %String, Output sc As %Status) As %DynamicObject [ Private ]
+{
+	Quit ##class(OcuTalon.Core.SettingsOps).Heartbeat(sessionRef, .sc)
+}
+
+/// Submits the SetHeartbeat or RunHeartbeat with origin web_user; result is the CommandResult. An error status means the command never reached
+/// CommandsIn.
+ClassMethod SubmitHeartbeat(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+}
+
+/// The 403 text of a refused page answer to a setting request (U-114: the owner kept this sentence for the API); its own parameter, so
+/// that a change of the tool-call wording cannot reach it.
+Parameter MESSAGENOTAPPROVERSETTING = "Only an approver can answer this request.";
 
 }

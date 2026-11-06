@@ -165,6 +165,13 @@ Method TestRoleRefusalsComeBeforeTheOtherChecks()
 	Set body = ..Post(mine, tool, ..Approve(), .status)
 	Do $$$AssertEquals(status, "403 Forbidden", "a tool_call request is 403")
 	Do $$$AssertEquals(body, "{""error"":{""code"":""not_allowed"",""message"":""Only an approver can answer this request.""}}", "with the approver text of any other kind")
+	// A setting request (Story 40.6, DW-571): 403 with the approver sentence, never the fix text.
+	Set dryRun = "{""key"":""person."_mine_".persona"",""ownerRef"":"""_mine_""",""old"":{""preset"":""professional"",""language"":"""",""custom"":"""",""text"":""Professional (default)""},""new"":{""preset"":""pirate"",""language"":"""",""custom"":"""",""text"":""Pirate""}}"
+	Set setting = ..Request(mine, , "setting", {"RequiredRole": "ZzNoSuchRole", "DryRun": (dryRun), "ResultTarget": "SettingsOps"})
+	Set body = ..Post(mine, setting, ..Approve(), .status)
+	Do $$$AssertEquals(status, "403 Forbidden", "a setting request is 403")
+	Do $$$AssertEquals(body, "{""error"":{""code"":""not_allowed"",""message"":""Only an approver can answer this request.""}}", "with the approver sentence, never the fix text")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(setting).State, "pending", "and the request is still pending")
 }
 
 Method TestLatePressNamesAnotherUserOnALocalInstall()

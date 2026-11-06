@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 11 is release 1's merge point: the web demo path passes end to end in the REL-2 test, an in-place upgrade and a container restart keep every record, the clean-machine rehearsal times the demo path, and one scripted sequence (`release/release.sh`) cuts a candidate with its gates, notes, checklist and the Contest Planner's hands-on pass. Part 1 is built and 1.0.0 was cut from it; fix-forwards 11.20 (the overview step's file mode) and 11.21 (route callbacks removed at test end, bounded helper waits) are merged. Story 11.22 is the first daily release's burn-down: it fixes, or closes on evidence, the harness reds and small product gaps that release found (a disabled Telegram item's lingering job, an unbounded request body, a leaked incident, CI uploading no Playwright results, `/state` not answering after sign-in, the request fixture's missing timeout), merges when done and ships in the next daily release, ahead of part 2. The gates, hands-on gate, outward steps and update hook (11.14 to 11.16, 11.18) stay in part 2.
+Epic 11 is release 1's merge point: the web demo path passes end to end in the REL-2 test, an in-place upgrade and a container restart keep every record, the clean-machine rehearsal times the demo path, and one scripted sequence (`release/release.sh`) cuts a candidate with its gates, notes, checklist and the Contest Planner's hands-on pass. Part 1 is built, 1.0.0 was cut from it, and fix-forwards 11.19 to 11.25 are merged (11.25 added the README's `## Measured` table for judges). Story 11.26 is the next fix-forward, on the owner's decision (DW-775): two of the Measured table's row labels claimed more than their sources measured, so they are renamed to say exactly what was measured, with the numbers and everything else unchanged. The gates, hands-on gate, outward steps and update hook (11.14 to 11.16, 11.18) stay in part 2.
 
 ## Stories
 
@@ -25,7 +25,11 @@ Epic 11 is release 1's merge point: the web demo path passes end to end in the R
 - Story 11.19: Seeded check rows stay out of the heartbeat's way (done)
 - Story 11.20: The overview step hands the unit files the container can read (done)
 - Story 11.21: A test's route callback never outlives its test (done)
-- Story 11.22: First daily release burn-down (next, backlog)
+- Story 11.22: First daily release burn-down (done)
+- Story 11.23: install.sh accepts build 109 (done)
+- Story 11.24: The README's IPM install works literally on fresh build 154 and 109 (done)
+- Story 11.25: The README's judges section: a Measured table (done)
+- Story 11.26: The README's Measured rows say exactly what was measured (next, backlog)
 - Story 11.14: The release sequence runs every gate on the pushed candidate (part 2, backlog)
 - Story 11.15: The hands-on gate and its resume command (part 2, backlog)
 - Story 11.16: The sequence asks before each outward step after the gates (part 2, backlog)
@@ -33,28 +37,24 @@ Epic 11 is release 1's merge point: the web demo path passes end to end in the R
 
 ## Requirements & Constraints
 
-- **Disabled items sampled only when quiet (11.22).** Before `check_items_run` or `live_park_telegram` samples a disabled production item (TelegramIn, TelegramOut), it waits on its own bound of about 30 s until the item has no `Ens.Job` entry in any state; on the bound it fails naming the item and the entry's state. Never count only Alive jobs (the strict fix).
-- **Request body cap (11.22).** The shared request-body reader (`BodyText`) answers 413 `body_too_large` for any body over 256 KB, before parsing, in the API's standard error shape (`{"error": {"code", "message"}}`). A route may declare a larger bound of its own without changing the shared reader (the documents upload route declares about 14 MB, the encoded size of its 10 MB file limit). A test on each side of 256 KB pins it. `Web/Api.cls` is a shared file: append blocks only.
-- **Timeboxed and sized items (11.22).** The leaked resolved Orders incident in lane-a@rest is replayed in CI order on one warm stack for at most 60 minutes: a reproduction gets its fix, otherwise the entry returns to the ledger with what was tried. The TLS-proxy origin check (online-demo API POST behind a TLS-terminating proxy) and install.sh finding the right IRIS build image are each fixed here only if sized at 2 hours or less; otherwise returned to the ledger with the size.
-- **CI evidence (11.22).** A browser unit that fails in CI uploads its Playwright test-results (error-context.md, traces) as a short-retention artifact holding no secret except the CI dummy key and token.
-- **`/state` after sign-in (11.22).** Investigate the occurrences against held CSP sessions and licence units (CI's Community licence, the demo's 8 units); record the finding, fix here only if small.
-- **Request fixture bound (11.22).** The web/e2e request fixture's waits fail on a bound of their own, through an append-only edit or a shared-support alternative to `web/e2e/sign-in/helpers.ts` (that file is on Epic 40's open path); otherwise this item waits for Epic 40's merge.
-- **Shared harness rules (from 11.21, still binding).** Route callbacks are removed at test end through one shared mechanism (`page.unrouteAll({ behavior: 'ignoreErrors' })`); helper waits carry bounds in the shared helpers or shared Playwright configuration, never per-spec copies, bounded by the smaller of their own bound and the test's remaining time less a cleanup reserve of about 60 s, failing with a message naming the step. A new bound is pinned by a test with the mutation shown.
-- **Release-wide rules.** No step pushes an image or signs in to a registry; no step prints an environment value (`docker compose config` only with `--quiet`, `docker inspect` only with `--format`). Records describe machines only by OS, CPU architecture and memory. Nothing outward happens without the author's word.
-- Every command fits one 10-minute call; prefer warm mode and split long runs.
+- **The two label changes (11.26), exactly as ruled.** In the README's `## Measured` table, the row label "The demo's incident, end to end with a live model" becomes "The demo's incident diagnosed with the right fix, on a live model" (its source, the eval demo gate, validates the fix and runs no dry run, approval or fix run), and "The always-on online demo" becomes "Model cost of the always-on online demo" (its number is the model cost only). Result cells ("30 of 30 runs", "about 9 to 10 cents a day") stay as they are.
+- **Smallest diff.** Only those two README lines change; no other file changes except `docker/tests/test-readme.sh` and this epic's bookkeeping.
+- **Pins.** The `measured` rule's label list replaces the two old labels with the new ones word for word, in place; every other pin is kept, none deleted or weakened, and the rule still fails when either new label is removed, renamed or moved out of the section. It pins no numbers.
+- **Out of scope.** DW-776 (the "19 of 22 (target: 20)" row) is closed by design and stays as is. The Contest Planner updates its own collateral source file; never copy that file's path into the README.
+- **Public text.** Any wording change beyond the two ruled labels (forced by the surroundings) goes to the Contest Planner verbatim as public text before commit.
+- **README rules (still binding).** It claims only what the release ships, is in plain language with no class names or error codes outside developer sections, carries the not-affiliated note and the credits, and contains no keys, local machine paths, private infrastructure details or other entrants' names.
+- **Release-wide rules.** No step pushes an image, signs in to a registry or prints an environment value. Nothing outward happens without the author's word. Every command fits one 10-minute call; prefer warm mode and split long runs.
 
 ## Technical Decisions
 
-- **Test layout.** Playwright 1.64.x. Specs live under `web/e2e/` (demo-path specs one per UJ-1 step under `web/e2e/demo-path/`; the accessibility floor's specs under `web/e2e/floor/` run only in their own unit `live:floor`), online-demo specs under `web/e2e-online/`. A turned-on test that must never skip again carries `@floor`; an unbuilt part is a `notBuilt(title, 'N.M')` call.
-- **API errors.** REST errors are `{"error": {"code": "...", "message": "..."}}` in plain English with snake_case codes; a new code (such as `body_too_large`) follows that shape.
-- **Lanes (AD-29).** `web/` (e2e specs, runner configuration, fixtures), `docker/` and `docker/tests/`, `.github/workflows/ci.yml` and the rest of `ci/` are Lane B; `release/`, the release records and the `docs/` security overview are Lane A. Epic 11 may change either lane's files; the orchestrator serializes it against any epic whose files overlap. Shared files (`Web.Api` among them) take one appended entry per story.
-- **Candidate model.** A candidate is identified by version and commit SHA on `release/<version>-rc<n>`, never changed after the cut; a failed gate means a fix on the integration branch and a new `rc<n+1>`. Rehearsal candidates are `rehearsal/<v>-rc<n>`, local bare remote only, never pushed to origin. After 1.0.0 a release goes out daily with whatever has merged (minor bump for a feature, patch for fixes only), each on the owner's word.
-- **Records.** `release/records/<version>/rc<n>.md` on the integration branch holds the SHA, each gate's result, the hands-on pass and hands-on time; stage only `rc<n>.md` by explicit pathspec, never the folder (the draft notes beside it are never published).
-- **Release script file mode.** `release.sh` and `lib-release.sh` keep `umask 077`; anything handed to a container whose user differs is opened with `chmod -R a+rX`.
+- **Lanes (AD-29).** README, install script, `docker/`, `docker/tests/` and `web/` are Lane B; `docs/install-ipm.md`, `release/` and the release records are Lane A. Epic 11 may change either; the orchestrator serializes it against overlapping epics. Epic 34's README and test-readme.sh hunks (licence notices, licence check) stay separate from Epic 11's.
+- **Success-metric context.** The release evaluation targets are SM-1 (routine attention decisions right, at least 90%) and SM-2 (incident causes right, at least 80%), run on Claude Haiku 5.5 on each release candidate; the table reports results, it does not redefine the targets.
+- **Shared harness rules.** Route callbacks are removed at test end through one shared mechanism; helper waits carry bounds in shared helpers or configuration and fail naming the step.
+- **Candidate model.** Candidates are `release/<version>-rc<n>`, never changed after the cut; rehearsals use `rehearsal/<v>-rc<n>` on a local bare remote. Daily releases follow 1.0.0 (minor for a feature, patch for fixes only), each on the owner's word. Records live at `release/records/<version>/rc<n>.md`, staged by explicit pathspec. `release.sh` and `lib-release.sh` keep `umask 077`.
 
 ## Cross-Story Dependencies
 
-- 11.22's request-fixture item depends on Epic 40 (which has `web/e2e/sign-in/helpers.ts` open) unless done append-only or through shared support; its body-size bound must leave room for the documents upload route's larger declared bound (Epic 34).
-- 11.22 is independent of the part 2 release stories and merges first, shipping in the next daily release.
-- Part 2 stories add steps to 11.5's `release.sh`: 11.14's rehearsal gate calls `rehearse.sh run` once per phase with `OCUTALON_RUN_TAG` (exit 4 until the last phase); 11.16 carries the fork-PR demo-path guard and the tracked web bundle's dirty-tree issue; 11.18 needs 11.14 to 11.16.
+- 11.26 edits the Measured section and `measured` rule that 11.25 added (and the README and `test-readme.sh` that 11.23 and 11.24 changed); build on their merged pins and leave the rest untouched.
+- 11.26 ships in the next daily release; the README goes public with the repository.
+- Part 2 stories add steps to 11.5's `release.sh`: 11.14's rehearsal gate calls `rehearse.sh run` once per phase with `OCUTALON_RUN_TAG`; 11.16 carries the fork-PR demo-path guard and the tracked web bundle's dirty-tree issue; 11.18 needs 11.14 to 11.16.
 - Epic 38 runs the real-key and hands-on passes (38.1 to 38.3) through this sequence.

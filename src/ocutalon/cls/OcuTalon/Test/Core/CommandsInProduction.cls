@@ -9,6 +9,8 @@
 ///   - TestSettingsOpsSwitches: a SetDemoMode from the system, with the mode the stack already has, is carried out by the real
 ///     SettingsOps (the Demo step reruns, changing nothing), which writes the row, with the text of its mode, and its answer is
 ///     one response header that is not an error; the demo.mode row is put back after it;
+///   - TestSetPersonaReachesSettingsOps: a SetPersona from web_user is carried out by the real SettingsOps (Ok 1, saved), the
+///     persona read and Setting.Get then hold the saved preset, and the session's persona keys are forgotten after the test;
 ///   - TestTraceAndThread: outside a turn the command and the owner's answer are messages of one session whose SuperSession is
 ///     the session's TraceRef; inside a turn they join the thread of the context's ThreadSessionId;
 ///   - TestGovernanceRefusedFromTool: inside a context the governance verbs are refused and no header goes to SettingsOps or
@@ -144,6 +146,37 @@ Method TestTraceAndThread()
 	Do $$$AssertEquals(answers.%Get(1).sessionId, thread, "and so is its answer")
 }
 
+/// A SetPersona of kindfriend from web_user for a fixture session reaches the real SettingsOps through the gate: Ok 1, saved,
+/// the command reached the owner, SettingsOps.Persona reads the preset from the row, and Setting.Get in this process reads it
+/// too. The session's per-person keys are deleted at the end.
+Method TestSetPersonaReachesSettingsOps()
+{
+	If '..Guard() Quit
+	Set a = ..Session("persona")
+	Set command = ##class(OcuTalon.Msg.Command.SetPersona).%New()
+	Set command.SessionRef = a
+	Set command.Preset = "kindfriend"
+	Set command.IdempotencyKey = "zzkey"_..Number_"SetPersona"
+	Set before = ..Sent("SettingsOps")
+	Try {
+		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+		Do $$$AssertStatusOK(sc, "SetPersona to SettingsOps: the status is OK")
+		If '$IsObject(result) {
+			Do $$$AssertTrue(0, "SetPersona to SettingsOps: a CommandResult comes back, not '"_$Get(result)_"'")
+		} Else {
+			Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|saved", "SetPersona to SettingsOps: carried out: "_result.Message)
+			Do $$$AssertEquals(..Sent("SettingsOps"), before + 1, "the command reached the owner")
+			Set persona = ##class(OcuTalon.Core.SettingsOps).Persona(a, .sc)
+			Do $$$AssertStatusOK(sc, "the persona read has no error")
+			Do $$$AssertEquals(persona.preset, "kindfriend", "the persona read holds the saved preset")
+			Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Core.SettingsOps).PersonaKey(a, "preset")), "kindfriend", "Setting.Get reads the saved preset")
+		}
+	} Catch exception {
+		Do $$$AssertTrue(0, "SetPersona through Submit threw: "_exception.DisplayString())
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.SettingsOps).ForgetPerson(a), "the session's persona keys are forgotten")
+}
+
 /// Inside a context the governance verbs are refused through Submit: each gives not_allowed, no header goes from CommandsIn to
 /// SettingsOps or SessionOps, and the demo mode is as it was.
 Method TestGovernanceRefusedFromTool()
@@ -158,7 +191,7 @@ Method TestGovernanceRefusedFromTool()
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(begin, "zzss"_..Number), "a context begins")
 	Do ..Supers.%Push("zzss"_..Number)
 	Try {
-		For verb = "SetDemoMode", "Pair", "Unpair", "EndSession" {
+		For verb = "SetDemoMode", "SetPersona", "Pair", "Unpair", "EndSession" {
 			Set command = $ClassMethod("OcuTalon.Msg.Command."_verb, "%New")
 			Set command.SessionRef = a
 			Set command.IdempotencyKey = "zzkey"_..Number_verb

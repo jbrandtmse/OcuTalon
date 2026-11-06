@@ -458,6 +458,7 @@ Judges using the online demo at the same time never see or affect each other's w
 - **Visual Trace is shared:** it shows every session's messages under the shared read-only account, as the splash screen warns. No Telegram names, user names or phone numbers are stored in production messages, only an internal chat reference.
 - **Limits:** one IP address can open at most 5 new sessions per hour.
 - **The scheduled reset:** it clears every session, pairing and demo order (FR-59). The page shows the time left until the next reset.
+- **Step 3 data:** from step 3, a session's memories and documents are its own too (FR-41, FR-42), and the scheduled reset clears them with the session (P6, decided through P23 on October 17). [AMENDED 2026-11-05, Story 34.1: confirms P6; no other text changed]
 
 #### FR-16: Demo mode and Break the feed [Step 1]
 

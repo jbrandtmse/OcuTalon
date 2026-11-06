@@ -7,6 +7,9 @@
 ///   - EvalSink takes the open row (Pending) by the Item's ItemId and completes it as decided from the ItemDecision, or the TurnResult
 ///     of a turn case, and from the bridge's Decision and Usage rows.
 /// A case that EvalIn does not send has no row. A sent case that is never decided stays visible as a row in state sent.
+/// A row may name a persona (Preset and PersonaLanguage, both empty for none): the preset that the case ran under, which Agent.Input reads
+/// for the eval item with that ItemId (PersonaBlock), so that the request carries the preset's block (AD-7). The two columns are nullable and
+/// carry no initial value, so a row written without them reads as no persona.
 /// The run is RunRef, the Ref that is also the SuperSession of every message of the run. The case is CaseName, the name of its
 /// folder in eval/, and SourceItemId is the case's recorded item id (for a turn case or an incident case, which record no Item, the case's name). Times are UTC to the second. A cost that is not known is empty,
 /// never 0. Rows exist only where EvalIn ran, which is throwaway stacks and CI, so the class has no purge.
@@ -80,13 +83,20 @@ Property TurnCostUSD As %Numeric(SCALE = 6);
 /// The largest request in tokens over the Usage rows of the attention decision and the turn; empty when they have none.
 Property LargestRequestTokens As %Integer;
 
+/// The preset id the case ran under (one of professional, starship, pirate, kindfriend, language), or empty for none.
+Property Preset As %String(MAXLEN = 32);
+
+/// The language name of the preset language, or empty.
+Property PersonaLanguage As %String(MAXLEN = 40);
+
 Index RunCaseIndex On (RunRef, CaseName) [ Unique ];
 
 Index ItemIdIndex On ItemId;
 
 /// Saves the row of a case that was sent: state sent, SentAt now, with the ids as given. The run and the case are one row, so a second
-/// row for the same case of a run is an error status, and so is an empty run, case or ItemId.
-ClassMethod Open(runRef As %String, caseName As %String, sourceItemId As %String, itemId As %String) As %Status
+/// row for the same case of a run is an error status, and so is an empty run, case or ItemId. preset and language are the persona of the case,
+/// "" for none; the row keeps them as given.
+ClassMethod Open(runRef As %String, caseName As %String, sourceItemId As %String, itemId As %String, preset As %String = "", language As %String = "") As %Status
 {
 	If (runRef = "") || (caseName = "") || (itemId = "") Quit $SYSTEM.Status.Error(5001, "OcuTalon.Eval.Data.CaseResult.Open needs a run, a case and an ItemId")
 	Set row = ..%New()
@@ -95,6 +105,8 @@ ClassMethod Open(runRef As %String, caseName As %String, sourceItemId As %String
 	Set row.SourceItemId = sourceItemId
 	Set row.ItemId = itemId
 	Set row.State = ..#SENT
+	Set row.Preset = preset
+	Set row.PersonaLanguage = language
 	Set row.SentAt = ##class(OcuTalon.Bridge.Time).NowUtc()
 	Quit row.%Save()
 }
@@ -106,6 +118,16 @@ ClassMethod Pending(itemId As %String) As OcuTalon.Eval.Data.CaseResult
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Eval_Data.CaseResult WHERE ItemId = ? AND State = ? ORDER BY ID", itemId, ..#SENT)
 	If (result.%SQLCODE < 0) || 'result.%Next() Quit ""
 	Quit ..%OpenId(result.%GetData(1))
+}
+
+/// The persona block of the row of the ItemId (Agent.Persona.BlockFor of its Preset and PersonaLanguage); "" for no row, an empty preset and
+/// professional. Agent.Input calls it for an eval item.
+ClassMethod PersonaBlock(itemId As %String) As %String
+{
+	If itemId = "" Quit ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Preset, PersonaLanguage FROM OcuTalon_Eval_Data.CaseResult WHERE ItemId = ? ORDER BY ID DESC", itemId)
+	If (result.%SQLCODE < 0) || 'result.%Next() Quit ""
+	Quit ##class(OcuTalon.Agent.Persona).BlockFor(result.%Get("Preset"), result.%Get("PersonaLanguage"))
 }
 
 /// How many rows of the run are still in state sent.
@@ -192,6 +214,12 @@ Storage Default
 </Value>
 <Value name="20">
 <Value>LargestRequestTokens</Value>
+</Value>
+<Value name="21">
+<Value>Preset</Value>
+</Value>
+<Value name="22">
+<Value>PersonaLanguage</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.EvalCaseResultD</DataLocation>

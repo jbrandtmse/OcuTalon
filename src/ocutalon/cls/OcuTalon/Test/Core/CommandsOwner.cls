@@ -1,7 +1,8 @@
 /// The test owner of OcuTalon.Test.Core.CommandsRouting: it stands in for the owner item that CommandsIn sends a command to,
 /// through OcuTalon.Test.Core.CommandsInProbe. It has no Test methods and the product never refers to it. OnMessage records
 /// each call under ^OcuTalonTest("CommandsRouting", RunNumber, n), with n counted in ^OcuTalonTest("CommandsRouting",
-/// RunNumber): target, class (the request's class), origin, key, sessionRef and, for an IncidentCommand, verb and incidentRef.
+/// RunNumber): target, class (the request's class), sessionRef and, for a command (an OcuTalon.Msg.Command), origin and key; for an
+/// IncidentCommand also verb and incidentRef; for an OcuTalon.Checks.Msg.BeatNow (which has neither Origin nor IdempotencyKey) requestedAt.
 /// It answers by AnswerMode:
 ///   - ok: a CommandResult with Ok 1, Outcome "test" and Message the target;
 ///   - stub-op: the error status of an Epic 0 operation stub (code 5003);
@@ -29,9 +30,12 @@ Method OnMessage(request As %Library.Persistent, Output response As %Library.Per
 	Set call = $Name(^OcuTalonTest("CommandsRouting", ..RunNumber, n))
 	Set @call@("target") = ..SentTo
 	Set @call@("class") = $ClassName(request)
-	Set @call@("origin") = request.Origin
-	Set @call@("key") = request.IdempotencyKey
 	Set @call@("sessionRef") = request.SessionRef
+	If request.%Extends("OcuTalon.Msg.Command") {
+		Set @call@("origin") = request.Origin
+		Set @call@("key") = request.IdempotencyKey
+	}
+	If request.%IsA("OcuTalon.Checks.Msg.BeatNow") Set @call@("requestedAt") = request.RequestedAt
 	If request.%Extends("OcuTalon.Msg.IncidentCommand") {
 		Set @call@("verb") = request.Verb
 		Set @call@("incidentRef") = request.IncidentRef

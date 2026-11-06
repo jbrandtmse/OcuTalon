@@ -1,0 +1,18 @@
+{
+  "name": "heartbeat-nothing-changed",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A heartbeat check-in where nothing has changed: no incident, the Orders watch passed, no approval request, no reminder and no decision. The checklist asks about an open incident and a fix waiting for approval, and neither exists, so the case is right only when the outcome is ignore.",
+  "expectation": {
+    "outcome": "ignore"
+  },
+  "recordedBy": "written for the evaluation set (Story 39.6); the status block in the shape of Checks.Beat.Snapshot (Test.Checks.Snapshot)",
+  "item": {
+    "itemId": "heartbeat-nothing-changed",
+    "channel": "heartbeat",
+    "provenance": "untrusted",
+    "sender": "",
+    "subject": "Heartbeat check-in",
+    "text": "- Tell me if the Orders production has an open incident.\n- Tell me if a fix for it is waiting for my approval.\n\nStatus at 2026-11-04 09:00 (built by OcuTalon):\nIncidents: none\nWatch: Orders | passed\nApproval requests: none\nReminders: none\nDecisions: none"
+  }
+}

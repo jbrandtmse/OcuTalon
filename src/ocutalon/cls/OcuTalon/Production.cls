@@ -61,6 +61,8 @@ XData ProductionDefinition
   <Item Name="ReconcileIn" ClassName="OcuTalon.Install.ReconcileIn" PoolSize="1" Enabled="true">
     <Setting Target="Adapter" Name="CallInterval">5</Setting>
   </Item>
+  <Item Name="MemoryOps" ClassName="OcuTalon.Memory.Ops" PoolSize="1" Enabled="false"/>
+  <Item Name="DocumentOps" ClassName="OcuTalon.Docs.Ops" PoolSize="1" Enabled="false"/>
   <!-- lane A: end -->
   <!-- lane B: begin -->
   <Item Name="WebChatIn" ClassName="OcuTalon.Channel.WebChat.In" PoolSize="0" Enabled="true"/>

@@ -2,7 +2,10 @@
 /// mappings, and it fails, naming the global, for a private-prefix global planted in OCUTALON_DATA, for a
 /// namespace without the private mappings and for a storage global that does not resolve to OCUTALON_PRIVATE.
 /// The planted globals are removed after each test and again in OnAfterAllTests, and the fixture classes are
-/// deleted in both OnBeforeAllTests and OnAfterAllTests.
+/// deleted in both OnBeforeAllTests and OnAfterAllTests. From step 3 (Story 34.1) the check also covers the memory and
+/// document globals and the knowledge-base tables (schema OcuTalonKB): a table with the private DEFAULTGLOBAL passes and one
+/// without it fails and is named; the two tables the tests create are dropped after every test whatever its outcome, so no
+/// knowledge-base table is left to change the globals the other tests list.
 Class OcuTalon.Test.Install.PrivateData Extends %UnitTest.TestCase
 {
 
@@ -14,8 +17,12 @@ Parameter PLANTED = "OcuTalonP.ZzPlanted,OcuTalonBP.ZzPlanted,AI.Agent.SessionZz
 /// storage globals name a global of the data database.
 Parameter FIXTURES = "OcuTalon.Test.Install.ZzPrivateFixture,OcuTalon.Test.Install.ZzPublicFixture,OcuTalon.Test.Install.ZzPrivateProbe,OcuTalon.Test.Install.ZzStorageProbe";
 
+/// The knowledge-base tables that TestKnowledgeBaseTables creates: one with the private DEFAULTGLOBAL, one without it.
+Parameter KBTABLES = "OcuTalonKB.Zz341,OcuTalonKB.Zz341Bad";
+
 Method OnBeforeAllTests() As %Status
 {
+	Do ..DropKnowledgeBaseTables()
 	Do ..RemoveFixtures()
 	Do ..Unplant()
 	Quit $SYSTEM.Status.OK()
@@ -23,8 +30,15 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterAllTests() As %Status
 {
+	Do ..DropKnowledgeBaseTables()
 	Do ..RemoveFixtures()
 	Do ..Unplant()
+	Quit $SYSTEM.Status.OK()
+}
+
+Method OnAfterOneTest() As %Status
+{
+	Do ..DropKnowledgeBaseTables()
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -70,6 +84,59 @@ Method TestPrivateStorageGlobals()
 	Do $$$AssertTrue('$Data(storage("OcuTalonP.ZzFixtureD")), "the fixture's global is gone with its class")
 }
 
+/// Given the step 3 tables, the check lists their private globals, and its prefixes and mapping samples still hold ^IRIS.IF.*.
+Method TestStep3Globals()
+{
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.PrivateData).StorageGlobals(.storage), "the storage globals are read")
+	Do $$$AssertEquals($Get(storage("OcuTalonP.MemoryD")), "OcuTalon.Data.Memory", "the memory data global is listed with its class")
+	Do $$$AssertEquals($Get(storage("OcuTalonP.DocumentD")), "OcuTalon.Data.Document", "the document data global is listed with its class")
+	Do $$$AssertTrue($Data(storage("OcuTalonP.DocumentS")), "the document stream global is listed")
+	Do $$$AssertTrue($ListFind($ListFromString(##class(OcuTalon.Install.Step.PrivateData).#PREFIXES), "IRIS.IF."), "the data database scan still looks for ^IRIS.IF.*")
+	Do $$$AssertTrue($ListFind($ListFromString(##class(OcuTalon.Install.Step.PrivateData).#SAMPLES), "IRIS.IF.Zz"), "the mapping sample for ^IRIS.IF.* is still checked")
+}
+
+/// A knowledge-base table made with the private DEFAULTGLOBAL has its globals listed and passes the check. One made without it
+/// fails the check, which names its class and its global.
+Method TestKnowledgeBaseTables()
+{
+	Do ..DropKnowledgeBaseTables()
+	Set good = "OcuTalonKB.Zz341"
+	Set bad = "OcuTalonKB.Zz341Bad"
+	Set sc = ..CreateTable(good, "WITH %CLASSPARAMETER DEFAULTGLOBAL = '^OcuTalonP.KBZz341'")
+	Do $$$AssertStatusOK(sc, "the table with the private DEFAULTGLOBAL is created")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.PrivateData).StorageGlobals(.storage), "the storage globals are read")
+	Set listed = 0
+	Set outside = 0
+	Set global = ""
+	For {
+		Set global = $Order(storage(global))
+		Quit:global=""
+		If storage(global) '= good Continue
+		Set listed = listed + 1
+		If $Extract(global, 1, 17) '= "OcuTalonP.KBZz341" Set outside = outside + 1
+	}
+	Do $$$AssertTrue(listed >= 4, "the knowledge-base table lists its data, index and id globals and its storage indexes ("_listed_")")
+	Do $$$AssertEquals(outside, 0, "every global of the private knowledge-base table is under ^OcuTalonP.KBZz341")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.PrivateData).Run(), "the check passes with a private knowledge-base table")
+	Set sc = ..CreateTable(bad, "")
+	Do $$$AssertStatusOK(sc, "the table without the DEFAULTGLOBAL is created")
+	Set sc = ##class(OcuTalon.Install.Step.PrivateData).Run()
+	Do $$$AssertStatusNotOK(sc, "the check fails for a knowledge-base table whose globals are not private")
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertTrue(text [ bad, "the error names the class")
+	Do ##class(OcuTalon.Install.Step.PrivateData).StorageGlobals(.storage)
+	Set global = ""
+	Set named = 0
+	For {
+		Set global = $Order(storage(global))
+		Quit:global=""
+		If (storage(global) = bad) && (text [ ("^"_global)) Set named = 1
+	}
+	Do $$$AssertTrue(named, "the error names a global of the table")
+	Do ..DropKnowledgeBaseTables()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.PrivateData).Run(), "the check passes again once the tables are dropped")
+}
+
 /// Given a namespace without OCUTALON's private mappings, the mapping confirmation fails and names the private
 /// database. Given OCUTALON it passes. The check is reached through a subclass, because its method is private.
 Method TestMappingMismatchFails()
@@ -97,6 +164,25 @@ Method TestStorageGlobalMismatchFails()
 	Do $$$AssertStatusNotOK(sc, "a storage global outside OCUTALON_PRIVATE fails the check")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "^OcuTalonZzNotPrivate", "the error names the storage global")
 	Do $SYSTEM.OBJ.Delete(probe, "-d")
+}
+
+/// Creates a knowledge-base table by DDL, with the given trailing clause (the private DEFAULTGLOBAL or nothing).
+ClassMethod CreateTable(table As %String, clause As %String) As %Status [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "CREATE TABLE "_table_" (id VARCHAR(64) NOT NULL, text VARCHAR(1000), PRIMARY KEY (id)) "_clause)
+	If result.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "Creating "_table_" failed: "_result.%Message)
+	Quit $SYSTEM.Status.OK()
+}
+
+/// Drops both knowledge-base tables if they exist; dropping a table removes its globals.
+ClassMethod DropKnowledgeBaseTables() [ Private ]
+{
+	Set tables = $ListFromString(..#KBTABLES)
+	Set position = 0
+	While $ListNext(tables, position, table) {
+		Do ##class(%SQL.Statement).%ExecDirect(, "DROP TABLE IF EXISTS "_table)
+		Do $SYSTEM.OBJ.Delete(table, "-d")
+	}
 }
 
 /// The source of a persistent class with the given default global.

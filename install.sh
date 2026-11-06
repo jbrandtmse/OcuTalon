@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# OcuTalon install script: finds the IRIS build 154 image, starts OcuTalon and says where to sign in.
+# OcuTalon install script: finds the IRIS build 154 or build 109 image, starts OcuTalon and says where to sign in.
 #
 #   ./install.sh        (or: bash install.sh, from any folder)
 #
 # It checks everything before it changes anything: Docker runs, Docker Compose is 2.24 or later (the compose file's
-# long env_file form needs it), .env.example is here, and a build 154 image for this machine's CPU is loaded. A failed
+# long env_file form needs it), .env.example is here, and a build 154 or build 109 image for this machine's CPU is loaded. A failed
 # check prints what is wrong and the exact fix, and exits 1.
 # Then it gives the image the name the OcuTalon build starts from (a name that exists is never moved) and creates .env from
 # .env.example when there is none. An iris service that is already running and healthy is left alone: the script prints
@@ -27,6 +27,8 @@ fi
 set -u
 
 TAG=2026.3.0AI.154.0
+# The tag of the one accepted build 109 image, irishealth-community:$TAG_109. The base name keeps $TAG for both builds.
+TAG_109=2027.1.0AI.109.0
 # The name the Dockerfile's FROM receives through docker-compose.yml.
 base=${IRIS_IMAGE:-ocutalon-iris-base:$TAG}
 poll=${OCUTALON_INSTALL_POLL:-10}
@@ -163,11 +165,11 @@ if [ ! -e .env ] && [ ! -L .env ]; then
 fi
 
 # scan_images: sets records to one line per candidate image, in LC_ALL=C order of reference:
-#   <h for IRIS for Health, n for non-Health> <reference> <image id> <architecture>
-# A candidate is a local image tagged $TAG whose repository is irishealth-community or iris-community, with or without a
-# registry prefix.
+#   <h for IRIS for Health, n for non-Health> <reference> <image id> <build, 154 or 109> <architecture, empty when it cannot be read>
+# A candidate is a local image whose repository (its last path segment, with or without a registry prefix) and tag are
+# exactly one of: irishealth-community:$TAG, iris-community:$TAG, irishealth-community:$TAG_109.
 scan_images() {
-  local listing line ref id repo tag kind arch
+  local listing line ref id repo tag kind build arch
   records=""
   listing=$(docker image ls --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null </dev/null | LC_ALL=C sort)
   while IFS= read -r line; do
@@ -176,28 +178,43 @@ scan_images() {
     id=${line##* }
     repo=${ref%:*}
     tag=${ref##*:}
-    if [ "$tag" != "$TAG" ]; then continue; fi
+    kind=""
+    build=""
     case $repo in
-      irishealth-community | */irishealth-community) kind=h ;;
-      iris-community | */iris-community) kind=n ;;
-      *) continue ;;
+      irishealth-community | */irishealth-community)
+        if [ "$tag" = "$TAG" ]; then
+          kind=h
+          build=154
+        elif [ "$tag" = "$TAG_109" ]; then
+          kind=h
+          build=109
+        fi
+        ;;
+      iris-community | */iris-community)
+        if [ "$tag" = "$TAG" ]; then
+          kind=n
+          build=154
+        fi
+        ;;
     esac
+    if [ -z "$kind" ]; then continue; fi
     arch=$(docker image inspect --format '{{.Architecture}}' "$id" 2>/dev/null </dev/null) || arch=""
     arch=$(norm_arch "${arch%%[[:space:]]*}")
-    records="$records$kind $ref $id $arch
+    records="$records$kind $ref $id $build $arch
 "
   done <<EOF
 $listing
 EOF
 }
 
-# pick <h|n>: sets pick_ref and pick_id to the first candidate of that kind whose CPU is this machine's. Returns 1 when none is.
+# pick <h|n> <build>: sets pick_ref and pick_id to the first candidate of that kind and build whose CPU is this machine's.
+# Returns 1 when none is.
 pick() {
-  local kind ref id arch
+  local kind ref id build arch
   pick_ref=""
   pick_id=""
-  while read -r kind ref id arch; do
-    if [ "$kind" != "$1" ]; then continue; fi
+  while read -r kind ref id build arch; do
+    if [ "$kind" != "$1" ] || [ "$build" != "$2" ]; then continue; fi
     if [ "$arch" = "$daemon_arch" ]; then
       pick_ref=$ref
       pick_id=$id
@@ -209,10 +226,25 @@ EOF
   return 1
 }
 
+# pick_health: pick's answer for the IRIS for Health image for this CPU, build 154 before build 109; sets pick_build to the
+# build of the one it found. Returns 1 when there is none.
+pick_health() {
+  pick_build=""
+  if pick h 154; then
+    pick_build=154
+    return 0
+  fi
+  if pick h 109; then
+    pick_build=109
+    return 0
+  fi
+  return 1
+}
+
 # other_cpu_lines: one line for each candidate, with its CPU.
 other_cpu_lines() {
-  local kind ref id arch
-  while read -r kind ref id arch; do
+  local kind ref id build arch
+  while read -r kind ref id build arch; do
     if [ -z "$ref" ]; then continue; fi
     printf '  %s is for %s\n' "$ref" "$(cpu_name "$arch")"
   done <<EOF
@@ -233,11 +265,11 @@ if [ -n "$base_info" ]; then
   base_id=${base_info%% *}
   base_arch=$(norm_arch "${base_info#* }")
   if [ "$base_arch" != "$daemon_arch" ]; then
-    if pick h || pick n; then
+    if pick_health || pick n 154; then
       fix="A matching image is already loaded. Point the name at it:  docker tag $pick_ref $base"
     else
-      fix="Download the IRIS for Health AI Hub build 154 archive for $this_cpu and load it:  docker load -i <the archive file>
-Then point the name at the loaded image:  docker tag <the loaded image, ending in irishealth-community:$TAG> $base"
+      fix="Download the IRIS for Health AI Hub build 154 or build 109 archive for $this_cpu and load it:  docker load -i <the archive file>
+Then point the name at the loaded image:  docker tag <the loaded image, ending in irishealth-community:$TAG or irishealth-community:$TAG_109> $base"
     fi
     die "The image $base exists, but it is for $(cpu_name "$base_arch"), and this machine's Docker runs $this_cpu." \
       "$fix" \
@@ -245,34 +277,36 @@ Then point the name at the loaded image:  docker tag <the loaded image, ending i
   fi
   base_kind=""
   base_ref=""
+  base_build=""
   base_short=$(short_id "$base_id")
-  while read -r kind ref id arch; do
+  while read -r kind ref id build arch; do
     if [ -z "$ref" ]; then continue; fi
     if [ "$(short_id "$id")" = "$base_short" ]; then
       base_kind=$kind
       base_ref=$ref
+      base_build=$build
       break
     fi
   done <<EOF
 $records
 EOF
   case $base_kind in
-    h) image_lines="Image: IRIS for Health, build 154 ($base_ref). The existing $base is that image, so it is not tagged again." ;;
+    h) image_lines="Image: IRIS for Health, build $base_build ($base_ref). The existing $base is that image, so it is not tagged again." ;;
     n)
       image_lines="Image: IRIS (non-Health), build 154 ($base_ref). The existing $base is that image, so it is not tagged again."
       build_image=$base_ref
       ;;
-    *) image_lines="Image: the existing $base. No IRIS for Health or IRIS (non-Health) build 154 image loaded here has its ID, so it is used as it is." ;;
+    *) image_lines="Image: the existing $base. No IRIS build 154 or build 109 image loaded here has its ID, so it is used as it is." ;;
   esac
 else
-  if pick h; then
+  if pick_health; then
     tag_id=$pick_id
-    image_lines="Image: IRIS for Health, build 154 ($pick_ref)."
-  elif pick n; then
+    image_lines="Image: IRIS for Health, build $pick_build ($pick_ref)."
+  elif pick n 154; then
     tag_id=$pick_id
     build_image=$pick_ref
     image_lines="Image: IRIS (non-Health), build 154 ($pick_ref)."
-    while read -r kind ref id arch; do
+    while read -r kind ref id build arch; do
       if [ "$kind" = h ]; then
         image_lines="$image_lines
 The IRIS for Health image $ref is for $(cpu_name "$arch"), not for this machine's $this_cpu, so the non-Health image is used."
@@ -282,14 +316,14 @@ The IRIS for Health image $ref is for $(cpu_name "$arch"), not for this machine'
 $records
 EOF
   elif [ -z "$records" ]; then
-    die "No IRIS build 154 image is loaded in Docker (no irishealth-community:$TAG, and no iris-community:$TAG)." \
-      "Download the IRIS for Health AI Hub build 154 archive for this machine's CPU ($this_cpu; the archives are for arm64 or x64) and load it:" \
+    die "No IRIS build 154 or build 109 image is loaded in Docker (no irishealth-community:$TAG, no irishealth-community:$TAG_109, and no iris-community:$TAG)." \
+      "Download the IRIS for Health AI Hub build 154 or build 109 archive for this machine's CPU ($this_cpu; the archives are for arm64 or x64) and load it:" \
       "  docker load -i <the archive file>" \
       "Then run ./install.sh again. Nothing was changed."
   else
-    die "The IRIS build 154 image that is loaded is for another CPU than this machine's. This machine's Docker runs $this_cpu." \
+    die "The IRIS build 154 or build 109 image that is loaded is for another CPU than this machine's. This machine's Docker runs $this_cpu." \
       "$(other_cpu_lines)" \
-      "Download the IRIS for Health AI Hub build 154 archive for $this_cpu and load it:" \
+      "Download the IRIS for Health AI Hub build 154 or build 109 archive for $this_cpu and load it:" \
       "  docker load -i <the archive file>" \
       "Then run ./install.sh again. Nothing was changed."
   fi

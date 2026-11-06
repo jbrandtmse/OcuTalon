@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 102 keys of OcuTalon.Msg.Catalog.Core and the 50 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 105 keys of OcuTalon.Msg.Catalog.Core and the 54 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 11 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -77,11 +77,11 @@ Method TestEntries()
 	Set keys = ..Read("Keys")
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
-	Do $$$AssertEquals(keys.core.%Size(), 102, "the expected Core list has 102 keys")
-	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here and 152 in all.
-	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here and 156 in all.
+	Do $$$AssertEquals(keys.core.%Size(), 105, "the expected Core list has 105 keys")
+	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
+	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
 	Do $$$AssertEquals(keys.watch.%Size(), 54, "the expected Watch list has 54 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 102 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 105 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 54 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -120,9 +120,9 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 156 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 159 keys of the catalog")
 	Set refused = ..RefusedChannels()
-	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
+	Do $$$AssertEquals(refused, "email,webhook,slack,system,heartbeat", "five Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
 	While iterator.%GetNext(.key, .fixture) {
 		Set expectedWeb = $Select(fixture.%IsDefined("web"): fixture.web, 1: fixture.text)
@@ -225,6 +225,20 @@ Method TestStringSlots()
 	Do $$$AssertEquals(reminder, "Reminder: Is it due? Call the vendor.", "a mark inside the value keeps the text's period")
 	Set reason = ##class(OcuTalon.Msg.Catalog).RenderAt("notice.tellNow", {"whatHappened": "Mail from Dana", "reason": "Is it due today?"}, "phone", ..#NOW, 1, .sc)
 	Do $$$AssertEquals(reason, "Mail from Dana"_$Char(10)_"Why now: Is it due today?", "a value at the end of the text keeps its mark")
+}
+
+/// A tell-now notice whose reason is a persona's own wording (a greeting, an exclamation mark, emoji) comes out as written on every
+/// message channel: the frame is exact, only a line feed becomes a space and a control character is removed.
+Method TestPersonaReasonSurvives()
+{
+	Set reason = "Ahoy, shipmate! The hold is flooding "_$Char(55357, 57250)_$Char(9875, 65039)
+	For channel = "web", "phone", "mailbox", "telegram" {
+		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("notice.tellNow", {"whatHappened": "Mail from Dana", "reason": (reason)}, channel, ..#NOW, 1, .sc)
+		Do $$$AssertStatusOK(sc, channel_": the notice renders")
+		Do $$$AssertEquals(text, "Mail from Dana"_$Char(10)_"Why now: "_reason, channel_": the reason comes out unchanged in its frame")
+		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("notice.tellNow", {"whatHappened": "Mail from Dana", "reason": ("Ahoy!"_$Char(10)_"All"_$Char(1)_" hands!")}, channel, ..#NOW, 1, .sc)
+		Do $$$AssertEquals(text, "Mail from Dana"_$Char(10)_"Why now: Ahoy! All hands!", channel_": a line feed becomes a space and a control character is removed")
+	}
 }
 
 /// Row 7: one line per group, in order, with the same time forms as any message time.
@@ -1052,6 +1066,9 @@ XData Keys [ MimeType = application/json ]
   "splash.install",
   "splash.newTab",
   "audit.recorded",
+  "approval.persona",
+  "persona.applied",
+  "persona.stale",
   "toolCall.request",
   "toolCall.requestOnServer",
   "toolCall.done",
@@ -1349,6 +1366,9 @@ XData Fixtures [ MimeType = application/json ]
  "splash.install": {"slots": {}, "text": "Install it yourself (README)"},
  "splash.newTab": {"slots": {}, "text": "(opens in a new tab)"},
  "audit.recorded": {"slots": {}, "text": "Recorded in the IRIS audit log."},
+ "approval.persona": {"slots": {"old": "Professional (default)", "new": "Pirate"}, "text": "OcuTalon suggests a new persona for you. Now: Professional (default). Proposed: Pirate. Nothing changes unless you approve."},
+ "persona.applied": {"slots": {}, "text": "Persona updated. It applies from your next message."},
+ "persona.stale": {"slots": {}, "text": "Your persona changed after this was suggested. Nothing was changed."},
  "toolCall.request": {"slots": {"tool": "zz_send", "inputs": "{\"to\":\"ops\"}"}, "text": "Run zz_send\nInputs: {\"to\":\"ops\"}\nNo dry run is available for this tool. Approving runs exactly this call once."},
  "toolCall.requestOnServer": {"slots": {"tool": "zz_send", "server": "ops-mcp", "inputs": "{\"to\":\"ops\"}"}, "text": "Run zz_send on ops-mcp\nInputs: {\"to\":\"ops\"}\nNo dry run is available for this tool. Approving runs exactly this call once."},
  "toolCall.done": {"slots": {"tool": "zz_send", "time": "2026-10-16T18:12:00Z"}, "text": "zz_send ran once at 14:12 ET."},

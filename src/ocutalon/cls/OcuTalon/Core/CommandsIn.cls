@@ -6,16 +6,21 @@
 ///   - the origin is "tool" whenever a bridge context is active in this process, whatever the command says, and otherwise the
 ///     command's Origin. A tool may send only the verbs of TOOLVERBS, and Dismiss only for an incident that
 ///     Ownership.Incident returns for the command's SessionRef, which inside a bridge context must be the context's OwnerRef;
-///     any other origin must be one the table names for the verb. SendDigest, the one step 2 verb a tool may also send, takes no
+///     any other origin must be one the table names for the verb (a refusal of a settings verb says "admin only" unless the verb's
+///     origins include web_user or tool, as the persona and heartbeat verbs' do; SetHeartbeat and RunHeartbeat are web_user only, and neither is
+///     a tool verb). SendDigest, the one step 2 verb a tool may also send, takes no
 ///     recipient: it reaches only the session's own digest.channels, and inside a bridge context its SessionRef must be the context's
-///     OwnerRef, so a tool cannot name another session;
+///     OwnerRef, so a tool cannot name another session. ProposePersona, the one settings verb a tool may send, is held to the same rule:
+///     inside a bridge context its SessionRef must be the context's OwnerRef (DW-570), so a tool proposes only the persona of the
+///     session whose turn it is in, and the refusal is not_allowed and nothing reaches SettingsOps;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
 ///     not_found or unknown_command) and a plain-English Message;
 ///   - an accepted command is sent synchronously to its owner in the right trace session (AD-26): inside a turn the session
 ///     of the context's ThreadSessionId and its SuperSession, otherwise a session of its own whose SuperSession is the
 ///     TraceRef of the Session row of the command's SessionRef. Dismiss reaches IncidentManager as an IncidentCommand with
-///     Verb "dismiss"; every other verb is sent as the command object itself, so that IdempotencyKey, SessionRef and Origin
-///     arrive unchanged;
+///     Verb "dismiss"; RunHeartbeat reaches Checks as an OcuTalon.Checks.Msg.BeatNow with the command's SessionRef and the UTC time of
+///     now as RequestedAt (a BeatNow has no Origin and no IdempotencyKey); every other verb is sent as the command object itself, so that
+///     IdempotencyKey, SessionRef and Origin arrive unchanged;
 ///   - the owner's CommandResult is the answer, as it is. An owner that is still a stub (code 5003, or a process stub's
 ///     <Ens>ErrBPTerminated that carries it) gives Outcome not_built; any other error, a timeout, no answer or an answer that
 ///     is not a CommandResult gives Outcome failed. Both have Ok 0.
@@ -29,7 +34,8 @@ Class OcuTalon.Core.CommandsIn Extends Ens.BusinessService
 Parameter VERBPACKAGE = "OcuTalon.Msg.Command.";
 
 /// The verbs that origin tool may send (AD-1, FR-24, NFR-14). Dismiss is further limited to an incident the session can see.
-Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest";
+/// ProposePersona is the one settings verb among them, and a tool is the only origin that may send it.
+Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest,SaveMemory,ForgetMemory,ProposePersona";
 
 /// How long the gate waits for the owner's answer, in seconds.
 Parameter TIMEOUT = 120;
@@ -71,16 +77,17 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	Set origin = $Select(##class(OcuTalon.Bridge.Context).Active(): "tool", 1: command.Origin)
 	If (origin = "tool") && '$ListFind($ListFromString(..#TOOLVERBS), verb) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	If '$ListFind($ListFromString(origins), origin) {
-		Quit ..Result("not_allowed", $Select(owner = "SettingsOps": ..#MESSAGEADMINONLY, verb = "Pair": ..#MESSAGETELEGRAMONLY, 1: ..#MESSAGENOTALLOWED))
+		Quit ..Result("not_allowed", $Select((owner = "SettingsOps") && '$ListFind($ListFromString(origins), "web_user") && '$ListFind($ListFromString(origins), "tool"): ..#MESSAGEADMINONLY, verb = "Pair": ..#MESSAGETELEGRAMONLY, 1: ..#MESSAGENOTALLOWED))
 	}
+	If (origin = "tool") && (verb = "ProposePersona") && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	If (origin = "tool") && (verb = "Dismiss") {
 		If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 		Set incident = ##class(OcuTalon.Data.Ownership).Incident(command.IncidentRef, command.SessionRef, .sc)
 		If '$IsObject(incident) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 	}
-	If (origin = "tool") && (verb = "SendDigest") && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
+	If (origin = "tool") && ((verb = "SendDigest") || (verb = "SaveMemory") || (verb = "ForgetMemory")) && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	Do ..Join(command)
-	Set request = $Select(verb = "Dismiss": ..Dismissal(command), 1: command)
+	Set request = $Select(verb = "Dismiss": ..Dismissal(command), verb = "RunHeartbeat": ..BeatRequest(command), 1: command)
 	Set sc = ..Send(owner, request, .response)
 	If $$$ISERR(sc) {
 		If ..IsStub(sc) Quit ..Result("not_built", ..#MESSAGENOTBUILT)
@@ -92,7 +99,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 
 /// The one send of the class: the command to the owner item, synchronously. Private, so that only Carry sends through it,
 /// after the checks; a test subclass overrides it to stand in for the owner.
-Method Send(target As %String, request As OcuTalon.Msg.Command, Output response As %Library.Persistent) As %Status [ Private ]
+Method Send(target As %String, request As Ens.Request, Output response As %Library.Persistent) As %Status [ Private ]
 {
 	Quit ..SendRequestSync(target, request, .response, ..#TIMEOUT)
 }
@@ -144,6 +151,15 @@ ClassMethod Dismissal(command As OcuTalon.Msg.Command.Dismiss) As OcuTalon.Msg.I
 	Quit request
 }
 
+/// The request that Checks gets for a RunHeartbeat: a BeatNow with the command's SessionRef and RequestedAt the UTC time of now.
+ClassMethod BeatRequest(command As OcuTalon.Msg.Command.RunHeartbeat) As OcuTalon.Checks.Msg.BeatNow [ Private ]
+{
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = command.SessionRef
+	Set request.RequestedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Quit request
+}
+
 /// 1 when the status is an Epic 0 stub's answer: code 5003, or a text that carries #5003 (a process stub's <Ens>ErrBPTerminated).
 ClassMethod IsStub(sc As %Status) As %Boolean [ Private ]
 {
@@ -161,8 +177,11 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 }
 
 /// The verbs, one entry each: the owner item that carries the verb out, and the origins that may send it (Msg.Enum ORIGIN).
-/// A verb that is not here is not routed. Every settings verb, now and later, goes to SettingsOps with the origins
-/// system and web_admin. SendDigest goes to Digest, and GotIt to SessionOps (a stub answer until Story 18.4).
+/// A verb that is not here is not routed. Every settings verb goes to SettingsOps with the origins system and web_admin,
+/// except the persona verbs (AD-1): SetPersona from web_user only, the person's own page, and ProposePersona from tool only, and the
+/// heartbeat verbs (Epic 39): SetHeartbeat to SettingsOps and RunHeartbeat to Checks, each from web_user only.
+/// A settings verb whose origins include web_user or tool is refused with the plain not-allowed text, not the admin-only one.
+/// SendDigest goes to Digest, and GotIt to SessionOps (a stub answer until Story 18.4).
 XData Routes [ MimeType = application/json ]
 {
 [
@@ -173,12 +192,20 @@ XData Routes [ MimeType = application/json ]
  {"verb": "StopWatch", "owner": "WatchOps", "origins": "web_user,web_admin,telegram,tool,timer,system"},
  {"verb": "Dismiss", "owner": "IncidentManager", "origins": "web_user,web_admin,telegram,tool,timer,system"},
  {"verb": "SetDemoMode", "owner": "SettingsOps", "origins": "web_admin,system"},
+ {"verb": "SetPersona", "owner": "SettingsOps", "origins": "web_user"},
+ {"verb": "ProposePersona", "owner": "SettingsOps", "origins": "tool"},
  {"verb": "Pair", "owner": "SessionOps", "origins": "telegram"},
  {"verb": "Unpair", "owner": "SessionOps", "origins": "web_user,web_admin,telegram,timer,system"},
  {"verb": "EndSession", "owner": "SessionOps", "origins": "web_user,web_admin,telegram,timer,system"},
  {"verb": "SendDigest", "owner": "Digest", "origins": "tool,web_admin"},
  {"verb": "SaveSettings", "owner": "SettingsOps", "origins": "web_admin,system"},
- {"verb": "GotIt", "owner": "SessionOps", "origins": "web_user,web_admin,telegram"}
+ {"verb": "GotIt", "owner": "SessionOps", "origins": "web_user,web_admin,telegram"},
+ {"verb": "SaveMemory", "owner": "MemoryOps", "origins": "tool"},
+ {"verb": "ForgetMemory", "owner": "MemoryOps", "origins": "tool"},
+ {"verb": "AddDocument", "owner": "DocumentOps", "origins": "web_user"},
+ {"verb": "RemoveDocument", "owner": "DocumentOps", "origins": "web_user"},
+ {"verb": "SetHeartbeat", "owner": "SettingsOps", "origins": "web_user"},
+ {"verb": "RunHeartbeat", "owner": "Checks", "origins": "web_user"}
 ]
 }
 

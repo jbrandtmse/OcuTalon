@@ -259,6 +259,23 @@ ClassMethod Pairing(sessionRef As %String, displayName As %String = "Zz chat") A
 	Quit ..Keep(row)
 }
 
+/// A document of the owner (a session's Ref, or instance); the state defaults to indexing, the type to markdown, the size to the length of the
+/// name and AddedAt to now. fields, an object of property names and values, is set after the defaults.
+ClassMethod Document(ownerRef As %String, name As %String, fields As %DynamicObject = "") As %String
+{
+	Set row = ##class(OcuTalon.Data.Document).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.OwnerRef = ownerRef
+	Set row.AddedBy = $Select(ownerRef = "instance": "", 1: ownerRef)
+	Set row.Name = name
+	Set row.ContentType = "markdown"
+	Set row.Size = $Length(name)
+	Set row.AddedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set row.State = "indexing"
+	Do ..SetFields(row, fields)
+	Quit ..Keep(row)
+}
+
 /// The UTC time that many hours before now, in the form of a live event's Ts.
 ClassMethod HoursAgo(hours As %Integer) As %String
 {

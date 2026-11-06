@@ -10,6 +10,7 @@
  *   store's, means the page missed something: the store comes back unchanged with reload set, and the caller fetches the
  *   snapshot again. A result with epochChanged set says which of the two it was (Story 16.4): on the online demo another epoch means
  *   that another OcuTalon session began in this browser, and the page leaves instead of loading it.
+ * - The `heartbeat` event (Story 39.5) replaces the store's single heartbeat payload; the snapshot carries none.
  * - COLLECTIONS says where each event type lives and by which key.
  */
 import type { EventsResponse, LiveEnvelope, LiveItem, StateSnapshot, TelegramState } from '../api/api-types';
@@ -18,7 +19,9 @@ import type {
   BreakFeedProgressPayload,
   CheckPayload,
   DecisionPayload,
+  DocumentPayload,
   GuideStatePayload,
+  HeartbeatPayload,
   LiveEventType,
   LivePayloads,
   MailboxPayload,
@@ -45,6 +48,7 @@ export const COLLECTIONS: Readonly<Record<LiveEventType, CollectionRule>> = {
   approval: { collection: 'approvals', key: 'ref' },
   check: { collection: 'checks', key: 'ref' },
   reminder: { collection: 'reminders', key: 'ref' },
+  document: { collection: 'documents', key: 'ref' },
   phone: { collection: 'phones', key: 'ref' },
   mailbox: { collection: 'mailboxes', key: 'ref' },
   'watch.progress': { collection: 'watchProgress', key: 'ref' },
@@ -54,6 +58,7 @@ export const COLLECTIONS: Readonly<Record<LiveEventType, CollectionRule>> = {
   'guide.state': { collection: 'guideState', key: null },
   reset: { collection: 'reset', key: null },
   'breakfeed.progress': { collection: 'breakfeedProgress', key: null },
+  heartbeat: { collection: 'heartbeat', key: null },
 };
 
 /** One cursor for each stream: the Seq of the last event applied. */
@@ -73,6 +78,8 @@ export interface LiveStore {
   approvals: Readonly<Record<string, ApprovalPayload>>;
   checks: Readonly<Record<string, CheckPayload>>;
   reminders: Readonly<Record<string, ReminderPayload>>;
+  /** By ref; a payload with removed set is the last event of a removed document, and the Documents page drops its row. */
+  documents: Readonly<Record<string, DocumentPayload>>;
   phones: Readonly<Record<string, PhonePayload>>;
   mailboxes: Readonly<Record<string, MailboxPayload>>;
   watchProgress: Readonly<Record<string, WatchProgressPayload>>;
@@ -84,6 +91,8 @@ export interface LiveStore {
   guideState: GuideStatePayload | undefined;
   reset: ResetPayload | undefined;
   breakfeedProgress: BreakFeedProgressPayload | undefined;
+  /** The latest `heartbeat` event's payload (Story 39.5); the snapshot carries none, so it is undefined until one arrives. */
+  heartbeat: HeartbeatPayload | undefined;
 }
 
 /**
@@ -132,6 +141,7 @@ export function fromSnapshot(snapshot: StateSnapshot): LiveStore {
     approvals: keyed(snapshot.rail.approvals, 'ref'),
     checks: keyed(snapshot.rail.checks, 'ref'),
     reminders: keyed(snapshot.rail.reminders, 'ref'),
+    documents: keyed([], 'ref'),
     phones: keyed([], 'ref'),
     mailboxes: keyed([], 'ref'),
     watchProgress: keyed([], 'ref'),
@@ -141,6 +151,7 @@ export function fromSnapshot(snapshot: StateSnapshot): LiveStore {
     guideState: undefined,
     reset: undefined,
     breakfeedProgress: undefined,
+    heartbeat: undefined,
   };
 }
 
@@ -180,6 +191,8 @@ function applyEvent(store: LiveStore, event: LiveEnvelope): LiveStore {
       return { ...store, checks: put(store.checks, key, event.payload as CheckPayload) };
     case 'reminders':
       return { ...store, reminders: put(store.reminders, key, event.payload as ReminderPayload) };
+    case 'documents':
+      return { ...store, documents: put(store.documents, key, event.payload as DocumentPayload) };
     case 'phones':
       return { ...store, phones: put(store.phones, key, event.payload as PhonePayload) };
     case 'mailboxes':
@@ -200,6 +213,8 @@ function applyEvent(store: LiveStore, event: LiveEnvelope): LiveStore {
       return { ...store, reset: event.payload as ResetPayload };
     case 'breakfeedProgress':
       return { ...store, breakfeedProgress: event.payload as BreakFeedProgressPayload };
+    case 'heartbeat':
+      return { ...store, heartbeat: event.payload as HeartbeatPayload };
     default:
       return store;
   }

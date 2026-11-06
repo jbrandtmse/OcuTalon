@@ -67,7 +67,7 @@ Method TestRecordKeepsTheCard()
 		Set row = rows.GetAt(1)
 		Do $$$AssertEquals(row.ChannelMessageId_"|"_row.ApprovalRef_"|"_row.Kind_"|"_row.Text_"|"_row.DecisionRef_"|"_row.DueAt_"|"_row.FallbackReason, "ZzChat:7|ZzApproval2|||||", "with the rest empty")
 	}
-	For channel = "web", "phone", "mailbox", "telegram", "email", "webhook", "slack", "system" {
+	For channel = "web", "phone", "mailbox", "telegram", "email", "webhook", "slack", "system", "heartbeat" {
 		Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, channel, "ZzCh"_channel_..Number, ""), "the channel "_channel_" is recorded")
 	}
 	Set sc = ##class(OcuTalon.Data.Delivery).Record("instance", "web", "ZzInst"_..Number, "", , , , , , .inst)

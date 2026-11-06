@@ -1,0 +1,16 @@
+{
+  "name": "persona-command",
+  "match": {
+    "marker": "persona-command"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock answers the user now.\"],\"confidence\":0.9}"
+    },
+    {
+      "status": 200,
+      "text": "I can't run commands. I can check productions, read failed messages and propose fixes that wait for your approval."
+    }
+  ]
+}

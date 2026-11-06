@@ -15,7 +15,7 @@ Class OcuTalon.Live.Publish
 
 /// The event table: type:payload class, where the class is OcuTalon.Live.Payload.<Class>. Each type has one publisher
 /// (the spine's event table); web/scripts/payloads.mjs reads this list.
-Parameter TYPES = "chat.message:ChatMessage,notification:Notification,phone:Phone,mailbox:Mailbox,decision:Decision,approval:Approval,turn.step:TurnStep,reminder:Reminder,pairing:Pairing,status:Status,reset:Reset,breakfeed.progress:BreakFeedProgress,guide.state:GuideState,incident:Incident,watch.progress:WatchProgress,check:Check";
+Parameter TYPES = "chat.message:ChatMessage,notification:Notification,phone:Phone,mailbox:Mailbox,decision:Decision,approval:Approval,turn.step:TurnStep,reminder:Reminder,document:Document,pairing:Pairing,status:Status,reset:Reset,breakfeed.progress:BreakFeedProgress,guide.state:GuideState,incident:Incident,watch.progress:WatchProgress,check:Check,heartbeat:Heartbeat";
 
 /// The stream of the instance-wide events.
 Parameter INSTANCE = "instance";
