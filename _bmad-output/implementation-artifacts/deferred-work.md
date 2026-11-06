@@ -3840,6 +3840,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 41619944438 (OCT-epic15 head 6a18ed4c) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: attempt 1 red (1 of 38 classes, 5.00s), attempt 2 green on the same head; Epic 15 changed nothing under Watch since 082ac043
 - 2026-11-03T11:43:10Z status=routed owner=burndown by=cr note=flake class: one rerun and an occurrence trailer; Lane A Watch test (Story 30.4's area); first daily release after 1.0.0
+- 2026-11-06T09:09:40Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry by=qa note=local_warm_e17s5qw_long_run:failed_once,passed_on_4_reruns(incl._the_same_preceding_sequence)
 
 ### DW-628: The IPM artifact may ship the OcuTalon.Test.* classes: check whether module.xml's OcuTalon.PKG resource (ocutalon/cls) includes them and, if so, leave them out, so the artifact is smaller (4,940,685 bytes at 15.4, 98.8% of the release's soft 5,000,000-byte warning) and no test code reaches users' instances
 - source: Epic 15 merge gate (Contest Planner, 2026-11-03) | severity: low | fix-risk: low | footprint: small
