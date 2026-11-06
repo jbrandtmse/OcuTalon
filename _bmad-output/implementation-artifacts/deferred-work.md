@@ -4376,6 +4376,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Digest.Process.Finish puts every watched entry in digest.checked and whatFailed and Coverage.Build's lines are passed unchanged; TelegramOut.Send splits over 4096; about 22 failed or 45 passed rows exceed it
 - 2026-11-06T18:54:29Z status=decision-pending owner=burndown by=cr note=product call: bound or fold the coverage lines (AD-18/AD-32 say one line per row) or accept a split digest
+- 2026-11-06T19:07:35Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=owner note=Planner_ruling_2026-11-06:option_2_now(Telegram_splits_at_line_boundaries,in_order;Q4_b_amended);residual=option_1(fold_coverage_lines_past_a_limit_into_a_count;new_catalog_line=public_text;AD-18/AD-32_one_line_per_row)->Story_18.2_or_the_Epic_17_follow-up
 
 ### DW-816: With Digest enabled, the installed heartbeat's tick at digest.time sends a scheduled digest to every alive session created before it, so a test that spans that minute and counts its session's notices or unscoped mock requests can go red
 - source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4396,3 +4397,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: DueEdges.cls :30-107 are near-copies of Due.cls :40-121; they had drifted on the digest.time restore (fixed in this review)
 - 2026-11-06T18:54:29Z status=wontfix-accepted owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=cr note=reopen_if=a third Digest due-rule test class copies the same set-up, or the two drift again
+
+### DW-820: Digest.Process.Own copies Notify's generic route (the session's own channels) so Digest can narrow a digest to digest.channels and send to the outbound items directly; remove the copy when Notify routes kind digest by digest.channels
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: AD-14 interim note (AMENDED 2026-11-06, Story 17.6); Rule 2: a test pins Own against Notify's actual generic-route targets until then
+- 2026-11-06T19:07:35Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=Rule 2 forced copy (Planner ruling 2026-11-06, AD-14 option a): Story 18.2 makes Notify honour digest.channels for kind digest and deletes Digest.Process.Own and the direct sends
