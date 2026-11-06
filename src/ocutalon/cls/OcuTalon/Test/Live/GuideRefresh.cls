@@ -4,7 +4,7 @@
 ///     a repeat with the same view publishes none, a changed view publishes one more, and a view that went back to the blank one is
 ///     published too (the base is the stream's latest guide.state);
 ///   - TestEachTriggerType: each of AD-12's seven trigger types, named in the test, does it;
-///   - TestEachTriggerTypeOnlyOnChange and TestNonTriggerTypes (QA): each trigger type publishes only on a change, and none of the eight
+///   - TestEachTriggerTypeOnlyOnChange and TestNonTriggerTypes (QA): each trigger type publishes only on a change, and none of the nine
 ///     other types triggers a refresh;
 ///   - TestNoRefresh: none for a non-trigger type, with demo mode off, on a stream that is no session's, for the instance stream (called
 ///     directly, so that nothing is published on it) and for a session whose view equals the blank one;
@@ -141,7 +141,7 @@ Method TestNonTriggerTypes()
 		Do ..Trigger(ref, type)
 		Set checked = checked + 1
 	}
-	Do $$$AssertEquals(checked, 8, "eight types are neither a trigger nor guide.state")
+	Do $$$AssertEquals(checked, 9, "nine types are neither a trigger nor guide.state")
 	Do $$$AssertEquals(..GuideEvents(ref).%Size(), 0, "none of them is followed by a guide.state")
 	Do ..Trigger(ref, "reminder")
 	Do $$$AssertEquals(..GuideEvents(ref).%Size(), 1, "while a trigger on the same session is")

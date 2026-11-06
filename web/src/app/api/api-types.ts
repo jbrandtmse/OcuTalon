@@ -2,6 +2,7 @@ import type {
   ApprovalPayload,
   CheckPayload,
   DecisionPayload,
+  DocumentPayload,
   LiveEventType,
   LivePayloads,
   ReminderPayload,
@@ -195,4 +196,30 @@ export interface SettingsSaved {
 export interface SettingsError {
   error: { code: string; message: string };
   fields?: string[];
+}
+
+/** GET /ocutalon/api/v1/documents: the session's documents (an install's, on a local install), newest first; the same view as the `document` event. */
+export interface DocumentsList {
+  documents: DocumentPayload[];
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/documents: the command was done, and `ref` is the new document's Ref. */
+export interface DocumentAdded {
+  result: 'done';
+  ref: string;
+}
+
+/** The 200 answer to DELETE /ocutalon/api/v1/documents/:ref. */
+export interface DocumentRemoved {
+  result: 'done';
+}
+
+/**
+ * The error body of a refused or failed add, which an `HttpErrorResponse.error` carries: a 400 `bad_document` has the `reason` that the route
+ * refused the file for (`wrong_type`, `too_large` or `empty`) and none for a body it could not read; a 413 `body_too_large`, a 501 `not_built`
+ * and a 500 `server_error` have none.
+ */
+export interface DocumentRefusal {
+  error: { code: string; message: string };
+  reason?: string;
 }

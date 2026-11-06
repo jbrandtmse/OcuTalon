@@ -299,7 +299,7 @@ describe('scrollers keep the gutter', () => {
         if (!/scroll-padding\s*:\s*var\(--space-scroll-gutter\)/.test(rule.body)) unpadded.push(one.name);
       }
     }
-    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/devices/device-panel.ts', 'app/main-page/main-page.ts', 'app/phone/simulated-phone.ts', 'app/settings/settings-page.ts']);
+    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/devices/device-panel.ts', 'app/documents/documents-page.ts', 'app/main-page/main-page.ts', 'app/phone/simulated-phone.ts', 'app/settings/settings-page.ts']);
     assert.deepEqual(unpadded.sort(), Object.keys(NO_GUTTER));
     for (const [name, why] of Object.entries(NO_GUTTER)) assert.ok(why.length > 20, `${name} says why`);
   });
@@ -359,7 +359,9 @@ describe('the banned patterns (UX-DR129)', () => {
       what: 'drag and drop',
       pattern: /draggable|cdkDrag|DragDrop|drag-drop|dataTransfer|\(drag\w*\)|\(drop\)|\bondrag\w*|\bondrop\b|addEventListener\(\s*['"](?:drag\w*|drop)['"]/,
       sample: '<li draggable="true" (dragstart)="pick()">',
-      allowed: {},
+      allowed: {
+        'app/documents/documents-page.ts': 'the Documents page is a drop target for files (Story 34.2): a second way beside the Add documents button, which is always there; it shows an outline only',
+      },
     },
     { what: 'a progress bar or a model-progress meter', pattern: /<progress\b|progressbar|aria-valuenow/, sample: '<div role="progressbar" aria-valuenow="40">', allowed: {} },
     { what: 'an intersection observer (infinite scroll)', pattern: /IntersectionObserver/, sample: 'new IntersectionObserver(load)', allowed: {} },
@@ -376,6 +378,7 @@ describe('the banned patterns (UX-DR129)', () => {
       pattern: /\bdialogs\.open\(|inject\(Dialogs\)|\bdialog\.open\b/,
       sample: 'this.dialogs.open(AboutDialog, options)',
       allowed: {
+        'app/documents/documents-page.ts': 'the Documents page\'s Remove dialog (Story 34.2): opened when the user presses a row\'s Remove button',
         'app/header/header.ts': 'the user\'s About and, on the online demo, Sign out: the only dialogs, opened by the user from the account menu',
         'app/settings/unsaved-guard.ts': 'the settings page\'s unsaved-changes prompt (Story 33.2): opened by the guard when the user leaves a section with unsaved changes',
         'app/shared/dialogs.ts': 'the one place that opens a dialog, over the CDK dialog',
@@ -391,9 +394,9 @@ describe('the banned patterns (UX-DR129)', () => {
     });
   }
 
-  it('opens a dialog (Dialogs.open) only from the header, for the user\'s About and the online demo\'s Sign out, and from the settings guard, for the unsaved-changes prompt', () => {
-    assert.deepEqual(filesWith(/\bdialogs\.open\(/), ['app/header/header.ts']);
-    assert.deepEqual(filesWith(/inject\(Dialogs\)/).sort(), ['app/header/header.ts', 'app/settings/unsaved-guard.ts']);
+  it('opens a dialog (Dialogs.open) only from the header, for the user\'s About and the online demo\'s Sign out, from the settings guard, for the unsaved-changes prompt, and from the Documents page, for Remove', () => {
+    assert.deepEqual(filesWith(/\bdialogs\.open\(/).sort(), ['app/documents/documents-page.ts', 'app/header/header.ts']);
+    assert.deepEqual(filesWith(/inject\(Dialogs\)/).sort(), ['app/documents/documents-page.ts', 'app/header/header.ts', 'app/settings/unsaved-guard.ts']);
   });
 
   it('lets no :hover rule set display, visibility or opacity, so that no control exists only on hover', () => {

@@ -3295,6 +3295,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T07:36:42Z by=lead note=detail of the 2026-11-05T07:29:16Z occurrence (Planner's request): elapsed 30 s at the bound (the GET /state after sign-in never answered within it; test timeout 45 s); the live:sign-in log shows no licence or CSP-session line, so no limit is evidenced either way; classed DW-550 flake by the orchestrator's ruling, Planner kept it
 - 2026-11-05T10:38:22Z status=routed owner=11-22-first-daily-release-burn-down by=burndown note=chartered: first daily release burn-down (owner via the Planner 2026-11-05T01:51Z; orchestrator dispatch); Story 11.22
 - 2026-11-05T14:52:20Z owner=burndown by=adjudication note=Story 11.22 investigation: no held CSP session or licence unit was evidenced in the occurrences; a held ^%cspSession lock does delay /state (mechanism measured); loadedAfter now prints a DIAG /state dump (licence, CSP processes, session locks) when the snapshot GET passes its bound, so the next occurrence names the holder; the slowness itself is not fixed
+- 2026-11-05T19:31:57Z occurrence=34-2-add-and-remove-documents-on-a-documents-page by=ci note=OCT-epic34@2651a548_run_42086496017_attempt_1_iris(browser)_live:sign-in_session.spec.ts:135_S3:_loadedAfter_GET_/state_no_answer_within_30_s_(failed_at_the_30_s_bound;sign-in_unit_1175_s_of_its_1200_s_deadline);NO_DIAG_/state_line_anywhere:_not_in_the_job_log,_not_in_artifact_playwright-results-browser-1_(only_error-context.md,_no_DIAG,_licence_or_CSP_text):_the_11.22_diagnosis_is_not_reaching_CI_output;licence/CSP_nearness_therefore_unknown;one_rerun_requested_19:27Z
 - 2026-11-05T21:23:01Z occurrence=ci-signin-split by=orchestrator note=OCT-epicci-signin-split@0e4348a0 run 42102775939 attempt 1 iris (browser) live:answers X9/X10/X12 loadedAfter /state no answer within 60 s; DIAG /state lines DID print this time (in the job log); rerun green
 - 2026-11-05T21:25:00Z status=routed owner=burndown by=orchestrator note=first DIAG (run 42102775939 a1, live:answers X9/X12): licence LUConsumed=1 of 8, CSPUsers=0, InstanceConnections=1; no ^%cspSession lock; cspServer2 procs READ (3831; 5026, 5062), cspServer3 pid 3822 EVTW across X9..X12; /state waited the full 60 s; X10 no DIAG (waitForResponse 60 s). Rules out licence and session locks; next: gateway/Apache request log + browser network log for /state at the failure
 - 2026-11-05T21:25:15Z status=routed owner=burndown by=Contest_Planner(delegated) note=HYPOTHESIS to test first (inference): long-lived requests (live WebSocket/event stream; the EVTW cspServer3 fits) hold the web gateway's server connections, so a new /state queues at the gateway. Steps in order: (1) at failure dump the gateway's status (connection table: active/idle/long-held per server) and configured limits beside DIAG; (2) capture the browser's network entry for /state (sent/stalled/queued); (3) if all gateway connections are held by long-lived requests, fix by config or routing (raise the limit or a separate pool for long-lived traffic), proven by a test opening N live pages that still gets /state within 5 s. Matters for the online demo too (Planner checks demo gateway limits after).
@@ -3331,6 +3332,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CI run 41364655268 attempt 1 (OCT-epic11 dea3f6dd, iris browser, live:demo-path): 01-page.spec.ts:127 failed in signInReadmeLoaded -> signInReadme -> gotoSettled with that message; Story 11.4 changed no web file
 - 2026-11-02T00:28:56Z status=routed owner=burndown by=ci note=burn-down with priority: widen gotoSettled's retry to the chrome-error interruption (one retry, same deadline), with a goto-settled.test.mjs row
 - 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
+- 2026-11-05T08:19:00Z occurrence=34-1-settle-step-3-ownership-and-fix-its-contracts by=ci note=CI_run_41989403902_(de02fc38)_iris_(shards-3)_live:demo-switch_badge.spec.ts:19_goto_interrupted_by_chrome-error;one_rerun_of_the_failed_job
 - 2026-11-05T12:41:04Z occurrence=feature-merge-back by=orchestrator note=feature 8345cfca (v1.0.1 merge-back) run 42021667697 iris (browser) job 127225676199 live:sign-in page.goto interrupted by chrome-error://chromewebdata/; second sighting today (34.1 de02fc38 shards-3); failed job rerun once
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
@@ -3506,6 +3508,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: host browser check at 1280x800
 - 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=cosmetic; the empty chat opens at its top; only if cheap, with DW-530's no-date-cost rule
+- 2026-11-02T15:14:12Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=chat-panel.ts_fresh_chat_exempt_from_bottom-follow;chat_C16
 
 ### DW-564: APPROVALKIND gains setting in OcuTalon.Msg.Enum (Lane B) and OcuTalon.Bridge.Msg.Enum (Lane A), which Test.Msg.Contracts.TestBridgeEnumerationsEqualOcuTalons requires equal in the same merge; spec 40.1's residual gives both to Lane B's 40.2, and Epic 40's paths_hint omits src/bridge/cls/OcuTalon/Bridge/Msg/Enum.cls
 - source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: med | fix-risk: med | footprint: in-epic
@@ -4237,6 +4240,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner ruling on DW-669 (b), 2026-11-04 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-669 (Epic 40 review): no API route limits its request body size; the largest legitimate body is a 10,000-character simulated email with subject and sender
 - 2026-11-04T21:37:09Z status=routed owner=burndown by=orchestrator note=First daily release: BodyText refuses any body over 256 KB with 413 body_too_large before parsing, on every route; one test per route family. Related: DW-669 (a) in Epic 40; the demo host's Caddy limit is the Planner's (c).
+- 2026-11-05T08:24:52Z by=owner note=amended_by_U-285_at_2026-11-05T08:23:53Z#864:every_route_256KB_EXCEPT_POST_/v1/documents_whose_bound_is_the_10MB_file_limit_encoded(~14MB);the_documents_route_bound_is_built_by_34-2;the_general_limit_stays_with_burndown
 - 2026-11-05T08:24:09Z status=routed owner=burndown by=Contest_Planner(delegated) note=amended 2026-11-05 (U-285 #864): every route keeps the 256 KB body limit EXCEPT the documents upload route (Story 34.2), whose bound is the 10 MB file limit's encoded size (~14 MB), one test each side; 34.2 builds the documents-route exception
 - 2026-11-05T10:38:22Z status=routed owner=11-22-first-daily-release-burn-down by=burndown note=chartered: first daily release burn-down (owner via the Planner 2026-11-05T01:51Z; orchestrator dispatch); Story 11.22
 - 2026-11-05T14:52:20Z status=resolved-by:11-22-first-daily-release-burn-down by=adjudication note=OcuTalon.Web.BodyLimit: 413 body_too_large over 262,144 bytes, checked in Web.Api OnPreDispatch before routing; a route declares a larger bound in its dispatch class's XData BodyBounds; pinned by Test.Web.BodyLimit and web/e2e/api/body-limit.spec.ts (each side of 256 KB)
@@ -4316,6 +4320,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic11 a8868ad8 run 41957022331 iris (shards) job 127036912190 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the run's artifact list is empty; the log names only 'Test timeout of 300000ms exceeded' and the error-context path
 - 2026-11-05T04:38:50Z status=routed owner=burndown by=Contest_Planner note=Contest Planner (delegated) 2026-11-05: first-daily-release burn-down story; on failure, upload the Playwright test-results (error-context.md, traces) of the browser units as a CI artifact, no secrets (CI dummy key/token only), short retention
+- 2026-11-05T10:38:22Z status=routed owner=11-22-first-daily-release-burn-down by=burndown note=chartered: first daily release burn-down (owner via the Planner 2026-11-05T01:51Z; orchestrator dispatch); Story 11.22
+- 2026-11-05T14:52:20Z status=resolved-by:11-22-first-daily-release-burn-down by=adjudication note=each browser unit keeps web/test-results/<unit>/; a failure-only upload step keeps error-context.md and the results folder, 3-day retention; traces are excluded on purpose (orchestrator ruling 2026-11-05): the repository is public and a trace can hold the throwaway stack's per-run sign-in passwords; pinned by ci-results.test.mjs and test-ci-config.sh
 
 ### DW-736: docs/bridge-guide.md names the approval kind setting but documents none of its contract (SETTINGKEYS DryRun with ownerRef = OwnerRef, a session-Ref OwnerRef, a required ResultTarget, ApprovalOutcome on approve/reject/expiry with no replay, Reconcile redelivery)
 - source: spec-40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too.md | severity: low | fix-risk: low | footprint: in-epic
@@ -4368,10 +4374,87 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T10:38:22Z status=routed owner=11-22-first-daily-release-burn-down by=burndown note=chartered: first daily release burn-down (owner via the Planner 2026-11-05T01:51Z; orchestrator dispatch); Story 11.22
 - 2026-11-05T14:52:20Z status=resolved-by:11-22-first-daily-release-burn-down by=adjudication note=each browser unit keeps web/test-results/<unit>/; a failure-only upload step keeps error-context.md and the results folder, 3-day retention; traces are excluded on purpose (orchestrator ruling 2026-11-05): the repository is public and a trace can hold the throwaway stack's per-run sign-in passwords; pinned by ci-results.test.mjs and test-ci-config.sh
 
+### DW-719: UX text after Epic 40 merges (owner ruling U-279): UX-DR144 and EXPERIENCE.md Step 3 Documents 'Adding' must accept 'Markdown, plain text, PDF and Word (.docx) files.' (replacing 'then PDF and Word from step 6'), and the UX assumptions add 'On a local install, memories belong to each user and documents are shared by every user of the install (P23).'
+- source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: U-279 at=2026-11-05T05:37:42Z#848 (a) keep; EXPERIENCE.md is contended with Epic 40, so not edited by 34.1; checked against prd.md P23
+- 2026-11-05T07:02:58Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=spec_gate note=apply only after Epic 40 merges; exact text above; epics.md UX-DR144 line and EXPERIENCE.md Step 3 Documents bullet
+
+### DW-720: Owner ruling U-280 consistency: a reply that says 'None of your documents cover that.' carries no document citations, and a reply with document citations never says it; code decides both from the same turn's documents-tool results, and tests cover both directions
+- source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: U-280 at=2026-11-05T05:37:42Z#849 condition 1; spine Conventions row 'Citations and memories'
+- 2026-11-05T07:02:58Z status=routed owner=19-4-answer-from-documents-with-citations by=spec_gate note=19.7 inherits it for PDF and Word answers
+
+### DW-721: Owner ruling U-280 chips: citation and memory chips are built by code from the turn's tool results (at most 5 each); labels state provenance, never 'used', 'relied on' or 'based on' ('Sources' and 'From memory' are fine); the UI shows 'None of your documents cover that.' and document citations never together, with tests in both directions; FR-41 is met by the 'From memory' chip
+- source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: U-280 at=2026-11-05T05:37:42Z#849 conditions 1-3; spine Conventions row 'Citations and memories'
+- 2026-11-05T07:02:58Z status=routed owner=20-2-see-citations-and-memories-in-answers by=spec_gate note=carry into 20.2's ACs and tests
+
+### DW-722: Document refusal reason codes and their page text are unnamed: spine AD-21 Documents says only 'Reason a code', and with DocumentOps a 5003 stub until Story 19.4 nothing writes the failed row that Story 34.2's refusal AC (wrong type, PDF/Word over 10 MB: 'Couldn't read it: {reason}') shows
+- source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: S2 (spine AD-21 Documents 'Names' sub-bullet) fixes the Reason field as a code but lists no codes or texts; Lane B renders {reason}, Lane A writes it; DocumentOps answers 5003 until 19.4
+- 2026-11-05T07:18:19Z status=routed owner=34-2-add-and-remove-documents-on-a-documents-page by=cr note=34.2 names the codes and their texts in the spine (UX/PRD wording only) and decides who writes a refused row before 19.4
+- 2026-11-05T13:05:24Z status=resolved-by:34-2-add-and-remove-documents-on-a-documents-page by=adjudication note=Web.Documents_refuses_wrong_type,too_large,empty_(400_bad_document)_and_body_too_large_(413)_before_any_command,writing_no_row;page_texts_ruled_U-284/U-285_pinned_by_documents-view.test.mjs_and_DocumentsApi.TestAddRefused;DocumentOps_writes_its_own_failed_rows_(unreadable,not_built,failed)_from_19.4_(spine_S2)
+
+### DW-731: CommandsIn waits its whole TIMEOUT (120 s) on a send to a disabled owner item: a tool's SaveMemory/ForgetMemory to the disabled MemoryOps stub waits 120 s until Story 19.3 enables it (Web.Documents guards its own routes with 501 not_built); a CommandsIn not_built answer for a disabled owner is the general fix
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: measured in 34.2 Task 0 on DocumentOps (web server gave up at 60 s, CommandsIn waits 120 s)
+- 2026-11-05T12:23:42Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=harvest note=CommandsIn is contended with Epic 40; 19.3 enabling MemoryOps removes the case for memory verbs
+- 2026-11-05T13:03:31Z occurrence=34-2-add-and-remove-documents-on-a-documents-page
+
+### DW-732: /usr/irissys/mgr/python is irisowner-owned (mode 555) in the base image, so the IRIS user could chmod it and replace the installed Python packages; the packages inside are root-owned and read-only
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: evidence/34-2-task0-image.md (34.2 Task 0 b)
+- 2026-11-05T12:23:42Z status=routed owner=19-2-compute-embeddings-offline-in-a-worker by=harvest note=decide whether to tighten the folder (Dockerfile) when 19.2 uses the packages
+
+### DW-733: flake candidate: Test.Live.GuideRefresh TestHookPublishesOnChange and TestEventsBodyServesTheGuide fail when the class runs alone on a warm stack the lane-b shard already used; pass in the shard on every fresh stack (order or state dependence of the test itself)
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 34.2 implement, warm stack e34s2iw; not seen on fresh stacks
+- 2026-11-05T12:23:42Z status=routed owner=burndown by=harvest note=Rule 19 hermeticity; Epic 39 also edits Test/Live/GuideRefresh.cls
+- 2026-11-05T18:44:05Z owner=20-2-see-citations-and-memories-in-answers by=burndown note=overflow_(remainder_1_under_cap_8,no_repeat_occurrence;not_seen_on_any_fresh_stack_or_in_CI):20.2_is_the_next_Lane_B_story_that_changes_chat.message_live_payloads_and_runs_Test.Live;make_GuideRefresh_self-contained_on_a_reused_warm_stack;Epic_39_also_edits_the_file
+
+### DW-734: AddDocument.Content (up to 10 MB, a %Stream.GlobalBinary on a persistent command message) stays in the message-body store; neither RemoveDocument nor DropSession is known to delete it, so the remove and sign-out promises may not hold for the stored message copy
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Msg/Command/AddDocument.cls; message purge coverage not measured
+- 2026-11-05T12:23:42Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=measure the purge; drop the message bodies with the session or remove, or keep content out of the message
+- 2026-11-05T14:15:42Z status=routed owner=34-2-add-and-remove-documents-on-a-documents-page by=lead note=pulled_into_34.2_rework_1_by_ruling_U-287_(Data.Upload;AddDocument_carries_UploadRef)
+- 2026-11-05T17:41:27Z status=resolved-by:34-2-add-and-remove-documents-on-a-documents-page by=adjudication note=rework_1_25ff58e7:AddDocument_carries_UploadRef,no_stream_in_any_message;Data.Upload_rows_deleted_by_Take,by_the_route_on_a_failed_submit,and_by_SessionOps.End(Upload.DropSession);KeyProof_7/7;remaining_Upload_lifecycle_gaps_are_DW-747(19.4)
+
+### DW-735: Web e2e D8 and D10 (web/e2e/documents/documents.spec.ts) expect the real routes to answer an error while DocumentOps is disabled and go red once Story 19.4 enables it; switch them to fulfilled answers (page.route)
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: D10 failure-notice step and D8 accepted statuses rely on the stub era
+- 2026-11-05T12:23:42Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 changes them when it builds DocumentOps
+
+### DW-738: The image's transitive Python packages are not pinned (only fastembed, pdfplumber and python-docx are), so a judge's local image build resolves newer dependencies than CI measured; a new dependency or an upstream licence change fails the licence gate and the build, and the model download relies on huggingface_hub's cache layout
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: docker/Dockerfile pip line has three pins and no constraints file; the gate fails closed on any new licence (34.2 review, Blind); Decided 9 and U-285 chose re-measuring over pinning
+- 2026-11-05T13:03:31Z status=escalated owner=burndown by=cr note=owner call: a constraints file per architecture (aarch64, x86_64) for the 36 measured distributions vs re-measure on every build; demo path risk
+- 2026-11-05T19:34:48Z status=routed owner=34-3-epic-34-burn-down by=Contest_Planner(delegated) note=decided_YES_2026-11-05_(relayed_by_the_orchestrator):one_constraints_file_per_architecture_pinning_every_distribution_of_the_measured_set_(arm64_from_Task_0;x64_measured_on_x64_or_in_a_CI_step_that_prints_the_installed_set,_never_assumed);image_build_installs_with_pip_-c;tests:evidence_list_equals_constraints_(mutation)_and_the_licence_gate_still_fails_outside_the_families;IPM_path_uses_the_same_pins_or_the_contract_says_it_installs_none;a_version_bump_re-measures_licences_in_the_same_commit_(comment_atop_each_file);before_Epic_34_merges
+- 2026-11-05T22:46:20Z status=resolved-by:34-3-epic-34-burn-down by=adjudication note=docker/licences/constraints-arm64.txt_and_constraints-x64.txt_pin_36_distributions_each_(version-bump_rule_atop_each);Dockerfile_pip_install_-c_by_uname_-m;gate.py_check_fails_on_unpinned,differing,missing_and_outside_the_licence_families;test-compose-file.sh_pins_evidence==constraints(mutation);arm64_image_gate_passed;IPM_installs_no_Python_packages;x64_confirmation_by_CI_image_build_tracked_as_DW-765
+
+### DW-739: No test executes the real Web.Documents route -> Commands.Submit -> CommandsIn path: while DocumentOps is disabled the OwnerRunning guard answers 501 first, the unit tests use DocumentsProbe's Submit, and TestRealSubmitOrigin only reads the method's source text
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Test.Web.DocumentsApi TestRealSubmitOrigin is a source-text match; e2e D8/D10 stop at the guard's 501 (34.2 review, verification-gap and acceptance auditor)
+- 2026-11-05T13:03:31Z status=routed owner=19-4-answer-from-documents-with-citations by=cr note=when 19.4 enables DocumentOps add an executed test that CommandsIn receives AddDocument and RemoveDocument from the route as web_user
+
+### DW-740: ForgetMemory carries a MemoryRef but nothing in Lane B checks that the memory belongs to the command's SessionRef: CommandsIn's context check compares SessionRef with the context's OwnerRef only, so MemoryOps must refuse another session's memory
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Msg/Command/ForgetMemory.cls doc says a tool forgets only its own session's memory; CommandsIn Carry checks SessionRef only; MemoryOps is Lane A's 5003 stub (34.2 review, Blind)
+- 2026-11-05T13:03:31Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=MemoryOps answers ForgetMemory not_found unless Data.Memory's owner is the command's SessionRef; test it with another session's MemoryRef
+
+### DW-747: Data.Upload has no lifecycle beyond Take, the route's own delete and sign-out: nothing sweeps an abandoned row (a local install has no sign-out), a CommandsIn timeout drops the row while the AddDocument may still reach DocumentOps (whose Take then returns nothing), and Take is at-most-once with no session check
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Data.Upload.CreatedAt stored, never read; Web.Documents.Dispatch drops the row on any non-Ok end (34.2 rework 1 review)
+- 2026-11-05T16:51:33Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 builds DocumentOps's Take and decides the sweep, the timeout case and the session check
+- 2026-11-05T17:39:16Z occurrence=34-2-add-and-remove-documents-on-a-documents-page
+- 2026-11-05T19:14:52Z occurrence=34-3-epic-34-burn-down by=burndown note=its_sweep_part_(orphaned_rows)_is_DW-752,built_in_34.3;the_timeout_case_and_Take's_session_check_stay_with_19.4
+- 2026-11-05T22:44:46Z status=routed owner=19-4-answer-from-documents-with-citations by=cr note=34.3 delivered Take's session check (Take(ref,sessionRef) via Ownership.Upload) and the sweep; 19.4 keeps the timeout case
+
 ### DW-741: Epic 34 merge: Web.Api's OnPreDispatch refuses a POST /v1/documents body over 256 KB with 413 before OcuTalon.Web.Documents (Map-forwarded) runs; 34.2 must declare XData BodyBounds in Api.cls (url /v1/documents) and in Documents.cls (url "")
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Web.BodyLimit (11.22) checks every Web.Api route in OnPreDispatch; OCT-epic34's Documents extends Web.Api behind <Map Prefix="/v1/documents">, checks its own BODYMAX, declares no BodyBounds; compiled XData is inherited (slot B), so the forwarded re-check uses the leftover url
 - 2026-11-05T14:50:17Z status=escalated owner=burndown by=cr note=merge-gate item for the orchestrator: two BodyBounds declarations at the 11.22/34.2 merge; BodyLimit header documents it
+- 2026-11-05T16:52:48Z status=routed owner=34-2-add-and-remove-documents-on-a-documents-page by=orchestrator note=ruling_2026-11-05:34.2_declares_XData_BodyBounds_in_Api.cls(url_/v1/documents)_and_Documents.cls(url_"")_bytes=its_~14MB_bound;BODYMAX_stays;tests_both_sides_of_the_documents_bound_and_the_256KB_general_limit
+- 2026-11-05T17:41:27Z status=resolved-by:34-2-add-and-remove-documents-on-a-documents-page by=adjudication note=rework_2_ca1d1da1:XData_BodyBounds_in_Web.Api(POST_/v1/documents)_and_Web.Documents(POST_"")=BODYMAX_13985112;TestBodyBounds_both_sides_and_262145_on_/v1/messages;Web.BodyLimit_untouched
 
 ### DW-742: wait_disabled_quiet waits the whole DISABLED_QUIET_SECONDS for a Dead Ens.Job entry, which only CleanUpDeadJobs (production start/stop/update) removes
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: low | fix-risk: low | footprint: in-story
@@ -4393,6 +4476,38 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: irisScript (Story 11.21) has no abort signal; boundedStep rejects at DIAG_BOUND_MS while the retry loop continues; failure path of a failure path only
 - 2026-11-05T14:50:17Z status=wontfix-accepted owner=11-22-first-daily-release-burn-down by=cr note=reopen_if=a CI log shows a DIAG /state unavailable line followed by a docker exec left running after the test ended
 
+### DW-748: Story 11.22's docs read stale beside 34.2's BodyBounds: Test.Web.BodyLimit says Test.Web.ApiProbe has no declaration (it now inherits Web.Api's POST /v1/documents entry), POSTROUTES is called every POST route but omits /v1/documents, and Web.BodyLimit's header example names /v1/documents at 14680064 bytes (the real bound is 13,985,112)
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 11.22's assertions still hold (POSTROUTES omits /v1/documents; the declared-bound case uses /v1/messages); only the comments mislead; the files are Story 11.22's and outside 34.2's lane (34.2 re-review, Blind and Acceptance Auditor)
+- 2026-11-05T17:39:16Z status=wontfix-accepted owner=34-2-add-and-remove-documents-on-a-documents-page by=cr note=doc-only, another story's files; reopen_if=a Test.Web.BodyLimit case or a reader acts on the ApiProbe no-declaration claim
+
+### DW-752: U-287 condition 1: an orphaned Data.Upload row (older than 1 hour, never taken) is deleted by an existing purge task or by the documents route's next call, with a test, so a crash between storing an upload and its Take leaves nothing behind
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: owner ruling U-287 at=2026-11-05T19:09:13Z#874; Data.Upload.CreatedAt is stored and never read (DW-747)
+- 2026-11-05T19:14:18Z status=routed owner=burndown by=owner note=Epic 34 burn-down story
+- 2026-11-05T19:14:51Z owner=34-3-epic-34-burn-down by=burndown note=chartered_into_34.3_(U-287_conditions)
+- 2026-11-05T22:46:12Z status=resolved-by:34-3-epic-34-burn-down by=adjudication note=Upload.Purge_deletes_rows_older_than_1h:_daily_via_Install.Step.Web.Purge_and_a_sweep_at_every_documents_route_call;TestPurgeBoundary(3601s_deleted,3600s_kept),TestSweepOnEveryRoute,TestPurgeUsesNoSql;reset-stack_HTTP_GET_deleted_the_aged_row
+
+### DW-753: U-287 condition 2: the 10 MB file limit and the documents route's ~14 MB body bound are enforced before any Data.Upload row is written, pinned by tests (no row exists after a refused add)
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: owner ruling U-287 at=2026-11-05T19:09:13Z#874
+- 2026-11-05T19:14:18Z status=routed owner=burndown by=owner note=Epic 34 burn-down story
+- 2026-11-05T19:14:52Z owner=34-3-epic-34-burn-down by=burndown note=chartered_into_34.3_(U-287_conditions)
+- 2026-11-05T22:46:12Z status=resolved-by:34-3-epic-34-burn-down by=adjudication note=TestRefusedAddsStoreNothing:wrong_type,too_large_per_family,empty,both_413_paths_leave_no_Upload_row;positive_control_stores_one
+
+### DW-754: U-287 condition 3: Data.Upload rows are owner-scoped like other session data (Ownership checks), and the online demo's reset clears them (golden restore); checked once on a throwaway reset with recorded evidence
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: owner ruling U-287 at=2026-11-05T19:09:13Z#874; AD-4, AD-25
+- 2026-11-05T19:14:18Z status=routed owner=burndown by=owner note=Epic 34 burn-down story
+- 2026-11-05T19:14:52Z owner=34-3-epic-34-burn-down by=burndown note=chartered_into_34.3_(U-287_conditions)
+- 2026-11-05T22:46:12Z status=resolved-by:34-3-epic-34-burn-down by=adjudication note=Upload.Take(ref,sessionRef)_and_Drop_owner-checked_via_Ownership.Upload;TestTakeIsOwnerScoped;reset_on_throwaway_e34s3r:2_rows_before,0_after_golden_restore;mutant_(restore_skipped)_red;evidence/34-3-upload-reset.md
+
+### DW-765: constraints-x64.txt is a starting set resolved with host pip for x86_64 platform tags (equals the arm64 set), not a measured installed x64 set; CI's x64 image build (the licence gate compares the installed set to it and fails on any difference) is the confirmation, and its printed set becomes evidence/34-3-x64-installed-set.md
+- source: spec-34-3-epic-34-burn-down.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: pip evaluates markers against the host; no x64 Python image runs locally (34.3 implement)
+- 2026-11-05T22:27:17Z status=routed owner=burndown by=harvest note=the lead records CI's printed set and run id at the burn-down gate; a differing set reds the image build by name
+- 2026-11-05T22:44:47Z occurrence=34-3-epic-34-burn-down by=cr note=with pip -c a pinned version that x64 cannot install fails pip first, by name, before the gate prints a set
+- 2026-11-06T00:11:33Z status=resolved-by:34-3-epic-34-burn-down by=burndown note=CI_run_42128738213_at_148652a1:every_iris_group_built_the_image_on_x64_runners_with_pip_-c_constraints-x64.txt_and_gate.py_check_(equality_and_licence_families)_and_succeeded;so_the_x64_installed_set_equals_the_36_pins;the_build's_own_listing_does_not_reach_the_CI_log(noted_in_evidence/34-3-x64-installed-set.md)
 ### DW-756: DW-550's DIAG /state dump (11.22, web/e2e/support/diagnose.ts via floor.ts:145) never reaches CI output: no DIAG line in the browser job log nor in the playwright-results artifact when loadedAfter's /state bound passed
 - source: OCT-epic34@2651a548 run 42086496017 iris (browser) job 127452898026 S3 session.spec.ts:135 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: runner C searched the job log and the artifact's error-context.md: no DIAG, licence or CSP text; floor.ts:145 says the lines print before the error

@@ -63,6 +63,7 @@ const IMPORTED = [
   ['header/demo-view-texts.ts', ['DEMO_VIEW_TEXTS']],
   ['chat/try-it-view.ts', ['TRY_IT_TEXTS']],
   ['settings/settings-view.ts', ['SETTINGS_TEXTS']],
+  ['documents/documents-view.ts', ['DOCUMENTS_TEXTS', 'REASON_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -166,6 +167,14 @@ for (const [name, text] of [...imported, ...fromSource, ...fromTemplates]) {
  */
 const SOURCES = {
   ux: [
+    'Documents',
+    'Add documents',
+    'Remove',
+    'No documents yet. Add a runbook to get cited answers.',
+    'Indexing\u2026',
+    'Ready',
+    "Couldn't read it: {reason}",
+    "Remove '{name}'? Answers will stop citing it.",
     'Settings \u00b7 OcuTalon',
     'Settings',
     'Models',
@@ -516,6 +525,7 @@ const SOURCES = {
     'Story 33.3: Epic 33 burn-down (the Demo mode section\'s own confirmation, DW-699)': [
       'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.',
     ],
+    'Story 34.2: Add and remove documents on a Documents page (the page title "Documents \u00b7 OcuTalon")': ['Documents \u00b7 OcuTalon'],
   },
   ruled: {
     'Story 33.2 ruling U-269 (T1 to T8: the unsaved prompt and its Leave button, the denied view\'s link back to the chat, the line of a section that is not built yet, the five threshold labels, T7 the UX\'s Demo mode sentence without its FR reference, and the name of the settings navigation; T2\'s Stay, T6\'s On and Off, T8\'s Pages and T10\'s two API messages are sentences or words that the UX holds, and sit under ux)': [
@@ -593,6 +603,16 @@ const SOURCES = {
     ],
     'Story 7.8 (U-249: the either-way sentence of the dry run, which the notice carries since Story 7.7; the page renders the catalog\'s text, cut by the generator from the two entries that hold it)': [
       'All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived.',
+    ],
+    'Story 34.2 rulings at the spec gate (DW-722, U-284; the lead, 2026-11-05: the reason texts of "Couldn\'t read it: {reason}" with the size ruling of U-285 #864, the Remove button and its accessible name, and the failure notice of the Remove dialog)': [
+      'Remove {name}',
+      "Couldn't remove it. Nothing was changed.",
+      "it isn't a Markdown, plain-text, PDF or Word (.docx) file.",
+      'that file is {size}; the limit is 10 MB.',
+      'the file is empty.',
+      'OcuTalon found no text in it.',
+      "this part of OcuTalon isn't built yet.",
+      'something went wrong inside OcuTalon.',
     ],
   },
   calendar: [
