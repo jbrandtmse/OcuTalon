@@ -148,3 +148,4 @@
 2026-11-06T02:35:24Z	Story 17.4	ledger_adjudicated	owned=3 resolved=3(DW-727,DW-757,DW-758) reowned=0 terminal=0 (DW-647_by-design_at_spec_gate;DW-771_decision-pending_burndown)
 2026-11-06T02:35:24Z	Epic 17	hold_ordered	reason=owner:account_switch_after_Epic_40_merge(HOLD_requested_at=2026-11-06T01:01:03Z) noticed_at=2026-11-06T02:35:24Z late_by=two_stage_boundaries(qa_spawn_02:03Z,code-review_spawn_02:16Z) cause=runner_omitted_HOLD_check_at_those_boundaries
 2026-11-06T02:35:24Z	Story 17.4	hold_saved	story=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge stage=code-review patch=none tree=clean(orchestrator_ordered_local_commit_of_the_review_outcome,unpushed) next=smoke+fresh_check_then_commit_log+push
+2026-11-06T02:35:44Z	Epic 17	hold_complete	shas=origin:7b210d04,local_head:24d8995e(unpushed:10) throwaways=none resume=refreshed
