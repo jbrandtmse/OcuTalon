@@ -4559,6 +4559,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T06:48:13Z status=decision-pending owner=burndown by=cr note=human=Contest Planner ruling on the row's label or number; the ruled text is not editable by a story
 - 2026-11-06T07:51:00Z status=decision-pending owner=burndown by=merge_gate note=to_planner: relabel the 'demo incident end to end, 30 of 30' row or confirm it (public text; any change is a fix story)
 - 2026-11-06T07:51:58Z status=routed owner=burndown by=owner note=Contest Planner (owner delegation) ruled (a): rows become 'The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs' and 'Model cost of the always-on online demo | about 9 to 10 cents a day'; fix story 11.26 on runner B (charters and re-owns this entry)
+- 2026-11-06T07:54:54Z status=routed owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=x0 note=re-owned to the 11.26 charter (planner_ruling subject=DW-775, ruling (a), 2026-11-06T07:51:58Z): relabel the two Measured rows exactly as ruled; closed at the 11.26 burn-down
+- 2026-11-06T08:39:42Z status=resolved-by:11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=adjudication note=delivered in 7debbc89: README.md:34 and :39 carry the two ruled labels exactly; test-readme.sh MEAS_LABELS 510/515 updated in place; measured rule red on either label reverted (spec Verification mutations)
 
 ### DW-776: README Measured row 'Routine attention decisions right: 19 of 22' shows the best of three rc4 attempts (19, 18, 18 of 22) with no note that it is the best
 - source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4577,3 +4579,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T04:40:46Z status=routed owner=burndown by=orchestrator note=first occurrence pair; next burn-down with DW-550 (CSP session cap) and DW-685; a red on a quiet host makes it real
 - 2026-11-06T04:52:15Z occurrence=feature-61f32de8 by=orchestrator note=run 42161844768: live:answers close-loop C3 GET /state no answer 60s (127709120576); shard:lane-b Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved 'production runs every item' (127709120793); groups 1786-1828s; 4 concurrent ci.yml runs on 18 services; rerun --failed at low load
 - 2026-11-06T05:21:27Z occurrence=feature-61f32de8-rerun-green by=orchestrator note=attempt 2 of 42161844768 green at low load: flake class confirmed
+
+### DW-778: test-readme.sh measured rule does not fail on an extra Measured row, so an old 11.25 label re-added as a ninth row passes CI
+- source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: chk_measured (test-readme.sh 517-530) only requires each MEAS_LABELS label to start a row; README with '| The always-on online demo |' appended after line 39: git grep prints README.md:40, test-readme.sh PASS measured
+- 2026-11-06T08:38:06Z status=by-design owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=cr note=spec Never forbids a new rule/helper/self-test; QA declined the absence pin on purpose; AC1 absence held by the Verification git grep

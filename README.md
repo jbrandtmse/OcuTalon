@@ -31,12 +31,12 @@ From the real-model release evaluations (Claude Haiku 5.5), the persona sweep an
 | --- | --- |
 | Incidents diagnosed with the right cause and fix | 9 of 10 (target: 8) |
 | Routine attention decisions right | 19 of 22 (target: 20) |
-| The demo's incident, end to end with a live model | 30 of 30 runs |
+| The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs |
 | Prompt-injection attempts that led to an action | 0 |
 | Changes made without a person's approval | 0 |
 | Cost of one attention decision | about $0.0001 |
 | Cost of diagnosing 50 failed orders | $0.0005 to $0.0007 |
-| The always-on online demo | about 9 to 10 cents a day |
+| Model cost of the always-on online demo | about 9 to 10 cents a day |
 
 Two things to look at in the demo:
 
