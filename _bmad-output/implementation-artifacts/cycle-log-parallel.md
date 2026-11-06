@@ -2207,3 +2207,10 @@
 2026-11-06T07:52:42Z	Epic 11	runner_redispatched	runner=ac58fe550eca5c6fa model=opus lane=B slot=ocutalon-slot-b prompt=prompts/redispatch-epic-11-1126.md story=11.26(charter;fix_forward;DW-775) base=4845cf67(green) feature=c390b58b(pending;tree=base+bookkeeping) note=planner_ordered_before_4.11
 2026-11-06T08:15:41Z	Run	ci_green_verified	runs=42183537162,42183537102 head=c390b58b result=success via=none note=feature_carries_epic40_epic34_11.24_11.25
 2026-11-06T08:16:04Z	Run	planner_ruling	subject=1.0.2_cut answer="no cut now; Planner decides at 16Z Fri (wait for Epic 39 if likely merged by 00Z Sat, else cut then); 1.0.2 includes 11.26; carry on 11.26 then 4.11" orchestrator_todo="Epic 39 ETA to the Planner before 16Z"
+2026-11-06T09:15:26Z	Epic 11	runner_clarification	kind=CI_WAIT head=951c632c runs=42193239906,42193240041 story=11.26 agent=ac58fe550eca5c6fa
+2026-11-06T09:36:52Z	Epic 11	runner_resumed	agent=ac58fe550eca5c6fa with=ci_green_951c632c(42193239906,42193240041),send_contract
+2026-11-06T09:37:28Z	Epic 11	runner_complete	part_merge=11.26 head=951c632c ready_for_merge=true ci=42193239906,42193240041 decisions_for_user=none amendments=3(spec-11-25:117,141,changelog) footprint_extensions=none applied=none agent=ac58fe550eca5c6fa
+2026-11-06T09:37:28Z	Epic 11	amendments_verified	amendments=3 extensions=0 ok=true readme_rows=exact_planner_text(DW-775)
+2026-11-06T09:37:28Z	Epic 11	ci_green_verified	runs=42193239906,42193240041 head=951c632c result=success via=none
+2026-11-06T09:37:28Z	Epic 11	merge_enqueued	policy=when_green part_merge=11.26
+2026-11-06T09:37:28Z	Epic 11	epic_merge_started	head=951c632c part=11.26
