@@ -77,7 +77,7 @@ deferred: []
 - No new mock scenario, and no edit of any existing scenario. No new CI unit, group, Playwright project or e2e folder.
 - No duplicate of a control's logic. A hand-off presses the real control, and never calls `postMailboxSample`, `postBreakFeed`, `DemoView.set` or a persona API itself.
 - No look-for line of items 1-4 names memory, documents or the heartbeat. No line claims an all-clear (AD-28).
-- No button or link text contains the accessible name of an existing control: "Break the feed", "Show me", "Run again", "Send", "Change", "Demo view", ", send sample email", "Simulate an incoming email", "Open the trace".
+- No button or link text contains the accessible name of an existing control: "Break the feed", "Show me", "Run again", "Change", "Demo view", ", send sample email", "Simulate an incoming email", "Open the trace". (The ruled "Send the suspicious email" contains "Send": see Design Notes, "Name-collision check".)
 - The existing finish line `moreToTry` is changed only as the ruling says (Design Notes, "Naming clash").
 
 ## I/O & Edge-Case Matrix
@@ -231,6 +231,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-06 (spec gate, runner): the Planner's PUBLIC TEXT ruling (exact strings; naming clash P1 with the finish-open condition) and the orchestrator's contention ruling (approach A allowed; `payloads.ts` regenerated only; Payloads.cls plain union, higher count) written into Design Notes. Item 3's "Simulated phone" verified as `DEVICE_TEXTS.phoneTab` (device-view.ts:19). Flake classes for this story's runs: DW-349, DW-376, DW-396, DW-414, DW-333, DW-415, DW-462, DW-471, DW-497, DW-550, DW-555, DW-764, DW-772, DW-774, DW-453, DW-670 (GuideApi).
+
 ## Review Triage Log
 
 ## Design Notes
@@ -252,7 +254,7 @@ deferred: []
 - **(B)** A top-level `/v1/state` key needs `Web/Api.cls` `StateBody` (`:939-979`) and its key pin `Test/Web/Api.cls:132`: three contended files, and Epic 39's largest. Rejected.
 - **(C, fallback if A is refused)** No server change: the registry gains `available: boolean` per item, true for 1-4 and false for 5-7, and each later epic flips its own line. That is the story's named fallback, "one line per item when its epic merges".
   - Under C, drop the server tasks, `Test/Demo/Features.cls`, K1 and AC3's server half. AC4 becomes "flipping the line shows the item".
-- **The spec says which was built:** A is built if the ruling allows it.
+- **The spec says which was built: A (RULED 2026-11-06 by the orchestrator: approach A allowed).** Add the read-only `OcuTalon.Demo.Features` class and `GuideState.Features`; in `Test/Live/Payloads.cls` add the one contract line; `web/src/app/live/payloads.ts` is changed ONLY by `npm --prefix web run payloads` (never hand-edited or hand-merged; after any union, regenerate it and rerun the payloads tests). At a merge with Epic 39, `Payloads.cls` is a plain union taking the higher class count; whoever integrates second does the union. Fallback C is not built.
 
 **Naming clash (a proposal for the ruling; the existing line is not changed on the stage's own call):**
 - **P1 (recommended).** In the finish, the line "More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production." (`guide-view.ts:60`, `demo-guide.ts:198`) gives way to the panel.
@@ -260,59 +262,43 @@ deferred: []
   - `GUIDE_TEXTS.moreToTry` and its pins go (Code Map, "Ruling P1 only").
 - **P2.** The line stays where it is, and the panel follows it. Only the placement checks change (K2, `more-to-try-sources` (b): after `.more`), and the P1-only pins stay.
 
-**Public text (proposed, awaiting the ruling).** The whole set below awaits the Planner's ruling. The spec gate replaces this section with the ruled strings, and the implement stage pins exactly those.
-- Link in the guide's row 1: `More to try`
-- Panel label: `Other things to try`
-- Item 1:
+**Public text (RULED 2026-11-06 by the Contest Planner under the owner's delegation, relayed by the orchestrator; exact, verbatim).** The implement stage uses exactly these strings, pins every one with fixed-strings tests (`more-to-try-view.test.mjs`, `ux-strings.test.mjs`), and writes them into EXPERIENCE.md and DESIGN.md with the marker `[ADDED 2026-11-06, Story 4.11, owner decision made by the Contest Planner under the owner's delegation]`. Any other wording change is a new `## Clarification Needed` beginning `PUBLIC TEXT:` (implement: a HALT, never a change of its own). Straight ASCII double quotes inside the strings exactly as shown.
+- Link (row 1, after "About 2 minutes", before Hide guide, with `aria-expanded`): `More to try`
+- Panel label (a labelled group, not a heading): `Other things to try`
+- Item 1 (`persona`):
   - label `Change how OcuTalon talks`
-  - look-for `In the Persona card, choose Pirate, or Another language with Spanish, and press Save. Then ask "Is anything wrong right now?" and look for the new style in the reply, with the same check results under it.`
-  - button `Open the Persona card`
-- Item 2:
+  - look-for `In the Persona card, choose Pirate, or Another language and then Spanish, and press Save. Then ask "Is anything wrong right now?" and look for the new style in the replies. The check results under them are written by OcuTalon's code, so they stay the same in any style.`
+  - button `Go to the Persona card`
+- Item 2 (`suspiciousEmail`):
   - label `Send a suspicious email`
-  - look-for `This sends "Sample: suspicious request" to the Simulated mailbox. Look for OcuTalon's decision and its reasons: nothing in the email is acted on.`
-  - button `Send the suspicious request`
-- Item 3:
+  - look-for `This sends "Sample: suspicious request" to the Simulated mailbox. The email asks OcuTalon to resend every failed order and approve pending requests. Look for its decision and the reasons under it: nothing is resent or approved.`
+  - button `Send the suspicious email`
+- Item 3 (`rejectFix`):
   - label `Reject a fix`
-  - look-for `This presses Break the feed again. When the fix waits for your approval, press Reject on the simulated phone or in the chat, and look for "Nothing was changed."`
+  - look-for `This presses Break the feed again. OcuTalon usually notices within a minute. When the fix waits for your approval, press Reject in the chat or on the Simulated phone, and look for "Nothing was changed."`
   - button `Break it again`
-- Item 4:
-  - label `See it as on your own install`
-  - look-for `The demo guide, Break the feed and the Simulated devices go, and the chat takes their place. Turn the Demo view switch back on in the top bar to return.`
+  - "Simulated phone" is the tab's exact visible text: `DEVICE_TEXTS.phoneTab`, `web/src/app/devices/device-view.ts:19` (checked by the runner 2026-11-06; pin it in `more-to-try-view.test.mjs` (c)).
+- Item 4 (`demoView`):
+  - label `See the page as on your own install`
+  - look-for `The demo guide, Break the feed and the Simulated devices are hidden, as on your own install. Turn Demo view back on in the top bar to return.`
   - button `Show the page without the demo`
-- Item 5 (shown once Epic 19's memory is present):
+- Item 5 (`memory`, hidden until its feature is present):
   - label `Ask it to remember something`
   - look-for `This sends "Remember that the Results partner's contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.`
   - button `Ask it to remember`
-  - the sent prompt (`rememberPrompt`) `Remember that the Results partner's contact is Lee.` (Story 19.3's own example)
-- Item 6 (shown once Epic 19's documents are present):
+  - sends (`rememberPrompt`) `Remember that the Results partner's contact is Lee.`
+- Item 6 (`documents`, hidden until its feature is present):
   - label `Ask about a document`
-  - look-for `On the Documents page, add a runbook, then ask about it in the chat and look for the citation under the answer.`
+  - look-for `On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat and look for the citation under the answer.`
   - link `Open the Documents page`
-- Item 7 (shown once Epic 39's heartbeat is present):
-  - label `Run a heartbeat`
-  - look-for `In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in's outcome and cost in the card.`
-  - button `Go to the status rail`
-- **Changed existing line (P1 only):** the finish's `More to try: simulate an incoming email ...` (`guide-view.ts:60`) is removed. Under P2 it is unchanged.
+- Item 7 (`heartbeat`, hidden until its feature is present):
+  - label `Run a heartbeat check-in`
+  - look-for `In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in's outcome and its cost in the card.`
+  - button `Go to the Heartbeat checklist card`
+- **Naming clash: P1 RULED.** The finish line `More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.` (`guide-view.ts:60`, `demo-guide.ts:198`) is removed, with its pins (Code Map "Ruling P1 only"), replaced by pins for the panel. CONDITION (ruled): in the finish state the panel shows OPEN exactly where that line was (after `.finish-links`, before the Try it yourself row); everywhere else it is closed until the link is pressed. This is the Open state already planned (`open = chosen() ?? finished`).
 - **Accessible names and announcements.** The group is named by the panel label. Each control is named by its visible text, and the link carries `aria-expanded`. No new announcement.
-- **On-screen names quoted, with their sources:**
-  - "Persona": `rail/rail-view.ts:56`;
-  - "Pirate": `rail/persona-card/persona-card-view.ts:46`;
-  - "Another language": `persona-card-view.ts:48`;
-  - "Spanish": `persona-card-view.ts:24` (the Language help);
-  - "Save": `persona-card-view.ts:22`;
-  - "Is anything wrong right now?": `chat/try-it-view.ts:12`;
-  - "Sample: suspicious request": `mailbox/mailbox-view.ts:55`;
-  - "Simulated mailbox": `devices/device-view.ts:20`;
-  - "Break the feed": `feed/break-feed-view.ts:23`;
-  - "Reject": `phone/phone-view.ts:108` and `approvals/approval-view.ts:43`;
-  - "Nothing was changed.": `msg/catalog.ts:28` (`answered.rejected`) and `guide/guide-view.ts:41`;
-  - "Demo view": `header/demo-view-texts.ts:12`;
-  - "Simulated devices": `devices/device-view.ts:18`;
-  - "Documents": `header/header-nav.ts:24`.
-- **Planned names, not on screen yet:** "Heartbeat checklist" and "Run the heartbeat now" (epics.md Story 39.5, FR-63, FR-66).
-- **Notes for the ruling:**
-  - The epics' "look for the refusal" is not a word the demo shows. The mailbox shows a decision chip and reasons, and EXPERIENCE.md accepts any outcome "as long as nothing acts and the reasons say why", so item 2 names those.
-  - Every control text avoids the names of existing controls, because Playwright's default name match is a substring match.
+- **Name-collision check (Never list).** The ruled control texts contain none of the Never list's names except one: "Send the suspicious email" contains the chat's and the guide's "Send". The ruling is exact, so the text stays: the implement stage checks every e2e locator that finds a control named "Send" (`getByRole('button', { name: 'Send' })` and similar) and makes it `exact: true` or scoped to its own region where it could also match the panel's button, within the footprint (only `web/e2e/**` files that are not contended; a contended one is a HALT). The Never list's "Send" entry is replaced by this rule, and `more-to-try-view.test.mjs` (e) exempts exactly that one pair.
+- **On-screen names quoted, with their sources:** "Persona" (the card's heading; the ruling's "Persona card" names the card) `rail/rail-view.ts:56`; "Pirate" `rail/persona-card/persona-card-view.ts:46`; "Another language" `persona-card-view.ts:48`; "Spanish" `persona-card-view.ts:24`; "Save" `persona-card-view.ts:22`; "Is anything wrong right now?" `chat/try-it-view.ts:12`; "Sample: suspicious request" `mailbox/mailbox-view.ts:55`; "Simulated mailbox" `devices/device-view.ts:20`; "Simulated phone" `devices/device-view.ts:19`; "Simulated devices" `devices/device-view.ts:18`; "Break the feed" `feed/break-feed-view.ts:23`; "Reject" `phone/phone-view.ts:108` and `approvals/approval-view.ts:43`; "Nothing was changed." `msg/catalog.ts:28` and `guide/guide-view.ts:41`; "Demo view" `header/demo-view-texts.ts:12`; "Documents" `header/header-nav.ts:24`. Planned names, not on screen yet: "Heartbeat checklist", "Run the heartbeat now" (Story 39.5; re-checked by the orchestrator at Epic 39's merge, not this story).
 
 **Integration ACs (Rule 1):**
 - Matrix 4 (AC3): the consumer `DemoGuide`'s panel reads `Demo.Features.Present()` through the real `/v1/state` on `live:sign-in` and shows exactly those items.
@@ -379,7 +365,7 @@ deferred: []
 - **Tags:** fresh `e4s11i`; warm `e4s11iw`; QA `e4s11q`; review `e4s11r`.
 - **One command per foreground call** (`timeout: 600000`), and one `iris_execute_tests` per message.
 - **Slot B is not needed.** If an IRIS MCP call is made, it uses `server` `ocutalon-slot-b` and namespace `OCUTALON`, checked first with `iris_server_info`.
-- **Flakes** (one rerun): DW-349, DW-376, DW-396, DW-414, DW-333, DW-415, DW-462, DW-471, DW-497.
+- **Flakes** (one rerun and an `occurrence=` note; a second red on the same head is real): DW-349, DW-376, DW-396, DW-414, DW-333, DW-415, DW-462, DW-471, DW-497, DW-550, DW-555, DW-764, DW-772, DW-774, DW-453, DW-670.
 
 **Commands:**
 
