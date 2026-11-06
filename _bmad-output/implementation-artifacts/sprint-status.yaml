@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-06-2026 10:45
+last_updated: 11-06-2026 02:49
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -505,5 +505,14 @@ action_items:
       the 30.1 Spine notes for AD-20 fallback cases (AD-20/AD-8/AD-6/AD-22 text is
       silent; no code change)"
     owner: "user"
+    status: open
+    ref: ""
+  - id: "epic-19-retro-item-9-release-gate-for-the-release-that-carrie"
+    epic: 19
+    action: "Release gate for the release that carries Epic 19: run the real-model
+      release-candidate eval (the injection set and one persona) before its cut, because
+      Story 19.3 changes the Chat agent INSTRUCTIONS (memory bullets). Never run by
+      a runner (no real model key); Contest Planner ruling 2026-11-06."
+    owner: "owner"
     status: open
     ref: ""

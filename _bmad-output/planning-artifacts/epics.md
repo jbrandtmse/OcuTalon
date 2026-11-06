@@ -6146,6 +6146,7 @@ So that what I know about my systems is kept in my own IRIS and comes back when 
 - DW-731: CommandsIn waits its whole TIMEOUT (120 s) on a send to a disabled owner item (SaveMemory/ForgetMemory to the disabled MemoryOps stub) until this story enables MemoryOps; a CommandsIn not_built answer for a disabled owner is the general fix (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
 - DW-740: ForgetMemory carries a MemoryRef but nothing in Lane B checks that the memory belongs to the command's SessionRef, so MemoryOps must refuse another session's memory (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
 - DW-782: no test calls `OcuTalon.Memory.Embedding` from inside an AI Hub callback (the S11 surface); settle it with a live tool call in a throwaway that saves and searches a memory (ledger; routed by harvest 2026-11-06)
+- DW-793: Story 19.2's operator diagnostics (Install.Step.Memory's warnings, the Embedder status texts, OcuTalon.Memory.Embedding's errors) are approved as worded, on the condition that none prints a key, a token or an environment-variable value (folder paths are fine): pin that with a test (ledger; routed by owner ruling 2026-11-06)
 
 ### Story 19.4: Answer from documents with citations
 
@@ -6246,6 +6247,8 @@ So that it can answer from it as a document.
 **And** the tool inventory test still finds no tool that runs operating-system commands or arbitrary code (FR-10)
 
 - DW-792: `OcuTalon.Memory.Embedder` (Story 19.2) builds its two keyword calls with Python `eval` strings, a form the Conventions "Python" row does not name; move them into the `.py` resource this story creates under `src/ocutalon/python/` (ledger; routed by cr 2026-11-06)
+- DW-791: U-294 condition 1: the IPM path installs exactly the licence-measured set: the root `requirements.txt` pins `fastembed`, `pdfplumber` and `python-docx` AND every transitive distribution of U-285/DW-738's measured set at the constraints files' versions (any arm64/x64 difference is reported before commit), and `ipmcheck` runs the same licence gate on what IPM installed, failing outside the allowed families; condition 2: measure `ipmcheck` and the rehearsal with the model download (ledger; routed by owner ruling 2026-11-06)
+- DW-784: U-294 condition 3: the README's IPM section and `docs/install-ipm.md` say that the install downloads Python packages and the embedding model (size, typical time) and needs network access to PyPI and the model host, as PUBLIC TEXT to the Planner before commit; the sample output is re-shot from a real run (ledger; routed by owner ruling 2026-11-06)
 
 ### Story 19.7: Answer from PDF and Word documents
 

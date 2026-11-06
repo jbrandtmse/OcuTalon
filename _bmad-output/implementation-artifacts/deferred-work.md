@@ -4558,11 +4558,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the page only gained STEP Memory OK lines (test-cpf.sh rule 9); new wording is public text on Epic 11's page
 - 2026-11-06T09:07:42Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=harvest note=reopen_if=Epic_11_or_15_next_edits_docs/install-ipm.md,or_a_reader_asks_what_WARN_Memory_means;reported_to_orchestrator_for_routing
+- 2026-11-06T10:48:50Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=owner_ruling note=reopened_by_U-294_condition_3:PUBLIC_TEXT_to_the_Planner_before_commit:the_README_IPM_section_and_docs/install-ipm.md_say_the_install_downloads_Python_packages_and_the_embedding_model(size,typical_time)_and_needs_network_access_to_PyPI_and_the_model_host;re-shoot_the_sample_output
 
 ### DW-791: The IPM install's requirements.txt pins only fastembed==0.9.0: its dependencies (onnxruntime, tokenizers, huggingface_hub, numpy) get no constraints file, licence gate or third-party notices, unlike the image's pip line
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: docker/Dockerfile holds every dependency to docker/licences/constraints-<arch>.txt and runs gate.py check and notices; root requirements.txt has one line; ipm-install.sh check 30 asserts only fastembed's version
 - 2026-11-06T09:48:59Z status=escalated owner=burndown by=cr note=licence and dependency policy for IPM installs (veto); per-arch pins do not fit one requirements.txt; decide at the decision sheet
+- 2026-11-06T10:48:50Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=owner_ruling note=U-294_condition_1(binds_inside_Epic_19):requirements.txt_pins_fastembed,pdfplumber,python-docx_AND_every_transitive_distribution_of_U-285/DW-738's_licence-measured_set_at_the_constraints_files'_versions(say_so_if_arm64_and_x64_differ,before_committing);ipmcheck_runs_the_same_licence_gate_on_what_IPM_installed,failing_outside_the_allowed_families;plus_condition_2:measure_ipmcheck_and_rehearsal_with_the_model_download
 
 ### DW-792: OcuTalon.Memory.Embedder builds its two keyword calls (TextEmbedding, snapshot_download) from Python source in builtins.eval lambda strings, a form the Conventions Python row (.py resources under src/ocutalon/python/) does not name
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
@@ -4573,6 +4575,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Install/Step/Memory.cls EnsureModel Warn calls; spec Never: no new user-facing text (a step warning carries the underlying error's own text); other steps (Audit, Users, Schedule) warn in their own words
 - 2026-11-06T09:48:59Z status=decision-pending owner=burndown by=cr note=PUBLIC TEXT: recommend keeping them as operator diagnostics, as the other install steps do; else the spec's Never line is amended
+- 2026-11-06T10:48:51Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=owner_ruling note=approved_as_proposed_by_the_Contest_Planner(owner_delegation);condition:none_prints_a_key,token_or_environment-variable_value(folder_paths_fine);pin_it_with_a_test_if_not_already_pinned
 
 ### DW-794: The callback check cannot cover OcuTalon.Memory.Embedder's caller-side methods (Submit, ModelFolder, HasModel run in the calling process) because the same class holds the worker's %SYS.Python code, so Python added to Submit would pass TestCallbackRule
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: med | footprint: in-story
