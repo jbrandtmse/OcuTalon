@@ -271,3 +271,6 @@
 2026-11-06T16:41:21Z	Story 39.5	rework_opened	cycle_iteration=2 iteration=1 trigger=high items=HIGH_save-then-run_202_case(39.8_fix),DW-812 scope_baseline=pending
 2026-11-06T16:41:21Z	Epic 39	ruling	question=39.5_rework_implement_while_f8045439_CI_runs choice=implement_now;push_only_after_green rejected=wait why=orchestrator_ruling_04:1xZ_applied_again;Planner_full_speed category=decide policy=5086036
 2026-11-06T16:41:21Z	Story 39.5	stage_spawned	stage=implement spawn_at=2026-11-06T16:41:21Z model=sonnet agent_name=39-5-implement-2 cycle_iteration=2
+2026-11-06T17:04:36Z	Epic 39	ruling	question=burn-down_before_merge choice=no_burn-down_story_unless_a_shipped_behaviour_defect;non-defect_items_routed_to_a_post-merge_Epic_39_follow-up category=decide by=orchestrator_Planner policy=5086036
+2026-11-06T17:04:36Z	Story 39.5	dev_complete	spawn_at=2026-11-06T16:41:21Z model=sonnet build_sha=dbd37f1d baseline_revision=587b1646 review_loop_iteration=0 followup_review_recommended=false deferred=0 cycle_iteration=2 note=rework_1:TestSaveThenRunAfterATick_202(mutation_red_on_39.8_revert);DW-812_HeartbeatValues_calls_Checks.Beat.Values(ref,1)
+2026-11-06T17:04:36Z	Story 39.5	stage_spawned	stage=code-review spawn_at=2026-11-06T17:04:36Z model=opus agent_name=39-5-code-review-2 cycle_iteration=2
