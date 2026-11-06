@@ -4314,6 +4314,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-4-apply-model-price-budget-and-zone-changes-through-the-bridge.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: 17.4 live test hides it with a [[mock:diagnosis-unknown]] marker; unverified on a real provider (none allowed)
 - 2026-11-06T02:03:39Z status=decision-pending owner=burndown by=harvest note=product call: how a diagnose-kind Test request is tested (e.g. a minimal evidence pack, or test the runner with a plain turn-shaped request)
+- 2026-11-06T04:22:35Z status=routed owner=burndown by=owner note=planner_ruling_2026-11-06T02:37:12Z(owner_delegation):Settings_Test_is_a_CONNECTION_test_for_every_runner(non-empty_reply_within_the_timer_via_the_runner's_provider,model,key;no_ReplyClass_validation);test:the_diagnosis_Test_passes_with_a_mock_reply_that_fails_DiagnosisReply_validation;spine_Conventions_row_Settings_model_Test;work_in_the_Epic_17_burn-down_story
 
 ### DW-773: docs/bridge-guide.md Settings intro (line 153) still says a Decide row takes effect only after a restart, with only ToolClassification and ApprovalRole read live; since Story 17.4 DecisionTokenBudget, RequestTokenLimit, DailyCostCapUSD and InstanceZone apply with no restart
 - source: spec-17-4-apply-model-price-budget-and-zone-changes-through-the-bridge.md | severity: low | fix-risk: low | footprint: out-of-footprint

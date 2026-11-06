@@ -194,6 +194,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; `irislib/` is the IRIS reference e
 
 ## Spec Change Log
 
+- 2026-11-06 lead: the capped-database reason text ruled by the Contest Planner (owner's delegation): "OcuTalon can't read this database's size limit", pinned by a fixed-strings test; the digest line's key is with the orchestrator (U-177).
+
 - 2026-11-05 lead: re-plan for the U-290 reversal (no new privilege; capped database not_checked with a plain reason); U-291 kept; AD-28 `vitals` allowed. Status reset to draft.
 
 ## Review Triage Log
@@ -223,9 +225,12 @@ Everything else in the contract stands.
 | one with a maximum, its volume 8% free | `failed`, `{name} 8% free` |
 | one read error, another with a maximum | `not_checked`, finding `Couldn't be read` |
 
-**Proposed text (for the Planner).** The one new user-facing text, `Checks.Coverage` parameter `REASONSIZELIMIT`, shown as the `database space` row's finding:
+**Ruled text (Contest Planner under the owner's delegation, 2026-11-06T02:37:12Z; replaces the proposal "No read access to the free space within a database's size limit").** The one new user-facing text, `Checks.Coverage` parameter `REASONSIZELIMIT`, shown as the `database space` row's finding, is exactly:
 
-> No read access to the free space within a database's size limit
+> OcuTalon can't read this database's size limit
+
+- Pin it with a fixed-strings test: the parameter's value equals that text byte for byte (ASCII apostrophes, no trailing period), with the mutation shown.
+- The ruling's example digest line is "Not checked: database space (OcuTalon can't read this database's size limit)". How the digest line is produced (a new catalog key, which the Lane B `Test.Msg.Catalog` 151-key fixture pin would refuse, or the existing `digest.notCheckedError`) is with the orchestrator (U-177); see the cycle log. Until ruled, the bullets below stand as written.
 
 - It follows release 1's `No read access to its namespace`.
 - The row's digest line is the existing `digest.notCheckedError` ("Not checked: database space (the check stopped with an error at {time})."), because the catalog's not-checked lines carry no finding and the contract keeps reason `error` for an unreadable vital and forbids new keys. The alternative is `notCheckedUnreachable` ("unreachable since {time}"); the Planner may choose it.
