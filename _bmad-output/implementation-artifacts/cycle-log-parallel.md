@@ -2275,3 +2275,4 @@
 2026-11-06T16:53:16Z	Epic 19	public_text_ruled	story=19.4 items=Q6_bullet_1,Q6_bullet_2 by=planner
 2026-11-06T16:53:51Z	Epic 39	planner_ruling	subject=close_burndown ruling=no_burndown_story_before_merge_unless_shipped_defect DW-780=resolved_by_39.8 DW-785=post_merge_followup DW-812=in_39.5_rework relayed_to=D by=planner
 2026-11-06T16:53:51Z	Run	planner_update	subject=forecasts epic17_merge=08-10Z_sat epic19_full=00-03Z_sun epic19_memory_part=02-05Z_sat recommend=part_merge_memory_only
+2026-11-06T16:55:01Z	Epic 19	planner_ruling	subject=epic19_part_merge ruling=part1(19.1-19.3,19.6; 19.6 last) merges_after_1.0.2_cut eta=02-05Z_sat pattern=U-277 part2=19.4,19.5,19.7_documents reopen_after_epic17 target=sunday_release(cut ~Sun 20Z) gates=planner(U-294,real-model RC eval) item6_hidden=until_part2 ask=part2_forecast_at_epic17_merge by=planner
