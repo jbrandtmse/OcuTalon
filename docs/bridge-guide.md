@@ -262,8 +262,8 @@ The enumerations (`OcuTalon.Bridge.Msg.Enum`):
 - Request kinds: `decide`, `diagnose`, `turn`, `tool`.
 - Fallback reasons: `no_key`, `daily_cap`, `budget`, `too_large`, `timeout`, `rate_limited`, `error`, `refusal`, `cut_off`, `empty`, `invalid`, `unusable`.
 - Approval states: `pending`, `approved`, `rejected`, `expired`, `cancelled`, `executing`, `done`, `failed`.
-- Approval kinds: `fix`, `tool_call`.
-- Channels: `web`, `phone`, `mailbox`, `telegram`, `email`, `webhook`, `slack`, `system`.
+- Approval kinds: `fix`, `tool_call`, `setting`.
+- Channels: `web`, `phone`, `mailbox`, `telegram`, `email`, `webhook`, `slack`, `system`, `heartbeat`.
 
 The user rule: for a `decide` request whose provenance is `user`, `Decide` changes an `ignore` or `digest` outcome to `tellnow` and puts first the reason "The outcome was changed because a message the user writes is always answered." The item of step 5 is sent as `untrusted`, so there an `ignore` decision goes to no output.
 

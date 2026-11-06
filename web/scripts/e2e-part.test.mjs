@@ -230,6 +230,10 @@ describe('docker/tests/test-sign-in.sh, given a bad argument', () => {
     [['--part', '3/2'], "'3/2'"],
     [['--part=999999/999999'], '999999/999999'],
     [['--part', '1/2', '--part', '2/2'], "'2/2'"],
+    [['--project'], '--project needs one value'],
+    [['--project', 'nope'], "'nope'"],
+    [['--project='], "''"],
+    [['--project=chromium', '--project', 'sign-in-2'], "'sign-in-2'"],
   ];
 
   for (const [args, named] of bad) {
@@ -242,6 +246,16 @@ describe('docker/tests/test-sign-in.sh, given a bad argument', () => {
       assert.ok(!/LOCK/.test(run.stdout + run.stderr));
     });
   }
+
+  it('docker/tests/test-sign-in-2.sh passes --project sign-in-2 first, so a second --project exits 2 with one line and no LOCK line', () => {
+    const second = join(here, '..', '..', 'docker', 'tests', 'test-sign-in-2.sh');
+    const run = spawnSync('bash', [second, '--project', 'chromium'], { env: bareEnv(), encoding: 'utf8' });
+    assert.equal(run.status, 2, run.stdout + run.stderr);
+    const lines = (run.stdout + run.stderr).split('\n').filter((line) => line !== '');
+    assert.equal(lines.length, 1, `one line: ${lines.join(' | ')}`);
+    assert.match(lines[0], /--project is given once, and again as 'chromium'/);
+    assert.ok(!/LOCK/.test(run.stdout + run.stderr));
+  });
 });
 
 // --- the real listing, as test-sign-in.sh makes it ---
@@ -318,6 +332,22 @@ describe('docker/tests/test-sign-in.sh, its listing step, with a stub npm', () =
     }
   });
 
+  it('lists the project sign-in-2 with its own npm script for --project sign-in-2, and so does docker/tests/test-sign-in-2.sh', () => {
+    const out = listingFile('stub-two.json', listing(TODAY));
+    const second = join(here, '..', '..', 'docker', 'tests', 'test-sign-in-2.sh');
+    for (const [label, path, args] of [['flag', unitPath, ['--project', 'sign-in-2', '--part=19/19']], ['flag-eq', unitPath, ['--part', '19/19', '--project=sign-in-2']], ['wrapper', second, ['--part=19/19']]]) {
+      const argsFile = join(work, `two-${label}.args`);
+      const env = { ...bareEnv(), PATH: `${stubs}:${process.env.PATH}`, TMPDIR: scratch, STUB_ARGS: argsFile, STUB_RC: '0', STUB_OUT: out };
+      const run = spawnSync('bash', [path, ...args], { env, encoding: 'utf8' });
+      assert.equal(run.status, 2, run.stdout + run.stderr);
+      assert.equal(readFileSync(argsFile, 'utf8').trim(), '--silent --prefix web run e2e:sign-in-2 -- --list --reporter=json', label);
+      assert.deepEqual(leftovers(), [], 'the listing files are removed');
+    }
+    const failing = unit('failing-two', ['--project', 'sign-in-2', '--part', '1/2'], { out: listingFile('stub-text-two.json', 'Error: a spec failed to load'), rc: 1 });
+    assert.equal(failing.run.status, 1, failing.text);
+    assert.match(failing.text, /FAIL the sign-in-2 project's spec files could not be listed/);
+  });
+
   it('exits 1, before any lock, when the listing cannot be made or holds errors', () => {
     const failing = unit('failing', ['--part', '1/2'], { out: listingFile('stub-text.json', 'Error: a spec failed to load'), rc: 1 });
     assert.equal(failing.run.status, 1, failing.text);
@@ -331,12 +361,12 @@ describe('docker/tests/test-sign-in.sh, its listing step, with a stub npm', () =
   });
 
   it("prints the PART line and names the part in its texts, and with no part prints nothing and keeps the whole unit's texts", () => {
-    // The script's part block (from `part_label=""` to the bundle rebuild) runs on its own, after the arguments were read.
-    const block = unitLines(/^part_label=""$/, /^LIVE_REBUILD_WEB=1$/);
+    // The script's project and part blocks (from `case $project in` to the bundle rebuild) run on their own, after the arguments were read.
+    const block = unitLines(/^case \$project in$/, /^LIVE_REBUILD_WEB=1$/);
     const out = listingFile('stub-block.json', listing(TODAY));
     const env = { ...bareEnv(), PATH: `${stubs}:${process.env.PATH}`, TMPDIR: scratch, STUB_ARGS: join(work, 'block.args'), STUB_OUT: out };
-    const run = (given, part) => {
-      const harness = ['set -u', `script_dir=${JSON.stringify(dirname(unitPath))}`, `part=${JSON.stringify(part)}`, `part_given=${given}`, block, 'printf \'specs=%s\\nsummary=%s\\n\' "$chromium_specs" "$summary"'].join('\n');
+    const run = (given, part, project = 'chromium') => {
+      const harness = ['set -u', `script_dir=${JSON.stringify(dirname(unitPath))}`, `project=${project}`, `part=${JSON.stringify(part)}`, `part_given=${given}`, block, 'printf \'specs=%s\\nsummary=%s\\n\' "$chromium_specs" "$summary"'].join('\n');
       return spawnSync('bash', ['-c', harness], { env, encoding: 'utf8' });
     };
     const part = run(1, '2/2');
@@ -349,6 +379,15 @@ describe('docker/tests/test-sign-in.sh, its listing step, with a stub npm', () =
     const whole = run(0, '');
     assert.equal(whole.status, 0, whole.stderr);
     assert.equal(whole.stdout, 'specs=the specs of the chromium project\nsummary=test-sign-in\n');
+    const secondPart = run(1, '1/2', 'sign-in-2');
+    assert.equal(secondPart.status, 0, secondPart.stderr);
+    assert.deepEqual(secondPart.stdout.trimEnd().split('\n'), [
+      describePart(listing(TODAY), 1, 2).split('\n')[0],
+      'specs=of these rows, those in the spec files of part 1/2 of the sign-in-2 project',
+      'summary=test-sign-in-2 part 1/2',
+    ]);
+    const secondWhole = run(0, '', 'sign-in-2');
+    assert.equal(secondWhole.stdout, 'specs=the specs of the sign-in-2 project\nsummary=test-sign-in-2\n');
     assert.deepEqual(leftovers(), []);
   });
 });
@@ -402,6 +441,24 @@ describe('docker/tests/test-sign-in.sh, its PART-line parse and its count guard'
     assert.equal(verdict({ log: summary('  21 passed (3s)'), tests: '20', label: '1/18' }), 'FAIL part 1/18 ran 21 of its 20 tests');
     assert.equal(verdict({ log: 'Running 0 tests\n', tests: '20', label: '1/18' }), 'FAIL part 1/18 ran 0 of its 20 tests');
     assert.match(verdict({ log: summary('  17 passed', '  3 skipped'), tests: '20', label: '2/2' }), /^PASS /);
+  });
+
+  it('prints one SPEC line per spec file that ran, in run order, with its tests and summed seconds (ms, s and m), colour codes or not', () => {
+    const block = unitLines(/^LC_ALL=C awk '$/, /^part_ran=""$/);
+    const logPath = join(work, 'spec-times.log');
+    writeFileSync(logPath, [
+      'Running 5 tests using 1 worker',
+      `  ${green('\u2713')}  1 [chromium] \u203a e2e/live/socket.spec.ts:12:5 \u203a W1: opens ${dim('(320ms)')}`,
+      `  ${green('\u2713')}  2 [chromium] \u203a e2e/live/socket.spec.ts:40:5 \u203a W12: a quiet socket (1.0m)`,
+      '  -  3 [chromium] \u203a e2e/phone/phone.spec.ts:9:5 \u203a P1: skipped',
+      '  \u2718  4 [sign-in-2] \u203a e2e/phone/phone.spec.ts:20:5 \u203a P2: fails (10.6s)',
+      '  \u2713  5 [chromium] \u203a e2e/live/socket.spec.ts:60:5 \u203a W2 (2.2s)',
+      '  1) [chromium] \u203a e2e/phone/phone.spec.ts:20:5 \u203a P2: fails \u2500\u2500\u2500',
+      '  2 passed (1.3m)',
+    ].join('\n') + '\n');
+    const run = spawnSync('bash', ['-c', `set -u\ne2e_log=${JSON.stringify(logPath)}\n${block}`], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout, 'SPEC live/socket.spec.ts 3 tests 63s\nSPEC phone/phone.spec.ts 1 tests 11s\n');
   });
 
   it('fails a run that exits non-zero, whatever its counts, and leaves a run with no part unguarded', () => {
@@ -467,6 +524,10 @@ describe('WEB_INPUT_PATTERN of ci/units.sh, applied the way ci/changes.sh applie
   it('matches docker/tests/test-sign-in.sh, the script that this file reads and runs', () => {
     const fromRoot = relative(join(here, '..', '..'), unitPath);
     assert.equal(matches(fromRoot), true, fromRoot);
+  });
+
+  it('matches docker/tests/test-sign-in-2.sh, the sign-in-2 unit\'s script, which this file also runs', () => {
+    assert.equal(matches('docker/tests/test-sign-in-2.sh'), true);
   });
 
   it('does not match a near miss of that path', () => {

@@ -14,6 +14,7 @@ No built-in tool runs operating-system commands, arbitrary ObjectScript or Pytho
 | `dismiss_incident` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Dismissing an incident | safe | no | yes | none |
 | `list_productions` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Listing the productions | safe | yes | yes | none |
 | `list_reminders` | `OcuTalon.Tools.ReminderTools` | `OcuTalon.Tools.Reminders` | `OcuTalon.Agent.Chat` | Listing your reminders | safe | yes | yes | none |
+| `propose_persona` | `OcuTalon.Tools.PersonaTools` | `OcuTalon.Tools.Persona` | `OcuTalon.Agent.Chat` | Suggesting a persona | safe | no | yes | none |
 | `read_event_log` | `OcuTalon.Tools.WatchReads` | `OcuTalon.Tools.Watch` | `OcuTalon.Agent.Diagnosis` | Reading the event log | safe | yes | no | none |
 | `read_failed_messages` | `OcuTalon.Tools.WatchReads` | `OcuTalon.Tools.Watch` | `OcuTalon.Agent.Diagnosis` | Reading the failed messages | safe | yes | no | none |
 | `read_item_settings` | `OcuTalon.Tools.WatchReads` | `OcuTalon.Tools.Watch` | `OcuTalon.Agent.Diagnosis` | Reading the item settings | safe | yes | no | none |
@@ -152,7 +153,7 @@ Storage:
 
 Data leaves the instance only:
 
-- In model requests to the configured provider (Anthropic; Claude Haiku 5.5 by default). A request carries the agent's fixed instructions, the local time, the user's message or the arriving item (quoted as data), the conversation's history or a recap written by code, the tool definitions and the tool results. For a diagnosis, the results are the failed messages, the message headers of their trace, the event-log rows and the item settings, with credential settings left out and every value taken from the watched production passed through the redactor.
+- In model requests to the configured provider (Anthropic; Claude Haiku 5.5 by default). A request carries the agent's fixed instructions, the local time, the user's message or the arriving item (quoted as data), the conversation's history or a recap written by code, the tool definitions and the tool results. For a diagnosis, the results are the failed messages, the message headers of their trace, the event-log rows and the item settings, with credential settings left out and every value taken from the watched production passed through the redactor. A heartbeat check-in (a beat) sends the person's checklist and a status snapshot to the configured provider, at most once per interval. Run now sends the same kind of beat, at most once every 2 minutes per session and only within the daily cost cap.
 - In messages on configured channels: OcuTalon's own web page, which IRIS serves to signed-in users, and, on an install with a Telegram bot token, the chat paired with a session, through the Telegram Bot API (its chat replies, notices, reminders and approval requests, and the answers to them).
 - In calls to configured MCP servers, which this release can't make.
 

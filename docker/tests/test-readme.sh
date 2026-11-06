@@ -4,15 +4,17 @@
 #
 # What it pins, one rule each:
 #   top            the README opens with "# OcuTalon", a blank line and the owner's opening paragraph, then the teaser line and, after
-#                  it, exactly one image line (the hero), then the H2 sections "Try it in two minutes", "What's interesting", "What
-#                  you can use it for" and "How you talk to it" in this order; the other H2 sections are there; no "Contest task"
-#                  heading and no header row of its table
+#                  it, exactly one image line (the hero), then the H2 sections "Try it in two minutes", "What's interesting",
+#                  "Measured" (Story 11.25), "What you can use it for" and "How you talk to it" in this order; the other H2 sections
+#                  are there; no "Contest task" heading and no header row of its table
 #   try-it         the online demo link comes before ./install.sh, with "nothing to install, and no Early Access image needed"
-#                  beside it, the splash screen and its read-only Visual Trace account; the local path is four numbered steps
-#                  and leads to the build 109 section; steps 1 and 2 are the ruled build 109 steps, word for word (U-241 item 1)
+#                  beside it, the splash screen and its read-only Visual Trace account; the local path is four numbered steps;
+#                  steps 1 and 2 are pinned word for word (U-241 item 1, Story 11.23), and the section never links #start-it-with-build-109
 #   interesting    "What's interesting" has at most 120 words (its image lines are not counted) and names Interoperability, Visual
 #                  Trace, AI Hub, a dry run and the audit log; it shows at least one image line, and every image line in it is the
 #                  decision trace, docs/images/vt-decision.png (the owner's decision of 2026-11-05, reversing U-242 Q2's layout)
+#   measured       "Measured" has a table row for each of its eight row labels, each label word for word as the row's first cell
+#                  (Story 11.25); its numbers and other wording are not pinned
 #   use-cases      "What you can use it for" holds exactly the three items, word for word (the third links docs/bridge-guide.md)
 #   how-you-talk   "How you talk to it" holds its facts (the web chat page on every install, the demo-only parts, the Telegram row
 #                  for your own install with your own bot token, email in a later release, the link to "Demo mode"), a table and an
@@ -28,16 +30,20 @@
 #                  decision of 2026-11-05)
 #   outcomes       the four outcomes, with the meanings that web/src/app/chat/chat-view.ts shows
 #   install        the facts of the install sections: Compose 2.24 (DW-2), both image names, load and retag, the portal, the CPUs,
-#                  and the build 109 facts (U-241): its image name, IRIS_IMAGE=, its section between "Start it by hand" and "The IRIS
-#                  (non-Health) image", and the sentence that its plain IRIS image has not been tested; the ruled build 109 paragraphs
-#                  of "Get the image" and "Start it with build 109" and its .env line, word for word (U-241 items 2 and 4)
-#   ipm            the section "Install it with IPM" is there after "Check that it is ready": the community-registry line comes before
-#                  the first install command, which is said to run in USER; docs/install-ipm.md is linked and itself gives the registry
-#                  install before the folder install; the section never says "any namespace" (AD-23, U-231); it warns that the
+#                  and the build 109 facts (U-241, Story 11.23): its image name, one install path for both builds (no "Start it with
+#                  build 109" section, no link to it, no IRIS_IMAGE= line), its plain IRIS image untested and not used by install.sh, and
+#                  the passages of "Get the image", "Start it with the install script", "Start it by hand" and Troubleshooting, word for word
+#   ipm            the section "Install it with IPM" is there after "Check that it is ready": the IPM 0.10.10 load line, then
+#                  zpm "enable -map -ns USER", then the community-registry line, all whole lines, come before the first install command,
+#                  which is said to run in USER; docs/install-ipm.md is linked and gives the same three lines in the same order before its
+#                  first install, no local-repository sentence or path, its registry sample reloading from IPM's package folder, and the
+#                  registry install before the folder install; the section never says "any namespace" (AD-23, U-231, Story 11.24); it warns that the
 #                  registry line removes the repositories already set up, and gives the second run in OCUTALON
 #   licence        LICENSE holds the MIT grant, condition and warranty paragraphs and exactly the holder line "Copyright (c) 2026
 #                  jbrandtmse", and
-#                  "Credits and licences" holds the README's LICENSE line
+#                  "Credits and licences" holds the README's LICENSE line and, as the fourth bullet under "Third-party licence
+#                  notices:", the ruled sentence about the Docker image's Python packages (Story 34.2), whose path in backticks is
+#                  the file that docker/Dockerfile's notices step writes (the same path on both sides)
 #   docs           the sentences this story added to other public files, word for word: the build 109 sentence at the end of the
 #                  bridge guide's build 154 bullet and of the IPM page's build 154 bullet (U-241 item 7), and the two ruled lines of
 #                  the security overview (U-242): what an approval request shows for a tool call, in the approval section and in the
@@ -59,7 +65,8 @@
 #   admin-commands the OCUTALON and %SYS terminal sessions and the password line, as the README walkthrough ran them
 #   after-start-log  the README's after-start log command names the path that docker/after-start.sh writes, and says which lines to
 #                  look for (the walkthrough ran it)
-#   dev-only       no ##class(, class name or error code outside the section "For admins and developers"
+#   dev-only       no ##class(, class name or error code outside the section "For admins and developers", except the IPM load
+#                  line of "Install it with IPM", word for word (Story 11.24)
 #   public-text    the not-affiliated note, the BMAD Method and Claude Code credit, the licence pointers; OpenClaw only in the
 #                  note; no other model provider, "from your phone", "per step", private infrastructure or IPv4 address
 #   telegram-section  the section "Telegram" is there after "Sign in" and before "Stop, start and update", with its five numbered steps and
@@ -130,6 +137,7 @@ LICENSE_FILE=LICENSE
 IPM_DOC=docs/install-ipm.md
 BRIDGE_DOC=docs/bridge-guide.md
 SECOV_DOC=docs/security-overview.md
+DOCKERFILE=docker/Dockerfile
 
 listing=$(scan_files)
 if [ -z "$listing" ]; then
@@ -161,6 +169,7 @@ license_p=$(of "$LICENSE_FILE")
 ipmdoc_p=$(of "$IPM_DOC")
 bridgedoc_p=$(of "$BRIDGE_DOC")
 secov_p=$(of "$SECOV_DOC")
+dockerfile_p=$(of "$DOCKERFILE")
 
 # product_files: from a list of paths on standard input, the files whose README anchors the product can show: the page's sources
 # and the server's classes, none of the tests.
@@ -171,6 +180,7 @@ ARROW=$(printf '\342\206\222')
 H_TRY='Try it in two minutes'
 H_INT="What's interesting"
 INT_IMAGE=docs/images/vt-decision.png
+H_MEAS='Measured'
 H_USE='What you can use it for'
 H_TALK='How you talk to it'
 # The owner's text of Story 10.4 (epics.md), word for word: the opening paragraph, the two use cases, and the model paragraph
@@ -419,8 +429,8 @@ $OPENING"
   n=$(grep -cxF -- "$OPENING" "$f")
   if [ "$n" -gt 1 ]; then echo "$f: the opening paragraph is there $n times, not once"; fi
   h2s=$(headings "$f" | awk -F'\t' '$1 == 2 { print $3 }')
-  if [ "$(printf '%s\n' "$h2s" | head -n 4)" != "$(printf '%s\n%s\n%s\n%s' "$H_TRY" "$H_INT" "$H_USE" "$H_TALK")" ]; then
-    echo "$f: the first four H2 sections are not, in this order: $H_TRY, $H_INT, $H_USE, $H_TALK"
+  if [ "$(printf '%s\n' "$h2s" | head -n 5)" != "$(printf '%s\n%s\n%s\n%s\n%s' "$H_TRY" "$H_INT" "$H_MEAS" "$H_USE" "$H_TALK")" ]; then
+    echo "$f: the first five H2 sections are not, in this order: $H_TRY, $H_INT, $H_MEAS, $H_USE, $H_TALK"
   fi
   printf '%s\n' "$OTHER_H2" | while IFS= read -r t; do
     if ! printf '%s\n' "$h2s" | grep -qxF -- "$t"; then echo "$f: no H2 section '$t'"; fi
@@ -433,23 +443,27 @@ TRY_FACTS="https://demo.ocutalon.com
 ./install.sh
 $DEMO_PHRASE
 splash
-#start-it-with-build-109
+#get-the-image
 read-only Visual Trace account"
-# The ruled build 109 steps (U-241 item 1), word for word; a heredoc, because the lines hold backticks.
+# The ruled steps 1 and 2 (U-241 item 1, Story 11.23), word for word; a heredoc, because the lines hold backticks.
 IFS= read -r -d '' TRY_B109 <<'B109' || true
 1. Load the IRIS for Health AI Hub Early Access image into Docker: build 154, or build 109, which the download portal now offers ([where to get it](#get-the-image)).
-2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)). With build 109, follow [Start it with build 109](#start-it-with-build-109) instead.
+2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)).
 B109
 TRY_FACTS="$TRY_FACTS
 $TRY_B109"
 chk_try_it() {
-  local sec="$tmp/sec.try" demo install n
+  local sec="$tmp/sec.try" demo install n line
   section "$1" "$H_TRY" > "$sec"
   if [ ! -s "$sec" ]; then
     echo "$1: no section '$H_TRY'"
     return
   fi
   chk_facts try-it "$sec" "$TRY_FACTS"
+  # The ruled steps are whole lines of the section: nothing is added to them.
+  printf '%s\n' "$TRY_B109" | while IFS= read -r line; do
+    if ! grep -qxF -e "$line" "$sec"; then echo "try-it: the ruled step \"${line:0:50}...\" is not a line of the section, word for word"; fi
+  done
   demo=$(grep -nF -m 1 'https://demo.ocutalon.com' "$sec" | cut -d: -f1)
   install=$(grep -nF -m 1 './install.sh' "$sec" | cut -d: -f1)
   if [ -n "$demo" ] && [ -n "$install" ] && [ "$demo" -ge "$install" ]; then
@@ -462,6 +476,7 @@ chk_try_it() {
     if ! grep -q "^$n\\. " "$sec"; then echo "try-it: the local path has no step $n"; fi
   done
   if grep -q '^5\. ' "$sec"; then echo "try-it: the local path has more than four steps"; fi
+  if grep -qF '#start-it-with-build-109' "$sec"; then echo "try-it: step 2 still sends build 109 to a separate path"; fi
 }
 
 # interesting
@@ -485,6 +500,31 @@ chk_interesting() {
   if [ "$(grep -c '^!\[' "$sec")" -lt 1 ]; then echo "interesting: '$H_INT' has no image line"; fi
   image_links "$sec" | cut -f3 | while IFS= read -r target; do
     if [ "$target" != "$INT_IMAGE" ]; then echo "interesting: '$H_INT' has the image $target, not $INT_IMAGE"; fi
+  done
+}
+
+# measured (Story 11.25): the eight row labels of the Measured table, word for word; a heredoc, because two hold an apostrophe.
+IFS= read -r -d '' MEAS_LABELS <<'LABELS' || true
+Incidents diagnosed with the right cause and fix
+Routine attention decisions right
+The demo's incident diagnosed with the right fix, on a live model
+Prompt-injection attempts that led to an action
+Changes made without a person's approval
+Cost of one attention decision
+Cost of diagnosing 50 failed orders
+Model cost of the always-on online demo
+LABELS
+chk_measured() {
+  local sec="$tmp/sec.meas" label
+  section "$1" "$H_MEAS" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "$1: no section '$H_MEAS'"
+    return
+  fi
+  printf '%s\n' "$MEAS_LABELS" | while IFS= read -r label; do
+    if [ -n "$label" ] && ! awk -v p="| $label |" 'index($0, p) == 1 { found = 1 } END { exit !found }' "$sec"; then
+      echo "measured: '$H_MEAS' has no table row '$label'"
+    fi
   done
 }
 
@@ -632,42 +672,39 @@ ARM64
 15 minutes
 (healthy)
 irishealth-community:2027.1.0AI.109.0
-IRIS_IMAGE=
-#start-it-with-build-109'
+build 154 or build 109
+The name is `ocutalon-iris-base:2026.3.0AI.154.0` for both builds.'
 INSTALL_FACTS="$INSTALL_FACTS
-Build 109's plain IRIS image has not been tested.
-The install script needs build 154. With build 109, see [Start it with build 109](#start-it-with-build-109)."
-# The ruled build 109 paragraphs (U-241 items 2 and 4) and the .env line of its code block, word for word.
+Build 109's plain IRIS image has not been tested, and \`./install.sh\` does not use it.
+The script checks that Docker and Docker Compose work and that a build 154 or build 109 image for your CPU is loaded; when both are, it uses build 154."
+# The ruled build 109 paragraphs (U-241 items 2 and 4, Story 11.23), whole lines, word for word.
 IFS= read -r -d '' INSTALL_B109 <<'B109' || true
 OcuTalon 1.0.0 is built and tested on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). The InterSystems Early Access Program portal now offers build 109 (`irishealth-community:2027.1.0AI.109.0`) in its place: https://evaluation.intersystems.com/Eval/early-access/AIHub
-OcuTalon 1.0.0 also runs unchanged on build 109: its install, production and test checks and the demo guide pass on it. In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows.
-`docker load` printed the loaded image's name; for the IRIS for Health archive it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. Name it in `.env` as `IRIS_IMAGE`, so that OcuTalon builds from it, then start OcuTalon:
-echo 'IRIS_IMAGE=<the name docker load printed>' >> .env
-Skip the `cp` step when `.env` already exists. Keep the `IRIS_IMAGE` line in `.env`, because every `docker compose up -d` reads it, an update included. Then [check that it is ready](#check-that-it-is-ready) and [sign in](#sign-in).
+OcuTalon also runs on build 109: at release 1.0.0 its install, production and test checks and the demo guide passed on it, and `./install.sh` accepts either build.
+Without the script, give the loaded image the name OcuTalon builds from, then start it. `docker load` printed the loaded image's name; for the IRIS for Health archive of build 154 it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2026.3.0AI.154.0`, and for build 109 it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. The name is `ocutalon-iris-base:2026.3.0AI.154.0` for both builds.
+OcuTalon also runs on the plain IRIS AI Hub build 154 image (`iris-community:2026.3.0AI.154.0`). It differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace. It is supported and verified on ARM64. OcuTalon's automated tests use only the IRIS for Health image. Build 109's plain IRIS image has not been tested, and `./install.sh` does not use it.
 B109
 INSTALL_FACTS="$INSTALL_FACTS
 $INSTALL_B109"
-T_B109='With build 109, follow [Start it with build 109](#start-it-with-build-109) instead of running `./install.sh`.'
+T_B109='**"No IRIS build 154 or build 109 image is loaded in Docker"**: download the archive for your CPU ([Get the image](#get-the-image)), load it with `docker load -i <the archive file>`, then run `./install.sh`.'
+T_B109_CPU='**"The IRIS build 154 or build 109 image that is loaded is for another CPU than this machine'"'"'s"**:'
 H_B109='### Start it with build 109'
 chk_install() {
-  local sec="$tmp/sec.install" hand build plain
+  local sec="$tmp/sec.install" line
   section "$1" 'Install it yourself' > "$sec"
   chk_facts install "$sec" "$INSTALL_FACTS"
-  # The build 109 section sits between "Start it by hand" and "The IRIS (non-Health) image", and its code block names IRIS_IMAGE.
-  hand=$(grep -nxF -m 1 '### Start it by hand' "$sec" | cut -d: -f1)
-  build=$(grep -nxF -m 1 "$H_B109" "$sec" | cut -d: -f1)
-  plain=$(grep -nxF -m 1 '### The IRIS (non-Health) image' "$sec" | cut -d: -f1)
-  if [ -z "$build" ]; then
-    echo "install: no section '$H_B109'"
-  elif [ -z "$hand" ] || [ -z "$plain" ] || [ "$build" -le "$hand" ] || [ "$build" -ge "$plain" ]; then
-    echo "install: '$H_B109' is not between 'Start it by hand' and 'The IRIS (non-Health) image'"
-  elif ! sed -n "${build},${plain}p" "$sec" | grep -qF 'IRIS_IMAGE='; then
-    echo "install: '$H_B109' does not name IRIS_IMAGE="
-  fi
-  # The Troubleshooting entry for a missing build 154 image sends a build 109 reader to the build 109 section.
+  # The ruled paragraphs are whole lines of the section: nothing is added to them.
+  printf '%s\n' "$INSTALL_B109" | while IFS= read -r line; do
+    if ! grep -qxF -e "$line" "$sec"; then echo "install: the ruled paragraph \"${line:0:50}...\" is not a line of the section, word for word"; fi
+  done
+  # One install path for both builds: no separate build 109 section, no .env line for IRIS_IMAGE, no link to the removed anchor.
+  if grep -qxF "$H_B109" "$sec"; then echo "install: the separate '$H_B109' path is back"; fi
+  if grep -qF 'IRIS_IMAGE=' "$sec"; then echo "install: IRIS_IMAGE= is back in the install sections"; fi
+  if grep -qF '(#start-it-with-build-109)' "$1"; then echo "install: a link to the removed '#start-it-with-build-109' is back"; fi
+  # The Troubleshooting entries quote install.sh's first lines word for word.
   section "$1" 'Troubleshooting' > "$tmp/sec.trouble"
-  if ! grep -qF "$T_B109" "$tmp/sec.trouble"; then
-    echo "install: the Troubleshooting entry for a missing build 154 image does not send build 109 to '$H_B109'"
+  if ! grep -qxF -e "$T_B109" "$tmp/sec.trouble" || ! grep -qF -e "$T_B109_CPU" "$tmp/sec.trouble"; then
+    echo "install: the Troubleshooting entries do not quote install.sh's build 154 or build 109 messages word for word"
   fi
 }
 
@@ -856,11 +893,13 @@ chk_must_scan() {
 
 # dev-only: file:line of each line outside the H2 section "For admins and developers" with a ##class( call, a class name (a dotted
 # name whose parts start with an upper-case letter, a leading % allowed), an ERROR #<digits> code or an <UPPER> error name.
+# The IPM load line (IPM_LOAD) is exempt, word for word.
 dev_names() {
-  awk '
+  awk -v ipmload="$IPM_LOAD" '
     FNR == 1 { stop = 0 }
     /^## / { stop = ($0 == "## For admins and developers") }
     stop { next }
+    $0 == ipmload { next }
     /##class\(/ || /ERROR #[0-9]+/ || /<[A-Z][A-Z][A-Z]+>/ || /(^|[^A-Za-z0-9_])%?[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)+/ { print FILENAME ":" FNR }
   ' "$@"
 }
@@ -1014,9 +1053,22 @@ chk_telegram_facts() {
   fi
 }
 
-# ipm (Story 31.3; AD-23, U-231): chk_ipm <readme> <docs/install-ipm.md>
+# ipm (Story 31.3, Story 11.24; AD-23, U-231): chk_ipm <readme> <docs/install-ipm.md>
 H_IPM='### Install it with IPM'
-IPM_WARNING='This command first removes the package repositories that are already set up in %SYS, so note any you use before you run it.'
+IPM_WARNING='`enable -community` first removes the package repositories that are already set up in %SYS, so note any you use before you run it.'
+IPM_LOAD='s r=##class(%Net.HttpRequest).%New(),r.Server="pm.community.intersystems.com",r.SSLConfiguration="ISC.FeatureTracker.SSL.Config" d r.Get("/packages/zpm/0.10.10/installer"),$system.OBJ.LoadStream(r.HttpResponse.Data,"c")'
+IPM_MAP='zpm "enable -map -ns USER"'
+# The guide's three sentences on IPM mapped from %SYS versus IPM installed in USER itself.
+IPM_USER_SENTENCE='The two commands give the same result when USER already had IPM mapped from %SYS. If IPM was installed in USER itself, they leave USER'\''s repositories as they are: then also run `zpm "enable -community"` in an IRIS terminal in USER before the install. There it first deletes the repositories configured in USER.'
+# ipm_in_order <file>: succeeds when the IPM load line, the map step, the registry line and the first install are whole lines in this order.
+ipm_in_order() {
+  local a b c d
+  a=$(grep -nxF -m 1 -- "$IPM_LOAD" "$1" | cut -d: -f1)
+  b=$(grep -nxF -m 1 -- "$IPM_MAP" "$1" | cut -d: -f1)
+  c=$(grep -nxF -m 1 -- 'zpm "enable -community"' "$1" | cut -d: -f1)
+  d=$(grep -nxF -m 1 -- 'zpm "install ocutalon"' "$1" | cut -d: -f1)
+  [ -n "$a" ] && [ -n "$b" ] && [ -n "$c" ] && [ -n "$d" ] && [ "$a" -lt "$b" ] && [ "$b" -lt "$c" ] && [ "$c" -lt "$d" ]
+}
 chk_ipm() {
   local sec="$tmp/sec.ipm" at ready next enable first load folder registry
   awk '/^```/ { fence = !fence } !fence && /^#+ / { on = ($0 == "'"$H_IPM"'"); next } on { print }' "$1" > "$sec"
@@ -1047,6 +1099,15 @@ chk_ipm() {
   if ! grep -qxF 'zn "OCUTALON"' "$sec" || [ "$(grep -cxF 'zpm "install ocutalon"' "$sec")" -lt 2 ]; then echo 'ipm: the section does not give the second run in OCUTALON'; fi
   load=$(grep -nF -m 1 'zpm "load' "$sec" | cut -d: -f1)
   if [ -n "$load" ] && { [ -z "$first" ] || [ "$load" -le "$first" ]; }; then echo 'ipm: the folder install (zpm "load) comes before the registry install'; fi
+  if [ "$(grep -cxF -- "$IPM_LOAD" "$sec")" -ne 1 ] || [ "$(grep -cxF -- "$IPM_LOAD" "$1")" -ne 1 ]; then echo 'ipm: the section does not give the IPM 0.10.10 load line word for word, once, and nowhere else in the README'; fi
+  if ! ipm_in_order "$sec"; then echo 'ipm: the IPM load line, the map step and the registry line are not in this order before the first install'; fi
+  if ! ipm_in_order "$2"; then echo "ipm: $IPM_DOC does not give the README's IPM lines in order before its first install"; fi
+  if grep -qF -e 'Until the package is published' -e '/tmp/ocutalon-repo' "$2"; then echo "ipm: $IPM_DOC keeps the local-repository sentence or path"; fi
+  if ! awk '/^## Install from the package folder/ { exit } /^\[OCUTALON\|ocutalon\]\tReload START \(\/usr\/irissys\/ipm\/ocutalon\// { f = 1 } END { exit !f }' "$2"; then
+    echo "ipm: $IPM_DOC has no registry reload line in its registry install"
+  fi
+  if ! grep -qF -- "$IPM_USER_SENTENCE" "$2"; then echo "ipm: $IPM_DOC does not say what to do when IPM was installed in USER itself"; fi
+  if grep -qE -- 'when USER already had IPM\.([[:space:]]|$)' "$2"; then echo "ipm: $IPM_DOC claims the same result for any IPM in USER"; fi
   # The linked page gives the registry install first and the folder install second.
   registry=$(grep -nF -m 1 'zpm "install ocutalon"' "$2" | cut -d: -f1)
   folder=$(grep -nF -m 1 'zpm "load' "$2" | cut -d: -f1)
@@ -1055,24 +1116,39 @@ chk_ipm() {
   fi
 }
 
-# licence (Story 31.3): chk_licence <readme> <LICENSE>
+# licence (Story 31.3, Story 34.2): chk_licence <readme> <LICENSE> <Dockerfile>
 LICENCE_LINE='OcuTalon is under the MIT License: [LICENSE](LICENSE).'
 HOLDER_LINE='Copyright (c) 2026 jbrandtmse'
+# The ruled bullet (the Contest Planner, 2026-11-05), byte for byte; its path in backticks is the file that the Dockerfile writes.
+NOTICES_BULLET='- The Docker image'"'"'s Python packages for documents and memory (fastembed, pdfplumber and python-docx, with their dependencies and the libraries bundled with PDFium) are listed with their licence texts and credits in `/opt/ocutalon/THIRD-PARTY-NOTICES`, which the image build writes from the installed packages.'
 chk_licence() {
-  local sec="$tmp/sec.licence"
+  local sec="$tmp/sec.licence" readme_path docker_path
   if ! grep -qF 'Permission is hereby granted, free of charge, to any person obtaining a copy' "$2"; then echo "licence: $LICENSE_FILE has no MIT grant paragraph"; fi
   if ! grep -qF 'The above copyright notice and this permission notice shall be included in all' "$2"; then echo "licence: $LICENSE_FILE has no MIT condition paragraph"; fi
   if ! grep -qF 'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND' "$2"; then echo "licence: $LICENSE_FILE has no MIT warranty paragraph"; fi
   if [ "$(grep -c '^Copyright' "$2")" -ne 1 ] || ! grep -qxF -- "$HOLDER_LINE" "$2"; then echo "licence: $LICENSE_FILE does not hold exactly the line '$HOLDER_LINE'"; fi
   section "$1" 'Credits and licences' > "$sec"
   if ! grep -qxF -- "$LICENCE_LINE" "$sec"; then echo "licence: 'Credits and licences' does not hold the line '$LICENCE_LINE'"; fi
+  # The notices bullet: exactly once, the fourth bullet after "Third-party licence notices:", and its path is the Dockerfile's.
+  if [ "$(grep -cxF -- "$NOTICES_BULLET" "$sec")" -ne 1 ]; then
+    echo "licence: 'Credits and licences' does not hold the notices bullet word for word, once"
+  elif [ "$(awk '/^Third-party licence notices:$/ { on = 1; next } on && /^- / { n++; if (n == 4) { print; exit } }' "$sec")" != "$NOTICES_BULLET" ]; then
+    echo "licence: the notices bullet is not the fourth bullet under 'Third-party licence notices:'"
+  fi
+  readme_path=$(grep -xF -- "$NOTICES_BULLET" "$sec" | sed -n 's/^[^`]*`\([^`]*\)`.*$/\1/p')
+  docker_path=$(grep -v '^[[:space:]]*#' "$3" | sed -n 's/^.*gate\.py notices [^ ]* \([^ ]*\).*$/\1/p')
+  if [ -z "$docker_path" ]; then
+    echo "licence: $DOCKERFILE has no notices step (gate.py notices <folder> <file>)"
+  elif [ "$readme_path" != "$docker_path" ]; then
+    echo "licence: the README names '$readme_path' and $DOCKERFILE writes '$docker_path'"
+  fi
 }
 
 # docs (Story 31.3, AC 2 and AC 7): chk_docs <docs/bridge-guide.md> <docs/install-ipm.md> <docs/security-overview.md>
 BRIDGE_BULLET_START='- InterSystems AI Hub, build 154, '
 BRIDGE_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet.'
 IPM_BULLET_START='- An InterSystems IRIS for AI Hub instance, build 154, '
-IPM_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, has not been tested with the IPM install yet.'
+IPM_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, works the same way: the registry install on this page was run on fresh IRIS for Health instances of both builds.'
 L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).'
 L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step."
 MCP_FRAME="This release can't connect to MCP servers. When a release adds MCP support, these rules apply:"
@@ -1211,7 +1287,11 @@ rule_top() {
   st 'a required section removed' 1 "$README" '!/^## Troubleshooting$/' chk_top
   st 'the Contest task section back' 1 "$README" '{ print } END { print ""; print "## Contest task"; print "" }' chk_top
   st 'the Contest task table header back' 1 "$README" '{ print } /^## What OcuTalon does$/ { print ""; print "| Contest task or criterion | x | y |" }' chk_top
-  finish top 'the title, the opening paragraph, the teaser and the hero image, then the four top sections in order, and the other sections are there' chk_top
+  st 'the Measured section removed' 1 "$README" '!/^## Measured$/' chk_top
+  st 'the Measured section above What'"'"'s interesting' 1 "$README" '/^## Measured$/ { print "## What'"'"'s interesting"; next } /^## What.s interesting$/ { print "## Measured"; next } { print }' chk_top
+  st 'the Measured section below What you can use it for' 1 "$README" '/^## Measured$/ { print "## What you can use it for"; next } /^## What you can use it for$/ { print "## Measured"; next } { print }' chk_top
+  st 'the Measured heading one level down' 1 "$README" '/^## Measured$/ { print "### Measured"; next } { print }' chk_top
+  finish top 'the title, the opening paragraph, the teaser and the hero image, then the five top sections in order, and the other sections are there' chk_top
 }
 
 rule_try_it() {
@@ -1223,6 +1303,8 @@ rule_try_it() {
     st "step $n removed" 1 "$README" "!/^$n\\. /" chk_try_it
   done
   st 'step 4 removed' 1 "$README" '!/^4\. /' chk_try_it
+  st 'the separate build 109 step back' 1 "$README" '/^2\. / { print $0 " With build 109, follow [Start it with build 109](#start-it-with-build-109) instead."; next } { print }' chk_try_it
+  st 'text added to step 2' 1 "$README" '/^2\. / { print $0 " With build 109, follow [Start it by hand](#start-it-by-hand) instead."; next } { print }' chk_try_it
   st 'a fifth step' 1 "$README" '/^4\. / { print; print "5. One more." ; next } { print }' chk_try_it
   st_move 'step 2 moved out of the section' "$H_TRY" '2. ' chk_try_it
   st 'the phrase away from the demo link' 1 "$README" "{ i = index(\$0, \"$DEMO_PHRASE\"); if (i && index(\$0, \"https://demo.ocutalon.com\")) { print substr(\$0, 1, i - 1) \"zz\" substr(\$0, i + length(\"$DEMO_PHRASE\")); print \"\"; print \"$DEMO_PHRASE\"; next } print }" chk_try_it
@@ -1249,6 +1331,20 @@ rule_interesting() {
     fi
   fi
   finish interesting 'at most 120 words, and it names the workflow, Visual Trace, the AI Hub agent, the dry run and the audit log' chk_interesting
+}
+
+rule_measured() {
+  rule_begin measured "$README" || return
+  st 'the heading removed' 1 "$README" '!/^## Measured$/' chk_measured
+  st 'the heading renamed' 1 "$README" '/^## Measured$/ { print "## Measurements"; next } { print }' chk_measured
+  st_facts chk_measured "$MEAS_LABELS"
+  st_move 'a row moved out of the section' "$H_MEAS" '| Routine attention decisions right |' chk_measured
+  st 'a row label not in the first cell' 1 "$README" '{ sub(/^\| Cost of one attention decision \| /, "| Cost | Cost of one attention decision | ") } { print }' chk_measured
+  st 'a row label extended in its cell' 1 "$README" '{ sub(/^\| Routine attention decisions right \|/, "| Routine attention decisions right today |") } { print }' chk_measured
+  # A changed number, intro line or result is not flagged: the rule pins the heading and the row labels, not the numbers or wording.
+  mutate "$README" '/^\| Routine attention decisions right \|/ { n += sub(/19 of 22/, "18 of 22") } /^From the real-model release evaluations/ { $0 = "From the evaluations."; n++ } /^\| Prompt-injection attempts/ { n += sub(/ 0 /, " 1 ") } { print } END { exit (n != 3) }' || st_note 'an edit of the numbers or the intro did not apply'
+  if [ -n "$(chk_measured "$tmp/m")" ]; then st_note 'a changed number, result or intro line is flagged'; fi
+  finish measured 'Measured has a table row for each of its eight row labels, word for word' chk_measured
 }
 
 rule_use_cases() {
@@ -1380,13 +1476,14 @@ rule_install() {
   rule_begin install "$README" || return
   st_facts chk_install "$INSTALL_FACTS"
   st_move 'the Compose version moved out of the section' 'Install it yourself' '- Docker Compose 2.24' chk_install
-  st 'the build 109 section removed' 1 "$README" '!/^### Start it with build 109$/' chk_install
-  st 'the build 109 section renamed' 1 "$README" '/^### Start it with build 109$/ { print "### Start it with build 109 now"; next } { print }' chk_install
-  st 'the build 109 section below the non-Health image' 1 "$README" '/^### Start it with build 109$/ { print "### The IRIS (non-Health) image"; next } /^### The IRIS \(non-Health\) image$/ { print "### Start it with build 109"; next } { print }' chk_install
-  st 'the build 109 section above Start it by hand' 1 "$README" '/^### Start it with build 109$/ { print "### Start it by hand"; next } /^### Start it by hand$/ { print "### Start it with build 109"; next } { print }' chk_install
-  st 'the Troubleshooting build 109 sentence removed' 1 "$README" '{ sub(/ With build 109, follow \[Start it with build 109\].*instead of running `\.\/install\.sh`\./, ""); print }' chk_install
-  st 'IRIS_IMAGE= out of the build 109 section' 1 "$README" '/^### / { s = ($0 == "### Start it with build 109") } s { gsub(/IRIS_IMAGE=/, "ZZ=") } { print }' chk_install
-  finish install 'Compose 2.24, both image names, load and retag, the portal, the CPUs and the 15-minute wait' chk_install
+  st 'the build 109 heading back before the non-Health image' 1 "$README" '/^### The IRIS \(non-Health\) image$/ { print "### Start it with build 109"; print "" } { print }' chk_install
+  st 'the old second sentence of the Get the image paragraph back' 1 "$README" '/^OcuTalon also runs on build 109: / { print $0 " In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows."; next } { print }' chk_install
+  st 'the IRIS_IMAGE line back after the cp step of Start it by hand' 1 "$README" '/^cp \.env\.example \.env$/ { print; print "echo \047IRIS_IMAGE=<the name docker load printed>\047 >> .env"; next } { print }' chk_install
+  st 'the install script paragraph back to a build 154 image' 1 "$README" '{ sub(/a build 154 or build 109 image for your CPU is loaded; when both are, it uses build 154\./, "a build 154 image for your CPU is loaded.") } { print }' chk_install
+  st 'the old Troubleshooting sentence back' 1 "$README" '/^\*\*"No IRIS build 154 or build 109 image is loaded in Docker"\*\*: / { print $0 " With build 109, follow [Start it with build 109](#start-it-with-build-109) instead of running `./install.sh`."; next } { print }' chk_install
+  st 'the Troubleshooting quote back to build 154 only' 1 "$README" '{ sub(/"No IRIS build 154 or build 109 image is loaded in Docker"/, "\"No IRIS build 154 image is loaded in Docker\"") } { print }' chk_install
+  st 'the Troubleshooting CPU quote back to build 154 only' 1 "$README" '{ sub(/"The IRIS build 154 or build 109 image that is loaded/, "\"The IRIS build 154 image that is loaded") } { print }' chk_install
+  finish install 'Compose 2.24, both image names, load and retag, the portal, the CPUs, the 15-minute wait and one install path for build 154 and build 109' chk_install
 }
 
 rule_install_pointer() {
@@ -1518,6 +1615,8 @@ a percent class name|The class %SYS.Namespace holds it.
 an error code|It failed with ERROR #5001 today.
 an error name|It showed <UNDEFINED> there.
 EOF
+  st 'the IPM load line changed above the section' 1 "$README" '{ sub(/zpm\/0\.10\.10\/installer/, "zpm/0.10.9/installer") } { print }' dev_names_1
+  st 'the IPM load line with a second call on its line' 1 "$README" '/^s r=##class\(%Net\.HttpRequest\)/ { $0 = $0 " d ##class(Foo.Bar).Baz()" } { print }' dev_names_1
   st_append 'a class name after the admin section' '## After\n\nThe class OcuTalon.Core.X does it.' dev_names_1
   if [ "$st_bad" -ne 0 ] && [ -z "$(dev_names "$README")" ]; then
     printf '%s' "$st_msgs"
@@ -1752,15 +1851,34 @@ rule_ipm() {
   st 'the link to docs/install-ipm.md changed' 1 "$README" '{ gsub(/\]\(docs\/install-ipm\.md\)/, "](docs/other.md)") } { print }' chk_ipm
   st 'any namespace said' 1 "$README" '{ print } /^This second run installs/ { print ""; print "Run it in any namespace." }' chk_ipm
   st 'the folder install before the registry install' 1 "$README" '{ print } /^### Install it with IPM$/ { print ""; print "```"; print "zpm \"load /x\""; print "```" }' chk_ipm
-  st 'the repositories warning removed' 1 "$README" '!/^This command first removes the package repositories/' chk_ipm
+  st 'the repositories warning removed' 1 "$README" '!/^`enable -community` first removes the package repositories/' chk_ipm
   st 'the second run removed' 1 "$README" '!/^zn "OCUTALON"$/' chk_ipm
   st 'the page gives the folder install first' 2 "$ipmdoc_p" '/^zpm "enable -community"$/ { print; print "zpm \"load /x\""; next } { print }' chk_ipm
   st 'the page without the folder install' 2 "$ipmdoc_p" '!/^zpm "load/' chk_ipm
-  finish ipm 'the IPM section follows the image sections: registry line, then the first install in USER, a link to the page, no "any namespace"' chk_ipm
+  st 'the IPM load line removed' 1 "$README" '!/^s r=##class\(%Net\.HttpRequest\)/' chk_ipm
+  st 'the IPM load line on the latest version' 1 "$README" '{ sub(/zpm\/0\.10\.10\/installer/, "zpm/latest/installer") } { print }' chk_ipm
+  st 'the map step removed' 1 "$README" '!/^zpm "enable -map -ns USER"$/' chk_ipm
+  st 'the map step after the registry line' 1 "$README" '/^zpm "enable -map -ns USER"$/ { next } { print } /^zpm "enable -community"$/ { print "zpm \"enable -map -ns USER\"" }' chk_ipm
+  st 'the IPM load line after the map step' 1 "$README" '/^s r=##class\(%Net\.HttpRequest\)/ { held = $0; next } { print } /^zpm "enable -map -ns USER"$/ { print held }' chk_ipm
+  st 'the IPM load line twice in the section' 1 "$README" '{ print } /^s r=##class\(%Net\.HttpRequest\)/ { print }' chk_ipm
+  st 'the IPM load line copied into another section' 1 "$README" '/^s r=##class\(%Net\.HttpRequest\)/ { keep = $0 } { print } END { print ""; print keep }' chk_ipm
+  st 'the page without the IPM load line' 2 "$ipmdoc_p" '!/^s r=##class\(%Net\.HttpRequest\)/' chk_ipm
+  st 'the page without the map step' 2 "$ipmdoc_p" '!/^zpm "enable -map -ns USER"$/' chk_ipm
+  st 'the page with the map step after the registry line' 2 "$ipmdoc_p" '/^zpm "enable -map -ns USER"$/ { next } { print } /^zpm "enable -community"$/ { print "zpm \"enable -map -ns USER\"" }' chk_ipm
+  st 'the local-repository sentence back' 2 "$ipmdoc_p" '{ print } END { print ""; print "Until the package is published, these outputs come from the same package installed from a local IPM repository." }' chk_ipm
+  st 'the page reloading from a local repository' 2 "$ipmdoc_p" '{ sub(/\/usr\/irissys\/ipm\/ocutalon\/1\.0\.1\//, "/tmp/ocutalon-repo/ocutalon-0.1.0/") } { print }' chk_ipm
+  st 'the page IPM load line on the latest version' 2 "$ipmdoc_p" '{ sub(/zpm\/0\.10\.10\/installer/, "zpm/latest/installer") } { print }' chk_ipm
+  st 'the page registry reload line from another folder' 2 "$ipmdoc_p" '/^\[OCUTALON\|ocutalon\]\tReload START \(\/usr\/irissys\/ipm\/ocutalon\// { sub(/\/ocutalon\/1\.0\.1\//, "/other/1.0.1/") } { print }' chk_ipm
+  st 'the page naming the local-repository path elsewhere' 2 "$ipmdoc_p" '{ print } END { print ""; print "The package was in /tmp/ocutalon-repo/ before." }' chk_ipm
+  st 'the page registry reload line only in the folder install' 2 "$ipmdoc_p" '/^\[OCUTALON\|ocutalon\]\tReload START \(\/usr\/irissys\/ipm\/ocutalon\// { held = $0; next } { print } /^## Install from the package folder/ { print held }' chk_ipm
+  st 'the page without the USER-installed IPM sentence' 2 "$ipmdoc_p" '{ sub(/ If IPM was installed in USER itself, they leave/, " They leave") } { print }' chk_ipm
+  st 'the page claiming the same result for any USER IPM' 2 "$ipmdoc_p" '{ sub(/ mapped from %SYS\./, ".") } { print }' chk_ipm
+  st 'the page with the any-USER-IPM sentence beside the new one' 2 "$ipmdoc_p" '{ sub(/The two commands give the same result when USER already had IPM mapped/, "The two commands give the same result when USER already had IPM. &") } { print }' chk_ipm
+  finish ipm 'the IPM section follows the image sections: IPM load line, map step, registry line, then the first install in USER, a link to the page with the same lines, no "any namespace"' chk_ipm
 }
 
 rule_licence() {
-  rule_begin licence "$README" "$license_p" || return
+  rule_begin licence "$README" "$license_p" "$dockerfile_p" || return
   st 'the holder changed' 2 "$license_p" '/^Copyright/ { sub(/jbrandtmse/, "someone") } { print }' chk_licence
   st 'the year changed' 2 "$license_p" '/^Copyright/ { sub(/2026/, "2025") } { print }' chk_licence
   st 'a second copyright line' 2 "$license_p" '{ print } /^Copyright/ { print "Copyright (c) 2026 someone else" }' chk_licence
@@ -1771,7 +1889,14 @@ rule_licence() {
   st 'the README line removed' 1 "$README" '!/^OcuTalon is under the MIT License: /' chk_licence
   st 'the README line changed' 1 "$README" '/^OcuTalon is under the MIT License: / { sub(/MIT/, "Apache") } { print }' chk_licence
   st 'the README line moved to another section' 1 "$README" '/^OcuTalon is under the MIT License: / { next } { print } /^## Stop, start and update$/ { print ""; print "OcuTalon is under the MIT License: [LICENSE](LICENSE)." }' chk_licence
-  finish licence 'LICENSE holds the MIT grant, the warranty and the holder line, and Credits and licences links it' chk_licence
+  st 'the notices bullet removed' 1 "$README" '!/^- The Docker image.s Python packages for documents and memory/' chk_licence
+  st 'the notices bullet changed' 1 "$README" '/^- The Docker image.s Python packages for documents and memory/ { sub(/credits in/, "credits at") } { print }' chk_licence
+  st 'the notices path changed in the README' 1 "$README" '/^- The Docker image.s Python packages for documents and memory/ { sub(/THIRD-PARTY-NOTICES/, "THIRD-PARTY-NOTICES.txt") } { print }' chk_licence
+  st 'the notices bullet moved above the IPM bullet' 1 "$README" '/^- The Docker image.s Python packages for documents and memory/ { held = $0; next } /^- The web page.s fonts/ { print held } { print }' chk_licence
+  st 'the notices bullet twice' 1 "$README" '{ print } /^- The Docker image.s Python packages for documents and memory/ { print }' chk_licence
+  st 'the notices path changed in the Dockerfile' 3 "$dockerfile_p" '/gate\.py notices/ { sub(/THIRD-PARTY-NOTICES/, "NOTICES") } { print }' chk_licence
+  st 'the notices step removed from the Dockerfile' 3 "$dockerfile_p" '!/gate\.py notices/' chk_licence
+  finish licence 'LICENSE holds the MIT grant, the warranty and the holder line, Credits and licences links it and names the image notices file the Dockerfile writes' chk_licence
 }
 
 rule_docs() {
@@ -1779,8 +1904,8 @@ rule_docs() {
   st 'the bridge guide without the build 109 sentence' 1 "$bridgedoc_p" '{ sub(/ Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet\./, "") } { print }' chk_docs
   st 'the bridge guide sentence changed' 1 "$bridgedoc_p" '{ sub(/has not been tested with this guide yet/, "has been tested with this guide") } { print }' chk_docs
   st 'the bridge guide sentence on a line of its own' 1 "$bridgedoc_p" '{ if (sub(/ Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet\./, "")) { print; print ""; print "Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet." } else print }' chk_docs
-  st 'the IPM page without the build 109 sentence' 2 "$ipmdoc_p" '{ sub(/ Build 109, which the Early Access portal now offers in place of build 154, has not been tested with the IPM install yet\./, "") } { print }' chk_docs
-  st 'the IPM page sentence changed' 2 "$ipmdoc_p" '{ sub(/has not been tested with the IPM install yet/, "has been tested with the IPM install") } { print }' chk_docs
+  st 'the IPM page without the build 109 sentence' 2 "$ipmdoc_p" '{ sub(/ Build 109, which the Early Access portal now offers in place of build 154, works the same way: the registry install on this page was run on fresh IRIS for Health instances of both builds\./, "") } { print }' chk_docs
+  st 'the IPM page sentence changed' 2 "$ipmdoc_p" '{ sub(/was run on fresh IRIS for Health instances of both builds/, "has not been tested") } { print }' chk_docs
   st 'the approval section back to the exact call' 3 "$secov_p" 'index($0, "- It is fixed to exact targets and shows its dry run (a fix), or the tool") == 1 { print "- It is fixed to exact targets and shows its dry run (a fix) or the exact call (a tool call)."; next } { print }' chk_docs
   st 'the approval section line without the 200 characters' 3 "$secov_p" '{ sub(/, cut to 200 characters/, "") } { print }' chk_docs
   st 'the MCP rules back to the exact call' 3 "$secov_p" 'index($0, "- Every call passes the gate, an approval request when needed (showing the tool") == 1 { print "- Every call passes the gate, an approval request when needed (showing the exact call), an audit entry (read-only calls included) and an agent step."; next } { print }' chk_docs
@@ -1791,7 +1916,7 @@ rule_docs() {
   finish docs 'the build 109 sentences of the bridge guide and the IPM page and the two ruled lines of the security overview are there, word for word' chk_docs
 }
 
-RULES='top try_it interesting use_cases how_you_talk teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
+RULES='top try_it interesting measured use_cases how_you_talk teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {

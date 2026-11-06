@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-05-2026 06:33
+last_updated: 11-06-2026 17:49
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -198,6 +198,11 @@ development_status:
   11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c: done
   11-20-the-release-s-overview-step-hands-the-unit-files-the-contain: done
   11-21-a-test-s-route-callback-never-outlives-its-test: done
+  11-22-first-daily-release-burn-down: done
+  11-23-install-sh-accepts-build-109: done
+  11-24-the-readme-s-ipm-install-works-literally-on-a-fresh-build-15: done
+  11-25-the-readme-s-judges-section-a-measured-table: done
+  11-26-the-readme-s-measured-rows-say-exactly-what-was-measured: done
   epic-11-retrospective: optional
 
   epic-12: done
@@ -373,9 +378,10 @@ development_status:
   33-3-epic-33-burn-down: done
   epic-33-retrospective: optional
 
-  epic-34: backlog
-  34-1-settle-step-3-ownership-and-fix-its-contracts: backlog
-  34-2-add-and-remove-documents-on-a-documents-page: backlog
+  epic-34: done
+  34-1-settle-step-3-ownership-and-fix-its-contracts: done
+  34-2-add-and-remove-documents-on-a-documents-page: done
+  34-3-epic-34-burn-down: done
   epic-34-retrospective: optional
 
   epic-35: backlog
@@ -399,23 +405,26 @@ development_status:
   38-3-the-owner-s-telegram-pass-on-the-1-0-0-candidate: backlog
   epic-38-retrospective: optional
 
-  epic-39: backlog
-  39-1-fix-the-heartbeat-s-names-and-contracts: backlog
-  39-2-save-your-heartbeat-settings-and-ask-for-a-beat: backlog
-  39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe: backlog
-  39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built: backlog
-  39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now: backlog
-  39-6-evaluation-cases-for-the-heartbeat: backlog
+  epic-39: done
+  39-1-fix-the-heartbeat-s-names-and-contracts: done
+  39-2-save-your-heartbeat-settings-and-ask-for-a-beat: done
+  39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe: done
+  39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built: done
+  39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now: done
+  39-6-evaluation-cases-for-the-heartbeat: done
+  39-7-publish-the-heartbeat-event: done
+  39-8-run-now-and-a-saved-heartbeat-read-what-is-stored: done
   epic-39-retrospective: optional
 
-  epic-40: backlog
-  40-1-fix-the-persona-s-names-contracts-and-preset-texts: backlog
-  40-2-save-your-persona-and-let-ocutalon-propose-one: backlog
-  40-3-the-persona-reaches-chat-and-triage-as-a-data-block: backlog
-  40-4-the-persona-card: backlog
-  40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too: backlog
-  40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra: backlog
-  40-7-evaluation-cases-for-the-persona: backlog
+  epic-40: done
+  40-1-fix-the-persona-s-names-contracts-and-preset-texts: done
+  40-2-save-your-persona-and-let-ocutalon-propose-one: done
+  40-3-the-persona-reaches-chat-and-triage-as-a-data-block: done
+  40-4-the-persona-card: done
+  40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too: done
+  40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra: done
+  40-7-evaluation-cases-for-the-persona: done
+  40-8-the-persona-s-web-routes: done
   epic-40-retrospective: optional
 
   epic-41: backlog

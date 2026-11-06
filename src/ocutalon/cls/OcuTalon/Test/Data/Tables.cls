@@ -613,6 +613,29 @@ XData Contracts [ MimeType = application/json ]
    "CopiesIndex": "Copies(ELEMENTS)",
    "IncidentRefIndex": "IncidentRef"
   }
+ },
+ "OcuTalon.Data.HeartbeatBeat": {
+  "super": "%Persistent",
+  "props": {
+   "SessionRef": "%String(MAXLEN=22)",
+   "NextDueAt": "%String(MAXLEN=20)",
+   "LastBeatAt": "%String(MAXLEN=20)",
+   "LastItemId": "%String(MAXLEN=22)",
+   "LastOutcome": "%String(MAXLEN=32)",
+   "LastFallback": "%Boolean",
+   "LastCostUSD": "%Numeric(SCALE=6)",
+   "LastDecisionRef": "%String(MAXLEN=22)",
+   "LastTraceSessionId": "%Integer",
+   "LastSkipAt": "%String(MAXLEN=20)",
+   "LastSkipReason": "%String(MAXLEN=32)",
+   "LastRunNowAt": "%String(MAXLEN=20)",
+   "BackoffUntil": "%String(MAXLEN=20)",
+   "LastSnapshotKey": "%String(MAXLEN=64)",
+   "LastQuietKey": "%String(MAXLEN=64)"
+  },
+  "indexes": {
+   "SessionRefIndex": "SessionRef unique"
+  }
  }
 }
 }
@@ -701,6 +724,21 @@ XData Registry [ MimeType = application/json ]
   "class": "OcuTalon.Data.Handled"
  },
  {
+  "short": "Memory",
+  "global": "^OcuTalonP.Memory",
+  "class": "OcuTalon.Data.Memory"
+ },
+ {
+  "short": "Document",
+  "global": "^OcuTalonP.Document",
+  "class": "OcuTalon.Data.Document"
+ },
+ {
+  "short": "Upload",
+  "global": "^OcuTalonP.Upload",
+  "class": "OcuTalon.Data.Upload"
+ },
+ {
   "short": "Reminder",
   "global": "^OcuTalonP.Reminder",
   "class": "OcuTalon.Data.Reminder"
@@ -739,6 +777,11 @@ XData Registry [ MimeType = application/json ]
   "short": "LiveEvent",
   "global": "^OcuTalonP.LiveEvent",
   "class": "OcuTalon.Live.Event"
+ },
+ {
+  "short": "HeartbeatBeat",
+  "global": "^OcuTalonP.HeartbeatBeat",
+  "class": "OcuTalon.Data.HeartbeatBeat"
  }
 ]
 }

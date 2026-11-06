@@ -14,11 +14,12 @@ Include Ensemble
 ///     command's session, whose paired chat must be the ChatRef when one is given, with the notice pairing.unpairedFromPage. The outcomes
 ///     are unpaired and not_paired (Ok 0, nothing changed, nothing audited).
 ///   - EndSession {SessionRef} ends an online-demo session (Story 16.4; AD-4): the page's Sign out, through POST /v1/session/end. In order,
-///     and each of the first four steps is tried even when an earlier one failed: Unlink of the session's chat (reason session_end, no
+///     and each of the first five steps is tried even when an earlier one failed: Unlink of the session's chat (reason session_end, no
 ///     notice); one CancelReminder for each pending reminder, sent to ReminderOps; one StopWatch for each production watch, sent to WatchOps;
-///     Approval.Cancel for each pending approval request the session owns. Only when all of them succeeded is the row's ResumeHash cleared, so
+///     Approval.Cancel for each pending approval request the session owns; SettingsOps.ForgetPerson for the session's per-person
+///     values (AD-19): the persona keys and the five heartbeat keys. Only when all of them succeeded is the row's ResumeHash cleared, so
 ///     that a resume cookie that outlives the sign-out resumes nothing; after a failed End the session stays resumable and the visitor can end
-///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first four steps were
+///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first five steps were
 ///     tried) and no_session (Ok 0, the session has no row). The session's conversation, orders and decisions stay with the row.
 /// Every pair outcome is audited as a Pairing entry (linked or rejected) through Bridge.Audit.Record, and every unlink as an unlinked
 /// entry, with the session's IRIS user (else the job's user), the session, the channel of the command's origin and no chat id or display
@@ -27,6 +28,7 @@ Include Ensemble
 /// chat's ChatRef, a catalog key and no text; Notify decides where it goes. An error thrown while carrying out a command is logged and
 /// answers failed. The pool of the item is 1, so its commands are handled one at a time.
 /// Unlink is the one way a chat is unlinked, and End calls it.
+/// From step 3, End first drops the session's documents, memories and uploads (OcuTalon.Docs.DropSession, OcuTalon.Memory.DropSession and OcuTalon.Data.Upload.DropSession, AD-4, AD-21).
 Class OcuTalon.Core.SessionOps Extends Ens.BusinessOperation
 {
 
@@ -230,9 +232,10 @@ Method Unpair(command As OcuTalon.Msg.Command.Unpair) As OcuTalon.Msg.CommandRes
 	Quit ..Result(0, "not_paired", ..#MESSAGENOTPAIRED)
 }
 
-/// Carries out an EndSession command and returns the CommandResult to answer (see the class description). Unlink, the reminders, the
-/// watches and the approval requests each run even when an earlier one failed or threw, and a failure is a warning with the step's reason;
-/// the resume hash is cleared last, and only when none of them failed, so a failed End leaves the session resumable.
+/// Carries out an EndSession command and returns the CommandResult to answer (see the class description). The document, memory and upload drops,
+/// Unlink, the reminders, the watches and the approval requests each run even when an earlier one failed or threw, and a failure is a
+/// warning with the step's reason; the resume hash is cleared last, and only when none of them failed, so a failed End leaves the session
+/// resumable.
 Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set sessionRef = command.SessionRef
@@ -240,7 +243,7 @@ Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandRe
 	If '$IsObject(row) Quit ..Result(0, "no_session", ..#MESSAGENOSESSION)
 	Set row = ""
 	Set channel = ..ChannelOf(command.Origin)
-	Set failed = 0
+	Set failed = ..EndDocumentsAndMemories(sessionRef)
 	Try {
 		Set sc = ..Unlink(sessionRef, "", "session_end", channel, "", .changed)
 		If $$$ISERR(sc) Set failed = 1 Do ..Warn("the chat could not be unlinked at the end of session " _ sessionRef, sc)
@@ -248,7 +251,7 @@ Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandRe
 		Set failed = 1
 		Do ..Warn("the chat could not be unlinked at the end of session " _ sessionRef, exception.AsStatus())
 	}
-	Set failed = ..EndReminders(command) + ..EndWatches(command) + ..EndApprovals(sessionRef, channel) + failed
+	Set failed = ..EndReminders(command) + ..EndWatches(command) + ..EndApprovals(sessionRef, channel) + ..EndSettings(sessionRef) + failed
 	If 'failed Set failed = ..EndResume(sessionRef)
 	Quit $Select(failed: ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED), 1: ..Result(1, "ended", ..#MESSAGEENDED))
 }
@@ -329,6 +332,30 @@ Method EndApprovals(sessionRef As %String, channel As %String) As %Integer [ Pri
 		Do ..Warn("the requests of session " _ sessionRef _ " could not be read", exception.AsStatus())
 	}
 	Quit failed
+}
+
+/// End's per-person settings: Forget deletes every per-person value of the session (AD-19), the persona's keys included. The
+/// result is 1 when they could not be deleted (an error status or an error thrown), 0 otherwise.
+Method EndSettings(sessionRef As %String) As %Integer [ Private ]
+{
+	Set failed = 0
+	Try {
+		Set sc = ..Forget(sessionRef)
+		If $$$ISERR(sc) {
+			Set failed = 1
+			Do ..Warn("the per-person settings of session " _ sessionRef _ " were not deleted", sc)
+		}
+	} Catch exception {
+		Set failed = 1
+		Do ..Warn("the per-person settings of session " _ sessionRef _ " were not deleted", exception.AsStatus())
+	}
+	Quit failed
+}
+
+/// The one call of End's per-person settings step, SettingsOps.ForgetPerson. Private, so that a test subclass can override it.
+Method Forget(sessionRef As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.SettingsOps).ForgetPerson(sessionRef)
 }
 
 /// End's last step, run only when every earlier step succeeded: the row's ResumeHash is cleared (saved only when it holds one). The result
@@ -458,6 +485,53 @@ ClassMethod Result(ok As %Boolean, outcome As %String, message As %String) As Oc
 	Set result.Outcome = outcome
 	Set result.Message = message
 	Quit result
+}
+
+/// End's step 3 drops: the session's documents, then its memories, then its uploads (the bytes of files not yet taken by DocumentOps), each in its own Try. The result is the number of drops that failed
+/// (an error status or an error thrown), each a warning.
+Method EndDocumentsAndMemories(sessionRef As %String) As %Integer [ Private ]
+{
+	Set failed = 0
+	Try {
+		Set sc = ..DropDocuments(sessionRef)
+		If $$$ISERR(sc) Set failed = failed + 1 Do ..Warn("the documents of session " _ sessionRef _ " could not be dropped", sc)
+	} Catch exception {
+		Set failed = failed + 1
+		Do ..Warn("the documents of session " _ sessionRef _ " could not be dropped", exception.AsStatus())
+	}
+	Try {
+		Set sc = ..DropMemories(sessionRef)
+		If $$$ISERR(sc) Set failed = failed + 1 Do ..Warn("the memories of session " _ sessionRef _ " could not be dropped", sc)
+	} Catch exception {
+		Set failed = failed + 1
+		Do ..Warn("the memories of session " _ sessionRef _ " could not be dropped", exception.AsStatus())
+	}
+	Try {
+		Set sc = ..DropUploads(sessionRef)
+		If $$$ISERR(sc) Set failed = failed + 1 Do ..Warn("the uploads of session " _ sessionRef _ " could not be dropped", sc)
+	} Catch exception {
+		Set failed = failed + 1
+		Do ..Warn("the uploads of session " _ sessionRef _ " could not be dropped", exception.AsStatus())
+	}
+	Quit failed
+}
+
+/// The one call that drops a session's documents (AD-21; a seam for the tests).
+Method DropDocuments(sessionRef As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Docs).DropSession(sessionRef)
+}
+
+/// The one call that drops a session's memories (AD-21; a seam for the tests).
+Method DropMemories(sessionRef As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Memory).DropSession(sessionRef)
+}
+
+/// The one call that drops a session's uploads (Lane B; a seam for the tests).
+Method DropUploads(sessionRef As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Upload).DropSession(sessionRef)
 }
 
 }

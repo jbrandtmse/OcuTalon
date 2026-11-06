@@ -1,0 +1,24 @@
+{
+  "name": "persona-spanish-reply",
+  "kind": "all-clear",
+  "heldOut": false,
+  "preset": "language",
+  "language": "Spanish",
+  "personaCheck": "spanish-reply",
+  "description": "The user asks whether everything is fine while the last check passed, under Another language with Spanish. The case is right as an all-clear case, and its persona check is right when the reply holds at least three Spanish words and no sentence that says it can't write the language.",
+  "turn": {
+    "text": "Is everything fine?"
+  },
+  "checks": [
+    {
+      "result": "passed",
+      "entry": "Orders production",
+      "finding": "",
+      "checkedAt": "2026-10-16T18:13:00Z"
+    }
+  ],
+  "expectation": {
+    "catalogKey": "checks.allPassed"
+  },
+  "recordedBy": "written for the evaluation set (Story 40.7)"
+}

@@ -13,7 +13,7 @@ Start with the online demo, at https://demo.ocutalon.com (nothing to install, an
 To run OcuTalon on your own machine instead:
 
 1. Load the IRIS for Health AI Hub Early Access image into Docker: build 154, or build 109, which the download portal now offers ([where to get it](#get-the-image)).
-2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)). With build 109, follow [Start it with build 109](#start-it-with-build-109) instead.
+2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)).
 3. Sign in at http://localhost:52773/ocutalon/ with user name `ocutalon` and password `ocutalon` ([more on signing in](#sign-in)).
 4. Follow the demo guide at the top of the page.
 
@@ -22,6 +22,26 @@ To run OcuTalon on your own machine instead:
 OcuTalon runs as an IRIS Interoperability production, so the agent is an Interoperability workflow, and its work shows in Visual Trace, the tool you already use for your feeds. For each item that arrives, an IRIS AI Hub agent makes one attention decision, with its reasons and cost. Nothing risky runs without your yes: you get a dry run with counts first, you approve in the web chat, and every answer lands in the IRIS audit log. It was built this way so that you can audit and debug your assistant in the same place as the rest of your integrations. It implements the community idea [Use InterSystems Interoperability as a Traceability tool for GenAI LLM pipelines](https://ideas.intersystems.com/ideas/DPI-I-689).
 
 ![Visual Trace of one whole decision: the incident manager hands the incident to the decision process, which calls the diagnosis agent, and each of the agent's model requests and tool calls shows as an agent step of its own; then come the dry run, the approval request held as a Workflow task and its answer, the fix run, and the notices to the web chat and the simulated phone, each a production message.](docs/images/vt-decision.png)
+
+## Measured
+
+From the real-model release evaluations (Claude Haiku 5.5), the persona sweep and the online demo's usage log:
+
+| What was measured | Result |
+| --- | --- |
+| Incidents diagnosed with the right cause and fix | 9 of 10 (target: 8) |
+| Routine attention decisions right | 19 of 22 (target: 20) |
+| The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs |
+| Prompt-injection attempts that led to an action | 0 |
+| Changes made without a person's approval | 0 |
+| Cost of one attention decision | about $0.0001 |
+| Cost of diagnosing 50 failed orders | $0.0005 to $0.0007 |
+| Model cost of the always-on online demo | about 9 to 10 cents a day |
+
+Two things to look at in the demo:
+
+- It works from real failures. The broken partner feed sends real orders that fail in the Orders production; OcuTalon reads the failed messages and groups them by cause into one incident.
+- Every model request and every tool call is its own step in Visual Trace, and each decision's message carries its exact tokens and cost.
 
 ## What you can use it for
 
@@ -91,7 +111,7 @@ macOS and Linux are what OcuTalon's author and its automated tests use. On Windo
 
 OcuTalon 1.0.0 is built and tested on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). The InterSystems Early Access Program portal now offers build 109 (`irishealth-community:2027.1.0AI.109.0`) in its place: https://evaluation.intersystems.com/Eval/early-access/AIHub
 
-OcuTalon 1.0.0 also runs unchanged on build 109: its install, production and test checks and the demo guide pass on it. In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows.
+OcuTalon also runs on build 109: at release 1.0.0 its install, production and test checks and the demo guide passed on it, and `./install.sh` accepts either build.
 
 Choose the file that ends in `docker.tar.gz` for your CPU: arm64 for Apple silicon and ARM Linux, x64 for Intel or AMD. `docker info --format '{{.Architecture}}'` tells which one Docker runs: `aarch64` for arm64, `x86_64` for x64.
 
@@ -103,15 +123,13 @@ docker load -i <the archive file>
 
 ### Start it with the install script
 
-The install script needs build 154. With build 109, see [Start it with build 109](#start-it-with-build-109).
-
 ```
 git clone https://github.com/jbrandtmse/OcuTalon.git
 cd OcuTalon
 ./install.sh
 ```
 
-The script checks that Docker and Docker Compose work and that a build 154 image for your CPU is loaded. It gives the image the name OcuTalon builds from, creates `.env` from `.env.example` when there is none, and starts OcuTalon with `docker compose up -d`. It shows a progress line every 10 seconds, waits up to 15 minutes, and prints the address and the sign-in details. When a check fails, it says what is wrong and the exact fix, and changes nothing.
+The script checks that Docker and Docker Compose work and that a build 154 or build 109 image for your CPU is loaded; when both are, it uses build 154. It gives the image the name OcuTalon builds from, creates `.env` from `.env.example` when there is none, and starts OcuTalon with `docker compose up -d`. It shows a progress line every 10 seconds, waits up to 15 minutes, and prints the address and the sign-in details. When a check fails, it says what is wrong and the exact fix, and changes nothing.
 
 When OcuTalon is ready, it prints:
 
@@ -125,7 +143,7 @@ OcuTalon is ready after <time>.
 
 ### Start it by hand
 
-Without the script, give the loaded image the name OcuTalon builds from, then start it. `docker load` printed the loaded image's name; for the IRIS for Health archive it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2026.3.0AI.154.0`.
+Without the script, give the loaded image the name OcuTalon builds from, then start it. `docker load` printed the loaded image's name; for the IRIS for Health archive of build 154 it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2026.3.0AI.154.0`, and for build 109 it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. The name is `ocutalon-iris-base:2026.3.0AI.154.0` for both builds.
 
 ```
 docker tag <the name docker load printed> ocutalon-iris-base:2026.3.0AI.154.0
@@ -135,23 +153,9 @@ docker compose up -d
 
 The `cp` step is optional: without `.env`, OcuTalon starts with no model key ([Set a model key](#set-a-model-key)). Skip it when `.env` already exists, because `cp` would replace that file and the key in it.
 
-### Start it with build 109
-
-`docker load` printed the loaded image's name; for the IRIS for Health archive it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. Name it in `.env` as `IRIS_IMAGE`, so that OcuTalon builds from it, then start OcuTalon:
-
-```
-git clone https://github.com/jbrandtmse/OcuTalon.git
-cd OcuTalon
-cp .env.example .env
-echo 'IRIS_IMAGE=<the name docker load printed>' >> .env
-docker compose up -d
-```
-
-Skip the `cp` step when `.env` already exists. Keep the `IRIS_IMAGE` line in `.env`, because every `docker compose up -d` reads it, an update included. Then [check that it is ready](#check-that-it-is-ready) and [sign in](#sign-in).
-
 ### The IRIS (non-Health) image
 
-OcuTalon also runs on the plain IRIS AI Hub build 154 image (`iris-community:2026.3.0AI.154.0`). It differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace. It is supported and verified on ARM64. OcuTalon's automated tests use only the IRIS for Health image. Build 109's plain IRIS image has not been tested.
+OcuTalon also runs on the plain IRIS AI Hub build 154 image (`iris-community:2026.3.0AI.154.0`). It differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace. It is supported and verified on ARM64. OcuTalon's automated tests use only the IRIS for Health image. Build 109's plain IRIS image has not been tested, and `./install.sh` does not use it.
 
 `./install.sh` uses the plain IRIS image when no IRIS for Health image for your CPU is loaded. By hand, give it the same name, then start as above:
 
@@ -168,17 +172,24 @@ docker compose ps
 
 OcuTalon is ready when the STATUS of the `iris` service ends in `(healthy)`, for example `Up About a minute (healthy)`. Then open http://localhost:52773/ocutalon/.
 
-The first start took 47 to 78 seconds in five measurements on an Apple silicon Mac, and about 3 minutes (160 seconds) on an x64 Linux machine with 4 CPUs. The install script waits up to 15 minutes. A slower machine can take longer; run `docker compose ps` again to see.
+On an x64 Linux machine with 4 CPUs and 8 GB of memory, the whole install took about 8 minutes in two measurements: about 2 minutes to build the image, then about 6 minutes for the first start. The install script waits up to 15 minutes. A slower machine can take longer; run `docker compose ps` again to see.
 
 ### Install it with IPM
 
-To install OcuTalon into an IRIS instance you already run (AI Hub build 154 with IPM 0.10.10), use the InterSystems Package Manager. In an IRIS terminal in %SYS, point IPM at the community package registry:
+To install OcuTalon into an IRIS instance you already run, use the InterSystems Package Manager (IPM) 0.10.10. These commands were run as written on fresh IRIS for Health instances of AI Hub build 154 and build 109. A fresh instance has no IPM in %SYS, so first open an IRIS terminal in %SYS and load IPM 0.10.10 from the community package registry:
 
 ```
+s r=##class(%Net.HttpRequest).%New(),r.Server="pm.community.intersystems.com",r.SSLConfiguration="ISC.FeatureTracker.SSL.Config" d r.Get("/packages/zpm/0.10.10/installer"),$system.OBJ.LoadStream(r.HttpResponse.Data,"c")
+```
+
+Its output is long and ends with `Load finished successfully.` If %SYS already has IPM 0.10.10, the line installs nothing new. Then, still in %SYS, enable IPM for USER and point it at the community package registry:
+
+```
+zpm "enable -map -ns USER"
 zpm "enable -community"
 ```
 
-This command first removes the package repositories that are already set up in %SYS, so note any you use before you run it.
+`enable -community` first removes the package repositories that are already set up in %SYS, so note any you use before you run it.
 
 Then open an IRIS terminal in USER, an Interoperability-enabled namespace, and run:
 
@@ -193,7 +204,7 @@ zn "OCUTALON"
 zpm "install ocutalon"
 ```
 
-This second run installs OcuTalon with demo mode off. [Install OcuTalon with IPM](docs/install-ipm.md) shows the output of both runs, and the install from the package folder, for developers.
+This second run installs OcuTalon with demo mode off. [Install OcuTalon with IPM](docs/install-ipm.md) shows the output of each command, and the install from the package folder, for developers.
 
 ## Set a model key
 
@@ -241,9 +252,9 @@ Each OcuTalon needs its own bot. If another process polls the same bot, OcuTalon
 
 These are the usual causes and fixes. Most entries are messages that `./install.sh` prints when a check or the start fails; the last two are about the page.
 
-**"No IRIS build 154 image is loaded in Docker"**: download the archive for your CPU ([Get the image](#get-the-image)), load it with `docker load -i <the archive file>`, then run `./install.sh`. With build 109, follow [Start it with build 109](#start-it-with-build-109) instead of running `./install.sh`.
+**"No IRIS build 154 or build 109 image is loaded in Docker"**: download the archive for your CPU ([Get the image](#get-the-image)), load it with `docker load -i <the archive file>`, then run `./install.sh`.
 
-**"The IRIS build 154 image that is loaded is for another CPU than this machine's"**: download and load the archive for your CPU. `docker info --format '{{.Architecture}}'` tells which one Docker runs. If the message says that `ocutalon-iris-base:2026.3.0AI.154.0` exists but is for another CPU, point the name at the right image: `docker tag <the loaded image's name> ocutalon-iris-base:2026.3.0AI.154.0`.
+**"The IRIS build 154 or build 109 image that is loaded is for another CPU than this machine's"**: download and load the archive for your CPU. `docker info --format '{{.Architecture}}'` tells which one Docker runs. If the message says that `ocutalon-iris-base:2026.3.0AI.154.0` exists but is for another CPU, point the name at the right image: `docker tag <the loaded image's name> ocutalon-iris-base:2026.3.0AI.154.0`.
 
 **"Docker is not installed (the docker command was not found)"**: install Docker Desktop (macOS, or Windows with WSL 2) or Docker Engine (Linux), then run `./install.sh`.
 
@@ -340,3 +351,4 @@ Third-party licence notices:
 - The web page's fonts (Inter, JetBrains Mono and Montserrat, under the SIL Open Font License) and its icons (Lucide, under the ISC licence) have their licence texts in [web/public/assets/licenses](web/public/assets/licenses).
 - The web build writes the licence notices of its libraries to `3rdpartylicenses.txt`, beside the built page.
 - The IPM package manager in the image is under the MIT licence: [docker/ipm/LICENSE](docker/ipm/LICENSE).
+- The Docker image's Python packages for documents and memory (fastembed, pdfplumber and python-docx, with their dependencies and the libraries bundled with PDFium) are listed with their licence texts and credits in `/opt/ocutalon/THIRD-PARTY-NOTICES`, which the image build writes from the installed packages.

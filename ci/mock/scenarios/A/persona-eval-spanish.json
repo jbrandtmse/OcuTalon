@@ -1,0 +1,12 @@
+{
+  "name": "persona-eval-spanish",
+  "match": {
+    "marker": "persona-eval-spanish"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Todo est\u00e1 bien. El mensaje de la producci\u00f3n es que los controles de hoy pasaron, y no hay nada para usted."
+    }
+  ]
+}

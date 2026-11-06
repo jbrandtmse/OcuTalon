@@ -15,7 +15,7 @@
 ///     of AD-32 and Data.Time.ForMessage from Story 0.9, the Orders partner's Send from Story 0.10, and the Telegram session side that Lane A calls from
 ///     Story 10.3: Pairing.HashCode, RecordChat, TakeReplySlot, StoreCode, Chat and Purge, StatusMark.RecordTelegram and TelegramState, AnswersIn.FromTelegram,
 ///     Ownership.ApprovalKnown and Install.Step.Core.Purge, and from Story 33.1 the nine OcuTalon.Bridge.Settings methods that SettingsOps calls and
-///     OcuTalon.Bridge.Time.Zone, SetZone and Apply, and from Story 33.2 Delivery.FindByRef, Handled.Marked and Ownership.DeliveryByRef, 79 signatures in all, which the floor of the count pins);
+///     OcuTalon.Bridge.Time.Zone, SetZone and Apply, and from Story 33.2 Delivery.FindByRef, Handled.Marked and Ownership.DeliveryByRef, and from Story 34.1 the two DropSession stubs that SessionOps.End will call (OcuTalon.Docs and OcuTalon.Memory), 81 signatures in all, which the floor of the count pins);
 ///   - TestTelegramStubHasAnAdapter: the stub is an inbound service with an adapter class.
 /// The incident fixtures use a per-run Zz reference, and every row is deleted in the test and again in OnAfterAllTests.
 Class OcuTalon.Test.Contract.Ac Extends OcuTalon.Test.Contract
@@ -162,7 +162,7 @@ Method TestCrossLaneSignatures()
 		Do $$$AssertEquals(..Join(prefix), ..Join(expected), id_" takes ("_signature.args_") in that order")
 		Do $$$AssertEquals(..FullName(method.ReturnType), ..FullName(signature.returns), id_" returns "_signature.returns)
 	}
-	Do $$$AssertTrue(count >= 79, "the signatures are read: "_count)
+	Do $$$AssertTrue(count >= 81, "the signatures are read: "_count)
 }
 
 /// The Telegram stub is an inbound service, and its adapter is a class (the Telegram epic replaces the value).
@@ -377,7 +377,9 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Bridge.Settings", "method": "TestAnswer", "args": "response,durationMs", "returns": "%DynamicObject"},
  {"class": "OcuTalon.Bridge.Time", "method": "Zone", "args": "", "returns": "%String"},
  {"class": "OcuTalon.Bridge.Time", "method": "SetZone", "args": "name", "returns": "%Status"},
- {"class": "OcuTalon.Bridge.Time", "method": "Apply", "args": "", "returns": ""}
+ {"class": "OcuTalon.Bridge.Time", "method": "Apply", "args": "", "returns": ""},
+ {"class": "OcuTalon.Docs", "method": "DropSession", "args": "sessionRef", "returns": "%Status"},
+ {"class": "OcuTalon.Memory", "method": "DropSession", "args": "sessionRef", "returns": "%Status"}
 ]
 }
 

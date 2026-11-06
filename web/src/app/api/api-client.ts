@@ -8,6 +8,9 @@ import type {
   AnswerChannel,
   BreakFeedSent,
   DismissBody,
+  DocumentAdded,
+  DocumentRemoved,
+  DocumentsList,
   EventsResponse,
   GuideMarker,
   MailboxAccepted,
@@ -21,6 +24,8 @@ import type {
   StateSnapshot,
   UnpairDone,
 } from './api-types';
+import type { HeartbeatPut, HeartbeatSaved, HeartbeatState } from './heartbeat-types';
+import type { PersonaPut, PersonaSaved, PersonaState } from './persona-types';
 
 const BASE = '/ocutalon/api/v1';
 
@@ -129,6 +134,28 @@ export class ApiClient {
     return this.http.delete<UnpairDone>(`${BASE}/pairing`, { body: {} });
   }
 
+  /** The session's documents (an install's, on a local install), newest first: the Documents page's list. */
+  documents(): Observable<DocumentsList> {
+    return this.http.get<DocumentsList>(`${BASE}/documents`);
+  }
+
+  /**
+   * Adds one document: a POST of {name, content}, the file's bytes in base64 (the session is the caller's, never in the body). The answer is
+   * {result: 'done', ref}; a 400 `bad_document` (with its `reason`), a 413, a 501 and a 500 fail as an HttpErrorResponse whose `error` is
+   * the body (DocumentRefusal).
+   */
+  addDocument(name: string, content: string): Observable<DocumentAdded> {
+    return this.http.post<DocumentAdded>(`${BASE}/documents`, { name, content });
+  }
+
+  /**
+   * Removes one document: a DELETE with the body {}, which the envelope interceptor completes with its headers. The answer is
+   * {result: 'done'}; a 404 for a document that the session cannot see, a 501 and a 500 fail as an HttpErrorResponse.
+   */
+  removeDocument(ref: string): Observable<DocumentRemoved> {
+    return this.http.delete<DocumentRemoved>(`${BASE}/documents/${encodeURIComponent(ref)}`, { body: {} });
+  }
+
   /**
    * The online demo's public status in its trace form (Story 16.5, 29.7; AD-13, AD-25): a GET of /ocutalon/public/status?for=trace, which
    * needs no session and whose busy comes from the connection check alone, with a unique query so that no cache answers.
@@ -153,5 +180,30 @@ export class ApiClient {
   /** The events after the two cursors, one for the session's stream and one for the instance's. */
   events(after: number, afterInstance: number): Observable<EventsResponse> {
     return this.http.get<EventsResponse>(`${BASE}/events`, { params: { after, afterInstance } });
+  }
+
+  /** The signed-in session's persona (Story 40.8): the preset, the language, the person's own words, whether those are offered, and a pending proposal's Ref. */
+  persona(): Observable<PersonaState> {
+    return this.http.get<PersonaState>(`${BASE}/persona`);
+  }
+
+  /** Saves the persona: a PUT, which the envelope interceptor completes with its headers. A refusal fails as an HttpErrorResponse whose `error` is the body `{error:{code,message}}`. */
+  savePersona(body: PersonaPut): Observable<PersonaSaved> {
+    return this.http.put<PersonaSaved>(`${BASE}/persona`, body);
+  }
+
+  /** The signed-in session's heartbeat (Story 39.5): its settings, last check-in and skip, today's count and cost, the checklist and whether this is the online demo. */
+  heartbeat(): Observable<HeartbeatState> {
+    return this.http.get<HeartbeatState>(`${BASE}/heartbeat`);
+  }
+
+  /** Saves the heartbeat: a PUT, which the envelope interceptor completes with its headers. A refusal fails as an HttpErrorResponse whose `error` is the body `{error:{code,message}}`. */
+  saveHeartbeat(body: HeartbeatPut): Observable<HeartbeatSaved> {
+    return this.http.put<HeartbeatSaved>(`${BASE}/heartbeat`, body);
+  }
+
+  /** Asks for a beat now: a POST with an empty body (the envelope interceptor completes it). A 409 fails with the body `{error:{code,message},availableAt?}`. */
+  runHeartbeat(): Observable<unknown> {
+    return this.http.post<unknown>(`${BASE}/heartbeat/run`, {});
   }
 }

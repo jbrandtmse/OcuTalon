@@ -1,5 +1,5 @@
 /// Tests of the REST skeleton's classes (matrix rows 9 to 12), called with stand-in request and response objects so
-/// that no web application is needed: the bodies of /state and /events, the browser-envelope check, the 12 routes,
+/// that no web application is needed: the bodies of /state and /events, the browser-envelope check, the 25 routes,
 /// and the shape of every error; and (Story 2.2) the snapshot's sections, the resolution of the caller's session from the
 /// CSP session, the sign-out call and the 404 of a record the session can't see. The HTTP rows are test-sign-in.sh's.
 /// The rows of the Story 2.2 tests come from Test.Data.Fixture, and so do the decisions, usage rows and check rows of
@@ -941,15 +941,20 @@ Method TestErrorTexts()
 	Do $$$AssertEquals($Parameter(api, "MESSAGENOTALLOWED"), "This address doesn't accept that kind of request.", "method_not_allowed")
 	Do $$$AssertEquals($Parameter(api, "MESSAGESERVERERROR"), "Something went wrong inside OcuTalon. Try again.", "server_error")
 	Do $$$AssertEquals($Parameter(api, "MESSAGENOTBUILT"), "This part of OcuTalon isn't built yet.", "not_built")
+	Do $$$AssertEquals($Parameter(api, "MESSAGERUNCOOLDOWN"), "You can run it again at {time}.", "run cooldown")
+	Do $$$AssertEquals($Parameter(api, "MESSAGERUNCAP"), "Today's cost limit has been reached.", "run cap")
+	Do $$$AssertEquals($Parameter(api, "MESSAGERUNNOKEY"), "No model key is set.", "run nokey")
+	Do $$$AssertEquals($Parameter(api, "MESSAGERUNEMPTY"), "Your checklist is empty.", "run empty")
+	Do $$$AssertEquals($Parameter(api, "MESSAGERUNBACKOFF"), "The last beat failed, so the next one waits until {time}.", "run backoff")
 	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Login).#ERRORNOROLE, "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.", "no_role is the sign-in page's text")
 }
 
-/// The URL map holds exactly the 20 routes, each with its call.
+/// The URL map holds exactly the 25 routes, each with its call.
 Method TestRoutes()
 {
 	Set found = ..Routes("OcuTalon.Web.Api")
-	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing", "GET /v1/settings Settings", "POST /v1/settings/models NotBuilt", "POST /v1/settings/budgets SaveBudgets", "POST /v1/settings/channels NotBuilt", "POST /v1/settings/daily-digest SaveDailyDigest", "POST /v1/settings/time-zone SaveTimeZone", "POST /v1/settings/check-thresholds SaveCheckThresholds", "POST /v1/settings/demo-mode SaveDemoMode")
-	Do $$$AssertEquals($ListLength(found), 20, "20 routes")
+	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing", "GET /v1/persona GetPersona", "PUT /v1/persona PutPersona", "GET /v1/heartbeat GetHeartbeat", "PUT /v1/heartbeat PutHeartbeat", "POST /v1/heartbeat/run RunHeartbeat", "GET /v1/settings Settings", "POST /v1/settings/models NotBuilt", "POST /v1/settings/budgets SaveBudgets", "POST /v1/settings/channels NotBuilt", "POST /v1/settings/daily-digest SaveDailyDigest", "POST /v1/settings/time-zone SaveTimeZone", "POST /v1/settings/check-thresholds SaveCheckThresholds", "POST /v1/settings/demo-mode SaveDemoMode")
+	Do $$$AssertEquals($ListLength(found), 25, "25 routes")
 	Do $$$AssertEquals($ListToString(found, "|"), $ListToString(expected, "|"), "the routes, in order")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HandleCorsRequest"), 0, "no CORS handling")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "CHARSET"), "utf-8", "utf-8")

@@ -10,7 +10,7 @@
 /// Modify, never delete and create, so nothing attached to an application is lost. The OCUORDERS trace
 /// application is the Demo step's, built from TraceApp, and exists only with demo mode on.
 /// With the online demo on, the step also seeds the per-address session limit and the idle cap (SeedSettings), and its
-/// purge declaration covers the address counter (AddressCounter, one hour) as well as the live events.
+/// purge declaration covers the address counter (AddressCounter, one hour) and the uploads that nobody took (Upload, one hour) as well as the live events.
 /// The CSP session timeout (Common) is ONLINETIMEOUT, 120 seconds, for the four sign-in-group applications on the online
 /// demo and LOCALTIMEOUT, 8 hours, for every other application and every install without the flag (AD-13); the flag is
 /// read through OcuTalon.Data.Public.Settings, by OnlineDemo, for the timeout and for both seeds.
@@ -117,15 +117,18 @@ ClassMethod OnlineDemo() As %Boolean [ Private ]
 }
 
 /// The live events older than 24 hours are deleted, whatever daysToKeep is (AD-27), and no stream's counter is
-/// touched; then the address counter's rows older than one hour are deleted, whatever daysToKeep is (AddressCounter.Purge).
+/// touched; then the address counter's rows older than one hour are deleted, whatever daysToKeep is (AddressCounter.Purge), and
+/// so are the uploads that nobody took and that are more than one hour old (Upload.Purge; the documents routes run it too).
 /// This is Lane B's retention, declared in the Web area, which the purge task calls (Story 30.2). The result is the first
-/// error, and the counter is purged after a failed event purge too.
+/// error, and every purge runs after a failed one too.
 ClassMethod Purge(daysToKeep As %Integer) As %Status
 {
 	Set sc = ##class(OcuTalon.Live.Event).Purge(daysToKeep)
 	Set counter = ##class(OcuTalon.Data.AddressCounter).Purge(daysToKeep)
+	Set uploads = ##class(OcuTalon.Data.Upload).Purge(daysToKeep)
 	If $SYSTEM.Status.IsError(sc) Quit sc
-	Quit counter
+	If $SYSTEM.Status.IsError(counter) Quit counter
+	Quit uploads
 }
 
 /// The trace role holds exactly: Use on %Ens_Portal, %Ens_MessageTrace, %Ens_MessageHeader and

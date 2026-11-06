@@ -5,7 +5,8 @@
  * through RailFormat, which the component builds from the real modules; the components render what it returns by interpolation only.
  *
  * - railView(store, format) gives the sections in order: Telegram (only when the release includes it), Approval requests,
- *   Background checks, Reminders and Recent decisions. It shows the store as a reload of the page would (the views filter and
+ *   Background checks, Reminders, Recent decisions, Heartbeat checklist (Story 39.5) and Persona (Story 40.4); the last two are each a heading and no rows,
+ *   for their card, and Persona stays last. It shows the store as a reload of the page would (the views filter and
  *   sort the store, and the store keeps everything): approvals and reminders that are pending, by raised and due time and then
  *   in store order; every check in store order; the 20 newest attention decisions, newest first.
  * - Each list section carries its count, its visible heading "Background checks (1)" and its spoken heading "Background checks, 1".
@@ -42,6 +43,7 @@ export const RAIL_TEXTS = {
   repair: 'Repair and resend',
   repairCount: 'Repair and resend {n} {noun}',
   runTool: 'Run {toolName}',
+  changePersona: 'Change how OcuTalon talks to you',
   showInChat: 'Show in the chat: {action}',
   raised: 'Raised {when}',
   expires: 'expires {when}',
@@ -52,6 +54,8 @@ export const RAIL_TEXTS = {
   titleWithCountdown: '{text}{separator}{countdown}',
   telegramNotSetUp: 'Telegram not set up',
   telegramHowTo: 'How to set it up',
+  heartbeat: 'Heartbeat checklist',
+  persona: 'Persona',
 } as const;
 
 /** The anchor of the README's Telegram section. */
@@ -79,7 +83,7 @@ export interface RailFormat {
 }
 
 /** The sections of the rail. */
-export type SectionId = 'telegram' | 'approvals' | 'checks' | 'reminders' | 'decisions';
+export type SectionId = 'telegram' | 'approvals' | 'checks' | 'reminders' | 'decisions' | 'heartbeat' | 'persona';
 
 /** The kinds of row. */
 export type RowKind = 'approval' | 'check' | 'reminder' | 'decision';
@@ -118,7 +122,7 @@ export interface RailRow {
   jumpName?: string;
 }
 
-/** One section of the rail. A list section has a count and a spoken heading; Telegram has neither. */
+/** One section of the rail. A list section has a count and a spoken heading; Telegram, Heartbeat checklist and Persona have neither. */
 export interface RailSection {
   id: SectionId;
   label: string;
@@ -168,9 +172,12 @@ export function readmeSection(readmeUrl: string, anchor: string): string {
 
 /**
  * The title of an approval request: "Repair and resend 50 orders" for a fix with a dry run (the noun by the count), "Repair and
- * resend" without one, and "Run zz_tool" for a tool call.
+ * resend" without one, "Run zz_tool" for a tool call, and "Change how OcuTalon talks to you" for a setting request (a proposed persona).
  */
 export function approvalTitle(approval: ApprovalPayload): string {
+  if (approval.kind === 'setting') {
+    return RAIL_TEXTS.changePersona;
+  }
   if (approval.kind === 'tool_call') {
     return fill(RAIL_TEXTS.runTool, { toolName: approval.toolName ?? '' }).trim();
   }
@@ -315,6 +322,22 @@ export function pendingApprovals(store: LiveStore): ApprovalPayload[] {
   );
 }
 
+/**
+ * What the Persona card reads its persona again on: the Refs of the pending requests, and the Ref and state of every setting request,
+ * so that the card reads again when a request comes or goes and when an approved proposal has been applied (its request becomes done).
+ */
+export function personaReadKey(store: LiveStore): string {
+  const settings = inStoreOrder(store.approvals)
+    .filter((approval) => approval.kind === 'setting')
+    .map((approval) => `${approval.ref ?? ''}:${approval.state ?? ''}`);
+  return [...pendingApprovals(store).map((approval) => approval.ref ?? ''), ...settings].join('\n');
+}
+
+/** What the Heartbeat card reads the heartbeat again on (Story 39.5): the store's latest `heartbeat` event, as JSON, so that the card reads again when an event arrives; "" before one. */
+export function heartbeatReadKey(store: LiveStore): string {
+  return store.heartbeat === undefined ? '' : JSON.stringify(store.heartbeat);
+}
+
 /** The rail for the store: the sections in order and whether Telegram is one of them. In demo mode the empty checks point at the demo guide. */
 export function railView(store: LiveStore, format: RailFormat, demo = false): RailView {
   const approvals = pendingApprovals(store);
@@ -340,5 +363,7 @@ export function railView(store: LiveStore, format: RailFormat, demo = false): Ra
     listSection('reminders', RAIL_TEXTS.reminders, reminders.map((reminder) => reminderRow(reminder, format)), RAIL_TEXTS.emptyReminders, RAIL_TEXTS.hintReminders),
     listSection('decisions', RAIL_TEXTS.decisions, decisions.map((decision) => decisionRow(decision, format)), RAIL_TEXTS.emptyDecisions, ''),
   );
+  sections.push({ id: 'heartbeat', label: RAIL_TEXTS.heartbeat, heading: RAIL_TEXTS.heartbeat, spoken: RAIL_TEXTS.heartbeat, rows: [], empty: '', hint: '' });
+  sections.push({ id: 'persona', label: RAIL_TEXTS.persona, heading: RAIL_TEXTS.persona, spoken: RAIL_TEXTS.persona, rows: [], empty: '', hint: '' });
   return { sections, telegramShown };
 }

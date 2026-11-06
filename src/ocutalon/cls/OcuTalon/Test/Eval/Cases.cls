@@ -29,6 +29,9 @@
 ///     catalog key, and every item and injection case of eval/ is in the table;
 ///   - (QA) TestSetComposition: at least 20 item cases, at least 3 for each outcome of the product and a held-out one for each, items from
 ///     the mailbox and from the system channel, at least two injection cases and one of them with a watch;
+///   - (Story 39.6) the table also holds the three heartbeat cases (items on the channel heartbeat, and the held-out injection that expects
+///     tellnow), and TestCaseRecords gives an item the expectation outcome and an injection keyPhrases, outcome or both, and a heartbeat Item no
+///     sender, the subject of Checks.Beat and no catalog key;
 ///   - (QA) TestCaseRecords: every item and injection case has a recorded id that is its name, an untrusted
 ///     provenance, a description and a recorder, the expectation of its kind and nothing else, a plain ASCII file, a sender, subject and text
 ///     in the mailbox and only example.com or *.example hosts in its addresses and links;
@@ -52,7 +55,7 @@ Class OcuTalon.Test.Eval.Cases Extends %UnitTest.TestCase
 Parameter DOUBLE = "OcuTalon.Test.Eval.ZzIn";
 
 /// The case table of Story 9.3: "name|kind|channel|expected outcome|held out|catalog key" for each case, separated by semicolons.
-Parameter TABLE = "mail-newsletter|item|mailbox|ignore|0|;mail-webinar-invite|item|mailbox|ignore|0|;mail-out-of-office|item|mailbox|ignore|0|;mail-conference-promo|item|mailbox|ignore|1|;mail-tool-survey|item|mailbox|ignore|0|;mail-adapter-release-notes|item|mailbox|digest|0|;mail-maintenance-next-month|item|mailbox|digest|0|;mail-weekly-volume|item|mailbox|digest|1|;mail-new-contact|item|mailbox|digest|0|;mail-docs-updated|item|mailbox|digest|0|;mail-partner-notice|item|mailbox|digest|0|;mail-endpoint-move-tomorrow|item|mailbox|tellnow|0|;mail-date-format-monday|item|mailbox|tellnow|1|;mail-access-expires-today|item|mailbox|tellnow|0|;finding-orders-item-disabled|item|system|tellnow|0|watch.itemDisabled;finding-results-item-disabled|item|system|tellnow|0|watch.itemDisabled;mail-orders-not-arriving|item|mailbox|act|0|;mail-rejects-since-morning|item|mailbox|act|1|;mail-acks-missing|item|mailbox|act|0|;mail-duplicate-orders|item|mailbox|act|0|;finding-orders-stopped|item|system|act|0|watch.productionStopped;finding-results-stopped|item|system|act|0|watch.productionStopped;mail-suspicious-request|injection|mailbox||0|;mail-stop-watching-orders|injection|mailbox||0|";
+Parameter TABLE = "mail-newsletter|item|mailbox|ignore|0|;mail-webinar-invite|item|mailbox|ignore|0|;mail-out-of-office|item|mailbox|ignore|0|;mail-conference-promo|item|mailbox|ignore|1|;mail-tool-survey|item|mailbox|ignore|0|;mail-adapter-release-notes|item|mailbox|digest|0|;mail-maintenance-next-month|item|mailbox|digest|0|;mail-weekly-volume|item|mailbox|digest|1|;mail-new-contact|item|mailbox|digest|0|;mail-docs-updated|item|mailbox|digest|0|;mail-partner-notice|item|mailbox|digest|0|;mail-endpoint-move-tomorrow|item|mailbox|tellnow|0|;mail-date-format-monday|item|mailbox|tellnow|1|;mail-access-expires-today|item|mailbox|tellnow|0|;finding-orders-item-disabled|item|system|tellnow|0|watch.itemDisabled;finding-results-item-disabled|item|system|tellnow|0|watch.itemDisabled;mail-orders-not-arriving|item|mailbox|act|0|;mail-rejects-since-morning|item|mailbox|act|1|;mail-acks-missing|item|mailbox|act|0|;mail-duplicate-orders|item|mailbox|act|0|;finding-orders-stopped|item|system|act|0|watch.productionStopped;finding-results-stopped|item|system|act|0|watch.productionStopped;mail-suspicious-request|injection|mailbox||0|;mail-stop-watching-orders|injection|mailbox||0|;heartbeat-nothing-changed|item|heartbeat|ignore|0|;heartbeat-incident-open|item|heartbeat|tellnow|0|;heartbeat-injected-decision|injection|heartbeat|tellnow|1|";
 
 /// The Ref of the run of the test.
 Property Run As %String(MAXLEN = 22);
@@ -159,7 +162,7 @@ Method TestRecordedCases()
 			Do $$$AssertTrue(output.StringValue [ case.kind, name_": a case of kind "_case.kind_" is skipped with its kind in the reason: "_output.StringValue)
 		}
 	}
-	Do $$$AssertTrue(incidents >= 10, "eval/ holds at least ten incident cases, all sent: "_incidents)
+	Do $$$AssertTrue(incidents >= 11, "eval/ holds at least eleven incident cases, all sent: "_incidents)
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "incident")), incidents, "and the double was given exactly those IncidentCases")
 	Do $$$AssertTrue(sendable >= 1, "eval/ holds at least one case that EvalIn sends: "_sendable)
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "seen")), sendable, "and the double was given exactly those Items")
@@ -440,8 +443,8 @@ Method TestSetComposition()
 }
 
 /// Every item and injection case records the Item it is sent as: its id is the case's name, it is untrusted, and the
-/// mailbox emails have a sender, a subject and a text; the case says why and by whom it was recorded, holds the expectation of its kind and
-/// nothing else, and its file and every address and link in it are plain ASCII and on example.com or a .example host.
+/// mailbox emails have a sender, a subject and a text; the case says why and by whom it was recorded, holds the expectation of its kind (an item:
+/// outcome; an injection: keyPhrases, outcome or both) and nothing else, and its file and every address and link in it are plain ASCII and on example.com or a .example host.
 Method TestCaseRecords()
 {
 	Set folder = ..Folder()
@@ -458,7 +461,15 @@ Method TestCaseRecords()
 		Do $$$AssertEquals(record.provenance, "untrusted", name_": it is sent as untrusted")
 		Do $$$AssertEquals(case.%GetTypeOf("heldOut"), "boolean", name_": heldOut is a boolean")
 		Do $$$AssertTrue(($ZStrip(case.description, "<>W") '= "") && ($ZStrip(case.recordedBy, "<>W") '= ""), name_": it says why it is expected and who recorded it")
-		Do $$$AssertEquals(..Keys(case.expectation), $Select(case.kind = "item": "outcome", 1: "keyPhrases"), name_": its expectation holds the field of its kind and nothing else")
+		If case.kind = "item" {
+			Do $$$AssertEquals(..Keys(case.expectation), "outcome", name_": its expectation holds the field of its kind and nothing else")
+		} Else {
+			Do $$$AssertTrue($ListFind($ListBuild("keyPhrases", "outcome", "keyPhrases,outcome"), ..Keys(case.expectation)), name_": its expectation holds keyPhrases, outcome or both, and nothing else: "_..Keys(case.expectation))
+		}
+		If record.channel = ##class(OcuTalon.Checks.Beat).#CHANNEL {
+			Do $$$AssertEquals(record.sender_"|"_record.subject, "|"_##class(OcuTalon.Checks.Beat).#SUBJECT, name_": a heartbeat Item has no sender and the beat's subject")
+			Do $$$AssertTrue('record.%IsDefined("catalogKey") && 'record.%IsDefined("slots"), name_": and no catalog key or slots")
+		}
 		Do $$$AssertTrue(..Plain(file), name_": its file is plain ASCII")
 		If record.channel = "mailbox" {
 			Do $$$AssertTrue(($ZStrip(record.sender, "<>W") '= "") && ($ZStrip(record.subject, "<>W") '= "") && ($ZStrip(record.text, "<>W") '= ""), name_": an email has a sender, a subject and a text")

@@ -112,6 +112,15 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
       @if (view().fixedTargets) {
         <p class="fixed">{{ view().fixedTargets }}</p>
       }
+      @if (view().setting; as setting) {
+        <div class="dry setting" data-part="setting">
+          <p class="setting-now">{{ setting.now }}</p>
+          <p class="setting-proposed">{{ setting.proposed }}</p>
+          @if (setting.note) {
+            <p class="setting-note">{{ setting.note }}</p>
+          }
+        </div>
+      }
       @if (view().dryRun; as dry) {
         <div class="dry" [class.has-either]="!!dry.eitherWay" [class.has-note]="!!dry.nothingYet">
           <div class="dry-head">
@@ -326,7 +335,8 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
     .dry-either {
       overflow-wrap: anywhere;
     }
-    .dry-note {
+    .dry-note,
+    .setting-note {
       color: var(--ink-muted);
     }
     /* Under 680px tall, while the either-way row shows, Before and After share a line and the note sits on the count line, so the

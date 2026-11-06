@@ -160,6 +160,44 @@ Method TestPurgeAddressCounter()
 	Do ##class(OcuTalon.Data.AddressCounter).%DeleteExtent()
 }
 
+/// The Web area's purge also keeps the uploads that nobody took to one hour (AD-27, Story 34.3, DW-752): Purge(90) and Purge(0) each delete an upload
+/// made 3,660 seconds ago, keep one made 3,540 seconds ago and still purge the live events older than 24 hours. The purge is at the real clock and takes
+/// the rows of every session, so this class runs only on a throwaway (Rule 21).
+Method TestPurgeUploads()
+{
+	Set session = "ZzWeb"_..Number_"u"
+	Set stream = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ^OcuTalonTest("WebInstall", "streams", stream) = ""
+	For days = 90, 0 {
+		Set old = ..UploadRef(session, 3660)
+		Set recent = ..UploadRef(session, 3540)
+		Do $$$AssertTrue((old '= "") && (recent '= ""), "both uploads are stored (days "_days_")")
+		Set payload = ##class(OcuTalon.Live.Payload.Reminder).%New()
+		Set payload.Ref = "ZzWeb"_..Number_"u"_days
+		Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", payload, .seq), "an event is published")
+		Do ##class(OcuTalon.Test.Data.Fixture).SetEventTs(stream, seq, ##class(OcuTalon.Test.Data.Fixture).HoursAgo(25))
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Web).Purge(days), "the Web area's Purge("_days_")")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Upload).RefIndexExists(old), 0, "the 61-minute upload is deleted (days "_days_")")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Upload).RefIndexExists(recent), 1, "the 59-minute upload is kept (days "_days_")")
+		Do $$$AssertEquals($ListFind($ListFromString(##class(OcuTalon.Test.Data.Fixture).EventSeqs(stream)), seq), 0, "the aged live event is purged too (days "_days_")")
+		Do ##class(OcuTalon.Data.Upload).DropSession(session)
+	}
+}
+
+/// An upload of the session made the given number of seconds ago; returns its Ref, or "" when it could not be stored.
+ClassMethod UploadRef(session As %String, secondsAgo As %Integer) As %String [ Private ]
+{
+	Set bytes = ##class(%Stream.TmpBinary).%New()
+	Do bytes.Write("zz")
+	Do bytes.Rewind()
+	Set ref = ##class(OcuTalon.Data.Upload).Put(session, bytes, .sc)
+	If ref = "" Quit ""
+	Set row = ##class(OcuTalon.Data.Upload).RefIndexOpen(ref)
+	Set row.CreatedAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -secondsAgo)
+	If $SYSTEM.Status.IsError(row.%Save()) Quit ""
+	Quit ref
+}
+
 /// A counter row of the hash created the given number of seconds ago; returns its id, or "" when it could not be saved.
 ClassMethod CounterRow(hash As %String, secondsAgo As %Integer) As %Integer [ Private ]
 {

@@ -4,6 +4,14 @@ import { expect, type APIRequestContext, type APIResponse, type Page, type Respo
 
 import { gotoSettled } from '../support/navigate';
 
+/** The error object of an answer, after checking its status and that it is the API's error shape. */
+export async function expectError(response: APIResponse, status: number, code: string, message: string): Promise<void> {
+  expect(response.status(), await response.text()).toBe(status);
+  const body = (await response.json()) as { error: { code: string; message: string } };
+  expect(Object.keys(body)).toEqual(['error']);
+  expect(body.error).toEqual({ code, message });
+}
+
 /** The README account of a local install. */
 export const README_ACCOUNT = { user: 'ocutalon', password: 'ocutalon' } as const;
 

@@ -505,7 +505,7 @@ test('G4: at 1000x800 the page is one column with the rail after main, and only 
  * 70% of the window, and the list scrolls.)
  */
 test('G4: below 1024px an empty chat list is as tall as its content', async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 1900 });
+  await page.setViewportSize({ width: 1000, height: 2100 });
   await changeSnapshot(page, (snapshot) => {
     snapshot['chat'] = [];
     const rail = snapshot['rail'] as Record<string, unknown>;

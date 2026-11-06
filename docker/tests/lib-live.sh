@@ -391,13 +391,62 @@ wait_started_ready() {
   [ "${LIVE_TELEGRAM:-}" = started ] || live_park_telegram
 }
 
+# --- disabled items are sampled only when quiet (Story 11.22) ---
+
+# DISABLED_QUIET_SECONDS: the bound of wait_disabled_quiet, on its own beside the run's deadline.
+DISABLED_QUIET_SECONDS=${DISABLED_QUIET_SECONDS:-30}
+
+# disabled_entries: for every disabled item of the running production (the oracle OcuTalon.Test.Install.Production, Items) prints each of
+# its Ens.Job entries in ANY state (Alive, Starting, Dead) as "CHK|entry|<item>|<State>|<Status>", then "CHK|probed|done". A session
+# that prints no "CHK|probed|done" line has not answered.
+disabled_entries() {
+  printf '%s\n' \
+    'Set items=##class(OcuTalon.Test.Install.Production).Items(),it=items.%GetIterator() While it.%GetNext(,.x) { If x.enabled=0 { Set off(x.name)=1 } }' \
+    'Set rs=##class(%ResultSet).%New("Ens.Job:Enumerate") Set sc=rs.Execute() While rs.Next() { If $Data(off(rs.Get("ConfigName"))) { Write !,"CHK|entry|",rs.Get("ConfigName"),"|",rs.Get("State"),"|",$Translate(rs.Get("Status"),"|"_$Char(10,13),"/  ") } }' \
+    'Write !,"CHK|probed|done"' \
+    'Halt' | iris_script OCUTALON
+}
+
+# disabled_quiet_now: one probe; succeeds when it answered and listed no entry. It keeps the answer in DISABLED_ANSWER.
+disabled_quiet_now() {
+  DISABLED_ANSWER=$(disabled_entries)
+  printf '%s\n' "$DISABLED_ANSWER" | grep -q '^CHK|probed|done$' || return 1
+  ! printf '%s\n' "$DISABLED_ANSWER" | grep -q '^CHK|entry|'
+}
+
+# wait_disabled_quiet <label> [<report command>]: waits (wait_until, DISABLED_QUIET_SECONDS, 30 by default) until no disabled item of
+# the running production has an Ens.Job entry in any state, which is the only moment a disabled item may be sampled. Returns 0 then.
+# On the bound it reports, through the report command (fail by default; fail_line for the callers that only print), the label, the
+# item and its entry's state and status, for example "TelegramOut still has an Ens.Job entry (Dead, last was: running) 31 s after it
+# was disabled", and returns 1. It never removes an entry.
+wait_disabled_quiet() {
+  local label=$1 report=${2:-fail} begun=$SECONDS entry item state status
+  DISABLED_ANSWER=""
+  if wait_until "$DISABLED_QUIET_SECONDS" disabled_quiet_now; then return 0; fi
+  # wait_until sleeps after its last probe, and stops at the run's deadline before any probe: one more look settles both.
+  if disabled_quiet_now; then return 0; fi
+  entry=$(printf '%s\n' "$DISABLED_ANSWER" | grep '^CHK|entry|' | head -n 1)
+  if [ -n "$entry" ]; then
+    IFS='|' read -r _ _ item state status <<< "$entry"
+    "$report" "$label: $item still has an Ens.Job entry ($state, $status) $((SECONDS - begun)) s after it was disabled"
+  else
+    "$report" "$label: the session did not answer the probe of the disabled items' Ens.Job entries within $((SECONDS - begun)) s"
+  fi
+  return 1
+}
+
+# fail_line <text>: prints "FAIL <text>" and counts nothing, for the callers that only print (live_park_telegram).
+fail_line() { echo "FAIL $1"; }
+
 # live_park_telegram: parks the Telegram items of the running stack (Story 12.9), so that no test finds a live poller. This release
 # includes Telegram and the CI override sets a dummy bot token, so every start runs TelegramIn and TelegramOut; OcuTalon.Test.Channel.
 # BotApi.Park disables them, writes the state of a start with no token (rows 0, the mark off) and resets the mock's Bot API side.
-# Prints "PARK done <s>s" and returns 0; prints "PARK skipped" and returns 0 when the build has no compiled BotApi.Park (an older
-# build); prints "FAIL Telegram could not be parked: <reason>" and returns 1 when the park fails or the session answers nothing.
+# Prints "PARK done <s>s" (the wait included) and returns 0 once no disabled item has an Ens.Job entry in any state (wait_disabled_quiet; a FAIL line and
+# return 1 when one is still there after DISABLED_QUIET_SECONDS); prints "PARK skipped" and returns 0 when the build has no compiled
+# BotApi.Park (an older build); prints "FAIL Telegram could not be parked: <reason>" and returns 1 when the park fails or the session
+# answers nothing.
 live_park_telegram() {
-  local begun=$SECONDS out line reason=""
+  local begun=$SECONDS out line reason="" parked=0
   out=$(printf '%s\n' \
     'If ##class(%Dictionary.CompiledMethod).%ExistsId("OcuTalon.Test.Channel.BotApi||Park")=0 { Write !,"CHK|park|skipped" Halt }' \
     'Set sc=##class(OcuTalon.Test.Channel.BotApi).Park()' \
@@ -405,12 +454,17 @@ live_park_telegram() {
     'Halt' | iris_script OCUTALON)
   line=$(printf '%s\n' "$out" | grep '^CHK|park|' | tail -n 1)
   case $line in
-    CHK\|park\|done) echo "PARK done $((SECONDS - begun))s" ;;
+    CHK\|park\|done) parked=1 ;;
     CHK\|park\|skipped) echo "PARK skipped" ;;
     CHK\|park\|failed\|*) reason=${line#CHK|park|failed|}; reason=${reason:-the park failed and gave no reason} ;;
     *) reason="the session answered nothing" ;;
   esac
   [ -z "$reason" ] || { echo "FAIL Telegram could not be parked: $reason"; return 1; }
+  # After a park that is done only: the items are disabled, and their Ens.Job entries must be gone, in any state, before a test samples them.
+  if [ "$parked" = 1 ]; then
+    wait_disabled_quiet "Telegram park" fail_line || return 1
+    echo "PARK done $((SECONDS - begun))s"
+  fi
 }
 
 # live_first_start <max s>: see the header. Needs live_start. The ready time starts when the built image is started and ends
@@ -683,10 +737,12 @@ item_jobs() {
 # OcuTalon.Test.Install.Production (Items):
 #   - each enabled item with a pool has an Alive job whose status is not error, halted or terminated;
 #   - each enabled adapterless service has no job, and CreateBusinessService succeeds for it;
-#   - each item the definition disables has no job.
+#   - each item the definition disables has no Ens.Job entry in any state: wait_disabled_quiet waits for that first (about 30 s) and
+#     fails naming the item and the entry's state when an entry stays; only then is the production sampled.
 # The items and their kinds come from the oracle, which each lane keeps for its own items, so no count is written here;
 # the check fails when the oracle names no item with a pool, or when the three kinds do not add up to the oracle.
 check_items_run() {
+  wait_disabled_quiet "$1" || return 1
   check_session "$1: every enabled item runs, the adapterless services answer, the disabled items have no job" OCUTALON \
     "CHK|pooled|missing=
 CHK|adapterless|failing=

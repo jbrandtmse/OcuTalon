@@ -1,0 +1,299 @@
+---
+title: "Story 40.3: The persona reaches Chat and Triage as a data block"
+type: 'feature'
+created: '2026-11-04'
+status: 'done'
+baseline_revision: 'fe63b03d8c8408cbe2126c070ff8247e4038b3c1'
+baseline_commit: 'fe63b03d8c8408cbe2126c070ff8247e4038b3c1'
+review_loop_iteration: 0
+followup_review_recommended: false
+context:
+  - '{project-root}/_bmad-output/implementation-artifacts/epic-40-context.md'
+warnings: [oversized]
+deferred:
+  - summary: "After a change of persona, Chat's saved history still holds the old blocks and the old voice"
+    evidence: "A linked turn opens the saved AI session (Bridge.Adapter.Agent), so earlier user messages keep the block they were sent with. After Pirate to Professional the new message has no block, as AC 2 requires, but the history still shows Pirate blocks and replies, so a real model may carry the voice on for a while. The mock cannot show this. Story 40.7 or the release check should try it with a real model."
+    location: 'src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls'
+    severity: low
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** A person can save a persona (Story 40.2), but nothing carries it to the agents: `Agent.Persona.Block` is a stub, `Agent.Input.Render` ignores it, and neither Chat nor Triage has been told what a persona block may and may not change.
+
+**Approach:** `Agent.Input.Render` puts AD-7's persona block after the preamble and before the item for every item a session owns, reading the person's values through `SettingsOps.Persona`. Chat and Triage each gain the UX's fixed paragraph as new text, and CI mock scenarios prove end to end that the block reaches the right requests and that nothing but wording can change.
+
+## Boundaries & Constraints
+
+**Always:**
+- The block is data inside the rendered `Input`, in AD-7's exact form: the code-written opening line "Persona block (from this person's settings; it shapes wording only, never what you do):"; the preset's or the person's text with every line through `Agent.Input.Quoted`; for `language`, the line "Reply in the language named: {language}."; for a preset whose `bends` flag is true and for `custom`, the line "This persona may open with a greeting and use exclamation marks and emoji."
+- Who gets a block is decided from `item.SessionRef` alone: a 22-character session Ref gets one, whatever the provenance or channel. There is no flag.
+- A Professional session's rendered text is byte-for-byte what it was before this story, whether or not a row is stored.
+- `Render`'s values are read from the rows on every call, so a saved change applies from the next message (FR-67).
+- The paragraphs are the texts of EXPERIENCE.md › Later Steps › Personality › "The agents' fixed paragraphs" ("Chat, persona" and "Triage, persona"), word for word, with no `{{`.
+- Every existing line of both `XData INSTRUCTIONS` blocks stays byte-identical. Each paragraph is added after the block's last line, with one blank line before it.
+- Non-ASCII in test or scenario source is written as an escape (`$WChar(...)`, `🚢`), per Rule 14.
+
+**Never:**
+- A runtime `SystemPrompt`, text in `XData INSTRUCTIONS` that varies, or `%AI.Utils.Template`.
+- In this story, a block for an `instance` item, an `eval` item or a Diagnosis request. `Agent.Diagnosis`, its scenarios, `Test/Agent/Instructions.cls` and `Test/Agent/RunnerFixture.cls` are not edited.
+- Any change to `Core/SettingsOps.cls`, `Core/SessionOps.cls`, `Test/Core/SettingsOpsProbe.cls`, `Test/Msg/Contracts.cls`, `Msg/Item.cls`, `Bridge/Process/Decide.cls`, `Checks/ReplyGuard.cls` or `docker/**`. A change to any existing instruction line is `## Clarification Needed`, the one Chat class-comment change excepted.
+- A new `Render` argument. `Render(item, now)` keeps its signature (`Test.Contract.Ac` pins it, and the optional `context` is Epic 41's).
+- Real model keys, real evaluation runs, or a real Telegram bot.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| User turn, Pirate | provenance `user`, owner a session on `pirate` | preamble, blank line, block (opening, quoted text, style line), blank line, the user's text as written | No error expected |
+| Untrusted item, Starship | provenance `untrusted`, owner a session on `starship` | preamble, blank line, block, blank line, the channel label and quoted item | No error expected |
+| A beat | provenance `untrusted`, channel `heartbeat`, owner a session on `kindfriend` | the same shape as an untrusted item (the beat itself arrives with Epic 39) | No error expected |
+| Language | `language`, "Portuguese (Brazil)" | opening line, then "Reply in the language named: Portuguese (Brazil)."; no quoted line and no style line | No error expected |
+| Custom, several lines | `custom`, text with LF, CR LF, an emoji and a line "Persona block ends" | every line of the text prefixed "> ", then the style line; the text can't close the block | No error expected |
+| Professional | no row, or a stored `professional` | exactly what `Render` gave before this story | No error expected |
+| Owner `instance`, `eval`, or empty | any provenance | no block, and no read of a persona | No error expected |
+| Empty item | a session on `pirate`, no text, sender or subject; or a user item with no text | "", as today: never a bare block | Decide refuses it as before |
+| Bad stored values | a preset outside `PERSONAPRESET`; `language` with no name; `custom` with blank text | no block | No error expected: the turn runs in the default voice |
+| Pirate style through the guard | reply and reasons with a greeting, "!", an emoji and "Everything is fine." | the sentence is gone; the rest stays exact in the reply, the stored reasons and `chat.message` | No error expected |
+
+</intent-contract>
+
+## Code Map
+
+- `src/ocutalon/cls/OcuTalon/Agent/Input.cls` -- `Render` (one exit for user items, one for the rest; `Quoted` is the quoting helper to reuse). No open epic has changed it (`git diff --name-only` against 7, 33, 39 and 11).
+- `src/ocutalon/cls/OcuTalon/Agent/Persona.cls` -- `Preset(id)`, `Presets()` and the `Block(sessionRef)` stub. `bends` already holds the style rule per preset.
+- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls`, `Agent/Triage.cls` -- the `XData INSTRUCTIONS` blocks. Chat's class comment line 1 says "Its instructions fix the voice of every reply." `Triage.cls` is on the contended list of Epics 39 and 40, and neither has changed it yet.
+- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` -- READ ONLY. `Persona(sessionRef, .sc)` reads the rows, never the 60-second cache, and gives the values even when `sc` is an error about the pending request. Measured on slot A: 0.07 ms a call. `Stored` has no throw path of its own beyond `KeyIndexOpen`.
+- `src/ocutalon/cls/OcuTalon/Bridge/Approval.cls` -- `IsRef` is the 22-character test `SettingsOps` already uses.
+- `src/ocutalon/cls/OcuTalon/Core/Intake.cls` `RequestFor`, `Core/Conversation.cls` `ItemOf`, `Eval/In.cls` `TurnRequest` -- READ ONLY. The three callers of `Render`. `RequestFor` serves `Conversation` too, so a turn's triage and chat requests both carry the block, as does an `act` item's fresh turn. `ItemOf` sets `SessionRef`.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` -- READ ONLY. Lines 1058-1061 filter a turn's reply; lines 1186-1191 filter each reason, then `$ZStrip(..., "<>WC")`; line 1227 joins the reasons with LF into `Decision.Reasons`. Measured on slot A with `$WChar(128674)` and `$WChar(9875)`: `ReplyGuard.Filter` and that `$ZStrip` keep emoji exactly, also at the end of a line, and `Filter` gives "Ahoy, shipmate! The Orders production sails on! {emoji}".
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Turns.cls` -- the pattern for a mock turn: `Ask` (arm the countdown at 1, `Send`, `WaitDone`), `AssertDone` (the done `chat.message`), `TestAllClearOnlyFromCode` (a passed watch row), `OnAfterOneTest` (disarm), `OnAfterAllTests` (`AdoptTurns`).
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls` -- the base: `Ready`, `PointKeys`, `Session`, `Watch`, `SendBatch`, `WaitDiagnosed`, row clean-up. `Test/Watch/Diagnose.cls` shows a `[[mock:<name>]]` marker in a failure's text reaching Diagnosis through the pack's `errorPattern`.
+- `src/ocutalon/cls/OcuTalon/Test/Core/CommandsInProduction.cls` `TestSetPersonaReachesSettingsOps` -- saving a persona with `Commands.Submit(command, "web_user", .result)`.
+- `src/ocutalon/cls/OcuTalon/Test/Core/RoutingProduction.cls` `SendTo` -- sends an Item to `Intake` from a `SimMailboxIn` host.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls` -- READ ONLY. `FindRequests`, `Messages`, `DecisionOf`; `Test.Contract.Mock` `LogMark`, `LogSince`, `Arm`.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Persona.cls` -- `XData UX` is the test-held copy pattern for UX text. Its `TestBlock` stays valid: no rows give "".
+- `src/ocutalon/cls/OcuTalon/Data/Setting.cls` -- `Seed` for a fixture row. `Set` is `SettingsOps`' alone.
+- `ci/mock/mock.mjs` header -- selection: the first `[[mock:<name>:<key>]]` of the newest user message; the armed countdown rule; the log holds the messages in full and reduces the system text to its size, so the paragraphs are checked from the compiled XData, not the log.
+- `ci/mock/scenarios/A/checks-false-all-clear.json`, `watch-start-orders.json`, `watch-start-unknown.json`, `decide-ignore.json` -- the shapes to follow. `start_watch`'s input is `{"name": "Orders"}`.
+
+## Tasks & Acceptance
+
+**Execution:**
+- `src/ocutalon/cls/OcuTalon/Agent/Persona.cls` -- add `BlockFor(preset, language, custom)`: the block's text from the values alone, "" for `professional`, an empty or unknown preset, `language` with a blank name and `custom` with blank text. The opening, language and style lines are parameters of this class. Make `Block(sessionRef)` return "" when `sessionRef` isn't a Ref (`Bridge.Approval.IsRef`), else `BlockFor` of `SettingsOps.Persona`'s values, ignoring `sc` as that method allows. Update the class comment and `Block`'s comment, which call it a stub.
+- `src/ocutalon/cls/OcuTalon/Agent/Input.cls` -- in `Render`, after the existing "" checks and the preamble, put `Persona.Block(item.SessionRef)` and a blank line between the preamble's blank line and the rest, on both paths, adding nothing when it is "". Add the block to the class comment.
+- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls` -- append the "Chat, persona" paragraph after the block's last line. Replace the comment sentence "Its instructions fix the voice of every reply." with one saying they fix the writing rules, which a persona block may bend only as their persona paragraph says.
+- `src/ocutalon/cls/OcuTalon/Agent/Triage.cls` -- append the "Triage, persona" paragraph after the block's last line.
+- `ci/mock/scenarios/A/persona-status.json` -- new: `tellnow` triage, `check_status`, then "Everything is fine. I looked at the Orders production for you."
+- `ci/mock/scenarios/A/persona-command.json` -- new: `tellnow` triage, then the exact text of catalog key `agent.noCommands`.
+- `ci/mock/scenarios/A/persona-watch.json` -- new: `tellnow` triage, `start_watch` of Orders, then "I'll watch the Orders production and stay quiet unless something needs you."
+- `ci/mock/scenarios/A/persona-watch-unknown.json` -- new: `tellnow` triage, `start_watch` of Nowhere, then the `watch.unknownProduction` sentence with name Nowhere and list Orders.
+- `ci/mock/scenarios/A/persona-triage.json` -- new: one reply, `{"outcome":"ignore", ..., "confidence":0.4}`, so no notice or digest row is left behind.
+- `ci/mock/scenarios/A/persona-pirate-style.json` -- new: `tellnow` triage whose reasons, and a reply which, hold a greeting, "!", `🚢` and "Everything is fine."
+- `src/ocutalon/cls/OcuTalon/Test/Agent/PersonaBlock.cls` -- new, extends `OcuTalon.Test.Bridge.ZoneCase` like `Test.Agent.Render`, needs no production: every matrix row except the guard row, with literal expected texts; the Professional row compared with and without a stored row; the paragraphs against a test-held copy of the UX text (`XData UX`-style), each exactly once in its compiled block, with no `{{`; Diagnosis's block holds no "persona"; Chat's compiled class description no longer says "fix the voice of every reply". Fixture rows through `Setting.Seed`, removed with `SettingsOps.ForgetPerson` and `Fixture.Clean`.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/PersonaTurns.cls` -- new, extends `OcuTalon.Test.Watch.Case`, fresh stacks only (the production's jobs keep old code on a warm stack): the tests of AC 3 to AC 7, one session per preset, the persona saved with `Commands.Submit`, each run's marker key `<name>:<number><preset>` so that countdowns and log entries are the test's own.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Persona.cls` -- comments only: `TestBlock` no longer describes a stub. The assertions stay.
+
+**Acceptance Criteria:**
+1. Given a session on each of Starship computer, Pirate, Kind friend, Another language and Your own words, when `Agent.Input.Render` renders an item that session owns (its user turn, an untrusted item, a beat-shaped item), then the text holds the block in AD-7's form after the preamble and before the item, and an Another language block has no style line.
+2. Given an item owned by `instance`, an `eval` item, or a Professional session, when `Render` renders it, then there is no block, and the Professional text equals the literal text from before this story, with and without a stored row.
+3. Given `OcuTalon.Agent.Chat` and `OcuTalon.Agent.Triage`, when the compiled classes are read, then each block holds its paragraph exactly as the UX gives it, once, with no `{{`, every earlier line of each block is unchanged, and Chat's class comment no longer says its instructions fix the voice of every reply.
+4. Given a real `SetPersona` for each preset through `Commands.Submit`, when that session's chat turn runs through `WebChatIn`, `Conversation`, `Decide` and the runners against the mock, then the mock's request log shows the block on the turn's triage request and its Chat request for every preset but Professional, the style line only for Starship computer, Pirate, Kind friend and a custom persona, and Professional's requests hold no "Persona block".
+5. Given an untrusted item owned by a session, sent to `Intake`, for each preset, when Triage decides it (`persona-triage`), then the logged request holds the block as in AC 4 and the Decision row's outcome and confidence are the script's under every preset.
+6. Given a session on Pirate with a watch of Orders, when an incident's Diagnosis runs (a failure whose text carries the existing marker `diagnosis-unknown`), then the logged Diagnosis request holds no "Persona block".
+7. Given each preset, when the `persona-command`, `persona-watch`, `persona-watch-unknown` and `persona-status` turns run, then the reply equals the catalog sentence (`agent.noCommands`, `watch.unknownProduction`), the UX sentence for a started watch and "I looked at the Orders production for you.", the status turn's `CheckKey` and check rows are those of the watch's passed row, the reserved wording is gone, and the decision's outcome is the script's.
+8. Given `persona-pirate-style` on a Pirate session, when `Decide` runs the reply filter, then "Everything is fine." is removed, and the greeting, the exclamation mark and the emoji are unchanged in `Turn.ReplyText`, in the stored `Decision.Reasons` and in the done `chat.message` event.
+9. Given a session on Pirate, when the person saves Kind friend and sends a message, and then saves Professional and sends another, then each newest user message in the log carries the new persona's block, and the last carries none, with no wait between the save and the message.
+
+### Review Findings
+
+Code review 2026-11-04 (four layers, full-opus tier; 24 raw rows, 10 entries after grouping: high 0, medium 3, low 7; 9 rows rejected).
+
+- [x] [Review][Patch] AC 9: the Pirate-to-Kind-friend step could not fail, because no turn ran under Pirate before the save, so no job had cached Pirate [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaTurns.cls:230] -- medium, fix-risk low (one Ask in the test). `TestNextMessage` now asks one turn under Pirate first; under the `Setting.Get` mutation both steps go red (fresh stack, reverted).
+- [x] [Review][Patch] `TestBlockOwners`' malformed-Ref owners had no stray row, so their assertions could not fail for a weakened guard [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaBlock.cls:194] -- low, fix-risk low. The stray-row loop now also covers the 23-character and the 22-character `!` owner; a length-only guard turns it red (slot A, reverted).
+- [x] [Review][Patch] `TestStatus` opened the watch's row with no `$IsObject` check, so one bad preset ended the loop with `<INVALID OREF>` [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaTurns.cls:128] -- low, fix-risk low. It now fails soft and continues, like the file's other steps.
+- [x] [Review][Patch] `TestNextMessage`'s last assertion message said "ran in the default voice", which the mock's fixed reply cannot show [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaTurns.cls:244] -- low, fix-risk low. The message now says what it checks.
+- [x] [Review][Patch] `TestBadStoredValues`' header claimed every value the writer refuses gives no block, and `TestBlockFor` said "a line break" for a line-feed case [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaBlock.cls:136] -- low, fix-risk low. Both now say what they pin. The narrower check itself (U+2028/U+2029 and punctuation pass `BlockFor`; the only writer refuses them) is DW-680 `wontfix-theoretical`.
+- [x] [Review][Defer] Frozen instruction lines meet the block unmeasured: Triage's own-message test ("not quoted") vs a user turn's quoted block lines, and the "plain English" lines vs the language line [src/ocutalon/cls/OcuTalon/Agent/Triage.cls] -- deferred: medium, unverified without a real model; DW-679 `routed owner=40-7-evaluation-cases-for-the-persona` (measure; a red is a clarification on an existing line).
+- [x] [Review][Defer] Triage reasons in another language pass `ReplyGuard`'s English lists [src/ocutalon/cls/OcuTalon/Agent/Persona.cls] -- deferred: the ruled DW-664 root cause; occurrence appended.
+- [x] [Review][Defer] `SettingsOps.Persona` reads its three keys unlocked; a turn rendered during a save can get no block for that one turn [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:305] -- deferred: low, out-of-footprint, fail-safe; DW-681 `wontfix-accepted` (reopen_if in the entry).
+- [x] [Review][Defer] `Render` can throw if `Setting.KeyIndexOpen` faults inside `Persona.Block` [src/ocutalon/cls/OcuTalon/Agent/Persona.cls:122] -- deferred: spec-bound ("No `try` around the read in `Block`"); DW-682 `by-design`.
+- [x] [Review][Defer] AC 3's "every earlier line unchanged" is pinned by the diff command, not a test [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaBlock.cls:207] -- deferred: spec-bound (QA note); re-verified at review: Triage removes 0 lines, Chat only the class comment; DW-683 `by-design`.
+
+Rejected:
+- `false` Edge, a stray `person.instance` row left if `Block` throws mid-test: the next run's `DropRow` before `Seed` removes it, and `Block` never reads a non-Ref owner's row.
+- `false` Edge, an empty phrase in `AssertNoAllClear`: `RESERVED` and `BANNED` are both non-empty, and an empty phrase would fail loudly, not pass.
+- `false` Gap, `Test.Agent.Persona:TestBlock` relies on no row for its literal Ref: nothing in `src/` or `ci/` writes that key, and the class promises it writes nothing.
+- `false` Auditor, `DropRow` departs from `ForgetPerson`/`Fixture.Clean`: `ForgetPerson` refuses non-Ref owners, which these stray rows are by design.
+- `low` Blind, the `live demo-path` default deadline: environment, not this story. CI runs with 1200 s, the local 540 s default is documented for raising on a slow machine, and no `web/` file changed.
+- `low` Blind, the DW-678 bullet in `epics.md` has no blank line before it: cosmetic; a list item interrupts the paragraph in CommonMark. The file is the lead's harvest bookkeeping.
+- `low` Blind, "covers five findings" in Auto Run Result: the fix edits the spec under review.
+- `low` Auditor, the `epics.md` DW-678 bullet is not in the Spec Change Log: it is harvest bookkeeping, not a spec change, and the fix edits the spec.
+- `low` Auditor, the Tasks line says "AC 3 to AC 7" for `PersonaTurns`: the fix edits the spec's frozen task text.
+
+## Spec Change Log
+
+- 2026-11-04, spec gate, orchestrator ruling on DW-664 (veto U-272): the MED `deferred:` item is removed, since DW-664 holds it; the ruling is in Design Notes. No frozen text changed.
+- 2026-11-04, `epics.md` Story 40.7, tier-1 amendment under the same ruling: one new Given block, a measured case for a non-English false all-clear. Original: the story had no such case. No existing AC changed.
+- 2026-11-04, `epics.md` Story 40.4, amendment under U-272's answer (kept, with one condition): one new And line, the persona text says replies in other languages have the model's own check only until the language-aware guard lands. Original: the story had no such line. No existing AC changed. This story's own scope is unchanged.
+- 2026-11-04, `epics.md` Story 40.4, the U-272 And line reworded under U-278 (Contest Planner under the owner's delegation, answered 2026-11-04T17:43:13Z#841): replies in other languages are not filtered for all-clear phrases and the model is only instructed not to write one; the two help texts are fixed word for word (Language field; custom text field), and a test must pin that neither contains a phrase from `ReplyGuard`'s BANNED or RESERVED lists. Original: "the persona feature's text says that replies in other languages have the model's own check only". This story's own scope is unchanged.
+
+## Review Triage Log
+
+### 2026-11-04 - Review pass
+- verdicts: 28 findings - high 0, medium 1, low 24, false 3, maybe-false 0 (duplicate rows carry the verdict of the row they repeat)
+- findings:
+  - `[low]` `patch` Blind 1, `BlockFor` writes the raw `language` after testing a stripped copy - the writer's regex blocks it; the fix is direct: the stripped name is written and a name with an inner control character gives no block (Persona.cls), with two new asserts in `PersonaBlock:TestBlockFor`.
+  - `[low]` `reject` Blind 2, saved history keeps the old blocks and the paragraph does not say which one wins - already the spec's frontmatter `deferred:` entry; the suggested sentence would change the UX paragraph, which ships word for word.
+  - `[low]` `reject` Blind 3, `SettingsOps.Persona` also runs the approvals query - the spec requires reading through that method (measured 0.07 ms a call).
+  - `[low]` `reject` Blind 4, `TestNextMessage` saves two personas before the first send - the Kind friend to Professional step turns red under the `Setting.Get` mutation; the AC names no Pirate turn.
+  - `[low]` `reject` Blind 5, `persona-status` ends in "Everything is fine." for every preset - the AC prescribes that text; other banned phrases are Story 5.7's.
+  - `[low]` `reject` Blind 6, the test counter global stays and two matrix tests have no mutation line - a uniqueness counter must not be reset; Rule 19 binds acceptance criteria, and both tests are matrix rows.
+  - `[low]` `patch` Edge 1, raw language in the block - same root cause as Blind 1.
+  - `[low]` `reject` Edge 2, stored custom text over 1000 characters or with `{{` - only `SettingsOps` writes the rows and it validates; `Input` is not template-processed.
+  - `[low]` `reject` Edge 3, a stored custom row while the demo is on - the demo never offers or stores custom; the rule that decides it is Story 40.2's, outside this story.
+  - `[low]` `reject` Edge 4, custom text ending in a line break gives an empty quoted line - harmless data inside the quote.
+  - `[low]` `reject` Edge 5, a persona saved between a turn's Triage and Chat requests - FR-67 asks for values read at each render; the window is by design.
+  - `[low]` `reject` Edge 6, Chat history holds conflicting blocks - same as Blind 2.
+  - `[low]` `reject` Edge 7, the approvals query per render - same as Blind 3.
+  - `[low]` `reject` Edge 8, `TestParagraphs` does not compare the earlier lines - the (loop) diff commands pin them: Triage 0 removed lines, Chat only the class-comment line.
+  - `[false]` `reject` Edge 9, a leftover "voice is fixed" claim in Chat - `grep -i "voice\|fixed tone"` on Chat.cls finds nothing.
+  - `[medium]` `patch` Gap 1, the `IsRef` owner guard of `Persona.Block` has no test that can fail - `TestBlockOwners` now seeds a stray `person.instance` and `person.eval` row and asserts no block, and removes it with the new `DropRow` (ForgetPerson refuses a non-Ref); mutation: guard line removed -> `TestBlockOwners` red; `mutation:` line written.
+  - `[low]` `patch` Gap 2, `TestFreshRead` cannot see a stale cache - the comment and header now say what it pins; `PersonaTurns:TestNextMessage` pins the cross-process case (AC 9 mutation line).
+  - `[low]` `patch` Gap 3, AC 7's mutation line mutates the scenario file only - a second line: `ReplyGuard.BANNED` gaining "i can't run commands" -> `TestCommand` red under all six presets (observed on a fresh stack, reverted).
+  - `[low]` `patch` Gap 4, raw language - same as Blind 1.
+  - `[low]` `reject` Gap 5, `newestOnly` after a switch to Professional - same as Blind 2.
+  - `[low]` `reject` Gap 6, `TestParagraphs` holds a test copy of the UX text - the (loop) python command compares the source with EXPERIENCE.md itself.
+  - `[low]` `reject` Intent 1, the paragraphs are checked as compiled XData, not in the logged system prompt - the mock log keeps only the system text's size (Code Map).
+  - `[low]` `reject` Intent 2, a beat and an `eval` item are tested at string level - the beat arrives with Epic 39 and the `eval` branch with Story 40.7 (Design Notes).
+  - `[low]` `reject` Intent 3, history across a persona change - same as Blind 2.
+  - `[low]` `reject` Intent 4, bad stored values in the narrow form - same as Blind 1 and Edge 2.
+  - `[low]` `reject` Intent 5, the approvals read - same as Blind 3.
+  - `[false]` `reject` Intent 6, the diff touches spec and class description - the spec names the Chat comment change; the other files are the spec's own.
+  - `[false]` `reject` Intent 7, a literal emoji in `persona-pirate-style.json` - the file holds `\ud83d\udea2` escapes and a non-ASCII byte search of all new and changed source finds none.
+
+## Design Notes
+
+**Governing decisions:** AD-7 (the persona block, its form, who gets none, the fixed lines), AD-6 (no runtime `SystemPrompt`), AD-14, AD-19 (`SettingsOps` holds the values), AD-22 (the mock and the `eval` owner), AD-28 and AD-31 (the guard as `ReplyFilterClass`), AD-29 (Lane A files).
+
+**What this story relies on from AD-1 and AD-14 (U-268).** From AD-14, only that `Item.SessionRef` is a session's Ref, `instance` or `eval`. From AD-1, only that a test may submit `SetPersona` with origin `web_user`. It relies on no closed list of `tool` origins and on no digest routing, so Story 33.2's additions don't touch it and no clarification is needed.
+
+**Is a digest-kind item one a session owns?** No item of that kind exists to render. On this tree, and on `origin/OCT-epic33`, `OcuTalon.Digest.Process` is a stub until Story 17.6, and a `digest` Notification is not an `Item` and never reaches `Agent.Input`. What does exist:
+- An untrusted item that Triage sends to the digest is session-owned, so its triage request gets the block. `Digest.Data.Item` keeps the code-written `Summary`, not the reasons.
+- Story 17.6's contract is one fresh, unlinked, untrusted Chat turn per digest. If it renders through `Agent.Input` with the session as owner, the owner rule gives that turn a block with no further work, and the digest's code-written parts stay plain because they never pass through the model.
+
+**Decided in-stage:**
+- *How a case's preset reaches `Agent.Input` (the epic context's open point).* An `eval` item gets no block in this story, because no case can name a preset until Story 40.7 builds that field, and `Block("eval")` is "" by the owner rule. This story's share of the answer is `Persona.BlockFor(preset, language, custom)`, which needs no person. `Msg.Item` gains no field. Recommended for 40.7 (inference, not built here): hold the case's values on its `Eval.Data.CaseResult` row, which `Eval.In` opens by `ItemId` before the send, and have one `eval` branch in `Render` read them, so the choice stays "decided from the owner" with no flag. That is a schema addition, so 40.7 classifies it.
+- *`BlockFor` beside `Block`.* The stub's name stays. The pure method keeps the form testable and gives 40.7 its seam.
+- *Where the paragraphs go.* At the end of each block. That leaves every existing line and its position alone, and keeps Chat's order pins (`Test.Agent.Instructions`) true.
+- *Bad stored values give no block.* The only writer validates, so this is a fail-safe: the turn runs in the default voice, and the agents never get a broken block.
+- *The Diagnosis proof reuses `diagnosis-unknown`* instead of a new `persona-diagnosis` scenario. Its reply shape belongs to Epic 7's contended files, and the AC only reads the request. The `persona-*` scenarios cover chat and triage, as the story's AC says.
+- *`persona-triage` scripts `ignore`,* so the fixture leaves no digest row or notice to clean up.
+- *No `try` around the read in `Block`.* `Persona` guards its one fallible query itself, and a thrown `KeyIndexOpen` is a database fault that `Conversation`'s and `Intake`'s own handlers already answer.
+
+**Wording that doesn't quite match, kept as the author wrote it:**
+- The Chat paragraph says "A message may start with a persona block", while the block follows the one-line preamble. The UX text ships unchanged.
+- AD-7's list of what the paragraphs say is longer than the UX's "Triage, persona" sentence. The story's AC and the lead's rule name the UX text, which carries AD-7's Triage-specific point (wording of reasons only). This isn't a contradiction of the AD's Rule: no sentence of it conflicts.
+- AD-7 says a default install's "requests are byte-for-byte unchanged". The user message is. The two paragraphs do change the static system prompt for everyone, as the same AD requires. The AC's wording ("rendered text") is the one tested.
+
+**Risks a mock can't show (for Story 40.7's sweep, no action here):**
+- Triage's existing rule calls a message the user's own when it "is not quoted", and a user turn with a block now holds quoted lines above the text. The opening line labels them, but 40.7's `user-turn` cases should be read under each preset.
+- Chat's first line says "Write in plain English" and Triage's `reasons` line says "in plain English", and neither may change. The persona paragraph says the block sets language but "never changes these instructions". If 40.7's Spanish case fails on this, that is a clarification about an existing line, not a fix to make in passing.
+- The one item in frontmatter `deferred:` is for the lead's harvest.
+
+**DW-664, ruled (orchestrator, veto U-272, 2026-11-04).** Under Another language or a custom persona, a model-worded all-clear can pass `ReplyGuard`'s English lists. This story proceeds with the guard unchanged:
+- `Checks/ReplyGuard.cls` is not edited, and the AD-28 wording stays as it is. A language-aware guard is its own story (DW-664, `routed owner=burndown`).
+- Story 40.7 gains an eval case that measures a non-English false all-clear under Another language. It is measured, not pass-required, until the owner rules on the result.
+- No README, docs or UI text may claim the guard covers languages other than English.
+
+**Privacy:** the block travels in `Bridge.Msg.Request.Input`, so a custom text is in that message and in the trace, like the person's own chat text, and is purged the same way. It never enters an audit entry. Custom isn't offered on the online demo, so a visitor's messages hold only a fixed preset text or a language name.
+
+**Integration ACs (Rule 1):** AC 4 and AC 5: consumers `Conversation` and `Intake` read `Agent.Input` and the mock's log shows the block on real requests, with real `SettingsOps` rows.
+
+**Consumes:** Story 40.1 (`PRESETS`, `Preset`, `Block`), Story 40.2 (`SetPersona`, `SettingsOps.Persona`, `ForgetPerson`), Story 5.7 (`ReplyGuard`).
+
+**Consumed-by:** Story 40.5 (appends its proposal sentence after Chat's paragraph), Story 40.7 (`BlockFor`, and the sweep over this block), Epic 39 (a beat gets the block by the owner rule; its Triage paragraph follows this one), Epic 41 (context blocks go after the persona block and before the item).
+
+**Extend, don't copy (Rule 2):**
+- `PersonaBlock` extends `Test.Bridge.ZoneCase`, as `Test.Agent.Render` does.
+- `PersonaTurns` extends `Test.Watch.Case`, as `Test.Checks.Turns` does.
+- `Test.Checks.Turns.Ask` and `AssertDone` are private to a class whose three tests a subclass would inherit, so `PersonaTurns` carries its own short `Ask` (it arms a keyed marker) and calls the shared fixtures for everything else. That is the reason for the copy.
+- The block reuses `Agent.Input.Quoted`, `Persona.Preset` and `SettingsOps.Persona`.
+
+**Ledger inbox (Rule 17):** none. DW-570 and DW-571 are Story 40.6's.
+
+## Verification
+
+All calls run from the worktree root with `timeout: 600000`, one per call, each `ci/iris.sh` and `ci/warm.sh` call prefixed with `<A>` = `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=40 stage=implement'`. Fresh tag `e40s3i`, warm tag `e40s3iw`. Every IRIS MCP call passes `server` `ocutalon-slot-a` and `namespace` `OCUTALON`, and one `iris_execute_tests` call goes in a message on its own. `<BASE>` is `14e709322e43860d4bd3821ab3a5d91a541a6f31`, the commit this plan was made on.
+
+**Commands:**
+- (loop) `iris_doc_load` the changed and new classes into slot A and compile -- expected: they compile. `PersonaBlock` needs no production and may run on the slot; `PersonaTurns` runs on a throwaway only.
+- (loop) `git diff -U0 <BASE> -- src/ocutalon/cls/OcuTalon/Agent/Triage.cls | grep '^-[^-]' | wc -l` -- expected: 0.
+- (loop) `git diff -U0 <BASE> -- src/ocutalon/cls/OcuTalon/Agent/Chat.cls | grep '^-[^-]'` -- expected: one line, the class comment starting `-/// The Chat agent (AD-6, AD-7)`, so nothing in either `XData INSTRUCTIONS` was removed or changed.
+- (loop) `git diff --stat <BASE> -- src/ocutalon/cls/OcuTalon/Agent/Diagnosis.cls src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls src/ocutalon/cls/OcuTalon/Msg/Item.cls src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls src/ocutalon/cls/OcuTalon/Checks/ReplyGuard.cls` -- expected: empty.
+- (loop) `python3 -c "import re,glob;e=open(glob.glob('_bmad-output/planning-artifacts/ux-designs/*/EXPERIENCE.md')[0]).read();[print(n, re.search(r'\*\*'+n+r', persona:\*\* \"(.*)\"\n',e).group(1) in open('src/ocutalon/cls/OcuTalon/Agent/'+n+'.cls').read()) for n in ('Chat','Triage')]"` -- expected: `Chat True` and `Triage True`, against the source itself rather than the test's copy.
+- (loop) `<A> OCUTALON_RUN_TAG=e40s3iw ci/warm.sh up` once per stage, then one per call with `<A> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e40s3iw ci/iris.sh class <Class>` for each of: `OcuTalon.Test.Agent.PersonaBlock`, `.Agent.Persona`, `.Agent.Render`, `.Agent.Instructions`, `.Agent.TriageUserTurn`, `.Agent.Constants`, `.Checks.Guard`, `.Eval.Cases`, `.Contract.Ac`, `.Core.Intake`, `.Core.ConversationTurns`, `.Tools.Reminders` -- expected: `CLASS ... passed` each. `<A> OCUTALON_RUN_TAG=e40s3iw ci/warm.sh down` at the stage's end, also after a failure.
+- (loop) `<A> OCUTALON_RUN_TAG=e40s3i ci/iris.sh class OcuTalon.Test.Agent.PersonaTurns` -- expected: `CLASS ... passed` on a fresh stack. Never warm: the production's jobs keep old code there. Each run is about a minute of stack start, plus the turns (inference: under 2 minutes for about 30 turns).
+- (loop) `bash docker/tests/test-mock.sh` -- expected: passes, with the six scenario files valid and the health count following the folder.
+- (loop) `bash docker/tests/test-ci-config.sh`, `bash docker/tests/test-boundaries.sh`, `bash docker/tests/test-class-rules.sh`, one per call -- expected: pass (the two new classes are in area `Agent`, shard `lane-a`, run once; ASCII source; the class rules).
+- (once) fresh stacks, one per call, each with `<A> OCUTALON_RUN_TAG=e40s3i`: `ci/iris.sh shard lane-a@Agent`, then `ci/iris.sh shard lane-a@Agent --reverse`, then `ci/iris.sh class <Class>` for each of `OcuTalon.Test.Checks.Turns`, `.Checks.Guard`, `.Bridge.Gate`, `.Eval.Cases`, `.Contract.Mock`, `.Contract.Ac`, `.Core.Intake`, `.Core.ConversationTurns`, `.Tools.Reminders`, and last `ci/iris.sh teardown` -- expected: every class passes. If `lane-a@Agent` nears the cap, use `--part k/2`. A warm stack that has run other shards gave false reds on `Checks.Heartbeat` and `Watch.Incidents` on 2026-11-04, so this final proof is fresh.
+- (once) `<A> OCUTALON_RUN_TAG=e40s3i ci/iris.sh live demo-path`, then teardown -- expected: passes, so a default install's demo path is unchanged. If a merge brought `web/` changes, run `ci/iris.sh build` first.
+- (once) `bash ci/checks.sh` -- expected: every script passes. It took about 17 minutes on this machine on 2026-11-04, which is past the 10-minute cap, so a call that passes the cap must not be started twice. Read what the first call printed, then run the remaining scripts of `CHECK_SCRIPTS` one per call.
+- The rest of shards `lane-a` and `lane-b` and the other live units are left to CI.
+
+**Mutations (Rule 19; the implement stage records each as `mutation: ... -> ...`):**
+- AC 1: `Block` not added on the untrusted path of `Render` -> `PersonaBlock` untrusted-item test red.
+- AC 2: `Render` adding the blank line even when the block is "" -> `PersonaBlock` Professional test and `Test.Agent.Render` red.
+- AC 3: one word of Triage's paragraph changed -> `PersonaBlock` paragraph test red.
+- AC 4: `BlockFor` writing the style line for `language` too -> `PersonaTurns` log test red.
+- AC 5: `Block` skipping items with provenance `untrusted` -> `PersonaTurns` item test red.
+- AC 6: `Persona.Block` of the owner put in front of the diagnose request's `Input` where `IncidentManager` builds it -> `PersonaTurns` Diagnosis test red. The test also asserts that a Diagnosis request was logged, so "no block" can't pass on an empty list.
+- AC 7: one word of the `agent.noCommands` sentence changed in `persona-command.json` -> `PersonaTurns` sentence test red.
+- AC 8: `ReplyGuard.BANNED` gaining "ahoy" -> `PersonaTurns` style test red; "everything is fine" removed from `BANNED` -> the same test red.
+- AC 9: `Block` reading `Setting.Get` (the 60-second cache) instead of `SettingsOps.Persona` -> `PersonaTurns` next-message test red.
+
+mutation: AC 1, the untrusted path of `Render` without `PersonaPart` -> `PersonaBlock:TestEachPreset` red (untrusted, beat and style-line asserts).
+mutation: AC 2, the `IsRef` line of `Persona.Block` removed -> `PersonaBlock:TestBlockOwners` red (a stray `person.instance.persona.preset` row would otherwise put a block on instance items).
+mutation: AC 2, `PersonaPart` returning the blank line even when the block is "" -> `PersonaBlock` `TestNoBlock`, `TestFreshRead`, `TestBadStoredValues` and `Test.Agent.Render` red.
+mutation: AC 3, "outcome" changed to "result" in Triage's paragraph -> `PersonaBlock:TestParagraphs` red.
+mutation: AC 4, `BlockFor` writing the style line for `language` -> `PersonaTurns` red in TestCommand, TestWatch, TestWatchUnknown, TestStatus and TestTriageItem (language rows).
+mutation: AC 5, the item block skipped for provenance `untrusted` (done in `Input.PersonaPart`, not in `Persona.Block`, which does not see the provenance) -> `PersonaTurns:TestTriageItem` red.
+mutation: AC 6, `IncidentManager.DiagnoseRequest` putting `Persona.Block(owner)` in front of `Input` -> `PersonaTurns:TestDiagnosisHasNoBlock` red.
+mutation: AC 7, "which" for "that" in the `agent.noCommands` sentence of `persona-command.json` -> `PersonaTurns:TestCommand` red.
+mutation: AC 7, `ReplyGuard.BANNED` gaining "i can't run commands" -> `PersonaTurns:TestCommand` red under all six presets (the guard strips the catalog sentence from the reply).
+mutation: AC 8, `ReplyGuard.BANNED` gaining "ahoy" -> `PersonaTurns:TestPirateStyle` red; "everything is fine" removed from `BANNED` -> `TestPirateStyle` and `TestStatus` red.
+mutation: AC 9, `Block` reading `Setting.Get` instead of `SettingsOps.Persona` -> `PersonaTurns:TestNextMessage` red on both steps (code review, after the added Pirate turn: "kindfriend ... quotes the preset's text" and "professional ... holds no persona block", Triage and Chat requests; fresh stack, reverted, tree byte-identical).
+mutation (code review): AC 2, `Persona.Block`'s guard weakened to a length check plus `instance`/`eval` -> `PersonaBlock:TestBlockOwners` red on the 22-character `!` owner's stray row; reverted, tree byte-identical.
+
+(QA) No test file added: every AC 1-9 and every matrix row is already pinned by `Test.Agent.PersonaBlock` or `Test.Agent.PersonaTurns` with a demonstrated mutation. The QA stage re-ran `PersonaBlock` on slot A (9 of 9) and `test-ci-config.sh` (passes), and confirmed the Triage diff removes 0 lines, Chat's removes only the class-comment line, and the five protected files show no diff. AC 3 "every earlier line unchanged" is pinned by that diff command and not by a test, because a test-held copy of the old lines would turn red on any later epic's edit of the contended `Triage.cls`.
+mutation (QA): AC 3, "outcomes" changed to "results" in Chat's persona paragraph -> `PersonaBlock:TestParagraphs` red (three assertions); reverted, tree byte-identical.
+mutation (QA): AC 1, `Persona.BlockFor` writing no style line (`If entry.bends` made `If 0`) -> `PersonaBlock` `TestEachPreset`, `TestBlockFor` and `TestCustomLines` red; reverted, tree byte-identical.
+
+**Standing criterion:** every test added or changed passes on a fresh environment, in either order.
+
+Shared surfaces: the text of `Agent.Input.Render` for a session on a non-default persona (`Test.Agent.Render`, `Test.Core.Intake`, `Test.Core.ConversationTurns`, `Test.Bridge.Gate`, `Test.Agent.Decide`, `Test.Tools.Reminders`, `Test.Bridge.Api`; each compares against `Render` or a default session, so each stays green unchanged); Chat's and Triage's `XData INSTRUCTIONS` (`Test.Agent.Instructions`, `Test.Agent.TriageUserTurn`, `Test.Agent.Constants`, `Test.Eval.Cases`, `ci/mock/test/constants.test.mjs`, which read them); `Bridge.RequestSize`'s estimate, which counts the longer system prompt (`Test.Agent.RequestSize` computes from it and pins no prompt length); `Agent.Persona.Block` (`Test.Agent.Persona:TestBlock`); the scenario list of `ci/mock/scenarios/A/`, six more (`docker/tests/test-mock.sh`, `ci/mock/test/server.test.mjs`'s health count, which reads the folder); the test classes of area `Agent` in shard `lane-a`, two more (`docker/tests/test-ci-config.sh`). The scanning checks of Rule 19, `Test.Data.Tables:TestSqlNames` and `docker/tests/test-bridge-guide.sh`, are unaffected: this story adds no table, column or enum value. `ci/checks.sh` runs the second.
+
+## Auto Run Result
+
+Status: done
+Blocking condition: none
+
+**Summary.** Story 40.3 is built. `Agent.Persona.Block(sessionRef)` returns AD-7's persona block (a Ref owner only, values read from the rows through `SettingsOps.Persona` on every call), `BlockFor(preset, language, custom)` builds it from values, and `Agent.Input.Render` puts it after the preamble and before the item on both paths, adding nothing for Professional, `instance`, `eval` and an empty owner. Chat and Triage gain their UX paragraph after the last line of `XData INSTRUCTIONS`; no existing instruction line changed. Six `persona-*` mock scenarios and two test classes prove the block end to end.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Agent/Persona.cls`: `BlockFor`, `Block`, the three line parameters.
+- `src/ocutalon/cls/OcuTalon/Agent/Input.cls`: `Render` adds the block through a private `PersonaPart`.
+- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls`, `Agent/Triage.cls`: the persona paragraphs; one Chat class-comment sentence.
+- `ci/mock/scenarios/A/persona-{status,command,watch,watch-unknown,triage,pirate-style}.json`: new scenarios.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/PersonaBlock.cls`: new, 9 tests, no production.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/PersonaTurns.cls`: new, 8 tests, fresh stacks only.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Persona.cls`: comments only.
+- This spec: `mutation:` lines, triage log.
+
+**Review.** Patches applied: 4 entries (medium 1, low 3): the language name written stripped and refused with an inner control character; the `IsRef` owner guard now pinned by a stray-row test; the `TestFreshRead` comment; a product-side mutation line for AC 7. Deferred: none new; the history item already in `deferred:` covers five findings. Rejected: 22 rows, each with its reason in the triage log. Follow-up review recommended: false (no high patched, one medium).
+
+**Verification.** `(loop)` commands: Triage diff removes 0 lines; Chat diff removes only the class-comment line; the five protected files show no diff; `Chat True` / `Triage True`; `test-mock`, `test-boundaries`, `test-ci-config`, `test-class-rules` pass; `PersonaBlock` 9 of 9 on slot A; warm stack: twelve classes pass; fresh stack: `PersonaTurns` passes inside `lane-a@Agent`. `(once)` commands after the last patch: `shard lane-a@Agent` and `--reverse` pass (15 classes each); the nine named classes pass one fresh stack each; `live demo-path` passes with `OCUTALON_LIVE_DEADLINE=700` (8 of 8 steps, floor 15 of 15). With the default 540 s deadline two runs hit the 300 s Playwright global limit on this busy machine (25 of 28 passed, the last three Telegram tests did not run); no `web/` file changed in this story. All 28 scripts of `CHECK_SCRIPTS` pass, run in batches.
+
+**Residual risks.** A real model may carry an earlier persona's voice for some turns after a change, because saved history keeps the old blocks (frontmatter `deferred:`). The persona paragraphs act on a real model only; the mock shows the request, not the behaviour (Story 40.7's sweep). The demo-path suite needs more than 300 s on this machine at current load.

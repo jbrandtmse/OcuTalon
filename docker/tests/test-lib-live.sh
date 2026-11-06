@@ -35,7 +35,10 @@
 #   - live_park_telegram (Story 12.9): wait_started_ready parks the Telegram items once after a ready start, not with
 #     LIVE_TELEGRAM=started and not after a start that is not ready, and a failed park fails the wait; the park prints PARK done <s>s,
 #     PARK skipped on a build without BotApi.Park, and a FAIL line with the reason (returning 1) on a failure or a silent session.
-# Prints one PASS or FAIL line per check; exits 0 only when all pass. Takes about 15 s: the waits sleep 3 s each.
+#   - wait_disabled_quiet (Story 11.22): check_items_run and live_park_telegram (after PARK done only) sample a disabled item only
+#     once the probe lists no Ens.Job entry of it in any state; a Dead entry or a silent session that outlasts DISABLED_QUIET_SECONDS
+#     fails naming the item, the state and the status, and the probe script carries no state filter.
+# Prints one PASS or FAIL line per check; exits 0 only when all pass. Takes about a minute: the waits sleep 3 s each.
 set -u
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -192,11 +195,34 @@ fi
 write_log 2026-10-18T10:00:07Z yes
 
 # live_park_telegram itself, with the session stubbed: the script it sends and what it prints for each answer.
-park_probe_with() { # park_probe_with <answer>: runs live_park_telegram with iris_script answering <answer>
-  local answer=$1
+# The session stub of the disabled-entry probe (Story 11.22): the park script gets $park_answer; the probe (the script that prints
+# CHK|probed|) gets, on its n-th call, the file $tmp/probe.<n> or, when there is none, $tmp/probe.last; the item check's sample (the script
+# that prints CHK|scanned|) gets the four expected lines and records how many probes had run before it in $tmp/sample-after.
+probe_stub() {
+  local script n
+  script=$(cat)
+  case $script in
+    *'CHK|probed|'*)
+      printf '%s\n' "$script" > "$tmp/probe-script"
+      n=$(( $(cat "$tmp/probe-n" 2>/dev/null || echo 0) + 1 ))
+      echo "$n" > "$tmp/probe-n"
+      if [ -f "$tmp/probe.$n" ]; then cat "$tmp/probe.$n"; else cat "$tmp/probe.last"; fi ;;
+    *'CHK|scanned|'*)
+      cat "$tmp/probe-n" > "$tmp/sample-after"
+      printf '%s\n' 'CHK|pooled|missing=' 'CHK|adapterless|failing=' 'CHK|disabled|running=' 'CHK|scanned|1' ;;
+    *) printf '%s\n' "$script" > "$tmp/park-script"; printf '%s\n' "$park_answer" ;;
+  esac
+}
+probe_reset() { # probe_reset: no probe call yet, and a quiet last answer
+  rm -f "$tmp"/probe.[0-9]* "$tmp/probe-n" "$tmp/sample-after"
+  printf '%s\n' 'CHK|probed|done' > "$tmp/probe.last"
+}
+park_probe_with() { # park_probe_with <answer>: runs live_park_telegram with the session answering <answer> to the park
+  local park_answer=$1
+  probe_reset
   (
     # shellcheck disable=SC2317 # called by live_park_telegram
-    iris_script() { cat > "$tmp/park-script"; printf '%s\n' "$answer"; }
+    iris_script() { probe_stub; }
     out=$(live_park_telegram)
     echo "RC=$? OUT=$out"
   )
@@ -238,12 +264,96 @@ else
 fi
 LIVE_TELEGRAM=started
 
+# --- disabled items are sampled only when quiet (Story 11.22) ---
+
+# (c) live_park_telegram waits after PARK done for the Telegram items to have no entry in any state.
+probe_reset
+printf '%s\n' 'CHK|entry|TelegramOut|Alive|running' 'CHK|probed|done' > "$tmp/probe.1"
+printf '%s\n' 'CHK|entry|TelegramOut|Dead|last was: running' 'CHK|probed|done' > "$tmp/probe.2"
+r=$( ( deadline=$((SECONDS + 60)); park_answer='CHK|park|done'; iris_script() { probe_stub; }; out=$(live_park_telegram); echo "RC=$? PROBES=$(cat "$tmp/probe-n") OUT=$out" ) )
+if printf '%s' "$r" | grep -Eq '^RC=0 PROBES=3 OUT=PARK done [0-9]+s$'; then
+  pass "disabled items: after PARK done the park waits until no entry of any state is left, then succeeds"
+else
+  fail "disabled items: the park did not wait for the entries to clear (3 probes expected) ($r)"
+fi
+probe_reset
+r=$( ( deadline=$((SECONDS + 60)); park_answer='CHK|park|skipped'; iris_script() { probe_stub; }; out=$(live_park_telegram); echo "RC=$? PROBES=$(cat "$tmp/probe-n" 2>/dev/null || echo 0) OUT=$out" ) )
+if [ "$r" = "RC=0 PROBES=0 OUT=PARK skipped" ]; then
+  pass "disabled items: after PARK skipped the park does not probe"
+else
+  fail "disabled items: the park probed after PARK skipped ($r)"
+fi
+probe_reset
+printf '%s\n' 'CHK|entry|TelegramOut|Dead|last was: running' 'CHK|probed|done' > "$tmp/probe.last"
+r=$( ( deadline=$((SECONDS + 60)); DISABLED_QUIET_SECONDS=1; park_answer='CHK|park|done'; iris_script() { probe_stub; }; out=$(live_park_telegram); echo "RC=$? OUT=$out" ) )
+if printf '%s\n' "$r" | grep -Eq '^RC=1 OUT=FAIL Telegram park: TelegramOut still has an Ens.Job entry \(Dead, last was: running\) [0-9]+ s after it was disabled$'; then
+  pass "disabled items: a Dead entry that stays fails the park, naming the item, its state and its status"
+else
+  fail "disabled items: the park did not fail on a stuck Dead entry ($r)"
+fi
+
+# (a) check_items_run waits while entries are listed, and samples only after the wait passed.
+probe_reset
+printf '%s\n' 'CHK|entry|TelegramIn|Alive|running' 'CHK|probed|done' > "$tmp/probe.1"
+printf '%s\n' 'CHK|entry|TelegramIn|Dead|last was: running' 'CHK|probed|done' > "$tmp/probe.2"
+r=$( ( deadline=$((SECONDS + 60)); iris_script() { probe_stub; }; check_items_run "items probe" ) 2>&1 )
+if printf '%s' "$r" | grep -q '^PASS items probe: ' && [ "$(cat "$tmp/sample-after" 2>/dev/null)" = 3 ]; then
+  pass "disabled items: check_items_run waits through two probes that list an entry and samples after the third, which lists none"
+else
+  fail "disabled items: check_items_run did not sample after the wait passed (sample after probe $(cat "$tmp/sample-after" 2>/dev/null || echo none)) ($r)"
+fi
+
+# (b) a Dead entry that never clears fails the row naming the item, Dead and its status, and the sample never runs.
+probe_reset
+printf '%s\n' 'CHK|entry|TelegramOut|Dead|last was: running' 'CHK|probed|done' > "$tmp/probe.last"
+r=$( ( deadline=$((SECONDS + 60)); fails=0; DISABLED_QUIET_SECONDS=1; iris_script() { probe_stub; }; check_items_run "items probe"; echo "FAILS=$fails" ) 2>&1 )
+if printf '%s\n' "$r" | grep -Eq '^FAIL items probe: TelegramOut still has an Ens.Job entry \(Dead, last was: running\) [0-9]+ s after it was disabled$' \
+  && printf '%s\n' "$r" | grep -qx 'FAILS=1' && [ ! -f "$tmp/sample-after" ]; then
+  pass "disabled items: a Dead entry that stays fails the item check naming the item, Dead and its status, counts one failure, and nothing is sampled"
+else
+  fail "disabled items: the stuck Dead entry was not reported as it should ($r)"
+fi
+
+# An entry that clears during the last sleep of the wait is not reported: one more probe follows the wait.
+probe_reset
+printf '%s\n' 'CHK|entry|TelegramIn|Dead|last was: running' 'CHK|probed|done' > "$tmp/probe.1"
+r=$( ( deadline=$((SECONDS + 60)); DISABLED_QUIET_SECONDS=1; iris_script() { probe_stub; }; check_items_run "items probe" ) 2>&1 )
+if printf '%s' "$r" | grep -q '^PASS items probe: ' && [ "$(cat "$tmp/sample-after" 2>/dev/null)" = 2 ]; then
+  pass "disabled items: an entry that clears during the wait's last sleep passes on the closing probe"
+else
+  fail "disabled items: the closing probe did not pass a cleared entry ($r)"
+fi
+
+# A session that answers nothing is not a quiet one.
+probe_reset
+: > "$tmp/probe.last"
+r=$( ( deadline=$((SECONDS + 60)); fails=0; DISABLED_QUIET_SECONDS=1; iris_script() { probe_stub; }; check_items_run "items probe"; echo "FAILS=$fails" ) 2>&1 )
+if printf '%s\n' "$r" | grep -Eq '^FAIL items probe: the session did not answer the probe' && printf '%s\n' "$r" | grep -qx 'FAILS=1'; then
+  pass "disabled items: a silent session fails the wait, counting one failure, instead of counting as quiet"
+else
+  fail "disabled items: a silent session was taken for a quiet one ($r)"
+fi
+
+# (d) the probe reads every state: no state filter in the script it sends, and it reads the production's oracle for the disabled items.
+probe_reset
+( iris_script() { probe_stub; }; disabled_entries > /dev/null )
+if [ -f "$tmp/probe-script" ] && grep -q 'Ens.Job:Enumerate' "$tmp/probe-script" && ! grep -q '"Alive"' "$tmp/probe-script" \
+  && ! grep -q '"Starting"' "$tmp/probe-script" && ! grep -q '"Dead"' "$tmp/probe-script" && grep -q 'x.enabled=0' "$tmp/probe-script"; then
+  pass "disabled items: the probe script lists the Ens.Job entries of the disabled items with no state filter"
+else
+  fail "disabled items: the probe script filters on a state or does not read the disabled items"
+fi
+
 # --- the build context ---
 
 expected_files="docker/Dockerfile
 docker/after-start.cos
 docker/after-start.sh
 docker/healthcheck.sh
+docker/licences/allowed.txt
+docker/licences/constraints-arm64.txt
+docker/licences/constraints-x64.txt
+docker/licences/gate.py
 docker/ipm/LICENSE
 docker/ipm/zpm-0.10.10.xml
 docker/merge.cpf
@@ -252,7 +362,7 @@ expected_files=$(printf '%s\n' "$expected_files" | sort)
 copy_build_context "$tmp/ctx"
 copied=$(cd "$tmp/ctx" && find . -type f | sed 's:^\./::' | sort)
 if [ "$copied" = "$expected_files" ]; then
-  pass "build context: the Dockerfile, its scripts, the IPM files and every file below src/, and nothing else"
+  pass "build context: the Dockerfile, its scripts, the IPM files, the licence gate's four files and every file below src/, and nothing else"
 else
   echo "  copied:   $(echo "$copied" | tr '\n' ' ')"
   echo "  expected: $(echo "$expected_files" | tr '\n' ' ')"

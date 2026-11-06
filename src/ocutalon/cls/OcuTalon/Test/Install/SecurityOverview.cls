@@ -28,14 +28,14 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Quit $$$OK
 }
 
-/// The rows are the 12 built-in tools of release 1 (Tools.Names RELEASE1), sorted by name, none of them a fixture or the bridge's example agent, and the
+/// The rows are the 13 built-in tools: the 12 of release 1 (Tools.Names RELEASE1) and propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), sorted by name, none of them a fixture or the bridge's example agent, and the
 /// classification, the read-only flag and the trusted-output flag of each row are those that the gate gives (Gate.ClassificationOf); for a tool that
 /// classifies by its arguments only the two flags are compared, since its classification is decided per call.
 Method TestToolRows()
 {
 	Set rows = $ClassMethod(..#GENERATOR, "ToolRows")
-	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1"))
-	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1")
+	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"))
+	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1 and one for propose_persona")
 	Set names = ""
 	Set bad = ""
 	Set iterator = rows.%GetIterator()
@@ -52,10 +52,10 @@ Method TestToolRows()
 		Do $$$AssertEquals(row.trustedOutput, +facts.trustedOutput, row.name_": the trusted-output flag is the gate's")
 	}
 	Do $$$AssertEquals(bad, "", "every row is a class of OcuTalon.Tools, so no fixture and no bridge example appears")
-	Do $$$AssertEquals($ListToString(names), $ListToString(..Sorted(released)), "the names are those of RELEASE1, sorted")
+	Do $$$AssertEquals($ListToString(names), $ListToString(..Sorted(released)), "the names are those of RELEASE1 and propose_persona, sorted")
 }
 
-/// DW-521: recent_activity is one of the 12 rows, with its source, toolset, agent, label, classification and flags, in the table as well.
+/// DW-521: recent_activity is one of the 13 rows, with its source, toolset, agent, label, classification and flags, in the table as well.
 Method TestRecentActivityRow()
 {
 	Set row = ..RowOf("recent_activity")
@@ -74,6 +74,27 @@ Method TestRecentActivityRow()
 	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
 	Set expected = "| `recent_activity` | `OcuTalon.Tools.RecentActivity` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Reading recent activity | safe | yes | yes | none |"
 	Do $$$AssertTrue(..HasLine(sections("tools"), expected), "the table of the tools section holds this row for recent_activity")
+}
+
+/// Story 40.5 (AC 8): propose_persona is one of the 13 rows, held by the Chat agent through its toolset, with its source, label, classification and flags, in the table as well.
+Method TestProposePersonaRow()
+{
+	Set row = ..RowOf("propose_persona")
+	If '$IsObject(row) {
+		Do $$$AssertTrue(0, "the model has a row for propose_persona")
+		Quit
+	}
+	Do $$$AssertEquals(row.source, "OcuTalon.Tools.PersonaTools", "its source class")
+	Do $$$AssertEquals(row.toolset, "OcuTalon.Tools.Persona", "its toolset")
+	Do $$$AssertEquals(row.agents.%Size(), 1, "one agent holds it")
+	Do $$$AssertEquals(row.agents.%Get(0), "OcuTalon.Agent.Chat", "the Chat agent")
+	Do $$$AssertEquals(row.label, "Suggesting a persona", "its step label")
+	Do $$$AssertEquals(row.classification, "safe", "safe")
+	Do $$$AssertEquals(row.readOnly, 0, "not read-only")
+	Do $$$AssertEquals(row.trustedOutput, 1, "with trusted output")
+	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
+	Set expected = "| `propose_persona` | `OcuTalon.Tools.PersonaTools` | `OcuTalon.Tools.Persona` | `OcuTalon.Agent.Chat` | Suggesting a persona | safe | no | yes | none |"
+	Do $$$AssertTrue(..HasLine(sections("tools"), expected), "the table of the tools section holds this row for propose_persona")
 }
 
 /// The toolsets that the generator reads are the toolsets of the Tools area (Install.Step.Tools.Toolsets), which grants the service role, and the
