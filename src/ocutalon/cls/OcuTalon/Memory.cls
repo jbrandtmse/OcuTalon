@@ -9,7 +9,7 @@
 ///     the punctuation of a question mean nothing. The two lists are merged by
 ///     reciprocal-rank fusion: a memory scores the sum of 1 / (RRFK + its rank) over the lists that hold it, ties go to the newer SavedAt and then
 ///     to the higher row id, and the best limit memories (1 to 5) come back in order as {memoryRef, text, savedAt, origin}. An empty query or a
-///     failed embedding is an error status. A keyword query that iFind refuses leaves the nearest list alone.
+///     failed embedding is an error status. A keyword query that iFind refuses leaves the nearest list alone, and writes one Type 3 warning (redacted).
 ///   - Fuse: the fusion of the two lists, on their own, so that the order, the ties and the cut are tested without a model.
 ///   - List: the owner's newest 20 memories (by SavedAt, then row id), newest first, in the same form, and the owner's count.
 ///   - Tune: gathers the SQL statistics of the memory table when a saved row's id is a multiple of STATSEVERY. The planner reads HNSW's plan from the
@@ -66,6 +66,7 @@ ClassMethod Search(sessionRef As %String, query As %String, limit As %Integer = 
 				Set keyword = ..Hits(..#KEYWORDSQL, words, sessionRef, words)
 			} Catch keywordFailure {
 				Set keyword = []
+				Do ##class(Ens.Util.Log).LogWarning($ClassName(), "Search", "The keyword search of the memories failed, so only the nearest memories were used: "_##class(OcuTalon.Bridge.Redact).Text(keywordFailure.DisplayString()))
 			}
 		}
 		Set rows = ..Fuse(nearest, keyword, limit)

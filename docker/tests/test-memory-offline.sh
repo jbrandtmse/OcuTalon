@@ -11,7 +11,8 @@
 #   - Story 19.3: before the network is cut, OcuTalon.Test.Memory.Turns runs the memory tools through live turns of the Chat agent against the CI mock
 #     (the ChatAgent job is the same across the turns: a tool that embeds from AI Hub's callback does not crash the runner, DW-782); with the network cut,
 #     a memory is saved through MemoryOps (Commands.Submit, origin tool, no bridge context) and found by Memory.Search, the iris container is restarted
-#     (and its network cut again at once) and the memory is found again, which shows the HNSW and keyword entries survive a restart; at the end
+#     (a restart puts it back on its network, so the network is cut again at once, and the manager directory is checked again for a fastembed folder,
+#     so nothing was downloaded in that window) and the memory row is still there and found again by Memory.Search, offline; at the end
 #     OcuTalon.Test.Memory.Volume runs (10,000 memories of one owner and 500 of another, and the plan of the recall query reads EmbeddingIdx).
 # Prints one PASS or FAIL line per check and, last, MEMORY-OFFLINE engine=<uname -m of the iris container> ok=<0|1>; exits 0 only when all pass.
 # The unit reads no web bundle at run time (the image build needs the bundle, as for every live unit). The project is unique, publishes no host port and
@@ -91,12 +92,17 @@ else
   pass "and no WARN Memory line: the baked model folder was enough"
 fi
 
-printf '%s\n' 'Write !,"CHK|mgr-folder|",##class(%File).DirectoryExists($SYSTEM.Util.ManagerDirectory()_"fastembed")' 'Halt' | iris_script OCUTALON > "$tmp/mgr-folder.chk"
-if grep -qx 'CHK|mgr-folder|0' "$tmp/mgr-folder.chk"; then
-  pass "the manager directory holds no fastembed folder: the install downloaded nothing and the worker reads the baked folder"
-else
-  fail "the manager directory holds a fastembed folder, or the check printed nothing: the install downloaded the model, or the worker looks there"
-fi
+# mgr_folder_check <file> <pass text> <fail text>: PASS when the manager directory holds no fastembed folder (nothing was downloaded there).
+mgr_folder_check() {
+  printf '%s\n' 'Write !,"CHK|mgr-folder|",##class(%File).DirectoryExists($SYSTEM.Util.ManagerDirectory()_"fastembed")' 'Halt' | iris_script OCUTALON > "$tmp/$1"
+  if grep -qx 'CHK|mgr-folder|0' "$tmp/$1"; then
+    pass "$2"
+  else
+    fail "$3"
+  fi
+}
+mgr_folder_check mgr-folder.chk "the manager directory holds no fastembed folder: the install downloaded nothing and the worker reads the baked folder" \
+  "the manager directory holds a fastembed folder, or the check printed nothing: the install downloaded the model, or the worker looks there"
 
 # fingerprint <folder>: the file list with sizes, one checksum, and the file count.
 fingerprint() { dc exec -T iris sh -c "cd '$1' && find . -printf '%p %s\n' | sort | md5sum | cut -c1-12; find . -type f | wc -l" 2> /dev/null | tr -d '\r' | tr '\n' ' '; }
@@ -211,6 +217,8 @@ if ! LIVE_TELEGRAM=started wait_started_ready 400; then
   die "the restart did not end ready within 400 s"
 fi
 pass "the restart ended ready"
+mgr_folder_check mgr-folder-restart.chk "after the restart the manager directory still holds no fastembed folder: nothing was downloaded before the network was cut again" \
+  "after the restart the manager directory holds a fastembed folder, or the check printed nothing: the restart downloaded the model"
 printf '%s\n' \
   'Set sc=##class(OcuTalon.Memory).Search("'"$session"'","'"$question"'",5,.rows)' \
   'Write !,"CHK|found|",$SYSTEM.Status.IsOK(sc),"|",rows.%Size(),"|",rows.%Get(0).memoryRef' \

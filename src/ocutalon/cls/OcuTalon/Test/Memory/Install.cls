@@ -157,7 +157,7 @@ Method TestDiagnosticsHoldNoSecret()
 /// The names of the secrets that the text holds, comma-separated: the name of each variable in secrets(name) = value whose value the text contains, and a
 /// name for each secret-shaped text (a bearer token, a key or token of a known prefix, a key, token, password or secret setting). "" when it holds none. A
 /// name is returned, never the value.
-ClassMethod Leaks(text As %String, ByRef secrets) As %String [ Private ]
+ClassMethod Leaks(text As %String, ByRef secrets) As %String
 {
 	Set found = ""
 	Set name = ""
@@ -174,7 +174,7 @@ ClassMethod Leaks(text As %String, ByRef secrets) As %String [ Private ]
 
 /// The environment of this process as secrets(name) = value for each variable whose value is at least 8 characters and does not start with a slash (a path is
 /// fine): read from /proc/self/environ, so it is empty where that file does not exist. The file is read as a device, because its size is 0 for a stream.
-ClassMethod Secrets(Output secrets) [ Private ]
+ClassMethod Secrets(Output secrets)
 {
 	Kill secrets
 	Set file = "/proc/self/environ"

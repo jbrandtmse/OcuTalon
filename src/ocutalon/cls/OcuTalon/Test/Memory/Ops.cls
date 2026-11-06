@@ -19,7 +19,9 @@
 ///   - TestEmbedFailure: a save whose text cannot be embedded (the model folder of the process names a folder that holds no model) answers failed, Ok 0, with no
 ///     row, and the memory is saved again once the embedder works;
 ///   - TestTunedOnSave: a shadow instance (Test.Memory.OpsProbe) calls Tuned with the id of each new row, and with none for a repeat, an empty text or a text that is
-///     too long.
+///     too long;
+///   - TestTuned: the real Tuned of MemoryOps (not the probe's) gathers the table's statistics at an id that is a multiple of STATSEVERY and answers 1, and
+///     answers 0 at any other id, so the step that the probe stands in for is the one the item runs.
 Class OcuTalon.Test.Memory.Ops Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -60,13 +62,21 @@ Method OnAfterAllTests() As %Status
 	Quit ##super()
 }
 
-/// 1 when the test may run (the production runs and this is OcuTalon's image). Otherwise it fails with the reason or records the skip, and the test quits.
+/// 1 when the test may run (the production runs with every item, RunnerFixture.ReadyReason, and this is OcuTalon's image). Otherwise it fails with the reason or
+/// records the skip, and the test quits.
 Method Ready() As %Boolean [ Private ]
 {
 	If '..Guard() Quit 0
-	If ##class(OcuTalon.Test.Memory.Fixture).OnImage() Quit 1
-	Do $$$AssertSkipped("Not OcuTalon's image: " _ ##class(OcuTalon.Test.Memory.Fixture).#VERSIONFILE _ " does not exist on this instance (a slot or a developer instance)")
-	Quit 0
+	If '##class(OcuTalon.Test.Memory.Fixture).OnImage() {
+		Do $$$AssertSkipped("Not OcuTalon's image: " _ ##class(OcuTalon.Test.Memory.Fixture).#VERSIONFILE _ " does not exist on this instance (a slot or a developer instance)")
+		Quit 0
+	}
+	Set reason = $ClassMethod(..#FIXTURE, "ReadyReason")
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
+		Quit 0
+	}
+	Quit 1
 }
 
 /// Deletes the memories of the run's fixture sessions, with their index entries.
@@ -332,10 +342,25 @@ Method TestTunedOnSave()
 	Do $$$AssertEquals(host.Tunes, $Select($IsObject(row): row.%Id(), 1: "none"), "Tuned was called with the id of the new row")
 	Do $$$AssertStatusOK(host.OnSave(..Save(session, "zzmemitem00000000001:1", "the warehouse closes at six on Fridays"), .again), "a repeat")
 	Do $$$AssertStatusOK(host.OnSave(..Save(session, "zzmemitem00000000001:2", "   "), .empty), "an empty text")
+	Do $$$AssertStatusOK(host.OnSave(..Save(session, "zzmemitem00000000001:3", $Translate($Justify("", 2001), " ", "x")), .long), "a text that is too long")
 	Do $$$AssertEquals(host.Tunes, $Select($IsObject(row): row.%Id(), 1: "none"), "calls Tuned no more")
 	Do $$$AssertStatusOK(host.OnSave(..Save(session, "zzmemitem00000000002:1", "invoices are paid within thirty days"), .second), "a second memory")
 	Set row2 = ##class(OcuTalon.Data.Memory).RefIndexOpen(second.Ref)
 	Do $$$AssertEquals(host.Tunes, $Select($IsObject(row): row.%Id(), 1: "none")_","_$Select($IsObject(row2): row2.%Id(), 1: "none"), "and with the second row's id")
+}
+
+/// The real Tuned of MemoryOps gathers at a multiple of STATSEVERY only.
+Method TestTuned()
+{
+	If '..Ready() Quit
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Memory.Ops", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of MemoryOps is made")
+	If '$IsObject(host) Quit
+	Set every = ##class(OcuTalon.Memory).#STATSEVERY
+	Do $$$AssertEquals(host.Tuned(every), 1, "Tuned gathers the table's statistics at id "_every)
+	Do $$$AssertEquals(host.Tuned(every * 2), 1, "and at id "_(every * 2))
+	Do $$$AssertEquals(host.Tuned(every - 1), 0, "and not at id "_(every - 1))
+	Do $$$AssertEquals(host.Tuned(every + 1), 0, "nor at id "_(every + 1))
 }
 
 }

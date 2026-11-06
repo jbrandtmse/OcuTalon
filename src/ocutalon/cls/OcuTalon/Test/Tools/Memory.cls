@@ -1,13 +1,14 @@
 /// Tests of the Chat agent's memory tools (Story 19.3; AD-1, AD-4, AD-6, AD-9, AD-10, AD-21, FR-7): save_memory, search_memories, list_memories and
 /// forget_memory, the toolset OcuTalon.Tools.Memory and its provider OcuTalon.Tools.MemoryTools, and the HostData members they fill. THE TESTS BUT
-/// TestDeclarations, TestNoSession AND TestInstructions RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): they need OcuTalon.Production running, put the double of
+/// TestDeclarations AND TestInstructions RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): they need OcuTalon.Production running, put the double of
 /// CommandsIn (Test.Tools.CommandsDouble) behind the CommandsIn item for the two tools that submit a command, and embed through the product's endpoint for the two
 /// that read, so those need OcuTalon's Docker image and record a named skip elsewhere.
 ///   - TestDeclarations: Chat's TOOLSETS names the memory toolset, whose discovery lists exactly the four tools (the names of Tools.Names), each once, with
 ///     MemoryTools as the provider, the step labels Saving a memory, Searching your memories, Listing your memories and Forgetting a memory, safe, trusted
 ///     output, read-only for the two reads and not for the two that change (and scored so by Eval.Report.ReadOnly); the inputs are text, query, none and memoryRef, each required where it exists, and
 ///     none names a session, an owner or an origin; the toolset holds no Requirement element and depends on the tool class;
-///   - TestNoSession: with no bridge context each tool answers {"ok": false, "message": NOSESSION}, and nothing is read or submitted;
+///   - TestNoSession: with no bridge context each tool answers {"ok": false, "message": NOSESSION}, and nothing is read or submitted (the double sits behind
+///     CommandsIn, so a submit would be seen);
 ///   - TestTooLong: a text of 2,001 characters answers TOOLONG and submits nothing, and one of 2,000 characters is submitted; MAXTEXT is MemoryOps' and the
 ///     column's;
 ///   - TestWriteAnswers (the trusted-output pin of the Conventions "Tool classification" row): save and forget submit the command of their verb once each, with
@@ -18,7 +19,10 @@
 ///   - TestHostDataMerge: HostData.memories keeps the other members of HostData, holds each memoryRef once, in order, at most 5, over the searches of one turn,
 ///     and is absent when a search returns nothing; a search that fails answers NOTSEARCHED;
 ///   - TestTaintRule (FR-7, AD-10): a recall that returns a memory whose origin is not tool puts Tainted at 1 (search and list alike); one whose memories all
-///     have the origin tool, and one that returns none, leave it at 0;
+///     have the origin tool, and one that returns none, leave it at 0; and a recall of memories that all have the origin tool leaves a turn that is already
+///     tainted tainted;
+///   - TestForgetLeavesHostData: a memory that the turn's search put into HostData.memories and that forget_memory then forgets is taken out of it, the other
+///     memories and members stay, the member goes when the last one is forgotten, and a forget that the owner refuses changes nothing;
 ///   - TestListAnswer: list_memories answers the newest 20 and the total, in the same shape, touches no HostData member, and holds only the session's own;
 ///   - TestOwnerIsolation: a session's searches and lists never hold another session's memory;
 ///   - TestInstructions: Chat's INSTRUCTIONS hold the five memory bullets word for word, in order, before the bullet on data from a tool, and "Forgotten." once as
@@ -321,6 +325,42 @@ Method TestTaintRule()
 	Do ##class(OcuTalon.Tools.MemoryTools).SearchMemories("Kim")
 	Do ##class(OcuTalon.Tools.MemoryTools).ListMemories()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().Tainted, 0, "a recall that returns nothing leaves it at 0")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do ..Begin(..#A, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Do ##class(OcuTalon.Bridge.Context).Put("Tainted", 1)
+	Do ##class(OcuTalon.Tools.MemoryTools).SearchMemories("Lee")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().Tainted, 1, "a search whose memories all have the origin tool leaves a tainted turn tainted")
+	Do ##class(OcuTalon.Tools.MemoryTools).ListMemories()
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Current().Tainted, 1, "and so does a list")
+}
+
+/// A memory forgotten in the turn leaves HostData.memories.
+Method TestForgetLeavesHostData()
+{
+	If '..Ready() Quit
+	If '..Prepare() Quit
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmtla1", "the Results partner's contact is Lee", "2026-11-05T10:00:01Z"), "A's memory is stored")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmtla2", "the warehouse closes at six on Fridays", "2026-11-05T10:00:02Z"), "and another")
+	Do ..Begin(..#A, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Do ##class(OcuTalon.Tools.HostData).Put("checks", [{"result": "ok"}])
+	Do ##class(OcuTalon.Tools.MemoryTools).SearchMemories("Lee")
+	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
+	Do $$$AssertEquals(..MemoryRefs(host.memories), "zzmtla1,zzmtla2", "control: the search put both memories into HostData.memories")
+	Set ^OcuTalonTest("CommandsDouble", "refuse", "ForgetMemory") = "Refused by the owner."
+	Do ##class(OcuTalon.Tools.MemoryTools).ForgetMemory("zzmtla1")
+	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
+	Do $$$AssertEquals(..MemoryRefs(host.memories), "zzmtla1,zzmtla2", "a forget that the owner refuses changes nothing")
+	Kill ^OcuTalonTest("CommandsDouble", "refuse")
+	Set answer = ##class(OcuTalon.Tools.MemoryTools).ForgetMemory("zzmtla1")
+	Do $$$AssertEquals(answer.outcome, "forgotten", "the double forgets the memory")
+	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
+	Do $$$AssertEquals(..MemoryRefs(host.memories), "zzmtla2", "the forgotten memory leaves HostData.memories and the other stays")
+	Do $$$AssertEquals(host.memories.%Get(0).%ToJSON(), {"memoryRef": "zzmtla2", "text": "the warehouse closes at six on Fridays", "savedAt": "2026-11-05T10:00:02Z"}.%ToJSON(), "as it was")
+	Do $$$AssertEquals(host.checks.%Size(), 1, "and HostData keeps its other members")
+	Do ##class(OcuTalon.Tools.MemoryTools).ForgetMemory("zzmtla2")
+	Set host = {}.%FromJSON(##class(OcuTalon.Bridge.Context).Current().HostData)
+	Do $$$AssertNotTrue(host.%IsDefined("memories"), "when the last one is forgotten the member goes")
+	Do $$$AssertEquals(host.checks.%Size(), 1, "and the other members stay")
 }
 
 /// list_memories: the newest 20 and the total.

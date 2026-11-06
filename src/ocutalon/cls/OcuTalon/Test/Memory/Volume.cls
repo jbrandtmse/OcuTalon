@@ -5,7 +5,8 @@
 /// Inserting and then deleting the 10,500 rows takes about 100 seconds on an ARM throwaway (Story 19.3, Task 0: 51 s and 50 s), so the class skips unless
 /// ^OcuTalonTest("Memory", "volume") is set, which the live unit memory-offline sets before it runs the class (its stack is a fresh install on the image,
 /// with the table empty), and clears the flag after it. The rows of both owners are deleted before and after the class, and the table's statistics are first
-/// those of a table with no rows, so that only the statistics step of the fill can put the plan on the index.
+/// those of a table with no rows (the test first asserts that the table holds fewer than 100), so that only the statistics step of the fill can put the plan on
+/// the index.
 Class OcuTalon.Test.Memory.Volume Extends %UnitTest.TestCase
 {
 
@@ -40,6 +41,9 @@ Method TestRecallUsesTheIndex()
 	}
 	Try {
 		Set start = $ZHorolog
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM "_##class(OcuTalon.Memory).#TABLE)
+		Do rs.%Next()
+		Do $$$AssertTrue(rs.%GetData(1) < 100, "the table holds fewer than 100 memories before the fill, so the statistics gathered next are those of a small table: "_rs.%GetData(1))
 		Do $$$AssertStatusOK($SYSTEM.SQL.Stats.Table.GatherTableStats(##class(OcuTalon.Memory).#TABLE), "the table's statistics are those of a table with no rows")
 		Do ..Fill(..#BIG, "zzmv1-", ..#BIGROWS)
 		Do ..Fill(..#SMALL, "zzmv2-", ..#SMALLROWS)

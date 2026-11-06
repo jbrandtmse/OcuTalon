@@ -42,4 +42,7 @@ Parameter LISTMEMORIES = "list_memories";
 
 Parameter FORGETMEMORY = "forget_memory";
 
+/// The four memory tools above, comma-separated, in the order of the parameters.
+Parameter MEMORYTOOLS = {..#SAVEMEMORY_","_..#SEARCHMEMORIES_","_..#LISTMEMORIES_","_..#FORGETMEMORY};
+
 }

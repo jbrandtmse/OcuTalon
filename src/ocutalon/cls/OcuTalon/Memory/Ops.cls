@@ -119,14 +119,17 @@ Method OnForget(request As OcuTalon.Msg.Command.ForgetMemory, Output response As
 	Quit sc
 }
 
-/// Called with the id of each row that was just saved: gathers the table's statistics at every STATSEVERY-th id (OcuTalon.Memory.Tune). A seam for the
-/// tests. A failure is ignored: the memory is saved, and a plan on older statistics only costs time.
-Method Tuned(id As %Integer)
+/// Called with the id of each row that was just saved: gathers the table's statistics at every STATSEVERY-th id (OcuTalon.Memory.Tune), and returns 1
+/// when it gathered them, else 0. A seam for the tests. A failure is ignored (0): the memory is saved, and a plan on older statistics only costs time.
+Method Tuned(id As %Integer) As %Boolean
 {
+	Set tuned = 0
 	Try {
-		Do ##class(OcuTalon.Memory).Tune(id)
+		Set tuned = ##class(OcuTalon.Memory).Tune(id)
 	} Catch exception {
+		Set tuned = 0
 	}
+	Quit tuned
 }
 
 /// Builds the failed answer in response, after one Type 3 warning that holds the status text (redacted).

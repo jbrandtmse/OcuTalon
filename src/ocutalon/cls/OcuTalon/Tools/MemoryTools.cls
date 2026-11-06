@@ -7,7 +7,8 @@
 ///     {"ok": true, "memories": [{"ref", "text", "saved"}, ...]} (list_memories also "total"), where saved is CommandCall.TimeLabel of the stored UTC time. A
 ///     read that fails answers NOTSEARCHED or NOTLISTED. search_memories also merges what it returned into the members "memories" of the bridge
 ///     context's HostData ({memoryRef, text, savedAt} each, distinct by memoryRef, in order, at most 5, absent when it returned none), through
-///     OcuTalon.Tools.HostData, so that the reply carries them to the host.
+///     OcuTalon.Tools.HostData, so that the reply carries them to the host; a memory that forget_memory forgets in the turn is taken out of them again, so a
+///     reply never marks a memory that its turn deleted (the member goes when none is left).
 /// The session comes from the bridge context of the call, never from an argument. A call that is not a session's turn answers NOSESSION, and nothing is
 /// read or submitted.
 /// Each tool declares, by one naming rule (the tool's name in upper case with _ and - removed), its step label (STEPLABEL<NAME>, AD-9) and its
@@ -120,6 +121,7 @@ ClassMethod ForgetMemory(memoryRef As %String(DESCRIPTION = "The ref of the memo
 	Set command = ##class(OcuTalon.Msg.Command.ForgetMemory).%New()
 	Set command.MemoryRef = memoryRef
 	Do ..Outcome(command, .answer)
+	If answer.outcome = "forgotten" Do ..Unremember(memoryRef)
 	Quit ..Return(answer)
 }
 
@@ -158,6 +160,24 @@ ClassMethod Remember(rows As %DynamicArray) [ Private ]
 	If $IsObject(held) && held.%IsA("%Library.DynamicArray") Do ..Merge(held, merged, .seen)
 	Do ..Merge(rows, merged, .seen)
 	If merged.%Size() Do ##class(OcuTalon.Tools.HostData).Put("memories", merged)
+}
+
+/// Takes the memory out of the member "memories" of the context's HostData, keeping the other entries in order; the member is removed when no entry is left.
+ClassMethod Unremember(memoryRef As %String) [ Private ]
+{
+	Set held = ##class(OcuTalon.Tools.HostData).Get("memories")
+	If '$IsObject(held) || 'held.%IsA("%Library.DynamicArray") Quit
+	Set kept = []
+	Set iterator = held.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If '$IsObject(entry) || (entry.memoryRef '= memoryRef) Do kept.%Push(entry)
+	}
+	If kept.%Size() = held.%Size() Quit
+	If kept.%Size() {
+		Do ##class(OcuTalon.Tools.HostData).Put("memories", kept)
+	} Else {
+		Do ##class(OcuTalon.Tools.HostData).Remove("memories")
+	}
 }
 
 /// Pushes the entries of the array that name a memoryRef not yet in seen onto merged, as {memoryRef, text, savedAt}, until it holds SEARCHLIMIT.

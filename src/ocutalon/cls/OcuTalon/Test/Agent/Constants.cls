@@ -26,12 +26,12 @@ Method TestAgents()
 }
 
 /// OcuTalon.Tools.Names holds 17 distinct snake_case values, and RELEASE1 lists the 12 release-1 names, comma-separated;
-/// propose_persona and the four memory names are parameters and are not in RELEASE1.
+/// propose_persona and the four memory names are parameters and are not in RELEASE1, and MEMORYTOOLS lists the four memory names.
 Method TestToolNames()
 {
 	Set statement = ##class(%SQL.Statement).%New()
-	Do $$$AssertStatusOK(statement.%Prepare("SELECT Name FROM %Dictionary.CompiledParameter WHERE parent = ? AND Name <> ? ORDER BY Name"), "the parameters are listed")
-	Set result = statement.%Execute("OcuTalon.Tools.Names", "RELEASE1")
+	Do $$$AssertStatusOK(statement.%Prepare("SELECT Name FROM %Dictionary.CompiledParameter WHERE parent = ? AND Name <> ? AND Name <> ? ORDER BY Name"), "the parameters are listed")
+	Set result = statement.%Execute("OcuTalon.Tools.Names", "RELEASE1", "MEMORYTOOLS")
 	Set count = 0
 	Set names = ""
 	While result.%Next() {
@@ -58,6 +58,7 @@ Method TestToolNames()
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "LISTMEMORIES"), "list_memories", "the memory list tool is list_memories")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "FORGETMEMORY"), "forget_memory", "the memory forget tool is forget_memory")
 	Do $$$AssertTrue('$ListFind(release, "save_memory") && '$ListFind(release, "search_memories") && '$ListFind(release, "list_memories") && '$ListFind(release, "forget_memory"), "RELEASE1 does not list the memory names")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS"), "save_memory,search_memories,list_memories,forget_memory", "MEMORYTOOLS lists the four memory names")
 }
 
 /// Compaction.Prompt() is ASCII, its first line starts with OCUTALON-COMPACTION-V1, and it names the seven keys of the

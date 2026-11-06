@@ -4,6 +4,7 @@
 ///   - Put sets one member. A HostData that is a JSON object keeps its other members; any other HostData (empty, not JSON, or JSON that is not an
 ///     object) becomes an object that holds the member alone. It returns the status of the context's Put, so it is an error when there is no context.
 ///   - Get returns the member as a dynamic value, or "" when HostData has no such member or is not a JSON object.
+///   - Remove takes one member out and keeps the others; a HostData without the member is left as it is, and the answer is then OK, also with no context.
 /// A tool method runs inside AI Hub's callback, so this class makes no AI Hub call and no Python call (AD-6).
 Class OcuTalon.Tools.HostData
 {
@@ -20,6 +21,15 @@ ClassMethod Put(member As %String, value As %DynamicAbstractObject) As %Status
 ClassMethod Get(member As %String) As %DynamicAbstractObject
 {
 	Quit ..Object().%Get(member)
+}
+
+/// Removes the member from the context's HostData, keeping the other members. See the class description.
+ClassMethod Remove(member As %String) As %Status
+{
+	Set data = ..Object()
+	If 'data.%IsDefined(member) Quit $$$OK
+	Do data.%Remove(member)
+	Quit ##class(OcuTalon.Bridge.Context).Put("HostData", data.%ToJSON())
 }
 
 /// The context's HostData as a dynamic object: the JSON object it holds, else an empty object.

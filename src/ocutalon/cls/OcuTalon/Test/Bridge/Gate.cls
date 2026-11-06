@@ -1951,7 +1951,7 @@ Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, a
 
 /// Rows 1 to 3 in a turn of the provenance whose taint starts at the value: the safe, read-only built-in list_reminders, list_productions and check_status and the test tool zz_gate_read are
 /// allowed, each reports one turn.step, and the taint ends as the tool says (list_reminders is trusted output, zz_gate_read is not); in a fresh context every
-/// other call (set_reminder, cancel_reminder, start_watch, stop_watch, dismiss_incident, propose_persona, zz_change_endpoint, zz_gate_held, zz_gate_risky_read, zz_approve_requests and the MCP tool zz_mcp_safe) is denied
+/// other call (set_reminder, cancel_reminder, start_watch, stop_watch, dismiss_incident, propose_persona, save_memory, forget_memory, zz_change_endpoint, zz_gate_held, zz_gate_risky_read, zz_approve_requests and the MCP tool zz_mcp_safe) is denied
 /// with UNTRUSTED, runs no method, reports nothing, leaves the taint as it was and raises no approval request (dismiss_incident runs for an owner with a noticed
 /// open incident, and propose_persona for the candidate session, so that a method that ran would submit). The ClassificationClass setting is the test's.
 Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label As %String) [ Private ]
@@ -2016,6 +2016,8 @@ Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label 
 		$ListBuild("OcuTalon.Tools.Watching", "stop_watch", "{""name"":""Orders""}"),
 		$ListBuild("OcuTalon.Tools.Watching", "dismiss_incident", "{}"),
 		$ListBuild("OcuTalon.Tools.Persona", "propose_persona", "{""preset"":""pirate""}"),
+		$ListBuild("OcuTalon.Tools.Memory", "save_memory", "{""text"":""the warehouse closes at noon""}"),
+		$ListBuild("OcuTalon.Tools.Memory", "forget_memory", "{""memoryRef"":""zzMemoryForget00000001""}"),
 		$ListBuild(injection, "zz_change_endpoint", "{""url"":""https://order-partner.example/new-orders""}"),
 		$ListBuild(sample, "zz_gate_held", "{}"),
 		$ListBuild(injection, "zz_gate_risky_read", "{}"),

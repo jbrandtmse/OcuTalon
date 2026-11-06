@@ -7,10 +7,11 @@ Class OcuTalon.Test.Memory.OpsProbe Extends OcuTalon.Memory.Ops
 /// The ids that Tuned was called with, comma-separated, in order.
 Property Tunes As %String [ Transient ];
 
-/// Records the id instead of gathering the statistics.
-Method Tuned(id As %Integer)
+/// Records the id instead of gathering the statistics, and returns 0 (nothing was gathered).
+Method Tuned(id As %Integer) As %Boolean
 {
 	Set ..Tunes = ..Tunes _ $Select(..Tunes '= "": ",", 1: "") _ id
+	Quit 0
 }
 
 Storage Default

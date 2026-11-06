@@ -4400,6 +4400,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: measured in 34.2 Task 0 on DocumentOps (web server gave up at 60 s, CommandsIn waits 120 s)
 - 2026-11-05T12:23:42Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=harvest note=CommandsIn is contended with Epic 40; 19.3 enabling MemoryOps removes the case for memory verbs
 - 2026-11-05T13:03:31Z occurrence=34-2-add-and-remove-documents-on-a-documents-page
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=MemoryOps_Enabled=true_in_Production.cls(Lane_A_region);Test.Memory.Ops:TestAnswerTime_answers_a_save_within_10_s;the_general_CommandsIn_not_built_fix_for_a_disabled_owner_stays_Lane_B's
 
 ### DW-732: /usr/irissys/mgr/python is irisowner-owned (mode 555) in the base image, so the IRIS user could chmod it and replace the installed Python packages; the packages inside are root-owned and read-only
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4441,6 +4442,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Command/ForgetMemory.cls doc says a tool forgets only its own session's memory; CommandsIn Carry checks SessionRef only; MemoryOps is Lane A's 5003 stub (34.2 review, Blind)
 - 2026-11-05T13:03:31Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=MemoryOps answers ForgetMemory not_found unless Data.Memory's owner is the command's SessionRef; test it with another session's MemoryRef
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=MemoryOps.OnForget_checks_row.SessionRef=request.SessionRef(else_not_found);Test.Memory.Ops:TestForgetOther,Test.Memory.Turns:TestForgetOtherSession
 
 ### DW-747: Data.Upload has no lifecycle beyond Take, the route's own delete and sign-out: nothing sweeps an abandoned row (a local install has no sign-out), a CommandsIn timeout drops the row while the AddDocument may still reach DocumentOps (whose Take then returns nothing), and Take is at-most-once with no session check
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -4548,6 +4550,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: TestCallbackRule proves only that the class holds no Python text; the unit tests call Embed from ordinary sessions; settle with a live tool call in a throwaway that saves and searches a memory
 - 2026-11-06T09:07:41Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=harvest note=Story 19.3's memory tools are the first callback callers
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=Test.Memory.Turns_runs_save_and_search_from_inside_the_tool_callback_with_the_ChatAgent_job_unchanged,run_by_live:memory-offline_on_a_fresh_throwaway(aarch64_ok=1;x64_in_CI)
 
 ### DW-783: release/rehearse.sh memory-offline is proved on stub hosts only: a dry run on a real stack must show the clean host publishes its web port again after docker network connect --alias iris
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
@@ -4576,6 +4579,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Install/Step/Memory.cls EnsureModel Warn calls; spec Never: no new user-facing text (a step warning carries the underlying error's own text); other steps (Audit, Users, Schedule) warn in their own words
 - 2026-11-06T09:48:59Z status=decision-pending owner=burndown by=cr note=PUBLIC TEXT: recommend keeping them as operator diagnostics, as the other install steps do; else the spec's Never line is amended
 - 2026-11-06T10:48:51Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=owner_ruling note=approved_as_proposed_by_the_Contest_Planner(owner_delegation);condition:none_prints_a_key,token_or_environment-variable_value(folder_paths_fine);pin_it_with_a_test_if_not_already_pinned
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=Test.Memory.Install:TestDiagnosticsHoldNoSecret_and_Test.Memory.Diagnostics(TestSubmitTimeout,TestUnknownWorkItem,TestModelThatCannotLoad)_scan_the_messages_for_keys,tokens_and_env_values
 
 ### DW-794: The callback check cannot cover OcuTalon.Memory.Embedder's caller-side methods (Submit, ModelFolder, HasModel run in the calling process) because the same class holds the worker's %SYS.Python code, so Python added to Submit would pass TestCallbackRule
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: med | footprint: in-story
@@ -4596,3 +4600,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: spine AD-22 Rule line lists Agent, Bridge, Checks, Fix, Install, Tools, Digest, Watch, Eval and Channel; Story 19.2 appended Memory to ci/units.sh; editing an existing Rule line of a contended spine is not a plain union
 - 2026-11-06T09:48:59Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=reopen_if=the lead's next spine refresh of AD-22, or a reader places a Test/Memory class by that list; test-ci-config.sh enforces membership
+
+### DW-806: MemoryOps.OnSave can save after CommandsIn gave up: the session lock (5 s) plus Embed's own 120 s wait can outlast CommandsIn's 120 s TIMEOUT, so the model is told the save failed while the row is written
+- source: spec-19-3-remember-recall-list-and-forget-in-the-chat.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Memory/Ops.cls OnSave: Lock 5 s then Embedding.Embed with Embedder TIMEOUT 120; Core/CommandsIn.cls TIMEOUT 120 on SendRequestSync
+- 2026-11-06T15:51:37Z status=wontfix-accepted owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=needs an embed of 115-120 s; fix changes 19.2's Embed API; reopen_if=a MemoryOps row whose turn's save_memory answer was NOTSENT or failed
+
+### DW-807: Test/Install/SecurityOverview.cls doc comments of TestRecentActivityRow and TestProposePersonaRow still say 'one of the 13 rows' while the table has 17
+- source: spec-19-3-remember-recall-list-and-forget-in-the-chat.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: lines 58 and 79 unchanged by 19.3; TestToolRows expects RELEASE1 + propose_persona + MEMORYTOOLS = 17; Epic 17 adds a row too
+- 2026-11-06T15:51:37Z status=wontfix-accepted owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=contended file outside the Rulings scope (names only); reopen_if=after the Epic 17 and 19 merges the file still says 13 rows
+
+### DW-808: Test/Bridge/CodeRules.cls CALLBACKHELPERS doc comment gives no reason for OcuTalon.Memory and OcuTalon.Tools.HostData, which 19.3 appended
+- source: spec-19-3-remember-recall-list-and-forget-in-the-chat.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: line 81 doc ends at Memory.Embedding; line 82 list now ends ,OcuTalon.Memory,OcuTalon.Tools.HostData (Memory.Search runs SQL and queues an embedding in the callback; HostData merges the reply members)
+- 2026-11-06T15:51:37Z status=wontfix-accepted owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=Epic 17-contended doc line; a one-clause union at merge closes it; reopen_if=after the Epic 17 merge the doc still omits the two helpers

@@ -16,6 +16,8 @@
 ///   - TestLimit: 8 memories, a search with limit 5, 2, 0 and 99 gives 5, 2, 1 and 5;
 ///   - TestEmptyQuery: an empty query, a blank one and an empty session are errors with no rows;
 ///   - TestList: an owner with 25 memories gets the newest 20, newest first, and total 25; another owner's list and an unknown owner's are their own;
+///   - TestListTies (QA): 22 memories saved in the same second are listed newest first by row id, the total is 22, and the cut at 20 drops the two saved first;
+///   - TestSearchAccentedKeyword (QA): a word with a letter outside ASCII (an u with a diaeresis) finds its memory first although another is nearer by meaning;
 ///   - TestIndexGlobals: every global that EmbeddingIdx and TextIdx write is in the private database (GetGlobalDest), ^IRIS.KNNIndex stays empty, OCUTALON_DATA
 ///     holds no ^IRIS.IF.* global, and the private-data check of the installer passes after a row is stored;
 ///   - TestTune: Tune gathers the table's statistics at an id that is a multiple of STATSEVERY and at no other, and an id of 0 or "" is not one.
@@ -269,6 +271,38 @@ Method TestList()
 	Do $$$AssertEquals(rows.%Get(0).text_"|"_rows.%Get(0).savedAt_"|"_rows.%Get(0).origin, "list memory 25|2026-11-05T10:00:25Z|tool", "a row holds text, savedAt and origin")
 	Do $$$AssertStatusOK(##class(OcuTalon.Memory).List(..#B, .rows, .total), "B lists")
 	Do $$$AssertEquals(rows.%Size()_"|"_total_"|"_rows.%Get(0).memoryRef_"|"_rows.%Get(0).origin, "1|1|zzmsb1|system", "B has its one, with the origin it was stored with")
+}
+
+/// Memories saved in the same second are listed newest first by row id, and the cut at 20 keeps the last saved (QA; matrix "List").
+Method TestListTies()
+{
+	If '..OnImage() Quit
+	For i = 1:1:22 {
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa"_$Extract(100 + i, 2, 3), "tied memory "_i, "2026-11-05T10:00:00Z"), "memory "_i_" is stored in the same second as the others")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory).List(..#A, .rows, .total), "A lists")
+	Do $$$AssertEquals(total_"|"_rows.%Size(), "22|20", "the total is 22 and 20 rows come back")
+	Do $$$AssertEquals(rows.%Get(0).memoryRef_"|"_rows.%Get(1).memoryRef_"|"_rows.%Get(19).memoryRef, "zzmsa22|zzmsa21|zzmsa03", "with the same SavedAt the higher row id is first, and the two saved first are the ones cut")
+}
+
+/// A keyword with a letter outside ASCII finds its memory first, although another is nearer by meaning (QA): the words of the keyword query are runs of letters, not of ASCII letters.
+Method TestSearchAccentedKeyword()
+{
+	If '..OnImage() Quit
+	Set word = "M" _ $Char(252) _ "ller"
+	Set when = "2026-11-05T10:00:0"
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa1", "Mueller is the name of my neighbour's dog", when_"1Z"), "a memory about a similar name is stored")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa2", "Muller is a surname that is common in Germany", when_"2Z"), "another")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa3", "Moller and Miller are surnames too", when_"3Z"), "another")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa4", "The quarterly board meeting agenda covers budgets, hiring plans, office moves and security audits, and ends with a thank you to " _ word, when_"4Z"), "and the one that holds the word with the accented letter in a long text about something else")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory.Embedding).Embed(word, .vector), "the query is embedded for the control")
+	Set statement = ##class(%SQL.Statement).%New()
+	Do $$$AssertStatusOK(statement.%Prepare("SELECT TOP 1 Ref FROM OcuTalon_Data.Memory WHERE SessionRef = ? ORDER BY VECTOR_COSINE(Embedding, TO_VECTOR(?, DOUBLE, 384)) DESC"), "the control query prepares")
+	Set result = statement.%Execute(..#A, ##class(OcuTalon.Test.Memory.Fixture).ToString(vector))
+	Do $$$AssertTrue(result.%Next(), "and runs")
+	Do $$$AssertNotEquals(result.%Get("Ref"), "zzmsa4", "control: the memory with the word is not the nearest by meaning")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory).Search(..#A, word, 5, .rows), "the search answers")
+	Do $$$AssertEquals(rows.%Get(0).memoryRef, "zzmsa4", "and the memory with the word is first: the keyword leg took the word whole")
 }
 
 /// Every global of the indexes is in the private database, and the installer's check passes after a row is stored.
