@@ -546,7 +546,7 @@ Method TestOutcomeNotOurs()
 	Do $$$AssertEquals(..State(ref), "done", "and the row stays done")
 }
 
-/// The guarded write accepts the three persona keys of a Ref and nothing else of the person.<ref> family.
+/// The guarded write accepts the three persona keys of a Ref and nothing else of the person.<ref> family (the heartbeat keys are SettingsHeartbeat's).
 Method TestApplyGuard()
 {
 	Do ..Reset()
@@ -557,7 +557,7 @@ Method TestApplyGuard()
 	}
 	Do $$$AssertEquals(..KeyCount(ref), 3, "and written")
 	Do $$$AssertStatusOK(##class(OcuTalon.Core.SettingsOps).ForgetPerson(ref), "the keys are removed")
-	Set refused = $ListBuild("person."_ref_".persona.zz", "person.short.persona.preset", "person."_ref_".heartbeat.on", "person."_ref_".persona.preset.x", "person."_ref_"persona.preset", "person.."_ref_".persona.preset", "person."_ref_"x.persona.preset", "persona.preset", "zz.key", "")
+	Set refused = $ListBuild("person."_ref_".persona.zz", "person.short.persona.preset", "person."_ref_".heartbeat.zz", "person."_ref_".persona.preset.x", "person."_ref_"persona.preset", "person.."_ref_".persona.preset", "person."_ref_"x.persona.preset", "persona.preset", "zz.key", "")
 	For i = 1:1:$ListLength(refused) {
 		Do $$$AssertStatusNotOK(probe.Guarded($List(refused, i), "zz"), "'"_$List(refused, i)_"' is refused")
 	}

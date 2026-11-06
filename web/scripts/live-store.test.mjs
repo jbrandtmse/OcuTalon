@@ -303,12 +303,26 @@ describe('COLLECTIONS', () => {
     const text = readFileSync(join(live, 'payloads.ts'), 'utf8');
     const union = /export type LiveEventType =([\s\S]*?);/.exec(text)?.[1] ?? '';
     const types = [...union.matchAll(/'([^']+)'/g)].map((match) => match[1]);
-    assert.equal(types.length, 17, `the 17 event types are read: ${types.join(' ')}`);
+    assert.equal(types.length, 18, `the 18 event types are read: ${types.join(' ')}`);
     for (const type of types) {
       assert.ok(COLLECTIONS[type], `${type} has an entry`);
       assert.ok(COLLECTIONS[type].collection, `${type} names a collection`);
     }
     assert.deepEqual(Object.keys(COLLECTIONS).sort(), [...types].sort(), 'and nothing else is in the table');
+  });
+
+  it('keeps the latest heartbeat event (Story 39.5): the cursor advances, the payload is replaced and nothing else changes', () => {
+    assert.deepEqual(COLLECTIONS['heartbeat'], { collection: 'heartbeat', key: null });
+    const store = fromSnapshot(snapshot());
+    assert.equal(store.heartbeat, undefined, 'the snapshot carries none');
+    const first = apply(store, [event('session', 6, 'heartbeat', { on: true, interval: 30, lastBeatAt: '2030-01-01T10:00:00Z' })]);
+    assert.deepEqual(first.store.heartbeat, { on: true, interval: 30, lastBeatAt: '2030-01-01T10:00:00Z' }, 'the payload is kept');
+    const result = apply(first.store, [event('session', 7, 'heartbeat', { on: false, interval: 60, lastOutcome: 'ignore' })]);
+    assert.equal(result.reload, false, 'no reload');
+    assert.equal(result.epochChanged, false);
+    assert.equal(result.store.cursors.session, 7, 'the session cursor is at the last heartbeat event');
+    assert.deepEqual(result.store.heartbeat, { on: false, interval: 60, lastOutcome: 'ignore' }, 'the later payload replaces the earlier one');
+    assert.deepEqual({ ...result.store, cursors: store.cursors, heartbeat: undefined }, store, 'and nothing else in the store changed');
   });
 
   it('keys the entities the way the design says', () => {

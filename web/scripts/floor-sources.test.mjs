@@ -106,6 +106,7 @@ describe('keys: only Enter and Escape, and the arrows of the device tabs', () =>
     'app/devices/device-panel.ts': 'ArrowLeft and ArrowRight move between the two device tabs, as the ARIA tabs pattern asks (EXPERIENCE L296)',
     'app/main-page/main-page.ts': 'Escape closes the status drawer when focus is inside the rail, after any layer inside it that used the Escape',
     'app/rail/decision-row.ts': 'Escape collapses the row when focus is inside it',
+    'app/rail/heartbeat-card/heartbeat-card.ts': 'Escape collapses the Edit disclosure when focus is inside it, and focus returns to Edit',
     'app/rail/persona-card/persona-card.ts': 'Escape collapses the Change disclosure when focus is inside it, and focus returns to Change',
     'app/session/session-gate.ts': 'a capture-phase keydown listener on the document that only touches the idle cap (Story 16.4): it compares no key and acts on none',
     'app/shared/popover.ts': 'Escape closes the popover (the CDK overlay\'s keydown stream)',
@@ -153,7 +154,7 @@ describe('keys: only Enter and Escape, and the arrows of the device tabs', () =>
     for (const one of files) {
       for (const match of one.code.matchAll(KEY_BINDING)) bindings.push(`${one.name} ${match[1]} ${match[2] ?? ''}`.trim());
     }
-    assert.deepEqual(bindings.sort(), ['app/chat/composer.ts down', 'app/chat/decision-strip.ts down escape', 'app/devices/device-panel.ts down', 'app/main-page/main-page.ts down escape', 'app/rail/decision-row.ts down escape', 'app/rail/persona-card/persona-card.ts down escape']);
+    assert.deepEqual(bindings.sort(), ['app/chat/composer.ts down', 'app/chat/decision-strip.ts down escape', 'app/devices/device-panel.ts down', 'app/main-page/main-page.ts down escape', 'app/rail/decision-row.ts down escape', 'app/rail/heartbeat-card/heartbeat-card.ts down escape', 'app/rail/persona-card/persona-card.ts down escape']);
   });
 
   it('has no keyup or keypress handler and no accesskey', () => {
@@ -168,7 +169,7 @@ describe('keys: only Enter and Escape, and the arrows of the device tabs', () =>
 });
 
 describe('Esc acts on one layer, the topmost', () => {
-  const ESC_HOSTS = ['app/chat/decision-strip.ts', 'app/main-page/main-page.ts', 'app/rail/decision-row.ts', 'app/rail/persona-card/persona-card.ts'];
+  const ESC_HOSTS = ['app/chat/decision-strip.ts', 'app/main-page/main-page.ts', 'app/rail/decision-row.ts', 'app/rail/heartbeat-card/heartbeat-card.ts', 'app/rail/persona-card/persona-card.ts'];
 
   it('has the popovers say whether any is open', () => {
     assert.match(file('app/shared/popover.ts').code, /hasOpen\(\): boolean \{\s*return this\.open\.size > 0;\s*\}/);

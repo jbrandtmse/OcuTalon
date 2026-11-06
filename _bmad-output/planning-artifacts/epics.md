@@ -8639,6 +8639,8 @@ So that OcuTalon checks what I care about, when I want, and nobody else's settin
 **When** `SessionOps.End` runs
 **Then** it deletes the session's `person.<SessionRef>.heartbeat.*` keys (AD-4, AD-19)
 
+- DW-684: security overview: the beat sentence says at most once per interval; once POST /api/v1/heartbeat/run ships, it must also name a beat the person runs now (2-minute rule, daily cap) (ledger; routed by spec_gate 2026-11-04)
+
 ### Story 39.3: Beats fall due on the tick, and skip without a model call when they should
 
 *Home lane: A.*
@@ -8679,10 +8681,9 @@ So that it costs a few cents a day, never calls the model every minute, and surv
 **Then** it runs one beat at once, as the person's explicit request: active hours and an unchanged snapshot don't hold it back, and the empty-checklist, back-off, cap and key rules still skip it (FR-66, AD-18)
 **And** a run-now within 2 minutes of the session's `LastRunNowAt` is refused with outcome `cooldown` and its `availableAt`, and nothing is sent (FR-66)
 
-**Given** any beat, skip or recorded result
-**When** its row is committed
-**Then** `Checks` publishes the `heartbeat` event to the session's stream with the row's public view: on, the interval, the hours, next due, the last result and the last skip, but never the `SessionRef`, the checklist's text or a snapshot key (AD-12, AD-33)
-**And** automated tests in `OcuTalon.Test.Checks` cover each skip reason, an outside-hours window that spans midnight, the restart catch-up, the cooldown and the back-off, with fixed clocks
+**Given** the skip, beat and run-now rules above
+**When** `OcuTalon.Test.Checks` runs
+**Then** automated tests cover each skip reason, an outside-hours window that spans midnight, the restart catch-up, the cooldown and the back-off, with fixed clocks [AMENDED 2026-11-03, Story 39.3 spec gate, unattended ruling (split, decide): the `heartbeat` event AC moved to Story 39.7; this tests line was its **And**]
 
 **Given** the CI mock's request log
 **When** `OcuTalon.Test.Checks` drives an hour of ticks with fixed clocks for a person on a 30-minute interval
@@ -8702,7 +8703,7 @@ So that it tells me only what my list asks about, and never claims that all is w
 **When** `Beat.Snapshot(sessionRef, now)` builds the beat's text
 **Then** it writes the checklist first, then "Status at {local time} (built by OcuTalon):" and one line per entry (FR-64, AD-18):
 - each unclosed incident in scope: its production, state, failure count and first time;
-- each watch: its production and its last check result with its time, from the row;
+- each watch: its production and its last check result, from the row [AMENDED 2026-11-04, Story 39.4 spec gate, unattended ruling (veto U-274): it read "its last check result with its time, from the row". The run time moves every minute, so on an entry line it would change `Beat.Key` at every beat and the unchanged skip could never fire. FR-64 and AD-18 ask only for the latest check result. See the story change log]
 - each pending approval request: its kind, the fix kind or tool, the production, and its raised and expiry times;
 - each reminder due before the next beat: its text and due time;
 - the decisions since the last beat that made a decision, at most 10, beats excluded: each one's time, channel, outcome and code-written `Summary`.
@@ -8761,7 +8762,11 @@ So that the heartbeat is easy to trust and to try.
 
 **Given** Playwright specs `web/e2e/heartbeat-card.spec.ts`, on fixtures and the CI mock
 **When** they run
-**Then** they cover the states above, the refusal, the cooldown and the demo variant, and they don't change the demo-path specs (REL-2)
+**Then** they cover the states above, the refusal, the cooldown and the demo variant, and they don't change the demo-path specs (REL-2), except the rail's section count in `web/e2e/demo-path/01-page.spec.ts` (six to seven headings, Heartbeat checklist before Persona, so Persona stays last) [AMENDED 2026-11-06, Story 39.5 plan, unattended ruling (veto): every rail card has its h3 (EXPERIENCE), so the count follows, as Story 40.4 did for Persona]
+
+- DW-634: the UX lists no text for the run button while it is unavailable (cap reached or no key); reuse an accepted text or escalate (ledger; routed by harvest 2026-11-03)
+- DW-781: on the online demo GET shows the unsaved sample checklist, but POST /v1/heartbeat/run answers 409 empty for it; the card saves the sample before offering Run now, or keeps Run unavailable until a save (ledger; routed by harvest 2026-11-06)
+- DW-812: Lane B SettingsOps.HeartbeatValues repeats the five-key cache drop that Checks.Beat.Values(ref, 1) now does; call it instead (ledger; routed by harvest 2026-11-06)
 
 ### Story 39.6: Evaluation cases for the heartbeat
 
@@ -8790,6 +8795,55 @@ So that "stay quiet unless something needs you" is measured, not hoped.
 - DW-653: Eval.Record accepts an empty fixKind only for a data_format_change case expecting no repair (refusals pinned), plus one ambiguous-date eval case whose arrival days match neither reading, expecting no repair proposed (ledger; routed by merge_gate 2026-11-04, Planner ruling)
 
 **Release check:** at the first daily release that ships this epic, the Contest Planner's hands-on pass with real keys runs one beat of each outcome on the web app, sees a quiet beat followed by a skipped one while nothing changes, and does a run-now on the demo host (REL-7, as amended 2026-10-31).
+
+### Story 39.7: Publish the heartbeat event
+
+*Home lane: B.* [AMENDED 2026-11-04, orchestrator ruling (decide; re-homed so the story may edit `Live/Publish.cls` TYPES, `Test.Live.Payloads` and `web/src/app/live/payloads.ts`, and create `Live/Payload/Heartbeat.cls`; it read "Home lane: A."; see Story 39.3's change log)]
+
+[ADDED 2026-11-03, split from Story 39.3 at its spec gate, unattended ruling (decide; Rule 5 split into a sibling in the same epic): the event needs `OcuTalon.Live.Payload.Heartbeat` together with Lane B edits that Story 39.3 cannot make]
+
+As a user,
+I want the heartbeat card to learn of each beat, skip and result as it happens,
+So that what it shows is current without a reload.
+
+**Acceptance Criteria:**
+
+**Given** any beat, skip or recorded result
+**When** its row is committed
+**Then** `Checks` publishes the `heartbeat` event to the session's stream with the row's public view: on, the interval, the hours, next due, the last result and the last skip, but never the `SessionRef`, the checklist's text or a snapshot key (AD-12, AD-33)
+**And** a tick's skip because the checklist is empty publishes nothing, so a person who never wrote a checklist gets no heartbeat events (the row is still saved; a run-now still publishes) [AMENDED 2026-11-05, Story 39.7 rework after CI, unattended ruling (veto), kept by the Contest Planner under the owner's delegation (U-283 at=2026-11-05T07:37:07Z#857), on the owner's heartbeat rule that the model is called only at the interval and when a decision is needed. Why: on a local install every session has the heartbeat on by default, so each one's first tick and every interval after published an event that no card shows. Tests pin that the empty-checklist tick saves its row, publishes nothing and makes no model request, and that a run-now on an empty checklist still publishes. It read only the Given/When/Then above]
+
+- DW-633: OcuTalon.Live.Payload.Heartbeat not yet created; the class, the Live.Publish TYPES pair, the Test.Live.Payloads counts and web/src/app/live/payloads.ts land together before this story publishes the heartbeat event (ledger; routed by harvest 2026-11-03; moved with the split)
+
+### Story 39.8: Run now and a saved heartbeat read what is stored
+
+*Home lane: A.*
+
+[ADDED 2026-11-06, split from Story 39.5 at its code review, unattended ruling (decide; Rule 5 split into a sibling planned next in the same epic): Story 39.5's online-demo save-then-run (DW-781) needs Checks to read the values just saved, which only a Lane A story may change; DW-780 has the same root.]
+
+As a user,
+I want Run the heartbeat now and a saved interval to use what I just saved,
+So that a save followed by a run works, and "Applies within a minute" is true for the interval.
+
+**Acceptance Criteria:**
+
+**Given** a session whose heartbeat settings the Checks job has read within the last 60 seconds (its per-process settings cache)
+**When** the person saves a checklist and then asks for a beat now (`RunHeartbeat`, a `BeatNow`)
+**Then** `Checks.Beat.RunNow` reads the stored values: it drops the Checks process's cached heartbeat keys of that session before it reads them, so the run is not refused as empty (AD-18, AD-19)
+**And** a tick still reads through the cache, so nothing else changes how often settings are read
+
+**Given** a beat that set `NextDueAt` with the old interval
+**When** the person saves a shorter interval
+**Then** from the first tick that reads the new interval (within 60 seconds of the save), the next beat is due at its `LastBeatAt` plus the new interval, or at once if that time has passed, so the change applies within a minute (FR-63, AD-19)
+**And** a longer interval keeps the stored `NextDueAt` until the next beat, which then uses the new interval
+
+**Given** `Test.Checks` cases on the real tick and the CI mock
+**When** they run
+**Then** they pin the save-then-run on a session the tick has already read, and the shorter-interval reschedule, each with a demonstrated mutation (Rule 19)
+
+- DW-780: a saved interval, hours or on/off change does not move the stored NextDueAt (ledger; routed by split 2026-11-06)
+- DW-803: Checks.Beat.RunNow reads the settings through the per-process 60-second cache, so a save followed at once by Run now is refused as empty (ledger; routed by cr 2026-11-06)
+
 
 ## Epic 40: Choose how OcuTalon talks to you
 

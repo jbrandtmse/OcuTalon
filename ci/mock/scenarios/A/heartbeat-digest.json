@@ -1,0 +1,12 @@
+{
+  "name": "heartbeat-digest",
+  "match": {
+    "marker": "heartbeat-digest"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"digest\",\"reasons\":[\"The CI mock finds something in the snapshot that can wait for the digest.\"],\"confidence\":0.7}"
+    }
+  ]
+}

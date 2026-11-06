@@ -1,17 +1,17 @@
-/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 31 payload
-/// and part classes (Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun), every JSON key, the incident payload with its
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 32 payload
+/// and part classes (Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
 /// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
 /// shows (from unsaved rows), and the trace targets of a chat turn's decision and of an approval request (Story 2.13), which
 /// build from fixture sessions, turns, incidents and approval requests, and the result that the incident payload lists for a request whose run has ended (Story 7.4),
-/// read from the request's FixRun, and the either-way fields of the approval payload's dry run (Story 7.8), built from unsaved rows. The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// read from the request's FixRun, and the either-way fields of the approval payload's dry run (Story 7.8), built from unsaved rows, and the heartbeat payload's FromRow of an unsaved HeartbeatBeat row and of no row (Story 39.7). The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
 /// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
 Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {
 
 /// The event table of the spine: each type and the short name of its payload class.
-Parameter EXPECTED = "chat.message:ChatMessage,notification:Notification,phone:Phone,mailbox:Mailbox,decision:Decision,approval:Approval,turn.step:TurnStep,reminder:Reminder,document:Document,pairing:Pairing,status:Status,reset:Reset,breakfeed.progress:BreakFeedProgress,guide.state:GuideState,incident:Incident,watch.progress:WatchProgress,check:Check";
+Parameter EXPECTED = "chat.message:ChatMessage,notification:Notification,phone:Phone,mailbox:Mailbox,decision:Decision,approval:Approval,turn.step:TurnStep,reminder:Reminder,document:Document,pairing:Pairing,status:Status,reset:Reset,breakfeed.progress:BreakFeedProgress,guide.state:GuideState,incident:Incident,watch.progress:WatchProgress,check:Check,heartbeat:Heartbeat";
 
 /// The run's number.
 Property Number As %Integer;
@@ -29,13 +29,13 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// Publish's TYPES is exactly the spine's 17 types, each mapped to its class, and the direct classes of
-/// OcuTalon.Live.Payload are exactly those 17, each a %RegisteredObject and %JSON.Adaptor.
+/// Publish's TYPES is exactly the spine's 18 types, each mapped to its class, and the direct classes of
+/// OcuTalon.Live.Payload are exactly those 18, each a %RegisteredObject and %JSON.Adaptor.
 Method TestEventTable()
 {
 	Set expected = $ListFromString(..#EXPECTED)
-	Do $$$AssertEquals($ListLength(expected), 17, "the spine has 17 types")
-	Do $$$AssertEquals($Length($Parameter("OcuTalon.Live.Publish", "TYPES"), ","), 17, "TYPES holds 17 pairs")
+	Do $$$AssertEquals($ListLength(expected), 18, "the spine has 18 types")
+	Do $$$AssertEquals($Length($Parameter("OcuTalon.Live.Publish", "TYPES"), ","), 18, "TYPES holds 18 pairs")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Publish", "TYPES"), ..#EXPECTED, "TYPES is the spine's event table")
 	Set position = 0
 	While $ListNext(expected, position, pair) {
@@ -68,7 +68,7 @@ Method TestEventTable()
 	For {
 		Set class = $Order(found(class))
 		Quit:class=""
-		Do $$$AssertTrue($Data(wanted(class)), class_" is one of the 17")
+		Do $$$AssertTrue($Data(wanted(class)), class_" is one of the 18")
 	}
 }
 
@@ -90,7 +90,7 @@ Method TestContracts()
 			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
 		}
 	}
-	Do $$$AssertEquals(classes, 31, "the contracts hold the 31 payload and part classes")
+	Do $$$AssertEquals(classes, 32, "the contracts hold the 32 payload and part classes")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
 }
@@ -494,6 +494,78 @@ Method TestCheckFromRow()
 	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
 	Set exported = ##class(%DynamicObject).%FromJSON(json)
 	Do $$$AssertEquals(exported.traceHeaderId_"|"_exported.traceNamespace_"|"_exported.stopped, "31337|"_$Namespace_"|0", "with the trace under traceHeaderId and traceNamespace, and stopped false")
+}
+
+/// Heartbeat.FromRow (Story 39.7) builds the public view of an unsaved HeartbeatBeat row and the settings: every value below differs, so a field copied from
+/// the wrong property is caught. The JSON holds exactly the listed keys and none of the tokens that sit in the SessionRef, the snapshot keys, the Item's Id, the
+/// decision's Ref or the checklist; the trace pair is there only with a LastTraceSessionId. With no row (a person who has not had a beat) only the settings go out.
+Method TestHeartbeatFromRow()
+{
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
+	Set row.SessionRef = "ZzHbRefTok"_..Number
+	Set row.NextDueAt = "2030-02-03T04:06:06Z"
+	Set row.LastBeatAt = "2030-02-03T04:05:06Z"
+	Set row.LastItemId = "ZzHbItemTok"
+	Set row.LastOutcome = "ignore"
+	Set row.LastFallback = 1
+	Set row.LastCostUSD = 0.012345
+	Set row.LastDecisionRef = "ZzHbDecTok"
+	Set row.LastSkipAt = "2030-02-03T03:05:06Z"
+	Set row.LastSkipReason = "unchanged"
+	Set row.LastRunNowAt = "2030-02-03T02:05:06Z"
+	Set row.BackoffUntil = "2030-02-03T08:05:06Z"
+	Set row.LastSnapshotKey = "ZzHbSnapTok"
+	Set row.LastQuietKey = "ZzHbQuietTok"
+	Set values = {"on": 1, "interval": 60, "from": "07:30", "to": "21:15", "checklist": "ZzHbChecklistTok"}
+	Set payload = ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values)
+	Do $$$AssertEquals(payload.On_"|"_payload.Interval_"|"_payload.From_"|"_payload.To, "1|60|07:30|21:15", "on, interval, from and to are the settings")
+	Do $$$AssertEquals(payload.NextDueAt_"|"_payload.LastBeatAt_"|"_payload.LastOutcome_"|"_payload.LastFallback_"|"_payload.LastCostUSD, "2030-02-03T04:06:06Z|2030-02-03T04:05:06Z|ignore|1|.012345", "nextDueAt, lastBeatAt, lastOutcome, lastFallback and lastCostUSD are the row's")
+	Do $$$AssertEquals(payload.LastSkipAt_"|"_payload.LastSkipReason_"|"_payload.LastRunNowAt_"|"_payload.BackoffUntil, "2030-02-03T03:05:06Z|unchanged|2030-02-03T02:05:06Z|2030-02-03T08:05:06Z", "the last skip, the last run now and the back-off are the row's")
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "|", "a row with no trace session has no trace pair")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(..Keys(exported), "backoffUntil,from,interval,lastBeatAt,lastCostUSD,lastFallback,lastOutcome,lastRunNowAt,lastSkipAt,lastSkipReason,nextDueAt,on,to", "the JSON holds exactly the keys of the view, with no trace pair")
+	For token = "ZzHbRefTok", "ZzHbItemTok", "ZzHbDecTok", "ZzHbSnapTok", "ZzHbQuietTok", "ZzHbChecklistTok" {
+		Do $$$AssertTrue(json '[ token, token_" is not in the JSON")
+	}
+	Do $$$AssertEquals(exported.on_"|"_exported.interval_"|"_exported.lastFallback_"|"_exported.lastCostUSD, "1|60|1|.012345", "and its values are the view's")
+	Set row.LastTraceSessionId = 31337
+	Set payload = ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values)
+	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "31337|"_$Namespace, "the trace target is the row's LastTraceSessionId in the running namespace")
+	Do payload.%JSONExportToString(.json)
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(..Keys(exported), "backoffUntil,from,interval,lastBeatAt,lastCostUSD,lastFallback,lastOutcome,lastRunNowAt,lastSkipAt,lastSkipReason,nextDueAt,on,to,traceHeaderId,traceNamespace", "with an id the JSON adds exactly the trace pair")
+	Do $$$AssertEquals(exported.traceHeaderId_"|"_exported.traceNamespace, "31337|"_$Namespace, "under traceHeaderId and traceNamespace")
+
+	Set payload = ##class(OcuTalon.Live.Payload.Heartbeat).FromRow("", {"on": 0, "interval": 30, "from": "08:00", "to": "20:00", "checklist": "ZzHbChecklistTok"})
+	Do payload.%JSONExportToString(.json)
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(..Keys(exported), "from,interval,on,to", "with no row the JSON holds only on, interval, from and to")
+	Do $$$AssertEquals(exported.on_"|"_exported.interval_"|"_exported.from_"|"_exported.to, "0|30|08:00|20:00", "and they are the settings")
+	Do $$$AssertTrue(json '[ "ZzHbChecklistTok", "the checklist is not in the JSON")
+
+	// all day: the settings' from and to are empty, so the JSON leaves them out
+	Set row.LastTraceSessionId = ""
+	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, {"on": 1, "interval": 30, "from": "", "to": "", "checklist": ""}).%JSONExportToString(.json)
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.%IsDefined("from")_"|"_exported.%IsDefined("to")_"|"_exported.interval, "0|0|30", "an all-day person's empty from and to are left out of the JSON")
+}
+
+/// The keys of a dynamic object, sorted and comma-separated.
+ClassMethod Keys(object As %DynamicObject) As %String [ Private ]
+{
+	Set iterator = object.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set sorted(key) = ""
+	}
+	Set keys = ""
+	Set key = ""
+	For {
+		Set key = $Order(sorted(key))
+		Quit:key=""
+		Set keys = keys_$Select(keys = "": "", 1: ",")_key
+	}
+	Quit keys
 }
 
 /// The FromRow builders of the snapshot's payloads copy each row property to its own field: every value below differs
@@ -998,6 +1070,26 @@ XData Contracts [ MimeType = application/json ]
    "TelegramRow": "%Boolean(%JSONFIELDNAME=telegramRow)",
    "Trace": "OcuTalon.Live.Payload.Part.TraceTarget(%JSONFIELDNAME=trace)",
    "Run": "OcuTalon.Live.Payload.Part.GuideRun(%JSONFIELDNAME=run)"
+  }
+ },
+ "OcuTalon.Live.Payload.Heartbeat": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "On": "%Boolean(%JSONFIELDNAME=on)",
+   "Interval": "%Integer(%JSONFIELDNAME=interval)",
+   "From": "%String(%JSONFIELDNAME=from,MAXLEN=5)",
+   "To": "%String(%JSONFIELDNAME=to,MAXLEN=5)",
+   "NextDueAt": "%String(%JSONFIELDNAME=nextDueAt,MAXLEN=20)",
+   "LastBeatAt": "%String(%JSONFIELDNAME=lastBeatAt,MAXLEN=20)",
+   "LastOutcome": "%String(%JSONFIELDNAME=lastOutcome,MAXLEN=32)",
+   "LastFallback": "%Boolean(%JSONFIELDNAME=lastFallback)",
+   "LastCostUSD": "%Numeric(%JSONFIELDNAME=lastCostUSD,SCALE=6)",
+   "TraceHeaderId": "%Integer(%JSONFIELDNAME=traceHeaderId)",
+   "TraceNamespace": "%String(%JSONFIELDNAME=traceNamespace,MAXLEN=128)",
+   "LastSkipAt": "%String(%JSONFIELDNAME=lastSkipAt,MAXLEN=20)",
+   "LastSkipReason": "%String(%JSONFIELDNAME=lastSkipReason,MAXLEN=32)",
+   "LastRunNowAt": "%String(%JSONFIELDNAME=lastRunNowAt,MAXLEN=20)",
+   "BackoffUntil": "%String(%JSONFIELDNAME=backoffUntil,MAXLEN=20)"
   }
  },
  "OcuTalon.Live.Payload.Incident": {

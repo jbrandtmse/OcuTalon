@@ -1,0 +1,12 @@
+{
+  "name": "heartbeat-all-clear",
+  "match": {
+    "marker": "heartbeat-all-clear"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"Everything is fine.\",\"The CI mock names what it found: nothing past the checklist.\"],\"confidence\":0.8}"
+    }
+  ]
+}

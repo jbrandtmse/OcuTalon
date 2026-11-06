@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-06-2026 08:38
+last_updated: 11-06-2026 17:49
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -405,13 +405,15 @@ development_status:
   38-3-the-owner-s-telegram-pass-on-the-1-0-0-candidate: backlog
   epic-38-retrospective: optional
 
-  epic-39: backlog
-  39-1-fix-the-heartbeat-s-names-and-contracts: backlog
-  39-2-save-your-heartbeat-settings-and-ask-for-a-beat: backlog
-  39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe: backlog
-  39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built: backlog
-  39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now: backlog
-  39-6-evaluation-cases-for-the-heartbeat: backlog
+  epic-39: done
+  39-1-fix-the-heartbeat-s-names-and-contracts: done
+  39-2-save-your-heartbeat-settings-and-ask-for-a-beat: done
+  39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe: done
+  39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built: done
+  39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now: done
+  39-6-evaluation-cases-for-the-heartbeat: done
+  39-7-publish-the-heartbeat-event: done
+  39-8-run-now-and-a-saved-heartbeat-read-what-is-stored: done
   epic-39-retrospective: optional
 
   epic-40: done
