@@ -4364,3 +4364,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: SevereLines stops only at a file starting before fromUtc and assumes every newer kept file is present; IRIS has no retention of messages.old_* (irissys searched), so only an admin delete or compress within the window makes the gap; the spec's Task 0 rework records it as a residual
 - 2026-11-06T10:39:30Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=an install step, IRIS task or doc of ours deletes or compresses messages.old_* files, or a report of a passed system log after one was removed
+
+### DW-799: flake: docker/tests/test-mock.sh answered 400 where it expected 200 once, then passed on three unchanged reruns (Story 17.6 implement stage, local host)
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 17.6 implement report: one 400 vs 200, three green reruns; which check row and request were not recorded
+- 2026-11-06T15:12:04Z status=routed owner=burndown by=harvest note=flake candidate (orchestrator 2026-11-06): one rerun and an occurrence= line per sighting; record the failing row and request next time
+- 2026-11-06T15:12:04Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=lead note=first_sighting(implement_stage,local)

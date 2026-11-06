@@ -250,6 +250,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
 
 ## Spec Change Log
 
+- 2026-11-06 lead: G1, G2 (fixture-only) and the two side edits ruled; the interim route's condition 1 failed (a REST writer of digest.channels exists on feature); the choice is with the Planner; no finalize before it.
+
 - 2026-11-06 lead spec gate: U-268 (3) re-read done: the Sent contract test widened (33-1); the interim digest route before 18.2 recorded as an open question for the orchestrator (33-2, U-268 (1)).
 
 - 2026-11-06 lead: Q7 ruled by the orchestrator (the two one-term edits in Epic 19's files; a fixed-strings pin of the tool result); MESSAGESENDING ruled by the Contest Planner (reworded, exact). Status set to ready-for-dev at the lead's spec gate.
@@ -259,6 +261,12 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
 ## Review Triage Log
 
 ## Design Notes
+
+**Rulings on the implement stage's gaps (orchestrator 2026-11-06, confirmed by the Contest Planner; binding):**
+- **G1:** append `SendDigest` to `TOOLVERBS` in `Test/Bridge/CodeRules.cls` :109 (one term; Epic 19's diff in that file changes only `CALLBACKHELPERS`: a plain union). Footprint extension.
+- **G2, option (c), fixture-only:** in `Test/Checks/Heartbeat.cls` `TestDisabledItemIsReportedOnce` only, the fixture session has no digest due: use the setting the as-built `Digest` reads, preferring the digest off for that fixture session. Its assertions and tick times stay unchanged (Epic 39's hunks there are around :26, :275, :351, :578: a plain union). Options (a) (a change to the ruled due rule) and (b) are rejected. At the integrate-forward after Epic 39 merges, the lead also runs Epic 39's new tick tests (`TestAnHourOfTicks`, `TestBeatNow*`); the same fixture-only fix applies if one hits the digest-due notice; any assertion change is a Clarification. Footprint extension.
+- **Side edits CONFIRMED:** `dailyCost` in `SLOTTYPES` of `Test/Msg/Catalog.cls` (Epic 39 edits another hunk, about :120: a plain union); `digest` removed from `Test/Channel/TelegramOut.cls` `TestOtherKinds`, on the condition that a positive test of the digest kind's Telegram message, with Got it, exists and is green. Footprint extensions.
+- **Interim digest route:** the Planner kept it on condition that nothing can write `digest.channels` before Story 18.2 (with a fallback test and a never-silently-rerouted test). The lead's check found a writer on the feature branch today (see the lead's report to the orchestrator, 2026-11-06): `POST /v1/settings/daily-digest` (`Web/Api.cls` :165 -> `SaveSection` -> `SettingsOps.Save` -> `SaveProduct` -> `Apply`; the `daily-digest` section maps `channels` to `digest.channels`, `SettingsOps.cls` :624-626, `ALLOWLIST` :52), admin-only; the 1.0.1 page itself shows "This part of OcuTalon isn't built yet." for Daily digest (`settings-page.ts` :65-66). The choice (honour a saved value, or hold kind `digest` until 18.2) is the Planner's. Also: this story's own install step seeds `digest.channels` (uncommitted): under the condition, no installer step may write it, so that seed is dropped unless the ruling says otherwise. **No finalize commit until that ruling is relayed.**
 
 **Lead's spec gate, 2026-11-06: U-268 (3) re-read of the 15 specs that cite AD-1 and AD-14 (an Opus reader; 13 clear).**
 - **Decided (in-footprint, lead):** spec-33-1 :126 and :149 pin `Digest.Data.Sent`'s exact properties and indexes in `Test/Digest/Contracts.cls` `XData Contracts` (:97-116). 17.6 appends `IdempotencyKey` and its index, so the task that updates `Test/Digest/Contracts.cls` also adds `"IdempotencyKey": "%String(MAXLEN=128)"` and the new index (for example `"SessionRefKeyIndex": "SessionRef,IdempotencyKey"`, whatever name the code uses) to the `Sent` contract, and `Sent||IdempotencyKey` to `TestRefCollation`'s exact-collation list.
