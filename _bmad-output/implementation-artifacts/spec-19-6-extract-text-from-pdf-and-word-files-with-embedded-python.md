@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-11-06'
 status: 'done'
 baseline_revision: '4e29a8f2f5be07c11466283e90c7547b158d73fd'
+baseline_commit: '4e29a8f2f5be07c11466283e90c7547b158d73fd'
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
@@ -240,63 +241,65 @@ deferred:
 
 ## Spec Change Log
 
+- 2026-11-06 (lead, after implement): the Planner's PUBLIC TEXT ruling recorded under Design Notes; the code review stage conforms the built strings to it with fixed-strings tests (the implement built the proposals).
+
 - 2026-11-06 (lead, before implement): orchestrator rulings B1-B3 and the pending B4 / PUBLIC TEXT recorded under Design Notes "Rulings"; a test that README.md and docs/install-ipm.md quote the same measured figures is added to scope.
 
 ## Review Triage Log
 
-### 2026-11-06 — Review pass
-- verdicts: 50 findings — high 0, medium 7, low 38, false 3, maybe-false 2
+### 2026-11-06 -- Review pass
+- verdicts: 50 findings -- high 0, medium 7, low 38, false 3, maybe-false 2
 - findings:
-  - `[low]` `[defer]` (Blind) README/spine "same versions" while six older copies stay beside the pinned dist-info — the deferred list already holds this (medium, import resolution unmeasured); the README bullet is PUBLIC TEXT pending the Planner, who is told in the Auto Run Result.
-  - `[low]` `[defer]` (Blind) spine says "one worker" but MaxActiveWorkers 1 does not serialise reads — already the first item of `deferred:` (Task 0 M3); the "one worker" wording is the spine's existing text.
-  - `[maybe-false]` `[defer]` (Blind) the documented three hosts may miss CDN or Xet hosts and the blocked-download behaviour is not described — deferred as medium (unverified); the real host list was not measured.
-  - `[low]` `[reject]` (Blind) "about 1 minute" is not the added time on a fast host (about 21 s of pip and download in a 58 to 63 s second run) — the figure is a conservative rounding for an ordinary connection and the sentence is PUBLIC TEXT; the missing record of the measured sizes and times is patched (evidence file), see the row for the missing evidence.
-  - `[medium]` `[patch]` (Blind) Worker.Submit's GroupLocks and ReleaseGroupLocks run outside the Try, so a ^$LOCK read that raises makes Submit throw — patch P1: both inside the Try and failing quiet. (The every-call scan cost is `[low]` `[reject]`: the table is small and the snapshot must precede the queue.) [fixed: scan and release in Try, result and timeout set before Clear, Clear in its own Try.]
-  - `[medium]` `[patch]` (Blind) merged Word table cells are read once per grid column (row.cells repeats the cell) — patch P2: dedupe consecutive cells with the same cell element, with a merged-cell sample. [fixed: same-cell dedupe plus DocxMergedCell sample and TestDocxMergedCell.]
-  - `[low]` `[reject]` (Blind) OLE2 kind found by a substring search of the whole file — a legacy .doc would need the UTF-16 stream name inside its text; fix means parsing the directory.
-  - `[low]` `[patch]` (Blind) stage_licence_gate calls manager_directory and dies on an empty answer but never uses the value — patch P5: delete the unused call. The doc-comment position and the two ways of reading the manager directory are `[low]` `[reject]` (cosmetic). [fixed: unused manager_directory call deleted.]
-  - `[low]` `[patch]` (Blind) ipm_artifact_check checks the FileCopy name and not its Target — patch P6, in the separable B4 hunk, with its test. [fixed: Target checked in ipm_artifact_check, with a wrong-Target test case.]
-  - `[low]` `[reject]` (Blind) trailing newline before the cut note and pdfplumber pages not flushed — cosmetic, and the memory growth is not shown.
-  - `[low]` `[patch]` (Blind) the Task 0 evidence promises the IPM path A facts and holds none; the measured figures have no record — patch P7: add both to the evidence file. [fixed: evidence file holds the IPM path A section and the measured figures.]
-  - `[low]` `[reject]` (Blind) the test's GroupLocks copies the production method — a test that called the production method would test itself.
-  - `[medium]` `[patch]` (Edge) GroupLocks before the Try can throw (Worker.cls:26) — same root cause as the Blind row, patch P1. [fixed: scan and release in Try, result and timeout set before Clear, Clear in its own Try.]
-  - `[low]` `[patch]` (Edge) Clear(0) throwing before result and timedOut are set turns a timeout into failed — patch P1: set them first and give Clear its own Try. [fixed: scan and release in Try, result and timeout set before Clear, Clear in its own Try.]
-  - `[low]` `[reject]` (Edge) the lock scan on every Submit — see the Blind row; table size is small.
-  - `[low]` `[patch]` (Edge) item.style is None when styles.xml has no default paragraph style, raising AttributeError — patch P3. [fixed: a style of None is a plain paragraph (no sample; inference).]
-  - `[low]` `[defer]` (Edge) .dotx/.docm, encrypted zip entry and odd compression are reported as failed — deferred (low); honest answer, wording decision.
-  - `[low]` `[defer]` (Edge) text in content controls (w:sdt) is skipped — deferred (low), with nested tables.
-  - `[medium]` `[patch]` (Edge) merged cells repeated; nested tables ignored — merged cells in patch P2; nested tables in the deferred row above.
-  - `[low]` `[patch]` (Edge) an unsupported-encryption PDF (a PDFEncryptionError other than PDFPasswordIncorrect) is called damaged — patch P4: any PDFEncryptionError is encrypted. [fixed: any PDFEncryptionError is encrypted (no sample; inference).]
-  - `[low]` `[reject]` (Edge) TypeError, ValueError and similar from extract_text() give failed instead of damaged — failed is a valid, honest code and the guard list would be a guess.
-  - `[low]` `[reject]` (Edge) the cut may leave a bare marker line at the end — cosmetic; a bare marker is an empty last section.
-  - `[low]` `[defer]` (Edge) lines of the file's text starting with "## " look like markers — deferred (low) to Story 19.4's splitter.
-  - `[false]` `[reject]` (Edge) a lone surrogate in extracted text breaks the crossing — not shown reachable: pdfminer's text comes from decoded cmap code points, and a failure would only give failed.
-  - `[false]` `[reject]` (Edge) PDF signature test before ZIP — a .docx's first 1,024 bytes hold part names and not a literal %PDF-; Acrobat's own window is also 1,024 bytes.
-  - `[false]` `[reject]` (Edge) the main part is assumed to be word/document.xml — Word, Strict OOXML and LibreOffice all write that name; the spec fixes it.
-  - `[low]` `[reject]` (Edge) timeout 0, negative or empty from a caller — no caller passes one (the default is a parameter), nothing to guard yet.
-  - `[low]` `[patch]` (Edge) Purge runs only on the path that writes a file, while the class comment says at the start of each call — patch P8: the comment says what happens (leftovers only come from that path). [fixed: class comment.]
-  - `[low]` `[reject]` (Edge) the temporary file and folder have default permissions — a chmod needs $ZF, which TestToolCodeScan forbids in a callback helper; the container has one OS user.
-  - `[low]` `[patch]` (Edge, claim) Word style None, same root cause as the style row — patch P3. [fixed: a style of None is a plain paragraph (no sample; inference).]
-  - `[low]` `[defer]` (Edge, claim) "one worker" — the deferred list's first item.
-  - `[low]` `[patch]` (Edge, claim) Purge at the start of each call — patch P8. [fixed: class comment.]
-  - `[low]` `[reject]` (Edge, claim) Embedder behaviour is not unchanged (lock scan, timeout result node) — the scan and the node are the recorded Task 0 finding; Embedding and Diagnostics tests passed after the move.
-  - `[low]` `[reject]` (Edge, claim) "private" temporary file — see the permissions row.
-  - `[medium]` `[patch]` (Gap) PAGEMARKER and CUTNOTE are only compared with themselves, so "## Page 1" is not pinned — patch P9a: literal assertions. [fixed: literal assertions.]
-  - `[medium]` `[patch]` (Gap) the python-docx failure branch (a zip-valid .docx python-docx cannot open) has no sample — patch P9b: DocxBroken sample, asserted damaged. The PDF fallback branch (line 72) is `[low]` `[reject]`: no sample reaches it. [fixed: DocxBroken sample, damaged in TestDamaged.]
-  - `[low]` `[patch]` (Gap) markers none for a Word file with no headings is not asserted — patch P9c. Heading 7 cap, early stop, NUL and CR normalisation are `[low]` `[reject]`: they need timing or byte-level samples for little risk. [fixed: markers asserted.]
-  - `[medium]` `[patch]` (Gap) TestCategory passes without the new EnsureCategory line because the test class creates the category first — patch P9d: put the category to 5 and 3 before Run and assert 1 and 1. [fixed: TestCategory perturbs the category before Run.]
-  - `[low]` `[defer]` (Gap) TestNothingStored compares an empty KB half — deferred (low).
-  - `[low]` `[defer]` (Gap) the "about 3 s" bound is asserted as under 20 s — deferred (low).
-  - `[low]` `[reject]` (Gap) TestDetailHoldsNoSecret reads a path-only detail — the product puts no environment value in detail; no mutation can be named.
-  - `[low]` `[reject]` (Gap) TestCategory restores nothing — throwaway stacks only; Test.Memory.Install restores for itself.
-  - `[low]` `[defer]` (Gap) AC5 has no mutation for local_files_only and allow_patterns — deferred with the 3 s row (low).
-  - `[maybe-false]` `[reject]` (IA) IPM "exactly the measured set" holds at the file level and not at the import level — the same fact as the first deferred row of this log (six older copies), already deferred.
-  - `[low]` `[reject]` (IA) docs: only the match between README and docs is tested, not the truth of the figures — the figures are the measured ones (evidence patch P7); a test cannot measure a download.
-  - `[low]` `[reject]` (IA) every sample is hand-built, none from Word or Acrobat — the spec decides ObjectScript-built samples (Design Notes).
-  - `[low]` `[reject]` (IA) the time-limit bound is 20 s in the test, not about 3 s — the deferred row for the 3 s bound.
-  - `[low]` `[reject]` (IA) the lock release in Memory.Worker is not in the intent — a recorded Task 0 finding in Design Notes, with a test and a mutation line.
-  - `[low]` `[reject]` (IA) scope edges (no consumer test; lib-release.sh under B4) — both are as the spec and the rulings say.
-  - `[low]` `[reject]` (IA) no new vector-equality test for the Embedder — the existing Test.Memory.Embedding, live:memory-offline and IPM check 30 are the spec's consumer row and ran green.
+  - `[low]` `[defer]` (Blind) README/spine "same versions" while six older copies stay beside the pinned dist-info -- the deferred list already holds this (medium, import resolution unmeasured); the README bullet is PUBLIC TEXT pending the Planner, who is told in the Auto Run Result.
+  - `[low]` `[defer]` (Blind) spine says "one worker" but MaxActiveWorkers 1 does not serialise reads -- already the first item of `deferred:` (Task 0 M3); the "one worker" wording is the spine's existing text.
+  - `[maybe-false]` `[defer]` (Blind) the documented three hosts may miss CDN or Xet hosts and the blocked-download behaviour is not described -- deferred as medium (unverified); the real host list was not measured.
+  - `[low]` `[reject]` (Blind) "about 1 minute" is not the added time on a fast host (about 21 s of pip and download in a 58 to 63 s second run) -- the figure is a conservative rounding for an ordinary connection and the sentence is PUBLIC TEXT; the missing record of the measured sizes and times is patched (evidence file), see the row for the missing evidence.
+  - `[medium]` `[patch]` (Blind) Worker.Submit's GroupLocks and ReleaseGroupLocks run outside the Try, so a ^$LOCK read that raises makes Submit throw -- patch P1: both inside the Try and failing quiet. (The every-call scan cost is `[low]` `[reject]`: the table is small and the snapshot must precede the queue.) [fixed: scan and release in Try, result and timeout set before Clear, Clear in its own Try.]
+  - `[medium]` `[patch]` (Blind) merged Word table cells are read once per grid column (row.cells repeats the cell) -- patch P2: dedupe consecutive cells with the same cell element, with a merged-cell sample. [fixed: same-cell dedupe plus DocxMergedCell sample and TestDocxMergedCell.]
+  - `[low]` `[reject]` (Blind) OLE2 kind found by a substring search of the whole file -- a legacy .doc would need the UTF-16 stream name inside its text; fix means parsing the directory.
+  - `[low]` `[patch]` (Blind) stage_licence_gate calls manager_directory and dies on an empty answer but never uses the value -- patch P5: delete the unused call. The doc-comment position and the two ways of reading the manager directory are `[low]` `[reject]` (cosmetic). [fixed: unused manager_directory call deleted.]
+  - `[low]` `[patch]` (Blind) ipm_artifact_check checks the FileCopy name and not its Target -- patch P6, in the separable B4 hunk, with its test. [fixed: Target checked in ipm_artifact_check, with a wrong-Target test case.]
+  - `[low]` `[reject]` (Blind) trailing newline before the cut note and pdfplumber pages not flushed -- cosmetic, and the memory growth is not shown.
+  - `[low]` `[patch]` (Blind) the Task 0 evidence promises the IPM path A facts and holds none; the measured figures have no record -- patch P7: add both to the evidence file. [fixed: evidence file holds the IPM path A section and the measured figures.]
+  - `[low]` `[reject]` (Blind) the test's GroupLocks copies the production method -- a test that called the production method would test itself.
+  - `[medium]` `[patch]` (Edge) GroupLocks before the Try can throw (Worker.cls:26) -- same root cause as the Blind row, patch P1. [fixed: scan and release in Try, result and timeout set before Clear, Clear in its own Try.]
+  - `[low]` `[patch]` (Edge) Clear(0) throwing before result and timedOut are set turns a timeout into failed -- patch P1: set them first and give Clear its own Try. [fixed: scan and release in Try, result and timeout set before Clear, Clear in its own Try.]
+  - `[low]` `[reject]` (Edge) the lock scan on every Submit -- see the Blind row; table size is small.
+  - `[low]` `[patch]` (Edge) item.style is None when styles.xml has no default paragraph style, raising AttributeError -- patch P3. [fixed: a style of None is a plain paragraph (no sample; inference).]
+  - `[low]` `[defer]` (Edge) .dotx/.docm, encrypted zip entry and odd compression are reported as failed -- deferred (low); honest answer, wording decision.
+  - `[low]` `[defer]` (Edge) text in content controls (w:sdt) is skipped -- deferred (low), with nested tables.
+  - `[medium]` `[patch]` (Edge) merged cells repeated; nested tables ignored -- merged cells in patch P2; nested tables in the deferred row above.
+  - `[low]` `[patch]` (Edge) an unsupported-encryption PDF (a PDFEncryptionError other than PDFPasswordIncorrect) is called damaged -- patch P4: any PDFEncryptionError is encrypted. [fixed: any PDFEncryptionError is encrypted (no sample; inference).]
+  - `[low]` `[reject]` (Edge) TypeError, ValueError and similar from extract_text() give failed instead of damaged -- failed is a valid, honest code and the guard list would be a guess.
+  - `[low]` `[reject]` (Edge) the cut may leave a bare marker line at the end -- cosmetic; a bare marker is an empty last section.
+  - `[low]` `[defer]` (Edge) lines of the file's text starting with "## " look like markers -- deferred (low) to Story 19.4's splitter.
+  - `[false]` `[reject]` (Edge) a lone surrogate in extracted text breaks the crossing -- not shown reachable: pdfminer's text comes from decoded cmap code points, and a failure would only give failed.
+  - `[false]` `[reject]` (Edge) PDF signature test before ZIP -- a .docx's first 1,024 bytes hold part names and not a literal %PDF-; Acrobat's own window is also 1,024 bytes.
+  - `[false]` `[reject]` (Edge) the main part is assumed to be word/document.xml -- Word, Strict OOXML and LibreOffice all write that name; the spec fixes it.
+  - `[low]` `[reject]` (Edge) timeout 0, negative or empty from a caller -- no caller passes one (the default is a parameter), nothing to guard yet.
+  - `[low]` `[patch]` (Edge) Purge runs only on the path that writes a file, while the class comment says at the start of each call -- patch P8: the comment says what happens (leftovers only come from that path). [fixed: class comment.]
+  - `[low]` `[reject]` (Edge) the temporary file and folder have default permissions -- a chmod needs $ZF, which TestToolCodeScan forbids in a callback helper; the container has one OS user.
+  - `[low]` `[patch]` (Edge, claim) Word style None, same root cause as the style row -- patch P3. [fixed: a style of None is a plain paragraph (no sample; inference).]
+  - `[low]` `[defer]` (Edge, claim) "one worker" -- the deferred list's first item.
+  - `[low]` `[patch]` (Edge, claim) Purge at the start of each call -- patch P8. [fixed: class comment.]
+  - `[low]` `[reject]` (Edge, claim) Embedder behaviour is not unchanged (lock scan, timeout result node) -- the scan and the node are the recorded Task 0 finding; Embedding and Diagnostics tests passed after the move.
+  - `[low]` `[reject]` (Edge, claim) "private" temporary file -- see the permissions row.
+  - `[medium]` `[patch]` (Gap) PAGEMARKER and CUTNOTE are only compared with themselves, so "## Page 1" is not pinned -- patch P9a: literal assertions. [fixed: literal assertions.]
+  - `[medium]` `[patch]` (Gap) the python-docx failure branch (a zip-valid .docx python-docx cannot open) has no sample -- patch P9b: DocxBroken sample, asserted damaged. The PDF fallback branch (line 72) is `[low]` `[reject]`: no sample reaches it. [fixed: DocxBroken sample, damaged in TestDamaged.]
+  - `[low]` `[patch]` (Gap) markers none for a Word file with no headings is not asserted -- patch P9c. Heading 7 cap, early stop, NUL and CR normalisation are `[low]` `[reject]`: they need timing or byte-level samples for little risk. [fixed: markers asserted.]
+  - `[medium]` `[patch]` (Gap) TestCategory passes without the new EnsureCategory line because the test class creates the category first -- patch P9d: put the category to 5 and 3 before Run and assert 1 and 1. [fixed: TestCategory perturbs the category before Run.]
+  - `[low]` `[defer]` (Gap) TestNothingStored compares an empty KB half -- deferred (low).
+  - `[low]` `[defer]` (Gap) the "about 3 s" bound is asserted as under 20 s -- deferred (low).
+  - `[low]` `[reject]` (Gap) TestDetailHoldsNoSecret reads a path-only detail -- the product puts no environment value in detail; no mutation can be named.
+  - `[low]` `[reject]` (Gap) TestCategory restores nothing -- throwaway stacks only; Test.Memory.Install restores for itself.
+  - `[low]` `[defer]` (Gap) AC5 has no mutation for local_files_only and allow_patterns -- deferred with the 3 s row (low).
+  - `[maybe-false]` `[reject]` (IA) IPM "exactly the measured set" holds at the file level and not at the import level -- the same fact as the first deferred row of this log (six older copies), already deferred.
+  - `[low]` `[reject]` (IA) docs: only the match between README and docs is tested, not the truth of the figures -- the figures are the measured ones (evidence patch P7); a test cannot measure a download.
+  - `[low]` `[reject]` (IA) every sample is hand-built, none from Word or Acrobat -- the spec decides ObjectScript-built samples (Design Notes).
+  - `[low]` `[reject]` (IA) the time-limit bound is 20 s in the test, not about 3 s -- the deferred row for the 3 s bound.
+  - `[low]` `[reject]` (IA) the lock release in Memory.Worker is not in the intent -- a recorded Task 0 finding in Design Notes, with a test and a mutation line.
+  - `[low]` `[reject]` (IA) scope edges (no consumer test; lib-release.sh under B4) -- both are as the spec and the rulings say.
+  - `[low]` `[reject]` (IA) no new vector-equality test for the Embedder -- the existing Test.Memory.Embedding, live:memory-offline and IPM check 30 are the spec's consumer row and ran green.
 
 ## Design Notes
 
@@ -407,6 +410,16 @@ deferred:
 - B3: CONFIRMED. `release/ipm-install.sh` (checks 30-33 and the staging) and the root `requirements.txt` are covered by U-294 condition (1), as its separate last task.
 - B4 (`release/lib-release.sh` `ipm_artifact_check`): PENDING with the Planner. Build it as its own separable last task, kept apart from the rest (its own hunk, its own tests), so it can be dropped cleanly.
 - PUBLIC TEXT (the nine reasons, the cut note, the page marker, the README paragraph and bullet, the install-ipm.md bullet): build with the strings as proposed under Design Notes; they may still change by the Planner's ruling (a forward edit). The README and docs/install-ipm.md quote the SAME measured figures (package size, model size, typical time): measure them in this story and add a test that the two files' figures match each other.
+
+**PUBLIC TEXT ruling (2026-11-06, the Contest Planner under the owner's delegation; every string is exact; pin each with a fixed-strings test). It replaces the proposed strings above:**
+- A1, the extraction reasons, one frame per place. Frames: on the Documents page the page's existing U-284 frame "Couldn't read it: {reason}" (the web app's, Lane B, not this story); in a chat reply, where OcuTalon speaks, "I couldn't read that file: {reason}.". `too_large` and `wrong_type` reuse U-284's catalog reasons: "that file is {size}; the limit is 10 MB." and "it isn't a Markdown, plain-text, PDF or Word (.docx) file."; where {size} isn't available on a path, `too_large` is "it's over the 10 MB limit". The new reasons: `contents_too_large` "its text is too long to read"; `encrypted` "it's protected with a password"; `damaged` "it's damaged or incomplete"; `no_text` "it has no text to read, for example a scanned PDF without a text layer"; `legacy_doc` "it's an old Word file (.doc); save it as .docx and try again"; `timed_out` "reading it took too long"; `failed` "something went wrong while reading it". Match the apostrophe bytes of the existing U-284 catalog strings, authored via escapes per Rule 14 if they are not ASCII.
+- A2 (approved): "[OcuTalon read only the first 200,000 characters of this file.]"
+- A3 (approved): "## Page {n}"
+- A4 (README, end of "Install it with IPM"): approved as proposed with the measured figures, except the last sentence, which becomes: "In our test installs this added about {n} minutes."
+- A5 (README, "Third-party licence notices"): approved as written: "An IPM install puts the same Python packages, at the same versions, into the instance's `mgr/python` folder, each with its licence files." (The lead raised DW-829 with the Planner: pip -t leaves six older copies beside the pinned ones, so this sentence's accuracy is in question; build it as written pending that answer.)
+- A6 (docs/install-ipm.md, "What you need"): approved as proposed with the measured figures, except the last sentence, which becomes: "In our test installs this took about {n} minutes."
+- Conditions on the figures: every size and time is measured and the story record says how and from which path (local or offline paths only, never the public IPM registry pm.community.intersystems.com; figures that came from public PyPI say so); README.md and docs/install-ipm.md quote the same figures, with a test that they match; any figure more than 20% off the proposal (270 MB, 90 MB, 3 minutes) goes to the Planner as PUBLIC TEXT before the push (the lead does that).
+- B4: ALLOWED under U-294 (1): `ipm_artifact_check` proves that the registry artifact carries `requirements.txt` and the FileCopy.
 
 ## Verification
 

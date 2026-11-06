@@ -6182,6 +6182,8 @@ So that I can trust the answer and check the passage myself.
 - DW-735: web e2e D8 and D10 (`web/e2e/documents/documents.spec.ts`) expect the real routes to answer an error while DocumentOps is disabled and go red once this story enables it; switch them to fulfilled answers (page.route) (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
 - DW-739: no test executes the real Web.Documents route -> Commands.Submit -> CommandsIn path (while DocumentOps is disabled the OwnerRunning guard answers 501 first) (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
 - DW-747: Data.Upload has no lifecycle beyond Take, the route's own delete and sign-out: nothing sweeps an abandoned row on a local install, a CommandsIn timeout drops the row while the AddDocument may still reach DocumentOps, and Take is at-most-once with no session check (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-832: a line of a file's own text that starts with '## ' is indistinguishable from an extraction marker; the splitter escapes or ignores such lines (ledger; routed by harvest 2026-11-06)
+- DW-833: `Test.Docs.Extract:TestNothingStored` gains the knowledge-base half of its signature once the KB tables exist (ledger; routed by harvest 2026-11-06)
 
 ### Story 19.5: Keep each online-demo session's documents and memories to itself
 
@@ -6277,6 +6279,9 @@ So that I don't have to turn them into Markdown first.
 **Then** they run on that real image, with no test-setup install of either package, and pass (FR-54, AD-22, AD-23)
 
 - DW-719: UX text after Epic 40 merges (owner ruling U-279): UX-DR144 and EXPERIENCE.md Step 3 Documents 'Adding' accept 'Markdown, plain text, PDF and Word (.docx) files.' (replacing 'then PDF and Word from step 6'), with the UX assumptions' local-install ownership line (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-827: `OcuTalon.Docs.Extractor`'s MaxActiveWorkers 1 does not serialise reads (two concurrent reads ran on two worker jobs); serialise them or amend AD-21's "one worker" wording (ledger; routed by harvest 2026-11-06)
+- DW-828: a timed-out read cannot stop a single long C call (a decompression bomb can keep Read past its limit); bound it before the call (page or size caps) (ledger; routed by harvest 2026-11-06)
+- DW-831: Word text inside body-level content controls (w:sdt) and nested tables is not read; a file made only of content controls answers no_text (ledger; routed by harvest 2026-11-06)
 
 ## Epic 20: Add documents in the web app (step 3)
 

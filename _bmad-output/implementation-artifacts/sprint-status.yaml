@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-06-2026 17:19
+last_updated: 11-06-2026 23:14
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -267,7 +267,7 @@ development_status:
   19-3-remember-recall-list-and-forget-in-the-chat: done
   19-4-answer-from-documents-with-citations: backlog
   19-5-keep-each-online-demo-session-s-documents-and-memories-to-it: backlog
-  19-6-extract-text-from-pdf-and-word-files-with-embedded-python: in-progress
+  19-6-extract-text-from-pdf-and-word-files-with-embedded-python: review
   19-7-answer-from-pdf-and-word-documents: backlog
   epic-19-retrospective: optional
 

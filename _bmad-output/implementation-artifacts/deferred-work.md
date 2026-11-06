@@ -4615,3 +4615,48 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-3-remember-recall-list-and-forget-in-the-chat.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: line 81 doc ends at Memory.Embedding; line 82 list now ends ,OcuTalon.Memory,OcuTalon.Tools.HostData (Memory.Search runs SQL and queues an embedding in the callback; HostData merges the reply members)
 - 2026-11-06T15:51:37Z status=wontfix-accepted owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=Epic 17-contended doc line; a one-clause union at merge closes it; reopen_if=after the Epic 17 merge the doc still omits the two helpers
+
+### DW-827: OcuTalon.Docs.Extractor's MaxActiveWorkers 1 does not serialise reads: two concurrent Docs.Extract.Read calls ran on two worker jobs at once, so AD-21's one worker holds for the setting, not the number of simultaneous workers
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: evidence/19-6-task0-extraction.md M3
+- 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 is the first product caller; serialise or amend AD-21's wording
+
+### DW-828: Clear on a timed-out read waits for a work item inside one long C call (a 30 s sleep held Clear 29 s), so a PDF whose time goes into one C call (a decompression bomb) can keep Read past its limit
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: evidence/19-6-task0-extraction.md M3: the page loop stops, a single C call does not
+- 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 adds files from the Documents page; bound it there (page or size caps before the C call)
+
+### DW-829: On an IPM install, pip -t leaves older copies of six distributions that <mgr>/python already holds (certifi, charset_normalizer, idna, requests, typing_extensions, urllib3) beside the pinned dist-info, so the pinned files may not be the ones imported; U-294 condition 1 and README bullet A5 ('at the same versions') depend on it
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: release/ipm-install.sh path A (Story 19.6); check 32 gates only what the install added plus the pins
+- 2026-11-06T23:14:10Z status=escalated owner=burndown by=harvest note=for the Planner (U-294 release gate owner) at the part-1 contract; reported with the PUBLIC TEXT figures
+
+### DW-830: The README and docs/install-ipm.md list three hosts (pypi.org, files.pythonhosted.org, huggingface.co); huggingface_hub with hf-xet may also use CDN or Xet hosts, and the docs do not say what a blocked download looks like (the Memory step only warns)
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: review finding, unverified; settle by recording the hosts an install contacts on a lane-C throwaway
+- 2026-11-06T23:14:10Z status=escalated owner=burndown by=harvest note=public-text accuracy; for the Planner with the PUBLIC TEXT figures
+
+### DW-831: Word text inside body-level content controls (w:sdt) and inside nested tables is not read (iter_inner_content yields body paragraphs and tables; cell.text skips nested tables); a file made only of content controls answers no_text
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: python-docx 1.1.2 behaviour; no sample covers it
+- 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 answers from Word runbooks
+
+### DW-832: A line of a file's own text that starts with '## ' is indistinguishable from an extraction page or heading marker, so Story 19.4's splitter would open a section there
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: inherent in the Markdown markers (19.6's decided design)
+- 2026-11-06T23:14:10Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4's splitter escapes or ignores such lines
+
+### DW-833: Test.Docs.Extract:TestNothingStored compares an empty knowledge-base half (no KB table before Story 19.4) and only the $Data flag of the Document globals, so a stray write elsewhere is not caught
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: verification-gap finding
+- 2026-11-06T23:14:10Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 adds the KB half to the signature
+
+### DW-834: A .dotx/.docm (python-docx ValueError), a .docx with an encrypted zip entry (RuntimeError) or an unsupported zip compression (NotImplementedError) is reported as failed, not as wrong_type, encrypted or damaged
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: edge-case finding; the answer is honest (failed) and nothing is stored
+- 2026-11-06T23:14:10Z status=open owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=harvest note=code review: patch the mapping if mechanical, else wontfix-accepted with a probe
+
+### DW-835: TestTimeLimit asserts only that a timed-out read ends in under 20 s (the matrix says about 3 s), and no test pins local_files_only=True or allow_patterns in ocutalon_memory.py
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: verification-gap findings; the 20 s bound follows the loaded-host measurement
+- 2026-11-06T23:14:11Z status=open owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=harvest note=code review: pin the two flags (fixed strings) and record why 20 s
