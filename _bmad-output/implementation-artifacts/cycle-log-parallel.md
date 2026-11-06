@@ -2293,3 +2293,4 @@
 2026-11-06T18:38:31Z	Epic 39	decision_sheet_skipped	reason=no_decisions_for_user
 2026-11-06T18:38:31Z	Run	deps_hash_rerecorded	reason=split story=39.8
 2026-11-06T18:38:31Z	Run	ci_priority_lifted	subject=epic39 reason=merged_31f812b9
+2026-11-06T18:39:51Z	Epic 7	dispatch_planned	story=7.9 runner=D slot=ocutalon-slot-d prompt=prompts/dispatch-epic-7-79.md base=first_green_feature_head_after_F1(frozen_window_ok_for_branch_creation) note=epic39_worktree_kept_for_followup(DW-670,DW-785,"Every hour")
