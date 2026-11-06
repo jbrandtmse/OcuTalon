@@ -2190,3 +2190,12 @@
 2026-11-06T05:48:46Z	Epic 11	ci_green_verified	runs=42167979385,42167979374 head=459a189b result=success via=none
 2026-11-06T05:48:46Z	Epic 11	merge_enqueued	policy=when_green part_merge=11.24
 2026-11-06T05:48:46Z	Epic 11	epic_merge_started	head=459a189b part=11.24
+2026-11-06T05:49:41Z	Epic 11	epic_merged_to_feature	merge=1ebed487 head=459a189b part=11.24 verified_on_origin=yes ci_triggered=yes(42170641790,42170641761) ledger_union=checked(no_line_lost,no_dup_ids) tracker=valid worktree=kept(11.25_next) branch=kept
+2026-11-06T05:49:41Z	Epic 11	decision_sheet_skipped	reason=empty(decisions_for_user=none)
+2026-11-06T05:50:15Z	Epic 11	runner_redispatched	runner=ab714975f78c93c13 model=opus lane=B slot=ocutalon-slot-b prompt=prompts/redispatch-epic-11-1125.md story=11.25(charter;fix_forward) base=459a189b
+2026-11-06T07:50:19Z	Epic 11	runner_complete	part_merge=11.25 head=4845cf67 ready_for_merge=true ci=42180569212,42180569233 decisions_for_user=DW-775,DW-776 amendments=1(epics.md:4814) footprint_extensions=none applied=none agent=ab714975f78c93c13
+2026-11-06T07:50:19Z	Epic 11	amendments_verified	amendments=1 extensions=0 ok=true note=epics.md:4814_top_rule_widened_in_place_marker_present readme_text=identical_to_planner_file_L9-27
+2026-11-06T07:50:19Z	Epic 11	ci_green_verified	runs=42180569212,42180569233 head=4845cf67 result=success via=none
+2026-11-06T07:50:19Z	Run	ci_green_verified	runs=42170641790,42170641761 head=1ebed487 result=success via=none
+2026-11-06T07:50:19Z	Epic 11	merge_enqueued	policy=when_green part_merge=11.25
+2026-11-06T07:50:19Z	Epic 11	epic_merge_started	head=4845cf67 part=11.25
