@@ -16,8 +16,9 @@ ClassMethod Yesterday(sessionRef As %String, now As %String = "", Output sc As %
 	Set sc = $$$OK
 	Set total = 0
 	Try {
-		Set from = ..Midnight($Select($Get(now) = "": ##class(OcuTalon.Data.Time).NowUtc(), 1: now), -1)
-		Set to = ..Midnight($Select($Get(now) = "": ##class(OcuTalon.Data.Time).NowUtc(), 1: now), 0)
+		Set at = $Select($Get(now) = "": ##class(OcuTalon.Data.Time).NowUtc(), 1: now)
+		Set from = ..Midnight(at, -1)
+		Set to = ..Midnight(at, 0)
 		If (from = "") || (to = "") $$$ThrowStatus($SYSTEM.Status.Error(5001, "OcuTalon.Digest.Cost cannot read the time '"_$Extract($Get(now), 1, 40)_"': it is YYYY-MM-DDThh:mm:ssZ in UTC"))
 		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT SUM(CostUSD) FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef IN (?, ?) AND RecordedAt >= ? AND RecordedAt < ?", $Get(sessionRef), ..#INSTANCE, from, to)
 		If result.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "Summing the cost failed: "_result.%Message))

@@ -41,7 +41,7 @@ Include Ensemble
 /// Last, Digest sends the Notification, asynchronously, and then writes one OcuTalon.Digest.Data.Sent row (the only writer), with AllClear 1
 /// only when the CatalogKey is checks.allPassed, the five vital signs passed and nothing needs the user. An error in the handling of a Compose is returned as its status, so that Ensemble records it on the
 /// header of the Compose and in its trace session; no Notification and no Sent row follow.
-/// The private seams Rows, Saved, SendSummary, Cost, NeedsYou, Own, SendNotice and SendCompose are the only calls to another class or item; a test overrides them.
+/// The private seams Rows, Saved, SendSummary, Cost, NeedsYou, Own, SendNotice and SendCompose are the calls that a test overrides.
 Class OcuTalon.Digest.Process Extends Ens.BusinessProcess
 {
 
@@ -236,23 +236,25 @@ Method Schedule(sessionRef As %String, due As %String, now As %String) As %Statu
 /// 1 when a scheduled digest for due or a later time is already sent or queued for the session.
 Method Covered(sessionRef As %String, due As %String) As %Boolean [ Private ]
 {
-	For table = "OcuTalon_Digest_Data.Sent", "OcuTalon_Digest_Msg.Compose" {
-		Set found = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 DueAt FROM "_table_" WHERE SessionRef = ? AND Kind = 'scheduled' AND DueAt >= ?", sessionRef, due)
-		If found.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "Digest could not read "_table_": "_found.%Message))
-		If found.%Next() Quit
-	}
-	Quit found.%SQLCODE >= 0 && (found.%ROWCOUNT > 0)
+	Quit ..Exists("OcuTalon_Digest_Data.Sent,OcuTalon_Digest_Msg.Compose", sessionRef, "Kind = 'scheduled' AND DueAt >= ?", due)
 }
 
 /// 1 when the session already has a Sent row or a Compose body that holds the IdempotencyKey.
 Method KeyHeld(sessionRef As %String, key As %String) As %Boolean [ Private ]
 {
-	For table = "OcuTalon_Digest_Data.Sent", "OcuTalon_Digest_Msg.Compose" {
-		Set found = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM "_table_" WHERE SessionRef = ? AND IdempotencyKey = ?", sessionRef, key)
+	Quit ..Exists("OcuTalon_Digest_Data.Sent,OcuTalon_Digest_Msg.Compose", sessionRef, "IdempotencyKey = ?", key)
+}
+
+/// 1 when one of the tables (comma-separated SQL names) has a row of the session where the condition holds for the value. A read error throws.
+Method Exists(tables As %String, sessionRef As %String, condition As %String, value As %String) As %Boolean [ Private ]
+{
+	For i = 1:1:$Length(tables, ",") {
+		Set table = $Piece(tables, ",", i)
+		Set found = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM "_table_" WHERE SessionRef = ? AND "_condition, sessionRef, value)
 		If found.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "Digest could not read "_table_": "_found.%Message))
-		If found.%Next() Quit
+		If found.%Next() Return 1
 	}
-	Quit found.%SQLCODE >= 0 && (found.%ROWCOUNT > 0)
+	Quit 0
 }
 
 /// Queues one Compose of the session, with its window fixed at now.
@@ -341,17 +343,9 @@ Method Composed(compose As OcuTalon.Digest.Msg.Compose) As %Status [ Private ]
 /// 1 when the digest of the Compose is already sent: a Sent row holds its key, or is its scheduled digest.
 Method Sent(compose As OcuTalon.Digest.Msg.Compose) As %Boolean [ Private ]
 {
-	If compose.IdempotencyKey '= "" Quit ..SentRow(compose.SessionRef, "IdempotencyKey = ?", compose.IdempotencyKey)
-	If compose.Kind = "scheduled" Quit ..SentRow(compose.SessionRef, "Kind = 'scheduled' AND DueAt >= ?", compose.DueAt)
+	If compose.IdempotencyKey '= "" Quit ..Exists("OcuTalon_Digest_Data.Sent", compose.SessionRef, "IdempotencyKey = ?", compose.IdempotencyKey)
+	If compose.Kind = "scheduled" Quit ..Exists("OcuTalon_Digest_Data.Sent", compose.SessionRef, "Kind = 'scheduled' AND DueAt >= ?", compose.DueAt)
 	Quit 0
-}
-
-/// 1 when the session has a Sent row where the condition holds for the value.
-Method SentRow(sessionRef As %String, condition As %String, value As %String) As %Boolean [ Private ]
-{
-	Set found = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ? AND "_condition, sessionRef, value)
-	If found.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "Digest could not read the sent digests: "_found.%Message))
-	Quit found.%Next()
 }
 
 /// The summary request (AD-30): an untrusted, fresh turn with no seed, whose input is the saved summaries as quoted data. The owner is set by the caller.

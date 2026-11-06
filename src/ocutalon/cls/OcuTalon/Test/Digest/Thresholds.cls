@@ -90,17 +90,22 @@ Method TestDigestSeeds()
 	Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.Setting).KeyIndexOpen("digest.channels")), 0, "the step seeds no digest.channels row")
 	Do $$$AssertEquals($ClassMethod("OcuTalon.Digest.Process", "Seeds").%ToJSON(), "{""digest.time"":""08:00""}", "the digest's seeds are digest.time alone")
 	Set section = ##class(OcuTalon.Core.SettingsOps).Section("daily-digest")
+	Do $$$AssertTrue($IsObject(section), "the settings have the daily-digest section")
+	Set compared = 0
 	If $IsObject(section) {
 		Set iterator = section.fields.%GetIterator()
 		While iterator.%GetNext(, .field) {
 			If field.key = "digest.time" {
 				Do $$$AssertEquals($ClassMethod("OcuTalon.Digest.Process", "Seeds").%Get(field.key), field.default, field.key_": the seed is the section's default")
+				Set compared = compared + 1
 			}
 			If field.key = "digest.channels" {
 				Do $$$AssertEquals($Parameter("OcuTalon.Digest.Process", "CHANNELSDEFAULT"), field.default, field.key_": the digest's default is the section's default")
+				Set compared = compared + 1
 			}
 		}
 	}
+	Do $$$AssertEquals(compared, 2, "both digest keys are compared with the section's defaults")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set("digest.time", "07:30"), "an admin saves 07:30")
 	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Run"), "the step runs again, as at an upgrade")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexOpen("digest.time").Value, "07:30", "the changed value is kept")
@@ -108,7 +113,12 @@ Method TestDigestSeeds()
 	Set n = 0
 	While $ListNext(keys, position, key) {
 		Set n = n + 1
-		If $List($List(was, n), 1) Do ##class(OcuTalon.Data.Setting).Set(key, $List($List(was, n), 2))
+		If $List($List(was, n), 1) {
+			Do ##class(OcuTalon.Data.Setting).Set(key, $List($List(was, n), 2))
+		} Else {
+			Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+			If $IsObject(row) Do ##class(OcuTalon.Data.Setting).%DeleteId(row.%Id())
+		}
 		Kill ^||OcuTalon.Setting(key)
 	}
 }

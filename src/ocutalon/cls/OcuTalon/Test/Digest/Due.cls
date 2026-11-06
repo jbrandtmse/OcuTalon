@@ -15,7 +15,7 @@
 ///   - TestLock: a second job that holds the lock of the session's digest keeps the tick from queuing a Compose, and the next tick queues it once the lock
 ///     is free;
 ///   - TestLockRecheck: a job that holds the lock writes a scheduled Sent row for the due time before it lets go: the tick that waited for the lock checks
-///     again under it and queues nothing;
+///     again under it and queues nothing (the probe's record of the two checks shows the first found nothing and the second found the row);
 ///   - TestEndedOnlineDemo: on the online demo a session with no resume hash has ended and gets none, while one with a resume hash does; on a local install
 ///     both count.
 Class OcuTalon.Test.Digest.Due Extends OcuTalon.Test.Bridge.ZoneCase
@@ -72,7 +72,8 @@ Method OnAfterAllTests() As %Status
 	If $List(..SavedTime, 1) {
 		Do ##class(OcuTalon.Data.Setting).Set("digest.time", $List(..SavedTime, 2))
 	} Else {
-		Do ..SetTime("08:00")
+		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen("digest.time")
+		If $IsObject(row) Do ##class(OcuTalon.Data.Setting).%DeleteId(row.%Id())
 	}
 	Kill ^||OcuTalon.Setting("digest.time")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
@@ -275,6 +276,7 @@ Method TestLockRecheck()
 	Do $$$AssertTrue($ClassMethod(..#PROBE, "Held", ref), "the lock is held by the other job")
 	Do ..Tick(host, "2030-06-03T08:01:00")
 	Do $$$AssertEquals($ClassMethod(..#PROBE, "Count", "compose"), 0, "a tick that waits for the lock and finds the time covered when it has it queues no Compose")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "Record", "covered", 1)_"|"_$ClassMethod(..#PROBE, "Record", "covered", 2)_"|"_$ClassMethod(..#PROBE, "Count", "covered"), "0|1|2", "the time was not covered before the lock and was under it: the check under the lock is what held the tick back")
 	Set sent = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ? AND Kind = 'scheduled' AND DueAt = ?", ref, ..Utc("2030-06-03T08:00:00"))
 	Do sent.%Next()
 	Do $$$AssertEquals(sent.%GetData(1), 1, "the digest of the job that held the lock is the one for that time")

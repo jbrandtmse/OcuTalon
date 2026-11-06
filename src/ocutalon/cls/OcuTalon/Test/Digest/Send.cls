@@ -502,12 +502,12 @@ Method TestNothingSavedNoRequest()
 {
 	If '..Ready(1) Quit
 	Set session = ..Session()
-	Set mark = $ClassMethod(..#MOCK, "LogMark")
+	Set headerMark = ..HeaderMark()
 	Set result = ..Submit(session, "zznothing:1")
 	Do ..AssertSending(result, "the SendDigest")
 	Do $$$AssertEquals(..WaitSent(session, 1), 1, "the digest goes")
-	Do $ClassMethod(..#MOCK, "LogSince", mark, .entries)
-	Do $$$AssertEquals(entries.%Size(), 0, "and the mock logged no request")
+	Do $$$AssertEquals(..RequestsOf(headerMark, session).%Size(), 0, "and no request went from Digest to Decide for the session")
+	Do $$$AssertEquals(..SentRow(session).itemId, "", "and the Sent row records no request")
 	Set slots = {}.%FromJSON(..SentRow(session).slots)
 	Set none = 0
 	Set iterator = slots.parts.%GetIterator()

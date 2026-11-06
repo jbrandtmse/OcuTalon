@@ -41,7 +41,7 @@ Method TestToolRows()
 {
 	Set rows = $ClassMethod(..#GENERATOR, "ToolRows")
 	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")_","_$Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS"))
-	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per built-in tool")
+	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1")
 	Set names = ""
 	Set bad = ""
 	Set iterator = rows.%GetIterator()
@@ -58,7 +58,7 @@ Method TestToolRows()
 		Do $$$AssertEquals(row.trustedOutput, +facts.trustedOutput, row.name_": the trusted-output flag is the gate's")
 	}
 	Do $$$AssertEquals(bad, "", "every row is a class of OcuTalon.Tools, so no fixture and no bridge example appears")
-	Do $$$AssertEquals($ListToString(names), $ListToString(..Sorted(released)), "the names are those of RELEASE1 and DIGESTTOOLS, sorted")
+	Do $$$AssertEquals($ListToString(names), $ListToString(..Sorted(released)), "the names are those of RELEASE1, sorted")
 }
 
 /// DW-521: recent_activity is one of the 12 rows, with its source, toolset, agent, label, classification and flags, in the table as well.

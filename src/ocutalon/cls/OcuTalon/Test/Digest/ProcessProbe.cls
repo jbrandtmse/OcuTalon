@@ -8,9 +8,11 @@
 ///   - Own gives the session's own channels from OwnChannels (comma-separated) when it is set, else the product's (ReadOwn always gives the product's);
 ///   - SendSummary records the request as ^||DigestProbe("summary", n) with the fields kind, provenance, sessionMode, seedText, ownerRef, itemId, input,
 ///     channel, systemNote, summary and traceRef, and fails when FailSummary is set;
-///   - Rows gives the rows of Test.Digest.CoverageProbe (healthy vital signs and the fed reads), and an error status when FailRows is set. After
-///     Feed, it gives instead the five vital rows that Feed was given and the watched rows, with one coverage line for each;
-///   - Schedule works only for the sessions of Only (comma-separated), so that a tick queues nothing for a session the test does not own.
+///   - Rows records its window as ^||DigestProbe("rows", n) = $ListBuild(fromUtc, toUtc) and gives the rows of Test.Digest.CoverageProbe (healthy vital
+///     signs and the fed reads), and an error status when FailRows is set. After Feed, it gives instead the five vital rows that Feed was given and the
+///     watched rows, with one coverage line for each;
+///   - Schedule works only for the sessions of Only (comma-separated), so that a tick queues nothing for a session the test does not own;
+///   - Covered records each answer of the product's check, in order, as ^||DigestProbe("covered", n) = 0 or 1.
 /// Cost and NeedsYou are the product's own: the tests feed them with fixture rows. LOCKSECONDS is 1, so that a held lock costs the test a second.
 /// Hold and Held take and test the lock of a session's digest from another job; Hold can write a Sent row that covers a due time just before it lets go.
 /// ForgetChannels and PutChannelsBack take the digest.channels row out of the way of a test that sends and put it back, so that a row left by another
@@ -182,6 +184,13 @@ Method Schedule(sessionRef As %String, due As %String, now As %String) As %Statu
 	Quit ##super(sessionRef, due, now)
 }
 
+Method Covered(sessionRef As %String, due As %String) As %Boolean [ Private ]
+{
+	Set covered = ##super(sessionRef, due)
+	Set ^||DigestProbe("covered", $Increment(^||DigestProbe("covered"))) = covered
+	Quit covered
+}
+
 Method SendCompose(compose As OcuTalon.Digest.Msg.Compose) As %Status [ Private ]
 {
 	Set sc = compose.%Save()
@@ -227,6 +236,7 @@ Method SendSummary(request As OcuTalon.Bridge.Msg.Request) As %Status [ Private 
 
 Method Rows(sessionRef As %String, fromUtc As %String, toUtc As %String, Output rows As %DynamicArray, Output lines As %DynamicArray, Output vitals As %DynamicObject) As %Status [ Private ]
 {
+	Set ^||DigestProbe("rows", $Increment(^||DigestProbe("rows"))) = $ListBuild(fromUtc, toUtc)
 	If ..FailRows Quit $SYSTEM.Status.Error(5001, "zz the rows could not be built")
 	If $Data(^||DigestProbe("fed")) {
 		Set fed = {}.%FromJSON(^||DigestProbe("fed"))

@@ -257,7 +257,8 @@ Method TestDigestMessage()
 		Do $$$AssertStatusOK(sc, "the cost that other rows add (the instance's) is read")
 		Set cost = {}
 		Do cost.%Set("cost", 0.042 + instance, "number")
-		Do ..Keep(##class(OcuTalon.Test.Data.Fixture).Usage(ref, session, {"CostUSD": 0.042, "RecordedAt": (##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -86400))}))
+		Set yesterday = $ZDate($ZDateH($Piece(##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).NowUtc()), "T", 1), 3) - 1, 3)
+		Do ..Keep(##class(OcuTalon.Test.Data.Fixture).Usage(ref, session, {"CostUSD": 0.042, "RecordedAt": (##class(OcuTalon.Data.Time).FromLocal(yesterday_"T12:00:00"))}))
 		Do ..Keep(##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", ##class(OcuTalon.Data.Time).NowUtc(), {"Summary": "Partner support: invoice question", "Outcome": "tellnow"}))
 		Set notice = ..DigestNotice(session, [(..Watched("passed", "Orders production")), (..Watched("failed", "Billing source", "5 messages queued")), (..Watched("not_checked", "Mail source"))])
 		Set sends = ..CallsOf("sendMessage").%Size()
@@ -469,6 +470,14 @@ Method TestHandledEdit()
 		Do $$$AssertStatusOK(..ToOut(handled), "a second handled Notification is sent")
 		Do $$$AssertEquals(..EditsTo(chatId).%Size(), edits + 1, "the first edit stays: nothing more is edited")
 		Do $$$AssertEquals(..Warned(mark, "did not edit a handled notice's message"), 1, "and the repeat logs no further warning")
+		Set lost = ##class(OcuTalon.Msg.Notification).%New()
+		Set lost.SessionRef = session
+		Set lost.Kind = "handled"
+		Set lost.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+		Do $$$AssertStatusOK(..ToOut(lost), "a handled Notification for a Ref the chat has no message for is sent")
+		Do $$$AssertEquals(..EditsTo(chatId).%Size(), edits + 1, "it edits nothing")
+		Do $$$AssertEquals(..Warned(mark, "did not edit a handled notice's message"), 1, "and logs one warning")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the handled test failed: "_..Safe(ex))
 	}

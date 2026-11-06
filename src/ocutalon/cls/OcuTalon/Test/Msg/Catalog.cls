@@ -694,7 +694,7 @@ Method TestEverySlotIsValidated()
 				Do ..AssertRefused(where_" email", key, ..WithSlot(fixture.slots, name, "email"), "telegram", fragment, "email")
 			} ElseIf type = "fallbackReason" {
 				Do ..AssertRefused(where_" unknown", key, ..WithSlot(fixture.slots, name, "melted"), "telegram", fragment, "melted")
-			} ElseIf (type = "cost") || (type = "dailyCost") {
+			} ElseIf type = "cost" {
 				Do ..AssertRefused(where_" negative", key, ..WithSlot(fixture.slots, name, -1, "number"), "telegram", fragment)
 			} ElseIf type = "groups" {
 				Do ..AssertRefused(where_" empty", key, ..WithSlot(fixture.slots, name, []), "telegram", fragment)

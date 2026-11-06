@@ -3891,6 +3891,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Task 0 Probe.Ambig on slot C build 154: Static() returned the second instant in all 3 zones; Python fold 0 gives the first
 - 2026-11-03T20:24:25Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=harvest note=Data.Time is Lane B's (U-177); 18.2 changes it for the run-time zone; fix with the Bridge.Time.Apply() reading that 33.1 fixes
 - 2026-11-06T10:39:30Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry
+- 2026-11-06T18:54:29Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
 
 ### DW-646: Digest.Data.CheckRun and Digest.Data.Sent have no purge yet although their docs and the spine (AD-27) say they are purged with the digest area's rows
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4370,3 +4371,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 17.6 implement report: one 400 vs 200, three green reruns; which check row and request were not recorded
 - 2026-11-06T15:12:04Z status=routed owner=burndown by=harvest note=flake candidate (orchestrator 2026-11-06): one rerun and an occurrence= line per sighting; record the failing row and request next time
 - 2026-11-06T15:12:04Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=lead note=first_sighting(implement_stage,local)
+
+### DW-815: The Telegram digest's 4096-character bound (Q4 b) holds only for the needs-you list: the checked list, whatFailed and one coverage line per row are unbounded, so a session with many watched entries gets the digest in several messages
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Digest.Process.Finish puts every watched entry in digest.checked and whatFailed and Coverage.Build's lines are passed unchanged; TelegramOut.Send splits over 4096; about 22 failed or 45 passed rows exceed it
+- 2026-11-06T18:54:29Z status=decision-pending owner=burndown by=cr note=product call: bound or fold the coverage lines (AD-18/AD-32 say one line per row) or accept a split digest
+
+### DW-816: With Digest enabled, the installed heartbeat's tick at digest.time sends a scheduled digest to every alive session created before it, so a test that spans that minute and counts its session's notices or unscoped mock requests can go red
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Install.Step.Schedule's every-minute HeartbeatTask runs on CI stacks; Digest.Process.Ticked queues every session created before due (DW-651 rule); not observed in any run
+- 2026-11-06T18:54:29Z status=wontfix-theoretical owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=cr note=real if a CI red shows an extra notice or model request that is a scheduled digest at 08:00 instance time
+
+### DW-817: A tick's scheduled Composes for several sessions share the tick's trace session (Digest keeps the inbound session and sets only SuperSession, as Intake.Join does for Checks' findings), against AD-26's own trace session per untrusted item
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Digest.Process.Schedule/Queue send the Compose with the Tick's %SessionId and SuperSession; Composed sets SuperSession to TraceRef when empty
+- 2026-11-06T18:54:29Z status=wontfix-accepted owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=cr note=reopen_if=a Visual Trace view at the hands-on pass shows two sessions' digests in one tick session and is judged confusing
+
+### DW-818: The Q1 Tick-forward warnings in Checks.Process.Tick log the raw status or exception text with no prefix, so the event log does not say that forwarding the tick to Digest failed
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Checks/Process.cls Tick: two LOGWARNING calls of Redact.Text(...) only; the ruled block allows no other line (Q1, contended with Epic 39)
+- 2026-11-06T18:54:29Z status=wontfix-accepted owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=cr note=reopen_if=an operator or a test cannot tell a Checks warning about the Digest forward from another
+
+### DW-819: Test.Digest.DueEdges copies the set-up of Test.Digest.Due (OnBefore/OnAfter, Session, Host, Tick, Utc) instead of sharing a base class
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: DueEdges.cls :30-107 are near-copies of Due.cls :40-121; they had drifted on the digest.time restore (fixed in this review)
+- 2026-11-06T18:54:29Z status=wontfix-accepted owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=cr note=reopen_if=a third Digest due-rule test class copies the same set-up, or the two drift again

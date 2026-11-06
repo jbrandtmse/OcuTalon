@@ -92,8 +92,8 @@ Parameter LOGEDIT = "TelegramOut could not edit a message: ";
 
 Parameter LOGNOHANDLED = "TelegramOut did not edit a handled notice's message: no stored message with its text, or no handled marker, was found.";
 
-/// The notification kinds that the chat gets (the kinds that the simulated phone shows, and allowance and pairing).
-Parameter KINDS = "tellnow,incident,approval,result,reminder,allowance,pairing,digest,handled";
+/// The notification kinds that the chat gets as a new message (answered and handled edit a message instead).
+Parameter KINDS = "tellnow,incident,approval,result,reminder,allowance,pairing,digest";
 
 /// The notification kinds whose message carries the Approve and Reject buttons when it has an approval Ref.
 Parameter BUTTONKINDS = "incident,approval";
