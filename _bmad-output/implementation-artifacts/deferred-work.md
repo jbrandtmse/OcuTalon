@@ -4405,6 +4405,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: evidence/34-2-task0-image.md (34.2 Task 0 b)
 - 2026-11-05T12:23:42Z status=routed owner=19-2-compute-embeddings-offline-in-a-worker by=harvest note=decide whether to tighten the folder (Dockerfile) when 19.2 uses the packages
+- 2026-11-06T04:53:06Z status=wontfix-theoretical owner=19-2-compute-embeddings-offline-in-a-worker by=spec_gate note=the_folder_owner_irisowner_is_the_IRIS_process's_own_user,which_already_writes_the_code_database_and_mgr;the_folder_is_in_the_image_layer,reset_at_every_recreate;so_tightening_it_adds_no_boundary;real_if_the_IRIS_process_ever_runs_as_a_user_other_than_the_folder's_owner;fix_would_be_docker/Dockerfile(Lane_B,U-177)
 
 ### DW-733: flake candidate: Test.Live.GuideRefresh TestHookPublishesOnChange and TestEventsBodyServesTheGuide fail when the class runs alone on a warm stack the lane-b shard already used; pass in the shard on every fresh stack (order or state dependence of the test itself)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
