@@ -10,7 +10,7 @@
 ///     queue, the turn of a page's clientId, the queued and running turns, and the newest turn with a reply decision;
 ///     for a decision's trace target, the turn of an Item, TurnOfItem),
 ///     pending reminders, background checks, decisions (and one decision by its Ref), the usage rows of a turn's two
-///     decisions or since a time, noticed incidents, pending approval requests, pairing, and the web copies of the notice
+///     decisions or since a time, noticed incidents, pending approval requests, pairing, the heartbeat row (Heartbeat), and the web copies of the notice
 ///     cards (RecentNotices), the messages of the simulated phone (RecentPhone), the emails of the simulated mailbox
 ///     (RecentMail), the session's own decide decision of an Item (DecisionOfItem) and the delivery of an approval message
 ///     (DeliveryFor), and the delivery of a notice by the notice's Ref (DeliveryByRef).
@@ -342,6 +342,15 @@ ClassMethod Approvals(sessionRef As %String, Output sc As %Status) As %ListOfObj
 ClassMethod Pairing(sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Pairing
 {
 	Set rows = ..Rows("pairing", sessionRef, .sc)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
+/// The session's own HeartbeatBeat row, or "". The SessionRef is compared exactly (the property has the default collation, which ignores
+/// case), so a row of a Ref that differs only in case is not the session's. sc is an error status when the read failed.
+ClassMethod Heartbeat(sessionRef As %String, Output sc As %Status) As OcuTalon.Data.HeartbeatBeat
+{
+	Set rows = ..Rows("heartbeat", sessionRef, .sc)
 	If rows.Count() = 0 Quit ""
 	Quit rows.GetAt(1)
 }
@@ -829,6 +838,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "pairing" {
 		Set class = "OcuTalon.Data.Pairing", binds = "o"
 		Quit "SELECT TOP 1 ID FROM OcuTalon_Data.Pairing WHERE SessionRef = ? ORDER BY ID"
+	}
+	If kind = "heartbeat" {
+		Set class = "OcuTalon.Data.HeartbeatBeat", binds = "o"
+		Quit "SELECT TOP 1 h.ID FROM OcuTalon_Data.HeartbeatBeat h WHERE %EXACT(h.SessionRef) = ?"
 	}
 	If kind = "recentNotices" {
 		Set class = "OcuTalon.Data.Delivery", binds = "ao"

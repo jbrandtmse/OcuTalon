@@ -120,7 +120,7 @@ Method TestEveryKeyOnEveryChannel()
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
 	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 154 keys of the catalog")
 	Set refused = ..RefusedChannels()
-	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
+	Do $$$AssertEquals(refused, "email,webhook,slack,system,heartbeat", "five Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
 	While iterator.%GetNext(.key, .fixture) {
 		Set expectedWeb = $Select(fixture.%IsDefined("web"): fixture.web, 1: fixture.text)

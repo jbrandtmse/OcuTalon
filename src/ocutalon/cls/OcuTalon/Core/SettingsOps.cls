@@ -1,5 +1,5 @@
-/// SettingsOps, the business operation that carries out the settings commands SetDemoMode, SaveSettings (from step 2, below), SetPersona
-/// and ProposePersona (AD-1, AD-19). It is the only run-time writer of OcuTalon.Data.Setting: it writes only the keys of ALLOWLIST and the
+/// SettingsOps, the business operation that carries out the settings commands SetDemoMode, SaveSettings (from step 2, below), SetPersona,
+/// ProposePersona and SetHeartbeat (AD-1, AD-19). It is the only run-time writer of OcuTalon.Data.Setting: it writes only the keys of ALLOWLIST and the
 /// per-person keys of PERSONKEYS, and at sign-out deletes every per-person key of the ended session. For every accepted SetDemoMode it:
 ///   - writes the Settings audit entry first (AD-17), through Bridge.Audit.Record, so that no change is unaudited and the entry has the
 ///     one shape of its type;
@@ -10,6 +10,13 @@
 /// values (PersonaProblem), writes the Settings audit entry first (setting persona, from and to in the form of AuditForm: the preset id
 /// or the language name, never the custom text), then writes person.<SessionRef>.persona.preset, .language and .custom in one
 /// transaction (WritePersona). A value that the chosen preset does not use is neither validated nor stored: its key is written empty.
+/// For every accepted SetHeartbeat (origin web_user, the session's own heartbeat settings) it checks that the session has a row, validates
+/// the values (HeartbeatProblem: on is 0 or 1; the interval is one of Checks.Beat INTERVALS; the hours are both empty, for all day, or both HH:MM
+/// with the minutes 00, 15, 30 or 45; the checklist has at most Checks.Beat CHECKLISTMAX characters, no {{, no @{ and no control character other
+/// than a line feed or carriage return), writes the Settings audit entry first (setting heartbeat, from and to in the form of HeartbeatAuditForm:
+/// only the changed keys, the checklist as its length, never its text), then writes person.<SessionRef>.heartbeat.on, .interval, .from, .to and
+/// .checklist in one transaction (WriteKeys, which WritePersona shares). Heartbeat(sessionRef) reads a person's values and their HeartbeatBeat
+/// row's public view; SampleChecklist is the online demo's unsaved checklist.
 /// ProposePersona (origin tool, Story 40.6) checks the session, the online-demo flag and the values like SetPersona, writes and audits no
 /// persona key, and raises a request of kind setting (Bridge.Approval.Raise, ResultTarget SettingsOps, the DryRun {key, ownerRef, old, new}
 /// whose old and new are the objects {preset, language, custom, text}) and sends one approval.persona notice to Notify (kind approval,
@@ -21,9 +28,11 @@
 /// It answers every command with a CommandResult (Ok, Outcome and Message) and never an error status. The outcomes:
 ///   - on, off: carried out; off_kept: off, and the step kept an OCUORDERS that is not its own (Ok 1);
 ///   - step_failed: the value is written and the step failed; the next start runs the step again (Ok 0);
-///   - saved: the persona is saved (Ok 1; Data holds the saved preset, language and custom as JSON);
+///   - saved: the persona is saved (Ok 1; Data holds the saved preset, language and custom as JSON), or the heartbeat settings are saved (Ok 1;
+///     Data holds the saved on (0 or 1), interval, from, to and checklist as JSON);
 ///   - bad_preset, bad_language, bad_custom, custom_not_offered (the online demo offers presets and a language only): the values are
 ///     refused and nothing was written (Ok 0);
+///   - bad_on, bad_interval, bad_hours, bad_checklist: the heartbeat values are refused and nothing was written (Ok 0);
 ///   - no_session: the command's session has no row (Ok 0);
 ///   - not_audited: the audit entry could not be written (Record refuses it, for example when the command has no ActingUser), so nothing
 ///     was written (Ok 0);
@@ -32,7 +41,7 @@
 ///   - unknown_command: a command class that this operation does not carry out (Ok 0);
 ///   - failed: an error was thrown, the request could not be raised, or a value could not be saved; a persona write that fails changes no
 ///     key (Ok 0).
-/// Persona(sessionRef) reads a person's values from their rows, ForgetPerson(sessionRef) deletes every per-person key of a session
+/// Persona(sessionRef) and Heartbeat(sessionRef) read a person's values from their rows, ForgetPerson(sessionRef) deletes every per-person key of a session
 /// (SessionOps.End calls it), and PersonaKey names a persona key. A written value applies to other processes when their 60-second
 /// Setting cache entries expire.
 /// SaveSettings saves one section of the settings page (XData Sections: the section's fields, each with its key or bridge name, its kind and
@@ -52,7 +61,7 @@ Class OcuTalon.Core.SettingsOps Extends Ens.BusinessOperation
 Parameter ALLOWLIST = "demo.mode,digest.time,digest.channels,checks.thresholds.diskFreePercent,checks.thresholds.journalFreePercent,checks.thresholds.licenseUsePercent,checks.thresholds.queueMessages,checks.thresholds.queueWaitMinutes";
 
 /// The per-person setting keys that this operation writes, comma-separated: person.<SessionRef>. followed by one of these (AD-19).
-Parameter PERSONKEYS = "persona.preset,persona.language,persona.custom";
+Parameter PERSONKEYS = "persona.preset,persona.language,persona.custom,heartbeat.on,heartbeat.interval,heartbeat.from,heartbeat.to,heartbeat.checklist";
 
 /// The Message of the persona answers.
 Parameter MESSAGESAVED = "Saved. Applies from your next message. Recorded in the audit log.";
@@ -64,6 +73,11 @@ Parameter MESSAGEBADCUSTOM = "Use up to 1,000 characters, without {{ or @{.";
 Parameter MESSAGECUSTOMNOTOFFERED = "On the online demo you can choose a preset or a language. Your choice lasts for this visit.";
 
 Parameter MESSAGENOTSAVED = "Couldn't save. Nothing was changed.";
+
+/// The Message of the heartbeat answers.
+Parameter MESSAGEHEARTBEATSAVED = "Saved. Applies within a minute. Recorded in the audit log.";
+
+Parameter MESSAGEBADCHECKLIST = "Use up to 1,000 characters, without {{ or @{.";
 
 /// The Message of a proposal that was raised (the pending note of the Persona card).
 Parameter MESSAGEPROPOSED = "OcuTalon suggested a change. It waits for your answer in Approval requests.";
@@ -127,6 +141,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	If class = "OcuTalon.Msg.Command.SetDemoMode" Quit ..SwitchDemo(command)
 	If class = "OcuTalon.Msg.Command.SetPersona" Quit ..SavePersona(command)
 	If class = "OcuTalon.Msg.Command.ProposePersona" Quit ..Propose(command)
+	If class = "OcuTalon.Msg.Command.SetHeartbeat" Quit ..SaveHeartbeat(command)
 	Quit ..Result(0, "unknown_command", ##class(OcuTalon.Core.CommandsIn).#MESSAGEUNKNOWN)
 }
 
@@ -254,21 +269,28 @@ Method SavePersona(command As OcuTalon.Msg.Command.SetPersona) As OcuTalon.Msg.C
 /// every key as it was); outcome is "" when it succeeds.
 Method WritePersona(irisUser As %String, sessionRef As %String, channel As %String, origin As %String, preset As %String, language As %String, custom As %String, Output outcome As %String) As %Status [ Private ]
 {
-	Set outcome = ""
 	Set from = ..AuditForm(..Stored(..PersonaKey(sessionRef, "preset")), ..Stored(..PersonaKey(sessionRef, "language")))
-	Set sc = ..WriteAudit(..AuditData(origin, irisUser, sessionRef, "persona", from, ..AuditForm(preset, language), channel))
+	Set keys = $ListBuild(..PersonaKey(sessionRef, "preset"), ..PersonaKey(sessionRef, "language"), ..PersonaKey(sessionRef, "custom"))
+	Quit ..WriteKeys(irisUser, sessionRef, channel, origin, "persona", from, ..AuditForm(preset, language), keys, $ListBuild(preset, language, custom), .outcome)
+}
+
+/// The write that WritePersona and WriteHeartbeat share: the Settings audit entry first (the setting, from and to as given), then each key
+/// of keys with the value at the same place of values, through Apply, in one transaction. Returns an error status for a refused audit entry
+/// (outcome not_audited, logged) or a failed write (outcome failed, logged, every key as it was); outcome is "" when it succeeds.
+Method WriteKeys(irisUser As %String, sessionRef As %String, channel As %String, origin As %String, setting As %String, from As %String, to As %String, keys As %List, values As %List, Output outcome As %String) As %Status [ Private ]
+{
+	Set outcome = ""
+	Set sc = ..WriteAudit(..AuditData(origin, irisUser, sessionRef, setting, from, to, channel))
 	If $$$ISERR(sc) {
 		$$$LOGERROR("The Settings audit entry could not be written"_$Select($SYSTEM.Status.GetErrorText(sc) = "": "", 1: ": "_$SYSTEM.Status.GetErrorText(sc)))
 		Set outcome = "not_audited"
 		Quit sc
 	}
-	Set values = $ListBuild(preset, language, custom)
 	Set level = $TLevel
 	TSTART
 	Try {
-		Set names = $ListFromString("preset,language,custom")
-		For i = 1:1:3 {
-			Set sc = ..Apply(..PersonaKey(sessionRef, $List(names, i)), $List(values, i))
+		For i = 1:1:$ListLength(keys) {
+			Set sc = ..Apply($List(keys, i), $List(values, i))
 			If $$$ISERR(sc) Quit
 		}
 	} Catch exception {
@@ -282,6 +304,137 @@ Method WritePersona(irisUser As %String, sessionRef As %String, channel As %Stri
 	}
 	TCOMMIT
 	Quit $$$OK
+}
+
+/// Carries out a SetHeartbeat and returns the CommandResult to answer (see the class description). The audit entry is written before the
+/// keys, and the five keys are written in one transaction: a failed write rolls all of them back. A refused value writes and audits nothing.
+Method SaveHeartbeat(command As OcuTalon.Msg.Command.SetHeartbeat) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set sessionRef = command.SessionRef
+	If '..HasSession(sessionRef, .irisUser) Quit ..Result(0, "no_session", ..#MESSAGENOTSAVED)
+	Set on = command.On, interval = command.Interval, from = command.From, to = command.To, checklist = command.Checklist
+	Set message = ..HeartbeatProblem(on, interval, from, to, checklist, .outcome)
+	If message '= "" Quit ..Result(0, outcome, message)
+	Set new = ..HeartbeatObject(+on, +interval, from, to, checklist)
+	Set old = ..HeartbeatValues(sessionRef)
+	Set changed = ""
+	For i = 1:1:$Length(##class(OcuTalon.Checks.Beat).#KEYS, ",") {
+		Set name = $Piece(##class(OcuTalon.Checks.Beat).#KEYS, ",", i)
+		If old.%Get(name) '= new.%Get(name) Set changed = changed_$ListBuild(name)
+	}
+	Set keys = "", values = ""
+	For i = 1:1:$Length(##class(OcuTalon.Checks.Beat).#KEYS, ",") {
+		Set name = $Piece(##class(OcuTalon.Checks.Beat).#KEYS, ",", i)
+		Set keys = keys_$ListBuild(##class(OcuTalon.Checks.Beat).SettingKey(sessionRef, name))
+		Set values = values_$ListBuild(new.%Get(name))
+	}
+	Set sc = ..WriteKeys(irisUser, sessionRef, "", command.Origin, "heartbeat", ..HeartbeatAuditForm(old, changed), ..HeartbeatAuditForm(new, changed), keys, values, .outcome)
+	If $$$ISERR(sc) Quit ..Result(0, outcome, ..#MESSAGENOTSAVED)
+	Quit ..Result(1, "saved", ..#MESSAGEHEARTBEATSAVED, new.%ToJSON())
+}
+
+/// The heartbeat values as the object that Checks.Beat.Values returns and the answer holds: on (number 0 or 1), interval (number), from, to
+/// and checklist (strings).
+ClassMethod HeartbeatObject(on As %Integer, interval As %Integer, from As %String, to As %String, checklist As %String) As %DynamicObject [ Private ]
+{
+	Set object = {}
+	Do object.%Set("on", on, "number")
+	Do object.%Set("interval", interval, "number")
+	Do object.%Set("from", from, "string")
+	Do object.%Set("to", to, "string")
+	Do object.%Set("checklist", checklist, "string")
+	Quit object
+}
+
+/// The session's heartbeat values as Checks.Beat.Values reads them (the defaults and the normalization are Checks'), after this process's
+/// cache entries of the five keys are dropped, so that the values are the rows' and not a cached older value.
+ClassMethod HeartbeatValues(sessionRef As %String) As %DynamicObject [ Private ]
+{
+	For i = 1:1:$Length(##class(OcuTalon.Checks.Beat).#KEYS, ",") {
+		Kill ^||OcuTalon.Setting(##class(OcuTalon.Checks.Beat).SettingKey(sessionRef, $Piece(##class(OcuTalon.Checks.Beat).#KEYS, ",", i)))
+	}
+	Quit ##class(OcuTalon.Checks.Beat).Values(sessionRef)
+}
+
+/// The refusal of heartbeat values: the plain Message to answer, and the outcome (bad_on, bad_interval, bad_hours or bad_checklist) in
+/// outcome, or "" and "" when the values are acceptable. In order: on is 0 or 1; the interval is a canonical number in Checks.Beat INTERVALS;
+/// the hours are both empty (all day) or both HH:MM with HH 00 to 23 and MM 00, 15, 30 or 45; the checklist has at most Checks.Beat
+/// CHECKLISTMAX characters, as $Length counts them, holds no {{ and no @{ and no control character other than a line feed or carriage
+/// return. Only the checklist's refusal has a message of its own; the others say that nothing was saved.
+ClassMethod HeartbeatProblem(on As %String, interval As %String, from As %String, to As %String, checklist As %String, Output outcome As %String) As %String [ Private ]
+{
+	Set outcome = ""
+	If (on '= "0") && (on '= "1") {
+		Set outcome = "bad_on"
+		Quit ..#MESSAGENOTSAVED
+	}
+	If (interval '= +interval) || '$ListFind($ListFromString(##class(OcuTalon.Checks.Beat).#INTERVALS), +interval) {
+		Set outcome = "bad_interval"
+		Quit ..#MESSAGENOTSAVED
+	}
+	Set clock = "^([01][0-9]|2[0-3]):(00|15|30|45)\z"
+	If '(((from = "") && (to = "")) || ($Match(from, clock) && $Match(to, clock))) {
+		Set outcome = "bad_hours"
+		Quit ..#MESSAGENOTSAVED
+	}
+	If ($Length(checklist) > ##class(OcuTalon.Checks.Beat).#CHECKLISTMAX) || (checklist [ "{{") || (checklist [ "@{") || $Locate(checklist, "[\p{Cc}&&[^\n\r]]") {
+		Set outcome = "bad_checklist"
+		Quit ..#MESSAGEBADCHECKLIST
+	}
+	Quit ""
+}
+
+/// The form of heartbeat values in an audit entry: name=value for each name in changed (a list of Checks.Beat KEYS names), in KEYS order,
+/// joined by "; ", the checklist as checklist=<n> characters, never its text; "" when nothing changed. values is an object with a member for
+/// each name, as Checks.Beat.Values returns.
+ClassMethod HeartbeatAuditForm(values As %DynamicObject, changed As %List) As %String
+{
+	Set form = ""
+	For i = 1:1:$Length(##class(OcuTalon.Checks.Beat).#KEYS, ",") {
+		Set name = $Piece(##class(OcuTalon.Checks.Beat).#KEYS, ",", i)
+		If '$ListFind(changed, name) Continue
+		Set part = name_"="_$Select(name = "checklist": $Length(values.%Get(name))_" characters", 1: values.%Get(name))
+		Set form = form_$Select(form = "": "", 1: "; ")_part
+	}
+	Quit form
+}
+
+/// A person's heartbeat, read from the rows and never from the per-process cache: the public view of their settings and HeartbeatBeat row
+/// (Live.Payload.Heartbeat.FromRow, the very view of the heartbeat event) as a dynamic object, with from and to always present, followed by
+/// checklist (the stored text) and sample (true only when the unsaved sample checklist is shown: on the online demo, when the session has no
+/// checklist row). sc is an error status when the row could not be read; the settings are returned all the same.
+ClassMethod Heartbeat(sessionRef As %String, Output sc As %Status) As %DynamicObject
+{
+	Set sc = $$$OK
+	Set values = ..HeartbeatValues(sessionRef)
+	Set row = ##class(OcuTalon.Data.Ownership).Heartbeat(sessionRef, .sc)
+	Set result = {}
+	Try {
+		Set payload = ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values)
+		Set status = payload.%JSONExportToString(.json)
+		If $$$ISERR(status) Throw ##class(%Exception.StatusException).CreateFromStatus(status)
+		Set exported = {}.%FromJSON(json)
+		Do result.%Set("on", exported.%Get("on"), "boolean")
+		Do result.%Set("interval", exported.%Get("interval"), "number")
+		Do result.%Set("from", values.from, "string")
+		Do result.%Set("to", values.to, "string")
+		Set iterator = exported.%GetIterator()
+		While iterator.%GetNext(.name, .value, .type) {
+			If '$ListFind($ListBuild("on", "interval", "from", "to"), name) Do result.%Set(name, value, type)
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Set sample = ('##class(OcuTalon.Data.Setting).KeyIndexExists(##class(OcuTalon.Checks.Beat).SettingKey(sessionRef, "checklist"))) && ..OnlineDemo()
+	Do result.%Set("checklist", $Select(sample: ..SampleChecklist(), 1: values.checklist), "string")
+	Do result.%Set("sample", sample, "boolean")
+	Quit result
+}
+
+/// The checklist that the online demo shows to a session with no saved checklist: three lines joined by line feeds. It is shown and never stored.
+ClassMethod SampleChecklist() As %String
+{
+	Quit "Tell me if an Orders incident is still open or waiting for my approval."_$Char(10)_"Remind me of anything due in the next hour."_$Char(10)_"Ignore everything else."
 }
 
 /// Carries out a ProposePersona and returns the CommandResult to answer: the session check, the online-demo refusal and the values'

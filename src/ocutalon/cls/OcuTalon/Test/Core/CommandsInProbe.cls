@@ -24,7 +24,7 @@ Property SeenSessionId As %String;
 /// The service's %SuperSession when it sent.
 Property SeenSuperSession As %String;
 
-Method Send(target As %String, request As OcuTalon.Msg.Command, Output response As %Library.Persistent) As %Status [ Private ]
+Method Send(target As %String, request As Ens.Request, Output response As %Library.Persistent) As %Status [ Private ]
 {
 	Set response = ""
 	Set ..SeenSessionId = ..%SessionId

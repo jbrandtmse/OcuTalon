@@ -2,12 +2,31 @@
 title: 'Story 39.2: Save your heartbeat settings and ask for a beat'
 type: 'feature'
 created: '2026-11-05'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'be713bee79f652ff0447435812c97f4a413c69ac'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      An accepted save changes interval, hours or on/off, but Checks.Beat keeps the stored NextDueAt, so the new interval can apply only after the next
+      beat although the Saved sentence says "Applies within a minute".
+    evidence: |-
+      Checks/Beat.cls lines 8-9 and 515: a beat that runs sets NextDueAt to the tick plus one interval, and RunDue (line 426) tests the stored NextDueAt.
+      SaveHeartbeat writes only the five person keys (AD-19: Beat.Values reads them within 60 s). A person on 1440 minutes who saves 30 minutes keeps the old NextDueAt.
+      Settling it needs a decision on rescheduling (a Lane A change to Checks or HeartbeatBeat, outside this story) or on the wording of the ruled Saved sentence.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Checks/Beat.cls:426
+    severity: medium
+  - summary: >-
+      On the online demo a session with no checklist row sees the unsaved sample checklist in GET, but POST run answers 409 empty for it.
+    evidence: |-
+      Core/SettingsOps.cls Heartbeat shows SampleChecklist with sample true and writes no key (spec: no key written); Checks reads the stored checklist only and answers empty.
+      Story 39.5's card has to save the sample before it offers Run now, or the product has to decide that the sample runs.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:Heartbeat
+    severity: low
 ---
 
 <intent-contract>
@@ -139,6 +158,28 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-06 — Review pass
+- verdicts: 22 findings — high 0, medium 2, low 20, false 0, maybe-false 0
+- findings:
+  - `[medium]` `[defer]` Blind 1: the Saved sentence "Applies within a minute" can be false for interval, hours and on/off because NextDueAt is not recomputed — Beat.cls:9,426,515 confirm it; the fix is a Lane A change or a change to the ruled sentence, neither in this story; deferred (first item).
+  - `[low]` `[reject]` Blind 2 and Edge 1: a cooldown or backoff 409 without availableAt reads "at ." — Checks.Process always sets availableAt for both; a fallback sentence would be new public text outside the ruled table.
+  - `[low]` `[patch]` Blind 3: no test asserts the audit entry a failed key write leaves, and the TestKeyWriteFails comment says "third key" — comment corrected and `Audits() = 2` asserted in `SettingsHeartbeat.TestKeyWriteFails` (passes).
+  - `[low]` `[reject]` Blind 4 and Edge 5: an unchanged save still audits with empty from/to — the spec's Design Notes decide it ("every accepted save writes all five keys and one audit entry") and the audit-form table row says both empty when nothing changed.
+  - `[low]` `[reject]` Blind 5: HeartbeatValues kills `^||OcuTalon.Setting` directly — the spec's task prescribes the kill, and ForgetPerson does the same; no named divergence.
+  - `[low]` `[reject]` Blind 6: the person keys compare case-insensitively while the row uses %EXACT — 22-character random Refs; fixing it changes Data.Setting (Epic 40's), not this story.
+  - `[low]` `[reject]` Blind 7 and Edge 3: SettingsOps.OnlineDemo and Watch.Reader.OnlineDemo differ for a value such as 2 — the onlineDemo setting is only ever 0 or 1 (installer); the spec names SettingsOps.OnlineDemo.
+  - `[low]` `[reject]` Blind 8, Edge 2 and Edge 7: Unicode format characters pass and $Length counts UTF-16 units — the spec fixes the rule ("as $Length counts", the persona check's control-character class) and TestBadChecklist pins it; a wider class would change the ruled validation.
+  - `[low]` `[defer]` Edge 4: the online-demo sample shows in GET but Run answers empty — real interaction of two spec'd behaviours; the card (Story 39.5) must save the sample first; deferred (second item).
+  - `[low]` `[reject]` Edge 6: two concurrent saves can leave audit from-values stale — two simultaneous saves of one person's own page; no consumer diverges.
+  - `[low]` `[reject]` Edge 8: Ok Data lacking members gives a 200 with defaults — Data is produced by SaveHeartbeat in the same product and always holds all five members; unreachable.
+  - `[low]` `[reject]` Edge 9: the HeartbeatBeat row survives sign-out — AC6 and AD-19 name the five keys; the row holds ids and times, not text, and the Tick walks Session rows; whether a row retention rule is wanted is Lane A's.
+  - `[low]` `[reject]` VG 1: `web_user,tool` in Routes stays green because TOOLVERBS refuses first — true, and the spec's Verification now records the mutation that goes red (TOOLVERBS plus origins); the Routes column is the second gate of a refusal that TestToolRefused still pins.
+  - `[low]` `[patch]` VG 2: Test.Data.Delivery's channel loop omits `heartbeat` — `"heartbeat"` added to the loop in `Test/Data/Delivery.cls` (not in Epic 11's or 17's diff; passes).
+  - `[low]` `[reject]` VG 3: AC8 and some sub-tests have no `mutation:` line, and the last two TestAppliesWithinSixtySeconds assertions test Data.Setting's cache — Rule 19 asks one pinning mutation per AC with a pinning test; AC8 is a diff command, not a test; the 60-second assertions pin the window that AD-19 relies on.
+  - `[medium]` `[patch]` VG 4: HeartbeatApi tests left `on` true sessions (TestPutLongChecklist, TestPutBodyNamesSession) that a Tick could beat, and SettingsHeartbeat.TestHeartbeatRead assumed no row — both PUTs now send `on` false (expected keys `0|60|||zz mine`), and TestHeartbeatRead opens an existing row before creating one; classes re-run green.
+  - `[low]` `[reject]` VG other: Approval, Audit, Unlink and RecentActivity now accept `heartbeat` as a channel — it follows from the spec'd additive enum name (AD-18 Names); no consumer of those routes differs.
+  - Intent alignment (descriptive, no findings): readings A (HTTP surface), B (contract), C (hybrid); the diff implements C leaning B, as Epic 40's persona area does; routes are tested through the class methods with a stand-in request and session, the URL map only as a list (as `Test.Web.PersonaApi`).
+
 ## Design Notes
 
 **Governing ADs:**
@@ -224,9 +265,51 @@ Pinning mutations to apply, observe red, revert byte-identical and record (Rule 
 - `ForgetPerson` limited to persona keys → `SessionOps.TestEndForgetsHeartbeat`;
 - the DW-684 sentence removed → `test-heartbeat-overview.sh` FAIL.
 
+Observed mutations (implement stage; each applied, seen red, reverted byte-identical):
+- mutation: drop `heartbeat` from `Msg.Enum` CHANNEL -> red: `Test.Msg.Contracts.TestEnumerations`, `TestBridgeEnumerationsEqualOcuTalons` (AC1).
+- mutation: add `RunHeartbeat` to `CommandsIn.TOOLVERBS` and `tool` to its `Routes` origins -> red: `CommandsHeartbeat.TestOrigins`, `TestToolRefused` (AC2). Origins `web_user,tool` alone stays green, because the `TOOLVERBS` allow-list refuses a tool before the origin table is read; the list above names the weaker mutation.
+- mutation: `HeartbeatProblem` accepts interval 15 -> red: `SettingsHeartbeat.TestBadInterval`; audit write moved after the keys -> red: `SettingsHeartbeat.TestAuditFirstAndWithoutText` (AC3).
+- mutation: remove the cache kill in `SettingsOps.HeartbeatValues` -> red: `SettingsHeartbeat.TestHeartbeatRead` (AC4).
+- mutation: the route answers 202 for `cooldown` -> red: `HeartbeatApi.TestRunSendsThenCoolsDown`, `TestRunEmptyThenCooldown`, `TestRunOutcomes` (AC5).
+- mutation: `ForgetPerson` limited to persona keys -> red: `Test.Core.SessionOps.TestEndForgetsHeartbeat` (AC6).
+- mutation: remove the DW-684 sentence from `docs/security-overview.md` -> `bash docker/tests/test-heartbeat-overview.sh` prints `FAIL runnow` (AC7).
+
 **Shared surfaces:** `Msg.Enum` and `Bridge.Msg.Enum` CHANNEL (+`heartbeat`: `Test.Msg.Contracts`, `Test.Msg.Catalog` refused channels, `test-bridge-guide.sh` via `docs/bridge-guide.md`, `Test.Digest.Store` iterates it); `CommandsIn` `Routes` (+2 verbs; `CommandsRouting`'s 12-verb oracle is unchanged and stays green); `Test.Msg.Contracts` verb list and contracts (+2); `Web.Api` URL map (22 → 25 routes, `Test.Web.Api.TestRoutes`); `Test.Web.BodyLimit` POST routes (16 → 17); `SettingsOps.PERSONKEYS` (+5); `Ownership` `Statement` kinds (+1); `CHECK_SCRIPTS` (+`heartbeat-overview`, `test-ci-config.sh`); `CommandsOwner`'s recorded fields; the spine Enumerations row. Standing criterion: every test added or changed passes on a fresh environment, in either order. Added test time (inference): about 2 s warm and about 30-60 s fresh in `Test.Web.HeartbeatApi` (one real beat and its decision), well inside `image`'s `shard:lane-b`.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The heartbeat settings area of Epic 39: the verbs `SetHeartbeat` and `RunHeartbeat` (committed storage generated on slot D), their `CommandsIn` routes (`web_user` only; `RunHeartbeat` reaches Checks as a `BeatNow`), `SettingsOps` save (validate, audit first, five keys in one transaction, shared with `WritePersona` through `WriteKeys`) and read (`Heartbeat`, `SampleChecklist`), `Ownership.Heartbeat`, `GET`/`PUT /v1/heartbeat` and `POST /v1/heartbeat/run`, the `heartbeat` channel in both enum copies, the bridge guide line, the spine Enumerations row and the DW-684 sentence with its hosted check.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Msg/Command/{SetHeartbeat,RunHeartbeat}.cls` (new): the two verbs. `Msg/Enum.cls`, `src/bridge/cls/OcuTalon/Bridge/Msg/Enum.cls`: `heartbeat` appended to CHANNEL.
+- `Core/CommandsIn.cls`: two Routes rows, `BeatRequest`, `Send` typed `Ens.Request`. `Core/SettingsOps.cls`: `SaveHeartbeat`, `HeartbeatProblem`, `HeartbeatAuditForm`, `WriteKeys`, `Heartbeat`, `SampleChecklist`, five keys in `PERSONKEYS`. `Core/SessionOps.cls`: doc only. `Data/Ownership.cls`: `Heartbeat` and the `heartbeat` statement kind. `Web/Api.cls`: three routes, five `MESSAGERUN*` parameters.
+- `docs/security-overview.md` (DW-684 sentence), `docs/bridge-guide.md:266`, `docker/tests/test-heartbeat-overview.sh` (new), `ci/units.sh:12`, the spine Enumerations row.
+- Tests: new `Test/Core/{CommandsHeartbeat,SettingsHeartbeat}.cls`, `Test/Web/{HeartbeatApi,HeartbeatApiProbe}.cls`; changed `Test/Core/{CommandsInProbe,CommandsOwner,SessionOps,SettingsPersona}.cls`, `Test/Msg/{Contracts,Catalog}.cls`, `Test/Web/{Api,BodyLimit}.cls`, `Test/Data/Delivery.cls`.
+
+**Decided in-stage.**
+- `CommandsIn.Send` and the `CommandsInProbe` override are typed `Ens.Request` because a `BeatNow` is not a `Command`.
+- The GET always holds `from` and `to` (empty for all day); the event payload leaves them out when empty.
+- The audit entry's "changed keys" compare the new values with the effective old values from `Checks.Beat.Values` (cache dropped), so a default counts as the old value.
+- `HeartbeatApi.TestGetDefaults` compares members, not the whole answer, because a running Tick can create the fixture's `HeartbeatBeat` row; the exact default JSON is pinned without a production in `SettingsHeartbeat.TestHeartbeatRead`.
+- The real-run tests save the checklist with `on` false so no Tick races the run.
+- `SettingsPersona.TestApplyGuard` listed `heartbeat.on` as a refused key; it now refuses `heartbeat.zz`.
+- The spine lint answers `"ok": false` with 10 low placeholder findings (`{time}` and similar) on the untouched spine as well; none is on the edited row (line 1118), so the spine edit adds none.
+- The Verification's merge-base diff cannot exit 0: the branch carries Lane A's 39.3/39.4 work and Epics 40 and 34 above the merge base. Against `HEAD` none of the protected paths changed and `docs/bridge-guide.md` changed on line 266 only.
+
+**Footprint extensions to report (in no open epic's diff).** `Data/Ownership.cls`, `Test/Msg/Contracts.cls`, `Test/Msg/Catalog.cls`, `Test/Data/Delivery.cls` (one name in a loop), `docker/tests/test-heartbeat-overview.sh` (new), `ci/units.sh` (one-name append). Contended, one-name appends: `Bridge/Msg/Enum.cls`, `docs/bridge-guide.md:266`.
+
+**Review.** 22 findings (high 0, medium 2, low 20). Patches applied: 3 (HeartbeatApi and SettingsHeartbeat hermeticity, the Delivery channel loop, the failed-write audit assertion). Deferred: 2 (the NextDueAt versus "Applies within a minute" gap, medium; the online-demo sample versus Run, low). Rejected: the rest, each with its reason in the triage log. Follow-up review recommended: false (no high, one medium patched).
+
+**Verification performed (foreground, lane D throwaways, CI mock).**
+- Warm classes passed: CommandsHeartbeat, CommandsRouting, CommandsStep3, SettingsHeartbeat, SettingsPersona, SessionOps, Msg.Contracts, Msg.Catalog, Web.Api, Web.BodyLimit, Digest.Store; after the patches SettingsHeartbeat, Data.Delivery and CommandsHeartbeat again.
+- Fresh classes passed: Web.HeartbeatApi (before and after the patches), Web.PersonaApi, Core.PersonaAnswers.
+- Hosted scripts: test-heartbeat-overview, test-triage-heartbeat, test-bridge-guide, test-ci-config exit 0; all 31 `CHECK_SCRIPTS` ran in three parts, no FAIL.
+- Shards, after the last patch: lane-b@Core 1/2 (270 s) and 2/2 (376 s), lane-b@Web (271 s), lane-b@Contract,Data,Demo,Live,Msg,Schedule 1/3 (271 s), 2/3 (309 s), 3/3 (483 s), lane-a@Digest,Tools (215 s): all passed.
+- Mutations (Rule 19): one per AC, applied, seen red and reverted, listed under `## Verification`; AC7 was applied by the parent (`FAIL runnow`).
+- Protected-path diff against `HEAD`: exit 0. Added test time (inference): about 2 s warm, 10 s fresh in `Test.Web.HeartbeatApi`.
+- Teardown: warm `e39s2implw` down, fresh `e39s2impl` torn down, no leftovers.
+
+**Residual risks.** The two deferred items above; `HeartbeatApi` and `PersonaApi` run only where the production runs (throwaways and CI).
