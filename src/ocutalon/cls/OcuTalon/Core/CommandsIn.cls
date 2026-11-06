@@ -33,7 +33,7 @@ Parameter VERBPACKAGE = "OcuTalon.Msg.Command.";
 
 /// The verbs that origin tool may send (AD-1, FR-24, NFR-14). Dismiss is further limited to an incident the session can see.
 /// ProposePersona is the one settings verb among them, and a tool is the only origin that may send it.
-Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,ProposePersona,SendDigest";
+Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest,SaveMemory,ForgetMemory,ProposePersona";
 
 /// How long the gate waits for the owner's answer, in seconds.
 Parameter TIMEOUT = 120;
@@ -83,7 +83,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 		Set incident = ##class(OcuTalon.Data.Ownership).Incident(command.IncidentRef, command.SessionRef, .sc)
 		If '$IsObject(incident) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 	}
-	If (origin = "tool") && (verb = "SendDigest") && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
+	If (origin = "tool") && ((verb = "SendDigest") || (verb = "SaveMemory") || (verb = "ForgetMemory")) && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	Do ..Join(command)
 	Set request = $Select(verb = "Dismiss": ..Dismissal(command), 1: command)
 	Set sc = ..Send(owner, request, .response)
@@ -187,7 +187,11 @@ XData Routes [ MimeType = application/json ]
  {"verb": "EndSession", "owner": "SessionOps", "origins": "web_user,web_admin,telegram,timer,system"},
  {"verb": "SendDigest", "owner": "Digest", "origins": "tool,web_admin"},
  {"verb": "SaveSettings", "owner": "SettingsOps", "origins": "web_admin,system"},
- {"verb": "GotIt", "owner": "SessionOps", "origins": "web_user,web_admin,telegram"}
+ {"verb": "GotIt", "owner": "SessionOps", "origins": "web_user,web_admin,telegram"},
+ {"verb": "SaveMemory", "owner": "MemoryOps", "origins": "tool"},
+ {"verb": "ForgetMemory", "owner": "MemoryOps", "origins": "tool"},
+ {"verb": "AddDocument", "owner": "DocumentOps", "origins": "web_user"},
+ {"verb": "RemoveDocument", "owner": "DocumentOps", "origins": "web_user"}
 ]
 }
 

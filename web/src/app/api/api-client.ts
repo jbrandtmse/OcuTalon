@@ -8,6 +8,9 @@ import type {
   AnswerChannel,
   BreakFeedSent,
   DismissBody,
+  DocumentAdded,
+  DocumentRemoved,
+  DocumentsList,
   EventsResponse,
   GuideMarker,
   MailboxAccepted,
@@ -128,6 +131,28 @@ export class ApiClient {
    */
   unpair(): Observable<UnpairDone> {
     return this.http.delete<UnpairDone>(`${BASE}/pairing`, { body: {} });
+  }
+
+  /** The session's documents (an install's, on a local install), newest first: the Documents page's list. */
+  documents(): Observable<DocumentsList> {
+    return this.http.get<DocumentsList>(`${BASE}/documents`);
+  }
+
+  /**
+   * Adds one document: a POST of {name, content}, the file's bytes in base64 (the session is the caller's, never in the body). The answer is
+   * {result: 'done', ref}; a 400 `bad_document` (with its `reason`), a 413, a 501 and a 500 fail as an HttpErrorResponse whose `error` is
+   * the body (DocumentRefusal).
+   */
+  addDocument(name: string, content: string): Observable<DocumentAdded> {
+    return this.http.post<DocumentAdded>(`${BASE}/documents`, { name, content });
+  }
+
+  /**
+   * Removes one document: a DELETE with the body {}, which the envelope interceptor completes with its headers. The answer is
+   * {result: 'done'}; a 404 for a document that the session cannot see, a 501 and a 500 fail as an HttpErrorResponse.
+   */
+  removeDocument(ref: string): Observable<DocumentRemoved> {
+    return this.http.delete<DocumentRemoved>(`${BASE}/documents/${encodeURIComponent(ref)}`, { body: {} });
   }
 
   /**

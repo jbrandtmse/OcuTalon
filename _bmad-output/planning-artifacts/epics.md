@@ -8182,7 +8182,24 @@ So that OcuTalon can answer from my own documents.
 **Given** an online-demo session that signs out
 **When** `SessionOps.End` (Story 16.4) runs
 **Then** it also calls Lane A's `OcuTalon.Docs.DropSession(sessionRef)` and `OcuTalon.Memory.DropSession(sessionRef)`, so the session's documents and memories go at sign-out, not only at the reset; until Lane A's Story 19.5 merges, the tests run against Story 34.1 (was 19.1)'s stubs and check that both are called with the session's `SessionRef` (FR-14, FR-15, AD-4, AD-21, AD-29)
+- DW-722: Document refusal reason codes and their page text are unnamed (AD-21 Documents says only 'Reason a code'), and with DocumentOps a stub until Story 19.4 nothing writes the failed row that the refusal AC shows; name the codes and their text, and say which side writes the refused row (ledger; routed by cr 2026-11-05)
+- DW-741: With Story 11.22's `Web.BodyLimit` (256 KB on every API route, checked in `Web.Api`'s `OnPreDispatch`), the documents upload declares its larger bound in `XData BodyBounds` in `Web.Api` (url `/v1/documents`) and in `Web.Documents` (url `""`), with the route's ~14 MB bound; tests prove both sides of that bound and the 256 KB limit on another route (ledger; routed by the orchestrator 2026-11-05) [AMENDED 2026-11-05, Story 34.2 lead, orchestrator ruling on DW-741: an acceptance bullet added for a ledger entry routed to this story; no other text changed]
 
+
+### Story 34.3: Epic 34 burn-down
+
+[AMENDED 2026-11-05, chartered by the burn-down gate, Rule 17, on the owner's ruling U-287 (decided by the Contest Planner under the owner's delegation, 2026-11-05T19:09:13Z#874): Story 34.2 keeps an uploaded file in the Lane B table `OcuTalon.Data.Upload` until `DocumentOps` takes it, and the ruling kept that design on three conditions, made tests here; Lane B's files, like Story 34.2]
+
+As a user who adds documents,
+I want an upload that was never indexed to leave nothing behind, and nobody else to see it,
+So that my files are kept only as long as OcuTalon needs them.
+
+**Acceptance Criteria:**
+
+- DW-752: an orphaned `Data.Upload` row (older than 1 hour, never taken) is deleted by an existing purge task or by the documents route's next call, with a test, so a crash between storing an upload and its `Take` leaves nothing behind (ledger; routed by burndown 2026-11-05)
+- DW-753: the 10 MB file limit and the documents route's ~14 MB body bound are enforced before any `Data.Upload` row is written, pinned by tests (no row exists after a refused add) (ledger; routed by burndown 2026-11-05)
+- DW-754: `Data.Upload` rows are owner-scoped like other session data (Ownership checks), and the online demo's reset clears them (golden restore); checked once on a throwaway reset with recorded evidence (ledger; routed by burndown 2026-11-05)
+- DW-738: the image's Python dependencies are pinned: one constraints file per architecture (arm64 and x64) pins every distribution of the measured set to its exact version (x64 measured, never assumed), the image build installs with `pip install -c` beside the three top-level pins, a test keeps the licence evidence's package list equal to the constraints, the licence gate still fails outside the allowed families, the IPM install uses the same pins if it installs Python packages, and each constraints file says that a version bump re-measures the licences in the same commit (ledger; decided by the Contest Planner under the owner's delegation 2026-11-05) [AMENDED 2026-11-05, Story 34.3, Contest Planner ruling on DW-738: an acceptance bullet added for a ledger entry routed to this story; no other text changed]
 
 ## Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)
 

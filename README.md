@@ -331,3 +331,4 @@ Third-party licence notices:
 - The web page's fonts (Inter, JetBrains Mono and Montserrat, under the SIL Open Font License) and its icons (Lucide, under the ISC licence) have their licence texts in [web/public/assets/licenses](web/public/assets/licenses).
 - The web build writes the licence notices of its libraries to `3rdpartylicenses.txt`, beside the built page.
 - The IPM package manager in the image is under the MIT licence: [docker/ipm/LICENSE](docker/ipm/LICENSE).
+- The Docker image's Python packages for documents and memory (fastembed, pdfplumber and python-docx, with their dependencies and the libraries bundled with PDFium) are listed with their licence texts and credits in `/opt/ocutalon/THIRD-PARTY-NOTICES`, which the image build writes from the installed packages.

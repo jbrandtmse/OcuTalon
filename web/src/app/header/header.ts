@@ -81,7 +81,11 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  * (aria-controls="status-region", aria-expanded). It shows "Status" and a count pill of the approval requests (the same count as the
  * rail's heading), both hidden from assistive technology beside the spoken name ("Status, 2 approval requests"). Before the snapshot
  * has loaded, and when it failed, it shows "Status" alone: it never shows a zero that it does not know. When the band changes while the
- * button holds focus, the button leaves and focus goes to the main region without scrolling, through the page's focus rule.
+ * button holds focus, the button leaves and focus goes to the main region without scrolling, through the page's focus rule. This band is
+ * the narrowest one where the header stays on one line, so it takes less space between and inside its items (12px inline padding, 8px
+ * between the left group's items, 4px between the right group's and inside its buttons; the navigation and the reset countdown do the
+ * same), which keeps the mark, the context badge, the Demo view switch, the three navigation links, the Status button, the reset
+ * countdown and the menus inside the window at 1024px.
  *
  * Below 1024px the header is the page's one sticky element and is compact (48px minimum, 12px inline padding, may wrap). It writes its
  * measured block size to --app-header-block-size on the root element, which the stacked layout's scroll-padding-top reads, so that
@@ -295,6 +299,23 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
       font-size: var(--tab-badge-typography-font-size);
       font-weight: var(--tab-badge-typography-font-weight);
       line-height: var(--tab-badge-typography-line-height);
+    }
+    @media ${LAYOUT_QUERIES.drawer} {
+      .header {
+        padding: 0 var(--space-3);
+      }
+      .side {
+        gap: var(--space-2);
+        --header-nav-gap: 0px;
+        --header-nav-item-inline: var(--space-1);
+        --reset-countdown-inline: var(--space-2);
+      }
+      .right {
+        gap: var(--space-1);
+      }
+      .header-button {
+        padding: 0 var(--space-1);
+      }
     }
     @media ${LAYOUT_QUERIES.stacked} {
       :host {

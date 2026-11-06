@@ -303,7 +303,7 @@ describe('COLLECTIONS', () => {
     const text = readFileSync(join(live, 'payloads.ts'), 'utf8');
     const union = /export type LiveEventType =([\s\S]*?);/.exec(text)?.[1] ?? '';
     const types = [...union.matchAll(/'([^']+)'/g)].map((match) => match[1]);
-    assert.equal(types.length, 16, `the 16 event types are read: ${types.join(' ')}`);
+    assert.equal(types.length, 17, `the 17 event types are read: ${types.join(' ')}`);
     for (const type of types) {
       assert.ok(COLLECTIONS[type], `${type} has an entry`);
       assert.ok(COLLECTIONS[type].collection, `${type} names a collection`);
@@ -322,5 +322,19 @@ describe('COLLECTIONS', () => {
     for (const type of ['guide.state', 'reset', 'breakfeed.progress']) {
       assert.equal(COLLECTIONS[type].key, null, `${type} is a single value`);
     }
+  });
+
+  it('keeps the documents by ref, a removed one included, and the snapshot starts with none (Story 34.2)', () => {
+    assert.deepEqual(COLLECTIONS['document'], { collection: 'documents', key: 'ref' });
+    const store = fromSnapshot(snapshot());
+    assert.deepEqual(Object.keys(store.documents), [], 'a snapshot carries no documents: the page lists them from GET /v1/documents');
+    const first = apply(store, [event('session', 6, 'document', { ref: 'doc-1', name: 'Results runbook.md', state: 'indexing' })]);
+    assert.deepEqual(Object.keys(first.store.documents), ['doc-1']);
+    const second = apply(first.store, [
+      event('session', 7, 'document', { ref: 'doc-1', name: 'Results runbook.md', state: 'ready' }),
+      event('session', 8, 'document', { ref: 'doc-1', removed: true }),
+    ]);
+    assert.deepEqual(second.store.documents['doc-1'], { ref: 'doc-1', removed: true }, 'the last event of a ref replaces the earlier ones');
+    assert.equal(second.reload, false);
   });
 });

@@ -9,7 +9,7 @@
  *   demoSaved, the Demo mode section's own confirmation, is the text of Story 33.3's AC (DW-699): a saved mode reaches an open chat page only after a reload.
  * - SETTINGS_SECTIONS is the seven sections in the UX's order, each with its address slug.
  * - sectionSlug turns an address part into a section's slug: an unknown or missing one opens Models.
- * - pageOf says which page an address is: the settings page or the chat.
+ * - pageOf says which page an address is: the settings page, the Documents page or the chat.
  * - THRESHOLD_FIELDS is the five fields of Check thresholds with their ranges; bodyOf, textsOf and isDirty are the rules of its form.
  * - stepFailedText is the Demo step's text for the value that was written.
  */
@@ -78,9 +78,12 @@ export function sectionLabel(slug: string): string {
   return SETTINGS_SECTIONS.find((section) => section.slug === slug)?.label ?? SETTINGS_SECTIONS[0].label;
 }
 
-/** Which page an address (the part after the hash, such as /settings/budgets?x=1) is. */
-export function pageOf(address: string): 'settings' | 'chat' {
+/** Which page an address (the part after the hash, such as /settings/budgets?x=1) is: settings, documents (Story 34.2) or the chat. */
+export function pageOf(address: string): 'settings' | 'documents' | 'chat' {
   const path = address.replace(/^#/, '').split(/[?#;]/)[0];
+  if (path === '/documents') {
+    return 'documents';
+  }
   return path === '/settings' || path.startsWith('/settings/') ? 'settings' : 'chat';
 }
 
