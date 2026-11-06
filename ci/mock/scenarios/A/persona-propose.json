@@ -1,0 +1,21 @@
+{
+  "name": "persona-propose",
+  "match": {
+    "marker": "persona-propose"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "propose_persona",
+        "input": {
+          "preset": "pirate"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock suggested the persona."
+    }
+  ]
+}

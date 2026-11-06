@@ -114,7 +114,7 @@ Parameter DENIED = "<%AICore>ToolAccessDenied";
 /// The built-in tools that declare TRUSTEDOUTPUT 1 and those that declare READONLY 1, as provider:name lists. A built-in tool that declares either
 /// flag fails TestFlagsAreListed until it is added here: that edit is the review of its output (message bodies, event-log text, email, webhook, MCP
 /// and document results are never trusted output).
-Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:dismiss_incident,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.RecentActivity:recent_activity";
+Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:dismiss_incident,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.RecentActivity:recent_activity,OcuTalon.Tools.PersonaTools:propose_persona";
 
 Parameter READONLYTOOLS = "OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.WatchReads:read_failed_messages,OcuTalon.Tools.WatchReads:read_event_log,OcuTalon.Tools.WatchReads:read_item_settings,OcuTalon.Tools.RecentActivity:recent_activity";
 
@@ -1951,9 +1951,9 @@ Method AssertHeld(request As OcuTalon.Bridge.Msg.Request, toolName As %String, a
 
 /// Rows 1 to 3 in a turn of the provenance whose taint starts at the value: the safe, read-only built-in list_reminders, list_productions and check_status and the test tool zz_gate_read are
 /// allowed, each reports one turn.step, and the taint ends as the tool says (list_reminders is trusted output, zz_gate_read is not); in a fresh context every
-/// other call (set_reminder, cancel_reminder, start_watch, stop_watch, dismiss_incident, zz_change_endpoint, zz_gate_held, zz_gate_risky_read, zz_approve_requests and the MCP tool zz_mcp_safe) is denied
+/// other call (set_reminder, cancel_reminder, start_watch, stop_watch, dismiss_incident, propose_persona, zz_change_endpoint, zz_gate_held, zz_gate_risky_read, zz_approve_requests and the MCP tool zz_mcp_safe) is denied
 /// with UNTRUSTED, runs no method, reports nothing, leaves the taint as it was and raises no approval request (dismiss_incident runs for an owner with a noticed
-/// open incident, so that a method that ran would submit). The ClassificationClass setting is the test's.
+/// open incident, and propose_persona for the candidate session, so that a method that ran would submit). The ClassificationClass setting is the test's.
 Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label As %String) [ Private ]
 {
 	Set untrusted = $Parameter(..#GATE, "UNTRUSTED")
@@ -2015,13 +2015,14 @@ Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label 
 		$ListBuild("OcuTalon.Tools.Watching", "start_watch", "{""name"":""Orders""}"),
 		$ListBuild("OcuTalon.Tools.Watching", "stop_watch", "{""name"":""Orders""}"),
 		$ListBuild("OcuTalon.Tools.Watching", "dismiss_incident", "{}"),
+		$ListBuild("OcuTalon.Tools.Persona", "propose_persona", "{""preset"":""pirate""}"),
 		$ListBuild(injection, "zz_change_endpoint", "{""url"":""https://order-partner.example/new-orders""}"),
 		$ListBuild(sample, "zz_gate_held", "{}"),
 		$ListBuild(injection, "zz_gate_risky_read", "{}"),
 		$ListBuild(injection, "zz_approve_requests", "{}"))
 	Set position = 0
 	While $ListNext(runs, position, run) {
-		Set problem = ..RunDenied($List(run, 1), $List(run, 2), {}.%FromJSON($List(run, 3)), provenance, tainted, untrusted, $Select($List(run, 2) = "dismiss_incident": candidate, 1: ""))
+		Set problem = ..RunDenied($List(run, 1), $List(run, 2), {}.%FromJSON($List(run, 3)), provenance, tainted, untrusted, $Select(($List(run, 2) = "dismiss_incident") || ($List(run, 2) = "propose_persona"): candidate, 1: ""))
 		Do $$$AssertEquals(problem, "", label_": "_$List(run, 2)_" through AI Hub is denied with one denied step that carries UNTRUSTED, and its method did not run")
 	}
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean(incident)

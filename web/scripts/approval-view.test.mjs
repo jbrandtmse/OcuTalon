@@ -161,6 +161,58 @@ describe('a tool call\'s request text', () => {
   });
 });
 
+describe('a setting request (Story 40.6: a proposed persona)', () => {
+  const NOTICE = 'OcuTalon suggests a new persona for you. Now: Professional (default). Proposed: Pirate. Nothing changes unless you approve.';
+  const setting = (over = {}) => ({
+    ref: 'S',
+    kind: 'setting',
+    state: 'pending',
+    dryRun: { before: 'Professional (default)', after: 'Pirate' },
+    raisedAt: '2026-10-27T14:13:00Z',
+    expiresAt: '2026-10-28T14:13:00Z',
+    ...over,
+  });
+
+  it('is titled by the context and shows Now, Proposed and the note, with both buttons named by the title, while pending', () => {
+    for (const request of ['', NOTICE]) {
+      const view = approvalView(setting(), ctx(), request);
+      assert.equal(view.pending, true);
+      assert.equal(view.action, 'Change how OcuTalon talks to you', 'the title with no period, the notice text never the card text');
+      assert.equal(view.approveName, 'Approve: change how OcuTalon talks to you');
+      assert.equal(view.rejectName, 'Reject: change how OcuTalon talks to you');
+      assert.deepEqual(view.setting, { now: 'Now: Professional (default)', proposed: 'Proposed: Pirate', note: 'Nothing changes unless you approve.' });
+      assert.equal(view.dryRun, undefined, 'no dry run block');
+      assert.equal(view.fixedTargets, '', 'and no fixed-targets line');
+      assert.equal(view.label, 'Approval needed');
+      assert.equal(view.expiry, 'Expires tomorrow at 14:13');
+    }
+  });
+
+  it('loses the note once answered and keeps the status line every request has', () => {
+    const view = approvalView(setting({ state: 'done', answeredAction: 'approve', answeredChannel: 'web', answeredBy: 'FLOOR', answeredAt: '2026-10-27T14:15:00Z' }), ctx(), NOTICE);
+    assert.equal(view.pending, false);
+    assert.deepEqual(view.setting, { now: 'Now: Professional (default)', proposed: 'Proposed: Pirate', note: '' });
+    assert.deepEqual(view.status, { text: 'Approved from the web chat at 14:15', tone: 'approved', icon: 'circle-check' });
+    assert.equal(view.action, 'Change how OcuTalon talks to you');
+    const rejected = approvalView(setting({ state: 'rejected', answeredAction: 'reject', answeredChannel: 'web', answeredBy: 'FLOOR', answeredAt: '2026-10-27T14:15:00Z' }), ctx());
+    assert.equal(rejected.status.text, 'Rejected from the web chat at 14:15. Nothing was changed.');
+    assert.equal(rejected.setting.note, '');
+  });
+
+  it('shows empty values as they are when the payload has none, and never reads a fix field', () => {
+    const view = approvalView(setting({ dryRun: undefined }), ctx());
+    assert.deepEqual(view.setting, { now: 'Now: ', proposed: 'Proposed: ', note: 'Nothing changes unless you approve.' });
+    const withFix = approvalView(setting({ dryRun: { before: 'A', after: 'B', affected: 4, resend: 3 } }), ctx());
+    assert.equal(withFix.dryRun, undefined);
+    assert.equal(withFix.fixedTargets, '');
+  });
+
+  it('leaves every other kind without setting lines', () => {
+    assert.equal(approvalView(pending(), ctx()).setting, undefined);
+    assert.equal(approvalView({ ref: 'T', kind: 'tool_call', state: 'pending', toolName: 'zz_tool' }, ctx()).setting, undefined);
+  });
+});
+
 describe('an answered card', () => {
   it('reads "Approval request", puts the status in the buttons\' place and drops the fixed-targets line, the expiry and "Nothing has changed yet.", keeping the dry run', () => {
     const view = approvalView(answered('approved'), ctx());
@@ -475,6 +527,9 @@ describe('the texts', () => {
       resendCopies: '{count} repaired copies; the originals stay unchanged.',
       resendCopyOne: '1 repaired copy; the original stays unchanged.',
       nothingYet: 'Nothing has changed yet.',
+      settingNow: 'Now: {old}',
+      settingProposed: 'Proposed: {new}',
+      settingNote: 'Nothing changes unless you approve.',
       expires: 'Expires {when}',
       notApprover: 'Only an approver for resends can answer this request.',
       gone: 'That request is no longer available.',

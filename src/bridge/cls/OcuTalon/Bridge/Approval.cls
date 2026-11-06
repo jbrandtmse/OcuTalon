@@ -16,9 +16,10 @@ Include Ensemble
 ///     otherwise the job's user with the channel system. A write that fails is logged as a warning and never undoes the change;
 ///   - Hold and HoldResponse are the logic of the business process ApprovalHold, which stores only the request's Ref (AD-5): Hold sends the
 ///     Workflow task to the role WORKFLOWROLE and sets the 24-hour timer, and replies to the start; HoldResponse acts only on what the row
-///     shows: on the timer it expires the row, it sends Msg.ApprovalOutcome to the row's ResultTarget on approval (a fix only), rejection
+///     shows: on the timer it expires the row, it sends Msg.ApprovalOutcome to the row's ResultTarget on approval (a fix or a setting), rejection
 ///     or expiry, and on the approval of a tool_call it sends a Msg.Request of kind tool (the Ref in ItemId) to Decide, which has the runner that
-///     held the call replay it exactly once with no model request (Replay.Run). The hold does not end while its row is pending or its outcome is
+///     held the call replay it exactly once with no model request (Replay.Run). An approved setting is never replayed: its outcome goes to the
+///     ResultTarget and no model runs. The hold does not end while its row is pending or its outcome is
 ///     still to be sent: it re-arms a pending row whose task ended without an answer, retries an expiry that failed, and Hold starts a delivery hold
 ///     (a timer of one second and no task) for an approved, rejected or expired row. Once Decide has answered the replay of a tool_call the hold ends;
 ///     a replay that did not start the run (the row is still approved) is logged, and the next Reconcile sends it again. Hold refuses a start that
@@ -26,7 +27,7 @@ Include Ensemble
 ///     less STARTMARGIN), because Raise has given up on it by then;
 ///   - Reconcile (declared by Install.Step.Approvals, AD-23) cancels the Workflow tasks that no live hold of a pending row owns, starts
 ///     a new hold for each pending row whose hold is gone, timed from the row's ExpiresAt, and starts a delivery hold for each row that owes
-///     a delivery whose hold is gone: an approved tool_call, and an approved, rejected or expired fix with a ResultTarget whose ApprovalOutcome
+///     a delivery whose hold is gone: an approved tool_call, and an approved, rejected or expired fix or setting with a ResultTarget whose ApprovalOutcome
 ///     was not sent.
 /// Nothing here makes a %AI call or runs Python (AD-6).
 Class OcuTalon.Bridge.Approval
@@ -66,11 +67,14 @@ Parameter DECIDEITEM = "Decide";
 /// How long a hold waits before it tries again to expire a row that is still pending, in seconds.
 Parameter RETRYSECONDS = 5;
 
-/// How many days after its ExpiresAt a row of a fix still owes its outcome to Reconcile, which delivers a lost one (messages are kept 90 days).
+/// How many days after its ExpiresAt a row of a fix or a setting still owes its outcome to Reconcile, which delivers a lost one (messages are kept 90 days).
 Parameter DELIVERYDAYS = 7;
 
 /// The seconds under STARTSECONDS within which a start must reach the hold: a start older than STARTSECONDS less this margin is refused.
 Parameter STARTMARGIN = 2;
+
+/// The keys of the DryRun of a setting request (AD-11), comma-separated: the setting's key, its owner's session Ref, and its old and new values.
+Parameter SETTINGKEYS = "key,ownerRef,old,new";
 
 /// Raises one approval request from the unsaved row, and returns its public Ref in ref. The three optional arguments come after the Epic 0 pair:
 /// sinkClass is the host sink that receives approval.raised (empty: the HostSinkClass setting), and sessionId and superSession are the
@@ -80,7 +84,11 @@ Parameter STARTMARGIN = 2;
 ///      APPROVALKIND, an OwnerRef that is neither a 22-character reference, instance nor eval, a tool_call without a ToolName or with
 ///      ToolArguments that are not a JSON object or with a DryRun, a FixKind, FixParameters or FixTargets, a fix without a DryRun that is a
 ///      JSON object or without a ResultTarget or with a ToolName or ToolArguments or without a FixKind (the fix kind's name, a plain string),
-///      with FixParameters (the exact change) that are not a JSON object or without FixTargets (the fixed targets), an IncidentRef or
+///      with FixParameters (the exact change) that are not a JSON object or without FixTargets (the fixed targets); a setting (the value's own
+///      change, AD-11) whose OwnerRef is not a 22-character reference, whose DryRun is not a JSON object with exactly the keys of SETTINGKEYS
+///      (key, a non-empty string; ownerRef, a string equal to the OwnerRef; old and new, each a string or an object), that has no ResultTarget (the
+///      item that receives its outcome, named only as a string), or that has a ToolSource, Runner, ToolName, ToolArguments, FixKind,
+///      FixParameters, FixTargets or IncidentRef; of any kind, an IncidentRef or
 ///      TraceRef that is neither empty nor a reference, a field that Raise and the later
 ///      state methods own (Ref, State, RequiredRole, RaisedAt, ExpiresAt, the four Answered fields, Result, FinishedAt), and an empty
 ///      ApprovalRole setting. Each refusal is an error status that names the field.
@@ -209,7 +217,7 @@ ClassMethod Validate(request As %RegisteredObject, Output role As %String) As %S
 		If request.FixKind '= "" Quit ..Refuse("FixKind", "must be empty for a tool_call request")
 		If request.FixParameters '= "" Quit ..Refuse("FixParameters", "must be empty for a tool_call request")
 		If request.FixTargets '= "" Quit ..Refuse("FixTargets", "must be empty for a tool_call request")
-	} Else {
+	} ElseIf kind = "fix" {
 		If request.ToolSource '= "" Quit ..Refuse("ToolSource", "must be empty for a fix request")
 		If request.Runner '= "" Quit ..Refuse("Runner", "must be empty for a fix request")
 		If '..IsJsonObject(request.DryRun) Quit ..Refuse("DryRun", "is not a JSON object")
@@ -219,6 +227,9 @@ ClassMethod Validate(request As %RegisteredObject, Output role As %String) As %S
 		If request.FixKind = "" Quit ..Refuse("FixKind", "is empty for a fix request")
 		If '..IsJsonObject(request.FixParameters) Quit ..Refuse("FixParameters", "is not a JSON object")
 		If request.FixTargets = "" Quit ..Refuse("FixTargets", "is empty for a fix request")
+	} Else {
+		Set sc = ..ValidateSetting(request)
+		If $$$ISERR(sc) Quit sc
 	}
 	For name = "IncidentRef", "TraceRef" {
 		Set value = $Property(request, name)
@@ -230,6 +241,39 @@ ClassMethod Validate(request As %RegisteredObject, Output role As %String) As %S
 	Set role = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ApprovalRole", , , .sc)
 	If $$$ISERR(sc) Quit ..Refuse("ApprovalRole", "cannot be read: " _ $SYSTEM.Status.GetErrorText(sc))
 	If role = "" Quit ..Refuse("ApprovalRole", "setting is empty, so no role may answer a request")
+	Quit $$$OK
+}
+
+/// OK when the request is a well-formed setting request (AD-11): the value's own change, asked of the one session that owns the value. OwnerRef is a
+/// session Ref (never instance or eval, which every watcher sees), ResultTarget names the item that receives the outcome, and none of the tool_call
+/// and fix fields is set. DryRun is a JSON object of exactly the keys of SETTINGKEYS: key (a non-empty string), ownerRef (a string equal to
+/// OwnerRef), and old and new (each a string or an object). The bridge does not compare old with new: that is the owner's rule.
+ClassMethod ValidateSetting(request As OcuTalon.Bridge.Data.ApprovalRequest) As %Status [ Private ]
+{
+	If '..IsRef(request.OwnerRef) Quit ..Refuse("OwnerRef", "is not a 22-character reference, which a setting request requires")
+	For name = "ToolSource", "Runner", "ToolName", "ToolArguments", "FixKind", "FixParameters", "FixTargets", "IncidentRef" {
+		If $Property(request, name) '= "" Return ..Refuse(name, "must be empty for a setting request")
+	}
+	If request.ResultTarget = "" Quit ..Refuse("ResultTarget", "is empty for a setting request")
+	If '..IsJsonObject(request.DryRun) Quit ..Refuse("DryRun", "is not a JSON object")
+	Set dryRun = {}.%FromJSON(request.DryRun)
+	Set keys = $ListFromString(..#SETTINGKEYS)
+	Set iterator = dryRun.%GetIterator()
+	While iterator.%GetNext(.name, .value) {
+		If '$ListFind(keys, name) Return ..Refuse("DryRun", "has the key '" _ name _ "', which is not one of " _ ..#SETTINGKEYS)
+	}
+	Set position = 0
+	While $ListNext(keys, position, name) {
+		If 'dryRun.%IsDefined(name) Return ..Refuse("DryRun", "has no key '" _ name _ "'")
+	}
+	If (dryRun.%GetTypeOf("key") '= "string") || (dryRun.%Get("key") = "") Quit ..Refuse("DryRun", "key is not a non-empty string")
+	If (dryRun.%GetTypeOf("ownerRef") '= "string") || (dryRun.%Get("ownerRef") '= request.OwnerRef) {
+		Quit ..Refuse("DryRun", "ownerRef is not the OwnerRef of the request")
+	}
+	For name = "old", "new" {
+		Set type = dryRun.%GetTypeOf(name)
+		If (type '= "string") && (type '= "object") Return ..Refuse("DryRun", name _ " is neither a string nor an object")
+	}
 	Quit $$$OK
 }
 
@@ -464,7 +508,7 @@ ClassMethod MoveLocked(ref As %String, where As %String, from As %String, to As 
 }
 
 /// The facts of a row that has just changed, for its Approval audit entry, as a dynamic object of strings: ref, kind, ownerRef, target
-/// (ToolName for a tool_call, IncidentRef for a fix), from (the state before), to (the state now), and answeredBy and answeredChannel, the
+/// (ToolName for a tool_call, the DryRun key for a setting, IncidentRef for a fix), from (the state before), to (the state now), and answeredBy and answeredChannel, the
 /// approver. The caller adds change and outcome.
 ClassMethod Facts(row As OcuTalon.Bridge.Data.ApprovalRequest, from As %String) As %DynamicObject [ Private ]
 {
@@ -472,12 +516,24 @@ ClassMethod Facts(row As OcuTalon.Bridge.Data.ApprovalRequest, from As %String) 
 	Do facts.%Set("ref", row.Ref, "string")
 	Do facts.%Set("kind", row.Kind, "string")
 	Do facts.%Set("ownerRef", row.OwnerRef, "string")
-	Do facts.%Set("target", $Select(row.Kind = "tool_call": row.ToolName, 1: row.IncidentRef), "string")
+	Do facts.%Set("target", $Select(row.Kind = "tool_call": row.ToolName, row.Kind = "setting": ..SettingKey(row), 1: row.IncidentRef), "string")
 	Do facts.%Set("from", from, "string")
 	Do facts.%Set("to", row.State, "string")
 	Do facts.%Set("answeredBy", row.AnsweredBy, "string")
 	Do facts.%Set("answeredChannel", row.AnsweredChannel, "string")
 	Quit facts
+}
+
+/// The key of the setting that a setting request changes (the DryRun key); empty when the DryRun cannot be read.
+ClassMethod SettingKey(row As OcuTalon.Bridge.Data.ApprovalRequest) As %String [ Private ]
+{
+	Set key = ""
+	Try {
+		Set key = {}.%FromJSON(row.DryRun).%Get("key")
+	} Catch exception {
+		Set key = ""
+	}
+	Quit key
 }
 
 /// Writes the Approval audit entry of a change (facts, with its change and outcome), naming the person on whose authority it happened
@@ -579,7 +635,7 @@ ClassMethod CompleteHoldTask(ref As %String, action As %String) [ Private ]
 ///   2. opens the row (a missing row is an error that names the Ref, so a start that arrives after Raise deleted its row holds nothing);
 ///   3. a pending row is armed (Arm): an EnsLib.Workflow.TaskRequest to WORKFLOWROLE with the completion key task, and the timer for the whole
 ///      seconds until the row's ExpiresAt (at least 1) with the key expiry;
-///   4. an approved, rejected or expired row owes its outcome (DW-192): it gets a delivery hold, the timer of one second with the key expiry and no
+///   4. an approved, rejected or expired row owes its outcome (DW-192; a setting's too): it gets a delivery hold, the timer of one second with the key expiry and no
 ///      task, so that HoldResponse delivers what the row shows;
 ///   5. a row in any other state is an error that names the Ref and the state;
 /// and replies to the start, so that ApprovalStartIn returns while the hold keeps waiting. The task sets no %UserName, %Title, %Message or
@@ -650,8 +706,8 @@ ClassMethod Arm(hold As OcuTalon.Bridge.Process.ApprovalHold, row As OcuTalon.Br
 ///      refuses, so the runner closes the row failed).
 ///   6. An approved tool_call is replayed: a Msg.Request of kind tool, provenance user, the Ref in ItemId, the row's OwnerRef and TraceRef, the
 ///      channel of the answer (else system), the tool's name as the summary and the hold's trace session, goes to DECIDEITEM with the key replay
-///      and a response required. Any other outcome is sent to the row's ResultTarget as an OcuTalon.Bridge.Msg.ApprovalOutcome, asynchronously
-///      with no response; an empty ResultTarget sends nothing.
+///      and a response required. Any other outcome (every outcome of a fix or a setting) is sent to the row's ResultTarget as an OcuTalon.Bridge.Msg.ApprovalOutcome,
+///      asynchronously with no response; an empty ResultTarget sends nothing. A setting is never replayed, so no model runs (AD-11).
 ///   7. No outcome (DW-192): after a task response whose action the row does not show, a pending row is armed again with a task (Arm), and an
 ///      approved, rejected or expired row gets the timer of one second with the key expiry, which delivers what the row shows; after an expiry
 ///      whose row is still pending (Expire failed, for a lock) the timer is set again for RETRYSECONDS. A row that is cancelled, executing, done or
@@ -773,7 +829,7 @@ ClassMethod IsLive(holdId As %String) As %Boolean [ Private ]
 ///   2. It starts, through ApprovalStartIn, a new hold for every pending row that has no live hold, in a new session whose SuperSession is the
 ///      row's TraceRef (AD-26). The new hold sets its timer from the row's ExpiresAt, and one that is past it fires at once.
 ///   3. It starts a delivery hold, through ApprovalStartIn, for every row that owes a delivery and has no live hold (DW-192): an approved
-///      tool_call (its replay), and an approved, rejected or expired fix with a ResultTarget whose ExpiresAt lies within DELIVERYDAYS and for
+///      tool_call (its replay), and an approved, rejected or expired fix or setting with a ResultTarget whose ExpiresAt lies within DELIVERYDAYS and for
 ///      which no ApprovalOutcome message names the Ref. A cancelled, executing, done or failed row, and a row that is older, gets no hold.
 /// The Lane A declaration OcuTalon.Install.Step.Approvals.Reconcile calls it, and the Reconcile step runs it after the production starts.
 ClassMethod Reconcile() As %Status
@@ -816,7 +872,7 @@ ClassMethod Reconcile() As %Status
 /// Reconcile's pass 3: starts a delivery hold for each row that owes a delivery and has no live hold; see Reconcile.
 ClassMethod ReconcileDeliveries(sc As %Status) As %Status [ Private ]
 {
-	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, TraceRef, Kind, ExpiresAt FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE (Kind = 'tool_call' AND State = 'approved') OR (Kind = 'fix' AND State IN ('approved', 'rejected', 'expired') AND ResultTarget <> '')")
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, TraceRef, Kind, ExpiresAt FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE (Kind = 'tool_call' AND State = 'approved') OR (Kind IN ('fix', 'setting') AND State IN ('approved', 'rejected', 'expired') AND ResultTarget <> '')")
 	If rows.%SQLCODE < 0 {
 		Quit ..Combine(sc, "the requests that owe a delivery cannot be read: SQLCODE " _ rows.%SQLCODE _ " " _ rows.%Message)
 	}
@@ -827,7 +883,7 @@ ClassMethod ReconcileDeliveries(sc As %Status) As %Status [ Private ]
 	Set position = 0
 	While $ListNext(owing, position, entry) {
 		Set ref = $List(entry, 1)
-		If $List(entry, 3) = "fix" {
+		If $List(entry, 3) '= "tool_call" {
 			Set seconds = ##class(OcuTalon.Bridge.Time).SecondsUntil($List(entry, 4))
 			If (seconds = "") || (seconds < (0 - (..#DELIVERYDAYS * 86400))) Continue
 			If ..OutcomeSent(ref) Continue

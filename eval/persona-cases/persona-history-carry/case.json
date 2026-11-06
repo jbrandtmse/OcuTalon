@@ -1,0 +1,27 @@
+{
+  "name": "persona-history-carry",
+  "kind": "all-clear",
+  "heldOut": false,
+  "preset": "professional",
+  "personaCheck": "voice-carry",
+  "description": "A Professional turn that follows a Pirate turn in the same conversation (DW-678). The earlier turn is sent first, and the case's turn opens the session that it saved. The voice markers of the reply are measured against the fresh case persona-history-fresh and change no verdict.",
+  "before": {
+    "text": "Please introduce yourself in two sentences.",
+    "preset": "pirate"
+  },
+  "turn": {
+    "text": "Is everything fine?"
+  },
+  "checks": [
+    {
+      "result": "passed",
+      "entry": "Orders production",
+      "finding": "",
+      "checkedAt": "2026-10-16T18:13:00Z"
+    }
+  ],
+  "expectation": {
+    "catalogKey": "checks.allPassed"
+  },
+  "recordedBy": "written for the evaluation set (Story 40.7)"
+}

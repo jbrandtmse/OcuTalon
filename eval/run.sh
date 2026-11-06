@@ -7,6 +7,8 @@
 #   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --release-candidate --on-mock --key-path   the key-path rehearsal, with a key in the environment
 #                                                                                      (eval/key-proof.sh runs it with a fake key)
 #   bash eval/run.sh --override "<reason>"                                       the author's override of a blocked result
+#   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --personas                           the persona sweep, on the CI mock (Story 40.7)
+#   OCUTALON_RUN_TAG=<tag> bash eval/run.sh --release-candidate --personas       the persona sweep, on the real model (the Planner's measurement)
 # Any other argument prints a usage line and exits 2, before any call to the container tool. Every mode but --override sources ci/iris.sh
 # (which sources ci/units.sh and docker/tests/lib-live.sh), starts a throwaway of its own that is built from this checkout, and reaches the
 # container only through the functions of those files (stack_start, stack_ready, check_session, iris_script, dc exec). It never pulls the
@@ -108,6 +110,20 @@
 # After it has written, it scans both files like step 5 (exit 4 on a match). It needs Node, and it starts no container.
 # Before a stack starts (every mode), the script runs the preflight and builds the web bundle in a subshell with the key unset (DW-434): no npm
 # process ever has the key. The stack's own compose calls keep it, because compose interpolates every file on every call.
+# The persona sweep (--personas and --release-candidate --personas, Story 40.7; AD-7, FR-69, SM-1, REL-5). It starts the stack of the push run
+# (--personas) or of the real release candidate (--release-candidate --personas, which needs the key like any real run and exits 2 naming
+# ANTHROPIC_API_KEY without it), and then runs OcuTalon.Eval.Sweep once for each preset (professional, starship, pirate, kindfriend and language
+# with "Spanish"), each in its own IRIS session: the set's non-incident cases and the cases of eval/persona-cases/ under that preset. A last
+# session compares the five results (Sweep.Result) and saves personas.json and personas.md. Everything goes to the report folder only: the sweep
+# writes nothing in eval/, and it runs neither the push run's set nor the demo gate nor eval/mock-wrong/. The structural checks print one PASS
+# or FAIL line each: each session started and saved its result, both passes of each preset have no problem and left no eval watch row, every
+# request of each preset carried the preset's block (and there is at least one), the persona cases of the preset were all sent, the sweep ended
+# with a verdict, and personas.md has its sections and one row for each preset; on the mock also that no case differs from Professional's, no fact
+# or frame differs and the injection case is right under every preset. The DW-664, DW-678 and DW-679 measurements are reported and judge nothing.
+# Exit codes: 0 when the checks pass (a real run: and the verdict is pass), 1 a structural failure, 2 a refused argument or key, 3 a real run whose
+# verdict is blocked, 4 the result pair holds key-like text (the files are kept; they are not in eval/).
+# personas.md is printed and appended to $GITHUB_STEP_SUMMARY only when it holds neither key-like text nor the value of the key in the
+# environment, as the release candidate's result is (otherwise a NOTE line says it is not printed).
 set -u
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -118,6 +134,7 @@ cd "$root" || exit 1
 mode=push
 onmock=0
 keypath=0
+personas=0
 override_reason=
 if [ $# -eq 0 ]; then
   :
@@ -133,6 +150,12 @@ elif [ $# -eq 3 ] && [ "$1" = --release-candidate ] && [ "$2" = --on-mock ] && [
 elif [ $# -eq 2 ] && [ "$1" = --override ]; then
   mode=override
   override_reason=$2
+elif [ $# -eq 1 ] && [ "$1" = --personas ]; then
+  mode=personas
+  personas=1
+elif [ $# -eq 2 ] && [ "$1" = --release-candidate ] && [ "$2" = --personas ]; then
+  mode=rc
+  personas=1
 else
   echo 'usage: bash eval/run.sh [--release-candidate [--on-mock [--key-path]] | --override "<reason>"]'
   exit 2
@@ -666,6 +689,183 @@ CHK|keys|1" \
     die "the stack is not ready for the evaluation set"
   fi
   echo "KEYS ready and keys $((SECONDS - keys_begun))s"
+fi
+
+# --- the persona sweep (Story 40.7) ---
+
+# sweep_run <preset> <language>: one preset in its own IRIS session: Sweep.RunPreset over the set and the persona cases, the CHK lines of the run, and
+# the preset's result saved as personas-<preset>.json in the container. The early CHK line keeps iris_script from starting the run a second time. The
+# lines are in $tmp/personas-<preset>.chk.
+sweep_run() {
+  local preset=$1 language=$2 name="personas-$1" begun=$SECONDS
+  printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    "Set sc=##class(OcuTalon.Eval.Sweep).RunPreset(\"$EVAL_FOLDER\",\"$preset\",\"$language\",$limit,.r)" \
+    'Write !,"CHK|run|",$SYSTEM.Status.IsOK(sc)' \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?",##class(OcuTalon.Data.Ownership).#EVAL) Do rs.%Next() Write !,"CHK|leftwatches|",+rs.%GetData(1)' \
+    'If $SYSTEM.Status.IsError(sc) { Write !,"CHK|error|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(13,10),"  ") Halt }' \
+    'Write !,"CHK|set|",r.set.problems.%Size(),"|",r.set.sent,"|",r.set.expected' \
+    'Write !,"CHK|persona|",r.persona.problems.%Size(),"|",r.persona.sent,"|",r.persona.expected' \
+    'Set s=r.set.scores.items Write !,"CHK|items|",s.right,"|",s.total,"|",$Select(s.met=1:"met",s.met="":"none",1:"not met")' \
+    'Write !,"CHK|blocks|",r.blocks.carried,"|",r.blocks.total' \
+    'Write !,"CHK|cost|",r.cost.priced' \
+    'For i=0:1:r.set.problems.%Size()-1 { Write !,"CHK|problem|set: ",$Translate(r.set.problems.%Get(i),$Char(13,10),"  ") }' \
+    'For i=0:1:r.persona.problems.%Size()-1 { Write !,"CHK|problem|persona: ",$Translate(r.persona.problems.%Get(i),$Char(13,10),"  ") }' \
+    "Set sc=##class(OcuTalon.Eval.Report).WriteFiles(\"$CONTAINER_REPORTS/\",\"$name\",r.%ToJSON())" \
+    'Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON > "$tmp/$name.chk"
+  echo "RUN $name $((SECONDS - begun))s"
+  sed 's/^/  /' "$tmp/$name.chk"
+}
+
+# sweep_result: Sweep.Result over the five saved presets, saved as personas.json and personas.md; prints the CHK lines of the verdict. The lines are
+# in $tmp/personas.chk.
+sweep_result() {
+  local mock=$1
+  printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    'Set ps=[]' \
+    "For p=\"$(printf '%s' "$SWEEP_PRESETS" | sed 's/ /","/g')\" { Do ps.%Push(##class(%DynamicAbstractObject).%FromJSONFile(\"$CONTAINER_REPORTS/personas-\"_p_\".json\")) }" \
+    "Set rs=##class(OcuTalon.Eval.Sweep).Result(ps,$mock)" \
+    'Write !,"CHK|verdict|",rs.verdict' \
+    'Write !,"CHK|presets|",rs.presets.%Size()' \
+    'For i=0:1:rs.presets.%Size()-1 { Set p=rs.presets.%Get(i) Write !,"CHK|preset|",p.preset,"|",p.right," of ",p.total,"|",$Select(p.met=1:"met",1:"not met") }' \
+    'Write !,"CHK|differing|",rs.differing.%Size()' \
+    'Write !,"CHK|facts|",rs.facts.%Size()' \
+    'Write !,"CHK|frames|",rs.frames.%Size()' \
+    'Set n=0,r=0 For i=0:1:rs.injection.%Size()-1 { Set n=n+1 If rs.injection.%Get(i).right Set r=r+1 } Write !,"CHK|injection|",r,"|",n' \
+    'For i=0:1:rs.blocking.%Size()-1 { Write !,"CHK|blocking|",$Translate(rs.blocking.%Get(i),"|"_$Char(13,10),"   ") }' \
+    "Set sc=##class(OcuTalon.Eval.Sweep).Save(rs,\"$CONTAINER_REPORTS/\",\"personas\")" \
+    'Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON > "$tmp/personas.chk"
+  echo "RUN personas"
+  sed 's/^/  /' "$tmp/personas.chk"
+}
+
+# persona_cases_for <preset>: how many cases below eval/persona-cases/ the preset runs: those with no top-level preset member and those whose
+# preset is the one given (the members of a before are indented deeper and are not counted).
+persona_cases_for() {
+  local file own n=0
+  for file in "$root"/eval/persona-cases/*/case.json; do
+    [ -f "$file" ] || continue
+    own=$(sed -n 's/^  "preset"[[:space:]]*:[[:space:]]*"\([a-z]*\)".*/\1/p' "$file" | head -n 1)
+    if [ -z "$own" ] || [ "$own" = "$1" ]; then n=$((n + 1)); fi
+  done
+  echo "$n"
+}
+
+if [ "$personas" -eq 1 ]; then
+  SWEEP_PRESETS="professional starship pirate kindfriend language"
+  if [ "$mode" = rc ]; then sweep_mock=0; else sweep_mock=1; fi
+  for preset in $SWEEP_PRESETS; do
+    if [ "$preset" = language ]; then language=Spanish; else language=; fi
+    name="personas-$preset"
+    sweep_run "$preset" "$language"
+    if run_started "$name"; then
+      want=$(persona_cases_for "$preset")
+      sent=$(chk_value "$name" persona | cut -d'|' -f2)
+      expected=$(chk_value "$name" persona | cut -d'|' -f3)
+      if [ "$(chk_value "$name" set | cut -d'|' -f1)" = 0 ] && [ "$(chk_value "$name" persona | cut -d'|' -f1)" = 0 ]; then
+        pass "$name: the set pass and the persona pass have no problem"
+      else
+        fail "$name: a pass has a problem ($(sed -n 's/^CHK|problem|//p' "$tmp/$name.chk" | head -n 3 | paste -s -d';' -))"
+      fi
+      if [ "$(chk_value "$name" leftwatches)" = 0 ]; then pass "$name: the run left no eval watch row"; else fail "$name: the run left eval watch rows"; fi
+      carried=$(chk_value "$name" blocks | cut -d'|' -f1)
+      total=$(chk_value "$name" blocks | cut -d'|' -f2)
+      case $total in
+        '' | *[!0-9]* | 0) fail "$name: no request was read for its block (blocks: ${carried:-none}|${total:-none})" ;;
+        *)
+          if [ "$carried" = "$total" ]; then
+            pass "$name: all $total request(s) carried the block of the preset"
+          else
+            fail "$name: $carried of $total request(s) carried the block of the preset"
+          fi
+          ;;
+      esac
+      if [ "$want" -gt 0 ] && [ "$sent" = "$want" ] && [ "$expected" = "$want" ]; then
+        pass "$name: the $want persona case(s) of the preset were sent"
+      else
+        fail "$name: persona cases sent $sent, expected by the session $expected, in eval/persona-cases/ $want"
+      fi
+      if [ "$(chk_value "$name" saved)" = 1 ]; then fetch "$name" json; else fail "$name: the result could not be saved"; fi
+    fi
+  done
+  if [ "$fails" -eq 0 ]; then
+    sweep_result "$sweep_mock"
+    if [ ! -s "$tmp/personas.chk" ]; then
+      fail "personas: the IRIS session printed nothing"
+    elif [ "$(chk_value personas saved)" != 1 ]; then
+      fail "personas: the result could not be saved"
+    else
+      fetch personas
+      verdict=$(chk_value personas verdict)
+      case $verdict in
+        pass | blocked) pass "personas: the sweep ended with a verdict ($verdict)" ;;
+        *) fail "personas: the verdict is '$verdict', not pass or blocked" ;;
+      esac
+      before=$fails
+      for want in '^# Persona sweep$' '^## Presets$' '^## Cases that differ from Professional$' '^## Facts and notice frames$' '^## Injection$' '^## Language$' '^## Measured, not pass-required$' '^## Blocks$'; do
+        grep -q "$want" "$report_dir/personas.md" 2> /dev/null || fail "personas: personas.md has no line that matches '$want'"
+      done
+      rows=$(grep -c -E '^\| (professional|starship|pirate|kindfriend|language) \|' "$report_dir/personas.md" 2> /dev/null || true)
+      if [ "$rows" -ne 5 ]; then fail "personas: personas.md has $rows preset row(s), not 5"; fi
+      if [ "$fails" -eq "$before" ]; then pass "personas: personas.md has its sections and one row for each of the five presets"; fi
+      if [ "$sweep_mock" -eq 1 ]; then
+        mock_bad=
+        for key in differing facts frames; do
+          if [ "$(chk_value personas "$key")" != 0 ]; then mock_bad="$mock_bad $key=$(chk_value personas "$key")"; fi
+        done
+        injection=$(chk_value personas injection)
+        if [ -z "$injection" ] || [ "${injection##*|}" -lt 5 ] 2> /dev/null || [ "${injection%%|*}" != "${injection##*|}" ]; then mock_bad="$mock_bad injection=$injection"; fi
+        if [ -z "$mock_bad" ]; then
+          pass "personas: on the CI mock no case differs from Professional's, no fact or frame differs, and the injection case is right under every preset ($injection)"
+        else
+          fail "personas: on the CI mock the sweep found${mock_bad}"
+        fi
+      fi
+    fi
+  fi
+  for name in personas; do
+    if [ -s "$report_dir/$name.md" ]; then
+      echo "==== report $name"
+      if [ -n "$(key_like "$report_dir/$name.md")" ]; then
+        echo "NOTE the text of $name is not printed: it holds key-like text (the scan below names the place)"
+      elif [ -n "$(key_value_hits "$report_dir/$name.md" 2> /dev/null)" ]; then
+        echo "NOTE the text of $name is not printed: it holds the value of the model key"
+      else
+        cat "$report_dir/$name.md"
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          { cat "$report_dir/$name.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
+        fi
+      fi
+    fi
+  done
+  if [ -s "$report_dir/personas.json" ] && [ -s "$report_dir/personas.md" ]; then
+    scan_pair personas "$report_dir/personas.json" "$report_dir/personas.md" || exit 4
+  fi
+  preset_files=
+  for name in "$report_dir"/personas-*.json; do
+    if [ -s "$name" ]; then preset_files="$preset_files $name"; fi
+  done
+  if [ -n "$preset_files" ]; then
+    # shellcheck disable=SC2086
+    hits=$(key_like $preset_files | paste -s -d, -)
+    if [ -n "$hits" ]; then
+      echo "FAIL the per-preset files hold key-like text at $hits: do not commit them; remove them, find where the text came from, and run again"
+      exit 4
+    fi
+    echo "PASS personas: the per-preset files hold no key-like text"
+  fi
+  echo "VERDICT ${verdict:-none}"
+  echo "REPORT $report_dir"
+  if [ "$fails" -ne 0 ]; then
+    echo "eval/run: $fails check(s) failed (project $P)"
+    exit 1
+  fi
+  echo "eval/run: all checks passed"
+  if [ "$mode" = rc ] && [ "${verdict:-}" = blocked ]; then exit 3; fi
+  exit 0
 fi
 
 # --- the release-candidate run ---

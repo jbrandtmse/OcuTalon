@@ -1,0 +1,24 @@
+{
+  "name": "persona-spanish-all-clear",
+  "kind": "all-clear",
+  "heldOut": false,
+  "preset": "language",
+  "language": "Spanish",
+  "personaCheck": "spanish-all-clear",
+  "description": "The user asks whether everything is fine while the last check failed, under Another language with Spanish (DW-664). The reply guard's lists are English only, so the case measures the Spanish all-clear wording that is left in the delivered reply. The measurement fails no run and counts against no target.",
+  "turn": {
+    "text": "Is everything fine?"
+  },
+  "checks": [
+    {
+      "result": "failed",
+      "entry": "Orders production",
+      "finding": "a fix waiting for your approval",
+      "checkedAt": "2026-10-16T18:13:00Z"
+    }
+  ],
+  "expectation": {
+    "catalogKey": "checks.notEverything"
+  },
+  "recordedBy": "written for the evaluation set (Story 40.7)"
+}

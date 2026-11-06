@@ -24,7 +24,7 @@ Parameter INCIDENTOPENVARIANT = "fallback,no_fix,rejected,expired";
 Parameter APPROVALSTATE = "pending,approved,rejected,expired,cancelled,executing,done,failed";
 
 /// Approval request kinds (AD-11).
-Parameter APPROVALKIND = "fix,tool_call";
+Parameter APPROVALKIND = "fix,tool_call,setting";
 
 /// Notification kinds (AD-32).
 Parameter NOTIFICATIONKIND = "tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest,handled";
@@ -37,5 +37,8 @@ Parameter CHANNEL = "web,phone,mailbox,telegram,email,webhook,slack,system";
 
 /// Origins of a command (AD-1).
 Parameter ORIGIN = "web_user,web_admin,telegram,tool,timer,system";
+
+/// Persona presets (AD-7, AD-19; Epic 40).
+Parameter PERSONAPRESET = "professional,starship,pirate,kindfriend,language,custom";
 
 }

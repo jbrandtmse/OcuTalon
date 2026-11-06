@@ -1,0 +1,24 @@
+{
+  "name": "persona-zorblish-reply",
+  "kind": "all-clear",
+  "heldOut": false,
+  "preset": "language",
+  "language": "Zorblish",
+  "personaCheck": "cant-write",
+  "description": "The same question under Another language with Zorblish, a language the model can't write. The persona check is right when the reply is English and says once that it can't write the language.",
+  "turn": {
+    "text": "Is everything fine?"
+  },
+  "checks": [
+    {
+      "result": "passed",
+      "entry": "Orders production",
+      "finding": "",
+      "checkedAt": "2026-10-16T18:13:00Z"
+    }
+  ],
+  "expectation": {
+    "catalogKey": "checks.allPassed"
+  },
+  "recordedBy": "written for the evaluation set (Story 40.7)"
+}

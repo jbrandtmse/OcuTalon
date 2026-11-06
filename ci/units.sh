@@ -8,6 +8,9 @@ CHECK_SCRIPTS="boundaries storage class-rules ci-config ci-changes compose-file 
 # The scripts of the hosted `web` job.
 WEB_SCRIPTS="web-build mock"
 
+# Hosted `checks` scripts appended to CHECK_SCRIPTS above.
+CHECK_SCRIPTS="$CHECK_SCRIPTS eval-personas"
+
 # The %UnitTest shards, each a union of whole areas (OcuTalon.Test.<Area>), aligned with the lanes of AD-29.
 SHARDS="lane-a lane-b"
 

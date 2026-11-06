@@ -39,7 +39,7 @@ Method TestContracts()
 Method TestVerbsInheritTheCommonFields()
 {
 	Set classes = $ListBuild("IncidentCommand")
-	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "Pair", "Unpair", "EndSession")
+	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession")
 	Set position = 0
 	While $ListNext(verbs, position, verb) {
 		Set classes = classes _ $ListBuild("Command."_verb)
@@ -58,7 +58,7 @@ Method TestVerbsInheritTheCommonFields()
 	Do $$$AssertEquals($Parameter("OcuTalon.Msg.Command.SetReminder", "RESPONSECLASSNAME"), "OcuTalon.Msg.CommandResult", "a verb is answered with a CommandResult")
 }
 
-/// The twelve parameters of Msg.Enum equal the conventions row exactly, and there are no others.
+/// The thirteen parameters of Msg.Enum equal the conventions row exactly, and there are no others.
 Method TestEnumerations()
 {
 	Set expected("OUTCOME") = "ignore,digest,tellnow,act"
@@ -68,18 +68,19 @@ Method TestEnumerations()
 	Set expected("INCIDENTSTATE") = "open,awaiting_approval,fixing,resolved,closed"
 	Set expected("INCIDENTOPENVARIANT") = "fallback,no_fix,rejected,expired"
 	Set expected("APPROVALSTATE") = "pending,approved,rejected,expired,cancelled,executing,done,failed"
-	Set expected("APPROVALKIND") = "fix,tool_call"
+	Set expected("APPROVALKIND") = "fix,tool_call,setting"
 	Set expected("NOTIFICATIONKIND") = "tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest,handled"
 	Set expected("CHECKRESULT") = "passed,failed,not_checked"
 	Set expected("CHANNEL") = "web,phone,mailbox,telegram,email,webhook,slack,system"
 	Set expected("ORIGIN") = "web_user,web_admin,telegram,tool,timer,system"
+	Set expected("PERSONAPRESET") = "professional,starship,pirate,kindfriend,language,custom"
 	Set name = ""
 	For {
 		Set name = $Order(expected(name), 1, values)
 		Quit:name=""
 		Do $$$AssertEquals($Parameter("OcuTalon.Msg.Enum", name), values, name_" equals the conventions row")
 	}
-	Do $$$AssertEquals(..ParameterNames("OcuTalon.Msg.Enum"), "APPROVALKIND APPROVALSTATE CHANNEL CHECKRESULT FALLBACKREASON INCIDENTOPENVARIANT INCIDENTSTATE NOTIFICATIONKIND ORIGIN OUTCOME PROVENANCE REQUESTKIND", "Msg.Enum has exactly these twelve parameters")
+	Do $$$AssertEquals(..ParameterNames("OcuTalon.Msg.Enum"), "APPROVALKIND APPROVALSTATE CHANNEL CHECKRESULT FALLBACKREASON INCIDENTOPENVARIANT INCIDENTSTATE NOTIFICATIONKIND ORIGIN OUTCOME PERSONAPRESET PROVENANCE REQUESTKIND", "Msg.Enum has exactly these thirteen parameters")
 }
 
 /// The bridge's seven enumerations equal OcuTalon's, and there are no others.
@@ -314,6 +315,34 @@ XData Contracts [ MimeType = application/json ]
    "SessionRef": "%String(MAXLEN=22)",
    "DemoMode": "%Boolean",
    "ActingUser": "%String(MAXLEN=160)"
+  }
+ },
+ "OcuTalon.Msg.Command.SetPersona": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Preset": "%String(MAXLEN=)",
+   "Language": "%String(MAXLEN=)",
+   "Custom": "%String(MAXLEN=)"
+  },
+  "sql": {
+   "Language": "PersonaLanguage"
+  }
+ },
+ "OcuTalon.Msg.Command.ProposePersona": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "Preset": "%String(MAXLEN=)",
+   "Language": "%String(MAXLEN=)",
+   "Custom": "%String(MAXLEN=)"
+  },
+  "sql": {
+   "Language": "PersonaLanguage"
   }
  },
  "OcuTalon.Msg.Command.Pair": {

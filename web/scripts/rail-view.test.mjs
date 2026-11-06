@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, pendingApprovals, railView, readmeSection } = await import(app('rail', 'rail-view.ts'));
+const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, pendingApprovals, personaReadKey, railView, readmeSection } = await import(app('rail', 'rail-view.ts'));
 const { countdownText, pageWhen } = await import(app('chat', 'page-time.ts'));
 const { DECISION_TEXTS, confidenceText, formatCost, outcomeOf, reasonLines } = await import(app('chat', 'decision-view.ts'));
 const { CHAT_TEXTS, NOTICE_TEXTS } = await import(app('chat', 'chat-view.ts'));
@@ -108,6 +108,7 @@ describe('the fixed strings', () => {
         repair: 'Repair and resend',
         repairCount: 'Repair and resend {n} {noun}',
         runTool: 'Run {toolName}',
+        changePersona: 'Change how OcuTalon talks to you',
         showInChat: 'Show in the chat: {action}',
         raised: 'Raised {when}',
         expires: 'expires {when}',
@@ -118,6 +119,7 @@ describe('the fixed strings', () => {
         titleWithCountdown: '{text}{separator}{countdown}',
         telegramNotSetUp: 'Telegram not set up',
         telegramHowTo: 'How to set it up',
+        persona: 'Persona',
       },
     );
     for (const value of Object.values(RAIL_TEXTS)) {
@@ -138,22 +140,32 @@ describe('the fixed strings', () => {
 });
 
 describe('the sections', () => {
-  it('come in order without Telegram: Approval requests, Background checks, Reminders, Recent decisions', () => {
+  it('come in order without Telegram: Approval requests, Background checks, Reminders, Recent decisions, Persona', () => {
     const view = viewOf();
-    assert.deepEqual(view.sections.map((one) => one.id), ['approvals', 'checks', 'reminders', 'decisions']);
-    assert.deepEqual(view.sections.map((one) => one.label), ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions']);
+    assert.deepEqual(view.sections.map((one) => one.id), ['approvals', 'checks', 'reminders', 'decisions', 'persona']);
+    assert.deepEqual(view.sections.map((one) => one.label), ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions', 'Persona']);
     assert.equal(view.telegramShown, false);
   });
 
   it('start with Telegram, with no count, when the release includes it', () => {
     const view = viewOf({}, { ...TELEGRAM_OFF, included: true });
-    assert.deepEqual(view.sections.map((one) => one.id), ['telegram', 'approvals', 'checks', 'reminders', 'decisions']);
+    assert.deepEqual(view.sections.map((one) => one.id), ['telegram', 'approvals', 'checks', 'reminders', 'decisions', 'persona']);
     assert.equal(view.telegramShown, true);
     const telegram = section(view, 'telegram');
     assert.equal(telegram.count, undefined);
     assert.equal(telegram.heading, 'Telegram');
     assert.equal(telegram.spoken, 'Telegram');
     assert.deepEqual(telegram.rows, []);
+  });
+
+  it('end with Persona, with no count and no rows, whatever the store holds (Story 40.4)', () => {
+    for (const view of [viewOf(), viewOf({ approvals: [approval('a1')], checks: [check('c1')] }, { ...TELEGRAM_OFF, included: true })]) {
+      const persona = view.sections.at(-1);
+      assert.equal(persona.id, 'persona');
+      assert.equal(persona.count, undefined);
+      assert.deepEqual([persona.label, persona.heading, persona.spoken], ['Persona', 'Persona', 'Persona']);
+      assert.deepEqual([persona.rows, persona.empty, persona.hint], [[], '', '']);
+    }
   });
 
   it('show "(0)" and "None waiting." and the other empty texts, with both hints, when there is nothing', () => {
@@ -216,6 +228,16 @@ describe('approval requests', () => {
     assert.equal(pendingApprovals(store).length, section(railView(store, format()), 'approvals').count);
   });
 
+  it('gives the Persona card a new personaReadKey when a request comes or goes and when a setting request changes state, and no other time', () => {
+    const at = (approvals) => personaReadKey(fromSnapshot(snapshot({ approvals })));
+    const proposed = at([approval('fix1', { state: 'done' }), approval('set1', { kind: 'setting', state: 'pending' })]);
+    const approved = at([approval('fix1', { state: 'done' }), approval('set1', { kind: 'setting', state: 'approved' })]);
+    const applied = at([approval('fix1', { state: 'done' }), approval('set1', { kind: 'setting', state: 'done' })]);
+    assert.equal(new Set([proposed, approved, applied]).size, 3, 'a setting request reads again at each state: pending, approved, done');
+    assert.equal(at([approval('fix1', { state: 'approved' })]), at([approval('fix1', { state: 'done' })]), 'a fix that changes state reads nothing');
+    assert.notEqual(at([approval('fix1')]), at([]), 'a pending request of any kind reads again');
+  });
+
   it('lists the pending ones only', () => {
     const states = ['pending', 'approved', 'rejected', 'expired', 'cancelled', 'executing', 'done', 'failed'];
     const view = viewOf({ approvals: states.map((state) => approval(`a-${state}`, { state })) });
@@ -241,6 +263,8 @@ describe('approval requests', () => {
     assert.equal(approvalTitle(approval('a', { dryRun: { affected: 0, itemNoun: { one: 'order', other: 'orders' } } })), 'Repair and resend 0 orders');
     assert.equal(approvalTitle(approval('a', { dryRun: undefined })), 'Repair and resend');
     assert.equal(approvalTitle(approval('a', { kind: 'tool_call', toolName: 'zz_tool', dryRun: undefined })), 'Run zz_tool');
+    assert.equal(approvalTitle(approval('a', { kind: 'setting', dryRun: { before: 'Professional (default)', after: 'Pirate' } })), 'Change how OcuTalon talks to you');
+    assert.equal(approvalTitle(approval('a', { kind: 'setting', dryRun: undefined })), 'Change how OcuTalon talks to you');
     const view = viewOf({ approvals: [approval('a1'), approval('a2', { dryRun: { affected: 1, itemNoun: { one: 'order', other: 'orders' } } })] });
     assert.deepEqual(titles(section(view, 'approvals')), ['Repair and resend 50 orders', 'Repair and resend 1 order']);
   });

@@ -1,6 +1,6 @@
-/// The outcome of an approval request (AD-11): ApprovalHold sends it to the row's ResultTarget (IncidentManager for a fix) when the request
-/// was approved (a fix only), rejected or expired. ApprovalRef is the request's public Ref and IncidentRef the incident it belongs to, when
-/// there is one; the receiver reads everything else from the row. A cancelled request sends none (AD-15). Lane A.
+/// The outcome of an approval request (AD-11): ApprovalHold sends it to the row's ResultTarget (IncidentManager for a fix; for a setting the item that
+/// owns the value, named as an item) when the request was approved (a fix or a setting only), rejected or expired. ApprovalRef is the request's
+/// public Ref and IncidentRef the incident it belongs to, when there is one (empty for a setting); the receiver reads everything else from the row. A cancelled request sends none (AD-15). Lane A.
 Class OcuTalon.Bridge.Msg.ApprovalOutcome Extends Ens.Request
 {
 
