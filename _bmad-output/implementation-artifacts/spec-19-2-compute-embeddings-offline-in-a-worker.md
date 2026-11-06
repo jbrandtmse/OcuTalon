@@ -108,6 +108,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-06 (lead, before implement): the orchestrator's rulings recorded under Design Notes "Rulings" (U-294 release tooling allowed as a separate task; `shards-4` confirmed). The ruling-gated task is now in scope.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -136,6 +138,11 @@ deferred: []
 - release/ipm/Dockerfile and release/ipm-install.sh -- stage `requirements.txt` beside `src/module.xml` and check the pip install, the single model download and no re-download on a reinstall; cost: pip fetches about 200 MB per install path inside the 35-minute job.
 - release/rehearse.sh -- a `memory-offline` step after `install` (disconnect the clean host's iris container, run `OcuTalon.Test.Memory.Offline` through the `exec` channel, reconnect before `sign-in`) and its `REH_ROWS` row, with `docker/tests/test-rehearsal.sh`'s dry-run pin.
 - CI group size -- the project block bars a group over 1,000 s, and every group is already over it (`shards-4` about 1,410 s); the plan uses `shards-4`.
+
+**Rulings (orchestrator, 2026-11-06):**
+- U-294 (veto; the owner or the Planner may reverse it before the epic merges): the release tooling above is ALLOWED as Epic 19 footprint work -- the root `requirements.txt` (`fastembed==0.9.0`); `-bypass-py-deps` on `release/release.sh`'s offline `zpm load` and its pin in `docker/tests/test-release-sequence.sh`; `release/ipm/Dockerfile` and `release/ipm-install.sh` staging `requirements.txt` and checking the single model download; the `memory-offline` step in `release/rehearse.sh` and its `docker/tests/test-rehearsal.sh` pin. Keep it a SEPARATE task, done after the rest, so a reversal drops it cleanly; the rest of the story never depends on it.
+- CI group: `live:memory-offline` (about 300 s) joins `shards-4`. The project rule is: a UNIT over 1,000 s on a clean run is split, and a GROUP only above 35 minutes on two clean runs; `shards-4` is about 1,410 s clean, about 1,710 s with the unit. The project block's "never a group over 1,000 s" line is superseded by this ruling.
+- Contention checked at 2026-11-06T05:00Z: Epic 39 changes only the `CHECK_SCRIPTS` line of `ci/units.sh`, Epic 17 neither file; `docker/tests/lib-live.sh` is untouched by both. The one-name appends stand.
 
 **Declined DW-732:** the folder is owned by `irisowner`, the IRIS instance's own OS user, which already writes the durable code database and `<mgr>`, and it sits in the image layer, reset on every container recreate, so tightening it adds no boundary; the change would also be `docker/Dockerfile` (Lane B, U-177). Reopen if the IRIS process ever runs as a user other than the folder's owner.
 
