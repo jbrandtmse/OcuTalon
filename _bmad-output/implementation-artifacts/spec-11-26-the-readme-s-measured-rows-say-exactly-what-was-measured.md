@@ -58,6 +58,21 @@ deferred: []
 - AC3 (smallest diff). Given the two files, then README.md sha256 is `d3ac69333f87ced2ad5f7639ab7cd909778d8f504e13b2e26619380cc9d4a941`, test-readme.sh sha256 is `f4d6876bf7fa3de76ae7dc0ebea3b777bb518d28c9034d18b5d0ff792931fa0d`, and the story diff outside `_bmad-output` is exactly those two files with 2 lines added and 2 removed in each.
 - AC4 (other readers). Given the README-reading scripts, when run, then `test-release-notes.sh` passes every rule (`static` included), `test-boundaries.sh`, `test-cpf.sh` and `test-bridge-guide.sh` pass.
 
+### Review Findings
+
+Code review 2026-11-06 (epic-cycle, review tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap; acceptance-auditor discarded, see below). Diff `ed048b5b` plus the working tree. 10 raw findings, 6 entries after grouping: 1 resolved `by-design`, 0 patch, 0 defer, 5 rejected.
+
+- [x] [Review][Decision] The `measured` rule does not fail on an extra row, so an old label re-added as a ninth row passes CI (blind-hunter+edge-case-hunter+verification-gap) -- severity low, fix-risk low (a row-count check of a few lines, but it needs a self-test), footprint in-story, spec-bound. Verified: with `| The always-on online demo | about 9 to 10 cents a day |` added after README line 39, the AC1 `git grep` prints `README.md:40` and `test-readme.sh` still reports `PASS measured`. Resolved `by-design` (DW-778): the intent's Never list forbids a new rule, helper or self-test, QA declined the absence pin on purpose, and AC1's absence clause is held by the Verification `git grep` (re-run in review: no output, exit 1). The mutation line is recorded under Verification.
+
+Review checks: Rule 3 met (the surface is README.md; `test-readme.sh` reads the real file; this review re-ran it: `PASS top`, `PASS measured`, all rules passed). Rule 6: AD-29 (Lane B files), AD-22 (hermetic static check), AD-20 (usage rows carry model cost, which matches "Model cost of ...") -- no mismatch. Rule 1 and Rule 5 do not apply (no service, no NFR). Rule 2: the heredoc lines were edited in place. Rule 19: `test-readme.sh` is hermetic (its own `mktemp -d` folder with an EXIT trap). AC1/AC3 re-checked by this review: both sha256s equal AC3 in full, the numstat outside `_bmad-output` is `2 2` for each file, and `test-boundaries.sh` and `test-release-notes.sh` pass. No absolute or home-folder path in the diff.
+
+Rejected:
+- `low` (blind-hunter) The Auto Run Result says "the four mutations" where Verification holds seven -- cosmetic, and the fix edits the build stage's own summary in the spec under review; the seven lines themselves are complete.
+- `maybe-false` (blind-hunter+edge-case-hunter) The cycle log's `qa_complete` records `mutations_demonstrated=5` against three `(QA)` lines -- low at most; settled by the QA stage's report (the count may include re-run build mutations); the cycle log is the lead's file and this stage writes no entries in it.
+- `false` (blind-hunter+edge-case-hunter) Spec `status: done` versus sprint-status `review` -- the build stage's contract sets the spec frontmatter at its end; sprint-status is the cycle's tracker and is set by this review through `sprint_plan.py`.
+- `low` (blind-hunter) The build stage's triage log marks true-but-out-of-scope findings `[false]` -- the fix edits that stage's own triage history in the spec; the result-cell point is DW-777's (`wontfix-accepted`) and the numbers are out of scope.
+- `false` (blind-hunter) The Verification results give truncated sha256s -- this review recomputed both in full and they equal AC3; the record is shortened, not wrong.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -113,6 +128,11 @@ All commands run from the worktree root after `git rev-parse --show-toplevel` ma
 - mutation: AC2 `test-readme.sh` lines 510 and 515 reverted to the old labels (new README kept) -> `FAIL measured`, naming both old labels ("has no table row").
 - mutation: AC3 one space appended to README.md line 3 -> README sha256 `6ba8a750...` differs from AC3 and numstat shows `3 3 README.md`.
 - mutation: AC4 ` (Ens.Director)` inserted after "It works from real failures" in the Measured section's bullet (README line 43) -> `FAIL dev-only` in `test-readme.sh` and `FAIL static` in `test-release-notes.sh`.
+- mutation: (QA) AC1 README.md line 39 label renamed to "Cost of the always-on online demo" -> `FAIL measured` ("has no table row 'Model cost of the always-on online demo'").
+- mutation: (QA) AC1 README.md line 34 row moved out of the `## Measured` section (to the end of the file) -> `FAIL measured` ("has no table row 'The demo's incident diagnosed with the right fix, on a live model'").
+- mutation: (QA) AC2 `chk_measured` weakened to skip the "Model cost" label -> `FAIL measured: a broken copy was not flagged` (the `st_facts` self-test "without 'Model cost of the always-on online demo': not flagged"), so the generated self-tests cover the new labels. Each restored byte-identical (sha256s as AC3; `git status --short` and `git diff --stat` unchanged).
+- (QA) No test added: every AC has a pinning test that can fail. The absence of the old labels is not pinned on purpose: with both new labels required in the first cell, an old label can only survive as an extra row, and a pin on it would pin wording the story must not freeze (and the spec allows no new self-test).
+- mutation: (review) AC1 absence clause: `| The always-on online demo | about 9 to 10 cents a day |` added after README.md line 39 -> the AC1 `git grep` printed `README.md:40` (exit 0); `test-readme.sh` stayed `PASS measured` (the extra-row gap, DW-778 `by-design`). Restored byte-identical (README sha256 as AC3; `git status --short` and `git diff --stat` unchanged).
 
 ## Auto Run Result
 
