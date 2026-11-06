@@ -39,6 +39,9 @@ Include Ensemble
 ///     the requests that an incident payload lists (Listed reads the index-th one, the first by default).
 ///   - for the tests of dates that read two ways (Story 7.7): Fail and SendOrders take the date of the orders (2026-10-16 by default), SetArrival sets the arrival
 ///     (TimeCreated, UTC) of a failed header, and SetOrderDate sets a body's date;
+///   - for the tests of the good-message check (Story 7.9): SendOrders also takes the date format (MM/DD/YYYY by default; YYYY-MM-DD orders go through), SendGood sends such
+///     orders and sets the floors as Fail does (Floor), and WaitGood and GoodHeaders give the ids of the Completed PartnerOrdersIn to OrdersFromPartner headers of a trace reference;
+///     PhoneText (lifted here from Test.Fix.EitherWay) gives the phone message that SimPhoneOut kept for a request;
 ///   - for the tests that start from a raised request (Story 7.2, lifted here by Story 7.6): Raised (S watches Orders and failing orders tagged with S's trace Ref become an
 ///     incident that is noticed with its fix and one pending request; its trailing argument is the number of orders, 3 by default), Noticed (waits for the diagnosis, the
 ///     answer and the notifications), Answered (the answered Notification of an incident) and NoticeSessionOf (the trace session of a Notification).
@@ -718,20 +721,81 @@ ClassMethod Top(table As %String, namespace As %String) As %Integer
 /// with the trace reference (none when empty), through the Orders partner of OCUORDERS (a copy of the Demo test's private three-line Send, which is Epic 4's). Asserts that the partner accepts them.
 Method Fail(count As %Integer, traceRef As %String = "", orderDate As %String = "2026-10-16") As %Boolean [ Private ]
 {
-	If ..OrdersFloor = "" {
-		Set ..OrdersFloor = ..Top("Ens.MessageHeader", ..#ORDERS)
-		Set ..OrdersLogFloor = ..Top("Ens_Util.Log", ..#ORDERS)
-	}
+	Do ..Floor()
 	Set sc = ..SendOrders(count, traceRef, orderDate)
 	Do $$$AssertStatusOK(sc, count_" failing orders are sent"_$Select(traceRef '= "": " with a trace reference", 1: " with none"))
 	Quit $$$ISOK(sc)
 }
 
-ClassMethod SendOrders(count As %Integer, traceRef As %String, orderDate As %String = "2026-10-16") As %Status [ Private ]
+/// Sets the floors of OCUORDERS (the newest header and the newest event-log row) at the first send of the test, so that OnAfterOneTest removes everything the test sent.
+Method Floor() [ Private ]
+{
+	If ..OrdersFloor = "" {
+		Set ..OrdersFloor = ..Top("Ens.MessageHeader", ..#ORDERS)
+		Set ..OrdersLogFloor = ..Top("Ens_Util.Log", ..#ORDERS)
+	}
+}
+
+/// Sends count orders dated orderDate in dateFormat (MM/DD/YYYY by default, the format that fails; YYYY-MM-DD orders go through), every message tagged with traceRef.
+ClassMethod SendOrders(count As %Integer, traceRef As %String, orderDate As %String = "2026-10-16", dateFormat As %String = "MM/DD/YYYY") As %Status [ Private ]
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#ORDERS
-	Quit ##class(OcuTalon.Demo.Orders.Partner).Send(count, "MM/DD/YYYY", traceRef, orderDate)
+	Quit ##class(OcuTalon.Demo.Orders.Partner).Send(count, dateFormat, traceRef, orderDate)
+}
+
+/// Sends count orders that go through (YYYY-MM-DD, dated orderDate), tagged with traceRef (none when empty), and asserts that the partner accepts them; the floors are set
+/// first, as Fail does. 1 when they are sent.
+Method SendGood(count As %Integer, traceRef As %String = "", orderDate As %String = "2026-11-05") As %Boolean [ Private ]
+{
+	Do ..Floor()
+	Set sc = ..SendOrders(count, traceRef, orderDate, "YYYY-MM-DD")
+	Do $$$AssertStatusOK(sc, count_" orders that go through are sent"_$Select(traceRef '= "": " with a trace reference", 1: " with none"))
+	Quit $$$ISOK(sc)
+}
+
+/// The ids (comma-separated, ascending) of the Completed PartnerOrdersIn to OrdersFromPartner headers of OCUORDERS whose SuperSession is ref (the untagged ones when
+/// ref is empty), with an id above floor (the newest header before the test's first send, so that only the test's own orders count).
+ClassMethod GoodHeaders(ref As %String, floor As %Integer = 0) As %String
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set sql = "SELECT ID FROM Ens.MessageHeader WHERE Status = 9 AND ID > "_(+floor)_" AND SourceConfigName = 'PartnerOrdersIn' AND TargetConfigName = 'OrdersFromPartner' AND "_$Select(ref = "": "(SuperSession IS NULL OR SuperSession = '')", 1: "SuperSession = ?")_" ORDER BY ID"
+	Set rs = $Select(ref = "": ##class(%SQL.Statement).%ExecDirect(, sql), 1: ##class(%SQL.Statement).%ExecDirect(, sql, ref))
+	Set ids = ""
+	While rs.%Next() {
+		Set ids = ids _ $Select(ids = "": "", 1: ",") _ rs.%GetData(1)
+	}
+	Quit ids
+}
+
+/// Waits up to WAITBATCH seconds, polling every half second, for at least count Completed PartnerOrdersIn to OrdersFromPartner headers of ref in OCUORDERS, asserts that
+/// there are, and gives their ids (GoodHeaders, those above the test's floor).
+Method WaitGood(ref As %String, count As %Integer) As %String [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITBATCH
+	For {
+		Set ids = ..GoodHeaders(ref, ..OrdersFloor)
+		If ($Select(ids = "": 0, 1: $Length(ids, ",")) '< count) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Do $$$AssertTrue($Select(ids = "": 0, 1: $Length(ids, ",")) '< count, count_" orders have gone through in OCUORDERS")
+	Quit ids
+}
+
+/// The text of the phone message that SimPhoneOut kept for the request in the session, once it is there (up to WAITINCIDENT seconds); "" with a failed assertion otherwise.
+Method PhoneText(session As %String, approvalRef As %String) As %String [ Private ]
+{
+	Set end = $ZHorolog + ..#WAITINCIDENT
+	Set text = ""
+	For {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'phone' AND ApprovalRef = ?", session, approvalRef)
+		If rs.%Next() Set text = rs.%GetData(1)
+		If (text '= "") || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Do $$$AssertTrue(text '= "", "the phone message of the request is kept")
+	Quit text
 }
 
 /// The failed headers (Status 8) of OCUORDERS after the first Fail of the test, as a dynamic array of {"id", "superSession", "at", "sessionId", "source",

@@ -91,7 +91,7 @@
 ///     the round's failures join the next round's window, and a round that gathers meanwhile takes their earlier time; a refused dry run, an empty Targets and an
 ///     open incident keep the marks, because those failures were judged. Otherwise one request of the incident is raised
 ///     as for the first (the same kind, its own targets and dry run), appended to RequestRefs, and Move saves the row and sends each recipient one Notification of
-///     kind approval with the key incident.laterRequest (incident.laterRequestEitherWay when Notice.WithFixKey gives it), the request's Ref as ApprovalRef and the slots of the round (Notice.WithFixSlots with the number of keys
+///     kind approval with the key incident.laterRequest (incident.laterRequestEitherWay or a ...Checked variant when Notice.WithFixKey gives it), the request's Ref as ApprovalRef and the slots of the round (Notice.WithFixSlots with the number of keys
 ///     of the windows and the round's time), then publishes the incident event. A save that fails cancels the request. Execute goes out for one approved request
 ///     at a time (the table's rows, Apply).
 ///   - Purge deletes the incidents closed before a cutoff, with their groups and their fix runs (AD-27).
@@ -851,7 +851,8 @@ Method Unproposed(ref As %String, error As %String, later As %Boolean = 0) [ Pri
 ///   1. a Reason takes the no-fix route with one Type 3 warning, and an empty Targets takes it with no warning (NoFix);
 ///   2. the table must accept raised, else nothing is raised;
 ///   3. the with-fix slots are built from the dry run (Notice.WithFixSlots), else one Type 3 warning and nothing more;
-///   4. the fix request is built and raised once (RaiseRequest) in the incident's trace session; an error is one Type 3 warning and the no-fix route;
+///   4. the fix request is built and raised once (RaiseRequest) in the incident's trace session; its row stores the dry run with only the keys of ApprovalRequest
+///      DRYRUNKEYS (StoredDryRun: the kind's goodCheck, which the notice's key and slots read from the whole answer, is not stored); an error is one Type 3 warning and the no-fix route;
 ///   5. the Ref is appended to RequestRefs and Deliver saves it with NoticedAt and the state, then sends the notice (ApprovalRef = the Ref) and publishes;
 ///      the later waiter then starts when failures joined after the ask (LaterSince is set);
 ///   6. a save that fails cancels the request (CancelRequest), so that nothing stays approvable that no incident lists (Deliver logged the warning).
@@ -860,7 +861,7 @@ Method Unproposed(ref As %String, error As %String, later As %Boolean = 0) [ Pri
 /// clear AskingSince (the no-fix route does not exist for a noticed incident), with one Type 3 warning with LOGLATER for each error and none for an open
 /// incident or an empty Targets; the slots are those of the round (Notice.WithFixSlots with the number of keys in the windows and AskingSince as the time);
 /// the request is appended and Move saves the row, with AskingSince cleared, and sends each recipient one Notification of kind approval with the key
-/// incident.laterRequest (incident.laterRequestEitherWay when Notice.WithFixKey gives it) and the request's Ref, then publishes the incident event; NoticedAt does not change. A save that fails cancels the request, with one
+/// incident.laterRequest (incident.laterRequestEitherWay or a ...Checked variant when Notice.WithFixKey gives it) and the request's Ref, then publishes the incident event; NoticedAt does not change. A save that fails cancels the request, with one
 /// warning, and clears AskingSince. An error (a dry run or slots that cannot be used, a failed Raise, a request cancelled after a failed save, a thrown error
 /// before any raise) also puts the marks back (Unask with unmark 1), so the round's failures join the next round; a refused dry run, an empty Targets and an
 /// open incident keep them, and so does a request that was raised and could not be cancelled, which still holds the window.
@@ -911,7 +912,7 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 		Set row.OwnerRef = incident.OwnerRef
 		Set row.ResultTarget = ..#RESULTTARGET
 		Set row.TraceRef = $Select(##class(OcuTalon.Bridge.Approval).IsRef(..%SuperSession): ..%SuperSession, 1: "")
-		Set row.DryRun = result.DryRun
+		Set row.DryRun = ..StoredDryRun(dryRun)
 		Set row.FixKind = ask.FixKind
 		Set row.FixParameters = ask.Parameters
 		Set row.FixTargets = result.Targets
@@ -945,6 +946,25 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 		If later && $IsObject(incident) Do ..Unask(incident, $Get(request) = "")
 	}
 	Quit $$$OK
+}
+
+/// The dry run as the request's row stores it: JSON of a copy with only the keys of ApprovalRequest DRYRUNKEYS, in their order (the kind's answer may hold other keys,
+/// such as repair_resend's goodCheck, which are never stored).
+ClassMethod StoredDryRun(dryRun As %DynamicObject) As %String [ Private ]
+{
+	Set stored = {}
+	Set keyNames = $Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")
+	For i = 1:1:$Length(keyNames, ",") {
+		Set key = $Piece(keyNames, ",", i)
+		If 'dryRun.%IsDefined(key) Continue
+		Set type = dryRun.%GetTypeOf(key)
+		If (type = "object") || (type = "array") {
+			Do stored.%Set(key, dryRun.%Get(key))
+		} Else {
+			Do stored.%Set(key, dryRun.%Get(key), type)
+		}
+	}
+	Quit stored.%ToJSON()
 }
 
 /// A dry run that raises nothing: the no-fix route for the first request (NoFix), and, for a later round, AskingSince cleared (Unask), with the marks put back when

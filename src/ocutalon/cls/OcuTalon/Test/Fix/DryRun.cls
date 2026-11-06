@@ -11,7 +11,7 @@
 ///   - TestLeftOutAndScope: of six failed orders of the scope, two do not read in the source format and are left out; a failed order of another scope and a header that
 ///     was delivered are not counted; the example is the lowest target;
 ///   - TestEitherWayWithArrival (Story 7.7, DW-644): three failed orders dated 11/03/2026, each of whose headers arrived on November 3, read both ways and match the source
-///     reading's day: the dry run is worked out, with all three as targets, the example 11/03/2026 and exactly the keys of DRYRUNKEYS;
+///     reading's day: the dry run is worked out, with all three as targets, the example 11/03/2026 and the keys of DRYRUNKEYS plus goodCheck;
 ///   - TestOneWayIsTheExample: a day above 12 among values that read both ways is evidence of its own (the arrivals match nothing), and its value is the example, not the first
 ///     target; with no such value the example is the first target whose readings differ, not a first value that reads as one date;
 ///   - TestNoEvidenceIsRefused: three orders dated 03/05/2026 that arrived on November 4 read both ways with nothing to choose: the dry run is refused with the reason that says so,
@@ -151,7 +151,8 @@ Method TestFiftyOrdersChangeNothing()
 	Do $$$AssertEquals(response.IncidentRef_"|"_response.Reason, incident.Ref_"|", "the answer is for the incident and holds no reason")
 	Do $$$AssertEquals(response.Targets, ids, "Targets holds the 50 header ids, ascending")
 	Set dryRun = {}.%FromJSON(response.DryRun)
-	Do $$$AssertEquals(..SortedKeys(dryRun), ..SortedNames($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")), "the dry run has exactly the keys of DRYRUNKEYS")
+	Do $$$AssertEquals(..SortedKeys(dryRun), ..SortedNames($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")_",goodCheck"), "the dry run has exactly the keys of DRYRUNKEYS plus goodCheck")
+	Do $$$AssertEquals(dryRun.goodCheck.%ToJSON(), "{""checked"":0,""changed"":0}", "goodCheck says that no good message was checked: none from the same source went through")
 	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut, "50|50|0", "50 affected, 50 resent, none left out")
 	Do $$$AssertEquals(dryRun.field_"|"_dryRun.before_"|"_dryRun.after, "order date|10/16/2026|2026-10-16", "the field in words, and the first target's value before and after")
 	Do $$$AssertEquals(dryRun.itemNoun.%ToJSON(), ..#NOUN, "and the noun of the incident")
@@ -210,7 +211,8 @@ Method TestEitherWayWithArrival()
 	If '$IsObject(response) Quit
 	Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_ids, "the dry run is worked out, with the three orders as targets")
 	Set dryRun = {}.%FromJSON(response.DryRun)
-	Do $$$AssertEquals(..SortedKeys(dryRun), ..SortedNames($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")), "the dry run has exactly the keys of DRYRUNKEYS")
+	Do $$$AssertEquals(..SortedKeys(dryRun), ..SortedNames($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")_",goodCheck"), "the dry run has exactly the keys of DRYRUNKEYS plus goodCheck")
+	Do $$$AssertEquals(dryRun.goodCheck.%ToJSON(), "{""checked"":0,""changed"":0}", "goodCheck says that no good message was checked: none from the same source went through")
 	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut_"|"_dryRun.before_"|"_dryRun.after, "3|3|0|11/03/2026|2026-11-03", "three affected and resent, and the example")
 }
 

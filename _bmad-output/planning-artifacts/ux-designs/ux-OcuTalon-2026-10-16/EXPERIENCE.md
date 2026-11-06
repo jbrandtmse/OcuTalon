@@ -838,6 +838,7 @@ Details and trace: on your OcuTalon page.
   - only the connective words are fixed.
 - **On the web incident card,** the closing "Approve?" is left out (Component Patterns › Incident card).
 - **The UJ-1 instance:** "50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50. Approve?" and "Dry run: 50 orders affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 50 repaired copies; the originals stay unchanged. Nothing has changed yet."
+- **Checked against good messages:** [ADDED 2026-11-06, Story 7.9, owner decision by the Contest Planner under the owner's delegation (2026-11-06T01:15Z); text ruled by the Planner 2026-11-06 at the spec gate] when the dry run tried the repair on at least one message from the same source that went through, and it would change none of them, the Dry run paragraph adds, between "the originals stay unchanged." and "Nothing has changed yet.": "Checked against the last {good checked} {good noun} from the same source that went through: {good changed} would change." For example: "Checked against the last 20 orders from the same source that went through: 0 would change." It counts the real number found, at most 20 for each source (with one: "Checked against the last 1 order from the same source that went through: 0 would change."). When no message from the same source had gone through, the line is left out and the notice is as above (so a first press on a fresh demo has none). If the repair would change any of them, no fix is proposed: the incident gets the no-fix notice below, with the cause, and nothing is changed.
 
 | Event | Telegram behavior and text |
 | --- | --- |
@@ -895,6 +896,7 @@ Details and trace: on your OcuTalon page.
 ```
 
 - The slots come from the new failures and their own dry run, as in the incident notice; `{time}` is the first of the new failures.
+- **Checked against good messages:** [ADDED 2026-11-06, Story 7.9, owner decision by the Contest Planner under the owner's delegation (2026-11-06T01:15Z); text ruled by the Planner 2026-11-06 at the spec gate] the later request's Dry run paragraph carries the same line, between "the originals stay unchanged." and "Nothing has changed yet.", under the same rule as in the incident notice. After an approved fix has gone through, its copies are good messages of the same source too, so the line shows: "Checked against the last 8 orders from the same source that went through: 0 would change."
 
 ### Status banners (web)
 

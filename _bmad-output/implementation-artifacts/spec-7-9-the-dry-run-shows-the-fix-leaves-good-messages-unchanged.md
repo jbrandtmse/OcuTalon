@@ -2,9 +2,10 @@
 title: 'The dry run shows the fix leaves good messages unchanged'
 type: 'feature'
 created: '2026-11-06'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'fadfda57abc3c40b53df31264e6939881a137392'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred: []
@@ -163,6 +164,36 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `a24e83e
 
 ## Review Triage Log
 
+### 2026-11-06 - Review pass
+- verdicts: 25 findings - high 0, medium 2, low 20, false 1, maybe-false 2
+- findings:
+  - `[low]` `[patch]` Blind: with several source tuples the notice can say "the last 40 orders" and EXPERIENCE says "at most 20" - the cap is per reference by the spec (matrix: "0 to 20 for each reference"); the EXPERIENCE bullet now says "at most 20 for each source"; the count itself is by design.
+  - `[low]` `[reject]` Blind: SuperSession in the same-source tuple looks like a test device - decided in-stage (AD-4: one visitor's dry run never reads another's orders), recorded under Design Notes; reopens only by spec amendment.
+  - `[low]` `[reject]` Blind: Recheck does not repeat the good-message check - the spec forbids any change to Recheck and Execute (Never); the claim is a dry-run-time statement.
+  - `[low]` `[reject]` Blind: the withheld fix shows the generic no-fix wording - PT-b is ruled (incident.noFix, reason log-only); the Planner's follow-up is DW-823.
+  - `[low]` `[reject]` Blind: the stored dry run drops goodCheck, so the web card has no line - PT-d is ruled (notice only; stored keys unchanged).
+  - `[low]` `[reject]` Blind: resent copies count as good messages - decided in-stage and recorded (the production accepted them); the dry-run-time count is real.
+  - `[maybe-false]` `[reject]` Blind: the good-message SQL can scan far on a large table - would need a measurement on a large Ens.MessageHeader; if true it is low (a demo-sized table, ORDER BY ID DESC, TOP 20), so rejected.
+  - `[low]` `[reject]` Blind: a boolean or large goodCheck passes the whole-number test - goodCheck is built by RepairResend.DryRun only; no reachable input.
+  - `[low]` `[reject]` Blind: Reader.Good throws on a ServiceUser or read fault and the throw path is untested - FixExecutor turns a kind's thrown error into a Reason (Executor L153-176); the spec's matrix row says no test of its own.
+  - `[low]` `[reject]` Blind: a stale fixture pair in TestGoodLine's one-way fixture, stale "9 entries" comments in Test.Msg.Catalog, a fixed Hang for the negative assertion, a Task 0 log line - cosmetic or pre-existing; the Hang is after the awaited warning.
+  - `[low]` `[reject]` Blind: the base DryRun doc allows transient keys with no enforcement - StoredDryRun protects the row; the doc line is the spec's.
+  - `[low]` `[reject]` Edge: unreadable good bodies count as checked - the spec fixes this (Always: every good message read counts; an unreadable body is unchanged).
+  - `[low]` `[reject]` Edge: no cap on distinct references - the spec's design is one reference per tuple; the demo and every incident of a session have one tuple (a session's failures share its trace); a cap would change the AC.
+  - `[low]` `[reject]` Edge: a value longer than VALUEMAX is truncated and reads as unchanged - Reader's existing per-value limit, shared with Evidence; order dates are short.
+  - `[false]` `[reject]` Edge: Notice accepts changed above 0 or above checked - DryRun refuses before it builds goodCheck when any message would change, so a Checked notice always has changed 0.
+  - `[low]` `[reject]` Edge: boolean or zero-padded counts pass - the same as the Blind boolean finding.
+  - `[maybe-false]` `[reject]` Edge: Test.Fix.DryRun asserts goodCheck {0,0} and leftover good traffic would flip it - OnAfterOneTest drops every order above the floor and the class passed fresh and warm after GoodMessages; if true it is low.
+  - `[low]` `[patch]` Edge: the 40-over-20 claim - the same root cause as the first Blind finding (the EXPERIENCE bullet).
+  - `[low]` `[reject]` Edge: "tried the repair" overstates when a body is unreadable - the same root cause as the unreadable-bodies finding.
+  - `[medium]` `[patch]` VG: the per-tuple grouping in DryRun is never exercised with two sources - added GoodMessages.TestTwoSourcesInOneIncident (two SuperSessions of the instance scope; goodCheck 7, then a changed good order of the second source refuses the dry run), with a demonstrated mutation (only the first reference read) and its mutation line.
+  - `[low]` `[reject]` VG: AC 5 has no mutation line and no demo-path assertion of the line - the spec's AC 5 is "passes", and the pinning mutations table has no AC 5 row; the runner owns the T8 and online-demo assertion (PT-e). Both live units were run and passed.
+  - `[medium]` `[patch]` VG: WaitGood and GoodHeaders for untagged orders are not scoped to the test's own orders - GoodHeaders takes the test's floor and WaitGood passes it; TestUntaggedOrders and TestOtherSourcesAndSessions assert that the 2 untagged good orders they sent are found.
+  - `[low]` `[reject]` VG: SnapshotDiff.TestGoodBodyEditIsAChange tests an existing helper with no red shown - the spec prescribes this pure test and records that it stays green under the product mutation.
+  - `[low]` `[reject]` VG: unreadable bodies count as checked and nothing pins it - the same root cause as the Edge finding; by design.
+  - `[low]` `[reject]` VG: the non-read outcome branch of DryRun is not exercised through DryRun - the matrix row "Read fails" says no test of its own (Evidence has already passed the same two checks in the dry run).
+- Intent Alignment Auditor (descriptive, no findings): the diff implements per-tuple references, the check inside the kind, the notice-level line and "checked means read", which is the contract's own reading; its divergence notes (the read-only proof asks the dry run again after the request; the log warning is asserted by its rendered reason, not by the constant's name; `Case.SendOrders` and `Fail`/`Floor`, and `PhoneText` moved from `Test.Fix.EitherWay` to `Case`) are footprint and test-shape facts, recorded in the report below.
+
 ## Design Notes
 
 **Task 0 (plan stage).** Slot D (`ocutalon-slot-d`, IRIS 2026.3.0AI build 154U, checked with `iris_server_info`) has no OCUORDERS namespace (its namespaces are %SYS, HSCUSTOM, HSLIB, HSSYS, HSSYSLOCALTEMP, OCUTALON and USER), and OCUTALON holds no `Ens.MessageHeader` row (read-only `SELECT ... GROUP BY Status`, 0 rows). So these facts come from the code and from tests that already pass:
@@ -244,7 +275,7 @@ No AD Rule is contradicted and no AD changes.
 
 ## Verification
 
-`<laneD>` stands for `env OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-d OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=7 stage=implement'`, run from the worktree root. Rules for every run:
+`<laneD>` stands for `env OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-d OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=7 stage=implement'`, run from the worktree root. Rules for every run:
 - One command per foreground call with `timeout: 600000`, and never two IRIS test runs in one message.
 - At most one fresh throwaway at a time in lane D. Pure classes may instead run on slot D (`server` `ocutalon-slot-d`, namespace `OCUTALON`, after `iris_doc_load` of the changed classes), one `iris_execute_tests` per message.
 - The shards are left to CI.
@@ -290,14 +321,59 @@ No AD Rule is contradicted and no AD changes.
 | AC 4 | `Proposed` stores `result.DryRun` unstripped | `GoodMessages.TestApprovalRunsTheDryRunOnly` (stored keys) |
 | AC 4 / targets | `Execute` gets the good ids added to the targets (test-only patch in `Proposed`: `row.FixTargets` plus one good id) | `GoodMessages.TestApprovalRunsTheDryRunOnly` |
 
+**Implement-stage results (2026-11-06).**
+
+Task 0 (first fresh run of `Test.Watch.GoodMessages`, lane D):
+- (a) The good headers that `Reader.Good` returns are Status 9 (Completed), IsError 0 and Type 1 (Request): `RecordGood` asserts the single shape `9|0|1` over all the good headers of the tests. The inference holds.
+- (b) An untagged order reads back with SuperSession "" (`TestUntaggedOrders` asserts it), and the empty-SuperSession read (`SuperSession IS NULL OR SuperSession = ''`) finds the untagged good orders: goodChecked is at least the 2 sent and the key is `incident.withFixChecked`.
+- (c) Measured fresh class time of `Test.Watch.GoodMessages`: 115.92 s passed (the first run, with two bugs of the test class that were then fixed, took 116.21 s; the warm stack took 112.6 to 114.5 s). Well under 300 s, so the class is not split.
+
+Contended-file edits (for the merger; the `git merge-file --diff3` check against `OCT-epic17` `073656c9`):
+- `Watch/Reader.cls`: class-doc bullet after the Evidence bullet; public `Good` after `Evidence`; in `Current` the `g<id>` branch in the key loop plus the resolving block right after the loop (with `Set referenceIds = ""` as the first line inside `If evidence {`); one doc sentence pair in `Current`'s doc. Merge exit 0, no conflict.
+- `Msg/Catalog/Watch.cls`: one appended block of four keys after `incident.laterRequestEitherWay`. Merge exit 0, no conflict.
+- `Test/Msg/Catalog.cls`: the four keys appended to `Keys`, `Fixtures` and `OneForms`, and the count lines. Merge exit 3 with 3 conflicts, all count lines as predicted (doc line 3 of the class doc, the Core/Watch key counts in `TestEntries`, and the fixtures-cover-the-catalog count in `TestEveryKeyOnEveryChannel`); the merger adds both sides (+4 Watch keys, +4 in the total).
+- `Test/Watch/Case.cls`, `Test/Channel/TelegramChat.cls`: edited as named in the Code Map. `PhoneText` was lifted from `Test.Fix.EitherWay` into `Case` (a Rule 2 lift, no copy).
+
+Commands run (all passed): fresh lane D `OcuTalon.Test.Watch.GoodMessages`, `OcuTalon.Test.Fix.DryRun` and `OcuTalon.Test.Fix.EitherWay`; warm `OcuTalon.Test.Watch.GoodMessages`, `DryRun`, `EitherWay`, `Fix.Raise`, `Fix.Later`, `Fix.Execute`, `Watch.Diagnose`, `Watch.Evidence`, `Channel.TelegramChat`, `Watch.NoticeText`, `Fix.Kind`; slot D `Test.Msg.Catalog`, `Test.Watch.NoticeText`, `Test.Fix.Kind`, `Test.Fix.SnapshotDiff`. `docker/tests/test-class-rules.sh` passes. `docker/tests/test-boundaries.sh` has one failure, "paths", at the `<laneD>` definition line of this spec's own Verification section (a machine path that was in the spec before the implement stage); it is not in a source file. Not run here: the live demo-path and online-demo-path, `test-ci-config.sh`, the shards. Both throwaways were torn down.
+
+mutation: `Good` ignores the SuperSession (always the untagged statement, without the condition) -> `GoodMessages.TestOtherSourcesAndSessions` went red
+mutation: `GOODMAX` 25 -> `GoodMessages.TestOnlyTheNewestTwenty` went red
+mutation: `GoodChanges` ignores the text comparison (always 1 when readable) -> `Fix.Kind.TestGoodChanges` went red (converts to itself)
+mutation: the `g` block in `Current` appends "x" to each good body's OrderDate and saves it (appending, because setting "x" twice is no change the second time) -> `GoodMessages.TestFewerThanTwentyGood` went red (the Snapshot Diff and the bodies compare); `SnapshotDiff.TestGoodBodyEditIsAChange` stays green
+mutation: `WithFixKey` ignores goodCheck -> `Watch.NoticeText.TestGoodLine` and `GoodMessages.TestFewerThanTwentyGood`, `TestOneGood`, `TestOnlyTheNewestTwenty`, `TestApprovalRunsTheDryRunOnly`, `TestUntaggedOrders` went red
+mutation: `checked >= 0` in place of `>= 1` -> `GoodMessages.TestNoGoodMessages` and `Watch.Diagnose.TestDemoDiagnosis` went red
+mutation: the GOODCHANGED refusal removed -> `GoodMessages.TestOneChangedGoodWithholdsTheFix` and `TestLaterRoundRefused` went red
+mutation: `Proposed` stores `result.DryRun` unstripped -> `GoodMessages.TestApprovalRunsTheDryRunOnly` (also `TestFewerThanTwentyGood`, `TestNoGoodMessages`) went red on the stored keys
+mutation: the dry run's targets gain one good id (patched in `RepairResend.DryRun`, not in `Proposed`, which has no good id) -> `GoodMessages.TestApprovalRunsTheDryRunOnly` and `TestUntaggedOrders` went red
+mutation: `DryRun` reads only the first reference (`If $Data(reference(origin(id))) || (references '= "") Continue`) -> `GoodMessages.TestTwoSourcesInOneIncident` went red (goodCheck 4 instead of 7, no refusal for the second source); restored from a backup, `git status --short` and `git diff --stat` identical
+Each mutated file was restored from the stage's own backup and checked byte-identical (md5 of the four source files against the manifest taken before the first mutation).
+
 ## Auto Run Result
 
-Note (runner, spec gate): the PUBLIC TEXT is ruled (Design Notes, "Ruled public text"); the implement stage may start.
-
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-The spec is planned for implementation. The strings under "Proposed public text" (PT-a to PT-e) are placeholders for the Planner's ruling, which the runner relays before any implement. Contended edits:
-- `Watch/Reader.cls`: four self-contained blocks, not overlapping Epic 17's hunks.
-- `Msg/Catalog/Watch.cls`: one appended block.
-- `Test/Msg/Catalog.cls`: appended blocks, plus count lines that collide with Epic 17's.
+**Summary.** Before a fix is offered, `RepairResend.DryRun` reads the newest 20 good messages for each distinct source of its targets through the new `Reader.Good` (a `g<id>` key in `Reader.Current`, one switching method), tries `GoodChanges` on each in memory, refuses the dry run with the log-only reason GOODCHANGED when any would change (the incident gets the existing `incident.noFix`; a later round sends nothing), and otherwise adds `goodCheck {checked, changed}` to the answer. `Notice.WithFixKey` and `WithFixSlots` give the four `...Checked` catalog keys when `checked` is at least 1 (none checked: today's key and text, Z1), and `IncidentManager.Proposed` stores only the DRYRUNKEYS (`StoredDryRun`). The ruled line is typed exactly in all four forms of the four keys.
+
+**Files changed.**
+- `Watch/Reader.cls`: class-doc bullet, public `Good`, the `g<id>` branch and resolving block in `Current`, one doc sentence (contended with Epic 17; `git merge-file` against `OCT-epic17` `b94508c9`: exit 0, no conflict).
+- `Msg/Catalog/Watch.cls`: one appended block of four keys after `incident.laterRequestEitherWay` (merge exit 0).
+- `Fix/Kind/RepairResend.cls`: `GOODMAX`, `GOODCHECK`, `GOODCHANGED`, `GoodChanges`, the check in `DryRun`, docs.
+- `Watch/IncidentManager.cls`, `Watch/Notice.cls`: `StoredDryRun`; the four key parameters, `Checked`, key and slots.
+- `Fix/Kind.cls`, `Fix/Msg/DryRunResult.cls`: doc lines only.
+- `EXPERIENCE.md`: the two bullets with the PT-c marker.
+- Tests: new `Test/Watch/GoodMessages.cls` (10 tests; fresh class time 114 s, group `shards`, no `ci/units.sh` entry); `Test/Watch/Case.cls` (`SendOrders` date format, `SendGood`, `WaitGood`, `GoodHeaders`, `Floor`, `PhoneText` lifted from `Test/Fix/EitherWay.cls`), `Test/Fix/{Kind,SnapshotDiff,DryRun,EitherWay}.cls`, `Test/Watch/NoticeText.cls`, `Test/Msg/Catalog.cls`, `Test/Channel/TelegramChat.cls`.
+
+**Review.** Patches applied: 3 (the EXPERIENCE "for each source" wording, low; the two-source DryRun test with its mutation, medium; the floor-scoped untagged waits, medium). Deferred: none. Rejected: 22 (reasons in the triage log). The Spec's `## Verification` was corrected on one line: the `<laneD>` definition named the machine path, which `test-boundaries.sh` rejects; it now says `<main checkout>`.
+
+**Follow-up review recommended: true** - two medium entries were patched on this first pass; the unverified risk is the new `TestTwoSourcesInOneIncident` and the floor-scoped `GoodHeaders`/`WaitGood`, which no second reviewer has read (green fresh and warm, mutation shown red).
+
+**Verification performed.** Fresh lane D (tag e7s9i) passed: `Test.Watch.GoodMessages`, `Fix.DryRun`, `Fix.EitherWay`, `Fix.Raise`, `Fix.Later`, `Watch.Diagnose`, `Watch.Evidence`, `Channel.TelegramChat`. Warm lane D passed: `Msg.Catalog`, `Watch.NoticeText`, `Fix.Kind`, `Fix.SnapshotDiff`, `Watch.GoodMessages`. `ci/iris.sh build` then `live demo-path` (first run died of the local deadline after T1 of `telegram-page.spec.ts`, 22 passed and 6 not run; re-run with `OCUTALON_LIVE_DEADLINE=900`: 28 passed, 8 of 8 steps, floor 15 of 15) and `live online-demo-path` passed. `test-ci-config.sh`, `test-class-rules.sh` and `test-boundaries.sh` pass. All ten pinning mutations were applied, seen red and reverted byte-identically (`mutation:` lines under Verification). Warm stack and tag `e7s9i` torn down.
+
+**Merge check (`git merge-file -p --diff3`, ours / merge-base `b5dcbbfa` / `OCT-epic17` `b94508c9`).** `Watch/Reader.cls` exit 0, `Msg/Catalog/Watch.cls` exit 0, `Test/Msg/Catalog.cls` exit 4 with 4 conflicts, all count lines (the merger adds both sides, +4 Watch keys here).
+
+**Contended edits.** `Watch/Reader.cls` (four self-contained blocks above), `Msg/Catalog/Watch.cls` (one appended block), `Test/Msg/Catalog.cls` (four keys appended to `Keys`, `Fixtures`, `OneForms`; count lines 49 to 53 Watch, 154 to 158 total, six to ten web wordings, 16 to 20 noun forms, 11 to 15 one forms).
+
+**Outside the footprint.** `Test/Channel/TelegramChat.cls` (counts and approval kind; named in the spec), `Test/Fix/EitherWay.cls` (`PhoneText` lifted into `Case`, Rule 2; not named in the spec), `Fix/Kind.cls` and `Fix/Msg/DryRunResult.cls` (doc lines, named).
+
+**Residual risks.** A multi-source incident sums the per-reference counts, so the line can read "the last 40 orders" (by the spec's per-reference design; reachable only with several SuperSessions of the instance scope). The runner owns the online-demo assertion of the line on Story 4.11's item 3 (PT-e) and the `Test/Msg/Catalog.cls` count-line union.

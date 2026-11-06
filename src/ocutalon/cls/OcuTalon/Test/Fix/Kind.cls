@@ -10,6 +10,9 @@
 ///   - TestSchemaCheck: the base's CheckParameters (through ZzKind) accepts exactly the PARAMETERS keys, each a string that is not blank;
 ///   - TestCheckParameters: RepairResend's matrix: the field must be a member of the fields (exactly), both formats registered, one family, two different formats;
 ///   - TestFieldWords: the words of a property name;
+///   - TestGoodChanges (Story 7.9): RepairResend GoodChanges says whether the repair would change a good message's body: 11/11/2026 from MM/DD/YYYY to DD/MM/YYYY converts to
+///     itself and is unchanged, to YYYY-MM-DD it is changed, 1234 from 1234.56 to 1234,56 is unchanged, and an empty value, a missing field, an empty body, a body that is no
+///     object and a value in another format (YYYY-MM-DD under MM/DD/YYYY) are unchanged;
 ///   - TestGrants: Install.Step.Fix.Grants is generated from the RESOURCES of the registered kinds, GrantsOf of ZzKind gives its pairs once each, and no registered kind
 ///     declares a forbidden resource of the Roles step;
 ///   - TestInstructionsNameTheFormats: each registered format appears quoted in the instructions of the Diagnosis agent, which hold no template token;
@@ -129,6 +132,29 @@ Method TestCheckParameters()
 	Do ..AssertRefused({"field": "", "sourceFormat": "MM/DD/YYYY", "targetFormat": "YYYY-MM-DD"}, fields, "a blank field")
 	Do ..AssertRefused({"field": 5, "sourceFormat": "MM/DD/YYYY", "targetFormat": "YYYY-MM-DD"}, fields, "a field that is a number")
 	Do ..AssertRefused("", fields, "parameters that are no object")
+}
+
+Method TestGoodChanges()
+{
+	Set dates = {"field": "OrderDate", "sourceFormat": "MM/DD/YYYY", "targetFormat": "YYYY-MM-DD"}
+	Set sameDay = {"field": "OrderDate", "sourceFormat": "MM/DD/YYYY", "targetFormat": "DD/MM/YYYY"}
+	Set numbers = {"field": "Quantity", "sourceFormat": "1234.56", "targetFormat": "1234,56"}
+	Do $$$AssertEquals(..GoodChanges({"OrderDate": "11/11/2026"}, sameDay), 0, "11/11/2026 from MM/DD/YYYY to DD/MM/YYYY converts to itself: unchanged")
+	Do $$$AssertEquals(..GoodChanges({"OrderDate": "11/11/2026"}, dates), 1, "11/11/2026 from MM/DD/YYYY to YYYY-MM-DD is changed")
+	Do $$$AssertEquals(..GoodChanges({"OrderDate": "11/05/2026"}, sameDay), 1, "11/05/2026 from MM/DD/YYYY to DD/MM/YYYY is changed")
+	Do $$$AssertEquals(..GoodChanges({"Quantity": "1234"}, numbers), 0, "1234 from 1234.56 to 1234,56 converts to itself: unchanged")
+	Do $$$AssertEquals(..GoodChanges({"Quantity": "1234.5"}, numbers), 1, "1234.5 from 1234.56 to 1234,56 is changed")
+	Do $$$AssertEquals(..GoodChanges({"OrderDate": ""}, dates), 0, "an empty value is unchanged")
+	Do $$$AssertEquals(..GoodChanges({"Sku": "A"}, dates), 0, "a missing field is unchanged")
+	Do $$$AssertEquals(..GoodChanges({}, dates), 0, "an empty body is unchanged")
+	Do $$$AssertEquals(..GoodChanges("", dates), 0, "a body that is no object is unchanged")
+	Do $$$AssertEquals(..GoodChanges({"OrderDate": "2026-11-05"}, dates), 0, "a value in the target format is unchanged: the reformatter refuses it")
+}
+
+/// 1 when RepairResend GoodChanges says that the repair changes the body.
+ClassMethod GoodChanges(body As %DynamicObject, parameters As %DynamicObject) As %Boolean [ Private ]
+{
+	Quit ''$ClassMethod(..#REPAIR, "GoodChanges", body, parameters)
 }
 
 /// Asserts that RepairResend refuses the parameters.

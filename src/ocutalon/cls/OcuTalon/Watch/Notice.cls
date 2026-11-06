@@ -21,6 +21,11 @@
 ///   - The later request (Story 7.6, KEYLATER incident.laterRequest) takes the with-fix slots with its own round's count and time: WithFixSlots given a count and a
 ///     time replaces the slots count and time (the failures of the round, and the first of them), and renders "{count} more {itemNoun} failed since {time}, with
 ///     the same cause ...". It carries the cause slot too, which the catalog ignores.
+///   - Good messages checked (Story 7.9, FR-25): the dry run of repair_resend also carries goodCheck {"checked", "changed"} (the answer only; the stored dry run does not
+///     hold it). When checked is at least 1, WithFixKey gives the ...Checked variant of the key it gives otherwise: incident.withFixChecked, incident.laterRequestChecked,
+///     incident.withFixEitherWayChecked and incident.laterRequestEitherWayChecked, and WithFixSlots adds goodChecked and goodChanged (counts) and goodNoun (the itemNoun's
+///     one form when goodChecked is 1, else its other form). With checked 0, or no goodCheck, the key and the slots are today's. A goodCheck that is not an object with
+///     whole-number checked and changed is refused like a bad dry run ("" with sc).
 ///   - groups holds one {itemName, count, errorSummary, firstAt} per failure group that has a NoticeCount, in Seq order. A group's count is its
 ///     NoticeCount, so the lines add up to the count slot even when failures joined during the diagnosis. An empty error summary is written as NOERRORTEXT.
 ///   - The result of a fix run (Story 7.3, Consistency Conventions: Result texts): ResultKey gives the catalog key of the notice for an accepted FixResult (final,
@@ -58,6 +63,19 @@ Parameter KEYLATER = "incident.laterRequest";
 Parameter KEYWITHFIXEITHER = "incident.withFixEitherWay";
 
 Parameter KEYLATEREITHER = "incident.laterRequestEitherWay";
+
+/// The variants of the four keys above whose dry-run paragraph also says how many good messages from the same source the repair was tried on and how many it would
+/// change (Story 7.9): given when the dry run's goodCheck counts at least one message.
+Parameter KEYWITHFIXCHECKED = "incident.withFixChecked";
+
+Parameter KEYLATERCHECKED = "incident.laterRequestChecked";
+
+Parameter KEYWITHFIXEITHERCHECKED = "incident.withFixEitherWayChecked";
+
+Parameter KEYLATEREITHERCHECKED = "incident.laterRequestEitherWayChecked";
+
+/// The key of the dry run's answer that holds the counts of the good-message check (Fix.Kind.RepairResend GOODCHECK; it is not stored).
+Parameter GOODCHECK = "goodCheck";
 
 /// The source formats that read both ways, each with the words of its reading in the catalog line, separated by commas.
 Parameter READINGS = "MM/DD/YYYY:month first,DD/MM/YYYY:day first";
@@ -144,12 +162,27 @@ ClassMethod Slots(incident As OcuTalon.Data.Incident, groups As %ListOfObjects =
 }
 
 /// The catalog key of the with-fix notice for the dry run and the request's parameters (JSON text or a dynamic object): KEYWITHFIX, or KEYWITHFIXEITHER when the
-/// request's source format is an order format and the dry run's before reads in both orders as two different dates; with later 1, KEYLATER or KEYLATEREITHER. Pure.
+/// request's source format is an order format and the dry run's before reads in both orders as two different dates; with later 1, KEYLATER or KEYLATEREITHER. When the
+/// dry run's goodCheck counts at least one checked message (Checked), the ...CHECKED variant of that key. Pure.
 ClassMethod WithFixKey(dryRun As %DynamicObject, parameters As %String = "", later As %Boolean = 0) As %String
 {
 	Set eitherWay = ..Reading($Get(dryRun), $Get(parameters)) '= ""
-	If later Quit $Select(eitherWay: ..#KEYLATEREITHER, 1: ..#KEYLATER)
-	Quit $Select(eitherWay: ..#KEYWITHFIXEITHER, 1: ..#KEYWITHFIX)
+	Set checked = (..Checked($Get(dryRun)) > 0)
+	If later Quit $Select(eitherWay: $Select(checked: ..#KEYLATEREITHERCHECKED, 1: ..#KEYLATEREITHER), 1: $Select(checked: ..#KEYLATERCHECKED, 1: ..#KEYLATER))
+	Quit $Select(eitherWay: $Select(checked: ..#KEYWITHFIXEITHERCHECKED, 1: ..#KEYWITHFIXEITHER), 1: $Select(checked: ..#KEYWITHFIXCHECKED, 1: ..#KEYWITHFIX))
+}
+
+/// The number of good messages that the dry run's goodCheck says were checked: 0 when the dry run has no goodCheck, or when it is not an object with whole-number
+/// checked and changed (a bad goodCheck gives no ...Checked key; WithFixSlots refuses it). Pure.
+ClassMethod Checked(dryRun As %DynamicObject) As %Integer
+{
+	If '$IsObject($Get(dryRun)) || 'dryRun.%IsDefined(..#GOODCHECK) Quit 0
+	Set check = dryRun.%Get(..#GOODCHECK)
+	If '$IsObject(check) || 'check.%IsA("%Library.DynamicObject") Quit 0
+	Set checked = check.%Get("checked")
+	Set changed = check.%Get("changed")
+	If (checked '? 1.N) || (changed '? 1.N) Quit 0
+	Quit +checked
 }
 
 /// The words of the source reading ("month first" or "day first") when WithFixKey gives an either-way key for the dry run and the parameters, else "". The
@@ -224,6 +257,18 @@ ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Statu
 		If reading '= "" {
 			Do slots.%Set("reading", reading)
 			Do slots.%Set("item", slots.itemNoun.one)
+		}
+		If dryRun.%IsDefined(..#GOODCHECK) {
+			Set check = dryRun.%Get(..#GOODCHECK)
+			If '$IsObject(check) || 'check.%IsA("%Library.DynamicObject") || (check.%Get("checked") '? 1.N) || (check.%Get("changed") '? 1.N) {
+				Set sc = $SYSTEM.Status.Error(5001, "The dry run of incident "_incident.Ref_" has a goodCheck that is not an object with whole-number checked and changed")
+				Quit ""
+			}
+			If +check.checked > 0 {
+				Do slots.%Set("goodChecked", +check.checked, "number")
+				Do slots.%Set("goodChanged", +check.changed, "number")
+				Do slots.%Set("goodNoun", $Select(+check.checked = 1: slots.itemNoun.one, 1: slots.itemNoun.other))
+			}
 		}
 	}
 	Quit slots

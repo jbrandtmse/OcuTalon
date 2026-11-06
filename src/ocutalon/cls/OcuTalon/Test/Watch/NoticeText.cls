@@ -16,6 +16,11 @@
 ///     and item (the one form of the incident's noun, message when it has none); a before with a day above 12, one that is the same date both ways, and any other source format
 ///     keep incident.withFix and its slots; the slots of the UX fixtures' values render both new keys, many and one forms, as the fixtures say on telegram, the phone and the
 ///     page, and the line holds U-249's words;
+///   - TestGoodLine (Story 7.9; FR-25; pure): WithFixKey gives the ...Checked variant of each of the four keys (incident.withFixChecked, incident.laterRequestChecked,
+///     incident.withFixEitherWayChecked, incident.laterRequestEitherWayChecked) exactly when the dry run's goodCheck counts at least one checked message, and today's key for
+///     0, for no goodCheck and for a goodCheck that is not an object with whole-number counts; WithFixSlots then adds goodChecked, goodChanged and goodNoun (the noun's one
+///     form for 1, else its other form), adds nothing for 0, and refuses a bad goodCheck; each new key renders, many and one forms, on the phone, the mailbox, Telegram and
+///     the page as the Test.Msg.Catalog fixtures say, and the line is the ruled one word for word, with the real counts;
 ///   - TestResultKeys (Story 7.3; AC 5): Notice.ResultKey picks the catalog key of a final or interrupted FixResult by the Result texts convention, row by row and in
 ///     the order of the convention (a request that is executing first, then an interrupted run, then a run that resent, completed, failed and skipped nothing and
 ///     has a reason, then failures with skips, failures, skips, and else all through); Notice.ResultSlots gives the slots that each of the seven keys declares, and
@@ -435,6 +440,77 @@ Method TestEitherWay()
 	Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(later, .sc, dry, 3, "2026-10-16T18:20:00Z", monthFirst.%ToJSON())
 	Do $$$AssertStatusOK(sc, "the slots of a later request are built")
 	If $IsObject(slots) Do ..AssertFixture(fixtures.%Get("incident.laterRequestEitherWay"), "incident.laterRequestEitherWay", slots, "3 dates, later")
+}
+
+Method TestGoodLine()
+{
+	Set ..SavedZone = $SYSTEM.Process.TimeZone()
+	Set ..ZoneSaved = 1
+	Do $SYSTEM.Process.TimeZone(..#ZONE)
+	Set monthFirst = {"field": "OrderDate", "sourceFormat": "MM/DD/YYYY", "targetFormat": "YYYY-MM-DD"}
+	Set row = ..Row("data_format_change")
+	Set noun = {"one": "order", "other": "orders"}
+	// the keys: a before that reads one way (a day above 12) and one that reads both ways, with the counts checked
+	For case = $ListBuild("11/13/2026", "incident.withFix", "incident.laterRequest", "incident.withFixChecked", "incident.laterRequestChecked", "one way"), $ListBuild("11/03/2026", "incident.withFixEitherWay", "incident.laterRequestEitherWay", "incident.withFixEitherWayChecked", "incident.laterRequestEitherWayChecked", "both ways") {
+		Set label = $List(case, 6)
+		Set dry = {"affected": 3, "resend": 3, "leftOut": 0, "field": "order date", "before": ($List(case, 1)), "after": "2026-11-03", "itemNoun": (noun)}
+		Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).WithFixKey(dry, monthFirst) _ "|" _ ##class(OcuTalon.Watch.Notice).WithFixKey(dry, monthFirst, 1), $List(case, 2) _ "|" _ $List(case, 3), label_": with no goodCheck the keys are today's")
+		Do dry.%Set("goodCheck", {"checked": 0, "changed": 0})
+		Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).WithFixKey(dry, monthFirst) _ "|" _ ##class(OcuTalon.Watch.Notice).WithFixKey(dry, monthFirst, 1), $List(case, 2) _ "|" _ $List(case, 3), label_": with checked 0 they are today's")
+		Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(row, .sc, dry, , , monthFirst)
+		Do $$$AssertStatusOK(sc, label_": the slots are built with checked 0")
+		Do $$$AssertEquals($Select($IsObject(slots): slots.%IsDefined("goodChecked") _ slots.%IsDefined("goodChanged") _ slots.%IsDefined("goodNoun"), 1: "x"), "000", label_": and have no good slot")
+		For checked = 1, 5, 20 {
+			Do dry.%Set("goodCheck", {"checked": (checked), "changed": 0})
+			Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).WithFixKey(dry, monthFirst) _ "|" _ ##class(OcuTalon.Watch.Notice).WithFixKey(dry, monthFirst, 1), $List(case, 4) _ "|" _ $List(case, 5), label_": with checked "_checked_" they are the ...Checked variants")
+			Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(row, .sc, dry, , , monthFirst)
+			Do $$$AssertStatusOK(sc, label_": the slots are built with checked "_checked)
+			If '$IsObject(slots) Continue
+			Do $$$AssertEquals(slots.goodChecked_"|"_slots.goodChanged_"|"_slots.goodNoun_"|"_slots.%GetTypeOf("goodChecked")_"|"_slots.%GetTypeOf("goodChanged"), checked_"|0|"_$Select(checked = 1: "order", 1: "orders")_"|number|number", label_": goodChecked, goodChanged and the noun of "_checked)
+			Do $$$AssertEquals(slots.count_"|"_slots.resendCount_"|"_slots.field, "50|3|order date", label_": and the other slots are as they were")
+		}
+	}
+	// a goodCheck that cannot be used
+	Set head = "{""affected"":3,""resend"":3,""leftOut"":0,""field"":""order date"",""before"":""11/13/2026"",""after"":""2026-11-13"",""itemNoun"":{""one"":""order"",""other"":""orders""},""goodCheck"":"
+	For bad = """x""", "[1,2]", "{}", "{""checked"":""x"",""changed"":0}", "{""checked"":1.5,""changed"":0}", "{""checked"":-1,""changed"":0}", "{""checked"":2}", "{""checked"":2,""changed"":""y""}", "null" {
+		Set dry = {}.%FromJSON(head_bad_"}")
+		Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).WithFixKey(dry, monthFirst), "incident.withFix", "a goodCheck "_bad_" gives today's key")
+		Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(row, .sc, dry, , , monthFirst)
+		Do $$$AssertStatusNotOK(sc, "a goodCheck "_bad_" is refused like a bad dry run")
+		Do $$$AssertEquals($IsObject(slots), 0, "and gives no slots")
+	}
+	// the text, against the UX fixtures and the ruled line
+	Set fixtures = ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Test.Msg.Catalog||Fixtures").Data)
+	Set forms = ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Test.Msg.Catalog||OneForms").Data)
+	For key = "incident.withFixChecked", "incident.laterRequestChecked", "incident.withFixEitherWayChecked", "incident.laterRequestEitherWayChecked" {
+		Set fixture = fixtures.%Get(key)
+		Do $$$AssertTrue($IsObject(fixture), key_" has a fixture")
+		If '$IsObject(fixture) Continue
+		Do ..AssertFixture(fixture, key, fixture.slots, "20 good messages, many")
+		Do $$$AssertTrue(fixture.text [ "unchanged. Checked against the last 20 orders from the same source that went through: 0 would change. Nothing has changed yet.", key_": the ruled line, after 'unchanged.' and before 'Nothing has changed yet.'")
+		Set form = forms.%Get(key)
+		Do $$$AssertTrue($IsObject(form), key_" has a one form")
+		If '$IsObject(form) Continue
+		Do $$$AssertTrue(form.text [ "unchanged. Checked against the last 1 order from the same source that went through: 0 would change. Nothing has changed yet.", key_": the ruled line for one order, in the one form")
+		For channel = "phone", "mailbox", "telegram", "web" {
+			Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, form.slots.%ToJSON(), channel, "2026-10-16T18:20:00Z", 1, .sc)
+			Do $$$AssertEquals(text, $Select((channel = "web") && form.%IsDefined("web"): form.web, 1: form.text), key_" on "_channel_": the one form is the OneForms text")
+		}
+	}
+	// with 5 checked and 2 changed the line says so (a notice is never sent for it, but the line takes the real counts)
+	Set slots = fixtures.%Get("incident.withFixChecked").slots
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("incident.withFixChecked", ..WithSlots(slots, 5, 2, "orders").%ToJSON(), "phone", "2026-10-16T18:20:00Z", 1, .sc)
+	Do $$$AssertTrue(text [ "Checked against the last 5 orders from the same source that went through: 2 would change.", "the line takes the counts as they are")
+}
+
+/// A copy of the slots with the three good-message slots set.
+Method WithSlots(slots As %DynamicObject, checked As %Integer, changed As %Integer, noun As %String) As %DynamicObject [ Private ]
+{
+	Set copy = ##class(%DynamicAbstractObject).%FromJSON(slots.%ToJSON())
+	Do copy.%Set("goodChecked", checked, "number")
+	Do copy.%Set("goodChanged", changed, "number")
+	Do copy.%Set("goodNoun", noun)
+	Quit copy
 }
 
 /// Asserts that the slots render the fixture's text on the phone, the mailbox and Telegram, and its web text on the page.
