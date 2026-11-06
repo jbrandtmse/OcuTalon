@@ -2315,3 +2315,4 @@
 2026-11-06T20:24:09Z	Epic 39	followup_item_filed	id=DW-824 source=planner_demo_walk_1.0.2 subject=heartbeat_today_cost_vs_count followup=epic39_post_merge(DW-670,DW-785,Every hour,DW-824)
 2026-11-06T20:24:30Z	Epic 39	planner_ruling	subject=followup_order order=7.9_first,then_epic39_followup target=saturday story_order=DW-824+Every_hour_first,then_DW-785,DW-670
 2026-11-06T21:01:48Z	Run	planner_ruling	subject=no_public_ipm_registry_installs rule=local_artifact_path_only(release/ipm-install.sh OCUTALON_IPM_ARTIFACT) exception=planner_ok_per_run reason=open_exchange_counter_2_to_22 written_to=switch-20261106-common.md
+2026-11-06T21:03:13Z	Run	ci_red_classified	sha=9683c1f0 run=42285847375 workflow=ci.yml jobs=production(row 21, DW-306 flake class),browser(documents D5 filechooser timeout, new flake candidate DW-825) diff_vs_green_b5dcbbfa=module versions+release records only action=rerun_failed lane-a=success
