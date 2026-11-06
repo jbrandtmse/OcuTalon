@@ -346,3 +346,6 @@
 2026-11-06T10:09:29Z	Epic 4	epic_status_reopened	epic-4=in-progress(SC-5_reopen;sanctioned_by_dispatch)
 2026-11-06T10:12:25Z	Epic 4	epic_context_compiled	reason=planning_artifact_newer(reopen_4.11_chartered) model=claude-opus bytes=8595 spawn_at=2026-11-06T10:09:34Z
 2026-11-06T10:12:45Z	Story 4.11	stage_spawned	stage=plan spawn_at=2026-11-06T10:12:45Z model=claude-opus agent_name=4-11-other-things-to-try-plan-1 cycle_iteration=1
+2026-11-06T10:44:50Z	Story 4.11	story_created	spawn_at=2026-11-06T10:12:45Z model=claude-opus path=_bmad-output/implementation-artifacts/spec-4-11-other-things-to-try.md build_status=ready-for-dev spec_bytes=45570 epic_context=reused warnings=oversized
+2026-11-06T10:44:50Z	Story 4.11	spec_validated	service_introducing=true(OcuTalon.Demo.Features) integration_ac=present(AC3,AC5,matrix4-8) adr_constrained_acs=AD-12,AD-29,AD-33,AD-28,AD-13,AD-10,AD-20,AD-22 decision_dependency=none(DW-678_noted_as_item1_text_risk) sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false gating=A_server_catalog(pending_contended_ruling;fallback_C) model=claude-opus-5-5
+2026-11-06T10:44:50Z	Story 4.11	spec_clarification_requested	kind=public_text+contended_paths(Test/Live/Payloads.cls:1000,web/src/app/live/payloads.ts:268;Epic39) naming_clash=P1_recommended to=orchestrator implement=waits
