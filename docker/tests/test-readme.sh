@@ -1340,6 +1340,10 @@ rule_measured() {
   st_facts chk_measured "$MEAS_LABELS"
   st_move 'a row moved out of the section' "$H_MEAS" '| Routine attention decisions right |' chk_measured
   st 'a row label not in the first cell' 1 "$README" '{ sub(/^\| Cost of one attention decision \| /, "| Cost | Cost of one attention decision | ") } { print }' chk_measured
+  st 'a row label extended in its cell' 1 "$README" '{ sub(/^\| Routine attention decisions right \|/, "| Routine attention decisions right today |") } { print }' chk_measured
+  # A changed number, intro line or result is not flagged: the rule pins the heading and the row labels, not the numbers or wording.
+  mutate "$README" '/^\| Routine attention decisions right \|/ { n += sub(/19 of 22/, "18 of 22") } /^From the real-model release evaluations/ { $0 = "From the evaluations."; n++ } /^\| Prompt-injection attempts/ { n += sub(/ 0 /, " 1 ") } { print } END { exit (n != 3) }' || st_note 'an edit of the numbers or the intro did not apply'
+  if [ -n "$(chk_measured "$tmp/m")" ]; then st_note 'a changed number, result or intro line is flagged'; fi
   finish measured 'Measured has a table row for each of its eight row labels, word for word' chk_measured
 }
 

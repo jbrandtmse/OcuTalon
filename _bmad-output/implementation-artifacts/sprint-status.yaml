@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-06-2026 06:30
+last_updated: 11-06-2026 06:49
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -201,7 +201,7 @@ development_status:
   11-22-first-daily-release-burn-down: done
   11-23-install-sh-accepts-build-109: done
   11-24-the-readme-s-ipm-install-works-literally-on-a-fresh-build-15: done
-  11-25-the-readme-s-judges-section-a-measured-table: review
+  11-25-the-readme-s-judges-section-a-measured-table: done
   epic-11-retrospective: optional
 
   epic-12: done

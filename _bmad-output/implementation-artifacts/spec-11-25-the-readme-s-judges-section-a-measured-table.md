@@ -55,6 +55,27 @@ deferred: []
 - AC3 (pins). Given `test-readme.sh`, when run, then `PASS top` (the first five H2 sections: Try it in two minutes, What's interesting, Measured, What you can use it for, How you talk to it), `PASS measured` and `test-readme: all rules passed`; it fails when the heading is removed, renamed, set to another level or moved, or when a row label is removed, renamed or moved out of the section; it does not fail when a number or other wording of the section changes.
 - AC4 (other readers). Given the README-reading scripts, when run, then `test-release-notes.sh` passes all rules (`static` included), `test-cpf.sh` and `test-bridge-guide.sh` pass, and `test-boundaries.sh` reports no README hit.
 
+### Review Findings
+
+Code review 2026-11-06 (bmad-code-review, full mode; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all at session model). 17 raw findings, 14 entries: 0 decision-needed, 2 patch (applied), 3 deferred (ledgered), 1 closed in-pass, 8 rejected.
+
+- [x] [Review][Patch] No self-test proves `chk_measured` keeps the trailing ` |` of a label's first cell: with `p="| $label"` every self-test passed, so a label extended in place ("Routine attention decisions right today") went unflagged (verification-gap; med, fix-risk low: one `st` line) [docker/tests/test-readme.sh:1343]
+- [x] [Review][Patch] The negative self-test's `mutate` succeeded when any one of its three edits applied, so a drifted README could quietly test less; the awk program now counts its edits and exits 1 unless all three apply (edge-case-hunter+verification-gap; low, fix-risk low: in-place edit of one line) [docker/tests/test-readme.sh:1345]
+- [x] [Review][Defer] The row "The demo's incident, end to end with a live model: 30 of 30 runs" cites the eval demo gate, which runs no dry run, approval or fix run (`Gate.cls` header), and rc4's live rehearsal stopped at run 8 [README.md:34] — deferred: owner-ruled text, not editable by a story; DW-775 decision-pending owner=burndown, note for the Contest Planner (blind-hunter; med)
+- [x] [Review][Defer] The row "Routine attention decisions right: 19 of 22" is the best of three rc4 attempts (19, 18, 18 of 22 in the Planner's sources) with no note [README.md:33] — deferred: owner-ruled text; DW-776 decision-pending owner=burndown, note for the Contest Planner (blind-hunter; med)
+- [x] [Review][Defer] Nothing ties the table's numbers to later release evaluations [README.md:32] — deferred: out-of-footprint (`release/**`), numbers unpinned by the spec; DW-777 wontfix-accepted with reopen_if (blind-hunter; low)
+- [x] [Review][Closed] AC4's `test-boundaries.sh` clause had no `mutation:` line — closed in-pass: mutation applied and observed red, line written under Verification (verification-gap; low)
+
+**Rejected:**
+- `low` test-readme.sh no longer matches the Pins diff's sha256 `1ecc422d...` and the Results/Auto Run Result still quote it (blind-hunter+acceptance-auditor): by-design, QA's added self-test pins AC3's negative clause (Rule 19) and no check was deleted or weakened; the fix is a spec edit. The current sha256 after this review is recorded under Verification.
+- `low` the Results say "eight hunks" in test-readme.sh; the diff has seven (edge-case-hunter): spec-record miscount only, the fix is a spec edit; no hunk is in Epic 34's regions.
+- `false` a second `## Measured` section can hide an empty first one (edge-case-hunter): `chk_readme_links` flags two headings with the slug `measured` (test-readme.sh:1243), so the suite fails.
+- `false` spec frontmatter `status: done` vs sprint-status `review` (acceptance-auditor): the frontmatter is bmad-build-auto's build status; sprint status is synced by this review.
+- `false` the implement and QA AC4 mutation lines disagree (acceptance-auditor): QA ran only `test-release-notes.sh`; both observations hold.
+- `low` "19 of 22 (target: 20)" sits below its target (acceptance-auditor): owner-ruled text; AD-22 has the table report results, not redefine targets.
+- `low` the demo row's "about 9 to 10 cents a day" can read as the whole running cost, hosting included (blind-hunter): owner-ruled wording; passed to the Planner as a note with DW-775.
+- `low` the two bullets under Measured are not measurements and repeat the image caption (blind-hunter): owner-ruled text.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -266,6 +287,22 @@ mutation: AC1 -- swapped the `## Measured` and `## What you can use it for` head
 mutation: AC2 -- appended one byte to README line 3 -> the `cmp` rebuild check reports a difference (exit 1); restored byte-identical.
 mutation: AC3 -- renamed "Routine attention decisions right" to "Routine decisions right" -> `FAIL measured`; removed the label loop from `chk_measured` -> `FAIL measured: a broken copy was not flagged`; reverted `chk_top` to its four-section list -> `FAIL top`; negative: `19 of 22` -> `18 of 22` -> all rules still pass; each restored byte-identical.
 mutation: AC4 -- added `(Ens.Director)` to the first Measured bullet -> `FAIL dev-only` in `test-readme.sh` and `FAIL static` in `test-release-notes.sh`; restored byte-identical.
+
+**QA stage (2026-11-05).** Audit: every AC has a pinning check that can fail. AC1 `top` + `measured` (and the section sha256); AC2 the `cmp` rebuild check and the `git diff --name-only` list (spec Verification commands; not pinned in `test-readme.sh`, by the spec's smallest-diff intent); AC3 `top` (four position self-tests) and `measured` (heading removed/renamed, each label removed, a row moved out, a label not in the first cell); AC4 `test-release-notes.sh` `static`. One gap found: AC3's "does not fail when a number or other wording changes" had no self-test in the script (only the manual mutation). Added one to `rule_measured` (existing "is flagged" style).
+
+mutation (QA, AC1): swapped the `## Measured` and `## What you can use it for` headings in README.md -> `FAIL top`, `FAIL measured`, `FAIL use-cases`; restored byte-identical.
+mutation (QA, AC2): appended one space to README line 3 -> the `cmp` rebuild check reports `differ: char 511, line 3` (exit 1); restored byte-identical.
+mutation (QA, AC3): renamed the row "Routine attention decisions right" to "Routine decisions right" in README.md -> `FAIL measured`; restored byte-identical.
+mutation (QA, AC3, new self-test): made `chk_measured` also require "19 of 22" (pinning a number) -> `FAIL measured: a broken copy was not flagged` (self-test "a changed number, result or intro line is flagged"); restored byte-identical.
+mutation (QA, AC4): added `(Ens.Director)` to the first Measured bullet -> `FAIL static` in `test-release-notes.sh`; restored byte-identical.
+
+Test files changed (QA): `docker/tests/test-readme.sh` (one negative self-test in `rule_measured`; 3 lines). Final runs: `bash` and `/bin/bash` 3.2 both `test-readme: all rules passed`, `PASS top`, `PASS measured`.
+
+**Code review (2026-11-06).** Two patches in `rule_measured`: a self-test "a row label extended in its cell", and the negative self-test's awk program now exits 1 unless all three of its edits apply. `docker/tests/test-readme.sh` sha256 after review `4b9f34c75d6199479824f80486c198c95e84cd74a0dc2533839dec584979fdb5` (seven hunks against the baseline); README.md unchanged, `8923a64f...d1745d`. `bash` and `/bin/bash` 3.2: `PASS top`, `PASS measured`, `test-readme: all rules passed`; `test-boundaries.sh` all rules passed.
+
+mutation (review, AC3, new self-test): weakened `chk_measured`'s pattern from `"| $label |"` to `"| $label"` -> `FAIL measured: a broken copy was not flagged` (self-test "a row label extended in its cell: not flagged"); restored byte-identical.
+mutation (review, AC3, negative self-test guard): made one of its edits not apply (`19 of 22` -> `19 of 23` in the awk pattern) -> `FAIL measured: a broken copy was not flagged` (self-test "an edit of the numbers or the intro did not apply"); restored byte-identical.
+mutation (review, AC4): added a home-folder path (the macOS users folder, a user name and `demo`, in parentheses) to the first Measured bullet in README.md -> `FAIL paths` in `test-boundaries.sh` (`README.md:43`); restored byte-identical.
 
 ## Auto Run Result
 
