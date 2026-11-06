@@ -13,6 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
 const { BREAK_FEED_BUTTON, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, itemsFor } = await import(app('guide', 'more-to-try-view.ts'));
 const { RAIL_TEXTS } = await import(app('rail', 'rail-view.ts'));
+const { HEARTBEAT_HEADING_ID, HEARTBEAT_TEXTS } = await import(app('rail', 'heartbeat-card', 'heartbeat-card-view.ts'));
 const { PERSONA_TEXTS, PRESETS } = await import(app('rail', 'persona-card', 'persona-card-view.ts'));
 const { TRY_IT_TEXTS } = await import(app('chat', 'try-it-view.ts'));
 const { SAMPLES } = await import(app('mailbox', 'mailbox-view.ts'));
@@ -106,7 +107,7 @@ describe('(b) itemsFor', () => {
     assert.deepEqual(itemsFor([]), []);
   });
 
-  it('gives items 1 to 4 for the four ids this branch has', () => {
+  it('gives items 1 to 4 for the first four ids', () => {
     assert.deepEqual(idsOf(itemsFor(FOUR)), FOUR);
   });
 
@@ -163,6 +164,15 @@ describe('(c) every quoted on-screen name equals its source', () => {
     has(items.demoView.lookFor, `the ${DEVICE_TEXTS.region} are hidden`);
     has(items.demoView.lookFor, `Turn ${DEMO_VIEW_TEXTS.label} back on`);
     has(items.demoView.lookFor, `${FEED_TEXTS.button} and`);
+  });
+
+  it('names the Heartbeat checklist card and its Run button as the card does', () => {
+    has(items.heartbeat.lookFor, `In the ${RAIL_TEXTS.heartbeat} card`);
+    assert.equal(RAIL_TEXTS.heartbeat, 'Heartbeat checklist');
+    has(items.heartbeat.lookFor, `press ${HEARTBEAT_TEXTS.run}.`);
+    assert.equal(HEARTBEAT_TEXTS.run, 'Run the heartbeat now');
+    has(items.heartbeat.button, `the ${RAIL_TEXTS.heartbeat} card`);
+    assert.equal(HEARTBEAT_HEADING_ID, 'rail-heading-heartbeat', 'the heading that item 7 hands focus to');
   });
 
   it('names the Documents page as the header does', () => {

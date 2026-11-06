@@ -115,7 +115,10 @@ const FOCUS_RULE: FocusRule = {
  * Hide guide collapses the region to one bar, "Demo guide - step n of 5 - Show guide" with Show guide aria-expanded, and the box keeps its
  * place at the bar's right end; the choice is stored in this browser (ocutalon.guide.hidden). Under 680px tall the steps (numbers only) and
  * the prompt bar share one compact row, from 1024 to 1279px wide the steps show numbers instead of labels, and below 1024px the box
- * follows the prompt bar.
+ * follows the prompt bar. The finish state leaves out "About 2 minutes" (row 1 then stays on one line at 1280px), takes the guide's whole width under its
+ * first row wherever the page fills the viewport and is under 680px tall, and from 1024 to 1279px wide its line is body-sm, the Try it
+ * yourself row's own margin gives way to the finish's gap, and Run again sits at the end of the row's last line, so that the finish is
+ * no taller there than at 1280px and the chat keeps its room.
  *
  * Announcements and focus: "Step {n} of 5: {step}" is announced once when the view advances to a later step of the same run (never for the
  * first view, a reload or a lower step), through the Announcer; the guide is not a live region, and the finish and Run again are silent.
@@ -148,7 +151,7 @@ const FOCUS_RULE: FocusRule = {
           </div>
         } @else {
           <div class="main">
-            <div class="row1">
+            <div class="row1" [class.finished]="guide.finish !== undefined">
               <span class="label" id="demo-guide-label">{{ texts.label }}</span>
               <ol class="steps">
                 @for (step of guide.steps; track step.n) {
@@ -326,6 +329,12 @@ const FOCUS_RULE: FocusRule = {
     }
     .finish > app-more-to-try {
       align-self: stretch;
+    }
+    .row1.finished > .duration {
+      display: none;
+    }
+    .row1.finished > .more-link {
+      margin-inline-start: auto;
     }
     .duration {
       margin-inline-start: auto;
@@ -516,6 +525,27 @@ const FOCUS_RULE: FocusRule = {
       .step-label {
         display: none;
       }
+      .finish {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        justify-items: start;
+        align-items: end;
+        column-gap: var(--space-3);
+      }
+      .finish > * {
+        grid-column: 1 / -1;
+      }
+      .finish-done {
+        font-size: var(--type-body-sm-font-size);
+        line-height: var(--type-body-sm-line-height);
+      }
+      .finish > app-try-it-row {
+        grid-column: 1;
+        margin-top: calc(var(--space-3) * -1);
+      }
+      .finish > .run-again {
+        grid-column: 2;
+      }
     }
     @media ${LAYOUT_QUERIES.wide} {
       .guide:not(.collapsed) {
@@ -559,6 +589,15 @@ const FOCUS_RULE: FocusRule = {
       }
       .main {
         flex-wrap: wrap;
+      }
+    }
+    @media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.framed} {
+      .main {
+        justify-content: flex-start;
+        row-gap: var(--space-1);
+      }
+      .finish {
+        flex-basis: 100%;
       }
     }
     @media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.stacked} {

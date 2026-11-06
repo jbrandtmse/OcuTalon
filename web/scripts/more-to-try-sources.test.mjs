@@ -65,7 +65,7 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
   });
 
   it('is bounded where the page fills the viewport: its own vertical scroll, with the height left by the viewport minus a reserve', () => {
-    const framed = /@media \$\{LAYOUT_QUERIES\.framed\} \{\s*\.group \{([^}]*)\}/.exec(code);
+    const framed = /@media \$\{LAYOUT_QUERIES\.framed\} \{\s*:host \{[^}]*\}\s*\.group \{([^}]*)\}/.exec(code);
     assert.ok(framed, 'the bound sits under the framed width query');
     assert.match(framed[1], /overflow-y:\s*auto/);
     assert.match(framed[1], /max-height:\s*max\(var\(--more-window-min\), calc\(100vh - var\(--more-reserve\)\)\)/);
@@ -74,10 +74,15 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.match(code, /grid-template-columns:\s*repeat\(auto-fill, minmax\(min\(20rem, 100%\), 1fr\)\)/, 'the items are a grid of columns that never outgrow a narrow container');
     assert.match(code, /--more-window-min:\s*calc\(var\(--more-label-height\) \+ var\(--more-gap\) \+ var\(--space-control-height\)\)/, 'the window holds the label line, the gap under it and one control at least');
     assert.match(code, /\.group \{[^}]*gap:\s*var\(--more-gap\)/, 'the gap under the label is the one the window counts');
-    assert.match(code, /@media \$\{HEIGHT_QUERIES\.compact\} and \$\{LAYOUT_QUERIES\.framed\} \{\s*:host \{[^}]*margin-top:\s*0/, 'the compact band gives the chat the 4px of the margin');
-    assert.match(code, /@media \$\{HEIGHT_QUERIES\.compact\} and \$\{LAYOUT_QUERIES\.framed\} \{\s*:host \{[^}]*--more-gap:\s*0px/, 'and the 4px of the gap under the label');
+    assert.match(code, /@media \$\{LAYOUT_QUERIES\.framed\} \{\s*:host \{\s*margin-top:\s*0;\s*--more-gap:\s*0px/, 'where the page fills the viewport there is no margin above the panel and no gap under the label');
+    assert.match(code, /:host \{\s*display:\s*block;\s*margin-top:\s*var\(--space-1\);/, 'elsewhere the panel keeps its margin above');
     assert.match(code, /@media \$\{LAYOUT_QUERIES\.framed\} \{[^@]*\.items \{\s*padding-block-end:\s*var\(--space-scroll-gutter\)/, 'the list ends in a gutter that holds the last control\'s ring');
     assert.doesNotMatch(code, /@media \$\{LAYOUT_QUERIES\.stacked\}/, 'the stacked column has no bound of its own: the page scrolls');
+  });
+
+  it('hands item 7 to the Heartbeat checklist card\'s heading and presses nothing', () => {
+    assert.match(code, /case 'heartbeat':\s*this\.layout\.focusRegion\(RAIL_REGION\);\s*this\.handTo\(\[`#\$\{HEARTBEAT_HEADING_ID\}`\], \(\) => false\);/);
+    assert.match(code, /import \{ HEARTBEAT_HEADING_ID \} from '\.\.\/rail\/heartbeat-card\/heartbeat-card-view'/);
   });
 
   it('uses none of the class names the guide\'s other parts use', () => {
@@ -118,6 +123,30 @@ describe('the guide (demo-guide.ts)', () => {
     assert.ok(prompt > 0 && panel > prompt, 'the prompt bar < the panel');
     assert.equal(count(code, /<app-more-to-try/g), 2, 'one in the finish and one after the prompt bar');
     assert.ok(code.indexOf('<app-break-feed-box') > panel, 'both are in the main column, before the box');
+  });
+
+  it('lays the finish out compactly: under its first row where the page is framed and short, with Run again beside Try it yourself from 1024 to 1279px', () => {
+    const styles = /styles:\s*`([\s\S]*?)`,\n\}\)/.exec(code);
+    assert.ok(styles, 'the styles are inline');
+    const css = styles[1];
+    const compact = /@media \$\{HEIGHT_QUERIES\.compact\} and \$\{LAYOUT_QUERIES\.framed\} \{\s*\.main \{([^}]*)\}\s*\.finish \{([^}]*)\}/.exec(css);
+    assert.ok(compact, 'the short framed band places the finish under row 1');
+    assert.match(compact[1], /justify-content:\s*flex-start/, 'row 1 starts at the left edge');
+    assert.match(compact[1], /row-gap:\s*var\(--space-1\)/);
+    assert.match(compact[2], /flex-basis:\s*100%/, 'and the finish takes the whole width');
+    const drawer = /@media \$\{LAYOUT_QUERIES\.drawer\} \{([\s\S]*?)\n    \}\n/.exec(css);
+    assert.ok(drawer, 'the drawer band has its own rules');
+    assert.match(drawer[1], /\.finish \{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto/);
+    assert.match(drawer[1], /\.finish > \* \{\s*grid-column:\s*1 \/ -1/);
+    assert.match(drawer[1], /\.finish > app-try-it-row \{\s*grid-column:\s*1;\s*margin-top:\s*calc\(var\(--space-3\) \* -1\);/, 'the row\'s own margin gives way to the finish\'s gap');
+    assert.match(drawer[1], /\.finish-done \{\s*font-size:\s*var\(--type-body-sm-font-size\);\s*line-height:\s*var\(--type-body-sm-line-height\);/, 'the finish line is body-sm');
+    assert.match(drawer[1], /\.finish > \.run-again \{\s*grid-column:\s*2;/);
+  });
+
+  it('leaves out "About 2 minutes" once the guide is finished, so that row 1 stays on one line at 1280px', () => {
+    assert.match(code, /<div class="row1" \[class\.finished\]="guide\.finish !== undefined">/);
+    assert.match(code, /\.row1\.finished > \.duration \{\s*display:\s*none;\s*\}/);
+    assert.match(code, /\.row1\.finished > \.more-link \{\s*margin-inline-start:\s*auto;\s*\}/, 'the link and Hide guide stay at the row\'s right end without the duration');
   });
 
   it('lists the panel\'s controls among the finish\'s parts for the focus rule', () => {

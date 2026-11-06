@@ -8,6 +8,7 @@ import { DeviceTabs } from '../devices/device-tabs';
 import { AllowanceState } from '../live/allowance-state';
 import { LiveState } from '../live/live-state';
 import { chipName, SAMPLES } from '../mailbox/mailbox-view';
+import { HEARTBEAT_HEADING_ID } from '../rail/heartbeat-card/heartbeat-card-view';
 import { PERSONA_HEADING_ID } from '../rail/persona-card/persona-card-view';
 import { Layout, RAIL_REGION } from '../shared/layout';
 import { HEIGHT_QUERIES, LAYOUT_QUERIES } from '../shared/layout-view';
@@ -33,15 +34,16 @@ let panels = 0;
  * A control hands off to the control the page already has: it puts focus on that control and presses it, so the action is exactly that
  * control's own. Item 1 opens the rail and the Persona card's Change, item 2 selects the Simulated mailbox tab and presses the
  * suspicious-request chip, item 3 presses the box's Break the feed, item 4 presses the Demo view switch while it is on, item 5 sends its
- * prompt through the chat's outbox (a new message of the user's), item 6 is a link to the Documents page and item 7 opens the rail. Every
- * action runs from the control's own click, and focus moves only for that press. The panel announces nothing, and it emits `pressed` so
- * that the guide keeps the panel open.
+ * prompt through the chat's outbox (a new message of the user's), item 6 is a link to the Documents page and item 7 opens the rail and
+ * focuses the Heartbeat checklist card's heading, pressing nothing. Every action runs from the control's own click, and focus moves
+ * only for that press. The panel announces nothing, and it emits `pressed` so that the guide keeps the panel open.
  *
- * Where the page fills the viewport (LAYOUT_QUERIES.framed) the group is a vertical scroll region of its own, a Tab stop named by the panel
- * label (the project's rule for a scroller), and its height is the viewport's height less a fixed reserve for the page's other parts and
- * the chat's minimum (never less than the label's line, the gap under it and one control), so the chat keeps its room and the page does
- * not scroll as a whole; the items lay out in as many columns as fit, and the list ends in a gutter that holds the last control's ring. The group carries the focus rule's `moreItem` key like the controls, so a focused group hands
- * focus on when the finish leaves.
+ * Where the page fills the viewport (LAYOUT_QUERIES.framed) the group is a vertical scroll region of its own, a Tab stop named by the
+ * panel label (the project's rule for a scroller), with no gap under the label and no margin above the group, since the guide's own gap
+ * separates it. Its height is the viewport's height less a fixed reserve for the page's other parts and the chat's minimum (never less
+ * than the label's line and one control), so the chat keeps its room and the page does not scroll as a whole; the items lay out in as
+ * many columns as fit, and the list ends in a gutter that holds the last control's ring. The group carries the focus rule's `moreItem`
+ * key like the controls, so a focused group hands focus on when the finish leaves.
  * In the stacked column the page scrolls and the group grows with its items.
  *
  * Item 5 is aria-disabled, never disabled, while a turn is in flight or the message allowance is used up, and a press then sends nothing.
@@ -87,8 +89,6 @@ let panels = 0;
     @media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.framed} {
       :host {
         --more-reserve: 592px;
-        --more-gap: 0px;
-        margin-top: 0;
       }
     }
     .group {
@@ -142,10 +142,14 @@ let panels = 0;
     }
     /* Where the page fills the viewport, the panel is a scroll region of its own: it leaves the chat the room it needs, so the page
        never scrolls as a whole. The reserve is the height that the rest of the page needs (header, rail and chat chrome, the guide
-       without the panel and the chat's own minimum). The window never gets shorter than the label's line, the gap under it and one
-       control, so the label and a whole control show together and every control scrolls fully into view; the list's end gutter lets
-       the last control scroll clear of the edge, so its focus ring is never clipped. */
+       without the panel and the chat's own minimum). The window never gets shorter than the label's line and one control, so the
+       label and a whole control show together and every control scrolls fully into view; the list's end gutter lets the last
+       control scroll clear of the edge, so its focus ring is never clipped. */
     @media ${LAYOUT_QUERIES.framed} {
+      :host {
+        margin-top: 0;
+        --more-gap: 0px;
+      }
       .group {
         overflow-y: auto;
         scroll-padding: var(--space-scroll-gutter);
@@ -209,6 +213,7 @@ export class MoreToTry {
         break;
       case 'heartbeat':
         this.layout.focusRegion(RAIL_REGION);
+        this.handTo([`#${HEARTBEAT_HEADING_ID}`], () => false);
         break;
       default:
         break;
