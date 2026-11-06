@@ -4553,6 +4553,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: an IRIS-internal race: a job's status node vanished while Ens.Job enumerated it during the restart (restart 2 took 147 s); every reminder check passed; Epic 34 touches no job or start code
 - 2026-11-06T02:28:05Z status=routed owner=burndown by=orchestrator note=failed job rerun once; if it recurs, the event-log check could ignore this one system-class race or wait for a steady production before sampling (like DW-692)
 
+### DW-775: README Measured row 'The demo's incident, end to end with a live model: 30 of 30 runs' claims more than its source, the eval demo gate, which runs no dry run, approval or fix run
+- source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Gate.cls header: the demo gate validates the fix parameters 'and nothing more: no dry run, approval or Execute (AD-16)'; rc4.md:100 the live rehearsal stopped at run 8; README.md:34 is owner-ruled text
+- 2026-11-06T06:48:13Z status=decision-pending owner=burndown by=cr note=human=Contest Planner ruling on the row's label or number; the ruled text is not editable by a story
+
+### DW-776: README Measured row 'Routine attention decisions right: 19 of 22' shows the best of three rc4 attempts (19, 18, 18 of 22) with no note that it is the best
+- source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Planner's source comment (collateral/readme-11-25-measured.md line 3): 'SM-1 19/22 + 18/22 + 18/22'; rc4.md:101 'SM-1 between 81.8 and 86.4 percent'; README.md:33 is owner-ruled text
+- 2026-11-06T06:48:16Z status=decision-pending owner=burndown by=cr note=human=Contest Planner ruling: keep the best try, or show the range; the ruled text is not editable by a story
+
+### DW-777: Nothing ties the README Measured numbers to later release evaluations, so a later release can publish the rc4 numbers as current unnoticed
+- source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: The Planner's source says 'Update the numbers if a later release eval changes them'; no test-readme.sh pin (numbers unpinned by spec) and no release/checklist.sh row checks them; release/** is not this story's
+- 2026-11-06T06:48:20Z status=wontfix-accepted owner=11-25-the-readme-s-judges-section-a-measured-table by=cr note=reopen_if=a release record after 1.0.0 rc4 reports an SM-1, SM-2, demo-gate or cost number unlike README lines 32-39
 ### DW-774: flake: live:online-session leave.spec page.close 'no answer within 30 s' (L6 at eb6e2726, L5 at bd9b9de8) on feature under heavy CI load; same code green on OCT-epic34 689b6632
 - source: orchestrator feature CI | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: runs 42158625231 job 127698667108 (L6), 42158693602 job 127698892750 (L5); code identical to 689b6632 (shards green 42147189710); also sign-in-2 live-socket W3 GET /state no answer 30s (127698667166)

@@ -4,15 +4,17 @@
 #
 # What it pins, one rule each:
 #   top            the README opens with "# OcuTalon", a blank line and the owner's opening paragraph, then the teaser line and, after
-#                  it, exactly one image line (the hero), then the H2 sections "Try it in two minutes", "What's interesting", "What
-#                  you can use it for" and "How you talk to it" in this order; the other H2 sections are there; no "Contest task"
-#                  heading and no header row of its table
+#                  it, exactly one image line (the hero), then the H2 sections "Try it in two minutes", "What's interesting",
+#                  "Measured" (Story 11.25), "What you can use it for" and "How you talk to it" in this order; the other H2 sections
+#                  are there; no "Contest task" heading and no header row of its table
 #   try-it         the online demo link comes before ./install.sh, with "nothing to install, and no Early Access image needed"
 #                  beside it, the splash screen and its read-only Visual Trace account; the local path is four numbered steps;
 #                  steps 1 and 2 are pinned word for word (U-241 item 1, Story 11.23), and the section never links #start-it-with-build-109
 #   interesting    "What's interesting" has at most 120 words (its image lines are not counted) and names Interoperability, Visual
 #                  Trace, AI Hub, a dry run and the audit log; it shows at least one image line, and every image line in it is the
 #                  decision trace, docs/images/vt-decision.png (the owner's decision of 2026-11-05, reversing U-242 Q2's layout)
+#   measured       "Measured" has a table row for each of its eight row labels, each label word for word as the row's first cell
+#                  (Story 11.25); its numbers and other wording are not pinned
 #   use-cases      "What you can use it for" holds exactly the three items, word for word (the third links docs/bridge-guide.md)
 #   how-you-talk   "How you talk to it" holds its facts (the web chat page on every install, the demo-only parts, the Telegram row
 #                  for your own install with your own bot token, email in a later release, the link to "Demo mode"), a table and an
@@ -178,6 +180,7 @@ ARROW=$(printf '\342\206\222')
 H_TRY='Try it in two minutes'
 H_INT="What's interesting"
 INT_IMAGE=docs/images/vt-decision.png
+H_MEAS='Measured'
 H_USE='What you can use it for'
 H_TALK='How you talk to it'
 # The owner's text of Story 10.4 (epics.md), word for word: the opening paragraph, the two use cases, and the model paragraph
@@ -426,8 +429,8 @@ $OPENING"
   n=$(grep -cxF -- "$OPENING" "$f")
   if [ "$n" -gt 1 ]; then echo "$f: the opening paragraph is there $n times, not once"; fi
   h2s=$(headings "$f" | awk -F'\t' '$1 == 2 { print $3 }')
-  if [ "$(printf '%s\n' "$h2s" | head -n 4)" != "$(printf '%s\n%s\n%s\n%s' "$H_TRY" "$H_INT" "$H_USE" "$H_TALK")" ]; then
-    echo "$f: the first four H2 sections are not, in this order: $H_TRY, $H_INT, $H_USE, $H_TALK"
+  if [ "$(printf '%s\n' "$h2s" | head -n 5)" != "$(printf '%s\n%s\n%s\n%s\n%s' "$H_TRY" "$H_INT" "$H_MEAS" "$H_USE" "$H_TALK")" ]; then
+    echo "$f: the first five H2 sections are not, in this order: $H_TRY, $H_INT, $H_MEAS, $H_USE, $H_TALK"
   fi
   printf '%s\n' "$OTHER_H2" | while IFS= read -r t; do
     if ! printf '%s\n' "$h2s" | grep -qxF -- "$t"; then echo "$f: no H2 section '$t'"; fi
@@ -497,6 +500,31 @@ chk_interesting() {
   if [ "$(grep -c '^!\[' "$sec")" -lt 1 ]; then echo "interesting: '$H_INT' has no image line"; fi
   image_links "$sec" | cut -f3 | while IFS= read -r target; do
     if [ "$target" != "$INT_IMAGE" ]; then echo "interesting: '$H_INT' has the image $target, not $INT_IMAGE"; fi
+  done
+}
+
+# measured (Story 11.25): the eight row labels of the Measured table, word for word; a heredoc, because two hold an apostrophe.
+IFS= read -r -d '' MEAS_LABELS <<'LABELS' || true
+Incidents diagnosed with the right cause and fix
+Routine attention decisions right
+The demo's incident, end to end with a live model
+Prompt-injection attempts that led to an action
+Changes made without a person's approval
+Cost of one attention decision
+Cost of diagnosing 50 failed orders
+The always-on online demo
+LABELS
+chk_measured() {
+  local sec="$tmp/sec.meas" label
+  section "$1" "$H_MEAS" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "$1: no section '$H_MEAS'"
+    return
+  fi
+  printf '%s\n' "$MEAS_LABELS" | while IFS= read -r label; do
+    if [ -n "$label" ] && ! awk -v p="| $label |" 'index($0, p) == 1 { found = 1 } END { exit !found }' "$sec"; then
+      echo "measured: '$H_MEAS' has no table row '$label'"
+    fi
   done
 }
 
@@ -1259,7 +1287,11 @@ rule_top() {
   st 'a required section removed' 1 "$README" '!/^## Troubleshooting$/' chk_top
   st 'the Contest task section back' 1 "$README" '{ print } END { print ""; print "## Contest task"; print "" }' chk_top
   st 'the Contest task table header back' 1 "$README" '{ print } /^## What OcuTalon does$/ { print ""; print "| Contest task or criterion | x | y |" }' chk_top
-  finish top 'the title, the opening paragraph, the teaser and the hero image, then the four top sections in order, and the other sections are there' chk_top
+  st 'the Measured section removed' 1 "$README" '!/^## Measured$/' chk_top
+  st 'the Measured section above What'"'"'s interesting' 1 "$README" '/^## Measured$/ { print "## What'"'"'s interesting"; next } /^## What.s interesting$/ { print "## Measured"; next } { print }' chk_top
+  st 'the Measured section below What you can use it for' 1 "$README" '/^## Measured$/ { print "## What you can use it for"; next } /^## What you can use it for$/ { print "## Measured"; next } { print }' chk_top
+  st 'the Measured heading one level down' 1 "$README" '/^## Measured$/ { print "### Measured"; next } { print }' chk_top
+  finish top 'the title, the opening paragraph, the teaser and the hero image, then the five top sections in order, and the other sections are there' chk_top
 }
 
 rule_try_it() {
@@ -1299,6 +1331,20 @@ rule_interesting() {
     fi
   fi
   finish interesting 'at most 120 words, and it names the workflow, Visual Trace, the AI Hub agent, the dry run and the audit log' chk_interesting
+}
+
+rule_measured() {
+  rule_begin measured "$README" || return
+  st 'the heading removed' 1 "$README" '!/^## Measured$/' chk_measured
+  st 'the heading renamed' 1 "$README" '/^## Measured$/ { print "## Measurements"; next } { print }' chk_measured
+  st_facts chk_measured "$MEAS_LABELS"
+  st_move 'a row moved out of the section' "$H_MEAS" '| Routine attention decisions right |' chk_measured
+  st 'a row label not in the first cell' 1 "$README" '{ sub(/^\| Cost of one attention decision \| /, "| Cost | Cost of one attention decision | ") } { print }' chk_measured
+  st 'a row label extended in its cell' 1 "$README" '{ sub(/^\| Routine attention decisions right \|/, "| Routine attention decisions right today |") } { print }' chk_measured
+  # A changed number, intro line or result is not flagged: the rule pins the heading and the row labels, not the numbers or wording.
+  mutate "$README" '/^\| Routine attention decisions right \|/ { n += sub(/19 of 22/, "18 of 22") } /^From the real-model release evaluations/ { $0 = "From the evaluations."; n++ } /^\| Prompt-injection attempts/ { n += sub(/ 0 /, " 1 ") } { print } END { exit (n != 3) }' || st_note 'an edit of the numbers or the intro did not apply'
+  if [ -n "$(chk_measured "$tmp/m")" ]; then st_note 'a changed number, result or intro line is flagged'; fi
+  finish measured 'Measured has a table row for each of its eight row labels, word for word' chk_measured
 }
 
 rule_use_cases() {
@@ -1870,7 +1916,7 @@ rule_docs() {
   finish docs 'the build 109 sentences of the bridge guide and the IPM page and the two ruled lines of the security overview are there, word for word' chk_docs
 }
 
-RULES='top try_it interesting use_cases how_you_talk teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
+RULES='top try_it interesting measured use_cases how_you_talk teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {

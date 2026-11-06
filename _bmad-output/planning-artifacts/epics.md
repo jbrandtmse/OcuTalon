@@ -4791,6 +4791,36 @@ So that an IPM install check on build 154 or build 109 passes with no extra comm
 **When** they are ready
 **Then** both diffs go to the Contest Planner verbatim before they are committed, and are committed only once approved; `docker/tests/test-readme.sh`'s pins are updated in place, never deleted; Epic 34's README and test-readme.sh hunks (the licence notices and the licence check) stay separate from this story's
 
+### Story 11.25: The README's judges section: a Measured table
+
+As a judge,
+I want the README to show what was measured in the release evaluations, next to what makes OcuTalon interesting,
+So that I can see its results and costs without running the evaluations myself.
+
+[ADDED 2026-11-06, Epic 11 fix-forward (owner decision relayed by the Contest Planner at 2026-11-06T01:15Z; the public text was ruled by the Planner at 01:16:24Z and 01:19:35Z): the exact text is the Planner's file `../collateral/readme-11-25-measured.md` (the contest folder's collateral, beside the repository; outside git), lines 9-27 (its HTML comment is not part of the README; sha256 of those lines bcabdc9cb70c3e915ba78627e3d1f21dab11e425741f327e038ee9dd19a44b68). The numbers come from rc4's release-candidate evaluation (SM-2 9 of 10, SM-1 19 of 22 with target 90%), the 1.0.2 persona sweeps and the online demo's usage log; they are used exactly as given.]
+
+**Acceptance Criteria:**
+
+**Given** README.md
+**When** it is read
+**Then** it has a `## Measured` section placed after the `docs/images/vt-decision.png` image of "## What's interesting" and before "## What you can use it for", and its text is byte-identical to lines 9-27 of the Planner's file: the intro line, the eight-row Measured table (the "Routine attention decisions right" row reads "19 of 22 (target: 20)") and the two differentiator lines
+
+**Given** the README before this story
+**When** it is compared with the README after
+**Then** the only change is the inserted section and the blank lines that separate it from its neighbours; no other README line changes, and no other file changes except `docker/tests/test-readme.sh`
+
+**Given** `docker/tests/test-readme.sh`
+**When** it runs
+**Then** it pins the `## Measured` heading, each of the table's eight row labels, and the section's position between "What's interesting" and "What you can use it for", and fails when any of them is removed, renamed or moved; it pins no numbers or wording beyond those, and the existing pins are kept: the one that lists the README's first sections in order (the `top` rule) is updated in place to include Measured third, and none is deleted or weakened [AMENDED 2026-11-06, Story 11.25 plan, intent-preserving: it read "and the existing pins are untouched"; the `top` rule fails on any fifth section in the first five, so the position pin is that rule widened in place, as 11.24 updated its pins in place]
+
+**Given** the README already states one of the table's numbers
+**When** it states it differently
+**Then** the story stops and asks, quoting both places, and never reconciles them itself (checked at charter: the README states none of these numbers)
+
+**Given** the README's surroundings would force any wording change beyond the Planner's file (a link, a heading level, a line break that changes meaning)
+**When** that change is needed
+**Then** it goes to the Contest Planner verbatim as public text before it is committed
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]

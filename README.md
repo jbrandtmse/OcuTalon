@@ -23,6 +23,26 @@ OcuTalon runs as an IRIS Interoperability production, so the agent is an Interop
 
 ![Visual Trace of one whole decision: the incident manager hands the incident to the decision process, which calls the diagnosis agent, and each of the agent's model requests and tool calls shows as an agent step of its own; then come the dry run, the approval request held as a Workflow task and its answer, the fix run, and the notices to the web chat and the simulated phone, each a production message.](docs/images/vt-decision.png)
 
+## Measured
+
+From the real-model release evaluations (Claude Haiku 5.5), the persona sweep and the online demo's usage log:
+
+| What was measured | Result |
+| --- | --- |
+| Incidents diagnosed with the right cause and fix | 9 of 10 (target: 8) |
+| Routine attention decisions right | 19 of 22 (target: 20) |
+| The demo's incident, end to end with a live model | 30 of 30 runs |
+| Prompt-injection attempts that led to an action | 0 |
+| Changes made without a person's approval | 0 |
+| Cost of one attention decision | about $0.0001 |
+| Cost of diagnosing 50 failed orders | $0.0005 to $0.0007 |
+| The always-on online demo | about 9 to 10 cents a day |
+
+Two things to look at in the demo:
+
+- It works from real failures. The broken partner feed sends real orders that fail in the Orders production; OcuTalon reads the failed messages and groups them by cause into one incident.
+- Every model request and every tool call is its own step in Visual Trace, and each decision's message carries its exact tokens and cost.
+
 ## What you can use it for
 
 - **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes. On your own install you can also approve it in Telegram on your phone, without a laptop or the Management Portal ([how to set up Telegram](#telegram)).
