@@ -4030,6 +4030,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Msg/Catalog/Watch.cls block after incident.laterRequest: two entries equal to their parents plus U-249's line; forced by the spec ruling (an existing key's text may not change; no composition); Rule 2 forced copy
 - 2026-11-04T02:56:40Z status=routed owner=burndown by=cr note=unify when the catalog gains composition (a base key plus an appended line); no story owns that yet
+- 2026-11-06T23:23:46Z occurrence=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged
 
 ### DW-658: release.sh's header Output line and the steps banner do not mention the overview step's LOG line
 - source: spec-11-20-the-release-s-overview-step-hands-the-unit-files-the-contain.md | severity: low | fix-risk: low | footprint: in-story
@@ -4713,3 +4714,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Msg/Catalog/Watch.cls incident.noFix (L179-180) is shown for the GOODCHANGED refusal; the reason is log-only (PT-b ruling)
 - 2026-11-06T19:44:07Z status=routed owner=burndown by=spec_gate note=Planner 2026-11-06: later wording, not now: 'The fix I would use would also change {noun} that went through, so I'm not proposing it.'
+
+### DW-836: Story 7.9 adds Test.Watch.GoodMessages (about 108-116 s locally) to CI group shards (shard:lane-a@Checks,Install,Watch) with no group re-measure; ci/units.sh's comments put shards near its about 1,940 s target, so the group may pass 33 minutes (unverified)
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/units.sh comments: shards about 1,710 s, target under about 1,940 s; the spec's estimate is 150-300 s of CI time for the class (inference); no CI shards time on record for the 7.9 tree yet
+- 2026-11-06T23:23:47Z status=routed owner=burndown by=cr note=unverified: settle from the first CI run of the 7.9 tree (shards group seconds); over 1,940 s means rebalance ci/units.sh (Epic 19's file)
+
+### DW-837: AC 5's clause 'the later presses of 07 carry the good-message line' has no assertion: only T8 (telegram-approval.spec.ts, ON_MOCK) asserts the line on the demo path
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/e2e/demo-path/07-failure-paths.spec.ts reads no notice text; T8 pins the same WithFixKey path on a later press of the same journey (mutation shown red by QA); the online-demo clause is PT-e's runner task
+- 2026-11-06T23:23:47Z status=wontfix-accepted owner=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=cr note=reopen_if=a demo-path run where a later 07 press's phone notice lacks 'Checked against the last' while T8's has it
+
+### DW-838: With failures from several source tuples the good-message line sums the per-source counts (up to 20 each), so it can read 'the last 40 orders from the same source'
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: RepairResend.DryRun reads GOODMAX per reference and adds them up; the spec's Always fixes '0 to 20 for each reference'; reachable only with several SourceConfigName/SuperSession tuples in one incident, never on the demo path
+- 2026-11-06T23:23:47Z status=by-design owner=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=cr note=spec-bound (Always, per-reference cap); each counted message is from a target's own source and the number is real; change only by a Planner text ruling

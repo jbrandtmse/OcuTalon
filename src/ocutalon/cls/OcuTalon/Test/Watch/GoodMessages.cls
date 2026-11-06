@@ -4,8 +4,8 @@ Include Ensemble
 /// same source as its targets that went through (Reader.Good) and tries the repair on each in memory. THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), fresh
 /// (IncidentManager and FixExecutor are code of the running production), with demo mode on, through Test.Watch.Case: real orders of OCUORDERS, the CI mock as the model (its
 /// default diagnosis, a repair_resend from MM/DD/YYYY to YYYY-MM-DD), the real FixExecutor dry run, the real Approval.Raise and the real notice. The orders that go through are
-/// sent in YYYY-MM-DD with the failures' own trace reference (Case.SendGood); the failed orders are written MM/DD/YYYY. A test waits at most 90 seconds for a diagnosis and 20
-/// for the rest (test bounds, not NFR-7). The incidents, requests, holds, orders and warnings of a test are removed after it (Case; OnAfterOneTest).
+/// sent in YYYY-MM-DD with the failures' own trace reference (Case.SendGood); the failed orders are written MM/DD/YYYY. A test waits at most 90 seconds for a diagnosis or the end of a
+/// request, 60 for a later round's notice or warning and Case's bounds (WAITBATCH and the like) for the rest (test bounds, not NFR-7). The incidents, requests, holds, orders and warnings of a test are removed after it (Case; OnAfterOneTest).
 ///   - TestFewerThanTwentyGood (Integration AC; the read-only proof): 5 orders that went through and 3 that failed in S's reference: one pending request; the Notification
 ///     has the key incident.withFixChecked and the slots goodChecked 5, goodChanged 0 and goodNoun orders; the phone message that SimPhoneOut kept holds the ruled line with
 ///     5 and 0; the stored dry run has exactly the keys of DRYRUNKEYS; a dry run asked again gives the notice's counts in its goodCheck, and changes nothing in either
@@ -29,7 +29,8 @@ Include Ensemble
 ///     copies);
 ///   - TestLaterRoundRefused: after a first request over 3 failed orders (5 good orders), one good order is dated 11/05/2026 and 2 more orders fail: nothing is sent for the
 ///     round, one Type 3 warning holds the reason, and the first request is untouched;
-///   - TestUntaggedOrders: untagged good and failed orders (an empty SuperSession): the dry run of an instance incident checks the untagged good orders, so its key is incident.withFixChecked.
+///   - TestUntaggedOrders: untagged good and failed orders (an empty SuperSession): the dry run of an instance incident checks the untagged good orders, so its key is incident.withFixChecked, and Reader.Good
+///     for the untagged reference reads the test's own two first (newest first) and only untagged headers of that source.
 Class OcuTalon.Test.Watch.GoodMessages Extends OcuTalon.Test.Watch.Case
 {
 
@@ -120,22 +121,6 @@ Method AssertStoredKeys(request As %DynamicObject) [ Private ]
 {
 	Set stored = {}.%FromJSON(request.dryRun)
 	Do $$$AssertEquals(..SortedKeys(stored), ..SortedNames($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")), "the stored dry run has exactly the keys of DRYRUNKEYS: "_..SortedKeys(stored))
-}
-
-/// The names of the comma-separated list, sorted, comma-separated (the same order as SortedKeys).
-ClassMethod SortedNames(names As %String) As %String [ Private ]
-{
-	For i = 1:1:$Length(names, ",") {
-		Set keys($Piece(names, ",", i)) = ""
-	}
-	Set text = ""
-	Set key = ""
-	For {
-		Set key = $Order(keys(key))
-		Quit:key=""
-		Set text = text _ $Select(text = "": "", 1: ",") _ key
-	}
-	Quit text
 }
 
 /// The one Notification of the incident (its kind, catalog key and approval Ref asserted as given); "" when there is not exactly one of that kind.
@@ -339,8 +324,8 @@ Method TestOtherSourcesAndSessions()
 	If '..Fail(1, traceB) Quit
 	Set failed = ..WaitFailed(3)
 	If failed.%Size() '= 3 Quit
-	Set failedA = ..IdsOfSession(failed, traceA)
-	Set failedB = ..IdsOfSession(failed, traceB)
+	Set failedA = ..SuperIds(failed, traceA)
+	Set failedB = ..SuperIds(failed, traceB)
 	Do $$$AssertEquals($Length(failedA, ",")_"|"_$Length(failedB, ","), "2|1", "two failed orders of A and one of B")
 	Set referenceA = $Piece(failedA, ",", 1)
 	Set referenceB = failedB
@@ -400,16 +385,6 @@ Method TestTwoSourcesInOneIncident()
 	If '$IsObject(response) Quit
 	Do $$$AssertEquals(response.Targets_"|"_response.DryRun, "|", "the dry run is refused: no targets and no dry run")
 	Do $$$AssertEquals($Extract(response.Reason, 1, $Length(..#CHANGED_"1 of the 7")), ..#CHANGED_"1 of the 7", "and the reason says that the repair would also change 1 of the 7: "_response.Reason)
-}
-
-/// The ids (comma-separated, ascending) of the failed orders (as Case.Failed gives them) whose SuperSession is super.
-ClassMethod IdsOfSession(failed As %DynamicArray, super As %String) As %String [ Private ]
-{
-	Set ids = ""
-	For i = 0:1:failed.%Size() - 1 {
-		If failed.%Get(i).superSession = super Set ids = ids _ $Select(ids = "": "", 1: ",") _ failed.%Get(i).id
-	}
-	Quit ids
 }
 
 /// The ids reversed (the newest first).
@@ -560,6 +535,9 @@ Method TestUntaggedOrders()
 	If response.DryRun = "" Quit
 	Set dryRun = {}.%FromJSON(response.DryRun)
 	Do $$$AssertTrue(dryRun.goodCheck.checked '< 2, "the untagged good orders are checked (at least the 2 sent): "_dryRun.goodCheck.%ToJSON())
+	Set outcome = ##class(OcuTalon.Watch.Reader).Good(..#ORDERS, ..#ORDERSPRODUCTION, "OrdersFromPartner", $Piece(ids, ",", 1), 20, .good)
+	Do $$$AssertEquals(outcome_"|"_$Piece(..IdsOf(good), ",", 1, 2), "read|"_..Reversed(untagged), "the untagged reference reads the test's own two good orders first, newest first")
+	Do $$$AssertEquals(..OtherShape(good, ""), "", "and only untagged Completed PartnerOrdersIn to OrdersFromPartner headers: "_..OtherShape(good, ""))
 	Do $$$AssertEquals(dryRun.goodCheck.changed, 0, "and none would change")
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).WithFixKey(dryRun, ..FixParameters()), "incident.withFixChecked", "so the key is the ...Checked one")
 }

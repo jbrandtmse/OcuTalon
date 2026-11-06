@@ -41,7 +41,8 @@ Include Ensemble
 ///     (TimeCreated, UTC) of a failed header, and SetOrderDate sets a body's date;
 ///   - for the tests of the good-message check (Story 7.9): SendOrders also takes the date format (MM/DD/YYYY by default; YYYY-MM-DD orders go through), SendGood sends such
 ///     orders and sets the floors as Fail does (Floor), and WaitGood and GoodHeaders give the ids of the Completed PartnerOrdersIn to OrdersFromPartner headers of a trace reference;
-///     PhoneText (lifted here from Test.Fix.EitherWay) gives the phone message that SimPhoneOut kept for a request;
+///     PhoneText (lifted here from Test.Fix.EitherWay) gives the phone message that SimPhoneOut kept for a request; SortedNames sorts a list of names as SortedKeys does,
+///     and SuperIds gives the ids of the failed headers of a SuperSession (both lifted here from Test.Fix.DryRun);
 ///   - for the tests that start from a raised request (Story 7.2, lifted here by Story 7.6): Raised (S watches Orders and failing orders tagged with S's trace Ref become an
 ///     incident that is noticed with its fix and one pending request; its trailing argument is the number of orders, 3 by default), Noticed (waits for the diagnosis, the
 ///     answer and the notifications), Answered (the answered Notification of an incident) and NoticeSessionOf (the trace session of a Notification).
@@ -2242,6 +2243,33 @@ ClassMethod SortedKeys(object As %DynamicObject) As %String
 		Set names = names _ $Select(names = "": "", 1: ",") _ key
 	}
 	Quit names
+}
+
+/// The names of the comma-separated list, sorted, comma-separated (the same order as SortedKeys).
+ClassMethod SortedNames(names As %String) As %String
+{
+	For i = 1:1:$Length(names, ",") {
+		Set keys($Piece(names, ",", i)) = ""
+	}
+	Set text = ""
+	Set key = ""
+	For {
+		Set key = $Order(keys(key))
+		Quit:key=""
+		Set text = text _ $Select(text = "": "", 1: ",") _ key
+	}
+	Quit text
+}
+
+/// The ids of the failed headers (as Failed gives them) whose SuperSession is super, in their order, comma-separated.
+ClassMethod SuperIds(failed As %DynamicArray, super As %String) As %String
+{
+	Set ids = ""
+	Set iterator = failed.%GetIterator()
+	While iterator.%GetNext(, .failure) {
+		If failure.superSession = super Set ids = ids _ $Select(ids = "": "", 1: ",") _ failure.id
+	}
+	Quit ids
 }
 
 /// Asserts that the answer (a dynamic object, or the JSON text that the model got) has the fields of the expected flat object with its values and types,

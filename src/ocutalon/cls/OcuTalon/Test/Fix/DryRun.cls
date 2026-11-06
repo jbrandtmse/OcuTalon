@@ -5,7 +5,7 @@
 /// removes the headers of the request's session in the end; the orders and the incident rows are removed by Case.
 ///   - TestFiftyOrdersChangeNothing (AC 3, AC 4): 50 failed orders of one session, with a snapshot (Test.Fix.Snapshot) of OCUTALON and OCUORDERS before and after: the
 ///     snapshot before holds the 50 orders with their bodies, the Orders production and its queues; the targets are the 50 header ids, ascending; the dry run has exactly the
-///     keys of DRYRUNKEYS and the values of the matrix's row; nothing in either namespace changed but the request's own session (and the firing of a timer that was
+///     keys of DRYRUNKEYS plus goodCheck ({0, 0}: no order from the same source went through) and the values of the matrix's row; nothing in either namespace changed but the request's own session (and the firing of a timer that was
 ///     already running, which Test.Fix.Snapshot leaves out), the incident's row and its group's rows are unchanged, FixExecutor wrote no event-log row in the
 ///     request's session; and the mock logged no request;
 ///   - TestLeftOutAndScope: of six failed orders of the scope, two do not read in the source format and are left out; a failed order of another scope and a header that
@@ -79,33 +79,6 @@ ClassMethod TraceOf(ref As %String) As %String [ Private ]
 	Quit ##class(OcuTalon.Data.Session).RefIndexOpen(ref).TraceRef
 }
 
-/// The names of the comma-separated list, sorted, comma-separated (the same order as SortedKeys).
-ClassMethod SortedNames(names As %String) As %String [ Private ]
-{
-	For i = 1:1:$Length(names, ",") {
-		Set keys($Piece(names, ",", i)) = ""
-	}
-	Set text = ""
-	Set key = ""
-	For {
-		Set key = $Order(keys(key))
-		Quit:key=""
-		Set text = text _ $Select(text = "": "", 1: ",") _ key
-	}
-	Quit text
-}
-
-/// The ids of the failed headers whose super session is the given one, in order, as a comma-separated list.
-ClassMethod IdsOf(failed As %DynamicArray, super As %String) As %String [ Private ]
-{
-	Set ids = ""
-	Set iterator = failed.%GetIterator()
-	While iterator.%GetNext(, .failure) {
-		If failure.superSession = super Set ids = ids _ $Select(ids = "": "", 1: ",") _ failure.id
-	}
-	Quit ids
-}
-
 Method TestFiftyOrdersChangeNothing()
 {
 	If '..Ready() Quit
@@ -168,8 +141,8 @@ Method TestLeftOutAndScope()
 	If '..Fail(1, "") Quit
 	Set failed = ..WaitFailed(7)
 	If failed.%Size() < 7 Quit
-	Set scoped = ..IdsOf(failed, super)
-	Set other = ..IdsOf(failed, "")
+	Set scoped = ..SuperIds(failed, super)
+	Set other = ..SuperIds(failed, "")
 	Do $$$AssertEquals($Length(scoped, ",")_"|"_$Length(other, ","), "6|1", "six failed orders are of the owner's scope, one of the instance's")
 	Set delivered = ..LateHeader(super)
 	Set first = $Piece(scoped, ",", 1)
@@ -494,8 +467,8 @@ Method TestRefusals()
 	If '..Fail(1, "") Quit
 	Set failed = ..WaitFailed(3)
 	If failed.%Size() < 3 Quit
-	Set scoped = ..IdsOf(failed, super)
-	Set other = ..IdsOf(failed, "")
+	Set scoped = ..SuperIds(failed, super)
+	Set other = ..SuperIds(failed, "")
 	Set incident = ..Fixture(owner, scoped)
 	Set ref = incident.Ref
 	Do ..AssertRefused(ref, "repair_resend", ..Params("ShipDate"), super, "a field that the failed messages do not have", "is not a field of the sample message")

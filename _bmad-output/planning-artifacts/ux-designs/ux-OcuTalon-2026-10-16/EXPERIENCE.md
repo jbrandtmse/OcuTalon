@@ -896,7 +896,7 @@ Details and trace: on your OcuTalon page.
 ```
 
 - The slots come from the new failures and their own dry run, as in the incident notice; `{time}` is the first of the new failures.
-- **Checked against good messages:** [ADDED 2026-11-06, Story 7.9, owner decision by the Contest Planner under the owner's delegation (2026-11-06T01:15Z); text ruled by the Planner 2026-11-06 at the spec gate] the later request's Dry run paragraph carries the same line, between "the originals stay unchanged." and "Nothing has changed yet.", under the same rule as in the incident notice. After an approved fix has gone through, its copies are good messages of the same source too, so the line shows: "Checked against the last 8 orders from the same source that went through: 0 would change."
+- **Checked against good messages:** [ADDED 2026-11-06, Story 7.9, owner decision by the Contest Planner under the owner's delegation (2026-11-06T01:15Z); text ruled by the Planner 2026-11-06 at the spec gate] the later request's Dry run paragraph carries the same line, between "the originals stay unchanged." and "Nothing has changed yet.", under the same rule as in the incident notice, except that when the repair would change any of them no later request is sent for those failures (as for any later round whose dry run is refused; the incident already has its notice). After an approved fix has gone through, its copies are good messages of the same source too, so the line shows: "Checked against the last 8 orders from the same source that went through: 0 would change."
 
 ### Status banners (web)
 

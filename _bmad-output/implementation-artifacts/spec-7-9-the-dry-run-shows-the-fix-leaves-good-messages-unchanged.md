@@ -159,6 +159,42 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `a24e83e
 - AC 4: Given an approved request whose dry run had the check, when `FixExecutor` runs it, then it resends repaired copies of exactly the dry run's targets with the ask's kind and parameters, no good message is resent or changed, and the stored dry run has exactly `DRYRUNKEYS`.
 - AC 5: Given the story's changes, when `live:demo-path` and `live:online-demo-path` run, then they pass. The later presses of 07 and T8 carry the line, and T8 still finds "Approve?".
 
+### Review Findings
+
+Code review 2026-11-06 (bmad-code-review, tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 31 raw findings, 10 entries after grouping: 0 decision-needed, 6 patch (applied), 4 defer (ledgered), 20 rejected. Rule 6 (AD-3, AD-16, AD-11), Rule 1, Rule 3 and Rule 14 checks pass; the catalog strings equal the ruled PT-a text character for character (acceptance auditor, by script).
+
+- [x] [Review][Patch] Rule 2: `SortedNames` (a verbatim copy of `Test.Fix.DryRun.SortedNames`) and `IdsOfSession` (a copy of `Test.Fix.DryRun.IdsOf`) in `GoodMessages`: med, fix-risk low, in-story. Lifted into `Test.Watch.Case` as `SortedNames` and `SuperIds`, and both copies removed from `DryRun` and `GoodMessages` [src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls:2247]
+- [x] [Review][Patch] `TestUntaggedOrders` asserted only `checked >= 2`, which leftovers could also satisfy: low, fix-risk low. It now asserts that `Reader.Good` for the untagged reference reads the test's own two good orders first (newest first), and only untagged headers of that source [src/ocutalon/cls/OcuTalon/Test/Watch/GoodMessages.cls:549]
+- [x] [Review][Patch] The EXPERIENCE later-request bullet's "under the same rule" read as if a refused later round got the no-fix notice: low. It now states 7.6's V2 outcome (no later request is sent) [_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md:899]
+- [x] [Review][Patch] `Test.Fix.DryRun`'s class doc still said `TestFiftyOrdersChangeNothing` checks "exactly the keys of DRYRUNKEYS": low, Rule 14 [src/ocutalon/cls/OcuTalon/Test/Fix/DryRun.cls:7]
+- [x] [Review][Patch] `GoodMessages`' class doc gave wrong wait bounds (90/20; the class actually waits 90, 60 and Case's bounds): low, Rule 14 [src/ocutalon/cls/OcuTalon/Test/Watch/GoodMessages.cls:7]
+- [x] [Review][Patch] AC 4's recorded mutation was applied in `DryRun`, not in `Proposed` as the table prescribes: low, Rule 19. The review applied a `Proposed` mutation and saw it red (mutation line under Verification) [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:918]
+- [x] [Review][Defer] CI group `shards` gains `GoodMessages` with no group re-measure, so it may pass its about 1,940 s target [ci/units.sh:58]. Deferred: maybe-false, med if true; settle from the first CI run's shards seconds. DW-836, routed burndown
+- [x] [Review][Defer] AC 5's "later presses of 07 carry the line" has no assertion; only T8 asserts it [web/e2e/demo-path/07-failure-paths.spec.ts:82]. Deferred: low, out-of-footprint, 07 reads no notice text. DW-837, wontfix-accepted with reopen_if
+- [x] [Review][Defer] With several source tuples the line sums the per-source counts, so it can read "the last 40 orders" [src/ocutalon/cls/OcuTalon/Fix/Kind/RepairResend.cls:234]. Closed by-design: the spec's Always sets the per-reference cap, each counted message is from a target's own source and the number is real. DW-838; recommendation to the Planner: keep
+- [x] [Review][Defer] The four `...Checked` keys copy their parents' text (a copy the catalog forces, Rule 2) [src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls]. Routed: occurrence appended to DW-655 (routed burndown)
+
+Rejected (20):
+- false: B10, nothing pins the stored dry run's values. `Test.Watch.Diagnose` L175 and `Test.Fix.Later` L83 assert the stored values.
+- false: E1, the `Press` guard with an empty `goodIds`. `WaitGood` asserts first, so the test is already red.
+- false: E2, `Hang 3` before the negative assertion. The awaited LOGLATER warning is the refused round's own output; no raise follows it in that `Proposed` call.
+- false: E4/V2, T8's line depends on 05/07. T8 is documented to run on the demo-path journey after 01 to 08 (AD-29, one journey on one stack) and already depends on step 2's watch. AC 5 itself places the line on a later press.
+- false: E5, the regex noun. The demo's noun is orders.
+- false: E6, `StoredDryRun` drops other kinds' keys. repair_resend is the only kind, and DRYRUNKEYS is the row's schema for every kind (AD-16).
+- false: E8, the spec's `status: done`. That is build-auto's machine state, which review must not change.
+- false: A1, the `web/**` Never. That clause guards product surfaces (PT-d, the approval view). The T8 assertion is QA's AC 5 pin, recorded under Verification.
+- false: A3, `TestOtherSourcesAndSessions` sends untagged orders. `SendGood` sets the floor first, and `OnAfterOneTest` removes everything above it.
+- low: B2, `Good` reads the full evidence (log, items, trace). The spec requires the same per-header read; the snapshot never leaves `Good`; a body-only mode would change contended `Current`.
+- low: B4/A7, `Notice.GOODCHECK` is re-declared and the `goodCheck` validation appears twice. Watch may reference Fix.Kind only to validate parameters, and the doc names the source; the fix would add a method.
+- low: B5, the triage counts differ. The fix edits the spec's own result section.
+- low: B6, two figures for one fact. The fix edits the spec's own result section.
+- low: B9, the explicit `laterRequest*` list in TelegramChat. That list is the shared-surface pin.
+- low: E3, a boolean or out-of-range `goodCheck`. Only `RepairResend.DryRun` builds it.
+- low: A2, `Set referenceIds = ""` sits before the key loop. It is inside block (3)'s `If evidence`, and `git merge-file --diff3` against `OCT-epic17` `3683e8ea` exits 0.
+- low: A4, the queued-header case. `Status = 9` excludes it; a queued header needs a stopped item.
+- low: A5, the read-only proof runs on a second dry run. The first runs inside the production before a snapshot can be taken; Targets and goodCheck tie the two, and the write mutation went red.
+Not patched within B3's entry: the NOUN/MOCK constants, which repeat a pre-existing pattern (`Test.Watch.Lifecycle`, `Test.Fix.DryRun`).
+
 ## Spec Change Log
 
 - 2026-11-06 (spec gate, runner): the Planner's PUBLIC TEXT ruling, relayed by the orchestrator, is recorded under Design Notes, "Ruled public text (the Planner, 2026-11-06)". It replaces the placeholders: PT-a first wording exactly, Z1 (no line with zero good messages, no Story 7.10); PT-b `incident.noFix` exactly, reason log-only, follow-up DW-823 (routed burndown, low); PT-c approved; PT-d notice only; PT-e accepted with the online-demo condition (runner's integrate-forward task). The contended `Watch/Reader.cls` union is confirmed by the orchestrator (prove it with `git merge-file`).
@@ -348,6 +384,22 @@ mutation: `Proposed` stores `result.DryRun` unstripped -> `GoodMessages.TestAppr
 mutation: the dry run's targets gain one good id (patched in `RepairResend.DryRun`, not in `Proposed`, which has no good id) -> `GoodMessages.TestApprovalRunsTheDryRunOnly` and `TestUntaggedOrders` went red
 mutation: `DryRun` reads only the first reference (`If $Data(reference(origin(id))) || (references '= "") Continue`) -> `GoodMessages.TestTwoSourcesInOneIncident` went red (goodCheck 4 instead of 7, no refusal for the second source); restored from a backup, `git status --short` and `git diff --stat` identical
 Each mutated file was restored from the stage's own backup and checked byte-identical (md5 of the four source files against the manifest taken before the first mutation).
+
+**QA-stage results (2026-11-06).**
+
+Audit of AC 1 to AC 4 and the matrix against `Test.Watch.GoodMessages` (10 tests), `Fix.Kind.TestGoodChanges`, `Fix.SnapshotDiff.TestGoodBodyEditIsAChange`, `Watch.NoticeText.TestGoodLine`, `Fix.DryRun`, `Msg.Catalog` and `Channel.TelegramChat`: every AC and every matrix row has a pinning test (the "Read fails" row has none by the spec's own decision), and no assertion was found that cannot fail. No IRIS test class was added or changed in QA.
+
+AC 5 (the one gap): the later press of the demo path carries the ruled line, and nothing asserted it. Added to T8 (`web/e2e/demo-path/telegram-approval.spec.ts`, QA, on the mock only) one assertion that the Telegram notice holds `unchanged. Checked against the last <n> order(s) from the same source that went through: 0 would change. Nothing has changed yet.` (the count depends on the journey, so only its words are fixed). Self-contained, inside an existing `web/e2e/demo-path/*` spec; `git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<N>` (after a fetch) names no `web/e2e` file for Epics 4, 17 and 19. Not touched: `web/src/app/guide/**`, `web/e2e-online/**`, Story 4.11's specs (the online-demo assertion of PT-e stays the runner's integrate-forward task). 07's presses are not asserted (T8 is the one that reads notice text).
+
+(QA) Files: `web/e2e/demo-path/telegram-approval.spec.ts`.
+
+Commands (lane D, tag e7s9q): `ci/iris.sh build`, then `ci/iris.sh live demo-path` with `OCUTALON_LIVE_DEADLINE=900`: 28 passed (5.4 m), 8 of 8 steps, floor 15 of 15, audit checks PASS.
+
+mutation: `Notice.WithFixKey` takes `checked` as 0 (never gives a `...Checked` key) -> `live demo-path` T8 (`telegram-approval.spec.ts`) went red at "the notice's Dry run paragraph has the good-message line" (27 passed, 1 failed); restored from the stage's own backup, md5 equal, `git status --short` and `git diff --stat` show only the spec edit.
+
+**Code-review results (2026-11-06).** Lane D warm stack, tag e7s9cw. `OcuTalon.Test.Fix.DryRun` passed. `OcuTalon.Test.Watch.GoodMessages` passed (107 s) with the review's patches: the Rule 2 lift into Case and the strengthened `TestUntaggedOrders`. `docker/tests/test-class-rules.sh` passes. `git merge-file --diff3` against `OCT-epic17` `3683e8ea` (merge-base `41efeba8`) exits 0 for `Watch/Reader.cls`, `Msg/Catalog/Watch.cls`, `Test/Watch/Case.cls` and `Test/Fix/DryRun.cls`. The warm stack was torn down.
+
+mutation (AC 4, in `Proposed` as the table prescribes; `Proposed` holds no good id, so the row's targets lose the dry run's last target instead of gaining one): `row.FixTargets = $Piece(result.Targets, ",", 1, $Length(result.Targets, ",") - 1)` -> `GoodMessages.TestApprovalRunsTheDryRunOnly` ("the row holds the kind, the parameters and the targets that the dry run gave"; "the FixRun holds three copies") and `TestFewerThanTwentyGood` ("its targets are the request's") went red; restored from the review's backup (md5 equal), and the class was green again on the same stack.
 
 ## Auto Run Result
 
