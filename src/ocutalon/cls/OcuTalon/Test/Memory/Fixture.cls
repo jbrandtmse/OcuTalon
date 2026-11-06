@@ -10,6 +10,9 @@
 ///     HubRows(table, .rows) reads back rows(n) = the chunk's text and rows(n, "vector") = its vector, in the order of source and id.
 ///   - ToVector(value) / ToString(vector): the vector of a value that is a $VECTOR already or the text of one (a display value of a vector column), and the
 ///     comma-separated text of a vector's values.
+///   - Store(owner, ref, text, savedAt, origin, itemId) / Purge(prefix) (Story 19.3): a fixture Data.Memory row with the embedding of its text, embedded through the
+///     product's endpoint, for the tests of the read side, and the removal of every row whose SessionRef starts with the prefix (the vectors and keyword entries go
+///     with a deleted row). A product row is written by MemoryOps only (AD-33); these rows stand for ones that other origins or other times would have made.
 ///   - Matrix(n): the three texts of the identity checks (ASCII; an accented Latin letter and CJK characters, authored with $Char; over 256 word pieces).
 ///   - Distance(a, b): the largest absolute difference of two vectors' components.
 ///   - WorkerInCategory(job, category): 1 when the WorkMgr worker process with that $JOB belongs to the category (WorkMgr keeps it in ^IRIS.WorkQueue).
@@ -99,6 +102,33 @@ ClassMethod DropTable(table As %String, suffix As %String)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DROP TABLE IF EXISTS " _ table _ "_Config")
 	Do ##class(%SQL.Statement).%ExecDirect(, "DROP TABLE IF EXISTS " _ table)
 	Kill @("^OcuTalonP.KB" _ suffix), @("^OcuTalonP.KB" _ suffix _ "Config")
+}
+
+/// Stores a fixture memory of the owner (a SessionRef string, which needs no Session row) with the Ref, the text, the SavedAt (UTC to the second), the Origin
+/// and the ItemId, and the vector that the product's endpoint gives for the text. The status of the embedding or of the save.
+ClassMethod Store(owner As %String, ref As %String, text As %String, savedAt As %String, origin As %String = "tool", itemId As %String = "zzmemitem") As %Status
+{
+	Set sc = ##class(OcuTalon.Memory.Embedding).Embed(text, .vector)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Set row = ##class(OcuTalon.Data.Memory).%New()
+	Set row.Ref = ref
+	Set row.SessionRef = owner
+	Set row.Text = text
+	Set row.SavedAt = savedAt
+	Set row.ItemId = itemId
+	Set row.Origin = origin
+	Set row.Embedding = vector
+	Quit row.%Save()
+}
+
+/// Deletes every Data.Memory row whose SessionRef starts with the prefix, one by one so that the HNSW and keyword entries go with them.
+ClassMethod Purge(prefix As %String)
+{
+	If prefix = "" Quit
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.Memory WHERE SessionRef %STARTSWITH ?", prefix)
+	While rs.%Next() {
+		Do ##class(OcuTalon.Data.Memory).%DeleteId(rs.%Get("ID"))
+	}
 }
 
 ClassMethod Matrix(n As %Integer) As %String

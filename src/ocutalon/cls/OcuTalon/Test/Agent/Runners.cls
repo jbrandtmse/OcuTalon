@@ -69,8 +69,8 @@ Parameter MODEL = "claude-haiku-5-5";
 /// The tools of the Diagnosis agent, sorted: the three read-only watch tools (AD-7).
 Parameter WATCHTOOLS = "read_event_log,read_failed_messages,read_item_settings";
 
-/// The tools of the Chat agent, sorted: the three reminder tools and, since Story 5.1, the watching tools (AD-7, AD-18), and since Stories 5.9, 5.7 and 5.13 dismiss_incident, check_status and recent_activity among them, and since Story 40.5 propose_persona.
-Parameter REMINDERTOOLS = "cancel_reminder,check_status,dismiss_incident,list_productions,list_reminders,propose_persona,recent_activity,set_reminder,start_watch,stop_watch";
+/// The tools of the Chat agent, sorted: the three reminder tools and, since Story 5.1, the watching tools (AD-7, AD-18), and since Stories 5.9, 5.7 and 5.13 dismiss_incident, check_status and recent_activity among them, and since Story 40.5 propose_persona, and since Story 19.3 the four memory tools.
+Parameter REMINDERTOOLS = "cancel_reminder,check_status,dismiss_incident,forget_memory,list_memories,list_productions,list_reminders,propose_persona,recent_activity,save_memory,search_memories,set_reminder,start_watch,stop_watch";
 
 /// The longest to wait for a refusal to show in the event log and in the jobs, in seconds. A ceiling, not a delay (the wait polls
 /// once a second), and as long as RunnerFixture's wait for the items to run.
@@ -314,7 +314,7 @@ Method TestToolInventory()
 	If '..Ready() Quit
 	If '..Point() Quit
 	Set watch = $ListBuild(##class(OcuTalon.Tools.Names).#READEVENTLOG, ##class(OcuTalon.Tools.Names).#READFAILEDMESSAGES, ##class(OcuTalon.Tools.Names).#READITEMSETTINGS)
-	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY, ##class(OcuTalon.Tools.Names).#PROPOSEPERSONA)
+	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY, ##class(OcuTalon.Tools.Names).#PROPOSEPERSONA, ##class(OcuTalon.Tools.Names).#SAVEMEMORY, ##class(OcuTalon.Tools.Names).#SEARCHMEMORIES, ##class(OcuTalon.Tools.Names).#LISTMEMORIES, ##class(OcuTalon.Tools.Names).#FORGETMEMORY)
 	Set expected("TriageAgent") = ""
 	Set expected("DiagnosisAgent") = watch
 	Set expected("ChatAgent") = reminders
@@ -328,6 +328,10 @@ Method TestToolInventory()
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT) = "OcuTalon.Tools.WatchTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#CHECKSTATUS) = "OcuTalon.Tools.WatchTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#RECENTACTIVITY) = "OcuTalon.Tools.RecentActivity"
+	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#SAVEMEMORY) = "OcuTalon.Tools.MemoryTools"
+	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#SEARCHMEMORIES) = "OcuTalon.Tools.MemoryTools"
+	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#LISTMEMORIES) = "OcuTalon.Tools.MemoryTools"
+	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#FORGETMEMORY) = "OcuTalon.Tools.MemoryTools"
 	Set runners = $ListFromString(..#RUNNERS)
 	Set position = 0
 	While $ListNext(runners, position, item) {

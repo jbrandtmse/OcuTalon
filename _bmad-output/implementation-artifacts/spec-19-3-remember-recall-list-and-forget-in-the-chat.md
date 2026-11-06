@@ -2,9 +2,10 @@
 title: 'Remember, recall, list and forget in the chat'
 type: 'feature'
 created: '2026-11-06'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2a0c187a4fa3903913d781d800f774c13af7886b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/spec-19-2-compute-embeddings-offline-in-a-worker.md'
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
@@ -165,6 +166,53 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-06 - Review pass
+- verdicts: 42 findings - high 0, medium 9, low 28, false 3, maybe-false 2
+- findings (B = blind-hunter, E = edge-case-hunter, V = verification-gap, I = intent-alignment):
+  - `[low]` `[reject]` B1 Chat's bullets have no branch for a failed save or forget - the five bullets are the Planner's wording character for character (Rulings), the tool answers carry `ok:false` with a message that tells the model to say so; changing the bullets is PUBLIC TEXT.
+  - `[low]` `[patch]` B2 the lock-timeout and over-length `failed` answers wrote no warning - both now go through `Failed`, which logs one redacted Type 3 warning.
+  - `[low]` `[reject]` B3 tool counts raw characters, `MemoryOps` counts trimmed text - the spec says "over 2,000 characters answers TOOLONG"; a model-sent text that long is refused either way, and a pin test keeps both limits equal.
+  - `[maybe-false]` `[reject]` B4 an idempotency key with no colon gives an empty ItemId - `CommandCall` always sends `<ItemId>:<n>`, so the path is not reachable; would be settled by a `Commands.Submit` with a colon-less key.
+  - `[low]` `[reject]` B5 the restart check holds one row - AC5 asks that the memory is found after the restart, and the recorded `^IRIS.Temp` mutation goes red there; a ranking check across a restart adds cost for no named harm.
+  - `[medium]` `[patch]` B6 `Volume` passes when earlier runs left good statistics - `Volume` now first gathers the statistics of the empty table, so only `Tune` can put the plan on the index; the no-op `Tune` mutation is red (59 s run).
+  - `[low]` `[patch]` B7 `Fixture.Purge("")` would delete every memory - `Purge` now quits on an empty prefix.
+  - `[medium]` `[patch]` B8 an iFind refusal of an operator-like word fails the whole recall - the keyword leg is now in a Try, and a refused keyword query leaves the nearest list (same root cause as E1).
+  - `[low]` `[reject]` B9 `Search` fails when the embedding fails - the spec says an embed error is an error status; the model must be told the search did not run.
+  - `[false]` `[reject]` B10 spec text inconsistent - a spec edit is not a code defect (rule: reject findings whose fix edits the spec).
+  - `[false]` `[reject]` B11 x64 and shards not run - those are CI's and this pass's own sweeps (recorded under Auto Run Result).
+  - `[medium]` `[patch]` E1 same as B8.
+  - `[low]` `[reject]` E2 an empty SavedAt would break the subscript - `MemoryOps` always sets SavedAt and no other writer exists (AD-33).
+  - `[low]` `[reject]` E3 `Tune` keys on the row id - after bulk deletes the next multiple gathers again; a small table scans cheaply.
+  - `[low]` `[reject]` E4 a failing gather is silent - Tuned is a documented best-effort seam; the plan only costs time.
+  - `[low]` `[patch]` E5 same as B2.
+  - `[maybe-false]` `[reject]` E6 same as B4.
+  - `[low]` `[reject]` E7 an ItemId over 22 characters fails validation - item ids are 22-character refs.
+  - `[low]` `[reject]` E8 same as B3.
+  - `[low]` `[reject]` E9 a long query is not capped - the embedder truncates to its word-piece window (Story 19.2) and the blank query is already NOTSEARCHED (tested).
+  - `[low]` `[reject]` E10 a memoryRef over 22 characters gets the NOTSENT refusal - the model is told nothing was done, which is true.
+  - `[low]` `[reject]` E11 `Context.Put` status ignored - it fails only without a context, and the tool called `CommandCall.Session` first.
+  - `[low]` `[reject]` E12 the 5-entry cap of `HostData.memories` drops later hits - the spec says "at most 5, distinct, in order".
+  - `[false]` `[reject]` E13 a wrong-length vector reaches `%Save` - `Embedding.Embed` returns an error unless the vector has 384 values.
+  - `[medium]` `[patch]` E14 same as B6.
+  - `[medium]` `[patch]` V1 `Eval.Report.TOOLCLASSES` change unpinned - `Test.Tools.Memory:TestDeclarations` asserts `Eval.Report.ReadOnly` for the four tools (`Test/Eval/**` is Epic 39's); mutation red.
+  - `[medium]` `[patch]` V2 `Tune` never observed gathering - measured: a gather does not change the readable extent size, so `TestTune` keeps the return value; the pin is `Volume`, whose start is now fixed (see B6).
+  - `[medium]` `[patch]` V3 embed failure and exceptions of `OnSave` untested - `Test.Memory.Ops:TestEmbedFailure` added (model folder of the process points at an empty folder: failed, no row, no Tuned, then saved); the lock-timeout path stays untested (low).
+  - `[medium]` `[patch]` V4 `TestHostDataMerge` cannot tell dedup from the cap - a second session with 3 memories searched twice, and a control that the third search returns an unheld ref; dedup mutation red.
+  - `[medium]` `[patch]` V5 `TestNoSession` asserts no submit with the double not installed - it now calls `Prepare()` first.
+  - `[low]` `[patch]` V6 "at most 5 rows" assertion could not fail - removed (`TestLimit` covers the cap).
+  - `[low]` `[reject]` V7 the keyword loop of `TestSearchByKeyword` is not isolating - `TestKeywordPromotes` is the keyword pin and the AC1 and AC2 mutation lines name it.
+  - `[low]` `[reject]` V8 `TestIndexGlobals` reads instance-wide `^IRIS.KNNIndex` - no other HNSW index exists in the product yet; Story 19.4 revisits it.
+  - `[low]` `[reject]` V9 `TestTune` leaves gathered statistics - a gather on the near-empty table is the normal state of the table.
+  - `[low]` `[patch]` V10 a fixed Ref left by an aborted `Turns` run breaks the next run - `OnBeforeAllTests` deletes the two fixed-Ref rows.
+  - `[low]` `[patch]` V11 `Volume`'s header claimed it leaves the flag as found - the header now says the live unit sets and clears it.
+  - `[low]` `[reject]` V12 clause-level mutations (RRF constant, tie order) missing - each AC has its lines; the clauses are pinned by `TestFuse*` and the ties test.
+  - `[low]` `[reject]` I1 the forget scenarios use a fixed Ref the test stored - the matrix row is "forget by Ref" and `TestInstructions` pins the bullet that makes the model search first.
+  - `[low]` `[reject]` I2 recall, forget and taint turns use rows stored by the fixture - `MemoryOps` is the only writer, so rows of another origin exist only as fixtures; the save-recall turn goes through the real writer.
+  - `[low]` `[reject]` I3 the foreign-origin taint branch is reachable only with fabricated rows - the spec makes that the safe default for future writers (Epic 41).
+  - `[low]` `[reject]` I4 `Volume` explains the SQL, not a tool turn, and skips in the shard - the spec (Task 0, Design Notes) puts it in `live:memory-offline`, where it ran.
+  - `[low]` `[reject]` I5 `Eval/Report.cls` not under a ruling - the Tasks list names its one-name append.
+- also found by the shard sweep (not a reviewer finding): `Test.Contract.Step3` pins the exact index list of `Data.Memory` and went red; its contract now lists `EmbeddingIdx`, `TextIdx` and the extent bitmap index `$Memory` that the two new indexes make (footprint extension, uncontended, one XData union).
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -203,10 +251,20 @@ deferred: []
 - Repeats use the natural key (`SessionRef`, `ItemId`, `Text`), because `Data.Memory` has no key column and adding one is a schema veto. `ItemId` is the idempotency key before its last `:`. A repeated forget answers `not_found`, which has no further effect.
 - A recall is trusted when every returned row's `Origin` is `tool`. The gate allows `save_memory` (not read-only) only in a user's untainted turn, and `CommandsIn` takes the verb from `tool` only. Any other origin (a future `system` save, Epic 41) taints, which is the safe default. The tools declare `TRUSTEDOUTPUT` 1 and set `Tainted` themselves.
 - `list_memories` shows the newest 20 plus `total`: 20 times 2,000 characters fits the step's 40,000 characters. The tools take no `limit`, and `search_memories` asks for 5.
-- `%iFind.Index.Basic` keeps its dictionary in `^IRIS.IF.*`, which is already mapped private and scanned by `PrivateData`, rather than `IFINDSHAREDDATALOCATION = "INDEX"`. The search is exact-word (option 0) because the vector covers meaning. The keyword query is an OR of quoted words, so `?` and other iFind operators in a question are inert.
+- (Superseded by Task 0, see the (Implement) bullets below: the dictionary is kept with the index.) - `%iFind.Index.Basic` keeps its dictionary in `^IRIS.IF.*`, which is already mapped private and scanned by `PrivateData`, rather than `IFINDSHAREDDATALOCATION = "INDEX"`. The search is exact-word (option 0) because the vector covers meaning. The keyword query is an OR of quoted words, so `?` and other iFind operators in a question are inert.
 - `HostData.savedAt` is the stored UTC `SavedAt`, and the model sees `CommandCall.TimeLabel`. `HostData.memories` accumulates across a turn's searches, at most 5.
 - Where `Test.Memory.Volume` runs: in the shard when one run takes at most 60 s on a fresh ARM throwaway (Task 0, M2). Otherwise it skips unless `^OcuTalonTest("Memory","volume")` is set, which `live:memory-offline` sets before it runs the class. The choice is recorded in this spec.
 - The model-facing texts are new `MESSAGE*` and tool parameters, like WatchOps' and ReminderTools'. They are text for the model, not catalog text.
+
+- (Implement, Task 0; `evidence/19-3-task0-memory-indexes.md`) `TextIdx` is `%iFind.Index.Basic(IFINDSHAREDDATALOCATION = "INDEX", INDEXOPTION = 0, LANGUAGE = "en", LOWER = 1)`. With iFind's default shared dictionary the first write leaves empty directory entries for `^IRIS.IF.WordI` and `^IRIS.IF.WordRI` in OCUTALON_DATA, and `PrivateData` then fails the start; with `INDEX` all iFind globals are under `^OcuTalonP.MemoryI("TextIdx", ...)`. The HNSW graph is under `^OcuTalonP.MemoryI("EmbeddingIdx", ...)` and `^IRIS.KNNIndex` stays empty. The stop rule did not trip: a parameter moves the globals, and an owner-filtered form uses HNSW at 10,000 rows.
+- (Implement, Task 0) The planner reads `EmbeddingIdx` for the recall SQL (ACORN-1: the owner filter applies while the index is walked) only when the table's statistics were gathered on a table of about 200 rows or more; statistics taken while the table was small (a search on a table of a few rows is enough) keep a scan of the owner's rows at any size. So `OcuTalon.Memory.Tune(id)` gathers the table's statistics at every 1,000th row id, and `MemoryOps` calls it through its `Tuned` method after each new row (a seam: `Test.Memory.OpsProbe` records the ids). `Test.Memory.Volume` calls `Tune` per row, as `MemoryOps` does. This adds behaviour that the plan did not name; it is a footprint of AD-21's "HNSW check at 10,000 memories".
+- (Implement) The recall SQL texts are the parameters `NEARESTSQL` and `KEYWORDSQL` of `OcuTalon.Memory`, so that `Test.Memory.Volume` explains the very text. `Memory.Fuse(nearest, keyword, limit)` is public so that the RRF order, the ties and the cut are tested without a model.
+- (Implement) The keyword query writes the word `or` (any case) with a backslash, not in quotes: iFind on build 154 refuses a quoted `"or"` with a syntax error ("brackets mismatch"), which would fail every question that holds the word. `"and"` and `"not"` in quotes are plain words.
+- (Implement) `Test.Memory.Volume` skips unless `^OcuTalonTest("Memory","volume")` is set (Task 0, M2: 51 s to insert and 50 s to delete 10,500 rows), and `live:memory-offline` sets it for the class and kills it after. The unit also runs `Test.Memory.Turns` before the network is cut, saves and searches through `Commands.Submit`/`Memory.Search` with the network cut, restarts the iris container (the restart puts it back on its network, so the unit cuts the network again at once; the wait for ready sets `LIVE_TELEGRAM=started` because the park of the Telegram items talks to the mock), and searches again. The unit took 378 s on the ARM machine with a warm image cache (it was about 300 s before). Locally it needs `OCUTALON_LIVE_DEADLINE=1200`, as CI sets.
+- (Implement) `MemoryOps` writes the command's `Origin` as the row's, trims the text with `$ZStrip(text, "<>WC")` (blanks and control characters), answers `failed` for a text over 2,000 characters when a handler is given one (the tool refuses it first), logs one Type 3 warning (redacted) for each `failed` answer, and answers a forget with `forgotten` and no `Ref`. `search_memories` and `list_memories` show the vector list's nearest memories even when none answers the question (there is no similarity floor), so a search of an owner with memories never returns an empty list.
+- (Implement) The tool class `MemoryTools` gives its helpers' values through outputs, because `Test.Bridge.CodeRules:TestToolsReturnThroughResult` allows a quit of a value only through `..Return(`. `MemoryTools.MAXTEXT` repeats `Memory.Ops` `MAXTEXT` (a tool class names no operation), and `Test.Tools.Memory` pins the two and the column's `MAXLEN` equal.
+- (Implement) U-177 exception: `Test.Core.CommandsStep3` expects `MemoryOps` to answer `no_session` (a built owner, an unknown session) and to have no `STUB`; `Test.Core.CommandsStep3Probe` calls `MemoryOps`' handler for the verb, because `OnMessage` does not dispatch a message map. No other line of those files changed.
+- (Implement) `Test.Memory.Install` gained `TestDiagnosticsHoldNoSecret` (DW-793): the step's warning and the embedder's missing-model error hold no key, no token and no value of an environment variable (read from `/proc/self/environ` as a device; a path is fine), and the scanner is first shown to flag planted secrets of each kind.
 
 **Needs a ruling:**
 - `src/ocutalon/cls/OcuTalon/Production.cls` (Epic 17 contended, Lane A region) -- set `MemoryOps` `Enabled="true"` (line 62; Epic 17's hunk is lines 34-47). Without it every memory command waits 120 s and fails (DW-731), and no AC can pass.
@@ -252,7 +310,7 @@ Lane variables on every `ci/iris.sh` / `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(
 
 **Commands:**
 - `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e19s3iw ci/iris.sh class <C>` (loop), one call each, for C = `OcuTalon.Test.Memory.Ops`, `.Memory.Search`, `.Memory.Turns`, `.Memory.Volume`, `.Tools.Memory`, `.Tools.Reminders`, `.Tools.Persona`, `.Watch.Tools`, `.Watch.Turns`, `.Agent.Instructions`, `.Agent.Constants`, `.Agent.Runners`, `.Agent.PersonaBlock`, `.Bridge.Gate`, `.Bridge.CodeRules`, `.Bridge.Decide`, `.Install.Production`, `.Install.SecurityOverview`, `.Install.PrivateData`, `.Core.CommandsStep3` -- expected: CLASS passed, and no SKIP except `Volume`'s when Task 0 sends it to the live unit.
-- `OCUTALON_RUN_TAG=e19s3i ci/iris.sh live memory-offline` (loop; destructive: a fresh throwaway with its network cut and a container restart) -- expected: every PASS and `MEMORY-OFFLINE engine=aarch64 ok=1`; then `OCUTALON_RUN_TAG=e19s3i ci/iris.sh teardown`.
+- `OCUTALON_LIVE_DEADLINE=1200 OCUTALON_RUN_TAG=e19s3i ci/iris.sh live memory-offline` (loop; destructive: a fresh throwaway with its network cut and a container restart; 1200 is what CI sets, the default 540 is too short for the unit now) -- expected: every PASS and `MEMORY-OFFLINE engine=aarch64 ok=1`; then `OCUTALON_RUN_TAG=e19s3i ci/iris.sh teardown`.
 - `OCUTALON_RUN_TAG=e19s3i ci/iris.sh live security-overview` (once) -- expected: no `DRIFT`.
 - `OCUTALON_RUN_TAG=e19s3i ci/iris.sh shard lane-a --part k/12` for k = 1..12, one call each (once; parts of about 4 minutes, because Story 19.2 saw parts of /8 take 6 to 11 minutes under load) -- expected: every class passed.
 - `OCUTALON_RUN_TAG=e19s3i ci/iris.sh shard lane-b --part k/4` for k = 1..4, one call each (once) -- expected: every class passed.
@@ -272,16 +330,26 @@ Lane variables on every `ci/iris.sh` / `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(
 
 Every test added or changed passes on a fresh environment, in either order.
 
-**Mutations (one per AC; the implement stage applies each, observes red, reverts from a backup, confirms `git status --short` / `git diff --stat` unchanged, and records the result here):**
-- AC1: drop `TextIdx` from `Data.Memory` -> `Test.Memory.Search` keyword-only case red. Remove the `Origin` set in `OnSave` -> `Test.Memory.Ops` red.
-- AC2: make `Search` return only the vector list (no fusion) -> `Test.Memory.Search` RRF-order case red. Skip `HostData.Put` in `search_memories` -> `Test.Memory.Turns` red on `HostData.memories`.
-- AC3: drop the `SessionRef` check in `OnForget` -> `Test.Memory.Ops` red (DW-740). Drop the owner filter in `Search` -> `Test.Memory.Search` isolation red.
-- AC4: drop the `Tainted` put in `search_memories` -> `Test.Tools.Memory` and `Test.Memory.Turns` (`tainted-save`) red. Set `READONLYSAVEMEMORY` to 1 -> `Test.Memory.Turns` red (a row in the tainted turn).
-- AC5: add `%IGNOREINDEX EmbeddingIdx` to the recall SQL -> `Test.Memory.Volume` red. Point `Data.Memory`'s storage at an `^IRIS.Temp` global, which IRIS clears at a restart -> `live:memory-offline` red at the search after the restart.
+**Mutations (one per AC, recorded with the result by the implement stage on 2026-11-06; each was applied from a backup copy on the warm lane-C throwaway `e19s3iw` (the class loaded into it, and the production item or runner that runs the code restarted), observed red, reverted from the backup, and the tree confirmed byte-identical by a hash of every changed file before and after):**
+- AC1: `mutation:` drop `TextIdx` from `Data.Memory` -> `Test.Memory.Search` red (`TestKeywordPromotes`, `TestLimit` and `TestOwnerIsolation` fail on the missing rank procedure; `TestSearchByKeyword` is the keyword-only case). `mutation:` remove `Set row.Origin = request.Origin` from `OnSave` -> `Test.Memory.Ops:TestSave` red (the row's origin, and the origin of the row saved through `Commands.Submit`). `mutation:` make the natural-key check of `OnSave` never find a row (`If ref '= ""` becomes `If 0`) -> `Test.Memory.Ops:TestRepeat` red. `mutation:` drop the 2,000-character check of `save_memory` -> `Test.Tools.Memory:TestTooLong` red. `mutation:` write the word `or` of a keyword query in quotes like the others -> `Test.Memory.Search:TestSearchByKeyword` red (iFind's "brackets mismatch" error on `"or"`).
+- AC2: `mutation:` make `Search` return only the vector list (`Fuse(nearest, [], limit)`) -> `Test.Memory.Search:TestKeywordPromotes` red (the memory with the word is not first). `mutation:` skip `Remember` (the `HostData.Put`) in `search_memories` -> `Test.Memory.Turns` red (`HostData.memories` empty in the recall turns and in `TestTaintedSave`) and `Test.Tools.Memory` red (`TestSearchAnswer`, `TestHostDataMerge`, `TestOwnerIsolation`).
+- AC3: `mutation:` drop the `SessionRef` check in `OnForget` -> `Test.Memory.Ops:TestForgetOther` red (DW-740). `mutation:` drop the owner filter from the recall SQL (`NEARESTSQL` and its argument) -> `Test.Memory.Search:TestOwnerIsolation` red.
+- AC4: `mutation:` drop the `Tainted` put of `Shown` -> `Test.Tools.Memory:TestTaintRule` red (search and list) and `Test.Memory.Turns:TestTaintedSave` red (the reply is not tainted, the save step is not denied, a command reaches MemoryOps and a row is added). `mutation:` set `READONLYSAVEMEMORY` to 1 -> `Test.Memory.Turns` red (`TestTaintedSave` and `TestUntrustedSave`: the save runs, a row is added) and `Test.Tools.Memory:TestDeclarations` red.
+- AC5: `mutation:` add `%IGNOREINDEX EmbeddingIdx` to the recall SQL -> `Test.Memory.Volume` red (the plan is the owner's bitmap scan). `mutation:` make `OcuTalon.Memory.Tune` gather nothing -> `Test.Memory.Search:TestTune` red, and `Test.Memory.Volume` red once the table's statistics were gathered while it was empty (the state that a search on a small table leaves; with statistics from earlier runs it stays green). `mutation:` remove `Do ..Tuned(row.%Id())` from `OnSave` -> `Test.Memory.Ops:TestTunedOnSave` red. `mutation:` point the four storage locations of `Data.Memory` at `^IRIS.Temp.OcuMemory*`, which IRIS clears at a restart -> `live:memory-offline` red at the search after the restart (`MEMORY-OFFLINE engine=aarch64 ok=0`).
+- DW-793 (the added condition test): `mutation:` append the value of the variable HOSTNAME to the step's warning for a failed download -> `Test.Memory.Install:TestDiagnosticsHoldNoSecret` red.
+- Review pass additions: `mutation:` remove the `'$Data(seen(...))` distinctness test from `MemoryTools.Merge` -> `Test.Tools.Memory:TestHostDataMerge` red. `mutation:` drop `OcuTalon.Tools.MemoryTools` from `Eval.Report` `TOOLCLASSES` -> `Test.Tools.Memory:TestDeclarations` red. `mutation:` let `OnSave` carry on after a failed `Embed` -> `Test.Memory.Ops:TestEmbedFailure` red. `mutation:` remove the `GatherTableStats` call from `Memory.Tune` -> `Test.Memory.Volume` red with the flag set (59 s on the warm throwaway; the plan is the owner's bitmap scan). Each was applied, observed red, and reverted from a backup copy (hashes equal).
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (Halt after planning). Nine "Needs a ruling" items and one "PUBLIC TEXT needed" item are listed under Design Notes. The ruling-gated tasks are marked, and the rest of the plan does not depend on them. Task 0 carries an AD-21 stop rule.
+**Summary.** Task 0 ran first and did not trip its stop rule (`evidence/19-3-task0-memory-indexes.md`): `TextIdx` uses `IFINDSHAREDDATALOCATION = "INDEX"` so every index global is in OCUTALON_PRIVATE, and `MemoryOps` gathers the table's statistics at every 1,000th row id (`Memory.Tune`) so that the owner-filtered recall reads `EmbeddingIdx`. Built: `MemoryOps` (`OnSave`, `OnForget`), `OcuTalon.Memory` (`Search`, `Fuse`, `List`, `Tune`), `Tools.HostData`, `Tools.MemoryTools`, `Tools.Memory`, four `Tools.Names` parameters, `MemoryOps` enabled, Chat's toolset and the five Planner bullets, seven mock scenarios, the ruled pins, four security-overview rows, spine unions in AD-21 and the "Tool classification" row, and the tests `Test.Memory.{Search,Ops,OpsProbe,Turns,Volume}`, `Test.Tools.Memory`, `TestDiagnosticsHoldNoSecret`, plus the extended `docker/tests/test-memory-offline.sh`. New CI units: none (the new classes join the shards of their areas; `Volume` skips there and runs in `live:memory-offline`).
+
+**Files outside Epic 19's paths_hint (footprint extensions).** `src/ocutalon/cls/OcuTalon/Production.cls`, `Agent/Chat.cls`, `Eval/Report.cls` (one-name append to `TOOLCLASSES`), `Test/Agent/{Instructions,Constants,Runners}.cls`, `Test/Bridge/{Decide,Gate,CodeRules}.cls`, `Test/Install/{Production,SecurityOverview}.cls`, `docs/security-overview.md` (the four generated tool rows only), `Test/Core/{CommandsStep3,CommandsStep3Probe}.cls` (the U-177 flip of `MemoryOps` only; the probe now calls `MemoryOps`' handler directly, because `OnMessage` was removed), `Test/Contract/Step3.cls` (the index contract of `Data.Memory`, found by the lane-b shard; uncontended), `ci/mock/test/constants.test.mjs`, `docker/tests/test-memory-offline.sh`, the spine.
+
+**Review.** 42 findings: 15 rows patched (12 root causes: B2/E5, B6/E14, B7, B8/E1, V1 to V6, V10, V11), deferred 0, rejected 27 with reasons in the triage log. Patched entries by verdict: medium 7 (B6, B8, V1, V2, V3, V4, V5), low 5 (B2, B7, V6, V10, V11). `followup_review_recommended: true` because two or more mediums were patched; the unverified risks are the keyword-fallback branch of `Search` (no test can force an iFind refusal now that `or` is escaped) and that the statistics heuristic was measured on ARM only.
+
+**Verification (lane C, aarch64).** Loop: every class of the Commands list passed on the warm throwaway `e19s3iw` (plus `Test.Contract.Step3`, `Test.Eval.Report`, `Test.Memory.Install`, `Test.Memory.Offline`; `Test.Install.Production` keeps its one existing skip), `Test.Memory.Volume` with the flag set passed (58 s), and `live:memory-offline` passed again after the patches (`MEMORY-OFFLINE engine=aarch64 ok=1`, 220 s). Once, after the last patch: `live:security-overview` no drift; `shard lane-a` parts 1 to 12 of 12 all passed (143 to 528 s each); `shard lane-b` parts 1 to 4 of 4 (part 1 had `Test.Contract.Step3` red, fixed, and that class re-run green; parts 2 to 4 passed); `test-ci-config`, `test-class-rules`, `test-storage`, `test-boundaries`, `test-ci-changes`, `test-mock` (133 of 133) passed; the spine lint shows 10 findings before and after. Not run: the x64 run (`iris (shards-4)` prints `MEMORY-OFFLINE engine=x86_64`), which CI does. Throwaways `e19s3i0`, `e19s3i` and `e19s3iw` are torn down.
+
+**Residual risks.** The statistics heuristic (gather at every 1,000th row id) depends on the planner's behaviour measured on build 154 ARM. `Search` has no similarity floor, so the model must judge relevance. A keyword word that iFind refuses leaves the vector list alone (untested directly). Release gate (owner action item, not run here): the real-model release-candidate eval before the release that carries Epic 19.

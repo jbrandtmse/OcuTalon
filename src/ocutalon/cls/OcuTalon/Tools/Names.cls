@@ -33,4 +33,13 @@ Parameter RELEASE1 = {..#SETREMINDER_","_..#LISTREMINDERS_","_..#CANCELREMINDER_
 /// The persona proposal tool of the personality epics (AD-7); not a release-1 tool, so RELEASE1 does not list it.
 Parameter PROPOSEPERSONA = "propose_persona";
 
+/// The memory tools of step 3 (AD-21); not release-1 tools, so RELEASE1 does not list them.
+Parameter SAVEMEMORY = "save_memory";
+
+Parameter SEARCHMEMORIES = "search_memories";
+
+Parameter LISTMEMORIES = "list_memories";
+
+Parameter FORGETMEMORY = "forget_memory";
+
 }

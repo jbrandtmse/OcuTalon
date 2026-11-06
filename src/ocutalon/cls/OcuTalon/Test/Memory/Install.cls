@@ -5,7 +5,10 @@
 ///   - TestModelFolderRule: ModelFolder() is the named variable's value when it is set and not empty, otherwise the manager directory's fastembed/;
 ///   - TestPresentFolder: a folder that holds the model is left alone: no download is attempted, no warning, no new file, on a first run and on a second;
 ///   - TestHasModel: a snapshot needs the model file, the tokenizer and the three configuration files;
-///   - TestDownloadImpossible: a folder that cannot be made gives one warning with the underlying error's text, the step is OK, and nothing is made.
+///   - TestDownloadImpossible: a folder that cannot be made gives one warning with the underlying error's text, the step is OK, and nothing is made;
+///   - TestDiagnosticsHoldNoSecret (Story 19.3, DW-793): the operator diagnostics of the area (the step's warning for a download that cannot run, and the
+///     embedder's error for a folder with no model) print no key, no token and no value of an environment variable of the process (a value that is a path
+///     is fine). The scanner is first shown to flag planted secrets of each kind, and the environment is read from /proc/self/environ where it exists.
 Class OcuTalon.Test.Memory.Install Extends %UnitTest.TestCase
 {
 
@@ -125,6 +128,72 @@ Method TestDownloadImpossible()
 	Do $$$AssertTrue('##class(%File).DirectoryExists(folder), "and nothing is made")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Memory).EnsureModel(folder), 1, "a download was attempted for a folder that holds no model")
 	Do ##class(OcuTalon.Install.Step).TakeWarnings()
+}
+
+/// The diagnostics print no secret (DW-793).
+Method TestDiagnosticsHoldNoSecret()
+{
+	Set fake("ZZ_FAKE_API_KEY") = "s3cretvalue99"
+	Do $$$AssertEquals(..Leaks("fell over: s3cretvalue99 was refused", .fake), "ZZ_FAKE_API_KEY", "control: a message that holds the value of a variable is flagged by the variable's name")
+	Do $$$AssertEquals(..Leaks("fell over: nothing here", .fake), "", "and one that does not is not")
+	Do $$$AssertNotEquals(..Leaks("Authorization: Bearer abcdef0123456789", .fake), "", "control: a bearer token is flagged")
+	Do $$$AssertNotEquals(..Leaks("fetch failed for hf_abcdefghijklmnop0123", .fake), "", "control: a Hugging Face token is flagged")
+	Do $$$AssertNotEquals(..Leaks("request used sk-abcdefghijklmnop0123456789", .fake), "", "control: an API key is flagged")
+	Do $$$AssertNotEquals(..Leaks("config api_key=abc123 failed", .fake), "", "control: an api_key setting is flagged")
+	Do ..Secrets(.secrets)
+	Do $$$AssertTrue($Data(secrets) > 0, "the environment of the process is read: " _ $Order(secrets("")) _ " and others")
+	Set folder = "/dev/null/zz-memory-model/"
+	Do ##class(OcuTalon.Install.Step).TakeWarnings()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Memory).Run(folder), "the step runs against a folder that cannot be made")
+	Set warnings = ##class(OcuTalon.Install.Step).TakeWarnings()
+	Do $$$AssertEquals($ListLength(warnings), 1, "and warns once")
+	Do $$$AssertEquals(..Leaks($ListGet(warnings, 1), .secrets), "", "the warning prints no key, token or variable value")
+	Set sc = ##class(OcuTalon.Memory.Embedder).Embed("a text", folder)
+	Do $$$AssertTrue($SYSTEM.Status.IsError(sc), "the embedder refuses a folder that holds no model")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "models--", "with the model's folder name: " _ $SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(..Leaks($SYSTEM.Status.GetErrorText(sc), .secrets), "", "and its error text prints no key, token or variable value")
+}
+
+/// The names of the secrets that the text holds, comma-separated: the name of each variable in secrets(name) = value whose value the text contains, and a
+/// name for each secret-shaped text (a bearer token, a key or token of a known prefix, a key, token, password or secret setting). "" when it holds none. A
+/// name is returned, never the value.
+ClassMethod Leaks(text As %String, ByRef secrets) As %String [ Private ]
+{
+	Set found = ""
+	Set name = ""
+	For {
+		Set name = $Order(secrets(name), 1, value)
+		Quit:name=""
+		If value '= "", text [ value Set found = found _ $Select(found '= "": ",", 1: "") _ name
+	}
+	For pattern = "(?i)bearer\s+\S+", "\bsk-[A-Za-z0-9_-]{16,}", "\bhf_[A-Za-z0-9]{16,}", "\bAKIA[0-9A-Z]{12,}", "(?i)(api[_-]?key|token|password|secret)\s*[=:]\s*\S+" {
+		If $Locate(text, pattern) Set found = found _ $Select(found '= "": ",", 1: "") _ "shape"
+	}
+	Quit found
+}
+
+/// The environment of this process as secrets(name) = value for each variable whose value is at least 8 characters and does not start with a slash (a path is
+/// fine): read from /proc/self/environ, so it is empty where that file does not exist. The file is read as a device, because its size is 0 for a stream.
+ClassMethod Secrets(Output secrets) [ Private ]
+{
+	Kill secrets
+	Set file = "/proc/self/environ"
+	If '##class(%File).Exists(file) Quit
+	Set current = $IO
+	Set data = ""
+	Open file:("RS"):2
+	If '$Test Quit
+	Use file
+	Read data#200000:2
+	Close file
+	Use current
+	For i = 1:1:$Length(data, $Char(0)) {
+		Set entry = $Piece(data, $Char(0), i)
+		Set name = $Piece(entry, "=", 1)
+		Set value = $Piece(entry, "=", 2, *)
+		If (name = "") || ($Length(value) < 8) || ($Extract(value) = "/") Continue
+		Set secrets(name) = value
+	}
 }
 
 /// Asserts the category and the row have the declared values.

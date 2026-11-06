@@ -28,14 +28,14 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Quit $$$OK
 }
 
-/// The rows are the 13 built-in tools: the 12 of release 1 (Tools.Names RELEASE1) and propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), sorted by name, none of them a fixture or the bridge's example agent, and the
+/// The rows are the 17 built-in tools: the 12 of release 1 (Tools.Names RELEASE1), propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1) and the four memory tools (Tools.Names SAVEMEMORY, SEARCHMEMORIES, LISTMEMORIES and FORGETMEMORY, Story 19.3), sorted by name, none of them a fixture or the bridge's example agent, and the
 /// classification, the read-only flag and the trusted-output flag of each row are those that the gate gives (Gate.ClassificationOf); for a tool that
 /// classifies by its arguments only the two flags are compared, since its classification is decided per call.
 Method TestToolRows()
 {
 	Set rows = $ClassMethod(..#GENERATOR, "ToolRows")
-	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"))
-	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1 and one for propose_persona")
+	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), $Parameter("OcuTalon.Tools.Names", "SAVEMEMORY"), $Parameter("OcuTalon.Tools.Names", "SEARCHMEMORIES"), $Parameter("OcuTalon.Tools.Names", "LISTMEMORIES"), $Parameter("OcuTalon.Tools.Names", "FORGETMEMORY"))
+	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1, one for propose_persona and one for each memory tool")
 	Set names = ""
 	Set bad = ""
 	Set iterator = rows.%GetIterator()
@@ -52,7 +52,7 @@ Method TestToolRows()
 		Do $$$AssertEquals(row.trustedOutput, +facts.trustedOutput, row.name_": the trusted-output flag is the gate's")
 	}
 	Do $$$AssertEquals(bad, "", "every row is a class of OcuTalon.Tools, so no fixture and no bridge example appears")
-	Do $$$AssertEquals($ListToString(names), $ListToString(..Sorted(released)), "the names are those of RELEASE1 and propose_persona, sorted")
+	Do $$$AssertEquals($ListToString(names), $ListToString(..Sorted(released)), "the names are those of RELEASE1, propose_persona and the memory tools, sorted")
 }
 
 /// DW-521: recent_activity is one of the 13 rows, with its source, toolset, agent, label, classification and flags, in the table as well.

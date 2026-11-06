@@ -7,7 +7,12 @@
 #   - OcuTalon.Test.Memory.Offline passes (a memory row stored with its embedding is the top VECTOR_COSINE hit for a paraphrase; AI Hub's FastEmbed
 #     embeds a document chunk into a test vector-store table from the baked folder and from a copy under the manager directory in a worker);
 #   - the install step's Run(), run again offline, returns OK, writes no warning, attempts no download (EnsureModel answers 0) and leaves the
-#     baked folder's file list the same.
+#     baked folder's file list the same;
+#   - Story 19.3: before the network is cut, OcuTalon.Test.Memory.Turns runs the memory tools through live turns of the Chat agent against the CI mock
+#     (the ChatAgent job is the same across the turns: a tool that embeds from AI Hub's callback does not crash the runner, DW-782); with the network cut,
+#     a memory is saved through MemoryOps (Commands.Submit, origin tool, no bridge context) and found by Memory.Search, the iris container is restarted
+#     (and its network cut again at once) and the memory is found again, which shows the HNSW and keyword entries survive a restart; at the end
+#     OcuTalon.Test.Memory.Volume runs (10,000 memories of one owner and 500 of another, and the plan of the recall query reads EmbeddingIdx).
 # Prints one PASS or FAIL line per check and, last, MEMORY-OFFLINE engine=<uname -m of the iris container> ok=<0|1>; exits 0 only when all pass.
 # The unit reads no web bundle at run time (the image build needs the bundle, as for every live unit). The project is unique, publishes no host port and
 # receives no keys. An EXIT trap removes the project with its volume and images. Every wait ends by an overall deadline.
@@ -28,6 +33,33 @@ finish() {
   fi
   echo "test-memory-offline: all checks passed"
   exit 0
+}
+
+# run_class <class> <chk file>: runs the test class in the stack through the %UnitTest.Manager as ci/iris.sh does, and keeps the CHK lines.
+run_class() {
+  printf '%s\n' \
+    'Set ^UnitTestRoot="/tmp/"' \
+    'Set before=$Order(^UnitTest.Result(""),-1)' \
+    'Do ##class(%UnitTest.Manager).RunTest(":'"$1"'","/noload/nodelete/norecursive")' \
+    'Set id=$Order(^UnitTest.Result(""),-1) Set inst="" If id>before Set inst=##class(%UnitTest.Result.TestInstance).%OpenId(id)' \
+    'Write !,"CHK|new|",$IsObject(inst)' \
+    'If $IsObject(inst) { Set k1="" For { Set su=inst.TestSuites.GetNext(.k1) Quit:k1=""  Set k2="" For { Set tc=su.TestCases.GetNext(.k2) Quit:k2=""  Write !,"CHK|case|",tc.Name,"|",tc.Status,"|",tc.TestMethods.Count()  Write:(tc.Status=0)&&(tc.ErrorDescription'"'"'="") !,"CHK|error|",tc.Name,"|",$Translate(tc.ErrorDescription,$Char(13,10),"  ")  Set k3="" For { Set tm=tc.TestMethods.GetNext(.k3) Quit:k3=""  Write:(tm.Status=0)&&(tm.ErrorDescription'"'"'="") !,"CHK|error|",tm.Name,"|",$Translate(tm.ErrorDescription,$Char(13,10),"  ")  Set k4="" For { Set ta=tm.TestAsserts.GetNext(.k4) Quit:k4=""  Write:ta.Status'"'"'=1 !,"CHK|assert|",ta.Status,"|",tm.Name,"|",$Translate(ta.Description,$Char(13,10),"  ") } } } } }' \
+    'Halt' | iris_script OCUTALON > "$2"
+}
+
+# check_class <class> <chk file> <what>: passes when the class ran, passed, had test methods and skipped none; <what> ends the message.
+check_class() {
+  local casename status methods skips
+  casename=$(sed -n 's/^CHK|case|\([^|]*\)|\([^|]*\)|\([^|]*\)$/\1/p' "$2" | head -n 1)
+  status=$(sed -n 's/^CHK|case|\([^|]*\)|\([^|]*\)|\([^|]*\)$/\2/p' "$2" | head -n 1)
+  methods=$(sed -n 's/^CHK|case|\([^|]*\)|\([^|]*\)|\([^|]*\)$/\3/p' "$2" | head -n 1)
+  skips=$(grep -c '^CHK|assert|2|' "$2")
+  if [ -n "$casename" ] && [ "$status" = 1 ] && [ "${methods:-0}" -gt 0 ] && [ "$skips" = 0 ]; then
+    pass "$1 passed ($methods test methods, none skipped) $3"
+  else
+    sed -n 's/^CHK|\(assert\|error\)|/  /p' "$2" | cut -c1-300
+    fail "$1 did not pass $3 (case '$casename', status '$status', $methods methods, $skips skipped)"
+  fi
 }
 
 if ! dc up -d --build > "$tmp/up.log" 2>&1; then
@@ -76,6 +108,10 @@ else
 fi
 before=$(fingerprint /opt/fastembed)
 
+# The memory tools through live turns of the Chat agent against the CI mock, while the mock is still reachable.
+run_class OcuTalon.Test.Memory.Turns "$tmp/turns.chk"
+check_class OcuTalon.Test.Memory.Turns "$tmp/turns.chk" "with the CI mock reachable (live turns of the Chat agent)"
+
 # Cut every network of the iris container.
 networks=$(docker inspect --format '{{range $name, $net := .NetworkSettings.Networks}}{{$name}} {{end}}' "$cid")
 for network in $networks; do
@@ -109,24 +145,8 @@ else
 fi
 
 # The test class, run in the stack through the %UnitTest.Manager as ci/iris.sh does, and the install step's Run().
-printf '%s\n' \
-  'Set ^UnitTestRoot="/tmp/"' \
-  'Set before=$Order(^UnitTest.Result(""),-1)' \
-  'Do ##class(%UnitTest.Manager).RunTest(":OcuTalon.Test.Memory.Offline","/noload/nodelete/norecursive")' \
-  'Set id=$Order(^UnitTest.Result(""),-1) Set inst="" If id>before Set inst=##class(%UnitTest.Result.TestInstance).%OpenId(id)' \
-  'Write !,"CHK|new|",$IsObject(inst)' \
-  'If $IsObject(inst) { Set k1="" For { Set su=inst.TestSuites.GetNext(.k1) Quit:k1=""  Set k2="" For { Set tc=su.TestCases.GetNext(.k2) Quit:k2=""  Write !,"CHK|case|",tc.Name,"|",tc.Status,"|",tc.TestMethods.Count()  Write:(tc.Status=0)&&(tc.ErrorDescription'"'"'="") !,"CHK|error|",tc.Name,"|",$Translate(tc.ErrorDescription,$Char(13,10),"  ")  Set k3="" For { Set tm=tc.TestMethods.GetNext(.k3) Quit:k3=""  Write:(tm.Status=0)&&(tm.ErrorDescription'"'"'="") !,"CHK|error|",tm.Name,"|",$Translate(tm.ErrorDescription,$Char(13,10),"  ")  Set k4="" For { Set ta=tm.TestAsserts.GetNext(.k4) Quit:k4=""  Write:ta.Status'"'"'=1 !,"CHK|assert|",ta.Status,"|",tm.Name,"|",$Translate(ta.Description,$Char(13,10),"  ") } } } } }' \
-  'Halt' | iris_script OCUTALON > "$tmp/offline.chk"
-casename=$(sed -n 's/^CHK|case|\([^|]*\)|\([^|]*\)|\([^|]*\)$/\1/p' "$tmp/offline.chk" | head -n 1)
-status=$(sed -n 's/^CHK|case|\([^|]*\)|\([^|]*\)|\([^|]*\)$/\2/p' "$tmp/offline.chk" | head -n 1)
-methods=$(sed -n 's/^CHK|case|\([^|]*\)|\([^|]*\)|\([^|]*\)$/\3/p' "$tmp/offline.chk" | head -n 1)
-skips=$(grep -c '^CHK|assert|2|' "$tmp/offline.chk")
-if [ -n "$casename" ] && [ "$status" = 1 ] && [ "${methods:-0}" -gt 0 ] && [ "$skips" = 0 ]; then
-  pass "OcuTalon.Test.Memory.Offline passed ($methods test methods, none skipped) with the network cut"
-else
-  sed -n 's/^CHK|\(assert\|error\)|/  /p' "$tmp/offline.chk" | cut -c1-300
-  fail "OcuTalon.Test.Memory.Offline did not pass with the network cut (case '$casename', status '$status', $methods methods, $skips skipped)"
-fi
+run_class OcuTalon.Test.Memory.Offline "$tmp/offline.chk"
+check_class OcuTalon.Test.Memory.Offline "$tmp/offline.chk" "with the network cut"
 
 printf '%s\n' \
   'Do ##class(OcuTalon.Install.Step).TakeWarnings()' \
@@ -149,5 +169,69 @@ if [ -n "$before" ] && [ "$before" = "$after" ]; then
 else
   fail "the baked model folder changed: '$before' became '$after'"
 fi
+
+# Story 19.3: a memory is saved through MemoryOps (Commands.Submit as origin tool, with no bridge context) and found by Memory.Search while the network is cut.
+question='who do I call about Results?'
+printf '%s\n' \
+  'Set ref=##class(OcuTalon.Test.Data.Fixture).Session("zz-mem-offline")' \
+  'Set command=##class(OcuTalon.Msg.Command.SaveMemory).%New()' \
+  'Set command.SessionRef=ref,command.IdempotencyKey="zzmemoffline000000001:1",command.Text="the contact at the Results partner is Lee"' \
+  'Set sc=##class(OcuTalon.Core.Commands).Submit(command,"tool",.result)' \
+  'Write !,"CHK|session|",ref' \
+  'Write !,"CHK|save|",$SYSTEM.Status.IsOK(sc),"|",result.Ok,"|",result.Outcome,"|",result.Ref' \
+  'Set sc=##class(OcuTalon.Memory).Search(ref,"'"$question"'",5,.rows)' \
+  'Write !,"CHK|found|",$SYSTEM.Status.IsOK(sc),"|",rows.%Size(),"|",rows.%Get(0).memoryRef' \
+  'Halt' | iris_script OCUTALON > "$tmp/offline-save.chk"
+session=$(sed -n 's/^CHK|session|//p' "$tmp/offline-save.chk" | head -n 1)
+saved=$(sed -n 's/^CHK|save|1|1|saved|//p' "$tmp/offline-save.chk" | head -n 1)
+if [ -n "$session" ] && [ -n "$saved" ] && grep -qx "CHK|found|1|1|$saved" "$tmp/offline-save.chk"; then
+  pass "a memory saved through MemoryOps with the network cut is found by Memory.Search"
+else
+  cat "$tmp/offline-save.chk"
+  fail "a memory saved through MemoryOps with the network cut was not found by Memory.Search"
+fi
+
+# The iris container restarts, still disconnected: a restart puts a container back on its network, so the network is cut again at once.
+if ! docker restart "$cid" > "$tmp/restart.log" 2>&1; then
+  cat "$tmp/restart.log"
+  die "the iris container did not restart"
+fi
+for network in $(docker inspect --format '{{range $name, $net := .NetworkSettings.Networks}}{{$name}} {{end}}' "$cid"); do
+  docker network disconnect "$network" "$cid" > /dev/null 2>&1 || fail "the network $network could not be disconnected after the restart"
+done
+left=$(docker inspect --format '{{range $name, $net := .NetworkSettings.Networks}}{{$name}} {{end}}' "$cid" | tr -d ' ')
+if [ -z "$left" ] && ! dc exec -T iris python3 -c "import socket; socket.getaddrinfo('huggingface.co', 443)" > /dev/null 2>&1; then
+  pass "the restarted iris container has no network and no name lookup"
+else
+  fail "the restarted iris container is connected to: $left"
+fi
+# The park of the Telegram items talks to the CI mock, which the cut network does not reach: the items stay as the restart made them.
+if ! LIVE_TELEGRAM=started wait_started_ready 400; then
+  start_log | tail -n 30 | cut -c1-200
+  die "the restart did not end ready within 400 s"
+fi
+pass "the restart ended ready"
+printf '%s\n' \
+  'Set sc=##class(OcuTalon.Memory).Search("'"$session"'","'"$question"'",5,.rows)' \
+  'Write !,"CHK|found|",$SYSTEM.Status.IsOK(sc),"|",rows.%Size(),"|",rows.%Get(0).memoryRef' \
+  'Set row=##class(OcuTalon.Data.Memory).RefIndexOpen("'"$saved"'")' \
+  'Write !,"CHK|row|",$IsObject(row)' \
+  'Halt' | iris_script OCUTALON > "$tmp/offline-restart.chk"
+if grep -qx "CHK|found|1|1|$saved" "$tmp/offline-restart.chk" && grep -qx 'CHK|row|1' "$tmp/offline-restart.chk"; then
+  pass "after the restart, offline, the memory is still found by Memory.Search"
+else
+  cat "$tmp/offline-restart.chk"
+  fail "after the restart, offline, the memory was not found by Memory.Search"
+fi
+
+# The memory of this check goes, and the recall query at volume runs (the class skips unless the flag is set).
+printf '%s\n' \
+  'Do ##class(OcuTalon.Test.Memory.Fixture).Purge("'"$session"'")' \
+  'Set ^OcuTalonTest("Memory","volume")=1' \
+  'Write !,"CHK|flag|1"' \
+  'Halt' | iris_script OCUTALON > /dev/null
+run_class OcuTalon.Test.Memory.Volume "$tmp/volume.chk"
+printf '%s\n' 'Kill ^OcuTalonTest("Memory","volume")' 'Write !,"CHK|flag|0"' 'Halt' | iris_script OCUTALON > /dev/null
+check_class OcuTalon.Test.Memory.Volume "$tmp/volume.chk" "with the network cut (10,000 and 500 memories, the plan reads EmbeddingIdx)"
 
 finish
