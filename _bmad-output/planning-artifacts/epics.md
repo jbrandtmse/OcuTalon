@@ -6111,6 +6111,8 @@ So that memory works offline and nothing I store leaves IRIS.
 **When** the package installs
 **Then** the package declares `fastembed==0.9.0` for the install, the memory area's install step downloads the model once into `<mgr>/fastembed/`, and `OcuTalon.Memory.Embedder` passes that folder as the package's `cache_dir` and sets `FASTEMBED_CACHE_DIR` inside its own worker before first use, by the path Story 34.1 (was 19.1) confirmed; later starts and upgrades don't download it again (FR-41, FR-57, AD-21)
 
+- DW-732: `/usr/irissys/mgr/python` is irisowner-owned (mode 555) in the base image, so the IRIS user could chmod it and replace the installed Python packages; the packages inside are root-owned and read-only (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+
 ### Story 19.3: Remember, recall, list and forget in the chat
 
 As a user,
@@ -6141,6 +6143,9 @@ So that what I know about my systems is kept in my own IRIS and comes back when 
 **When** a recall query runs
 **Then** its query plan uses the HNSW index, and memories survive a restart of IRIS or its container (NFR-16, AD-21)
 
+- DW-731: CommandsIn waits its whole TIMEOUT (120 s) on a send to a disabled owner item (SaveMemory/ForgetMemory to the disabled MemoryOps stub) until this story enables MemoryOps; a CommandsIn not_built answer for a disabled owner is the general fix (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-740: ForgetMemory carries a MemoryRef but nothing in Lane B checks that the memory belongs to the command's SessionRef, so MemoryOps must refuse another session's memory (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+
 ### Story 19.4: Answer from documents with citations
 
 As a user,
@@ -6170,6 +6175,11 @@ So that I can trust the answer and check the passage myself.
 **Given** UJ-2's runbook question with a recorded Results runbook added
 **When** the user asks what the runbook says about rotating the Results certificate
 **Then** the answer gives the steps and cites "Results runbook § Rotating the certificate", checked as an evaluation case (FR-42, FR-62, UX-DR106)
+
+- DW-720: owner ruling U-280 consistency: a reply that says 'None of your documents cover that.' carries no document citations, and a reply with document citations never says it; code decides both from the same turn's documents-tool results, and tests cover both directions (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-735: web e2e D8 and D10 (`web/e2e/documents/documents.spec.ts`) expect the real routes to answer an error while DocumentOps is disabled and go red once this story enables it; switch them to fulfilled answers (page.route) (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-739: no test executes the real Web.Documents route -> Commands.Submit -> CommandsIn path (while DocumentOps is disabled the OwnerRunning guard answers 501 first) (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-747: Data.Upload has no lifecycle beyond Take, the route's own delete and sign-out: nothing sweeps an abandoned row on a local install, a CommandsIn timeout drops the row while the AddDocument may still reach DocumentOps, and Take is at-most-once with no session check (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
 
 ### Story 19.5: Keep each online-demo session's documents and memories to itself
 
@@ -6257,6 +6267,8 @@ So that I don't have to turn them into Markdown first.
 **Given** the image with `pdfplumber==0.11.10` and `python-docx==1.1.2` pinned by Lane B's Story 34.2 (was 20.1)
 **When** Story 19.6's extraction tests and this story's tests run on the IRIS runner
 **Then** they run on that real image, with no test-setup install of either package, and pass (FR-54, AD-22, AD-23)
+
+- DW-719: UX text after Epic 40 merges (owner ruling U-279): UX-DR144 and EXPERIENCE.md Step 3 Documents 'Adding' accept 'Markdown, plain text, PDF and Word (.docx) files.' (replacing 'then PDF and Word from step 6'), with the UX assumptions' local-install ownership line (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
 
 ## Epic 20: Add documents in the web app (step 3)
 
