@@ -250,3 +250,6 @@
 2026-11-06T22:06:22Z	Story 17.6	ci_red_classified	run=42296836927 job=iris(shards-2) class=story test=OcuTalon.Test.Tools.Persona.TestProposeThroughATurn(tool_list_union:send_digest_missing)
 2026-11-06T22:06:22Z	Story 17.6	ci_red_classified	run=42296836927 job=iris(shards) class=story test=OcuTalon.Test.Checks.BeatOutcomes(TestAllClearIsGuarded,TestDigest,TestIgnore,TestTellNow:digest_notice_in_beat_tests;G2_fixture-only_rule)
 2026-11-06T22:06:22Z	Story 17.6	ci_red_classified	run=42296836927 job=iris(image) class=flake test=OcuTalon.Test.Schedule.Heartbeat.TestAfterAllTestsNothingSaved(DW-639;passed_on_2a0a136d_with_Digest_enabled) rerun=the_rework_head_run
+2026-11-06T22:06:51Z	Epic 17	integrated_forward	feature=9683c1f0 head=d6db28c5 conflicts_resolved=none note=v1.0.2_merge-back;src/ocutalon/csp_untracked
+2026-11-06T22:06:51Z	Story 17.6	rework_opened	cycle_iteration=4 iteration=2 trigger=ci items=CI:Test.Tools.Persona_union,CI:Test.Checks.BeatOutcomes_G2_fixture scope_baseline=d6db28c5 tracker=done->in-progress(sanctioned)
+2026-11-06T22:06:51Z	Story 17.6	stage_spawned	stage=implement spawn_at=2026-11-06T22:06:51Z model=sonnet agent_name=17-6-send-the-daily-digest-at-the-set-time-and-on-request-implement-4 cycle_iteration=4

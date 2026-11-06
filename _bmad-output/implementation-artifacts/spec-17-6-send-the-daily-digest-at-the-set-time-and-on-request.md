@@ -2,7 +2,7 @@
 title: 'Story 17.6: Send the daily digest at the set time and on request'
 type: 'feature'
 created: '2026-11-06'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '566c9e64ef4f4a9e22168f0ec4ec52682802941f'
 baseline_commit: '073656c952dc0aefa9ee7b35ff83739592ef2501'
 review_loop_iteration: 0
@@ -333,8 +333,12 @@ Rejected (code review 2):
 - Given a tell-now message in the paired chat, when the user presses **Got it** there, then one `GotIt` command is submitted with origin `telegram`. Given a press from another chat, nothing is submitted. Given a `handled` notification, then the message is edited in place to "Marked as handled at {time}" with the button removed.
 - [x] [Review][Patch] AD-14 option (a) conditions (Design Notes, "Code review 1's two items"): channel-independent sends (every reachable channel attempted after a failure; each failure recorded and visible in Visual Trace); the `Sent` record per channel (which channels got it) so a later window repeats nothing to them and retries only a failed channel; a routing row equivalent to `Notify`'s rule-log row (AD-26); tests: `Own` against `Notify`'s actual generic-route targets, and one channel failing while the others receive and the next window sends only to the failed channel. Storage changes are appended properties only.
 - [x] [Review][Patch] DW-815 option (2): `TelegramOut` splits a digest longer than 4096 characters at line boundaries, never mid-line, parts in order; tests: a demo-sized session fits in one message; a 200-row session splits cleanly with no lost line. The needs-you cap and its overflow line stay.
+- [ ] [CI] iris (shards-2), shard lane-a@rest, run 42296836927 on the integrate-forward head b94508c9: `OcuTalon.Test.Tools.Persona` `TestProposeThroughATurn` red ("the second request offers propose_persona with the other nine tools of Chat"). Epic 40's test pins Chat's offered tool names from before `send_digest`. Union fix, in Q7's shape: insert `send_digest` into that test's sorted tool-name list and extend the assertion's message ("and, since Story 17.6, send_digest"; "ten" becomes the right count). Nothing else in the file.
+- [ ] [CI] iris (shards), shard lane-a@Checks,Install,Watch, same run: `OcuTalon.Test.Checks.BeatOutcomes` `TestAllClearIsGuarded`, `TestDigest`, `TestIgnore`, `TestTellNow` red ("the session's web chat got one notice", "no notice is made", "no Delivery row is recorded"): Epic 39's beat tests send ticks, and since the Q1 Tick forward an enabled `Digest` finds their fixture sessions due and sends a digest. Fix under the G2 ruling (orchestrator, fixture-only): give those tests' fixture sessions no digest due, the way G2 did in `Test.Checks.Heartbeat` `TestDisabledItemIsReportedOnce` (the session's `CreatedAt` far ahead), with every assertion and tick time unchanged. If a fixture-only fix cannot work for a test, HALT with an intent gap naming it (an assertion change is the orchestrator's). Then run every `Test.Checks.*` class and `Test.Schedule.Heartbeat` on the merged tree.
 
 ## Spec Change Log
+
+- 2026-11-06 lead: rework iteration 2 opened for two CI story reds on the integrate-forward head b94508c9 (Test.Tools.Persona union; Test.Checks.BeatOutcomes digest notices, G2 fixture rule). The image shard's Heartbeat red is the DW-639 flake. The branch is now merged forward onto feature 9683c1f0.
 
 - 2026-11-06 lead: AD-14 option (a) and DW-815 option (2) ruled by the Planner; AD-14's interim note written into the spine; Q4 (b) amended; DW-820 filed (the Own copy, owner 18.2).
 
