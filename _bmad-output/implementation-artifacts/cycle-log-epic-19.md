@@ -40,3 +40,5 @@
 2026-11-06T09:51:35Z	Story 19.2	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=slice_empty(DW-784,DW-794..797_terminal_at_emission) model=claude-opus-5-5
 2026-11-06T09:55:30Z	Story 19.2	smoke_complete	method=cli(live:memory-offline_fresh_throwaway_network_cut) result=pass iterations=1 defects_caught=0 evidence=13_PASS_lines,MEMORY-OFFLINE_engine=aarch64_ok=1,209s,tag_e19s2s(torn_down) model=claude-opus-5-5
 2026-11-06T10:14:23Z	Story 19.2	fresh_check	env=fresh_throwaway(ci/iris.sh,tag_e19s2f) tests=5_classes+4_static result=pass order=forward,reverse note=Memory_shard_piece_fwd+rev;Install.Registry,Bridge.CodeRules_each_fresh;test-release-sequence,test-rehearsal,test-ci-config,test-boundaries_static
+2026-11-06T10:17:06Z	Epic 19	epic_context_compiled	sha=334723bb reason=planning_artifact_newer(19.2_done,dw_bullets) model=opus words=1784
+2026-11-06T10:17:06Z	Story 19.3	stage_spawned	stage=plan spawn_at=2026-11-06T10:17:06Z model=opus agent_name=19-3-remember-recall-list-and-forget-in-the-chat-plan-1 cycle_iteration=1
