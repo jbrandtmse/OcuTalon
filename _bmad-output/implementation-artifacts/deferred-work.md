@@ -4321,3 +4321,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-4-apply-model-price-budget-and-zone-changes-through-the-bridge.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Decide.SettingText reads DecisionTokenBudget/RequestTokenLimit as written in its own job; Budget.State reads the cap live; the new InstanceZone row says no restart; the guide is contended with Epic 40, which the lead limited to the InstanceZone row
 - 2026-11-06T02:33:27Z status=wontfix-accepted owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=cr note=reopen_if=bridge-guide Settings intro still names only ToolClassification and ApprovalRole as read live when DW-728's fold-in pass edits it
+
+### DW-779: docs/install-ipm.md's two sample install logs have no STEP Digest OK line after STEP Demo OK (Story 17.5 adds the Digest step to Registry.Order())
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docs/install-ipm.md:165; no test compares the sample logs with a real start
+- 2026-11-06T08:40:46Z status=routed owner=burndown by=harvest note=fix-pack-sized: two one-line inserts; docs/** is contended by Epic 11 (README and docs), so the burn-down story checks Epic 11's diff first
