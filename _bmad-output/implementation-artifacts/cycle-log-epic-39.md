@@ -269,3 +269,5 @@
 2026-11-06T16:41:21Z	Story 39.8	committed	sha=f8045439 submodules= ci=pending runs=42254603949,42254604101 pushed=true amendments=epics.md_Story_39.8_inserted(split) footprint_extensions=none
 2026-11-06T16:41:21Z	Story 39.8	story_cycle	plan_to_commit_min=82 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-06T16:41:21Z	Story 39.5	rework_opened	cycle_iteration=2 iteration=1 trigger=high items=HIGH_save-then-run_202_case(39.8_fix),DW-812 scope_baseline=pending
+2026-11-06T16:41:21Z	Epic 39	ruling	question=39.5_rework_implement_while_f8045439_CI_runs choice=implement_now;push_only_after_green rejected=wait why=orchestrator_ruling_04:1xZ_applied_again;Planner_full_speed category=decide policy=5086036
+2026-11-06T16:41:21Z	Story 39.5	stage_spawned	stage=implement spawn_at=2026-11-06T16:41:21Z model=sonnet agent_name=39-5-implement-2 cycle_iteration=2
