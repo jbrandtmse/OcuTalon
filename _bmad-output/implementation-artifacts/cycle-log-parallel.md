@@ -2150,3 +2150,7 @@
 2026-11-06T03:47:57Z	Epic 34	decision_sheet_skipped	reason=empty(decisions_for_user=none)
 2026-11-06T03:47:57Z	Epic 34	worktree_removed	path=.worktrees/epic-34
 2026-11-06T03:47:57Z	Epic 34	epic_branches_deleted	local+remote=OCT-epic34
+2026-11-06T03:50:07Z	Epic 11	runner_redispatched	runner=a7da9a9056f528626 model=opus lane=B slot=ocutalon-slot-b prompt=prompts/redispatch-epic-11-switch.md scope=11.24_part_merge(integrate_forward_over_Epic_34) common=prompts/switch-20261106-common.md
+2026-11-06T03:50:07Z	Epic 17	runner_redispatched	runner=a69a13ff12f8408f8 model=opus lane=A slot=ocutalon-slot-a prompt=prompts/redispatch-epic-17-switch.md scope=17.4_smoke+fresh+push,17.5-17.7 applies=planner_ruling_02:37:12Z(17.5_text,DW-771)
+2026-11-06T03:50:07Z	Epic 39	runner_redispatched	runner=ac3a11fec82024147 model=opus lane=D slot=ocutalon-slot-d prompt=prompts/redispatch-epic-39-switch.md scope=integrate_forward,39.2,39.5,close waiting_on_40=released(merged_0721083f)
+2026-11-06T03:50:07Z	Epic 19	dispatch_blocked	reason=feature_pending runs=42158625231,42158625184 head=eb6e2726(record_bd9b9de8) note=lane_C_provisions_on_green
