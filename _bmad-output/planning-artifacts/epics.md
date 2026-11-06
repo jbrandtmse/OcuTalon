@@ -4797,7 +4797,7 @@ As a judge,
 I want the README to show what was measured in the release evaluations, next to what makes OcuTalon interesting,
 So that I can see its results and costs without running the evaluations myself.
 
-[ADDED 2026-11-06, Epic 11 fix-forward (owner decision relayed by the Contest Planner at 2026-11-06T01:15Z; the public text was ruled by the Planner at 01:16:24Z and 01:19:35Z): the exact text is the Planner's file `/Users/jbrandt/git/contests/contest-49/collateral/readme-11-25-measured.md`, lines 9-27 (its HTML comment is not part of the README; sha256 of those lines bcabdc9cb70c3e915ba78627e3d1f21dab11e425741f327e038ee9dd19a44b68). The numbers come from rc4's release-candidate evaluation (SM-2 9 of 10, SM-1 19 of 22 with target 90%), the 1.0.2 persona sweeps and the online demo's usage log; they are used exactly as given.]
+[ADDED 2026-11-06, Epic 11 fix-forward (owner decision relayed by the Contest Planner at 2026-11-06T01:15Z; the public text was ruled by the Planner at 01:16:24Z and 01:19:35Z): the exact text is the Planner's file `../collateral/readme-11-25-measured.md` (the contest folder's collateral, beside the repository; outside git), lines 9-27 (its HTML comment is not part of the README; sha256 of those lines bcabdc9cb70c3e915ba78627e3d1f21dab11e425741f327e038ee9dd19a44b68). The numbers come from rc4's release-candidate evaluation (SM-2 9 of 10, SM-1 19 of 22 with target 90%), the 1.0.2 persona sweeps and the online demo's usage log; they are used exactly as given.]
 
 **Acceptance Criteria:**
 
@@ -4811,7 +4811,7 @@ So that I can see its results and costs without running the evaluations myself.
 
 **Given** `docker/tests/test-readme.sh`
 **When** it runs
-**Then** it pins the `## Measured` heading, each of the table's eight row labels, and the section's position between "What's interesting" and "What you can use it for", and fails when any of them is removed, renamed or moved; it pins no numbers or wording beyond those, and the existing pins are untouched
+**Then** it pins the `## Measured` heading, each of the table's eight row labels, and the section's position between "What's interesting" and "What you can use it for", and fails when any of them is removed, renamed or moved; it pins no numbers or wording beyond those, and the existing pins are kept: the one that lists the README's first sections in order (the `top` rule) is updated in place to include Measured third, and none is deleted or weakened [AMENDED 2026-11-06, Story 11.25 plan, intent-preserving: it read "and the existing pins are untouched"; the `top` rule fails on any fifth section in the first five, so the position pin is that rule widened in place, as 11.24 updated its pins in place]
 
 **Given** the README already states one of the table's numbers
 **When** it states it differently
