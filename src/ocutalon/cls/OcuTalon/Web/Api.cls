@@ -48,8 +48,9 @@
 ///     End is 500 server_error, which neither expires the cookie nor signs out, so the session stays resumable (EndSession).
 ///   - The heartbeat routes (Epic 39; AD-1, AD-4, AD-12, AD-13, AD-19, AD-26; FR-63, FR-66), beside the persona routes, for the CSP session's session
 ///     only (a sessionRef in a body is ignored). GET /v1/heartbeat answers 200 with SettingsOps.Heartbeat: the person's settings and the public view of
-///     their HeartbeatBeat row (the view of the heartbeat event), with traceUrl, the checklist and sample (true only for the online demo's unsaved sample);
-///     a read that fails is 500 server_error. PUT /v1/heartbeat takes {on (boolean), interval (number), from, to, checklist (strings)} and submits a
+///     their HeartbeatBeat row (the view of the heartbeat event), with traceUrl, the checklist, sample (true only for the online demo's unsaved sample),
+///     today ({"checkIns","costUSD"}: the session's heartbeat check-ins and their cost in the daily cap's day), lastFallbackReason (only after a fallback beat)
+///     and onlineDemo (boolean); a read that fails is 500 server_error. PUT /v1/heartbeat takes {on (boolean), interval (number), from, to, checklist (strings)} and submits a
 ///     SetHeartbeat (origin web_user): Ok 200 {"result":"done","message","on","interval","from","to","checklist"} as saved; a body of another shape 400
 ///     bad_heartbeat and a checklist over the limit 400 bad_checklist, before anything is submitted; bad_on, bad_interval, bad_hours and bad_checklist
 ///     400 with SettingsOps' message; not_built 501; any other outcome 500 not_saved with the owner's message. POST /v1/heartbeat/run never reads the

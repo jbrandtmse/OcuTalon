@@ -121,6 +121,7 @@ Method TestGetDefaults()
 	Set answer = {}.%FromJSON(body)
 	Do $$$AssertEquals(answer.on_"|"_answer.interval_"|"_answer.from_"|"_answer.to_"|"_answer.checklist_"|"_answer.sample, "1|30|08:00|20:00||0", "the defaults")
 	Do $$$AssertEquals(answer.%GetTypeOf("on")_"|"_answer.%GetTypeOf("interval")_"|"_answer.%GetTypeOf("sample"), "boolean|number|boolean", "with their JSON types")
+	Do $$$AssertEquals(answer.today.%ToJSON()_"|"_answer.onlineDemo_"|"_answer.%GetTypeOf("onlineDemo"), "{""checkIns"":0,""costUSD"":0}|0|boolean", "today is empty and onlineDemo is false")
 	Do ..AssertNoPrivate(body, session)
 	Do $$$AssertEquals(..KeyValues(session), "(none)|(none)|(none)|(none)|(none)", "and nothing was written")
 }
@@ -136,6 +137,7 @@ Method TestGetOnlineDemoSample()
 	Do $$$AssertEquals(response.Status, "200 OK", "200")
 	Set answer = {}.%FromJSON(body)
 	Do $$$AssertEquals(answer.on_"|"_answer.interval_"|"_answer.sample, "0|30|1", "off, 30 minutes, the sample")
+	Do $$$AssertEquals(answer.onlineDemo_"|"_answer.%GetTypeOf("onlineDemo")_"|"_answer.today.checkIns, "1|boolean|0", "onlineDemo is true and today is empty")
 	Do $$$AssertEquals(answer.checklist, "Tell me if an Orders incident is still open or waiting for my approval."_$Char(10)_"Remind me of anything due in the next hour."_$Char(10)_"Ignore everything else.", "the checklist is the three-line sample")
 	Do $$$AssertEquals(..KeyValues(session), "(none)|(none)|(none)|(none)|(none)", "and nothing was written")
 }
@@ -432,6 +434,12 @@ Method TestRunSendsThenCoolsDown()
 		Hang 0.5
 	}
 	Do $$$AssertTrue($IsObject(decision), "Intake recorded the beat's decision")
+	// The real beat is counted: the GET's today holds its Item and the sum of the session's heartbeat Usage rows.
+	Set answer = {}.%FromJSON(..Get(.response))
+	Set sum = ##class(%SQL.Statement).%ExecDirect(, "SELECT SUM(CostUSD) AS Total FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef = ? AND Channel = 'heartbeat'", session)
+	Do sum.%Next()
+	Do $$$AssertTrue(answer.today.checkIns >= 1, "today counts the beat: "_answer.today.checkIns)
+	Do $$$AssertEquals(+answer.today.costUSD, +sum.%Get("Total"), "and today's cost is the sum of the session's heartbeat Usage rows")
 }
 
 /// The outcomes of Checks through the probe: sent is 202; cooldown and backoff are 409 with their sentence (the time in the instance zone, "on"

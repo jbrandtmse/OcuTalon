@@ -311,17 +311,18 @@ describe('COLLECTIONS', () => {
     assert.deepEqual(Object.keys(COLLECTIONS).sort(), [...types].sort(), 'and nothing else is in the table');
   });
 
-  it('accepts a heartbeat event (Story 39.7): its cursor advances and the page keeps every collection as it was', () => {
+  it('keeps the latest heartbeat event (Story 39.5): the cursor advances, the payload is replaced and nothing else changes', () => {
     assert.deepEqual(COLLECTIONS['heartbeat'], { collection: 'heartbeat', key: null });
     const store = fromSnapshot(snapshot());
-    const result = apply(store, [
-      event('session', 6, 'heartbeat', { on: true, interval: 30, lastBeatAt: '2030-01-01T10:00:00Z' }),
-      event('session', 7, 'heartbeat', { on: false, interval: 60, lastOutcome: 'ignore' }),
-    ]);
+    assert.equal(store.heartbeat, undefined, 'the snapshot carries none');
+    const first = apply(store, [event('session', 6, 'heartbeat', { on: true, interval: 30, lastBeatAt: '2030-01-01T10:00:00Z' })]);
+    assert.deepEqual(first.store.heartbeat, { on: true, interval: 30, lastBeatAt: '2030-01-01T10:00:00Z' }, 'the payload is kept');
+    const result = apply(first.store, [event('session', 7, 'heartbeat', { on: false, interval: 60, lastOutcome: 'ignore' })]);
     assert.equal(result.reload, false, 'no reload');
     assert.equal(result.epochChanged, false);
     assert.equal(result.store.cursors.session, 7, 'the session cursor is at the last heartbeat event');
-    assert.deepEqual({ ...result.store, cursors: store.cursors }, store, 'and nothing else in the store changed');
+    assert.deepEqual(result.store.heartbeat, { on: false, interval: 60, lastOutcome: 'ignore' }, 'the later payload replaces the earlier one');
+    assert.deepEqual({ ...result.store, cursors: store.cursors, heartbeat: undefined }, store, 'and nothing else in the store changed');
   });
 
   it('keys the entities the way the design says', () => {

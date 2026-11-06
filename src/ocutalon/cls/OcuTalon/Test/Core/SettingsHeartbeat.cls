@@ -10,6 +10,10 @@
 ///   - TestNoSession, TestKeyWriteFails: no session and a failed key write change no key;
 ///   - TestHeartbeatRead: the read, with defaults, the online demo's sample, saved values, the row's view, another session's row and a row of a
 ///     Ref that differs only in case, and the cache;
+///   - TestHeartbeatToday: today holds the session's heartbeat check-ins (distinct Items) and their cost in the cap's day, and nothing of yesterday, of
+///     another session or of another channel;
+///   - TestFallbackReason: lastFallbackReason is present only for a fallback beat whose decision is the session's own and names a reason;
+///   - TestOnlineDemoFlag: onlineDemo is a boolean that follows the public setting, both ways;
 ///   - TestAppliesWithinSixtySeconds: Checks.Beat.Values reads the saved values at once in the writing process and after the cache window in another;
 ///   - TestPersonKeysAreGuarded: the guarded write accepts the five heartbeat keys of a 22-character Ref and nothing else of the family.
 Class OcuTalon.Test.Core.SettingsHeartbeat Extends %UnitTest.TestCase
@@ -24,6 +28,9 @@ Parameter NAMES = "on,interval,from,to,checklist";
 /// The Refs of the fixture sessions of the run, comma-separated.
 Property Refs As %String(MAXLEN = "");
 
+/// The Refs of the run's fixture decisions (Fixture.Decision), comma-separated; the usage rows are recorded under the fixture sessions' Refs.
+Property Rows As %String(MAXLEN = "");
+
 /// The public setting onlineDemo before the tests, "" when it was absent.
 Property SavedOnline As %String;
 
@@ -35,6 +42,7 @@ Method OnBeforeAllTests() As %Status
 	Kill ^OcuTalonTest("SettingsOpsProbe")
 	Set ..Number = $Increment(^OcuTalonTest("SettingsHeartbeat", "n"))
 	Set ..Refs = ""
+	Set ..Rows = ""
 	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Quit $SYSTEM.Status.OK()
@@ -55,6 +63,7 @@ Method OnAfterAllTests() As %Status
 		If ref '= "" Do ##class(OcuTalon.Core.SettingsOps).ForgetPerson(ref)
 	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+	If ..Rows '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Rows)
 	For i = 1:1:$Length(..Refs, ",") {
 		Set ref = $Piece(..Refs, ",", i)
 		If ref '= "" Do ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexDelete(ref)
@@ -295,7 +304,7 @@ Method TestHeartbeatRead()
 	Set session = ..Session("read")
 	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
 	Do $$$AssertStatusOK(sc, "the read of a session with no keys has no error")
-	Do $$$AssertEquals(heartbeat.%ToJSON(), "{""on"":true,""interval"":30,""from"":""08:00"",""to"":""20:00"",""checklist"":"""",""sample"":false}", "the defaults, with no member of a row")
+	Do $$$AssertEquals(heartbeat.%ToJSON(), "{""on"":true,""interval"":30,""from"":""08:00"",""to"":""20:00"",""checklist"":"""",""sample"":false,""today"":{""checkIns"":0,""costUSD"":0},""onlineDemo"":false}", "the defaults, with no member of a row")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
@@ -375,6 +384,98 @@ Method TestHeartbeatRead()
 	Do ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexDelete(upper)
 }
 
+/// Today (Story 39.5): the session's heartbeat Usage rows of the cap's day, as {"checkIns", "costUSD"}. With no row it is 0 and 0. With three rows of two
+/// Items today it is 2 and their sum; a row of yesterday (its last second), one of another session and one of channel web are not counted.
+Method TestHeartbeatToday()
+{
+	Do ..Reset()
+	Set session = ..Session("today")
+	Set other = ..Session("todayother")
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
+	Do $$$AssertStatusOK(sc, "the read has no error")
+	Do $$$AssertEquals(heartbeat.today.%ToJSON(), "{""checkIns"":0,""costUSD"":0}", "no heartbeat Usage row: 0 check-ins and 0 cost")
+	Do $$$AssertEquals(heartbeat.today.%GetTypeOf("checkIns")_"|"_heartbeat.today.%GetTypeOf("costUSD"), "number|number", "both are numbers")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set date = $Piece(##class(OcuTalon.Data.Time).ToLocal(now), "T", 1)
+	Set yesterday = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).FromLocal(date_"T00:00:00"), -1)
+	Do $$$AssertNotEquals(yesterday, "", "control: the last second of yesterday is worked out")
+	Do ..Usage(session, "zzItemA"_..Number, "heartbeat", 0.001, now)
+	Do ..Usage(session, "zzItemA"_..Number, "heartbeat", 0.0025, now)
+	Do ..Usage(session, "zzItemB"_..Number, "heartbeat", 0.0005, now)
+	Do ..Usage(session, "zzItemC"_..Number, "heartbeat", 0.5, yesterday)
+	Do ..Usage(other, "zzItemD"_..Number, "heartbeat", 0.7, now)
+	Do ..Usage(session, "zzItemE"_..Number, "web", 0.9, now)
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
+	Do $$$AssertStatusOK(sc, "the read has no error with rows")
+	Do $$$AssertEquals(heartbeat.today.checkIns, 2, "two Items today")
+	Do $$$AssertEquals(+heartbeat.today.costUSD, 0.004, "and the sum of the session's three heartbeat rows today")
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(other, .sc)
+	Do $$$AssertEquals(heartbeat.today.checkIns_"|"_+heartbeat.today.costUSD, "1|.7", "another session counts its own row only")
+	Set today = ##class(OcuTalon.Data.Ownership).HeartbeatToday("", .sc)
+	Do $$$AssertStatusNotOK(sc, "a read of no session has an error status")
+	Do $$$AssertEquals(today.%ToJSON(), "{}", "and answers {}")
+	Set bounded = ..Session("todaybounds")
+	Set start = ##class(OcuTalon.Bridge.Time).DayStartUtc(date)
+	Set finish = ##class(OcuTalon.Bridge.Time).DayEndUtc(date)
+	Do $$$AssertEquals(start, ##class(OcuTalon.Data.Time).FromLocal(date_"T00:00:00"), "control: the day starts where the cap's day starts")
+	Do ..Usage(bounded, "zzItemF"_..Number, "heartbeat", 0.1, start)
+	Do ..Usage(bounded, "zzItemG"_..Number, "heartbeat", 0.2, finish)
+	Do ..Usage(bounded, "", "heartbeat", 0.3, now)
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(bounded, .sc)
+	Do $$$AssertEquals(heartbeat.today.checkIns, 1, "the first instant of the day counts, the first instant of the next day does not, and a row with no Item is no check-in")
+	Do $$$AssertEquals(+heartbeat.today.costUSD, 0.4, "and the row with no Item adds its cost")
+}
+
+/// The last fallback reason (Story 39.5): present, as a string, only when the row's last beat was a fallback and the session's own decision of it
+/// names a reason; absent for a beat that was no fallback, for another session's decision, for a decision with no reason and for a decision that is gone.
+Method TestFallbackReason()
+{
+	Do ..Reset()
+	Set session = ..Session("fallback")
+	Set other = ..Session("fallbackother")
+	Set own = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", ##class(OcuTalon.Data.Time).NowUtc(), {"FallbackReason":"timeout"})
+	Set ..Rows = ..Rows_$Select(..Rows = "": "", 1: ",")_own
+	Set foreign = ##class(OcuTalon.Test.Data.Fixture).Decision(other, "decide", ##class(OcuTalon.Data.Time).NowUtc(), {"FallbackReason":"error"})
+	Set ..Rows = ..Rows_","_foreign
+	Set quiet = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", ##class(OcuTalon.Data.Time).NowUtc())
+	Set ..Rows = ..Rows_","_quiet
+	Do ..BeatRow(session, 1, own)
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
+	Do $$$AssertStatusOK(sc, "the read has no error")
+	Do $$$AssertEquals(heartbeat.lastFallbackReason, "timeout", "a fallback beat names its decision's reason")
+	Do $$$AssertEquals(heartbeat.%GetTypeOf("lastFallbackReason"), "string", "as a string")
+	Do $$$AssertEquals(heartbeat.%ToJSON() [ own, 0, "and the decision's Ref is not in the answer")
+	Do ..BeatRow(session, 0, own)
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
+	Do $$$AssertEquals(heartbeat.%IsDefined("lastFallbackReason"), 0, "a beat that was no fallback has no reason")
+	Do ..BeatRow(session, 1, foreign)
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
+	Do $$$AssertEquals(heartbeat.%IsDefined("lastFallbackReason"), 0, "another session's decision gives no reason")
+	Do ..BeatRow(session, 1, quiet)
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
+	Do $$$AssertEquals(heartbeat.%IsDefined("lastFallbackReason"), 0, "a decision with no reason gives none")
+	Do ..BeatRow(session, 1, "zzNoSuchDecision")
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
+	Do $$$AssertEquals(heartbeat.%IsDefined("lastFallbackReason"), 0, "and a decision that does not exist gives none")
+}
+
+/// onlineDemo (Story 39.5): a boolean that follows the public setting, true while it is on and false while it is off or empty. The setting is put
+/// back by OnBeforeOneTest and OnAfterAllTests.
+Method TestOnlineDemoFlag()
+{
+	Do ..Reset()
+	Set session = ..Session("flag")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
+	Do $$$AssertEquals(heartbeat.onlineDemo_"|"_heartbeat.%GetTypeOf("onlineDemo"), "1|boolean", "on: true, a boolean")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
+	Do $$$AssertEquals(heartbeat.onlineDemo_"|"_heartbeat.%GetTypeOf("onlineDemo"), "0|boolean", "0: false, a boolean")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Set heartbeat = ##class(OcuTalon.Core.SettingsOps).Heartbeat(session, .sc)
+	Do $$$AssertEquals(heartbeat.onlineDemo, 0, "empty: false")
+}
+
 /// The saved values apply within 60 seconds: CACHESECONDS is 60, Checks.Beat.Values (the consumer) reads the new values at once in the writing
 /// process, and in another process once its cache entry is 60 seconds old.
 Method TestAppliesWithinSixtySeconds()
@@ -446,6 +547,27 @@ Method Session(name As %String) As %String [ Private ]
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session(..User(name))
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
+}
+
+/// A Usage row of the session on the channel, for the Item, with the cost, recorded at the UTC time. It is recorded under the session's Ref, so that
+/// OnAfterAllTests removes it with the session.
+Method Usage(sessionRef As %String, itemId As %String, channel As %String, cost As %Numeric, at As %String) [ Private ]
+{
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(sessionRef, sessionRef, {"ItemId":(itemId),"Channel":(channel),"CostUSD":(cost),"RecordedAt":(at)})
+}
+
+/// The session's HeartbeatBeat row with LastFallback and LastDecisionRef set (the row is made when it is not there); OnAfterAllTests removes it.
+Method BeatRow(sessionRef As %String, fallback As %Boolean, decisionRef As %String) [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(sessionRef)
+	If '$IsObject(row) {
+		Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
+		Set row.SessionRef = sessionRef
+	}
+	Set row.LastOutcome = "fallback"
+	Set row.LastFallback = fallback
+	Set row.LastDecisionRef = decisionRef
+	Do $$$AssertStatusOK(row.%Save(), "the session's row is saved")
 }
 
 /// Sends a SetHeartbeat with the values to the probe and returns its CommandResult.

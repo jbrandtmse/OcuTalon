@@ -2,10 +2,10 @@
 title: 'Story 39.5: The Heartbeat checklist card, and Run the heartbeat now'
 type: 'feature'
 created: '2026-11-06'
-status: 'ready-for-dev'
-baseline_revision: '2eed481455fa24140e30fde9a10b2eaf498ca441'
+status: 'done'
+baseline_revision: 'e6036799c9198fef3db3b5a78289eb4250a4eb68'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred: []
@@ -205,6 +205,40 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-06 — Review pass
+- verdicts: 30 findings — high 0, medium 8, low 12, false 10, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: one failed read removes the card, Edit and the Saved line — the matrix row "Live update" says a failed read leaves the section heading alone and reads again on the next event; PC11 and PC17 pin the same behavior for Persona.
+  - `[low]` `[reject]` Blind: Today can stay stale because the read key is the event payload's JSON — each real beat's payload carries new beat times and cost, so the key moves on every tick; an identical-payload event is not reachable on the real stack, and a timer would add a path the spec excludes.
+  - `[low]` `[patch]` Blind: the `nearMidnight` doc says 20 minutes, the code and skip text say 40 — the comment now says 40.
+  - `[medium]` `[patch]` Blind: TestHeartbeatToday has no day-boundary rows and builds its day with the implementation's own helpers — it now also inserts rows at `Bridge.Time.DayStartUtc` (counted) and `DayEndUtc` (not counted) and one with no ItemId, and asserts the day start equals `Data.Time.FromLocal`; mutation `<` to `<=` goes red. The rollover race of a test running within a second of local midnight is low and not guarded.
+  - `[low]` `[patch]` Blind: the counter borrows Persona's "1,000" with nothing tying it to `CHECKLISTMAX` — `heartbeat-card-view.test.mjs` now pins `counterText('')` to Beat.cls `CHECKLISTMAX`.
+  - `[low]` `[reject]` Blind: HeartbeatApi compares the GET with a later SUM — the Decision row the test waits for is recorded after the beat's Usage rows and the marker is an ignore (no Act turn), so no later Usage row arrives; the spec fixes `at least 1`.
+  - `[medium]` `[patch]` Blind: no component-level coverage of the sample save-then-run chain, the cooldown logic and the refused PUT — covered at the browser surface by HC10, HC10b and HC7 (a mutation of the PUT step turns HC7 and HC10b red).
+  - `[low]` `[patch]` Blind: the `Rows` property comment names the wrong rows — it now says it holds the fixture decisions' Refs.
+  - `[false]` `[reject]` Edge: a failed Usage read makes the GET 500 — the matrix row "GET today" says a failed read is 500 server_error, as for any GET read.
+  - `[low]` `[reject]` Edge: HeartbeatToday has no Try/Catch at the date range edge (9999-12-31) — not reachable by an instance clock in this product's life.
+  - `[false]` `[reject]` Edge: the Today line hides a cost at 0 check-ins — the matrix row "Today line" says none at 0, and the Design Notes give the reason (`formatCost(0)`).
+  - `[false]` `[reject]` Edge: a 409 backoff does not hold Run — the matrix row "Run" says 409 cap, nokey, empty and backoff show the server's message under the button; only `cooldown` holds the button.
+  - `[false]` `[reject]` Edge: a stored interval or hour outside the selects' lists — `SettingsOps.HeartbeatProblem` refuses any interval outside `Checks.Beat` INTERVALS and any hour that is not a quarter hour, so no stored value is off the lists.
+  - `[false]` `[reject]` Edge: an on state with an unlisted interval gives no state line — same evidence; the server accepts the six intervals only.
+  - `[false]` `[reject]` Edge: only one of from and to set — the server accepts both empty or both set only.
+  - `[low]` `[reject]` Edge: the HeartbeatApi SUM race — same as the Blind row for it.
+  - `[low]` `[reject]` Edge: an identical-payload event gives no re-read — same as the Blind row for Today; also see the intent decision recorded under Design Notes (the key is the payload's JSON).
+  - `[false]` `[reject]` Edge: the Heartbeat doc says settings are returned all the same, while the GET answers 500 on an error status — the doc sentence is the existing one about the returned object; the 500 is the specified behavior (Api.ReadHeartbeat, unchanged).
+  - `[medium]` `[patch]` Gap: no test drives Run's refusal and failure paths or the failed save of the sample — added HC10 (409 cooldown, 409 empty, 500) and HC10b (a refused PUT of the sample sends no POST); HC10b went red under the AC6 mutation.
+  - `[medium]` `[patch]` Gap: Save's bad_hours, bad_interval, bad_on and its 500 are unpinned in the browser — added HC3b.
+  - `[low]` `[patch]` Gap: Esc inside the drawer band is untested for the new card — added HC9b, the Heartbeat form of PC7b.
+  - `[medium]` `[patch]` Gap: HeartbeatToday's day bounds, the empty-ItemId rule and the error propagation are unpinned — the bounds and the empty-ItemId rows are added to TestHeartbeatToday (same patch as the Blind boundary row); the error-propagation line (`Set sc = todayStatus`) stays untested because a failing seam needs production code, which `wontfix-accepted`, reopen_if a second Usage-backed member joins the GET.
+  - `[medium]` `[patch]` Gap: HC8's check-in cases can lose to a skip row that the real tick writes for the default-on account — each case now answers `lastSkipAt` null and an empty `lastSkipReason` beneath its own members.
+  - `[medium]` `[patch]` Gap: HC5 stamps the cooldown start before the setup runs — it is now stamped in the `before` step, 60 s back, so the held window is not eaten by the sign-in. HC5 also failed in this pass from the noModelKey event that the status monitor publishes after HC4's key restore; HC4 is now the last case of the file.
+  - `[low]` `[patch]` Gap: the `Rows` comment — same patch as the Blind row for it.
+  - `[low]` `[reject]` Gap: `today.checkIns >= 1` and the all-time SUM — the spec asks for at least 1, and a fresh session holds one day of rows.
+  - `[false]` `[reject]` Intent: the pre-save keys off `sample`, not `onlineDemo` — the matrix and Design Notes say `sample` true.
+  - `[false]` `[reject]` Intent: a cost shows only when an outcome is known — the matrix row "Last check-in" says no outcome gives the time alone.
+  - `[medium]` `[patch]` Intent: a heartbeat Usage row with an empty ItemId is unpinned — same patch as the Gap boundary row.
+  - `[low]` `[reject]` Intent: nothing ties the page's `dailyCap` and `noModelKey` keys to the server's status keys — the view test reads them against the `Web.Api` texts and HC6 drives both conditions through the store; the keys are the banners' own.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -235,6 +269,14 @@ deferred: []
 - DW-781: Run with `sample` true PUTs the shown values (the sample, the heartbeat still off) and shows the server's saved line, then POSTs. Nothing is saved at page load, so no audit entry is written without a press. No new text.
 - Run saves the GET's values, never unsaved edits in an open Edit.
 - The section sits before Persona, so "Persona last" holds in every existing test.
+
+**Decided in implement:**
+- `ux-strings.test.mjs`: the ruled key `planner-2026-11-06-39.5` holds the strings that EXPERIENCE.md does not hold: `Today: 1 check-in, {cost}`, `Interval`, `Active hours`, `All day`, `2 hours`, and the two unavailable reasons `Today's cost limit has been reached.` and `No model key is set.` (capitalized, so not the UX's lower-case skip fragments). The labels `To` and `Checklist` and the names `4 hours` and `8 hours` are under `ux`: EXPERIENCE.md holds those words incidentally ("To stop, ask", "Checklist help", "24 hours"), and the test's rule that a slot-free ruled string may not be held by the UX forces them there.
+- The view's functions take the page's time as a function (`stateLine(state, when)`) or a format object (`lastLine(state, format)`: `when`, `cost`, `reason`), so Node runs them. The separator is the view's own constant, pinned equal to `CHAT_TEXTS.separator`.
+- A fallback beat reads "Couldn't decide: {plain reason}" whatever its `lastOutcome` (a fallback records outcome tellnow); a check-in with an outcome the card does not know shows the time alone, without cost or Trace; a backoff skip with no readable `backoffUntil` shows no skip line.
+- After a 202 the card holds Run for 120 s from the press until the state shows a new `lastRunNowAt`, because the tick's row write and its event can follow the answer; a 409 cooldown holds it to `availableAt`; other 409 messages show under the button and do not hold it.
+- The browser spec holds 13 tests: HC1 to HC10 and HC3b, HC9b and HC10b. HC3b, HC10 and HC10b stub the PUT or the run with a refusal or a failure (the matrix rows for the other refusals, the 409s, the 5xx and the failed save of the sample); HC9b is Persona's PC7b for the Heartbeat card. HC4 is the last case of the file: it points the runners' keys at the mock and restores them, which changes the noModelKey reading that the status monitor publishes within 15 s, and that event would otherwise land in a later case that holds Run to the cooldown.
+- HC4 waits 61 s after Save before it presses Run: the settings are cached for 60 s in every process (AD-19), the Checks job's tick has read the account's empty checklist, and an early run would answer 409 empty and start the 2-minute cooldown. HC2 sets the three selects with `selectOption` after reaching them by Tab, because the arrow keys open the native menu on some platforms. HC6 rewrites `/state`; HC8 reloads the page for each rewritten GET.
 
 **Extend, don't copy (Rule 2):**
 - `HeartbeatCard` and its view mirror `PersonaCard` and `persona-card-view.ts`: the read-on-key effect, the disclosure and Esc, `ServerButton`, `failureOf`, `keepFocus`.
@@ -335,12 +377,26 @@ No aria-label of new text: controls are named by their visible labels, the Run b
 
 Pinning mutations to apply, observe red, revert byte-identical and record (Rule 19), one per AC:
 - AC1: drop the heartbeat push in `railView` → `rail-view.test.mjs`, HC1.
+  - mutation: the `sections.push({ id: 'heartbeat', ... })` line commented out in `rail-view.ts` → `rail-view.test.mjs` red ("come in order without Telegram: Approval requests, Background checks, Reminders, Recent decisions, Heartbeat checklist, Persona", and 2 more); reverted, `cmp` identical.
 - AC2: `HeartbeatToday` without the Channel condition → `SettingsHeartbeat.TestHeartbeatToday`.
+  - mutation: `Channel = 'heartbeat'` removed from the `heartbeatUsage` statement in `Data/Ownership.cls` → `Test.Core.SettingsHeartbeat` red (`TestHeartbeatToday`: "two Items today" and the cost sum); reverted, `cmp` identical, green again.
+  - mutation: `RecordedAt < ?` changed to `<=` in the same statement → `TestHeartbeatToday` red ("the first instant of the day counts, the first instant of the next day does not, ..." and "the row with no Item adds its cost"); reverted, `cmp` identical, green again.
 - AC3: `applyEvent` without the `heartbeat` case → `live-store.test.mjs`, HC4.
+  - mutation: the `case 'heartbeat'` two lines deleted in `live-store.ts` → `live-store.test.mjs` red ("keeps the latest heartbeat event (Story 39.5): ..." and "COLLECTIONS"); reverted, `cmp` identical. HC4 (the card's update with no reload) was not run under this mutation.
 - AC4: `failureOf` maps `bad_checklist` to `save` → `heartbeat-card-view.test.mjs`, HC3.
+  - mutation: `bad_checklist: 'save'` in `FIELD_OF_CODE` → `heartbeat-card-view.test.mjs` red ("shows bad_checklist, bad_hours, bad_interval and bad_on beside their field, with the server's message"); reverted, `cmp` identical.
 - AC5: `unavailable` ignores `dailyCap` → the view test, HC6.
+  - mutation: the `dailyCap` test replaced by `if (false)` in `unavailable` → `heartbeat-card-view.test.mjs` red ("is the cap first, then the missing key, then nothing"); reverted, `cmp` identical.
 - AC6: Run skips the PUT when `sample` → HC7.
+  - mutation: `state.sample !== true` changed to `state.sample !== undefined` in `run` (heartbeat-card.ts), bundle rebuilt → `live sign-in --part 3/3` red: HC7 and HC10b (the POST goes out with no PUT first); reverted, `cmp` identical, bundle rebuilt.
 - AC7: HC4 is the Integration pin, covered by AC3's mutation.
+
+**Verification results (implement stage, lane D, fresh throwaway stacks against the CI mock):**
+- `npm --prefix web test` 1494 passed; `lint` and `build` exit 0 (the existing bundle-budget warnings only).
+- `OcuTalon.Test.Core.SettingsHeartbeat` passed warm; `OcuTalon.Test.Web.HeartbeatApi` passed fresh; `shard lane-b@Web` (24 classes) passed; `shard lane-b@Core` part 1/2 (21) and part 2/2 (20) passed; `bash ci/checks.sh` passed (all scripts).
+- Browser units, each on a fresh stack, with `OCUTALON_LIVE_DEADLINE=900` on the call (Rule 21: a part near 8 minutes dies of the 540 s default deadline): `live sign-in` parts 1/3, 2/3 and 3/3 passed (81, 80 and 80 tests), `live sign-in-2` parts 1/2 and 2/2 passed (74 and 55), `live floor` (107), `live demo-path` and `live online-demo-path` (7 passed) passed.
+- Measured `SPEC heartbeat-card.spec.ts 13 tests` on the lane: 183 s on the passing part 3/3 run (99 s, 155 s and 176 s on other runs, the spread being HC4's wait for the real tick). CI placement: 30.5 min + 183 s = 33.6 min, under the 35-minute ceiling, so the spec stays at `web/e2e/heartbeat-card.spec.ts` in `live:sign-in` (group `browser`).
+- Lane A files: `git diff --exit-code HEAD` over the read-only paths exits 0; `web/e2e/demo-path` shows `01-page.spec.ts` only, 2 insertions and 1 deletion.
 
 **Shared surfaces:**
 - the rail's sections (`railView` ids 6 → 7, `RAIL_TEXTS`, `SectionId`) and every test that counts or orders rail headings: `rail-view.test.mjs`, `rail/rail.spec.ts` R1 and R10-area counts, `frame/frame.spec.ts` F1, `floor/layout.spec.ts`, and `demo-path/01-page.spec.ts` (amendment);
@@ -355,9 +411,25 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan-stage halt, resolved by the lead (2026-11-06):** the halt read: intent gap -- Story 39.5's AC "they don't change the demo-path specs (REL-2)" contradicts its own rail-card AC together with EXPERIENCE.md's rule "an h3 per rail section and card headline". `web/e2e/demo-path/01-page.spec.ts:103` asserts exactly six level-3 headings in the rail (`toHaveCount(6)`, "Telegram first and Persona last"), so any rail section with its h3 turns it red unless that one count changes. Story 40.4 changed the same line from five to six for Persona; its AC had no such clause. The other reading, a card title that is not a heading, breaks the UX heading rule and the rail's pattern. Recommended amendment (Rule 5, apply-and-report tier, intent unchanged: the demo path keeps running and passing): in epics.md Story 39.5, read "and they don't change the demo-path specs (REL-2), except the rail's section count in `web/e2e/demo-path/01-page.spec.ts` (six to seven headings, Heartbeat checklist before Persona, so Persona stays last)". With that amendment applied the spec is otherwise complete, so the lead can set `status: ready-for-dev` without a re-plan. Before implement: the public texts marked **new** under Design Notes › Public text (Today singular, Interval, Active hours, From, To, All day, Checklist, and the spelled-out "2 hours", "4 hours", "8 hours") go to the owner's delegate; their ruling id becomes their `ruled` key in `ux-strings.test.mjs`.
+**Summary.** Story 39.5 adds the Heartbeat checklist card to the rail (before Persona), the live store's `heartbeat` field, three GET members (`today`, `lastFallbackReason`, `onlineDemo`) read from Lane B code, and the browser and node tests. The card reads the GET on creation and on every `heartbeat` event, saves with PUT, runs with POST (the sample is saved first on the online demo), holds Run for the cooldown, the cap and the missing key, and shows every string of the Public text as ruled.
 
-**Planning notes.** I reused the epic context `epic-39-context.md`. Since it was compiled, `epics.md` gained only the DW-781 bullet and the spine only the Enumerations `heartbeat` name, and both are read here. Continuity comes from 39.2 (done, 312498d6) and 39.7. The footprint was checked against `origin/OCT-epic11` and `origin/OCT-epic17` on 2026-11-06: no overlap. No IRIS call was made and no file other than this spec was written.
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`: `HeartbeatToday` and the `heartbeatUsage` statement.
+- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls`, `Web/Api.cls`: the three GET members; doc.
+- `src/ocutalon/cls/OcuTalon/Test/Core/SettingsHeartbeat.cls`, `Test/Web/HeartbeatApi.cls`: the exact GET JSON, `TestHeartbeatToday` (with the day bounds), `TestFallbackReason`, `TestOnlineDemoFlag`, and the real-beat count.
+- `web/src/app/rail/heartbeat-card/heartbeat-card.ts`, `heartbeat-card-view.ts`: the card and its pure rules.
+- `web/src/app/api/heartbeat-types.ts`, `api-client.ts`: the types and three methods.
+- `web/src/app/live/live-store.ts`, `rail/rail-view.ts`, `rail/status-rail.ts`: the store field and event case, the rail section, `heartbeatReadKey`, the slot.
+- `web/scripts/heartbeat-card-view.test.mjs` (new) and the shared-surface updates: `rail-view`, `live-store`, `ux-strings`, `floor-sources`, `announce-focus-sources`.
+- `web/e2e/heartbeat-card.spec.ts` (new, 13 tests) and the count updates in `rail/rail.spec.ts`, `frame/frame.spec.ts`; `demo-path/01-page.spec.ts` (7 headings, Heartbeat before Persona, Persona last; the only demo-path edit, U-295).
+
+**Review.** 30 findings: 0 high, 8 medium, 12 low, 10 false. Patched: the day-bound and empty-ItemId rows of `TestHeartbeatToday`, HC3b, HC9b, HC10, HC10b, HC8's quiet base, HC5's stamp, the counter pin, two comments, and HC4 moved to the end of the file. Deferred: none. Rejected with reasons: see the Review Triage Log.
+
+**Follow-up review recommended: true.** Two or more medium entries were patched. The named unverified risk: HC4, HC5 and the status monitor's 15-second publish on a loaded CI runner, because those cases wait on the real tick and the real status event.
+
+**Verification.** See `## Verification` (results and the six mutations). Every unit passed on the final tree; the browser units ran with `OCUTALON_LIVE_DEADLINE=900` per Rule 21. CI placement: `heartbeat-card.spec.ts` measured 183 s, 30.5 min + 3.05 min = 33.6 min under the 35-minute ceiling, so it stays in `live:sign-in` (group `browser`) and no marker is needed.
+
+**Residual risks.** HC8 skips itself within 40 minutes of midnight UTC. HC4 needs the CI mock key and the real tick (about 61 s of wait plus up to 120 s). The browser group's total time now includes this spec's 1.5 to 3 minutes; the first CI run of the head measures it.

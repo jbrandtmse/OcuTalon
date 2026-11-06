@@ -401,8 +401,10 @@ ClassMethod HeartbeatAuditForm(values As %DynamicObject, changed As %List) As %S
 
 /// A person's heartbeat, read from the rows and never from the per-process cache: the public view of their settings and HeartbeatBeat row
 /// (Live.Payload.Heartbeat.FromRow, the very view of the heartbeat event) as a dynamic object, with from and to always present, followed by
-/// checklist (the stored text) and sample (true only when the unsaved sample checklist is shown: on the online demo, when the session has no
-/// checklist row). sc is an error status when the row could not be read (the settings are returned all the same) or its view could not be built
+/// checklist (the stored text), sample (true only when the unsaved sample checklist is shown: on the online demo, when the session has no
+/// checklist row), today ({"checkIns", "costUSD"}: the session's heartbeat Usage rows in the daily cap's day, Ownership.HeartbeatToday), lastFallbackReason
+/// (a string, present only when the row's last beat was a fallback and the session's own decision of it names a reason) and onlineDemo (boolean).
+/// None of them holds a decision Ref, an ItemId or a SessionRef. sc is an error status when the row could not be read (the settings are returned all the same) or its view could not be built
 /// (only checklist and sample are then set).
 ClassMethod Heartbeat(sessionRef As %String, Output sc As %Status) As %DynamicObject
 {
@@ -429,6 +431,14 @@ ClassMethod Heartbeat(sessionRef As %String, Output sc As %Status) As %DynamicOb
 	Set sample = ('##class(OcuTalon.Data.Setting).KeyIndexExists(##class(OcuTalon.Checks.Beat).SettingKey(sessionRef, "checklist"))) && ..OnlineDemo()
 	Do result.%Set("checklist", $Select(sample: ..SampleChecklist(), 1: values.checklist), "string")
 	Do result.%Set("sample", sample, "boolean")
+	Set todayStatus = $$$OK
+	Do result.%Set("today", ##class(OcuTalon.Data.Ownership).HeartbeatToday(sessionRef, .todayStatus))
+	If $$$ISERR(todayStatus) && $$$ISOK(sc) Set sc = todayStatus
+	If ($IsObject(row) && row.LastFallback) {
+		Set decision = ##class(OcuTalon.Data.Ownership).Decision(row.LastDecisionRef, sessionRef)
+		If $IsObject(decision) && (decision.FallbackReason '= "") Do result.%Set("lastFallbackReason", decision.FallbackReason, "string")
+	}
+	Do result.%Set("onlineDemo", ..OnlineDemo(), "boolean")
 	Quit result
 }
 

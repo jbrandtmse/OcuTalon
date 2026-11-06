@@ -129,6 +129,7 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/chat/chat-panel.ts': [1, 'the target of the New messages button, which the user pressed'],
     'app/guide/demo-guide.ts': [1, 'Show me focuses the phone\'s pending notification or its feed, for the user\'s own press (Story 4.7)'],
     'app/devices/device-panel.ts': [1, 'the tab that the user\'s arrow key moved to'],
+    'app/rail/heartbeat-card/heartbeat-card.ts': [1, 'Edit, after the user\'s own Esc collapses its disclosure'],
     'app/rail/persona-card/persona-card.ts': [1, 'Change, after the user\'s own Esc collapses its disclosure'],
     'app/mailbox/simulated-mailbox.ts': [2, 'the mailbox\'s own views move focus for the user\'s press (the form\'s From, the open email\'s heading, the row or Simulate after Back, the first field in error after Send, the sent email\'s row), through focusLater and focusSent'],
     'app/phone/simulated-phone.ts': [1, 'the target of the phone\'s New messages button, which the user pressed'],

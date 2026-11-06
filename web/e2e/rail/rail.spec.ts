@@ -67,10 +67,10 @@ const iso = (instant: number, offsetMs = 0): string => new Date(instant + offset
 
 const rail = (page: Page): Locator => page.getByRole('region', { name: 'Status', exact: true });
 const rowOf = (page: Page, marker: string): Locator => rail(page).locator('li.row').filter({ hasText: marker });
-/** Every section heading of the rail: the Telegram section first, then the four lists, then Persona. */
+/** Every section heading of the rail: the Telegram section first, then the four lists, then Heartbeat checklist and Persona. */
 const sections = (page: Page): Locator => rail(page).getByRole('heading', { level: 3 });
-/** The headings of the four lists, in order: the Telegram and Persona headings are left out, so the positions do not move. */
-const headings = (page: Page): Locator => sections(page).filter({ hasNotText: /^(Telegram|Persona)$/ });
+/** The headings of the four lists, in order: the Telegram, Heartbeat checklist and Persona headings are left out, so the positions do not move. */
+const headings = (page: Page): Locator => sections(page).filter({ hasNotText: /^(Telegram|Heartbeat checklist|Persona)$/ });
 /** The heading of the approval requests, selected by its name. */
 const approvals = (page: Page, count: number): Locator => rail(page).getByRole('heading', { level: 3, name: `Approval requests, ${count}`, exact: true });
 const mainOf = (page: Page): Locator => page.locator('main.main');
@@ -100,9 +100,9 @@ test('R1: the rail is the region Status with its sections in order, live counts,
   await open(page);
   const status = rail(page);
   await expect(status, 'the rail is the region Status').toHaveCount(1);
-  await expect(sections(page), 'six sections, Telegram first and Persona last').toHaveCount(6);
+  await expect(sections(page), 'seven sections, Telegram first and Persona last').toHaveCount(7);
   await expect(headings(page), 'and the four lists after it').toHaveCount(4);
-  const spoken = ['Telegram', 'Approval requests, 0', 'Background checks, 0', 'Reminders, 0', 'Recent decisions, 0', 'Persona'];
+  const spoken = ['Telegram', 'Approval requests, 0', 'Background checks, 0', 'Reminders, 0', 'Recent decisions, 0', 'Heartbeat checklist', 'Persona'];
   for (const [i, name] of spoken.entries()) {
     await expect(sections(page).nth(i), `heading ${i + 1} is named "${name}"`).toHaveAccessibleName(name);
   }
@@ -127,7 +127,7 @@ test('R1: the rail is the region Status with its sections in order, live counts,
     'To cancel, ask: "Cancel my reminder to stretch."',
   ]);
   await expect(status.locator(LIVE_REGIONS), 'the rail has no live region').toHaveCount(0);
-  await expect(status.locator('h3[tabindex="-1"]'), 'each heading can take focus').toHaveCount(6);
+  await expect(status.locator('h3[tabindex="-1"]'), 'each heading can take focus').toHaveCount(7);
 
   await page.setViewportSize({ width: 1280, height: 720 });
   expect((await page.locator('section.rail').boundingBox())!.width, 'the rail is 288px wide at 1280px').toBe(288);
@@ -474,7 +474,7 @@ test('R11: with Telegram included, the first section is the Telegram card with i
     const status = rail(page);
     await expect(sections(page).first(), 'the first section is Telegram, with no count').toHaveText('Telegram');
     await expect(sections(page).first().locator('[aria-hidden="true"]'), 'the Telegram heading has no count').toHaveCount(0);
-    await expect(sections(page), 'then the four lists and Persona').toHaveCount(6);
+    await expect(sections(page), 'then the four lists, Heartbeat checklist and Persona').toHaveCount(7);
     await expect(status.locator('app-telegram-card'), 'the card says it is not set up').toContainText('Telegram not set up');
     const link = status.getByRole('link', { name: 'How to set it up (opens in a new tab)', exact: true });
     await expect(link, 'with a link to set it up').toHaveCount(1);
