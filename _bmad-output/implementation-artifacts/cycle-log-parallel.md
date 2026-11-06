@@ -2113,3 +2113,13 @@
 2026-11-06T00:46:17Z	Epic 40	ci_green_verified	runs=42131650574(attempt2),42131649928 head=1b43743a result=success via=none
 2026-11-06T00:46:17Z	Epic 40	merge_enqueued	policy=when_green priority=owner_decision_fri_release
 2026-11-06T00:46:17Z	Epic 40	epic_merge_started	head=1b43743a
+2026-11-06T00:47:09Z	Epic 40	epic_merged_to_feature	merge=0721083f head=1b43743a verified_on_origin=yes ci_triggered=yes
+2026-11-06T00:47:09Z	Epic 40	decision_sheet_recorded	decided=4 by=unattended DW-669=closed DW-678/679=action_items(Planner release decision; run1 measured) DW-763=routed_burndown
+2026-11-06T00:47:09Z	Run	integrate_forward_requested	epics=11(11.24),34 onto=0721083f
+2026-11-06T00:47:20Z	Epic 40	worktree_removed	path=.worktrees/epic-40
+2026-11-06T00:47:20Z	Epic 40	epic_branches_deleted	local+remote=OCT-epic40
+2026-11-06T01:01:04Z	Run	hold_set	by=owner_via_Contest_Planner reason=account_switch mechanism=INBOX_hold runners_end_at_next_stage_boundary
+2026-11-06T01:01:04Z	Run	owner_decision	via=Contest_Planner subject=1.0.2_persona answer="persona ships in 1.0.2 with the 1.0.0-style override: only the SM-1 item gap accepted (two real-model sweeps on 1b43743a: 17-20 and 18-19 of 22); every safety check held (injection x10 refused, 0 proposals/setting requests/propose calls; the one starship not-right was a fallback Tell now; both language checks right); follow-ups to burndown; Friday cut WAITS for 11.24 and Epic 34 green on feature after the switch; backstop Fri 18Z: cut from newest green head with Epic 40"
+2026-11-06T01:01:12Z	Run	runner_hold_status	D=ended(idle after Epic 40 merge) A=running(17.4) B=running(11.24 integrate-forward) C=running(Epic 34 integrate-forward)
+2026-11-06T01:06:05Z	Epic 11	runner_ended_for_hold	story=11.24 state="integrated forward onto 0721083f locally (0168a400 merge, 957e65d2 log), merged-tree checks pass, unpushed (waits feature CI 42139262135/42139262113)" resume="check feature green + push-hold flag, push 957e65d2, CI, contract part_merge 11.24"
+2026-11-06T01:11:54Z	Run	ci_green_verified	runs=42139262135,42139262113 head=0721083f result=success via=none note=feature_with_Epic_40

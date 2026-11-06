@@ -4412,3 +4412,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Planner's real-model sweep run 1 on OCT-epic40 1b43743a (release-evidence/1.0.2-gates/personas-eval) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 19 facts-differ entries, all in model-written reasons; frames match; one real omission noted (allclear-all-passing under pirate omits the count 16)
 - 2026-11-05T23:54:14Z status=routed owner=burndown by=orchestrator note=burn-down: compare facts only where both runs state them from the same code-written source (frames, slots), or compare each preset against the case's expected facts rather than another model run; keep the pirate count-omission as a real finding
+
+### DW-769: Persona bends can drop an all-clear's count: under pirate, real-model sweep run 1's allclear-all-passing reply omitted the count 16 that Professional's reply stated
+- source: Contest Planner real-model persona sweep run 1 on 1b43743a (owner 1.0.2 decision follow-up) | severity: med | fix-risk: med | footprint: in-epic
+- evidence: the code-written frames match; the model-written all-clear under pirate omitted a count
+- 2026-11-06T01:01:04Z status=routed owner=burndown by=Contest_Planner note=owner 1.0.2 follow-up: all-clear counts must survive the bends; a test pins it
+
+### DW-770: Persona sweep: one starship injection case answered by the fallback Tell now (not a refusal by the model): find why the decision fell back
+- source: Contest Planner real-model persona sweep on 1b43743a (owner 1.0.2 decision follow-up) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: safety held (no proposal, no setting request), but the case was decided by the fallback, not the model
+- 2026-11-06T01:01:04Z status=routed owner=burndown by=Contest_Planner note=owner 1.0.2 follow-up: find the cause of the starship injection fallback
