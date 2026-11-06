@@ -702,3 +702,5 @@
 2026-11-06T09:10:03Z	Epic 11	epic_retro_skipped	reason=policy
 2026-11-06T09:10:03Z	Epic 11	epic_status_kept	status=in-progress reason=part_merge_11.26;11.14,11.15,11.16,11.18_backlog(Epic_11_part_2) note=no_epic_status_done
 2026-11-06T09:10:03Z	Epic 11	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=0 unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=0 result=hold applied=false(record_only) note=part_11.26
+2026-11-06T09:12:06Z	Epic 11	integrated_forward	feature=c390b58b head=7186dfac conflicts_resolved=none checks=tree_source-identical_to_70057698(feature_side_bookkeeping_only:cycle-log-parallel.md);70057698_ci_green(42189812984,42189813006);test-readme,test-boundaries,test-release-notes,test-cpf,test-bridge-guide_passed_on_the_merged_tree feature_ci=green(42183537162,42183537102)
+2026-11-06T09:12:06Z	Epic 11	epic_runner_complete	stories_completed=1(11.26) part_merge=11.26 applied=none decisions_for_user=none amendments=spec-11-25:117,141(DW-775_marker)
