@@ -344,3 +344,4 @@
 2026-11-06T10:09:29Z	Epic 4	story_chartered	story=4.11 key=4-11-other-things-to-try epics_md_line=2818 source=owner_decision_2026-11-06T05:27Z(Contest_Planner_under_delegation)
 2026-11-06T10:09:29Z	Epic 4	deps_hash_rerecorded	reason=fix_forward note=for_orchestrator(story_4.11_inserted_inside_epic_4;no_boundary_or_dependency_statement_changed) epics_md_sha256_prefix=22bb441c12ba
 2026-11-06T10:09:29Z	Epic 4	epic_status_reopened	epic-4=in-progress(SC-5_reopen;sanctioned_by_dispatch)
+2026-11-06T10:12:25Z	Epic 4	epic_context_compiled	reason=planning_artifact_newer(reopen_4.11_chartered) model=claude-opus bytes=8595 spawn_at=2026-11-06T10:09:34Z
