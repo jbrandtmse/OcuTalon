@@ -1,6 +1,6 @@
 /// The seeding helper of the installer steps (AD-19, AD-23): it writes the seed values of settings that a step declares, each only when its key
-/// is absent, so that a value an admin changed is kept at every later start. It is not a step. OcuTalon.Data.Setting is named here, and nowhere in
-/// a step's own class, so that a step's purge and run code stays free of settings reads (Test.Install.Retention TestNoSettingRead).
+/// is absent, so that a value an admin changed is kept at every later start. It is not a step. A step that seeds through it names
+/// OcuTalon.Data.Setting nowhere in its own class, so that its purge code stays free of settings reads (Test.Install.Retention TestNoSettingRead).
 Class OcuTalon.Install.Seeds
 {
 

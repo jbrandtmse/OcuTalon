@@ -1,7 +1,8 @@
-/// Tests of the vital-sign reads of OcuTalon.Watch.Reader (Story 17.5; AD-3, AD-18) and of the item and queue reads that Failures gained. THEY RUN IN
+/// Tests of the vital-sign reads of OcuTalon.Watch.Reader (Story 17.5; AD-3, AD-18) and of the item and queue reads of Failures. THEY RUN IN
 /// THROWAWAY STACKS AND IN CI ONLY (Rule 21), with demo mode on, through Test.Watch.Case: they read the real instance, make a database with a maximum size
 /// in a temporary folder and remove it, write a severe line to messages.log, and put a status into the host monitor and queued headers into OCUORDERS
-/// (each put back or deleted, also after a failure).
+/// (each put back or deleted, also after a failure). A test that needs a healthy Orders first sets aside the Error status of every item (a business
+/// process keeps it after a failed message until its job restarts), and puts it back after.
 ///   - TestFiveSigns: the five signs are read; the databases are OcuTalon's four and the two of Orders, each once, each read without a maximum and with a
 ///     volume share between 0 and 100; only counts and percentages leave the reader;
 ///   - TestCappedDatabase: a database created with a 50 MB maximum reads a maxBlocks above 0 (the one routine that gives it without a privilege), and one
@@ -39,6 +40,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ..DropHeaders()
 	Do ..DropDatabase()
 	Do ..PutMonitor("restore")
+	Do ..RestoreMonitor()
 	Quit ##super(testname)
 }
 
@@ -48,6 +50,7 @@ Method OnAfterAllTests() As %Status
 	Do ..DropHeaders()
 	Do ..DropDatabase()
 	Do ..PutMonitor("restore")
+	Do ..RestoreMonitor()
 	Quit ##super()
 }
 
@@ -163,6 +166,7 @@ ClassMethod StampOf(marker As %String) As %String
 Method TestErroredItems()
 {
 	If '..Ready() Quit
+	Do ..ClearMonitor()
 	Set from = ##class(OcuTalon.Watch.Mark).FromCreated(##class(OcuTalon.Data.Time).NowUtc())
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Reader).Failures(..#ORDERS, ..#ORDERSPRODUCTION, from, 10, .rows, .state, .disabled, .stoppedAt, .errored, .queues), "read", "the outcome is read")
 	Do $$$AssertEquals(errored.%ToJSON()_"|"_queues.%ToJSON(), "[]|[]", "a healthy Orders has no item in error and no queue")
@@ -203,6 +207,7 @@ Method TestQueues()
 Method TestBuildOnRealSeams()
 {
 	If '..Ready() Quit
+	Do ..ClearMonitor()
 	Set session = ##class(OcuTalon.Test.Data.Fixture).Session("zzvitalsbuild")
 	Set check = ##class(OcuTalon.Test.Data.Fixture).Check(session, ..#ORDERS, ..#ORDERSPRODUCTION, {"CreatedAt": "2030-05-01T10:00:00Z", "DisplayName": "Orders"})
 	Set ..Fixtures = session_","_check
@@ -293,6 +298,37 @@ Method PutMonitor(value As %String)
 		Set ^||VitalsTest("status") = $ListBuild($Data(^IRIS.Temp.EnsHostMonitor(..#ORDERS, ..#ITEMNAME, "%Status")) # 10, $Get(^IRIS.Temp.EnsHostMonitor(..#ORDERS, ..#ITEMNAME, "%Status")))
 	}
 	Set ^IRIS.Temp.EnsHostMonitor(..#ORDERS, ..#ITEMNAME, "%Status") = value
+}
+
+/// Sets aside the host status of every item of OCUORDERS whose status is Error, writing OK in its place; RestoreMonitor puts each back.
+Method ClearMonitor()
+{
+	If '##class(%SYS.Namespace).Exists(..#ORDERS) Quit
+	New $Namespace
+	Set $Namespace = ..#ORDERS
+	Set item = ""
+	For {
+		Set item = $Order(^IRIS.Temp.EnsHostMonitor(..#ORDERS, item))
+		Quit:item=""
+		If $Get(^IRIS.Temp.EnsHostMonitor(..#ORDERS, item, "%Status")) '= "Error" Continue
+		If '$Data(^||VitalsTest("cleared", item)) Set ^||VitalsTest("cleared", item) = "Error"
+		Set ^IRIS.Temp.EnsHostMonitor(..#ORDERS, item, "%Status") = "OK"
+	}
+}
+
+/// Puts back the statuses that ClearMonitor set aside.
+Method RestoreMonitor()
+{
+	If '##class(%SYS.Namespace).Exists(..#ORDERS) Quit
+	New $Namespace
+	Set $Namespace = ..#ORDERS
+	Set item = ""
+	For {
+		Set item = $Order(^||VitalsTest("cleared", item))
+		Quit:item=""
+		Set ^IRIS.Temp.EnsHostMonitor(..#ORDERS, item, "%Status") = ^||VitalsTest("cleared", item)
+	}
+	Kill ^||VitalsTest("cleared")
 }
 
 /// count queued headers (Status 2) for the item in OCUORDERS, created at the UTC time; their ids are kept for DropHeaders.

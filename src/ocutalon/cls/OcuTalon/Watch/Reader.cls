@@ -219,8 +219,8 @@ ClassMethod Failures(namespace As %String, production As %String, from As %Strin
 /// error), no rounding, and no namespace switch:
 ///   - instance: {"outcome", "upSeconds"}, the whole seconds since the instance started ($ZHorolog);
 ///   - databases: an array of Database entries, one for each distinct directory of OcuTalon's code, data, private and public databases (found
-///     through %SYS.Namespace) and of the code and data databases of each namespace in namespaces (a %List). A namespace that does not exist, or
-///     whose databases cannot be found, is one entry named as the namespace, with the outcome error;
+///     through %SYS.Namespace) and of the code and data databases of each namespace in namespaces (a %List). A namespace that does not exist is
+///     one entry named as the namespace, with the outcome error, and so is each of its databases that cannot be found;
 ///   - journal: {"outcome", "directory", "freePercent"}, the free share of the volume of the primary journal directory;
 ///   - license: {"outcome", "units", "consumed", "usePercent"}; a license of no units is an error;
 ///   - systemLog: {"outcome", "count"}, the lines of severity 2 or 3 in messages.log (in the manager directory) whose time lies in [fromUtc, toUtc]
@@ -266,7 +266,7 @@ ClassMethod Vitals(namespaces As %List = "", fromUtc As %String = "", toUtc As %
 /// The reading of one database directory, as a dynamic object {"name" (the directory's last folder, in upper case), "directory" (with its closing
 /// separator), "volumeFreePercent" (the free share of the directory's volume, unrounded, 0 to 100), "maxBlocks" (the database's maximum size in
 /// blocks, 0 when it has none; read with $$GetDatabaseInfo^%SYS.DATABASE, which needs no privilege), "outcome" (read or error)}. A directory
-/// that cannot be read is the outcome error with "" for both numbers. It switches no namespace and calls no API that needs %Admin_Operate.
+/// that cannot be read, or whose maximum is not a whole number, is the outcome error with "" for both numbers. It switches no namespace and calls no API that needs %Admin_Operate.
 ClassMethod Database(directory As %String) As %DynamicObject
 {
 	Set directory = $Select($Get(directory) = "": "", 1: ##class(%File).NormalizeDirectory(directory))
@@ -276,9 +276,10 @@ ClassMethod Database(directory As %String) As %DynamicObject
 			Set free = ..VolumeFree(directory)
 			Set info = ""
 			Set sc = $$GetDatabaseInfo^%SYS.DATABASE(directory, .info)
-			If (free '= "") && sc && (info '= "") {
+			Set max = $Piece(info, ",", 6)
+			If (free '= "") && sc && (max ? 1.N) {
 				Set entry.volumeFreePercent = free
-				Set entry.maxBlocks = +$Piece(info, ",", 6)
+				Set entry.maxBlocks = +max
 				Set entry.outcome = "read"
 			}
 		}

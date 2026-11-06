@@ -230,6 +230,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T00:35:24Z occurrence=33-1-fix-the-step-2-contracts-in-the-spine
 - 2026-11-03T23:35:54Z status=routed owner=33-1-fix-the-step-2-contracts-in-the-spine by=burndown_gate note=U-254(b)_reverses_U-177_placement;goes_with_U-247's_InstanceZone_work;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_goes_to_the_Planner_at_33.1's_spec_gate
 - 2026-11-04T02:22:24Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=adjudication note=U-254_disposition:33.1_was_committed_(0196aafd)_and_ships_Bridge.Time.Zone/SetZone/Apply_as_stubs_only;Data.Time_is_Lane_B(U-177);residual:Data.Time.Zone()_and_ToLocal_must_both_follow_Bridge.Time.Zone()(AD-18_S5_InstanceZone),and_with_an_empty_InstanceZone_on_a_TZ-unset_non-UTC_host_report_the_OS_zone;test_on_a_non-UTC_process_zone;18.2_builds_Data.Time's_Apply_call
+- 2026-11-06T09:44:00Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry note=Watch.Reader.SevereLines reads messages.log stamps in the reader's zone; kernel lines are stamped in the OS zone when InstanceZone differs
 
 ### DW-35: A failed Orders header has Status 8 (Error), IsError 0 and an empty ErrorStatus; its error text is only the event-log row inside the Terminating BP wrapper, so a reader that keys on IsError or GetErrorText finds no failure
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
@@ -4327,3 +4328,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: docs/install-ipm.md:165; no test compares the sample logs with a real start
 - 2026-11-06T08:40:46Z status=routed owner=burndown by=harvest note=fix-pack-sized: two one-line inserts; docs/** is contended by Epic 11 (README and docs), so the burn-down story checks Epic 11's diff first
+
+### DW-786: Checks.Coverage.Live repeats Checks.Process.Run's live-read logic (the not_checked reason chain, the cut rule, the state text, the failure wording and the capital) beyond the 4-line scoping loop the spec declares; the two drift when either changes
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Coverage.cls:332-404 vs Process.cls Run :325-366 and private Finding :492-504; Process.cls is contended (Epic 39), so the copy is forced for now
+- 2026-11-06T09:44:00Z status=routed owner=burndown by=cr note=Rule 2 forced copy: unify into one Checks helper once Epic 39 frees Process.cls (make Finding callable)
+
+### DW-787: Test.Digest.Runs Host() and Tick() re-implement the Test.Checks.Runs instance helpers the spec said to reuse
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Digest/Runs.cls:174,206 vs Test/Checks/Runs.cls:903,1013; instance methods of a contended test case, not callable without inheriting its tests
+- 2026-11-06T09:44:00Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=Test.Checks.Runs Host or Tick changes and Test.Digest.Runs does not follow
+
+### DW-788: QA's digest test helpers repeat their siblings: PurgeEdges Session/Run/Sent (Purge.cls) and ThresholdKeys PutBack (Thresholds.cls)
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Test/Digest/PurgeEdges.cls:95-110 vs Purge.cls:125-142; ThresholdKeys.cls:76 vs Thresholds.cls:49
+- 2026-11-06T09:44:00Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=a third Test.Digest class copies the same helpers
+
+### DW-789: AD-23's after-start step list names neither the Digest step (Registry.Order() after Demo, Story 17.5) nor PrivateData, while Test.Install.Registry calls Order() the fixed list of AD-23
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: spine :793-801 vs Install/Registry.cls Order(); AD-19 (:650) already gives seeding to the digest area's install step
+- 2026-11-06T09:44:00Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=a test or script compares Registry.Order() with AD-23's list; spine contended (Epic 39), lead may bundle with the trigger arrow
+
+### DW-790: Test.Digest.Thresholds and ThresholdKeys write Lane B's Data.Setting directly (Set, %DeleteId) and expire its private cache entry ^||OcuTalon.Setting by layout
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Thresholds.cls:79,99,126-142; ThresholdKeys.cls:42,82,90; Lane B offers no flush seam (U-177)
+- 2026-11-06T09:44:00Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=Data.Setting's cache layout changes or Lane B adds a flush seam
