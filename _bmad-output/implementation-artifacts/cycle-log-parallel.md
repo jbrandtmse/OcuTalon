@@ -2146,3 +2146,7 @@
 2026-11-06T03:46:21Z	Epic 34	ci_green_verified	runs=42147189710,42147189840 head=689b6632 result=success via=none
 2026-11-06T03:46:21Z	Epic 34	merge_enqueued	policy=when_green feature_moved_since_integrate=bookkeeping_only(f2166e84:cycle-log-parallel,deferred-work,inbox-snapshot) merge_tree=clean order_note=34_before_11.24(11.24_unpushed;integrates_forward_once)
 2026-11-06T03:46:30Z	Epic 34	epic_merge_started	head=689b6632 feature=feature/OCT_OcuTalon_MVP
+2026-11-06T03:47:57Z	Epic 34	epic_merged_to_feature	merge=eb6e2726 head=689b6632 verified_on_origin=yes ci_triggered=yes(42158625231,42158625184) conflicts=none ledger_union=checked(every_line_of_both_sides_kept;DW-543,DW-710_present;no_duplicate_ids) tracker=valid lint=low_placeholders_only(no_ad_findings)
+2026-11-06T03:47:57Z	Epic 34	decision_sheet_skipped	reason=empty(decisions_for_user=none)
+2026-11-06T03:47:57Z	Epic 34	worktree_removed	path=.worktrees/epic-34
+2026-11-06T03:47:57Z	Epic 34	epic_branches_deleted	local+remote=OCT-epic34
