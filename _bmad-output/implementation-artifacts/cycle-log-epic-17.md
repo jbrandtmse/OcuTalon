@@ -206,3 +206,4 @@
 2026-11-06T12:32:27Z	Story 17.5	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 cycle_iteration=3 note=DW-779_resolved-by_17-5_by_cr(rework_2)
 2026-11-06T12:37:10Z	Story 17.5	smoke_complete	method=cli(docker/tests/test-cpf.sh,the_failed_check) result=pass iterations=2 defects_caught=0 evidence=test-cpf_33_PASS_rc=0;rework_2_changed_docs+one_test_only(live_smoke_of_5fef1125_stands) cycle_iteration=3 model=claude-opus-5-5
 2026-11-06T12:37:10Z	Story 17.5	fresh_check	env=recipe(fresh_warm_stack_e17s5gw) tests=3(Digest.Coverage,RecordTrigger,Runs) result=pass order=forward,reverse(Coverage_first_and_last) cycle_iteration=3
+2026-11-06T12:37:55Z	Story 17.5	committed	sha=3660e1c5 build_sha=8f38315e submodules= ci=pending runs=42219074892,42219074794 fix_for=17-5-check-the-vital-signs-and-every-coverage-entry rework=2(ci) push_check=epic39_queued_0 footprint_extensions_added=docs/install-ipm.md(two_STEP_Digest_OK_lines,ruled)
