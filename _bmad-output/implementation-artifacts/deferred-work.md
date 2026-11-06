@@ -3889,11 +3889,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: evidence/33-1-task0-zone-measurement.md (Story 33.1 Task 0) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Task 0 Probe.Ambig on slot C build 154: Static() returned the second instant in all 3 zones; Python fold 0 gives the first
 - 2026-11-03T20:24:25Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=harvest note=Data.Time is Lane B's (U-177); 18.2 changes it for the run-time zone; fix with the Bridge.Time.Apply() reading that 33.1 fixes
+- 2026-11-06T10:39:30Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry
 
 ### DW-646: Digest.Data.CheckRun and Digest.Data.Sent have no purge yet although their docs and the spine (AD-27) say they are purged with the digest area's rows
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Install.Step.Digest.Purge calls only Digest.Data.Item.Purge; both tables stay empty until 17.5/17.6 write them; Install/** is under the stability watch
 - 2026-11-03T23:07:37Z status=routed owner=17-5-check-the-vital-signs-and-every-coverage-entry by=harvest note=add both purges (and Test.Install.Retention rows) with the first writer; 17.6 for Sent if 17.5 lands first without it
+- 2026-11-06T10:41:12Z status=resolved-by:17-5-check-the-vital-signs-and-every-coverage-entry by=adjudication note=CheckRun.Purge+Sent.Purge(1a9e60c1);Install.Step.Digest.Purge_runs_all_three;pinned_by_Test.Digest.Purge(TestPurgeKeepsRecent,TestNewestSentIsKept,TestStepRunsAll)+PurgeEdges
 
 ### DW-647: AD-8 retry timer: the retry entries derive from 110 - TimerSeconds while the wait is min(TimerSeconds, 110 - T1); a TimerSeconds above 98 leaves less than MINTIMER (12) for the retry
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3907,6 +3909,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-18 The daily digest fixes missed/stale/paused and three reasons only
 - 2026-11-03T23:07:37Z status=routed owner=17-5-check-the-vital-signs-and-every-coverage-entry by=harvest note=Coverage.Build maps Reason through a fixed table, treats no run since span start as missed, rounds percentages
+- 2026-11-06T10:41:12Z status=resolved-by:17-5-check-the-vital-signs-and-every-coverage-entry by=adjudication note=no_run_in_window->notCheckedMissed(Test.Digest.Coverage.TestMissed);empty/unknown_Reason->notCheckedError(TestReasonMap,Runs.TestRecordRunReasons);non-whole_percentages_rounded(spec_figures_rule,Coverage_tests)
 
 ### DW-649: Digest.Data.Sent's due lookup reads the newest scheduled row's DueAt but SessionRefDueAtIndex has no Kind and the spine does not say what DueAt holds for a requested row
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4353,3 +4356,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Thresholds.cls:79,99,126-142; ThresholdKeys.cls:42,82,90; Lane B offers no flush seam (U-177)
 - 2026-11-06T09:44:00Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=Data.Setting's cache layout changes or Lane B adds a flush seam
+
+### DW-798: system log reads passed when a kept messages.old_* file inside the window was deleted (or compressed): Reader.SevereLines reads on past the gap and the deleted lines are not counted
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SevereLines stops only at a file starting before fromUtc and assumes every newer kept file is present; IRIS has no retention of messages.old_* (irissys searched), so only an admin delete or compress within the window makes the gap; the spec's Task 0 rework records it as a residual
+- 2026-11-06T10:39:30Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=an install step, IRIS task or doc of ours deletes or compresses messages.old_* files, or a report of a passed system log after one was removed

@@ -34,6 +34,7 @@ Property Zone As %String;
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set ..Zone = $SYSTEM.Process.TimeZone()
+	Do ..DropSwitchedLogs()
 	Quit ##super(testname)
 }
 
@@ -168,41 +169,46 @@ ClassMethod StampOf(marker As %String) As %String
 	Quit stamp
 }
 
-/// IRIS keeps the log it switched as messages.old_*. Three files are written, oldest first, with the current file starting at c: the window is an hour
-/// before c up to a minute before it, so the current file holds nothing of it (and the kept files of the instance, older than these, are never read). The newest kept file starts inside the window (read on), the next one
-/// starts before it (read, then the read stops), and the oldest holds a severe line that would be inside the window (never read).
+/// IRIS keeps the log it switched as messages.old_*. Three files are written, oldest first, at times before b, two days before the current file starts
+/// (c): a line that another test wrote in a zone behind UTC is stamped at most a day before its time, so the current file holds nothing before b, and
+/// the windows below, which end a minute before b, count the kept files' lines only (the kept files of the instance, older than these, are never
+/// read). The newest kept file starts inside the window (read on), the next one starts before it (read, then the read stops), and the oldest holds a
+/// severe line that would be inside the window (never read). A window from before b up to now counts the current file's severe lines as well.
 Method TestSwitchedLog()
 {
 	If '..Ready() Quit
 	Set c = ..FirstTimeOfCurrent()
 	Do $$$AssertTrue(c '= "", "the current messages.log has a timed line: "_c)
 	If c = "" Quit
-	Do ..DropSwitchedLogs()
-	Set from = ##class(OcuTalon.Data.Time).AddSeconds(c, -3600)
-	Set to = ##class(OcuTalon.Data.Time).AddSeconds(c, -60)
-	Do ..WriteKept("3", $ListBuild($ListBuild(-9000, 0), $ListBuild(-1800, 2)))
+	Set b = ##class(OcuTalon.Data.Time).AddSeconds(c, -2 * 86400)
+	Set from = ##class(OcuTalon.Data.Time).AddSeconds(b, -3600)
+	Set to = ##class(OcuTalon.Data.Time).AddSeconds(b, -60)
+	Do ..WriteKept("3", b, $ListBuild($ListBuild(-9000, 0), $ListBuild(-1800, 2)))
 	Hang 1.1
-	Do ..WriteKept("2", $ListBuild($ListBuild(-7200, 0), $ListBuild(-6600, 2), $ListBuild(-3300, 3)))
+	Do ..WriteKept("2", b, $ListBuild($ListBuild(-7200, 0), $ListBuild(-6600, 2), $ListBuild(-3300, 3)))
 	Hang 1.1
-	Do ..WriteKept("1", $ListBuild($ListBuild(-3000, 0), $ListBuild(-2400, 2), $ListBuild(-1200, 2), $ListBuild(-30, 2)))
+	Do ..WriteKept("1", b, $ListBuild($ListBuild(-3000, 0), $ListBuild(-2400, 2), $ListBuild(-1200, 2), $ListBuild(-30, 2)))
 	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
 	Do $$$AssertEquals(vitals.systemLog.outcome, "read", "the log is read")
 	Do $$$AssertEquals(vitals.systemLog.count, 3, "the two lines of the newest kept file and the one of the next that lie in the window, no more")
-	Set inner = ##class(OcuTalon.Watch.Reader).Vitals("", ##class(OcuTalon.Data.Time).AddSeconds(c, -7000), to)
+	Set inner = ##class(OcuTalon.Watch.Reader).Vitals("", ##class(OcuTalon.Data.Time).AddSeconds(b, -7000), to)
 	Do $$$AssertEquals(inner.systemLog.count, 4, "a window that starts inside the second kept file counts its lines from that time on: the two of the first and the two of the second")
-	Set edge = ##class(OcuTalon.Watch.Reader).Vitals("", ##class(OcuTalon.Data.Time).AddSeconds(c, -7200), to)
+	Set edge = ##class(OcuTalon.Watch.Reader).Vitals("", ##class(OcuTalon.Data.Time).AddSeconds(b, -7200), to)
 	Do $$$AssertEquals(edge.systemLog.count, 5, "a file whose first line is at the start of the window does not end the read: the older file is read too")
+	Do ##class(%SYS.System).WriteToConsoleLog("zz OcuTalon vitals test, ignore (switched)", 0, 2)
+	Hang 1
+	Set across = ##class(OcuTalon.Watch.Reader).Vitals("", from, ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 5))
+	Do $$$AssertTrue(across.systemLog.count > 4, "a window across the switch counts the four lines of the kept files from its start and the current file's severe line too, the current file first: "_across.systemLog.count)
 }
 
 /// A switched file that cannot be read makes the sign an error, never a count that leaves its lines out.
 Method TestUnreadableSwitchedLog()
 {
 	If '..Ready() Quit
-	Do ..DropSwitchedLogs()
 	Set c = ..FirstTimeOfCurrent()
 	Do $$$AssertTrue(c '= "", "the current messages.log has a timed line: "_c)
 	If c = "" Quit
-	Do ..WriteKept("4", $ListBuild($ListBuild(-100, 2)))
+	Do ..WriteKept("4", c, $ListBuild($ListBuild(-100, 2)))
 	Set path = $SYSTEM.Util.ManagerDirectory()_"messages.old_zzvitals17_4"
 	Do $$$AssertEquals($ZF(-100, "/SHELL", "chmod", "000", path), 0, "the kept file is made unreadable")
 	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", "", "")
@@ -222,15 +228,14 @@ ClassMethod FirstTimeOfCurrent() As %String
 	Quit ##class(OcuTalon.Data.Time).FromLocal("20"_$Extract(line, 7, 8)_"-"_$Extract(line, 1, 2)_"-"_$Extract(line, 4, 5)_"T"_$Extract(line, 10, 17))
 }
 
-/// Writes a kept log, messages.old_zzvitals17_<name>, with one line for each {seconds from the current file's start, severity} of lines.
-Method WriteKept(name As %String, lines As %List)
+/// Writes a kept log, messages.old_zzvitals17_<name>, with one line for each {seconds from base (UTC), severity} of lines.
+Method WriteKept(name As %String, base As %String, lines As %List)
 {
-	Set c = ..FirstTimeOfCurrent()
 	Set file = ##class(%Stream.FileCharacter).%New()
 	Set file.Filename = $SYSTEM.Util.ManagerDirectory()_"messages.old_zzvitals17_"_name
 	Set position = 0
 	While $ListNext(lines, position, item) {
-		Set local = ##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).AddSeconds(c, $List(item, 1)))
+		Set local = ##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).AddSeconds(base, $List(item, 1)))
 		Do file.WriteLine($Extract(local, 6, 7)_"/"_$Extract(local, 9, 10)_"/"_$Extract(local, 3, 4)_"-"_$Extract(local, 12, 19)_":000 (1) "_$List(item, 2)_" [Zz.Event] a line of a kept log, ignore")
 	}
 	Do $$$AssertStatusOK(file.%Save(), "the kept log "_name_" is written")

@@ -462,24 +462,24 @@ Method TestLiveRead()
 }
 
 /// An update that leaves LastRunAt as it was writes no CheckRun and changes nothing in Build: the same time again by SQL and by object, and the due time,
-/// the name and the result alone.
+/// the name and the result alone. The result is set to failed, so a run written for one of these updates would change the watch's row.
 Method TestBeatLeavesCoverageAlone()
 {
 	Set session = ..Session()
 	Set ref = ..Watch(session, "Zz.Beat", "Beat", {"LastRunAt": "2030-06-01T11:59:30Z"})
 	Do ..Every(ref, session, "2030-06-01T11:50:30Z", 10, 60)
 	Do ..Built(session, .rows, .lines)
-	Set runs = ..RunCount(ref)
+	Set runs = ##class(OcuTalon.Test.Digest.RecordTrigger).Count(ref)
 	Do $$$AssertEquals(runs, 10, "ten runs are recorded")
 	Do $$$AssertEquals(..Results(rows), "passed,passed,passed,passed,passed,passed", "and the watch passed")
 	Do ..UpdateOne("UPDATE OcuTalon_Data.BackgroundCheck SET LastRunAt = ? WHERE Ref = ?", "2030-06-01T11:59:30Z", ref)
 	Do ..UpdateOne("UPDATE OcuTalon_Data.BackgroundCheck SET LastRunAt = ?, NextDueAt = ? WHERE Ref = ?", "2030-06-01T11:59:30Z", "2030-06-01T12:00:30Z", ref)
-	Do ..UpdateOne("UPDATE OcuTalon_Data.BackgroundCheck SET Result = ?, DisplayName = ? WHERE Ref = ?", "passed", "Beat", ref)
+	Do ..UpdateOne("UPDATE OcuTalon_Data.BackgroundCheck SET Result = ?, Finding = ?, DisplayName = ? WHERE Ref = ?", "failed", "Production stopped", "Beat", ref)
 	Set object = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
 	Set object.LastRunAt = "2030-06-01T11:59:30Z"
 	Set object.NextDueAt = "2030-06-01T12:01:30Z"
 	Do $$$AssertStatusOK(object.%Save(), "an object save that sets LastRunAt to the value it has")
-	Do $$$AssertEquals(..RunCount(ref), runs, "none of these updates wrote a CheckRun")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Digest.RecordTrigger).Count(ref), runs, "none of these updates wrote a CheckRun")
 	Do ..Built(session, .after, .afterLines)
 	Do $$$AssertEquals(after.%ToJSON(), rows.%ToJSON(), "and Build's rows are as they were")
 	Do $$$AssertEquals(afterLines.%ToJSON(), lines.%ToJSON(), "and so are its lines")
@@ -492,13 +492,6 @@ Method UpdateOne(sql As %String, args...)
 	Set result = ##class(%SQL.Statement).%ExecDirect(, sql, args...)
 	Do $$$AssertTrue(result.%SQLCODE '< 0, "the update ran: "_sql)
 	Do $$$AssertEquals(result.%ROWCOUNT, 1, "and it changed the one row")
-}
-
-Method RunCount(ref As %String) As %Integer
-{
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Digest_Data.CheckRun WHERE CheckRef = ?", ref)
-	Do result.%Next()
-	Quit result.%GetData(1)
 }
 
 Method TestGapsSignature()

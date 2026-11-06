@@ -403,10 +403,11 @@ ClassMethod SevereLinesIn(path As %String, fromUtc As %String, toUtc As %String,
 		Set line = stream.ReadLine(..#LINEMAX, .sc)
 		If $$$ISERR(sc) Quit
 		If line '? 2N1"/"2N1"/"2N1"-"2N1":"2N1":"2N1":"3N1" ".E Continue
+		Set severity = $Piece(line, " ", 3)
+		If (first '= "") && (severity '= 2) && (severity '= 3) Continue
 		Set utc = ##class(OcuTalon.Data.Time).FromLocal("20"_$Extract(line, 7, 8)_"-"_$Extract(line, 1, 2)_"-"_$Extract(line, 4, 5)_"T"_$Extract(line, 10, 17))
 		If utc = "" Continue
 		If first = "" Set first = utc
-		Set severity = $Piece(line, " ", 3)
 		If (severity '= 2) && (severity '= 3) Continue
 		If (fromUtc '= "") && (fromUtc ] utc) Continue
 		If (toUtc '= "") && (utc ] toUtc) Continue
