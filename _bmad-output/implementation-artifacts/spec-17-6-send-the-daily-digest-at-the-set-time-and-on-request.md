@@ -2,7 +2,7 @@
 title: 'Story 17.6: Send the daily digest at the set time and on request'
 type: 'feature'
 created: '2026-11-06'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
