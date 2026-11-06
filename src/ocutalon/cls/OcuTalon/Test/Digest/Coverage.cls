@@ -462,7 +462,8 @@ Method TestLiveRead()
 }
 
 /// An update that leaves LastRunAt as it was writes no CheckRun and changes nothing in Build: the same time again by SQL and by object, and the due time,
-/// the name and the result alone. The result is set to failed, so a run written for one of these updates would change the watch's row.
+/// the name and the result alone. The result is set to failed, so a run written for one of these updates would change the watch's row. The vital signs
+/// carry the time of each Build call, so the two Builds are compared without it (Settled).
 Method TestBeatLeavesCoverageAlone()
 {
 	Set session = ..Session()
@@ -481,9 +482,22 @@ Method TestBeatLeavesCoverageAlone()
 	Do $$$AssertStatusOK(object.%Save(), "an object save that sets LastRunAt to the value it has")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Digest.RecordTrigger).Count(ref), runs, "none of these updates wrote a CheckRun")
 	Do ..Built(session, .after, .afterLines)
-	Do $$$AssertEquals(after.%ToJSON(), rows.%ToJSON(), "and Build's rows are as they were")
-	Do $$$AssertEquals(afterLines.%ToJSON(), lines.%ToJSON(), "and so are its lines")
+	Do $$$AssertEquals(..Settled(after), ..Settled(rows), "and Build's rows are as they were")
+	Do $$$AssertEquals(..Settled(afterLines), ..Settled(lines), "and so are its lines")
 	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref).LastRunAt, "2030-06-01T11:59:30Z", "the check still holds its last run")
+}
+
+/// The JSON of Build's rows or lines with the time of the five vital signs left out: those are read at the moment of the call (the clock), so two calls
+/// a second apart differ in them alone. The time of the watch's row is its latest run, and stays in.
+ClassMethod Settled(items As %DynamicArray) As %String
+{
+	Set copy = ##class(%DynamicArray).%FromJSON(items.%ToJSON())
+	For i = 0:1:4 {
+		Set item = copy.%Get(i)
+		If item.%IsDefined("checkedAt") Do item.%Remove("checkedAt")
+		If $IsObject(item.slots) && item.slots.%IsDefined("time") Do item.slots.%Remove("time")
+	}
+	Quit copy.%ToJSON()
 }
 
 /// Runs one UPDATE of the check with the ref last in args, and asserts that it ran and changed that one row.

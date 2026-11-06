@@ -163,6 +163,7 @@ STEP Web OK 0.0s
 STEP SSL OK 0.0s
 STEP Tasks OK 0.1s
 STEP Demo OK 0.1s
+STEP Digest OK 0.1s
 STEP Provider OK 0.1s
 STEP Audit OK 0.0s
 STEP Telegram OK 0.0s
@@ -266,6 +267,7 @@ STEP Web OK 0.0s
 STEP SSL OK 0.0s
 STEP Tasks OK 0.0s
 STEP Demo OK 0.1s
+STEP Digest OK 0.1s
 STEP Provider OK 0.1s
 STEP Audit OK 0.0s
 STEP Telegram OK 0.0s
