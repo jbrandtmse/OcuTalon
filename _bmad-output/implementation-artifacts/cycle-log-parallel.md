@@ -2310,3 +2310,4 @@
 2026-11-06T19:43:23Z	Epic 7	planner_question	story=7.9 rec=PT-a form1,Z1,PT-b reuse noFix(caveat),PT-c none,PT-d notice only,PT-e accept unless video needs first-press line (then Z2)
 2026-11-06T19:43:59Z	Epic 7	public_text_ruled	story=7.9 PT-a=form1_exact Z=Z1 no_7.10 PT-b=reuse_noFix(followup DW for later wording) PT-c=ok PT-d=notice_only PT-e=accepted(condition: online-demo e2e shows the line "0 would change" on the second press, item 3; added by whichever of 4.11/7.9 integrates second) reader_union=confirmed by=planner
 2026-11-06T19:43:59Z	Epic 7	runner_resumed	agent=a4621a6b3ad580328 reason=7.9_public_text_ruled b_told=yes
+2026-11-06T20:09:10Z	Run	planner_update	subject=v1.0.2_released main=03b0d25a(parents ba97fe91,fe61a8e2) pr=5(15/15) tag=v1.0.2 merge_back=planner_pushing_to_feature(csp untracked, versions 1.0.2) orchestrator=not_mid_merge(local bookkeeping held until merge-back lands)
