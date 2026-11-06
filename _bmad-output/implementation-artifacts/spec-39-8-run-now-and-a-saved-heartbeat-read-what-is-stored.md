@@ -4,6 +4,7 @@ type: 'bugfix'
 created: '2026-11-06'
 status: 'done'
 baseline_revision: '6a97fddd2c80c734fa78bf86ba5c638f9120445a'
+baseline_commit: '6a97fddd2c80c734fa78bf86ba5c638f9120445a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -50,7 +51,7 @@ deferred:
 |----------|--------------|---------------------------|----------------|
 | Save then run now (DW-803) | The Checks process cached the session's checklist as empty less than 60 s ago. Another process then saves a checklist. | `BeatNow` answers `sent`: one Item goes to Intake, the mock logs one request, and that process's cache now holds the stored value. | A `RunNow` error status is answered `failed`, as today. |
 | Tick after a save | The same stale cache, and the person is due. | `RunDue` reads the cached empty checklist: an `empty` skip, no Item. | none |
-| Shorter interval, new time ahead (DW-780) | A beat at B left `NextDueAt` = B+60 min. The interval is now 30. The tick is at B+1 min. | `NextDueAt` becomes B+30 min, saved, with one view and no Item. The next tick writes nothing and gives no view. The tick at B+30 min beats. | A failed save counts as one failure, and the other people go on. |
+| Shorter interval, new time ahead (DW-780) | A beat at B left `NextDueAt` = B+60 min. The interval is now 30. The tick is at B+1 min. | `NextDueAt` becomes B+30 min, saved, publishing nothing (lead ruling at the spec gate) and with no Item. The next tick writes nothing and gives no view. The tick at B+30 min beats. | A failed save counts as one failure, and the other people go on. |
 | Shorter interval, time passed | A beat at B-40 min left `NextDueAt` = B+20 min. The interval is now 30. The tick is at B. | The beat runs at B: `LastBeatAt` = B, `NextDueAt` = B+30 min. One commit, one view. | none |
 | Longer interval | A beat at B left `NextDueAt` = B+30 min. The interval is now 120. | `NextDueAt` is kept, with no write and no view. The beat at B+30 min sets `NextDueAt` = B+30 min+120 min. | none |
 | A skip set it | A newer `cap` skip at S left `NextDueAt` = S+60 min. The interval is now 30. | `NextDueAt` becomes S+30 min. | none |
@@ -133,6 +134,8 @@ deferred:
 - Integration AC -- Given the real production, when `HeartbeatIn` sends the `Checks` item a `BeatNow` right after a save on a session the Tick has read, then `Checks` answers the `CommandResult` that `CommandsIn` turns into `POST /api/v1/heartbeat/run`'s 202 (`Ok` 1, `Outcome` `sent`, `Ref` the ItemId). The Item reaches Intake, and the CI mock logs exactly one request.
 
 ## Spec Change Log
+
+- 2026-11-06 (lead, after implement): the matrix row 'Shorter interval, new time ahead' corrected to the spec-gate ruling (a reschedule publishes nothing).
 
 - 2026-11-06 (lead, spec gate): a reschedule saves the row and publishes no heartbeat event (no AD-18 change); the Code Map, the AC 2 test steps, Shared surfaces and Consumed-by updated to match.
 

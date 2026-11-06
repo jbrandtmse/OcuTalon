@@ -4645,3 +4645,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now.md | severity: high | fix-risk: low | footprint: in-epic
 - evidence: Checks/Beat.cls RunNow calls Values(sessionRef) via Data.Setting.Get (60 s per-process cache); the per-minute tick reads every session; HC4 waits 61 s for this reason
 - 2026-11-06T15:16:51Z status=routed owner=39-8-run-now-and-a-saved-heartbeat-read-what-is-stored by=cr note=39.5 code review HIGH; split to Story 39.8 (Lane A); 39.5 re-reviews after it
+
+### DW-812: Copy forced by the lane boundary: Lane B SettingsOps.HeartbeatValues drops the same five cache entries that Checks.Beat.Values(ref, 1) now drops
+- source: spec-39-8-run-now-and-a-saved-heartbeat-read-what-is-stored.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Core/SettingsOps.cls HeartbeatValues about line 350 repeats the drop loop of Checks/Beat.cls Values(ref,1)
+- 2026-11-06T16:09:57Z status=routed owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=harvest note=two-way door (about 3 lines) for 39.5's rework iteration: HeartbeatValues calls Checks.Beat.Values(ref, 1)
