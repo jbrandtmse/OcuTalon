@@ -2316,3 +2316,5 @@
 2026-11-06T20:24:30Z	Epic 39	planner_ruling	subject=followup_order order=7.9_first,then_epic39_followup target=saturday story_order=DW-824+Every_hour_first,then_DW-785,DW-670
 2026-11-06T21:01:48Z	Run	planner_ruling	subject=no_public_ipm_registry_installs rule=local_artifact_path_only(release/ipm-install.sh OCUTALON_IPM_ARTIFACT) exception=planner_ok_per_run reason=open_exchange_counter_2_to_22 written_to=switch-20261106-common.md
 2026-11-06T21:03:13Z	Run	ci_red_classified	sha=9683c1f0 run=42285847375 workflow=ci.yml jobs=production(row 21, DW-306 flake class),browser(documents D5 filechooser timeout, new flake candidate DW-825) diff_vs_green_b5dcbbfa=module versions+release records only action=rerun_failed lane-a=success
+2026-11-06T21:53:29Z	Run	ci_green_verified	sha=9683c1f0 runs=42285847375(attempt 2),42285847475 branch=feature via=ci-gate note=merge-back_v1.0.2 flakes=DW-306,DW-825
+2026-11-06T21:53:29Z	Epic 17	runner_ci_wait	agent=a69a13ff12f8408f8 sha=b94508c9 runs=42296836927,42296836950 story=17.6_done(2a0a136d green) integrated_forward=b5dcbbfa next=17.7_implement q=AD-32_text_correction(U7 fails: spec-7-9 cites AD-32)->planner

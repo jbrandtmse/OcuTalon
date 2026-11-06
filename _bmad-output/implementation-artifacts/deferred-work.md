@@ -2055,6 +2055,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T18:35:57Z occurrence=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=lead note=CI_run_41689251949_iris(production)_live:production_row_21_wanted_CHK|start-fails|1|1_got_empty;flake_rerun
 - 2026-11-05T19:31:24Z occurrence=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=ci note=run_42087551083_job_127456620696_row_21_got_empty_on_78bcb982;rerun_failed_job
 - 2026-11-06T21:03:13Z status=routed owner=burndown by=orchestrator note=occurrence=2026-11-06 run 42285847375 sha 9683c1f0 (merge-back of v1.0.2; tree differs from green b5dcbbfa only by module versions and release records): FAIL row 21, 1 of 5 values differ; rerun of failed jobs
+- 2026-11-06T21:53:29Z status=routed owner=burndown by=orchestrator note=rerun attempt 2 of run 42285847375 green on 9683c1f0
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4719,3 +4720,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci_run_42285847375 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: run 42285847375 sha 9683c1f0 iris (browser) live:sign-in: TimeoutError page.waitForEvent filechooser at documents.spec.ts:146; the same spec passed on b5dcbbfa (42272673909), and the tree differs only by module versions and release records
 - 2026-11-06T21:03:13Z status=routed owner=burndown by=orchestrator note=occurrence=2026-11-06 run 42285847375; one rerun of failed jobs started; a second red on the same head is real
+- 2026-11-06T21:53:29Z status=routed owner=burndown by=orchestrator note=rerun attempt 2 of run 42285847375 green on 9683c1f0: flake class confirmed (one occurrence)
