@@ -8730,6 +8730,36 @@ So that what it shows is current without a reload.
 
 - DW-633: OcuTalon.Live.Payload.Heartbeat not yet created; the class, the Live.Publish TYPES pair, the Test.Live.Payloads counts and web/src/app/live/payloads.ts land together before this story publishes the heartbeat event (ledger; routed by harvest 2026-11-03; moved with the split)
 
+### Story 39.8: Run now and a saved heartbeat read what is stored
+
+*Home lane: A.*
+
+[ADDED 2026-11-06, split from Story 39.5 at its code review, unattended ruling (decide; Rule 5 split into a sibling planned next in the same epic): Story 39.5's online-demo save-then-run (DW-781) needs Checks to read the values just saved, which only a Lane A story may change; DW-780 has the same root.]
+
+As a user,
+I want Run the heartbeat now and a saved interval to use what I just saved,
+So that a save followed by a run works, and "Applies within a minute" is true for the interval.
+
+**Acceptance Criteria:**
+
+**Given** a session whose heartbeat settings the Checks job has read within the last 60 seconds (its per-process settings cache)
+**When** the person saves a checklist and then asks for a beat now (`RunHeartbeat`, a `BeatNow`)
+**Then** `Checks.Beat.RunNow` reads the stored values: it drops the Checks process's cached heartbeat keys of that session before it reads them, so the run is not refused as empty (AD-18, AD-19)
+**And** a tick still reads through the cache, so nothing else changes how often settings are read
+
+**Given** a beat that set `NextDueAt` with the old interval
+**When** the person saves a shorter interval
+**Then** from the first tick that reads the new interval (within 60 seconds of the save), the next beat is due at its `LastBeatAt` plus the new interval, or at once if that time has passed, so the change applies within a minute (FR-63, AD-19)
+**And** a longer interval keeps the stored `NextDueAt` until the next beat, which then uses the new interval
+
+**Given** `Test.Checks` cases on the real tick and the CI mock
+**When** they run
+**Then** they pin the save-then-run on a session the tick has already read, and the shorter-interval reschedule, each with a demonstrated mutation (Rule 19)
+
+- DW-780: a saved interval, hours or on/off change does not move the stored NextDueAt (ledger; routed by split 2026-11-06)
+- DW-803: Checks.Beat.RunNow reads the settings through the per-process 60-second cache, so a save followed at once by Run now is refused as empty (ledger; routed by cr 2026-11-06)
+
+
 ## Epic 40: Choose how OcuTalon talks to you
 
 [ADDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195); the owner: "we should still support a custom persona outside of the demo." and "I would want the agent to be able to propose changes to persona, and all them if the user approves."; the language field and the demo, ~14:40Z: "Yes on demo visitors get presets only, with the exception that they can define language in the "Another Language" option."; on tone: "Bend them, emoji too"] A person chooses how OcuTalon words its chat replies and reasons. The persona reaches the agents as a data block and changes nothing about what OcuTalon may do. Starship computer, Pirate and Kind friend may use a greeting, exclamation marks and emoji; Professional and Another language keep OcuTalon's quiet writing rules; facts, outcomes, approvals and every catalog or reserved sentence stay exact under all of them. Each story keeps its home lane's files.

@@ -4612,6 +4612,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Checks/Beat.cls:426 RunDue tests the stored NextDueAt; a beat sets it to tick plus one interval; SaveHeartbeat writes only the five person keys
 - 2026-11-06T09:01:42Z status=routed owner=burndown by=harvest note=Lane A fix in Checks.Beat (recompute the due time from LastBeatAt and the current interval at the tick); no remaining Epic 39 story touches Checks; burn-down gate
+- 2026-11-06T15:16:50Z status=routed owner=39-8-run-now-and-a-saved-heartbeat-read-what-is-stored by=adjudication note=split from 39.5's review: Story 39.8 (Lane A) reschedules on a shorter saved interval
 
 ### DW-781: On the online demo GET shows the unsaved sample checklist, but POST /v1/heartbeat/run answers 409 empty for it
 - source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: low | fix-risk: low | footprint: in-epic
@@ -4639,3 +4640,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: heartbeat-card-view.ts HEARTBEAT_TEXTS.off is the ruled UX Off text verbatim; with interval 120 saved and on false HC2 expects every 30 minutes
 - 2026-11-06T15:13:35Z status=by-design owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=cr note=Public text table is final (Contest Planner ruling 2026-11-06); reopens only via a Public-text ruling naming {interval}
+
+### DW-803: Checks.Beat.RunNow reads heartbeat settings through the Checks process's 60-second per-process cache, so a save followed at once by Run now is refused as empty (online-demo save-then-run, 39.5 AC6)
+- source: spec-39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now.md | severity: high | fix-risk: low | footprint: in-epic
+- evidence: Checks/Beat.cls RunNow calls Values(sessionRef) via Data.Setting.Get (60 s per-process cache); the per-minute tick reads every session; HC4 waits 61 s for this reason
+- 2026-11-06T15:16:51Z status=routed owner=39-8-run-now-and-a-saved-heartbeat-read-what-is-stored by=cr note=39.5 code review HIGH; split to Story 39.8 (Lane A); 39.5 re-reviews after it

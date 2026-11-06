@@ -222,6 +222,8 @@ Rejected:
 
 ## Spec Change Log
 
+- 2026-11-06 (lead, after code review 1): the review's HIGH (online-demo save-then-run reads Checks' 60-second per-process settings cache, so AC6 fails on the real stack) needs a Lane A change; split to Story 39.8 (DW-803, with DW-780). This story stays in-progress for ONE rework iteration after 39.8 is committed: add a `HeartbeatApi` case that saves and runs on a session the tick has already read, expecting 202, then a scoped re-review.
+
 - 2026-11-06 (lead, before implement): the Contest Planner's PUBLIC TEXT ruling for 39.5 applied to `### Public text` (Today singular, the labels and interval names approved; DW-634's unavailable texts approved; the skip line's cap fragment becomes "today's cost limit has been reached.", choice (c), EXPERIENCE.md amended with a marker, reusing the catalog's `fallbackReason.dailyCap` wording; 39.2's overview line stays). U-295 kept with conditions; CI placement ruled. Tasks added at the end of Tasks & Acceptance.
 
 - 2026-11-06 (lead, after the plan halt): epics.md Story 39.5's REL-2 clause amended as the plan recommended (unattended ruling, veto U-295): the Playwright specs change no demo-path spec except the rail's section count in `web/e2e/demo-path/01-page.spec.ts`, six to seven headings, Heartbeat checklist before Persona. Status set to ready-for-dev without a re-plan; the Public text table goes to the Contest Planner before implement.
