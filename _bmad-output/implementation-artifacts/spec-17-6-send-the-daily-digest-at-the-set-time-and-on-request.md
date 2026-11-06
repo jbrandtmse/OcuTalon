@@ -2,7 +2,7 @@
 title: 'Story 17.6: Send the daily digest at the set time and on request'
 type: 'feature'
 created: '2026-11-06'
-status: 'blocked'
+status: 'in-progress'
 baseline_revision: '814a4e1499f7299ea25b7736f03eef60f1b4cb72'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -236,6 +236,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
   - Update `Test/Digest/Contracts.cls` (no stub; and the `Sent` contract in `XData Contracts` gains `IdempotencyKey` `%String(MAXLEN=128)` and its index, and `TestRefCollation` lists `Sent||IdempotencyKey`: the lead's U-268 (3) gate) and `Test/Digest/Thresholds.cls` (the seven seeds).
 - [ ] `Test/Bridge/CodeRules.cls` `TOOLVERBS` gains `SendDigest` (NOT DONE: Clarification Needed 1; `Test.Agent.Runners` `TestToolInventory` stays red until it is ruled).
 
+- [ ] Rulings of 2026-11-06 after the first implement pass (Design Notes): G1 `TOOLVERBS` append in `Test/Bridge/CodeRules.cls` :109; G2 the fixture-only edit in `Test/Checks/Heartbeat.cls` `TestDisabledItemIsReportedOnce` (its session has no digest due, preferring the digest off for it; assertions and tick times unchanged); keep the two confirmed side edits (`SLOTTYPES` `dailyCost`; `TestOtherKinds` without `digest`, with a green positive digest-kind Telegram test that includes Got it); the digest routing filter of option (a) with its four tests and the fixed-strings pin of the reachability failure text; drop the `digest.channels` install seed.
+
 **Acceptance Criteria:**
 - Given `digest.time` and a session created before today's time, when the heartbeat's tick passes it, then `Checks` forwards the Tick, `Digest` sends one `Notification` of kind `digest` to `Notify` with the AD-32 Slots, and records one scheduled `Sent` row. Given a session created after it, then none is sent until tomorrow's tick (DW-651).
 - Given ticks stopped across `digest.time` for two days, when ticks resume, then exactly one digest goes, and no later tick repeats it, also while its `Compose` waits on Decide.
@@ -249,6 +251,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
 - Given a tell-now message in the paired chat, when the user presses **Got it** there, then one `GotIt` command is submitted with origin `telegram`. Given a press from another chat, nothing is submitted. Given a `handled` notification, then the message is edited in place to "Marked as handled at {time}" with the button removed.
 
 ## Spec Change Log
+
+- 2026-11-06 lead: the Planner ruled option (a) for the digest routing until 18.2 (a narrowing filter; the reachability failure text; four tests; no install seed of digest.channels); spec-33-2 :145 amended; status set to in-progress for the implement re-dispatch on the held tree.
 
 - 2026-11-06 lead: G1, G2 (fixture-only) and the two side edits ruled; the interim route's condition 1 failed (a REST writer of digest.channels exists on feature); the choice is with the Planner; no finalize before it.
 
@@ -266,7 +270,16 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
 - **G1:** append `SendDigest` to `TOOLVERBS` in `Test/Bridge/CodeRules.cls` :109 (one term; Epic 19's diff in that file changes only `CALLBACKHELPERS`: a plain union). Footprint extension.
 - **G2, option (c), fixture-only:** in `Test/Checks/Heartbeat.cls` `TestDisabledItemIsReportedOnce` only, the fixture session has no digest due: use the setting the as-built `Digest` reads, preferring the digest off for that fixture session. Its assertions and tick times stay unchanged (Epic 39's hunks there are around :26, :275, :351, :578: a plain union). Options (a) (a change to the ruled due rule) and (b) are rejected. At the integrate-forward after Epic 39 merges, the lead also runs Epic 39's new tick tests (`TestAnHourOfTicks`, `TestBeatNow*`); the same fixture-only fix applies if one hits the digest-due notice; any assertion change is a Clarification. Footprint extension.
 - **Side edits CONFIRMED:** `dailyCost` in `SLOTTYPES` of `Test/Msg/Catalog.cls` (Epic 39 edits another hunk, about :120: a plain union); `digest` removed from `Test/Channel/TelegramOut.cls` `TestOtherKinds`, on the condition that a positive test of the digest kind's Telegram message, with Got it, exists and is green. Footprint extensions.
-- **Interim digest route:** the Planner kept it on condition that nothing can write `digest.channels` before Story 18.2 (with a fallback test and a never-silently-rerouted test). The lead's check found a writer on the feature branch today (see the lead's report to the orchestrator, 2026-11-06): `POST /v1/settings/daily-digest` (`Web/Api.cls` :165 -> `SaveSection` -> `SettingsOps.Save` -> `SaveProduct` -> `Apply`; the `daily-digest` section maps `channels` to `digest.channels`, `SettingsOps.cls` :624-626, `ALLOWLIST` :52), admin-only; the 1.0.1 page itself shows "This part of OcuTalon isn't built yet." for Daily digest (`settings-page.ts` :65-66). The choice (honour a saved value, or hold kind `digest` until 18.2) is the Planner's. Also: this story's own install step seeds `digest.channels` (uncommitted): under the condition, no installer step may write it, so that seed is dropped unless the ruling says otherwise. **No finalize commit until that ruling is relayed.**
+- **Interim digest route:** the Planner kept it on condition that nothing can write `digest.channels` before Story 18.2 (with a fallback test and a never-silently-rerouted test). The lead's check found a writer on the feature branch today (see the lead's report to the orchestrator, 2026-11-06): `POST /v1/settings/daily-digest` (`Web/Api.cls` :165 -> `SaveSection` -> `SettingsOps.Save` -> `SaveProduct` -> `Apply`; the `daily-digest` section maps `channels` to `digest.channels`, `SettingsOps.cls` :624-626, `ALLOWLIST` :52), admin-only; the 1.0.1 page itself shows "This part of OcuTalon isn't built yet." for Daily digest (`settings-page.ts` :65-66). The Planner then RULED option (a) (below), which replaces condition 1.
+
+**Digest routing until Story 18.2: Contest Planner ruling under the owner's delegation, 2026-11-06, option (a), a filter that can only narrow (binding):**
+- A digest goes only to the session's OWN channels (those `Notify`'s generic route reaches for the session) that `digest.channels` names; the default `web,phone,telegram` (the `SettingsOps` default, read when no row is saved) means all of them. It never goes to a channel outside the session's own: an unknown or foreign value in `digest.channels` never adds a destination.
+- If the filter leaves no channel, nothing is sent and the failure is recorded on the digest's failure path, visible in Visual Trace, with exactly this operator diagnostic (a `Digest.Process` parameter): `No digest channel is reachable: none of the saved digest channels is one of this session's channels.` A fixed-strings test pins it.
+- The filter lives in Lane A (`Digest`): no Lane B edit; `SettingsOps`, `Web/Api.cls` and `Notify` stay as they are.
+- Drop the `digest.channels` seed from this story's `Install/Step/Digest.cls` (`Run` seeds `digest.time` only, if it seeds digest keys at all); the default lives in `SettingsOps` only.
+- Required tests, each with its mutation: (1) with no `digest.channels` saved, the digest reaches exactly the session's own channels and nothing else; (2) a saved subset narrows delivery to that subset; (3) a saved value with no reachable channel: nothing is sent, and the failure is recorded with the text above; (4) a foreign or unknown channel value never adds a destination.
+- The writer evidence behind this ruling (the lead's check, 2026-11-06): on the feature branch, Epic 17 and Epic 19, `POST /v1/settings/daily-digest` (`Web/Api.cls` :165 -> `SaveDailyDigest` :732 -> `SaveSection` :753 -> `SettingsOps.Save` :690/:716-717 -> `SaveProduct` :775 -> `Apply`) writes `digest.channels` for an admin (section map `SettingsOps.cls` :624-626, `ALLOWLIST` :52); the 1.0.1 page shows "This part of OcuTalon isn't built yet." for Daily digest (`settings-page.ts` :65-66); no installer step on feature or Epic 19 and no chat tool writes it.
+- spec-33-2 :145 is amended in place (marker `[AMENDED 2026-11-06, Story 17.6, owner ruling via the Contest Planner]`).
 
 **Lead's spec gate, 2026-11-06: U-268 (3) re-read of the 15 specs that cite AD-1 and AD-14 (an Opus reader; 13 clear).**
 - **Decided (in-footprint, lead):** spec-33-1 :126 and :149 pin `Digest.Data.Sent`'s exact properties and indexes in `Test/Digest/Contracts.cls` `XData Contracts` (:97-116). 17.6 appends `IdempotencyKey` and its index, so the task that updates `Test/Digest/Contracts.cls` also adds `"IdempotencyKey": "%String(MAXLEN=128)"` and the new index (for example `"SessionRefKeyIndex": "SessionRef,IdempotencyKey"`, whatever name the code uses) to the `Sent` contract, and `Sent||IdempotencyKey` to `TestRefCollation`'s exact-collation list.
