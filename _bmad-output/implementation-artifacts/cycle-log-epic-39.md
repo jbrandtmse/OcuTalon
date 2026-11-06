@@ -201,3 +201,4 @@
 2026-11-05T08:24:09Z	Story 39.7	story_cycle	plan_to_commit_min=546 implement_passes=4 reviews=3 rework=2 first_ci=story models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=rework_1_ci_L10,rework_2_high_AD-18_bullet
 2026-11-05T08:57:07Z	Story 39.7	ci_resolved	story=39.7 sha=e02ca205 runs=41994157111,41994157054 result=success failed=none via=none resolved_at=next_plan checks_job_min=13.6_of_20
 2026-11-05T08:57:07Z	Epic 39	runner_ended	reason=waiting waiting_on=40 stories_done=39.1,39.3,39.4,39.6,39.7 waiting=39.2(on_40),39.5(on_39.2) applied=U-275,U-283 lane_d=free
+2026-11-06T03:51:10Z	Epic 39	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_switch_20261106_after_epic40_merge lane=D slot=ocutalon-slot-d
