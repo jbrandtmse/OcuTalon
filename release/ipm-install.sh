@@ -91,7 +91,15 @@
 #   30. after path A's second run: the install fetched fastembed 0.9.0 through requirements.txt (the module root's file, staged beside
 #       src/module.xml by stage_requirements), the output has STEP Memory OK and no WARN Memory line, and <mgr>/fastembed/ holds the model
 #       once (one models--Qdrant--all-MiniLM-L6-v2-onnx folder, which the Memory step downloaded in a worker);
-#   31. check 25's reinstall downloads nothing new: the folder's file list and sizes are the same before and after.
+#   31. check 25's reinstall downloads nothing new: the folder's file list and sizes are the same before and after, and so are the two Python
+#       resources in <mgr>/python (Story 19.6).
+# Story 19.6 (U-294) adds the licence-measured pin set and the PDF and Word reading:
+#   32. after path A's second run and after part p's install: docker/licences/gate.py check passes on <mgr>/python against the constraints
+#       file of the architecture (staged by stage_licence_gate), so every installed distribution is under an allowed licence and is pinned at
+#       its installed version, and gate.py notices writes a non-empty file that names every one of the 36 distributions;
+#   33. after the same two installs: OcuTalon.Docs.Extract.Read of Test.Docs.Samples' 3-page PDF and its headings .docx answers ok with page
+#       and heading markers, so the Python resources and the extraction category reached the IPM install. Check 30 also names pdfplumber
+#       0.11.10 and python-docx 1.1.2.
 # Story 15.4 adds part p, the exact release artifact installed from an IPM repository on a fresh instance with no Node.js:
 #   The artifact is OCUTALON_IPM_ARTIFACT (the .tgz that the release sequence's ipm step made), or, when that is unset, the module that
 #   path A's second run installed, packaged with `zpm "package ocutalon -only"` (TIME package) and checked with lib-release's
@@ -468,6 +476,118 @@ stage_requirements() {
   dc exec -T -u root iris sh -c "cat > $SRC/requirements.txt && chmod 444 $SRC/requirements.txt" < requirements.txt || die "requirements.txt could not be staged in the container"
 }
 
+# stage_licence_gate: puts docker/licences/gate.py, allowed.txt and the constraints file of the container's architecture (uname -m) into a scratch
+# folder of the container, as root and read-only (Story 19.6, U-294). The image is built from the
+# allow-listed context of release/ipm/Dockerfile, which holds only src/, so the files are staged the way requirements.txt is.
+LICENCES=/tmp/ocutalon-licences
+
+# manager_directory: the container's manager directory (with the closing slash) from a %SYS session, tried up to 6 times, 5 seconds apart, because
+# a busy host can answer a session late right after the stack is up.
+manager_directory() {
+  local try=1 mgr=""
+  while [ -z "$mgr" ] && [ "$try" -le 6 ]; do
+    mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | session_value %SYS mgr)
+    [ -n "$mgr" ] || sleep 5
+    try=$((try + 1))
+  done
+  printf '%s' "$mgr"
+}
+stage_licence_gate() {
+  local arch name
+  arch=$(dc exec -T iris uname -m 2> /dev/null | tr -d '\r')
+  case $arch in
+    x86_64) arch=x64 ;;
+    aarch64) arch=arm64 ;;
+    *) die "no Python constraints file for the container's architecture '$arch'" ;;
+  esac
+  LICENCE_CONSTRAINTS="$LICENCES/constraints-$arch.txt"
+  dc exec -T -u root iris mkdir -p "$LICENCES" || die "the licence gate could not be staged in the container"
+  for name in gate.py allowed.txt "constraints-$arch.txt"; do
+    dc exec -T -u root iris sh -c "cat > $LICENCES/$name && chmod 444 $LICENCES/$name" < "docker/licences/$name" || die "docker/licences/$name could not be staged in the container"
+  done
+  dc exec -T -u root iris chmod 555 "$LICENCES" || die "the licence gate folder could not be made read-only"
+}
+
+# snapshot_python_before: records the distributions that <mgr>/python holds now, just before the install command that installs the requirements
+# (the image's own packages, and IPM's own dependencies once IPM is loaded), for check 32.
+snapshot_python_before() {
+  local mgr
+  mgr=$(manager_directory)
+  [ -n "$mgr" ] || die "the manager directory could not be read, so the Python folder could not be recorded"
+  dc exec -T iris sh -c "ls '${mgr}python' 2> /dev/null | grep '[.]dist-info\$' > /tmp/ocutalon-python-before.txt; true" || die "the Python folder could not be recorded"
+}
+
+# check_licences <label> (check 32): the licence gate on what IPM installed into <mgr>/python, and the notices it writes. What IPM installed is
+# every distribution of the folder except one that snapshot_python_before found there and that is no pin of the constraints file (the image's own
+# Python packages and IPM's own dependencies: the gate is not theirs); a pin that was there already at its pinned version counts as installed.
+check_licences() {
+  local label=$1 mgr out rc named scratch=/tmp/ocutalon-installed
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the licence gate did not run"
+    return
+  fi
+  dc exec -T iris python3 - "${mgr}python" /tmp/ocutalon-python-before.txt "$LICENCE_CONSTRAINTS" "$scratch" << 'EOP' | tr -d '\r' | sed 's/^/  /'
+import os, re, shutil, sys
+target, before_file, constraints, scratch = sys.argv[1:5]
+def norm(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+pins = {}
+for line in open(constraints):
+    line = line.strip()
+    if line and not line.startswith("#"):
+        name, _, version = line.partition("==")
+        pins[norm(name)] = version
+before = set(open(before_file).read().split())
+shutil.rmtree(scratch, ignore_errors=True)
+os.makedirs(scratch)
+kept = 0
+for entry in sorted(os.listdir(target)):
+    if not entry.endswith(".dist-info"):
+        continue
+    name, _, version = entry[: -len(".dist-info")].rpartition("-")
+    if entry in before and pins.get(norm(name)) != version:
+        print("NOTE %s was in the folder before the install and is no pin: not gated" % entry[: -len(".dist-info")])
+        continue
+    os.symlink(os.path.join(target, entry), os.path.join(scratch, entry))
+    kept += 1
+print("NOTE %d distributions gated" % kept)
+EOP
+  out=$(dc exec -T iris python3 "$LICENCES/gate.py" check "$scratch" "$LICENCE_CONSTRAINTS" 2>&1)
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
+    pass "$label: the licence gate passes on what IPM installed ($(printf '%s\n' "$out" | tail -n 1 | tr -d '\r'))"
+  else
+    printf '%s\n' "$out" | tr -d '\r' | grep -e FAIL | cut -c1-300 | sed 's/^/  gate: /'
+    fail "$label: the licence gate fails on what IPM installed (exit $rc)"
+  fi
+  named=$(dc exec -T iris sh -c "python3 $LICENCES/gate.py notices '$scratch' /tmp/ocutalon-notices.txt > /dev/null 2>&1; python3 - '$LICENCE_CONSTRAINTS' /tmp/ocutalon-notices.txt" 2> /dev/null << 'EOP' | tr -d '\r'
+import re, sys
+def norm(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+pins = [l.strip().split("==") for l in open(sys.argv[1]) if l.strip() and not l.startswith("#")]
+lines = set(norm(l.strip()) for l in open(sys.argv[2], encoding="utf-8", errors="replace"))
+named = sum(1 for name, version in pins if norm(name + " " + version) in lines)
+print("%d/%d" % (named, len(pins)))
+EOP
+)
+  if [ -n "$named" ] && [ "${named%/*}" = "${named#*/}" ] && [ "${named%/*}" -gt 0 ] 2> /dev/null; then
+    pass "$label: gate.py notices writes a file that names all ${named#*/} distributions at their pinned versions"
+  else
+    fail "$label: the notices name '$named' of the pinned distributions"
+  fi
+}
+
+# check_extract <label> (check 33): the PDF and Word reading works in the installed package.
+check_extract() {
+  check_session "$1: Docs.Extract.Read answers a PDF and a Word file, in a worker of the extraction category" OCUTALON \
+    "CHK|pdf|1|page
+CHK|docx|1|heading" \
+    'Set a=##class(OcuTalon.Docs.Extract).Read(##class(OcuTalon.Test.Docs.Samples).Pdf3(),"pdf") Write !,"CHK|pdf|",a.ok,"|",a.markers' \
+    'Set a=##class(OcuTalon.Docs.Extract).Read(##class(OcuTalon.Test.Docs.Samples).DocxHeadings(),"docx") Write !,"CHK|docx|",a.ok,"|",a.markers' \
+    'Halt'
+}
+
 # check_memory [<run name> [<label>]] (check 30): the Python requirement and the model, on the output of the run (default second-ocutalon).
 check_memory() {
   local f="$tmp/${1:-second-ocutalon}.txt" label="${2:-install checks}"
@@ -477,11 +597,15 @@ check_memory() {
     grep '^WARN Memory ' "$f" | cut -c1-300
     fail "$label: the output has no STEP Memory OK, or has a WARN Memory line"
   fi
-  check_session "$label: IPM installed fastembed 0.9.0 from requirements.txt, and the model sits once in <mgr>/fastembed/" OCUTALON \
+  check_session "$label: IPM installed fastembed 0.9.0, pdfplumber 0.11.10 and python-docx 1.1.2 from requirements.txt, and the model sits once in <mgr>/fastembed/" OCUTALON \
     "CHK|fastembed|0.9.0
+CHK|pdfplumber|0.11.10
+CHK|python-docx|1.1.2
 CHK|models|1
 CHK|hasmodel|1" \
     'Write !,"CHK|fastembed|",##class(%SYS.Python).Import("importlib.metadata").version("fastembed")' \
+    'Write !,"CHK|pdfplumber|",##class(%SYS.Python).Import("importlib.metadata").version("pdfplumber")' \
+    'Write !,"CHK|python-docx|",##class(%SYS.Python).Import("importlib.metadata").version("python-docx")' \
     'Set n=0,d=$ZSearch($SYSTEM.Util.ManagerDirectory()_"fastembed/models--*") While d'"'"'="" { Set n=n+1 Set d=$ZSearch("") } Write !,"CHK|models|",n' \
     'Write !,"CHK|hasmodel|",+##class(OcuTalon.Memory.Embedder).HasModel($SYSTEM.Util.ManagerDirectory()_"fastembed/")' \
     'Halt'
@@ -494,6 +618,14 @@ memory_fingerprint() {
   mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
   [ -n "$mgr" ] || return 0
   dc exec -T iris sh -c "cd '${mgr}fastembed' && { find . -printf '%p %s\n' | sort | md5sum | cut -c1-12; find . -type f | wc -l; }" 2> /dev/null | tr -d '\r' | tr '\n' ' '
+}
+
+# resources_fingerprint: the checksums of the two Python resources in <mgr>/python of the container; empty when they cannot be read.
+resources_fingerprint() {
+  local mgr
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  [ -n "$mgr" ] || return 0
+  dc exec -T iris sh -c "md5sum '${mgr}python/ocutalon_extract.py' '${mgr}python/ocutalon_memory.py'" 2> /dev/null | tr -d '\r' | awk '{ printf "%s ", $1 }'
 }
 
 # check_signin <label> [logout]: the sign-in page is served and not the online demo's, and ocutalon/ocutalon signs in; the session stays
@@ -1189,7 +1321,7 @@ CHK|routine|1" \
 # reinstall_next (check 25): the install command with the next version, from a scratch copy of the package folder with only <Version>
 # raised, on the stack of path B after the restart checks.
 reinstall_next() {
-  local copy=/tmp/ocutalon-scratch-next ver raised rows started=$SECONDS label="reinstall, next version" memory_before memory_after
+  local copy=/tmp/ocutalon-scratch-next ver raised rows started=$SECONDS label="reinstall, next version" memory_before memory_after resources_before resources_after
   ver=$(module_version)
   raised=$(printf '%s' "$ver" | awk -F. 'NF == 3 { print $1 "." $2 "." $3 + 1 }')
   if [ -z "$raised" ]; then
@@ -1199,6 +1331,7 @@ reinstall_next() {
   item_jobs "$tmp/jobs-next-before.tsv"
   rows=$(reconcile_rows)
   memory_before=$(memory_fingerprint)
+  resources_before=$(resources_fingerprint)
   scratch_copy "$copy" \
     "sed -i 's|<Version>$ver</Version>|<Version>$raised</Version>|' $copy/module.xml" \
     "grep -c '<Version>$raised</Version>' $copy/module.xml" > "$tmp/scratch-next.out" 2>&1
@@ -1214,6 +1347,12 @@ reinstall_next() {
     pass "$label: <mgr>/fastembed/ is unchanged, so nothing was downloaded again ($memory_after)"
   else
     fail "$label: <mgr>/fastembed/ went from '$memory_before' to '$memory_after'"
+  fi
+  resources_after=$(resources_fingerprint)
+  if [ -n "$resources_before" ] && [ "$resources_before" = "$resources_after" ]; then
+    pass "$label: the Python resources in <mgr>/python are unchanged ($resources_after)"
+  else
+    fail "$label: the Python resources in <mgr>/python went from '$resources_before' to '$resources_after'"
   fi
   if [ "$(module_version)" = "$raised" ]; then
     pass "$label: the module is recorded with version $raised"
@@ -1374,6 +1513,7 @@ part_p() {
     die "the part p stack did not become ready"
   fi
   echo "TIME ready-p $((SECONDS - started))s"
+  stage_licence_gate
   ipm_precondition "part p"
   take_snapshot p-base "part p"
   derive_dbs "$tmp/p-base.snap"
@@ -1396,6 +1536,7 @@ part_p() {
   # The repository is added in a session whose output is discarded: the repository definitions are never printed.
   printf '%s\nHalt\n' 'zpm "repo -name ocutalon-local -fs -depth 2 -path /tmp/ocutalon-repo/"' | dc exec -T iris iris session IRIS -U USER > /dev/null 2>&1
   h0=$(defs_hash)
+  snapshot_python_before
   run p-first USER 'zpm "install ocutalon"'
   take_snapshot p-first "part p first command"
   stops_with_next_command p-first "part p, the install command in USER"
@@ -1411,6 +1552,8 @@ part_p() {
   check_no_repo_data "part p, before the same command in OCUTALON"
   run p-second OCUTALON 'zpm "install ocutalon"'
   check_run_ok p-second "part p, the same command in OCUTALON"
+  check_licences "part p"
+  check_extract "part p"
   check_signin "part p" logout
   take_snapshot p-second "part p second command"
   same_config "part p, the same command in OCUTALON" p-first p-second
@@ -1484,6 +1627,7 @@ fi
 live_track_image
 echo "TIME ready $((SECONDS - started))s"
 stage_requirements
+stage_licence_gate
 
 # --- part p alone: the package is installed from the folder and packaged first when there is no OCUTALON_IPM_ARTIFACT ---
 
@@ -1583,12 +1727,15 @@ check_session "IPM answers in OCUTALON, so the next command can start there" OCU
 # --- path A: the second run ---
 
 if [ "$mode" != b ]; then
+  snapshot_python_before
   run second-ocutalon OCUTALON "$INSTALL"
   check_second_run
   if [ "$mode" = all ]; then artifact_prepare; fi
   if [ "$mode" != r ]; then
     check_install
     check_memory
+    check_licences "install checks"
+    check_extract "install checks"
     check_web
     check_package
     check_demo_switch
@@ -1611,6 +1758,7 @@ if ! dc up -d --wait --wait-timeout "$((deadline - SECONDS))" > "$tmp/up.log" 2>
 fi
 echo "TIME ready-b $((SECONDS - started))s"
 stage_requirements
+stage_licence_gate
 fails_before_load=$fails
 check_session "path B: IPM 0.10.10 is loaded in %SYS of the fresh instance" %SYS "CHK|load|1" \
   'Set sc=$SYSTEM.OBJ.Load("/opt/ocutalon-ipm/zpm-0.10.10.xml","ck-d") Write !,"CHK|load|",$SYSTEM.Status.IsOK(sc)' \

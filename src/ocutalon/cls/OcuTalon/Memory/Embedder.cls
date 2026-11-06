@@ -1,7 +1,8 @@
 /// The worker side of the memory embeddings (AD-6, AD-21): the Python package fastembed 0.9.0, driven through %SYS.Python from ObjectScript,
 /// runs only inside a %SYSTEM.WorkMgr worker of the category OcuTalon.Memory.Embedder (at most 2 active workers), never in the calling process.
-/// This is the one class of the area that references %SYS.Python; the callers (OcuTalon.Memory.Embedding, the install step and the tools) call
-/// Submit, which queues a work item and holds no Python.
+/// With OcuTalon.Docs.Extractor it is one of the two classes that reference %SYS.Python; the callers (OcuTalon.Memory.Embedding, the install step and the
+/// tools) call Submit (OcuTalon.Memory.Worker's queue-and-wait code), which queues a work item and holds no Python. The two calls that need keyword
+/// arguments are in the resource ocutalon_memory.py (src/ocutalon/python), imported with %SYS.Python.Import; no Python source is built or run from here.
 ///   - ModelFolder() is the one rule for the model folder: the IRIS process's FASTEMBED_CACHE_DIR when it is set and not empty (the image: /opt/fastembed),
 ///     otherwise the manager directory's fastembed/ folder (an IPM install downloads the model there).
 ///   - Embed(text, folder) is the work item that embeds one text. It sets FASTEMBED_CACHE_DIR to the folder inside the worker before the model's first
@@ -10,7 +11,7 @@
 ///   - Download(folder) is the work item that downloads the model into the folder, with the call that the image's build makes.
 /// A work item returns an error %Status when the package or the model is missing or the folder holds no model; Submit returns that status, or an error
 /// when the item does not finish within its timeout, and never throws.
-Class OcuTalon.Memory.Embedder
+Class OcuTalon.Memory.Embedder Extends OcuTalon.Memory.Worker
 {
 
 /// The WorkMgr category of the workers (AD-6): created by the Memory install step.
@@ -43,6 +44,9 @@ Parameter TIMEOUT = 120;
 
 Parameter DOWNLOADTIMEOUT = 600;
 
+/// The Python resource with the model calls (src/ocutalon/python/ocutalon_memory.py, in the manager directory's python folder).
+Parameter RESOURCE = "ocutalon_memory";
+
 /// The attribute of the Python sys module that holds the loaded models of the worker process, one per folder.
 Parameter CACHEATTRIBUTE = "ocutalon_memory_models";
 
@@ -74,35 +78,6 @@ ClassMethod HasModel(folder As %String) As %Boolean
 	Quit found
 }
 
-/// Queues one work item to the category and waits for it at most timeout seconds. entry is a class method of this class, or a full
-/// ##class(<class>).<method> reference. The work item's %result nodes come back in result. Returns the work item's status, or an error status
-/// when no group could be made, the item could not be queued or it did not finish in time. Never throws.
-ClassMethod Submit(entry As %String, timeout As %Integer, Output result, args... As %String) As %Status
-{
-	Kill result
-	Set sc = $SYSTEM.Status.OK()
-	Try {
-		Set queue = $SYSTEM.WorkMgr.%New("", 1, ..#CATEGORY)
-		If queue = "" {
-			Set sc = $SYSTEM.Status.Error(5001, "No work group of category " _ ..#CATEGORY _ " could be made: " _ $SYSTEM.Status.GetErrorText($Get(%objlasterror)))
-		} Else {
-			Set sc = queue.Queue($Select($Extract(entry, 1, 8) = "##class(": entry, 1: "##class(" _ $ClassName() _ ")." _ entry), args...)
-			If $SYSTEM.Status.IsOK(sc) {
-				If 'queue.WaitOne(timeout, .workStatus, .workArgs, .workResult) || $$$ERRORISTYPE(workStatus, $$$MultiTimeout) {
-					Set sc = $SYSTEM.Status.Error(5001, "The work item " _ entry _ " did not finish within " _ timeout _ " seconds")
-				} ElseIf $SYSTEM.Status.IsError(workStatus) {
-					Set sc = workStatus
-				} Else {
-					Merge result = workResult
-				}
-			}
-		}
-	} Catch exception {
-		Set sc = exception.AsStatus()
-	}
-	Quit sc
-}
-
 /// The work item that embeds one text: %result("vector") is the vector as the Python list's text, %result("job") the worker's $JOB,
 /// %result("variable") the worker's FASTEMBED_CACHE_DIR once the model's folder is set, and %result("loaded") 1 when this item loaded the model
 /// (the worker held none for the folder), else 0.
@@ -119,8 +94,7 @@ ClassMethod Embed(text As %String, folder As %String) As %Status
 		Set models = builtins.getattr(sys, ..#CACHEATTRIBUTE)
 		Set loaded = 0
 		If 'models."__contains__"(folder) {
-			Set make = builtins.eval("lambda package, folder: package.TextEmbedding('" _ ..#MODEL _ "', cache_dir=folder, local_files_only=True)", builtins.dict())
-			Do models."__setitem__"(folder, make."__call__"(##class(%SYS.Python).Import("fastembed"), folder))
+			Do models."__setitem__"(folder, ##class(%SYS.Python).Import(..#RESOURCE)."load_model"(..#MODEL, folder))
 			Set loaded = 1
 		}
 		Set batch = builtins.list()
@@ -147,7 +121,7 @@ ClassMethod Download(folder As %String) As %Status
 	Try {
 		Set builtins = ##class(%SYS.Python).Import("builtins")
 		Do ##class(%SYS.Python).Import("os").environ."__setitem__"("HF_HUB_DISABLE_TELEMETRY", "1")
-		Set hub = ##class(%SYS.Python).Import("huggingface_hub")
+		Do ##class(%SYS.Python).Import("huggingface_hub")
 		Set made = ##class(%File).DirectoryExists(folder)
 		If 'made Set made = ##class(%File).CreateDirectoryChain(folder)
 		If 'made {
@@ -159,8 +133,7 @@ ClassMethod Download(folder As %String) As %Status
 			While $ListNext(list, position, pattern) {
 				Do patterns.append(pattern)
 			}
-			Set download = builtins.eval("lambda hub, folder, patterns: hub.snapshot_download('" _ ..#SOURCE _ "', cache_dir=folder, allow_patterns=patterns)", builtins.dict())
-			Do download."__call__"(hub, folder, patterns)
+			Do ##class(%SYS.Python).Import(..#RESOURCE).download(..#SOURCE, folder, patterns)
 			Set %result("job") = $Job
 		}
 	} Catch exception {

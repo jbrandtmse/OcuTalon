@@ -2,15 +2,79 @@
 title: 'Extract text from PDF and Word files with Embedded Python'
 type: 'feature'
 created: '2026-11-06'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '4e29a8f2f5be07c11466283e90c7547b158d73fd'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/spec-19-2-compute-embeddings-offline-in-a-worker.md'
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/34-2-task0-licences.md'
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The category setting MaxActiveWorkers 1 of OcuTalon.Docs.Extractor does not serialise reads: two concurrent Docs.Extract.Read calls ran on two worker jobs at the same time (Task 0 M3), so AD-21's "one worker" holds for the category setting and not for the number of simultaneous workers.
+    evidence: |-
+      evidence/19-6-task0-extraction.md M3: two clients that each made their own work group got two worker jobs and finished in parallel (about 4 s each); Test.Docs.Extract:TestCategory asserts the setting (MaxActiveWorkers 1), as the spec asks. Memory use is about 220 MB for each worker. Decide in Story 19.7 whether Docs.Extract needs a lock around Submit (a process-shared lock would serialise the callers).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Docs/Extract.cls
+    severity: low
+  - summary: >-
+      Clear on a timed-out read waits for a work item that is inside one long C call (a 30 s time.sleep held Clear for 29 s), so a PDF whose time goes into one C call (a decompression bomb) can keep Read past its limit.
+    evidence: |-
+      evidence/19-6-task0-extraction.md M3: pdfplumber's page loop (Python code) is stopped in 1 to 3 s; only a single C call that does not return delays the stop. The matrix row "within about 3 s" is measured for the page loop only (inference for a bomb: the spec's Residual risks name it).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Memory/Worker.cls
+    severity: low
+  - summary: >-
+      On an IPM install, pip -t leaves the older copies of six distributions that <mgr>/python already holds (certifi, charset_normalizer, idna, requests, typing_extensions, urllib3) beside the pinned dist-info, so the pinned version's files may not be the ones imported.
+    evidence: |-
+      release/ipm-install.sh path A (this story): the gate on everything in <mgr>/python fails (11 places: 5 unpinned dependencies of IPM itself, 6 older versions of pinned names); check 32 therefore gates what the install added and the pins (NOTE lines list the rest). Whether the import resolves the old or the new code of those six was not measured; a pip --upgrade in IPM's requirements step is not available to a module.
+    location: >-
+      requirements.txt
+    severity: medium
+  - summary: >-
+      The README and docs/install-ipm.md list three hosts (pypi.org, files.pythonhosted.org, huggingface.co); huggingface_hub 1.33 with hf-xet may also use CDN or Xet hosts, and the docs do not say what a blocked download looks like (the Memory step only warns).
+    evidence: |-
+      Blind Hunter finding, unverified. Would be settled by running the model download behind a host allow-list, or by reading the real hosts from a verbose download in a throwaway. The sentence is PUBLIC TEXT pending the Planner's ruling.
+    location: >-
+      README.md, docs/install-ipm.md
+    severity: medium (unverified)
+  - summary: >-
+      Word text inside body-level content controls (w:sdt) and inside nested tables is not read, because iter_inner_content yields only body paragraphs and tables and cell.text skips nested tables; a file made only of content controls answers no_text.
+    evidence: |-
+      python-docx 1.1.2 behaviour (Edge Case Hunter); no sample covers it. Settle with a template-style .docx sample in Story 19.7 or when a real file shows it.
+    location: >-
+      src/ocutalon/python/ocutalon_extract.py
+    severity: low
+  - summary: >-
+      A .dotx/.docm (python-docx ValueError), a .docx with an encrypted zip entry (RuntimeError) or an unsupported zip compression (NotImplementedError) is raised and reported as failed, not as wrong_type, encrypted or damaged.
+    evidence: |-
+      Edge Case Hunter; the answer is honest (failed) and nothing is stored. A mapping of these exceptions is a wording decision for the reasons list.
+    location: >-
+      src/ocutalon/python/ocutalon_extract.py
+    severity: low
+  - summary: >-
+      A line in the file's own text that starts with "## " is indistinguishable from a marker line, so Story 19.4's splitter would open a section there.
+    evidence: |-
+      Edge Case Hunter; inherent in Markdown markers (the spec's decided design). Story 19.4 decides whether to escape or ignore such lines.
+    location: >-
+      src/ocutalon/python/ocutalon_extract.py
+    severity: low
+  - summary: >-
+      Test.Docs.Extract:TestNothingStored compares an empty knowledge-base half (no KB table exists before Story 19.4) and only the $Data flag of the Document globals, so a stray write elsewhere is not caught.
+    evidence: |-
+      Verification-gap finding; the KB tables arrive in Story 19.4, which should add the KB half to the signature.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Docs/Extract.cls:399
+    severity: low
+  - summary: >-
+      TestTimeLimit asserts only that a timed-out read ended in under 20 s (the matrix says about 3 s), and no test pins local_files_only=True or allow_patterns in ocutalon_memory.py.
+    evidence: |-
+      Verification-gap findings. The 20 s bound follows the loaded-host measurement in the evidence file; a tight bound would be flaky. The two keyword arguments change behaviour only when the model is absent.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Docs/Extract.cls:207
+    severity: low
 ---
 
 <intent-contract>
@@ -146,6 +210,18 @@ deferred: []
   - `README.md`: one paragraph at the end of "Install it with IPM", and one bullet after the Python-packages bullet in "Third-party licence notices".
   - `docs/install-ipm.md`: one "What you need" bullet, and both sample-output blocks re-shot from this story's real `release/ipm-install.sh p` and `a` outputs (ANSI removed, no local value). Keep `bash docker/tests/test-cpf.sh` and `test-readme.sh` green.
 
+**Review patches (pass 1; the Review Triage Log rows name them):**
+- P1 `src/ocutalon/cls/OcuTalon/Memory/Worker.cls` -- `Submit`: `GroupLocks()` before the queue and `ReleaseGroupLocks` after a timeout run inside a Try that fails quiet (a failed scan means no release), so `Submit` never throws; on a timeout set `result` to `timeout` and `timedOut` first, and call `queue.Clear(0)` in its own Try.
+- P2 `src/ocutalon/python/ocutalon_extract.py` and `Test/Docs/Samples.cls`, `Test/Docs/Extract.cls` -- a Word table row reads a merged cell once (consecutive cells with the same cell element are one); add a sample with a horizontally merged cell and a test (`TestDocxMergedCell` or a case in `TestDocxHeadings`).
+- P3 `ocutalon_extract.py` -- a paragraph whose `style` is `None` is a plain paragraph (no `AttributeError`).
+- P4 `ocutalon_extract.py` -- a wrapped `PDFEncryptionError` (not only `PDFPasswordIncorrect`) is `encrypted`.
+- P5 `release/ipm-install.sh` -- delete the unused `manager_directory` call and its die in `stage_licence_gate`.
+- P6 `release/lib-release.sh` and `docker/tests/test-release-sequence.sh` (the B4 hunk only) -- `ipm_artifact_check` also requires the FileCopy's Target `${mgrdir}python/<file>`; the test cases use a wrong Target.
+- P7 `_bmad-output/implementation-artifacts/evidence/19-6-task0-extraction.md` -- add the IPM path A result (the four M1 facts) and a "Measured figures" section (installed 251,202,444 bytes, wheels 75,994,243 bytes in 36 files, model 91,103,785 bytes, second command 58 to 63 s quiet and 87 to 90 s loaded, pip and download about 21 s, no-cache build's pip-and-model step 26.0 s) so that the 250 MB, 90 MB and 1 minute of the README and docs have a source.
+- P8 `Docs/Extract.cls` -- the class comment says the purge happens when a call writes a file (not at the start of each call).
+- P9 `Test/Docs/Extract.cls`, `Samples.cls` -- (a) literal assertions: the PDF text starts with `## Page 1` and the cut text ends with the literal note text; (b) a `DocxBroken` sample (a zip whose `word/document.xml` entry is junk) read as `damaged` in `TestDamaged`; (c) `TestCut` for the Word big text asserts `markers` is `none`; (d) `TestCategory` sets the Extractor category to 5 and 3 before `Install.Step.Memory.Run` and asserts 1 and 1.
+- Each new or changed pinning test gets its `mutation:` line in `## Verification` (apply from your own backup, observe red, revert byte-identical).
+
 **Acceptance Criteria:**
 - Given a PDF or .docx file of at most 10 MB, when any caller asks `Docs.Extract.Read` for its text, then:
   - pdfplumber 0.11.10 or python-docx 1.1.2 runs in a worker of `OcuTalon.Docs.Extractor`, never in the calling process, from `ocutalon_extract.py` imported with `%SYS.Python.Import`;
@@ -167,6 +243,60 @@ deferred: []
 - 2026-11-06 (lead, before implement): orchestrator rulings B1-B3 and the pending B4 / PUBLIC TEXT recorded under Design Notes "Rulings"; a test that README.md and docs/install-ipm.md quote the same measured figures is added to scope.
 
 ## Review Triage Log
+
+### 2026-11-06 — Review pass
+- verdicts: 50 findings — high 0, medium 7, low 38, false 3, maybe-false 2
+- findings:
+  - `[low]` `[defer]` (Blind) README/spine "same versions" while six older copies stay beside the pinned dist-info — the deferred list already holds this (medium, import resolution unmeasured); the README bullet is PUBLIC TEXT pending the Planner, who is told in the Auto Run Result.
+  - `[low]` `[defer]` (Blind) spine says "one worker" but MaxActiveWorkers 1 does not serialise reads — already the first item of `deferred:` (Task 0 M3); the "one worker" wording is the spine's existing text.
+  - `[maybe-false]` `[defer]` (Blind) the documented three hosts may miss CDN or Xet hosts and the blocked-download behaviour is not described — deferred as medium (unverified); the real host list was not measured.
+  - `[low]` `[reject]` (Blind) "about 1 minute" is not the added time on a fast host (about 21 s of pip and download in a 58 to 63 s second run) — the figure is a conservative rounding for an ordinary connection and the sentence is PUBLIC TEXT; the missing record of the measured sizes and times is patched (evidence file), see the row for the missing evidence.
+  - `[medium]` `[patch]` (Blind) Worker.Submit's GroupLocks and ReleaseGroupLocks run outside the Try, so a ^$LOCK read that raises makes Submit throw — patch P1: both inside the Try and failing quiet. (The every-call scan cost is `[low]` `[reject]`: the table is small and the snapshot must precede the queue.) [fixed: scan and release in Try, result and timeout set before Clear, Clear in its own Try.]
+  - `[medium]` `[patch]` (Blind) merged Word table cells are read once per grid column (row.cells repeats the cell) — patch P2: dedupe consecutive cells with the same cell element, with a merged-cell sample. [fixed: same-cell dedupe plus DocxMergedCell sample and TestDocxMergedCell.]
+  - `[low]` `[reject]` (Blind) OLE2 kind found by a substring search of the whole file — a legacy .doc would need the UTF-16 stream name inside its text; fix means parsing the directory.
+  - `[low]` `[patch]` (Blind) stage_licence_gate calls manager_directory and dies on an empty answer but never uses the value — patch P5: delete the unused call. The doc-comment position and the two ways of reading the manager directory are `[low]` `[reject]` (cosmetic). [fixed: unused manager_directory call deleted.]
+  - `[low]` `[patch]` (Blind) ipm_artifact_check checks the FileCopy name and not its Target — patch P6, in the separable B4 hunk, with its test. [fixed: Target checked in ipm_artifact_check, with a wrong-Target test case.]
+  - `[low]` `[reject]` (Blind) trailing newline before the cut note and pdfplumber pages not flushed — cosmetic, and the memory growth is not shown.
+  - `[low]` `[patch]` (Blind) the Task 0 evidence promises the IPM path A facts and holds none; the measured figures have no record — patch P7: add both to the evidence file. [fixed: evidence file holds the IPM path A section and the measured figures.]
+  - `[low]` `[reject]` (Blind) the test's GroupLocks copies the production method — a test that called the production method would test itself.
+  - `[medium]` `[patch]` (Edge) GroupLocks before the Try can throw (Worker.cls:26) — same root cause as the Blind row, patch P1. [fixed: scan and release in Try, result and timeout set before Clear, Clear in its own Try.]
+  - `[low]` `[patch]` (Edge) Clear(0) throwing before result and timedOut are set turns a timeout into failed — patch P1: set them first and give Clear its own Try. [fixed: scan and release in Try, result and timeout set before Clear, Clear in its own Try.]
+  - `[low]` `[reject]` (Edge) the lock scan on every Submit — see the Blind row; table size is small.
+  - `[low]` `[patch]` (Edge) item.style is None when styles.xml has no default paragraph style, raising AttributeError — patch P3. [fixed: a style of None is a plain paragraph (no sample; inference).]
+  - `[low]` `[defer]` (Edge) .dotx/.docm, encrypted zip entry and odd compression are reported as failed — deferred (low); honest answer, wording decision.
+  - `[low]` `[defer]` (Edge) text in content controls (w:sdt) is skipped — deferred (low), with nested tables.
+  - `[medium]` `[patch]` (Edge) merged cells repeated; nested tables ignored — merged cells in patch P2; nested tables in the deferred row above.
+  - `[low]` `[patch]` (Edge) an unsupported-encryption PDF (a PDFEncryptionError other than PDFPasswordIncorrect) is called damaged — patch P4: any PDFEncryptionError is encrypted. [fixed: any PDFEncryptionError is encrypted (no sample; inference).]
+  - `[low]` `[reject]` (Edge) TypeError, ValueError and similar from extract_text() give failed instead of damaged — failed is a valid, honest code and the guard list would be a guess.
+  - `[low]` `[reject]` (Edge) the cut may leave a bare marker line at the end — cosmetic; a bare marker is an empty last section.
+  - `[low]` `[defer]` (Edge) lines of the file's text starting with "## " look like markers — deferred (low) to Story 19.4's splitter.
+  - `[false]` `[reject]` (Edge) a lone surrogate in extracted text breaks the crossing — not shown reachable: pdfminer's text comes from decoded cmap code points, and a failure would only give failed.
+  - `[false]` `[reject]` (Edge) PDF signature test before ZIP — a .docx's first 1,024 bytes hold part names and not a literal %PDF-; Acrobat's own window is also 1,024 bytes.
+  - `[false]` `[reject]` (Edge) the main part is assumed to be word/document.xml — Word, Strict OOXML and LibreOffice all write that name; the spec fixes it.
+  - `[low]` `[reject]` (Edge) timeout 0, negative or empty from a caller — no caller passes one (the default is a parameter), nothing to guard yet.
+  - `[low]` `[patch]` (Edge) Purge runs only on the path that writes a file, while the class comment says at the start of each call — patch P8: the comment says what happens (leftovers only come from that path). [fixed: class comment.]
+  - `[low]` `[reject]` (Edge) the temporary file and folder have default permissions — a chmod needs $ZF, which TestToolCodeScan forbids in a callback helper; the container has one OS user.
+  - `[low]` `[patch]` (Edge, claim) Word style None, same root cause as the style row — patch P3. [fixed: a style of None is a plain paragraph (no sample; inference).]
+  - `[low]` `[defer]` (Edge, claim) "one worker" — the deferred list's first item.
+  - `[low]` `[patch]` (Edge, claim) Purge at the start of each call — patch P8. [fixed: class comment.]
+  - `[low]` `[reject]` (Edge, claim) Embedder behaviour is not unchanged (lock scan, timeout result node) — the scan and the node are the recorded Task 0 finding; Embedding and Diagnostics tests passed after the move.
+  - `[low]` `[reject]` (Edge, claim) "private" temporary file — see the permissions row.
+  - `[medium]` `[patch]` (Gap) PAGEMARKER and CUTNOTE are only compared with themselves, so "## Page 1" is not pinned — patch P9a: literal assertions. [fixed: literal assertions.]
+  - `[medium]` `[patch]` (Gap) the python-docx failure branch (a zip-valid .docx python-docx cannot open) has no sample — patch P9b: DocxBroken sample, asserted damaged. The PDF fallback branch (line 72) is `[low]` `[reject]`: no sample reaches it. [fixed: DocxBroken sample, damaged in TestDamaged.]
+  - `[low]` `[patch]` (Gap) markers none for a Word file with no headings is not asserted — patch P9c. Heading 7 cap, early stop, NUL and CR normalisation are `[low]` `[reject]`: they need timing or byte-level samples for little risk. [fixed: markers asserted.]
+  - `[medium]` `[patch]` (Gap) TestCategory passes without the new EnsureCategory line because the test class creates the category first — patch P9d: put the category to 5 and 3 before Run and assert 1 and 1. [fixed: TestCategory perturbs the category before Run.]
+  - `[low]` `[defer]` (Gap) TestNothingStored compares an empty KB half — deferred (low).
+  - `[low]` `[defer]` (Gap) the "about 3 s" bound is asserted as under 20 s — deferred (low).
+  - `[low]` `[reject]` (Gap) TestDetailHoldsNoSecret reads a path-only detail — the product puts no environment value in detail; no mutation can be named.
+  - `[low]` `[reject]` (Gap) TestCategory restores nothing — throwaway stacks only; Test.Memory.Install restores for itself.
+  - `[low]` `[defer]` (Gap) AC5 has no mutation for local_files_only and allow_patterns — deferred with the 3 s row (low).
+  - `[maybe-false]` `[reject]` (IA) IPM "exactly the measured set" holds at the file level and not at the import level — the same fact as the first deferred row of this log (six older copies), already deferred.
+  - `[low]` `[reject]` (IA) docs: only the match between README and docs is tested, not the truth of the figures — the figures are the measured ones (evidence patch P7); a test cannot measure a download.
+  - `[low]` `[reject]` (IA) every sample is hand-built, none from Word or Acrobat — the spec decides ObjectScript-built samples (Design Notes).
+  - `[low]` `[reject]` (IA) the time-limit bound is 20 s in the test, not about 3 s — the deferred row for the 3 s bound.
+  - `[low]` `[reject]` (IA) the lock release in Memory.Worker is not in the intent — a recorded Task 0 finding in Design Notes, with a test and a mutation line.
+  - `[low]` `[reject]` (IA) scope edges (no consumer test; lib-release.sh under B4) — both are as the spec and the rulings say.
+  - `[low]` `[reject]` (IA) no new vector-equality test for the Embedder — the existing Test.Memory.Embedding, live:memory-offline and IPM check 30 are the spec's consumer row and ran green.
 
 ## Design Notes
 
@@ -218,6 +348,15 @@ deferred: []
   - Single files, not the folder, so that an uninstall can never remove the pip packages beside them.
 - "A tool inside a turn": no tool calls extraction in this story. The proof is the scan of `Extract`/`Worker` in `CALLBACKHELPERS`, the worker job, and the caller's `sys.modules`. The live in-callback test belongs to the first tool consumer, Story 26.2. A test-only toolset would mean a contended Chat/runner change.
 - Samples are generated in ObjectScript, not committed as binaries and not made with Python in the test process, so `TestNeverInTheCaller` stays falsifiable.
+- Clear(0), not Clear(1) (Task 0 M3). `Memory.Worker` calls `queue.Clear(0)` on a timeout when `STOPONTIMEOUT` is 1: `Submit` has already waited the whole limit, `Clear(1)` added 2 to 3 s (4.3 to 5.3 s from the call), `Clear(0)` ended the read 2.3 s after the call with the same stop. Releasing the work group also ends a busy worker, so `STOPONTIMEOUT` 0 is not observable through the next read; `TestTimeLimit` therefore checks that the busy worker's job is gone.
+- A timed-out read leaves a work group lock with the caller (build 154, measured after Task 0; see the evidence file's last section), so `Memory.Worker.Submit` releases the work group locks that the process holds after a timeout and did not hold when it began. `TestTimeLimit` asserts it, and removing the release fails the test and the class (a lock left after the test case).
+- Review patch P1: `Memory.Worker.Submit` scans for held group locks and releases them inside Try blocks that fail quiet, so a failed scan means no release and `Submit` never throws; on a timeout the `timeout` result and the error status are set before `Clear(0)` runs in its own Try. No test names a `^$LOCK` failure (it cannot be provoked from a test); `TestTimeLimit` and the lock-release mutation above cover the normal path.
+- Review patches P3 and P4 (a paragraph with no style is a plain paragraph; any wrapped `PDFEncryptionError` is `encrypted`) have no test, because the spec asks for none: a `None` style needs a styles part with no default paragraph style, and a PDF with an unsupported encryption needs an encryption writer that the sample builder does not have. They are inference, as the owner-password-only case is.
+- Empty PDF pages get no marker line (an empty section would be a citation to nothing); the page number stays the page's real number. A PDF with text on no page is `no_text`.
+- `markers` is `none` for a .docx that has no heading or title paragraph.
+- Check 32 gates what IPM installed (U-294 condition 1, measured): `<mgr>/python` of the plain image also holds 11 distributions that the image's AI Hub packages and IPM's own dependencies put there before the install (5 are not pinned, 6 are older versions of pinned names), so a gate on the whole folder fails by design. `stage_licence_gate` stages the gate and the constraints file, `snapshot_python_before` records the folder just before the install command, and check 32 gates every dist-info except one that was there before and is no pin. `ipm_artifact_check` and its tests are the separable last hunk (ruling B4).
+- The test of the two files' figures sits in `test-release-sequence.sh` (README.md is not on the image, and `test-readme.sh` is Epic 11's).
+- `Test.Memory.Install` also saves and restores the `OcuTalon.Docs.Extractor` category, because `Run()` now makes it.
 - `Test.Docs` joins `lane-a` and so `shard:lane-a@rest` (`shards-2`). The extra seconds are recorded. The rule (orchestrator, this stage): a UNIT over 1,000 s on a clean run is split; a GROUP only above 35 minutes on two clean runs.
 
 **Declined:** none. DW-784, DW-791 and DW-792 are addressed above: DW-791 by the U-294 task and AC3, DW-792 by the Embedder task, `Test.Docs.Python` and AC5, DW-784 by the docs task and its PUBLIC TEXT.
@@ -303,11 +442,26 @@ A change to a `.py` file or a manifest refuses a warm run: `ci/warm.sh down`, th
 
 **Mutations (one per AC; the implement stage applies each from a backup, observes red, reverts, confirms the tree byte-identical, and records the result here):**
 - AC1: make `Extract.Read` call `Docs.Extractor.Read` in-process instead of `Submit` -> `TestRunsInAWorker` and `TestNeverInTheCaller` red. Drop the page marker -> `TestPdfPages` red. Drop the cut note -> `TestCut` red.
+  - Result (implement stage, applied from a backup, reverted byte-identical): the in-process call turned `TestNeverInTheCaller`, `TestPdfPages` (the job), `TestRunsInAWorker` and `TestTimeLimit` red; `PAGEMARKER` set to an empty text turned `TestPdfPages` red (through its assertion that the marker holds `{n}`; the expected text is built from the parameter); removing the cut-note line from `Answer` turned `TestCut` and `TestWorkerFailure` red.
 - AC2: let `Read` skip deleting its file -> `TestNothingStored` red. Classify OLE2 as `wrong_type` always -> `TestLegacyDoc`/`TestEncryptedDocx` red. Set `STOPONTIMEOUT` to 0 -> `TestTimeLimit` red (the next read waits or times out).
+  - Result: no delete turned every read-checking test red (`TestNothingStored` among them); OLE2 as `wrong_type` (a fresh stack, as it is a resource change) turned `TestEncryptedDocx` and `TestLegacyDoc` red. `STOPONTIMEOUT` 0 alone stayed green: releasing the work group at the end of `Submit` also ends the busy worker (measured), and the next read goes to a new worker anyway. `STOPONTIMEOUT` 0 together with holding the work group in a `%` variable (so that neither `Clear` nor the release stops the worker) turned `TestTimeLimit` red (the busy worker's job still exists, and the next read has the same worker).
 - AC3: drop one pin line of `requirements.txt` -> `test-release-sequence.sh` red, and IPM check 32 red (unpinned distribution). Drop the `stage_licence_gate` call -> check 32 FAIL.
+  - Result: dropping the `anyio` pin turned `test-release-sequence.sh` (`static`) red (35 of 36 pins) and left IPM check 32 green (pip picks the newest `anyio`, which is the pinned one); changing the `certifi` pin to an older version turned check 32 red (the gate: installed 2026.7.22, pinned 2026.10.23; the notices name 35 of 36). Dropping the `stage_licence_gate` call for path A's stack ended check 32 in a failure (the gate files are not there) and the script's later checks with it.
 - AC4: add a `##class(%SYS.Python).Import("os")` line to `Docs.Extract` -> `Test.Bridge.CodeRules:TestCallbackRule` red (it is listed) and `Test.Docs.Python` red. Remove the resource `FileCopy` -> `TestResourcesCurrent` red.
+  - Result: the `Import("os")` line turned `TestCallbackRule` and `TestPythonOnlyInTheWorkers` red; removing the two `FileCopy` lines of `src/module.xml` (a fresh stack) turned `TestResourcesCurrent` and the reads red.
 - AC5: put one `builtins.eval` back in the Embedder -> `Test.Docs.Python` red.
+  - Result: `TestNoEvalOrExec` red.
 - AC6: drop a `STEP <name> OK` line of `Registry.Order()` from one re-shot block -> `test-cpf.sh` red; drop the IPM section's link to `docs/install-ipm.md` -> `test-readme.sh` red.
+  - Result: dropping `STEP Telegram OK` from the first re-shot block turned `test-cpf.sh` rule 9 red; removing the link turned `test-readme.sh` `ipm` red.
+- Lock release (found after Task 0): removing the `ReleaseGroupLocks` call from `Memory.Worker.Submit` -> `TestTimeLimit` red (a new work group lock) and the class red (the unit-test manager reports a global left locked).
+- B4 (`ipm_artifact_check`, its own hunk): drop the `requirements.txt` comparison -> `test-release-sequence.sh` `ipmlib` red (result: red on "another requirements.txt").
+- Review patches (pass 1; each applied from a backup, observed red, reverted byte-identical, `git status --short` and the checksums of the modified files equal before and after):
+  - P2: make the table row loop in `ocutalon_extract.py` keep every cell (`if cell._tc is previous` made `if False`) -> `TestDocxMergedCell` red ("the merged cell is read once"; the sample's merged cell is repeated without the dedupe). A fresh warm stack, as it is a `.py` change.
+  - P9a: `PAGEMARKER` set to `# Page {n}` -> `TestPdfPages` red ("it starts with the literal marker line of page 1", alone); `CUTNOTE` with `200 000` for `200,000` -> `TestCut` red ("which is the literal note text", for both kinds).
+  - P9b: remove `etree.XMLSyntaxError` from the .docx `except` of `ocutalon_extract.py` -> `TestDamaged` red ("a zip whose word/document.xml is not XML"; the junk part is raised and reported as failed).
+  - P9c: make the .docx `markers` always `heading` -> `TestCut` red ("a Word file with no heading has no markers"; applied with P2 and P9b in one `.py` mutation run, each test named its own assertion).
+  - P9d: remove the `Docs.Extractor` `EnsureCategory` call from `Install.Step.Memory.Run` -> `TestCategory` red ("with 1 active worker" and "and 1 default worker", as the test first puts the category to 5 and 3).
+  - P6: revert the `ipm_artifact_check` resource `grep` to the Name alone -> `test-release-sequence.sh ipmlib` red ("python: a FileCopy of a resource to another Target").
 
 **Shared surfaces:**
 - `CALLBACKHELPERS` (`TestCallbackRule`).
@@ -325,7 +479,21 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned and halted after planning, as the dispatch asked. Implementation does not depend on the "Needs a ruling" or "PUBLIC TEXT needed" items under Design Notes: the U-294 task and the DW-784 docs task are separate and come last, and the reason codes and their tests do not depend on the wording.
+**Summary.** Story 19.6 adds `OcuTalon.Docs.Extract` (caller side, no Python) and `OcuTalon.Docs.Extractor` (worker, category `OcuTalon.Docs.Extractor`, one worker) on the new shared base `OcuTalon.Memory.Worker`, with `ocutalon_extract.py` (pdfplumber 0.11.10, python-docx 1.1.2) and `ocutalon_memory.py` (the Embedder's two former `eval` strings, DW-792). Both resources reach `<mgr>/python` by a single-file `FileCopy` in both manifests (Task 0 M1). U-294 (separate task): the root `requirements.txt` pins the 36 licence-measured distributions; `release/ipm-install.sh` gains `stage_licence_gate`, check 32 (licence gate and notices on what IPM installed) and check 33 (a real PDF and .docx read), and extends checks 30 and 31. DW-784: one README paragraph and bullet, one `docs/install-ipm.md` bullet and re-shot sample blocks. B4 (separable): `ipm_artifact_check` checks the resources' FileCopy (name and Target) and `requirements.txt`.
+
+**Files changed** (one line each): `src/ocutalon/cls/OcuTalon/Memory/Worker.cls` (shared queue-and-wait, STOPONTIMEOUT, group lock release), `Docs/Extract.cls`, `Docs/Extractor.cls`, `src/ocutalon/python/ocutalon_extract.py`, `ocutalon_memory.py`, `Memory/Embedder.cls` (extends Worker, no eval), `Install/Step/Memory.cls` (Extractor category), `Test/Docs/{Samples,Extract,Python}.cls`, `Test/Memory/Install.cls` (saves and restores the new category), `Test/Bridge/CodeRules.cls` (CALLBACKHELPERS append), `ci/units.sh` (Docs area), `module.xml` and `src/module.xml`, `requirements.txt`, `release/ipm-install.sh`, `release/lib-release.sh`, `docker/tests/test-pinned-sources.sh` and `test-release-sequence.sh`, `README.md`, `docs/install-ipm.md`, the spine (AD-21 and AD-23 unions), and the evidence file `evidence/19-6-task0-extraction.md`.
+
+**Review.** 50 findings: 0 high, 7 medium, 38 low, 3 false, 2 maybe-false. Patches applied: P1 to P9 (7 medium and 3 low entries by verdict; the rows are in the Review Triage Log). Deferred (6 new items, in the frontmatter list beside the 3 the implement pass recorded): network host list (medium, unverified), content controls and nested tables, other exceptions mapped to failed, forged marker lines, TestNothingStored's empty KB half, the 20 s bound and the unpinned keyword arguments. Rejected findings carry their reason in each log row.
+
+**Follow-up review recommended: true.** Seven medium entries were patched (two or more). Unverified risk: P3 (a paragraph with no style) and P4 (any `PDFEncryptionError` is `encrypted`) have no sample, and P1's Try wrapper around the lock scan cannot be provoked from a test.
+
+**Verification.**
+- Before the patches (implement pass): `Test.Docs.Extract`, `.Docs.Python`, `Test.Memory.Embedding/Diagnostics/Install/Search`, `Test.Bridge.CodeRules`, `Test.Install.Registry/PrivateData` passed; `live:memory-offline` ok=1, `install-start`, `install-upgrade`, IPM `a` and `p`, the no-cache Docker build, shards `lane-a` 1 to 12 and `lane-b` 1 to 4 (on the warm stack, not on a fresh throwaway) passed; the ten `docker/tests` scripts passed; the spine lint shows no new finding. IPM `b` failed only check 24 ("RL pending, wanted fired"), the same on an unmodified HEAD copy (pre-existing on this loaded host). `rehearse.sh run --dry-run` ended `fail` on a reminder timing bound; it builds from committed HEAD, so it does not exercise this change.
+- After the patches: the class loop (`Test.Docs.Extract`, `.Docs.Python`, `Test.Memory.Embedding/Diagnostics/Install`, `Test.Bridge.CodeRules`) passed on the warm stack; `test-release-sequence.sh` and `test-pinned-sources.sh` passed; `live:memory-offline` ok=1; IPM `a` passed (checks 30, 32 and 33); lead re-ran `test-boundaries`, `test-class-rules`, `test-ci-config`, `test-readme` and `test-cpf` (all pass). The other `(once)` lines (shards, install-start/upgrade, IPM p and b, rehearse, no-cache build) were not repeated after the patches: the patches touch the Worker, the two Python resources, the Docs classes, `stage_licence_gate` and the B4 hunk, which the re-run lines cover.
+- Mutations: one line per AC and per new test in `## Verification`, each applied from a backup, red, and reverted.
+- Protocol slip: the patch subagent sent two class runs (`Memory.Embedding`, `Memory.Diagnostics`) in one message; both passed.
+
+**Residual risks.** Condition 2 of U-294 (the `shard:lane-a@rest` seconds and the `ipm-install` job minutes on two clean CI runs) and the x64 install time are not measured here (no CI run); the README and docs figures (about 250 MB, about 90 MB, about 1 minute) are ARM-only measurements. The README bullet "same versions" and the three-host sentence are PUBLIC TEXT pending the Planner, and the older-copies and host-list deferrals bear on them. `MaxActiveWorkers` 1 does not serialise concurrent reads (deferred). The matrix's "within about 3 s" holds only on a quiet host (2.3 s); `TestTimeLimit` allows 20 s.

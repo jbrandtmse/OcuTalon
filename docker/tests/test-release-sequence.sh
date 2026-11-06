@@ -2818,6 +2818,38 @@ t_ipmlib() {
   eq "a root artifact checked as src: every bundle file is missing" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" src | grep -c 'lacks the bundle file ocutalon/csp/')" "$n"
   has "no layout: a problem, never a pass" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree")" "cannot be checked (the layout '' is not root or src)"
   has "another layout: a problem, never a pass" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" both)" "cannot be checked (the layout 'both' is not root or src)"
+  # the Python resources and requirements.txt (Story 19.6, U-294, ruling B4): a FileCopy for each resource of the candidate and the candidate's
+  # requirements.txt at the top of the artifact
+  mkdir -p "$t/tree/src/ocutalon/python" "$t/py/src/ocutalon/csp" "$t/pys/ocutalon/csp"
+  printf 'resource\n' > "$t/tree/src/ocutalon/python/one.py"
+  printf 'pin==1\n' > "$t/tree/requirements.txt"
+  cp -R "$t/tree/src/ocutalon/csp/." "$t/py/src/ocutalon/csp/"
+  cp -R "$t/tree/src/ocutalon/csp/." "$t/pys/ocutalon/csp/"
+  cp "$t/tree/requirements.txt" "$t/py/requirements.txt"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/><FileCopy Name="src/ocutalon/python/one.py" Target="${mgrdir}python/one.py"/>\n' > "$t/py/module.xml"
+  tar -czf "$C/py.tgz" -C "$t/py" .
+  eq "python: a good root artifact has no problem" "$(ipm_artifact_check "$C/py.tgz" 1.0.0 "$t/tree" root)" ""
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/>\n' > "$t/py/module.xml"
+  tar -czf "$C/pynofc.tgz" -C "$t/py" .
+  has "python: no FileCopy of a resource" "$(ipm_artifact_check "$C/pynofc.tgz" 1.0.0 "$t/tree" root)" "no FileCopy of src/ocutalon/python/one.py"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/><FileCopy Name="src/ocutalon/python/one.py" Target="y"/>\n' > "$t/py/module.xml"
+  tar -czf "$C/pywrongtarget.tgz" -C "$t/py" .
+  has "python: a FileCopy of a resource to another Target" "$(ipm_artifact_check "$C/pywrongtarget.tgz" 1.0.0 "$t/tree" root)" "no FileCopy of src/ocutalon/python/one.py"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/><FileCopy Name="src/ocutalon/python/one.py" Target="${mgrdir}python/one.py"/>\n' > "$t/py/module.xml"
+  rm -f "$t/py/requirements.txt"
+  tar -czf "$C/pynoreq.tgz" -C "$t/py" .
+  has "python: no requirements.txt" "$(ipm_artifact_check "$C/pynoreq.tgz" 1.0.0 "$t/tree" root)" "has no top-level requirements.txt"
+  printf 'pin==2\n' > "$t/py/requirements.txt"
+  tar -czf "$C/pydiffreq.tgz" -C "$t/py" .
+  has "python: another requirements.txt" "$(ipm_artifact_check "$C/pydiffreq.tgz" 1.0.0 "$t/tree" root)" "holds a different requirements.txt than the candidate"
+  cp "$t/tree/requirements.txt" "$t/py/requirements.txt"
+  cp "$t/tree/requirements.txt" "$t/pys/requirements.txt"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="ocutalon/csp/" Target="x"/><FileCopy Name="ocutalon/python/one.py" Target="${mgrdir}python/one.py"/>\n' > "$t/pys/module.xml"
+  tar -czf "$C/pysrc.tgz" -C "$t/pys" .
+  eq "python: a good src artifact has no problem" "$(ipm_artifact_check "$C/pysrc.tgz" 1.0.0 "$t/tree" src)" ""
+  has "python: a src artifact checked as root has no FileCopy of the resource" "$(ipm_artifact_check "$C/pysrc.tgz" 1.0.0 "$t/tree" root)" "no FileCopy of src/ocutalon/python/one.py"
+  rm -rf "$t/tree/src/ocutalon/python" "$t/tree/requirements.txt"
+  eq "python: a candidate with neither the resource folder nor requirements.txt asks for none" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" root)" ""
 }
 
 # --- static ---
@@ -2859,9 +2891,20 @@ t_static() {
   eq "the usage with no command" "$(cd "$root" && "$BASH" release/release.sh 2>&1 | head -n 1 | cut -c1-30)" "release/release.sh start --ver"
   eq "the usage exit" "$(cd "$root" && "$BASH" release/release.sh > /dev/null 2>&1; echo $?)" 2
   has "ci: the unit is listed" "$(sed -n 's/^CHECK_SCRIPTS="\(.*\)"$/\1/p' "$root/ci/units.sh")" " release-sequence"
-  eq "(QA) requirements.txt at the root declares exactly fastembed==0.9.0" "$(cat "$root/requirements.txt")" "fastembed==0.9.0"
+  eq "(U-294) requirements.txt pins the same distributions as docker/licences/constraints-arm64.txt (the pin lines are equal)" "$(grep -v '^#' "$root/requirements.txt" | grep .)" "$(grep -v '^#' "$root/docker/licences/constraints-arm64.txt" | grep .)"
+  eq "(U-294) requirements.txt pins the same distributions as docker/licences/constraints-x64.txt" "$(grep -v '^#' "$root/requirements.txt" | grep .)" "$(grep -v '^#' "$root/docker/licences/constraints-x64.txt" | grep .)"
+  eq "(U-294) requirements.txt has 36 pin lines and no line that is not a pin or a comment" "$(grep -v '^#' "$root/requirements.txt" | grep -c '^[A-Za-z0-9_.-]*==[A-Za-z0-9_.-]*$')/$(grep -v '^#' "$root/requirements.txt" | grep -c .)" "36/36"
+  eq "(U-294) the root requirements.txt opens with a comment that names its source" "$(sed -n 1p "$root/requirements.txt" | cut -c1-2)" "# "
   eq "(QA) requirements.txt is tracked" "$(git -C "$root" ls-files requirements.txt)" "requirements.txt"
-  has "(QA) the image's pip line pins the same fastembed" "$(grep -F 'pip install' "$root/docker/Dockerfile")" " $(cat "$root/requirements.txt") "
+  pip_pins=$(grep -F 'pip install' "$root/docker/Dockerfile" | tr ' ' '\n' | grep '==')
+  eq "(U-294) the image's pip line has three pins" "$(printf '%s\n' "$pip_pins" | grep -c .)" 3
+  for pin in $pip_pins; do
+    eq "(U-294) requirements.txt has the image's pin $pin" "$(grep -cx -e "$pin" "$root/requirements.txt")" 1
+  done
+  fig_readme=$(grep -F 'pypi.org' "$root/README.md" | grep -o 'about [0-9][0-9,]* \(MB\|minutes\?\)' | tr '\n' ' ')
+  fig_docs=$(grep -F 'pypi.org' "$root/docs/install-ipm.md" | grep -o 'about [0-9][0-9,]* \(MB\|minutes\?\)' | tr '\n' ' ')
+  eq "(DW-784) the README's IPM section and docs/install-ipm.md quote the same package size, model size and install time" "$fig_docs" "$fig_readme"
+  eq "(DW-784) and each quotes all three figures (a size, a size and a time)" "$(printf '%s' "$fig_readme" | grep -o 'about' | wc -l | tr -d ' ')" 3
   eq "(QA) every zpm load of the ipm step bypasses pip, which has no network there" "$(grep -c 'zpm \\"load -bypass-py-deps ' "$root/release/release.sh")" 2
   eq "(QA) no zpm load of the ipm step is left without the bypass" "$(grep 'zpm \\"load ' "$root/release/release.sh" | grep -vc -e '-bypass-py-deps')" 0
   eq "(QA) live:memory-offline is a unit of shards-4" "$("$BASH" -c ". '$root/ci/units.sh'; group_units shards-4" | tr ' ' '\n' | grep -cx 'live:memory-offline')" 1

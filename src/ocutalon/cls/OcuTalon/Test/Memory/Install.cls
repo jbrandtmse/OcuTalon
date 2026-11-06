@@ -1,6 +1,6 @@
 /// Tests of the Memory area's install step (Story 19.2; AD-21, AD-23). They need neither the Python package nor the image: the folders are temporary,
-/// and the step is run against them. A test restores the category and the configuration row to what the instance had before it ran.
-///   - TestRun: Run() creates the category OcuTalon.Memory.Embedder (2 active workers, 1 default) and the row OcuTalonMemory (class, 384), and a second Run()
+/// and the step is run against them. A test restores the categories and the configuration row to what the instance had before it ran.
+///   - TestRun: Run() creates the category OcuTalon.Memory.Embedder (2 active workers, 1 default), the category OcuTalon.Docs.Extractor (1 and 1; Story 19.6) and the row OcuTalonMemory (class, 384), and a second Run()
 ///     changes nothing and leaves one row; a changed category and a changed row are put back to the declared values;
 ///   - TestModelFolderRule: ModelFolder() is the named variable's value when it is set and not empty, otherwise the manager directory's fastembed/;
 ///   - TestPresentFolder: a folder that holds the model is left alone: no download is attempted, no warning, no new file, on a first run and on a second;
@@ -16,6 +16,9 @@ Parameter CATEGORY = "OcuTalon.Memory.Embedder";
 
 Parameter CONFIG = "OcuTalonMemory";
 
+/// The category of the document extraction worker (Story 19.6), which Run() also makes.
+Parameter DOCSCATEGORY = "OcuTalon.Docs.Extractor";
+
 Method OnBeforeAllTests() As %Status
 {
 	Kill ^||OcuTalonTestMemoryInstall
@@ -24,6 +27,12 @@ Method OnBeforeAllTests() As %Status
 		Do ##class(OcuTalon.Test.Memory.Fixture).CategoryProperties(..#CATEGORY, .properties)
 		Set ^||OcuTalonTestMemoryInstall("category", "MaxActiveWorkers") = properties("MaxActiveWorkers")
 		Set ^||OcuTalonTestMemoryInstall("category", "DefaultWorkers") = properties("DefaultWorkers")
+	}
+	Set ^||OcuTalonTestMemoryInstall("docs") = ##class(OcuTalon.Test.Memory.Fixture).CategoryExists(..#DOCSCATEGORY)
+	If ^||OcuTalonTestMemoryInstall("docs") {
+		Do ##class(OcuTalon.Test.Memory.Fixture).CategoryProperties(..#DOCSCATEGORY, .properties)
+		Set ^||OcuTalonTestMemoryInstall("docs", "MaxActiveWorkers") = properties("MaxActiveWorkers")
+		Set ^||OcuTalonTestMemoryInstall("docs", "DefaultWorkers") = properties("DefaultWorkers")
 	}
 	Set ^||OcuTalonTestMemoryInstall("config") = ##class(%Embedding.Config).%ExistsId(..#CONFIG)
 	If ^||OcuTalonTestMemoryInstall("config") {
@@ -44,6 +53,13 @@ Method OnAfterAllTests() As %Status
 		Do ##class(OcuTalon.Install.Step.Memory).EnsureCategory(..#CATEGORY, ^||OcuTalonTestMemoryInstall("category", "MaxActiveWorkers"), ^||OcuTalonTestMemoryInstall("category", "DefaultWorkers"))
 	} Else {
 		Set state("category") = 1
+	}
+	If ^||OcuTalonTestMemoryInstall("docs") {
+		Do ##class(OcuTalon.Install.Step.Memory).EnsureCategory(..#DOCSCATEGORY, ^||OcuTalonTestMemoryInstall("docs", "MaxActiveWorkers"), ^||OcuTalonTestMemoryInstall("docs", "DefaultWorkers"))
+	} ElseIf ##class(OcuTalon.Test.Memory.Fixture).CategoryExists(..#DOCSCATEGORY) {
+		New $Namespace
+		Set $Namespace = "%SYS"
+		Do ##class(Config.WorkQueues).Delete(..#DOCSCATEGORY)
 	}
 	If '^||OcuTalonTestMemoryInstall("config") {
 		Set state("config") = 1
@@ -202,6 +218,9 @@ Method AssertDeclared(when As %String) [ Private ]
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).CategoryProperties(..#CATEGORY, .properties), "the category exists " _ when)
 	Do $$$AssertEquals($Get(properties("MaxActiveWorkers")), 2, "with 2 active workers " _ when)
 	Do $$$AssertEquals($Get(properties("DefaultWorkers")), 1, "and 1 default worker " _ when)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).CategoryProperties(..#DOCSCATEGORY, .docs), "the document extraction category exists " _ when)
+	Do $$$AssertEquals($Get(docs("MaxActiveWorkers")), 1, "with 1 active worker " _ when)
+	Do $$$AssertEquals($Get(docs("DefaultWorkers")), 1, "and 1 default worker " _ when)
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM %Embedding.Config WHERE Name = '" _ ..#CONFIG _ "'")
 	Do result.%Next()
 	Do $$$AssertEquals(result.%GetData(1), 1, "one configuration row " _ when)

@@ -125,6 +125,23 @@ ipm_artifact_check() {
     grep -qF "<Version>$ver</Version>" "$mx" || echo "holds a module.xml that does not read version $ver"
     grep -qF "<FileCopy Name=\"$csp/\"" "$mx" || echo "holds a module.xml with no FileCopy of $csp/"
   fi
+  # The Python resources and the requirements of an IPM install (Story 19.6, U-294): a FileCopy for every resource of the candidate's
+  # src/ocutalon/python that copies it to ${mgrdir}python/<file>, and a top-level requirements.txt that equals the candidate's.
+  if [ -d "$tree/src/ocutalon/python" ] && [ -f "$mx" ]; then
+    while IFS= read -r f; do
+      rel=${csp%/csp}/python/$(basename "$f")
+      grep -qF "<FileCopy Name=\"$rel\" Target=\"\${mgrdir}python/$(basename "$f")\"" "$mx" || echo "holds a module.xml with no FileCopy of $rel"
+    done <<EOT
+$(find "$tree/src/ocutalon/python" -type f -name '*.py' | LC_ALL=C sort)
+EOT
+  fi
+  if [ -f "$tree/requirements.txt" ]; then
+    if [ ! -f "$d/requirements.txt" ]; then
+      echo "has no top-level requirements.txt"
+    elif ! cmp -s "$tree/requirements.txt" "$d/requirements.txt"; then
+      echo "holds a different requirements.txt than the candidate"
+    fi
+  fi
   if [ -d "$tree/src/ocutalon/csp" ]; then
     while IFS= read -r f; do
       rel=${f#"$tree/src/ocutalon/csp/"}

@@ -6,6 +6,7 @@ This page installs OcuTalon into an IRIS instance you already run, with the Inte
 
 - An InterSystems IRIS for AI Hub instance, build 154, with IPM 0.10.10 loaded in %SYS and enabled for USER (the examples start there). Build 109, which the Early Access portal now offers in place of build 154, has not been tested with the IPM install yet.
 - For the registry install: an instance that can reach the community package registry.
+- Network access from the instance to PyPI (pypi.org and files.pythonhosted.org) and to Hugging Face (huggingface.co): the second command downloads OcuTalon's Python packages, about 250 MB once installed, and the embedding model, about 90 MB. On a typical connection this takes about 1 minute.
 
 OcuTalon needs no other package: the one package `ocutalon` holds the bridge too.
 
@@ -140,13 +141,15 @@ OCUTALON>
 
 Building dependency graph...Done.
 [OCUTALON|ocutalon]	Initialize START
-Compilation started on 11/03/2026 07:21:55
+Compilation started on 11/06/2026 18:35:08
 Compiling class OcuTalon.Install.Ipm
 Compiling routine OcuTalon.Install.Ipm.1
 Compilation finished successfully in 0.002s.
 
 [OCUTALON|ocutalon]	Initialize SUCCESS
-[OCUTALON|ocutalon]	Reload START (/tmp/ocutalon-repo/ocutalon-0.1.0/)
+[OCUTALON|ocutalon]	Reload START (/tmp/ocutalon-repo/ocutalon-1.0.1/)
+[OCUTALON|ocutalon]	requirements.txt START
+[OCUTALON|ocutalon]	requirements.txt SUCCESS
 [OCUTALON|ocutalon]	Reload SUCCESS
 [ocutalon]	Module object refreshed.
 [OCUTALON|ocutalon]	Validate START
@@ -155,23 +158,23 @@ Compilation finished successfully in 0.002s.
 [OCUTALON|ocutalon]	Compile SUCCESS
 [OCUTALON|ocutalon]	Activate START
 [OCUTALON|ocutalon]	Configure START
-STEP Bridge.Installer OK 0.1s
+STEP Bridge.Installer OK 0.2s
 STEP Public OK 0.0s
 STEP Roles OK 0.0s
-STEP Users OK 0.0s
-STEP Web OK 0.0s
+STEP Users OK 0.1s
+STEP Web OK 0.1s
 STEP SSL OK 0.0s
 STEP Tasks OK 0.1s
 STEP Demo OK 0.1s
 STEP Provider OK 0.1s
 STEP Audit OK 0.0s
 STEP Telegram OK 0.0s
-STEP Memory OK 0.1s
-07:22:35.460:Ens.Director: Production 'OcuTalon.Production' starting...
-07:22:35.567:Ens.Director: Production 'OcuTalon.Production' started.
-STEP Production OK 1.2s
+STEP Memory OK 4.7s
+18:36:12.729:Ens.Director: Production 'OcuTalon.Production' starting...
+18:36:13.147:Ens.Director: Production 'OcuTalon.Production' started.
+STEP Production OK 1.6s
 STEP Reconcile OK 0.2s
-STEP PrivateData OK 0.1s
+STEP PrivateData OK 0.5s
 STEP Ready OK 0.0s
 [OCUTALON|ocutalon]	Configure SUCCESS
 [OCUTALON|ocutalon]	Activate SUCCESS
@@ -238,19 +241,19 @@ It runs the same installer steps as the second command of the registry install. 
 
 ```
 
-Node: be3ea7777581, Instance: IRIS
-
 OCUTALON>
 
 Building dependency graph...Done.
 [OCUTALON|ocutalon]	Initialize START
-Compilation started on 10/31/2026 00:34:34
+Compilation started on 11/06/2026 18:21:47
 Compiling class OcuTalon.Install.Ipm
 Compiling routine OcuTalon.Install.Ipm.1
-Compilation finished successfully in 0.002s.
+Compilation finished successfully in 0.003s.
 
 [OCUTALON|ocutalon]	Initialize SUCCESS
 [OCUTALON|ocutalon]	Reload START (/opt/ocutalon-ipm/src/)
+[OCUTALON|ocutalon]	requirements.txt START
+[OCUTALON|ocutalon]	requirements.txt SUCCESS
 [OCUTALON|ocutalon]	Reload SUCCESS
 [ocutalon]	Module object refreshed.
 [OCUTALON|ocutalon]	Validate START
@@ -270,12 +273,12 @@ STEP Demo OK 0.1s
 STEP Provider OK 0.1s
 STEP Audit OK 0.0s
 STEP Telegram OK 0.0s
-STEP Memory OK 0.1s
-00:35:06.032:Ens.Director: Production 'OcuTalon.Production' starting...
-00:35:06.142:Ens.Director: Production 'OcuTalon.Production' started.
+STEP Memory OK 3.9s
+18:22:46.081:Ens.Director: Production 'OcuTalon.Production' starting...
+18:22:46.173:Ens.Director: Production 'OcuTalon.Production' started.
 STEP Production OK 1.1s
-STEP Reconcile OK 0.1s
-STEP PrivateData OK 0.1s
+STEP Reconcile OK 0.2s
+STEP PrivateData OK 0.2s
 STEP Ready OK 0.0s
 [OCUTALON|ocutalon]	Configure SUCCESS
 [OCUTALON|ocutalon]	Activate SUCCESS

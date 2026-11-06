@@ -1,12 +1,14 @@
-/// The Memory area's install step (AD-21, AD-23). Run() is idempotent and does three things, in order:
+/// The Memory area's install step (AD-21, AD-23). Run() is idempotent and does four things, in order:
 ///   - the WorkMgr category OcuTalon.Memory.Embedder (created or set to the declared 2 active workers and 1 default worker; Config.WorkQueues lives
 ///     in %SYS), which must exist before anything queues an embedding;
+///   - the WorkMgr category OcuTalon.Docs.Extractor (1 active worker and 1 default worker), which must exist before anything queues a file to read
+///     (Story 19.6);
 ///   - the %Embedding.Config row OcuTalonMemory (class OcuTalon.Memory.Embedding, VectorLength 384), inserted or updated;
 ///   - the model folder (OcuTalon.Memory.Embedder ModelFolder(), or the folder passed in): when it already holds the model nothing is downloaded,
 ///     which is always so on the image; when it does not, the model is downloaded once, in a worker, with the image build's snapshot_download call.
 ///     A download that cannot run (no network, or fastembed or huggingface_hub not installed, as on the FR-57 image) is a warning that carries the
 ///     underlying error's own text, never a failure, so the install completes and a later install tries again.
-/// EnsureCategory is the pattern that other areas' worker categories reuse (Story 19.6).
+/// EnsureCategory is the pattern that other areas' worker categories reuse.
 Class OcuTalon.Install.Step.Memory Extends OcuTalon.Install.Step
 {
 
@@ -14,6 +16,8 @@ Class OcuTalon.Install.Step.Memory Extends OcuTalon.Install.Step
 ClassMethod Run(folder As %String = "") As %Status
 {
 	Set sc = ..EnsureCategory(##class(OcuTalon.Memory.Embedder).#CATEGORY, ##class(OcuTalon.Memory.Embedder).#MAXACTIVEWORKERS, ##class(OcuTalon.Memory.Embedder).#DEFAULTWORKERS)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Set sc = ..EnsureCategory(##class(OcuTalon.Docs.Extractor).#CATEGORY, ##class(OcuTalon.Docs.Extractor).#MAXACTIVEWORKERS, ##class(OcuTalon.Docs.Extractor).#DEFAULTWORKERS)
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	Set sc = ..EnsureConfig()
 	If $SYSTEM.Status.IsError(sc) Quit sc
