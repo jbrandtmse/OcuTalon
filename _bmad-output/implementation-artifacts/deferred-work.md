@@ -4331,6 +4331,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: docs/install-ipm.md:165; no test compares the sample logs with a real start
 - 2026-11-06T08:40:46Z status=routed owner=burndown by=harvest note=fix-pack-sized: two one-line inserts; docs/** is contended by Epic 11 (README and docs), so the burn-down story checks Epic 11's diff first
+- 2026-11-06T11:23:01Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry by=ci note=CI_red:test-cpf.sh_rule_9_compares_the_sample_logs_with_Registry's_order_(the_deferral's_'no_test_compares'_was_wrong);fixed_in_17.5_rework_iteration_2
 
 ### DW-786: Checks.Coverage.Live repeats Checks.Process.Run's live-read logic (the not_checked reason chain, the cut rule, the state text, the failure wording and the capital) beyond the 4-line scoping loop the spec declares; the two drift when either changes
 - source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: med | fix-risk: med | footprint: out-of-footprint
