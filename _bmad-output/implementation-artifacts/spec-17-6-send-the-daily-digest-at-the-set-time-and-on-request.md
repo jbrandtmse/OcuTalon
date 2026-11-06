@@ -2,7 +2,8 @@
 title: 'Story 17.6: Send the daily digest at the set time and on request'
 type: 'feature'
 created: '2026-11-06'
-status: 'ready-for-dev'
+status: 'blocked'
+baseline_revision: '814a4e1499f7299ea25b7736f03eef60f1b4cb72'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -189,43 +190,43 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
 ## Tasks & Acceptance
 
 **Execution (in order):**
-- [ ] Task 0 (warm throwaway `e17s6iw`; record under Design Notes "Measured"):
+- [x] Task 0 (warm throwaway `e17s6iw`; record under Design Notes "Measured"):
   - a `SendRequestAsync` from `Digest` to its own config name inside the `OnRequest` of a SendDigest that CommandsIn sent synchronously: CommandsIn gets `ok` before the `Compose` runs;
   - a `turn` from a `Compose` to `Decide` (async, with a response) while a chat turn's `send_digest` is inside CommandsIn: both finish, with no wait near CommandsIn's 120 s;
   - `FromLocal` of `YYYY-MM-DDT08:00:00` across a daylight-saving day.
 
   A contradiction stops the task with Clarification Needed.
-- [ ] `Checks/Process.cls` (Q1, ruled): add `Parameter DIGEST = "Digest";` with its own one-line doc comment, and, as the last statement of `Tick` before `Quit $$$OK`, one `Try` block that sends `tick` with `..SendRequestAsync(..#DIGEST, tick, 0)`; an error status or exception logs one Type 3 warning. Change no other line. The lead re-places the block as the last statement of the merged `Tick` at the integrate-forward after Epic 39 merges, in the same push.
-- [ ] `Digest/Msg/Compose.cls` (new, extends `Ens.Request`, with its storage block): `SessionRef`, `Kind`, `DueAt`, `IdempotencyKey` (`MAXLEN = 128`), `WindowStart`, `WindowEnd`; `Index SessionKeyIndex On (SessionRef, IdempotencyKey)`.
-- [ ] `Digest/Data/Sent.cls` (Q5, ruled): append `Property IdempotencyKey As %String(COLLATION = "EXACT", MAXLEN = 128);` (storage value 13, appended by the compiler; slots 2-12 unchanged), and `Index SessionRefKeyIndex On (SessionRef, IdempotencyKey)`; update the class doc.
-- [ ] `Digest/Process.cls`: drop `STUB`; replace the doc comment with the contract.
+- [x] `Checks/Process.cls` (Q1, ruled): add `Parameter DIGEST = "Digest";` with its own one-line doc comment, and, as the last statement of `Tick` before `Quit $$$OK`, one `Try` block that sends `tick` with `..SendRequestAsync(..#DIGEST, tick, 0)`; an error status or exception logs one Type 3 warning. Change no other line. The lead re-places the block as the last statement of the merged `Tick` at the integrate-forward after Epic 39 merges, in the same push.
+- [x] `Digest/Msg/Compose.cls` (new, extends `Ens.Request`, with its storage block): `SessionRef`, `Kind`, `DueAt`, `IdempotencyKey` (`MAXLEN = 128`), `WindowStart`, `WindowEnd`; `Index SessionKeyIndex On (SessionRef, IdempotencyKey)`.
+- [x] `Digest/Data/Sent.cls` (Q5, ruled): append `Property IdempotencyKey As %String(COLLATION = "EXACT", MAXLEN = 128);` (storage value 13, appended by the compiler; slots 2-12 unchanged), and `Index SessionRefKeyIndex On (SessionRef, IdempotencyKey)`; update the class doc.
+- [x] `Digest/Process.cls`: drop `STUB`; replace the doc comment with the contract.
   - `OnRequest` takes `Msg.Tick` (Due, then one `Compose` per due session), `Msg.Command.SendDigest` (the key check, one `Compose`, the answer) and `Digest.Msg.Compose`.
   - `OnResponse` finishes a `Compose` whose summary request came back.
   - The private seams `Rows` (Coverage.Build), `Saved`, `SendSummary` (Decide, async), `Cost`, `NeedsYou`, `SendNotice` (Notify) and `SendCompose` (self) are what the tests override.
   - `Parameter MESSAGESENDING` holds exactly the Planner's ruled text (Design Notes, "Ruled text: MESSAGESENDING").
-- [ ] `Digest/Cost.cls` (new): `Yesterday(sessionRef, now, *sc) As %Numeric`.
-- [ ] `Digest/NeedsYou.cls` (new, Q4): `List(sessionRef, failedRows, *sc) As %DynamicObject` = `{count, names: [...], more}`, with `NEEDSYOUMAX` = 5, the order, the de-duplication and the bound of the contract.
-- [ ] `Production.cls` line 60 (lane A region): `Digest` `Enabled="true"` (DW-696).
-- [ ] `Install/Step/Digest.cls` `Run()`: also seed `digest.time` "08:00" and `digest.channels` "web,phone,telegram" through `Install.Seeds`, from a new `Digest.Process` method `Seeds()`.
-- [ ] `Msg/Catalog/Watch.cls`: add `digest.cost`, `digest.needsYouMore`, `button.gotIt` and `handled.marked` with the approved texts under Design Notes.
-- [ ] `Test/Msg/Catalog.cls` (Lane B, the ruled one-time exception, Q2): the four fixture rows and Keys entries; Watch count 50 to 54 and the total 152 to 156, with the U-177 marker on the `Fixtures` XData doc comment ("Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6") and beside the counts. Fix any web catalog test the keys trip. Report the final count (156 here; the union at the merge).
-- [ ] `Tools/DigestTools.cls` (new, extends `Tools.Result`): `SendDigest()` with `STEPLABELSENDDIGEST` "Sending your digest", `CLASSIFICATIONSENDDIGEST` safe, `READONLYSENDDIGEST` 0, `TRUSTEDOUTPUTSENDDIGEST` 1; the doc comment is the model-facing description.
+- [x] `Digest/Cost.cls` (new): `Yesterday(sessionRef, now, *sc) As %Numeric`.
+- [x] `Digest/NeedsYou.cls` (new, Q4): `List(sessionRef, failedRows, *sc) As %DynamicObject` = `{count, names: [...], more}`, with `NEEDSYOUMAX` = 5, the order, the de-duplication and the bound of the contract.
+- [x] `Production.cls` line 60 (lane A region): `Digest` `Enabled="true"` (DW-696).
+- [x] `Install/Step/Digest.cls` `Run()`: also seed `digest.time` "08:00" and `digest.channels` "web,phone,telegram" through `Install.Seeds`, from a new `Digest.Process` method `Seeds()`.
+- [x] `Msg/Catalog/Watch.cls`: add `digest.cost`, `digest.needsYouMore`, `button.gotIt` and `handled.marked` with the approved texts under Design Notes.
+- [x] `Test/Msg/Catalog.cls` (Lane B, the ruled one-time exception, Q2): the four fixture rows and Keys entries; Watch count 50 to 54 and the total 152 to 156, with the U-177 marker on the `Fixtures` XData doc comment ("Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6") and beside the counts. Fix any web catalog test the keys trip. Report the final count (156 here; the union at the merge).
+- [x] `Tools/DigestTools.cls` (new, extends `Tools.Result`): `SendDigest()` with `STEPLABELSENDDIGEST` "Sending your digest", `CLASSIFICATIONSENDDIGEST` safe, `READONLYSENDDIGEST` 0, `TRUSTEDOUTPUTSENDDIGEST` 1; the doc comment is the model-facing description.
   - `Tools/Watching.cls`: add `<Tool Name="send_digest" Class="OcuTalon.Tools.DigestTools" Method="SendDigest"/>`, `DependsOn` it, and extend the description.
   - `Tools/Names.cls` (Q6): append `Parameter DIGESTTOOLS = "send_digest";` with a doc comment ("step 2's digest tool, Story 17.6"); not in `RELEASE1`.
-- [ ] `Test/Install/SecurityOverview.cls` (Q6, ruled): append the one term `_","_$Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")` to `released` (:43) and extend the doc (:37). Regenerate `docs/security-overview.md` with `test-security-overview.sh --write`; never hand-edit it.
-- [ ] `Test/Install/Production.cls` (Q3, ruled): the Digest row `"enabled": 1, "stub": 0` and the doc line :13 ("Story 17.6 built Digest: it is enabled and carries no STUB").
-- [ ] Lane A tool-list tests (footprint extensions): `Test/Agent/Constants.cls` (13 names, `RELEASE1` still 12), `Test/Agent/Runners.cls` (`send_digest` from `DigestTools` for ChatAgent and its retry), `Test/Agent/Instructions.cls` (seven Watching tools), `Test/Watch/Tools.cls` `TestDeclarations`, `Test/Watch/Turns.cls` :63.
-- [ ] (Q7, RULED by the orchestrator 2026-11-06) `Test/Tools/Reminders.cls` :275: insert `send_digest` into the sorted tool-name list and extend that assertion's message with "and, since Story 17.6, send_digest"; `Test/Bridge/Gate.cls` `TRUSTEDTOOLS` :117: append the term `OcuTalon.Tools.DigestTools:send_digest` (send_digest is trusted; no veto). Nothing else in either file (Epic 19 makes its own two edits there: a plain union). Condition: `send_digest`'s result holds only the fixed `MESSAGESENDING` text, with no digest content and no names; a fixed-strings test pins the tool result to that text byte for byte (`Test/Digest/Tool.cls`), with the mutation shown. Both files are reported as footprint extensions.
-- [ ] New `ci/mock/scenarios/A/` files:
+- [x] `Test/Install/SecurityOverview.cls` (Q6, ruled): append the one term `_","_$Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")` to `released` (:43) and extend the doc (:37). Regenerate `docs/security-overview.md` with `test-security-overview.sh --write`; never hand-edit it.
+- [x] `Test/Install/Production.cls` (Q3, ruled): the Digest row `"enabled": 1, "stub": 0` and the doc line :13 ("Story 17.6 built Digest: it is enabled and carries no STUB").
+- [x] Lane A tool-list tests (footprint extensions): `Test/Agent/Constants.cls` (13 names, `RELEASE1` still 12), `Test/Agent/Runners.cls` (`send_digest` from `DigestTools` for ChatAgent and its retry), `Test/Agent/Instructions.cls` (seven Watching tools), `Test/Watch/Tools.cls` `TestDeclarations`, `Test/Watch/Turns.cls` :63.
+- [x] (Q7, RULED by the orchestrator 2026-11-06) `Test/Tools/Reminders.cls` :275: insert `send_digest` into the sorted tool-name list and extend that assertion's message with "and, since Story 17.6, send_digest"; `Test/Bridge/Gate.cls` `TRUSTEDTOOLS` :117: append the term `OcuTalon.Tools.DigestTools:send_digest` (send_digest is trusted; no veto). Nothing else in either file (Epic 19 makes its own two edits there: a plain union). Condition: `send_digest`'s result holds only the fixed `MESSAGESENDING` text, with no digest content and no names; a fixed-strings test pins the tool result to that text byte for byte (`Test/Digest/Tool.cls`), with the mutation shown. Both files are reported as footprint extensions.
+- [x] New `ci/mock/scenarios/A/` files:
   - `digest-summary.json` (marker; a 300-character text);
   - `digest-send-now.json` (marker; `toolUse` `send_digest` `{}`, then a text that claims no delivery).
-- [ ] `Channel/Telegram/Out.cls`:
+- [x] `Channel/Telegram/Out.cls`:
   - add `digest` and `handled` to the handled kinds;
   - `Digest(request)` renders and joins the pieces;
   - `GOTITKINDS` = `tellnow` with the Got it keyboard;
   - `EditHandled(request)` follows `EditAnswered`'s pattern.
-- [ ] `Channel/Telegram/In.cls` `Press`: the `gotit` action, with the checks above, then `Submit`. The approve and reject paths are unchanged.
-- [ ] Tests (new; Lane A areas; no `ci/units.sh` edit):
+- [x] `Channel/Telegram/In.cls` `Press`: the `gotit` action, with the checks above, then `Submit`. The approve and reject paths are unchanged.
+- [x] Tests (new; Lane A areas; no `ci/units.sh` edit):
   - `Test/Digest/Due.cls`: matrix rows Created before, Created after, Restart catch-up, Queued not yet sent, Requested; the DST day; the lock (a second job holding it: no `Compose`); an ended online-demo session (DW-651's before-and-after tests);
   - `Test/Digest/Compose.cls`: the part order and keys, the cost row, saved, fallback, nothing saved, the 240 cut, 150 words, and `Sent` fields;
   - `Test/Digest/NeedsYou.cls`: matrix rows Needs you order, de-dup and overflow (200 items, 4096 characters);
@@ -233,6 +234,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
   - `Test/Digest/Tool.cls`: the mock marker turn calls `send_digest`, and the tool result the model read is `MESSAGESENDING`;
   - `Test/Channel/TelegramDigest.cls` (LiveCase, mock Telegram): matrix rows Telegram digest, Got it paired and other, Handled.
   - Update `Test/Digest/Contracts.cls` (no stub; and the `Sent` contract in `XData Contracts` gains `IdempotencyKey` `%String(MAXLEN=128)` and its index, and `TestRefCollation` lists `Sent||IdempotencyKey`: the lead's U-268 (3) gate) and `Test/Digest/Thresholds.cls` (the seven seeds).
+- [ ] `Test/Bridge/CodeRules.cls` `TOOLVERBS` gains `SendDigest` (NOT DONE: Clarification Needed 1; `Test.Agent.Runners` `TestToolInventory` stays red until it is ruled).
 
 **Acceptance Criteria:**
 - Given `digest.time` and a session created before today's time, when the heartbeat's tick passes it, then `Checks` forwards the Tick, `Digest` sends one `Notification` of kind `digest` to `Notify` with the AD-32 Slots, and records one scheduled `Sent` row. Given a session created after it, then none is sent until tomorrow's tick (DW-651).
@@ -349,6 +351,12 @@ No other new user-facing text. The mock scenario's final chat text is CI-only fi
 - DW-661 is addressed by the `digest.cost` key and the catalog test task.
 - DW-696 is addressed by enabling the item and the matrix row "Disabled item fixed" (`Send` `TestWebAdminSends`).
 
+**Measured (Task 0; warm `e17s6iw` and fresh `e17s6i`, 2026-11-06).**
+- **Self-send inside a synchronous SendDigest.** `Commands.Submit` (origin `web_admin`) on the warm production returned in 6 ms with `Ok` 1 and `Outcome` `sending`. The headers: `CommandsIn->Digest` SendDigest created 13:37:43.772, processed .775; `Digest->Digest` Compose created .774, processed .781; the `CommandResult` header .775; `Digest->Notify` Notification created .780. So CommandsIn had its `ok` before the `Compose` ran, in the one `Digest` job. No contradiction.
+- **A `turn` from a `Compose` while a chat turn's `send_digest` is inside CommandsIn.** `Test.Digest.Tool` `TestResultSaysSending` on the fresh stack: one saved item, the marker turn `digest-send-now` calls `send_digest`, the tool returns at once, the chat turn ends, then the summary request runs on the one-job `ChatAgent`; both finish and the digest carries the 240-character summary. The whole test took 7.07 s (its assertion allows 60 s), nowhere near CommandsIn's 120 s. No contradiction.
+- **`FromLocal` across a daylight-saving day** (zone America/New_York, `Test.Digest.Due` `TestDaylightSaving`): 08:00 on 2030-03-10 (EDT) is 12:00:00Z and 08:00 on 2030-03-09 (EST) is 13:00:00Z (a 23-hour day); 08:00 on 2030-11-03 (EST) is 13:00:00Z and 08:00 on 2030-11-02 (EDT) is 12:00:00Z (a 25-hour day); the skipped 02:30 on 2030-03-10 is 07:30:00Z. A tick at 07:00 on either change day is due for the day before. No contradiction for these.
+- **Observation (inference, not covered by a test).** For the repeated hour, `FromLocal("2030-11-03T01:30:00")` answers `05:30:00Z` (the first instant, as its doc says) when it is the first conversion in the process, but `06:30:00Z` after the same process converted `2030-11-03T08:00:00` (measured in the warm container: a, b, c in one session gave 05:30 each time; the order 08:00 then 01:30 gave 06:30). A `digest.time` inside the repeated hour (01:00 to 01:59 in New York) could therefore give two different `due` values on that one night and one extra digest. Left as it is: `Data.Time` is Base's and the case is one night a year for an unusual setting; reported to the lead.
+
 **Decided in-stage.**
 1. **Ended sessions** are as stated in the contract, because the Session row has no end marker.
 2. **`{checked}`** is each non-vital entry prefixed "the", joined with ", " and " and " (for example "the Orders production").
@@ -369,6 +377,16 @@ No other new user-facing text. The mock scenario's final chat text is CI-only fi
 17. **`Names.DIGESTTOOLS` holds the name itself** (`"send_digest"`). A second parameter with the same value would fail `constants.test.mjs`'s "distinct" check, and the code reads the name through `DIGESTTOOLS`.
 18. **`Sent.IdempotencyKey` is `MAXLEN = 128`**, the same as `Msg.Command`'s (the first plan's 64 was too short).
 19. **`CommandResult.Outcome` is `sending`** for an accepted request and for a repeat (free text, like `ReminderOps`' outcomes; no `Msg.Enum` change).
+20. **`whatFailed` on the two failing Render keys.** The contract says `Render`'s key goes in "with `{}`", but `checks.notEverything` and `checks.notEverythingRestPassed` declare the slot `whatFailed` and a render with `{}` is refused ("the slot is missing"). So those two keys carry `{"whatFailed": <the entries of the non-vital rows that did not pass, joined as in 2 and 3>}` and every other key carries `{}`.
+21. **A Compose that is already answered sends nothing.** `Composed` first checks the `Sent` rows: a Compose whose `IdempotencyKey` is held by a `Sent` row, or a scheduled one whose `DueAt` is covered by a scheduled `Sent` row, ends OK with no Notification (the acceptance key check and the due check stay the first gate; this is the second, per Q5).
+22. **A needs-you entry with no name is left out** (a Decision with an empty `Summary`); it is not counted.
+23. **`SendDigest` for an unknown session, or when the session's lock is not free in `LOCKSECONDS`, returns an error status.** CommandsIn answers `failed` with its own existing text, so no new text is needed; a scheduled tick that cannot take the lock logs one warning and tries again at the next tick.
+24. **The window of a scheduled digest ends at the time its `Compose` is queued (the clock), not at `tickAt`,** and the greeting hour and yesterday's cost use that `WindowEnd`.
+25. **The handled edit records a `Delivery` row of kind `handled`** with the same message id and `DecisionRef` and the text "", so a repeated `handled` notification edits nothing (the first edit stays), like `answered`.
+26. **`Test/Msg/Catalog.cls` also gains `dailyCost` in its `SLOTTYPES` list and in the negative-amount branch of its refusal checks.** The ruled fixture row for `digest.cost` cannot pass `TestEntries` without it (a Lane B test line beyond the four rows; reported).
+27. **`Test/Channel/TelegramOut.cls` `TestOtherKinds` no longer lists `digest`** among the kinds that send nothing (Lane A test; the kind is now sent).
+28. **New test helpers:** `Test/Digest/ProcessProbe.cls` (the seams of `Digest.Process` under test control), `FailRowsDigest.cls` (a Digest whose `Rows` seam fails, put behind the item by `Send`) and `TickProbe.cls` (a `Test.Checks.Probe` whose send to Digest is under test control; no existing `Test/Checks/**` file is edited).
+29. **`TestRepeatKey` also counts the `Compose` requests that Digest sent to itself.** The second gate (21) would otherwise hide a missing acceptance check, because a repeated `Compose` is dropped later; "nothing new is queued" is asserted directly.
 
 **Contention (Rule 11) and allowed edits.**
 - Ruled edits to contended files: `Checks/Process.cls` (Q1), `Test/Install/Production.cls` (Q3), `Test/Install/SecurityOverview.cls` and `docs/security-overview.md` (Q6), `Test/Msg/Catalog.cls` (Q2, Lane B). `Test/Msg/Catalog.cls` and `docs/security-overview.md` are also changed on OCT-epic39, so the lead resolves them at the merge (the doc by regenerating it).
@@ -439,30 +457,35 @@ Run one command per call, in the foreground, with `timeout: 600000`. The tags ar
 
 Every test added or changed passes on a fresh environment, in either order.
 
-**Planned mutations (Rule 19), one per AC or ruling:**
-- The `CreatedAt` clause removed: `Due` `TestCreatedAfter` red (DW-651).
-- `>=` made `>` in the scheduled lookup: `Due` `TestCatchUpOnce` red.
-- The `Compose` lookup removed from the due check: `Due` `TestQueuedNotRepeated` red.
-- The Try block removed from `Checks.Tick`: `Send` `TestTickReachesDigest` red (Q1).
-- The cost includes `eval`: `Compose` `TestCost` red.
-- The part order swapped (saved before needs you): `Compose` `TestPartOrder` red.
-- Decisions listed before the failed rows: `NeedsYou` `TestOrder` red (Q4).
-- The de-duplication removed: `NeedsYou` `TestActIncidentOnce` red (Q4 (a)).
-- `NEEDSYOUMAX` ignored: `NeedsYou` `TestOverflow200` red (Q4 (b)).
-- The `Handled.Marked` filter removed: `NeedsYou` `TestHandledLeftOut` red.
-- The 240 cut removed: `Compose` `TestSummaryCut` red.
-- Fallback ignored: `Compose` `TestSummaryFallback` red.
-- `Enabled="false"` restored: `Send` `TestWebAdminSends` red (DW-696).
-- The key check removed: `Send` `TestRepeatKey` red (Q5 (a)).
-- `MESSAGESENDING` changed to "The digest was sent.": `Tool` `TestResultSaysSending` red (Q5 (b)).
-- `Compose` handling made to return OK on a seam error: `Send` `TestComposeFailureInTrace` red (Q5 (c)).
-- A `Channel` property added to `SendDigest`: `Send` `TestNoRecipient` red (U-268).
-- `send_digest` removed from `Watching`: `SecurityOverview` `TestToolRows` red (Q6).
-- Telegram: `parse_mode` added: `TelegramDigest` `TestPlainText` red.
-- The paired-chat check dropped: `TelegramDigest` `TestGotItOtherChat` red.
-- `reply_markup` kept on edit: `TelegramDigest` `TestHandledEdit` red.
+**Mutations (Rule 19), applied and observed in the implement pass; each reverted, the tree checked byte-identical (a hash of `git diff` and the untracked files before and after):**
+- mutation: the `CreatedAt` clause removed from `Process.Ticked`: `Due` `TestCreatedAfter` red (DW-651; "a session created after today's time gets none today").
+- mutation: `>=` made `>` in the scheduled lookup of `Process.Covered`: `Due` `TestCatchUpOnce` red (and `TestCreatedBefore`).
+- mutation: the `Compose` lookup removed from `Process.Covered`: `Due` `TestQueuedNotRepeated` red (and `TestCatchUpOnce`, `TestCreatedBefore`).
+- mutation: the `Try` block removed from `Checks.Tick`: `Send` `TestTickReachesDigest` red (Q1; and `TestTickForwardFails`).
+- mutation: the cost includes `eval` (`OwnerRef IN (?, ?, 'eval')`): `Compose` `TestCost` red.
+- mutation: the part order swapped (the saved part before needs you): `Compose` `TestPartOrder` red (and `TestNeedsYouParts`).
+- mutation: Decisions listed before the failed rows: `NeedsYou` `TestOrder` red (Q4; and `TestOverflow`).
+- mutation: the de-duplication removed: `NeedsYou` `TestActIncidentOnce` red (Q4 (a)).
+- mutation: `NEEDSYOUMAX` ignored (`If 1` in `Bound`): `NeedsYou` `TestOverflow` and `TestOverflow200` red (Q4 (b); `Compose` `TestNeedsYouParts` too).
+- mutation: the `Handled.Marked` filter removed: `NeedsYou` `TestHandledLeftOut` red (and `TestOrder`).
+- mutation: the 240 cut removed: `Compose` `TestSummaryCut` red.
+- mutation: the fallback ignored (`If 0` for `answer.Fallback`): `Compose` `TestSummaryFallback` red.
+- mutation: `Enabled="false"` restored for `Digest` in `Production.cls`: `Send` red on the fresh stack (every SendDigest fails: `TestComposeFailureInTrace`, `TestRepeatKey`, `TestSavedFallback` and the others lose "Ok at once, sending", DW-696; the run took 1412 s because every test waits for the item, so `TestWebAdminSends`, the first of the class by name, was cut off the capped failure print: it makes the same first assertion). The warm `Install.Production` oracle row pins it too.
+- mutation: the key check removed (`If 1` in `Requested`): `Send` `TestRepeatKey` red (Q5 (a)); only its Compose count sees it, because the second gate drops the repeated `Compose` later.
+- mutation: `MESSAGESENDING` changed to "The digest was sent.": `Tool` `TestFixedText` and `TestResultSaysSending` red (Q5 (b), Q7 fixed-strings pin; fresh stack).
+- mutation: the `Compose` handling made to return OK on a seam error (`Quit $$$OK` after `Rows`): `Compose` `TestFailurePath` and `Send` `TestComposeFailureInTrace` red (Q5 (c)).
+- mutation: a `Channel` property added to `SendDigest`: `Send` `TestNoRecipient` red (U-268).
+- mutation: `send_digest` removed from `Watching`: `SecurityOverview` `TestToolRows` and `Watch.Tools` `TestDeclarations` red (Q6).
+- mutation: `parse_mode` added to `sendMessage`: `TelegramDigest` `TestDigestMessage` red (`TestPlainText` of the plan).
+- mutation: the paired-chat check (the chat of the row's message id) dropped from `In.GotIt`: `TelegramDigest` `TestGotItOtherChat` red.
+- mutation: `reply_markup` kept on the handled edit: `TelegramDigest` `TestHandledEdit` red.
+
+## Clarification Needed
+
+1. **intent gap: `Test/Bridge/CodeRules.cls` `TOOLVERBS` must name `SendDigest`.** `Test.Agent.Runners` `TestToolInventory` runs `CodeRules.ToolCodeClean` over every tool class, and it refuses `DigestTools` ("names the command class SendDigest, which is not a tool verb"), because `TOOLVERBS` (line 109) lists only `SetReminder,ListReminders,CancelReminder,StartWatch,StopWatch,Dismiss`. `CommandsIn` `TOOLVERBS` already allows `SendDigest` from origin `tool` (AD-1). The file is Epic 19's (`OCT-epic19` changes it) and no ruling names it, so it is not edited and `TestToolInventory` is red for `ChatAgent` and `ChatAgentRetry`. Recommended resolution: a Q7-shaped one-term edit, appending `SendDigest` to `TOOLVERBS` and extending its doc line, reported as a footprint extension (a plain union with Epic 19's memory verbs at the merge).
+2. **intent gap: the Tick forward makes `Test.Checks.Heartbeat` `TestDisabledItemIsReportedOnce` red.** Epic 30/39's tests send ticks `AHEADSECONDS` (a day) into the future (`Test.Watch.Case` `Ahead`). With the forward, `Digest` takes the due rule at `tickAt`, finds the fixture session created before tomorrow's `digest.time`, and sends it a scheduled digest. The session's web chat then holds two notices where the test asserts one ("the session's web chat got one notification"). Every other Checks, Watch, Digest, Agent, Tools and `Schedule.Heartbeat` class passed on the fresh stack. The test is Epic 39's contended file and no ruling covers it. Recommended resolution: the due rule uses the earlier of `tickAt` and the clock (a tick from the future cannot make a digest due before its time; real heartbeat ticks are taken at the clock, so nothing else changes), with a clock seam in `Digest.Process` so that `Test.Digest.Due` keeps its 2030 times; or the lead has Epic 39 move its ticks to a time that crosses no `digest.time`. Not implemented here, because it changes the ruled due rule.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap: (1) Test/Bridge/CodeRules.cls TOOLVERBS must name SendDigest (Test.Agent.Runners TestToolInventory red for ChatAgent and ChatAgentRetry; a contended Epic 19 file with no ruling); (2) the Tick forward makes Epic 39's Test.Checks.Heartbeat TestDisabledItemIsReportedOnce red (ticks a day ahead make the fixture session due; the fix changes the ruled due rule or Epic 39's test). Both are written up with recommended resolutions under Clarification Needed. The implementation, tests and mutation lines are in the working tree, uncommitted; no finalize commit was made.
