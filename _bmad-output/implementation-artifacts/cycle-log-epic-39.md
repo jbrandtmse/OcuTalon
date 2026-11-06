@@ -287,3 +287,4 @@
 2026-11-06T17:48:30Z	Epic 39	epic_retro_skipped	reason=policy
 2026-11-06T17:48:30Z	Epic 39	epic_status_done	stories=8
 2026-11-06T17:48:30Z	Epic 39	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=sonnet unresolved_high_med_avg=0.57 high_med_avg=2.43 metric=unresolved rework_stories=2 review_loop_thrash=0 rework_lang_defects=0 result=hold applied=false note=record_only(gates.model_tier)
+2026-11-06T17:48:39Z	Epic 39	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=sonnet unresolved_high_med_avg=0.38 high_med_avg=3.12 metric=unresolved rework_stories=3 review_loop_thrash=0 rework_lang_defects=0 result=hold applied=false note=corrects_the_previous_entry(numbers_computed_from_this_log);record_only
