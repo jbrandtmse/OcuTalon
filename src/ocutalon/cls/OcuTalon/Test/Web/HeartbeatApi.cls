@@ -14,7 +14,7 @@
 ///   - TestPutOutcomes: the mapping of the owner's outcomes, and what the route submits, through the probe;
 ///   - TestRunSendsThenCoolsDown, TestRunEmptyThenCooldown (real Checks): the 202, the 409 cooldown with availableAt and the 409 empty;
 ///   - TestSaveThenRunAfterATick (real Checks; Story 39.8, DW-803): a person off with an empty checklist that a Tick has made the Checks job read, then a PUT of a checklist
-///     and at once a POST run: 202 sent, never 409 empty (the run now reads the stored values, not the job's cached ones);
+///     and at once a POST run: 202 sent, never 409 empty (a run now reads the stored values, not the job's cached ones);
 ///   - TestRunOutcomes: the mapping of Checks' outcomes, through the probe;
 ///   - TestNoSessionIs500: with no CSP session all three routes answer 500 server_error.
 Class OcuTalon.Test.Web.HeartbeatApi Extends %UnitTest.TestCase
@@ -445,24 +445,25 @@ Method TestRunSendsThenCoolsDown()
 }
 
 /// A person off with an empty checklist whom a Tick has made the Checks job read (the job keeps each setting for 60 seconds), then a PUT of a checklist and at
-/// once a POST run, less than 50 seconds after that Tick started: 202 sent, not 409 empty, because Checks reads the stored values for a run now. The Tick is
+/// once a POST run, less than 50 seconds after the session was made (so no cache entry of its keys can have expired): 202 sent, not 409 empty, because Checks
+/// reads the stored values for a run now. The Tick is
 /// sent synchronously through the HeartbeatIn service (Test.Watch.Case.SendTick), to the same Checks job that answers the run. The beat's decision is waited for before the clean-up.
 Method TestSaveThenRunAfterATick()
 {
 	If '..Guard() Quit
 	If '..Beatable() Quit
+	Set started = $ZHorolog
 	Set session = ..Session()
 	Set text = "zz save then run [[mock:decide-ignore:"_session_"]]"
 	Set body = ..Put({"on": false, "interval": 1440, "from": "", "to": "", "checklist": ""}.%ToJSON(), .response)
 	Do $$$AssertEquals(response.Status, "200 OK", "control: the person is off with an empty checklist")
-	Set started = $ZHorolog
 	Set id = ##class(OcuTalon.Test.Watch.Case).SendTick(##class(OcuTalon.Data.Time).NowUtc(), 0, .sc)
 	Do $$$AssertStatusOK(sc, "a Tick is sent to Checks and answered, so that the job has read the empty checklist")
 	If id = "" Quit
 	Set body = ..Put({"on": false, "interval": 1440, "from": "", "to": "", "checklist": (text)}.%ToJSON(), .response)
 	Do $$$AssertEquals(response.Status, "200 OK", "the checklist is saved")
 	Set body = ..Post(.response)
-	Do $$$AssertTrue($ZHorolog - started < 50, "the run came less than 50 seconds after the Tick, so that the job's cache entries were still live")
+	Do $$$AssertTrue($ZHorolog - started < 50, "the run came less than 50 seconds after the session was made, so that the job's cache entries were still live")
 	Do $$$AssertEquals(response.Status_"|"_body, "202 Accepted|{""result"":""sent""}", "the run right after the save is 202 sent, not 409 empty")
 	Set row = ..Beat(session)
 	If '$IsObject(row) || (row.LastItemId = "") Quit

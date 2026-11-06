@@ -3911,6 +3911,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: EXPERIENCE.md Later Steps > Personality gives only the cooldown text and the skip texts; epics 39.5 asks for unavailable with the reason
 - 2026-11-03T14:18:41Z status=routed owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=harvest note=39.5 reuses an accepted text (e.g. the skip reasons) or escalates as veto-window public text; never invents one (UX-DR117)
+- 2026-11-06T17:18:56Z status=resolved-by:39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=adjudication note=the unavailable Run button shows the ruled texts Today's cost limit has been reached. / No model key is set. (Planner ruling 2026-11-06), cap first, before the cooldown; pinned by heartbeat-card-view.test.mjs and ux-strings.test.mjs
 
 ### DW-638: lint_spine.py reports ok:false on the spine for 8 low placeholder findings that are deliberate catalog slot syntax ({time}, {day}, {reason} ...), so an AC or Rule 20 gate requiring "ok": true cannot pass
 - source: spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -4620,6 +4621,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Core/SettingsOps.cls Heartbeat returns SampleChecklist with sample true and writes no key; Checks reads the stored checklist only
 - 2026-11-06T09:01:42Z status=routed owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=harvest note=39.5's card decides: save the sample before offering Run now, or keep Run unavailable until a save (within EXPERIENCE's texts)
 - 2026-11-06T15:13:35Z occurrence=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=cr note=39.5 PUT-then-POST still gets 409 empty: Checks RunNow reads the checklist via Data.Setting 60 s cache (HIGH)
+- 2026-11-06T17:18:56Z status=resolved-by:39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=adjudication note=the card saves the shown sample before Run on the online demo (f207f0b3), and Checks reads the stored values (39.8 f8045439); pinned by HeartbeatApi.TestSaveThenRunAfterATick (202) and heartbeat-card.spec.ts HC7
 
 ### DW-785: docker/tests/test-heartbeat-overview.sh repeats about 25 lines of test-triage-heartbeat.sh's security-overview rule (Rule 2 copy forced by U-177); unify both checks in one shared helper
 - source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4652,6 +4654,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-8-run-now-and-a-saved-heartbeat-read-what-is-stored.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Core/SettingsOps.cls HeartbeatValues about line 350 repeats the drop loop of Checks/Beat.cls Values(ref,1)
 - 2026-11-06T16:09:57Z status=routed owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=harvest note=two-way door (about 3 lines) for 39.5's rework iteration: HeartbeatValues calls Checks.Beat.Values(ref, 1)
+- 2026-11-06T17:18:56Z status=resolved-by:39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=adjudication note=SettingsOps.HeartbeatValues calls Checks.Beat.Values(sessionRef, 1) (dbd37f1d); mutation red on SettingsHeartbeat.TestHeartbeatRead
 
 ### DW-813: No 39.8 test observes a HeartbeatBeat row write, so the matrix's no-write clauses and the one-commit rule for a due reschedule are unpinned
 - source: spec-39-8-run-now-and-a-saved-heartbeat-read-what-is-stored.md | severity: low | fix-risk: med | footprint: in-story
