@@ -252,3 +252,6 @@
 2026-11-06T15:17:00Z	Epic 39	story_inserted	story=39.8 reason=split from=39.5 home_lane=A note=orchestrator_re-records_the_graph_hash(reason=split)
 2026-11-06T15:18:58Z	Epic 39	epic_context_compiled	reason=planning_artifact_newer model=opus note=story_39.8_inserted
 2026-11-06T15:18:58Z	Story 39.8	stage_spawned	stage=plan spawn_at=2026-11-06T15:18:58Z model=opus agent_name=39-8-plan-1 cycle_iteration=1
+2026-11-06T15:32:48Z	Story 39.8	story_created	spawn_at=2026-11-06T15:18:58Z model=opus path=_bmad-output/implementation-artifacts/spec-39-8-run-now-and-a-saved-heartbeat-read-what-is-stored.md build_status=ready-for-dev epic_context=reused cycle_iteration=1
+2026-11-06T15:32:48Z	Story 39.8	ruling	question=reschedule_publishes_a_heartbeat_event(new_case_for_AD-18_Event_bullet) choice=save_the_row_publish_nothing rejected=publish_and_amend_AD-18(orchestrator_only,U7/U14) why=no_AD_change;U-283_precedent;card_corrects_at_the_next_beat category=decide policy=5086036 amendment=spec_intent_and_code_map(lead,before_implement)
+2026-11-06T15:32:48Z	Story 39.8	spec_validated	service_introducing=false integration_ac=present(real_Checks_answers_sent) adr_constrained_acs=AD-18,AD-19 decision_dependency=none sections_created=none owned_ledger=DW-780,DW-803 addressed=2 declined=1(DW-780_hours_part) mutates_shared_runtime=false u268=clear lane=A model=claude-opus-5-5
