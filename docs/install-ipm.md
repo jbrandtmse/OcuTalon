@@ -166,6 +166,7 @@ STEP Demo OK 0.1s
 STEP Provider OK 0.1s
 STEP Audit OK 0.0s
 STEP Telegram OK 0.0s
+STEP Memory OK 0.1s
 07:22:35.460:Ens.Director: Production 'OcuTalon.Production' starting...
 07:22:35.567:Ens.Director: Production 'OcuTalon.Production' started.
 STEP Production OK 1.2s
@@ -269,6 +270,7 @@ STEP Demo OK 0.1s
 STEP Provider OK 0.1s
 STEP Audit OK 0.0s
 STEP Telegram OK 0.0s
+STEP Memory OK 0.1s
 00:35:06.032:Ens.Director: Production 'OcuTalon.Production' starting...
 00:35:06.142:Ens.Director: Production 'OcuTalon.Production' started.
 STEP Production OK 1.1s

@@ -87,6 +87,11 @@
 #   25. the install command with the next version (a scratch copy of the package folder with the patch number raised, loaded in
 #       OCUTALON): Initialize to Activate SUCCESS and one STEP OK per step in order, the raised module version, a new job id for
 #       every item, no new ReconcileIn row, the configuration and the foreign setting unchanged, and the data and the waiters intact.
+# Story 19.2 (U-294) adds the Python requirement and the model:
+#   30. after path A's second run: the install fetched fastembed 0.9.0 through requirements.txt (the module root's file, staged beside
+#       src/module.xml by stage_requirements), the output has STEP Memory OK and no WARN Memory line, and <mgr>/fastembed/ holds the model
+#       once (one models--Qdrant--all-MiniLM-L6-v2-onnx folder, which the Memory step downloaded in a worker);
+#   31. check 25's reinstall downloads nothing new: the folder's file list and sizes are the same before and after.
 # Story 15.4 adds part p, the exact release artifact installed from an IPM repository on a fresh instance with no Node.js:
 #   The artifact is OCUTALON_IPM_ARTIFACT (the .tgz that the release sequence's ipm step made), or, when that is unset, the module that
 #   path A's second run installed, packaged with `zpm "package ocutalon -only"` (TIME package) and checked with lib-release's
@@ -454,6 +459,41 @@ CHK|settings-dest|ocutalon_public" \
     'Write !,"CHK|ready|",##class(OcuTalon.Data.Public.Settings).Get("ready")' \
     'Set d=##class(%SYS.Namespace).GetRoutineDest("OCUTALON","OcuTalon.Data.Public.Settings.1","INT") Write !,"CHK|settings-dest|",$Piece(d,"/",$Length(d,"/")-1)' \
     'Halt'
+}
+
+# stage_requirements: puts the repository root's requirements.txt beside src/module.xml in the container, as it sits beside module.xml in the
+# published package, so that IPM installs the Python requirements of the module root (Story 19.2, U-294). The folder is the image's, owned by
+# root and read-only, so root writes the file. The image is built from the allow-listed context of release/ipm/Dockerfile, which holds only src/.
+stage_requirements() {
+  dc exec -T -u root iris sh -c "cat > $SRC/requirements.txt && chmod 444 $SRC/requirements.txt" < requirements.txt || die "requirements.txt could not be staged in the container"
+}
+
+# check_memory [<run name> [<label>]] (check 30): the Python requirement and the model, on the output of the run (default second-ocutalon).
+check_memory() {
+  local f="$tmp/${1:-second-ocutalon}.txt" label="${2:-install checks}"
+  if grep -q '^STEP Memory OK' "$f" && ! grep -q '^WARN Memory ' "$f"; then
+    pass "$label: the output has STEP Memory OK and no WARN Memory line"
+  else
+    grep '^WARN Memory ' "$f" | cut -c1-300
+    fail "$label: the output has no STEP Memory OK, or has a WARN Memory line"
+  fi
+  check_session "$label: IPM installed fastembed 0.9.0 from requirements.txt, and the model sits once in <mgr>/fastembed/" OCUTALON \
+    "CHK|fastembed|0.9.0
+CHK|models|1
+CHK|hasmodel|1" \
+    'Write !,"CHK|fastembed|",##class(%SYS.Python).Import("importlib.metadata").version("fastembed")' \
+    'Set n=0,d=$ZSearch($SYSTEM.Util.ManagerDirectory()_"fastembed/models--*") While d'"'"'="" { Set n=n+1 Set d=$ZSearch("") } Write !,"CHK|models|",n' \
+    'Write !,"CHK|hasmodel|",+##class(OcuTalon.Memory.Embedder).HasModel($SYSTEM.Util.ManagerDirectory()_"fastembed/")' \
+    'Halt'
+}
+
+# memory_fingerprint: a checksum of the file list and sizes of <mgr>/fastembed/ in the container, and the number of its files; empty when
+# the manager directory cannot be read.
+memory_fingerprint() {
+  local mgr
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  [ -n "$mgr" ] || return 0
+  dc exec -T iris sh -c "cd '${mgr}fastembed' && { find . -printf '%p %s\n' | sort | md5sum | cut -c1-12; find . -type f | wc -l; }" 2> /dev/null | tr -d '\r' | tr '\n' ' '
 }
 
 # check_signin <label> [logout]: the sign-in page is served and not the online demo's, and ocutalon/ocutalon signs in; the session stays
@@ -1149,7 +1189,7 @@ CHK|routine|1" \
 # reinstall_next (check 25): the install command with the next version, from a scratch copy of the package folder with only <Version>
 # raised, on the stack of path B after the restart checks.
 reinstall_next() {
-  local copy=/tmp/ocutalon-scratch-next ver raised rows started=$SECONDS label="reinstall, next version"
+  local copy=/tmp/ocutalon-scratch-next ver raised rows started=$SECONDS label="reinstall, next version" memory_before memory_after
   ver=$(module_version)
   raised=$(printf '%s' "$ver" | awk -F. 'NF == 3 { print $1 "." $2 "." $3 + 1 }')
   if [ -z "$raised" ]; then
@@ -1158,6 +1198,7 @@ reinstall_next() {
   fi
   item_jobs "$tmp/jobs-next-before.tsv"
   rows=$(reconcile_rows)
+  memory_before=$(memory_fingerprint)
   scratch_copy "$copy" \
     "sed -i 's|<Version>$ver</Version>|<Version>$raised</Version>|' $copy/module.xml" \
     "grep -c '<Version>$raised</Version>' $copy/module.xml" > "$tmp/scratch-next.out" 2>&1
@@ -1168,6 +1209,12 @@ reinstall_next() {
   fi
   run reinstall-next OCUTALON "zpm \"load $copy\""
   check_run_ok reinstall-next "$label"
+  memory_after=$(memory_fingerprint)
+  if [ -n "$memory_before" ] && [ "$memory_before" = "$memory_after" ]; then
+    pass "$label: <mgr>/fastembed/ is unchanged, so nothing was downloaded again ($memory_after)"
+  else
+    fail "$label: <mgr>/fastembed/ went from '$memory_before' to '$memory_after'"
+  fi
   if [ "$(module_version)" = "$raised" ]; then
     pass "$label: the module is recorded with version $raised"
   else
@@ -1436,6 +1483,7 @@ if ! dc up -d --build --wait --wait-timeout "$((deadline - SECONDS))" > "$tmp/up
 fi
 live_track_image
 echo "TIME ready $((SECONDS - started))s"
+stage_requirements
 
 # --- part p alone: the package is installed from the folder and packaged first when there is no OCUTALON_IPM_ARTIFACT ---
 
@@ -1540,6 +1588,7 @@ if [ "$mode" != b ]; then
   if [ "$mode" = all ]; then artifact_prepare; fi
   if [ "$mode" != r ]; then
     check_install
+    check_memory
     check_web
     check_package
     check_demo_switch
@@ -1561,6 +1610,7 @@ if ! dc up -d --wait --wait-timeout "$((deadline - SECONDS))" > "$tmp/up.log" 2>
   die "the second stack did not become ready"
 fi
 echo "TIME ready-b $((SECONDS - started))s"
+stage_requirements
 fails_before_load=$fails
 check_session "path B: IPM 0.10.10 is loaded in %SYS of the fresh instance" %SYS "CHK|load|1" \
   'Set sc=$SYSTEM.OBJ.Load("/opt/ocutalon-ipm/zpm-0.10.10.xml","ck-d") Write !,"CHK|load|",$SYSTEM.Status.IsOK(sc)' \

@@ -311,7 +311,7 @@ case "$1" in
                   echo "$ns $line" >> "$SHIMLOG/zpm.log"
                   case "$line" in
                     'zpm "load '*)
-                      dir=${line#zpm \"load }
+                      dir=${line#zpm \"load -bypass-py-deps }
                       dir=${dir%\"}
                       if [ -f "$SHIMFLAGS/ipm-load-fail" ]; then
                         echo "ERROR! planted install failure"
@@ -2369,13 +2369,13 @@ ipm_fail_expect() {
     "Published: no; publishing to the package registry is the author's own action, outside this sequence"
 }
 ZPM_ONE='%SYS zpm "enable -map -ns USER"
-USER zpm "load /tmp/ocutalon-pkg"
+USER zpm "load -bypass-py-deps /tmp/ocutalon-pkg"
 USER zpm "package ocutalon -only -path /tmp/ocutalon-ipm/ocutalon-1.0.0"
 USER zpm "repo -name ocutalon-check -fs -depth 2 -path /tmp/ocutalon-check/"
 USER zpm "repo -name ocutalon-check -list-modules"'
 ZPM_TWO='%SYS zpm "enable -map -ns USER"
-USER zpm "load /tmp/ocutalon-pkg"
-OCUTALON zpm "load /tmp/ocutalon-pkg"
+USER zpm "load -bypass-py-deps /tmp/ocutalon-pkg"
+OCUTALON zpm "load -bypass-py-deps /tmp/ocutalon-pkg"
 OCUTALON zpm "package ocutalon -only -path /tmp/ocutalon-ipm/ocutalon-1.0.0"
 OCUTALON zpm "repo -name ocutalon-check -fs -depth 2 -path /tmp/ocutalon-check/"
 OCUTALON zpm "repo -name ocutalon-check -list-modules"'
@@ -2547,7 +2547,7 @@ t_ipmfail() {
     case $f in
       ipm-load-fail) lacks "$f: no load in OCUTALON" "$(cat "$SHIMLOG/zpm.log")" "OCUTALON zpm" ;;
       ipm-ocutalon-load-fail)
-        has "$f: loaded again in OCUTALON" "$(cat "$SHIMLOG/zpm.log")" 'OCUTALON zpm "load /tmp/ocutalon-pkg"'
+        has "$f: loaded again in OCUTALON" "$(cat "$SHIMLOG/zpm.log")" 'OCUTALON zpm "load -bypass-py-deps /tmp/ocutalon-pkg"'
         lacks "$f: nothing packaged" "$(cat "$SHIMLOG/zpm.log")" 'zpm "package'
         ;;
     esac

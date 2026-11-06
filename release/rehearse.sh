@@ -14,7 +14,7 @@
 # Commands:
 #   plan     prints the candidate, its version and sha, how each host is reached (configured, local or stand-in), the phases and the
 #            record path; starts nothing
-#   install  the steps hosts, copy, install and sign-in (see below); keeps the state and, in a dry run, the throwaway project and its lock
+#   install  the steps hosts, copy, install, memory-offline and sign-in (see below); keeps the state and, in a dry run, the throwaway project and its lock
 #   runs     the next timed run of the demo path (see below), one run per call, up to --runs; needs a passed install. It is refused (exit
 #            2, nothing started) when --runs runs exist already, and when the newest run failed (run report, then down)
 #   exec [<namespace>]
@@ -69,6 +69,10 @@
 #   copy     the candidate branch as a git bundle, copied through stdin and cloned; the clone's HEAD is the candidate commit
 #   install  the env file becomes the clone's .env through stdin; install.sh runs there. The seconds of that call are the first start,
 #            install included; the bound is "ready within <OCUTALON_INSTALL_WAIT or 900> s"
+#   memory-offline  (Story 19.2, U-294) every network of the clean host's iris container is disconnected, a name lookup from the container must
+#            fail, OcuTalon.Test.Memory.Offline runs in an iris session of the install (a memory stored with its embedding and recalled; AI Hub's
+#            FastEmbed embedding a chunk from the baked model) and must pass with no test skipped, and the networks are connected again, with the
+#            alias iris, before the sign-in step, whatever the test did
 #   sign-in  the driver host signs in at the printed address (localhost replaced by the clean host's address) with the printed user and
 #            password, sent as a curl config on stdin, and the page holds <app-root. The web origin (http://<host>:<port>) and the printed user
 #            are kept in the state for runs
@@ -153,7 +157,7 @@ cd "$reh_root" || exit 1
 . "$reh_root/release/lib-release.sh"
 . "$reh_root/docker/tests/lib-keys.sh"
 
-REH_ROWS="hosts copy install sign-in secrets runs notice pick-up settle-end diagnosis delivery median decision first-reply approval-result reminder reminder-result largest-request tell-now"
+REH_ROWS="hosts copy install memory-offline sign-in secrets runs notice pick-up settle-end diagnosis delivery median decision first-reply approval-result reminder reminder-result largest-request tell-now"
 REH_BOUND_ROWS="notice pick-up settle-end diagnosis delivery median decision first-reply approval-result reminder reminder-result largest-request tell-now"
 REH_PLANTABLE="notice pick-up settle-end diagnosis delivery decision approval-result reminder largest-request tell-now"
 REH_RUNS_REAL=20
@@ -1135,6 +1139,54 @@ step_install() {
   step_pass install "install.sh reached ready; first start $first s, install included; install.sh said \"$PI_READY\""
 }
 
+# memory_offline_session: the ObjectScript lines that run OcuTalon.Test.Memory.Offline through the %UnitTest.Manager and print one CHK line per
+# case, error and failed or skipped assertion (the lines of ci/iris.sh class_script).
+memory_offline_session() {
+  printf '%s\n' \
+    'Set ^UnitTestRoot="/tmp/"' \
+    'Set before=$Order(^UnitTest.Result(""),-1)' \
+    'Do ##class(%UnitTest.Manager).RunTest(":OcuTalon.Test.Memory.Offline","/noload/nodelete/norecursive")' \
+    'Set id=$Order(^UnitTest.Result(""),-1) Set inst="" If id>before Set inst=##class(%UnitTest.Result.TestInstance).%OpenId(id)' \
+    'Write !,"CHK|new|",$IsObject(inst)' \
+    'If $IsObject(inst) { Set k1="" For { Set su=inst.TestSuites.GetNext(.k1) Quit:k1=""  Set k2="" For { Set tc=su.TestCases.GetNext(.k2) Quit:k2=""  Write !,"CHK|case|",tc.Name,"|",tc.Status,"|",tc.TestMethods.Count()  Set k3="" For { Set tm=tc.TestMethods.GetNext(.k3) Quit:k3=""  Set k4="" For { Set ta=tm.TestAsserts.GetNext(.k4) Quit:k4=""  Write:ta.Status'"'"'=1 !,"CHK|assert|",ta.Status,"|",tm.Name,"|",$Translate(ta.Description,$Char(13,10),"  ") } } } } }' \
+    'Halt'
+}
+
+# step_memoryoffline: see the header. One remote command on the clean host cuts the networks, asks whether a name lookup still works, runs the
+# session of memory_offline_session in the iris container and connects the networks again, and prints a MEMOFF line for each fact.
+step_memoryoffline() {
+  local out rc nets cases status methods skips
+  out=$(memory_offline_session | host_run clean "cd $REH_DIR/candidate && cid=\$(docker compose ps -q iris) && nets=\$(docker inspect --format '{{range \$n, \$v := .NetworkSettings.Networks}}{{\$n}} {{end}}' \"\$cid\") && for n in \$nets; do docker network disconnect \"\$n\" \"\$cid\"; done; echo \"MEMOFF-NETS \$nets\"; if ! docker compose exec -T iris python3 -c \"import socket\" < /dev/null > /dev/null 2>&1; then echo MEMOFF-NO-PROBE; elif docker compose exec -T iris python3 -c \"import socket; socket.getaddrinfo('huggingface.co', 443)\" < /dev/null > /dev/null 2>&1; then echo MEMOFF-NET-UP; else echo MEMOFF-NET-DOWN; fi; docker compose exec -T iris iris session IRIS -U OCUTALON 2>&1; for n in \$nets; do docker network connect --alias iris \"\$n\" \"\$cid\" > /dev/null 2>&1 || echo \"MEMOFF-CONNECT-FAILED \$n\"; done; echo MEMOFF-RECONNECTED" 2> /dev/null)
+  rc=$?
+  out=$(printf '%s\n' "$out" | tr -d '\r')
+  nets=$(printf '%s\n' "$out" | sed -n 's/^MEMOFF-NETS *//p' | head -n 1)
+  cases=$(printf '%s\n' "$out" | sed -n 's/.*\(CHK|case|[^|]*|[^|]*|[^|]*\)$/\1/p' | head -n 1)
+  status=$(printf '%s\n' "$cases" | cut -d'|' -f4)
+  methods=$(printf '%s\n' "$cases" | cut -d'|' -f5)
+  skips=$(printf '%s\n' "$out" | grep -c 'CHK|assert|')
+  if [ "$rc" -ne 0 ] || ! printf '%s\n' "$out" | grep -q '^MEMOFF-RECONNECTED' || printf '%s\n' "$out" | grep -q '^MEMOFF-CONNECT-FAILED'; then
+    step_fail memory-offline - "the iris container's networks could not be cut and connected again (exit $rc)"
+    return 1
+  fi
+  if [ -z "$nets" ]; then
+    step_fail memory-offline - "the iris container had no network to disconnect"
+    return 1
+  fi
+  if printf '%s\n' "$out" | grep -q '^MEMOFF-NO-PROBE'; then
+    step_fail memory-offline - "python3 does not run in the iris container, so its name lookup proves nothing about the network"
+    return 1
+  fi
+  if ! printf '%s\n' "$out" | grep -q '^MEMOFF-NET-DOWN'; then
+    step_fail memory-offline - "a name lookup from the iris container still worked with its networks disconnected"
+    return 1
+  fi
+  if [ "$status" != 1 ] || [ "${methods:-0}" -eq 0 ] || [ "$skips" -ne 0 ]; then
+    step_fail memory-offline - "OcuTalon.Test.Memory.Offline did not pass with the network cut (status '$status', ${methods:-0} test methods, $skips failed or skipped assertions)"
+    return 1
+  fi
+  step_pass memory-offline "with every network of the iris container disconnected, OcuTalon.Test.Memory.Offline passed ($methods test methods, none skipped); the networks are connected again"
+}
+
 step_signin() {
   local host url cfg out rc
   if [ "$(opt mode)" = dry ]; then host=127.0.0.1; else host=$REHEARSAL_CLEAN_WEB; fi
@@ -1166,7 +1218,7 @@ phase_install() {
   REHEARSAL_LOCAL_DIR=$state/local
   mkdir -p "$REHEARSAL_LOCAL_DIR"
   if [ "$REHEARSAL_MODE" = dry ]; then dry_prepare; fi
-  for s in hosts copy install sign-in; do
+  for s in hosts copy install memory-offline sign-in; do
     if [ -n "$failed" ]; then
       echo "NOT RUN $s: the step $failed failed"
       continue
@@ -1426,7 +1478,7 @@ cmd_plan() {
   echo "PLAN version $c_version rc$o_rc at $c_sha"
   echo "PLAN mode $([ "$o_dry" = 1 ] && echo "dry run" || echo rehearsal)"
   echo "PLAN hosts clean $hc, driver $hd"
-  echo "PLAN phases install runs report down (run steps through them, one phase per call); steps hosts copy install sign-in secrets; runs $o_runs"
+  echo "PLAN phases install runs report down (run steps through them, one phase per call); steps hosts copy install memory-offline sign-in secrets; runs $o_runs"
   echo "PLAN record ${o_record:-$(record_path "$c_version" "$o_rc")}"
   exit 0
 }

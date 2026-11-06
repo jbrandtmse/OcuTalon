@@ -17,7 +17,7 @@ SHARDS="lane-a lane-b"
 # shard_areas <shard>: the areas of a shard.
 shard_areas() {
   case $1 in
-    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel" ;;
+    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel Memory" ;;
     lane-b) echo "Contract Core Data Demo Live Msg Schedule Web" ;;
     *) return 1 ;;
   esac
@@ -87,7 +87,7 @@ group_units() {
     shards-2) echo "shard:lane-a@rest" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
     shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit" ;;
-    shards-4) echo "shard:lane-a@Channel live:sign-in-2" ;;
+    shards-4) echo "shard:lane-a@Channel live:sign-in-2 live:memory-offline" ;;
     *) return 1 ;;
   esac
 }
