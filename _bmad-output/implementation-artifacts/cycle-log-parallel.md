@@ -2299,3 +2299,9 @@
 2026-11-06T19:00:28Z	Epic 17	planner_question	story=17.6 subjects=AD-14_interim_note(conditions: channel-independent, Sent per channel, routing row for AD-26, Own-vs-Notify test, route Own to 18.2),DW-815(option 2 split at line boundaries + tests) u7_check=no_inflight_spec_cites_AD-14
 2026-11-06T19:07:11Z	Epic 17	planner_ruling	story=17.6 AD-14=a(additive interim note verbatim; channel-independent; Sent per channel; routing row AD-26; Own-vs-Notify test; one-fails test, next window only the failed channel; Own->18.2) DW-815=option2(split at line boundaries in order; demo fits one; 200-row clean; fold->followup/18.2) by=planner
 2026-11-06T19:07:11Z	Run	ci_green_verified	sha=b5dcbbfa runs=42272673909,42272674052 branch=feature result=success via=ci-gate note=1.0.2_candidate
+2026-11-06T19:07:47Z	Epic 7	worktree_provisioned	branch=OCT-epic7 base=41efeba8(b5dcbbfa+bookkeeping) worktree=.worktrees/epic-7
+2026-11-06T19:07:47Z	Epic 7	worktree_bootstrapped	epic=7 result=ok
+2026-11-06T19:07:47Z	Epic 7	ci_duplicate_cancelled	runs=42276828310,42276828361 reason=duplicate_of_feature_b5dcbbfa
+2026-11-06T19:07:47Z	Run	planner_update	subject=1.0.2_rc1_cut from=b5dcbbfa cut_commit=fe61a8e2 branch=release/1.0.2-rc1 freeze=lifted merge_order=4.11,epic19_part1,epic17 merge_back=planner_later
+2026-11-06T19:08:02Z	Epic 7	runner_dispatched	agent=a4621a6b3ad580328 model=opus story=7.9 lane=D slot=ocutalon-slot-d base=41efeba8 prompt=prompts/dispatch-epic-7-79.md
+2026-11-06T19:08:02Z	Run	freeze_lifted	post_cut_head=b5dcbbfa(green) next_merges=4.11,epic19_part1,epic17
