@@ -26,3 +26,10 @@
 2026-11-06T05:21:57Z	Epic 19	ruling	question=x0_skip choice=accepted category=decide by=orchestrator policy=5086036
 2026-11-06T05:21:57Z	Epic 19	contention_checked	files=ci/units.sh,docker/tests/lib-live.sh epic39=CHECK_SCRIPTS_line_only epic17=none result=clean(one-name_appends)
 2026-11-06T05:21:57Z	Story 19.2	stage_spawned	stage=implement spawn_at=2026-11-06T05:21:57Z model=sonnet agent_name=19-2-compute-embeddings-offline-in-a-worker-implement-1 cycle_iteration=1 story_base=c1bfcf4c
+2026-11-06T09:08:04Z	Story 19.2	dev_complete	spawn_at=2026-11-06T05:21:57Z model=sonnet build_sha=76204952 baseline_revision=a9f6c0a4 story_base=c1bfcf4c review_loop_iteration=0 followup_review_recommended=true deferred=3(DW-782,DW-783,DW-784;4_items,2_merged) files=24 loc_added=1518 loc_removed=42 task0=PASS(max_diff=1.29e-7,evidence/19-2-task0-fastembed-cache-dir.md) review=37_findings(13_patched) once_runs_partial=lane-a_parts_1,6,7_of_8;rest_left_to_CI cycle_iteration=1
+2026-11-06T09:08:04Z	Story 19.2	protocol_violation	stage=implement depth=3 agent=handoff violation=git_checkout_--_release/ipm/Dockerfile(its_own_uncommitted_edit) consequence=none(own_edit_reverted;HEAD_unchanged) detected_by=self_report,verified_by_build-auto(HEAD+gh_run_list) outcome=logged
+2026-11-06T09:08:04Z	Story 19.2	protocol_violation	stage=implement depth=3 agent=handoff violation=two_ci/iris.sh_class_calls_in_one_message(warm_stack) consequence=none(both_passed) detected_by=self_report outcome=logged
+2026-11-06T09:08:04Z	Story 19.2	ledger_routed_planned	story=19-3 entries=1 excess=0 by=harvest ids=DW-782
+2026-11-06T09:08:04Z	Story 19.2	ledger_routed_planned	story=19-5 entries=1 excess=0 by=harvest ids=DW-783
+2026-11-06T09:08:13Z	Story 19.2	adr_verifications_complete	tool=none acs=none result=none_required note=AD-21_cache_dir_measured_in_stage_task0_PASS(evidence/19-2-task0-fastembed-cache-dir.md);AD-6_by_TestCallbackRule mutations=none model=claude-opus-5-5
+2026-11-06T09:08:20Z	Story 19.2	stage_spawned	stage=qa spawn_at=2026-11-06T09:08:20Z model=sonnet agent_name=19-2-compute-embeddings-offline-in-a-worker-qa-1 cycle_iteration=1

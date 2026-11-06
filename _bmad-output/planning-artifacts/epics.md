@@ -6145,6 +6145,7 @@ So that what I know about my systems is kept in my own IRIS and comes back when 
 
 - DW-731: CommandsIn waits its whole TIMEOUT (120 s) on a send to a disabled owner item (SaveMemory/ForgetMemory to the disabled MemoryOps stub) until this story enables MemoryOps; a CommandsIn not_built answer for a disabled owner is the general fix (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
 - DW-740: ForgetMemory carries a MemoryRef but nothing in Lane B checks that the memory belongs to the command's SessionRef, so MemoryOps must refuse another session's memory (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-782: no test calls `OcuTalon.Memory.Embedding` from inside an AI Hub callback (the S11 surface); settle it with a live tool call in a throwaway that saves and searches a memory (ledger; routed by harvest 2026-11-06)
 
 ### Story 19.4: Answer from documents with citations
 
@@ -6214,6 +6215,8 @@ So that no other visitor sees or searches what I added.
 **Given** the upgrade-in-place harness in `release/`
 **When** it runs from this release on
 **Then** it also creates a memory and a document before the upgrade, and both are present and searchable after it (FR-60, NFR-16, NFR-17, REL-6)
+
+- DW-783: `release/rehearse.sh`'s memory-offline step (Story 19.2) is proved on stub hosts only; a dry run on a real stack must show the clean host publishes its web port again after `docker network connect --alias iris` (ledger; routed by harvest 2026-11-06)
 
 ### Story 19.6: Extract text from PDF and Word files with Embedded Python
 

@@ -4543,3 +4543,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic34@689b6632 run 42147189710 iris (production) job 127661412656 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: an IRIS-internal race: a job's status node vanished while Ens.Job enumerated it during the restart (restart 2 took 147 s); every reminder check passed; Epic 34 touches no job or start code
 - 2026-11-06T02:28:05Z status=routed owner=burndown by=orchestrator note=failed job rerun once; if it recurs, the event-log check could ignore this one system-class race or wait for a steady production before sampling (like DW-692)
+
+### DW-782: No test calls OcuTalon.Memory.Embedding from inside an AI Hub callback (the S11 surface): whether queueing to and waiting on the WorkMgr worker from a tool's callback avoids the build-154 crash is unshown
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: TestCallbackRule proves only that the class holds no Python text; the unit tests call Embed from ordinary sessions; settle with a live tool call in a throwaway that saves and searches a memory
+- 2026-11-06T09:07:41Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=harvest note=Story 19.3's memory tools are the first callback callers
+
+### DW-783: release/rehearse.sh memory-offline is proved on stub hosts only: a dry run on a real stack must show the clean host publishes its web port again after docker network connect --alias iris
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: docker/tests/test-rehearsal.sh pins the step on stubs; the sign-in step after it is the real check
+- 2026-11-06T09:07:41Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5 extends the release/ upgrade harness; run the rehearsal dry run on a lane-C throwaway there
+
+### DW-784: docs/install-ipm.md does not say that an IPM install fetches fastembed through requirements.txt and downloads the model (about 97 MB) into <mgr>/fastembed/, or what WARN Memory means; its sample output shows STEP Memory OK 0.1s and no WARN Memory
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the page only gained STEP Memory OK lines (test-cpf.sh rule 9); new wording is public text on Epic 11's page
+- 2026-11-06T09:07:42Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=harvest note=reopen_if=Epic_11_or_15_next_edits_docs/install-ipm.md,or_a_reader_asks_what_WARN_Memory_means;reported_to_orchestrator_for_routing
