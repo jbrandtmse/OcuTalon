@@ -164,6 +164,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-06 (lead, before implement): orchestrator rulings B1-B3 and the pending B4 / PUBLIC TEXT recorded under Design Notes "Rulings"; a test that README.md and docs/install-ipm.md quote the same measured figures is added to scope.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -259,6 +261,13 @@ deferred: []
 - A running worker keeps an older resource in `sys.modules` until it is recycled (inference).
 - PDF decompression bombs are bounded only by the time limit.
 - The release-candidate real-model eval before the release that carries Epic 19 stays the owner's action item; this story runs no real model.
+
+**Rulings (2026-11-06, orchestrator; the PUBLIC TEXT and B4 are with the Contest Planner). They answer the "Needs a ruling" items above:**
+- B1 (docs/install-ipm.md re-shoot, DW-784): RULED a plain union. The re-shot sample-output blocks stay; whichever epic integrates second puts Epic 17's "STEP Digest OK" line back at its place in the step order. Footprint extension.
+- B2 (README.md, Epic 11's file, not in flight): ALLOWED as a footprint extension: exactly one paragraph at the end of "Install it with IPM" and one bullet under "Third-party licence notices"; nothing else in README.md changes.
+- B3: CONFIRMED. `release/ipm-install.sh` (checks 30-33 and the staging) and the root `requirements.txt` are covered by U-294 condition (1), as its separate last task.
+- B4 (`release/lib-release.sh` `ipm_artifact_check`): PENDING with the Planner. Build it as its own separable last task, kept apart from the rest (its own hunk, its own tests), so it can be dropped cleanly.
+- PUBLIC TEXT (the nine reasons, the cut note, the page marker, the README paragraph and bullet, the install-ipm.md bullet): build with the strings as proposed under Design Notes; they may still change by the Planner's ruling (a forward edit). The README and docs/install-ipm.md quote the SAME measured figures (package size, model size, typical time): measure them in this story and add a test that the two files' figures match each other.
 
 ## Verification
 
