@@ -65,7 +65,6 @@ describe('the fixed strings', () => {
       conversationLink: 'See the whole conversation in Visual Trace',
       installLink: 'Install OcuTalon yourself',
       bridgeLink: 'Use the same bridge in your own production',
-      moreToTry: 'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.',
       runAgain: 'Run again',
       quoted: '"{text}"',
       send: 'Send',

@@ -1,0 +1,122 @@
+// Tests the shape of the sources of the demo guide's "Other things to try" panel (Story 4.11): the panel and its view never read the
+// server's demo mode, move focus once (for the user's own press), send once through the outbox with the text alone, and call none of the
+// controls' own APIs; every control is a native button or link whose action is in its click; the guide places the link in row 1 and the
+// panel in the finish and after the prompt bar, and the focus rule lists the panel's controls. The browser cases (e2e/guide/more-to-try.spec.ts)
+// pin what the running page does; this reads the sources, so a later change cannot break a rule without a test turning red.
+// Run with: node --test web/scripts/
+import assert from 'node:assert/strict';
+import { dirname, join } from 'node:path';
+import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+import { sourceFiles } from './source-files.mjs';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const files = sourceFiles(join(here, '..', 'src', 'app'), ['.ts']);
+const file = (name) => {
+  const found = files.find((one) => one.name === name);
+  assert.ok(found, `${name} is scanned`);
+  return found;
+};
+const count = (text, pattern) => (text.match(pattern) ?? []).length;
+
+describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
+  const { code } = file('guide/more-to-try.ts');
+
+  it('never reads the server\'s demo mode', () => {
+    assert.doesNotMatch(code, /\bdemoMode\b/);
+    assert.doesNotMatch(file('guide/more-to-try-view.ts').code, /\bdemoMode\b/);
+  });
+
+  it('has no announcer, no server client, no key binding, and calls none of the controls\' own APIs', () => {
+    assert.doesNotMatch(code, /\bAnnouncer\b|\.announce\(|\bApiClient\b|\bHttpClient\b|\(keydown|\(keyup|\(keypress/);
+    assert.doesNotMatch(code, /postMailboxSample|postBreakFeed|\bDemoView\b|\.set\(false\)|\.set\(true\)/);
+  });
+
+  it('moves focus in one place, and sends once through the outbox with the text alone', () => {
+    assert.equal(count(code, /\.focus\(/g), 1);
+    const sends = [...code.matchAll(/\boutbox\.send\(([^)]*)\)/g)];
+    assert.equal(sends.length, 1);
+    assert.equal(sends[0][1].trim(), 'MORE_TO_TRY_TEXTS.rememberPrompt');
+    assert.doesNotMatch(code, /fromGuide/);
+  });
+
+  it('has native controls only: every button has type="button", and every action is in a (click)', () => {
+    const buttons = count(code, /<button\b/g);
+    assert.equal(buttons, 1, 'one button in the template');
+    assert.equal(count(code, /<button\s[^>]*type="button"/g), buttons);
+    assert.equal(count(code, /<a\b/g), 1, 'and one link, to the Documents page');
+    assert.match(code, /<a [^>]*routerLink="\/documents"/);
+    assert.equal(count(code, /\(click\)=/g), 2, 'each control has a click and nothing else acts');
+    assert.equal(count(code, /\(click\)="press\(item\)"/g), 1, 'the one button presses');
+    assert.doesNotMatch(code, /\bconstructor\s*\(|ngOnInit|ngAfterViewInit|\beffect\(/, 'nothing runs at creation');
+  });
+
+  it('names no aria-label and no icon on a control, and no heading', () => {
+    const template = /template:\s*`([^`]*)`/.exec(code);
+    assert.ok(template, 'the template is inline');
+    assert.doesNotMatch(template[1], /aria-label=|<app-icon|<h[1-6]\b/);
+  });
+
+  it('is a labelled group with a list, each control marked for the focus rule', () => {
+    assert.match(code, /role="group" \[attr\.aria-labelledby\]="labelId"/);
+    assert.match(code, /<ul class="items">/);
+    assert.equal(count(code, /data-guide-focus="moreItem"/g), 2);
+  });
+
+  it('uses none of the class names the guide\'s other parts use', () => {
+    assert.doesNotMatch(code, /class="[^"]*\b(?:more|line|chip|headline)\b[^"]*"/);
+  });
+
+  it('has no transition, no fixed height and width queries only through LAYOUT_QUERIES', () => {
+    assert.doesNotMatch(code, /transition\s*:|[^-]height\s*:\s*\d|@media\s*\(/);
+  });
+});
+
+describe('the guide (demo-guide.ts)', () => {
+  const { code } = file('guide/demo-guide.ts');
+
+  it('has the link in row 1 between "About 2 minutes" and Hide guide, with aria-expanded', () => {
+    const duration = code.indexOf('class="duration"');
+    const link = code.indexOf('data-guide-focus="moreLink"');
+    const hide = code.indexOf('data-guide-focus="hide"');
+    assert.ok(duration > 0 && link > duration && hide > link, 'duration < link < hide');
+    const button = /<button\s[^>]*data-guide-focus="moreLink"[^>]*>/.exec(code.replace(/\s+/g, ' '));
+    assert.ok(button, 'the link is a button');
+    assert.match(button[0], /type="button"/);
+    assert.match(button[0], /\[attr\.aria-expanded\]="moreOpen\(\)"/);
+    assert.match(button[0], /\[attr\.aria-controls\]="panelShown\(\) \? morePanelId : null"/);
+    assert.match(code, /class="link more-link"/);
+  });
+
+  it('has the finish hold the panel after the links and before the Try it yourself row', () => {
+    const links = code.indexOf('class="finish-links"');
+    const panel = code.indexOf('<app-more-to-try', links);
+    const row = code.indexOf('<app-try-it-row');
+    assert.ok(links > 0 && panel > links && row > panel, 'links < panel < row');
+  });
+
+  it('has the prompt branch hold the panel after the prompt bar, and the panel nowhere else', () => {
+    const prompt = code.indexOf('class="prompt"');
+    const panel = code.lastIndexOf('<app-more-to-try');
+    assert.ok(prompt > 0 && panel > prompt, 'the prompt bar < the panel');
+    assert.equal(count(code, /<app-more-to-try/g), 2, 'one in the finish and one after the prompt bar');
+    assert.ok(code.indexOf('<app-break-feed-box') > panel, 'both are in the main column, before the box');
+  });
+
+  it('lists the panel\'s controls among the finish\'s parts for the focus rule', () => {
+    assert.match(code, /const FINISH_PARTS = \[[^\]]*'moreItem'[^\]]*\]/);
+  });
+
+  it('opens the panel from the user\'s choice, else the finish, and resets the choice at a new finish', () => {
+    assert.match(code, /moreOpen = computed\(\(\) => this\.chosen\(\) \?\? this\.finished\(\)\)/);
+    assert.match(code, /toggleMore\(\): void \{\s*this\.chosen\.set\(!this\.moreOpen\(\)\);/);
+    assert.match(code, /view\?\.finished === true && this\.last\?\.finished !== true\) \{\s*this\.chosen\.set\(undefined\);/);
+    assert.match(code, /\(pressed\)="chosen\.set\(true\)"/);
+  });
+
+  it('takes its items from the server\'s list through the registry, and decides nothing else', () => {
+    assert.match(code, /items = computed\(\(\) => itemsFor\(this\.view\(\)\?\.features\)\)/);
+    assert.doesNotMatch(code, /\bdemoMode\b/);
+  });
+});

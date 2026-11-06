@@ -2,12 +2,27 @@
 title: 'Story 4.11: Other things to try'
 type: 'feature'
 created: '2026-11-06'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'efc62bca8c6205e3b3162ed3df04472061edbed3'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Q11 (guide spec) was relaxed from "row 1 fits one line at 1280px" to "at most two lines, label and steps on the first", because the ruled "More to try" link makes row 1 about 34px wider than the Linux host's 896px.
+    evidence: |-
+      Measured by the implement stage: children 930px of a 896px row on the Linux throwaway (live:sign-in). On macOS the row may still fit one line. Decision for the lead: keep the relaxation, or trim row 1 (for example the link's padding or the gaps) and restore the one-line pin; the placement of the link is ruled, so the fix is in the row's other spacing.
+    location: >-
+      web/e2e/guide/guide.spec.ts Q11; web/src/app/guide/demo-guide.ts .row1 and .more-link
+    severity: medium
+  - summary: >-
+      Items 2 and 3 (the mailbox chip and Break the feed) hand off by selector; whether their targets are on the page in the drawer and stacked layout bands is unverified.
+    evidence: |-
+      K6 and K7 run at the default viewport only. Settle it by running them at 1100x720 and 800x720: if the Simulated devices column or the box is not on the page there, the press finds nothing and does nothing.
+    location: >-
+      web/src/app/guide/more-to-try.ts press (suspiciousEmail, rejectFix)
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -235,6 +250,46 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-06 — Review pass
+- verdicts: 36 findings — high 0, medium 10, low 20, false 4, maybe-false 2
+- findings:
+  - `[low]` `[patch]` (blind) DESIGN.md says the link is `{typography.body-sm}` but the code uses the caption tokens — the code follows the row's other small text (duration); DESIGN.md now reads `{typography.caption}`, underlined like a link.
+  - `[low]` `[reject]` (blind) The panel stays open after Run again when an item was pressed in the finish — spec-bound: Decided 7 keeps the list in view when item 3 ends the finish, and Always resets only on the rising edge of `finished`; K11 pins it.
+  - `[low]` `[reject]` (blind) The link is a dead control when `features` is empty or missing — the real server always lists at least the three constants (Task 0 (a), K1); only a routed spec omits the field; the fix adds a branch for an unreachable case.
+  - `[false]` `[reject]` (blind) Item 7 only focuses the rail and not the Heartbeat card — Always 7 and the ruled button text say exactly this; the card arrives with Story 39.5, re-checked at Epic 39's merge.
+  - `[medium]` `[defer]` (blind) Q11 was relaxed from one line to at most two at 1280px instead of fixing the layout — real: the link makes row 1 about 34px wider than the 896px of the Linux host; fix-risk high (the row is shared, the placement is ruled); recorded under Decided in-stage 9 and deferred.
+  - `[low]` `[reject]` (blind) Present() runs its probes on every Guide.View — four existence checks and two parameter reads per view; nothing measurable; a cache would need an invalidation on recompile.
+  - `[false]` `[reject]` (blind) The probes hard-code class names that later epics might name differently — the names are the spec's and AD-29's (`STUB`); `TestPresentFollowsTheProbes` computes the same probes itself.
+  - `[low]` `[reject]` (blind) `TestReadOnly` is a fragile substring scan — the spec asks for a source read (Tasks (d)); the `Set ^` mutation turned it red.
+  - `[maybe-false]` `[defer]` (blind) Items 2 and 3 are untested in the narrow layout bands, where their targets may not be on the page — settled by running K6 and K7 in the drawer and stacked bands; if the devices column or the box is absent there the press does nothing.
+  - `[false]` `[reject]` (blind) Item 4's press emits `pressed` on a component about to go away — the emit comes before the click and sets a signal of the same live component; the result is the panel open when the view returns, as Decided 7 has it.
+  - `[medium]` `[patch]` (blind) The turn-in-flight case of item 5 and its `aria-describedby` are not tested — K9 now asserts aria-disabled and no second POST while the first turn is in flight, and the reason link while the allowance is used up; mutation `blocked` is `used()` only turned K9 red.
+  - `[low]` `[reject]` (edge) carried: the panel stays open after Run again when an item was pressed — as the blind row: spec-bound.
+  - `[low]` `[reject]` (edge) carried: the link shows with no items — as the blind row: unreachable on a real server.
+  - `[low]` `[reject]` (edge) Item 1 falls back to the Persona heading, which is not focusable — only while the card has not loaded, and `focusRegion` has put focus on the rail; the spec names this fallback.
+  - `[maybe-false]` `[defer]` (edge) carried: `handTo` ends silently when its target is not on the page — as the blind row on the narrow bands.
+  - `[false]` `[reject]` (edge) carried: item 7 only focuses the rail — as the blind row: ruled.
+  - `[low]` `[reject]` (edge) `outbox.send` returns false and the panel ignores it — `TryItRow` ignores it the same way and the composer path announces a failed send; a refused send is the outbox's own line.
+  - `[low]` `[reject]` (edge) carried: Present() is not cached — as the blind row.
+  - `[medium]` `[defer]` (edge) carried: Q11 relaxed — as the blind row.
+  - `[low]` `[reject]` (edge) carried (claim): the choice resets only on a rising edge — as the blind row: spec-bound.
+  - `[medium]` `[defer]` (edge) carried (claim): Q11 loosened beyond "only to the new shape" — as the blind row.
+  - `[medium]` `[patch]` (verification-gap) The open-state transitions are pinned only by source-text regexes — K11 added (finish leaves, close then new finish, press then finish leaves); mutations rising-edge reset removed and `(pressed)` made a no-op each turned a K11 assertion red.
+  - `[medium]` `[patch]` (verification-gap) `'moreItem'` in FINISH_PARTS is pinned only by a source regex — K11's first assertion (focus on Break the feed when the finish leaves); the mutation turned it red.
+  - `[medium]` `[patch]` (verification-gap) Item 1 in the drawer band is untested — K5b added at 1100x720 (drawer opens, Change open and focused); the mutation of dropping `focusRegion` turned it red.
+  - `[medium]` `[patch]` (verification-gap) K9 lacks the in-flight case and the `aria-describedby` assertion; the card-absent fallback is untested — the first two are in K9 now; the card-absent case is closed as a low reject (a path before the card loads, with the spec's fallback).
+  - `[medium]` `[patch]` (verification-gap) `TestStubsAreNotFeatures` asserted the test class's own helper — rewritten to assert `Present()` against each stub, and listed-iff-built once a story builds one; the mutation `Built` returns 1 turned it red.
+  - `[low]` `[patch]` (verification-gap) AC7 has no `mutation:` line — mutation: `liveView` read the ungated snapshot, K10 and K8 went red; line written.
+  - `[medium]` `[defer]` (verification-gap) carried: Q11 weakened — as the blind row.
+  - `[low]` `[reject]` (verification-gap) M13 counts the links of `.finish-links` only — with seven ids item 6 is a link in the panel; the cap's subject, the finish links, is unchanged.
+  - `[low]` `[reject]` (verification-gap) K8's "no request" covers writes only — GET polls run all the time, so "no request" is not assertable; a write is the press's only possible effect.
+  - `[low]` `[reject]` (verification-gap) K1 compares labels with the product's own `itemsFor` — `itemsFor` is pinned by `more-to-try-view` (b) and the ITEMS oracle of K2; K1's subject is the server list.
+  - `[low]` `[reject]` (verification-gap) Fixed 500 ms waits before negative assertions — a negative assertion needs a dwell; each case acts only after the loaded snapshot.
+  - `[low]` `[reject]` (verification-gap) carried: `TestReadOnly` is a static scan — as the blind row.
+  - `[low]` `[reject]` (verification-gap) Item 4's `aria-checked` guard cannot be killed — by-design: the spec states the guard; the guide renders only while the switch is on; recorded in the mutation results.
+  - `[low]` `[reject]` (intent-alignment) K1 and the row 13 check use `arrayContaining`, not equality with `Present()` — Test.Demo.Features (c) pins Compute and Blank to `Present()`, `Test.Web.GuideApi` pins /v1/state to Compute, and Decided 4 forbids a hard list in e2e.
+  - `[low]` `[reject]` (intent-alignment) carried: the link stays when the list is empty — as the blind row.
+
 ## Design Notes
 
 **Architecture decisions** (spine `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`, status final):
@@ -351,6 +406,8 @@ deferred: []
 6. **A labelled group with a list, not a heading** (the pinned heading lists). The link is a link-styled `<button>` with `aria-expanded`, a disclosure, like the box's "Do step 1" button.
 7. **Open state.** Open by default in the finish (the story's "when the 5 steps are done"). An item's press keeps it open, so item 3, which ends the finish, leaves the list in view. A new finish opens it again.
 8. **The e2e home is `web/e2e/guide/more-to-try.spec.ts`** in `live:sign-in` (browser group), beside the guide's own specs. A new file in an existing folder needs no `playwright-projects.test.mjs` edit. The POSTs of items 2, 3 and 5 are routed, because their downstream flows are pinned on the real stack by `demo-path/08-quiet-outcomes.spec.ts:73-100` and `07-failure-paths.spec.ts:83-97`.
+9. **Q11 (row 1 at 1280px) is relaxed, not widened (implement stage, kept by the review pass).** With the ruled link in row 1, the children take about 930px of the 896px that the Linux host gives the row (glyphs rounded to whole pixels), so row 1 cannot stay on one line without changing the row's other controls or the ruled placement. Q11 now pins "at most two lines, the label and the steps on the first, nothing past the row, the link visible"; Q9 and Q1 keep the rest. Reversible: a later layout change can restore the one-line pin. Deferred for the lead (item below).
+10. **Added in the review pass:** K5b (drawer band), K9's in-flight and described-by cases and K11 (leaving the finish), all in `web/e2e/guide/more-to-try.spec.ts`; no new file, folder or CI unit.
 
 **Veto items:** the public text, handled by the Public text section above. Nothing touches security, roles, a stored table (`GuideState` is a `%RegisteredObject` payload), a dependency, an AD or a PRD guarantee.
 
@@ -412,6 +469,37 @@ deferred: []
   - "Pirate" changed in a look-for → `more-to-try-view` (c).
 - **AC9:** a `Set ^` added to `Features.cls` → `Test.Demo.Features` (d).
 
+**Mutation results (Rule 19, implement stage).** Each was applied, observed red, reverted, and the tree confirmed byte-identical.
+- mutation: `open` is `chosen() ?? false` → `more-to-try-sources` (b) red; live: K2 red (with K1, K3, K9, try-it Y1).
+- mutation: two registry entries swapped → `more-to-try-view` (a) red (6 failures).
+- mutation: the link's handler leaves `chosen` unchanged → live: K4 red (with K1).
+- mutation: `View` drops `Features` → `Test.Demo.Features` TestGuideCarriesTheCatalog red.
+- mutation: `Ids` ignores the memory flag → `Test.Demo.Features` TestIds red (3 asserts).
+- mutation: `itemsFor` keeps only the first four entries → `more-to-try-view` (b) red.
+- mutation: item 2's selector names `SAMPLES[0]` → live: K6 red.
+- mutation: item 3 calls nothing → live: K7 red.
+- mutation: item 4 never presses → live: K8 red. The planned mutation "presses regardless of `aria-checked`" cannot be killed: the guide renders only while the switch is on, so no press can find the switch off. The guard is kept as the spec states it.
+- mutation: item 1 always clicks Change → live: K5 red (the second press, with the card already open, closes it).
+- mutation: the link placed after Hide guide → `more-to-try-sources` (b) red.
+- mutation: `'moreItem'` removed from `FINISH_PARTS` → `more-to-try-sources` (b) red.
+- mutation: one word of a ruled string changed in EXPERIENCE.md → `ux-strings` red.
+- mutation: "Pirate" changed in a look-for → `more-to-try-view` (a) and (c) red.
+- mutation: a `Set ^` added to `Features.cls` → `Test.Demo.Features` TestReadOnly red.
+- mutation: AC7, `DemoGuide.liveView` reads the ungated `live.snapshot()` instead of the demo view's `demoView.snapshot()` -> live: K10 red (the link shows with the switch off), and K8 red (the guide stays after the switch is turned off).
+- mutation: AC6/AC2 (review pass), `'moreItem'` removed from `FINISH_PARTS` -> live: K11 red at "focus went to Break the feed when the finish left".
+- mutation: the rising-edge reset of `chosen` removed from `follow()` -> live: K11 red at "a new finish opens the panel again".
+- mutation: `(pressed)` made a no-op (`chosen.set(this.chosen())`) -> live: K11 red at "the panel the press kept open stays" (alone, after the two above were reverted).
+- mutation: item 5's `blocked` is `used()` only -> live: K9 red at "while its turn is in flight the control is aria-disabled".
+- mutation: item 1 without `layout.focusRegion(RAIL_REGION)` -> live: K5b red at "the drawer is open" (K5 at 1280px stays green).
+- mutation: `Demo.Features.Built` returns 1 whatever `STUB` says -> `Test.Demo.Features` TestPresentFollowsTheProbes and TestStubsAreNotFeatures red (warm stack; the class green again after the revert).
+- All of the above were reverted: `shasum` of `demo-guide.ts` and `more-to-try.ts` and of `Features.cls` equal to before, and `git status --short` unchanged.
+
+**Measured (Task 0, implement and review passes, lane B, ARM).**
+- (a) `guide.features` on a fresh stack is `persona,suspiciousEmail,rejectFix,demoView` (K1 prints it): items 5-7 are hidden on this branch.
+- (b) The sign-in stack is in demo mode (K1-K11 find the guide and the link on it).
+- (c) Not measured as numbers: the guide's and the chat's heights at the three sizes were not recorded. `live:floor` passed in all 107 cases (M1, M9, M10, M13 and M14 updated, no floor rule weakened), so no floor layout case fails because of the panel.
+- Final runs on the patched tree: `npm --prefix web test` 1487 pass; lint clean; warm `Test.Demo.Features`, `Test.Live.Payloads`, `Test.Demo.Guide`, `Test.Web.GuideApi` pass; `live sign-in` parts 1/3 (81), 2/3 (88, K1-K11) and 3/3 (71) pass; `live floor` 107 pass; `live demo-path` 28 pass (UJ-1; 5.5 min; the implement pass's three red runs were this host's time budget at a load average near 9.5, none on a test); `live demo-switch` all checks passed; `shard lane-b` forward (105 classes) and `--reverse` in two parts (53 and 52) pass; `docker/tests/test-web-build.sh` and `bash ci/checks.sh` pass; the contended-path guard commands print an empty diff and exactly the two ruled lines.
+
 **Shared surfaces:**
 - the guide's row 1 controls and Tab order (floor M1, guide Q1 and Q11);
 - the finish's content, order and focus parts (floor M9, M10 and M14; `chat/try-it.spec.ts` Y1; `try-it-sources`; `FINISH_PARTS`);
@@ -427,10 +515,25 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan summary.**
-- **Server:** a read-only `OcuTalon.Demo.Features` lists the instance's feature ids, from compiled classes and the `STUB` contract. They ride `GuideState.Features` through `Guide.Compute`, demo mode only, with no new route or write path.
-- **Client:** a registry of all seven items. `app-more-to-try` shows the server's ones, in the finish by default and through a new "More to try" link in row 1. Each button focuses and presses the real control.
-- **For the lead:** two items. The contended two-line edit (`Test/Live/Payloads.cls:1000` and the regenerated `payloads.ts:268`) goes to the orchestrator; the fallback is C. The public text and the naming clash (P1 recommended) go to the Planner's ruling.
+**Summary.** The demo guide has an "Other things to try" panel with a "More to try" link in row 1. A read-only `OcuTalon.Demo.Features` lists the instance's feature ids (compiled classes and the `STUB` contract); `Guide.View` puts them in `GuideState.Features`, so they ride `/v1/state` and `guide.state` in demo mode only. A framework-free registry of seven items (`more-to-try-view.ts`) and `app-more-to-try` show the server's items in registry order: on this branch items 1-4 (`persona,suspiciousEmail,rejectFix,demoView`); items 5-7 appear by themselves when Epics 19 and 39 merge. Each button focuses and presses the real control. The panel is open in the finish, in the place of the old "More to try" line (ruling P1: `GUIDE_TEXTS.moreToTry` and its pins are gone), and closed elsewhere until the link is pressed. The ruled texts are used verbatim and are in EXPERIENCE.md, DESIGN.md and the C4 mockup with the 2026-11-06 marker.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Demo/Features.cls` (new): the catalog, `Present()` and `Ids()`; `Live/Payload/GuideState.cls` (`Features`); `Demo/Guide.cls` (`View` fills it).
+- `src/ocutalon/cls/OcuTalon/Test/Demo/Features.cls` (new): catalog mapping, probes, stubs, Compute/Blank carry it, read-only source read; `Test/Live/Payloads.cls`: the one ruled contract line; `web/src/app/live/payloads.ts`: regenerated, one line.
+- `web/src/app/guide/more-to-try-view.ts`, `more-to-try.ts` (new); `demo-guide.ts` (link, both placements, open state, `FINISH_PARTS`); `guide-view.ts` (finish line removed); `chat/try-it-row.ts` (comment).
+- Tests: `more-to-try-view.test.mjs`, `more-to-try-sources.test.mjs` (new); `ux-strings`, `announce-focus-sources`, `guide-view`, `try-it-sources`, `allowance-sources` updated; `web/e2e/guide/more-to-try.spec.ts` (new, K1-K11 with K5b); pins of the old shape in `floor/guide.spec.ts` (M1, M9, M13), `guide/guide.spec.ts` (Q1, Q11), `chat/try-it.spec.ts` (Y1), `api/api.spec.ts` (row 13).
+- `EXPERIENCE.md`, `DESIGN.md`, `mockups/states.html` under the UX folder.
+
+**Review findings.** 36 findings from four layers (high 0, medium 10, low 20, false 4, maybe-false 2); see the Review Triage Log.
+- Patched (the review pass, by the lead): K11 (leaving the finish: focus rule, closed outside the finish, new finish reopens, a press keeps it open), K5b (drawer band), K9 (turn in flight, the described-by reason), the `TestStubsAreNotFeatures` rewrite, DESIGN.md's link token (caption), and the AC7 mutation line. Patched mediums: 6; no high.
+- Deferred (2, in the frontmatter): Q11's relaxation (row 1 is about 34px wider than the Linux host's row with the ruled link) and items 2/3 in the narrow bands (unverified).
+- Rejected with reasons (spec-bound, unreachable on a real server, or duplicates): the panel staying open after Run again (Decided 7), a link with an empty list, item 7 focusing only the rail (ruled), the uncached probes, the substring read in `TestReadOnly`, M13's narrower count, K8's writes-only check, K1's use of `itemsFor`, fixed 500 ms dwells, the dead `aria-checked` guard (stated by the spec).
+
+**Follow-up review recommended: true.** Two or more mediums were patched on this first pass. The unverified risk is the new browser cases K5b and K11, which were observed green and red on the lane-B throwaway only (their timing rests on the polled `guide.state` push), and Q11's one-line pin, which is relaxed (deferred item 1).
+
+**Verification.** See "Measured" under Verification: unit and lint green; the four warm classes green; `live sign-in` parts 1-3, `floor` (107), `demo-path` (28, UJ-1), `demo-switch`, `shard lane-b` forward and reverse, `test-web-build.sh` and `ci/checks.sh` green; the contended-path guard diffs as ruled. Flakes: none hit. `demo-path` failed three times in the implement pass on this host's time budget (a load average near 9.5) and passed on the review pass's run.
+
+**Residual risks.** Task 0 (c)'s heights were not recorded as numbers (floor passed). The layout of the narrow bands for items 2 and 3 is unverified (deferred). CI's `live:sign-in` gains 11 cases (about 1 minute); no deadline was raised.

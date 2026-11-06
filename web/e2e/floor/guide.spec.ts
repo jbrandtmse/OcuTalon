@@ -39,7 +39,7 @@ const REJECTED = 'Rejected. Nothing was changed. Dismiss the incident in the cha
 const P5 = "Open the incident's trace: watch your assistant in Visual Trace like any other feed, with every step it took and the tokens and cost of each decision.";
 const DONE =
   'Done. You saw an AI Hub agent read 50 failed orders and name the cause. Every decision, with its cost, and every step it took landed in Visual Trace, and the fix waited for your approval and was recorded in the audit log.';
-const MORE = 'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.';
+const OTHER = 'Other things to try';
 const README = 'https://github.com/jbrandtmse/OcuTalon#readme';
 const BRIDGE_GUIDE = 'https://github.com/jbrandtmse/OcuTalon/blob/HEAD/docs/bridge-guide.md';
 const SENT = 'Sent. OcuTalon usually notices within a minute.';
@@ -94,13 +94,14 @@ test('M1: the guide is reached by keyboard, with its names and aria-current, and
     const stops = await guideStops(page);
     expect(
       stops,
-      `at 1280x${height} the stops are the five steps, Hide guide, Send, and the box's button and Do step 1`,
+      `at 1280x${height} the stops are the five steps, More to try, Hide guide, Send, and the box's button and Do step 1`,
     ).toEqual([
       'button "Step 1, Watch, current"',
       'button "Step 2, Reminder, upcoming"',
       'button "Step 3, Break the feed, upcoming"',
       'button "Step 4, Approve, upcoming"',
       'button "Step 5, Open the trace, upcoming"',
+      'button "More to try"',
       'button "Hide guide"',
       'button "Send"',
       'button "Break the feed"',
@@ -558,7 +559,18 @@ test('M9: Open the trace, then the finish state: the exact lines, the run total,
     expect(totalStyle.numbers, 'in tabular figures').toContain('tabular-nums');
     expect(totalStyle.size, 'in body-sm').toBe(totalStyle.bodySm);
     expect(totalStyle.color, 'in ink-muted').toBe(await tokenColor(page, '--ink-muted'));
-    await expect(finish.locator('.more')).toHaveText(MORE);
+    const other = finish.getByRole('group', { name: OTHER, exact: true });
+    await expect(other, 'the Other things to try panel is open in the finish').toBeVisible();
+    await expect(other.getByRole('button', { name: 'Send the suspicious email', exact: true }), 'with the server-listed items of the demo').toBeVisible();
+    expect(
+      await finish.evaluate((node) => {
+        const links = node.querySelector('.finish-links')!;
+        const panel = node.querySelector('app-more-to-try')!;
+        const row = node.querySelector('app-try-it-row')!;
+        return (links.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0 && (panel.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+      }),
+      'after the links and before the Try it yourself row',
+    ).toBe(true);
 
     const conversation = finish.locator(`a[href="${TRACE_PAGE}${HEADER + 1}"]`);
     await expect(conversation, 'the whole-conversation link').toHaveAccessibleName('See the whole conversation in Visual Trace (opens in a new tab)');
@@ -874,7 +886,7 @@ test('M13: a failed marker write changes nothing and is written again by the nex
     await expect(finish, 'and the finish replaces the prompt bar').toBeVisible({ timeout: CARD_MS });
 
     // No turn with a trace: no conversation link, and a run total with no usage reads zeros and names no model.
-    await expect(finish.getByRole('link'), 'only the install link and the bridge link').toHaveCount(2);
+    await expect(finish.locator('.finish-links').getByRole('link'), 'only the install link and the bridge link').toHaveCount(2);
     await expect(finish.getByRole('link', { name: /^See the whole conversation/ })).toHaveCount(0);
     await expect(finish.locator('.run-total')).toHaveText('This run: 0 decisions \u00B7 0 tokens \u00B7 <$0.0001.');
 

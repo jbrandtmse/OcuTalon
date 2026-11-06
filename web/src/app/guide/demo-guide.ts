@@ -26,12 +26,11 @@ import { readFlag, writeFlag } from '../shared/stored-flag';
 import { TraceLink } from '../shared/trace-link';
 import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
 import { advance, followSelection, GUIDE_HIDDEN_FLAG, GUIDE_HIDDEN_KEY, GUIDE_SHOWN_FLAG, GUIDE_TEXTS, guideOf, guideView, telegramRowOf, type GuideSnapshot, type RunFormat } from './guide-view';
+import { MoreToTry } from './more-to-try';
+import { BREAK_FEED_BUTTON, itemsFor, MORE_TO_TRY_TEXTS } from './more-to-try-view';
 
 /** The attribute that marks the elements that focus may need to find again: the prompt bar's parts, the Hide and Show buttons and the box's Do step 1. */
 const FOCUS_KEY = 'data-guide-focus';
-
-/** The Break the feed button of the box, which takes focus when an update removes Do step 1 beside it, or a prompt or finish part while the prompt bar shows step 3. */
-const BREAK_FEED_BUTTON = 'app-break-feed-box app-server-button button';
 
 /** The attribute that marks the prompt bar while it shows step 3, so the focus rule can hand focus to the box beside it. */
 const STEP_MARK = 'data-guide-step';
@@ -47,7 +46,10 @@ const TELEGRAM_TEXT_ID = 'guide-telegram-text';
 
 /** The finish state's first line and the parts that hand focus back to the prompt bar when the prompt bar replaces the finish. */
 const FINISH_KEY = 'finish';
-const FINISH_PARTS = ['finish', 'finishLink', 'tryIt', 'runAgain'];
+const FINISH_PARTS = ['finish', 'finishLink', 'moreItem', 'tryIt', 'runAgain'];
+
+/** The id of the "Other things to try" panel, which the "More to try" link controls while the panel is open. */
+const MORE_PANEL_ID = 'guide-more-to-try';
 
 /** The page's token and cost formats, which the finish's run line is written with. */
 const RUN_FORMAT: RunFormat = { tokens: formatTokens, cost: formatCost };
@@ -95,12 +97,12 @@ const FOCUS_RULE: FocusRule = {
  * The demo guide (Story 4.4; UX-DR45, UX-DR131): the region "Demo guide" between the banners and the rail and chat, in demo mode only. It
  * shows the server's guide view (AD-12; guide-view.ts) and decides none of its progress. Row 1 holds the label, the five steps (buttons in
  * a list, joined by decorative chevrons; the current step carries aria-current="step" and its state is in every step's name), "About
- * 2 minutes" and Hide guide. Row 2, the prompt bar, shows the selected step's exact prompt and its action (guide-view.ts promptOf):
+ * 2 minutes", the "More to try" link and Hide guide. Row 2, the prompt bar, shows the selected step's exact prompt and its action (guide-view.ts promptOf):
  * Send sends the prompt as the user's own message from the guide (ChatOutbox, fromGuide), Show me selects the Simulated phone tab and
  * focuses the pending notification, and Open the trace is the run's trace link, which writes the trace_opened marker once a Visual Trace
  * tab opens. Once the server's view is finished the finish state
- * replaces the prompt bar: the exact lines, the run total, the two links, More to try, the "Try it yourself" row (app-try-it-row,
- * a finish part for focus) and Run again, which writes the run_again marker. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
+ * replaces the prompt bar: the exact lines, the run total, the two links, the "Other things to try" panel (app-more-to-try), the
+ * "Try it yourself" row (app-try-it-row, a finish part for focus) and Run again, which writes the run_again marker. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
  * is marked done by a click. The Break the feed box sits at the right.
  *
  * While the session's message allowance is used up (Story 16.9; AllowanceState.active) a prompt whose action is Send is aria-disabled, not
@@ -127,7 +129,7 @@ const FOCUS_RULE: FocusRule = {
  */
 @Component({
   selector: 'app-demo-guide',
-  imports: [BreakFeedBox, Icon, ServerButton, TraceLink, TryItRow],
+  imports: [BreakFeedBox, Icon, MoreToTry, ServerButton, TraceLink, TryItRow],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (model(); as guide) {
@@ -176,6 +178,14 @@ const FOCUS_RULE: FocusRule = {
                 }
               </ol>
               <span class="duration">{{ texts.duration }}</span>
+              <button
+                type="button"
+                class="link more-link"
+                data-guide-focus="moreLink"
+                [attr.aria-expanded]="moreOpen()"
+                [attr.aria-controls]="panelShown() ? morePanelId : null"
+                (click)="toggleMore()"
+              >{{ moreTexts.link }}</button>
               <button type="button" class="button button-ghost" data-guide-focus="hide" (click)="setHidden(true)">{{ texts.hide }}</button>
             </div>
             @if (guide.finish; as finish) {
@@ -195,7 +205,9 @@ const FOCUS_RULE: FocusRule = {
                     >{{ texts.bridgeLink }}<span aria-hidden="true"> {{ trace.arrow }}</span><span class="visually-hidden"> {{ trace.opensInNewTab }}</span></a
                   >
                 </p>
-                <p class="more">{{ texts.moreToTry }}</p>
+                @if (panelShown()) {
+                  <app-more-to-try [id]="morePanelId" [items]="items()" (pressed)="chosen.set(true)" />
+                }
                 <app-try-it-row data-guide-focus="tryIt" />
                 <app-server-button class="run-again" variant="secondary" [action]="runAgain" data-guide-focus="runAgain">{{ texts.runAgain }}</app-server-button>
               </div>
@@ -239,6 +251,9 @@ const FOCUS_RULE: FocusRule = {
                   }
                 }
               </div>
+              @if (panelShown()) {
+                <app-more-to-try [id]="morePanelId" [items]="items()" (pressed)="chosen.set(true)" />
+              }
             }
           </div>
         }
@@ -296,6 +311,19 @@ const FOCUS_RULE: FocusRule = {
       line-height: var(--type-label-line-height);
       letter-spacing: var(--type-label-letter-spacing);
       text-transform: uppercase;
+    }
+    .more-link {
+      min-height: var(--space-target-min);
+      padding: 0 var(--space-2);
+      border: 0;
+      background: none;
+      font: inherit;
+      font-size: var(--type-caption-font-size);
+      line-height: var(--type-caption-line-height);
+      cursor: pointer;
+    }
+    .finish > app-more-to-try {
+      align-self: stretch;
     }
     .duration {
       margin-inline-start: auto;
@@ -453,8 +481,7 @@ const FOCUS_RULE: FocusRule = {
     .finish-done:focus-visible {
       outline-offset: -2px;
     }
-    .run-total,
-    .more {
+    .run-total {
       color: var(--ink-muted);
       font-size: var(--type-body-sm-font-size);
       line-height: var(--type-body-sm-line-height);
@@ -499,8 +526,12 @@ const FOCUS_RULE: FocusRule = {
       }
       .main {
         flex-direction: row;
+        flex-wrap: wrap;
         align-items: center;
         gap: var(--space-3);
+      }
+      .main > app-more-to-try {
+        flex: 1 1 100%;
       }
       .step-label,
       .duration,
@@ -553,6 +584,8 @@ export class DemoGuide {
   protected readonly readme = README_URL;
   protected readonly bridgeGuide = BRIDGE_GUIDE_URL;
   protected readonly telegramTextId = TELEGRAM_TEXT_ID;
+  protected readonly moreTexts = MORE_TO_TRY_TEXTS;
+  protected readonly morePanelId = MORE_PANEL_ID;
 
   /** The id of the reason that a Send prompt is described by while the message allowance is used up. */
   protected readonly reasonId = 'guide-allowance-reason';
@@ -594,6 +627,21 @@ export class DemoGuide {
     return { ...guideView(view, selected, RUN_FORMAT), view, telegram, conversation: this.conversation() };
   });
 
+  /** The items of the "Other things to try" panel: the registry's entries for the features that the server's view lists. */
+  protected readonly items = computed(() => itemsFor(this.view()?.features));
+
+  /** True while the server's view is finished. */
+  private readonly finished = computed(() => this.view()?.finished === true);
+
+  /** The user's choice for the panel: undefined until the user presses the link or one of its controls, and again after each new finish. */
+  protected readonly chosen = signal<boolean | undefined>(undefined);
+
+  /** True while the panel shows: the user's choice, else open in the finish state and closed elsewhere. */
+  protected readonly moreOpen = computed(() => this.chosen() ?? this.finished());
+
+  /** True while the panel is on the page: it is open and the server lists an item to show. */
+  protected readonly panelShown = computed(() => this.moreOpen() && this.items().length > 0);
+
   private last: GuideStatePayload | undefined;
 
   constructor() {
@@ -615,6 +663,11 @@ export class DemoGuide {
   /** The user selected a step: only the selection and the prompt change. */
   protected select(step: number): void {
     this.selected.set(step);
+  }
+
+  /** The user pressed the "More to try" link: the panel opens, or closes when it is open. */
+  protected toggleMore(): void {
+    this.chosen.set(!this.moreOpen());
   }
 
   /** The user pressed Hide guide or Show guide; the choice is kept in this browser. */
@@ -669,8 +722,11 @@ export class DemoGuide {
     return this.api.postGuideMarker(marker).pipe(tap((view) => this.answered.set(view)));
   }
 
-  /** A view arrived: the selection follows the current step when it changes, and an advance is announced once. */
+  /** A view arrived: the panel's choice resets when a finish begins, the selection follows the current step when it changes, and an advance is announced once. */
   private follow(view: GuideStatePayload | undefined): void {
+    if (view?.finished === true && this.last?.finished !== true) {
+      this.chosen.set(undefined);
+    }
     const said = advance(this.last, view);
     this.selected.set(followSelection(this.last, view, this.selected()));
     this.last = view;

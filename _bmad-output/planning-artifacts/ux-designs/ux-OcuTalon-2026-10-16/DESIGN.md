@@ -764,13 +764,17 @@ Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, 
 ### Demo guide and controls
 
 - **Demo guide.** A strip on `{colors.surface}`.
-  - **Row 1** (left area, spanning the rail and chat width): the label "Demo guide", five steps joined by chevrons, "About 2 minutes", and a "Hide guide" ghost button.
+  - **Row 1** (left area, spanning the rail and chat width): the label "Demo guide", five steps joined by chevrons, "About 2 minutes", a "More to try" link-styled button (`{typography.caption}`, underlined like a link, with `aria-expanded`), and a "Hide guide" ghost button. [ADDED 2026-11-06, Story 4.11, owner decision made by the Contest Planner under the owner's delegation]
   - **Row 2, the prompt bar:** on `{colors.sunken}`, so the exact prompt reads as a quotation. It holds "Next:", the selected step's exact prompt in quotes (`{typography.body-chat}`), and the step's action button.
   - **The right area,** aligned over the device column, is the Break the feed box.
   - **Step markers:** a check for done, a filled teal disc with the step number for current, and a hollow circle with the number for upcoming. The selected step also gets a 2px bottom bar. None of these markers is a teal ring, so none looks like the focus ring.
   - **The compact form** puts the steps (numbers only) and the prompt bar in one row.
-  - **The finish state** replaces the prompt bar. Its run-total line ("This run: 3 decisions · 9,850 tokens · $0.0041 on Claude Haiku 5.5") is `{typography.body-sm}` in `{colors.ink-muted}` with tabular figures.
+  - **The finish state** replaces the prompt bar. Its run-total line ("This run: 3 decisions · 9,850 tokens · $0.0041 on Claude Haiku 5.5") is `{typography.body-sm}` in `{colors.ink-muted}` with tabular figures. The Other things to try panel is open in it, after the links and before the Try it yourself row. [ADDED 2026-11-06, Story 4.11, owner decision made by the Contest Planner under the owner's delegation]
 - **Guide collapsed bar.** One row ("Demo guide · step 2 of 5 · Show guide") at 40px minimum height. The Break the feed box keeps its place at the right end of the bar, with its "Demo control" label inline before the button.
+- **Other things to try panel.** A labelled group inside the demo guide, open in the finish state and opened elsewhere by the "More to try" link. [ADDED 2026-11-06, Story 4.11, owner decision made by the Contest Planner under the owner's delegation]
+  - **Label:** "Other things to try" in `{typography.body-sm}` and `{colors.ink-muted}`; a paragraph, never a heading.
+  - **Items:** a list of rows that wrap (`gap` of `{spacing.2}`). The item label is `{typography.body}` at the strong weight in `{colors.ink}`. The look-for line is `{typography.body-sm}` in `{colors.ink-muted}`. The control follows the text, as a `button-secondary`; it is never an attention colour.
+  - **Motion and size:** no transition and no fixed height, so the guide grows with the panel. Widths follow the layout bands only.
 - **Break the feed.** The box always carries its "Demo control" label (`{typography.label}` in `{colors.attention-ink}`), above the button. The label is the only demo marking; the button has no extra tag.
   - **Active:** a `button-attention` with a `zap` icon, labeled "Break the feed".
   - **Next step:** while it is the current step and active, the box adds a 4px teal left bar and a "Next step" tag (`{colors.action-soft}` with `{colors.action-ink}`). The marker leaves once the button is pressed.
@@ -845,7 +849,7 @@ Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, 
 - **Simulated mailbox.** A header ("Simulated mailbox" with the Simulated label), then the sample email chips (always visible), a "Simulate an incoming email" `button-secondary`, and the inbox list of email rows. The compose form opens in place of the list.
 - **Email row.** Sender, subject, and time. Unread rows carry a teal dot and the visually hidden word "Unread" (announced by screen readers). Once OcuTalon has decided, the row shows its outcome chip.
 - **Sample email chip.** A bordered, actionable pill with a `mail` icon: "Sample: newsletter", "Sample: partner notice", or "Sample: suspicious request". The three chips wrap to a second row when the mailbox is narrow.
-- **Try it yourself row.** The label "Try it yourself" in `{typography.body-sm}` and `{colors.ink-muted}`, then four bordered, actionable pills on `{components.sample-email-chip}` with no icon, wrapping to further rows when narrow. Centred in the empty chat, start-aligned in the finish state. No animation. [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."]
+- **Try it yourself row.** The label "Try it yourself" in `{typography.body-sm}` and `{colors.ink-muted}`, then four bordered, actionable pills on `{components.sample-email-chip}` with no icon, wrapping to further rows when narrow. Centred in the empty chat, start-aligned in the finish state, where it follows the Other things to try panel. No animation. [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."]
 
 ### Sign-in
 
