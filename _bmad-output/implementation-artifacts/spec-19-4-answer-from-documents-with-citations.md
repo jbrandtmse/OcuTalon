@@ -218,6 +218,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-06 (lead): the Planner's rulings on the blocking question and the "Needs a ruling" items recorded under Design Notes "Rulings"; the story waits for Epic 17's merge, then status reset and spec gate.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -299,6 +301,17 @@ These force `DocumentOps` to write passages itself and code to apply a floor. AI
 - DW-735 is ruling-gated (above).
 - DW-739 is addressed by `Test.Docs.Ops` (`Commands.Submit` -> `CommandsIn` -> `DocumentOps` for real) and `live:documents` (the real `Web.Documents` route over HTTP). What remains is `Test.Web.DocumentsApi`'s stale comment at :537 (Lane B).
 - DW-747 is addressed by `OnAdd`'s single `Take` with the command's `SessionRef` and its empty-take failed row (matrix "Upload gone"). 34.3 delivered the sweep and the session check.
+
+**Rulings (2026-11-06; the Contest Planner under the owner's delegation, relayed by the orchestrator). They answer the blocking question and every "Needs a ruling" / "PUBLIC TEXT needed" item above. Every spine amendment below carries the marker `[AMENDED 2026-11-06, Story 19.4, owner ruling via the Contest Planner]`.**
+- ORDER: this story waits for Epic 17's merge (as 19.5 does). At that merge: integrate forward, then reset `status` per the re-dispatch protocol (`ready-for-dev` if the plan stands with these rulings, `draft` if it must be re-planned around Epic 17's merged bridge files), and only then the lead's spec gate. Until then nothing here is implemented and none of the contended files is touched.
+- Q1 (the "None of your documents cover that." half of DW-720 / U-280): option A. AD-31 gets an ADDITIVE amendment: `OcuTalon.Bridge.Ext.ReplyFilter.Filter(text, hostData)` (Decide hands the reply's HostData to the reply filter). Tests: (a) the sentence is stripped from any reply whose HostData holds citations; (b) a reply that is only that sentence, with no citations, is shown unchanged; (c) citations are never stripped.
+- Q2 (the embedder): APPROVED. AD-21 clarification amendment: documents use "the FastEmbed model, run through the embedding worker" (`OcuTalon.Docs.Embedding` via Story 19.2's worker). Conditions: (a) the score floor's value and the measurement behind it go in the story record (this spec and an evidence file); (b) tests on both sides of the floor: an unrelated question gets no passages, and a question a passage answers still gets it; (c) a second add of document X replaces only X's passages, never Y's, with a test.
+- Q3 (`Bridge/Policy/Gate.cls` source fallback): APPROVED, narrow and exact. The fallback applies only when `origin_class` is absent AND the pair is exactly `%AI.RAG.KnowledgeBase:documents`. It classifies the call as safe and read-only, and NOT trusted output (passages are untrusted content). `top_k` is clamped to 5, plus NFR-3's room check. Tests: the clamp; the room check; another unknown source still holds; a near-miss still holds (another tool on the same provider, or the same tool name on another provider); a documents result cannot lead past the untrusted-content outcomes. The generated `docs/security-overview.md` lists this fallback in plain words: that sentence goes to the orchestrator as `## Clarification Needed` beginning `PUBLIC TEXT:` at this story's spec gate. (`Bridge/Policy/StepAudit.cls`' one citations call and the `Production.cls` ToolClassification entry follow with Q3.)
+- Q4 (DW-735, U-177 GRANTED, scoped to D8 and D10 in `web/e2e/documents/documents.spec.ts`): their page-visible assertions stay word for word; only the network setup moves to `page.route`. This story's own e2e must cover the real, unrouted documents path once.
+- Q5 (Eval): the `documents` case kind in the Eval files (`Eval/{In,Report}.cls`, `Eval/Msg/TurnResult.cls`, `docker/tests/test-eval-set.sh`) is fine as a plain add after Epic 39 merges. The real-model run stays the Planner's release gate (never run by a runner).
+- Q6 (PUBLIC TEXT, APPROVED as written), placed after Story 19.3's memory bullets and before "Everything that comes from a tool...", PersonaBlock pins still last; pin both with fixed-strings tests:
+  1. "When the user asks about something their documents may cover, such as a runbook, call documents with the question, and answer only from the passages it returns, naming the document and section of each step you give."
+  2. "If no passage that documents returns answers the question, reply with exactly this sentence and nothing else: None of your documents cover that."
 
 ## Verification
 
