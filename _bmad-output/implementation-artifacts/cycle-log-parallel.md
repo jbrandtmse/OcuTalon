@@ -2165,3 +2165,21 @@
 2026-11-06T04:22:14Z	Epic 19	worktree_provisioned	path=.worktrees/epic-19 branch=OCT-epic19 base=61f32de8 submodules=none
 2026-11-06T04:22:14Z	Epic 19	worktree_bootstrapped	epic=19 result=ok
 2026-11-06T04:22:14Z	Epic 19	runner_dispatched	runner=a4ca05ac816449aef model=opus lane=C slot=ocutalon-slot-c prompt=prompts/dispatch-epic-19.md gate=plan_only_until_feature_green(Epic_34_precedent) retro_review=own duplicate_branch_runs_cancelled=42161848567,42161848547
+2026-11-06T04:32:18Z	Epic 17	runner_clarification	agent=a69a13ff12f8408f8 head=d8ff2399(local_bookkeeping) pushed=55e5fb3d(17.4;ci_pending_42162006863,42162006809) q=U-177_exception_new_catalog_key_digest.notCheckedSizeLimit(17.5)+digest.cost(17.6)_fixture_rows_in_Lane_B_Test.Msg.Catalog rec=a sent_to=Contest_Planner[a35b9b] smoke=install-start_95,install-upgrade_34 fresh=18_classes_fwd+rev note=harness_backgrounded_smoke_at_180s_despite_timeout
+2026-11-06T04:40:46Z	Run	ci_red_classified	sha=bd9b9de8 run=42158693602 job=127698892750 unit=live:online-session test=leave.spec_L5_page.close_no_answer_30s class=flake(code_identical_to_689b6632_green;second_occurrence_different_test) ledger=DW-774 action=judge_61f32de8_run_in_progress(no_rerun_of_superseded_head)
+2026-11-06T04:40:46Z	Epic 11	runner_clarification	kind=CI_WAIT feature=61f32de8 head=b4b607a8(local) premerge_tree=fc51f082_checks_11_pass agent=a7da9a9056f528626 note=reports_groups_over_1000s(shards_1575-1671s,shards-4_1391s)
+2026-11-06T04:52:15Z	Run	ci_red_classified	sha=61f32de8 run=42161844768 jobs=127709120576(browser:live:answers_C3_GET_state_60s),127709120793(image:shard:lane-b_Schedule.Heartbeat) class=flake(load:4_ci_runs_concurrent;group_times_1786-1828s;code_identical_to_689b6632_green) ledger=DW-774(occurrence) action=rerun_failed_once(attempt2)
+2026-11-06T05:02:13Z	Run	planner_ruling	subject=CI_split_rule_and_B_order answer="no split now; 1000s line is per UNIT (live:sign-in, 1200s deadline); GROUPS split when over 35 min on 2 clean runs; B order: 11.24 -> 11.25 -> timeboxed DW-550/774 story (3h: reproduce N live pages one CSP session /state queued, gateway per-session counts; if confirmed set Maximum_Session_Connections for OcuTalon's app via the install by the documented gateway mechanism, surviving upgrade+rebuild, test N live pages /state under 5s; else stop and report what was ruled out) -> 7.9 (Sat release)"
+2026-11-06T05:02:13Z	Epic 19	runner_clarification	agent=a4ca05ac816449aef kind=FEATURE_CI_WAIT+3_rulings head=c1bfcf4c(local) 19.2=ready-for-dev readiness=PASS
+2026-11-06T05:02:13Z	Epic 19	ruling	q1=release_tooling_for_19.2_IPM_AC choice=allow_as_Epic_19_footprint category=veto inbox=U-294 why=release/**_in_paths_hint;lands_after_1.0.2;ambiguous_decide/veto->veto policy=5086036
+2026-11-06T05:02:13Z	Epic 19	ruling	q2=CI_group_live:memory-offline(~300s) choice=shards-4_ok(clean~1410s+300=1710s<35min_group_trigger;dispatch_wording_corrected) category=decide policy=5086036
+2026-11-06T05:02:13Z	Epic 19	ruling	q3=X.0_skip choice=accept(no_entry_is_Epic_19s;precedent_33,34,17,39) category=decide policy=5086036
+2026-11-06T05:11:37Z	Epic 39	runner_clarification	agent=ac3a11fec82024147 kind=PUBLIC_TEXT story=39.2 items=6_new+reused head=82d08245(local;integrate_1f147258_onto_61f32de8) sent_to=Contest_Planner[a35b9b] eta_39.2_green=10-11Z
+2026-11-06T05:13:08Z	Epic 39	planner_ruling	story=39.2 public_text=approved_with_changes(1_security_overview,3_cap,6_backoff_reworded;2,4,5_approved) relayed=runner_D
+2026-11-06T05:13:08Z	Epic 39	runner_resumed	agent=ac3a11fec82024147 with=39.2_text,go_no_push_until_feature_green
+2026-11-06T05:13:08Z	Epic 17	ci_polled	story=17.4 sha=55e5fb3d result=success runs=42162006863,42162006809
+2026-11-06T05:13:08Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 with=17.4_green,Epic_19_contention
+2026-11-06T05:21:27Z	Run	ci_green_verified	runs=42161844768(attempt2),42161844791 head=61f32de8 result=success via=none note=DW-774_load_flake_rerun_green
+2026-11-06T05:21:27Z	Epic 11	runner_resumed	agent=a7da9a9056f528626 with=feature_green_61f32de8,integrate+push+contract
+2026-11-06T05:21:27Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef with=feature_green,rulings_U-294_shards-4_X.0
+2026-11-06T05:21:27Z	Epic 39	runner_resumed	agent=ac3a11fec82024147 with=feature_green_push_allowed(queued)
