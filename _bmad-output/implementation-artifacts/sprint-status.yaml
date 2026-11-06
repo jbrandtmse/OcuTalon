@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-06-2026 11:25
+last_updated: 11-06-2026 15:31
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -109,7 +109,7 @@ development_status:
   4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon: done
   4-9-a-demo-view-switch-shows-the-page-as-it-looks-on-your-own-in: done
   4-10-try-it-yourself-example-prompts-one-press-each: done
-  4-11-other-things-to-try: in-progress
+  4-11-other-things-to-try: review
   epic-4-retrospective: optional
 
   epic-5: done

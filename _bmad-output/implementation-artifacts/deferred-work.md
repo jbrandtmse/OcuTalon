@@ -4584,3 +4584,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: chk_measured (test-readme.sh 517-530) only requires each MEAS_LABELS label to start a row; README with '| The always-on online demo |' appended after line 39: git grep prints README.md:40, test-readme.sh PASS measured
 - 2026-11-06T08:38:06Z status=by-design owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=cr note=spec Never forbids a new rule/helper/self-test; QA declined the absence pin on purpose; AC1 absence held by the Verification git grep
+
+### DW-804: Guide row 1 with the ruled More to try link no longer fits one line at 1280px on the Linux host (about 34px over 896px); Q11 was relaxed to at most two lines
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: implement stage measured children 930px in a 896px row on the lane-B throwaway; fix is row 1 spacing (link padding or gaps), placement is ruled
+- 2026-11-06T15:31:05Z status=open owner=4-11-other-things-to-try by=harvest note=in-story MED for code review: trim row 1 and restore the one-line Q11 pin, or justify the relaxation
+
+### DW-805: Other things to try items 2 and 3 hand off by selector to the mailbox chip and the Break the feed box; whether those targets are on the page in the drawer and stacked layout bands is unverified
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: K6 and K7 run at the default viewport only; check at 1100x720 and 800x720 that the press reaches its control (or selects/reveals it first)
+- 2026-11-06T15:31:05Z status=open owner=4-11-other-things-to-try by=harvest note=in-story MED for code review/QA: verify in the narrow bands and fix the hand-off if a target is off the page
