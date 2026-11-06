@@ -2,7 +2,8 @@
 title: "Story 11.25: The README's judges section: a Measured table"
 type: 'feature'
 created: '2026-11-05'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '5649a994972de3d07778d334b035974aceb6ca84'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -56,6 +57,19 @@ deferred: []
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-11-05 - Review pass
+- verdicts: 9 findings - high 0, medium 0, low 9 (reject), false 0, maybe-false 0 (the verification-gap and intent-alignment layers reported none)
+- findings:
+  - `[low]` `[reject]` Blind: 19 of 22 sits below its target (20) with no explanation -- the text is the owner-ruled public text, byte for byte; any clause is a wording change the story forbids (spec-bound).
+  - `[low]` `[reject]` Blind: the table's sources are unnamed (no release, date or re-run path) -- ruled wording; adding provenance is a wording change, owner-only.
+  - `[low]` `[reject]` Blind: the two zero rows and the cost rows carry no denominator -- ruled wording and numbers, never reworded.
+  - `[low]` `[reject]` Blind: `chk_measured` pins labels, not the header or delimiter row -- Boundaries forbid pinning the header row; D2 pins the heading and the eight first cells only.
+  - `[low]` `[reject]` Edge: header or delimiter row removed while label rows remain -- same as the row above; header row not to be pinned (Never).
+  - `[low]` `[reject]` Edge: a row's Result cell emptied -- Never pins the results column.
+  - `[low]` `[reject]` Edge: a label row inside a fenced block in the section -- theoretical; the ruled text has no fence and the guard would add branches.
+  - `[low]` `[reject]` Edge: a future label with a backslash read by `awk -v` -- none of the eight labels has one; a theoretical hardening.
+  - `[low]` `[reject]` Edge: a duplicated label row passes -- not a user-reachable failure of the ruled text; the guard would add a count branch.
 
 ## Design Notes
 
@@ -240,7 +254,32 @@ All commands run from the worktree root after `git rev-parse --show-toplevel` ma
 - Shared surfaces: README.md's H2 list and order (asserted by `test-readme.sh` `top`, `readme-links`, `product-links`, and read by `test-release-notes.sh` `static`, `test-boundaries.sh` and `release/checklist.sh`); `test-readme.sh`'s `RULES` list (its `rules` and `no-readme` checks). Every test added or changed passes on a fresh environment, in either order (`test-readme.sh` is hermetic, reads only tracked files and runs its rules from `RULES`; a clean checkout is the fresh environment).
 - Mutations to demonstrate (observe red, restore byte-identical, write each as a `mutation:` line here): AC1 the `## Measured` and `## What you can use it for` headings swapped in README.md -> `FAIL top`; AC2 one byte appended to README line 3 -> the `cmp` check reports a difference; AC3 a row label renamed in README.md ("Routine attention decisions right" -> "Routine decisions right") -> `FAIL measured`, and the label loop removed from `chk_measured` -> `FAIL measured: a broken copy was not flagged`, and `chk_top` reverted to its four-section list -> `FAIL top`; AC3 negative: `19 of 22` -> `18 of 22` in README.md -> all rules still pass; AC4 a dotted class name (`Ens.Director`) added to a Measured bullet -> `FAIL dev-only` in `test-readme.sh` and `FAIL static` in `test-release-notes.sh`.
 
+**Results (implement stage, 2026-11-05).**
+- Ruled-lines sha256 `bcabdc9c...a44b68` (once); fenced block under Design Notes identical to it; pins diff `git apply --check` clean, result sha256 `1ecc422d...f7936`.
+- Section sha256 `bcabdc9c...a44b68`; whole-file rebuild `cmp` clean; README.md sha256 `8923a64f...d1745d`.
+- `bash docker/tests/test-readme.sh`: `PASS top`, `PASS measured`, `test-readme: all rules passed`; `/bin/bash` (3.2): all rules passed.
+- `test-release-notes.sh` 16 PASS (static included), `test-boundaries.sh` all rules passed (no README hit; the two lead-owned hits are gone), `test-cpf.sh` and `test-bridge-guide.sh` all passed.
+- `git diff --name-only` outside `_bmad-output`: `README.md`, `docker/tests/test-readme.sh`; eight hunks in `test-readme.sh`, none in Epic 34's regions; the table's numbers appear only in README lines 32-39.
+
+mutation: AC1 -- swapped the `## Measured` and `## What you can use it for` headings in README.md -> red (`FAIL top`, `FAIL measured`, `FAIL use-cases`); restored byte-identical.
+mutation: AC2 -- appended one byte to README line 3 -> the `cmp` rebuild check reports a difference (exit 1); restored byte-identical.
+mutation: AC3 -- renamed "Routine attention decisions right" to "Routine decisions right" -> `FAIL measured`; removed the label loop from `chk_measured` -> `FAIL measured: a broken copy was not flagged`; reverted `chk_top` to its four-section list -> `FAIL top`; negative: `19 of 22` -> `18 of 22` -> all rules still pass; each restored byte-identical.
+mutation: AC4 -- added `(Ens.Director)` to the first Measured bullet -> `FAIL dev-only` in `test-readme.sh` and `FAIL static` in `test-release-notes.sh`; restored byte-identical.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The ruled `## Measured` section (19 lines, sha256 `bcabdc9c...a44b68`) is inserted into README.md between "What's interesting" and "What you can use it for", and `docker/tests/test-readme.sh` pins its heading, its eight row labels and its position.
+
+**Files changed.**
+- `README.md` -- the 19 ruled lines plus one blank line after line 25 (one hunk of 20 added lines; sha256 `8923a64f...d1745d`).
+- `docker/tests/test-readme.sh` -- `chk_top` widened to five H2 sections with four self-tests, new `chk_measured`/`rule_measured`, `measured` in `RULES` (sha256 `1ecc422d...f7936`).
+- This spec -- Verification results, mutation lines, triage log.
+
+**Review.** Patches applied: 0. Deferred: 0. Rejected: 9, all low, each with its reason in the Review Triage Log (ruled wording, Boundaries "Never" pins, or theoretical hardening). Follow-up review recommended: false (no patched entry).
+
+**Verification.** See Results and the four `mutation:` lines under Verification: test-readme.sh passes under bash and /bin/bash 3.2; test-release-notes.sh, test-boundaries.sh, test-cpf.sh and test-bridge-guide.sh pass; rebuild `cmp` clean; only README.md and test-readme.sh change outside `_bmad-output`. The lead re-ran test-readme.sh after the review (all rules passed).
+
+**Residual risks.** None known. Pre-existing `printf: write error: Broken pipe` lines appear in test-readme.sh output and do not affect the result.
