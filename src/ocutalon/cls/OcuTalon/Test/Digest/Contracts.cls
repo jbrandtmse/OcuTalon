@@ -1,11 +1,12 @@
-/// The contracts of the two Digest tables that step 2 adds (Story 33.1; AD-3, AD-18, AD-33), and the Digest stub item.
+/// The contracts of the two Digest tables that step 2 adds (Story 33.1, Story 17.6; AD-1, AD-3, AD-18, AD-33), and the Digest item.
 ///   - TestContracts: OcuTalon.Digest.Data.CheckRun and OcuTalon.Digest.Data.Sent have exactly the properties, types and indexes of XData
 ///     Contracts (the compared type parameters included), and project no SQL reserved word as a table or field name;
 ///   - TestRefCollation: the reference columns of both tables carry COLLATION EXACT;
 ///   - TestRegistry: each table sets the DEFAULTGLOBAL of its src/short-names.tsv row (copied into XData Registry), stores its data in that global plus D, and has its data and
 ///     index globals in the private database (the check of Test.Data.Tables TestPrivateRecords, whose registry covers OcuTalon.Data, OcuTalon.Live and
 ///     OcuTalon.Bridge.Data only);
-///   - TestDigestStub: OcuTalon.Digest.Process carries STUB 1 and a shadow instance answers "not implemented" (code 5003), with no response.
+///   - TestDigestItem: OcuTalon.Digest.Process carries no STUB, so that it is not a stub, and a shadow instance refuses a request it does not handle with an
+///     error that is not "not implemented" (code 5003), with no response.
 Class OcuTalon.Test.Digest.Contracts Extends OcuTalon.Test.Contract
 {
 
@@ -19,7 +20,7 @@ Method TestContracts()
 /// The reference columns compare exactly (refs are case-sensitive), which the compared type parameters of XData Contracts do not include.
 Method TestRefCollation()
 {
-	For ref = "OcuTalon.Digest.Data.CheckRun||CheckRef", "OcuTalon.Digest.Data.CheckRun||SessionRef", "OcuTalon.Digest.Data.Sent||Ref", "OcuTalon.Digest.Data.Sent||SessionRef", "OcuTalon.Digest.Data.Sent||ItemId", "OcuTalon.Digest.Data.Sent||DecisionRef" {
+	For ref = "OcuTalon.Digest.Data.CheckRun||CheckRef", "OcuTalon.Digest.Data.CheckRun||SessionRef", "OcuTalon.Digest.Data.Sent||Ref", "OcuTalon.Digest.Data.Sent||SessionRef", "OcuTalon.Digest.Data.Sent||ItemId", "OcuTalon.Digest.Data.Sent||DecisionRef", "OcuTalon.Digest.Data.Sent||IdempotencyKey" {
 		Set property = ##class(%Dictionary.CompiledProperty).%OpenId(ref)
 		Do $$$AssertEquals($Select($IsObject(property): property.Parameters.GetAt("COLLATION"), 1: "(missing)"), "EXACT", ref_" compares with EXACT collation")
 	}
@@ -50,11 +51,11 @@ Method TestRegistry()
 	}
 }
 
-/// The Digest item is a stub until Story 17.6: it carries STUB and answers 5003 with no response.
-Method TestDigestStub()
+/// The Digest item is built (Story 17.6): it carries no STUB and refuses a request it does not handle with an ordinary error, not the stub's code 5003.
+Method TestDigestItem()
 {
 	Set class = "OcuTalon.Digest.Process"
-	Do $$$AssertEquals(+$Parameter(class, "STUB"), 1, class_" carries STUB")
+	Do $$$AssertEquals($Parameter(class, "STUB"), "", class_" carries no STUB")
 	Set host = ##class(Ens.Host).GetShadowInstance("class||"_class, .sc)
 	If '$IsObject(host) {
 		Do $$$AssertTrue(0, "a shadow instance is made: "_$SYSTEM.Status.GetErrorText(sc))
@@ -62,7 +63,8 @@ Method TestDigestStub()
 	}
 	Kill response
 	Set sc = host.OnRequest(##class(Ens.StringRequest).%New("x"), .response)
-	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "the Digest item answers code 5003")
+	Do $$$AssertStatusNotOK(sc, "the Digest item refuses a request it does not handle")
+	Do $$$AssertNotEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "and the error is not the stub's code 5003")
 	Do $$$AssertTrue('$IsObject($Get(response)), "and gives no response")
 }
 
@@ -107,12 +109,14 @@ XData Contracts [ MimeType = application/json ]
    "SentAt": "%String(MAXLEN=20)",
    "CatalogKey": "%String(MAXLEN=128)",
    "Slots": "%String(MAXLEN=)",
-   "AllClear": "%Boolean"
+   "AllClear": "%Boolean",
+   "IdempotencyKey": "%String(MAXLEN=128)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
    "SessionRefSentAtIndex": "SessionRef,SentAt",
-   "SessionRefDueAtIndex": "SessionRef,DueAt"
+   "SessionRefDueAtIndex": "SessionRef,DueAt",
+   "SessionRefKeyIndex": "SessionRef,IdempotencyKey"
   }
  }
 }

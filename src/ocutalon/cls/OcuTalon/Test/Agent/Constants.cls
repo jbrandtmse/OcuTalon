@@ -24,7 +24,7 @@ Method TestAgents()
 	Do $$$AssertTrue(($List(keys, 1) '= $List(keys, 2)) && ($List(keys, 1) '= $List(keys, 3)) && ($List(keys, 2) '= $List(keys, 3)), "the keys are distinct")
 }
 
-/// OcuTalon.Tools.Names holds 12 distinct snake_case values, and RELEASE1 lists exactly them, comma-separated.
+/// OcuTalon.Tools.Names holds 13 distinct snake_case values (12 of release 1 and, since Story 17.6, DIGESTTOOLS), and RELEASE1 lists exactly the 12 of release 1, comma-separated.
 Method TestToolNames()
 {
 	Set statement = ##class(%SQL.Statement).%New()
@@ -39,15 +39,17 @@ Method TestToolNames()
 		Do $$$AssertTrue('$ListFind(names, value), value_" is distinct")
 		Set names = names _ $ListBuild(value)
 	}
-	Do $$$AssertEquals(count, 12, "there are 12 tool names")
+	Do $$$AssertEquals(count, 13, "there are 13 tool names")
 	Set release = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1"))
 	Do $$$AssertEquals($ListLength(release), 12, "RELEASE1 lists 12 names")
+	Do $$$AssertEquals($ListFind(release, $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")), 0, "and send_digest of step 2 is not among them")
 	Set missing = ""
 	Set position = 0
 	While $ListNext(release, position, name) {
 		If '$ListFind(names, name) Set missing = missing _ " " _ name
 	}
 	Do $$$AssertEquals(missing, "", "every name in RELEASE1 is a parameter")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS"), "send_digest", "the digest tool is send_digest")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "CHECKSTATUS"), "check_status", "the status tool is check_status")
 }
 

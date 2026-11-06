@@ -22,7 +22,7 @@ Parameter NOW = "2026-10-16T18:20:00Z";
 Parameter ZONE = "America/New_York";
 
 /// The slot types that an entry may declare.
-Parameter SLOTTYPES = "time,count,noun,text,sentence,channel,fallbackReason,groups,cost";
+Parameter SLOTTYPES = "time,count,noun,text,sentence,channel,fallbackReason,groups,cost,dailyCost";
 
 /// The fields that an entry may have.
 Parameter ENTRYFIELDS = "text,web,slots,source,gap,one";
@@ -79,9 +79,10 @@ Method TestEntries()
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
 	Do $$$AssertEquals(keys.core.%Size(), 102, "the expected Core list has 102 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here and 152 in all.
-	Do $$$AssertEquals(keys.watch.%Size(), 50, "the expected Watch list has 50 keys")
+	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here and 156 in all.
+	Do $$$AssertEquals(keys.watch.%Size(), 54, "the expected Watch list has 54 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 102 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 50 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 54 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -119,7 +120,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 152 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 156 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -693,7 +694,7 @@ Method TestEverySlotIsValidated()
 				Do ..AssertRefused(where_" email", key, ..WithSlot(fixture.slots, name, "email"), "telegram", fragment, "email")
 			} ElseIf type = "fallbackReason" {
 				Do ..AssertRefused(where_" unknown", key, ..WithSlot(fixture.slots, name, "melted"), "telegram", fragment, "melted")
-			} ElseIf type = "cost" {
+			} ElseIf (type = "cost") || (type = "dailyCost") {
 				Do ..AssertRefused(where_" negative", key, ..WithSlot(fixture.slots, name, -1, "number"), "telegram", fragment)
 			} ElseIf type = "groups" {
 				Do ..AssertRefused(where_" empty", key, ..WithSlot(fixture.slots, name, []), "telegram", fragment)
@@ -1086,6 +1087,8 @@ XData Keys [ MimeType = application/json ]
   "watch.time",
   "button.approve",
   "button.reject",
+  "button.gotIt",
+  "handled.marked",
   "digest.greetingMorning",
   "digest.greetingAfternoon",
   "digest.greetingEvening",
@@ -1105,9 +1108,11 @@ XData Keys [ MimeType = application/json ]
   "digest.notCheckedSizeLimit",
   "digest.needsYouOne",
   "digest.needsYou",
+  "digest.needsYouMore",
   "digest.saved",
   "digest.savedNoSummary",
-  "digest.savedNone"
+  "digest.savedNone",
+  "digest.cost"
  ]
 }
 }
@@ -1243,6 +1248,7 @@ XData Reasons [ MimeType = application/json ]
 
 /// For every key: the slots (UJ-1 values) and the exact text on the message channels, and the web text where it differs.
 /// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.5): the row digest.notCheckedSizeLimit is Lane A's.
+/// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): the rows button.gotIt, handled.marked, digest.needsYouMore and digest.cost are Lane A's.
 XData Fixtures [ MimeType = application/json ]
 {
 {
@@ -1376,6 +1382,8 @@ XData Fixtures [ MimeType = application/json ]
  "watch.time": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET"},
  "button.approve": {"slots": {}, "text": "Approve"},
  "button.reject": {"slots": {}, "text": "Reject"},
+ "button.gotIt": {"slots": {}, "text": "Got it"},
+ "handled.marked": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "Marked as handled at 14:12 ET"},
  "digest.greetingMorning": {"slots": {}, "text": "Good morning."},
  "digest.greetingAfternoon": {"slots": {}, "text": "Good afternoon."},
  "digest.greetingEvening": {"slots": {}, "text": "Good evening."},
@@ -1395,9 +1403,11 @@ XData Fixtures [ MimeType = application/json ]
  "digest.notCheckedSizeLimit": {"slots": {"entry": "database space"}, "text": "Not checked: database space (OcuTalon can't read this database's size limit)."},
  "digest.needsYouOne": {"slots": {"what": "the Orders production has 50 failed orders"}, "text": "One thing needs you: the Orders production has 50 failed orders."},
  "digest.needsYou": {"slots": {"count": 2, "what": "the Orders production has 50 failed orders; the Billing source is unreachable"}, "text": "2 things need you: the Orders production has 50 failed orders; the Billing source is unreachable."},
+ "digest.needsYouMore": {"slots": {"n": 195}, "text": "And 195 more on the OcuTalon page."},
  "digest.saved": {"slots": {"count": 3, "summary": "Two newsletters and a shipping notice."}, "text": "Saved for later (3): Two newsletters and a shipping notice."},
  "digest.savedNoSummary": {"slots": {"count": 3, "fallbackReason": "timeout"}, "text": "Saved for later (3): I couldn't summarize them this time (the model didn't answer within 60 seconds). The most recent are under Recent decisions on your OcuTalon page."},
- "digest.savedNone": {"slots": {}, "text": "Nothing was saved for later."}
+ "digest.savedNone": {"slots": {}, "text": "Nothing was saved for later."},
+ "digest.cost": {"slots": {"cost": 0.042}, "text": "Yesterday's cost: $0.04."}
 }
 }
 

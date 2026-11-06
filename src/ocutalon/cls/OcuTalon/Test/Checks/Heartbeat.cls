@@ -145,6 +145,7 @@ Method TestDisabledItemIsReportedOnce()
 {
 	If '..Ready() Quit
 	Set session = ..Session("disabledreport")
+	Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.Session SET CreatedAt = ? WHERE Ref = ?", "2999-01-01T00:00:00Z", session)
 	Set name = "Orders "_..#MARKER
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(session, ..#ORDERS, ..#ORDERSPRODUCTION, {"DisplayName": (name), "AskedBy": "zzfixture", "CreatedAt": (##class(OcuTalon.Data.Time).NowUtc()), "NextDueAt": (..Ahead())})
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref

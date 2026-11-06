@@ -1,6 +1,8 @@
-/// One digest that was sent (AD-18, AD-30, AD-33): the per-session digest record. Lane A. The only writer is OcuTalon.Digest.Process, one row
+/// One digest that was sent (AD-1, AD-18, AD-30, AD-33): the per-session digest record. Lane A. The only writer is OcuTalon.Digest.Process, one row
 /// for each digest sent (Story 17.6); a session's last digest is its newest row. Its window starts at the newest SentAt, and the next scheduled
-/// digest is due after the newest scheduled row's DueAt. The rows are purged with the digest area's rows (AD-27). Row ids never leave the server.
+/// digest is due after the newest scheduled row's DueAt. A requested digest has an empty DueAt, so a lookup by DueAt filters on Kind. The
+/// IdempotencyKey is the key of the SendDigest command that asked for the digest, empty for a scheduled one: a repeat of the key sends nothing new.
+/// The rows are purged with the digest area's rows (AD-27). Row ids never leave the server.
 Class OcuTalon.Digest.Data.Sent Extends %Persistent
 {
 
@@ -40,11 +42,16 @@ Property Slots As %String(MAXLEN = "");
 /// 1 when the digest said everything passed.
 Property AllClear As %Boolean [ InitialExpression = 0 ];
 
+/// The IdempotencyKey of the SendDigest command behind the digest, empty for a scheduled one (AD-1).
+Property IdempotencyKey As %String(COLLATION = "EXACT", MAXLEN = 128);
+
 Index RefIndex On Ref [ Unique ];
 
 Index SessionRefSentAtIndex On (SessionRef, SentAt);
 
 Index SessionRefDueAtIndex On (SessionRef, DueAt);
+
+Index SessionRefKeyIndex On (SessionRef, IdempotencyKey);
 
 /// Deletes the digests sent before the cutoff: now in UTC moved back daysToKeep whole days (Bridge.Time.DaysCutoff). A digest sent at the cutoff
 /// stays, and so does each session's newest digest whatever its age, because its window starts there. daysToKeep must be a whole number of at
@@ -119,6 +126,9 @@ Storage Default
 </Value>
 <Value name="12">
 <Value>AllClear</Value>
+</Value>
+<Value name="13">
+<Value>IdempotencyKey</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.DigestSentD</DataLocation>

@@ -1,7 +1,10 @@
-/// Tests of the check thresholds and of the Digest installer step (Story 17.5; AD-19, AD-24): the five checks.thresholds.* settings are seeded with the
+/// Tests of the check thresholds and of the Digest installer step (Stories 17.5 and 17.6; AD-19, AD-24): the five checks.thresholds.* settings are seeded with the
 /// defaults of Checks.Coverage and agree with the section of Core.SettingsOps, an upgrade keeps a value an admin changed, Build uses an admin value once
 /// the 60-second cache has expired, and the step declares no grant. The settings are written the way Lane B writes them: Data.Setting Set is what
 /// SettingsOps calls; every value is put back.
+///   - TestDigestSeeds (Story 17.6): the step also seeds digest.time ("08:00"), the six seeds with the thresholds, and a value an admin changed is kept; the
+///     seed agrees with the default of Core.SettingsOps. It seeds no digest.channels row: the default lives in Core.SettingsOps, and the digest reads it when
+///     no value is saved;
 ///   - TestAddsSeeds: with the five rows removed, Run seeds each key with its default; the rows are put back after the test;
 ///   - TestUpgradeKeeps: a value saved before Run is the value after it;
 ///   - TestDefaultsAgree: Checks.Coverage THRESHOLDS equals the defaults, keys and bounds of the check-thresholds section of SettingsOps;
@@ -69,6 +72,45 @@ ClassMethod Default(key As %String) As %String
 		If ..#PREFIX_$Piece(pair, "=", 1) = key Quit
 	}
 	Quit pair
+}
+
+Method TestDigestSeeds()
+{
+	Set keys = $ListBuild("digest.time", "digest.channels")
+	Set was = ""
+	Set position = 0
+	While $ListNext(keys, position, key) {
+		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+		Set was = was_$ListBuild($ListBuild($IsObject(row), $Select($IsObject(row): row.Value, 1: "")))
+		If $IsObject(row) Do ##class(OcuTalon.Data.Setting).%DeleteId(row.%Id())
+		Kill ^||OcuTalon.Setting(key)
+	}
+	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Run"), "the step runs with no digest row")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexOpen("digest.time").Value, "08:00", "digest.time is 08:00")
+	Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.Setting).KeyIndexOpen("digest.channels")), 0, "the step seeds no digest.channels row")
+	Do $$$AssertEquals($ClassMethod("OcuTalon.Digest.Process", "Seeds").%ToJSON(), "{""digest.time"":""08:00""}", "the digest's seeds are digest.time alone")
+	Set section = ##class(OcuTalon.Core.SettingsOps).Section("daily-digest")
+	If $IsObject(section) {
+		Set iterator = section.fields.%GetIterator()
+		While iterator.%GetNext(, .field) {
+			If field.key = "digest.time" {
+				Do $$$AssertEquals($ClassMethod("OcuTalon.Digest.Process", "Seeds").%Get(field.key), field.default, field.key_": the seed is the section's default")
+			}
+			If field.key = "digest.channels" {
+				Do $$$AssertEquals($Parameter("OcuTalon.Digest.Process", "CHANNELSDEFAULT"), field.default, field.key_": the digest's default is the section's default")
+			}
+		}
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set("digest.time", "07:30"), "an admin saves 07:30")
+	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Run"), "the step runs again, as at an upgrade")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexOpen("digest.time").Value, "07:30", "the changed value is kept")
+	Set position = 0
+	Set n = 0
+	While $ListNext(keys, position, key) {
+		Set n = n + 1
+		If $List($List(was, n), 1) Do ##class(OcuTalon.Data.Setting).Set(key, $List($List(was, n), 2))
+		Kill ^||OcuTalon.Setting(key)
+	}
 }
 
 Method TestAddsSeeds()

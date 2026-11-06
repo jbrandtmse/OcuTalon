@@ -2,8 +2,9 @@
 /// changes, the watch tool's answers, the agent's no-commands answer, the checks' reserved sentences (AD-28), the incident
 /// notices and the results of a resend. Epic 0 created every release-1 and 0.1.1 key; after Epic 0, Lane A adds its keys here.
 /// The digest texts (Story 33.1; EXPERIENCE, Daily digest) are the keys under digest.: the three greetings, the vital signs, what was checked,
-/// the nothing-watched sentence, the coverage lines (passed, failed and the six not-checked reasons), what needs the person, and what was saved
-/// for later. digest.cost waits for the dailyCost slot type of the renderer (Story 33.2). The slot named itemNoun of digest.healthy is the
+/// the nothing-watched sentence, the coverage lines (passed, failed and the six not-checked reasons), what needs the person, what was saved
+/// for later, and the cost (digest.cost, whose slot is of the type dailyCost); digest.needsYouMore ends a needs-you list that is cut. button.gotIt and
+/// handled.marked are the Telegram Got it button and the line that a handled message ends with (UX-DR143). The slot named itemNoun of digest.healthy is the
 /// noun of the days, as the catalog test allows a noun under that name only.
 /// The XData block Entries has the shape that OcuTalon.Msg.Catalog.Core describes, and OcuTalon.Msg.Catalog is the only
 /// renderer. Each key prefix lives in one catalog class.
@@ -320,6 +321,18 @@ XData Entries [ MimeType = application/json ]
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Telegram / word-labeled buttons"
  },
+ "button.gotIt": {
+  "text": "Got it",
+  "slots": {},
+  "source": "UX-DR143"
+ },
+ "handled.marked": {
+  "text": "Marked as handled at {time}",
+  "slots": {
+   "time": "time"
+  },
+  "source": "UX-DR143"
+ },
  "digest.greetingMorning": {
   "text": "Good morning.",
   "slots": {},
@@ -460,6 +473,13 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "EXPERIENCE Message Catalog / Daily digest / Needs you, several things"
  },
+ "digest.needsYouMore": {
+  "text": "And {n} more on the OcuTalon page.",
+  "slots": {
+   "n": "count"
+  },
+  "source": "Contest Planner ruling 2026-11-06 (owner delegation): Daily digest / Needs you, overflow (Story 17.6, Q4 (b))"
+ },
  "digest.saved": {
   "text": "Saved for later ({count}): {summary}",
   "slots": {
@@ -480,6 +500,13 @@ XData Entries [ MimeType = application/json ]
   "text": "Nothing was saved for later.",
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Daily digest / Saved for later, nothing saved"
+ },
+ "digest.cost": {
+  "text": "Yesterday's cost: {cost}.",
+  "slots": {
+   "cost": "dailyCost"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Every digest (the cost)"
  }
 }
 }

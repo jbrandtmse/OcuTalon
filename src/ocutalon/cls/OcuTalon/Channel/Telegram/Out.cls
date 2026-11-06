@@ -1,13 +1,13 @@
-/// TelegramOut, the outbound operation of the Telegram channel (Stories 12.2, 12.6 and 12.7; AD-14, AD-19, AD-28, AD-32, UX-DR108, UX-DR136). It
+/// TelegramOut, the outbound operation of the Telegram channel (Stories 12.2, 12.6, 12.7 and 17.6; AD-14, AD-19, AD-28, AD-32, UX-DR108, UX-DR136, UX-DR143). It
 /// sends the text of an OcuTalon.Msg.Outbound or an OcuTalon.Msg.Notification to a chat through OcuTalon.Channel.Telegram.Api:
 ///   - the chat is the Pairing chat row of the message's ChatRef when it has one (every pairing notice), else the session's live pairing
 ///     (Ownership.Pairing of the SessionRef). An owner that is not a session is dropped with one warning. No chat sends nothing: one
 ///     warning that names neither a Ref nor an id, and the status is OK;
 ///   - an Outbound's text is its Text, else the catalog rendering of its CatalogKey for the channel telegram. When it has a CheckKey
 ///     whose sentence is not "", the text is followed by a blank line and the sentence (below). A Notification of the kinds tellnow,
-///     incident, approval, result, reminder, allowance and pairing is sent as the rendering of its CatalogKey; the kind answered is the
-///     edit in place (below); any other kind (status, digest, fallback) sends nothing and records no row. A render error is returned
-///     and nothing is sent;
+///     incident, approval, result, reminder, allowance and pairing is sent as the rendering of its CatalogKey; the kinds answered and
+///     handled are the edit in place (below); the kind digest is one plain-text message (below); any other kind (status, fallback) sends
+///     nothing and records no row. A render error is returned and nothing is sent;
 ///   - the check sentence mirrors web/src/app/shared/check-sentence.ts (AD-28): checks.allPassed, checks.everythingElsePassed and
 ///     checks.nothingWatched give the catalog text, and checks.notEverything and checks.notEverythingRestPassed are rendered with
 ///     whatFailed, built from the CheckRows (result, entry, finding, checkedAt): every row that did not pass and has an entry, the failed
@@ -23,6 +23,15 @@
 ///   - a message with a SessionRef, once every part is sent, records one Delivery row of channel telegram (Delivery.Record) whose
 ///     message id is "<ChatRef>:<message_id of the last part>" (just "<ChatRef>:" when that answer had no message_id). A message with
 ///     no SessionRef records none. A failed Record is one warning and the status stays OK, because the message is never sent again;
+///   - a digest (Story 17.6): a Notification of the kind digest is one plain-text message. Its Slots hold parts, lines and rows; every
+///     {key, slots} of the parts and of the lines is rendered through Catalog.Render for the channel telegram, and nothing else is
+///     added. The pieces go in this order, each on its own line, with no Markdown: the parts up to and including the checked part and its
+///     reserved sentence, one coverage line for each row of lines, and then the needs-you parts, the saved-for-later part and the cost. It
+///     records one Delivery row of the kind digest. A piece that cannot be rendered is an error and nothing is sent;
+///   - the Got it button (Story 17.6): a Notification of the kind tellnow that has a DecisionRef is sent with one inline button, the
+///     catalog key button.gotIt, whose callback data is "gotit:<DecisionRef>", in the reply_markup of its last part only. It is split like a
+///     message with the Approve and Reject buttons, and its Delivery row keeps the last part's text (redacted) and its DecisionRef, which
+///     the edit of a handled notice needs;
 ///   - buttons (AD-32): a Notification of the kind incident or approval whose ApprovalRef is not "" is sent with the inline buttons
 ///     "Approve" and "Reject" (the catalog keys button.approve and button.reject) in the reply_markup of its last part only, whose
 ///     callback data is "approve:<ApprovalRef>" and "reject:<ApprovalRef>". Such a message is split at BUTTONLIMIT units, so that the
@@ -38,7 +47,14 @@
 ///     answered with the same message id and ApprovalRef and the text "". A failed edit is one warning, the status stays OK and no
 ///     row is recorded. After the edit (or the failed edit) of a rejection from Telegram (answered.rejected or answered.rejectedBy, the slot channel
 ///     telegram, an IncidentRef) press.rejectedFollowUp goes to the same chat as a new message, whose row is of the kind answered with
-///     no ApprovalRef. A result is a new message like any other.
+///     no ApprovalRef. A result is a new message like any other;
+///   - the edit of a handled notice (Story 17.6): a Notification of the kind handled finds the session's newest telegram Delivery row of its
+///     DecisionRef (Delivery.FindByRef's row, Ownership.DeliveryByRef) and the time it was marked (Data.Handled Marked). With no row, no
+///     stored text, no message id or no marker, nothing is sent and there is one warning. When that row is of the kind handled, nothing is
+///     sent: the first edit stays. Otherwise editMessageText replaces the message in its own chat with the stored text, a blank line and the
+///     catalog text handled.marked with the time, and sends no reply_markup, which removes the button. The edit records a Delivery row of the
+///     kind handled with the same message id and DecisionRef and the text "". A failed edit is one warning, the status stays OK and no row
+///     is recorded.
 /// The token is never held here (AD-19), and no log text holds a chat id, a name or a message text.
 Class OcuTalon.Channel.Telegram.Out Extends OcuTalon.Channel.Operation
 {
@@ -74,11 +90,27 @@ Parameter LOGNOEDIT = "TelegramOut did not edit an answered request's message: n
 
 Parameter LOGEDIT = "TelegramOut could not edit a message: ";
 
+Parameter LOGNOHANDLED = "TelegramOut did not edit a handled notice's message: no stored message with its text, or no handled marker, was found.";
+
 /// The notification kinds that the chat gets (the kinds that the simulated phone shows, and allowance and pairing).
-Parameter KINDS = "tellnow,incident,approval,result,reminder,allowance,pairing";
+Parameter KINDS = "tellnow,incident,approval,result,reminder,allowance,pairing,digest,handled";
 
 /// The notification kinds whose message carries the Approve and Reject buttons when it has an approval Ref.
 Parameter BUTTONKINDS = "incident,approval";
+
+/// The notification kinds whose message carries the Got it button when it has a decision Ref, and the catalog key of the button.
+Parameter GOTITKINDS = "tellnow";
+
+Parameter GOTITKEY = "button.gotIt";
+
+/// The action in the callback data of the Got it button: "gotit:<DecisionRef>".
+Parameter GOTITACTION = "gotit";
+
+/// The catalog key of the text that replaces the button of a handled notice.
+Parameter HANDLEDKEY = "handled.marked";
+
+/// The catalog keys of the parts of a digest that follow the coverage lines: the needs-you parts, the saved-for-later parts and the cost.
+Parameter AFTERLINES = "digest.needsYou,digest.needsYouOne,digest.needsYouMore,digest.saved,digest.savedNone,digest.savedNoSummary,digest.cost";
 
 /// The most UTF-16 units of a message with buttons: the Bot API's 4,096 less a reserve, so that the edited text always fits.
 Parameter BUTTONLIMIT = 3840;
@@ -136,14 +168,22 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 {
 	Set response = ""
 	If request.Kind = "answered" Quit ..EditAnswered(request)
+	If request.Kind = "handled" Quit ..EditHandled(request)
 	If '$ListFind($ListFromString(..#KINDS), request.Kind) Quit $$$OK
 	Set sc = ..Target(request.ChatRef, request.SessionRef, .chatRef, .chatId)
 	If (chatId = "") || $SYSTEM.Status.IsError(sc) Quit sc
-	Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
+	If request.Kind = "digest" {
+		Set text = ..DigestText(request, .sc)
+	} Else {
+		Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
+	}
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	Set markup = ""
 	If $ListFind($ListFromString(..#BUTTONKINDS), request.Kind) && (request.ApprovalRef '= "") {
 		Set markup = ..Keyboard(request.ApprovalRef, .sc)
+		If $SYSTEM.Status.IsError(sc) Quit sc
+	} ElseIf $ListFind($ListFromString(..#GOTITKINDS), request.Kind) && (request.DecisionRef '= "") {
+		Set markup = ..GotItKeyboard(request.DecisionRef, .sc)
 		If $SYSTEM.Status.IsError(sc) Quit sc
 	}
 	Quit ..Deliver(request.SessionRef, chatRef, chatId, text, request.ApprovalRef, request.Kind, request.DecisionRef, markup)
@@ -158,6 +198,63 @@ Method Keyboard(approvalRef As %String, Output sc As %Status) As %DynamicObject 
 	Set reject = ##class(OcuTalon.Msg.Catalog).Render(..#REJECTKEY, "", ..#TEXTCHANNEL, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit ""
 	Quit {"inline_keyboard": [[{"text": (approve), "callback_data": ("approve:"_approvalRef)}, {"text": (reject), "callback_data": ("reject:"_approvalRef)}]]}
+}
+
+/// The inline keyboard of a tell-now notice: one row with the Got it button, whose callback data is the action and the notice's Ref (the Ref of its
+/// Decision, 22 random characters). The status is an error when the label cannot be rendered.
+Method GotItKeyboard(decisionRef As %String, Output sc As %Status) As %DynamicObject [ Private ]
+{
+	Set label = ##class(OcuTalon.Msg.Catalog).Render(..#GOTITKEY, "", ..#TEXTCHANNEL, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Quit {"inline_keyboard": [[{"text": (label), "callback_data": (..#GOTITACTION_":"_decisionRef)}]]}
+}
+
+/// The text of a digest (see the class comment): the rendering of every part and line, one on each line. The coverage lines go before the first part
+/// whose key is one of AFTERLINES, or at the end when there is none. The status is an error, and the text "", when the Slots cannot be read or a
+/// piece cannot be rendered.
+Method DigestText(request As OcuTalon.Msg.Notification, Output sc As %Status) As %String [ Private ]
+{
+	Set sc = $$$OK
+	Set text = ""
+	Try {
+		Set slots = ##class(%DynamicAbstractObject).%FromJSON(request.Slots)
+		If '$IsObject(slots) || (slots.%GetTypeOf("parts") '= "array") || (slots.%GetTypeOf("lines") '= "array") {
+			$$$ThrowStatus($SYSTEM.Status.Error(5001, "the digest's Slots have no parts or no lines"))
+		}
+		Set done = 0
+		Set iterator = slots.parts.%GetIterator()
+		While iterator.%GetNext(, .part) {
+			If 'done && $ListFind($ListFromString(..#AFTERLINES), part.key) {
+				Set text = text_..Pieces(slots.lines, text)
+				Set done = 1
+			}
+			Set text = text_$Select(text = "": "", 1: $Char(10))_..Piece(part)
+		}
+		If 'done Set text = text_..Pieces(slots.lines, text)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+		Set text = ""
+	}
+	Quit text
+}
+
+/// The renderings of the {key, slots} elements of an array, each on a line of its own, with a line break before the first when the text before it is not empty.
+Method Pieces(elements As %DynamicArray, before As %String) As %String [ Private ]
+{
+	Set text = ""
+	Set iterator = elements.%GetIterator()
+	While iterator.%GetNext(, .element) {
+		Set text = text_$Select((text = "") && (before = ""): "", 1: $Char(10))_..Piece(element)
+	}
+	Quit text
+}
+
+/// The catalog text of one {key, slots} element for the channel; a render error is thrown.
+Method Piece(element As %DynamicObject) As %String [ Private ]
+{
+	Set text = ##class(OcuTalon.Msg.Catalog).Render(element.key, element.slots, ..#TEXTCHANNEL, .sc)
+	If $SYSTEM.Status.IsError(sc) $$$ThrowStatus(sc)
+	Quit text
 }
 
 /// The chat of a message: the chat row of its ChatRef when it has one, else the live pairing of its SessionRef (an owner that is not a
@@ -240,6 +337,37 @@ Method EditAnswered(request As OcuTalon.Msg.Notification) As %Status [ Private ]
 	}
 	Do ..Recorded(request.SessionRef, row.ChannelMessageId, request.ApprovalRef, "answered", request.DecisionRef)
 	If ..FollowUp(request) Quit ..SendFollowUp(request.SessionRef, chatRef, chatId, request.DecisionRef)
+	Quit $$$OK
+}
+
+/// A handled notification: the notice's message is edited in place (see the class comment). The status is an error only when the catalog text cannot be
+/// rendered or the delivery rows cannot be read.
+Method EditHandled(request As OcuTalon.Msg.Notification) As %Status [ Private ]
+{
+	If '..IsSession(request.SessionRef) Quit $$$OK
+	Set row = ##class(OcuTalon.Data.Ownership).DeliveryByRef(request.DecisionRef, "telegram", request.SessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	If $IsObject(row) && (row.Kind = "handled") Quit $$$OK
+	Set chatRef = $Piece($Select($IsObject(row): row.ChannelMessageId, 1: ""), ":", 1)
+	Set messageId = $Piece($Select($IsObject(row): row.ChannelMessageId, 1: ""), ":", 2, *)
+	Set chat = $Select(chatRef '= "": ##class(OcuTalon.Data.Pairing).Chat(chatRef), 1: "")
+	Set marked = ##class(OcuTalon.Data.Handled).Marked(request.DecisionRef)
+	If '$IsObject(row) || (row.Text = "") || (messageId '? 1.N) || '$IsObject(chat) || (marked = "") {
+		$$$LOGWARNING(..#LOGNOHANDLED)
+		Quit $$$OK
+	}
+	Set status = ##class(OcuTalon.Msg.Catalog).Render(..#HANDLEDKEY, {"time": (marked)}, ..#TEXTCHANNEL, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Set params = {}
+	Do params.%Set("chat_id", chat.ChatId, "number")
+	Do params.%Set("message_id", messageId, "number")
+	Do params.%Set("text", row.Text_$Char(10, 10)_status, "string")
+	Set sc = ..Post("editMessageText", params, .answer)
+	If $SYSTEM.Status.IsError(sc) {
+		$$$LOGWARNING(..#LOGEDIT_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+		Quit $$$OK
+	}
+	Do ..Recorded(request.SessionRef, row.ChannelMessageId, "", "handled", request.DecisionRef)
 	Quit $$$OK
 }
 

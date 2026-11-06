@@ -57,7 +57,7 @@ XData ProductionDefinition
   <Item Name="FixExecutor" ClassName="OcuTalon.Fix.Executor" PoolSize="2" Enabled="true"/>
   <Item Name="Checks" ClassName="OcuTalon.Checks.Process" PoolSize="1" Enabled="true"/>
   <Item Name="DigestStore" ClassName="OcuTalon.Digest.Store" PoolSize="1" Enabled="true"/>
-  <Item Name="Digest" ClassName="OcuTalon.Digest.Process" PoolSize="1" Enabled="false"/>
+  <Item Name="Digest" ClassName="OcuTalon.Digest.Process" PoolSize="1" Enabled="true"/>
   <Item Name="ReconcileIn" ClassName="OcuTalon.Install.ReconcileIn" PoolSize="1" Enabled="true">
     <Setting Target="Adapter" Name="CallInterval">5</Setting>
   </Item>

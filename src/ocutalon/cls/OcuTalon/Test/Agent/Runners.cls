@@ -40,9 +40,9 @@
 /// OnAfterOneTest puts back the rows, the keys and the items that a test changed, also when it failed.
 /// Added by Story 1.8 (AD-6): the turn that TestRequestsUnderTheModelRules sends to ChatAgent is linked to a conversation, so it saves an AI session
 /// and a link, which OnAfterOneTest deletes (RunnerFixture.DropSince).
-/// Added by Story 5.1 (AD-7, AD-18): Chat also has the toolset OcuTalon.Tools.Watching, so its requests offer the six names of REMINDERTOOLS (seven since Story 5.9: dismiss_incident, eight since Story 5.7: check_status, nine since Story 5.13: recent_activity), its system
+/// Added by Story 5.1 (AD-7, AD-18): Chat also has the toolset OcuTalon.Tools.Watching, so its requests offer the six names of REMINDERTOOLS (seven since Story 5.9: dismiss_incident, eight since Story 5.7: check_status, nine since Story 5.13: recent_activity, ten since Story 17.6: send_digest), its system
 /// prompt (which now holds the watch sentences) reaches min_tokens_for_cache, so AssertRequests expects Chat's system block marked (systemMarked 1), and
-/// TestToolInventory takes the provider of each tool: ReminderTools for the reminder tools, WatchTools for start_watch, stop_watch, list_productions, dismiss_incident and check_status, and RecentActivity for recent_activity (Story 5.13).
+/// TestToolInventory takes the provider of each tool: ReminderTools for the reminder tools, WatchTools for start_watch, stop_watch, list_productions, dismiss_incident and check_status, RecentActivity for recent_activity (Story 5.13) and DigestTools for send_digest (Story 17.6).
 /// Added by Story 5.4 (AD-6, AD-7): Diagnosis's instructions now describe the evidence pack and the reply object, so its system prompt reaches min_tokens_for_cache
 /// and AssertRequests expects Diagnosis's system block marked (systemMarked 1), as Chat's is; its tools take no argument and the final text is the
 /// DiagnosisPayload object of diagnosis.json.
@@ -73,8 +73,8 @@ Parameter MODEL = "claude-haiku-5-5";
 /// The tools of the Diagnosis agent, sorted: the three read-only watch tools (AD-7).
 Parameter WATCHTOOLS = "read_event_log,read_failed_messages,read_item_settings";
 
-/// The tools of the Chat agent, sorted: the three reminder tools and, since Story 5.1, the watching tools (AD-7, AD-18), and since Stories 5.9, 5.7 and 5.13 dismiss_incident, check_status and recent_activity among them.
-Parameter REMINDERTOOLS = "cancel_reminder,check_status,dismiss_incident,list_productions,list_reminders,recent_activity,set_reminder,start_watch,stop_watch";
+/// The tools of the Chat agent, sorted: the three reminder tools and, since Story 5.1, the watching tools (AD-7, AD-18), and since Stories 5.9, 5.7, 5.13 and 17.6 dismiss_incident, check_status, recent_activity and send_digest among them.
+Parameter REMINDERTOOLS = "cancel_reminder,check_status,dismiss_incident,list_productions,list_reminders,recent_activity,send_digest,set_reminder,start_watch,stop_watch";
 
 /// The longest to wait for a refusal to show in the event log and in the jobs, in seconds. A ceiling, not a delay (the wait polls
 /// once a second), and as long as RunnerFixture's wait for the items to run.
@@ -314,7 +314,7 @@ Method TestRequestsUnderTheModelRules()
 }
 
 /// Every tool that a running runner holds is an OcuTalon tool of source iris whose code is clean, and every runner of INVENTORYRUNNERS holds exactly
-/// the tools of its agent (a retry runner those of its first runner): none for Triage, the three reminder tools and the five watching tools (each a method of Tools.WatchTools) for Chat, the
+/// the tools of its agent (a retry runner those of its first runner): none for Triage, the three reminder tools, the five watching tools (each a method of Tools.WatchTools) and send_digest (Tools.DigestTools) for Chat, the
 /// three read-only watch tools for Diagnosis. No AI Hub shell, filesystem,
 /// SQL or web-search tool is registered.
 Method TestToolInventory()
@@ -322,7 +322,7 @@ Method TestToolInventory()
 	If '..Ready() Quit
 	If '..Point(..#INVENTORYRUNNERS) Quit
 	Set watch = $ListBuild(##class(OcuTalon.Tools.Names).#READEVENTLOG, ##class(OcuTalon.Tools.Names).#READFAILEDMESSAGES, ##class(OcuTalon.Tools.Names).#READITEMSETTINGS)
-	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY)
+	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY, ##class(OcuTalon.Tools.Names).#DIGESTTOOLS)
 	Set expected("TriageAgent") = ""
 	Set expected("DiagnosisAgent") = watch
 	Set expected("ChatAgent") = reminders
@@ -335,6 +335,7 @@ Method TestToolInventory()
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT) = "OcuTalon.Tools.WatchTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#CHECKSTATUS) = "OcuTalon.Tools.WatchTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#RECENTACTIVITY) = "OcuTalon.Tools.RecentActivity"
+	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#DIGESTTOOLS) = "OcuTalon.Tools.DigestTools"
 	For first = "TriageAgent", "DiagnosisAgent", "ChatAgent" {
 		Set expected(first_"Retry") = expected(first)
 		Set provider(first_"Retry") = provider(first)

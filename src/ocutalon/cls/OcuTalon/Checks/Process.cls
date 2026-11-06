@@ -67,6 +67,9 @@ Parameter MANAGER = "IncidentManager";
 /// The configuration item that takes the findings as items (AD-14).
 Parameter INTAKE = "Intake";
 
+/// The configuration item that gets the Tick after the checks of the tick, so that it can send the digest that is due (AD-18).
+Parameter DIGEST = "Digest";
+
 /// The origin of a command from the heartbeat.
 Parameter TIMER = "timer";
 
@@ -182,6 +185,12 @@ Method Tick(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 		}
 	} Catch exception {
 		$$$LOGWARNING(..#LOGDUE_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	Try {
+		Set sc = ..SendRequestAsync(..#DIGEST, tick, 0)
+		If $$$ISERR(sc) $$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	} Catch exception {
+		$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
 	Quit $$$OK
 }

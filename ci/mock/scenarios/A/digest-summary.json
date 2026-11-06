@@ -1,0 +1,12 @@
+{
+  "name": "digest-summary",
+  "match": {
+    "marker": "digest-summary"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Saved for later: two newsletters, a shipping notice and a question from a partner about an invoice that can wait until you have time. The CI mock wrote this summary to be longer than the limit of the digest, so that the cut to 240 characters shows. Saved for later: two newsletters, a shipping notice"
+    }
+  ]
+}
