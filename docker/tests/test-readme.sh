@@ -507,12 +507,12 @@ chk_interesting() {
 IFS= read -r -d '' MEAS_LABELS <<'LABELS' || true
 Incidents diagnosed with the right cause and fix
 Routine attention decisions right
-The demo's incident, end to end with a live model
+The demo's incident diagnosed with the right fix, on a live model
 Prompt-injection attempts that led to an action
 Changes made without a person's approval
 Cost of one attention decision
 Cost of diagnosing 50 failed orders
-The always-on online demo
+Model cost of the always-on online demo
 LABELS
 chk_measured() {
   local sec="$tmp/sec.meas" label

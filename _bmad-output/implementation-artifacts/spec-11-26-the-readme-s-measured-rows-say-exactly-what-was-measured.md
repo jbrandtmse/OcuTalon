@@ -2,7 +2,8 @@
 title: "Story 11.26: The README's Measured rows say exactly what was measured"
 type: 'bugfix'
 created: '2026-11-06'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ed048b5b1884f76120945fa5c96c98ad0e20667c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -46,9 +47,9 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `README.md` -- verify the base sha256, replace lines 34 and 39 with the ruled rows -- DW-775 (Planner ruling (a)) -- AC1, AC3
-- [ ] `docker/tests/test-readme.sh` -- verify the base sha256, replace heredoc lines 510 and 515 in place with the two new labels -- DW-775 -- AC2, AC3
-- [ ] This spec -- record Verification results and one `mutation:` line per AC.
+- [x] `README.md` -- verify the base sha256, replace lines 34 and 39 with the ruled rows -- DW-775 (Planner ruling (a)) -- AC1, AC3
+- [x] `docker/tests/test-readme.sh` -- verify the base sha256, replace heredoc lines 510 and 515 in place with the two new labels -- DW-775 -- AC2, AC3
+- [x] This spec -- record Verification results and one `mutation:` line per AC.
 
 **Acceptance Criteria:**
 - AC1 (the rows, DW-775). Given README.md, when read, then `## Measured` has the rows `| The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs |` and `| Model cost of the always-on online demo | about 9 to 10 cents a day |` at lines 34 and 39, and neither old label appears anywhere in the repository outside `_bmad-output`.
@@ -59,6 +60,17 @@ deferred: []
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-11-06 - Review pass
+- verdicts: 7 findings - high 0, medium 0, low 0, false 7, maybe-false 0
+- findings:
+  - `[false]` `[reject]` (blind-hunter) The spec still shows unchecked tasks, a stale Auto Run Result and no recorded verification results -- those are the finalize step's own writes, made after the layers report; the final spec carries them.
+  - `[false]` `[reject]` (blind-hunter) baseline_revision `ed048b5b` differs from the commit cited in Design Notes and the base sha256s are not shown as checked -- `ed048b5b` is HEAD at dispatch, and both base sha256s were verified against it before editing (Verification results below); the plan-time commit was only the measurement copy.
+  - `[false]` `[reject]` (edge-case-hunter) Spec checkboxes unchecked, no `mutation:` lines, stale Auto Run Result -- same as the first row: written at finalize.
+  - `[false]` `[reject]` (verification-gap) No `mutation:` line for AC1-AC4 -- the four mutations were demonstrated after the layers reported and are recorded under Verification.
+  - `[false]` `[reject]` (verification-gap, other) `rule_measured` does not pin the result cells -- existing design, outside this story (the intent keeps every number and result cell unchanged and pins nothing new).
+  - `[false]` `[reject]` (intent-alignment) The tests check that README and heredoc agree, not that the labels are true to their sources -- descriptive; the truth of the labels is the Planner's ruling, taken word for word as the intent requires.
+  - `[false]` `[reject]` (intent-alignment) The README lead-in and the old wording in `_bmad-output` are untouched -- the intent's Never list excludes both.
 
 ## Design Notes
 
@@ -90,9 +102,33 @@ All commands run from the worktree root after `git rev-parse --show-toplevel` ma
 - Shared surfaces: the `measured` rule's label list (`MEAS_LABELS` in `docker/tests/test-readme.sh`) and the `rule_measured` self-tests derived from it (`st_facts`). Every test added or changed passes on a fresh environment, in either order (`test-readme.sh` is hermetic and reads only tracked files; a clean checkout is the fresh environment).
 - Mutations to demonstrate (observe red, restore byte-identical, write each as a `mutation:` line here): AC1 README line 34 reverted to the old label -> `FAIL measured`; AC2 `test-readme.sh` lines 510 and 515 reverted with the new README -> `FAIL measured` naming both old labels; AC3 one byte appended to README line 3 -> the README sha256 differs and numstat shows `3 3 README.md`; AC4 ` (Ens.Director)` inserted after "It works from real failures" in the first Measured bullet -> `FAIL dev-only` in `test-readme.sh` and `FAIL static` in `test-release-notes.sh` (observed at plan).
 
+**Verification results (2026-11-06, worktree HEAD ed048b5b1884f76120945fa5c96c98ad0e20667c).**
+- Base sha256s before editing matched Boundaries. After: README.md `d3ac6933...a941`, test-readme.sh `f4d6876b...1fa0d`, both equal to AC3; `git diff --numstat` outside `_bmad-output`: `2 2 README.md`, `2 2 docker/tests/test-readme.sh`; the old-label `git grep` printed nothing (exit 1).
+- `bash docker/tests/test-readme.sh`: `PASS top`, `PASS measured`, `test-readme: all rules passed`; `/bin/bash` (3.2): `test-readme: all rules passed`.
+- `test-release-notes.sh` (`static` included), `test-boundaries.sh`, `test-cpf.sh`, `test-bridge-guide.sh`: all passed, exit 0.
+
+**Mutations (Rule 19).** After each, the tree was restored byte-identical (`git status --short` and `git diff --stat` unchanged; sha256s as AC3).
+- mutation: AC1 README.md line 34 reverted to the old label -> `FAIL measured` in `test-readme.sh`.
+- mutation: AC2 `test-readme.sh` lines 510 and 515 reverted to the old labels (new README kept) -> `FAIL measured`, naming both old labels ("has no table row").
+- mutation: AC3 one space appended to README.md line 3 -> README sha256 `6ba8a750...` differs from AC3 and numstat shows `3 3 README.md`.
+- mutation: AC4 ` (Ens.Director)` inserted after "It works from real failures" in the Measured section's bullet (README line 43) -> `FAIL dev-only` in `test-readme.sh` and `FAIL static` in `test-release-notes.sh`.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). The spec meets the READY FOR DEVELOPMENT standard; nothing is implemented and nothing is committed.
+Summary: README.md lines 34 and 39 and `docker/tests/test-readme.sh` heredoc lines 510 and 515 now carry the Planner's two ruled labels word for word (plain ASCII); nothing else changed.
+
+Files changed:
+- `README.md` -- the two `## Measured` row labels (lines 34, 39); result cells unchanged.
+- `docker/tests/test-readme.sh` -- the matching two `MEAS_LABELS` heredoc lines (510, 515), edited in place.
+- This spec -- status, baseline, tasks, Verification results, mutations, triage log.
+
+Review: four layers (blind-hunter, edge-case-hunter, verification-gap, intent-alignment) reported 7 findings, all rejected as `false` (the spec bookkeeping they flagged is written at finalize; the others restate existing design or the intent's own exclusions). Patches applied: 0. Deferred: 0.
+
+Follow-up review recommended: false (no patch applied).
+
+Verification: see Verification results above; every Verification command passed and the four mutations went red as expected.
+
+Residual risks: none beyond the existing design that `rule_measured` pins the labels, not the result cells.
