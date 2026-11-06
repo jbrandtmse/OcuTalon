@@ -184,6 +184,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; `irislib/` is the IRIS reference e
   - `Test/Digest/Purge.cls`;
   - `Test/Watch/Vitals.cls` (throwaway): real reads of the five signs; OcuTalon's databases read with `maxBlocks` 0 and a volume share; a database the test creates with `$$CreateDatabase^%SYS.DATABASE` and a 50 MB maximum in a temporary folder reads `maxBlocks` > 0, and is removed with `DeleteDatabase` and its folder; errored and queue reads on Orders.
 
+- [ ] Ruled public text and key (Contest Planner, 2026-11-06; Design Notes "Ruled text" and "Digest line"): `Checks.Coverage` parameter `REASONSIZELIMIT` = `OcuTalon can't read this database's size limit`; new key `digest.notCheckedSizeLimit` in `Msg/Catalog/Watch.cls`, text `Not checked: {entry} (OcuTalon can't read this database's size limit).`; `Build` gives it to the capped-database row; Lane B `Test/Msg/Catalog.cls` gets the key's fixture row and the count 152 with a U-177 marker (the one-time exception; nothing else in Lane B); any web catalog test the key trips is fixed. A fixed-strings test pins both texts byte for byte (the parameter, and the key rendered for `database space`), with the mutation shown.
+
 **Acceptance Criteria:**
 - Given a session with a watched production and healthy fixtures, when `Build` runs for its window, then `rows` holds the five vital rows, the watch row and no source row; `lines` matches them one to one; and `vitals.figures` are whole numbers.
 - Given a fresh install and an upgrade with an admin-changed `licenseUsePercent`, when the installer runs, then the five keys exist with their defaults on the fresh install and the changed value is kept on the upgrade.
@@ -193,6 +195,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; `irislib/` is the IRIS reference e
 - Given `CheckRun` and `Sent` rows 61 and 59 days old, when the OcuTalon purge task runs with `DaysToKeep` 60, then the 61-day rows are gone (except a session's newest `Sent`) and the 59-day rows remain (DW-646).
 
 ## Spec Change Log
+
+- 2026-11-06 lead: Planner ruling (a) applied: new key `digest.notCheckedSizeLimit` for the capped-database row, one-time U-177 exception for the `Test.Msg.Catalog` fixture row and count (152) only; any web catalog test the key trips is fixed.
 
 - 2026-11-06 lead: the capped-database reason text ruled by the Contest Planner (owner's delegation): "OcuTalon can't read this database's size limit", pinned by a fixed-strings test; the digest line's key is with the orchestrator (U-177).
 
@@ -221,7 +225,7 @@ Everything else in the contract stands.
 | Database case | Expected `database space` row |
 |---|---|
 | all without a maximum, lowest volume 40% free | `passed`; `databasesFull` 60 |
-| one with a 50 MB maximum, volume 40% free | `not_checked`, `notCheckedError`, finding `REASONSIZELIMIT`; `databasesFull` "" |
+| one with a 50 MB maximum, volume 40% free | `not_checked`, `notCheckedSizeLimit` (ruled 2026-11-06), finding `REASONSIZELIMIT`; `databasesFull` "" |
 | one with a maximum, its volume 8% free | `failed`, `{name} 8% free` |
 | one read error, another with a maximum | `not_checked`, finding `Couldn't be read` |
 
@@ -230,10 +234,12 @@ Everything else in the contract stands.
 > OcuTalon can't read this database's size limit
 
 - Pin it with a fixed-strings test: the parameter's value equals that text byte for byte (ASCII apostrophes, no trailing period), with the mutation shown.
-- The ruling's example digest line is "Not checked: database space (OcuTalon can't read this database's size limit)". How the digest line is produced (a new catalog key, which the Lane B `Test.Msg.Catalog` 151-key fixture pin would refuse, or the existing `digest.notCheckedError`) is with the orchestrator (U-177); see the cycle log. Until ruled, the bullets below stand as written.
+- **Digest line (Contest Planner ruling under the owner's delegation, 2026-11-06 ~04:40Z, option (a); binding).** A new catalog key `digest.notCheckedSizeLimit` in `Msg/Catalog/Watch.cls`, text exactly `Not checked: {entry} (OcuTalon can't read this database's size limit).` (trailing period included), one slot `entry` (`text`), `source` an ASCII line citing this ruling (e.g. `Contest Planner ruling 2026-11-06 (owner delegation): Daily digest / Coverage line, not checked: capped database`). `Coverage.Build` gives the capped-database `database space` row (rule 3 below) this key instead of `digest.notCheckedError`; the row's reason stays `error` and its finding stays `REASONSIZELIMIT`. Rendered for `database space` it reads `Not checked: database space (OcuTalon can't read this database's size limit).`
+- **One-time U-177 exception (this ruling), scoped to the catalog-count test only:** add the key's fixture row to Lane B's `Test/Msg/Catalog.cls` (`Fixtures`), raise the asserted count from 151 to 152, and put a U-177 marker comment beside the change citing this ruling (Contest Planner, 2026-11-06). Fix any web catalog test the new key trips (the page's generated catalog module reads `Watch.cls`). Nothing else in Lane B: any other Lane B edit is `## Clarification Needed`. Story 17.6's `digest.cost` takes the count to 153 under the same ruling.
+- Any text in this spec that names `digest.notCheckedError` for the capped case is superseded by this ruling; the other not-checked cases keep their keys.
 
 - It follows release 1's `No read access to its namespace`.
-- The row's digest line is the existing `digest.notCheckedError` ("Not checked: database space (the check stopped with an error at {time})."), because the catalog's not-checked lines carry no finding and the contract keeps reason `error` for an unreadable vital and forbids new keys. The alternative is `notCheckedUnreachable` ("unreachable since {time}"); the Planner may choose it.
+- [SUPERSEDED 2026-11-06 by the Planner's ruling (a): the capped row uses `digest.notCheckedSizeLimit`.] The row's digest line is the existing `digest.notCheckedError` ("Not checked: database space (the check stopped with an error at {time})."), because the catalog's not-checked lines carry no finding and the contract keeps reason `error` for an unreadable vital and forbids new keys. The alternative is `notCheckedUnreachable` ("unreachable since {time}"); the Planner may choose it.
 
 **Measured (plan stage, 2026-11-05, lane-A warm throwaway `e17s5pw` with OcuTalon installed, build 154; torn down).** A process logged in as a throwaway user holding only `OcuTalonServiceRole` (plus `%DB_USER` and `%Service_Terminal`, so that the session could run):
 - `$SYSTEM.Security.Check("%Admin_Operate","USE")` 0, and `CheckUserPermission("OcuTalonService","%Admin_Operate","U")` 0.

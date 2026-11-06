@@ -4051,6 +4051,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: spec-33-2 L1; Test.Msg.Catalog refuses the prefix in Catalog.Core
 - 2026-11-04T12:08:42Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=orchestrator note=veto ; bullet goes on Story 17.6 at Epic 33's merge
 - 2026-11-04T12:09:11Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=orchestrator note=inbox=U-271 (the first line's blank veto id)
+- 2026-11-06T04:41:05Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=owner note=planner_ruling_2026-11-06~04:40Z(owner_delegation):one-time_U-177_exception_for_17.6:add_digest.cost_fixture_row_to_Lane_B_Test.Msg.Catalog,count_152->153,U-177_marker_citing_the_ruling,fix_any_web_catalog_test_it_trips,nothing_else_in_Lane_B;digest.cost_text_goes_to_the_Planner_as_PUBLIC_TEXT_before_17.6_commits
 
 ### DW-663: flake candidate: live:online-demo web/e2e-online/busy.spec.ts:83 B1: the demoBusy banner stayed past 15 s after a place was free
 - source: CI run 41824429030 attempt 1, iris (install-fresh), OCT-epic33 b1f187da | severity: low | fix-risk: low | footprint: out-of-footprint
