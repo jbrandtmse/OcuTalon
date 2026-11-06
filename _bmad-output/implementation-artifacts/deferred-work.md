@@ -4518,6 +4518,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: notes-areas.txt maps 'epic 11 developer' and overrides only 11.2 and 11.8; 11.23 is judge-facing (install). release/ is outside 11.23's footprint (spec Never).
 - 2026-11-05T18:32:17Z status=wontfix-accepted owner=11-23-install-sh-accepts-build-109 by=cr note=draft notes are reviewed at the cut; reopen_if=the cut notes for the release shipping 11.23 list it under admins and developers
 
+### DW-759: release/checklist.sh CK_REGISTRY_TEXT (about line 463) says the README's two commands ran against the registry; once Story 11.24 lands, the README's IPM section gives an IPM load line and two enable commands before its two install commands, so the item undercounts what the registry check must run
+- source: spec-11-24-the-readme-s-ipm-install-works-literally-on-a-fresh-build-15.md | severity: med | fix-risk: low | footprint: out
+- evidence: release/checklist.sh:463 CK_REGISTRY_TEXT 'the README's two commands' vs README Install it with IPM (11.24: load line, enable -map -ns USER, enable -community, then two installs)
+- 2026-11-05T20:48:42Z status=routed owner=burndown by=spec_gate note=plan D9; release/ left alone in this run (dispatch ruling); a one-phrase change, e.g. 'the README's IPM commands'
+
+### DW-760: docs/install-ipm.md says the map step and enable -community 'give the same result when USER already had IPM'; measured only for USER mapped from %SYS (case 2), not for an IPM installed in USER itself, where the map may be skipped as for HSLIB and USER's repositories left unmapped (unverified)
+- source: spec-11-24-the-readme-s-ipm-install-works-literally-on-a-fresh-build-15.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Runs 1-3 and Task 0 cover no IPM and USER-mapped-from-%SYS only; the guide's own enable -community sample prints 'Skipping IPM mapping of HSLIB - IPM already installed'; the sentence is Planner-approved public text
+- 2026-11-05T21:41:21Z status=escalated owner=burndown by=cr note=approved public text; settle by a run with IPM installed in USER, or narrow the sentence to 'mapped from %SYS' (Planner)
+- 2026-11-05T22:14:38Z status=resolved-by:11-24-the-readme-s-ipm-install-works-literally-on-a-fresh-build-15 by=adjudication note=the_Planner_approved_the_replacement_sentence(owner_decision_11.24_DW-760_PUBLIC_TEXT);fix_cf3c0123;pinned_IPM_USER_SENTENCE+negative_check_for_the_old_sentence;Run_4_literal_evidence(IPM_in_USER:%SYS_blocks_skip_USER_repos,USER_enable_-community,Activate_SUCCESS,200);re-review_confirmed
 ### DW-764: flake candidate: demo-switch view.spec.ts:260 V5 '1024px: nothing scrolls across' failed once on feature b55cca7d, green on an unchanged rerun
 - source: feature b55cca7d run 42112148266 iris (shards-3) job 127542186198 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the delta since the last demo-switch run on feature (8345cfca, passed) touches no header or layout; each merged change passed demo-switch on its own branch; attempt 2 green
