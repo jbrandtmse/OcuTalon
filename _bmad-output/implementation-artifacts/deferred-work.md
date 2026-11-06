@@ -4604,3 +4604,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic34@689b6632 run 42147189710 iris (production) job 127661412656 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: an IRIS-internal race: a job's status node vanished while Ens.Job enumerated it during the restart (restart 2 took 147 s); every reminder check passed; Epic 34 touches no job or start code
 - 2026-11-06T02:28:05Z status=routed owner=burndown by=orchestrator note=failed job rerun once; if it recurs, the event-log check could ignore this one system-class race or wait for a steady production before sampling (like DW-692)
+
+### DW-780: A saved heartbeat interval, hours or on/off change does not move Checks.Beat's stored NextDueAt, so a shorter interval applies only after the next beat although Saved says Applies within a minute
+- source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Checks/Beat.cls:426 RunDue tests the stored NextDueAt; a beat sets it to tick plus one interval; SaveHeartbeat writes only the five person keys
+- 2026-11-06T09:01:42Z status=routed owner=burndown by=harvest note=Lane A fix in Checks.Beat (recompute the due time from LastBeatAt and the current interval at the tick); no remaining Epic 39 story touches Checks; burn-down gate
+
+### DW-781: On the online demo GET shows the unsaved sample checklist, but POST /v1/heartbeat/run answers 409 empty for it
+- source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Core/SettingsOps.cls Heartbeat returns SampleChecklist with sample true and writes no key; Checks reads the stored checklist only
+- 2026-11-06T09:01:42Z status=routed owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=harvest note=39.5's card decides: save the sample before offering Run now, or keep Run unavailable until a save (within EXPERIENCE's texts)

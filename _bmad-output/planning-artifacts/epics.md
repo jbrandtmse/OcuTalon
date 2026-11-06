@@ -8681,6 +8681,7 @@ So that the heartbeat is easy to trust and to try.
 **Then** they cover the states above, the refusal, the cooldown and the demo variant, and they don't change the demo-path specs (REL-2)
 
 - DW-634: the UX lists no text for the run button while it is unavailable (cap reached or no key); reuse an accepted text or escalate (ledger; routed by harvest 2026-11-03)
+- DW-781: on the online demo GET shows the unsaved sample checklist, but POST /v1/heartbeat/run answers 409 empty for it; the card saves the sample before offering Run now, or keeps Run unavailable until a save (ledger; routed by harvest 2026-11-06)
 
 ### Story 39.6: Evaluation cases for the heartbeat
 
