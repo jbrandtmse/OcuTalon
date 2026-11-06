@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 102 keys of OcuTalon.Msg.Catalog.Core and the 49 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 102 keys of OcuTalon.Msg.Catalog.Core and the 50 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 11 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -78,9 +78,10 @@ Method TestEntries()
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
 	Do $$$AssertEquals(keys.core.%Size(), 102, "the expected Core list has 102 keys")
-	Do $$$AssertEquals(keys.watch.%Size(), 49, "the expected Watch list has 49 keys")
+	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here and 152 in all.
+	Do $$$AssertEquals(keys.watch.%Size(), 50, "the expected Watch list has 50 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 102 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 49 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 50 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -118,7 +119,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 151 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 152 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -1101,6 +1102,7 @@ XData Keys [ MimeType = application/json ]
   "digest.notCheckedMissed",
   "digest.notCheckedPaused",
   "digest.notCheckedStale",
+  "digest.notCheckedSizeLimit",
   "digest.needsYouOne",
   "digest.needsYou",
   "digest.saved",
@@ -1389,6 +1391,7 @@ XData Fixtures [ MimeType = application/json ]
  "digest.notCheckedMissed": {"slots": {"entry": "the Orders production", "from": "2026-10-16T18:00:00Z", "to": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (the check didn't run between 14:00 ET and 14:12 ET)."},
  "digest.notCheckedPaused": {"slots": {"entry": "the Orders production", "from": "2026-10-16T18:00:00Z", "to": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (background checks were paused between 14:00 ET and 14:12 ET)."},
  "digest.notCheckedStale": {"slots": {"entry": "the Orders production", "time": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (its last check was at 14:12 ET, too long ago to count)."},
+ "digest.notCheckedSizeLimit": {"slots": {"entry": "database space"}, "text": "Not checked: database space (OcuTalon can't read this database's size limit)."},
  "digest.needsYouOne": {"slots": {"what": "the Orders production has 50 failed orders"}, "text": "One thing needs you: the Orders production has 50 failed orders."},
  "digest.needsYou": {"slots": {"count": 2, "what": "the Orders production has 50 failed orders; the Billing source is unreachable"}, "text": "2 things need you: the Orders production has 50 failed orders; the Billing source is unreachable."},
  "digest.saved": {"slots": {"count": 3, "summary": "Two newsletters and a shipping notice."}, "text": "Saved for later (3): Two newsletters and a shipping notice."},

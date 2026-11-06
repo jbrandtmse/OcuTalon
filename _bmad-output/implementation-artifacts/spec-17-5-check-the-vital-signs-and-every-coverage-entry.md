@@ -2,13 +2,21 @@
 title: 'Story 17.5: Check the vital signs and every coverage entry'
 type: 'feature'
 created: '2026-11-05'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '3ca08da1cd5e450025d95923149293618e157e3f'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The two sample install logs in docs/install-ipm.md have no `STEP Digest OK` line after `STEP Demo OK`.
+    evidence: |-
+      Story 17.5 adds the Digest step to Registry.Order(); the docs file is Epic 11's and no test compares it with a real start.
+    location: >-
+      docs/install-ipm.md:165
+    severity: low
 ---
 
 <intent-contract>
@@ -204,6 +212,53 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; `irislib/` is the IRIS reference e
 
 ## Review Triage Log
 
+### 2026-11-06 - Review pass
+- verdicts: 39 findings - high 0, medium 5, low 31, false 3, maybe-false 0
+- findings:
+  - Blind hunter:
+    - `[low]` `patch` CheckRun class description still names `OcuTalon.Checks` as the writer - description now names `Checks.Coverage.RecordRun` and the trigger.
+    - `[low]` `reject` trigger is UPDATE-only - checks are created with `LastRunAt` empty and only `Process` sets it; the contract fixes the trigger on the update.
+    - `[low]` `reject` reason derived from the finding text - the contract maps `REASONTIMEOUT`, `REASONUNREADABLE`, `REASONNOTCURRENT` exactly so; `TestRecordRunReasons` pins the strings.
+    - `[low]` `reject` one finding per database repeats a shared volume's share - the Design Notes fix `{name} {n}% free` per low database.
+    - `[low]` `reject` license finding rounds up and the figure rounds to nearest - the contract rounds figures only, compares unrounded; decided in-stage item 1.
+    - `[low]` `reject` `SevereLines` scans the whole log - a digest builds once a day; the fix is bounded-offset reading, more than a direct correction.
+    - `[low]` `reject` the queue query runs on every `Failures` call - one grouped SELECT on the status index of the watched namespace; no measured cost, and a split would add a caller-visible mode.
+    - `[medium]` `patch` `Coverage.Live` cut path, instance scope and the `Build` error return have no test - the cut path (both branches) now has assertions in `TestLiveRead`; the instance scope and the unreadable-session return stay untested (low, `Ownership.Checks` does not fail for an unknown session).
+    - `[medium]` `patch` `Seeds.Defaults` never exercised against an absent key - `TestAddsSeeds` now deletes the five rows first.
+    - `[low]` `reject` `TestAdminValue` pokes the cache layout - the spec asks for the value after the 60-second cache; Lane B offers no flush seam and none may be added (U-177).
+    - `[low]` `reject` `Sent.Purge` keeps one row per session forever and loads candidates into a local - the contract keeps each session's newest row; the volume is one row per digest.
+    - `[low]` `reject` the size-limit wording appears in the key and in the parameter - ruled by the Contest Planner, pinned byte for byte by `TestFixedStrings`.
+    - `[false]` `reject` the Vitals doc and the zone test disagree - `FromLocal` reads in the zone of the process, which the doc calls the instance zone; the two agree for every process of one instance.
+  - Edge-case hunter:
+    - `[medium]` `patch` a latest run `failed` with an empty finding is shown passed - the condition now sends it to `not_checked` with the unread reason; test in `TestFailedRun`.
+    - `[low]` `reject` rotated or repeated-hour log lines - theoretical for a daily digest on one instance zone.
+    - `[low]` `reject` keep the newest scheduled `Sent` row too - the contract keeps each session's newest row; with a 60-day floor and a daily schedule a scheduled row always survives.
+    - `[false]` `reject` the watched namespace is read without `Readable` - Design Notes item 8 decides it: database and volume metadata are not namespace reads.
+    - `[low]` `patch` an empty `TargetConfigName` throws `<SUBSCRIPT>` and discards both reads - the loop skips an empty name.
+    - `[low]` `reject` thresholds out of range - `SettingsOps` bounds the values at save.
+    - `[low]` `reject` a throw inside the warning log of `RecordRun` - theoretical.
+    - `[low]` `reject` a check created seconds before `toUtc` is "missed" - the contract rule 2 says missed when it never ran.
+    - `[low]` `reject` an unreachable streak that began before the span - the contract takes the first run of the streak in the span.
+    - `[low]` `patch` `test-install-upgrade.sh` row 7 lists the steps after SSL without `Digest` - `Digest` added to the list.
+    - `[false]` `reject` the Intent says the step declares a new privilege - superseded by the 2026-11-05 ruling.
+    - `[low]` `reject` a run with an unchanged `LastRunAt` is not recorded - one record per `LastRunAt` change is the contract.
+  - Verification-gap:
+    - `[medium]` `patch` the real seams of `Coverage` were never run by a test - `Test.Watch.Vitals` `TestBuildOnRealSeams` runs the real `Build`.
+    - `[medium]` `patch` `TestAddsSeeds` needs a fresh stack to see a no-op step - see above.
+    - `[low]` `patch` database rule 1 versus an unread database not pinned - case added to `TestCappedDatabase`.
+    - `[low]` `patch` the streak break and rule 3 over rule 4 not discriminated - two histories added to `TestUnreachableStreak`.
+    - `[low]` `patch` the `Sent` boundary at the cutoff not pinned - added to `TestPurgeKeepsRecent`.
+    - `[low]` `patch` mutation lines missing for the upgrade clause and the `Sent` half of the purge - lines written below.
+    - `[low]` `patch` `TestNoSwitch` could not fail on a restored switch - it now also scans the reader methods' code for a switch.
+    - `[low]` `patch` the zone tests restore the zone only on the straight path - restored in `OnAfterOneTest`.
+    - `[low]` `reject` `TestLogStampZone` reads straight after the write - the write to the console log is synchronous in the measurement; the test passes in every run.
+    - `[low]` `reject` the fixed temporary folder of the database test - removed with its tree first; throwaway stacks only.
+    - `[low]` `reject` `TestErroredItems` relies on a clean Orders - Orders is the demo fixture of every Watch test.
+    - `[low]` `reject` `TestAdminValue` uses `Data.Setting.Set` not `SettingsOps` - `Set` is what `SettingsOps` calls; the page path is Lane B's.
+    - `[low]` `reject` fixture updates of other tests leave `CheckRun` rows - accepted by Decided in-stage item 1; the purge removes them.
+    - `[low]` `defer` `docs/install-ipm.md` sample logs lack `STEP Digest OK` - Epic 11's file.
+  - Intent alignment: 0 findings (descriptive). The gap it names between the seam-fed tests and the real readers is closed by `TestBuildOnRealSeams`.
+
 ## Design Notes
 
 **Reading the contract after the 2026-11-05 rulings.** The rulings paragraph at the end of the contract is binding and replaces these lines above it:
@@ -273,6 +328,23 @@ Everything else in the contract stands.
 6. **A database's maximum is read with `GetDatabaseInfo^%SYS.DATABASE`.** It is the one measured read that needs no privilege and no switch. It is not a documented API, so `Test.Watch.Vitals` pins it on a real capped database.
 7. **A database's name is its directory's last folder, upper case.** No privilege-free API gives the configured name.
 8. **Database and volume metadata are not namespace reads,** so a watched namespace's databases are read without `Readable`. Its production read keeps `Readable`.
+
+**Task 0 measured (implement stage, 2026-11-06, lane-A warm throwaway `e17s5iw`, build 154; the stack's `TZ` is empty, so UTC).**
+- `messages.log` stamps a line in the zone of the process that writes it, not in the instance's: a process set to America/New_York (and one to Asia/Kolkata) wrote lines stamped 00:37:49 and 11:07:49 while UTC was 05:37. `Test.Watch.Vitals` `TestLogStampZone` pins it. The reader therefore reads the stamps in its own process's zone (`Data.Time.FromLocal`, the instance zone of the product). A line written by a process that has another zone than the reader is read shifted by the difference; with one instance zone (the default, and the only case the product sets up) every writer agrees. `TestSystemLog` reads and writes in the same zone for UTC, New York and Kolkata. Risk, stated in the closing report: an instance whose `InstanceZone` differs from the OS zone stamps kernel lines in the OS zone.
+- Items in error and queues are read inside `Current` on Orders: `$$$GetHostMonitor(item,"%Status")` = `Error` names the item, and `SELECT TargetConfigName, COUNT(*), MIN(TimeCreated) FROM Ens.MessageHeader WHERE Status = 2 GROUP BY TargetConfigName` gives the queues. `TargetConfigName` is stored in upper case, so an item is matched without regard to case and named as the production names it.
+- An AFTER UPDATE trigger fires on `Process`'s SQL `UPDATE` (`Test.Digest.Runs` `TestProcessRunRecorded`, `TestTriggerFires`), once for each change of `LastRunAt`, by SQL and by object save, and not for another update. A caught error inside `RecordRun` was measured by calling it directly with a bad value (it logs one warning and throws nothing, `TestFailedWriteWarns`); an error forced inside the trigger itself could not be made with data the table accepts, so that half rests on `RecordRun` catching everything.
+- Rules unchanged by the measurements; no Clarification Needed.
+
+**Decided in-stage (implement).**
+1. **Findings round the safe way.** A failing free share is shown rounded down (`9.99%` reads `9% free`) and a failing use rounded up (`90.4%` reads `91% in use`), so a finding never reads as if it met the threshold. Figures are rounded to nearest, as the contract says.
+2. **`checkedAt` of a not-checked row** is the line's time: the run's time (error, timeout), the first run of the streak (unreachable), the earlier run (stale), the gap's start (paused) or the start of the missed span (missed); for a vital sign or a live read, the read time.
+3. **A live finding is capitalised like release 1's** (`Production stopped, 2 new failures`), joined with ", ": state, items in error, disabled items, new failures, queue count, queue wait. The queue parts use the largest queue over the count threshold and the longest wait over the minute threshold, the wait shown in whole minutes rounded down.
+4. **`Build` returns an error status, with empty output, only when the session's checks cannot be read**; every other failure is a `not_checked` row. A check whose row fails to build is `not_checked` `error`.
+5. **The 180-second gap** is compared with `>` (exactly 180 s is not missed).
+6. **`Thresholds()`** (new, on `Checks.Coverage`) gives the five seeds as `{"checks.thresholds.<name>": "<default>"}`, so `Install.Step.Digest.Run` stays free of `Data.Setting`.
+7. **Tests that the order change touches** (Lane A, in the footprint, not contended): `Test.Digest.Store` `TestPurgeByTheTask` asserted that `Digest` was not in `Order()`; it now asserts position 9, after `Demo`.
+8. **Names:** `TestSeeded` is `TestAddsSeeds` (named to run before the tests that write a threshold, so a step that seeds nothing is seen on a fresh start); `TestBacklog` is part of `TestLiveRead`.
+9. **Not done here:** `docs/install-ipm.md` lists the install steps in two sample logs (lines 165 and 268) and has no `STEP Digest OK` line. It is Epic 11's file and no test compares it with a start; it needs the line when Epic 11 next touches it.
 
 **For the lead.**
 - The proposed text above goes to the Planner before the code is committed.
@@ -347,7 +419,39 @@ Every test added or changed passes on a fresh environment, in either order.
 - The queue comparison is flipped → `TestBacklog` red.
 - No rounding → `TestFigures` red.
 
+**Mutations run at implement (Rule 19), each applied, observed red, reverted, and the tree confirmed byte-identical (tree hash before and after).**
+- mutation: `Build` drops the journal row (the `journal space` `AddChecked` call becomes a no-op) -> `Test.Digest.Coverage` `TestEntries` red (and `TestCappedDatabase`, `TestFigures`).
+- mutation: `Digest.Run` seeds nothing (`Quit $$$OK`) -> `Test.Digest.Thresholds` `TestAddsSeeds` red on a fresh stack (five "has a row" failures).
+- mutation: `Limits` reads the default instead of `Data.Setting.Get` -> `Thresholds` `TestAdminValue` red ("at 95 it passes").
+- mutation: the trigger's condition made `If 0` (no trigger) -> `Test.Digest.Runs` `TestProcessRunRecorded`, `TestReasonMap`, `TestTriggerFires` red.
+- mutation: the `timeout` branch of `RecordRun` maps to `error` -> `Runs` `TestReasonMap` and `TestRecordRunReasons` red.
+- mutation: the size-limit branch dropped (`ElseIf capped` -> `ElseIf 0`) -> `Coverage` `TestCappedDatabase` red.
+- mutation: `Reader.Database` ignores piece 6 (`maxBlocks` 0) -> `Test.Watch.Vitals` `TestCappedDatabase` red.
+- mutation: a `Grants()` returning `%Admin_Operate:U` added to `Install.Step.Digest` -> `Thresholds` `TestNoGrant` red and `docker/tests/test-security-overview.sh` red (the regenerated list gains the row).
+- mutation: `Digest.Purge` no longer calls `CheckRun.Purge` -> `Test.Digest.Purge` `TestStepRunsAll` red, and `Test.Install.Retention` `TestOcuTalonPurge` red on a fresh stack ("the check run 61 days old is gone").
+- mutation: the paused rule dropped (`If $IsObject(paused) && ...` -> `If 0`) -> `Coverage` `TestPaused` red.
+- mutation: the queue count comparison flipped (`>` to `'>`) -> `Coverage` `TestLiveRead` red.
+- mutation: `Round` returns the value unrounded -> `Coverage` `TestFigures` red.
+- mutation: `REASONSIZELIMIT` reworded ("cannot" for "can't") -> `Coverage` `TestFixedStrings` red ("the size-limit reason"); the catalog text of `digest.notCheckedSizeLimit` moved its full stop inside the bracket -> `TestFixedStrings` red ("the digest line for database space").
+
+- mutation (review pass): `Digest.Run` seeds nothing -> `Thresholds` `TestAddsSeeds` red on the warm stack (the five rows removed first); `Seeds.Defaults` calls `Set` for `Seed` -> `TestUpgradeKeeps` red.
+- mutation (review pass): `Digest.Purge` no longer calls `Sent.Purge` -> `Purge` `TestStepRunsAll` red; `Sent.Purge` compares `<=` -> `TestPurgeKeepsRecent` red; the newest-kept rule dropped -> `TestNewestSentIsKept` red.
+- mutation (review pass): a failed run with no finding is shown as the run's result (the new condition removed) -> `Coverage` `TestFailedRun` red; rule 1 of the database row made to need no unread database -> `TestCappedDatabase` red; the streak loop no longer stops on another reason -> `TestUnreachableStreak` red; the read cut ignored -> `TestLiveRead` red.
+- mutation (review pass): `Coverage.Read` drops `.errored, .queues` -> `Test.Watch.Vitals` `TestBuildOnRealSeams` red; `Reader.Database` reads `$Namespace` -> `TestNoSwitch` red.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: `Checks.Coverage.Build` (rows, lines, `vitals`) by AD-18's rules; `Watch.Reader.Vitals`, `Database` and the `errored` and `queues` outputs of `Failures`; the `BackgroundCheck` update trigger that records each run through `Coverage.RecordRun`; `CheckRun.Purge` and `Sent.Purge` (DW-646); the `Digest` install step that seeds the five thresholds through `Install.Seeds` and joins `Registry.Order()` after `Demo` (no grant); the ruled capped-database text and key `digest.notCheckedSizeLimit` (Lane B catalog fixture and count 152 under the one-time U-177 exception). DW-648 is addressed by rules 2 and 4 and the rounding rule.
+
+Files changed: see the commit. New: `Checks/Coverage.cls`, `Install/Seeds.cls`, `Test/Digest/{Coverage,CoverageProbe,Purge,Runs,Thresholds}.cls`, `Test/Watch/Vitals.cls`. Changed: `Watch/Reader.cls`, `Data/BackgroundCheck.cls`, `Digest/Data/{CheckRun,Sent}.cls`, `Install/Registry.cls`, `Install/Step/Digest.cls`, `Msg/Catalog/Watch.cls`, `Test/Install/{Registry,Retention}.cls`, `Test/Digest/Store.cls`, `Test/Msg/Catalog.cls`, `docker/tests/{lib-live,test-install-upgrade}.sh`.
+
+Footprint extensions (Rule 11; none contended): `Data/BackgroundCheck.cls`, `Install/Registry.cls`, `Install/Seeds.cls`, `Test/Install/{Registry,Retention}.cls`, `Test/Digest/Store.cls`, `Test/Watch/Vitals.cls`, `docker/tests/lib-live.sh`, `docker/tests/test-install-upgrade.sh`. One Lane B edit, the ruled one-time U-177 exception: `Test/Msg/Catalog.cls` (the key's fixture row and the count 152, each with a marker).
+
+Review: 39 findings; 14 patches applied, 1 deferred (low, `docs/install-ipm.md`), 24 rejected with reasons in the Review Triage Log. Follow-up review recommended: false (no high; the 5 medium patches are test additions and one-line guards, each with a demonstrated mutation).
+
+Verification: at implement every class of the Verification list passed on the warm throwaway, and so did `lane-a@Checks,Install,Watch` (39 classes) and `lane-a@rest` (96 classes), warm; on fresh throwaways `Test.Install.Retention`, `Test.Install.SecurityOverview`, `live install-start` and `live install-upgrade` passed (a local `live` run needs `OCUTALON_LIVE_DEADLINE=1200`); the host scripts passed and the two web catalog test files passed (68 tests). After the review patches: `Coverage`, `Runs`, `Thresholds`, `Purge`, `Contracts`, `Store`, `Test.Watch.Vitals`, `Test.Watch.Reader`, `Test.Checks.Runs`, `Test.Install.Registry` and `Test.Msg.Catalog` passed again warm, and the review-pass mutations above were each red and reverted. Not run: the two shards on a fresh stack.
+
+Residual risks: an instance whose `InstanceZone` differs from the OS zone stamps kernel lines of `messages.log` in the OS zone, so `system log` could count a line a few hours off; an error forced inside the trigger itself was not measured (`RecordRun` catches its own errors); `Reader.Vitals` ran as superuser here, and the no-privilege claim rests on the plan-stage measurement; `docs/install-ipm.md` lacks the `STEP Digest OK` sample line (deferred).

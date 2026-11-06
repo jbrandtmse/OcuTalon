@@ -254,6 +254,10 @@ Method TestOcuTalonPurge()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(..Fx.inc59), 1, "the one closed 59 days ago is kept")
 	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.Item).%ExistsId(..Fx.item61), 0, "the digest item 61 days old is gone")
 	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.Item).%ExistsId(..Fx.item59), 1, "the one 59 days old is kept")
+	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.CheckRun).%ExistsId(..Fx.run61), 0, "the check run 61 days old is gone")
+	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.CheckRun).%ExistsId(..Fx.run59), 1, "the one 59 days old is kept")
+	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.Sent).%ExistsId(..Fx.sent61), 0, "the digest sent 61 days ago is gone")
+	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.Sent).%ExistsId(..Fx.sent59), 1, "the one sent 59 days ago is kept")
 	Do $$$AssertEquals(##class(%AI.Agent.Session).%ExistsId(..Fx.session), 0, "the AI session that no link has named for two days is gone")
 	Do $$$AssertEquals($Data(^OcuTalonBP.Unlinked(..Fx.session)), 0, "and so is its mark")
 }
@@ -337,6 +341,11 @@ Method Seed()
 	Set row = ##class(OcuTalon.Test.Digest.Store).NewRow(sessionRef, ##class(OcuTalon.Bridge.Ids).NewRef(), ..Utc(59), .sc)
 	$$$ThrowOnError(sc)
 	Set ..Fx.item59 = row.%Id()
+	// 7: check runs and sent digests of the same session; the digest 59 days old is the session's newest, so the one 61 days old goes
+	Set ..Fx.run61 = ..NewRun(sessionRef, ..Utc(61))
+	Set ..Fx.run59 = ..NewRun(sessionRef, ..Utc(59))
+	Set ..Fx.sent61 = ..NewSent(sessionRef, ..Utc(61))
+	Set ..Fx.sent59 = ..NewSent(sessionRef, ..Utc(59))
 	// 7: an AI session that no link names and that an earlier run marked two days ago
 	Set session = ##class(%AI.Agent.Session).%New()
 	Set session.Model = "zz-retention"
@@ -469,6 +478,8 @@ ClassMethod Cleanup()
 		Set ref = $Order(^OcuTalonTest("Retention", "digest", ref))
 		Quit:ref=""
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Digest_Data.Item WHERE SessionRef = ?", ref)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Digest_Data.CheckRun WHERE SessionRef = ?", ref)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ?", ref)
 	}
 	Set id = ""
 	For {
@@ -478,6 +489,32 @@ ClassMethod Cleanup()
 		Kill ^OcuTalonBP.Unlinked(id)
 	}
 	Kill ^OcuTalonTest("Retention", "header"), ^OcuTalonTest("Retention", "object"), ^OcuTalonTest("Retention", "refs"), ^OcuTalonTest("Retention", "digest"), ^OcuTalonTest("Retention", "session")
+}
+
+/// A check run of the session finished at the time, saved; its id.
+ClassMethod NewRun(sessionRef As %String, ranAt As %String) As %String
+{
+	Set row = ##class(OcuTalon.Digest.Data.CheckRun).%New()
+	Set row.CheckRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.SessionRef = sessionRef
+	Set row.RanAt = ranAt
+	Set row.Result = "passed"
+	$$$ThrowOnError(row.%Save())
+	Quit row.%Id()
+}
+
+/// A digest of the session sent at the time, saved; its id.
+ClassMethod NewSent(sessionRef As %String, sentAt As %String) As %String
+{
+	Set row = ##class(OcuTalon.Digest.Data.Sent).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.SessionRef = sessionRef
+	Set row.Kind = "scheduled"
+	Set row.DueAt = sentAt
+	Set row.WindowStart = sentAt
+	Set row.SentAt = sentAt
+	$$$ThrowOnError(row.%Save())
+	Quit row.%Id()
 }
 
 /// Records a fixture for Cleanup: a kind (refs, digest, session) and its key.

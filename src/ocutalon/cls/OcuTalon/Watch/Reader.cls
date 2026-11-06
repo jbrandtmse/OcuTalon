@@ -1,4 +1,4 @@
-Include (EnsConstants, EnsErrors)
+Include (Ensemble, EnsConstants, EnsErrors)
 
 /// The reader of the productions that OcuTalon can watch (AD-3, AD-4, AD-6): the only class that switches namespace to look at a production, and
 /// the only place that checks the service user's read access to a namespace. The watch tools and WatchOps both use it, so a tool and the
@@ -29,6 +29,14 @@ Include (EnsConstants, EnsErrors)
 ///     It also gives, from the same switch, the names of the production's items that are disabled as IRIS runs them (disabled, in ID order, each
 ///     name once: an item's stored Enabled unless a System Default Setting Enabled overrides it, and no name of which another item is enabled) and the
 ///     time IRIS recorded when the production last stopped (stoppedAt, as stored, "" when none): both only with the outcome read.
+///     With the outcome read it also gives, from the same switch, errored (the names of the production's enabled items whose %Status in the host
+///     monitor is Error, in name order) and queues (one {"name", "count", "oldestAt"} for each item of the production that has messages in Status 2,
+///     Queued: their number and the UTC time, YYYY-MM-DDThh:mm:ssZ, of the oldest; the header stores the target in upper case, so the item is matched without regard to case and named as the production names it). Either is "" (not an array) when it could not be read, so that a
+///     caller never takes an unread queue for an empty one; every other outcome gives [] for both.
+///   - Vitals reads the instance's vital signs (Story 17.5) and switches no namespace: the uptime, the volume's free share and the size limit of each
+///     of OcuTalon's databases and of the databases of the watched namespaces (Database), the free share of the journal's volume, the license use and
+///     the count of the severe lines (severity 2 and 3) of messages.log in a window. It reads no privileged API: only counts and percentages leave
+///     it, never the text of a log line. Each sign has its own outcome, read or error, so one sign that cannot be read never hides the others.
 ///   - Evidence reads the evidence of the failures with the given keys (Story 5.4), inside the same switching method and under the same two
 ///     checks as Failures (readable before any switch, outcome unreadable or not_current). It gives the snapshot as the reader snapshot of
 ///     Story 0.10 (format ocutalon.readerSnapshot/1): failures (one per header key: the header's fields, its error text chosen as Failures
@@ -47,6 +55,19 @@ Class OcuTalon.Watch.Reader
 
 /// The longest the reader waits for the production lock of a namespace, in seconds.
 Parameter LOCKSECONDS = 1;
+
+/// OcuTalon's own namespace, whose databases Vitals reads.
+Parameter HOME = "OCUTALON";
+
+/// A global that the private database holds, whose destination Vitals reads (the sample of Install.Step.PrivateData).
+Parameter PRIVATESAMPLE = "^OcuTalonP.Zz";
+
+/// The file of the instance's messages, in the manager directory.
+Parameter MESSAGESLOG = "messages.log";
+
+/// The longest line of messages.log that Vitals reads whole, in characters. The rest of a longer line is read as the next line, which no
+/// timestamp starts.
+Parameter LINEMAX = 4000;
 
 /// The most headers in the trace of an evidence snapshot.
 Parameter TRACEMAX = 20;
@@ -175,20 +196,181 @@ ClassMethod Readable(user As %String, namespace As %String) As %Boolean [ Privat
 /// be read for another reason is an error. state is the production's running state, read in the same switch: running, stopped, suspended, troubled or
 /// network_stopped; timeout when Ens.Director.GetProductionStatus could not take the runtime lock in LOCKSECONDS; unknown for any other error or
 /// state; and "" with the outcomes unreadable and not_current. disabled is the dynamic array of the names of the production's disabled items and
-/// stoppedAt the production's recorded stop time, as stored (see the class description): [] and "" with every outcome but read.
-ClassMethod Failures(namespace As %String, production As %String, from As %String, limit As %Integer, Output rows As %DynamicArray, Output state As %String, Output disabled As %DynamicArray, Output stoppedAt As %String) As %String
+/// stoppedAt the production's recorded stop time, as stored (see the class description): [] and "" with every outcome but read. errored and queues are
+/// read in the same switch with the outcome read (see the class description): [] with every other outcome.
+ClassMethod Failures(namespace As %String, production As %String, from As %String, limit As %Integer, Output rows As %DynamicArray, Output state As %String, Output disabled As %DynamicArray, Output stoppedAt As %String, Output errored As %DynamicArray, Output queues As %DynamicArray) As %String
 {
 	Set rows = []
 	Set state = ""
 	Set disabled = []
 	Set stoppedAt = ""
+	Set errored = []
+	Set queues = []
 	If (namespace = "") || (production = "") Quit "not_current"
 	Set user = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ServiceUser", , , .sc)
 	If $$$ISERR(sc) $$$ThrowStatus(sc)
 	If '..Readable(user, namespace) Quit "unreadable"
-	Do ..Current(namespace, .description, production, from, limit, .rows, .outcome, .fault, , , , .state, , .disabled, .stoppedAt)
+	Do ..Current(namespace, .description, production, from, limit, .rows, .outcome, .fault, , , , .state, , .disabled, .stoppedAt, .errored, .queues)
 	If fault '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The failures of "_production_" in "_namespace_" could not be read: "_fault))
 	Quit outcome
+}
+
+/// The raw vital signs of the instance (see the class description), as a dynamic object with a member per sign, each with its own outcome (read or
+/// error), no rounding, and no namespace switch:
+///   - instance: {"outcome", "upSeconds"}, the whole seconds since the instance started ($ZHorolog);
+///   - databases: an array of Database entries, one for each distinct directory of OcuTalon's code, data, private and public databases (found
+///     through %SYS.Namespace) and of the code and data databases of each namespace in namespaces (a %List). A namespace that does not exist, or
+///     whose databases cannot be found, is one entry named as the namespace, with the outcome error;
+///   - journal: {"outcome", "directory", "freePercent"}, the free share of the volume of the primary journal directory;
+///   - license: {"outcome", "units", "consumed", "usePercent"}; a license of no units is an error;
+///   - systemLog: {"outcome", "count"}, the lines of severity 2 or 3 in messages.log (in the manager directory) whose time lies in [fromUtc, toUtc]
+///     (UTC, YYYY-MM-DDThh:mm:ssZ; an empty end leaves that side open). The file's times are local, read in the instance zone (Data.Time.FromLocal).
+ClassMethod Vitals(namespaces As %List = "", fromUtc As %String = "", toUtc As %String = "") As %DynamicObject
+{
+	Set vitals = {"instance": {"outcome": "error", "upSeconds": ""}, "databases": [], "journal": {"outcome": "error", "directory": "", "freePercent": ""}, "license": {"outcome": "error", "units": "", "consumed": "", "usePercent": ""}, "systemLog": {"outcome": "error", "count": ""}}
+	Try {
+		Set vitals.instance = {"outcome": "read", "upSeconds": ($ZHorolog \ 1)}
+	} Catch {
+		Set vitals.instance = {"outcome": "error", "upSeconds": ""}
+	}
+	Try {
+		Set vitals.databases = ..Databases($Get(namespaces))
+	} Catch {
+		Set vitals.databases = [{"name": (..#HOME), "directory": "", "volumeFreePercent": "", "maxBlocks": "", "outcome": "error"}]
+	}
+	Try {
+		Set directory = ##class(%SYS.Journal.System).GetPrimaryDirectory()
+		If directory '= "" {
+			Set free = ..VolumeFree(directory)
+			If free '= "" Set vitals.journal = {"outcome": "read", "directory": (directory), "freePercent": (free)}
+		}
+	} Catch {
+		Set vitals.journal = {"outcome": "error", "directory": "", "freePercent": ""}
+	}
+	Try {
+		Set units = $SYSTEM.License.KeyLicenseUnits()
+		Set consumed = $SYSTEM.License.LUConsumed()
+		If (units > 0) && (consumed '< 0) Set vitals.license = {"outcome": "read", "units": (+units), "consumed": (+consumed), "usePercent": (consumed * 100 / units)}
+	} Catch {
+		Set vitals.license = {"outcome": "error", "units": "", "consumed": "", "usePercent": ""}
+	}
+	Try {
+		Set count = ..SevereLines($Get(fromUtc), $Get(toUtc))
+		If count '= "" Set vitals.systemLog = {"outcome": "read", "count": (count)}
+	} Catch {
+		Set vitals.systemLog = {"outcome": "error", "count": ""}
+	}
+	Quit vitals
+}
+
+/// The reading of one database directory, as a dynamic object {"name" (the directory's last folder, in upper case), "directory" (with its closing
+/// separator), "volumeFreePercent" (the free share of the directory's volume, unrounded, 0 to 100), "maxBlocks" (the database's maximum size in
+/// blocks, 0 when it has none; read with $$GetDatabaseInfo^%SYS.DATABASE, which needs no privilege), "outcome" (read or error)}. A directory
+/// that cannot be read is the outcome error with "" for both numbers. It switches no namespace and calls no API that needs %Admin_Operate.
+ClassMethod Database(directory As %String) As %DynamicObject
+{
+	Set directory = $Select($Get(directory) = "": "", 1: ##class(%File).NormalizeDirectory(directory))
+	Set entry = {"name": (..DatabaseName(directory)), "directory": (directory), "volumeFreePercent": "", "maxBlocks": "", "outcome": "error"}
+	Try {
+		If directory '= "" {
+			Set free = ..VolumeFree(directory)
+			Set info = ""
+			Set sc = $$GetDatabaseInfo^%SYS.DATABASE(directory, .info)
+			If (free '= "") && sc && (info '= "") {
+				Set entry.volumeFreePercent = free
+				Set entry.maxBlocks = +$Piece(info, ",", 6)
+				Set entry.outcome = "read"
+			}
+		}
+	} Catch {
+		Set entry.volumeFreePercent = ""
+		Set entry.maxBlocks = ""
+		Set entry.outcome = "error"
+	}
+	Quit entry
+}
+
+/// The upper-case name of the last folder of a directory: /opt/irisapp/mgr/ocutalon_data/ is OCUTALON_DATA.
+ClassMethod DatabaseName(directory As %String) As %String [ Private ]
+{
+	Set path = $Translate($Get(directory), "\", "/")
+	While $Extract(path, *) = "/" {
+		Set path = $Extract(path, 1, *-1)
+	}
+	Quit $ZConvert($Piece(path, "/", $Length(path, "/")), "U")
+}
+
+/// The free share, in percent and unrounded, of the volume that holds the directory, or "" when it cannot be read.
+ClassMethod VolumeFree(directory As %String) As %String [ Private ]
+{
+	Set sc = ##class(%File).GetDirectorySpace(directory, .free, .total, 0)
+	If $$$ISERR(sc) || (+total '> 0) Quit ""
+	Quit free * 100 / total
+}
+
+/// The Database entries of OcuTalon's databases and of the code and data databases of each namespace (a %List), one for each distinct directory.
+ClassMethod Databases(namespaces As %List) As %DynamicArray [ Private ]
+{
+	Set databases = []
+	Set home = ..#HOME
+	Kill info
+	Do ##class(%SYS.Namespace).GetAllNSInfo(home, .info)
+	Do ..Add(databases, .seen, $Get(info("RoutineDB", "Directory")), home)
+	Do ..Add(databases, .seen, $Get(info("GlobalDB", "Directory")), home)
+	Do ..Add(databases, .seen, $Piece(##class(%SYS.Namespace).GetGlobalDest(home, ..#PRIVATESAMPLE), "^", 2), home)
+	Do ..Add(databases, .seen, $Piece(##class(%SYS.Namespace).GetGlobalDest(home, "^"_##class(OcuTalon.Data.Public.Settings).#GLOBALNAME), "^", 2), home)
+	Set position = 0
+	While $ListNext($Get(namespaces), position, namespace) {
+		If namespace = home Continue
+		Kill info
+		If '##class(%SYS.Namespace).Exists(namespace) {
+			Do databases.%Push({"name": ($ZConvert(namespace, "U")), "directory": "", "volumeFreePercent": "", "maxBlocks": "", "outcome": "error"})
+			Continue
+		}
+		Do ##class(%SYS.Namespace).GetAllNSInfo(namespace, .info)
+		Do ..Add(databases, .seen, $Get(info("RoutineDB", "Directory")), namespace)
+		Do ..Add(databases, .seen, $Get(info("GlobalDB", "Directory")), namespace)
+	}
+	Quit databases
+}
+
+/// Appends the reading of the directory to databases, unless seen holds it already; an empty directory is an unreadable entry named as the namespace.
+ClassMethod Add(databases As %DynamicArray, ByRef seen, directory As %String, namespace As %String) [ Private ]
+{
+	If directory = "" {
+		Do databases.%Push({"name": ($ZConvert(namespace, "U")), "directory": "", "volumeFreePercent": "", "maxBlocks": "", "outcome": "error"})
+		Quit
+	}
+	Set directory = ##class(%File).NormalizeDirectory(directory)
+	If $Data(seen(directory)) Quit
+	Set seen(directory) = ""
+	Do databases.%Push(..Database(directory))
+}
+
+/// The number of lines of severity 2 or 3 in messages.log whose time is in [fromUtc, toUtc], or "" when the file cannot be read. A line starts
+/// MM/DD/YY-hh:mm:ss:mmm (pid) severity; the time is local. The text of a line is never kept.
+ClassMethod SevereLines(fromUtc As %String, toUtc As %String) As %String [ Private ]
+{
+	Set path = ##class(%File).NormalizeFilename($SYSTEM.Util.ManagerDirectory()_..#MESSAGESLOG)
+	If '##class(%File).Exists(path) Quit ""
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	If $$$ISERR(stream.LinkToFile(path)) Quit ""
+	Set count = 0
+	Set sc = $$$OK
+	While 'stream.AtEnd {
+		Set line = stream.ReadLine(..#LINEMAX, .sc)
+		If $$$ISERR(sc) Quit
+		If line '? 2N1"/"2N1"/"2N1"-"2N1":"2N1":"2N1":"3N1" ".E Continue
+		Set severity = $Piece(line, " ", 3)
+		If (severity '= 2) && (severity '= 3) Continue
+		Set utc = ##class(OcuTalon.Data.Time).FromLocal("20"_$Extract(line, 7, 8)_"-"_$Extract(line, 1, 2)_"-"_$Extract(line, 4, 5)_"T"_$Extract(line, 10, 17))
+		If utc = "" Continue
+		If (fromUtc '= "") && (fromUtc ] utc) Continue
+		If (toUtc '= "") && (utc ] toUtc) Continue
+		Set count = count + 1
+	}
+	If $$$ISERR(sc) Quit ""
+	Quit count
 }
 
 /// The evidence of the failures with the keys (comma-separated, h<header id> or l<log id>, as OcuTalon.Watch.Mark.KeyOf gives them) of the
@@ -252,13 +434,15 @@ ClassMethod CredentialName(name As %String) As %Boolean
 /// of which another item is enabled is not disabled), in ID order, each name once, and stoppedAt the stop time that Ens.Director wrote for the production
 /// (^Ens.Configuration("csp","Activity",production,"stopped"), IRIS UTC as stored; killed at a start), "" when there is none; with every other outcome,
 /// and when the read threw, they are [] and "". resent 1 (Evidence only) adds resentBy to each failure: the ids of the headers of its session whose Description names it as resent.
-ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0, Output disabled As %DynamicArray, Output stoppedAt As %String) As %String [ Private ]
+ClassMethod Current(namespace As %String, Output description As %String, production As %String = "", from As %String = "", limit As %Integer = 0, Output rows As %DynamicArray, Output outcome As %String, Output fault As %String, item As %String = "", keys As %String = "", Output snapshot As %DynamicObject, Output state As %String, resent As %Boolean = 0, Output disabled As %DynamicArray, Output stoppedAt As %String, Output errored As %DynamicArray, Output queues As %DynamicArray) As %String [ Private ]
 {
 	Set description = ""
 	Set name = ""
 	Set rows = []
 	Set disabled = []
 	Set stoppedAt = ""
+	Set errored = []
+	Set queues = []
 	Set outcome = ""
 	Set fault = ""
 	Set state = ""
@@ -287,6 +471,7 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 				Set cfgCount = 0
 				While stored.%Next() {
 					Set cfgName = stored.%GetData(1)
+					Set cfgAll($ZConvert(cfgName, "U")) = cfgName
 					Set cfgEnabled = stored.%GetData(3)
 					If ##class(Ens.Config.DefaultSettings).%GetSetting(name, cfgName, stored.%GetData(2), "", "Enabled", .cfgSetting) Set cfgEnabled = cfgSetting
 					If cfgEnabled {
@@ -301,6 +486,25 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 					If $Data(cfgOn(cfgName)) || $Data(cfgGiven(cfgName)) Continue
 					Set cfgGiven(cfgName) = ""
 					Do disabled.%Push(cfgName)
+				}
+				Try {
+					Set cfgName = ""
+					For {
+						Set cfgName = $Order(cfgOn(cfgName))
+						Quit:cfgName=""
+						If $$$GetHostMonitor(cfgName, "%Status") = "Error" Do errored.%Push(cfgName)
+					}
+					Set queued = ##class(%SQL.Statement).%ExecDirect(, "SELECT TargetConfigName, COUNT(*), MIN(TimeCreated) FROM Ens.MessageHeader WHERE Status = 2 GROUP BY TargetConfigName")
+					If queued.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, queued.%Message))
+					While queued.%Next() {
+						Set queueItem = $ZConvert(queued.%GetData(1), "U")
+						If (queueItem = "") || '$Data(cfgAll(queueItem)) Continue
+						Set oldest = $Piece(queued.%GetData(3), ".", 1)
+						Do queues.%Push({"name": (cfgAll(queueItem)), "count": (+queued.%GetData(2)), "oldestAt": ($Select(oldest = "": "", 1: $Translate(oldest, " ", "T")_"Z"))})
+					}
+				} Catch unread {
+					Set errored = ""
+					Set queues = ""
 				}
 				Set headerIds = ""
 				Set logIds = ""
@@ -502,6 +706,8 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 		Set state = ""
 		Set disabled = []
 		Set stoppedAt = ""
+		Set errored = []
+		Set queues = []
 		Set fault = exception.DisplayString()
 	}
 	Quit name

@@ -46,6 +46,41 @@ Index SessionRefSentAtIndex On (SessionRef, SentAt);
 
 Index SessionRefDueAtIndex On (SessionRef, DueAt);
 
+/// Deletes the digests sent before the cutoff: now in UTC moved back daysToKeep whole days (Bridge.Time.DaysCutoff). A digest sent at the cutoff
+/// stays, and so does each session's newest digest whatever its age, because its window starts there. daysToKeep must be a whole number of at
+/// least 1; anything else is an error status and nothing is deleted.
+ClassMethod Purge(daysToKeep As %Integer) As %Status
+{
+	Set sc = ##class(OcuTalon.Bridge.Time).DaysCutoff(daysToKeep, "OcuTalon.Digest.Data.Sent.Purge", .cutoff)
+	If $$$ISERR(sc) || (cutoff = "") Quit sc
+	Try {
+		Set old = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, SessionRef FROM OcuTalon_Digest_Data.Sent WHERE SentAt < ?", cutoff)
+		If old.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "Reading the old digests failed: "_old.%Message))
+		While old.%Next() {
+			Set candidate(old.%Get("SessionRef"), old.%Get("ID")) = ""
+		}
+		Set session = ""
+		For {
+			Set session = $Order(candidate(session))
+			Quit:session=""
+			Set newest = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ? ORDER BY SentAt DESC, ID DESC", session)
+			If newest.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "Reading the newest digest failed: "_newest.%Message))
+			Set keep = $Select(newest.%Next(): newest.%Get("ID"), 1: "")
+			Set id = ""
+			For {
+				Set id = $Order(candidate(session, id))
+				Quit:id=""
+				If id = keep Continue
+				Set deleted = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Digest_Data.Sent WHERE ID = ?", id)
+				If deleted.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "Deleting an old digest failed: "_deleted.%Message))
+			}
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
 Storage Default
 {
 <Data name="SentDefaultData">

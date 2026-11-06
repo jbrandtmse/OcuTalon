@@ -438,6 +438,13 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "EXPERIENCE Message Catalog / Daily digest / Coverage line, not checked: stale"
  },
+ "digest.notCheckedSizeLimit": {
+  "text": "Not checked: {entry} (OcuTalon can't read this database's size limit).",
+  "slots": {
+   "entry": "text"
+  },
+  "source": "Contest Planner ruling 2026-11-06 (owner delegation): Daily digest / Coverage line, not checked: capped database"
+ },
  "digest.needsYouOne": {
   "text": "One thing needs you: {what}.",
   "slots": {
