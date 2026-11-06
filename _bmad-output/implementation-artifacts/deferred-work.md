@@ -4721,3 +4721,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 42285847375 sha 9683c1f0 iris (browser) live:sign-in: TimeoutError page.waitForEvent filechooser at documents.spec.ts:146; the same spec passed on b5dcbbfa (42272673909), and the tree differs only by module versions and release records
 - 2026-11-06T21:03:13Z status=routed owner=burndown by=orchestrator note=occurrence=2026-11-06 run 42285847375; one rerun of failed jobs started; a second red on the same head is real
 - 2026-11-06T21:53:29Z status=routed owner=burndown by=orchestrator note=rerun attempt 2 of run 42285847375 green on 9683c1f0: flake class confirmed (one occurrence)
+
+### DW-826: CI unit shard:lane-a@rest (job iris shards-2) runs over the 1000 s unit line: 2031 s (5fef1125) and 2194 s (b94508c9) on Epic 17 heads; split it per the standing rule once ci/units.sh is free
+- source: runner_A_ci_report | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Epic 17 runner A reports 2026-11-06: lane-a@rest 2031 s and 2194 s (both on runs with other reds); ci/units.sh is in Epic 19's in-flight diff
+- 2026-11-06T23:06:17Z status=routed owner=burndown by=orchestrator note=measure on the next clean run; split after Epic 19 part 1 merges (ci/units.sh contended until then); never raise a deadline
