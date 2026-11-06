@@ -346,14 +346,11 @@ ClassMethod HeartbeatObject(on As %Integer, interval As %Integer, from As %Strin
 	Quit object
 }
 
-/// The session's heartbeat values as Checks.Beat.Values reads them (the defaults and the normalization are Checks'), after this process's
-/// cache entries of the five keys are dropped, so that the values are the rows' and not a cached older value.
+/// The session's heartbeat values as Checks.Beat.Values reads them (the defaults and the normalization are Checks'), with this process's cache entries
+/// of the five keys dropped first (Values with stored 1), so that the values are the rows' and not a cached older value.
 ClassMethod HeartbeatValues(sessionRef As %String) As %DynamicObject [ Private ]
 {
-	For i = 1:1:$Length(##class(OcuTalon.Checks.Beat).#KEYS, ",") {
-		Kill ^||OcuTalon.Setting(##class(OcuTalon.Checks.Beat).SettingKey(sessionRef, $Piece(##class(OcuTalon.Checks.Beat).#KEYS, ",", i)))
-	}
-	Quit ##class(OcuTalon.Checks.Beat).Values(sessionRef)
+	Quit ##class(OcuTalon.Checks.Beat).Values(sessionRef, 1)
 }
 
 /// The refusal of heartbeat values: the plain Message to answer, and the outcome (bad_on, bad_interval, bad_hours or bad_checklist) in
