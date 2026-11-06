@@ -13,11 +13,19 @@
 ///   - Matrix(n): the three texts of the identity checks (ASCII; an accented Latin letter and CJK characters, authored with $Char; over 256 word pieces).
 ///   - Distance(a, b): the largest absolute difference of two vectors' components.
 ///   - WorkerInCategory(job, category): 1 when the WorkMgr worker process with that $JOB belongs to the category (WorkMgr keeps it in ^IRIS.WorkQueue).
+///   - WorkerLoads(text, folder, .info): queues LoadsInOneWorker to a worker of the category; the worker embeds the text three times through
+///     OcuTalon.Memory.Embedder:Embed and info("id", n) is the Python identity of the model object it holds for the folder after the n-th embed, so a test
+///     sees whether the model is loaded once per worker process;
+///   - Slow(seconds): a work item that only waits, so a test sees a work item that does not finish within its timeout;
+///   - EmbedFromFolder(text, folder): a work item that embeds through OcuTalon.Memory.Embedder:Embed from a folder of the test's own, returns Embed's
+///     %result, then removes the worker's model for that folder and puts the worker's FASTEMBED_CACHE_DIR back, so the worker keeps nothing of the test;
+///   - PutVariable(environ, previous): puts a worker's FASTEMBED_CACHE_DIR back to previous (removed when previous is empty);
 ///   - CopyBaked(copy) / RemoveCopy(copy): a copy of the process's FASTEMBED_CACHE_DIR folder (a status of the copy command, 0 when made) and its removal.
 Class OcuTalon.Test.Memory.Fixture
 {
 
-Parameter VERSIONFILE = "/opt/ocutalon/version";
+/// The image's version file, as the install step reads it.
+Parameter VERSIONFILE As COSEXPRESSION = "##class(OcuTalon.Install.Step.Demo).#VERSIONFILE";
 
 ClassMethod OnImage() As %Boolean
 {
@@ -188,6 +196,76 @@ ClassMethod WorkerInCategory(job As %Integer, category As %String) As %Boolean
 		If $Data(^IRIS.WorkQueue("Worker", manager, job), value) # 2 && (value [ category) Set found = 1 Quit
 	}
 	Quit found
+}
+
+/// Queues LoadsInOneWorker to a worker of the category OcuTalon.Memory.Embedder and waits for it: info("job") is the worker's $JOB and info("id", n) the
+/// Python id() of the model object that the worker holds for the folder after its n-th embed (n = 1 to 3).
+ClassMethod WorkerLoads(text As %String, folder As %String, Output info) As %Status
+{
+	Kill info
+	Quit ##class(OcuTalon.Memory.Embedder).Submit("##class(OcuTalon.Test.Memory.Fixture).LoadsInOneWorker", 120, .info, text, folder)
+}
+
+/// The work item of WorkerLoads: %result("job") and %result("id", n) as above.
+ClassMethod LoadsInOneWorker(text As %String, folder As %String) As %Status
+{
+	Kill %result
+	Set sc = $SYSTEM.Status.OK()
+	Try {
+		Set builtins = ##class(%SYS.Python).Import("builtins")
+		Set sys = ##class(%SYS.Python).Import("sys")
+		For n = 1:1:3 {
+			Set sc = ##class(OcuTalon.Memory.Embedder).Embed(text, folder)
+			$$$ThrowOnError(sc)
+			Set models = builtins.getattr(sys, ##class(OcuTalon.Memory.Embedder).#CACHEATTRIBUTE)
+			Set id(n) = builtins.id(models."__getitem__"(folder))
+		}
+		Kill %result
+		Set %result("job") = $Job
+		For n = 1:1:3 {
+			Set %result("id", n) = id(n)
+		}
+	} Catch exception {
+		Kill %result
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// The work item that waits seconds and returns OK.
+ClassMethod Slow(seconds As %Integer) As %Status
+{
+	Hang seconds
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The work item that embeds the text from the folder, as EmbedFromFolder above says.
+ClassMethod EmbedFromFolder(text As %String, folder As %String) As %Status
+{
+	Set environ = ##class(%SYS.Python).Import("os").environ
+	Set previous = $SYSTEM.Util.GetEnviron(##class(OcuTalon.Memory.Embedder).#FOLDERVARIABLE)
+	Set sc = ##class(OcuTalon.Memory.Embedder).Embed(text, folder)
+	Merge kept = %result
+	Set builtins = ##class(%SYS.Python).Import("builtins")
+	Set sys = ##class(%SYS.Python).Import("sys")
+	If builtins.hasattr(sys, ##class(OcuTalon.Memory.Embedder).#CACHEATTRIBUTE) {
+		Do builtins.getattr(sys, ##class(OcuTalon.Memory.Embedder).#CACHEATTRIBUTE).pop(folder, "")
+	}
+	Do ..PutVariable(environ, previous)
+	Kill %result
+	Merge %result = kept
+	Quit sc
+}
+
+/// Puts the worker's FASTEMBED_CACHE_DIR back to previous, or removes it when previous is empty.
+ClassMethod PutVariable(environ, previous As %String)
+{
+	Set variable = ##class(OcuTalon.Memory.Embedder).#FOLDERVARIABLE
+	If previous '= "" {
+		Do environ."__setitem__"(variable, previous)
+	} Else {
+		Do environ.pop(variable, "")
+	}
 }
 
 /// Copies the baked folder (the process's FASTEMBED_CACHE_DIR) to copy; returns the copy command's exit status.

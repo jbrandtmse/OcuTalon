@@ -28,6 +28,7 @@ Method OnBeforeAllTests() As %Status
 		Set ^||OcuTalonTestMemoryInstall("config", "Configuration") = row.Configuration
 		Set ^||OcuTalonTestMemoryInstall("config", "EmbeddingClass") = row.EmbeddingClass
 		Set ^||OcuTalonTestMemoryInstall("config", "VectorLength") = row.VectorLength
+		Set ^||OcuTalonTestMemoryInstall("config", "Description") = row.Description
 	}
 	Quit $$$OK
 }
@@ -45,8 +46,8 @@ Method OnAfterAllTests() As %Status
 		Set state("config") = 1
 	} Else {
 		Set statement = ##class(%SQL.Statement).%New()
-		Do statement.%Prepare("UPDATE %Embedding.Config SET Configuration = ?, EmbeddingClass = ?, VectorLength = ? WHERE Name = ?", 1)
-		Do statement.%Execute(^||OcuTalonTestMemoryInstall("config", "Configuration"), ^||OcuTalonTestMemoryInstall("config", "EmbeddingClass"), ^||OcuTalonTestMemoryInstall("config", "VectorLength"), ..#CONFIG)
+		Do statement.%Prepare("UPDATE %Embedding.Config SET Configuration = ?, EmbeddingClass = ?, VectorLength = ?, Description = ? WHERE Name = ?", 1)
+		Do statement.%Execute(^||OcuTalonTestMemoryInstall("config", "Configuration"), ^||OcuTalonTestMemoryInstall("config", "EmbeddingClass"), ^||OcuTalonTestMemoryInstall("config", "VectorLength"), ^||OcuTalonTestMemoryInstall("config", "Description"), ..#CONFIG)
 	}
 	Do ##class(OcuTalon.Test.Memory.Fixture).Restore(.state)
 	Kill ^||OcuTalonTestMemoryInstall

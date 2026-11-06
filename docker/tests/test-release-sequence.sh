@@ -2859,6 +2859,13 @@ t_static() {
   eq "the usage with no command" "$(cd "$root" && "$BASH" release/release.sh 2>&1 | head -n 1 | cut -c1-30)" "release/release.sh start --ver"
   eq "the usage exit" "$(cd "$root" && "$BASH" release/release.sh > /dev/null 2>&1; echo $?)" 2
   has "ci: the unit is listed" "$(sed -n 's/^CHECK_SCRIPTS="\(.*\)"$/\1/p' "$root/ci/units.sh")" " release-sequence"
+  eq "(QA) requirements.txt at the root declares exactly fastembed==0.9.0" "$(cat "$root/requirements.txt")" "fastembed==0.9.0"
+  eq "(QA) requirements.txt is tracked" "$(git -C "$root" ls-files requirements.txt)" "requirements.txt"
+  has "(QA) the image's pip line pins the same fastembed" "$(grep -F 'pip install' "$root/docker/Dockerfile")" " $(cat "$root/requirements.txt") "
+  eq "(QA) every zpm load of the ipm step bypasses pip, which has no network there" "$(grep -c 'zpm \\"load -bypass-py-deps ' "$root/release/release.sh")" 2
+  eq "(QA) no zpm load of the ipm step is left without the bypass" "$(grep 'zpm \\"load ' "$root/release/release.sh" | grep -vc -e '-bypass-py-deps')" 0
+  eq "(QA) live:memory-offline is a unit of shards-4" "$("$BASH" -c ". '$root/ci/units.sh'; group_units shards-4" | tr ' ' '\n' | grep -cx 'live:memory-offline')" 1
+  eq "(QA) the Memory area is in lane-a" "$("$BASH" -c ". '$root/ci/units.sh'; shard_areas lane-a" | tr ' ' '\n' | grep -cx 'Memory')" 1
   eq "the notes step never replaces a draft" "$(grep -c -e '--replace' "$root/release/release.sh")" 0
   eq "no outward form in the script" "$(grep -nE 'gh[ ]release|gh[ ]repo[ ]edit|--visib[i]lity' "$root/release/release.sh" | wc -l | tr -d ' ')" 0
 }

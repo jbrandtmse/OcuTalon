@@ -1139,8 +1139,8 @@ step_install() {
   step_pass install "install.sh reached ready; first start $first s, install included; install.sh said \"$PI_READY\""
 }
 
-# memory_offline_session: the ObjectScript lines that run OcuTalon.Test.Memory.Offline through the %UnitTest.Manager and print one CHK line per
-# case, error and failed or skipped assertion (the lines of ci/iris.sh class_script).
+# memory_offline_session: the ObjectScript lines that run OcuTalon.Test.Memory.Offline through the %UnitTest.Manager and print one CHK line for
+# the new result, one per case and one per failed or skipped assertion.
 memory_offline_session() {
   printf '%s\n' \
     'Set ^UnitTestRoot="/tmp/"' \

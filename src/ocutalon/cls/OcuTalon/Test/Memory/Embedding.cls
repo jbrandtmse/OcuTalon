@@ -6,10 +6,15 @@
 ///     that AI Hub's FastEmbed stored equals the vector of the same text from this class, every component within 1e-6;
 ///   - TestRunsInAWorker: Embed runs its work in a worker of the category OcuTalon.Memory.Embedder, not in the calling process;
 ///   - TestFolderArgument: the worker embeds from a folder other than the process's FASTEMBED_CACHE_DIR (a copy of the baked one), sets the variable to
-///     it inside itself, and returns the same vector; it embeds from the baked folder last, which sets the worker's variable back;
+///     it inside itself, and returns the same vector; the work item then removes the worker's model for the copy and puts its variable back;
 ///   - TestSqlConsumers: SELECT EMBEDDING(text, 'OcuTalonMemory') and an embedding column of a fixture class return the same vector as Embed;
 ///   - TestInvalidConfig: IsValidConfig refuses another model and another dimension, and the configuration table refuses such a row;
-///   - TestWorkerFailure: a missing model folder and an unknown work item come back as an error status at once, and the caller embeds afterwards.
+///   - TestWorkerFailure: a missing model folder and an unknown work item come back as an error status at once, and the caller embeds afterwards;
+///   - TestInputForms: a dynamic object is embedded as its JSON text, and an empty text embeds as a vector of 384 values;
+///   - TestSubmitTimeout: a work item that is not done within its timeout (one that waits 10 seconds, with a timeout of 1) comes back as an error
+///     status that says so, at the timeout and not when the work is done, and the caller embeds afterwards;
+///   - TestModelLoadsOnce: a worker keeps the one model object across embeds (the object's Python identity does not change);
+///   - TestModelKeptAcrossCalls: across separate calls of Submit, a worker that embedded before does not load the model again.
 Class OcuTalon.Test.Memory.Embedding Extends %UnitTest.TestCase
 {
 
@@ -102,7 +107,7 @@ Method TestFolderArgument()
 		Do $$$AssertEquals(##class(OcuTalon.Test.Memory.Fixture).CopyBaked(copy), 0, "the baked folder is copied under the manager directory")
 		Do $$$AssertTrue(copy '= ##class(OcuTalon.Memory.Embedder).ModelFolder(), "which is not the folder of the process's variable")
 		Do $$$AssertStatusOK(##class(OcuTalon.Memory.Embedding).Embed(text, .baked), "the text is embedded from the baked folder")
-		Set sc = ##class(OcuTalon.Memory.Embedder).Submit("Embed", ##class(OcuTalon.Memory.Embedder).#TIMEOUT, .result, text, copy)
+		Set sc = ##class(OcuTalon.Memory.Embedder).Submit("##class(OcuTalon.Test.Memory.Fixture).EmbedFromFolder", ##class(OcuTalon.Memory.Embedder).#TIMEOUT, .result, text, copy)
 		Do $$$AssertStatusOK(sc, "and from the copy, in a worker")
 		Do $$$AssertEquals($Get(result("variable")), copy, "whose FASTEMBED_CACHE_DIR is the copy")
 		Set fromCopy = ##class(OcuTalon.Test.Memory.Fixture).ToVector($Get(result("vector")))
@@ -112,7 +117,6 @@ Method TestFolderArgument()
 		Do $$$AssertStatusOK(exception.AsStatus(), "the folder argument check ran")
 	}
 	Do ##class(OcuTalon.Test.Memory.Fixture).RemoveCopy(copy)
-	Do ##class(OcuTalon.Memory.Embedding).Embed(##class(OcuTalon.Test.Memory.Fixture).Matrix(1), .baked)
 }
 
 Method TestSqlConsumers()
@@ -147,7 +151,7 @@ Method TestSqlConsumers()
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the embedding column check ran")
 	}
-	Do $ClassMethod(class, "%DeleteExtent")
+	If ##class(%Dictionary.CompiledClass).%ExistsId(class) Do $ClassMethod(class, "%DeleteExtent")
 	Do $SYSTEM.OBJ.Delete(class, "-d")
 	Kill @("^" _ globalName _ "D"), @("^" _ globalName _ "I"), @("^" _ globalName _ "S")
 }
@@ -196,6 +200,68 @@ Method TestWorkerFailure()
 		Set thrown = 1
 	}
 	Do $$$AssertTrue(thrown, "Embedding throws for a configuration that is not valid")
+}
+
+Method TestInputForms()
+{
+	If '..OnImage() Quit
+	Set object = {"owner": "Lee", "topic": "the Results partner"}
+	Set vector = ##class(OcuTalon.Memory.Embedding).Embedding(object, ##class(OcuTalon.Test.Memory.Embedding).Config())
+	Do $$$AssertTrue($IsVector(vector), "a dynamic object is embedded")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory.Embedding).Embed(object.%ToJSON(), .fromText), "and so is its JSON text")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Memory.Fixture).Distance(vector, fromText) < 0.000000001, "the object's vector is its JSON text's vector")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory.Embedding).Embed("Lee the Results partner", .words), "the words of the object")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Memory.Fixture).Distance(vector, words) > 0.001, "are another text, so the equality above is not one vector for every input")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory.Embedding).Embed("", .empty), "an empty text is embedded")
+	Do $$$AssertEquals($VOP("length", empty), 384, "as 384 values")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Memory.Fixture).Distance(empty, fromText) > 0.001, "which differ from the vector of a text")
+}
+
+Method TestSubmitTimeout()
+{
+	If '..OnImage() Quit
+	Set text = ##class(OcuTalon.Test.Memory.Fixture).Matrix(1)
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory.Embedding).Embed(text, .expected), "a worker has the model loaded")
+	Set started = $ZHorolog
+	Set sc = ##class(OcuTalon.Memory.Embedder).Submit("##class(OcuTalon.Test.Memory.Fixture).Slow", 1, .result, 10)
+	Set waited = $ZHorolog - started
+	Do $$$AssertStatusNotOK(sc, "a work item that waits 10 seconds, with a timeout of 1 second, comes back as an error status")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "did not finish within 1 seconds", "which says that it did not finish in time: " _ $SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertTrue(waited < 8, "at the timeout, not when the work is done (the wait was " _ waited _ " s)")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory.Embedding).Embed(text, .vector), "and the caller embeds afterwards")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Memory.Fixture).Distance(vector, expected) < 0.000000001, "with the same vector")
+}
+
+Method TestModelLoadsOnce()
+{
+	If '..OnImage() Quit
+	Set sc = ##class(OcuTalon.Test.Memory.Fixture).WorkerLoads(##class(OcuTalon.Test.Memory.Fixture).Matrix(1), ##class(OcuTalon.Memory.Embedder).ModelFolder(), .info)
+	Do $$$AssertStatusOK(sc, "a worker embeds the text three times")
+	If $SYSTEM.Status.IsError(sc) Quit
+	Do $$$AssertTrue(info("job") '= $Job, "in a worker, not in the calling process")
+	Do $$$AssertTrue(info("id", 1) '= "", "after the first embed the worker holds a model for the folder")
+	Do $$$AssertEquals(info("id", 2), info("id", 1), "the second embed uses the same model object")
+	Do $$$AssertEquals(info("id", 3), info("id", 1), "and so does the third")
+}
+
+Method TestModelKeptAcrossCalls()
+{
+	If '..OnImage() Quit
+	Set text = ##class(OcuTalon.Test.Memory.Fixture).Matrix(1)
+	Set folder = ##class(OcuTalon.Memory.Embedder).ModelFolder()
+	Set again = 0
+	For call = 1:1:10 {
+		Set sc = ##class(OcuTalon.Memory.Embedder).Submit("Embed", ##class(OcuTalon.Memory.Embedder).#TIMEOUT, .result, text, folder)
+		Do $$$AssertStatusOK(sc, "call " _ call _ " embeds")
+		If $SYSTEM.Status.IsError(sc) Quit
+		Set job = $Get(result("job"))
+		If $Data(seen(job)) {
+			Set again = again + 1
+			Do $$$AssertEquals($Get(result("loaded")), 0, "call " _ call _ " runs in worker " _ job _ ", which embedded before, and does not load the model again")
+		}
+		Set seen(job) = 1
+	}
+	Do $$$AssertTrue(again > 0, "a worker ran more than one of the ten calls: " _ again)
 }
 
 /// The configuration text of the OcuTalonMemory row.

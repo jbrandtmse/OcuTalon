@@ -2,11 +2,13 @@
 /// live:memory-offline runs this class in a fresh stack whose networks are all disconnected. It needs the Python package and the baked folder, so it runs
 /// only on OcuTalon's Docker image and records one named skip elsewhere.
 ///   - TestStoreAndRecall: a memory row (OcuTalon.Data.Memory) is stored with its embedding from this story's endpoint and is the top hit of a
-///     VECTOR_COSINE query for a paraphrase, ahead of two rows about other things; the rows are deleted afterwards (Story 19.3 adds the tool path);
+///     VECTOR_COSINE query for a paraphrase, ahead of two rows about other things stored before it (so a tie would not put it first); the rows are
+///     deleted afterwards (Story 19.3 adds the tool path);
 ///   - TestHubFromTheBakedFolder: AI Hub's FastEmbed embeds a document chunk into a test vector-store table from the baked folder, and the stored
 ///     vector equals the endpoint's vector for the chunk's text within 1e-6;
-///   - TestHubFromACopyInAWorker: the same from a copy of the baked folder under the manager directory, in a worker whose FASTEMBED_CACHE_DIR is set
-///     to the copy (the way a package that cannot set the process's environment passes the folder, AD-21).
+///   - TestHubFromACopyInAWorker: the same from a copy of the baked folder under the manager directory, in a worker of the category
+///     OcuTalon.Memory.Embedder whose FASTEMBED_CACHE_DIR is set to the copy (the way a package that cannot set the process's environment passes the
+///     folder, AD-21).
 Class OcuTalon.Test.Memory.Offline Extends %UnitTest.TestCase
 {
 
@@ -40,9 +42,9 @@ Method OnImage() As %Boolean [ Private ]
 Method TestStoreAndRecall()
 {
 	If '..OnImage() Quit
-	Set texts(1) = "the Results partner's contact is Lee"
-	Set texts(2) = "the warehouse closes at six on Fridays"
-	Set texts(3) = "invoices are paid by bank transfer within thirty days"
+	Set texts(1) = "the warehouse closes at six on Fridays"
+	Set texts(2) = "invoices are paid by bank transfer within thirty days"
+	Set texts(3) = "the Results partner's contact is Lee"
 	Set query = "who do I contact at the Results partner?"
 	Try {
 		Do ..DeleteRows()
@@ -64,8 +66,8 @@ Method TestStoreAndRecall()
 		Set result = statement.%Execute(..#SESSION, ##class(OcuTalon.Test.Memory.Fixture).ToString(queryVector))
 		Do $$$AssertTrue(result.%SQLCODE >= 0, "and runs: " _ result.%Message)
 		Do $$$AssertTrue(result.%Next(), "and returns rows")
-		Do $$$AssertEquals(result.%Get("Ref"), "zzmo1", "the memory about the Results partner is the top hit")
-		Do $$$AssertEquals(result.%Get("Text"), texts(1), "with its text")
+		Do $$$AssertEquals(result.%Get("Ref"), "zzmo3", "the memory about the Results partner is the top hit")
+		Do $$$AssertEquals(result.%Get("Text"), texts(3), "with its text")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the store and recall check ran")
 	}
@@ -101,7 +103,7 @@ Method TestHubFromACopyInAWorker()
 		Do $$$AssertEquals(##class(OcuTalon.Test.Memory.Fixture).CopyBaked(copy), 0, "the baked folder is copied under the manager directory")
 		Do $$$AssertTrue(##class(OcuTalon.Memory.Embedder).HasModel(copy), "and the copy holds the model")
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).CreateTable(table, suffix), "the test table is made")
-		Set queue = $SYSTEM.WorkMgr.%New("", 1)
+		Set queue = $SYSTEM.WorkMgr.%New("", 1, ##class(OcuTalon.Memory.Embedder).#CATEGORY)
 		Do $$$AssertTrue(queue '= "", "a worker group is made")
 		Set sc = queue.Queue("##class(OcuTalon.Test.Memory.Offline).HubWorker", table, copy)
 		Do $$$AssertStatusOK(sc, "the work item is queued")
@@ -135,11 +137,7 @@ ClassMethod HubWorker(table As %String, folder As %String) As %Status
 	Set %result("folder") = $SYSTEM.Util.GetEnviron(variable)
 	Set texts(1) = ##class(OcuTalon.Test.Memory.Fixture).Matrix(1)
 	Set sc = ##class(OcuTalon.Test.Memory.Fixture).HubFill(table, .texts)
-	If previous '= "" {
-		Do environ."__setitem__"(variable, previous)
-	} Else {
-		Do environ.pop(variable)
-	}
+	Do ##class(OcuTalon.Test.Memory.Fixture).PutVariable(environ, previous)
 	Quit sc
 }
 

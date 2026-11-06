@@ -4558,3 +4558,38 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the page only gained STEP Memory OK lines (test-cpf.sh rule 9); new wording is public text on Epic 11's page
 - 2026-11-06T09:07:42Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=harvest note=reopen_if=Epic_11_or_15_next_edits_docs/install-ipm.md,or_a_reader_asks_what_WARN_Memory_means;reported_to_orchestrator_for_routing
+
+### DW-791: The IPM install's requirements.txt pins only fastembed==0.9.0: its dependencies (onnxruntime, tokenizers, huggingface_hub, numpy) get no constraints file, licence gate or third-party notices, unlike the image's pip line
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: docker/Dockerfile holds every dependency to docker/licences/constraints-<arch>.txt and runs gate.py check and notices; root requirements.txt has one line; ipm-install.sh check 30 asserts only fastembed's version
+- 2026-11-06T09:48:59Z status=escalated owner=burndown by=cr note=licence and dependency policy for IPM installs (veto); per-arch pins do not fit one requirements.txt; decide at the decision sheet
+
+### DW-792: OcuTalon.Memory.Embedder builds its two keyword calls (TextEmbedding, snapshot_download) from Python source in builtins.eval lambda strings, a form the Conventions Python row (.py resources under src/ocutalon/python/) does not name
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Embedder.cls Embed and Download eval one-line lambdas because %SYS.Python passes no keyword argument on build 154 (spec Decided in-stage); the spec forbids an own .py file in this story
+- 2026-11-06T09:48:59Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=19.6 creates src/ocutalon/python/: move both lambdas into a .py resource imported with %SYS.Python.Import
+
+### DW-793: Memory install warnings can carry OcuTalon's own wording, not only an underlying error's text: 'The download left no model in <folder>', and Embedder statuses ('could not be made', 'did not finish within N seconds', 'No work group of category')
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Install/Step/Memory.cls EnsureModel Warn calls; spec Never: no new user-facing text (a step warning carries the underlying error's own text); other steps (Audit, Users, Schedule) warn in their own words
+- 2026-11-06T09:48:59Z status=decision-pending owner=burndown by=cr note=PUBLIC TEXT: recommend keeping them as operator diagnostics, as the other install steps do; else the spec's Never line is amended
+
+### DW-794: The callback check cannot cover OcuTalon.Memory.Embedder's caller-side methods (Submit, ModelFolder, HasModel run in the calling process) because the same class holds the worker's %SYS.Python code, so Python added to Submit would pass TestCallbackRule
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Test.Bridge.CodeRules CALLBACKHELPERS lists Memory.Embedding only; the spec puts ModelFolder, Submit and the worker entries in one class Embedder, which Story 19.4 reads
+- 2026-11-06T09:48:59Z status=by-design owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=spec-bound (one class per the Code Map and Consumed-by 19.4); reopen via spec amendment if Story 19.3's callback test shows a need
+
+### DW-795: release/ipm-install.sh check 31 cannot observe a repeated download: a snapshot_download into a complete cache leaves the file list and sizes unchanged, and the reinstall output is not checked for WARN Memory
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: memory_fingerprint compares paths and sizes only; the AC4 mutation (always download) is caught by Test.Memory.Install:TestPresentFolder, not by check 31
+- 2026-11-06T09:48:59Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=reopen_if=an FR-57 reinstall log shows a model download or fastembed pip output while check 31 passes
+
+### DW-796: Test.Memory.Offline:TestHubFromACopyInAWorker cannot tell whether AI Hub's FastEmbed read the copy: if the variable were ignored it would read the worker's inherited /opt/fastembed and still pass
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: HubWorker sets FASTEMBED_CACHE_DIR to a cp copy of the baked folder; no control with a folder lacking the model (rejected earlier: with a network AI Hub would download into it)
+- 2026-11-06T09:48:59Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=reopen_if=Story 19.4's DocumentOps sets the variable from ModelFolder() and an IPM install's documents are embedded from /opt or fail
+
+### DW-797: AD-22's 'CI as built' list of lane-a areas does not name Memory, which ci/units.sh now runs in shard lane-a
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spine AD-22 Rule line lists Agent, Bridge, Checks, Fix, Install, Tools, Digest, Watch, Eval and Channel; Story 19.2 appended Memory to ci/units.sh; editing an existing Rule line of a contended spine is not a plain union
+- 2026-11-06T09:48:59Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=reopen_if=the lead's next spine refresh of AD-22, or a reader places a Test/Memory class by that list; test-ci-config.sh enforces membership

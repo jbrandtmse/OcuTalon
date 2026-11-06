@@ -6245,6 +6245,8 @@ So that it can answer from it as a document.
 **Then** each file's text comes back right, each failure case gives its reason, extraction runs in the worker, and the CI check finds no Python method or `%SYS.Python` in a callback class (FR-54, AD-6, AD-22)
 **And** the tool inventory test still finds no tool that runs operating-system commands or arbitrary code (FR-10)
 
+- DW-792: `OcuTalon.Memory.Embedder` (Story 19.2) builds its two keyword calls with Python `eval` strings, a form the Conventions "Python" row does not name; move them into the `.py` resource this story creates under `src/ocutalon/python/` (ledger; routed by cr 2026-11-06)
+
 ### Story 19.7: Answer from PDF and Word documents
 
 [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: a new story with Story 26.2's PDF and Word document criteria, moved verbatim except that in step 3 a file is added from the Documents page; Story 26.2 keeps the files sent from the chat and Telegram. It follows Story 19.6]

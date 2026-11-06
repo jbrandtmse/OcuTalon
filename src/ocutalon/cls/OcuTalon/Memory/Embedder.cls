@@ -74,9 +74,9 @@ ClassMethod HasModel(folder As %String) As %Boolean
 	Quit found
 }
 
-/// Queues one work item of this class to the category and waits for it at most timeout seconds. The work item's %result nodes come back in
-/// result. Returns the work item's status, or an error status when no group could be made, the item could not be queued or it did not finish in
-/// time. Never throws.
+/// Queues one work item to the category and waits for it at most timeout seconds. entry is a class method of this class, or a full
+/// ##class(<class>).<method> reference. The work item's %result nodes come back in result. Returns the work item's status, or an error status
+/// when no group could be made, the item could not be queued or it did not finish in time. Never throws.
 ClassMethod Submit(entry As %String, timeout As %Integer, Output result, args... As %String) As %Status
 {
 	Kill result
@@ -86,9 +86,9 @@ ClassMethod Submit(entry As %String, timeout As %Integer, Output result, args...
 		If queue = "" {
 			Set sc = $SYSTEM.Status.Error(5001, "No work group of category " _ ..#CATEGORY _ " could be made: " _ $SYSTEM.Status.GetErrorText($Get(%objlasterror)))
 		} Else {
-			Set sc = queue.Queue("##class(" _ $ClassName() _ ")." _ entry, args...)
+			Set sc = queue.Queue($Select($Extract(entry, 1, 8) = "##class(": entry, 1: "##class(" _ $ClassName() _ ")." _ entry), args...)
 			If $SYSTEM.Status.IsOK(sc) {
-				If 'queue.WaitOne(timeout, .workStatus, .workArgs, .workResult) {
+				If 'queue.WaitOne(timeout, .workStatus, .workArgs, .workResult) || $$$ERRORISTYPE(workStatus, $$$MultiTimeout) {
 					Set sc = $SYSTEM.Status.Error(5001, "The work item " _ entry _ " did not finish within " _ timeout _ " seconds")
 				} ElseIf $SYSTEM.Status.IsError(workStatus) {
 					Set sc = workStatus
@@ -103,8 +103,9 @@ ClassMethod Submit(entry As %String, timeout As %Integer, Output result, args...
 	Quit sc
 }
 
-/// The work item that embeds one text: %result("vector") is the vector as the Python list's text, %result("job") the worker's $JOB and
-/// %result("variable") the worker's FASTEMBED_CACHE_DIR once the model's folder is set.
+/// The work item that embeds one text: %result("vector") is the vector as the Python list's text, %result("job") the worker's $JOB,
+/// %result("variable") the worker's FASTEMBED_CACHE_DIR once the model's folder is set, and %result("loaded") 1 when this item loaded the model
+/// (the worker held none for the folder), else 0.
 ClassMethod Embed(text As %String, folder As %String) As %Status
 {
 	Kill %result
@@ -116,9 +117,11 @@ ClassMethod Embed(text As %String, folder As %String) As %Status
 		Do ##class(%SYS.Python).Import("os").environ."__setitem__"(..#FOLDERVARIABLE, folder)
 		If 'builtins.hasattr(sys, ..#CACHEATTRIBUTE) Do builtins.setattr(sys, ..#CACHEATTRIBUTE, builtins.dict())
 		Set models = builtins.getattr(sys, ..#CACHEATTRIBUTE)
+		Set loaded = 0
 		If 'models."__contains__"(folder) {
 			Set make = builtins.eval("lambda package, folder: package.TextEmbedding('" _ ..#MODEL _ "', cache_dir=folder, local_files_only=True)", builtins.dict())
 			Do models."__setitem__"(folder, make."__call__"(##class(%SYS.Python).Import("fastembed"), folder))
+			Set loaded = 1
 		}
 		Set batch = builtins.list()
 		Do batch.append(text)
@@ -126,6 +129,7 @@ ClassMethod Embed(text As %String, folder As %String) As %Status
 		Set %result("vector") = builtins.str(values)
 		Set %result("job") = $Job
 		Set %result("variable") = $SYSTEM.Util.GetEnviron(..#FOLDERVARIABLE)
+		Set %result("loaded") = loaded
 	} Catch exception {
 		Kill %result
 		Set sc = exception.AsStatus()
