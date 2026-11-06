@@ -4821,6 +4821,34 @@ So that I can see its results and costs without running the evaluations myself.
 **When** that change is needed
 **Then** it goes to the Contest Planner verbatim as public text before it is committed
 
+### Story 11.26: The README's Measured rows say exactly what was measured
+
+As a judge,
+I want each row of the README's Measured table to name exactly what was measured,
+So that no row claims more than the evaluation or log behind it.
+
+[ADDED 2026-11-06, Epic 11 fix-forward (DW-775; owner decision relayed by the Contest Planner at 2026-11-06T07:51:58Z, ruling (a), logged `planner_ruling subject=DW-775` in the main checkout's `cycle-log-parallel.md`): the demo incident row's source, the eval demo gate, validates the fix and runs no dry run, approval or fix run, so "end to end" claimed more than it measured; the online demo row's number is the model cost only. Two row labels change, exactly as ruled; the numbers, the other rows and the rest of the README stay. DW-776 ("19 of 22 (target: 20)") is closed by-design and is not this story. The Planner updates its own collateral source file.]
+
+**Acceptance Criteria:**
+
+**Given** README.md's `## Measured` table
+**When** it is read
+**Then** the row `| The demo's incident, end to end with a live model | 30 of 30 runs |` reads exactly `| The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs |`, and the row `| The always-on online demo | about 9 to 10 cents a day |` reads exactly `| Model cost of the always-on online demo | about 9 to 10 cents a day |`
+
+**Given** the README before this story
+**When** it is compared with the README after
+**Then** the only changes are those two lines; no other README line changes, and no other file changes except `docker/tests/test-readme.sh` and this epic's bookkeeping
+
+**Given** `docker/tests/test-readme.sh`
+**When** it runs
+**Then** its `measured` rule pins the two new row labels word for word in place of the old ones (the two lines of its label list are updated in place), every other pin is kept, none is deleted or weakened, and the rule fails when either new label is removed, renamed or moved out of the section
+
+**Given** any other wording change the README's surroundings would force
+**When** it is needed
+**Then** it goes to the Contest Planner verbatim as public text before it is committed
+
+- DW-775: README Measured row 'The demo's incident, end to end with a live model: 30 of 30 runs' claims more than its source (ledger; routed by charter 2026-11-06)
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]

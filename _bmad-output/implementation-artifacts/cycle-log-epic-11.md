@@ -668,3 +668,16 @@
 2026-11-06T07:23:32Z	Epic 11	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=3 unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=3(2_decision-pending_on_ruled_text,1_fixed) result=hold applied=false(record_only) note=part_11.25
 2026-11-06T07:23:32Z	Epic 11	integrated_forward	feature=1ebed487 head=ab489bab conflicts_resolved=none(deferred-work.md_union) checks=tree_source-identical_to_1e92dec2(feature_side_bookkeeping_only:cycle-log-parallel.md,deferred-work.md);1e92dec2_ci_green(42177758844,42177758834);test-readme,test-release-notes,test-boundaries,test-cpf,test-bridge-guide_passed_on_that_tree feature_ci=green(42170641790,42170641761) stage=part_close
 2026-11-06T07:23:32Z	Epic 11	epic_runner_complete	stories_completed=1(11.25) part_merge=11.25 applied=none decisions_for_user=DW-775,DW-776
+2026-11-06T07:55:08Z	Epic 11	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_story_11.26_runner_B lane=B slot=ocutalon-slot-b hashes_checked=main_checkout_match
+2026-11-06T07:55:08Z	Epic 11	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-06T07:55:08Z	Epic 11	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh bootstrap_check=ok inbox_verify=ok hold=absent
+2026-11-06T07:55:08Z	Epic 11	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-06T07:55:08Z	Epic 11	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-06T07:55:08Z	Epic 11	story_chartered	story=11.26 key=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured source=planner_ruling(subject=DW-775,ruling_a,2026-11-06T07:51:58Z;owner_delegation) scope=two_README_Measured_row_labels_exact+test-readme_label_pins_in_place head=4845cf67 feature=c390b58b(CI_pending)
+2026-11-06T07:55:08Z	Epic 11	sprint_planning_complete	gate=PASS mode=generate(readiness_re-check) new_entries=11-26 validate=valid dropped_orphans=0 model=claude-opus-5-5
+2026-11-06T07:55:08Z	Epic 11	retro_review_skipped	reason=skip(no_X.0_input)_redispatch_for_11.26
+2026-11-06T07:55:08Z	Epic 11	ledger_reowned	entry=DW-775 owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=x0 note=planner_ruling_a
+2026-11-06T07:55:08Z	Epic 11	ledger_routed_planned	story=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured entries=1(DW-775) excess=0 by=charter
+2026-11-06T07:55:08Z	Epic 11	deps_hash_rerecorded	reason=fix_forward note=Story_11.26_inserted_in_Epic_11(no_boundary_or_dependency_change);orchestrator_records_the_graph_hash epics_md_sha256=53fef212b0c9a3b6
+2026-11-06T07:56:33Z	Epic 11	epic_context_compiled	reason=planning_artifact_newer(11.26_inserted) model=claude-opus lines=60 header=ok abs_paths=0 subagent_tokens=54043
+2026-11-06T07:56:33Z	Story 11.26	stage_spawned	stage=plan spawn_at=2026-11-06T07:56:33Z model=claude-opus agent_name=11-26-measured-rows-plan-1 cycle_iteration=1

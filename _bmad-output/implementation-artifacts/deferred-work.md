@@ -4557,6 +4557,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Gate.cls header: the demo gate validates the fix parameters 'and nothing more: no dry run, approval or Execute (AD-16)'; rc4.md:100 the live rehearsal stopped at run 8; README.md:34 is owner-ruled text
 - 2026-11-06T06:48:13Z status=decision-pending owner=burndown by=cr note=human=Contest Planner ruling on the row's label or number; the ruled text is not editable by a story
+- 2026-11-06T07:54:54Z status=routed owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=x0 note=re-owned to the 11.26 charter (planner_ruling subject=DW-775, ruling (a), 2026-11-06T07:51:58Z): relabel the two Measured rows exactly as ruled; closed at the 11.26 burn-down
 
 ### DW-776: README Measured row 'Routine attention decisions right: 19 of 22' shows the best of three rc4 attempts (19, 18, 18 of 22) with no note that it is the best
 - source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: med | fix-risk: low | footprint: out-of-footprint
