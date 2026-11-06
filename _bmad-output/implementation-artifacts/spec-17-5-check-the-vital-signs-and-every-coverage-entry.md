@@ -2,7 +2,7 @@
 title: 'Story 17.5: Check the vital signs and every coverage entry'
 type: 'feature'
 created: '2026-11-05'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '9972fd1a586e7d3884f6395e2d0b06c4a414fa02'
 baseline_commit: '9972fd1a586e7d3884f6395e2d0b06c4a414fa02'
 review_loop_iteration: 0
@@ -249,8 +249,12 @@ Code review 2026-11-06 (re-review of rework 1, `9972fd1a..ee880716`; four layers
 - [x] [Review][Defer] The stop rule can end one file early when a file's first line falls in a repeated fall-back hour [src/ocutalon/cls/OcuTalon/Watch/Reader.cls SevereLines] - deferred: occurrence on DW-643 (`Data.Time.FromLocal`'s fall-back instant, Lane B, routed to 18.2).
 
 Rejected (this re-review): `low` `TestUnreadableSwitchedLog` does not check that `chmod 000` locked the file - it fails loudly as root, never green (recorded residual); `false` `TestUnreadableSwitchedLog` reads every kept file of the instance - the unreadable fixture is the newest, the read fails on it and stops; `low` `TestNoSwitch` checks source text only - the existing pattern; `low` files with the same modified second are read oldest first by name - wontfix-theoretical: real only with two switches of a 5 MB file in one second, or kept files restored in one second.
+- [ ] [CI] checks: `docker/tests/test-cpf.sh` rule 9 red ("docs/install-ipm.md keeps its points and agrees with ... the order of Registry") - run 42206920718 job checks: the two sample install logs in `docs/install-ipm.md` (after line 165 and line 268, `STEP Demo OK 0.1s`) need one `STEP Digest OK 0.1s` line each, inserted right after `STEP Demo OK`. Change nothing else in that file (Epic 19 adds `STEP Memory OK` after `STEP Telegram OK` on its branch: separate lines, a plain union; orchestrator ruling 2026-11-06). Run `bash docker/tests/test-cpf.sh` and see it pass. This closes DW-779.
+- [ ] [CI] iris (shards-2): `OcuTalon.Test.Digest.Coverage` `TestBeatLeavesCoverageAlone` red in shard `lane-a@rest` ("and Build's rows are as they were", "and so are its lines"), green locally - run 42206920718: the test is not hermetic. Reproduce it in shard order on a warm throwaway (`OCUTALON_WARM=1 ci/iris.sh shard lane-a@rest --part k/n` for the part that holds `Test.Digest.Coverage`, or the classes that run before it in `ci/iris.sh classes lane-a@rest`), find what differs between the two `Build` calls (live state another class leaves, the real heartbeat's gaps, the clock, the probe's call log), and make the test own its state so the before/after comparison can only differ through the trigger. Keep the CheckRun-count pin and the mutation (the trigger made to fire on any update -> red); update its `mutation:` line.
 
 ## Spec Change Log
+
+- 2026-11-06 lead: rework iteration 2 opened for two CI story reds on 5fef1125 (test-cpf rule 9: docs/install-ipm.md sample logs, DW-779; TestBeatLeavesCoverageAlone not hermetic in shard lane-a@rest). The image shard's Heartbeat red is the DW-639 flake.
 
 - 2026-11-06 lead: the HIGH (Data -> Checks) resolved by the orchestrator's U7 ruling (a), spine amended by the lead; a beat-guard test added to rework iteration 1 as the ruling's condition.
 
