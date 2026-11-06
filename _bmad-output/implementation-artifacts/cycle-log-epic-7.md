@@ -316,3 +316,15 @@
 2026-11-04T20:34:05Z	Epic 7	integrated_forward	feature=749db383 head=58d24ba6 conflicts_resolved=none diagnosis=auto_merged(module.xml,src/module.xml_version_1.0.0,release/records/1.0.0/rc4.md) kind=final
 2026-11-04T20:34:05Z	Epic 7	merged_tree_verified	build=ok web_unit=1330_pass test-boundaries=10_pass test-class-rules=7_pass test-web-build=13_pass test-release-notes=pass smoke=live:demo-path(8_of_8_steps,0_skipped,floor_15_of_15,498s) env=lane-B_fresh_throwaway(tag=e7s8if,torn_down) note=the_full_IRIS_groups_run_in_CI_on_this_head model=claude-opus-5-5
 2026-11-04T20:34:05Z	Epic 7	epic_runner_complete	stories_completed=2(7.7,7.8_in_this_re-open;epic_total_8)
+2026-11-06T19:10:12Z	Epic 7	epic_branch_reopened	reason=story_7.9_owner_decision from=41efeba8 note=orchestrator_recreated_OCT-epic7(SC-5)
+2026-11-06T19:10:12Z	Epic 7	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_7.9 lane=D slot=ocutalon-slot-d
+2026-11-06T19:10:12Z	Epic 7	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-06T19:10:12Z	Epic 7	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh bootstrap_check=ok
+2026-11-06T19:10:12Z	Epic 7	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-06T19:10:12Z	Epic 7	epic_branch_checked_out	repos=. head=41efeba8 ci_expected=ci,lane-a
+2026-11-06T19:10:12Z	Epic 7	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-06T19:10:12Z	Epic 7	ledger_load	total=775 open=0 routed=125 escalated=1 decision_pending=4 terminal=645 owner_unknown=0 burndown=77 reowned_none=0 epic7_owned=0
+2026-11-06T19:10:12Z	Epic 7	retro_review_skipped	reason=no_X.0_input(dispatch:skip_for_reopen)
+2026-11-06T19:11:43Z	Epic 7	story_chartered	story=7.9 key=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged position=after_7.8 source=owner_decision(Contest_Planner_delegated,2026-11-06T01:15Z,new_stories_11.25_7.9)
+2026-11-06T19:11:43Z	Epic 7	deps_hash_rerecorded	reason=fix_forward note=for_the_orchestrator(Story_7.9_inserted_inside_Epic_7;no_boundary_or_dependency_statement_changed) epics_md_sha256_prefix=7fa819bacb8e42f5
+2026-11-06T19:11:43Z	Epic 7	sprint_planning_complete	gate=PASS new_entries=7-9 explicit_set=epic-7=in-progress(SC-5_reopen) model=claude-opus-5-5

@@ -3584,6 +3584,37 @@ So that I see why the dates were read month first or day first wherever I approv
 **Then** a payload test and a web test pin the row's presence for the either-way case and its absence for a day above 12; any new label comes back as a veto item (FR-25)
 - DW-645: the web incident card's dry-run block does not show U-249's either-way line; needs the ambiguity flag and reading on the approval payload and one card row (ledger; routed by veto U-252 2026-11-03)
 
+### Story 7.9: The dry run shows the fix leaves good messages unchanged
+
+[ADDED 2026-11-06, owner decision by the Contest Planner under the owner's delegation (2026-11-06T01:15Z, `owner_decision subject=new_stories_11.25_7.9` in cycle-log-parallel.md): an SC-5 re-open of Epic 7 for this one story. Target: the Saturday release (latest Sunday 19Z). The notice line's exact text, and any no-fix wording, are public text ruled by the Planner at the spec gate.]
+
+As a user approving a repair,
+I want the dry run to show that the repair would leave the messages that went through unchanged,
+So that I know the fix only touches the broken messages and doesn't rewrite good ones.
+
+**Acceptance Criteria:**
+
+**Given** a validated repair and resend whose dry run has targets
+**When** the dry run runs, before any fix is offered
+**Then** `OcuTalon.Fix.Reformat` is applied, in memory only, to the same field of the last N=20 good (successfully processed) messages from the same source as the failed ones, and the dry run records the count checked and the count that the repair would change (FR-25, AD-16)
+**And** the check reads only: it resends nothing, writes nothing to any message, header, body, setting or queue in either namespace, and calls no model (the CI mock receives no request during it) (FR-25, FR-8, AD-16)
+
+**Given** a dry run whose good-message check changes none of the messages it checked
+**When** the incident notice is sent with its fix and approval request
+**Then** the notice's Dry run paragraph carries one more line giving the count checked and the count changed (exact text: the Planner's ruling at this story's spec gate) (FR-25, UX-DR113)
+
+**Given** a dry run whose good-message check would change any good message
+**When** the dry run finishes
+**Then** no fix is offered and no approval request is raised: the incident gets the no-fix notice, following Story 7.7's no-evidence pattern (U-251; wording: the Planner's ruling at the spec gate) (FR-25, NFR-13, AD-16)
+
+**Given** an approved request whose dry run showed the good-message check
+**When** `FixExecutor` runs it
+**Then** it runs exactly the change the dry run showed (the same kind, parameters and fixed targets), and nothing else (FR-8, AD-11, AD-16)
+
+**Given** the tests
+**When** they run
+**Then** they include a demonstrated mutation (a fix that changes one good message must withhold the offer), the case with no good messages, a case with fewer than 20 good messages, and a check that the approved change equals the dry run's (FR-25, AD-16)
+
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
 A heartbeat runs every minute and runs the due background checks, each visible with its schedule, last run and result; a user asks for a reminder in plain words and it fires within 10 seconds on every channel, survives restarts (marked late if it fires more than 10 seconds after its due time), and can be listed and cancelled in the chat.
