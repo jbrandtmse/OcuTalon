@@ -2185,3 +2185,8 @@
 2026-11-06T05:21:27Z	Epic 39	runner_resumed	agent=ac3a11fec82024147 with=feature_green_push_allowed(queued)
 2026-11-06T05:27:33Z	Run	owner_decision	via=Contest_Planner[a35b9b](delegation) subject=new_story_other_things_to_try home=Epic_4_fix-forward(Story_4.11;Epic_4_owns_the_demo_guide:4.2,4.4,4.7-4.10;SC-5_reopen) target=Sat_release scope="panel after guide step 5 + More to try link; items 1-4 now (persona, suspicious email, reject a fix, Demo view off), 5-7 gated on Epic 19 memory/documents and Epic 39 heartbeat via a server availability flag/catalog; demo view only; keyboard; no new API beyond reading availability; PUBLIC TEXT for every label/look-for line; tests: shows after step 5 and via link, each button acts on the demo path, hidden items stay hidden" queue="1 11.25 (B), 2 4.11, 3 7.9, 4 DW-550/774 timebox 3h; first free runner takes next; step-3 chain and Epic 39 first"
 2026-11-06T05:28:19Z	Run	planner_ruling	subject=4.11_brief answer="brief agreed as written; labels name the persona card and the mailbox sample exactly as on screen (owner video script follows them); labels + look-for lines to the Planner as early as the spec gate"
+2026-11-06T05:48:46Z	Epic 11	runner_complete	part_merge=11.24 head=459a189b ready_for_merge=true ci=42167979385,42167979374 decisions_for_user=none amendments=none footprint_extensions=docker/tests/test-release-notes.sh(ruled) applied=none
+2026-11-06T05:48:46Z	Epic 11	amendments_verified	amendments=0 extensions=1 ok=true
+2026-11-06T05:48:46Z	Epic 11	ci_green_verified	runs=42167979385,42167979374 head=459a189b result=success via=none
+2026-11-06T05:48:46Z	Epic 11	merge_enqueued	policy=when_green part_merge=11.24
+2026-11-06T05:48:46Z	Epic 11	epic_merge_started	head=459a189b part=11.24
