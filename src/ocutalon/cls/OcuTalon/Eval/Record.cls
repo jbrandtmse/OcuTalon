@@ -5,12 +5,15 @@
 ///     changes it, so that a replay of the written file can be compared with what the diagnosis reads live.
 ///   - Write puts two files in <folder>/<name>/ and replaces any that is there: snapshot.json, the reader's answer (format
 ///     ocutalon.readerSnapshot/1) after OcuTalon.Bridge.Redact.Text, with nothing added and nothing dropped, and case.json, the case format of Story 9.1:
-///     {name, kind "incident", heldOut, description, snapshot "snapshot.json", expectation {causeCategory, elementAtFault, fixKind}, recordedBy}.
+///     {name, kind "incident", heldOut, description, snapshot "snapshot.json", expectation {causeCategory, elementAtFault, fixKind[, noFix]}, recordedBy}.
+///     The expectation's noFix is written only when it is true (a diagnosis of a data-format change that proposes no fix, Story 7.7's no-evidence
+///     outcome), as noFix true with fixKind "".
 ///     Each file is compact JSON followed by one line feed. A pack is never written.
 ///   - Write refuses with an error status that names the reason, and makes no folder or file, when: the case is not valid (a valid case is a JSON
 ///     object whose name is lower-case kebab, whose heldOut is a boolean or absent, whose description is not blank, and whose expectation is an
-///     object with a causeCategory of DiagnosisPayload CAUSECATEGORIES, an elementAtFault that is not blank and a fixKind that is a string or absent
-///     and is not empty exactly when the category is DiagnosisPayload FIXCATEGORY); the folder is blank; the snapshot is not of the format
+///     object with a causeCategory of DiagnosisPayload CAUSECATEGORIES, an elementAtFault that is not blank, a noFix that is a boolean or absent
+///     and a fixKind that is a string or absent. With noFix true the category must be DiagnosisPayload FIXCATEGORY and the fixKind empty or absent.
+///     Otherwise the fixKind is not empty exactly when the category is FIXCATEGORY); the folder is blank; the snapshot is not of the format
 ///     SNAPSHOTFORMAT or holds no failure; the redactor cannot check the text; or the redacted snapshot or the case holds a character that is not
 ///     ASCII or a local machine path (LOCALPATH).
 ///   - Capture refuses a case that is not valid before it reads the production, and refuses when the reader's outcome is not read or its answer holds
@@ -117,13 +120,21 @@ ClassMethod CaseRecord(case As %DynamicObject) As %DynamicObject [ Private ]
 	If '$ListFind($ListBuild("string", "unassigned"), expectation.%GetTypeOf("fixKind")) $$$ThrowStatus(..Refusal("the expectation's fixKind is not a string"))
 	Set fixKind = ..Text(expectation, "fixKind")
 	Set fixCategory = ##class(OcuTalon.Watch.Msg.DiagnosisPayload).#FIXCATEGORY
-	If (category = fixCategory) && (fixKind = "") $$$ThrowStatus(..Refusal("the expectation's fixKind is empty for the category "_category))
-	If (category '= fixCategory) && (fixKind '= "") $$$ThrowStatus(..Refusal("the expectation's fixKind '"_fixKind_"' is set for the category "_category_", which has no fix"))
+	If '$ListFind($ListBuild("boolean", "unassigned"), expectation.%GetTypeOf("noFix")) $$$ThrowStatus(..Refusal("the expectation's noFix is not a boolean"))
+	Set noFix = +expectation.%Get("noFix")
+	If noFix {
+		If category '= fixCategory $$$ThrowStatus(..Refusal("the expectation's noFix is set for the category "_category_", which has no fix"))
+		If fixKind '= "" $$$ThrowStatus(..Refusal("the expectation's fixKind '"_fixKind_"' is set for an expectation of no fix"))
+	} Else {
+		If (category = fixCategory) && (fixKind = "") $$$ThrowStatus(..Refusal("the expectation's fixKind is empty for the category "_category))
+		If (category '= fixCategory) && (fixKind '= "") $$$ThrowStatus(..Refusal("the expectation's fixKind '"_fixKind_"' is set for the category "_category_", which has no fix"))
+	}
 	Set record = {"name": (name), "kind": (##class(OcuTalon.Eval.Report).#INCIDENTKIND)}
 	Do record.%Set("heldOut", +case.%Get("heldOut"), "boolean")
 	Set record.description = case.description
 	Set record.snapshot = ..#SNAPSHOTFILE
 	Set record.expectation = {"causeCategory": (category), "elementAtFault": (expectation.elementAtFault), "fixKind": (fixKind)}
+	If noFix Do record.expectation.%Set("noFix", 1, "boolean")
 	Set record.recordedBy = ..#RECORDEDBY
 	Quit record
 }

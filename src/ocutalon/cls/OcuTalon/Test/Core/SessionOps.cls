@@ -681,6 +681,28 @@ Method TestEndForgetsPersona()
 	Do $$$AssertStatusOK(##class(OcuTalon.Core.SettingsOps).ForgetPerson(other), "and is removed after the check")
 }
 
+/// EndSession forgets the ended session's heartbeat keys too (AD-19): a session with its five heartbeat keys is ended (web_user), the answer is
+/// ended, and its keys are gone; another session's heartbeat key stays (and is removed after the check).
+Method TestEndForgetsHeartbeat()
+{
+	Set probe = ..Probe()
+	Set session = ..Session("heartbeat")
+	Set other = ..Session("heartbeatother")
+	For name = "on", "interval", "from", "to", "checklist" {
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(##class(OcuTalon.Checks.Beat).SettingKey(session, name), "zz"_name), "the "_name_" key of the session is written")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(##class(OcuTalon.Checks.Beat).SettingKey(other, "checklist"), "zz other"), "the other session's key is written")
+	Set result = ..End(probe, "web_user", session)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|ended", "Ok 1, ended")
+	For name = "on", "interval", "from", "to", "checklist" {
+		Set key = ##class(OcuTalon.Checks.Beat).SettingKey(session, name)
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 0, "the "_name_" key of the ended session is gone")
+	}
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(##class(OcuTalon.Checks.Beat).SettingKey(other, "checklist"))
+	Do $$$AssertEquals($IsObject(row) && (row.Value = "zz other"), 1, "the other session's key stays")
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.SettingsOps).ForgetPerson(other), "and is removed after the check")
+}
+
 /// When the per-person settings can't be deleted (an error status, or an error thrown), End answers failed,
 /// keeps the resume hash, logs one warning naming the session and leaves the keys; a later End, when the delete works, answers ended,
 /// deletes the keys and clears the hash.

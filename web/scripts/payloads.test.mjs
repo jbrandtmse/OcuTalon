@@ -107,7 +107,7 @@ describe('traceUrl in the real tree', () => {
         assert.equal(fields.at(-1), 'traceUrl', `${name}: traceUrl is the last field`);
       }
     }
-    assert.deepEqual(traced.sort(), ['ApprovalPayload', 'CheckPayload', 'ChatMessagePayload', 'DecisionPayload', 'ReminderPayload', 'TraceTarget'].sort());
+    assert.deepEqual(traced.sort(), ['ApprovalPayload', 'CheckPayload', 'ChatMessagePayload', 'DecisionPayload', 'HeartbeatPayload', 'ReminderPayload', 'TraceTarget'].sort());
     assert.ok(!traced.includes('NotificationPayload'), 'a notification carries its decision, not a target of its own');
   });
 

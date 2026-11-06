@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, pendingApprovals, personaReadKey, railView, readmeSection } = await import(app('rail', 'rail-view.ts'));
+const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, heartbeatReadKey, pendingApprovals, personaReadKey, railView, readmeSection } = await import(app('rail', 'rail-view.ts'));
 const { countdownText, pageWhen } = await import(app('chat', 'page-time.ts'));
 const { DECISION_TEXTS, confidenceText, formatCost, outcomeOf, reasonLines } = await import(app('chat', 'decision-view.ts'));
 const { CHAT_TEXTS, NOTICE_TEXTS } = await import(app('chat', 'chat-view.ts'));
@@ -119,6 +119,7 @@ describe('the fixed strings', () => {
         titleWithCountdown: '{text}{separator}{countdown}',
         telegramNotSetUp: 'Telegram not set up',
         telegramHowTo: 'How to set it up',
+        heartbeat: 'Heartbeat checklist',
         persona: 'Persona',
       },
     );
@@ -140,16 +141,16 @@ describe('the fixed strings', () => {
 });
 
 describe('the sections', () => {
-  it('come in order without Telegram: Approval requests, Background checks, Reminders, Recent decisions, Persona', () => {
+  it('come in order without Telegram: Approval requests, Background checks, Reminders, Recent decisions, Heartbeat checklist, Persona', () => {
     const view = viewOf();
-    assert.deepEqual(view.sections.map((one) => one.id), ['approvals', 'checks', 'reminders', 'decisions', 'persona']);
-    assert.deepEqual(view.sections.map((one) => one.label), ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions', 'Persona']);
+    assert.deepEqual(view.sections.map((one) => one.id), ['approvals', 'checks', 'reminders', 'decisions', 'heartbeat', 'persona']);
+    assert.deepEqual(view.sections.map((one) => one.label), ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions', 'Heartbeat checklist', 'Persona']);
     assert.equal(view.telegramShown, false);
   });
 
   it('start with Telegram, with no count, when the release includes it', () => {
     const view = viewOf({}, { ...TELEGRAM_OFF, included: true });
-    assert.deepEqual(view.sections.map((one) => one.id), ['telegram', 'approvals', 'checks', 'reminders', 'decisions', 'persona']);
+    assert.deepEqual(view.sections.map((one) => one.id), ['telegram', 'approvals', 'checks', 'reminders', 'decisions', 'heartbeat', 'persona']);
     assert.equal(view.telegramShown, true);
     const telegram = section(view, 'telegram');
     assert.equal(telegram.count, undefined);
@@ -165,6 +166,18 @@ describe('the sections', () => {
       assert.equal(persona.count, undefined);
       assert.deepEqual([persona.label, persona.heading, persona.spoken], ['Persona', 'Persona', 'Persona']);
       assert.deepEqual([persona.rows, persona.empty, persona.hint], [[], '', '']);
+    }
+  });
+
+  it('put the Heartbeat checklist right before Persona, with no count and no rows, whatever the store holds (Story 39.5)', () => {
+    for (const view of [viewOf(), viewOf({ approvals: [approval('a1')], checks: [check('c1')] }, { ...TELEGRAM_OFF, included: true })]) {
+      const at = view.sections.findIndex((one) => one.id === 'heartbeat');
+      assert.equal(at, view.sections.length - 2, 'second to last');
+      assert.equal(view.sections[at + 1].id, 'persona');
+      const heartbeat = view.sections[at];
+      assert.equal(heartbeat.count, undefined);
+      assert.deepEqual([heartbeat.label, heartbeat.heading, heartbeat.spoken], ['Heartbeat checklist', 'Heartbeat checklist', 'Heartbeat checklist']);
+      assert.deepEqual([heartbeat.rows, heartbeat.empty, heartbeat.hint], [[], '', '']);
     }
   });
 
@@ -236,6 +249,16 @@ describe('approval requests', () => {
     assert.equal(new Set([proposed, approved, applied]).size, 3, 'a setting request reads again at each state: pending, approved, done');
     assert.equal(at([approval('fix1', { state: 'approved' })]), at([approval('fix1', { state: 'done' })]), 'a fix that changes state reads nothing');
     assert.notEqual(at([approval('fix1')]), at([]), 'a pending request of any kind reads again');
+  });
+
+  it('gives the Heartbeat card a heartbeatReadKey that is empty before a heartbeat event and changes with each new payload (Story 39.5)', () => {
+    const store = fromSnapshot(snapshot());
+    assert.equal(heartbeatReadKey(store), '');
+    const first = heartbeatReadKey({ ...store, heartbeat: { on: true, interval: 30, lastBeatAt: '2030-01-01T10:00:00Z' } });
+    const second = heartbeatReadKey({ ...store, heartbeat: { on: true, interval: 30, lastBeatAt: '2030-01-01T10:30:00Z' } });
+    assert.notEqual(first, '');
+    assert.notEqual(first, second);
+    assert.equal(first, heartbeatReadKey({ ...store, heartbeat: { on: true, interval: 30, lastBeatAt: '2030-01-01T10:00:00Z' } }), 'the same payload gives the same key');
   });
 
   it('lists the pending ones only', () => {

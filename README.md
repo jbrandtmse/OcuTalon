@@ -172,7 +172,7 @@ docker compose ps
 
 OcuTalon is ready when the STATUS of the `iris` service ends in `(healthy)`, for example `Up About a minute (healthy)`. Then open http://localhost:52773/ocutalon/.
 
-The first start took 47 to 78 seconds in five measurements on an Apple silicon Mac, and about 3 minutes (160 seconds) on an x64 Linux machine with 4 CPUs. The install script waits up to 15 minutes. A slower machine can take longer; run `docker compose ps` again to see.
+On an x64 Linux machine with 4 CPUs and 8 GB of memory, the whole install took about 8 minutes in two measurements: about 2 minutes to build the image, then about 6 minutes for the first start. The install script waits up to 15 minutes. A slower machine can take longer; run `docker compose ps` again to see.
 
 ### Install it with IPM
 

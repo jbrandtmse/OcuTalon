@@ -39,6 +39,37 @@
 ///     stopped true and the message's name, on the message's session stream; a failed publish logs one warning;
 ///   - TestPublishes: exactly one check event per run, equal to FromRow of the row after the run;
 ///   - TestRanLine: one Type 4 line per run, naming the check's Ref, its name, the result and the finding;
+///   - TestTickRunsTheBeatsLast (Story 39.1; matrix row 1): the probe's BeatRunDue is called once with the Tick's time, after the quiet sweep's send and the due row's read, and the
+///     row still runs (passed); nothing is added to the probe's Order;
+///   - TestBeatsThatFailAreLogged (rows 2 and 3): a RunDue that throws, and one that answers an error status, each log one warning (LOGBEAT) that holds the test's marker, and the Tick still answers OK;
+///   - TestTickSendsTheBeats (Story 39.3; AC 2): with the probe made to run the real Beat for a person, the Tick sends the beat's Item (channel heartbeat, untrusted) after the due row's read,
+///     in a trace session of its own (the process's session is cleared for the send) with the TraceRef of the person's session as SuperSession, and puts the process's own session back;
+///   - TestBeatSendFailureIsLogged (Story 39.3): a send of a beat that fails logs one warning (LOGBEATSEND) that names the ItemId and not the SessionRef, and the Tick answers OK;
+///   - TestBeatNow (rows 4 and 5, Story 39.3): a BeatNow is answered OK with a CommandResult that holds the outcome of RunNow, RunNow is called once with the request's SessionRef and the
+///     request's time (the current time when RequestedAt is not a UTC stamp), and no send, no row read and no RunDue is made; a RunNow that throws logs one warning (LOGBEATNOW) that holds the
+///     marker and not the SessionRef, and so does a RunNow that answers an error status, and the outcome is then failed;
+///   - TestBeatNowRunsOnce (Story 39.3; AC 4): a BeatNow sends one Item and answers sent with the ItemId as Ref; a second one within two minutes answers cooldown with availableAt and sends nothing;
+///   - TestTickSendsTheItemsOfAFailedRunDue (Story 39.3): a RunDue that returns an Item together with an error status logs one warning, and the Item is still sent;
+///   - TestBeatNowSendFailureAnswersFailed (Story 39.3): a BeatNow whose send fails answers failed with no Ref and logs one warning that names the ItemId and not the SessionRef;
+///   - TestBeatsRunWhateverEarlierStepsDo (Story 39.1): a Sweep that throws and a due row that throws do not stop RunDue, and the Tick answers OK; a Tick whose TickAt is not a UTC stamp gives
+///     RunDue the Tick's own current time (a UTC stamp), never the bad text; a CheckChanged calls neither RunDue nor RunNow;
+///   - TestTickPublishesTheBeats (Story 39.7; AC 1-3): with the probe made to run the real Beat, a Tick publishes one heartbeat event for each committed row, FromRow of the row, on the
+///     person's stream and in commit order: a beat that runs, a skip (a back-off; the skip for an empty checklist is saved and publishes none), a recorded result (with a fallback's back-off and the decision's trace), and a recorded ignore then the
+///     unchanged skip of one person (two events, in that order); a Tick that commits nothing publishes nothing, and no event holds the SessionRef or the checklist;
+///   - TestTickPublishesEachCommitInOrder (Story 39.7; AC 1): a pending ignore and the beat due at the same Tick commit twice, so two events go out, the recorded ignore
+///     first and the unchanged skip second, the second FromRow of the row;
+///   - TestBeatNowPublishes (Story 39.7): a BeatNow publishes its run now, held or sent, with lastRunNowAt; a cooldown publishes nothing, or only the result of a pending decision;
+///   - TestBeatPublishFailureIsLogged (Story 39.7; AC 2): a publish that fails and one that throws each log one warning (LOGBEATPUBLISH) without the SessionRef, as it is and in upper
+///     case and without a secret in the error text, the Tick answers OK, the Item is still sent, the events go out only after the sends and the other people's events are still
+///     published, and a BeatNow whose publish fails still answers sent and publishes only after its Item is sent; the warnings counted and removed are those that hold the probe's own error text;
+///   - TestPublishedEventsHoldNoRefChecklistOrKey (Story 39.7, QA; AC 2): every event of a recorded ignore with the unchanged skip, a beat with its recorded fallback, a run now
+///     that is sent, and a run now that is held holds none of the SessionRef (in any case), the checklist, the Item's Id, the decision's Ref and the snapshot keys of the row, and only keys of the view;
+///   - TestOffPersonsRecordedResultIsPublishedWithTheirSettings (Story 39.7, QA; AC 1, AC 3): an off person's recorded decision is published with off, the interval, the hours, the cost
+///     and the trace of the person's own settings and decision, and a later Tick publishes nothing for them;
+///   - TestBeatPublishesWhatRunDueCommittedBeforeAnError (Story 39.7): the view of a beat that committed before RunDue answered an error status is published;
+///   - TestBeatLogsAreRedacted: a secret in the error text of a RunDue or a RunNow is redacted from the LOGBEAT and LOGBEATNOW line, which still holds the text before it, and a
+///     SessionRef in the error text of a RunNow, in any case, is left out, whether RunNow answers it or throws it;
+///   - TestBeatNowKeepsEachSession: two BeatNows of two sessions call RunNow twice, in order, each with its own SessionRef, and a repeated BeatNow is not collapsed;
 ///   - TestUnknownRequest ("Unknown request"): a request of another class is an error 5001 that names the class.
 /// The fixture rows, streams and the log lines that the tests made are removed after each test.
 Class OcuTalon.Test.Checks.Runs Extends %UnitTest.TestCase
@@ -54,6 +85,9 @@ Parameter NEXT = "2030-06-01T12:01:00Z";
 
 /// The id of the session that the probe runs in.
 Parameter SESSIONID = 424242;
+
+/// The text of the probe's PublishBeat error, which no real publish gives: the LOGBEATPUBLISH lines that hold it are the probe's.
+Parameter BEATPUBLISHREFUSED = "The heartbeat event is refused for ";
 
 /// The run's number.
 Property Number As %Integer;
@@ -82,6 +116,9 @@ Property LogMark As %Integer;
 /// The public setting onlineDemo before the tests, "" when it was absent.
 Property SavedOnline As %String;
 
+/// The ItemIds of the beats of the test being run, comma-separated (the warnings of their sends name them).
+Property BeatItems As %String(MAXLEN = "");
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..Number = $Increment(^OcuTalonTest("ChecksRuns", "n"))
@@ -96,6 +133,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	Set ..Incidents = ""
 	Set ..Requests = ""
 	Set ..Other = ""
+	Set ..BeatItems = ""
 	Set ..LogMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Do $ClassMethod(..#PROBE, "Reset")
@@ -105,6 +143,9 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	For i = 1:1:$Length(..Refs, ",") {
+		If $Piece(..Refs, ",", i) '= "" Do ##class(OcuTalon.Test.Checks.Beat).Forget($Piece(..Refs, ",", i))
+	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
 	Do $ClassMethod(..#PROBE, "Reset")
@@ -888,6 +929,636 @@ Method TestRanLine()
 	Do $$$AssertEquals(..Ran(one)_"|"_..Ran(two), "2|2", "each run adds one")
 }
 
+Method TestTickRunsTheBeatsLast()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatlast")
+	Set long = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, -960)
+	Set quiet = ..Incident(a, "resolved", "Zz.BeatLast", {"LastAt": (long)})
+	Set production = "Zz.BeatLastDue"
+	Set ref = ..Watch(a, production)
+	Do ..Feed(production, "read", "running")
+	Set host.QuietAt = ..#TICK
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..Row(ref).Result, "passed", "the due row still runs")
+	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 1, "RunDue is called once")
+	If $IsObject(host.Beats) && (host.Beats.%Size() = 1) {
+		Set beat = host.Beats.%Get(0)
+		Do $$$AssertEquals(beat.tickAt, ..#TICK, "with the Tick's time")
+		Do $$$AssertEquals(beat.reads, 1, "after the due row's read")
+		Do $$$AssertEquals(beat.sends, 1, "and after every send (the quiet sweep's)")
+	}
+	Do $$$AssertEquals(host.Order.%Size(), 1, "the beat adds nothing to Order")
+	Do $$$AssertEquals(..Reads(), production, "and the row was read once")
+}
+
+Method TestBeatsThatFailAreLogged()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatfail")
+	Set production = "Zz.BeatFailDue"
+	Set ref = ..Watch(a, production)
+	Do ..Feed(production, "read", "running")
+
+	// RunDue throws
+	Set marker = "zzchk"_..Number_" beat refused"
+	Set host.BeatThrows = marker
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..Beaten(marker, .text), 1, "a RunDue that throws logs one warning that holds the marker")
+	Do $$$AssertEquals(..Row(ref).Result, "passed", "the due row ran before it")
+
+	// RunDue answers an error status
+	Set host.BeatThrows = ""
+	Set host.BeatError = marker
+	Do ..Tick(host, ..At(1))
+	Do $$$AssertEquals(..Beaten(marker, .text), 2, "a RunDue that answers an error status logs one more")
+	Do $$$AssertEquals(host.Beats.%Size(), 2, "RunDue was called on each Tick")
+}
+
+Method TestBeatNow()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatnow")
+	Set production = "Zz.BeatNowDue"
+	Set ref = ..Watch(a, production)
+	Do ..Feed(production, "read", "running")
+	Set host.BeatNowOutcome = "empty"
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = a
+	Set request.RequestedAt = ..#TICK
+	Set response = "x"
+	Set sc = host.OnRequest(request, .response)
+	Do $$$AssertStatusOK(sc, "a BeatNow is answered OK")
+	Do $$$AssertTrue($IsObject(response) && response.%IsA("OcuTalon.Msg.CommandResult"), "with a CommandResult")
+	If $IsObject(response) Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data_"|"_response.Message, "0|empty|||", "that holds the outcome of RunNow and nothing else")
+	Do $$$AssertEquals($Select($IsObject(host.BeatNows): host.BeatNows.%Size(), 1: 0), 1, "RunNow is called once")
+	If $IsObject(host.BeatNows) && (host.BeatNows.%Size() = 1) Do $$$AssertEquals(host.BeatNows.%Get(0).sessionRef_"|"_host.BeatNows.%Get(0).now, a_"|"_..#TICK, "with the request's SessionRef and time")
+	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 0, "RunDue is not called")
+	Do $$$AssertEquals($Select($IsObject(host.Order): host.Order.%Size(), 1: 0), 0, "nothing is sent")
+	Do $$$AssertEquals(..Reads(), "", "and no row is read")
+
+	// a request with no time is run at the current time
+	Set request.RequestedAt = "not a stamp"
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a BeatNow with a bad time is answered OK")
+	Set after = ##class(OcuTalon.Data.Time).NowUtc()
+	If host.BeatNows.%Size() = 2 {
+		Set given = host.BeatNows.%Get(1).now
+		Do $$$AssertTrue(given ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "RunNow gets a UTC stamp: "_given)
+		Do $$$AssertTrue('(before ] given) && '(given ] after), "that is the current time: "_given)
+	}
+
+	// RunNow throws
+	Set request.RequestedAt = ..#TICK
+	Set marker = "zzchk"_..Number_" beatnow refused"
+	Set host.BeatNowThrows = marker
+	Set sc = host.OnRequest(request, .response)
+	Do $$$AssertStatusOK(sc, "a RunNow that throws still answers OK")
+	Do $$$AssertEquals(..Beaten("zzchk"_..Number_" beatnow ", .text, "BeatNow"), 1, "and logs one warning")
+	Do $$$AssertTrue(text [ marker, "which holds the marker: "_text)
+	Do $$$AssertNotTrue(text [ a,"and not the SessionRef")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|failed", "the outcome is failed")
+
+	// RunNow answers an error status
+	Set host.BeatNowThrows = ""
+	Set marker = "zzchk"_..Number_" beatnow failed"
+	Set host.BeatNowError = marker
+	Set sc = host.OnRequest(request, .response)
+	Do $$$AssertStatusOK(sc, "a RunNow that answers an error status still answers OK")
+	Do $$$AssertEquals(..Beaten("zzchk"_..Number_" beatnow ", .text, "BeatNow"), 2, "and logs one more warning")
+	Do $$$AssertTrue(text [ marker, "which holds the marker: "_text)
+	Do $$$AssertNotTrue(text [ a,"and not the SessionRef")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|failed", "the outcome is failed")
+}
+
+Method TestTickSendsTheBeats()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatsend")
+	Set production = "Zz.BeatSendDue"
+	Set ref = ..Watch(a, production)
+	Do ..Feed(production, "read", "running")
+	Do ..Beating(a, "check the orders")
+	Set host.BeatSessions = a
+	Do ..Tick(host, ..#TICK)
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "the Tick sends the one beat's Item")
+	If items.%Size() = 1 {
+		Set item = items.%Get(0)
+		Do $$$AssertEquals(item.channel_"|"_item.provenance_"|"_item.sessionRef_"|"_item.subject, "heartbeat|untrusted|"_a_"|Heartbeat check-in", "an untrusted Item of the heartbeat channel for the person")
+		Set local = ##class(OcuTalon.Data.Time).ToLocal(..#TICK)
+		Set head = $Piece(item.text, $Char(10), 1, 3)
+		Do $$$AssertEquals(head, "check the orders"_$Char(10, 10)_"Status at "_$Extract(local, 1, 10)_" "_$Extract(local, 12, 16)_" (built by OcuTalon):", "whose text is the checklist, a blank line and the status line at the Tick's local time")
+		Do $$$AssertEquals(item.sessionId, "", "in a trace session of its own: the process's session is cleared for the send")
+		Do $$$AssertEquals(item.superSession, ..TraceOf(a), "with the TraceRef of the person's session as SuperSession")
+		Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(a)
+		Do $$$AssertTrue($IsObject(row) && (row.LastItemId = item.itemId), "the row was saved with the Item's ItemId")
+	}
+	Do $$$AssertEquals(host.%SessionId_"|"_host.%SuperSession, ..#SESSIONID_"|", "the process's own session and SuperSession are put back")
+	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 1, "RunDue is called once")
+	If $IsObject(host.Beats) && (host.Beats.%Size() = 1) Do $$$AssertEquals(host.Beats.%Get(0).reads, 1, "after the due row's read")
+	Do $$$AssertEquals(..Row(ref).Result, "passed", "the due row still runs")
+	Do $$$AssertEquals(host.Order.%Size(), 1, "and the Item is the only send")
+}
+
+Method TestBeatSendFailureIsLogged()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatfailsend")
+	Set text = "zzchk"_..Number_" beat text"
+	Do ..Beating(a, text)
+	Set host.BeatSessions = a
+	Do $ClassMethod(..#PROBE, "FailFindings", text)
+	Do ..Tick(host, ..#TICK)
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "the send was tried")
+	If items.%Size() '= 1 Quit
+	Set ..BeatItems = items.%Get(0).itemId
+	Do $$$AssertEquals(..Warnings("Tick", $Parameter(..#PROBE, "LOGBEATSEND")_..BeatItems, .line), 1, "a send that fails logs one warning that names the ItemId")
+	Do $$$AssertTrue(line [ "is refused", "and holds the error text: "_line)
+	Do $$$AssertNotTrue((line [ a) || (line [ $ZConvert(a, "U")), "but not the SessionRef that the error names, in any case: "_line)
+}
+
+Method TestTickPublishesTheBeats()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set tail = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, 1800)
+	Set a = ..Owner("pubbeat")
+	Set b = ..Owner("pubskip")
+	Set c = ..Owner("pubquiet")
+	Set d = ..Owner("pubresult")
+	Set e = ..Owner("pubempty")
+	Do ..Beating(a, "check the orders zzsecret"_..Number)
+	Do ..Beating(b, "check the orders")
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(b)
+	Set row.BackoffUntil = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, 600)
+	Do $$$AssertStatusOK(row.%Save(), "B is in a back-off")
+	Do ..Beating(e, "")
+	Do ..Beating(c, "check the orders")
+	Do ##class(OcuTalon.Data.Setting).Set($ClassMethod("OcuTalon.Checks.Beat", "SettingKey", c, "on"), 0)
+	Do ..Beating(d, "check the queue")
+	Set host.BeatSessions = a_","_b_","_c_","_d_","_e
+	Do ..Tick(host, ..#TICK)
+
+	// a beat that runs
+	Set events = ..BeatEvents(a)
+	Do $$$AssertEquals(events.%Size(), 1, "a beat that runs publishes one event on the person's stream")
+	If events.%Size() = 1 {
+		Do $$$AssertEquals(events.%Get(0).payload.%ToJSON(), ..BeatViewOf(a), "which is FromRow of the row and the settings")
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.lastBeatAt_"|"_payload.nextDueAt_"|"_payload.%IsDefined("lastOutcome")_"|"_payload.on_"|"_payload.interval, ..#TICK_"|"_tail_"|0|1|30", "with the beat's time, the schedule, no result, on and the interval")
+		Do $$$AssertTrue((events.%Get(0).payload.%ToJSON() '[ a) && (events.%Get(0).payload.%ToJSON() '[ "zzsecret"), "and neither the SessionRef nor the checklist")
+	}
+
+	// a skip
+	Set events = ..BeatEvents(b)
+	Do $$$AssertEquals(events.%Size(), 1, "a skip publishes one event")
+	If events.%Size() = 1 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.lastSkipAt_"|"_payload.lastSkipReason_"|"_payload.nextDueAt_"|"_payload.%IsDefined("lastBeatAt"), ..#TICK_"|backoff|"_tail_"|0", "with the skip's time and reason and the moved schedule")
+		Do $$$AssertEquals(payload.%ToJSON(), ..BeatViewOf(b), "and it is FromRow of the row")
+	}
+
+	// a skip for an empty checklist: saved, and no event
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(e)
+	Do $$$AssertEquals(row.LastSkipAt_"|"_row.LastSkipReason_"|"_row.NextDueAt, ..#TICK_"|empty|"_tail, "a Tick's skip for an empty checklist is saved with its reason and the moved schedule")
+	Do $$$AssertEquals(..BeatEvents(e).%Size(), 0, "and publishes no event")
+
+	// nothing committed: an off person with nothing pending
+	Do $$$AssertEquals(..BeatEvents(c).%Size(), 0, "an off person with nothing pending publishes nothing")
+
+	// a person whose beat is pending, then its decision is recorded by the next Tick (a fallback)
+	Set itemD = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(d).LastItemId
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(d, "decide", , {"Outcome": "tellnow", "Fallback": 1, "CostUSD": 0.0025, "TraceSessionId": 4242, "ItemId": (itemD)})
+	Set ..Refs = ..Refs_","_decision
+	Do ..Tick(host, ..#NEXT)
+	Set events = ..BeatEvents(d)
+	Do $$$AssertEquals(events.%Size(), 2, "the next Tick records the result and publishes one more event")
+	If events.%Size() = 2 {
+		Set payload = events.%Get(1).payload
+		Do $$$AssertEquals(payload.lastOutcome_"|"_payload.lastFallback_"|"_payload.lastCostUSD_"|"_payload.traceHeaderId_"|"_payload.traceNamespace, "tellnow|1|.0025|4242|"_$Namespace, "with the outcome, the fallback, the cost and the decision's trace")
+		Do $$$AssertEquals(payload.backoffUntil, ##class(OcuTalon.Bridge.Time).PlusSeconds(..#NEXT, 14400), "and the back-off a fallback sets")
+		Do $$$AssertEquals(payload.%ToJSON(), ..BeatViewOf(d), "and it is FromRow of the row")
+	}
+	Do $$$AssertEquals(..BeatEvents(a).%Size()_"|"_..BeatEvents(b).%Size()_"|"_..BeatEvents(c).%Size()_"|"_..BeatEvents(e).%Size(), "1|1|0|0", "the others, not due, publish nothing more")
+	Do ..Tick(host, ..#NEXT)
+	Do $$$AssertEquals(..BeatEvents(d).%Size(), 2, "and a Tick that commits nothing publishes nothing")
+}
+
+/// A pending ignore and the beat that is due at the same Tick: two commits, so two events, the recorded ignore first.
+Method TestTickPublishesEachCommitInOrder()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("pubtwo")
+	Do ..Beating(a, "check the orders")
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(a)
+	Set row.LastItemId = "zzitem"_..Number
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(a, "decide", , {"Outcome": "ignore", "Summary": "Heartbeat check-in", "ItemId": (row.LastItemId)})
+	Set ..Refs = ..Refs_","_decision
+	Do ##class(OcuTalon.Checks.Beat).Snapshot(a, ..#TICK, .whole)
+	Set row.LastSnapshotKey = ##class(OcuTalon.Checks.Beat).Key(whole)
+	Do $$$AssertStatusOK(row.%Save(), "the pending beat is saved with the key of the snapshot")
+	Set host.BeatSessions = a
+	Do ..Tick(host, ..#TICK)
+	Set events = ..BeatEvents(a)
+	Do $$$AssertEquals(events.%Size(), 2, "two commits publish two events")
+	If events.%Size() = 2 {
+		Set first = events.%Get(0).payload
+		Set second = events.%Get(1).payload
+		Do $$$AssertEquals(first.lastOutcome_"|"_first.%IsDefined("lastSkipAt"), "ignore|0", "the first holds the recorded ignore and no skip")
+		Do $$$AssertEquals(second.lastOutcome_"|"_second.lastSkipReason_"|"_second.lastSkipAt, "ignore|unchanged|"_..#TICK, "the second holds the unchanged skip")
+		Do $$$AssertEquals(second.%ToJSON(), ..BeatViewOf(a), "and is FromRow of the row")
+	}
+}
+
+Method TestBeatNowPublishes()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("pubnow")
+	Set b = ..Owner("pubnowheld")
+	Do ..Beating(a, "check the orders")
+	Do ..Beating(b, "")
+	Set host.BeatSessions = a_","_b
+	Set response = ..BeatNowOf(host, a, ..#TICK)
+	Do $$$AssertEquals(response.Outcome, "sent", "the run now is sent")
+	Set events = ..BeatEvents(a)
+	Do $$$AssertEquals(events.%Size(), 1, "a run now that is sent publishes one event")
+	If events.%Size() = 1 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.lastRunNowAt_"|"_payload.lastBeatAt, ..#TICK_"|"_..#TICK, "with lastRunNowAt and the beat's time")
+		Do $$$AssertEquals(payload.%ToJSON(), ..BeatViewOf(a), "and it is FromRow of the row")
+		Do $$$AssertTrue(payload.%ToJSON() '[ a, "without the SessionRef")
+	}
+
+	// held
+	Set response = ..BeatNowOf(host, b, ..#TICK)
+	Do $$$AssertEquals(response.Outcome, "empty", "a run now with an empty checklist is held")
+	Set events = ..BeatEvents(b)
+	Do $$$AssertEquals(events.%Size(), 1, "and publishes one event")
+	If events.%Size() = 1 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.lastRunNowAt_"|"_payload.%IsDefined("lastSkipAt"), ..#TICK_"|0", "with lastRunNowAt and no skip")
+		Do $$$AssertEquals(payload.%ToJSON(), ..BeatViewOf(b), "and it is FromRow of the row")
+	}
+
+	// the cooldown
+	Set soon = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, 30)
+	Set response = ..BeatNowOf(host, a, soon)
+	Do $$$AssertEquals(response.Outcome, "cooldown", "a second run now within two minutes is a cooldown")
+	Do $$$AssertEquals(..BeatEvents(a).%Size(), 1, "and publishes nothing")
+
+	// the cooldown with a pending decision: only the result
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(a, "decide", , {"Outcome": "ignore", "ItemId": (##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(a).LastItemId)})
+	Set ..Refs = ..Refs_","_decision
+	Set response = ..BeatNowOf(host, a, soon)
+	Do $$$AssertEquals(response.Outcome, "cooldown", "a run now on the cooldown with a pending decision is still a cooldown")
+	Set events = ..BeatEvents(a)
+	Do $$$AssertEquals(events.%Size(), 2, "and publishes the recorded result")
+	If events.%Size() = 2 {
+		Set payload = events.%Get(1).payload
+		Do $$$AssertEquals(payload.lastOutcome_"|"_payload.lastRunNowAt, "ignore|"_..#TICK, "with lastRunNowAt unchanged")
+	}
+}
+
+Method TestBeatPublishFailureIsLogged()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("pubfailerr")
+	Set b = ..Owner("pubfailthrow")
+	Set c = ..Owner("pubfailok")
+	Do ..Beating(a, "check the orders")
+	Do ..Beating(b, "check the orders")
+	Do ..Beating(c, "check the orders")
+	Set host.BeatSessions = a_","_b_","_c
+	Set host.BeatPublishError = a
+	Set host.BeatPublishThrows = b
+	Set secret = "sk-"_"ant-api03-QaSecretQaSecretQaSecret123456"
+	Set host.BeatPublishSecret = secret
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..Items().%Size(), 3, "the Tick still sends the three Items")
+	Set after = ""
+	Set iterator = host.BeatPublishedAfter.%GetIterator()
+	While iterator.%GetNext(, .kept) {
+		Set after = after_$Select(after = "": "", 1: ",")_kept
+	}
+	Do $$$AssertEquals(after, "3,3,3", "and publishes only after all three are sent")
+	Do $$$AssertEquals(..BeatEvents(a).%Size()_"|"_..BeatEvents(b).%Size()_"|"_..BeatEvents(c).%Size(), "0|0|1", "and the third person's event is still published")
+	Do $$$AssertEquals(..BeatPublishWarnings(.line), 2, "a publish that fails and one that throws each log one warning")
+	Do $$$AssertTrue(line [ "is refused", "which holds the error text: "_line)
+
+	// a BeatNow whose publish fails still answers sent
+	Set d = ..Owner("pubfailnow")
+	Do ..Beating(d, "check the orders")
+	Set host.BeatSessions = host.BeatSessions_","_d
+	Set host.BeatPublishError = d
+	Set response = ..BeatNowOf(host, d, ..At(1))
+	Do $$$AssertEquals(response.Outcome, "sent", "a BeatNow whose publish fails still answers sent")
+	Do $$$AssertEquals(host.BeatPublishedAfter.%Get(host.BeatPublishedAfter.%Size() - 1)_"|"_..Items().%Size(), "4|4", "and publishes only after its Item is sent")
+	Do $$$AssertEquals(..BeatPublishWarnings(.line), 3, "and logs one more warning")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'AnnounceBeat' AND Text %STARTSWITH ? AND Text [ ? ORDER BY ID", ..LogMark, $Parameter(..#PROBE, "LOGBEATPUBLISH"), ..#BEATPUBLISHREFUSED)
+	While result.%Next() {
+		Set text = result.%Get("Text")
+		Do $$$AssertNotTrue((text [ a) || (text [ $ZConvert(a, "U")) || (text [ b) || (text [ $ZConvert(b, "U")) || (text [ d) || (text [ $ZConvert(d, "U")), "no warning names a SessionRef, in any case: "_text)
+		Do $$$AssertNotTrue(text [ "QaSecret", "and none holds the secret: "_text)
+	}
+}
+
+/// The views that RunDue made before it answered an error status are still published.
+Method TestBeatPublishesWhatRunDueCommittedBeforeAnError()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("pubaftererr")
+	Do ..Beating(a, "check the orders")
+	Set host.BeatSessions = a
+	Set host.BeatError = "zzchk"_..Number_" beat refused"
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..BeatEvents(a).%Size(), 1, "a Tick whose RunDue answers an error status still publishes the committed beat")
+}
+
+/// Story 39.7 (QA; AC 2): every heartbeat event that a real Tick or BeatNow publishes, whichever way its row was committed (a recorded ignore and the unchanged skip of
+/// one Tick, a beat and its recorded fallback, a run now that is sent, a run now that is held), holds none of the SessionRef (in any case), the checklist,
+/// the Item's Id, the decision's Ref and the two snapshot keys that the row holds then, and no key outside the view's. TestTickPublishesTheBeats and
+/// TestBeatNowPublishes look for the SessionRef and the checklist in a beat's event only.
+Method TestPublishedEventsHoldNoRefChecklistOrKey()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set checklist = "check the orders zzleak"_..Number
+	Set a = ..Owner("leaktwo")
+	Set f = ..Owner("leakfall")
+	Set n = ..Owner("leaknow")
+	Set h = ..Owner("leakheld")
+	Do ..Beating(a, checklist)
+	Do ..Beating(f, checklist)
+	Do ..Beating(n, checklist)
+	Do ..Beating(h, "")
+
+	// a: a pending ignore and a due beat at one Tick (two commits)
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(a)
+	Set row.LastItemId = "zzleakitem"_..Number
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(a, "decide", , {"Outcome": "ignore", "Summary": "Heartbeat check-in", "ItemId": (row.LastItemId)})
+	Set ..Refs = ..Refs_","_decision
+	Do ##class(OcuTalon.Checks.Beat).Snapshot(a, ..#TICK, .whole)
+	Set row.LastSnapshotKey = ##class(OcuTalon.Checks.Beat).Key(whole)
+	Do $$$AssertStatusOK(row.%Save(), "A's pending beat is saved with the key of the snapshot")
+	Set host.BeatSessions = a_","_f_","_n_","_h
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..NoLeaks(a, checklist, 6), 2, "A's recorded ignore and unchanged skip hold the SessionRef, the checklist, the Item's Id, the decision's Ref and both keys of the row: none")
+
+	// f: its beat's fallback is recorded by the next Tick
+	Set itemF = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(f).LastItemId
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(f, "decide", , {"Outcome": "tellnow", "Fallback": 1, "CostUSD": 0.0025, "TraceSessionId": 4242, "ItemId": (itemF)})
+	Set ..Refs = ..Refs_","_decision
+	Do ..Tick(host, ..#NEXT)
+	Do $$$AssertEquals(..NoLeaks(f, checklist, 5), 2, "F's beat and its recorded fallback hold none of them")
+
+	// n: a run now that is sent; h: a Tick's skip for its empty checklist (no event), then a run now that is held
+	Do $$$AssertEquals(..BeatNowOf(host, n, ..At(5)).Outcome, "sent", "N's run now is sent")
+	Do $$$AssertEquals(..NoLeaks(n, checklist, 4), 2, "N's beat and its run now hold none of them")
+	Do $$$AssertEquals(..BeatNowOf(host, h, ..At(5)).Outcome, "empty", "H's run now is held")
+	Do $$$AssertEquals(..NoLeaks(h, "", 1), 1, "H's held run now (its Tick skip published none) holds no SessionRef")
+}
+
+/// Story 39.7 (QA; AC 1, AC 3): an off person's recorded decision is published with the person's own settings (off, the interval and the hours) and the result's cost and
+/// trace, and a later Tick, which has nothing to commit for an off person with nothing pending, publishes nothing. No token of the row is in the event.
+Method TestOffPersonsRecordedResultIsPublishedWithTheirSettings()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("offsettings")
+	Do ..Beating(a, "check the orders")
+	For pair = "on=0", "interval=60", "from=07:30", "to=21:15" {
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set($ClassMethod("OcuTalon.Checks.Beat", "SettingKey", a, $Piece(pair, "=", 1)), $Piece(pair, "=", 2)), "the setting "_$Piece(pair, "=", 1)_" is written")
+	}
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(a)
+	Set row.LastItemId = "zzoffitem"_..Number
+	Do $$$AssertStatusOK(row.%Save(), "the pending beat is saved")
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(a, "decide", , {"Outcome": "ignore", "CostUSD": 0.0031, "TraceSessionId": 4243, "ItemId": (row.LastItemId)})
+	Set ..Refs = ..Refs_","_decision
+	Set host.BeatSessions = a
+	Do ..Tick(host, ..#TICK)
+	Set events = ..BeatEvents(a)
+	Do $$$AssertEquals(events.%Size(), 1, "an off person's recorded decision publishes one event")
+	If events.%Size() = 1 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.%IsDefined("on")_"|"_payload.on_"|"_payload.interval_"|"_payload.from_"|"_payload.to, "1|0|60|07:30|21:15", "with off, the interval and the hours of the person's settings")
+		Do $$$AssertEquals(payload.lastOutcome_"|"_payload.lastCostUSD_"|"_payload.traceHeaderId_"|"_payload.traceNamespace, "ignore|.0031|4243|"_$Namespace, "and the result, its cost and its trace")
+		Do $$$AssertEquals(payload.nextDueAt_"|"_payload.%IsDefined("lastBeatAt")_"|"_payload.%IsDefined("lastSkipAt"), ..#TICK_"|0|0", "with the schedule as it was, no beat and no skip")
+		Do $$$AssertEquals(payload.%ToJSON(), ..BeatViewOf(a), "and it is FromRow of the row")
+	}
+	Do ..Tick(host, ..#NEXT)
+	Do $$$AssertEquals(..NoLeaks(a, "check the orders", 4), 1, "a later Tick publishes nothing more for an off person with nothing pending, and no token of the row is in the event")
+}
+
+/// The number of heartbeat events on the person's stream. Each holds none of the SessionRef, the checklist, the Item's Id, the decision's Ref and the snapshot keys
+/// of the row as stored now (compared without regard to case), and only the keys of the view. tokens is the number of those values that the row holds, which the
+/// test states, so that a row without them can't make the check empty.
+Method NoLeaks(session As %String, checklist As %String, tokens As %Integer) As %Integer [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(session)
+	Set values = $ListBuild(session)
+	If checklist '= "" Set values = values_$ListBuild(checklist)
+	For name = "LastItemId", "LastDecisionRef", "LastSnapshotKey", "LastQuietKey" {
+		If $Property(row, name) '= "" Set values = values_$ListBuild($Property(row, name))
+	}
+	Do $$$AssertEquals($ListLength(values), tokens, "the row holds "_tokens_" values to look for")
+	Set allowed = $ListFromString("on,interval,from,to,nextDueAt,lastBeatAt,lastOutcome,lastFallback,lastCostUSD,traceHeaderId,traceNamespace,lastSkipAt,lastSkipReason,lastRunNowAt,backoffUntil")
+	Set events = ..BeatEvents(session)
+	For i = 0:1:events.%Size() - 1 {
+		Set payload = events.%Get(i).payload
+		Set json = $ZConvert(payload.%ToJSON(), "U")
+		Set position = 0
+		While $ListNext(values, position, value) {
+			Do $$$AssertTrue(json '[ $ZConvert(value, "U"), "event "_(i + 1)_" does not hold "_value)
+		}
+		Set iterator = payload.%GetIterator()
+		While iterator.%GetNext(.key) {
+			Do $$$AssertTrue($ListFind(allowed, key) > 0, "event "_(i + 1)_" holds only keys of the view: "_key)
+		}
+	}
+	Quit events.%Size()
+}
+
+Method TestBeatNowRunsOnce()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatonce")
+	Do ..Beating(a, "check the orders")
+	Set host.BeatSessions = a
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = a
+	Set request.RequestedAt = ..#TICK
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "the BeatNow is answered OK")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "one Item is sent")
+	If items.%Size() '= 1 Quit
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "1|sent|"_items.%Get(0).itemId_"|", "the answer is sent, with the ItemId as Ref")
+	Do $$$AssertEquals(items.%Get(0).sessionId_"|"_items.%Get(0).superSession, "|"_..TraceOf(a), "in a trace session of its own, with the TraceRef of the person's session as SuperSession")
+	Set request.RequestedAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, 30)
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a second BeatNow is answered OK")
+	Do $$$AssertEquals(..Items().%Size(), 1, "and sends nothing")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "0|cooldown||"_{"availableAt": (##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, 120))}.%ToJSON(), "the answer is cooldown, with the time it may run again")
+}
+
+Method TestTickSendsTheItemsOfAFailedRunDue()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatpartial")
+	Do ..Beating(a, "check the orders")
+	Set host.BeatSessions = a
+	Set marker = "zzchk"_..Number_" beat refused with an item"
+	Set host.BeatError = marker
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..Beaten(marker, .text), 1, "a RunDue that answers an error status logs one warning")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "and the Item that it returned with the error is still sent")
+	If items.%Size() = 1 {
+		Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(a)
+		Do $$$AssertTrue($IsObject(row) && (row.LastItemId = items.%Get(0).itemId), "which is the Item of the saved pending row")
+	}
+}
+
+Method TestBeatNowSendFailureAnswersFailed()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatnowfail")
+	Set text = "zzchk"_..Number_" beatnow text"
+	Do ..Beating(a, text)
+	Set host.BeatSessions = a
+	Do $ClassMethod(..#PROBE, "FailFindings", text)
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = a
+	Set request.RequestedAt = ..#TICK
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a BeatNow whose send fails is answered OK")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "the send was tried")
+	If items.%Size() '= 1 Quit
+	Set ..BeatItems = items.%Get(0).itemId
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "0|failed||", "the answer is failed, with no Ref")
+	Do $$$AssertEquals(..Warnings("BeatNow", $Parameter(..#PROBE, "LOGBEATSEND")_..BeatItems, .line), 1, "and one warning names the ItemId")
+	Do $$$AssertTrue(line [ "is refused", "and holds the error text: "_line)
+	Do $$$AssertNotTrue((line [ a) || (line [ $ZConvert(a, "U")), "but not the SessionRef that the error names, in any case: "_line)
+}
+
+Method TestBeatsRunWhateverEarlierStepsDo()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatearly")
+
+	// a Sweep that throws and a due row that throws: RunDue still runs once
+	Set host.SweepThrows = "zzchk"_..Number_" sweep refused"
+	Set bad = ..Watch(a, "Zz.BeatEarlyBad")
+	Do $ClassMethod(..#PROBE, "Feed", "Zz.BeatEarlyBad", {"outcome": "read", "state": "running", "rows": "not rows"})
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..Fixed(), 1, "the Sweep's failure was logged")
+	Do $$$AssertEquals(..Warnings("Tick", $Parameter(..#PROBE, "LOGRUN"), .text, ..Checks), 1, "and so was the row's")
+	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 1, "RunDue is still called once")
+	If $IsObject(host.Beats) && (host.Beats.%Size() = 1) Do $$$AssertEquals(host.Beats.%Get(0).tickAt, ..#TICK, "with the Tick's time")
+
+	// a TickAt that is not a UTC stamp: the current time, a UTC stamp, goes to RunDue
+	Set host.SweepThrows = ""
+	Set host.Beats = ""
+	Set tick = ##class(OcuTalon.Msg.Tick).%New()
+	Set tick.TickAt = "not a stamp"
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(host.OnRequest(tick, .response), "a Tick with a bad TickAt is answered OK")
+	Set after = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 1, "RunDue is called once")
+	If $IsObject(host.Beats) && (host.Beats.%Size() = 1) {
+		Set given = host.Beats.%Get(0).tickAt
+		Do $$$AssertTrue(given ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "it gets a UTC stamp: "_given)
+		Do $$$AssertTrue('(before ] given) && '(given ] after), "that is the current time: "_given)
+	}
+
+	// a CheckChanged is no beat
+	Set host.Beats = ""
+	Set change = ##class(OcuTalon.Checks.Msg.CheckChanged).%New()
+	Set change.CheckRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set change.SessionRef = a
+	Set change.Kind = "production"
+	Do $$$AssertStatusOK(host.OnRequest(change, .response), "a CheckChanged is answered OK")
+	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0)_"|"_$Select($IsObject(host.BeatNows): host.BeatNows.%Size(), 1: 0), "0|0", "and calls neither RunDue nor RunNow")
+}
+
+Method TestBeatLogsAreRedacted()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatredact")
+	Set secret = "sk-"_"ant-api03-QaSecretQaSecretQaSecret123456"
+
+	// RunDue throws, and then answers an error status
+	Set marker = "zzchk"_..Number_" beat refused"
+	Set host.BeatThrows = marker_" "_secret
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..Beaten(marker, .text), 1, "a RunDue that throws logs one warning that holds the text before the secret")
+	Do $$$AssertNotTrue(text [ "QaSecret", "and not the secret: "_text)
+	Set host.BeatThrows = ""
+	Set host.BeatError = marker_" "_secret
+	Do ..Tick(host, ..At(1))
+	Do $$$AssertEquals(..Beaten(marker, .text), 2, "a RunDue that answers an error status logs one more")
+	Do $$$AssertNotTrue(text [ "QaSecret", "without the secret: "_text)
+
+	// RunNow throws, and then answers an error status
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = a
+	Set marker = "zzchk"_..Number_" beatnow refused"
+	Set host.BeatNowThrows = marker_" "_secret
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a RunNow that throws is answered OK")
+	Do $$$AssertEquals(response.Outcome, "failed", "with the outcome failed")
+	Do $$$AssertEquals(..Beaten(marker, .text, "BeatNow"), 1, "and logs one warning")
+	Do $$$AssertTrue(text [ marker, "that holds the text before the secret: "_text)
+	Do $$$AssertNotTrue(text [ "QaSecret", "and not the secret: "_text)
+	Set host.BeatNowThrows = ""
+	Set host.BeatNowError = marker_" "_secret
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a RunNow that answers an error status is answered OK")
+	Do $$$AssertEquals(..Beaten(marker, .text, "BeatNow"), 2, "and logs one more warning")
+	Do $$$AssertNotTrue(text [ "QaSecret", "without the secret: "_text)
+	Set upper = $ZConvert(a, "U")
+	Set host.BeatNowError = "zzchk"_..Number_" beatnow names "_a_" twice "_a_" and as a %Save error does "_upper
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a RunNow whose error names the SessionRef is answered OK")
+	Do $$$AssertEquals(..Beaten("zzchk"_..Number_" beatnow names ", .text, "BeatNow"), 1, "and logs one warning")
+	Do $$$AssertNotTrue((text [ a) || (text [ upper), "that does not name the SessionRef, in any case: "_text)
+	Set host.BeatNowError = ""
+	Set host.BeatNowThrows = "zzchk"_..Number_" beatnow throws "_a_" and as a %Save error does "_upper
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a RunNow that throws an error that names the SessionRef is answered OK")
+	Do $$$AssertEquals(..Beaten("zzchk"_..Number_" beatnow throws ", .text, "BeatNow"), 1, "and logs one warning")
+	Do $$$AssertNotTrue((text [ a) || (text [ upper), "that does not name the SessionRef either: "_text)
+}
+
+Method TestBeatNowKeepsEachSession()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatnowa")
+	Set b = ..Owner("beatnowb")
+	For ref = a, b, a {
+		Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+		Set request.SessionRef = ref
+		Set request.RequestedAt = ..#TICK
+		Do $$$AssertStatusOK(host.OnRequest(request, .response), "a BeatNow of "_ref_" is answered OK")
+	}
+	Set calls = $Select($IsObject(host.BeatNows): host.BeatNows.%Size(), 1: 0)
+	Do $$$AssertEquals(calls, 3, "RunNow is called for each request, a repeat included")
+	If calls = 3 Do $$$AssertEquals(host.BeatNows.%Get(0).sessionRef_"|"_host.BeatNows.%Get(1).sessionRef_"|"_host.BeatNows.%Get(2).sessionRef, a_"|"_b_"|"_a, "in order, each with its own SessionRef")
+	If calls = 3 Do $$$AssertEquals(host.BeatNows.%Get(0).now_"|"_host.BeatNows.%Get(1).now_"|"_host.BeatNows.%Get(2).now, ..#TICK_"|"_..#TICK_"|"_..#TICK, "and the request's time")
+	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 0, "and RunDue is never called")
+}
+
 Method TestUnknownRequest()
 {
 	Set host = ..Host()
@@ -1058,6 +1729,21 @@ ClassMethod Result(approvalRef As %String, incidentRef As %String) As OcuTalon.F
 	Quit result
 }
 
+/// The number of warnings since the test began that Tick (LOGBEAT), or BeatNow (LOGBEATNOW) when method is "BeatNow", logged for a beat that failed with
+/// a text holding the marker; text is the newest one's.
+Method Beaten(marker As %String, Output text As %String, method As %String = "Tick") As %Integer
+{
+	Set start = $Parameter(..#PROBE, $Select(method = "BeatNow": "LOGBEATNOW", 1: "LOGBEAT"))
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = ? AND Text %STARTSWITH ? AND Text [ ? ORDER BY ID", ..LogMark, method, start, marker)
+	Set count = 0
+	Set text = ""
+	While result.%Next() {
+		Set count = count + 1
+		Set text = result.%Get("Text")
+	}
+	Quit count
+}
+
 /// The number of warnings since the test began that Tick logged for a Sweep that threw this test's own text.
 Method Fixed() As %Integer
 {
@@ -1091,6 +1777,43 @@ ClassMethod ViewOf(ref As %String) As %String
 ClassMethod Events(session As %String) As %DynamicArray
 {
 	Quit ##class(OcuTalon.Test.Core.Observe).Events(session, "check")
+}
+
+/// The number of the probe's own LOGBEATPUBLISH warnings since the test began (their error text is the probe's, so a real Checks job's are neither counted nor
+/// removed), and the text of the last one.
+Method BeatPublishWarnings(Output text As %String) As %Integer [ Private ]
+{
+	Set text = ""
+	Set count = 0
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'AnnounceBeat' AND Text %STARTSWITH ? AND Text [ ? ORDER BY ID", ..LogMark, $Parameter(..#PROBE, "LOGBEATPUBLISH"), ..#BEATPUBLISHREFUSED)
+	While result.%Next() {
+		Set count = count + 1
+		Set text = result.%Get("Text")
+	}
+	Quit count
+}
+
+/// The heartbeat events of the session's stream, in order.
+ClassMethod BeatEvents(session As %String) As %DynamicArray
+{
+	Quit ##class(OcuTalon.Test.Core.Observe).Events(session, "heartbeat")
+}
+
+/// The JSON of Heartbeat.FromRow of the person's row as stored now and the person's settings.
+ClassMethod BeatViewOf(session As %String) As %String
+{
+	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(session), ##class(OcuTalon.Checks.Beat).Values(session)).%JSONExportToString(.json)
+	Quit json
+}
+
+/// A BeatNow of the session at the time, handled by the probe; the answer.
+Method BeatNowOf(host As OcuTalon.Test.Checks.Probe, session As %String, at As %String) As OcuTalon.Msg.CommandResult
+{
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = session
+	Set request.RequestedAt = at
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "the BeatNow at "_at_" is answered OK")
+	Quit response
 }
 
 /// The productions that the probe read, comma-separated, in order.
@@ -1137,6 +1860,19 @@ Method RanLine(ref As %String) As %String
 	Quit ""
 }
 
+/// The session's row, due at TICK (a real Tick does not reach it), then all-day heartbeat settings with the checklist (the beat then runs at any tick time, whatever
+/// the instance zone is).
+Method Beating(session As %String, checklist As %String) [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
+	Set row.SessionRef = session
+	Set row.NextDueAt = ..#TICK
+	Do $$$AssertStatusOK(row.%Save(), "the person's row is made")
+	For name = "from", "to", "checklist" {
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set($ClassMethod("OcuTalon.Checks.Beat", "SettingKey", session, name), $Select(name = "checklist": checklist, 1: "")), "the setting "_name_" is written")
+	}
+}
+
 /// Removes the lines that the tests made about their own rows and incidents: the warnings of the runs and the info lines of the runs, by the Refs of the
 /// checks, and the warnings of the sweep, by the Refs of the incidents.
 Method RemoveLogs()
@@ -1161,6 +1897,13 @@ Method RemoveLogs()
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Fixes", $Parameter(..#PROBE, "LOGFIX")_ref)
 	}
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'Tick' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGFIXES"), "zzchk"_..Number_" sweep refused")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'AnnounceBeat' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGBEATPUBLISH"), ..#BEATPUBLISHREFUSED)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'Tick' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGBEAT"), "zzchk"_..Number_" beat refused")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'BeatNow' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGBEATNOW"), "zzchk"_..Number_" beatnow ")
+	For i = 1:1:$Length(..BeatItems, ",") {
+		If $Piece(..BeatItems, ",", i) '= "" Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Tick", $Parameter(..#PROBE, "LOGBEATSEND")_$Piece(..BeatItems, ",", i))
+		If $Piece(..BeatItems, ",", i) '= "" Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "BeatNow", $Parameter(..#PROBE, "LOGBEATSEND")_$Piece(..BeatItems, ",", i))
+	}
 }
 
 }

@@ -19,8 +19,18 @@
 ///     IncidentManager from a shadow instance, so it records {approvalRef, sessionId, superSession} in Sent and answers OK, or an error for a request that FailFix names (comma-separated Refs).
 ///   - SendFinding (Story 30.4) cannot reach Intake from a shadow instance, so it keeps {itemId, sessionRef, channel, provenance, text, sender, subject,
 ///     catalogKey, slots, sessionId, superSession} in ^||ChecksProbe("findings", n) (FindingItems reads them) and answers OK, or an error for an item whose Text holds one of
-///     the texts that FailFindings set (comma-separated; the finding of one display name or item name), or throws when FailFindings asked for it. Reset clears them.
+///     the texts that FailFindings set (comma-separated; the finding of one display name or item name; the error of a beat's Item names its SessionRef, as it is and in
+///     upper case), or throws when FailFindings asked for it. Reset clears them.
 ///   - Order lists each send in order, "quiet:<incident Ref>" for SendQuiet and "fix:<approval Ref>" for SendFixResult and "finding:<catalog key>" for SendFinding, so that a test can tell that the quiet sweep came first. Quieted keeps its shape.
+///   - BeatRunDue and BeatRunNow (Stories 39.1 and 39.3) record the call and, unless the test makes them call the real Beat, send nothing and write nothing. BeatRunDue
+///     records {tickAt, reads, sends} in Beats (the Read calls and the Order entries so far), then throws the text in BeatThrows, or answers an error status with the
+///     text in BeatError (after the real RunDue, and with its Items, while BeatSessions is set). BeatRunNow records {sessionRef, now} in BeatNows, then throws the text in BeatNowThrows, or answers an error status with the text in
+///     BeatNowError, else it answers OK with the outcome BeatNowOutcome and no Item. While BeatSessions (comma-separated Refs) is set, BeatRunDue then calls the real
+///     Beat.RunDue(tickAt, .items, BeatSessions, BeatCapped, BeatKeyed) and BeatRunNow, for a session in BeatSessions, the real Beat.RunNow(..., BeatCapped,
+///     BeatKeyed), so that the Items go through SendFinding, which keeps them. Neither adds to Order. Both also give the real Beat's views (Story 39.7), which
+///     Checks publishes to the real stream through PublishBeat. For a SessionRef that BeatPublishError lists (comma-separated), PublishBeat answers an error that
+///     names the SessionRef, as it is and in upper case, and ends with BeatPublishSecret; for one that BeatPublishThrows lists it throws such an error; else it calls the real one.
+///     BeatPublishedAfter records the number of kept finding Items at each PublishBeat call.
 Class OcuTalon.Test.Checks.Probe Extends OcuTalon.Checks.Process
 {
 
@@ -63,6 +73,42 @@ Property FailFix As %String(MAXLEN = "") [ Transient ];
 
 /// Each send in order, as text.
 Property Order As %DynamicArray [ Transient ];
+
+/// The calls of BeatRunDue in order, each {tickAt, reads, sends}.
+Property Beats As %DynamicArray [ Transient ];
+
+/// The text of the error that BeatRunDue throws, and the text of the error status that it answers, when not empty.
+Property BeatThrows As %String(MAXLEN = "") [ Transient ];
+
+Property BeatError As %String(MAXLEN = "") [ Transient ];
+
+/// The calls of BeatRunNow in order, each {sessionRef, now}, the text of the error that it throws when not empty, and the text of the error status that it answers when not empty.
+Property BeatNows As %DynamicArray [ Transient ];
+
+Property BeatNowThrows As %String(MAXLEN = "") [ Transient ];
+
+Property BeatNowError As %String(MAXLEN = "") [ Transient ];
+
+/// The sessions whose beats the real Beat runs (comma-separated Refs), "" for none, and the cap and key states that it is given.
+Property BeatSessions As %String(MAXLEN = "") [ Transient ];
+
+Property BeatCapped As %Boolean [ InitialExpression = 0, Transient ];
+
+Property BeatKeyed As %Boolean [ InitialExpression = 1, Transient ];
+
+/// The SessionRefs (comma-separated) whose PublishBeat answers an error that names the SessionRef, and those whose PublishBeat throws it.
+Property BeatPublishError As %String(MAXLEN = "") [ Transient ];
+
+Property BeatPublishThrows As %String(MAXLEN = "") [ Transient ];
+
+/// A text that those errors end with (a secret, for a test of the redaction).
+Property BeatPublishSecret As %String(MAXLEN = "") [ Transient ];
+
+/// For each PublishBeat call, in order, the number of finding Items that SendFinding had kept by then.
+Property BeatPublishedAfter As %DynamicArray [ Transient ];
+
+/// The outcome that a BeatRunNow gives when it does not call the real Beat.
+Property BeatNowOutcome As %String [ Transient ];
 
 Method Read(namespace As %String, production As %String, from As %String, limit As %Integer, Output rows As %DynamicArray, Output state As %String, Output disabled As %DynamicArray, Output stoppedAt As %String) As %String [ Private ]
 {
@@ -125,10 +171,55 @@ Method SendFinding(item As OcuTalon.Msg.Item) As %Status [ Private ]
 	While $ListNext(fails, position, text) {
 		If (text '= "") && (item.Text [ text) {
 			If $Get(^||ChecksProbe("failThrow")) Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "The send of the finding threw"))
-			Return $SYSTEM.Status.Error(5001, "The send of the finding is refused")
+			Return $SYSTEM.Status.Error(5001, "The send of the finding is refused"_$Select(item.Channel = "heartbeat": " for "_item.SessionRef_" ("_$ZConvert(item.SessionRef, "U")_")", 1: ""))
 		}
 	}
 	Quit $$$OK
+}
+
+/// Records the call with the reads and sends made so far, then throws BeatThrows, or answers an error status with BeatError, else gives the Items of the real Beat
+/// for BeatSessions, or none.
+Method BeatRunDue(tickAt As %String, Output items As %ListOfObjects, Output views) As %Status [ Private ]
+{
+	Set items = ##class(%ListOfObjects).%New()
+	Kill views
+	Set views = 0
+	If '$IsObject(..Beats) Set ..Beats = []
+	Do ..Beats.%Push({"tickAt": (tickAt), "reads": (+$Get(^||ChecksProbe("calls"))), "sends": ($Select($IsObject(..Order): ..Order.%Size(), 1: 0))})
+	If ..BeatThrows '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, ..BeatThrows))
+	If ..BeatSessions '= "" Set sc = ##class(OcuTalon.Checks.Beat).RunDue(tickAt, .items, ..BeatSessions, ..BeatCapped, ..BeatKeyed, .views)
+	If ..BeatError '= "" Quit $SYSTEM.Status.Error(5001, ..BeatError)
+	Quit $Get(sc, $$$OK)
+}
+
+/// Records the call, then throws BeatNowThrows, or answers an error status with BeatNowError, else gives the real Beat's answer for a session in BeatSessions,
+/// or BeatNowOutcome with no Item.
+Method BeatRunNow(sessionRef As %String, now As %String, Output item As OcuTalon.Msg.Item, Output outcome As %String, Output availableAt As %String, Output views) As %Status [ Private ]
+{
+	Set item = ""
+	Set outcome = ""
+	Set availableAt = ""
+	Kill views
+	Set views = 0
+	If '$IsObject(..BeatNows) Set ..BeatNows = []
+	Do ..BeatNows.%Push({"sessionRef": (sessionRef), "now": (now)})
+	If ..BeatNowThrows '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, ..BeatNowThrows))
+	If ..BeatNowError '= "" Quit $SYSTEM.Status.Error(5001, ..BeatNowError)
+	If $ListFind($ListFromString(..BeatSessions), sessionRef) Quit ##class(OcuTalon.Checks.Beat).RunNow(sessionRef, now, .item, .outcome, .availableAt, ..BeatCapped, ..BeatKeyed, .views)
+	Set outcome = ..BeatNowOutcome
+	Quit $$$OK
+}
+
+/// Answers (or throws) an error that names the SessionRef, as it is and in upper case, for a SessionRef that BeatPublishError (or BeatPublishThrows) lists, else
+/// publishes for real.
+Method PublishBeat(sessionRef As %String, payload As OcuTalon.Live.Payload.Heartbeat) As %Status [ Private ]
+{
+	If '$IsObject(..BeatPublishedAfter) Set ..BeatPublishedAfter = []
+	Do ..BeatPublishedAfter.%Push(+$Get(^||ChecksProbe("findings")))
+	Set sc = $SYSTEM.Status.Error(5001, "The heartbeat event is refused for "_sessionRef_" ("_$ZConvert(sessionRef, "U")_")"_$Select(..BeatPublishSecret = "": "", 1: " "_..BeatPublishSecret))
+	If $ListFind($ListFromString(..BeatPublishThrows), sessionRef) $$$ThrowStatus(sc)
+	If $ListFind($ListFromString(..BeatPublishError), sessionRef) Quit sc
+	Quit ##super(sessionRef, payload)
 }
 
 /// Adds the text to Order.

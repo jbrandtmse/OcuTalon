@@ -21,6 +21,6 @@ Parameter APPROVALSTATE = "pending,approved,rejected,expired,cancelled,executing
 Parameter APPROVALKIND = "fix,tool_call,setting";
 
 /// Channels (AD-14).
-Parameter CHANNEL = "web,phone,mailbox,telegram,email,webhook,slack,system";
+Parameter CHANNEL = "web,phone,mailbox,telegram,email,webhook,slack,system,heartbeat";
 
 }

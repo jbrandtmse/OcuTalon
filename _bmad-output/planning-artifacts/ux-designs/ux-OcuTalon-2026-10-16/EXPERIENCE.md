@@ -1014,7 +1014,7 @@ Reroute, suspend and resume, and roll back each use the approval request card wi
 - **Off:** "Off. Turn it on to have OcuTalon look at your list every 30 minutes."
 - **On:** "Every {interval}, {from} to {to} · Next check-in {time}". The interval list is 30 minutes, 1 hour, 2, 4, 8 or 24 hours; nothing shorter is offered.
 - **Last check-in, by outcome:** "Last check-in {time} · Stayed quiet · {cost} · Trace" (ignore); "Told you now" (tellnow); "Saved for the digest" (digest); "Offered an action" (act); "Couldn't decide: {plain reason}" (fallback).
-- **Skips:** "Skipped at {time}: your checklist is empty." · "…: outside your active hours." · "…: nothing has changed since the last quiet check-in." · "…: the day's cost cap is reached." · "…: no model key is set." · "…: waiting after a failed check-in, until {time}."
+- **Skips:** "Skipped at {time}: your checklist is empty." · "…: outside your active hours." · "…: nothing has changed since the last quiet check-in." · "…: today's cost limit has been reached." [AMENDED 2026-11-06, Story 39.5, Contest Planner ruling (owner's delegation, 2026-11-06): was "…: the day's cost cap is reached."; the card's Run line and the catalog say "today's cost limit"] · "…: no model key is set." · "…: waiting after a failed check-in, until {time}."
 - **Checklist help:** "Write what OcuTalon should look for, one item per line. With an empty list, OcuTalon makes no model call. It looks at most once per interval, and only when something has changed." Counter: "{n} of 1,000 characters".
 - **Today:** "Today: {n} check-ins, {cost}".
 - **Button:** "Run the heartbeat now". Cooldown: "You can run it again at {time}."
