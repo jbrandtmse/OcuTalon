@@ -2305,3 +2305,8 @@
 2026-11-06T19:07:47Z	Run	planner_update	subject=1.0.2_rc1_cut from=b5dcbbfa cut_commit=fe61a8e2 branch=release/1.0.2-rc1 freeze=lifted merge_order=4.11,epic19_part1,epic17 merge_back=planner_later
 2026-11-06T19:08:02Z	Epic 7	runner_dispatched	agent=a4621a6b3ad580328 model=opus story=7.9 lane=D slot=ocutalon-slot-d base=41efeba8 prompt=prompts/dispatch-epic-7-79.md
 2026-11-06T19:08:02Z	Run	freeze_lifted	post_cut_head=b5dcbbfa(green) next_merges=4.11,epic19_part1,epic17
+2026-11-06T19:43:23Z	Epic 7	runner_clarification	agent=a4621a6b3ad580328 story=7.9 kind=public_text items=PT-a..PT-e contended=Watch/Reader.cls(epic17) head=4bf611e5
+2026-11-06T19:43:23Z	Epic 7	contention_ruled	story=7.9 file=Watch/Reader.cls owner_epic=17 ruling=plain_union(4 blocks, none on Epic 17 lines; prove with git merge-file) also=Test/Msg/Catalog.cls counts summed at second merge by=orchestrator a_told=yes
+2026-11-06T19:43:23Z	Epic 7	planner_question	story=7.9 rec=PT-a form1,Z1,PT-b reuse noFix(caveat),PT-c none,PT-d notice only,PT-e accept unless video needs first-press line (then Z2)
+2026-11-06T19:43:59Z	Epic 7	public_text_ruled	story=7.9 PT-a=form1_exact Z=Z1 no_7.10 PT-b=reuse_noFix(followup DW for later wording) PT-c=ok PT-d=notice_only PT-e=accepted(condition: online-demo e2e shows the line "0 would change" on the second press, item 3; added by whichever of 4.11/7.9 integrates second) reader_union=confirmed by=planner
+2026-11-06T19:43:59Z	Epic 7	runner_resumed	agent=a4621a6b3ad580328 reason=7.9_public_text_ruled b_told=yes
