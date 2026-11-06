@@ -2206,3 +2206,4 @@
 2026-11-06T07:51:58Z	Run	planner_ruling	subject=DW-776 answer="(a) KEEP 19 of 22 (target: 20); owner choice, rc4 release-candidate.md L15; closed by-design"
 2026-11-06T07:52:42Z	Epic 11	runner_redispatched	runner=ac58fe550eca5c6fa model=opus lane=B slot=ocutalon-slot-b prompt=prompts/redispatch-epic-11-1126.md story=11.26(charter;fix_forward;DW-775) base=4845cf67(green) feature=c390b58b(pending;tree=base+bookkeeping) note=planner_ordered_before_4.11
 2026-11-06T08:15:41Z	Run	ci_green_verified	runs=42183537162,42183537102 head=c390b58b result=success via=none note=feature_carries_epic40_epic34_11.24_11.25
+2026-11-06T08:16:04Z	Run	planner_ruling	subject=1.0.2_cut answer="no cut now; Planner decides at 16Z Fri (wait for Epic 39 if likely merged by 00Z Sat, else cut then); 1.0.2 includes 11.26; carry on 11.26 then 4.11" orchestrator_todo="Epic 39 ETA to the Planner before 16Z"
