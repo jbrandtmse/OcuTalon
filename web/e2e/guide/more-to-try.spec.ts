@@ -24,6 +24,11 @@ import { blockLiveSocket } from '../support/socket';
  *   - K11: leaving the finish: a panel control that holds focus hands it to the box, the panel is closed outside the finish until the
  *     link opens it, a new finish opens it again, and a press in the finish keeps it open when the finish leaves;
  *   - K12, K13: items 2 and 3 reach the chip and the box in the drawer band (1100x720) and the stacked band (800x720);
+ *   - K16: the panel open in the finish leaves the chat its room: no page scroll and a chat of at least 160px (64px in the compact
+ *     height band) where the page fills the viewport, a window of at least the label line and one control, the panel a scroll region of
+ *     its own in two columns, and each control that Tab reaches wholly in view; the stacked column grows and scrolls as a page;
+ *   - K17: the same room when the link opens the panel before the finish (the prompt bar's branch);
+ *   - K18: a focused panel group hands focus on when the finish leaves;
  *   - K14 (matrix 5, error): item 1 focuses the Persona heading when the card has not loaded;
  *   - K15 (matrix 6, error): item 2 sends nothing while the email limit holds, and focuses the inactive chip.
  */
@@ -256,11 +261,13 @@ test('K4: before the finish the panel is closed; the link opens it with Enter an
   expect(await before(guideRegion(page).locator('.main'), '.prompt', 'app-more-to-try'), 'the panel sits after the prompt bar').toBe(true);
   await expect(panelOf(page).getByRole('listitem')).toHaveCount(4);
 
-  // Tab through the open panel: Hide guide, the prompt's Send, then each control in order.
+  // Tab through the open panel: Hide guide, the prompt's Send, the panel's own stop, then each control in order.
   await page.keyboard.press('Tab');
   await expect(hideOf(page)).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(guideRegion(page).locator('.prompt').getByRole('button', { name: 'Send', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(panelOf(page), 'the panel is a scroll region and a Tab stop of its own, before its controls').toBeFocused();
   for (const id of FOUR) {
     await page.keyboard.press('Tab');
     await expect(controlOf(page, id), `Tab reaches ${id}`).toBeFocused();
@@ -605,4 +612,166 @@ test('K15: item 2 sends nothing while the email limit holds, and focuses the chi
   const reason = await chip.getAttribute('aria-describedby');
   expect(reason ?? '', 'the chip is described by the limit').toContain('mailbox-email-limit');
   await expect(page.locator('#mailbox-email-limit'), 'which is on the page').toHaveCount(1);
+});
+
+/** What K16 and K17 measure: the least visible heights, the page's scroll, and the panel's window, columns and how far it reaches past the page's width. */
+interface Room {
+  chat: number;
+  page: number;
+  window: number;
+  holds: number;
+  need: number;
+  columns: number;
+  width: number;
+  overflowX: number;
+  overflowY: string;
+  maxHeight: string;
+}
+
+const measureRoom = (page: Page): Promise<Room> =>
+  page.evaluate(() => {
+    const group = document.querySelector<HTMLElement>('app-more-to-try .group')!;
+    const style = getComputedStyle(group);
+    const tops = Array.from(group.querySelectorAll('li')).map((item) => Math.round(item.getBoundingClientRect().top));
+    return {
+      chat: document.querySelector('app-chat-panel .list')!.getBoundingClientRect().height,
+      page: document.scrollingElement!.scrollHeight - document.scrollingElement!.clientHeight,
+      window: group.clientHeight,
+      holds: group.scrollHeight - group.clientHeight,
+      need: group.querySelector('.group-label')!.getBoundingClientRect().height + group.querySelector('.button')!.getBoundingClientRect().height,
+      columns: tops.filter((top) => top === tops[0]).length,
+      width: group.clientWidth,
+      overflowX: Math.max(0, group.getBoundingClientRect().right, ...Array.from(group.querySelectorAll('li')).map((item) => item.getBoundingClientRect().right)) - document.documentElement.clientWidth,
+      overflowY: style.overflowY,
+      maxHeight: style.maxHeight,
+    };
+  });
+
+/** The layout once two samples in a row agree, so that no later reflow can change what the case asserts. */
+async function settledRoom(page: Page): Promise<Room> {
+  await page.evaluate(() => document.fonts.ready.then(() => true));
+  let last = '';
+  let room: Room | undefined;
+  await expect
+    .poll(
+      async () => {
+        room = await measureRoom(page);
+        const now = JSON.stringify(room);
+        const same = now === last;
+        last = now;
+        return same;
+      },
+      { message: 'the layout has settled' },
+    )
+    .toBe(true);
+  return room!;
+}
+
+/**
+ * The sizes at which the open panel must leave the chat a usable height: `chat` is the least visible height of `app-chat-panel .list`,
+ * and `window` the least height of the panel's own window where the viewport leaves room for more than its minimum (a panel bound that is
+ * tighter than the room needs fails there). The framed sizes (1024px and wider) fill the viewport, so the page itself never scrolls and the panel is a scroller of its own; the
+ * stacked column scrolls as a page by design and the panel grows with its items.
+ */
+const ROOM = [
+  { band: 'wide', width: 1280, height: 800, chat: 160, window: 100, framed: true },
+  { band: 'drawer', width: 1024, height: 768, chat: 160, window: 70, framed: true },
+  { band: 'drawer', width: 1100, height: 720, chat: 160, window: 0, framed: true },
+  { band: 'compact height', width: 1280, height: 650, chat: 64, window: 0, framed: true },
+  { band: 'compact height', width: 1280, height: 600, chat: 64, window: 0, framed: true },
+  { band: 'stacked', width: 800, height: 720, chat: 1, window: 0, framed: false },
+  { band: 'stacked, narrowest', width: 320, height: 700, chat: 1, window: 0, framed: false },
+] as const;
+
+/** Asserts what the panel owes at a size, for K16 and K17: the chat, the page, the window, the columns and the stacked contract. */
+function expectRoom(room: Room, size: { width: number; height: number; chat: number; window: number; framed: boolean }): void {
+  const at = `${size.width}x${size.height} (${JSON.stringify(room)})`;
+  expect(room.chat, `${at}: the chat's list keeps its height`).toBeGreaterThanOrEqual(size.chat);
+  expect(room.overflowX, `${at}: the panel stays within the page's width`).toBeLessThanOrEqual(1);
+  if (size.framed) {
+    expect(room.page, `${at}: the page does not scroll as a whole`).toBeLessThanOrEqual(1);
+    expect(room.overflowY, `${at}: the panel scrolls on its own`).toBe('auto');
+    expect(room.maxHeight, `${at}: and is bounded`).not.toBe('none');
+    expect(room.window, `${at}: its window shows the label line and one complete control`).toBeGreaterThanOrEqual(room.need - 1);
+    expect(room.window, `${at}: and uses the room the viewport leaves it`).toBeGreaterThanOrEqual(size.window);
+    expect(room.holds, `${at}: it holds more than its window shows`).toBeGreaterThan(0);
+    expect(room.columns, `${at}: the items are in as many columns as fit, each at least 20rem wide`).toBe(Math.min(FOUR.length, Math.max(1, Math.floor((room.width - 8 + 16) / (320 + 16)))));
+  } else {
+    expect(room.overflowY, `${at}: the stacked panel is no scroller of its own`).toBe('visible');
+    expect(room.maxHeight, `${at}: and has no bound`).toBe('none');
+  }
+}
+
+/**
+ * Tab from the panel's own stop through the four controls: each one that takes focus is wholly in view in the panel's window, and the
+ * window has scrolled by the time the last one is reached.
+ */
+async function expectTabInView(page: Page, at: string): Promise<void> {
+  await panelOf(page).focus();
+  for (const id of FOUR) {
+    await page.keyboard.press('Tab');
+    await expect(controlOf(page, id), `${at}: Tab reaches ${id}`).toBeFocused();
+    const inView = await page.evaluate(() => {
+      const group = document.querySelector('app-more-to-try .group')!.getBoundingClientRect();
+      const control = document.activeElement!.getBoundingClientRect();
+      return { overlap: Math.min(group.bottom, control.bottom) - Math.max(group.top, control.top), height: control.height };
+    });
+    expect(inView.overlap, `${at}: ${id} is wholly in view in the panel`).toBeGreaterThanOrEqual(inView.height - 1);
+  }
+  expect(await panelOf(page).evaluate((node) => node.scrollTop), `${at}: the panel scrolled to bring the last control into view`).toBeGreaterThan(0);
+}
+
+for (const size of ROOM) {
+  const { band, width, height, chat } = size;
+  /**
+   * K16 (the panel's room): the routed finish with the four ids, the panel open by default. The measurements are recorded as an annotation
+   * and one log line. The panel is a Tab stop named "Other things to try" where it scrolls.
+   */
+  test(`K16: in the ${band} band (${width}x${height}) the open panel leaves the chat at least ${chat}px and the page does not scroll`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await openWith(page, finished(FOUR, { breakFeed: { active: true } }));
+    await expect(panelOf(page), 'the panel is open in the finish').toBeVisible();
+    if (size.framed) {
+      await expect(panelOf(page), 'it is a Tab stop').toHaveAttribute('tabindex', '0');
+    }
+    const room = await settledRoom(page);
+    const record = `${width}x${height} chat=${room.chat} window=${room.window} need=${room.need} columns=${room.columns} width=${room.width} page scroll=${room.page}`;
+    test.info().annotations.push({ type: 'K16', description: record });
+    console.log(`K16 ${record}`);
+    expectRoom(room, size);
+    if (size.framed) {
+      await expectTabInView(page, `${width}x${height}`);
+    }
+  });
+}
+
+/** K17: the link opens the panel before the finish (the prompt bar's branch); the same room is owed at every framed size. */
+for (const size of ROOM.filter((one) => one.framed)) {
+  const { width, height, chat } = size;
+  test(`K17: with the link opening the panel before the finish (${width}x${height}) the chat keeps at least ${chat}px and the page does not scroll`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await openWith(page, guide(FOUR));
+    await linkOf(page).click();
+    await expect(panelOf(page), 'the link opens the panel').toBeVisible();
+    const room = await settledRoom(page);
+    const record = `${width}x${height} prompt branch chat=${room.chat} window=${room.window} need=${room.need} columns=${room.columns} width=${room.width} page scroll=${room.page}`;
+    test.info().annotations.push({ type: 'K17', description: record });
+    console.log(`K17 ${record}`);
+    expectRoom(room, size);
+  });
+}
+
+/** K18: the panel's scrolling group holds focus when the finish leaves; focus goes to the box, as for a control, and not to the body. */
+test('K18: a focused panel group hands focus to the box when the finish leaves', async ({ page }) => {
+  await blockLiveSocket(page);
+  const push = await guidePushes(page);
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['guide'] = finished(FOUR, { breakFeed: { active: true } });
+  });
+  await signInReadmeLoaded(page);
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await panelOf(page).focus();
+  await expect(panelOf(page), 'the group holds focus').toBeFocused();
+  await push(guide(FOUR, { step: 3, breakFeed: { active: true } }));
+  await expect(breakButton(page), 'focus went to Break the feed when the finish left').toBeFocused();
 });

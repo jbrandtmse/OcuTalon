@@ -299,7 +299,7 @@ describe('scrollers keep the gutter', () => {
         if (!/scroll-padding\s*:\s*var\(--space-scroll-gutter\)/.test(rule.body)) unpadded.push(one.name);
       }
     }
-    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/devices/device-panel.ts', 'app/documents/documents-page.ts', 'app/main-page/main-page.ts', 'app/phone/simulated-phone.ts', 'app/settings/settings-page.ts']);
+    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/devices/device-panel.ts', 'app/documents/documents-page.ts', 'app/guide/more-to-try.ts', 'app/main-page/main-page.ts', 'app/phone/simulated-phone.ts', 'app/settings/settings-page.ts']);
     assert.deepEqual(unpadded.sort(), Object.keys(NO_GUTTER));
     for (const [name, why] of Object.entries(NO_GUTTER)) assert.ok(why.length > 20, `${name} says why`);
   });
@@ -463,7 +463,7 @@ describe('the width bands (Story 2.15)', () => {
       [],
     );
     const used = files.filter((one) => /^app\/.*\.ts$/.test(one.name) && /\$\{HEIGHT_QUERIES\./.test(one.code)).map((one) => one.name);
-    assert.deepEqual(used, ['app/approvals/approval-request-card.ts', 'app/guide/demo-guide.ts']);
+    assert.deepEqual(used, ['app/approvals/approval-request-card.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try.ts']);
   });
 
   it('has only the four queries of layout-view.ts as the width condition of an @media in app/ and styles/', () => {
@@ -475,7 +475,7 @@ describe('the width bands (Story 2.15)', () => {
     for (const [name, condition] of found) assert.ok(QUERIES.includes(withoutHeight(condition)), `${name}: ${condition} is one of the four queries`);
     assert.deepEqual(
       [...new Set(found.map(([name]) => name))].sort(),
-      ['app/app.ts', 'app/chat/chat-panel.ts', 'app/devices/device-panel.ts', 'app/feed/break-feed-box.ts', 'app/guide/demo-guide.ts', 'app/header/header.ts', 'app/main-page/main-page.ts', 'styles/base.css'],
+      ['app/app.ts', 'app/chat/chat-panel.ts', 'app/devices/device-panel.ts', 'app/feed/break-feed-box.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try.ts', 'app/header/header.ts', 'app/main-page/main-page.ts', 'styles/base.css'],
     );
   });
 

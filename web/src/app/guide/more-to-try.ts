@@ -10,6 +10,7 @@ import { LiveState } from '../live/live-state';
 import { chipName, SAMPLES } from '../mailbox/mailbox-view';
 import { PERSONA_HEADING_ID } from '../rail/persona-card/persona-card-view';
 import { Layout, RAIL_REGION } from '../shared/layout';
+import { HEIGHT_QUERIES, LAYOUT_QUERIES } from '../shared/layout-view';
 import { BREAK_FEED_BUTTON, MORE_TO_TRY_TEXTS, type MoreToTryItem } from './more-to-try-view';
 
 /** The Persona card's Change button. */
@@ -36,6 +37,13 @@ let panels = 0;
  * action runs from the control's own click, and focus moves only for that press. The panel announces nothing, and it emits `pressed` so
  * that the guide keeps the panel open.
  *
+ * Where the page fills the viewport (LAYOUT_QUERIES.framed) the group is a vertical scroll region of its own, a Tab stop named by the panel
+ * label (the project's rule for a scroller), and its height is bounded by what is left of the viewport after the page's other parts and the
+ * chat's minimum (never less than the label's line and one control), so the chat keeps its room and the page never scrolls as a whole;
+ * the items lay out in as many columns as fit. The group carries the focus rule's `moreItem` key like the controls, so a focused group hands
+ * focus on when the finish leaves.
+ * In the stacked column the page scrolls and the group grows with its items.
+ *
  * Item 5 is aria-disabled, never disabled, while a turn is in flight or the message allowance is used up, and a press then sends nothing.
  */
 @Component({
@@ -43,7 +51,7 @@ let panels = 0;
   imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="group" role="group" [attr.aria-labelledby]="labelId">
+    <div class="group ring-inside" role="group" tabindex="0" data-guide-focus="moreItem" [attr.aria-labelledby]="labelId">
       <p class="group-label" [id]="labelId">{{ texts.label }}</p>
       <ul class="items">
         @for (item of items(); track item.id) {
@@ -71,12 +79,22 @@ let panels = 0;
     :host {
       display: block;
       margin-top: var(--space-1);
+      --more-label-height: calc(var(--type-body-sm-font-size) * var(--type-body-sm-line-height));
+      --more-window-min: calc(var(--more-label-height) + var(--space-control-height));
+      --more-reserve: 685px;
+    }
+    @media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.framed} {
+      :host {
+        --more-reserve: 592px;
+        margin-top: 0;
+      }
     }
     .group {
       display: flex;
       flex-direction: column;
       align-items: stretch;
       gap: var(--space-1);
+      padding-inline: var(--space-1);
     }
     .group-label {
       margin: 0;
@@ -86,9 +104,9 @@ let panels = 0;
       line-height: var(--type-body-sm-line-height);
     }
     .items {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2);
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
+      gap: var(--space-2) var(--space-4);
       margin: 0;
       padding: 0;
       list-style: none;
@@ -119,6 +137,18 @@ let panels = 0;
     }
     .item .button {
       flex: none;
+    }
+    /* Where the page fills the viewport, the panel is a scroll region of its own: it leaves the chat the room it needs, so the page
+       never scrolls as a whole. The reserve is the height that the rest of the page needs (header, rail and chat chrome, the guide
+       without the panel and the chat's own minimum). The window never gets shorter than the label's line and one control, so every
+       control scrolls fully into view. */
+    @media ${LAYOUT_QUERIES.framed} {
+      .group {
+        overflow-y: auto;
+        scroll-padding: var(--space-scroll-gutter);
+        max-height: max(var(--more-window-min), calc(100vh - var(--more-reserve)));
+        max-height: max(var(--more-window-min), calc(100dvh - var(--more-reserve)));
+      }
     }
   `,
 })

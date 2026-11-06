@@ -59,9 +59,22 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
   });
 
   it('is a labelled group with a list, each control marked for the focus rule', () => {
-    assert.match(code, /role="group" \[attr\.aria-labelledby\]="labelId"/);
+    assert.match(code, /class="group ring-inside" role="group" tabindex="0" data-guide-focus="moreItem" \[attr\.aria-labelledby\]="labelId"/);
     assert.match(code, /<ul class="items">/);
-    assert.equal(count(code, /data-guide-focus="moreItem"/g), 2);
+    assert.equal(count(code, /data-guide-focus="moreItem"/g), 3, 'the group and the two kinds of control');
+  });
+
+  it('is bounded where the page fills the viewport: its own vertical scroll, with the height left by the viewport minus a reserve', () => {
+    const framed = /@media \$\{LAYOUT_QUERIES\.framed\} \{\s*\.group \{([^}]*)\}/.exec(code);
+    assert.ok(framed, 'the bound sits under the framed width query');
+    assert.match(framed[1], /overflow-y:\s*auto/);
+    assert.match(framed[1], /max-height:\s*max\(var\(--more-window-min\), calc\(100vh - var\(--more-reserve\)\)\)/);
+    assert.match(framed[1], /max-height:\s*max\(var\(--more-window-min\), calc\(100dvh - var\(--more-reserve\)\)\)/);
+    assert.match(code, /@media \$\{HEIGHT_QUERIES\.compact\} and \$\{LAYOUT_QUERIES\.framed\} \{\s*:host \{\s*--more-reserve:/, 'the compact height band has its own reserve');
+    assert.match(code, /grid-template-columns:\s*repeat\(auto-fill, minmax\(min\(20rem, 100%\), 1fr\)\)/, 'the items are a grid of columns that never outgrow a narrow container');
+    assert.match(code, /--more-window-min:\s*calc\(var\(--more-label-height\) \+ var\(--space-control-height\)\)/, 'the window holds the label line and one control at least');
+    assert.match(code, /@media \$\{HEIGHT_QUERIES\.compact\} and \$\{LAYOUT_QUERIES\.framed\} \{\s*:host \{[^}]*margin-top:\s*0/, 'the compact band gives the chat the 4px of the margin');
+    assert.doesNotMatch(code, /@media \$\{LAYOUT_QUERIES\.stacked\}/, 'the stacked column has no bound of its own: the page scrolls');
   });
 
   it('uses none of the class names the guide\'s other parts use', () => {
