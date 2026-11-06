@@ -6,7 +6,7 @@
 ///   - an Outbound's text is its Text, else the catalog rendering of its CatalogKey for the channel telegram. When it has a CheckKey
 ///     whose sentence is not "", the text is followed by a blank line and the sentence (below). A Notification of the kinds tellnow,
 ///     incident, approval, result, reminder, allowance and pairing is sent as the rendering of its CatalogKey; the kinds answered and
-///     handled are the edit in place (below); the kind digest is one plain-text message (below); any other kind (status, fallback) sends
+///     handled are the edit in place (below); the kind digest is a plain-text message (below); any other kind (status, fallback) sends
 ///     nothing and records no row. A render error is returned and nothing is sent;
 ///   - the check sentence mirrors web/src/app/shared/check-sentence.ts (AD-28): checks.allPassed, checks.everythingElsePassed and
 ///     checks.nothingWatched give the catalog text, and checks.notEverything and checks.notEverythingRestPassed are rendered with
@@ -23,11 +23,12 @@
 ///   - a message with a SessionRef, once every part is sent, records one Delivery row of channel telegram (Delivery.Record) whose
 ///     message id is "<ChatRef>:<message_id of the last part>" (just "<ChatRef>:" when that answer had no message_id). A message with
 ///     no SessionRef records none. A failed Record is one warning and the status stays OK, because the message is never sent again;
-///   - a digest (Story 17.6): a Notification of the kind digest is one plain-text message. Its Slots hold parts, lines and rows; every
+///   - a digest (Story 17.6): a Notification of the kind digest is a plain-text message, which goes as one message when it fits and otherwise as several, cut
+///     at line breaks (Api.Split; a single line longer than a message is cut at the limit) and sent in order. Its Slots hold parts, lines and rows; every
 ///     {key, slots} of the parts and of the lines is rendered through Catalog.Render for the channel telegram, and nothing else is
 ///     added. The pieces go in this order, each on its own line, with no Markdown: the parts up to and including the checked part and its
 ///     reserved sentence, one coverage line for each row of lines, and then the needs-you parts, the saved-for-later part and the cost. It
-///     records one Delivery row of the kind digest. A piece that cannot be rendered is an error and nothing is sent;
+///     records one Delivery row of the kind digest, whose message is the last one sent. A piece that cannot be rendered is an error and nothing is sent;
 ///   - the Got it button (Story 17.6): a Notification of the kind tellnow that has a DecisionRef is sent with one inline button, the
 ///     catalog key button.gotIt, whose callback data is "gotit:<DecisionRef>", in the reply_markup of its last part only. It is split like a
 ///     message with the Approve and Reject buttons, and its Delivery row keeps the last part's text (redacted) and its DecisionRef, which

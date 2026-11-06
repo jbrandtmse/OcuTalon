@@ -4,14 +4,14 @@
 ///   - SendCompose saves the Compose (a queued digest is a body that the due check and the key check read) and records it, in order, as
 ///     ^||DigestProbe("compose", n) = $ListBuild(session, kind, dueAt, key, windowStart, windowEnd, id);
 ///   - SendNotice records the Notification as ^||DigestProbe("notice", n) = $ListBuild(session, kind, catalogKey, decisionRef, slots, item), item being
-///     the item it was sent to (Notify, or the item of a channel), and fails when FailNotice is set;
+///     the item it was sent to (Notify, or the item of a channel), and fails when FailNotice is set or when the item is one of FailItems (comma-separated), and throws instead when the item is one of ThrowItems;
 ///   - Own gives the session's own channels from OwnChannels (comma-separated) when it is set, else the product's (ReadOwn always gives the product's);
 ///   - SendSummary records the request as ^||DigestProbe("summary", n) with the fields kind, provenance, sessionMode, seedText, ownerRef, itemId, input,
 ///     channel, systemNote, summary and traceRef, and fails when FailSummary is set;
 ///   - Rows records its window as ^||DigestProbe("rows", n) = $ListBuild(fromUtc, toUtc) and gives the rows of Test.Digest.CoverageProbe (healthy vital
 ///     signs and the fed reads), and an error status when FailRows is set. After Feed, it gives instead the five vital rows that Feed was given and the
 ///     watched rows, with one coverage line for each;
-///   - Schedule works only for the sessions of Only (comma-separated), so that a tick queues nothing for a session the test does not own;
+///   - Schedule and Resend work only for the sessions of Only (comma-separated), so that a tick queues and resends nothing for a session the test does not own;
 ///   - Covered records each answer of the product's check, in order, as ^||DigestProbe("covered", n) = 0 or 1.
 /// Cost and NeedsYou are the product's own: the tests feed them with fixture rows. LOCKSECONDS is 1, so that a held lock costs the test a second.
 /// Hold and Held take and test the lock of a session's digest from another job; Hold can write a Sent row that covers a due time just before it lets go.
@@ -24,6 +24,10 @@ Parameter LOCKSECONDS = 1;
 
 Parameter PROBE = "OcuTalon.Test.Digest.CoverageProbe";
 
+/// The trace session id a test gives the host (%SessionId), so that the Ens.Rule.Log rows of its direct sends are its own: RouteRows reads them and Clean
+/// deletes them.
+Parameter TRACESESSION = -770017;
+
 /// The sessions that Schedule works for, comma-separated.
 Property Only As %String(MAXLEN = "") [ Transient ];
 
@@ -31,6 +35,12 @@ Property Only As %String(MAXLEN = "") [ Transient ];
 Property OwnChannels As %String [ Transient ];
 
 Property FailNotice As %Boolean [ InitialExpression = 0, Transient ];
+
+/// The items whose send fails, comma-separated.
+Property FailItems As %String [ Transient ];
+
+/// The items whose send throws, comma-separated.
+Property ThrowItems As %String [ Transient ];
 
 Property FailSummary As %Boolean [ InitialExpression = 0, Transient ];
 
@@ -84,6 +94,17 @@ ClassMethod Summary(n As %Integer) As %DynamicObject
 	Quit object
 }
 
+/// The Ens.Rule.Log rows of the trace session TRACESESSION, in order, each as {rule, activity, reason, returnValue, errorMsg, isError}.
+ClassMethod RouteRows() As %DynamicArray
+{
+	Set list = []
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT RuleName, ActivityName, Reason, ReturnValue, ErrorMsg, IsError FROM Ens_Rule.Log WHERE SessionId = ? ORDER BY ID", ..#TRACESESSION)
+	While rs.%Next() {
+		Do list.%Push({"rule": (rs.%Get("RuleName")), "activity": (rs.%Get("ActivityName")), "reason": (rs.%Get("Reason")), "returnValue": (rs.%Get("ReturnValue")), "errorMsg": (rs.%Get("ErrorMsg")), "isError": (+rs.%Get("IsError"))})
+	}
+	Quit list
+}
+
 /// The Composes recorded so far, in order, each as an object of its fields; the ones from the record number after on.
 ClassMethod Composes(after As %Integer = 0) As %DynamicArray
 {
@@ -102,9 +123,10 @@ Method DeliverCompose(n As %Integer) As %Status
 	Quit ..OnRequest(compose, .response)
 }
 
-/// Deletes the Compose bodies and the Sent rows of the sessions (comma-separated).
+/// Deletes the Compose bodies and the Sent rows of the sessions (comma-separated), and the Ens.Rule.Log rows of TRACESESSION.
 ClassMethod Clean(sessions As %String)
 {
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Rule.Log WHERE SessionId = ?", ..#TRACESESSION)
 	For i = 1:1:$Length(sessions, ",") {
 		Set ref = $Piece(sessions, ",", i)
 		If ref = "" Continue
@@ -184,6 +206,12 @@ Method Schedule(sessionRef As %String, due As %String, now As %String) As %Statu
 	Quit ##super(sessionRef, due, now)
 }
 
+Method Resend(id As %String, sessionRef As %String) As %Status [ Private ]
+{
+	If '$ListFind($ListFromString(..Only), sessionRef) Quit $$$OK
+	Quit ##super(id, sessionRef)
+}
+
 Method Covered(sessionRef As %String, due As %String) As %Boolean [ Private ]
 {
 	Set covered = ##super(sessionRef, due)
@@ -220,7 +248,8 @@ Method SendNotice(notification As OcuTalon.Msg.Notification, item As %String) As
 {
 	Set n = $Increment(^||DigestProbe("notice"))
 	Set ^||DigestProbe("notice", n) = $ListBuild(notification.SessionRef, notification.Kind, notification.CatalogKey, notification.DecisionRef, notification.Slots, item)
-	If ..FailNotice Quit $SYSTEM.Status.Error(5001, "zz the Notification could not be sent")
+	If $ListFind($ListFromString(..ThrowItems), item) Throw ##class(%Exception.General).%New("zz the Notification threw", 5001, , "zz the Notification threw for "_item)
+	If ..FailNotice || $ListFind($ListFromString(..FailItems), item) Quit $SYSTEM.Status.Error(5001, "zz the Notification could not be sent to "_item)
 	Quit $$$OK
 }
 

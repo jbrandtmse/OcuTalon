@@ -8,6 +8,9 @@
 ///     "Yesterday's cost: $0.04." (the session's 0.042 plus whatever the instance's rows of yesterday add); it records one Delivery row of the kind digest;
 ///   - TestQuietAndLimits: a quiet digest has at most 150 words, and a digest with 201 open entries (200 Decisions and a failed row) is one message of at most 4096
 ///     characters that names five of them and ends the list with "And 196 more on the OcuTalon page.";
+///   - TestLongDigestSplits: a demo-sized session's digest (eight watched entries and three open Decisions) is one message of at most 4096 characters; the digest of a
+///     session with 200 watched entries is sent as several messages in order, each of at most 4096 characters and cut at line breaks only: every line of every message is
+///     one whole rendered piece of the digest, each piece is there once, and the coverage lines are in the order of the rows;
 ///   - TestRenderError: a digest with a part that cannot be rendered sends nothing and returns the error;
 ///   - TestGotItButton: a tell-now message with a DecisionRef carries one inline button "Got it" whose callback data is gotit:<DecisionRef>, and one with no DecisionRef carries
 ///     none;
@@ -17,12 +20,12 @@
 ///     the session's message, and for a message of the pressing chat whose Ref is not a reference, submits nothing, and each press is still answered;
 ///   - TestHandledEdit: a handled Notification edits the tell-now message in place to its text, a blank line and "Marked as handled at <time>", with no reply_markup, once; a
 ///     handled Notification with no marker or no message edits nothing and logs one warning, and a repeated one edits nothing and logs none.
-/// The fixture chats are 84017734160 to 84017734169, and the fixture sessions zztgdig....
+/// The fixture chats are 84017734160 to 84017734171, and the fixture sessions zztgdig....
 Class OcuTalon.Test.Channel.TelegramDigest Extends OcuTalon.Test.Channel.LiveCase
 {
 
 /// The fixture chat ids.
-Parameter CHATS = "84017734160,84017734161,84017734162,84017734163,84017734164,84017734165,84017734166,84017734167,84017734168,84017734169";
+Parameter CHATS = "84017734160,84017734161,84017734162,84017734163,84017734164,84017734165,84017734166,84017734167,84017734168,84017734169,84017734170,84017734171";
 
 Parameter PROBE = "OcuTalon.Test.Digest.ProcessProbe";
 
@@ -321,6 +324,84 @@ Method TestQuietAndLimits()
 		Do $$$AssertTrue(text [ "And 196 more on the OcuTalon page.", "and the rest are counted")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the limits test failed: "_..Safe(ex))
+	}
+}
+
+Method TestLongDigestSplits()
+{
+	If '..Go() Quit
+	Try {
+		Set chatId = 84017734170
+		Set small = ..Paired(chatId, "Zqsmall", .smallRef)
+		For i = 1:1:3 {
+			Do ..Keep(##class(OcuTalon.Test.Data.Fixture).Decision(small, "decide", ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -i), {"Summary": ("zz Mail number "_i_" from a partner"), "Outcome": "tellnow"}))
+		}
+		Set watched = []
+		For i = 1:1:8 {
+			Do watched.%Push(..Watched($Select(i = 3: "failed", 1: "passed"), "zz Entry "_i, $Select(i = 3: "5 messages queued", 1: "")))
+		}
+		Set notice = ..DigestNotice(small, watched)
+		Set sends = ..CallsOf("sendMessage").%Size()
+		Do $$$AssertStatusOK(..ToOut(notice), "the demo-sized digest is sent")
+		Do $$$AssertEquals(..CallsOf("sendMessage").%Size(), sends + 1, "a demo-sized session's digest is one message")
+		Do $$$AssertTrue($Length(..CallsOf("sendMessage").%Get(sends).params.text) <= 4096, "of at most 4096 characters")
+		Set chatId = 84017734171
+		Set big = ..Paired(chatId, "Zqbig", .bigRef)
+		Set watched = []
+		For i = 1:1:200 {
+			Do watched.%Push(..Watched($Select(i # 7 = 0: "failed", 1: "passed"), "zz E"_i, $Select(i # 7 = 0: "5 messages queued", 1: "")))
+		}
+		Set notice = ..DigestNotice(big, watched)
+		Set slots = {}.%FromJSON(notice.Slots)
+		Set expected = 0
+		For list = "parts", "lines" {
+			Set iterator = $Property(slots, list).%GetIterator()
+			While iterator.%GetNext(, .element) {
+				Set text = ##class(OcuTalon.Msg.Catalog).Render(element.key, element.slots, "telegram", .sc)
+				Do $$$AssertStatusOK(sc, element.key_" renders")
+				Set expected = expected + 1
+				Set hash = $SYSTEM.Encryption.SHA1Hash(text)
+				Set want(hash) = $Get(want(hash)) + 1
+				If list = "lines" Set lines = $Get(lines) + 1, lineHash(lines) = hash
+			}
+		}
+		Do $$$AssertEquals(lines, 205, "control: the 200 rows and the five vital signs give 205 coverage lines")
+		Set sends = ..CallsOf("sendMessage").%Size()
+		Do $$$AssertStatusOK(..ToOut(notice), "the digest of 200 watched entries is sent")
+		Set messages = ..CallsOf("sendMessage").%Size() - sends
+		Do $$$AssertTrue(messages >= 2, "as several messages: "_messages)
+		Set seen = 0
+		For n = sends:1:..CallsOf("sendMessage").%Size() - 1 {
+			Set call = ..CallsOf("sendMessage").%Get(n)
+			Do $$$AssertEquals(call.params."chat_id", chatId, "message "_(n - sends + 1)_" goes to the paired chat")
+			Do $$$AssertTrue($Length(call.params.text) <= 4096, "message "_(n - sends + 1)_" has at most 4096 characters: "_$Length(call.params.text))
+			For i = 1:1:$Length(call.params.text, $Char(10)) {
+				Set line = $Piece(call.params.text, $Char(10), i)
+				Set seen = seen + 1
+				Set hash = $SYSTEM.Encryption.SHA1Hash(line)
+				Set got(hash) = $Get(got(hash)) + 1
+				Set position(hash) = $Get(position(hash), seen)
+			}
+		}
+		Do $$$AssertEquals(seen, expected, "the messages hold exactly as many lines as the digest has pieces")
+		Set wrong = 0, order = 1, last = 0
+		Set hash = ""
+		For {
+			Set hash = $Order(want(hash), 1, count)
+			Quit:hash=""
+			If $Get(got(hash)) '= count Set wrong = wrong + 1
+		}
+		Do $$$AssertEquals(wrong, 0, "every piece is one whole line of the messages, as often as the digest has it: no line is lost, repeated or cut")
+		For i = 1:1:lines {
+			If $Get(position(lineHash(i))) <= last Set order = 0
+			Set last = $Get(position(lineHash(i)))
+		}
+		Do $$$AssertTrue(order, "and the coverage lines follow each other in the order of the rows")
+		Set smallId = $Piece(..Rows(small), ":", 2), bigId = $Piece(..Rows(big), ":", 2)
+		Do $$$AssertEquals(..Rows(big), "digest|"_bigRef_":"_bigId, "one Delivery row of the kind digest records a message of the chat")
+		Do $$$AssertTrue((smallId ? 1.N) && (bigId ? 1.N) && (bigId - smallId >= (messages + 1)), "which is the last message: its id follows the small digest's by the confirmation and every message")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the split test failed: "_..Safe(ex))
 	}
 }
 

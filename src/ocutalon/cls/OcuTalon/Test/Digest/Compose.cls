@@ -28,7 +28,14 @@
 ///     order of Notify's rule; TestRouteNoneReachable: a saved value that names no own channel sends nothing, ends the Compose with an error status
 ///     holding the fixed diagnostic, writes no Sent row and makes no model request, also when the value changes while the summary is awaited;
 ///     TestRouteForeign: a channel outside the session's own, an unknown name and the name of an item add no destination;
-///     TestOwnChannels: the product's own reading of the session's channels (web, phone with demo mode, telegram when paired).
+///     TestOwnChannels: the product's own reading of the session's channels (web, phone with demo mode, telegram when paired);
+///   - Each direct send is independent (AD-14, the interim route until Story 18.2). TestOwnMatchesNotify: the session's own channels equal the channels that
+///     Notify's generic route reaches for a digest Notification, evaluated on the router for demo mode on and off, Telegram included or not and a session paired
+///     or not; TestChannelFailure: when the first channel's send fails the second still gets the digest, the Sent row says Channels and Failed, the Compose
+///     ends with an error status that names the channel, and each send wrote its Ens.Rule.Log row; TestRetryMissedChannel: a later tick sends the stored Slots to
+///     the channel that failed alone, never again to the one that got it, at most MAXATTEMPTS times, and drops a channel that is no longer named;
+///     TestThrowingChannel: a send that throws is a failed channel and the next channel is still tried;
+///     TestEveryChannelFails: no channel reached, no Sent row, one error status naming every channel, and a row for each send.
 Class OcuTalon.Test.Digest.Compose Extends OcuTalon.Test.Bridge.ZoneCase
 {
 
@@ -62,6 +69,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	Set sc = ##super(testname)
 	Do $SYSTEM.Process.TimeZone(..#ZONE)
 	Do $ClassMethod(..#PROBE, "Reset")
+	Do $ClassMethod(..#PROBE, "Clean", "")
 	Do ..SaveChannels("")
 	Set ..LogMark = ..LastLog()
 	Quit sc
@@ -125,13 +133,14 @@ Method Items() As %String
 
 /// Handles a requested Compose of the session on a host whose own channels are own and whose digest.channels is saved (empty for no row); the status.
 /// The probe is reset first, and number tells the keys of the Composes apart.
-Method Route(session As %String, own As %String, saved As %String, number As %Integer) As %Status
+Method Route(session As %String, own As %String, saved As %String, number As %Integer, Output host As OcuTalon.Test.Digest.ProcessProbe) As %Status
 {
 	Do $ClassMethod(..#PROBE, "Reset")
 	Do $ClassMethod(..#PROBE, "Feed", [])
 	Do ..SaveChannels(saved)
 	Set host = ..Host()
 	Set host.OwnChannels = own
+	Set host.Only = session
 	Quit ..Handle(..Compose(session, "requested", , session_":route"_number), host)
 }
 
@@ -165,6 +174,7 @@ Method Host() As OcuTalon.Test.Digest.ProcessProbe
 {
 	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
 	Do $$$AssertTrue($IsObject(host), "a shadow instance of the probe is made")
+	Set host.%SessionId = $Parameter(..#PROBE, "TRACESESSION")
 	Quit host
 }
 
@@ -287,10 +297,10 @@ Method SentRows(session As %String) As %Integer
 /// The newest Sent row of the session, as an object of its fields.
 Method Sent(session As %String) As %DynamicObject
 {
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Ref, SessionRef, ItemId, DecisionRef, Kind, DueAt, WindowStart, SentAt, CatalogKey, Slots, AllClear, IdempotencyKey FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ? ORDER BY SentAt DESC, ID DESC", session)
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Ref, SessionRef, ItemId, DecisionRef, Kind, DueAt, WindowStart, SentAt, CatalogKey, Slots, AllClear, IdempotencyKey, Channels, Failed, Attempts FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ? ORDER BY SentAt DESC, ID DESC", session)
 	If 'rs.%Next() Quit ""
 	Set row = {}
-	For field = "Ref", "SessionRef", "ItemId", "DecisionRef", "Kind", "DueAt", "WindowStart", "SentAt", "CatalogKey", "Slots", "AllClear", "IdempotencyKey" {
+	For field = "Ref", "SessionRef", "ItemId", "DecisionRef", "Kind", "DueAt", "WindowStart", "SentAt", "CatalogKey", "Slots", "AllClear", "IdempotencyKey", "Channels", "Failed", "Attempts" {
 		Do row.%Set(field, rs.%Get(field))
 	}
 	Quit row
@@ -624,8 +634,13 @@ Method TestRouteOwn()
 	For case = "web,phone,telegram||no value saved, all three own", "web,phone||no value saved, two own", "web||no value saved, one own", "web|web,phone,telegram|the default value names every channel", "web,telegram||no value saved, web and telegram own", "web,phone,telegram|telegram,phone,web|every own channel named in another order", "web,telegram|web,phone,telegram,email|every own channel named, and another name" {
 		Set number = number + 1
 		Set own = $Piece(case, "|", 1), saved = $Piece(case, "|", 2), why = $Piece(case, "|", 3)
-		Do $$$AssertStatusOK(..Route(session, own, saved, number), why_": the Compose is handled")
+		Do $$$AssertStatusOK(..Route(session, own, saved, number, .host), why_": the Compose is handled")
 		Do $$$AssertEquals(..Items(), "Notify", why_": the digest goes to Notify alone, whose route reaches the session's own channels "_own)
+		Set row = ..Sent(session)
+		Do $$$AssertEquals(row.Channels_"|"_row.Failed_"|"_row.Attempts, own_"||0", why_": the Sent row says the digest went to every own channel and missed none")
+		Do $$$AssertEquals($ClassMethod(..#PROBE, "RouteRows").%Size(), 0, why_": Digest writes no routing row, because Notify does")
+		Do ..Retick(host)
+		Do $$$AssertEquals(..Items(), "Notify", why_": a later tick sends nothing more")
 	}
 }
 
@@ -699,6 +714,189 @@ Method TestRouteForeign()
 	Do $$$AssertEquals(..Items(), "", "and nothing is sent")
 	Do $$$AssertStatusOK(..Route(session, "web", "WEB,Phone", 5), "the names are read without regard to case")
 	Do $$$AssertEquals(..Items(), "Notify", "web is named: Notify alone")
+}
+
+/// The channels that Notify's generic route reaches for the Notification, evaluated on a shadow router as the router item does (Test.Core.Routing.Route is
+/// private to that class): the names of the targets mapped to channels, comma-separated; "ERROR" when the rule does not give an action list.
+Method NotifyChannels(notification As OcuTalon.Msg.Notification) As %String
+{
+	Set engine = ##class(Ens.Host).GetShadowInstance("class||EnsLib.MsgRouter.RoutingEngine", .sc)
+	Do $$$AssertTrue($IsObject(engine), "a shadow router is made")
+	Set engine.Document = notification
+	Set engine.MsgClass = $ClassName(notification)
+	Set engine.Source = "zzsource"
+	Set sc = ##class(Ens.Rule.RuleDefinition).EvaluateRulesEx("OcuTalon.Core.Rule.Notify", 0, engine, "", .return, .reason, 1, "e")
+	Do $$$AssertStatusOK(sc, "Notify's rule is evaluated")
+	If '$Find($Get(return), "send:") Quit "ERROR"
+	Set targets = $Piece($Piece(return, "send:", 2), ":", 1)
+	Set channels = ""
+	For i = 1:1:$Length(targets, ",") {
+		Set channels = channels_$Select(channels = "": "", 1: ",")_$Case($Piece(targets, ",", i), "WebChatOut": "web", "SimPhoneOut": "phone", "TelegramOut": "telegram", : "?"_$Piece(targets, ",", i))
+	}
+	Quit channels
+}
+
+Method TestOwnMatchesNotify()
+{
+	Set session = ..Session()
+	Set paired = ..Session()
+	Do ..Keep(##class(OcuTalon.Test.Data.Fixture).Pairing(paired))
+	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .value, .updatedAt)
+	Set included = $Get(^OcuTalonTest("TelegramIncluded"))
+	Try {
+		Set host = ..Host()
+		For demo = 0, 1 {
+			Do ##class(OcuTalon.Test.Demo.Step).Put(demo, "2030-01-02T03:04:05Z")
+			For telegram = 0, 1 {
+				Set ^OcuTalonTest("TelegramIncluded") = telegram
+				For ref = session, paired {
+					Set notification = ##class(OcuTalon.Msg.Notification).%New()
+					Set notification.SessionRef = ref
+					Set notification.Kind = "digest"
+					Set label = "demo "_$Select(demo: "on", 1: "off")_", Telegram "_$Select(telegram: "included", 1: "not included")_", "_$Select(ref = paired: "paired", 1: "not paired")
+					Set routed = ..NotifyChannels(notification)
+					Do $$$AssertTrue(routed [ "web", label_": Notify's route reaches the web chat: "_routed)
+					Do $$$AssertEquals($ListToString(host.ReadOwn(ref)), routed, label_": the session's own channels are the channels of Notify's route")
+				}
+			}
+		}
+	} Catch exception {
+		Do $$$AssertTrue(0, "the Notify comparison failed: "_exception.DisplayString())
+	}
+	If included = "" {
+		Kill ^OcuTalonTest("TelegramIncluded")
+	} Else {
+		Set ^OcuTalonTest("TelegramIncluded") = included
+	}
+	Do ##class(OcuTalon.Test.Demo.Step).PutBack(found, value, updatedAt)
+}
+
+/// A Tick that is due for no fixture session (before every session's CreatedAt), handled by the host: it only sends the digests that missed a channel again.
+Method Retick(host As OcuTalon.Test.Digest.ProcessProbe)
+{
+	Set tick = ##class(OcuTalon.Msg.Tick).%New()
+	Set tick.TickAt = "2020-01-01T00:00:00Z"
+	Kill response
+	Do $$$AssertStatusOK(host.OnRequest(tick, .response), "a tick is handled")
+}
+
+/// A requested digest of the session on a host whose own channels are web,phone,telegram and whose digest.channels names web and telegram, with the items
+/// failItems failing; the host and the status of the Compose.
+Method Missed(session As %String, failItems As %String, Output host As OcuTalon.Test.Digest.ProcessProbe) As %Status
+{
+	Do $ClassMethod(..#PROBE, "Reset")
+	Do $ClassMethod(..#PROBE, "Feed", [])
+	Do ..SaveChannels("web,telegram")
+	Set host = ..Host()
+	Set host.OwnChannels = "web,phone,telegram"
+	Set host.FailItems = failItems
+	Set host.Only = session
+	Quit ..Handle(..Compose(session, "requested", , session_":missed"), host)
+}
+
+Method TestChannelFailure()
+{
+	Set session = ..Session()
+	Set sc = ..Missed(session, "WebChatOut", .host)
+	Do $$$AssertStatusNotOK(sc, "the first channel fails: the Compose ends with an error status")
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertTrue(text [ ($Parameter("OcuTalon.Digest.Process", "MESSAGECHANNEL")_"web (WebChatOut): "), "which names the channel and its item: "_text)
+	Do $$$AssertTrue(text '[ "TelegramOut", "and no other channel")
+	Do $$$AssertEquals(..Items(), "WebChatOut,TelegramOut", "the second channel is still tried and gets the digest")
+	Set row = ..Sent(session)
+	Do $$$AssertTrue($IsObject(row), "the digest that reached a channel has its Sent row")
+	If $IsObject(row) {
+		Do $$$AssertEquals(row.Channels_"|"_row.Failed_"|"_row.Attempts, "telegram|web|0", "which says the channels it reached and the one it missed")
+		Do $$$AssertEquals(row.Slots, ..Notice(2).slots.%ToJSON(), "and holds the Slots that were sent")
+	}
+	Set rows = $ClassMethod(..#PROBE, "RouteRows")
+	Do $$$AssertEquals(rows.%Size(), 2, "each send wrote one routing row")
+	If rows.%Size() = 2 {
+		Set first = rows.%Get(0), second = rows.%Get(1)
+		Do $$$AssertEquals(first.rule_"|"_first.activity_"|"_first.returnValue_"|"_first.isError, "OcuTalon.Digest.Process|OcuTalon.Test.Digest.ProcessProbe|send:WebChatOut:|1", "the first is the failed send to the web chat, in the router's action-list form")
+		Do $$$AssertTrue(first.errorMsg [ "could not be sent to WebChatOut", "with the error")
+		Do $$$AssertEquals(second.returnValue_"|"_second.isError_"|"_second.errorMsg, "send:TelegramOut:|0|", "the second is the send to Telegram, with no error")
+		Do $$$AssertEquals(first.reason, $Parameter("OcuTalon.Digest.Process", "ROUTEREASON"), "both say why Digest routes")
+	}
+}
+
+Method TestThrowingChannel()
+{
+	Set session = ..Session()
+	Do $ClassMethod(..#PROBE, "Reset")
+	Do $ClassMethod(..#PROBE, "Feed", [])
+	Do ..SaveChannels("web,telegram")
+	Set host = ..Host()
+	Set host.OwnChannels = "web,phone,telegram"
+	Set host.ThrowItems = "WebChatOut"
+	Set sc = ..Handle(..Compose(session, "requested", , session_":throw"), host)
+	Do $$$AssertStatusNotOK(sc, "a send that throws is a failed channel: the Compose ends with an error status")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ ($Parameter("OcuTalon.Digest.Process", "MESSAGECHANNEL")_"web (WebChatOut): "), "which names it: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(..Items(), "WebChatOut,TelegramOut", "and the other channel is still tried and gets the digest")
+	Set row = ..Sent(session)
+	Do $$$AssertEquals(row.Channels_"|"_row.Failed, "telegram|web", "which the Sent row says")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "RouteRows").%Size(), 2, "and each send has its routing row")
+}
+
+Method TestEveryChannelFails()
+{
+	Set session = ..Session()
+	Set sc = ..Missed(session, "WebChatOut,TelegramOut", .host)
+	Do $$$AssertStatusNotOK(sc, "no channel is reached: the Compose ends with an error status")
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertTrue((text [ "web (WebChatOut): ") && (text [ "telegram (TelegramOut): "), "which names both channels: "_text)
+	Do $$$AssertEquals(..Items(), "WebChatOut,TelegramOut", "both were tried")
+	Do $$$AssertEquals(..SentRows(session), 0, "and no Sent row is written")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "RouteRows").%Size(), 2, "each send wrote its routing row")
+	Set host.FailItems = ""
+	Do ..Retick(host)
+	Do $$$AssertEquals(..Items(), "WebChatOut,TelegramOut", "a later tick sends nothing for it")
+}
+
+Method TestRetryMissedChannel()
+{
+	Set session = ..Session()
+	Do $$$AssertStatusNotOK(..Missed(session, "WebChatOut", .host), "the web chat is missed")
+	Set first = ..Sent(session)
+	Set host.FailItems = ""
+	Do ..Retick(host)
+	Do $$$AssertEquals(..Items(), "WebChatOut,TelegramOut,WebChatOut", "the next tick sends to the web chat alone, never again to Telegram")
+	Set row = ..Sent(session)
+	Do $$$AssertEquals(..SentRows(session), 1, "on the same Sent row")
+	Do $$$AssertEquals(row.Ref_"|"_row.Channels_"|"_row.Failed_"|"_row.Attempts, first.Ref_"|telegram,web||1", "which now lists both channels, misses none and counts the attempt")
+	Do $$$AssertEquals(..Notice(3).slots.%ToJSON(), first.Slots, "and the digest sent again is the stored one")
+	Do ..Retick(host)
+	Do $$$AssertEquals(..Items(), "WebChatOut,TelegramOut,WebChatOut", "a digest that reached every channel is not sent again")
+	Do $$$AssertEquals(..Sent(session).Attempts, 1, "and its attempts do not grow")
+}
+
+Method TestRetryStops()
+{
+	Set session = ..Session()
+	Do $$$AssertStatusNotOK(..Missed(session, "WebChatOut", .host), "the web chat is missed")
+	Set max = $Parameter("OcuTalon.Digest.Process", "MAXATTEMPTS")
+	For tick = 1:1:max + 2 {
+		Do ..Retick(host)
+	}
+	Set expected = "WebChatOut,TelegramOut"
+	For tick = 1:1:max {
+		Set expected = expected_",WebChatOut"
+	}
+	Do $$$AssertEquals(..Items(), expected, "the web chat is tried MAXATTEMPTS more times and Telegram never again, though the ticks go on")
+	Set row = ..Sent(session)
+	Do $$$AssertEquals(row.Channels_"|"_row.Failed_"|"_row.Attempts, "telegram|web|"_max, "the row keeps the missed channel and the count")
+}
+
+Method TestRetryDropsUnnamedChannel()
+{
+	Set session = ..Session()
+	Do $$$AssertStatusNotOK(..Missed(session, "WebChatOut", .host), "the web chat is missed")
+	Set host.FailItems = ""
+	Do ..SaveChannels("telegram")
+	Do ..Retick(host)
+	Do $$$AssertEquals(..Items(), "WebChatOut,TelegramOut", "digest.channels no longer names the web chat: nothing is sent")
+	Set row = ..Sent(session)
+	Do $$$AssertEquals(row.Channels_"|"_row.Failed, "telegram|", "and the row no longer waits for it")
 }
 
 Method TestOwnChannels()

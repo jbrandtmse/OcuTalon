@@ -2,6 +2,7 @@
 /// for each digest sent (Story 17.6); a session's last digest is its newest row. Its window starts at the newest SentAt, and the next scheduled
 /// digest is due after the newest scheduled row's DueAt. A requested digest has an empty DueAt, so a lookup by DueAt filters on Kind. The
 /// IdempotencyKey is the key of the SendDigest command that asked for the digest, empty for a scheduled one: a repeat of the key sends nothing new.
+/// Channels and Failed say which channels the digest was handed to and which it was not (Digest sends to each channel on its own).
 /// The rows are purged with the digest area's rows (AD-27). Row ids never leave the server.
 Class OcuTalon.Digest.Data.Sent Extends %Persistent
 {
@@ -44,6 +45,16 @@ Property AllClear As %Boolean [ InitialExpression = 0 ];
 
 /// The IdempotencyKey of the SendDigest command behind the digest, empty for a scheduled one (AD-1).
 Property IdempotencyKey As %String(COLLATION = "EXACT", MAXLEN = 128);
+
+/// The channels (web, phone, telegram; comma-separated, in the order of Notify's rule) the digest was handed to (queued for the channel's item), so that no later send repeats it to them.
+Property Channels As %String(MAXLEN = 64);
+
+/// The channels the digest was meant for and could not be handed to (comma-separated); empty when none failed. A later tick sends the stored Slots to
+/// these channels alone.
+Property Failed As %String(MAXLEN = 64);
+
+/// The number of times a later tick has tried the channels of Failed.
+Property Attempts As %Integer [ InitialExpression = 0 ];
 
 Index RefIndex On Ref [ Unique ];
 
@@ -129,6 +140,15 @@ Storage Default
 </Value>
 <Value name="13">
 <Value>IdempotencyKey</Value>
+</Value>
+<Value name="14">
+<Value>Channels</Value>
+</Value>
+<Value name="15">
+<Value>Failed</Value>
+</Value>
+<Value name="16">
+<Value>Attempts</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.DigestSentD</DataLocation>

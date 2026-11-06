@@ -110,7 +110,10 @@ XData Contracts [ MimeType = application/json ]
    "CatalogKey": "%String(MAXLEN=128)",
    "Slots": "%String(MAXLEN=)",
    "AllClear": "%Boolean",
-   "IdempotencyKey": "%String(MAXLEN=128)"
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "Channels": "%String(MAXLEN=64)",
+   "Failed": "%String(MAXLEN=64)",
+   "Attempts": "%Integer"
   },
   "indexes": {
    "RefIndex": "Ref unique",
