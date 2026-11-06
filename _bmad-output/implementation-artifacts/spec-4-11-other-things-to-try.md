@@ -361,7 +361,7 @@ deferred: []
 
 ## Verification
 
-`<B>` means `OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-b OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=4 stage=<stage>'`, run from the worktree root.
+`<B>` means `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=4 stage=<stage>'`, run from the worktree root.
 - **Tags:** fresh `e4s11i`; warm `e4s11iw`; QA `e4s11q`; review `e4s11r`.
 - **One command per foreground call** (`timeout: 600000`), and one `iris_execute_tests` per message.
 - **Slot B is not needed.** If an IRIS MCP call is made, it uses `server` `ocutalon-slot-b` and namespace `OCUTALON`, checked first with `iris_server_info`.
