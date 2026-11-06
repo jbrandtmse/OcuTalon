@@ -2,7 +2,7 @@
 title: 'Story 4.11: Other things to try'
 type: 'feature'
 created: '2026-11-06'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '49be23afafd49035d9619d59d3f865af3c462fbb'
 baseline_commit: '49be23afafd49035d9619d59d3f865af3c462fbb'
 review_loop_iteration: 0
@@ -337,7 +337,13 @@ Rejected:
 - low: (edge) no Shift+Tab pass. The browser's focus scroll is the same in both directions.
 - spec edit: (blind, verification, acceptance) the rewritten `baseline_commit`, the frontmatter `status` against sprint-status, "gains 7 cases" and AC9's CI evidence. These are the lead's tracking.
 
+
+#### Rework iteration 2 (lead, 2026-11-06; the work of this pass)
+- [ ] [Review] HIGH (re-review iteration 1), lead ruling (decide, option B; the open-in-the-finish condition, placement and strings stay): give the demo guide's finish state a compact layout at drawer widths (1024-1279px) so the finish's guide is no taller there than at 1280px in the same height band (about 292px at 1280x600, measured), e.g. the finish's links and the Try it yourself row laid out as at 1280px, the finish text and run total wrapping no deeper than needed; then meet, with the panel open in the finish: (a) no whole-page scroll at 1024x600, 1024x650, 1024x679, 1100x600, 1100x650, 1200x600 and every size the K16 table pins; (b1) chat >=160px at every framed size 680px tall or more (1024x700, 1024x704, 1100x690, 1280x684 included); (b2) chat >=64px in the compact band (including 1280x590 and the drawer-width rows above); (b3) as pinned. Add the drawer-width compact rows to K16 with `mutation:` lines (the compact finish layout removed -> red). This also closes DW-822 (the same finish collapse with the panel closed): add a case that the finish with the panel CLOSED keeps the chat >=64px and no page scroll at 1024x600 and 1100x650. Rerun `live floor` (three engines) and the sign-in part with the guide specs. If even the compact finish cannot meet (a)-(b3) somewhere under the fixed rulings, HALT `blocked` with an `intent gap` naming the sizes and numbers (the runner then asks the Planner for option A: open by itself only where there is room).
+- [ ] [Review] Item 7 is now available on this tree (Epic 39 merged; integrate-forward 91f63138; `OcuTalon.Msg.Command.RunHeartbeat` is compiled, so `Demo.Features.Present()` lists `heartbeat`). (i) Its hand-off ("Go to the Heartbeat checklist card") opens the rail as item 1 does and puts focus on the card's heading `#rail-heading-heartbeat` (`HEARTBEAT_HEADING_ID`, `web/src/app/rail/heartbeat-card/heartbeat-card-view.ts:66`), not just the rail region; nothing is pressed. (ii) A real-stack e2e (K1's list now holds `heartbeat`; extend K1 or add a case) shows item 7 present and its press focusing that heading, at the default viewport and in the drawer band. (iii) The quoted names are now on screen: pin "Heartbeat checklist" (`web/src/app/rail/rail-view.ts:57`) and "Run the heartbeat now" (`heartbeat-card-view.ts:48`, `HEARTBEAT_TEXTS.run`) in `more-to-try-view.test.mjs` (c) against their sources. The Run control needs no heartbeat turned on first (Checks/Beat.cls: a run now skips only for empty, backoff, cap and nokey), so the ruled look-for stands. (iv) Task 0 (a)'s recorded list on this tree becomes `persona,suspiciousEmail,rejectFix,demoView,heartbeat`; update it, and any test or doc that says items 5-7 are hidden on this branch (items 5 and 6 still are).
 ## Spec Change Log
+
+- 2026-11-06 (rework iteration 2, lead): the re-review's HIGH (drawer-width compact band) is taken with option B (a compact finish at drawer widths; decide, no ruling changed), which also closes DW-822 (re-owned to this story). The epic branch was integrated forward onto feature b5dcbbfa (Epic 39 merged) at 91f63138, so item 7 is now available: its hand-off goes to the Heartbeat checklist heading, with a real-stack test.
 
 - 2026-11-06 (rework iteration 1, re-dispatch after the review-step intent gap, lead): the panel-bound attempt (`4-11-rework-1-panel-bound.patch`) is re-applied and the spec set `in-review`; target (b) amended to (b1)-(b3) by the lead's veto-window ruling (inbox U-296): chat floor 64px in the compact height band, 160px elsewhere, and a panel window of at least one label line plus one control at every framed size. The open-in-the-finish ruling, the placement and the ruled strings are unchanged.
 
