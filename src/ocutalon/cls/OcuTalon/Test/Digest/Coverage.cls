@@ -1,6 +1,6 @@
 /// Tests of the coverage list, OcuTalon.Checks.Coverage (Story 17.5; AD-18, AD-28), through Test.Digest.CoverageProbe: the vital signs, the live read of a
 /// production and the heartbeat gaps are fed, the CheckRun rows are real. Every time of a history is a fixed time in 2030 (FROM to TO), so the results do
-/// not depend on the moment; the live read is the one thing that uses the clock (the age of a queue).
+/// not depend on the moment; the clock is used by the live read (the age of a queue) and gives the time of the vital rows (the moment of each Build).
 ///   - TestEntries: a session with one watch that ran every minute gives the five vital rows and the watch row, all passed, lines that match them, the
 ///     figures as whole numbers, no source row; with no watch there are five rows; the five-argument call works;
 ///   - TestFigures and TestVitalFailures: the unrounded readings are compared and the figures rounded; each vital sign fails on its own;
@@ -9,7 +9,7 @@
 ///   - TestPaused, TestMissed, TestNeverRan, TestStale, TestReasonMap, TestUnreachableStreak: the rules of a check's history in their order;
 ///   - TestLiveRead: the live read of a production watch, item by item, and the reads that cannot be made;
 ///   - TestBeatLeavesCoverageAlone: an update of a check's row that leaves its LastRunAt as it was (what a heartbeat beat would be, if it touched the row)
-///     writes no CheckRun and leaves Build's rows and lines as they were;
+///     writes no CheckRun and leaves Build's rows and lines as they were, the vital rows' time (the clock) left out;
 ///   - TestGapsSignature: the seam Gaps agrees with Schedule.Heartbeat.Gaps;
 ///   - TestFixedStrings: the ruled text and the digest line, byte for byte.
 Class OcuTalon.Test.Digest.Coverage Extends %UnitTest.TestCase
