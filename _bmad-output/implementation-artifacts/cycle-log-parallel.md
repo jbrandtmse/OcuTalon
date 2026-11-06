@@ -2131,3 +2131,18 @@
 2026-11-06T02:28:05Z	Epic 34	ci_red_classified	sha=689b6632 run=42147189710 job=127661412656 group=production unit=live:reminder-restart class=suspected_flake(IRIS-internal Ens.Job EnumerateFetch race) ledger=DW-772 action=rerun_once
 2026-11-06T02:36:09Z	Epic 17	runner_ended_for_hold	head=d021e41a unpushed=11(17.4 code+bookkeeping, held for smoke/fresh check) hold_miss_cause="HOLD file checked only before 17.4 implement; not re-checked at QA/review boundaries; resume prompt now checks before every spawn"
 2026-11-06T02:36:09Z	Run	all_runners_ended_for_hold	A=d021e41a B=957e65d2(local) C=689b6632(pushed, CI rerun) D=idle
+2026-11-06T02:37:06Z	Run	orchestrator_error	fault=orchestrator what="overwrote resume/orchestrator.md (160 KB running notes, untracked) without reading it" recovery="new brief + 2026-11-02 backup (bak-h2) with a gap note; Nov 2-4 notes missing (history; cycle-log-parallel.md is authoritative)"
+2026-11-06T02:37:12Z	Epic 17	planner_ruling	17.5_text="OcuTalon can't read this database's size limit" DW-771="Settings Test = connection test for every runner (non-empty reply within timer; no ReplyClass validation); test with a mock reply failing DiagnosisReply validation"
+2026-11-06T03:46:21Z	Run	lead_model_gate	model=claude-opus-5-5 action=proceed session=OcuTalon_Orchestrator_11-05-2026[69d25f]
+2026-11-06T03:46:21Z	Run	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh workflows=ci.yml,lane-a.yml gh=authenticated config_paths=aligned v7=none
+2026-11-06T03:46:21Z	Run	launch_env	depth=default watchdog=unset bash_max_ms=default relaunch_env=unset(interactive)
+2026-11-06T03:46:21Z	Run	telemetry_gate	pending=5 action=record_only(policy_gates.model_tier)
+2026-11-06T03:46:21Z	Run	permission_mode_attested	mode=bypassPermissions source=session(interactive_re-invocation;the_harness_reports_bypass_mode_active) asked=no(owner_2026-10-23:send_questions_to_the_planner)
+2026-11-06T03:46:21Z	Run	unattended_resumed	run=20261026T1518Z-1-37 policy=508603671b9598f59d04750db6b6cdad2d396167 doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 lock_token=1793936651-26506 reason=account_switch_hold_complete,owner_re-invoked_interactively prev_session=821cb5(absent) planner=Contest_Planner[a35b9b] hold=cleared(interactive) runtime_locks=none throwaways=none feature=f2166e84
+2026-11-06T03:46:21Z	Run	inbox_resolved	items=U-268(Epic_33_merged),U-277(11.20+11.21_merged),U-289(Epic_40_merged) left_open=U-275(merge-time_condition_Epic_39),U-210/U-214/U-215(carried_to_30.7)
+2026-11-06T03:46:21Z	Run	ci_green_verified	runs=42151371203,42151371233 head=f2166e84 result=success via=none note=feature
+2026-11-06T03:46:21Z	Epic 34	ci_polled	sha=689b6632 result=success runs=42147189710(rerun),42147189840 note=DW-772_flake_confirmed(rerun_green)
+2026-11-06T03:46:21Z	Epic 34	runner_complete	head=689b6632 source=worktree_log(integrated_forward_feature=0721083f_head=de265c2f;epic_runner_complete_re-sent_01:57:15Z) runner=ended_for_hold stories=3 decisions_for_user=none applied=U-279,U-280,U-284,U-285,U-287 unpushed=none
+2026-11-06T03:46:21Z	Epic 34	ci_green_verified	runs=42147189710,42147189840 head=689b6632 result=success via=none
+2026-11-06T03:46:21Z	Epic 34	merge_enqueued	policy=when_green feature_moved_since_integrate=bookkeeping_only(f2166e84:cycle-log-parallel,deferred-work,inbox-snapshot) merge_tree=clean order_note=34_before_11.24(11.24_unpushed;integrates_forward_once)
+2026-11-06T03:46:30Z	Epic 34	epic_merge_started	head=689b6632 feature=feature/OCT_OcuTalon_MVP
