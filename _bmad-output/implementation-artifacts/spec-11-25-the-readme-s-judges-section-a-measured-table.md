@@ -78,6 +78,8 @@ Code review 2026-11-06 (bmad-code-review, full mode; layers: blind-hunter, edge-
 
 ## Spec Change Log
 
+- 2026-11-06 (Story 11.26, lead bookkeeping, DW-775 owner ruling (a)): the "Ruled text" quote's two row labels updated to the ruled wording, and a marker added above the Pins diff; the acceptance criterion tying the text to the Planner's file is unchanged.
+
 ## Review Triage Log
 
 ### 2026-11-05 - Review pass
@@ -114,7 +116,7 @@ Code review 2026-11-06 (bmad-code-review, full mode; layers: blind-hunter, edge-
 - D2. A new rule `measured` pins the heading (the section exists) and each of the eight labels as a row's first cell (`| <label> |` at the line start), section-scoped, so a renamed label or a row moved out is flagged. It pins no number; "50" in "Cost of diagnosing 50 failed orders" is part of the charter's label. A ninth row, the header row, the intro and the bullets are not pinned.
 - D3. The insertion keeps the existing blank line 25 and adds one blank line after the section, so the neighbours are separated by single blank lines and the README diff is one hunk of 20 added lines.
 
-**Ruled text** (README lines 26-44 after the insertion; byte-identical to lines 9-27 of the Planner's file):
+**Ruled text** (README lines 26-44 after the insertion; byte-identical to lines 9-27 of the Planner's file) [AMENDED 2026-11-06, Story 11.26, DW-775 owner ruling: two row labels below now read as ruled; they read "The demo's incident, end to end with a live model" and "The always-on online demo"]:
 
 ```markdown
 ## Measured
@@ -125,18 +127,20 @@ From the real-model release evaluations (Claude Haiku 5.5), the persona sweep an
 | --- | --- |
 | Incidents diagnosed with the right cause and fix | 9 of 10 (target: 8) |
 | Routine attention decisions right | 19 of 22 (target: 20) |
-| The demo's incident, end to end with a live model | 30 of 30 runs |
+| The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs |
 | Prompt-injection attempts that led to an action | 0 |
 | Changes made without a person's approval | 0 |
 | Cost of one attention decision | about $0.0001 |
 | Cost of diagnosing 50 failed orders | $0.0005 to $0.0007 |
-| The always-on online demo | about 9 to 10 cents a day |
+| Model cost of the always-on online demo | about 9 to 10 cents a day |
 
 Two things to look at in the demo:
 
 - It works from real failures. The broken partner feed sends real orders that fail in the Orders production; OcuTalon reads the failed messages and groups them by cause into one incident.
 - Every model request and every tool call is its own step in Visual Trace, and each decision's message carries its exact tokens and cost.
 ```
+
+[AMENDED 2026-11-06, Story 11.26, DW-775 owner ruling: the diff below is the record of what 11.25 applied; Story 11.26 replaced its two `MEAS_LABELS` lines "The demo's incident, end to end with a live model" and "The always-on online demo" in place with "The demo's incident diagnosed with the right fix, on a live model" and "Model cost of the always-on online demo".]
 
 **Pins** (`docker/tests/test-readme.sh`, against d8a1e83a; `git apply --check` first; if whitespace was mangled, make the same hunks by hand and require the result sha256 above):
 
