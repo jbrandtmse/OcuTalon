@@ -8,6 +8,8 @@
 ///   - TestVitalsUnread: a sign that cannot be read, or a read that throws, is not_checked and never passed;
 ///   - TestPaused, TestMissed, TestNeverRan, TestStale, TestReasonMap, TestUnreachableStreak: the rules of a check's history in their order;
 ///   - TestLiveRead: the live read of a production watch, item by item, and the reads that cannot be made;
+///   - TestBeatLeavesCoverageAlone: an update of a check's row that leaves its LastRunAt as it was (what a heartbeat beat would be, if it touched the row)
+///     writes no CheckRun and leaves Build's rows and lines as they were;
 ///   - TestGapsSignature: the seam Gaps agrees with Schedule.Heartbeat.Gaps;
 ///   - TestFixedStrings: the ruled text and the digest line, byte for byte.
 Class OcuTalon.Test.Digest.Coverage Extends %UnitTest.TestCase
@@ -457,6 +459,46 @@ Method TestLiveRead()
 	Do $ClassMethod(..#PROBE, "Reset")
 	Do ..Built(session, .rows, .lines)
 	Do $$$AssertEquals($ClassMethod(..#PROBE, "Calls").%Size(), 2, "a watch whose latest run was not_checked is not read live: two reads for the other two")
+}
+
+/// An update that leaves LastRunAt as it was writes no CheckRun and changes nothing in Build: the same time again by SQL and by object, and the due time,
+/// the name and the result alone.
+Method TestBeatLeavesCoverageAlone()
+{
+	Set session = ..Session()
+	Set ref = ..Watch(session, "Zz.Beat", "Beat", {"LastRunAt": "2030-06-01T11:59:30Z"})
+	Do ..Every(ref, session, "2030-06-01T11:50:30Z", 10, 60)
+	Do ..Built(session, .rows, .lines)
+	Set runs = ..RunCount(ref)
+	Do $$$AssertEquals(runs, 10, "ten runs are recorded")
+	Do $$$AssertEquals(..Results(rows), "passed,passed,passed,passed,passed,passed", "and the watch passed")
+	Do ..UpdateOne("UPDATE OcuTalon_Data.BackgroundCheck SET LastRunAt = ? WHERE Ref = ?", "2030-06-01T11:59:30Z", ref)
+	Do ..UpdateOne("UPDATE OcuTalon_Data.BackgroundCheck SET LastRunAt = ?, NextDueAt = ? WHERE Ref = ?", "2030-06-01T11:59:30Z", "2030-06-01T12:00:30Z", ref)
+	Do ..UpdateOne("UPDATE OcuTalon_Data.BackgroundCheck SET Result = ?, DisplayName = ? WHERE Ref = ?", "passed", "Beat", ref)
+	Set object = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
+	Set object.LastRunAt = "2030-06-01T11:59:30Z"
+	Set object.NextDueAt = "2030-06-01T12:01:30Z"
+	Do $$$AssertStatusOK(object.%Save(), "an object save that sets LastRunAt to the value it has")
+	Do $$$AssertEquals(..RunCount(ref), runs, "none of these updates wrote a CheckRun")
+	Do ..Built(session, .after, .afterLines)
+	Do $$$AssertEquals(after.%ToJSON(), rows.%ToJSON(), "and Build's rows are as they were")
+	Do $$$AssertEquals(afterLines.%ToJSON(), lines.%ToJSON(), "and so are its lines")
+	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref).LastRunAt, "2030-06-01T11:59:30Z", "the check still holds its last run")
+}
+
+/// Runs one UPDATE of the check with the ref last in args, and asserts that it ran and changed that one row.
+Method UpdateOne(sql As %String, args...)
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, sql, args...)
+	Do $$$AssertTrue(result.%SQLCODE '< 0, "the update ran: "_sql)
+	Do $$$AssertEquals(result.%ROWCOUNT, 1, "and it changed the one row")
+}
+
+Method RunCount(ref As %String) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Digest_Data.CheckRun WHERE CheckRef = ?", ref)
+	Do result.%Next()
+	Quit result.%GetData(1)
 }
 
 Method TestGapsSignature()

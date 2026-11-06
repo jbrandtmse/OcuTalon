@@ -1242,6 +1242,7 @@ XData Reasons [ MimeType = application/json ]
 }
 
 /// For every key: the slots (UJ-1 values) and the exact text on the message channels, and the web text where it differs.
+/// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.5): the row digest.notCheckedSizeLimit is Lane A's.
 XData Fixtures [ MimeType = application/json ]
 {
 {

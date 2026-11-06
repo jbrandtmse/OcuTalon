@@ -8,6 +8,10 @@
 ///   - TestCappedDatabase: a database created with a 50 MB maximum reads a maxBlocks above 0 (the one routine that gives it without a privilege), and one
 ///     with none reads 0; a directory that is not a database is the outcome error;
 ///   - TestSystemLog: a severe line written now is counted in a window around now and in no other, also in a process whose zone is not UTC;
+///   - TestSwitchedLog: when IRIS has switched the log, the severe lines of the window that were written before the switch (in the files it kept as
+///     messages.old_*) are counted, the read goes back only as far as the first file that starts before the window, and the lines outside the window
+///     are not counted;
+///   - TestUnreadableSwitchedLog: a kept file that cannot be read makes the sign an error;
 ///   - TestErroredItems and TestQueues: Failures names an item whose host status is Error and gives each item's queue with its count and its oldest message;
 ///   - TestBuildOnRealSeams: Checks.Coverage Build over the real readers (Vitals, Failures, Heartbeat Gaps): the five vital rows are read, and an item in
 ///     error makes the production watch's row failed;
@@ -39,6 +43,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ..DropBuildFixtures()
 	Do ..DropHeaders()
 	Do ..DropDatabase()
+	Do ..DropSwitchedLogs()
 	Do ..PutMonitor("restore")
 	Do ..RestoreMonitor()
 	Quit ##super(testname)
@@ -49,6 +54,7 @@ Method OnAfterAllTests() As %Status
 	Do ..DropBuildFixtures()
 	Do ..DropHeaders()
 	Do ..DropDatabase()
+	Do ..DropSwitchedLogs()
 	Do ..PutMonitor("restore")
 	Do ..RestoreMonitor()
 	Quit ##super()
@@ -162,6 +168,87 @@ ClassMethod StampOf(marker As %String) As %String
 	Quit stamp
 }
 
+/// IRIS keeps the log it switched as messages.old_*. Three files are written, oldest first, with the current file starting at c: the window is an hour
+/// before c up to a minute before it, so the current file holds nothing of it (and the kept files of the instance, older than these, are never read). The newest kept file starts inside the window (read on), the next one
+/// starts before it (read, then the read stops), and the oldest holds a severe line that would be inside the window (never read).
+Method TestSwitchedLog()
+{
+	If '..Ready() Quit
+	Set c = ..FirstTimeOfCurrent()
+	Do $$$AssertTrue(c '= "", "the current messages.log has a timed line: "_c)
+	If c = "" Quit
+	Do ..DropSwitchedLogs()
+	Set from = ##class(OcuTalon.Data.Time).AddSeconds(c, -3600)
+	Set to = ##class(OcuTalon.Data.Time).AddSeconds(c, -60)
+	Do ..WriteKept("3", $ListBuild($ListBuild(-9000, 0), $ListBuild(-1800, 2)))
+	Hang 1.1
+	Do ..WriteKept("2", $ListBuild($ListBuild(-7200, 0), $ListBuild(-6600, 2), $ListBuild(-3300, 3)))
+	Hang 1.1
+	Do ..WriteKept("1", $ListBuild($ListBuild(-3000, 0), $ListBuild(-2400, 2), $ListBuild(-1200, 2), $ListBuild(-30, 2)))
+	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
+	Do $$$AssertEquals(vitals.systemLog.outcome, "read", "the log is read")
+	Do $$$AssertEquals(vitals.systemLog.count, 3, "the two lines of the newest kept file and the one of the next that lie in the window, no more")
+	Set inner = ##class(OcuTalon.Watch.Reader).Vitals("", ##class(OcuTalon.Data.Time).AddSeconds(c, -7000), to)
+	Do $$$AssertEquals(inner.systemLog.count, 4, "a window that starts inside the second kept file counts its lines from that time on: the two of the first and the two of the second")
+	Set edge = ##class(OcuTalon.Watch.Reader).Vitals("", ##class(OcuTalon.Data.Time).AddSeconds(c, -7200), to)
+	Do $$$AssertEquals(edge.systemLog.count, 5, "a file whose first line is at the start of the window does not end the read: the older file is read too")
+}
+
+/// A switched file that cannot be read makes the sign an error, never a count that leaves its lines out.
+Method TestUnreadableSwitchedLog()
+{
+	If '..Ready() Quit
+	Do ..DropSwitchedLogs()
+	Set c = ..FirstTimeOfCurrent()
+	Do $$$AssertTrue(c '= "", "the current messages.log has a timed line: "_c)
+	If c = "" Quit
+	Do ..WriteKept("4", $ListBuild($ListBuild(-100, 2)))
+	Set path = $SYSTEM.Util.ManagerDirectory()_"messages.old_zzvitals17_4"
+	Do $$$AssertEquals($ZF(-100, "/SHELL", "chmod", "000", path), 0, "the kept file is made unreadable")
+	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", "", "")
+	Do $$$AssertEquals(vitals.systemLog.outcome, "error", "a kept file that cannot be read: the sign is an error")
+}
+
+/// The UTC time of the first timed line of the current messages.log, or "".
+ClassMethod FirstTimeOfCurrent() As %String
+{
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	Do stream.LinkToFile(##class(%File).NormalizeFilename($SYSTEM.Util.ManagerDirectory()_"messages.log"))
+	While 'stream.AtEnd {
+		Set line = stream.ReadLine(4000)
+		If line ? 2N1"/"2N1"/"2N1"-"2N1":"2N1":"2N1":"3N1" ".E Quit
+	}
+	If $Get(line) '? 2N1"/"2N1"/"2N1"-"2N1":"2N1":"2N1":"3N1" ".E Quit ""
+	Quit ##class(OcuTalon.Data.Time).FromLocal("20"_$Extract(line, 7, 8)_"-"_$Extract(line, 1, 2)_"-"_$Extract(line, 4, 5)_"T"_$Extract(line, 10, 17))
+}
+
+/// Writes a kept log, messages.old_zzvitals17_<name>, with one line for each {seconds from the current file's start, severity} of lines.
+Method WriteKept(name As %String, lines As %List)
+{
+	Set c = ..FirstTimeOfCurrent()
+	Set file = ##class(%Stream.FileCharacter).%New()
+	Set file.Filename = $SYSTEM.Util.ManagerDirectory()_"messages.old_zzvitals17_"_name
+	Set position = 0
+	While $ListNext(lines, position, item) {
+		Set local = ##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).AddSeconds(c, $List(item, 1)))
+		Do file.WriteLine($Extract(local, 6, 7)_"/"_$Extract(local, 9, 10)_"/"_$Extract(local, 3, 4)_"-"_$Extract(local, 12, 19)_":000 (1) "_$List(item, 2)_" [Zz.Event] a line of a kept log, ignore")
+	}
+	Do $$$AssertStatusOK(file.%Save(), "the kept log "_name_" is written")
+}
+
+Method DropSwitchedLogs()
+{
+	Set directory = $SYSTEM.Util.ManagerDirectory()
+	Set file = $ZSearch(directory_"messages.old_zzvitals17_*")
+	While file '= "" {
+		Set found($Increment(found)) = file
+		Set file = $ZSearch("")
+	}
+	For i = 1:1:+$Get(found) {
+		Do ##class(%File).Delete(found(i))
+	}
+}
+
 /// An item whose host status is Error is named in errored; one that is not, is not.
 Method TestErroredItems()
 {
@@ -243,7 +330,7 @@ Method TestNoSwitch()
 	Set here = $Namespace
 	Do ##class(OcuTalon.Watch.Reader).Vitals($ListBuild(..#ORDERS), "", "")
 	Do $$$AssertEquals($Namespace, here, "the namespace is as it was")
-	For name = "Vitals", "Database", "DatabaseName", "VolumeFree", "Databases", "Add", "SevereLines" {
+	For name = "Vitals", "Database", "DatabaseName", "VolumeFree", "Databases", "Add", "SevereLines", "SevereLinesIn" {
 		Set method = ##class(%Dictionary.CompiledMethod).%OpenId("OcuTalon.Watch.Reader||"_name)
 		Do $$$AssertTrue($IsObject(method), name_" exists")
 		If '$IsObject(method) Continue

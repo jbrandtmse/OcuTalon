@@ -35,7 +35,7 @@ Include (Ensemble, EnsConstants, EnsErrors)
 ///     caller never takes an unread queue for an empty one; every other outcome gives [] for both.
 ///   - Vitals reads the instance's vital signs (Story 17.5) and switches no namespace: the uptime, the volume's free share and the size limit of each
 ///     of OcuTalon's databases and of the databases of the watched namespaces (Database), the free share of the journal's volume, the license use and
-///     the count of the severe lines (severity 2 and 3) of messages.log in a window. It reads no privileged API: only counts and percentages leave
+///     the count of the severe lines (severity 2 and 3) of messages.log, and of the files IRIS keeps when it switches it, in a window. It reads no privileged API: only counts and percentages leave
 ///     it, never the text of a log line. Each sign has its own outcome, read or error, so one sign that cannot be read never hides the others.
 ///   - Evidence reads the evidence of the failures with the given keys (Story 5.4), inside the same switching method and under the same two
 ///     checks as Failures (readable before any switch, outcome unreadable or not_current). It gives the snapshot as the reader snapshot of
@@ -64,6 +64,9 @@ Parameter PRIVATESAMPLE = "^OcuTalonP.Zz";
 
 /// The file of the instance's messages, in the manager directory.
 Parameter MESSAGESLOG = "messages.log";
+
+/// The files that IRIS keeps when it switches messages.log, in the manager directory (messages.old_YYYYMMDD, then messages.old_YYYYMMDD_1 and so on).
+Parameter SWITCHEDLOGS = "messages.old_*";
 
 /// The longest line of messages.log that Vitals reads whole, in characters. The rest of a longer line is read as the next line, which no
 /// timestamp starts.
@@ -223,7 +226,7 @@ ClassMethod Failures(namespace As %String, production As %String, from As %Strin
 ///     one entry named as the namespace, with the outcome error, and so is each of its databases that cannot be found;
 ///   - journal: {"outcome", "directory", "freePercent"}, the free share of the volume of the primary journal directory;
 ///   - license: {"outcome", "units", "consumed", "usePercent"}; a license of no units is an error;
-///   - systemLog: {"outcome", "count"}, the lines of severity 2 or 3 in messages.log (in the manager directory) whose time lies in [fromUtc, toUtc]
+///   - systemLog: {"outcome", "count"}, the lines of severity 2 or 3 in messages.log and the files IRIS kept when it switched it (in the manager directory) whose time lies in [fromUtc, toUtc]
 ///     (UTC, YYYY-MM-DDThh:mm:ssZ; an empty end leaves that side open). The file's times are local, read in the instance zone (Data.Time.FromLocal).
 ClassMethod Vitals(namespaces As %List = "", fromUtc As %String = "", toUtc As %String = "") As %DynamicObject
 {
@@ -348,30 +351,68 @@ ClassMethod Add(databases As %DynamicArray, ByRef seen, directory As %String, na
 	Do databases.%Push(..Database(directory))
 }
 
-/// The number of lines of severity 2 or 3 in messages.log whose time is in [fromUtc, toUtc], or "" when the file cannot be read. A line starts
-/// MM/DD/YY-hh:mm:ss:mmm (pid) severity; the time is local. The text of a line is never kept.
+/// The number of lines of severity 2 or 3 in messages.log whose time is in [fromUtc, toUtc], or "" when a file cannot be read. IRIS switches the log
+/// when it passes its size limit and keeps the previous file as messages.old_YYYYMMDD, then messages.old_YYYYMMDD_1 and so on, so the count reads the
+/// current file, then the switched files newest first, and stops after the first file whose first timed line is before fromUtc (an older file holds nothing newer). A line starts MM/DD/YY-hh:mm:ss:mmm (pid) severity; the time is local. The text of a line is never kept.
 ClassMethod SevereLines(fromUtc As %String, toUtc As %String) As %String [ Private ]
 {
-	Set path = ##class(%File).NormalizeFilename($SYSTEM.Util.ManagerDirectory()_..#MESSAGESLOG)
+	Set directory = $SYSTEM.Util.ManagerDirectory()
+	Set path = ##class(%File).NormalizeFilename(directory_..#MESSAGESLOG)
 	If '##class(%File).Exists(path) Quit ""
-	Set stream = ##class(%Stream.FileCharacter).%New()
-	If $$$ISERR(stream.LinkToFile(path)) Quit ""
+	Kill switched
+	Set file = $ZSearch(directory_..#SWITCHEDLOGS)
+	While file '= "" {
+		Set modified = ##class(%File).GetFileDateModified(file, 1)
+		Set switched($Piece(modified, ",") * 86400 + $Piece(modified, ",", 2), file) = ""
+		Set file = $ZSearch("")
+	}
+	Set files = $ListBuild(path)
+	Set key = ""
+	For {
+		Set key = $Order(switched(key), -1)
+		Quit:key=""
+		Set file = ""
+		For {
+			Set file = $Order(switched(key, file))
+			Quit:file=""
+			Set files = files_$ListBuild(file)
+		}
+	}
 	Set count = 0
+	Set ok = 1
+	Set position = 0
+	While ok && $ListNext(files, position, file) {
+		If '..SevereLinesIn(file, $Get(fromUtc), $Get(toUtc), .count, .first) {
+			Set ok = 0
+		} ElseIf ($Get(fromUtc) '= "") && (first '= "") && (fromUtc ] first) {
+			Quit
+		}
+	}
+	Quit $Select(ok: count, 1: "")
+}
+
+/// Adds to count the lines of severity 2 or 3 of one log file whose time is in [fromUtc, toUtc], and gives in first the UTC time of the file's first timed
+/// line ("" when it has none). Returns 0 when the file cannot be read.
+ClassMethod SevereLinesIn(path As %String, fromUtc As %String, toUtc As %String, ByRef count As %Integer, Output first As %String) As %Boolean [ Private ]
+{
+	Set first = ""
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	If $$$ISERR(stream.LinkToFile(path)) Quit 0
 	Set sc = $$$OK
 	While 'stream.AtEnd {
 		Set line = stream.ReadLine(..#LINEMAX, .sc)
 		If $$$ISERR(sc) Quit
 		If line '? 2N1"/"2N1"/"2N1"-"2N1":"2N1":"2N1":"3N1" ".E Continue
-		Set severity = $Piece(line, " ", 3)
-		If (severity '= 2) && (severity '= 3) Continue
 		Set utc = ##class(OcuTalon.Data.Time).FromLocal("20"_$Extract(line, 7, 8)_"-"_$Extract(line, 1, 2)_"-"_$Extract(line, 4, 5)_"T"_$Extract(line, 10, 17))
 		If utc = "" Continue
+		If first = "" Set first = utc
+		Set severity = $Piece(line, " ", 3)
+		If (severity '= 2) && (severity '= 3) Continue
 		If (fromUtc '= "") && (fromUtc ] utc) Continue
 		If (toUtc '= "") && (utc ] toUtc) Continue
 		Set count = count + 1
 	}
-	If $$$ISERR(sc) Quit ""
-	Quit count
+	Quit $$$ISOK(sc)
 }
 
 /// The evidence of the failures with the keys (comma-separated, h<header id> or l<log id>, as OcuTalon.Watch.Mark.KeyOf gives them) of the
