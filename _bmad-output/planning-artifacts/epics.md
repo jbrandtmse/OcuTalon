@@ -6065,6 +6065,7 @@ So that a quiet digest really means everything I watch was checked and passed.
 **Given** UJ-2's morning digest (E › Key Flows › Flow 2) with every fixture check passing
 **When** its Slots are composed
 **Then** the vital-sign figures, the production summary ("all running, no errors, no backlog"), "Your IRIS system is healthy" and "Everything I checked passed." all come from code, as the flow requires (FR-37, UX-DR106, UX-DR120)
+- DW-816: tests that send ticks a day or more ahead (Epic 39's beat tests at now plus 48 hours) make Digest queue scheduled digests for every other session on the stack and leave future-dated Sent rows, which suppress that stack's real scheduled digests and can turn a test that counts its session's notices red; keep test ticks from making other sessions due, or scope the due check, so no test leaves a future Sent row (ledger; routed by cr 2026-11-06)
 
 ### Story 17.8: Only Decide moves a conversation's link
 

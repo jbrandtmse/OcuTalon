@@ -4696,6 +4696,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Install.Step.Schedule's every-minute HeartbeatTask runs on CI stacks; Digest.Process.Ticked queues every session created before due (DW-651 rule); not observed in any run
 - 2026-11-06T18:54:29Z status=wontfix-theoretical owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=cr note=real if a CI red shows an extra notice or model request that is a scheduled digest at 08:00 instance time
+- 2026-11-06T22:42:19Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
+- 2026-11-06T22:42:19Z status=routed owner=17-7-give-an-all-clear-only-when-every-check-passed by=cr note=reopened: CI red BeatOutcomes x4; tests' ahead ticks (+48h) digest all sessions, future-DueAt Sent rows mask real digests
 
 ### DW-817: A tick's scheduled Composes for several sessions share the tick's trace session (Digest keeps the inbound session and sets only SuperSession, as Intake.Join does for Checks' findings), against AD-26's own trace session per untrusted item
 - source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: low | fix-risk: low | footprint: in-story

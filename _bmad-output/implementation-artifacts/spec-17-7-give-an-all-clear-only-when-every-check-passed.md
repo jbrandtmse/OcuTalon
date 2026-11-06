@@ -186,6 +186,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/`.
     - `TestRefusals` + run 6; `TestIsolation` covers run 6 and also checks that no `Sent` row was added;
     - `TestUsage` unchanged (no decisions).
 
+- [ ] DW-816 (routed to this story by Story 17.6's code review 3, 2026-11-06, after the spec gate): ticks a test sends a day or more ahead (Epic 39's beat tests at now plus 48 hours) make `Digest` queue scheduled digests for every other session on the stack and leave future-dated `Sent` rows, which suppress that stack's real scheduled digests. Make this story's own tests tick without making other sessions due, and either scope the due check so a test tick cannot reach other sessions or have the tests that send far-ahead ticks remove the `Sent` rows they cause; a test pins that no test leaves a future `Sent` row behind (with its mutation). If the fix needs a change to the ruled due rule, HALT with an intent gap.
+
 **Acceptance Criteria:**
 - Given any rows (Build's or recorded), when a digest is composed, then the key, `whatFailed` (failed first, then not checked), the quiet sentence, the healthy sentence and AllClear all come from `Checks.Render`'s output. "Everything I checked passed." appears only when every entry passed, with `{checked}`. "Everything else I checked passed." follows the named entries only when another entry passed.
 - Given no watched row, when composed, then the vital signs are reported, the digest says OcuTalon isn't watching any productions yet, and no rendering or flag gives an all-clear.
