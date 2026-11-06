@@ -23,7 +23,7 @@ Property OwnerRef As %String(MAXLEN = 22);
 /// One of Msg.Enum APPROVALSTATE.
 Property State As %String(MAXLEN = 32);
 
-/// The stored dry run, as JSON with the keys of DRYRUNKEYS (AD-16).
+/// The stored dry run, as JSON: with the keys of DRYRUNKEYS for a fix (AD-16), and with the keys of Approval SETTINGKEYS for a setting (AD-11).
 Property DryRun As %String(MAXLEN = "");
 
 /// The tool of a tool_call request.
@@ -65,19 +65,19 @@ Property Result As %String(MAXLEN = 32);
 /// When the run finished.
 Property FinishedAt As %String(MAXLEN = 20);
 
-/// The name of the fix kind of a fix request, as a plain string (AD-11, AD-16); empty for a tool_call request.
+/// The name of the fix kind of a fix request, as a plain string (AD-11, AD-16); empty for a tool_call and a setting request.
 Property FixKind As %String(MAXLEN = 32);
 
-/// The kind's validated parameters of a fix request as one JSON object, the exact change that an approval covers (AD-11, AD-16); empty for a tool_call request.
+/// The kind's validated parameters of a fix request as one JSON object, the exact change that an approval covers (AD-11, AD-16); empty for a tool_call and a setting request.
 Property FixParameters As %String(MAXLEN = "");
 
-/// The targets that the fix's dry run found, as the dry run gave them (header ids, ascending, comma-separated); empty for a tool_call request.
+/// The targets that the fix's dry run found, as the dry run gave them (header ids, ascending, comma-separated); empty for a tool_call and a setting request.
 Property FixTargets As %String(MAXLEN = "");
 
-/// The class or MCP toolref the gate classified a held call by; empty for a fix request and for a row held before this property existed.
+/// The class or MCP toolref the gate classified a held call by; empty for a fix and a setting request and for a row held before this property existed.
 Property ToolSource As %String(MAXLEN = 512);
 
-/// The runner item whose job held the call, which replays it once it is approved; empty for a fix request and for a row held before this property existed.
+/// The runner item whose job held the call, which replays it once it is approved; empty for a fix and a setting request and for a row held before this property existed.
 Property Runner As %String(MAXLEN = 128);
 
 Index RefIndex On Ref [ Unique ];

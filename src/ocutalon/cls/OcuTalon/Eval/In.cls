@@ -42,7 +42,18 @@
 ///     A row that cannot be opened and a send that fails remove the watch again. A sent case's record {case, watch}, watch being
 ///     OcuTalon.Watch.Ops.Fields of the row, goes into the Watches of the service, and Start returns the records in its last output. Finish
 ///     removes exactly the rows of the records it is given, through OcuTalon.Watch.Ops.RemoveEvalWatch.
-///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26).
+///   - A persona (Story 40.7; AD-7): Start may be given a preset and a language for the whole run, and a case may name its own members preset
+///     and language in its case.json, which override the run's for that case. The effective pair must pass Agent.Persona.EvalPresetOk (a
+///     language exactly for the preset language, and custom never); otherwise the case is not sent, with REASONPERSONA, before anything is saved.
+///     Open keeps the effective pair on the case's row, from which Agent.Input renders the persona block of the case's eval item. A run and a
+///     case that name none send exactly what they sent before.
+///   - A turn case of the kind all-clear or command may carry before {text, preset, language} (Story 40.7, DW-678): the old turn. It is asked first
+///     as a fresh turn of its own preset under a temporary row <name>/before, and that row is removed after its Reply. Then the case's turn is
+///     asked linked (SessionMode empty), so it opens the session that the old turn saved (AD-6), and only the case's turn is scored. A before
+///     that is not valid, or that gets no Reply (none, a Busy one after BUSYMAX asks, or a fallback, which saves no session), ends the case with
+///     REASONBEFORE or REASONNOREPLY and leaves no row.
+///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26), the old turn
+///     of a before included.
 /// Wait polls the rows of a run until none is still sent, or the seconds have passed.
 Class OcuTalon.Eval.In Extends Ens.BusinessService
 {
@@ -114,6 +125,12 @@ Parameter REASONNOCHECKS = "its checks is not an array";
 
 Parameter REASONNOREPLY = "Decide gave no Reply";
 
+/// {why} says what is wrong with the persona the case or the run names.
+Parameter REASONPERSONA = "its persona is not valid: {why}";
+
+/// {why} says what is wrong with the case's before.
+Parameter REASONBEFORE = "its before is not valid: {why}";
+
 Parameter REASONNOSNAPSHOT = "it has no snapshot file name";
 
 /// {why} is the text of the status that EvidencePack.Load returned, or says that the name is not a plain file name.
@@ -136,6 +153,11 @@ Parameter LOGCHECKS = "EvalIn could not render the check rows of the Reply: ";
 /// The Ref of the run that this service instance sends; Start sets it.
 Property RunRef As %String(MAXLEN = 22);
 
+/// The preset id and the language name that the run names for every case that names none of its own; both "" for none. Start sets them.
+Property Preset As %String(MAXLEN = 32);
+
+Property PersonaLanguage As %String(MAXLEN = 40);
+
 /// The setup records of the run's watches, a dynamic array of {"case", "watch"}: one for each sent case that declared a watch. Start sets it.
 Property Watches As %DynamicArray;
 
@@ -146,9 +168,11 @@ Property Watches As %DynamicArray;
 ///     array of {"case", "reason"} for each case that was not sent.
 ///   - watches is always a dynamic array: the setup records {"case", "watch"} of the sent cases that declared a watch (empty when the run
 ///     did not start). The run's end passes it to Finish.
+///   - preset and language are the persona of the whole run ("" for none): a case that names its own preset overrides them. A pair that
+///     EvalPresetOk refuses is not checked here: each case is skipped with REASONPERSONA.
 ///   - The status is the director's error when EvalIn cannot be created, which a disabled EvalIn is (the text says disabled); then
 ///     nothing was sent and there is no run Ref. Otherwise OK.
-ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output runRef As %String, Output sent As %Integer, Output skipped As %DynamicArray, Output watches As %DynamicArray) As %Status
+ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output runRef As %String, Output sent As %Integer, Output skipped As %DynamicArray, Output watches As %DynamicArray, preset As %String = "", language As %String = "") As %Status
 {
 	Set runRef = "", sent = 0, skipped = [], watches = []
 	Set sc = ##class(Ens.Director).CreateBusinessService("EvalIn", .service)
@@ -158,6 +182,7 @@ ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output
 	Set list = ..SendOrder(folder, ..CaseNames(folder, names))
 	Set service.RunRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set service.Watches = watches
+	Set service.Preset = preset, service.PersonaLanguage = language
 	Set runRef = service.RunRef
 	Set position = 0
 	While $ListNext(list, position, name) {
@@ -292,8 +317,10 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	If '$IsObject(case) || 'case.%IsA("%Library.DynamicObject") Quit ..#REASONNOTJSON
 	Set kind = ..Scalar(case, "kind")
 	If '$ListFind($ListFromString(..#KINDS), kind) Quit $Replace($Replace(..#REASONKIND, "{kind}", $Extract(kind, 1, 40)), "{kinds}", ..KindsText())
-	If $ListFind($ListFromString(..#TURNKINDS), kind) Quit ..SendTurn(case, kind, name)
 	If kind = ..#INCIDENTKIND Quit ..SendIncident(case, folder, name)
+	Set reason = ..Persona(case, .preset, .language)
+	If reason '= "" Quit reason
+	If $ListFind($ListFromString(..#TURNKINDS), kind) Quit ..SendTurn(case, kind, name, preset, language)
 	Set record = case.item
 	If '$IsObject(record) || 'record.%IsA("%Library.DynamicObject") || (..Scalar(record, "itemId") = "") Quit ..#REASONNOITEMID
 	Set provenance = ..Scalar(record, "provenance")
@@ -316,7 +343,7 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	}
 	Set opened = 0
 	Try {
-		Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, item.SourceItemId, item.ItemId)
+		Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, item.SourceItemId, item.ItemId, preset, language)
 		If $$$ISOK(sc) {
 			Set opened = 1
 			Set ..%SuperSession = ..RunRef
@@ -416,7 +443,7 @@ Method DispatchIncident(incident As OcuTalon.Eval.Msg.IncidentCase) As %Status [
 /// or an all-clear case whose checks is not an array, is refused before anything is saved. Otherwise the case's TurnResult and row are
 /// saved, and a case that gets no Reply from Decide (or whose send throws) loses both again. A row that cannot be opened (the run already
 /// has a row of that case) is refused with the error text, and only the case's own TurnResult is deleted: the row that is there stays.
-Method SendTurn(case As %DynamicObject, kind As %String, name As %String) As %String [ Private ]
+Method SendTurn(case As %DynamicObject, kind As %String, name As %String, preset As %String = "", language As %String = "") As %String [ Private ]
 {
 	Set turn = case.turn
 	Set text = $Select($IsObject(turn) && turn.%IsA("%Library.DynamicObject"): ..Scalar(turn, "text"), 1: "")
@@ -427,21 +454,27 @@ Method SendTurn(case As %DynamicObject, kind As %String, name As %String) As %St
 		If '$IsObject(checks) || 'checks.%IsA("%Library.DynamicArray") Quit ..#REASONNOCHECKS
 		Set recorded = checks.%ToJSON()
 	}
+	Set ..%SuperSession = ..RunRef
+	Set linked = 0
+	If case.%IsDefined("before") {
+		Set reason = ..Before(case.before, kind, name)
+		If reason '= "" Quit reason
+		Set linked = 1
+	}
 	Set result = ##class(OcuTalon.Eval.Msg.TurnResult).%New()
 	Set result.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set result.SourceItemId = name
 	Set result.RecordedChecks = recorded
 	Set sc = result.%Save()
 	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
-	Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, name, result.ItemId)
+	Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, name, result.ItemId, preset, language)
 	If $$$ISERR(sc) {
 		Do ##class(OcuTalon.Eval.Msg.TurnResult).%DeleteId(result.%Id())
 		Quit $SYSTEM.Status.GetOneStatusText(sc)
 	}
-	Set ..%SuperSession = ..RunRef
 	Set reason = ""
 	Try {
-		Set reason = ..Converse(result, text, name, kind)
+		Set reason = ..Converse(result, text, name, kind, linked)
 	} Catch exception {
 		Set reason = exception.DisplayString()
 	}
@@ -452,19 +485,11 @@ Method SendTurn(case As %DynamicObject, kind As %String, name As %String) As %St
 /// Asks Decide for the turn, again after a Busy reply, then keeps the Reply in the TurnResult and sends the TurnResult to EvalSink. The
 /// reason there was no Reply to keep, or "". The turn is asked at most BUSYMAX + 1 times, BUSYWAIT seconds apart; a Decide that is busy
 /// every time ends the case as a fallback with the reason rate_limited, with no DecisionRef.
-Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As %String, kind As %String = "") As %String [ Private ]
+Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As %String, kind As %String = "", linked As %Boolean = 0) As %String [ Private ]
 {
 	Set userTurn = (kind = ..#USERTURNKIND)
 	Set answerClass = $Select(userTurn: "OcuTalon.Bridge.Msg.DecisionResponse", 1: "OcuTalon.Bridge.Msg.Reply")
-	Set reply = ""
-	For asks = 1:1:..#BUSYMAX + 1 {
-		Kill reply
-		Set sc = ..Ask(..TurnRequest(result.ItemId, text, userTurn), .reply)
-		If $$$ISERR(sc) Quit
-		If '$IsObject($Get(reply)) || 'reply.%IsA(answerClass) Quit
-		If userTurn || 'reply.Busy Quit
-		If asks '> ..#BUSYMAX Do ..Pause(..#BUSYWAIT)
-	}
+	Set sc = ..AskTurn(result.ItemId, text, userTurn, linked, .reply)
 	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
 	If '$IsObject($Get(reply)) || 'reply.%IsA(answerClass) Quit ..#REASONNOREPLY
 	If userTurn {
@@ -488,10 +513,77 @@ Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As
 	Quit ""
 }
 
+/// Asks Decide for a turn, again after a Busy reply: at most BUSYMAX + 1 times, BUSYWAIT seconds apart. reply is the last answer. A user turn is
+/// asked once, because its answer has no Busy.
+Method AskTurn(itemId As %String, text As %String, userTurn As %Boolean, linked As %Boolean, Output reply) As %Status [ Private ]
+{
+	Set answerClass = $Select(userTurn: "OcuTalon.Bridge.Msg.DecisionResponse", 1: "OcuTalon.Bridge.Msg.Reply")
+	Set reply = "", sc = $$$OK
+	For asks = 1:1:..#BUSYMAX + 1 {
+		Kill reply
+		Set sc = ..Ask(..TurnRequest(itemId, text, userTurn, linked), .reply)
+		If $$$ISERR(sc) Quit
+		If '$IsObject($Get(reply)) || 'reply.%IsA(answerClass) Quit
+		If userTurn || 'reply.Busy Quit
+		If asks '> ..#BUSYMAX Do ..Pause(..#BUSYWAIT)
+	}
+	Quit sc
+}
+
+/// The persona of a case: the case's own preset and language, or the run's. A case that names a preset takes its language with it (empty when it
+/// names none); a case that names only a language keeps the run's preset. Returns the reason the case is not sent (REASONPERSONA), or "" with
+/// preset and language set to the effective pair; both "" when neither the run nor the case names one.
+Method Persona(case As %DynamicObject, Output preset As %String, Output language As %String) As %String [ Private ]
+{
+	Set preset = ..Preset, language = ..PersonaLanguage
+	If case.%IsDefined("preset") && (case.%GetTypeOf("preset") '= "string") Quit $Replace(..#REASONPERSONA, "{why}", "preset is not a string")
+	If case.%IsDefined("language") && (case.%GetTypeOf("language") '= "string") Quit $Replace(..#REASONPERSONA, "{why}", "language is not a string")
+	If case.%IsDefined("preset") {
+		Set preset = case.%Get("preset"), language = ""
+	}
+	If case.%IsDefined("language") Set language = case.%Get("language")
+	If (preset = "") && (language = "") Quit ""
+	If '##class(OcuTalon.Agent.Persona).EvalPresetOk(preset, language) {
+		Quit $Replace(..#REASONPERSONA, "{why}", "preset '"_$Extract($ZStrip(preset, "*C"), 1, 40)_"' with a language of "_$Length(language)_" character(s)")
+	}
+	Quit ""
+}
+
+/// The old turn of a case (DW-678): asked first as a fresh turn of its own preset under the temporary row <name>/before. Returns "" when it got
+/// a Reply that is neither Busy nor a fallback (so the agent saved its session), or the reason the case is not sent (a Busy or fallback Reply is
+/// REASONNOREPLY); the row is removed in every case. A before is an object with a non-blank text
+/// and a preset and language that EvalPresetOk takes; only the kinds all-clear and command carry one.
+Method Before(before As %DynamicObject, kind As %String, name As %String) As %String [ Private ]
+{
+	If (kind '= ..#ALLCLEARKIND) && (kind '= "command") Quit $Replace(..#REASONBEFORE, "{why}", "only an all-clear or command case has one")
+	If '$IsObject(before) || 'before.%IsA("%Library.DynamicObject") Quit $Replace(..#REASONBEFORE, "{why}", "it is not an object")
+	Set text = ..Scalar(before, "text"), preset = ..Scalar(before, "preset"), language = ..Scalar(before, "language")
+	If $ZStrip(text, "*WC") = "" Quit $Replace(..#REASONBEFORE, "{why}", "it has no text")
+	If '##class(OcuTalon.Agent.Persona).EvalPresetOk(preset, language) Quit $Replace(..#REASONBEFORE, "{why}", "its preset or language is not valid")
+	Set old = name_"/before"
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, old, old, itemId, preset, language)
+	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
+	Set reason = ""
+	Try {
+		Set sc = ..AskTurn(itemId, text, 0, 0, .reply)
+		If $$$ISERR(sc) {
+			Set reason = $SYSTEM.Status.GetOneStatusText(sc)
+		} ElseIf '$IsObject($Get(reply)) || 'reply.%IsA("OcuTalon.Bridge.Msg.Reply") || reply.Busy || reply.Fallback {
+			Set reason = ..#REASONNOREPLY
+		}
+	} Catch exception {
+		Set reason = exception.DisplayString()
+	}
+	Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..RunRef, old)
+	Quit reason
+}
+
 /// The request to Decide for a turn case (AD-6): a user turn of owner eval, in a fresh conversation, with no recap. The Input is what
 /// Agent.Input renders from an Item of the same fields as a user's turn in the chat, so the model sees the turn as the product sends it.
-/// With userTurn the request is the decide request of a user's chat turn (Kind decide, no SessionMode) instead of the turn request.
-Method TurnRequest(itemId As %String, text As %String, userTurn As %Boolean = 0) As OcuTalon.Bridge.Msg.Request [ Private ]
+/// With userTurn the request is the decide request of a user's chat turn (Kind decide, no SessionMode) instead of the turn request. With linked the
+/// turn has no SessionMode, so that it opens the session that the case's before turn saved (AD-6) instead of a fresh one.
+Method TurnRequest(itemId As %String, text As %String, userTurn As %Boolean = 0, linked As %Boolean = 0) As OcuTalon.Bridge.Msg.Request [ Private ]
 {
 	Set item = ##class(OcuTalon.Msg.Item).%New()
 	Set item.ItemId = itemId
@@ -509,7 +601,7 @@ Method TurnRequest(itemId As %String, text As %String, userTurn As %Boolean = 0)
 	Set request.TraceRef = ..RunRef
 	Set request.Channel = ..#TURNCHANNEL
 	Set request.ThreadSessionId = ..%SessionId
-	If 'userTurn Set request.SessionMode = "fresh"
+	If 'userTurn && 'linked Set request.SessionMode = "fresh"
 	Quit request
 }
 

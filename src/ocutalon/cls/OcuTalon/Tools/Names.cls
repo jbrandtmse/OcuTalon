@@ -30,4 +30,7 @@ Parameter RECENTACTIVITY = "recent_activity";
 /// Every name above, comma-separated, in the order of the parameters.
 Parameter RELEASE1 = {..#SETREMINDER_","_..#LISTREMINDERS_","_..#CANCELREMINDER_","_..#STARTWATCH_","_..#STOPWATCH_","_..#LISTPRODUCTIONS_","_..#DISMISSINCIDENT_","_..#CHECKSTATUS_","_..#READFAILEDMESSAGES_","_..#READEVENTLOG_","_..#READITEMSETTINGS_","_..#RECENTACTIVITY};
 
+/// The persona proposal tool of the personality epics (AD-7); not a release-1 tool, so RELEASE1 does not list it.
+Parameter PROPOSEPERSONA = "propose_persona";
+
 }

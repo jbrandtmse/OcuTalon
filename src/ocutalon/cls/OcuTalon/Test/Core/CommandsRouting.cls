@@ -3,12 +3,14 @@
 /// OcuTalon.Test.Core.CommandsOwner instead of the production. The real Interoperability path is the job of
 /// OcuTalon.Test.Core.CommandsInProduction. The oracle of the origin rules and every text are written out here, never read from
 /// CommandsIn.
-///   - TestRoutes: each of the 10 verbs, with an origin it accepts, reaches exactly its owner item with the same object, key,
+///   - TestRoutes: each of the 12 verbs, with an origin it accepts, reaches exactly its owner item with the same object, key,
 ///     session and origin, and the owner's result comes back as the same object; Dismiss arrives as an IncidentCommand;
 ///   - TestOriginRules: every verb by every origin, "zz" and "" included, is routed or refused as the oracle says, and a refusal
 ///     sends nothing;
-///   - TestToolGovernanceRefused: SetDemoMode, Pair, Unpair, EndSession and an IncidentCommand from tool send nothing;
+///   - TestToolGovernanceRefused: SetDemoMode, SetPersona, Pair, Unpair, EndSession and an IncidentCommand from tool send nothing;
 ///   - TestContextMeansTool: a bridge context makes the origin tool, whatever the command says;
+///   - TestPersonaVerbsInsideAContext: inside a context SetPersona that says web_user is refused and ProposePersona that says
+///     web_user is routed; outside it the origin rules apply;
 ///   - TestToolDismissOwnIncident: a tool dismisses only an incident that Ownership.Incident returns for its session;
 ///   - TestContextDismissSeesOwnIncidentOnly: the same limit holds for a Dismiss that says web_user while a context is active,
 ///     and a Dismiss whose SessionRef is not the context's OwnerRef is refused;
@@ -60,8 +62,8 @@ Method OnAfterAllTests() As %Status
 Method TestRoutes()
 {
 	Set session = ..Session("routes")
-	Set table = $ListBuild("SetReminder|ReminderOps|web_user", "CancelReminder|ReminderOps|web_admin", "ListReminders|ReminderOps|telegram", "StartWatch|WatchOps|tool", "StopWatch|WatchOps|timer", "Dismiss|IncidentManager|web_user", "SetDemoMode|SettingsOps|system", "Pair|SessionOps|telegram", "Unpair|SessionOps|web_user", "EndSession|SessionOps|web_admin")
-	Do $$$AssertEquals($ListLength(table), 10, "all 10 verbs are tried")
+	Set table = $ListBuild("SetReminder|ReminderOps|web_user", "CancelReminder|ReminderOps|web_admin", "ListReminders|ReminderOps|telegram", "StartWatch|WatchOps|tool", "StopWatch|WatchOps|timer", "Dismiss|IncidentManager|web_user", "SetDemoMode|SettingsOps|system", "SetPersona|SettingsOps|web_user", "ProposePersona|SettingsOps|tool", "Pair|SessionOps|telegram", "Unpair|SessionOps|web_user", "EndSession|SessionOps|web_admin")
+	Do $$$AssertEquals($ListLength(table), 12, "all 12 verbs are tried")
 	For i = 1:1:$ListLength(table) {
 		Set verb = $Piece($List(table, i), "|", 1)
 		Set owner = $Piece($List(table, i), "|", 2)
@@ -97,7 +99,7 @@ Method TestOriginRules()
 	Set session = ..Session("rules")
 	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(session)
 	Set ..Refs = ..Refs_","_incident
-	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "Pair", "Unpair", "EndSession")
+	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession")
 	Set origins = $ListBuild("web_user", "web_admin", "telegram", "tool", "timer", "system", "zz", "")
 	Set routed = 0
 	Set refused = 0
@@ -125,7 +127,7 @@ Method TestOriginRules()
 			}
 		}
 	}
-	Do $$$AssertEquals(routed + refused, 80, "all 80 pairs were tried")
+	Do $$$AssertEquals(routed + refused, 96, "all 96 pairs were tried")
 	Do $$$AssertTrue(routed > 0 && (refused > 0), "some pairs are routed and some refused: "_routed_" and "_refused)
 }
 
@@ -134,7 +136,7 @@ Method TestToolGovernanceRefused()
 {
 	Set session = ..Session("governance")
 	Set probe = ..NewProbe("ok")
-	For verb = "SetDemoMode", "Pair", "Unpair", "EndSession" {
+	For verb = "SetDemoMode", "SetPersona", "Pair", "Unpair", "EndSession" {
 		Set command = ..NewCommand(verb, "tool", session, "zzkey"_..Number)
 		Do probe.OnProcessInput(command, .output)
 		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", verb_" from a tool is not_allowed")
@@ -178,6 +180,45 @@ Method TestContextMeansTool()
 	Do $$$AssertEquals(..Call(before + 1, "target"), "SettingsOps", "to SettingsOps")
 }
 
+/// The persona verbs inside a bridge context (Story 40.2; AD-1): the context makes the origin tool whatever the command says, so a
+/// SetPersona that says web_user is refused as from the chat and nothing is sent, and a ProposePersona that says web_user (an origin
+/// that refuses it outside a context) is routed to SettingsOps. Once the context has ended, the same two commands are as the
+/// origin rules say: SetPersona from web_user is routed, ProposePersona from web_user is refused.
+Method TestPersonaVerbsInsideAContext()
+{
+	Set session = ..Session("personactx")
+	Set probe = ..NewProbe("ok")
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.OwnerRef = session
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, "zzss"_..Number), "a context of the session begins")
+	Try {
+		Set command = ..NewCommand("SetPersona", "web_user", session, "zzkey"_..Number)
+		Set command.Preset = "pirate"
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", "SetPersona that says web_user is refused inside a context")
+		Do $$$AssertEquals(output.Message, "That can't be done from the chat. Nothing was changed.", "as from the chat")
+		Do $$$AssertEquals(..Calls(), 0, "and nothing is sent")
+		Set command = ..NewCommand("ProposePersona", "web_user", session, "zzkey"_..Number)
+		Set command.Preset = "pirate"
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok, 1, "ProposePersona that says web_user is routed inside a context")
+		Do $$$AssertEquals(..Calls(), 1, "and sent once")
+		Do $$$AssertEquals(..Call(1, "target"), "SettingsOps", "to SettingsOps")
+	} Catch exception {
+		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set before = ..Calls()
+	Set command = ..NewCommand("SetPersona", "web_user", session, "zzkey"_..Number)
+	Do probe.OnProcessInput(command, .output)
+	Do $$$AssertEquals(output.Ok, 1, "SetPersona from web_user is routed once the context has ended")
+	Do $$$AssertEquals(..Calls(), before + 1, "and it is sent")
+	Set command = ..NewCommand("ProposePersona", "web_user", session, "zzkey"_..Number)
+	Do probe.OnProcessInput(command, .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", "ProposePersona from web_user is refused once the context has ended")
+	Do $$$AssertEquals(..Calls(), before + 1, "and nothing more is sent")
+}
+
 /// A tool dismisses only an incident that the session can see: its own noticed incident, or on a local install an instance
 /// incident of a production the session watches. Every other incident is not_found and nothing is sent.
 Method TestToolDismissOwnIncident()
@@ -219,6 +260,42 @@ Method TestToolDismissOwnIncident()
 	Do $$$AssertEquals(output.Ok, 1, "and the session's own incident still is")
 	Do $$$AssertEquals(..Calls(), 3, "which is sent")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+}
+
+/// Inside a bridge context a tool may send ProposePersona only for the context's own session (Story 40.6; DW-570, as U-268 for SendDigest):
+/// a SessionRef that is not the context's OwnerRef, an empty one and the owner's in another case included, is not_allowed with the
+/// chat refusal text and nothing is sent. The owner's own SessionRef is routed to SettingsOps.
+Method TestProposePersonaOwnSessionOnly()
+{
+	Set a = ..Session("proposea")
+	Set b = ..Session("proposeb")
+	Set variant = $ZConvert(a, "U")
+	If variant = a Set variant = $ZConvert(a, "L")
+	Do $$$AssertTrue(variant '= a, "the case variant of A's reference differs from it")
+	Set probe = ..NewProbe("ok")
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.OwnerRef = a
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, "zzss"_..Number), "a context of session A begins")
+	Try {
+		For session = b, "", variant {
+			Set command = ..NewCommand("ProposePersona", "tool", session, "zzkey"_..Number)
+			Set command.Preset = "pirate"
+			Do probe.OnProcessInput(command, .output)
+			Set label = "ProposePersona for '"_session_"'"
+			Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", label_" is not_allowed inside A's context")
+			Do $$$AssertEquals(output.Message, "That can't be done from the chat. Nothing was changed.", label_" says so")
+			Do $$$AssertEquals(..Calls(), 0, label_" reaches no owner")
+		}
+		Set command = ..NewCommand("ProposePersona", "tool", a, "zzkey"_..Number)
+		Set command.Preset = "pirate"
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok, 1, "A's own proposal is routed inside its context")
+		Do $$$AssertEquals(..Calls(), 1, "and sent once")
+		Do $$$AssertEquals(..Call(1, "target"), "SettingsOps", "to SettingsOps")
+	} Catch exception {
+		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
 }
 
 /// While a bridge context is active the origin is tool whatever the command says, so a Dismiss that says web_user is limited
@@ -478,18 +555,26 @@ Method Call(n As %Integer, field As %String) As %String [ Private ]
 /// The owner item that carries the verb out, as the test's own oracle has it.
 ClassMethod OwnerOf(verb As %String) As %String [ Private ]
 {
-	Quit $Case(verb, "SetReminder": "ReminderOps", "CancelReminder": "ReminderOps", "ListReminders": "ReminderOps", "StartWatch": "WatchOps", "StopWatch": "WatchOps", "Dismiss": "IncidentManager", "SetDemoMode": "SettingsOps", : "SessionOps")
+	Quit $Case(verb, "SetReminder": "ReminderOps", "CancelReminder": "ReminderOps", "ListReminders": "ReminderOps", "StartWatch": "WatchOps", "StopWatch": "WatchOps", "Dismiss": "IncidentManager", "SetDemoMode": "SettingsOps", "SetPersona": "SettingsOps", "ProposePersona": "SettingsOps", : "SessionOps")
 }
 
 /// The oracle of the origin rules: "" when the verb from the origin is routed, otherwise the text of its refusal.
 ClassMethod Expected(verb As %String, origin As %String) As %String [ Private ]
 {
 	Set everyone = $ListBuild("web_user", "web_admin", "telegram", "tool", "timer", "system")
-	If (origin = "tool") && '$ListFind($ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss"), verb) {
+	If (origin = "tool") && '$ListFind($ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "ProposePersona"), verb) {
 		Quit "That can't be done from the chat. Nothing was changed."
 	}
 	If verb = "SetDemoMode" {
 		If '$ListFind($ListBuild("system", "web_admin"), origin) Quit "Only an OcuTalon admin can change settings. Nothing was changed."
+		Quit ""
+	}
+	If verb = "SetPersona" {
+		If origin '= "web_user" Quit "OcuTalon can't take that command from here. Nothing was changed."
+		Quit ""
+	}
+	If verb = "ProposePersona" {
+		If origin '= "tool" Quit "OcuTalon can't take that command from here. Nothing was changed."
 		Quit ""
 	}
 	If verb = "Pair" {
