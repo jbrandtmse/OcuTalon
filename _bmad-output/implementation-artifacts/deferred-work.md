@@ -4348,6 +4348,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: pip evaluates markers against the host; no x64 Python image runs locally (34.3 implement)
 - 2026-11-05T22:27:17Z status=routed owner=burndown by=harvest note=the lead records CI's printed set and run id at the burn-down gate; a differing set reds the image build by name
 - 2026-11-05T22:44:47Z occurrence=34-3-epic-34-burn-down by=cr note=with pip -c a pinned version that x64 cannot install fails pip first, by name, before the gate prints a set
+- 2026-11-06T00:11:33Z status=resolved-by:34-3-epic-34-burn-down by=burndown note=CI_run_42128738213_at_148652a1:every_iris_group_built_the_image_on_x64_runners_with_pip_-c_constraints-x64.txt_and_gate.py_check_(equality_and_licence_families)_and_succeeded;so_the_x64_installed_set_equals_the_36_pins;the_build's_own_listing_does_not_reach_the_CI_log(noted_in_evidence/34-3-x64-installed-set.md)
 ### DW-756: DW-550's DIAG /state dump (11.22, web/e2e/support/diagnose.ts via floor.ts:145) never reaches CI output: no DIAG line in the browser job log nor in the playwright-results artifact when loadedAfter's /state bound passed
 - source: OCT-epic34@2651a548 run 42086496017 iris (browser) job 127452898026 S3 session.spec.ts:135 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: runner C searched the job log and the artifact's error-context.md: no DIAG, licence or CSP text; floor.ts:145 says the lines print before the error
