@@ -15,6 +15,13 @@
 ///   - TestDecisionIsRecorded: ignore, a pending beat, a fallback with an interval of 30 and of 1440 minutes;
 ///   - TestUnchangedAfterIgnore: a checklist unchanged since the last ignore is skipped, a changed one beats;
 ///   - TestRunNow: hours and unchanged do not hold it, the other reasons do, and the cooldown at 119 and 120 seconds;
+///   - TestRunNowReadsStoredValues (Story 39.8; AC 1, AC 3): a person whose settings this process has cached, and another process then saves a checklist, an interval and off (rows
+///     saved without Setting.Set, so that the entries stay): the values still read the cached ones, a RunDue tick reads the cached empty checklist and records the empty skip with no Item,
+///     and RunNow drops the five cache entries, answers sent with an Item that starts with the checklist and a next due time one stored interval on, after which the values read the stored
+///     settings; a pending fallback decision is recorded by RunNow with the stored interval;
+///   - TestSavedIntervalMovesNextDue (Story 39.8; AC 2, AC 3): a NextDueAt set by a beat or by a skip other than hours under a longer interval moves to the base plus the saved
+///     interval, saved with no view and no Item, and the next tick writes nothing and the tick at that time beats; a time that has passed beats at once with one view; a longer
+///     interval, an hours skip that is the newest write, an off person and a row with no base keep NextDueAt;
 ///   - TestSkipsAreRecordedByRunDue (QA): what RunDue writes for hours, hours with the cap, backoff, cap and nokey, and that a skip leaves an earlier beat's fields;
 ///   - TestRecordedDecisionCountsInTheSameRunDue (QA): an ignore, a fallback and an off person's pending decision are recorded before the due run;
 ///   - TestOneFailureLeavesTheOthers: a person whose row cannot be saved leaves the person after it to beat, and the status holds the count and an error code only;
@@ -498,6 +505,98 @@ Method TestRunNow()
 	Do $$$AssertEquals(outcome_"|"_availableAt_"|"_..Open(settled).BackoffUntil, "backoff|"_..Plus(noon, 600)_"|"_..Plus(noon, 600), "a run now during a back-off leaves it as it is")
 }
 
+/// Story 39.8 (AC 1): RunNow reads what is stored, a tick reads through the cache.
+Method TestRunNowReadsStoredValues()
+{
+	Set noon = ..Local("12:00")
+	Set text = "check the orders"
+	Set ref = ..Person("", {"NextDueAt": (..Plus(noon, -60))})
+	Set cached = ..Shape(ref)
+	Do $$$AssertEquals(..BValues(ref).checklist, "", "the checklist reads empty, and this process now caches its settings")
+
+	// another process saves the five settings: the rows are saved without Setting.Set, so that this process's cache entries stay
+	Do ..Bare(ref, "checklist", text)
+	Do ..Bare(ref, "interval", 60)
+	Do ..Bare(ref, "on", 0)
+	Do $$$AssertEquals(..Shape(ref)_"|"_..BValues(ref).checklist, cached_"|", "precondition: this process still reads the cached settings")
+
+	// a tick reads through the cache
+	Do $$$AssertStatusOK(..BDue(noon, .items, ref), "RunDue is OK")
+	Do $$$AssertEquals(items.Count(), 0, "the tick reads the cached empty checklist and sends no Item")
+	Set row = ..Open(ref)
+	Do $$$AssertEquals(row.LastSkipAt_"|"_row.LastSkipReason_"|"_row.LastItemId, noon_"|empty|", "and records the empty skip")
+
+	// run now reads what is stored: all five settings
+	Do $$$AssertStatusOK(..BNow(ref, noon, .item, .outcome, .availableAt), "RunNow is OK")
+	Do $$$AssertEquals(outcome, "sent", "RunNow sends the beat")
+	Do $$$AssertTrue($IsObject(item), "with an Item")
+	If $IsObject(item) Do $$$AssertEquals($Piece(item.Text, $Char(10, 10), 1), text, "which starts with the stored checklist")
+	Do $$$AssertEquals(..Open(ref).NextDueAt, ..Plus(noon, 3600), "and the next due time is one stored interval on")
+	Do $$$AssertEquals(..Shape(ref)_"|"_..BValues(ref).checklist, "0|60|"_text, "and this process's values now read the stored settings")
+
+	// a pending decision is recorded on the stored values too: the back-off of a fallback is the stored interval (480 minutes) after the time
+	Set pending = ..Person("check the orders", {"NextDueAt": (..Plus(noon, 86400)), "LastItemId": "itemstored", "LastSnapshotKey": (..BKey("c"))})
+	Do ..Decision(pending, "itemstored", {"Outcome": "tellnow", "Fallback": 1})
+	Do $$$AssertEquals(..BValues(pending).interval, 30, "the interval reads 30, and this process caches it")
+	Do ..Bare(pending, "interval", 480)
+	Do $$$AssertStatusOK(..BNow(pending, noon, .item, .outcome, .availableAt), "RunNow is OK with a pending fallback")
+	Do $$$AssertEquals(outcome_"|"_availableAt, "backoff|"_..Plus(noon, 28800), "its back-off is the stored interval, not the cached one")
+}
+
+/// Story 39.8 (AC 2, AC 3): a saved shorter interval moves the NextDueAt that a longer interval set; a longer one, an hours skip, an off person and a row with no base do not.
+Method TestSavedIntervalMovesNextDue()
+{
+	Set b = ..Local("12:00")
+
+	// shorter, the new time ahead: saved on the tick, no view, no Item; the next tick writes nothing; the tick at the new time beats
+	Set ahead = ..Person("c", {"LastBeatAt": (b), "NextDueAt": (..Plus(b, 3600))})
+	Do $$$AssertStatusOK(..BDue(..Plus(b, 60), .items, ahead, 0, 1, .views), "RunDue is OK one minute after the beat")
+	Set row = ..Open(ahead)
+	Do $$$AssertEquals(items.Count()_"|"_+$Get(views)_"|"_row.NextDueAt_"|"_row.LastBeatAt_"|"_row.LastItemId_"|"_row.LastSkipAt, "0|0|"_..Plus(b, 1800)_"|"_b_"||", "the new time is the beat plus 30 minutes, saved, with no Item and no view")
+	Do $$$AssertStatusOK(..BDue(..Plus(b, 120), .items, ahead, 0, 1, .views), "RunDue is OK again")
+	Set row = ..Open(ahead)
+	Do $$$AssertEquals(items.Count()_"|"_+$Get(views)_"|"_row.NextDueAt_"|"_row.LastBeatAt, "0|0|"_..Plus(b, 1800)_"|"_b, "the next tick changes nothing and gives no view")
+	Do $$$AssertStatusOK(..BDue(..Plus(b, 1800), .items, ahead, 0, 1, .views), "RunDue is OK at the new time")
+	Set row = ..Open(ahead)
+	Do $$$AssertEquals(items.Count()_"|"_..ViewRefs(.views, ahead)_"|"_row.LastBeatAt_"|"_row.NextDueAt, "1|1:1|"_..Plus(b, 1800)_"|"_..Plus(b, 3600), "the tick at the new time beats once, with one view")
+	If +$Get(views) = 1 Do $$$AssertEquals(..ViewJson(.views, 1), ..RowJson(ahead), "which is FromRow of the stored row")
+
+	// shorter, the new time has passed: the beat runs at that tick, one commit
+	Set passed = ..Person("c", {"LastBeatAt": (..Plus(b, -2400)), "NextDueAt": (..Plus(b, 1200))})
+	Do $$$AssertStatusOK(..BDue(b, .items, passed, 0, 1, .views), "RunDue is OK when the new time has passed")
+	Set row = ..Open(passed)
+	Do $$$AssertEquals(items.Count()_"|"_..ViewRefs(.views, passed)_"|"_row.LastBeatAt_"|"_row.NextDueAt, "1|1:1|"_b_"|"_..Plus(b, 1800), "the beat runs at the tick, with one view")
+	If +$Get(views) = 1 Do $$$AssertEquals(..ViewJson(.views, 1), ..RowJson(passed), "which is FromRow of the stored row")
+
+	// longer: NextDueAt stands until the beat, which uses the new interval
+	Set longer = ..Person("c", {"LastBeatAt": (b), "NextDueAt": (..Plus(b, 1800))})
+	Do ..Put(longer, "interval", 120)
+	Do $$$AssertStatusOK(..BDue(..Plus(b, 60), .items, longer, 0, 1, .views), "RunDue is OK with a longer interval")
+	Set row = ..Open(longer)
+	Do $$$AssertEquals(items.Count()_"|"_+$Get(views)_"|"_row.NextDueAt, "0|0|"_..Plus(b, 1800), "NextDueAt is kept, with no view")
+	Do $$$AssertStatusOK(..BDue(..Plus(b, 1800), .items, longer, 0, 1, .views), "RunDue is OK at the kept time")
+	Set row = ..Open(longer)
+	Do $$$AssertEquals(items.Count()_"|"_row.LastBeatAt_"|"_row.NextDueAt, "1|"_..Plus(b, 1800)_"|"_..Plus(b, 9000), "the beat there sets NextDueAt with the new interval")
+
+	// a skip set it (a newer cap skip), and an older hours skip does not matter after a newer beat
+	Set skipped = ..Person("c", {"LastBeatAt": (..Plus(b, -7200)), "LastSkipAt": (b), "LastSkipReason": "cap", "NextDueAt": (..Plus(b, 3600))})
+	Set older = ..Person("c", {"LastBeatAt": (b), "LastSkipAt": (..Plus(b, -7200)), "LastSkipReason": "hours", "NextDueAt": (..Plus(b, 3600))})
+
+	// kept: an hours skip is the newest write; the person is off; the row has no base
+	Set hours = ..Person("c", {"LastBeatAt": (..Plus(b, -7200)), "LastSkipAt": (b), "LastSkipReason": "hours", "NextDueAt": (..Plus(b, 43200))})
+	Set off = ..Person("c", {"LastBeatAt": (b), "NextDueAt": (..Plus(b, 3600))})
+	Do ..Put(off, "on", "0")
+	Set bare = ..Person("c", {"NextDueAt": (..Plus(b, 3600))})
+	Set all = skipped_","_older_","_hours_","_off_","_bare
+	Do $$$AssertStatusOK(..BDue(..Plus(b, 60), .items, all, 0, 1, .views), "RunDue is OK for the rest")
+	Do $$$AssertEquals(items.Count()_"|"_+$Get(views), "0|0", "none of them beats or gives a view")
+	Do $$$AssertEquals(..Open(skipped).NextDueAt, ..Plus(b, 1800), "a newer skip other than hours moves NextDueAt to the skip plus 30 minutes")
+	Do $$$AssertEquals(..Open(older).NextDueAt, ..Plus(b, 1800), "an hours skip older than the beat does not stop the move")
+	Do $$$AssertEquals(..Open(hours).NextDueAt, ..Plus(b, 43200), "an hours skip that is the newest write keeps NextDueAt")
+	Do $$$AssertEquals(..Open(off).NextDueAt, ..Plus(b, 3600), "an off person keeps NextDueAt")
+	Do $$$AssertEquals(..Open(bare).NextDueAt, ..Plus(b, 3600), "a row with no beat and no skip keeps NextDueAt")
+}
+
 /// QA: what RunDue writes for each skip, through the whole beat (not Skip and NextDue alone): the reason, the tick, and the next due time, which is the next
 /// start of the hours for hours (also when another rule holds too) and one interval on for the others.
 Method TestSkipsAreRecordedByRunDue()
@@ -878,6 +977,27 @@ Method SetRow(ref As %String, name As %String, value As %String) [ Private ]
 Method Put(ref As %String, name As %String, value As %String) [ Private ]
 {
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set($ClassMethod(..#BEAT, "SettingKey", ref, name), value), "the setting "_name_" is written")
+}
+
+/// Saves the person's setting as another process would: the Setting row is saved without Setting.Set, so that this process's cache entry of it stays.
+Method Bare(ref As %String, name As %String, value As %String) [ Private ]
+{
+	Set key = $ClassMethod(..#BEAT, "SettingKey", ref, name)
+	Set setting = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+	If '$IsObject(setting) {
+		Set setting = ##class(OcuTalon.Data.Setting).%New()
+		Set setting.Key = key
+	}
+	Set setting.Value = value
+	Set setting.UpdatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(setting.%Save(), "the setting "_name_" is saved")
+}
+
+/// The on and interval values this process reads for the person, as on|interval.
+Method Shape(ref As %String) As %String [ Private ]
+{
+	Set values = ..BValues(ref)
+	Quit values.on_"|"_values.interval
 }
 
 /// A decision of Kind decide for the person's beat item; its Ref (removed with the test).

@@ -2,11 +2,14 @@
 /// for a BeatNow. A beat is no background check (AD-28): it adds no BackgroundCheck row, check result or coverage entry. The tick never calls the model:
 /// RunDue and RunNow only decide, write the person's HeartbeatBeat row and return the beat's OcuTalon.Msg.Item, which Checks sends to Intake (this class has
 /// no business host). Every model request comes from Intake, after that send.
-///   - Values reads a person's five settings through Data.Setting.Get on every call (nothing is kept in memory, AD-5). A key with no row takes its default:
+///   - Values reads a person's five settings through Data.Setting.Get on every call (nothing is kept in memory, AD-5); Get's per-process cache applies, except
+///     that Values(ref, 1), which RunNow uses, first drops this process's cache entries of the five keys, so that a run now reads what is stored. A key with no row takes its default:
 ///     on is DEFAULTON (DEFAULTONDEMO on the online demo), the others DEFAULTINTERVAL, DEFAULTFROM, DEFAULTTO and "". A stored interval outside INTERVALS
 ///     reads as 30. from and to both stored as "" mean all day, and any other pair that is not two HH:MM values reads as the defaults.
 ///   - A beat is due when its person's row is missing, its NextDueAt is empty, or NextDueAt is at most Process.DUESLACKSECONDS after the tick. A beat that
-///     runs sets NextDueAt to the tick plus one interval, so a beat missed across several intervals runs once.
+///     runs sets NextDueAt to the tick plus one interval, so a beat missed across several intervals runs once. RunDue first moves the NextDueAt of a person who is on
+///     to an earlier time when the saved interval is shorter than the one that set it (Rescheduled): the newer of LastBeatAt and LastSkipAt plus the saved interval,
+///     unless that newer write is an hours skip. Such a move is saved and gives no view; if the new time is due, the beat runs at that tick instead.
 ///   - Skip gives the first rule that holds, in AD-18's order: empty (the checklist is empty after white space is stripped), hours (outside the active hours,
 ///     read in the instance zone through Data.Time), backoff (BackoffUntil is after the time), cap (the daily cost cap is reached), nokey (the
 ///     TriageAgent's model key is not present) and unchanged (the snapshot's key is the row's LastQuietKey; an empty LastQuietKey never matches). The
@@ -105,9 +108,17 @@ Parameter STATUSMAX = 4000;
 Parameter MORE = "(more not shown)";
 
 /// The values of the session's heartbeat settings, read now: a dynamic object of on (1 or 0), interval (minutes), from and to (HH:MM, or "" for both when
-/// the window is all day) and checklist.
-ClassMethod Values(sessionRef As %String) As %DynamicObject
+/// the window is all day) and checklist. Every value is read through Data.Setting.Get, which keeps each key for 60 seconds in this process. When stored is 1 this
+/// process's cache entries of the session's five keys are dropped first (the idiom of Data.Setting.Set), so that the values read are the stored ones.
+ClassMethod Values(sessionRef As %String, stored As %Boolean = 0) As %DynamicObject
 {
+	If stored {
+		Set names = $ListFromString(..#KEYS)
+		Set position = 0
+		While $ListNext(names, position, name) {
+			Kill ^||OcuTalon.Setting(..SettingKey(sessionRef, name))
+		}
+	}
 	Set default = $Select(##class(OcuTalon.Watch.Reader).OnlineDemo(): ..#DEFAULTONDEMO, 1: ..#DEFAULTON)
 	Set on = (+##class(OcuTalon.Data.Setting).Get(..SettingKey(sessionRef, "on"), default) = 1)
 	Set interval = ##class(OcuTalon.Data.Setting).Get(..SettingKey(sessionRef, "interval"), ..#DEFAULTINTERVAL)
@@ -162,6 +173,22 @@ ClassMethod NextDue(values As %DynamicObject, at As %String, reason As %String) 
 	If '(values.from ] $Extract(local, 12, 16)) Set day = $ZDate($ZDateH(day, 3) + 1, 3)
 	Set start = ##class(OcuTalon.Data.Time).FromLocal(day_"T"_values.from_":00")
 	Quit $Select(start = "": later, 1: start)
+}
+
+/// The due time that replaces the row's NextDueAt after a saved interval shorter than the one that set it, or "" when NextDueAt stands. The base is the newer of
+/// LastBeatAt and LastSkipAt; a newer skip with the reason SKIPHOURS leaves NextDueAt as it is (a window start, not an interval), and so does a row with no base or
+/// an empty NextDueAt. Else the time is the base plus the saved interval (NextDue), and it replaces NextDueAt only when it is earlier.
+ClassMethod Rescheduled(row As OcuTalon.Data.HeartbeatBeat, values As %DynamicObject) As %String [ Private ]
+{
+	If row.NextDueAt = "" Quit ""
+	Set base = row.LastBeatAt
+	If row.LastSkipAt ] base {
+		If row.LastSkipReason = ..#SKIPHOURS Quit ""
+		Set base = row.LastSkipAt
+	}
+	If base = "" Quit ""
+	Set later = ..NextDue(values, base, "")
+	Quit $Select((later '= "") && (row.NextDueAt ] later): later, 1: "")
 }
 
 /// The first reason to skip, or "" when the beat runs (see the class description). row is the person's HeartbeatBeat or "", at the UTC time, runNow 1 for a
@@ -386,7 +413,8 @@ ClassMethod Key(snapshot As %String) As %String
 /// Runs the beats that are due at the tick time (UTC, YYYY-MM-DDTHH:MM:SSZ), after recording the decisions of the beats sent before. items is a
 /// %ListOfObjects of the Items to send, one for each beat that ran, whatever the status is. sessions limits the people to the comma-separated Refs (a test
 /// seam; empty means everyone), and capped and keyed give what Capped and Keyed would ("" means read them, once, when the first due person needs them).
-/// Each person runs in its own Try/Catch; the status is an error that holds the number of failures and their error codes (see the class description).
+/// Values are read through Get's cache. For a person who is on, the NextDueAt is first rescheduled (Rescheduled): the new time is due at once or the row is saved
+/// with it and gives no view. Each person runs in its own Try/Catch; the status is an error that holds the number of failures and their error codes (see the class description).
 ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions As %String = "", capped As %String = "", keyed As %String = "", Output views) As %Status
 {
 	Set items = ##class(%ListOfObjects).%New()
@@ -423,6 +451,11 @@ ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions A
 		Try {
 			Set values = ..Values(ref)
 			Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(ref)
+			Set moved = ""
+			If values.on && $IsObject(row) {
+				Set moved = ..Rescheduled(row, values)
+				If moved '= "" Set row.NextDueAt = moved
+			}
 			If values.on && ('$IsObject(row) || (row.NextDueAt = "") || '(row.NextDueAt ] limit)) {
 				If capped = "" Set capped = ..Capped(tickAt)
 				If keyed = "" Set keyed = ..Keyed()
@@ -432,6 +465,9 @@ ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions A
 				}
 				Set item = ..Run(row, values, tickAt, 0, capped, keyed, .reason, .views)
 				If $IsObject(item) Do items.Insert(item)
+			} ElseIf moved '= "" {
+				// a reschedule is saved and publishes nothing
+				$$$ThrowOnError(row.%Save())
 			}
 		} Catch exception {
 			Do ..Failed(exception.AsStatus(), .failed, .codes)
@@ -445,7 +481,8 @@ ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions A
 /// Runs a beat now for the session at the UTC time now (see the class description): its pending decision is recorded first, then a request within RUNNOWSECONDS
 /// of LastRunNowAt gives the outcome COOLDOWN with availableAt = LastRunNowAt plus RUNNOWSECONDS and writes nothing; else LastRunNowAt becomes now, on is
 /// ignored, and the outcome is SENT (item is the Item to send, NextDueAt is now plus one interval) or the first reason that holds (no Item; availableAt is
-/// BackoffUntil for backoff). capped and keyed as in RunDue, and views as RunDue gives it.
+/// BackoffUntil for backoff). The values are the stored ones: this process's cache entries of the session's settings are dropped first (Values with stored 1).
+/// capped and keyed as in RunDue, and views as RunDue gives it.
 ClassMethod RunNow(sessionRef As %String, now As %String, Output item As OcuTalon.Msg.Item, Output outcome As %String, Output availableAt As %String, capped As %String = "", keyed As %String = "", Output views) As %Status
 {
 	Set item = ""
@@ -453,6 +490,7 @@ ClassMethod RunNow(sessionRef As %String, now As %String, Output item As OcuTalo
 	Set availableAt = ""
 	Kill views
 	Set views = 0
+	Set values = ..Values(sessionRef, 1)
 	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(sessionRef)
 	If $IsObject(row) {
 		Set sc = ..Settle(row, now, .views)
@@ -470,7 +508,7 @@ ClassMethod RunNow(sessionRef As %String, now As %String, Output item As OcuTalo
 	Set row.LastRunNowAt = now
 	If capped = "" Set capped = ..Capped(now)
 	If keyed = "" Set keyed = ..Keyed()
-	Set item = ..Run(row, ..Values(sessionRef), now, 1, capped, keyed, .outcome, .views)
+	Set item = ..Run(row, values, now, 1, capped, keyed, .outcome, .views)
 	If '$IsObject(item) {
 		If outcome = ..#SKIPBACKOFF Set availableAt = row.BackoffUntil
 	} Else {

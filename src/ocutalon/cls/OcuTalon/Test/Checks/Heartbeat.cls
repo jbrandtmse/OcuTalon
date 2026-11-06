@@ -43,6 +43,11 @@
 ///     cooldown with availableAt, sends nothing and makes no request. (Story 39.7) The BeatNow publishes one heartbeat event with lastRunNowAt = T0 (a real Tick may already have
 ///     published the recorded outcome after it when the events are first read); after the cooldown BeatNow there are
 ///     exactly two, the second being the recorded outcome (written by that BeatNow's Settle or by a real Tick before it) with lastRunNowAt still T0.
+///   - TestSaveThenRunNow (Story 39.8; AC 1, Integration AC; DW-803): a person off with an empty checklist that a synchronous Tick has made the Checks job read; a checklist is then saved
+///     by this process and a BeatNow through HeartbeatIn, less than 50 seconds after that Tick started (so that the job's cache entry is live), answers 1|sent|<ItemId>: one Item reaches
+///     Intake, which records a Decision, and the CI mock's log holds exactly one request with the marker.
+///   - TestShorterIntervalReschedules (Story 39.8; AC 2; DW-780): a row whose beat at T0 left NextDueAt an hour on, with a 30-minute interval saved: the Tick at T0 + 60 seconds leaves
+///     NextDueAt at T0 + 30 minutes with no Item and no heartbeat event, and the Tick at T0 + 30 minutes sends one Item, the mock logs one request, and the row holds the beat and the next due time.
 /// The tests of the beat start with the preconditions that make a beat run: the TriageAgent's key is present (the entries point at the CI mock key variable) and the daily cap is not reached.
 Class OcuTalon.Test.Checks.Heartbeat Extends OcuTalon.Test.Checks.BeatCase
 {
@@ -456,6 +461,79 @@ Method TestBeatReachesIntake()
 			Do $$$AssertTrue(json '[ $ZConvert(value, "U"), "no polled event holds "_value)
 		}
 	}
+}
+
+Method TestSaveThenRunNow()
+{
+	If '..Ready() Quit
+	If '..Beatable() Quit
+	Set session = ..Session("savethenrun")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Set t0 = ..Due()
+	Set text = "zz save then run [[mock:decide-ignore:"_session_"]]"
+	Do ..SeedBeat(session, ##class(OcuTalon.Data.Time).AddSeconds(t0, 86400), "", "")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(##class(OcuTalon.Checks.Beat).SettingKey(session, "on"), 0), "the person is off")
+
+	// the Checks job reads the empty checklist
+	Set started = $ZHorolog
+	If ..Tick(##class(OcuTalon.Data.Time).NowUtc()) = "" Quit
+
+	// another process saves a checklist, and the run now follows at once
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(##class(OcuTalon.Checks.Beat).SettingKey(session, "checklist"), text), "the checklist is saved")
+	Do $$$AssertStatusOK(##class(Ens.Director).CreateBusinessService(..#HEARTBEAT, .service), "the "_..#HEARTBEAT_" service is created")
+	If '$IsObject(service) Quit
+	Set floor = ..Top("Ens.MessageHeader", $Namespace)
+	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = session
+	Set request.RequestedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(service.SendRequestSync(..#CHECKS, request, .response, ..#TICKWAIT), "Checks answers the BeatNow OK")
+	Do $$$AssertTrue($ZHorolog - started < 50, "the BeatNow came less than 50 seconds after the Tick, so that the job's cache entry was still live")
+	If '$IsObject($Get(response)) Do $$$AssertTrue(0, "with a CommandResult") Quit
+	Set items = ..Findings(trace, session, floor)
+	Do $$$AssertEquals(items.%Size(), 1, "the BeatNow sends one Item from Checks to Intake")
+	If items.%Size() '= 1 Quit
+	Set item = items.%Get(0)
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "1|sent|"_item.itemId_"|", "the answer is sent, with the ItemId as Ref")
+	Do $$$AssertEquals($Piece(item.text, $Char(10, 10), 1), text, "the Item starts with the saved checklist")
+	Set decision = ..WaitDecision(item.itemId, session)
+	Do $$$AssertTrue($IsObject(decision), "Intake records a Decision for the Item")
+	Do $$$AssertEquals(..Marked(mark, session), 1, "and the CI mock's log holds exactly one request with the marker")
+}
+
+Method TestShorterIntervalReschedules()
+{
+	If '..Ready() Quit
+	If '..Beatable() Quit
+	Set session = ..Session("shorterinterval")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Set t0 = ..Due()
+	Set text = "zz shorter interval [[mock:decide-ignore:"_session_"]]"
+	Do ..SeedBeat(session, ##class(OcuTalon.Data.Time).AddSeconds(t0, 3600), text, "")
+	Set row = ..Beat(session)
+	Set row.LastBeatAt = t0
+	Do $$$AssertStatusOK(row.%Save(), "the beat at T0 is recorded")
+	Set floor = ..Top("Ens.MessageHeader", $Namespace)
+	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+
+	// the saved interval is 30 minutes and the beat's next due time was an hour on: the Tick moves it
+	If ..Tick(##class(OcuTalon.Data.Time).AddSeconds(t0, 60)) = "" Quit
+	Set row = ..Beat(session)
+	Do $$$AssertEquals(row.NextDueAt_"|"_row.LastBeatAt_"|"_row.LastItemId, ##class(OcuTalon.Data.Time).AddSeconds(t0, 1800)_"|"_t0_"|", "the next due time is T0 plus 30 minutes")
+	Do $$$AssertEquals(..Findings(trace, session, floor).%Size(), 0, "no Item has gone")
+	Do $$$AssertEquals(..Marked(mark, session), 0, "and the mock logged no request")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Events(session, "heartbeat").%Size(), 0, "a reschedule publishes no heartbeat event")
+
+	// the Tick at the new time beats
+	If ..Tick(##class(OcuTalon.Data.Time).AddSeconds(t0, 1800)) = "" Quit
+	Set items = ..Findings(trace, session, floor)
+	Do $$$AssertEquals(items.%Size(), 1, "the Tick at T0 plus 30 minutes sends one Item")
+	If items.%Size() '= 1 Quit
+	Set decision = ..WaitDecision(items.%Get(0).itemId, session)
+	Do $$$AssertTrue($IsObject(decision), "Intake records a Decision for the Item")
+	Do $$$AssertEquals(..Marked(mark, session), 1, "and the CI mock's log holds exactly one request with the marker")
+	Set row = ..Beat(session)
+	Do $$$AssertEquals(row.LastBeatAt_"|"_row.NextDueAt, ##class(OcuTalon.Data.Time).AddSeconds(t0, 1800)_"|"_##class(OcuTalon.Data.Time).AddSeconds(t0, 3600), "the row holds the beat and the next due time an interval on")
 }
 
 /// The JSON of Heartbeat.FromRow of the person's row as stored now and the person's settings.

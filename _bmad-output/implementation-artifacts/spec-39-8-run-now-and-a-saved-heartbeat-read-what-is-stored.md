@@ -2,7 +2,8 @@
 title: 'Story 39.8: Run now and a saved heartbeat read what is stored'
 type: 'bugfix'
 created: '2026-11-06'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '6a97fddd2c80c734fa78bf86ba5c638f9120445a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -137,6 +138,25 @@ deferred:
 
 ## Review Triage Log
 
+### 2026-11-06 — Review pass
+- verdicts: 15 findings — high 0, medium 2, low 12, false 1, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: the matrix row "Shorter interval, new time ahead" still says "one view" while the lead ruling says a reschedule publishes none — the fix edits the frozen intent contract; recorded for the lead under Residual risks.
+  - `[low]` `[reject]` Blind: a failed reschedule save has no test — the branch is one `$$$ThrowOnError(row.%Save())` in the person's Try/Catch; a refused save needs a modified, invalid property and the only modified property is NextDueAt, which the code sets to a valid time, so no Lane A fixture can make it fail (a bare unmodified-key trick did not fail the save, observed); the same idiom is pinned for the other saves by `TestOneFailureLeavesTheOthers`.
+  - `[low]` `[reject]` Blind: guards of the reschedule path have no mutation line (on, empty NextDueAt, equal time, unsettled) — `on` and hours are pinned by the off and hours rows; empty NextDueAt and no base give "" either way (equivalent mutants); unsettled people are skipped by the existing `Continue` above the Try.
+  - `[medium]` `[patch]` Blind: `TestRunNowReadsStoredValues` proves the drop for the checklist key only — fixed: the test now caches on and interval too, saves them without `Set`, and asserts the next due time and the values; mutation recorded.
+  - `[low]` `[reject]` Blind: the `< 50` seconds assertion fails instead of skipping on a slow runner — the spec requires the assertion; a real failure on a runner that slow is the honest result.
+  - `[low]` `[reject]` Blind: `Values` hard-codes the private cache global — the spec accepts this idiom (Lane B's `SettingsOps.HeartbeatValues` does the same); the unification is already in `deferred:`.
+  - `[low]` `[reject]` Edge: the `< 50` seconds bound does not bound the cache entry's age — the entry would have to expire within milliseconds between the Tick and the BeatNow; the mutation was observed red.
+  - `[low]` `[reject]` Edge: a tick that reads a stale interval persists an earlier NextDueAt — by design (AC: ticks read through the cache, "applies within a minute"); the beat that comes then reads the fresh value.
+  - `[low]` `[reject]` Edge: `Values(ref, 1)` before the cooldown test can fail on an unreadable settings row — theoretical; `Get` returns defaults for absent rows and does not throw, and the spec puts the read right after `views`.
+  - `[low]` `[reject]` Verification gap: failed reschedule save untested — same root cause as the second finding.
+  - `[medium]` `[patch]` Verification gap: five-keys drop pinned for the checklist only — same root cause as the fourth finding; fixed.
+  - `[low]` `[patch]` Verification gap: the drop-before-Settle order in `RunNow` is unpinned — fixed: a pending fallback decision is recorded with the stored interval (a back-off of 480 minutes), red when the read moves after `Settle`; mutation recorded.
+  - `[low]` `[reject]` Verification gap (other): `TestShorterIntervalReschedules` does not control which tick moves NextDueAt — a real tick reaches the same end state and publishes nothing; the assertions are on the end state.
+  - `[low]` `[reject]` Verification gap (other): `TestSaveThenRunNow` never observes that the job cached the empty checklist — same root cause as the `< 50` seconds findings.
+  - `[false]` `[reject]` Intent alignment: the "not left unsettled" condition is not in the new block — the existing `If $Data(unsettled(ref)) Continue` precedes the Try, so the reschedule never sees such a person.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -222,12 +242,40 @@ deferred:
 
 **Pinning mutations.** For each one: apply it, observe red, revert to byte-identical, and record a `mutation:` line (Rule 19).
 - AC 1: `RunNow` passes `..Values(sessionRef)` (no drop) to `Run`. Expected red: `Beat.TestRunNowReadsStoredValues` (`sent`) and, fresh, `Heartbeat.TestSaveThenRunNow`.
+  - mutation: `RunNow` reads `..Values(sessionRef)` -> red `Beat.TestRunNowReadsStoredValues` (RunNow sends the beat, with an Item, values read the checklist) and, fresh, `Heartbeat.TestSaveThenRunNow` (the BeatNow sends one Item); reverted byte-identical.
 - AC 1, the tick keeps the cache: `RunDue` reads `..Values(ref, 1)`. Expected red: `TestRunNowReadsStoredValues` (the Tick's `empty` skip).
+  - mutation: `RunDue` reads `..Values(ref, 1)` -> red `Beat.TestRunNowReadsStoredValues` (the tick sends no Item, records the empty skip); reverted byte-identical.
 - AC 2: `Rescheduled` always answers "". Expected red: `Beat.TestSavedIntervalMovesNextDue` and, fresh, `Heartbeat.TestShorterIntervalReschedules`.
+  - mutation: RunDue's `Rescheduled` result is always "" (`Set moved = ""`) -> red `Beat.TestSavedIntervalMovesNextDue` (new time, next tick, tick at the new time) and, fresh, `Heartbeat.TestShorterIntervalReschedules` (next due time T0 plus 30 minutes, Item at that tick); reverted byte-identical.
 - AC 2, longer: `Rescheduled` answers base plus interval whenever it differs. Expected red: the Longer interval row.
+  - mutation: `Rescheduled` compares `row.NextDueAt '= later` instead of `] later` -> red `Beat.TestSavedIntervalMovesNextDue` (longer: NextDueAt kept, the beat's new interval); reverted byte-identical.
 - AC 2, base: `Rescheduled` uses `LastBeatAt` alone. Expected red: the A skip set it row.
+  - mutation: `Rescheduled` base is `LastBeatAt` alone (`If 0 {` for the skip branch) -> red `Beat.TestSavedIntervalMovesNextDue` (a newer skip moves NextDueAt; an hours skip keeps it); reverted byte-identical.
+- AC 1, five keys: `Values(ref, 1)` drops only the `checklist` entry. Expected red: `TestRunNowReadsStoredValues` (the stored interval).
+  - mutation: `Values` kills only the checklist entry (`Set names = $ListBuild("checklist")`) -> red `Beat.TestRunNowReadsStoredValues` (next due time one stored interval on, values read the stored settings, back-off of the pending fallback); reverted byte-identical.
+- AC 1, drop before Settle: `RunNow` reads `Values(sessionRef, 1)` after `Settle`. Expected red: `TestRunNowReadsStoredValues` (the pending fallback's back-off).
+  - mutation: `RunNow`'s `Set values = ..Values(sessionRef, 1)` moved after the Settle block -> red `Beat.TestRunNowReadsStoredValues` (its back-off is the stored interval); reverted byte-identical.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `RunNow` reads the session's five heartbeat settings after dropping this process's cache entries of them (`Values(sessionRef, 1)`), so a save followed at once by Run now is no longer refused as `empty` (DW-803). `RunDue` keeps reading through the cache and, for a person who is on, moves a stored `NextDueAt` that a longer interval set to the newer of `LastBeatAt` and `LastSkipAt` plus the saved interval (`Rescheduled`, reusing `NextDue`); a due new time beats at once with one commit, otherwise the row is saved once and publishes no event (DW-780).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Checks/Beat.cls`: `Values` gains `stored`, new private `Rescheduled`, `RunDue` reschedule step, `RunNow` stored read, docs.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls`: `TestRunNowReadsStoredValues`, `TestSavedIntervalMovesNextDue`, helpers `Bare` and `Shape`.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls`: `TestSaveThenRunNow`, `TestShorterIntervalReschedules` on the real production and the CI mock.
+
+**Review.** 15 findings: patches applied 2 entries (one medium: the cache drop pinned for the checklist only; one low: the drop-before-Settle order), none deferred, 12 rejected with reasons in the triage log, 1 false. Patched counts by verdict: medium 1, low 1.
+
+**Follow-up review recommended:** false.
+
+**Verification.** Slot D identity FE850E91 checked; classes loaded and compiled by the handoff. `Test.Checks.Beat` warm: passed (also after each mutation revert). `Test.Checks.Heartbeat` fresh: passed (168 s run, 16.6 s of tests). Warm `Test.Checks.Runs`, `Test.Core.SettingsHeartbeat`, `Test.Live.Payloads`: passed. Fresh `Test.Web.HeartbeatApi`: passed. `shard lane-a@Checks` forward and `--reverse`, fresh: every class passed. `bash docker/tests/test-boundaries.sh`: exit 0. Footprint: only the three Lane A classes and this spec changed since the baseline. Seven mutations observed red and reverted byte-identical (see Verification). Tags `e39s8impl` and `e39s8implw` torn down.
+
+**Residual risks.**
+- The I/O matrix row "Shorter interval, new time ahead (DW-780)" in the frozen intent contract still reads "with one view"; the lead ruling at the spec gate (Spec Change Log, Code Map, Design Notes, Tasks) says a reschedule publishes nothing, and the code and tests follow the ruling. The lead should correct the row's text.
+- A reschedule save that fails is not pinned by a test (no Lane A fixture can make the one-line save fail); it uses the same `$$$ThrowOnError` idiom as the other saves. reopen_if: the branch changes shape.
+- `TestSaveThenRunNow` asserts the BeatNow comes less than 50 seconds after the Tick, so it fails (not skips) on a runner that slow.
+- Lane B's `SettingsOps.HeartbeatValues` still repeats the cache drop (frontmatter `deferred:`).
