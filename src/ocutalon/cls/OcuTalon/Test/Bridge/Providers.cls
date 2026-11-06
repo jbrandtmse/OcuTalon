@@ -183,7 +183,8 @@ Method TestResolvedShadowRunner()
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries), name_": the mock's log is read")
 		Do $$$AssertEquals($Select($IsObject($Get(entries)): entries.%Size(), 1: -1), 0, name_": building the agent and composing its config sent nothing: the mock's log is as it was")
 		Set resolved = {}.%FromJSON(adapter.ProviderConfig)
-		Do $$$AssertEquals(resolved."model_provider"_"|"_resolved."api_key"_"|"_resolved."base_url", "openai|@{env:OCUTALON_ZZ17_OPENAI}|"_##class(OcuTalon.Test.Contract.Mock).#BASEURL, name_": the resolved configuration is the entry's details with the provider and the key replaced, as a placeholder")
+		Do $$$AssertEquals(resolved."model_provider"_"|"_resolved."api_key", "openai|@{env:OCUTALON_ZZ17_OPENAI}", name_": the resolved configuration is the entry's details with the provider and the key replaced, as a placeholder")
+		Do $$$AssertEquals(resolved.%IsDefined("base_url")_"|"_resolved.%IsDefined("http_config"), "0|0", name_": and without the base URL of the entry's own provider (DW-758); the entry has no timeouts here")
 		Do $$$AssertTrue(adapter.ProviderConfig '[ ..#FAKE, name_": and holds no key value")
 	}
 
@@ -347,7 +348,7 @@ Method TestResolvedEqualsDirect()
 		Do $ClassMethod(scan, "UnsetEnv", $List(case, 2))
 		Do $ClassMethod(scan, "SetEnv", $List(case, 3), ..#FAKE)
 		Set entry = {"model_provider": ($List(case, 4)), "api_key": ("@{env:"_$List(case, 2)_"}"), "base_url": (url)}.%ToJSON()
-		Set direct = {"model_provider": (target), "api_key": ("@{env:"_$List(case, 3)_"}"), "base_url": (url)}.%ToJSON()
+		Set direct = {"model_provider": (target), "api_key": ("@{env:"_$List(case, 3)_"}")}.%ToJSON()
 		Set resolved = ##class(OcuTalon.Test.Bridge.Runner).NewRunner("OcuTalon.Agent.Triage", "low", entry, "ZzProvider", runner)
 		Set chosen = ##class(OcuTalon.Test.Bridge.Runner).NewRunner("OcuTalon.Agent.Triage", "low", direct, "ZzProvider", runner)
 		Set chosen.Adapter.Model = $List(case, 6)
@@ -356,7 +357,7 @@ Method TestResolvedEqualsDirect()
 		Do $$$AssertTrue(one '[ "build failed", target_": the resolved runner is built: "_one)
 		Do $$$AssertTrue(two '[ "build failed", target_": the runner that chose the provider is built: "_two)
 		Do $$$AssertEquals($Piece(one, "|", 1, 2), target_"|"_$List(case, 6), target_": the resolved runner has the provider and its default model")
-		Do $$$AssertEquals(one, two, target_": a resolved runner is built exactly as one that chose the provider (provider, model, configuration and session config)")
+		Do $$$AssertEquals(one, two, target_": a resolved runner is built exactly as one that chose the provider (provider, model, configuration and session config), neither with an endpoint field of the entry's provider (DW-758)")
 	}
 }
 

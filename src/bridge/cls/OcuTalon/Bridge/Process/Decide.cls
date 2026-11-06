@@ -106,8 +106,9 @@ Include Ensemble
 ///   - The second-model retry (AD-6, AD-8): a runner whose RetryItem setting names a retry runner (RetryItemOf) is retried once. When the
 ///     attempt ends with a reason that Retryable lists (timeout, rate_limited, error, refusal, cut_off, empty, invalid, unusable, no_key), Decide
 ///     sends a clone of the request, with the same DecisionRef and ItemId and with RetryOf set to the first runner, once, to the retry runner (TryRetry).
-///     Never retried: daily_cap, budget and too_large, a reply in which a tool ran (Reply.ToolsRun), a SessionBroken turn, a request of kind tool and
-///     the retry itself. A timer that fired leaves it unknown whether a tool ran, so a timed-out turn is not retried (it falls back as in release
+///     Never retried: daily_cap, budget and too_large, a reply in which a tool ran (Reply.ToolsRun), a SessionBroken turn, a request of kind tool,
+///     a model test request (Settings.IsTest: its ItemId starts with Settings.#TESTITEMPREFIX, so that the answer says whether the first model
+///     answered) and the retry itself. A timer that fired leaves it unknown whether a tool ran, so a timed-out turn is not retried (it falls back as in release
 ///     1), and a timed-out decide or diagnose is retried only when every tool of its agent is read-only code-classified safe (ToolsReadOnly). The
 ///     timers (AD-8): T1 is TimerFor of the first attempt, kept in FirstSeconds; the retry waits RetrySeconds, the least of TimerSeconds and
 ///     MAXTIMER - T1, and is sent only when that is at least MINTIMER, so the whole decision stays within MAXTIMER; otherwise the fallback keeps
@@ -128,11 +129,12 @@ Include Ensemble
 /// None is a setting. The three extension settings name the classes through which the bridge reaches its host (AD-31); the production
 /// definition sets the first two, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
 /// System Default Settings that OcuTalon.Bridge.Budget reads through the same accessor; DecisionTokenBudget and RequestTokenLimit are
-/// settings of Decide itself. ServiceUser and ToolClassification are read by the gate (OcuTalon.Bridge.Policy.Gate, AD-10) in the runner's job, and ApprovalRole by OcuTalon.Bridge.Approval.Raise (AD-11) in the caller's job. FireEvent delivers every event of the bridge to the host sink. This class names no other OcuTalon package (AD-2).
+/// settings of Decide itself, which Decide reads as they are written now when it runs as its own job (SettingText), so that a change applies to the
+/// next decision with no restart. InstanceZone is the instance zone's single source (AD-18): OcuTalon.Bridge.Time reads and writes it. ServiceUser and ToolClassification are read by the gate (OcuTalon.Bridge.Policy.Gate, AD-10) in the runner's job, and ApprovalRole by OcuTalon.Bridge.Approval.Raise (AD-11) in the caller's job. FireEvent delivers every event of the bridge to the host sink. This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Process.Decide Extends Ens.BusinessProcess
 {
 
-Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TimerSeconds:Bridge,DecisionTokenBudget:Bridge,RequestTokenLimit:Bridge,DailyCostCapUSD:Bridge,GatewaySpendUSD:Bridge,GatewaySpendDate:Bridge,ServiceUser:Bridge,ToolClassification:Bridge,ApprovalRole:Bridge";
+Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TimerSeconds:Bridge,DecisionTokenBudget:Bridge,RequestTokenLimit:Bridge,DailyCostCapUSD:Bridge,GatewaySpendUSD:Bridge,GatewaySpendDate:Bridge,InstanceZone:Bridge,ServiceUser:Bridge,ToolClassification:Bridge,ApprovalRole:Bridge";
 
 /// The runner item of each request kind, as kind:item pairs (AD-6).
 Parameter RUNNERS = "decide:TriageAgent,diagnose:DiagnosisAgent,turn:ChatAgent";
@@ -223,6 +225,10 @@ Property GatewaySpendUSD As %Numeric;
 
 /// The instance-zone date, YYYY-MM-DD, that GatewaySpendUSD counts.
 Property GatewaySpendDate As %String(MAXLEN = 10);
+
+/// The instance zone (AD-18): an IANA zone name, or empty for the container's TZ. It is read only through OcuTalon.Bridge.Time.Zone and written
+/// only through OcuTalon.Bridge.Time.SetZone, never from this property: a job follows the setting as it is written, not as the job started.
+Property InstanceZone As %String(MAXLEN = 64);
 
 /// The token budget per decision (AD-19, AD-20, FR-40): a request whose estimate (EstimateTokens) is above it takes the fallback route
 /// with the reason budget, and is never sent. 0 means off. A value that is not a whole number of 0 or more counts as 0, and the
@@ -441,10 +447,16 @@ Method Resend(request As OcuTalon.Bridge.Msg.Request, runner As %String, Output 
 	Quit ..SetTimer(seconds, "timer")
 }
 
-/// The text that the precheck gets for DecisionTokenBudget or RequestTokenLimit (name): the setting as the process holds it, or the setting
-/// as it is written when the process holds none (an invalid value is held as "", AssignOneSetting).
+/// The text that the precheck gets for DecisionTokenBudget or RequestTokenLimit (name). In the item's own job (the job's configuration name is
+/// the host's) it is the setting as it is written now (Ext.Accessor.ValueFor), so that a new budget applies to the next decision with no restart
+/// (AD-19); when that cannot be read, and in any other process, it is the setting as the process holds it, or as it is written when the process
+/// holds none (an invalid value is held as "", AssignOneSetting).
 Method SettingText(name As %String) As %String
 {
+	If (..%ConfigName '= "") && (..%ConfigName = $$$JobConfigName) {
+		Set written = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor(name, "", ..%ConfigName, .sc)
+		If $$$ISOK(sc) Quit written
+	}
 	Set value = $Property($this, name)
 	If value = "" Set value = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor(name, "", ..%ConfigName)
 	Quit value
@@ -635,7 +647,7 @@ ClassMethod ToolsetsReadOnly(toolsets As %String) As %Boolean
 /// (OnRequest, Resend), of the timer (timedOut 1) or of the reply (Conclude's retryReason); reply is the attempt's Reply, "" when there is none; failure
 /// is its failure text. The retry is sent when all of these hold, and otherwise the fallback is recorded with the reason (RecordFallback; the answer is
 /// in response):
-///   - the request is not of kind tool, the retry has not been sent, and Retryable accepts the reason (with ToolsRun of the reply, Broken, and for a
+///   - the request is not of kind tool, is not a model test request (Settings.IsTest), the retry has not been sent, and Retryable accepts the reason (with ToolsRun of the reply, Broken, and for a
 ///     timer that fired the rule of lead ruling R2);
 ///   - RetryItemOf names a retry runner;
 ///   - RetrySeconds of FirstSeconds and TimerSeconds is not 0; when it is, the fallback keeps the reason and carries RETRYSKIPPED as its reasons.
@@ -652,7 +664,7 @@ Method TryRetry(request As OcuTalon.Bridge.Msg.Request, runner As %String, reaso
 	Set elapsed = ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated)
 	Set reasons = ""
 	Set retryItem = ""
-	If (..RetryRunner = "") && ..Retryable(reason, isReply && reply.ToolsRun, broken, kind, timedOut) {
+	If (..RetryRunner = "") && '##class(OcuTalon.Bridge.Settings).IsTest(request) && ..Retryable(reason, isReply && reply.ToolsRun, broken, kind, timedOut) {
 		Set retryItem = ..RetryItemOf(runner, kind)
 	}
 	If (retryItem '= "") && timedOut && '..Retryable(reason, 0, 0, kind, 1, ..ToolsReadOnly(runner)) Set retryItem = ""
@@ -1778,6 +1790,9 @@ Storage Default
 </Value>
 <Value name="18">
 <Value>FirstSeconds</Value>
+</Value>
+<Value name="19">
+<Value>InstanceZone</Value>
 </Value>
 </Data>
 <DefaultData>DecideDefaultData</DefaultData>

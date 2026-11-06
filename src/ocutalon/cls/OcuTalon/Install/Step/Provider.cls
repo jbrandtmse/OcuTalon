@@ -7,7 +7,9 @@
 /// timeouts of the bridge timer, and never a model (the model is the runner's Model setting, AD-7) and never a key: the placeholder
 /// stays unresolved through the Config Store and AI Hub's provider resolves it. No code here reads the key's value. An entry that exists
 /// keeps its provider and placeholder when they are a provider of the provider table and exactly that provider's own placeholder
-/// (KeepChosen), so that a provider chosen through the model-change API survives a start; every other field is structural.
+/// (KeepChosen), so that a provider chosen through the model-change API survives a start; every other field is structural. The endpoint
+/// overrides below are the Anthropic endpoints of CI and the online demo, so they are written only on an entry whose provider is anthropic: an
+/// entry that keeps another provider loses base_url, custom_headers and tls (ConfigStore.DropEndpoint, DW-758) and keeps its timeouts.
 /// The timeouts are the request timeout and the whole retry block of OcuTalon.Bridge.Timeouts.Derive (AD-8), for the TimerSeconds
 /// setting of Decide in OcuTalon.Production (the System Default Settings row, else the initial value), written into http_config of
 /// every entry, never a part of the block; the entry of a retry runner derives from Timeouts.RetryTimer of that timer (DW-647). A timer that Timeouts.Check refuses fails the step, naming TimerSeconds.
@@ -173,6 +175,7 @@ ClassMethod WriteRunner(production As %String, item As %String, agentClass As %S
 	Set details = ..Details(agentClass, baseUrl, caFile, mockKeyFlag, $Select(retry: ##class(OcuTalon.Bridge.Timeouts).RetryTimer(timer), 1: timer))
 	If ##class(%ConfigStore.Configuration).Exists(fqn) {
 		Do ..KeepChosen(name, details)
+		If details.%Get("model_provider") '= "anthropic" Do ##class(OcuTalon.Bridge.ConfigStore).DropEndpoint(details)
 		Set sc = ##class(%ConfigStore.Configuration).Modify(fqn, details, , , ..#ENTRYRESOURCE, ..#ENTRYRESOURCE)
 	} Else {
 		Set sc = ##class(%ConfigStore.Configuration).Create("AI", "LLM", "", name, details, "", "Written by the Provider install step at every start; do not edit.", ..#ENTRYRESOURCE, ..#ENTRYRESOURCE)

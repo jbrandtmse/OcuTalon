@@ -10,7 +10,7 @@
 /// item, the retry runners included, and only when the item's entry key is absent (Keys.State) and its model is its agent class's own
 /// MODEL, the default. The runner then uses the first row in table order that is not the entry's own provider, is supported and has its key
 /// variable set, on that row's default model, with an in-memory configuration: the entry's details with model_provider and api_key
-/// replaced (Resolve). Nothing is written. An unknown key state never resolves, and neither does a model that an admin chose.
+/// replaced and without the endpoint fields that belong to the entry's own provider (ConfigStore.DropEndpoint, Resolve). Nothing is written. An unknown key state never resolves, and neither does a model that an admin chose.
 /// Rows reads the Table of the class it is called on, so that a test class can replace the table. This class names no other OcuTalon
 /// package (AD-2).
 Class OcuTalon.Bridge.Providers
@@ -52,6 +52,23 @@ ClassMethod Row(provider As %String) As %DynamicObject
 		If row.%Get("provider") = provider {
 			Set found = row
 			Quit
+		}
+	}
+	Quit found
+}
+
+/// The provider whose row lists the model, in table order, or "" when none does (and for an empty model). Every selectable model belongs to one
+/// provider.
+ClassMethod ProviderOf(model As %String) As %String
+{
+	Set model = $Get(model)
+	If model = "" Quit ""
+	Set found = ""
+	Set iterator = ..Rows().%GetIterator()
+	While (found = "") && iterator.%GetNext(, .row) {
+		Set models = row.%Get("models").%GetIterator()
+		While models.%GetNext(, .name) {
+			If name = model Set found = row.%Get("provider")
 		}
 	}
 	Quit found
@@ -125,6 +142,7 @@ ClassMethod Resolve(item As %String, production As %String, providerConfig As %S
 		Set entryProvider = $Select(details.%GetTypeOf("model_provider") = "string": details.%Get("model_provider"), 1: "")
 		If '..Choose(..Rows(), entryProvider, state, isDefault, .chosen, .chosenModel) Quit
 		Set row = ..Row(chosen)
+		Do ##class(OcuTalon.Bridge.ConfigStore).DropEndpoint(details)
 		Do details.%Set("model_provider", chosen)
 		Do details.%Set("api_key", "@{env:"_row.%Get("keyVariable")_"}")
 		Set config = details

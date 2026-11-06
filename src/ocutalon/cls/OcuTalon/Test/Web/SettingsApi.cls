@@ -14,7 +14,8 @@
 ///     the command is the CSP session's, not the body's;
 ///   - TestRefusedSaves: a refused value, a field that is not the section's, "@{" and a body that is not an object answer 400 bad_settings with the
 ///     ruled text and the fields, and change nothing;
-///   - TestBridgeRoutesAre501: budgets and time-zone reach the real stubs and answer 501 not_built; models and channels are 501;
+///   - TestBridgeRoutesAre501 (U-177 exception, Contest Planner, 2026-11-05): budgets and time-zone reach the built bridge settings and are saved, applied and put back, a
+///     value off the allow-list is 400 with nothing changed; models and channels are 501;
 ///   - TestSaveDemoModeAudited: an admin's demo mode save (the stack's own mode) answers 200 and writes one entry with the call's user, the CSP session's Ref and the channel web;
 ///   - TestDemoModeBodies: a demo mode body that is not exactly {demoMode: true or false} is 400 with nothing submitted;
 ///   - TestAnswerMapping: each outcome of a save has its status, code and text;
@@ -277,21 +278,45 @@ Method TestRefusedSaves()
 	Do $$$AssertEquals(..Rows(), 0, "nothing is written")
 }
 
-/// Budgets and time-zone reach the real stubs through the production: 501 not_built. Models and channels are 501.
+/// U-177 one-time exception (Contest Planner ruling of 2026-11-05, Story 17.4, IG-2's conditions): this Lane B test asserts the built behaviour of the bridge settings. The
+/// budgets and time-zone routes reach the real SettingsOps and Bridge.Settings through the production: an accepted value is saved (200 done) and applied, and a value
+/// that is off the allow-list is 400 bad_settings with the field named and nothing changed. Models and channels are still 501 not_built. The test puts back every value
+/// that it wrote, and a check at its end re-reads the token budget, the daily cap and the zone and finds the originals.
 Method TestBridgeRoutesAre501()
 {
 	If '..Guard() Quit
+	Set bridge = "OcuTalon.Bridge.Settings"
+	Set originals = ..BridgeValues()
 	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
 	Set session = ..Session()
-	Set wanted = {"error": {"code": "not_built", "message": "This part of OcuTalon isn't built yet."}}.%ToJSON()
-	Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": 5000, "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
-	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "budgets: 501 not_built")
-	Set body = ..Call("SaveTimeZone", {"InstanceZone": "Europe/Paris"}.%ToJSON(), session, .response)
-	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "time-zone: 501 not_built")
-	Set body = ..Call("NotBuilt", "{}", session, .response)
-	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "models and channels: 501 not_built")
-	Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": "@{env:KEY}", "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
-	Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DecisionTokenBudget""]}", "a value with @{ is refused before the stub is asked")
+	Try {
+		Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": 5000, "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).result, "200 OK|done", "budgets: 200 done")
+		Do $$$AssertEquals(..BridgeValues(), "5000|7.5|"_$Piece(originals, "|", 3), "and the budget and the cap are applied")
+		Set body = ..Call("SaveTimeZone", {"InstanceZone": "Europe/Paris"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).result, "200 OK|done", "time-zone: 200 done")
+		Do $$$AssertEquals($Piece(..BridgeValues(), "|", 3), "Europe/Paris", "and the zone is applied")
+		Set applied = ..BridgeValues()
+		Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": 100001, "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DecisionTokenBudget""]}", "a budget above the bound is 400 bad_settings and names the field")
+		Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": 5000, "DailyCostCapUSD": "7.555"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DailyCostCapUSD""]}", "and so is a cap of three decimals")
+		Set body = ..Call("SaveTimeZone", {"InstanceZone": "Mars/Olympus"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""InstanceZone""]}", "and a zone that no file backs")
+		Do $$$AssertEquals(..BridgeValues(), applied, "nothing changed after the refusals")
+		Set wanted = {"error": {"code": "not_built", "message": "This part of OcuTalon isn't built yet."}}.%ToJSON()
+		Set body = ..Call("NotBuilt", "{}", session, .response)
+		Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "models and channels: 501 not_built")
+		Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": "@{env:KEY}", "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DecisionTokenBudget""]}", "a value with @{ is refused before the bridge is asked")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do $ClassMethod(bridge, "Set", "DecisionTokenBudget", $Piece(originals, "|", 1))
+	Do $ClassMethod(bridge, "Set", "DailyCostCapUSD", $Piece(originals, "|", 2))
+	Do $ClassMethod(bridge, "Set", "InstanceZone", $Piece(originals, "|", 3))
+	Do ##class(OcuTalon.Bridge.Time).Apply()
+	Do $$$AssertEquals(..BridgeValues(), originals, "the token budget, the daily cap and the zone are the originals again")
 }
 
 /// A demo mode body that is not exactly {demoMode: true or false} is 400 with the field named when it is the field's value, and nothing is submitted.
@@ -361,6 +386,13 @@ Method TestStateHasAdmin()
 }
 
 /// --- helpers ---
+/// The token budget, the daily cap and the zone that the bridge holds, as "<budget>|<cap>|<zone>" (Bridge.Settings.Values and Bridge.Time.Zone).
+ClassMethod BridgeValues() As %String [ Private ]
+{
+	Set values = ##class(OcuTalon.Bridge.Settings).Values()
+	Quit values.%Get("DecisionTokenBudget")_"|"_values.%Get("DailyCostCapUSD")_"|"_##class(OcuTalon.Bridge.Time).Zone()
+}
+
 /// 1 when the test may run. Otherwise it fails with the reason, and the test quits.
 Method Guard() As %Boolean [ Private ]
 {

@@ -21,7 +21,8 @@
 ///     entry, because the setting's validation expands @{config:}.
 /// Added by Story 17.3 (AD-19):
 ///   - TestKeepsChosenProvider: an existing entry keeps a provider of the provider table and exactly its own placeholder across a run, with every other
-///     field structural; another variable, or a provider the table lacks, gets Anthropic and its placeholder.
+///     field structural; another variable, or a provider the table lacks, gets Anthropic and its placeholder. Story 17.4 (DW-758): the kept entry of another
+///     provider holds none of the endpoint overrides (base_url, custom_headers, tls) even with the base URL and the mock-key flag set, and keeps its timeouts.
 /// Added by Story 1.7 (AD-8, AD-19, AD-23):
 ///   - every entry holds the timeouts of the bridge timer in http_config, after custom_headers and tls, in the judges' install too: the
 ///     request timeout and the whole retry block (TestDetails for the timers 60 and 30, TestEntries and TestRerun for the stored
@@ -334,12 +335,17 @@ Method TestKeepsChosenProvider()
 		// a chosen provider with its own placeholder is kept, and the stale timeouts are rewritten
 		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge("OcuTalonTriage", {"model_provider": "openai", "api_key": "@{env:OPENAI_API_KEY}", "model": "gpt-5.4"}), "the entry is changed to OpenAI through Merge's model shape")
 		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge("OcuTalonTriage", {"http_config": {"request_timeout_secs": 99, "retry": {"max_retries": 7}}}), "and its timeouts are made stale")
-		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Provider).Run(), "the step runs")
+		// DW-758: the endpoint overrides are the Anthropic endpoints of CI, so an entry that keeps another provider gets none of them, with the base URL and the
+		// mock-key flag set; the timeouts are rewritten whole
+		Set structural = ##class(OcuTalon.Install.Step.Provider).Details("OcuTalon.Agent.Triage", "", "", "", ..Timer())
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Provider).Apply(..#MOCKURL, "", "1"), "the step runs with the base URL and the mock-key flag of CI")
 		Set details = ..Details("OcuTalonTriage")
 		Do $$$AssertEquals(details."model_provider"_"|"_details."api_key", "openai|@{env:OPENAI_API_KEY}", "the provider and its placeholder are kept")
-		Do $$$AssertEquals(details."http_config".%ToJSON(), expected."http_config".%ToJSON(), "and the http_config is rewritten whole")
+		Do $$$AssertEquals(details.%IsDefined("base_url"), 0, "the entry holds no base_url of the other provider")
+		Do $$$AssertEquals(details."http_config".%IsDefined("custom_headers")_"|"_details."http_config".%IsDefined("tls"), "0|0", "and no header and no TLS block")
+		Do $$$AssertEquals(details."http_config".%ToJSON(), structural."http_config".%ToJSON(), "and the http_config is the timeouts alone, rewritten whole")
 		Do $$$AssertEquals(details.%IsDefined("model"), 0, "and the entry holds no model")
-		Set kept = {}.%FromJSON(expected.%ToJSON())
+		Set kept = {}.%FromJSON(structural.%ToJSON())
 		Do kept.%Set("model_provider", "openai")
 		Do kept.%Set("api_key", "@{env:OPENAI_API_KEY}")
 		Do $$$AssertEquals(details.%ToJSON(), kept.%ToJSON(), "every other field is the structural one")

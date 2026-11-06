@@ -162,6 +162,7 @@ The settings of the `Decide` item:
 | `DailyCostCapUSD` | 0 (off) | The most the bridge may spend in a day, in US dollars. At the cap, requests take the fallback route with the reason `daily_cap`. |
 | `GatewaySpendUSD` | empty | The spend that an outbound gateway reports for the day in `GatewaySpendDate`. Only a deployment with such a gateway sets it. |
 | `GatewaySpendDate` | empty | The date, YYYY-MM-DD, that `GatewaySpendUSD` counts. |
+| `InstanceZone` | empty (the container's time zone) | The time zone in which the bridge works out a day, an IANA name such as `Europe/Berlin`; the day of the daily cost cap ends at midnight in it. Read it with `OcuTalon.Bridge.Time.Zone` and change it with `OcuTalon.Bridge.Time.SetZone`, which refuses a name that is no zone; it applies to the next conversion with no restart. |
 | `ServiceUser` | `OcuTalonService` | The IRIS user whose privileges the bridge checks for a tool that declares resources. OcuTalon's own install creates `OcuTalonService`. On your own instance, set it to an IRIS user of your own. The bridge checks it only for a tool that declares resources, and a user that does not exist holds nothing, so such a tool is denied. |
 | `ApprovalRole` | `OcuTalonUser` | The role a person needs to answer an approval request. OcuTalon's own install creates `OcuTalonUser`. On your own instance, set the role you create, as the example does. An empty value refuses to raise a request. |
 | `ToolClassification` | empty | The classification of your own tools. See "Tool classification". |

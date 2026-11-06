@@ -699,10 +699,11 @@ Method AssertAnswered(label As %String, request As OcuTalon.Bridge.Msg.Request, 
 		Do $$$AssertEquals($List(second, 1), "TriageAgent|"_row.Ref_"|"_request.ItemId, label_"the retry names the first runner, with the same DecisionRef and ItemId")
 	}
 	If mark = "" Quit
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT SUM(InputTokens), SUM(OutputTokens), SUM(RequestCount), COUNT(*) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", row.Ref)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT SUM(InputTokens), SUM(OutputTokens), SUM(RequestCount), COUNT(*), SUM(CostUSD) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", row.Ref)
 	Do result.%Next()
 	Do $$$AssertTrue(result.%GetData(4) '< 1, label_"the runners wrote Usage rows under the DecisionRef: "_result.%GetData(4))
 	Do $$$AssertEquals(row.InputTokens_"|"_row.OutputTokens_"|"_row.AgentStepCount, result.%GetData(1)_"|"_result.%GetData(2)_"|"_result.%GetData(3), label_"and the row holds the sums of their tokens and requests")
+	Do $$$AssertEquals(row.CostUSD, $Number(result.%GetData(5), 6), label_"and the sum of their cost")
 	Do $ClassMethod(..#MOCK, "LogSince", mark, .entries)
 	Set logged = $ClassMethod(fixture, "FindRequests", entries, request.ItemId)
 	Set models = ""

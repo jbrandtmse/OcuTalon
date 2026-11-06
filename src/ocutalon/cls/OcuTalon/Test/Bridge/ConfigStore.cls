@@ -18,6 +18,7 @@
 ///     missing entry are refused, and nothing is created;
 ///   - TestMergeKeyNameCharacters: an api_key placeholder is exactly @{env:<the provider's variable>}; any other variable, a hyphen, a dot, a colon,
 ///     a dollar sign, a letter outside ASCII, a line end or a space around the placeholder is refused;
+///   - TestProviderChangeDropsEndpoint (Story 17.4, DW-758): a provider change removes base_url, custom_headers and tls and keeps the timeouts; the same provider keeps them;
 ///   - TestMissingEntry: a missing entry is an error that names it, and nothing is created;
 ///   - TestDetails (Story 1.6): Details reads the entry with its placeholders unresolved, by its short or its full name; a missing entry
 ///     is an error that names it and leaves details empty; Merge and Keys read through it;
@@ -169,7 +170,44 @@ Method TestMergePlaceholder()
 	Set details = ..EntryDetails()
 	Do $$$AssertEquals(details."api_key", "@{env:OPENAI_API_KEY}", "the key is stored as the literal placeholder")
 	Do $$$AssertEquals(details."model_provider", "openai", "and the provider is changed")
-	Do $$$AssertEquals(details."base_url", "http://old.invalid/v1/", "the other fields stay")
+	Do $$$AssertEquals(details.%IsDefined("base_url"), 0, "the base URL of the other provider is gone (DW-758)")
+	Do $$$AssertEquals(details.extra.%ToJSON(), "[1,2]", "the other fields stay")
+}
+
+/// Story 17.4 (DW-758): the endpoint fields (base_url, http_config.custom_headers, http_config.tls) belong to the entry's provider. A model-change Merge that changes the
+/// provider removes them and keeps the timeouts and every other field; one that keeps the provider (Anthropic onto an Anthropic entry) keeps them; DropEndpoint
+/// does the same to any details object, leaves an object with no endpoint field as it is, and removes an http_config that it empties.
+Method TestProviderChangeDropsEndpoint()
+{
+	Set store = "OcuTalon.Bridge.ConfigStore"
+	Set name = ..EntryName()
+	Set start = ..EntryDetails()
+	Do start."http_config".%Set("tls", {"ca_certificates": ["/opt/ca/extra.pem"], "accept_invalid_certs": false, "accept_invalid_hostnames": false})
+	Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).Modify("AI.LLM."_name, start), "the entry gets a TLS block as well (written whole, as the Provider step writes it)")
+	Set before = ..EntryDetails()
+	Do $$$AssertTrue(before."http_config".%IsDefined("custom_headers") && before."http_config".%IsDefined("tls") && before.%IsDefined("base_url"), "control: it holds base_url, a header and a TLS block")
+	Do $$$AssertStatusOK($ClassMethod(store, "Merge", name, {"model_provider": "anthropic", "api_key": "@{env:ANTHROPIC_API_KEY}", "model": "claude-sonnet-5-5"}), "(4) Anthropic is merged onto the Anthropic entry")
+	Set same = ..EntryDetails()
+	Do $$$AssertEquals(same.%ToJSON(), before.%ToJSON(), "the endpoint fields and everything else are kept")
+	Do $$$AssertStatusOK($ClassMethod(store, "Merge", name, {"model_provider": "openai", "api_key": "@{env:OPENAI_API_KEY}"}), "(1) OpenAI is merged onto it")
+	Set after = ..EntryDetails()
+	Do $$$AssertEquals(after.%IsDefined("base_url"), 0, "base_url is gone")
+	Do $$$AssertEquals(after."http_config".%IsDefined("custom_headers")_"|"_after."http_config".%IsDefined("tls"), "0|0", "and so are the header and the TLS block")
+	Do $$$AssertEquals(after."http_config"."request_timeout_secs", 10, "the request timeout stays")
+	Do $$$AssertEquals(after."model_provider"_"|"_after."api_key"_"|"_after.extra.%ToJSON(), "openai|@{env:OPENAI_API_KEY}|[1,2]", "and so do the new pair and the other fields")
+	Do $$$AssertStatusOK($ClassMethod(store, "Merge", name, {"model_provider": "openai", "api_key": "@{env:OPENAI_API_KEY}"}), "OpenAI merged onto OpenAI")
+	Do $$$AssertEquals(..EntryDetails().%ToJSON(), after.%ToJSON(), "changes nothing")
+
+	Set details = {"base_url": "http://x.invalid/v1/", "http_config": {"custom_headers": {"a": "1"}}, "model_provider": "openai"}
+	Do $ClassMethod(store, "DropEndpoint", details)
+	Do $$$AssertEquals(details.%ToJSON(), "{""model_provider"":""openai""}", "DropEndpoint removes an http_config that it empties")
+	Set details = {"model_provider": "openai", "http_config": {"request_timeout_secs": 5, "tls": {}}}
+	Do $ClassMethod(store, "DropEndpoint", details)
+	Do $$$AssertEquals(details.%ToJSON(), "{""model_provider"":""openai"",""http_config"":{""request_timeout_secs"":5}}", "and keeps the timeouts")
+	Set same = details.%ToJSON()
+	Do $ClassMethod(store, "DropEndpoint", details)
+	Do $ClassMethod(store, "DropEndpoint", "")
+	Do $$$AssertEquals(details.%ToJSON(), same, "an object with no endpoint field is left as it is, and a value that is no object is ignored")
 }
 
 /// Story 17.3 (DW-52, AD-7): the model-change shape is exactly model_provider, api_key and optionally model. Each case is refused with a reason that names
@@ -214,7 +252,8 @@ Method TestModelChangeShape()
 	Set details = ..EntryDetails()
 	Do $$$AssertEquals(details."model_provider"_"|"_details."api_key", "openai|@{env:OPENAI_API_KEY}", "the entry holds the provider and the placeholder")
 	Do $$$AssertEquals(details.%IsDefined("model"), 0, "and never the model: the runner's Model setting carries it")
-	Do $$$AssertEquals(details."base_url", "http://old.invalid/v1/", "the other fields stay")
+	Do $$$AssertEquals(details.%IsDefined("base_url"), 0, "and no base URL of the other provider (DW-758)")
+	Do $$$AssertEquals(details.extra.%ToJSON(), "[1,2]", "the other fields stay")
 	// a field named like a key (a Google-shaped name, built here so that no key-shaped text sits in this file) is refused, and the reason never echoes the name
 	Set keyName = "AI"_"za"_"SyZzFieldName0123456789abcdefghijk"
 	Set unchanged = ..EntryDetails().%ToJSON()

@@ -357,8 +357,9 @@ Method TestEntriesWithRetries()
 
 /// Apply merges the block of the timer into the entries of the first runners and the block of RetryTimer of the timer into those of the retry runners
 /// (DW-647): Apply(100) gives the first runners a request timeout of 45 and the retry runners one of 1, the derivation of 12, because 100 leaves 10
-/// seconds for a second model, which Decide does not send. Each retry runner has a new job, and each entry keeps its key placeholder and its headers.
-/// The timer is put back after the test.
+/// seconds for a second model, which Decide does not send. Apply(60) first pins the unclamped formula (DW-727): the first runners' entries derive from 60
+/// (an attempt of 25 seconds and a request timeout of 25) and the retry runners' from RetryTimer(60) = 50 (an attempt of 20 and a request timeout of 20).
+/// Each retry runner has a new job, and each entry keeps its key placeholder and its headers. The timer is put back after the test.
 Method TestApplyRetryEntries()
 {
 	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()
@@ -371,9 +372,18 @@ Method TestApplyRetryEntries()
 	Set jobs("ChatAgentRetry") = $ClassMethod(fixture, "Jobs", "ChatAgentRetry")
 	Do $$$AssertTrue((jobs("TriageAgentRetry") '= "") && (jobs("ChatAgentRetry") '= ""), "control: the retry runners have jobs")
 	Do ##class(OcuTalon.Bridge.ConfigStore).Details("OcuTalonTriageRetry", .beforeDetails)
-	Set sc = $ClassMethod(fixture, "UseTimer", 100, .saved)
+	Set sc = $ClassMethod(fixture, "UseTimer", 60, .saved)
 	Try {
-		Do $$$AssertStatusOK(sc, "Apply(100) is OK")
+		Do $$$AssertStatusOK(sc, "Apply(60) is OK")
+		For name = "OcuTalonTriage", "OcuTalonDiagnosis", "OcuTalonChat" {
+			Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Details(name, .details), name_" is read")
+			Do $$$AssertEquals(details."http_config"."request_timeout_secs"_"|"_details."http_config".retry."attempt_timeout_secs", "25|25", name_" derives from 60: a request timeout and an attempt of 25")
+		}
+		For name = "OcuTalonTriageRetry", "OcuTalonDiagnosisRetry", "OcuTalonChatRetry" {
+			Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Details(name, .details), name_" is read")
+			Do $$$AssertEquals(details."http_config"."request_timeout_secs"_"|"_details."http_config".retry."attempt_timeout_secs", "20|20", name_" derives from RetryTimer(60) = 50: a request timeout and an attempt of 20")
+		}
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Timeouts).Apply(100, $Parameter(fixture, "PRODUCTION")), "Apply(100) is OK")
 		For name = "OcuTalonTriage", "OcuTalonDiagnosis", "OcuTalonChat" {
 			Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Details(name, .details), name_" is read")
 			Do $$$AssertEquals(details."http_config"."request_timeout_secs", 45, name_" has the block of 100: a request timeout of 45")

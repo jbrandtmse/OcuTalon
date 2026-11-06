@@ -79,14 +79,27 @@ ClassMethod Prices() As %List
 		$ListBuild("us.anthropic.claude-sonnet-5-5", 2, 10, 0.1, 2.5, "", "", ""))
 }
 
+/// The earlier seed of the row of claude-sonnet-5-5, whose cache-read price was 0.2 before it became the provider's list figure (DW-757), as a
+/// $ListBuild in the order of Prices(), with the model.
+ClassMethod EarlierSonnetSeed() As %List [ Private ]
+{
+	Quit $ListBuild("claude-sonnet-5-5", 2, 10, 0.2, 2.5, "", "", "")
+}
+
 /// Creates the rows of Prices() that no row has the Model of. A row that exists is left alone, whatever it holds: the prices are
-/// seed values (AD-19), so an admin's edit survives every start, and a deleted row is created again.
+/// seed values (AD-19), so an admin's edit survives every start, and a deleted row is created again. The one exception (DW-757) is the row of
+/// claude-sonnet-5-5 that still holds exactly EarlierSonnetSeed, all seven values: its cache-read price is set to the current seed, once. A row
+/// that has any other value, an edited one included, is never touched, and neither is a Usage row, which keeps its cost.
 ClassMethod SeedPrices() As %Status
 {
 	Set prices = ..Prices()
 	Set position = 0
 	While $ListNext(prices, position, price) {
-		If ##class(OcuTalon.Bridge.Data.Price).ModelIndexExists($List(price, 1)) Continue
+		If ##class(OcuTalon.Bridge.Data.Price).ModelIndexExists($List(price, 1)) {
+			Set sc = ..CorrectEarlierSeed(price)
+			If $$$ISERR(sc) Return sc
+			Continue
+		}
 		Set row = ##class(OcuTalon.Bridge.Data.Price).%New()
 		Set row.Model = $List(price, 1)
 		Set row.InputPerMTok = $List(price, 2)
@@ -100,6 +113,22 @@ ClassMethod SeedPrices() As %Status
 		If $$$ISERR(sc) Return sc
 	}
 	Quit $$$OK
+}
+
+/// Sets the cache-read price of the existing row of the model of the seed price to the seed's, when the model is claude-sonnet-5-5 and the
+/// row holds exactly EarlierSonnetSeed (SeedPrices).
+ClassMethod CorrectEarlierSeed(price As %List) As %Status [ Private ]
+{
+	Set earlier = ..EarlierSonnetSeed()
+	If $List(price, 1) '= $List(earlier, 1) Quit $$$OK
+	Set row = ##class(OcuTalon.Bridge.Data.Price).ModelIndexOpen($List(price, 1))
+	If '$IsObject(row) Quit $$$OK
+	Set held = $ListBuild(row.Model, row.InputPerMTok, row.OutputPerMTok, row.CacheReadPerMTok, row.CacheWritePerMTok, row.LongThresholdTokens, row.LongInputPerMTok, row.LongOutputPerMTok)
+	For i = 2:1:8 {
+		If +$List(held, i) '= +$List(earlier, i) Return $$$OK
+	}
+	Set row.CacheReadPerMTok = $List(price, 4)
+	Quit row.%Save()
 }
 
 /// Creates each of OcuTalon.Bridge.Audit.Events() that is missing, enabled, and enables each one that is disabled.

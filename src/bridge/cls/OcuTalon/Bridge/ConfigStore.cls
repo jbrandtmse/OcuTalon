@@ -10,6 +10,9 @@
 ///     and optionally model, a selectable model of that provider. The model is checked and never written, because an entry never holds a
 ///     model (AD-7): the runner's Model setting carries it.
 ///   - An empty object merges nothing and is accepted.
+/// The endpoint fields belong to the entry's model_provider (DW-758): base_url, http_config.custom_headers and http_config.tls. A merge in the
+/// model-change shape that changes the entry's provider removes them (DropEndpoint) and leaves the timeouts, and a merge that keeps the provider
+/// leaves them. Providers.Resolve and the Provider install step use DropEndpoint too.
 /// Any other field, any other value, any @{ form and any mixture of the two shapes is refused, with a reason that names the field and never
 /// holds a value, and nothing is written.
 Class OcuTalon.Bridge.ConfigStore
@@ -58,12 +61,28 @@ ClassMethod Merge(entry As %String, fields As %DynamicObject) As %Status
 		If $SYSTEM.Status.IsError(sc) Quit
 		Set merged = {}.%FromJSON(fields.%ToJSON())
 		If merged.%IsDefined("model") Do merged.%Remove("model")
+		If merged.%IsDefined("model_provider") && (details.%Get("model_provider") '= merged.%Get("model_provider")) Do ..DropEndpoint(details)
 		Do ..MergeInto(details, merged)
 		Set sc = ##class(%ConfigStore.Configuration).Modify(fqn, details)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
 	Quit sc
+}
+
+/// Removes the endpoint fields of an entry's details, in place: base_url, http_config.custom_headers and http_config.tls, which belong to the
+/// entry's model_provider (DW-758). The timeouts in http_config stay, and so does every other field. An http_config that is left empty is removed.
+/// details is a dynamic object as Details gives it; anything else is left alone.
+ClassMethod DropEndpoint(details As %DynamicObject)
+{
+	If '$IsObject($Get(details)) || 'details.%IsA("%Library.DynamicObject") Quit
+	If details.%IsDefined("base_url") Do details.%Remove("base_url")
+	If details.%GetTypeOf("http_config") = "object" {
+		Set block = details.%Get("http_config")
+		If block.%IsDefined("custom_headers") Do block.%Remove("custom_headers")
+		If block.%IsDefined("tls") Do block.%Remove("tls")
+		If block.%Size() = 0 Do details.%Remove("http_config")
+	}
 }
 
 /// Puts back the details of an entry that Details read: the entry is written whole through Modify, which validates it against the
