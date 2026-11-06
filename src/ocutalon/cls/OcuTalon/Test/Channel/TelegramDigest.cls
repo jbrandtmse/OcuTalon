@@ -10,7 +10,8 @@
 ///     characters that names five of them and ends the list with "And 196 more on the OcuTalon page.";
 ///   - TestLongDigestSplits: a demo-sized session's digest (eight watched entries and three open Decisions) is one message of at most 4096 characters; the digest of a
 ///     session with 200 watched entries is sent as several messages in order, each of at most 4096 characters and cut at line breaks only: every line of every message is
-///     one whole rendered piece of the digest, each piece is there once, and the coverage lines are in the order of the rows;
+///     one whole rendered piece of the digest, each piece is there once, the coverage lines are in the order of the rows, the greeting comes first and the cost
+///     last, and the Delivery row records the last message;
 ///   - TestRenderError: a digest with a part that cannot be rendered sends nothing and returns the error;
 ///   - TestGotItButton: a tell-now message with a DecisionRef carries one inline button "Got it" whose callback data is gotit:<DecisionRef>, and one with no DecisionRef carries
 ///     none;
@@ -363,6 +364,7 @@ Method TestLongDigestSplits()
 				Set hash = $SYSTEM.Encryption.SHA1Hash(text)
 				Set want(hash) = $Get(want(hash)) + 1
 				If list = "lines" Set lines = $Get(lines) + 1, lineHash(lines) = hash
+				If list = "parts" Set:'$Data(firstHash) firstHash = hash Set lastHash = hash
 			}
 		}
 		Do $$$AssertEquals(lines, 205, "control: the 200 rows and the five vital signs give 205 coverage lines")
@@ -397,6 +399,7 @@ Method TestLongDigestSplits()
 			Set last = $Get(position(lineHash(i)))
 		}
 		Do $$$AssertTrue(order, "and the coverage lines follow each other in the order of the rows")
+		Do $$$AssertEquals($Get(position(firstHash))_"|"_$Get(position(lastHash)), "1|"_seen, "the greeting opens the first message and the cost ends the last")
 		Set smallId = $Piece(..Rows(small), ":", 2), bigId = $Piece(..Rows(big), ":", 2)
 		Do $$$AssertEquals(..Rows(big), "digest|"_bigRef_":"_bigId, "one Delivery row of the kind digest records a message of the chat")
 		Do $$$AssertTrue((smallId ? 1.N) && (bigId ? 1.N) && (bigId - smallId >= (messages + 1)), "which is the last message: its id follows the small digest's by the confirmation and every message")

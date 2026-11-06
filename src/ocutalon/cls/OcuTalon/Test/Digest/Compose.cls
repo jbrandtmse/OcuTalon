@@ -24,16 +24,18 @@
 ///   - TestFailurePath: an error of the rows or of the send of the Notification is returned, and no Sent row follows;
 ///   - The digest routing until Notify routes by digest.channels (Story 17.6): the session's own channels are set on the probe (OwnChannels) and
 ///     digest.channels is taken out of the way before each test (so that a row left by another test cannot narrow the channels) and put back after it. TestRouteOwn: with no value saved, or one that names every own channel, the digest goes to
-///     Notify alone and so reaches exactly the session's own channels; TestRouteSubset: a saved subset narrows the delivery to the items of that subset, in the
+///     Notify alone and so reaches exactly the session's own channels, its Sent row lists every own channel and misses none, Digest writes no routing row,
+///     and a later tick sends nothing more; TestRouteSubset: a saved subset narrows the delivery to the items of that subset, in the
 ///     order of Notify's rule; TestRouteNoneReachable: a saved value that names no own channel sends nothing, ends the Compose with an error status
 ///     holding the fixed diagnostic, writes no Sent row and makes no model request, also when the value changes while the summary is awaited;
 ///     TestRouteForeign: a channel outside the session's own, an unknown name and the name of an item add no destination;
 ///     TestOwnChannels: the product's own reading of the session's channels (web, phone with demo mode, telegram when paired);
 ///   - Each direct send is independent (AD-14, the interim route until Story 18.2). TestOwnMatchesNotify: the session's own channels equal the channels that
 ///     Notify's generic route reaches for a digest Notification, evaluated on the router for demo mode on and off, Telegram included or not and a session paired
-///     or not; TestChannelFailure: when the first channel's send fails the second still gets the digest, the Sent row says Channels and Failed, the Compose
+///     or not, and demo mode and the Telegram setting are put back; TestChannelFailure: when the first channel's send fails the second still gets the digest, the Sent row says Channels and Failed, the Compose
 ///     ends with an error status that names the channel, and each send wrote its Ens.Rule.Log row; TestRetryMissedChannel: a later tick sends the stored Slots to
-///     the channel that failed alone, never again to the one that got it, at most MAXATTEMPTS times, and drops a channel that is no longer named;
+///     the channel that failed alone, never again to the one that got it, with the session's TraceRef as SuperSession and its own routing row;
+///     TestRetryStops: the failed channel is tried at most MAXATTEMPTS times; TestRetryDropsUnnamedChannel: a channel that is no longer named is dropped;
 ///     TestThrowingChannel: a send that throws is a failed channel and the next channel is still tried;
 ///     TestEveryChannelFails: no channel reached, no Sent row, one error status naming every channel, and a row for each send.
 Class OcuTalon.Test.Digest.Compose Extends OcuTalon.Test.Bridge.ZoneCase
@@ -769,6 +771,9 @@ Method TestOwnMatchesNotify()
 		Set ^OcuTalonTest("TelegramIncluded") = included
 	}
 	Do ##class(OcuTalon.Test.Demo.Step).PutBack(found, value, updatedAt)
+	Do ##class(OcuTalon.Test.Demo.Step).Saved(.nowFound, .nowValue, .nowUpdatedAt)
+	Do $$$AssertEquals(nowFound_"|"_nowValue_"|"_nowUpdatedAt, found_"|"_value_"|"_updatedAt, "demo mode is put back as the test found it")
+	Do $$$AssertEquals($Get(^OcuTalonTest("TelegramIncluded")), included, "and so is the Telegram setting")
 }
 
 /// A Tick that is due for no fixture session (before every session's CreatedAt), handled by the host: it only sends the digests that missed a channel again.
@@ -859,8 +864,12 @@ Method TestRetryMissedChannel()
 	Do $$$AssertStatusNotOK(..Missed(session, "WebChatOut", .host), "the web chat is missed")
 	Set first = ..Sent(session)
 	Set host.FailItems = ""
+	Set host.%SuperSession = "zztick"
 	Do ..Retick(host)
 	Do $$$AssertEquals(..Items(), "WebChatOut,TelegramOut,WebChatOut", "the next tick sends to the web chat alone, never again to Telegram")
+	Do $$$AssertEquals($List($ClassMethod(..#PROBE, "Record", "notice", 3), 7), ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef, "the digest sent again carries the session's TraceRef as its SuperSession, not the tick's (AD-26)")
+	Do $$$AssertEquals(host.%SuperSession, "zztick", "and the tick's own SuperSession is put back after it")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "RouteRows").%Size(), 3, "the send again wrote its routing row")
 	Set row = ..Sent(session)
 	Do $$$AssertEquals(..SentRows(session), 1, "on the same Sent row")
 	Do $$$AssertEquals(row.Ref_"|"_row.Channels_"|"_row.Failed_"|"_row.Attempts, first.Ref_"|telegram,web||1", "which now lists both channels, misses none and counts the attempt")

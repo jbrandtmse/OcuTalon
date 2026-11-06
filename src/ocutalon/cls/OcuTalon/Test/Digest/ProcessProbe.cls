@@ -3,8 +3,8 @@
 /// process-private global ^||DigestProbe and overrides:
 ///   - SendCompose saves the Compose (a queued digest is a body that the due check and the key check read) and records it, in order, as
 ///     ^||DigestProbe("compose", n) = $ListBuild(session, kind, dueAt, key, windowStart, windowEnd, id);
-///   - SendNotice records the Notification as ^||DigestProbe("notice", n) = $ListBuild(session, kind, catalogKey, decisionRef, slots, item), item being
-///     the item it was sent to (Notify, or the item of a channel), and fails when FailNotice is set or when the item is one of FailItems (comma-separated), and throws instead when the item is one of ThrowItems;
+///   - SendNotice records the Notification as ^||DigestProbe("notice", n) = $ListBuild(session, kind, catalogKey, decisionRef, slots, item, superSession), item
+///     being the item it was sent to (Notify, or the item of a channel) and superSession the host's %SuperSession at the send, and fails when FailNotice is set or when the item is one of FailItems (comma-separated), and throws instead when the item is one of ThrowItems;
 ///   - Own gives the session's own channels from OwnChannels (comma-separated) when it is set, else the product's (ReadOwn always gives the product's);
 ///   - SendSummary records the request as ^||DigestProbe("summary", n) with the fields kind, provenance, sessionMode, seedText, ownerRef, itemId, input,
 ///     channel, systemNote, summary and traceRef, and fails when FailSummary is set;
@@ -247,7 +247,7 @@ Method ReadOwn(sessionRef As %String) As %List
 Method SendNotice(notification As OcuTalon.Msg.Notification, item As %String) As %Status [ Private ]
 {
 	Set n = $Increment(^||DigestProbe("notice"))
-	Set ^||DigestProbe("notice", n) = $ListBuild(notification.SessionRef, notification.Kind, notification.CatalogKey, notification.DecisionRef, notification.Slots, item)
+	Set ^||DigestProbe("notice", n) = $ListBuild(notification.SessionRef, notification.Kind, notification.CatalogKey, notification.DecisionRef, notification.Slots, item, ..%SuperSession)
 	If $ListFind($ListFromString(..ThrowItems), item) Throw ##class(%Exception.General).%New("zz the Notification threw", 5001, , "zz the Notification threw for "_item)
 	If ..FailNotice || $ListFind($ListFromString(..FailItems), item) Quit $SYSTEM.Status.Error(5001, "zz the Notification could not be sent to "_item)
 	Quit $$$OK

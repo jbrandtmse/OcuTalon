@@ -123,6 +123,8 @@ Parameter MESSAGECHANNEL = "The digest did not reach the channel ";
 
 Parameter LOGROUTE = "Digest could not write the routing row of a digest: ";
 
+Parameter LOGRESEND = "Digest could not send a digest again to the channels it missed: ";
+
 /// The seed values of the digest's settings, as {"<setting key>": "<value>"}: the time of the scheduled digest. The digest channels are not seeded.
 ClassMethod Seeds() As %DynamicObject
 {
@@ -221,7 +223,7 @@ Method Resends() As %Status [ Private ]
 		} Catch exception {
 			Set sc = exception.AsStatus()
 		}
-		If $$$ISERR(sc) $$$LOGWARNING(..#LOGSKIP_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		If $$$ISERR(sc) $$$LOGWARNING(..#LOGRESEND_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 	}
 	Quit $$$OK
 }
@@ -245,12 +247,16 @@ Method Resend(id As %String, sessionRef As %String) As %Status [ Private ]
 }
 
 /// Sends the stored digest of the Sent row to the channels it missed that are still reachable and named, and records the outcome on the row: the attempt is
-/// counted and saved before the send, the channels handed the digest join Channels, the channels still missed stay in Failed, and a channel that is no
-/// longer reachable or named is dropped from Failed.
+/// counted and saved before anything else, the channels handed the digest join Channels, the channels still missed stay in Failed, and a channel that is no
+/// longer reachable or named is dropped from Failed. The sends carry the session's TraceRef as their SuperSession (AD-26), the process's own being put back
+/// after them.
 Method Resent(id As %String) As %Status [ Private ]
 {
 	Set row = ##class(OcuTalon.Digest.Data.Sent).%OpenId(id)
 	If '$IsObject(row) || (row.Failed = "") || (row.Attempts >= ..#MAXATTEMPTS) Quit $$$OK
+	Set row.Attempts = row.Attempts + 1
+	Set saved = row.%Save()
+	If $$$ISERR(saved) Quit saved
 	Set missed = $ListFromString(row.Failed)
 	Set retry = ""
 	If $$$ISOK(..Channels(row.SessionRef, .channels, .own)) {
@@ -259,24 +265,23 @@ Method Resent(id As %String) As %Status [ Private ]
 			If $ListFind(missed, channel) Set retry = retry_$ListBuild(channel)
 		}
 	}
-	Set row.Attempts = row.Attempts + 1
-	Set saved = row.%Save()
-	If $$$ISERR(saved) Quit saved
 	Set sc = $$$OK
 	Set delivered = "", failed = ""
 	If retry '= "" {
-		Set notification = ##class(OcuTalon.Msg.Notification).%New()
-		Set notification.SessionRef = row.SessionRef
-		Set notification.Kind = "digest"
-		Set notification.CatalogKey = row.CatalogKey
-		Set notification.DecisionRef = row.DecisionRef
-		Set notification.Slots = row.Slots
-		Set sc = ..SendDirect(notification, retry, .delivered, .failed)
+		Set superSession = ..%SuperSession
+		Try {
+			Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(row.SessionRef)
+			If $IsObject(session) Set ..%SuperSession = session.TraceRef
+			Set sc = ..SendDirect(..DigestNotification(row.SessionRef, row.CatalogKey, row.DecisionRef, row.Slots), retry, .delivered, .failed)
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+		Set ..%SuperSession = superSession
 	}
 	Set row.Channels = $ListToString($ListFromString(row.Channels)_delivered)
 	Set row.Failed = $ListToString(failed)
 	Set saved = row.%Save()
-	Quit $Select($$$ISERR(saved): saved, 1: sc)
+	Quit $Select($$$ISERR(saved): $SYSTEM.Status.AppendStatus(saved, sc), 1: sc)
 }
 
 /// The latest instant at or before tickAt whose clock in the instance zone reads digest.time, UTC; "" when tickAt cannot be read.
@@ -539,13 +544,7 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 	Do costSlots.%Set("cost", cost, "number")
 	Do parts.%Push({"key": "digest.cost", "slots": (costSlots)})
 	Set slots = {"parts": (parts), "lines": (lines), "rows": (rows)}.%ToJSON()
-	Set notification = ##class(OcuTalon.Msg.Notification).%New()
-	Set notification.SessionRef = sessionRef
-	Set notification.Kind = "digest"
-	Set notification.CatalogKey = checkKey
-	Set notification.DecisionRef = decisionRef
-	Set notification.Slots = slots
-	Set sc = ..Deliver(notification, channels, own, .delivered, .failed)
+	Set sc = ..Deliver(..DigestNotification(sessionRef, checkKey, decisionRef, slots), channels, own, .delivered, .failed)
 	If $ListLength(delivered) = 0 Quit sc
 	Set row = ##class(OcuTalon.Digest.Data.Sent).%New()
 	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -563,7 +562,19 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 	Set row.Channels = $ListToString(delivered)
 	Set row.Failed = $ListToString(failed)
 	Set saved = row.%Save()
-	Quit $Select($$$ISERR(saved): saved, 1: sc)
+	Quit $Select($$$ISERR(saved): $SYSTEM.Status.AppendStatus(saved, sc), 1: sc)
+}
+
+/// The Notification of kind digest of the session, with its CatalogKey, DecisionRef and Slots.
+ClassMethod DigestNotification(sessionRef As %String, checkKey As %String, decisionRef As %String, slots As %String) As OcuTalon.Msg.Notification [ Private ]
+{
+	Set notification = ##class(OcuTalon.Msg.Notification).%New()
+	Set notification.SessionRef = sessionRef
+	Set notification.Kind = "digest"
+	Set notification.CatalogKey = checkKey
+	Set notification.DecisionRef = decisionRef
+	Set notification.Slots = slots
+	Quit notification
 }
 
 /// The channels a digest of the session goes to, in the order of Notify's rule, and the session's own channels (both as lists). An error status with

@@ -3917,6 +3917,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: a requested row with DueAt set could be taken for the newest scheduled row
 - 2026-11-03T23:07:37Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=harvest note=store an empty DueAt for requested digests or add an index on (SessionRef, Kind, DueAt)
+- 2026-11-06T20:24:55Z status=resolved-by:17-6-send-the-daily-digest-at-the-set-time-and-on-request by=adjudication note=due_lookup_filters_Kind='scheduled'(Digest/Process.cls:335,443);requested_digests_store_empty_DueAt;pinned_by_Test.Digest.Due+DueEdges
 
 ### DW-650: Story 17.2 has no acceptance criterion for the RetryOf behavioural tests (a)-(d) the spine records as notes (AD-6 sub-bullet, Conventions Retried turns, veto U-246); the 33.1 static pin cannot see a client value reaching RetryOf through a generic copy (case c)
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-epic
@@ -3929,6 +3930,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: S6 'due when the latest digest.time has passed and its newest scheduled Sent row's DueAt is earlier' has no row on a new session; window text plans a first digest
 - 2026-11-04T00:35:24Z status=decision-pending owner=burndown by=cr note=product call: first digest of a new session at once, or at the next digest.time after its CreatedAt; 17.6 builds it
 - 2026-11-05T02:18:29Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=burndown note=ruled_2026-11-05_by_the_Contest_Planner_under_delegation(orchestrator):first_scheduled_digest_at_the_first_digest.time_after_CreatedAt;AD-18_amended_in_Epic_33_burn-down;DW-651_bullet_under_17.6;17.6_builds_and_tests_it
+- 2026-11-06T20:24:55Z status=resolved-by:17-6-send-the-daily-digest-at-the-set-time-and-on-request by=adjudication note=AD-18_amended_due_rule_built(DueAt>CreatedAt);Test.Digest.Due.TestCreatedBefore/TestCreatedAfter+DueEdges.TestCreatedAtTheDueTime
 
 ### DW-652: AD-18/AD-32 digest text does not say that the vital-signs part's key (digest.healthy or digest.vitalsNotAll) is chosen by Checks.Render, though AD-28's Rule reserves that choice to it
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: low | fix-risk: low | footprint: in-story
@@ -4005,6 +4007,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Production lists Digest Enabled=false; CommandsIn.IsStub recognises code 5003 only; tests route to a recording owner; no route submits SendDigest yet
 - 2026-11-04T23:50:45Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=harvest note=first caller runs it against the real production once Lane A enables the item, or CommandsIn maps the disabled-item error to not_built
 - 2026-11-05T01:02:21Z occurrence=33-2-open-the-settings-page-as-an-admin
+- 2026-11-06T20:24:55Z status=resolved-by:17-6-send-the-daily-digest-at-the-set-time-and-on-request by=adjudication note=Digest_enabled_in_Production.cls:60_(Q3_oracle_row);SendDigest_answers_ok/sending(Test.Digest.Send)
 
 ### DW-699: A demo mode saved on the settings page does not reach the open main page until a reload
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: high | footprint: in-story
@@ -4059,6 +4062,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T12:08:42Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=orchestrator note=veto ; bullet goes on Story 17.6 at Epic 33's merge
 - 2026-11-04T12:09:11Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=orchestrator note=inbox=U-271 (the first line's blank veto id)
 - 2026-11-06T04:41:05Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=owner note=planner_ruling_2026-11-06~04:40Z(owner_delegation):one-time_U-177_exception_for_17.6:add_digest.cost_fixture_row_to_Lane_B_Test.Msg.Catalog,count_152->153,U-177_marker_citing_the_ruling,fix_any_web_catalog_test_it_trips,nothing_else_in_Lane_B;digest.cost_text_goes_to_the_Planner_as_PUBLIC_TEXT_before_17.6_commits
+- 2026-11-06T20:24:55Z status=resolved-by:17-6-send-the-daily-digest-at-the-set-time-and-on-request by=adjudication note=digest.cost_in_Msg/Catalog/Watch.cls:504_(dailyCost_slot);Test.Msg.Catalog_fixture_row_under_the_U-177_exception;text_ruled
 
 ### DW-663: flake candidate: live:online-demo web/e2e-online/busy.spec.ts:83 B1: the demoBusy banner stayed past 15 s after a place was free
 - source: CI run 41824429030 attempt 1, iris (install-fresh), OCT-epic33 b1f187da | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4377,6 +4381,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Digest.Process.Finish puts every watched entry in digest.checked and whatFailed and Coverage.Build's lines are passed unchanged; TelegramOut.Send splits over 4096; about 22 failed or 45 passed rows exceed it
 - 2026-11-06T18:54:29Z status=decision-pending owner=burndown by=cr note=product call: bound or fold the coverage lines (AD-18/AD-32 say one line per row) or accept a split digest
 - 2026-11-06T19:07:35Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=owner note=Planner_ruling_2026-11-06:option_2_now(Telegram_splits_at_line_boundaries,in_order;Q4_b_amended);residual=option_1(fold_coverage_lines_past_a_limit_into_a_count;new_catalog_line=public_text;AD-18/AD-32_one_line_per_row)->Story_18.2_or_the_Epic_17_follow-up
+- 2026-11-06T20:22:27Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
 
 ### DW-816: With Digest enabled, the installed heartbeat's tick at digest.time sends a scheduled digest to every alive session created before it, so a test that spans that minute and counts its session's notices or unscoped mock requests can go red
 - source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4402,3 +4407,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-14 interim note (AMENDED 2026-11-06, Story 17.6); Rule 2: a test pins Own against Notify's actual generic-route targets until then
 - 2026-11-06T19:07:35Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=Rule 2 forced copy (Planner ruling 2026-11-06, AD-14 option a): Story 18.2 makes Notify honour digest.channels for kind digest and deletes Digest.Process.Own and the direct sends
+- 2026-11-06T20:22:27Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request

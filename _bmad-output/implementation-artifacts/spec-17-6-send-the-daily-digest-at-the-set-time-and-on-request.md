@@ -283,35 +283,7 @@ Code review of 2026-11-06 (four layers, full-opus; 46 rows; 20 entries after gro
 - [x] [Review][Defer] LOW a tick's scheduled Composes share the tick's trace session, as `Intake.Join` does for Checks' findings (AD-26) [src/ocutalon/cls/OcuTalon/Digest/Process.cls:218] — deferred: DW-817 wontfix-accepted
 - [x] [Review][Defer] LOW the Q1 forward's warnings carry no context prefix [src/ocutalon/cls/OcuTalon/Checks/Process.cls:191] — deferred: DW-818 wontfix-accepted (the ruled block allows no other line)
 - [x] [Review][Defer] LOW `DueEdges` copies `Due`'s set-up (Rule 2, tests) [src/ocutalon/cls/OcuTalon/Test/Digest/DueEdges.cls:30] — deferred: DW-819 wontfix-accepted
-- Ledger: DW-643 (FromLocal's repeated hour, the Measured observation above) gets `occurrence=17-6-...`. DW-649, DW-651, DW-661 and DW-696 are addressed as `### 2026-11-06 - Review pass 2 (rework iteration 1 implement; follow-up pass, diff of this pass only)
-- verdicts: 24 findings - high 0, medium 1, low 19, false 3, maybe-false 1 (the three intent-alignment rows are descriptive readings, logged as low)
-- findings:
-  - `[low]` `[patch]` BH1 "reached" only means queued: the comments of `Sent` and `Process` read as delivery facts - reworded to "handed to (queued for the item)"; the item's own delivery is its own record (groups with EC7)
-  - `[false]` `[reject]` BH2 a failed read of the channels erases the retry - `Channels` returns an error status only for MESSAGENOCHANNEL; a failed read throws, and `Resend`'s Catch returns it without touching the row
-  - `[low]` `[reject]` BH3 no signal or spacing when the attempts run out - the count and the spacing of a retry are implementation details; the failure is on the Compose header and in the route rows, and `Failed` stays on the row
-  - `[low]` `[reject]` BH4 a multi-part Telegram digest replays from part 1 - Digest retries only a failed hand-over (nothing was queued); a failure inside `TelegramOut` is the operation's own retry, unchanged by this pass
-  - `[low]` `[reject]` BH5 each tick scans `Sent`; the early `Quit`s of `Ticked` skip the resends; `LOGSKIP` wording - a small table, a malformed tick is rare, and the fix adds an index or a branch
-  - `[false]` `[reject]` BH6 a partial delivery is saved and errored, so a resend of the Compose from the message viewer duplicates - `Composed` drops a Compose whose key or DueAt already has a Sent row (`If ..Sent(compose) Quit`)
-  - `[low]` `[reject]` BH7 untested read-error, lock-timeout and throw branches; `position()` keeps the first of two equal lines; the id arithmetic depends on the mock - the throw branch got a test (VG3); the others need a seam or a state the tests cannot reach, and the coverage lines of the test are distinct
-  - `[low]` `[patch]` EC1 `Resent` could throw or fail its save after the send, so `Attempts` never grows - the attempt is now counted and saved before the send
-  - `[low]` `[reject]` EC2 a stale digest is retried after a pause - the retry is at most three ticks after the first tick that runs, with the day's own digest
-  - `[low]` `[reject]` EC3 a retry for a session that has gone - `WebChatOut` refuses an owner that is not a session; the attempts are bounded
-  - `[low]` `[patch]` EC4 `LogRoute` outside the Try could abort the loop - its body is now in a Try/Catch that logs one warning
-  - `[low]` `[reject]` EC5 `Ticked` returns before `Resends` on a bad tick or a failed session read - same as BH5
-  - `[low]` `[reject]` EC6 a multi-part digest failing at part k is resent from part 1 by the operation - same as BH4
-  - `[low]` `[patch]` EC7 delivery failures after the hand-over are invisible to `Digest` - same as BH1: the wording now says what `Channels` means
-  - `[false]` `[reject]` EC8 the Intent says one Notify send and one message - the intent block is read-only; the rulings of 2026-11-06 amend it for the interim route (Design Notes, Decided 45 to 48)
-  - `[medium]` `[patch]` VG1 the Notify path never asserts the new `Sent` columns - `TestRouteOwn` asserts `Channels|Failed|Attempts` = own, no routing row from Digest and no resend on a later tick; mutation: the Notify branch storing `failed = channels` -> `TestRouteOwn` red
-  - `[low]` `[patch]` VG2 two `TestLongDigestSplits` assertions (the Delivery row holds the last message; the parts in order) had no mutation line - both mutations run and recorded
-  - `[low]` `[patch]` VG3 the `Catch` branch of `SendDirect` was not driven - probe `ThrowItems` and `TestThrowingChannel`; mutation: the Try/Catch removed -> red
-  - `[maybe-false]` `[reject]` VG-H1 the running `Digest` item's own tick could retry a test's failed rows - a window of one tick a minute for a few milliseconds; the same reasoning as DW-816 (wontfix-theoretical); a CI red that shows it settles it
-  - `[low]` `[patch]` VG-H2 the route rows of the fixed trace session are deleted only after a test - `OnBeforeOneTest` now cleans them too
-  - `[low]` `[reject]` VG-B `Resent` counts an attempt when every missed channel was dropped; the early-quit tick is not pinned - the dropped case is pinned by `TestRetryDropsUnnamedChannel`; the early quit is BH5
-  - `[low]` `[reject]` IA1 the diff pins dispatch-time (enqueue) outcomes at a test seam, not an item's own delivery - the ruling's "send fails" is the hand-over; Decided 45 records it
-  - `[low]` `[reject]` IA2 item 2's production change is comments only - `TelegramOut.Send` already splits with `Api.Split`; Decided 48 records it and the test pins it
-  - `[low]` `[reject]` IA3 "a later window" read as a later tick, not a later digest - Decided 45 records the reading; a later digest's window already starts at the partial row's `SentAt`
-
-## Design Notes` "Ledger" says (Kind filter and requested `DueAt` ""; the due rule with `TestCreatedBefore`/`TestCreatedAfter` and QA's `TestCreatedAtTheDueTime`; `digest.cost` in the catalog and the fixture row; `Digest` enabled with `TestWebAdminSends`); the lead adjudicates them.
+- Ledger: DW-643 (FromLocal's repeated hour, the Measured observation above) gets `occurrence=17-6-...`. DW-649, DW-651, DW-661 and DW-696 are addressed as `## Design Notes` "Ledger" says (Kind filter and requested `DueAt` ""; the due rule with `TestCreatedBefore`/`TestCreatedAfter` and QA's `TestCreatedAtTheDueTime`; `digest.cost` in the catalog and the fixture row; `Digest` enabled with `TestWebAdminSends`); the lead adjudicates them.
 
 Rejected:
 - `false` `TestTickReachesDigest` reaches every session: only sessions created before the latest `digest.time` are due (DW-651), the same set the installed every-minute heartbeat reaches; sessions made on the stack after that time are not touched.
@@ -322,6 +294,31 @@ Rejected:
 - `low` (spec-bound) Got it and the needs-you list before a handled writer exists: AD-14 says `SessionOps` answers `not_built` until Story 18.4.
 - `low` (spec-bound) `DECISIONMAX` 1000 (Decided in-stage 14), the empty-key repeat (the contract's key check applies only to a non-empty key), a warning per tick when an operator disables `Digest` (Q1's ruled warning).
 - `low` a `Sent` save failing after the Notification (Slots has no length limit; needs a storage failure), a forged `gotit:` press for a non-tell-now Decision of the paired chat's own session (needs crafted callback data; the writer is 18.4's), `Send.Composes` ignoring discarded or aborted headers, `Named` falling back on a read that fails without throwing (still only own channels), `TestRepeatKey`'s "before the first is composed" label (both orders hit the same Compose-body check).
+
+Code review 2 of 2026-11-06 (rework re-review, iteration 1 of 3; diff `073656c9..HEAD`; four layers, full-opus; 27 rows; 20 entries after grouping: high 1, med 0, low 11 kept, 8 rejected). Checklist: AD-14 option (a) conditions (1) to (4) met, with the one HIGH below patched; DW-815 option (2) met. No `Notify`, `SettingsOps`, `Web/Api.cls`, Lane B or contended file in the diff; `Sent`'s storage change is values 14 to 16 appended, and the `Sent` contract test matches.
+
+- [x] [Review][Patch] HIGH (AD-26, Rule 6) a retried digest's Notification carried the tick's SuperSession, not the session's `TraceRef`: `Resent` now sets `..%SuperSession` to the session's `TraceRef` for the sends and puts the process's own back; `TestRetryMissedChannel` asserts both (probe records the SuperSession of each send) [src/ocutalon/cls/OcuTalon/Digest/Process.cls:253]
+- [x] [Review][Patch] LOW a `Channels()` read that throws on every tick left `Attempts` unchanged, so the row was retried and warned about every minute without end: the attempt is counted and saved before the channels are read [src/ocutalon/cls/OcuTalon/Digest/Process.cls:257]
+- [x] [Review][Patch] LOW a failed `Sent` save dropped the status of the channels that failed (`Finish` and `Resent`): both statuses are kept (`AppendStatus`) [src/ocutalon/cls/OcuTalon/Digest/Process.cls:565]
+- [x] [Review][Patch] LOW `Resent` repeated `Finish`'s five-field Notification build (Rule 2): one private `DigestNotification` [src/ocutalon/cls/OcuTalon/Digest/Process.cls:569]
+- [x] [Review][Patch] LOW a failed resend was logged with `LOGSKIP` ("skipped a session's digest"): `LOGRESEND` (an operator diagnostic in the existing convention) [src/ocutalon/cls/OcuTalon/Digest/Process.cls:226]
+- [x] [Review][Patch] LOW `Sent.Channels` said "in the order of Notify's rule" (a retry appends) and the class doc said Digest always sends to each channel: both reworded (Rule 14) [src/ocutalon/cls/OcuTalon/Digest/Data/Sent.cls:51]
+- [x] [Review][Patch] LOW the `Compose` class header credited `TestRetryMissedChannel` with `TestRetryStops`' and `TestRetryDropsUnnamedChannel`'s behaviour and did not describe `TestRouteOwn`'s new assertions: header corrected [src/ocutalon/cls/OcuTalon/Test/Digest/Compose.cls:38]
+- [x] [Review][Patch] LOW the retry's own routing row and the first/last pieces of a split digest were not asserted: `TestRetryMissedChannel` counts the third routing row, `TestLongDigestSplits` asserts the greeting opens the first message and the cost ends the last [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramDigest.cls:402]
+- [x] [Review][Patch] LOW `TestOwnMatchesNotify` put demo mode and `^OcuTalonTest("TelegramIncluded")` back without checking (Rule 19), unlike its sibling `TestOwnChannels`: the two restore assertions added [src/ocutalon/cls/OcuTalon/Test/Digest/Compose.cls:775]
+- [x] [Review][Patch] LOW the review pass 2 triage block had been pasted into the middle of the round-1 "Ledger:" bullet, leaving a stray `## Design Notes` heading: the sentence is whole again and the block sits under `## Review Triage Log` (text unchanged) [this spec]
+- [x] [Review][Defer] LOW `Compose.NotifyChannels` repeats `Test.Core.Routing.Route`'s shadow-router evaluation, a copy forced because that method is private to a Lane B test class (Rule 2) [src/ocutalon/cls/OcuTalon/Test/Digest/Compose.cls:723] — deferred: DW-820 `occurrence` (Story 18.2 deletes `Own`, the direct sends and this comparison together)
+- [x] [Review][Defer] LOW a single line longer than 4,096 units (the checked line of a session watching several hundred entries) is still cut at the limit by `Api.Split` (Decided 48) [src/ocutalon/cls/OcuTalon/Channel/Telegram/Out.cls:26] — deferred: DW-815 `occurrence` (its residual option (1), owner 18.2)
+
+Rejected (code review 2):
+- `false` the `## Auto Run Result` lost the story-level summary: Rule 14 says a rework pass's Auto Run Result covers only that pass.
+- `false` the routing row is per channel where Notify's is per message: the ruling asks for a row "equivalent ... so AD-26's count holds", and `Core/Trace.cls` counts every rule-log row of the session; Decided 46 records the shape.
+- `low` (spec-bound) a partly failed Compose ends with an error status although the digest went: ruling condition (1) asks that each failure be recorded and visible, Decided 45 chose the Compose status, and its text names the missed channel and item, so it does not read as "no digest".
+- `low` "the next window sends only to the failed channel" read as the next ticks, at most `MAXATTEMPTS`: judged consistent with the ruling (the retry goes to the failed channel alone and never to a channel of `Channels`; a literal "next digest" reading would send tomorrow's digest to one channel); the residual, a channel down for longer than three ticks misses that digest and keeps `Failed` with `Attempts` 3 on its row, is the retry count, an implementation detail.
+- `low` `TestLongDigestSplits`' last-message check is a lower bound on the mock's message counter: the exact form `..LastMessageId(chatId)` was tried and is wrong (the mock numbers `editMessageText` too, so it went red on the warm stack after `TestHandledEdit`); an exact count needs the mock's call sequence; the lower bound went red under VG2's mutation.
+- `low` the demo-sized digest's "at most 4096 characters" assertion cannot fail with its fixture: harmless; the one-message assertion before it pins the requirement.
+- `low` EC1's first save and EC4's `LogRoute` Catch have no pinning test: defensive branches with no AC; driving them needs a storage-failure seam.
+- `low` an operator re-sending a partly failed requested Compose with an empty `IdempotencyKey` from the message viewer would send it to every channel again: needs a manual resend of an errored message and an empty key (the empty-key repeat is spec-bound, round 1).
 
 **Acceptance Criteria:**
 - Given `digest.time` and a session created before today's time, when the heartbeat's tick passes it, then `Checks` forwards the Tick, `Digest` sends one `Notification` of kind `digest` to `Notify` with the AD-32 Slots, and records one scheduled `Sent` row. Given a session created after it, then none is sent until tomorrow's tick (DW-651).
@@ -409,6 +406,34 @@ Rejected:
   - `[false]` `[reject]` IA4 contended-file edits beyond the "Never" list - each is ruled (G1, G2, Q1 to Q7, Q2).
   - `[low]` `[reject]` IA5 most matrix rows are asserted on a shadow instance - the live rows (`Send`, `Tool`, `TelegramDigest`) ran on fresh stacks in this pass.
   - `[false]` `[reject]` IA6 CommandsIn routing of `SendDigest` to `Digest` is not in the diff - `CommandsIn` :179 routes it already; the live `Send` tests pass.
+
+### 2026-11-06 - Review pass 2 (rework iteration 1 implement; follow-up pass, diff of this pass only)
+- verdicts: 24 findings - high 0, medium 1, low 19, false 3, maybe-false 1 (the three intent-alignment rows are descriptive readings, logged as low)
+- findings:
+  - `[low]` `[patch]` BH1 "reached" only means queued: the comments of `Sent` and `Process` read as delivery facts - reworded to "handed to (queued for the item)"; the item's own delivery is its own record (groups with EC7)
+  - `[false]` `[reject]` BH2 a failed read of the channels erases the retry - `Channels` returns an error status only for MESSAGENOCHANNEL; a failed read throws, and `Resend`'s Catch returns it without touching the row
+  - `[low]` `[reject]` BH3 no signal or spacing when the attempts run out - the count and the spacing of a retry are implementation details; the failure is on the Compose header and in the route rows, and `Failed` stays on the row
+  - `[low]` `[reject]` BH4 a multi-part Telegram digest replays from part 1 - Digest retries only a failed hand-over (nothing was queued); a failure inside `TelegramOut` is the operation's own retry, unchanged by this pass
+  - `[low]` `[reject]` BH5 each tick scans `Sent`; the early `Quit`s of `Ticked` skip the resends; `LOGSKIP` wording - a small table, a malformed tick is rare, and the fix adds an index or a branch
+  - `[false]` `[reject]` BH6 a partial delivery is saved and errored, so a resend of the Compose from the message viewer duplicates - `Composed` drops a Compose whose key or DueAt already has a Sent row (`If ..Sent(compose) Quit`)
+  - `[low]` `[reject]` BH7 untested read-error, lock-timeout and throw branches; `position()` keeps the first of two equal lines; the id arithmetic depends on the mock - the throw branch got a test (VG3); the others need a seam or a state the tests cannot reach, and the coverage lines of the test are distinct
+  - `[low]` `[patch]` EC1 `Resent` could throw or fail its save after the send, so `Attempts` never grows - the attempt is now counted and saved before the send
+  - `[low]` `[reject]` EC2 a stale digest is retried after a pause - the retry is at most three ticks after the first tick that runs, with the day's own digest
+  - `[low]` `[reject]` EC3 a retry for a session that has gone - `WebChatOut` refuses an owner that is not a session; the attempts are bounded
+  - `[low]` `[patch]` EC4 `LogRoute` outside the Try could abort the loop - its body is now in a Try/Catch that logs one warning
+  - `[low]` `[reject]` EC5 `Ticked` returns before `Resends` on a bad tick or a failed session read - same as BH5
+  - `[low]` `[reject]` EC6 a multi-part digest failing at part k is resent from part 1 by the operation - same as BH4
+  - `[low]` `[patch]` EC7 delivery failures after the hand-over are invisible to `Digest` - same as BH1: the wording now says what `Channels` means
+  - `[false]` `[reject]` EC8 the Intent says one Notify send and one message - the intent block is read-only; the rulings of 2026-11-06 amend it for the interim route (Design Notes, Decided 45 to 48)
+  - `[medium]` `[patch]` VG1 the Notify path never asserts the new `Sent` columns - `TestRouteOwn` asserts `Channels|Failed|Attempts` = own, no routing row from Digest and no resend on a later tick; mutation: the Notify branch storing `failed = channels` -> `TestRouteOwn` red
+  - `[low]` `[patch]` VG2 two `TestLongDigestSplits` assertions (the Delivery row holds the last message; the parts in order) had no mutation line - both mutations run and recorded
+  - `[low]` `[patch]` VG3 the `Catch` branch of `SendDirect` was not driven - probe `ThrowItems` and `TestThrowingChannel`; mutation: the Try/Catch removed -> red
+  - `[maybe-false]` `[reject]` VG-H1 the running `Digest` item's own tick could retry a test's failed rows - a window of one tick a minute for a few milliseconds; the same reasoning as DW-816 (wontfix-theoretical); a CI red that shows it settles it
+  - `[low]` `[patch]` VG-H2 the route rows of the fixed trace session are deleted only after a test - `OnBeforeOneTest` now cleans them too
+  - `[low]` `[reject]` VG-B `Resent` counts an attempt when every missed channel was dropped; the early-quit tick is not pinned - the dropped case is pinned by `TestRetryDropsUnnamedChannel`; the early quit is BH5
+  - `[low]` `[reject]` IA1 the diff pins dispatch-time (enqueue) outcomes at a test seam, not an item's own delivery - the ruling's "send fails" is the hand-over; Decided 45 records it
+  - `[low]` `[reject]` IA2 item 2's production change is comments only - `TelegramOut.Send` already splits with `Api.Split`; Decided 48 records it and the test pins it
+  - `[low]` `[reject]` IA3 "a later window" read as a later tick, not a later digest - Decided 45 records the reading; a later digest's window already starts at the partial row's `SentAt`
 
 ## Design Notes
 
@@ -764,6 +789,9 @@ Rework pass 1 (warm throwaway `e17s6kw`, one class per call, each mutation from 
 - mutation (review pass 2, VG3, a send that throws): the Try/Catch around `SendNotice` in `SendDirect` removed: `Compose` `TestThrowingChannel` red (the exception ends the loop; the second channel is not tried).
 - mutation (review pass 2, VG2, the Delivery row holds the last message): `TelegramOut.Send` keeping the first part's message id: `TelegramDigest` `TestLongDigestSplits` red ("which is the last message").
 - mutation (review pass 2, VG2, the parts in order): the parts reversed in `TelegramOut.Send`: `TestLongDigestSplits` red ("the coverage lines follow each other in the order of the rows").
+
+Code review 2 (2026-11-06; warm throwaway `e17s6dw`, one class per call, the mutation from a backup in the review scratch folder, reverted, the file compared byte for byte with the backup):
+- mutation (CR2, AD-26, a retried digest carries the session's trace tag): the `Set ..%SuperSession = session.TraceRef` line of `Resent` made `Set session = ""`: `Compose` `TestRetryMissedChannel` red ("the digest sent again carries the session's TraceRef as its SuperSession, not the tick's (AD-26)").
 
 ## Clarification Needed
 
