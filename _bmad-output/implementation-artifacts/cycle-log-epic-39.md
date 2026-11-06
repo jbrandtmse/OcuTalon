@@ -221,3 +221,4 @@
 2026-11-06T09:01:57Z	Story 39.2	dev_complete	spawn_at=2026-11-06T05:29:06Z model=sonnet build_sha=bb922c93 baseline_revision=be713bee story_base=32b8c7a9 review_loop_iteration=0 followup_review_recommended=false deferred=2 files=30 loc_added=2066 loc_removed=47 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1 ledger=DW-780(routed_burndown),DW-781(routed_39.5) note=self_review_22_rows_3_patched;AC2_mutation_strengthened;merge-base_diff_check_read_against_HEAD
 2026-11-06T09:01:57Z	Story 39.2	ledger_routed_planned	story=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now entries=1 excess=0 by=harvest
 2026-11-06T09:01:57Z	Story 39.2	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
+2026-11-06T09:02:04Z	Story 39.2	stage_spawned	stage=qa spawn_at=2026-11-06T09:02:04Z model=sonnet agent_name=39-2-qa-1 cycle_iteration=1
