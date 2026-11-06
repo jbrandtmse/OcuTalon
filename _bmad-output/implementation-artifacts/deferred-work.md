@@ -4585,6 +4585,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: notes-areas.txt maps 'epic 11 developer' and overrides only 11.2 and 11.8; 11.23 is judge-facing (install). release/ is outside 11.23's footprint (spec Never).
 - 2026-11-05T18:32:17Z status=wontfix-accepted owner=11-23-install-sh-accepts-build-109 by=cr note=draft notes are reviewed at the cut; reopen_if=the cut notes for the release shipping 11.23 list it under admins and developers
 
+### DW-759: release/checklist.sh CK_REGISTRY_TEXT (about line 463) says the README's two commands ran against the registry; once Story 11.24 lands, the README's IPM section gives an IPM load line and two enable commands before its two install commands, so the item undercounts what the registry check must run
+- source: spec-11-24-the-readme-s-ipm-install-works-literally-on-a-fresh-build-15.md | severity: med | fix-risk: low | footprint: out
+- evidence: release/checklist.sh:463 CK_REGISTRY_TEXT 'the README's two commands' vs README Install it with IPM (11.24: load line, enable -map -ns USER, enable -community, then two installs)
+- 2026-11-05T20:48:42Z status=routed owner=burndown by=spec_gate note=plan D9; release/ left alone in this run (dispatch ruling); a one-phrase change, e.g. 'the README's IPM commands'
+
+### DW-760: docs/install-ipm.md says the map step and enable -community 'give the same result when USER already had IPM'; measured only for USER mapped from %SYS (case 2), not for an IPM installed in USER itself, where the map may be skipped as for HSLIB and USER's repositories left unmapped (unverified)
+- source: spec-11-24-the-readme-s-ipm-install-works-literally-on-a-fresh-build-15.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Runs 1-3 and Task 0 cover no IPM and USER-mapped-from-%SYS only; the guide's own enable -community sample prints 'Skipping IPM mapping of HSLIB - IPM already installed'; the sentence is Planner-approved public text
+- 2026-11-05T21:41:21Z status=escalated owner=burndown by=cr note=approved public text; settle by a run with IPM installed in USER, or narrow the sentence to 'mapped from %SYS' (Planner)
+- 2026-11-05T22:14:38Z status=resolved-by:11-24-the-readme-s-ipm-install-works-literally-on-a-fresh-build-15 by=adjudication note=the_Planner_approved_the_replacement_sentence(owner_decision_11.24_DW-760_PUBLIC_TEXT);fix_cf3c0123;pinned_IPM_USER_SENTENCE+negative_check_for_the_old_sentence;Run_4_literal_evidence(IPM_in_USER:%SYS_blocks_skip_USER_repos,USER_enable_-community,Activate_SUCCESS,200);re-review_confirmed
 ### DW-764: flake candidate: demo-switch view.spec.ts:260 V5 '1024px: nothing scrolls across' failed once on feature b55cca7d, green on an unchanged rerun
 - source: feature b55cca7d run 42112148266 iris (shards-3) job 127542186198 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the delta since the last demo-switch run on feature (8345cfca, passed) touches no header or layout; each merged change passed demo-switch on its own branch; attempt 2 green
@@ -4667,3 +4677,34 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-8-run-now-and-a-saved-heartbeat-read-what-is-stored.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: BeatCase.SeedBeat writes the Session row then the checklist via Setting.Set (drops only the test process's cache); a real RunDue in that ms window caches an empty checklist for 60 s; TestShorterIntervalReschedules and TestBeatReachesIntake then see an empty skip
 - 2026-11-06T16:30:26Z status=wontfix-accepted owner=39-8-run-now-and-a-saved-heartbeat-read-what-is-stored by=cr note=window is a few saves per 60 s tick; fix needs a job-side cache seam; reopen_if=either test goes red in CI with an empty skip on its own session
+### DW-775: README Measured row 'The demo's incident, end to end with a live model: 30 of 30 runs' claims more than its source, the eval demo gate, which runs no dry run, approval or fix run
+- source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Gate.cls header: the demo gate validates the fix parameters 'and nothing more: no dry run, approval or Execute (AD-16)'; rc4.md:100 the live rehearsal stopped at run 8; README.md:34 is owner-ruled text
+- 2026-11-06T06:48:13Z status=decision-pending owner=burndown by=cr note=human=Contest Planner ruling on the row's label or number; the ruled text is not editable by a story
+- 2026-11-06T07:51:00Z status=decision-pending owner=burndown by=merge_gate note=to_planner: relabel the 'demo incident end to end, 30 of 30' row or confirm it (public text; any change is a fix story)
+- 2026-11-06T07:51:58Z status=routed owner=burndown by=owner note=Contest Planner (owner delegation) ruled (a): rows become 'The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs' and 'Model cost of the always-on online demo | about 9 to 10 cents a day'; fix story 11.26 on runner B (charters and re-owns this entry)
+- 2026-11-06T07:54:54Z status=routed owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=x0 note=re-owned to the 11.26 charter (planner_ruling subject=DW-775, ruling (a), 2026-11-06T07:51:58Z): relabel the two Measured rows exactly as ruled; closed at the 11.26 burn-down
+- 2026-11-06T08:39:42Z status=resolved-by:11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=adjudication note=delivered in 7debbc89: README.md:34 and :39 carry the two ruled labels exactly; test-readme.sh MEAS_LABELS 510/515 updated in place; measured rule red on either label reverted (spec Verification mutations)
+
+### DW-776: README Measured row 'Routine attention decisions right: 19 of 22' shows the best of three rc4 attempts (19, 18, 18 of 22) with no note that it is the best
+- source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Planner's source comment (collateral/readme-11-25-measured.md line 3): 'SM-1 19/22 + 18/22 + 18/22'; rc4.md:101 'SM-1 between 81.8 and 86.4 percent'; README.md:33 is owner-ruled text
+- 2026-11-06T06:48:16Z status=decision-pending owner=burndown by=cr note=human=Contest Planner ruling: keep the best try, or show the range; the ruled text is not editable by a story
+- 2026-11-06T07:51:00Z status=decision-pending owner=burndown by=merge_gate note=to_planner: keep 'best of three' 19 of 22 or show the range (public text; any change is a fix story)
+- 2026-11-06T07:51:58Z status=by-design owner=burndown by=owner note=Contest Planner (owner delegation) ruled (a) KEEP '19 of 22 (target: 20)': the owner's explicit choice and rc4's recorded release-candidate result (release-candidate.md L15)
+
+### DW-777: Nothing ties the README Measured numbers to later release evaluations, so a later release can publish the rc4 numbers as current unnoticed
+- source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: The Planner's source says 'Update the numbers if a later release eval changes them'; no test-readme.sh pin (numbers unpinned by spec) and no release/checklist.sh row checks them; release/** is not this story's
+- 2026-11-06T06:48:20Z status=wontfix-accepted owner=11-25-the-readme-s-judges-section-a-measured-table by=cr note=reopen_if=a release record after 1.0.0 rc4 reports an SM-1, SM-2, demo-gate or cost number unlike README lines 32-39
+### DW-774: flake: live:online-session leave.spec page.close 'no answer within 30 s' (L6 at eb6e2726, L5 at bd9b9de8) on feature under heavy CI load; same code green on OCT-epic34 689b6632
+- source: orchestrator feature CI | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: runs 42158625231 job 127698667108 (L6), 42158693602 job 127698892750 (L5); code identical to 689b6632 (shards green 42147189710); also sign-in-2 live-socket W3 GET /state no answer 30s (127698667166)
+- 2026-11-06T04:40:46Z status=routed owner=burndown by=orchestrator note=first occurrence pair; next burn-down with DW-550 (CSP session cap) and DW-685; a red on a quiet host makes it real
+- 2026-11-06T04:52:15Z occurrence=feature-61f32de8 by=orchestrator note=run 42161844768: live:answers close-loop C3 GET /state no answer 60s (127709120576); shard:lane-b Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved 'production runs every item' (127709120793); groups 1786-1828s; 4 concurrent ci.yml runs on 18 services; rerun --failed at low load
+- 2026-11-06T05:21:27Z occurrence=feature-61f32de8-rerun-green by=orchestrator note=attempt 2 of 42161844768 green at low load: flake class confirmed
+
+### DW-778: test-readme.sh measured rule does not fail on an extra Measured row, so an old 11.25 label re-added as a ninth row passes CI
+- source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: chk_measured (test-readme.sh 517-530) only requires each MEAS_LABELS label to start a row; README with '| The always-on online demo |' appended after line 39: git grep prints README.md:40, test-readme.sh PASS measured
+- 2026-11-06T08:38:06Z status=by-design owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=cr note=spec Never forbids a new rule/helper/self-test; QA declined the absence pin on purpose; AC1 absence held by the Verification git grep

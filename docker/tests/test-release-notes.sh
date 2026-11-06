@@ -26,7 +26,8 @@
 #   - no-network: the stubs for curl, wget, gh, ssh and nc are live (a call leaves a marker), and a run leaves none;
 #   - library: release_previous_tag and names_outside_section;
 #   - static: the rules on release/notes.sh and on this file; the not-affiliated note of release/notes.sh, release/checklist.sh and
-#     README.md is one text; names_outside_section finds nothing in README.md, as the README's own rule does;
+#     README.md is one text; names_outside_section finds nothing in README.md, as the README's own rule does, except the line that
+#     equals the IPM_LOAD value of test-readme.sh word for word (a changed load line is still reported; no IPM_LOAD value fails);
 #   - real-tree: the real mapping parses and names real story and epic headings; a run on a fresh repository holding the real scripts,
 #     mapping, module.xml, tracker and epics.md of HEAD (no tag) passes stories, dev-only and public-text, and its areas row passes or
 #     fails only for epics outside release 1 (RELEASE1_EPICS); notes.sh itself still fails areas for such an epic.
@@ -909,8 +910,18 @@ t_static() {
   eq "the note of release/notes.sh" "$(. release/notes.sh; printf '%s' "$notes_note")" "$NOTE"
   eq "the note of release/checklist.sh" "$(. release/checklist.sh; printf '%s' "$CK_NOTE")" "$NOTE"
   [ "$(grep -c -F -- "$NOTE" README.md)" -gt 0 ] || { echo "  README.md does not hold the note word for word"; bad=1; }
-  # names_outside_section is the README's own developer-section rule (dev_names of test-readme.sh): it finds nothing there either.
-  eq "names_outside_section on README.md" "$(. docker/tests/lib-scan.sh; names_outside_section '## For admins and developers' README.md)" ""
+  # names_outside_section is the README's own developer-section rule (dev_names of test-readme.sh): it finds nothing there either,
+  # except the line that equals IPM_LOAD of test-readme.sh word for word (read from that one line; a changed load line is reported).
+  local ipm_load s
+  ipm_load=$(sed -n "s/^IPM_LOAD='\(.*\)'\$/\1/p" docker/tests/test-readme.sh)
+  [ -n "$ipm_load" ] || { echo "  static: docker/tests/test-readme.sh holds no IPM_LOAD='...' line"; bad=1; }
+  printf '%s\n%sx\nThe class %s does it.\n' "$ipm_load" "$ipm_load" "$PLANT_CLASS" > "$tmp/ipm.md"
+  for s in "$tmp/ipm.md" README.md; do
+    o=$(. docker/tests/lib-scan.sh; names_outside_section '## For admins and developers' "$s" |
+      while IFS=: read -r f n; do [ -n "$ipm_load" ] && [ "$(sed -n "${n}p" "$f")" = "$ipm_load" ] || printf '%s:%s\n' "$f" "$n"; done)
+    if [ "$s" = README.md ]; then eq "names_outside_section on README.md" "$o" ""
+    else eq "break: the load line changed and a class name are reported" "$(printf '%s' "$o" | tr '\n' ' ')" "$s:2 $s:3"; fi
+  done
 }
 
 areas_ok_real() { # areas_ok_real: the areas row of $out passes, or fails only for unmapped epics outside RELEASE1_EPICS
