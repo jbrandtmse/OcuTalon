@@ -4594,3 +4594,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: K6 and K7 run at the default viewport only; check at 1100x720 and 800x720 that the press reaches its control (or selects/reveals it first)
 - 2026-11-06T15:31:05Z status=open owner=4-11-other-things-to-try by=harvest note=in-story MED for code review/QA: verify in the narrow bands and fix the hand-off if a target is off the page
+
+### DW-809: Other things to try item 5 repeats TryItRow's send guard (used, blocked, describedBy) instead of sharing one helper
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: more-to-try.ts:143-149 and try-it-row.ts:100-110 compute the same allowance and in-flight guard; both reuse turnInFlight, AllowanceState and COMPOSER_REASON_ID
+- 2026-11-06T16:04:54Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a third demo send guard appears, or TryItRow's blocked gains a condition MoreToTry lacks
+
+### DW-810: Demo.Features' memory, documents and heartbeat class-name parameters cannot be killed by a test on this branch
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Memory.Ops and Docs.Ops carry STUB=1 and RunHeartbeat is absent, so product and test probes both give 0 for a misspelled name
+- 2026-11-06T16:04:54Z status=wontfix-theoretical owner=4-11-other-things-to-try by=cr note=real if a merge of 19.3, 19.4 or Epic 39 skipped Test.Demo.Features, whose own probes then differ and go red
+
+### DW-811: Other things to try item 6 (Documents link) does not activate with Space, while AC6 says every control works with Enter and Space
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: the spec mandates a native a routerLink for item 6 and forbids keydown handlers in more-to-try.ts; native links activate with Enter; item 6 is hidden on this branch
+- 2026-11-06T16:04:54Z status=by-design owner=4-11-other-things-to-try by=cr note=spec-bound: Always 6 names the native link; reopens only by spec amendment when Story 19.4 shows the item

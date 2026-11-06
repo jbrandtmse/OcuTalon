@@ -154,7 +154,7 @@ export class MoreToTry {
     switch (item.action) {
       case 'persona':
         this.layout.focusRegion(RAIL_REGION);
-        this.handTo([PERSONA_CHANGE, `#${PERSONA_HEADING_ID}`], (control) => control.getAttribute('aria-expanded') === 'false');
+        this.handTo([PERSONA_CHANGE, `#${PERSONA_HEADING_ID}`], (control) => control.getAttribute('aria-expanded') !== 'true');
         break;
       case 'suspiciousEmail':
         this.tabs.select('mailbox');

@@ -631,13 +631,19 @@ const readRow1 = (row: Locator): Promise<{ lines: number; past: number; width: n
 
 /**
  * Q11: at 1280x800 and the normal text size, row 1 (the label, the five labelled steps, "About 2 minutes", More to try and Hide guide) takes
- * at most two lines, and the label and the steps share the first, measured in Inter once its faces have loaded (Story 4.11: the link made the
- * row wider than the 896px it has at this width on the Linux CI host, where each glyph is rounded to whole pixels, so the trailing controls
- * may wrap; before the link the row fit one line). Nothing runs past the row. The message carries the widths, so a red names the host's fit.
+ * at most two lines, and the label and the steps share the first, measured in Inter once its faces have loaded. On the Linux CI host, where
+ * each glyph is rounded to whole pixels, the row's children are wider than the row at this width, so the trailing controls may take the
+ * second line. Nothing runs past the row. The message and the annotation carry the widths, so a red names the host's fit.
  */
 test('Q11: row 1 takes at most two lines at 1280px at the normal text size, with the steps on the first', async ({ page }) => {
   const row = await openRow1(page);
   const fit = await readRow1(row);
+  const kids = await row.evaluate((node) =>
+    [...node.children].map((child) => `${child.className || child.tagName}=${child.getBoundingClientRect().width.toFixed(1)}`).join(' '),
+  );
+  const measured = `lines=${fit.lines} row=${fit.width.toFixed(1)} children+gaps=${fit.total.toFixed(1)} steps=${fit.steps.toFixed(1)} past=${fit.past.toFixed(1)} kids: ${kids}`;
+  test.info().annotations.push({ type: 'row1', description: measured });
+  console.log(`Q11 row 1 at 1280px: ${measured}`);
   expect(fit.lines, `row 1 is at most two lines: its children take ${fit.total.toFixed(1)}px of a ${fit.width.toFixed(1)}px row`).toBeLessThanOrEqual(2);
   expect(fit.past, 'and nothing runs past the row').toBeLessThanOrEqual(1);
   const firstLine = await row.evaluate((node) => {
@@ -655,7 +661,8 @@ test('Q11: row 1 takes at most two lines at 1280px at the normal text size, with
  * Q9: at a larger text size the step row wraps onto a second line instead of running past the guide (row 1 at 1280px, where the labels
  * show). The row's children are measured at the normal size, and the text tokens are scaled by the geometric mean of the factors at which
  * "everything fits" and "the steps alone fit" (1.1 at least): the row wraps if and only if flex-wrap lets the label, the steps, the
- * duration, More to try and Hide guide share more than one line. Q9 holds whether or not the row fits one line at the normal size; Q11 pins that fit.
+ * duration, More to try and Hide guide share more than one line. Q9 holds whether or not the row fits one line at the normal size (where it
+ * already wraps there, the checks that nothing runs past the row carry it); Q11 pins the row at the normal size.
  */
 test('Q9: the step row wraps at a larger text size and nothing runs past the row', async ({ page }) => {
   const row = await openRow1(page);

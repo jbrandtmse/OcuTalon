@@ -22,7 +22,10 @@ import { blockLiveSocket } from '../support/socket';
  *   - K9 (matrix 9): item 5 sends its prompt once; it sends nothing while its turn is in flight or the allowance is used up;
  *   - K10 (matrix 11): neither the link nor the panel shows with the switch off or without demo mode;
  *   - K11: leaving the finish: a panel control that holds focus hands it to the box, the panel is closed outside the finish until the
- *     link opens it, a new finish opens it again, and a press in the finish keeps it open when the finish leaves.
+ *     link opens it, a new finish opens it again, and a press in the finish keeps it open when the finish leaves;
+ *   - K12, K13: items 2 and 3 reach the chip and the box in the drawer band (1100x720) and the stacked band (800x720);
+ *   - K14 (matrix 5, error): item 1 focuses the Persona heading when the card has not loaded;
+ *   - K15 (matrix 6, error): item 2 sends nothing while the email limit holds, and focuses the inactive chip.
  */
 const BREAK_FEED = '**/ocutalon/api/v1/demo/break-feed';
 const SAMPLE = '**/ocutalon/api/v1/mailbox/samples/suspicious-request';
@@ -191,6 +194,8 @@ test('K2: in the finish the panel is open after the links and before Try it your
   await expect(linkOf(page)).toHaveAttribute('aria-controls', /.+/);
   const panel = panelOf(page);
   await expect(panel).toBeVisible();
+  const controlled = (await linkOf(page).getAttribute('aria-controls')) ?? '';
+  await expect(page.locator(`[id="${controlled}"]`).getByRole('group', { name: 'Other things to try', exact: true }), 'aria-controls names the panel').toHaveCount(1);
   const finish = guideRegion(page).locator('.finish');
   expect(await before(finish, '.finish-links', 'app-more-to-try'), 'after the finish links').toBe(true);
   expect(await before(finish, 'app-more-to-try', 'app-try-it-row'), 'and before Try it yourself').toBe(true);
@@ -514,4 +519,90 @@ test('K11: leaving the finish hands focus on, closes the panel unless a press ke
   await expect.poll(() => posts.length, { message: 'the box sent its request' }).toBe(1);
   await push(guide(FOUR, { step: 3, breakFeed: { active: true } }));
   await expect.soft(panelOf(page), 'the panel the press kept open stays').toBeVisible();
+});
+
+/** The two narrower layout bands of LAYOUT_QUERIES that the default viewport does not reach: the drawer (1024 to 1279px) and the stacked column (below 1024px), each at 720px tall. */
+const BANDS = [
+  { band: 'drawer', width: 1100, height: 720 },
+  { band: 'stacked', width: 800, height: 720 },
+] as const;
+
+for (const { band, width, height } of BANDS) {
+  /** K12 (item 2 in a narrow band): the press finds the Simulated mailbox tab's chip, sends the chip's one POST and focuses the chip. */
+  test(`K12: in the ${band} band (${width}x${height}) item 2 selects the mailbox tab, sends the chip's own POST once and puts focus on the chip`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    const posts = watchPosts(page, '/mailbox/samples/suspicious-request');
+    await page.route(SAMPLE, (route: Route) => route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ ref: 'zzk12' }) }));
+    await openWith(page, guide(FOUR));
+    await linkOf(page).click();
+    const control = controlOf(page, 'suspiciousEmail');
+    await control.focus();
+    await page.keyboard.press('Enter');
+    const chip = sampleChipOf(page.locator('app-simulated-mailbox'), 'Sample: suspicious request');
+    await expect(chip, `the chip is on the page in the ${band} band`).toBeVisible();
+    await expect(chip, 'focus is on the chip').toBeFocused();
+    await expect.poll(() => posts.length, { message: 'the chip sent its request' }).toBe(1);
+    await page.waitForTimeout(500);
+    expect(posts, 'exactly one POST, the chip\'s own').toHaveLength(1);
+  });
+
+  /** K13 (item 3 in a narrow band): the press finds the Break the feed box, sends its one POST and focuses its button. */
+  test(`K13: in the ${band} band (${width}x${height}) item 3 presses the box's Break the feed once and puts focus on it`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    const posts = watchPosts(page, '/demo/break-feed');
+    await page.route(BREAK_FEED, (route: Route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ state: 'sent', startedAt: iso(Date.now()) }) }),
+    );
+    await openWith(page, finished(FOUR, { breakFeed: { active: true } }));
+    await expect(breakButton(page), `the box is on the page in the ${band} band`).toBeVisible();
+    await expect(breakButton(page), 'the box is active').not.toHaveAttribute('aria-disabled', 'true');
+    await controlOf(page, 'rejectFix').click();
+    await expect(breakButton(page), 'focus is on Break the feed').toBeFocused();
+    await expect.poll(() => posts.length, { message: 'the box sent its request' }).toBe(1);
+    await page.waitForTimeout(500);
+    expect(posts, 'exactly one POST, the box\'s own').toHaveLength(1);
+  });
+}
+
+/** K14 (matrix 5, error handling): when the Persona card has not loaded, item 1 puts focus on the Persona heading. */
+test('K14: item 1 puts focus on the Persona heading when the Persona card has not loaded', async ({ page }) => {
+  let served = 0;
+  await page.route('**/ocutalon/api/v1/persona', (route: Route) => {
+    served += 1;
+    return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'zz The read failed.' } }) });
+  });
+  await openWith(page, guide(FOUR));
+  await expect.poll(() => served, { message: 'the card\'s read was answered with its failure' }).toBeGreaterThan(0);
+  await expect(changeOf(page), 'the card has not loaded').toHaveCount(0);
+  await linkOf(page).click();
+  await controlOf(page, 'persona').click();
+  await expect(page.locator('#rail-heading-persona'), 'focus is on the Persona heading').toBeFocused();
+});
+
+/** K15 (matrix 6, error handling): while the email limit holds, item 2 selects the tab and focuses the inactive chip, and sends nothing. */
+test('K15: item 2 sends nothing while the email limit holds, and focuses the chip, which is inactive and described by the limit', async ({ page }) => {
+  const posts = watchPosts(page, '/mailbox/samples/suspicious-request');
+  await page.route(SAMPLE, (route: Route) =>
+    route.fulfill({
+      status: 429,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: { code: 'email_limit', message: 'zz limit' }, retryAt: iso(Date.now() + 3_600_000) }),
+    }),
+  );
+  await openWith(page, guide(FOUR));
+  await linkOf(page).click();
+  const chip = sampleChipOf(page.locator('app-simulated-mailbox'), 'Sample: suspicious request');
+  await controlOf(page, 'suspiciousEmail').click();
+  await expect.poll(() => posts.length, { message: 'the first press reached the chip, which the server refused' }).toBe(1);
+  await expect(chip, 'the limit made the chip inactive').toHaveAttribute('aria-disabled', 'true');
+
+  await page.getByRole('tab', { name: /^Simulated phone/ }).click();
+  await controlOf(page, 'suspiciousEmail').click();
+  await expect(page.getByRole('tab', { name: /^Simulated mailbox/ }), 'the mailbox tab is selected again').toHaveAttribute('aria-selected', 'true');
+  await expect(chip, 'focus is on the inactive chip').toBeFocused();
+  await page.waitForTimeout(500);
+  expect(posts, 'the second press sent nothing').toHaveLength(1);
+  const reason = await chip.getAttribute('aria-describedby');
+  expect(reason ?? '', 'the chip is described by the limit').toContain('mailbox-email-limit');
+  await expect(page.locator('#mailbox-email-limit'), 'which is on the page').toHaveCount(1);
 });

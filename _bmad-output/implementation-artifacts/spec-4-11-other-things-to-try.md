@@ -2,7 +2,7 @@
 title: 'Story 4.11: Other things to try'
 type: 'feature'
 created: '2026-11-06'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'efc62bca8c6205e3b3162ed3df04472061edbed3'
 baseline_commit: 'efc62bca8c6205e3b3162ed3df04472061edbed3'
 review_loop_iteration: 0
@@ -245,7 +245,41 @@ deferred:
 - **AC8.** Given the ruled strings, when this story merges, then the fixed-strings tests pin them, EXPERIENCE.md and DESIGN.md carry the panel with the 2026-11-06 marker, and every on-screen name a text quotes equals its source.
 - **AC9.** Given the change, when it merges, then no new route, write path, role, install step, mock scenario, CI unit or e2e folder exists, the contended files change only by the ruled lines, and CI is green on every workflow.
 
+### Review Findings
+
+Code review 2026-11-06 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full tier). Fix-risk and Rule 15 disposition on each.
+
+- [ ] [Review][Patch] HIGH: the Other things to try panel, open by default in the finish, squeezes the chat to 0px at every desktop size [web/src/app/guide/demo-guide.ts:209, web/src/app/guide/more-to-try.ts:70] — measured (Verification, code review pass): at 1280x800 the guide grows from 280px to 639px and the chat's visible height falls from 338px to 0px; at 1024x768, 1280x650 and 1280x600 the chat is 0px as well and the page scrolls. Task 0 (c) asked for this measurement and its "fix the panel's own layout within the footprint" rule applies; no floor case pins the chat's height in the finish, so floor stayed green. Fix in the rework: keep the ruled placement, text and open-in-the-finish condition, and change the panel's own layout (for example a denser item layout and a bounded, keyboard-scrollable panel within DESIGN.md's tokens) so the chat keeps a usable visible height in the finish in the wide, drawer, stacked and compact bands; add an e2e case that pins the chat's visible height in the finish with the panel open (mutation: the bound removed -> red), and rerun `live floor`. If no panel layout keeps the chat visible, HALT with a clarification (Task 0). Fix-risk high (layout across four bands and three engines). Footprint in-story. Rule 15: HIGH, rework.
+  - [ ] [Review] Rework targets (lead, rework iteration 1, decided under the unattended rules: implementation numbers, not product targets): (a) no whole-page scroll in any band with the panel open in the finish (DESIGN.md:677, "the page fills the viewport rather than scrolling as a whole"); (b) the chat's visible height in the finish with the panel open is at least 160px at 1280x800 and 1024x768, and at least 96px at 1280x650 and 1280x600 (the compact band), and never 0 in the drawer and stacked bands; (c) the panel stays OPEN in the finish where the old line was, with the ruled strings complete and unclamped (no truncated or hidden look-for text): bound it (a max-height with its own vertical scroll, and a denser item layout such as a two-column grid at wide widths) so its controls scroll into view on Tab; if the bounded container itself scrolls, it is keyboard-reachable (`tabindex="0"`, named by the panel label) per the project's scroll-region rule; (d) a new e2e case (floor or `guide/more-to-try.spec.ts`) pins (a) and (b) at those sizes with a `mutation:` line (the bound removed -> red), and `live floor` is rerun in all three engines; (e) if no panel layout meets (a)-(c) without changing a ruled string, the placement or the open-in-the-finish condition, HALT `blocked` with an `intent gap` naming the band and the numbers (the runner takes it to the Planner).
+- [x] [Review][Patch] MED: K14 pressed before the Persona card's failed read was answered [web/e2e/guide/more-to-try.spec.ts:568] — the case now counts the routed `/persona` answers and waits for one before the press (Rule 19 readiness). Fix-risk low. Fixed.
+- [x] [Review][Patch] LOW: item 1 pressed Change only when `aria-expanded` was exactly `"false"`; Always 1 says "not `true`" [web/src/app/guide/more-to-try.ts:157] — now `!== 'true'`. Fix-risk low. Fixed.
+- [x] [Review][Patch] LOW: the FOCUS_RULE contract comment did not list the panel's controls among the finish's parts, nor say that a panel still on the page takes focus at its first control [web/src/app/guide/demo-guide.ts:62]. Fix-risk low. Fixed.
+- [x] [Review][Patch] LOW: Q11's doc comment narrated the story's history (Rule 14) [web/e2e/guide/guide.spec.ts:633] — rewritten as the contract. Fix-risk low. Fixed.
+- [x] [Review][Patch] LOW: Q9's doc comment still said "Q11 pins that fit"; where row 1 already wraps at the normal size (Linux) Q9's wrap poll holds at once and its "nothing past the row" checks carry it [web/e2e/guide/guide.spec.ts:662] — comment corrected. Fix-risk low. Fixed.
+- [x] [Review][Patch] LOW: no test checked that the link's `aria-controls` names the panel [web/e2e/guide/more-to-try.spec.ts:197] — K2 now asserts the id holds the "Other things to try" group. Fix-risk low. Fixed.
+- [x] [Review][Defer] MED: DW-804, Q11 relaxed from one line to at most two [web/e2e/guide/guide.spec.ts:637] — deferred: kept by design. The review's arithmetic (Verification) shows trimming row 1's spacing cannot recover the 34.2px without changing the other controls or the ruled placement; the reason is Decided 9. Fix-risk high. DW-804 is this story's entry; the lead closes it at adjudication.
+- [x] [Review][Defer] LOW: item 5 repeats TryItRow's send guard (`used`, `blocked`, `describedBy`) rather than sharing one helper (Rule 2, weak reason) [web/src/app/guide/more-to-try.ts:143] — deferred: DW-809 `wontfix-accepted`, reopen_if a third guard appears or TryItRow's guard gains a condition. Fix-risk med (the change touches 4.10's allowance-sources pins).
+- [x] [Review][Defer] LOW: Demo.Features' MEMORY, DOCUMENTS and HEARTBEAT names cannot be killed by a test on this branch [src/ocutalon/cls/OcuTalon/Demo/Features.cls:17] — deferred: DW-810 `wontfix-theoretical`; the test's own probes turn red at the merge of 19.3, 19.4 or Epic 39. Fix-risk low.
+- [x] [Review][Defer] LOW: item 6, the Documents link, does not activate with Space [web/src/app/guide/more-to-try.ts:54] — deferred: DW-811 `by-design`; Always 6 names a native `<a routerLink>` and the sources test forbids `(keydown`. Fix-risk med.
+
+Rejected:
+- false: (edge) focus drops to the body when the finish begins with focus in the prompt-bar panel. The finish's panel carries the same `moreItem` key, and a null `whenGone` falls through to the main region.
+- false: (edge) a reordered SAMPLES makes item 2 press another chip silently. K6's POST path and `more-to-try-view` (c), which pins `SAMPLES[2].label`, both go red.
+- false: (acceptance) M13 was weakened. The conversation-link check still covers the whole finish, and the scope now names the finish links, its subject.
+- false: (acceptance) EXPERIENCE's finish-list Try it yourself bullet was not reworded. The panel bullet before it states "before the Try it yourself row".
+- false: (acceptance) the Payloads.cls diff has two lines. The `Run` line's comma is required by the JSON of the ruled line.
+- low: (blind) focus goes to the panel's first control rather than the same one when the panel moves between placements. Rare (it needs focus in the panel while the finish comes or goes by itself), and the spec gives every control the one `moreItem` key.
+- low: (blind) items 1 and 7 are not run in every narrow band. `focusRegion` is Layout's own, K5b covers item 1 in the drawer band, and item 7 is hidden here.
+- low: (edge) Test.Demo.Features would raise INVALID OREF if `features` were missing from the JSON. That still fails loudly.
+- low: (verification) item 4's `aria-checked` guard cannot be reached. Already by design in the mutation results.
+- low: (acceptance) `more-to-try-view.ts` also exports `BREAK_FEED_BUTTON` and two types. That is Rule 2's reuse, with no named harm.
+- low: (acceptance) K5's cleanup closes Change by click rather than Esc. It is only cleanup.
+- low: (acceptance) Enter and Space are pressed on only some controls. They are native buttons, and K4 covers both keys on the link.
+- spec edit: (blind, verification, acceptance) DW-805 and the Auto Run Result are stale after QA, and the frontmatter `deferred` still says "unverified". The fix edits the spec's machine sections, and the lead closes DW-805 at adjudication.
+
 ## Spec Change Log
+
+- 2026-11-06 (rework iteration 1, lead): code review found one HIGH (the panel open in the finish squeezes the chat to 0px; Task 0 (c) had not been measured). Spec re-opened `in-progress`; the work is the unchecked `[Review]` items only (the HIGH and its rework targets). DW-805 is resolved by QA's K12/K13 (closed at adjudication); DW-804 kept by design per the review's arithmetic (Decided 9).
 
 - 2026-11-06 (spec gate, runner): the Planner's PUBLIC TEXT ruling (exact strings; naming clash P1 with the finish-open condition) and the orchestrator's contention ruling (approach A allowed; `payloads.ts` regenerated only; Payloads.cls plain union, higher count) written into Design Notes. Item 3's "Simulated phone" verified as `DEVICE_TEXTS.phoneTab` (device-view.ts:19). Flake classes for this story's runs: DW-349, DW-376, DW-396, DW-414, DW-333, DW-415, DW-462, DW-471, DW-497, DW-550, DW-555, DW-764, DW-772, DW-774, DW-453, DW-670 (GuideApi).
 
@@ -500,6 +534,26 @@ deferred:
 - (b) The sign-in stack is in demo mode (K1-K11 find the guide and the link on it).
 - (c) Not measured as numbers: the guide's and the chat's heights at the three sizes were not recorded. `live:floor` passed in all 107 cases (M1, M9, M10, M13 and M14 updated, no floor rule weakened), so no floor layout case fails because of the panel.
 - Final runs on the patched tree: `npm --prefix web test` 1487 pass; lint clean; warm `Test.Demo.Features`, `Test.Live.Payloads`, `Test.Demo.Guide`, `Test.Web.GuideApi` pass; `live sign-in` parts 1/3 (81), 2/3 (88, K1-K11) and 3/3 (71) pass; `live floor` 107 pass; `live demo-path` 28 pass (UJ-1; 5.5 min; the implement pass's three red runs were this host's time budget at a load average near 9.5, none on a test); `live demo-switch` all checks passed; `shard lane-b` forward (105 classes) and `--reverse` in two parts (53 and 52) pass; `docker/tests/test-web-build.sh` and `bash ci/checks.sh` pass; the contended-path guard commands print an empty diff and exactly the two ruled lines.
+
+**QA pass (stage qa, tag e4s11q, lane B).**
+- Files (QA): `web/e2e/guide/more-to-try.spec.ts` (K12 and K13 in the drawer band 1100x720 and the stacked band 800x720; K14; K15) and `web/e2e/guide/guide.spec.ts` (Q11 records row 1's measurements as an annotation and a log line; its assertions are unchanged).
+- Gaps closed: DW-805 (items 2 and 3 reach the chip and the box in both narrow bands); matrix row 5's error handling (K14: card not loaded, focus on the Persona heading); matrix row 6's error handling (K15: email limit, tab selected, inactive chip focused and described by the limit, no second POST).
+- Run: `live sign-in --part 2/3` PASS, 79 cases, with K1-K15 and Q11 green; `npm --prefix web test` 1487 pass; `npm --prefix web run lint` exit 0. Flakes: none hit.
+- DW-805 result: both targets are reachable in both bands. No product change is needed.
+- DW-804 measurement (Linux throwaway, 1280x800, Inter loaded): row 896.0px; children 930.2px including four 8px gaps (label 83.7, steps 552.8, duration 92.8, More to try 78.2, Hide guide 90.7); 2 lines; nothing past the row. The row is 34.2px short of one line.
+- mutation (AC5, items 2 and 3 in the narrow bands): `this.tabs.select('mailbox')` removed -> K12 (both bands) and K15 red (with K6); item 3's hand-off replaced by a no-op -> K13 (both bands) red (with K7, K11).
+- mutation (matrix 5 error row): the Persona heading selector removed from item 1's hand-off list -> K14 red.
+- All three were applied in one build, observed red, reverted from a saved copy: `shasum` of `more-to-try.ts` equal to before, and `git status --short` and `git diff --stat` identical to before the mutation.
+
+**Code review pass (stage code-review, tag e4s11r, lane B).**
+- Task 0 (c), measured (Linux throwaway, routed finish with the four ids, a temporary case removed after the run; `app-chat-panel .list` visible height, the guide's height, the page's vertical scroll):
+  - 1280x800: panel open (the finish default) guide 639px, panel 351px, chat 0px, page scrolls 21px; panel closed guide 280px, chat 338px, no scroll.
+  - 1024x768: open guide 757px, panel 446px, chat 0px, scroll 185px; closed guide 303px, chat 269px.
+  - 1280x650: open guide 840px, panel 540px, chat 0px, scroll 372px; closed guide 292px, chat 176px.
+  - 1280x600 (compact band): open guide 840px, panel 540px, chat 0px, scroll 422px; closed guide 292px, chat 126px.
+  - So the open panel in the finish takes the chat's whole height at every desktop size (review finding, HIGH).
+- DW-804, the arithmetic: dropping `.more-link`'s inline padding (2 x 8px) and halving the four 8px gaps saves 32px of the 34.2px overrun; a one-line row 1 needs the other controls' spacing or the ruled placement changed. The relaxation of Q11 is kept as a consequence of the ruled text and placement (Decided 9).
+- Run on the review's patched tree: `npm --prefix web test` 1487 pass; lint clean; `live sign-in --part 2/3` PASS (Q1, Q9, Q11, K1-K15 green). Flakes: none hit.
 
 **Shared surfaces:**
 - the guide's row 1 controls and Tab order (floor M1, guide Q1 and Q11);

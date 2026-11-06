@@ -64,7 +64,9 @@ const phoneMessage = (ref: string) => `app-simulated-phone .notification[data-ke
  * itself hand it to the first of the three that is still there (the action button that now carries the next step, else the prompt text,
  * else the bar), else to the finish's first line. While the prompt bar shows step 3 (data-guide-step), a lost prompt part or finish
  * part hands focus to the box's Break the feed button instead, active or inactive; nothing is pressed. The finish's parts (its first
- * line, its links, the Try it yourself row and Run again) hand it to the prompt bar's parts in the same order when Run again brings the prompt bar back. Focus
+ * line, its links, the Other things to try panel's controls, the Try it yourself row and Run again) hand it to the prompt bar's parts in
+ * the same order when Run again brings the prompt bar back; a panel control whose panel is still on the page hands it to that panel's
+ * first control. Focus
  * anywhere else is never moved. The Telegram row's Show me hands it to the prompt bar, else to the finish's first line, when the band or the
  * row takes the button away.
  */
