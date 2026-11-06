@@ -108,6 +108,7 @@ deferred: []
 - `src/ocutalon/cls/OcuTalon/Core/SessionOps.cls` -- doc only: End's per-person step deletes the persona and heartbeat keys -- AD-4, AD-19.
 - `docs/security-overview.md` -- append, in line 156 directly after the existing heartbeat sentence (a space between), the DW-684 sentence of Public text; change nothing else -- DW-684, FR-66.
 - `docker/tests/test-heartbeat-overview.sh` (new) -- hosted check, structured like `test-triage-heartbeat.sh`'s overview rule: the DW-684 sentence occurs exactly once in `docs/security-overview.md`, inside the line that starts `- In model requests to the configured provider` under `Data leaves the instance only:` with no heading between, and directly after the existing heartbeat sentence; each way of breaking it is first tried on a synthetic file that must be flagged, and a good one that must not. One PASS/FAIL line per rule; exit 0 only when all pass -- DW-684, Rule 19.
+- Public text (Planner ruling): every new string in `### Public text` -- the DW-684 sentence, `MESSAGERUNCAP`, `MESSAGERUNNOKEY`, `MESSAGERUNEMPTY`, `MESSAGERUNBACKOFF` (with `{time}` filled) and the audit `from`/`to` form -- is pinned by a fixed-strings test that compares the whole string exactly (the overview check uses `grep -F`; the class tests `AssertEquals` on the full text) -- Planner ruling 2026-11-06.
 - `ci/units.sh` -- line 12 becomes `CHECK_SCRIPTS="$CHECK_SCRIPTS eval-personas heartbeat-overview"` -- test-ci-config.
 - `docs/bridge-guide.md` -- line 266: append `` , `heartbeat` `` before the final period of the Channels list; nothing else -- test-bridge-guide.
 - `ARCHITECTURE-SPINE.md` (the spine path above) -- in the Enumerations row change `` slack, system` `` of Channel to `` slack, system, heartbeat` `` followed by ` [AMENDED 2026-11-05, Story 39.2: AD-18's Names bullet appends heartbeat to both enums, which stay equal]`; set `updated:` to the edit date; run the lint (`"ok": true`) -- Rule 20.
@@ -133,6 +134,8 @@ deferred: []
 - Given the story's diff against the merge base with `origin/feature/OCT_OcuTalon_MVP`, when it is compared, then no file under `web/`, `src/ocutalon/cls/OcuTalon/Checks/`, `Data/HeartbeatBeat.cls`, `Live/`, `Test/Checks/`, `Test/Install/`, `Production.cls`, `Test/Web/SettingsApi.cls`, `Test/Core/SettingsSave.cls` or `docker/tests/test-triage-heartbeat.sh` changed, and `docs/bridge-guide.md` changed only on line 266.
 
 ## Spec Change Log
+
+- 2026-11-06 (lead, before implement): the Contest Planner's PUBLIC TEXT ruling (owner's delegation) applied to `### Public text`: the DW-684 sentence, the `cap` and `backoff` messages reworded, `nokey`, `empty` and the audit data form approved; one task added: every new string pinned by a fixed-strings test.
 
 ## Review Triage Log
 
@@ -182,18 +185,18 @@ deferred: []
 
 | Where | Text (verbatim) | Source |
 | --- | --- | --- |
-| `docs/security-overview.md`, after the beat sentence | A beat that the person runs now sends the same, at most once every 2 minutes and only within the daily cost cap. | new (DW-684; AD-18 Run now: "at most once every 2 minutes per session, and inside the daily cap") |
+| `docs/security-overview.md`, after the beat sentence | Run now sends the same kind of beat, at most once every 2 minutes per session and only within the daily cost cap. | Contest Planner ruling (owner's delegation, 2026-11-06T05:1xZ) (DW-684; AD-18 Run now: "at most once every 2 minutes per session, and inside the daily cap") |
 | `SettingsOps.MESSAGEHEARTBEATSAVED` (PUT 200 `message`) | Saved. Applies within a minute. Recorded in the audit log. | EXPERIENCE › Heartbeat checklist card › Saved |
 | `SettingsOps.MESSAGEBADCHECKLIST` (400 `bad_checklist`) | Use up to 1,000 characters, without {{ or @{. | EXPERIENCE › Persona card › Custom refusal (reused) |
 | `SettingsOps.MESSAGENOTSAVED` (400 `bad_on`, `bad_interval`, `bad_hours`, `bad_heartbeat`; `no_session`) | Couldn't save. Nothing was changed. | existing (Epic 40) |
 | `Web.Api.MESSAGERUNCOOLDOWN` (409 `cooldown`) | You can run it again at {time}. | EXPERIENCE › Button › Cooldown |
-| `Web.Api.MESSAGERUNCAP` (409 `cap`) | The day's cost cap is reached. | EXPERIENCE › Skips ("…: the day's cost cap is reached."), as a sentence |
-| `Web.Api.MESSAGERUNNOKEY` (409 `nokey`) | No model key is set. | EXPERIENCE › Skips ("…: no model key is set."), as a sentence |
-| `Web.Api.MESSAGERUNEMPTY` (409 `empty`) | Your checklist is empty. | EXPERIENCE › Skips ("…: your checklist is empty."), as a sentence |
-| `Web.Api.MESSAGERUNBACKOFF` (409 `backoff`) | Waiting after a failed check-in, until {time}. | EXPERIENCE › Skips ("…: waiting after a failed check-in, until {time}."), as a sentence |
+| `Web.Api.MESSAGERUNCAP` (409 `cap`) | Today's cost limit has been reached. | Contest Planner ruling (owner's delegation, 2026-11-06T05:1xZ); was EXPERIENCE › Skips ("…: the day's cost cap is reached."), as a sentence |
+| `Web.Api.MESSAGERUNNOKEY` (409 `nokey`) | No model key is set. | Contest Planner ruling (owner's delegation, 2026-11-06T05:1xZ) (approved); EXPERIENCE › Skips ("…: no model key is set."), as a sentence |
+| `Web.Api.MESSAGERUNEMPTY` (409 `empty`) | Your checklist is empty. | Contest Planner ruling (owner's delegation, 2026-11-06T05:1xZ) (approved); EXPERIENCE › Skips ("…: your checklist is empty."), as a sentence |
+| `Web.Api.MESSAGERUNBACKOFF` (409 `backoff`) | The last beat failed, so the next one waits until {time}. | Contest Planner ruling (owner's delegation, 2026-11-06T05:1xZ); was EXPERIENCE › Skips ("…: waiting after a failed check-in, until {time}."), as a sentence |
 | `SettingsOps.SampleChecklist()` (GET on the online demo) | Tell me if an Orders incident is still open or waiting for my approval. / Remind me of anything due in the next hour. / Ignore everything else. (three lines) | EXPERIENCE › Sample checklist (online demo) |
 | `docs/bridge-guide.md:266` | - Channels: `web`, `phone`, `mailbox`, `telegram`, `email`, `webhook`, `slack`, `system`, `heartbeat`. | existing list, one name appended (fact) |
-| Settings audit entry `from`/`to` (audit log, not on the page) | `on=1; interval=30; from=08:00; to=20:00; checklist=120 characters` (changed keys only) | new (data form) |
+| Settings audit entry `from`/`to` (audit log, not on the page) | `on=1; interval=30; from=08:00; to=20:00; checklist=120 characters` (changed keys only) | Contest Planner ruling (owner's delegation, 2026-11-06T05:1xZ): approved as written (only changed keys; the checklist's length, never its text) |
 | CommandsIn refusals, 500/501 texts | unchanged existing texts | existing |
 
 ## Verification
