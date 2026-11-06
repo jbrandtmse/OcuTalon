@@ -4567,3 +4567,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: The Planner's source says 'Update the numbers if a later release eval changes them'; no test-readme.sh pin (numbers unpinned by spec) and no release/checklist.sh row checks them; release/** is not this story's
 - 2026-11-06T06:48:20Z status=wontfix-accepted owner=11-25-the-readme-s-judges-section-a-measured-table by=cr note=reopen_if=a release record after 1.0.0 rc4 reports an SM-1, SM-2, demo-gate or cost number unlike README lines 32-39
+### DW-774: flake: live:online-session leave.spec page.close 'no answer within 30 s' (L6 at eb6e2726, L5 at bd9b9de8) on feature under heavy CI load; same code green on OCT-epic34 689b6632
+- source: orchestrator feature CI | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: runs 42158625231 job 127698667108 (L6), 42158693602 job 127698892750 (L5); code identical to 689b6632 (shards green 42147189710); also sign-in-2 live-socket W3 GET /state no answer 30s (127698667166)
+- 2026-11-06T04:40:46Z status=routed owner=burndown by=orchestrator note=first occurrence pair; next burn-down with DW-550 (CSP session cap) and DW-685; a red on a quiet host makes it real
+- 2026-11-06T04:52:15Z occurrence=feature-61f32de8 by=orchestrator note=run 42161844768: live:answers close-loop C3 GET /state no answer 60s (127709120576); shard:lane-b Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved 'production runs every item' (127709120793); groups 1786-1828s; 4 concurrent ci.yml runs on 18 services; rerun --failed at low load
+- 2026-11-06T05:21:27Z occurrence=feature-61f32de8-rerun-green by=orchestrator note=attempt 2 of 42161844768 green at low load: flake class confirmed
