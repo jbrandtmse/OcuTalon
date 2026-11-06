@@ -25,9 +25,10 @@ import { blockLiveSocket } from '../support/socket';
  *     link opens it, a new finish opens it again, and a press in the finish keeps it open when the finish leaves;
  *   - K12, K13: items 2 and 3 reach the chip and the box in the drawer band (1100x720) and the stacked band (800x720);
  *   - K16: the panel open in the finish leaves the chat its room: no page scroll and a chat of at least 160px (64px in the compact
- *     height band) where the page fills the viewport, a window of at least the label line and one control, the panel a scroll region of
- *     its own in two columns, and each control that Tab reaches wholly in view; the stacked column grows and scrolls as a page;
- *   - K17: the same room when the link opens the panel before the finish (the prompt bar's branch);
+ *     height band) where the page fills the viewport, a window of at least the label line, the gap under it and one control, the panel a
+ *     scroll region of its own in as many columns as fit, no text clipped, and each control that Tab reaches wholly in view with its focus
+ *     ring; the stacked column grows with the panel and scrolls as a page;
+ *   - K17: the same room, and the same Tab case, when the link opens the panel before the finish (the prompt bar's branch);
  *   - K18: a focused panel group hands focus on when the finish leaves;
  *   - K14 (matrix 5, error): item 1 focuses the Persona heading when the card has not loaded;
  *   - K15 (matrix 6, error): item 2 sends nothing while the email limit holds, and focuses the inactive chip.
@@ -614,7 +615,10 @@ test('K15: item 2 sends nothing while the email limit holds, and focuses the chi
   await expect(page.locator('#mailbox-email-limit'), 'which is on the page').toHaveCount(1);
 });
 
-/** What K16 and K17 measure: the least visible heights, the page's scroll, and the panel's window, columns and how far it reaches past the page's width. */
+/**
+ * What K16 and K17 measure: the least visible heights, the page's scroll, and the panel's window, columns, how far it reaches past the
+ * page's width, how far its content reaches past its own width, and how many of its texts are cut short.
+ */
 interface Room {
   chat: number;
   page: number;
@@ -624,6 +628,8 @@ interface Room {
   columns: number;
   width: number;
   overflowX: number;
+  sideways: number;
+  clipped: number;
   overflowY: string;
   maxHeight: string;
 }
@@ -638,10 +644,17 @@ const measureRoom = (page: Page): Promise<Room> =>
       page: document.scrollingElement!.scrollHeight - document.scrollingElement!.clientHeight,
       window: group.clientHeight,
       holds: group.scrollHeight - group.clientHeight,
-      need: group.querySelector('.group-label')!.getBoundingClientRect().height + group.querySelector('.button')!.getBoundingClientRect().height,
+      need:
+        group.querySelector('.group-label')!.getBoundingClientRect().height +
+        (parseFloat(style.rowGap) || 0) +
+        group.querySelector('.button')!.getBoundingClientRect().height,
       columns: tops.filter((top) => top === tops[0]).length,
       width: group.clientWidth,
       overflowX: Math.max(0, group.getBoundingClientRect().right, ...Array.from(group.querySelectorAll('li')).map((item) => item.getBoundingClientRect().right)) - document.documentElement.clientWidth,
+      sideways: group.scrollWidth - group.clientWidth,
+      clipped: Array.from(group.querySelectorAll<HTMLElement>('.item-label, .look-for')).filter(
+        (text) => text.scrollHeight > text.clientHeight + 1 || text.scrollWidth > text.clientWidth + 1,
+      ).length,
       overflowY: style.overflowY,
       maxHeight: style.maxHeight,
     };
@@ -674,10 +687,11 @@ async function settledRoom(page: Page): Promise<Room> {
  * stacked column scrolls as a page by design and the panel grows with its items.
  */
 const ROOM = [
-  { band: 'wide', width: 1280, height: 800, chat: 160, window: 100, framed: true },
+  { band: 'wide', width: 1440, height: 900, chat: 160, window: 100, framed: true },
+  { band: 'reference', width: 1280, height: 800, chat: 160, window: 100, framed: true },
   { band: 'drawer', width: 1024, height: 768, chat: 160, window: 70, framed: true },
   { band: 'drawer', width: 1100, height: 720, chat: 160, window: 0, framed: true },
-  { band: 'compact height', width: 1280, height: 650, chat: 64, window: 0, framed: true },
+  { band: 'compact height', width: 1280, height: 650, chat: 64, window: 57, framed: true },
   { band: 'compact height', width: 1280, height: 600, chat: 64, window: 0, framed: true },
   { band: 'stacked', width: 800, height: 720, chat: 1, window: 0, framed: false },
   { band: 'stacked, narrowest', width: 320, height: 700, chat: 1, window: 0, framed: false },
@@ -688,23 +702,27 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
   const at = `${size.width}x${size.height} (${JSON.stringify(room)})`;
   expect(room.chat, `${at}: the chat's list keeps its height`).toBeGreaterThanOrEqual(size.chat);
   expect(room.overflowX, `${at}: the panel stays within the page's width`).toBeLessThanOrEqual(1);
+  expect(room.sideways, `${at}: nothing in the panel reaches past its own width`).toBeLessThanOrEqual(1);
+  expect(room.clipped, `${at}: no label or look-for line is cut short`).toBe(0);
   if (size.framed) {
     expect(room.page, `${at}: the page does not scroll as a whole`).toBeLessThanOrEqual(1);
     expect(room.overflowY, `${at}: the panel scrolls on its own`).toBe('auto');
     expect(room.maxHeight, `${at}: and is bounded`).not.toBe('none');
-    expect(room.window, `${at}: its window shows the label line and one complete control`).toBeGreaterThanOrEqual(room.need - 1);
+    expect(room.window, `${at}: its window shows the label line, the gap under it and one complete control`).toBeGreaterThanOrEqual(room.need - 1);
     expect(room.window, `${at}: and uses the room the viewport leaves it`).toBeGreaterThanOrEqual(size.window);
     expect(room.holds, `${at}: it holds more than its window shows`).toBeGreaterThan(0);
     expect(room.columns, `${at}: the items are in as many columns as fit, each at least 20rem wide`).toBe(Math.min(FOUR.length, Math.max(1, Math.floor((room.width - 8 + 16) / (320 + 16)))));
   } else {
     expect(room.overflowY, `${at}: the stacked panel is no scroller of its own`).toBe('visible');
     expect(room.maxHeight, `${at}: and has no bound`).toBe('none');
+    expect(room.holds, `${at}: it grows with its items`).toBeLessThanOrEqual(1);
+    expect(room.page, `${at}: and the page scrolls instead`).toBeGreaterThan(0);
   }
 }
 
 /**
- * Tab from the panel's own stop through the four controls: each one that takes focus is wholly in view in the panel's window, and the
- * window has scrolled by the time the last one is reached.
+ * Tab from the panel's own stop through the four controls: each one that takes focus is wholly in view in the panel's window with its
+ * focus ring (the control's box grown by the ring's offset and width, 4px), and the window has scrolled by the time the last one is reached.
  */
 async function expectTabInView(page: Page, at: string): Promise<void> {
   await panelOf(page).focus();
@@ -712,11 +730,20 @@ async function expectTabInView(page: Page, at: string): Promise<void> {
     await page.keyboard.press('Tab');
     await expect(controlOf(page, id), `${at}: Tab reaches ${id}`).toBeFocused();
     const inView = await page.evaluate(() => {
-      const group = document.querySelector('app-more-to-try .group')!.getBoundingClientRect();
+      const node = document.querySelector<HTMLElement>('app-more-to-try .group')!;
+      const group = node.getBoundingClientRect();
       const control = document.activeElement!.getBoundingClientRect();
-      return { overlap: Math.min(group.bottom, control.bottom) - Math.max(group.top, control.top), height: control.height };
+      const top = group.top + node.clientTop;
+      const left = group.left + node.clientLeft;
+      const ring = 4;
+      return {
+        overlap: Math.min(group.bottom, control.bottom) - Math.max(group.top, control.top),
+        height: control.height,
+        ringOut: Math.max(top - (control.top - ring), control.bottom + ring - (top + node.clientHeight), left - (control.left - ring), control.right + ring - (left + node.clientWidth)),
+      };
     });
     expect(inView.overlap, `${at}: ${id} is wholly in view in the panel`).toBeGreaterThanOrEqual(inView.height - 1);
+    expect(inView.ringOut, `${at}: and so is its focus ring`).toBeLessThanOrEqual(1);
   }
   expect(await panelOf(page).evaluate((node) => node.scrollTop), `${at}: the panel scrolled to bring the last control into view`).toBeGreaterThan(0);
 }
@@ -758,6 +785,7 @@ for (const size of ROOM.filter((one) => one.framed)) {
     test.info().annotations.push({ type: 'K17', description: record });
     console.log(`K17 ${record}`);
     expectRoom(room, size);
+    await expectTabInView(page, `${width}x${height} prompt branch`);
   });
 }
 

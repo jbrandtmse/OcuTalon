@@ -72,8 +72,11 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.match(framed[1], /max-height:\s*max\(var\(--more-window-min\), calc\(100dvh - var\(--more-reserve\)\)\)/);
     assert.match(code, /@media \$\{HEIGHT_QUERIES\.compact\} and \$\{LAYOUT_QUERIES\.framed\} \{\s*:host \{\s*--more-reserve:/, 'the compact height band has its own reserve');
     assert.match(code, /grid-template-columns:\s*repeat\(auto-fill, minmax\(min\(20rem, 100%\), 1fr\)\)/, 'the items are a grid of columns that never outgrow a narrow container');
-    assert.match(code, /--more-window-min:\s*calc\(var\(--more-label-height\) \+ var\(--space-control-height\)\)/, 'the window holds the label line and one control at least');
+    assert.match(code, /--more-window-min:\s*calc\(var\(--more-label-height\) \+ var\(--more-gap\) \+ var\(--space-control-height\)\)/, 'the window holds the label line, the gap under it and one control at least');
+    assert.match(code, /\.group \{[^}]*gap:\s*var\(--more-gap\)/, 'the gap under the label is the one the window counts');
     assert.match(code, /@media \$\{HEIGHT_QUERIES\.compact\} and \$\{LAYOUT_QUERIES\.framed\} \{\s*:host \{[^}]*margin-top:\s*0/, 'the compact band gives the chat the 4px of the margin');
+    assert.match(code, /@media \$\{HEIGHT_QUERIES\.compact\} and \$\{LAYOUT_QUERIES\.framed\} \{\s*:host \{[^}]*--more-gap:\s*0px/, 'and the 4px of the gap under the label');
+    assert.match(code, /@media \$\{LAYOUT_QUERIES\.framed\} \{[^@]*\.items \{\s*padding-block-end:\s*var\(--space-scroll-gutter\)/, 'the list ends in a gutter that holds the last control\'s ring');
     assert.doesNotMatch(code, /@media \$\{LAYOUT_QUERIES\.stacked\}/, 'the stacked column has no bound of its own: the page scrolls');
   });
 

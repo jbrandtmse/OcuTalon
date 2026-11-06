@@ -38,9 +38,9 @@ let panels = 0;
  * that the guide keeps the panel open.
  *
  * Where the page fills the viewport (LAYOUT_QUERIES.framed) the group is a vertical scroll region of its own, a Tab stop named by the panel
- * label (the project's rule for a scroller), and its height is bounded by what is left of the viewport after the page's other parts and the
- * chat's minimum (never less than the label's line and one control), so the chat keeps its room and the page never scrolls as a whole;
- * the items lay out in as many columns as fit. The group carries the focus rule's `moreItem` key like the controls, so a focused group hands
+ * label (the project's rule for a scroller), and its height is the viewport's height less a fixed reserve for the page's other parts and
+ * the chat's minimum (never less than the label's line, the gap under it and one control), so the chat keeps its room and the page does
+ * not scroll as a whole; the items lay out in as many columns as fit, and the list ends in a gutter that holds the last control's ring. The group carries the focus rule's `moreItem` key like the controls, so a focused group hands
  * focus on when the finish leaves.
  * In the stacked column the page scrolls and the group grows with its items.
  *
@@ -80,12 +80,14 @@ let panels = 0;
       display: block;
       margin-top: var(--space-1);
       --more-label-height: calc(var(--type-body-sm-font-size) * var(--type-body-sm-line-height));
-      --more-window-min: calc(var(--more-label-height) + var(--space-control-height));
+      --more-gap: var(--space-1);
+      --more-window-min: calc(var(--more-label-height) + var(--more-gap) + var(--space-control-height));
       --more-reserve: 685px;
     }
     @media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.framed} {
       :host {
         --more-reserve: 592px;
+        --more-gap: 0px;
         margin-top: 0;
       }
     }
@@ -93,7 +95,7 @@ let panels = 0;
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      gap: var(--space-1);
+      gap: var(--more-gap);
       padding-inline: var(--space-1);
     }
     .group-label {
@@ -140,14 +142,18 @@ let panels = 0;
     }
     /* Where the page fills the viewport, the panel is a scroll region of its own: it leaves the chat the room it needs, so the page
        never scrolls as a whole. The reserve is the height that the rest of the page needs (header, rail and chat chrome, the guide
-       without the panel and the chat's own minimum). The window never gets shorter than the label's line and one control, so every
-       control scrolls fully into view. */
+       without the panel and the chat's own minimum). The window never gets shorter than the label's line, the gap under it and one
+       control, so the label and a whole control show together and every control scrolls fully into view; the list's end gutter lets
+       the last control scroll clear of the edge, so its focus ring is never clipped. */
     @media ${LAYOUT_QUERIES.framed} {
       .group {
         overflow-y: auto;
         scroll-padding: var(--space-scroll-gutter);
         max-height: max(var(--more-window-min), calc(100vh - var(--more-reserve)));
         max-height: max(var(--more-window-min), calc(100dvh - var(--more-reserve)));
+      }
+      .items {
+        padding-block-end: var(--space-scroll-gutter);
       }
     }
   `,

@@ -4609,3 +4609,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: the spec mandates a native a routerLink for item 6 and forbids keydown handlers in more-to-try.ts; native links activate with Enter; item 6 is hidden on this branch
 - 2026-11-06T16:04:54Z status=by-design owner=4-11-other-things-to-try by=cr note=spec-bound: Always 6 names the native link; reopens only by spec amendment when Story 19.4 shows the item
+
+### DW-821: Other things to try: K16/K17 (chat height, window, no page scroll with the panel open) run in Chromium only; no Firefox or WebKit case opens the finish's panel
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: floor-firefox/floor-webkit run only @browsers floor cases (playwright.config.ts:82-83), none reaches the finish; 1280x600 margin is 3.5px (67.5 vs 64)
+- 2026-11-06T19:30:51Z status=routed owner=burndown by=cr note=settle: @browsers floor copy of the K16 measurement at 1280x600 and 1100x720; red there means a per-engine reserve
+
+### DW-822: Demo guide finish in the compact height band at drawer widths (1024-1279 wide, under 680 tall) collapses the chat and scrolls the page even with the Other things to try panel closed
+- source: spec-4-11-other-things-to-try.md | severity: high | fix-risk: med | footprint: in-epic
+- evidence: measured (4.11 re-review, panel closed): 1024x600 chat 0 page 79; 1024x650 chat 0 page 29; 1100x600 chat 0 page 23; finish guide 441-483px vs 292px at 1280
+- 2026-11-06T19:30:51Z status=routed owner=burndown by=cr note=pre-existing (4.4 compact row / 4.10 finish); 4.11's HIGH ruling option B would fix it in the rework
+- 2026-11-06T19:33:56Z status=routed owner=4-11-other-things-to-try by=adjudication note=in-epic_HIGH_taken_into_4.11_rework_iteration_2(option_B:_compact_finish_guide_at_drawer_widths);lead_ruling_decide

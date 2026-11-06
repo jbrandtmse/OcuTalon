@@ -279,6 +279,64 @@ Rejected:
 - low: (acceptance) Enter and Space are pressed on only some controls. They are native buttons, and K4 covers both keys on the link.
 - spec edit: (blind, verification, acceptance) DW-805 and the Auto Run Result are stale after QA, and the frontmatter `deferred` still says "unverified". The fix edits the spec's machine sections, and the lead closes DW-805 at adjudication.
 
+#### Re-review (iteration 1)
+
+Code review 2026-11-06 of the rework (`49be23af..HEAD` and the working tree; four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full tier, no model override). Fix-risk and Rule 15 disposition on each. Round 1's open items:
+- (1) The HIGH (chat squeezed to 0px): fixed at the ruled sizes and at 1440x900. The finish chat is 254.8, 214.8, 177.6, 167.7, 114.3 and 67.5px at 1440x900, 1280x800, 1024x768, 1100x720, 1280x650 and 1280x600, with page scroll 0. It is still open in the compact height band at drawer widths (the new HIGH below).
+- (2) (a) Holds at the pinned framed sizes and fails at 1024x679 and 1100x650 (HIGH below). (b1) and (b2) hold at their named sizes. (b3) is now literal: the window floor counts the gap under the label (patched below), and every control and its focus ring scroll fully into view on Tab (K16, K17). (c) The strings, the placement and open-in-the-finish are unchanged, and K16 now checks that nothing is clamped. (d) K16 and K17 have `mutation:` lines (Verification); `live floor` passed 107 cases in three engines after this pass.
+- (3) The MED item is done: the group's `moreItem` key (K18), the overflow-safe grid (K16 320x700), the grid and stacked pins (K16 and the sources test), and the prompt branch measured (K17 at six sizes).
+- The implement pass's inference (about 1100px wide, 680-707px tall, chat 132-159px) is real and wider than inferred. Measured: 1024x704 137.7px, 1024x700 133.7px, 1100x690 137.7px, 1280x684 155.0px. The window is at its floor there, so no reserve, scaling or not, can raise the chat. It is grouped into the HIGH below.
+
+- [ ] [Review][Patch] HIGH: in the compact height band at drawer widths the open panel collapses the chat and scrolls the page [web/src/app/guide/more-to-try.ts:84, web/src/app/guide/demo-guide.ts]
+  - Measured (Verification, re-review): open against closed panel in the finish, chat px / page scroll px:
+    - 1200x600: 4.6/0 against 63.5/0;
+    - 1100x650: 0/35 against 27.0/0;
+    - 1024x679: 0/91 against 0/0;
+    - 1024x650: 0/91 against 0/29;
+    - 1100x600: 0/82 against 0/23;
+    - 1024x600: 0/138 against 0/79.
+  - So target (a) (no whole-page scroll in any band) fails with the panel open at 1024x679 and 1100x650, and round 1's HIGH (the panel takes the chat's height) persists in this sub-band.
+  - The same defect, milder, sits just outside the named sizes. The chat is 133.7-155.0px at 1024x700, 1024x704, 1100x690 and 1280x684 (under (b1)'s 160px), and 57.5px at 1280x590 (under (b2)'s 64px).
+  - Cause: the window floor of (b3) (54.85-58.85px) plus the rest of the page exceeds the viewport. The finish's guide is 354-483px tall at drawer widths in the compact band, against 292px at 1280px; the 685px and 592px reserves were calibrated at 1280px.
+  - No panel layout meets (a), (b2) and (b3) there while the panel is open in the finish, so the fix needs a ruling (the runner takes it to the Planner):
+    - (A) the panel opens by itself in the finish only where the viewport leaves the chat its floor plus the window floor (for example, not in the compact height band under 1280px wide), and the link opens it elsewhere;
+    - (B) the finish's guide first gets a compact layout at drawer widths (DW-822, pre-existing), and the targets are measured again;
+    - (C) the targets accept the drawer-by-compact sub-band as it is.
+  - Whichever ruling lands, pin it in K16 at 1200x600 and 1100x650 (no page scroll; chat of at least 64px).
+  - Fix-risk high (a ruled condition, four bands, three engines). Footprint in-story. Rule 15: HIGH, rework.
+- [x] [Review][Patch] MED: the window floor left out the 4px gap between the label and the list [web/src/app/guide/more-to-try.ts:84]
+  - So at the floor the label line and one complete control never showed together: a 55px window against the 58.85px they need at 1100x720 and 1280x600. K16's `need` oracle repeated the same formula.
+  - Fixed: `--more-gap` is the group's gap, and `--more-window-min` counts it. The compact band sets it to 0px, so the floor stays 54.85px there and the chat at 1280x600 stays 67.5px. K16's `need` reads the computed gap.
+  - Fix-risk low.
+- [x] [Review][Patch] MED: the last control's focus ring was clipped at the scroller's bottom edge [web/src/app/guide/more-to-try.ts:156, web/e2e/guide/more-to-try.spec.ts:742]
+  - Nothing came after the last control, so `scroll-padding` could not scroll it clear of the edge. No test looked at the ring, and `padding-inline` had no pin.
+  - Fixed: under the framed query the list ends in a `--space-scroll-gutter` padding. `expectTabInView` asserts that each focused control's box, grown by 4px, lies inside the group's client box.
+  - Fix-risk low.
+- [x] [Review][Patch] LOW: K17 (the prompt branch) did not run the Tab-in-view case [web/e2e/guide/more-to-try.spec.ts:790]. Fixed. Fix-risk low.
+- [x] [Review][Patch] LOW: the stacked rows did not check that the panel grows and the page scrolls, and nothing checked clamped text or sideways scroll inside the group [web/e2e/guide/more-to-try.spec.ts:700]. Fixed: `holds <= 1` and `page > 0` in the stacked rows, and `clipped == 0` and `sideways <= 1` in every row. Fix-risk low.
+- [x] [Review][Patch] LOW: the compact reserve (592px) could drift up with every test green, and it had no mutation line [web/e2e/guide/more-to-try.spec.ts:694]. Fixed: the 1280x650 row asserts the window the viewport leaves (57px). Fix-risk low.
+- [x] [Review][Patch] LOW: the 1280x800 row was labelled the wide band (1440px and wider), and no row measured that band [web/e2e/guide/more-to-try.spec.ts:690]. Fixed: the row is renamed `reference`, and a 1440x900 row is added (chat 254.8px, window 215px, three columns). Fix-risk low.
+- [x] [Review][Patch] LOW: DESIGN.md and EXPERIENCE.md said more than the code does [DESIGN.md:777, EXPERIENCE.md:244, web/src/app/guide/more-to-try.ts:40]
+  - They described the height as "less what the rest of the page needs" (it is a fixed reserve) and the columns as "at least 20rem" (they are narrower in a narrow panel).
+  - They made the panel a Tab stop only where it scrolls; it is one in every band.
+  - They left out the inline padding and the inset ring.
+  - Fixed: the wording now says what the code does. Fix-risk low.
+- [x] [Review][Defer] MED (unverified): K16 and K17 run in Chromium only [web/e2e/guide/more-to-try.spec.ts:757]
+  - `live floor`'s Firefox and WebKit cases never open the finish's panel, and the margin at 1280x600 is 3.5px.
+  - Deferred: DW-821, `routed owner=burndown`. It is settled by a floor-folder `@browsers` copy of the K16 measurement at 1280x600 and 1100x720.
+  - Fix-risk med (a new three-engine floor case and its helpers).
+- [x] [Review][Defer] HIGH (pre-existing, outside the rework): in the compact height band at drawer widths the finish collapses the chat and scrolls the page even with the panel closed [web/src/app/guide/demo-guide.ts]
+  - Measured: 1024x600 chat 0, page 79; 1024x650 chat 0, page 29; 1100x600 chat 0, page 23. The finish's guide is 441-483px tall.
+  - Deferred: DW-822, `routed owner=burndown`. Fix-risk med.
+
+Rejected:
+- false: (acceptance) the implementer re-set the lead's (b3) "about 64px". The ruled quantity is "its label line plus one complete control". With this pass's gap fix the window holds exactly that at every framed size measured, and (b2) holds.
+- low: (blind) a panel control lost while its panel stays hands focus to the group, not to the first control. Carried: it is rare (the feature list must change while the panel holds focus), and the comment states it.
+- low: (edge) a status banner above the guide takes its height from the chat. It is transient, the same happens with the panel closed, and a bound derived from the layout is a larger change.
+- low: (edge) text-only zoom grows the rest of the page past the fixed reserve. The framed layout is calibrated in px throughout; the fix is the same as for the banner.
+- low: (edge) no Shift+Tab pass. The browser's focus scroll is the same in both directions.
+- spec edit: (blind, verification, acceptance) the rewritten `baseline_commit`, the frontmatter `status` against sprint-status, "gains 7 cases" and AC9's CI evidence. These are the lead's tracking.
+
 ## Spec Change Log
 
 - 2026-11-06 (rework iteration 1, re-dispatch after the review-step intent gap, lead): the panel-bound attempt (`4-11-rework-1-panel-bound.patch`) is re-applied and the spec set `in-review`; target (b) amended to (b1)-(b3) by the lead's veto-window ruling (inbox U-296): chat floor 64px in the compact height band, 160px elsewhere, and a panel window of at least one label line plus one control at every framed size. The open-in-the-finish ruling, the placement and the ruled strings are unchanged.
@@ -648,6 +706,21 @@ Rejected:
 - mutation: the bound applied in every width (`@media (min-width: 0px)`) -> K16 stacked rows (800x720, 320x700) red ("no scroller of its own").
 - mutation: `scroll-padding` removed -> `floor-sources` "declares a scroll-padding of the gutter" red (unit; the live K16 does not pin it).
 - Each mutation was applied, observed red, reverted from a saved copy; `shasum` of `more-to-try.ts` equal to before and `git status --short` and `git diff --stat` identical to before.
+
+**Code review re-review (stage code-review, tag e4s11r2, lane B; `live sign-in --part 10/16`, which holds only `guide/more-to-try.spec.ts`).**
+- Measured with temporary probe cases (removed after the runs), routed finish with the four ids; chat list height / page scroll, panel open | panel closed:
+  - 1440x900 254.8/0 | 477.8/0; 1280x800 214.8/0 | 337.8/0; 1024x768 177.6/0 | 268.6/0; 1100x720 167.7/0 | 234.6/0; 1280x650 114.3/0 | 176.3/0; 1280x600 and 1279x600 67.5/0 | 126.3/0.
+  - Drawer widths, compact band: 1200x600 4.6/0 | 63.5/0; 1100x650 0/35 | 27.0/0; 1100x600 0/82 | 0/23; 1024x679 0/91 | 0/0; 1024x650 0/91 | 0/29; 1024x600 0/138 | 0/79 (closed guide 354-483px tall).
+  - Just over 680px: 1024x704 137.7/0; 1024x700 133.7/0; 1100x690 137.7/0; 1280x684 155.0/0. Compact at 1280: 1280x590 57.5/0; 1366x657 137.6/0.
+- Final runs on the patched tree: `npm --prefix web test` 1488 pass; lint exit 0; part 10/16 33 pass (K1-K18; K16 at seven sizes, K17 at six); `live floor` 107 pass in three engines. Flakes: none hit.
+- mutation: `+ var(--more-gap)` removed from `--more-window-min` -> K16 and K17 1100x720 red at "its window shows the label line, the gap under it and one complete control" (window 55 against need 58.84).
+- mutation: compact reserve 592px -> 685px -> K16 and K17 1280x650 red at "and uses the room the viewport leaves it" (window 55 against 57).
+- mutation: the framed `.items` end gutter removed -> K16 and K17 red at "and so is its focus ring" (1280x600 among them).
+- (The three above were applied in one build: 10 cases red, each at its own size and message.)
+- mutation: `.group`'s `padding-inline` removed -> the twelve framed K16 and K17 cases red at "and so is its focus ring".
+- mutation: `.look-for` clamped to two lines in the stacked band -> the two stacked K16 rows red at "no label or look-for line is cut short".
+- (The two above were applied in one build: 14 cases red, the twelve framed and the two stacked.)
+- Each was reverted from a saved copy: `shasum` of `more-to-try.ts` and `more-to-try.spec.ts` equal to before, and `git status --short` and `git diff --stat` identical to before.
 
 **Shared surfaces:**
 - the guide's row 1 controls and Tab order (floor M1, guide Q1 and Q11);
