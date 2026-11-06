@@ -4557,11 +4557,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Gate.cls header: the demo gate validates the fix parameters 'and nothing more: no dry run, approval or Execute (AD-16)'; rc4.md:100 the live rehearsal stopped at run 8; README.md:34 is owner-ruled text
 - 2026-11-06T06:48:13Z status=decision-pending owner=burndown by=cr note=human=Contest Planner ruling on the row's label or number; the ruled text is not editable by a story
+- 2026-11-06T07:51:00Z status=decision-pending owner=burndown by=merge_gate note=to_planner: relabel the 'demo incident end to end, 30 of 30' row or confirm it (public text; any change is a fix story)
 
 ### DW-776: README Measured row 'Routine attention decisions right: 19 of 22' shows the best of three rc4 attempts (19, 18, 18 of 22) with no note that it is the best
 - source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Planner's source comment (collateral/readme-11-25-measured.md line 3): 'SM-1 19/22 + 18/22 + 18/22'; rc4.md:101 'SM-1 between 81.8 and 86.4 percent'; README.md:33 is owner-ruled text
 - 2026-11-06T06:48:16Z status=decision-pending owner=burndown by=cr note=human=Contest Planner ruling: keep the best try, or show the range; the ruled text is not editable by a story
+- 2026-11-06T07:51:00Z status=decision-pending owner=burndown by=merge_gate note=to_planner: keep 'best of three' 19 of 22 or show the range (public text; any change is a fix story)
 
 ### DW-777: Nothing ties the README Measured numbers to later release evaluations, so a later release can publish the rc4 numbers as current unnoticed
 - source: spec-11-25-the-readme-s-judges-section-a-measured-table.md | severity: low | fix-risk: med | footprint: out-of-footprint

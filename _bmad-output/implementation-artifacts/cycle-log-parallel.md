@@ -2199,3 +2199,6 @@
 2026-11-06T07:50:19Z	Run	ci_green_verified	runs=42170641790,42170641761 head=1ebed487 result=success via=none
 2026-11-06T07:50:19Z	Epic 11	merge_enqueued	policy=when_green part_merge=11.25
 2026-11-06T07:50:19Z	Epic 11	epic_merge_started	head=4845cf67 part=11.25
+2026-11-06T07:51:00Z	Epic 11	epic_merged_to_feature	merge=c390b58b head=4845cf67 part=11.25 verified_on_origin=yes ci_triggered=yes(42183537162,42183537102) ledger_union=checked(no_line_lost,no_dup_ids) tracker=valid worktree=kept(epic11_part2_backlog) branch=kept
+2026-11-06T07:51:00Z	Epic 11	decision_sheet_recorded	decided=0 to_action_items=0 to_x0=0 to_planner=2(DW-775,DW-776) note=public_text_accuracy_before_1.0.2_cut
+2026-11-06T07:51:00Z	Run	deps_hash_rerecorded	reason=fix_forward story=11.25 hash=3ebf7249
