@@ -354,3 +354,4 @@
 2026-11-06T10:53:44Z	Story 4.11	spec_rulings_applied	spec=spec-4-11-other-things-to-try.md simulated_phone=verified(device-view.ts:19) send_substring=locator_rule_added flakes+=DW-774,DW-453,DW-670
 2026-11-06T10:57:56Z	Story 4.11	ci_red_classified	run=42205016946 workflow=.github/workflows/ci.yml class=story test=checks/test-boundaries_paths(local_machine_path_in_spec-4-11:378;lead_bookkeeping_wrote_the_lane-b_lock_dir_absolute) note=lead_error;fixed_forward_with_git-common-dir_form;boundaries_passes_locally
 2026-11-06T10:57:56Z	Story 4.11	report_error	fault=lead field=spec_verification_lock_dir reported=absolute_local_path actual=must_be_git-common-dir_form impact=ci_red_on_bookkeeping_head_547e98cc
+2026-11-06T11:25:50Z	Story 4.11	ci_resolved	story=4.11 sha=5c8d667f runs=42206641757,42206641826 result=success failed=none via=none resolved_at=next_plan(before_implement) note=bookkeeping_head;547e98cc_red_was_lead_path_in_spec
