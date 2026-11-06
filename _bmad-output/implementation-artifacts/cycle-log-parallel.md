@@ -2289,3 +2289,7 @@
 2026-11-06T18:37:53Z	Epic 39	amendments_verified	amendments=epics.md(39.7 lane+AC1,39.5 REL-2 :8765,39.8 insert :8818,DW bullets),EXPERIENCE.md:1003,spine(AD-18,AD-19,enum row,rows 1360/1385) extensions=ci.yml checks timeout 15->20 (planner_ruling 2026-11-05T06:50Z),ci/units.sh,tests,eval,web,Enum.cls,bridge-guide.md:266 ok=yes
 2026-11-06T18:37:53Z	Epic 39	merge_enqueued	position=1 head=7714b393 onto=e5ae26af release=1.0.2_candidate
 2026-11-06T18:37:53Z	Epic 39	epic_merge_started	branch=OCT-epic39 head=7714b393 feature=e5ae26af
+2026-11-06T18:38:31Z	Epic 39	epic_merged_to_feature	merge=31f812b9 head=7714b393 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine_lint=10_low_placeholder(pre-existing on feature) planner_told=yes freeze=on
+2026-11-06T18:38:31Z	Epic 39	decision_sheet_skipped	reason=no_decisions_for_user
+2026-11-06T18:38:31Z	Run	deps_hash_rerecorded	reason=split story=39.8
+2026-11-06T18:38:31Z	Run	ci_priority_lifted	subject=epic39 reason=merged_31f812b9
