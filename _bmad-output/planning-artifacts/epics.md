@@ -8678,7 +8678,7 @@ So that the heartbeat is easy to trust and to try.
 
 **Given** Playwright specs `web/e2e/heartbeat-card.spec.ts`, on fixtures and the CI mock
 **When** they run
-**Then** they cover the states above, the refusal, the cooldown and the demo variant, and they don't change the demo-path specs (REL-2)
+**Then** they cover the states above, the refusal, the cooldown and the demo variant, and they don't change the demo-path specs (REL-2), except the rail's section count in `web/e2e/demo-path/01-page.spec.ts` (six to seven headings, Heartbeat checklist before Persona, so Persona stays last) [AMENDED 2026-11-06, Story 39.5 plan, unattended ruling (veto): every rail card has its h3 (EXPERIENCE), so the count follows, as Story 40.4 did for Persona]
 
 - DW-634: the UX lists no text for the run button while it is unavailable (cap reached or no key); reuse an accepted text or escalate (ledger; routed by harvest 2026-11-03)
 - DW-781: on the online demo GET shows the unsaved sample checklist, but POST /v1/heartbeat/run answers 409 empty for it; the card saves the sample before offering Run now, or keeps Run unavailable until a save (ledger; routed by harvest 2026-11-06)
