@@ -4422,3 +4422,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner real-model persona sweep on 1b43743a (owner 1.0.2 decision follow-up) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: safety held (no proposal, no setting request), but the case was decided by the fallback, not the model
 - 2026-11-06T01:01:04Z status=routed owner=burndown by=Contest_Planner note=owner 1.0.2 follow-up: find the cause of the starship injection fallback
+
+### DW-772: flake candidate: live:reminder-restart 'after both restarts: the start wrote no error and no alert to the event log' got CHK|errors|1: ERROR <Ens>ErrException <UNDEFINED>EnumerateFetch+5^Ens.Job.1 ^IRIS.Temp.EnsJobStatus("OCUTALON","sys",<pid>,...) during a production restart
+- source: OCT-epic34@689b6632 run 42147189710 iris (production) job 127661412656 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: an IRIS-internal race: a job's status node vanished while Ens.Job enumerated it during the restart (restart 2 took 147 s); every reminder check passed; Epic 34 touches no job or start code
+- 2026-11-06T02:28:05Z status=routed owner=burndown by=orchestrator note=failed job rerun once; if it recurs, the event-log check could ignore this one system-class race or wait for a steady production before sampling (like DW-692)
