@@ -266,3 +266,6 @@
 2026-11-06T16:32:09Z	Story 39.8	ledger_adjudicated	owned=2 resolved=2 reowned=0 terminal=0 note=DW-780,DW-803_resolved-by_39.8 model=claude-opus-5-5
 2026-11-06T16:40:34Z	Story 39.8	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=fresh_lane-d_production_Test.Checks.Heartbeat_127s:TestSaveThenRunNow(save_then_BeatNow_within_50s_of_a_Tick_answers_sent,Item_to_Intake,Decision),TestShorterIntervalReschedules(real_tick) model=claude-opus-5-5
 2026-11-06T16:40:34Z	Story 39.8	fresh_check	env=recipe tests=3 result=pass order=forward,reverse shard=lane-a@Checks_fwd_164s_rev_153s
+2026-11-06T16:41:21Z	Story 39.8	committed	sha=f8045439 submodules= ci=pending runs=42254603949,42254604101 pushed=true amendments=epics.md_Story_39.8_inserted(split) footprint_extensions=none
+2026-11-06T16:41:21Z	Story 39.8	story_cycle	plan_to_commit_min=82 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-06T16:41:21Z	Story 39.5	rework_opened	cycle_iteration=2 iteration=1 trigger=high items=HIGH_save-then-run_202_case(39.8_fix),DW-812 scope_baseline=pending

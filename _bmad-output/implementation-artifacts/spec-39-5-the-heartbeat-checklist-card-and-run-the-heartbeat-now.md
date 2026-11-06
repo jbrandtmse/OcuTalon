@@ -2,7 +2,7 @@
 title: 'Story 39.5: The Heartbeat checklist card, and Run the heartbeat now'
 type: 'feature'
 created: '2026-11-06'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'e6036799c9198fef3db3b5a78289eb4250a4eb68'
 baseline_commit: 'e6036799c9198fef3db3b5a78289eb4250a4eb68'
 review_loop_iteration: 0
@@ -219,8 +219,12 @@ Code review 2026-11-06 (bmad-code-review, full mode, four layers on the full-opu
 Rejected:
 - false: the GET is 500 when today's read fails (matrix row "GET today"); the day bounds come from `Data.Time`, not `Bridge.Time` (AD-18, Code Map); the online-demo note shows whenever `onlineDemo` (Tasks); a newer skip with an unknown reason hides an older check-in (Checks writes the six known reasons and BackoffUntil with backoff only); `demo-path/01-page.spec.ts`'s added order assertion (U-295 allows it); missing mutation lines (Rule 19 asks one per AC, and every AC has one); HC4's cost regex vs `<$0.0001` (the mock's cost is fixed and above it).
 - low: `HeartbeatToday`'s guard follows `$ZDateH` (`ToLocal(NowUtc())` is never empty); the identical-payload re-read and the `checkIns >= 1`/all-time SUM checks (triaged in implement, unchanged); null `CostUSD` rows add nothing to Today (a missing price row, as everywhere else in the product); `^OcuTalonBP.UsageCapped` killed on a throwaway stack; the unused `HeartbeatRunRefused` type (the spec lists it); a 409 cooldown whose availableAt is already past by the browser clock; Today across local midnight with no event; the open disclosure after a failed then good read; `Decision` read without its status; OwnerRef collation (generated refs); the IRIS tests' midnight races; HC5 and HC4 at 23:58-00:00 UTC; `reset` clearing `onlineDemo` on the test stack; HC5 not pressing Run twice (HC4 and HC5 together cover the matrix row); HC4's 120 s tick budget against the task's 90 s; the HeartbeatApi cost check's missing `> 0` control (the mock reports usage); the unpinned `todayStatus` line (wontfix-accepted in implement).
+- [ ] [Review] HIGH (code review 1): on the online demo, save-then-run was refused as `empty` because Checks read the 60-second per-process settings cache -- now fixed in Lane A by Story 39.8 (`Checks.Beat.Values(ref, 1)` in `RunNow`, committed f8045439) -- `src/ocutalon/cls/OcuTalon/Test/Web/HeartbeatApi.cls` -- add a case on the real production: a session the tick has already read (wait for one real tick after creating it, or as `Test.Checks.Heartbeat.TestSaveThenRunNow` arranges it), then `PUT /v1/heartbeat` with a non-empty checklist (heartbeat off) and at once `POST /v1/heartbeat/run`: it answers 202, not 409 `empty`; demonstrate its mutation (revert 39.8's `Values(sessionRef, 1)` to `Values(sessionRef)` in `RunNow` on your copy only, observe red, restore byte-identical).
+- [ ] [Review] DW-812 (LOW, two-way door): `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls` `HeartbeatValues` repeats the five-key cache drop that `Checks.Beat.Values(ref, 1)` now does -- replace the copy with a call to it, keeping `HeartbeatValues`' contract; the existing `SettingsHeartbeat` and `HeartbeatApi` GET-after-PUT tests must stay green.
 
 ## Spec Change Log
+
+- 2026-11-06 (lead): rework iteration 1 of 3 opened after code review 1 (trigger: HIGH; items: the save-then-run 202 case, DW-812). Story 39.8 carries the Lane A fix.
 
 - 2026-11-06 (lead, after code review 1): the review's HIGH (online-demo save-then-run reads Checks' 60-second per-process settings cache, so AC6 fails on the real stack) needs a Lane A change; split to Story 39.8 (DW-803, with DW-780). This story stays in-progress for ONE rework iteration after 39.8 is committed: add a `HeartbeatApi` case that saves and runs on a session the tick has already read, expecting 202, then a scoped re-review.
 
