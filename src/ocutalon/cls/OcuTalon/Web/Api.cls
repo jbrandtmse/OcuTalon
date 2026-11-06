@@ -150,7 +150,8 @@ Parameter MESSAGETELEGRAMPAUSED = "Telegram is paused, so no pairing code was ma
 /// The seconds a pairing code stays valid.
 Parameter CODESECONDS = 600;
 
-/// The messages of the 409 answers of POST /v1/heartbeat/run; {time} is the time of availableAt as Data.Time.ForMessage gives it.
+/// The messages of the 409 answers of POST /v1/heartbeat/run; {time} is the time of availableAt as the catalog shows a message time (Data.Time.ForMessage,
+/// with " ET" on the online demo), and a dated time turns the "at" before it into "on".
 Parameter MESSAGERUNCOOLDOWN = "You can run it again at {time}.";
 
 Parameter MESSAGERUNCAP = "Today's cost limit has been reached.";
@@ -1437,7 +1438,8 @@ ClassMethod PutHeartbeat() As %Status
 /// as a BeatNow (an error status or no result is 500 server_error). The answer follows Checks' result:
 ///   - Ok: 202 {"result":"sent"};
 ///   - cooldown, cap, nokey, empty, backoff: 409 {"error":{"code","message"}} with the outcome as the code and its sentence, in which {time} is the
-///     time of the result's availableAt in the instance zone (Data.Time.ForMessage), and availableAt (UTC) beside the error when Data has one;
+///     time of the result's availableAt as Tools.CommandCall.TimeLabel gives it (the catalog's time: " ET" on the online demo; "at" becomes "on"
+///     before a dated time), and availableAt (UTC) beside the error when Data has one;
 ///   - not_built: 501 not_built;
 ///   - anything else (failed included): 500 server_error, with the cause logged.
 ClassMethod RunHeartbeat() As %Status
@@ -1464,7 +1466,9 @@ ClassMethod RunHeartbeat() As %Status
 			Set availableAt = ""
 		}
 		Set message = $Case(outcome, "cooldown": ..#MESSAGERUNCOOLDOWN, "cap": ..#MESSAGERUNCAP, "nokey": ..#MESSAGERUNNOKEY, "empty": ..#MESSAGERUNEMPTY, : ..#MESSAGERUNBACKOFF)
-		Set message = $Replace(message, "{time}", ##class(OcuTalon.Data.Time).ForMessage(availableAt))
+		Set time = ##class(OcuTalon.Tools.CommandCall).TimeLabel(availableAt, ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1)
+		If (time '= "") && ($Extract(time, 1, 5) '? 2N1":"2N) Set message = $Replace(message, "at {time}", "on {time}")
+		Set message = $Replace(message, "{time}", time)
 		Quit ..Fail(409, outcome, message, , $Select(availableAt '= "": {"availableAt": (availableAt)}, 1: ""))
 	}
 	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)

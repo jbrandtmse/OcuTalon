@@ -4,8 +4,8 @@
 /// writes; POST sends a RunHeartbeat that CommandsIn gives to the real Checks as a BeatNow. THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI ONLY
 /// (Rule 21): where OcuTalon.Production does not run every test fails with that reason, so that a broken stack can never give a green shard. The
 /// answers that the real items never give go through Test.Web.HeartbeatApiProbe. The expected texts are written out here, never read from the
-/// product. The onlineDemo setting is put back in OnAfterAllTests, the heartbeat keys and HeartbeatBeat rows of the fixture sessions are removed, and so
-/// are their beats' decisions, the fixture rows and the sessions' messages. A running production's Tick may make a HeartbeatBeat row for a fixture
+/// product. The onlineDemo setting is put back in OnAfterAllTests, the heartbeat keys of the fixture sessions are removed, and so are
+/// their beats' decisions, the sessions' messages, the fixture rows and then the sessions' HeartbeatBeat rows (after the sessions, so no Tick makes one again). A running production's Tick may make a HeartbeatBeat row for a fixture
 /// session of its own, so the tests of the GET compare the settings and the private fields, not the whole answer, where a row could appear.
 ///   - TestGetDefaults, TestGetOnlineDemoSample, TestGetAfterPut, TestGetRowView, TestGetFails: the GET: the settings, the online demo's sample,
 ///     the values just saved (never a cached older one), the row's public view with traceUrl and none of its private fields, a failed read;
@@ -99,13 +99,14 @@ Method OnAfterAllTests() As %Status
 	}
 	For i = 1:1:$Length(..Sessions, ",") {
 		Set ref = $Piece(..Sessions, ",", i)
-		If ref '= "" {
-			Do ##class(OcuTalon.Core.SettingsOps).ForgetPerson(ref)
-			Do ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexDelete(ref)
-		}
+		If ref '= "" Do ##class(OcuTalon.Core.SettingsOps).ForgetPerson(ref)
 	}
 	If ..Missing = "" Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Traces, "OCUTALON")
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+	For i = 1:1:$Length(..Sessions, ",") {
+		Set ref = $Piece(..Sessions, ",", i)
+		If ref '= "" Do ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexDelete(ref)
+	}
 	Quit sc
 }
 
@@ -203,23 +204,24 @@ Method TestGetFails()
 }
 
 /// An accepted PUT: 200 with the Saved sentence and the values; the five keys hold them, one Settings entry (channel web) records the changed keys,
-/// and the SetHeartbeat reached SettingsOps once with origin web_user.
+/// and the SetHeartbeat reached SettingsOps once with origin web_user. The checklist is saved with the heartbeat off and on true only with an empty
+/// one, so that no Tick runs a beat for the session.
 Method TestPutAccepted()
 {
 	If '..Guard() Quit
 	Set session = ..Session()
 	Set trace = ..TraceOf(session)
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
-	Set body = ..Put("{""on"":true,""interval"":60,""from"":""07:15"",""to"":""21:45"",""checklist"":""a\nb""}", .response)
+	Set body = ..Put("{""on"":false,""interval"":60,""from"":""07:15"",""to"":""21:45"",""checklist"":""a\nb""}", .response)
 	Do $$$AssertEquals(response.Status_"|"_response.ContentType, "200 OK|application/json", "200 JSON")
-	Do $$$AssertEquals(body, "{""result"":""done"",""message"":""Saved. Applies within a minute. Recorded in the audit log."",""on"":true,""interval"":60,""from"":""07:15"",""to"":""21:45"",""checklist"":""a\nb""}", "the answer")
-	Do $$$AssertEquals(..KeyValues(session), "1|60|07:15|21:45|a"_$Char(10)_"b", "the five keys hold the values")
+	Do $$$AssertEquals(body, "{""result"":""done"",""message"":""Saved. Applies within a minute. Recorded in the audit log."",""on"":false,""interval"":60,""from"":""07:15"",""to"":""21:45"",""checklist"":""a\nb""}", "the answer")
+	Do $$$AssertEquals(..KeyValues(session), "0|60|07:15|21:45|a"_$Char(10)_"b", "the five keys hold the values")
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Settings", "Settings", session, "", 1, ..#SECONDS)
 	Do $$$AssertEquals(entries.%Size(), 1, "one Settings entry names the session")
 	If entries.%Size() = 1 {
 		Set data = entries.%Get(0).data
 		Do $$$AssertEquals(data.setting_"|"_data.channel_"|"_data.irisUser_"|"_data.sessionRef, "heartbeat|web|"_$Username_"|"_session, "heartbeat, on web, for the IRIS user and the session")
-		Do $$$AssertTrue(data.to [ "interval=60; from=07:15; to=21:45; checklist=3 characters", "its 'to' names the changed keys: "_data.to)
+		Do $$$AssertTrue(data.to [ "on=0; interval=60; from=07:15; to=21:45; checklist=3 characters", "its 'to' names the changed keys: "_data.to)
 		Do $$$AssertTrue(data.%ToJSON() '[ "a\nb", "and holds no checklist text")
 	}
 	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "CommandsIn", "SettingsOps")
@@ -227,10 +229,11 @@ Method TestPutAccepted()
 	If sent.%Size() = 1 {
 		Set command = $ClassMethod(sent.%Get(0).bodyClass, "%OpenId", sent.%Get(0).bodyId)
 		Do $$$AssertEquals(command.%ClassName(1)_"|"_command.Origin_"|"_command.SessionRef, "OcuTalon.Msg.Command.SetHeartbeat|web_user|"_session, "a SetHeartbeat with origin web_user for the caller's session")
-		Do $$$AssertEquals(command.On_"|"_command.Interval_"|"_command.From_"|"_command.To, "1|60|07:15|21:45", "with on as 1 and the interval as its text")
+		Do $$$AssertEquals(command.On_"|"_command.Interval_"|"_command.From_"|"_command.To, "0|60|07:15|21:45", "with on as 0 and the interval as its text")
 	}
 	Set body = ..Put({"on": true, "interval": 30, "from": "", "to": "", "checklist": ""}.%ToJSON(), .response)
 	Do $$$AssertEquals(body, "{""result"":""done"",""message"":""Saved. Applies within a minute. Recorded in the audit log."",""on"":true,""interval"":30,""from"":"""",""to"":"""",""checklist"":""""}", "all day: the answer holds the empty hours")
+	Do $$$AssertEquals(..KeyValues(session), "1|30|||", "and on true is stored as 1")
 }
 
 /// A refused value is 400 with the outcome as the code and the owner's sentence, and the keys and the audit log are as they were. An accepted save after
@@ -240,7 +243,7 @@ Method TestPutRefusals()
 	If '..Guard() Quit
 	Set session = ..Session()
 	Set first = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
-	Do ..Put({"on": true, "interval": 60, "from": "07:15", "to": "21:45", "checklist": "zz first"}.%ToJSON(), .response)
+	Do ..Put({"on": false, "interval": 60, "from": "07:15", "to": "21:45", "checklist": "zz first"}.%ToJSON(), .response)
 	Do $$$AssertEquals(response.Status, "200 OK", "control: a heartbeat is saved")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(first, "OcuTalon", "Settings", "Settings", session, "", 1, ..#SECONDS).%Size(), 1, "control: and its entry is written")
 	Set before = ..KeyValues(session)
@@ -270,7 +273,7 @@ Method TestPutRefusals()
 	Do $$$AssertEquals(response.Status, "200 OK", "control: the fence is saved")
 	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Settings", "Settings", session, "", 1, ..#SECONDS)
 	Do $$$AssertEquals(entries.%Size(), 1, "the fence's is the only Settings entry since the mark: no refusal wrote one")
-	If entries.%Size() = 1 Do $$$AssertTrue(entries.%Get(0).data.to [ "on=0; interval=120", "and it is the fence's")
+	If entries.%Size() = 1 Do $$$AssertTrue(entries.%Get(0).data.to [ "interval=120", "and it is the fence's")
 }
 
 /// A body of the wrong shape is 400 bad_heartbeat with the Couldn't save sentence, and nothing is submitted: no command goes from CommandsIn to
@@ -393,7 +396,7 @@ Method TestRunEmptyThenCooldown()
 	If '$IsObject(row) Quit
 	Set at = ##class(OcuTalon.Data.Time).AddSeconds(row.LastRunNowAt, 120)
 	Set body = ..Post(.response)
-	Set expected = {"error": {"code": "cooldown", "message": ("You can run it again at "_##class(OcuTalon.Data.Time).ForMessage(at)_".")}, "availableAt": (at)}.%ToJSON()
+	Set expected = {"error": {"code": "cooldown", "message": ("You can run it again "_..At(at)_".")}, "availableAt": (at)}.%ToJSON()
 	Do $$$AssertEquals(response.Status_"|"_body, "409 Conflict|"_expected, "the next one is 409 cooldown with availableAt two minutes after the first")
 }
 
@@ -418,7 +421,7 @@ Method TestRunSendsThenCoolsDown()
 	If row.LastItemId '= "" Set ..ItemIds = ..ItemIds_$ListBuild(row.LastItemId)
 	Set at = ##class(OcuTalon.Data.Time).AddSeconds(row.LastRunNowAt, 120)
 	Set body = ..Post(.response)
-	Set expected = {"error": {"code": "cooldown", "message": ("You can run it again at "_##class(OcuTalon.Data.Time).ForMessage(at)_".")}, "availableAt": (at)}.%ToJSON()
+	Set expected = {"error": {"code": "cooldown", "message": ("You can run it again "_..At(at)_".")}, "availableAt": (at)}.%ToJSON()
 	Do $$$AssertEquals(response.Status_"|"_body, "409 Conflict|"_expected, "the second is 409 cooldown with availableAt two minutes after the first")
 	Set again = ..Beat(session)
 	Do $$$AssertEquals(again.LastRunNowAt_"|"_again.LastItemId, row.LastRunNowAt_"|"_row.LastItemId, "and the cooldown sent nothing: the row is as it was")
@@ -431,8 +434,8 @@ Method TestRunSendsThenCoolsDown()
 	Do $$$AssertTrue($IsObject(decision), "Intake recorded the beat's decision")
 }
 
-/// The outcomes of Checks through the probe: sent is 202; cooldown and backoff are 409 with their sentence (the time in the instance zone) and
-/// availableAt beside the error; cap, nokey and empty are 409 with theirs and no availableAt; not_built is 501; failed, an outcome the route does not
+/// The outcomes of Checks through the probe: sent is 202; cooldown and backoff are 409 with their sentence (the time in the instance zone, "on"
+/// before a dated time, " ET" on the online demo) and availableAt beside the error; cap, nokey and empty are 409 with theirs and no availableAt; not_built is 501; failed, an outcome the route does not
 /// know, an error status and no result are 500 server_error. The route submits a RunHeartbeat for the caller's session and reads no body.
 Method TestRunOutcomes()
 {
@@ -445,7 +448,7 @@ Method TestRunOutcomes()
 	Do $$$AssertEquals(response.Status_"|"_body, "202 Accepted|{""result"":""sent""}", "sent: 202")
 	Do $$$AssertEquals(^OcuTalonTest("HeartbeatApiProbe", "submitted", 1, "class")_"|"_^OcuTalonTest("HeartbeatApiProbe", "submitted", 1, "session"), "RunHeartbeat|"_session, "a RunHeartbeat for the caller's session")
 	Set cases = $ListBuild(
-		$ListBuild("cooldown", at, "You can run it again at "_time_"."),
+		$ListBuild("cooldown", at, "You can run it again on "_time_"."),
 		$ListBuild("backoff", at, "The last beat failed, so the next one waits until "_time_"."),
 		$ListBuild("cap", "", "Today's cost limit has been reached."),
 		$ListBuild("nokey", "", "No model key is set."),
@@ -460,6 +463,15 @@ Method TestRunOutcomes()
 		If availableAt '= "" Do expected.%Set("availableAt", availableAt, "string")
 		Do $$$AssertEquals(response.Status_"|"_body, "409 Conflict|"_expected.%ToJSON(), outcome_": 409 with its sentence"_$Select(availableAt '= "": " and availableAt", 1: ""))
 	}
+	Set clock = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 120)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	For availableAt = at, clock {
+		Set ^OcuTalonTest("HeartbeatApiProbe", "submit") = {"ok": 0, "outcome": "cooldown", "message": "zz the owner's words", "data": ({"availableAt": (availableAt)}.%ToJSON())}.%ToJSON()
+		Set body = ..Post(.response, ..#PROBE)
+		Set expected = {"error": {"code": "cooldown", "message": ("You can run it again "_..At(availableAt)_" ET.")}, "availableAt": (availableAt)}.%ToJSON()
+		Do $$$AssertEquals(response.Status_"|"_body, "409 Conflict|"_expected, availableAt_" on the online demo: the time carries ET")
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Set ^OcuTalonTest("HeartbeatApiProbe", "submit") = {"ok": 0, "outcome": "not_built", "message": "This part of OcuTalon isn't built yet. Nothing was changed."}.%ToJSON()
 	Set body = ..Post(.response, ..#PROBE)
 	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_..ErrorBody("not_built", "This part of OcuTalon isn't built yet."), "not_built: 501")
@@ -501,6 +513,13 @@ Method TestNoSessionIs500()
 }
 
 /// --- helpers ---
+/// "at" and the message time of the UTC stamp, or "on" and it when the time is dated (a weekday or a date): the catalog's rule for a time after "at".
+Method At(utc As %String) As %String [ Private ]
+{
+	Set time = ##class(OcuTalon.Data.Time).ForMessage(utc)
+	Quit $Select(time ? 2N1":"2N: "at ", 1: "on ")_time
+}
+
 /// 1 when the test may run. Otherwise it fails with the reason, and the test quits.
 Method Guard() As %Boolean [ Private ]
 {

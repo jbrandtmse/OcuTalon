@@ -153,6 +153,33 @@ deferred:
 - DW-684: given `docs/security-overview.md`, when `bash docker/tests/test-heartbeat-overview.sh` and `bash docker/tests/test-triage-heartbeat.sh` run, then both pass: the existing beat sentence is unchanged and the run-now sentence follows it in the same bullet.
 - Given the story's diff against the merge base with `origin/feature/OCT_OcuTalon_MVP`, when it is compared, then no file under `web/`, `src/ocutalon/cls/OcuTalon/Checks/`, `Data/HeartbeatBeat.cls`, `Live/`, `Test/Checks/`, `Test/Install/`, `Production.cls`, `Test/Web/SettingsApi.cls`, `Test/Core/SettingsSave.cls` or `docker/tests/test-triage-heartbeat.sh` changed, and `docs/bridge-guide.md` changed only on line 266.
 
+### Review Findings
+
+Code review 2026-11-06 (four layers, full-opus; 25 rows, 10 entries after grouping: high 0, med 4, low 6).
+
+- [x] [Review][Patch] (med, fix-risk low, in-story) The run-now 409 time skipped the spine's Times rule: no " ET" on the online demo, and "again at Friday at 00:01" before a dated time; `{time}` now comes from `Tools.CommandCall.TimeLabel` (the catalog's time) and a dated time turns "at" into "on" [src/ocutalon/cls/OcuTalon/Web/Api.cls:1469]
+- [x] [Review][Patch] (med, fix-risk low, in-story, Rule 19 hermeticity) Tests left sessions beatable by a real Tick (on, a non-empty checklist): `HeartbeatApi.TestPutAccepted`/`TestPutRefusals` and `SettingsHeartbeat.TestKeyWriteFails`/`TestAppliesWithinSixtySeconds` now save checklists with the heartbeat off; on true is pinned by the all-day save's keys [src/ocutalon/cls/OcuTalon/Test/Web/HeartbeatApi.cls:209]
+- [x] [Review][Patch] (med, fix-risk low, in-story, Rule 19 hermeticity) Clean-up deleted the HeartbeatBeat rows before the sessions, so a Tick in between left an orphan row; both classes now delete the rows after `Fixture.Clean` [src/ocutalon/cls/OcuTalon/Test/Web/HeartbeatApi.cls:86]
+- [x] [Review][Patch] (low) `WriteKeys`' doc named a nonexistent `WriteHeartbeat`; now `SaveHeartbeat` [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:277]
+- [x] [Review][Patch] (low) `SettingsOps.Heartbeat`'s doc claimed the settings are always returned; a view that cannot be built leaves only checklist and sample (the GET answers 500 either way) [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:405]
+- [x] [Review][Patch] (low) `TestBadChecklist`'s emoji case was over 1,000 either way it is counted; it is now 999 letters and one emoji (1,000 code points, 1,001 `$Length` units, refused), and `TestAcceptedChecklists` gains 998 letters and one emoji (1,000 units, accepted) [src/ocutalon/cls/OcuTalon/Test/Core/SettingsHeartbeat.cls:176]
+- [x] [Review][Patch] (low) `TestPersonKeysAreGuarded` listed one refused key twice; the second is now `zz.key`, as in `SettingsPersona.TestApplyGuard` [src/ocutalon/cls/OcuTalon/Test/Core/SettingsHeartbeat.cls:399]
+- [x] [Review][Patch] (low, Rule 19) `TestRunArrivesAsBeatNow`'s origin/key assertion could not fail on its own (CommandsOwner records neither for a BeatNow); removed, the class assertion pins it [src/ocutalon/cls/OcuTalon/Test/Core/CommandsHeartbeat.cls:101]
+- [x] [Review][Patch] (low) The spine's `updated:` was not set to the edit date; now 2026-11-06 (lint: the same 10 pre-existing low placeholders, none on the edited row) [_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md:10]
+- [x] [Review][Defer] (med, fix-risk low, in-epic, Rule 2) `test-heartbeat-overview.sh` repeats about 25 lines of Lane A's `test-triage-heartbeat.sh` overview rule, a copy forced by U-177 [docker/tests/test-heartbeat-overview.sh:1] — deferred: DW-785 routed owner=burndown (a story that may edit both scripts unifies them)
+
+Rejected:
+- `false` Blind: `Test.Msg.Catalog.TestErrors` omits `heartbeat` -- `TestEveryKeyOnEveryChannel` renders every key on every refused channel from `RefusedChannels()` (heartbeat included) and asserts the error names it.
+- `false` VG: the decision wait never ends past midnight -- `$ZHorolog` counts seconds since the instance started; it does not wrap at midnight.
+- `false` Edge: the online-demo flag is read through the 60-second cache -- `onlineDemo` is a public key, which `Data.Setting.Get` reads uncached from `Public.Settings`.
+- `low` Blind: the checklist refusal does not explain a tab, and "1,000" is written out -- ruled Public text and the matrix's refused-checklist row (spec-bound, by-design).
+- `low` Blind: `Ownership.Heartbeat`'s `%EXACT` comparison scans the table -- one row per session, milliseconds at demo scale; the fix adds a second bind.
+- `low` Blind: the spec's two added-time estimates differ, and the spec says `done` while in review -- spec edits (the frontmatter status is build-auto's machine state).
+- `low` Edge: a BeatNow queued behind a long Tick past CommandsIn's 120 s timeout answers 500 and runs later -- the sync send is shared with every verb (Dismiss to Checks too) and a Tick never calls the model; a new outcome would add surface.
+- `low` Edge: Checks takes `RequestedAt` (stamped at send) as its now -- spec-bound (`RequestedAt` set by CommandsIn) and Lane A's rule (by-design).
+- `low` VG: `TestHeartbeatRead`'s exact default JSON could flake if a Tick lands between `Session()` and the read -- a window of microseconds; the fix adds branches.
+- `low` Acceptance: the spine is also in Epic 17's diff and AC8's command cannot exit 0 on this branch -- spec footprint/AC wording (spec edits); the hunks do not overlap and the spec's Verification already records the AC8 substitute.
+
 ## Spec Change Log
 
 - 2026-11-06 (lead, before implement): the Contest Planner's PUBLIC TEXT ruling (owner's delegation) applied to `### Public text`: the DW-684 sentence, the `cap` and `backoff` messages reworded, `nokey`, `empty` and the audit data form approved; one task added: every new string pinned by a fixed-strings test.
@@ -274,6 +301,7 @@ Observed mutations (implement stage; each applied, seen red, reverted byte-ident
 - mutation: the route answers 202 for `cooldown` -> red: `HeartbeatApi.TestRunSendsThenCoolsDown`, `TestRunEmptyThenCooldown`, `TestRunOutcomes` (AC5).
 - mutation: `ForgetPerson` limited to persona keys -> red: `Test.Core.SessionOps.TestEndForgetsHeartbeat` (AC6).
 - mutation: remove the DW-684 sentence from `docs/security-overview.md` -> `bash docker/tests/test-heartbeat-overview.sh` prints `FAIL runnow` (AC7).
+- mutation (code review): `Web.Api.RunHeartbeat` passes `TimeLabel(availableAt, 0)` (no online-demo flag) -> red: `HeartbeatApi.TestRunOutcomes` (both "on the online demo: the time carries ET" cases) (AC5, the run-now message time).
 
 **Shared surfaces:** `Msg.Enum` and `Bridge.Msg.Enum` CHANNEL (+`heartbeat`: `Test.Msg.Contracts`, `Test.Msg.Catalog` refused channels, `test-bridge-guide.sh` via `docs/bridge-guide.md`, `Test.Digest.Store` iterates it); `CommandsIn` `Routes` (+2 verbs; `CommandsRouting`'s 12-verb oracle is unchanged and stays green); `Test.Msg.Contracts` verb list and contracts (+2); `Web.Api` URL map (22 → 25 routes, `Test.Web.Api.TestRoutes`); `Test.Web.BodyLimit` POST routes (16 → 17); `SettingsOps.PERSONKEYS` (+5); `Ownership` `Statement` kinds (+1); `CHECK_SCRIPTS` (+`heartbeat-overview`, `test-ci-config.sh`); `CommandsOwner`'s recorded fields; the spine Enumerations row. Standing criterion: every test added or changed passes on a fresh environment, in either order. Added test time (inference): about 2 s warm and about 30-60 s fresh in `Test.Web.HeartbeatApi` (one real beat and its decision), well inside `image`'s `shard:lane-b`.
 

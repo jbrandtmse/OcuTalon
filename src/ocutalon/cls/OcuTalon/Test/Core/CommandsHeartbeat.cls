@@ -110,7 +110,6 @@ Method TestRunArrivesAsBeatNow()
 	Do $$$AssertTrue(requestedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "RequestedAt is a UTC stamp: "_requestedAt)
 	Set at = ##class(OcuTalon.Data.Time).Seconds(requestedAt)
 	Do $$$AssertTrue((at '< before) && (at '> after), "and it is the time of the send")
-	Do $$$AssertEquals(..Call(1, "origin")_"|"_..Call(1, "key"), "|", "a BeatNow has neither an origin nor an idempotency key")
 	Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "1|test|Checks", "the owner's result is the answer as it is")
 	Set last = probe.LastRequest
 	Do $$$AssertEquals(last.%ClassName(1), "OcuTalon.Checks.Msg.BeatNow", "the very request that Checks got")

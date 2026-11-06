@@ -274,7 +274,7 @@ Method WritePersona(irisUser As %String, sessionRef As %String, channel As %Stri
 	Quit ..WriteKeys(irisUser, sessionRef, channel, origin, "persona", from, ..AuditForm(preset, language), keys, $ListBuild(preset, language, custom), .outcome)
 }
 
-/// The write that WritePersona and WriteHeartbeat share: the Settings audit entry first (the setting, from and to as given), then each key
+/// The write that WritePersona and SaveHeartbeat share: the Settings audit entry first (the setting, from and to as given), then each key
 /// of keys with the value at the same place of values, through Apply, in one transaction. Returns an error status for a refused audit entry
 /// (outcome not_audited, logged) or a failed write (outcome failed, logged, every key as it was); outcome is "" when it succeeds.
 Method WriteKeys(irisUser As %String, sessionRef As %String, channel As %String, origin As %String, setting As %String, from As %String, to As %String, keys As %List, values As %List, Output outcome As %String) As %Status [ Private ]
@@ -402,7 +402,8 @@ ClassMethod HeartbeatAuditForm(values As %DynamicObject, changed As %List) As %S
 /// A person's heartbeat, read from the rows and never from the per-process cache: the public view of their settings and HeartbeatBeat row
 /// (Live.Payload.Heartbeat.FromRow, the very view of the heartbeat event) as a dynamic object, with from and to always present, followed by
 /// checklist (the stored text) and sample (true only when the unsaved sample checklist is shown: on the online demo, when the session has no
-/// checklist row). sc is an error status when the row could not be read; the settings are returned all the same.
+/// checklist row). sc is an error status when the row could not be read (the settings are returned all the same) or its view could not be built
+/// (only checklist and sample are then set).
 ClassMethod Heartbeat(sessionRef As %String, Output sc As %Status) As %DynamicObject
 {
 	Set sc = $$$OK

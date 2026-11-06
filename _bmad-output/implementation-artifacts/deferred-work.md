@@ -4079,6 +4079,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-6-evaluation-cases-for-the-heartbeat.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: docs/security-overview.md data-leaving section gets Story 39.6's AC sentence; FR-66 run-now makes it incomplete once 39.2's route exists
 - 2026-11-04T21:05:26Z status=routed owner=39-2-save-your-heartbeat-settings-and-ask-for-a-beat by=spec_gate note=lead at 39.6's spec gate; the wording is FR-66's, so no new claim
+- 2026-11-06T09:34:17Z status=resolved-by:39-2-save-your-heartbeat-settings-and-ask-for-a-beat by=adjudication note=docs/security-overview.md carries the Planner-ruled run-now sentence after the beat sentence (bb922c93); pinned by docker/tests/test-heartbeat-overview.sh (grep -F, 11 bad files)
 
 ### DW-689: flake: live:reminder-restart restart 2 R_future: the rail did not list the reminder with its dueAt and a trace link to its waiter, once in CI production group
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4614,3 +4615,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Core/SettingsOps.cls Heartbeat returns SampleChecklist with sample true and writes no key; Checks reads the stored checklist only
 - 2026-11-06T09:01:42Z status=routed owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=harvest note=39.5's card decides: save the sample before offering Run now, or keep Run unavailable until a save (within EXPERIENCE's texts)
+
+### DW-785: docker/tests/test-heartbeat-overview.sh repeats about 25 lines of test-triage-heartbeat.sh's security-overview rule (Rule 2 copy forced by U-177); unify both checks in one shared helper
+- source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: the spec's Extend-don't-copy note records the copy: Lane B may not edit Lane A's test-triage-heartbeat.sh, so the overview-bullet rule exists twice
+- 2026-11-06T09:32:40Z status=routed owner=burndown by=cr note=Rule 2: a spec-forced copy is routed to the story that may edit both scripts
+- 2026-11-06T09:32:48Z status=routed owner=burndown by=cr note=footprint is in-epic (test-triage-heartbeat.sh is Lane A's in Epic 39), not out-of-footprint

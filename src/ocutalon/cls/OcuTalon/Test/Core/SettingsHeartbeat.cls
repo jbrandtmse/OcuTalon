@@ -1,8 +1,8 @@
 /// Tests of the heartbeat command of OcuTalon.Core.SettingsOps (Story 39.2; AD-1, AD-17, AD-19, FR-63) over a shadow instance of
 /// Test.Core.SettingsOpsProbe, which takes the audit entry through the WriteAudit seam instead of the real log. Safe on a slot: no production is
 /// needed. The expected texts are written out here, never read from SettingsOps. The fixture sessions are made with Test.Data.Fixture; the public
-/// setting onlineDemo is saved and put back; every per-person key and HeartbeatBeat row of a fixture session and every fixture row is removed in
-/// OnAfterAllTests.
+/// setting onlineDemo is saved and put back; every per-person key of a fixture session, every fixture row and then the sessions' HeartbeatBeat rows (after the
+/// sessions, so that no Tick makes one again) are removed in OnAfterAllTests.
 ///   - TestSaveAccepted, TestAllDay, TestAcceptedChecklists: an accepted SetHeartbeat answers saved, writes one audit entry and the five keys;
 ///   - TestBadOn, TestBadInterval, TestBadHours, TestBadChecklist: the refusals write and audit nothing;
 ///   - TestAuditNamesChangedKeysOnly, TestAuditFirstAndWithoutText, TestFixedStrings: the audit entry names only the changed keys, comes before
@@ -52,13 +52,14 @@ Method OnAfterAllTests() As %Status
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	For i = 1:1:$Length(..Refs, ",") {
 		Set ref = $Piece(..Refs, ",", i)
-		If ref '= "" {
-			Do ##class(OcuTalon.Core.SettingsOps).ForgetPerson(ref)
-			Do ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexDelete(ref)
-		}
+		If ref '= "" Do ##class(OcuTalon.Core.SettingsOps).ForgetPerson(ref)
+	}
+	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+	For i = 1:1:$Length(..Refs, ",") {
+		Set ref = $Piece(..Refs, ",", i)
+		If ref '= "" Do ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexDelete(ref)
 	}
 	Do ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexDelete(..CaseRef())
-	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Kill ^OcuTalonTest("SettingsOpsProbe")
 	Quit $SYSTEM.Status.OK()
 }
@@ -99,7 +100,8 @@ Method TestAllDay()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|saved", "from equal to is accepted")
 }
 
-/// A checklist of emoji, with CRLF line breaks, of exactly 1,000 characters, or empty is accepted and stored exactly.
+/// A checklist of emoji, with CRLF line breaks, of exactly 1,000 characters (also 998 letters and one emoji: 1,000 as $Length counts), or empty is
+/// accepted and stored exactly.
 Method TestAcceptedChecklists()
 {
 	Do ..Reset()
@@ -107,7 +109,8 @@ Method TestAcceptedChecklists()
 	Set emoji = "Check "_$Char(55357, 56842)_$Char(10)_"Be brief."
 	Set crlf = "one"_$Char(13, 10)_"two"_$Char(13, 10)
 	Set long = $Translate($Justify("", 1000), " ", "x")
-	Set texts = $ListBuild(emoji, crlf, long, "")
+	Set units = $Translate($Justify("", 998), " ", "x")_$Char(55357, 56842)
+	Set texts = $ListBuild(emoji, crlf, long, units, "")
 	For i = 1:1:$ListLength(texts) {
 		Set result = ..Send(session, "1", "30", "", "", $List(texts, i))
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|saved", "checklist "_i_" is saved")
@@ -168,12 +171,13 @@ Method TestBadHours()
 	}
 }
 
-/// A checklist that is too long, holds {{ or @{ or holds a control character other than a line break is refused with the card's text.
+/// A checklist that is too long (also 999 letters and one emoji: 1,000 code points but 1,001 as $Length counts), holds {{ or @{ or holds a control
+/// character other than a line break is refused with the card's text.
 Method TestBadChecklist()
 {
 	Do ..Reset()
 	Set session = ..Session("badlist")
-	Set texts = $ListBuild($Translate($Justify("", 1001), " ", "x"), "a {{x}} b", "a @{env:X} b", "a"_$Char(9)_"b", "a"_$Char(7)_"b", "a"_$Char(127)_"b", "a"_$Char(133)_"b", "a"_$Char(0)_"b", "x"_$Translate($Justify("", 999), " ", "x")_$Char(55357, 56842))
+	Set texts = $ListBuild($Translate($Justify("", 1001), " ", "x"), "a {{x}} b", "a @{env:X} b", "a"_$Char(9)_"b", "a"_$Char(7)_"b", "a"_$Char(127)_"b", "a"_$Char(133)_"b", "a"_$Char(0)_"b", $Translate($Justify("", 999), " ", "x")_$Char(55357, 56842))
 	For i = 1:1:$ListLength(texts) {
 		Set result = ..Send(session, "1", "30", "", "", $List(texts, i))
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|bad_checklist", "text "_i_": Ok 0, bad_checklist")
@@ -266,8 +270,8 @@ Method TestKeyWriteFails()
 {
 	Do ..Reset()
 	Set session = ..Session("keyfail")
-	Set result = ..Send(session, "1", "60", "07:15", "21:45", "zz first")
-	Do $$$AssertEquals(result.Outcome, "saved", "a heartbeat is saved first")
+	Set result = ..Send(session, "0", "60", "07:15", "21:45", "zz first")
+	Do $$$AssertEquals(result.Outcome, "saved", "a heartbeat is saved first, off so that no Tick runs it")
 	Set before = ..Keys(session)
 	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "apply") = "second"
 	Kill ^OcuTalonTest("SettingsOpsProbe", "applies")
@@ -380,10 +384,10 @@ Method TestAppliesWithinSixtySeconds()
 	Do $$$AssertEquals($Parameter("OcuTalon.Data.Setting", "CACHESECONDS"), 60, "the cache window is 60 seconds")
 	Set values = ##class(OcuTalon.Checks.Beat).Values(session)
 	Do $$$AssertEquals(values.interval_"|"_values.checklist, "30|", "Values reads the defaults first (and caches the misses)")
-	Set result = ..Send(session, "1", "120", "09:00", "17:00", "zz applies")
-	Do $$$AssertEquals(result.Outcome, "saved", "the heartbeat is saved")
+	Set result = ..Send(session, "0", "120", "09:00", "17:00", "zz applies")
+	Do $$$AssertEquals(result.Outcome, "saved", "the heartbeat is saved, off so that no Tick runs it")
 	Set values = ##class(OcuTalon.Checks.Beat).Values(session)
-	Do $$$AssertEquals(values.interval_"|"_values.from_"|"_values.to_"|"_values.checklist, "120|09:00|17:00|zz applies", "the writing process reads the new values at once")
+	Do $$$AssertEquals((+values.on)_"|"_values.interval_"|"_values.from_"|"_values.to_"|"_values.checklist, "0|120|09:00|17:00|zz applies", "the writing process reads the new values at once")
 	Set key = ##class(OcuTalon.Checks.Beat).SettingKey(session, "interval")
 	Set ^||OcuTalon.Setting(key) = $ListBuild("30", 1, $ZHorolog - 30)
 	Do $$$AssertEquals(##class(OcuTalon.Checks.Beat).Values(session).interval, 30, "another process's entry that is 30 seconds old is still read")
@@ -402,7 +406,7 @@ Method TestPersonKeysAreGuarded()
 	}
 	Do $$$AssertEquals(..KeyCount(ref), 5, "and written")
 	Do $$$AssertStatusOK(##class(OcuTalon.Core.SettingsOps).ForgetPerson(ref), "the keys are removed")
-	Set refused = $ListBuild("person."_ref_".heartbeat.zz", "person."_ref_".heartbeat.", "person.short.heartbeat.on", "person."_ref_".heartbeat.on.x", "person."_ref_"heartbeat.on", "person.."_ref_".heartbeat.on", "person."_ref_"x.heartbeat.on", "heartbeat.on", "person."_$Extract(ref, 1, 21)_".heartbeat.on", "person."_ref_"x.heartbeat.on")
+	Set refused = $ListBuild("person."_ref_".heartbeat.zz", "person."_ref_".heartbeat.", "person.short.heartbeat.on", "person."_ref_".heartbeat.on.x", "person."_ref_"heartbeat.on", "person.."_ref_".heartbeat.on", "person."_ref_"x.heartbeat.on", "heartbeat.on", "person."_$Extract(ref, 1, 21)_".heartbeat.on", "zz.key")
 	For i = 1:1:$ListLength(refused) {
 		Do $$$AssertStatusNotOK(probe.Guarded($List(refused, i), "zz"), "'"_$List(refused, i)_"' is refused")
 	}
