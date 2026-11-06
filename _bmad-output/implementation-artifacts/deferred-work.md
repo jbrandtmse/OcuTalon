@@ -4708,3 +4708,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: chk_measured (test-readme.sh 517-530) only requires each MEAS_LABELS label to start a row; README with '| The always-on online demo |' appended after line 39: git grep prints README.md:40, test-readme.sh PASS measured
 - 2026-11-06T08:38:06Z status=by-design owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=cr note=spec Never forbids a new rule/helper/self-test; QA declined the absence pin on purpose; AC1 absence held by the Verification git grep
+
+### DW-824: Heartbeat card: Today's cost sums more than the counted check-ins (online demo 1.0.2: Last check-in $0.0003, Today: 1 check-in, $0.0006)
+- source: planner_demo_walk_1.0.2 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Planner live walk 2026-11-06 on 1.0.2: Save heartbeat On, Run the heartbeat now; decision Act with read-only checks; card Last check-in 12:20 PM Offered an action $0.0003 vs Today 1 check-in $0.0006
+- 2026-11-06T20:24:09Z status=routed owner=burndown by=orchestrator note=Epic 39 post-merge follow-up story (with DW-670, DW-785, Every hour): find what Today's total sums (second beat or decision, the notice, the run-now turn); make line and count agree or word the line to say what it sums; any text change is PUBLIC TEXT to the Planner

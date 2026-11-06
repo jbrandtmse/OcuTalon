@@ -2311,3 +2311,5 @@
 2026-11-06T19:43:59Z	Epic 7	public_text_ruled	story=7.9 PT-a=form1_exact Z=Z1 no_7.10 PT-b=reuse_noFix(followup DW for later wording) PT-c=ok PT-d=notice_only PT-e=accepted(condition: online-demo e2e shows the line "0 would change" on the second press, item 3; added by whichever of 4.11/7.9 integrates second) reader_union=confirmed by=planner
 2026-11-06T19:43:59Z	Epic 7	runner_resumed	agent=a4621a6b3ad580328 reason=7.9_public_text_ruled b_told=yes
 2026-11-06T20:09:10Z	Run	planner_update	subject=v1.0.2_released main=03b0d25a(parents ba97fe91,fe61a8e2) pr=5(15/15) tag=v1.0.2 merge_back=planner_pushing_to_feature(csp untracked, versions 1.0.2) orchestrator=not_mid_merge(local bookkeeping held until merge-back lands)
+2026-11-06T20:09:46Z	Run	planner_update	subject=merge_back_landed feature=9683c1f0(parents 82aefc4a,03b0d25a) csp_untracked versions=1.0.2 runs=42285847375,42285847475 local=merged_in(8c1eb7a8, held)
+2026-11-06T20:24:09Z	Epic 39	followup_item_filed	id=DW-824 source=planner_demo_walk_1.0.2 subject=heartbeat_today_cost_vs_count followup=epic39_post_merge(DW-670,DW-785,Every hour,DW-824)
