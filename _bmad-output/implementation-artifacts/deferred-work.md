@@ -4617,9 +4617,25 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Core/SettingsOps.cls Heartbeat returns SampleChecklist with sample true and writes no key; Checks reads the stored checklist only
 - 2026-11-06T09:01:42Z status=routed owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=harvest note=39.5's card decides: save the sample before offering Run now, or keep Run unavailable until a save (within EXPERIENCE's texts)
+- 2026-11-06T15:13:35Z occurrence=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=cr note=39.5 PUT-then-POST still gets 409 empty: Checks RunNow reads the checklist via Data.Setting 60 s cache (HIGH)
 
 ### DW-785: docker/tests/test-heartbeat-overview.sh repeats about 25 lines of test-triage-heartbeat.sh's security-overview rule (Rule 2 copy forced by U-177); unify both checks in one shared helper
 - source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: the spec's Extend-don't-copy note records the copy: Lane B may not edit Lane A's test-triage-heartbeat.sh, so the overview-bullet rule exists twice
 - 2026-11-06T09:32:40Z status=routed owner=burndown by=cr note=Rule 2: a spec-forced copy is routed to the story that may edit both scripts
 - 2026-11-06T09:32:48Z status=routed owner=burndown by=cr note=footprint is in-epic (test-triage-heartbeat.sh is Lane A's in Epic 39), not out-of-footprint
+
+### DW-800: heartbeat-card.spec.ts HC8, HC10 and HC11 skip within 40 minutes of midnight UTC, so about 5.6 percent of runs leave the outcome texts, the run refusals and the event re-read unpinned
+- source: spec-39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: web/e2e/heartbeat-card.spec.ts nearMidnight() skips; a fixed browser clock (page.clock.setFixedTime) is the seam, more than 15 lines over three cases
+- 2026-11-06T15:13:35Z status=wontfix-accepted owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=cr note=reopen_if=a card text or re-read regression merges on a CI run whose report lists HC8, HC10 or HC11 as skipped
+
+### DW-801: heartbeat-card.spec.ts copies persona-card.spec.ts describer (6 lines) instead of sharing one support helper
+- source: spec-39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/e2e/heartbeat-card.spec.ts describer and web/e2e/persona-card.spec.ts:64 are the same body; sharing it edits persona-card.spec.ts (Epic 40, done)
+- 2026-11-06T15:13:35Z status=wontfix-accepted owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=cr note=reopen_if=a third spec under web/e2e defines its own describer, or the two copies differ in behavior
+
+### DW-802: The card's Off line always says every 30 minutes, whatever interval is saved
+- source: spec-39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: heartbeat-card-view.ts HEARTBEAT_TEXTS.off is the ruled UX Off text verbatim; with interval 120 saved and on false HC2 expects every 30 minutes
+- 2026-11-06T15:13:35Z status=by-design owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=cr note=Public text table is final (Contest Planner ruling 2026-11-06); reopens only via a Public-text ruling naming {interval}

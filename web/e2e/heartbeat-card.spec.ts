@@ -8,19 +8,21 @@ import { chk, irisScript, publishStatus, quoted } from './support/iris';
 import { sessionRef } from './support/persona';
 
 /**
- * Story 39.5 (HC1 to HC10, and HC3b and HC9b), the Heartbeat checklist card in the status rail, in a real browser against the stack that test-sign-in.sh seeds,
+ * Story 39.5 (HC1 to HC12, and HC3b and HC9b), the Heartbeat checklist card in the status rail, in a real browser against the stack that test-sign-in.sh seeds,
  * signed in as the README account. Every case removes the account's heartbeat keys, its HeartbeatBeat row and the decision and Usage rows of
  * its beats first and again in `finally`, because the rail and demo-path specs assert Recent decisions and the defaults. The saved line and
  * the refusals are the server's own texts (OcuTalon.Core.SettingsOps), the card's other texts are written out here as the oracle. The values
  * behind the page are read through irisScript.
  *   - HC1 to HC3, HC9: the section and its default state, the keyboard alone through Edit and Save, a refusal beside its field, Esc;
- *   - HC4 (Integration, real routes and the real tick; the last case, because its keys change the status monitor's noModelKey reading, which
- *     the monitor publishes within 15 seconds of the change): save a checklist with a `heartbeat-ignore` marker, run it, and see the outcome and
- *     Today arrive by the `heartbeat` event with no reload. Its describe block points the runners at the CI mock and puts them back;
+ *   - HC4 (Integration, real routes and the real tick): save a checklist with a `heartbeat-ignore` marker, run it, and see the outcome and
+ *     Today arrive by the `heartbeat` event with no reload. Its describe block points the runners at the CI mock, puts them back, and waits for
+ *     the status monitor's noModelKey event of the restored keys (published within 15 seconds of the change), so that no later case gets it;
  *   - HC5: the cooldown from the row's LastRunNowAt, after a reload, and the clock that enables Run again;
  *   - HC6, HC7, HC8 rewrite one answer of the real stack: /state for the unavailable reasons, the GET for the online demo and for each
  *     outcome and skip. HC7 answers the run itself with a 202, so no beat runs;
  *   - HC3b and HC10 stub the PUT and the run with a refusal or a failure, to reach the answers that the real stack gives only on a fault.
+ *   - HC11 and HC12 (QA) publish `heartbeat` events with a rewritten GET (no reload; a failed read leaves the heading; the next event reads again) and fail a
+ *     save's re-read, so focus goes to the heading.
  */
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
 
@@ -165,9 +167,10 @@ test('HC1: the Heartbeat checklist section comes before Persona with the default
     await expect(editOf(page)).toHaveAttribute('aria-expanded', 'false');
     await expect(card(page).locator('.empty, .hint, [aria-live], [role="status"], [role="alert"], [role="log"]'), 'the card is no empty text, hint or live region').toHaveCount(0);
 
-    await writeRow(ref, { LastSkipAt: at(-5 * MINUTE), LastSkipReason: 'empty', NextDueAt: at(24 * 60 * MINUTE) });
+    const skippedAt = at(-5_000);
+    await writeRow(ref, { LastSkipAt: skippedAt, LastSkipReason: 'empty', NextDueAt: at(24 * 60 * MINUTE) });
     await page.reload();
-    await expect(lastOf(page), 'a forced skip shows the skip line').toHaveText(`Skipped at ${clock(at(-5 * MINUTE))}: your checklist is empty.`);
+    await expect(lastOf(page), 'a forced skip shows the skip line').toHaveText(`Skipped at ${clock(skippedAt)}: your checklist is empty.`);
   });
 });
 
@@ -230,10 +233,15 @@ test('HC2: with the keyboard alone, Edit changes every value, Save stores them, 
     await expect(toOf(page)).toHaveValue('21:45');
     await expect(checklistOf(page)).toHaveValue('Look at Orders.\nBe brief.');
 
-    await allDayOf(page).check();
+    await allDayOf(page).focus();
+    await page.keyboard.press('Space');
+    await expect(allDayOf(page), 'Space checks All day').toBeChecked();
     await expect(fromOf(page), 'All day leaves out the hours').toHaveCount(0);
-    await onOf(page).check();
-    await saveOf(page).click();
+    await onOf(page).focus();
+    await page.keyboard.press('Space');
+    await expect(onOf(page), 'Space checks On').toBeChecked();
+    await saveOf(page).focus();
+    await page.keyboard.press('Enter');
     await expect(card(page).getByText(SAVED, { exact: true })).toBeVisible();
     expect(await stored(ref, 'from'), 'all day is stored as empty hours').toMatch(/^(|none)$/);
     expect(await stored(ref, 'to')).toMatch(/^(|none)$/);
@@ -264,7 +272,7 @@ test('HC3: a checklist with {{ is refused beside the checklist, marked invalid a
 
 /** HC5: the cooldown comes from LastRunNowAt, survives a reload, and ends by itself. */
 test('HC5: Run is held for 120 seconds after LastRunNowAt, still after a reload, and enabled again when the cooldown ends', async ({ page }) => {
-  test.setTimeout(150_000);
+  test.setTimeout(180_000);
   let ran = '';
   await withCard(
     page,
@@ -277,11 +285,13 @@ test('HC5: Run is held for 120 seconds after LastRunNowAt, still after a reload,
       await conditionsOff(page);
       await expect(runOf(page), 'after a reload it is still held, from LastRunNowAt').toHaveAttribute('aria-disabled', 'true');
       await expect(runOf(page)).toHaveAccessibleDescription(`You can run it again at ${clock(ends)}.`);
-      await expect(runOf(page), 'and enabled again when the cooldown ends, with no reload').not.toHaveAttribute('aria-disabled', 'true', { timeout: 70_000 });
+      await expect(runOf(page), 'and enabled again when the cooldown ends, with no reload').not.toHaveAttribute('aria-disabled', 'true', {
+        timeout: Math.max(Date.parse(ends) - Date.now(), 0) + 5_000,
+      });
       await expect(card(page).getByText(/^You can run it again at/), 'the cooldown line leaves').toHaveCount(0);
     },
     async (ref) => {
-      ran = at(-60_000);
+      ran = at(-30_000);
       await writeRow(ref, { LastRunNowAt: ran, NextDueAt: at(24 * 60 * MINUTE) });
     },
   );
@@ -400,11 +410,12 @@ test('HC8: each outcome and each skip reads in the UX texts, and the Today line 
       await expect(lastOf(page), label).toHaveText(exactly(expected));
       if (label === 'ignore') await expect(lastOf(page).locator('app-trace-link'), 'a trace link ends the check-in line').toHaveCount(1);
     }
-    shown = { ...checkIn('ignore'), today: { checkIns: 3, costUSD: 0.0036 }, on: true, interval: 60, from: '07:15', to: '21:45', nextDueAt: at(30 * MINUTE) };
+    const nextDueAt = at(30 * MINUTE);
+    shown = { ...checkIn('ignore'), today: { checkIns: 3, costUSD: 0.0036 }, on: true, interval: 60, from: '07:15', to: '21:45', nextDueAt };
     await page.reload();
     await expect(todayOf(page), 'three check-ins read in the plural').toHaveText('Today: 3 check-ins, $0.0036');
     await expect(card(page).locator('p.line').first(), 'the on line holds the interval, the hours and the next check-in').toHaveText(
-      `Every 1 hour, 07:15 to 21:45 \u00b7 Next check-in ${clock(at(30 * MINUTE))}`,
+      `Every 1 hour, 07:15 to 21:45 \u00b7 Next check-in ${clock(nextDueAt)}`,
     );
     shown = { today: { checkIns: 1, costUSD: 0.0012 }, on: true, interval: 1440, from: '', to: '', nextDueAt: null };
     await page.reload();
@@ -517,9 +528,10 @@ test('HC10: a 409 cooldown holds Run to its time, a 409 empty and a 500 show the
     await expect(card(page).locator('.field-error').filter({ hasText: EMPTY }), 'a 409 empty shows its message under the button').toHaveCount(1);
     await expect(runOf(page), 'and leaves Run enabled').not.toHaveAttribute('aria-disabled', 'true');
 
-    answer = { status: 500, json: {} };
+    answer = { status: 500, json: { error: { code: 'server_error', message: 'zz The run failed.' } } };
     await runOf(page).click();
     await expect(card(page).locator('.field-error').filter({ hasText: BUSY }), 'a 500 shows the busy sentence under the button').toHaveCount(1);
+    await expect(card(page).getByText('zz The run failed.'), "and not the 500's own message").toHaveCount(0);
     await expect(card(page).locator('.field-error').filter({ hasText: EMPTY }), 'in place of the earlier message').toHaveCount(0);
   });
 });
@@ -544,7 +556,117 @@ test('HC10b: on the online demo a refused save of the sample shows its message u
   });
 });
 
-/** HC4: Integration. The real routes and the real tick, with the CI mock as the model. */
+/** Publishes a `heartbeat` event on the session's stream, as the Checks job does after a beat. Returns its Seq. */
+async function publishHeartbeat(ref: string, lastBeatAt: string): Promise<number> {
+  const lines = await irisScript(
+    [
+      'Set p=##class(OcuTalon.Live.Payload.Heartbeat).%New()',
+      'Set p.On=1, p.Interval=30',
+      `Set p.LastBeatAt=${quoted(lastBeatAt)}`,
+      `Set sc=##class(OcuTalon.Live.Publish).Publish(${quoted(ref)},"heartbeat",p,.q)`,
+      'Write !,"CHK|seq|",$Select($System.Status.IsOK(sc):q,1:0)',
+    ].join('\n'),
+  );
+  const seq = Number(chk(lines, 'seq'));
+  if (!Number.isInteger(seq) || seq < 1) throw new Error(`the heartbeat event could not be published (${lines.join(' ')})`);
+  return seq;
+}
+
+/**
+ * HC11: a `heartbeat` event makes the card read again with no reload, and a failed read leaves the section heading alone until the next event.
+ * The events are published as the Checks job publishes them; the GET is rewritten, so that no real tick can change the answer.
+ */
+test('HC11: a heartbeat event shows the new state with no reload, a failed read leaves the heading only, and the next event reads again', async ({ page }) => {
+  test.skip(nearMidnight(), 'a time within 40 minutes of midnight UTC is rendered with a day word');
+  let failing = false;
+  let shown: Record<string, unknown> = {};
+  await page.route(`**${HEARTBEAT}`, async (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    if (failing) return route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The read failed.' } } });
+    const response = await route.fetch();
+    const body = (await response.json()) as Record<string, unknown>;
+    return route.fulfill({ response, json: { ...body, ...shown } });
+  });
+  await withCard(page, async (ref) => {
+    await page.evaluate(() => {
+      (globalThis as unknown as Record<string, unknown>)['hc11'] = 'same page';
+    });
+    failing = true;
+    const failed = page.waitForResponse((response) => new URL(response.url()).pathname === HEARTBEAT && response.request().method() === 'GET' && response.status() === 500);
+    await applied(page, await publishHeartbeat(ref, at(-10 * MINUTE)));
+    await failed;
+    await expect(railOf(page).getByRole('heading', { level: 3, name: 'Heartbeat checklist', exact: true }), 'the heading shows').toBeVisible();
+    await expect(card(page), 'the card is drawn').toHaveCount(1);
+    await expect(runOf(page), 'with no Run').toHaveCount(0);
+    await expect(editOf(page), 'and no Edit').toHaveCount(0);
+    expect(((await card(page).textContent()) ?? '').trim(), 'and no text').toBe('');
+
+    failing = false;
+    const beat = at(-5 * MINUTE);
+    shown = {
+      lastSkipAt: null,
+      lastSkipReason: '',
+      lastBeatAt: beat,
+      lastOutcome: 'ignore',
+      lastCostUSD: 0.0012,
+      traceHeaderId: 4242,
+      traceNamespace: 'OCUTALON',
+      traceUrl: 'https://example.test/trace/4242',
+      today: { checkIns: 1, costUSD: 0.0012 },
+    };
+    await applied(page, await publishHeartbeat(ref, beat));
+    await expect(lastOf(page), 'the next event reads again: the new check-in shows').toHaveText(exactly(`Last check-in ${clock(beat)} \u00b7 Stayed quiet \u00b7 $0.0012 \u00b7 Trace`));
+    await expect(todayOf(page), 'and Today follows').toHaveText('Today: 1 check-in, $0.0012');
+    expect(await page.evaluate(() => (globalThis as unknown as Record<string, unknown>)['hc11']), 'all of it on the same page, with no reload').toBe('same page');
+  });
+});
+
+/** HC12: a failed save whose re-read fails too takes the card away, and focus on Save goes to the Heartbeat heading. */
+test('HC12: when a failed save reads again and that read fails, the card leaves and focus on Save goes to the Heartbeat heading', async ({ page }) => {
+  let failing = false;
+  await page.route(`**${HEARTBEAT}`, (route) => {
+    if (route.request().method() === 'PUT') return route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The save failed.' } } });
+    return failing ? route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The read failed.' } } }) : route.continue();
+  });
+  await withCard(page, async () => {
+    await editOf(page).click();
+    await checklistOf(page).fill('zz hc12');
+    failing = true;
+    await saveOf(page).focus();
+    await expect(saveOf(page), 'Save holds focus').toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(runOf(page), 'the card leaves with the failed read').toHaveCount(0);
+    await expect(page.locator('#rail-heading-heartbeat'), 'and focus goes to the Heartbeat heading').toBeFocused();
+  });
+});
+
+/** The last Seq of the instance stream, where the status monitor publishes its conditions. */
+async function instanceSeq(): Promise<number> {
+  const seq = Number(chk(await irisScript('Write !,"CHK|seq|",##class(OcuTalon.Live.Publish).LastSeq("instance")'), 'seq'));
+  if (!Number.isInteger(seq) || seq < 0) throw new Error('the last Seq of the instance stream could not be read');
+  return seq;
+}
+
+/** Waits up to 30 seconds (two runs of the status monitor) for its noModelKey event after the mark; none comes when the reading did not change. */
+async function monitorSettled(mark: number): Promise<void> {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const lines = await irisScript(
+      [
+        `Set r=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) AS n FROM OcuTalon_Live.Event WHERE Stream = 'instance' AND Seq > ? AND Type = 'status' AND Payload [ 'noModelKey'",${mark})`,
+        'Do r.%Next()',
+        'Write !,"CHK|events|",+r.%Get("n")',
+      ].join('\n'),
+    );
+    if (Number(chk(lines, 'events')) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+}
+
+/**
+ * HC4: Integration. The real routes and the real tick, with the CI mock as the model. Its afterAll waits for the status monitor's noModelKey
+ * event of the restored keys, so that the event lands before the next case or file and not in it.
+ */
 test.describe('HC4 (Integration)', () => {
   test.beforeAll(async () => {
     test.setTimeout(240_000);
@@ -563,11 +685,13 @@ test.describe('HC4 (Integration)', () => {
 
   test.afterAll(async () => {
     test.setTimeout(240_000);
+    const mark = await instanceSeq();
     try {
       await restoreKeys();
     } finally {
       const lines = await irisScript('Write !,"CHK|records|",##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords()');
       expect(chk(lines, 'records'), `the runners recorded the restored keys (${lines.join(' ')})`).toBe('1');
+      await monitorSettled(mark);
     }
   });
 
@@ -589,6 +713,9 @@ test.describe('HC4 (Integration)', () => {
       await editOf(page).click();
       await expect(onOf(page), 'after a reload Edit shows the saved values').not.toBeChecked();
       await expect(checklistOf(page)).toHaveValue(checklist);
+      await page.evaluate(() => {
+        (globalThis as unknown as Record<string, unknown>)['hc4'] = 'same page';
+      });
 
       // The settings are cached for 60 seconds in every process (AD-19, "Applies within a minute"), and the tick of the Checks job has read this account's
       // empty checklist since the case began: a run before the cache entry is gone would answer 409 empty and start the cooldown.
@@ -606,6 +733,7 @@ test.describe('HC4 (Integration)', () => {
       await expect(lastOf(page).locator('app-trace-link'), 'the Trace link is there').toHaveCount(1);
       await expect(todayOf(page), 'and Today counts the check-in').toHaveText(/^Today: 1 check-in, \$\d+\.\d+$/);
       await expect(runOf(page), 'Run is still held').toHaveAttribute('aria-disabled', 'true');
+      expect(await page.evaluate(() => (globalThis as unknown as Record<string, unknown>)['hc4']), 'all of it on the same page, with no reload').toBe('same page');
     });
   });
 });

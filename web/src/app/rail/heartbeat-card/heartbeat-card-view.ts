@@ -135,7 +135,7 @@ export function intervalName(minutes: number | undefined): string {
   return INTERVALS.find((one) => one.minutes === minutes)?.name ?? '';
 }
 
-/** The state line: the off line, or "Every {interval}, {from} to {to}, then the separator and Next check-in {time}" without the hours part for all day and without the last part when no check-in is due. */
+/** The state line: the off line, or "Every {interval}, {from} to {to}, then the separator and Next check-in {time}" without the hours part for all day (both hours empty, or from equal to to, which Checks.Beat InHours reads as all day) and without the last part when no check-in is due. */
 export function stateLine(state: HeartbeatState, when: (iso: string) => string): string {
   if (state.on !== true) {
     return HEARTBEAT_TEXTS.off;
@@ -146,7 +146,7 @@ export function stateLine(state: HeartbeatState, when: (iso: string) => string):
   }
   const from = state.from ?? '';
   const to = state.to ?? '';
-  const every = from !== '' && to !== '' ? fill(HEARTBEAT_TEXTS.everyHours, { interval, from, to }) : fill(HEARTBEAT_TEXTS.every, { interval });
+  const every = from !== '' && to !== '' && from !== to ? fill(HEARTBEAT_TEXTS.everyHours, { interval, from, to }) : fill(HEARTBEAT_TEXTS.every, { interval });
   const next = when(state.nextDueAt ?? '');
   return next === '' ? every : `${every}${SEPARATOR}${fill(HEARTBEAT_TEXTS.next, { time: next })}`;
 }

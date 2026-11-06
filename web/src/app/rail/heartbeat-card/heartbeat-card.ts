@@ -91,7 +91,7 @@ interface PendingRun {
  * - Run is a ServerButton whose POST asks for a beat now. It is held (aria-disabled) while `dailyCap` or `noModelKey` is active, with the
  *   reason as its description (the cap first), and for 120 seconds after LastRunNowAt, with "You can run it again at {time}." as its
  *   description; a clock enables it again at the end. A 409 cooldown holds it to the answer's availableAt; any other 409 shows the server's
- *   message under it. On the online demo, while the shown checklist is the unsaved sample, the press first PUTs the shown values (the sample,
+ *   message under it, and a 5xx the busy notice. On the online demo, while the shown checklist is the unsaved sample, the press first PUTs the shown values (the sample,
  *   the heartbeat as it is) and shows the server's saved line, and a refused PUT sends no POST. Run never saves unsaved edits of an open Edit.
  * The card announces nothing and is no live region. It moves focus only for the user's own Esc, and through the page's focus rule when its
  * own read removes the focused element: to the Heartbeat checklist heading. Every text is bound by interpolation from heartbeat-card-view.ts,
@@ -627,14 +627,16 @@ export class HeartbeatCard {
     this.read();
   }
 
-  /** A refused or failed press: a cooldown holds the button to the answer's availableAt; any other answer shows its message (the busy notice when it has none). */
+  /** A refused or failed press: a cooldown holds the button to the answer's availableAt; a 5xx, or an answer with no message, shows the busy notice; any other answer shows its message. */
   private runFailed(error: unknown): void {
     const failure = failureOf(error);
+    const status = (error as { status?: unknown } | null)?.status;
     if (failure.code === 'cooldown' && failure.availableAt !== '') {
       this.availableAt.set(failure.availableAt);
       this.clock.set(Date.now());
     } else {
-      this.runAnswer.set({ message: failure.message === '' ? BUSY_NOTICE : failure.message, refused: true });
+      const busy = failure.message === '' || (typeof status === 'number' && status >= 500);
+      this.runAnswer.set({ message: busy ? BUSY_NOTICE : failure.message, refused: true });
     }
     this.read();
   }

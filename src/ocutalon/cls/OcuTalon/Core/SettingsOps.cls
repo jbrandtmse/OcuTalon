@@ -404,8 +404,8 @@ ClassMethod HeartbeatAuditForm(values As %DynamicObject, changed As %List) As %S
 /// checklist (the stored text), sample (true only when the unsaved sample checklist is shown: on the online demo, when the session has no
 /// checklist row), today ({"checkIns", "costUSD"}: the session's heartbeat Usage rows in the daily cap's day, Ownership.HeartbeatToday), lastFallbackReason
 /// (a string, present only when the row's last beat was a fallback and the session's own decision of it names a reason) and onlineDemo (boolean).
-/// None of them holds a decision Ref, an ItemId or a SessionRef. sc is an error status when the row could not be read (the settings are returned all the same) or its view could not be built
-/// (only checklist and sample are then set).
+/// None of them holds a decision Ref, an ItemId or a SessionRef. sc is an error status when the row could not be read (the settings are returned all the same), when its view could not be built
+/// (the members after the view are then set all the same), or when today's Usage rows could not be read.
 ClassMethod Heartbeat(sessionRef As %String, Output sc As %Status) As %DynamicObject
 {
 	Set sc = $$$OK

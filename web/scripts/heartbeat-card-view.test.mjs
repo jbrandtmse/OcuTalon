@@ -170,6 +170,7 @@ describe('the state line', () => {
     assert.equal(stateLine({ ...on, nextDueAt: undefined }, when), 'Every 1 hour, 07:15 to 21:45');
     assert.equal(stateLine({ ...on, nextDueAt: '' }, when), 'Every 1 hour, 07:15 to 21:45');
     assert.equal(stateLine({ ...on, from: '', to: '', nextDueAt: '' }, when), 'Every 1 hour');
+    assert.equal(stateLine({ ...on, from: '08:00', to: '08:00' }, when), 'Every 1 hour \u00b7 Next check-in 14:30', 'from equal to to is all day, as Checks.Beat InHours reads it');
   });
 
   it('is empty for an interval the card does not offer', () => {
