@@ -2294,3 +2294,8 @@
 2026-11-06T18:38:31Z	Run	deps_hash_rerecorded	reason=split story=39.8
 2026-11-06T18:38:31Z	Run	ci_priority_lifted	subject=epic39 reason=merged_31f812b9
 2026-11-06T18:39:51Z	Epic 7	dispatch_planned	story=7.9 runner=D slot=ocutalon-slot-d prompt=prompts/dispatch-epic-7-79.md base=first_green_feature_head_after_F1(frozen_window_ok_for_branch_creation) note=epic39_worktree_kept_for_followup(DW-670,DW-785,"Every hour")
+2026-11-06T18:40:23Z	Run	planner_update	subject=F1_pushed feature=b5dcbbfa(README only) cancelled=42272527500,42272527671(31f812b9 superseded) candidate_runs=42272673909,42272674052 freeze=on
+2026-11-06T19:00:28Z	Epic 17	runner_clarification	agent=a69a13ff12f8408f8 story=17.6 items=HIGH_AD-14_direct_sends(option a rec),MED_DW-815_4096_bound head=952cb4fb origin=3660e1c5
+2026-11-06T19:00:28Z	Epic 17	planner_question	story=17.6 subjects=AD-14_interim_note(conditions: channel-independent, Sent per channel, routing row for AD-26, Own-vs-Notify test, route Own to 18.2),DW-815(option 2 split at line boundaries + tests) u7_check=no_inflight_spec_cites_AD-14
+2026-11-06T19:07:11Z	Epic 17	planner_ruling	story=17.6 AD-14=a(additive interim note verbatim; channel-independent; Sent per channel; routing row AD-26; Own-vs-Notify test; one-fails test, next window only the failed channel; Own->18.2) DW-815=option2(split at line boundaries in order; demo fits one; 200-row clean; fold->followup/18.2) by=planner
+2026-11-06T19:07:11Z	Run	ci_green_verified	sha=b5dcbbfa runs=42272673909,42272674052 branch=feature result=success via=ci-gate note=1.0.2_candidate
