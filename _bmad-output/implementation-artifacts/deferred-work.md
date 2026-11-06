@@ -4237,6 +4237,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ARCHITECTURE-SPINE.md AD-8 'The retry timer' bullet vs Timeouts.RetryTimer and the spec's DW-647 AC ('the retry entries hold Derive(12)')
 - 2026-11-05T09:40:35Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=cr note=lead writes AD-8's max(MINTIMER, ...) clamp into the spine (Rule 20); 17.4's Timeouts.Apply work reads it
+- 2026-11-06T02:35:24Z status=resolved-by:17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=adjudication note=Timeouts.Apply gives retry entries Derive(RetryTimer(T)); DW-727 test at T=60 and T=100
 
 ### DW-728: docs/bridge-guide.md names RetryItem and RetryOf only in the appended Second-model retry section; fold both into the guide's Settings and Messages reference tables once Epic 40 (which also edits the guide) has merged, so the guide's structure stays consistent
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4301,13 +4302,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-3-run-each-agent-on-a-supported-provider.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Installer.SeedPrices never overwrites (AD-19 seed values); fresh installs get 0.1; Sonnet is not the default model
 - 2026-11-05T20:12:06Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=harvest note=17.4 price edits: decide whether a seeded-but-never-edited price row is corrected on upgrade (stored-data change: veto window)
+- 2026-11-06T02:35:24Z status=resolved-by:17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=adjudication note=SeedPrices corrects only a never-edited claude-sonnet-5-5 row to 0.10 (U-293); edited row untouched; pinned
 
 ### DW-758: A resolved or newly chosen provider keeps the entry's base_url, http headers and TLS: unreachable today (only Anthropic supported; OCUTALON_MODEL_BASE_URL set only by CI and the online demo), reachable once REL-7 marks another provider supported while a base_url is set
 - source: spec-17-3-run-each-agent-on-a-supported-provider.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: 17.3 decided in-stage 5: resolved config keeps base_url and http_config from the entry (AD-19)
 - 2026-11-05T20:12:06Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=harvest note=17.4's bridge checks: a provider change drops a base_url/headers that belong to another provider (or refuses the change)
+- 2026-11-06T02:35:24Z status=resolved-by:17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=adjudication note=ConfigStore.DropEndpoint on provider change (Merge), Resolve and the Provider step; Conventions Provider endpoints
 
 ### DW-771: The model Test for DiagnosisAgent cannot answer with the fixed TESTINPUT: against the mock it ends in fallback invalid (DiagnosisPayload needs an evidence pack), so the settings Test button would likely say a working diagnosis model did not answer
 - source: spec-17-4-apply-model-price-budget-and-zone-changes-through-the-bridge.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: 17.4 live test hides it with a [[mock:diagnosis-unknown]] marker; unverified on a real provider (none allowed)
 - 2026-11-06T02:03:39Z status=decision-pending owner=burndown by=harvest note=product call: how a diagnose-kind Test request is tested (e.g. a minimal evidence pack, or test the runner with a plain turn-shaped request)
+
+### DW-773: docs/bridge-guide.md Settings intro (line 153) still says a Decide row takes effect only after a restart, with only ToolClassification and ApprovalRole read live; since Story 17.4 DecisionTokenBudget, RequestTokenLimit, DailyCostCapUSD and InstanceZone apply with no restart
+- source: spec-17-4-apply-model-price-budget-and-zone-changes-through-the-bridge.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Decide.SettingText reads DecisionTokenBudget/RequestTokenLimit as written in its own job; Budget.State reads the cap live; the new InstanceZone row says no restart; the guide is contended with Epic 40, which the lead limited to the InstanceZone row
+- 2026-11-06T02:33:27Z status=wontfix-accepted owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=cr note=reopen_if=bridge-guide Settings intro still names only ToolClassification and ApprovalRole as read live when DW-728's fold-in pass edits it

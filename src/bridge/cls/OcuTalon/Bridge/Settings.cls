@@ -13,7 +13,8 @@
 ///     number from 0 to 10000 with at most two decimals, 0 is off) or InstanceZone ("" or an IANA name that Time.CheckZone accepts). Any other
 ///     name is refused, TimerSeconds included: only Timeouts.Apply changes the bridge timer. Set writes the System Default Settings row of Decide
 ///     (WriteRow; the two numbers as their canonical number text, so 7.50 is stored as 7.5; InstanceZone only through Time.SetZone) and returns
-///     the value it replaced in old, as a scalar string that passes Check, so a caller can hand it back. The values apply to the next decision
+///     the value it replaced in old, as a scalar string; a value that Set or an install step wrote passes Check, so a caller can hand such an old
+///     back (a value written by hand outside these bounds comes back as it is, and Check refuses it). The values apply to the next decision
 ///     with no restart. A Set of the cap that leaves it off or above the day's spend removes the day's capped mark (Budget.Unmark);
 ///   - CheckModel and SetModel: an agent's model, or its second model when second is 1. agent is the name of a first runner item: TriageAgent,
 ///     DiagnosisAgent or ChatAgent. The provider must be supported with its key variable set, and the model one that the provider table lists for
@@ -34,8 +35,8 @@
 ///     second model. TestAnswer reads the response and the milliseconds it took and returns {answered, seconds, reason}: answered is true only for
 ///     a reply that is not a fallback and not busy, seconds has one decimal (at least 0.1 for a positive duration), and reason is "" when answered, the fallback reason when there is
 ///     one, and otherwise error.
-/// Every method refuses a value that holds "@{" or is off the allow-list, with a plain-English reason that never holds the value, and changes
-/// nothing; the bridge timer stays at or under 110 seconds. The bridge references no OcuTalon package outside the bridge (AD-2).
+/// Every method above refuses a value that holds "@{" or is off the allow-list, with a plain-English reason that never holds the value, and changes
+/// nothing; the bridge timer stays at or under 110 seconds. WriteRow, which Set, SetModel and Time.SetZone share, checks nothing itself. The bridge references no OcuTalon package outside the bridge (AD-2).
 Class OcuTalon.Bridge.Settings
 {
 
@@ -140,7 +141,7 @@ ClassMethod Check(name As %String, value As %String) As %Status
 }
 
 /// Stores the value of the named setting after Check passes (and nothing is written when it does not); old is the value it replaced, as a
-/// string that passes Check. DecisionTokenBudget and DailyCostCapUSD are written to the System Default Settings row of Decide as their canonical
+/// string, which passes Check when Set or an install step wrote it. DecisionTokenBudget and DailyCostCapUSD are written to the System Default Settings row of Decide as their canonical
 /// number text and read back (WriteRow), and InstanceZone through Time.SetZone. A cap that is 0 or above the day's spend removes the day's
 /// capped mark (Budget.Unmark), so that cost fallbacks stop from the next decision; a cap at or below the spend leaves it. The values apply
 /// to the next decision, with no restart.
@@ -455,7 +456,7 @@ ClassMethod Entries(production As %String, item As %String, Output entry As %Str
 
 /// Writes the System Default Settings row of the setting for the item and reads the setting back (Ext.Accessor ValueFor, target Host unless
 /// given): an error when what is read is not the value, which a more specific row or the production definition can cause; the row is then
-/// put back as it was.
+/// put back as it was. It checks nothing itself: Set, SetModel and Time.SetZone check the value before they call it.
 ClassMethod WriteRow(production As %String, item As %String, setting As %String, value As %String, description As %String, target As %String = "Host") As %Status
 {
 	Set id = production_"||"_item_"||*||"_setting

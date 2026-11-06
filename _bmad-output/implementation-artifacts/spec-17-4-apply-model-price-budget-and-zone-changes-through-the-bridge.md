@@ -329,6 +329,53 @@ deferred:
 - [x] DW-757 (ruled IN at the spec gate, Design Notes ruling (2); it overrides the intent contract's "SeedPrices skips existing rows" and its "Never" line on a correction of stored Price rows, for this one case only): `src/bridge/cls/OcuTalon/Bridge/Installer.cls` `SeedPrices` corrects the `claude-sonnet-5-5` row's cache-read price to 0.10 once, and only when the row still holds exactly the earlier seeded values (all seven, cache read 0.2). Every other row, and an edited `claude-sonnet-5-5` row, is never touched; earlier `Usage` rows keep their cost. Pin it in `Test/Bridge/Usage.cls` (`TestSeedPrices` area): a never-edited old-seed row is corrected; an admin-edited row is left as edited; a fresh install seeds 0.10; a second run changes nothing. Write its `mutation:` line.
 - [x] [Owner] B (U-177 one-time exception): rewrite `Test.Web.SettingsApi.TestBridgeRoutesAre501` and `Test.Core.SettingsSave.TestBridgeStub` exactly as ruling (5)(B) under Design Notes says, with a post-test re-read of budget, cap and zone; demonstrate one mutation each (a built API that applies a refused value -> red; a test that leaves a value behind -> the re-read check red).
 - [x] [Owner] C (AD-8): a model Test request is never retried on the second model; pin it (a Test request whose first attempt fails sends no second request) with a mutation.
+
+### Review Findings
+
+Code review 2026-11-05 (follow-up review, full-opus; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 44 layer rows plus the reviewer's Rule 2 check; 9 entries after grouping: high 0, medium 1, low 8). Every patch was applied by the reviewer and verified on warm stack `e17s4cw` (torn down): `SettingsValues`, `Time`, `SettingsApply`, `CodeRules` green, `SettingsValues` green again after `SettingsApply`; `test-boundaries.sh` and `test-class-rules.sh` pass.
+
+- [x] [Review][Patch] (medium, Rule 2) `SettingsApply.DecisionByRef` was a verbatim copy of `SecondModel.DecisionByRef` with no stated reason; replaced by the generated `Decision.RefIndexOpen` and the copy deleted [src/ocutalon/cls/OcuTalon/Test/Bridge/SettingsApply.cls:310]. fix-risk low (test-only, one call site).
+- [x] [Review][Patch] (low) `Providers.ProviderOf` was asserted only against itself and the constant `anthropic`, so "every model is Anthropic's" stayed green; added `SettingsValues.TestProviderOf` (one model of each row, an unknown model, "") with its mutation line [src/ocutalon/cls/OcuTalon/Test/Bridge/SettingsValues.cls:TestProviderOf]. fix-risk low.
+- [x] [Review][Patch] (low) `TestAgreesWithDataTimeInstanceZone`'s walk compares two readers of the same process zone, and its spot checks covered only the March change; added the November change in New York (05:59:59Z -> 01:59:59, 06:00:00Z -> 01:00:00) [src/ocutalon/cls/OcuTalon/Test/Bridge/Time.cls:101]. fix-risk low.
+- [x] [Review][Patch] (low) `SettingsApply.OnAfterOneTest` removed only today's mark in the restored zone, so a failing cap-raise leg left the `Pacific/Kiritimati` date marked; it now calls `UnmarkBothDays` (class doc updated) [src/ocutalon/cls/OcuTalon/Test/Bridge/SettingsApply.cls:139]. fix-risk low.
+- [x] [Review][Patch] (low) `TestModelTestEachAgent` counted every mock request without checking it went to the agent's chosen model (AC "one request goes to that agent's chosen model"); it now also counts the requests for `AgentRunner.ResolveModel(agent)` and expects 1 [src/ocutalon/cls/OcuTalon/Test/Bridge/SettingsApply.cls:TestModelTestEachAgent]. fix-risk low.
+- [x] [Review][Patch] (low) the class doc and `Set`'s doc promised that every `old` passes `Check`, which is untrue for a value written by hand outside the bounds (`Current` returns it as it is, so the audit keeps the real value); the docs now say what the code does [src/bridge/cls/OcuTalon/Bridge/Settings.cls:16,144]. fix-risk low (comments only).
+- [x] [Review][Patch] (low) the class doc said every method refuses `@{` and off-allow-list values, but `WriteRow` is now public (Task: drop `Private`) and checks nothing; the class doc and `WriteRow`'s doc now say so [src/bridge/cls/OcuTalon/Bridge/Settings.cls:38,459]. fix-risk low (comments only).
+- [x] [Review][Patch] (low) `Time.Apply`'s doc claimed `Process.TimeZone` is never given a name it would read as UTC; `CheckZone` accepts a dot-free data file such as `leapseconds`; the doc now claims only what holds (no name that no file under `ZONEINFO` backs) [src/bridge/cls/OcuTalon/Bridge/Time.cls:70]. fix-risk low (comment only).
+- [x] [Review][Defer] (low) `docs/bridge-guide.md` Settings intro (line 153) still says a `Decide` row applies after a restart, with only `ToolClassification` and `ApprovalRole` read live; the lead limited this story's guide edit to the `InstanceZone` row (contended with Epic 40) — DW-773 `wontfix-accepted`, reopen_if the guide's Settings intro is unchanged when DW-728's fold-in pass edits it.
+
+**Rejected** (one line each; `false` with its refutation, `low` with why it was not worth fixing, spec-bound with the rule that binds it):
+- Blind 2: `Values` canonical text vs `SettingsOps`' string compare (an equal `7.50` makes an audit entry) — low; Lane B's compare, and the page sends back the text `Values` gave it.
+- Blind 4: a zone change leaves the old date's capped mark — spec-bound (Always, "The daily cap's mark"; Design Notes 5); already rejected in the implement review.
+- Blind 5, Edge 17: `Data.Time` does not call `Apply` — spec-bound (Never: "`Data.Time` calling `Apply`", Story 18.2, Lane B).
+- Blind 6, Edge 4: an unreadable zone counts as "" and `Apply` restores the inherited zone — spec-bound (Always: `Zone()` is "" when unreadable).
+- Blind 7, Edge 7: `CheckZone` accepts dot-free data files (`leapseconds`, `+VERSION`, `SECURITY`; `right/` and `posix/` are real TZif zones) — low: an admin must type such a name, and the fix is a new guard (TZif header read); the false doc claim is patched above.
+- Blind 8, Edge 19: the DW-757 correction is not a once-only marker and compares with `+` — ruled at the spec gate (U-293: "exactly the old seeded values"); a marker is a stored-data change; `+` treats "" and 0 alike, as `Price.Cost` does.
+- Blind 9, Edge 15, Verification-gap 4: the two ruling-B tests restore values through `Set`, leaving equal-valued `DecisionTokenBudget`/`InstanceZone` rows and keeping stub-era method names — ruling B's condition is the value re-read, which they meet (mutation observed); the rows equal the originals and are recorded residual (3); the method names are the ruling's; any further Lane B edit is outside the one-time exception.
+- Blind 10 (rest): the guide does not document the `test.` prefix, DW-758 or `Unmark` — low; the lead limited the guide to the `InstanceZone` row; the contracts are in the class docs and AD-8.
+- Edge 1, Edge 2: an anthropic -> openai -> anthropic round trip, or a resolution to Anthropic, loses the CI endpoint — false today: only anthropic is `supported`, `CheckModel` refuses the others, and the spine's "Provider endpoints" convention fixes the rule.
+- Edge 4b: `Current` returns 0 when `ValueFor` errs — theoretical: `Set` refuses first when no production is active, the only realistic cause.
+- Edge 5: a mark set between `UnmarkAfter`'s read and `Unmark` is removed — false as a defect: the new cap, already written, is above the spend, so the day is not capped under it; Design Notes 5's residual.
+- Edge 6: an unpriced-model fault undercounts the spend — false: `State` counts the spend the same way, and AD-20 makes `State` the rule.
+- Edge 8: the inherited `-1` is put back as `TimeZone("")` (UTC, not `/etc/localtime`) — spec-bound (Always "`-1` is ''"; Story 33.1's measured design).
+- Edge 9: `Apply` in a shared CSP process changes the zone of other code there — theoretical; switching the process zone is AD-18's rule; real when a non-OcuTalon web application shares the process.
+- Edge 10: a failed save of the Sonnet correction stops the seeding loop — low; the same as the existing new-row branch.
+- Edge 11: two concurrent `SetPrice` calls on one model lose an update — theoretical: one admin page, and real only with two admins saving one model's prices at once.
+- Edge 12, Blind (implement) 1: a host's own `test.` ItemId loses its retry — by-design (AD-8, 2026-11-05).
+- Edge 13: a negative `durationMs` gives negative seconds — theoretical: the caller measures an elapsed time.
+- Edge 14: `Decide` in the actor pool (PoolSize 0) reads the budget property-first — theoretical: the shipped production runs `Decide` with PoolSize 1 (Task 0 (a)); the fallback is the documented behaviour.
+- Verification-gap 1: `UnmarkAfter`'s unreadable-spend branch has no test — low: its caller runs in the production job (the cap-raise leg proves the spend is read there), and forcing NOPRIVILEGE needs a restricted-user job, not a direct correction.
+- Verification-gap 2: `WriteRow`'s put-back on a read-back mismatch has no test — low: it needs a production-definition or more-specific-row fixture of Ens' setting precedence; the code puts the row back through the existing `RowState`/`PutBack`.
+- Verification-gap 6: no `mutation:` line for some sub-assertions (non-negative price, totals, no sampling, `from` = `old`) — false: Rule 19 asks one mutation per AC, and each AC has one recorded (Check cap; `SetPrice` writes nothing; `IsTest` gate; `OwnerRef`; `Values` wrong item).
+- Verification-gap other 2, 3: `TestUnmark` deletes its fixture row at the method's end, and its equality boundary depends on the day's spend — low: an assertion never throws, and the assertion holds whether the boundary is equal or below.
+- Verification-gap other 4: the diagnosis and chat model tests carry a mock marker — already DW-771 (decision-pending) and a recorded deviation.
+- Acceptance 1: QA's `TestEachConversionAppliesZone` is uncommitted — false as a defect: the lead commits QA's and the reviewer's changes after the smoke gate.
+- Acceptance 2: `TestModelTestNotRetried` writes the rows instead of calling `SetModel(...,1)` — low; ruling C is pinned, and `SetModel`'s second-model path is Story 17.3's `ModelChange` tests.
+- Acceptance 3b, 3c: the no-key check covers the answer and the texts only — low; nothing in the request can hold a key (the fields are set from code).
+- Acceptance 4: the guide row says "the container's time zone" — low; AD-18's own wording.
+- Acceptance 5: `Unmark` lets `budget.capped` fire again when a raised cap is reached the same day — by-design: the spec's Always requires `Unmark` (Design Notes 5, citing AD-20); AD-20's "once" is the lock-guarded first marking of a reach, and the online demo's message is still once a day per session (`Session` row). Not an AD contradiction; noted for the lead.
+- `BridgeValues` (lead's question): within ruling B — a private helper of `Test.Web.SettingsApi` whose only caller is the excepted test, serving the ruling's re-read check.
+
 ## Spec Change Log
 
 - 2026-11-05 lead: rulings B (U-177 exception, two Lane B tests) and C (AD-8 model test never retried) recorded; U-292 and U-293 kept by the Planner.
@@ -562,6 +609,16 @@ Every test added or changed passes on a fresh environment, in either order.
 - A built `Check`/`Set` applies an off-allow-list value, or a Lane B test leaves a written value behind (ruling B) → `SettingsApi.TestBridgeRoutesAre501` / `SettingsSave.TestBridgeStub` red (the re-read check).
 - `Decide` retries a `test.` request on the second model → `SecondModel`/`SettingsApply.TestModelTestNotRetried` red (ruling C).
 - `Values()` reads `DecisionTokenBudget` from the wrong item → `TestIntegrationSettingsOps` red.
+
+**QA stage (Rule 19; warm stack `e17s4qw`, torn down).** Each mutation was applied, observed red, reverted from a backup in the QA scratchpad, and `git status --short` / `git diff --stat` showed only the QA test edit afterwards.
+- (QA) Added `Test.Bridge.Time.TestEachConversionAppliesZone` (in `src/ocutalon/cls/OcuTalon/Test/Bridge/Time.cls`): each of `ToLocal`, `LocalDate`, `DayStartUtc` and `DayEndUtc`, called first in a process that has not applied the zone and whose process zone is another, converts in the zone `SetZone` saved. Gap found: `Time.DayStartUtc` without its `Apply()` left every existing test green (`LocalDate` applies the zone before `DayStartUtc` in every path they use), so a job that asks for a day bound first would convert in the wrong zone.
+- mutation (QA): `Time.DayStartUtc` without `Do ..Apply()` -> `Time.TestEachConversionAppliesZone` red (`DayStartUtc` and `DayEndUtc`); before the new test `Time` and `SettingsApply` stayed green.
+- mutation (QA): `Time.ToLocal` without `Do ..Apply()` -> `Time.TestAgreesWithDataTimeInstanceZone` and `TestEachConversionAppliesZone` red (`ToLocal` and `LocalDate`).
+- mutation (QA, the implement stage's patched `SetPrice` long-tier refusal): `LongTier` always accepts -> `SettingsValues.TestSetPriceRefused` red for each of its three cases (`longInput` 0 and `longOutput` 0 on a model with a tier, and a threshold on a model with no long prices).
+- mutation (QA, the patched `TestAnswer` 0.1 s floor): the floor line made `If 0` -> `SettingsValues.TestAnswerShapes` red (40 ms).
+- mutation (QA): `TestAnswer` ignores `Busy` -> `SettingsValues.TestAnswerShapes` red (a busy reply is error).
+- mutation (code review, warm stack `e17s4cw`): `Providers.ProviderOf` answers `anthropic` for every listed model -> `SettingsValues.TestProviderOf` red (`gpt-5.4`, `gemini-3.1-pro-preview`, `us.anthropic.claude-haiku-5-5`); reverted from the review backup, `git status --short` and `git diff --stat` identical, the class green again.
+- Green on the final tree, one class per call: `Bridge.Time`, `SettingsValues`, `SettingsApply`, `SettingsStubs`, `Timeouts`, `ConfigStore`, `Providers`, `Usage`, `Budget`, `SecondModel`, `CodeRules`, `ModelChange`, `Install.Provider`, `Digest.Zone`, `Tools.Reminders` and the Lane B `Core.SettingsSave`, `Web.SettingsApi`, `Core.SettingsAudit`; `Time` and `SettingsValues` again after the Lane B classes (order independence).
 
 ## Auto Run Result
 

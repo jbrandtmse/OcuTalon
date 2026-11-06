@@ -67,8 +67,8 @@ ClassMethod SetZone(name As %String) As %Status
 ///   - the name is the one last applied: nothing;
 ///   - the name is "": the inherited zone is put back;
 ///   - otherwise the new name is applied.
-/// A name that CheckZone refuses (a value written by hand) counts as "", so that Process.TimeZone is never given a name that it would
-/// silently read as UTC.
+/// A name that CheckZone refuses (a value written by hand) counts as "", so that Process.TimeZone is never given a name that no file under
+/// ZONEINFO backs, which it would silently read as UTC.
 ClassMethod Apply()
 {
 	Set name = ..Zone()

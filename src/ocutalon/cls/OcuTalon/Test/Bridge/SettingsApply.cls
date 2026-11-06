@@ -3,7 +3,7 @@
 /// which every request goes to; no real provider, key or network is used. Every decide is sent to Decide as a test sends it (Test.Agent.RunnerFixture.Run), and
 /// Decide runs in its own job, which reads the values as they are written now. OnAfterOneTest puts back, as the other live tests do: the mock's countdowns, the rows
 /// of the requests, the System Default Settings rows that a test wrote (RunnerFixture RememberDefault), the InstanceZone row and the process zone (Test.Bridge.ZoneCase),
-/// the Price rows, the capped mark of today and the items that were started again.
+/// the Price rows, the capped marks of the days that are today in the test's zones (UnmarkBothDays) and the items that were started again.
 ///   - TestBudgetNextDecision: Set of DecisionTokenBudget to 1 gives the next decide the fallback budget, with no restart and no request to the mock; Set back to 0
 ///     gives an answer;
 ///   - TestCapBelowSpendThenOff: with a fixture Usage row of today that costs 1, Set of the cap to 0.5 makes Budget.State report it and capped, the next decide
@@ -136,7 +136,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do $ClassMethod(..#ZONECASE, "RestoreZoneRow", ..ZoneRow)
 	Kill ^||OcuTalon.Bridge.Time
 	Do $ClassMethod(..#ZONECASE, "PutZone", ..SavedZone)
-	Kill ^OcuTalonBP.UsageCapped(..Today())
+	Do ..UnmarkBothDays()
 	Quit $$$OK
 }
 
@@ -307,7 +307,7 @@ Method TestPriceAppliesToLaterRows()
 	}
 	Do $$$AssertTrue(checked '< 1, "the later decide has Usage rows: "_checked)
 	For ref = firstRef, secondRef {
-		Set row = ..DecisionByRef(ref)
+		Set row = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(ref)
 		Do $$$AssertTrue($IsObject(row), "the Decision row of "_ref_" exists")
 		If $IsObject(row) Do $$$AssertEquals(row.CostUSD, ..CostSum(ref), "its cost is the sum of its rows")
 	}
@@ -337,16 +337,19 @@ Method TestModelTestEachAgent()
 		Do $$$AssertTrue((answer.seconds > 0) && (answer.seconds < 30), label_"in "_answer.seconds_" seconds")
 		Do $$$AssertStatusOK($ClassMethod(fixture, "Drain", agent), label_"the runner is drained")
 		Do $$$AssertStatusOK($ClassMethod(..#MOCK, "LogSince", mark, .entries), label_"the mock's log is read")
+		Set chosen = ##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(agent, ##class(Ens.Director).GetActiveProductionName())
 		Set sent = 0
+		Set onModel = 0
 		Set sampling = 0
 		Set iterator = entries.%GetIterator()
 		While iterator.%GetNext(, .entry) {
 			If (entry.method = "POST") && (entry.path = "/v1/messages") {
 				Set sent = sent + 1
+				If entry.model = chosen Set onModel = onModel + 1
 				If entry.request.%IsDefined("temperature") || entry.request.%IsDefined("top_p") || entry.request.%IsDefined("top_k") Set sampling = 1
 			}
 		}
-		Do $$$AssertEquals(sent_"|"_sampling, "1|0", label_"one request reached the mock, with no sampling parameter")
+		Do $$$AssertEquals(sent_"|"_onModel_"|"_sampling, "1|1|0", label_"one request reached the mock, for the agent's model "_chosen_", with no sampling parameter")
 		Set ref = response.DecisionRef
 		Set owners = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*), SUM(CASE WHEN OwnerRef = 'instance' THEN 1 ELSE 0 END) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", ref)
 		Do owners.%Next()
@@ -603,15 +606,6 @@ ClassMethod CostSum(ref As %String) As %String [ Private ]
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT SUM(CostUSD) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", ref)
 	Do result.%Next()
 	Quit $Number(result.%GetData(1), 6)
-}
-
-/// The Decision row with the Ref, or "".
-ClassMethod DecisionByRef(ref As %String) As OcuTalon.Bridge.Data.Decision [ Private ]
-{
-	If ref = "" Quit ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Bridge_Data.Decision WHERE Ref = ?", ref)
-	If 'result.%Next() Quit ""
-	Quit ##class(OcuTalon.Bridge.Data.Decision).%OpenId(result.%GetData(1))
 }
 
 /// The values and rows that a restart or an upgrade must not change, as one text: the Decide rows of the three values, the Price row of the first model,

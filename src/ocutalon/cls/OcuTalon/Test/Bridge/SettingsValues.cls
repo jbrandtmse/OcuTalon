@@ -9,6 +9,8 @@
 ///   - TestSetAndValues: Set of each name returns the earlier value in old as a string, stores a number as its canonical text (7.50 as 7.5), and Values shows
 ///     the three values as strings and, for the three agents, {provider, model, secondProvider, secondModel} from AgentRunner.ResolveModel and
 ///     Providers.ProviderOf; the JSON of Values holds no key and no placeholder; the bridge timer is unchanged;
+///   - TestProviderOf: Providers.ProviderOf, which names the provider of each agent's model in Values, gives the row of the provider table that lists
+///     the model, for a model of each row, and "" for a model that no row lists and for "";
 ///   - TestPutBack: Set(name, old) puts each value back, so that old passes Check;
 ///   - TestUnmark: Budget.Unmark removes the mark of a day once, under the lock of MarkCapped, and refuses a day that is no date; Set of the cap
 ///     removes today's mark when the cap is 0 or above the spend and leaves it when the cap is at or below the spend;
@@ -149,6 +151,14 @@ Method TestSetAndValues()
 	Set json = values.%ToJSON()
 	Do $$$AssertTrue(($Find(json, "sk-") = 0) && ($Find(json, "AIza") = 0) && ($Find(json, "@{") = 0), "the JSON holds no key and no placeholder")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("TimerSeconds", production, "Decide"), timer, "the bridge timer is unchanged")
+}
+
+/// ProviderOf names the row of the provider table that lists the model, and "" when no row does.
+Method TestProviderOf()
+{
+	For case = $ListBuild("claude-sonnet-5-5", "anthropic"), $ListBuild("gpt-5.4", "openai"), $ListBuild("gemini-3.1-pro-preview", "gemini"), $ListBuild("us.anthropic.claude-haiku-5-5", "bedrock"), $ListBuild("no-such-model", ""), $ListBuild("", "") {
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Providers).ProviderOf($List(case, 1)), $List(case, 2), "the provider of '"_$List(case, 1)_"' is '"_$List(case, 2)_"'")
+	}
 }
 
 /// Set(name, old) puts each value back.

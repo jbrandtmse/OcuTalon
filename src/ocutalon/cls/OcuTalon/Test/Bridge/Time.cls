@@ -8,6 +8,9 @@
 ///   - TestApplyRule (Story 17.4): Apply does nothing for a process that never applied a zone while the zone is empty; it applies a name once, on a change only
 ///     (a process zone put behind its back is not touched again), keeps the inherited zone, puts it back when the name becomes empty, and treats a name that
 ///     CheckZone refuses (written by hand) as empty;
+///   - TestEachConversionAppliesZone (Story 17.4, QA): each of ToLocal, LocalDate, DayStartUtc and DayEndUtc, called first in a process that has not yet applied
+///     the zone, converts in the instance zone just saved by SetZone, not in the zone the process had (the walk above only reaches DayStartUtc through LocalDate,
+///     which has applied the zone already);
 ///   - TestCheckZone (Story 17.4): CheckZone passes "" and a zone file, and refuses a placeholder, a name of 65 characters, a path with .., a folder, an
 ///     unknown zone and a name with a character outside letters, digits, / _ - and +, with a reason that holds no value;
 ///   - TestDayBounds: DayStartUtc and DayEndUtc in New York: 2025-03-09 starts at 05:00Z and lasts 23 hours, 2025-11-02 lasts 25 hours,
@@ -95,6 +98,8 @@ Method TestAgreesWithDataTimeInstanceZone()
 	Do $$$AssertEquals(differences, "", "ToLocal and LocalDate agree with Data.Time at each of them")
 	Do $$$AssertEquals($ClassMethod(time, "ToLocal", "2025-03-09T06:59:59Z"), "2025-03-09T01:59:59", "New York is on standard time just before the change")
 	Do $$$AssertEquals($ClassMethod(time, "ToLocal", "2025-03-09T07:00:00Z"), "2025-03-09T03:00:00", "and on daylight-saving time right after it")
+	Do $$$AssertEquals($ClassMethod(time, "ToLocal", "2025-11-02T05:59:59Z"), "2025-11-02T01:59:59", "New York is on daylight-saving time just before the November change")
+	Do $$$AssertEquals($ClassMethod(time, "ToLocal", "2025-11-02T06:00:00Z"), "2025-11-02T01:00:00", "and on standard time right after it")
 	Do $$$AssertEquals($ClassMethod(time, "DayStartUtc", "2025-03-09"), "2025-03-09T05:00:00Z", "a day starts at its midnight in the instance zone")
 	Do $$$AssertEquals($ClassMethod(time, "DayEndUtc", "2025-03-09"), "2025-03-10T04:00:00Z", "and ends at the next midnight, 23 hours later")
 	Do $$$AssertStatusOK($ClassMethod(time, "SetZone", ""), "the instance zone is empty again")
@@ -131,6 +136,25 @@ Method TestApplyRule()
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault(##class(Ens.Director).GetActiveProductionName(), "Decide", "InstanceZone", "Mars/Olympus", "Written by a test; the test deletes it."), "a zone that no file backs is written by hand")
 	Do $ClassMethod(time, "Apply")
 	Do $$$AssertEquals(..CurrentZone(), "Asia/Kolkata", "a name that CheckZone refuses counts as empty, so the inherited zone comes back instead of UTC")
+}
+
+/// Each of the four conversions applies the instance zone itself (Story 17.4, QA; AD-18): called first in a process that has not applied a zone, with the process
+/// in another zone, it converts in the zone that SetZone saved. Pacific/Pago_Pago is UTC-11 all year.
+Method TestEachConversionAppliesZone()
+{
+	Set time = "OcuTalon.Bridge.Time"
+	For method = "ToLocal", "LocalDate", "DayStartUtc", "DayEndUtc" {
+		Kill ^||OcuTalon.Bridge.Time
+		Do $SYSTEM.Process.TimeZone("Asia/Tokyo")
+		Do $$$AssertStatusOK($ClassMethod(time, "SetZone", "Pacific/Pago_Pago"), method_": the instance zone is Pacific/Pago_Pago")
+		If method = "ToLocal" Set got = $ClassMethod(time, method, "2025-07-01T12:00:00Z"), expected = "2025-07-01T01:00:00"
+		If method = "LocalDate" Set got = $ClassMethod(time, method, "2025-07-01T05:00:00Z"), expected = "2025-06-30"
+		If method = "DayStartUtc" Set got = $ClassMethod(time, method, "2025-07-01"), expected = "2025-07-01T11:00:00Z"
+		If method = "DayEndUtc" Set got = $ClassMethod(time, method, "2025-07-01"), expected = "2025-07-02T11:00:00Z"
+		Do $$$AssertEquals(got, expected, method_" called first converts in the instance zone, not the process's")
+	}
+	Kill ^||OcuTalon.Bridge.Time
+	Do $$$AssertStatusOK($ClassMethod(time, "SetZone", ""), "the instance zone is empty again")
 }
 
 /// What CheckZone accepts and refuses (Story 17.4; AD-18, AD-19).
