@@ -159,6 +159,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `a24e83e
 
 ## Spec Change Log
 
+- 2026-11-06 (spec gate, runner): the Planner's PUBLIC TEXT ruling, relayed by the orchestrator, is recorded under Design Notes, "Ruled public text (the Planner, 2026-11-06)". It replaces the placeholders: PT-a first wording exactly, Z1 (no line with zero good messages, no Story 7.10); PT-b `incident.noFix` exactly, reason log-only, follow-up DW-823 (routed burndown, low); PT-c approved; PT-d notice only; PT-e accepted with the online-demo condition (runner's integrate-forward task). The contended `Watch/Reader.cls` union is confirmed by the orchestrator (prove it with `git merge-file`).
+
 ## Review Triage Log
 
 ## Design Notes
@@ -183,7 +185,15 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `a24e83e
 - The refusal reason GOODCHANGED is a log reason, like NOEVIDENCE, never shown.
 - Size: one implement pass (about 7.7's size). If the Planner rules a zero-form line (PT-a, option Z2), four more keys are needed. Proposed split then: 7.9 keeps the check, the refusal and the checked line, and a sibling 7.10 adds the zero form. Not split here.
 
-**Proposed public text (for the Planner's ruling).** Every string below is a PLACEHOLDER until the Planner rules. The fixed-strings tests (`Test.Msg.Catalog` Fixtures, `Test.Watch.NoticeText.TestGoodLine`, `GoodMessages` phone-text assertions) are written with the ruled strings.
+**Ruled public text (the Planner, 2026-11-06, relayed by the orchestrator; binding, type it exactly).**
+- **PT-a (ruled):** the FIRST wording, exactly: `Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change.` In the four new keys (`incident.withFixChecked`, `incident.laterRequestChecked`, `incident.withFixEitherWayChecked`, `incident.laterRequestEitherWayChecked`), in all four forms (text, web, one.text, one.web), where placed below (after "...stay(s) unchanged." and before " Nothing has changed yet."). Fewer than 20: the real count ("Checked against the last 1 order from the same source that went through: 0 would change."). Zero good messages: **Z1, no line** (today's key and text). No Story 7.10. The alternative wording is rejected. Pin with the fixed-strings tests.
+- **PT-b (ruled):** reuse `incident.noFix` exactly for Saturday; the GOODCHANGED reason goes to the log only. Follow-up filed: DW-823 (routed burndown, low) with the Planner's later wording in its note. No new catalog text for the refusal.
+- **PT-c (ruled):** approved: no existing line changes; the two EXPERIENCE.md bullets with markers that cite the owner decision of 2026-11-06T01:15Z AND the Planner's ruling of 2026-11-06 at this spec gate, e.g. `[ADDED 2026-11-06, Story 7.9, owner decision by the Contest Planner under the owner's delegation (2026-11-06T01:15Z); text ruled by the Planner 2026-11-06 at the spec gate]`.
+- **PT-d (ruled):** notice only; no web incident card change.
+- **PT-e (ruled):** accepted for Saturday, no change to the press or the timings, with one condition: on the online demo the line shows on Story 4.11's item 3, "Reject a fix", which presses Break the feed again in the same session after the approved copies have gone through; an e2e or demo-path assertion must show the line, with "0 would change", on that second press on the online-demo path. Story 4.11 (Epic 4, runner B) is expected to merge first, so the RUNNER adds that assertion in its integrate-forward (not the implement stage; `web/src/app/guide/**` and 4.11's specs are Epic 4's until it merges). If 7.9 merges first, runner B adds it.
+- **Reader.cls (ruled):** the four self-contained blocks are a confirmed plain union with Epic 17; prove it with `git merge-file` (Verification) before finalizing.
+
+**Proposed public text (as planned; superseded by the ruling above where they differ).** Every string below was a PLACEHOLDER until the Planner ruled. The fixed-strings tests (`Test.Msg.Catalog` Fixtures, `Test.Watch.NoticeText.TestGoodLine`, `GoodMessages` phone-text assertions) are written with the ruled strings.
 - **PT-a, the new notice line.**
   - Many and one (goodChecked 2 or more, or 1), inserted in `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` in the new block right after L167 (the end of `incident.laterRequestEitherWay`). In each of the four keys' `text`, `web`, `one.text` and `one.web`, it goes right after "I'll resend {resendCount} repaired copies; the originals stay unchanged." (one form: "I'll resend 1 repaired copy; the original stays unchanged.") and before " Nothing has changed yet.":
     - `Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change.`
@@ -281,6 +291,8 @@ No AD Rule is contradicted and no AD changes.
 | AC 4 / targets | `Execute` gets the good ids added to the targets (test-only patch in `Proposed`: `row.FixTargets` plus one good id) | `GoodMessages.TestApprovalRunsTheDryRunOnly` |
 
 ## Auto Run Result
+
+Note (runner, spec gate): the PUBLIC TEXT is ruled (Design Notes, "Ruled public text"); the implement stage may start.
 
 Status: ready-for-dev
 Blocking condition: none

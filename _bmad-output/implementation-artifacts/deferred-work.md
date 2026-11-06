@@ -4708,3 +4708,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: chk_measured (test-readme.sh 517-530) only requires each MEAS_LABELS label to start a row; README with '| The always-on online demo |' appended after line 39: git grep prints README.md:40, test-readme.sh PASS measured
 - 2026-11-06T08:38:06Z status=by-design owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=cr note=spec Never forbids a new rule/helper/self-test; QA declined the absence pin on purpose; AC1 absence held by the Verification git grep
+
+### DW-823: A good-message refusal (Story 7.9, GOODCHANGED) reuses incident.noFix, whose 'None of my fixes applies to this' fits loosely when a fix exists but would also rewrite messages that went through; give it a precise line
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Msg/Catalog/Watch.cls incident.noFix (L179-180) is shown for the GOODCHANGED refusal; the reason is log-only (PT-b ruling)
+- 2026-11-06T19:44:07Z status=routed owner=burndown by=spec_gate note=Planner 2026-11-06: later wording, not now: 'The fix I would use would also change {noun} that went through, so I'm not proposing it.'
