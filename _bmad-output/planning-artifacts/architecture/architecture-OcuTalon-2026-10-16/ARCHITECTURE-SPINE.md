@@ -76,6 +76,8 @@ flowchart TD
   Agents --> Data
   Agents --> WatchReader["OcuTalon.Watch.Reader"]
   Data --> Guide
+  Data --> Coverage["OcuTalon.Checks.Coverage.RecordRun"]
+  %% Data.BackgroundCheck (its update trigger) --> Checks.Coverage.RecordRun: one CheckRun per LastRunAt change, so Checks.Process stays unedited; a heartbeat beat writes no BackgroundCheck row and so records nothing [AMENDED 2026-11-06, Story 17.5, orchestrator unattended ruling (U7)]
   Guide --> TgIncluded
   Demo --> DemoKey["OcuTalon.Install.Step.Demo (its constants: the demo-mode key, the Orders namespace and production names)"]
   Web --> Commands["OcuTalon.Core.Commands.Submit"]
