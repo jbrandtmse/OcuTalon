@@ -4613,6 +4613,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Checks/Beat.cls:426 RunDue tests the stored NextDueAt; a beat sets it to tick plus one interval; SaveHeartbeat writes only the five person keys
 - 2026-11-06T09:01:42Z status=routed owner=burndown by=harvest note=Lane A fix in Checks.Beat (recompute the due time from LastBeatAt and the current interval at the tick); no remaining Epic 39 story touches Checks; burn-down gate
 - 2026-11-06T15:16:50Z status=routed owner=39-8-run-now-and-a-saved-heartbeat-read-what-is-stored by=adjudication note=split from 39.5's review: Story 39.8 (Lane A) reschedules on a shorter saved interval
+- 2026-11-06T16:31:58Z status=resolved-by:39-8-run-now-and-a-saved-heartbeat-read-what-is-stored by=adjudication note=interval: Rescheduled moves NextDueAt to base plus a shorter saved interval at the next tick (12f07099; TestShorterIntervalReschedules, TestSavedIntervalMovesNextDue); on/off needs no change; the hours part is declined in 39.8's spec (a widened window waits at most until the old window's next start, under a day)
 
 ### DW-781: On the online demo GET shows the unsaved sample checklist, but POST /v1/heartbeat/run answers 409 empty for it
 - source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: low | fix-risk: low | footprint: in-epic
@@ -4645,8 +4646,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now.md | severity: high | fix-risk: low | footprint: in-epic
 - evidence: Checks/Beat.cls RunNow calls Values(sessionRef) via Data.Setting.Get (60 s per-process cache); the per-minute tick reads every session; HC4 waits 61 s for this reason
 - 2026-11-06T15:16:51Z status=routed owner=39-8-run-now-and-a-saved-heartbeat-read-what-is-stored by=cr note=39.5 code review HIGH; split to Story 39.8 (Lane A); 39.5 re-reviews after it
+- 2026-11-06T16:31:58Z status=resolved-by:39-8-run-now-and-a-saved-heartbeat-read-what-is-stored by=adjudication note=Checks.Beat.Values(ref,1) drops the five cached keys before RunNow reads them (12f07099); pinned by Test.Checks.Heartbeat.TestSaveThenRunNow and Test.Checks.Beat.TestRunNowDropsAllFiveKeys
 
 ### DW-812: Copy forced by the lane boundary: Lane B SettingsOps.HeartbeatValues drops the same five cache entries that Checks.Beat.Values(ref, 1) now drops
 - source: spec-39-8-run-now-and-a-saved-heartbeat-read-what-is-stored.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Core/SettingsOps.cls HeartbeatValues about line 350 repeats the drop loop of Checks/Beat.cls Values(ref,1)
 - 2026-11-06T16:09:57Z status=routed owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=harvest note=two-way door (about 3 lines) for 39.5's rework iteration: HeartbeatValues calls Checks.Beat.Values(ref, 1)
+
+### DW-813: No 39.8 test observes a HeartbeatBeat row write, so the matrix's no-write clauses and the one-commit rule for a due reschedule are unpinned
+- source: spec-39-8-run-now-and-a-saved-heartbeat-read-what-is-stored.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Test.Checks.Beat TestSavedIntervalMovesNextDue asserts fields and views only; a reschedule save gives no view and HeartbeatBeat has no version field, so an extra-save mutant survives
+- 2026-11-06T16:30:26Z status=wontfix-accepted owner=39-8-run-now-and-a-saved-heartbeat-read-what-is-stored by=cr note=harm is a redundant same-row write; pinning needs a save-count seam; reopen_if=a RunDue tick saves a HeartbeatBeat row whose fields it does not change
+
+### DW-814: Test.Checks.Heartbeat SeedBeat races a real tick: the Checks job can cache a new session's checklist as empty before SeedBeat writes it
+- source: spec-39-8-run-now-and-a-saved-heartbeat-read-what-is-stored.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: BeatCase.SeedBeat writes the Session row then the checklist via Setting.Set (drops only the test process's cache); a real RunDue in that ms window caches an empty checklist for 60 s; TestShorterIntervalReschedules and TestBeatReachesIntake then see an empty skip
+- 2026-11-06T16:30:26Z status=wontfix-accepted owner=39-8-run-now-and-a-saved-heartbeat-read-what-is-stored by=cr note=window is a few saves per 60 s tick; fix needs a job-side cache seam; reopen_if=either test goes red in CI with an empty skip on its own session

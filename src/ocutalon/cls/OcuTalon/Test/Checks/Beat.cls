@@ -4,7 +4,9 @@
 /// ^OcuTalonP.HeartbeatBeat, a second row of the same SessionRef is refused and leaves the first untouched, and SettingKey takes a name only exactly as KEYS lists
 /// it. The tests need no production (warm). Every time-dependent test uses fixed clocks in 2099 (local times built with Data.Time.FromLocal), so no real tick finds
 /// a row of a test due (a due row is due at the test's own 2099 tick), and every RunDue call names its sessions, so that the rows of a warm stack are never touched. The tests make their fixture sessions
-/// with Test.Data.Fixture, make each row before the settings, and remove their HeartbeatBeat rows, Setting rows and fixture decisions after each test.
+/// with Test.Data.Fixture, make each row before the settings, and remove their HeartbeatBeat rows, Setting rows and fixture decisions after each test. A real tick
+/// may reschedule a row that is on and not due (Checks.Beat.Rescheduled) only to the NextDueAt the test's own tick gives it, so a row that must keep its NextDueAt
+/// while off gets its LastBeatAt only after on is 0.
 ///   - TestValues: the defaults, the online demo's on, an interval outside the allowed ones, an all-day pair and a bad pair;
 ///   - TestActiveHours: the window over midnight, the normal window, from = to and all day, and the same windows read in America/New_York;
 ///   - TestNextDue: the next start of the active hours for hours, one interval for every other reason, and the same in America/New_York;
@@ -19,6 +21,7 @@
 ///     saved without Setting.Set, so that the entries stay): the values still read the cached ones, a RunDue tick reads the cached empty checklist and records the empty skip with no Item,
 ///     and RunNow drops the five cache entries, answers sent with an Item that starts with the checklist and a next due time one stored interval on, after which the values read the stored
 ///     settings; a pending fallback decision is recorded by RunNow with the stored interval;
+///   - TestRunNowDropsAllFiveKeys (QA; Story 39.8, AC 1): all five settings, from and to included, saved without Setting.Set after this process cached them: RunNow sends, and the values then read the stored ones;
 ///   - TestSavedIntervalMovesNextDue (Story 39.8; AC 2, AC 3): a NextDueAt set by a beat or by a skip other than hours under a longer interval moves to the base plus the saved
 ///     interval, saved with no view and no Item, and the next tick writes nothing and the tick at that time beats; a time that has passed beats at once with one view; a longer
 ///     interval, an hours skip that is the newest write, an off person and a row with no base keep NextDueAt;
@@ -543,6 +546,35 @@ Method TestRunNowReadsStoredValues()
 	Do $$$AssertEquals(outcome_"|"_availableAt, "backoff|"_..Plus(noon, 28800), "its back-off is the stored interval, not the cached one")
 }
 
+/// Story 39.8 (QA; AC 1): RunNow drops the cache entries of all five keys, the active hours (from, to) included, which no other test of the story reads back.
+Method TestRunNowDropsAllFiveKeys()
+{
+	Set noon = ..Local("12:00")
+	Set ref = ..Person("", {"NextDueAt": (..Plus(noon, -60))})
+	Do ..Bare(ref, "on", 1)
+	Do ..Bare(ref, "interval", 30)
+	Do ..Bare(ref, "from", "07:00")
+	Do ..Bare(ref, "to", "19:00")
+	Do ..Bare(ref, "checklist", "old list")
+	Set cached = ..BValues(ref)
+	Set first = cached.on_"|"_cached.interval_"|"_cached.from_"|"_cached.to_"|"_cached.checklist
+	Do $$$AssertEquals(first, "1|30|07:00|19:00|old list", "this process caches the five settings")
+
+	// another process saves all five settings anew: the rows are saved without Setting.Set, so that this process's cache entries stay
+	Do ..Bare(ref, "on", 0)
+	Do ..Bare(ref, "interval", 60)
+	Do ..Bare(ref, "from", "09:00")
+	Do ..Bare(ref, "to", "17:00")
+	Do ..Bare(ref, "checklist", "check the orders")
+	Set still = ..BValues(ref)
+	Do $$$AssertEquals(still.on_"|"_still.interval_"|"_still.from_"|"_still.to_"|"_still.checklist, first, "precondition: this process still reads the cached settings")
+
+	Do $$$AssertStatusOK(..BNow(ref, noon, .item, .outcome, .availableAt), "RunNow is OK")
+	Do $$$AssertEquals(outcome, "sent", "RunNow sends the beat")
+	Set read = ..BValues(ref)
+	Do $$$AssertEquals(read.on_"|"_read.interval_"|"_read.from_"|"_read.to_"|"_read.checklist, "0|60|09:00|17:00|check the orders", "and all five values now read what is stored")
+}
+
 /// Story 39.8 (AC 2, AC 3): a saved shorter interval moves the NextDueAt that a longer interval set; a longer one, an hours skip, an off person and a row with no base do not.
 Method TestSavedIntervalMovesNextDue()
 {
@@ -584,8 +616,9 @@ Method TestSavedIntervalMovesNextDue()
 
 	// kept: an hours skip is the newest write; the person is off; the row has no base
 	Set hours = ..Person("c", {"LastBeatAt": (..Plus(b, -7200)), "LastSkipAt": (b), "LastSkipReason": "hours", "NextDueAt": (..Plus(b, 43200))})
-	Set off = ..Person("c", {"LastBeatAt": (b), "NextDueAt": (..Plus(b, 3600))})
+	Set off = ..Person("c", {"NextDueAt": (..Plus(b, 3600))})
 	Do ..Put(off, "on", "0")
+	Do ..SetRow(off, "LastBeatAt", b)
 	Set bare = ..Person("c", {"NextDueAt": (..Plus(b, 3600))})
 	Set all = skipped_","_older_","_hours_","_off_","_bare
 	Do $$$AssertStatusOK(..BDue(..Plus(b, 60), .items, all, 0, 1, .views), "RunDue is OK for the rest")

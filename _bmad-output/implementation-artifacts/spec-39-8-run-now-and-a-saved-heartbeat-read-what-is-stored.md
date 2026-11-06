@@ -133,6 +133,24 @@ deferred:
 - AC 3 -- Given `Test.Checks` cases on the real tick and the CI mock, when they run, then they pin the save-then-run on a session the tick has already read, and the shorter-interval reschedule, each with a demonstrated mutation (Rule 19).
 - Integration AC -- Given the real production, when `HeartbeatIn` sends the `Checks` item a `BeatNow` right after a save on a session the Tick has read, then `Checks` answers the `CommandResult` that `CommandsIn` turns into `POST /api/v1/heartbeat/run`'s 202 (`Ok` 1, `Outcome` `sent`, `Ref` the ItemId). The Item reaches Intake, and the CI mock logs exactly one request.
 
+### Review Findings
+
+Code review 2026-11-06 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; tier full-opus). No HIGH, no MED. AD-18/AD-19 Rules hold: a reschedule saves the row and publishes no view or event; values are read only through `Data.Setting.Get`; no in-memory due state; footprint Lane A only. Rule 3: `Test.Checks.Heartbeat.TestSaveThenRunNow` and `TestShorterIntervalReschedules` run on the real production and tick.
+
+- [x] [Review][Patch] The class doc's views bullet still named SKIPEMPTY as the only saved-without-view commit; a not-due reschedule is a second one [src/ocutalon/cls/OcuTalon/Checks/Beat.cls:26]
+- [x] [Review][Patch] `TestSavedIntervalMovesNextDue`'s off person had a base while `on` still read the default 1, so a real tick could reschedule it before `on` 0 was written; its `LastBeatAt` is now set after `on` 0, and the class doc states the reschedule's hermeticity [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls:621]
+- [x] [Review][Defer] No test observes a row write, so the matrix's "no write" clauses and the one-commit rule of a due reschedule are unpinned (an extra-save mutant survives; harm is a redundant write) [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls:577] -- deferred: DW-813 wontfix-accepted, reopen_if = a RunDue tick saves a row whose fields it does not change
+- [x] [Review][Defer] `BeatCase.SeedBeat` races a real tick: the Checks job can cache a new session's checklist as empty in the few saves before SeedBeat writes it (pre-existing; `TestBeatReachesIntake` shares it) [src/ocutalon/cls/OcuTalon/Test/Checks/BeatCase.cls:53] -- deferred: DW-814 wontfix-accepted, reopen_if = either test red in CI with an empty skip on its own session
+
+Rejected:
+- `low` The reschedule tests keep the default 30 and seed an hour-on NextDueAt instead of saving a shorter interval -- the test steps are the spec's (Tasks); the row state is the same, and the cache delay is AD-19's accepted 60 s.
+- `low` A saved hours change does not move an hours skip's NextDueAt -- declined in Design Notes (DW-780's hours part) for the lead's adjudication; spec-bound.
+- `low` The Auto Run Result's residual risk 1, its finding tally and its Files changed list are stale -- the fix edits the spec's run record, not a review section; left for the lead.
+- `false` The 50 s check wraps at midnight -- it uses `$ZHorolog` (seconds since the instance started), which does not wrap at midnight.
+- `false` The 50 s bound is measured from the wrong time -- a real tick can cache the session's empty checklist only after the session exists, a few saves before `started`, so the entry is under 60 s old at the BeatNow.
+- `low` Under the AC 1 mutation a RunDue that failed before its session loop would give a false green -- concerns the mutation's evidence only; that mutation was observed red.
+- Judgment (Rule 19): `TestSaveThenRunNow`'s `< 50` s assertion is kept. The class's tests take 16.6 s in all, so failing needs the Tick plus the BeatNow to run 10 to 20 times slower. The spec requires the assertion, and a real tick cannot beat this person, who is off.
+
 ## Spec Change Log
 
 - 2026-11-06 (lead, after implement): the matrix row 'Shorter interval, new time ahead' corrected to the spec-gate ruling (a reschedule publishes nothing).
@@ -258,6 +276,11 @@ deferred:
   - mutation: `Values` kills only the checklist entry (`Set names = $ListBuild("checklist")`) -> red `Beat.TestRunNowReadsStoredValues` (next due time one stored interval on, values read the stored settings, back-off of the pending fallback); reverted byte-identical.
 - AC 1, drop before Settle: `RunNow` reads `Values(sessionRef, 1)` after `Settle`. Expected red: `TestRunNowReadsStoredValues` (the pending fallback's back-off).
   - mutation: `RunNow`'s `Set values = ..Values(sessionRef, 1)` moved after the Settle block -> red `Beat.TestRunNowReadsStoredValues` (its back-off is the stored interval); reverted byte-identical.
+
+**QA stage.** Coverage of the matrix rows, AC 1-3 and the Integration AC was complete except for the `from` and `to` cache entries: no test read them back, so a drop of three keys survived. One test added (QA); the file is `src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls` (QA, `TestRunNowDropsAllFiveKeys`). Warm `Test.Checks.Beat` passed; tag `e39s8qaw` torn down.
+- mutation: `Values` kills only the `on`, `interval` and `checklist` entries (`Set names = $ListBuild("on", "interval", "checklist")`) -> red `Beat.TestRunNowDropsAllFiveKeys` (all five values read what is stored); reverted byte-identical.
+
+**Code review stage.** Every AC's pinning test has a current `mutation:` line; none was missing or stale. Two patches: the class doc's views bullet in `Checks/Beat.cls` (doc only), and the order of the off person's fixture in `TestSavedIntervalMovesNextDue` (row, then `on` 0, then `LastBeatAt`) with the class doc's hermeticity sentence. Both classes compiled on slot D (FE850E91). Warm `Test.Checks.Beat` passed on lane D, and tag `e39s8crw` was torn down.
 
 ## Auto Run Result
 

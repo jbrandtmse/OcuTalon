@@ -260,3 +260,9 @@
 2026-11-06T16:10:09Z	Story 39.8	ledger_routed_planned	story=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now entries=1 excess=0 by=harvest
 2026-11-06T16:10:09Z	Story 39.8	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
 2026-11-06T16:10:09Z	Story 39.8	stage_spawned	stage=qa spawn_at=2026-11-06T16:10:09Z model=sonnet agent_name=39-8-qa-1 cycle_iteration=1
+2026-11-06T16:14:36Z	Story 39.8	qa_complete	spawn_at=2026-11-06T16:10:09Z model=sonnet tests=Test/Checks/Beat.cls(TestRunNowDropsAllFiveKeys) tests_added=1 mutations_demonstrated=1 first_run_failures=0 clarifications=0 closing_sections_present=true
+2026-11-06T16:14:36Z	Story 39.8	stage_spawned	stage=code-review spawn_at=2026-11-06T16:14:36Z model=opus agent_name=39-8-code-review-1 cycle_iteration=1
+2026-11-06T16:32:09Z	Story 39.8	cr_complete	spawn_at=2026-11-06T16:14:36Z model=opus resolved=2 fixed_at_source=2 by_design=0 wontfix_theoretical=0 routed=0 escalated=0 decision_pending=0 deferred=2 dismissed=6 high=0 med=0 low=4 rows=10 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus ledger=DW-813,DW-814(wontfix-accepted)
+2026-11-06T16:32:09Z	Story 39.8	ledger_adjudicated	owned=2 resolved=2 reowned=0 terminal=0 note=DW-780,DW-803_resolved-by_39.8 model=claude-opus-5-5
+2026-11-06T16:40:34Z	Story 39.8	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=fresh_lane-d_production_Test.Checks.Heartbeat_127s:TestSaveThenRunNow(save_then_BeatNow_within_50s_of_a_Tick_answers_sent,Item_to_Intake,Decision),TestShorterIntervalReschedules(real_tick) model=claude-opus-5-5
+2026-11-06T16:40:34Z	Story 39.8	fresh_check	env=recipe tests=3 result=pass order=forward,reverse shard=lane-a@Checks_fwd_164s_rev_153s

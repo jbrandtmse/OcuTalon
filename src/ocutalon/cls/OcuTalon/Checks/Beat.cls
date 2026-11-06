@@ -24,8 +24,9 @@
 ///   - RunDue and RunNow also give views, a local array that Checks publishes as the heartbeat event (Story 39.7): views is the count, views(n) the SessionRef and
 ///     views(n, "payload") the Live.Payload.Heartbeat (FromRow of the row as just saved and Values) of the nth row commit of the call, in commit order. A skip, a beat
 ///     that runs and a recorded decision (also for a person whose heartbeat is off) each commit once, so a Settle then a Run in one call give two views; the
-///     one exception is a RunDue skip with the reason SKIPEMPTY (no checklist), which is saved but gives no view, while a run now held for it gives one. A call that
-///     commits nothing (not due, nothing pending, a run now on cooldown with nothing pending, a read that threw before the save) gives none. This class publishes nothing.
+///     two exceptions are a RunDue skip with the reason SKIPEMPTY (no checklist), which is saved but gives no view, while a run now held for it gives one, and a
+///     RunDue reschedule of a person who is not due (Rescheduled), which is saved but gives no view. A call that commits nothing (not due and not rescheduled,
+///     nothing pending, a run now on cooldown with nothing pending, a read that threw before the save) gives none. This class publishes nothing.
 ///   - Each person runs in its own Try/Catch. A person whose pending decision could not be recorded does not run in that RunDue, so that a new beat never
 ///     overwrites a decision that is still to be recorded (RunNow stops there too). RunDue answers an error status that holds only the count of failures and
 ///     their error codes, never a SessionRef; a read of the rows that stops partway counts as one failure.
