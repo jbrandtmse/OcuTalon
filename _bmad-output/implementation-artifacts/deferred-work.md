@@ -4306,3 +4306,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-3-run-each-agent-on-a-supported-provider.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: 17.3 decided in-stage 5: resolved config keeps base_url and http_config from the entry (AD-19)
 - 2026-11-05T20:12:06Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=harvest note=17.4's bridge checks: a provider change drops a base_url/headers that belong to another provider (or refuses the change)
+
+### DW-771: The model Test for DiagnosisAgent cannot answer with the fixed TESTINPUT: against the mock it ends in fallback invalid (DiagnosisPayload needs an evidence pack), so the settings Test button would likely say a working diagnosis model did not answer
+- source: spec-17-4-apply-model-price-budget-and-zone-changes-through-the-bridge.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: 17.4 live test hides it with a [[mock:diagnosis-unknown]] marker; unverified on a real provider (none allowed)
+- 2026-11-06T02:03:39Z status=decision-pending owner=burndown by=harvest note=product call: how a diagnose-kind Test request is tested (e.g. a minimal evidence pack, or test the runner with a plain turn-shaped request)
