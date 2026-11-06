@@ -192,8 +192,14 @@ deferred: []
 - Given "Run the heartbeat now", when pressed, then `POST /api/v1/heartbeat/run` is sent; during the cooldown the button is disabled with "You can run it again at {time}."; and while `dailyCap` or `noModelKey` is active it is disabled with the ruled reason (FR-66, DW-634).
 - Given the online demo, when a visitor opens the card, then it is off, the note shows, Edit holds the sample, and Run saves the sample before it runs (FR-63, FR-66, DW-781).
 - Given `web/e2e/heartbeat-card.spec.ts` on the CI mock, when it runs, then it covers the states, the refusal, the cooldown, the unavailable reasons and the demo variant, and HC4 runs against the real routes and the real tick; the demo-path specs change only by the one amended count (REL-2).
+- Rulings applied by the lead (2026-11-06), each a task:
+  - Pin every string of `### Public text` with a fixed-strings test (whole-string equality), the Today singular and plural included. Where `ux-strings.test.mjs` records a ruling for a string, its `ruled` key is `planner-2026-11-06-39.5` (the Contest Planner's ruling under the owner's delegation, relayed by the orchestrator).
+  - U-295 (kept, at=2026-11-06T10:29:14Z#900): the ONLY demo-path spec edit is `web/e2e/demo-path/01-page.spec.ts`'s rail-heading count, 6 to 7, plus an assertion that the Heartbeat checklist heading comes before Persona and Persona is last; no other demo-path spec line changes; the full demo-path suite stays green on the story's head.
+  - CI placement (orchestrator ruling): `heartbeat-card.spec.ts` stays in `live:sign-in` (browser group) only if browser's clean-run time plus the MEASURED unit time stays under 35 minutes; record the measured unit time in `## Verification`. Otherwise it moves to `web/e2e/rail/heartbeat-card.spec.ts` (sign-in-2, shards-4) and the lead amends the AC path with a marker.
 
 ## Spec Change Log
+
+- 2026-11-06 (lead, before implement): the Contest Planner's PUBLIC TEXT ruling for 39.5 applied to `### Public text` (Today singular, the labels and interval names approved; DW-634's unavailable texts approved; the skip line's cap fragment becomes "today's cost limit has been reached.", choice (c), EXPERIENCE.md amended with a marker, reusing the catalog's `fallbackReason.dailyCap` wording; 39.2's overview line stays). U-295 kept with conditions; CI placement ruled. Tasks added at the end of Tasks & Acceptance.
 
 - 2026-11-06 (lead, after the plan halt): epics.md Story 39.5's REL-2 clause amended as the plan recommended (unattended ruling, veto U-295): the Playwright specs change no demo-path spec except the rail's section count in `web/e2e/demo-path/01-page.spec.ts`, six to seven headings, Heartbeat checklist before Persona. Status set to ready-for-dev without a re-plan; the Public text table goes to the Contest Planner before implement.
 
@@ -274,13 +280,13 @@ Every string the card shows, verbatim. "UX" means EXPERIENCE.md › Later Steps 
 | State, off | Off. Turn it on to have OcuTalon look at your list every 30 minutes. | UX Off |
 | State, on | Every {interval}, {from} to {to} · Next check-in {time} | UX On |
 | State, on, all day | Every {interval} · Next check-in {time} | UX On, without the hours part (no new words) |
-| Interval names | 30 minutes / 1 hour / 2 hours / 4 hours / 8 hours / 24 hours | UX On ("30 minutes, 1 hour, 2, 4, 8 or 24 hours"); "2 hours", "4 hours", "8 hours" are spelled out: list for the delegate |
+| Interval names | 30 minutes / 1 hour / 2 hours / 4 hours / 8 hours / 24 hours | Contest Planner ruling (owner's delegation, 2026-11-06) |
 | Last check-in | Last check-in {time} · Stayed quiet · {cost} · Trace | UX Last check-in (ignore) |
 | Outcomes | Told you now / Saved for the digest / Offered an action / Couldn't decide: {plain reason} | UX Last check-in; {plain reason} is the page catalog's existing `fallbackReason.*` |
 | Skip prefix | Skipped at {time}: | UX Skips |
-| Skip reasons | your checklist is empty. / outside your active hours. / nothing has changed since the last quiet check-in. / the day's cost cap is reached. / no model key is set. / waiting after a failed check-in, until {time}. | UX Skips |
+| Skip reasons | your checklist is empty. / outside your active hours. / nothing has changed since the last quiet check-in. / today's cost limit has been reached. (reuse the catalog's `fallbackReason.dailyCap`, "today's cost limit has been reached", plus the period) / no model key is set. / waiting after a failed check-in, until {time}. | UX Skips; the cap fragment amended by the Contest Planner ruling (owner's delegation, 2026-11-06), choice (c), EXPERIENCE.md marked |
 | Today | Today: {n} check-ins, {cost} | UX Today |
-| Today, one | Today: 1 check-in, {cost} | **new** (the singular of UX Today) |
+| Today, one | Today: 1 check-in, {cost} | Contest Planner ruling (owner's delegation, 2026-11-06): "Today: 1 check-in, {cost}"; 0 and 2 or more use the plural |
 | Checklist help | Write what OcuTalon should look for, one item per line. With an empty list, OcuTalon makes no model call. It looks at most once per interval, and only when something has changed. | UX Checklist help |
 | Counter | {n} of 1,000 characters | UX (reused `counterText`) |
 | Button | Run the heartbeat now | UX Button |
@@ -296,11 +302,11 @@ Every string the card shows, verbatim. "UX" means EXPERIENCE.md › Later Steps 
 | Disclosure button | Edit | UX Later-step components ("an Edit disclosure") |
 | Save button | Save | existing |
 | On/off checkbox label | On | existing (U-269 T6, under `ux`) |
-| Interval label | Interval | **new** (UX names "the interval") |
-| Active hours legend | Active hours | **new** (UX names "active hours") |
-| Hours labels | From / To | **new** |
-| All-day checkbox | All day | **new** |
-| Checklist label | Checklist | **new** (UX names "the checklist") |
+| Interval label | Interval | Contest Planner ruling (owner's delegation, 2026-11-06) |
+| Active hours legend | Active hours | Contest Planner ruling (owner's delegation, 2026-11-06) (the fieldset legend) |
+| Hours labels | From / To | Contest Planner ruling (owner's delegation, 2026-11-06) |
+| All-day checkbox | All day | Contest Planner ruling (owner's delegation, 2026-11-06) (a checkbox) |
+| Checklist label | Checklist | Contest Planner ruling (owner's delegation, 2026-11-06) |
 | Trace link | Trace (and TraceLink's existing accessible name) | existing (`TRACE_TEXTS`) |
 
 No aria-label of new text: controls are named by their visible labels, the Run button is described by its line, and the card by its section heading.

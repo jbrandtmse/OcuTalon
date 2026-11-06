@@ -4064,6 +4064,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci-run-41853141384 | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Fingerprint changed and done was not 10000 inside a 0.6 s class; passed alone, in lane-b@Web and in lane-b@Schedule,Web, and in attempt 2 of the same head. Cause unknown: the fixture watch is not due for 3600 s, so a real tick does not run it, and a beat writes nothing the test reads
 - 2026-11-04T16:26:42Z status=routed owner=burndown by=harvest note=one occurrence on 092876ad; reads as a test race, cause not found
+- 2026-11-06T10:42:06Z occurrence=39-2-save-your-heartbeat-settings-and-ask-for-a-beat note=312498d6 run 42199537340 attempt 1, image shard:lane-b, the same two tests, class red in 0.46 s; HeartbeatApi runs after GuideApi (name order) so a 39.2 test cannot precede it; 39.2 changes no guide, marker, Live.Publish or session-row path (new routes only); fixture sessions are fresh refs; a tick's empty-checklist skip writes only HeartbeatBeat (not in the Fingerprint) and publishes nothing (U-283). Same as DW-453 (pre-Epic 39)
 
 ### DW-676: Beat.Read: an error status from one Ownership read or the Usage SQL read is pinned only through the whole-Read override (BrokenBeat), not per branch
 - source: spec-39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built.md | severity: low | fix-risk: low | footprint: in-story
