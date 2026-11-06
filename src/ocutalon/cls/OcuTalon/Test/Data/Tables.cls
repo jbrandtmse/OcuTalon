@@ -449,6 +449,18 @@ XData Contracts [ MimeType = application/json ]
    "OwnerRefChannelIndex": "OwnerRef,Channel"
   }
  },
+ "OcuTalon.Data.Handled": {
+  "super": "%Persistent",
+  "props": {
+   "Ref": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "SessionRef": "%String(COLLATION=EXACT,MAXLEN=22)",
+   "HandledAt": "%String(MAXLEN=20)",
+   "Channel": "%String(MAXLEN=32)"
+  },
+  "indexes": {
+   "RefIndex": "Ref unique"
+  }
+ },
  "OcuTalon.Data.Reminder": {
   "super": "%Persistent",
   "props": {
@@ -705,6 +717,26 @@ XData Registry [ MimeType = application/json ]
   "short": "Delivery",
   "global": "^OcuTalonP.Delivery",
   "class": "OcuTalon.Data.Delivery"
+ },
+ {
+  "short": "Handled",
+  "global": "^OcuTalonP.Handled",
+  "class": "OcuTalon.Data.Handled"
+ },
+ {
+  "short": "Memory",
+  "global": "^OcuTalonP.Memory",
+  "class": "OcuTalon.Data.Memory"
+ },
+ {
+  "short": "Document",
+  "global": "^OcuTalonP.Document",
+  "class": "OcuTalon.Data.Document"
+ },
+ {
+  "short": "Upload",
+  "global": "^OcuTalonP.Upload",
+  "class": "OcuTalon.Data.Upload"
  },
  {
   "short": "Reminder",

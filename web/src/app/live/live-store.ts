@@ -18,6 +18,7 @@ import type {
   BreakFeedProgressPayload,
   CheckPayload,
   DecisionPayload,
+  DocumentPayload,
   GuideStatePayload,
   LiveEventType,
   LivePayloads,
@@ -45,6 +46,7 @@ export const COLLECTIONS: Readonly<Record<LiveEventType, CollectionRule>> = {
   approval: { collection: 'approvals', key: 'ref' },
   check: { collection: 'checks', key: 'ref' },
   reminder: { collection: 'reminders', key: 'ref' },
+  document: { collection: 'documents', key: 'ref' },
   phone: { collection: 'phones', key: 'ref' },
   mailbox: { collection: 'mailboxes', key: 'ref' },
   'watch.progress': { collection: 'watchProgress', key: 'ref' },
@@ -74,6 +76,8 @@ export interface LiveStore {
   approvals: Readonly<Record<string, ApprovalPayload>>;
   checks: Readonly<Record<string, CheckPayload>>;
   reminders: Readonly<Record<string, ReminderPayload>>;
+  /** By ref; a payload with removed set is the last event of a removed document, and the Documents page drops its row. */
+  documents: Readonly<Record<string, DocumentPayload>>;
   phones: Readonly<Record<string, PhonePayload>>;
   mailboxes: Readonly<Record<string, MailboxPayload>>;
   watchProgress: Readonly<Record<string, WatchProgressPayload>>;
@@ -133,6 +137,7 @@ export function fromSnapshot(snapshot: StateSnapshot): LiveStore {
     approvals: keyed(snapshot.rail.approvals, 'ref'),
     checks: keyed(snapshot.rail.checks, 'ref'),
     reminders: keyed(snapshot.rail.reminders, 'ref'),
+    documents: keyed([], 'ref'),
     phones: keyed([], 'ref'),
     mailboxes: keyed([], 'ref'),
     watchProgress: keyed([], 'ref'),
@@ -181,6 +186,8 @@ function applyEvent(store: LiveStore, event: LiveEnvelope): LiveStore {
       return { ...store, checks: put(store.checks, key, event.payload as CheckPayload) };
     case 'reminders':
       return { ...store, reminders: put(store.reminders, key, event.payload as ReminderPayload) };
+    case 'documents':
+      return { ...store, documents: put(store.documents, key, event.payload as DocumentPayload) };
     case 'phones':
       return { ...store, phones: put(store.phones, key, event.payload as PhonePayload) };
     case 'mailboxes':

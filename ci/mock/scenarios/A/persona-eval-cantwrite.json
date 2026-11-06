@@ -1,0 +1,12 @@
+{
+  "name": "persona-eval-cantwrite",
+  "match": {
+    "marker": "persona-eval-cantwrite"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "I can't write in Zorblish, so I'm answering in English. The check results are listed below."
+    }
+  ]
+}

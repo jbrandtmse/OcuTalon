@@ -1,5 +1,5 @@
-/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 31 payload
-/// and part classes (Story 0.5 adds 25, Story 2.6 the parts Cost and CheckRow, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
+/// Tests of the live-event payload classes (matrix rows 4 to 6): the event table, the contracts of the 32 payload
+/// and part classes (Story 0.5 adds 25, Story 34.2 the document payload, Story 2.6 the parts Cost and CheckRow, Story 4.2 the parts GuideStep and GuideBreakFeed, Story 4.7 adds the part GuideRun, Story 39.7 adds Heartbeat), every JSON key, the incident payload with its
 /// nested shapes and its FromRow builder, the FromRow builders of the chat message, reminder, approval and decision payloads
 /// (Story 2.2), which build from unsaved rows, the notification payload's FromRow of a Delivery row (Story 2.7), the chat
 /// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
@@ -11,7 +11,7 @@ Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {
 
 /// The event table of the spine: each type and the short name of its payload class.
-Parameter EXPECTED = "chat.message:ChatMessage,notification:Notification,phone:Phone,mailbox:Mailbox,decision:Decision,approval:Approval,turn.step:TurnStep,reminder:Reminder,pairing:Pairing,status:Status,reset:Reset,breakfeed.progress:BreakFeedProgress,guide.state:GuideState,incident:Incident,watch.progress:WatchProgress,check:Check,heartbeat:Heartbeat";
+Parameter EXPECTED = "chat.message:ChatMessage,notification:Notification,phone:Phone,mailbox:Mailbox,decision:Decision,approval:Approval,turn.step:TurnStep,reminder:Reminder,document:Document,pairing:Pairing,status:Status,reset:Reset,breakfeed.progress:BreakFeedProgress,guide.state:GuideState,incident:Incident,watch.progress:WatchProgress,check:Check,heartbeat:Heartbeat";
 
 /// The run's number.
 Property Number As %Integer;
@@ -29,13 +29,13 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// Publish's TYPES is exactly the spine's 17 types, each mapped to its class, and the direct classes of
-/// OcuTalon.Live.Payload are exactly those 17, each a %RegisteredObject and %JSON.Adaptor.
+/// Publish's TYPES is exactly the spine's 18 types, each mapped to its class, and the direct classes of
+/// OcuTalon.Live.Payload are exactly those 18, each a %RegisteredObject and %JSON.Adaptor.
 Method TestEventTable()
 {
 	Set expected = $ListFromString(..#EXPECTED)
-	Do $$$AssertEquals($ListLength(expected), 17, "the spine has 17 types")
-	Do $$$AssertEquals($Length($Parameter("OcuTalon.Live.Publish", "TYPES"), ","), 17, "TYPES holds 17 pairs")
+	Do $$$AssertEquals($ListLength(expected), 18, "the spine has 18 types")
+	Do $$$AssertEquals($Length($Parameter("OcuTalon.Live.Publish", "TYPES"), ","), 18, "TYPES holds 18 pairs")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Publish", "TYPES"), ..#EXPECTED, "TYPES is the spine's event table")
 	Set position = 0
 	While $ListNext(expected, position, pair) {
@@ -68,7 +68,7 @@ Method TestEventTable()
 	For {
 		Set class = $Order(found(class))
 		Quit:class=""
-		Do $$$AssertTrue($Data(wanted(class)), class_" is one of the 17")
+		Do $$$AssertTrue($Data(wanted(class)), class_" is one of the 18")
 	}
 }
 
@@ -90,7 +90,7 @@ Method TestContracts()
 			Do $$$AssertEquals(property.Parameters.GetAt("%JSONFIELDNAME"), $ZConvert($Extract(name), "L")_$Extract(name, 2, *), class_"."_name_" has a camelCase JSON key")
 		}
 	}
-	Do $$$AssertEquals(classes, 31, "the contracts hold the 31 payload and part classes")
+	Do $$$AssertEquals(classes, 32, "the contracts hold the 32 payload and part classes")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.WatchProgress", "STAGES"), "noticed,settling,diagnosing", "the watch stages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Live.Payload.Status", "CONDITIONS"), "allowance,dailyCap,noModelKey,heartbeatStalled,telegramPaused,resetSoon", "the six status conditions")
 }
@@ -915,6 +915,32 @@ Method TestApprovalEitherWay()
 	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Approval).FromRow(request).DryRun, "", "no dry run gives none")
 }
 
+/// The document payload built from an unsaved Data.Document row (Story 34.2): every field is the row's, and removed is false.
+Method TestDocumentFromRow()
+{
+	Set row = ##class(OcuTalon.Data.Document).%New()
+	Set row.Ref = "ZzDocRef"_..Number
+	Set row.OwnerRef = "ZzOwnerRef"
+	Set row.Name = "Results runbook.pdf"
+	Set row.ContentType = "pdf"
+	Set row.Size = 1048576
+	Set row.AddedAt = "2030-02-03T04:05:06Z"
+	Set row.State = "failed"
+	Set row.Reason = "not_built"
+	Set payload = ##class(OcuTalon.Live.Payload.Document).FromRow(row)
+	Do $$$AssertEquals(payload.Ref_"|"_payload.Name_"|"_payload.AddedAt_"|"_payload.Size_"|"_payload.State_"|"_payload.Reason_"|"_payload.Removed, "ZzDocRef"_..Number_"|Results runbook.pdf|2030-02-03T04:05:06Z|1048576|failed|not_built|0", "a document: ref, name, addedAt, size, state, reason, and removed false")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = {}.%FromJSON(json)
+	Do $$$AssertEquals(exported.ref_"|"_exported.name_"|"_exported.addedAt_"|"_exported.size_"|"_exported.state_"|"_exported.reason_"|"_exported.removed, "ZzDocRef"_..Number_"|Results runbook.pdf|2030-02-03T04:05:06Z|1048576|failed|not_built|0", "with the camelCase keys")
+	Set row.State = "indexing"
+	Set row.Reason = ""
+	Set payload = ##class(OcuTalon.Live.Payload.Document).FromRow(row)
+	Do $$$AssertEquals(payload.State_"|"_payload.Reason, "indexing|", "a document that is indexing has no reason")
+	Set payload.Removed = 1
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "a removed payload exports")
+	Do $$$AssertEquals({}.%FromJSON(json).removed, 1, "removed is true on a removed document's last event")
+}
+
 /// --- helpers ---
 /// An open incident row of the owner on OCUORDERS, saved, with a Ref of its own.
 Method Incident(owner As %String) As OcuTalon.Data.Incident
@@ -1135,6 +1161,18 @@ XData Contracts [ MimeType = application/json ]
    "ApprovalRef": "%String(%JSONFIELDNAME=approvalRef,MAXLEN=22)",
    "Answer": "%String(%JSONFIELDNAME=answer,MAXLEN=1000)",
    "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)"
+  }
+ },
+ "OcuTalon.Live.Payload.Document": {
+  "super": "%RegisteredObject,%JSON.Adaptor",
+  "props": {
+   "Ref": "%String(%JSONFIELDNAME=ref,MAXLEN=22)",
+   "Name": "%String(%JSONFIELDNAME=name,MAXLEN=255)",
+   "AddedAt": "%String(%JSONFIELDNAME=addedAt,MAXLEN=20)",
+   "Size": "%Integer(%JSONFIELDNAME=size)",
+   "State": "%String(%JSONFIELDNAME=state,MAXLEN=16)",
+   "Reason": "%String(%JSONFIELDNAME=reason,MAXLEN=32)",
+   "Removed": "%Boolean(%JSONFIELDNAME=removed)"
   }
  },
  "OcuTalon.Live.Payload.Reminder": {

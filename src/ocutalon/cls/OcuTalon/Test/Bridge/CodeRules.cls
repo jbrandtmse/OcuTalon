@@ -14,6 +14,9 @@
 ///     entry has its one shape. The scanner is first shown to flag the three calls and to pass Record, a look-alike and comment lines;
 ///   - TestOnlyChecksPublishesCheck (Story 5.6; AD-33): no OcuTalon class outside the Test package, except OcuTalon.Checks.Process, calls Publish with the event type check
 ///     (the literal, or Checks' CHECKEVENT parameter). The scanner is first shown to flag those forms and to pass the payload class, reads, other event types and comment lines;
+///   - TestOnlyTheRetryPathNamesRetryOf (Story 33.1, veto U-246; AD-6, AD-8): no OcuTalon class outside the Test package, except Decide, the request message, the runner, the
+///     adapter and the conversation link, names RetryOf on a code line, so that no web, channel, core, tool or MCP class can set the request property that lets a retry skip the
+///     conversation lock. The scanner is first shown to flag a reference in each form and to pass look-alikes and comment lines;
 ///   - TestOnlyIncidentManagerWritesIncidents (Story 5.3; AD-15, AD-33): no OcuTalon class outside the Test package, except OcuTalon.Watch.IncidentManager,
 ///     creates or deletes a row of OcuTalon.Data.Incident or OcuTalon.Data.FailureGroup (%New, %Delete or %DeleteId, also through $ClassMethod), runs SQL
 ///     that inserts, updates or deletes in their tables (with or without INTO or FROM, and with % keyword options), or calls Publish with the literal event type incident or watch.progress. The scanner is first shown
@@ -102,8 +105,8 @@ Parameter REMINDERREFERENCE = "ocutalon[._]data[._]reminder|ocutalonp\.reminder|
 Parameter GOVERNANCE = "ocutalon[._]bridge[._](\w+[._])?approval|ocutalonbp\.approval|approvalstartin|answersin|enslib[._]workflow|toolclassification|classificationclass|settingsops|ocutalon[._]data[._]setting|ocutalonp\.(setting|pairing)|accessor\W{1,4}writedefault\b|ocutalon[._]bridge[._]timeouts\W{1,4}(apply|restart)\b|public[._]settings\W{1,4}(set|setready|clearready)\b|ens\.director\W{1,6}(updateproduction|startproduction|stopproduction|restartproduction|recoverproduction|cleanproduction|deleteproduction|killproductionglobals|moveensruntimetoenssuspended|actualizeproductiondifferences|enableconfigitem|tempstopconfigitem|restartautoaddeditem|setautostart\w*|(set|remove)productionshutdowngroup|systemstart|systemstop|set\w*settingvalue)\b|ens\.config\.\w+\W{1,4}(%new|%deleteid|%delete|%deleteextent|%killextent)\b|ocutalon[._]mcp|mcpops|sessionops|ocutalon[._]data[._]pairing|msg[._]\w+command\b";
 
 /// The command classes that a tool may submit (AD-1: the verbs that CommandsIn accepts from origin tool and that exist): any other
-/// OcuTalon.Msg.Command.<Verb> in tool code is a governance command (Pair, Unpair, SetDemoMode, EndSession). Story 19.3's memory verbs join when they exist.
-Parameter TOOLVERBS = "SetReminder,ListReminders,CancelReminder,StartWatch,StopWatch,Dismiss";
+/// OcuTalon.Msg.Command.<Verb> in tool code is a governance command (Pair, Unpair, SetDemoMode, EndSession). ProposePersona is the persona tool's verb (Story 40.5). Story 19.3's memory verbs join when they exist.
+Parameter TOOLVERBS = "SetReminder,ListReminders,CancelReminder,StartWatch,StopWatch,Dismiss,ProposePersona";
 
 /// A reference to AI Hub: %AI or EnsLib.AI as a word (the pattern of docker/tests/test-class-rules.sh).
 Parameter AIREFERENCE = "(^|[^a-z0-9_])%ai([^a-z0-9]|$)|enslib[._]ai([^a-z0-9]|$)";
@@ -133,6 +136,13 @@ Parameter INCIDENTWRITES = "ocutalon\.data\.(incident|failuregroup)\s*\)\s*\.\s*
 
 /// The one class that may write the incident tables and publish those events.
 Parameter INCIDENTWRITERS = "OcuTalon.Watch.IncidentManager";
+
+/// A code line that names RetryOf, the request property that lets the AD-8 second-model retry skip the conversation lock (AD-6, veto U-246).
+Parameter RETRYOF = "\bretryof\b";
+
+/// The only classes that may name RetryOf (the Test package is never scanned): the retry decision, the request that carries the property, the runner, its adapter and
+/// the conversation link. No client-facing entry (the web API, Telegram, mail, the bridge's entry points, MCP) may name it.
+Parameter RETRYOFCLASSES = "OcuTalon.Bridge.Process.Decide,OcuTalon.Bridge.Msg.Request,OcuTalon.Bridge.Operation.AgentRunner,OcuTalon.Bridge.Adapter.Agent,OcuTalon.Bridge.Data.ConversationLink";
 
 /// A line that publishes the check event: Publish with the type check as a literal or as Checks' CHECKEVENT parameter (AD-33).
 Parameter CHECKPUBLISHES = "publish\(.*([""']check[""']|\.#checkevent\b)";
@@ -338,6 +348,25 @@ Method TestOnlyChecksPublishesCheck()
 	Do $$$AssertEquals(offending, "", "no class but Checks publishes the check event")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#CHECKPUBLISHERS, .text), ..#CHECKPUBLISHERS_" has source")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern), "and the scan sees the one class that does publish it, Checks")
+}
+
+/// Only the AD-8 retry path names RetryOf (Story 33.1, veto U-246): the scanner flags the property in each form a client class could use it, passes look-alike words and
+/// comment lines, and the scan finds no class outside the allow-list that names it. RetryOf does not exist yet (Story 17.2 builds it in the allowed classes), so the
+/// scan finds none today; the allowed classes are not required to name it.
+Method TestOnlyTheRetryPathNamesRetryOf()
+{
+	Set pattern = ..#RETRYOF
+	Set tab = $Char(9)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set request.RetryOf = ""TriageAgent""", pattern), "the scanner flags a property assignment")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set request.RetryOf = body.%Get(""retryOf"")", pattern), "and a client value mapped onto it")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do request.%SetProperty(""RetryOf"", value)", pattern), "and a name in a string")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"SET REQUEST.RETRYOF = 1", pattern), "in any case")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set retry = request.RetryItem, offset = request.RetryOffset"_$Char(10)_"/// RetryOf is set by Decide only"_$Char(10)_tab_"// Set request.RetryOf = 1"_$Char(10)_tab_"; Set request.RetryOf = 1", pattern), "and passes other properties (a longer name included), a doc comment and comment lines")
+
+	Set offending = ..Offenders(pattern, ..#RETRYOFCLASSES, .scanned, .unreadable)
+	Do $$$AssertTrue(scanned > 50, "the scan read the source of the OcuTalon classes: "_scanned)
+	Do $$$AssertEquals(unreadable, "", "and every class of the scan has source, except the generated stub classes of the process message tracking, which hold no code")
+	Do $$$AssertEquals(offending, "", "no class outside Decide, the request, the runner, its adapter and the link names RetryOf (no web, channel, core, tool or MCP class sets it)")
 }
 
 /// No class outside the Test package calls the chat family, except the runner and its adapter.

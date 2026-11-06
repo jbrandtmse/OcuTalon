@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../support/fixtures';
 
 import { README_ACCOUNT } from '../sign-in/helpers';
 import { ON_MOCK, actionsSince, approvalCount, approvalRows, breakFeedLeft, expectDecision, phoneNotes, readmeSession, stackNow } from '../support/demo-path';

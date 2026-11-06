@@ -23,6 +23,11 @@
  *   never looks at a date. The row is "" unless `eitherWay` is true, `reading` is not empty and `resend` is a number of at least 1.
  *   Its slots are the notice's: resendCount is `resend` (which also chooses the one or many form), reading is `reading` and item is
  *   the dry run's singular noun, "message" when it has none. It stays on an answered request.
+ * - A setting request (Story 40.6; kind "setting", a proposed persona) is drawn with the title from the context alone (its notice text,
+ *   the catalog's "OcuTalon suggests a new persona..." sentence, is not the card's text), the action is that title with no period, and
+ *   `setting` holds the three lines "Now: {old}", "Proposed: {new}" (the payload's dry run before and after) and, while pending only,
+ *   "Nothing changes unless you approve.". It has no dry run block and no fixed-targets line; the answered status is the same as for
+ *   any request.
  * - answerOutcomeOf reads the reply of POST /approvals/:ref/answer; latePressText is the notice of a press that lost the race.
  * - resultView (Story 6.4; AD-16) reads the `result` of one of the incident payload's `requests` into the band under the request's
  *   answered status: the catalog's result.* key by the fields (the page maps the fields, because the payload carries no key), its text
@@ -51,6 +56,9 @@ export const APPROVAL_TEXTS = {
   resendCopies: '{count} repaired copies; the originals stay unchanged.',
   resendCopyOne: '1 repaired copy; the original stays unchanged.',
   nothingYet: 'Nothing has changed yet.',
+  settingNow: 'Now: {old}',
+  settingProposed: 'Proposed: {new}',
+  settingNote: 'Nothing changes unless you approve.',
   expires: 'Expires {when}',
   notApprover: 'Only an approver for resends can answer this request.',
   gone: 'That request is no longer available.',
@@ -80,6 +88,14 @@ export interface DryRunView {
   resendLine: string;
   /** "Nothing has changed yet." while the request is pending, else "". */
   nothingYet: string;
+}
+
+/** The three lines of a setting request's card: what is now, what is proposed, and, while pending, "Nothing changes unless you approve.". */
+export interface SettingView {
+  now: string;
+  proposed: string;
+  /** "" unless the request is pending. */
+  note: string;
 }
 
 /** The page's readings of the context. */
@@ -119,6 +135,8 @@ export interface ApprovalView {
   /** The fixed-targets line; "" unless the request is pending and its dry run has a count. */
   fixedTargets: string;
   dryRun: DryRunView | undefined;
+  /** The lines of a setting request in place of the dry run; undefined for any other kind. */
+  setting: SettingView | undefined;
   /** "Expires tomorrow at 14:13"; "" unless the request is pending and its expiry is readable. */
   expiry: string;
   /** The answered status that replaces the buttons, or undefined while pending (and for a state the page does not know). */
@@ -220,6 +238,18 @@ function dryRunView(approval: ApprovalPayload, pending: boolean, ctx: ApprovalCo
   };
 }
 
+/** The lines of a setting request: the payload's dry run before and after, which hold the old and new texts. */
+function settingView(approval: ApprovalPayload, pending: boolean): SettingView {
+  const dry = approval.dryRun;
+  const before = dry === null || typeof dry !== 'object' ? '' : textOf(dry.before);
+  const after = dry === null || typeof dry !== 'object' ? '' : textOf(dry.after);
+  return {
+    now: fill(APPROVAL_TEXTS.settingNow, { old: before }),
+    proposed: fill(APPROVAL_TEXTS.settingProposed, { new: after }),
+    note: pending ? APPROVAL_TEXTS.settingNote : '',
+  };
+}
+
 /** The accent bar of a state: pending; approved, executing and done; closed for the rest (rejected, expired, failed). */
 function barOf(state: string | undefined): ApprovalBar {
   if (state === 'pending') {
@@ -265,8 +295,10 @@ function statusOf(approval: ApprovalPayload, ctx: ApprovalContext): AnswerStatus
 export function approvalView(approval: ApprovalPayload, ctx: ApprovalContext, request = ''): ApprovalView {
   const ref = approval.ref ?? '';
   const pending = approval.state === 'pending';
-  const title = request === '' ? ctx.title(approval) : request.split('\n', 1)[0] ?? '';
-  const dry = dryRunOf(approval);
+  const isSetting = approval.kind === 'setting';
+  const shownRequest = isSetting ? '' : request;
+  const title = shownRequest === '' ? ctx.title(approval) : shownRequest.split('\n', 1)[0] ?? '';
+  const dry = isSetting ? undefined : dryRunOf(approval);
   const expires = pending ? ctx.whenBeside(approval.expiresAt ?? '', ctx.nowMs) : '';
   let fixedTargets = '';
   if (pending && dry !== undefined) {
@@ -283,11 +315,12 @@ export function approvalView(approval: ApprovalPayload, ctx: ApprovalContext, re
     pending,
     label: pending ? APPROVAL_TEXTS.labelPending : APPROVAL_TEXTS.labelAnswered,
     bar: barOf(approval.state),
-    action: request === '' ? fill(APPROVAL_TEXTS.action, { title }) : request,
+    action: isSetting ? title : shownRequest === '' ? fill(APPROVAL_TEXTS.action, { title }) : shownRequest,
     approveName: fill(APPROVAL_TEXTS.approveName, { action: lowerFirst(title) }),
     rejectName: fill(APPROVAL_TEXTS.rejectName, { action: lowerFirst(title) }),
     fixedTargets,
-    dryRun: dryRunView(approval, pending, ctx),
+    dryRun: isSetting ? undefined : dryRunView(approval, pending, ctx),
+    setting: isSetting ? settingView(approval, pending) : undefined,
     expiry: expires === '' ? '' : fill(APPROVAL_TEXTS.expires, { when: expires }),
     status: pending ? undefined : statusOf(approval, ctx),
   };

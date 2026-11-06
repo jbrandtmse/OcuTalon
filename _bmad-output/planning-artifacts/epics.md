@@ -4680,11 +4680,90 @@ So that the browser job fails only when something is wrong, and a red on the tru
 **When** the checks run
 **Then** it is covered without further edits, or a check names it
 
+**Given** a helper wait in the specs under `web/e2e-online` (a page action, a navigation, a response wait, a request, or an IRIS script call through `irisScript`) that never returns because the page or IRIS answers slowly or not at all
+**When** the test runs
+**Then** the wait has its own bound, well under the test timeout, so the failure names its step within seconds instead of the 5-minute test timeout; the bound lives in the shared helpers or the shared configuration, never as per-spec copies, and a test pins one bounded wait (mutation shown) [AMENDED 2026-11-04, Rule 5 tier 1, the Contest Planner's ruling under the owner's delegation, relayed by the orchestrator: two different `web/e2e-online/session/leave.spec.ts` tests hit the 5-minute test timeout in `iris (shards)` `live:online-session` (L5 on feature f2b20ea0, ci run 41843673412; L6 on OCT-epic39 d701b6e6, ci run 41909512271 attempt 1); the runs upload no artifacts, so no error context or trace exists; the logs place both hangs in shared helper waits with no bound of their own (the browser configuration sets no action or navigation timeout, and `irisScript` bounds no `iris session`), not in a product path: a product failure would have failed a bounded poll with its message at 90 s; added]
+
+**Given** a wait in the shared sign-in helpers (`loadedAfter` in `web/e2e/support/floor.ts`, `gotoSettled` in `web/e2e/support/navigate.ts`, the sign-in helpers of `web/e2e/sign-in/helpers.ts` and of `web/e2e-online/support.ts`) that never ends
+**When** the test runs
+**Then** the wait has its own bound, shorter than the test timeout, and fails with a message naming the step and the response it waited for (for example the sign-in's POST answer or the snapshot's GET of `/ocutalon/api/v1/state`), so a hang shows as a named failure, not a test timeout that cascades into the next check; a test pins it (mutation shown) [AMENDED 2026-11-04, the Contest Planner's condition under the owner's delegation, relayed by the orchestrator; with it, `loadedAfter`'s unbounded `waitForResponse` (OCT-epic40 run 41929230934, `02-watch.spec.ts`; DW-691's `focus.spec.ts` P1) and `gotoSettled`'s re-sign-in abort (DW-690, `net::ERR_ABORTED` at `/ocutalon/`) are in this story's scope; added]
+- DW-690: demo-path 07-failure-paths L60 failed at L77's re-sign-in with `page.goto net::ERR_ABORTED` at `/ocutalon/` (gotoSettled retries only NETWORK_CHANGED); a second sighting timed out in `loadedAfter` (ledger; routed by the orchestrator 2026-11-04)
+- DW-691: floor `focus.spec.ts` P1 hit the 90 s test timeout in `page.waitForResponse` (ledger; routed by the orchestrator 2026-11-04)
+
+**Given** a shared helper wait (in `web/e2e-online/telegram.ts`, `web/e2e-online/support.ts` or `web/e2e/support/*`) that is still waiting when its test is close to its timeout
+**When** the test runs
+**Then** the wait is bounded by the smaller of its own bound and the test's remaining time (its timeout minus the time elapsed, from `test.info()`) less a cleanup reserve of about 60 s, and fails first, naming the step and the awaited call, never as a bare test timeout; the `finally` clean-ups (`finishTelegram`, `unpairChat`, `removeSession`, the group sign-out) get that reserve and always run, so a failed L6 leaves no live TelegramIn or TelegramOut job; one shared mechanism; proven by a synthetic case (an `irisScript` stalled past the remaining budget fails with the named step before the test timeout, and its clean-up leaves no live Telegram job), by L6 replayed locally green three times, and by the proof runs below [AMENDED 2026-11-05, the Contest Planner's refinement of the 2026-11-04 condition under the owner's delegation, relayed by the orchestrator, after L6 hit the bare 300 s test timeout on this story's own head (ci run 41957022331 attempt 3, job 127036912190): the helper bounds added up past the test timeout, so no step was named and L6's `finally` never put the Telegram fixture back; uploading Playwright results as a CI artifact is DW-710, not this story; added]
+
 **Given** the fix on its branch
 **When** `iris (browser)` runs
-**Then** it is green three runs in a row, and every other group stays green
+**Then** it is green three runs in a row, and every other group stays green, and in the same three runs `iris (shards)`, which runs `live:online-session`, is green with leave.spec.ts L5 and L6 passing [AMENDED 2026-11-04, the same ruling: L5 and L6 and the online-session unit join the proof runs; it read "it is green three runs in a row, and every other group stays green"]
 - DW-640: web/e2e/live/live.spec.ts L9 reported `route.fetch: Test ended` from L8's route callback (ledger; routed by the Contest Planner 2026-11-04)
 - DW-665: web/e2e/live/socket.spec.ts W11 failed the same way on v1.0.0, twice (ledger; routed by the Contest Planner 2026-11-04)
+
+### Story 11.22: First daily release burn-down
+
+As the author,
+I want the first daily release's burn-down entries fixed or closed on evidence,
+So that the harness reds the release found are gone and the API refuses oversized bodies.
+
+[ADDED 2026-11-05, Epic 11 burn-down (the owner's decision via the Contest Planner at 2026-11-05T01:51Z, with later amendments, relayed by the orchestrator): chartered by runner B after Epic 11's part merge (11.20 + 11.21), ahead of Epic 11 part 2; ranked by the Planner; it merges when done and ships in the next daily release.]
+
+**Acceptance Criteria:**
+
+**Given** a disabled production item (TelegramIn, TelegramOut) whose job is ending
+**When** `check_items_run` or `live_park_telegram` samples it
+**Then** it first waits, on a bound of its own of about 30 s, until the item has no `Ens.Job` entry in any state, then samples; on the bound it fails naming the item and the entry's state; it never counts only Alive jobs (the Planner's strict fix, ruled 2026-11-04T23:50Z)
+
+**Given** a request body larger than 256 KB on any API route
+**When** the route reads it (`BodyText`, the shared request-body reader)
+**Then** it answers 413 `body_too_large` before routing; a route can declare a larger bound of its own in its dispatch class's `XData BodyBounds` (the documents upload route of Story 34.2 declares about 14 MB, the encoded size of its 10 MB file limit, U-285) without a change to the shared check; a test on each side of 256 KB pins it; `Web/Api.cls` gets one line in `OnPreDispatch` and nothing else, the logic lives in `OcuTalon.Web.BodyLimit` [AMENDED 2026-11-05, Story 11.22 spec validation, apply-and-report, orchestrator ruling: `%CSP.REST.DispatchRequest` is Final and every `BodyText` caller maps a failure to 400, so the check sits in `OnPreDispatch`; it read "before parsing ... without a change to the shared reader ... `Web/Api.cls` gets appended blocks only"]
+
+**Given** the leaked resolved Orders incident of DW-698 in lane-a@rest
+**When** it is replayed in CI order on one warm stack for at most 60 minutes
+**Then** a reproduction gets its fix, or the entry returns to the ledger with what was tried
+
+**Given** the two small entries DW-416 (the TLS proxy origin check) and DW-636 (install.sh finding a build 109 image)
+**When** the plan sizes each
+**Then** each is fixed here only if it takes 2 hours or less; otherwise it is returned to the ledger with its size
+
+**Given** a browser unit that fails in CI
+**When** the job ends
+**Then** its Playwright test-results (error-context.md, traces) are uploaded as a short-retention artifact holding no secret but the CI dummy key and token
+
+**Given** the DW-550 occurrences (`/state` not answering after a sign-in)
+**When** they are investigated against held CSP sessions and licence units (CI's Community licence, the demo's 8 units)
+**Then** the finding is recorded, and fixed here only if the fix is small
+
+**Given** the request fixture of the web/e2e projects (DW-706)
+**When** a request wait never answers
+**Then** it fails on a bound of its own, through an append-only edit or a shared-support alternative to `web/e2e/sign-in/helpers.ts` (Epic 40's open path); otherwise it waits for Epic 40's merge
+- DW-692: a disabled Telegram item had a live job in CI (strict fix: no Ens.Job entry in any state) (ledger; routed by the orchestrator 2026-11-05)
+- DW-687: BodyText parses any request body size; 413 body_too_large over 256 KB, a route may declare a larger bound (ledger; DW-669 (b); routed by the orchestrator 2026-11-05)
+- DW-698: lane-a@rest leaked a resolved Orders incident (reproduce first, 60-minute timebox) (ledger; routed by the orchestrator 2026-11-05)
+- DW-416: behind a TLS-terminating proxy the online-demo API POST fails the origin check (only if 2 hours or less) (ledger; routed by the orchestrator 2026-11-05)
+- DW-636: install.sh finds only a build 154 image (only if 2 hours or less) (ledger; routed by the orchestrator 2026-11-05)
+- DW-710: CI uploads no Playwright test-results on a browser-unit failure (ledger; routed by the orchestrator 2026-11-05)
+- DW-550: `/state` not answering after a sign-in: investigate held CSP sessions and licence units (ledger; routed by the orchestrator 2026-11-05)
+- DW-706: the web/e2e request fixture has no timeout (ledger; routed by the orchestrator 2026-11-05)
+
+### Story 11.23: install.sh accepts build 109
+
+As a judge,
+I want install.sh to accept the build 109 image that the Early Access portal offers today,
+So that a local install does not stop at its first step.
+
+[ADDED 2026-11-05, Epic 11 burn-down follow-on (the Contest Planner's ruling under the owner's delegation, relayed by the orchestrator): DW-636 was declined from Story 11.22 on size (2 to 2.5 h); the Planner charters it anyway, because the Early Access portal now offers only build 109 and install.sh refuses it. Chartered as its own story so 11.22's validated spec stands.]
+
+**Acceptance Criteria:**
+
+**Given** a Docker host with the build 109 image `irishealth-community:2027.1.0AI.109.0`, or with today's exact build 154 image ref
+**When** install.sh checks the image
+**Then** it accepts either one by its exact image ref, and refuses every other ref as it does today; a test pins it, and a mutation shows a third ref is refused
+
+**Given** the README's separate "Start it with build 109" path (U-241)
+**When** install.sh accepts build 109
+**Then** the README's build-109 text is changed, sent to the Contest Planner verbatim as public text before it is committed, and committed only once approved; `docker/tests/test-readme.sh`'s build-109 pins are updated, never deleted
+- DW-636: install.sh looks only for build 154; make it find a build 109 image too, then drop the README's separate build-109 path (U-241) (ledger; chartered by the Contest Planner 2026-11-05)
 
 ## Epic 12: Approve from your own phone with Telegram
 
@@ -5864,6 +5943,9 @@ So that one message tells me how my IRIS system is doing and what needs me.
 **Then** the button carries an unguessable reference, and `TelegramIn` submits Lane B's **Got it** command through `CommandsIn` only for a press from the paired chat, so the notice's handled marker is set once (the first press wins); a press from any other chat changes nothing (FR-20, FR-35, AD-1, AD-14, AD-29)
 **And** whenever the marker is set, from Telegram or any other channel, the Telegram message is edited in place to show "Marked as handled at {time}" with its button removed, within one live update, as Lane B's Story 18.4 does for the web and phone copies; until Story 18.4 merges, tests check the submitted command and use fixture markers (FR-35, UX-DR143)
 
+- DW-651: A new session's first scheduled digest is at the first `digest.time` after its `CreatedAt` (AD-18 as amended 2026-11-05): created before today's `digest.time`, today's digest; created after, none until tomorrow's; `SendDigest` is unaffected (ledger; routed by orchestrator ruling 2026-11-05, decided by the Contest Planner under the owner's delegation)
+- DW-696: SendDigest sent to the disabled Digest item answers failed, not not_built (ledger; routed by Epic 33 burn-down 2026-11-05)
+
 ### Story 17.7: Give an all-clear only when every check passed
 
 As a user,
@@ -5996,6 +6078,8 @@ So that I read the day at a glance and "needs you" holds only what still needs m
 **Then** the demo path still passes, and a Playwright test covers the Settings page as the README account, a fixture digest card and **Got it** (REL-2, UX-DR117)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+- DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27) (ledger; routed by Epic 33 burn-down 2026-11-05)
 
 ## Epic 19: OcuTalon remembers, and answers from your documents (step 3)
 
@@ -7968,7 +8052,7 @@ So that I can change OcuTalon's settings without a terminal or a restart.
 **Given** an admin changed a section's values
 **When** they press **Save changes**
 **Then** the web layer submits one command through `Commands.Submit` with origin `web_admin`; `SettingsOps` writes each value, audits it through `OcuTalon.Bridge.Audit` (type `Settings`, with the admin's IRIS user, `SessionRef`, channel, and old and new values, never a secret) and applies it within a minute without restarting IRIS or the production; and the section confirms "Saved. Applies within a minute. Recorded in the audit log." (FR-17, FR-9, AD-1, AD-17, AD-19, UX-DR141)
-**And** the button follows the busy pattern; a refused or failed save shows the field error "Couldn't save. Nothing was changed." and changes nothing; and leaving a section with unsaved changes asks first (UX-DR32, UX-DR36, UX-DR141)
+**And** the button follows the busy pattern; a refused or failed save shows the field error "Couldn't save. Nothing was changed." and changes nothing, except a Demo mode save whose demo step fails, which keeps the written value as the terminal path does and shows its own field message; and leaving a section with unsaved changes asks first (UX-DR32, UX-DR36, UX-DR141) [AMENDED 2026-11-04, Story 33.2, unattended ruling (U-270): the same-path AC keeps the value written on `step_failed` and re-runs the step at the next start, so "Nothing was changed." would be false there; it read "and changes nothing"]
 
 **Given** the Check thresholds and Demo mode sections
 **When** an admin saves them
@@ -7979,6 +8063,27 @@ So that I can change OcuTalon's settings without a terminal or a restart.
 **When** they run
 **Then** one reads each kind of settings change back from the IRIS audit log, one submits a settings command with origin `tool` and expects a refusal, and the fixed-strings test covers every new label (FR-9, AD-1, AD-22, UX-DR117)
 
+
+### Story 33.3: Epic 33 burn-down
+
+[AMENDED 2026-11-05, chartered by the burn-down gate, Rule 17, on the orchestrator's ruling (decided by the Contest Planner under the owner's delegation, DW-699): a demo mode saved on the settings page reaches an open main page only after a reload; the live refresh is a high-risk fix and the online demo's account holds no OcuTalonAdmin, so for now the Demo mode section tells the admin, and the real fix is filed in the ledger for later.]
+
+As an admin,
+I want the Demo mode section to tell me when a saved change shows on the chat page,
+So that I don't think the switch failed when the open chat page still shows the old mode.
+
+**Acceptance Criteria:**
+
+**Given** an admin on the settings page's Demo mode section
+**When** a save of the switch succeeds
+**Then** the section shows its own confirmation, a new text key whose text is exactly "Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change."
+**And** the Check thresholds section keeps the shared saved text of `settings-view.ts`, unchanged, and no other section's text changes
+
+**Given** the tests
+**When** they run
+**Then** the fixed-strings test covers the new key, and a browser test pins that a Demo mode save shows the new text and a Check thresholds save the shared one
+
+- DW-699: A demo mode saved on the settings page does not reach the open main page until a reload; ruled: tell the admin with the Demo mode section's own confirmation text, no live refresh now (ledger; routed by orchestrator ruling 2026-11-05)
 
 ## Epic 34: Step 3's contracts, and a Documents page (step 3)
 
@@ -8051,7 +8156,24 @@ So that OcuTalon can answer from my own documents.
 **Given** an online-demo session that signs out
 **When** `SessionOps.End` (Story 16.4) runs
 **Then** it also calls Lane A's `OcuTalon.Docs.DropSession(sessionRef)` and `OcuTalon.Memory.DropSession(sessionRef)`, so the session's documents and memories go at sign-out, not only at the reset; until Lane A's Story 19.5 merges, the tests run against Story 34.1 (was 19.1)'s stubs and check that both are called with the session's `SessionRef` (FR-14, FR-15, AD-4, AD-21, AD-29)
+- DW-722: Document refusal reason codes and their page text are unnamed (AD-21 Documents says only 'Reason a code'), and with DocumentOps a stub until Story 19.4 nothing writes the failed row that the refusal AC shows; name the codes and their text, and say which side writes the refused row (ledger; routed by cr 2026-11-05)
+- DW-741: With Story 11.22's `Web.BodyLimit` (256 KB on every API route, checked in `Web.Api`'s `OnPreDispatch`), the documents upload declares its larger bound in `XData BodyBounds` in `Web.Api` (url `/v1/documents`) and in `Web.Documents` (url `""`), with the route's ~14 MB bound; tests prove both sides of that bound and the 256 KB limit on another route (ledger; routed by the orchestrator 2026-11-05) [AMENDED 2026-11-05, Story 34.2 lead, orchestrator ruling on DW-741: an acceptance bullet added for a ledger entry routed to this story; no other text changed]
 
+
+### Story 34.3: Epic 34 burn-down
+
+[AMENDED 2026-11-05, chartered by the burn-down gate, Rule 17, on the owner's ruling U-287 (decided by the Contest Planner under the owner's delegation, 2026-11-05T19:09:13Z#874): Story 34.2 keeps an uploaded file in the Lane B table `OcuTalon.Data.Upload` until `DocumentOps` takes it, and the ruling kept that design on three conditions, made tests here; Lane B's files, like Story 34.2]
+
+As a user who adds documents,
+I want an upload that was never indexed to leave nothing behind, and nobody else to see it,
+So that my files are kept only as long as OcuTalon needs them.
+
+**Acceptance Criteria:**
+
+- DW-752: an orphaned `Data.Upload` row (older than 1 hour, never taken) is deleted by an existing purge task or by the documents route's next call, with a test, so a crash between storing an upload and its `Take` leaves nothing behind (ledger; routed by burndown 2026-11-05)
+- DW-753: the 10 MB file limit and the documents route's ~14 MB body bound are enforced before any `Data.Upload` row is written, pinned by tests (no row exists after a refused add) (ledger; routed by burndown 2026-11-05)
+- DW-754: `Data.Upload` rows are owner-scoped like other session data (Ownership checks), and the online demo's reset clears them (golden restore); checked once on a throwaway reset with recorded evidence (ledger; routed by burndown 2026-11-05)
+- DW-738: the image's Python dependencies are pinned: one constraints file per architecture (arm64 and x64) pins every distribution of the measured set to its exact version (x64 measured, never assumed), the image build installs with `pip install -c` beside the three top-level pins, a test keeps the licence evidence's package list equal to the constraints, the licence gate still fails outside the allowed families, the IPM install uses the same pins if it installs Python packages, and each constraints file says that a version bump re-measures the licences in the same commit (ledger; decided by the Contest Planner under the owner's delegation 2026-11-05) [AMENDED 2026-11-05, Story 34.3, Contest Planner ruling on DW-738: an acceptance bullet added for a ledger entry routed to this story; no other text changed]
 
 ## Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)
 
@@ -8628,7 +8750,7 @@ So that both lanes build the persona from one set of names.
 - the verbs `SetPersona` (`Preset`, `Language`, `Custom`) and `ProposePersona` (`Preset`, `Language`, `Custom`, plus the common command fields);
 - `Msg.Enum`'s `PERSONAPRESET` = `professional,starship,pirate,kindfriend,language,custom`, and `APPROVALKIND` gaining `setting`;
 - the per-person keys `person.<SessionRef>.persona.preset|language|custom`;
-- the catalog keys `approval.persona`, `result.persona.applied` and `result.persona.stale` in `Catalog.Core`, with their texts from EXPERIENCE.md › Later Steps › Personality.
+- the catalog keys `approval.persona`, `persona.applied` and `persona.stale` in `Catalog.Core`, with their texts from EXPERIENCE.md › Later Steps › Personality and › Message Catalog › Personality notices [AMENDED 2026-11-02 — see the story change log (spec-40-1); unattended ruling: catalog keys renamed to fit AD-32, texts unchanged; it read `result.persona.applied`, `result.persona.stale`].
 
 **Given** `OcuTalon.Agent.Persona`
 **When** it is created
@@ -8656,7 +8778,7 @@ So that the voice I choose is mine and nothing changes behind my back.
 **And** `CommandsIn` routes both verbs to `SettingsOps`: `SetPersona` from origin `web_user` only, and `ProposePersona` from origin `tool` only (AD-1 as amended)
 **And** the governance test refuses `SetPersona` from origin `tool`
 
-**Given** `PUT /api/v1/persona` from a signed-in person
+**Given** a `SetPersona` command from a signed-in person (origin `web_user`; the `PUT /api/v1/persona` route that submits it is Story 40.8's) [AMENDED 2026-11-02, unattended split ruling (Epic 40 runner): the HTTP routes moved to Story 40.8, because `OcuTalon.Web.Api` is another in-flight epic's file until it merges; every AC kept; it read "Given `PUT /api/v1/persona` from a signed-in person"]
 **When** `SettingsOps` handles `SetPersona`
 **Then** it validates the values (FR-67, FR-68, AD-19):
 - the preset is one of `PERSONAPRESET`;
@@ -8667,8 +8789,8 @@ So that the voice I choose is mine and nothing changes behind my back.
 **And** a refusal returns the plain message from EXPERIENCE.md › Later Steps › Personality and writes nothing
 **And** an accepted change writes the `Settings` audit entry (the preset id and the language name, never the custom text), then the keys, and applies within 60 seconds (AD-17, AD-19)
 
-**Given** `GET /api/v1/persona`
-**When** the person opens it
+**Given** `SettingsOps`'s persona read for a session (the `GET /api/v1/persona` route that returns it is Story 40.8's) [AMENDED 2026-11-02, unattended split ruling (Epic 40 runner): the HTTP routes moved to Story 40.8, because `OcuTalon.Web.Api` is another in-flight epic's file until it merges; every AC kept; it read "Given `GET /api/v1/persona` / When the person opens it"]
+**When** the person's page asks for it
 **Then** it returns their preset, language and custom text (or the defaults: Professional), whether the custom choice is offered here, and the `Ref` of any pending persona request (FR-67, FR-70)
 
 **Given** an online-demo session that signs out, or a new visitor
@@ -8678,6 +8800,9 @@ So that the voice I choose is mine and nothing changes behind my back.
 **Given** a tell-now `Notification` whose reason slot holds a greeting, an exclamation mark and an emoji (a Pirate reason)
 **When** `Catalog.Render` renders it for the web, phone, mailbox and telegram channels, in automated tests in `OcuTalon.Test.Msg`
 **Then** the greeting, the exclamation mark and the emoji come out unchanged, the notice's fixed frame ("Why now:" and the rest) is exact, and only control characters and line breaks are cleaned from the slot, as before (FR-69, AD-7, AD-32)
+
+- DW-564: `setting` reaches `APPROVALKIND` in both `OcuTalon.Msg.Enum` and `OcuTalon.Bridge.Msg.Enum` in the same merge (Test.Msg.Contracts requires them equal); the plan decides who changes the bridge copy (Lane A's file, not in Epic 40's paths_hint) (ledger; routed by cr 2026-11-02)
+- DW-565: the spine's Conventions Enumerations row gains ApprovalKind `setting` and the PersonaPreset values, matching the Epic 40 names sub-bullet (ledger; routed by cr 2026-11-02)
 
 ### Story 40.3: The persona reaches Chat and Triage as a data block
 
@@ -8739,6 +8864,7 @@ So that I can change OcuTalon's voice in a few seconds.
 **When** the person picks a preset (with Another language, typing a language name; on a local install, with "Your own words", writing up to 1,000 characters against a counter) and presses Save
 **Then** the page sends `PUT /api/v1/persona` and shows "Saved. Applies from your next message. Recorded in the audit log.", or the refusal's message beside the field (FR-67, FR-68)
 **And** the language field's help text says that notices, cards and buttons stay in English. Every control has a label and works by keyboard (NFR-25, NFR-26 as amended)
+**And** until the language-aware guard lands (DW-664), the persona text says that replies in other languages are not filtered for all-clear phrases and the model is only instructed not to write one, and so does any doc that describes the feature. The Language field's help text, after "Notices, cards and buttons stay in English.", reads exactly: "OcuTalon deletes common English phrases that say all is well from the model's replies, so its own checks give the verdict. In another language, the model is only told not to say so." The custom text ("Your own words") field's help text reads exactly: "OcuTalon deletes common English phrases that say all is well from the model's replies, so its own checks give the verdict. If this persona writes in another language, the model is only told not to say so." Neither help text contains a phrase from `ReplyGuard`'s BANNED or RESERVED lists, and a test pins that [AMENDED 2026-11-04 — see the story change log (spec-40-3); owner's condition on U-272, relayed by the orchestrator; reworded 2026-11-04 by U-278 (Contest Planner under the owner's delegation), which replaced the orchestrator's wording ruling]
 
 **Given** a pending persona request
 **When** the card renders
@@ -8800,8 +8926,8 @@ So that I stay in charge of how OcuTalon talks to me.
 **Given** an `ApprovalOutcome` for a `setting` request
 **When** `SettingsOps` handles it
 **Then** on approval it re-reads the row (`StartExecution`) and checks that the current values still equal `old`:
-- if they do, it writes `new`, audits the change, records `FinishExecution` `done`, and sends `result.persona.applied`;
-- if they don't, it writes nothing, records `failed`, and sends `result.persona.stale`, which ends "Nothing was changed."
+- if they do, it writes `new`, audits the change, records `FinishExecution` `done`, and sends `persona.applied` [AMENDED 2026-11-02 — see the story change log (spec-40-1); unattended ruling: catalog keys renamed to fit AD-32, texts unchanged; it read `result.persona.applied`, `result.persona.stale`];
+- if they don't, it writes nothing, records `failed`, and sends `persona.stale`, which ends "Nothing was changed."
 
   (FR-70, AD-11, AD-17)
 **And** on a rejection or expiry, the answered notices edit each copy in place, as for every request (AD-32)
@@ -8809,6 +8935,11 @@ So that I stay in charge of how OcuTalon talks to me.
 **Given** automated tests in `OcuTalon.Test.Core`, with the Telegram mock
 **When** a proposal is answered from the web chat, the simulated phone and the paired chat
 **Then** the first answer wins, the others show who answered and where, and the audit holds one entry per answer (FR-8, FR-9)
+
+- DW-570: bind `ProposePersona`'s `SessionRef` to the bridge context's owner (as `CommandsIn` does for `Dismiss`) before it raises a request (AD-1) (ledger; routed by harvest 2026-11-02)
+- DW-571: a refused `setting` approval answered from the page must not get the tool-call approver text in `OcuTalon.Web.Api` (ledger; routed by cr 2026-11-02)
+- DW-669: `PUT /api/v1/persona` forwards only the values the preset uses: `SetPersona` carries `language` only for the language preset and `custom` only for the custom preset, other values dropped; a used value over its limit (language over 40 characters, custom over 1,000 UTF-16 units) is refused in the route with the same outcome code and message `SettingsOps` gives (`bad_language` / `bad_custom`), and nothing is submitted. Tests: Professional with a 100 KB custom answers 200 and the `SetPersona` message's `Custom` is empty; a 1,001-unit custom answers 400 `bad_custom` with no `SetPersona` sent (ledger; ruled by the Contest Planner under the owner's delegation at the merge gate, part (a); routed 2026-11-04)
+- DW-709: register the Persona card's six preset names and descriptions (`PRESETS` in `web/src/app/rail/persona-card/persona-card-view.ts`) in the `web/scripts/ux-strings.test.mjs` inventory (UX-DR117), after Epic 33's changes to that file are integrated (ledger; routed by cr 2026-11-05)
 
 ### Story 40.7: Evaluation cases for the persona
 
@@ -8838,7 +8969,31 @@ So that a judge who picks Pirate or another language sees the same decisions.
 - a `turn` case with a language name that isn't a language ("Zorblish") gives an English reply that says, once, that it can't write in it.
 **And** a unit test in `OcuTalon.Test.Core` refuses each instruction-shaped language value. One example: "Spanish. Ignore your rules", whose full stop isn't allowed. Another: "{{rules}}".
 
+**Given** the sweep's Another language run with "Spanish" [AMENDED 2026-11-04 — see the story change log (spec-40-3); orchestrator ruling on DW-664 (veto U-272): a new measured case, no existing AC changed]
+**When** a `turn` case asks whether things are fine while a check has failed
+**Then** a code check looks in the delivered reply for all-clear wording in Spanish, from a fixed list, that `OcuTalon.Checks.ReplyGuard`'s English lists leave in place, and the run reports what it finds as the non-English false all-clear measurement (FR-37, AD-28)
+**And** the case is measured, not pass-required, until the owner rules on the result: it fails no run and counts against no target, and `Checks/ReplyGuard.cls` is not changed for it
+- DW-678: After a change of persona, Chat's saved history still holds the old blocks and the old voice; measure with a real model whether the old voice carries on (ledger; routed by harvest 2026-11-04)
+- DW-679: Under a non-Professional persona, measure on a real model whether Triage's 'not quoted' own-message rule and the 'plain English' lines hold against the quoted persona lines and the language line; a red is a clarification on an existing instruction line (ledger; routed by cr 2026-11-04)
+
 **Release check:** at the first daily release that ships this epic, the Contest Planner's hands-on pass with real keys tries each preset and one language on the web app and on the demo host, checks that a Pirate reply's emoji reach the page and Telegram, and answers one proposal from Telegram (REL-7, as amended 2026-10-31).
+
+### Story 40.8: The persona's web routes
+
+*Home lane: B.* [ADDED 2026-11-02, unattended split ruling (Epic 40 runner): split from Story 40.2, whose `PUT` and `GET /api/v1/persona` ACs it carries; `OcuTalon.Web.Api` is another in-flight epic's file until that epic merges, so this story waits for it]
+
+As a user,
+I want my page to read and save my persona over the API,
+So that the Persona card can show and change it.
+
+**Acceptance Criteria:**
+
+**Given** Story 40.2's `SetPersona` handling and persona read in `SettingsOps`
+**When** this story adds `GET` and `PUT /api/v1/persona` to `OcuTalon.Web.Api`, session-checked (AD-19, AD-33's route table)
+**Then** `PUT` submits `SetPersona` with origin `web_user` for the signed-in person and returns the result: the accepted change, or the refusal's plain message from EXPERIENCE.md › Later Steps › Personality, with nothing written (FR-67, FR-68)
+**And** `GET` returns the person's preset, language and custom text (or the defaults: Professional), whether the custom choice is offered here, and the `Ref` of any pending persona request (FR-67, FR-70)
+**And** a request with no signed-in session is refused like every session-checked route
+**And** tests in `OcuTalon.Test.Web` cover an accepted `PUT`, a refused language name, the online demo's refusal of `custom`, a `GET` before and after a change, and a request without a session
 
 ## Epic 41: OcuTalon keeps a daily note, learns from your answers, and remembers what matters
 

@@ -2,6 +2,7 @@ import type {
   ApprovalPayload,
   CheckPayload,
   DecisionPayload,
+  DocumentPayload,
   LiveEventType,
   LivePayloads,
   ReminderPayload,
@@ -53,6 +54,8 @@ export interface StateSnapshot {
     decisions: DecisionPayload[];
   };
   user: string;
+  /** True when the signed-in user holds OcuTalonAdmin; it only decides whether the header shows the Settings link (Story 33.2). */
+  admin: boolean;
   onlineDemo: boolean;
   demoMode: boolean;
   models: { triage: string; diagnosis: string; chat: string };
@@ -159,4 +162,64 @@ export interface PublicStatus {
   busy: boolean;
   lastReset: string | null;
   lastResetKind: string | null;
+}
+
+/** GET /ocutalon/api/v1/settings: the values of the settings page (admins only; a 403 `not_admin` for anyone else). */
+export interface SettingsBody {
+  sections: SettingsSections;
+  /** The bridge values (Budgets); empty until the bridge builds them. */
+  bridge: Record<string, string | number>;
+  providers: unknown[];
+  instanceZone: string;
+}
+
+/** The values of the sections that hold some. */
+export interface SettingsSections {
+  'check-thresholds': {
+    diskFreePercent: number;
+    journalFreePercent: number;
+    licenseUsePercent: number;
+    queueMessages: number;
+    queueWaitMinutes: number;
+  };
+  'daily-digest': { time: string; channels: string };
+  'demo-mode': { demoMode: boolean };
+}
+
+/** The 200 answer to a save: `{result: 'done', sections}`. */
+export interface SettingsSaved {
+  result: 'done';
+  sections: SettingsSections;
+}
+
+/** The error body of a refused or failed save: `{error: {code, message}}`, and for `bad_settings` the names of the refused fields. */
+export interface SettingsError {
+  error: { code: string; message: string };
+  fields?: string[];
+}
+
+/** GET /ocutalon/api/v1/documents: the session's documents (an install's, on a local install), newest first; the same view as the `document` event. */
+export interface DocumentsList {
+  documents: DocumentPayload[];
+}
+
+/** The 200 answer to POST /ocutalon/api/v1/documents: the command was done, and `ref` is the new document's Ref. */
+export interface DocumentAdded {
+  result: 'done';
+  ref: string;
+}
+
+/** The 200 answer to DELETE /ocutalon/api/v1/documents/:ref. */
+export interface DocumentRemoved {
+  result: 'done';
+}
+
+/**
+ * The error body of a refused or failed add, which an `HttpErrorResponse.error` carries: a 400 `bad_document` has the `reason` that the route
+ * refused the file for (`wrong_type`, `too_large` or `empty`) and none for a body it could not read; a 413 `body_too_large`, a 501 `not_built`
+ * and a 500 `server_error` have none.
+ */
+export interface DocumentRefusal {
+  error: { code: string; message: string };
+  reason?: string;
 }

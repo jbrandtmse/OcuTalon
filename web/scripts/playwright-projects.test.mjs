@@ -69,6 +69,14 @@ const filesOf = (script) => reportOf(script).suites.map((suite) => suite.file).s
 const OWN_PROJECT_DIRS = ['demo-path', 'demo-switch', 'floor', 'answers', 'cards'];
 const inOwnProjectDir = (name) => OWN_PROJECT_DIRS.some((dir) => name.startsWith(`${dir}/`));
 
+/**
+ * The folders of the sign-in-2 project (the sign-in-2 unit, docker/tests/test-sign-in-2.sh), split from the sign-in unit's chromium project
+ * by spec file under the Contest Planner's ruling of 2026-11-05. The two projects together are the sign-in unit's spec set as it was: every
+ * spec outside OWN_PROJECT_DIRS, each in exactly one of them.
+ */
+const SIGN_IN_2_DIRS = ['live', 'phone', 'rail', 'reminder', 'session', 'settings'];
+const inSignIn2Dir = (name) => SIGN_IN_2_DIRS.some((dir) => name.startsWith(`${dir}/`));
+
 describe('the projects, listed with no OCUTALON_ variable set', () => {
   const onDisk = specFilesOnDisk();
 
@@ -82,11 +90,44 @@ describe('the projects, listed with no OCUTALON_ variable set', () => {
     assert.ok(onDisk.some((name) => name.startsWith('cards/')), onDisk.join(' '));
   });
 
-  it('chromium (the e2e script) lists exactly the spec files outside demo-path/, demo-switch/, floor/, answers/ and cards/', () => {
+  it('chromium (the e2e script) lists exactly the spec files outside demo-path/, demo-switch/, floor/, answers/, cards/ and the folders of sign-in-2', () => {
     assert.deepEqual(
       filesOf('e2e'),
-      onDisk.filter((name) => !inOwnProjectDir(name)),
+      onDisk.filter((name) => !inOwnProjectDir(name) && !inSignIn2Dir(name)),
     );
+  });
+
+  it('sign-in-2 (the e2e:sign-in-2 script) lists exactly the spec files inside live/, phone/, rail/, reminder/, session/ and settings/', () => {
+    assert.deepEqual(
+      filesOf('e2e:sign-in-2'),
+      onDisk.filter((name) => inSignIn2Dir(name)),
+    );
+    for (const dir of SIGN_IN_2_DIRS) assert.ok(filesOf('e2e:sign-in-2').some((name) => name.startsWith(`${dir}/`)), `${dir}/ holds a spec`);
+    const script = JSON.parse(readFileSync(join(webDir, 'package.json'), 'utf8')).scripts['e2e:sign-in-2'];
+    assert.equal(script, 'playwright test --project=sign-in-2');
+  });
+
+  it('the two sign-in units, chromium and sign-in-2, share no spec file and together list every spec outside the other projects\' folders', () => {
+    const chromium = filesOf('e2e');
+    const second = filesOf('e2e:sign-in-2');
+    assert.ok(chromium.length > 0 && second.length > 0, 'each unit runs a spec');
+    assert.deepEqual(chromium.filter((name) => second.includes(name)), [], 'no spec file runs in both units');
+    assert.deepEqual([...chromium, ...second].sort(), onDisk.filter((name) => !inOwnProjectDir(name)), 'every spec of the sign-in set runs in one of them');
+    // And test by test, as Playwright lists them (a test is its file, line, column and title, since titles repeat across describe blocks):
+    // each unit runs its tests in one project, and no test is listed by both.
+    const testsOf = (script) => {
+      const found = [];
+      const walk = (suite) => {
+        for (const spec of suite.specs ?? []) for (const one of spec.tests) found.push({ key: `${spec.file}:${spec.line}:${spec.column} ${spec.title}`, project: one.projectName });
+        for (const child of suite.suites ?? []) walk(child);
+      };
+      reportOf(script).suites.forEach(walk);
+      return found;
+    };
+    assert.deepEqual([...new Set(testsOf('e2e').map((one) => one.project))], ['chromium']);
+    assert.deepEqual([...new Set(testsOf('e2e:sign-in-2').map((one) => one.project))], ['sign-in-2']);
+    const all = [...testsOf('e2e'), ...testsOf('e2e:sign-in-2')].map((one) => one.key);
+    assert.equal(new Set(all).size, all.length, 'no test is listed by both units');
   });
 
   it('demo-switch (the e2e:demo-switch script) lists exactly the spec files inside demo-switch/', () => {
@@ -127,8 +168,8 @@ describe('the projects, listed with no OCUTALON_ variable set', () => {
     assert.equal(script, 'playwright test --config=playwright.rehearsal.config.ts');
   });
 
-  it('every spec file on disk is listed by at least one of the chromium, demo-path, demo-switch, floor, answers and cards scripts', () => {
-    const listedByAny = new Set(['e2e', 'e2e:demo-path', 'e2e:demo-switch', 'e2e:floor', 'e2e:answers', 'e2e:cards'].flatMap((script) => filesOf(script)));
+  it('every spec file on disk is listed by at least one of the chromium, sign-in-2, demo-path, demo-switch, floor, answers and cards scripts', () => {
+    const listedByAny = new Set(['e2e', 'e2e:sign-in-2', 'e2e:demo-path', 'e2e:demo-switch', 'e2e:floor', 'e2e:answers', 'e2e:cards'].flatMap((script) => filesOf(script)));
     assert.deepEqual(onDisk.filter((name) => !listedByAny.has(name)), []);
   });
 

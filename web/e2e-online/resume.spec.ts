@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { expect, test, type Page, type Response } from '@playwright/test';
+import { expect, test, type Page, type Response } from '../e2e/support/fixtures';
 
 import { EVENTS, holdState, MESSAGES, post, sessionEvents, STATE } from '../e2e/support/api';
 import { loadedAfter } from '../e2e/support/floor';

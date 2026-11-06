@@ -21,7 +21,8 @@
 #   ci/iris.sh live <name>                docker/tests/test-<name>.sh with the run tag; it first prints "PORT ..." with the web port
 #                                         and, for a browser unit (a name in BROWSER_UNITS of ci/units.sh), first installs Chromium,
 #                                         and Firefox and WebKit as well for a name in FIREFOX_WEBKIT_UNITS (the floor unit)
-#                                         The arguments after <name> go to the script; only test-sign-in.sh reads any: --part k/n
+#                                         The arguments after <name> go to the script; only test-sign-in.sh and test-sign-in-2.sh read any: --part k/n
+#                                         (and test-sign-in.sh's --project chromium|sign-in-2)
 #   ci/iris.sh group <name>               the units of a group in order, each in its own process and project; one
 #                                         "UNIT <unit> passed|failed <s>s" line each; exit 1 naming the failed units
 #   ci/iris.sh teardown                   removes only the projects, volumes, networks and images of the tag (ocutalon-<label>-<tag>-<epoch>-<pid>),
@@ -455,7 +456,8 @@ cmd_live() {
     *" $name "*) npx --prefix web playwright install firefox webkit || exit 1 ;;
   esac
   shift
-  bash "docker/tests/test-$name.sh" "$@"
+  # Each unit keeps its Playwright results in its own folder (web/playwright.config.ts outputDir), so that a later unit of the job does not clear them.
+  OCUTALON_E2E_OUTPUT="test-results/$name" bash "docker/tests/test-$name.sh" "$@"
 }
 
 # fresh_only <what>: a command whose units all start fresh stacks. A warm request is dropped with one line, and no unit sees it.

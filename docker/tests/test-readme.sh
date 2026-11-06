@@ -8,11 +8,11 @@
 #                  you can use it for" and "How you talk to it" in this order; the other H2 sections are there; no "Contest task"
 #                  heading and no header row of its table
 #   try-it         the online demo link comes before ./install.sh, with "nothing to install, and no Early Access image needed"
-#                  beside it, the splash screen and its read-only Visual Trace account; the local path is four numbered steps
-#                  and leads to the build 109 section; steps 1 and 2 are the ruled build 109 steps, word for word (U-241 item 1)
+#                  beside it, the splash screen and its read-only Visual Trace account; the local path is four numbered steps;
+#                  steps 1 and 2 are pinned word for word (U-241 item 1, Story 11.23), and the section never links #start-it-with-build-109
 #   interesting    "What's interesting" has at most 120 words (its image lines are not counted) and names Interoperability, Visual
-#                  Trace, AI Hub, a dry run and the audit log; it shows two image lines, the hero's image and then the Chat bullet's
-#                  image
+#                  Trace, AI Hub, a dry run and the audit log; it shows at least one image line, and every image line in it is the
+#                  decision trace, docs/images/vt-decision.png (the owner's decision of 2026-11-05, reversing U-242 Q2's layout)
 #   use-cases      "What you can use it for" holds exactly the three items, word for word (the third links docs/bridge-guide.md)
 #   how-you-talk   "How you talk to it" holds its facts (the web chat page on every install, the demo-only parts, the Telegram row
 #                  for your own install with your own bot token, email in a later release, the link to "Demo mode"), a table and an
@@ -21,21 +21,25 @@
 #                  them and above the first H2 section; no HTML media tag, no image inside a link, and no image that is not an
 #                  inline docs/images/<name>.png image
 #   images         every Markdown image link of the README has non-empty alt text and a target that is a file directly in
-#                  docs/images/ which the tree lists, there is at least one, and "What OcuTalon does" holds at least three, with at
-#                  least one under the Chat bullet and two under the Break the feed bullet; each image line has an empty line
-#                  before and after it; every linked file of docs/images/ is under 300,000 bytes in the tree; it names no image file
+#                  docs/images/ which the tree lists, there is at least one, and "What OcuTalon does" holds at least two, both
+#                  under the Break the feed bullet; each image line has an empty line before and after it; every linked file of
+#                  docs/images/ is under 300,000 bytes in the tree; it names no image file
+#   once           each docs/images/ file is named at most once in the README, so no screenshot is shown twice (the owner's
+#                  decision of 2026-11-05)
 #   outcomes       the four outcomes, with the meanings that web/src/app/chat/chat-view.ts shows
 #   install        the facts of the install sections: Compose 2.24 (DW-2), both image names, load and retag, the portal, the CPUs,
-#                  and the build 109 facts (U-241): its image name, IRIS_IMAGE=, its section between "Start it by hand" and "The IRIS
-#                  (non-Health) image", and the sentence that its plain IRIS image has not been tested; the ruled build 109 paragraphs
-#                  of "Get the image" and "Start it with build 109" and its .env line, word for word (U-241 items 2 and 4)
+#                  and the build 109 facts (U-241, Story 11.23): its image name, one install path for both builds (no "Start it with
+#                  build 109" section, no link to it, no IRIS_IMAGE= line), its plain IRIS image untested and not used by install.sh, and
+#                  the passages of "Get the image", "Start it with the install script", "Start it by hand" and Troubleshooting, word for word
 #   ipm            the section "Install it with IPM" is there after "Check that it is ready": the community-registry line comes before
 #                  the first install command, which is said to run in USER; docs/install-ipm.md is linked and itself gives the registry
 #                  install before the folder install; the section never says "any namespace" (AD-23, U-231); it warns that the
 #                  registry line removes the repositories already set up, and gives the second run in OCUTALON
 #   licence        LICENSE holds the MIT grant, condition and warranty paragraphs and exactly the holder line "Copyright (c) 2026
 #                  jbrandtmse", and
-#                  "Credits and licences" holds the README's LICENSE line
+#                  "Credits and licences" holds the README's LICENSE line and, as the fourth bullet under "Third-party licence
+#                  notices:", the ruled sentence about the Docker image's Python packages (Story 34.2), whose path in backticks is
+#                  the file that docker/Dockerfile's notices step writes (the same path on both sides)
 #   docs           the sentences this story added to other public files, word for word: the build 109 sentence at the end of the
 #                  bridge guide's build 154 bullet and of the IPM page's build 154 bullet (U-241 item 7), and the two ruled lines of
 #                  the security overview (U-242): what an approval request shows for a tool call, in the approval section and in the
@@ -128,6 +132,7 @@ LICENSE_FILE=LICENSE
 IPM_DOC=docs/install-ipm.md
 BRIDGE_DOC=docs/bridge-guide.md
 SECOV_DOC=docs/security-overview.md
+DOCKERFILE=docker/Dockerfile
 
 listing=$(scan_files)
 if [ -z "$listing" ]; then
@@ -159,6 +164,7 @@ license_p=$(of "$LICENSE_FILE")
 ipmdoc_p=$(of "$IPM_DOC")
 bridgedoc_p=$(of "$BRIDGE_DOC")
 secov_p=$(of "$SECOV_DOC")
+dockerfile_p=$(of "$DOCKERFILE")
 
 # product_files: from a list of paths on standard input, the files whose README anchors the product can show: the page's sources
 # and the server's classes, none of the tests.
@@ -168,6 +174,7 @@ printf '%s\n' "$listing" | product_files > "$tmp/product.list"
 ARROW=$(printf '\342\206\222')
 H_TRY='Try it in two minutes'
 H_INT="What's interesting"
+INT_IMAGE=docs/images/vt-decision.png
 H_USE='What you can use it for'
 H_TALK='How you talk to it'
 # The owner's text of Story 10.4 (epics.md), word for word: the opening paragraph, the two use cases, and the model paragraph
@@ -430,23 +437,27 @@ TRY_FACTS="https://demo.ocutalon.com
 ./install.sh
 $DEMO_PHRASE
 splash
-#start-it-with-build-109
+#get-the-image
 read-only Visual Trace account"
-# The ruled build 109 steps (U-241 item 1), word for word; a heredoc, because the lines hold backticks.
+# The ruled steps 1 and 2 (U-241 item 1, Story 11.23), word for word; a heredoc, because the lines hold backticks.
 IFS= read -r -d '' TRY_B109 <<'B109' || true
 1. Load the IRIS for Health AI Hub Early Access image into Docker: build 154, or build 109, which the download portal now offers ([where to get it](#get-the-image)).
-2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)). With build 109, follow [Start it with build 109](#start-it-with-build-109) instead.
+2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)).
 B109
 TRY_FACTS="$TRY_FACTS
 $TRY_B109"
 chk_try_it() {
-  local sec="$tmp/sec.try" demo install n
+  local sec="$tmp/sec.try" demo install n line
   section "$1" "$H_TRY" > "$sec"
   if [ ! -s "$sec" ]; then
     echo "$1: no section '$H_TRY'"
     return
   fi
   chk_facts try-it "$sec" "$TRY_FACTS"
+  # The ruled steps are whole lines of the section: nothing is added to them.
+  printf '%s\n' "$TRY_B109" | while IFS= read -r line; do
+    if ! grep -qxF -e "$line" "$sec"; then echo "try-it: the ruled step \"${line:0:50}...\" is not a line of the section, word for word"; fi
+  done
   demo=$(grep -nF -m 1 'https://demo.ocutalon.com' "$sec" | cut -d: -f1)
   install=$(grep -nF -m 1 './install.sh' "$sec" | cut -d: -f1)
   if [ -n "$demo" ] && [ -n "$install" ] && [ "$demo" -ge "$install" ]; then
@@ -459,6 +470,7 @@ chk_try_it() {
     if ! grep -q "^$n\\. " "$sec"; then echo "try-it: the local path has no step $n"; fi
   done
   if grep -q '^5\. ' "$sec"; then echo "try-it: the local path has more than four steps"; fi
+  if grep -qF '#start-it-with-build-109' "$sec"; then echo "try-it: step 2 still sends build 109 to a separate path"; fi
 }
 
 # interesting
@@ -468,7 +480,7 @@ AI Hub
 dry run
 audit log'
 chk_interesting() {
-  local sec="$tmp/sec.int" n hero chat hero_at chat_at
+  local sec="$tmp/sec.int" n
   section "$1" "$H_INT" > "$sec"
   if [ ! -s "$sec" ]; then
     echo "$1: no section '$H_INT'"
@@ -478,17 +490,11 @@ chk_interesting() {
   n=$((n + 0))
   if [ "$n" -gt 120 ]; then echo "interesting: $n words, at most 120"; fi
   chk_facts interesting "$sec" "$INT_FACTS"
-  # Two image lines: the hero's image (the first image link of the README) and the Chat bullet's image. The rule names no file.
-  hero=$(image_links "$1" | head -n 1 | cut -f3)
-  chat=$(section "$1" 'What OcuTalon does' | awk '/^- \*\*/ { cur = (index($0, "- **Chat on a live page.**") == 1) } cur && /^  !\[/ { i = index($0, "]("); print substr($0, i + 2, length($0) - i - 2); exit }')
-  image_links "$sec" | cut -f3 > "$tmp/int.targets"
-  if [ -z "$hero" ] || ! grep -qxF -- "$hero" "$tmp/int.targets"; then echo "interesting: '$H_INT' has no image line with the hero's image"; fi
-  if [ -z "$chat" ] || ! grep -qxF -- "$chat" "$tmp/int.targets"; then echo "interesting: '$H_INT' has no image line with the Chat bullet's image"; fi
-  # The hero's image comes first, then the Chat bullet's (U-242 option C).
-  hero_at=$(grep -n '^!\[' "$sec" | grep -F -m 1 -- "]($hero)" | cut -d: -f1)
-  chat_at=$(grep -n '^!\[' "$sec" | grep -F -m 1 -- "]($chat)" | cut -d: -f1)
-  if [ -n "$hero_at" ] && [ -n "$chat_at" ] && [ "$hero_at" -ge "$chat_at" ]; then echo "interesting: the hero's image line does not come before the Chat bullet's"; fi
-  if [ "$(grep -c '^!\[' "$sec")" -lt 2 ]; then echo "interesting: '$H_INT' has fewer than two image lines"; fi
+  # At least one image line, and each is the decision trace (owner's decision 2026-11-05: the hero is not shown again here).
+  if [ "$(grep -c '^!\[' "$sec")" -lt 1 ]; then echo "interesting: '$H_INT' has no image line"; fi
+  image_links "$sec" | cut -f3 | while IFS= read -r target; do
+    if [ "$target" != "$INT_IMAGE" ]; then echo "interesting: '$H_INT' has the image $target, not $INT_IMAGE"; fi
+  done
 }
 
 # use-cases
@@ -552,20 +558,26 @@ chk_images() {
     BEGIN { while ((getline l < readme) > 0) { nl++; blank[nl] = (l !~ /[^ \t]/) } }
     ($1 > 1 && !blank[$1 - 1]) || ($1 < nl && !blank[$1 + 1]) { print "images: " readme ":" $1 ": the image line has no empty line before or after it" }
   '
-  # "At least one image link" (AC5) is implied by the count of three below, which is why it has no check of its own.
+  # "At least one image link" (AC5) is implied by the count of two below, which is why it has no check of its own.
   local sec="$tmp/sec.what" n
   section "$1" 'What OcuTalon does' > "$sec"
   n=$(image_links "$sec" | wc -l | tr -d ' ')
-  if [ "$n" -lt 3 ]; then echo "images: $1: 'What OcuTalon does' holds $n image links, not at least three"; fi
-  # Placement (AC4), by bullet and not by file name: the Chat bullet owns at least one image paragraph, the Break the feed bullet at least two.
+  if [ "$n" -lt 2 ]; then echo "images: $1: 'What OcuTalon does' holds $n image links, not at least two"; fi
+  # Placement (AC4), by bullet and not by file name: the Break the feed bullet owns at least two image paragraphs. The Chat bullet
+  # has none since the owner's decision of 2026-11-05 (its image is the one in "What's interesting").
   awk -v readme="$1" '
-    /^- \*\*/ { cur = (index($0, "- **Chat on a live page.**") == 1) ? "chat" : (index($0, "- **Break the feed.**") == 1) ? "break" : "" }
+    /^- \*\*/ { cur = (index($0, "- **Break the feed.**") == 1) ? "break" : "" }
     /^  !\[/ && cur != "" { got[cur]++ }
     END {
-      if (got["chat"] < 1) print "images: " readme ": the bullet Chat on a live page. has no image under it"
       if (got["break"] < 2) print "images: " readme ": the bullet Break the feed. has " got["break"] + 0 " images under it, not at least two"
     }
   ' "$sec"
+}
+
+# once: chk_once <readme>
+# Each docs/images/ file is named at most once in the README (the owner's decision of 2026-11-05: no screenshot shown twice).
+chk_once() {
+  grep -o 'docs/images/[A-Za-z0-9._-]*' "$1" | sort | uniq -c | awk -v readme="$1" '$1 > 1 { print "once: " readme ": " $2 " is named " $1 " times, not at most once" }'
 }
 
 # teaser
@@ -629,42 +641,39 @@ ARM64
 15 minutes
 (healthy)
 irishealth-community:2027.1.0AI.109.0
-IRIS_IMAGE=
-#start-it-with-build-109'
+build 154 or build 109
+The name is `ocutalon-iris-base:2026.3.0AI.154.0` for both builds.'
 INSTALL_FACTS="$INSTALL_FACTS
-Build 109's plain IRIS image has not been tested.
-The install script needs build 154. With build 109, see [Start it with build 109](#start-it-with-build-109)."
-# The ruled build 109 paragraphs (U-241 items 2 and 4) and the .env line of its code block, word for word.
+Build 109's plain IRIS image has not been tested, and \`./install.sh\` does not use it.
+The script checks that Docker and Docker Compose work and that a build 154 or build 109 image for your CPU is loaded; when both are, it uses build 154."
+# The ruled build 109 paragraphs (U-241 items 2 and 4, Story 11.23), whole lines, word for word.
 IFS= read -r -d '' INSTALL_B109 <<'B109' || true
 OcuTalon 1.0.0 is built and tested on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). The InterSystems Early Access Program portal now offers build 109 (`irishealth-community:2027.1.0AI.109.0`) in its place: https://evaluation.intersystems.com/Eval/early-access/AIHub
-OcuTalon 1.0.0 also runs unchanged on build 109: its install, production and test checks and the demo guide pass on it. In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows.
-`docker load` printed the loaded image's name; for the IRIS for Health archive it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. Name it in `.env` as `IRIS_IMAGE`, so that OcuTalon builds from it, then start OcuTalon:
-echo 'IRIS_IMAGE=<the name docker load printed>' >> .env
-Skip the `cp` step when `.env` already exists. Keep the `IRIS_IMAGE` line in `.env`, because every `docker compose up -d` reads it, an update included. Then [check that it is ready](#check-that-it-is-ready) and [sign in](#sign-in).
+OcuTalon also runs on build 109: at release 1.0.0 its install, production and test checks and the demo guide passed on it, and `./install.sh` accepts either build.
+Without the script, give the loaded image the name OcuTalon builds from, then start it. `docker load` printed the loaded image's name; for the IRIS for Health archive of build 154 it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2026.3.0AI.154.0`, and for build 109 it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. The name is `ocutalon-iris-base:2026.3.0AI.154.0` for both builds.
+OcuTalon also runs on the plain IRIS AI Hub build 154 image (`iris-community:2026.3.0AI.154.0`). It differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace. It is supported and verified on ARM64. OcuTalon's automated tests use only the IRIS for Health image. Build 109's plain IRIS image has not been tested, and `./install.sh` does not use it.
 B109
 INSTALL_FACTS="$INSTALL_FACTS
 $INSTALL_B109"
-T_B109='With build 109, follow [Start it with build 109](#start-it-with-build-109) instead of running `./install.sh`.'
+T_B109='**"No IRIS build 154 or build 109 image is loaded in Docker"**: download the archive for your CPU ([Get the image](#get-the-image)), load it with `docker load -i <the archive file>`, then run `./install.sh`.'
+T_B109_CPU='**"The IRIS build 154 or build 109 image that is loaded is for another CPU than this machine'"'"'s"**:'
 H_B109='### Start it with build 109'
 chk_install() {
-  local sec="$tmp/sec.install" hand build plain
+  local sec="$tmp/sec.install" line
   section "$1" 'Install it yourself' > "$sec"
   chk_facts install "$sec" "$INSTALL_FACTS"
-  # The build 109 section sits between "Start it by hand" and "The IRIS (non-Health) image", and its code block names IRIS_IMAGE.
-  hand=$(grep -nxF -m 1 '### Start it by hand' "$sec" | cut -d: -f1)
-  build=$(grep -nxF -m 1 "$H_B109" "$sec" | cut -d: -f1)
-  plain=$(grep -nxF -m 1 '### The IRIS (non-Health) image' "$sec" | cut -d: -f1)
-  if [ -z "$build" ]; then
-    echo "install: no section '$H_B109'"
-  elif [ -z "$hand" ] || [ -z "$plain" ] || [ "$build" -le "$hand" ] || [ "$build" -ge "$plain" ]; then
-    echo "install: '$H_B109' is not between 'Start it by hand' and 'The IRIS (non-Health) image'"
-  elif ! sed -n "${build},${plain}p" "$sec" | grep -qF 'IRIS_IMAGE='; then
-    echo "install: '$H_B109' does not name IRIS_IMAGE="
-  fi
-  # The Troubleshooting entry for a missing build 154 image sends a build 109 reader to the build 109 section.
+  # The ruled paragraphs are whole lines of the section: nothing is added to them.
+  printf '%s\n' "$INSTALL_B109" | while IFS= read -r line; do
+    if ! grep -qxF -e "$line" "$sec"; then echo "install: the ruled paragraph \"${line:0:50}...\" is not a line of the section, word for word"; fi
+  done
+  # One install path for both builds: no separate build 109 section, no .env line for IRIS_IMAGE, no link to the removed anchor.
+  if grep -qxF "$H_B109" "$sec"; then echo "install: the separate '$H_B109' path is back"; fi
+  if grep -qF 'IRIS_IMAGE=' "$sec"; then echo "install: IRIS_IMAGE= is back in the install sections"; fi
+  if grep -qF '(#start-it-with-build-109)' "$1"; then echo "install: a link to the removed '#start-it-with-build-109' is back"; fi
+  # The Troubleshooting entries quote install.sh's first lines word for word.
   section "$1" 'Troubleshooting' > "$tmp/sec.trouble"
-  if ! grep -qF "$T_B109" "$tmp/sec.trouble"; then
-    echo "install: the Troubleshooting entry for a missing build 154 image does not send build 109 to '$H_B109'"
+  if ! grep -qxF -e "$T_B109" "$tmp/sec.trouble" || ! grep -qF -e "$T_B109_CPU" "$tmp/sec.trouble"; then
+    echo "install: the Troubleshooting entries do not quote install.sh's build 154 or build 109 messages word for word"
   fi
 }
 
@@ -1052,17 +1061,32 @@ chk_ipm() {
   fi
 }
 
-# licence (Story 31.3): chk_licence <readme> <LICENSE>
+# licence (Story 31.3, Story 34.2): chk_licence <readme> <LICENSE> <Dockerfile>
 LICENCE_LINE='OcuTalon is under the MIT License: [LICENSE](LICENSE).'
 HOLDER_LINE='Copyright (c) 2026 jbrandtmse'
+# The ruled bullet (the Contest Planner, 2026-11-05), byte for byte; its path in backticks is the file that the Dockerfile writes.
+NOTICES_BULLET='- The Docker image'"'"'s Python packages for documents and memory (fastembed, pdfplumber and python-docx, with their dependencies and the libraries bundled with PDFium) are listed with their licence texts and credits in `/opt/ocutalon/THIRD-PARTY-NOTICES`, which the image build writes from the installed packages.'
 chk_licence() {
-  local sec="$tmp/sec.licence"
+  local sec="$tmp/sec.licence" readme_path docker_path
   if ! grep -qF 'Permission is hereby granted, free of charge, to any person obtaining a copy' "$2"; then echo "licence: $LICENSE_FILE has no MIT grant paragraph"; fi
   if ! grep -qF 'The above copyright notice and this permission notice shall be included in all' "$2"; then echo "licence: $LICENSE_FILE has no MIT condition paragraph"; fi
   if ! grep -qF 'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND' "$2"; then echo "licence: $LICENSE_FILE has no MIT warranty paragraph"; fi
   if [ "$(grep -c '^Copyright' "$2")" -ne 1 ] || ! grep -qxF -- "$HOLDER_LINE" "$2"; then echo "licence: $LICENSE_FILE does not hold exactly the line '$HOLDER_LINE'"; fi
   section "$1" 'Credits and licences' > "$sec"
   if ! grep -qxF -- "$LICENCE_LINE" "$sec"; then echo "licence: 'Credits and licences' does not hold the line '$LICENCE_LINE'"; fi
+  # The notices bullet: exactly once, the fourth bullet after "Third-party licence notices:", and its path is the Dockerfile's.
+  if [ "$(grep -cxF -- "$NOTICES_BULLET" "$sec")" -ne 1 ]; then
+    echo "licence: 'Credits and licences' does not hold the notices bullet word for word, once"
+  elif [ "$(awk '/^Third-party licence notices:$/ { on = 1; next } on && /^- / { n++; if (n == 4) { print; exit } }' "$sec")" != "$NOTICES_BULLET" ]; then
+    echo "licence: the notices bullet is not the fourth bullet under 'Third-party licence notices:'"
+  fi
+  readme_path=$(grep -xF -- "$NOTICES_BULLET" "$sec" | sed -n 's/^[^`]*`\([^`]*\)`.*$/\1/p')
+  docker_path=$(grep -v '^[[:space:]]*#' "$3" | sed -n 's/^.*gate\.py notices [^ ]* \([^ ]*\).*$/\1/p')
+  if [ -z "$docker_path" ]; then
+    echo "licence: $DOCKERFILE has no notices step (gate.py notices <folder> <file>)"
+  elif [ "$readme_path" != "$docker_path" ]; then
+    echo "licence: the README names '$readme_path' and $DOCKERFILE writes '$docker_path'"
+  fi
 }
 
 # docs (Story 31.3, AC 2 and AC 7): chk_docs <docs/bridge-guide.md> <docs/install-ipm.md> <docs/security-overview.md>
@@ -1138,7 +1162,7 @@ chk_product_links() {
 }
 
 # readme-links (Design Notes 8 and 9)
-ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com docs.docker.com learn.microsoft.com'
+ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com'
 URL_RE='https?://[^][:space:])>"<`]+'
 url_allowed() {
   local rest=${1#*://} host entry
@@ -1220,6 +1244,8 @@ rule_try_it() {
     st "step $n removed" 1 "$README" "!/^$n\\. /" chk_try_it
   done
   st 'step 4 removed' 1 "$README" '!/^4\. /' chk_try_it
+  st 'the separate build 109 step back' 1 "$README" '/^2\. / { print $0 " With build 109, follow [Start it with build 109](#start-it-with-build-109) instead."; next } { print }' chk_try_it
+  st 'text added to step 2' 1 "$README" '/^2\. / { print $0 " With build 109, follow [Start it by hand](#start-it-by-hand) instead."; next } { print }' chk_try_it
   st 'a fifth step' 1 "$README" '/^4\. / { print; print "5. One more." ; next } { print }' chk_try_it
   st_move 'step 2 moved out of the section' "$H_TRY" '2. ' chk_try_it
   st 'the phrase away from the demo link' 1 "$README" "{ i = index(\$0, \"$DEMO_PHRASE\"); if (i && index(\$0, \"https://demo.ocutalon.com\")) { print substr(\$0, 1, i - 1) \"zz\" substr(\$0, i + length(\"$DEMO_PHRASE\")); print \"\"; print \"$DEMO_PHRASE\"; next } print }" chk_try_it
@@ -1227,18 +1253,15 @@ rule_try_it() {
 }
 
 rule_interesting() {
-  local n hero chat
+  local n other
   rule_begin interesting "$README" || return
   st_facts chk_interesting "$INT_FACTS"
   n=$(section "$README" "$H_INT" | grep -v '^!\[' | wc -w)
   n=$((n + 0))
-  hero=$(image_links "$README" | head -n 1 | cut -f3)
-  chat=$(section "$README" 'What OcuTalon does' | awk '/^- \*\*/ { cur = (index($0, "- **Chat on a live page.**") == 1) } cur && /^  !\[/ { i = index($0, "]("); print substr($0, i + 2, length($0) - i - 2); exit }')
-  st 'the hero image line dropped from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$hero"')") > 0 { next } { print }' chk_interesting
-  st 'the Chat bullet image line dropped from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$chat"')") > 0 { next } { print }' chk_interesting
-  st 'both image lines dropped from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 { next } { print }' chk_interesting
-  st 'the two image lines swapped' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$hero"')") > 0 { held = $0; next } s && index($0, "![") == 1 && index($0, "]('"$chat"')") > 0 { print; if (held != "") print held; next } { print }' chk_interesting
-  st 'an image line that is not the two' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$chat"')") > 0 { sub(/\]\([^)]*\)/, "](docs/images/other.png)") } { print }' chk_interesting
+  other=$(image_links "$README" | cut -f3 | grep -vxF -- "$INT_IMAGE" | head -n 1)
+  st 'the image line dropped from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 { next } { print }' chk_interesting
+  st 'its image line pointing at another image' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 { sub(/\]\([^)]*\)/, "]('"$other"')") } { print }' chk_interesting
+  st 'a second image line with another image' 1 "$README" '{ print } /^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && !done { print ""; print "![Another.]('"$other"')"; done = 1 }' chk_interesting
   if [ "$n" -le 120 ]; then
     # The limit itself: the section padded to exactly 121 words is flagged, and padded to exactly 120 it is not.
     st 'exactly 121 words' 1 "$README" "{ print } /^## What.s interesting\$/ { print \"\"; for (i = $n; i < 121; i++) printf \"w \"; print \"\" }" chk_interesting
@@ -1307,9 +1330,8 @@ rule_images() {
   st 'a second image on the line with no alt text' 1 "$README" '!done && index($0, "]('"$first"')") > 0 { $0 = $0 " ![]('"$first"')"; done = 1 } { print }' chk_images
   st 'every image line removed' 1 "$README" 'index($0, "![") == 0' chk_images
   st 'the images of What OcuTalon does removed' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } s && /^  !\[/ { next } { print }' chk_images
-  st 'the Chat bullet image moved under the Break the feed bullet' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } s && /^  !\[/ && !held { held = $0; next } s && /^  !\[/ && held && !put { print held; print ""; put = 1 } { print }' chk_images
   st 'the images of What OcuTalon does made reference-style' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } s && /^  !\[/ { sub(/\]\(/, "][") } { print }' chk_images
-  st 'the last Break the feed image moved under the Chat bullet' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } /^- \*\*/ { b = (index($0, "- **Break the feed.**") == 1) } s && b && /^  !\[/ { last = $0 } { line[NR] = $0 } END { for (i = 1; i <= NR; i++) { if (line[i] == last) continue; print line[i]; if (index(line[i], "- **Chat on a live page.**") == 1) { print ""; print last } } }' chk_images
+  st 'the last Break the feed image moved under the Chat bullet (one left under Break the feed)' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } /^- \*\*/ { b = (index($0, "- **Break the feed.**") == 1) } s && b && /^  !\[/ { last = $0 } { line[NR] = $0 } END { for (i = 1; i <= NR; i++) { if (line[i] == last) continue; print line[i]; if (index(line[i], "- **Chat on a live page.**") == 1) { print ""; print last } } }' chk_images
   st 'no empty line between the text and an image line' 1 "$README" 'held { held = 0; if ($0 == "") next } { print } /^Watch the 35-second teaser: / { held = 1 }' chk_images
   st 'the images under the Break the feed bullet removed' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } /^- \*\*/ { b = (index($0, "- **Break the feed.**") == 1) } s && b && /^  !\[/ { next } { print }' chk_images
   st 'the first image file dropped from the list' 2 "$tmp/files.list" '$0 != "'"$first"'"' chk_images
@@ -1328,6 +1350,19 @@ rule_images() {
   { cat "$README"; printf '\n![Extra.](docs/images/zz-extra.png)\n'; } > "$tmp/imgs/extra.md"
   if [ -n "$(chk_images "$tmp/imgs/extra.md" "$tmp/imgs/extra.list")" ]; then st_note 'a newly listed and linked docs/images file is flagged'; fi
   finish images 'every image link has alt text and reaches a file of docs/images/ that the tree lists' chk_images
+}
+
+rule_once() {
+  local first
+  rule_begin once "$README" || return
+  first=$(image_links "$README" | head -n 1 | cut -f3)
+  # A repeated image is flagged: the first image line again, as a paragraph of its own at the end.
+  st 'the first image shown twice' 1 "$README" '{ print } index($0, "]('"$first"')") > 0 && !done { held = $0; done = 1 } END { print ""; print held }' chk_once
+  # A new image named once is not flagged.
+  mkdir -p "$tmp/once"
+  { cat "$README"; printf '\n![Extra.](docs/images/zz-extra.png)\n'; } > "$tmp/once/extra.md"
+  if [ -n "$(chk_once "$tmp/once/extra.md")" ]; then st_note 'a new image named once is flagged'; fi
+  finish once 'each docs/images/ file is named at most once' chk_once
 }
 
 rule_teaser() {
@@ -1368,13 +1403,14 @@ rule_install() {
   rule_begin install "$README" || return
   st_facts chk_install "$INSTALL_FACTS"
   st_move 'the Compose version moved out of the section' 'Install it yourself' '- Docker Compose 2.24' chk_install
-  st 'the build 109 section removed' 1 "$README" '!/^### Start it with build 109$/' chk_install
-  st 'the build 109 section renamed' 1 "$README" '/^### Start it with build 109$/ { print "### Start it with build 109 now"; next } { print }' chk_install
-  st 'the build 109 section below the non-Health image' 1 "$README" '/^### Start it with build 109$/ { print "### The IRIS (non-Health) image"; next } /^### The IRIS \(non-Health\) image$/ { print "### Start it with build 109"; next } { print }' chk_install
-  st 'the build 109 section above Start it by hand' 1 "$README" '/^### Start it with build 109$/ { print "### Start it by hand"; next } /^### Start it by hand$/ { print "### Start it with build 109"; next } { print }' chk_install
-  st 'the Troubleshooting build 109 sentence removed' 1 "$README" '{ sub(/ With build 109, follow \[Start it with build 109\].*instead of running `\.\/install\.sh`\./, ""); print }' chk_install
-  st 'IRIS_IMAGE= out of the build 109 section' 1 "$README" '/^### / { s = ($0 == "### Start it with build 109") } s { gsub(/IRIS_IMAGE=/, "ZZ=") } { print }' chk_install
-  finish install 'Compose 2.24, both image names, load and retag, the portal, the CPUs and the 15-minute wait' chk_install
+  st 'the build 109 heading back before the non-Health image' 1 "$README" '/^### The IRIS \(non-Health\) image$/ { print "### Start it with build 109"; print "" } { print }' chk_install
+  st 'the old second sentence of the Get the image paragraph back' 1 "$README" '/^OcuTalon also runs on build 109: / { print $0 " In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows."; next } { print }' chk_install
+  st 'the IRIS_IMAGE line back after the cp step of Start it by hand' 1 "$README" '/^cp \.env\.example \.env$/ { print; print "echo \047IRIS_IMAGE=<the name docker load printed>\047 >> .env"; next } { print }' chk_install
+  st 'the install script paragraph back to a build 154 image' 1 "$README" '{ sub(/a build 154 or build 109 image for your CPU is loaded; when both are, it uses build 154\./, "a build 154 image for your CPU is loaded.") } { print }' chk_install
+  st 'the old Troubleshooting sentence back' 1 "$README" '/^\*\*"No IRIS build 154 or build 109 image is loaded in Docker"\*\*: / { print $0 " With build 109, follow [Start it with build 109](#start-it-with-build-109) instead of running `./install.sh`."; next } { print }' chk_install
+  st 'the Troubleshooting quote back to build 154 only' 1 "$README" '{ sub(/"No IRIS build 154 or build 109 image is loaded in Docker"/, "\"No IRIS build 154 image is loaded in Docker\"") } { print }' chk_install
+  st 'the Troubleshooting CPU quote back to build 154 only' 1 "$README" '{ sub(/"The IRIS build 154 or build 109 image that is loaded/, "\"The IRIS build 154 image that is loaded") } { print }' chk_install
+  finish install 'Compose 2.24, both image names, load and retag, the portal, the CPUs, the 15-minute wait and one install path for build 154 and build 109' chk_install
 }
 
 rule_install_pointer() {
@@ -1748,7 +1784,7 @@ rule_ipm() {
 }
 
 rule_licence() {
-  rule_begin licence "$README" "$license_p" || return
+  rule_begin licence "$README" "$license_p" "$dockerfile_p" || return
   st 'the holder changed' 2 "$license_p" '/^Copyright/ { sub(/jbrandtmse/, "someone") } { print }' chk_licence
   st 'the year changed' 2 "$license_p" '/^Copyright/ { sub(/2026/, "2025") } { print }' chk_licence
   st 'a second copyright line' 2 "$license_p" '{ print } /^Copyright/ { print "Copyright (c) 2026 someone else" }' chk_licence
@@ -1759,7 +1795,14 @@ rule_licence() {
   st 'the README line removed' 1 "$README" '!/^OcuTalon is under the MIT License: /' chk_licence
   st 'the README line changed' 1 "$README" '/^OcuTalon is under the MIT License: / { sub(/MIT/, "Apache") } { print }' chk_licence
   st 'the README line moved to another section' 1 "$README" '/^OcuTalon is under the MIT License: / { next } { print } /^## Stop, start and update$/ { print ""; print "OcuTalon is under the MIT License: [LICENSE](LICENSE)." }' chk_licence
-  finish licence 'LICENSE holds the MIT grant, the warranty and the holder line, and Credits and licences links it' chk_licence
+  st 'the notices bullet removed' 1 "$README" '!/^- The Docker image.s Python packages for documents and memory/' chk_licence
+  st 'the notices bullet changed' 1 "$README" '/^- The Docker image.s Python packages for documents and memory/ { sub(/credits in/, "credits at") } { print }' chk_licence
+  st 'the notices path changed in the README' 1 "$README" '/^- The Docker image.s Python packages for documents and memory/ { sub(/THIRD-PARTY-NOTICES/, "THIRD-PARTY-NOTICES.txt") } { print }' chk_licence
+  st 'the notices bullet moved above the IPM bullet' 1 "$README" '/^- The Docker image.s Python packages for documents and memory/ { held = $0; next } /^- The web page.s fonts/ { print held } { print }' chk_licence
+  st 'the notices bullet twice' 1 "$README" '{ print } /^- The Docker image.s Python packages for documents and memory/ { print }' chk_licence
+  st 'the notices path changed in the Dockerfile' 3 "$dockerfile_p" '/gate\.py notices/ { sub(/THIRD-PARTY-NOTICES/, "NOTICES") } { print }' chk_licence
+  st 'the notices step removed from the Dockerfile' 3 "$dockerfile_p" '!/gate\.py notices/' chk_licence
+  finish licence 'LICENSE holds the MIT grant, the warranty and the holder line, Credits and licences links it and names the image notices file the Dockerfile writes' chk_licence
 }
 
 rule_docs() {
@@ -1779,7 +1822,7 @@ rule_docs() {
   finish docs 'the build 109 sentences of the bridge guide and the IPM page and the two ruled lines of the security overview are there, word for word' chk_docs
 }
 
-RULES='top try_it interesting use_cases how_you_talk teaser images outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
+RULES='top try_it interesting use_cases how_you_talk teaser images once outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {

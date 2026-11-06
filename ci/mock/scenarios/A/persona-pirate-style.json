@@ -1,0 +1,16 @@
+{
+  "name": "persona-pirate-style",
+  "match": {
+    "marker": "persona-pirate-style"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"Ahoy, shipmate! A question from the user; the user is answered directly. \\ud83d\\udea2 Everything is fine.\"],\"confidence\":0.9}"
+    },
+    {
+      "status": 200,
+      "text": "Ahoy, shipmate! The Orders production sails on! \ud83d\udea2 Everything is fine."
+    }
+  ]
+}

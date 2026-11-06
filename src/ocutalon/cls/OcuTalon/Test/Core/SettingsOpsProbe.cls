@@ -5,8 +5,21 @@
 /// ("data"). The answers come from ^OcuTalonTest("SettingsOpsProbe", "answer", seam): "" is OK, "error" is an error status, "throw"
 /// throws, for "audit" "record" hands the data to Bridge.Audit.Record and answers its status, and for "step" "kept" records the
 /// demoKept mark with the note in ^OcuTalonTest("SettingsOpsProbe", "note") and answers OK, and "warn" records one step warning line
-/// ("zz warning") and answers OK. The guarded write Apply answers an error status when the "apply" answer is "error" and is the real
-/// one otherwise. The product never refers to it.
+/// ("zz warning") and answers OK. The guarded write Apply answers an error status when the "apply" answer is "error", or, for "second",
+/// at its second call since ^OcuTalonTest("SettingsOpsProbe", "applies") was last killed, and is the real one otherwise.
+/// The answers "auditAt" and "applyAt" (a number n) make the nth audit write, or the nth guarded write, since the counters were killed
+/// (^||OcuTalonSettingsOpsProbe("n", seam), a process-private global, which a TROLLBACK does not undo) answer an error status, for the
+/// all-or-nothing tests of a section's save (Story 33.2).
+/// The bridge seams BridgeCurrent, BridgeCheck and BridgeSet stand in for Bridge.Settings: each call is recorded under
+/// ^OcuTalonTest("SettingsOpsProbe", "bridge", n) as "check" or "set" with the name and value ("what"); the answer "check" is "" for OK, "stub" for
+/// "not implemented" (code 5003), "error" for an error status and "error:<name>" for an error status for that name only; the answer "set" is "" for
+/// OK and "error" for an error status, "setAt" (a number n) fails the nth Set call only and "throwAt" (a number n) makes it throw. A Set stores the value in
+/// ^OcuTalonTest("SettingsOpsProbe", "bridgeValue", name) and answers the value it replaced in old. The product never refers to it.
+/// The persona seams (Story 40.6): RaiseRequest raises nothing; it records the row's Kind, OwnerRef, TraceRef, DryRun and ResultTarget under
+/// ^OcuTalonTest("SettingsOpsProbe", "raised", n, ...) and answers OK with the Ref in ^OcuTalonTest("SettingsOpsProbe", "raiseRef") (a fixed
+/// Ref when there is none), or an error status when ^OcuTalonTest("SettingsOpsProbe", "raise") is "error". SendNotice sends nothing; it
+/// records the Kind, CatalogKey, Slots, ApprovalRef and SessionRef of each notice in the order sent under
+/// ^OcuTalonTest("SettingsOpsProbe", "notices", n, ...) and answers an error status when ^OcuTalonTest("SettingsOpsProbe", "notice") is "error".
 Class OcuTalon.Test.Core.SettingsOpsProbe Extends OcuTalon.Core.SettingsOps
 {
 
@@ -16,9 +29,32 @@ Method WriteAudit(data As %DynamicObject) As %Status [ Private ]
 	Set ^OcuTalonTest("SettingsOpsProbe", "calls", n) = "audit"
 	Set ^OcuTalonTest("SettingsOpsProbe", "calls", n, "data") = data.%ToJSON()
 	Set ^OcuTalonTest("SettingsOpsProbe", "calls", n, "seen") = ##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Install.Step.Demo).#MODEKEY)
+	If $Increment(^||OcuTalonSettingsOpsProbe("n", "audit")) = +$Get(^OcuTalonTest("SettingsOpsProbe", "answer", "auditAt")) Quit $SYSTEM.Status.Error(5001, "zz audit failed at its turn")
 	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "audit")) = "record" Quit ##class(OcuTalon.Bridge.Audit).Record("Settings", data)
 	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "audit")) = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "zz audit threw"))
 	Quit $Select($Get(^OcuTalonTest("SettingsOpsProbe", "answer", "audit")) = "error": $SYSTEM.Status.Error(5001, "zz audit failed"), 1: $$$OK)
+}
+
+Method RaiseRequest(row As OcuTalon.Bridge.Data.ApprovalRequest, Output ref As %String) As %Status [ Private ]
+{
+	Set ref = ""
+	Set n = $Increment(^OcuTalonTest("SettingsOpsProbe", "raised"))
+	For name = "Kind", "OwnerRef", "TraceRef", "DryRun", "ResultTarget" {
+		Set ^OcuTalonTest("SettingsOpsProbe", "raised", n, name) = $Property(row, name)
+	}
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "raise")) = "error" Quit $SYSTEM.Status.Error(5001, "zz raise failed")
+	Set ref = $Get(^OcuTalonTest("SettingsOpsProbe", "raiseRef"), "zzRaisedRef0000000000A")
+	Quit $$$OK
+}
+
+Method SendNotice(notification As OcuTalon.Msg.Notification) As %Status [ Private ]
+{
+	Set n = $Increment(^OcuTalonTest("SettingsOpsProbe", "notices"))
+	For name = "Kind", "CatalogKey", "Slots", "ApprovalRef", "SessionRef" {
+		Set ^OcuTalonTest("SettingsOpsProbe", "notices", n, name) = $Property(notification, name)
+	}
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "notice")) = "error" Quit $SYSTEM.Status.Error(5001, "zz notice failed")
+	Quit $$$OK
 }
 
 Method RunDemo() As %Status [ Private ]
@@ -41,7 +77,39 @@ Method RunDemo() As %Status [ Private ]
 ClassMethod Apply(key As %String, value As %String) As %Status [ Private ]
 {
 	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "apply")) = "error" Quit $SYSTEM.Status.Error(5001, "zz apply failed")
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "apply")) = "second", $Increment(^OcuTalonTest("SettingsOpsProbe", "applies")) = 2 Quit $SYSTEM.Status.Error(5001, "zz apply failed")
+	If $Increment(^||OcuTalonSettingsOpsProbe("n", "apply")) = +$Get(^OcuTalonTest("SettingsOpsProbe", "answer", "applyAt")) Quit $SYSTEM.Status.Error(5001, "zz apply failed at its turn")
 	Quit ##super(key, value)
+}
+
+Method BridgeCurrent(name As %String) As %String [ Private ]
+{
+	Quit $Get(^OcuTalonTest("SettingsOpsProbe", "bridgeValue", name))
+}
+
+Method BridgeCheck(name As %String, value As %String) As %Status [ Private ]
+{
+	Set n = $Increment(^OcuTalonTest("SettingsOpsProbe", "bridge"))
+	Set ^OcuTalonTest("SettingsOpsProbe", "bridge", n) = "check"
+	Set ^OcuTalonTest("SettingsOpsProbe", "bridge", n, "what") = name_"="_value
+	Set answer = $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "check"))
+	If answer = "stub" Quit $$$ERROR($$$NotImplemented)
+	If (answer = "error") || (answer = ("error:"_name)) Quit $SYSTEM.Status.Error(5001, "zz "_name_" refused")
+	Quit $$$OK
+}
+
+Method BridgeSet(name As %String, value As %String, Output old As %String) As %Status [ Private ]
+{
+	Set old = ""
+	Set n = $Increment(^OcuTalonTest("SettingsOpsProbe", "bridge"))
+	Set ^OcuTalonTest("SettingsOpsProbe", "bridge", n) = "set"
+	Set ^OcuTalonTest("SettingsOpsProbe", "bridge", n, "what") = name_"="_value
+	Set sets = $Increment(^||OcuTalonSettingsOpsProbe("n", "set"))
+	If sets = +$Get(^OcuTalonTest("SettingsOpsProbe", "answer", "throwAt")) Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "zz set threw"))
+	If ($Get(^OcuTalonTest("SettingsOpsProbe", "answer", "set")) = "error") || (sets = +$Get(^OcuTalonTest("SettingsOpsProbe", "answer", "setAt"))) Quit $SYSTEM.Status.Error(5001, "zz set failed")
+	Set old = $Get(^OcuTalonTest("SettingsOpsProbe", "bridgeValue", name))
+	Set ^OcuTalonTest("SettingsOpsProbe", "bridgeValue", name) = value
+	Quit $$$OK
 }
 
 /// The guarded write of SettingsOps, which is private there, for the tests.

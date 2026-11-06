@@ -21,7 +21,7 @@ const file = (name) => {
 const count = (text, pattern) => (text.match(pattern) ?? []).length;
 
 describe('the server\'s demo mode is read in one place', () => {
-  it('appears only in the payload types, DemoView, the header pill and the three view-model gates', () => {
+  it('appears only in the payload types, DemoView, the header pill, the three view-model gates and the settings page (the Demo mode section\'s own saved value, which the settings API names demoMode and which is no read of the snapshot)', () => {
     const readers = Object.fromEntries(files.filter((one) => /\bdemoMode\b/.test(one.code)).map((one) => [one.name, count(one.code, /\bdemoMode\b/g)]));
     assert.deepEqual(Object.keys(readers).sort(), [
       'api/api-types.ts',
@@ -29,6 +29,9 @@ describe('the server\'s demo mode is read in one place', () => {
       'header/header.ts',
       'mailbox/mailbox-view.ts',
       'phone/phone-view.ts',
+      'settings/demo-mode-section.ts',
+      'settings/settings-page.ts',
+      'settings/settings-view.ts',
       'shared/demo-view.ts',
     ]);
     assert.equal(readers['header/header.ts'], 1, 'the pill reads it once');

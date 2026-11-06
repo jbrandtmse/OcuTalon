@@ -787,6 +787,37 @@ No reply to an unpaired chat identifies a session, names anyone, or reveals any 
 | Production state change (FR-23) | "The Orders production stopped at {time}." or "The {readable item name} in the Orders production was disabled at {time}.", then "Why now: you asked me to watch the Orders production." |
 | Reminder | "Reminder: {text}." Late, when it fires more than 10 seconds after its due time: "Reminder (late; it was due at {time}): {text}." (FR-34) |
 
+### Daily digest (FR-35 to FR-37)
+
+[ADDED 2026-11-03, Story 33.1, author's acceptance (orchestrator unattended ruling, veto U-245; the Planner may reverse)] [AMENDED 2026-11-03, Story 33.1, Planner ruling U-245: the "summary request fell back" row reworded]
+
+The digest is one message to a session. Its parts come in this order: a greeting (by the hour in the instance zone), the vital signs, what was checked with its reserved sentence, what needs the person, what was saved for later, and the cost. The reserved sentences stay "Everything I checked passed." and "Everything else I checked passed."; a greeting appears nowhere else.
+
+| Case | Text |
+| --- | --- |
+| Digest composed 00:00-11:59 instance time | "Good morning." |
+| Digest composed 12:00-17:59 instance time | "Good afternoon." |
+| Digest composed 18:00-23:59 instance time | "Good evening." |
+| Every vital sign passed | "Your IRIS system is healthy: up {count} {days}, databases {databasesFull}% full, journal space fine, license use {licenseUse}%." |
+| A vital sign failed or was not checked | "Not every vital sign passed: {whatFailed}." |
+| Every production entry passed | "I checked {checked} (all running, no errors, no backlog)." |
+| Some production entry failed or was not checked | "I checked {checked}." |
+| The session watches no production and no source (no all-clear) | "I'm not watching any productions yet, so this digest covers the vital signs only. Ask me to watch one." |
+| A coverage line that passed | "Passed: {entry} (at {time})." |
+| A coverage line that failed | "Failed: {entry} ({finding}, at {time})." |
+| A source that could not be reached (step 4) | "Not checked: {entry} (unreachable since {time})." |
+| The latest run in the window ended in an error | "Not checked: {entry} (the check stopped with an error at {time})." |
+| The latest run in the window timed out | "Not checked: {entry} (the check timed out at {time})." |
+| Runs more than 3 minutes apart in the window | "Not checked: {entry} (the check didn't run between {from} and {to})." |
+| A heartbeat gap overlaps the window | "Not checked: {entry} (background checks were paused between {from} and {to})." |
+| No run in the window, only an earlier one | "Not checked: {entry} (its last check was at {time}, too long ago to count)." |
+| Exactly one thing needs the user | "One thing needs you: {what}." |
+| Two or more things need the user (none: no needs-you part) | "{count} things need you: {what}." |
+| Items were saved and the summary came back | "Saved for later ({count}): {summary}" |
+| Items were saved and the summary request fell back | "Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). The most recent are under Recent decisions on your OcuTalon page." |
+| No item saved in the window | "Nothing was saved for later." |
+| Every digest (the cost) | "Yesterday's cost: {cost}." (two decimals, as the Formats rule says) |
+
 ### Incident notice with approval request (FR-24, FR-25, FR-8)
 
 The notice is one message; Telegram adds the inline buttons **Approve** and **Reject**.
@@ -888,8 +919,8 @@ Banners stack in this table's order.
 | Case | Text |
 | --- | --- |
 | Persona proposal (`approval.persona`, with Approve and Reject) | "OcuTalon suggests a new persona for you. Now: {old}. Proposed: {new}. Nothing changes unless you approve." |
-| Persona applied (`result.persona.applied`) | "Persona updated. It applies from your next message." |
-| Persona stale (`result.persona.stale`) | "Your persona changed after this was suggested. Nothing was changed." |
+| Persona applied (`persona.applied`) [AMENDED 2026-11-02 — see the story change log (spec-40-1); unattended ruling: catalog keys renamed to fit AD-32, texts unchanged; it read `result.persona.applied`, `result.persona.stale`] | "Persona updated. It applies from your next message." |
+| Persona stale (`persona.stale`) | "Your persona changed after this was suggested. Nothing was changed." |
 | Marked as noise (the notice card's status line) | "Marked as noise at {time}. Similar items will take this into account." |
 
 ## Visual Trace Links

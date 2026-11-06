@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { STATE, changeSnapshot, holdState } from '../support/api';
 import {
@@ -39,16 +39,11 @@ import { announcedTexts, announcements, recordAnnouncements } from '../support/p
  * session, silent at load and announced when it appears later, and its Close is remembered for the browser, also when the storage
  * fails (G6, G7). It needs the stack that docker/tests/test-floor.sh starts: every case signs in as the floor user
  * (OCUTALON_FLOOR_USER, the user role) over real HTTP, in a fresh browser context, so its storage is empty. A case removes its rows
- * with cleanFixtureRows (the turns' included) in finally and unroutes in afterEach. No case lets a chat post reach the server, and no
+ * with cleanFixtureRows (the turns' included) in finally; the shared test (support/fixtures) removes its routes. No case lets a chat post reach the server, and no
  * poll is held for 8 s or longer. G1 also runs in Firefox and WebKit (tag @browsers); the stacked layout's cases do not.
  */
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
-
-/** A poll, a snapshot or a post that a routed handler is still holding when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const KIND = 'FLOOR';
 
@@ -510,7 +505,7 @@ test('G4: at 1000x800 the page is one column with the rail after main, and only 
  * 70% of the window, and the list scrolls.)
  */
 test('G4: below 1024px an empty chat list is as tall as its content', async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 1900 });
+  await page.setViewportSize({ width: 1000, height: 2100 });
   await changeSnapshot(page, (snapshot) => {
     snapshot['chat'] = [];
     const rail = snapshot['rail'] as Record<string, unknown>;

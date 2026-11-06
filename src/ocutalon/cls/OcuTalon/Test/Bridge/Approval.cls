@@ -54,6 +54,20 @@
 ///     again and sends nothing, and a task completed with Approve on a row that shows rejected delivers the rejection;
 ///   - TestTimerDeliversAnUndeliveredAnswer (row 15): the timer delivers an approved and a rejected answer whose task was never completed, and
 ///     the late approval is not started;
+/// Story 40.5 (the setting kind; AD-11), with the rows of its matrix:
+///   - TestRaiseSetting (Raise a setting): a setting request gives a pending row with its DryRun {key, ownerRef, old, new} and ResultTarget kept, no tool or fix
+///     field, a hold and one approval.raised; one whose old and new are JSON objects is raised too;
+///   - TestRefused also holds the "Setting refused" rows (OwnerRef instance, eval or not a Ref; a DryRun that is not an object, lacks or adds a key, has an empty
+///     or non-string key, another ownerRef, or an old or new that is neither a string nor an object; no ResultTarget; any tool or fix field);
+///   - TestSettingOutcomes (Approved, Rejected / expired): each outcome goes once to SettingsOps in the hold's session, the hold sends no Msg.Request, and the
+///     audit entry's target is the DryRun key;
+///   - TestReconcileDeliversASettingOutcome (Lost delivery): an approved, a rejected and an expired setting row whose outcome was lost get it from Reconcile
+///     once; a setting that has its outcome, and one older than DELIVERYDAYS, get none;
+///   - TestSettingOwnerOnly (Owner only): Ownership.Approvals and AnswersIn show a setting request only to the session that owns it.
+///   - TestSettingTwoAnswersAtOnce (QA; first answer wins): two answers of a setting request at once give one done and one already_answered, and one outcome
+///     to SettingsOps, the winner's, with no Msg.Request;
+///   - TestSettingAnswerPastExpiry (QA; Rejected / expired): an answer past the expiry expires the setting request (twice the same, one audit entry) and sends no
+///     outcome yet; a lost hold's Reconcile then delivers the one expired outcome to SettingsOps with no Msg.Request.
 /// Story 3.4's tests, with the rows of its matrix:
 ///   - TestRaiseToolCall (rows 3 and 5): a tool_call request gives one pending row with the given fields, RequiredRole OcuTalonUser, RaisedAt now
 ///     and ExpiresAt exactly 24 hours later, a 22-character base64url Ref, and no other field; the three messages of the hold share one new
@@ -126,6 +140,9 @@ Property Disabled As %Boolean [ InitialExpression = 0 ];
 /// 1 while the test has ApprovalHold disabled.
 Property HoldDisabled As %Boolean [ InitialExpression = 0 ];
 
+/// The Refs of the fixture sessions that a test made, comma-separated (Test.Data.Fixture.Session); OnAfterOneTest deletes them.
+Property Sessions As %String(MAXLEN = "");
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ..Clean()
@@ -175,6 +192,10 @@ Method OnAfterOneTest(testname As %String) As %Status
 	}
 	Set ..SavedSink = ""
 	Do ..Clean()
+	If ..Sessions '= "" {
+		Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Sessions)
+		Set ..Sessions = ""
+	}
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..Saved), "the ApprovalRole row is put back")
 	Kill ^||ZzProbeSink
 	Quit $$$OK
@@ -510,10 +531,11 @@ Method TestRefused()
 	While $ListNext(bad, position, case) {
 		// each case: $ListBuild(kind, property, value, field)
 		Set row = ..NewRow($List(case, 1))
-		Set $Property(row, $List(case, 2)) = $List(case, 3)
+		Set value = $Replace($List(case, 3), "{OWNER}", row.OwnerRef)
+		Set $Property(row, $List(case, 2)) = value
 		Set ref = "zz"
 		Set sc = ##class(OcuTalon.Bridge.Approval).Raise(row, .ref, ..#SINK)
-		Do ..AssertRefused(sc, ref, $List(case, 4), $List(case, 1)_" row with "_$List(case, 2)_" '"_$List(case, 3)_"'")
+		Do ..AssertRefused(sc, ref, $List(case, 4), $List(case, 1)_" row with "_$List(case, 2)_" '"_value_"'")
 		Do $$$AssertEquals(row.%Id(), "", "the refused row is not saved")
 	}
 	Do $$$AssertEquals(..RowCount(), rowsBefore, "no row was made by any refusal")
@@ -1952,6 +1974,234 @@ Method TestLateStartIsRefusedByItsAge()
 	Do $$$AssertEquals(..RowText(ref), before, "and the row is unchanged")
 }
 
+/// Story 40.5, the matrix row "Raise a setting" (AC1): a setting request of a session Ref, with a DryRun of {key, ownerRef, old, new} and ResultTarget
+/// SettingsOps, gives one pending row with the given fields, RequiredRole the ApprovalRole setting and ExpiresAt exactly 24 hours later, no tool or fix
+/// field, one approval.raised and a hold with its task. A second setting whose old and new are JSON objects is raised too, pending with its DryRun.
+Method TestRaiseSetting()
+{
+	If '..Ready() Quit
+	Set row = ..NewRow("setting")
+	Set given = ..Snapshot(row)
+	Set rowsBefore = ..RowCount()
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Kill ^||ZzProbeSink
+	Set sc = ..Raise(row, .ref)
+	Do $$$AssertStatusOK(sc, "Raise of the setting request is OK")
+	Do $$$AssertTrue($Match(ref, "^[A-Za-z0-9_-]{22}\z"), "ref is 22 base64url characters: "_ref)
+	Do $$$AssertEquals(..RowCount(), rowsBefore + 1, "one row was made")
+	Set saved = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Do $$$AssertTrue($IsObject(saved), "the row has the Ref")
+	If '$IsObject(saved) Quit
+	Do ..AssertGiven(saved, given, "setting")
+	Do $$$AssertEquals(saved.State_"|"_saved.RequiredRole, "pending|OcuTalonUser", "it is pending with the default required role")
+	Do $$$AssertEquals(saved.ExpiresAt, ##class(OcuTalon.Bridge.Time).PlusSeconds(saved.RaisedAt, 86400), "ExpiresAt is exactly 24 hours after RaisedAt")
+	Do $$$AssertEquals(saved.ResultTarget_"|"_saved.DryRun, "SettingsOps|"_##class(OcuTalon.Test.Bridge.ApprovalRows).SettingDryRun(saved.OwnerRef), "ResultTarget and the DryRun are kept")
+	Do $$$AssertEquals(saved.ToolName_"|"_saved.ToolArguments_"|"_saved.ToolSource_"|"_saved.Runner_"|"_saved.IncidentRef_"|"_saved.FixKind_"|"_saved.FixParameters_"|"_saved.FixTargets, "|||||||", "the tool, fix and incident fields are empty")
+	Do ..AssertSink(ref, $ListGet(given, 2), "the sink")
+	Do $$$AssertTrue(..WaitTask(ref, 10) '= "", "the request is held: its task exists")
+	Do $$$AssertEquals(..HoldCount(ref), 1, "and one hold is live for it")
+	Set messages = ..HoldMessages(mark, ref)
+	Do $$$AssertEquals(messages.start.super, $ListGet(given, 3), "the hold carries the TraceRef as SuperSession")
+	Set objects = ..NewRow("setting")
+	Set objects.DryRun = {"key": ("person."_objects.OwnerRef_".persona"), "ownerRef": (objects.OwnerRef), "old": {"preset": "professional"}, "new": {"preset": "language", "language": "Spanish"}}.%ToJSON()
+	Set dryRun = objects.DryRun
+	Do $$$AssertStatusOK(..Raise(objects, .objectsRef), "a setting whose old and new are objects is raised too")
+	Set saved = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(objectsRef)
+	Do $$$AssertEquals($Select($IsObject(saved): saved.State_"|"_saved.DryRun, 1: ""), "pending|"_dryRun, "it is pending with its DryRun kept")
+}
+
+/// Story 40.5, the matrix rows "Approved" and "Rejected / expired" (AC2): an approved, a rejected and an expired setting request each send one
+/// ApprovalOutcome with that outcome to SettingsOps (no incident), in the hold's session, and the hold sends no Msg.Request, so Decide runs no model. The
+/// Approval audit entry's target is the DryRun key. The tests read the outcome message and the hold's sends, never the row's later state: SettingsOps acts
+/// on the outcome (Story 40.6).
+Method TestSettingOutcomes()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set approve = ..RaiseHeld("setting")
+	If '$IsObject(approve) Quit
+	Set approveSession = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(approve.ref, "approve", "web", user, approveSession, .winner, ..#SINK), "done", "(a) Answer approves the setting: done")
+	Do ..AssertOneEntry(mark, ..Want(approve.ref, "setting", "answered", "pending", "approved", "approved", approve.key, approve.owner, user, approveSession, "web"), "(a) the audit entry: its target is the DryRun key")
+	Do $$$AssertEquals(..WaitHoldGone(approve.ref, 15), 1, "(a) the hold ends")
+	Do ..AssertOneOutcome(approve.ref, "approved", approve, approve.session, "(a) the outcome", "SettingsOps")
+	Do ..AssertNoRequest(approve.session, "(a)")
+
+	Set reject = ..RaiseHeld("setting")
+	If '$IsObject(reject) Quit
+	Set rejectSession = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(reject.ref, "reject", "web", user, rejectSession, .winner, ..#SINK), "done", "(b) Answer rejects the setting: done")
+	Do ..AssertOneEntry(mark, ..Want(reject.ref, "setting", "answered", "pending", "rejected", "rejected", reject.key, reject.owner, user, rejectSession, "web"), "(b) the audit entry")
+	Do $$$AssertEquals(..Prop(reject.ref, "State"), "rejected", "(b) the row is rejected")
+	Do $$$AssertEquals(..WaitHoldGone(reject.ref, 15), 1, "(b) the hold ends")
+	Do ..AssertOneOutcome(reject.ref, "rejected", reject, reject.session, "(b) the outcome", "SettingsOps")
+	Do ..AssertNoRequest(reject.session, "(b)")
+
+	Set expire = ..RaiseHeld("setting")
+	If '$IsObject(expire) Quit
+	Set ref = expire.ref
+	Set oldHold = ##class(OcuTalon.Bridge.Approval).LiveHold(ref)
+	Do ..Age(ref, 86460, -60)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(oldHold), "(c) the hold instance is deleted")
+	Set headerMark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Set auditMark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Reconcile).Run(), "(c) the Reconcile step runs")
+	Set newSession = ..HoldMessages(headerMark, ref).session
+	Do $$$AssertTrue((newSession > headerMark) && (newSession '= expire.session), "(c) the new hold has a session of its own: "_newSession)
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "(c) within 15 seconds the hold has ended")
+	Do ..AssertOneOutcome(ref, "expired", expire, newSession, "(c) the outcome", "SettingsOps")
+	Do $$$AssertEquals(..Prop(ref, "State"), "expired", "(c) the row is expired")
+	Do ..AssertNoRequest(newSession, "(c)")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(auditMark, "OcuTalon", "Approval", "Approval", ref)
+	Do $$$AssertEquals(entries.%Size(), 1, "(c) one Approval entry carries the Ref: the timer's")
+	If entries.%Size() = 1 {
+		Set entry = entries.%Get(0)
+		Do ..AssertEntry(entry, auditMark, ..Want(ref, "setting", "expired", "pending", "expired", "", expire.key, expire.owner, entry.username, expire.owner, "system"), "(c) the timer's entry: its target is the DryRun key", "")
+	}
+}
+
+/// Story 40.5, the matrix row "Lost delivery" (AC2): Reconcile gives an approved, a rejected and an expired setting row with a ResultTarget, no live hold and
+/// no ApprovalOutcome a delivery hold, and each outcome reaches SettingsOps once with no Msg.Request. A setting row that already has its outcome message, and
+/// an expired one older than DELIVERYDAYS, get no hold.
+Method TestReconcileDeliversASettingOutcome()
+{
+	If '..Ready() Quit
+	Set owed = $ListBuild(..FixtureRow("approved", -3600, "setting"), ..FixtureRow("rejected", -3600, "setting"), ..FixtureRow("expired", -3600, "setting"))
+	Set sent = ..FixtureRow("expired", -3600, "setting")
+	Set old = ..FixtureRow("expired", 0 - (8 * 86400), "setting")
+	Set outcome = ##class(OcuTalon.Bridge.Msg.ApprovalOutcome).%New()
+	Set outcome.ApprovalRef = sent
+	Set outcome.Outcome = "expired"
+	Do $$$AssertStatusOK(outcome.%Save(), "the outcome of one setting was already sent")
+	Set ^OcuTalonTest("Approval", "outcomes") = outcome.%Id()
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "Reconcile runs")
+	Set position = 0
+	While $ListNext(owed, position, ref) {
+		Set state = ..Prop(ref, "State")
+		Do ..AssertOneOutcomeOf(ref, state, "the owed "_state_" setting gets its outcome", "SettingsOps")
+		Set list = ..Outcomes(ref)
+		If list.%Size() = 1 Do ..AssertNoRequest(list.%Get(0).session, "the owed "_state_" setting")
+	}
+	Do $$$AssertEquals(..Outcomes(sent).%Size()_"|"_..HoldCount(sent), "0|0", "a setting that already has its outcome message gets no second one and no hold")
+	Do $$$AssertEquals(..Outcomes(old).%Size()_"|"_..HoldCount(old), "0|0", "an expired setting older than seven days gets no hold")
+	Set position = 0
+	While $ListNext(owed, position, ref) {
+		Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "the delivery hold of the owed "_..Prop(ref, "State")_" setting has ended")
+	}
+	Set again = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "a second Reconcile runs")
+	Set position = 0
+	While $ListNext(owed, position, ref) {
+		Do $$$AssertEquals(..StartsOf(again, ref), 0, "the second Reconcile starts no hold for the "_..Prop(ref, "State")_" setting, whose outcome is sent")
+		Do $$$AssertEquals(..Outcomes(ref).%Size(), 1, "and it sends no second outcome for it")
+	}
+}
+
+/// Story 40.5, the matrix row "Owner only" (AC1): a setting row owned by session S is in Ownership.Approvals for S and not for another session T. AnswersIn
+/// from T answers not_found and the row stays pending; S's answer is accepted. The sessions are fixture sessions of this process's user, and the row is
+/// answerable by a role that this process's user holds (as Test.Core.AnswersInProduction does).
+Method TestSettingOwnerOnly()
+{
+	If '..Ready() Quit
+	Set s = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set t = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set ..Sessions = ..Sessions _ $Select(..Sessions = "": "", 1: ",") _ s _ "," _ t
+	Set row = ..NewRow("setting")
+	Set row.OwnerRef = s
+	Set row.DryRun = ##class(OcuTalon.Test.Bridge.ApprovalRows).SettingDryRun(s)
+	Do $$$AssertStatusOK(..Raise(row, .ref), "the setting request of session S is raised")
+	If ref = "" Quit
+	Do $$$AssertTrue(..WaitTask(ref, 10) '= "", "the request is held: its task exists")
+	Set sc = $SYSTEM.Security.GetUserRecursedRoleSet($Username, .roles)
+	Do $$$AssertStatusOK(sc, "the roles of this process's user are read")
+	If $Piece(roles, ",", 1) = "" {
+		Do $$$AssertTrue(0, "this process's user holds a role that can answer the request")
+		Quit
+	}
+	Set saved = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Set saved.RequiredRole = $Piece(roles, ",", 1)
+	Do $$$AssertStatusOK(saved.%Save(), "the request is answerable by a role that this process's user holds")
+	Kill saved
+	Do $$$AssertTrue(..ListedFor(s, ref), "Ownership.Approvals lists it for S")
+	Do $$$AssertNotTrue(..ListedFor(t, ref), "and does not list it for T")
+	Do $$$AssertEquals(..AnswerAs(t, ref), "not_found", "AnswersIn from T answers not_found")
+	Do $$$AssertEquals(..Prop(ref, "State"), "pending", "and the request stays pending")
+	Do $$$AssertEquals(..AnswerAs(s, ref), "done", "S's answer is accepted")
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "and the hold ends once the outcome is sent")
+	Do $$$AssertEquals(..WaitOutcomes(ref, 1, 15).%Size(), 1, "with one outcome sent")
+}
+
+/// Story 40.5 (QA), the matrix row "Approved" under a race and AD-11's first answer wins (AC2): two answers of a setting request at once through the lock
+/// gate (approve on the web, reject on Telegram): exactly one is done and the other already_answered, and exactly one ApprovalOutcome goes to SettingsOps,
+/// the winner's, in the hold's session, with no Msg.Request, so Decide runs no model whichever answer won.
+Method TestSettingTwoAnswersAtOnce()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	If '..UseSharedSink() Quit
+	Set info = ..RaiseHeld("setting")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Set jobs = ..GateJobs(ref, $ListBuild($ListBuild("answer", "approve", "web"), $ListBuild("answer", "reject", "telegram")), user)
+	Do $$$AssertEquals($ListLength(jobs), 2, "both jobs ran")
+	If $ListLength(jobs) '= 2 Quit
+	Set resultA = $Get(^OcuTalonTest("Approval", "job", $List(jobs, 1), "result"))
+	Set resultB = $Get(^OcuTalonTest("Approval", "job", $List(jobs, 2), "result"))
+	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", $List(jobs, 1), "error"))_$Get(^OcuTalonTest("Approval", "job", $List(jobs, 2), "error")), "", "neither job failed")
+	Do $$$AssertTrue(((resultA = "done") && (resultB = "already_answered")) || ((resultA = "already_answered") && (resultB = "done")), "exactly one is done and the other already_answered: "_resultA_"|"_resultB)
+	Set winning = $Select(resultA = "done": "approve", 1: "reject")
+	Do $$$AssertEquals(..Prop(ref, "AnsweredAction"), winning, "the row holds the winner's action")
+	Do $$$AssertEquals(..Prop(ref, "State"), $Select(winning = "approve": "approved", 1: "rejected"), "and its state matches")
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "the hold ends")
+	Do $$$AssertTrue(..WaitHoldSettled(ref, info.session, 15), "and its OnResponse has returned")
+	Set calls = ##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.answered")
+	Do $$$AssertEquals(calls.%Size(), 1, "exactly one approval.answered is recorded")
+	Do ..AssertOneOutcome(ref, $Select(winning = "approve": "approved", 1: "rejected"), info, info.session, "the one outcome, the winner's", "SettingsOps")
+	Do ..AssertNoRequest(info.session, "the race")
+}
+
+/// Story 40.5 (QA), the matrix row "Rejected / expired" when the answer comes first (AC2): an answer of a setting request past its expiry, before the timer
+/// has fired, expires the row (no answer fields, one approval.expired, an audit entry that names the answerer and the DryRun key) and sends no outcome yet;
+/// a second answer is expired again and adds no entry. When the hold is lost, Reconcile then delivers the one expired outcome to SettingsOps, with no
+/// Msg.Request.
+Method TestSettingAnswerPastExpiry()
+{
+	If '..Ready() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	Set info = ..RaiseHeld("setting")
+	If '$IsObject(info) Quit
+	Set ref = info.ref
+	Do ..Age(ref, 86460, -60)
+	Set sessionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set result = ##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "web", user, sessionRef, .winner, ..#SINK)
+	Do $$$AssertEquals(result_"|"_winner.%ToJSON(), "expired|{}", "Answer returns expired with no winner")
+	Do ..AssertOneEntry(mark, ..Want(ref, "setting", "expired", "pending", "expired", "", info.key, info.owner, user, sessionRef, "web"), "the audit entry names the answerer, and its target is the DryRun key")
+	Do $$$AssertEquals(..Prop(ref, "State"), "expired", "the row is expired")
+	Do $$$AssertEquals(..Prop(ref, "AnsweredAction")_..Prop(ref, "AnsweredChannel")_..Prop(ref, "AnsweredBy")_..Prop(ref, "AnsweredAt"), "", "with no answer fields")
+	Do ..AssertEvents("approval.expired", "the sink")
+	Do ..AssertEvent(1, "approval.expired", info.owner, ref, "expired", "the sink")
+	Do $$$AssertEquals(..Outcomes(ref).%Size(), 0, "no outcome has been sent yet")
+	Set result = ##class(OcuTalon.Bridge.Approval).Answer(ref, "reject", "web", user, ##class(OcuTalon.Bridge.Ids).NewRef(), .winner, ..#SINK)
+	Do $$$AssertEquals(result_"|"_winner.%ToJSON(), "expired|{}", "a second Answer, a reject, gives expired again")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Approval", "Approval", ref).%Size(), 1, "and adds no audit entry")
+	Set oldHold = ##class(OcuTalon.Bridge.Approval).LiveHold(ref)
+	Do $$$AssertTrue(oldHold '= "", "the hold is still live")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(oldHold), "the hold instance is lost")
+	Set headerMark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Reconcile).Run(), "the Reconcile step runs")
+	Set newSession = ..HoldMessages(headerMark, ref).session
+	Do $$$AssertTrue((newSession > headerMark) && (newSession '= info.session), "the delivery hold has a session of its own: "_newSession)
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "within 15 seconds the delivery hold has ended")
+	Do ..AssertOneOutcome(ref, "expired", info, newSession, "the outcome", "SettingsOps")
+	Do ..AssertNoRequest(newSession, "the delivery of the expired setting")
+}
+
 /// --- fixtures and helpers ---
 /// 1 when the production runs with every item; otherwise the test fails with the reason.
 Method Ready() As %Boolean [ Private ]
@@ -1963,7 +2213,7 @@ Method Ready() As %Boolean [ Private ]
 
 /// An unsaved request of the kind, as the matrix describes it (ApprovalRows.NewRow): a tool_call row has ToolName zz_gate_held and ToolArguments
 /// {"value":1}; a fix row has IncidentRef, ResultTarget IncidentManager, a DryRun and the fix's FixKind zz_fix, FixParameters {"field":"OrderDate"} and
-/// FixTargets 101,102,103. Both have new OwnerRef and TraceRef.
+/// FixTargets 101,102,103; a setting row has ResultTarget SettingsOps and the DryRun of a persona change of its OwnerRef. All have new OwnerRef and TraceRef.
 Method NewRow(kind As %String) As OcuTalon.Bridge.Data.ApprovalRequest [ Private ]
 {
 	Quit ##class(OcuTalon.Test.Bridge.ApprovalRows).NewRow(kind)
@@ -2005,7 +2255,33 @@ ClassMethod Refusals() As %List [ Private ]
 		$ListBuild("tool_call", "FixParameters", "{}", "FixParameters"),
 		$ListBuild("tool_call", "FixTargets", "101", "FixTargets"),
 		$ListBuild("tool_call", "IncidentRef", "x", "IncidentRef"),
-		$ListBuild("tool_call", "TraceRef", "x", "TraceRef"))
+		$ListBuild("tool_call", "TraceRef", "x", "TraceRef"),
+		$ListBuild("setting", "OwnerRef", "instance", "OwnerRef"),
+		$ListBuild("setting", "OwnerRef", "eval", "OwnerRef"),
+		$ListBuild("setting", "OwnerRef", "x", "OwnerRef"),
+		$ListBuild("setting", "DryRun", "", "DryRun"),
+		$ListBuild("setting", "DryRun", "x", "DryRun"),
+		$ListBuild("setting", "DryRun", "[1]", "DryRun"),
+		$ListBuild("setting", "DryRun", "{""key"":""k"",""ownerRef"":""{OWNER}"",""old"":""a""}", "DryRun"),
+		$ListBuild("setting", "DryRun", "{""ownerRef"":""{OWNER}"",""old"":""a"",""new"":""b""}", "DryRun"),
+		$ListBuild("setting", "DryRun", "{""key"":""k"",""ownerRef"":""{OWNER}"",""old"":""a"",""new"":""b"",""extra"":""c""}", "DryRun"),
+		$ListBuild("setting", "DryRun", "{""key"":"""",""ownerRef"":""{OWNER}"",""old"":""a"",""new"":""b""}", "DryRun"),
+		$ListBuild("setting", "DryRun", "{""key"":5,""ownerRef"":""{OWNER}"",""old"":""a"",""new"":""b""}", "DryRun"),
+		$ListBuild("setting", "DryRun", "{""key"":""k"",""ownerRef"":""zzOtherOwner000000001"",""old"":""a"",""new"":""b""}", "DryRun"),
+		$ListBuild("setting", "DryRun", "{""key"":""k"",""ownerRef"":5,""old"":""a"",""new"":""b""}", "DryRun"),
+		$ListBuild("setting", "DryRun", "{""key"":""k"",""ownerRef"":""{OWNER}"",""old"":5,""new"":""b""}", "DryRun"),
+		$ListBuild("setting", "DryRun", "{""key"":""k"",""ownerRef"":""{OWNER}"",""old"":""a"",""new"":[1]}", "DryRun"),
+		$ListBuild("setting", "DryRun", "{""key"":""k"",""ownerRef"":""{OWNER}"",""old"":null,""new"":""b""}", "DryRun"),
+		$ListBuild("setting", "ResultTarget", "", "ResultTarget"),
+		$ListBuild("setting", "FixKind", "zz_fix", "FixKind"),
+		$ListBuild("setting", "FixParameters", "{}", "FixParameters"),
+		$ListBuild("setting", "FixTargets", "101", "FixTargets"),
+		$ListBuild("setting", "ToolName", "zz_gate_held", "ToolName"),
+		$ListBuild("setting", "ToolArguments", "{}", "ToolArguments"),
+		$ListBuild("setting", "ToolSource", "OcuTalon.Test.Bridge.ZzReplayTool", "ToolSource"),
+		$ListBuild("setting", "Runner", "ChatAgent", "Runner"),
+		$ListBuild("setting", "IncidentRef", "x", "IncidentRef"),
+		$ListBuild("setting", "IncidentRef", "zzIncidentRef000000001", "IncidentRef"))
 	For name = "Ref", "State", "RequiredRole", "RaisedAt", "ExpiresAt", "AnsweredAction", "AnsweredChannel", "AnsweredBy", "AnsweredAt", "Result", "FinishedAt" {
 		Set cases = cases _ $ListBuild($ListBuild("tool_call", name, "zz", name))
 	}
@@ -2704,10 +2980,10 @@ ClassMethod ObjectHolds(object As %RegisteredObject, text As %String) As %Boolea
 	Quit holds
 }
 
-/// Exactly one outcome of a fixture fix (AssertOneOutcome with the row's own incident and TraceRef).
-Method AssertOneOutcomeOf(ref As %String, outcome As %String, label As %String) [ Private ]
+/// Exactly one outcome of a fixture fix or setting (AssertOneOutcome with the row's own incident and TraceRef).
+Method AssertOneOutcomeOf(ref As %String, outcome As %String, label As %String, target As %String = "IncidentManager") [ Private ]
 {
-	Do ..AssertOneOutcome(ref, outcome, {"incident": (..Prop(ref, "IncidentRef")), "trace": (..Prop(ref, "TraceRef"))}, "", label)
+	Do ..AssertOneOutcome(ref, outcome, {"incident": (..Prop(ref, "IncidentRef")), "trace": (..Prop(ref, "TraceRef"))}, "", label, target)
 }
 
 /// --- the helpers of Story 3.5's tests ---
@@ -2721,7 +2997,7 @@ Method Answerer() As %String [ Private ]
 	Quit $Select(holds: user, 1: "")
 }
 
-/// Raises a held request of the kind, tracks it, waits for its task and returns {"ref","owner","trace","incident","session","task"} (session is the
+/// Raises a held request of the kind, tracks it, waits for its task and returns {"ref","owner","trace","incident","key","session","task"} (key is a setting's DryRun key, session is the
 /// hold's, task the open task's id); the sink's calls are cleared. A tool_call has no ResultTarget unless one is given. "" when Raise fails.
 Method RaiseHeld(kind As %String, resultTarget As %String = "<none>") As %DynamicObject [ Private ]
 {
@@ -2731,7 +3007,7 @@ Method RaiseHeld(kind As %String, resultTarget As %String = "<none>") As %Dynami
 	Set sc = ..Raise(row, .ref)
 	Do $$$AssertStatusOK(sc, "the "_kind_" request is raised")
 	If $$$ISERR(sc) Quit ""
-	Set info = {"ref": (ref), "owner": (row.OwnerRef), "trace": (row.TraceRef), "incident": (row.IncidentRef), "session": "", "task": ""}
+	Set info = {"ref": (ref), "owner": (row.OwnerRef), "trace": (row.TraceRef), "incident": (row.IncidentRef), "key": ($Select(kind = "setting": {}.%FromJSON(row.DryRun).key, 1: "")), "session": "", "task": ""}
 	Kill row
 	Set info.task = ..WaitTask(ref, 10)
 	Do $$$AssertTrue(info.task '= "", "its task exists")
@@ -2833,18 +3109,48 @@ Method WaitOutcomes(ref As %String, count As %Integer, seconds As %Integer) As %
 	Quit list
 }
 
-/// Exactly one outcome of the Ref once its target IncidentManager has handled the first, with the outcome, the Ref, the incident and the hold's
-/// SuperSession (the TraceRef); session is the hold's session ("" skips that check).
-Method AssertOneOutcome(ref As %String, outcome As %String, info As %DynamicObject, session As %String, label As %String) [ Private ]
+/// Exactly one outcome of the Ref once its target (IncidentManager for a fix, SettingsOps for a setting) has handled the first, with the outcome, the Ref,
+/// the incident and the hold's SuperSession (the TraceRef); session is the hold's session ("" skips that check).
+Method AssertOneOutcome(ref As %String, outcome As %String, info As %DynamicObject, session As %String, label As %String, target As %String = "IncidentManager") [ Private ]
 {
 	Set list = ..WaitOutcomes(ref, 1, 15)
 	Do $$$AssertEquals(list.%Size(), 1, label_": exactly one outcome is sent")
 	If list.%Size() '= 1 Quit
 	Set one = list.%Get(0)
-	Do $$$AssertEquals(one.outcome_"|"_one.approvalRef_"|"_one.incidentRef_"|"_one.target, outcome_"|"_ref_"|"_info.incident_"|IncidentManager", label_": it is "_outcome_" for the Ref and the incident, to IncidentManager")
+	Do $$$AssertEquals(one.outcome_"|"_one.approvalRef_"|"_one.incidentRef_"|"_one.target, outcome_"|"_ref_"|"_info.incident_"|"_target, label_": it is "_outcome_" for the Ref and the incident, to "_target)
 	Do $$$AssertEquals(one.super, info.trace, label_": it carries the TraceRef as SuperSession")
 	If session '= "" Do $$$AssertEquals(one.session, session, label_": it is in the hold's session")
 	Do $$$AssertNotTrue($ListFind($ListBuild(1, 2, 3), one.status), label_": the target has handled it")
+}
+
+/// Asserts that the hold of the session sent an ApprovalOutcome and no Msg.Request: an approved setting is never replayed, so no model runs.
+Method AssertNoRequest(session As %String, label As %String) [ Private ]
+{
+	Set classes = $ListFromString(..HoldRequests(session))
+	Do $$$AssertTrue($ListFind(classes, "OcuTalon.Bridge.Msg.ApprovalOutcome"), label_": the hold sent an ApprovalOutcome")
+	Do $$$AssertNotTrue($ListFind(classes, "OcuTalon.Bridge.Msg.Request"), label_": and no Msg.Request")
+}
+
+/// 1 when Ownership.Approvals of the session lists the request.
+Method ListedFor(session As %String, ref As %String) As %Boolean [ Private ]
+{
+	Set rows = ##class(OcuTalon.Data.Ownership).Approvals(session, .sc)
+	Do $$$AssertStatusOK(sc, "the approvals of the session are read")
+	Set found = 0
+	For index = 1:1:rows.Count() {
+		If rows.GetAt(index).Ref = ref Set found = 1
+	}
+	Quit found
+}
+
+/// Calls AnswersIn.FromPage for the ref with approve and web, as the page of the session does, and returns the AnswerResult's Result (or the status text).
+Method AnswerAs(session As %String, ref As %String) As %String [ Private ]
+{
+	New %session
+	Set %session = ##class(%CSP.Session).%New("ZzSettingAnswers"_..Number, 0)
+	Set %session.Data("OcuTalon.SessionRef") = session
+	Set sc = ##class(OcuTalon.Core.AnswersIn).FromPage(ref, "approve", "web", .result, .answeringRef)
+	Quit $Select($SYSTEM.Status.IsError(sc): $SYSTEM.Status.GetErrorText(sc), 1: result.Result)
 }
 
 /// The classes of the requests that the hold of the session sent, sorted, as a comma list.

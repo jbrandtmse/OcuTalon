@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
 import {
@@ -30,11 +30,6 @@ import { plain, tokenColor } from '../support/page';
  * specs run.
  */
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
-
-/** A poll that a routed /events handler is still answering when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const LIVE_REGIONS = '[aria-live], [role="log"], [role="status"], [role="alert"]';
 
@@ -72,10 +67,10 @@ const iso = (instant: number, offsetMs = 0): string => new Date(instant + offset
 
 const rail = (page: Page): Locator => page.getByRole('region', { name: 'Status', exact: true });
 const rowOf = (page: Page, marker: string): Locator => rail(page).locator('li.row').filter({ hasText: marker });
-/** Every section heading of the rail: the Telegram section first, then the four lists. */
+/** Every section heading of the rail: the Telegram section first, then the four lists, then Persona. */
 const sections = (page: Page): Locator => rail(page).getByRole('heading', { level: 3 });
-/** The headings of the four lists, in order: the Telegram section's heading is left out, so the positions do not move. */
-const headings = (page: Page): Locator => sections(page).filter({ hasNotText: /^Telegram$/ });
+/** The headings of the four lists, in order: the Telegram and Persona headings are left out, so the positions do not move. */
+const headings = (page: Page): Locator => sections(page).filter({ hasNotText: /^(Telegram|Persona)$/ });
 /** The heading of the approval requests, selected by its name. */
 const approvals = (page: Page, count: number): Locator => rail(page).getByRole('heading', { level: 3, name: `Approval requests, ${count}`, exact: true });
 const mainOf = (page: Page): Locator => page.locator('main.main');
@@ -105,9 +100,9 @@ test('R1: the rail is the region Status with its sections in order, live counts,
   await open(page);
   const status = rail(page);
   await expect(status, 'the rail is the region Status').toHaveCount(1);
-  await expect(sections(page), 'five sections, Telegram first').toHaveCount(5);
+  await expect(sections(page), 'six sections, Telegram first and Persona last').toHaveCount(6);
   await expect(headings(page), 'and the four lists after it').toHaveCount(4);
-  const spoken = ['Telegram', 'Approval requests, 0', 'Background checks, 0', 'Reminders, 0', 'Recent decisions, 0'];
+  const spoken = ['Telegram', 'Approval requests, 0', 'Background checks, 0', 'Reminders, 0', 'Recent decisions, 0', 'Persona'];
   for (const [i, name] of spoken.entries()) {
     await expect(sections(page).nth(i), `heading ${i + 1} is named "${name}"`).toHaveAccessibleName(name);
   }
@@ -132,7 +127,7 @@ test('R1: the rail is the region Status with its sections in order, live counts,
     'To cancel, ask: "Cancel my reminder to stretch."',
   ]);
   await expect(status.locator(LIVE_REGIONS), 'the rail has no live region').toHaveCount(0);
-  await expect(status.locator('h3[tabindex="-1"]'), 'each heading can take focus').toHaveCount(5);
+  await expect(status.locator('h3[tabindex="-1"]'), 'each heading can take focus').toHaveCount(6);
 
   await page.setViewportSize({ width: 1280, height: 720 });
   expect((await page.locator('section.rail').boundingBox())!.width, 'the rail is 288px wide at 1280px').toBe(288);
@@ -454,6 +449,7 @@ test('R10: after live events the rail holds what a reload shows', async ({ page 
 
     await expect(approvals(page, 2), 'the live rail holds two requests').toBeVisible({ timeout: ONE_UPDATE_MS });
     await expect(headings(page).nth(3), 'and four decisions').toHaveAccessibleName('Recent decisions, 4', { timeout: ONE_UPDATE_MS });
+    await expect(rail(page).locator('app-persona-card'), 'the Persona card has read its own answer').toContainText('Professional (default)');
     const live = plain(await rail(page).innerText());
     expect(live, 'the departed request is gone').not.toContain(tools.leaving);
     expect(live, 'and the others are there').toContain(tools.staying);
@@ -462,6 +458,7 @@ test('R10: after live events the rail holds what a reload shows', async ({ page 
     await page.reload();
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     await expect(headings(page).nth(3)).toHaveAccessibleName('Recent decisions, 4');
+    await expect(rail(page).locator('app-persona-card'), 'the Persona card has read its own answer').toContainText('Professional (default)');
     expect(plain(await rail(page).innerText()), 'a reload shows the same rail').toBe(live);
   } finally {
     await cleanFixtureRows(refs);
@@ -477,7 +474,7 @@ test('R11: with Telegram included, the first section is the Telegram card with i
     const status = rail(page);
     await expect(sections(page).first(), 'the first section is Telegram, with no count').toHaveText('Telegram');
     await expect(sections(page).first().locator('[aria-hidden="true"]'), 'the Telegram heading has no count').toHaveCount(0);
-    await expect(sections(page), 'then the four lists').toHaveCount(5);
+    await expect(sections(page), 'then the four lists and Persona').toHaveCount(6);
     await expect(status.locator('app-telegram-card'), 'the card says it is not set up').toContainText('Telegram not set up');
     const link = status.getByRole('link', { name: 'How to set it up (opens in a new tab)', exact: true });
     await expect(link, 'with a link to set it up').toHaveCount(1);

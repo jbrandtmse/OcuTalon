@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page } from '../support/fixtures';
 
 import { README_ACCOUNT, envelope, noRoleAccount, signIn, signInOverHttp, stackOrigin, submitSignIn } from '../sign-in/helpers';
 import { loadedAfter } from '../support/floor';

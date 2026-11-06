@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from '../support/fixtures';
 
 import { ON_MOCK, reminderThroughGuide } from '../support/demo-path';
 import { pointKeys } from '../support/devices';

@@ -1,6 +1,6 @@
 /// The catalog of the texts that OcuTalon sends or shows and that Lane B produces (AD-29, AD-32): the pairing replies and
 /// press alerts of Telegram, the answered statuses, the conversation and allowance texts, the fallback reasons, tell now and
-/// reminders, the status banners and their actions, the sign-in page's and the splash screen's texts and the audit line. The XData block Entries holds
+/// reminders, the status banners and their actions, the sign-in page's and the splash screen's texts, the audit line and the persona notices (approval.persona, persona.applied, persona.stale). The XData block Entries holds
 /// one JSON object whose names are the catalog keys, <prefix>.<name>, and whose values are
 ///   {"text": fixed text with {camelCase} placeholders, "web": the page wording when it differs from text,
 ///    "slots": {"<placeholder>": "<type>"}, "source": the UX section, "gap": the form the UX does not fix,
@@ -568,6 +568,21 @@ XData Entries [ MimeType = application/json ]
   "text": "Recorded in the IRIS audit log.",
   "slots": {},
   "source": "EXPERIENCE Incidents and Approvals / Results"
+ },
+ "approval.persona": {
+  "text": "OcuTalon suggests a new persona for you. Now: {old}. Proposed: {new}. Nothing changes unless you approve.",
+  "slots": {"old": "text", "new": "text"},
+  "source": "EXPERIENCE Message Catalog / Personality notices / Persona proposal"
+ },
+ "persona.applied": {
+  "text": "Persona updated. It applies from your next message.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Personality notices / Persona applied"
+ },
+ "persona.stale": {
+  "text": "Your persona changed after this was suggested. Nothing was changed.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Personality notices / Persona stale"
  },
  "toolCall.request": {
   "text": "Run {tool}\nInputs: {inputs}\nNo dry run is available for this tool. Approving runs exactly this call once.",

@@ -13,7 +13,7 @@
 ///     decisions or since a time, noticed incidents, pending approval requests, pairing, and the web copies of the notice
 ///     cards (RecentNotices), the messages of the simulated phone (RecentPhone), the emails of the simulated mailbox
 ///     (RecentMail), the session's own decide decision of an Item (DecisionOfItem) and the delivery of an approval message
-///     (DeliveryFor).
+///     (DeliveryFor), and the delivery of a notice by the notice's Ref (DeliveryByRef).
 ///     On a local install (onlineDemo off) a session also sees the noticed incidents of owner instance, and their
 ///     pending approval requests, for the productions its own checks watch. A record of owner eval is never visible.
 ///   - The snapshot's chat reads only the newest turns, the newest noticed incidents and the newest notice cards
@@ -38,6 +38,10 @@
 ///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
 ///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. RecentTurns leaves out a refused
 ///     turn, and RecentNotices includes the allowance cards.
+///   - The Documents page's reads (Story 34.2) are Rows kinds too: Documents, the session's own documents (and on a local install those of
+///     owner instance, which every user shares), newest first, and Document, one by its Ref; a document the session can't see answers "".
+///   - Upload (Story 34.3) is the session's own upload by its Ref, a Rows kind too; Data.Upload's Take and Drop read through it, and an upload of
+///     another session answers "", exactly as for a missing one.
 ///   - FinishedToolCalls (Story 31.2) is the session's own tool_call approval requests that finished in a window of FinishedAt, oldest
 ///     first: Conversation's code-written note to the next turn reads it (AD-30). It is a Rows kind like the others.
 Class OcuTalon.Data.Ownership
@@ -278,6 +282,35 @@ ClassMethod Checks(sessionRef As %String, Output sc As %Status) As %ListOfObject
 	Quit ..Rows("checks", sessionRef, .sc)
 }
 
+/// The session's documents, newest AddedAt first and then newest ID first: its own on the online demo, and on a local install the
+/// documents of owner instance, which every session shares (AD-4, AD-21). sc is an error status when the read failed.
+ClassMethod Documents(sessionRef As %String, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("documents", sessionRef, .sc, ..LocalFlag())
+}
+
+/// The upload with this Ref when it is the session's own, otherwise "": an upload of another session answers like a missing one. Ref and
+/// SessionRef compare exactly (EXACT collation). ref may come from a command or request input; it is only ever a bound value.
+ClassMethod Upload(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Upload
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ref = "" Quit ""
+	Set rows = ..Rows("upload", sessionRef, .sc, ref)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
+/// The document with this Ref when the session can see it (its own, or on a local install one of owner instance), otherwise "": a
+/// document of another session answers like a missing one. ref may come from request input; it is only ever a bound value.
+ClassMethod Document(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Document
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ref = "" Quit ""
+	Set rows = ..Rows("document", sessionRef, .sc, ref, ..LocalFlag())
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
 /// The session's newest decisions of Kind decide (the attention decision), newest RecordedAt first, at most max.
 ClassMethod Decisions(sessionRef As %String, max As %Integer = 20, Output sc As %Status) As %ListOfObjects
 {
@@ -368,6 +401,25 @@ ClassMethod DeliveryFor(approvalRef As %String, channel As %String, sessionRef A
 	For i = 1:1:rows.Count() {
 		Set row = rows.GetAt(i)
 		If (row.ApprovalRef = approvalRef) && (row.Channel = channel) && (row.OwnerRef = sessionRef) {
+			Set found = row
+			Quit
+		}
+	}
+	Quit found
+}
+
+/// The session's newest Delivery row for the notice's Ref (the DecisionRef of its rows) and channel, or "": a row of owner eval, instance
+/// or another session, a row with another Ref or channel, and one whose Ref differs only in case all answer like a missing one. The
+/// statement narrows the rows by OwnerRefChannelIndex; the values are then compared exactly. The values are only ever bound values.
+ClassMethod DeliveryByRef(ref As %String, channel As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Delivery
+{
+	Set sc = $SYSTEM.Status.OK()
+	If (ref = "") || (channel = "") Quit ""
+	Set rows = ..Rows("deliveryByRef", sessionRef, .sc, ref, channel)
+	Set found = ""
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		If (row.DecisionRef = ref) && (row.Channel = channel) && (row.OwnerRef = sessionRef) {
 			Set found = row
 			Quit
 		}
@@ -806,6 +858,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 		Set class = "OcuTalon.Data.Delivery", binds = "aao"
 		Quit "SELECT ID FROM OcuTalon_Data.Delivery WHERE ApprovalRef = ? AND Channel = ? AND OwnerRef = ? ORDER BY ID DESC"
 	}
+	If kind = "deliveryByRef" {
+		Set class = "OcuTalon.Data.Delivery", binds = "aao"
+		Quit "SELECT ID FROM OcuTalon_Data.Delivery WHERE DecisionRef = ? AND Channel = ? AND OwnerRef = ? ORDER BY ID DESC"
+	}
 	If kind = "reminderSetOrFired" {
 		Set class = "OcuTalon.Data.Reminder", binds = "o"
 		Quit "SELECT TOP 1 ID FROM OcuTalon_Data.Reminder WHERE SessionRef = ? AND State IN ('pending', 'fired') ORDER BY CreatedAt DESC, ID DESC"
@@ -833,6 +889,18 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "lastEvent" {
 		Set class = "OcuTalon.Live.Event", binds = "oa"
 		Quit "SELECT TOP 1 ID FROM OcuTalon_Live.Event WHERE Stream = ? AND Type = ? ORDER BY Seq DESC"
+	}
+	If kind = "documents" {
+		Set class = "OcuTalon.Data.Document", binds = "oa"
+		Quit "SELECT d.ID FROM OcuTalon_Data.Document d WHERE (d.OwnerRef = ? OR (? = 1 AND d.OwnerRef = 'instance')) ORDER BY d.AddedAt DESC, d.ID DESC"
+	}
+	If kind = "document" {
+		Set class = "OcuTalon.Data.Document", binds = "aoa"
+		Quit "SELECT d.ID FROM OcuTalon_Data.Document d WHERE d.Ref = ? AND (d.OwnerRef = ? OR (? = 1 AND d.OwnerRef = 'instance'))"
+	}
+	If kind = "upload" {
+		Set class = "OcuTalon.Data.Upload", binds = "ao"
+		Quit "SELECT u.ID FROM OcuTalon_Data.Upload u WHERE u.Ref = ? AND u.SessionRef = ?"
 	}
 	Quit ""
 }

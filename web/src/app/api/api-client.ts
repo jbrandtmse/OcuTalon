@@ -8,6 +8,9 @@ import type {
   AnswerChannel,
   BreakFeedSent,
   DismissBody,
+  DocumentAdded,
+  DocumentRemoved,
+  DocumentsList,
   EventsResponse,
   GuideMarker,
   MailboxAccepted,
@@ -16,9 +19,12 @@ import type {
   MessagePost,
   PairingCode,
   PublicStatus,
+  SettingsBody,
+  SettingsSaved,
   StateSnapshot,
   UnpairDone,
 } from './api-types';
+import type { PersonaPut, PersonaSaved, PersonaState } from './persona-types';
 
 const BASE = '/ocutalon/api/v1';
 
@@ -33,6 +39,20 @@ export class ApiClient {
   /** The snapshot of the signed-in user's session. */
   state(): Observable<StateSnapshot> {
     return this.http.get<StateSnapshot>(`${BASE}/state`);
+  }
+
+  /** The settings page's values (admins only): a 403 for anyone else fails as an HttpErrorResponse whose `error` is the body. */
+  settings(): Observable<SettingsBody> {
+    return this.http.get<SettingsBody>(`${BASE}/settings`);
+  }
+
+  /**
+   * Saves one settings section: a POST of the section's fields as a JSON object (the session and the user are the caller's, never in the body).
+   * The answer is {result: 'done', sections}; a 400 `bad_settings` (with `fields`), a 409 `demo_step_failed`, a 501 and a 500 fail as an
+   * HttpErrorResponse whose `error` is the body (SettingsError).
+   */
+  saveSettings(section: string, values: object): Observable<SettingsSaved> {
+    return this.http.post<SettingsSaved>(`${BASE}/settings/${encodeURIComponent(section)}`, values);
   }
 
   /** Signs the user out: the server ends the CSP session and the whole sign-in group (204, no body). */
@@ -113,6 +133,28 @@ export class ApiClient {
     return this.http.delete<UnpairDone>(`${BASE}/pairing`, { body: {} });
   }
 
+  /** The session's documents (an install's, on a local install), newest first: the Documents page's list. */
+  documents(): Observable<DocumentsList> {
+    return this.http.get<DocumentsList>(`${BASE}/documents`);
+  }
+
+  /**
+   * Adds one document: a POST of {name, content}, the file's bytes in base64 (the session is the caller's, never in the body). The answer is
+   * {result: 'done', ref}; a 400 `bad_document` (with its `reason`), a 413, a 501 and a 500 fail as an HttpErrorResponse whose `error` is
+   * the body (DocumentRefusal).
+   */
+  addDocument(name: string, content: string): Observable<DocumentAdded> {
+    return this.http.post<DocumentAdded>(`${BASE}/documents`, { name, content });
+  }
+
+  /**
+   * Removes one document: a DELETE with the body {}, which the envelope interceptor completes with its headers. The answer is
+   * {result: 'done'}; a 404 for a document that the session cannot see, a 501 and a 500 fail as an HttpErrorResponse.
+   */
+  removeDocument(ref: string): Observable<DocumentRemoved> {
+    return this.http.delete<DocumentRemoved>(`${BASE}/documents/${encodeURIComponent(ref)}`, { body: {} });
+  }
+
   /**
    * The online demo's public status in its trace form (Story 16.5, 29.7; AD-13, AD-25): a GET of /ocutalon/public/status?for=trace, which
    * needs no session and whose busy comes from the connection check alone, with a unique query so that no cache answers.
@@ -137,5 +179,15 @@ export class ApiClient {
   /** The events after the two cursors, one for the session's stream and one for the instance's. */
   events(after: number, afterInstance: number): Observable<EventsResponse> {
     return this.http.get<EventsResponse>(`${BASE}/events`, { params: { after, afterInstance } });
+  }
+
+  /** The signed-in session's persona (Story 40.8): the preset, the language, the person's own words, whether those are offered, and a pending proposal's Ref. */
+  persona(): Observable<PersonaState> {
+    return this.http.get<PersonaState>(`${BASE}/persona`);
+  }
+
+  /** Saves the persona: a PUT, which the envelope interceptor completes with its headers. A refusal fails as an HttpErrorResponse whose `error` is the body `{error:{code,message}}`. */
+  savePersona(body: PersonaPut): Observable<PersonaSaved> {
+    return this.http.put<PersonaSaved>(`${BASE}/persona`, body);
   }
 }

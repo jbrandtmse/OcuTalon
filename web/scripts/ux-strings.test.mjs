@@ -43,6 +43,7 @@ const IMPORTED = [
   ['chat/decision-view.ts', ['DECISION_TEXTS']],
   ['rail/rail-view.ts', ['RAIL_TEXTS']],
   ['rail/telegram-card/telegram-card-view.ts', ['TELEGRAM_CARD_TEXTS']],
+  ['rail/persona-card/persona-card-view.ts', ['PERSONA_TEXTS']],
   ['shared/trace-view.ts', ['TRACE_TEXTS']],
   ['banners/banner-view.ts', ['BANNER_TEXTS']],
   ['shared/layout-view.ts', ['LAYOUT_TEXTS']],
@@ -61,6 +62,8 @@ const IMPORTED = [
   ['header/sign-out-texts.ts', ['SIGN_OUT_TEXTS']],
   ['header/demo-view-texts.ts', ['DEMO_VIEW_TEXTS']],
   ['chat/try-it-view.ts', ['TRY_IT_TEXTS']],
+  ['settings/settings-view.ts', ['SETTINGS_TEXTS']],
+  ['documents/documents-view.ts', ['DOCUMENTS_TEXTS', 'REASON_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -102,6 +105,15 @@ const fromSource = [
 const themeLabels = [...codeOf('header/header.ts').matchAll(new RegExp(`\\{ value: ${QUOTED}, label: ${QUOTED} \\}`, 'g'))].map((match) => match[3] ?? match[4]);
 assert.equal(themeLabels.length, 3, 'header.ts: the theme menu has three options');
 for (const label of themeLabels) fromSource.push(['THEME_OPTIONS', label]);
+
+// The Persona card's six presets (DW-709): the name and the description of each, read from the source as the theme labels are. The ids are
+// not UX text, so PRESETS is not imported with the constants above.
+const presets = [...codeOf('rail/persona-card/persona-card-view.ts').matchAll(new RegExp(`\\{ id: ${QUOTED}, name: ${QUOTED}, description: ${QUOTED} \\}`, 'g'))];
+assert.equal(presets.length, 6, 'persona-card-view.ts: PRESETS has six entries');
+for (const match of presets) {
+  fromSource.push(['PRESETS name', match[3] ?? match[4]]);
+  fromSource.push(['PRESETS description', match[5] ?? match[6]]);
+}
 
 /** Collapses white space to one space and trims, as the page's text nodes render. */
 const collapse = (text) => text.replace(/\s+/g, ' ').trim();
@@ -155,6 +167,30 @@ for (const [name, text] of [...imported, ...fromSource, ...fromTemplates]) {
  */
 const SOURCES = {
   ux: [
+    'Documents',
+    'Add documents',
+    'Remove',
+    'No documents yet. Add a runbook to get cited answers.',
+    'Indexing\u2026',
+    'Ready',
+    "Couldn't read it: {reason}",
+    "Remove '{name}'? Answers will stop citing it.",
+    'Settings \u00b7 OcuTalon',
+    'Settings',
+    'Models',
+    'Budgets',
+    'Channels',
+    'Daily digest',
+    'Time zone',
+    'Check thresholds',
+    'Save changes',
+    'Saved. Applies within a minute. Recorded in the audit log.',
+    "Couldn't save. Nothing was changed.",
+    'Only OcuTalon admins can open settings.',
+    'On',
+    'Off',
+    'Pages',
+    'Stay',
     'Message OcuTalon',
     'Demo view',
     'Off shows the page as it looks on your own install.',
@@ -436,6 +472,31 @@ const SOURCES = {
     'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval.',
     'Nothing was resent: {reason}. Nothing was changed.',
     'Recorded in the IRIS audit log.',
+    'Persona',
+    'Choose how OcuTalon words its chat replies and the reasons for its decisions. What OcuTalon may do, and what needs your approval, never changes.',
+    'Change',
+    'Save',
+    'Language',
+    'Name a language, such as Spanish or Portuguese (Brazil). Notices, cards and buttons stay in English.',
+    'Your own words',
+    '{n} of 1,000 characters',
+    'OcuTalon suggested a change. It waits for your answer in Approval requests.',
+    'Professional (default)',
+    'Calm, short and plain.',
+    'Starship computer',
+    'Crisp status reports, formal and brief.',
+    'Pirate',
+    'Sailing words and a good-humoured tone; the facts stay exact.',
+    'Kind friend',
+    'Warm, patient and encouraging.',
+    'Another language',
+    'Replies and reasons in the language you name.',
+    'Describe the tone, style and preferences you want.',
+    'Change how OcuTalon talks to you',
+    'Now: {old}',
+    'Proposed: {new}',
+    'Nothing changes unless you approve.',
+    'On the online demo you can choose a preset or a language. Your choice lasts for this visit.',
   ],
   design: [
     'Unread',
@@ -447,6 +508,10 @@ const SOURCES = {
     '{count} {noun} affected',
   ],
   ac: {
+    'Story 40.4 (U-278: the two help sentences of the Language and Your own words fields)': [
+      "OcuTalon deletes common English phrases that say all is well from the model's replies, so its own checks give the verdict. In another language, the model is only told not to say so.",
+      "OcuTalon deletes common English phrases that say all is well from the model's replies, so its own checks give the verdict. If this persona writes in another language, the model is only told not to say so.",
+    ],
     'Story 6.2: Approve or reject a fix from the web chat (the expiry caption "Expires {when}" and the busy notice of an unanswered press, which adds "The request is still waiting." to the busy and failure rule of EXPERIENCE.md)': [
       'Expires {when}',
       "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting.",
@@ -457,8 +522,28 @@ const SOURCES = {
     'Story 2.8: Show the status rail (the approval request row, "Raised 14:13 \u00b7 expires tomorrow at 14:13")': ['Raised {when}'],
     'Story 2.13: Open Visual Trace from the page (the optional "Open Visual Trace" button of the popover)': ['Open Visual Trace'],
     'Story 16.8: The page counts down to the reset (the reset countdown reads "Next reset {time} \u00b7 in {countdown}")': ['Next reset {time} \u00b7 in {countdown}'],
+    'Story 33.3: Epic 33 burn-down (the Demo mode section\'s own confirmation, DW-699)': [
+      'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.',
+    ],
+    'Story 34.2: Add and remove documents on a Documents page (the page title "Documents \u00b7 OcuTalon")': ['Documents \u00b7 OcuTalon'],
   },
   ruled: {
+    'Story 33.2 ruling U-269 (T1 to T8: the unsaved prompt and its Leave button, the denied view\'s link back to the chat, the line of a section that is not built yet, the five threshold labels, T7 the UX\'s Demo mode sentence without its FR reference, and the name of the settings navigation; T2\'s Stay, T6\'s On and Off, T8\'s Pages and T10\'s two API messages are sentences or words that the UX holds, and sit under ux)': [
+      'Settings sections',
+      "This part of OcuTalon isn't built yet.",
+      'Back to the chat',
+      'You have unsaved changes in this section. Leave without saving?',
+      'Leave without saving',
+      'Disk free space below (%)',
+      'Journal free space below (%)',
+      'License use above (%)',
+      'Queue backlog above (messages)',
+      'Oldest queued message waiting over (minutes)',
+      'Demo mode adds the demo guide, Break the feed, and the simulated devices.',
+    ],
+    'Story 33.2 ruling U-270 (T9, the Demo mode field message when the Demo step failed after the value was written: the value stands, so the text never says that nothing was changed)': [
+      "Demo mode is set to {v}, but the switch didn't finish. OcuTalon tries again at its next start.",
+    ],
     'Story 12.10 veto item (U-244, orchestrator veto: the hint of the Telegram row in the drawer band, which names the header\'s Status button; EXPERIENCE.md gives only the line for the other bands)': [
       'Optional: press {status} at the top of the page, then scan the QR code in the Telegram card to get the notice on your own phone.',
     ],
@@ -518,6 +603,16 @@ const SOURCES = {
     ],
     'Story 7.8 (U-249: the either-way sentence of the dry run, which the notice carries since Story 7.7; the page renders the catalog\'s text, cut by the generator from the two entries that hold it)': [
       'All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived.',
+    ],
+    'Story 34.2 rulings at the spec gate (DW-722, U-284; the lead, 2026-11-05: the reason texts of "Couldn\'t read it: {reason}" with the size ruling of U-285 #864, the Remove button and its accessible name, and the failure notice of the Remove dialog)': [
+      'Remove {name}',
+      "Couldn't remove it. Nothing was changed.",
+      "it isn't a Markdown, plain-text, PDF or Word (.docx) file.",
+      'that file is {size}; the limit is 10 MB.',
+      'the file is empty.',
+      'OcuTalon found no text in it.',
+      "this part of OcuTalon isn't built yet.",
+      'something went wrong inside OcuTalon.',
     ],
   },
   calendar: [

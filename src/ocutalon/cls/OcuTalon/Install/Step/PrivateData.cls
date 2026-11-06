@@ -1,7 +1,10 @@
 /// The private-data check that ends every start (AD-3, AD-23). It fails, naming the first offender, unless:
 ///   - a sample global under each private mapping resolves to OCUTALON_PRIVATE;
-///   - every ^OcuTalonP. and ^OcuTalonBP. storage global of a compiled OcuTalon class resolves there too;
-///   - OCUTALON_DATA holds no global with a private prefix.
+///   - every ^OcuTalonP. and ^OcuTalonBP. storage global of a compiled OcuTalon class resolves there too, among them the
+///     memory and document globals of OcuTalon.Data.Memory and OcuTalon.Data.Document (AD-21);
+///   - every storage global of a knowledge-base table (a class of schema OcuTalonKB, AD-21), whatever its prefix, resolves there too,
+///     so a table made without the private DEFAULTGLOBAL fails and is named;
+///   - OCUTALON_DATA holds no global with a private prefix, ^IRIS.IF.* (%iFind's word dictionary) among them.
 Class OcuTalon.Install.Step.PrivateData Extends OcuTalon.Install.Step
 {
 
@@ -23,26 +26,43 @@ ClassMethod Run() As %Status
 }
 
 /// storage(global) = the class, for each storage global (no caret, no subscripts) of a compiled OcuTalon class
-/// that starts with OcuTalonP. or OcuTalonBP.
+/// that starts with OcuTalonP. or OcuTalonBP., and for every storage global of a compiled class of schema OcuTalonKB
+/// whatever its prefix: data, id, index, stream and extent locations, and each location of its storage indexes.
 ClassMethod StorageGlobals(Output storage) As %Status
 {
 	Kill storage
 	Set statement = ##class(%SQL.Statement).%New()
-	Set sc = statement.%Prepare("SELECT parent->Name, DataLocation, IndexLocation, IdLocation, StreamLocation FROM %Dictionary.CompiledStorage WHERE parent->Name %STARTSWITH 'OcuTalon.'")
+	Set sc = statement.%Prepare("SELECT parent->Name, DataLocation, IndexLocation, IdLocation, StreamLocation, ExtentLocation FROM %Dictionary.CompiledStorage WHERE parent->Name %STARTSWITH 'OcuTalon.' OR parent->Name %STARTSWITH 'OcuTalonKB.'")
 	If $$$ISERR(sc) Quit sc
 	Set result = statement.%Execute()
 	If result.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "Reading the storage definitions failed: "_result.%Message)
 	While result.%Next() {
-		For column = 2:1:5 {
-			Set location = result.%GetData(column)
-			If $Extract(location) '= "^" Continue
-			Set global = $Piece($Piece(location, "(", 1), "^", 2)
-			If ($Extract(global, 1, 10) = "OcuTalonP.") || ($Extract(global, 1, 11) = "OcuTalonBP.") {
-				Set storage(global) = result.%GetData(1)
-			}
+		Set class = result.%GetData(1)
+		For column = 2:1:6 {
+			Do ..Keep(.storage, result.%GetData(column), class)
 		}
 	}
+	Set statement = ##class(%SQL.Statement).%New()
+	Set sc = statement.%Prepare("SELECT parent->parent->Name, Location FROM %Dictionary.CompiledStorageIndex WHERE parent->parent->Name %STARTSWITH 'OcuTalonKB.'")
+	If $$$ISERR(sc) Quit sc
+	Set result = statement.%Execute()
+	If result.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "Reading the storage indexes failed: "_result.%Message)
+	While result.%Next() {
+		Do ..Keep(.storage, result.%GetData(2), result.%GetData(1))
+	}
 	Quit $SYSTEM.Status.OK()
+}
+
+/// Lists the global of one storage location of a class: always for a knowledge-base class, and for any other class only when the
+/// global starts with OcuTalonP. or OcuTalonBP.
+ClassMethod Keep(ByRef storage, location As %String, class As %String) [ Private ]
+{
+	If $Extract(location) '= "^" Quit
+	Set global = $Piece($Piece(location, "(", 1), "^", 2)
+	If global = "" Quit
+	If ($Extract(class, 1, 11) = "OcuTalonKB.") || ($Extract(global, 1, 10) = "OcuTalonP.") || ($Extract(global, 1, 11) = "OcuTalonBP.") {
+		Set storage(global) = class
+	}
 }
 
 /// Reads the database directories from the configuration, in %SYS, and runs the three confirmations in namespace.

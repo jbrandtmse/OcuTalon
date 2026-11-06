@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Request } from '../support/fixtures';
 import qrcode from 'qrcode-generator';
 
 import { changeSnapshot, STATE } from '../support/api';
@@ -188,11 +188,6 @@ function symbolOf(link: string): { size: number; path: string } {
 test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)', () => {
   test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
 
-  /** A poll that a routed handler is still answering when a test ends must not fail the next test. */
-  test.afterEach(async ({ page }) => {
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
-  });
-
   /**
    * T2: the card's states from a changed snapshot: the matrix rows "Paused while off", "Paused while rejected" and "Not paused", and, from
    * Story 12.4, a paired session while paused (the pause comes before the paired view). There is no seam and no IRIS state: the snapshot
@@ -343,11 +338,6 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
 
 test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 12.3)', () => {
   test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
-
-  /** A poll that a routed handler is still answering when a test ends must not fail the next test. */
-  test.afterEach(async ({ page }) => {
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
-  });
 
   /** The bot name that the queued getMe answer gives, which the mock's default does not. */
   const BOT = 'ocutalon_qr_bot';
@@ -691,11 +681,6 @@ async function codeOf(card: Locator): Promise<string> {
 test.describe('a valid code pairs the chat with the session (Story 12.4)', () => {
   test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
 
-  /** A poll that a routed handler is still answering when a test ends must not fail the next test. */
-  test.afterEach(async ({ page }) => {
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
-  });
-
   const CHAT = 84017734110;
   const NAME = 'Dana';
   const PAIRING_PATH = '/ocutalon/api/v1/pairing';
@@ -848,11 +833,6 @@ test.describe('a valid code pairs the chat with the session (Story 12.4)', () =>
 test.describe('bad codes, a bare start command and unpairing get polite answers (Story 12.5)', () => {
   test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
 
-  /** A poll that a routed handler is still answering when a test ends must not fail the next test. */
-  test.afterEach(async ({ page }) => {
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
-  });
-
   const PAIRED_CHAT = 84017734111;
   const MOVING_CHAT = 84017734112;
   const STRANGER_CHAT = 84017734113;
@@ -977,11 +957,6 @@ test.describe('bad codes, a bare start command and unpairing get polite answers 
 
 test.describe('chat and notifications in the paired Telegram chat (Story 12.6)', () => {
   test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
-
-  /** A poll that a routed handler is still answering when a test ends must not fail the next test. */
-  test.afterEach(async ({ page }) => {
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
-  });
 
   const CHAT = 84017734114;
   const NAME = 'Zqweb';
