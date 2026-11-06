@@ -15,3 +15,5 @@
 2026-11-06T04:31:41Z	Epic 19	ledger_routed_planned	story=19-3 entries=2 excess=0 by=epic_start ids=DW-731,DW-740 note=bullets_were_missing(routed_in_epic34)
 2026-11-06T04:31:41Z	Epic 19	ledger_routed_planned	story=19-4 entries=4 excess=0 by=epic_start ids=DW-720,DW-735,DW-739,DW-747 note=bullets_were_missing(routed_in_epic34)
 2026-11-06T04:31:41Z	Epic 19	ledger_routed_planned	story=19-7 entries=1 excess=0 by=epic_start ids=DW-719 note=bullets_were_missing(routed_in_epic34)
+2026-11-06T04:33:18Z	Epic 19	epic_context_compiled	sha=fc1921e1 reason=planning_artifact_newer(dw_bullets) model=opus words=1710
+2026-11-06T04:34:08Z	Story 19.2	stage_spawned	stage=plan spawn_at=2026-11-06T04:34:08Z model=opus agent_name=19-2-compute-embeddings-offline-in-a-worker-plan-1 cycle_iteration=1
