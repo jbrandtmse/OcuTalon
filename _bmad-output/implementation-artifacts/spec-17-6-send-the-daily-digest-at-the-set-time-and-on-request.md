@@ -2,7 +2,7 @@
 title: 'Story 17.6: Send the daily digest at the set time and on request'
 type: 'feature'
 created: '2026-11-06'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -177,7 +177,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
   - `Test/Install/SecurityOverview.cls` doc :37 and `released` :43 (Q6; the ruling's "line 37 / doc line 31" are these two lines). `docs/security-overview.md` tools table :13-22, written by `bash docker/tests/test-security-overview.sh --write`.
   - `Test/Msg/Catalog.cls`: the Watch count :81-84 (50) and the total :122 (152), the Keys list ~:1105, `Fixtures` XData :1246 (rows ~:1396-1400).
   - Lane A tests outside the footprint, not contended: `Test/Agent/Constants.cls` `TestToolNames` :27-51 (12 names), `Test/Agent/Runners.cls` `REMINDERTOOLS` :77 and `TestToolInventory` :320-337, `Test/Agent/Instructions.cls` :25 and :234, `Test/Watch/Tools.cls` `TestDeclarations` :68-77, `Test/Watch/Turns.cls` :63.
-  - Contended, Epic 19's footprint (Q7, open): `Test/Tools/Reminders.cls` :275 (the exact sorted tool names of a chat request) and `Test/Bridge/Gate.cls` `TRUSTEDTOOLS` :117 (`TestFlagsAreListed` :1347-1365 requires every trusted-output tool there).
+  - Contended, Epic 19's footprint (Q7, RULED 2026-11-06 by the orchestrator: a plain union, in Q6's shape): `Test/Tools/Reminders.cls` :275 (the exact sorted tool names of a chat request) and `Test/Bridge/Gate.cls` `TRUSTEDTOOLS` :117 (`TestFlagsAreListed` :1347-1365 requires every trusted-output tool there).
   - Regression only (read, not edited): `Test/Checks/Heartbeat.cls` :215 (a quiet-sweep session's first header is the Tick), `Test/Checks/Runs.cls`, `Test/Schedule/Heartbeat.cls` :263, `Test/Digest/Runs.cls` :208.
 - Test helpers:
   - `Test/Channel/TelegramOut.cls` (LiveCase): `PairedChat` :111, `SentTo` :63, `TellNow` :165, `Rows` :133.
@@ -202,7 +202,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
   - `OnRequest` takes `Msg.Tick` (Due, then one `Compose` per due session), `Msg.Command.SendDigest` (the key check, one `Compose`, the answer) and `Digest.Msg.Compose`.
   - `OnResponse` finishes a `Compose` whose summary request came back.
   - The private seams `Rows` (Coverage.Build), `Saved`, `SendSummary` (Decide, async), `Cost`, `NeedsYou`, `SendNotice` (Notify) and `SendCompose` (self) are what the tests override.
-  - `Parameter MESSAGESENDING` holds the proposed text under Design Notes: **commit only after the Planner's answer.**
+  - `Parameter MESSAGESENDING` holds exactly the Planner's ruled text (Design Notes, "Ruled text: MESSAGESENDING").
 - [ ] `Digest/Cost.cls` (new): `Yesterday(sessionRef, now, *sc) As %Numeric`.
 - [ ] `Digest/NeedsYou.cls` (new, Q4): `List(sessionRef, failedRows, *sc) As %DynamicObject` = `{count, names: [...], more}`, with `NEEDSYOUMAX` = 5, the order, the de-duplication and the bound of the contract.
 - [ ] `Production.cls` line 60 (lane A region): `Digest` `Enabled="true"` (DW-696).
@@ -215,7 +215,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
 - [ ] `Test/Install/SecurityOverview.cls` (Q6, ruled): append the one term `_","_$Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")` to `released` (:43) and extend the doc (:37). Regenerate `docs/security-overview.md` with `test-security-overview.sh --write`; never hand-edit it.
 - [ ] `Test/Install/Production.cls` (Q3, ruled): the Digest row `"enabled": 1, "stub": 0` and the doc line :13 ("Story 17.6 built Digest: it is enabled and carries no STUB").
 - [ ] Lane A tool-list tests (footprint extensions): `Test/Agent/Constants.cls` (13 names, `RELEASE1` still 12), `Test/Agent/Runners.cls` (`send_digest` from `DigestTools` for ChatAgent and its retry), `Test/Agent/Instructions.cls` (seven Watching tools), `Test/Watch/Tools.cls` `TestDeclarations`, `Test/Watch/Turns.cls` :63.
-- [ ] (Q7, open: wait for the ruling) `Test/Tools/Reminders.cls` :275, `send_digest` in the sorted list; `Test/Bridge/Gate.cls` `TRUSTEDTOOLS` :117, the term `OcuTalon.Tools.DigestTools:send_digest`.
+- [ ] (Q7, RULED by the orchestrator 2026-11-06) `Test/Tools/Reminders.cls` :275: insert `send_digest` into the sorted tool-name list and extend that assertion's message with "and, since Story 17.6, send_digest"; `Test/Bridge/Gate.cls` `TRUSTEDTOOLS` :117: append the term `OcuTalon.Tools.DigestTools:send_digest` (send_digest is trusted; no veto). Nothing else in either file (Epic 19 makes its own two edits there: a plain union). Condition: `send_digest`'s result holds only the fixed `MESSAGESENDING` text, with no digest content and no names; a fixed-strings test pins the tool result to that text byte for byte (`Test/Digest/Tool.cls`), with the mutation shown. Both files are reported as footprint extensions.
 - [ ] New `ci/mock/scenarios/A/` files:
   - `digest-summary.json` (marker; a 300-character text);
   - `digest-send-now.json` (marker; `toolUse` `send_digest` `{}`, then a text that claims no delivery).
@@ -232,7 +232,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
   - `Test/Digest/Send.cls` (production): web_admin and tool give `ok` and one Notification (`HopsSince` Digest to Notify); the repeat key; the Compose failure in Visual Trace; U-268 (no recipient: `SendDigest`'s properties equal `Msg.Command`'s); the Tick forward (Q1);
   - `Test/Digest/Tool.cls`: the mock marker turn calls `send_digest`, and the tool result the model read is `MESSAGESENDING`;
   - `Test/Channel/TelegramDigest.cls` (LiveCase, mock Telegram): matrix rows Telegram digest, Got it paired and other, Handled.
-  - Update `Test/Digest/Contracts.cls` (no stub) and `Test/Digest/Thresholds.cls` (the seven seeds).
+  - Update `Test/Digest/Contracts.cls` (no stub; and the `Sent` contract in `XData Contracts` gains `IdempotencyKey` `%String(MAXLEN=128)` and its index, and `TestRefCollation` lists `Sent||IdempotencyKey`: the lead's U-268 (3) gate) and `Test/Digest/Thresholds.cls` (the seven seeds).
 
 **Acceptance Criteria:**
 - Given `digest.time` and a session created before today's time, when the heartbeat's tick passes it, then `Checks` forwards the Tick, `Digest` sends one `Notification` of kind `digest` to `Notify` with the AD-32 Slots, and records one scheduled `Sent` row. Given a session created after it, then none is sent until tomorrow's tick (DW-651).
@@ -248,11 +248,19 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
 
 ## Spec Change Log
 
+- 2026-11-06 lead spec gate: U-268 (3) re-read done: the Sent contract test widened (33-1); the interim digest route before 18.2 recorded as an open question for the orchestrator (33-2, U-268 (1)).
+
+- 2026-11-06 lead: Q7 ruled by the orchestrator (the two one-term edits in Epic 19's files; a fixed-strings pin of the tool result); MESSAGESENDING ruled by the Contest Planner (reworded, exact). Status set to ready-for-dev at the lead's spec gate.
+
 - 2026-11-06 lead: Q1-Q6 and the public text ruled (orchestrator: Q1, Q3, Q6; Contest Planner under the owner's delegation: texts 1-3, Q2, Q4, Q5). Re-plan to fold them in.
 
 ## Review Triage Log
 
 ## Design Notes
+
+**Lead's spec gate, 2026-11-06: U-268 (3) re-read of the 15 specs that cite AD-1 and AD-14 (an Opus reader; 13 clear).**
+- **Decided (in-footprint, lead):** spec-33-1 :126 and :149 pin `Digest.Data.Sent`'s exact properties and indexes in `Test/Digest/Contracts.cls` `XData Contracts` (:97-116). 17.6 appends `IdempotencyKey` and its index, so the task that updates `Test/Digest/Contracts.cls` also adds `"IdempotencyKey": "%String(MAXLEN=128)"` and the new index (for example `"SessionRefKeyIndex": "SessionRef,IdempotencyKey"`, whatever name the code uses) to the `Sent` contract, and `Sent||IdempotencyKey` to `TestRefCollation`'s exact-collation list.
+- **Open with the orchestrator (does not block the build):** spec-33-2 :145 and U-268 (1) say the destinations come only from the session's `digest.channels`. Routing kind `digest` by `digest.channels` is Story 18.2's (`Notify`, Lane B, backlog), so until 18.2 lands an enabled `Digest`'s digests take `Notify`'s generic route: the session's own channels (web chat record, phone record in demo mode, the paired Telegram chat). The safety half of U-268 (1) holds (no recipient; only the session's own channels), but the ruled `MESSAGESENDING` wording "to the user's digest channels" is ahead of 18.2. Interim assumption for this build: no `Notify` change; the interim route is stated under Boundaries and Consumed-by (18.2). The lead carries the question to the orchestrator; its answer may add a task.
 
 **Rulings of 2026-11-06 on Q1-Q6 (binding on re-derivation; they answer the open questions below, which stay for the record).**
 - **PUBLIC TEXT (Contest Planner under the owner's delegation, exact):** (1) `digest.cost` = `Yesterday's cost: {cost}.` (slot `cost`, type `dailyCost`) APPROVED. (2) `button.gotIt` = `Got it` and `handled.marked` = `Marked as handled at {time}`, verbatim from UX-DR143, APPROVED. (3) the `send_digest` tool's step label `Sending your digest` APPROVED. (4) the overflow line `And {n} more on the OcuTalon page.` APPROVED (Q4 (b)). Any other new user-facing text (for example the Q5 (b) tool result) is PUBLIC TEXT: propose it verbatim under Design Notes; the lead sends it, and nothing that contains it is committed before the answer.
@@ -325,9 +333,11 @@ Paths are under `src/ocutalon/cls/OcuTalon/`; the bridge is under `src/bridge/cl
 - `digest.needsYouMore`: `And {n} more on the OcuTalon page.`, slot `n` type `count`. Source: Contest Planner ruling 2026-11-06, Q4 (b).
 - The tool's step label `Sending your digest`.
 
-**Proposed text (for the Planner): `OcuTalon.Digest.Process` `MESSAGESENDING`** (the `CommandResult.Message` of an accepted `SendDigest`, which the model reads as the tool result through `CommandCall.Answer`; Settings may show it later):
+**Ruled text: MESSAGESENDING (Contest Planner under the owner's delegation, 2026-11-06, a reword of the proposal below; exact):** `The digest is on its way to the user's digest channels. Its delivery is not confirmed yet: tell the user it is on its way, not that it has arrived.`
+
+**Proposed text (for the Planner, superseded by the ruling above): `OcuTalon.Digest.Process` `MESSAGESENDING`** (the `CommandResult.Message` of an accepted `SendDigest`, which the model reads as the tool result through `CommandCall.Answer`; Settings may show it later):
 - `The digest is being sent to the session's digest channels now; its delivery is not confirmed.`
-- Why new: no existing text says a digest is being sent (searched `src/`). It follows the owners' model-facing style (`ReminderOps` `MESSAGESET` "The reminder is set."). It is true for a first request and for a repeat, and it never claims delivery (Q5 (b)). The `Digest/Process.cls` task is marked "commit only after the Planner's answer".
+- Why new: no existing text says a digest is being sent (searched `src/`). It follows the owners' model-facing style (`ReminderOps` `MESSAGESET` "The reminder is set."). It is true for a first request and for a repeat, and it never claims delivery (Q5 (b)). The ruled text above replaces it; it may be committed.
 
 No other new user-facing text. The mock scenario's final chat text is CI-only fixture text and claims no delivery.
 
@@ -362,7 +372,7 @@ No other new user-facing text. The mock scenario's final chat text is CI-only fi
 
 **Contention (Rule 11) and allowed edits.**
 - Ruled edits to contended files: `Checks/Process.cls` (Q1), `Test/Install/Production.cls` (Q3), `Test/Install/SecurityOverview.cls` and `docs/security-overview.md` (Q6), `Test/Msg/Catalog.cls` (Q2, Lane B). `Test/Msg/Catalog.cls` and `docs/security-overview.md` are also changed on OCT-epic39, so the lead resolves them at the merge (the doc by regenerating it).
-- Waiting on Q7: `Test/Tools/Reminders.cls`, `Test/Bridge/Gate.cls`.
+- Q7 ruled: `Test/Tools/Reminders.cls` (one name in the sorted list, the message extended), `Test/Bridge/Gate.cls` (one `TRUSTEDTOOLS` term); footprint extensions.
 - `Tools/Names.cls`: a one-name append. `ci/mock/scenarios/A/`: new files only.
 - Not touched: `Checks/Beat.cls`, `Core/**`, `Data/Ownership.cls`, `Msg/Enum.cls`, `ci/units.sh`, `src/short-names.tsv`, `Test/Checks/**`, the spine.
 - Footprint extensions (outside the paths_hint, not contended): `Production.cls`, `Test/Agent/{Constants,Runners,Instructions}.cls`, `Test/Watch/Tools.cls`, `Test/Watch/Turns.cls`, `Test/Channel/TelegramDigest.cls`.
@@ -454,5 +464,5 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: Q7 (see Design Notes). Every tool offered to the Chat agent trips two exact pins in Epic 19's contended footprint that no ruling covers: Test/Tools/Reminders.cls :275 (the sorted tool names of a chat request) and Test/Bridge/Gate.cls TRUSTEDTOOLS :117 (every trusted-output tool listed; send_digest's output is code-written, so TRUSTEDOUTPUT 1). Recommended: allow two one-term edits in Q6's shape (send_digest in the sorted list; OcuTalon.Tools.DigestTools:send_digest appended), a plain union at the merge with Epic 19's memory tools. Q1-Q6 are folded in. The digest's tool-result text MESSAGESENDING is proposed for the Planner.
+Status: ready-for-dev
+Blocking condition: none
