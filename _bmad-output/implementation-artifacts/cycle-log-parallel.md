@@ -2221,3 +2221,7 @@
 2026-11-06T09:48:42Z	Epic 17	ruling	class=decide(U7_step2,U14) subject=17.5_dependency_arrow answer="(a) amend the spine Dependency direction diagram with one as-built arrow Data.BackgroundCheck(update trigger) --> Checks.Coverage.RecordRun, marker [AMENDED 2026-11-06, Story 17.5, orchestrator unattended ruling (U7)], runner writes it in its worktree, no AD id claimed, lint_spine after; AD-23 step list (DW-789) NOT in scope" checked="no in-flight spec cites Dependency direction (Epic 19: none; Epic 39 specs cite BackgroundCheck only as no row for a beat, so the trigger never fires for beats); spine hunks disjoint (A ~L50-95, C ~746/809/1347, D ~573-609/1114)"
 2026-11-06T09:48:54Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 with=ruling_(a)_spine_arrow,continue_rework_1
 2026-11-06T10:04:06Z	Run	ci_green_verified	runs=42196488614,42196488615 head=e5ae26af result=success via=none
+2026-11-06T10:05:07Z	Epic 4	worktree_provisioned	branch=OCT-epic4 base=2460339e(feature e5ae26af green + bookkeeping) reason=SC-5_reopen_story_4.11
+2026-11-06T10:05:07Z	Epic 4	worktree_bootstrapped	epic=4 result=ok
+2026-11-06T10:05:07Z	Epic 4	ci_duplicate_cancelled	runs=42199799038,42199799088 head=2460339e reason=duplicate_of_feature_e5ae26af_green(bookkeeping_only)
+2026-11-06T10:05:07Z	Epic 4	runner_dispatched	runner=a9306f8c89b5782ec model=opus lane=B slot=ocutalon-slot-b prompt=prompts/dispatch-epic-4-411.md story=4.11(charter;fix_forward) retro_review=skip
