@@ -263,3 +263,6 @@
 2026-11-06T23:04:56Z	Story 17.6	smoke_complete	method=cli(fresh_live_production,live_install-start;merged_tree_9683c1f0) result=pass iterations=2 defects_caught=0 evidence=e17s6u:production_30_PASS_rc=0;install-start_95_PASS_rc=0 cycle_iteration=4 model=claude-opus-5-5
 2026-11-06T23:04:56Z	Story 17.6	fresh_check	env=recipe(fresh_warm_stacks_e17s6gw,e17s6hw) tests=5(Tools.Persona,Checks.BeatOutcomes,Checks.Heartbeat,Checks.Beat,Digest.Due) result=pass order=forward,reverse cycle_iteration=4
 2026-11-06T23:05:40Z	Story 17.6	committed	sha=59db8cec build_sha=a4728283 ci=pending runs=42309412148,42309412146 fix_for=17-6-send-the-daily-digest-at-the-set-time-and-on-request rework=2(ci) includes=integrate_forward_9683c1f0(d6db28c5) footprint_extensions_added=Test/Tools/Persona.cls(Q7_shape,Epic_19_footprint),Test/Checks/BeatOutcomes.cls(G2_fixture)
+2026-11-06T23:42:59Z	Story 17.6	ci_resolved	story=17.6 sha=59db8cec runs=42309412148,42309412146 result=success failed=none via=none resolved_at=next_implement
+2026-11-06T23:42:59Z	Epic 17	notice	release_1.0.3_cut_about_17Z_Sat;Epic_17_merged_by_16Z;contract_green_by_15Z
+2026-11-06T23:42:59Z	Story 17.7	stage_spawned	stage=implement spawn_at=2026-11-06T23:42:59Z model=sonnet agent_name=17-7-give-an-all-clear-only-when-every-check-passed-implement-1 cycle_iteration=1 story_base=3683e8ea
