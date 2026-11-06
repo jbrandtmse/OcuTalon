@@ -12,6 +12,7 @@ import { Layout } from '../shared/layout';
 import { Popovers } from '../shared/popover';
 import { TraceLink } from '../shared/trace-link';
 import { DecisionRow } from './decision-row';
+import { PersonaCard } from './persona-card/persona-card';
 import { type RailFormat, railView, type RailView } from './rail-view';
 import { TelegramCard } from './telegram-card/telegram-card';
 
@@ -64,7 +65,8 @@ function formatAt(now: number): RailFormat {
  * The status rail (UX-DR51 to UX-DR57, FR-12): the sections of the live store, in order, as rail-view.ts shows them. Each list section
  * has an h3 with a live count (the visible "Background checks (1)" is hidden from assistive technology beside the spoken "Background
  * checks, 1"), its rows and, under an empty list, its empty text; the hints sit under the check and reminder lists. The Telegram
- * section comes first, only when the release includes it, with the Telegram card and no count.
+ * section comes first, only when the release includes it, with the Telegram card and no count. The Persona section comes last, with the
+ * Persona card (persona-card/persona-card.ts) and no count.
  * - Rows are read-only, but for the approval row of an incident's request: an approval row with a 3px attention bar, a check row, a
  *   reminder row with a ticking countdown in tabular figures, and a decision row as a disclosure. A row whose payload has a traceUrl
  *   ends its meta line with a trace link. The title of an incident's approval row is a button ("Show in the chat: Repair and resend
@@ -78,7 +80,7 @@ function formatAt(now: number): RailFormat {
  */
 @Component({
   selector: 'app-status-rail',
-  imports: [DecisionRow, TelegramCard, TraceLink],
+  imports: [DecisionRow, PersonaCard, TelegramCard, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (section of view().sections; track section.id) {
@@ -93,6 +95,8 @@ function formatAt(now: number): RailFormat {
         </h3>
         @if (section.id === 'telegram') {
           <app-telegram-card [telegram]="telegram()" />
+        } @else if (section.id === 'persona') {
+          <app-persona-card />
         } @else {
           @if (section.rows.length === 0) {
             <p class="empty">{{ section.empty }}</p>

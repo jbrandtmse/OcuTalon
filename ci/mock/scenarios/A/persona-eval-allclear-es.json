@@ -1,0 +1,12 @@
+{
+  "name": "persona-eval-allclear-es",
+  "match": {
+    "marker": "persona-eval-allclear-es"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Todo est\u00e1 bien. La producci\u00f3n funciona y no hay nada que revisar."
+    }
+  ]
+}

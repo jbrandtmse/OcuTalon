@@ -18,7 +18,7 @@ Parameter FALLBACKREASON = "no_key,daily_cap,budget,too_large,timeout,rate_limit
 Parameter APPROVALSTATE = "pending,approved,rejected,expired,cancelled,executing,done,failed";
 
 /// Approval request kinds (AD-11).
-Parameter APPROVALKIND = "fix,tool_call";
+Parameter APPROVALKIND = "fix,tool_call,setting";
 
 /// Channels (AD-14).
 Parameter CHANNEL = "web,phone,mailbox,telegram,email,webhook,slack,system";

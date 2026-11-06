@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-05-2026 22:58
+last_updated: 11-06-2026 00:47
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -411,14 +411,15 @@ development_status:
   39-6-evaluation-cases-for-the-heartbeat: backlog
   epic-39-retrospective: optional
 
-  epic-40: backlog
-  40-1-fix-the-persona-s-names-contracts-and-preset-texts: backlog
-  40-2-save-your-persona-and-let-ocutalon-propose-one: backlog
-  40-3-the-persona-reaches-chat-and-triage-as-a-data-block: backlog
-  40-4-the-persona-card: backlog
-  40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too: backlog
-  40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra: backlog
-  40-7-evaluation-cases-for-the-persona: backlog
+  epic-40: done
+  40-1-fix-the-persona-s-names-contracts-and-preset-texts: done
+  40-2-save-your-persona-and-let-ocutalon-propose-one: done
+  40-3-the-persona-reaches-chat-and-triage-as-a-data-block: done
+  40-4-the-persona-card: done
+  40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too: done
+  40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra: done
+  40-7-evaluation-cases-for-the-persona: done
+  40-8-the-persona-s-web-routes: done
   epic-40-retrospective: optional
 
   epic-41: backlog

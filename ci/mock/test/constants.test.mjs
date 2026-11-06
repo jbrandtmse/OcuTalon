@@ -135,3 +135,8 @@ test('row 16: every file that these tests read matches WEB_INPUT_PATTERN', () =>
   for (const file of filesRead) assert.ok(re.test(file), `${file} does not match WEB_INPUT_PATTERN`);
   assert.equal(re.test('src/ocutalon/cls/OcuTalon/Tools/Result.cls'), false);
 });
+
+test('Story 40.1: the mock reads propose_persona from OcuTalon.Tools.Names', () => {
+  const { toolNames } = readAll();
+  assert.ok(toolNames.includes('propose_persona'), 'propose_persona is among the tool names that the mock reads');
+});

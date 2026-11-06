@@ -2053,6 +2053,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T04:20:55Z status=routed owner=burndown by=spec_gate note=declined_by_15.3(never_edits_the_contended_docker/tests/test-production.sh);residual:give_row_21_a_longer_wait_or_a_retry_when_a_story_next_edits_that_file
 - 2026-11-03T09:49:32Z status=routed owner=burndown by=burndown note=not_a_1.0.0_blocker(test_flake_in_contended_test-production.sh);first_daily_release_after_1.0.0
 - 2026-11-03T18:35:57Z occurrence=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=lead note=CI_run_41689251949_iris(production)_live:production_row_21_wanted_CHK|start-fails|1|1_got_empty;flake_rerun
+- 2026-11-05T19:31:24Z occurrence=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=ci note=run_42087551083_job_127456620696_row_21_got_empty_on_78bcb982;rerun_failed_job
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2766,6 +2767,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T19:58:41Z occurrence=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=merge_gate note=CI run 41698083197 attempt 1, iris (image) shard:lane-b on OCT-epic0 3cd25ab0 (final head): GuideApi TestRunAgain failed; green on the rerun of the failed job
 - 2026-11-04T01:30:32Z occurrence=33-1-fix-the-step-2-contracts-in-the-spine by=fresh_check note=local_fresh_shard_lane-b_forward_e33s1f;story_touches_no_Web_class;rerun_below
 - 2026-11-04T04:29:11Z occurrence=10ce26ac by=merge_gate note=run 41769982647 attempt 1 shard:lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges (feature head)
+- 2026-11-04T12:20:31Z occurrence=40-2-save-your-persona-and-let-ocutalon-propose-one by=runner note=local_warm_shard_lane-b_on_merged_d2570fdc_TestRunAgain_red_passed_on_one_unchanged_rerun
 - 2026-11-04T11:49:15Z occurrence=33-1-fix-the-step-2-contracts-in-the-spine by=lead note=merged_tree_warm_shard_lane-b_red_once_1_of_88;passes_alone_on_one_rerun;shard_order_not_reproved_locally,CI_lane-b_decides
 - 2026-11-05T04:53:04Z occurrence=40-4 by=orchestrator note=OCT-epic40@960ea5d3 run 41966773001 iris (image) job 127045478389, shard lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges+TestRunAgain (also seen as DW-670 on OCT-epic39); failed job rerun once
 
@@ -3286,6 +3288,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
 - 2026-11-03T18:43:26Z occurrence=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=lead note=CI_run_41689251949_iris(browser)_live:sign-in_web/e2e/live/socket.spec.ts:138_W2_45s_timeout_in_loadedAfter_/state_wait(floor.ts:141)_runner_19;flake_rerun
 - 2026-11-03T16:12:51Z status=routed owner=burndown by=merge_gate note=occurrence:035be7d2_run_41659785594_iris(shards)_live:cards_I8_incident-card.spec.ts:396_loadedAfter_/state_wait_at_sign-in;green_on_rerun
+- 2026-11-04T13:05:11Z occurrence=40-2-save-your-persona-and-let-ocutalon-propose-one by=runner note=CI run 41826263930 attempt 1, iris (shards) live:floor on OCT-epic40 38cb2a18: web/e2e/floor/layout.spec.ts:299 G2 timed out (90 s) in loadedAfter's /state wait (support/floor.ts:141); a new spec for this root cause; the head changes no web, docker or ci file
 - 2026-11-05T07:30:44Z status=routed owner=burndown by=Contest_Planner(delegated) note=record each occurrence's elapsed time and whether a CSP session or licence limit was near; the burn-down checks whether /state waits on a held CSP session or licence unit (CI Community licence; the demo's 8 units). Occurrence 2026-11-05 OCT-epic11@5be5cc9e run 41983575716 chat.spec.ts:133 C1, named failure at the 30 s bound (11.21)
 - 2026-11-05T02:11:01Z owner=burndown by=adjudication note=Story 11.21 bounds loadedAfter's /state wait (named failure below the test timeout); a recurrence now fails naming the snapshot GET, the slow /state itself is not addressed
 - 2026-11-05T07:29:16Z occurrence=11-21-a-test-s-route-callback-never-outlives-its-test by=lead note=OCT-epic11@5be5cc9e run 41983575716 att 1 iris(browser) live:sign-in web/e2e/chat/chat.spec.ts:133 C1 failed NAMED: 'loadedAfter the snapshot GET /ocutalon/api/v1/state: no answer within 30 s' (11.21's default bound, 2/3 of the 45 s test timeout); before 11.21 the same wait ran to the test timeout; classification pending the orchestrator (flake rerun vs rework)
@@ -3293,6 +3296,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T10:38:22Z status=routed owner=11-22-first-daily-release-burn-down by=burndown note=chartered: first daily release burn-down (owner via the Planner 2026-11-05T01:51Z; orchestrator dispatch); Story 11.22
 - 2026-11-05T14:52:20Z owner=burndown by=adjudication note=Story 11.22 investigation: no held CSP session or licence unit was evidenced in the occurrences; a held ^%cspSession lock does delay /state (mechanism measured); loadedAfter now prints a DIAG /state dump (licence, CSP processes, session locks) when the snapshot GET passes its bound, so the next occurrence names the holder; the slowness itself is not fixed
 - 2026-11-05T21:23:01Z occurrence=ci-signin-split by=orchestrator note=OCT-epicci-signin-split@0e4348a0 run 42102775939 attempt 1 iris (browser) live:answers X9/X10/X12 loadedAfter /state no answer within 60 s; DIAG /state lines DID print this time (in the job log); rerun green
+- 2026-11-05T21:25:00Z status=routed owner=burndown by=orchestrator note=first DIAG (run 42102775939 a1, live:answers X9/X12): licence LUConsumed=1 of 8, CSPUsers=0, InstanceConnections=1; no ^%cspSession lock; cspServer2 procs READ (3831; 5026, 5062), cspServer3 pid 3822 EVTW across X9..X12; /state waited the full 60 s; X10 no DIAG (waitForResponse 60 s). Rules out licence and session locks; next: gateway/Apache request log + browser network log for /state at the failure
+- 2026-11-05T21:25:15Z status=routed owner=burndown by=Contest_Planner(delegated) note=HYPOTHESIS to test first (inference): long-lived requests (live WebSocket/event stream; the EVTW cspServer3 fits) hold the web gateway's server connections, so a new /state queues at the gateway. Steps in order: (1) at failure dump the gateway's status (connection table: active/idle/long-held per server) and configured limits beside DIAG; (2) capture the browser's network entry for /state (sent/stalled/queued); (3) if all gateway connections are held by long-lived requests, fix by config or routing (raise the limit or a separate pool for long-lived traffic), proven by a test opening N live pages that still gets /state within 5 s. Matters for the online demo too (Planner checks demo gateway limits after).
+- 2026-11-05T21:25:51Z status=routed owner=burndown by=Contest_Planner(delegated) note=LEAD (demo host IRIS container, read-only): /usr/irissys/csp/bin/CSP.ini has Maximum_Session_Connections=6, Queued_Request_Timeout=60, Server_Response_Timeout=60, Minimum_Server_Connections=3, no Maximum_Server_Connections; the repo sets none (image defaults; CI likely the same). Refined hypothesis (inference): the limit is PER CSP SESSION; several pages or trace+page in one session with long-lived requests (event stream, WebSocket) reach 6, so /state queues at the gateway, and Queued_Request_Timeout=60 matches 'no answer within 60 s'. Burn-down test: (1) at failure dump the gateway's per-session connection counts; (2) reproduce: N live pages in one session, then /state; (3) if confirmed, fix by raising Maximum_Session_Connections for OcuTalon's application in CSP.ini via the install (documented + tested) or keep long-lived requests to one per page. Planner applies the same setting on the demo host once proven.
+- 2026-11-05T21:25:58Z status=routed owner=burndown by=orchestrator note=fix caution: CSP.ini is the web gateway's file (/usr/irissys/csp/bin in the image); an install-time edit must survive upgrades and container rebuilds; check the gateway's documented per-application/per-server settings for this build (irislib/irissys read-only) before choosing
 
 ### DW-551: The release checklist does not check the draft notes for the inspiration's name outside the not-affiliated note (only the tracked tree's name-only-in-note row); the draft's own rules are Story 11.13's
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3381,6 +3388,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (install-upgrade) attempt 1 red only on live:cards A7 after a 2.0 min test timeout in page.waitForResponse; every other unit and group green; attempt 2 of the same job green on the same sha; Story 5.12 touched no web or cards file
 - 2026-10-31T16:42:54Z status=routed owner=burndown by=ci note=flake class, filed at CI resolution point 1 (Story 5.12); fix: find why the first state GET can miss the 120 s window under the install-upgrade group's load (sign-in wait or the response predicate)
 - 2026-10-31T16:43:23Z owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=burndown note=overflow at Epic 5's burn-down gate (re-open for Story 5.12): the approval-card spec is Lane B's (Epic 6); Story 31.2, Lane B's hardening story on approval requests, is the next story to touch that path; one occurrence, under the cap, so no burn-down story was chartered
+- 2026-11-02T03:14:15Z occurrence=40-1-fix-the-persona-s-names-contracts-and-preset-texts by=ci note=live:floor_layout.spec.ts:748_G7_timed_out_in_loadedAfter_waiting_for_first_GET_state_run_41378700188_sha_ab47bcb5
 - 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=A7_signs_in_over_HTTP(signInOverHttp),no_open();floor.ts_untouched
 - 2026-11-03T14:35:03Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41641201023 attempt 1, iris (browser) live:sign-in on OCT-epic0 c3d264c5: web/e2e/chat/chat.spec.ts:693 C7 timed out (45 s) in loadedAfter's /state wait at sign-in (support/floor.ts:141); green on the unchanged rerun
 
@@ -3498,6 +3506,47 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: host browser check at 1280x800
 - 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=cosmetic; the empty chat opens at its top; only if cheap, with DW-530's no-date-cost rule
+
+### DW-564: APPROVALKIND gains setting in OcuTalon.Msg.Enum (Lane B) and OcuTalon.Bridge.Msg.Enum (Lane A), which Test.Msg.Contracts.TestBridgeEnumerationsEqualOcuTalons requires equal in the same merge; spec 40.1's residual gives both to Lane B's 40.2, and Epic 40's paths_hint omits src/bridge/cls/OcuTalon/Bridge/Msg/Enum.cls
+- source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Test/Msg/Contracts.cls:85-92 asserts each Bridge.Msg.Enum value equals OcuTalon's; AD-33 puts OcuTalon.Bridge in Lane A; Bridge/Approval.cls:179 validates the kind against the bridge copy (Story 40.5)
+- 2026-11-02T02:29:01Z status=routed owner=40-2-save-your-persona-and-let-ocutalon-propose-one by=cr note=40.2's plan settles which story changes the bridge copy so both enums land in one merge without a cross-lane edit left unrecorded (escalate if it needs a lane exception)
+- 2026-11-02T05:40:54Z status=resolved-by:40-2-save-your-persona-and-let-ocutalon-propose-one by=adjudication note=both_APPROVALKIND_copies_list_setting_(Msg/Enum.cls,Bridge/Msg/Enum.cls)_commit_dc9af0d8;Test.Msg.Contracts_bridge_equals_check_green
+
+### DW-565: The spine's Conventions table Enumerations row (line 1078) still lists ApprovalKind fix, tool_call and no PersonaPreset, against AD-11 as amended and the Epic 40 names sub-bullet; Test.Msg.Contracts says the enumerations equal that row
+- source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ARCHITECTURE-SPINE.md:1078 'ApprovalKind `fix, tool_call`'; the 40.1 sub-bullet (line 948) now states the row gains both values
+- 2026-11-02T02:29:01Z status=routed owner=40-2-save-your-persona-and-let-ocutalon-propose-one by=cr note=40.2 creates PERSONAPRESET and setting in Msg.Enum and updates the Enumerations row in the same change
+- 2026-11-02T05:40:54Z status=resolved-by:40-2-save-your-persona-and-let-ocutalon-propose-one by=adjudication note=spine_Conventions_Enumerations_row_lists_ApprovalKind_setting_and_PersonaPreset_values_commit_dc9af0d8
+
+### DW-566: AD-22's as-built line ('the 12 built-in tool names are defined once in OcuTalon.Tools.Names') and the Tools/Names.cls class comment (release-1 tools) predate PROPOSEPERSONA, a 13th parameter that is not a release-1 tool
+- source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md:743; Tools/Names.cls top comment; the spec forbids edits there (contended file, additive spine lines only) and leaves the count to the merge gate (U-199 precedent, DW-521)
+- 2026-11-02T02:29:01Z status=by-design owner=40-1-fix-the-persona-s-names-contracts-and-preset-texts by=cr note=spec Design Notes, Decided in-stage: count corrected at the merge gate once propose_persona has its tool (Story 40.5)
+
+### DW-567: The PRESETS-vs-EXPERIENCE.md comparison runs only as a hand-run (once) command; CI pins PRESETS only against the test-held UX copy
+- source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Test/Agent/Persona.cls TestPresets compares with XData UX; the node comparison is in the spec's Verification only, not in ci/checks.sh or docker/tests/test-mock.sh (ci/ is Lane B's)
+- 2026-11-02T02:29:01Z status=wontfix-accepted owner=40-1-fix-the-persona-s-names-contracts-and-preset-texts by=cr note=reopen_if=EXPERIENCE.md's Personality preset table changes after Story 40.1 while XData PRESETS does not
+
+### DW-570: ProposePersona is not bound to the bridge context's owner: CommandsIn checks SessionRef against the context's OwnerRef only for Dismiss
+- source: spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Core/CommandsIn.cls Carry: owner check only for Dismiss; ProposePersona answers not_built today so nothing is reachable (AD-1: a tool proposes only for the session's own persona)
+- 2026-11-02T04:59:55Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=harvest note=40.6 makes ProposePersona raise a setting request; bind SessionRef to the context owner there (or in 40.5's tool) before it is reachable
+- 2026-11-02T05:38:55Z occurrence=40-2-save-your-persona-and-let-ocutalon-propose-one by=cr note=re-raised by three review layers; CommandsRouting.TestPersonaVerbsInsideAContext now begins its context with OwnerRef = the command's session, so the binding keeps it green; the fix adds a row for a ProposePersona whose SessionRef is not the context's OwnerRef (expected not_found, nothing sent)
+- 2026-11-05T18:12:31Z status=resolved-by:40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=adjudication note=CommandsIn_check_refuses_ProposePersona_for_another_session_inside_a_bridge_context;Test.Core.CommandsRouting:TestProposePersonaOwnSessionOnly(mutation_recorded)
+
+### DW-571: Web.Api AnswerResponse gives a not_allowed answer for an approval request of the new kind setting the tool-call approver text (its $Select knows only fix)
+- source: spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Web/Api.cls:523 $Select(kind = "fix": MESSAGENOTAPPROVER, 1: MESSAGENOTAPPROVERTOOL); APPROVALKIND gains setting in 40.2; unreachable until a setting request can be answered on the page
+- 2026-11-02T05:38:56Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=fix-risk low: one $Select arm plus its text (from EXPERIENCE.md if it names one, else the plain approver sentence) and a 403 row in Test.Web.Api; Web/Api.cls is contended for 40.2, and 40.6 is the story that lets the page answer a setting request
+- 2026-11-05T11:56:31Z occurrence=40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too by=harvest note=same_root_cause_reported_by_40.5_implement_at_Web/Api.cls:580
+- 2026-11-05T18:12:31Z status=resolved-by:40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=adjudication note=Web.Api_AnswerResponse_setting_arm_with_its_own_403_parameter;AnswersInProduction_setting_row(texts_equal_today_so_arm_removal_is_not_observable;noted_in_spec)
+
+### DW-572: A SetPersona carried out after SessionOps.End's ForgetPerson for the same SessionRef recreates per-person keys of an ended session, which nothing deletes later
+- source: spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SettingsOps.SavePersona checks only that the Session row exists; SessionOps.End deletes the person.<ref>. rows in another job; no lock between them
+- 2026-11-02T05:38:56Z status=wontfix-theoretical owner=40-2-save-your-persona-and-let-ocutalon-propose-one by=cr note=real if a save can still be submitted for a SessionRef after its sign-out: 40.8's PUT takes SessionRef from the signed-in CSP session (AD-4), which sign-out ends, so a save and a sign-out would have to race inside one page; the online-demo reset removes any leftover
 - 2026-11-02T15:14:12Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=chat-panel.ts_fresh_chat_exempt_from_bottom-follow;chat_C16
 
 ### DW-556: Web.Live copies Api.IsCursor (?1.15N) and Api.CurrentSession's SessionRef+RefIndexOpen pair, both Private in the contended Web/Api.cls (Rule 2 spec-forced copy)
@@ -3985,6 +4034,59 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rc3 release PR: test-web-build AC6 saw a modified src/ocutalon/csp/3rdpartylicenses.txt
 - 2026-11-04T08:01:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
 
+### DW-664: Under Another language or a custom persona, a model-worded all-clear can pass ReplyGuard's English closed lists (AD-7 vs AD-28 Prevents)
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: RESERVED and BANNED in Checks.ReplyGuard are English; AD-7 keeps the guard to that list; under Spanish only Chat's instruction stands between the model and a false all-clear (FR-37, AD-28 Prevents). The catalog all-clear itself stays code-only.
+- 2026-11-04T14:00:23Z status=decision-pending owner=burndown by=spec_gate note=raised to the orchestrator at 40.3's spec gate; not decided by the runner
+- 2026-11-04T14:04:16Z status=routed owner=burndown by=unattended note=inbox=U-272; a language-aware guard is its own story
+- 2026-11-04T16:25:32Z status=routed owner=burndown by=owner note=U-272 kept; until the language-aware guard lands the persona text says other-language replies have the model's own check only (Story 40.4)
+- 2026-11-04T17:48:31Z status=routed owner=burndown by=owner note=U-278 reworded the U-272 condition: the persona text says other-language replies are not filtered for all-clear phrases and the model is only instructed not to write one; Story 40.4 ships the two exact help texts
+- 2026-11-04T20:54:02Z occurrence=40-3-the-persona-reaches-chat-and-triage-as-a-data-block
+
+### DW-669: No API route bounds its body: PUT /v1/persona stores language and custom of any size in the SetPersona message, with no allowance
+- source: spec-40-8-the-persona-s-web-routes.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: BodyText's only limit is the longest string, SetPersona's fields are MAXLEN empty, and no body limit is tracked in docker/, ci/ or release/; the demo proxy is off-repo, so its limit is unmeasured.
+- 2026-11-04T16:10:05Z status=escalated owner=burndown by=cr note=fix sits in shared BodyText or the host proxy; a cap in the block would answer bad_persona where AC 2 says bad_custom
+- 2026-11-04T22:03:02Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=merge_gate-ruling note=part (a) ruled by the Contest Planner under the owner's delegation (orchestrator, 2026-11-04T21:5xZ): PersonaBody forwards only the values the preset uses (language only for language, custom only for custom; others dropped); a used value over its limit (language over 40 chars, custom over 1,000 UTF-16 units) is refused in the route with SettingsOps' outcome code and message (bad_language / bad_custom) and nothing is submitted; tests: professional + 100 KB custom answers 200 and SetPersona.Custom is empty; a 1,001-unit custom answers 400 bad_custom with no SetPersona sent. Routed to Story 40.6 (it already owns Web/Api.cls persona work, DW-570/571). Part (b) is DW-687, part (c) the Planner's demo-host limit
+- 2026-11-05T18:12:31Z status=resolved-by:40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=adjudication note=PUT_/v1/persona_forwards_only_used_values_and_refuses_over-limit_bad_language/bad_custom;Test.Web.PersonaApi:TestPutDropsUnusedValues,TestPutBoundsUsedValues
+
+### DW-678: After a change of persona, Chat's saved history still holds the old blocks and the old voice; a real model may carry the old voice on for a while
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: A linked turn opens the saved AI session (Bridge.Adapter.Agent): earlier user messages keep their Pirate blocks after Pirate to Professional; the mock cannot show it
+- 2026-11-04T20:33:32Z status=routed owner=40-7-evaluation-cases-for-the-persona by=harvest note=40.7 measures it with a real model (a turn after a persona change), or the release check tries it
+- 2026-11-05T22:53:30Z status=decision-pending owner=burndown by=adjudication note=human=Contest_Planner_real-model_measurement;delivered:persona-history-carry/-fresh_cases,measured.voiceCarry;run:eval/run.sh_--release-candidate_--personas(real_key;see_DW-766_on_the_10-min_cap);never_a_pass_requirement
+
+### DW-679: Under a non-Professional persona, frozen instruction lines meet the block unmeasured: Triage's own-message test (not quoted) vs quoted block lines in a user turn; 'plain English' lines vs the language line
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Triage.cls says the user's own message is not quoted and reasons are in plain English; a user turn now carries > -quoted preset text and Reply in the language named. Real-model behaviour unmeasured (inference); spec 40.3 Design Notes lists both as 40.7 sweep risks.
+- 2026-11-04T20:54:02Z status=routed owner=40-7-evaluation-cases-for-the-persona by=cr note=measure user-turn and language cases under each preset; a red is a clarification on an existing instruction line
+- 2026-11-05T22:53:30Z status=decision-pending owner=burndown by=adjudication note=human=Contest_Planner_real-model_measurement;delivered:measured.ownMessage,measured.reasonsLanguage;run:eval/run.sh_--release-candidate_--personas;a_red_is_a_clarification_on_an_existing_instruction_line
+
+### DW-680: Persona.BlockFor's language check is narrower than the writer's rule: U+2028/U+2029 and punctuation in a stored name reach the block unquoted
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: BlockFor refuses only *C characters; Input.Quoted treats U+2028/2029 as line breaks; SettingsOps.PersonaProblem (private) refuses both, and it is the only writer.
+- 2026-11-04T20:54:02Z status=wontfix-theoretical owner=40-3-the-persona-reaches-chat-and-triage-as-a-data-block by=cr note=real only if a second writer of person.*.persona.language bypasses SettingsOps.PersonaProblem
+
+### DW-681: SettingsOps.Persona reads preset, language and custom unlocked, so a turn rendered during a SetPersona save can see a mixed set and get no block for that one turn
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Persona() calls Stored() three times with no lock; e.g. new preset language with the old blank language gives BlockFor no block (fail-safe default voice, one turn).
+- 2026-11-04T20:54:02Z status=wontfix-accepted owner=40-3-the-persona-reaches-chat-and-triage-as-a-data-block by=cr note=reopen_if=a trace shows a turn sent during a save with a block from a mixed preset/language pair or no block where one was saved
+
+### DW-682: Agent.Input.Render can now throw if Setting.KeyIndexOpen faults inside Persona.Block (no try around the read)
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Block calls SettingsOps.Persona, whose Stored read has no guard of its own; spec 40.3 Design Notes decide no try: a DB fault is answered by Conversation's and Intake's handlers.
+- 2026-11-04T20:54:03Z status=by-design owner=40-3-the-persona-reaches-chat-and-triage-as-a-data-block by=cr note=spec-bound: Design Notes 'No try around the read in Block'
+
+### DW-683: AC 3's 'every earlier instruction line unchanged' is pinned by the review-time git diff command, not by a test
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestParagraphs checks only the old last line before each paragraph; a test-held copy of earlier lines would go red on any later epic's edit of contended Triage.cls (spec QA note); verified 0 removed instruction lines at review.
+- 2026-11-04T20:54:03Z status=by-design owner=40-3-the-persona-reaches-chat-and-triage-as-a-data-block by=cr note=spec-bound: QA note under Verification records why
+
+### DW-688: flake: OcuTalon.Test.Agent.Runners TestStartsWithNoKey 'and the event log holds no error or alert row since the mark' red once in CI shards-2 (lane-a@rest) on 2a789066; likely a late Ens.Alarm 'Message n can not be found, timer event ignored' Type 2 row from TestStartRefused's purged messages landing after errorMark on a slow host
+- source: ci run 41914403794 job 126870125436 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Not reproduced: Runners passed alone on a fresh lane-A stack, after PersonaTurns on a warm stack, and in lane-a@Agent forward and reversed (fresh). The warm stack's Ens_Util.Log shows TestStartRefused leaves asynchronous Ens.Alarm Type 2 rows (22:01:55-57) seconds after its own rows; ErrorRows counts any Type 2 row, any ConfigName. Runners and RunnerFixture unchanged by Story 40.3
+- 2026-11-04T22:02:46Z status=routed owner=burndown by=cr note=priority: ErrorRows in TestStartsWithNoKey should ignore Ens.Alarm 'timer event ignored' rows, or the test should wait for the previous method's timers; one rerun of the failed job requested 21:58Z
+- 2026-11-04T22:03:02Z status=routed owner=burndown by=ci note=filed by the runner at CI triage of 2a789066, not by a code review
 ### DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27)
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data/Handled.cls keyed by SessionRef; SessionOps.End and the spine purge list do not cover it; first writer is Story 18.4
@@ -4109,6 +4211,11 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 7.8 fresh check: lane-a@Fix reversed part 2/2 on a fresh lane-B throwaway, red once (header 564), green on the unchanged rerun; Story 7.8 changed no Fix code
 - 2026-11-04T19:33:23Z status=routed owner=burndown by=adjudication note=flake candidate: Test.Fix.Snapshot exempts only a timer already running; a ScheduleService call is another background writer; note every occurrence
 
+### DW-709: Persona card: the six preset names and descriptions (PRESETS in persona-card-view.ts) are not registered in the ux-strings.test.mjs inventory (UX-DR117)
+- source: spec-40-4-the-persona-card.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ux-strings.test.mjs builds its inventory from *_TEXTS, fromSource grabs and template text only; PRESETS is read by none, so 11 strings have no SOURCES entry (pinned word for word only by persona-card-view.test.mjs)
+- 2026-11-05T03:58:33Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=not patched in 40.4: Epic 33 has since changed ux-strings.test.mjs (unmerged); fix after the integrate-forward with a fromSource grab of PRESETS (as SKIP_LINKS/THEME_OPTIONS) plus 11 ux SOURCES entries, when 40.6 adds its own strings to that file
+- 2026-11-05T18:12:31Z status=resolved-by:40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=adjudication note=six_preset_names_and_descriptions_in_ux-strings.test.mjs_inventory(mutation_red)
 ### DW-706: In the web/e2e projects the Playwright request fixture (and playwright.request.newContext()) has no timeout, so signInOverHttp in sign-in/helpers.ts (12 callers) and other APIRequestContext waits still run to the test timeout unnamed (AC7 covers page waits only)
 - source: spec-11-21-a-test-s-route-callback-never-outlives-its-test.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: playwright 1.64.1 lib/index.js:360 sets _defaultContextTimeout = actionTimeout || 0 and coreBundle.js:60714 applies it to new request contexts: 0 (no limit) in every non-online project; the online projects get 30 s
@@ -4209,6 +4316,55 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic11 a8868ad8 run 41957022331 iris (shards) job 127036912190 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the run's artifact list is empty; the log names only 'Test timeout of 300000ms exceeded' and the error-context path
 - 2026-11-05T04:38:50Z status=routed owner=burndown by=Contest_Planner note=Contest Planner (delegated) 2026-11-05: first-daily-release burn-down story; on failure, upload the Playwright test-results (error-context.md, traces) of the browser units as a CI artifact, no secrets (CI dummy key/token only), short retention
+
+### DW-736: docs/bridge-guide.md names the approval kind setting but documents none of its contract (SETTINGKEYS DryRun with ownerRef = OwnerRef, a session-Ref OwnerRef, a required ResultTarget, ApprovalOutcome on approve/reject/expiry with no replay, Reconcile redelivery)
+- source: spec-40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: bridge-guide.md:265 lists setting; the Workflow approvals paragraph (L302) describes only the tool_call replay; the contract lives only in Approval.cls Raise/ValidateSetting doc comments
+- 2026-11-05T12:53:54Z status=wontfix-accepted owner=40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too by=cr note=contended: Epic 17 changed bridge-guide.md; reopen_if=the guide's Workflow approvals section is next edited (DW-630) or the standalone bridge listing is prepared
+
+### DW-737: Test/Agent/Runners.cls comments still list Chat's tools without propose_persona: class comment L26 (the three reminder and four watching tools) and the TestToolInventory doc comment (three reminder and five watching tools)
+- source: spec-40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Runners.cls L26 and the TestToolInventory doc comment omit propose_persona (and undercount watching tools); Epic 17 changed both lines (git diff origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic17), so 40.5 left them; L45's provider list was patched in review
+- 2026-11-05T12:53:54Z status=routed owner=burndown by=cr note=lead ruling: a fix on a line Epic 17 changed is routed to burndown; one-name edits once Epic 17 has merged into OCT-epic40
+- 2026-11-05T12:58:11Z status=wontfix-accepted by=adjudication note=LOW_doc-comment_omission_on_lines_Epic_17_changed;burndown_never_owns_a_LOW;reopen_if=after_Epic_17_merges_Test/Agent/Runners.cls_L26_or_TestToolInventory_comment_still_omits_propose_persona
+
+### DW-749: e2e persona-approval: a PA case that fails before answering leaves a live ApprovalHold and its Workflow task, because support/persona.ts prepare deletes setting rows without Approval.Cancel
+- source: spec-40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: persona-approval.spec.ts withProposal -> forget/prepare (web/e2e/support/persona.ts, Epic 11-owned, not editable here) delete rows only; the IRIS half (PersonaAnswers.Tidy) now cancels and waits out the hold
+- 2026-11-05T18:11:19Z status=wontfix-accepted owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=reopen_if=a CI run shows an open OcuTalonApprovals task or live ApprovalHold whose ApprovalRequest row is missing after live:sign-in
+
+### DW-750: approval-request-card.ts component styles are about 96 bytes over the 4 kB anyComponentStyle warning budget (build warns, passes)
+- source: spec-40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 40.6 added one selector (.setting-note beside .dry-note); angular.json error budget is 8 kB; the rest predates the story (inference, baseline not rebuilt)
+- 2026-11-05T18:11:19Z status=wontfix-accepted owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=reopen_if=ng build reports approval-request-card.ts over its 8 kB error budget or CI treats budget warnings as failures
+
+### DW-761: Eval.Sweep copies Report.TurnOf and Report.ReasonsOf (private) because Report.cls is Epic 39's; make them public and call them from Sweep once Epic 39 has merged
+- source: spec-40-7-evaluation-cases-for-the-persona.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Rule 2 copy forced by the contention rule (spec-40-7 Design Notes); Eval/Report.cls:701,754
+- 2026-11-05T22:05:02Z status=wontfix-accepted owner=40-7-evaluation-cases-for-the-persona by=harvest note=reopen_if=after_Epic_39_merges_Eval/Sweep.cls_still_holds_copies_of_Report.TurnOf/ReasonsOf;the_story_that_next_edits_Report.cls_unifies_them
+- 2026-11-05T22:52:20Z occurrence=40-7-evaluation-cases-for-the-persona
+
+### DW-762: The failure paths of a case's before turn (wrong kind, no Reply, Busy after BUSYMAX, fallback Reply, row removal) are not pinned, and a fallback Reply of the before turn is not treated as no Reply
+- source: spec-40-7-evaluation-cases-for-the-persona.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Eval/In.cls Before; only TestBadPersonaSkipped and TestHistoryLinked cover it; settle with a PersonaRuns fixture whose before text matches a fallback scenario
+- 2026-11-05T22:05:02Z status=open owner=40-7-evaluation-cases-for-the-persona by=harvest note=in-story_MED:for_the_40.7_code_review_to_patch
+- 2026-11-05T22:53:30Z status=resolved-by:40-7-evaluation-cases-for-the-persona by=adjudication note=Eval.In.Before_treats_a_Fallback_Reply_as_no_Reply;Test.Eval.In:TestBeforeFallback,PersonaRuns:TestBeforeFallbackSkipped(fresh);mutation_recorded
+
+### DW-763: No CI job runs eval/run.sh --personas on the mock; the sweep block's structural checks are guarded only by the story's verification run and test-eval-personas.sh
+- source: spec-40-7-evaluation-cases-for-the-persona.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: lane-a.yml runs only the plain eval/run.sh; a --personas step needs an edit to .github/workflows/lane-a.yml (out of Epic 40's footprint; CI budget REL-4)
+- 2026-11-05T22:05:02Z status=escalated owner=burndown by=harvest note=for_the_decision_sheet:add_a_lane-a.yml_step(about_4_min_on_the_mock)_or_leave_it_to_the_release_runs
+- 2026-11-05T22:52:20Z occurrence=40-7-evaluation-cases-for-the-persona
+
+### DW-766: The Planner's real-model persona sweep (eval/run.sh --release-candidate --personas) cannot run inside one 10-minute call and has no per-preset form
+- source: spec-40-7-evaluation-cases-for-the-persona.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Ten passes (5 presets x set and persona) wait up to 900 s each on the real model; the spec names one command and expects tens of minutes; the owner keeps the 10-minute Bash cap for agent sessions
+- 2026-11-05T22:52:20Z status=wontfix-accepted owner=40-7-evaluation-cases-for-the-persona by=cr note=reopen_if=the_Planner_reports_it_cannot_run_the_real-model_sweep_in_its_session;add_a_per-preset_form_to_eval/run.sh_then
+
+### DW-767: Test.Eval.PersonaRuns copies Test.Eval.Run's EvalIn switch-on block (Prepare) and Apply instead of sharing them, and the copy's reason was not recorded
+- source: spec-40-7-evaluation-cases-for-the-persona.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Rule 2: PersonaRuns.Apply equals Test.Eval.Run.Apply line for line, and Prepare repeats Run's PointKeys/PutDefault/Apply block (about 12 lines); the spec asked implement to record a copy under 15 lines; nothing recorded
+- 2026-11-05T22:52:20Z status=wontfix-accepted owner=40-7-evaluation-cases-for-the-persona by=cr note=reopen_if=a_third_test_class_copies_the_EvalIn_switch-on_block,or_Test.Eval.Run.Apply_changes_without_PersonaRuns.Apply
 - 2026-11-05T10:38:22Z status=routed owner=11-22-first-daily-release-burn-down by=burndown note=chartered: first daily release burn-down (owner via the Planner 2026-11-05T01:51Z; orchestrator dispatch); Story 11.22
 - 2026-11-05T14:52:20Z status=resolved-by:11-22-first-daily-release-burn-down by=adjudication note=each browser unit keeps web/test-results/<unit>/; a failure-only upload step keeps error-context.md and the results folder, 3-day retention; traces are excluded on purpose (orchestrator ruling 2026-11-05): the repository is public and a trace can hold the throwaway stack's per-run sign-in passwords; pinned by ci-results.test.mjs and test-ci-config.sh
 
@@ -4257,3 +4413,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Runs 1-3 and Task 0 cover no IPM and USER-mapped-from-%SYS only; the guide's own enable -community sample prints 'Skipping IPM mapping of HSLIB - IPM already installed'; the sentence is Planner-approved public text
 - 2026-11-05T21:41:21Z status=escalated owner=burndown by=cr note=approved public text; settle by a run with IPM installed in USER, or narrow the sentence to 'mapped from %SYS' (Planner)
 - 2026-11-05T22:14:38Z status=resolved-by:11-24-the-readme-s-ipm-install-works-literally-on-a-fresh-build-15 by=adjudication note=the_Planner_approved_the_replacement_sentence(owner_decision_11.24_DW-760_PUBLIC_TEXT);fix_cf3c0123;pinned_IPM_USER_SENTENCE+negative_check_for_the_old_sentence;Run_4_literal_evidence(IPM_in_USER:%SYS_blocks_skip_USER_repos,USER_enable_-community,Activate_SUCCESS,200);re-review_confirmed
+### DW-764: flake candidate: demo-switch view.spec.ts:260 V5 '1024px: nothing scrolls across' failed once on feature b55cca7d, green on an unchanged rerun
+- source: feature b55cca7d run 42112148266 iris (shards-3) job 127542186198 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the delta since the last demo-switch run on feature (8345cfca, passed) touches no header or layout; each merged change passed demo-switch on its own branch; attempt 2 green
+- 2026-11-05T22:21:45Z status=routed owner=burndown by=orchestrator note=a header-width measurement at 913 ms; if seen again, check whether the measure runs before fonts or the rail settle (Epic 34 changed the 1024 px header too)
+
+### DW-768: Persona sweep's 'facts differ from Professional' compares model-written reasons across two independent model runs, so wording noise (times, UTC/IT, counts) reads as 19 differences on a real model while the code-written notice frames match
+- source: Planner's real-model sweep run 1 on OCT-epic40 1b43743a (release-evidence/1.0.2-gates/personas-eval) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 19 facts-differ entries, all in model-written reasons; frames match; one real omission noted (allclear-all-passing under pirate omits the count 16)
+- 2026-11-05T23:54:14Z status=routed owner=burndown by=orchestrator note=burn-down: compare facts only where both runs state them from the same code-written source (frames, slots), or compare each preset against the case's expected facts rather than another model run; keep the pirate count-omission as a real finding

@@ -55,7 +55,9 @@ Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
 
 /// The payload for an approval request row, with every row-backed field set; dryRun is the row's stored JSON parsed
-/// into its part (left absent when the row holds none or it can't be read). The part's eitherWay and reading are the answer of Watch.Notice Reading over that dry run
+/// into its part (left absent when the row holds none or it can't be read). A setting request (Story 40.6) has the DryRun {key, ownerRef, old, new}:
+/// its part holds only before and after, each the old or new object's text, the string itself when it is one, and "" when it is missing; every other
+/// field of the part stays empty, eitherWay is 0 and Reading is not asked. For any other kind the part's eitherWay and reading are the answer of Watch.Notice Reading over that dry run
 /// and the row's FixParameters, the rule that chose the notice's key: eitherWay 1 with the reading, else 0 and no reading. Neither is kept on the row. The reason has no source in the row and
 /// stays empty. The trace target is the request's incident's: when sessionRef, the Ref of the session the payload is for,
 /// and the row's IncidentRef are both set and Ownership.Incident gives an incident that session can see with a
@@ -87,6 +89,12 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 		Try {
 			Set dry = ##class(%DynamicObject).%FromJSON(row.DryRun)
 			Set part = ##class(OcuTalon.Live.Payload.Part.DryRun).%New()
+			If row.Kind = "setting" {
+				Set part.Before = ..SettingText(dry, "old")
+				Set part.After = ..SettingText(dry, "new")
+				Set payload.DryRun = part
+				Quit
+			}
 			Set part.Affected = dry.affected
 			Set part.Resend = dry.resend
 			Set part.LeftOut = dry.leftOut
@@ -109,6 +117,16 @@ ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %
 		}
 	}
 	Quit payload
+}
+
+/// The text of the setting DryRun's value of the name (old or new): the object's text, the string itself, else "".
+ClassMethod SettingText(dry As %DynamicObject, name As %String) As %String [ Private ]
+{
+	Set type = dry.%GetTypeOf(name)
+	If type = "string" Quit dry.%Get(name)
+	If type '= "object" Quit ""
+	Set value = dry.%Get(name)
+	Quit $Select(value.%GetTypeOf("text") = "string": value.%Get("text"), 1: "")
 }
 
 }

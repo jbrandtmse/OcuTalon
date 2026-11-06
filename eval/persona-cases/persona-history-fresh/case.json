@@ -1,0 +1,23 @@
+{
+  "name": "persona-history-fresh",
+  "kind": "all-clear",
+  "heldOut": false,
+  "preset": "professional",
+  "personaCheck": "voice-control",
+  "description": "The control of persona-history-carry: the same Professional turn in a fresh conversation, with no earlier turn.",
+  "turn": {
+    "text": "Is everything fine?"
+  },
+  "checks": [
+    {
+      "result": "passed",
+      "entry": "Orders production",
+      "finding": "",
+      "checkedAt": "2026-10-16T18:13:00Z"
+    }
+  ],
+  "expectation": {
+    "catalogKey": "checks.allPassed"
+  },
+  "recordedBy": "written for the evaluation set (Story 40.7)"
+}

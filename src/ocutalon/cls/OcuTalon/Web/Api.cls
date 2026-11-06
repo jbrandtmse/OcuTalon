@@ -154,6 +154,8 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/session/end" Method="POST" Call="EndSession"/>
 <Route Url="/v1/pairing/code" Method="POST" Call="Pairing"/>
 <Route Url="/v1/pairing" Method="DELETE" Call="Pairing"/>
+<Route Url="/v1/persona" Method="GET" Call="GetPersona"/>
+<Route Url="/v1/persona" Method="PUT" Call="PutPersona"/>
 <Route Url="/v1/settings" Method="GET" Call="Settings"/>
 <Route Url="/v1/settings/models" Method="POST" Call="NotBuilt"/>
 <Route Url="/v1/settings/budgets" Method="POST" Call="SaveBudgets"/>
@@ -579,7 +581,7 @@ ClassMethod AnswerResponse(ref As %String, kind As %String, sessionRef As %Strin
 {
 	Set code = result.Result
 	If code = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
-	If code = "not_allowed" Quit ..Fail(403, "not_allowed", $Select(kind = "fix": ..#MESSAGENOTAPPROVER, 1: ..#MESSAGENOTAPPROVERTOOL))
+	If code = "not_allowed" Quit ..Fail(403, "not_allowed", $Select(kind = "fix": ..#MESSAGENOTAPPROVER, kind = "setting": ..#MESSAGENOTAPPROVERSETTING, 1: ..#MESSAGENOTAPPROVERTOOL))
 	If code = "bad_answer" Quit ..Fail(400, "bad_answer", ..#MESSAGEBADANSWER)
 	If '$ListFind($ListBuild("done", "already_answered", "expired"), code) {
 		Quit ..ServerError($SYSTEM.Status.Error(5001, "AnswerOps answered a result that the route doesn't know: "_code))
@@ -1219,5 +1221,113 @@ ClassMethod IsCursor(value As %String) As %Boolean [ Private ]
 {
 	Quit (value ? 1.15N)
 }
+
+/// GET /v1/persona (AD-19; Epic 40): the signed-in session's persona as SettingsOps.Persona reads it, 200 {"preset","language","custom",
+/// "customOffered","pendingRef"}, every value with its JSON type. A session that can't be read and a read that fails are 500
+/// server_error, with the cause logged and no value sent.
+ClassMethod GetPersona() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set persona = ..ReadPersona(sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write persona.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// PUT /v1/persona (AD-1, AD-4, AD-19; Epic 40): saves the signed-in session's persona. The session is Ownership.SessionRef's and a
+/// sessionRef in the body is ignored. In order: the session (a failure is 500 server_error); the body (PersonaBody; a bad one is 400
+/// bad_persona and nothing is submitted); the values the preset does not use are dropped (language is "" unless the preset is language,
+/// custom is "" unless it is custom: DW-669) and a used language of more than 40 characters or a used custom of more than 1,000
+/// (UTF-16 units, as SettingsOps counts them) is 400 bad_language or bad_custom with SettingsOps' message, nothing submitted; a
+/// SetPersona with the preset and the used values, submitted with origin web_user (an error status or no result is 500 server_error).
+/// SettingsOps validates and writes, and the answer follows its result:
+///   - Ok: 200 {"result":"done","message","preset","language","custom"}, the message as the owner gave it (the Saved sentence when it gave
+///     none) and the values as it saved them; Data that can't be read is 500 server_error;
+///   - bad_preset, bad_language, bad_custom, custom_not_offered: 400 with the outcome as the code and the owner's message;
+///   - not_built: 501 not_built;
+///   - any other outcome: 500 not_saved with the owner's message as given.
+/// A refusal or a failure that came with no message carries the server_error sentence.
+ClassMethod PutPersona() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '..PersonaBody(.preset, .language, .custom) Quit ..Fail(400, "bad_persona", ##class(OcuTalon.Core.SettingsOps).#MESSAGENOTSAVED)
+	If preset '= "language" Set language = ""
+	If preset '= "custom" Set custom = ""
+	If $Length(language) > 40 Quit ..Fail(400, "bad_language", ##class(OcuTalon.Core.SettingsOps).#MESSAGEBADLANGUAGE)
+	If $Length(custom) > 1000 Quit ..Fail(400, "bad_custom", ##class(OcuTalon.Core.SettingsOps).#MESSAGEBADCUSTOM)
+	Set command = ##class(OcuTalon.Msg.Command.SetPersona).%New()
+	Set command.SessionRef = sessionRef
+	Set command.Preset = preset
+	Set command.Language = language
+	Set command.Custom = custom
+	Set sc = ..SubmitPersona(command, .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	Set outcome = result.Outcome
+	Set message = $Select(result.Message '= "": result.Message, result.Ok: ##class(OcuTalon.Core.SettingsOps).#MESSAGESAVED, 1: ..#MESSAGESERVERERROR)
+	If result.Ok {
+		Set sc = $SYSTEM.Status.OK()
+		Try {
+			Set saved = ##class(%DynamicAbstractObject).%FromJSON(result.Data)
+			Set answer = {}
+			Do answer.%Set("result", "done", "string")
+			Do answer.%Set("message", message, "string")
+			Do answer.%Set("preset", saved.preset, "string")
+			Do answer.%Set("language", saved.language, "string")
+			Do answer.%Set("custom", saved.custom, "string")
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+		If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write answer.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	If $ListFind($ListBuild("bad_preset", "bad_language", "bad_custom", "custom_not_offered"), outcome) Quit ..Fail(400, outcome, message)
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Quit ..Fail(500, "not_saved", message)
+}
+
+/// The preset, language and custom of the PUT /v1/persona body, and 1 when it is a valid one: a JSON object whose preset is a string and
+/// whose language and custom, when present, are strings (other members are ignored). An absent language or custom is "". Otherwise 0,
+/// with all three empty. The values are not judged here: SettingsOps does.
+ClassMethod PersonaBody(Output preset As %String, Output language As %String, Output custom As %String) As %Boolean [ Private ]
+{
+	Set (preset, language, custom) = ""
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
+	} Catch {
+		Set body = ""
+	}
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") Quit 0
+	If body.%GetTypeOf("preset") '= "string" Quit 0
+	Set languageType = body.%GetTypeOf("language")
+	Set customType = body.%GetTypeOf("custom")
+	If (languageType '= "string") && (languageType '= "unassigned") Quit 0
+	If (customType '= "string") && (customType '= "unassigned") Quit 0
+	Set preset = body.preset
+	If languageType = "string" Set language = body.language
+	If customType = "string" Set custom = body.custom
+	Quit 1
+}
+
+/// The persona of the session as SettingsOps.Persona reads it; sc is an error status when a part of it could not be read.
+ClassMethod ReadPersona(sessionRef As %String, Output sc As %Status) As %DynamicObject [ Private ]
+{
+	Quit ##class(OcuTalon.Core.SettingsOps).Persona(sessionRef, .sc)
+}
+
+/// Submits the SetPersona with origin web_user; result is the CommandResult. An error status means the command never reached CommandsIn.
+ClassMethod SubmitPersona(command As OcuTalon.Msg.Command.SetPersona, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+}
+
+/// The 403 text of a refused page answer to a setting request (U-114: the owner kept this sentence for the API); its own parameter, so
+/// that a change of the tool-call wording cannot reach it.
+Parameter MESSAGENOTAPPROVERSETTING = "Only an approver can answer this request.";
 
 }

@@ -1,0 +1,25 @@
+{
+  "name": "persona-watch",
+  "match": {
+    "marker": "persona-watch"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock answers the user now.\"],\"confidence\":0.9}"
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "start_watch",
+        "input": {
+          "name": "Orders"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I'll watch the Orders production and stay quiet unless something needs you."
+    }
+  ]
+}

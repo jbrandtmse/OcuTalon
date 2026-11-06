@@ -21,6 +21,7 @@ import type {
   StateSnapshot,
   UnpairDone,
 } from './api-types';
+import type { PersonaPut, PersonaSaved, PersonaState } from './persona-types';
 
 const BASE = '/ocutalon/api/v1';
 
@@ -153,5 +154,15 @@ export class ApiClient {
   /** The events after the two cursors, one for the session's stream and one for the instance's. */
   events(after: number, afterInstance: number): Observable<EventsResponse> {
     return this.http.get<EventsResponse>(`${BASE}/events`, { params: { after, afterInstance } });
+  }
+
+  /** The signed-in session's persona (Story 40.8): the preset, the language, the person's own words, whether those are offered, and a pending proposal's Ref. */
+  persona(): Observable<PersonaState> {
+    return this.http.get<PersonaState>(`${BASE}/persona`);
+  }
+
+  /** Saves the persona: a PUT, which the envelope interceptor completes with its headers. A refusal fails as an HttpErrorResponse whose `error` is the body `{error:{code,message}}`. */
+  savePersona(body: PersonaPut): Observable<PersonaSaved> {
+    return this.http.put<PersonaSaved>(`${BASE}/persona`, body);
   }
 }
