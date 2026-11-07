@@ -2457,3 +2457,6 @@
 2026-11-07T10:53:11Z	Run	deps_hash_rerecorded	reason=fix_forward story=39.9(+11.27,11.28_on_branch_later) hash=9d06f4082a96
 2026-11-07T10:53:36Z	Epic 39	worktree_provisioned	branch=OCT-epic39 ff_to=ace5bc88 reason=story_39.10_DW-639
 2026-11-07T10:53:36Z	Epic 39	runner_redispatched	agent=addb36e0de0c494d8 lane=D story=39.10(DW-639) timebox=90m tier=3a
+2026-11-07T12:07:34Z	Epic 39	runner_clarification	kind=timebox story=39.10 DW-639_not_reproduced(0/7) ruled_out=swap,busy_checks,Ens.Job_enumerate,half-disabled_telegram,job_death suspect=single_read_pin_no_wait head=19d7b9f2
+2026-11-07T12:07:34Z	Epic 39	orchestrator_ruling	subject=39.10 option=a diagnostics_only DW-639_stays_flake_class next=DW-840
+2026-11-07T12:07:34Z	Epic 39	runner_resumed	agent=addb36e0de0c494d8 reason=39.10_diagnostics
