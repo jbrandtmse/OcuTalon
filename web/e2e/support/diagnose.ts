@@ -9,8 +9,7 @@ import { irisScript } from './iris';
 /**
  * What a unit prints when the snapshot GET after a sign-in has passed its bound (DW-550, Story 11.22, Story 11.27): two reads of the stack's
  * IRIS, as `DIAG /state ...` lines on stdout, so that the next occurrence shows whether the GET waited on a held CSP session, a licence unit
- * or the web gateway. No line holds a request body, cookie, token or full session id; the gateway lines hold counts and states only, with
- * no PID, IP address, port or server name.
+ * or the web gateway. The gateway lines hold counts and states only, with no PID, IP address, port or server name.
  * - `DIAG /state licence:` the licence units: LUAvailable, LUConsumed, KeyEnforcedUnits, CSPUsers and InstanceConnections.
  * - `DIAG /state csp process:` each CSP server process (at most 30), idle or busy, with its pid, state and routine. A request that waits
  *   for a session lock shows as a process whose state is not READ.
@@ -30,6 +29,11 @@ import { irisScript } from './iris';
  * appended to state-diagnosis.txt in the running test's output folder and that file is attached as `state-diagnosis`, so that it is in the
  * failure artifact when the unit's own output tail is too short to show it (DW-756); outside a test no file is written. Hermetic specs run
  * it against the OCUTALON_E2E_IRIS_EXEC stand-in.
+ * Redaction: every DIAG line passes through redactLine once, before it is printed and appended, so the file equals the printed lines and no
+ * line holds a cookie (a CSPSESSIONID, CSPCHD or CSPWSERVERID `name=value` or `name: value` pair, or a Cookie or Set-Cookie header), a bearer token, a request body (JSON
+ * object text, also with escaped quotes), a key shape (sk-, ghp_ and its kin, github_pat_, AKIA, xox, AIza), a long opaque token (24 or more characters of letters,
+ * digits, `_` and `-` with a digit among them) or more than the first four characters of a session id. A redacted value becomes
+ * `[redacted]`, a Cookie header or a body through the end of its line; the counts and states of the other values are kept.
  */
 
 /** The longest the read may take, in ms (the test's own deadline may shorten it, bounds.ts capToDeadline). */
@@ -192,13 +196,31 @@ function keepLines(lines: string[]): void {
   }
 }
 
+const REDACTED = '[redacted]';
+
+/** The redactions in order: the session id is cut first, so that the rule for long tokens does not take its first four characters too. */
+const REDACTIONS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/(on session .{0,4}).*(\.\.\.)$/, '$1$2'],
+  [/\b(?:Set-)?Cookie:.*$/i, `Cookie: ${REDACTED}`],
+  [/(?:CSPSESSIONID|CSPCHD|CSPWSERVERID)[^\s=:;,]*[=:]\s*[^\s;,]*/gi, `cookie=${REDACTED}`],
+  [/\bBearer\s+[^\s,;]+/gi, `Bearer ${REDACTED}`],
+  [/\[?\{\s*\\?".*$/, REDACTED],
+  [/(?<![A-Za-z0-9])(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|(?:AKIA|ASIA)[0-9A-Z]{12,}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{20,})/g, REDACTED],
+  [/(?<![A-Za-z0-9_-])(?=[A-Za-z_-]*\d)[A-Za-z0-9_-]{24,}/g, REDACTED],
+];
+
+/** One DIAG line with every secret-shaped value replaced (see the header). */
+export function redactLine(line: string): string {
+  return REDACTIONS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), line);
+}
+
 /** Prints the diagnosis of a /state that does not answer. It never throws and never takes longer than DIAG_BOUND_MS. */
 export async function stateDiagnosis(): Promise<void> {
   const [first, gateway] = await Promise.all([
     read(SCRIPT, describeDiagnosis, 'DIAG /state unavailable'),
     read(GATEWAY_SCRIPT, describeGateway, 'DIAG /state gateway unavailable'),
   ]);
-  const lines = [...first, ...gateway];
+  const lines = [...first, ...gateway].map(redactLine);
   for (const line of lines) console.log(line);
   keepLines(lines);
 }

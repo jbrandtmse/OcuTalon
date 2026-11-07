@@ -2,11 +2,11 @@
 title: 'Story 11.27: Live pages get their /state answer under load (test-only diagnostics)'
 type: 'chore'
 created: '2026-11-07'
-status: 'in-progress'
-baseline_revision: '5352d39d991a20c58f17068f46815f57ed5fe562'
+status: 'done'
+baseline_revision: 'f49a6528778f5c9b60b81665dc3a8622403ee3a7'
 baseline_commit: '5352d39d991a20c58f17068f46815f57ed5fe562'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
 warnings: [oversized]
@@ -208,7 +208,7 @@ deferred: []
 - AC4 (cost; lead-side measurement). Given the browser group on CI with traces on and no failures, when its time is compared with the same group's time on the last green run before this story, then the added time is recorded here. More than 2 minutes is reported to the Planner before the merge. Every group stays under REL-4's 35 minutes.
 - AC5 (Integration: consumer `loadedAfter` against a real stack). Given a live sign-in-2 stack whose `/state` is held at the browser, when `loadedAfter` passes its bound, then the real IRIS answers with a licence line, gateway server and connections lines with integer counts, and no unavailable line. The output file holds the same lines, and no line holds a cookie value or `CSPSESSIONID`.
 
-- [ ] [Review] U-300 pin (the Contest Planner's ruling of 2026-11-07 ~17:55Z: keep 11.22's lines, add one pin) — `web/e2e/support/diagnose.ts`, `web/e2e/live/helper-waits.spec.ts` — `state-diagnosis.txt` (and so the printed DIAG lines, which the file equals) never contains a cookie (a `CSPSESSIONID...=<value>` pair or a `Cookie:` header), a token (`Bearer <x>`, a long opaque token), a request body (a JSON object text), a full session id (the lock line keeps at most the first 4 characters even if the IRIS side sends more), or a key shape (for example `sk-ant-...`, `sk-...`, `ghp_...`, `AKIA...`). Add one redaction step that every DIAG line passes through before it is printed and written (so the file still equals the printed lines), and a hermetic test that plants each value into the stand-in IRIS output (the lock field, a CSP routine, the licence line, the gateway and diagnosis error texts) and asserts none of the planted values reaches the file or stdout, while the counts and states still do. Demonstrate it with a planted-value mutation: disable the redaction, observe the new test red on the planted values, restore byte-identical, and write the `mutation:` line. No 11.22 line is removed and no pin is weakened.
+- [x] [Review] U-300 pin (the Contest Planner's ruling of 2026-11-07 ~17:55Z: keep 11.22's lines, add one pin) — `web/e2e/support/diagnose.ts`, `web/e2e/live/helper-waits.spec.ts` — `state-diagnosis.txt` (and so the printed DIAG lines, which the file equals) never contains a cookie (a `CSPSESSIONID...=<value>` pair or a `Cookie:` header), a token (`Bearer <x>`, a long opaque token), a request body (a JSON object text), a full session id (the lock line keeps at most the first 4 characters even if the IRIS side sends more), or a key shape (for example `sk-ant-...`, `sk-...`, `ghp_...`, `AKIA...`). Add one redaction step that every DIAG line passes through before it is printed and written (so the file still equals the printed lines), and a hermetic test that plants each value into the stand-in IRIS output (the lock field, a CSP routine, the licence line, the gateway and diagnosis error texts) and asserts none of the planted values reaches the file or stdout, while the counts and states still do. Demonstrate it with a planted-value mutation: disable the redaction, observe the new test red on the planted values, restore byte-identical, and write the `mutation:` line. No 11.22 line is removed and no pin is weakened.
 
 ### Review Findings
 
@@ -248,45 +248,38 @@ Code review 2026-11-07 (bmad-code-review, full mode, four layers, review tier fu
 
 ## Review Triage Log
 
-### 2026-11-07 — Review pass
-- verdicts: 32 rows (the verification-gap layer's four 'other findings' share the last of its rows) — high 0, medium 5, low 27, false 0, maybe-false 0; 7 patched (4 medium, 3 low), 25 rejected, 0 deferred, 0 intent_gap, 0 bad_spec
+### 2026-11-07 - Review pass (rework: U-300 pin)
+- verdicts: 29 findings - high 0, medium 0, low 20, false 9, maybe-false 0
 - findings:
-  - Blind Hunter
-    - `[low]` `reject` traces stay when the unit is killed before `traces_keep` — the upload step is `if: failure()`, and a cancelled or timed-out job (the `iris` job has a 40-minute `timeout-minutes`) does not reach it; spec D4 chose this guard; a trap would change nothing for a SIGKILL
-    - `[low]` `patch` `traces_keep` removed `$dest` with an empty root when traces are off (a root-level path) — fixed: `$dest` is removed only when traces are on
-    - `[low]` `reject` `trace_mode` does not check the run tag that `traces_keep` checks — `setup_tag` refuses an invalid tag before `cmd_live` reaches `trace_mode`, so no user-reachable case
-    - `[low]` `reject` gateway error text could name an address — the text is the spec's own `CHK|error|gateway|<text>` contract (sanitised, 200 characters), from a local gateway status read; spec-bound
-    - `[low]` `reject` one error line discards good gateway lines — the spec's one-unavailable-line contract; the throwaway has one gateway
-    - `[low]` `reject` more than 5 gateways are not reported as cut — the stack has one; the fix adds a branch for no reachable case
-    - `[medium]` `reject` two concurrent sessions cost a licence unit — decided in D1 and recorded; the licence line may include the second session
-    - `[medium]` `patch` test gaps in `traces kept` (link row, symlink trace, failed move, modes) — added rows `unmovable` and `trlink` and the mode 600/700 assertions; tag-unset and rerun-overwrite are the next two rows' kin and stay unpinned (no user-reachable case: `setup_tag` sets the tag; a rerun in a new job has a new tag)
-    - `[low]` `reject` retention is by age only, `group` only, with no size cap — D8; a size cap is a new product number
-    - `[low]` `reject` the `traces` rule flags any path with `home` or `trace` — the spec's own rule text
-  - Edge Case Hunter
-    - `[low]` `patch` same root cause as the empty-root `rm` above
-    - `[low]` `reject` a trace root set to a broad folder is pruned by `rm -rf` of tag-named children — the operator names the root; only names that pass the run-tag rule go
-    - `[low]` `reject` prune follows links or races between `find` and `rm` — theoretical on a runner-owned folder
-    - `[low]` `reject` kill before the sweep — as above
-    - `[low]` `reject` a link named `.playwright-artifacts-*` is not removed — Playwright makes folders; theoretical
-    - `[low]` `reject` a pre-existing root with a looser mode — the contents are mode 600/700 and the root is made 700 by us
-    - `[low]` `reject` an odd state fails the whole reading — the spec's own matrix row ("a state outside the pattern")
-    - `[low]` `reject` a count above 9 digits or negative fails the reading, and gateways beyond 5 are unreported — spec matrix; theoretical
-    - `[low]` `reject` an error line with no text prints an empty reason — the script always prints the status text
-    - `[low]` `reject` two concurrent sessions — as above
-    - `[low]` `reject` a second diagnosis in one test appends twice — the spec says the file is appended with the lines printed
-    - `[low]` `reject` an expression path to the trace folder passes the pin — beyond the rule's text; theoretical
-    - `[low]` `reject` other exit routes (not upload-artifact) are not pinned — the rule's scope is upload-artifact
-    - `[low]` `reject` `touch -t` with `date -u` shifts local time — the command is the spec's; 6 and 8 days stay on their sides
-    - `[low]` `reject` retention is by folder mtime — D8
-  - Verification Gap
-    - `[medium]` `patch` kept modes 600/700 were not asserted — added to the `on` row; mutation: the `chmod 600` removed -> `FAIL traces kept` (mode 644), restored byte-identical
-    - `[medium]` `patch` the move-fails and trace-link branches never ran — rows `unmovable` and `trlink`; mutation: the `! -L` guard removed -> `FAIL traces kept` (trace link rows), restored byte-identical
-    - `[medium]` `patch` the concurrency of the two reads was not observable — a case with two 2 s reads asserts under 3.6 s; mutation: the reads made sequential -> red (4047 ms), restored byte-identical
-    - `[low]` `patch` the "registered, no server or connection" line (D12) was unpinned — one `toEqual` line in the pure case
-    - `[low]` `reject` `cmd_group` is only source-checked — the spec chose it; `traces_prune` itself runs in the prune rows
-    - `[low]` `reject` invalid run tag mismatch, grep-style source checks, the `Quit` test being a regex, AC4 without a mutation — as above; AC4 is a measurement by the spec; the live spec is the real guard and runs in `live:sign-in-2`
-  - Intent Alignment
-    - `[low]` `reject` descriptive report: the diff implements the per-surface reading; the cross-surface chain is the live run (part 2/3 passed) and AC4; the report names the sign-in unit, but the spec runs in sign-in-2
+  - `[false]` `[reject]` blind: the session-id rule is not tested because describeDiagnosis already cuts the id - describeDiagnosis prints `fields[3]` in full; with the rule removed the planted-value case goes red (verification-gap's per-rule check).
+  - `[low]` `[reject]` blind: `.slice(0, 200)` before redaction can leave a partial secret - the IRIS script cuts the text to 200 characters before the line arrives; real only for a secret straddling character 200 of a gateway error; wontfix-theoretical.
+  - `[low]` `[reject]` blind: shapes not covered (Basic auth, `sk_live_`, `password=`) - no read prints such text; the ruling lists examples; wontfix-theoretical.
+  - `[low]` `[reject]` blind: tail-eating rules and `cookie=` naming - by design: a Cookie header or body is removed through the end of its line, which favours not leaking; the header now says so.
+  - `[low]` `[patch]` edge: escaped-quote JSON body passes the body rule - `\\?` added to the rule; planted case added.
+  - `[low]` `[reject]` edge: Cookie or body early in a line wipes later fields - same as the tail-eating row; no real line has a field after them.
+  - `[low]` `[patch]` edge: `CSPSESSIONID: value` (colon form) is not redacted - the pair rule takes `=` or `:`; planted case added.
+  - `[low]` `[patch]` edge: glued or lower-case cookie name - `\b` dropped and the `i` flag added; planted case added.
+  - `[low]` `[patch]` edge: a session id with spaces in its first characters is not cut - the rule uses `.` instead of `\S`; planted case added.
+  - `[low]` `[reject]` edge: base64 with `+/=.`, digit-free or 16-23 characters - no read prints such a token; wontfix-theoretical.
+  - `[low]` `[reject]` edge: a long legitimate identifier with a digit is redacted - loses a name, never leaks; documented in the header; wontfix-accepted, reopen_if a real DIAG line shows a redacted routine or container name.
+  - `[low]` `[reject]` edge: the same truncation point as the blind row - wontfix-theoretical.
+  - `[low]` `[patch]` edge: CSPCHD, CSPWSERVERID, Set-Cookie, github_pat_, xox, AIza, ASIA and a JSON array are never planted - a table case plants one digit-free value per alternative.
+  - `[low]` `[reject]` edge: the claim that counts and states are kept holds on lines where the secret is last - same as the tail-eating row.
+  - `[low]` `[reject]` edge: a bare CSPSESSIONID without a value holds no secret - not a leak.
+  - `[low]` `[patch]` verification-gap: alternatives of the redaction have no planted value - same root cause as the edge row above; the table case and a second mutation line.
+  - `[low]` `[reject]` verification-gap: the mutation line covers only the whole redaction - Rule 19 asks for one mutation per AC; a second line for the table case was added anyway.
+  - `[low]` `[reject]` verification-gap: truncation before redaction - same as the blind row.
+  - `[low]` `[reject]` verification-gap: over-redaction of a long identifier is unpinned - same as the edge row; the keep case pins the 11.22 lines.
+  - `[low]` `[reject]` verification-gap: the gateway case asserts names it does not plant and not the redacted text - harmless; the first case asserts the exact redacted lines.
+  - `[false]` `[reject]` intent: boundary versus producer reading - the ruling asks for one step before print and write; the step is at that boundary.
+  - `[false]` `[reject]` intent: planted values come through the stand-in, not a real IRIS - the ruling names the stand-in; AC5's real-stack test is unchanged.
+  - `[false]` `[reject]` intent: narrower than the whole surface (error text, attachment) - the attachment is the file; the thrown error text is unchanged by 11.22.
+  - `[false]` `[reject]` intent: pattern-shaped, not value-shaped - the ruling lists shapes; the table case plants each.
+  - `[false]` `[reject]` intent: redaction consumes the rest of the line - same as the tail-eating row.
+  - `[false]` `[reject]` intent: the long-token rule applies to every line - same as the edge row.
+  - `[false]` `[reject]` intent: weak check on the session value - the exact-line case and the table case compare the cut line.
+  - `[false]` `[reject]` intent: the mutation shows only the on/off switch - same as the verification-gap row.
+  - `[false]` `[reject]` intent: other contract items unchanged - a statement, not a defect.
 
 ## Design Notes
 
@@ -446,32 +439,22 @@ mutation: CR AC2 the `~` and `home` checks removed from rule `traces` (test-ci-c
 mutation: CR AC2 the trace-folder-name term and the `tracename == ""` FAIL removed (rules.awk) -> `FAIL traces: [the trace folder own name is not flagged] [an unread folder name does not fail the rule]`; restored byte-identical.
 mutation: CR AC1 the `! -L "$f"` guard removed (ci/iris.sh), with the link now pointing outside the results folder -> `FAIL traces kept` ([trace link: the file was not kept, or the link was moved] [trace link: no 'TRACE removed 1 of fake' line]); restored byte-identical.
 mutation: CR AC1 the workspace check of `traces_on` disabled (ci/iris.sh) -> `FAIL traces kept` (among others [a root behind a link: the root was made]); restored byte-identical.
+mutation: U-300 the redaction disabled (`redactLine` returns its line, diagnose.ts) -> helper-waits' two planted-value cases red ("the planted cookie value" found in the file and in stdout); restored byte-identical (cmp against the backup; `git status --short` and `git diff --stat` unchanged).
+mutation: U-300 the AIza branch and the escaped-quote `\\?` of the JSON rule removed (`REDACTIONS`, diagnose.ts) -> helper-waits' alternatives case red (the planted value in `{\"a\":...}` found in the output); restored byte-identical (cmp against the backup; `git status --short` and `git diff --stat` unchanged).
 
 ## Auto Run Result
 
 Status: done
 Blocking condition: none
 
-**Summary.** Live units on a self-hosted CI runner keep Playwright traces of failing tests only (`retain-on-failure`, no screenshots); `ci/iris.sh` moves them to `<root>/<tag>/<unit>/` outside the workspace and checkout (root mode 700, files 600), deletes any other trace and every artifacts folder, keeps the unit's exit code, and prunes run folders older than 7 days at the start of a group. A `traces` rule in `test-ci-config.sh` refuses any upload-artifact step that names the trace folder, a trace file, a home or `..` path, or includes hidden files. `loadedAfter`'s diagnosis now adds `DIAG /state gateway ...` lines (counts and states) from a second, concurrent read, and writes every DIAG line to `state-diagnosis.txt`, attached as `state-diagnosis`. No product code, workflow, `lib-live.sh` or `units.sh` change.
+**Summary (rework pass, U-300 only).** Every `DIAG /state` line now passes through one `redactLine` step in `stateDiagnosis` before it is printed and appended to `state-diagnosis.txt`, so the file still equals the printed lines. It removes cookie pairs and headers, bearer tokens, JSON body text, key shapes and long opaque tokens, and cuts a lock line's session id to four characters. No 11.22 line was removed and no pin weakened; nothing under `src/` changed.
 
 **Files changed.**
-- `ci/iris.sh`: trace root, `traces_on`, `trace_mode`, `traces_keep`, `traces_prune`; `cmd_live` and `cmd_group` calls; header.
-- `docker/tests/test-ci-config.sh`: rule `traces` (real workflows and samples) and block `traces kept` (ten `cmd_live` rows, prune rows, source checks).
-- `web/e2e/support/diagnose.ts`: `gatewayScript`, `describeGateway`, concurrent reads, the DIAG file and attachment; header.
-- `web/e2e/support/floor.ts`: `loadedAfter` doc comment.
-- `web/e2e/live/helper-waits.spec.ts`: stand-ins that branch on the script text; gateway, file, hang, concurrency, pure and script-text cases.
-- `web/e2e/live/state-diagnosis.spec.ts` (new): AC5 against a real stack (sign-in-2 part 2/3).
-- `web/playwright.config.ts`: the trace switch (needs the env switch and `RUNNER_ENVIRONMENT=self-hosted`).
-- `web/scripts/ci-results.test.mjs`: the trace pin extended, not weakened.
-- `web/scripts/e2e-part.test.mjs`: the `cmd_live` pass-through harness follows the new `TRACE off` line (D19).
+- `web/e2e/support/diagnose.ts`: `REDACTIONS`, exported `redactLine`, and `stateDiagnosis` mapping its lines through it; the header states the promise.
+- `web/e2e/live/helper-waits.spec.ts`: two stand-in cases that plant values into the licence line, a CSP routine, a CSP error, the lock field and the gateway error text; a table case with one planted value per alternative; a case that keeps the 11.22 lines unchanged.
 
-**Review.** 32 triage rows: 7 patched (4 medium, 3 low), 25 rejected with their reasons in the log, 0 deferred. Patches: no `rm` of a root-level path when traces are off; mode 600/700, move-failure and trace-link rows in `traces kept`; a timing case for the concurrent reads; the "registered, no server" line pinned. Mutations for each patched test are in the log and in `## Verification`.
+**Review.** 29 findings: 5 patched (all low; 6 rows), 0 deferred, 24 rejected with reasons in the log. Follow-up review recommended: false (no high patched).
 
-**Follow-up review recommended: true** (first pass, 4 medium entries patched). Unverified risk: the added `traces kept` rows (`unmovable`, `trlink`, mode checks) and the timing case were written after the review layers read the diff.
+**Verification.** `helper-waits.spec.ts` with `request-waits.spec.ts` (sign-in-2, no stack) 36 passed, forward and reversed; `state-diagnosis.spec.ts -g "cannot be reached"` (chromium) 1 passed; `npm --prefix web run lint` exit 0; `bash docker/tests/test-boundaries.sh` all rules passed. Two mutations recorded in `## Verification`.
 
-**Verification.** (loop) helper-waits and request-waits 32 passed (also in reverse order); `ci-results.test.mjs` 6 passed; `test-ci-config.sh` all rules passed. (once, after the last patch) `npm --prefix web run lint` exit 0; `npm --prefix web test` 1495 passed; all 31 `CHECK_SCRIPTS` passed (run in two halves, `boundaries` among them); `ci/iris.sh build` and `live sign-in-2 --part 2/3` on a fresh lane-A throwaway (tag e11s27impl): 55 passed with `state-diagnosis.spec.ts` green, the throwaway removed by the script. The first live run found that the gateway script was not valid ObjectScript (D18); the fixed script returned real counts.
-
-**Residual risks.**
-- AC4 (the cost of traces per group) is lead-side and not measured here. `TRACE on` on the real self-hosted runner and the `iris` job's real trace move after a real failing test are first seen on CI.
-- The trace sweep runs at the end of `cmd_live`; a job killed before it is not uploaded (the upload runs on `failure()` only), per D4.
-- D1: the second diagnosis session may add one licence unit to the licence line.
+**Residual risks.** A Cookie header or a body is removed through the end of its line, and a digit-free identifier is never taken by the opaque-token rule while a long digit-bearing name is. Neither occurs in a line the reads print today.
