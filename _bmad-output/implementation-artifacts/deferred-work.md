@@ -4839,3 +4839,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: FOCUS_RULE whenGone for moreItem finds no prompt part in the finish; the finish stays, so focus has no target
 - 2026-11-07T10:32:17Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a keyboard user reports focus lost after a resize or banner while in the Other things to try panel
+
+### DW-862: Above the compact band, a panel the user opens where its shortest window and the chat's 160px floor cannot both fit leaves the chat under 160px (the chat gets the rest); the Planner's vertical-scroll fallback covers the compact band only
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: implement K21 patch review (fefb0b01); reachable only with a user-opened panel at heights 680px+ after banners on hosts with wide fonts
+- 2026-11-07T11:28:49Z status=escalated owner=burndown by=harvest note=for the decision sheet: extend the Planner's fallback (vertical page scroll so the chat keeps 160px) above the band, or accept
+
+### DW-863: keepRoom's first measure only writes the bound; when that write changes no layout the squeeze branch (compact floor min-height, tight()) may wait for a later resize
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: implement K21 patch review (fefb0b01); unverified; K21b passes by forcing the squeeze
+- 2026-11-07T11:28:49Z status=wontfix-accepted owner=4-11-other-things-to-try by=harvest note=reopen_if=a CI or field report of the finish's chat under its floor on first render that a resize fixes
