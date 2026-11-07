@@ -1878,8 +1878,10 @@ Method TestEstimateTokens()
 	Do $$$AssertTrue(watching > 500, "the JSON of the Watching tools is measured: "_watching)
 	Set persona = $Length(##class(OcuTalon.Tools.Persona).%New().%Discover().%Get("tools").%ToJSON())
 	Do $$$AssertTrue(persona > 200, "the JSON of the Persona tool is measured: "_persona)
-	Set chatTools = reminders + watching + persona
-	Do $$$AssertEquals(chat, prompt + chatTools, "Chat: the system prompt of the live agent, "_prompt_", and the JSON of the Reminders, Watching and Persona toolsets' tools, "_chatTools)
+	Set memory = $Length(##class(OcuTalon.Tools.Memory).%New().%Discover().%Get("tools").%ToJSON())
+	Do $$$AssertTrue(memory > 500, "the JSON of the four Memory tools is measured: "_memory)
+	Set chatTools = reminders + watching + persona + memory
+	Do $$$AssertEquals(chat, prompt + chatTools, "Chat: the system prompt of the live agent, "_prompt_", and the JSON of the Reminders, Watching, Persona and Memory toolsets' tools, "_chatTools)
 	Do $$$AssertTrue((catalog '< chatTools) && ((catalog - chatTools) < (catalog \ 10)), "which is within a tenth of the live tool catalog, "_catalog)
 	Set diagnosis = $ClassMethod(size, "AgentChars", diagnosisClass, .sc)
 	Do $$$AssertStatusOK(sc, "AgentChars of Diagnosis is worked out")

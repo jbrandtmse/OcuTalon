@@ -260,6 +260,14 @@ case $dest in
         rm -f "$inp"
         exit "${STUB_INSTALL_RC:-0}"
         ;;
+      *MEMOFF-NETS*)
+        # The memory-offline step (Story 19.2): networks cut, lookup failing, the test class passing, networks connected again.
+        if [ -n "${STUB_MEMOFF_OUT:-}" ]; then
+          cat "$STUB_MEMOFF_OUT"
+        else
+          printf '%s\n' 'MEMOFF-NETS ocutalon_default' 'MEMOFF-NET-DOWN' 'CHK|new|1' 'CHK|case|OcuTalon.Test.Memory.Offline|1|3' 'MEMOFF-RECONNECTED'
+        fi
+        ;;
       *'docker compose exec'*)
         if grep -q 'CHK|done|1' "$inp"; then
           cp "$inp" "${STUB_COLLECTOR_IN:-/dev/null}"
@@ -631,7 +639,7 @@ t_results() {
   local bad=0 r=$tmp/results.txt
   eq "the FAIL line grammar" "$(fail_line hosts - "git is not installed")" "FAIL run install step hosts bound -: git is not installed"
   eq "a bound goes in the line" "$(fail_line install "ready within 900 s" "install.sh exited 1")" "FAIL run install step install bound ready within 900 s: install.sh exited 1"
-  printf 'hosts|pass|x\ncopy|pass|x\ninstall|pass|x\nsign-in|pass|x\nsecrets|pass|x\n' > "$r"
+  printf 'hosts|pass|x\ncopy|pass|x\ninstall|pass|x\nmemory-offline|pass|x\nsign-in|pass|x\nsecrets|pass|x\n' > "$r"
   eq "a real run whose steps pass is not run (no timed run)" "$(rehearsal_result real "$r")" "not run"
   eq "a dry run is a dry run" "$(rehearsal_result dry "$r")" "dry run"
   local row
@@ -777,7 +785,7 @@ t_dry_section() {
   env_set "$st/options" ended 2026-11-01T10:05:00Z
   printf 'Linux (Ubuntu 24.04.1 LTS), x86_64, 15.6 GiB memory; Node.js absent\n' > "$st/machine.clean"
   printf 'macOS 26.0.1, arm64, 64.0 GiB memory\n' > "$st/machine.driver"
-  printf 'hosts|pass|ok\ncopy|pass|ok\ninstall|pass|ok\nsign-in|pass|ok\nsecrets|pass|ok\n' > "$st/results"
+  printf 'hosts|pass|ok\ncopy|pass|ok\ninstall|pass|ok\nmemory-offline|pass|ok\nsign-in|pass|ok\nsecrets|pass|ok\n' > "$st/results"
   sec=$st/section.md
   section_build "$sec"
   out=$(cat "$sec")
@@ -926,6 +934,24 @@ t_stub_runs() {
   has "the install exits 1" "$out" "status 1"
   has "the caller's OCUTALON_INSTALL_WAIT reaches the remote install.sh" "$(cat "$stublog")" "ARG cd ocutalon-rehearsal/candidate && env OCUTALON_INSTALL_WAIT=120 bash install.sh 2>&1"
 
+  # memory-offline (Story 19.2): a name lookup that still works, a probe that does not run, a test class that fails or skips, no network to cut, and a network that does not
+  # connect again each fail the step, which is recorded, and the sign-in is not run.
+  printf '%s\n' 'MEMOFF-NETS ocutalon_default' 'MEMOFF-NET-UP' 'CHK|new|1' 'CHK|case|OcuTalon.Test.Memory.Offline|1|3' 'MEMOFF-RECONNECTED' > "$stubdir/memoff.up"
+  printf '%s\n' 'MEMOFF-NETS ocutalon_default' 'MEMOFF-NET-DOWN' 'CHK|new|1' 'CHK|case|OcuTalon.Test.Memory.Offline|0|3' 'CHK|assert|0|TestStoreAndRecall|the memory is the top hit' 'MEMOFF-RECONNECTED' > "$stubdir/memoff.failed"
+  printf '%s\n' 'MEMOFF-NETS ocutalon_default' 'MEMOFF-NET-DOWN' 'CHK|new|1' 'CHK|case|OcuTalon.Test.Memory.Offline|1|3' 'CHK|assert|2|TestStoreAndRecall|Not OcuTalon image' 'MEMOFF-RECONNECTED' > "$stubdir/memoff.skipped"
+  printf '%s\n' 'MEMOFF-NETS' 'MEMOFF-NET-DOWN' 'CHK|case|OcuTalon.Test.Memory.Offline|1|3' 'MEMOFF-RECONNECTED' > "$stubdir/memoff.nonets"
+  printf '%s\n' 'MEMOFF-NETS ocutalon_default' 'MEMOFF-NET-DOWN' 'CHK|case|OcuTalon.Test.Memory.Offline|1|3' 'MEMOFF-CONNECT-FAILED ocutalon_default' 'MEMOFF-RECONNECTED' > "$stubdir/memoff.noconnect"
+  printf '%s\n' 'MEMOFF-NETS ocutalon_default' 'MEMOFF-NO-PROBE' 'CHK|new|1' 'CHK|case|OcuTalon.Test.Memory.Offline|1|3' 'MEMOFF-RECONNECTED' > "$stubdir/memoff.noprobe"
+  for kind in up failed skipped nonets noconnect noprobe; do
+    rec=$tmp/rec-memoff-$kind.md
+    out=$(STUB_MEMOFF_OUT=$stubdir/memoff.$kind run_loop rh-memoff-$kind run --version 1.0.0 --rc 1 --record "$rec")
+    has "memory-offline ($kind) fails the step" "$out" "FAIL run install step memory-offline bound -:"
+    has "memory-offline ($kind): the sign-in is not run" "$out" "NOT RUN sign-in"
+    has "memory-offline ($kind): the row fails in the record" "$(cat "$rec")" "| memory-offline | fail |"
+    has "memory-offline ($kind): the install row passed before it" "$(cat "$rec")" "| install | pass |"
+    has "memory-offline ($kind) exits 1" "$out" "status 1"
+  done
+
   # sign-in: the page after the sign-in holds no <app-root.
   rec=$tmp/rec-signin.md
   out=$(STUB_DRIVER_PAGE='<html>Sign in</html>' run_loop rh-sign run --version 1.0.0 --rc 1 --record "$rec")
@@ -972,6 +998,7 @@ t_stub_runs() {
   has "the hosts step passes" "$out" "PASS hosts both hosts answered"
   has "the copy step passes" "$out" "PASS copy git bundle of"
   has "the install step passes" "$out" "PASS install install.sh reached ready; first start"
+  has "the memory-offline step passes" "$out" "PASS memory-offline with every network of the iris container disconnected, OcuTalon.Test.Memory.Offline passed (3 test methods, none skipped)"
   has "the sign-in step passes" "$out" "PASS sign-in the driver host signed in at the printed address"
   lacks "no failed line" "$out" "FAIL"
   has "the install phase exits 0" "$out" "status 0"
@@ -982,10 +1009,10 @@ t_stub_runs() {
   eq "the state is private" "$(ls -ld "$state" | cut -c1-10)" "drwx------"
   argv=$(cat "$stublog")
   lacks "no env value in any argument of any call" "$argv" "planted-env-value-123456"
-  eq "every call checks host keys strictly" "$(grep -c '^ARG StrictHostKeyChecking=yes$' "$stublog")" 5
+  eq "every call checks host keys strictly" "$(grep -c '^ARG StrictHostKeyChecking=yes$' "$stublog")" 6
   lacks "no host key check is switched off" "$argv" "StrictHostKeyChecking=no"
   lacks "no OCUTALON_INSTALL_WAIT is passed when the caller set none" "$argv" "OCUTALON_INSTALL_WAIT"
-  eq "the ssh calls are the probe, the copy, the clone, the env and install.sh (the driver is this machine)" "$(grep -c '^CALL ' "$stublog")" 5
+  eq "the ssh calls are the probe, the copy, the clone, the env, install.sh and the memory-offline step (the driver is this machine)" "$(grep -c '^CALL ' "$stublog")" 6
   has "the bundle reached the host through stdin" "$argv" "stdin=$(wc -c < "$state/candidate.bundle" | tr -d ' ')"
   has "the sign-in config went by stdin to the driver" "$(cat "$tmp/curl.cfg")" 'data-urlencode = "IRISPassword=ocu-pass-1"'
   has "it signs in as the printed user" "$(cat "$tmp/curl.cfg")" 'data-urlencode = "IRISUsername=ocu-user"'
@@ -1147,7 +1174,7 @@ mkruns() { # mkruns <state dir> <n> <dry|real>: a state with runs/1..n whose val
   rm -rf "$d"
   mkdir -p "$d/runs"
   printf 'mode=%s\nruns=%s\n' "$3" "$n" > "$d/options"
-  printf 'hosts|pass|ok\ncopy|pass|ok\ninstall|pass|ok\nsign-in|pass|ok\nsecrets|pass|ok\n' > "$d/results"
+  printf 'hosts|pass|ok\ncopy|pass|ok\ninstall|pass|ok\nmemory-offline|pass|ok\nsign-in|pass|ok\nsecrets|pass|ok\n' > "$d/results"
   for k in $(seq 1 "$n"); do
     mkdir -p "$d/runs/$k"
     printf 'step1_sent 1000\nstep1_decision_seen 3100\nstep1_reply_seen 3300\napprove_pressed 9000\napproval_result_seen 9600\ntellnow_sent 20000\ntellnow_seen 22600\n' > "$d/runs/$k/marks.page"

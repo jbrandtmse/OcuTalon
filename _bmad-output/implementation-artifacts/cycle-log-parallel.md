@@ -2492,3 +2492,29 @@
 2026-11-07T15:34:07Z	Run	planner_ruling	subject=D1_D2 D1=option_a_build_GotIt_Telegram+window(tellnow/act_decisions_only;failed_checks_and_awaiting_incidents_always) D2=option_a_web_card_plain_text_web_only,telegram_golden_byte_identical,demo_morning_skip,demo_SendDigest_composes,online-demo-path_step staffing=D1_first_free(B),D2_next(A) Out.cls=merge-file_proof_or_D2_first
 2026-11-07T16:17:14Z	Epic 7	runner_complete	head=c1e16cf9 stories=1(7.10) ci=success(42388162201,42388162212) cause=stale_fixture_LastAt_quiet_sweep proof=old_2/11_fix_20/20 decisions=DW-868 merge=after_cut(freeze)
 2026-11-07T16:17:14Z	Epic 7	merge_enqueued	position=after_1.0.3_cut
+2026-11-07T16:17:48Z	Epic 12	worktree_provisioned	branch=OCT-epic12 base=11928182 reason=story_12.12_D1
+2026-11-07T16:17:48Z	Epic 12	worktree_bootstrapped	epic=12 result=ok
+2026-11-07T16:17:48Z	Epic 12	runner_dispatched	agent=ab10e3481e994976a lane=B slot=ocutalon-slot-b model=opus prompt=dispatch-epic-12-1212.md
+2026-11-07T16:39:38Z	Epic 12	runner_clarification	kind=AD_conflict ad=AD-14(:478,:1346) cites_in_flight=spec-31-4(routing_only) U7=to_planner recommend=amend_extend head=13fbc59e
+2026-11-07T16:39:38Z	Run	planner_question	subject=AD-14_amendment_for_12.12
+2026-11-07T16:39:59Z	Epic 12	planner_ruling	subject=AD-14_amendment_12.12 option=a approved_as_written marker="[AMENDED 2026-11-07, Story 12.12, Planner ruling]" DW-695_purge=deferred_low
+2026-11-07T16:39:59Z	Epic 12	runner_resumed	agent=ab10e3481e994976a reason=amend_AD-14_then_implement
+2026-11-07T16:47:57Z	Epic 19	runner_complete	head=043ad103 part_merge=19.1-19.3,19.6,19.8 stories=4 ci=success(42390939929,42390939956) release_tool_hunks=U-294+19.8(upgrade-harness_empty) new_units=shards-5,ipm-install-p,live:memory-offline decisions=DW-870,DW-871
+2026-11-07T16:47:57Z	Epic 19	amendments_verified	epics.md=19.8+DW_bullets spine=AD-21,AD-23_markers
+2026-11-07T16:47:57Z	Epic 19	epic_merge_started	head=043ad103 into=feature extra=DW-871(AD-22,ci.yml_line2)
+2026-11-07T16:49:02Z	Epic 19	epic_merged_to_feature	merge=5b47f052 head=043ad103 part=1 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0 sprint_valid=yes spine_lint=baseline DW-871=AD-22+ci.yml_comment
+2026-11-07T16:49:02Z	Epic 19	spine_updated	ad=AD-22 reason=decision_sheet by=orchestrator lint=ok
+2026-11-07T16:49:02Z	Run	deps_hash_rerecorded	reason=burndown_inserted story=19.8 hash=1b9a45a78f74
+2026-11-07T16:49:45Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=part2_reopen(19.4,19.5,19.7) base=5b47f052 lever=preapproved_after_19.4
+2026-11-07T17:18:25Z	Epic 19	public_text_relayed	story=19.4 strings=RAGSTATEMENT,bridge-guide:312,Gate.NOROOM choices=Q2b_cited,live:documents_in_shards-5 forecast=08-10Z_Sun(lever)/14-16Z
+2026-11-07T17:18:44Z	Run	ci_run_cancelled	run=42392760843 branch=OCT-epic11 head=a18ddd45 reason=superseded_by_623b9cb0;free_runners_for_feature_5b47f052(cut_trigger)
+2026-11-07T17:27:54Z	Epic 19	public_text_ruled	story=19.4 RAGSTATEMENT=changed bridge-guide:312=approved NOROOM=approved Q2b=cited_reading_accepted(pin_both) Q4=live:documents_shards-5(pdf_generated,report_time)
+2026-11-07T17:27:54Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=19.4_implement
+2026-11-07T17:50:37Z	Epic 11	runner_clarification	kind=planner_report story=11.27 browser=+281s(traces~40s,4.11_tests) risk=live:sign-in_1170s/1200s options=a,b,c 11.28=done(DW-688) veto=U-300
+2026-11-07T17:50:37Z	Run	planner_question	subject=live:sign-in_split when=release_branch_or_after_cut
+2026-11-07T17:54:59Z	Run	ci_green_verified	head=5b47f052 runs=42393186349,42393186350 result=success via=gh note=1.0.3_cut_trigger planner_told=yes
+2026-11-07T17:54:59Z	Run	planner_ruling	subject=live:sign-in_split own_commit_own_branch_on_5b47f052 same_test_list_check pick_onto_release_if_timeout else_after_cut traces=option_a U-300=keep+no_secrets_pin
+2026-11-07T17:56:00Z	Run	planner_update	subject=1.0.3_rc1_cut source=5b47f052 cut_commit=8f142259 branch=release/1.0.3-rc1 feature_freeze=lifted release_tool_freeze=holds
+2026-11-07T17:56:00Z	Epic 32	worktree_provisioned	branch=OCT-epic32 base=97324169 reason=story_32.5_live:sign-in_split runner=a9ecc108c6b23c2ec(lane_A)
+2026-11-07T17:56:00Z	Epic 11	runner_resumed	agent=a9ecc108c6b23c2ec reason=sign-in_split_first(epic-32)_then_11.27
+2026-11-07T17:56:06Z	Epic 7	epic_merge_started	head=c1e16cf9 into=feature story=7.10

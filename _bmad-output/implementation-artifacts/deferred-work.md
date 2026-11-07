@@ -4307,6 +4307,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: run 41930634318 attempt 1 on OCT-epic39 149a8d8d (iris shards-2); same 84 classes and order green on feature ac2c4549 (41916844884); not reproduced on fresh or warm lane-D replays of the Fix tail and Eval.Record; incident window 23:32-23:38 matches Eval.KeyProof/Eval.Record then Fix.EitherWay (ended 23:35:29) and Fix.Later (ended 23:38:06)
 - 2026-11-05T00:11:45Z status=routed owner=burndown by=lead note=inference: an Epic 7 Fix.EitherWay cleanup and Fix.Later approval race; a second occurrence on any branch or on feature is real: replay lane-a@rest's 84 classes in CI order on one warm stack
+- 2026-11-07T15:55:27Z occurrence=19-8-epic-19-burn-down note=a86b532c_ci_run_42384900368_shards-2:Tools.RecentActivity(TestAnotherSession,TestDemoPath,TestPoisoned)+RecentActivityTurn;same_IRIS_code_passed_on_d6c43b92;one_rerun_of_the_failed_job
 
 ### DW-711: Test.Checks.Beat and Runs heartbeat fixtures (a pending decision then RunDue, RunNow, a probe Tick or BeatNow) can be settled first by a real HeartbeatIn Tick, whose RunDue settles every pending row
 - source: spec-39-7-publish-the-heartbeat-event.md | severity: low | fix-risk: high | footprint: in-story
@@ -4557,11 +4558,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: measured in 34.2 Task 0 on DocumentOps (web server gave up at 60 s, CommandsIn waits 120 s)
 - 2026-11-05T12:23:42Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=harvest note=CommandsIn is contended with Epic 40; 19.3 enabling MemoryOps removes the case for memory verbs
 - 2026-11-05T13:03:31Z occurrence=34-2-add-and-remove-documents-on-a-documents-page
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=MemoryOps_Enabled=true_in_Production.cls(Lane_A_region);Test.Memory.Ops:TestAnswerTime_answers_a_save_within_10_s;the_general_CommandsIn_not_built_fix_for_a_disabled_owner_stays_Lane_B's
 
 ### DW-732: /usr/irissys/mgr/python is irisowner-owned (mode 555) in the base image, so the IRIS user could chmod it and replace the installed Python packages; the packages inside are root-owned and read-only
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: evidence/34-2-task0-image.md (34.2 Task 0 b)
 - 2026-11-05T12:23:42Z status=routed owner=19-2-compute-embeddings-offline-in-a-worker by=harvest note=decide whether to tighten the folder (Dockerfile) when 19.2 uses the packages
+- 2026-11-06T04:53:06Z status=wontfix-theoretical owner=19-2-compute-embeddings-offline-in-a-worker by=spec_gate note=the_folder_owner_irisowner_is_the_IRIS_process's_own_user,which_already_writes_the_code_database_and_mgr;the_folder_is_in_the_image_layer,reset_at_every_recreate;so_tightening_it_adds_no_boundary;real_if_the_IRIS_process_ever_runs_as_a_user_other_than_the_folder's_owner;fix_would_be_docker/Dockerfile(Lane_B,U-177)
 
 ### DW-733: flake candidate: Test.Live.GuideRefresh TestHookPublishesOnChange and TestEventsBodyServesTheGuide fail when the class runs alone on a warm stack the lane-b shard already used; pass in the shard on every fresh stack (order or state dependence of the test itself)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4597,6 +4600,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Command/ForgetMemory.cls doc says a tool forgets only its own session's memory; CommandsIn Carry checks SessionRef only; MemoryOps is Lane A's 5003 stub (34.2 review, Blind)
 - 2026-11-05T13:03:31Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=MemoryOps answers ForgetMemory not_found unless Data.Memory's owner is the command's SessionRef; test it with another session's MemoryRef
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=MemoryOps.OnForget_checks_row.SessionRef=request.SessionRef(else_not_found);Test.Memory.Ops:TestForgetOther,Test.Memory.Turns:TestForgetOtherSession
 
 ### DW-747: Data.Upload has no lifecycle beyond Take, the route's own delete and sign-out: nothing sweeps an abandoned row (a local install has no sign-out), a CommandsIn timeout drops the row while the AddDocument may still reach DocumentOps (whose Take then returns nothing), and Take is at-most-once with no session check
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -4825,6 +4829,180 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: an IRIS-internal race: a job's status node vanished while Ens.Job enumerated it during the restart (restart 2 took 147 s); every reminder check passed; Epic 34 touches no job or start code
 - 2026-11-06T02:28:05Z status=routed owner=burndown by=orchestrator note=failed job rerun once; if it recurs, the event-log check could ignore this one system-class race or wait for a steady production before sampling (like DW-692)
 
+### DW-782: No test calls OcuTalon.Memory.Embedding from inside an AI Hub callback (the S11 surface): whether queueing to and waiting on the WorkMgr worker from a tool's callback avoids the build-154 crash is unshown
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: TestCallbackRule proves only that the class holds no Python text; the unit tests call Embed from ordinary sessions; settle with a live tool call in a throwaway that saves and searches a memory
+- 2026-11-06T09:07:41Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=harvest note=Story 19.3's memory tools are the first callback callers
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=Test.Memory.Turns_runs_save_and_search_from_inside_the_tool_callback_with_the_ChatAgent_job_unchanged,run_by_live:memory-offline_on_a_fresh_throwaway(aarch64_ok=1;x64_in_CI)
+
+### DW-783: release/rehearse.sh memory-offline is proved on stub hosts only: a dry run on a real stack must show the clean host publishes its web port again after docker network connect --alias iris
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: docker/tests/test-rehearsal.sh pins the step on stubs; the sign-in step after it is the real check
+- 2026-11-06T09:07:41Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5 extends the release/ upgrade harness; run the rehearsal dry run on a lane-C throwaway there
+
+### DW-784: docs/install-ipm.md does not say that an IPM install fetches fastembed through requirements.txt and downloads the model (about 97 MB) into <mgr>/fastembed/, or what WARN Memory means; its sample output shows STEP Memory OK 0.1s and no WARN Memory
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the page only gained STEP Memory OK lines (test-cpf.sh rule 9); new wording is public text on Epic 11's page
+- 2026-11-06T09:07:42Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=harvest note=reopen_if=Epic_11_or_15_next_edits_docs/install-ipm.md,or_a_reader_asks_what_WARN_Memory_means;reported_to_orchestrator_for_routing
+- 2026-11-06T10:48:50Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=owner_ruling note=reopened_by_U-294_condition_3:PUBLIC_TEXT_to_the_Planner_before_commit:the_README_IPM_section_and_docs/install-ipm.md_say_the_install_downloads_Python_packages_and_the_embedding_model(size,typical_time)_and_needs_network_access_to_PyPI_and_the_model_host;re-shoot_the_sample_output
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=README_A4/A5_and_install-ipm.md_A6_carry_the_ruled_text_with_measured_figures(~250MB,~90MB,~1_minute),same_figures_pinned_by_test-release-sequence.sh;the_time_figure_is_67pct_below_the_proposal_and_goes_to_the_Planner_before_the_push;sample_output_re-shot
+
+### DW-791: The IPM install's requirements.txt pins only fastembed==0.9.0: its dependencies (onnxruntime, tokenizers, huggingface_hub, numpy) get no constraints file, licence gate or third-party notices, unlike the image's pip line
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: docker/Dockerfile holds every dependency to docker/licences/constraints-<arch>.txt and runs gate.py check and notices; root requirements.txt has one line; ipm-install.sh check 30 asserts only fastembed's version
+- 2026-11-06T09:48:59Z status=escalated owner=burndown by=cr note=licence and dependency policy for IPM installs (veto); per-arch pins do not fit one requirements.txt; decide at the decision sheet
+- 2026-11-06T10:48:50Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=owner_ruling note=U-294_condition_1(binds_inside_Epic_19):requirements.txt_pins_fastembed,pdfplumber,python-docx_AND_every_transitive_distribution_of_U-285/DW-738's_licence-measured_set_at_the_constraints_files'_versions(say_so_if_arm64_and_x64_differ,before_committing);ipmcheck_runs_the_same_licence_gate_on_what_IPM_installed,failing_outside_the_allowed_families;plus_condition_2:measure_ipmcheck_and_rehearsal_with_the_model_download
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=requirements.txt_pins_the_36_of_both_constraints_files(static_check);ipm-install.sh_check_32_gates_what_IPM_installed;ipm_artifact_check(B4)_proves_the_artifact_carries_requirements.txt_and_the_FileCopy;condition_2_CI_times_read_from_the_part-1_CI_runs;DW-829_(older_copies)_escalated_separately
+
+### DW-792: OcuTalon.Memory.Embedder builds its two keyword calls (TextEmbedding, snapshot_download) from Python source in builtins.eval lambda strings, a form the Conventions Python row (.py resources under src/ocutalon/python/) does not name
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Embedder.cls Embed and Download eval one-line lambdas because %SYS.Python passes no keyword argument on build 154 (spec Decided in-stage); the spec forbids an own .py file in this story
+- 2026-11-06T09:48:59Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=19.6 creates src/ocutalon/python/: move both lambdas into a .py resource imported with %SYS.Python.Import
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=Embedder's_keyword_calls_moved_into_src/ocutalon/python/ocutalon_memory.py;Test.Docs.Python_bans_eval/exec
+
+### DW-793: Memory install warnings can carry OcuTalon's own wording, not only an underlying error's text: 'The download left no model in <folder>', and Embedder statuses ('could not be made', 'did not finish within N seconds', 'No work group of category')
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Install/Step/Memory.cls EnsureModel Warn calls; spec Never: no new user-facing text (a step warning carries the underlying error's own text); other steps (Audit, Users, Schedule) warn in their own words
+- 2026-11-06T09:48:59Z status=decision-pending owner=burndown by=cr note=PUBLIC TEXT: recommend keeping them as operator diagnostics, as the other install steps do; else the spec's Never line is amended
+- 2026-11-06T10:48:51Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=owner_ruling note=approved_as_proposed_by_the_Contest_Planner(owner_delegation);condition:none_prints_a_key,token_or_environment-variable_value(folder_paths_fine);pin_it_with_a_test_if_not_already_pinned
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=Test.Memory.Install:TestDiagnosticsHoldNoSecret_and_Test.Memory.Diagnostics(TestSubmitTimeout,TestUnknownWorkItem,TestModelThatCannotLoad)_scan_the_messages_for_keys,tokens_and_env_values
+
+### DW-794: The callback check cannot cover OcuTalon.Memory.Embedder's caller-side methods (Submit, ModelFolder, HasModel run in the calling process) because the same class holds the worker's %SYS.Python code, so Python added to Submit would pass TestCallbackRule
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Test.Bridge.CodeRules CALLBACKHELPERS lists Memory.Embedding only; the spec puts ModelFolder, Submit and the worker entries in one class Embedder, which Story 19.4 reads
+- 2026-11-06T09:48:59Z status=by-design owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=spec-bound (one class per the Code Map and Consumed-by 19.4); reopen via spec amendment if Story 19.3's callback test shows a need
+
+### DW-795: release/ipm-install.sh check 31 cannot observe a repeated download: a snapshot_download into a complete cache leaves the file list and sizes unchanged, and the reinstall output is not checked for WARN Memory
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: memory_fingerprint compares paths and sizes only; the AC4 mutation (always download) is caught by Test.Memory.Install:TestPresentFolder, not by check 31
+- 2026-11-06T09:48:59Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=reopen_if=an FR-57 reinstall log shows a model download or fastembed pip output while check 31 passes
+
+### DW-796: Test.Memory.Offline:TestHubFromACopyInAWorker cannot tell whether AI Hub's FastEmbed read the copy: if the variable were ignored it would read the worker's inherited /opt/fastembed and still pass
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: HubWorker sets FASTEMBED_CACHE_DIR to a cp copy of the baked folder; no control with a folder lacking the model (rejected earlier: with a network AI Hub would download into it)
+- 2026-11-06T09:48:59Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=reopen_if=Story 19.4's DocumentOps sets the variable from ModelFolder() and an IPM install's documents are embedded from /opt or fail
+
+### DW-797: AD-22's 'CI as built' list of lane-a areas does not name Memory, which ci/units.sh now runs in shard lane-a
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spine AD-22 Rule line lists Agent, Bridge, Checks, Fix, Install, Tools, Digest, Watch, Eval and Channel; Story 19.2 appended Memory to ci/units.sh; editing an existing Rule line of a contended spine is not a plain union
+- 2026-11-06T09:48:59Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=reopen_if=the lead's next spine refresh of AD-22, or a reader places a Test/Memory class by that list; test-ci-config.sh enforces membership
+
+### DW-806: MemoryOps.OnSave can save after CommandsIn gave up: the session lock (5 s) plus Embed's own 120 s wait can outlast CommandsIn's 120 s TIMEOUT, so the model is told the save failed while the row is written
+- source: spec-19-3-remember-recall-list-and-forget-in-the-chat.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Memory/Ops.cls OnSave: Lock 5 s then Embedding.Embed with Embedder TIMEOUT 120; Core/CommandsIn.cls TIMEOUT 120 on SendRequestSync
+- 2026-11-06T15:51:37Z status=wontfix-accepted owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=needs an embed of 115-120 s; fix changes 19.2's Embed API; reopen_if=a MemoryOps row whose turn's save_memory answer was NOTSENT or failed
+
+### DW-807: Test/Install/SecurityOverview.cls doc comments of TestRecentActivityRow and TestProposePersonaRow still say 'one of the 13 rows' while the table has 17
+- source: spec-19-3-remember-recall-list-and-forget-in-the-chat.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: lines 58 and 79 unchanged by 19.3; TestToolRows expects RELEASE1 + propose_persona + MEMORYTOOLS = 17; Epic 17 adds a row too
+- 2026-11-06T15:51:37Z status=wontfix-accepted owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=contended file outside the Rulings scope (names only); reopen_if=after the Epic 17 and 19 merges the file still says 13 rows
+
+### DW-808: Test/Bridge/CodeRules.cls CALLBACKHELPERS doc comment gives no reason for OcuTalon.Memory and OcuTalon.Tools.HostData, which 19.3 appended
+- source: spec-19-3-remember-recall-list-and-forget-in-the-chat.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: line 81 doc ends at Memory.Embedding; line 82 list now ends ,OcuTalon.Memory,OcuTalon.Tools.HostData (Memory.Search runs SQL and queues an embedding in the callback; HostData merges the reply members)
+- 2026-11-06T15:51:37Z status=wontfix-accepted owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=Epic 17-contended doc line; a one-clause union at merge closes it; reopen_if=after the Epic 17 merge the doc still omits the two helpers
+
+### DW-827: OcuTalon.Docs.Extractor's MaxActiveWorkers 1 does not serialise reads: two concurrent Docs.Extract.Read calls ran on two worker jobs at once, so AD-21's one worker holds for the setting, not the number of simultaneous workers
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: evidence/19-6-task0-extraction.md M3
+- 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 is the first product caller; serialise or amend AD-21's wording
+
+### DW-828: Clear on a timed-out read waits for a work item inside one long C call (a 30 s sleep held Clear 29 s), so a PDF whose time goes into one C call (a decompression bomb) can keep Read past its limit
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: evidence/19-6-task0-extraction.md M3: the page loop stops, a single C call does not
+- 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 adds files from the Documents page; bound it there (page or size caps before the C call)
+
+### DW-829: On an IPM install, pip -t leaves older copies of six distributions that <mgr>/python already holds (certifi, charset_normalizer, idna, requests, typing_extensions, urllib3) beside the pinned dist-info, so the pinned files may not be the ones imported; U-294 condition 1 and README bullet A5 ('at the same versions') depend on it
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: release/ipm-install.sh path A (Story 19.6); check 32 gates only what the install added plus the pins
+- 2026-11-06T23:14:10Z status=escalated owner=burndown by=harvest note=for the Planner (U-294 release gate owner) at the part-1 contract; reported with the PUBLIC TEXT figures
+- 2026-11-07T01:36:04Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_2026-11-07:measure_the_six_imports(__version__,__file__)_on_the_local-artifact_IPM_install;pinned->A5_stays+import_check_in_check_32;else_fix_the_install(pip_-t_--upgrade_or_remove_stale)+same_gate;if_impossible_by_14Z:PUBLIC_TEXT_reworded_A5
+- 2026-11-07T07:40:49Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=OcuTalon.Install.Ipm.RemoveStaleCopies_before_IPM's_pip_step;conditions_1-4_met:pins_from_requirements.txt,mgr/python_only,idempotent,STEP_line_each;folder+IPM-import_snapshot_gate(check_32_area);uninstall_keeps_the_six;version+hash_import_check_on_path_A_and_part_p;A5_unchanged;evidence/19-8-task0-install-accuracy.md
+
+### DW-830: The README and docs/install-ipm.md list three hosts (pypi.org, files.pythonhosted.org, huggingface.co); huggingface_hub with hf-xet may also use CDN or Xet hosts, and the docs do not say what a blocked download looks like (the Memory step only warns)
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: review finding, unverified; settle by recording the hosts an install contacts on a lane-C throwaway
+- 2026-11-06T23:14:10Z status=escalated owner=burndown by=harvest note=public-text accuracy; for the Planner with the PUBLIC TEXT figures
+- 2026-11-07T01:36:04Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_2026-11-07:HEAD-only_curl_-sI_on_each_HF_resolve_URL_and_pip_download_URL;record_Location_hosts;docs_name_exactly_those_hosts;any_host-list_change_is_PUBLIC_TEXT_before_commit
+- 2026-11-07T07:40:49Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=HEAD-only_probes_recorded;README_A4_and_install-ipm.md_A6_carry_the_Planner's_Option_2_host_lists(huggingface.co_and_its_download_hosts_under_hf.co:us.aws.cdn.hf.co,cas-server.xethub.hf.co),pinned_and_paired;the_blocked-download_half_declined_(unruled_public_text)
+
+### DW-831: Word text inside body-level content controls (w:sdt) and inside nested tables is not read (iter_inner_content yields body paragraphs and tables; cell.text skips nested tables); a file made only of content controls answers no_text
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: python-docx 1.1.2 behaviour; no sample covers it
+- 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 answers from Word runbooks
+
+### DW-832: A line of a file's own text that starts with '## ' is indistinguishable from an extraction page or heading marker, so Story 19.4's splitter would open a section there
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: inherent in the Markdown markers (19.6's decided design)
+- 2026-11-06T23:14:10Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4's splitter escapes or ignores such lines
+
+### DW-833: Test.Docs.Extract:TestNothingStored compares an empty knowledge-base half (no KB table before Story 19.4) and only the $Data flag of the Document globals, so a stray write elsewhere is not caught
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: verification-gap finding
+- 2026-11-06T23:14:10Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 adds the KB half to the signature
+
+### DW-834: A .dotx/.docm (python-docx ValueError), a .docx with an encrypted zip entry (RuntimeError) or an unsupported zip compression (NotImplementedError) is reported as failed, not as wrong_type, encrypted or damaged
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: edge-case finding; the answer is honest (failed) and nothing is stored
+- 2026-11-06T23:14:10Z status=open owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=harvest note=code review: patch the mapping if mechanical, else wontfix-accepted with a probe
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=.docm/.dotx->wrong_type,encrypted_entry->encrypted,odd_compression/zlib/EOF->damaged;Test.Docs.ExtractEdges:TestWordFileVariants
+
+### DW-835: TestTimeLimit asserts only that a timed-out read ends in under 20 s (the matrix says about 3 s), and no test pins local_files_only=True or allow_patterns in ocutalon_memory.py
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: verification-gap findings; the 20 s bound follows the loaded-host measurement
+- 2026-11-06T23:14:11Z status=open owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=harvest note=code review: pin the two flags (fixed strings) and record why 20 s
+- 2026-11-07T01:04:45Z status=wontfix-accepted by=adjudication note=local_files_only/allow_patterns_pinned_by_ExtractEdges:TestEmbedderResource;the_20s_bound_of_TestTimeLimit_stays(loaded-host_measurement);reopen_if=TestTimeLimit_flakes_or_a_quiet-host_read_exceeds_5s
+
+### DW-841: Memory.Worker STOPONTIMEOUT (Clear(0) on a timeout) has no test that fails without it: releasing the work group also ends the busy worker, so TestTimeLimit stays green with STOPONTIMEOUT 0
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Spec Verification AC2 result: STOPONTIMEOUT 0 alone stayed green; only 0 plus a held group turned TestTimeLimit red. The AC (busy worker stopped, next read served) is pinned by TestTimeLimit.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=TestTimeLimit red on its job no longer exists, or a build where a released work group keeps its busy worker
+
+### DW-842: IPM check 32's before/after filter (a dist-info present before the install and not a pin is not gated) has no static test; moving snapshot_python_before after the install would let a newly installed unpinned distribution pass
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: release/ipm-install.sh check_licences skips entries in the before list that are no pin; gate.py itself is tested with planted folders (test-compose-file.sh); the snapshot runs just before the install command.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=snapshot_python_before moves after the install command, or check 32 passes while gate.py check on the whole new set fails
+
+### DW-843: IPM check 31 compares the resources' md5 before and after a reinstall of identical files, so it shows they are unchanged but not that a reinstall overwrites a changed resource on an IPM install
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: release/ipm-install.sh resources_fingerprint around check 31; the overwrite is measured on the Docker path's zpm load (evidence M1); the spine and evidence now label the IPM-install overwrite as inference.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=an IPM upgrade whose changed .py resource does not reach mgr/python (a worker imports the old code)
+
+### DW-844: Test.Docs.Extract:TestTimeLimit assumes the idle worker of the previous read takes the slow read (a group of one worker); a second idle worker of the category would make the job-gone assertion fail
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestTimeLimit takes the worker job from a Pdf3 read and waits for that job to end after the timeout; TestCategory runs first and now restores the category to 1 and 1.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=TestTimeLimit red on its job no longer exists in CI or on a fresh throwaway
+
+### DW-853: The two sample-output blocks of docs/install-ipm.md show an install without the six 'STEP Python replaced <name> <old> with <pin>' lines a plain instance's second command now prints between Reload START and requirements.txt START
+- source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: evidence/19-8-task0-install-accuracy.md; the page was limited to the host list and the disclosure bullet
+- 2026-11-07T06:32:45Z status=open owner=19-8-epic-19-burn-down by=harvest note=code review: add the lines if mechanical (sample output, plain union with Epic 17's STEP Digest lines), else wontfix-accepted with a probe
+- 2026-11-07T07:40:49Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=the_six_STEP_Python_replaced_lines_added_to_both_sample-output_blocks_from_a_real_path_b_log(plain_union_with_Epic_17's_STEP_Digest_lines)
+
+### DW-854: A process that imported the old requests, urllib3 or certifi before RemoveStaleCopies ran may lazily import from files the step removed, until it restarts (IPM's own process imports oras and requests)
+- source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: edge-case finding, unverified; path A and part p finish with Activate SUCCESS and IPM answers afterwards
+- 2026-11-07T06:32:45Z status=open owner=19-8-epic-19-burn-down by=harvest note=code review: judge whether IPM's install process is exposed (it imports oras before the pip step) and pin or close it
+- 2026-11-07T07:40:49Z status=wontfix-theoretical by=adjudication note=by_IPM_0.10.10's_code,oras/requests_are_imported_only_by_IPM.Installer(another_process)_and_the_ORAS_repository_classes;a_local-artifact_or_default-registry(HTTP)_install_imports_none_of_the_six_before_the_step;real_if_an_install_comes_from_an_ORAS-type_repository
+
+### DW-856: A lifecycle command that reaches Reload but is not install, load or update (reload, compile, test, package without -only) runs RemoveStaleCopies while IPM skips its pip step, so the stale copies go and nothing replaces them
+- source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: IPM 0.10.10 Lifecycle.Base InstallOrDownloadPythonRequirements returns unless pParams(cmd) is install, load or update; the Reload Invoke cannot see cmd. Reachable after a -bypass-py-deps install, then zpm "ocutalon compile" in OCUTALON.
+- 2026-11-07T07:37:18Z status=escalated owner=burndown by=cr note=decision sheet: gate the step on cmd (a cmd Default arg); needs a live IPM measurement and a release hunk the freeze bars
+- 2026-11-07T08:44:51Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_08:45Z:fix_in_part_1_before_the_merge;remove_a_copy_only_when_the_pip_step_runs_in_the_same_lifecycle;Reload-invoke_cmd_argument_approved_under_the_freeze;tests_reload_and_-bypass-py-deps(nothing_removed;IPM_imports+zpm_list_work;red_without_the_guard);re-run_IPM_a,b,p
+- 2026-11-07T11:39:37Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=RemoveStaleCopies(root,bypass,cmd,target)_removes_nothing_unless_bypass_is_unset_and_cmd_is_install,load_or_update(IPM_0.10.10_InstallOrDownloadPythonRequirements);Reload_Invoke_carries_cmd;TestReloadPipSkipped,TestBypassLoad,TestLifecycleCommands+check_pip_skipped(path_A),each_red_without_the_guard;IPM_a_75PASS,b_59,p_32
+
+### DW-857: RemoveStaleCopies replaces any of the 36 pinned names at any other version (a newer copy, or another application's copy in the shared mgr/python), while the ruled disclosure bullet names only older copies of IPM's six
+- source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Replace compares only version equality with the pin (Ipm.cls); the Boundaries say version differs; docs/install-ipm.md disclosure says older versions of the six, which IPM installs for itself.
+- 2026-11-07T07:37:18Z status=decision-pending owner=burndown by=cr note=decision sheet: narrow the step to older copies, or rule a wider disclosure (PUBLIC TEXT); spec Boundaries vs ruled text
+- 2026-11-07T08:44:51Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_08:45Z:PUBLIC_TEXT_approved:the_disclosure_says_other_versions;fixed-strings_pin+mutation
+- 2026-11-07T11:39:37Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=install-ipm.md_disclosure_reads_other_versions(ruled_text),fixed-strings_pin,mutation_red
+
+### DW-858: No IPM check asserts the STEP Python replaced lines in the real install log (only unit tests on a redirected device), so check_reinstall's no-STEP grep could pass on a changed line format
+- source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: release/ipm-install.sh greps only for the absence of STEP Python on the reinstall; the six lines were observed in this review's path b log and the evidence file, not asserted; a check needs a release hunk the freeze bars.
+- 2026-11-07T07:37:18Z status=wontfix-accepted owner=19-8-epic-19-burn-down by=cr note=reopen_if=a plain-instance path a second run prints other than 6 lines matching ^STEP Python replaced
 ### DW-780: A saved heartbeat interval, hours or on/off change does not move Checks.Beat's stored NextDueAt, so a shorter interval applies only after the next beat although Saved says Applies within a minute
 - source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Checks/Beat.cls:426 RunDue tests the stored NextDueAt; a beat sets it to tick plus one interval; SaveHeartbeat writes only the five person keys
@@ -5013,6 +5191,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: runner_A_ci_report | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Epic 17 runner A reports 2026-11-06: lane-a@rest 2031 s and 2194 s (both on runs with other reds); ci/units.sh is in Epic 19's in-flight diff
 - 2026-11-06T23:06:17Z status=routed owner=burndown by=orchestrator note=measure on the next clean run; split after Epic 19 part 1 merges (ci/units.sh contended until then); never raise a deadline
+- 2026-11-07T13:37:10Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_13:35Z:new_iris_group_shards-5_takes_shard:lane-a@Bridge,Agent;resolve_by_19.8
+- 2026-11-07T15:08:07Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=new_iris_group_shards-5_runs_shard:lane-a@Bridge,Agent(51_classes);@rest_78;pins_in_test-ci-config/test-ci-changes;expected_shards-5~1250s,shards-2~1500s_(first_green_run_measures)
 ### DW-823: A good-message refusal (Story 7.9, GOODCHANGED) reuses incident.noFix, whose 'None of my fixes applies to this' fits loosely when a fix exists but would also rewrite messages that went through; give it a precise line
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Msg/Catalog/Watch.cls incident.noFix (L179-180) is shown for the GOODCHANGED refusal; the reason is log-only (PT-b ruling)
@@ -5045,6 +5225,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42314928349, iris (shards-2) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: SHARD lane-a@rest failed (1 of 93 classes) 1810s; local fresh e7s9ct CLASS passed 8.99s; Story 7.9 does not touch Executor, Transitions or Refused
 - 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=one rerun; a second red on the same head is real
+- 2026-11-07T13:51:15Z status=routed owner=7-10-the-past-expiry-refusal-test-is-stable-dw-840 by=load note=re-owned_to_the_7.10_fix-forward_story_(SC-5_re-open,Planner_tier_3a)
+- 2026-11-07T14:36:03Z status=resolved-by:7-10-the-past-expiry-refusal-test-is-stable-dw-840 by=adjudication note=cause_measured(Checks_quiet_sweep_closeQuiet_closed_the_stale-LastAt_fixture_after_resolved);fix_03c3048d_FirstAt/LastAt_now;old_red_2_of_11_under_closeQuiet_load,fix_20_of_20(+8_of_8_on_the_commit);evidence/7-10/cause.md
 
 ### DW-855: No test makes a decision's first attempt pass DecisionTokenBudget while its second-model retry fails it, although the guide now states the retry is checked again on its own estimate
 - source: spec-17-9-epic-17-burn-down.md | severity: low | fix-risk: low | footprint: in-story
@@ -5082,6 +5264,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: implement K21 patch review (fefb0b01); unverified; K21b passes by forcing the squeeze
 - 2026-11-07T11:28:49Z status=wontfix-accepted owner=4-11-other-things-to-try by=harvest note=reopen_if=a CI or field report of the finish's chat under its floor on first render that a resize fixes
+### DW-864: release/ipm-install.sh check_pip_skipped (DW-856) adds about 64-68 s to path A locally and likely about twice that on x64 CI, where the ipm-install job already ran 1889-1950 s of its 35-minute timeout
+- source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 1) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: lane-a ipm-install job: 1889 s on 81fbdeb3 (run 42355431449), 1950 s on 6e5213ee, timeout-minutes 35 (2100 s); CI reinstall-same 145 s against 71 s locally, local skip-bypass 56-62 s. The job's no-argument sequence (check_pip_skipped, then reinstall_failures) has not run at this head.
+- 2026-11-07T11:37:12Z status=escalated owner=burndown by=cr note=first CI run at this head settles it; over budget means owner CI capacity (owner-fixed value 9) or a lighter check
+- 2026-11-07T13:37:10Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_13:35Z:split_ipm-install_into_ipm-install(path_A)+ipm-install-p(part_p,reinstall,uninstall);no-arg_unchanged
+- 2026-11-07T15:08:07Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=lane-a.yml:ipm-install(a,r)+ipm-install-p(b,p),separate_tags,second_step_if_!cancelled();release/ipm-install.sh_unchanged(no-arg=all);test-cpf_rules_6,7,16,20_pin_the_union_and_each_mode
 ### DW-859: Heartbeat card: Ownership.CheckInCost has no day bound while HeartbeatToday is day-bounded, so a check-in whose decision and read-only turn straddle instance-zone midnight reads more on Last check-in than on Today
 - source: spec-39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: checkInUsage (Ownership.cls Statement) has no RecordedAt bound; heartbeatUsage has one. Only a beat whose turn lands after local midnight (a few seconds a day) differs.
@@ -5145,3 +5333,29 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Handled.cls DropSession and Upload.cls DropSession/DeleteAll differ only in the table; the spec's stated reason is 'mirrors the sibling, in the table's own class'
 - 2026-11-07T19:13:55Z status=wontfix-accepted owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=reopen_if=a third Data class adds the same SELECT-ID then %DeleteId DropSession loop (then extract one shared helper)
+### DW-869: release/release.sh:940 says the CI job ipm-install runs the same command as the release's ipm step; after the CI split, ipm-install runs modes a and r and ipm-install-p runs b and p
+- source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rework 2 review finding; release.sh is under the release-tool freeze
+- 2026-11-07T14:40:35Z status=wontfix-accepted owner=19-8-epic-19-burn-down by=harvest note=reopen_if=the_release-tool_freeze_lifts(1.0.4_merged_back)_or_a_reader_relies_on_that_comment
+- 2026-11-07T15:05:57Z status=wontfix-accepted owner=19-8-epic-19-burn-down by=cr note=also release/ipm-install.sh:126 header calls the no-arg run (the job); same freeze; reopen_if=the_release-tool_freeze_lifts
+
+### DW-870: main's required status checks list iris (shards-2) but not iris (shards-5), so since the 19.8 CI split the Bridge and Agent test classes no longer gate a merge to main
+- source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 2) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: gh api branches/main/protection (read 2026-11-07): checks, web, install-macos, standalone-bridge, evaluation and iris install-fresh..shards-4; no iris (shards-5); ipm-install is not required either, so ipm-install-p matches it. Branch protection is a repository setting (owner-only); precedent: shards-4 was carried to the Planner.
+- 2026-11-07T15:05:47Z status=decision-pending owner=burndown by=cr note=human=add iris (shards-5) to main's required checks (and ipm-install-p only if ipm-install is made required) before the next release PR
+
+### DW-871: The as-built CI texts still describe nine IRIS groups after the 19.8 CI split: AD-22's CI as built bullet (lane-a in three pieces, Bridge and Agent in shards-2) and the header comment of .github/workflows/ci.yml
+- source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 2) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-22 Rule, CI as built: inside nine IRIS groups ... shards-3 and shards-4, lane-a in three pieces; ci.yml line 2: a matrix of nine groups. The spine bullet is an AD Rule line (not a stage edit; precedent DW-420, as-built amendment at the merge gate); the ruling allowed no other ci.yml line.
+- 2026-11-07T15:05:54Z status=escalated owner=burndown by=cr note=for the lead at the Epic 19 merge gate: as-built amendment of AD-22 (ten groups, shards-5 = lane-a@Bridge,Agent) and ci.yml:2
+- 2026-11-07T16:49:10Z status=resolved-by:19-8-epic-19-burn-down owner=burndown by=orchestrator note=resolved at the Epic 19 part 1 merge 5b47f052: AD-22 amended in place (ten groups, shards-5, ipm-install split) and ci.yml line-2 comment, per the Planner's ruling
+### DW-868: Test.Watch.Case Fixture defaults LastAt to 2026-10-25, so any fixture that reaches a closeQuiet-able state (resolved, or open and noticed with demo mode off) is swept by the next heartbeat; three tests override it inline (DryRun:95, GoodMessages:371/529, Refused:80) and a revert or a new caller re-opens DW-840's race with no deterministic test failing
+- source: spec-7-10-the-past-expiry-refusal-test-is-stable-dw-840.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Case.cls:852-853 stale defaults; DW-840 red once in CI and 2 of 11 under the lead's closeQuiet load; the Refused pin goes red on a revert only under load
+- 2026-11-07T14:31:47Z status=escalated owner=burndown by=cr note=Case.cls out of 7.10 footprint (Planner: test-only); fix-risk med: shared helper, other tests may assert on the default FirstAt/LastAt
+
+### DW-872: flake: live:sign-in-2 web/e2e/rail/rail.spec.ts:462 R10 'a reload shows the same rail': the heartbeat card's real check-in fired at 15:02 between the live snapshot and the reload (reload adds 'Next check-in 15:32 Skipped at 15:02: your checklist is empty.'), red once in CI shards-4 on OCT-epic7 37856843
+- source: CI run 42382574157, iris (shards-4) job 128433114430 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: rail text diverges at char 982 only in the HEARTBEAT CHECKLIST card; Epic 7's diff touches no web file; a time-of-day race with the heartbeat's half-hour schedule
+- 2026-11-07T15:06:23Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second red on the same head is real
+- 2026-11-07T15:47:24Z occurrence=7-10 note=rerun_of_iris(shards-4)_green_on_37856843_(attempt_2);flake_confirmed;stays_routed_burndown
