@@ -4687,3 +4687,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: TestTimeLimit takes the worker job from a Pdf3 read and waits for that job to end after the timeout; TestCategory runs first and now restores the category to 1 and 1.
 - 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=TestTimeLimit red on its job no longer exists in CI or on a fresh throwaway
+
+### DW-853: The two sample-output blocks of docs/install-ipm.md show an install without the six 'STEP Python replaced <name> <old> with <pin>' lines a plain instance's second command now prints between Reload START and requirements.txt START
+- source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: evidence/19-8-task0-install-accuracy.md; the page was limited to the host list and the disclosure bullet
+- 2026-11-07T06:32:45Z status=open owner=19-8-epic-19-burn-down by=harvest note=code review: add the lines if mechanical (sample output, plain union with Epic 17's STEP Digest lines), else wontfix-accepted with a probe
+
+### DW-854: A process that imported the old requests, urllib3 or certifi before RemoveStaleCopies ran may lazily import from files the step removed, until it restarts (IPM's own process imports oras and requests)
+- source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: edge-case finding, unverified; path A and part p finish with Activate SUCCESS and IPM answers afterwards
+- 2026-11-07T06:32:45Z status=open owner=19-8-epic-19-burn-down by=harvest note=code review: judge whether IPM's install process is exposed (it imports oras before the pip step) and pin or close it
