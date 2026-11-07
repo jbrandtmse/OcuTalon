@@ -355,3 +355,4 @@
 2026-11-07T16:21:26Z	Epic 12	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true(after_generate) key=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co status=backlog epic_status=in-progress(SC-5_reopen,was_done) warnings=2(title_and_epic_list_headings)
 2026-11-07T16:21:26Z	Epic 12	deps_hash_rerecorded	reason=fix_forward story=12.12 note=for_the_orchestrator(epics.md_inserted_12.12;no_boundary_or_dependency_statement_changed)
 2026-11-07T16:21:26Z	Epic 12	ledger_routed_planned	story=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co entries=2(DW-873,DW-695) excess=0 by=fix_forward
+2026-11-07T16:23:26Z	Epic 12	epic_context_compiled	reason=planning_artifact_newer(epics.md:12.12_fix_forward) model=claude-opus-5-5 lines=74 agent=aa9ad78c78ac700ad
