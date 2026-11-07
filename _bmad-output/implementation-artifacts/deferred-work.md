@@ -5133,6 +5133,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: runner_A_ci_report | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Epic 17 runner A reports 2026-11-06: lane-a@rest 2031 s and 2194 s (both on runs with other reds); ci/units.sh is in Epic 19's in-flight diff
 - 2026-11-06T23:06:17Z status=routed owner=burndown by=orchestrator note=measure on the next clean run; split after Epic 19 part 1 merges (ci/units.sh contended until then); never raise a deadline
+- 2026-11-07T13:37:10Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_13:35Z:new_iris_group_shards-5_takes_shard:lane-a@Bridge,Agent;resolve_by_19.8
 ### DW-823: A good-message refusal (Story 7.9, GOODCHANGED) reuses incident.noFix, whose 'None of my fixes applies to this' fits loosely when a fix exists but would also rewrite messages that went through; give it a precise line
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Msg/Catalog/Watch.cls incident.noFix (L179-180) is shown for the GOODCHANGED refusal; the reason is log-only (PT-b ruling)
@@ -5185,6 +5186,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 1) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: lane-a ipm-install job: 1889 s on 81fbdeb3 (run 42355431449), 1950 s on 6e5213ee, timeout-minutes 35 (2100 s); CI reinstall-same 145 s against 71 s locally, local skip-bypass 56-62 s. The job's no-argument sequence (check_pip_skipped, then reinstall_failures) has not run at this head.
 - 2026-11-07T11:37:12Z status=escalated owner=burndown by=cr note=first CI run at this head settles it; over budget means owner CI capacity (owner-fixed value 9) or a lighter check
+- 2026-11-07T13:37:10Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_13:35Z:split_ipm-install_into_ipm-install(path_A)+ipm-install-p(part_p,reinstall,uninstall);no-arg_unchanged
 ### DW-859: Heartbeat card: Ownership.CheckInCost has no day bound while HeartbeatToday is day-bounded, so a check-in whose decision and read-only turn straddle instance-zone midnight reads more on Last check-in than on Today
 - source: spec-39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: checkInUsage (Ownership.cls Statement) has no RecordedAt bound; heartbeatUsage has one. Only a beat whose turn lands after local midnight (a few seconds a day) differs.

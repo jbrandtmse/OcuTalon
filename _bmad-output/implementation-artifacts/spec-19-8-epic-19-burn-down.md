@@ -2,7 +2,7 @@
 title: 'Epic 19 burn-down: the IPM install imports the pinned packages, and the docs name the hosts it contacts'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '2a8d0caba2ea817722b3efba8846f00c49fb18cb'
 baseline_commit: '2a8d0caba2ea817722b3efba8846f00c49fb18cb'
 review_loop_iteration: 0
@@ -150,6 +150,9 @@ deferred:
 - [x] [Owner] DW-856 (the Contest Planner's ruling of about 08:45Z; fixed in part 1, before the merge): `RemoveStaleCopies` removes a copy ONLY when IPM's pip step runs in the same lifecycle -- it removes nothing unless the pinned version of that distribution will be installed or is already importable. Approved release-tool hunk under the freeze: the Reload-invoke `cmd` argument (both manifests: `<Default Name="cmd" Value=""/>` and a third `<Arg>${cmd}</Arg>` on the Reload Invoke; `release/ipm-install.sh` `check_invoke_args` expects the third argument; measure that `${cmd}` reaches the method on a live IPM). Tests: (a) a reload with pip skipped and (b) a `-bypass-py-deps` load: in each nothing is removed, and afterwards IPM's own imports and `zpm "list"` still work; each shown red with the guard removed (mutation lines). Then re-run IPM paths `a`, `b` and `p` (local paths only).
 - [x] [Owner] DW-857 (PUBLIC TEXT approved): in `docs/install-ipm.md` the disclosure bullet becomes EXACTLY: "- The second command puts these packages in the instance's shared Python folder, mgr/python in the IRIS install directory. Where that folder already holds other versions of certifi, charset_normalizer, idna, requests, typing_extensions or urllib3, which IPM installs for itself, the second command replaces them with the versions OcuTalon pins. IPM's own packages work with these versions." Update its fixed-strings pin and show a mutation red. The last sentence still rests on condition 2, checked against IPM 0.10.10.
 
+- [ ] [Owner] CI split 1 (the Contest Planner's ruling of about 13:35Z; discharges DW-826): a new iris group `shards-5` runs `shard:lane-a@Bridge,Agent`, so `shard:lane-a@rest` in `shards-2` no longer runs the Bridge and Agent areas. Add `shards-5` to `IRIS_GROUPS` and its `group` case in `ci/units.sh`, and to the iris matrix in `.github/workflows/ci.yml` (NOTHING else in ci.yml changes). Update whatever pins the group list (`docker/tests/test-ci-config.sh`: the matrix equals `ci/iris.sh groups`; `ci/changes.sh` if it maps groups). Raising any timeout stays excluded. Every area of the lane-a shard stays in exactly one piece.
+- [ ] [Owner] CI split 2 (approved release-tool hunk under the freeze; DW-864): `.github/workflows/lane-a.yml` gets a new job `ipm-install-p` beside `ipm-install`. `ipm-install` runs path A and `ipm-install-p` runs part p, its local-repository reinstall and the uninstall checks, each by passing an explicit mode to `release/ipm-install.sh` (it already takes `a|r|b|p`). CONDITIONS: `release/ipm-install.sh` with NO mode argument does EXACTLY what it does today, on every path; only CI's two jobs pass explicit modes; `release/release.sh`, `release/lib-release.sh` and every other caller stay unchanged; the two jobs' modes together cover exactly the no-argument run's checks (if the no-argument run also covers path B or another path, it goes in one of the two jobs). A test pins (a) the no-argument run covers the union of both modes' checks and (b) each mode alone runs only its own set. If the existing modes already give that, the release-tool hunk is none; if anything beyond a mode selection would be needed in `release/ipm-install.sh`, HALT `blocked` with an intent gap that gives the exact hunk (the lead sends it to the Planner as RELEASE TOOL).
+
 **Acceptance Criteria:**
 - Given the local-artifact IPM install (path A and part p), when check 32 runs, then each of the six modules imports the pinned copy (`__file__` under `<mgr>/python` with the pinned RECORD's hash, `__version__` equal to the pin where defined), and check 32 fails otherwise (DW-829).
 - Given the unfixed tree, when Task 0 runs the import check, then the evidence file records `__version__` and `__file__` for all six and the decision taken. The import check's red on a stale copy is observed (on the unfixed tree, or under a mutation that skips the fix).
@@ -219,6 +222,8 @@ Rejected (rework re-review):
 - `false`: the guard differs from IPM's pip condition. `InstallOrDownloadPythonRequirements` quits unless `cmd` is install, load or update (and on `BypassPyDeps`), the same list and case as `Replace`.
 
 ## Spec Change Log
+
+- 2026-11-07 (lead): rework iteration 2 opened on the Contest Planner's rulings of about 13:35Z (CI splits: iris group shards-5; ipm-install-p); scope = the two CI-split [Owner] items only.
 
 - 2026-11-07 (lead): rework iteration 1 opened on the Contest Planner's rulings of about 08:45Z (DW-856 guard, DW-857 text); scope = the two [Owner] items only.
 
