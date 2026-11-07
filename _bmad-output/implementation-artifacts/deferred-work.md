@@ -4729,3 +4729,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: RepairResend.DryRun reads GOODMAX per reference and adds them up; the spec's Always fixes '0 to 20 for each reference'; reachable only with several SourceConfigName/SuperSession tuples in one incident, never on the demo path
 - 2026-11-06T23:23:47Z status=by-design owner=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=cr note=spec-bound (Always, per-reference cap); each counted message is from a target's own source and the number is real; change only by a Planner text ruling
+
+### DW-839: flake (UTC hour 0): web/e2e/heartbeat-card.spec.ts HC1, HC4, HC5 build the expected clock from the ISO time (clock() = iso.slice(11,16), '00:16'), but the card shows pageWhen's browser-locale clock, which reads '0:16' in the 00:xx hour, so the three cases go red for every CI run in that hour
+- source: CI run 42314928349 (OCT-epic7 07951357), iris (browser) test-sign-in | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Expected 'You can run it again at 00:16.' Received '... at 0:16.' (HC5 L283), HC4 L728 /^...\d\d:\d\d\.$/ got '0:18', HC1 L173; code not in Epic 7's diff (Epic 39, f207f0b3/9a0e8125); web/src/app/chat/page-time.ts pageWhen is the browser's hour format by design
+- 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=inherited from feature (Epic 39's spec); red only in the 00:00-00:59Z hour; rerun after 01:00Z; fix: build the expected clock with the page's own formatter or pin the browser locale
+
+### DW-840: flake: OcuTalon.Test.Fix.Refused TestPastExpiryCannotStart 'the incident is resolved' (WaitIncidentState) red once in CI shards-2 (lane-a@rest, class 34.03s) on OCT-epic7 07951357; passed fresh on lane D (8.99s) on the same tree
+- source: CI run 42314928349, iris (shards-2) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: SHARD lane-a@rest failed (1 of 93 classes) 1810s; local fresh e7s9ct CLASS passed 8.99s; Story 7.9 does not touch Executor, Transitions or Refused
+- 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=one rerun; a second red on the same head is real
