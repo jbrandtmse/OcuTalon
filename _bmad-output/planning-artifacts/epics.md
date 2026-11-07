@@ -8342,6 +8342,21 @@ So that my files are kept only as long as OcuTalon needs them.
 - DW-754: `Data.Upload` rows are owner-scoped like other session data (Ownership checks), and the online demo's reset clears them (golden restore); checked once on a throwaway reset with recorded evidence (ledger; routed by burndown 2026-11-05)
 - DW-738: the image's Python dependencies are pinned: one constraints file per architecture (arm64 and x64) pins every distribution of the measured set to its exact version (x64 measured, never assumed), the image build installs with `pip install -c` beside the three top-level pins, a test keeps the licence evidence's package list equal to the constraints, the licence gate still fails outside the allowed families, the IPM install uses the same pins if it installs Python packages, and each constraints file says that a version bump re-measures the licences in the same commit (ledger; decided by the Contest Planner under the owner's delegation 2026-11-05) [AMENDED 2026-11-05, Story 34.3, Contest Planner ruling on DW-738: an acceptance bullet added for a ledger entry routed to this story; no other text changed]
 
+
+### Story 34.4: The keyboard add-documents test is stable (DW-825)
+
+[AMENDED 2026-11-07, chartered as a fix-forward story under an SC-5 re-open of Epic 34 on the Contest Planner's ruling of 2026-11-07 ~03:05Z (under the owner's delegation; `planner_ruling dw=DW-825` in cycle-log-parallel.md): fix before the 1.0.3 cut, test-only unless the root cause is in the product, 90-minute timebox; Lane B's files, like Story 34.2]
+
+As a maintainer who reads the CI result,
+I want the Documents page's keyboard test (D5) to fail only when the page is wrong,
+So that a red browser job means a real defect and not a timing accident.
+
+**Acceptance Criteria:**
+
+- DW-825: D5 in `web/e2e/documents/documents.spec.ts` ("Add documents works by keyboard, and a .png is refused with its reason") no longer times out waiting for the `filechooser` event: the cause is found and recorded with evidence, and the fix is test-only unless the cause is in the Add documents control (then the Planner rules first) (ledger; routed by the Planner's ruling 2026-11-07)
+- D5 still proves everything it proves today: Tab reaches Add documents, Enter on it opens the file chooser, and a .png comes back refused by the real route with its reason, shown on its row and announced once; no pin is deleted or weakened, and a longer timeout alone is not the fix
+- Proof: D5 passes 20 of 20 with `--repeat-each=20` under the browser job's load (or an equivalent load that is documented), the old D5 fails at least once under the same repeat and load, and full CI is green on every workflow
+
 ## Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 22.1 and 21.1, moved whole and verbatim as Stories 35.1 and 35.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 4's names fixed in the spine and in code as stubs, the MCP servers an admin registers are attached to OcuTalon's agents with every new tool unclassified, and webhooks with their own secrets turn JSON events into items, so that Epics 21 and 22 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 21 and 22) and its partner in this epic.

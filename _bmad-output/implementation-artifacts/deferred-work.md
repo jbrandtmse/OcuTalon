@@ -3933,6 +3933,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T11:44:00Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry by=ci note=run_42206920718_iris(image)_shard_lane-b_at_5fef1125;the_17.5_rework_head's_run_is_its_one_rerun
 - 2026-11-06T22:06:22Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=ci note=run_42296836927_iris(image)_lane-b_at_b94508c9(integrate_forward)
 - 2026-11-07T04:03:15Z occurrence=17-7-give-an-all-clear-only-when-every-check-passed by=ci note=run_42334354717_iris(image)_lane-b_at_7a9d1c86;one_rerun_of_the_failed_job
+- 2026-11-07T05:48:01Z status=open owner=burndown by=ci note=occurrence OCT-epic34 b6b75a34 run 42341818725 image shard lane-b TestAfterAllTestsNothingSaved 'and the production runs every item' (2nd consecutive Epic 34 head; 34.4 is a browser-spec-only change); one rerun of the failed job requested by the orchestrator; frequency rising, candidate for tier (3) flakes
+- 2026-11-07T05:12:32Z occurrence=34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=ci note=OCT-epic34_f4b38c9e_run_42339077292_iris(image)_shard_lane-b_TestAfterAllTestsNothingSaved;no_rerun:the_fix-forward_push_reruns_it(orchestrator)
 
 ### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
@@ -4938,6 +4940,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T03:06:19Z status=open owner=burndown by=orchestrator note=Planner 2026-11-07 ~03:05Z: fix before the 1.0.3 cut; test-only unless root cause is product (report first); timebox 90 min; proof D5 20/20 with --repeat-each=20 under browser-job load and the old code fails at least once; runner D lands it on feature after 7.9 merges, ahead of 0.15 (OCT-epic19 does not edit documents.spec.ts)
 - 2026-11-07T05:05:08Z occurrence=17-7-give-an-all-clear-only-when-every-check-passed by=ci note=run_42338069582_iris(browser)_live:sign-in_D5_filechooser_timeout_at_99735c36;one_rerun
 - 2026-11-07T05:41:57Z occurrence=17-7-give-an-all-clear-only-when-every-check-passed by=ci note=second_red_on_the_same_head_99735c36_(run_42338069582_rerun_1,browser_live:sign-in_D5_filechooser_timeout);Epic_17_touches_no_documents_path
+- 2026-11-07T03:22:20Z status=routed owner=34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=load note=re-owned to Story 34.4 (SC-5 re-open of Epic 34, runner D) on the Planner's ruling 2026-11-07 ~03:05Z; closes at 34.4's adjudication or the burn-down
+- 2026-11-07T04:30:36Z status=resolved-by:34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=adjudication note=cause: Playwright 1.64.1 turns file-chooser interception on fire-and-forget at the first filechooser listener and D5 added it in the same tick as Enter (evidence/34-4/cause.md); fix 609316e1 arms the listener before sign-in, keeping every pin; proof on lane D (evidence/34-4/proof.md): old D5 failed 1/100 with the CI signature (documents.spec.ts:146 + posted 69), new D5 20/20 same stack and load; repro old 12/990 missed vs armed 0/680; reopen_if a filechooser timeout at documents.spec.ts:153 in CI
 
 ### DW-826: CI unit shard:lane-a@rest (job iris shards-2) runs over the 1000 s unit line: 2031 s (5fef1125) and 2194 s (b94508c9) on Epic 17 heads; split it per the standing rule once ci/units.sh is free
 - source: runner_A_ci_report | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4981,3 +4985,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Decide.cls:687 TryRetry Precheck; Test.Bridge.SecondModel TestNeverRetried sets the budget to 1 so the first attempt is refused
 - 2026-11-07T06:43:42Z status=open owner=17-9-epic-17-burn-down by=harvest note=two-way door: one test in Test/Bridge/SecondModel.cls or SettingsApply.cls; QA closes it
 - 2026-11-07T07:31:03Z status=resolved-by:17-9-epic-17-burn-down by=adjudication note=Test.Bridge.SecondModel.TestRetryBudgetOwnEstimate(mutation:retry_Precheck_without_the_budget->red)
+### DW-851: Status answer and rail Background checks read the last watch run, taken before an approved fix finished, so for up to a minute they contradict the Resolved card and Approval requests (0)
+- source: Planner live walk of the 1.0.2 demo 2026-11-07 04:26-04:30Z | severity: low | fix-risk: med | footprint: cross-epic
+- evidence: 04:27Z fix approved from the simulated phone; card Resolved 'All 50 orders went through.'; <1 min later 'Is anything wrong right now?' answered 'Not everything: Orders production (50 new failures, a fix waiting for your approval, at 8:27 PM)'; rail Background checks the same; next check 04:29Z read Passed
+- 2026-11-07T04:34:48Z status=routed owner=burndown by=orchestrator note=tier (3) after 31.4 (Planner); NOT for 1.0.3 or 1.0.4; fix options: re-run the watch check on incident resolve, or treat a check result older than the resolution as stale; product change goes to the Planner described before it lands; any text change needs a PUBLIC TEXT ruling
+
+### DW-852: docs/bridge-guide.md TimerSeconds row (L159) does not say the reason is rate_limited when the timer passes after a re-send
+- source: DW-850 draft (Epic 17 runner A), item (iii); Planner ruling 2026-11-07 | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: Process/Decide.cls:1250 records rate_limited when the timer passes after a re-send; the guide row names only timeout; predates Story 17.2
+- 2026-11-07T04:55:03Z status=routed owner=burndown by=orchestrator note=voting week, docs only; any wording is PUBLIC TEXT for the Planner; NOT for 1.0.3 or 1.0.4
