@@ -744,3 +744,5 @@
 2026-11-07T12:38:44Z	Story 11.28	story_cycle	plan_to_commit_min=75 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
 2026-11-07T12:39:13Z	Epic 11	amendment	file=_bmad-output/planning-artifacts/epics.md story=11.27 tier=1(Planner_ruling_option_b_recorded;[AMENDED]_marker_quotes_the_replaced_ACs) note=title_and_key_kept
 2026-11-07T12:39:13Z	Epic 11	ledger_routed_planned	story=11-27-live-pages-get-their-state-answer-under-load entries=1(DW-756) excess=0 by=runner
+2026-11-07T12:40:58Z	Epic 11	epic_context_compiled	reason=planning_artifact_newer(11.27_amended) model=claude-opus
+2026-11-07T12:40:58Z	Story 11.27	stage_spawned	stage=plan spawn_at=2026-11-07T12:40:58Z model=opus agent_name=11-27-live-diagnostics-plan-1 cycle_iteration=1
