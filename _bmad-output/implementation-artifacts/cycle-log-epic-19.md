@@ -141,3 +141,4 @@
 2026-11-07T08:44:52Z	Story 19.8	public_text_ruled	story=19.8 subject=DW-857_disclosure('other_versions') by=contest_planner_08:45Z
 2026-11-07T08:44:52Z	Epic 19	planner_ruling	items=C:check_invoke_args+check_reinstall_count_as_asked(19.8_cond_2),upgrade-harness_three-dot_empty_noted;D:part_1_merges_as_soon_as_green,ahead_of_4.11;E:let_81fbdeb3_CI_finish,then_commit_DW-856/857_with_a_scoped_review,test-boundaries_before_push,contract_part_merge:19.1-19.3,19.6,19.8;merge_window_11:30-12:30Z,16Z_line
 2026-11-07T08:44:52Z	Story 19.8	rework_opened	cycle_iteration=2 iteration=1 trigger=owner_ruling items=DW-856,DW-857 scope_baseline=81fbdeb3
+2026-11-07T08:44:52Z	Story 19.8	stage_spawned	stage=implement spawn_at=2026-11-07T08:44:52Z model=sonnet agent_name=19-8-epic-19-burn-down-implement-2 cycle_iteration=2
