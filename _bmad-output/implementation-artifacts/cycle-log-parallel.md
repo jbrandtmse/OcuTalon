@@ -2412,3 +2412,6 @@
 2026-11-07T06:45:30Z	Run	ci_green_verified	head=a092b15f runs=42346346796,42346346817 result=success via=gh
 2026-11-07T07:30:46Z	Epic 39	merge_gate_blocked	reason=ci_red runs=42348320733 job=checks(boundaries_local_paths) head=87e2e6c8 files=spec-39-9:179,196
 2026-11-07T07:30:46Z	Run	planner_ruling	subject=boundaries_before_every_push applies=all_runners no_absolute_paths_in_tracked_files
+2026-11-07T08:34:21Z	Epic 19	runner_ci_wait	head=81fbdeb3 runs=42355431429,42355431449 scope=part1(19.1-19.3,19.6,19.8) integrated_onto=a092b15f readme_checks=ok release_hunks=U-294+19.8(upgrade-harness_3dot_empty) new=DW-856,DW-857 shards-2=2150s
+2026-11-07T08:34:21Z	Run	planner_question	subject=part1_ahead_of_4.11 default=hold_behind_4.11 also=DW-856_release_hunk,DW-857_public_text,two_ipm-install_pieces
+2026-11-07T08:34:21Z	Run	planner_update	subject=part1_forecast merged_green=~10:15Z part2_contract=01-07Z_Sun
