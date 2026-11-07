@@ -2564,3 +2564,5 @@
 2026-11-07T21:26:24Z	Run	deps_hash_rerecorded	reason=fix_forward story=12.12 hash=96c987521d09
 2026-11-07T21:26:56Z	Epic 0	worktree_provisioned	branch=OCT-epic0 base=dd908d6d reason=story_0.16_S11_reverification
 2026-11-07T21:26:56Z	Epic 0	runner_dispatched	lane=A slot=ocutalon-slot-a model=opus prompt=dispatch-epic-0-016.md timebox=60m evidence_only
+2026-11-07T21:45:59Z	Run	hold_ordered	reason=owner_account_switch_94pct via=Contest_Planner runners=A(0.16_done),B(17.10),C(19.4),D(31.4),A2(Epic_11_ci_wait) no_new_stages no_extra_reruns
+2026-11-07T21:46:40Z	Epic 0	runner_complete	head=85b479e0 story=0.16 evidence_only S11=reproduced_154U_and_109U(c,d,e_died_9/9;a,b_survived_6/6) DW-792=not_a_bug(documented_kwargs_work) new=DW-889 planner_told=yes
