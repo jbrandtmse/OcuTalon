@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-07-2026 16:50
+last_updated: 11-07-2026 16:55
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -220,7 +220,7 @@ development_status:
   12-10-in-a-narrower-window-the-telegram-step-leads-to-the-status-d: done
   12-11-the-rehearsal-s-first-run-leaves-out-the-specs-that-need-ci: done
   12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co: 
-    ready-for-dev
+    in-progress
   epic-12-retrospective: optional
 
   epic-13: done

@@ -46,11 +46,13 @@ Telegram puts OcuTalon on the user's own phone. A user scans the page's QR code 
 
 ## Technical Decisions
 
-- **The Got it contract** was fixed earlier and is now partly built:
-  - `OcuTalon.Msg.Command.GotIt` (`Ref`, `Channel`) is accepted from origins `web_user`, `web_admin` and `telegram`, and is routed to `SessionOps`.
+- **The Got it contract.** Story 33.2 created the names. Story 12.12 builds Telegram's press, and Story 18.4 builds the web chat's and the Simulated phone's:
+  - `OcuTalon.Msg.Command.GotIt` (`Ref`, `Channel`) is accepted from origins `web_user`, `web_admin` and `telegram`, and is routed to `SessionOps`, which marks a tell-now notice handled. The first press wins.
   - A notice's Ref is its Decision's Ref (`Notification.DecisionRef`). Every `*Out` already records it as the `DecisionRef` of its `Delivery` row, so `Delivery` gets no new column.
-  - The marker lives in `OcuTalon.Data.Handled` (`Ref`, `SessionRef`, `HandledAt`, `Channel`; unique on `Ref`) and is read through `Handled.Marked(ref)`. 12.12 writes the table's first rows; the writer was Story 18.4's role before.
-  - Kind `handled` goes to each `*Out` operation. The copy to edit is found with `OcuTalon.Data.Delivery.FindByRef(ref, channel, ownerRef)`, which returns the newest row of that owner and channel.
+  - The marker lives in the Lane B table `OcuTalon.Data.Handled` (`Ref`, `SessionRef`, `HandledAt`, `Channel`; unique on `Ref`) and is read through `Handled.Marked(ref)`, which `Digest` uses.
+  - Kind `handled` goes to each `*Out` operation so it can update its copy of the notice. The copy is found with `OcuTalon.Data.Delivery.FindByRef(ref, channel, ownerRef)`, the newest row of that owner and channel whose `DecisionRef` is `ref`.
+  - From Story 12.12, `SessionOps` carries out a GotIt. It refuses a Ref that is not the session's own tell-now Decision (Ok 0, nothing changed). Otherwise it writes one `Handled` row, where the unique `Ref` makes the first press win, and sends one `handled` Notification. `SessionOps.End` deletes the session's `Handled` rows. The old "until Story 18.4, answer `not_built`" rule no longer applies.
+  - Story 12.12 is the `Handled` writer, and Story 18.4 only adds the web chat's and the Simulated phone's controls and their handled copies, reusing the same command and marker.
 - **Ownership.**
   - Lane B owns `SessionOps`, `Data.Handled`, `Delivery` and `Notify`.
   - The digest (`OcuTalon.Digest.*`, including `Digest.NeedsYou`) is Lane A's, and so are `OcuTalon.Channel.Telegram` (`TelegramIn`, `TelegramOut` with `EditHandled`), the Telegram spec files and `ci/mock/scenarios/A/`.
