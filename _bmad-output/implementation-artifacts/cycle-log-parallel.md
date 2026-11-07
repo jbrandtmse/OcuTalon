@@ -2440,3 +2440,4 @@
 2026-11-07T09:45:49Z	Epic 17	runner_ci_wait	head=b477f05d runs=42360121309,42360121514 docs_only=DW-773 amendments=AD-19
 2026-11-07T10:09:41Z	Epic 17	runner_complete	head=b477f05d docs_only=DW-773 ci=success(42360121309,42360121514)
 2026-11-07T10:09:41Z	Epic 17	epic_merge_started	head=b477f05d into=feature
+2026-11-07T10:09:55Z	Epic 17	epic_merged_to_feature	merge=d93456a9 head=b477f05d docs_only=DW-773 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 spine_lint=baseline
