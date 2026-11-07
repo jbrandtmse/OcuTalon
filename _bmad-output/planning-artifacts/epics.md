@@ -8892,7 +8892,7 @@ So that a save followed by a run works, and "Applies within a minute" is true fo
 
 ### Story 39.9: Heartbeat follow-up: today's cost matches its check-ins, and the tidy-ups
 
-*Home lane: A.*
+*Home lane: A and B (one runner; the Planner's follow-up rulings name both lanes' files).* [AMENDED 2026-11-07, Story 39.9 spec gate, apply-and-report (Rule 5 tier 1), as Story 39.7's home-lane amendment: it read "*Home lane: A.*"]
 
 [ADDED 2026-11-07, SC-5 re-open of Epic 39 for a post-merge follow-up, chartered by the runner under the Contest Planner's rulings of 2026-11-06 (relayed by the orchestrator; fix-forward, no boundary or dependency change): the Planner's 1.0.2 demo walk (DW-824), the "Every hour" schedule line (PUBLIC TEXT ruled by the Planner 2026-11-06), and the test hygiene routed here by Epic 39's burn-down ruling (DW-785, DW-670). Split rule (Planner 2026-11-06): if the third and fourth groups below would miss the 1.0.3 merge line, they split off as Story 39.10.]
 
