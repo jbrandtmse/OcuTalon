@@ -381,3 +381,6 @@
 2026-11-07T14:17:21Z	Story 7.10	story_created	spawn_at=2026-11-07T14:13:04Z model=opus path=_bmad-output/implementation-artifacts/spec-7-10-the-past-expiry-refusal-test-is-stable-dw-840.md build_status=ready-for-dev epic_context=reused
 2026-11-07T14:17:21Z	Story 7.10	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-15,AD-18,AD-22 decision_dependency=none sections_created=none owned_ledger=DW-840 addressed=1 declined=0 mutates_shared_runtime=false model=claude-opus-5-5
 2026-11-07T14:17:29Z	Story 7.10	stage_spawned	stage=implement spawn_at=2026-11-07T14:17:49Z model=sonnet agent_name=7-10-implement-1 cycle_iteration=1 story_base=1cdb21db
+2026-11-07T14:24:42Z	Story 7.10	dev_complete	spawn_at=2026-11-07T14:18:20Z model=sonnet build_sha=03c3048d baseline_revision=48b1d438 story_base=48b1d438 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=3 loc_added=67 loc_removed=5 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1 note=fresh_class_e7s10impl_passed_4.18s
+2026-11-07T14:24:42Z	Story 7.10	adr_verifications_complete	result=none_required note=no_AD-tooled_AC(test-only) mutations=none model=claude-opus-5-5
+2026-11-07T14:24:42Z	Story 7.10	stage_spawned	stage=qa spawn_at=2026-11-07T14:25:02Z model=sonnet agent_name=7-10-qa-1 cycle_iteration=1
