@@ -342,7 +342,88 @@ Rejected:
 - [x] [Review] HIGH (re-review iteration 1), lead ruling (decide, option B; the open-in-the-finish condition, placement and strings stay): give the demo guide's finish state a compact layout at drawer widths (1024-1279px) so the finish's guide is no taller there than at 1280px in the same height band (about 292px at 1280x600, measured), e.g. the finish's links and the Try it yourself row laid out as at 1280px, the finish text and run total wrapping no deeper than needed; then meet, with the panel open in the finish: (a) no whole-page scroll at 1024x600, 1024x650, 1024x679, 1100x600, 1100x650, 1200x600 and every size the K16 table pins; (b1) chat >=160px at every framed size 680px tall or more (1024x700, 1024x704, 1100x690, 1280x684 included); (b2) chat >=64px in the compact band (including 1280x590 and the drawer-width rows above); (b3) as pinned. Add the drawer-width compact rows to K16 with `mutation:` lines (the compact finish layout removed -> red). This also closes DW-822 (the same finish collapse with the panel closed): add a case that the finish with the panel CLOSED keeps the chat >=64px and no page scroll at 1024x600 and 1100x650. Rerun `live floor` (three engines) and the sign-in part with the guide specs. If even the compact finish cannot meet (a)-(b3) somewhere under the fixed rulings, HALT `blocked` with an `intent gap` naming the sizes and numbers (the runner then asks the Planner for option A: open by itself only where there is room).
 - [x] [Review] The real finish carries the run total (`finish.runTotal`, "This run: ...", a line about 24px deep), and K16, K17, K19 and K20 route a finish with no `run`, so every chat height measured so far is about 24px more than a real finish gives (implement pass 3 measured with a run: 1024x600 57.9px, 1280x684 140.1px, 1024x680 138.9px, 1024x700 158.9px). The targets (a), (b1)-(b3) hold for the REAL finish: route the finish with a `run` (the guide payload's `run`, as the demo path's finish has it) in K16, K17, K19 and K20, then change the finish's or the panel's own layout (the run total's wrapping or place within the ruled strings and placement, the reserves, the compact bands) until they hold at every size K16 pins. The ruled strings, the panel's placement and the open-in-the-finish condition stay. If even then no layout meets them, HALT `blocked` with an `intent gap` naming the sizes and numbers.
 - [x] [Review] Item 7 is now available on this tree (Epic 39 merged; integrate-forward 91f63138; `OcuTalon.Msg.Command.RunHeartbeat` is compiled, so `Demo.Features.Present()` lists `heartbeat`). (i) Its hand-off ("Go to the Heartbeat checklist card") opens the rail as item 1 does and puts focus on the card's heading `#rail-heading-heartbeat` (`HEARTBEAT_HEADING_ID`, `web/src/app/rail/heartbeat-card/heartbeat-card-view.ts:66`), not just the rail region; nothing is pressed. (ii) A real-stack e2e (K1's list now holds `heartbeat`; extend K1 or add a case) shows item 7 present and its press focusing that heading, at the default viewport and in the drawer band. (iii) The quoted names are now on screen: pin "Heartbeat checklist" (`web/src/app/rail/rail-view.ts:57`) and "Run the heartbeat now" (`heartbeat-card-view.ts:48`, `HEARTBEAT_TEXTS.run`) in `more-to-try-view.test.mjs` (c) against their sources. The Run control needs no heartbeat turned on first (Checks/Beat.cls: a run now skips only for empty, backoff, cap and nokey), so the ruled look-for stands. (iv) Task 0 (a)'s recorded list on this tree becomes `persona,suspiciousEmail,rejectFix,demoView,heartbeat`; update it, and any test or doc that says items 5-7 are hidden on this branch (items 5 and 6 still are).
+
+#### Re-review (iteration 2)
+
+Code review 2026-11-06 of the second rework (`f5848878..HEAD` and the working tree; four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full tier, no model override). Fix-risk and Rule 15 disposition on each. Round 2's open items:
+- (1) The HIGH (compact height band at drawer widths): fixed. With the real finish (run total routed and asserted), K16 has the open panel at 23 sizes, each with page scroll 0 at every framed size and the chat at its floor or above. Round 2's sizes:
+  - 1200x600 115.9;
+  - 1100x650 162.8;
+  - 1024x679 129.9;
+  - 1024x650 129.9;
+  - 1100x600 115.9;
+  - 1024x600 83.1 (b2 64);
+  - near misses: 1024x700 184.1, 1024x704 188.1, 1100x690 206.9 and 1280x684 180.1 (b1 160); 1280x590 85.1 (b2).
+  - (b3): the window shows its floor (label line plus one control, 54.85px) and `expectTabInView` passes at every framed row.
+  - The part 9/16 rerun in this pass is green: 1280x684 180.1, 1100x690 206.9, 1280x590 85.1. This pass adds 1440x680, which passes.
+- (2) DW-822: fixed. With the panel closed (K19), 1024x600 is 141.9/0 and 1100x650 is 224.8/0. 1024x650 and 1100x600 are covered by K16's stricter open-panel rows. The lead closes it at adjudication: `resolved-by:4-11-other-things-to-try`.
+- (3) Item 7: fixed.
+  - The hand-off is `focusRegion(RAIL_REGION)` then `handTo(['#rail-heading-heartbeat'], () => false)`, which presses nothing.
+  - K1b (default viewport and drawer band) shows it on the real stack.
+  - `more-to-try-view` (c) pins "Heartbeat checklist" (`rail-view.ts:57`), "Run the heartbeat now" (`heartbeat-card-view.ts:48`) and `HEARTBEAT_HEADING_ID` against their sources, and all three match.
+- The U-297 decision ("About 2 minutes" hidden only once the guide is finished): verified.
+  - `.row1.finished` is bound to `guide.finish !== undefined`, so the duration still shows in steps 1-5. Q1 pins that at step 1.
+  - In the compact height band the duration is hidden in every state; that rule predates this story (DESIGN's compact form shows "steps (numbers only)").
+  - The docs now say exactly this (patches below).
+- No HIGH and no MED in this round. All findings are LOW and were patched in this pass.
+
+- [x] [Review][Patch] LOW: in the drawer-width finish grid (`justify-items: start`) the panel took its content width, not the column, and K16's columns check could not see it [web/src/app/guide/demo-guide.ts:332, web/e2e/guide/more-to-try.spec.ts:715]
+  - Today the long look-for lines fill the column, so nothing showed.
+  - Fixed: `justify-self: stretch` on `.finish > app-more-to-try`. `expectRoom` now asserts that the panel takes its container's whole content width, in every K16 and K17 row.
+  - Fix-risk low. (blind, verification)
+- [x] [Review][Patch] LOW: row 1's right alignment in the finish (`.row1.finished > .more-link { margin-inline-start: auto }`) was pinned only by a source regex [web/e2e/guide/more-to-try.spec.ts:991]
+  - Fixed: K20 asserts that Hide guide ends at row 1's right edge from 680px tall, where row 1 spans the guide.
+  - Fix-risk low. (verification)
+- [x] [Review][Patch] LOW: K16's "uses the room the viewport leaves it" could not fail in the rows whose `window` is 0 (11 of the new rows) [web/e2e/guide/more-to-try.spec.ts:796]
+  - The window-minimum check protects those rows.
+  - Fixed: the assertion runs only where a bound is named, and the table's comment says so.
+  - Fix-risk low. (verification)
+- [x] [Review][Patch] LOW: K20's "About 2 minutes is left out" passed with no `.duration` element at all [web/e2e/guide/more-to-try.spec.ts:987]
+  - Fixed: `toHaveCount(1)` before `toBeHidden()`.
+  - Fix-risk low. (verification)
+- [x] [Review][Patch] LOW: the wide band at the compact band's edge (1440x680) had no K16 row, and the Verification list credited five sizes to K16 records that no case runs [web/e2e/guide/more-to-try.spec.ts:773]
+  - Fixed: a 1440x680 row is added to `FINISH_ROOM`, and it passes. 1280x700, 1366x680, 1200x680 and 1024x690 lie between pinned rows of the same bands and are recorded as probe measurements (Verification, this pass).
+  - Fix-risk low. (blind, verification, acceptance)
+- [x] [Review][Patch] LOW: the "shown in steps 1-5" half of the U-297 rule had no mutation line [Verification]
+  - Closed: `[class.finished]="true"` turns `more-to-try-sources` and Q1 red. DESIGN.md's marker now says the duration still shows in steps 1-5 outside the compact form.
+  - Fix-risk low. (acceptance)
+- [x] [Review][Patch] LOW: the docs did not say what U-297 ruled [DESIGN.md:767, EXPERIENCE.md:243]
+  - DESIGN.md's row 1 marker still read "awaiting the lead's veto".
+  - EXPERIENCE.md said the link sits "after the duration text" with no word that the finish leaves the duration out.
+  - Fixed: both now cite the ruling (veto window, inbox U-297) and say only what the code does. The Spec Change Log records the ruling.
+  - Fix-risk low. (blind, acceptance)
+- [x] [Review][Patch] LOW: the markers on the new compact-finish rules credited a Planner/owner decision, but option B was the lead's decision [DESIGN.md:771, EXPERIENCE.md:490-491]
+  - The "Shorter than 680" addition had no marker.
+  - The "A later amendment ... dropped" sentence said the opposite of what changed.
+  - Fixed: the markers read "lead decision (option B for the drawer-width compact band)", and the sentence says the rule was extended to every framed size.
+  - Fix-risk low. (blind, acceptance)
+- [x] [Review][Patch] LOW: the C4 mockup still showed "About 2 minutes" in the finished guide's row 1, and its caption said only the four items of "this branch" show [mockups/states.html:728, :775]
+  - Fixed: the duration is removed from C4's row 1, with the link at the row's end. The caption names items 1-4 and says item 7 shows where the instance has the heartbeat, with the U-297 marker.
+  - Fix-risk low. (blind, acceptance)
+- [x] [Review][Patch] LOW: DESIGN.md and the `DemoGuide` doc comment claimed "the finish is no taller there than at 1280px", which was never measured [DESIGN.md:771, web/src/app/guide/demo-guide.ts:121]
+  - The binding targets are the chat and page numbers, and K16 pins them.
+  - Fixed: both now say "so that the chat keeps its room".
+  - Fix-risk low. (blind)
+- [x] [Review][Patch] LOW: the mutation line "`run` dropped from `openRealFinish` -> 15 cases red" was stale (written before the `FINISH_ROOM` rows) [Verification]
+  - Re-run in this pass and the line rewritten (Verification, this pass).
+  - Fix-risk low. (verification)
+
+Rejected:
+- false: (edge) Run again sits alone when `app-try-it-row` renders nothing. TryItRow renders only while `DemoView.on()`, and the guide (and so the finish) renders only then too, so the row is never empty in the finish.
+- false: (blind) K19 skips DW-822's 1024x650 and 1100x600. The lead's rework item names 1024x600 and 1100x650 for the closed-panel case. K16 asserts no page scroll and a 64px chat at 1024x650 and 1100x600 with the panel open, which is stricter, because the closed chat is always taller.
+- low: (verification) K1's `heartbeat` assertion has no mutation line of its own. It is not an AC's pinning assertion: AC3's line exists, and item (ii)'s pin is K1b, whose line exists (handTo removed -> K1b red). The previous triage's citation of `TestIds` was inaccurate; this is the corrected reason.
+- low: (verification) item 7's `() => false` is an equivalent mutant (a click on an `h3` does nothing). It is informational, and the source pin states the contract.
+- low: (blind) the zero margin and gap now apply at every framed size, though only the floor heights need them. They are consistent, pinned at 20 framed sizes and harmless.
+- low: (acceptance) the compact framed band's `.main` rule also applies in steps 1-5, and K17 does not run at drawer-width compact sizes. The prompt branch leaves far more chat than the finish (278.8 against 95.1 at 1280x600), and floor's step cases passed in three engines in this pass. It would become real if K17 at 1024x600 measured a chat under 64px.
+- low: (edge) commit 0e717cf8's message says K1b and K17 route the real finish. That is a commit message; the code is right (K17 passes `run` into a branch that does not render it).
+- low: (blind) the cycle log's U-297 reason ("chat under 160px at 1024x680") does not match the mutation evidence (row 1 wraps at 1280x680 and 1280x684). It is the lead's record; the ruling stands on either reason.
+- spec edit: (blind, acceptance) the frontmatter `status` against sprint-status, `followup_review_recommended`, the provenance of the run-total rework item, and the Auto Run Result's "Decision for the lead". These are the lead's tracking.
+- spec edit: (blind, verification, acceptance) item (iv)'s stale lines: AC3, matrix rows 4 and 10, Decided 3 ("its button only focuses the rail"), Design Notes "Planned names, not on screen yet" and the Auto Run Result summary. They are not edited (the contract is frozen). The Spec Change Log line below records that the Design Notes rulings and this log supersede them.
+
 ## Spec Change Log
+
+- 2026-11-06 (re-review iteration 2, code review): the U-297 ruling (veto window) keeps "About 2 minutes" hidden in row 1 once the guide is finished (steps 1-5 unchanged), as the implement stage built it. With Epic 39 merged, `guide.features` on this tree is `persona,suspiciousEmail,rejectFix,demoView,heartbeat`, and item 7 hands off to `#rail-heading-heartbeat` (rework iteration 2, item 7). This supersedes the frozen contract's "items 1-4 on this branch" (matrix row 4, AC3) and "item 7 focuses section.rail" (matrix row 10), and the same wording in Decided 3, Design Notes' "Planned names" and the Auto Run Result summary.
+
 
 - 2026-11-06 (rework iteration 2, lead): the re-review's HIGH (drawer-width compact band) is taken with option B (a compact finish at drawer widths; decide, no ruling changed), which also closes DW-822 (re-owned to this story). The epic branch was integrated forward onto feature b5dcbbfa (Epic 39 merged) at 91f63138, so item 7 is now available: its hand-off goes to the Heartbeat checklist heading, with a real-stack test.
 
@@ -783,6 +864,22 @@ Rejected:
 - mutation (review patches): the drawer block of `demo-guide.ts` applied at every width (`@media (min-width: 0px)`) -> K20 red at "Run again is below the Try it yourself row" (1280x684, 1280x800, 1440x900).
 - mutation (review patches): `.row1.finished > .more-link { margin-inline-start: auto }` removed -> `more-to-try-sources` "leaves out About 2 minutes" red (unit).
 - Each browser mutation was applied, observed red, and reverted from a saved copy in the scratch folder: `shasum` of `demo-guide.ts`, `more-to-try.ts` and `more-to-try.spec.ts` equal to before, and `git status --short` and `git diff --stat` identical to before.
+
+**Code review re-review 2 (stage code-review, tag e4s11r3, lane B).**
+- Probe measurements, not case records: of the sizes listed under "Rework pass 3", 1280x700, 1366x680, 1440x680, 1200x680 and 1024x690 are not K16 rows. This pass adds 1440x680 as a K16 row. The other four lie between pinned rows of their bands. The window is 55px (its floor) at most rows from 1024x600 to 1280x700, except where K16 names a larger bound: 57px at 1280x650, 1100x650 and 1024x650, and 86px at 1024x679.
+- Final runs on the patched tree:
+  - `npm --prefix web test`: 1531 pass;
+  - lint: exit 0;
+  - `live sign-in --part 9/16` (`guide/more-to-try.spec.ts`): 59 pass, with K16 at 23 sizes (1280x684 180.1, 1100x690 206.9, 1280x590 85.1);
+  - `--part 8/16` (`guide/guide.spec.ts`): 18 pass;
+  - `live floor`: 107 pass in three engines. Two earlier floor runs stopped on the local suite deadline with no case failing (101 and 87 passed; the stack took 310-330 s to start at a load average near 12). The passing run used `OCUTALON_LIVE_DEADLINE=700`.
+  - Flakes: none hit.
+- mutation: `.row1.finished > .more-link { margin-inline-start: auto }` removed -> K20 red at "More to try and Hide guide stay at row 1's right end" (1024x700, 1280x684, 1280x800, 1440x900; the compact rows hold by construction).
+- mutation: `[class.finished]="true"` on row 1 (the duration hidden in every state) -> `more-to-try-sources` "leaves out About 2 minutes" red (unit) and Q1 red at "About 2 minutes" visible (part 8/16). This pins the "shown in steps 1-5" half of U-297.
+- (The two above were applied in one build.)
+- mutation: `max-width: 60%` added to `.finish > app-more-to-try` -> all 23 K16 rows red at "the panel takes its container's whole width" (K17 is unaffected: its panel is outside the finish). Removing `justify-self: stretch` alone turns nothing red today: the look-for lines' max-content fills the column. The declaration guards a later shorter item list.
+- mutation (replaces the stale "15 cases red" line): `run` dropped from `openRealFinish`'s routed finish (test file) -> 20 K16 cases red at "the finish carries the run total"; the run then stopped with 19 not run.
+- Each was applied, observed red, and reverted from a saved copy in the scratch folder. `shasum` of `demo-guide.ts` and `more-to-try.spec.ts` matched the patched copies, and `git status --short` and `git diff --stat` were identical to before. `ci/iris.sh teardown` for the tag: nothing left.
 
 **Shared surfaces:**
 - the guide's row 1 controls and Tab order (floor M1, guide Q1 and Q11);

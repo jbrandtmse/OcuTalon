@@ -31,7 +31,8 @@ import { blockLiveSocket } from '../support/socket';
  *   - K17: the same room, and the same Tab case, when the link opens the panel before the finish (the prompt bar's branch);
  *   - K19: with the panel closed the finish keeps the chat at least 64px and the page does not scroll, in the compact height band at
  *     drawer widths;
- *   - K20: the finish's own layout where the page is framed: row 1 above the finish and on one line without "About 2 minutes", and Run
+ *   - K20: the finish's own layout where the page is framed: row 1 above the finish and on one line without "About 2 minutes" (its
+ *     link and Hide guide at its right end from 680px tall), and Run
  *     again at the end of the Try it yourself row from 1024 to 1279px, below it elsewhere;
  *   - K18: a focused panel group hands focus on when the finish leaves;
  *   - K14 (matrix 5, error): item 1 focuses the Persona heading when the card has not loaded;
@@ -662,7 +663,8 @@ async function openRealFinish(page: Page): Promise<void> {
 
 /**
  * What K16 and K17 measure: the least visible heights, the page's scroll, and the panel's window, columns, how far it reaches past the
- * page's width, how far its content reaches past its own width, and how many of its texts are cut short.
+ * page's width, how far its content reaches past its own width, how many of its texts are cut short, and how far it falls short of its
+ * container's content width.
  */
 interface Room {
   chat: number;
@@ -679,6 +681,7 @@ interface Room {
   maxHeight: string;
   gap: number;
   marginTop: number;
+  short: number;
 }
 
 const measureRoom = (page: Page): Promise<Room> =>
@@ -706,6 +709,12 @@ const measureRoom = (page: Page): Promise<Room> =>
       maxHeight: style.maxHeight,
       gap: parseFloat(style.rowGap) || 0,
       marginTop: parseFloat(getComputedStyle(document.querySelector('app-more-to-try')!).marginTop) || 0,
+      short: (() => {
+        const host = document.querySelector<HTMLElement>('app-more-to-try')!;
+        const parent = getComputedStyle(host.parentElement!);
+        const span = host.parentElement!.clientWidth - (parseFloat(parent.paddingLeft) || 0) - (parseFloat(parent.paddingRight) || 0);
+        return span - host.getBoundingClientRect().width;
+      })(),
     };
   });
 
@@ -732,7 +741,7 @@ async function settledRoom(page: Page): Promise<Room> {
 /**
  * The sizes at which the open panel must leave the chat a usable height: `chat` is the least visible height of `app-chat-panel .list`,
  * and `window` the least height of the panel's own window where the viewport leaves room for more than its minimum (a panel bound that is
- * tighter than the room needs fails there). The framed sizes (1024px and wider) fill the viewport, so the page itself never scrolls and the panel is a scroller of its own; the
+ * tighter than the room needs fails there; 0 where the window is at its minimum, which the window-minimum check covers). The framed sizes (1024px and wider) fill the viewport, so the page itself never scrolls and the panel is a scroller of its own; the
  * stacked column scrolls as a page by design and the panel grows with its items.
  */
 const ROOM = [
@@ -761,6 +770,7 @@ const FINISH_ROOM = [
   { band: 'drawer, at the compact band\'s edge', width: 1024, height: 680, chat: 160, window: 0, framed: true },
   { band: 'drawer, at the compact band\'s edge', width: 1100, height: 680, chat: 160, window: 0, framed: true },
   { band: 'reference, at the compact band\'s edge', width: 1280, height: 680, chat: 160, window: 0, framed: true },
+  { band: 'wide, at the compact band\'s edge', width: 1440, height: 680, chat: 160, window: 0, framed: true },
   { band: 'drawer, just over the compact band', width: 1024, height: 700, chat: 160, window: 0, framed: true },
   { band: 'drawer, just over the compact band', width: 1024, height: 704, chat: 160, window: 0, framed: true },
   { band: 'drawer, just over the compact band', width: 1100, height: 690, chat: 160, window: 0, framed: true },
@@ -775,6 +785,7 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
   expect(room.overflowX, `${at}: the panel stays within the page's width`).toBeLessThanOrEqual(1);
   expect(room.sideways, `${at}: nothing in the panel reaches past its own width`).toBeLessThanOrEqual(1);
   expect(room.clipped, `${at}: no label or look-for line is cut short`).toBe(0);
+  expect(room.short, `${at}: the panel takes its container's whole width`).toBeLessThanOrEqual(1);
   if (size.framed) {
     expect(room.page, `${at}: the page does not scroll as a whole`).toBeLessThanOrEqual(1);
     expect(room.overflowY, `${at}: the panel scrolls on its own`).toBe('auto');
@@ -782,7 +793,9 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
     expect(room.gap, `${at}: with no gap under its label`).toBe(0);
     expect(room.marginTop, `${at}: and no margin above it`).toBe(0);
     expect(room.window, `${at}: its window shows the label line, any gap under it and one complete control`).toBeGreaterThanOrEqual(room.need - 1);
-    expect(room.window, `${at}: and uses the room the viewport leaves it`).toBeGreaterThanOrEqual(size.window);
+    if (size.window > 0) {
+      expect(room.window, `${at}: and uses the room the viewport leaves it`).toBeGreaterThanOrEqual(size.window);
+    }
     expect(room.holds, `${at}: it holds more than its window shows`).toBeGreaterThan(0);
     expect(room.columns, `${at}: the items are in as many columns as fit, each at least 20rem wide`).toBe(Math.min(FOUR.length, Math.max(1, Math.floor((room.width - 8 + 16) / (320 + 16)))));
   } else {
@@ -924,7 +937,8 @@ for (const [width, height] of [
 
 /**
  * K20: the finish's own layout where the page fills the viewport. Row 1 is above the finish, starts at its left edge and takes one line
- * (it leaves out "About 2 minutes" once the guide is finished), at every size; from 1024 to 1279px wide Run again is at the end of the Try it yourself row's last line, and elsewhere it is below the row.
+ * (it leaves out "About 2 minutes" once the guide is finished), at every size; from 680px tall, where row 1 spans the guide, More to try
+ * and Hide guide stay at its right end; from 1024 to 1279px wide Run again is at the end of the Try it yourself row's last line, and elsewhere it is below the row.
  */
 for (const [width, height] of [
   [1024, 700],
@@ -948,7 +962,13 @@ for (const [width, height] of [
           const rect = document.querySelector(selector)!.getBoundingClientRect();
           return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
         };
-        return { row1: box('app-demo-guide .row1'), finish: box('app-demo-guide .finish'), tryIt: box('app-demo-guide app-try-it-row'), run: box('app-demo-guide .run-again') };
+        return {
+          row1: box('app-demo-guide .row1'),
+          hide: box('app-demo-guide .row1 [data-guide-focus="hide"]'),
+          finish: box('app-demo-guide .finish'),
+          tryIt: box('app-demo-guide app-try-it-row'),
+          run: box('app-demo-guide .run-again'),
+        };
       });
     let boxes = await read();
     let last = '';
@@ -964,8 +984,12 @@ for (const [width, height] of [
         { message: 'the layout has settled' },
       )
       .toBe(true);
+    await expect(guideRegion(page).locator('.row1 .duration'), `${at}: row 1 holds the duration text`).toHaveCount(1);
     await expect(guideRegion(page).locator('.row1 .duration'), `${at}: "About 2 minutes" is left out of the finish`).toBeHidden();
     expect(boxes.row1.bottom - boxes.row1.top, `${at}: row 1 takes one line`).toBeLessThanOrEqual(40);
+    if (height >= 680) {
+      expect(boxes.hide.right, `${at}: More to try and Hide guide stay at row 1's right end`).toBeGreaterThanOrEqual(boxes.row1.right - 1);
+    }
     expect(boxes.row1.bottom, `${at}: row 1 is above the finish`).toBeLessThanOrEqual(boxes.finish.top + 1);
     expect(Math.abs(boxes.row1.left - boxes.finish.left), `${at}: and starts at its left edge`).toBeLessThanOrEqual(1);
     if (drawer) {

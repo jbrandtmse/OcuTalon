@@ -4713,11 +4713,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: implement stage measured children 930px in a 896px row on the lane-B throwaway; fix is row 1 spacing (link padding or gaps), placement is ruled
 - 2026-11-06T15:31:05Z status=open owner=4-11-other-things-to-try by=harvest note=in-story MED for code review: trim row 1 and restore the one-line Q11 pin, or justify the relaxation
+- 2026-11-07T01:08:02Z status=by-design by=adjudication note=row1_wraps_to_two_lines_in_steps_1-5_on_the_Linux_host_because_the_ruled_More_to_try_link_sits_there(placement_ruled);trimming_spacing_recovers_32_of_34.2px(review_arithmetic);one_line_in_the_finish_since_rework_2;Q11_pins_at_most_two_lines_with_label_and_steps_first
 
 ### DW-805: Other things to try items 2 and 3 hand off by selector to the mailbox chip and the Break the feed box; whether those targets are on the page in the drawer and stacked layout bands is unverified
 - source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: K6 and K7 run at the default viewport only; check at 1100x720 and 800x720 that the press reaches its control (or selects/reveals it first)
 - 2026-11-06T15:31:05Z status=open owner=4-11-other-things-to-try by=harvest note=in-story MED for code review/QA: verify in the narrow bands and fix the hand-off if a target is off the page
+- 2026-11-07T01:08:02Z status=resolved-by:4-11-other-things-to-try by=adjudication note=QA_K12/K13_press_items_2_and_3_at_1100x720_and_800x720:one_POST_each,focus_on_the_real_control
 
 ### DW-809: Other things to try item 5 repeats TryItRow's send guard (used, blocked, describedBy) instead of sharing one helper
 - source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
@@ -4744,3 +4746,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: measured (4.11 re-review, panel closed): 1024x600 chat 0 page 79; 1024x650 chat 0 page 29; 1100x600 chat 0 page 23; finish guide 441-483px vs 292px at 1280
 - 2026-11-06T19:30:51Z status=routed owner=burndown by=cr note=pre-existing (4.4 compact row / 4.10 finish); 4.11's HIGH ruling option B would fix it in the rework
 - 2026-11-06T19:33:56Z status=routed owner=4-11-other-things-to-try by=adjudication note=in-epic_HIGH_taken_into_4.11_rework_iteration_2(option_B:_compact_finish_guide_at_drawer_widths);lead_ruling_decide
+- 2026-11-07T01:08:03Z status=resolved-by:4-11-other-things-to-try by=adjudication note=rework_2_compact_finish_at_drawer_widths;K19_panel_closed_chat_141.9px@1024x600,224.8px@1100x650,no_page_scroll;K16_open-panel_rows_stricter

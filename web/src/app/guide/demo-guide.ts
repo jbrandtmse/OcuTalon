@@ -117,8 +117,8 @@ const FOCUS_RULE: FocusRule = {
  * the prompt bar share one compact row, from 1024 to 1279px wide the steps show numbers instead of labels, and below 1024px the box
  * follows the prompt bar. The finish state leaves out "About 2 minutes" (row 1 then stays on one line at 1280px), takes the guide's whole width under its
  * first row wherever the page fills the viewport and is under 680px tall, and from 1024 to 1279px wide its line is body-sm, the Try it
- * yourself row's own margin gives way to the finish's gap, and Run again sits at the end of the row's last line, so that the finish is
- * no taller there than at 1280px and the chat keeps its room.
+ * yourself row's own margin gives way to the finish's gap, and Run again sits at the end of the row's last line, so that the chat keeps
+ * its room.
  *
  * Announcements and focus: "Step {n} of 5: {step}" is announced once when the view advances to a later step of the same run (never for the
  * first view, a reload or a lower step), through the Announcer; the guide is not a live region, and the finish and Run again are silent.
@@ -329,6 +329,7 @@ const FOCUS_RULE: FocusRule = {
     }
     .finish > app-more-to-try {
       align-self: stretch;
+      justify-self: stretch;
     }
     .row1.finished > .duration {
       display: none;
