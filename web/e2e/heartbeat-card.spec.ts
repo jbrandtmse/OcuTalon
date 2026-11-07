@@ -424,7 +424,7 @@ test('HC8: each outcome and each skip reads in the UX texts, and the Today line 
     await expect(todayOf(page), 'one check-in reads in the singular').toHaveText('Today: 1 check-in, $0.0012');
     await expect(card(page).locator('p.line').first(), 'all day with no next check-in is the interval alone').toHaveText('Every 24 hours');
     // Story 39.9 (QA, DW-824): the GET of a check-in that acted carries its decision plus its read-only turn as lastCostUSD, so the two lines agree.
-    shown = { ...checkIn('act', { lastCostUSD: 0.0006 }), today: { checkIns: 1, costUSD: 0.0006 } };
+    shown = { lastSkipAt: null, lastSkipReason: '', ...checkIn('act', { lastCostUSD: 0.0006 }), today: { checkIns: 1, costUSD: 0.0006 } };
     await page.reload();
     await expect(lastOf(page), 'an Act check-in shows the cost of its decision and its turn').toHaveText(exactly(`Last check-in ${time} \u00b7 Offered an action \u00b7 $0.0006 \u00b7 Trace`));
     await expect(todayOf(page), 'and Today shows the same cost for the one check-in').toHaveText('Today: 1 check-in, $0.0006');

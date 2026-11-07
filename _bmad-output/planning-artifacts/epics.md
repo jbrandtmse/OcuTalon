@@ -9100,6 +9100,28 @@ So that the card never shows a total the count does not explain.
 - DW-785: docker/tests/test-heartbeat-overview.sh repeats about 25 lines of test-triage-heartbeat.sh's security-overview rule; unify both checks in one shared helper (ledger; routed by cr 2026-11-06)
 - DW-670: flake: GuideApi TestOnlyTheMarkerChanges and TestRunAgain went red on their fingerprint and passed on an unchanged rerun; print both fingerprints on failure (ledger; routed by harvest 2026-11-04)
 
+### Story 39.10: The heartbeat production test is stable (DW-639)
+
+*Home lane: B.* [AMENDED 2026-11-07, Story 39.10 code review (AD-29: `OcuTalon.Test.Schedule` is Lane B's), apply-and-report (Rule 5 tier 1): it read "*Home lane: A.*"]
+
+[ADDED 2026-11-07, SC-5 re-open of Epic 39, tier (3)(a) flake fix approved by the Contest Planner (relayed by the orchestrator); fix-forward, no boundary or dependency change: `OcuTalon.Test.Schedule.Heartbeat` `TestAfterAllTestsNothingSaved` failed "and the production runs every item" in CI's image shard lane-b on three heads in about six hours, each green on one rerun.]
+
+As a developer relying on CI,
+I want the heartbeat schedule tests to pass every time on a correct tree,
+So that a red on the image shard means a real defect.
+
+**Acceptance Criteria:**
+
+**Given** `OcuTalon.Test.Schedule.Heartbeat` in the image shard lane-b
+**When** it runs
+**Then** when the "and the production runs every item" pin fails (`Install.Step.Production.NotRunning()` not empty), its message names every missing item and the state of its job, so the next occurrence identifies the cause
+**And** the change is test-only; no pin is deleted, weakened or moved, no wait is added, and no timeout is raised
+**And** a demonstrated mutation (an item stopped before the pin's read) shows the new message naming the item
+
+[AMENDED 2026-11-07, orchestrator ruling ~12:10Z (option (a), diagnostics only, matching the Planner's 11.27 ruling on an unreproduced flake), after the plan's TIMEBOX: 0 red in 7 load runs, cause not confirmed. It read: "**Then** the cause of the "and the production runs every item" failure (`Install.Step.Production.NotRunning()` not empty) is confirmed with evidence: the old code fails under a repeat or load run / **And** the fix is test-only unless the cause is in the product (a product cause is ruled before any product code changes) / **And** the fixed test passes 20 of 20 runs under the same load; no pin is deleted or weakened, and no timeout is raised as the fix". The fix waits for the next named occurrence; DW-639 stays a flake class.]
+
+- DW-639: flake: OcuTalon.Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('and the production runs every item': Install.Step.Production.NotRunning() not empty) red in CI image shard lane-b (ledger; routed by orchestrator 2026-11-07)
+
 
 ## Epic 40: Choose how OcuTalon talks to you
 
