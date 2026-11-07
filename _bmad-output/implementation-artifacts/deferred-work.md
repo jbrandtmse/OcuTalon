@@ -2029,6 +2029,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T03:39:09Z owner=29-9-epic-29-burn-down by=burndown note=chartered into Story 29.9 (Epic 29 burn-down) at the burn-down gate
 - 2026-10-31T06:01:21Z status=resolved-by:29-9-epic-29-burn-down by=adjudication note=every sign-in followed by a 10 s snapshot-derived wait is wrapped in loadedAfter or signInReadmeLoaded: the Code Map's 38 sites in 24 files plus ten frame.spec.ts sites (F3 badge loop, F5, four F6, F7, three F8) found at review; AC1 mutation zz C7 old red with /state held 12 s, C7 green
 - 2026-11-01T19:13:12Z occurrence=4-10-try-it-yourself-example-prompts-one-press-each note=ci_run_41337078843_attempt1_iris(browser)_live:sign-in_trace/links.spec.ts:163_V1_open()->loadedAfter_GET_/state_not_seen_in_90s_after_signIn;same_readiness_class;233_others_passed;rerun_--failed
+- 2026-11-07T19:03:07Z occurrence=39-10-the-heartbeat-production-test-is-stable-dw-639 note=OCT-epic39_05f78577_run_42400798775_iris(shards-4)_live:sign-in-2_rail.spec.ts_R2_open():waitForResponse_GET_/state_30s_timeout(the_16.4_fix's_wait);sibling_signature;rerun_by_the_fix-forward_push
 ### DW-291: U-65 and U-107: Story 16.4's sign-out test must exercise the real ReminderOps cancel path that Story 8.4 delivers, not only the recording double
 - source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
@@ -4176,6 +4177,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T22:03:02Z status=routed owner=burndown by=ci note=filed by the runner at CI triage of 2a789066, not by a code review
 - 2026-11-07T02:32:43Z status=routed owner=burndown by=ci note=occurrence=2 OCT-epic19 b0bf1f14 run 42324833841 shards-2 lane-a@rest TestStartsWithNoKey same signature; one rerun requested by the orchestrator
 - 2026-11-07T15:33:18Z status=routed owner=burndown by=ci note=occurrence OCT-epic39 d5b39c3d run 42379785616 attempt 2 shards-2 TestStartsWithNoKey; 4th occurrence; Story 11.28 is on it
+- 2026-11-07T19:03:07Z occurrence=39-10-the-heartbeat-production-test-is-stable-dw-639 note=OCT-epic39_05f78577_run_42400798775_iris(shards-5)_lane-a@Bridge,Agent_TestStartsWithNoKey_same_signature;Story_11.28_fix_not_merged;rerun_by_the_fix-forward_push
 ### DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27)
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data/Handled.cls keyed by SessionRef; SessionOps.End and the spine purge list do not cover it; first writer is Story 18.4
@@ -5322,3 +5324,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rail text diverges at char 982 only in the HEARTBEAT CHECKLIST card; Epic 7's diff touches no web file; a time-of-day race with the heartbeat's half-hour schedule
 - 2026-11-07T15:06:23Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second red on the same head is real
 - 2026-11-07T15:47:24Z occurrence=7-10 note=rerun_of_iris(shards-4)_green_on_37856843_(attempt_2);flake_confirmed;stays_routed_burndown
+
+### DW-880: heartbeat-card.spec.ts HC8 DW-824 step (Story 39.9 QA) did not clear lastSkipAt/lastSkipReason, so a real tick's skip merged by rewriteGet showed 'Skipped at …: your checklist is empty.' instead of the Act check-in
+- source: ci-run-42400798775 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: run 42400798775 iris(browser) live:sign-in HC8 line 429: expected Last check-in 18:40 · Offered an action · $0.0006, received Skipped at 18:46: your checklist is empty.; the sibling loop cases spread lastSkipAt:null,lastSkipReason:'' and the QA step did not
+- 2026-11-07T19:03:07Z status=routed owner=39-10-the-heartbeat-production-test-is-stable-dw-639 by=ci note=fix-forward on OCT-epic39 (veto): the step clears the skip fields like its siblings
+- 2026-11-07T19:03:07Z status=resolved-by:39-10-the-heartbeat-production-test-is-stable-dw-639 by=adjudication note=heartbeat-card.spec.ts_HC8_step_now_spreads_lastSkipAt:null,lastSkipReason:''_before_checkIn('act');tsc,lint_0;CI_on_the_fix-forward_head_is_the_proof(no_throwaway:lane_D_slot_with_31.4)
