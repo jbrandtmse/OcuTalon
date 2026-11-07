@@ -6204,6 +6204,37 @@ So that a working diagnosis model is never reported as not answering, and the di
 - DW-786: `Checks.Coverage.Live` and `Checks.Process.Run` share one live-read helper (the not_checked reason chain, the cut rule, the state text and the failure wording), so the digest's coverage rows and the checks' results cannot drift; the existing tests of both stay green (ledger; routed by cr 2026-11-06)
 - DW-728: `docs/bridge-guide.md` names `RetryItem` and `RetryOf` in its Settings and Messages reference tables as well as in the Second-model retry section, so the guide's structure stays consistent; no other wording changes (any is public text for the Contest Planner) (ledger; routed by cr 2026-11-05)
 
+### Story 17.10: The digest shows in the web chat, and the online demo's digest is visible
+
+[ADDED 2026-11-07, fix-forward inside Epic 17 under the SC-5 re-open: the Contest Planner's ruling on DW-874 under the owner's delegation (2026-11-07 about 15:50Z, D2 option (a): a web chat digest card on every install, as plain text, web only; the Simulated phone stays out; the full UX card "What I checked ({n})" stays out), for Sunday's 1.0.4, ahead of every tier (3) item]
+
+As a user, on my own install or on the online demo,
+I want the digest I asked for to appear in my web chat,
+So that "send my digest now" shows me the digest instead of promising one I never see.
+
+**Acceptance Criteria:**
+
+**Given** a `Notification` of kind `digest` that `Notify` routes to the web channel (the session's own channels: web always, `Digest.Process` `Own`)
+**When** `WebChatOut` receives it
+**Then** it renders the digest's Slots with the same shared helper `TelegramOut` uses, called with the channel "web": every part and line through `Msg.Catalog.Render` for the web, in the same order and one piece per line, with the shared `digest.*` catalog texts and no new strings; it records the web chat's copy on a Delivery row of kind `digest` with the whole text, and publishes one notification event on the session's stream, as for the other card kinds (AD-12, AD-14, AD-32, AD-33)
+**And** a reload shows the digest card again from its row (the snapshot query in `Data.Ownership`), and the web chat draws it as a notice card with the digest's own class and icon, keeping its line breaks; the payload's `text` is the whole digest (UX-DR69)
+**And** the Simulated phone shows no digest (`SimPhoneOut` unchanged), and a local user with Telegram paired gets the digest in both places (accepted)
+
+**Given** `TelegramOut`'s `DigestText`, `Pieces` and `Piece`
+**When** they move into the shared, channel-aware helper
+**Then** Telegram's digest output stays byte-identical, pinned by a golden test written before the move and passing after it, and `Test.Channel.TelegramDigest` still passes
+
+**Given** the online demo (`Data.Public.Settings` "onlineDemo" on, a session with a non-empty `ResumeHash`)
+**When** the morning digest run ticks
+**Then** it skips online-demo sessions, pinned by a test with a mutation shown going red; a visitor's "send my digest now" still composes and shows the digest card in that visitor's own chat, with the model summary only when something was saved for later, as on any install
+**And** the online demo path keeps REL-2 green, and gains one step: the visitor asks for the digest and its card appears (new CI mock scenario files only)
+
+**Given** the tests that hard-code the web chat's card kinds (`Test.Core.WebChatOut`, `Test.Data.Ownership`)
+**When** the digest joins them
+**Then** they are updated, a WebChatOut digest case is added, a Playwright case is added to `web/e2e/chat/notice.spec.ts`, and each new pin is shown red with a mutation
+
+- DW-874: Online demo: the digest is promised but invisible (web chat and Simulated phone show no digest card), and the morning run also sends to every demo session with a resume hash; ruled (a): the web chat digest card on every install, and the morning run skips online-demo sessions (ledger; ruled by the Contest Planner 2026-11-07)
+
 ## Epic 18: An admin changes settings in the web app (step 2)
 
 An admin opens a settings page to change models, budgets, channels, the digest time and channels, the time zone and check thresholds; each change takes effect within a minute without a restart and is audited; non-admins can't open it.

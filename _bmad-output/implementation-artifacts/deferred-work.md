@@ -5293,6 +5293,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Planner review of 1.0.3 notes 2026-11-07 ~15:35Z | severity: med | fix-risk: med | footprint: cross-epic
 - evidence: Channel/WebChat/Out.cls:31 and SimPhone/Out.cls:31 CARDKINDS lack the digest; Digest/Process.cls:204-209 morning send to demo sessions
 - 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) show the digest as a web chat card on every install, (b) demo reply says it goes to Telegram (not set up on the demo) and the morning run skips demo sessions; Planner prefers (a) if it fits Sun 19Z; PUBLIC TEXT at the spec gate
+- 2026-11-07T20:01:47Z owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=load note=chartered_as_story_17.10(SC-5_reopen,Planner_D2_option_a_2026-11-07T15:50Z)
 ### DW-869: release/release.sh:940 says the CI job ipm-install runs the same command as the release's ipm step; after the CI split, ipm-install runs modes a and r and ipm-install-p runs b and p
 - source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: rework 2 review finding; release.sh is under the release-tool freeze

@@ -319,3 +319,17 @@
 2026-11-07T09:31:21Z	Epic 17	public_text_ruled	dw=DW-773 subject=L153_final at=about_09:35Z by=planner(owner_delegation) applied=L153(instruction_clause),L340,AD-19
 2026-11-07T09:31:21Z	Epic 17	spine_updated	ad=AD-19(as-built:Settings.Set_writes_the_row;Decide_reads_live_settings_each_time;only_restart_settings_need_UpdateProduction) reason=owner_ruling_via_planner(DW-773) by=runner lint=ok_false_preexisting_10_placeholder
 2026-11-07T09:31:21Z	Epic 17	committed	kind=docs_only(DW-773) files=docs/bridge-guide.md(L153,L340),docker/tests/test-bridge-guide.sh(livetext;mutations_L153,L340_red),ARCHITECTURE-SPINE.md(AD-19) ci=pending
+2026-11-07T20:00:25Z	Epic 17	epic_branch_reopened	reason=story_17.10_planner_D2 from=84906388
+2026-11-07T20:00:25Z	Epic 17	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_17.10 lane=B slot=ocutalon-slot-b
+2026-11-07T20:00:25Z	Epic 17	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-07T20:00:25Z	Epic 17	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-07T20:00:25Z	Epic 17	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-07T20:00:25Z	Epic 17	epic_branch_checked_out	repos=. head=84906388 ci_expected=ci,lane-a bootstrap_check=ok
+2026-11-07T20:00:44Z	Epic 17	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-07T20:00:44Z	Epic 17	ledger_load	total=873 open=1 routed=128 escalated=2 decision_pending=5 terminal=737 owner_unknown=0 burndown=86 reowned_none=0
+2026-11-07T20:00:44Z	Epic 17	retro_review_skipped	reason=no_x0_input(sc5_reopen_fix_forward)
+2026-11-07T20:01:47Z	Epic 17	sprint_planning_complete	gate=PASS model=claude-opus-5-5 warnings=2(title_and_epic_list_headings,known)
+2026-11-07T20:01:47Z	Epic 17	story_chartered	story=17.10 key=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges reason=fix_forward(DW-874,Planner_D2_option_a) after=17.9
+2026-11-07T20:01:47Z	Epic 17	deps_hash_rerecorded	reason=fix_forward story=17.10 for=orchestrator
+2026-11-07T20:01:47Z	Epic 17	epic_status_reopened	from=done to=in-progress reason=sc5_reopen(story_17.10)
+2026-11-07T20:01:47Z	Epic 17	ledger_routed_planned	story=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges entries=1(DW-874) excess=0 by=load
