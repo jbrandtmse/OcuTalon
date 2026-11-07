@@ -25,7 +25,7 @@ Mode: release
 Candidate: 1.0.3 rc1, release/1.0.3-rc1 at 8f142259d1ecd6c9e0ffe7053effccf4d684add7
 Cut from: feature/OCT_OcuTalon_MVP at 5b47f05269660161733fef644b91f84598a091d3
 Hands-on time: 0 s for this candidate; 0 s for 1.0.3 so far (target at most 15 min; CI and the hands-on pass not counted)
-Run: 2026-11-07T17:55:10Z to 2026-11-07T18:24:39Z
+Run: 2026-11-07T17:55:10Z to 2026-11-07T18:24:51Z
 
 | Step | Result | Detail |
 | --- | --- | --- |
@@ -36,4 +36,4 @@ Run: 2026-11-07T17:55:10Z to 2026-11-07T18:24:39Z
 | ipmcheck | pass | ocutalon-1.0.3.tgz (5797060 bytes) installs from a local IPM repository on a fresh instance with no Node.js and uninstalls leaving the repository definitions unchanged |
 | push | pass | release/1.0.3-rc1 pushed to origin on the author's word |
 | notes | fail | release/notes.sh: RESULT fail; draft release/records/1.0.3/rc1-notes.md (not committed) |
-| record | committed, not pushed | the author's word was not given |
+| record | pushed | committed to feature/OCT_OcuTalon_MVP and pushed on the author's word |
