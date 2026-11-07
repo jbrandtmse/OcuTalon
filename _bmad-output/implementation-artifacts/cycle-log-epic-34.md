@@ -144,3 +144,5 @@
 2026-11-07T03:22:27Z	Epic 34	deps_hash_rerecorded	reason=fix_forward note=story_34.4_inserted_inside_epic_34;no_boundary_or_dependency_change;for_the_orchestrator
 2026-11-07T03:22:27Z	Epic 34	epic_status_reopened	epic-34=in-progress via=SPRINT_PLAN_set reason=SC-5_reopen
 2026-11-07T03:22:27Z	Story 34.4	ledger_reowned	DW-825 owner=34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=load
+2026-11-07T03:22:52Z	Epic 34	sprint_planning_complete	gate=PASS scope=story_34.4 model=claude-opus-5-5 note=headless;valid=true
+2026-11-07T03:24:06Z	Epic 34	epic_context_compiled	reason=planning_artifact_newer(story_34.4_chartered) model=opus bytes=5467
