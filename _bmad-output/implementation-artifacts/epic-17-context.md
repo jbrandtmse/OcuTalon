@@ -4,7 +4,7 @@
 
 ## Goal
 
-Once a day at the set time, and whenever the user asks, OcuTalon sends one short digest: the vital signs, a coverage list where every entry is passed, failed or not checked (with a reason), what needs the user, what was saved for later, and the previous day's model cost. Only code decides whether an all-clear is given. The epic also lets an admin choose each agent's provider and model, set prices, budgets and the instance time zone through the bridge, and name a second model for one retry before the fallback. Stories 17.2 to 17.8 are done. Only Story 17.9 remains: the burn-down. It makes the settings model Test a plain connection test, puts the checks' live-read logic in one helper, and tidies the bridge guide's reference tables.
+Once a day at the set time, and whenever the user asks, OcuTalon sends one short digest. It holds the vital signs, a coverage list where every entry is passed, failed or not checked, what needs the user, what was saved for later, and yesterday's model cost. Only code decides whether an all-clear is given. The epic also lets an admin choose each agent's provider and model, set prices, budgets and the time zone through the bridge, and name a second model for one retry. Stories 17.2 to 17.9 are done. Story 17.10 is left, a fix-forward for release 1.0.4. Today "send my digest now" promises a digest that never shows up in the web chat or on the online demo. The story makes the digest appear as a plain-text notice card in the web chat on every install, and stops the morning run from sending to online-demo sessions.
 
 ## Stories
 
@@ -15,57 +15,68 @@ Once a day at the set time, and whenever the user asks, OcuTalon sends one short
 - Story 17.6: Send the daily digest at the set time and on request (done)
 - Story 17.7: Give an all-clear only when every check passed (done)
 - Story 17.8: Only Decide moves a conversation's link (done)
-- Story 17.9: Epic 17 burn-down
+- Story 17.9: Epic 17 burn-down (done)
+- Story 17.10: The digest shows in the web chat, and the online demo's digest is visible
 
 ## Requirements & Constraints
 
-- **The settings model Test is a connection test for every runner (DW-771).** This includes the diagnosis agent's runner.
-  - It passes on any non-empty reply that arrives within the timer through that runner's provider, model and key.
-  - It never validates the reply against the runner's reply class.
-  - A test must show the diagnosis Test passing on a mock reply that fails `DiagnosisReply` validation. Today the fixed test input ends in fallback `invalid` for diagnosis, because the diagnosis payload needs an evidence pack. The Story 17.4 live test hid this with a `[[mock:diagnosis-unknown]]` marker.
-- **The Test's visible answer is fixed by the UX:** "Answered in 1.2 s" or "Didn't answer: {plain reason}", where the reason is a fallback reason. The key never appears.
-- **The Test keeps its existing rules:**
-  - It is never retried on the second model. Its `ItemId` starts with `test.`.
-  - Its usage is recorded under owner `instance`.
-  - It sets no sampling parameters and never returns the key.
-- **One live-read helper (DW-786).** `Checks.Coverage.Live` and `Checks.Process.Run` must share one helper for:
-  - the `not_checked` reason chain;
-  - the cut rule;
-  - the state text;
-  - the failure wording, including its capital letter.
-  The copy was forced while Epic 39 held `Process.cls`. Epic 39 has merged, so `Process`'s private `Finding` can now be made callable. The existing tests of both must stay green, so the digest's coverage rows and the checks' results cannot drift apart.
-- **Bridge guide tables (DW-728).** `docs/bridge-guide.md` must name `RetryItem` and `RetryOf` in its Settings and Messages reference tables, as well as in the "Second-model retry" section.
-  - No other wording changes. Any other change is public text that the Contest Planner approves before it is pushed.
-  - The ledger lists other one-attempt wording in the guide: the `TimerSeconds` row, the `DecisionTokenBudget` row (checked per attempt, so a retried decision can use up to twice the budget), the Timeouts section, the fallback route and the `DecisionResponse.Model` row. Changing any of these is the same kind of approval-gated public text.
-  - DW-773 is reopened if this pass edits the guide's Settings intro while it still says only `ToolClassification` and `ApprovalRole` are read live. Since Story 17.4, `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD` and `InstanceZone` also apply with no restart.
-- **Public-text guard (DW-755, held at close).** No README, guide, settings page or release text may say that a provider other than Anthropic runs decisions until a live proof exists.
-- **Flakes.** A flake such as `test-mock.sh`'s one-off 400 (DW-799) gets one rerun and an occurrence line in the ledger, recording the failing row and request.
+- **Scope of the ruling (DW-874, option a).**
+  - In scope: a web chat digest card on every install, as plain text, web only.
+  - Out of scope: the Simulated phone gets no digest, and `SimPhoneOut` is unchanged.
+  - Out of scope: the full UX digest card, with the brand-teal bar, grouped check rows and the "What I checked ({n})" disclosure. That card belongs to Lane B's Story 18.4.
+  - A local user with Telegram paired gets the digest in both the web chat and Telegram. This is accepted.
+- **No new strings.** The web copy renders the shared `digest.*` and `checks.*` catalog texts through `Msg.Catalog.Render` with channel `web`. It keeps the same parts, in the same order, one piece per line. Any wording that visitors see is public text, checked at the spec gate.
+- **Telegram stays byte-identical.** `TelegramOut`'s `DigestText`, `Pieces` and `Piece` move into one shared helper that takes the channel. Before the move, write a golden test of Telegram's output; it must still pass after the move. `Test.Channel.TelegramDigest` must also stay green.
+- **Online demo.** A session is an online-demo session when `Data.Public.Settings` "onlineDemo" is on and the session's `ResumeHash` is not empty.
+  - The morning (scheduled) digest run skips these sessions. Pin this with a test and show a mutation turning it red.
+  - A visitor's own "send my digest now" still composes the digest and shows the card in that visitor's chat. The model summary runs only when something was saved for later, as on any install.
+- **REL-2 stays green.** The online demo path gains one step: the visitor asks for the digest and its card appears. Only new CI mock scenario files may be added for it.
+- **Tests and pins.**
+  - Update the tests that hard-code the web chat's card kinds: `Test.Core.WebChatOut` and `Test.Data.Ownership`.
+  - Add a `WebChatOut` digest case.
+  - Add a Playwright case to `web/e2e/chat/notice.spec.ts`.
+  - Show every new pin turning red with a mutation.
+- **Digest rules from earlier stories still hold:**
+  - The all-clear and its reserved sentences come only from `Checks.Render`.
+  - The cost shows two decimals (slot type `dailyCost`).
+  - The greeting depends on the hour in the instance zone.
+  - The digest has no Markdown.
+- **Public-text guard (DW-755).** No README, guide, settings page or release text may say that a provider other than Anthropic runs decisions.
+- **Flakes.** A flake gets one rerun and an occurrence line in the ledger.
 
 ## Technical Decisions
 
-- **Bridge settings APIs.** `OcuTalon.Bridge.Settings` is the only way `SettingsOps` changes bridge values.
-  - `TestRequest(agent, *request)` builds one request of the agent's own kind (`decide`, `diagnose` or `turn`), with provenance `untrusted`, owner `instance`, a fresh `ItemId` and fixed code-written input. `SettingsOps` sends it to `Decide` synchronously.
-  - `TestAnswer(response, durationMs)` returns `{answered, seconds, reason}`.
-  - Every method refuses a value that holds `@{` or is off the allow-list, with a plain-English reason, and changes nothing.
-  - The bridge timer stays at or under 110 s.
-- **Second-model retry (as built).**
-  - The first runner's host setting `RetryItem` names its retry runner item (`<Agent>Retry`). An empty setting means no second model.
-  - A retried request carries `RetryOf`, naming the first runner item.
-  - Only `Decide` moves a conversation's link, when it accepts a reply.
-- **Coverage.** `Checks.Coverage.Build` is the only builder of the digest's rows and lines, and `Checks.Render` is the only source of the all-clear key.
-  - The coverage rows keep release 1's shape: `{result, entry, finding, checkedAt}`.
-  - A not-checked row's finding is a short code-written phrase taken from `Checks` class parameters.
-- **Digest catalog keys (as built; AD-32 was corrected on 2026-11-06).** `Checks.Render` returns one of `checks.allPassed`, `checks.notEverything`, `checks.notEverythingRestPassed` or `checks.nothingWatched`. All other digest keys live in `Catalog.Watch` under the prefix `digest.`.
-- **Dependency direction.** `OcuTalon.Checks` may write `Digest.Data.CheckRun` and call `Schedule.Heartbeat.Gaps`. `OcuTalon.Digest` may call `Checks.Coverage.Build` and `Checks.Render`.
-- **Testing.** Tests use the CI model mock (`ci/mock/`, with scenarios under `ci/mock/scenarios/A/`). The IRIS units for Bridge, Checks and Digest run in CI's `lane-a` shard.
+- **The digest notification.** A digest is one `OcuTalon.Msg.Notification` of kind `digest`.
+  - Its `Slots` are `{"parts": [{key, slots}...], "lines": [{key, slots}...], "rows": [...]}`.
+  - `parts` are the prose parts in order: greeting, vital signs, what was checked with the reserved sentence, needs you, saved for later, cost.
+  - `lines` are the coverage lines. `rows` are the check rows meant for the full web card.
+  - Producers never render text. Each `*Out` operation renders every `{key, slots}` through `Catalog.Render(key, slots, channel)` and renders nothing else.
+- **Routing.** A digest goes only to the session's own digest channels, and the web chat is always one of them. Until Story 18.2 lands, `Digest.Process` narrows Notify's route itself (`Own`) and sends straight to those channels' outbound items. `WebChatOut` must now accept kind `digest`: its card-kind list lacks it today.
+- **Web notice cards.** `WebChatOut` is the only publisher of the `notification` live event. It keeps each web card on its web copy's `Delivery` row, with `Kind`, the rendered `Text`, `DecisionRef`, `DueAt` and `FallbackReason`.
+  - The digest's row has kind `digest` and holds the whole text.
+  - `WebChatOut` publishes one `notification` event on the session's stream, after its own change commits. The payload is the full public view, keyed by `Ref`, and its `text` is the whole digest.
+  - The snapshot query in `Data.Ownership` rebuilds the cards on reload, so it must include digest rows.
+- **Web drawing.** The chat draws the digest as a notice card with the digest's own class and icon, keeps its line breaks, and shows no title.
+  - The TypeScript payload interfaces are generated from the payload classes (`web/scripts/payloads.mjs --check` runs in the build).
+  - On the online demo, live updates arrive only by polling. The page never opens the WebSocket there.
+- **Ownership.** `WebChatOut`, `SimPhoneOut`, `Data.Delivery`, `Data.Ownership` and the web chat are Lane B's. `TelegramOut`, `Digest` and `Checks` are Lane A's. Story 17.10 changes the Lane B files it names under the Planner's ruling, and runs on runner slot B. The ownership tables do not change.
+- **Testing.** Tests use the CI model mock (`ci/mock/`, scenarios under `ci/mock/scenarios/`). The digest summary's model request goes through `Decide`. If it is unusable, the digest still goes out with the count and no summary.
+
+## UX & Interaction Patterns
+
+- A notice card shows the catalog text exactly, with no title. The digest card's text keeps one piece per line.
+- In the full UX design, the digest card uses a 4px brand-teal accent bar and the `inbox` icon for the digest outcome. Story 17.10's card only needs the digest's own class and icon. The check rows and the disclosure wait for Story 18.4.
+- In chat, "send my digest now" is a safe tool action that submits `SendDigest` (origin `tool`). A digest of either kind starts the next window.
 
 ## Cross-Story Dependencies
 
-- Story 17.9 builds on:
-  - Story 17.4's `TestRequest` and `TestAnswer`;
-  - Story 17.5's `Coverage.Live`;
-  - Story 17.2's guide section.
-- Epics 39 and 40 have merged, which frees `Process.cls` and `docs/bridge-guide.md`.
-- Epic 30 is still in progress (its burn-down, Story 30.7, is in backlog) and shares the `Checks` footprint.
-- Lane B's Epic 18 is in backlog. It owns the settings page that shows the Test answer (Story 18.3), plus `Notify`'s digest route and the Got it marker.
-- Epic 17 merges only once `release/1.0.0-rc1` exists, and it ships in the first daily release after 1.0.0.
+- Story 17.10 builds on:
+  - Story 17.6's `Digest.Process` and `TelegramOut` digest rendering;
+  - Story 17.7's `Checks.Render`;
+  - Epic 16's online-demo settings and `ResumeHash`;
+  - Story 2.7's `WebChatOut` and `Delivery` notice cards.
+- Epic 12's Story 12.12 (Telegram **Got it**, DW-873) is in flight at the same time and also changes `TelegramOut`'s class. Either a merge-file proof shows the two changes combine cleanly, or this story merges first.
+- Lane B's Epic 18 is in backlog:
+  - Story 18.2 owns Notify's `digest.channels` route.
+  - Story 18.4 owns the full digest card, the phone copy and **Got it** on the web.
+- Target: release 1.0.4 (Sunday), ahead of every tier (3) item.
