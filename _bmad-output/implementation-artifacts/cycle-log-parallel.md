@@ -2370,3 +2370,5 @@
 2026-11-07T03:43:10Z	Epic 19	ci_green_verified	head=b0bf1f14 runs=42324833841(rerun),42324833802 result=success
 2026-11-07T03:43:10Z	Run	planner_update	subject=part1_forecast merged_green=09:30-10:30Z(12-13Z_with_rework) inside_15Z=yes
 2026-11-07T04:10:04Z	Run	owner_decision	subject=release_plan_sat_sun by=Contest_Planner sat=1.0.3_one_release merge_line=16Z_except_19p1 cut=17Z_or_when_19p1_green hard_stop=23Z_Sat freeze=from_max(16Z,19p1_merge)_to_cut 4.11_exception_green_by_13Z sun=1.0.4 scope=19p2(19.4,19.5,19.7)+missed_green merge_line=19Z_Sun cut=~20Z release=~01Z_Mon deadline=04:59Z_Mon
+2026-11-07T04:10:34Z	Run	planner_ruling	subject=part2_parallel_lever preapproved=19.7_docs_on_second_runner_after_19.4 if=(1)part2_forecast_past_10Z_Sun (2)19.5/19.7_no_shared_files_except_bookkeeping report_on_start priority=Saturday_misses_first_unless_part2_past_14Z_Sun
+2026-11-07T04:10:34Z	Run	planner_update	subject=account_switch_hold expected=14:30-15:30Z_Sat at_stage_boundary
