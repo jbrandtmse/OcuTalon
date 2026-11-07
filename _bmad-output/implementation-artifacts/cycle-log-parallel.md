@@ -2492,3 +2492,6 @@
 2026-11-07T15:34:07Z	Run	planner_ruling	subject=D1_D2 D1=option_a_build_GotIt_Telegram+window(tellnow/act_decisions_only;failed_checks_and_awaiting_incidents_always) D2=option_a_web_card_plain_text_web_only,telegram_golden_byte_identical,demo_morning_skip,demo_SendDigest_composes,online-demo-path_step staffing=D1_first_free(B),D2_next(A) Out.cls=merge-file_proof_or_D2_first
 2026-11-07T16:17:14Z	Epic 7	runner_complete	head=c1e16cf9 stories=1(7.10) ci=success(42388162201,42388162212) cause=stale_fixture_LastAt_quiet_sweep proof=old_2/11_fix_20/20 decisions=DW-868 merge=after_cut(freeze)
 2026-11-07T16:17:14Z	Epic 7	merge_enqueued	position=after_1.0.3_cut
+2026-11-07T16:17:48Z	Epic 12	worktree_provisioned	branch=OCT-epic12 base=11928182 reason=story_12.12_D1
+2026-11-07T16:17:48Z	Epic 12	worktree_bootstrapped	epic=12 result=ok
+2026-11-07T16:17:48Z	Epic 12	runner_dispatched	agent=ab10e3481e994976a lane=B slot=ocutalon-slot-b model=opus prompt=dispatch-epic-12-1212.md
