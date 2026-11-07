@@ -5319,3 +5319,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rail text diverges at char 982 only in the HEARTBEAT CHECKLIST card; Epic 7's diff touches no web file; a time-of-day race with the heartbeat's half-hour schedule
 - 2026-11-07T15:06:23Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second red on the same head is real
 - 2026-11-07T15:47:24Z occurrence=7-10 note=rerun_of_iris(shards-4)_green_on_37856843_(attempt_2);flake_confirmed;stays_routed_burndown
+
+### DW-878: Eval: EvalIn sends every incident case at once, so later cases spend their 60 s Decide timer queued behind a single-job DiagnosisAgent (returns-negative-weight 10th, shipments-epoch-time 11th time out)
+- source: 1.0.3 rc1 eval triage 2026-11-07 (Planner author's override) | severity: med | fix-risk: low | footprint: cross-epic
+- evidence: 1.0.2 set durations 56.7-58.3 s vs 1.0.3 60.1 s for the 10th case; Eval/In.cls:8-9,480-483 async sends; Decide.cls:339-342 timer at send; Production.cls:30 PoolSize 1
+- 2026-11-07T18:29:38Z status=routed owner=burndown by=orchestrator note=1.0.4 Epic 9 fix-forward after D1/D2: pace incident cases (next after the previous CaseResult, ~70 s each; turn cases first); update Test/Eval/In pins; EvalIn stays disabled in the product
+
+### DW-879: Product: the diagnosis timer counts time spent queued at DiagnosisAgent (PoolSize 1), so several simultaneous incidents (e.g. demo visitors breaking the feed at once) can time out before the model is asked
+- source: 1.0.3 rc1 eval triage 2026-11-07 | severity: med | fix-risk: med | footprint: cross-epic
+- evidence: Decide.cls:339-342 SetTimer at send; DiagnosisAgent PoolSize 1 (Production.cls:30); timeout rows have no Usage and model ''
+- 2026-11-07T18:29:39Z status=routed owner=burndown by=orchestrator note=1.0.4 after D1/D2: options timer-at-runner-start (AD-8 amendment) or DiagnosisAgent PoolSize 2 (rate limits, no single-session state); never raise TimerSeconds; RetryItem wiring out of scope; sizing to the Planner
