@@ -1,0 +1,21 @@
+{
+  "name": "documents-none-conflict",
+  "match": {
+    "marker": "documents-none-conflict"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "documents",
+        "input": {
+          "query": "how do I rotate the Results certificate?"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "Stop the sender, install the new certificate and send a test result. None of your documents cover that."
+    }
+  ]
+}

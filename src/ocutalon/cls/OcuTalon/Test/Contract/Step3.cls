@@ -171,7 +171,8 @@ XData Contracts [ MimeType = application/json ]
    "State": "%String(MAXLEN=16)",
    "Reason": "%String(MAXLEN=32)",
    "KnowledgeBase": "%String(MAXLEN=128)",
-   "Text": "%Stream.GlobalCharacter"
+   "Text": "%Stream.GlobalCharacter",
+   "Sections": "%String"
   },
   "indexes": {
    "RefIndex": "Ref unique",

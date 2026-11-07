@@ -123,6 +123,11 @@ Parameter CAP = 8000;
 /// the escaped prompt, and the envelope the same after a second exchange.
 Parameter ENVELOPECHARS = 500;
 
+/// The characters of the knowledge-base tool of the documents (its name, description and input schema), which Chat's requests carry since Story 19.4 and which
+/// Decide's estimate leaves out (RequestSize counts the toolsets of the agent, and the tool is attached in the agent's %OnInit): the runner's own count is that
+/// much higher, so the estimate is that much less above it. A measured 117 tokens (about 470 characters) on build 154; the bound has room for a longer description.
+Parameter KNOWLEDGEBASECHARS = 600;
+
 /// A model of the Anthropic family other than the agents' own, with a Price row (Bridge.Installer), for TestResumeFollowsTheRunner.
 Parameter OTHERMODEL = "claude-sonnet-5-5";
 
@@ -1172,8 +1177,8 @@ Method TestPrecheckCountsHistory()
 	Set prompt = $Length([(host.Adapter.Agent.SystemPrompt)].%ToJSON()) - 4
 	Do $$$AssertTrue(prompt > 0, "the system prompt of the agent, JSON-escaped as the stored history holds it, is read: "_prompt_" characters")
 	Set allowed = ..Tokens(prompt + ..#ENVELOPECHARS)
-	Set least = ..Tokens(prompt) - ..Tokens(..#ENVELOPECHARS)
-	Do $$$AssertTrue(estimate - runner '< least, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by at least the system prompt less the envelope, "_least_" tokens, so the history is counted: "_(estimate - runner))
+	Set least = ..Tokens(prompt) - ..Tokens(..#ENVELOPECHARS) - ..Tokens(..#KNOWLEDGEBASECHARS)
+	Do $$$AssertTrue(estimate - runner '< least, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by at least the system prompt less the envelope and the knowledge-base tool, "_least_" tokens, so the history is counted: "_(estimate - runner))
 	Do $$$AssertTrue(estimate - runner '> allowed, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by no more than the system prompt and the envelope, "_allowed_" tokens: "_(estimate - runner))
 }
 

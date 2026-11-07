@@ -1308,7 +1308,7 @@ ClassMethod HoldsAll(text As %String, pieces As %String) As %Boolean [ Private ]
 ///      tellnow, Fallback 0 and no reasons, confidence or payload, and steps 4 to 9 follow with those values. Otherwise each model-written text was filtered once with filterClass (each reason; each property that
 ///      the reply class names in its FILTERED parameter that is not empty, each item of a list, after which the payload is validated again; a
 ///      turn's reply text),
-///      never the code-written line; each reason is one line of the row: its line breaks (CR LF, CR, LF, vertical tab, form feed, NEL and
+///      never the code-written line (a turn's filter call also gets the reply's HostData as its second argument, Story 19.4 and AD-31: the decide and diagnose calls get none); each reason is one line of the row: its line breaks (CR LF, CR, LF, vertical tab, form feed, NEL and
 ///      the Unicode line and paragraph separators) become spaces, and a reason that is blank once trimmed of white space and control
 ///      characters is dropped; a decision with no reason left, and a turn with no text left, once filtered, are invalid;
 ///   4. applies the user rule: for a decide request with provenance user, an ignore or digest becomes tellnow, and the first
@@ -1352,7 +1352,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 		Set invalid = 0
 		If $ZStrip(reply.Text, "*WC") '= "" {
 			If turn {
-				Set text = $ClassMethod(filterClass, "Filter", reply.Text)
+				Set text = $ClassMethod(filterClass, "Filter", reply.Text, reply.HostData)
 				If $ZStrip(text, "*WC") = "" Set invalid = 1
 			} ElseIf 'test {
 				Set invalid = '..Interpret(request, reply.Text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc, .problem)

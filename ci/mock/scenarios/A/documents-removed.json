@@ -1,0 +1,21 @@
+{
+  "name": "documents-removed",
+  "match": {
+    "marker": "documents-removed"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "documents",
+        "input": {
+          "query": "how do I rotate the Results certificate?"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock searched the documents."
+    }
+  ]
+}

@@ -57,6 +57,12 @@
 ///     asked linked (SessionMode empty), so it opens the session that the old turn saved (AD-6), and only the case's turn is scored. A before
 ///     that is not valid, or that gets no Reply (none, a Busy one after BUSYMAX asks, or a fallback, which saves no session), ends the case with
 ///     REASONBEFORE or REASONNOREPLY and leaves no row.
+///   - A documents case (Story 19.4; AD-21): a turn case, like a command case, whose case.json also holds documents, an array of {name, file}. Before the case's turn
+///     is asked, EvalIn adds each file (Markdown or plain text, a path relative to the case's folder that stays inside the folder of the cases) as a document
+///     of a Session row of its own (ocutalon-eval-documents), as web_user through Commands.Submit with an Upload row, and waits up to DOCUMENTSWAIT seconds
+///     for it to be ready; a document that cannot be added or does not become ready skips the case with REASONDOCUMENTS and removes what was added. The
+///     TurnResult keeps the Reply's HostData.citations (Citations). A sent case's record {case, documents{session, refs}} joins the Watches of the service, and
+///     Finish removes the documents of the records it is given (DocumentsDown) and the session row.
 ///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26), the old turn
 ///     of a before included.
 /// Wait polls the rows of a run until none is still sent, or the seconds have passed.
@@ -76,17 +82,25 @@ Parameter DECIDE = "Decide";
 Parameter SINK = "EvalSink";
 
 /// The kinds of case that EvalIn sends, comma-separated.
-Parameter KINDS = "item,injection,all-clear,command,user-turn,incident,digest";
+Parameter KINDS = "item,injection,all-clear,command,user-turn,incident,digest,documents";
 
 /// The kinds of case that hold a recorded Item, and go to Intake.
 Parameter ITEMKINDS = "item,injection";
 
 /// The kinds of case that are a user turn, and go to Decide.
-Parameter TURNKINDS = "all-clear,command,user-turn";
+Parameter TURNKINDS = "all-clear,command,user-turn,documents";
 
 /// The kind of turn case that is a user's own chat message as Triage decides it (Story 30.5, DW-500): its request is a decide request of
 /// provenance user, answered with a DecisionResponse, and it has no reply text.
 Parameter USERTURNKIND = "user-turn";
+
+/// The kind of turn case whose documents are added before its turn (Story 19.4): its documents member is an array of {name, file}, each file the path of a
+/// Markdown or plain-text file relative to the case's folder (and inside the folder of the cases), added as web_user through Commands.Submit, waited to
+/// ready, and removed again by Finish.
+Parameter DOCUMENTSKIND = "documents";
+
+/// The seconds to wait for a document to be ready.
+Parameter DOCUMENTSWAIT = 120;
 
 /// The kind of case that holds a recorded reader snapshot, and goes to IncidentManager.
 Parameter INCIDENTKIND = "incident";
@@ -141,6 +155,9 @@ Parameter REASONPERSONA = "its persona is not valid: {why}";
 
 /// {why} says what is wrong with the case's before.
 Parameter REASONBEFORE = "its before is not valid: {why}";
+
+/// {why} says what is wrong with the documents the case declares or what went wrong adding them (Story 19.4).
+Parameter REASONDOCUMENTS = "its documents could not be set up: {why}";
 
 Parameter REASONNOSNAPSHOT = "it has no snapshot file name";
 
@@ -222,8 +239,8 @@ ClassMethod Wait(runRef As %String, seconds As %Integer) As %Integer
 	Quit open
 }
 
-/// Removes the watch rows of the records that Start returned in watches, each through OcuTalon.Watch.Ops.RemoveEvalWatch, and nothing else. A
-/// row that is already gone is no error. Every record is tried; the status is the first error, and Finish never throws.
+/// Removes the watch rows of the records that Start returned in watches, each through OcuTalon.Watch.Ops.RemoveEvalWatch, and the documents of the
+/// records of a documents case (DocumentsDown), and nothing else. A row that is already gone is no error. Every record is tried; the status is the first error, and Finish never throws.
 ClassMethod Finish(watches As %DynamicArray) As %Status
 {
 	Set result = $$$OK
@@ -233,6 +250,10 @@ ClassMethod Finish(watches As %DynamicArray) As %Status
 			While iterator.%GetNext(, .record) {
 				Set sc = ..Unwatch($Select($IsObject(record) && record.%IsA("%Library.DynamicObject"): record.%Get("watch"), 1: ""))
 				If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
+				If $IsObject(record) && record.%IsA("%Library.DynamicObject") && $IsObject(record.%Get("documents")) {
+					Set sc = ..DocumentsDown(record.%Get("documents"))
+					If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
+				}
 			}
 		}
 	} Catch exception {
@@ -332,7 +353,19 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	If kind = ..#DIGESTKIND Quit ..SendDigest(case, name)
 	Set reason = ..Persona(case, .preset, .language)
 	If reason '= "" Quit reason
-	If $ListFind($ListFromString(..#TURNKINDS), kind) Quit ..SendTurn(case, kind, name, preset, language)
+	If $ListFind($ListFromString(..#TURNKINDS), kind) {
+		If kind '= ..#DOCUMENTSKIND Quit ..SendTurn(case, kind, name, preset, language)
+		Set reason = ..DocumentsUp(case, folder, .documents)
+		If reason '= "" Quit reason
+		Set reason = ..SendTurn(case, kind, name, preset, language)
+		If reason '= "" {
+			Do ..DocumentsDown(documents)
+		} Else {
+			If '$IsObject(..Watches) Set ..Watches = []
+			Do ..Watches.%Push({"case": (name), "documents": (documents)})
+		}
+		Quit reason
+	}
 	Set record = case.item
 	If '$IsObject(record) || 'record.%IsA("%Library.DynamicObject") || (..Scalar(record, "itemId") = "") Quit ..#REASONNOITEMID
 	Set provenance = ..Scalar(record, "provenance")
@@ -556,6 +589,7 @@ Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As
 		Set result.Fallback = +reply.Fallback
 		Set result.FallbackReason = reply.FallbackReason
 		Do ..Render(result, reply.HostData)
+		Do ..Cite(result, reply.HostData)
 	}
 	Set sc = result.%Save()
 	If $$$ISOK(sc) Set sc = ..Deliver(result)
@@ -683,6 +717,124 @@ Method Render(result As OcuTalon.Eval.Msg.TurnResult, hostData As %String) [ Pri
 	} Catch exception {
 		$$$LOGWARNING(..#LOGCHECKS_exception.DisplayString())
 	}
+}
+
+/// Puts the citations of the Reply's HostData (an array) in the TurnResult as JSON. A HostData with no citations array adds nothing.
+Method Cite(result As OcuTalon.Eval.Msg.TurnResult, hostData As %String) [ Private ]
+{
+	If hostData = "" Quit
+	Try {
+		Set data = ##class(%DynamicAbstractObject).%FromJSON(hostData)
+		If ($ClassName(data) '= "%Library.DynamicObject") || (data.%GetTypeOf("citations") '= "array") Quit
+		If data.citations.%Size() > 0 Set result.Citations = data.citations.%ToJSON()
+	} Catch exception {
+		$$$LOGWARNING(..#LOGCHECKS_exception.DisplayString())
+	}
+}
+
+/// Adds the documents that a documents case declares (Story 19.4; a test subclass overrides it, and Test.Docs.Turns calls it on a shadow instance of EvalIn): a Session row of the run's own, an Upload row for each file and the command AddDocument
+/// as web_user through Commands.Submit, then waits up to DOCUMENTSWAIT seconds for each document to be ready. documents is the setup record
+/// {"session", "refs"} for DocumentsDown. Returns the reason the case is not sent (REASONDOCUMENTS), or "" with the documents ready; on a reason nothing is
+/// left behind.
+Method DocumentsUp(case As %DynamicObject, folder As %String, Output documents As %DynamicObject) As %String
+{
+	Set documents = ""
+	Set declared = case.%Get("documents")
+	If '$IsObject(declared) || 'declared.%IsA("%Library.DynamicArray") || (declared.%Size() = 0) Quit $Replace(..#REASONDOCUMENTS, "{why}", "documents is not a non-empty array")
+	Set root = ##class(%File).ParentDirectoryName(##class(%File).NormalizeDirectory(folder))
+	Set files = []
+	Set iterator = declared.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		If '$IsObject(one) || 'one.%IsA("%Library.DynamicObject") Quit
+		Set name = ..Scalar(one, "name"), file = ..Scalar(one, "file")
+		Set path = ##class(%File).NormalizeFilename(file, folder)
+		Set type = $Case($ZConvert($Piece(name, ".", $Length(name, ".")), "L"), "md": "markdown", "markdown": "markdown", "txt": "text", : "")
+		If ($ZStrip(name, "<>WC") = "") || (file = "") || (type = "") Quit
+		If ($Extract(path, 1, $Length(root)) '= root) || '##class(%File).Exists(path) Quit
+		Do files.%Push({"name": (name), "path": (path), "type": (type)})
+	}
+	If files.%Size() '= declared.%Size() Quit $Replace(..#REASONDOCUMENTS, "{why}", "each document needs a name, and a file of the cases' folder that is Markdown or plain text")
+	Set row = ##class(OcuTalon.Data.Session).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.TraceRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.Epoch = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.IrisUser = "ocutalon-eval-documents"
+	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set sc = row.%Save()
+	If $$$ISERR(sc) Quit $Replace(..#REASONDOCUMENTS, "{why}", $SYSTEM.Status.GetOneStatusText(sc))
+	Set documents = {"session": (row.Ref), "refs": []}
+	Set reason = ""
+	Set iterator = files.%GetIterator()
+	While iterator.%GetNext(, .file) && (reason = "") {
+		Set reason = ..AddOne(documents, file)
+	}
+	If reason '= "" {
+		Do ..DocumentsDown(documents)
+		Set documents = ""
+		Quit $Replace(..#REASONDOCUMENTS, "{why}", reason)
+	}
+	Quit ""
+}
+
+/// Adds one file as a document of the record's session and waits for it to be ready; its Ref joins the record's refs. The reason there is not a ready document, or "".
+Method AddOne(documents As %DynamicObject, file As %DynamicObject) As %String [ Private ]
+{
+	Set bytes = ##class(%Stream.TmpBinary).%New()
+	Set source = ##class(%Stream.FileBinary).%New()
+	Set sc = source.LinkToFile(file.path)
+	If $$$ISOK(sc) Set sc = bytes.CopyFrom(source)
+	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
+	Do bytes.Rewind()
+	Set upload = ##class(OcuTalon.Data.Upload).Put(documents.session, bytes, .sc)
+	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
+	Set command = ##class(OcuTalon.Msg.Command.AddDocument).%New()
+	Set command.SessionRef = documents.session
+	Set command.Name = file.name
+	Set command.ContentType = file.type
+	Set command.UploadRef = upload
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
+	If $IsObject(result) && (result.Ref '= "") Do documents.refs.%Push(result.Ref)
+	If '$IsObject(result) || (result.Ok '= 1) Quit file.name_" was not added"_$Select($IsObject(result): " ("_result.Outcome_")", 1: "")
+	Set end = $ZHorolog + ..#DOCUMENTSWAIT
+	Set state = ""
+	For {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT State FROM OcuTalon_Data.Document WHERE Ref = ?", result.Ref)
+		Set state = $Select(rs.%Next(): rs.%Get("State"), 1: "")
+		If (state = "ready") || (state = "failed") || ($ZHorolog '< end) Quit
+		Hang 0.5
+	}
+	Quit $Select(state = "ready": "", 1: file.name_" did not become ready (state "_$Select(state = "": "missing", 1: state)_")")
+}
+
+/// Removes the documents of a setup record {"session", "refs"} (RemoveDocument as web_user through Commands.Submit), drops the session's uploads and deletes the
+/// session row. Every step is tried; the status is the first error, and it never throws. A document that is already gone is no error.
+ClassMethod DocumentsDown(documents As %DynamicObject) As %Status
+{
+	Set result = $$$OK
+	Try {
+		If '$IsObject(documents) || (documents.%Get("session") = "") Quit
+		Set session = documents.session
+		Set iterator = documents.refs.%GetIterator()
+		While iterator.%GetNext(, .ref) {
+			Set command = ##class(OcuTalon.Msg.Command.RemoveDocument).%New()
+			Set command.SessionRef = session
+			Set command.DocumentRef = ref
+			Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .answer)
+			If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
+		}
+		Do ##class(OcuTalon.Data.Upload).DropSession(session)
+		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+		If $IsObject(row) {
+			Set id = row.%Id()
+			Set row = ""
+			Set sc = ##class(OcuTalon.Data.Session).%DeleteId(id)
+			If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
+		}
+	} Catch exception {
+		If $$$ISOK(result) Set result = exception.AsStatus()
+	}
+	Quit result
 }
 
 /// Deletes the case's row and its TurnResult.

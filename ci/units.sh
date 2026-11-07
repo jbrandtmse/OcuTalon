@@ -84,6 +84,8 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # shards-2 job was cancelled at its 40-minute timeout after 2,421 s, in the Memory area and before Tools (Fix 755, Bridge 665, Agent 282,
 # Eval 178, Memory 76 so far, Docs 67 and Digest 37 s of classes, READY 267 s); Tools took 27 s on ci run 42375447084. Bridge and Agent
 # are 947 s of that, so shards-2 is about 1,500 s and shards-5 about 1,250 s (inference until a run measures them).
+# Story 19.4 (2026-11-07) added live:documents to shards-5: the real /v1/documents routes over HTTP, a container restart and the 10 MB size check, about 300 to 450 s
+# (inference from live:memory-offline's 243 s in CI and this unit's restart; ci run 42384900368 had shards-5 at 1,253 s). The Test.Docs classes run in shard:lane-a@rest.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
@@ -95,7 +97,7 @@ group_units() {
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
     shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit" ;;
     shards-4) echo "shard:lane-a@Channel live:sign-in-2 live:memory-offline" ;;
-    shards-5) echo "shard:lane-a@Bridge,Agent" ;;
+    shards-5) echo "shard:lane-a@Bridge,Agent live:documents" ;;
     *) return 1 ;;
   esac
 }
@@ -176,6 +178,8 @@ NOT_BOOKKEEPING_PATTERN='^_bmad-output/planning-artifacts/ux-designs/'
 IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|release/demo-load\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
 # The generated overview is read by live:security-overview, which compares it with a fresh generation (Story 14.1); this claim outranks docs/ in NOT_IRIS_INPUT_PATTERN.
 IRIS_INPUT="$IRIS_INPUT|docs/security-overview\.md\$"
+# live:documents reads the line of docs/bridge-guide.md that states the Filter(text, hostData) contract (Story 19.4), so a change of that guide runs the IRIS groups too.
+IRIS_INPUT="$IRIS_INPUT|docs/bridge-guide\.md\$"
 
 # The inputs of the built web bundle, which every stack installs; a unit that reads, compares or serves the bundle's files depends on them.
 WEB_BUNDLE_INPUT='web/|logo/|_bmad-output/planning-artifacts/ux-designs/'

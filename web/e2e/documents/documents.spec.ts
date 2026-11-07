@@ -8,10 +8,11 @@ import { announcements, recordAnnouncements } from '../support/page';
 
 /**
  * Story 34.2, the Documents page (D1 to D13), in a real browser against a real stack: the README account is signed in (D13: a user without
- * OcuTalonAdmin), the fixture documents are owned by `instance` (a local install shows them to every user) and are removed after each case. Until Story 19.4 builds DocumentOps, a
- * valid add and a remove reach a disabled item, so the real routes answer an error; the cases that need the done answer fulfil it in the
- * browser (page.route). The refusals (D5 to D7) and the 10 MB case (D8, which also measures that the web layer lets a 10 MB PDF through,
- * FR-54) use the real route.
+ * OcuTalonAdmin), the fixture documents are owned by `instance` (a local install shows them to every user) and are removed after each case. DocumentOps is built (Story 19.4), so a
+ * valid add reaches a real indexer and a remove really removes: the cases that need a fixed answer (the done answer of D8 and D9, the error answer of D10 and the
+ * 404, 500, 501 and 413 answers of D11 and D12) fulfil it in the browser (page.route), and D8 and D10 do so since Story 19.4 (a 10 MB PDF is never indexed for
+ * real here, and a remove must not delete the fixture rows by itself). The refusals (D5 to D7) use the real route. The real, unrouted path (an add, the
+ * restart, a 10 MB PDF with the web layer in front of the route, and the removes) is the unit live:documents (docker/tests/test-documents.sh).
  */
 const DOCUMENTS = '/ocutalon/api/v1/documents';
 const TITLE = 'Documents \u00B7 OcuTalon';
@@ -198,9 +199,12 @@ test('D7: an 11 MB .pdf is refused as too large', async ({ page }) => {
   await expect(rowsOf(page, 'big.pdf').locator('.status')).toHaveText("Couldn't read it: that file is 11 MB; the limit is 10 MB.", { timeout: 30_000 });
 });
 
-/** D8 (Task 0 (c)): a PDF of exactly 10,485,760 bytes is not refused by the web layer, nor by the route as too large. */
+/** D8 (Task 0 (c)): a PDF of exactly 10,485,760 bytes is not refused by the web layer, nor by the route as too large. The route's answer is fulfilled in the browser. */
 test('D8: a 10 MB .pdf reaches the route', async ({ page }) => {
   await openDocuments(page);
+  await page.route(`**${DOCUMENTS}`, (route) =>
+    route.request().method() === 'POST' ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: 'done', ref: `zzLimit${Date.now().toString(36)}` }) }) : route.fallback(),
+  );
   const answer = posted(page);
   await fileInput(page).setInputFiles({ name: 'limit.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(10 * MB, 65) });
   const response = await answer;
@@ -268,9 +272,12 @@ test('D10: Remove asks first, and a removed row leaves', async ({ page }) => {
   await expect(row, 'Cancel keeps the row').toHaveCount(1);
   await expect(remove).toBeFocused();
 
+  await page.route(`**${DOCUMENTS}/*`, (route) =>
+    route.request().method() === 'DELETE' ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":{"code":"server_error","message":"zz"}}' }) : route.fallback(),
+  );
   await remove.click();
   await dialog.getByRole('button', { name: 'Remove', exact: true }).click();
-  await expect(dialog.getByText("Couldn't remove it. Nothing was changed."), 'the real route answers an error until DocumentOps is built').toBeVisible({ timeout: 30_000 });
+  await expect(dialog.getByText("Couldn't remove it. Nothing was changed."), 'an error answer to the remove').toBeVisible({ timeout: 30_000 });
   await expect(row, 'the row is kept').toHaveCount(1);
 
   await page.route(`**${DOCUMENTS}/*`, (route) =>

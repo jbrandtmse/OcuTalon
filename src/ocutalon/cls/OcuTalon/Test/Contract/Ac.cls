@@ -358,7 +358,7 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Bridge.Ext.HostSink", "method": "RefPayload", "args": "ref", "returns": "%DynamicObject"},
  {"class": "OcuTalon.Bridge.Ext.HostSink", "method": "TurnStepPayload", "args": "decisionRef,label", "returns": "%DynamicObject"},
  {"class": "OcuTalon.Bridge.Ext.HostSink", "method": "BudgetCappedPayload", "args": "day", "returns": "%DynamicObject"},
- {"class": "OcuTalon.Bridge.Ext.ReplyFilter", "method": "Filter", "args": "text", "returns": "%String"},
+ {"class": "OcuTalon.Bridge.Ext.ReplyFilter", "method": "Filter", "args": "text,hostData", "returns": "%String"},
  {"class": "OcuTalon.Bridge.Ext.Classification", "method": "Classify", "args": "source,name,arguments", "returns": "%String"},
  {"class": "OcuTalon.Bridge.Operation.AgentRunner", "method": "ResolveModel", "args": "item,production", "returns": "%String"},
  {"class": "OcuTalon.Bridge.Compaction", "method": "Prompt", "args": "", "returns": "%String"},

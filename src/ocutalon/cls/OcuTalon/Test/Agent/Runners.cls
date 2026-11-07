@@ -73,8 +73,8 @@ Parameter MODEL = "claude-haiku-5-5";
 /// The tools of the Diagnosis agent, sorted: the three read-only watch tools (AD-7).
 Parameter WATCHTOOLS = "read_event_log,read_failed_messages,read_item_settings";
 
-/// The tools of the Chat agent, sorted: the three reminder tools and, since Story 5.1, the watching tools (AD-7, AD-18), and since Stories 5.9, 5.7 and 5.13 dismiss_incident, check_status and recent_activity among them, since Story 40.5 propose_persona, since Story 17.6 send_digest and since Story 19.3 the four memory tools.
-Parameter REMINDERTOOLS = "cancel_reminder,check_status,dismiss_incident,forget_memory,list_memories,list_productions,list_reminders,propose_persona,recent_activity,save_memory,search_memories,send_digest,set_reminder,start_watch,stop_watch";
+/// The tools of the Chat agent, sorted: the three reminder tools and, since Story 5.1, the watching tools (AD-7, AD-18), and since Stories 5.9, 5.7 and 5.13 dismiss_incident, check_status and recent_activity among them, since Story 40.5 propose_persona, since Story 17.6 send_digest and since Story 19.3 the four memory tools and since Story 19.4 documents (AI Hub's knowledge base, attached in the agent's %OnInit).
+Parameter REMINDERTOOLS = "cancel_reminder,check_status,dismiss_incident,documents,forget_memory,list_memories,list_productions,list_reminders,propose_persona,recent_activity,save_memory,search_memories,send_digest,set_reminder,start_watch,stop_watch";
 
 /// The longest to wait for a refusal to show in the event log and in the jobs, in seconds. A ceiling, not a delay (the wait polls
 /// once a second), and as long as RunnerFixture's wait for the items to run.
@@ -322,7 +322,7 @@ Method TestToolInventory()
 	If '..Ready() Quit
 	If '..Point(..#INVENTORYRUNNERS) Quit
 	Set watch = $ListBuild(##class(OcuTalon.Tools.Names).#READEVENTLOG, ##class(OcuTalon.Tools.Names).#READFAILEDMESSAGES, ##class(OcuTalon.Tools.Names).#READITEMSETTINGS)
-	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY, ##class(OcuTalon.Tools.Names).#DIGESTTOOLS, ##class(OcuTalon.Tools.Names).#PROPOSEPERSONA, ##class(OcuTalon.Tools.Names).#SAVEMEMORY, ##class(OcuTalon.Tools.Names).#SEARCHMEMORIES, ##class(OcuTalon.Tools.Names).#LISTMEMORIES, ##class(OcuTalon.Tools.Names).#FORGETMEMORY)
+	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY, ##class(OcuTalon.Tools.Names).#DIGESTTOOLS, ##class(OcuTalon.Tools.Names).#PROPOSEPERSONA, ##class(OcuTalon.Tools.Names).#SAVEMEMORY, ##class(OcuTalon.Tools.Names).#SEARCHMEMORIES, ##class(OcuTalon.Tools.Names).#LISTMEMORIES, ##class(OcuTalon.Tools.Names).#FORGETMEMORY, ##class(OcuTalon.Tools.Names).#DOCUMENTS)
 	Set expected("TriageAgent") = ""
 	Set expected("DiagnosisAgent") = watch
 	Set expected("ChatAgent") = reminders
@@ -362,9 +362,16 @@ Method TestToolInventory()
 		While iterator.%GetNext(, .tool) {
 			Set names = names _ $ListBuild(tool.name)
 			Set problems = ""
-			If tool.source '= "iris" Set problems = problems _ " source "_tool.source
-			If $Extract(tool.provider, 1, 9) '= "OcuTalon." Set problems = problems _ " provider "_tool.provider
-			If (problems = "") && '##class(OcuTalon.Test.Bridge.CodeRules).ToolCodeClean(tool.provider, .code) Set problems = problems _ " code of "_tool.provider_": "_code
+			If tool.name = ##class(OcuTalon.Tools.Names).#DOCUMENTS {
+				// The one tool that is not an OcuTalon class (Story 19.4): AI Hub's knowledge base over the documents, whose catalog source is rag and whose gate
+				// classification is the narrow fallback (Task 0, M2). It is accepted for the Chat runners and no other, and its code is AI Hub's.
+				If item '[ "ChatAgent" Set problems = problems _ " the documents tool on "_item
+				If tool.source '= "rag" Set problems = problems _ " source "_tool.source
+			} Else {
+				If tool.source '= "iris" Set problems = problems _ " source "_tool.source
+				If $Extract(tool.provider, 1, 9) '= "OcuTalon." Set problems = problems _ " provider "_tool.provider
+				If (problems = "") && '##class(OcuTalon.Test.Bridge.CodeRules).ToolCodeClean(tool.provider, .code) Set problems = problems _ " code of "_tool.provider_": "_code
+			}
 			If tool.status '= "available" Set problems = problems _ " status "_tool.status
 			If tool.reason '= "" Set problems = problems _ " reason "_tool.reason
 			If problems '= "" Set bad = bad _ " "_tool.name_":"_problems
@@ -373,6 +380,7 @@ Method TestToolInventory()
 		Do $$$AssertEquals($ListToString(..Sorted(names)), $ListToString(..Sorted(expected(item))), item_" holds exactly the tools of its agent: "_$ListToString(names))
 		Set iterator = inventory.tools.%GetIterator()
 		While iterator.%GetNext(, .tool) {
+			If tool.name = ##class(OcuTalon.Tools.Names).#DOCUMENTS Continue
 			Set owner = $Get(providerOf(item, tool.name), provider(item))
 			Do $$$AssertEquals(tool.provider, owner, item_"'s tool "_tool.name_" is a method of "_owner)
 		}
@@ -517,7 +525,9 @@ Method Point(runners As %String = "") As %Boolean [ Private ]
 Method AssertRequests(requests As %DynamicArray, effort As %String, agentClass As %String, literal As %String, label As %String, marked As %Boolean, systemMarked As %Boolean = 0) [ Private ]
 {
 	Set expected = ..OfferedTools(agentClass)
-	Do $$$AssertEquals(expected, literal, label_": the toolsets of "_agentClass_" give today's list of tools: '"_literal_"'")
+	// The Chat agent also offers AI Hub's knowledge-base tool documents, which no toolset discovers: it is attached in the agent's %OnInit (Story 19.4).
+	If agentClass = "OcuTalon.Agent.Chat" Set expected = $ListToString(..Sorted($ListFromString(expected) _ $ListBuild(##class(OcuTalon.Tools.Names).#DOCUMENTS)))
+	Do $$$AssertEquals(expected, literal, label_": the toolsets of "_agentClass_" and the knowledge base give today's list of tools: '"_literal_"'")
 	Set iterator = requests.%GetIterator()
 	While iterator.%GetNext(.position, .logged) {
 		Set here = label_" request "_(position + 1)
@@ -538,9 +548,10 @@ Method AssertRequests(requests As %DynamicArray, effort As %String, agentClass A
 		} Else {
 			Do $$$AssertEquals(logged.request.tools.%Size(), 0, here_" offers no tool, so no block of it is marked")
 		}
-		Set json = logged.request.%ToJSON()
+		// No sampling parameter (AD-6): the request's own top-level keys, because the knowledge-base tool's input schema declares a top_k argument (Story 19.4), which
+		// the gate clamps (AD-10), and which is not a sampling parameter of the request.
 		For key = "temperature", "top_p", "top_k" {
-			Do $$$AssertTrue(json '[ ("""" _ key _ """"), here_" holds no "_key)
+			Do $$$AssertTrue('logged.request.%IsDefined(key), here_" holds no top-level "_key)
 		}
 	}
 }
