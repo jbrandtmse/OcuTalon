@@ -8247,6 +8247,28 @@ So that each story stops paying a fresh IRIS start for every test run, while the
 
 - Implementation note: build the warm mode in `ci/iris.sh` or a new `ci/warm.sh` on `docker/tests/lib-live.sh`'s existing functions; `lib-live.sh` is on Epic 2's contended paths until Epic 2 merges.
 
+### Story 32.5: live:sign-in splits again after 4.11's tests
+
+As the release's CI,
+I want the live:sign-in unit split again, the way the 2026-11-05 split made live:sign-in-2,
+So that no unit runs over the 1,000 s line or near its 1,200 s deadline, and every group stays under the 35-minute budget.
+
+[ADDED 2026-11-07, Epic 32 fix-forward (the Contest Planner's ruling of about 17:55Z, relayed by the orchestrator): after Story 4.11's 96 more-to-try tests joined the chromium project, live:sign-in took 1,170 s on OCT-epic11 623b9cb0 (ci run 42392984136) and 1,034 s on feature 5b47f052 (ci run 42393186349), over the 1,000 s unit line and against its 1,200 s deadline. Its own commit on its own branch, so the Planner may pick it onto the release branch. No deadline is raised; every test is kept; nothing else changes.]
+
+**Acceptance Criteria:**
+
+**Given** the chromium project's spec files today
+**When** live:sign-in is split into two units, as live:sign-in-2 was split from it (`ci/units.sh` :69-74, `docker/tests/test-sign-in-2.sh`, a Playwright project of its own in `web/playwright.config.ts`)
+**Then** the two units together list exactly today's chromium test list (`npx playwright test --list` per project, diffed against today's one-unit list), no test is lost or duplicated, and every other project's list is unchanged
+
+**Given** the new unit
+**When** it is placed in a group
+**Then** that group's clean time plus the unit stays under 35 minutes, no deadline is raised, and the pins that name the sign-in units (the unit list, the group map, the changed-inputs rules, the e2e-part and playwright-projects tests) cover the new unit as they cover live:sign-in-2
+
+**Given** the change
+**When** it is pushed
+**Then** `docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow
+
 ## Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 17.1 and 18.1, moved whole and verbatim as Stories 33.1 and 33.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 2's names fixed in the spine and in code as stubs, and an admin opens a settings page that saves each section on its own, applies it within a minute and records it in the audit log, so that Epics 17 and 18 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 17 and 18) and its partner in this epic.

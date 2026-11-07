@@ -156,3 +156,16 @@
 2026-10-23T16:43:24Z	Epic 32	smoke_complete	scope=integrated_tree method=cli result=pass evidence=ci/checks.sh_all_passed(55s);test-ci-warm.sh_--live_all_live_checks_passed(117s,lane_c,e32s4lt);tree_byte-identical;source_tree_identical_to_c89f5ca(CI_green) model=claude-opus-5-5
 2026-10-23T16:43:24Z	Epic 32	integrated_forward	feature=21eba88 head=989729d conflicts_resolved=none
 2026-10-23T16:43:24Z	Epic 32	epic_runner_complete	stories_completed=1 scope=reopen(story_32.4)
+2026-11-07T17:58:07Z	Epic 32	epic_branch_reopened	reason=story_32.5_live_sign-in_split(Planner_ruling_17:55Z) from=97324169
+2026-11-07T17:58:07Z	Epic 32	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=runner_A_(Epic_11_runner)_side_task_lane=A slot=ocutalon-slot-a
+2026-11-07T17:58:07Z	Epic 32	deps_hash_rerecorded	reason=fix_forward story=32.5 note=for_the_orchestrator
+2026-11-07T17:58:07Z	Epic 32	retro_review_skipped	reason=skip(no_X.0_input;SC-5_reopen_for_one_fix-forward_story)
+2026-11-07T17:58:07Z	Epic 32	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md status=final
+2026-11-07T18:00:43Z	Epic 32	epic_context_compiled	reason=planning_artifact_newer(32.5_chartered) model=claude-opus
+2026-11-07T18:00:43Z	Story 32.5	stage_spawned	stage=plan spawn_at=2026-11-07T18:00:43Z model=opus agent_name=32-5-sign-in-split-plan-1 cycle_iteration=1
+2026-11-07T18:10:27Z	Story 32.5	story_created	spawn_at=2026-11-07T18:00:43Z model=claude-opus path=_bmad-output/implementation-artifacts/spec-32-5-live-sign-in-splits-again-after-4-11-s-tests.md build_status=ready-for-dev epic_context=reused
+2026-11-07T18:10:27Z	Story 32.5	spec_validated	service_introducing=false integration_ac=declared(CI_unit_map) decision_dependency=none sections_created=none owned_ledger=none mutates_shared_runtime=false placement=shards-5(~1950s,inference) model=claude-opus-5-5
+2026-11-07T18:10:28Z	Story 32.5	stage_spawned	stage=implement spawn_at=2026-11-07T18:10:28Z model=sonnet agent_name=32-5-sign-in-split-implement-1 cycle_iteration=1 story_base=3781e64b
+2026-11-07T18:27:02Z	Story 32.5	dev_complete	spawn_at=2026-11-07T18:10:28Z model=claude-sonnet build_sha=bc1ff88b baseline_revision=3781e64b story_base=3781e64b review_loop_iteration=0 deferred=0 files=10 loc_added=170 loc_removed=79 cycle_iteration=1
+2026-11-07T18:27:02Z	Story 32.5	cr_complete	model=claude-opus-5-5 method=lead_scoped_review(Planner:_kept_small) checks=independent_--list_proof(15_projects,769_tests:multiset_identical;chromium_339_before=202_chromium+137_sign-in-3_after;13_other_projects_unchanged),no_deadline/timeout_line_changed,ci.yml_unchanged,wrapper_mode_100755,boundaries_pass,ci/iris.sh_list_shows_live:sign-in-3_in_shards-5 high=0 med=0 low=0 rows=0 unresolved_high_med=0 note=build-auto_4_layers_22_findings(1_patched)
+2026-11-07T18:27:02Z	Story 32.5	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=--list_proof+node_tests(81)+test-ci-changes+test-ci-config+lint(implement) model=claude-opus-5-5

@@ -21,7 +21,7 @@
 #   ci/iris.sh live <name>                docker/tests/test-<name>.sh with the run tag; it first prints "PORT ..." with the web port
 #                                         and, for a browser unit (a name in BROWSER_UNITS of ci/units.sh), first installs Chromium,
 #                                         and Firefox and WebKit as well for a name in FIREFOX_WEBKIT_UNITS (the floor unit)
-#                                         The arguments after <name> go to the script; only test-sign-in.sh and test-sign-in-2.sh read any: --part k/n
+#                                         The arguments after <name> go to the script; only test-sign-in.sh, test-sign-in-2.sh and test-sign-in-3.sh read any: --part k/n, --project sign-in-3
 #                                         (and test-sign-in.sh's --project chromium|sign-in-2)
 #   ci/iris.sh group <name>               the units of a group in order, each in its own process and project; one
 #                                         "UNIT <unit> passed|failed <s>s" line each; exit 1 naming the failed units
