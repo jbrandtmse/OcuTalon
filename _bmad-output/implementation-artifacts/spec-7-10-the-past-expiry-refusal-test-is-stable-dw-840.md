@@ -2,7 +2,8 @@
 title: 'Story 7.10: The past-expiry refusal test is stable (DW-840)'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '48b1d43830cd686fa2b5d033c78d4092a7d18ff4'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -72,6 +73,19 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-07 - Review pass
+- verdicts: 9 findings - high 0, medium 0, low 3, false 0, maybe-false 0 (6 rejected as not defects: spec-bound or descriptive)
+- findings:
+  - `[low]` `[reject]` Case.Fixture's stale default LastAt remains (Blind Hunter) - spec-bound: the intent's Never list excludes changing Case.cls; the other callers were audited and none waits on a state (by-design).
+  - `[low]` `[patch]` cause.md's other-callers audit omitted the classes that call Fixture with the default and called demo mode the protection for open fixtures (Blind Hunter) - reworded in cause.md: those classes never wait for a state, and open-not-noticed has no closeQuiet row.
+  - `[low]` `[reject]` Measurements come from the lead's untracked harness and cause.md has no acceptance-run line (Blind Hunter) - the harness is the lead's by the spec's Decided in-stage (3); the acceptance run is the lead's proof.md.
+  - `[low]` `[patch]` cause.md cites Refused.cls:100, now 102 (Blind Hunter and Edge Case Hunter) - the anchor now reads "line 100 before this fix, 102 after it".
+  - `[low]` `[patch]` cause.md says the fix follows DryRun.cls:94 for FirstAt and NoticedAt too (Edge Case Hunter) - reworded: DryRun sets LastAt the same way; FirstAt is set so it is never later than LastAt.
+  - `[medium]` `[reject]` No committed deterministic pin fails on a revert to the stale LastAt (Verification Gap) - the spec's AC 1 limits the code change to the fixture line, the comment and one doc phrase, and the spec's mutation line is the lead's demonstrated one under the closeQuiet load (Rule 19, kept by the dispatch); a freshness assertion would only re-assert the test's own setup (by-design).
+  - `[reject]` Verification Gap's other findings: none (the new Set lines build a real subject; no new assertion; the test creates its own session and incident and waits on Ready) - no defect.
+  - `[reject]` Intent Alignment: reading A (narrow fixture fix) with D and E satisfied; its divergences (CI versus local, shared default, wording) are descriptive and match the spec's stated boundaries - no defect.
+  - `[reject]` Intent Alignment: the verification was on a throwaway, not on shards-2 - the CI run is the lead's, after implement (spec Verification).
+
 ## Design Notes
 
 - **The cause, and why the product is right.** The quiet sweep (Checks, AD-18) and `resolved + closeQuiet -> closed` (AD-15's transition table) are the rule: a resolved incident whose last failure is older than 15 minutes closes on the next heartbeat. Only the fixture's 2026-10-25 LastAt made a seconds-old incident look 13 days quiet. The fix changes no AD's Rule and complies with AD-15, AD-18 and AD-22 (tests run in throwaways and CI only). AD-5 is untouched (no stored state changes).
@@ -102,7 +116,17 @@ mutation: fixture LastAt back to the Case default (2026-10-25) under the closeQu
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (Halt after planning). Spec verified against the READY FOR DEVELOPMENT standard; DW-840 addressed by the first Execution task and all three ACs. Nothing implemented, nothing committed.
+Summary: `TestPastExpiryCannotStart`'s fixture now has `FirstAt` and `LastAt` of now beside `NoticedAt`, so the quiet sweep cannot close the incident between its move to `resolved` and the wait for it (DW-840). The cause is recorded in `evidence/7-10/cause.md`.
+
+Files changed:
+- `src/ocutalon/cls/OcuTalon/Test/Fix/Refused.cls` -- the fixture line (with `Set now` and the DW-840 contract comment) and one doc-comment phrase.
+- `_bmad-output/implementation-artifacts/evidence/7-10/cause.md` -- new, the measured cause, the lead's 2 of 11 red and 20 of 20 green, the other callers checked.
+
+Review: 9 findings; 3 low patched (all in cause.md wording), 6 rejected with reasons in the triage log, none deferred. followup_review_recommended: false.
+
+Verification: `ci/iris.sh class OcuTalon.Test.Fix.Refused` on throwaway tag `e7s10impl` (lane B): `CLASS OcuTalon.Test.Fix.Refused passed 4.18s`, no FAIL or SKIP; `ci/iris.sh teardown` for the tag left 0 projects; `test-class-rules.sh` and `test-boundaries.sh` pass (re-run after the cause.md patches); the diff changes no assertion, wait or timeout, and `Case.cls` is untouched.
+
+Residual risk: the 20-of-20 load proof is the lead's and is re-run after implement; the committed test has no deterministic pin for the fixture's freshness (AC 1 limits the change).
