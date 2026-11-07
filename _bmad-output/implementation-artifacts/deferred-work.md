@@ -4437,6 +4437,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: U-286 answer (Contest Planner, 2026-11-05T10:37:03Z#867): the section was appended at the end because docs/bridge-guide.md is contended with Epic 40
 - 2026-11-05T10:40:07Z status=routed owner=burndown by=lead note=owner condition U-286 (2): after Epic 40 merges
 - 2026-11-05T10:47:33Z occurrence=17-2-retry-once-on-a-second-model-before-falling-back by=cr note=widen the fold: the TimerSeconds row, the DecisionTokenBudget row (checked per attempt, so a retried decision may use up to twice it), the Timeouts section, The fallback route and the DecisionResponse.Model row still describe one attempt
+- 2026-11-07T03:33:11Z status=routed owner=17-9-epic-17-burn-down by=burndown note=chartered_into_the_Epic_17_burn-down_story_17.9
 
 ### DW-729: A second-model retry that completes within a few ms of T2 can still move the link: SaveRetried reads lateness once (RetryIsLate, the Decision row), so a timer Decide has queued but not handled, or one that fires between the check and the reply's arrival, leaves the link on a session whose reply Decide drops (residual of DW-725)
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-story
@@ -4618,6 +4619,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: U-288 KEEP condition (Contest Planner, 2026-11-05T19:09:13Z#875): IG-1 accepted the in-process and shadow-runner proof instead of a live decision through a resolved runner
 - 2026-11-05T19:27:45Z status=routed owner=burndown by=lead note=owner condition U-288; re-own to the release-check story that marks a second provider supported
 - 2026-11-05T20:12:06Z occurrence=17-3-run-each-agent-on-a-supported-provider note=no test runs a runner job with a model key in its environment; live resolution and a job-side key scan proved in process only (IG-1 option B)
+- 2026-11-07T03:33:11Z status=resolved-by:17-3-run-each-agent-on-a-supported-provider by=burndown note=U-288_condition_held_at_Epic_17_close:README,docs,web_settings,release_texts_claim_no_other_provider_runs_decisions(docs/bridge-guide.md:39_names_model_families_only);reopen_if_any_public_text_names_another_provider_as_running_decisions
 
 ### DW-757: An instance that already holds the claude-sonnet-5-5 Price row keeps cache-read 0.2 after upgrade (seed never overwrites a stored price); the pricing page of 2026-11-05 says 0.10, so its cache-read cost is over-stated
 - source: spec-17-3-run-each-agent-on-a-supported-provider.md | severity: low | fix-risk: low | footprint: in-epic
@@ -4636,6 +4638,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 17.4 live test hides it with a [[mock:diagnosis-unknown]] marker; unverified on a real provider (none allowed)
 - 2026-11-06T02:03:39Z status=decision-pending owner=burndown by=harvest note=product call: how a diagnose-kind Test request is tested (e.g. a minimal evidence pack, or test the runner with a plain turn-shaped request)
 - 2026-11-06T04:22:35Z status=routed owner=burndown by=owner note=planner_ruling_2026-11-06T02:37:12Z(owner_delegation):Settings_Test_is_a_CONNECTION_test_for_every_runner(non-empty_reply_within_the_timer_via_the_runner's_provider,model,key;no_ReplyClass_validation);test:the_diagnosis_Test_passes_with_a_mock_reply_that_fails_DiagnosisReply_validation;spine_Conventions_row_Settings_model_Test;work_in_the_Epic_17_burn-down_story
+- 2026-11-07T03:33:11Z status=routed owner=17-9-epic-17-burn-down by=burndown note=chartered_into_the_Epic_17_burn-down_story_17.9
 
 ### DW-773: docs/bridge-guide.md Settings intro (line 153) still says a Decide row takes effect only after a restart, with only ToolClassification and ApprovalRole read live; since Story 17.4 DecisionTokenBudget, RequestTokenLimit, DailyCostCapUSD and InstanceZone apply with no restart
 - source: spec-17-4-apply-model-price-budget-and-zone-changes-through-the-bridge.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4653,6 +4656,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Coverage.cls:332-404 vs Process.cls Run :325-366 and private Finding :492-504; Process.cls is contended (Epic 39), so the copy is forced for now
 - 2026-11-06T09:44:00Z status=routed owner=burndown by=cr note=Rule 2 forced copy: unify into one Checks helper once Epic 39 frees Process.cls (make Finding callable)
+- 2026-11-07T03:33:11Z status=routed owner=17-9-epic-17-burn-down by=burndown note=chartered_into_the_Epic_17_burn-down_story_17.9
 
 ### DW-787: Test.Digest.Runs Host() and Tick() re-implement the Test.Checks.Runs instance helpers the spec said to reuse
 - source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4684,6 +4688,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 17.6 implement report: one 400 vs 200, three green reruns; which check row and request were not recorded
 - 2026-11-06T15:12:04Z status=routed owner=burndown by=harvest note=flake candidate (orchestrator 2026-11-06): one rerun and an occurrence= line per sighting; record the failing row and request next time
 - 2026-11-06T15:12:04Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=lead note=first_sighting(implement_stage,local)
+- 2026-11-07T03:33:11Z status=routed owner=burndown by=burndown note=shared_flake_pool(as_Epic_40_DW-688):one_rerun_and_an_occurrence_per_sighting
 
 ### DW-815: The Telegram digest's 4096-character bound (Q4 b) holds only for the needs-you list: the checked list, whatFailed and one coverage line per row are unbounded, so a session with many watched entries gets the digest in several messages
 - source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: med | footprint: in-story

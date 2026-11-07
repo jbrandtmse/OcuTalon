@@ -6098,6 +6098,20 @@ So that a late, superseded or failed model reply never changes what OcuTalon rem
 - DW-730: A late first attempt with no retry can move the link through SaveLinked on a fresh or compacted turn; closed by the same arbiter (ledger; ruled by the Contest Planner 2026-11-05)
 - DW-726: The retry's seed holds the first attempt's unseen exchange; the seed is the stored conversation up to and including the current user message, nothing from the first attempt (ledger; ruled by the Contest Planner 2026-11-05)
 
+### Story 17.9: Epic 17 burn-down
+
+[AMENDED 2026-11-07, chartered by Epic 17's burn-down gate, Rule 17: DW-771's work is in this story by the owner's ruling (decided by the Contest Planner under the owner's delegation, 2026-11-06T02:37:12Z: the settings model Test is a connection test for every runner); DW-786 and DW-728 waited on Epics 39 and 40, which have merged.]
+
+As an administrator,
+I want the settings page's model Test to tell me whether each agent's model answers, and the checks' live-read logic to live in one place,
+So that a working diagnosis model is never reported as not answering, and the digest and the checks can never drift apart.
+
+**Acceptance Criteria:**
+
+- DW-771: the settings model Test (`Bridge.Settings.TestRequest` / `TestAnswer`) is a connection test for every runner, the diagnosis agent's included: it passes on a non-empty reply within the timer through that runner's provider, model and key, with no reply-class validation (the spine's Conventions row "Settings model Test"); a test shows the diagnosis Test passes with a mock reply that fails `DiagnosisReply` validation (ledger; routed by the owner 2026-11-06)
+- DW-786: `Checks.Coverage.Live` and `Checks.Process.Run` share one live-read helper (the not_checked reason chain, the cut rule, the state text and the failure wording), so the digest's coverage rows and the checks' results cannot drift; the existing tests of both stay green (ledger; routed by cr 2026-11-06)
+- DW-728: `docs/bridge-guide.md` names `RetryItem` and `RetryOf` in its Settings and Messages reference tables as well as in the Second-model retry section, so the guide's structure stays consistent; no other wording changes (any is public text for the Contest Planner) (ledger; routed by cr 2026-11-05)
+
 ## Epic 18: An admin changes settings in the web app (step 2)
 
 An admin opens a settings page to change models, budgets, channels, the digest time and channels, the time zone and check thresholds; each change takes effect within a minute without a restart and is audited; non-admins can't open it.
