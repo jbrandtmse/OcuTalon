@@ -5222,6 +5222,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42314928349, iris (shards-2) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: SHARD lane-a@rest failed (1 of 93 classes) 1810s; local fresh e7s9ct CLASS passed 8.99s; Story 7.9 does not touch Executor, Transitions or Refused
 - 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=one rerun; a second red on the same head is real
+- 2026-11-07T13:51:15Z status=routed owner=7-10-the-past-expiry-refusal-test-is-stable-dw-840 by=load note=re-owned_to_the_7.10_fix-forward_story_(SC-5_re-open,Planner_tier_3a)
+- 2026-11-07T14:36:03Z status=resolved-by:7-10-the-past-expiry-refusal-test-is-stable-dw-840 by=adjudication note=cause_measured(Checks_quiet_sweep_closeQuiet_closed_the_stale-LastAt_fixture_after_resolved);fix_03c3048d_FirstAt/LastAt_now;old_red_2_of_11_under_closeQuiet_load,fix_20_of_20(+8_of_8_on_the_commit);evidence/7-10/cause.md
 
 ### DW-855: No test makes a decision's first attempt pass DecisionTokenBudget while its second-model retry fails it, although the guide now states the retry is checked again on its own estimate
 - source: spec-17-9-epic-17-burn-down.md | severity: low | fix-risk: low | footprint: in-story
@@ -5307,3 +5309,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ARCHITECTURE-SPINE.md AD-22 Rule, CI as built: inside nine IRIS groups ... shards-3 and shards-4, lane-a in three pieces; ci.yml line 2: a matrix of nine groups. The spine bullet is an AD Rule line (not a stage edit; precedent DW-420, as-built amendment at the merge gate); the ruling allowed no other ci.yml line.
 - 2026-11-07T15:05:54Z status=escalated owner=burndown by=cr note=for the lead at the Epic 19 merge gate: as-built amendment of AD-22 (ten groups, shards-5 = lane-a@Bridge,Agent) and ci.yml:2
 - 2026-11-07T16:49:10Z status=resolved-by:19-8-epic-19-burn-down owner=burndown by=orchestrator note=resolved at the Epic 19 part 1 merge 5b47f052: AD-22 amended in place (ten groups, shards-5, ipm-install split) and ci.yml line-2 comment, per the Planner's ruling
+### DW-868: Test.Watch.Case Fixture defaults LastAt to 2026-10-25, so any fixture that reaches a closeQuiet-able state (resolved, or open and noticed with demo mode off) is swept by the next heartbeat; three tests override it inline (DryRun:95, GoodMessages:371/529, Refused:80) and a revert or a new caller re-opens DW-840's race with no deterministic test failing
+- source: spec-7-10-the-past-expiry-refusal-test-is-stable-dw-840.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Case.cls:852-853 stale defaults; DW-840 red once in CI and 2 of 11 under the lead's closeQuiet load; the Refused pin goes red on a revert only under load
+- 2026-11-07T14:31:47Z status=escalated owner=burndown by=cr note=Case.cls out of 7.10 footprint (Planner: test-only); fix-risk med: shared helper, other tests may assert on the default FirstAt/LastAt
+
+### DW-872: flake: live:sign-in-2 web/e2e/rail/rail.spec.ts:462 R10 'a reload shows the same rail': the heartbeat card's real check-in fired at 15:02 between the live snapshot and the reload (reload adds 'Next check-in 15:32 Skipped at 15:02: your checklist is empty.'), red once in CI shards-4 on OCT-epic7 37856843
+- source: CI run 42382574157, iris (shards-4) job 128433114430 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: rail text diverges at char 982 only in the HEARTBEAT CHECKLIST card; Epic 7's diff touches no web file; a time-of-day race with the heartbeat's half-hour schedule
+- 2026-11-07T15:06:23Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second red on the same head is real
+- 2026-11-07T15:47:24Z occurrence=7-10 note=rerun_of_iris(shards-4)_green_on_37856843_(attempt_2);flake_confirmed;stays_routed_burndown

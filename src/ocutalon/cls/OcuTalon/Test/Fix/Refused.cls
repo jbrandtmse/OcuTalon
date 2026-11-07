@@ -61,7 +61,7 @@ Method TestNoApprovedRowNoRun()
 	Do $$$AssertEquals(..Requests(incident.Ref).%Size(), 6 * $ListLength(kinds), "the incident's requests are the six fixture rows of each kind, and the unknown Ref has none")
 }
 
-/// An approved request past its ExpiresAt is not refused: it ends as could not start (DW-384, U-161; the matrix row "Past expiry"). A fixing incident of session S over three real failed orders names R, which is
+/// An approved request past its ExpiresAt is not refused: it ends as could not start (DW-384, U-161; the matrix row "Past expiry"). A fixing incident of session S over three real failed orders, its first and last failure now, names R, which is
 /// approved with an ExpiresAt in 2020, and an Execute for R goes to the real FixExecutor. R is failed, with one FixRun that holds no copy, and one final FixResult of 3/0/0/0/0 with
 /// the reason "OcuTalon couldn't start the resend". The incident is resolved and S has one result.couldNotStart Notification, which reads "Nothing was resent: OcuTalon couldn't
 /// start the resend. Nothing was changed." The audit log holds one Action entry for R, and nothing in OCUORDERS changed.
@@ -75,7 +75,9 @@ Method TestPastExpiryCannotStart()
 	If failed.%Size() '= 3 Quit
 	Set ids = ..HeaderIds(failed)
 	Do ..Watch(a)
-	Set row = ..Fixture(a, ids, ..#ORDERS, ..#ORDERSPRODUCTION, "h", {"State": "fixing", "OpenVariant": "", "NoticedAt": (##class(OcuTalon.Data.Time).NowUtc())})
+	// FirstAt and LastAt are now, so that a heartbeat's quiet sweep (QUIETSECONDS) does not close the incident between its move to resolved and the wait for it (DW-840).
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set row = ..Fixture(a, ids, ..#ORDERS, ..#ORDERSPRODUCTION, "h", {"State": "fixing", "OpenVariant": "", "NoticedAt": (now), "FirstAt": (now), "LastAt": (now)})
 	Set incident = row.Ref
 	Set ref = ..Request(a, incident, "approved", "repair_resend", ids, {"ExpiresAt": "2020-01-01T00:00:00Z"})
 	Set row.RequestRefs = ref
