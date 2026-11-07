@@ -2495,3 +2495,7 @@
 2026-11-07T16:17:48Z	Epic 12	worktree_provisioned	branch=OCT-epic12 base=11928182 reason=story_12.12_D1
 2026-11-07T16:17:48Z	Epic 12	worktree_bootstrapped	epic=12 result=ok
 2026-11-07T16:17:48Z	Epic 12	runner_dispatched	agent=ab10e3481e994976a lane=B slot=ocutalon-slot-b model=opus prompt=dispatch-epic-12-1212.md
+2026-11-07T16:39:38Z	Epic 12	runner_clarification	kind=AD_conflict ad=AD-14(:478,:1346) cites_in_flight=spec-31-4(routing_only) U7=to_planner recommend=amend_extend head=13fbc59e
+2026-11-07T16:39:38Z	Run	planner_question	subject=AD-14_amendment_for_12.12
+2026-11-07T16:39:59Z	Epic 12	planner_ruling	subject=AD-14_amendment_12.12 option=a approved_as_written marker="[AMENDED 2026-11-07, Story 12.12, Planner ruling]" DW-695_purge=deferred_low
+2026-11-07T16:39:59Z	Epic 12	runner_resumed	agent=ab10e3481e994976a reason=amend_AD-14_then_implement
