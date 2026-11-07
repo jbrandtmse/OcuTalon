@@ -4916,6 +4916,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-9-epic-17-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-728's 2026-11-05 occurrence; Story 17.9's AC allows only the two table rows
 - 2026-11-07T03:45:42Z status=escalated owner=burndown by=burndown note=residual of DW-728 split off at Story 17.9's spec gate: the Planner decides the wording (public repository)
+- 2026-11-07T04:35:11Z status=routed owner=17-9-epic-17-burn-down by=owner note=Planner_ruling_about_04:35Z:fix_in_1.0.3_inside_17.9;wording_is_PUBLIC_TEXT(ruled_strings_land_with_fixed-string_pins);keep_the_docs_edit_separable
 ### DW-824: Heartbeat card: Today's cost sums more than the counted check-ins (online demo 1.0.2: Last check-in $0.0003, Today: 1 check-in, $0.0006)
 - source: planner_demo_walk_1.0.2 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Planner live walk 2026-11-06 on 1.0.2: Save heartbeat On, Run the heartbeat now; decision Act with read-only checks; card Last check-in 12:20 PM Offered an action $0.0003 vs Today 1 check-in $0.0006
