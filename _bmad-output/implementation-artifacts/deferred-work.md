@@ -3090,6 +3090,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T15:28:23Z status=routed owner=burndown by=ci note=flake class from now: one rerun with occurrence=; likely a wait in Fix.Partial under CI load (inference); Fix is Lane A, Epic 7's area (Fix/Executor.cls is contended with Epic 30)
 - 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 - 2026-11-07T05:05:08Z occurrence=17-7-give-an-all-clear-only-when-every-check-passed by=ci note=run_42338069582_iris(shards-2)_lane-a@rest_at_99735c36;one_rerun
+- 2026-11-07T14:42:42Z status=routed owner=burndown by=ci note=occurrence OCT-epic39 d5b39c3d run 42379785616 shards-2 lane-a@rest Test.Fix.Partial TestSomeFailAgainAndSomeHadChanged (same 'order date still wasn't accepted' shape, a sibling method); 39.10 changes only Test/Schedule/Heartbeat.cls; one rerun requested by the orchestrator; candidate for the tier (3) flake list
 
 ### DW-499: The Telegram card's view module web/src/app/rail/telegram-card/telegram-card-view.ts has no Node unit test; its branches (missing status, missing or non-string time slot, state on) are pinned only by the browser tests T1 and T2
 - source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: in-epic
