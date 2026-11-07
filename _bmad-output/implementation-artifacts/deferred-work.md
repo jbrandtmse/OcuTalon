@@ -5059,6 +5059,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: more-to-try-room.ts measure(): tight() sits in the else-branch (bound unchanged); a squeeze arising after the first settle (font swap, list resize) leaves the panel open with the chat under its floor until any other resize; K24 polls with synthetic resize events
 - 2026-11-07T10:32:17Z status=routed owner=burndown by=cr note=re-review r4: fix = re-measure one frame after each write; pin = K24 without its synthetic resize; needs a live run
+- 2026-11-07T11:57:51Z status=dropped by=burndown note=duplicate_of_DW-863(same_root:keepRoom_squeeze_detection_waits_for_a_re-measure);DW-863_wontfix-accepted_with_reopen_if
 
 ### DW-861: A default-open panel that closes by itself (viewport height across the band, a banner, a squeeze) while focus is inside it drops focus to the body
 - source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
@@ -5078,3 +5079,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: checkInUsage (Ownership.cls Statement) has no RecordedAt bound; heartbeatUsage has one. Only a beat whose turn lands after local midnight (a few seconds a day) differs.
 - 2026-11-07T08:44:42Z status=by-design owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=cr note=spec Task SQL and Design Notes sum all of the Item's rows; a day bound would blank yesterday's last check-in; docs reworded
+
+### DW-865: Compact-band K21 hold: the chat list's inline min-height overflows the framed shell instead of growing it, so the chat panel's dock (composer) spills past main and the 100dvh app box; rail, main and device-panel backgrounds stop at the fold
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: keepRoom sets .list min-height 64px while app.ts :host is height 100dvh and main-page :host, .main and chat-panel :host are min-height 0 with overflow visible (CSS read; not seen in a browser: no live run in review). K21b asserts page scroll > 0 and the list height, not where .dock sits. Reachable: no-key banner, compact band, user-opened panel, squeeze (CI 1280x600 ~9px).
+- 2026-11-07T11:50:24Z status=routed owner=burndown by=cr note=fix in the framed shell (let app-root/main grow while held) plus a K21b dock-inside-main assertion; files outside the K21 diff
+- 2026-11-07T11:57:51Z status=escalated owner=burndown by=burndown note=for_the_decision_sheet:fix_needs_app.ts,main-page.ts,chat-panel.ts(shell_min-height_0_vs_100dvh);reachable_only_in_the_Planner's_compact-band_fallback_with_a_user-opened_panel;composer_reachable_by_scrolling;~9px_spill_inferred_from_CSS,unobserved
+
+### DW-866: K21's new before-More-to-try assertions (framed page does not scroll, no sideways scroll) have no mutation: line; the local closed chat is ~90px above its floor
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Verification's four K21-patch mutation lines target keepRoom and CHAT_FLOOR, which do not run while the panel is closed (demo-guide @if panelShown); no recorded red for start.page or the before sideways check. Closing it needs a live run, not allowed in this review.
+- 2026-11-07T11:50:24Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a closed compact finish that scrolls the page or sideways reaches CI or a smoke with K21 green

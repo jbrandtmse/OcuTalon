@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-11-06'
 status: 'done'
 baseline_revision: '82c2a5579dfe27fda8b4dc6f24feace9387cd7e0'
-baseline_commit: 'd672a28d2d3c4e4314713ae77f13795c67d24be2'
+baseline_commit: '82c2a5579dfe27fda8b4dc6f24feace9387cd7e0'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -486,6 +486,18 @@ Rejected:
 - [x] [CI] K21 at 1280x600 with the no-key banner (CI run 42359898984, Linux): with the panel OPENED by the user, the chat is 55.125px against the 64px floor. The re-review's relaxation (the chat may go under its floor once the user opens the panel) is NOT accepted: the Planner's rule is that the floor holds. Land ONE of these, and say which in the spec: (A, preferred if it fits the time box) a layout fix with no page scroll in which the panel's shortest window and the 64px chat floor both fit (e.g. a tighter shortest window: the label line and one control with less padding, within DESIGN.md's tokens, with no label change or truncation); or (B, the Planner's pre-approved FALLBACK) in the compact band only, when the user has opened the panel (More to try) and its shortest window plus the chat's 64px floor cannot both fit, the page may scroll VERTICALLY so the chat keeps its floor. In both: no sideways scroll at any size; no label change or truncation; the panel still starts closed in the compact band. Restore K21's floor assertion and pin K21 with the banner shown both BEFORE (panel closed as the finish starts: floor, no page scroll) and AFTER More to try (floor holds; under B the page may scroll vertically, never sideways); make K23's compact rows match; correct EXPERIENCE.md/DESIGN.md and the comments to say exactly what landed (citing "the Planner, 2026-11-07" for B).
   - DONE (implement pass 7, 2026-11-07, option B landed: option A was not attempted inside the time box). In the compact band only, when the user has opened the panel and its shortest window plus the chat's 64px floor cannot both fit, `keepRoom` (`more-to-try-room.ts`) gives the chat's list a `min-height` of the floor, so the page scrolls vertically and the chat keeps 64px; the `min-height` is removed when the band is left and when the panel goes. Never sideways; no label changed or cut; the panel still starts closed in the compact band; above the band nothing changed. K21 asserts the floor again (before More to try: chat >= 64, no page scroll, no sideways; after: chat >= 64, no sideways; the page may scroll vertically in the band), K23's compact rows match, and K21b makes the squeeze itself (the local host has room at 1280x600 with the banner: closed chat 154px, so K21 and K23 alone cannot reach the squeeze here). EXPERIENCE.md, DESIGN.md and the comments say it, citing the Planner, 2026-11-07.
 
+#### Re-review (K21 patch)
+Code review 2026-11-07 of the K21 patch (`82c2a557..fefb0b01`; the later feature merge 25af8cc6 is other epics' work, not reviewed). Four layers (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor), full tier, no model override (no `model-overrides.yaml`). No live run in this review (the lead's smoke and CI on the pushed head are the live checks); `npm --prefix web test` 1536 pass and `npm --prefix web run lint` exit 0 after the patches.
+- Checklist: option (B) implemented exactly (hold only when `floor()` is the compact floor, only in the squeeze branch, which needs a panel, and in the band only a user-opened one; vertical page scroll, no width change; no string changed; the panel still starts closed in the band; `min-height` released on leaving the band and on the panel going, both pinned by K21b mutations); K21 before (floor, no page scroll, no sideways) and after (floor, no sideways); K23's compact rows match; docs cite "the Planner, 2026-11-07"; Decision 13 credited to U-299. Rule 3: K21, K21b and K23 are Playwright cases on the real page. No AD mismatch. No HIGH.
+- [x] [Review][Patch] LOW: K21's comments claimed an above-band, after-press check that no row reaches (both framed rows are in the band once the banner shows) [web/e2e/guide/more-to-try.spec.ts:1164] — comments now say so.
+- [x] [Review][Patch] LOW: K21b's band-leave release check did not assert the panel was still open, so a resize that closed the panel would pass it through `onDestroy` [web/e2e/guide/more-to-try.spec.ts:1241] — asserts the panel visible after the resize.
+- [x] [Review][Patch] LOW: the release check sat after `measure`'s early return for a missing group or chat list [web/src/app/guide/more-to-try-room.ts:36] — moved before it.
+- [x] [Review][Patch] LOW: comments overstated the exception or still said the page never scrolls [web/src/app/guide/more-to-try.ts:47, :149] — the "cannot both fit" condition added; the CSS comment qualified.
+- [x] [Review][Patch] LOW: DESIGN.md's new sentence had no marker, EXPERIENCE.md's marker did not quote the replaced text, and DESIGN.md's page-layout rule and EXPERIENCE.md's 1280-1439 row still said the page never scrolls [DESIGN.md Motion and size, :677; EXPERIENCE.md Other things to try, :489] — markers and qualifiers citing the Planner, 2026-11-07.
+- [x] [Review][Defer] MED (DW-865, routed owner=burndown): the hold's inline `min-height` overflows the framed shell instead of growing it, so the chat panel's dock spills past main and the 100dvh app box, and the rail and device-panel backgrounds stop at the fold; K21b does not check where the dock sits [web/src/app/guide/more-to-try-room.ts:52] — deferred: the fix is in the shell (`app.ts`, `main-page.ts`, `chat-panel.ts`), outside this diff; inferred from the CSS, not seen in a browser.
+- [x] [Review][Defer] LOW (DW-866, wontfix-accepted): K21's new before-press assertions (no page scroll, no sideways) have no `mutation:` line; closing it needs a live run [web/e2e/guide/more-to-try.spec.ts:1184].
+- Rejected: (blind) EXPERIENCE/DESIGN still give 160px above the band unconditionally, and the above-band relaxation keeps a rule the Planner rejected — DW-862 (escalated), not re-filed. (blind) `live floor` not run for this patch — CI runs the floor unit (Firefox, WebKit) on the pushed head. (blind) a classic vertical scrollbar could bring back sideways scroll at drawer widths — false: the framed columns are `min-width: 0` flex items and the guide reflows to 305px (K22); K21b asserts no sideways scroll with the page scrolled. (blind) DW-863 contradicted by K21b — the lead's ledger call, not re-filed. (blind) no green live run after the last mutation revert — the source is byte-identical (`cmp`) and CI builds from source; noted to the lead: rebuild the local bundle before a local smoke.
+
 ## Spec Change Log
 
 - 2026-11-07 (exception iteration 4, CI patch, lead): CI on a5d308b1 red on K21 (chat 55.125px < 64px with the banner and the panel opened); the Planner's pre-approved K21 fallback (vertical page scroll, compact band, user-opened panel) or a no-scroll layout fix; the review's floor relaxation is withdrawn. The image red was a runner port conflict (infra).
@@ -730,6 +742,24 @@ Rejected:
   - `[low]` `reject` (verification-gap) `tight()` still fires in the compact band — harmless for a user-opened panel (demo-guide ignores it when the user chose the panel).
   - `[low]` `reject` (verification-gap) diagnostic console.log and annotations — duplicates the blind row.
   - `[low]` `reject` (intent-alignment) an inline min-height on the sibling chat list is outside the panel's own look — option B is the Planner's pre-approved fallback and writes exactly that.
+
+### 2026-11-07 — Review pass (K21 patch re-review)
+- verdicts: 19 findings — high 0, medium 1, low 13, false 1, maybe-false 0; grouped into 8 entries (1 medium, 7 low), 7 rejected rows
+- findings:
+  - `[medium]` `defer` (edge) the hold overflows the 100dvh shell, the dock spills past main — DW-865 routed owner=burndown (shell files outside this diff).
+  - `[low]` `patch` (blind, edge, verification-gap, intent) K21's above-band after-press branch never runs — comments corrected.
+  - `[low]` `defer` (verification-gap) K21's new before-press assertions have no mutation line — DW-866 wontfix-accepted (needs a live run).
+  - `[low]` `patch` (verification-gap) K21b's band-leave check did not assert the panel open — asserted.
+  - `[low]` `patch` (blind, intent) stale "page never scrolls" lines in more-to-try.ts, DESIGN.md:677, EXPERIENCE.md:489 — qualified.
+  - `[low]` `patch` (intent) DESIGN.md sentence without a marker; EXPERIENCE.md marker without the old text — added.
+  - `[low]` `patch` (intent) more-to-try.ts exception missing "cannot both fit" — added.
+  - `[low]` `patch` (edge) release check after the early return — moved before it.
+  - `[low]` `reject` (blind) 160px above the band and the kept relaxation — DW-862, not re-filed.
+  - `[low]` `reject` (blind) `live floor` not run — CI runs it on the pushed head.
+  - `[false]` `reject` (blind) classic scrollbar sideways scroll at drawer widths — `min-width: 0` flex columns, guide reflows to 305px.
+  - `[low]` `reject` (blind) DW-863 contradicted by K21b — the lead's ledger call.
+  - `[low]` `reject` (blind) no green live run after the last mutation revert — source byte-identical, CI builds from source.
+- patches applied: K21 comments; K21b panel-open assertion; release check order in `keepRoom`; more-to-try.ts comments; DESIGN.md and EXPERIENCE.md markers and qualifiers. No high.
 
 ## Design Notes
 

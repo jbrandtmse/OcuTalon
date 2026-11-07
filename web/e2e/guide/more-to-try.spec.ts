@@ -39,7 +39,7 @@ import { blockLiveSocket } from '../support/socket';
  *     below it elsewhere;
  *   - K21: with the no-model-key banner shown the finish has no sideways scroll at 1280x600, 1280x700 and 320x700, and a chat at its
  *     floor and no page scroll when framed before the panel is opened; after More to try the chat is still at its floor (the page may
- *     scroll vertically in the compact band, the Planner, 2026-11-07) and the framed page above the band does not scroll;
+ *     scroll vertically in the compact band, the Planner, 2026-11-07; both framed rows are in the band once the banner shows);
  *   - K21b: where the case squeezes the room itself (1280x600, the banner), the panel the user opens is at its shortest window, the
  *     chat keeps 64px and the page scrolls vertically, never sideways;
  *   - K22: at the narrow widths (305 to 480px, 320px at any height from 360 to 900px) the page does not scroll sideways, with the guide
@@ -1165,7 +1165,8 @@ for (const [width, height] of [
  * one routes it on and asks what must hold whatever is above the guide. Before the user opens the panel (the finish starts it closed in
  * the compact band, open above it) the framed page does not scroll and the chat keeps its floor (64px in the band, 160px above it).
  * After the user opens it (More to try) the chat still keeps its floor and the page does not scroll sideways; in the compact band the
- * page may scroll vertically to keep it (the Planner, 2026-11-07), above it the framed page does not scroll as a whole.
+ * page may scroll vertically to keep it (the Planner, 2026-11-07). With the banner shown both framed rows here are in the compact band
+ * (700px less the banner is under 680px), so the no-page-scroll check after the press, kept for a framed row above the band, does not run.
  */
 for (const [width, height] of [
   [1280, 600],
@@ -1237,6 +1238,7 @@ test('K21b: with the room squeezed by the case, the panel the user opens leaves 
   await expect(panelOf(page), 'the link opens the panel again').toBeVisible();
   await expect.poll(() => listMinHeightOf(page), { message: 'the squeeze holds the floor again' }).toBe('64px');
   await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(panelOf(page), 'the panel the user opened stays open as the band is left').toBeVisible();
   await expect.poll(() => listMinHeightOf(page), { message: 'leaving the compact band releases the chat list\'s min-height' }).toBe('');
 });
 

@@ -33,13 +33,13 @@ export function keepRoom(host: HTMLElement, floor: () => number, tight: () => vo
   destroyRef.onDestroy(release);
 
   const measure = (): void => {
+    if (held !== undefined && floor() > CHAT_FLOOR.compact) {
+      release();
+    }
     const group = host.querySelector<HTMLElement>('.group');
     const list = document.querySelector<HTMLElement>(CHAT_LIST);
     if (group === null || list === null) {
       return;
-    }
-    if (held !== undefined && floor() > CHAT_FLOOR.compact) {
-      release();
     }
     const chat = list.getBoundingClientRect().height;
     const bound = windowBound(group.getBoundingClientRect().height, chat, floor());
