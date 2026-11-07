@@ -2572,3 +2572,4 @@
 2026-11-07T23:31:01Z	Epic 17	runner_ended	reason=hold head=b52d069b(origin) stopped_at=17.10_after_implement(next=AD_verification,QA) hold_patch=none code=4be9d24b ci=42425470320,42425470299(queued;not_integrated_over_32.5) slot_b_needs_reload resume=resume/epic-17.md
 2026-11-07T23:31:53Z	Epic 19	runner_ended	reason=hold head=0cb88c2b(origin) stopped_at=19.4_after_implement(next=QA) hold_patch=none ci=42425571857,42425571860(queued) open=live:documents_off_shards-5 resume=resume/epic-19.md
 2026-11-07T23:31:53Z	Run	hold_complete	heads=feature:27a83207,epic0:85b479e0,epic11:882b6d4b,epic17:b52d069b,epic19:0cb88c2b,epic31:8262d61c unpushed=none hold_patches=patches/epic-31/31.4-smoke.patch inbox=Values are single-line, contain no TAB, and the unit and question are non-empty; run ids and holders have no spaces. lock=kept
+2026-11-07T23:32:10Z	Run	inbox_item_added	item=U-302 kind=hold
