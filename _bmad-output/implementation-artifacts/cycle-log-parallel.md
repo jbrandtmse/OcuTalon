@@ -2350,3 +2350,9 @@
 2026-11-07T02:38:37Z	Epic 19	public_text_ruled	story=19.6 x64_clause A4="In our test installs, the whole second run took about 1 to 1.5 minutes on an Apple silicon Mac and about 3 minutes on a shared x64 Linux build server. On the Mac, the downloads took about 20 seconds of that." A6=same_with_"second command" rides=19.8 integrate_check=README_has_8_minutes_sentence_no_160_seconds
 2026-11-07T02:56:49Z	Epic 19	planner_report_relayed	story=19.8 task0 DW-829=old_copies_imported_fix_install_keep_A5 DW-830=hosts(+us.aws.cdn.hf.co,cas-server.xethub.hf.co) public_text=host_list_options_1_2 local=b8aa81bd,c65a53f5
 2026-11-07T02:56:49Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=19.8_implement_after_green host_task_held
+2026-11-07T03:06:19Z	Epic 19	owner_decision	dw=DW-829 approve RemoveStaleCopies conditions=(1)reqs.txt,only_mgr/python,idempotent,STEP_lines (2)snapshot+IPM_imports_before_after,zpm_list (3)uninstall_leaves_six (4)import_check_gates_A_and_p
+2026-11-07T03:06:19Z	Epic 19	public_text_ruled	subject=install-ipm_disclosure_bullet(six_shared_packages) last_sentence_conditional_on_(2) readme=none
+2026-11-07T03:06:19Z	Epic 19	public_text_ruled	dw=DW-830 option=2 hosts=pypi.org,files.pythonhosted.org,huggingface.co,hf.co(us.aws.cdn.hf.co,cas-server.xethub.hf.co) integrate_check=install-ipm_line7_11.24_text
+2026-11-07T03:06:19Z	Run	planner_ruling	dw=DW-825 fix_before_cut runner=D after_7.9 ahead_of_0.15 timebox=90m proof=repeat-each_20
+2026-11-07T03:06:19Z	Epic 4	runner_clarification	head=621dd3a5(origin) local=5098cf29 reds=HC(DW-845=dup_DW-839),D5(DW-846=dup_DW-825),E8,K16(own) action=rework_iteration_3
+2026-11-07T03:06:19Z	Epic 4	runner_resumed	agent=a9306f8c89b5782ec reason=rework_3 PT-e=Bs

@@ -4724,6 +4724,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T21:53:29Z status=routed owner=burndown by=orchestrator note=rerun attempt 2 of run 42285847375 green on 9683c1f0: flake class confirmed (one occurrence)
 - 2026-11-07T02:32:43Z status=open owner=burndown by=ci note=occurrence=2 OCT-epic19 b0bf1f14 run 42324833841 browser D5 documents.spec.ts:146 filechooser timeout; one rerun of failed jobs requested by the orchestrator
 - 2026-11-07T02:38:37Z status=open owner=burndown by=ci note=occurrence=3 OCT-epic7 2a96bcb4 run 42326336355 browser D5 documents.spec.ts:146 filechooser timeout (3 heads in ~6 h: 9683c1f0, b0bf1f14, 2a96bcb4); one rerun requested by the orchestrator; frequency rising, candidate for a fix in Epic 19 part 1's burn-down (19.8) since documents is Epic 19's area
+- 2026-11-07T03:06:19Z status=open owner=burndown by=orchestrator note=Planner 2026-11-07 ~03:05Z: fix before the 1.0.3 cut; test-only unless root cause is product (report first); timebox 90 min; proof D5 20/20 with --repeat-each=20 under browser-job load and the old code fails at least once; runner D lands it on feature after 7.9 merges, ahead of 0.15 (OCT-epic19 does not edit documents.spec.ts)
 
 ### DW-826: CI unit shard:lane-a@rest (job iris shards-2) runs over the 1000 s unit line: 2031 s (5fef1125) and 2194 s (b94508c9) on Epic 17 heads; split it per the standing rule once ci/units.sh is free
 - source: runner_A_ci_report | severity: med | fix-risk: low | footprint: out-of-footprint
