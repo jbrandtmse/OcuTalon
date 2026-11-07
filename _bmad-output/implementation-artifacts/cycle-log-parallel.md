@@ -2429,3 +2429,4 @@
 2026-11-07T09:16:17Z	Epic 17	decision_sheet_recorded	decided=DW-773_to_planner_public_text
 2026-11-07T09:16:17Z	Run	deps_hash_rerecorded	reason=burndown_inserted story=17.9 hash=23068bba45ad
 2026-11-07T09:16:41Z	Epic 19	runner_resumed	reason=integrate_over_epic17_after_feature_green
+2026-11-07T09:24:41Z	Epic 17	public_text_relayed	dw=DW-773 L153(+short_option) L340_optional AD-19_as_built_offer
