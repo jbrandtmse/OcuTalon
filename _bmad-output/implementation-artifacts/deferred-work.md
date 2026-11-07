@@ -5191,3 +5191,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: checkInUsage (Ownership.cls Statement) has no RecordedAt bound; heartbeatUsage has one. Only a beat whose turn lands after local midnight (a few seconds a day) differs.
 - 2026-11-07T08:44:42Z status=by-design owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=cr note=spec Task SQL and Design Notes sum all of the Item's rows; a day bound would blank yesterday's last check-in; docs reworded
+
+### DW-869: release/release.sh:940 says the CI job ipm-install runs the same command as the release's ipm step; after the CI split, ipm-install runs modes a and r and ipm-install-p runs b and p
+- source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rework 2 review finding; release.sh is under the release-tool freeze
+- 2026-11-07T14:40:35Z status=wontfix-accepted owner=19-8-epic-19-burn-down by=harvest note=reopen_if=the_release-tool_freeze_lifts(1.0.4_merged_back)_or_a_reader_relies_on_that_comment
