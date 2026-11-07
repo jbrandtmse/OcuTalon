@@ -2,7 +2,7 @@
 title: 'Story 4.11: Other things to try'
 type: 'feature'
 created: '2026-11-06'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'f58488787c600928f27b8cb4d69f6c13ae124023'
 baseline_commit: 'f58488787c600928f27b8cb4d69f6c13ae124023'
 review_loop_iteration: 0
@@ -420,7 +420,15 @@ Rejected:
 - spec edit: (blind, acceptance) the frontmatter `status` against sprint-status, `followup_review_recommended`, the provenance of the run-total rework item, and the Auto Run Result's "Decision for the lead". These are the lead's tracking.
 - spec edit: (blind, verification, acceptance) item (iv)'s stale lines: AC3, matrix rows 4 and 10, Decided 3 ("its button only focuses the rail"), Design Notes "Planned names, not on screen yet" and the Auto Run Result summary. They are not edited (the contract is frozen). The Spec Change Log line below records that the Design Notes rulings and this log supersede them.
 
+
+#### Rework iteration 3 (lead, 2026-11-07; CI red on 621dd3a5, run 42327859572; the last iteration the cap allows)
+- [ ] [CI] shards: `live:cards` E8 (`web/e2e/cards/either-way.spec.ts:318`) fails on CI: at 320x360 the page scrolls sideways 23px. The cards page is in demo mode and its guide row 1 now holds "More to try" (CI page snapshot); E8 passed on feature 9683c1f0's CI. Fix the guide's row 1 (and anything else of this story's) so nothing widens the page at 320px wide in any height band, without changing ruled text, placement or the open-in-the-finish condition; reproduce `live cards` on the lane-B throwaway first. Do not edit `web/e2e/cards/**` beyond nothing: E8 is Epic 6/7's pin and must pass unchanged.
+- [ ] [CI] browser: K16 fails on CI at 1280x590, 1280x600, 1280x680 and 1280x684 (chat 45.1, 55.1, 136.1, 140.1px against floors 64/64/160/160) and at 320x700 (sideways 12px). Cause found by the lead: the CI stack shows the "OcuTalon has no model key, so every decision uses fixed rules..." banner above the guide (about 40px), the local throwaway does not; K16, K17, K19 and K20 measured a page whose banners depend on the environment (Rule 19 hermeticity). Make every room/width case set the state it measures: route the conditions so no banner shows (find how the no-key banner's condition reaches the page, and route or clear it in the case as the cases already route `/state`), and add one case that, with the no-key banner shown, the finish with the panel open still has no page scroll, no sideways scroll at 320px and a chat taller than 0 at 1280x600. Reproduce the CI condition locally (run the units the way CI runs them: check `.github/workflows/ci.yml` and `ci/iris.sh` for the mock-key header setting, OCUTALON_MOCK_KEY_HEADER is CI-only) and re-measure. If the 320x700 sideways scroll persists without the banner, fix its cause in this story's layout.
+- [ ] [CI] Not this story's, do NOT fix: `heartbeat-card.spec.ts` HC1, HC4, HC5, HC8, HC10, HC11 (Epic 39; the spec's clock() is HH:MM, the card shows H:MM; red at UTC hours 00-09; DW-845, escalated to the orchestrator) and `documents.spec.ts` D5 (fixture timeout; DW-846, unconfirmed flake). Report them; they are not rework items.
+
 ## Spec Change Log
+
+- 2026-11-07 (rework iteration 3, lead): CI on 621dd3a5 was red: this story's E8 (320px sideways, cards page in demo mode) and K16 (CI's no-model-key banner makes the room cases environment-dependent) are reopened as `[CI]` items; the Epic 39 HC* clock failures (DW-845) and documents D5 (DW-846) are not this story's.
 
 - 2026-11-06 (re-review iteration 2, code review): the U-297 ruling (veto window) keeps "About 2 minutes" hidden in row 1 once the guide is finished (steps 1-5 unchanged), as the implement stage built it. With Epic 39 merged, `guide.features` on this tree is `persona,suspiciousEmail,rejectFix,demoView,heartbeat`, and item 7 hands off to `#rail-heading-heartbeat` (rework iteration 2, item 7). This supersedes the frozen contract's "items 1-4 on this branch" (matrix row 4, AC3) and "item 7 focuses section.rail" (matrix row 10), and the same wording in Decided 3, Design Notes' "Planned names" and the Auto Run Result summary.
 

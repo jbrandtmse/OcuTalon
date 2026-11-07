@@ -4740,6 +4740,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: floor-firefox/floor-webkit run only @browsers floor cases (playwright.config.ts:82-83), none reaches the finish; 1280x600 margin is 3.5px (67.5 vs 64)
 - 2026-11-06T19:30:51Z status=routed owner=burndown by=cr note=settle: @browsers floor copy of the K16 measurement at 1280x600 and 1100x720; red there means a per-engine reserve
+- 2026-11-07T02:10:49Z status=wontfix-accepted by=burndown note=reopen_if=a_floor-firefox_or_floor-webkit_copy_of_K16_at_1280x600_or_1100x720_shows_the_chat_under_its_floor_or_a_page_scroll,or_a_report_of_the_finish_chat_collapsing_in_Firefox/Safari;margin_at_1280x600_is_now_21px(85.1_vs_64)_after_rework_2;layout_is_grid/max-height_only(engine-neutral_CSS);Epic_4_has_no_later_story
 
 ### DW-822: Demo guide finish in the compact height band at drawer widths (1024-1279 wide, under 680 tall) collapses the chat and scrolls the page even with the Other things to try panel closed
 - source: spec-4-11-other-things-to-try.md | severity: high | fix-risk: med | footprint: in-epic
@@ -4747,3 +4748,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T19:30:51Z status=routed owner=burndown by=cr note=pre-existing (4.4 compact row / 4.10 finish); 4.11's HIGH ruling option B would fix it in the rework
 - 2026-11-06T19:33:56Z status=routed owner=4-11-other-things-to-try by=adjudication note=in-epic_HIGH_taken_into_4.11_rework_iteration_2(option_B:_compact_finish_guide_at_drawer_widths);lead_ruling_decide
 - 2026-11-07T01:08:03Z status=resolved-by:4-11-other-things-to-try by=adjudication note=rework_2_compact_finish_at_drawer_widths;K19_panel_closed_chat_141.9px@1024x600,224.8px@1100x650,no_page_scroll;K16_open-panel_rows_stricter
+
+### DW-845: heartbeat-card.spec.ts HC1, HC4, HC5, HC8, HC10, HC11 fail whenever the UTC hour is 00-09: the spec's clock() takes ISO HH:MM (02:41) while the card shows H:MM (2:41)
+- source: spec-4-11-other-things-to-try.md | severity: high | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 42327859572 browser group at 02:41-02:56Z on OCT-epic4 621dd3a5; web/e2e/heartbeat-card.spec.ts:111 clock = iso.slice(11,16); feature CI at 20Z passed
+- 2026-11-07T03:00:22Z status=escalated owner=burndown by=cr note=inherited from Epic 39 (merged 31f812b9); time-of-day; reds every browser group 00-09Z on every branch; for the orchestrator
+
+### DW-846: flake: documents.spec.ts D5 (Add documents by keyboard) timed out making its fixture document (waitForResponse 30s, then filechooser 30s) in the browser group
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 42327859572 browser group; error: the fixture document could not be made; not in Epic 4's diff
+- 2026-11-07T03:00:22Z status=routed owner=burndown by=cr note=unconfirmed flake: one rerun decides; not caused by 4.11 (no documents code touched)
