@@ -5134,6 +5134,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Epic 17 runner A reports 2026-11-06: lane-a@rest 2031 s and 2194 s (both on runs with other reds); ci/units.sh is in Epic 19's in-flight diff
 - 2026-11-06T23:06:17Z status=routed owner=burndown by=orchestrator note=measure on the next clean run; split after Epic 19 part 1 merges (ci/units.sh contended until then); never raise a deadline
 - 2026-11-07T13:37:10Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_13:35Z:new_iris_group_shards-5_takes_shard:lane-a@Bridge,Agent;resolve_by_19.8
+- 2026-11-07T15:08:07Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=new_iris_group_shards-5_runs_shard:lane-a@Bridge,Agent(51_classes);@rest_78;pins_in_test-ci-config/test-ci-changes;expected_shards-5~1250s,shards-2~1500s_(first_green_run_measures)
 ### DW-823: A good-message refusal (Story 7.9, GOODCHANGED) reuses incident.noFix, whose 'None of my fixes applies to this' fits loosely when a fix exists but would also rewrite messages that went through; give it a precise line
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Msg/Catalog/Watch.cls incident.noFix (L179-180) is shown for the GOODCHANGED refusal; the reason is log-only (PT-b ruling)
@@ -5187,6 +5188,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: lane-a ipm-install job: 1889 s on 81fbdeb3 (run 42355431449), 1950 s on 6e5213ee, timeout-minutes 35 (2100 s); CI reinstall-same 145 s against 71 s locally, local skip-bypass 56-62 s. The job's no-argument sequence (check_pip_skipped, then reinstall_failures) has not run at this head.
 - 2026-11-07T11:37:12Z status=escalated owner=burndown by=cr note=first CI run at this head settles it; over budget means owner CI capacity (owner-fixed value 9) or a lighter check
 - 2026-11-07T13:37:10Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_13:35Z:split_ipm-install_into_ipm-install(path_A)+ipm-install-p(part_p,reinstall,uninstall);no-arg_unchanged
+- 2026-11-07T15:08:07Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=lane-a.yml:ipm-install(a,r)+ipm-install-p(b,p),separate_tags,second_step_if_!cancelled();release/ipm-install.sh_unchanged(no-arg=all);test-cpf_rules_6,7,16,20_pin_the_union_and_each_mode
 ### DW-859: Heartbeat card: Ownership.CheckInCost has no day bound while HeartbeatToday is day-bounded, so a check-in whose decision and read-only turn straddle instance-zone midnight reads more on Last check-in than on Today
 - source: spec-39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: checkInUsage (Ownership.cls Statement) has no RecordedAt bound; heartbeatUsage has one. Only a beat whose turn lands after local midnight (a few seconds a day) differs.
@@ -5196,3 +5198,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: rework 2 review finding; release.sh is under the release-tool freeze
 - 2026-11-07T14:40:35Z status=wontfix-accepted owner=19-8-epic-19-burn-down by=harvest note=reopen_if=the_release-tool_freeze_lifts(1.0.4_merged_back)_or_a_reader_relies_on_that_comment
+- 2026-11-07T15:05:57Z status=wontfix-accepted owner=19-8-epic-19-burn-down by=cr note=also release/ipm-install.sh:126 header calls the no-arg run (the job); same freeze; reopen_if=the_release-tool_freeze_lifts
+
+### DW-870: main's required status checks list iris (shards-2) but not iris (shards-5), so since the 19.8 CI split the Bridge and Agent test classes no longer gate a merge to main
+- source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 2) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: gh api branches/main/protection (read 2026-11-07): checks, web, install-macos, standalone-bridge, evaluation and iris install-fresh..shards-4; no iris (shards-5); ipm-install is not required either, so ipm-install-p matches it. Branch protection is a repository setting (owner-only); precedent: shards-4 was carried to the Planner.
+- 2026-11-07T15:05:47Z status=decision-pending owner=burndown by=cr note=human=add iris (shards-5) to main's required checks (and ipm-install-p only if ipm-install is made required) before the next release PR
+
+### DW-871: The as-built CI texts still describe nine IRIS groups after the 19.8 CI split: AD-22's CI as built bullet (lane-a in three pieces, Bridge and Agent in shards-2) and the header comment of .github/workflows/ci.yml
+- source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 2) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-22 Rule, CI as built: inside nine IRIS groups ... shards-3 and shards-4, lane-a in three pieces; ci.yml line 2: a matrix of nine groups. The spine bullet is an AD Rule line (not a stage edit; precedent DW-420, as-built amendment at the merge gate); the ruling allowed no other ci.yml line.
+- 2026-11-07T15:05:54Z status=escalated owner=burndown by=cr note=for the lead at the Epic 19 merge gate: as-built amendment of AD-22 (ten groups, shards-5 = lane-a@Bridge,Agent) and ci.yml:2

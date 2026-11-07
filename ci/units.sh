@@ -80,10 +80,10 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # CI split of Story 19.8 (2026-11-07; the Contest Planner's ruling of about 13:35Z, discharging DW-826) added the tenth group shards-5 for
 # shard:lane-a@Bridge,Agent, so that shard:lane-a@rest in shards-2 no longer runs the Bridge and Agent areas (rest is computed from the
 # pieces the groups name, so every area of lane-a stays in exactly one piece). The new unit is not in NO_WEB_BUNDLE_UNITS, as shard:lane-a@rest
-# is not, so shards-5 runs and skips on the inputs that its areas had in shards-2. Measured on part 1's head (ci run 42373301364): shards-2
-# ran lane-a@rest for 2,421 s before its 40-minute job timeout (Fix 755, Bridge 665, Agent 282, Eval 178, Memory 76, Docs 67 and Digest 37 s of
-# classes, about 360 s of stack overhead); Bridge and Agent are 947 s of that, so shards-2 is about 1,470 s and shards-5 about 1,300 s
-# (inference until a run measures them).
+# is not, so shards-5 runs and skips on the inputs that its areas had in shards-2. Measured on part 1's head (ci run 42373301364): the
+# shards-2 job was cancelled at its 40-minute timeout after 2,421 s, in the Memory area and before Tools (Fix 755, Bridge 665, Agent 282,
+# Eval 178, Memory 76 so far, Docs 67 and Digest 37 s of classes, READY 267 s); Tools took 27 s on ci run 42375447084. Bridge and Agent
+# are 947 s of that, so shards-2 is about 1,500 s and shards-5 about 1,250 s (inference until a run measures them).
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;

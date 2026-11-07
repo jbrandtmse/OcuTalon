@@ -90,6 +90,7 @@ jobs:
       - name: Run the IPM install checks, path A
         run: bash release/ipm-install.sh a
       - name: Run the IPM install checks, the failed reinstalls
+        if: ${{ !cancelled() }}
         run: bash release/ipm-install.sh r
       - name: Tear down
         if: always()
@@ -113,6 +114,7 @@ jobs:
       - name: Run the IPM install checks, path B
         run: bash release/ipm-install.sh b
       - name: Run the IPM install checks, part p
+        if: ${{ !cancelled() }}
         run: bash release/ipm-install.sh p
       - name: Tear down
         if: always()

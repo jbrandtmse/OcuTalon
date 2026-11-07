@@ -14,8 +14,10 @@
 #      release/ipm-install.sh, each with explicit modes (DW-864): ipm-install runs `a` then `r` (path A and its failed reinstalls),
 #      ipm-install-p runs `b` then `p` (path B and part p);
 #   7. each of the two jobs is wired the way the script needs: the base image in IRIS_IMAGE, a run tag of its own (ending in -ipm for
-#      ipm-install and -ipm-p for ipm-install-p), the web bundle built before the script runs, and a live deadline that ends before the
-#      job's timeout; the two jobs keep the same timeout and deadline.
+#      ipm-install and -ipm-p for ipm-install-p), the web bundle built before the script runs, a live deadline shorter than the job's
+#      timeout (each run of the script counts it from its own start, so it bounds one run, not the job's two), and the step
+#      conditions: the job's first script run has no if: and the second has exactly if: ${{ !cancelled() }}, so a failed first mode
+#      never hides the second mode's checks; the two jobs keep the same timeout and deadline.
 #   8. src/module.xml declares the IPM entry point once: the exact Configure, After Invoke of OcuTalon.Install.Registry Ipm, on a line
 #      of its own after the MapAndStop Invoke, and no other Invoke at Configure (the Unconfigure Invoke of rule 13 is not one);
 #   9. docs/install-ipm.md (QA of Story 15.2) keeps the points of its task and agrees with the code it quotes: no ANSI code, the stop
@@ -60,8 +62,11 @@
 #  20. (Story 19.8, rework 2, DW-864) the two jobs of rule 6 split the no-argument run of release/ipm-install.sh: the main flow of the script
 #      (from `# --- the stack ---`), read with each mode's gates, runs in the no-argument run no line that the jobs' modes together do not run
 #      (a, r, b and p, read from the workflow), and each of the modes a, r, b and p alone runs only lines of the no-argument run (p adds
-#      only its own packaging stack) and only its own set of the eight marker lines (first run, second run, install checks, reinstall
-#      check, failed reinstalls, path B, part p, packaging stack).
+#      only its own packaging stack: lines that name pkg-first, pkg-second or the packaging stack, or continue a quoted check_session
+#      argument), only its own set of the eight marker lines (first run, second run, install checks, reinstall check, failed reinstalls,
+#      path B, part p, packaging stack), and, for a, r and b, no line more often than the no-argument run; a gate the reader cannot read
+#      (an elif, a one-line else, a test of the mode outside an if line) or an unbalanced if is an error; and the code lines of the whole
+#      script that read or assign the mode are exactly its read and its case, then the seven gates of the main flow (the gate pin).
 # Each rule first runs on synthetic files, one that keeps it and one that breaks it, so a rule that can no longer fail makes the
 # test fail. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -168,20 +173,29 @@ ipm_jobs_modes() {
 }
 ipm_job_runs_script() { [ "$(ipm_jobs_modes "$1")" = "ipm-install=a,r ipm-install-p=b,p" ]; }
 
-# 7. A job's wiring: the base image, its own tag suffix, the bundle build before the job's first script run, deadline inside the timeout.
+# 7. A job's wiring: the base image, its own tag suffix, the bundle build before the job's first script run, each run's deadline
+# inside the job's timeout, and the step conditions: the job's first script run has no if:, and every later one has exactly
+# if: ${{ !cancelled() }}, so a failed first mode never hides the checks of the next one and no other condition skips a mode.
 ipm_job_wired() { # ipm_job_wired <workflow> <job> <tag suffix>
   awk -v job="$2" -v suffix="$3" '
-    /^  [A-Za-z0-9_-]+:[ \t]*$/ { injob = ($1 == job ":") ; next }
-    /^[^ ]/ { injob = 0 }
+    function endstep() {
+      if (steprun) { nrun++; if ((nrun == 1 && stepif != "") || (nrun > 1 && stepif != "${{ !cancelled() }}")) badif = 1 }
+      steprun = 0; stepif = ""
+    }
+    /^  [A-Za-z0-9_-]+:[ \t]*$/ { if (injob) endstep(); injob = ($1 == job ":") ; next }
+    /^[^ ]/ { if (injob) endstep(); injob = 0 }
     !injob { next }
+    /^[ \t]+- / { endstep() }
     { line = $0; sub(/^[ \t]+(- )?/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line ~ /^if:/ { stepif = line; sub(/^if:[ \t]*/, "", stepif) }
+    line ~ /^run: bash release\/ipm-install\.sh/ { steprun = 1 }
     line == "IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0" { image = 1 }
     line ~ ("^OCUTALON_RUN_TAG: .*" suffix "$") { tag = 1 }
     line ~ /^timeout-minutes: [0-9]+$/ { timeout = substr(line, 18) + 0 }
     line ~ /^OCUTALON_LIVE_DEADLINE: "?[0-9]+"?$/ { d = line; gsub(/[^0-9]/, "", d); deadline = d + 0 }
     line == "run: bash ci/iris.sh build" { built = 1 }
     line ~ /^run: bash release\/ipm-install\.sh [a-z]+$/ { if (!ran) { ran = 1; ordered = built } }
-    END { exit (image && tag && ordered && timeout > 0 && deadline > 0 && deadline < timeout * 60) ? 0 : 1 }' "$1"
+    END { if (injob) endstep(); exit (image && tag && ordered && !badif && nrun > 0 && timeout > 0 && deadline > 0 && deadline < timeout * 60) ? 0 : 1 }' "$1"
 }
 ipm_jobs_wired() { # both jobs wired, with the same timeout and the same deadline
   ipm_job_wired "$1" ipm-install -ipm && ipm_job_wired "$1" ipm-install-p -ipm-p \
@@ -473,7 +487,9 @@ jobs:
     steps:
       - run: bash ci/iris.sh build
       - run: bash release/ipm-install.sh a
-      - run: bash release/ipm-install.sh r
+      - name: the failed reinstalls
+        if: ${{ !cancelled() }}
+        run: bash release/ipm-install.sh r
   ipm-install-p:
     timeout-minutes: 30
     env:
@@ -483,7 +499,9 @@ jobs:
     steps:
       - run: bash ci/iris.sh build
       - run: bash release/ipm-install.sh b
-      - run: bash release/ipm-install.sh p
+      - name: part p
+        if: ${{ !cancelled() }}
+        run: bash release/ipm-install.sh p
 EOL
 sed 's/ocutalon-iris-base:2026.3.0AI.154.0/ocutalon-iris-base:latest/' "$tmp/wired.good" > "$tmp/wired.image"
 sed 's/-ipm$/-bridge/' "$tmp/wired.good" > "$tmp/wired.tag"
@@ -494,10 +512,16 @@ sed 's/"1500"/"1800"/' "$tmp/wired.good" > "$tmp/wired.deadline"
 awk '/^  ipm-install:/ { print "  other:"; next } { print }' "$tmp/wired.good" > "$tmp/wired.renamed"
 awk '/^  ipm-install-p:/ { print "  other:"; next } { print }' "$tmp/wired.good" > "$tmp/wired.renamed-p"
 awk '/^  ipm-install-p:/ { p = 1 } p && /timeout-minutes: 30/ { print "    timeout-minutes: 35"; next } { print }' "$tmp/wired.good" > "$tmp/wired.timeout-p"
+awk 'index($0, "if: ${{ !cancelled() }}") && !n++ { next } { print }' "$tmp/wired.good" > "$tmp/wired.no-if"
+awk 'index($0, "if: ${{ !cancelled() }}") && n++ { next } { print }' "$tmp/wired.good" > "$tmp/wired.no-if-p"
+awk 'index($0, "if: ${{ !cancelled() }}") && !n++ { print "        if: false"; next } { print }' "$tmp/wired.good" > "$tmp/wired.if-false"
+awk '/- run: bash release\/ipm-install.sh a$/ { print "      - if: ${{ !cancelled() }}"; print "        run: bash release/ipm-install.sh a"; next } { print }' "$tmp/wired.good" > "$tmp/wired.if-first"
 if ipm_jobs_wired "$tmp/wired.good" && ! ipm_jobs_wired "$tmp/wired.image" && ! ipm_jobs_wired "$tmp/wired.tag" && ! ipm_jobs_wired "$tmp/wired.tag-p" \
   && ! ipm_jobs_wired "$tmp/wired.no-build" && ! ipm_jobs_wired "$tmp/wired.build-late" && ! ipm_jobs_wired "$tmp/wired.deadline" \
-  && ! ipm_jobs_wired "$tmp/wired.renamed" && ! ipm_jobs_wired "$tmp/wired.renamed-p" && ! ipm_jobs_wired "$tmp/wired.timeout-p"; then
-  pass "rule 7 on samples: two wired jobs pass; another image, a tag without -ipm or without -ipm-p, no build, a late build, a deadline past the timeout, a missing job or a timeout that differs between the jobs fails"
+  && ! ipm_jobs_wired "$tmp/wired.renamed" && ! ipm_jobs_wired "$tmp/wired.renamed-p" && ! ipm_jobs_wired "$tmp/wired.timeout-p" \
+  && ! ipm_jobs_wired "$tmp/wired.no-if" && ! ipm_jobs_wired "$tmp/wired.no-if-p" && ! ipm_jobs_wired "$tmp/wired.if-false" \
+  && ! ipm_jobs_wired "$tmp/wired.if-first"; then
+  pass "rule 7 on samples: two wired jobs pass; another image, a tag without -ipm or without -ipm-p, no build, a late build, a deadline past the timeout, a missing job, a timeout that differs between the jobs, a later script run without if: \${{ !cancelled() }} or with another condition, or a condition on the first script run fails"
 else
   fail "rule 7 on samples: the checker accepts mis-wired jobs ipm-install and ipm-install-p, or rejects the right ones"
 fi
@@ -1153,7 +1177,7 @@ ipm_mode_lines() {
       }
       return ok
     }
-    BEGIN { act[0] = 1 }
+    BEGIN { depth = 0; act[0] = 1 }
     /^# --- the stack ---$/ { go = 1; next }
     !go || done { next }
     { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
@@ -1243,8 +1267,10 @@ ipm_modes_alone() {
   done
   return 0
 }
-# ipm_gates_pinned <script>: the tests of $mode in the script's main flow are exactly IPM_GATES, so a gate that is added, removed or changed
-# is read here, with the table above, before it can move a check into another job.
+# ipm_gates_pinned <script>: the code lines of the whole script that read $mode or ${mode or assign mode are exactly the argument's read
+# and the case that checks it before the main flow, and IPM_GATES in the main flow, so a gate that is added, removed or changed anywhere
+# (in a function, through a variable derived from the mode, in the ${mode} form) is read here, with the table above, before it can move
+# a check into another job.
 IPM_GATES='if [ "$mode" = p ]; then
 if [ "$mode" != b ]; then
 if [ "$mode" = all ]; then artifact_prepare; fi
@@ -1253,7 +1279,13 @@ if [ "$mode" != a ]; then reinstall_failures; fi
 if [ "$mode" = a ] || [ "$mode" = r ]; then finish; fi
 if [ "$mode" = all ]; then part_p; fi'
 ipm_gates_pinned() {
-  [ "$(awk '/^# --- the stack ---$/ { go = 1; next } go && /\$mode/ { sub(/^[ \t]+/, ""); sub(/[ \t\r]+$/, ""); print }' "$1")" = "$IPM_GATES" ]
+  local want
+  want=$(printf 'head %s\n' 'mode=${1:-all}' 'case $mode in'; printf '%s\n' "$IPM_GATES" | sed 's/^/main /')
+  [ "$(awk '
+    /^# --- the stack ---$/ { go = 1; next }
+    { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line ~ /^#/ { next }
+    line ~ /\$[{]?mode([^A-Za-z0-9_]|$)/ || line ~ /(^|[^A-Za-z0-9_.-])mode=/ { print (go ? "main " : "head ") line }' "$1")" = "$want" ]
 }
 # ipm_union_covers <script> <workflow>: the modes that the workflow's jobs pass together run every line of the no-argument run.
 ipm_union_covers() {
@@ -1271,6 +1303,10 @@ ipm_union_covers() {
 }
 cat > "$tmp/modes.good" <<'EOS'
 mode=${1:-all}
+case $mode in
+  all | a | r | b | p) ;;
+  *) exit 2 ;;
+esac
 finish() { :; }
 # --- the stack ---
 setup_tag
@@ -1320,6 +1356,10 @@ sed 's/^if \[ "$mode" = all \]; then part_p; fi$/if [ "$mode" = all ]; then part
 awk '/^run first-user/ { print; print "[ \"$mode\" = a ] && extra_check"; next } { print }' "$tmp/modes.good" > "$tmp/modes.test-not-if"
 awk '/^  part_p$/ { print "  extra_p_check" } { print }' "$tmp/modes.good" > "$tmp/modes.p-extra"
 awk '/^    check_install$/ { print; print "    if [ \"$mode\" = a ]; then check_install; fi"; next } { print }' "$tmp/modes.good" > "$tmp/modes.dup-in-a"
+awk '/^finish\(\) / { print; print "check_web() {"; print "  [ \"$mode\" = all ] || return 0"; print "}"; next } { print }' "$tmp/modes.good" > "$tmp/modes.fn-gate"
+awk '/^finish\(\) / { print; print "full=0; case $mode in all) full=1 ;; esac"; next } { print }' "$tmp/modes.good" > "$tmp/modes.derived"
+awk '/^run first-user/ { print; print "if [ \"${mode}\" = all ]; then check_web; fi"; next } { print }' "$tmp/modes.good" > "$tmp/modes.brace"
+awk '/^run first-user/ { print; print "mode=all"; next } { print }' "$tmp/modes.good" > "$tmp/modes.reassign"
 cp "$tmp/lane.good" "$tmp/modes.flow-good"
 cp "$tmp/lane.no-r" "$tmp/modes.flow-no-r"
 grep -v 'ipm-install.sh b$' "$tmp/lane.good" > "$tmp/modes.flow-no-b"
@@ -1334,9 +1374,11 @@ if ipm_modes_alone "$tmp/modes.good" && ipm_union_covers "$tmp/modes.good" "$tmp
   && ! ipm_modes_alone "$tmp/modes.else-oneline" && ! ipm_modes_alone "$tmp/modes.test-not-if" && ! ipm_modes_alone "$tmp/modes.p-extra" \
   && ! ipm_modes_alone "$tmp/modes.dup-in-a" && ipm_gates_pinned "$tmp/modes.good" && ! ipm_gates_pinned "$tmp/modes.extra-in-a" \
   && ! ipm_gates_pinned "$tmp/modes.bad-gate" && ! ipm_gates_pinned "$tmp/modes.and-gate" && ! ipm_gates_pinned "$tmp/modes.unbalanced" \
+  && ! ipm_gates_pinned "$tmp/modes.fn-gate" && ! ipm_gates_pinned "$tmp/modes.derived" && ! ipm_gates_pinned "$tmp/modes.brace" \
+  && ! ipm_gates_pinned "$tmp/modes.reassign" \
   && ! ipm_union_covers "$tmp/modes.good" "$tmp/modes.flow-no-r" && ! ipm_union_covers "$tmp/modes.good" "$tmp/modes.flow-no-b" \
   && ! ipm_union_covers "$tmp/modes.good" "$tmp/modes.flow-no-p" && ! ipm_union_covers "$tmp/modes.good" "$tmp/modes.flow-no-a"; then
-  pass "rule 20 on samples: a script whose modes a, r, b and p split the no-argument run passes with the jobs a, r, b, p; a mode that lacks its part (part p, failed reinstalls, the install checks, path B), runs a part of another mode, adds a line of its own or repeats one, an unreadable gate (an elif, a one-line else, a test of the mode outside an if) or an unbalanced if fails, a gate that is added or changed fails the gate pin, and a workflow that passes no mode a, r, b or p leaves part of the no-argument run unrun"
+  pass "rule 20 on samples: a script whose modes a, r, b and p split the no-argument run passes with the jobs a, r, b, p; a mode that lacks its part (part p, failed reinstalls, the install checks, path B), runs a part of another mode, adds a line of its own or repeats one, an unreadable gate (an elif, a one-line else, a test of the mode outside an if) or an unbalanced if fails, a gate that is added or changed (in the main flow, in a function, through a variable derived from the mode, in the \${mode} form, or a new assignment of mode) fails the gate pin, and a workflow that passes no mode a, r, b or p leaves part of the no-argument run unrun"
 else
   fail "rule 20 on samples: the checker accepts modes that do not split the no-argument run of release/ipm-install.sh, or rejects the right ones"
 fi
@@ -1349,7 +1391,7 @@ check "rule 3: $cpf_file creates the four databases, OCUTALON with Interoperabil
 check "rule 4: $manifest has the one CPF element, first" cpf_is_first "$manifest"
 check "rule 5: $manifest declares the preload resource and invokes MapAndStop once, at Initialize, After, and nothing else at Initialize" early_step_declared "$manifest"
 check "rule 6: .github/workflows/lane-a.yml defines the jobs ipm-install (release/ipm-install.sh a, then r) and ipm-install-p (b, then p), and no other job runs the script" ipm_job_runs_script .github/workflows/lane-a.yml
-check "rule 7: jobs ipm-install and ipm-install-p have the base image, the -ipm and -ipm-p tags, the bundle build before the script, a deadline inside the timeout and the same timeout" ipm_jobs_wired .github/workflows/lane-a.yml
+check "rule 7: jobs ipm-install and ipm-install-p have the base image, the -ipm and -ipm-p tags, the bundle build before the script, a per-run deadline inside the timeout, the same timeout, and if: \${{ !cancelled() }} on the second script run only" ipm_jobs_wired .github/workflows/lane-a.yml
 check "rule 8: $manifest invokes OcuTalon.Install.Registry Ipm once, at Configure, After, after MapAndStop" ipm_entry_declared "$manifest"
 check "rule 9: $install_doc keeps its points and agrees with the stop sentence of Install.Ipm, the failure line and the order of Registry" install_doc_ok "$install_doc" "$stop_text" "$fail_tail" "$order_text"
 check "rule 10: $manifest declares the exact SystemRequirements element once" sysreq_declared "$manifest"
@@ -1368,7 +1410,7 @@ check "rule 15: docs/security-overview.md carries the ruled Data bullet on the r
 check "rule 16: release/ipm-install.sh with no argument (the mode all) runs part p" part_p_in_job release/ipm-install.sh
 check "rule 20: the modes a, r, b and p that the two jobs pass together run every line of the no-argument run of release/ipm-install.sh" ipm_union_covers release/ipm-install.sh .github/workflows/lane-a.yml
 check "rule 20: each mode alone runs only its own set: a path A without the failed reinstalls, r the failed reinstalls, b path B, p part p with its packaging stack, and no line outside the no-argument run" ipm_modes_alone release/ipm-install.sh
-check "rule 20: the tests of the mode in the main flow of release/ipm-install.sh are exactly the seven gates that split it (p, !=b, =all artifact_prepare, !=r, !=a reinstall_failures, a or r finish, =all part_p)" ipm_gates_pinned release/ipm-install.sh
+check "rule 20: the code lines of release/ipm-install.sh that read or assign the mode are exactly its read and its case, then the seven gates that split the main flow (p, !=b, =all artifact_prepare, !=r, !=a reinstall_failures, a or r finish, =all part_p)" ipm_gates_pinned release/ipm-install.sh
 
 if [ "$fails" -ne 0 ]; then
   echo "test-cpf: $fails check(s) failed"
