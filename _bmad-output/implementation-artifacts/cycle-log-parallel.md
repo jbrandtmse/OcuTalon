@@ -2530,3 +2530,5 @@
 2026-11-07T18:29:52Z	Run	planner_ruling	subject=1.0.3_eval_regression no_release_pick author_override=recorded_queue_cause 1.0.4=(1)EvalIn_pacing(Epic9)(2)diagnosis_timer_not_counting_queue(sizing_pending) priority=after_D1_D2 sign-in_split_pick=only_if_PR6_browser_times_out
 2026-11-07T18:33:25Z	Run	planner_update	subject=DW-879_sizing A=timer_at_runner_start(~15h,AD-8,med-high) B=DiagnosisAgent_PoolSize2(~3-4h,no_AD,low-med) recommend=B(+skip_abandoned_1h) host_checks=gateway_limits,licence_connections
 2026-11-07T18:33:58Z	Run	planner_ruling	dw=DW-879 option=B+skip_abandoned conditions=pool2_DiagnosisAgent_only,pins,stale_vs_live_test,concurrency_proof,no_new_strings host=gateway_120rpm,cap_20usd,LU_1of8 priority_1.0.4=12.12,17.10,DW-879,DW-878_then_tier3
+2026-11-07T19:44:09Z	Epic 39	runner_ci_wait	head=84e2ee03 runs=42404361697,42404361658 DW-880=HC8_test_defect(fix_84e2ee03) veto=U-301 flakes=DW-688,DW-333_sibling
+2026-11-07T19:44:09Z	Run	planner_update	subject=release_PR_risk DW-880 pick_candidate=84e2ee03(heartbeat-card.spec.ts_one_line)
