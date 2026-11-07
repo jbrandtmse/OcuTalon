@@ -1,4 +1,4 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, inject, Injector, input, output } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, ElementRef, inject, Injector, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { ChatOutbox } from '../chat/chat-outbox';
@@ -11,7 +11,8 @@ import { chipName, SAMPLES } from '../mailbox/mailbox-view';
 import { HEARTBEAT_HEADING_ID } from '../rail/heartbeat-card/heartbeat-card-view';
 import { PERSONA_HEADING_ID } from '../rail/persona-card/persona-card-view';
 import { Layout, RAIL_REGION } from '../shared/layout';
-import { HEIGHT_QUERIES, LAYOUT_QUERIES } from '../shared/layout-view';
+import { LAYOUT_QUERIES } from '../shared/layout-view';
+import { keepRoom } from './more-to-try-room';
 import { BREAK_FEED_BUTTON, MORE_TO_TRY_TEXTS, type MoreToTryItem } from './more-to-try-view';
 
 /** The Persona card's Change button. */
@@ -36,14 +37,16 @@ let panels = 0;
  * suspicious-request chip, item 3 presses the box's Break the feed, item 4 presses the Demo view switch while it is on, item 5 sends its
  * prompt through the chat's outbox (a new message of the user's), item 6 is a link to the Documents page and item 7 opens the rail and
  * focuses the Heartbeat checklist card's heading, pressing nothing. Every action runs from the control's own click, and focus moves
- * only for that press. The panel announces nothing, and it emits `pressed` so that the guide keeps the panel open.
+ * only for that press. The panel announces nothing, and it emits `pressed` so that the guide keeps the panel open, and `squeezed` when the
+ * room is too small for it even at its shortest window, so that the guide does not start it open.
  *
  * Where the page fills the viewport (LAYOUT_QUERIES.framed) the group is a vertical scroll region of its own, a Tab stop named by the
  * panel label (the project's rule for a scroller), with no gap under the label and no margin above the group, since the guide's own gap
- * separates it. Its height is the viewport's height less a fixed reserve for the page's other parts and the chat's minimum (never less
- * than the label's line and one control), so the chat keeps its room and the page does not scroll as a whole; the items lay out in as
- * many columns as fit, and the list ends in a gutter that holds the last control's ring. The group carries the focus rule's `moreItem`
- * key like the controls, so a focused group hands focus on when the finish leaves.
+ * separates it. Its window takes only the room that the chat's list leaves above its floor (the `floor` input; windowBound), measured
+ * on the page as it is and kept in the host's `--more-max`, and never less than the label's line and one control. So the chat keeps its
+ * floor and the page does not scroll as a whole, whatever fonts and banners the page has. Before the first measurement a fixed reserve
+ * stands in. The items lay out in as many columns as fit, and the list ends in a gutter that holds the last control's ring. The group
+ * carries the focus rule's `moreItem` key like the controls, so a focused group hands focus on when the finish leaves.
  * In the stacked column the page scrolls and the group grows with its items.
  *
  * Item 5 is aria-disabled, never disabled, while a turn is in flight or the message allowance is used up, and a press then sends nothing.
@@ -85,11 +88,7 @@ let panels = 0;
       --more-gap: var(--space-1);
       --more-window-min: calc(var(--more-label-height) + var(--more-gap) + var(--space-control-height));
       --more-reserve: 685px;
-    }
-    @media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.framed} {
-      :host {
-        --more-reserve: 592px;
-      }
+      --more-max: calc(100dvh - var(--more-reserve));
     }
     .group {
       display: flex;
@@ -145,8 +144,8 @@ let panels = 0;
       max-width: 100%;
     }
     /* Where the page fills the viewport, the panel is a scroll region of its own: it leaves the chat the room it needs, so the page
-       never scrolls as a whole. The reserve is the height that the rest of the page needs (header, rail and chat chrome, the guide
-       without the panel and the chat's own minimum). The window never gets shorter than the label's line and one control, so the
+       never scrolls as a whole. Its bound is --more-max, which the component measures (the chat's floor above the list's height now);
+       --more-max starts as the viewport's height less a reserve, the first frame's stand-in. The window never gets shorter than the label's line and one control, so the
        label and a whole control show together and every control scrolls fully into view; the list's end gutter lets the last
        control scroll clear of the edge, so its focus ring is never clipped. */
     @media ${LAYOUT_QUERIES.framed} {
@@ -157,8 +156,7 @@ let panels = 0;
       .group {
         overflow-y: auto;
         scroll-padding: var(--space-scroll-gutter);
-        max-height: max(var(--more-window-min), calc(100vh - var(--more-reserve)));
-        max-height: max(var(--more-window-min), calc(100dvh - var(--more-reserve)));
+        max-height: max(var(--more-window-min), var(--more-max));
       }
       .items {
         padding-block-end: var(--space-scroll-gutter);
@@ -173,9 +171,19 @@ export class MoreToTry {
   private readonly live = inject(LiveState);
   private readonly allowance = inject(AllowanceState);
   private readonly injector = inject(Injector);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /** The items to show, in the order to show them. */
   readonly items = input.required<readonly MoreToTryItem[]>();
+
+  /** The least height, in px, of the chat's list that the panel's window leaves it (chatFloor). */
+  readonly floor = input.required<number>();
+
+  /** The room is too small for the panel: its window is as short as it may be and the chat is still under its floor (more-to-try-room.ts). */
+  readonly squeezed = output<void>();
+
+  /** Keeps the window's bound current while the panel is on the page (more-to-try-room.ts). */
+  private readonly room = keepRoom(this.host.nativeElement, this.floor, () => this.squeezed.emit());
 
   /** A control was pressed: the guide keeps the panel open. */
   readonly pressed = output<void>();

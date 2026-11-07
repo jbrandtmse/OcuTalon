@@ -464,7 +464,7 @@ describe('the width bands (Story 2.15)', () => {
       [],
     );
     const used = files.filter((one) => /^app\/.*\.ts$/.test(one.name) && /\$\{HEIGHT_QUERIES\./.test(one.code)).map((one) => one.name);
-    assert.deepEqual(used, ['app/approvals/approval-request-card.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try.ts']);
+    assert.deepEqual(used, ['app/approvals/approval-request-card.ts', 'app/guide/demo-guide.ts']);
   });
 
   it('has only the four queries of layout-view.ts as the width condition of an @media in app/ and styles/', () => {

@@ -1,4 +1,4 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal, untracked } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, signal, untracked } from '@angular/core';
 import { type Observable, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
@@ -27,7 +27,7 @@ import { TraceLink } from '../shared/trace-link';
 import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
 import { advance, followSelection, GUIDE_HIDDEN_FLAG, GUIDE_HIDDEN_KEY, GUIDE_SHOWN_FLAG, GUIDE_TEXTS, guideOf, guideView, telegramRowOf, type GuideSnapshot, type RunFormat } from './guide-view';
 import { MoreToTry } from './more-to-try';
-import { BREAK_FEED_BUTTON, itemsFor, MORE_TO_TRY_TEXTS } from './more-to-try-view';
+import { BREAK_FEED_BUTTON, chatFloor, inCompactBand, itemsFor, MORE_TO_TRY_TEXTS } from './more-to-try-view';
 
 /** The attribute that marks the elements that focus may need to find again: the prompt bar's parts, the Hide and Show buttons and the box's Do step 1. */
 const FOCUS_KEY = 'data-guide-focus';
@@ -104,7 +104,9 @@ const FOCUS_RULE: FocusRule = {
  * focuses the pending notification, and Open the trace is the run's trace link, which writes the trace_opened marker once a Visual Trace
  * tab opens. Once the server's view is finished the finish state
  * replaces the prompt bar: the exact lines, the run total, the two links, the "Other things to try" panel (app-more-to-try), the
- * "Try it yourself" row (app-try-it-row, a finish part for focus) and Run again, which writes the run_again marker. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
+ * "Try it yourself" row (app-try-it-row, a finish part for focus) and Run again, which writes the run_again marker. The panel starts open in
+ * the finish, except in the compact band (the viewport's height less the banners' is under 680px; the Planner, 2026-11-07), where it starts
+ * closed, and so where the room is too small for it even at its shortest window; the "More to try" link opens and closes it at any time. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
  * is marked done by a click. The Break the feed box sits at the right.
  *
  * While the session's message allowance is used up (Story 16.9; AllowanceState.active) a prompt whose action is Send is aria-disabled, not
@@ -211,7 +213,7 @@ const FOCUS_RULE: FocusRule = {
                   >
                 </p>
                 @if (panelShown()) {
-                  <app-more-to-try [id]="morePanelId" [items]="items()" (pressed)="chosen.set(true)" />
+                  <app-more-to-try [id]="morePanelId" [items]="items()" [floor]="floor()" (pressed)="chosen.set(true)" (squeezed)="squeezed.set(true)" />
                 }
                 <app-try-it-row data-guide-focus="tryIt" />
                 <app-server-button class="run-again" variant="secondary" [action]="runAgain" data-guide-focus="runAgain">{{ texts.runAgain }}</app-server-button>
@@ -257,7 +259,7 @@ const FOCUS_RULE: FocusRule = {
                 }
               </div>
               @if (panelShown()) {
-                <app-more-to-try [id]="morePanelId" [items]="items()" (pressed)="chosen.set(true)" />
+                <app-more-to-try [id]="morePanelId" [items]="items()" [floor]="floor()" (pressed)="chosen.set(true)" (squeezed)="squeezed.set(true)" />
               }
             }
           </div>
@@ -623,6 +625,7 @@ export class DemoGuide {
   private readonly injector = inject(Injector);
   private readonly popovers = inject(Popovers);
   private readonly layout = inject(Layout);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly texts = GUIDE_TEXTS;
   protected readonly trace = TRACE_TEXTS;
@@ -678,11 +681,24 @@ export class DemoGuide {
   /** True while the server's view is finished. */
   private readonly finished = computed(() => this.view()?.finished === true);
 
+  /** The viewport's height and the height of the banners above the guide, in px, as the page has them now. */
+  private readonly viewport = signal(window.innerHeight);
+  private readonly banners = signal(0);
+
+  /** True while the height left after the banners is under the compact band's edge (680px; the Planner, 2026-11-07). */
+  protected readonly compact = computed(() => inCompactBand(this.viewport(), this.banners()));
+
+  /** The least height of the chat's list that the open panel leaves it: 64px in the compact band, 160px above it. */
+  protected readonly floor = computed(() => chatFloor(this.compact()));
+
+  /** True when the room is too small for the panel even at its shortest window (more-to-try-room.ts); it is cleared when the viewport or the banners change, and at each new finish. */
+  protected readonly squeezed = signal(false);
+
   /** The user's choice for the panel: undefined until the user presses the link or one of its controls, and again after each new finish. */
   protected readonly chosen = signal<boolean | undefined>(undefined);
 
-  /** True while the panel shows: the user's choice, else open in the finish state and closed elsewhere. */
-  protected readonly moreOpen = computed(() => this.chosen() ?? this.finished());
+  /** True while the panel shows: the user's choice, else open in the finish state where the band and the room allow it, and closed elsewhere. */
+  protected readonly moreOpen = computed(() => this.chosen() ?? (this.finished() && !this.compact() && !this.squeezed()));
 
   /** True while the panel is on the page: it is open and the server lists an item to show. */
   protected readonly panelShown = computed(() => this.moreOpen() && this.items().length > 0);
@@ -690,6 +706,7 @@ export class DemoGuide {
   private last: GuideStatePayload | undefined;
 
   constructor() {
+    afterNextRender(() => this.watchRoom());
     effect(() => {
       const view = this.view();
       untracked(() => this.follow(view));
@@ -703,6 +720,30 @@ export class DemoGuide {
       this.hidden();
       untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, FOCUS_RULE));
     });
+  }
+
+  /** Keeps the viewport's height and the banners' height current: the band is decided on the space the banners leave. */
+  private watchRoom(): void {
+    const slot = this.host.nativeElement.parentElement?.querySelector<HTMLElement>(':scope > .banner-slot') ?? null;
+    const read = (): void => {
+      const [viewport, banners] = [window.innerHeight, slot?.offsetHeight ?? 0];
+      if (viewport !== this.viewport() || banners !== this.banners()) {
+        this.squeezed.set(false);
+      }
+      this.viewport.set(viewport);
+      this.banners.set(banners);
+    };
+    const observer = new ResizeObserver(read);
+    observer.observe(document.documentElement);
+    if (slot !== null) {
+      observer.observe(slot);
+    }
+    window.addEventListener('resize', read);
+    this.destroyRef.onDestroy(() => {
+      window.removeEventListener('resize', read);
+      observer.disconnect();
+    });
+    read();
   }
 
   /** The user selected a step: only the selection and the prompt change. */
@@ -771,6 +812,7 @@ export class DemoGuide {
   private follow(view: GuideStatePayload | undefined): void {
     if (view?.finished === true && this.last?.finished !== true) {
       this.chosen.set(undefined);
+      this.squeezed.set(false);
     }
     const said = advance(this.last, view);
     this.selected.set(followSelection(this.last, view, this.selected()));

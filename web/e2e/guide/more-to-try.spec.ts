@@ -24,20 +24,29 @@ import { blockLiveSocket } from '../support/socket';
  *   - K11: leaving the finish: a panel control that holds focus hands it to the box, the panel is closed outside the finish until the
  *     link opens it, a new finish opens it again, and a press in the finish keeps it open when the finish leaves;
  *   - K12, K13: items 2 and 3 reach the chip and the box in the drawer band (1100x720) and the stacked band (800x720);
- *   - K16: the panel open in the finish leaves the chat its room: no page scroll and a chat of at least 160px (64px in the compact
- *     height band, at drawer widths too) where the page fills the viewport, a window of at least the label line and one control, the
- *     panel a scroll region of its own in as many columns as fit, no text clipped, and each control that Tab reaches wholly in view with
- *     its focus ring; the stacked column grows with the panel and scrolls as a page;
+ *   - K16: the panel open in the finish leaves the chat its room: the finish starts with the panel open from 680px tall and closed under it
+ *     (the compact band; the link opens it), no page scroll and a chat of at least 160px (64px in the compact band, at drawer widths
+ *     too) where the page fills the viewport, a window of at least the label line and one control that takes all the room the chat
+ *     leaves above its floor unless it shows everything, the panel a scroll region of its own in as many columns as fit, no text
+ *     clipped, and each control that Tab reaches wholly in view with its focus ring; the stacked column grows with the panel and
+ *     scrolls as a page; every K16 page names its banner state (none), and K16b shows the no-model-key banner: the band is decided on the
+ *     height left after it (one pixel under 680px plus the banner starts the panel closed, exactly that starts it open);
  *   - K17: the same room, and the same Tab case, when the link opens the panel before the finish (the prompt bar's branch);
- *   - K19: with the panel closed the finish keeps the chat at least 64px and the page does not scroll, in the compact height band at
- *     drawer widths;
+ *   - K19: in the compact band the finish starts with the panel closed (the link says so) and the chat keeps at least 64px with no
+ *     page scroll, at drawer widths too; K19b: at 680px tall it starts open and the link closes it;
  *   - K20: the finish's own layout where the page is framed: row 1 above the finish and on one line without "About 2 minutes" (its
- *     link and Hide guide at its right end from 680px tall), and Run
- *     again at the end of the Try it yourself row from 1024 to 1279px, below it elsewhere;
- *   - K21: with the no-model-key banner shown (the cases above show none) the finish with the panel open has no sideways scroll at 1280x600
- *     and 320x700, no page scroll at 1280x600, and a chat taller than 0;
- *   - K22: at the narrow widths (305 to 480px) in the compact and the tall height band the page does not scroll sideways, with the guide
+ *     link and Hide guide at its right end from 680px tall), and Run again at the end of the Try it yourself row from 1024 to 1279px,
+ *     below it elsewhere;
+ *   - K21: with the no-model-key banner shown the finish with the panel open (the link opens it where the banner puts the page in the
+ *     compact band) has no sideways scroll at 1280x600, 1280x700 and 320x700, no page scroll when framed, and a chat at its floor;
+ *   - K22: at the narrow widths (305 to 480px, 320px at any height from 360 to 900px) the page does not scroll sideways, with the guide
  *     at step 1 (panel closed, then opened by the link) and in the finish;
+ *   - K23: with wider font metrics (a wide family and letter and word spacing) at 1280x680, 1280x600, 1024x680, 320x700 and with the
+ *     banner at the band's edge, the chat keeps its floor, the framed page does not scroll, and no page scrolls sideways; where the wider
+ *     text leaves no room for the panel it starts closed;
+ *   - K24: where the room is too small for the panel even at its shortest window (the case holds the panel's window at 900px by its own
+ *     style) the finish closes the panel, and the link says so; the squeeze holds until the viewport's height changes (then the panel
+ *     opens by itself) or a new finish begins (then it opens again);
  *   - K18: a focused panel group hands focus on when the finish leaves;
  *   - K14 (matrix 5, error): item 1 focuses the Persona heading when the card has not loaded;
  *   - K15 (matrix 6, error): item 2 sends nothing while the email limit holds, and focuses the inactive chip.
@@ -147,14 +156,21 @@ async function keepRoutedGuide(page: Page): Promise<void> {
 
 /**
  * Signs in with the guide that the case names, kept against the live polls, and waits for the loaded page. A second page of a case
- * (`again`) shares the first page's sign-in and only loads the page. The page's statuses are exactly the ones `change` adds
- * (none for most cases, K9's allowance), whatever the stack's key state is: a banner is above the guide and takes the chat's height.
+ * (`again`) shares the first page's sign-in and only loads the page. The page's statuses are exactly the ones `change` adds (none for
+ * most cases, K9's allowance) and, when `banner` is true, the no-model-key condition, whatever the stack's key state is: a banner is
+ * above the guide and takes the chat's height, so a case names whether its page shows one.
  */
-async function openWith(page: Page, view: Record<string, unknown>, change?: (snapshot: Record<string, unknown>) => void, again = false): Promise<void> {
+async function openWith(
+  page: Page,
+  view: Record<string, unknown>,
+  change?: (snapshot: Record<string, unknown>) => void,
+  again = false,
+  banner = false,
+): Promise<void> {
   await keepRoutedGuide(page);
   await changeSnapshot(page, (snapshot) => {
     snapshot['guide'] = view;
-    snapshot['status'] = [];
+    snapshot['status'] = banner ? [{ condition: 'noModelKey', active: true }] : [];
     change?.(snapshot);
   });
   if (again) {
@@ -163,7 +179,7 @@ async function openWith(page: Page, view: Record<string, unknown>, change?: (sna
     await signInReadmeLoaded(page);
   }
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
-  await expect(page.locator('app-banner-stack [data-banner="noModelKey"]'), 'the page shows no no-model-key banner').toHaveCount(0);
+  await expect(page.locator('app-banner-stack [data-banner="noModelKey"]'), banner ? 'the page shows the no-model-key banner' : 'the page shows no no-model-key banner').toHaveCount(banner ? 1 : 0);
 }
 
 /** Records the POSTs of the page whose path ends with the suffix. */
@@ -209,6 +225,8 @@ test('K1: the panel shows exactly the items for the server\'s guide.features', a
 
 /** K2 (routed finish, four ids): the panel is open in the finish, after the links and before Try it yourself, with items 1 to 4. */
 test('K2: in the finish the panel is open after the links and before Try it yourself, with items 1 to 4 and nothing sent', async ({ page }) => {
+  // These cases are about the panel's items, not its room: a tall viewport leaves the finish its panel whatever the page's fonts.
+  await page.setViewportSize({ width: 1280, height: 900 });
   const posts = [watchPosts(page, '/messages'), watchPosts(page, '/break-feed'), watchPosts(page, '/suspicious-request')];
   await openWith(page, finished(FOUR));
 
@@ -245,6 +263,8 @@ test('K2: in the finish the panel is open after the links and before Try it your
 
 /** K3 (routed finish, seven ids): seven items in order, the Documents link and the Heartbeat checklist heading focused by item 7. */
 test('K3: seven ids show seven items in order, item 6 is a link to the Documents page and item 7 focuses the Heartbeat checklist heading', async ({ page }) => {
+  // These cases are about the panel's items, not its room: a tall viewport leaves the finish its panel whatever the page's fonts.
+  await page.setViewportSize({ width: 1280, height: 900 });
   await openWith(page, finished(SEVEN));
   const panel = panelOf(page);
   await expect(panel.locator('.item-label')).toHaveText(SEVEN.map((id) => ITEMS[id]!.label));
@@ -386,6 +406,8 @@ test('K6: item 2 selects the Simulated mailbox tab, sends the chip\'s own POST o
 
 /** K7 (item 3): a press presses the box's Break the feed once; an inactive box does nothing and keeps the focus, described by its hint. */
 test('K7: item 3 presses the box\'s Break the feed once, and does nothing while the box is inactive', async ({ page, context }) => {
+  // These cases are about the panel's items, not its room: a tall viewport leaves the finish its panel whatever the page's fonts.
+  await page.setViewportSize({ width: 1280, height: 900 });
   const posts = watchPosts(page, '/demo/break-feed');
   await page.route(BREAK_FEED, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ state: 'sent', startedAt: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z') }) }),
@@ -414,6 +436,8 @@ test('K7: item 3 presses the box\'s Break the feed once, and does nothing while 
 
 /** K8 (item 4): the switch turns off and holds focus; the demo parts go; nothing is sent. */
 test('K8: item 4 turns the Demo view switch off with focus on it, hides the demo parts and sends nothing', async ({ page }) => {
+  // These cases are about the panel's items, not its room: a tall viewport leaves the finish its panel whatever the page's fonts.
+  await page.setViewportSize({ width: 1280, height: 900 });
   await openWith(page, finished(FOUR));
   const writes: string[] = [];
   page.on('request', (request) => {
@@ -455,6 +479,8 @@ test('K9: item 5 sends its prompt once as the user\'s own message, and sends not
   expect(bodies, 'and a second press sends nothing').toHaveLength(1);
 
   const used = await context.newPage();
+  // The allowance banner above the guide takes height, and a viewport that leaves under 680px after it starts the panel closed.
+  await used.setViewportSize({ width: 1280, height: 900 });
   const usedBodies: unknown[] = [];
   await used.route(`**${MESSAGES}`, async (route: Route) => {
     usedBodies.push(route.request().postData());
@@ -538,6 +564,8 @@ async function guidePushes(page: Page): Promise<(view: Record<string, unknown>) 
 
 /** K11: when the finish leaves, the panel's focus and open state follow the rule; a new finish opens it again. */
 test('K11: leaving the finish hands focus on, closes the panel unless a press kept it open, and a new finish opens it again', async ({ page }) => {
+  // The stack's own banner takes height, and a viewport that leaves under 680px after it starts the panel closed: this case is about the open one.
+  await page.setViewportSize({ width: 1280, height: 900 });
   const posts = watchPosts(page, '/demo/break-feed');
   await page.route(BREAK_FEED, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ state: 'sent', startedAt: iso(Date.now()) }) }),
@@ -666,9 +694,49 @@ const RUN = { decisions: 2, tokens: 9850, costUSD: 0.0041, models: ['Claude Haik
 const RUN_TOTAL = 'This run: 2 decisions \u00B7 9,850 tokens \u00B7 $0.0041 on Claude Haiku 5.5.';
 
 /** Opens the routed real finish (the four ids, Break the feed active, the run total) and checks that the run total is on the page. */
-async function openRealFinish(page: Page): Promise<void> {
-  await openWith(page, finished(FOUR, { breakFeed: { active: true }, run: RUN }));
+async function openRealFinish(page: Page, banner = false): Promise<void> {
+  await openWith(page, finished(FOUR, { breakFeed: { active: true }, run: RUN }), undefined, false, banner);
   await expect(page.locator('app-demo-guide .finish .run-total'), 'the finish carries the run total').toHaveText(RUN_TOTAL);
+}
+
+/** The height of the banners above the guide, as the page has it now. */
+const bannersOf = (page: Page): Promise<number> => page.locator('.banner-slot').evaluate((slot) => (slot as HTMLElement).offsetHeight);
+
+/** The height left after the banners is under 680px: the compact band, where the panel starts closed in the finish. */
+async function compactOf(page: Page): Promise<boolean> {
+  return (await page.evaluate(() => window.innerHeight)) - (await bannersOf(page)) < 680;
+}
+
+/**
+ * Opens the panel with the link when the finish started it closed; asserts the state each way. With `edge` set (a size just over the
+ * compact band's edge, where the page's fonts decide whether the panel fits) a panel that the finish started closed because the room is
+ * too small for it even at its shortest window is left closed with the link saying so, and the answer is false: the caller then holds the
+ * chat to its floor with the panel closed.
+ */
+async function openPanel(page: Page, compact: boolean, edge = false): Promise<boolean> {
+  if (compact) {
+    await expect(panelOf(page), 'the compact band starts the panel closed').toHaveCount(0);
+    await expect(linkOf(page), 'and the link says so').toHaveAttribute('aria-expanded', 'false');
+    await linkOf(page).click();
+  } else if (edge) {
+    await settledChat(page);
+    if ((await panelOf(page).count()) === 0) {
+      await expect(linkOf(page), 'the panel the room cannot hold starts closed, and the link says so').toHaveAttribute('aria-expanded', 'false');
+      return false;
+    }
+  }
+  await expect(panelOf(page), 'the panel is open').toBeVisible();
+  await expect(linkOf(page), 'and the link says so').toHaveAttribute('aria-expanded', 'true');
+  return true;
+}
+
+/** Holds a size whose panel started closed for lack of room to the chat's floor and to a page that does not scroll as a whole. */
+async function expectClosedHolds(page: Page, at: string, floor: number): Promise<void> {
+  const room = await settledChat(page);
+  test.info().annotations.push({ type: 'squeezed', description: `${at} the panel started closed: chat=${room.chat} page scroll=${room.page}` });
+  console.log(`squeezed ${at} chat=${room.chat} page scroll=${room.page}`);
+  expect(room.chat, `${at}: the chat's list keeps its floor with the panel closed`).toBeGreaterThanOrEqual(floor);
+  expect(room.page, `${at}: and the page does not scroll as a whole`).toBeLessThanOrEqual(1);
 }
 
 /**
@@ -807,7 +875,7 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
     if (size.window > 0) {
       expect(room.window, `${at}: and uses the room the viewport leaves it`).toBeGreaterThanOrEqual(size.window);
     }
-    expect(room.holds, `${at}: it holds more than its window shows`).toBeGreaterThan(0);
+    expect(room.holds <= 1 || room.chat < size.chat + 4, `${at}: its window takes all the room above the chat's floor, unless it shows everything`).toBe(true);
     expect(room.columns, `${at}: the items are in as many columns as fit, each at least 20rem wide`).toBe(Math.min(FOUR.length, Math.max(1, Math.floor((room.width - 8 + 16) / (320 + 16)))));
   } else {
     expect(room.overflowY, `${at}: the stacked panel is no scroller of its own`).toBe('visible');
@@ -824,6 +892,7 @@ function expectRoom(room: Room, size: { width: number; height: number; chat: num
  */
 async function expectTabInView(page: Page, at: string): Promise<void> {
   await panelOf(page).focus();
+  const scrolls = await panelOf(page).evaluate((node) => node.scrollHeight - node.clientHeight > 1);
   for (const id of FOUR) {
     await page.keyboard.press('Tab');
     await expect(controlOf(page, id), `${at}: Tab reaches ${id}`).toBeFocused();
@@ -843,19 +912,25 @@ async function expectTabInView(page: Page, at: string): Promise<void> {
     expect(inView.overlap, `${at}: ${id} is wholly in view in the panel`).toBeGreaterThanOrEqual(inView.height - 1);
     expect(inView.ringOut, `${at}: and so is its focus ring`).toBeLessThanOrEqual(1);
   }
-  expect(await panelOf(page).evaluate((node) => node.scrollTop), `${at}: the panel scrolled to bring the last control into view`).toBeGreaterThan(0);
+  if (scrolls) {
+    expect(await panelOf(page).evaluate((node) => node.scrollTop), `${at}: the panel scrolled to bring the last control into view`).toBeGreaterThan(0);
+  }
 }
 
 for (const size of [...ROOM, ...FINISH_ROOM]) {
   const { band, width, height, chat } = size;
   /**
-   * K16 (the panel's room): the routed finish with the four ids, the panel open by default. The measurements are recorded as an annotation
-   * and one log line. The panel is a Tab stop named "Other things to try" where it scrolls.
+   * K16 (the panel's room): the routed finish with the four ids and no banner. The panel is open by default from 680px tall and starts
+   * closed under it (the compact band), where the link opens it. The measurements are recorded as an annotation and one log line. The
+   * panel is a Tab stop named "Other things to try" where it scrolls.
    */
   test(`K16: in the ${band} band (${width}x${height}) the open panel leaves the chat at least ${chat}px and the page does not scroll`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await openRealFinish(page);
-    await expect(panelOf(page), 'the panel is open in the finish').toBeVisible();
+    if (!(await openPanel(page, height < 680, size.framed && height >= 680 && height < 760))) {
+      await expectClosedHolds(page, `${width}x${height}`, chat);
+      return;
+    }
     if (size.framed) {
       await expect(panelOf(page), 'it is a Tab stop').toHaveAttribute('tabindex', '0');
     }
@@ -867,6 +942,44 @@ for (const size of [...ROOM, ...FINISH_ROOM]) {
     if (size.framed) {
       await expectTabInView(page, `${width}x${height}`);
     }
+  });
+}
+
+/**
+ * The sizes at which the banner decides the band: with the no-model-key banner showing, the band starts as high as the banner is tall.
+ * `edge` is 'under' for a viewport one pixel under 680px plus the banner (the compact band: the panel starts closed, the floor is 64px)
+ * and 'at' for exactly 680px plus the banner (the panel starts open, the floor is 160px). The height is read from the page's banner.
+ */
+const BANNER_ROOM = [
+  { width: 1280, edge: 'under' },
+  { width: 1280, edge: 'at' },
+  { width: 1024, edge: 'under' },
+  { width: 1024, edge: 'at' },
+  { width: 1440, edge: 'at' },
+] as const;
+
+for (const { width, edge } of BANNER_ROOM) {
+  /** K16b: the band follows the height left after the banner; the floors hold with the banner showing. */
+  test(`K16b: with the no-model-key banner shown, ${width}px wide, a viewport ${edge === 'under' ? 'one pixel under' : 'exactly at'} 680px plus the banner ${edge === 'under' ? 'starts the panel closed and' : 'starts it open and'} the chat keeps its floor`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await openRealFinish(page, true);
+    const banner = await bannersOf(page);
+    expect(banner, 'the banner takes height').toBeGreaterThan(0);
+    const height = 680 + banner - (edge === 'under' ? 1 : 0);
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => document.fonts.ready.then(() => true));
+    expect(await compactOf(page), 'the band is decided on the height left after the banner').toBe(edge === 'under');
+    const floor = edge === 'under' ? 64 : 160;
+    if (!(await openPanel(page, edge === 'under', edge === 'at'))) {
+      await expectClosedHolds(page, `${width}x${height} banner ${banner}`, floor);
+      return;
+    }
+    const room = await settledRoom(page);
+    const record = `${width}x${height} banner=${banner} chat=${room.chat} window=${room.window} page scroll=${room.page}`;
+    test.info().annotations.push({ type: 'K16b', description: record });
+    console.log(`K16b ${record}`);
+    expectRoom(room, { width, height, chat: floor, window: 0, framed: true });
+    await expectTabInView(page, `${width}x${height} with the banner`);
   });
 }
 
@@ -889,6 +1002,7 @@ for (const size of ROOM.filter((one) => one.framed)) {
 
 /** K18: the panel's scrolling group holds focus when the finish leaves; focus goes to the box, as for a control, and not to the body. */
 test('K18: a focused panel group hands focus to the box when the finish leaves', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
   await blockLiveSocket(page);
   const push = await guidePushes(page);
   await changeSnapshot(page, (snapshot) => {
@@ -926,25 +1040,39 @@ async function settledChat(page: Page): Promise<{ chat: number; page: number }> 
 }
 
 /**
- * K19: the finish with its panel closed leaves the chat at least 64px and the page does not scroll, in the compact height band at drawer
- * widths, where the finish takes the guide's whole width under row 1 and Run again sits beside the Try it yourself row.
+ * K19: in the compact height band the finish starts with its panel closed (the Planner, 2026-11-07), and then it leaves the chat at least
+ * 64px and the page does not scroll, at drawer widths too, where the finish takes the guide's whole width under row 1 and Run again sits
+ * beside the Try it yourself row. The link opens the panel, and the room case K16 measures it.
  */
 for (const [width, height] of [
   [1024, 600],
   [1100, 650],
+  [1024, 679],
+  [1280, 590],
+  [1280, 600],
 ] as const) {
-  test(`K19: with the panel closed the finish keeps the chat at least 64px and the page does not scroll (${width}x${height})`, async ({ page }) => {
+  test(`K19: the compact band starts the finish with the panel closed, and the chat keeps at least 64px with no page scroll (${width}x${height})`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await openRealFinish(page);
-    await expect(panelOf(page), 'the panel is open in the finish').toBeVisible();
-    await linkOf(page).click();
-    await expect(panelOf(page), 'the link closes it').toHaveCount(0);
+    await expect(panelOf(page), 'the panel starts closed').toHaveCount(0);
+    await expect(linkOf(page), 'and the link says so').toHaveAttribute('aria-expanded', 'false');
     const room = await settledChat(page);
     test.info().annotations.push({ type: 'K19', description: `${width}x${height} chat=${room.chat} page scroll=${room.page}` });
     expect(room.chat, `${width}x${height}: the chat's list keeps its height`).toBeGreaterThanOrEqual(64);
     expect(room.page, `${width}x${height}: the page does not scroll as a whole`).toBeLessThanOrEqual(1);
   });
 }
+
+/** K19b: from 680px tall (no banner) the finish starts with the panel open, and the link closes it. */
+test('K19b: at 680px tall the finish starts with the panel open, aria-expanded true, and the link closes it', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 680 });
+  await openRealFinish(page);
+  await expect(panelOf(page), 'the panel starts open').toBeVisible();
+  await expect(linkOf(page)).toHaveAttribute('aria-expanded', 'true');
+  await linkOf(page).click();
+  await expect(panelOf(page), 'the link closes it').toHaveCount(0);
+  await expect(linkOf(page)).toHaveAttribute('aria-expanded', 'false');
+});
 
 /**
  * K20: the finish's own layout where the page fills the viewport. Row 1 is above the finish, starts at its left edge and takes one line
@@ -964,7 +1092,7 @@ for (const [width, height] of [
   test(`K20: the finish has row 1 above it and Run again ${drawer ? 'beside' : 'below'} Try it yourself (${width}x${height})`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await openRealFinish(page);
-    await expect(panelOf(page), 'the panel is open in the finish').toBeVisible();
+    await expect(guideRegion(page).locator('.finish'), 'the finish shows').toBeVisible();
     await page.evaluate(() => document.fonts.ready.then(() => true));
     const at = `${width}x${height}`;
     const read = () =>
@@ -1015,48 +1143,50 @@ for (const [width, height] of [
 }
 
 /**
- * K21: the status banner "OcuTalon has no model key..." sits above the guide on a stack without a key. Every room case routes it off; this
- * one routes it on and asks only what must hold whatever is above the guide: with the panel open in the finish the page does not scroll
- * sideways, the framed page does not scroll as a whole, and the chat keeps some height.
+ * K21: the status banner "OcuTalon has no model key..." sits above the guide on a stack without a key. Most room cases route it off; this
+ * one routes it on and asks what must hold whatever is above the guide: with the panel open in the finish (the link opens it where the
+ * banner puts the page in the compact band) the page does not scroll sideways, the framed page does not scroll as a whole, and the chat
+ * keeps its floor (64px in the band, 160px above it).
  */
 for (const [width, height] of [
   [1280, 600],
+  [1280, 700],
   [320, 700],
 ] as const) {
-  test(`K21: with the no-model-key banner shown the open panel leaves no sideways scroll and the chat some height (${width}x${height})`, async ({ page }) => {
+  test(`K21: with the no-model-key banner shown the open panel leaves no sideways scroll and the chat its floor (${width}x${height})`, async ({ page }) => {
     await page.setViewportSize({ width, height });
-    await keepRoutedGuide(page);
-    await changeSnapshot(page, (snapshot) => {
-      snapshot['guide'] = finished(FOUR, { breakFeed: { active: true }, run: RUN });
-      snapshot['status'] = [{ condition: 'noModelKey', active: true }];
-    });
-    await signInReadmeLoaded(page);
-    await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
-    await expect(page.locator('app-banner-stack [data-banner="noModelKey"]'), 'the no-key banner is shown').toBeVisible();
-    await expect(panelOf(page), 'the panel is open in the finish').toBeVisible();
+    await openRealFinish(page, true);
+    await openPanel(page, await compactOf(page));
+    const floor = (await compactOf(page)) ? 64 : 160;
     const room = await settledRoom(page);
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     test.info().annotations.push({ type: 'K21', description: `${width}x${height} chat=${room.chat} page scroll=${room.page} sideways=${sideways}` });
     expect(sideways, `${width}x${height}: the page does not scroll sideways`).toBeLessThanOrEqual(0);
     expect(room.sideways, `${width}x${height}: nothing in the panel reaches past its own width`).toBeLessThanOrEqual(1);
     expect(room.overflowX, `${width}x${height}: the panel stays within the page's width`).toBeLessThanOrEqual(1);
-    expect(room.chat, `${width}x${height}: the chat's list keeps some height`).toBeGreaterThan(0);
     if (width >= 1024) {
+      expect(room.chat, `${width}x${height}: the chat's list keeps its floor`).toBeGreaterThanOrEqual(floor);
       expect(room.page, `${width}x${height}: the framed page does not scroll as a whole`).toBeLessThanOrEqual(1);
+    } else {
+      expect(room.chat, `${width}x${height}: the chat's list keeps some height`).toBeGreaterThan(0);
     }
   });
 }
 
 /**
- * K22: nothing of the guide widens the page at the narrow widths, in the compact height band (360px) and the tall band (700px): row 1
+ * K22: nothing of the guide widens the page at the narrow widths (no sideways scroll at 320px wide at any height), in the compact height band
+ * (360 to 679px) and above it (700 and 900px): row 1
  * with the "More to try" link, the prompt bar's Send button and the finish. A viewport of 305px is the narrowest page (320px less a
- * classic scrollbar). The guide at step 1 is measured closed and with the link's panel open; the finish with its panel open.
+ * classic scrollbar). The guide at step 1 is measured closed and with the link's panel open; the finish with its panel open (the link opens it in the compact band).
  */
 for (const [width, height] of [
   [320, 360],
   [305, 360],
   [480, 360],
+  [320, 500],
+  [320, 679],
   [320, 700],
+  [320, 900],
   [305, 700],
 ] as const) {
   for (const view of ['step 1', 'finish'] as const) {
@@ -1076,7 +1206,7 @@ for (const [width, height] of [
         expect(await sideways(), `${width}x${height} step 1: the page does not scroll sideways`).toBeLessThanOrEqual(0);
         await linkOf(page).click();
       }
-      await expect(panelOf(page), 'the panel is open').toBeVisible();
+      await openPanel(page, view === 'finish' && height < 680);
       const room = await settledRoom(page);
       expect(await sideways(), `${width}x${height} ${view}, panel open: the page does not scroll sideways`).toBeLessThanOrEqual(0);
       expect(room.sideways, `${width}x${height} ${view}: nothing in the panel reaches past its own width`).toBeLessThanOrEqual(1);
@@ -1084,3 +1214,135 @@ for (const [width, height] of [
     });
   }
 }
+
+/**
+ * A stylesheet that makes the page's text wider than the fonts the project ships: a wide family where the machine has one and letter and
+ * word spacing everywhere, so that it widens the text on a machine with no such family. The layout must not depend on the metrics of the
+ * machine that measured it (the CI runner's Linux fonts are wider than a developer machine's).
+ */
+const WIDE_TEXT = '*, *::before, *::after { font-family: Verdana, "DejaVu Sans", Geneva, sans-serif !important; letter-spacing: 0.04em !important; word-spacing: 0.1em !important; }';
+
+/**
+ * K23: the layout holds with wider font metrics. With the wide text applied, at 1280x680, 1280x600, 1024x680 and 320x700 (and with the
+ * no-model-key banner at 1280 wide, one pixel under and at the band's edge): the finish's panel is open from the band's edge up and closed
+ * under it, the chat keeps its floor (64px in the compact band, 160px from the edge) with the panel as the page starts it and with it
+ * opened, the framed page does not scroll as a whole, and no page scrolls sideways.
+ */
+for (const { width, height, banner } of [
+  { width: 1280, height: 680, banner: undefined },
+  { width: 1280, height: 600, banner: undefined },
+  { width: 1024, height: 680, banner: undefined },
+  { width: 320, height: 700, banner: undefined },
+  { width: 1280, height: 719, banner: 'under' },
+  { width: 1280, height: 720, banner: 'at' },
+] as const) {
+  test(`K23: with wider font metrics${banner === undefined ? '' : ` and the banner (${banner})`} the chat keeps its floor, the page does not scroll and nothing widens it (${width}x${height})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await openRealFinish(page, banner !== undefined);
+    if (banner !== undefined) {
+      const edge = 680 + (await bannersOf(page)) - (banner === 'under' ? 1 : 0);
+      await page.setViewportSize({ width, height: edge });
+    }
+    const measure = (): Promise<{ chat: number; page: number; sideways: number }> =>
+      page.evaluate(() => ({
+        chat: document.querySelector('app-chat-panel .list')!.getBoundingClientRect().height,
+        page: document.scrollingElement!.scrollHeight - document.scrollingElement!.clientHeight,
+        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      }));
+    const linkWidth = (): Promise<number> => linkOf(page).evaluate((node) => node.getBoundingClientRect().width);
+    const before = await linkWidth();
+    await page.addStyleTag({ content: WIDE_TEXT });
+    await page.evaluate(() => document.fonts.ready.then(() => true));
+    await expect.poll(linkWidth, { message: 'the text got wider' }).toBeGreaterThan(before * 1.05);
+    if (banner !== undefined) {
+      // The wider text may wrap the banner: the edge is the band's edge for the banner as the page has it now.
+      await page.setViewportSize({ width, height: 680 + (await bannersOf(page)) - (banner === 'under' ? 1 : 0) });
+      await page.evaluate(() => document.fonts.ready.then(() => true));
+    }
+    const at = `${width}x${height}${banner === undefined ? '' : ` banner ${banner}`}`;
+    const compact = await compactOf(page);
+    const floor = compact ? 64 : 160;
+    const framed = width >= 1024;
+    const expectHolds = async (state: string): Promise<void> => {
+      if (framed) {
+        await expect.poll(async () => (await measure()).chat, { message: `${at} ${state}: the chat's list reaches its floor` }).toBeGreaterThanOrEqual(floor);
+      }
+      const room = await settledChat(page);
+      const seen = await measure();
+      test.info().annotations.push({ type: 'K23', description: `${at} ${state} chat=${room.chat} page scroll=${room.page} sideways=${seen.sideways}` });
+      console.log(`K23 ${at} ${state} chat=${room.chat} page scroll=${room.page} sideways=${seen.sideways}`);
+      expect(seen.sideways, `${at} ${state}: the page does not scroll sideways`).toBeLessThanOrEqual(0);
+      if (framed) {
+        expect(room.chat, `${at} ${state}: the chat's list keeps its floor`).toBeGreaterThanOrEqual(floor);
+        expect(room.page, `${at} ${state}: the page does not scroll as a whole`).toBeLessThanOrEqual(1);
+      } else {
+        expect(room.chat, `${at} ${state}: the chat's list keeps some height`).toBeGreaterThan(0);
+      }
+    };
+    if (compact) {
+      await expectHolds('panel closed');
+      await openPanel(page, true);
+      await expectHolds('panel opened by the link');
+    } else {
+      // From the band's edge up the panel starts open; where the wider text leaves no room for it even at its shortest window it starts closed instead.
+      await expectHolds('panel as the page starts it');
+      if ((await panelOf(page).count()) === 0) {
+        await expect(linkOf(page), 'the closed panel is the link\'s state').toHaveAttribute('aria-expanded', 'false');
+        await linkOf(page).click();
+      }
+      await expect(panelOf(page), 'and the link opens it').toBeVisible();
+    }
+  });
+}
+
+/** The case's own squeeze: a panel window that cannot get shorter than 900px, so no bound leaves the chat's list its 160px floor. */
+const SQUEEZE = 'app-more-to-try .group { min-height: 900px !important; }';
+
+/** Waits until the panel is gone, asking the page to measure again (a resize) at each try: the page measures a frame after a change. */
+async function expectSqueezed(page: Page, message: string): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+        return panelOf(page).count();
+      },
+      { message },
+    )
+    .toBe(0);
+}
+
+/**
+ * K24: the squeeze is ended by a taller viewport and by a new finish. The case makes the squeeze itself (it does not depend on the
+ * fonts of the machine): the panel the finish opened closes, and stays closed after the squeeze is gone until the viewport's height
+ * changes, which opens it; a second squeeze is ended by the next finish.
+ */
+test('K24: a panel the room cannot hold closes, and a taller viewport or a new finish lets it open again', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await blockLiveSocket(page);
+  const push = await guidePushes(page);
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['guide'] = finished(FOUR, { breakFeed: { active: true } });
+    snapshot['status'] = [];
+  });
+  await signInReadmeLoaded(page);
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await expect(panelOf(page), 'the finish opens the panel where the room holds it').toBeVisible();
+  const chatHeight = (): Promise<number> => page.evaluate(() => document.querySelector('app-chat-panel .list')!.getBoundingClientRect().height);
+
+  const squeeze = await page.addStyleTag({ content: SQUEEZE });
+  await expectSqueezed(page, 'the panel the room cannot hold closes');
+  await expect(linkOf(page), 'and the link says so').toHaveAttribute('aria-expanded', 'false');
+  await squeeze.evaluate((node) => (node as Element).remove());
+  await expect.poll(chatHeight, { message: 'the chat has its room again' }).toBeGreaterThanOrEqual(160);
+  await expect.soft(panelOf(page), 'the squeeze holds until the viewport or a new finish changes it').toHaveCount(0);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect.soft(panelOf(page), 'a viewport of another height lets the panel open by itself').toBeVisible();
+
+  const again = await page.addStyleTag({ content: SQUEEZE });
+  await expectSqueezed(page, 'a second squeeze closes it again');
+  await again.evaluate((node) => (node as Element).remove());
+  await expect.poll(chatHeight, { message: 'the chat has its room again' }).toBeGreaterThanOrEqual(160);
+  await push(guide(FOUR, { step: 3, breakFeed: { active: true } }));
+  await push(finished(FOUR, { breakFeed: { active: true } }));
+  await expect.soft(panelOf(page), 'a new finish opens the panel again').toBeVisible();
+});

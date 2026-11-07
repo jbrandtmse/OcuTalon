@@ -11,7 +11,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { BREAK_FEED_BUTTON, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, itemsFor } = await import(app('guide', 'more-to-try-view.ts'));
+const { BREAK_FEED_BUTTON, CHAT_FLOOR, COMPACT_BAND_HEIGHT, MORE_TO_TRY_ITEMS, MORE_TO_TRY_TEXTS, chatFloor, inCompactBand, itemsFor, windowBound } = await import(app('guide', 'more-to-try-view.ts'));
+const { HEIGHT_QUERIES } = await import(app('shared', 'layout-view.ts'));
 const { RAIL_TEXTS } = await import(app('rail', 'rail-view.ts'));
 const { HEARTBEAT_HEADING_ID, HEARTBEAT_TEXTS } = await import(app('rail', 'heartbeat-card', 'heartbeat-card-view.ts'));
 const { PERSONA_TEXTS, PRESETS } = await import(app('rail', 'persona-card', 'persona-card-view.ts'));
@@ -227,5 +228,35 @@ describe('(e) no control text contains the name of an existing control', () => {
   it('holds "Send" in exactly one control text: "Send the suspicious email", which the ruling fixed', () => {
     const holding = MORE_TO_TRY_ITEMS.filter((item) => /\bsend\b/i.test(item.button)).map((item) => item.button);
     assert.deepEqual(holding, ['Send the suspicious email']);
+  });
+});
+
+describe('(f) the panel\'s room: the compact band is decided on the height left after the banners (the Planner, 2026-11-07)', () => {
+  it('has the band\'s edge at the height query\'s 680px', () => {
+    assert.equal(COMPACT_BAND_HEIGHT, 680);
+    assert.equal(HEIGHT_QUERIES.compact, `(height < ${COMPACT_BAND_HEIGHT}px)`);
+  });
+
+  it('puts the page in the band when the viewport less the banners is under 680px, so a banner moves the edge up by its height', () => {
+    assert.equal(inCompactBand(679, 0), true);
+    assert.equal(inCompactBand(680, 0), false);
+    assert.equal(inCompactBand(720, 40), false, '720 less a 40px banner leaves 680');
+    assert.equal(inCompactBand(719, 40), true);
+    assert.equal(inCompactBand(700, 40), true, 'the same viewport is above the band without the banner');
+    assert.equal(inCompactBand(700, 0), false);
+    assert.equal(inCompactBand(1080, 40), false);
+  });
+
+  it('floors the chat\'s list at 64px in the band and 160px above it', () => {
+    assert.deepEqual({ ...CHAT_FLOOR }, { compact: 64, tall: 160 });
+    assert.equal(chatFloor(true), 64);
+    assert.equal(chatFloor(false), 160);
+  });
+
+  it('bounds the window by its height now plus the list\'s height above the floor, in whole pixels, and lowers it when the list is under the floor', () => {
+    assert.equal(windowBound(100, 160, 160), 100, 'a list at its floor keeps the window');
+    assert.equal(windowBound(100, 200.6, 160), 140, 'room above the floor goes to the window');
+    assert.equal(windowBound(100, 130, 160), 70, 'a list under the floor takes from the window');
+    assert.equal(windowBound(55, 64, 64), 55);
   });
 });

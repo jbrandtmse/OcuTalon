@@ -50,6 +50,7 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.equal(count(code, /\(click\)=/g), 2, 'each control has a click and nothing else acts');
     assert.equal(count(code, /\(click\)="press\(item\)"/g), 1, 'the one button presses');
     assert.doesNotMatch(code, /\bconstructor\s*\(|ngOnInit|ngAfterViewInit|\beffect\(/, 'nothing runs at creation');
+    assert.doesNotMatch(file('guide/more-to-try-room.ts').code, /\.focus\(|\.click\(|\.send\(|\bApiClient\b|\bAnnouncer\b/, 'the room measurement acts on nothing');
   });
 
   it('names no aria-label and no icon on a control, and no heading', () => {
@@ -64,13 +65,21 @@ describe('the panel (more-to-try.ts and more-to-try-view.ts)', () => {
     assert.equal(count(code, /data-guide-focus="moreItem"/g), 3, 'the group and the two kinds of control');
   });
 
-  it('is bounded where the page fills the viewport: its own vertical scroll, with the height left by the viewport minus a reserve', () => {
+  it('is bounded where the page fills the viewport: its own vertical scroll, with the room that the chat leaves above its floor', () => {
     const framed = /@media \$\{LAYOUT_QUERIES\.framed\} \{\s*:host \{[^}]*\}\s*\.group \{([^}]*)\}/.exec(code);
     assert.ok(framed, 'the bound sits under the framed width query');
     assert.match(framed[1], /overflow-y:\s*auto/);
-    assert.match(framed[1], /max-height:\s*max\(var\(--more-window-min\), calc\(100vh - var\(--more-reserve\)\)\)/);
-    assert.match(framed[1], /max-height:\s*max\(var\(--more-window-min\), calc\(100dvh - var\(--more-reserve\)\)\)/);
-    assert.match(code, /@media \$\{HEIGHT_QUERIES\.compact\} and \$\{LAYOUT_QUERIES\.framed\} \{\s*:host \{\s*--more-reserve:/, 'the compact height band has its own reserve');
+    assert.match(framed[1], /max-height:\s*max\(var\(--more-window-min\), var\(--more-max\)\)/, 'the window is the measured bound, never under the label line and one control');
+    assert.match(code, /:host \{[^}]*--more-max:\s*calc\(100dvh - var\(--more-reserve\)\)/, 'a viewport-based bound stands in until the first measurement');
+    assert.match(code, /private readonly room = keepRoom\(this\.host\.nativeElement, this\.floor, \(\) => this\.squeezed\.emit\(\)\);/, 'the component keeps the bound current');
+    const room = file('guide/more-to-try-room.ts').code;
+    assert.match(room, /windowBound\(group\.getBoundingClientRect\(\)\.height, chat, floor\(\)\)/, 'from the panel and the chat list as they are');
+    assert.match(room, /host\.style\.setProperty\(MAX_PROPERTY, `\$\{bound\}px`\)/);
+    assert.match(room, /const chat = list\.getBoundingClientRect\(\)\.height;/);
+    assert.match(room, /chat < floor\(\) - 1 && getComputedStyle\(group\)\.overflowY === 'auto'/, 'the room is too small only where the panel scrolls on its own');
+    assert.match(room, /new ResizeObserver\(later\)/);
+    assert.match(room, /window\.addEventListener\('resize', later\)/);
+    assert.match(room, /observer\.disconnect\(\)/);
     assert.match(code, /grid-template-columns:\s*repeat\(auto-fill, minmax\(min\(20rem, 100%\), 1fr\)\)/, 'the items are a grid of columns that never outgrow a narrow container');
     assert.match(code, /--more-window-min:\s*calc\(var\(--more-label-height\) \+ var\(--more-gap\) \+ var\(--space-control-height\)\)/, 'the window holds the label line, the gap under it and one control at least');
     assert.match(code, /\.group \{[^}]*gap:\s*var\(--more-gap\)/, 'the gap under the label is the one the window counts');
@@ -154,7 +163,12 @@ describe('the guide (demo-guide.ts)', () => {
   });
 
   it('opens the panel from the user\'s choice, else the finish, and resets the choice at a new finish', () => {
-    assert.match(code, /moreOpen = computed\(\(\) => this\.chosen\(\) \?\? this\.finished\(\)\)/);
+    assert.match(code, /moreOpen = computed\(\(\) => this\.chosen\(\) \?\? \(this\.finished\(\) && !this\.compact\(\) && !this\.squeezed\(\)\)\)/, 'the user\'s choice, else the finish outside the band and where the room allows');
+    assert.match(code, /\(squeezed\)="squeezed\.set\(true\)"/, 'the panel says when the room is too small for it');
+    assert.match(code, /compact = computed\(\(\) => inCompactBand\(this\.viewport\(\), this\.banners\(\)\)\)/, 'the band is the height left after the banners');
+    assert.match(code, /floor = computed\(\(\) => chatFloor\(this\.compact\(\)\)\)/);
+    assert.match(code, /<app-more-to-try [^>]*\[floor\]="floor\(\)"/);
+    assert.match(code, /\[window\.innerHeight, slot\?\.offsetHeight \?\? 0\]/, 'the viewport\'s height and the banner slot\'s');
     assert.match(code, /toggleMore\(\): void \{\s*this\.chosen\.set\(!this\.moreOpen\(\)\);/);
     assert.match(code, /view\?\.finished === true && this\.last\?\.finished !== true\) \{\s*this\.chosen\.set\(undefined\);/);
     assert.match(code, /\(pressed\)="chosen\.set\(true\)"/);

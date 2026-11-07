@@ -559,6 +559,13 @@ test('M9: Open the trace, then the finish state: the exact lines, the run total,
     expect(totalStyle.numbers, 'in tabular figures').toContain('tabular-nums');
     expect(totalStyle.size, 'in body-sm').toBe(totalStyle.bodySm);
     expect(totalStyle.color, 'in ink-muted').toBe(await tokenColor(page, '--ink-muted'));
+    // The panel starts open in the finish where the height left after the banners is 680px or more, and closed under it (the stack's own
+    // no-key banner decides which at this viewport): the link opens it either way.
+    const more = guideOf(page).getByRole('button', { name: 'More to try', exact: true });
+    if ((await more.getAttribute('aria-expanded')) === 'false') {
+      await more.click();
+    }
+    await expect(more, 'the More to try link says the panel is open').toHaveAttribute('aria-expanded', 'true');
     const other = finish.getByRole('group', { name: OTHER, exact: true });
     await expect(other, 'the Other things to try panel is open in the finish').toBeVisible();
     await expect(other.getByRole('button', { name: 'Send the suspicious email', exact: true }), 'with the server-listed items of the demo').toBeVisible();

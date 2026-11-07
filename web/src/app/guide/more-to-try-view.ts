@@ -10,6 +10,8 @@
  *   that the button makes (more-to-try.ts): each one uses a control that the page already has.
  * - itemsFor(features) is the registry entries whose id the list holds, in registry order. An id the registry does not know is
  *   ignored, and no list gives none.
+ * - inCompactBand, chatFloor and windowBound decide the panel's room: whether the page is in the compact band (the height left after the
+ *   banners is under 680px), the least height of the chat's list for that band, and the tallest window that leaves the chat that floor.
  */
 
 /**
@@ -98,4 +100,31 @@ export function itemsFor(features: readonly string[] | undefined): readonly More
     return [];
   }
   return MORE_TO_TRY_ITEMS.filter((item) => features.includes(item.id));
+}
+
+/** The height, in px, left after the banners, under which the page is in the compact band: 680, the height of HEIGHT_QUERIES.compact. */
+export const COMPACT_BAND_HEIGHT = 680;
+
+/** The least height, in px, of the chat's list that the open panel leaves it: in the compact band, and from the band's edge up. */
+export const CHAT_FLOOR = { compact: 64, tall: 160 } as const;
+
+/**
+ * True when the height left after the banners is under the compact band's edge (the Planner, 2026-11-07): the viewport's height less
+ * the height of the banners above the guide. With a banner showing, the band therefore starts that much higher.
+ */
+export function inCompactBand(viewport: number, banners: number): boolean {
+  return viewport - banners < COMPACT_BAND_HEIGHT;
+}
+
+/** The chat list's floor for the band the page is in. */
+export function chatFloor(compact: boolean): number {
+  return compact ? CHAT_FLOOR.compact : CHAT_FLOOR.tall;
+}
+
+/**
+ * The tallest the panel's window may be, in whole px: its height now plus the chat list's height above its floor (a list below the
+ * floor takes from it). Both are measured on the page as it is, so the bound follows whatever the rest of the page takes, whatever the fonts.
+ */
+export function windowBound(panel: number, chat: number, floor: number): number {
+  return Math.floor(panel + chat - floor);
 }

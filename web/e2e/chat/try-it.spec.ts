@@ -288,6 +288,12 @@ test('Y1: the row shows in the empty chat and in the finish state in the demo vi
   expect(labelled.length, 'each group is labelled by its own visible label').toBe(2);
   expect(new Set(labelled).size, 'with distinct label ids').toBe(2);
   expect(await follows(page, 'app-empty-chat p.line:last-of-type', 'app-empty-chat [role="group"]'), "the empty chat's row follows its last line").toBe(true);
+  // The panel starts open in the finish where the height left after the banners is 680px or more and closed under it: the link opens it either way.
+  const more = page.getByRole('region', { name: 'Demo guide' }).getByRole('button', { name: 'More to try', exact: true });
+  if ((await more.getAttribute('aria-expanded')) === 'false') {
+    await more.click();
+  }
+  await expect(page.locator('.finish app-more-to-try'), 'the panel is open in the finish').toHaveCount(1);
   expect(await follows(page, '.finish app-more-to-try', '.finish app-try-it-row'), "the finish's row follows the Other things to try panel").toBe(true);
   expect(await follows(page, '.finish app-try-it-row', '.finish .run-again'), 'and precedes Run again').toBe(true);
   await expectChips(emptyRow(page));
