@@ -2438,3 +2438,5 @@
 2026-11-07T09:29:19Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=land_DW-773
 2026-11-07T09:45:49Z	Run	ci_green_verified	head=70e4246d runs=42359025069,42359025056 result=success via=gh
 2026-11-07T09:45:49Z	Epic 17	runner_ci_wait	head=b477f05d runs=42360121309,42360121514 docs_only=DW-773 amendments=AD-19
+2026-11-07T10:09:41Z	Epic 17	runner_complete	head=b477f05d docs_only=DW-773 ci=success(42360121309,42360121514)
+2026-11-07T10:09:41Z	Epic 17	epic_merge_started	head=b477f05d into=feature
