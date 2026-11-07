@@ -10,6 +10,7 @@
 ///   - TestCategory, TestResourcesCurrent, TestNoticesKept: the install step makes the one-worker category, the worker imports the resources that the image
 ///     holds, and the image keeps the third-party notices of both packages;
 ///   - TestLimitsPinned, TestReasonsFitTheFrame: MAXBYTES equals the web upload limit, and each reason reads as part of the failure sentence;
+///   - TestReasonsAreTheRuledText: the reasons, the frame, the cut note, the page marker and the size text are the ruled PUBLIC TEXT, byte for byte;
 ///   - TestNothingStored: no file is left, no document or knowledge-base global changes, and a leftover older than an hour is deleted by the next read;
 ///   - TestWorkerFailure, TestDetailHoldsNoSecret: a work item that fails comes back as an error and as the reason failed, and its detail holds no secret.
 Class OcuTalon.Test.Docs.Extract Extends %UnitTest.TestCase
@@ -151,6 +152,20 @@ Method TestTooLarge()
 		Do ..AssertFailure(answer, "too_large", "a " _ type _ " of 10,485,761 bytes")
 		Do $$$AssertEquals(answer.%IsDefined("job"), 0, "no worker was called")
 	}
+	// No file is written: a leftover over an hour old survives a too-large read, because only a call that writes a file purges the folder.
+	Set folder = ##class(OcuTalon.Docs.Extract).Folder()
+	If '##class(%File).DirectoryExists(folder) Do ##class(%File).CreateDirectoryChain(folder)
+	Set old = folder _ "zz-docs-old-toolarge.bin"
+	Set stream = ##class(%Stream.FileBinary).%New()
+	Do stream.LinkToFile(old)
+	Do stream.Write("x")
+	Do stream.%Save()
+	Kill stream
+	Do $$$AssertEquals($ZF(-100, "/SHELL", "touch", "-d", "2 hours ago", old), 0, "a planted file is made two hours old")
+	Set answer = ##class(OcuTalon.Docs.Extract).Read(##class(OcuTalon.Test.Docs.Samples).Padded(##class(OcuTalon.Docs.Extract).#MAXBYTES + 1), "pdf")
+	Do $$$AssertEquals(answer.reason, "too_large", "a too-large read")
+	Do $$$AssertEquals(##class(%File).Exists(old), 1, "writes no file (it does not reach the purge)")
+	Do ##class(%File).Delete(old)
 }
 
 Method TestContentsTooLarge()
@@ -305,6 +320,8 @@ Method TestCategory()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).CategoryProperties(..#CATEGORY, .properties), "the category exists")
 	Do $$$AssertEquals($Get(properties("MaxActiveWorkers")), 1, "with 1 active worker")
 	Do $$$AssertEquals($Get(properties("DefaultWorkers")), 1, "and 1 default worker")
+	// The category is left at the declared values whatever happened above, so no later test meets 5 and 3.
+	Do ##class(OcuTalon.Install.Step.Memory).EnsureCategory(..#CATEGORY, ##class(OcuTalon.Docs.Extractor).#MAXACTIVEWORKERS, ##class(OcuTalon.Docs.Extractor).#DEFAULTWORKERS)
 }
 
 Method TestResourcesCurrent()
@@ -370,13 +387,41 @@ Method TestReasonsFitTheFrame()
 		}
 		Do $$$AssertTrue(ascii, code _ " is ASCII")
 		Do $$$AssertTrue($Ascii(reason) '< 97 && ($Ascii(reason) '> 122), code _ " starts with a lower-case letter")
-		Do $$$AssertTrue($Extract(reason, $Length(reason)) '= ".", code _ " has no final period")
 		Set sentence = ##class(OcuTalon.Docs.Extract).Failure(code)
+		Do $$$AssertTrue($Extract(sentence, *-1, *) '= "..", code _ ": the sentence does not end with two periods")
 		Do $$$AssertTrue($Length(sentence) '> 120, code _ ": the failure sentence is at most 120 characters (" _ $Length(sentence) _ ")")
 		Do $$$AssertEquals($Extract(sentence, 1, 27), "I couldn't read that file: ", code _ ": the sentence starts with the frame")
 		Do $$$AssertEquals($Extract(sentence, $Length(sentence)), ".", code _ ": and ends with its period")
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Reason("no_such_code"), ##class(OcuTalon.Docs.Extract).Reason("failed"), "an unknown code has the reason of failed")
+	Set sentence = ##class(OcuTalon.Docs.Extract).Failure("too_large", 104857600)
+	Do $$$AssertTrue($Length(sentence) '> 120, "too_large with a size: the failure sentence is at most 120 characters (" _ $Length(sentence) _ ")")
+}
+
+/// The ruled PUBLIC TEXT (the Contest Planner's ruling of 2026-11-06), compared byte for byte, so that any edit turns this test red.
+Method TestReasonsAreTheRuledText()
+{
+	Set x = "OcuTalon.Docs.Extract"
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Reason("too_large"), "it's over the 10 MB limit", "too_large without a size")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Reason("too_large", 10485761), "that file is 10.1 MB; the limit is 10 MB.", "too_large with a size (the web app's catalog text)")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Reason("contents_too_large"), "its text is too long to read", "contents_too_large")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Reason("wrong_type"), "it isn't a Markdown, plain-text, PDF or Word (.docx) file.", "wrong_type (the web app's catalog text)")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Reason("encrypted"), "it's protected with a password", "encrypted")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Reason("damaged"), "it's damaged or incomplete", "damaged")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Reason("no_text"), "it has no text to read, for example a scanned PDF without a text layer", "no_text")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Reason("legacy_doc"), "it's an old Word file (.doc); save it as .docx and try again", "legacy_doc")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Reason("timed_out"), "reading it took too long", "timed_out")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Reason("failed"), "something went wrong while reading it", "failed")
+	Do $$$AssertEquals($Parameter(x, "FAILUREFRAME"), "I couldn't read that file: {reason}.", "the chat frame")
+	Do $$$AssertEquals($Parameter(x, "CUTNOTE"), "[OcuTalon read only the first 200,000 characters of this file.]", "the cut note")
+	Do $$$AssertEquals($Parameter(x, "PAGEMARKER"), "## Page {n}", "the page marker")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Failure("encrypted"), "I couldn't read that file: it's protected with a password.", "a framed reason")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Failure("wrong_type"), "I couldn't read that file: it isn't a Markdown, plain-text, PDF or Word (.docx) file.", "a framed catalog reason ends with one period")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).Failure("too_large", 20971520), "I couldn't read that file: that file is 20 MB; the limit is 10 MB.", "a framed too_large with a size")
+	// The size as the web app's formatSize writes it: whole KB rounded up under 1 MB, otherwise MB with one decimal rounded up and no ".0".
+	For pair = "0|0 KB", "1|1 KB", "1024|1 KB", "1025|2 KB", "1048575|1024 KB", "1048576|1 MB", "1048577|1.1 MB", "10485760|10 MB", "10485761|10.1 MB", "15728640|15 MB", "15833497|15.1 MB", "15833498|15.2 MB" {
+		Do $$$AssertEquals(##class(OcuTalon.Docs.Extract).SizeText($Piece(pair, "|")), $Piece(pair, "|", 2), $Piece(pair, "|") _ " bytes")
+	}
 }
 
 Method TestNothingStored()

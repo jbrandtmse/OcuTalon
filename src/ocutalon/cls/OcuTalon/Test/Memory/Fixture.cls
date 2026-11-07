@@ -75,10 +75,14 @@ ClassMethod Restore(ByRef state)
 		Do statement.%Prepare("DELETE FROM %Embedding.Config WHERE Name = ?", 1)
 		Do statement.%Execute(##class(OcuTalon.Memory.Embedding).#CONFIGNAME)
 	}
-	If $Get(state("category")) {
+	If $Get(state("category")) || $Get(state("docs")) {
+		// The category names are read here, as the classes do not exist in %SYS.
+		Set embedder = ##class(OcuTalon.Memory.Embedder).#CATEGORY
+		Set extractor = ##class(OcuTalon.Docs.Extractor).#CATEGORY
 		New $Namespace
 		Set $Namespace = "%SYS"
-		Do ##class(Config.WorkQueues).Delete(##class(OcuTalon.Memory.Embedder).#CATEGORY)
+		If $Get(state("category")) Do ##class(Config.WorkQueues).Delete(embedder)
+		If $Get(state("docs")) Do ##class(Config.WorkQueues).Delete(extractor)
 	}
 	Kill state
 }

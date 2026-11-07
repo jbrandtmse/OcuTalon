@@ -7,7 +7,8 @@
 ///   - A text answer is {ok:1, text, cut, markers, job}: markers is page for a PDF, heading for a .docx with headings, none otherwise; the text holds PAGEMARKER
 ///     lines (PDF) or Markdown heading lines (.docx); a text over MAXTEXT characters is cut at a line break and followed by a blank line and CUTNOTE (cut:1).
 ///   - A failure is {ok:0, reason, detail?}. reason is one of CODES, fixed and independent of the wording; detail is for the operator only and never for a user.
-///     Reason(code) is the plain reason, REASON<CODE> without the underscores, and Failure(code) puts it in FAILUREFRAME.
+///     Reason(code, size) is the plain reason, REASON<CODE> without the underscores (too_large with a known size: REASONTOOLARGESIZE), and
+///     Failure(code, size) puts it in FAILUREFRAME.
 ///   - The type and the size are checked first, with no worker and no file: wrong_type, too_large (over MAXBYTES) and damaged (no bytes).
 ///   - Answer(sc, .result) maps a work item's status and result to the answer, so that every branch is testable without a worker.
 Class OcuTalon.Docs.Extract
@@ -16,9 +17,10 @@ Class OcuTalon.Docs.Extract
 /// The most bytes of an input file; pinned equal to the web upload limit (Web.Documents FILEMAX) by a test, never read from it here.
 Parameter MAXBYTES = 10485760;
 
-/// The most characters of text before the cut note, and the most bytes a .docx may declare unpacked in all its zip entries.
+/// The most characters of text before the cut note.
 Parameter MAXTEXT = 200000;
 
+/// The most bytes a .docx may declare unpacked in all its zip entries.
 Parameter MAXUNPACKED = 104857600;
 
 /// Seconds that a caller waits for the worker.
@@ -34,27 +36,31 @@ Parameter TYPES = "pdf,docx";
 
 Parameter CODES = "too_large,contents_too_large,wrong_type,encrypted,damaged,no_text,legacy_doc,timed_out,failed";
 
-/// User-facing text (PUBLIC TEXT): the page marker line ({n} is the page number; it becomes a citation's section), the note after a cut text, the sentence
-/// that frames a reason (UX-DR147) and the nine reasons, each read as "I couldn't read that file: {reason}.".
+/// User-facing text (PUBLIC TEXT, the Contest Planner's ruling): the page marker line ({n} is the page number; it becomes a citation's section), the note
+/// after a cut text, the sentence that frames a reason in a chat reply (UX-DR147) and the reasons. REASONTOOLARGESIZE and REASONWRONGTYPE are the web
+/// app's catalog reasons byte for byte (they end with a period); REASONTOOLARGESIZE is used when the file's size is known, with {size} written as the
+/// web app writes it (SizeText).
 Parameter PAGEMARKER = "## Page {n}";
 
 Parameter CUTNOTE = "[OcuTalon read only the first 200,000 characters of this file.]";
 
 Parameter FAILUREFRAME = "I couldn't read that file: {reason}.";
 
-Parameter REASONTOOLARGE = "it is over the 10 MB limit";
+Parameter REASONTOOLARGE = "it's over the 10 MB limit";
 
-Parameter REASONCONTENTSTOOLARGE = "its contents are too large to read";
+Parameter REASONTOOLARGESIZE = "that file is {size}; the limit is 10 MB.";
 
-Parameter REASONWRONGTYPE = "it is not a PDF or Word (.docx) file";
+Parameter REASONCONTENTSTOOLARGE = "its text is too long to read";
 
-Parameter REASONENCRYPTED = "it is protected with a password";
+Parameter REASONWRONGTYPE = "it isn't a Markdown, plain-text, PDF or Word (.docx) file.";
 
-Parameter REASONDAMAGED = "it is damaged or incomplete";
+Parameter REASONENCRYPTED = "it's protected with a password";
+
+Parameter REASONDAMAGED = "it's damaged or incomplete";
 
 Parameter REASONNOTEXT = "it has no text to read, for example a scanned PDF without a text layer";
 
-Parameter REASONLEGACYDOC = "it is an old Word file (.doc), so save it as .docx and try again";
+Parameter REASONLEGACYDOC = "it's an old Word file (.doc); save it as .docx and try again";
 
 Parameter REASONTIMEDOUT = "reading it took too long";
 
@@ -125,17 +131,32 @@ ClassMethod Fail(code As %String, detail As %String = "", job As %String = "") A
 	Quit answer
 }
 
-/// The plain reason for a code, as a part of FAILUREFRAME; an unknown code has the reason of failed.
-ClassMethod Reason(code As %String) As %String
+/// The plain reason for a code; an unknown code has the reason of failed. size is the file's size in bytes when the caller knows it: too_large then
+/// names it (REASONTOOLARGESIZE), and without it too_large is REASONTOOLARGE.
+ClassMethod Reason(code As %String, size As %Integer = "") As %String
 {
 	If '$ListFind($ListFromString(..#CODES, ","), code) Set code = "failed"
+	If (code = "too_large") && (+size > 0) Quit $Replace(..#REASONTOOLARGESIZE, "{size}", ..SizeText(size))
 	Quit $PARAMETER($ClassName(), "REASON" _ $ZConvert($Translate(code, "_"), "U"))
 }
 
-/// The sentence that tells the user why a file could not be read: FAILUREFRAME with the code's reason.
-ClassMethod Failure(code As %String) As %String
+/// The sentence that tells the user why a file could not be read: FAILUREFRAME with the code's reason (size as in Reason). A reason that ends with a
+/// period gives it up to the frame's own, so the sentence ends with one period.
+ClassMethod Failure(code As %String, size As %Integer = "") As %String
 {
-	Quit $Replace(..#FAILUREFRAME, "{reason}", ..Reason(code))
+	Set reason = ..Reason(code, size)
+	If $Extract(reason, *) = "." Set reason = $Extract(reason, 1, *-1)
+	Quit $Replace(..#FAILUREFRAME, "{reason}", reason)
+}
+
+/// A size in bytes as the web app's Documents page writes it: whole KB rounded up under 1 MB, otherwise MB with one decimal rounded up and no ".0"
+/// (1 KB = 1,024 bytes and 1 MB = 1,048,576 bytes).
+ClassMethod SizeText(bytes As %Integer) As %String
+{
+	Set bytes = $Select(+bytes > 0: bytes \ 1, 1: 0)
+	If bytes < 1048576 Quit ((bytes + 1023) \ 1024) _ " KB"
+	Set tenths = (bytes * 10 + 1048575) \ 1048576
+	Quit (tenths \ 10) _ $Select(tenths # 10 = 0: "", 1: "." _ (tenths # 10)) _ " MB"
 }
 
 /// The temporary folder of the files that are being read (with a closing slash).

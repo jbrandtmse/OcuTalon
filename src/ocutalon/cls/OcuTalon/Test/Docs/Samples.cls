@@ -5,10 +5,13 @@
 ///     the file exactly padTo bytes; with encrypt, an /Encrypt entry with fixed hex /O and /U (no password opens it);
 ///   - TextPage(.lines, count) is a page content stream that shows the lines; Pdf3(), PdfDrawing(), PdfEncrypted(), PdfJunk(), PdfPadded(size), PdfPages(count)
 ///     (dense text pages, which take a PDF reader about 50 ms each), PdfBigText() (more than MAXTEXT characters);
-///   - Zip(.entries, count): a stored zip (CRC-32 from $ZCRC mode 7); entries(n) is the name, entries(n, "data") its bytes and entries(n, "declare") a
-///     declared unpacked size when it is not the length of the bytes;
-///   - Docx(body, declare, raw), DocxHeadings(), DocxMergedCell(), DocxEmpty(), DocxBigText(), DocxDeclaring(size), DocxBroken(), ZipWithoutDocument(): Word files
-///     built from paragraphs and a table (raw replaces the whole document part, as junk);
+///   - Zip(.entries, count): a stored zip (CRC-32 from $ZCRC mode 7); entries(n) is the name, entries(n, "data") its bytes, entries(n, "declare") a
+///     declared unpacked size when it is not the length of the bytes, and entries(n, "flags") and entries(n, "method") the entry's general-purpose flags and
+///     compression method when they are not 0 (the bytes are written as they are);
+///   - Docx(body, declare, raw, moreStyles, mainType, flags, method), DocxHeadings(), DocxMergedCell(), DocxEmpty(), DocxBigText(), DocxDeclaring(size),
+///     DocxBroken(), ZipWithoutDocument(): Word files built from paragraphs and a table (raw replaces the whole document part, as junk);
+///   - DocxMacro(), DocxEncryptedEntry(), DocxOddCompression(), DocxDeflateJunk(): a macro-enabled main part, a password-protected document entry, a
+///     document entry with a compression method zipfile does not have, and a deflated document entry whose bytes are not deflate data;
 ///   - Ole(name): the OLE2 signature followed by the UTF-16LE stream name, as a legacy .doc (WordDocument), an encrypted .docx (EncryptedPackage) or neither;
 ///   - Junk(prefix), Padded(size), Empty(): a prefix and filler, a file of exactly size bytes of filler, and no bytes.
 /// The text of each sample is in Expected* so that the tests compare against one place.
@@ -239,11 +242,13 @@ ClassMethod Zip(ByRef entries, count As %Integer) As %Stream.TmpBinary
 		Set name = entries(n)
 		Set data = $Get(entries(n, "data"))
 		Set declared = $Get(entries(n, "declare"), $Length(data))
+		Set flags = $Get(entries(n, "flags"), 0)
+		Set method = $Get(entries(n, "method"), 0)
 		Set crc = $ZCRC(data, 7) # 4294967296
-		Set local = "PK" _ $Char(3, 4) _ ..LE(20, 2) _ ..LE(0, 2) _ ..LE(0, 2) _ ..LE(0, 2) _ ..LE(33, 2) _ ..LE(crc, 4) _ ..LE($Length(data), 4) _ ..LE(declared, 4) _ ..LE($Length(name), 2) _ ..LE(0, 2) _ name
+		Set local = "PK" _ $Char(3, 4) _ ..LE(20, 2) _ ..LE(flags, 2) _ ..LE(method, 2) _ ..LE(0, 2) _ ..LE(33, 2) _ ..LE(crc, 4) _ ..LE($Length(data), 4) _ ..LE(declared, 4) _ ..LE($Length(name), 2) _ ..LE(0, 2) _ name
 		Do stream.Write(local)
 		Do stream.Write(data)
-		Set central = central _ "PK" _ $Char(1, 2) _ ..LE(20, 2) _ ..LE(20, 2) _ ..LE(0, 2) _ ..LE(0, 2) _ ..LE(0, 2) _ ..LE(33, 2) _ ..LE(crc, 4) _ ..LE($Length(data), 4) _ ..LE(declared, 4) _ ..LE($Length(name), 2) _ ..LE(0, 2) _ ..LE(0, 2) _ ..LE(0, 2) _ ..LE(0, 2) _ ..LE(0, 4) _ ..LE(position, 4) _ name
+		Set central = central _ "PK" _ $Char(1, 2) _ ..LE(20, 2) _ ..LE(20, 2) _ ..LE(flags, 2) _ ..LE(method, 2) _ ..LE(0, 2) _ ..LE(33, 2) _ ..LE(crc, 4) _ ..LE($Length(data), 4) _ ..LE(declared, 4) _ ..LE($Length(name), 2) _ ..LE(0, 2) _ ..LE(0, 2) _ ..LE(0, 2) _ ..LE(0, 2) _ ..LE(0, 4) _ ..LE(position, 4) _ name
 		Set position = position + $Length(local) + $Length(data)
 	}
 	Do stream.Write(central)
@@ -272,14 +277,16 @@ ClassMethod Table(ByRef rows, rowCount As %Integer, columnCount As %Integer) As 
 }
 
 /// A Word file with the body (the XML of paragraphs and tables) and the styles Title, Heading 1, Heading 2 and Normal. declare is the unpacked size
-/// that the document part declares when it is not its length; raw, when given, is the bytes of the document part instead of the body.
-ClassMethod Docx(body As %String, declare As %Integer = 0, raw As %String = "") As %Stream.TmpBinary
+/// that the document part declares when it is not its length; raw, when given, is the bytes of the document part instead of the body; moreStyles, when given,
+/// is a comma-separated list of styleId|name pairs that are added to the styles (for example Heading5|heading 5); mainType, when given, is the content type
+/// of the document part; flags and method are the document entry's zip flags and compression method.
+ClassMethod Docx(body As %String, declare As %Integer = 0, raw As %String = "", moreStyles As %String = "", mainType As %String = "", flags As %Integer = 0, method As %Integer = 0) As %Stream.TmpBinary
 {
 	Set xml = "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>"
 	Set rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 	Set w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 	Set entries(1) = "[Content_Types].xml"
-	Set entries(1, "data") = xml _ "<Types xmlns=""http://schemas.openxmlformats.org/package/2006/content-types""><Default Extension=""rels"" ContentType=""application/vnd.openxmlformats-package.relationships+xml""/><Default Extension=""xml"" ContentType=""application/xml""/><Override PartName=""/word/document.xml"" ContentType=""application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml""/><Override PartName=""/word/styles.xml"" ContentType=""application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml""/></Types>"
+	Set entries(1, "data") = xml _ "<Types xmlns=""http://schemas.openxmlformats.org/package/2006/content-types""><Default Extension=""rels"" ContentType=""application/vnd.openxmlformats-package.relationships+xml""/><Default Extension=""xml"" ContentType=""application/xml""/><Override PartName=""/word/document.xml"" ContentType=""" _ $Select(mainType '= "": mainType, 1: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml") _ """/><Override PartName=""/word/styles.xml"" ContentType=""application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml""/></Types>"
 	Set entries(2) = "_rels/.rels"
 	Set entries(2, "data") = xml _ "<Relationships xmlns=""http://schemas.openxmlformats.org/package/2006/relationships""><Relationship Id=""rId1"" Type=""" _ rels _ "/officeDocument"" Target=""word/document.xml""/></Relationships>"
 	Set entries(3) = "word/_rels/document.xml.rels"
@@ -287,9 +294,13 @@ ClassMethod Docx(body As %String, declare As %Integer = 0, raw As %String = "") 
 	Set entries(4) = "word/document.xml"
 	Set entries(4, "data") = $Select(raw '= "": raw, 1: xml _ "<w:document xmlns:w=""" _ w _ """><w:body>" _ body _ "</w:body></w:document>")
 	If declare Set entries(4, "declare") = declare
+	If flags Set entries(4, "flags") = flags
+	If method Set entries(4, "method") = method
 	Set entries(5) = "word/styles.xml"
 	Set styles = xml _ "<w:styles xmlns:w=""" _ w _ """>"
-	For style = "Title|Title", "Heading1|heading 1", "Heading2|heading 2", "Normal|Normal" {
+	Set list = $ListFromString("Title|Title,Heading1|heading 1,Heading2|heading 2,Normal|Normal" _ $Select(moreStyles '= "": "," _ moreStyles, 1: ""), ",")
+	Set position = 0
+	While $ListNext(list, position, style) {
 		Set styles = styles _ "<w:style w:type=""paragraph""" _ $Select($Piece(style, "|") = "Normal": " w:default=""1""", 1: "") _ " w:styleId=""" _ $Piece(style, "|") _ """><w:name w:val=""" _ $Piece(style, "|", 2) _ """/></w:style>"
 	}
 	Set entries(5, "data") = styles _ "</w:styles>"
@@ -328,6 +339,30 @@ ClassMethod ExpectedDocxMergedCell() As %String
 ClassMethod DocxBroken() As %Stream.TmpBinary
 {
 	Quit ..Docx("", 0, "this is not xml, <w:document")
+}
+
+/// A macro-enabled Word file (.docm): the main part's content type is not a Word document's.
+ClassMethod DocxMacro() As %Stream.TmpBinary
+{
+	Quit ..Docx(..Paragraph("With macros"), 0, "", "", "application/vnd.ms-word.document.macroEnabled.main+xml")
+}
+
+/// A Word file whose document entry is marked password-protected (zip flag bit 0).
+ClassMethod DocxEncryptedEntry() As %Stream.TmpBinary
+{
+	Quit ..Docx(..Paragraph("Protected entry"), 0, "", "", "", 1)
+}
+
+/// A Word file whose document entry names compression method 98 (PPMd), which zipfile does not have.
+ClassMethod DocxOddCompression() As %Stream.TmpBinary
+{
+	Quit ..Docx(..Paragraph("Odd compression"), 0, "", "", "", 0, 98)
+}
+
+/// A Word file whose document entry says deflated (method 8) but holds bytes that are not deflate data.
+ClassMethod DocxDeflateJunk() As %Stream.TmpBinary
+{
+	Quit ..Docx("", 0, $Char(255, 255, 255, 255) _ "not deflate data", "", "", 0, 8)
 }
 
 /// A Word file with no paragraph.

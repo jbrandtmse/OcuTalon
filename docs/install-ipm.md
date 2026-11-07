@@ -6,7 +6,7 @@ This page installs OcuTalon into an IRIS instance you already run, with the Inte
 
 - An InterSystems IRIS for AI Hub instance, build 154, with IPM 0.10.10 loaded in %SYS and enabled for USER (the examples start there). Build 109, which the Early Access portal now offers in place of build 154, has not been tested with the IPM install yet.
 - For the registry install: an instance that can reach the community package registry.
-- Network access from the instance to PyPI (pypi.org and files.pythonhosted.org) and to Hugging Face (huggingface.co): the second command downloads OcuTalon's Python packages, about 250 MB once installed, and the embedding model, about 90 MB. On a typical connection this takes about 1 minute.
+- Network access from the instance to PyPI (pypi.org and files.pythonhosted.org) and to Hugging Face (huggingface.co): the second command downloads OcuTalon's Python packages, about 250 MB once installed, and the embedding model, about 90 MB. In our test installs this took about 1 minute.
 
 OcuTalon needs no other package: the one package `ocutalon` holds the bridge too.
 

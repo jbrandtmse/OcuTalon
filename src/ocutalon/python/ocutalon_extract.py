@@ -16,6 +16,7 @@ no network call and holds no user-facing text: the page marker comes in as an ar
 
 import re
 import zipfile
+import zlib
 
 PDF_SIGNATURE = b"%PDF-"
 PDF_WINDOW = 1024
@@ -133,8 +134,25 @@ def _read_docx(path, limit, max_unpacked):
             if size > limit:
                 cut = True
                 break
-    except (zipfile.BadZipFile, KeyError, PackageNotFoundError, etree.XMLSyntaxError) as error:
+    except (zipfile.BadZipFile, KeyError, PackageNotFoundError, etree.XMLSyntaxError, zlib.error, EOFError) as error:
         return _fail("damaged", "%s: %s" % (type(error).__name__, error))
+    except ValueError as error:
+        # python-docx refuses a main part that is not a Word document (a .docm, a .dotx).
+        if "is not a Word file" not in str(error):
+            raise
+        return _fail("wrong_type", error)
+    except NotImplementedError as error:
+        # zipfile refuses strong encryption and a compression method it does not have (caught before RuntimeError, its base class).
+        if "encryption" in str(error):
+            return _fail("encrypted", error)
+        if "compression method" not in str(error):
+            raise
+        return _fail("damaged", error)
+    except RuntimeError as error:
+        # zipfile refuses a password-protected entry.
+        if "encrypted" not in str(error):
+            raise
+        return _fail("encrypted", error)
     return _finish(parts, limit, cut, "heading" if headings else "none")
 
 
@@ -149,9 +167,7 @@ def extract(path, limit, max_unpacked, page_marker):
         head = stream.read(PDF_WINDOW)
         if not head:
             return _fail("damaged", "no bytes")
-        if PDF_SIGNATURE in head:
-            kind = "pdf"
-        elif head.startswith(ZIP_SIGNATURE):
+        if head.startswith(ZIP_SIGNATURE):
             kind = "docx"
         elif head.startswith(OLE2_SIGNATURE):
             data = head + stream.read()
@@ -160,6 +176,8 @@ def extract(path, limit, max_unpacked, page_marker):
             if LEGACY_STREAM in data:
                 return _fail("legacy_doc", "OLE2 WordDocument")
             return _fail("wrong_type", "OLE2 without a Word stream")
+        elif PDF_SIGNATURE in head:
+            kind = "pdf"
         else:
             return _fail("wrong_type", "no PDF, ZIP or OLE2 signature")
     if kind == "pdf":

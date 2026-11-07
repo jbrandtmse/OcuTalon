@@ -239,7 +239,54 @@ deferred:
 - Given the Embedder after DW-792, when memory embeds and the model downloads, then no OcuTalon class calls Python `eval`/`exec`, and the vectors, `live:memory-offline` and IPM check 30 are unchanged.
 - Given the Planner's ruled PUBLIC TEXT and the measured figures, when a reader opens the README's "Install it with IPM" section or `docs/install-ipm.md`, then both say that the install downloads Python packages and the embedding model (size, typical time) and needs network access to PyPI and the model host. The sample outputs are this story's real `release/ipm-install.sh` runs, and `test-readme.sh` and `test-cpf.sh` pass.
 
+### Review Findings
+
+Code review 2026-11-06 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full-opus tier). 0 decision-needed, 15 patch (all applied), 4 defer (ledgered `wontfix-accepted`), 17 rejected; 0 high.
+
+- [x] [Review][Patch] (medium) The nine reasons were the proposed strings, not the Planner's PUBLIC TEXT ruling A1, and `too_large` could not name the size [src/ocutalon/cls/OcuTalon/Docs/Extract.cls:45] -- conformed byte for byte; `REASONTOOLARGESIZE` (the web catalog's "that file is {size}; the limit is 10 MB.") is used by `Reason(code, size)` / `Failure(code, size)` when the caller passes the size, with `SizeText` writing it as the web app's `formatSize` does; `REASONWRONGTYPE` is the catalog's text byte for byte.
+- [x] [Review][Patch] (medium) No fixed-strings test pinned the reasons, the frame, the cut note, the page marker or the README/docs lines (Rule 19) [src/ocutalon/cls/OcuTalon/Test/Docs/Extract.cls:400] -- `TestReasonsAreTheRuledText` (every string and eleven size cases, literal) and four `t_static` checks in `docker/tests/test-release-sequence.sh` (A4, A5, A6 whole lines, and the two catalog reasons present in both `web/src/app/documents/documents-view.ts` and `Docs/Extract.cls`); each group's mutation is in `## Verification`.
+- [x] [Review][Patch] (medium) The README paragraph (A4) and the install page bullet (A6) ended with the proposed sentences [README.md:182] -- now "In our test installs this added about 1 minute." and "In our test installs this took about 1 minute." (singular for n = 1; see the change log).
+- [x] [Review][Patch] (low) The two catalog reasons end with a period, so the chat frame would end in ".." and `TestReasonsFitTheFrame`'s "no final period" would fail [src/ocutalon/cls/OcuTalon/Docs/Extract.cls:140] -- `Failure` gives a reason's final period up to the frame's own; the test now asserts the sentence does not end with two periods.
+- [x] [Review][Patch] (medium) `Test.Memory.Install:OnAfterAllTests` ran `New $Namespace` inside an `ElseIf`, so the rest of the method ran in %SYS and failed with `<CLASS DOES NOT EXIST>` whenever the extraction category was absent before the class (observed on the warm stack); `Fixture.Restore` also resolved `##class(...).#CATEGORY` in %SYS (observed) [src/ocutalon/cls/OcuTalon/Test/Memory/Install.cls:57] -- the delete moves into `Fixture.Restore` (`state("docs")`), which reads both category names before the switch.
+- [x] [Review][Patch] (low) DW-834: a .docm/.dotx, a password-protected zip entry and an unknown compression method were reported `failed` [src/ocutalon/python/ocutalon_extract.py:136] -- mapped to `wrong_type`, `encrypted` and `damaged` (also `zlib.error`/`EOFError` as `damaged`; `NotImplementedError` caught before its base `RuntimeError`), each matched on its message and anything else still raised; four samples and `ExtractEdges:TestWordFileVariants`.
+- [x] [Review][Patch] (low) A zip whose first 1,024 bytes hold `%PDF-` was sent to pdfplumber [src/ocutalon/python/ocutalon_extract.py:170] -- the ZIP and OLE2 signatures at byte 0 are tested before the PDF window; a case in `TestPdfSignatureWindow`.
+- [x] [Review][Patch] (low) `ipm_artifact_check` checked each resource's FileCopy line but not that the artifact holds the file [release/lib-release.sh:130] -- it also reports a missing resource and other bytes than the candidate's (B4 hunk), with two `ipmlib` cases; IPM path p passed with it on a real package.
+- [x] [Review][Patch] (low) This story's spine unions said the purge runs "at each call", "one `## Page n` line per page" and that the IPM-install overwrite was measured [ARCHITECTURE-SPINE.md:693] -- corrected to what the code and the evidence say; the lint shows no new finding.
+- [x] [Review][Patch] (low) The evidence's stop rule 1 bracket stated the success condition, promised four path-A facts that were not all measured, and did not say the figures came from public PyPI and Hugging Face [_bmad-output/implementation-artifacts/evidence/19-6-task0-extraction.md:7] -- reworded.
+- [x] [Review][Patch] (low) `ExtractEdges:TestEmbedderResource` ran the memory resource's stand-ins in an extraction worker, loading fastembed there [src/ocutalon/cls/OcuTalon/Test/Docs/ExtractEdges.cls:289] -- it submits through `Memory.Embedder`.
+- [x] [Review][Patch] (low) `TestCategory` left the category at 5 and 3 when `Run` failed (Rule 19) [src/ocutalon/cls/OcuTalon/Test/Docs/Extract.cls:316] -- it puts the declared values back at its end.
+- [x] [Review][Patch] (low) The matrix's "no file is written" for `too_large` was not observable [src/ocutalon/cls/OcuTalon/Test/Docs/Extract.cls:145] -- `TestTooLarge` plants a file over an hour old and asserts that a too-large read leaves it (it never reaches the purge).
+- [x] [Review][Patch] (low) `MAXTEXT`'s doc comment described `MAXUNPACKED` [src/ocutalon/cls/OcuTalon/Docs/Extract.cls:19] -- one comment each.
+- [x] [Review][Patch] (low) The AC6 figures-match test had no recorded mutation [docker/tests/test-release-sequence.sh:2906] -- recorded below (the A4 mutation also turns it red).
+- [x] [Review][Defer] (low) `STOPONTIMEOUT`/`Clear(0)` has no test that fails without it [src/ocutalon/cls/OcuTalon/Memory/Worker.cls:45] -- deferred: DW-841 `wontfix-accepted` (the AC is pinned by `TestTimeLimit`; the work group release also ends the worker, measured).
+- [x] [Review][Defer] (low) Check 32's before/after filter has no static test [release/ipm-install.sh:523] -- deferred: DW-842 `wontfix-accepted`.
+- [x] [Review][Defer] (low) Check 31 shows the resources unchanged, not overwritten, after a reinstall [release/ipm-install.sh:1351] -- deferred: DW-843 `wontfix-accepted` (the spine now labels the IPM-install overwrite as inference).
+- [x] [Review][Defer] (low) `TestTimeLimit` assumes the previous read's idle worker takes the slow read [src/ocutalon/cls/OcuTalon/Test/Docs/Extract.cls:222] -- deferred: DW-844 `wontfix-accepted`.
+
+Existing entries, no new row: DW-829 (escalated; the A5 sentence and AD-23's "exactly the licence-measured set" bear on it, report only), DW-827 (AD-21's "one worker"; routed to 19.7), DW-831 (text boxes join nested tables and content controls), DW-834 (patched above, for the lead's adjudication), DW-835 (QA's `TestEmbedderResource` closes its keyword-argument half; the 20 s bound is DW-844's neighbour and stays as filed).
+
+Rejected:
+- (low, by-design) A text cut far after its last line break keeps only the text before that break -- the matrix fixes "the last line break at or before MAXTEXT"; paragraphs are joined by line breaks, so only one paragraph of over 200,000 characters meets it.
+- (false, by-design) A main part named other than `word/document.xml` -- the spec fixes the name; Word, Strict OOXML and LibreOffice write it.
+- (low) A vertically merged cell repeats its text in each row it spans -- a faithful row reading; nested tables and text boxes are DW-831's root cause.
+- (low, theoretical) A caller timeout over `MAXAGE` lets another call purge an in-flight file -- no caller passes one (`TIMEOUT` 120); real if a caller passes over 3,600 s.
+- (low, theoretical) A DST jump or an unreadable modification date makes a fresh file look old -- containers run in UTC and a read lasts at most 120 s; real on a DST time zone with concurrent reads across the jump.
+- (low, theoretical) A character stream with characters above 255 -- the answer is `failed` (honest) and no consumer exists yet; real if Story 19.7 passes a character stream.
+- (low, theoretical) A work group lock with several owners -- the measured lock is exclusive to the caller.
+- (low, theoretical) A stale notices file from an earlier call -- check 32 runs once per fresh container; real if it ever runs twice in one container.
+- (low) `wrong_type`'s ruled text names Markdown and plain-text, which `Extract.Read` itself refuses -- the Planner ruled the catalog text; the extraction callers route those types elsewhere (noted for the lead).
+- (low) The re-shot install-page block shows version 1.0.1 -- it is this story's real run output (ruling B1).
+- (low) `TestAtTheLimit`'s time assertion can only fail with the `ok` assertion; `ExtractEdges`' `reason '= code` assertions -- redundant or weak, but each is falsifiable for its recorded mutation.
+- (low) Implement-stage mutation records use "Result:" rather than the `mutation:` token -- every AC has a recorded, observed mutation.
+- (low) Check 32 skips an older pre-existing copy of a pinned name -- measured and designed (DW-829).
+- (low) The x64 install time is not measured -- read from the CI `ipm-install` log after the push (U-294 condition 2).
+- (low) The spec's frontmatter `status`, its Auto Run Result's residual paragraph, the task text's `Clear(1)` and the spec/ledger severity mismatch -- the fix edits the spec's intent or the lead's bookkeeping.
+- (low) No consumer test for the Embedder vectors beyond the existing ones, and AD-6 conformance -- both hold (the auditor found no violation).
+- (low) The spine's "one worker" stated as fact -- DW-827 owns it.
+
 ## Spec Change Log
+
+- 2026-11-06 (code review): the Planner's PUBLIC TEXT ruling applied. The nine reasons, the frame, the cut note and the page marker are the ruled strings, pinned by `TestReasonsAreTheRuledText`; `Reason`/`Failure` take an optional `size` so that `too_large` is the web catalog's "that file is {size}; the limit is 10 MB." when the size is known (the size written as the web app's `formatSize` writes it) and "it's over the 10 MB limit" otherwise; `Failure` gives a reason's own final period up to the frame's, so a catalog reason does not end the chat sentence with "..". The README paragraph (A4) and the install-page bullet (A6) end with the ruled sentences with n = 1, written "about 1 minute" (singular), pinned by `t_static`. Decided in-stage (small, reversible): the singular, the period hand-over and the optional `size` argument.
 
 - 2026-11-06 (lead, after implement): the Planner's PUBLIC TEXT ruling recorded under Design Notes; the code review stage conforms the built strings to it with fixed-strings tests (the implement built the proposals).
 
@@ -475,6 +522,32 @@ A change to a `.py` file or a manifest refuses a warm run: `ci/warm.sh down`, th
   - P9c: make the .docx `markers` always `heading` -> `TestCut` red ("a Word file with no heading has no markers"; applied with P2 and P9b in one `.py` mutation run, each test named its own assertion).
   - P9d: remove the `Docs.Extractor` `EnsureCategory` call from `Install.Step.Memory.Run` -> `TestCategory` red ("with 1 active worker" and "and 1 default worker", as the test first puts the category to 5 and 3).
   - P6: revert the `ipm_artifact_check` resource `grep` to the Name alone -> `test-release-sequence.sh ipmlib` red ("python: a FileCopy of a resource to another Target").
+
+**QA stage (QA):** files created or changed by the QA stage: `src/ocutalon/cls/OcuTalon/Test/Docs/ExtractEdges.cls` (new, 11 tests; area `Docs`, so lane-a / `shards-2` runs it) and `src/ocutalon/cls/OcuTalon/Test/Docs/Samples.cls` (`Docx` takes an optional `moreStyles` list; no other change). Run on warm `e19s6qw`: `Test.Docs.ExtractEdges`, `Test.Docs.Extract`, `Test.Docs.Python` and `Test.Bridge.CodeRules` passed. The tests assert reason codes and structure and none pins a user-facing string. Mutations (each applied from a backup in the QA scratch folder, observed red, reverted; the checksums of `Docs/Extract.cls` and the two `.py` files and `git status --short` equal before and after; the `.py` ones on a fresh warm stack, in two batches so that each test names its own mutation):
+- mutation: `_finish` cut test `len(text) > limit` -> `>=` -> `TestAtTheTextLimit` red ("and not cut", "its whole text comes back").
+- mutation: cut without a line break `text[:limit]` -> `text[:limit - 1]` -> `TestCutWithoutLineBreak` red ("the text is cut at MAXTEXT characters").
+- mutation: page marker number `number` -> `len(parts) + 1` -> `TestPageNumbersAreReal` red ("keeps its real number 3").
+- mutation: heading cap `min(n + 1, 6)` -> `min(n + 1, 7)` -> `TestHeadingLevels` red.
+- mutation: `PDF_SIGNATURE in head` -> `head.startswith(PDF_SIGNATURE)` -> `TestPdfSignatureWindow` red ("a PDF with 100 bytes before %PDF- is not called a wrong type").
+- mutation: OLE2 check order swapped (legacy_doc before encrypted) -> `TestEncryptedBeatsLegacy` red.
+- mutation: unpacked size `sum(...)` -> `max(...)` -> `TestContentsTooLargeAddsEntries` red.
+- mutation: `unpacked > max_unpacked` -> `>=` -> `TestContentsAtTheLimit` red (alone; applied in its own batch because `max` hides it).
+- mutation: remove `.replace("\r\n", "\n")` from `_finish` -> `TestLineEndsNormalised` red ("a CR LF pair is one line feed").
+- mutation: `Extract.Read` size line `$Select($IsObject($Get(content)): content.Size, 1: 0)` -> `content.Size` -> `TestReadNeverThrows` red (damaged and wrong_type expectations).
+- mutation: drop `, local_files_only=True` from `ocutalon_memory.load_model` and `list(patterns)` -> `patterns` in `download` -> `TestEmbedderResource` red ("asks for local files only", "the allow-patterns as a list"; this closes the deferred keyword-argument gap with stand-ins, so no model is loaded and nothing is downloaded).
+
+**Code review stage (mutations; each applied from a backup in the stage's scratch folder, observed red, reverted byte-identical, `git status --short` and the file's checksum equal before and after; the class ones on the warm stack `e19s6cw`, green again after the revert, the `.py` ones on a fresh `e19s6c` throwaway):**
+- mutation: `REASONENCRYPTED` "it's" -> "it is" -> `TestReasonsAreTheRuledText` red ("encrypted", "a framed reason").
+- mutation: `Failure` keeps the reason's final period -> `TestReasonsAreTheRuledText` red ("a framed catalog reason ends with one period", "a framed too_large with a size") and `TestReasonsFitTheFrame` red ("wrong_type: the sentence does not end with two periods").
+- mutation: `SizeText` KB without rounding up (`bytes \ 1024`) -> `TestReasonsAreTheRuledText` red ("1 bytes", "1025 bytes", "1048575 bytes").
+- mutation: `Purge` moved before the type and size checks of `Read` -> `TestTooLarge` red ("writes no file (it does not reach the purge)").
+- mutation: the README A4 sentence "about 1 minute." -> "about 1 minutes." -> `test-release-sequence.sh static` red ("(DW-784, A4) the README's IPM paragraph is the ruled text" and the AC6 figures-match "quote the same package size, model size and install time").
+- mutation: the A6 sentence "this took" -> "this takes" -> `static` red ("(DW-784, A6)"); the A5 bullet "licence files." -> "licence file." -> `static` red ("(DW-784, A5)").
+- mutation: `REASONWRONGTYPE` without its final period -> `static` red ("(A1) the web catalog and Docs.Extract both hold").
+- mutation: `ipm_artifact_check` without the missing-resource line, then without the other-bytes line -> `test-release-sequence.sh ipmlib` red each time ("python: an artifact without the resource file", "python: an artifact with other bytes in the resource").
+- mutation (one `.py` batch, each assertion named): the `ValueError`, `RuntimeError` and `NotImplementedError` branches always raise, `zlib.error`/`EOFError` dropped from the damaged tuple, and the PDF window tested before the ZIP signature -> `ExtractEdges:TestWordFileVariants` red (all four samples) and `TestPdfSignatureWindow` red ("a zip with %PDF- in its first bytes").
+- `Test.Memory.Install` with the extraction category deleted first: the original `OnAfterAllTests` -> class error `<CLASS DOES NOT EXIST>` (as was the first patch, through `Fixture.Restore`); the patched class passes and leaves the category absent, as it found it.
+- Runs after the patches: warm `Test.Docs.Extract`, `Test.Docs.ExtractEdges`, `Test.Docs.Python`, `Test.Bridge.CodeRules`, `Test.Memory.Install`, `Test.Memory.Embedding`, `Test.Memory.Diagnostics` passed; `test-release-sequence.sh` (all 26 rules, 371 s), `test-readme.sh`, `test-cpf.sh`, `test-boundaries.sh`, `test-class-rules.sh` passed; the spine lint shows no new finding; IPM path p (fresh, local package, 622 s: checks 26 to 29, 32 and 33 and the artifact check passed) and IPM path b (fresh, local package, `OCUTALON_LIVE_DEADLINE=1980`, 870 s: every check passed, check 24 "RL fired once" and check 31 included).
 
 **Shared surfaces:**
 - `CALLBACKHELPERS` (`TestCallbackRule`).

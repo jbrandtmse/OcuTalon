@@ -4,7 +4,7 @@ Measured 2026-11-06 by the Epic 19 runner (lane C) on one lane-C throwaway (`OCU
 
 ## Result against the stop rules
 
-- Stop rule 1 (the resources reach a worker's `sys.path` before the Memory step runs): does NOT hold. The primary form (a single-file `FileCopy` to `${mgrdir}python/<file>`) works on the Docker path and runs before the Configure invoke; the fallback is not needed. (M1)
+- Stop rule 1 (neither the `FileCopy` nor the fallback puts the resources on a worker's `sys.path` before the Memory step runs): does NOT hold. The primary form (a single-file `FileCopy` to `${mgrdir}python/<file>`) works on the Docker path and runs before the Configure invoke; the fallback is not needed. (M1)
 - Stop rule 2 (`Clear` cannot stop a busy Python worker without harm): does NOT hold for the extraction workload. `Clear` ends a worker that is running pdfplumber, and no other caller's work is hurt. Two measured caveats go to Residual risks: `Clear` waits for a C call that does not return (a 30 s `time.sleep` held it 29 s), and the category's `MaxActiveWorkers` 1 did not serialise two concurrent reads. (M3)
 
 Both stop rules are clear, so the story went on to product code.
@@ -16,7 +16,7 @@ Both stop rules are clear, so the story went on to product code.
 - A worker of each category imports them: `OcuTalon.Memory.Embedder` (job 3538) and `OcuTalon.Docs.Extractor` (job 3589) both answered `ocutalon_extract.MARK` and `ocutalon_memory.MARK`, with `__file__` in `/durable/iris/mgr/python/`. The worker's `sys.path` holds `/usr/irissys/mgr/python` (the image's pip packages: `pdfplumber` 0.11.10 and `docx` 1.1.2 imported from there) and `/durable/iris/mgr/python` (the resources).
 - Order against the Configure phase: the verbose `load -verbose /opt/ocutalon/src` log reads `Activate START`, `Copying .../ocutalon_extract.py to .../mgr/python/ocutalon_extract.py`, `Copying .../ocutalon_memory.py ...`, `Configure START`, `Configure SUCCESS`, `Activate SUCCESS`. The copy is first, so the Memory step's `Download`, which runs in the Configure invoke, finds `ocutalon_memory`.
 - A reinstall overwrites: with both files changed on disk (one appended to, one replaced), the same `load` restored both to the md5 sums of the image's sources.
-- IPM path A of `release/ipm-install.sh` is run once at the end (Verification), where the same four facts are recorded again for the plain IRIS image (the report names its result).
+- IPM path A of `release/ipm-install.sh` is run once at the end (Verification). Two of the four facts were measured there for the plain IRIS image (the order against the Configure phase, and the import by a worker of each category); the md5 sums and the overwrite on a reinstall were not (section "M1 on IPM path A" below).
 
 ## M2: libraries on the hand-built samples
 
@@ -68,7 +68,7 @@ Measured 2026-11-06 on one lane-C throwaway after the review patches (aarch64; t
 
 ## Measured figures
 
-The figures that the README and `docs/install-ipm.md` quote (installed size, download size, model size, time), as measured on the lane-C throwaway of this story's implement stage with the commands the spec's PUBLIC TEXT item names (`du -sk`, `pip download --only-binary=:all: --no-deps -r requirements.txt`, the `TIME` lines of path A, and `docker build --no-cache`). The raw logs of those runs are not kept in the repository.
+The figures that the README and `docs/install-ipm.md` quote (installed size, download size, model size, time), as measured on the lane-C throwaway of this story's implement stage with the commands the spec's PUBLIC TEXT item names (`du -sk`, `pip download --only-binary=:all: --no-deps -r requirements.txt`, the `TIME` lines of path A, and `docker build --no-cache`). The raw logs of those runs are not kept in the repository. Where the bytes came from: IPM path A installs OcuTalon from the local package folder in the throwaway (never from the public IPM registry); the pip step of that install and `pip download` fetched the 36 wheels from public PyPI (pypi.org, files.pythonhosted.org), and the Memory step downloaded the model from Hugging Face (huggingface.co) inside the same throwaway. All of it on the developer machine (aarch64); the x64 install time is read from the CI `ipm-install` job log once the story is pushed.
 - Installed: `<mgr>/python` after path A holds 251,202,444 bytes (about 250 MB) that the install added.
 - Download: the wheels of the 36 pinned distributions are 75,994,243 bytes in 36 files.
 - Model: `<mgr>/fastembed` holds 91,103,785 bytes (about 90 MB).

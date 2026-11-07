@@ -57,9 +57,7 @@ Method OnAfterAllTests() As %Status
 	If ^||OcuTalonTestMemoryInstall("docs") {
 		Do ##class(OcuTalon.Install.Step.Memory).EnsureCategory(..#DOCSCATEGORY, ^||OcuTalonTestMemoryInstall("docs", "MaxActiveWorkers"), ^||OcuTalonTestMemoryInstall("docs", "DefaultWorkers"))
 	} ElseIf ##class(OcuTalon.Test.Memory.Fixture).CategoryExists(..#DOCSCATEGORY) {
-		New $Namespace
-		Set $Namespace = "%SYS"
-		Do ##class(Config.WorkQueues).Delete(..#DOCSCATEGORY)
+		Set state("docs") = 1
 	}
 	If '^||OcuTalonTestMemoryInstall("config") {
 		Set state("config") = 1

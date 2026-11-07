@@ -2820,8 +2820,10 @@ t_ipmlib() {
   has "another layout: a problem, never a pass" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" both)" "cannot be checked (the layout 'both' is not root or src)"
   # the Python resources and requirements.txt (Story 19.6, U-294, ruling B4): a FileCopy for each resource of the candidate and the candidate's
   # requirements.txt at the top of the artifact
-  mkdir -p "$t/tree/src/ocutalon/python" "$t/py/src/ocutalon/csp" "$t/pys/ocutalon/csp"
+  mkdir -p "$t/tree/src/ocutalon/python" "$t/py/src/ocutalon/csp" "$t/pys/ocutalon/csp" "$t/py/src/ocutalon/python" "$t/pys/ocutalon/python"
   printf 'resource\n' > "$t/tree/src/ocutalon/python/one.py"
+  cp "$t/tree/src/ocutalon/python/one.py" "$t/py/src/ocutalon/python/one.py"
+  cp "$t/tree/src/ocutalon/python/one.py" "$t/pys/ocutalon/python/one.py"
   printf 'pin==1\n' > "$t/tree/requirements.txt"
   cp -R "$t/tree/src/ocutalon/csp/." "$t/py/src/ocutalon/csp/"
   cp -R "$t/tree/src/ocutalon/csp/." "$t/pys/ocutalon/csp/"
@@ -2829,6 +2831,13 @@ t_ipmlib() {
   printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/><FileCopy Name="src/ocutalon/python/one.py" Target="${mgrdir}python/one.py"/>\n' > "$t/py/module.xml"
   tar -czf "$C/py.tgz" -C "$t/py" .
   eq "python: a good root artifact has no problem" "$(ipm_artifact_check "$C/py.tgz" 1.0.0 "$t/tree" root)" ""
+  rm -f "$t/py/src/ocutalon/python/one.py"
+  tar -czf "$C/pynofile.tgz" -C "$t/py" .
+  has "python: an artifact without the resource file" "$(ipm_artifact_check "$C/pynofile.tgz" 1.0.0 "$t/tree" root)" "lacks the Python resource src/ocutalon/python/one.py"
+  printf 'other\n' > "$t/py/src/ocutalon/python/one.py"
+  tar -czf "$C/pydifffile.tgz" -C "$t/py" .
+  has "python: an artifact with other bytes in the resource" "$(ipm_artifact_check "$C/pydifffile.tgz" 1.0.0 "$t/tree" root)" "holds a different src/ocutalon/python/one.py than the candidate"
+  cp "$t/tree/src/ocutalon/python/one.py" "$t/py/src/ocutalon/python/one.py"
   printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/>\n' > "$t/py/module.xml"
   tar -czf "$C/pynofc.tgz" -C "$t/py" .
   has "python: no FileCopy of a resource" "$(ipm_artifact_check "$C/pynofc.tgz" 1.0.0 "$t/tree" root)" "no FileCopy of src/ocutalon/python/one.py"
@@ -2905,6 +2914,14 @@ t_static() {
   fig_docs=$(grep -F 'pypi.org' "$root/docs/install-ipm.md" | grep -o 'about [0-9][0-9,]* \(MB\|minutes\?\)' | tr '\n' ' ')
   eq "(DW-784) the README's IPM section and docs/install-ipm.md quote the same package size, model size and install time" "$fig_docs" "$fig_readme"
   eq "(DW-784) and each quotes all three figures (a size, a size and a time)" "$(printf '%s' "$fig_readme" | grep -o 'about' | wc -l | tr -d ' ')" 3
+  # The ruled PUBLIC TEXT (the Contest Planner's ruling of 2026-11-06, A4 to A6), each line compared whole and byte for byte.
+  eq "(DW-784, A4) the README's IPM paragraph is the ruled text" "$(grep -cxF "The second run also downloads OcuTalon's Python packages from PyPI (fastembed, pdfplumber and python-docx with their dependencies, about 250 MB once installed) and the embedding model from Hugging Face (about 90 MB), so the instance needs network access to pypi.org, files.pythonhosted.org and huggingface.co. In our test installs this added about 1 minute." "$root/README.md")" 1
+  eq "(DW-784, A5) the README's licence bullet is the ruled text" "$(grep -cxF -e "- An IPM install puts the same Python packages, at the same versions, into the instance's \`mgr/python\` folder, each with its licence files." "$root/README.md")" 1
+  eq "(DW-784, A6) the install page's network bullet is the ruled text" "$(grep -cxF -e "- Network access from the instance to PyPI (pypi.org and files.pythonhosted.org) and to Hugging Face (huggingface.co): the second command downloads OcuTalon's Python packages, about 250 MB once installed, and the embedding model, about 90 MB. In our test installs this took about 1 minute." "$root/docs/install-ipm.md")" 1
+  # The two extraction reasons that reuse the web app's catalog (U-284) carry its exact bytes (A1).
+  for reason in "it isn't a Markdown, plain-text, PDF or Word (.docx) file." "that file is {size}; the limit is 10 MB."; do
+    eq "(A1) the web catalog and Docs.Extract both hold: $reason" "$(grep -cF -e "$reason" "$root/web/src/app/documents/documents-view.ts")/$(grep -cF -e "\"$reason\"" "$root/src/ocutalon/cls/OcuTalon/Docs/Extract.cls")" "1/1"
+  done
   eq "(QA) every zpm load of the ipm step bypasses pip, which has no network there" "$(grep -c 'zpm \\"load -bypass-py-deps ' "$root/release/release.sh")" 2
   eq "(QA) no zpm load of the ipm step is left without the bypass" "$(grep 'zpm \\"load ' "$root/release/release.sh" | grep -vc -e '-bypass-py-deps')" 0
   eq "(QA) live:memory-offline is a unit of shards-4" "$("$BASH" -c ". '$root/ci/units.sh'; group_units shards-4" | tr ' ' '\n' | grep -cx 'live:memory-offline')" 1

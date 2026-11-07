@@ -4562,17 +4562,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the page only gained STEP Memory OK lines (test-cpf.sh rule 9); new wording is public text on Epic 11's page
 - 2026-11-06T09:07:42Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=harvest note=reopen_if=Epic_11_or_15_next_edits_docs/install-ipm.md,or_a_reader_asks_what_WARN_Memory_means;reported_to_orchestrator_for_routing
 - 2026-11-06T10:48:50Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=owner_ruling note=reopened_by_U-294_condition_3:PUBLIC_TEXT_to_the_Planner_before_commit:the_README_IPM_section_and_docs/install-ipm.md_say_the_install_downloads_Python_packages_and_the_embedding_model(size,typical_time)_and_needs_network_access_to_PyPI_and_the_model_host;re-shoot_the_sample_output
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=README_A4/A5_and_install-ipm.md_A6_carry_the_ruled_text_with_measured_figures(~250MB,~90MB,~1_minute),same_figures_pinned_by_test-release-sequence.sh;the_time_figure_is_67pct_below_the_proposal_and_goes_to_the_Planner_before_the_push;sample_output_re-shot
 
 ### DW-791: The IPM install's requirements.txt pins only fastembed==0.9.0: its dependencies (onnxruntime, tokenizers, huggingface_hub, numpy) get no constraints file, licence gate or third-party notices, unlike the image's pip line
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: docker/Dockerfile holds every dependency to docker/licences/constraints-<arch>.txt and runs gate.py check and notices; root requirements.txt has one line; ipm-install.sh check 30 asserts only fastembed's version
 - 2026-11-06T09:48:59Z status=escalated owner=burndown by=cr note=licence and dependency policy for IPM installs (veto); per-arch pins do not fit one requirements.txt; decide at the decision sheet
 - 2026-11-06T10:48:50Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=owner_ruling note=U-294_condition_1(binds_inside_Epic_19):requirements.txt_pins_fastembed,pdfplumber,python-docx_AND_every_transitive_distribution_of_U-285/DW-738's_licence-measured_set_at_the_constraints_files'_versions(say_so_if_arm64_and_x64_differ,before_committing);ipmcheck_runs_the_same_licence_gate_on_what_IPM_installed,failing_outside_the_allowed_families;plus_condition_2:measure_ipmcheck_and_rehearsal_with_the_model_download
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=requirements.txt_pins_the_36_of_both_constraints_files(static_check);ipm-install.sh_check_32_gates_what_IPM_installed;ipm_artifact_check(B4)_proves_the_artifact_carries_requirements.txt_and_the_FileCopy;condition_2_CI_times_read_from_the_part-1_CI_runs;DW-829_(older_copies)_escalated_separately
 
 ### DW-792: OcuTalon.Memory.Embedder builds its two keyword calls (TextEmbedding, snapshot_download) from Python source in builtins.eval lambda strings, a form the Conventions Python row (.py resources under src/ocutalon/python/) does not name
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Embedder.cls Embed and Download eval one-line lambdas because %SYS.Python passes no keyword argument on build 154 (spec Decided in-stage); the spec forbids an own .py file in this story
 - 2026-11-06T09:48:59Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=19.6 creates src/ocutalon/python/: move both lambdas into a .py resource imported with %SYS.Python.Import
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=Embedder's_keyword_calls_moved_into_src/ocutalon/python/ocutalon_memory.py;Test.Docs.Python_bans_eval/exec
 
 ### DW-793: Memory install warnings can carry OcuTalon's own wording, not only an underlying error's text: 'The download left no model in <folder>', and Embedder statuses ('could not be made', 'did not finish within N seconds', 'No work group of category')
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-story
@@ -4655,8 +4658,30 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: edge-case finding; the answer is honest (failed) and nothing is stored
 - 2026-11-06T23:14:10Z status=open owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=harvest note=code review: patch the mapping if mechanical, else wontfix-accepted with a probe
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=.docm/.dotx->wrong_type,encrypted_entry->encrypted,odd_compression/zlib/EOF->damaged;Test.Docs.ExtractEdges:TestWordFileVariants
 
 ### DW-835: TestTimeLimit asserts only that a timed-out read ends in under 20 s (the matrix says about 3 s), and no test pins local_files_only=True or allow_patterns in ocutalon_memory.py
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: verification-gap findings; the 20 s bound follows the loaded-host measurement
 - 2026-11-06T23:14:11Z status=open owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=harvest note=code review: pin the two flags (fixed strings) and record why 20 s
+- 2026-11-07T01:04:45Z status=wontfix-accepted by=adjudication note=local_files_only/allow_patterns_pinned_by_ExtractEdges:TestEmbedderResource;the_20s_bound_of_TestTimeLimit_stays(loaded-host_measurement);reopen_if=TestTimeLimit_flakes_or_a_quiet-host_read_exceeds_5s
+
+### DW-841: Memory.Worker STOPONTIMEOUT (Clear(0) on a timeout) has no test that fails without it: releasing the work group also ends the busy worker, so TestTimeLimit stays green with STOPONTIMEOUT 0
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Spec Verification AC2 result: STOPONTIMEOUT 0 alone stayed green; only 0 plus a held group turned TestTimeLimit red. The AC (busy worker stopped, next read served) is pinned by TestTimeLimit.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=TestTimeLimit red on its job no longer exists, or a build where a released work group keeps its busy worker
+
+### DW-842: IPM check 32's before/after filter (a dist-info present before the install and not a pin is not gated) has no static test; moving snapshot_python_before after the install would let a newly installed unpinned distribution pass
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: release/ipm-install.sh check_licences skips entries in the before list that are no pin; gate.py itself is tested with planted folders (test-compose-file.sh); the snapshot runs just before the install command.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=snapshot_python_before moves after the install command, or check 32 passes while gate.py check on the whole new set fails
+
+### DW-843: IPM check 31 compares the resources' md5 before and after a reinstall of identical files, so it shows they are unchanged but not that a reinstall overwrites a changed resource on an IPM install
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: release/ipm-install.sh resources_fingerprint around check 31; the overwrite is measured on the Docker path's zpm load (evidence M1); the spine and evidence now label the IPM-install overwrite as inference.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=an IPM upgrade whose changed .py resource does not reach mgr/python (a worker imports the old code)
+
+### DW-844: Test.Docs.Extract:TestTimeLimit assumes the idle worker of the previous read takes the slow read (a group of one worker); a second idle worker of the category would make the job-gone assertion fail
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestTimeLimit takes the worker job from a Pdf3 read and waits for that job to end after the timeout; TestCategory runs first and now restores the category to 1 and 1.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=TestTimeLimit red on its job no longer exists in CI or on a fresh throwaway
