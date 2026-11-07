@@ -1,7 +1,7 @@
 # Story 34.4 (DW-825): the proof on lane D's throwaway (lead, 2026-11-07)
 
 Stack: one fresh sign-in unit throwaway (`docker/tests/test-sign-in.sh`'s whole setup: bundle, image, first start, fixture users,
-seeded events), lane D (`OCUTALON_LOCK_DIR=.../locks/lane-d`, `OCUTALON_TEST_WEB_PORT=52804`, tag `e34s4prf`, project
+seeded events), lane D (`OCUTALON_LOCK_DIR=.worktrees/.coordination/locks/lane-d`, `OCUTALON_TEST_WEB_PORT=52804`, tag `e34s4prf`, project
 `ocutalon-t03-e34s4prf-1794024017-75576`), torn down by the unit's EXIT trap. The browser run was narrowed to D5 by a scratch copy of the
 unit script (not in the repository): `playwright test --project=chromium documents/documents.spec.ts --grep "D5:" --repeat-each=20`.
 The OLD D5 is `documents.spec.ts` at 7b811445 (before the fix), the NEW D5 the committed fix (609316e1); the file was swapped in the

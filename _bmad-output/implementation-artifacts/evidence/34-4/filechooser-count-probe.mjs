@@ -2,7 +2,7 @@
 // (a) one Enter whose click handler calls picker.click() twice, (b) a picker.click() on load with no gesture,
 // (c) a picker.click() inside an earlier gesture (a link click) before the Enter, (d) the baseline single open.
 import { createRequire } from 'node:module';
-const require = createRequire('/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/epic-34/web/package.json');
+const require = createRequire(new URL('../../../../web/package.json', import.meta.url));
 const { chromium } = require('playwright');
 const page_ = (onClick, extra = '') => `<a id="nav" href="#d">Documents</a><main tabindex="-1" class="documents"><button id="add" type="button">Add documents</button>
 <input id="picker" type="file" multiple hidden></main><script>const p=document.getElementById('picker');

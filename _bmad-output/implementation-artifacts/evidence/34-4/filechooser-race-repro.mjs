@@ -2,7 +2,7 @@
 // calls a hidden <input type=file>.click(). MODE=old: the D5 sequence as written. MODE=armed: a filechooser listener registered
 // (interception on) well before the press. Counts presses that never produce a filechooser event within TIMEOUT ms.
 import { createRequire } from 'node:module';
-const require = createRequire('/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/epic-34/web/package.json');
+const require = createRequire(new URL('../../../../web/package.json', import.meta.url));
 const { chromium } = require('playwright');
 const MODE = process.env.MODE ?? 'old';
 const N = Number(process.env.N ?? 40);
