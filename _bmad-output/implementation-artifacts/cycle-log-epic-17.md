@@ -299,3 +299,7 @@
 2026-11-07T05:41:57Z	Epic 17	ci_rerun	run=42338069582 job=iris(shards-2) reason=infra(park_step) attempt=2
 2026-11-07T05:43:40Z	Epic 17	orchestrator_ruling	subject=17.9_start_on_inherited_red option=a conditions=shards-2_attempt2_test_red_not_flake->stop;park_infra->DW-742_occurrence;no_17.9_push_before_integrate_onto_feature_with_34.4(b6b75a34);forecast_report_if_past_13Z
 2026-11-07T05:43:40Z	Story 17.9	stage_spawned	stage=implement spawn_at=2026-11-07T05:43:40Z model=sonnet agent_name=17-9-epic-17-burn-down-implement-1 cycle_iteration=1 story_base=f427d988
+2026-11-07T06:43:42Z	Epic 17	ci_rerun_result	run=42338069582 sha=99735c36 job=iris(shards-2) attempt=2 result=success remaining_red=iris(browser)_D5(DW-825,inherited;fix_34.4_a092b15f_on_feature)
+2026-11-07T06:43:42Z	Story 17.9	dev_complete	spawn_at=2026-11-07T05:43:40Z model=sonnet build_sha=49ab80b0 baseline_revision=6c675269 story_base=6c675269 review_loop_iteration=0 followup_review_recommended=false deferred=1(DW-855,low,open_17-9) files=9 footprint_extensions=Test/Bridge/SettingsApply.cls(Epic_19_folder,unchanged_there),docs/bridge-guide.md(Epic_11,unchanged_there),docker/tests/test-bridge-guide.sh public_text=DW-850_eight_lines+DW-728_two_rows_byte-checked
+2026-11-07T06:43:42Z	Story 17.9	adr_verifications_complete	tool=none acs=none result=none_required mutations=none
+2026-11-07T06:43:42Z	Story 17.9	stage_spawned	stage=qa spawn_at=2026-11-07T06:43:42Z model=sonnet agent_name=17-9-epic-17-burn-down-qa-1 cycle_iteration=1
