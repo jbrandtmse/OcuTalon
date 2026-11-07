@@ -2478,3 +2478,6 @@
 2026-11-07T13:37:45Z	Epic 7	runner_dispatched	agent=ad6a8e67a47338eff lane=B slot=ocutalon-slot-b model=opus prompt=dispatch-epic-7-710.md timebox=90m duplicate_ci_cancelled=42377811450,42377811665
 2026-11-07T14:15:13Z	Run	ci_green_verified	head=4c9bed21 runs=42377742996,42377742980 result=success via=gh
 2026-11-07T14:42:42Z	Epic 39	ci_flake_rerun	head=d5b39c3d run=42379785616 job=shards-2(DW-494_class) lane-a=success
+2026-11-07T14:43:23Z	Epic 31	worktree_provisioned	branch=OCT-epic31 base=05823d01 reason=story_31.4_tier3c
+2026-11-07T14:43:23Z	Epic 31	worktree_bootstrapped	epic=31 result=ok
+2026-11-07T14:43:23Z	Epic 31	runner_dispatched	agent=a01380f4a2843c759 lane=D slot=ocutalon-slot-d model=opus prompt=dispatch-epic-31-314.md DW-485=frozen_reroute
