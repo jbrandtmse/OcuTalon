@@ -23,7 +23,7 @@
 ///     handled Notification with no marker or no message edits nothing and logs one warning, and a repeated one edits nothing and logs none.
 ///   - TestGotItEdits (Story 12.12): the press of Got it under a tell-now message whose Decision is the session's runs through TelegramIn, SessionOps, Notify and
 ///     TelegramOut: the message is edited once to its text, a blank line and "Marked as handled at <time>" (the marker's time) with no reply_markup, the Handled row
-///     holds the Ref, the session and the channel telegram, and a second press edits nothing more and adds no row.
+///     holds the Ref, the session and the channel telegram, and a second press sends no Notification, edits nothing more and adds no row.
 /// The fixture chats are 84017734160 to 84017734172, and the fixture sessions zztgdig....
 Class OcuTalon.Test.Channel.TelegramDigest Extends OcuTalon.Test.Channel.LiveCase
 {
@@ -200,6 +200,24 @@ ClassMethod Words(text As %String) As %Integer [ Private ]
 		If $Piece(text, " ", i) '= "" Set count = count + 1
 	}
 	Quit count
+}
+
+/// The number of Notifications that SessionOps has sent Notify in the SuperSession trace.
+ClassMethod Notices(trace As %String) As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "SessionOps", "Notify").%Size()
+}
+
+/// The telegram Delivery rows of the session (see Rows), once they are want or after seconds (whichever is first).
+Method WaitRows(session As %String, want As %String, seconds As %Numeric = 20) As %String [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	For {
+		Set found = ..Rows(session)
+		If (found = want) || ($ZHorolog >= deadline) Quit
+		Hang 0.25
+	}
+	Quit found
 }
 
 /// The telegram Delivery rows of the session other than its pairing notice, as "<kind>|<ChannelMessageId>", oldest first, comma-separated.
@@ -573,7 +591,7 @@ Method TestHandledEdit()
 }
 
 /// The press of Got it under a tell-now message whose Decision is the session's marks the notice handled and edits the message once; a second press
-/// is answered and changes nothing.
+/// is answered, sends no Notification and changes nothing.
 Method TestGotItEdits()
 {
 	If '..Go() Quit
@@ -586,7 +604,10 @@ Method TestGotItEdits()
 		Set messageId = ..LastMessageId(chatId)
 		Set edits = ..EditsTo(chatId).%Size()
 		Set total = ..CallsOf("editMessageText").%Size()
+		Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+		Set notices = ..Notices(trace)
 		Do ..Press(chatId, "Zqgotitedit", "gotit:"_decisionRef)
+		Do $$$AssertEquals(..Notices(trace), notices + 1, "the press sends one Notification from SessionOps to Notify")
 		Do ..WaitCalls("editMessageText", total + 1)
 		Set edited = ..EditsTo(chatId)
 		Do $$$AssertEquals(edited.%Size(), edits + 1, "the message is edited once")
@@ -602,11 +623,12 @@ Method TestGotItEdits()
 				Do $$$AssertEquals(params."message_id"_"|"_params."chat_id"_"|"_params.%IsDefined("reply_markup"), messageId_"|"_chatId_"|0", "in place, with no reply_markup, so the button is gone")
 			}
 		}
-		Do $$$AssertEquals(..Rows(session), "tellnow|"_chatRef_":"_messageId_",handled|"_chatRef_":"_messageId, "the message has its tell-now and its handled row")
+		Set want = "tellnow|"_chatRef_":"_messageId_",handled|"_chatRef_":"_messageId
+		Do $$$AssertEquals(..WaitRows(session, want), want, "the message has its tell-now and its handled row")
 		Set answers = ..CallsOf("answerCallbackQuery").%Size()
 		Do ..Press(chatId, "Zqgotitedit", "gotit:"_decisionRef)
 		Do $$$AssertEquals(..WaitCalls("answerCallbackQuery", answers + 1).%Size(), answers + 1, "the second press is answered")
-		Hang 1
+		Do $$$AssertEquals(..Notices(trace), notices + 1, "a second press sends no Notification")
 		Do $$$AssertEquals(..EditsTo(chatId).%Size(), edits + 1, "a second press edits nothing more")
 		Set count = 0
 		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Handled WHERE Ref = ?", decisionRef)

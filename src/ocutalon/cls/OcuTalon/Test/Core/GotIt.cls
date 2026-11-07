@@ -12,7 +12,8 @@
 ///   - TestSaveFailure: a save that fails with the notice still unmarked is failed (Ok 0), with one warning, no row and no Notice; a save that fails because
 ///     another press won the Ref is already_handled (Ok 1), with one row and no Notice;
 ///   - TestEndDeletesHandled: End deletes the ended session's rows and keeps another session's;
-///   - TestEndHandledFailureCounts: a failed or thrown delete is answered failed, the resume hash is kept, and a later End finishes.
+///   - TestEndHandledFailureCounts: a failed or thrown delete is answered failed, the resume hash is kept, and a later End finishes;
+///   - TestEndHandledAfterEarlierFailure: the Handled step still runs and deletes the rows when an earlier step failed.
 /// Every refusal asserts that no row and no Notice was made.
 Class OcuTalon.Test.Core.GotIt Extends %UnitTest.TestCase
 {
@@ -259,6 +260,25 @@ Method TestEndHandledFailureCounts()
 		Do $$$AssertEquals(##class(OcuTalon.Data.Handled).RefIndexExists(ref), 0, mode_": and the row is gone")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session).ResumeHash, "", mode_": and the hash is cleared")
 	}
+}
+
+/// The Handled step runs even when an earlier step failed (the per-person settings): End answers failed, the step was tried for the session and its
+/// rows are gone, and the resume hash is kept.
+Method TestEndHandledAfterEarlierFailure()
+{
+	Set probe = ..Probe()
+	Set probe.SettingsAnswer = "error"
+	Set session = ..Session("endearly")
+	Set ref = ..Decision(session, "tellnow")
+	Do ..SetResumeHash(session, "zzgotit"_..Number_"early")
+	Set result = ..Press(probe, session, ref, "telegram")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|handled", "a press is handled")
+	Set calls = +$Get(^OcuTalonTest("GotItProbe"))
+	Set result = ..End(probe, session)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "an earlier failed step: Ok 0, failed")
+	Do $$$AssertEquals($Get(^OcuTalonTest("GotItProbe", calls + 1)), session, "the Handled step was still tried for the session")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Handled).RefIndexExists(ref), 0, "and the row is gone")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session).ResumeHash, ##class(OcuTalon.Data.Session).Hash("zzgotit"_..Number_"early"), "the resume hash is kept")
 }
 
 /// --- helpers ---

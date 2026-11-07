@@ -129,6 +129,36 @@ deferred:
 - Given an ended session with Handled rows, when `SessionOps.End` runs, then its rows are deleted and other sessions' rows stay; a failed delete makes End answer failed and keeps the resume hash, and a later End completes (DW-695).
 - Given a digest composed with WindowStart W, when needs-you is listed, then unhandled tell-now and act Decisions recorded before W are not counted, those at or after W are, handled ones are not, and failed rows and incidents awaiting approval count whatever their age; no `digest.*` text changes.
 
+### Review Findings
+
+Code review 2026-11-07 (bmad-code-review, full mode, tier full-opus; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 27 raw findings, 14 entries after grouping (high 0, medium 3, low 11), 9 rejected. Every patch is applied; nothing is left open.
+
+- [x] [Review][Patch] (medium, fix-risk low, in-story) `TestGotItEdits` read the session's telegram Delivery rows right after the mock logged `editMessageText`, before TelegramOut had written its `handled` row (it records after the mock answers), so the assertion depended on timing (Rule 19) -- it now polls `WaitRows(session, want)` until the rows are there [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramDigest.cls:627]
+- [x] [Review][Patch] (medium, fix-risk low, in-story) `GotItProduction.TestPressThroughTheProduction` read the phone side (Delivery rows, `RecentPhone`) after waiting only for WebChatOut, so in demo mode its phone assertions could pass before SimPhoneOut had run (Rule 19) -- it now also waits for Notify to SimPhoneOut when demo mode is on [src/ocutalon/cls/OcuTalon/Test/Core/GotItProduction.cls:52]
+- [x] [Review][Patch] (medium, fix-risk low, in-story) The Always clause "the End step is tried whatever the earlier steps did" had no pinning test: moving `EndHandled` behind `If 'failed` kept every test green -- added `GotIt.TestEndHandledAfterEarlierFailure` (an earlier step fails through `SettingsAnswer` "error"; the Handled step is still tried and deletes the row; End answers failed and keeps the resume hash), with its mutation observed red [src/ocutalon/cls/OcuTalon/Test/Core/GotIt.cls:267]
+- [x] [Review][Patch] (low, fix-risk low, in-story) The second-press leg of `TestGotItEdits` could not fail from a SessionOps regression (TelegramOut skips a repeat and the unique index caps the rows), and it waited on `Hang 1` -- it now counts the SessionOps-to-Notify hops in the session's trace (`Notices(trace)`): +1 after the first press, unchanged after the second; the sleep is gone [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramDigest.cls:610]
+- [x] [Review][Patch] (low, fix-risk low, in-story) End's method doc still listed the steps without the per-person settings and the Handled rows, and the class doc's EndSession bullet was re-wrapped mid-sentence -- both corrected (Rule 14) [src/ocutalon/cls/OcuTalon/Core/SessionOps.cls:279]
+- [x] [Review][Patch] (low, fix-risk low, in-story) `GotItChannels`' class doc said every test removes its sessions in OnAfterAllTests -- it now says the class removes the run's sessions, with their Delivery rows, through `Fixture.Clean` [src/ocutalon/cls/OcuTalon/Test/Core/GotItChannels.cls:8]
+- [x] [Review][Patch] (low, fix-risk low, in-story) AC4's "other sessions' rows stay" and AC5's "failed rows count whatever their age" had pinning tests but no `mutation:` line -- both mutations applied, seen red and reverted; lines written under `## Verification` (CR)
+- [x] [Review][Closed] DW-881 `wontfix-theoretical` (low): a Decision recorded between `Finish`'s Verdict read and `Sent.SentAt` falls in no window; the gap is the async enqueue and Cost, milliseconds, and a miss also needs a second boundary before SentAt [src/ocutalon/cls/OcuTalon/Digest/Process.cls:599]
+- [x] [Review][Closed] DW-882 `by-design` (low): a partly failed End still deletes the Handled rows while the session stays resumable, so those notices count again (an over-count, never a false all-clear); the spec makes the step run whatever the earlier steps did [src/ocutalon/cls/OcuTalon/Core/SessionOps.cls:298]
+- [x] [Review][Closed] DW-883 `by-design` (low): when the handled Notification cannot be sent, the marker stands and the message keeps its button (matrix row "Notice send fails") [src/ocutalon/cls/OcuTalon/Core/SessionOps.cls:275]
+- [x] [Review][Closed] DW-884 `wontfix-theoretical` (low): a non-Telegram Got it for a notice Telegram never carried makes TelegramOut log its no-message warning; only TelegramIn submits GotIt until Story 18.4
+- [x] [Review][Closed] DW-885 `wontfix-theoretical` (low): `Handled.DropSession` ignores `%Next`'s status, as `Upload.DropSession` does [src/ocutalon/cls/OcuTalon/Data/Handled.cls:45]
+- [x] [Review][Closed] DW-886 `wontfix-accepted` (low): AD-4's sign-out bullet does not name the Handled rows (AD-14 as amended does); spine edits are the lead's (Rule 20)
+- [x] [Review][Closed] DW-887 `wontfix-accepted` (low, Rule 2): `Handled.DropSession` is a near-copy of `Upload.DropSession`/`DeleteAll`; the stated reason (the table's own class, the sibling's shape) stands until a third copy appears [src/ocutalon/cls/OcuTalon/Data/Handled.cls:39]
+
+Rejected:
+- `false` (blind): the spec frontmatter says done during review -- `status:` is bmad-build-auto's machine state; the review state lives in sprint-status.yaml.
+- `low` (blind, edge, acceptance): the cycle-log `dev_complete` row has broken fields (`loc_added=680 43 10 loc_removed= files=`) -- the cycle log is the lead's file, not this review's; passed to the lead.
+- `low` (blind): DW-695's purge-task residual is recorded only as an `occurrence=` trailer, so a `resolved-by` close of DW-695 would drop it -- a ledger disposition for the lead at this story's close (Rule 15 (c)), not a code fix; passed to the lead.
+- `false` (edge): a missing Handled row makes the tests throw INVALID OREF and hides the assertion -- the test still goes red (the TelegramDigest test catches and fails it; the unit runner records the error).
+- `false` (edge): `LastMessageId`'s claim that the mock numbers sendMessage and editMessageText together -- the mock uses one counter for both (`ci/mock/mock.mjs`); a future scripted reply is not a present failure.
+- `false` (acceptance): the Telegram integration test does not read the command's answer -- TelegramIn ignores it; `GotItProduction` asserts `1|handled` with origin telegram over the real production.
+- `low` (acceptance): `TestEndHandledFailureCounts` does not show that the other steps still ran -- Handled is the last term of one sum, so the earlier steps run before it; the reverse order is now pinned by `TestEndHandledAfterEarlierFailure`.
+- `low` (verification-gap, other): `TestSecondPressNoOp`'s "still one row" cannot fail upward -- redundant, not a gap; the HandledAt/Channel and Notice-count checks carry the test.
+- `low` (verification-gap, other): `TestSaveFailure` counts a log text that names no session -- one process, before and after, and only that failure path logs it (adjudicated in the build review).
+
 ## Spec Change Log
 
 - 2026-11-07, spec gate (runner): the plan's AD-14 intent gap is resolved. The Contest Planner approved the amendment as proposed (option (a), about 16:45Z, relayed by the orchestrator). The spine now reads, at AD-14's Got it bullet and the Structural Seed's `Data.Handled.Marked` row, that Story 12.12 builds SessionOps' GotIt branch and writes Handled's rows, and Story 18.4 adds the web and phone controls (marker `[AMENDED 2026-11-07, Story 12.12, Planner ruling]`). No re-plan; status set to ready-for-dev. The DW-695 purge-task part stays a deferred LOW, as recorded.
@@ -258,6 +288,22 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - mutation: AC5 `List` ignores windowStart -> `TestWindow` goes red. `Finish` passes "" -> `TestProcessWindow` goes red. Incidents filtered by the window -> `TestWindow`'s incident assertion goes red.
 - mutation: AC5 the `(decision.RecordedAt '= "") &&` term removed (an undated Decision dropped) -> `TestWindowUndated` goes red. `Finish` passes `compose.WindowEnd` instead of `WindowStart` -> `TestProcessNoUpperBound` and `TestProcessWindow` go red.
 - mutation: the stub line restored -> `SettingsCommands` `TestGotItBuilt` goes red.
+
+**QA additions (QA):**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/GotItProduction.cls` (new; CI and throwaway only, extends `InProduction`): `TestPressThroughTheProduction` submits GotIt through `Commands.Submit` with the origin telegram (then web_user) over the real production: Ok 1 `handled`, one Handled row, one `handled` Notification SessionOps to Notify with the Ref and no text, a bare web Delivery row with no card, no event and no phone message, and a second press `already_handled` with nothing sent; `TestRefusalsThroughTheProduction`: another session's tell-now, an act Decision and an unknown Ref are `not_found`, a timer origin is `not_allowed`, nothing is written or sent. Runs in shard `lane-b` (area Core), group `image`.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/GotItChannels.cls` (new; unit, safe on a slot): a `handled` Notification (DecisionRef, no key, no slots) makes a bare Delivery row on WebChatOut and on SimPhoneOut, with no card, no phone message and no event. Runs in shard `lane-b` (area Core), group `image`. No `ci/units.sh` change.
+- mutation (QA): AC1 the `SendNotice` call replaced by `$$$OK` in the GotIt branch -> `GotIt` `TestPressMarksHandled`, `TestSecondPressNoOp`, `TestOtherSessionRefused`, `TestNoticeFailureStands`, `GotItProduction` `TestPressThroughTheProduction` and `TelegramDigest` `TestGotItEdits` go red.
+- mutation (QA): AC2 both `RefIndexExists` checks removed -> `GotIt` `TestSecondPressNoOp` and `TestSaveFailure`, `GotItProduction` `TestPressThroughTheProduction` ('a second press from the page is Ok 1, already_handled') go red.
+- mutation (QA): AC3 the `Outcome '= "tellnow"` term removed -> `GotIt` `TestNotTellNowRefused` and `GotItProduction` `TestRefusalsThroughTheProduction` ('an act Decision') go red.
+- mutation (QA): AC3 origin gate: `timer` added to the GotIt route's `origins` in `CommandsIn` -> `GotItProduction` `TestRefusalsThroughTheProduction` ('a timer origin: Ok 0, not_allowed') goes red.
+- mutation (QA): AC4 `+ ..EndHandled(sessionRef)` dropped from End's sum -> `GotIt` `TestEndDeletesHandled` and `TestEndHandledFailureCounts` go red.
+- mutation (QA): AC5 the `windowStart` line removed from `NeedsYou.List` -> `NeedsYou` `TestWindow`, `TestWindowUndated` and `TestProcessWindow` go red.
+- mutation (QA): `handled` added to `CARDKINDS` of `WebChat/Out.cls` and of `SimPhone/Out.cls` -> `GotItChannels` `TestWebRecordsOnly` and `TestPhoneRecordsOnly` go red.
+- mutation (CR): AC4 the Handled step run only when the earlier steps passed (`If 'failed Set failed = ..EndHandled(sessionRef)` before `EndResume`, out of the sum) -> `GotIt` `TestEndHandledAfterEarlierFailure` goes red ('the Handled step was still tried for the session', 'and the row is gone').
+- mutation (CR): AC4 `Handled.DropSession` with `WHERE SessionRef = ?` dropped (every row deleted) -> `GotIt` `TestEndDeletesHandled` goes red ('B's row stays').
+- mutation (CR): AC5 `NeedsYou.List` skips a failed row whose `checkedAt` is before windowStart -> `NeedsYou` `TestWindow` goes red.
+- On a warm stack the production's jobs keep the code they started with, so a mutation of a class the production runs needs `StopProduction`/`StartProduction` in the warm stack before the run; the unmutated tree was run after a restart and on a fresh stack (tag e12s12q).
+- The eval row (`FinishCase` passes "") has no mutation: `NeedsYou.List` reads no Decision for the owner eval, so a window passed there is an equivalent mutant. `EvalCase` `TestNeedsYouIsFailedRowsOnly` and `NeedsYou` `TestEvalOwner` pin the failed-rows-alone result.
 
 ## Auto Run Result
 

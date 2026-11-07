@@ -4179,6 +4179,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T23:50:45Z status=routed owner=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=harvest note=the writer story adds the purge with its first row (unverified: whether the purge list already covers every ^OcuTalonP table)
 - 2026-11-07T16:21:26Z status=routed owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=load note=12.12_writes_Data.Handled's_first_rows_(GotIt_branch);End_deletes_the_session's_rows;was_owned_by_18.4
 - 2026-11-07T18:39:59Z occurrence=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=harvest note=deferred_low_from_12.12_spec:Data.Handled_has_no_Purge(daysToKeep)_and_Install.Task.Purge(Lane_A)_calls_none;local-install_rows_grow_one_per_press;End_delete_delivered_in_be48cc97
+- 2026-11-07T19:16:03Z status=routed owner=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=adjudication note=end-of-session_delete_delivered_by_12.12(be48cc97:Handled.DropSession,SessionOps.EndHandled;pins_Test.Core.GotIt.TestEndDeletesHandled/TestEndHandledFailureCounts/TestEndHandledAfterEarlierFailure);RESIDUAL(deferred_LOW_per_Planner):Data.Handled_has_no_Purge(daysToKeep)_and_Lane_A's_Install.Task.Purge_calls_none,so_on_a_local_install_rows_grow_one_per_Got_it_press;18.4_(the_web/phone_Got_it_story,which_already_carries_the_DW-695_bullet)_adds_the_purge_with_its_controls
 
 ### DW-696: SendDigest sent to the disabled Digest item answers failed, not not_built
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
@@ -5103,8 +5104,44 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Channel/Telegram/Out.cls:32-35 adds the button; Core/SessionOps.cls:71 NotImplemented; Digest/NeedsYou.cls DECISIONMAX 1000, no window
 - 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) build the command that marks the decision handled, (b) hide the button; plus bound the needs-you count (time window or handled); PUBLIC TEXT at the spec gate
 - 2026-11-07T16:21:26Z status=routed owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=load note=fix-forward_12.12_(Planner_D1_option_a);acceptance_bullet_in_epics.md_12.12
+- 2026-11-07T19:16:02Z status=resolved-by:12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=adjudication note=be48cc97:SessionOps_GotIt_branch(Ownership.Decision,tellnow,Handled_row,handled_Notification)+NeedsYou_windowStart_threaded_from_Digest.Process;pins:Test.Core.GotIt,Test.Core.GotItProduction,Test.Channel.TelegramDigest.TestGotItEdits,Test.Digest.NeedsYou.TestWindow/TestProcessWindow,Test.Core.SettingsCommands.TestGotItBuilt
 
 ### DW-874: Online demo: the digest is promised but invisible; visitors are told 'send my digest now' is on its way, but web chat and Simulated phone show no digest card; the morning run also sends to every demo session with a resume hash (model call when something was saved for later)
 - source: Planner review of 1.0.3 notes 2026-11-07 ~15:35Z | severity: med | fix-risk: med | footprint: cross-epic
 - evidence: Channel/WebChat/Out.cls:31 and SimPhone/Out.cls:31 CARDKINDS lack the digest; Digest/Process.cls:204-209 morning send to demo sessions
 - 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) show the digest as a web chat card on every install, (b) demo reply says it goes to Telegram (not set up on the demo) and the morning run skips demo sessions; Planner prefers (a) if it fits Sun 19Z; PUBLIC TEXT at the spec gate
+
+### DW-881: A tell-now or act Decision recorded between Digest.Process.Finish's Verdict read and its Sent.SentAt is in neither that digest's needs-you nor the next one's window
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Finish reads NeedsYou in Verdict, then Cost and the async Deliver run before SentAt=NowUtc(); the next WindowStart is that SentAt; a miss needs a Decision inside that gap of milliseconds and a second boundary before SentAt
+- 2026-11-07T19:13:54Z status=wontfix-theoretical owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=real if Finish does slow synchronous work (a sync send or model call) between Verdict and the Sent save
+
+### DW-882: A partly failed End deletes the session's Handled rows although the session stays resumable, so its handled tell-now notices count in needs-you again
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SessionOps.End sums EndHandled with the other steps; a failure elsewhere keeps the resume hash while Handled.DropSession has already run
+- 2026-11-07T19:13:54Z status=by-design owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=spec Always: the Handled step is tried whatever the earlier steps did; the effect is an over-count, never a false all-clear
+
+### DW-883: When the handled Notification cannot be sent, the marker stands and the Telegram message keeps its Got it button; later presses answer already_handled and never re-send
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SessionOps.GotIt warns on a failed SendNotice and answers handled; the already_handled branch sends nothing
+- 2026-11-07T19:13:54Z status=by-design owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=spec matrix row Notice send fails: the row stands, one warning (the Unlink precedent); SendNotice is an async enqueue
+
+### DW-884: A Got it from a channel other than Telegram, for a notice Telegram never carried, makes TelegramOut log its no-message warning
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Notify routes kind handled to TelegramOut when paired; EditHandled logs LOGNOHANDLED when no telegram Delivery row exists
+- 2026-11-07T19:13:54Z status=wontfix-theoretical owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=real once Story 18.4 adds the web chat or phone Got it control; only TelegramIn submits GotIt today
+
+### DW-885: Data.Handled.DropSession ignores the status of result.%Next, so a read error partway through the SELECT returns OK with rows left
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the While result.%Next() loop has no status argument; Data.Upload.DropSession has the same shape
+- 2026-11-07T19:13:55Z status=wontfix-theoretical owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=real if an SQL read of OcuTalon_Data.Handled can fail mid-scan (e.g. a lock timeout); then End would clear the resume hash
+
+### DW-886: AD-4's sign-out bullet does not list the Handled rows that SessionOps.End now deletes (AD-14 as amended does)
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-4 'Ending an online-demo session' lists pairing, reminders, watches, approvals, documents, memories, uploads and the cookie
+- 2026-11-07T19:13:55Z status=wontfix-accepted owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=reopen_if=a test or story treats AD-4's sign-out list as complete (enumerates End's drops from it); spine edits are the lead's
+
+### DW-887: Data.Handled.DropSession is a near-copy of Data.Upload.DropSession and its DeleteAll (select the IDs, %DeleteId each, NOTFOUND is not an error)
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Handled.cls DropSession and Upload.cls DropSession/DeleteAll differ only in the table; the spec's stated reason is 'mirrors the sibling, in the table's own class'
+- 2026-11-07T19:13:55Z status=wontfix-accepted owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=reopen_if=a third Data class adds the same SELECT-ID then %DeleteId DropSession loop (then extract one shared helper)

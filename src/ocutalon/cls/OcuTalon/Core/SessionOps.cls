@@ -17,9 +17,9 @@ Include Ensemble
 ///     and each of the first six steps is tried even when an earlier one failed: Unlink of the session's chat (reason session_end, no
 ///     notice); one CancelReminder for each pending reminder, sent to ReminderOps; one StopWatch for each production watch, sent to WatchOps;
 ///     Approval.Cancel for each pending approval request the session owns; SettingsOps.ForgetPerson for the session's per-person
-///     values (AD-19): the persona keys and the five heartbeat keys; Data.Handled.DropSession for the session's Handled rows. Only when all of them succeeded is the row's
-///     ResumeHash cleared, so
-///     that a resume cookie that outlives the sign-out resumes nothing; after a failed End the session stays resumable and the visitor can end
+///     values (AD-19): the persona keys and the five heartbeat keys; Data.Handled.DropSession for the session's Handled rows. Only when all
+///     of them succeeded is the row's ResumeHash cleared, so that a resume cookie that outlives the sign-out resumes nothing; after a failed
+///     End the session stays resumable and the visitor can end
 ///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first six steps were
 ///     tried) and no_session (Ok 0, the session has no row). The session's conversation, orders and decisions stay with the row.
 ///   - GotIt {Ref, Channel} marks one of the session's own tell-now notices as handled (AD-14; Story 12.12). In order it checks that the
@@ -277,7 +277,7 @@ Method GotIt(command As OcuTalon.Msg.Command.GotIt) As OcuTalon.Msg.CommandResul
 }
 
 /// Carries out an EndSession command and returns the CommandResult to answer (see the class description). The document, memory and upload drops,
-/// Unlink, the reminders, the watches and the approval requests each run even when an earlier one failed or threw, and a failure is a
+/// Unlink, the reminders, the watches, the approval requests, the per-person settings and the Handled rows each run even when an earlier one failed or threw, and a failure is a
 /// warning with the step's reason; the resume hash is cleared last, and only when none of them failed, so a failed End leaves the session
 /// resumable.
 Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandResult [ Private ]
