@@ -2340,3 +2340,13 @@
 2026-11-07T01:33:33Z	Epic 19	planner_ruling	dw=DW-829 measure_imports_then_gate_or_fix_install;rewording_only_as_PUBLIC_TEXT_by_14Z dw=DW-830 measure_hosts_HEAD_only;host_list_change=PUBLIC_TEXT
 2026-11-07T01:33:33Z	Epic 7	runner_resumed	agent=a4621a6b3ad580328 lane=D
 2026-11-07T01:33:33Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef lane=C
+2026-11-07T02:02:26Z	Epic 7	runner_ci_wait	head=2a96bcb4 spec_fix=99b9a24d runs=42326336355,42326336354 sweep=4_hits_all_message_times_kept
+2026-11-07T02:02:26Z	Epic 19	runner_ci_wait	head=b0bf1f14 story=19.6 chartered=19.8_burndown(DW-829,DW-830) eta_part1=09-10Z(11-13Z_with_rework)
+2026-11-07T02:02:26Z	Run	planner_question	subject=order_17_vs_19p1 default=keep_order
+2026-11-07T02:11:56Z	Run	planner_ruling	subject=merge_order order=7.9,4.11,then_first_green_of(17,19p1) other_integrates_forward line=16Z part1_misses=>Sunday_with_19.6_text 19.8_plan=approved report=Task0_results_asap,x64_figure
+2026-11-07T02:32:43Z	Epic 19	ci_flake_rerun	head=b0bf1f14 run=42324833841 jobs=browser(DW-825),shards-2(DW-688) lane-a=success
+2026-11-07T02:33:23Z	Epic 19	planner_update	subject=19.6_x64_figure second_command=177s path_b_second=137s host=ocutalon-ci-d(shared,Intel) run=42324833802
+2026-11-07T02:38:37Z	Epic 7	ci_flake_rerun	head=2a96bcb4 run=42326336355 job=browser(DW-825_occ3) heartbeat-card=15_passed_before_10Z(U-298_proof) lane-a=success
+2026-11-07T02:38:37Z	Epic 19	public_text_ruled	story=19.6 x64_clause A4="In our test installs, the whole second run took about 1 to 1.5 minutes on an Apple silicon Mac and about 3 minutes on a shared x64 Linux build server. On the Mac, the downloads took about 20 seconds of that." A6=same_with_"second command" rides=19.8 integrate_check=README_has_8_minutes_sentence_no_160_seconds
+2026-11-07T02:56:49Z	Epic 19	planner_report_relayed	story=19.8 task0 DW-829=old_copies_imported_fix_install_keep_A5 DW-830=hosts(+us.aws.cdn.hf.co,cas-server.xethub.hf.co) public_text=host_list_options_1_2 local=b8aa81bd,c65a53f5
+2026-11-07T02:56:49Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=19.8_implement_after_green host_task_held

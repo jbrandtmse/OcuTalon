@@ -4145,6 +4145,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Not reproduced: Runners passed alone on a fresh lane-A stack, after PersonaTurns on a warm stack, and in lane-a@Agent forward and reversed (fresh). The warm stack's Ens_Util.Log shows TestStartRefused leaves asynchronous Ens.Alarm Type 2 rows (22:01:55-57) seconds after its own rows; ErrorRows counts any Type 2 row, any ConfigName. Runners and RunnerFixture unchanged by Story 40.3
 - 2026-11-04T22:02:46Z status=routed owner=burndown by=cr note=priority: ErrorRows in TestStartsWithNoKey should ignore Ens.Alarm 'timer event ignored' rows, or the test should wait for the previous method's timers; one rerun of the failed job requested 21:58Z
 - 2026-11-04T22:03:02Z status=routed owner=burndown by=ci note=filed by the runner at CI triage of 2a789066, not by a code review
+- 2026-11-07T02:32:43Z status=routed owner=burndown by=ci note=occurrence=2 OCT-epic19 b0bf1f14 run 42324833841 shards-2 lane-a@rest TestStartsWithNoKey same signature; one rerun requested by the orchestrator
 ### DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27)
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data/Handled.cls keyed by SessionRef; SessionOps.End and the spine purge list do not cover it; first writer is Story 18.4
@@ -4721,6 +4722,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 42285847375 sha 9683c1f0 iris (browser) live:sign-in: TimeoutError page.waitForEvent filechooser at documents.spec.ts:146; the same spec passed on b5dcbbfa (42272673909), and the tree differs only by module versions and release records
 - 2026-11-06T21:03:13Z status=routed owner=burndown by=orchestrator note=occurrence=2026-11-06 run 42285847375; one rerun of failed jobs started; a second red on the same head is real
 - 2026-11-06T21:53:29Z status=routed owner=burndown by=orchestrator note=rerun attempt 2 of run 42285847375 green on 9683c1f0: flake class confirmed (one occurrence)
+- 2026-11-07T02:32:43Z status=open owner=burndown by=ci note=occurrence=2 OCT-epic19 b0bf1f14 run 42324833841 browser D5 documents.spec.ts:146 filechooser timeout; one rerun of failed jobs requested by the orchestrator
+- 2026-11-07T02:38:37Z status=open owner=burndown by=ci note=occurrence=3 OCT-epic7 2a96bcb4 run 42326336355 browser D5 documents.spec.ts:146 filechooser timeout (3 heads in ~6 h: 9683c1f0, b0bf1f14, 2a96bcb4); one rerun requested by the orchestrator; frequency rising, candidate for a fix in Epic 19 part 1's burn-down (19.8) since documents is Epic 19's area
 
 ### DW-826: CI unit shard:lane-a@rest (job iris shards-2) runs over the 1000 s unit line: 2031 s (5fef1125) and 2194 s (b94508c9) on Epic 17 heads; split it per the standing rule once ci/units.sh is free
 - source: runner_A_ci_report | severity: med | fix-risk: low | footprint: out-of-footprint
