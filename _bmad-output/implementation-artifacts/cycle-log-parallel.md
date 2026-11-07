@@ -2441,3 +2441,6 @@
 2026-11-07T10:09:41Z	Epic 17	runner_complete	head=b477f05d docs_only=DW-773 ci=success(42360121309,42360121514)
 2026-11-07T10:09:41Z	Epic 17	epic_merge_started	head=b477f05d into=feature
 2026-11-07T10:09:55Z	Epic 17	epic_merged_to_feature	merge=d93456a9 head=b477f05d docs_only=DW-773 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 spine_lint=baseline
+2026-11-07T10:11:37Z	Epic 11	worktree_provisioned	branch=OCT-epic11 ff_to=d93456a9 kept_worktree reason=story_11.27_tier3a_DW-550/774
+2026-11-07T10:11:37Z	Epic 11	worktree_bootstrapped	epic=11 result=ok
+2026-11-07T10:11:37Z	Epic 11	runner_dispatched	agent=a9ecc108c6b23c2ec lane=A slot=ocutalon-slot-a model=opus prompt=dispatch-epic-11-1127.md timebox=3h duplicate_ci_cancelled=42362880501,42362880523
