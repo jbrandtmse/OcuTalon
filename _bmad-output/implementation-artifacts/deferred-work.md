@@ -4657,6 +4657,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Decide.SettingText reads DecisionTokenBudget/RequestTokenLimit as written in its own job; Budget.State reads the cap live; the new InstanceZone row says no restart; the guide is contended with Epic 40, which the lead limited to the InstanceZone row
 - 2026-11-06T02:33:27Z status=wontfix-accepted owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=cr note=reopen_if=bridge-guide Settings intro still names only ToolClassification and ApprovalRole as read live when DW-728's fold-in pass edits it
 - 2026-11-07T07:31:03Z status=escalated owner=burndown by=cr note=reopen_if_arguably_fired:Story_17.9_edited_the_guide_(DW-728,DW-850)_but_left_the_Settings_intro;rewording_is_public_text_for_the_Contest_Planner
+- 2026-11-07T09:31:21Z status=resolved-by:17-9-epic-17-burn-down by=owner note=Planner_rulings_2026-11-07_about_09:30Z_and_09:35Z(L153_final):docs/bridge-guide.md_Settings_intro(L153)_and_RetryItem_bullet(L340)_say_which_settings_are_read_each_time;pinned_by_test-bridge-guide.sh_livetext;AD-19_as-built
 
 ### DW-779: docs/install-ipm.md's two sample install logs have no STEP Digest OK line after STEP Demo OK (Story 17.5 adds the Digest step to Registry.Order())
 - source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint

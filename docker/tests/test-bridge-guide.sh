@@ -21,6 +21,8 @@
 #   - retrytext  the eight lines that DW-850 rules are, each as a whole line compared as a fixed string, in the guide: the TimerSeconds and
 #                DecisionTokenBudget rows, the two Timeouts paragraphs, the fallback route, the Model row of DecisionResponse, the retry list's
 #                bullet for a model test and the paragraph about the decision's record (the rest of the retry section is not pinned)
+#   - livetext   the two lines that DW-773 rules are, each as a whole line compared as a fixed string, in the guide: the Settings
+#                section's intro (which settings are read each time they are used) and the retry section's RetryItem bullet
 #   - u229       the sentence of the owner's answers U-229 and U-237 (what is audited: no entry for a setting change; a tool call is a step unless
 #                the decision times out; an approval and an approved call's run each write an entry) is, on one line, in the guide and in the
 #                "Approval and audit" section of docs/security-overview.md
@@ -577,6 +579,60 @@ if [ "$retry_ok" -eq 1 ]; then
     fails=$((fails + 1))
   else
     echo "PASS retrytext: the guide's second-model retry wording is the ruled text"
+  fi
+fi
+
+# --- livetext ---
+
+# live_lines: the ruled lines of the guide (DW-773), one per line.
+live_lines() {
+  cat << 'EOF'
+The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. These settings are read each time they are used, so a change needs no update: `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD`, `GatewaySpendUSD`, `GatewaySpendDate`, `InstanceZone`, `ServiceUser`, `ApprovalRole`, `ToolClassification` and `ClassificationClass` of `Decide`, and `ReplyClass` and `RetryItem` of a runner. `Decide` reads `DecisionTokenBudget` and `RequestTokenLimit` this way only when it runs in a job of its own (a pool size of 1 or more, as in the example); in the shared actor pool, update the production after you change them. `HostSinkClass` is read each time too, except for the events that `Decide` fires itself, which follow a change only after `Decide` restarts. Every other setting takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. For `TimerSeconds`, see "Timeouts".
+- `RetryItem` is a setting of a runner item, and `Decide` reads it. It names the retry runner of that runner: another enabled `OcuTalon.Bridge.Operation.AgentRunner` item of the production, whose `Model` setting is the second model. An empty value means no second model, and it is empty by default. A value that names the runner itself, a missing, disabled or non-runner item, or (for a decision or a diagnosis) an item whose `ReplyClass` is refused is not used: `Decide` logs one warning that names the setting and takes the fallback route. A retry runner's own `RetryItem` is never followed, so a retry is never retried. Write `RetryItem` as any setting in "Settings" is written. `Decide` reads it live, so it needs no update; a retry runner item that you add to the production starts when you update the production. The retry runner is set up like any runner: `AgentClass`, `AgentAllowList`, `ProviderConfig`, and `ReplyClass` for a decision or a diagnosis.
+EOF
+}
+
+# live_problems <guide>: one line per ruled line that the guide lacks as a whole line.
+live_problems() {
+  local line n=0
+  while IFS= read -r line; do
+    n=$((n + 1))
+    grep -qxF -- "$line" "$1" || echo "the guide lacks ruled line $n of the live-settings wording (starting '$(printf '%s' "$line" | cut -c1-40)')"
+  done < <(live_lines)
+}
+mkdir -p "$tmp/l"
+live_ok=1
+live_lines > "$tmp/l/keep.md"
+if [ "$(wc -l < "$tmp/l/keep.md" | tr -d ' ')" -ne 2 ]; then
+  echo "FAIL livetext: the ruled text is not two lines"
+  fails=$((fails + 1)); live_ok=0
+fi
+if [ "$live_ok" -eq 1 ] && [ -n "$(live_problems "$tmp/l/keep.md")" ]; then
+  echo "FAIL livetext: the rule flags a guide that holds the ruled text"
+  live_problems "$tmp/l/keep.md" | sed 's/^/  /'
+  fails=$((fails + 1)); live_ok=0
+fi
+# One character of each ruled line changed, one line at a time: the rule must flag that line.
+if [ "$live_ok" -eq 1 ]; then
+  for i in 1 2; do
+    awk -v n="$i" 'NR == n { sub(/[a-z]/, "X") } { print }' "$tmp/l/keep.md" > "$tmp/l/g.md"
+    if cmp -s "$tmp/l/keep.md" "$tmp/l/g.md"; then
+      echo "FAIL livetext: the break sample for ruled line $i changed nothing"
+      fails=$((fails + 1)); live_ok=0
+    elif ! live_problems "$tmp/l/g.md" | grep -qF -- "ruled line $i "; then
+      echo "FAIL livetext: the rule does not flag a changed character in ruled line $i"
+      fails=$((fails + 1)); live_ok=0
+    fi
+  done
+fi
+if [ "$live_ok" -eq 1 ]; then
+  hits=$(live_problems "$GUIDE")
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | sed 's/^/  /'
+    echo "FAIL livetext: the guide's live-settings wording is the ruled text"
+    fails=$((fails + 1))
+  else
+    echo "PASS livetext: the guide's live-settings wording is the ruled text"
   fi
 fi
 
