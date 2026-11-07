@@ -4,7 +4,8 @@
  *
  * - Every constant of HEARTBEAT_TEXTS is a verbatim run of EXPERIENCE.md's Heartbeat checklist card or a ruled string (web/scripts/ux-strings.test.mjs
  *   gives each its source). A line is composed of runs: the state line joins "Every {interval}, {from} to {to}" (or "Every {interval}" for all
- *   day) and "Next check-in {time}" with the separator. The saved line, the refusals and the checklist's sample are the server's own text; the
+ *   day; for 60 minutes "Every hour, {from} to {to}" or "Every hour", ruled by the Contest Planner 2026-11-06) and "Next check-in {time}" with
+ *   the separator. The Interval picker still names 60 minutes "1 hour". The saved line, the refusals and the checklist's sample are the server's own text; the
  *   page holds a copy only of the two unavailable reasons (DW-634), which web/scripts/heartbeat-card-view.test.mjs pins against OcuTalon.Web.Api.
  * - Times come in through a function, as the page's times do (pageWhen, the browser's zone), and a cost through formatCost; `from` and `to`
  *   are shown as stored, in the instance zone.
@@ -26,6 +27,8 @@ export const HEARTBEAT_TEXTS = {
   off: 'Off. Turn it on to have OcuTalon look at your list every 30 minutes.',
   every: 'Every {interval}',
   everyHours: 'Every {interval}, {from} to {to}',
+  everyHour: 'Every hour',
+  everyHourHours: 'Every hour, {from} to {to}',
   next: 'Next check-in {time}',
   last: 'Last check-in {time}',
   stayedQuiet: 'Stayed quiet',
@@ -135,7 +138,7 @@ export function intervalName(minutes: number | undefined): string {
   return INTERVALS.find((one) => one.minutes === minutes)?.name ?? '';
 }
 
-/** The state line: the off line, or "Every {interval}, {from} to {to}, then the separator and Next check-in {time}" without the hours part for all day (both hours empty, or from equal to to, which Checks.Beat InHours reads as all day) and without the last part when no check-in is due. */
+/** The state line: the off line, or "Every {interval}, {from} to {to}, then the separator and Next check-in {time}" without the hours part for all day (both hours empty, or from equal to to, which Checks.Beat InHours reads as all day) and without the last part when no check-in is due. An interval of 60 minutes reads "Every hour" in place of "Every 1 hour". */
 export function stateLine(state: HeartbeatState, when: (iso: string) => string): string {
   if (state.on !== true) {
     return HEARTBEAT_TEXTS.off;
@@ -146,7 +149,11 @@ export function stateLine(state: HeartbeatState, when: (iso: string) => string):
   }
   const from = state.from ?? '';
   const to = state.to ?? '';
-  const every = from !== '' && to !== '' && from !== to ? fill(HEARTBEAT_TEXTS.everyHours, { interval, from, to }) : fill(HEARTBEAT_TEXTS.every, { interval });
+  const hours = from !== '' && to !== '' && from !== to;
+  const hourly = state.interval === 60;
+  const every = hours
+    ? fill(hourly ? HEARTBEAT_TEXTS.everyHourHours : HEARTBEAT_TEXTS.everyHours, { interval, from, to })
+    : fill(hourly ? HEARTBEAT_TEXTS.everyHour : HEARTBEAT_TEXTS.every, { interval });
   const next = when(state.nextDueAt ?? '');
   return next === '' ? every : `${every}${SEPARATOR}${fill(HEARTBEAT_TEXTS.next, { time: next })}`;
 }

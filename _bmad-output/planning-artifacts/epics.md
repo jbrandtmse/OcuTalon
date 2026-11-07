@@ -8942,6 +8942,42 @@ So that a save followed by a run works, and "Applies within a minute" is true fo
 - DW-780: a saved interval, hours or on/off change does not move the stored NextDueAt (ledger; routed by split 2026-11-06)
 - DW-803: Checks.Beat.RunNow reads the settings through the per-process 60-second cache, so a save followed at once by Run now is refused as empty (ledger; routed by cr 2026-11-06)
 
+### Story 39.9: Heartbeat follow-up: today's cost matches its check-ins, and the tidy-ups
+
+*Home lane: A and B (one runner; the Planner's follow-up rulings name both lanes' files).* [AMENDED 2026-11-07, Story 39.9 spec gate, apply-and-report (Rule 5 tier 1), as Story 39.7's home-lane amendment: it read "*Home lane: A.*"]
+
+[ADDED 2026-11-07, SC-5 re-open of Epic 39 for a post-merge follow-up, chartered by the runner under the Contest Planner's rulings of 2026-11-06 (relayed by the orchestrator; fix-forward, no boundary or dependency change): the Planner's 1.0.2 demo walk (DW-824), the "Every hour" schedule line (PUBLIC TEXT ruled by the Planner 2026-11-06), and the test hygiene routed here by Epic 39's burn-down ruling (DW-785, DW-670). Split rule (Planner 2026-11-06): if the third and fourth groups below would miss the 1.0.3 merge line, they split off as Story 39.10.]
+
+As a person watching the Heartbeat card,
+I want the Today line's cost to agree with the check-ins it counts, and the schedule to read naturally,
+So that the card never shows a total the count does not explain.
+
+**Acceptance Criteria:**
+
+**Given** the online-demo session of the 1.0.2 walk (a Watch, an incident with its approval, a Save with heartbeat On, then Run the heartbeat now, deciding Act with read-only checks)
+**When** the card shows "Last check-in … · $0.0003" and "Today: 1 check-in, $0.0006"
+**Then** the story first records, with evidence, exactly what Today's total sums (a second beat or decision, the notice, the run-now turn, or something else)
+**And** the Today line and its count then agree, or the line says what it sums; any change of shown text is PUBLIC TEXT, ruled before it is committed
+**And** a regression test reproduces the one-check-in, double-cost case and shows the fix, with a demonstrated mutation (Rule 19)
+
+**Given** a heartbeat interval of 60 minutes
+**When** the card's schedule line is shown
+**Then** it reads "Every hour, …" (for example "Every hour, 07:15 to 21:45", or "Every hour" all day) in place of "Every 1 hour, …", and every other interval reads exactly as before ("Every 30 minutes", "Every 2 hours", …) (PUBLIC TEXT ruled by the Planner 2026-11-06)
+**And** a fixed-strings test pins it, and EXPERIENCE.md is amended in place with a marker if it quotes the old form
+
+**Given** `docker/tests/test-heartbeat-overview.sh` and `docker/tests/test-triage-heartbeat.sh`
+**When** both run
+**Then** their duplicated security-overview check lives in one shared helper, and each script still checks exactly what it checks today; no pin is deleted or weakened
+
+**Given** `OcuTalon.Test.Web.GuideApi`'s `TestOnlyTheMarkerChanges` and `TestRunAgain`
+**When** either fails on its fingerprint
+**Then** the failure message prints both fingerprints, so the next occurrence can be diagnosed
+**And** the race is fixed only if its cause is plain and in Epic 39's code; otherwise the residual is recorded
+
+- DW-824: Heartbeat card: Today's cost sums more than the counted check-ins (online demo 1.0.2: Last check-in $0.0003, Today: 1 check-in, $0.0006) (ledger; routed by orchestrator 2026-11-06)
+- DW-785: docker/tests/test-heartbeat-overview.sh repeats about 25 lines of test-triage-heartbeat.sh's security-overview rule; unify both checks in one shared helper (ledger; routed by cr 2026-11-06)
+- DW-670: flake: GuideApi TestOnlyTheMarkerChanges and TestRunAgain went red on their fingerprint and passed on an unchanged rerun; print both fingerprints on failure (ledger; routed by harvest 2026-11-04)
+
 
 ## Epic 40: Choose how OcuTalon talks to you
 
