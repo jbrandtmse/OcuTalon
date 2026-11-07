@@ -166,6 +166,104 @@ XData Entries [ MimeType = application/json ]
    "web": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}.\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. The date is valid whether read month first or day first. Read {reading}, it matches the day the {item} arrived. I'll resend 1 repaired copy; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."
   }
  },
+ "incident.withFixChecked": {
+  "text": "{count} {itemNoun} failed since {time}. {cause}. I can {fixSummary}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend {resendCount} repaired copies; the originals stay unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "{count} {itemNoun} failed since {time}. {cause}. I can {fixSummary}.\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend {resendCount} repaired copies; the originals stay unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "time": "time",
+   "cause": "sentence",
+   "fixSummary": "sentence",
+   "field": "text",
+   "before": "text",
+   "after": "text",
+   "resendCount": "count",
+   "goodChecked": "count",
+   "goodChanged": "count",
+   "goodNoun": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Incident notice with approval request; good-message line: Story 7.9 (owner decision 2026-11-06)",
+  "one": {
+   "slot": "resendCount",
+   "text": "{count} {itemNoun} failed since {time}. {cause}. I can {fixSummary}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+   "web": "{count} {itemNoun} failed since {time}. {cause}. I can {fixSummary}.\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."
+  }
+ },
+ "incident.laterRequestChecked": {
+  "text": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend {resendCount} repaired copies; the originals stay unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}.\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend {resendCount} repaired copies; the originals stay unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "time": "time",
+   "fixSummary": "sentence",
+   "field": "text",
+   "before": "text",
+   "after": "text",
+   "resendCount": "count",
+   "goodChecked": "count",
+   "goodChanged": "count",
+   "goodNoun": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Later approval request in the same incident; good-message line: Story 7.9 (owner decision 2026-11-06)",
+  "one": {
+   "slot": "resendCount",
+   "text": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+   "web": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}.\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."
+  }
+ },
+ "incident.withFixEitherWayChecked": {
+  "text": "{count} {itemNoun} failed since {time}. {cause}. I can {fixSummary}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived. I'll resend {resendCount} repaired copies; the originals stay unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "{count} {itemNoun} failed since {time}. {cause}. I can {fixSummary}.\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived. I'll resend {resendCount} repaired copies; the originals stay unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "time": "time",
+   "cause": "sentence",
+   "fixSummary": "sentence",
+   "field": "text",
+   "before": "text",
+   "after": "text",
+   "resendCount": "count",
+   "reading": "text",
+   "item": "text",
+   "goodChecked": "count",
+   "goodChanged": "count",
+   "goodNoun": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Incident notice with approval request; dry-run line: U-249 (owner delegate, 2026-11-03); good-message line: Story 7.9 (owner decision 2026-11-06)",
+  "one": {
+   "slot": "resendCount",
+   "text": "{count} {itemNoun} failed since {time}. {cause}. I can {fixSummary}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. The date is valid whether read month first or day first. Read {reading}, it matches the day the {item} arrived. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+   "web": "{count} {itemNoun} failed since {time}. {cause}. I can {fixSummary}.\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. The date is valid whether read month first or day first. Read {reading}, it matches the day the {item} arrived. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."
+  }
+ },
+ "incident.laterRequestEitherWayChecked": {
+  "text": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived. I'll resend {resendCount} repaired copies; the originals stay unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}.\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived. I'll resend {resendCount} repaired copies; the originals stay unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "time": "time",
+   "fixSummary": "sentence",
+   "field": "text",
+   "before": "text",
+   "after": "text",
+   "resendCount": "count",
+   "reading": "text",
+   "item": "text",
+   "goodChecked": "count",
+   "goodChanged": "count",
+   "goodNoun": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Later approval request in the same incident; dry-run line: U-249 (owner delegate, 2026-11-03); good-message line: Story 7.9 (owner decision 2026-11-06)",
+  "one": {
+   "slot": "resendCount",
+   "text": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. The date is valid whether read month first or day first. Read {reading}, it matches the day the {item} arrived. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+   "web": "{count} more {itemNoun} failed since {time}, with the same cause. I can {fixSummary}.\n\nDry run: {count} {itemNoun} affected. Example: {field} {before} becomes {after}. The date is valid whether read month first or day first. Read {reading}, it matches the day the {item} arrived. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last {goodChecked} {goodNoun} from the same source that went through: {goodChanged} would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."
+  }
+ },
  "incident.fallback": {
   "text": "{count} {itemNoun} failed since {time}. I couldn't work out the cause ({fallbackReason}), so I'm not proposing a fix. Nothing was changed.\n\nFailures:\n{groups}\n\nDetails and trace: on your OcuTalon page.",
   "slots": {

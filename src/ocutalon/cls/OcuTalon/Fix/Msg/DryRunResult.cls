@@ -1,6 +1,6 @@
 /// FixExecutor's answer to an OcuTalon.Fix.Msg.DryRun (AD-16). When the dry run was worked out, Reason is empty, Targets holds the header ids that a repair would
-/// resend (comma-separated, ascending; empty when none reads in the source format) and DryRun the dry run as JSON with exactly the keys of
-/// OcuTalon.Bridge.Data.ApprovalRequest DRYRUNKEYS. When it could not be worked out, Reason holds one plain sentence (redacted) and Targets and DryRun are empty.
+/// resend (comma-separated, ascending; empty when none reads in the source format) and DryRun the dry run as JSON with the keys of
+/// OcuTalon.Bridge.Data.ApprovalRequest DRYRUNKEYS, and the kind's own transient keys such as repair_resend's goodCheck, which are never stored. When it could not be worked out, Reason holds one plain sentence (redacted) and Targets and DryRun are empty.
 /// Lane A.
 Class OcuTalon.Fix.Msg.DryRunResult Extends Ens.Response
 {

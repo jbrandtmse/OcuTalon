@@ -2305,3 +2305,58 @@
 2026-11-06T19:07:47Z	Run	planner_update	subject=1.0.2_rc1_cut from=b5dcbbfa cut_commit=fe61a8e2 branch=release/1.0.2-rc1 freeze=lifted merge_order=4.11,epic19_part1,epic17 merge_back=planner_later
 2026-11-06T19:08:02Z	Epic 7	runner_dispatched	agent=a4621a6b3ad580328 model=opus story=7.9 lane=D slot=ocutalon-slot-d base=41efeba8 prompt=prompts/dispatch-epic-7-79.md
 2026-11-06T19:08:02Z	Run	freeze_lifted	post_cut_head=b5dcbbfa(green) next_merges=4.11,epic19_part1,epic17
+2026-11-06T19:43:23Z	Epic 7	runner_clarification	agent=a4621a6b3ad580328 story=7.9 kind=public_text items=PT-a..PT-e contended=Watch/Reader.cls(epic17) head=4bf611e5
+2026-11-06T19:43:23Z	Epic 7	contention_ruled	story=7.9 file=Watch/Reader.cls owner_epic=17 ruling=plain_union(4 blocks, none on Epic 17 lines; prove with git merge-file) also=Test/Msg/Catalog.cls counts summed at second merge by=orchestrator a_told=yes
+2026-11-06T19:43:23Z	Epic 7	planner_question	story=7.9 rec=PT-a form1,Z1,PT-b reuse noFix(caveat),PT-c none,PT-d notice only,PT-e accept unless video needs first-press line (then Z2)
+2026-11-06T19:43:59Z	Epic 7	public_text_ruled	story=7.9 PT-a=form1_exact Z=Z1 no_7.10 PT-b=reuse_noFix(followup DW for later wording) PT-c=ok PT-d=notice_only PT-e=accepted(condition: online-demo e2e shows the line "0 would change" on the second press, item 3; added by whichever of 4.11/7.9 integrates second) reader_union=confirmed by=planner
+2026-11-06T19:43:59Z	Epic 7	runner_resumed	agent=a4621a6b3ad580328 reason=7.9_public_text_ruled b_told=yes
+2026-11-06T20:09:10Z	Run	planner_update	subject=v1.0.2_released main=03b0d25a(parents ba97fe91,fe61a8e2) pr=5(15/15) tag=v1.0.2 merge_back=planner_pushing_to_feature(csp untracked, versions 1.0.2) orchestrator=not_mid_merge(local bookkeeping held until merge-back lands)
+2026-11-06T20:09:46Z	Run	planner_update	subject=merge_back_landed feature=9683c1f0(parents 82aefc4a,03b0d25a) csp_untracked versions=1.0.2 runs=42285847375,42285847475 local=merged_in(8c1eb7a8, held)
+2026-11-06T20:24:09Z	Epic 39	followup_item_filed	id=DW-824 source=planner_demo_walk_1.0.2 subject=heartbeat_today_cost_vs_count followup=epic39_post_merge(DW-670,DW-785,Every hour,DW-824)
+2026-11-06T20:24:30Z	Epic 39	planner_ruling	subject=followup_order order=7.9_first,then_epic39_followup target=saturday story_order=DW-824+Every_hour_first,then_DW-785,DW-670
+2026-11-06T21:01:48Z	Run	planner_ruling	subject=no_public_ipm_registry_installs rule=local_artifact_path_only(release/ipm-install.sh OCUTALON_IPM_ARTIFACT) exception=planner_ok_per_run reason=open_exchange_counter_2_to_22 written_to=switch-20261106-common.md
+2026-11-06T21:03:13Z	Run	ci_red_classified	sha=9683c1f0 run=42285847375 workflow=ci.yml jobs=production(row 21, DW-306 flake class),browser(documents D5 filechooser timeout, new flake candidate DW-825) diff_vs_green_b5dcbbfa=module versions+release records only action=rerun_failed lane-a=success
+2026-11-06T21:53:29Z	Run	ci_green_verified	sha=9683c1f0 runs=42285847375(attempt 2),42285847475 branch=feature via=ci-gate note=merge-back_v1.0.2 flakes=DW-306,DW-825
+2026-11-06T21:53:29Z	Epic 17	runner_ci_wait	agent=a69a13ff12f8408f8 sha=b94508c9 runs=42296836927,42296836950 story=17.6_done(2a0a136d green) integrated_forward=b5dcbbfa next=17.7_implement q=AD-32_text_correction(U7 fails: spec-7-9 cites AD-32)->planner
+2026-11-06T22:03:37Z	Epic 17	planner_ruling	subject=AD-32_as_built_correction ruling=approved_as_worded marker="[AMENDED 2026-11-06, as-built correction, owner ruling via the Contest Planner]" no_rule_change dead_key=checks.everythingElsePassed->later_burndown_DW by=planner
+2026-11-06T22:03:37Z	Run	planner_update	subject=saturday_account_switch plan=switch_after_7am_PST_at_natural_boundary_before_95pct hold=planner_sends_then none_before
+2026-11-06T22:05:15Z	Epic 17	ci_red_classified	sha=b94508c9 run=42296836927 class=story(suspected, integrate-forward union) tests=TestProposeThroughATurn(shards-2),TestAfterAllTestsNothingSaved(image lane-b),TestAllClearIsGuarded,TestDigest,TestIgnore,TestTellNow(shards Checks) action=runner_rework+integrate_onto_9683c1f0 ad32=relayed
+2026-11-06T22:06:05Z	Run	planner_ruling	subject=saturday_release_plan cut=1.0.3_about_17Z_sat from=newest_green_feature merge_by=16Z_sat later=sunday freeze=from_last_pre-cut_merge_until_cut hold=after_7am_PST_near_cut candidates=4.11,epic19_part1,epic17,7.9,epic39_followup
+2026-11-06T22:06:56Z	Epic 39	dispatch_planned	story=39.9_followup items=DW-824,Every_hour,DW-785,DW-670(in that order) runner=next_free(likely B after 4.11) prompt=prompts/dispatch-epic-39-followup.md target=merge_by_16Z_sat
+2026-11-06T23:06:17Z	Epic 17	runner_ci_wait	agent=a69a13ff12f8408f8 sha=59db8cec runs=42309412148,42309412146 integrated_onto=9683c1f0(d6db28c5) reds_b94508c9=2_story_fixed(Persona list,BeatOutcomes G2 fixture),1_flake(DW-639 occurrence) ad32=amended dead_key=none(still used in ReplyGuard,TelegramOut,check-sentence.ts) dw816=reopened_to_17.7
+2026-11-06T23:06:17Z	Run	ci_split_planned	unit=lane-a@rest dw=DW-826 when=after_epic19_part1_merge(ci/units.sh contended)
+2026-11-06T23:16:14Z	Run	owner_decision	via=Contest_Planner subject=move_dockerfile_to_root home=Epic_0_SC-5_reopen story=0.15 scope=git_mv docker/Dockerfile Dockerfile + ~42 refs (compose x2, ci/warm.sh, release/release.sh, release/upgrade-harness.sh, docker/tests/*, epic-dependencies.yaml paths_hint) constraints=no_behaviour_change,context_.,COPY unchanged,.dockerignore image size unchanged,install.sh+README steps unchanged public_text=any_doc_sentence_naming_the_path gates=full_CI+planner_clean_install priority=after_39.9_first_free_runner target=16Z_sat_else_sunday contended=lib-live.sh,test-install-upgrade.sh(17,19),test-release-sequence.sh,release/release.sh(19)
+2026-11-06T23:26:27Z	Run	planner_ruling	subject=saturday_priority order=1:39.9_visible(DW-824,Every_hour),2:0.15,3:39.9_hygiene(DW-670,DW-785 may slip to Sunday) 0.15=second_free_runner(no wait for 39.9) split=hygiene_as_39.10_if_needed prompts=dispatch-epic-39-followup.md(split rule added),dispatch-epic-0-015.md(new)
+2026-11-06T23:42:28Z	Epic 17	ci_green_verified	sha=59db8cec runs=42309412148,42309412146 via=ci-gate note=17.6_done+integrated_onto_9683c1f0
+2026-11-06T23:42:28Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=17.7_implement deadline=contract_green_by_15Z_sat
+2026-11-06T23:42:39Z	Run	planner_update	subject=epic17_eta merge=08-09Z_sat(one_rework->10-11Z) feature_green=+1h basis=59db8cec_green,17.7_implement_23:43Z
+2026-11-07T01:30:46Z	Epic 7	runner_stopped	item=U-298 head=acd7956c code_head=07951357 reason=inherited_ci_red file=web/e2e/heartbeat-card.spec.ts dw=DW-839 window=00-10Z_utc integrate_forward_local=e03ca809
+2026-11-07T01:30:46Z	Run	planner_question	subject=U-298 recommend=(1)runner_D_test_only_clock_fix (2)merge_7.9_first_ahead_of_4.11 also=DW-838,U-296,U-297_veto_window
+2026-11-07T01:32:05Z	Epic 19	public_text_relayed	story=19.6 local=ee5c465f figure=install_time measured=about_1_minute proposal=3_minutes also=DW-829,DW-830_accuracy_questions
+2026-11-07T01:33:33Z	Epic 7	owner_decision	item=U-298 by=Contest_Planner answer=yes_(1)_test_only_shared_clock_helper+sweep+mutation+green_CI_before_10Z (2)_merge_order=7.9,4.11,19p1,17 fallback=spec_fix_alone_by_06Z
+2026-11-07T01:33:33Z	Epic 4	owner_decision	items=U-296,U-297 by=Contest_Planner answer=keep
+2026-11-07T01:33:33Z	Epic 7	veto_window_closed	dw=DW-838 result=no_veto keep_as_built
+2026-11-07T01:33:33Z	Epic 19	public_text_ruled	story=19.6 option=b A4="...on an Apple silicon Mac, the downloads took about 20 seconds and the whole second run about 1 to 1.5 minutes." A6=same_with_"second command" keep=250MB,90MB x64=report_before_17Z
+2026-11-07T01:33:33Z	Epic 19	planner_ruling	dw=DW-829 measure_imports_then_gate_or_fix_install;rewording_only_as_PUBLIC_TEXT_by_14Z dw=DW-830 measure_hosts_HEAD_only;host_list_change=PUBLIC_TEXT
+2026-11-07T01:33:33Z	Epic 7	runner_resumed	agent=a4621a6b3ad580328 lane=D
+2026-11-07T01:33:33Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef lane=C
+2026-11-07T02:02:26Z	Epic 7	runner_ci_wait	head=2a96bcb4 spec_fix=99b9a24d runs=42326336355,42326336354 sweep=4_hits_all_message_times_kept
+2026-11-07T02:02:26Z	Epic 19	runner_ci_wait	head=b0bf1f14 story=19.6 chartered=19.8_burndown(DW-829,DW-830) eta_part1=09-10Z(11-13Z_with_rework)
+2026-11-07T02:02:26Z	Run	planner_question	subject=order_17_vs_19p1 default=keep_order
+2026-11-07T02:11:56Z	Run	planner_ruling	subject=merge_order order=7.9,4.11,then_first_green_of(17,19p1) other_integrates_forward line=16Z part1_misses=>Sunday_with_19.6_text 19.8_plan=approved report=Task0_results_asap,x64_figure
+2026-11-07T02:32:43Z	Epic 19	ci_flake_rerun	head=b0bf1f14 run=42324833841 jobs=browser(DW-825),shards-2(DW-688) lane-a=success
+2026-11-07T02:33:23Z	Epic 19	planner_update	subject=19.6_x64_figure second_command=177s path_b_second=137s host=ocutalon-ci-d(shared,Intel) run=42324833802
+2026-11-07T02:38:37Z	Epic 7	ci_flake_rerun	head=2a96bcb4 run=42326336355 job=browser(DW-825_occ3) heartbeat-card=15_passed_before_10Z(U-298_proof) lane-a=success
+2026-11-07T02:38:37Z	Epic 19	public_text_ruled	story=19.6 x64_clause A4="In our test installs, the whole second run took about 1 to 1.5 minutes on an Apple silicon Mac and about 3 minutes on a shared x64 Linux build server. On the Mac, the downloads took about 20 seconds of that." A6=same_with_"second command" rides=19.8 integrate_check=README_has_8_minutes_sentence_no_160_seconds
+2026-11-07T02:56:49Z	Epic 19	planner_report_relayed	story=19.8 task0 DW-829=old_copies_imported_fix_install_keep_A5 DW-830=hosts(+us.aws.cdn.hf.co,cas-server.xethub.hf.co) public_text=host_list_options_1_2 local=b8aa81bd,c65a53f5
+2026-11-07T02:56:49Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=19.8_implement_after_green host_task_held
+2026-11-07T03:06:19Z	Epic 19	owner_decision	dw=DW-829 approve RemoveStaleCopies conditions=(1)reqs.txt,only_mgr/python,idempotent,STEP_lines (2)snapshot+IPM_imports_before_after,zpm_list (3)uninstall_leaves_six (4)import_check_gates_A_and_p
+2026-11-07T03:06:19Z	Epic 19	public_text_ruled	subject=install-ipm_disclosure_bullet(six_shared_packages) last_sentence_conditional_on_(2) readme=none
+2026-11-07T03:06:19Z	Epic 19	public_text_ruled	dw=DW-830 option=2 hosts=pypi.org,files.pythonhosted.org,huggingface.co,hf.co(us.aws.cdn.hf.co,cas-server.xethub.hf.co) integrate_check=install-ipm_line7_11.24_text
+2026-11-07T03:06:19Z	Run	planner_ruling	dw=DW-825 fix_before_cut runner=D after_7.9 ahead_of_0.15 timebox=90m proof=repeat-each_20
+2026-11-07T03:06:19Z	Epic 4	runner_clarification	head=621dd3a5(origin) local=5098cf29 reds=HC(DW-845=dup_DW-839),D5(DW-846=dup_DW-825),E8,K16(own) action=rework_iteration_3
+2026-11-07T03:06:19Z	Epic 4	runner_resumed	agent=a9306f8c89b5782ec reason=rework_3 PT-e=Bs
+2026-11-07T03:13:30Z	Epic 7	runner_complete	head=2a96bcb4 stories=1 ci=success(42326336355,42326336354) applied=U-298
+2026-11-07T03:13:30Z	Epic 7	amendments_verified	epics.md=7.9_insert EXPERIENCE.md=2_bullets_marked
+2026-11-07T03:13:30Z	Epic 7	merge_enqueued	position=1 order=7.9,4.11,first_green(17,19p1)
+2026-11-07T03:13:30Z	Epic 7	epic_merge_started	head=2a96bcb4 into=feature

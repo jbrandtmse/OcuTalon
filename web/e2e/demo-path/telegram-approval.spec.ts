@@ -145,6 +145,11 @@ test.describe('approve from the paired Telegram chat (Story 12.7)', () => {
         .toEqual([`approve:${key}`, `reject:${key}`]);
       const notice = (await repliesOf()).find((text) => text.includes('Approve?')) ?? '';
       expect(notice, "the chat got the incident's notice").not.toBe('');
+      if (ON_MOCK) {
+        // Story 7.9 (FR-25): by now steps 5 and 7 left repaired copies that went through in this source, so the dry run checked good messages and the notice
+        // carries the ruled line, between "unchanged." and "Nothing has changed yet.". The count depends on the journey, so only its words are fixed.
+        expect(notice, "the notice's Dry run paragraph has the good-message line").toMatch(/unchanged\. Checked against the last \d+ orders? from the same source that went through: 0 would change\. Nothing has changed yet\./);
+      }
 
       // Press Approve from the chat. The 5 s run from the moment IRIS queued the press, so the two clocks must agree (T5's check).
       const before = Date.now();
