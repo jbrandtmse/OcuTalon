@@ -87,6 +87,26 @@ deferred: []
 - AC3 (Integration: consumer Runners). Given `OcuTalon.Test.Agent.Runners` with timers planted around TestStartsWithNoKey's window, when the class runs, then TestStartsWithNoKey is green 20 of 20 and its assertions are unchanged. The unchanged class failed 2 of 3 under the same planting with CI's message (lead, Task 0). Without planting, the class is green on the warm stack.
 - AC4 (existing callers). Given Heartbeat's one-argument calls, when `OcuTalon.Test.Schedule.Heartbeat` runs, then it is green with no change to its file.
 
+### Review Findings
+
+Code review 2026-11-07 (full mode, baseline b7710d2d plus the working tree; four layers, full-opus tier). 13 rows: 3 patched (medium 1, low 2), 0 deferred, 10 rejected. Rule 3: exempt (test-only story, no user-facing surface). Rule 6: AD-19, AD-22 and AD-29 hold. Rule 2: ErrorRows and Send are extended in place, HeaderMark is reused, and the MakeLog copy has its reason in Design Notes.
+
+- [x] [Review][Patch] `WaitTakenUp` compared the logical Status (1-9, `Ens.DataType.MessageStatus` is an %Integer) with the display strings "Created"/"Queued", so it returned on the first poll and the earlier review's fix for the take-up race was a no-op [src/ocutalon/cls/OcuTalon/Test/Agent/ErrorRowsMark.cls:208]. medium, fix-risk low, in-story. Fixed: `'$ListFind($ListBuild($$$eMessageStatusCreated, $$$eMessageStatusQueued), status)`, the numeric form `Test/Bridge/Approval.cls` uses (verification-gap, acceptance-auditor and edge-case-hunter).
+- [x] [Review][Patch] The comment above the cases in `TestOtherRowsKept` said only the first case is left out, but `low-number` is left out too [src/ocutalon/cls/OcuTalon/Test/Agent/ErrorRowsMark.cls:122]. low, mechanical. Fixed: the comment names both cases (blind-hunter).
+- [x] [Review][Patch] There was no record that the Verification order check (ErrorRowsMark, ErrorRowsMark, Runners in sequence) had run [spec ## Verification]. low. Closed: the review ran it after the patches, and the result is in Verification (blind-hunter and acceptance-auditor).
+
+Rejected:
+- `low` (wontfix-theoretical) Plant's failure path: the header is already in `Planted` when `WaitTakenUp` times out, so cleanup waits ROWSECONDS for a row that cannot come and then deletes a header that may still be queued. A late drop can also leave an Ens.AlarmResponse, and a timer can stay registered after a `WaitRow` timeout (edge-case-hunter #2, #3, #6; blind-hunter). This is reached only when the test is already red because Ens.Alarm has not taken a request up for 90 s. It becomes real if CI shows ErrorRowsMark red on "took up the request" or "landed after the event mark", followed by an Ens.Alarm row in a later lane-a class.
+- `low` (wontfix-accepted) Timer B (3 s) wakes before `Drop` if the host stalls for about 2 s after the 1 s send (edge-case-hunter #4). The margin is two seconds on a fast path, and lengthening the timer is a timeout change under the owner's ruling. reopen_if: CI shows ErrorRowsMark red on "the timer-ignored row of header <B> landed".
+- `false` `headerA <= headerMark` and `headerB > headerMark` cannot fail (verification-gap). They are setup guards, not the AC pins (those carry mutation lines). They do fail if the setup order changes: dropping A before HeaderMark, while A is the top header, lowers the mark below A.
+- `by-design` An "MessageHeader #<n> can not be loaded" row (Ens.Queue) is not filtered (blind-hunter). The intent covers only the timer-ignored row of a pre-mark message, and Verification records that this exclusion is deliberate.
+- `by-design` The AC3 planter and its logs live only in the lead's scratch space, and no committed test pins Runners passing the header mark (blind-hunter; verification-gap, already triaged in the implement review). AC3 is defined as the lead's planted run. `<scratchpad>` is a placeholder, not an absolute path.
+- `false` The spec says `done` while sprint-status says `review` (blind-hunter, acceptance-auditor). bmad-build-auto sets the spec status at implement, and this review sets sprint-status.
+- `reject` The Auto Run Result is stale: it says the residual risk on AC3 is unrecorded, counts eight synthetic rows and five mutations (blind-hunter, acceptance-auditor). The fix would edit the spec's implement-pass record. The AC3 proof, QA's ninth case and QA's sixth mutation are recorded in Verification.
+- `low` `TestOtherRowsKept` has no ReadyReason guard (acceptance-auditor). It writes and reads only Ens_Util.Log, which needs nothing the production provides, and the implement review already triaged this.
+- `low` A's header is dropped after the marks, where the Tasks wording drops it before them (acceptance-auditor). That order is needed for AC1: deleting the top header before HeaderMark would lower the mark. The code comment at line 95 says so.
+- `low` Each timer-ignored row starts Ens.ScheduleService's async request to Ens.ScheduleHandler, and the test never deletes that header (verification-gap, other). Every dangling timer has this standard product follow-up, and it writes no error row. It becomes real if a lane-a class shows an Ens.ScheduleHandler error row after ErrorRowsMark.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -172,10 +192,16 @@ Every command runs from the worktree root after `git rev-parse --show-toplevel` 
 - mutation: AC4 - with `headerMark` "", every Ens.Alarm row left out -> red: "without the header mark / with an empty header mark, the below-mark, above-mark, low-number and empty-number rows are kept" (the one-argument form Heartbeat relies on).
 - mutation: AC3 - lead, Task 0: the unchanged class under planting, red 2 of 3.
 
+**QA gap audit (2026-11-07, warm lane-A `e11s28lw`).** Every Matrix row and AC1, AC2, AC4 has an assertion that can fail (the implement-stage mutations above); AC3 is the lead's planted run; the SQL-failure row is unchanged code and is not exercised. One gap: nothing pinned the "starts with" anchor of the rule (a row with other text before `Message '<n>' ...` must be kept). Added the `not-at-start` case to `TestOtherRowsKept` (QA). `ErrorRowsMark` passed after the addition (8 s); `docker/tests/test-ci-config.sh` PASS test classes.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Agent/ErrorRowsMark.cls`: edited (new case `not-at-start`, header comment); no new test file.
+- mutation: QA - `TimerIgnoredAtOrBelow`'s start check (`$Extract(text, 1, 9) '= "Message '"`) replaced by `If 0` (restored byte-identical, compared with `cmp`) -> `ErrorRowsMark` red: TestOtherRowsKept "with the header mark, the not-at-start row is kept".
+
 **AC3 proof (lead, 2026-11-07 11:45-12:06Z, warm lane-A `e11s28lw`).** The planter (scratch, `<scratchpad>/e11s28lead/`) waits for TestStartRefused's SystemPrompt refusal row, then plants 200 real dangling Ens.Alarm timers (an Ens.AlarmRequest sent from ApprovalStartIn, its header deleted once Ens.Alarm holds the timer) waking every 0.1 s from 8 s to 28 s after that row, which covers TestStartsWithNoKey's window; about 140 land per run.
 - Old code (b7710d2d's Runners.cls and RunnerFixture.cls) under planting: red 2 of 3 (Task 0) and red 2 of 3 again with the corrected planter, each `FAIL TestStartsWithNoKey: and the event log holds no error or alert row since the mark`; the rows after the control rows are `Ens.Alarm` "Message '<n>' can not be found, timer event ignored" rows.
 - Fixed code (8f63b716) under the same planting: green 20 of 20 (41-44 s each).
 - One earlier fixed run (before the planter was corrected) went red on an `Ens.Alarm` "MessageHeader #<n> can not be loaded" row: the first planter deleted a header before Ens.Alarm had dequeued it, a harness artefact that CI has never shown. The filter deliberately does not cover that text (intent: only the timer-ignored row of a pre-mark message), so the count restarted with the corrected planter.
+
+**Code review (2026-11-07, warm lane-A `e11s28lw`, after the review patches to `WaitTakenUp` and the case comment).** Order check, three calls in sequence: `ErrorRowsMark` passed (8.3 s), `ErrorRowsMark` passed again (8.3 s), then `Runners` passed (41.2 s). Running the class twice also runs TestTimerRowsAroundTheMark before TestOtherRowsKept across the two runs, so no planted timer or row leaked into a later run. Every AC's `mutation:` line above is current. The patch changes a readiness wait, not a pin.
 
 ## Auto Run Result
 

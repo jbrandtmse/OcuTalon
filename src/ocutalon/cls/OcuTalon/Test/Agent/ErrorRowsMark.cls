@@ -9,7 +9,7 @@ Include Ensemble
 ///     both are present;
 ///   - TestOtherRowsKept: synthetic Ens.Alarm and other rows. With the header mark, only the Type 2 Ens.Alarm timer-ignored row
 ///     whose number is at or below the mark is left out: the number above the mark, another ConfigName, an empty or non-numeric number,
-///     another wording and a Type 6 row are kept. Without the header mark, every row is kept.
+///     another wording, the wording after other text (not at the start) and a Type 6 row are kept. Without the header mark, every row is kept.
 /// The tests check membership by the header id or the label of a row, never the whole list, since an unrelated row of the production
 /// can appear in the log. They wait by polling, up to ROWSECONDS, and delete what they created.
 Class OcuTalon.Test.Agent.ErrorRowsMark Extends %UnitTest.TestCase
@@ -119,7 +119,8 @@ Method TestOtherRowsKept()
 	Set fixture = ..#FIXTURE
 	Set headerMark = $ClassMethod(fixture, "HeaderMark")
 	Set eventMark = $ClassMethod(fixture, "EventMark")
-	// label, type, ConfigName, text before the label: the first case is the one row that is left out with the header mark
+	// label, type, ConfigName, text before the label: below-mark and low-number (numbers at or below the mark) are the rows that are
+	// left out with the header mark
 	Set cases = $ListBuild(
 		$ListBuild("below-mark", 2, "Ens.Alarm", ..TimerText(headerMark, "below-mark")),
 		$ListBuild("above-mark", 2, "Ens.Alarm", ..TimerText(headerMark + 1, "above-mark")),
@@ -128,6 +129,7 @@ Method TestOtherRowsKept()
 		$ListBuild("empty-number", 2, "Ens.Alarm", ..TimerText("", "empty-number")),
 		$ListBuild("letter-number", 2, "Ens.Alarm", ..TimerText("12x", "letter-number")),
 		$ListBuild("other-wording", 2, "Ens.Alarm", "Message '"_headerMark_"' was not found, timer ignored. Timer ID ='other-wording'."),
+		$ListBuild("not-at-start", 2, "Ens.Alarm", "Note: "_..TimerText(headerMark, "not-at-start")),
 		$ListBuild("alert", 6, "Ens.Alarm", ..TimerText(headerMark, "alert")))
 	Set position = 0
 	While $ListNext(cases, position, case) {
@@ -204,7 +206,7 @@ Method WaitTakenUp(headerId As %Integer) As %Boolean [ Private ]
 	Set taken = 0
 	While 'taken {
 		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Status FROM Ens.MessageHeader WHERE ID = ?", headerId)
-		If result.%Next() && (result.%GetData(1) '= "Created") && (result.%GetData(1) '= "Queued") Set taken = 1 Continue
+		If result.%Next() && '$ListFind($ListBuild($$$eMessageStatusCreated, $$$eMessageStatusQueued), result.%GetData(1)) Set taken = 1 Continue
 		If $ZHorolog >= deadline Quit
 		Hang 0.1
 	}
