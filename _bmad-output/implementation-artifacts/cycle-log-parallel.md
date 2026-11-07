@@ -2502,3 +2502,6 @@
 2026-11-07T16:47:57Z	Epic 19	runner_complete	head=043ad103 part_merge=19.1-19.3,19.6,19.8 stories=4 ci=success(42390939929,42390939956) release_tool_hunks=U-294+19.8(upgrade-harness_empty) new_units=shards-5,ipm-install-p,live:memory-offline decisions=DW-870,DW-871
 2026-11-07T16:47:57Z	Epic 19	amendments_verified	epics.md=19.8+DW_bullets spine=AD-21,AD-23_markers
 2026-11-07T16:47:57Z	Epic 19	epic_merge_started	head=043ad103 into=feature extra=DW-871(AD-22,ci.yml_line2)
+2026-11-07T16:49:02Z	Epic 19	epic_merged_to_feature	merge=5b47f052 head=043ad103 part=1 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0 sprint_valid=yes spine_lint=baseline DW-871=AD-22+ci.yml_comment
+2026-11-07T16:49:02Z	Epic 19	spine_updated	ad=AD-22 reason=decision_sheet by=orchestrator lint=ok
+2026-11-07T16:49:02Z	Run	deps_hash_rerecorded	reason=burndown_inserted story=19.8 hash=1b9a45a78f74
