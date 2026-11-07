@@ -23,9 +23,10 @@
 #   - traces kept (Story 11.27): the real cmd_live of a sourced ci/iris.sh, over a fake checkout and a fake unit script that fails and
 #     leaves a trace.zip, another file and a .playwright-artifacts-0 folder: on a self-hosted runner (GITHUB_ACTIONS=true,
 #     RUNNER_ENVIRONMENT=self-hosted) with a root outside the workspace and the checkout the unit gets OCUTALON_E2E_TRACE=retain-on-failure,
-#     the trace moves to <root>/<tag>/<unit>/... (root mode 700), nothing of a trace stays below web/test-results, the other files and the
-#     unit's exit code stay, and the log names no host path; on a hosted runner, with no runner, with a root inside the workspace, inside
-#     the checkout, through a link into the workspace or not absolute the unit gets no switch, the trace is deleted and nothing is written
+#     the trace moves to <root>/<tag>/<unit>/... (folders mode 700, the trace 600), nothing of a trace stays below web/test-results, the other
+#     files and the unit's exit code stay, and the log names no host path; a trace that cannot be moved and a link named like a trace are
+#     deleted, never kept, and a link's target is not touched; on a hosted runner, with no runner, with a root inside the workspace, inside
+#     the checkout, through a link into the workspace, through a .. that climbs back into it, or not absolute the unit gets no switch, the trace is deleted and nothing is written
 #     to the root; with GITHUB_ACTIONS unset nothing is touched; traces_prune removes the run folders older than 7 days, keeps younger ones
 #     and names that are not run tags, and does nothing when traces are off; cmd_group calls traces_prune after setup_tag;
 #   - teardown: every job that runs ci/iris.sh has a step with `if: always()` that runs ci/iris.sh teardown after the steps that
@@ -473,6 +474,11 @@ upload_sample traces-folder-name "failure()" "web/ocutalon-traces" "3"
 upload_sample traces-block-path "failure()" "|" "3"
 upload_sample traces-no-path "failure()" "" "3"
 upload_sample traces-up "failure()" "web/test-results/../../x" "3"
+# Home paths that name no trace: only the ~ and home checks flag them.
+upload_sample traces-home-plain "failure()" "~/results" "3"
+upload_sample traces-home-env-plain "failure()" "\${{ env.HOME }}/out" "3"
+# A folder that only the trace-folder-name check flags, when the rule is given that name (see the check after rule traces).
+upload_sample traces-own-name "failure()" "web/keepme" "3"
 awk '{ print } $0 == "          path: web/test-results/" { print "          include-hidden-files: true" }' "$samples/upload-good.yml" > "$samples/traces-hidden.yml"
 awk '{ print } $0 == "          path: web/test-results/" { print "          include-hidden-files: false" }' "$samples/upload-good.yml" > "$samples/traces-hidden-false.yml"
 # hosted_upload_sample <name> <path>: good.yml with an upload step added at the end of the hosted job.
@@ -481,6 +487,7 @@ hosted_upload_sample() {
   awk -v stepfile="$samples/step.txt" '{ print } $0 == "          GH_TOKEN: ${{ github.token }}" { while ((getline line < stepfile) > 0) print line; close(stepfile) }' "$samples/good.yml" > "$samples/$1.yml"
 }
 hosted_upload_sample traces-hosted-home "/$(printf 'ho%s' me)/runner/$trace_folder"
+hosted_upload_sample traces-hosted-home-plain "/$(printf 'ho%s' me)/runner/out"
 hosted_upload_sample traces-hosted-good web/dist/
 make_bad skip-hosted-job '$0 == "  hosted:" { print; print "    if: github.event_name == '"'"'push'"'"'"; next } { print }'
 make_bad skip-macos-job '$0 == "    runs-on: ubuntu-24.04" { print "    runs-on: macos-15"; print "    if: github.event_name == '"'"'push'"'"'"; next } { print }'
@@ -563,7 +570,19 @@ for good_upload in upload-good upload-good-bare; do
 done
 rule never-skipped "no hosted job (macOS included) has a job-level if, and no job or step ignores a failure with continue-on-error" skip-hosted-job skip-macos-job coe-job coe-step
 rule traces "no upload-artifact step of any job names the trace folder, a trace file, a home or .. path, has no path or a block path, or includes hidden files" \
-  traces-home-tilde traces-home-env traces-zip traces-folder-name traces-block-path traces-no-path traces-up traces-hidden traces-hosted-home
+  traces-home-tilde traces-home-env traces-zip traces-folder-name traces-block-path traces-no-path traces-up traces-hidden traces-hosted-home \
+  traces-home-plain traces-home-env-plain traces-hosted-home-plain
+# The trace folder's own name is flagged when it holds no "trace", and a folder name that cannot be read flags the rule.
+wf_facts "$samples/traces-own-name.yml" > "$tmp/facts.tsv"
+own_name=$(awk -v groups="install production" -v tracename=keepme -f "$tmp/rules.awk" "$tmp/facts.tsv" | awk -F'\t' '$2 == "traces"')
+wf_facts "$samples/good.yml" > "$tmp/facts.tsv"
+no_name=$(awk -v groups="install production" -v tracename= -f "$tmp/rules.awk" "$tmp/facts.tsv" | awk -F'\t' '$2 == "traces"')
+if [ -n "$own_name" ] && [ -n "$no_name" ]; then
+  echo "PASS traces: an upload of the trace folder's own name is flagged, and a folder name that cannot be read fails the rule"
+else
+  echo "FAIL traces:$([ -n "$own_name" ] || printf ' [the trace folder own name is not flagged]')$([ -n "$no_name" ] || printf ' [an unread folder name does not fail the rule]')"
+  fails=$((fails + 1))
+fi
 for good_upload in upload-good upload-good-bare traces-hidden-false traces-hosted-good; do
   hits=$(wf_check "$samples/$good_upload.yml" "install production" | awk -F'\t' '$2 == "traces"')
   if [ -z "$hits" ]; then
@@ -2011,10 +2030,11 @@ tk_live unmovable GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=self-hosted GITHUB_WORK
 printf '%s\n' "$tk_out" | grep -qx 'TRACE removed 1 of fake (traces are off or could not be moved)' || tk_bad "unmovable: no 'TRACE removed 1 of fake' line"
 printf '%s\n' "$tk_out" | grep -q '^TRACE kept' && tk_bad "unmovable: a trace was reported kept"
 tk_live trlink GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=self-hosted GITHUB_WORKSPACE="$tmp/tk-trlink/work" OCUTALON_TRACE_DIR="$tmp/tk-trlink/traces" OCUTALON_RUN_TAG=tk-run1 \
-  TK_UNIT_EXTRA='mkdir -p "$out/t3" && ln -s "$PWD/$out/t1/trace.zip" "$out/t3/trace.zip"'
+  TK_UNIT_EXTRA='mkdir -p "$out/t3" && : > "$GITHUB_WORKSPACE/linked.zip" && ln -s "$GITHUB_WORKSPACE/linked.zip" "$out/t3/trace.zip"'
 [ "$tk_rc" -eq 1 ] || tk_bad "trace link: the unit's exit status 1 became $tk_rc"
 [ -z "$(tk_traces "$(tk_results)")" ] || tk_bad "trace link: a trace, a link or an artifacts folder stays below web/test-results"
 [ -f "$tk_dir/traces/tk-run1/fake/t1/trace.zip" ] && [ ! -e "$tk_dir/traces/tk-run1/fake/t3" ] || tk_bad "trace link: the file was not kept, or the link was moved"
+[ -f "$tk_dir/work/linked.zip" ] || tk_bad "trace link: the link's target was touched"
 printf '%s\n' "$tk_out" | grep -qx 'TRACE removed 1 of fake (traces are off or could not be moved)' || tk_bad "trace link: no 'TRACE removed 1 of fake' line"
 
 # Off: each row leaves the unit no switch, deletes the trace, keeps the other files and the exit status, and writes nothing to the root.
@@ -2042,6 +2062,10 @@ tk_off incheckout "a root inside the checkout" GITHUB_ACTIONS=true RUNNER_ENVIRO
 mkdir -p "$tmp/tk-link/work"
 ln -s "$tmp/tk-link/work" "$tmp/tk-link-target" 2>/dev/null
 tk_off link "a root behind a link into the workspace" GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=self-hosted GITHUB_WORKSPACE="$tmp/tk-link/work" OCUTALON_TRACE_DIR="$tmp/tk-link-target/traces" OCUTALON_RUN_TAG=tk-run1
+[ ! -e "$tk_dir/work/traces" ] || tk_bad "a root behind a link: the root was made"
+# A ".." through a folder that does not exist yet is not resolved by pwd -P: the root is refused on the text, before mkdir -p can make it inside the workspace.
+tk_off dotdot "a root that climbs back into the workspace through .." GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=self-hosted GITHUB_WORKSPACE="$tmp/tk-dotdot/work" OCUTALON_TRACE_DIR="$tmp/tk-dotdot/nope/../work/deep/traces" OCUTALON_RUN_TAG=tk-run1
+[ ! -e "$tk_dir/work/deep" ] && [ ! -e "$tk_dir/nope" ] || tk_bad "a root with ..: the root was made"
 tk_off relative "a root that is not absolute" GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=self-hosted GITHUB_WORKSPACE="$tmp/tk-relative/work" OCUTALON_TRACE_DIR=relative/traces OCUTALON_RUN_TAG=tk-run1
 [ ! -e "$tk_dir/checkout/relative" ] || tk_bad "a relative root: the root was made"
 
@@ -2091,7 +2115,7 @@ printf '%s\n' "$live_body" | grep -q 'traces_keep ' || tk_bad "cmd_live does not
 printf '%s\n' "$live_body" | grep -q '^  exit "\$rc"$' || tk_bad "cmd_live does not exit with the unit's status"
 
 if [ -z "$tk_fail" ]; then
-  echo "PASS traces kept: a failing unit's trace moves to <root>/<tag>/<unit>/ (root mode 700) on a self-hosted runner, is deleted on a hosted one, with no runner, with a root inside the workspace or the checkout, behind a link or not absolute, and nothing is touched off CI; the exit status stays; traces_prune removes only run folders older than 7 days and cmd_group calls it after setup_tag"
+  echo "PASS traces kept: a failing unit's trace moves to <root>/<tag>/<unit>/ (folders mode 700, the trace 600) on a self-hosted runner, and one that cannot be moved or is a link is deleted; it is deleted on a hosted one, with no runner, with a root inside the workspace or the checkout, behind a link, through .. or not absolute, and nothing is touched off CI; the exit status stays; traces_prune removes only run folders older than 7 days and cmd_group calls it after setup_tag"
 else
   echo "FAIL traces kept:$tk_fail"
   fails=$((fails + 1))

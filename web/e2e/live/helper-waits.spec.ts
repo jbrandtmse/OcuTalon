@@ -274,7 +274,7 @@ test.describe('loadedAfter: the /state diagnosis', () => {
     expect(logged).toEqual(['DIAG /state licence: LUAvailable=7, LUConsumed=1', 'DIAG /state session lock: none held', 'DIAG /state gateway: none registered']);
   });
 
-  test('a dump that cannot run prints one unavailable line, and the error text is unchanged', async ({ browser }) => {
+  test('a dump that cannot run prints one unavailable line per read, and the error text is unchanged', async ({ browser }) => {
     test.setTimeout(12_000);
     await withPage(browser, async (page) => {
       await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);

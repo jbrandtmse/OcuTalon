@@ -9,7 +9,8 @@ import { irisScript } from './iris';
 /**
  * What a unit prints when the snapshot GET after a sign-in has passed its bound (DW-550, Story 11.22, Story 11.27): two reads of the stack's
  * IRIS, as `DIAG /state ...` lines on stdout, so that the next occurrence shows whether the GET waited on a held CSP session, a licence unit
- * or the web gateway. Counts and states only: no request body, cookie, session id, token, PID, IP address, port or server name.
+ * or the web gateway. No line holds a request body, cookie, token or full session id; the gateway lines hold counts and states only, with
+ * no PID, IP address, port or server name.
  * - `DIAG /state licence:` the licence units: LUAvailable, LUConsumed, KeyEnforcedUnits, CSPUsers and InstanceConnections.
  * - `DIAG /state csp process:` each CSP server process (at most 30), idle or busy, with its pid, state and routine. A request that waits
  *   for a session lock shows as a process whose state is not READ.
@@ -72,7 +73,7 @@ export function diagnosisScript(queries: DiagnosisQueries = QUERIES): string {
   ].join('\n');
 }
 
-/** The characters that a connection state may keep (everything else is stripped) and the longest state, as the script and describeGateway use them. */
+/** The characters that the gateway script keeps in a connection state (everything else is stripped); describeGateway's STATE_NAME also needs a leading letter. */
 const STATE_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ()-';
 const MAX_GATEWAYS = 5;
 

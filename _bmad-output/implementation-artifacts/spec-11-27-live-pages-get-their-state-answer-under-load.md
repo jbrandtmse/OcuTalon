@@ -4,6 +4,7 @@ type: 'chore'
 created: '2026-11-07'
 status: 'done'
 baseline_revision: '5352d39d991a20c58f17068f46815f57ed5fe562'
+baseline_commit: '5352d39d991a20c58f17068f46815f57ed5fe562'
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
@@ -207,6 +208,38 @@ deferred: []
 - AC4 (cost; lead-side measurement). Given the browser group on CI with traces on and no failures, when its time is compared with the same group's time on the last green run before this story, then the added time is recorded here. More than 2 minutes is reported to the Planner before the merge. Every group stays under REL-4's 35 minutes.
 - AC5 (Integration: consumer `loadedAfter` against a real stack). Given a live sign-in-2 stack whose `/state` is held at the browser, when `loadedAfter` passes its bound, then the real IRIS answers with a licence line, gateway server and connections lines with integer counts, and no unavailable line. The output file holds the same lines, and no line holds a cookie value or `CSPSESSIONID`.
 
+### Review Findings
+
+Code review 2026-11-07 (bmad-code-review, full mode, four layers, review tier full-opus: `_bmad/custom/model-overrides.yaml` absent). Each entry: severity, fix-risk, footprint, spec-status, disposition.
+
+- [x] [Review][Patch] HIGH: 11.22's real-stack case "a stack that cannot be reached" still expected one `DIAG /state` line; the gateway read now adds a second, so the sign-in unit (browser group) would go red [web/e2e/api/state-diagnosis.spec.ts:49] — fix-risk low, in-story (D11 not carried to this spec), clear. Red observed before the patch (2 lines, length 1 expected); now expects the licence read's and the gateway read's unavailable lines, header and title updated.
+- [x] [Review][Patch] MED: the `traces` rule's `~`, `home` and trace-folder-name checks, and its "folder name unread" FAIL, had no sample that only they flag (every bad sample also held "trace"), so AC2's home-path clause was unpinned [docker/tests/test-ci-config.sh:302] — fix-risk low, in-story, clear. Added samples `traces-home-plain`, `traces-home-env-plain`, `traces-hosted-home-plain` (built like D20) and a check with `tracename=keepme` and `tracename=` empty.
+- [x] [Review][Patch] LOW: the `trlink` row caught a removed `! -L` guard only when `find` listed the link before the real trace (directory order) [docker/tests/test-ci-config.sh:2031] — fix-risk low, in-story. The link now points at a file outside the results folder; the target is asserted untouched.
+- [x] [Review][Patch] LOW: the `link` row did not assert that the root was not made inside the workspace, as its sibling rows do [docker/tests/test-ci-config.sh:2063] — fix-risk low, in-story.
+- [x] [Review][Patch] LOW: diagnose.ts's header said "no ... session id, PID" for the whole dump, while 11.22's lines print pids and four characters of a session id (content kept by U-300; the claim is narrowed to the gateway lines) [web/e2e/support/diagnose.ts:12] — fix-risk low, in-story.
+- [x] [Review][Patch] LOW: the `STATE_CHARS` comment said describeGateway uses it; describeGateway uses `STATE_NAME`, which also needs a leading letter [web/e2e/support/diagnose.ts:76] — fix-risk low, in-story.
+- [x] [Review][Patch] LOW: a helper-waits title still said "one unavailable line" for a case that asserts two [web/e2e/live/helper-waits.spec.ts:277] — fix-risk low, in-story.
+- [x] [Review][Patch] LOW: the `traces kept` header and PASS line did not name the move-failure, link and `..` rows or the 600/700 modes [docker/tests/test-ci-config.sh:23] — fix-risk low, in-story.
+- [x] [Review][Defer] LOW: no hermetic case observes the gateway read's own 15 s ceiling; the hang case is capped first by its 12 s test timeout [web/e2e/support/diagnose.ts:171] — deferred: wontfix-accepted DW-875 (both reads share `read()` and `DIAG_BOUND_MS`; reopen_if the gateway read gets a bound of its own).
+- [x] [Review][Defer] LOW: "the two reads run at once" leaves 1.6 s of headroom on a loaded host [web/e2e/live/helper-waits.spec.ts:298] — deferred: wontfix-accepted DW-876 (reopen_if it fails in CI with an elapsed time under 4000 ms).
+
+**Rejected.**
+- `by-design` (U-300): the 11.22 DIAG lines (lock pid, four-character session prefix, csp pid) and the sanitised `gateway unavailable: <text>` error line in `state-diagnosis.txt`. The NEW gateway lines were checked: ordinals, `COUNT`-validated integers and `STATE_NAME` states only, and an odd value is never echoed.
+- `by-design`: AC4 has no mutation and is not measured yet. The spec makes it a lead-side measurement after the push (Verification), not a code defect.
+- `by-design` (D8, AC2): pruning runs only when a later group starts with traces on, so an idle runner keeps folders longer than 7 days.
+- `by-design` (Matrix "Refused or odd reading"): a state that fails `STATE_NAME`, or an over-long count, turns the whole reading into `an unexpected reading`.
+- `by-design` (Tasks, D6): the config checks the switch and `RUNNER_ENVIRONMENT`, not `GITHUB_ACTIONS`. `ci/iris.sh` checks both.
+- `by-design`: D19 (`e2e-part.test.mjs`, a ninth file) and D16 (cookie values under 8 characters are not checked).
+- `wontfix-theoretical`: the sweep does not check that `rm -f` worked. This is real only if Playwright's own output under `web/test-results` could not be deleted by the same runner user.
+- `wontfix-theoretical`: the `traces` rule does not know a custom `OCUTALON_TRACE_DIR` or absolute upload paths. This is real only if a runner sets that variable and a workflow uploads that path; neither exists.
+- `wontfix-theoretical`: a trace root that is an ancestor of the workspace could have tag-named folders pruned. This is real only if `OCUTALON_TRACE_DIR` is set to such a folder, and no runner sets it.
+- `wontfix-theoretical`: `GITHUB_WORKSPACE` is set but missing. Actions creates it before a step runs.
+- `wontfix-theoretical`: `OCUTALON_E2E_TRACE` is set outside `cmd_live` on a self-hosted runner. No workflow step sets it or runs Playwright outside `cmd_live`.
+- `wontfix-theoretical`: the pure "cookie-like state" case uses an input that the script's strip cannot produce. `Status` is a gateway-defined word; this is real only if the gateway put a token in `Status`.
+- `false`: "DW-756 is closed with no CI evidence". The ledger shows DW-756 still `routed` to this story; closing it is the lead's call.
+- `low`, rejected (the fix edits the spec under review): the stale "part 1/3" in the planned mutation list and in the live command, and "ten `cmd_live` rows" in the Auto Run Result. D17 and the recorded mutation line are correct.
+- `low`, rejected: the `link` row's setup `mkdir` is removed again by `tk_live`, which is harmless. `tk_prune` also judges the root against the real checkout, which is correct while `TMPDIR` is outside the repository.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -397,6 +430,18 @@ mutation: AC5 `gatewayScript` reads `+cs.TotalConnection` (diagnose.ts) -> `stat
 mutation: AC1 `chmod 600 "$dest"` removed (ci/iris.sh) -> `FAIL traces kept` (the kept trace's mode is 644); restored byte-identical.
 mutation: AC1 the `! -L "$f"` guard removed (ci/iris.sh) -> `FAIL traces kept` (the trace link row); restored byte-identical.
 mutation: AC3 the two reads made sequential (diagnose.ts) -> helper-waits "the two reads run at once" red (4047 ms against 3600); restored byte-identical.
+
+**QA gap audit (QA stage).** Every Matrix row and AC has a pinning assertion that can fail, except one found: `traces_on`'s `..` refusal (a root such as `<tmp>/nope/../work/deep/traces` is not resolved by `pwd -P` when `nope` does not exist, so `mkdir -p` would have made the root inside the workspace) had no row. Added the `dotdot` row to `traces kept` in `docker/tests/test-ci-config.sh` (no new file). Hermetic runs at QA: helper-waits + request-waits (sign-in-2, no stack) 32 passed; `node --test web/scripts/ci-results.test.mjs web/scripts/e2e-part.test.mjs` 51 passed; `bash docker/tests/test-ci-config.sh` all rules passed.
+
+mutation: QA the `..` branch of `traces_on` removed (ci/iris.sh) -> `FAIL traces kept` (the dotdot row: the unit got an OCUTALON_E2E_TRACE, no `TRACE off:` line, the root was made); restored byte-identical.
+
+**Code review (2026-11-07).** The review's patches were run: `web/e2e/api/state-diagnosis.spec.ts -g "cannot be reached"` (chromium, no stack: red before the patch, 1 passed after); helper-waits and request-waits (sign-in-2, no stack) 32 passed; `npm --prefix web run lint` exit 0; `bash docker/tests/test-ci-config.sh` all rules passed (also under `/bin/bash` 3.2); `bash docker/tests/test-boundaries.sh` all rules passed.
+
+mutation: CR AC3 the gateway read's lines dropped from `stateDiagnosis` (`gateway.slice(1)`, diagnose.ts) -> `e2e/api/state-diagnosis.spec.ts` "a stack that cannot be reached prints one unavailable line per read" red (length 1, 2 expected); restored byte-identical.
+mutation: CR AC2 the `~` and `home` checks removed from rule `traces` (test-ci-config.sh rules.awk) -> `FAIL traces: the rule does not flag the sample traces-home-plain`; restored byte-identical.
+mutation: CR AC2 the trace-folder-name term and the `tracename == ""` FAIL removed (rules.awk) -> `FAIL traces: [the trace folder own name is not flagged] [an unread folder name does not fail the rule]`; restored byte-identical.
+mutation: CR AC1 the `! -L "$f"` guard removed (ci/iris.sh), with the link now pointing outside the results folder -> `FAIL traces kept` ([trace link: the file was not kept, or the link was moved] [trace link: no 'TRACE removed 1 of fake' line]); restored byte-identical.
+mutation: CR AC1 the workspace check of `traces_on` disabled (ci/iris.sh) -> `FAIL traces kept` (among others [a root behind a link: the root was made]); restored byte-identical.
 
 ## Auto Run Result
 
