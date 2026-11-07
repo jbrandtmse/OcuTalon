@@ -2420,3 +2420,5 @@
 2026-11-07T08:43:59Z	Epic 19	public_text_ruled	dw=DW-857 older_versions->other_versions
 2026-11-07T08:43:59Z	Epic 19	planner_ruling	subject=check_invoke_args,check_reinstall asked_for=yes
 2026-11-07T08:43:59Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=DW-856_in_part1
+2026-11-07T09:14:48Z	Epic 17	runner_complete	head=17989a90 stories=8 ci=success(42353010024,42353010006) release_tool_hunks=none decisions=DW-773 note=log_says_9_stories_correct_is_8
+2026-11-07T09:14:48Z	Epic 17	merge_enqueued	position=after_epic19_part1 reason=planner_0845Z_part1_first
