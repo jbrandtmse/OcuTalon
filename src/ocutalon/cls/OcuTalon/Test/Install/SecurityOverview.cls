@@ -15,6 +15,12 @@ Parameter PRODUCTION = "OcuTalon.Production";
 /// The statement of the tools section, word for word (AD-10).
 Parameter STATEMENT = "No built-in tool runs operating-system commands, arbitrary ObjectScript or Python, or data-changing SQL, and AI Hub's shell, filesystem, SQL and web-search tools are never registered. The automated tool-inventory test `OcuTalon.Test.Agent.Runners` (`TestToolInventory`) checks this on every running runner.";
 
+/// The runner items of the production, the first runners and their retry runners (Story 17.2), comma-separated.
+ClassMethod AllRunners() As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).#RUNNERS_","_##class(OcuTalon.Test.Agent.RunnerFixture).#RETRYRUNNERS
+}
+
 /// 1 while the entries of the runners are pointed at the CI mock key variable.
 Property Pointed As %Boolean [ InitialExpression = 0 ];
 
@@ -23,19 +29,19 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	If ..Pointed {
 		Set ..Pointed = 0
-		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys()
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(..AllRunners())
 	}
 	Quit $$$OK
 }
 
-/// The rows are the 13 built-in tools: the 12 of release 1 (Tools.Names RELEASE1) and propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), sorted by name, none of them a fixture or the bridge's example agent, and the
+/// The rows are the 18 built-in tools: the 12 of release 1 (Tools.Names RELEASE1), propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), since Story 17.6, send_digest (Tools.Names DIGESTTOOLS), and the four memory tools (Tools.Names MEMORYTOOLS, Story 19.3), sorted by name, none of them a fixture or the bridge's example agent, and the
 /// classification, the read-only flag and the trusted-output flag of each row are those that the gate gives (Gate.ClassificationOf); for a tool that
 /// classifies by its arguments only the two flags are compared, since its classification is decided per call.
 Method TestToolRows()
 {
 	Set rows = $ClassMethod(..#GENERATOR, "ToolRows")
-	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"))
-	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1 and one for propose_persona")
+	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS"))
+	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1, one for propose_persona and one for send_digest")
 	Set names = ""
 	Set bad = ""
 	Set iterator = rows.%GetIterator()
@@ -401,8 +407,8 @@ Method TestInventoryStatement()
 	For i = 1:1:$Get(runners) {
 		If $List(runners(i), 3) Set enabled = enabled _ $ListBuild($List(runners(i), 1))
 	}
-	Set checked = $ListFromString($Parameter("OcuTalon.Test.Agent.Runners", "RUNNERS"))
-	Do $$$AssertEquals($ListToString(..Sorted(checked)), $ListToString(..Sorted(enabled)), "the runners that TestToolInventory checks are every enabled agent runner of the production, so the statement's every running runner holds")
+	Set checked = $ListFromString($Parameter("OcuTalon.Test.Agent.Runners", "INVENTORYRUNNERS"))
+	Do $$$AssertEquals($ListToString(..Sorted(checked)), $ListToString(..Sorted(enabled)), "the runners that TestToolInventory checks are every enabled agent runner of the production, the retry runners included, so the statement's every running runner holds")
 }
 
 /// The sections are made of ASCII alone, and the check that says so finds a character outside ASCII.
@@ -432,8 +438,8 @@ Method TestToolsMatchRunners()
 		Quit
 	}
 	Set ..Pointed = 1
-	Set sc = $ClassMethod(fixture, "PointKeys")
-	Do $$$AssertStatusOK(sc, "the entries of the runners are pointed at the CI mock key variable")
+	Set sc = $ClassMethod(fixture, "PointKeys", ..AllRunners())
+	Do $$$AssertStatusOK(sc, "the entries of the runners, the retry runners included, are pointed at the CI mock key variable")
 	If $$$ISERR(sc) Quit
 	Do $$$AssertTrue($ClassMethod(fixture, "WaitRecords"), "and every runner has recorded its key state")
 	Set sc = ##class(OcuTalon.Install.Step.Production).Runners(..#PRODUCTION, .runners)

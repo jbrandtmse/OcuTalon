@@ -266,6 +266,7 @@ export interface GuideStatePayload {
   telegramRow?: boolean;
   trace?: TraceTarget;
   run?: GuideRun;
+  features?: string[];
 }
 
 export interface IncidentPayload {

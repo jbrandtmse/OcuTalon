@@ -1,0 +1,30 @@
+{
+  "name": "memory-search-forget",
+  "match": {
+    "marker": "memory-search-forget"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "search_memories",
+        "input": {
+          "query": "Lee"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "forget_memory",
+        "input": {
+          "memoryRef": "zzMemoryForget00000001"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "Forgotten."
+    }
+  ]
+}

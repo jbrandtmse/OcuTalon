@@ -204,6 +204,34 @@ Method TestAct()
 	Set rows = ..Rows(session, 0)
 	Do $$$AssertEquals(rows.%Size(), 1, "the person still has one watch")
 	If rows.%Size() = 1 Do $$$AssertEquals(rows.%Get(0).ref, ref, "which is the one that the model asked to stop")
+
+	// DW-824: the check-in's cost holds the decision and its turn, on the event and in Today
+	Set ownership = "OcuTalon.Data.Ownership"
+	Set end = $ZHorolog + ..#WAITDIAGNOSIS
+	For {
+		Set cost = $ClassMethod(ownership, "CheckInCost", case.session, item.itemId, .sc)
+		If ($SYSTEM.Status.IsOK(sc) && (+cost.costUSD > +decision.CostUSD)) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Do $$$AssertTrue(+turn.CostUSD > 0, "control: the turn has a cost of its own: "_turn.CostUSD)
+	Do $$$AssertTrue(+cost.costUSD > +decision.CostUSD, "the check-in's Usage rows hold more than the decision's cost: "_cost.costUSD_" and "_decision.CostUSD)
+	If ..Tick(##class(OcuTalon.Data.Time).AddSeconds(case.t0, 60)) = "" Quit
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(case.session, "heartbeat", 2, ..#WAITDIAGNOSIS)
+	Do $$$AssertTrue(events.%Size() >= 2, "the Tick that records the decision publishes a heartbeat event")
+	If events.%Size() >= 2 {
+		Set both = +$FNumber(decision.CostUSD + turn.CostUSD, "", 6)
+		Set payload = events.%Get(events.%Size() - 1).payload
+		// a real Tick may record the decision first, before the turn's Usage row lands: its event holds the decision's cost alone and this Tick publishes
+		// nothing, so the view is then built again from the row, as the GET and the next event build it
+		If (+payload.lastCostUSD '= both) && (+payload.lastCostUSD = +decision.CostUSD) {
+			Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(case.session), ##class(OcuTalon.Checks.Beat).Values(case.session)).%JSONExportToString(.json)
+			Set payload = {}.%FromJSON(json)
+		}
+		Set today = $ClassMethod(ownership, "HeartbeatToday", case.session, .sc)
+		Do $$$AssertStatusOK(sc, "Today is read")
+		Do $$$AssertEquals(payload.lastOutcome_"|"_(+payload.lastCostUSD), "act|"_both, "the event's lastCostUSD (after a real Tick that came first, the view's) is the decision's cost plus the turn's")
+		Do $$$AssertEquals(today.checkIns_"|"_(+$FNumber(today.costUSD, "", 6)), "1|"_(+payload.lastCostUSD), "and it is Today's cost, with one check-in")
+	}
 	Do ..AssertNoCheck(case, 1)
 }
 
@@ -263,6 +291,15 @@ Method TestWatchRunsAgain()
 	Do $$$AssertEquals(..Marked(mark, session), 0, "and makes no request")
 	Do $$$AssertEquals(row.LastItemId, item.itemId, "no further Item was made")
 	Do ..AssertNoCheck(case, 1)
+}
+
+/// A fixture session as the ancestor makes it, created far ahead so that no digest is due for it: a Tick reaches Digest too, and a digest sent for the person
+/// would add a notice that these tests count.
+Method Session(name As %String) As %String [ Private ]
+{
+	Set ref = ##super(name)
+	Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.Session SET CreatedAt = ? WHERE Ref = ?", "2999-01-01T00:00:00Z", ref)
+	Quit ref
 }
 
 /// A person with a beat due at a time no real Tick reaches, whose checklist holds the scenario's marker (named with the person's Ref): the Tick at that time is sent

@@ -1,0 +1,29 @@
+{
+  "name": "memory-tainted-save-parallel",
+  "match": {
+    "marker": "memory-tainted-save-parallel"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": [
+        {
+          "name": "search_memories",
+          "input": {
+            "query": "the Results partner"
+          }
+        },
+        {
+          "name": "save_memory",
+          "input": {
+            "text": "the warehouse closes at noon"
+          }
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "text": "The CI mock tried to save a memory."
+    }
+  ]
+}

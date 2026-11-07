@@ -59,6 +59,8 @@ describe('the texts', () => {
         off: 'Off. Turn it on to have OcuTalon look at your list every 30 minutes.',
         every: 'Every {interval}',
         everyHours: 'Every {interval}, {from} to {to}',
+        everyHour: 'Every hour',
+        everyHourHours: 'Every hour, {from} to {to}',
         next: 'Next check-in {time}',
         last: 'Last check-in {time}',
         stayedQuiet: 'Stayed quiet',
@@ -160,17 +162,34 @@ describe('the state line', () => {
   });
 
   it('is the interval, the hours and the next check-in when on', () => {
-    assert.equal(stateLine(on, when), 'Every 1 hour, 07:15 to 21:45 \u00b7 Next check-in 14:30');
+    assert.equal(stateLine(on, when), 'Every hour, 07:15 to 21:45 \u00b7 Next check-in 14:30');
     assert.equal(stateLine({ ...on, interval: 30 }, when), 'Every 30 minutes, 07:15 to 21:45 \u00b7 Next check-in 14:30');
     assert.equal(stateLine({ ...on, interval: 1440 }, when), 'Every 24 hours, 07:15 to 21:45 \u00b7 Next check-in 14:30');
   });
 
   it('leaves out the hours for all day, and the next check-in when none is due', () => {
-    assert.equal(stateLine({ ...on, from: '', to: '' }, when), 'Every 1 hour \u00b7 Next check-in 14:30');
-    assert.equal(stateLine({ ...on, nextDueAt: undefined }, when), 'Every 1 hour, 07:15 to 21:45');
-    assert.equal(stateLine({ ...on, nextDueAt: '' }, when), 'Every 1 hour, 07:15 to 21:45');
-    assert.equal(stateLine({ ...on, from: '', to: '', nextDueAt: '' }, when), 'Every 1 hour');
-    assert.equal(stateLine({ ...on, from: '08:00', to: '08:00' }, when), 'Every 1 hour \u00b7 Next check-in 14:30', 'from equal to to is all day, as Checks.Beat InHours reads it');
+    assert.equal(stateLine({ ...on, from: '', to: '' }, when), 'Every hour \u00b7 Next check-in 14:30');
+    assert.equal(stateLine({ ...on, nextDueAt: undefined }, when), 'Every hour, 07:15 to 21:45');
+    assert.equal(stateLine({ ...on, nextDueAt: '' }, when), 'Every hour, 07:15 to 21:45');
+    assert.equal(stateLine({ ...on, from: '', to: '', nextDueAt: '' }, when), 'Every hour');
+    assert.equal(stateLine({ ...on, from: '08:00', to: '08:00' }, when), 'Every hour \u00b7 Next check-in 14:30', 'from equal to to is all day, as Checks.Beat InHours reads it');
+  });
+
+  it('names every other offered interval as before, with the hours and all day, and the picker still says 1 hour for 60 minutes', () => {
+    const others = [
+      [30, 'Every 30 minutes'],
+      [120, 'Every 2 hours'],
+      [240, 'Every 4 hours'],
+      [480, 'Every 8 hours'],
+      [1440, 'Every 24 hours'],
+    ];
+    assert.deepEqual([60, ...others.map(([minutes]) => minutes)].sort((a, b) => a - b), INTERVALS.map((one) => one.minutes).sort((a, b) => a - b), 'the cases are every offered interval');
+    for (const [interval, every] of others) {
+      assert.equal(stateLine({ ...on, interval }, when), `${every}, 07:15 to 21:45 \u00b7 Next check-in 14:30`);
+      assert.equal(stateLine({ ...on, interval, from: '', to: '' }, when), `${every} \u00b7 Next check-in 14:30`);
+    }
+    assert.equal(intervalName(60), '1 hour');
+    assert.equal(INTERVALS.find((one) => one.minutes === 60)?.name, '1 hour');
   });
 
   it('is empty for an interval the card does not offer', () => {

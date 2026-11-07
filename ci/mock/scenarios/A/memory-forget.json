@@ -1,0 +1,21 @@
+{
+  "name": "memory-forget",
+  "match": {
+    "marker": "memory-forget"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "forget_memory",
+        "input": {
+          "memoryRef": "zzMemoryForget00000001"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "Forgotten."
+    }
+  ]
+}

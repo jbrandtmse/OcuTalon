@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-06-2026 17:49
+last_updated: 11-07-2026 15:07
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -109,6 +109,7 @@ development_status:
   4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon: done
   4-9-a-demo-view-switch-shows-the-page-as-it-looks-on-your-own-in: done
   4-10-try-it-yourself-example-prompts-one-press-each: done
+  4-11-other-things-to-try: done
   epic-4-retrospective: optional
 
   epic-5: done
@@ -143,6 +144,7 @@ development_status:
   7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: done
   7-7-a-date-repair-that-could-read-either-way-names-its-evidence: done
   7-8-the-web-incident-card-shows-the-either-way-date-line-too: done
+  7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged: done
   epic-7-retrospective: optional
 
   epic-8: done
@@ -250,13 +252,15 @@ development_status:
   16-11-the-splash-promises-telegram-only-when-the-release-includes: done
   epic-16-retrospective: optional
 
-  epic-17: backlog
-  17-2-retry-once-on-a-second-model-before-falling-back: backlog
-  17-3-run-each-agent-on-a-supported-provider: backlog
-  17-4-apply-model-price-budget-and-zone-changes-through-the-bridge: backlog
-  17-5-check-the-vital-signs-and-every-coverage-entry: backlog
-  17-6-send-the-daily-digest-at-the-set-time-and-on-request: backlog
-  17-7-give-an-all-clear-only-when-every-check-passed: backlog
+  epic-17: done
+  17-2-retry-once-on-a-second-model-before-falling-back: done
+  17-3-run-each-agent-on-a-supported-provider: done
+  17-4-apply-model-price-budget-and-zone-changes-through-the-bridge: done
+  17-5-check-the-vital-signs-and-every-coverage-entry: done
+  17-6-send-the-daily-digest-at-the-set-time-and-on-request: done
+  17-7-give-an-all-clear-only-when-every-check-passed: done
+  17-8-only-decide-moves-a-conversation-s-link: done
+  17-9-epic-17-burn-down: done
   epic-17-retrospective: optional
 
   epic-18: backlog
@@ -265,13 +269,14 @@ development_status:
   18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled: backlog
   epic-18-retrospective: optional
 
-  epic-19: backlog
-  19-2-compute-embeddings-offline-in-a-worker: backlog
-  19-3-remember-recall-list-and-forget-in-the-chat: backlog
+  epic-19: in-progress
+  19-2-compute-embeddings-offline-in-a-worker: done
+  19-3-remember-recall-list-and-forget-in-the-chat: done
   19-4-answer-from-documents-with-citations: backlog
   19-5-keep-each-online-demo-session-s-documents-and-memories-to-it: backlog
-  19-6-extract-text-from-pdf-and-word-files-with-embedded-python: backlog
+  19-6-extract-text-from-pdf-and-word-files-with-embedded-python: done
   19-7-answer-from-pdf-and-word-documents: backlog
+  19-8-epic-19-burn-down: done
   epic-19-retrospective: optional
 
   epic-20: backlog
@@ -382,6 +387,7 @@ development_status:
   34-1-settle-step-3-ownership-and-fix-its-contracts: done
   34-2-add-and-remove-documents-on-a-documents-page: done
   34-3-epic-34-burn-down: done
+  34-4-the-keyboard-add-documents-test-is-stable-dw-825: done
   epic-34-retrospective: optional
 
   epic-35: backlog
@@ -414,6 +420,7 @@ development_status:
   39-6-evaluation-cases-for-the-heartbeat: done
   39-7-publish-the-heartbeat-event: done
   39-8-run-now-and-a-saved-heartbeat-read-what-is-stored: done
+  39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t: done
   epic-39-retrospective: optional
 
   epic-40: done
@@ -510,5 +517,14 @@ action_items:
       the 30.1 Spine notes for AD-20 fallback cases (AD-20/AD-8/AD-6/AD-22 text is
       silent; no code change)"
     owner: "user"
+    status: open
+    ref: ""
+  - id: "epic-19-retro-item-9-release-gate-for-the-release-that-carrie"
+    epic: 19
+    action: "Release gate for the release that carries Epic 19: run the real-model
+      release-candidate eval (the injection set and one persona) before its cut, because
+      Story 19.3 changes the Chat agent INSTRUCTIONS (memory bullets). Never run by
+      a runner (no real model key); Contest Planner ruling 2026-11-06."
+    owner: "owner"
     status: open
     ref: ""

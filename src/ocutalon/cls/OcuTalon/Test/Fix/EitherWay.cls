@@ -311,19 +311,4 @@ ClassMethod SortedIds(failed As %DynamicArray) As %String [ Private ]
 	Quit text
 }
 
-/// The text of the phone message that SimPhoneOut kept for the request in the session, once it is there (up to WAITINCIDENT seconds); "" with a failed assertion otherwise.
-Method PhoneText(session As %String, approvalRef As %String) As %String [ Private ]
-{
-	Set end = $ZHorolog + ..#WAITINCIDENT
-	Set text = ""
-	For {
-		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'phone' AND ApprovalRef = ?", session, approvalRef)
-		If rs.%Next() Set text = rs.%GetData(1)
-		If (text '= "") || ($ZHorolog > end) Quit
-		Hang 0.5
-	}
-	Do $$$AssertTrue(text '= "", "the phone message of the request is kept")
-	Quit text
-}
-
 }

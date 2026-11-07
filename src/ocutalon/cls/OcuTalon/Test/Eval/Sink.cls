@@ -12,9 +12,12 @@
 ///   - TestFallback: an ItemDecision with Fallback 1 and no DecisionRef leaves the cost and size fields empty;
 ///   - TestNoOpenRow: an ItemDecision for an ItemId with no sent row, and a second decision for a decided row, log a warning that names
 ///     the ItemId and the SourceItemId and store or change nothing;
-///   - TestRefused: a message that is neither an ItemDecision nor a TurnResult, and an ItemDecision whose owner is not eval, log a warning and store nothing;
+///   - TestRefused: a message that is none of an ItemDecision, a TurnResult and a DigestResult, and an ItemDecision whose owner is not eval, log a warning and store nothing;
 ///   - TestTurnResult (Story 9.7): a TurnResult completes the row of its ItemId: the DecisionRef (the turn's Decision), the fallback fields from the message,
 ///     an empty Outcome, the cost and the largest request of the DecisionRef's Usage rows, and no TurnDecisionRef although the item has a turn Decision;
+///   - TestDigestResult (Story 17.7): a DigestResult completes the row of its ItemId as a TurnResult does: an empty Outcome, no TurnDecisionRef, and with a
+///     DecisionRef its cost and largest request; with none, a decided row with empty DecisionRef, cost and size; a fallback carries its reason; a second
+///     DigestResult for the decided row logs a warning and changes nothing;
 ///   - TestTurnFallback: a TurnResult that is a fallback with no DecisionRef leaves the cost and size fields empty;
 ///   - TestTurnNoRow: a TurnResult for an ItemId with no sent row, and a second one for a decided row, log a warning and store or change nothing;
 ///   - TestUnpriced: a cost that is not known is empty, never 0.
@@ -243,7 +246,7 @@ Method TestNoOpenRow()
 	Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome_"|"_row.Fallback_"|"_row.DecidedAt, "decided|"_decision_"|digest|0|"_decidedAt, "the decided row is unchanged")
 }
 
-/// A message that is neither an ItemDecision nor a TurnResult, and an ItemDecision whose owner is not eval, are refused with a warning; the open
+/// A message that is none of an ItemDecision, a TurnResult and a DigestResult, and an ItemDecision whose owner is not eval, are refused with a warning; the open
 /// row stays sent.
 Method TestRefused()
 {
@@ -252,8 +255,8 @@ Method TestRefused()
 	Set itemId = ..Open(run, "refused", "source-refused")
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do ..Deliver(##class(Ens.StringRequest).%New("not a decision"))
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, ..#WARNER, start), 1, "a message that is neither an ItemDecision nor a TurnResult logs one warning")
-	Do $$$AssertTrue(text [ "it is neither an ItemDecision nor a TurnResult", "and says why: "_text)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, ..#WARNER, start), 1, "a message that is none of an ItemDecision, a TurnResult and a DigestResult logs one warning")
+	Do $$$AssertTrue(text [ "it is none of an ItemDecision, a TurnResult and a DigestResult", "and says why: "_text)
 
 	Set decision = ..Decision(itemId, "decide", {"Outcome": "digest"})
 	For owner = "instance", ##class(OcuTalon.Bridge.Ids).NewRef(), "" {
@@ -293,6 +296,49 @@ Method TestTurnResult()
 	Do $$$AssertEquals(row.TurnDecisionRef_"|"_row.TurnCostUSD, "|", "TurnDecisionRef and TurnCostUSD stay empty: a turn case has no act turn")
 	Do $$$AssertEquals(row.CauseCategory_row.ElementAtFault_row.FixKind_row.FixParameters, "", "and a turn gives no cause or fix")
 	Do $$$AssertTrue((before '] row.DecidedAt) && (row.DecidedAt '] after), "DecidedAt lies between the clock before the call ("_before_") and after it ("_after_"): "_row.DecidedAt)
+}
+
+/// A DigestResult completes the row of its ItemId: with no summary request the row is decided with no decision, cost or size; with one it takes the
+/// DecisionRef's cost and largest request; a fallback carries its reason; a second DigestResult for a decided row changes nothing.
+Method TestDigestResult()
+{
+	Set run = ..NewRun()
+	Set plain = ..Open(run, "digestplain", "source-digestplain")
+	Set before = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Do ..Deliver(..DigestMessage(plain, "source-digestplain", ""))
+	Set after = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set row = ..RowOf(run, "digestplain")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome_"|"_row.Fallback_"|"_row.FallbackReason, "decided|||0|", "a DigestResult with no summary request decides the row: no decision, no outcome, no fallback")
+	Do $$$AssertEquals(row.CostUSD_"|"_row.LargestRequestTokens_"|"_row.TurnDecisionRef_"|"_row.TurnCostUSD, "|||", "and its cost and size are empty")
+	Do $$$AssertTrue((before '] row.DecidedAt) && (row.DecidedAt '] after), "DecidedAt lies between the clock before the call and after it: "_row.DecidedAt)
+	Set itemId = ..Open(run, "digestasked", "source-digestasked")
+	Set turn = ..Decision(itemId, "turn", {"CostUSD": (0.0007), "Outcome": ""})
+	Do ..Usage(turn, 0.0003, 2000)
+	Do ..Usage(turn, 0.0004, 9000)
+	Do ..Deliver(..DigestMessage(itemId, "source-digestasked", turn))
+	Set row = ..RowOf(run, "digestasked")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome_"|"_row.Fallback, "decided|"_turn_"||0", "a DigestResult with a DecisionRef decides the row with it")
+	Do $$$AssertEquals(+row.CostUSD, 0.0007, "with the cost of its Usage rows")
+	Do $$$AssertEquals(row.LargestRequestTokens_"|"_row.TurnDecisionRef_"|"_row.TurnCostUSD, "9000||", "and their largest request, and no act turn")
+	Set itemId = ..Open(run, "digestfallback", "source-digestfallback")
+	Set message = ..DigestMessage(itemId, "source-digestfallback", "")
+	Set message.Fallback = 1
+	Set message.FallbackReason = "unusable"
+	Do ..Deliver(message)
+	Set row = ..RowOf(run, "digestfallback")
+	If '$IsObject(row) Quit
+	Do $$$AssertEquals(row.State_"|"_row.Fallback_"|"_row.FallbackReason_"|"_row.DecisionRef, "decided|1|unusable|", "a fallback DigestResult carries its reason")
+	Set first = ..RowOf(run, "digestplain")
+	Set decidedAt = first.DecidedAt
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set message = ..DigestMessage(plain, "source-digestplain", "")
+	Set message.Fallback = 1
+	Do ..Deliver(message)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, ..#WARNER, ##class(OcuTalon.Eval.Sink).#LOGNOROW), 1, "a second DigestResult for a decided row logs one warning")
+	Set row = ..RowOf(run, "digestplain")
+	Do $$$AssertEquals(row.State_"|"_row.Fallback_"|"_row.DecidedAt, "decided|0|"_decidedAt, "and the decided row is unchanged")
 }
 
 /// A TurnResult that is a fallback: the fields come from the message, and with no DecisionRef the cost and size stay empty.
@@ -516,6 +562,16 @@ Method Message(itemId As %String, sourceItemId As %String, decisionRef As %Strin
 Method TurnMessage(itemId As %String, sourceItemId As %String, decisionRef As %String) As OcuTalon.Eval.Msg.TurnResult [ Private ]
 {
 	Set message = ##class(OcuTalon.Eval.Msg.TurnResult).%New()
+	Set message.ItemId = itemId
+	Set message.SourceItemId = sourceItemId
+	Set message.DecisionRef = decisionRef
+	Quit message
+}
+
+/// A DigestResult of the item, not saved, with the DecisionRef of its summary request (empty for none).
+Method DigestMessage(itemId As %String, sourceItemId As %String, decisionRef As %String) As OcuTalon.Eval.Msg.DigestResult [ Private ]
+{
+	Set message = ##class(OcuTalon.Eval.Msg.DigestResult).%New()
 	Set message.ItemId = itemId
 	Set message.SourceItemId = sourceItemId
 	Set message.DecisionRef = decisionRef

@@ -60,6 +60,10 @@
 ///     run's first SentAt are not right, listed and a problem; a command dated before, one for another production and the second header of one body are
 ///     not counted), TestWatchNotSetUp (no record: unscored, a problem) and TestWatchText (the bullet, the expected text and the problem; a case with no
 ///     watch is as Story 9.3 gives it);
+///   - (Story 17.7) TestDigestScore: a digest case is right only when its row is decided with no fallback and its DigestResult has the expected key, AllClear,
+///     named entries and checked entries, the arrays in exactly that order; each of the four wrong, a fallback, a decided row with no DigestResult (got
+///     (none)) and a missing expectation field (unscored) are not right; the cases are tallied in allClear, the case entry shows the key, and a digest row
+///     that made no model request is complete and no problem while an item row with no decision still is;
 ///   - TestRunRefused: Run returns the error of a disabled EvalIn and no report;
 ///   - (Story 9.5) TestIncidents and TestCost also pin the entry members that Eval.Gate reads (an incident entry's fixParameters, a cost entry's
 ///     durationMs), TestWriteFiles pins the shared writer (no Markdown for an empty text, Save's refusals) and TestGateReadsTheReport pins the field
@@ -1157,6 +1161,67 @@ Method TestUnscored()
 	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Get(0), bare_": not scored: its case.json has no outcome in its expectation", "the problem names the case and the reason")
 }
 
+/// A digest case scores in allClear: right only when the row is decided with no fallback and the DigestResult has the expected CatalogKey, AllClear, Named
+/// and Checked (the arrays in exactly that order).
+Method TestDigestScore()
+{
+	Set expectation = {"allClear": false, "catalogKey": "checks.notEverythingRestPassed", "named": ["B production"], "checked": ["A production", "B production"]}
+	Set right = ..N("dg-right"), key = ..N("dg-key"), flag = ..N("dg-flag"), named = ..N("dg-named"), order = ..N("dg-order"), checked = ..N("dg-checked"), none = ..N("dg-none"), fallback = ..N("dg-fallback"), open = ..N("dg-open")
+	For name = right, key, flag, named, order, checked, none, fallback, open {
+		Do ..DigestCase(name, expectation)
+	}
+	Set run = ..NewRun()
+	Set good = {"CatalogKey": "checks.notEverythingRestPassed", "AllClear": 0}
+	Do good.%Set("Named", "[""B production""]")
+	Do good.%Set("Checked", "[""A production"",""B production""]")
+	Do ..DigestRow(run, right, good)
+	Do ..DigestRow(run, key, ..With(good, "CatalogKey", "checks.notEverything"))
+	Do ..DigestRow(run, flag, ..With(good, "AllClear", 1))
+	Do ..DigestRow(run, named, ..With(good, "Named", "[""A production""]"))
+	Do ..DigestRow(run, order, ..With(good, "Checked", "[""B production"",""A production""]"))
+	Do ..DigestRow(run, checked, ..With(good, "Checked", "[""A production""]"))
+	Do ..Row(run, none, {"DecisionRef": "", "CostUSD": "", "LargestRequestTokens": ""})
+	Do ..DigestRow(run, fallback, ..With(good, "Fallback", 1))
+	Do ..Row(run, open, {"State": "sent", "DecisionRef": "", "CostUSD": "", "LargestRequestTokens": ""})
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Do $$$AssertEquals(..Rights(report), checked_":0;"_fallback_":0;"_flag_":0;"_key_":0;"_named_":0;"_none_":0;"_open_":0;"_order_":0;"_right_":1", "only the case whose result equals the expectation is right")
+	Do $$$AssertEquals(..Line(report.scores.allClear), "1 of 9 share .1111 met -", "the digest cases are tallied in allClear, with no target")
+	Do $$$AssertEquals(report.scores.items.total_"|"_report.scores.commands.total, "0|0", "and in no other score")
+	Kill entries
+	Set iterator = report.cases.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Set entries(one.case) = one.kind_"|"_one.expected_"|"_one.got_"|"_one.%Get("heldOut")_"|"_one.%Get("fallback")
+	}
+	Do $$$AssertEquals(entries(right), "digest|checks.notEverythingRestPassed|checks.notEverythingRestPassed|0|0", "the right case shows the key it expected and got")
+	Do $$$AssertEquals(entries(key), "digest|checks.notEverythingRestPassed|checks.notEverything|0|0", "the wrong-key case shows the key it got")
+	Do $$$AssertEquals(entries(none), "digest|checks.notEverythingRestPassed|(none)|0|0", "a decided row with no DigestResult shows (none)")
+	Do $$$AssertEquals(entries(fallback), "digest|checks.notEverythingRestPassed|checks.notEverythingRestPassed|0|1", "a fallback DigestResult is shown as a fallback")
+	Do $$$AssertEquals(report.unscored.%Size(), 0, "no digest case is unscored")
+	Do $$$AssertEquals(report.fallbacks.%Size(), 1, "the fallback of the result is listed")
+	Set problems = ##class(OcuTalon.Eval.Report).Problems(report)
+	Do $$$AssertEquals(..Texts(problems), open_": not decided", "no digest row is incomplete for lack of a decision, cost or size; a row still sent is")
+	Do $$$AssertEquals(report.size.unknown.%Size(), 0, "and no digest row is listed with an unknown size")
+	Set partial = ..N("dg-partial")
+	Do ..WriteCase(partial, {"name": (partial), "kind": "digest", "heldOut": false, "expectation": {"allClear": false, "catalogKey": "checks.notEverything", "named": ["A"]}}.%ToJSON())
+	Set again = ..NewRun()
+	Do ..DigestRow(again, partial, good)
+	Set report = ##class(OcuTalon.Eval.Report).Build(again, ..Folder)
+	Do $$$AssertEquals(report.unscored.%Get(0).reason, "its case.json has no checked in its expectation", "an expectation without a field is unscored with the field named")
+	Do $$$AssertEquals(report.cases.%Size(), 0, "and is in no score")
+	Set noFlag = ..N("dg-noflag")
+	Do ..WriteCase(noFlag, {"name": (noFlag), "kind": "digest", "heldOut": false, "expectation": {"catalogKey": "checks.notEverything", "named": [], "checked": []}}.%ToJSON())
+	Set again = ..NewRun()
+	Do ..DigestRow(again, noFlag, good)
+	Set report = ##class(OcuTalon.Eval.Report).Build(again, ..Folder)
+	Do $$$AssertEquals(report.unscored.%Get(0).reason, "its case.json has no allClear in its expectation", "an expectation with no allClear boolean is unscored")
+	Set item = ..N("dg-item")
+	Do ..ItemCase(item, "digest")
+	Set again = ..NewRun()
+	Do ..Row(again, item, {"Outcome": "digest", "DecisionRef": "", "CostUSD": "", "LargestRequestTokens": ""})
+	Set report = ##class(OcuTalon.Eval.Report).Build(again, ..Folder)
+	Do $$$AssertEquals(..Texts(##class(OcuTalon.Eval.Report).Problems(report)), item_": no decision", "an item row with no decision is still incomplete")
+}
+
 /// A run with no row is the problem that the run sent no case.
 Method TestEmptyRun()
 {
@@ -1947,6 +2012,42 @@ Method Row(run As %String, name As %String, fields As %DynamicObject) [ Private 
 	Do $$$AssertStatusOK(row.%Save(), name_": the row is saved")
 }
 
+/// A digest case that expects the expectation.
+Method DigestCase(name As %String, expectation As %DynamicObject) [ Private ]
+{
+	Set case = {"name": (name), "kind": "digest"}
+	Do case.%Set("heldOut", 0, "boolean")
+	Set case.checks = []
+	Set case.expectation = expectation
+	Do ..WriteCase(name, case.%ToJSON())
+}
+
+/// A copy of the fields with one value changed.
+ClassMethod With(fields As %DynamicObject, key As %String, value) As %DynamicObject [ Private ]
+{
+	Set copy = {}.%FromJSON(fields.%ToJSON())
+	Do copy.%Set(key, value)
+	Quit copy
+}
+
+/// Opens the row of a digest case as Row does, with no decision, cost or size (the case made no model request), and saves its DigestResult body (SourceItemId
+/// is the case name, which Marked finds) with the fields (property names and values of OcuTalon.Eval.Msg.DigestResult).
+Method DigestRow(run As %String, name As %String, result As %DynamicObject) [ Private ]
+{
+	Do ..Row(run, name, {"DecisionRef": "", "CostUSD": "", "LargestRequestTokens": ""})
+	Set row = ##class(OcuTalon.Eval.Data.CaseResult).RunCaseIndexOpen(run, name)
+	If '$IsObject(row) Quit
+	Set body = ##class(OcuTalon.Eval.Msg.DigestResult).%New()
+	Set body.ItemId = row.ItemId
+	Set body.SourceItemId = name
+	Set iterator = result.%GetIterator()
+	While iterator.%GetNext(.key, .value) {
+		Set $Property(body, key) = value
+	}
+	Do $$$AssertStatusOK(body.%Save(), name_": the DigestResult is saved")
+	Do ..Keep(body)
+}
+
 /// A turn case (kind all-clear or command): the text of the turn, the recorded checks (an all-clear case only, an array) and the expectation.
 Method TurnCase(name As %String, kind As %String, expectation As %DynamicObject, checks As %DynamicArray = "") [ Private ]
 {
@@ -2147,11 +2248,11 @@ Method Header(class As %String, bodyId As %String, created As %String) [ Private
 /// The class and ID ("class|id") of every row the injection tests write, found by the values they carry and not by what a test recorded: the
 /// Setting keys zz.report.*, the FixRun approval refs zz-rep-*, the StopWatch commands and the watch rows of the productions that start with
 /// Zz.Production, the message headers from ZzReport, the AgentStep bodies whose label starts with ZzReport, the approval
-/// requests of the incident zz-rep-* and the TurnResult bodies whose SourceItemId starts with zz-rep-.
+/// requests of the incident zz-rep-*, and the TurnResult and DigestResult bodies whose SourceItemId starts with zz-rep-.
 ClassMethod Marked() As %List [ Private ]
 {
 	Set rows = ""
-	For spec = "OcuTalon.Data.Setting|SELECT ID FROM OcuTalon_Data.Setting WHERE ""Key"" %STARTSWITH ?|zz.report.", "OcuTalon.Data.FixRun|SELECT ID FROM OcuTalon_Data.FixRun WHERE ApprovalRef %STARTSWITH ?|zz-rep-", "OcuTalon.Msg.Command.StopWatch|SELECT ID FROM OcuTalon_Msg_Command.StopWatch WHERE Production %STARTSWITH ?|Zz.Production", "OcuTalon.Data.BackgroundCheck|SELECT ID FROM OcuTalon_Data.BackgroundCheck WHERE Production %STARTSWITH ?|Zz.Production", "Ens.MessageHeader|SELECT ID FROM Ens.MessageHeader WHERE SourceConfigName = ?|ZzReport", "OcuTalon.Bridge.Msg.AgentStep|SELECT ID FROM OcuTalon_Bridge_Msg.AgentStep WHERE Label %STARTSWITH ?|ZzReport", "OcuTalon.Bridge.Data.ApprovalRequest|SELECT ID FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE IncidentRef %STARTSWITH ?|zz-rep-", "OcuTalon.Eval.Msg.TurnResult|SELECT ID FROM OcuTalon_Eval_Msg.TurnResult WHERE SourceItemId %STARTSWITH ?|zz-rep-" {
+	For spec = "OcuTalon.Data.Setting|SELECT ID FROM OcuTalon_Data.Setting WHERE ""Key"" %STARTSWITH ?|zz.report.", "OcuTalon.Data.FixRun|SELECT ID FROM OcuTalon_Data.FixRun WHERE ApprovalRef %STARTSWITH ?|zz-rep-", "OcuTalon.Msg.Command.StopWatch|SELECT ID FROM OcuTalon_Msg_Command.StopWatch WHERE Production %STARTSWITH ?|Zz.Production", "OcuTalon.Data.BackgroundCheck|SELECT ID FROM OcuTalon_Data.BackgroundCheck WHERE Production %STARTSWITH ?|Zz.Production", "Ens.MessageHeader|SELECT ID FROM Ens.MessageHeader WHERE SourceConfigName = ?|ZzReport", "OcuTalon.Bridge.Msg.AgentStep|SELECT ID FROM OcuTalon_Bridge_Msg.AgentStep WHERE Label %STARTSWITH ?|ZzReport", "OcuTalon.Bridge.Data.ApprovalRequest|SELECT ID FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE IncidentRef %STARTSWITH ?|zz-rep-", "OcuTalon.Eval.Msg.TurnResult|SELECT ID FROM OcuTalon_Eval_Msg.TurnResult WHERE SourceItemId %STARTSWITH ?|zz-rep-", "OcuTalon.Eval.Msg.DigestResult|SELECT ID FROM OcuTalon_Eval_Msg.DigestResult WHERE SourceItemId %STARTSWITH ?|zz-rep-" {
 		Set result = ##class(%SQL.Statement).%ExecDirect(, $Piece(spec, "|", 2), $Piece(spec, "|", 3))
 		If result.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(result.%SQLCODE, result.%Message)
 		While result.%Next() {

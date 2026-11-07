@@ -119,14 +119,14 @@ Method TestAreas()
 	Do $$$AssertTrue(sorted, "the areas are sorted by name")
 }
 
-/// The order is the fixed list of 15 steps of AD-23, written out here, and every step in it exists.
+/// The order is the fixed list of 17 steps of AD-23, written out here, and every step in it exists.
 Method TestOrder()
 {
 	Set order = ##class(OcuTalon.Install.Registry).Order()
-	Do $$$AssertEquals($ListToString(order, ","), "Bridge.Installer,Public,Roles,Users,Web,SSL,Tasks,Demo,Provider,Audit,Telegram,Production,Reconcile,PrivateData,Ready", "the order of AD-23")
-	Do $$$AssertEquals($ListLength(order), 15, "fifteen steps")
+	Do $$$AssertEquals($ListToString(order, ","), "Bridge.Installer,Public,Roles,Users,Web,SSL,Tasks,Demo,Digest,Provider,Audit,Telegram,Memory,Production,Reconcile,PrivateData,Ready", "the order of AD-23")
+	Do $$$AssertEquals($ListLength(order), 17, "seventeen steps")
 	Do $$$AssertEquals($ListGet(order, 1), "Bridge.Installer", "the bridge installer is first")
-	Do $$$AssertEquals($ListGet(order, 15), "Ready", "readiness is last")
+	Do $$$AssertEquals($ListGet(order, 17), "Ready", "readiness is last")
 	Set position = 0
 	While $ListNext(order, position, name) {
 		If name = "Bridge.Installer" {

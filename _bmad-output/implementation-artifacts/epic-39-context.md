@@ -16,6 +16,7 @@ Each person keeps a short checklist that OcuTalon looks at on a schedule (the ag
 - Story 39.6: Evaluation cases for the heartbeat
 - Story 39.7: Publish the heartbeat event
 - Story 39.8: Run now and a saved heartbeat read what is stored
+- Story 39.9: Heartbeat follow-up: today's cost matches its check-ins, and the tidy-ups
 
 ## Requirements & Constraints
 
@@ -29,11 +30,14 @@ Each person keeps a short checklist that OcuTalon looks at on a schedule (the ag
 - **Event privacy:** the `heartbeat` event never carries the `SessionRef`, the checklist's text or a snapshot key. A tick's empty-checklist skip saves its row but publishes nothing; a run-now always publishes.
 - **Cost:** each beat decision under $0.001 on Claude Haiku 5.5; a default day under $0.03.
 - **Security overview:** must say a beat sends the checklist and a status snapshot to the model provider at most once per interval; once the run-now route ships, it must also name a beat the person runs now (2-minute rule, daily cap).
+- **Today line must add up (follow-up):** on the 1.0.2 online demo the card showed "Last check-in … · $0.0003" with "Today: 1 check-in, $0.0006" (after a Watch, an incident approval, a save with heartbeat on, then a run-now that decided Act with read-only checks). First record, with evidence, exactly what Today's total sums (a second beat or decision, the notice, the run-now turn, or something else); then make the count and the total agree, or make the line say what it sums. Any change of shown text is public text and must be ruled before it is committed. A regression test reproduces the one-check-in, double-cost case.
+- **"Every hour":** a 60-minute interval reads "Every hour, {from} to {to}" (or "Every hour" all day), never "Every 1 hour"; every other interval reads exactly as before ("Every 30 minutes", "Every 2 hours", …). Pin it with a fixed-strings test; amend EXPERIENCE.md in place, with a marker, if it quotes the old form.
+- **Test hygiene:** the security-overview check duplicated in `docker/tests/test-heartbeat-overview.sh` and `docker/tests/test-triage-heartbeat.sh` moves into one shared helper, with each script still checking exactly what it checks today (no pin deleted or weakened). `OcuTalon.Test.Web.GuideApi`'s `TestOnlyTheMarkerChanges` and `TestRunAgain` print both fingerprints when they fail on a fingerprint; fix the race only if its cause is plain and in Epic 39's code, otherwise record the residual.
 - **Tests:** each behaviour change is pinned with fixed clocks and the CI mock's request log, with a demonstrated mutation.
 
 ## Technical Decisions
 
-- **Lanes:** Lane A: 39.1, 39.3, 39.4, 39.6, 39.8 (`Checks`, `Checks.Beat`, `HeartbeatBeat`, `BeatNow`, Triage, `Test.Checks`). Lane B: 39.2, 39.5, 39.7 (command classes, `Msg.Enum`, `CommandsIn`, `SettingsOps`, `SessionOps`, web routes, `web/`, `Live/Publish.cls`, `Live/Payload/Heartbeat.cls`). Each story keeps its home lane's files; a need in the other lane's files becomes a sibling story.
+- **Lanes:** Lane A: 39.1, 39.3, 39.4, 39.6, 39.8, 39.9 (`Checks`, `Checks.Beat`, `HeartbeatBeat`, `BeatNow`, Triage, `Test.Checks`). Lane B: 39.2, 39.5, 39.7 (command classes, `Msg.Enum`, `CommandsIn`, `SettingsOps`, `SessionOps`, web routes, `web/`, `Live/Publish.cls`, `Live/Payload/Heartbeat.cls`). Each story keeps its home lane's files; a need in the other lane's files becomes a sibling story.
 - **No new scheduler, task or timer.** Beats run from `Checks` on the tick, after the due checks, in their own Try/Catch. Values are read via `OcuTalon.Data.Setting.Get` (60-second per-process cache).
 - **Settings keys:** `person.<SessionRef>.heartbeat.on|interval|from|to|checklist` in `OcuTalon.Data.Setting`. `SettingsOps` is the only run-time writer. The `SessionRef` comes only from the server-side session, never the client; an admin gets no right to another person's values.
 - **Commands:** `OcuTalon.Msg.Command.SetHeartbeat` (`On`, `Interval`, `From`, `To`, `Checklist`, plus `Origin`, `IdempotencyKey`, `SessionRef`) routes to `SettingsOps`; `RunHeartbeat` routes to `Checks` as `OcuTalon.Checks.Msg.BeatNow`. Both accepted from origin `web_user` only; the governance test refuses each from origin `tool`. `Msg.Enum` CHANNEL has `heartbeat` appended at the end.
@@ -47,7 +51,7 @@ Each person keeps a short checklist that OcuTalon looks at on a schedule (the ag
 
 - All card texts, the skip texts, the sample checklist and Triage's heartbeat paragraph are fixed in EXPERIENCE.md under Later Steps > Personality ("Heartbeat checklist" card). Use them exactly; ship no text the author hasn't accepted. The cost-cap skip now reads "Skipped at {time}: today's cost limit has been reached.", matching the "today's cost limit" wording of the card's Run line and the catalog.
 - The card is its own component under `web/src/app/rail/heartbeat-card/` with one slot in `rail-view.ts`, and updates from `heartbeat` events without a reload.
-- It shows off/on with interval, hours and next check-in; the last check-in (time, outcome in the UX's terms, cost, a `TraceLink` trace link) or the last skip's reason; and today's count and cost.
+- It shows off/on with interval, hours and next check-in ("Every {interval}, {from} to {to} · Next check-in {time}"; 60 minutes reads "Every hour"); the last check-in (time, outcome in the UX's terms, cost, a `TraceLink` trace link) or the last skip's reason; and today's count and cost ("Today: {n} check-ins, {cost}").
 - Edit opens in place: checklist with a "{n} of 1,000 characters" counter, interval (30 minutes up only), active hours, on/off, Save. On save show "Saved. Applies within a minute. Recorded in the audit log." or the refusal beside the field. Every control labelled and keyboard-operable.
 - "Run the heartbeat now": disabled during cooldown with "You can run it again at {time}."; unavailable with the reason at the cap or with no key (reuse an accepted text; escalate if none fits).
 - Online demo: off, sample checklist shown, plus the online-demo note. The unsaved sample isn't stored, so a run on it would be refused as empty: the card saves the sample before offering Run now, or keeps Run unavailable until a save.
@@ -55,8 +59,7 @@ Each person keeps a short checklist that OcuTalon looks at on a schedule (the ag
 
 ## Cross-Story Dependencies
 
-- **Done:** 39.1, 39.2, 39.3, 39.4, 39.6 and 39.7 (names, settings and routes, beat logic, snapshot, key, Triage paragraph, eval cases, the `heartbeat` event and payload). **In progress:** 39.5 (Lane B). **Backlog:** 39.8 (Lane A).
-- **Story 39.8** was split from 39.5's code review: the demo save-then-run in 39.5 needs `Checks.Beat.RunNow` to drop that session's cached heartbeat keys before reading, and saved interval changes to move `NextDueAt`, which only Lane A may change. Plan 39.5's run-now path around that fix rather than working around the cache in Lane B.
-- **Story 39.5** builds on 39.2's routes, 39.7's event, and Epic 31's live client and `/state` (done). Epic 40's Persona card is already in the rail; the Heartbeat card goes before it.
+- **Done:** 39.1 to 39.8; the epic merged and was on the 1.0.2 online demo. **Backlog:** 39.9 (Lane A), a post-merge fix-forward re-open with no boundary or dependency change.
+- **Story 39.9** builds on 39.5's card (its Today and schedule lines) and the beat recording of 39.3 and 39.8. Split rule: if the test-hygiene groups (shared overview helper, GuideApi fingerprints) would miss the 1.0.3 merge line, they split off as Story 39.10; the Today-cost fix and "Every hour" stay in 39.9.
 - **Epic-level:** relies on Epics 2, 5 and 8 (`Intake`, `Checks`, the tick) and Epic 30's send seam (Story 30.4).
-- **Merge and release:** the epic merges only once `release/1.0.0-rc1` exists, and ships in the first daily release after. That release's hands-on pass with real keys runs one beat of each outcome, sees a quiet beat followed by a skip while nothing changes, and does a run-now on the demo host.
+- **Release check:** the hands-on pass with real keys runs one beat of each outcome, sees a quiet beat followed by a skip while nothing changes, and does a run-now on the demo host; 39.9 targets the 1.0.3 merge line.

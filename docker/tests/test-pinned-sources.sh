@@ -71,11 +71,12 @@ OcuTalon.PKG ocutalon/cls" ]
 
 sources_root_is_dot() { grep -q '<SourcesRoot>\.</SourcesRoot>' "$1"; }
 
-# The drift rule: <root manifest> and <src manifest> agree when the root one has the sources root src and the root-relative FileCopy, and
-# is otherwise, line for line, the src one.
+# The drift rule: <root manifest> and <src manifest> agree when the root one has the sources root src and every FileCopy name from src/ (the bundle and,
+# since Story 19.6, the Python resources), and the src one is the root one, line for line, with the sources root . and no src/ before a FileCopy name.
 manifests_agree() {
   grep -q '^ *<SourcesRoot>src</SourcesRoot>$' "$1" && grep -q '<FileCopy Name="src/ocutalon/csp/"' "$1" \
-    && sed -e 's:<SourcesRoot>src</SourcesRoot>:<SourcesRoot>.</SourcesRoot>:' -e 's:<FileCopy Name="src/ocutalon/csp/":<FileCopy Name="ocutalon/csp/":' "$1" | cmp -s - "$2"
+    && ! { grep '<FileCopy Name="' "$1" | grep -qv '<FileCopy Name="src/'; } \
+    && sed -e 's:<SourcesRoot>src</SourcesRoot>:<SourcesRoot>.</SourcesRoot>:' -e 's:<FileCopy Name="src/:<FileCopy Name=":' "$1" | cmp -s - "$2"
 }
 
 # The two preload folders hold the same files with the same bytes.
@@ -151,6 +152,27 @@ if manifests_agree "$tmp/root.good" "$tmp/src.good" \
   pass "drift on samples: a root manifest that differs only in the sources root and the FileCopy passes; any other change to one side fails, and so do a root with the src paths and a missing file"
 else
   fail "drift on samples: the checker accepts a manifest that drifted, or rejects the right pair"
+fi
+
+# A second FileCopy (a Python resource): the rule rewrites every FileCopy of the root manifest, so a pair that differs on one side of the second fails.
+cat > "$tmp/root.two" <<'EOM'
+<Module>
+  <Version>1.2.3</Version>
+  <SourcesRoot>src</SourcesRoot>
+  <FileCopy Name="src/ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>
+  <FileCopy Name="src/ocutalon/python/one.py" Target="${mgrdir}python/one.py"/>
+</Module>
+EOM
+sed -e 's:<SourcesRoot>src<:<SourcesRoot>.<:' -e 's:Name="src/:Name=":' "$tmp/root.two" > "$tmp/src.two"
+sed 's:Name="ocutalon/python/one.py":Name="src/ocutalon/python/one.py":' "$tmp/src.two" > "$tmp/src.two.relative"
+sed 's:Target="${mgrdir}python/one.py":Target="${mgrdir}python/two.py":' "$tmp/src.two" > "$tmp/src.two.target"
+sed 's:Name="src/ocutalon/python/one.py":Name="ocutalon/python/one.py":' "$tmp/root.two" > "$tmp/root.two.relative"
+if manifests_agree "$tmp/root.two" "$tmp/src.two" \
+  && ! manifests_agree "$tmp/root.two" "$tmp/src.two.relative" && ! manifests_agree "$tmp/root.two" "$tmp/src.two.target" \
+  && ! manifests_agree "$tmp/root.two.relative" "$tmp/src.two"; then
+  pass "drift on samples with a second FileCopy: every FileCopy of the root manifest is the src one with src/ before its name, and a second FileCopy that differs on one side fails"
+else
+  fail "drift on samples with a second FileCopy: the checker accepts a pair whose second FileCopy differs, or rejects the right pair"
 fi
 
 mkdir -p "$tmp/a/cls" "$tmp/b/cls" "$tmp/c/cls" "$tmp/d/cls"

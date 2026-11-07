@@ -311,7 +311,7 @@ case "$1" in
                   echo "$ns $line" >> "$SHIMLOG/zpm.log"
                   case "$line" in
                     'zpm "load '*)
-                      dir=${line#zpm \"load }
+                      dir=${line#zpm \"load -bypass-py-deps }
                       dir=${dir%\"}
                       if [ -f "$SHIMFLAGS/ipm-load-fail" ]; then
                         echo "ERROR! planted install failure"
@@ -2369,13 +2369,13 @@ ipm_fail_expect() {
     "Published: no; publishing to the package registry is the author's own action, outside this sequence"
 }
 ZPM_ONE='%SYS zpm "enable -map -ns USER"
-USER zpm "load /tmp/ocutalon-pkg"
+USER zpm "load -bypass-py-deps /tmp/ocutalon-pkg"
 USER zpm "package ocutalon -only -path /tmp/ocutalon-ipm/ocutalon-1.0.0"
 USER zpm "repo -name ocutalon-check -fs -depth 2 -path /tmp/ocutalon-check/"
 USER zpm "repo -name ocutalon-check -list-modules"'
 ZPM_TWO='%SYS zpm "enable -map -ns USER"
-USER zpm "load /tmp/ocutalon-pkg"
-OCUTALON zpm "load /tmp/ocutalon-pkg"
+USER zpm "load -bypass-py-deps /tmp/ocutalon-pkg"
+OCUTALON zpm "load -bypass-py-deps /tmp/ocutalon-pkg"
 OCUTALON zpm "package ocutalon -only -path /tmp/ocutalon-ipm/ocutalon-1.0.0"
 OCUTALON zpm "repo -name ocutalon-check -fs -depth 2 -path /tmp/ocutalon-check/"
 OCUTALON zpm "repo -name ocutalon-check -list-modules"'
@@ -2547,7 +2547,7 @@ t_ipmfail() {
     case $f in
       ipm-load-fail) lacks "$f: no load in OCUTALON" "$(cat "$SHIMLOG/zpm.log")" "OCUTALON zpm" ;;
       ipm-ocutalon-load-fail)
-        has "$f: loaded again in OCUTALON" "$(cat "$SHIMLOG/zpm.log")" 'OCUTALON zpm "load /tmp/ocutalon-pkg"'
+        has "$f: loaded again in OCUTALON" "$(cat "$SHIMLOG/zpm.log")" 'OCUTALON zpm "load -bypass-py-deps /tmp/ocutalon-pkg"'
         lacks "$f: nothing packaged" "$(cat "$SHIMLOG/zpm.log")" 'zpm "package'
         ;;
     esac
@@ -2818,6 +2818,47 @@ t_ipmlib() {
   eq "a root artifact checked as src: every bundle file is missing" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" src | grep -c 'lacks the bundle file ocutalon/csp/')" "$n"
   has "no layout: a problem, never a pass" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree")" "cannot be checked (the layout '' is not root or src)"
   has "another layout: a problem, never a pass" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" both)" "cannot be checked (the layout 'both' is not root or src)"
+  # the Python resources and requirements.txt (Story 19.6, U-294, ruling B4): a FileCopy for each resource of the candidate and the candidate's
+  # requirements.txt at the top of the artifact
+  mkdir -p "$t/tree/src/ocutalon/python" "$t/py/src/ocutalon/csp" "$t/pys/ocutalon/csp" "$t/py/src/ocutalon/python" "$t/pys/ocutalon/python"
+  printf 'resource\n' > "$t/tree/src/ocutalon/python/one.py"
+  cp "$t/tree/src/ocutalon/python/one.py" "$t/py/src/ocutalon/python/one.py"
+  cp "$t/tree/src/ocutalon/python/one.py" "$t/pys/ocutalon/python/one.py"
+  printf 'pin==1\n' > "$t/tree/requirements.txt"
+  cp -R "$t/tree/src/ocutalon/csp/." "$t/py/src/ocutalon/csp/"
+  cp -R "$t/tree/src/ocutalon/csp/." "$t/pys/ocutalon/csp/"
+  cp "$t/tree/requirements.txt" "$t/py/requirements.txt"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/><FileCopy Name="src/ocutalon/python/one.py" Target="${mgrdir}python/one.py"/>\n' > "$t/py/module.xml"
+  tar -czf "$C/py.tgz" -C "$t/py" .
+  eq "python: a good root artifact has no problem" "$(ipm_artifact_check "$C/py.tgz" 1.0.0 "$t/tree" root)" ""
+  rm -f "$t/py/src/ocutalon/python/one.py"
+  tar -czf "$C/pynofile.tgz" -C "$t/py" .
+  has "python: an artifact without the resource file" "$(ipm_artifact_check "$C/pynofile.tgz" 1.0.0 "$t/tree" root)" "lacks the Python resource src/ocutalon/python/one.py"
+  printf 'other\n' > "$t/py/src/ocutalon/python/one.py"
+  tar -czf "$C/pydifffile.tgz" -C "$t/py" .
+  has "python: an artifact with other bytes in the resource" "$(ipm_artifact_check "$C/pydifffile.tgz" 1.0.0 "$t/tree" root)" "holds a different src/ocutalon/python/one.py than the candidate"
+  cp "$t/tree/src/ocutalon/python/one.py" "$t/py/src/ocutalon/python/one.py"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/>\n' > "$t/py/module.xml"
+  tar -czf "$C/pynofc.tgz" -C "$t/py" .
+  has "python: no FileCopy of a resource" "$(ipm_artifact_check "$C/pynofc.tgz" 1.0.0 "$t/tree" root)" "no FileCopy of src/ocutalon/python/one.py"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/><FileCopy Name="src/ocutalon/python/one.py" Target="y"/>\n' > "$t/py/module.xml"
+  tar -czf "$C/pywrongtarget.tgz" -C "$t/py" .
+  has "python: a FileCopy of a resource to another Target" "$(ipm_artifact_check "$C/pywrongtarget.tgz" 1.0.0 "$t/tree" root)" "no FileCopy of src/ocutalon/python/one.py"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/><FileCopy Name="src/ocutalon/python/one.py" Target="${mgrdir}python/one.py"/>\n' > "$t/py/module.xml"
+  rm -f "$t/py/requirements.txt"
+  tar -czf "$C/pynoreq.tgz" -C "$t/py" .
+  has "python: no requirements.txt" "$(ipm_artifact_check "$C/pynoreq.tgz" 1.0.0 "$t/tree" root)" "has no top-level requirements.txt"
+  printf 'pin==2\n' > "$t/py/requirements.txt"
+  tar -czf "$C/pydiffreq.tgz" -C "$t/py" .
+  has "python: another requirements.txt" "$(ipm_artifact_check "$C/pydiffreq.tgz" 1.0.0 "$t/tree" root)" "holds a different requirements.txt than the candidate"
+  cp "$t/tree/requirements.txt" "$t/py/requirements.txt"
+  cp "$t/tree/requirements.txt" "$t/pys/requirements.txt"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="ocutalon/csp/" Target="x"/><FileCopy Name="ocutalon/python/one.py" Target="${mgrdir}python/one.py"/>\n' > "$t/pys/module.xml"
+  tar -czf "$C/pysrc.tgz" -C "$t/pys" .
+  eq "python: a good src artifact has no problem" "$(ipm_artifact_check "$C/pysrc.tgz" 1.0.0 "$t/tree" src)" ""
+  has "python: a src artifact checked as root has no FileCopy of the resource" "$(ipm_artifact_check "$C/pysrc.tgz" 1.0.0 "$t/tree" root)" "no FileCopy of src/ocutalon/python/one.py"
+  rm -rf "$t/tree/src/ocutalon/python" "$t/tree/requirements.txt"
+  eq "python: a candidate with neither the resource folder nor requirements.txt asks for none" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" root)" ""
 }
 
 # --- static ---
@@ -2859,6 +2900,40 @@ t_static() {
   eq "the usage with no command" "$(cd "$root" && "$BASH" release/release.sh 2>&1 | head -n 1 | cut -c1-30)" "release/release.sh start --ver"
   eq "the usage exit" "$(cd "$root" && "$BASH" release/release.sh > /dev/null 2>&1; echo $?)" 2
   has "ci: the unit is listed" "$(sed -n 's/^CHECK_SCRIPTS="\(.*\)"$/\1/p' "$root/ci/units.sh")" " release-sequence"
+  eq "(U-294) requirements.txt pins the same distributions as docker/licences/constraints-arm64.txt (the pin lines are equal)" "$(grep -v '^#' "$root/requirements.txt" | grep .)" "$(grep -v '^#' "$root/docker/licences/constraints-arm64.txt" | grep .)"
+  eq "(U-294) requirements.txt pins the same distributions as docker/licences/constraints-x64.txt" "$(grep -v '^#' "$root/requirements.txt" | grep .)" "$(grep -v '^#' "$root/docker/licences/constraints-x64.txt" | grep .)"
+  eq "(U-294) requirements.txt has 36 pin lines and no line that is not a pin or a comment" "$(grep -v '^#' "$root/requirements.txt" | grep -c '^[A-Za-z0-9_.-]*==[A-Za-z0-9_.-]*$')/$(grep -v '^#' "$root/requirements.txt" | grep -c .)" "36/36"
+  eq "(U-294) the root requirements.txt opens with a comment that names its source" "$(sed -n 1p "$root/requirements.txt" | cut -c1-2)" "# "
+  eq "(QA) requirements.txt is tracked" "$(git -C "$root" ls-files requirements.txt)" "requirements.txt"
+  pip_pins=$(grep -F 'pip install' "$root/docker/Dockerfile" | tr ' ' '\n' | grep '==')
+  eq "(U-294) the image's pip line has three pins" "$(printf '%s\n' "$pip_pins" | grep -c .)" 3
+  for pin in $pip_pins; do
+    eq "(U-294) requirements.txt has the image's pin $pin" "$(grep -cx -e "$pin" "$root/requirements.txt")" 1
+  done
+  fig_readme=$(grep -F 'pypi.org' "$root/README.md" | grep -o 'about [0-9][0-9.,]*\( to [0-9][0-9.,]*\)\? \(MB\|seconds\?\|minutes\?\)' | tr '\n' ' ')
+  fig_docs=$(grep -F 'pypi.org' "$root/docs/install-ipm.md" | grep -o 'about [0-9][0-9.,]*\( to [0-9][0-9.,]*\)\? \(MB\|seconds\?\|minutes\?\)' | tr '\n' ' ')
+  eq "(DW-784) the README's IPM section and docs/install-ipm.md quote the same package size, model size and install time" "$fig_docs" "$fig_readme"
+  eq "(DW-784) and each quotes all five figures (a size, a size, the Mac run time, the x64 run time and the Mac download time)" "$(printf '%s' "$fig_readme" | grep -o 'about' | wc -l | tr -d ' ')" 5
+  # The ruled PUBLIC TEXT (the Contest Planner's ruling of 2026-11-06, A4 to A6), each line compared whole and byte for byte.
+  eq "(DW-784, A4) the README's IPM paragraph is the ruled text" "$(grep -cxF "The second run also downloads OcuTalon's Python packages from PyPI (fastembed, pdfplumber and python-docx with their dependencies, about 250 MB once installed) and the embedding model from Hugging Face (about 90 MB), so the instance needs network access to pypi.org, files.pythonhosted.org, huggingface.co and its download hosts under hf.co (in our test installs us.aws.cdn.hf.co and cas-server.xethub.hf.co). In our test installs, the whole second run took about 1 to 1.5 minutes on an Apple silicon Mac and about 3 minutes on a shared x64 Linux build server. On the Mac, the downloads took about 20 seconds of that." "$root/README.md")" 1
+  eq "(DW-784, A5) the README's licence bullet is the ruled text" "$(grep -cxF -e "- An IPM install puts the same Python packages, at the same versions, into the instance's \`mgr/python\` folder, each with its licence files." "$root/README.md")" 1
+  eq "(DW-784, A6) the install page's network bullet is the ruled text" "$(grep -cxF -e "- Network access from the instance to PyPI (pypi.org and files.pythonhosted.org) and to Hugging Face (huggingface.co and its download hosts under hf.co, in our test installs us.aws.cdn.hf.co and cas-server.xethub.hf.co): the second command downloads OcuTalon's Python packages, about 250 MB once installed, and the embedding model, about 90 MB. In our test installs, the whole second command took about 1 to 1.5 minutes on an Apple silicon Mac and about 3 minutes on a shared x64 Linux build server. On the Mac, the downloads took about 20 seconds of that." "$root/docs/install-ipm.md")" 1
+  # The hosts that the two files name (Story 19.8, DW-830): the same set in the README's paragraph (A4) and the install page's bullet (A6).
+  hosts_readme=$(grep -F 'pypi.org' "$root/README.md" | grep -o '[a-z][a-z0-9.-]*\.\(org\|co\)' | sort -u | tr '\n' ' ')
+  hosts_docs=$(grep -F 'pypi.org' "$root/docs/install-ipm.md" | grep -o '[a-z][a-z0-9.-]*\.\(org\|co\)' | sort -u | tr '\n' ' ')
+  eq "(DW-830) the README's paragraph and the install page's bullet name the same hosts" "$hosts_docs" "$hosts_readme"
+  eq "(DW-830) and those are the hosts of the measured install (hf.co is the parent of the two download hosts)" "$hosts_readme" "cas-server.xethub.hf.co files.pythonhosted.org hf.co huggingface.co pypi.org us.aws.cdn.hf.co "
+  # The ruled disclosure bullet (the Contest Planner's ruling of 2026-11-07, DW-829), in the install page only, so it is no part of the pairing above.
+  eq "(DW-829, DW-857) the install page's bullet on the shared Python folder is the ruled text" "$(grep -cxF -e "- The second command puts these packages in the instance's shared Python folder, mgr/python in the IRIS install directory. Where that folder already holds other versions of certifi, charset_normalizer, idna, requests, typing_extensions or urllib3, which IPM installs for itself, the second command replaces them with the versions OcuTalon pins. IPM's own packages work with these versions." "$root/docs/install-ipm.md")" 1
+  eq "(DW-829) the README has no such bullet (it keeps the licence bullet of A5)" "$(grep -c 'shared Python folder' "$root/README.md")" 0
+  # The two extraction reasons that reuse the web app's catalog (U-284) carry its exact bytes (A1).
+  for reason in "it isn't a Markdown, plain-text, PDF or Word (.docx) file." "that file is {size}; the limit is 10 MB."; do
+    eq "(A1) the web catalog and Docs.Extract both hold: $reason" "$(grep -cF -e "$reason" "$root/web/src/app/documents/documents-view.ts")/$(grep -cF -e "\"$reason\"" "$root/src/ocutalon/cls/OcuTalon/Docs/Extract.cls")" "1/1"
+  done
+  eq "(QA) every zpm load of the ipm step bypasses pip, which has no network there" "$(grep -c 'zpm \\"load -bypass-py-deps ' "$root/release/release.sh")" 2
+  eq "(QA) no zpm load of the ipm step is left without the bypass" "$(grep 'zpm \\"load ' "$root/release/release.sh" | grep -vc -e '-bypass-py-deps')" 0
+  eq "(QA) live:memory-offline is a unit of shards-4" "$("$BASH" -c ". '$root/ci/units.sh'; group_units shards-4" | tr ' ' '\n' | grep -cx 'live:memory-offline')" 1
+  eq "(QA) the Memory area is in lane-a" "$("$BASH" -c ". '$root/ci/units.sh'; shard_areas lane-a" | tr ' ' '\n' | grep -cx 'Memory')" 1
   eq "the notes step never replaces a draft" "$(grep -c -e '--replace' "$root/release/release.sh")" 0
   eq "no outward form in the script" "$(grep -nE 'gh[ ]release|gh[ ]repo[ ]edit|--visib[i]lity' "$root/release/release.sh" | wc -l | tr -d ' ')" 0
 }

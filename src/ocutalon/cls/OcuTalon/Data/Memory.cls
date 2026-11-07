@@ -1,6 +1,9 @@
 /// One memory a session saved (AD-21, AD-33): a short text the agent keeps for later turns, with its vector. Lane A. The only writer is
 /// OcuTalon.Memory.Ops (Story 19.3); reads go through OcuTalon.Memory.Search and OcuTalon.Memory.List. A memory belongs to the session
 /// that saved it (SessionRef) and is dropped at its online-demo sign-out (OcuTalon.Memory.DropSession). Row ids never leave the server.
+/// EmbeddingIdx (an HNSW index, cosine) finds the nearest memories of an owner and TextIdx (an %iFind index, exact words) finds its keyword hits;
+/// both keep all of their globals under ^OcuTalonP.MemoryI (TextIdx with IFINDSHAREDDATALOCATION INDEX, so that its word dictionary is not in ^IRIS.IF.*), so
+/// every index global is in OCUTALON_PRIVATE, and deleting a row removes its entries.
 Class OcuTalon.Data.Memory Extends %Persistent
 {
 
@@ -31,6 +34,12 @@ Property Embedding As %Library.Vector(DATATYPE = "DOUBLE", LEN = 384);
 Index RefIndex On Ref [ Unique ];
 
 Index SessionRefSavedAtIndex On (SessionRef, SavedAt);
+
+/// The nearest-neighbour index of the vector (AD-21): cosine distance, the defaults of M and efConstruction.
+Index EmbeddingIdx On (Embedding) As %SQL.Index.HNSW(Distance = "Cosine");
+
+/// The exact-word keyword index of the text (AD-21), in English, case-folded, without stemming. The dictionary and the postings are kept under the index.
+Index TextIdx On (Text) As %iFind.Index.Basic(IFINDSHAREDDATALOCATION = "INDEX", INDEXOPTION = 0, LANGUAGE = "en", LOWER = 1);
 
 Storage Default
 {

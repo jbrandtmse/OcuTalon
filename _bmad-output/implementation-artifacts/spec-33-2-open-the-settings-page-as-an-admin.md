@@ -142,7 +142,7 @@ deferred:
 - Given `digest.time`, `digest.channels` and the five threshold keys, when `POST /v1/settings/daily-digest` or `/check-thresholds` is called, then `SettingsOps` validates and stores them, and no other class writes them.
 - Given `SendDigest`, when it is submitted from `tool` or `web_admin`, then `CommandsIn` sends it to `Digest`; from any other origin it is `not_allowed`.
 - Given the tests, when they run, then one reads each kind of settings change back from the IRIS audit log, one submits `SaveSettings` with origin `tool` and expects a refusal, and `ux-strings.test.mjs` covers every new label.
-- Given `SendDigest` from origin `tool` or `web_admin`, when it is built or submitted, then it carries no recipient, and a tool cannot name another session: destinations come only from the session's `digest.channels`, so neither the model nor an item can choose where a digest goes. A test pins each half, with its mutation shown (U-268).
+- Given `SendDigest` from origin `tool` or `web_admin`, when it is built or submitted, then it carries no recipient, and a tool cannot name another session: destinations are the session's own channels that `digest.channels` names (by default all of them), until Story 18.2 [AMENDED 2026-11-06, Story 17.6, owner ruling via the Contest Planner; it read "destinations come only from the session's `digest.channels`"], so neither the model nor an item can choose where a digest goes. A test pins each half, with its mutation shown (U-268).
 - Given Lane A's stub signatures, when a bridge section is saved through the real API, then `SettingsOps` calls `Bridge.Settings` by the spine's names and the answer is 501 with nothing changed.
 
 ### Review Findings
@@ -188,6 +188,8 @@ Rejected:
 - `low` Gap: AC 1's mutation is Story 33.1's `ad_fields` -- the spine rows were read against `### Spine edits` by the acceptance auditor (plain unions; one changed line, P7's append).
 
 ## Spec Change Log
+
+- 2026-11-06 Story 17.6 lead (owner ruling via the Contest Planner): AC at :145 amended in place: the destinations are the session's own channels that digest.channels names (default all), until Story 18.2.
 
 - 2026-11-04, the lead: U-268's answer and conditions added as acceptance items, with the `SessionRef` check. The orchestrator's rulings recorded under `### Rulings`; the AC on refused and failed saves amended for `step_failed` (U-270). The intent block is unchanged.
 
