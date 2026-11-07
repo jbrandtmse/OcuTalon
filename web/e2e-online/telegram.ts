@@ -2,7 +2,8 @@ import { TELEGRAM_FIXTURE_MS, asCleanup } from '../e2e/support/bounds';
 import { chk, irisScript, quoted } from '../e2e/support/iris';
 
 /**
- * What the online units' Telegram cases share (Story 31.3: leave.spec.ts L6, messages.spec.ts A5 and daily-cap.spec.ts AT): a paired chat of
+ * The shared Telegram helpers of the online units (Story 31.3: leave.spec.ts L6, messages.spec.ts A5 and daily-cap.spec.ts AT; Story 31.4:
+ * the demo-path run's paired chats under load): a paired chat of
  * a demo session, driven through the CI mock bot and never the public Telegram API (Rule 21). It calls the IRIS fixture of the demo-path
  * run, OcuTalon.Test.Channel.TelegramPageFixture, from IRIS scripts, and needs a throwaway stack of the CI override: the Bot API base is the
  * mock's and the bot token a dummy, which the fixture's Start checks. Every method returns "" or a reason that holds no token.
@@ -15,6 +16,9 @@ const FIXTURE = '##class(OcuTalon.Test.Channel.TelegramPageFixture)';
 
 /** The chat ids of the fixture are 11 digits that start with 840177341: Start and Finish clean the rows of such chats. */
 export const CHAT_A = '84017734151';
+
+/** A second fixture chat, for the cases that pair two sessions (the demo-path run's paired chats under load). */
+export const CHAT_B = '84017734153';
 
 /** A chat id as an ObjectScript number, as telegram-approval.spec.ts passes it (the fixture's chat ids are digits only). */
 function id(chatId: string): string {
@@ -94,15 +98,21 @@ export async function unpairChat(pairingRef: string): Promise<void> {
   await asCleanup(() => irisScript([`Do ##class(OcuTalon.Test.Data.Fixture).Clean(${quoted(pairingRef)})`, 'Write !,"CHK|cleaned|1"'].join('\n')));
 }
 
-/** Posts one private text message from the chat to the mock, once a long poll is open. Throws the fixture's reason when it was not queued. */
-export async function sendFromChat(chatId: string, text: string): Promise<void> {
-  const sent = await fixture(`Send(${id(chatId)}, "", ${quoted(text)}, .queuedAt)`, ['queuedAt']);
+/**
+ * Posts one private text message from the chat to the mock, once a long poll is open. With a name the update also carries the chat's
+ * first_name and a from object (the fixture's Send). Throws the fixture's reason when it was not queued.
+ */
+export async function sendFromChat(chatId: string, text: string, name = ''): Promise<void> {
+  const sent = await fixture(`Send(${id(chatId)}, ${quoted(name)}, ${quoted(text)}, .queuedAt)`, ['queuedAt']);
   if (sent.reason !== '') throw new Error(`the chat's message was not queued: ${sent.reason}`);
 }
 
-/** Posts the press of the button with this callback data from the chat, once a long poll is open. Throws the fixture's reason when it was not queued. */
-export async function pressFromChat(chatId: string, data: string): Promise<void> {
-  const pressed = await fixture(`Press(${id(chatId)}, "", ${quoted(data)}, .queuedAt)`, ['queuedAt']);
+/**
+ * Posts the press of the button with this callback data from the chat, once a long poll is open. With a name the update also carries the
+ * chat's first_name and a from object (the fixture's Press). Throws the fixture's reason when it was not queued.
+ */
+export async function pressFromChat(chatId: string, data: string, name = ''): Promise<void> {
+  const pressed = await fixture(`Press(${id(chatId)}, ${quoted(name)}, ${quoted(data)}, .queuedAt)`, ['queuedAt']);
   if (pressed.reason !== '') throw new Error(`the chat's press was not queued: ${pressed.reason}`);
 }
 
@@ -116,6 +126,11 @@ async function read<T>(call: string, output: string): Promise<T> {
 /** The text of every sendMessage to the chat, in order. */
 export async function repliesOf(chatId: string): Promise<string[]> {
   return read<string[]>(`Replies(${id(chatId)}, .texts)`, 'texts');
+}
+
+/** The text of every editMessageText to the chat, in order. */
+export async function editsOf(chatId: string): Promise<string[]> {
+  return read<string[]>(`Edits(${id(chatId)}, .texts)`, 'texts');
 }
 
 /** The callback data of the buttons of the newest keyboard that the chat got. */
@@ -156,4 +171,53 @@ export async function sendApprovalNotice(sessionRef: string, approvalRef: string
     ].join('\n'),
   );
   if (chk(lines, 'notice') !== 'ok') throw new Error(`the approval notice was not sent (${lines.join(' ')})`);
+}
+
+/**
+ * Posts one contact update from the private chat to the mock, once a long poll is open: the shape of LiveCase's private message (the chat's
+ * first_name is the name, and the from object holds other names) with a contact {phone_number, first_name, user_id} and no text. A paired chat's
+ * message with no text gets no turn and no reply. Throws the reason when it was not queued.
+ */
+export async function shareContactFromChat(chatId: string, name: string, phone: string): Promise<void> {
+  const lines = await irisScript(
+    [
+      'Set case="OcuTalon.Test.Channel.LiveCase"',
+      'Set queued=0',
+      `If $ClassMethod(case,"WaitCalls","getUpdates",1,20).%Size()>0 { Set update=$ClassMethod(case,"PrivateMessage",${id(chatId)},${quoted(name)},"zz contact") Do update.message.%Remove("text") Set contact={"phone_number":(${quoted(phone)}),"first_name":(${quoted(name)})} Do contact.%Set("user_id",${id(chatId)},"number") Do update.message.%Set("contact",contact) Set batch=[] Do batch.%Push(update) Set queued=##class(OcuTalon.Test.Contract.Mock).Control("updates",batch) }`,
+      'Write !,"CHK|contact|",queued',
+    ].join('\n'),
+  );
+  if (chk(lines, 'contact') !== '1') throw new Error(`the chat's contact was not queued (${lines.join(' ')})`);
+}
+
+/** The highest seq among the mock's Bot API calls so far (0 when it has none): a mark for sentChats. */
+export async function callMark(): Promise<number> {
+  const lines = await irisScript(
+    [
+      'Set max=0',
+      'Set all=##class(OcuTalon.Test.Contract.Mock).Calls().%GetIterator()',
+      'While all.%GetNext(,.call) { If call.seq>max Set max=call.seq }',
+      'Write !,"CHK|mark|",max',
+    ].join('\n'),
+  );
+  const mark = Number(chk(lines, 'mark') ?? '');
+  if (!Number.isInteger(mark) || mark < 0) throw new Error(`the mock's call mark could not be read (${lines.join(' ')})`);
+  return mark;
+}
+
+/**
+ * The chat id of every sendMessage and editMessageText call after the mark (a seq above it), in order. A mark and not a reset, so that the
+ * calls that came before it never count.
+ */
+export async function sentChats(after: number): Promise<string[]> {
+  if (!Number.isInteger(after) || after < 0) throw new Error('a call mark is a whole number');
+  const lines = await irisScript(
+    [
+      'Set all=##class(OcuTalon.Test.Contract.Mock).Calls().%GetIterator()',
+      `While all.%GetNext(,.call) { If (call.seq>${after})&&((call.method="sendMessage")||(call.method="editMessageText")) Write !,"CHK|chat|",call.params."chat_id" }`,
+      'Write !,"CHK|done|1"',
+    ].join('\n'),
+  );
+  if (chk(lines, 'done') !== '1') throw new Error(`the mock's calls could not be read (${lines.join(' ')})`);
+  return lines.filter((line) => line.startsWith('CHK|chat|')).map((line) => line.slice('CHK|chat|'.length));
 }
