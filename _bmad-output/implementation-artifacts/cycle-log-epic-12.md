@@ -343,3 +343,15 @@
 2026-11-03T20:50:23Z	Epic 12	integrate_checks	merge=f2d99d1a feature=75c23f0e node=1249/1249 lint=ok ci_checks=exit_0 live=sign-in_part_6/10(7_passed;V1-V4,D1-D3),demo-path(DEMO-PATH_8/8;floor_15/15) tag=e12s10m(torn_down)
 2026-11-03T20:50:23Z	Epic 12	integrated_forward	feature=75c23f0e head=f2d99d1a conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(ours;regenerated;0-14=done_re-set;valid;action_items_same)
 2026-11-03T20:50:23Z	Epic 12	epic_runner_complete	stories_completed=1_this_dispatch(12.10);epic_total=10 applied=U-244
+2026-11-07T16:18:53Z	Epic 12	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-07T16:18:53Z	Epic 12	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-07T16:18:53Z	Epic 12	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-11-07T16:18:53Z	Epic 12	epic_branch_reopened	reason=story_12.12_planner_D1 from=11928182
+2026-11-07T16:18:53Z	Epic 12	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_12.12 lane=B slot=ocutalon-slot-b runner=B web_port=52802 head=11928182 model=claude-opus-5-5
+2026-11-07T16:18:53Z	Epic 12	epic_branch_checked_out	repos=. head=11928182 ci=gh workflows=ci,lane-a prior_runs=42390529526,42390529631(cancelled_by_orchestrator_as_duplicates_of_feature_4c9bed21_green_42377742996,42377742980)
+2026-11-07T16:18:53Z	Epic 12	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-07T16:20:18Z	Epic 12	ledger_load	total=836 open=1 routed=126 escalated=1 decision_pending=4 terminal=704 owner_unknown=0 burndown=85 reowned_none=0 epic12_owned=1(DW-595,12-7,predates_reopen,out_of_12.12_scope)
+2026-11-07T16:20:18Z	Epic 12	retro_review_skipped	reason=skip(no_X.0_input;SC-5_reopen_for_12.12;dispatch)
+2026-11-07T16:21:26Z	Epic 12	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true(after_generate) key=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co status=backlog epic_status=in-progress(SC-5_reopen,was_done) warnings=2(title_and_epic_list_headings)
+2026-11-07T16:21:26Z	Epic 12	deps_hash_rerecorded	reason=fix_forward story=12.12 note=for_the_orchestrator(epics.md_inserted_12.12;no_boundary_or_dependency_statement_changed)
+2026-11-07T16:21:26Z	Epic 12	ledger_routed_planned	story=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co entries=2(DW-873,DW-695) excess=0 by=fix_forward

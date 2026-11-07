@@ -4177,6 +4177,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data/Handled.cls keyed by SessionRef; SessionOps.End and the spine purge list do not cover it; first writer is Story 18.4
 - 2026-11-04T23:50:45Z status=routed owner=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=harvest note=the writer story adds the purge with its first row (unverified: whether the purge list already covers every ^OcuTalonP table)
+- 2026-11-07T16:21:26Z status=routed owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=load note=12.12_writes_Data.Handled's_first_rows_(GotIt_branch);End_deletes_the_session's_rows;was_owned_by_18.4
 
 ### DW-696: SendDigest sent to the disabled Digest item answers failed, not not_built
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
@@ -5100,6 +5101,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Planner review of 1.0.3 notes 2026-11-07 ~15:35Z | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: Channel/Telegram/Out.cls:32-35 adds the button; Core/SessionOps.cls:71 NotImplemented; Digest/NeedsYou.cls DECISIONMAX 1000, no window
 - 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) build the command that marks the decision handled, (b) hide the button; plus bound the needs-you count (time window or handled); PUBLIC TEXT at the spec gate
+- 2026-11-07T16:21:26Z status=routed owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=load note=fix-forward_12.12_(Planner_D1_option_a);acceptance_bullet_in_epics.md_12.12
 
 ### DW-874: Online demo: the digest is promised but invisible; visitors are told 'send my digest now' is on its way, but web chat and Simulated phone show no digest card; the morning run also sends to every demo session with a resume hash (model call when something was saved for later)
 - source: Planner review of 1.0.3 notes 2026-11-07 ~15:35Z | severity: med | fix-risk: med | footprint: cross-epic
