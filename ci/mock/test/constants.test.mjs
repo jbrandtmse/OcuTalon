@@ -140,3 +140,11 @@ test('Story 40.1: the mock reads propose_persona from OcuTalon.Tools.Names', () 
   const { toolNames } = readAll();
   assert.ok(toolNames.includes('propose_persona'), 'propose_persona is among the tool names that the mock reads');
 });
+
+test('Story 19.3: the mock reads the four memory tool names from OcuTalon.Tools.Names', () => {
+  const { toolNames, scenarios } = readAll();
+  for (const name of ['save_memory', 'search_memories', 'list_memories', 'forget_memory']) {
+    assert.ok(toolNames.includes(name), `${name} is among the tool names that the mock reads`);
+    assert.ok(scenarios.all.some((s) => toolUseNames(s).includes(name)), `a scenario calls ${name}`);
+  }
+});

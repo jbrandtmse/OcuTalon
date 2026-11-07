@@ -8,13 +8,18 @@
       <Packaging>module</Packaging>
       <SourcesRoot>.</SourcesRoot>
       <SystemRequirements Version=">=2026.3" Interoperability="enabled"/>
+      <Default Name="BypassPyDeps" Value="0"/>
+      <Default Name="cmd" Value=""/>
       <CPF Name="ocutalon.cpf" Directory="cpf" Phase="Initialize" When="Before"/>
       <Resource Name="OcuTalon.Bridge.PKG" Directory="bridge/cls"/>
       <Resource Name="OcuTalon.BridgeExample.PKG" Directory="bridge/cls"/>
       <Resource Name="OcuTalon.PKG" Directory="ocutalon/cls"/>
       <Resource Name="OcuTalon.Install.Ipm.CLS" Directory="cls" Preload="true"/>
       <FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>
+      <FileCopy Name="ocutalon/python/ocutalon_extract.py" Target="${mgrdir}python/ocutalon_extract.py"/>
+      <FileCopy Name="ocutalon/python/ocutalon_memory.py" Target="${mgrdir}python/ocutalon_memory.py"/>
       <Invoke Class="OcuTalon.Install.Ipm" Method="MapAndStop" Phase="Initialize" When="After"/>
+      <Invoke Class="OcuTalon.Install.Ipm" Method="RemoveStaleCopies" Phase="Reload" When="Before"><Arg>${root}</Arg><Arg>${BypassPyDeps}</Arg><Arg>${cmd}</Arg></Invoke>
       <Invoke Class="OcuTalon.Install.Registry" Method="Ipm" Phase="Configure" When="After"/>
       <Invoke Class="OcuTalon.Install.Ipm" Method="UnmapRepos" Phase="Unconfigure" When="Before"/>
     </Module>

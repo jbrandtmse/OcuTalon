@@ -3656,6 +3656,26 @@ So that I know the fix only touches the broken messages and doesn't rewrite good
 **When** they run
 **Then** they include a demonstrated mutation (a fix that changes one good message must withhold the offer), the case with no good messages, a case with fewer than 20 good messages, and a check that the approved change equals the dry run's (FR-25, AD-16)
 
+### Story 7.10: The past-expiry refusal test is stable (DW-840)
+
+[ADDED 2026-11-07, the Contest Planner's voting-week tier (3)(a) ruling (about 04:19Z), under the owner's delegation: an SC-5 re-open of Epic 7 for this one fix-forward story, timeboxed at 90 minutes. Test-only unless the cause is in the product, in which case the runner stops and describes it before any product change. It merges after the 1.0.3 cut.]
+
+As the owner reading CI,
+I want `OcuTalon.Test.Fix.Refused` `TestPastExpiryCannotStart` to fail only when the product is wrong,
+So that a red shard means a real defect and never a timing accident.
+
+**Acceptance Criteria:**
+
+**Given** the test as it was (CI shards-2 red once on 07951357, "the incident is resolved", the class at 34.03 s where it normally takes about 4 s)
+**When** it is run under a repeat or load run
+**Then** the cause is measured and named, and the old code is shown to fail under that run (DW-840)
+
+**Given** the fix
+**When** the same repeat or load run is made 20 times
+**Then** it passes 20 of 20, with no pin deleted or weakened and no timeout raised as the fix (DW-840)
+
+- DW-840: flake: OcuTalon.Test.Fix.Refused TestPastExpiryCannotStart 'the incident is resolved' (WaitIncidentState) red once in CI shards-2 (ledger; routed by runner 2026-11-07)
+
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
 A heartbeat runs every minute and runs the due background checks, each visible with its schedule, last run and result; a user asks for a reminder in plain words and it fires within 10 seconds on every channel, survives restarts (marked late if it fires more than 10 seconds after its due time), and can be listed and cancelled in the chat.
@@ -6372,6 +6392,8 @@ So that memory works offline and nothing I store leaves IRIS.
 **When** the package installs
 **Then** the package declares `fastembed==0.9.0` for the install, the memory area's install step downloads the model once into `<mgr>/fastembed/`, and `OcuTalon.Memory.Embedder` passes that folder as the package's `cache_dir` and sets `FASTEMBED_CACHE_DIR` inside its own worker before first use, by the path Story 34.1 (was 19.1) confirmed; later starts and upgrades don't download it again (FR-41, FR-57, AD-21)
 
+- DW-732: `/usr/irissys/mgr/python` is irisowner-owned (mode 555) in the base image, so the IRIS user could chmod it and replace the installed Python packages; the packages inside are root-owned and read-only (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+
 ### Story 19.3: Remember, recall, list and forget in the chat
 
 As a user,
@@ -6402,6 +6424,11 @@ So that what I know about my systems is kept in my own IRIS and comes back when 
 **When** a recall query runs
 **Then** its query plan uses the HNSW index, and memories survive a restart of IRIS or its container (NFR-16, AD-21)
 
+- DW-731: CommandsIn waits its whole TIMEOUT (120 s) on a send to a disabled owner item (SaveMemory/ForgetMemory to the disabled MemoryOps stub) until this story enables MemoryOps; a CommandsIn not_built answer for a disabled owner is the general fix (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-740: ForgetMemory carries a MemoryRef but nothing in Lane B checks that the memory belongs to the command's SessionRef, so MemoryOps must refuse another session's memory (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-782: no test calls `OcuTalon.Memory.Embedding` from inside an AI Hub callback (the S11 surface); settle it with a live tool call in a throwaway that saves and searches a memory (ledger; routed by harvest 2026-11-06)
+- DW-793: Story 19.2's operator diagnostics (Install.Step.Memory's warnings, the Embedder status texts, OcuTalon.Memory.Embedding's errors) are approved as worded, on the condition that none prints a key, a token or an environment-variable value (folder paths are fine): pin that with a test (ledger; routed by owner ruling 2026-11-06)
+
 ### Story 19.4: Answer from documents with citations
 
 As a user,
@@ -6431,6 +6458,13 @@ So that I can trust the answer and check the passage myself.
 **Given** UJ-2's runbook question with a recorded Results runbook added
 **When** the user asks what the runbook says about rotating the Results certificate
 **Then** the answer gives the steps and cites "Results runbook § Rotating the certificate", checked as an evaluation case (FR-42, FR-62, UX-DR106)
+
+- DW-720: owner ruling U-280 consistency: a reply that says 'None of your documents cover that.' carries no document citations, and a reply with document citations never says it; code decides both from the same turn's documents-tool results, and tests cover both directions (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-735: web e2e D8 and D10 (`web/e2e/documents/documents.spec.ts`) expect the real routes to answer an error while DocumentOps is disabled and go red once this story enables it; switch them to fulfilled answers (page.route) (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-739: no test executes the real Web.Documents route -> Commands.Submit -> CommandsIn path (while DocumentOps is disabled the OwnerRunning guard answers 501 first) (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-747: Data.Upload has no lifecycle beyond Take, the route's own delete and sign-out: nothing sweeps an abandoned row on a local install, a CommandsIn timeout drops the row while the AddDocument may still reach DocumentOps, and Take is at-most-once with no session check (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-832: a line of a file's own text that starts with '## ' is indistinguishable from an extraction marker; the splitter escapes or ignores such lines (ledger; routed by harvest 2026-11-06)
+- DW-833: `Test.Docs.Extract:TestNothingStored` gains the knowledge-base half of its signature once the KB tables exist (ledger; routed by harvest 2026-11-06)
 
 ### Story 19.5: Keep each online-demo session's documents and memories to itself
 
@@ -6466,6 +6500,8 @@ So that no other visitor sees or searches what I added.
 **When** it runs from this release on
 **Then** it also creates a memory and a document before the upgrade, and both are present and searchable after it (FR-60, NFR-16, NFR-17, REL-6)
 
+- DW-783: `release/rehearse.sh`'s memory-offline step (Story 19.2) is proved on stub hosts only; a dry run on a real stack must show the clean host publishes its web port again after `docker network connect --alias iris` (ledger; routed by harvest 2026-11-06)
+
 ### Story 19.6: Extract text from PDF and Word files with Embedded Python
 
 [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: a new story with Story 37.1 (was 26.1)'s extraction criteria, moved verbatim, and the IPM package line of its Python packages; only its cross-references name step 3's stories]
@@ -6493,6 +6529,10 @@ So that it can answer from it as a document.
 **Then** each file's text comes back right, each failure case gives its reason, extraction runs in the worker, and the CI check finds no Python method or `%SYS.Python` in a callback class (FR-54, AD-6, AD-22)
 **And** the tool inventory test still finds no tool that runs operating-system commands or arbitrary code (FR-10)
 
+- DW-792: `OcuTalon.Memory.Embedder` (Story 19.2) builds its two keyword calls with Python `eval` strings, a form the Conventions "Python" row does not name; move them into the `.py` resource this story creates under `src/ocutalon/python/` (ledger; routed by cr 2026-11-06)
+- DW-791: U-294 condition 1: the IPM path installs exactly the licence-measured set: the root `requirements.txt` pins `fastembed`, `pdfplumber` and `python-docx` AND every transitive distribution of U-285/DW-738's measured set at the constraints files' versions (any arm64/x64 difference is reported before commit), and `ipmcheck` runs the same licence gate on what IPM installed, failing outside the allowed families; condition 2: measure `ipmcheck` and the rehearsal with the model download (ledger; routed by owner ruling 2026-11-06)
+- DW-784: U-294 condition 3: the README's IPM section and `docs/install-ipm.md` say that the install downloads Python packages and the embedding model (size, typical time) and needs network access to PyPI and the model host, as PUBLIC TEXT to the Planner before commit; the sample output is re-shot from a real run (ledger; routed by owner ruling 2026-11-06)
+
 ### Story 19.7: Answer from PDF and Word documents
 
 [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: a new story with Story 26.2's PDF and Word document criteria, moved verbatim except that in step 3 a file is added from the Documents page; Story 26.2 keeps the files sent from the chat and Telegram. It follows Story 19.6]
@@ -6518,6 +6558,25 @@ So that I don't have to turn them into Markdown first.
 **Given** the image with `pdfplumber==0.11.10` and `python-docx==1.1.2` pinned by Lane B's Story 34.2 (was 20.1)
 **When** Story 19.6's extraction tests and this story's tests run on the IRIS runner
 **Then** they run on that real image, with no test-setup install of either package, and pass (FR-54, AD-22, AD-23)
+
+- DW-719: UX text after Epic 40 merges (owner ruling U-279): UX-DR144 and EXPERIENCE.md Step 3 Documents 'Adding' accept 'Markdown, plain text, PDF and Word (.docx) files.' (replacing 'then PDF and Word from step 6'), with the UX assumptions' local-install ownership line (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-827: `OcuTalon.Docs.Extractor`'s MaxActiveWorkers 1 does not serialise reads (two concurrent reads ran on two worker jobs); serialise them or amend AD-21's "one worker" wording (ledger; routed by harvest 2026-11-06)
+- DW-828: a timed-out read cannot stop a single long C call (a decompression bomb can keep Read past its limit); bound it before the call (page or size caps) (ledger; routed by harvest 2026-11-06)
+- DW-831: Word text inside body-level content controls (w:sdt) and nested tables is not read; a file made only of content controls answers no_text (ledger; routed by harvest 2026-11-06)
+
+
+### Story 19.8: Epic 19 burn-down
+
+The burn-down story of Epic 19's part 1 (Stories 19.1-19.3 and 19.6, the memory-only part-merge): it settles the two install-accuracy findings the Contest Planner ruled must be measured and fixed inside part 1, before its merge. [Chartered at the part-1 burn-down gate, 2026-11-07]
+
+As an admin installing OcuTalon with IPM,
+I want the install to put exactly the measured Python packages in place and the docs to name exactly the hosts it contacts,
+So that what the README says about the install is true.
+
+**Acceptance Criteria:**
+
+- DW-829: on the local-artifact IPM install (`release/ipm-install.sh` with the local artifact; never the public IPM registry), import each of certifi, charset_normalizer, idna, requests, typing_extensions and urllib3 in the instance's embedded Python and record `__version__` and `__file__` for each; if the pinned copies are the ones imported, the README sentence A5 stays and that import check joins the installed-set gate (`ipm-install.sh` check 32's area); if they are not, the install is fixed (pip -t with --upgrade, or the stale copies removed), never the sentence, and the same import check gates the result (ledger; Contest Planner ruling 2026-11-07)
+- DW-830: each Hugging Face resolve URL the install fetches, and pip's download URLs, are probed with HEAD requests only (`curl -sI`), and the host in each Location header is recorded; README.md and `docs/install-ipm.md` name exactly the hosts seen (for example "huggingface.co and its download host cas-bridge.xethub.hf.co" if Xet is in use); any change to the host list is PUBLIC TEXT for the Planner before it is committed (ledger; Contest Planner ruling 2026-11-07)
 
 ## Epic 20: Add documents in the web app (step 3)
 

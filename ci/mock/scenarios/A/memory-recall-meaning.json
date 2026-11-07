@@ -1,0 +1,21 @@
+{
+  "name": "memory-recall-meaning",
+  "match": {
+    "marker": "memory-recall-meaning"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "search_memories",
+        "input": {
+          "query": "who do I call about Results?"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock found the memory."
+    }
+  ]
+}
