@@ -5098,3 +5098,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-10-the-past-expiry-refusal-test-is-stable-dw-840.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Case.cls:852-853 stale defaults; DW-840 red once in CI and 2 of 11 under the lead's closeQuiet load; the Refused pin goes red on a revert only under load
 - 2026-11-07T14:31:47Z status=escalated owner=burndown by=cr note=Case.cls out of 7.10 footprint (Planner: test-only); fix-risk med: shared helper, other tests may assert on the default FirstAt/LastAt
+
+### DW-872: flake: live:sign-in-2 web/e2e/rail/rail.spec.ts:462 R10 'a reload shows the same rail': the heartbeat card's real check-in fired at 15:02 between the live snapshot and the reload (reload adds 'Next check-in 15:32 Skipped at 15:02: your checklist is empty.'), red once in CI shards-4 on OCT-epic7 37856843
+- source: CI run 42382574157, iris (shards-4) job 128433114430 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: rail text diverges at char 982 only in the HEARTBEAT CHECKLIST card; Epic 7's diff touches no web file; a time-of-day race with the heartbeat's half-hour schedule
+- 2026-11-07T15:06:23Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second red on the same head is real
+- 2026-11-07T15:47:24Z occurrence=7-10 note=rerun_of_iris(shards-4)_green_on_37856843_(attempt_2);flake_confirmed;stays_routed_burndown
