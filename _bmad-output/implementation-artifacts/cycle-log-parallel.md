@@ -2383,3 +2383,7 @@
 2026-11-07T04:34:48Z	Run	planner_ruling	dw=DW-850 in_1.0.3_inside_17.9 draft_now public_text_with_sources no_wait_for_epic17 fallback=docs-only_commit_before_16Z_or_1.0.4
 2026-11-07T04:34:48Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=DW-850_public_text_draft_during_ci_wait
 2026-11-07T04:34:54Z	Run	planner_finding_ledgered	dw=DW-851 tier=3_after_31.4 not_for=1.0.3,1.0.4
+2026-11-07T04:45:56Z	Epic 17	public_text_relayed	dw=DW-850 places=5(+3_optional) draft=scratchpad/e17s9doc/draft.md release_tool_hunks=none
+2026-11-07T04:45:56Z	Epic 34	runner_ci_wait	head=f4b38c9e runs=42339077292,42339078167 cause=playwright_listener_race test_only proof=40/40_new,old_failed_1/100
+2026-11-07T04:55:03Z	Epic 17	public_text_ruled	dw=DW-850 1,3a,3b,4=approved 2=changed 5=exact_completed(verify_vs_Decide:1622-1628,Usage:182-204) opt_i=yes opt_ii=no opt_iii=ledgered
+2026-11-07T04:55:18Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=DW-850_ruled_land_in_17.9
