@@ -307,3 +307,14 @@
 2026-11-04T00:02:55Z	Epic 31	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5 high_med_avg=3.0(this_dispatch:31.7_2,31.3_4) unresolved_high_med_avg=0.0 metric=unresolved rework_stories=0(this_dispatch) review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=6 result=hold applied=false(record_only) note=part_merge_under_U-239;no_epic_status_done(31.4_backlog)
 2026-11-04T00:12:48Z	Epic 31	integrated_forward	feature=e660faef head=bd0b9111 conflicts_resolved=web/src/app/guide/demo-guide.ts(union:bridgeGuide+telegramTextId_fields),sprint-status.yaml(last_updated;in_sync;validated) note=Epics_13(13.4),0(0.14),12(12.10);checks=test-readme,test-bridge-guide,test-ci-config,catalog/tokens/payloads_current,web_1306/1306,lint_clean,live_floor_107/107(e31ifw);no_IRIS_class_changed_by_feature
 2026-11-04T00:12:48Z	Epic 31	epic_runner_complete	stories_completed=7(31.1,31.2,31.3,31.5,31.6,31.7_done;31.4_backlog_under_U-239) note=part_merge_U-239
+2026-11-07T14:44:42Z	Epic 31	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-07T14:44:42Z	Epic 31	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-07T14:44:42Z	Epic 31	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-07T14:44:42Z	Epic 31	epic_branch_reopened	reason=story_31.4_tier3c from=05823d01
+2026-11-07T14:44:42Z	Epic 31	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_31.4 lane=D slot=ocutalon-slot-d
+2026-11-07T14:44:42Z	Epic 31	epic_branch_checked_out	repos=. head=05823d01 ci=gh(expected:ci,lane-a)
+2026-11-07T14:44:42Z	Epic 31	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-07T14:44:49Z	Epic 31	ledger_load	total=834 open=1 routed=124 escalated=1 decision_pending=4 terminal=704 owner_unknown=0 burndown=83 reowned_none=0 owner_31-4=6
+2026-11-07T14:45:11Z	Epic 31	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true
+2026-11-07T14:45:11Z	Epic 31	retro_review_skipped	reason=skip(no_X.0_input;SC-5_reopen_for_31.4_per_dispatch)
+2026-11-07T14:47:59Z	Epic 31	epic_context_compiled	reason=planning_artifact_newer model=claude-opus-5-5
