@@ -2452,3 +2452,6 @@
 2026-11-07T10:52:54Z	Epic 39	runner_complete	head=fd3aed63 stories=1 ci=success(42363080747,42363080518)
 2026-11-07T10:52:54Z	Epic 39	amendments_verified	epics.md:8895_marker
 2026-11-07T10:52:54Z	Epic 39	epic_merge_started	head=fd3aed63 into=feature
+2026-11-07T10:53:11Z	Epic 39	epic_merged_to_feature	merge=ace5bc88 head=fd3aed63 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine=untouched release_tools=untouched
+2026-11-07T10:53:11Z	Epic 39	decision_sheet_skipped	reason=no_open_decisions
+2026-11-07T10:53:11Z	Run	deps_hash_rerecorded	reason=fix_forward story=39.9(+11.27,11.28_on_branch_later) hash=9d06f4082a96
