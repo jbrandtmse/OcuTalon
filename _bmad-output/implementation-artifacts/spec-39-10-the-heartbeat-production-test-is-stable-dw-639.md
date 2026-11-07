@@ -60,9 +60,29 @@ deferred: []
 - AC 2 -- Given the mutation "the first line of `OnAfterAllTests` stops an item" (Verification), when the class runs on a fresh stack, then the pin is red at once and its message names that item and its state (demonstrated, reverted, tree byte-identical).
 - AC 3 -- Given `Test.Schedule.Heartbeat` on a fresh stack, when `shard lane-b@Schedule` runs forward and with `--reverse`, then every class passes (the standing criterion).
 
+### Review Findings
+
+Code review, 2026-11-07, 4 layers (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor), none with a model override. Pin checked: same predicate (`NotRunning()`, not `NotRunningNow()`), read once at the same place with no wait, passing text byte-identical (`$Select` calls `StateOf` only on a failure). Rule 3: exempt (test-only, no user-facing surface).
+
+- [ ] [Review][Decision→Lead] AD-29: Story 39.10 is "Home lane: A" but its only source change is a Lane B file -- HIGH (Rule 6), fix-risk low, fix is outside this story's files (planning label), spec-status clear. AD-29 says `OcuTalon.Test.<Area>` follows its area's lane, `.Schedule` is Lane B's, and each story of a personality epic keeps the files of the lane it names; `epics.md` Story 39.10 names Lane A, and the spec's Governing ADs line says "both files are Lane A's test code". `Test/Schedule/Heartbeat.cls` (written by Epic 8, Lane B) is also outside Epic 39's `paths_hint`. The code is right: the AC names this class. What has to change is the label, and that is the lead's call. Recommended fix (Rule 5 apply-and-report, own epic's story block): set Story 39.10 to `*Home lane: B.*` in `epics.md`, correct the Governing ADs line here, and report `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls` under `footprint_extensions:`. The other option, keeping Lane A by naming an exception, would amend AD-29 (veto window). No code change either way.
+- [x] [Review][Patch] The doc comment said "read once, right after the call", but the read comes after the call's three other assertions and a `%SYS.Task` open (none of which touches the production) -- LOW, two-way door. Now reads "after the call and its other checks, with no wait" [src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls:595]. The code and the pin's position are unchanged; the class passed on fresh throwaway `e39s10cr` (103.61 s), and `test-class-rules.sh` and `test-boundaries.sh` exit 0.
+- [x] [Review][Patch] AC 3 had no `mutation:` entry -- LOW (Rule 19). `## Verification` now says AC 3 is the standing criterion with no behavior to mutate, and that the forward and `--reverse` runs are its evidence.
+- [x] [Review][By-design] Residual (judged): `StateOf` reads a second `Ens.Job:Enumerate` a few ms after the pin's read -- LOW. The item names come from the pin's own read, so the story's goal holds. Only the state in parentheses is later. Since `NotRunning()` is a read-only product method that returns names only, a same-enumeration state would need a copy of it or a product change, and the intent forbids both. The message format is specified. Reading rule for the next occurrence's story: an item named as missing whose parentheses show an `Alive:<status>` job came up between the two reads (a transient, the test-side branch); `jobs none` or `Starting` means it was still absent a moment later; `Dead:...` means a job died.
+- [x] [Review][By-design] `Restore`'s end-of-class `NotRunning()` check (L180-181) also reads once with no wait, and its message names the items without their state -- LOW. Its red still names the items, it has never failed in CI, and the intent says "No other change". This also means the Design Notes' "only check in lane-b that samples `NotRunning()` without waiting" is inexact. That note is for the next occurrence's story; this review leaves the spec text as it is.
+- [x] [Review][By-design] The message carries no event-log rows and no time of the read -- LOW. The ruling fixed the message to items plus job state. GitHub Actions timestamps every log line, so the time is in the CI log anyway. A dead job shows as `Dead:<status>` in `StateOf`, which is enough to choose the product-cause branch.
+- [x] [Review][By-design] Hermeticity: the pin checks a production state the test never establishes before the call (no precondition, and no reading before the call to compare with) -- MED by Rule 19 (a test that is not self-contained). This is DW-639's own root cause, owned by this story's key and adjudicated at `ledger_adjudicated`. The ruling (option (a)) excludes a wait, a precondition and a before-call reading, so it is not filed again.
+
+Rejected:
+- `low` The not-running sentence ("OcuTalon.Production is not running") goes through `StateOf` as if it were an item. The sentence that comes first still names the cause, `StateOf` does not throw on it (`SnapshotDefault` checks `%ExistsId` first), the case is unlikely here, and a guard would add a branch.
+- `false` `StateOf` may throw and hide the items. That needs a defaults row deleted between `SnapshotDefault`'s `%ExistsId` and `%OpenId`, microseconds apart, by nothing this test runs. Theoretical.
+- `low` The superseded decision table has no row for an `Alive` state. The fix would edit the spec's Design Notes. The reading rule above covers it for the next story.
+- `low` The Design Notes' "only check without waiting" claim. The fix would edit the spec; it is recorded in the by-design row above.
+
 ## Spec Change Log
 
 - 2026-11-07 ~12:10Z (orchestrator ruling, decide, option (a), matching the Planner's 11.27 ruling on an unreproduced flake): the story is narrowed to step 1, diagnostics only. The planned `WaitAllRun(every)` extension, the precondition control, the Task 0 load runs and the 20-of-20 proof are dropped from this story (no reproduction, so the fix would break the proof rule). DW-639 stays a flake class and is closed at the burn-down with the residual "diagnostics landed; fix on next named occurrence", not as resolved.
+
+- 2026-11-07 (lead, after code review round 1): the AD-29 HIGH (planning label) resolved by the lead: Story 39.10's home-lane line in `epics.md` now reads "*Home lane: B.*" (apply-and-report) and the Governing ADs line above is corrected; `Test/Schedule/Heartbeat.cls` is reported under `footprint_extensions:`. No code changes in this rework.
 
 ## Review Triage Log
 
@@ -109,7 +129,7 @@ deferred: []
 
 **Integration ACs:** no service is introduced (a message change in one test). **Consumes:** `Install.Step.Production.NotRunning`, `RunnerFixture.StateOf`.
 
-**Governing ADs:** AD-22 (tests in throwaway stacks, sharded by area; the CI recipe), AD-23 (the Production step owns `NotRunning`; read-only here), AD-29 (lanes: both files are Lane A's test code; the home lane is A).
+**Governing ADs:** AD-22 (tests in throwaway stacks, sharded by area; the CI recipe), AD-23 (the Production step owns `NotRunning`; read-only here), AD-29 (lanes: `OcuTalon.Test.Schedule` is Lane B's test code, so the home lane is B; corrected at code review, see the Spec Change Log).
 
 **Ledger inbox:** DW-639 is addressed by AC 1-3 (diagnostics); the fix itself is declined in this story by the ruling (no reproduction) and waits for the next named occurrence. Declined DW-639 (the fix only): not reproduced; ruled diagnostics-only.
 
@@ -134,7 +154,7 @@ deferred: []
 - (once) `bash docker/tests/test-class-rules.sh`, `bash docker/tests/test-boundaries.sh`, one per call. Expected: exit 0.
 - (once) `<lane> OCUTALON_RUN_TAG=e39s10impl ci/iris.sh teardown`, also after a failure.
 
-**Pinning mutations:** AC 1/2: the `TempStopConfigItem` mutation above.
+**Pinning mutations:** AC 1/2: the `TempStopConfigItem` mutation above. AC 3 is the standing criterion (the forward and `--reverse` runs of `shard lane-b@Schedule`): it pins no behavior of its own, so it has no mutation; its evidence is the two runs.
 
 mutation: first line of `OnAfterAllTests` = `Do ##class(Ens.Director).TempStopConfigItem("SimPhoneOut", 1)`; `ci/iris.sh class OcuTalon.Test.Schedule.Heartbeat` on a fresh stack (e39s10impl): `CLASS OcuTalon.Test.Schedule.Heartbeat failed 254.51s`, `FAIL TestAfterAllTestsNothingSaved: and the production runs every item: SimPhoneOut (SimPhoneOut row -, runtime flag 1, jobs none)`; reverted, `git status --short` and `git diff` byte-identical to before the mutation.
 

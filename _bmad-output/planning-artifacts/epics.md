@@ -8980,7 +8980,7 @@ So that the card never shows a total the count does not explain.
 
 ### Story 39.10: The heartbeat production test is stable (DW-639)
 
-*Home lane: A.*
+*Home lane: B.* [AMENDED 2026-11-07, Story 39.10 code review (AD-29: `OcuTalon.Test.Schedule` is Lane B's), apply-and-report (Rule 5 tier 1): it read "*Home lane: A.*"]
 
 [ADDED 2026-11-07, SC-5 re-open of Epic 39, tier (3)(a) flake fix approved by the Contest Planner (relayed by the orchestrator); fix-forward, no boundary or dependency change: `OcuTalon.Test.Schedule.Heartbeat` `TestAfterAllTestsNothingSaved` failed "and the production runs every item" in CI's image shard lane-b on three heads in about six hours, each green on one rerun.]
 

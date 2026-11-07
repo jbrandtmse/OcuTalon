@@ -592,7 +592,7 @@ Method TestOtherProduction()
 /// (QA) OnAfterAllTests of a class that saved nothing leaves everything alone. A failed OnBeforeAllTests leaves the instance as a new one (it quits before it
 /// assigns anything, and before Saved is set), and the manager still calls OnAfterAllTests. A new instance runs it here, with the production running:
 /// it returns OK, kills no record of the double, leaves the task's Suspended value and the production as they are. Without the guard, Restore would put
-/// back what was never saved (and start a production that the class never stopped). The production is read once, right after the call, with no wait;
+/// back what was never saved (and start a production that the class never stopped). The production is read once, after the call and its other checks, with no wait;
 /// when an item is missing, the failure message names the items and the state of their jobs (DW-639).
 Method TestAfterAllTestsNothingSaved()
 {
