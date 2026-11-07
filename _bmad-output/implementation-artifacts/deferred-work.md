@@ -4905,3 +4905,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-7-give-an-all-clear-only-when-every-check-passed.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: diff Test/Eval/Run.cls counts SessionRef = 'eval' above the mark; an unscoped count would race real scheduled ticks; EvalCase.TestNoSessionEffects compares all sessions' Sent rows
 - 2026-11-07T03:12:16Z status=wontfix-accepted owner=17-7-give-an-all-clear-only-when-every-check-passed by=cr note=reopen_if=Evaluated or FinishCase gains a code path that can write a Sent row
+
+### DW-850: docs/bridge-guide.md still describes one attempt where Story 17.2 made two (the TimerSeconds and DecisionTokenBudget rows, Timeouts, the fallback route, DecisionResponse.Model); rewording them is public text for the Contest Planner
+- source: spec-17-9-epic-17-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: DW-728's 2026-11-05 occurrence; Story 17.9's AC allows only the two table rows
+- 2026-11-07T03:45:42Z status=escalated owner=burndown by=burndown note=residual of DW-728 split off at Story 17.9's spec gate: the Planner decides the wording (public repository)
