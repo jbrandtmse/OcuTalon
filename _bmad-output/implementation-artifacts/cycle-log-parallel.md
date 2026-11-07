@@ -2523,3 +2523,6 @@
 2026-11-07T17:56:29Z	Run	deps_hash_rerecorded	reason=fix_forward story=7.10 hash=535f27f4df74
 2026-11-07T18:05:40Z	Run	owner_decision	subject=account_switch_hold by=Contest_Planner hold=owner_call_at_quota_low_90s not_tied_to_tag full_speed_until_HOLD quota=84%@18:05Z(~2.4%/h) likely=20:30-21:30Z
 2026-11-07T18:24:50Z	Run	planner_request	subject=1.0.3_eval_regression case=returns-negative-weight action=read-only_analysis_agent real_model_repro=declined(no_real_key_in_runners;Planner_runs_it) default=override_ship,fix_in_1.0.4
+2026-11-07T18:25:06Z	Run	planner_ruling	subject=real_model_repro rule_stands=no_real_key_in_runners Planner_runs_single_case_repro send=case+hypothesis_on_analysis
+2026-11-07T18:28:10Z	Epic 32	runner_clarification	kind=planner_report story=32.5 code=bc1ff88b head=39364d5c runs=42401362858,42401362884 proof=769=769,339=202+137 group=shards-5
+2026-11-07T18:28:10Z	Run	planner_update	subject=sign-in_split_pick_candidate sha=bc1ff88b
