@@ -2430,3 +2430,6 @@
 2026-11-07T09:16:17Z	Run	deps_hash_rerecorded	reason=burndown_inserted story=17.9 hash=23068bba45ad
 2026-11-07T09:16:41Z	Epic 19	runner_resumed	reason=integrate_over_epic17_after_feature_green
 2026-11-07T09:24:41Z	Epic 17	public_text_relayed	dw=DW-773 L153(+short_option) L340_optional AD-19_as_built_offer
+2026-11-07T09:25:15Z	Epic 17	public_text_ruled	dw=DW-773 L153=ruled_with_pool_clause(verify_Decide:456-465) L340=approved AD-19=amend_in_place_U7_marker in_flight_specs_citing_AD-19=none(checked_09:22Z)
+2026-11-07T09:25:15Z	Epic 17	worktree_provisioned	branch=OCT-epic17 ff_to=70e4246d reason=DW-773_docs_only_commit
+2026-11-07T09:25:33Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=DW-773_docs_only_commit
