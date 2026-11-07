@@ -3336,6 +3336,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
 - 2026-11-05T08:19:00Z occurrence=34-1-settle-step-3-ownership-and-fix-its-contracts by=ci note=CI_run_41989403902_(de02fc38)_iris_(shards-3)_live:demo-switch_badge.spec.ts:19_goto_interrupted_by_chrome-error;one_rerun_of_the_failed_job
 - 2026-11-05T12:41:04Z occurrence=feature-merge-back by=orchestrator note=feature 8345cfca (v1.0.1 merge-back) run 42021667697 iris (browser) job 127225676199 live:sign-in page.goto interrupted by chrome-error://chromewebdata/; second sighting today (34.1 de02fc38 shards-3); failed job rerun once
+- 2026-11-07T01:02:46Z occurrence=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged note=local_live:demo-path_on_the_integrated_tree(e03ca809,lane-D,e7s9if):07_sign-in_page.goto_interrupted_by_navigation_to_?signedOut=1(not_chrome-error);08_cascaded(07's_replay_request_missing);unchanged_rerun_8_of_8_steps_floor_15_of_15
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
@@ -4734,6 +4735,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42314928349 (OCT-epic7 07951357), iris (browser) test-sign-in | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Expected 'You can run it again at 00:16.' Received '... at 0:16.' (HC5 L283), HC4 L728 /^...\d\d:\d\d\.$/ got '0:18', HC1 L173; code not in Epic 7's diff (Epic 39, f207f0b3/9a0e8125); web/src/app/chat/page-time.ts pageWhen is the browser's hour format by design
 - 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=inherited from feature (Epic 39's spec); red only in the 00:00-00:59Z hour; rerun after 01:00Z; fix: build the expected clock with the page's own formatter or pin the browser locale
+- 2026-11-07T01:29:07Z note=second red on the same head at 01:20Z: the page clock has no leading zero for every hour before 10 ('1:11', '1:19'), so the window is 00:00-09:59Z, not hour 0 only; HC1,HC4,HC5,HC11 and 2 more; real (inherited), see U-298
 
 ### DW-840: flake: OcuTalon.Test.Fix.Refused TestPastExpiryCannotStart 'the incident is resolved' (WaitIncidentState) red once in CI shards-2 (lane-a@rest, class 34.03s) on OCT-epic7 07951357; passed fresh on lane D (8.99s) on the same tree
 - source: CI run 42314928349, iris (shards-2) | severity: med | fix-risk: low | footprint: in-epic
