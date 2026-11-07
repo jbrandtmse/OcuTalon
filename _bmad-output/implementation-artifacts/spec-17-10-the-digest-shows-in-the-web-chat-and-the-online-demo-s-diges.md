@@ -2,20 +2,13 @@
 title: 'Story 17.10: The digest shows in the web chat, and the online demo''s digest is visible'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'blocked'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
 warnings: ['oversized']
-deferred:
-  - summary: >-
-      Digest.Process's class comment still says that on the online demo a session with a resume hash is due for the scheduled digest; after this story no online-demo session is.
-    evidence: |-
-      Process.cls:7-8 ("A session that has not ended (on the online demo, one with a resume hash; ...) is due when ..."). Story 17.10 changes the rule inside Ticked only, because the lead's contention rule keeps the edit inside Ticked (Epic 12's Story 12.12 edits the class comment at :32). Ticked's own doc comment states the new rule.
-    location: >-
-      src/ocutalon/cls/OcuTalon/Digest/Process.cls:7
-    severity: low
+deferred: []
 ---
 
 <intent-contract>
@@ -38,7 +31,7 @@ deferred:
 
 **Never:**
 - No change to `Channel/SimPhone/Out.cls` (the simulated phone shows no digest), to the full UX digest card ("What I checked ({n})", Story 18.4), or to the payload classes and `web/src/app/live/payloads.ts`.
-- In `Digest/Process.cls`, nothing outside `Ticked` changes (Epic 12 edits :32, :596, :668-695 and :872-880).
+- In `Digest/Process.cls`, nothing outside `Ticked` and the class comment's due-rule sentence at :7-8 changes (Epic 12 edits :32, :596, :668-695 and :872-880).
 - In `Channel/Telegram/Out.cls`, only the DigestText/Pieces/Piece/AFTERLINES region and the call site at :176-177 change.
 - These files are not edited: `Test/Channel/TelegramDigest.cls`, `web/e2e/support/floor.ts`, `web/playwright.config.ts`, `web/e2e/support/diagnose.ts`, `ci/iris.sh`, `web/e2e/heartbeat-card.spec.ts`, `release/*`, `eval/run.sh` and the IPM scripts.
 - No real model key and no real Telegram bot.
@@ -149,11 +142,11 @@ deferred:
   - Add `TestDigestCard`, covering the matrix rows "Web digest card", "No after-lines part" and "Render error": the row, the event payload JSON, `RecentNotices`, and `Text` equal to the written-out text and to `DigestText.Text(slots, "web")`.
   - Update the class doc.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls` `TestRecentNotices`: assert that `digest` is one of `CARDKINDS`, and that a web `digest` row is a card. Update its doc :826-829.
-- [ ] `src/ocutalon/cls/OcuTalon/Digest/Process.cls`, `Ticked` only (doc :197 and :204-210): on the online demo, queue no scheduled Compose for any session. `Resends` stays. The doc states the rule.
+- [ ] `src/ocutalon/cls/OcuTalon/Digest/Process.cls`, `Ticked` (doc :197 and :204-210) and the class comment's due-rule sentence at :7-8 only: on the online demo, queue no scheduled Compose for any session. `Resends` stays. Both docs state the rule (AD-18 as amended 2026-11-07).
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Digest/Due.cls`: replace `TestEndedOnlineDemo` with `TestOnlineDemoSkipped`, covering the matrix rows "Online demo, morning" and "Online demo, asked" (DW-874). Update the class doc bullet.
 - [ ] `web/src/app/chat/chat-view.ts`: add `'digest'` to `NoticeKind` and to `noticeOf`'s filter, and update the docs (:8-10, :141-143, :211-212).
 - [ ] `web/src/app/chat/notice-card.ts`: `[class.digest]`, the icon `inbox` for kind digest, and `.digest .text { white-space: pre-line }` (shared with `.request .text`). Add a class-comment bullet: the digest card is the digest's text alone, with no strip or caption.
-- [ ] `web/e2e/chat/notice.spec.ts`: add N16 (DW-874) for the matrix row "Browser, local install". It sends with `sendNotification(user, {kind: 'digest', catalogKey: 'checks.everythingElsePassed', slots: {parts, lines, rows: []}})`, with a `unique('N16')` marker in `digest.saved`'s summary. It asserts the `.notice.digest` card, the inbox polyline, the 4px bar, `innerText` of `.text` split on LF equal to the expected lines, no heading, `.title`, strip, caption or `.why`, and the same after `page.reload()`. [Placement is blocked: see Clarification Needed Q3.]
+- [ ] `web/e2e/chat/notice.spec.ts`: add N16 (DW-874) for the matrix row "Browser, local install". It sends with `sendNotification(user, {kind: 'digest', catalogKey: 'checks.everythingElsePassed', slots: {parts, lines, rows: []}})`, with a `unique('N16')` marker in `digest.saved`'s summary. It asserts the `.notice.digest` card, the inbox polyline, the 4px bar, `innerText` of `.text` split on LF equal to the expected lines, no heading, `.title`, strip, caption or `.why`, and the same after `page.reload()`. (Placement ruled: `notice.spec.ts`, Q3 (a).)
 - [ ] `ci/mock/scenarios/B/digest-send-now-chat.json` and `ci/mock/scenarios/B/digest-send-now-triage.json` (new):
   - prompt "Send my digest now.";
   - mockkey `chat`: replies toolUse `send_digest` {}, then the text "The CI mock says your digest is on its way.";
@@ -169,6 +162,8 @@ deferred:
 - Given the tests that pin the card kinds and the online-demo scheduled rule, when the suite runs on a fresh stack in either order, then every one passes, and each new pin has a `mutation:` line shown red.
 
 ## Spec Change Log
+
+- 2026-11-07, lead spec gate: Q1-Q3 ruled by the Contest Planner (about 20:45Z); AD-18 and AD-33 amended in the spine; N16 placement kept in notice.spec.ts; the Process.cls class comment :7-8 moved into scope (the plan's deferred item withdrawn); status `blocked` -> `ready-for-dev`.
 
 ## Review Triage Log
 
@@ -187,7 +182,7 @@ deferred:
 - AD-22: the CI mock.
 - AD-30: the summary goes through Decide, only when something was saved.
 
-Conflicts: see Clarification Needed Q1 (AD-18) and Q2 (AD-33). AD-32: the helper is the shared rendering code of the `*Out` operations, and only they call it. I read that as consistent with "only `*Out` operations render". I recommend that the lead add an as-built clause naming `OcuTalon.Channel.DigestText` to AD-32's digest bullet in the same bookkeeping commit.
+Conflicts: resolved by the Contest Planner's rulings of 2026-11-07 about 20:45Z (see Rulings below). AD-32: the helper is the shared rendering code of the `*Out` operations, and only they call it. I read that as consistent with "only `*Out` operations render". [Lead, spec gate: AD-32's Rule is met as written (the helper is the `*Out` operations' own rendering code, called only by them); no AD-32 change is made, so no further AD amendment is needed.]
 
 **Ledger (Rule 17):** DW-874 is addressed by the WebChatOut, Ownership, web and N16 tasks (the web card), by the `Ticked`/`TestOnlineDemoSkipped` tasks (the morning run), and by step 7 with its mock scenarios (the online card). Its simulated-phone half is out by the Planner's ruling of 2026-11-07 (option a): `SimPhone/Out.cls` CARDKINDS stays.
 
@@ -206,6 +201,11 @@ Conflicts: see Clarification Needed Q1 (AD-18) and Q2 (AD-33). AD-32: the helper
 
 **PUBLIC TEXT (for the Planner):** none. The card is the catalog text alone, and its icon is `aria-hidden`. The mock reply text is CI-only. The EXPERIENCE note is internal.
 
+**Rulings (Contest Planner under the owner's delegation, 2026-11-07 about 20:45Z, relayed by the orchestrator):**
+- Q1, AD-18: APPROVED as worded. The lead wrote the clause into AD-18's Rule with the marker "[AMENDED 2026-11-07, Story 17.10, Contest Planner ruling under the owner's delegation (DW-874, option a)]": on the online demo (`Data.Public.Settings` `onlineDemo` on) no session is due for the scheduled digest; a visitor gets a digest only by asking (`SendDigest`). `TestEndedOnlineDemo` becomes `TestOnlineDemoSkipped`.
+- Q2, AD-33: APPROVED. The lead added the exception bullet "Story 17.10 changes the Lane B files its spec names, under the Contest Planner's ruling of 2026-11-07 (DW-874); the ownership tables don't change" with the same marker. `docker/tests/test-online-demo-path.sh` is reported under `footprint_extensions:`.
+- Q3: keep N16 in `web/e2e/chat/notice.spec.ts` as ruled (option a). Story 32.5's sign-in split (OCT-epic32) merges to feature; the runner integrates over it before the story's CI push.
+
 **Decided in-stage:**
 1. The helper lives in `OcuTalon.Channel`, the spine's channel edge, whose job is "rendering outbound text". It is a class of class methods. Lane A owns it (it moved from TelegramOut), and WebChatOut reads it. No item, table or event is added, so the ownership tables are unchanged.
 2. The digest joins `CARDKINDS` with its own text branch. Its row keeps FallbackReason "", because the key's slots are checks slots and the web card has no strip.
@@ -213,25 +213,11 @@ Conflicts: see Clarification Needed Q1 (AD-18) and Q2 (AD-33). AD-32: the helper
 4. The online-demo rule is "no scheduled Compose on the online demo". `Resends` still runs, because it resends a digest the visitor asked for and makes no model call.
 5. The online "one step" is its own case, `step 7`, in the serial block (the same visitor, no extra sign-in). The unit's report check moves to eight passed cases and 11 in all. This is a footprint extension: `docker/tests/test-online-demo-path.sh`, which no contended epic owns and which is not a frozen release tool.
 6. The golden test is in the Digest area (`shards-2`, about 28 min), not in Channel (`shards-4`, up to 35 min). It drives `OnNotification` through a probe, so it passes before and after the move.
-7. Process.cls's class comment :7 is left as it is (the contention rule). The `deferred:` item hands it to the lead.
+7. [Lead, spec gate 2026-11-07] Process.cls's class comment :7-8 is updated in this story after all: it is a separate hunk from Epic 12's :32 edit (24 lines apart), and the lead proves a clean `git merge-file` against `origin/OCT-epic12` before the commit. The plan's `deferred:` item is withdrawn.
 
 **Footprint (Rule 11).**
 - Checked with `git diff --name-only HEAD...origin/OCT-epic<N>` for N = 12, 11 and 39 on 2026-11-07. Epic 12 touches `Digest/Process.cls` (hunks :32, :596, :668, :692 and :872, none in `Ticked`) and `Test/Channel/TelegramDigest.cls`, and not `Channel/Telegram/Out.cls`.
 - Footprint extensions: `docker/tests/test-online-demo-path.sh`, `src/ocutalon/cls/OcuTalon/Test/Digest/Due.cls` (Epic 17's own) and `EXPERIENCE.md` (a marker).
-
-## Clarification Needed
-
-- **Q1 (AD-18, Rule 6).** AD-18's Rule says "on a tick, a session that has not ended is due when …", and the as-built test (`Test.Digest.Due` `TestEndedOnlineDemo`) pins that an online-demo session with a resume hash has not ended and is due. The Planner's ruling that the morning run skips online-demo sessions contradicts that Rule.
-  - Recommended amendment (Rule 20 light path), after "…is due when … or later;": "on the online demo (`Data.Public.Settings` `onlineDemo` on) no session is due for the scheduled digest: a visitor gets a digest only by asking (`SendDigest`) [AMENDED 2026-11-07, Story 17.10, Contest Planner ruling under the owner's delegation (DW-874, option a)]".
-- **Q2 (AD-33, Rule 6).** AD-33 says "Only the owning lane edits a class", with exceptions for Epic 11 and Epic 29 only. Story 17.10 (Epic 17, Lane A) edits Lane B's `WebChatOut`, `Data.Ownership`, `web/src/app/chat/**`, `Test.Core.WebChatOut`, `Test.Data.Ownership` and `docker/tests/test-online-demo-path.sh`.
-  - Recommended: one exception bullet, "Story 17.10 changes the Lane B files its spec names, under the Contest Planner's ruling of 2026-11-07 (DW-874); the ownership tables don't change".
-- **Q3 (CI budget vs the ruling's test file).** The ruling puts a Playwright case in `web/e2e/chat/notice.spec.ts`. That file is in the chromium project, unit live:sign-in, group `browser`. This run's rule is "add tests only to a group whose clean-run time plus your unit stays under 35 minutes".
-  - Measured on 11 complete runs on 2026-11-07, `browser` took 33-39 min: 8 of the 11 at 35 or more, 38.9 on the feature's run 42398754916, and a failure at 39 on 42400798775. So it is already over REL-4 without this story. N16 adds about 10-20 s (inference).
-  - Options:
-    - (a) Keep N16 in `notice.spec.ts` as ruled, and route the `browser` overrun to the Planner as a CI rebalance.
-    - (b) Move the local-install card case to a spec of a group with room (none of the browser units' groups is clearly under 33 min; `shards` and `shards-4` are 32-35). That needs a ruling on the file.
-    - (c) Drop N16 and let step 7 (`image`, 28-31 min) be the story's browser evidence. It covers the card on the polling path and the snapshot, but not the local WebSocket path.
-  - Recommended: (a), together with a CI rebalance item for `browser`.
 
 ## Verification
 
@@ -274,7 +260,7 @@ Every test added or changed passes on a fresh environment, in either order.
 - `TestDigestCard` and the Ownership leg: lane-b, group `image` (28-31 min).
 - `TestOnlineDemoSkipped`: lane-a@rest, group `shards-2`.
 - step 7: live:online-demo-path, group `image` (+ about 30-60 s, inference).
-- N16: live:sign-in, group `browser` (see Q3).
+- N16: live:sign-in, group `browser` (ruled Q3 (a); Story 32.5's sign-in split rebalances the group).
 
 **Mutations to demonstrate (Rule 19).** Apply each one, observe red, and restore the file byte for byte:
 - the helper appends the lines after the last part: `TelegramText` (a) is red;
@@ -291,7 +277,7 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: Q1 AD-18's Rule makes an online-demo session with a resume hash due for the scheduled digest, which the ruled morning skip contradicts (recommended amendment in Clarification Needed); Q2 AD-33 allows cross-lane edits only for Epics 11 and 29, and Story 17.10 edits Lane B classes (recommended exception bullet); Q3 the ruled Playwright case in web/e2e/chat/notice.spec.ts runs in the browser group, measured at 33-39 min on 11 runs of 2026-11-07, against this run's rule that a test joins only a group under 35 minutes (options a/b/c, recommended a with a CI rebalance item).
+Status: ready-for-dev
+Blocking condition: none
 
-The spec is otherwise complete. Once the lead has amended AD-18 and AD-33 and answered Q3, set the frontmatter `status` to `ready-for-dev` and update the N16 task's placement note if the answer is (b) or (c).
+Plan halted on Q1-Q3 (intent gaps); the lead applied the rulings of 2026-11-07 about 20:45Z (AD-18 and AD-33 amended in the spine, Q3 option a) and set `ready-for-dev` at the spec gate.
