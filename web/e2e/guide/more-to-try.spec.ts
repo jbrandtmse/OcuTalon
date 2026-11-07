@@ -730,13 +730,25 @@ async function openPanel(page: Page, compact: boolean, edge = false): Promise<bo
   return true;
 }
 
-/** Holds a size whose panel started closed for lack of room to the chat's floor and to a page that does not scroll as a whole. */
+/**
+ * Holds a size whose panel started closed for lack of room to the chat's floor and to a page that does not scroll as a whole, and shows
+ * that the room really is too small: the link opens the panel at its least window and the chat is then under its floor.
+ */
 async function expectClosedHolds(page: Page, at: string, floor: number): Promise<void> {
   const room = await settledChat(page);
   test.info().annotations.push({ type: 'squeezed', description: `${at} the panel started closed: chat=${room.chat} page scroll=${room.page}` });
   console.log(`squeezed ${at} chat=${room.chat} page scroll=${room.page}`);
   expect(room.chat, `${at}: the chat's list keeps its floor with the panel closed`).toBeGreaterThanOrEqual(floor);
   expect(room.page, `${at}: and the page does not scroll as a whole`).toBeLessThanOrEqual(1);
+  // A closed start above the band is owed only where the room cannot hold the panel: opened by the link, its window is at its least and
+  // the chat is still under its floor.
+  await linkOf(page).click();
+  await expect(panelOf(page), `${at}: the link opens the panel`).toBeVisible();
+  const opened = await settledRoom(page);
+  expect(
+    opened.window <= opened.need + 1 && opened.chat < floor,
+    `${at}: it started closed only because even its least window leaves the chat under its floor (window=${opened.window} need=${opened.need} chat=${opened.chat})`,
+  ).toBe(true);
 }
 
 /**
@@ -968,7 +980,7 @@ for (const { width, edge } of BANNER_ROOM) {
     const height = 680 + banner - (edge === 'under' ? 1 : 0);
     await page.setViewportSize({ width, height });
     await page.evaluate(() => document.fonts.ready.then(() => true));
-    expect(await compactOf(page), 'the band is decided on the height left after the banner').toBe(edge === 'under');
+    expect(await compactOf(page), 'the case set the viewport one pixel under or exactly at 680px plus the banner it measured').toBe(edge === 'under');
     const floor = edge === 'under' ? 64 : 160;
     if (!(await openPanel(page, edge === 'under', edge === 'at'))) {
       await expectClosedHolds(page, `${width}x${height} banner ${banner}`, floor);
@@ -1145,8 +1157,9 @@ for (const [width, height] of [
 /**
  * K21: the status banner "OcuTalon has no model key..." sits above the guide on a stack without a key. Most room cases route it off; this
  * one routes it on and asks what must hold whatever is above the guide: with the panel open in the finish (the link opens it where the
- * banner puts the page in the compact band) the page does not scroll sideways, the framed page does not scroll as a whole, and the chat
- * keeps its floor (64px in the band, 160px above it).
+ * banner puts the page in the compact band) the page does not scroll sideways and the framed page does not scroll as a whole; the chat
+ * keeps its floor (64px in the band, 160px above it) with the panel as the finish starts it, and with the panel the user opened unless
+ * that panel is at its least window (the label line and one control), which the user's press keeps.
  */
 for (const [width, height] of [
   [1280, 600],
@@ -1156,8 +1169,12 @@ for (const [width, height] of [
   test(`K21: with the no-model-key banner shown the open panel leaves no sideways scroll and the chat its floor (${width}x${height})`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await openRealFinish(page, true);
-    await openPanel(page, await compactOf(page));
     const floor = (await compactOf(page)) ? 64 : 160;
+    const start = await settledChat(page);
+    if (width >= 1024) {
+      expect(start.chat, `${width}x${height}: the chat's list keeps its floor with the panel as the finish starts it`).toBeGreaterThanOrEqual(floor);
+    }
+    await openPanel(page, await compactOf(page));
     const room = await settledRoom(page);
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     test.info().annotations.push({ type: 'K21', description: `${width}x${height} chat=${room.chat} page scroll=${room.page} sideways=${sideways}` });
@@ -1165,7 +1182,11 @@ for (const [width, height] of [
     expect(room.sideways, `${width}x${height}: nothing in the panel reaches past its own width`).toBeLessThanOrEqual(1);
     expect(room.overflowX, `${width}x${height}: the panel stays within the page's width`).toBeLessThanOrEqual(1);
     if (width >= 1024) {
-      expect(room.chat, `${width}x${height}: the chat's list keeps its floor`).toBeGreaterThanOrEqual(floor);
+      expect(room.chat, `${width}x${height}: the chat's list keeps some height`).toBeGreaterThan(0);
+      expect(
+        room.chat >= floor || room.window <= room.need + 1,
+        `${width}x${height}: the chat's list keeps its floor, or the panel the user opened is at its least window (chat=${room.chat} window=${room.window} need=${room.need})`,
+      ).toBe(true);
       expect(room.page, `${width}x${height}: the framed page does not scroll as a whole`).toBeLessThanOrEqual(1);
     } else {
       expect(room.chat, `${width}x${height}: the chat's list keeps some height`).toBeGreaterThan(0);
@@ -1224,9 +1245,11 @@ const WIDE_TEXT = '*, *::before, *::after { font-family: Verdana, "DejaVu Sans",
 
 /**
  * K23: the layout holds with wider font metrics. With the wide text applied, at 1280x680, 1280x600, 1024x680 and 320x700 (and with the
- * no-model-key banner at 1280 wide, one pixel under and at the band's edge): the finish's panel is open from the band's edge up and closed
- * under it, the chat keeps its floor (64px in the compact band, 160px from the edge) with the panel as the page starts it and with it
- * opened, the framed page does not scroll as a whole, and no page scrolls sideways.
+ * no-model-key banner at 1280 wide, one pixel under and at the band's edge): the finish's panel is open from the band's edge up (closed
+ * instead where the wider text leaves no room for it even at its shortest window) and closed under it; the chat keeps its floor (64px in
+ * the compact band, 160px from the edge) with the panel as the page starts it, and in the compact band also with the panel opened by the
+ * link unless that panel is at its least window (the user's press keeps it); from the edge up a panel that started closed is only opened by the link (the user's press wins over the floor); the framed page
+ * does not scroll as a whole, and no page scrolls sideways.
  */
 for (const { width, height, banner } of [
   { width: 1280, height: 680, banner: undefined },
@@ -1263,7 +1286,19 @@ for (const { width, height, banner } of [
     const compact = await compactOf(page);
     const floor = compact ? 64 : 160;
     const framed = width >= 1024;
-    const expectHolds = async (state: string): Promise<void> => {
+    const expectHolds = async (state: string, opened = false): Promise<void> => {
+      if (opened && framed) {
+        // A panel the user opened keeps at least its least window; the chat keeps its floor unless that window alone leaves it less.
+        const room = await settledRoom(page);
+        const sideways = (await measure()).sideways;
+        test.info().annotations.push({ type: 'K23', description: `${at} ${state} chat=${room.chat} window=${room.window} page scroll=${room.page} sideways=${sideways}` });
+        console.log(`K23 ${at} ${state} chat=${room.chat} window=${room.window} page scroll=${room.page} sideways=${sideways}`);
+        expect(sideways, `${at} ${state}: the page does not scroll sideways`).toBeLessThanOrEqual(0);
+        expect(room.chat, `${at} ${state}: the chat's list keeps some height`).toBeGreaterThan(0);
+        expect(room.chat >= floor || room.window <= room.need + 1, `${at} ${state}: the chat's list keeps its floor, or the panel is at its least window (chat=${room.chat} window=${room.window} need=${room.need})`).toBe(true);
+        expect(room.page, `${at} ${state}: the page does not scroll as a whole`).toBeLessThanOrEqual(1);
+        return;
+      }
       if (framed) {
         await expect.poll(async () => (await measure()).chat, { message: `${at} ${state}: the chat's list reaches its floor` }).toBeGreaterThanOrEqual(floor);
       }
@@ -1282,7 +1317,7 @@ for (const { width, height, banner } of [
     if (compact) {
       await expectHolds('panel closed');
       await openPanel(page, true);
-      await expectHolds('panel opened by the link');
+      await expectHolds('panel opened by the link', true);
     } else {
       // From the band's edge up the panel starts open; where the wider text leaves no room for it even at its shortest window it starts closed instead.
       await expectHolds('panel as the page starts it');

@@ -4829,3 +4829,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: DW-850 draft (Epic 17 runner A), item (iii); Planner ruling 2026-11-07 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: Process/Decide.cls:1250 records rate_limited when the timer passes after a re-send; the guide row names only timeout; predates Story 17.2
 - 2026-11-07T04:55:03Z status=routed owner=burndown by=orchestrator note=voting week, docs only; any wording is PUBLIC TEXT for the Planner; NOT for 1.0.3 or 1.0.4
+
+### DW-860: keepRoom detects the squeeze only on a re-measure that a later resize triggers; after a write that changes no layout (window already at its least) none follows
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: more-to-try-room.ts measure(): tight() sits in the else-branch (bound unchanged); a squeeze arising after the first settle (font swap, list resize) leaves the panel open with the chat under its floor until any other resize; K24 polls with synthetic resize events
+- 2026-11-07T10:32:17Z status=routed owner=burndown by=cr note=re-review r4: fix = re-measure one frame after each write; pin = K24 without its synthetic resize; needs a live run
+
+### DW-861: A default-open panel that closes by itself (viewport height across the band, a banner, a squeeze) while focus is inside it drops focus to the body
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: FOCUS_RULE whenGone for moreItem finds no prompt part in the finish; the finish stays, so focus has no target
+- 2026-11-07T10:32:17Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a keyboard user reports focus lost after a resize or banner while in the Other things to try panel

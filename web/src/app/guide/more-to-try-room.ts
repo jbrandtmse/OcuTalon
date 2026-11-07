@@ -9,7 +9,7 @@ const CHAT_LIST = 'app-chat-panel .list';
 const MAX_PROPERTY = '--more-max';
 
 /**
- * Keeps the "Other things to try" panel's window within the room the page leaves (Story 4.11; the Planner, 2026-11-07): it writes the
+ * Keeps the "Other things to try" panel's window within the room the page leaves (Story 4.11): it writes the
  * bound that windowBound gives to the host's `--more-max`, from the panel's height and the chat list's height as the page has them
  * now, so the chat keeps `floor` whatever the fonts, the banners and the viewport make of the rest. It measures once after the first
  * render, whenever the floor changes, and once a frame while the page, the list or the panel changes size or the window is resized,
