@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 11 is release 1's merge point: the web demo path passes end to end in the REL-2 test, an in-place upgrade and a container restart keep every record, the clean-machine rehearsal times the demo path, and one scripted sequence (`release/release.sh`) cuts a candidate with its gates, notes, checklist and the Contest Planner's hands-on pass. Part 1 is built, 1.0.0 was cut from it, and fix-forwards 11.19 to 11.25 are merged (11.25 added the README's `## Measured` table for judges). Story 11.26 is the next fix-forward, on the owner's decision (DW-775): two of the Measured table's row labels claimed more than their sources measured, so they are renamed to say exactly what was measured, with the numbers and everything else unchanged. The gates, hands-on gate, outward steps and update hook (11.14 to 11.16, 11.18) stay in part 2.
+Epic 11 is release 1's merge point: the web demo path passes end to end in the REL-2 test, an in-place upgrade and a container restart keep every record, the clean-machine rehearsal times the demo path, and one scripted sequence (`release/release.sh`) cuts a candidate with its gates, notes, checklist and the Contest Planner's hands-on pass. Part 1 is built, 1.0.0 was cut from it, and fix-forwards 11.19 to 11.26 are merged. The epic was reopened on 2026-11-07 for two timeboxed CI-flake fix-forwards that keep release CI trustworthy during voting week: 11.28 (DW-688, a no-key runner test that a late timer row of the previous test turns red) and 11.27 (DW-550, DW-774, live pages whose `/state` or `page.close` gets no answer on a loaded CI host). The gates, hands-on gate, outward steps and update hook (11.14 to 11.16, 11.18) stay in part 2.
 
 ## Stories
 
@@ -29,7 +29,9 @@ Epic 11 is release 1's merge point: the web demo path passes end to end in the R
 - Story 11.23: install.sh accepts build 109 (done)
 - Story 11.24: The README's IPM install works literally on fresh build 154 and 109 (done)
 - Story 11.25: The README's judges section: a Measured table (done)
-- Story 11.26: The README's Measured rows say exactly what was measured (next, backlog)
+- Story 11.26: The README's Measured rows say exactly what was measured (done)
+- Story 11.27: Live pages get their /state answer under load (backlog)
+- Story 11.28: The no-key runner test ignores a late timer row of the test before it (backlog, next)
 - Story 11.14: The release sequence runs every gate on the pushed candidate (part 2, backlog)
 - Story 11.15: The hands-on gate and its resume command (part 2, backlog)
 - Story 11.16: The sequence asks before each outward step after the gates (part 2, backlog)
@@ -37,24 +39,22 @@ Epic 11 is release 1's merge point: the web demo path passes end to end in the R
 
 ## Requirements & Constraints
 
-- **The two label changes (11.26), exactly as ruled.** In the README's `## Measured` table, the row label "The demo's incident, end to end with a live model" becomes "The demo's incident diagnosed with the right fix, on a live model" (its source, the eval demo gate, validates the fix and runs no dry run, approval or fix run), and "The always-on online demo" becomes "Model cost of the always-on online demo" (its number is the model cost only). Result cells ("30 of 30 runs", "about 9 to 10 cents a day") stay as they are.
-- **Smallest diff.** Only those two README lines change; no other file changes except `docker/tests/test-readme.sh` and this epic's bookkeeping.
-- **Pins.** The `measured` rule's label list replaces the two old labels with the new ones word for word, in place; every other pin is kept, none deleted or weakened, and the rule still fails when either new label is removed, renamed or moved out of the section. It pins no numbers.
-- **Out of scope.** DW-776 (the "19 of 22 (target: 20)" row) is closed by design and stays as is. The Contest Planner updates its own collateral source file; never copy that file's path into the README.
-- **Public text.** Any wording change beyond the two ruled labels (forced by the surroundings) goes to the Contest Planner verbatim as public text before commit.
-- **README rules (still binding).** It claims only what the release ships, is in plain language with no class names or error codes outside developer sections, carries the not-affiliated note and the credits, and contains no keys, local machine paths, private infrastructure details or other entrants' names.
+- **Flake fix-forward rules (11.27, 11.28).** Test-only unless the cause is in the product; a product cause goes to the Contest Planner as a described change (file, lines, how upgrade and rebuild keep it) before any product code changes. No pin is deleted or weakened, and no timeout or deadline is raised as the fix. Proof: the old code fails under a repeat or load run (or a run that places the triggering condition), the fixed code passes 20 of 20 under the same conditions, and full CI is green on every workflow. When the timebox runs out without a confirmed, proved fix, the story stops and reports what was ruled out.
+- **11.28 (90-minute timebox).** `OcuTalon.Test.Agent.Runners`' `TestStartsWithNoKey` check "the event log holds no error or alert row since the mark" must ignore an Ens.Alarm "Message '<n>' can not be found, timer event ignored" row for a message that existed before the mark (an earlier test's purged message, typically `TestStartRefused`'s), and must still fail on every other Type 2 or Type 6 row since the mark, including such an Ens.Alarm row for a message created after the mark. A test pins that the narrowed check still fails on a row it must see. Known evidence: the existing check counts any Type 2 row of any ConfigName; the flake was not reproduced alone, warm or in lane order.
+- **11.27 (3-hour timebox), as re-ruled.** The suspected per-session gateway connection cap is ruled out: many live pages in one CSP session, even at a cap of 1 or with IRIS CPU-starved, answer `/state` in milliseconds to a few seconds, never 30 to 90 s; in CI failures IRIS was idle and the request never reached a CSP process (inference: host-level starvation of the browser or web-server path). The Planner chose option (b): DW-550 and DW-774 stay open, and 11.27 becomes test-only diagnostics: retain-on-failure traces for the live units on the CI host only (never uploaded, kept at most 7 days and deleted job-side, with a pin that no upload path includes their folder; stop and report if the runner is not self-hosted), a gateway-status dump of counts and states only in `loadedAfter`, and a measurement of the time this adds to the browser group (report it if over 2 minutes). The failing specs (I10 in `web/e2e/cards/incident-card.spec.ts`, online-session `leave.spec` L5/L6, sign-in-2 live-socket W3) keep every pin and timeout.
+- **README rules (still binding).** The README claims only what the release ships, in plain language with no class names or error codes outside developer sections, keeps the not-affiliated note and credits, and contains no keys, local paths, private infrastructure details or other entrants' names; any public wording change goes to the Planner verbatim before commit.
 - **Release-wide rules.** No step pushes an image, signs in to a registry or prints an environment value. Nothing outward happens without the author's word. Every command fits one 10-minute call; prefer warm mode and split long runs.
 
 ## Technical Decisions
 
-- **Lanes (AD-29).** README, install script, `docker/`, `docker/tests/` and `web/` are Lane B; `docs/install-ipm.md`, `release/` and the release records are Lane A. Epic 11 may change either; the orchestrator serializes it against overlapping epics. Epic 34's README and test-readme.sh hunks (licence notices, licence check) stay separate from Epic 11's.
-- **Success-metric context.** The release evaluation targets are SM-1 (routine attention decisions right, at least 90%) and SM-2 (incident causes right, at least 80%), run on Claude Haiku 5.5 on each release candidate; the table reports results, it does not redefine the targets.
-- **Shared harness rules.** Route callbacks are removed at test end through one shared mechanism; helper waits carry bounds in shared helpers or configuration and fail naming the step.
+- **Lanes (AD-29).** README, install script, `docker/`, `docker/tests/` and `web/` (including `web/e2e`) are Lane B; ObjectScript runner and agent tests run in lane A's shards, and `docs/install-ipm.md`, `release/` and the release records are Lane A. Epic 11 may change either; the orchestrator serializes it against overlapping epics.
+- **Shared harness rules.** Route callbacks are removed at test end through one shared mechanism; helper waits carry bounds in shared helpers or configuration and fail naming the step. Diagnostic dumps print counts and states only, never values or secrets.
+- **Success-metric context.** Release evaluations target SM-1 (routine attention decisions right, at least 90%) and SM-2 (incident causes right, at least 80%) on Claude Haiku 5.5 per candidate.
 - **Candidate model.** Candidates are `release/<version>-rc<n>`, never changed after the cut; rehearsals use `rehearsal/<v>-rc<n>` on a local bare remote. Daily releases follow 1.0.0 (minor for a feature, patch for fixes only), each on the owner's word. Records live at `release/records/<version>/rc<n>.md`, staged by explicit pathspec. `release.sh` and `lib-release.sh` keep `umask 077`.
 
 ## Cross-Story Dependencies
 
-- 11.26 edits the Measured section and `measured` rule that 11.25 added (and the README and `test-readme.sh` that 11.23 and 11.24 changed); build on their merged pins and leave the rest untouched.
-- 11.26 ships in the next daily release; the README goes public with the repository.
+- Order for the reopen: 11.28 first (lane A), then 11.27 under option (b). Before implementing 11.28, check Epic 19's in-flight diff on `Runners.cls` so the two do not collide.
+- 11.27's diagnostics extend the live-test support that 11.21 and 11.22 built (`loadedAfter`, the DIAG `/state` dump); DW-756 notes that dump never reached CI output, so the new dump must be shown to appear there.
 - Part 2 stories add steps to 11.5's `release.sh`: 11.14's rehearsal gate calls `rehearse.sh run` once per phase with `OCUTALON_RUN_TAG`; 11.16 carries the fork-PR demo-path guard and the tracked web bundle's dirty-tree issue; 11.18 needs 11.14 to 11.16.
 - Epic 38 runs the real-key and hands-on passes (38.1 to 38.3) through this sequence.

@@ -723,3 +723,6 @@
 2026-11-07T10:53:41Z	Epic 11	deps_hash_rerecorded	reason=fix_forward story=11.28 note=for_the_orchestrator(inserted_after_11.27)
 2026-11-07T10:53:41Z	Epic 11	ledger_routed_planned	story=11-28-the-no-key-runner-test-ignores-a-late-timer-row-of-the-test entries=1(DW-688) excess=0 by=charter
 2026-11-07T10:53:41Z	Story 11.28	timebox_started	minutes=90 until=2026-11-07T12:23Z
+2026-11-07T11:11:40Z	Story 11.28	lead_investigation	step=task0 result=reproduced env=warm_lane-A_throwaway(e11s28lw) method=real_dangling_Ens.Alarm_timers(AlarmRequest_sent_from_ApprovalStartIn,its_header_deleted;planted_from_TestStartRefused_signal_at_0.1s_spacing) old_code=failed_2_of_3(FAIL_TestStartsWithNoKey:and_the_event_log_holds_no_error_or_alert_row_since_the_mark) unplanted=passed_1_of_1(no_Ens.Alarm_rows_on_a_fast_warm_stack) window=errorMark_to_check_under_0.4s_on_this_host evidence=<scratchpad>/e11s28lead/ model=claude-opus-5-5
+2026-11-07T11:11:40Z	Epic 11	epic_context_compiled	reason=planning_artifact_newer(11.27,11.28_chartered) model=claude-opus
+2026-11-07T11:11:40Z	Story 11.28	stage_spawned	stage=plan spawn_at=2026-11-07T11:11:40Z model=opus agent_name=11-28-no-key-runner-plan-1 cycle_iteration=1
