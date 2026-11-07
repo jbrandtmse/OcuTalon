@@ -13,10 +13,25 @@ Property Text As %String(MAXLEN = "");
 /// provenance. A tainted turn is never saved to the user's conversation.
 Property Tainted As %Boolean [ InitialExpression = 0 ];
 
-/// True when the runner moved the conversation to a fresh AI session: the turn was fresh, and after its Chat completed untainted the
-/// link names the new session (the link was created or moved). Always false for a continue turn, and when the save failed. Only the
-/// runner sets it, and a fallback that Decide builds from the runner's reply carries it (AD-6).
+/// True when Decide moved the conversation to another AI session on accepting this reply (AD-6, AD-8): Decide's answer to a linked turn sets it
+/// to 1 when its compare-and-set of the link moved the link and either the link named a session when the runner began (SessionFrom is not empty)
+/// or the turn was fresh. It is 0 for a continue turn that saved into the session it opened, for the first link of a continue turn, for every
+/// fallback, and when the move failed. Only Decide sets it; a runner leaves it 0.
 Property SessionRotated As %Boolean [ InitialExpression = 0 ];
+
+/// The AI session that the turn saved, or "" when it saved none (AD-6, AD-8): a runner fills it after a completed, untainted Chat of a linked turn
+/// whose session it saved, and Decide points the conversation link at it only when it accepts the reply (Process.Decide PointLink). A session that
+/// the turn opened and saved in place is its own SessionFrom. Decide's answer leaves it empty.
+Property SessionId As %String(MAXLEN = 128);
+
+/// The AI session that the conversation link named when the runner began the turn, or "" for none (AD-6): the value that Decide's compare-and-set
+/// of the link expects, so that a stale attempt never overwrites a newer link. Decide's answer leaves it empty.
+Property SessionFrom As %String(MAXLEN = 128);
+
+/// The number of messages that the session named by SessionFrom held when the runner opened it, before any compaction and before Chat, or ""
+/// when the runner did not open one (AD-6, DW-726): the cut at which Decide seeds the second-model retry, so that nothing the first attempt
+/// produced goes in. Decide's answer leaves it empty.
+Property HistoryCount As %Integer;
 
 /// True when a tool call was made in the call this reply answers, or when that could not be told: AI Hub's tool-call counter went up
 /// or a tool step was recorded, or the counter could not be read (OcuTalon.Bridge.Adapter.Agent.ToolsRan). False means that no tool
@@ -92,6 +107,15 @@ Storage Default
 </Value>
 <Value name="10">
 <Value>FailureText</Value>
+</Value>
+<Value name="11">
+<Value>SessionId</Value>
+</Value>
+<Value name="12">
+<Value>SessionFrom</Value>
+</Value>
+<Value name="13">
+<Value>HistoryCount</Value>
 </Value>
 </Data>
 <DefaultData>ReplyDefaultData</DefaultData>

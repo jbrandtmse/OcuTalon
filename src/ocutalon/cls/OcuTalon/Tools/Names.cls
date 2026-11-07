@@ -32,5 +32,7 @@ Parameter RELEASE1 = {..#SETREMINDER_","_..#LISTREMINDERS_","_..#CANCELREMINDER_
 
 /// The persona proposal tool of the personality epics (AD-7); not a release-1 tool, so RELEASE1 does not list it.
 Parameter PROPOSEPERSONA = "propose_persona";
+/// The name of step 2's digest tool, Story 17.6. It is not part of RELEASE1.
+Parameter DIGESTTOOLS = "send_digest";
 
 }

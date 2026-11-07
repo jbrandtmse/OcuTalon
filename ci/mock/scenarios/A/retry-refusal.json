@@ -1,0 +1,17 @@
+{
+  "name": "retry-refusal",
+  "match": {
+    "marker": "retry-refusal"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "stopReason": "refusal",
+      "text": "The CI mock refuses this request."
+    },
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"digest\",\"reasons\":[\"The CI mock answers on the second model.\"],\"confidence\":0.7}"
+    }
+  ]
+}

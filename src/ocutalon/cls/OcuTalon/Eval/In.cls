@@ -1,12 +1,17 @@
 /// EvalIn, the adapterless service that sends the recorded cases of eval/ through the product's own path (AD-22, AD-30). Lane A.
 /// The product keeps it disabled; the Production install step enables it only when OCUTALON_EVAL is 1, and Start reaches it only through
 /// Ens.Director.CreateBusinessService, so a disabled EvalIn sends nothing. It uses neither EnsLib.Testing.Service nor the production's
-/// testing switch. An item case goes to Intake; a turn case goes to Decide and its result to EvalSink; an incident case goes to IncidentManager; and
-/// nothing else is ever a target.
+/// testing switch. An item case goes to Intake; a turn case goes to Decide and its result to EvalSink; an incident case goes to IncidentManager; a digest
+/// case goes to Digest; and nothing else is ever a target.
 ///   - Start is the run entry: it creates the service, mints the run's Ref and sends each named case, or each case folder under the
 ///     folder, once. It returns the run's Ref, how many cases were sent, and the cases that were not, each with its reason.
 ///   - Start sends the turn cases first (SendOrder), then the others, each group in the order of the case list. ChatAgent has one job,
 ///     so the Decide timer of a turn case would otherwise be spent behind the act turns of earlier item cases.
+///   - A digest case (Story 17.7, SendDigest) holds the watched rows in checks (an array), the vital signs in vitals {rows, figures} and, optionally, saved
+///     summaries in saved (an array of strings). EvalIn sends Digest one OcuTalon.Eval.Msg.DigestCase (a fresh ItemId, the case's name as SourceItemId and the
+///     three values as JSON text) and, before the send, opens the case's row with that ItemId. Digest sends EvalSink the DigestResult, which completes the
+///     row; nothing is delivered to a user. A checks that is not an array refuses the case with REASONNOCHECKS; a send that fails deletes the row. It is not
+///     a turn kind: SendOrder leaves it with the others.
 ///   - A case is a folder with a case.json (the shape of the eval/ cases): name, kind, heldOut, description, expectation and
 ///     recordedBy, and for a kind of item or injection an item {itemId, channel, provenance, sender, subject, text, catalogKey, slots},
 ///     and for a kind of all-clear, command or user-turn a turn {text} (and, for an all-clear, checks: the array of the recorded check rows).
@@ -71,7 +76,7 @@ Parameter DECIDE = "Decide";
 Parameter SINK = "EvalSink";
 
 /// The kinds of case that EvalIn sends, comma-separated.
-Parameter KINDS = "item,injection,all-clear,command,user-turn,incident";
+Parameter KINDS = "item,injection,all-clear,command,user-turn,incident,digest";
 
 /// The kinds of case that hold a recorded Item, and go to Intake.
 Parameter ITEMKINDS = "item,injection";
@@ -88,6 +93,12 @@ Parameter INCIDENTKIND = "incident";
 
 /// The item that diagnoses an incident case.
 Parameter INCIDENTTARGET = "IncidentManager";
+
+/// The kind of case that holds recorded check rows for a digest, and goes to Digest.
+Parameter DIGESTKIND = "digest";
+
+/// The item that composes the verdict of a digest case.
+Parameter DIGEST = "Digest";
 
 /// The kind of turn case that holds recorded check rows.
 Parameter ALLCLEARKIND = "all-clear";
@@ -318,6 +329,7 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	Set kind = ..Scalar(case, "kind")
 	If '$ListFind($ListFromString(..#KINDS), kind) Quit $Replace($Replace(..#REASONKIND, "{kind}", $Extract(kind, 1, 40)), "{kinds}", ..KindsText())
 	If kind = ..#INCIDENTKIND Quit ..SendIncident(case, folder, name)
+	If kind = ..#DIGESTKIND Quit ..SendDigest(case, name)
 	Set reason = ..Persona(case, .preset, .language)
 	If reason '= "" Quit reason
 	If $ListFind($ListFromString(..#TURNKINDS), kind) Quit ..SendTurn(case, kind, name, preset, language)
@@ -396,6 +408,38 @@ Method SendIncident(case As %DynamicObject, folder As %String, name As %String) 
 	Quit ""
 }
 
+/// The steps for one digest case: the reason it was not sent, or "" when it was. A case whose checks is not an array is refused with REASONNOCHECKS before
+/// anything is saved. Otherwise the row is opened with the ItemId of the DigestCase, and the DigestCase is sent; a send that fails or throws deletes the row.
+Method SendDigest(case As %DynamicObject, name As %String) As %String [ Private ]
+{
+	Set checks = case.checks
+	If '$IsObject(checks) || 'checks.%IsA("%Library.DynamicArray") Quit ..#REASONNOCHECKS
+	Set vitals = case.vitals
+	Set saved = case.saved
+	Set digest = ##class(OcuTalon.Eval.Msg.DigestCase).%New()
+	Set digest.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set digest.SourceItemId = name
+	Set digest.RecordedChecks = checks.%ToJSON()
+	Set digest.RecordedVitals = $Select($IsObject(vitals) && vitals.%IsA("%Library.DynamicObject"): vitals.%ToJSON(), 1: "")
+	Set digest.RecordedSaved = $Select($IsObject(saved) && saved.%IsA("%Library.DynamicArray"): saved.%ToJSON(), 1: "")
+	Set opened = 0
+	Try {
+		Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, name, digest.ItemId)
+		If $$$ISOK(sc) {
+			Set opened = 1
+			Set ..%SuperSession = ..RunRef
+			Set sc = ..DispatchDigest(digest)
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) {
+		If opened Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..RunRef, name)
+		Quit $SYSTEM.Status.GetOneStatusText(sc)
+	}
+	Quit ""
+}
+
 /// Sets up the watch that a case declares: the reason it was not set up, or "" when it was, with the watch's stored fields in fields. A watch
 /// that is not an object with a non-blank namespace and production is REASONWATCHSHAPE; one that WatchOps.EvalWatch refuses is REASONWATCH.
 Method WatchUp(declared As %DynamicObject, Output fields As %DynamicObject) As %String [ Private ]
@@ -437,6 +481,12 @@ Method Dispatch(item As OcuTalon.Msg.Item) As %Status [ Private ]
 Method DispatchIncident(incident As OcuTalon.Eval.Msg.IncidentCase) As %Status [ Private ]
 {
 	Quit ..SendRequestAsync(..#INCIDENTTARGET, incident)
+}
+
+/// The one send of a digest case: the DigestCase to Digest, asynchronously, with no answer wanted. Private; a test subclass overrides it.
+Method DispatchDigest(digest As OcuTalon.Eval.Msg.DigestCase) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#DIGEST, digest)
 }
 
 /// The steps for one turn case (see the class description); the reason it was not sent, or "" when it was. A case that has no turn.text,

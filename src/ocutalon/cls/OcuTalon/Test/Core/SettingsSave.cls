@@ -17,7 +17,8 @@
 ///     value back and writes no row, and answers not_audited or failed;
 ///   - TestBridgeSaved: the bridge double sees every Check before the first Set, and each Set has its audit entry with the replaced value;
 ///   - TestBridgeRefused, TestBridgeStub: a Check that refuses a value refuses the section and sets nothing; a Check that answers "not
-///     implemented" gives not_built and sets and audits nothing, also on the real stub instance;
+///     implemented" gives not_built and sets and audits nothing on the double; on the real instance (U-177 exception, Contest Planner, 2026-11-05) the built bridge
+///     settings save and apply an accepted value, refuse a value off the allow-list with nothing changed, and every value is put back;
 ///   - TestBridgeSetFails, TestBridgeSetThrows, TestBridgeAuditFails: a failure, or a Set that throws, puts the earlier values back and audits that;
 ///   - TestBridgeUnchangedValueIsSkipped: a value equal to the bridge's current one is not checked, set or audited;
 ///   - TestAllowList: every key of every section is on the allow-list;
@@ -292,7 +293,10 @@ Method TestBridgeRefused()
 	Do $$$AssertEquals($Get(^OcuTalonTest("SettingsOpsProbe", "bridge")), "", "and Check is not asked")
 }
 
-/// With the stub's answer (code 5003) the save is not_built and nothing is set or audited, on the double and on the bare stub instance.
+/// U-177 one-time exception (Contest Planner ruling of 2026-11-05, Story 17.4, IG-2's conditions): with the double's stub answer (code 5003) the save is not_built and
+/// nothing is set or audited. On the bare instance of the real operation the built bridge settings now answer: an accepted value is saved and applied (done), and a value that
+/// is off the allow-list is refused with the field named and nothing changed. The test puts back every value that it wrote, and a check at its end re-reads the token
+/// budget, the daily cap and the zone and finds the originals.
 Method TestBridgeStub()
 {
 	Do ..Reset()
@@ -300,16 +304,38 @@ Method TestBridgeStub()
 	Set result = ..Save("budgets", {"DecisionTokenBudget": 5000, "DailyCostCapUSD": "7.50"})
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_built", "a Check that is not implemented gives not_built")
 	Do $$$AssertEquals($Get(^||OcuTalonSettingsOpsProbe("n", "set"))_"|"_..Audits(), "|0", "nothing is set or audited")
+	Set bridge = "OcuTalon.Bridge.Settings"
+	Set values = $ClassMethod(bridge, "Values")
+	Set originals = values.%Get("DecisionTokenBudget")_"|"_values.%Get("DailyCostCapUSD")_"|"_##class(OcuTalon.Bridge.Time).Zone()
 	Set bare = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Core.SettingsOps", .sc)
 	Do $$$AssertStatusOK(sc, "the real operation is made")
-	For slug = "budgets", "time-zone" {
-		Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
-		Set command.Slug = slug, command.ActingUser = "zzadmin", command.SessionRef = ..#REF, command.Origin = "web_admin"
-		Set command.Changes = $Select(slug = "budgets": {"DecisionTokenBudget": 5000, "DailyCostCapUSD": "7.50"}, 1: {"InstanceZone": "Europe/Paris"}).%ToJSON()
-		Set sc = bare.OnMessage(command, .result)
-		Do $$$AssertStatusOK(sc, slug_": the status is OK")
-		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_built", slug_": the bare stub answers not_built")
+	Try {
+		Set cases = $ListBuild(
+			$ListBuild("budgets", {"DecisionTokenBudget": 5000, "DailyCostCapUSD": "7.50"}.%ToJSON(), "1|done", "5000|7.5|"_$Piece(originals, "|", 3)),
+			$ListBuild("time-zone", {"InstanceZone": "Europe/Paris"}.%ToJSON(), "1|done", "5000|7.5|Europe/Paris"),
+			$ListBuild("budgets", {"DecisionTokenBudget": 100001, "DailyCostCapUSD": "7.50"}.%ToJSON(), "0|refused", "5000|7.5|Europe/Paris"),
+			$ListBuild("time-zone", {"InstanceZone": "Mars/Olympus"}.%ToJSON(), "0|refused", "5000|7.5|Europe/Paris"))
+		Set position = 0
+		While $ListNext(cases, position, case) {
+			Set slug = $List(case, 1)
+			Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
+			Set command.Slug = slug, command.ActingUser = "zzadmin", command.SessionRef = ..#REF, command.Origin = "web_admin"
+			Set command.Changes = $List(case, 2)
+			Set sc = bare.OnMessage(command, .result)
+			Do $$$AssertStatusOK(sc, slug_": the status is OK")
+			Do $$$AssertEquals(result.Ok_"|"_result.Outcome, $List(case, 3), slug_": "_$List(case, 3))
+			Set now = $ClassMethod(bridge, "Values")
+			Do $$$AssertEquals(now.%Get("DecisionTokenBudget")_"|"_now.%Get("DailyCostCapUSD")_"|"_##class(OcuTalon.Bridge.Time).Zone(), $List(case, 4), slug_": the bridge holds "_$List(case, 4))
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
+	Do $ClassMethod(bridge, "Set", "DecisionTokenBudget", $Piece(originals, "|", 1))
+	Do $ClassMethod(bridge, "Set", "DailyCostCapUSD", $Piece(originals, "|", 2))
+	Do $ClassMethod(bridge, "Set", "InstanceZone", $Piece(originals, "|", 3))
+	Do ##class(OcuTalon.Bridge.Time).Apply()
+	Set values = $ClassMethod(bridge, "Values")
+	Do $$$AssertEquals(values.%Get("DecisionTokenBudget")_"|"_values.%Get("DailyCostCapUSD")_"|"_##class(OcuTalon.Bridge.Time).Zone(), originals, "the token budget, the daily cap and the zone are the originals again")
 }
 
 /// A Set that fails on the second value: the first is Set back, and both the first value and its put-back have an entry.

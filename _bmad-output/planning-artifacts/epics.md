@@ -5988,6 +5988,12 @@ So that I control what OcuTalon spends without restarting anything.
 
 **DW-100 moved to Story 18.3** [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M7: the routed ledger bullet became an acceptance criterion of Story 18.3, the Lane B story that owns `OcuTalon.Msg.Catalog.Core`, where both texts live]
 
+- DW-647: Retry entries' timeouts derive from RetryTimer(TimerSeconds) while Decide's retry wait T2 uses T1 = TimerFor(request): for a flagged turn T2 (about 30 s) is shorter than the retry entry's worst case (about 42 s); Timeouts.Apply makes the two agree (ledger; routed by adjudication 2026-11-05)
+- DW-727: Spine AD-8 now gives the retry entries Derive(max(MINTIMER, min(TimerSeconds, 110 - TimerSeconds))) (Timeouts.RetryTimer); Timeouts.Apply applies exactly that to the retry runners' entries (ledger; routed by cr 2026-11-05)
+
+- DW-757: An instance that already holds the claude-sonnet-5-5 Price row keeps cache-read 0.2 after upgrade (the page says 0.10); decide with the price edits whether a never-edited seeded price is corrected on upgrade (ledger; routed by harvest 2026-11-05)
+- DW-758: A resolved or newly chosen provider keeps the entry's base_url and headers; the bridge's provider change drops (or refuses) a base_url or headers that belong to another provider (ledger; routed by harvest 2026-11-05)
+
 ### Story 17.5: Check the vital signs and every coverage entry
 
 As a user,
@@ -6090,6 +6096,52 @@ So that a quiet digest really means everything I watch was checked and passed.
 **Given** UJ-2's morning digest (E › Key Flows › Flow 2) with every fixture check passing
 **When** its Slots are composed
 **Then** the vital-sign figures, the production summary ("all running, no errors, no backlog"), "Your IRIS system is healthy" and "Everything I checked passed." all come from code, as the flow requires (FR-37, UX-DR106, UX-DR120)
+- DW-816: tests that send ticks a day or more ahead (Epic 39's beat tests at now plus 48 hours) make Digest queue scheduled digests for every other session on the stack and leave future-dated Sent rows, which suppress that stack's real scheduled digests and can turn a test that counts its session's notices red; keep test ticks from making other sessions due, or scope the due check, so no test leaves a future Sent row (ledger; routed by cr 2026-11-06)
+
+### Story 17.8: Only Decide moves a conversation's link
+
+[ADDED 2026-11-05, fix-forward inside Epic 17: the Contest Planner's rulings on DW-729, DW-730 and DW-726 under the owner's delegation ("I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."), placed by runner A as a fix-forward story because Stories 17.3 and 17.4 do not touch the conversation-link path; it builds on Story 17.2 and must be merged into Epic 17's branch before the epic completes]
+
+As a user,
+I want the conversation to continue only from an answer I actually got,
+So that a late, superseded or failed model reply never changes what OcuTalon remembers of our chat.
+
+**Acceptance Criteria:**
+
+**Given** a `turn` whose reply `Decide` accepts as the decision's answer, on time and untainted
+**When** `Decide` accepts it
+**Then** `Decide`, and only `Decide`, points the conversation's link at that reply's session; runners never move the link (`SaveRetried` and `SaveLinked` record their session only), for a fresh, a compacted and a saved turn alike (AD-6, AD-8)
+
+**Given** a reply `Decide` does not accept (late, superseded, the first attempt or the retry)
+**When** it arrives
+**Then** its cost is counted and it moves nothing: the link keeps naming the session it named, whatever the turn type (AD-6, AD-8, AD-20)
+**And** tests pin, each with a mutation shown going red: a retry that finishes just after its timer while `Decide` is busy leaves the link unchanged (the race); a late first attempt with no retry, on a fresh turn and on a compacted turn, leaves it unchanged; an accepted on-time reply moves it; and Story 17.2's three late-retry tests still pass
+
+**Given** a second-model retry of a `turn`
+**When** its seed is built
+**Then** the seed is the stored conversation up to and including the current user message, and nothing the first attempt produced goes in (no partial reply, tool call or result, or error text); a test shows the seed holds no first-attempt content, with a mutation shown (AD-6, AD-8; an attempt in which a tool ran is never retried, so nothing the user saw is lost)
+
+**Given** `docs/bridge-guide.md`'s "Second-model retry" section
+**When** the arbiter is in place
+**Then** the section still says only what the code does; any wording change is public text that the Contest Planner approves before it is pushed (U-286)
+
+- DW-729: A retry that ends just after T2 while Decide is busy can still move the link (the runner reads lateness once); one arbiter: only Decide moves the link, on accepting a reply (ledger; ruled by the Contest Planner 2026-11-05)
+- DW-730: A late first attempt with no retry can move the link through SaveLinked on a fresh or compacted turn; closed by the same arbiter (ledger; ruled by the Contest Planner 2026-11-05)
+- DW-726: The retry's seed holds the first attempt's unseen exchange; the seed is the stored conversation up to and including the current user message, nothing from the first attempt (ledger; ruled by the Contest Planner 2026-11-05)
+
+### Story 17.9: Epic 17 burn-down
+
+[AMENDED 2026-11-07, chartered by Epic 17's burn-down gate, Rule 17: DW-771's work is in this story by the owner's ruling (decided by the Contest Planner under the owner's delegation, 2026-11-06T02:37:12Z: the settings model Test is a connection test for every runner); DW-786 and DW-728 waited on Epics 39 and 40, which have merged.]
+
+As an administrator,
+I want the settings page's model Test to tell me whether each agent's model answers, and the checks' live-read logic to live in one place,
+So that a working diagnosis model is never reported as not answering, and the digest and the checks can never drift apart.
+
+**Acceptance Criteria:**
+
+- DW-771: the settings model Test (`Bridge.Settings.TestRequest` / `TestAnswer`) is a connection test for every runner, the diagnosis agent's included: it passes on a non-empty reply within the timer through that runner's provider, model and key, with no reply-class validation (the spine's Conventions row "Settings model Test"); a test shows the diagnosis Test passes with a mock reply that fails `DiagnosisReply` validation (ledger; routed by the owner 2026-11-06)
+- DW-786: `Checks.Coverage.Live` and `Checks.Process.Run` share one live-read helper (the not_checked reason chain, the cut rule, the state text and the failure wording), so the digest's coverage rows and the checks' results cannot drift; the existing tests of both stay green (ledger; routed by cr 2026-11-06)
+- DW-728: `docs/bridge-guide.md` names `RetryItem` and `RetryOf` in its Settings and Messages reference tables as well as in the Second-model retry section, so the guide's structure stays consistent; no other wording changes (any is public text for the Contest Planner) (ledger; routed by cr 2026-11-05)
 
 ## Epic 18: An admin changes settings in the web app (step 2)
 

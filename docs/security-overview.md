@@ -19,6 +19,7 @@ No built-in tool runs operating-system commands, arbitrary ObjectScript or Pytho
 | `read_failed_messages` | `OcuTalon.Tools.WatchReads` | `OcuTalon.Tools.Watch` | `OcuTalon.Agent.Diagnosis` | Reading the failed messages | safe | yes | no | none |
 | `read_item_settings` | `OcuTalon.Tools.WatchReads` | `OcuTalon.Tools.Watch` | `OcuTalon.Agent.Diagnosis` | Reading the item settings | safe | yes | no | none |
 | `recent_activity` | `OcuTalon.Tools.RecentActivity` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Reading recent activity | safe | yes | yes | none |
+| `send_digest` | `OcuTalon.Tools.DigestTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Sending your digest | safe | no | yes | none |
 | `set_reminder` | `OcuTalon.Tools.ReminderTools` | `OcuTalon.Tools.Reminders` | `OcuTalon.Agent.Chat` | Setting a reminder | safe | no | yes | none |
 | `start_watch` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Starting a watch | safe | no | yes | none |
 | `stop_watch` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Stopping a watch | safe | no | yes | none |

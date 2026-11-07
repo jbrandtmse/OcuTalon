@@ -1,0 +1,16 @@
+{
+  "name": "retry-provider-error",
+  "match": {
+    "marker": "retry-provider-error"
+  },
+  "replies": [
+    {
+      "status": 500,
+      "text": "CI mock: the provider failed."
+    },
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"digest\",\"reasons\":[\"The CI mock answers on the second model.\"],\"confidence\":0.7}"
+    }
+  ]
+}

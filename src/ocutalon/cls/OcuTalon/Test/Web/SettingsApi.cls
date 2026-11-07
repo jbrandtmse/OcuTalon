@@ -7,13 +7,15 @@
 ///   - TestNonAdminIs403Everywhere: with the OcuTalon user role only, or with %All, GET /v1/settings and each of the seven POST routes (also written
 ///     with another case, a trailing slash and a query) answer 403 not_admin and stop the dispatch, before the browser envelope, whatever the
 ///     headers, while an admin passes to the envelope check and a path that is not a settings path is not asked for the role;
-///   - TestGetShape: the body is SettingsOps.Values and holds no key material;
+///   - TestGetShape: the body is SettingsOps.Values, its providers are asserted by their built shape, and it holds no key value (a scan that is shown to find a planted
+///     Anthropic-shaped, OpenAI-shaped and Google-shaped key and a configured key value; the names of the key variables are allowed);
 ///   - TestSaveThresholds: an admin's save through the production answers 200, writes the rows with the audit entries, and the page's GET and
 ///     Setting.Get in a process whose cache entry has expired show the saved values, and the production is not restarted (its start time stays);
 ///     the command is the CSP session's, not the body's;
 ///   - TestRefusedSaves: a refused value, a field that is not the section's, "@{" and a body that is not an object answer 400 bad_settings with the
 ///     ruled text and the fields, and change nothing;
-///   - TestBridgeRoutesAre501: budgets and time-zone reach the real stubs and answer 501 not_built; models and channels are 501;
+///   - TestBridgeRoutesAre501 (U-177 exception, Contest Planner, 2026-11-05): budgets and time-zone reach the built bridge settings and are saved, applied and put back, a
+///     value off the allow-list is 400 with nothing changed; models and channels are 501;
 ///   - TestSaveDemoModeAudited: an admin's demo mode save (the stack's own mode) answers 200 and writes one entry with the call's user, the CSP session's Ref and the channel web;
 ///   - TestDemoModeBodies: a demo mode body that is not exactly {demoMode: true or false} is 400 with nothing submitted;
 ///   - TestAnswerMapping: each outcome of a save has its status, code and text;
@@ -143,11 +145,54 @@ Method TestGetShape()
 	Do $$$AssertEquals(json.sections.%Get("check-thresholds").%ToJSON(), "{""diskFreePercent"":10,""journalFreePercent"":10,""licenseUsePercent"":90,""queueMessages"":100,""queueWaitMinutes"":10}", "the thresholds")
 	Do $$$AssertEquals(json.sections.%Get("daily-digest").channels, "web,phone,telegram", "the digest channels")
 	Do $$$AssertEquals(json.sections.%Get("demo-mode").%GetTypeOf("demoMode"), "boolean", "demoMode is a boolean")
-	Do $$$AssertEquals(json.providers.%GetTypeOf(0), "unassigned", "the stub's providers are empty")
+	// U-177 exception: this Lane B test is edited by Lane A's Story 17.3 once, as ruled by the Contest Planner (2026-11-05). The providers are asserted by their built shape only.
+	Do $$$AssertEquals(json.providers.%GetTypeOf(0), "object", "the providers are built: the first row is an object")
+	Do $$$AssertTrue(json.providers.%Size() > 0, "and the list is not empty")
+	Set configuredValues = ""
+	Set iterator = json.providers.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		Set fields = ""
+		Set names = row.%GetIterator()
+		While names.%GetNext(.name) {
+			Set fields = fields_$Select(fields = "": "", 1: ",")_name
+		}
+		Do $$$AssertEquals(fields, "provider,defaultModel,models,keyVariable,keySet,supported", "a provider row holds these fields: "_row.provider)
+		Do $$$AssertEquals(row.%GetTypeOf("keySet")_"|"_row.%GetTypeOf("supported"), "boolean|boolean", "with keySet and supported as booleans: "_row.provider)
+		Set configured = $SYSTEM.Util.GetEnviron(row.keyVariable)
+		If configured '= "" Set configuredValues = configuredValues_$ListBuild(configured)
+	}
 	Set lower = $ZConvert(body, "L")
-	For word = "secret", "apikey", "api_key", "password", "token_value", "sk-" {
+	For word = "secret", "apikey", "password", "token_value" {
 		Do $$$AssertTrue(lower '[ word, "the body holds no '"_word_"'")
 	}
+	Do $$$AssertEquals(..KeyShape(body, configuredValues), "", "the body holds no value shaped like a key and no key value configured in a key variable (the names of the key variables are allowed)")
+
+	// the scan fails on each shape of key value planted in the body; the keys are built here, so that no key-shaped text sits in this file
+	Set configuredFake = "zz-configured-"_$Increment(^OcuTalonTest("SettingsApi", "plant"))
+	Set planted = $ListBuild(
+		$ListBuild("anthropic", "sk-"_"ant-"_"api03-zzplanted0001"),
+		$ListBuild("openai", "sk-"_"proj-zzplanted0002"),
+		$ListBuild("google", "AI"_"za"_"SyZzPlanted0003"),
+		$ListBuild("configured", configuredFake))
+	Set position = 0
+	While $ListNext(planted, position, one) {
+		Do $$$AssertEquals(..KeyShape(body_" "_$List(one, 2)_" ", $ListBuild(configuredFake)), $List(one, 1), "a planted "_$List(one, 1)_" key is found in the body")
+	}
+}
+
+/// The shape of key value that the text holds, or "": anthropic (sk-ant- prefix), openai (sk- prefix), google (AIza prefix) or configured (one of the values in the list).
+/// The names of the key variables (ANTHROPIC_API_KEY and the others) are no key values and are not found.
+ClassMethod KeyShape(text As %String, configured As %List) As %String [ Private ]
+{
+	If $Find(text, "sk-"_"ant-") Quit "anthropic"
+	If $Find(text, "sk-") Quit "openai"
+	If $Find(text, "AI"_"za") Quit "google"
+	Set found = 0
+	Set position = 0
+	While 'found && $ListNext(configured, position, value) {
+		If (value '= "") && $Find(text, value) Set found = 1
+	}
+	Quit $Select(found: "configured", 1: "")
 }
 
 /// An admin's save of two thresholds through the production: 200 {"result":"done","sections"}, the two rows, the GET at once, and Setting.Get in a
@@ -233,21 +278,45 @@ Method TestRefusedSaves()
 	Do $$$AssertEquals(..Rows(), 0, "nothing is written")
 }
 
-/// Budgets and time-zone reach the real stubs through the production: 501 not_built. Models and channels are 501.
+/// U-177 one-time exception (Contest Planner ruling of 2026-11-05, Story 17.4, IG-2's conditions): this Lane B test asserts the built behaviour of the bridge settings. The
+/// budgets and time-zone routes reach the real SettingsOps and Bridge.Settings through the production: an accepted value is saved (200 done) and applied, and a value
+/// that is off the allow-list is 400 bad_settings with the field named and nothing changed. Models and channels are still 501 not_built. The test puts back every value
+/// that it wrote, and a check at its end re-reads the token budget, the daily cap and the zone and finds the originals.
 Method TestBridgeRoutesAre501()
 {
 	If '..Guard() Quit
+	Set bridge = "OcuTalon.Bridge.Settings"
+	Set originals = ..BridgeValues()
 	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
 	Set session = ..Session()
-	Set wanted = {"error": {"code": "not_built", "message": "This part of OcuTalon isn't built yet."}}.%ToJSON()
-	Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": 5000, "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
-	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "budgets: 501 not_built")
-	Set body = ..Call("SaveTimeZone", {"InstanceZone": "Europe/Paris"}.%ToJSON(), session, .response)
-	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "time-zone: 501 not_built")
-	Set body = ..Call("NotBuilt", "{}", session, .response)
-	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "models and channels: 501 not_built")
-	Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": "@{env:KEY}", "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
-	Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DecisionTokenBudget""]}", "a value with @{ is refused before the stub is asked")
+	Try {
+		Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": 5000, "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).result, "200 OK|done", "budgets: 200 done")
+		Do $$$AssertEquals(..BridgeValues(), "5000|7.5|"_$Piece(originals, "|", 3), "and the budget and the cap are applied")
+		Set body = ..Call("SaveTimeZone", {"InstanceZone": "Europe/Paris"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).result, "200 OK|done", "time-zone: 200 done")
+		Do $$$AssertEquals($Piece(..BridgeValues(), "|", 3), "Europe/Paris", "and the zone is applied")
+		Set applied = ..BridgeValues()
+		Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": 100001, "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DecisionTokenBudget""]}", "a budget above the bound is 400 bad_settings and names the field")
+		Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": 5000, "DailyCostCapUSD": "7.555"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DailyCostCapUSD""]}", "and so is a cap of three decimals")
+		Set body = ..Call("SaveTimeZone", {"InstanceZone": "Mars/Olympus"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""InstanceZone""]}", "and a zone that no file backs")
+		Do $$$AssertEquals(..BridgeValues(), applied, "nothing changed after the refusals")
+		Set wanted = {"error": {"code": "not_built", "message": "This part of OcuTalon isn't built yet."}}.%ToJSON()
+		Set body = ..Call("NotBuilt", "{}", session, .response)
+		Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "models and channels: 501 not_built")
+		Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": "@{env:KEY}", "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DecisionTokenBudget""]}", "a value with @{ is refused before the bridge is asked")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do $ClassMethod(bridge, "Set", "DecisionTokenBudget", $Piece(originals, "|", 1))
+	Do $ClassMethod(bridge, "Set", "DailyCostCapUSD", $Piece(originals, "|", 2))
+	Do $ClassMethod(bridge, "Set", "InstanceZone", $Piece(originals, "|", 3))
+	Do ##class(OcuTalon.Bridge.Time).Apply()
+	Do $$$AssertEquals(..BridgeValues(), originals, "the token budget, the daily cap and the zone are the originals again")
 }
 
 /// A demo mode body that is not exactly {demoMode: true or false} is 400 with the field named when it is the field's value, and nothing is submitted.
@@ -317,6 +386,13 @@ Method TestStateHasAdmin()
 }
 
 /// --- helpers ---
+/// The token budget, the daily cap and the zone that the bridge holds, as "<budget>|<cap>|<zone>" (Bridge.Settings.Values and Bridge.Time.Zone).
+ClassMethod BridgeValues() As %String [ Private ]
+{
+	Set values = ##class(OcuTalon.Bridge.Settings).Values()
+	Quit values.%Get("DecisionTokenBudget")_"|"_values.%Get("DailyCostCapUSD")_"|"_##class(OcuTalon.Bridge.Time).Zone()
+}
+
 /// 1 when the test may run. Otherwise it fails with the reason, and the test quits.
 Method Guard() As %Boolean [ Private ]
 {
