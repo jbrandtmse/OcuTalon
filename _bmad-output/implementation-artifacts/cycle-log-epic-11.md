@@ -740,3 +740,7 @@
 2026-11-07T12:20:50Z	Story 11.28	ledger_adjudicated	owned=1(DW-688) resolved=1 reowned=0 terminal=0 model=claude-opus-5-5
 2026-11-07T12:32:00Z	Story 11.28	smoke_complete	method=cli result=pass iterations=1 defects_caught=1(harness:first_planter_deleted_headers_before_Ens.Alarm_took_them;CR_found_WaitTakenUp_compared_numeric_Status) evidence=warm_e11s28lw:Runners_planted_20/20+old_red_2/3x2;ErrorRowsMark_x2_then_Runners_green(CR_order_check) model=claude-opus-5-5
 2026-11-07T12:37:42Z	Story 11.28	fresh_check	env=recipe(ci/iris.sh_shard_lane-a@Agent_fresh_throwaway_e11s28fr) tests=16_classes(incl_ErrorRowsMark,Runners) result=pass order=forward,reverse model=claude-opus-5-5
+2026-11-07T12:38:44Z	Story 11.28	committed	sha=1e16e44a submodules= ci=pending runs=42373379335,42373379338 amendments=none footprint_extensions=none note=Runners.cls_hunks_inside_TestStartsWithNoKey_only(plain_union_with_OCT-epic19)
+2026-11-07T12:38:44Z	Story 11.28	story_cycle	plan_to_commit_min=75 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-11-07T12:39:13Z	Epic 11	amendment	file=_bmad-output/planning-artifacts/epics.md story=11.27 tier=1(Planner_ruling_option_b_recorded;[AMENDED]_marker_quotes_the_replaced_ACs) note=title_and_key_kept
+2026-11-07T12:39:13Z	Epic 11	ledger_routed_planned	story=11-27-live-pages-get-their-state-answer-under-load entries=1(DW-756) excess=0 by=runner

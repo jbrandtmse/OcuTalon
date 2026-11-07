@@ -4783,6 +4783,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: runner C searched the job log and the artifact's error-context.md: no DIAG, licence or CSP text; floor.ts:145 says the lines print before the error
 - 2026-11-05T19:38:00Z status=routed owner=burndown by=Contest_Planner note=Planner 2026-11-05: follow-up for the next burn-down; make the dump reach the CI log or the uploaded artifact (e.g. testInfo.attach or stderr), proven by a forced-bound test in CI
 - 2026-11-05T21:23:01Z status=routed owner=burndown by=orchestrator note=partial: on run 42102775939 (live:answers) the DIAG /state lines did print in the job log, but on 42086496017 (sign-in S3) none appeared; the burn-down checks which path drops them
+- 2026-11-07T12:39:12Z status=routed owner=11-27-live-pages-get-their-state-answer-under-load by=runner note=routed to 11.27 option (b) (diagnostics must reach CI output): the live scripts print only the tail (30 or 80 lines) of the e2e log, so a DIAG line above it is lost; 11.27 writes the DIAG lines into the test's output folder too
 ### DW-751: release/notes-areas.txt has no story 11.23 line, so the draft notes file install.sh accepting build 109 under developer stories (epic 11 developer)
 - source: spec-11-23-install-sh-accepts-build-109.md cr | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: notes-areas.txt maps 'epic 11 developer' and overrides only 11.2 and 11.8; 11.23 is judge-facing (install). release/ is outside 11.23's footprint (spec Never).

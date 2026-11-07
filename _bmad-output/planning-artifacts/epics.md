@@ -4888,27 +4888,27 @@ So that no page sits waiting behind its siblings and the live tests stop failing
 
 [ADDED 2026-11-07, Epic 11 fix-forward (DW-550, DW-774), timeboxed to 3 hours (the Contest Planner's ruling of 2026-11-06 about 05:02Z, logged `planner_ruling subject=CI_split_rule_and_B_order` in the main checkout's `cycle-log-parallel.md`; voting-week tier (3)(a), the Planner's ruling of 2026-11-07 about 04:19Z). Suspected cause, to confirm or rule out: several live pages share one CSP session, the web gateway's per-session connection cap (`Maximum_Session_Connections`) queues the next `/state`, and the request waits behind the others. A product change to the install's web-application or gateway settings goes to the Planner as a described change before any product code changes; a cause in the tests is fixed in the tests. No pin is deleted or weakened, and no timeout or deadline is raised as the fix.]
 
-**Acceptance Criteria:**
+[AMENDED 2026-11-07, the Contest Planner's ruling of about 10:55Z under the owner's delegation (logged `planner_ruling subject=11.27_option_b`), after Step 1 ruled the per-session cap out (cycle log `lead_investigation`; DW-550's trailers): option (a), closing the story, was not chosen; DW-550 and DW-774 stay open and the story becomes test-only diagnostics, so the next CI occurrence names where `/state` waits. The acceptance criteria below replace the original five, which read: the reproduction with N pages in one CSP session; the install change to `Maximum_Session_Connections` (reported to the Planner first); a test-only fix if the cause is in the tests; the old-fails and 20-of-20 proof with full CI green; and the timebox stop. Step 1's result stands as the first criterion's evidence.]
 
-**Given** N live pages open in one CSP session on a real IRIS instance (a throwaway or the lane's dev slot)
-**When** one more page asks `GET /ocutalon/api/v1/state`
-**Then** the measurement shows whether that request is queued, with the gateway's per-session connection counts and its configured limits read beside it, and the cause of the missing `/state` answer is recorded as confirmed or ruled out, with evidence
+**Acceptance Criteria (as amended):**
 
-**Given** the cause is confirmed as the per-session connection cap
-**When** the fix is chosen
-**Then** OcuTalon's install sets the limit for its web application by the gateway's documented mechanism, it survives an upgrade and a container rebuild, and N live pages in one session each get their `/state` answer in under 5 s; this product change goes to the Contest Planner (file, lines, how upgrade and rebuild keep it) before any product code changes
+**Given** a live unit's browser run on CI
+**When** a test fails
+**Then** Playwright keeps that test's trace (`retain-on-failure`; a passing test keeps none), the trace is moved, before any upload step can run, to a folder on the self-hosted runner's own disk outside the job's workspace, under the run's tag and the unit's name, and no trace stays under `web/test-results/`; on a runner that is not self-hosted no trace is written at all
 
-**Given** the cause is in the tests (for example a spec that opens pages and leaves them open)
-**When** it is fixed
-**Then** the fix is test-only, and the specs that failed (I10 in `web/e2e/cards/incident-card.spec.ts`, the online-session `leave.spec` L5/L6, the sign-in-2 live-socket W3 case) keep every pin and every timeout
+**Given** that trace folder
+**When** a job runs
+**Then** the job deletes every run folder in it older than 7 days, and a test pins that no `actions/upload-artifact` path in `.github/workflows/*.yml` includes the trace folder or a trace file (CI artifacts keep no traces, as 1.0.2 shipped them: the repository is public)
 
-**Given** the fix
-**When** it is proved
-**Then** the old code fails under a repeat or load run, the fixed code passes 20 of 20 under the same load, and full CI is green on every workflow
+**Given** `loadedAfter`'s snapshot GET passing its bound
+**When** the diagnosis runs
+**Then** besides 11.22's licence, CSP-process and session-lock lines it prints the web gateway's status as `DIAG /state gateway ...` lines (per server: total connections, connections in use, private connections, queued requests; per connection: its state; counts and states only, no request body, cookie, session id or token), and every DIAG line also reaches the test's own output folder, which the failure artifact uploads (DW-756)
 
-**Given** the 3-hour timebox
-**When** the cause is not confirmed and fixed with proof inside it
-**Then** the story stops and reports what was ruled out
+**Given** the browser group with traces on and no failures
+**When** its time is compared with the same group's time before this story
+**Then** the added time is measured and reported; more than 2 minutes is reported to the Planner before the merge
+
+- DW-756: DW-550's DIAG /state dump never reaches CI output (only the tail of the e2e log is printed) (ledger; routed by the 11.27 re-scope 2026-11-07)
 
 - DW-550: flake: live:cards I10 timed out (90 s) in loadedAfter's /state wait after sign-in; passed on an unchanged rerun (ledger; routed by charter 2026-11-07)
 - DW-774: flake: live:online-session leave.spec page.close no answer within 30 s (L5, L6) and sign-in-2 live-socket W3 GET /state no answer in 30 s under heavy CI load (ledger; routed by charter 2026-11-07)
