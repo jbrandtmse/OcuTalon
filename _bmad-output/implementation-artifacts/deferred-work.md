@@ -4302,6 +4302,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: run 41930634318 attempt 1 on OCT-epic39 149a8d8d (iris shards-2); same 84 classes and order green on feature ac2c4549 (41916844884); not reproduced on fresh or warm lane-D replays of the Fix tail and Eval.Record; incident window 23:32-23:38 matches Eval.KeyProof/Eval.Record then Fix.EitherWay (ended 23:35:29) and Fix.Later (ended 23:38:06)
 - 2026-11-05T00:11:45Z status=routed owner=burndown by=lead note=inference: an Epic 7 Fix.EitherWay cleanup and Fix.Later approval race; a second occurrence on any branch or on feature is real: replay lane-a@rest's 84 classes in CI order on one warm stack
+- 2026-11-07T15:55:27Z occurrence=19-8-epic-19-burn-down note=a86b532c_ci_run_42384900368_shards-2:Tools.RecentActivity(TestAnotherSession,TestDemoPath,TestPoisoned)+RecentActivityTurn;same_IRIS_code_passed_on_d6c43b92;one_rerun_of_the_failed_job
 
 ### DW-711: Test.Checks.Beat and Runs heartbeat fixtures (a pending decision then RunDue, RunNow, a probe Tick or BeatNow) can be settled first by a real HeartbeatIn Tick, whose RunDue settles every pending row
 - source: spec-39-7-publish-the-heartbeat-event.md | severity: low | fix-risk: high | footprint: in-story
