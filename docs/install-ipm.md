@@ -182,7 +182,7 @@ Compiling routine OcuTalon.Install.Ipm.1
 Compilation finished successfully in 0.004s.
 
 [OCUTALON|ocutalon]	Initialize SUCCESS
-[OCUTALON|ocutalon]	Reload START (/tmp/ocutalon-repo/ocutalon-1.0.1/)
+[OCUTALON|ocutalon]	Reload START (/usr/irissys/ipm/ocutalon/1.0.1/)
 STEP Python replaced certifi 2025.1.31 with 2026.10.23
 STEP Python replaced charset_normalizer 2.1.1 with 3.5.2
 STEP Python replaced idna 3.15 with 3.20
