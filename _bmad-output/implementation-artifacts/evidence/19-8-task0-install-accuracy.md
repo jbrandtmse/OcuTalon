@@ -187,7 +187,7 @@ Measured by the Epic 19 runner (lane C), stage "implement" (rework), on lane-C t
 
 ### What IPM 0.10.10 does (read from the packaged source in `docker/ipm/zpm-0.10.10.xml`)
 
-- `%IPM.Lifecycle.Base:InstallOrDownloadPythonRequirements` runs the pip step only when `pParams("cmd")` is `install`, `load` or `update`, and not when `pParams("BypassPyDeps")` is set. For every other command (`reload`, `compile`, `test`, `package` and the rest) it returns at once.
+- `%IPM.Lifecycle.Base:InstallOrDownloadPythonRequirements` runs the pip step only when `pParams("cmd")` is `install`, `load` or `update`, and not when `pParams("BypassPyDeps")` is set. For every other command (`reload`, `compile`, `test`, `package` and the rest) it returns at once. The one other caller, the export of a package's Python dependencies (`download` set), runs `pip download` into the module root's `wheels/` folder for any command, never into `<mgr>/python`.
 - `%IPM.Main` sets `pParams("cmd")` to `load` (the load command), `install` (the install command) and the command's own name for a one-phase command (`RunOnePhase`: `reload`). `-bypass-py-deps` is the modifier with `dataAlias="BypassPyDeps" dataValue="1"`.
 - `%IPM.Storage.InvokeReference:GetArgsArray` evaluates `<Arg>${cmd}</Arg>` through the module's `<Default>` parameters, which `pParams` overrides when it holds the name. With `<Default Name="cmd" Value=""/>` an Invoke called without `pParams("cmd")` gets an empty string.
 
@@ -212,4 +212,4 @@ The first run in USER stops at Initialize and never reaches Reload, so the probe
 - Both guards removed: the reload row failed three ways (a STEP line `STEP Python replaced idna 0.0.1 with 3.20`, `idna` and the decoy gone from the folder) and so did the bypass row (folder).
 - The `cmd` guard alone removed: the reload row failed (STEP line, folder, and the import check for idna).
 - The `bypass` guard alone removed: only the `-bypass-py-deps` row failed (STEP line, folder, and the import check for idna); the reload row passed.
-- Unmutated: path A 75 PASS (`TIME skip-reload 2s`, `skip-bypass 62s`, `pip-skipped 68s`, `second-ocutalon 86s`, `reinstall-checks 107s`), path b 59 PASS, part p 32 PASS (`TIME p-fresh 204s`). The Invoke-argument check (`check_invoke_args`) now expects the third argument: empty by default and `install` when `pParams("cmd")` is `install`.
+- Unmutated, before the rework's review patch (which touched `check_pip_skipped` only): path A 75 PASS (`TIME skip-reload 2s`, `skip-bypass 62s`, `pip-skipped 68s`, `second-ocutalon 86s`, `reinstall-checks 107s`), path b 59 PASS, part p 32 PASS (`TIME p-fresh 204s`). The Invoke-argument check (`check_invoke_args`) now expects the third argument: empty by default and `install` when `pParams("cmd")` is `install`. After the patch: path A 75 PASS again (`TIME skip-reload 3s`, `skip-bypass 56s`, `pip-skipped 64s`, `reinstall-checks 85s`); path b and part p do not call `check_pip_skipped` and were not repeated.

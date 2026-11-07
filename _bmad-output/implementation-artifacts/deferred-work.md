@@ -4791,12 +4791,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: IPM 0.10.10 Lifecycle.Base InstallOrDownloadPythonRequirements returns unless pParams(cmd) is install, load or update; the Reload Invoke cannot see cmd. Reachable after a -bypass-py-deps install, then zpm "ocutalon compile" in OCUTALON.
 - 2026-11-07T07:37:18Z status=escalated owner=burndown by=cr note=decision sheet: gate the step on cmd (a cmd Default arg); needs a live IPM measurement and a release hunk the freeze bars
 - 2026-11-07T08:44:51Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_08:45Z:fix_in_part_1_before_the_merge;remove_a_copy_only_when_the_pip_step_runs_in_the_same_lifecycle;Reload-invoke_cmd_argument_approved_under_the_freeze;tests_reload_and_-bypass-py-deps(nothing_removed;IPM_imports+zpm_list_work;red_without_the_guard);re-run_IPM_a,b,p
+- 2026-11-07T11:39:37Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=RemoveStaleCopies(root,bypass,cmd,target)_removes_nothing_unless_bypass_is_unset_and_cmd_is_install,load_or_update(IPM_0.10.10_InstallOrDownloadPythonRequirements);Reload_Invoke_carries_cmd;TestReloadPipSkipped,TestBypassLoad,TestLifecycleCommands+check_pip_skipped(path_A),each_red_without_the_guard;IPM_a_75PASS,b_59,p_32
 
 ### DW-857: RemoveStaleCopies replaces any of the 36 pinned names at any other version (a newer copy, or another application's copy in the shared mgr/python), while the ruled disclosure bullet names only older copies of IPM's six
 - source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Replace compares only version equality with the pin (Ipm.cls); the Boundaries say version differs; docs/install-ipm.md disclosure says older versions of the six, which IPM installs for itself.
 - 2026-11-07T07:37:18Z status=decision-pending owner=burndown by=cr note=decision sheet: narrow the step to older copies, or rule a wider disclosure (PUBLIC TEXT); spec Boundaries vs ruled text
 - 2026-11-07T08:44:51Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_08:45Z:PUBLIC_TEXT_approved:the_disclosure_says_other_versions;fixed-strings_pin+mutation
+- 2026-11-07T11:39:37Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=install-ipm.md_disclosure_reads_other_versions(ruled_text),fixed-strings_pin,mutation_red
 
 ### DW-858: No IPM check asserts the STEP Python replaced lines in the real install log (only unit tests on a redirected device), so check_reinstall's no-STEP grep could pass on a changed line format
 - source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -4953,3 +4955,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: DW-850 draft (Epic 17 runner A), item (iii); Planner ruling 2026-11-07 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: Process/Decide.cls:1250 records rate_limited when the timer passes after a re-send; the guide row names only timeout; predates Story 17.2
 - 2026-11-07T04:55:03Z status=routed owner=burndown by=orchestrator note=voting week, docs only; any wording is PUBLIC TEXT for the Planner; NOT for 1.0.3 or 1.0.4
+
+### DW-864: release/ipm-install.sh check_pip_skipped (DW-856) adds about 64-68 s to path A locally and likely about twice that on x64 CI, where the ipm-install job already ran 1889-1950 s of its 35-minute timeout
+- source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 1) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: lane-a ipm-install job: 1889 s on 81fbdeb3 (run 42355431449), 1950 s on 6e5213ee, timeout-minutes 35 (2100 s); CI reinstall-same 145 s against 71 s locally, local skip-bypass 56-62 s. The job's no-argument sequence (check_pip_skipped, then reinstall_failures) has not run at this head.
+- 2026-11-07T11:37:12Z status=escalated owner=burndown by=cr note=first CI run at this head settles it; over budget means owner CI capacity (owner-fixed value 9) or a lighter check

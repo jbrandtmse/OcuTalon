@@ -197,6 +197,27 @@ Rejected:
 - theoretical: E5/DW-854: a process that imported the old modules lazily imports removed files. By code read of IPM 0.10.10, only `IPM.Installer` (at IPM load, another process) and the ORAS repository classes import oras or requests; a local-artifact or default-registry (`%IPM.Repo.Remote`, HTTP) install imports none of the six before the step. It would be real for an install from an ORAS-type repository.
 - reported: AA3: release hunks beyond the literal freeze list (`check_invoke_args`, `check_reinstall`). They are listed for the orchestrator in the review's Decisions; no change.
 
+Code review 2026-11-07, rework re-review (iteration 1; diff `2a8d0cab..HEAD`; tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 0 decision-needed, 4 patch, 1 defer, 11 rejected. No high.
+
+- [x] [Review][Patch] Rule 19 pinned the calls of `check_pip_skipped` but not the reload run line, the import record taken before the runs, the decoy's RECORD (the pinned idna's package) or the checks of `check_nothing_removed` (STEP line, folder, version-and-hash imports, `zpm "list"`), so DW-856's live tests (a) and (b) could stop testing anything with every static check green [docker/tests/test-cpf.sh:856] -- fixed: `pins_wired` pins those lines of `check_pip_skipped`, `plant_stale_copy` and `check_nothing_removed`; eight new breaking samples.
+- [x] [Review][Patch] Rule 17's "no Default" sample removed both Defaults, no sample had two `cmd` Defaults, and its comment still said "the exact Default once" [docker/tests/test-cpf.sh:603] -- fixed: the sample removes only the BypassPyDeps Default, a `cmd`-twice sample, the comment.
+- [x] [Review][Patch] The evidence said every command but install, load and update returns at once from IPM's pip method; the wheel export (`download` set) runs `pip download` into the module root's `wheels/` for any command [_bmad-output/implementation-artifacts/evidence/19-8-task0-install-accuracy.md:190] -- fixed: one sentence (read from IPM 0.10.10's `InstallOrDownloadPythonRequirements`; it never writes `<mgr>/python`).
+- [x] [Review][Patch] The evidence's "Unmutated" path A run is the one from before the rework's review patch, unlabelled [_bmad-output/implementation-artifacts/evidence/19-8-task0-install-accuracy.md:215] -- fixed: labelled, and the run after the patch added.
+- [x] [Review][Defer] Path A's `check_pip_skipped` adds about 64-68 s locally, likely about twice that on x64 CI, where the `ipm-install` job ran 1889-1950 s of its 35-minute timeout; the job's no-argument sequence (`check_pip_skipped`, then `reinstall_failures`) has not run at this head [release/ipm-install.sh:2165] -- deferred: DW-864 escalated (REL-4's 35 minutes is owner-fixed value 9; the first CI run at this head settles it).
+
+Rejected (rework re-review):
+- `low`: the triage row's "`baseline_commit` is the story's" reason against the frontmatter, `review_loop_iteration` 0 against the cycle log's 1, the rework review's counts (17 of "19"; 2 medium patched, not 3). Lead bookkeeping in the spec; the lead set `baseline_commit` to the rework's baseline for this re-review.
+- `low`: the rework's "Verification performed" names suites its Verification lines do not record. This review ran them at this head: `test-release-sequence.sh` (all rules, 341 s), `test-ci-config`, `test-compose-file`, `test-readme`, `test-boundaries`, `test-pinned-sources`, `test-class-rules`, `test-cpf`; all pass.
+- `low`: the evidence's probe paragraph is hard to read. Cosmetic; the probe was in a scratch copy, nothing of it is tracked.
+- `low`: `check_nothing_removed` reads the manager directory again and leaves two state files under the throwaway container's `/tmp`. One session per row; the container is torn down.
+- `low`: a Reload that fails before IPM's pip step (module.xml load, mapping) after the step removed copies. The Before-Invoke design of the first review, outside this rework's range and not high; the same class as the Residual risk "a failed pip step", and the same command restores them.
+- by-design: the check 32 header text and the `check_pip_skipped "pip skipped"` call in path A's block are release hunks outside the literal function area; the Design Notes list them, and the checks cannot run without the call.
+- by-design: `${root}` (Module.Root) against IPM's `pParams("RootDirectory")`. Carried from the first review; measured equal in every row.
+- by-design: the plain import record, `zpm "list"` and Reload SUCCESS cannot go red for DW-856's defect on this image. The evidence says so; tests (a) and (b) each went red through the STEP line, the folder and the version-and-hash import check, as ruled.
+- `false`: the spec's I/O matrix gives the old signature. The matrix is the frozen intent block; Design Notes and Verification carry the four-argument form.
+- by-design: `update` is not run live. IPM 0.10.10's `Main.Update` sets `cmd` to `update` and `LoadQualifiedReference` sets it again (read by the Acceptance Auditor and this review); the unit test passes the value directly; `update` from the registry is outside this pass.
+- `false`: the guard differs from IPM's pip condition. `InstallOrDownloadPythonRequirements` quits unless `cmd` is install, load or update (and on `BypassPyDeps`), the same list and case as `Replace`.
+
 ## Spec Change Log
 
 - 2026-11-07 (lead): rework iteration 1 opened on the Contest Planner's rulings of about 08:45Z (DW-856 guard, DW-857 text); scope = the two [Owner] items only.
@@ -454,6 +475,13 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation (review, the producer): `python_state` reading `RECORDS` -> rule 18 (state) red.
 - mutation (review, condition 2 wiring): `run p-again USER ...` deleted from part p -> rule 19 red. Each `release/ipm-install.sh` mutation restored byte-identical from the review's backup (`cmp`), `git status --short` and `git diff --stat` equal before and after.
 - Found already covered (no new test): every matrix row, the Rulings' condition 1 (pins read from the file, STEP line, idempotence, nothing outside `<mgr>/python`), the symlink-out guard, partial removal, the test-cpf rule 17 samples, the host-list and disclosure pins of `test-release-sequence.sh static`. Not covered by a hermetic test and left to the live runs: the Rulings' conditions 2 and 3 as a whole (imports of IPM's packages, `zpm "list"`, the uninstall), which need a real IPM.
+
+**Code review stage, rework re-review (2026-11-07; lane C; no throwaway started: the patches touch `docker/tests/test-cpf.sh` and the evidence only, so path A, path b and part p were not re-run):**
+- Path A was last run after the last change to anything it executes (the rework's review patch, 75 PASS); `b` and `p` ran before that patch, which changed `check_pip_skipped` only, a function neither calls. The `${cmd}` measurement is in the evidence (`load`, `reload`, `load` with the flag 1, `install`).
+- Run at this head after the patches, one call each: `test-cpf`, `test-release-sequence.sh` (all rules, 341 s), `test-boundaries`, `test-pinned-sources`, `test-ci-config`, `test-compose-file`, `test-readme`, `test-class-rules` (all pass); the spine lint shows the same 10 findings.
+- mutation (DW-856, test-cpf rule 19): `run skip-reload ...` deleted from `check_pip_skipped` in `release/ipm-install.sh` -> rule 19 red; `check_imports "$label"` dropped from `check_nothing_removed` -> rule 19 red; the decoy RECORD naming `zz/__init__.py` instead of the pinned idna's package -> rule 19 red; `check_nothing_removed`'s STEP Python test made `if true; then` -> rule 19 red.
+- mutation (DW-856, test-cpf rule 17): the `cmd` Default written twice in `src/module.xml` -> rule 17 red; the BypassPyDeps Default removed on its own -> rule 17 red.
+- Each applied from this review's backup and restored (`cmp` equal; `git status --short` and `git diff --stat` equal before and after).
 
 ## Auto Run Result
 
