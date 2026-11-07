@@ -99,7 +99,14 @@ deferred: []
 
     - A model test request (its `ItemId` starts with `test.`), so that the test says whether the first model answered.
 
-- L242, the `DecisionResponse.Model` row: NOT YET. Its ruled clause did not match the code exactly (the lead sent a correction to the Planner); leave the row as it is until the lead passes the ruled row.
+- L242, the `Model` row of `OcuTalon.Bridge.Msg.DecisionResponse` (ruled about 05:10Z, the whole row), becomes:
+
+    | `Model` | The model that answered. After a second-model retry, the second model; when the retry's timer passes before its reply arrives, the model of the last model request counted for the decision, which can be the first model. Empty when no model was asked. |
+
+- L354, in the "Second-model retry" section (ruled about 05:10Z; only the Model clause changes; the guide's exact spelling `OcuTalon.Bridge.Msg.DecisionResponse` is used, as the ruling directs), becomes:
+
+    The decision is still one record and one answer. Its tokens, cost and steps are the sums of both attempts, its `Model` is as the `Model` field of `OcuTalon.Bridge.Msg.DecisionResponse` says, and, when both attempts fail, its reason is the last attempt's.
+
 - No other wording in the guide changes.
 
 ## Code Map
@@ -160,7 +167,7 @@ deferred: []
 - [ ] `docker/tests/test-bridge-guide.sh`: add a rule `tables` (DW-728). Every setting of `Decide`, `Adapter.Agent` and `AgentRunner`, every AI Hub runner setting, and every `Request` property is the first cell of a table row (`` | `<name>` | ``). The rule has a break sample (the `RetryItem` row removed) and a keep sample, as the other rules do, and the header gets one line for it.
 - [ ] `docs/bridge-guide.md` (DW-728): append the `RetryItem` row after the `ReplyClass` row and the `RetryOf` row after the `Compact` row, verbatim from Design Notes. Nothing else changes. The rows are reused text and not new public wording, so this task is not gated. Any other word needs the Planner (see Design Notes).
 
-- [ ] DW-850: the ruled `docs/bridge-guide.md` strings above, landed exactly as one separable hunk (L159, L160, L197, L202, L273, and the bullet after L347; not L242 yet), each pinned by a fixed-strings rule in `docker/tests/test-bridge-guide.sh`, with a mutation shown red (one character changed in a landed string). `test-bridge-guide.sh` passes.
+- [ ] DW-850: the ruled `docs/bridge-guide.md` strings above, landed exactly as one separable hunk (L159, L160, L197, L202, L242, L273, L354, and the bullet after L347), each pinned by a fixed-strings rule in `docker/tests/test-bridge-guide.sh`, with a mutation shown red (one character changed in a landed string). `test-bridge-guide.sh` passes.
 
 **Acceptance Criteria:**
 - Given a working diagnosis model whose reply fails `DiagnosisPayload` validation, when the settings model Test is sent to `Decide` through the running production, then `TestAnswer` reports it answered with no reason, and no model text is stored in its Decision row (DW-771).
