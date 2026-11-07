@@ -2332,3 +2332,4 @@
 2026-11-06T23:42:39Z	Run	planner_update	subject=epic17_eta merge=08-09Z_sat(one_rework->10-11Z) feature_green=+1h basis=59db8cec_green,17.7_implement_23:43Z
 2026-11-07T01:30:46Z	Epic 7	runner_stopped	item=U-298 head=acd7956c code_head=07951357 reason=inherited_ci_red file=web/e2e/heartbeat-card.spec.ts dw=DW-839 window=00-10Z_utc integrate_forward_local=e03ca809
 2026-11-07T01:30:46Z	Run	planner_question	subject=U-298 recommend=(1)runner_D_test_only_clock_fix (2)merge_7.9_first_ahead_of_4.11 also=DW-838,U-296,U-297_veto_window
+2026-11-07T01:32:05Z	Epic 19	public_text_relayed	story=19.6 local=ee5c465f figure=install_time measured=about_1_minute proposal=3_minutes also=DW-829,DW-830_accuracy_questions
