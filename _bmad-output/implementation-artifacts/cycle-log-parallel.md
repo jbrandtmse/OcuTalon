@@ -2392,3 +2392,11 @@
 2026-11-07T05:10:59Z	Epic 34	merge_gate_blocked	reason=ci_red runs=42339077292 jobs=checks(test-boundaries_local_paths_REAL),image(DW-639_flake) head=f4b38c9e
 2026-11-07T05:10:59Z	Epic 34	protocol_violation	kind=local_path_in_pushed_files files=evidence/34-4/*.mjs:5,spec-34-4:169 branch=OCT-epic34 remedy=fix_forward_no_rewrite
 2026-11-07T05:10:59Z	Epic 34	runner_resumed	agent=a256ebe8dfc38889a reason=fix_local_paths
+2026-11-07T05:11:32Z	Epic 34	planner_ruling	subject=local_path_fix_forward approved=no_rewrite conditions=repo_relative_probe_paths,repo_relative_spec_lock_path,boundaries_green_before_merge notify=one_line_on_merge
+2026-11-07T05:43:28Z	Epic 17	orchestrator_ruling	subject=17.9_start_on_inherited_red option=a red=D5_DW-825(inherited,fix=34.4_b6b75a34) condition=push_only_after_integrate_onto_feature_with_34.4 forecast=11:30-12Z
+2026-11-07T05:43:28Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=17.9_implement
+2026-11-07T05:48:01Z	Epic 34	ci_flake_rerun	head=b6b75a34 run=42341818725 job=image(DW-639) browser=success lane-a=success
+2026-11-07T06:17:10Z	Epic 34	runner_complete	head=b6b75a34 stories=1 ci=success(42341818725,42341818599)
+2026-11-07T06:17:10Z	Epic 34	amendments_verified	epics.md=34.4_insert
+2026-11-07T06:17:10Z	Epic 34	merge_enqueued	position=1 reason=planner_after_7.9_ahead_of_0.15
+2026-11-07T06:17:10Z	Epic 34	epic_merge_started	head=b6b75a34 into=feature
