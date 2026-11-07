@@ -4913,6 +4913,26 @@ So that no page sits waiting behind its siblings and the live tests stop failing
 - DW-550: flake: live:cards I10 timed out (90 s) in loadedAfter's /state wait after sign-in; passed on an unchanged rerun (ledger; routed by charter 2026-11-07)
 - DW-774: flake: live:online-session leave.spec page.close no answer within 30 s (L5, L6) and sign-in-2 live-socket W3 GET /state no answer in 30 s under heavy CI load (ledger; routed by charter 2026-11-07)
 
+### Story 11.28: The no-key runner test ignores a late timer row of the test before it
+
+As the release's CI,
+I want `OcuTalon.Test.Agent.Runners`'s `TestStartsWithNoKey` to judge only the event-log rows its own requests could cause,
+So that a late Ens.Alarm row of an earlier test's purged messages does not turn shards-2 (lane-a@rest) red on a loaded host.
+
+[ADDED 2026-11-07, Epic 11 fix-forward (DW-688), timeboxed to 90 minutes, first on lane A (the Contest Planner's ruling of 2026-11-07 about 10:55Z, logged `planner_ruling subject=DW-688_first`). Test-only unless the cause is in the product, in which case the Planner hears of it first. No pin is deleted or weakened; no timeout or deadline is raised as the fix.]
+
+**Acceptance Criteria:**
+
+**Given** `TestStartsWithNoKey`'s check "the event log holds no error or alert row since the mark"
+**When** Ens.Alarm logs "Message '<n>' can not be found, timer event ignored" for a message that existed before the test's mark (an earlier test's message that its clean-up removed)
+**Then** that row does not fail the check, and every other Type 2 or Type 6 row since the mark still does, including an Ens.Alarm row for a message created after the mark
+
+**Given** the fix
+**When** it is proved
+**Then** the old code fails under a repeat or load run (or, if the late row cannot be timed on demand, under a run that places one), the fixed code passes 20 of 20 under the same conditions, a test pins that the narrowed check still fails on a row it must see, and full CI is green on every workflow
+
+- DW-688: flake: Test.Agent.Runners TestStartsWithNoKey 'the event log holds no error or alert row since the mark' (late Ens.Alarm timer row of TestStartRefused's purged messages) (ledger; routed by charter 2026-11-07)
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
