@@ -313,3 +313,5 @@
 2026-11-07T07:47:30Z	Epic 17	epic_retro_skipped	reason=policy(gates.retrospective:skip)
 2026-11-07T07:47:30Z	Epic 17	epic_status_done	stories=9(17.2-17.9)
 2026-11-07T07:47:30Z	Epic 17	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=sonnet high_med_avg=1.9 unresolved_high_med_avg=1.1(first_reviews:17.2=4,17.5=3,17.6=2,others_0) metric=unresolved rework_stories=3(17.2,17.5,17.6;causes:AD/contention/CI,not_language_semantics) review_loop_thrash=0 rework_lang_defects=0 review_high=3(17.5_AD,17.6_AD-14,17.6_retry_trace) review_med=many result=hold applied=false(record_only)
+2026-11-07T07:51:21Z	Epic 17	integrated_forward	feature=a092b15f head=471c3eb7 conflicts_resolved=sprint-status.yaml(theirs+regenerated) merged_in=web/e2e/documents/documents.spec.ts(34.4_D5_fix),_bmad/custom/epic-dependencies.yaml smoke=live_production_30_PASS_rc=0 boundaries=pass suite=CI
+2026-11-07T07:51:21Z	Epic 17	epic_runner_complete	stories_completed=9(17.2,17.3,17.4,17.5,17.6,17.7,17.8,17.9;17.1_moved_to_33.1)
