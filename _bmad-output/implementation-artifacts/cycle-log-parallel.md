@@ -2333,3 +2333,10 @@
 2026-11-07T01:30:46Z	Epic 7	runner_stopped	item=U-298 head=acd7956c code_head=07951357 reason=inherited_ci_red file=web/e2e/heartbeat-card.spec.ts dw=DW-839 window=00-10Z_utc integrate_forward_local=e03ca809
 2026-11-07T01:30:46Z	Run	planner_question	subject=U-298 recommend=(1)runner_D_test_only_clock_fix (2)merge_7.9_first_ahead_of_4.11 also=DW-838,U-296,U-297_veto_window
 2026-11-07T01:32:05Z	Epic 19	public_text_relayed	story=19.6 local=ee5c465f figure=install_time measured=about_1_minute proposal=3_minutes also=DW-829,DW-830_accuracy_questions
+2026-11-07T01:33:33Z	Epic 7	owner_decision	item=U-298 by=Contest_Planner answer=yes_(1)_test_only_shared_clock_helper+sweep+mutation+green_CI_before_10Z (2)_merge_order=7.9,4.11,19p1,17 fallback=spec_fix_alone_by_06Z
+2026-11-07T01:33:33Z	Epic 4	owner_decision	items=U-296,U-297 by=Contest_Planner answer=keep
+2026-11-07T01:33:33Z	Epic 7	veto_window_closed	dw=DW-838 result=no_veto keep_as_built
+2026-11-07T01:33:33Z	Epic 19	public_text_ruled	story=19.6 option=b A4="...on an Apple silicon Mac, the downloads took about 20 seconds and the whole second run about 1 to 1.5 minutes." A6=same_with_"second command" keep=250MB,90MB x64=report_before_17Z
+2026-11-07T01:33:33Z	Epic 19	planner_ruling	dw=DW-829 measure_imports_then_gate_or_fix_install;rewording_only_as_PUBLIC_TEXT_by_14Z dw=DW-830 measure_hosts_HEAD_only;host_list_change=PUBLIC_TEXT
+2026-11-07T01:33:33Z	Epic 7	runner_resumed	agent=a4621a6b3ad580328 lane=D
+2026-11-07T01:33:33Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef lane=C
