@@ -2,8 +2,8 @@
 title: 'Story 11.28: The no-key runner test ignores a late timer row of the test before it'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'ready-for-dev'
-baseline_revision: 'e7f91bb4a75a1a7c9248cf3d231026144c6a3c9e'
+status: 'done'
+baseline_revision: 'b7710d2db03715613fbbd9a507cc85488a45b253'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -90,6 +90,24 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-07 - Review pass
+- verdicts: 14 rows (findings of the same root cause across layers share a row) - high 0, medium 5, low 6, false 2, maybe-false 0, descriptive 1
+- findings:
+  - `[medium]` `patch` Blind: planting may delete the header before Ens.Alarm takes the request up (thin margin on a loaded host); also Edge #2 and Verification-gap #1, one root cause - fixed: `Plant` now polls (ceiling ROWSECONDS) until the header leaves Created/Queued before `Drop`, failing with the header id otherwise.
+  - `[medium]` `patch` Edge #1, Verification-gap other finding, Intent-alignment fresh-environment note: `TestOtherRowsKept` low-number case assumes a header with id >= 1 exists - fixed: the number is 0 when the header mark is below 1.
+  - `[low]` `patch` Blind #2, Edge #4: cleanup polls the whole log (`WaitRow(id, 0)`) - fixed: `OnBeforeOneTest` records the event mark in `Mark`, cleanup passes it.
+  - `[low]` `patch` Blind: `Plant` discards the `Send` status - fixed: the status text goes into the "has a header" failure message.
+  - `[low]` `patch` Blind: the fixture class-header line is over-long - fixed: wrapped.
+  - `[false]` `reject` Intent-alignment: the mark may not cover an earlier test's header - TestStartsWithNoKey sends many requests before its mark (Ask/Send to each runner), so the MAX(ID) is above any earlier test's headers.
+  - `[false]` `reject` Edge #6: headers created between the two marks fall outside the filter - the two marks are taken on adjacent lines; a header between them is at or below the header mark, which only leaves out a timer row, never hides one of this test's own messages (they are created after both).
+  - `[low]` `reject` Blind #1: TestOtherRowsKept has no GuardReason - it writes only synthetic Ens.Alarm rows it deletes itself; sibling tests (Test.Watch.Case) do the same without a guard; the header's CI-only sentence is the project's Rule 21 process, not code.
+  - `[medium]` `reject` Blind #3, Edge #3: cleanup may wait up to ROWSECONDS per unseen timer - spec-bound: "OnAfterOneTest polls for it once more up to the same ceiling"; a ceiling is not raised or lowered by this story.
+  - `[medium]` `reject` Blind: Heartbeat still reads ErrorRows(eventMark) without the header mark (also Verification-gap other finding) - spec-bound: Never "no change to Heartbeat", AC4 pins the one-argument form; no Heartbeat failure is recorded.
+  - `[low]` `reject` Blind: cascade of noise when a synthetic row fails to write - only follows a failure that is already reported.
+  - `[low]` `reject` Edge #5: a timer row with an empty `<n>` stays unfiltered - spec-bound (digits, one or more) and pinned by the Matrix row Other text.
+  - `[medium]` `reject` Verification-gap #2: no committed test pins that Runners passes the header mark - spec-bound: AC3 is the lead's planted 20-of-20 run on the consumer; a deterministic pin needs a planted timer in Runners' window, which the spec excludes (Runners diff stays inside TestStartsWithNoKey's few lines).
+  - `[-]` `reject` Intent-alignment (3 descriptive items: readings A/B/C, surface of tests versus the DW-688 sequence, unrequested `Send` argument) - descriptive; `Send`'s optional argument is spec task D4; the consumer surface is AC3's lead-side run.
+
 ## Design Notes
 
 **Root cause (lead's Task 0 measurement, 2026-11-07, warm lane-A throwaway; recorded, not repeated).**
@@ -145,7 +163,28 @@ Every command runs from the worktree root after `git rev-parse --show-toplevel` 
   - AC3: (lead, Task 0) the unchanged class under planting → red 2 of 3.
   - AC4: with `headerMark` "", leave out every Ens.Alarm row → TestTimerRowsAroundTheMark red on "`ErrorRows(eventMark)` holds both". This pins the one-argument form Heartbeat relies on.
 
+**Mutation results (implement, 2026-11-07, warm lane-A `e11s28lw`; each restored byte-identical from a backup, checksum compared).**
+- mutation: AC1 - `TimerIgnoredAtOrBelow` ends `Quit 1` (every timer-ignored row left out) -> `ErrorRowsMark` red: TestTimerRowsAroundTheMark "the row of header <B> (above the mark) is kept" and TestOtherRowsKept "above-mark row is kept".
+- mutation: AC1 - the `Continue` condition made `0` (header-mark filter dropped) -> red: "the row of header <A> (at or below the mark) is left out" and TestOtherRowsKept below-mark and low-number.
+- mutation: AC2 - the `config = "Ens.Alarm"` test removed -> TestOtherRowsKept red: "the other-config row is kept".
+- mutation: AC2 - `If number '? 1.N Quit 0` replaced by `If number = "" Quit 0` -> TestOtherRowsKept red: "the letter-number row is kept".
+- mutation: AC4 - with `headerMark` "", every Ens.Alarm row left out -> red: "without the header mark / with an empty header mark, the below-mark, above-mark, low-number and empty-number rows are kept" (the one-argument form Heartbeat relies on).
+- mutation: AC3 - lead, Task 0: the unchanged class under planting, red 2 of 3.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: `RunnerFixture.ErrorRows(mark, headerMark = "")` leaves out only a Type 2 Ens.Alarm "Message '<digits>' can not be found, timer event ignored" row whose number is at or below the header mark; `Send` takes an optional `seconds`; `Runners.TestStartsWithNoKey` takes `HeaderMark` next to `errorMark` and passes it to its last check; the new `ErrorRowsMark` class pins the rule with two real Ens.Alarm timers and eight synthetic rows.
+
+Files changed:
+- `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls`: header mark argument, `TimerIgnoredAtOrBelow` helper, `Send` seconds argument, doc comments.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls`: three hunks inside TestStartsWithNoKey.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/ErrorRowsMark.cls`: new test class (TestTimerRowsAroundTheMark, TestOtherRowsKept).
+
+Review findings: 5 patches applied (2 medium, 3 low), none deferred, 9 rejected with the reasons in the Review Triage Log. Follow-up review recommended: false (no high patched; two medium patched, both test-hardening).
+
+Verification (warm lane-A `e11s28lw`, one class per call): `ErrorRowsMark` passed (after patches, three times in all, 8 s); `Runners` passed (42 s, twice); `Schedule.Heartbeat` passed (86 s, unchanged file); `docker/tests/test-ci-config.sh` PASS test classes (282 classes, shards hold them all); Runners.cls hunks lie at base lines 152, 207 and 228 only; `git diff --stat` outside `_bmad-output`: exactly RunnerFixture.cls, Runners.cls and ErrorRowsMark.cls. Five mutations red then restored byte-identical (see Verification). Matrix rows: Pre-mark/Post-mark/No header mark (real) by TestTimerRowsAroundTheMark; Boundary, Other config, Other text, Alert type, No header mark by TestOtherRowsKept; the SQL-failure row is unchanged code, not exercised by a new test.
+
+Residual risks: AC3's planted-timer 20-of-20 run on `Runners` is the lead's step and is not recorded here. In `TestTimerRowsAroundTheMark` timer A (8 s) must wake after the marks are taken, which holds unless the host stalls the test for several seconds between planting and the marks. Design decisions D1-D5 stand as written.
