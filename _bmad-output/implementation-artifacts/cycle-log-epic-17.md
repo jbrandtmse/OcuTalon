@@ -335,3 +335,4 @@
 2026-11-07T20:01:47Z	Epic 17	ledger_routed_planned	story=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges entries=1(DW-874) excess=0 by=load
 2026-11-07T20:11:36Z	Epic 17	epic_context_compiled	sha=24cabba4 reason=planning_artifact_newer(17.10_chartered) model=opus
 2026-11-07T20:12:08Z	Story 17.10	stage_spawned	stage=plan spawn_at=2026-11-07T20:12:08Z model=opus agent_name=17-10-plan-1 cycle_iteration=1
+2026-11-07T20:30:50Z	Story 17.10	plan_clarification_requested	spawn_at=2026-11-07T20:12:08Z model=opus build_status=blocked questions=Q1_AD-18_morning_skip_amendment,Q2_AD-33_cross-lane_exception,Q3_browser_group_over_35min(notice.spec.ts) public_text=none route=orchestrator(U7,U14,cross-epic) cycle_iteration=1
