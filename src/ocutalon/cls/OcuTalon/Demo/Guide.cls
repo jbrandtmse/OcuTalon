@@ -213,7 +213,7 @@ ClassMethod TelegramState() As %String [ Private ]
 	Quit ##class(OcuTalon.Data.StatusMark).TelegramState()
 }
 
-/// The payload of the arguments; done is a list of the five steps' flags. trace and run are set only when they are objects.
+/// The payload of the arguments, with the features this instance has (Demo.Features); done is a list of the five steps' flags. trace and run are set only when they are objects.
 ClassMethod View(epoch As %Integer, done As %List, step As %Integer, finished As %Boolean, active As %Boolean, reason As %String, stage As %String, startedAt As %String, variant As %String, telegramRow As %Boolean, trace As %RegisteredObject = "", run As %RegisteredObject = "") As OcuTalon.Live.Payload.GuideState [ Private ]
 {
 	Set view = ##class(OcuTalon.Live.Payload.GuideState).%New()
@@ -235,6 +235,11 @@ ClassMethod View(epoch As %Integer, done As %List, step As %Integer, finished As
 	Set view.TelegramRow = telegramRow
 	If $IsObject(trace) Set view.Trace = trace
 	If $IsObject(run) Set view.Run = run
+	Set features = ##class(OcuTalon.Demo.Features).Present()
+	Set position = 0
+	While $ListNext(features, position, feature) {
+		Do view.Features.Insert(feature)
+	}
 	Quit view
 }
 

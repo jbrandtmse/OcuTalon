@@ -2815,6 +2815,47 @@ So that I try abilities the guide does not show, without having to think of what
 **And** the UX spec's "Demo guide and controls" (the finish state and the empty chat) gains the row, with a marker citing the owner's decision of 2026-11-01
 **And** CI is green on every workflow, and the story touches only `web/src/app/**` within Story 4.9's footprint, new mock scenario files, the web unit and e2e tests, and the UX files; the guide's existing mock scenarios (`guide-*.json`, Epic 11's) are not edited
 
+### Story 4.11: Other things to try
+
+[ADDED 2026-11-06, owner decision made by the Contest Planner under the owner's delegation (2026-11-06T05:27Z; logged `owner_decision` and `planner_ruling` in `cycle-log-parallel.md`). Epic 4 is re-opened for it under SC-5. Target: the Saturday release; not launch-blocking. Shows only in the demo view (Story 4.9's signal).]
+
+As a judge who has finished the demo guide, or who wants to look further at any time,
+I want a short list of other things to try, each with what to look for and one button that does it,
+So that I see more of what OcuTalon does without having to work out how.
+
+**Acceptance Criteria:**
+
+**Given** the demo view is on (Story 4.9's signal: the server's demo mode and the switch on)
+**When** the demo guide's five steps are done (the finish state), or I press the "More to try" link in the guide row at any time
+**Then** the guide shows an "Other things to try" panel; each item has a short label, one line on what to look for, and one button that does it, using only actions the demo already has (the exact wording is the UX spec's, under the public-text rules) (UX-DR47)
+**And** the panel's labels name the persona card and the Simulated mailbox's sample exactly as they appear on screen
+**And** with the demo view off, or on an install without demo mode, neither the panel nor the link shows
+
+**Given** the panel
+**When** it lists its items
+**Then** they are, in this order, each shown only when its feature is present on the instance: (1) change how OcuTalon talks: opens the persona card, suggesting a style such as Pirate or Spanish, then asking "Is anything wrong right now?"; (2) send a suspicious email: drops the existing suspicious sample into the Simulated mailbox, and look for the refusal and its reasons; (3) reject a fix: Break the feed again, then reject, and look for "Nothing was changed."; (4) see it as on your own install: turns the Demo view off; (5) ask it to remember something, then ask about it later (Epic 19's memory); (6) add a document and ask about it, and look for the citation (Epic 19's documents); (7) write a heartbeat checklist and press Run now (Epic 39's heartbeat)
+**And** each look-for line names only what the demo shows on screen, and no look-for line of items 1 to 4 points to memory, documents or the heartbeat
+
+**Given** the instance's installed features
+**When** the page learns which items to show
+**Then** availability comes from a catalog the server builds from what it already knows about its own installed classes and settings, read through a read-only read with no new write path, role or install step, so the panel ships with items 1 to 4 and grows without a client code change per feature; the client never hard-codes which epics have merged (if per-feature gating cannot avoid a code change, one line per item when its epic merges is the fallback, and the spec says which was built)
+**And** on this branch items 5 to 7 are hidden, because their features are not on the feature branch yet; their labels and look-for lines may be ruled now so the later epics only flip availability
+
+**Given** a button in the panel
+**When** I press it
+**Then** it performs its action on the demo path exactly as the existing control does (the persona card, the mailbox sample, Break the feed, the Demo view switch), and nothing happens without a press
+**And** every control is a native button or link, reachable and usable by keyboard; focus moves only on the user's own press, following the focus rule (shared/focus-rule.ts)
+
+**Given** the guide's finish state already ends with the line "More to try: simulate an incoming email …" (Story 4.7)
+**When** this story adds the "More to try" link
+**Then** the two coexist as the public text ruled at the spec gate says, and the existing line changes only if that ruling changes it
+
+**Given** the change
+**When** this story merges
+**Then** tests check: the panel appears after step 5 and through the link; each button performs its action on the demo path; items 5 to 7 are absent while their features are unavailable, and a unit test of the catalog shows that a feature's appearance shows its item; every control works by keyboard; none of it appears with the Demo view off or on a non-demo instance; the ruled strings are pinned by fixed-strings tests; any mock scenario is a new `ci/mock/scenarios/B/*.json` file, and no existing scenario is edited
+**And** EXPERIENCE.md's "Demo guide and controls" (the finish state and the guide row) and DESIGN.md, where the guide's look changes, gain the panel, each with a marker citing the owner decision of 2026-11-06
+**And** CI is green on every workflow, and the story touches only `web/src/app/guide/**`, new files under `web/src/app/`, at most one small new read-only server class or method for availability, the web unit and e2e tests, new mock scenario files, and the UX files
+
 ## Epic 5: OcuTalon watches a production and explains what broke
 
 A user asks in plain words to watch a production; new failures are picked up within 15 seconds, grouped by the settle rule into one incident with a plain-English cause, the element at fault and a proposed fix, with its evidence behind Show details; the incident moves through its states; asked whether everything is fine, OcuTalon never gives a false all-clear.
@@ -8994,6 +9035,42 @@ So that a save followed by a run works, and "Applies within a minute" is true fo
 
 - DW-780: a saved interval, hours or on/off change does not move the stored NextDueAt (ledger; routed by split 2026-11-06)
 - DW-803: Checks.Beat.RunNow reads the settings through the per-process 60-second cache, so a save followed at once by Run now is refused as empty (ledger; routed by cr 2026-11-06)
+
+### Story 39.9: Heartbeat follow-up: today's cost matches its check-ins, and the tidy-ups
+
+*Home lane: A and B (one runner; the Planner's follow-up rulings name both lanes' files).* [AMENDED 2026-11-07, Story 39.9 spec gate, apply-and-report (Rule 5 tier 1), as Story 39.7's home-lane amendment: it read "*Home lane: A.*"]
+
+[ADDED 2026-11-07, SC-5 re-open of Epic 39 for a post-merge follow-up, chartered by the runner under the Contest Planner's rulings of 2026-11-06 (relayed by the orchestrator; fix-forward, no boundary or dependency change): the Planner's 1.0.2 demo walk (DW-824), the "Every hour" schedule line (PUBLIC TEXT ruled by the Planner 2026-11-06), and the test hygiene routed here by Epic 39's burn-down ruling (DW-785, DW-670). Split rule (Planner 2026-11-06): if the third and fourth groups below would miss the 1.0.3 merge line, they split off as Story 39.10.]
+
+As a person watching the Heartbeat card,
+I want the Today line's cost to agree with the check-ins it counts, and the schedule to read naturally,
+So that the card never shows a total the count does not explain.
+
+**Acceptance Criteria:**
+
+**Given** the online-demo session of the 1.0.2 walk (a Watch, an incident with its approval, a Save with heartbeat On, then Run the heartbeat now, deciding Act with read-only checks)
+**When** the card shows "Last check-in … · $0.0003" and "Today: 1 check-in, $0.0006"
+**Then** the story first records, with evidence, exactly what Today's total sums (a second beat or decision, the notice, the run-now turn, or something else)
+**And** the Today line and its count then agree, or the line says what it sums; any change of shown text is PUBLIC TEXT, ruled before it is committed
+**And** a regression test reproduces the one-check-in, double-cost case and shows the fix, with a demonstrated mutation (Rule 19)
+
+**Given** a heartbeat interval of 60 minutes
+**When** the card's schedule line is shown
+**Then** it reads "Every hour, …" (for example "Every hour, 07:15 to 21:45", or "Every hour" all day) in place of "Every 1 hour, …", and every other interval reads exactly as before ("Every 30 minutes", "Every 2 hours", …) (PUBLIC TEXT ruled by the Planner 2026-11-06)
+**And** a fixed-strings test pins it, and EXPERIENCE.md is amended in place with a marker if it quotes the old form
+
+**Given** `docker/tests/test-heartbeat-overview.sh` and `docker/tests/test-triage-heartbeat.sh`
+**When** both run
+**Then** their duplicated security-overview check lives in one shared helper, and each script still checks exactly what it checks today; no pin is deleted or weakened
+
+**Given** `OcuTalon.Test.Web.GuideApi`'s `TestOnlyTheMarkerChanges` and `TestRunAgain`
+**When** either fails on its fingerprint
+**Then** the failure message prints both fingerprints, so the next occurrence can be diagnosed
+**And** the race is fixed only if its cause is plain and in Epic 39's code; otherwise the residual is recorded
+
+- DW-824: Heartbeat card: Today's cost sums more than the counted check-ins (online demo 1.0.2: Last check-in $0.0003, Today: 1 check-in, $0.0006) (ledger; routed by orchestrator 2026-11-06)
+- DW-785: docker/tests/test-heartbeat-overview.sh repeats about 25 lines of test-triage-heartbeat.sh's security-overview rule; unify both checks in one shared helper (ledger; routed by cr 2026-11-06)
+- DW-670: flake: GuideApi TestOnlyTheMarkerChanges and TestRunAgain went red on their fingerprint and passed on an unchanged rerun; print both fingerprints on failure (ledger; routed by harvest 2026-11-04)
 
 
 ## Epic 40: Choose how OcuTalon talks to you
