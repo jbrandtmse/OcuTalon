@@ -2380,3 +2380,6 @@
 2026-11-07T04:19:57Z	Run	planner_ruling	subject=freeze_conflicts epic19_part1=asked_for(U-294_4_files+19.8_check32) condition=hunk_list_with_reasons upgrade-harness=own_reason_or_empty_3dot_from_feature unexplained=wait 0.15=option_b_after_v1.0.4_mergeback_then_option_a free_runner_order=39.9_visible,39.9_hygiene,19.7_lever,tier3
 2026-11-07T04:24:51Z	Run	ci_green_verified	head=30432036 runs=42333034390,42333034403 result=success via=gh
 2026-11-07T04:24:51Z	Epic 17	runner_ci_wait	head=99735c36 runs=42338069582,42338069651 integrate_forward=30432036 next=17.9_burndown(DW-771,DW-786,DW-728) contract_eta=~11Z decision=DW-850_bridge-guide_wording
+2026-11-07T04:34:48Z	Run	planner_ruling	dw=DW-850 in_1.0.3_inside_17.9 draft_now public_text_with_sources no_wait_for_epic17 fallback=docs-only_commit_before_16Z_or_1.0.4
+2026-11-07T04:34:48Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=DW-850_public_text_draft_during_ci_wait
+2026-11-07T04:34:54Z	Run	planner_finding_ledgered	dw=DW-851 tier=3_after_31.4 not_for=1.0.3,1.0.4
