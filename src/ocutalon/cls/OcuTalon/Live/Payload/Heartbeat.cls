@@ -1,7 +1,8 @@
 /// The payload of the heartbeat live event: one person's heartbeat, the public view of their HeartbeatBeat row and their settings. Lane A publishes it (Checks,
 /// after each commit of the row, AD-12, AD-18, AD-33). The one exception is a Tick's skip because the checklist is empty, which saves its row and publishes
-/// nothing; a run now that the empty checklist holds still publishes. Story 39.2's GET reuses FromRow, so that the event and the GET can't drift. Its
-/// lastCostUSD is read when the view is built (Story 39.9): the cost of the row's whole check-in, as Today counts it. It never
+/// nothing; a run now that the empty checklist holds still publishes. Story 39.2's GET reuses FromRow, so that the event and the GET are built by one rule. Its
+/// lastCostUSD is read when the view is built (Story 39.9): the cost of the row's whole check-in, from its Usage rows, so a view built before an act's
+/// read-only turn has recorded its Usage holds the decision's cost alone and the next view holds both. It never
 /// holds the SessionRef (the person is the stream), the checklist's text, the snapshot keys, the Item's Id or the decision's Ref, and no rendered text.
 Class OcuTalon.Live.Payload.Heartbeat Extends (%RegisteredObject, %JSON.Adaptor)
 {
@@ -30,8 +31,8 @@ Property LastOutcome As %String(%JSONFIELDNAME = "lastOutcome", MAXLEN = 32);
 /// True when the last beat's decision was a fallback.
 Property LastFallback As %Boolean(%JSONFIELDNAME = "lastFallback") [ InitialExpression = 0 ];
 
-/// The cost in USD of the last check-in: its Item's heartbeat Usage rows, its decision and on act its read-only turn, the rows Today counts
-/// (Ownership.CheckInCost). Empty while the beat is pending or when that read fails.
+/// The cost in USD of the last check-in: its Item's heartbeat Usage rows of any day, its decision and on act its read-only turn (Ownership.CheckInCost),
+/// and never less than the decision's own recorded cost. Empty while the beat is pending, when the row has no Item and when that read fails.
 Property LastCostUSD As %Numeric(%JSONFIELDNAME = "lastCostUSD", SCALE = 6);
 
 /// The last beat's decision trace session id (AD-26).
@@ -56,8 +57,9 @@ Property BackoffUntil As %String(%JSONFIELDNAME = "backoffUntil", MAXLEN = 20);
 /// row's own. traceHeaderId is the row's LastTraceSessionId and traceNamespace is the current namespace, both only when that id is set (AD-12, AD-26). With no row
 /// (row is "", a person with no beat yet) the payload holds only the settings, and lastFallback is empty so that it is left out of the JSON. The SessionRef,
 /// the checklist, the snapshot keys, LastItemId and LastDecisionRef are never copied. lastCostUSD is the sum of the session's heartbeat Usage rows of the
-/// row's LastItemId (Ownership.CheckInCost), not the row's own LastCostUSD (the decision's alone); it is empty while LastDecisionRef is empty and when the
-/// read fails, so that the card shows no cost rather than a partial one.
+/// row's LastItemId (Ownership.CheckInCost), not the row's own LastCostUSD (the decision's alone), except that a sum below LastCostUSD (the Item's rows
+/// were purged, AD-27) gives LastCostUSD. It is empty while LastDecisionRef is empty, when LastItemId is empty and when the read fails, so that the card
+/// shows no cost rather than a number the read could not support.
 ClassMethod FromRow(row As OcuTalon.Data.HeartbeatBeat, values As %DynamicObject) As OcuTalon.Live.Payload.Heartbeat
 {
 	Set payload = ..%New()
@@ -75,7 +77,7 @@ ClassMethod FromRow(row As OcuTalon.Data.HeartbeatBeat, values As %DynamicObject
 	Set payload.LastFallback = row.LastFallback
 	If row.LastDecisionRef '= "" {
 		Set cost = ##class(OcuTalon.Data.Ownership).CheckInCost(row.SessionRef, row.LastItemId, .sc)
-		If $SYSTEM.Status.IsOK(sc) Set payload.LastCostUSD = cost.costUSD
+		If $SYSTEM.Status.IsOK(sc) Set payload.LastCostUSD = $Select(+cost.costUSD < +row.LastCostUSD: row.LastCostUSD, 1: cost.costUSD)
 	}
 	If row.LastTraceSessionId '= "" {
 		Set payload.TraceHeaderId = row.LastTraceSessionId

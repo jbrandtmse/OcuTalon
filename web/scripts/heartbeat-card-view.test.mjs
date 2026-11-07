@@ -183,6 +183,7 @@ describe('the state line', () => {
       [480, 'Every 8 hours'],
       [1440, 'Every 24 hours'],
     ];
+    assert.deepEqual([60, ...others.map(([minutes]) => minutes)].sort((a, b) => a - b), INTERVALS.map((one) => one.minutes).sort((a, b) => a - b), 'the cases are every offered interval');
     for (const [interval, every] of others) {
       assert.equal(stateLine({ ...on, interval }, when), `${every}, 07:15 to 21:45 \u00b7 Next check-in 14:30`);
       assert.equal(stateLine({ ...on, interval, from: '', to: '' }, when), `${every} \u00b7 Next check-in 14:30`);

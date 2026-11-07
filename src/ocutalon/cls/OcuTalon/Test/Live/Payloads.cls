@@ -499,9 +499,9 @@ Method TestCheckFromRow()
 /// Heartbeat.FromRow (Story 39.7) builds the public view of an unsaved HeartbeatBeat row and the settings: every value below differs, so a field copied from
 /// the wrong property is caught. The JSON holds exactly the listed keys and none of the tokens that sit in the SessionRef, the snapshot keys, the Item's Id, the
 /// decision's Ref or the checklist; the trace pair is there only with a LastTraceSessionId. With no row (a person who has not had a beat) only the settings go out.
-/// lastCostUSD is not the row's LastCostUSD (0.012345, the decision's own) but the sum of the session's heartbeat Usage rows of the row's Item (Story 39.9,
-/// DW-824: 0.0002 + 0.0003; a row of the web channel on the same Item is not in it), and a row with no decision yet exports none. The fixture Usage rows are removed
-/// at the end.
+/// lastCostUSD is not the row's LastCostUSD (0.000234, the decision's own) but the sum of the session's heartbeat Usage rows of the row's Item (Story 39.9,
+/// DW-824: 0.0002 + 0.0003; a row of the web channel on the same Item is not in it); a row with no decision yet, a row with no Item and a read that fails export
+/// none, and an Item whose rows are gone (purged) exports the row's own. The fixture Usage rows are removed at the end.
 Method TestHeartbeatFromRow()
 {
 	Set fixture = "OcuTalon.Test.Data.Fixture"
@@ -516,7 +516,7 @@ Method TestHeartbeatFromRow()
 	Set row.LastItemId = "ZzHbItemTok"
 	Set row.LastOutcome = "ignore"
 	Set row.LastFallback = 1
-	Set row.LastCostUSD = 0.012345
+	Set row.LastCostUSD = 0.000234
 	Set row.LastDecisionRef = "ZzHbDecTok"
 	Set row.LastSkipAt = "2030-02-03T03:05:06Z"
 	Set row.LastSkipReason = "unchanged"
@@ -569,6 +569,18 @@ Method TestHeartbeatFromRow()
 	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values).%JSONExportToString(.json)
 	Set exported = ##class(%DynamicObject).%FromJSON(json)
 	Do $$$AssertEquals(exported.%IsDefined("lastCostUSD"), 0, "a decision with no Item to total exports no lastCostUSD, never a partial number")
+
+	// an Item with no Usage rows left (purged): the decision's own recorded cost, never 0
+	Set row.LastItemId = "ZzHbPurgedTok"
+	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values).%JSONExportToString(.json)
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(+exported.lastCostUSD, .000234, "an Item whose Usage rows are gone exports the row's own LastCostUSD")
+
+	// a read that fails (no session to read for): no cost
+	Set row.SessionRef = "", row.LastItemId = "ZzHbItemTok"
+	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values).%JSONExportToString(.json)
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.%IsDefined("lastCostUSD"), 0, "a failed Usage read exports no lastCostUSD")
 	Do $ClassMethod(fixture, "Clean", refs)
 }
 

@@ -2710,6 +2710,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 - 2026-11-02T14:56:21Z status=routed owner=burndown by=owner note=U-218_condition_2_(Planner_2026-11-02):30.7's_purge_must_cover_Delivery.Text_on_Telegram_rows_with_buttons(Story_12.7);1.0.0_has_no_Delivery_purge(accepted:redacted,no_chat_id,demo_wipes_every_4h);30.7_deferred_after_the_tag(d1)
 - 2026-11-02T21:12:36Z owner=30-7-epic-30-burn-down by=burndown note=ruling_d1(Contest_Planner,2026-11-02):30.7_entries_keep_owner_30-7;30.7_deferred_after_the_v1.0.0_tag(first_daily_release);conditions_unchanged(U-210/U-218_for_DW-437,U-215_for_DW-584)
+- 2026-11-07T08:44:42Z occurrence=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t
 
 ### DW-438: The OcuTalon heartbeat task's description (Install.Step.Schedule, 124 characters) is stored cut at 100 characters, mid-sentence, in the Task Manager
 - source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4075,6 +4076,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T10:42:06Z occurrence=39-2-save-your-heartbeat-settings-and-ask-for-a-beat note=312498d6 run 42199537340 attempt 1, image shard:lane-b, the same two tests, class red in 0.46 s; HeartbeatApi runs after GuideApi (name order) so a 39.2 test cannot precede it; 39.2 changes no guide, marker, Live.Publish or session-row path (new routes only); fixture sessions are fresh refs; a tick's empty-checklist skip writes only HeartbeatBeat (not in the Fingerprint) and publishes nothing (U-283). Same as DW-453 (pre-Epic 39)
 - 2026-11-06T17:45:12Z status=routed owner=burndown by=owner note=Planner 2026-11-06: flake (test race, not a shipped-behaviour defect); to the post-merge Epic 39 follow-up with DW-453's findings (print both fingerprints on failure)
 - 2026-11-07T06:22:36Z status=routed owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=load note=re-owned_to_Story_39.9_(SC-5_re-open,_Planner_rulings_2026-11-06);acceptance_bullet_in_epics.md
+- 2026-11-07T08:47:42Z status=wontfix-accepted by=adjudication note=Planner_ruling_2026-11-06_applied:GuideApi_TestOnlyTheMarkerChanges/TestRunAgain_now_print_both_fingerprints(and_done,view,fingerprint)_on_failure;race_not_fixed(cause_not_plain,not_in_Epic_39:inference_instance_incidents_of_the_watched_Orders_production_visible_to_the_fixture_session,Ownership_INCIDENTVISIBLE);stays_a_flake_class(one_rerun+occurrence) reopen_if=the_next_occurrence's_printed_fingerprints_show_an_entry_the_test_did_not_make
 
 ### DW-676: Beat.Read: an error status from one Ownership read or the Usage SQL read is pinned only through the whole-Read override (BrokenBeat), not per branch
 - source: spec-39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built.md | severity: low | fix-risk: low | footprint: in-story
@@ -4649,6 +4651,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T09:32:48Z status=routed owner=burndown by=cr note=footprint is in-epic (test-triage-heartbeat.sh is Lane A's in Epic 39), not out-of-footprint
 - 2026-11-06T17:45:12Z status=routed owner=burndown by=owner note=Planner 2026-11-06 (relayed by the orchestrator): no burn-down before Epic 39's merge; test hygiene goes to the post-merge Epic 39 follow-up story for Saturday's release (key epic-39-followup not yet in the tracker)
 - 2026-11-07T06:22:36Z status=routed owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=load note=re-owned_to_Story_39.9_(SC-5_re-open,_Planner_rulings_2026-11-06);acceptance_bullet_in_epics.md
+- 2026-11-07T08:47:42Z status=resolved-by:39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=adjudication note=docker/tests/lib-heartbeat-overview.sh_holds_the_shared_overview_bullet_rule;both_scripts_byte-identical_output_on_the_real_tree_and_under_M3a,M3b;M3c_reds_both;no_pin_removed
 
 ### DW-800: heartbeat-card.spec.ts HC8, HC10 and HC11 skip within 40 minutes of midnight UTC, so about 5.6 percent of runs leave the outcome texts, the run refusals and the event re-read unpinned
 - source: spec-39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now.md | severity: low | fix-risk: med | footprint: in-story
@@ -4723,6 +4726,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Planner live walk 2026-11-06 on 1.0.2: Save heartbeat On, Run the heartbeat now; decision Act with read-only checks; card Last check-in 12:20 PM Offered an action $0.0003 vs Today 1 check-in $0.0006
 - 2026-11-06T20:24:09Z status=routed owner=burndown by=orchestrator note=Epic 39 post-merge follow-up story (with DW-670, DW-785, Every hour): find what Today's total sums (second beat or decision, the notice, the run-now turn); make line and count agree or word the line to say what it sums; any text change is PUBLIC TEXT to the Planner
 - 2026-11-07T06:22:36Z status=routed owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=load note=re-owned_to_Story_39.9_(SC-5_re-open,_Planner_rulings_2026-11-06);acceptance_bullet_in_epics.md
+- 2026-11-07T08:47:42Z status=resolved-by:39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=adjudication note=Live.Payload.Heartbeat.FromRow_reads_Ownership.CheckInCost(the_Item's_heartbeat_Usage_rows,floor_the_row's_LastCostUSD);pinned_by_HeartbeatApi.TestGetCheckInCost(1_check-in,0.0003+0.0003=Today_0.0006),Payloads.TestHeartbeatFromRow,BeatOutcomes.TestAct(real_production);mutation_FromRow_back_to_row.LastCostUSD_red;build_0712077f+CR_patches
 
 ### DW-825: flake candidate: web e2e D5 (documents.spec.ts:146) waits 30 s for a filechooser after Enter on Add documents and times out
 - source: ci_run_42285847375 | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4781,3 +4785,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: DW-850 draft (Epic 17 runner A), item (iii); Planner ruling 2026-11-07 | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: Process/Decide.cls:1250 records rate_limited when the timer passes after a re-send; the guide row names only timeout; predates Story 17.2
 - 2026-11-07T04:55:03Z status=routed owner=burndown by=orchestrator note=voting week, docs only; any wording is PUBLIC TEXT for the Planner; NOT for 1.0.3 or 1.0.4
+
+### DW-859: Heartbeat card: Ownership.CheckInCost has no day bound while HeartbeatToday is day-bounded, so a check-in whose decision and read-only turn straddle instance-zone midnight reads more on Last check-in than on Today
+- source: spec-39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: checkInUsage (Ownership.cls Statement) has no RecordedAt bound; heartbeatUsage has one. Only a beat whose turn lands after local midnight (a few seconds a day) differs.
+- 2026-11-07T08:44:42Z status=by-design owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=cr note=spec Task SQL and Design Notes sum all of the Item's rows; a day bound would blank yesterday's last check-in; docs reworded

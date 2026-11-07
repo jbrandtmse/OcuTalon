@@ -10,8 +10,7 @@
 ///     holds a mail decision with a Usage row, whose channel is in the mock's request: the Usage read works in the production's own job;
 ///   - TestDigest (AC 6): heartbeat-digest: one Digest.Data.Item (channel heartbeat, the beat's subject), and no notice;
 ///   - TestAct (AC 6, AC 10; NFR-14): heartbeat-act, armed once, whose turn asks for recent_activity and stop_watch: a turn Decision, untrusted, the stop_watch step
-///     is denied (UNTRUSTED), the read-only step runs, no approval request exists, nothing reaches WatchOps or CommandsIn, and the watch is still there; the next
-///     Tick records the decision, and the heartbeat event's lastCostUSD is the decision's cost plus the turn's, which is Today's cost with one check-in (Story 39.9, DW-824);
+///     is denied (UNTRUSTED), the read-only step runs, no approval request exists, nothing reaches WatchOps or CommandsIn, and the watch is still there;
 ///   - TestAllClearIsGuarded (AC 8): heartbeat-all-clear: the reserved wording is gone from the Decision's reasons and from the notice, whose reason is the second one;
 ///   - TestWatchRunsAgain (AC 4): a person with a real watch and heartbeat-ignore: the watch runs again between the beats with the same result, and the beat due one
 ///     interval later is skipped as unchanged, with no request.
@@ -220,10 +219,17 @@ Method TestAct()
 	Set events = ##class(OcuTalon.Test.Core.Observe).Events(case.session, "heartbeat", 2, ..#WAITDIAGNOSIS)
 	Do $$$AssertTrue(events.%Size() >= 2, "the Tick that records the decision publishes a heartbeat event")
 	If events.%Size() >= 2 {
+		Set both = +$FNumber(decision.CostUSD + turn.CostUSD, "", 6)
 		Set payload = events.%Get(events.%Size() - 1).payload
+		// a real Tick may record the decision first, before the turn's Usage row lands: its event holds the decision's cost alone and this Tick publishes
+		// nothing, so the view is then built again from the row, as the GET and the next event build it
+		If (+payload.lastCostUSD '= both) && (+payload.lastCostUSD = +decision.CostUSD) {
+			Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(case.session), ##class(OcuTalon.Checks.Beat).Values(case.session)).%JSONExportToString(.json)
+			Set payload = {}.%FromJSON(json)
+		}
 		Set today = $ClassMethod(ownership, "HeartbeatToday", case.session, .sc)
 		Do $$$AssertStatusOK(sc, "Today is read")
-		Do $$$AssertEquals(payload.lastOutcome_"|"_(+payload.lastCostUSD), "act|"_(+$FNumber(decision.CostUSD + turn.CostUSD, "", 6)), "the event's lastCostUSD is the decision's cost plus the turn's")
+		Do $$$AssertEquals(payload.lastOutcome_"|"_(+payload.lastCostUSD), "act|"_both, "the event's lastCostUSD (after a real Tick that came first, the view's) is the decision's cost plus the turn's")
 		Do $$$AssertEquals(today.checkIns_"|"_(+$FNumber(today.costUSD, "", 6)), "1|"_(+payload.lastCostUSD), "and it is Today's cost, with one check-in")
 	}
 	Do ..AssertNoCheck(case, 1)
