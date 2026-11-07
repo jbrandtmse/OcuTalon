@@ -96,7 +96,14 @@
 # Story 19.6 (U-294) adds the licence-measured pin set and the PDF and Word reading:
 #   32. after path A's second run and after part p's install: docker/licences/gate.py check passes on <mgr>/python against the constraints
 #       file of the architecture (staged by stage_licence_gate), so every installed distribution is under an allowed licence and is pinned at
-#       its installed version, and gate.py notices writes a non-empty file that names every one of the 36 distributions;
+#       its installed version, and gate.py notices writes a non-empty file that names every one of the 36 distributions. Story 19.8 (DW-829)
+#       adds to check 32, from check_python_pins: certifi, charset_normalizer, idna, requests, typing_extensions and urllib3 import their pinned
+#       copies (each __file__ is under <mgr>/python with the sha256 of the pinned dist-info's RECORD, each __version__ is the pin), so that
+#       a stale copy of IPM's own dependencies fails the check; the folder's distributions before and after the install differ only in
+#       those six moving to the pins and the pins OcuTalon adds, and IPM's own packages (oras.provider and the rest) import as before; zpm
+#       "list" answers and the module's early RemoveStaleCopies Invoke gets the module root and the -bypass-py-deps flag as arguments. Path A
+#       then runs the same install command again: it replaces nothing and the checks hold. Part p, after its uninstall, shows that the uninstall
+#       leaves the Python folder's distributions in place, IPM still lists and still installs from the local repository;
 #   33. after the same two installs: OcuTalon.Docs.Extract.Read of Test.Docs.Samples' 3-page PDF and its headings .docx answers ok with page
 #       and heading markers, so the Python resources and the extraction category reached the IPM install. Check 30 also names pdfplumber
 #       0.11.10 and python-docx 1.1.2.
@@ -508,18 +515,56 @@ stage_licence_gate() {
   dc exec -T -u root iris chmod 555 "$LICENCES" || die "the licence gate folder could not be made read-only"
 }
 
+# IPM's own Python packages (its ORAS dependencies) and the six distributions of them that OcuTalon pins (Story 19.8, DW-829): the modules
+# whose import is recorded before and after the install.
+PY_SIX="certifi charset_normalizer idna requests typing_extensions urllib3"
+PY_IPM="attr attrs jsonschema jsonschema_specifications oras oras.provider referencing rpds"
+
+# python_imports: one CHK|imp|<module>|<1 or 0> line for each module of IPM's own packages and of the six, from a %SYS session: whether the
+# import works.
+python_imports() {
+  local mods="" m
+  for m in $PY_IPM $PY_SIX; do mods="$mods\"$m\","; done
+  printf '%s\n' "For m=${mods%,} { Set ok=1 Try { Do ##class(%SYS.Python).Import(m) } Catch { Set ok=0 } Write !,\"CHK|imp|\",m,\"|\",ok }" 'Halt' | iris_script %SYS
+}
+
+# python_state <python folder> <file in the container>: writes one line for each entry of the folder: "D <dist-info folder> <md5 of its RECORD,
+# or ->" and "T <other top-level item>".
+python_state() {
+  dc exec -T iris python3 - "$1" "$2" << 'EOP'
+import hashlib, os, sys
+target, out = sys.argv[1:3]
+lines = []
+for entry in sorted(os.listdir(target)):
+    if entry.endswith(".dist-info"):
+        try:
+            digest = hashlib.md5(open(os.path.join(target, entry, "RECORD"), "rb").read()).hexdigest()
+        except OSError:
+            digest = "-"
+        lines.append("D %s %s" % (entry, digest))
+    else:
+        lines.append("T %s" % entry)
+open(out, "w").write("\n".join(lines) + "\n")
+EOP
+}
+
 # snapshot_python_before: records the distributions that <mgr>/python holds now, just before the install command that installs the requirements
-# (the image's own packages, and IPM's own dependencies once IPM is loaded), for check 32.
+# (the image's own packages, and IPM's own dependencies once IPM is loaded): the dist-info names for check 32's gate, the folder's entries and
+# the imports of IPM's packages for check_python_pins (Story 19.8). It prints the dist-infos it found.
 snapshot_python_before() {
   local mgr
   mgr=$(manager_directory)
   [ -n "$mgr" ] || die "the manager directory could not be read, so the Python folder could not be recorded"
   dc exec -T iris sh -c "ls '${mgr}python' 2> /dev/null | grep '[.]dist-info\$' > /tmp/ocutalon-python-before.txt; true" || die "the Python folder could not be recorded"
+  python_state "${mgr}python" /tmp/ocutalon-python-before.state || die "the Python folder's entries could not be recorded"
+  python_imports | dc exec -T iris sh -c 'cat > /tmp/ocutalon-imports-before.txt' || die "the imports of IPM's packages could not be recorded"
+  echo "NOTE python before the install, <mgr>/python holds: $(dc exec -T iris cat /tmp/ocutalon-python-before.txt | tr -d '\r' | sed 's/[.]dist-info$//' | tr '\n' ' ')"
 }
 
 # check_licences <label> (check 32): the licence gate on what IPM installed into <mgr>/python, and the notices it writes. What IPM installed is
-# every distribution of the folder except one that snapshot_python_before found there and that is no pin of the constraints file (the image's own
-# Python packages and IPM's own dependencies: the gate is not theirs); a pin that was there already at its pinned version counts as installed.
+# every distribution of the folder except one that snapshot_python_before found there and whose name is no pin of the constraints file (the
+# image's own Python packages and IPM's own dependencies: the gate is not theirs); a pin that was there already counts as installed, and an
+# older copy of a pinned name that is still there fails the gate.
 check_licences() {
   local label=$1 mgr out rc named scratch=/tmp/ocutalon-installed
   mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
@@ -546,7 +591,7 @@ for entry in sorted(os.listdir(target)):
     if not entry.endswith(".dist-info"):
         continue
     name, _, version = entry[: -len(".dist-info")].rpartition("-")
-    if entry in before and pins.get(norm(name)) != version:
+    if entry in before and norm(name) not in pins:
         print("NOTE %s was in the folder before the install and is no pin: not gated" % entry[: -len(".dist-info")])
         continue
     os.symlink(os.path.join(target, entry), os.path.join(scratch, entry))
@@ -576,6 +621,223 @@ EOP
   else
     fail "$label: the notices name '$named' of the pinned distributions"
   fi
+}
+
+# check_imports <label> (check 32, Story 19.8, DW-829): certifi, charset_normalizer, idna, requests, typing_extensions and urllib3 import the pinned
+# copies. An OCUTALON session's Embedded Python imports each and prints __version__ ("" when it has none) and __file__; the container's python3
+# then requires that __file__ is under <mgr>/python, that the RECORD of the pinned dist-info <name>-<pin>.dist-info lists it with the sha256 of
+# the file (urlsafe base64, unpadded), and that __version__, when there is one, is the pin. The hash alone is not enough: urllib3's __init__.py is
+# the same in 2.6.3 and 2.8.0. One NOTE line for each module.
+check_imports() {
+  local label=$1 mgr imports out rc
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the import check did not run"
+    return
+  fi
+  imports=$(printf '%s\n' \
+    'Set b=##class(%SYS.Python).Import("builtins") For m="certifi","charset_normalizer","idna","requests","typing_extensions","urllib3" { Try { Set mod=##class(%SYS.Python).Import(m) Write !,"CHK|import|",m,"|",b.getattr(mod,"__version__",""),"|",b.getattr(mod,"__file__","") } Catch { Write !,"CHK|import|",m,"||" } }' \
+    'Halt' | iris_script OCUTALON)
+  out=$(dc exec -T iris python3 - "${mgr}python" "$LICENCE_CONSTRAINTS" "$imports" 2>&1 << 'EOP'
+import base64, csv, hashlib, os, re, sys
+target, constraints, imports = sys.argv[1:4]
+def norm(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+def vnorm(version):
+    return ".".join(str(int(part)) if part.isdigit() else part for part in version.split("."))
+pins = {}
+for line in open(constraints):
+    line = line.strip()
+    if line and not line.startswith("#"):
+        name, _, version = line.partition("==")
+        pins[norm(name)] = version
+seen = {}
+for line in imports.splitlines():
+    parts = line.strip().split("|", 4)
+    if len(parts) == 5 and parts[:2] == ["CHK", "import"]:
+        seen[parts[2]] = (parts[3], parts[4])
+root = os.path.realpath(target)
+stale = []
+for name in ["certifi", "charset_normalizer", "idna", "requests", "typing_extensions", "urllib3"]:
+    pin = pins.get(norm(name))
+    version, path = seen.get(name, ("", ""))
+    why = []
+    rel = "-"
+    if not path:
+        why.append("not imported")
+    else:
+        rel = os.path.relpath(os.path.realpath(path), root)
+        if rel.startswith(".."):
+            why.append("not under mgr/python")
+        else:
+            record = None
+            for entry in os.listdir(target):
+                base = entry[: -len(".dist-info")] if entry.endswith(".dist-info") else None
+                if base is not None and norm(base.rpartition("-")[0]) == norm(name) and vnorm(base.rpartition("-")[2]) == vnorm(pin):
+                    record = os.path.join(target, entry, "RECORD")
+            digest = base64.urlsafe_b64encode(hashlib.sha256(open(os.path.realpath(path), "rb").read()).digest()).rstrip(b"=").decode()
+            listed = [row for row in csv.reader(open(record)) if row and row[0] == rel] if record else []
+            if record is None:
+                why.append("no pinned dist-info")
+            elif not listed or listed[0][1] != "sha256=" + digest:
+                why.append("not the file of the pinned RECORD")
+        if version and vnorm(version) != vnorm(pin):
+            why.append("version %s, pin %s" % (version, pin))
+    print("NOTE import %s %s %s %s%s" % (name, version or "-", rel, "stale" if why else "pinned", " (" + ", ".join(why) + ")" if why else ""))
+    if why:
+        stale.append(name)
+print("STALE " + ",".join(stale) if stale else "ALL PINNED")
+sys.exit(1 if stale else 0)
+EOP
+)
+  rc=$?
+  printf '%s\n' "$out" | tr -d '\r' | grep '^NOTE' | sed 's/^/  /'
+  if [ "$rc" -eq 0 ]; then
+    pass "$label: certifi, charset_normalizer, idna, requests, typing_extensions and urllib3 import their pinned copies (version and RECORD hash)"
+  else
+    fail "$label: the import check fails for $(printf '%s\n' "$out" | tr -d '\r' | sed -n 's/^STALE //p')"
+  fi
+}
+
+# check_python_moves <label> [<state file of the install>] (check 32, Story 19.8): the folder <mgr>/python now against what snapshot_python_before
+# recorded. The only differences allowed are the stale copies of pinned names (the six) gone and the pins in their place, and the pins that the
+# install adds: every other dist-info is there with the same RECORD, every top-level item is still there, and every module of IPM's packages that
+# imported before imports now. Writes the current state to /tmp/ocutalon-python-after.state.
+check_python_moves() {
+  local label=$1 mgr out rc now
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the folder comparison did not run"
+    return
+  fi
+  python_state "${mgr}python" /tmp/ocutalon-python-after.state || { fail "$label: the Python folder's entries could not be recorded"; return; }
+  now=$(python_imports)
+  out=$(dc exec -T iris python3 - "$LICENCE_CONSTRAINTS" /tmp/ocutalon-python-before.state /tmp/ocutalon-python-after.state /tmp/ocutalon-imports-before.txt "$now" 2>&1 << 'EOP'
+import re, sys
+constraints, before_file, after_file, imports_before, imports_after = sys.argv[1:6]
+def norm(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+def vnorm(version):
+    return ".".join(str(int(part)) if part.isdigit() else part for part in version.split("."))
+pins = {}
+for line in open(constraints):
+    line = line.strip()
+    if line and not line.startswith("#"):
+        name, _, version = line.partition("==")
+        pins[norm(name)] = version
+def load(path):
+    dists, tops = {}, set()
+    for line in open(path):
+        parts = line.split()
+        if parts and parts[0] == "D":
+            dists[parts[1]] = parts[2]
+        elif parts and parts[0] == "T":
+            tops.add(parts[1])
+    return dists, tops
+def split(entry):
+    name, _, version = entry[: -len(".dist-info")].rpartition("-")
+    return norm(name), name, version
+bd, bt = load(before_file)
+ad, at = load(after_file)
+problems, moved, added = [], [], []
+for entry, digest in sorted(bd.items()):
+    key, name, version = split(entry)
+    pin = pins.get(key)
+    if pin is not None and vnorm(version) != vnorm(pin):
+        moved.append("%s %s -> %s" % (name, version, pin))
+        if entry in ad:
+            problems.append("%s is still in the folder" % entry)
+        if not any(split(e)[0] == key and vnorm(split(e)[2]) == vnorm(pin) for e in ad):
+            problems.append("%s %s is not in the folder" % (name, pin))
+    elif entry not in ad:
+        problems.append("%s is gone" % entry)
+    elif ad[entry] != digest:
+        problems.append("%s changed" % entry)
+for entry in sorted(ad):
+    if entry not in bd:
+        key, name, version = split(entry)
+        if key in pins and vnorm(pins[key]) == vnorm(version):
+            added.append(entry)
+        else:
+            problems.append("%s was added and is no pin" % entry)
+for item in sorted(bt - at):
+    problems.append("top-level item %s is gone" % item)
+def imports(text):
+    return dict(re.findall(r"CHK\|imp\|([^|]+)\|(\d)", text))
+ib, ia = imports(open(imports_before).read()), imports(imports_after)
+for module, ok in sorted(ib.items()):
+    if ok == "1" and ia.get(module) != "1":
+        problems.append("%s imported before the install and does not now" % module)
+print("NOTE python folder: %d distributions before, %d after; %d moved to the pins%s; %d pinned distributions added" % (len(bd), len(ad), len(moved), (": " + ", ".join(moved)) if moved else "", len(added)))
+print("NOTE imports before and after: %s" % ", ".join("%s %s>%s" % (m, ib[m], ia.get(m, "-")) for m in sorted(ib)))
+for problem in problems:
+    print("PROBLEM " + problem)
+sys.exit(1 if problems else 0)
+EOP
+)
+  rc=$?
+  printf '%s\n' "$out" | tr -d '\r' | grep -e '^NOTE' -e '^PROBLEM' | cut -c1-400 | sed 's/^/  /'
+  if [ "$rc" -eq 0 ]; then
+    pass "$label: the Python folder differs from before the install only by the six moving to the pins and the pins added, and IPM's own packages import as before"
+  else
+    fail "$label: the Python folder differs from before the install by more than the six moving to the pins and the pins added, or an IPM package no longer imports"
+  fi
+}
+
+# check_ipm_alive <label> <module pattern> (check 32, Story 19.8): IPM still works in OCUTALON: zpm "list" answers without an error and shows the
+# pattern (a module name; "." for any text).
+check_ipm_alive() {
+  local out
+  out=$(printf '%s\nHalt\n' 'zpm "list"' | dc exec -T iris iris session IRIS -U OCUTALON 2>&1 | tr -d '\r' | strip_ansi)
+  printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | head -n 12 | cut -c1-200 | sed 's/^/  zpm list: /'
+  if printf '%s\n' "$out" | grep -q -e "$2" && ! printf '%s\n' "$out" | grep -q -e '^ERROR' -e 'FAILURE' -e '<[A-Z]*>'; then
+    pass "$1: zpm \"list\" answers in OCUTALON without an error"
+  else
+    fail "$1: zpm \"list\" gave an error or no answer"
+  fi
+}
+
+# check_invoke_args <label> (check 32, Story 19.8): the installed module's Reload Invoke of RemoveStaleCopies gets the module root and the
+# -bypass-py-deps flag as its arguments: with a root set on the module, the first argument is that root and the second is 0, and 1 with
+# pParams("BypassPyDeps") set, as the -bypass-py-deps modifier sets it.
+check_invoke_args() {
+  check_session "$1: the Reload Invoke of RemoveStaleCopies gets the module root, and the -bypass-py-deps flag (0, and 1 when set)" OCUTALON \
+    "CHK|args|1|/zz/root/|0|1|Reload|Before" \
+    'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon"),n=0 If $IsObject(m) { Set m.Root="/zz/root" Set key="" For { Set inv=m.Invokes.GetNext(.key) Quit:key=""  If inv.Method="RemoveStaleCopies" { Set n=n+1 Kill p,a Do inv.GetArgsArray(.p,.a) Set a1=a(1),a2=a(2) Set p("BypassPyDeps")=1 Kill a Do inv.GetArgsArray(.p,.a) Write !,"CHK|args|",n,"|",a1,"|",a2,"|",a(2),"|",inv.Phase,"|",inv.When } } }' \
+    'Halt'
+}
+
+# check_python_pins <label> (check 32, Story 19.8, DW-829): the imports of the six, the folder against what it held before, IPM's answer and the
+# Invoke's arguments, on what the install left.
+check_python_pins() {
+  local started=$SECONDS
+  check_imports "$1"
+  check_python_moves "$1"
+  check_ipm_alive "$1" ocutalon
+  check_invoke_args "$1"
+  echo "TIME python-pins $((SECONDS - started))s"
+}
+
+# check_reinstall (check 32, Story 19.8): the install command again in OCUTALON, from the same folder: it ends in Activate SUCCESS without an
+# error and replaces nothing (no STEP Python line), and the checks of check_python_pins hold, with the folder the same as before it.
+check_reinstall() {
+  local f="$tmp/reinstall-same.txt" started=$SECONDS
+  snapshot_python_before
+  run reinstall-same OCUTALON "$INSTALL"
+  if grep -q 'Activate SUCCESS' "$f" && ! grep -q 'FAILURE' "$f" && ! grep -q '^ERROR!' "$f"; then
+    pass "reinstall: the install command again ends in Activate SUCCESS without an error"
+  else
+    fail "reinstall: the install command again did not end in Activate SUCCESS"
+  fi
+  if ! grep -q '^STEP Python ' "$f"; then
+    pass "reinstall: the early step replaced nothing (no STEP Python line)"
+  else
+    grep '^STEP Python ' "$f" | sed 's/^/  /'
+    fail "reinstall: the early step replaced a distribution on the second install"
+  fi
+  check_python_pins "reinstall"
+  check_licences "reinstall"
+  echo "TIME reinstall-checks $((SECONDS - started))s"
 }
 
 # check_extract <label> (check 33): the PDF and Word reading works in the installed package.
@@ -1553,6 +1815,7 @@ part_p() {
   run p-second OCUTALON 'zpm "install ocutalon"'
   check_run_ok p-second "part p, the same command in OCUTALON"
   check_licences "part p"
+  check_python_pins "part p"
   check_extract "part p"
   check_signin "part p" logout
   take_snapshot p-second "part p second command"
@@ -1562,7 +1825,75 @@ part_p() {
   take_snapshot p-uninstall "part p uninstall"
   h2=$(defs_hash)
   uninstall_checks "$h0" "$h1" "$h2"
+  check_uninstall_python "part p uninstall"
+  run p-again USER 'zpm "install ocutalon"'
+  stops_with_next_command p-again "part p, the install command in USER after the uninstall (from the local repository)"
   echo "TIME p-fresh $((SECONDS - started))s"
+}
+
+# check_uninstall_python <label> (check 32, Story 19.8, DW-829 condition 3): after the uninstall, the Python folder holds every distribution and
+# every top-level item that it held after the install, but the two Python resources that the uninstall's FileCopy removal may take
+# (ocutalon_extract.py and ocutalon_memory.py), so the six stay in place; they still import their pinned copies, IPM's own packages import as
+# before the install and zpm "list" answers.
+check_uninstall_python() {
+  local label=$1 mgr out rc now started=$SECONDS
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the folder comparison did not run"
+    return
+  fi
+  python_state "${mgr}python" /tmp/ocutalon-python-uninstalled.state || { fail "$label: the Python folder's entries could not be recorded"; return; }
+  now=$(python_imports)
+  out=$(dc exec -T iris python3 - /tmp/ocutalon-python-after.state /tmp/ocutalon-python-uninstalled.state /tmp/ocutalon-imports-before.txt "$now" 2>&1 << 'EOP'
+import re, sys
+after_file, gone_file, imports_before, imports_after = sys.argv[1:5]
+def load(path):
+    dists, tops = {}, set()
+    for line in open(path):
+        parts = line.split()
+        if parts and parts[0] == "D":
+            dists[parts[1]] = parts[2]
+        elif parts and parts[0] == "T":
+            tops.add(parts[1])
+    return dists, tops
+ad, at = load(after_file)
+ud, ut = load(gone_file)
+resources = {"ocutalon_extract.py", "ocutalon_memory.py"}
+problems = []
+for entry, digest in sorted(ad.items()):
+    if entry not in ud:
+        problems.append("%s is gone" % entry)
+    elif ud[entry] != digest:
+        problems.append("%s changed" % entry)
+for entry in sorted(set(ud) - set(ad)):
+    problems.append("%s was added" % entry)
+for item in sorted(at - ut):
+    if item not in resources:
+        problems.append("top-level item %s is gone" % item)
+for item in sorted(ut - at):
+    problems.append("top-level item %s was added" % item)
+def imports(text):
+    return dict(re.findall(r"CHK\|imp\|([^|]+)\|(\d)", text))
+ib, ia = imports(open(imports_before).read()), imports(imports_after)
+for module, ok in sorted(ib.items()):
+    if ok == "1" and ia.get(module) != "1":
+        problems.append("%s imported before the install and does not now" % module)
+print("NOTE after the uninstall: %d distributions (%d after the install); removed top-level items: %s" % (len(ud), len(ad), ", ".join(sorted(at - ut)) or "none"))
+for problem in problems:
+    print("PROBLEM " + problem)
+sys.exit(1 if problems else 0)
+EOP
+)
+  rc=$?
+  printf '%s\n' "$out" | tr -d '\r' | grep -e '^NOTE' -e '^PROBLEM' | cut -c1-400 | sed 's/^/  /'
+  if [ "$rc" -eq 0 ]; then
+    pass "$label: the uninstall leaves the Python folder's distributions in place (only the two Python resources may go), and IPM's own packages import as before"
+  else
+    fail "$label: the uninstall removed or changed a distribution of the Python folder, or an IPM package no longer imports"
+  fi
+  check_imports "$label"
+  check_ipm_alive "$label" .
+  echo "TIME uninstall-python $((SECONDS - started))s"
 }
 
 # uninstall_checks <hash before the first command> <hash before the uninstall> <hash after it> (U-232 condition 1; the hashes are
@@ -1735,12 +2066,14 @@ if [ "$mode" != b ]; then
     check_install
     check_memory
     check_licences "install checks"
+    check_python_pins "install checks"
     check_extract "install checks"
     check_web
     check_package
     check_demo_switch
     check_start_outside
     check_start_by_step
+    check_reinstall
   fi
   if [ "$mode" != a ]; then reinstall_failures; fi
 fi

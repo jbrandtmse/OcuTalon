@@ -132,3 +132,51 @@ Compared with the three hosts the README and `docs/install-ipm.md` name today (p
 - Ran only path A (`a`) for M1/M2, not part p: part p installs the same module through the same IPM pip step into a fresh instance of the same image, so it has the same starting `<mgr>/python` (inference; the implement stage's `p` run measures it).
 - For the pip dry-run, used a platform list rather than the single `--platform` in the spec text (the single tag finds no cffi wheel); same index, same wheels.
 - Recorded only hosts, not signed URLs, for redirect targets.
+
+## Implement stage follow-up (2026-11-07): part p's start, the fix, M3, M4 and the uninstall
+
+Measured by the Epic 19 runner (lane C), stage "implement", with `release/ipm-install.sh` (local folder and local artifact only; the public IPM registry was never used). Lane variables on every call: `OCUTALON_LOCK_DIR=<lane-c lock folder> OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=19 stage=implement'`, run tag `e19s8i`.
+
+### Part p's starting state (before the first install command)
+
+`<mgr>/python` of part p's fresh instance holds the same 11 dist-infos as path A's: attrs 25.1.0, certifi 2025.1.31, charset_normalizer 2.1.1, idna 3.15, jsonschema 4.23.0, jsonschema_specifications 2024.10.1, oras 0.1.30, referencing 0.36.2, requests 2.32.3, typing_extensions 4.12.2, urllib3 2.6.3. The inference of the Task 0 stage (same starting folder) holds.
+
+### The import check red on the unfixed tree (AC2)
+
+`bash release/ipm-install.sh p` on the tree with the new checks and without the fix (no Reload Invoke in the manifests), which is the unfixed install: every pinned dist-info sat beside the old one, and check 32 failed three ways:
+- the licence gate (its skip rule now gates an older copy of a pinned name): `certifi is installed at 2025.1.31 but pinned at 2026.10.23`, and the same for charset-normalizer, idna, requests, typing_extensions and urllib3 (6 places);
+- the import check: `NOTE import <name> ... stale` for all six (certifi 2025.01.31, charset_normalizer 2.1.1, idna 3.15, requests 2.32.3, typing_extensions with no version, urllib3 2.6.3), each with the reason (not the file of the pinned RECORD; urllib3 only by its version: `__version__` 2.6.3, pin 2.8.0, the same `__init__.py` hash in both);
+- the folder comparison: `PROBLEM <name>-<old>.dist-info is still in the folder` for the six.
+
+### M3 (fix wiring) and the folder comparison, after the fix
+
+Path A's second run and part p's second command, both after the fix: the output has, between `Reload START` and `requirements.txt START`, one line for each replaced distribution, in dist-info name order:
+```
+STEP Python replaced certifi 2025.1.31 with 2026.10.23
+STEP Python replaced charset_normalizer 2.1.1 with 3.5.2
+STEP Python replaced idna 3.15 with 3.20
+STEP Python replaced requests 2.32.3 with 2.34.2
+STEP Python replaced typing_extensions 4.12.2 with 4.16.0
+STEP Python replaced urllib3 2.6.3 with 2.8.0
+```
+- Check 32 passes on both: the gate gates 36 distributions (it gated 42 on the unfixed tree), the notices name all 36, and the import check prints `pinned` for all six (certifi 2026.10.23, charset_normalizer 3.5.2, idna 3.20, requests 2.34.2, typing_extensions with no version, urllib3 2.8.0), each `__file__` under `<mgr>/python` with the sha256 of the pinned RECORD.
+- Condition 2, before and after: the folder held 11 distributions before and 41 after (11 minus the six old ones plus the 36 pins). The only differences are the six moving to the pins and the pins added; the other five dist-infos (attrs, jsonschema, jsonschema_specifications, oras, referencing) have the same RECORD checksum, every top-level item that was there is still there (`bin/` with `normalizer`, `rpds.py`, `__pycache__`, the five packages), and each of attr, attrs, jsonschema, jsonschema_specifications, oras, oras.provider, referencing and rpds imports before (1) and after (1), as do the six. `zpm "list"` answers in OCUTALON (`ocutalon 1.0.1`).
+- Idempotence: path A's install command again, from the same folder, ends in Activate SUCCESS with no `STEP Python` line, the folder is the same (41 before, 41 after, 0 moved, 0 added), and the import check and the gate pass again. Path B's reinstall of the next version (check 25) also passes.
+
+### M4 (Invoke arguments)
+
+In OCUTALON after the install, `GetArgsArray` of the installed module's `RemoveStaleCopies` Invoke, with a root set on the module (`/zz/root`): the first argument is `/zz/root/`, the second is `0` with `pParams("BypassPyDeps")` unset, and `1` with it set to 1 (the value the `-bypass-py-deps` modifier sets: `dataAlias="BypassPyDeps" dataValue="1"` in IPM 0.10.10's `%IPM.Main` help). The Invoke's Phase is `Reload` and When is `Before`. So the `<Default Name="BypassPyDeps" Value="0"/>` line reaches the arguments and `${root}` is the module root (the folder that holds `requirements.txt`: the step replaced the six there). Both checks are part of check 32 (`check_invoke_args`), on path A and part p.
+
+### The uninstall (condition 3), part p
+
+`zpm "uninstall ocutalon"` in OCUTALON, right after the install and the checks above: it ends without FAILURE or an ERROR! line and removes OCUTALON's three repository mappings. In `<mgr>/python` the only top-level items that go are the two resources it copied, `ocutalon_extract.py` and `ocutalon_memory.py`. All 41 distributions (the six at their pins included) and every other top-level item stay, with the same RECORD checksums. After it: the six import their pinned copies (version and hash), every IPM package imports as before the install, `zpm "list"` answers, and `zpm "install ocutalon"` in USER (from the local repository) stops with the stop sentence as the first command does. The uninstall leaves the six in place, so nothing was changed for condition 3.
+
+### The image and the Docker path
+
+The Docker path loads the manifest with the new Invoke: the warm stack's after-start log has `STEP package loaded (not installed)` and `RESULT OK 1.0.1`, no `STEP Python` line, and the durable `mgr/python` still holds IPM's 11 dist-infos (the image path has no `requirements.txt` at `/opt/ocutalon/src`, so the step removes nothing). `ci/iris.sh live install-start` passes its first rows (the first start, the restart, the dev start, the foreign and partial states) and then fails at row 4's last restart, "did not end ready within 200 s", on this loaded host (load average 8 to 12). It fails the same way with the Invoke and the Default lines removed from `src/module.xml`, so the failure is not caused by this change; CI's run is the check.
+
+### Times (the added IPM-check time)
+
+- Path A: `python-pins` 1 s, plus the install command again, `reinstall-same` 71 s, with its checks 74 s in all (`reinstall-checks`), on a quiet host; 95 to 97 s on a loaded host.
+- Part p: `python-pins` 2 s, `uninstall-python` 1 s, and `p-again` 3 s: about 6 s.
+- The second command itself is unchanged in length (the step adds under a second): `second-ocutalon` 76 s (quiet host) against 91 to 113 s in the runs on the loaded host.

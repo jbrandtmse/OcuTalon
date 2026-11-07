@@ -34,6 +34,9 @@
 #      for equal hashes with at least one node, and prints none (U-232 condition 1);
 #  15. (QA of Story 15.4) docs/security-overview.md holds the ruled Data bullet on the repository mapping (U-232 condition 3).
 #  16. (Story 15.4) release/ipm-install.sh with no argument, the job's run, ends with part p (AC 5).
+#  17. (Story 19.8, DW-829) the manifests (src/module.xml and module.xml) invoke OcuTalon.Install.Ipm RemoveStaleCopies once, at Reload, Before,
+#      with the module root and ${BypassPyDeps} as its arguments, on a line of its own after the MapAndStop Invoke, and declare the Default
+#      BypassPyDeps (0) once; no other Invoke runs at Reload, so IPM's pip step finds the stale copies of the pinned packages removed.
 # Each rule first runs on synthetic files, one that keeps it and one that breaks it, so a rule that can no longer fail makes the
 # test fail. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -580,6 +583,52 @@ else
   fail "rule 13 on samples: the checker accepts a manifest without the exact Unconfigure Invoke after the Configure Invoke, or rejects the right one"
 fi
 
+# 17. The early Reload Invoke of the stale-copy step (Story 19.8): the exact Invoke, once, after the MapAndStop line, the exact Default once, and no
+# other Invoke at Reload or of that method.
+STALE_ELEMENT='<Invoke Class="OcuTalon.Install.Ipm" Method="RemoveStaleCopies" Phase="Reload" When="Before"><Arg>${root}</Arg><Arg>${BypassPyDeps}</Arg></Invoke>'
+DEFAULT_ELEMENT='<Default Name="BypassPyDeps" Value="0"/>'
+stale_step_declared() {
+  awk -v inv="$INVOKE_ELEMENT" -v st="$STALE_ELEMENT" -v def="$DEFAULT_ELEMENT" '
+    { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line == inv { if (!seen) seen = NR }
+    line == st { nst++; if (!seen) before = 1 }
+    line == def { ndef++ }
+    line ~ /^<Invoke[ \/>]/ && line ~ /Phase="Reload"/ && line != st { bad = 1 }
+    line ~ /RemoveStaleCopies/ && line != st { bad = 1 }
+    line ~ /^<Default[ \/>]/ && line != def { bad = 1 }
+    END { exit (nst == 1 && ndef == 1 && !before && !bad) ? 0 : 1 }' "$1"
+}
+cat > "$tmp/manifest.stale" <<EOM
+<Module>
+  $DEFAULT_ELEMENT
+  $CPF_ELEMENT
+  $PRELOAD_ELEMENT
+  $INVOKE_ELEMENT
+  $STALE_ELEMENT
+  $IPM_ELEMENT
+</Module>
+EOM
+grep -v 'RemoveStaleCopies' "$tmp/manifest.stale" > "$tmp/manifest.stale-none"
+grep -v 'BypassPyDeps="0"\|<Default ' "$tmp/manifest.stale" > "$tmp/manifest.stale-nodefault"
+{ cat "$tmp/manifest.stale"; echo "  $STALE_ELEMENT"; } > "$tmp/manifest.stale-twice"
+awk -v st="  $STALE_ELEMENT" -v inv="  $INVOKE_ELEMENT" '$0 == inv { held = $0; next } $0 == st { print; print held; next } { print }' "$tmp/manifest.stale" > "$tmp/manifest.stale-first"
+sed '/RemoveStaleCopies/ s/Phase="Reload"/Phase="Validate"/' "$tmp/manifest.stale" > "$tmp/manifest.stale-phase"
+sed '/RemoveStaleCopies/ s/When="Before"/When="After"/' "$tmp/manifest.stale" > "$tmp/manifest.stale-after"
+sed '/RemoveStaleCopies/ s/<Arg>${BypassPyDeps}<\/Arg>//' "$tmp/manifest.stale" > "$tmp/manifest.stale-arg"
+sed 's/Name="BypassPyDeps" Value="0"/Name="BypassPyDeps" Value="1"/' "$tmp/manifest.stale" > "$tmp/manifest.stale-value"
+{ cat "$tmp/manifest.stale"; echo '  <Invoke Class="OcuTalon.Install.Registry" Method="Run" Phase="Reload" When="After"/>'; } > "$tmp/manifest.stale-other"
+{ cat "$tmp/manifest.stale"; echo '  <Invoke Class="OcuTalon.Install.Registry" Method="Run" Phase="Activate" When="After"/>'; } > "$tmp/manifest.stale-later"
+if stale_step_declared "$tmp/manifest.stale" && stale_step_declared "$tmp/manifest.stale-later" && ! stale_step_declared "$tmp/manifest.stale-none" \
+  && ! stale_step_declared "$tmp/manifest.stale-nodefault" && ! stale_step_declared "$tmp/manifest.stale-twice" && ! stale_step_declared "$tmp/manifest.stale-first" \
+  && ! stale_step_declared "$tmp/manifest.stale-phase" && ! stale_step_declared "$tmp/manifest.stale-after" && ! stale_step_declared "$tmp/manifest.stale-arg" \
+  && ! stale_step_declared "$tmp/manifest.stale-value" && ! stale_step_declared "$tmp/manifest.stale-other"; then
+  pass "rule 17 on samples: the Reload Invoke and the Default pass, also beside an Invoke of a later phase; none, no Default, two Invokes, one before MapAndStop, another phase, When=After, a changed argument or Default, or another Invoke at Reload fails"
+else
+  fail "rule 17 on samples: the checker accepts a manifest without the exact Reload Invoke and Default after MapAndStop, or rejects the right one"
+fi
+
+stale_step_declared_both() { stale_step_declared src/module.xml && stale_step_declared module.xml; }
+
 # 14. The repository definitions stay private (Story 15.4, QA; U-232 condition 1 and the Boundaries): release/ipm-install.sh adds its
 # repository in a session whose output is discarded, never lists repositories, keeps each hash of USER's definitions in a variable and never
 # prints it; and uninstall_checks passes only when the hash after the uninstall equals the hash before it and the one before the first
@@ -716,6 +765,7 @@ check "rule 10: $manifest declares the exact SystemRequirements element once" sy
 check "rule 11: $install_doc starts in USER, quotes IPM's refusal exactly as release/ipm-install.sh asserts it and sends the reader back to USER" ns_doc_ok "$install_doc" "$script_refusal"
 check "rule 12: $install_doc opens with the registry install: enable -community before the first install command, the shared-repositories sentence, and no Node.js before the developers' section" registry_doc_ok "$install_doc"
 check "rule 13: $manifest invokes OcuTalon.Install.Ipm UnmapRepos once, at Unconfigure, Before, after the Configure Invoke" unmap_declared "$manifest"
+check "rule 17: $manifest and module.xml invoke OcuTalon.Install.Ipm RemoveStaleCopies once, at Reload, Before, after MapAndStop, with the Default BypassPyDeps" stale_step_declared_both
 check "rule 14: release/ipm-install.sh adds its repository with the output discarded, never lists repositories and never prints a hash of the definitions" defs_private release/ipm-install.sh
 check "rule 15: docs/security-overview.md carries the ruled Data bullet on the repository mapping" overview_bullet_ok docs/security-overview.md
 check "rule 16: release/ipm-install.sh with no argument, the job's run, runs part p" part_p_in_job release/ipm-install.sh

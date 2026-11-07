@@ -2,14 +2,30 @@
 title: 'Epic 19 burn-down: the IPM install imports the pinned packages, and the docs name the hosts it contacts'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'e96be4f3014c6979b99f96f35710e5a89ef1f550'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md'
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/19-6-task0-extraction.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The two sample-output blocks of docs/install-ipm.md show an install without the six `STEP Python replaced <name> <old> with <pin>` lines that a plain instance's second command now prints between `Reload START` and `requirements.txt START`.
+    evidence: |-
+      evidence/19-8-task0-install-accuracy.md (M3): path A's second run and part p's second command print the six lines on a plain build 154 instance. The blocks are real runs of an earlier build (DW-784); this story may edit only the host list and the disclosure bullet of the page (Epic 17 edits the rest), and test-cpf rule 9 reads only the STEP lines inside Configure, so nothing fails.
+    location: >-
+      docs/install-ipm.md:151
+    severity: low
+  - summary: >-
+      A process that imported the old requests, urllib3 or certifi before the step ran may lazily import from files the step removed, until it restarts.
+    evidence: |-
+      Edge Case Hunter (unverified). Path A and part p finish with Activate SUCCESS and IPM answers afterwards, but a registry install (forbidden here) downloads the module through ORAS in the same process before the Reload phase.
+      What would settle it: a registry install of the package on a plain instance, run by the owner or the Planner.
+    location: >-
+      src/preload/cls/OcuTalon/Install/Ipm.cls (RemoveStaleCopies)
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -144,6 +160,58 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-07 -- Review pass
+- verdicts: 43 findings -- high 0, medium 6, low 35, false 1, maybe-false 1
+- findings:
+  - Blind Hunter
+    - `[medium]` `[patch]` Dist-info removed although an item failed to go (Replace ignores RemoveItem's result) -- fixed: `Replace` keeps the dist-info and writes no STEP line when an owned item still exists after the attempt, so the next call retries; the doc comment no longer claims a failed removal leaves the install as it was (`TestSymlinkOutside`).
+    - `[low]` `[reject]` Empty `Catch {}` writes nothing -- spec-bound: the Boundaries and the Decided-in-stage note make the step quiet and always OK so a failure leaves today's state and check 32 shows it.
+    - `[low]` `[patch]` `RecordTops` `$Translate(x, "", "/")` is a no-op -- the dead call is removed (RECORD paths use `/`).
+    - `[low]` `[reject]` NormalizeVersion does not treat PEP 440 spellings (1.0 and 1.0.0) as equal -- hypothetical for the 36 current pins (path A's reinstall replaces nothing); the fix adds a parser, more than a direct correction.
+    - `[low]` `[reject]` No test for the symlink guard, dist-info with several hyphens, a different spelling, a partial failure -- the symlink and partial-failure parts are patched (`TestSymlinkOutside`); the others have no reachable failure on the pinned set.
+    - `[low]` `[reject]` "IPM's own packages work with these versions" is not backed for a registry install -- the sentence is the Planner's ruled text with condition 2 as its gate (imports, `zpm "list"`, local-repository install); the registry is forbidden here.
+    - `[low]` `[reject]` Disclosure bullet omits that the replacement is permanent, `-bypass-py-deps` and what to do if another package needs the old versions -- ruled EXACT text.
+    - `[low]` `[reject]` The two hf.co download hosts are not seen on real traffic (HEAD evidence only) -- ruled EXACT text (Option 2, "in our test installs"); the spine union labels the chunk hosts inference.
+    - `[low]` `[patch]` Test label says "five hosts" while the expected string has six names -- label reworded.
+    - `[false]` `[reject]` Artifacts dated 2026-11-07 while "today" is 2026-11-06 -- the project's rulings, the spec and its AMENDED markers are dated 2026-11-07 by instruction; no wrong date.
+    - `[low]` `[reject]` Rule 17 placed before rule 14 and hard-codes the two manifest paths -- cosmetic; the script `cd`s to the root and checks both files.
+    - `[low]` `[reject]` `check_python_moves` returns before writing the after-state when the manager directory is unreadable, so part p's later check crashes with a traceback -- that path is already a FAIL; only the message differs.
+  - Edge Case Hunter
+    - `[medium]` `[patch]` RemoveItem failure ignored, dist-info removed, STEP claims a replacement -- same root cause as Blind Hunter's first row; fixed there.
+    - `[medium]` `[patch]` Partial removal leaves a half-removed package with no retry marker -- same root cause; fixed there.
+    - `[low]` `[reject]` Pip step fails after the removal, IPM's requests/urllib3/certifi stay deleted -- documented residual risk in Design Notes (the same command repeated restores them).
+    - `[low]` `[reject]` PEP 440 spelling -- same as Blind Hunter's row.
+    - `[maybe-false]` `[defer]` Running processes that imported the old modules before the files go -- see deferred.
+    - `[low]` `[patch]` `$Translate` no-op -- same root cause as Blind Hunter's row; fixed there.
+    - `[low]` `[reject]` Another package without a readable RECORD may own a shared folder -- every pip-installed wheel has a RECORD; no reachable case.
+    - `[low]` `[reject]` `requirements.txt` with a BOM or a `===` pin -- the file is the measured set; none of the 36 pins uses either.
+    - `[low]` `[reject]` `check_ipm_alive` with pattern "." after the uninstall is vacuous -- the error-token check carries the assertion; an empty list has no text to match.
+    - `[low]` `[reject]` `check_ipm_alive` ignores the session's exit status -- an unreadable session prints no list and no error token only if IRIS is down, which earlier checks already fail on.
+    - `[low]` `[reject]` `check_python_moves` would fail on a future pin that drops a top-level item -- hypothetical for a later bump, which would update the check.
+    - `[low]` `[reject]` State files split on whitespace -- no top-level entry of the folder has whitespace.
+    - `[low]` `[reject]` `stale_step_declared` awk misses a multi-line Invoke -- the manifests keep one element per line (rule 8 and 13 share the form).
+    - `[low]` `[reject]` Host regexp matches `.co` inside `.com` and reads every `pypi.org` line -- fails loudly on a mismatch, not silently; label patched separately.
+    - `[low]` `[reject]` Host claims "in our test installs" are partly HEAD evidence -- ruled EXACT text.
+    - `[medium]` `[patch]` "A failed removal leaves the install exactly as it is today" is false for a partial removal -- same root cause; fixed there (comment and behaviour).
+    - `[low]` `[reject]` Boundaries say the step prints nothing, the code prints a STEP line -- the Rulings' condition 1 requires the STEP line and binds over the Boundaries line; recorded in Decided in-stage.
+    - `[low]` `[reject]` Pinned dist's files are removed when stale and pinned dist-infos coexist -- that is the intended case (matrix "Both versions"); pip restores them.
+    - `[low]` `[reject]` Idempotence holds only up to leading-zero spelling -- same as the PEP 440 rows.
+    - `[low]` `[reject]` "IPM's own packages work" claim -- same as Blind Hunter's row.
+  - Verification Gap
+    - `[medium]` `[patch]` The resolve-to-inside-target guard has no isolated test -- `TestSymlinkOutside` added; mutations recorded below.
+    - `[medium]` `[patch]` `TestIdempotent` cannot fail if the step does nothing -- the first call's STEP line and removal are asserted now.
+    - `[low]` `[reject]` `AssertStatusOK` and the bad-input guards cannot fail -- the guards (`root = ""`, missing target) are redundant: with no pins or no folder nothing is removable; the status asserts pin "returns, never throws".
+    - `[low]` `[reject]` Live check branches have no `mutation:` line -- Rule 19 asks one demonstrated mutation per AC, recorded below; each branch needs a full IPM stack per mutation.
+    - `[low]` `[patch]` Label "five hosts" -- same root cause as Blind Hunter's row; fixed there.
+    - `[low]` `[reject]` Hermeticity of the shell checks (state files under /tmp) -- fails closed and order-dependent by design of the script.
+    - `[low]` `[patch]` `RecordTops` `$Translate` is a no-op -- same root cause as Blind Hunter's row; fixed there.
+  - Intent Alignment (descriptive; four divergences logged as rows)
+    - `[low]` `[reject]` "It prints nothing" versus the STEP line -- the Rulings (condition 1) bind.
+    - `[low]` `[reject]` A third docs bullet beyond A4 and A6 -- the ruled DISCLOSURE bullet.
+    - `[low]` `[reject]` `cas-server.xethub.hf.co` is from a `Link` header, not a redirect -- ruled Option 2 text.
+    - `[low]` `[reject]` The licence gate's skip rule changed -- required by the spec ("the skip rule becomes ...").
+- patches applied by the lead (the handoff subagent cannot be re-engaged): `src/preload/cls/OcuTalon/Install/Ipm.cls` and its byte copy `preload/cls/OcuTalon/Install/Ipm.cls` (keep the dist-info when an item stays; dead `$Translate` removed), `src/ocutalon/cls/OcuTalon/Test/Install/StaleCopies.cls` (`TestSymlinkOutside`, `TestIdempotent`), `docker/tests/test-release-sequence.sh` (a label).
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -184,6 +252,18 @@ deferred: []
 - The import check covers the six that the ruling names. The stale-copy rule is generic over all 36 pins, so a future overlap is fixed the same way.
 - No `ipm_artifact_check` change (B4's static check): part p's import check proves the artifact path end to end.
 - Path b gets no check 32, but it must stay green (reinstall with the step in place).
+- Implement stage (2026-11-07), in-stage decisions, each small and reversible inside this story:
+  - The step's text is `STEP Python replaced <name> <old> with <pin>`, one line for each replaced distribution, written after the removal at Reload (before `requirements.txt START`). It is outside the Configure block, so `step_names` and test-cpf rule 9 do not read it, and a reinstall writes nothing. The Rulings give the STEP line without wording; this wording is install-log text for the operator, built as the Rulings' condition 1 asks.
+  - Versions are compared after the leading zeros of their numeric parts are removed (`2025.01.31` is `2025.1.31`): pip writes the dist-info folder with the normalized version, and a pin may be typed either way. Without it a pinned copy would be called stale and replaced on every install. The ObjectScript step and both Python checks of the script do it.
+  - Every dist-info of the same normalized name counts as the stale distribution's own, for the ownership rule (the Boundaries name the pinned one; two stale versions of one name behave the same).
+  - `%File:FileSet` with includedirs returns every folder, not only the ones that match the wildcard, so the step keeps a folder only when its name ends in `.dist-info`. A folder is removed only when `ResolvePath` puts it inside the resolved target (a symlink out of the target is never followed); a `..` path is skipped before that as well.
+  - Part p's pins and path A's pins for the import check come from the staged constraints file (`stage_licence_gate`), which the existing test pins to the same 36 lines as `requirements.txt`; part p's container has no staged `requirements.txt`.
+  - `snapshot_python_before` also records the folder's entries (dist-info name and RECORD checksum, other top-level items) and whether IPM's packages import, and prints the dist-infos it found (part p's starting state). `check_python_pins` (imports of the six, folder comparison, `zpm "list"`, the Invoke's arguments) runs right after `check_licences` on path A and part p; path A then runs the install command again (`check_reinstall`: no `STEP Python` line, the checks again). Part p runs `check_uninstall_python` after its uninstall and then `zpm "install ocutalon"` in USER once more (the install from the local repository still answers with its stop sentence). The reinstall adds one full install command to path A (about 75 s on a quiet host).
+  - The uninstall (condition 3) removes only the two Python resources, so nothing was changed in it (evidence file).
+  - `Test.Install.StaleCopies` runs the step through a redirected device to read its STEP lines, with every file below its own `zz-stale-<job>-<n>` folder.
+  - The byte copy `preload/cls/OcuTalon/Install/Ipm.cls` (the root manifest's preload tree, pinned equal to `src/preload` by `test-pinned-sources.sh`) carries the same class.
+  - The host-list match is a new pair of checks in `test-release-sequence.sh static`: the hosts in the README paragraph and the install page bullet are the same set, and that set is the five measured hosts plus `hf.co`.
+  - IPM check time added (Verification, TIME lines): path A about 75 s, part p about 6 s.
 
 **Declined:** DW-830's second half ("the docs do not say what a blocked download looks like"). The Planner's ruling of 2026-11-07 scopes DW-830 to the host list. A blocked-download sentence would be new PUBLIC TEXT that nobody has ruled. DW-829 and DW-830's host list are addressed by Task 0, the import check, the conditional fix and the last task.
 
@@ -252,9 +332,47 @@ Targets (lane C): `e19s8i0` (Task 0), warm `e19s8iw` (`ci/warm.sh up` once, `dow
 
 Every test added or changed passes on a fresh environment, in either order.
 
+**Results (implement stage, 2026-11-07; the evidence file `evidence/19-8-task0-install-accuracy.md` holds the measurements):**
+- `(once)` lines run after the last patch of `release/ipm-install.sh` (the TIME lines): `release/ipm-install.sh a` (all checks passed, 63 PASS: checks 30 to 33 included; `TIME second-ocutalon 76s`, `python-pins 1s`, `reinstall-same 71s`, `reinstall-checks 74s`) and `p` (all checks passed; `TIME p-fresh 184s`, `python-pins 2s`, `uninstall-python 1s`, `p-again 3s`).
+- `(once)` lines run before that last patch (a patch of three `echo "TIME ..."` lines and two local variables) and not repeated: `release/ipm-install.sh b` (all checks passed, `OCUTALON_LIVE_DEADLINE=1980`; the six `STEP Python replaced` lines appear in its second merge's install output; `b` does not call the new functions); `bash docker/tests/test-release-sequence.sh` (all rules, 368 s), `test-pinned-sources.sh`, `test-class-rules.sh`, `test-boundaries.sh`, `test-ci-config.sh`, `test-compose-file.sh`, `test-readme.sh` (all PASS). `test-cpf.sh` and `test-release-sequence.sh static` were re-run after every later edit and pass. The spine lint shows 10 findings before and after (no new one).
+- `OCUTALON_WARM=1 ... ci/iris.sh class OcuTalon.Test.Install.StaleCopies` passes (17 tests); `OcuTalon.Test.Bridge.CodeRules` passes. The warm stack `e19s8iw` was used for them and for the mutations, then taken down; no throwaway is left.
+- `OCUTALON_RUN_TAG=e19s8i ci/iris.sh live install-start` did NOT pass on this host: it fails at row 4's last restart ("did not end ready within 200 s", load average 8 to 12), twice with the change and once with the Invoke and Default lines removed from `src/module.xml`. Its first rows pass, so the manifest with the new Invoke loads on the Docker path (see the evidence file). Left for CI.
+- Two environment flakes seen and rerun: the stack's first session printing nothing right after `up` (aborted before any check, both times) and path A's check 13 ("start outside the step", `ReconcileIn` rows 0 to 0 then 1) on a loaded host; the final `a` run on a quiet host passes it.
+- A part p run on the loaded host needs `OCUTALON_LIVE_DEADLINE=1980` (the packaging stack's first command took 342 s there).
+
+**Mutations of this story (each applied from a backup, observed red, reverted; `git status --short` and `git diff --stat` equal before and after, and `src/preload/.../Ipm.cls` equal to its root copy):**
+- mutation (AC1, AC2): the unfixed tree (the new checks, no Reload Invoke) on part p -> check 32 FAIL three ways: the gate (`certifi is installed at 2025.1.31 but pinned at 2026.10.23` and five more), the import check (`stale` for all six, urllib3 by its version only) and the folder comparison (`... is still in the folder` for the six). Also the Reload Invoke line removed from `src/module.xml` -> `test-cpf.sh` rule 17 red.
+- mutation (AC3): the version compare made always-equal (`(1 = 1) Continue`) -> `TestStaleFolderPackage`, `TestBothVersions`, `TestSingleFileModule`, `TestTopLevelNativeFile`, `TestBinAndOutside`, `TestQuotedRecordField` and more red. The ownership guard dropped (`owned` never set) -> `TestSharedFolder` red ("the shared folder google/ stays ..."). The `bin` skip dropped -> `TestBinAndOutside` red ("bin/normalizer stays"). The `..` skip and the resolve guard dropped -> `TestBinAndOutside` red ("the target folder stays (the ../ path is not followed)").
+- mutation (AC3, the Rulings' conditions): the STEP `Write` dropped -> `TestStaleFolderPackage`, `TestStepLines`, `TestPinsAreRead` red; the bypass test dropped from `Replace` -> `TestBypass` red ("with the flag 1 nothing is removed"); the leading-zero version rule dropped -> `TestVersionSpelling` red.
+- mutation (AC4): `test-release-sequence.sh static` re-run with the A5 bullet unchanged: PASS (the existing `(DW-784, A5)` whole-line check; its mutation is recorded in Story 19.6). README.md has no other edit than the host list.
+- mutation (AC5): `us.aws.cdn.hf.co` changed to `us.aws.cdn.hf.com` in README A4 -> `static` red ("(DW-784, A4)"); `cas-server.xethub.hf.co` dropped from the install page's A6 bullet -> `static` red; the disclosure bullet's last sentence changed -> `static` red ("(DW-829) the install page's bullet ... is the ruled text"); the words `shared Python folder` added to the README -> `static` red ("(DW-829) the README has no such bullet").
+- AC6: a measurement (the evidence file's M5 section and its follow-up on the Docker path); no test.
+
+**Review patches (lead, 2026-11-07):**
+- mutation (AC3, partial removal): the dist-info removed although an item stays (`If 'kept,` dropped) -> `TestSymlinkOutside` red; the resolve guard of `RemoveItem` dropped on its own -> `TestSymlinkOutside` red; `Replace` made a no-op -> `TestIdempotent` red (its first call now asserts the STEP line and the removal). Each applied from a backup, reverted byte-identical (`git status --short` equal, the two `Ipm.cls` copies equal), and the class green again on the same warm stack.
+- (once) lines run after the last patch: `release/ipm-install.sh a` (63 PASS; `TIME second-ocutalon 58s`, `python-pins 2s`, `reinstall-checks 54s`) and `p` (all PASS; `TIME p-fresh 146s`, `python-pins 1s`, `uninstall-python 0s`), `test-release-sequence.sh static`, `test-pinned-sources.sh`, `test-class-rules.sh`, `test-boundaries.sh`; `OcuTalon.Test.Install.StaleCopies` and `OcuTalon.Test.Bridge.CodeRules` on warm `e19s8iw`. Not repeated after the patch: `release/ipm-install.sh b`, `ci/iris.sh live install-start` (both passed before it: `b` 59 PASS in 439 s and `install-start` PASS in 451 s on the lead's re-run), `test-cpf.sh`, `test-ci-config.sh`, `test-compose-file.sh`, `test-readme.sh`, the spine lint (no file they read changed).
+- The lead's first `p` run failed in its first command ("Error merging CPF file. $zf(-100) exited with 7", Initialize, before any Story 19.8 code ran); the rerun on the same tree passed. Recorded as a host flake.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). DW-829 and DW-830 are addressed by Task 0 (measure first), the import check in check 32's area, the conditional stale-copy fix and the separate last docs task. DW-830's blocked-download half is declined with its reason under Design Notes. The PUBLIC TEXT items depend on Task 0 M6's measured hosts.
+**Summary.** The IPM install now imports the pinned copies of certifi, charset_normalizer, idna, requests, typing_extensions and urllib3 (DW-829). `OcuTalon.Install.Ipm.RemoveStaleCopies` runs at Reload, Before (just ahead of IPM's pip step), reads its pins from `requirements.txt`, removes only stale pinned distributions' unshared items inside `<mgr>/python` and then their dist-info, writes one `STEP Python replaced <name> <old> with <pin>` line each, and is idempotent. Check 32 gained the version-plus-RECORD-hash import check, the before/after folder and imports comparison, `zpm "list"`, the Invoke-argument check, a reinstall on path A and the uninstall measurement on part p. README A5 is unchanged. The Option 2 host lists (DW-830) are in README A4 and `docs/install-ipm.md` A6, and the ruled disclosure bullet follows A6 in the install page only. Condition 2 held, so the bullet's last sentence stands.
+
+**Files changed.**
+- `src/preload/cls/OcuTalon/Install/Ipm.cls`, `preload/cls/OcuTalon/Install/Ipm.cls` (byte copy): `RemoveStaleCopies` and helpers.
+- `src/module.xml`, `module.xml`: the Reload Invoke and `<Default Name="BypassPyDeps" Value="0"/>`.
+- `release/ipm-install.sh`: check 32's import check, folder and imports comparison, `zpm "list"`, Invoke arguments, reinstall, uninstall measurement; the gate's skip rule.
+- `src/ocutalon/cls/OcuTalon/Test/Install/StaleCopies.cls` (new): one test per matrix row plus extras and the symlink case.
+- `docker/tests/test-cpf.sh` (rule 17), `docker/tests/test-release-sequence.sh` (A4/A6 pins, host-list match, disclosure pin).
+- `README.md` (A4 host list), `docs/install-ipm.md` (A6 host list, disclosure bullet).
+- `ARCHITECTURE-SPINE.md` (AD-23 and AD-21 unions), the Task 0 evidence file and this spec.
+
+**Review.** 43 findings from four layers. Patched (by the lead): a stale dist-info is kept, and no STEP line written, when an owned item could not be removed; the dead `$Translate` in `RecordTops`; `TestSymlinkOutside` (new) and a real first call in `TestIdempotent`; a test label. Deferred: one (running processes that already imported the old modules; unverified, settled by a registry install, which is outward). Rejected: the rest, each with its reason in the Review Triage Log (ruled text, spec-bound, hypothetical or cosmetic).
+
+**Follow-up review recommended: true.** Patched entries: medium 3 (the partial-removal fix, `TestSymlinkOutside`, `TestIdempotent`), low 3. Named unverified risk: after the patch to `Replace`, `release/ipm-install.sh b` and `live install-start` were not run again (both passed before it; `a` and `p` passed after it and exercise the changed method).
+
+**Verification performed.** `a` (63 PASS) and `p` pass after the last patch; `b` (59 PASS), `live install-start` (PASS, 451 s), `test-cpf`, `test-pinned-sources`, `test-release-sequence` (all rules), `test-class-rules`, `test-boundaries`, `test-ci-config`, `test-compose-file`, `test-readme` pass; `StaleCopies` and `Test.Bridge.CodeRules` pass on warm; the spine lint shows no new finding. Added IPM-check time: path A about 55 to 75 s (almost all of it the reinstall), part p about 6 s.
+
+**Residual risks.** A failed pip step after the removal leaves the removed names absent until the same command runs again. The sample-output blocks of `docs/install-ipm.md` omit the six STEP lines (deferred, low). A registry install is not exercised (forbidden here).
