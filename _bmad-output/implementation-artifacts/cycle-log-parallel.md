@@ -2449,3 +2449,6 @@
 2026-11-07T10:52:00Z	Epic 11	planner_ruling	subject=11.27 option=b(after_DW-688) conditions=traces_never_leave_CI_host,7d,no_upload_pin,stop_if_not_self-hosted;gateway_dump_counts_only;report_if_>2min;1.0.4_if_by_19Z_Sun option_a=no option_c=Planner
 2026-11-07T10:52:00Z	Epic 11	planner_ruling	subject=DW-688_first story=11.28 timebox=90m test_only proof=20/20
 2026-11-07T10:52:00Z	Epic 11	runner_resumed	agent=a9ecc108c6b23c2ec reason=DW-688_then_11.27b
+2026-11-07T10:52:54Z	Epic 39	runner_complete	head=fd3aed63 stories=1 ci=success(42363080747,42363080518)
+2026-11-07T10:52:54Z	Epic 39	amendments_verified	epics.md:8895_marker
+2026-11-07T10:52:54Z	Epic 39	epic_merge_started	head=fd3aed63 into=feature
