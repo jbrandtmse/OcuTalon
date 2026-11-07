@@ -369,3 +369,6 @@
 2026-11-07T13:49:29Z	Epic 39	epic_retro_skipped	reason=policy
 2026-11-07T13:49:30Z	Epic 39	epic_status_done	stories=10
 2026-11-07T13:49:30Z	Epic 39	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=sonnet unresolved_high_med_avg=0.40 high_med_avg=3.00 metric=unresolved rework_stories=4 review_loop_thrash=0 rework_lang_defects=0 review_high=1 review_med=1 result=hold applied=false note=record_only;39.10:high=1(AD-29_label)_med=1(owned_root_cause)
+2026-11-07T14:03:17Z	Epic 39	integrated_forward_suite	feature=4c9bed21 head=a3edb162 conflicts_resolved=sprint-status.yaml(regenerated,epic-39=done,39-10=done,epic-4_kept) auto_merged=Test/Live/Payloads.cls,ux-strings.test.mjs,epics.md,deferred-work.md checks=node_1536/1536,boundaries,class-rules,ci-config,readme,triage-heartbeat,heartbeat-overview_all_0;shard_lane-b@Schedule_7_classes_368s smoke=Test.Schedule.Heartbeat_in_the_shard readme=x64_sentence_present,160_seconds_absent
+2026-11-07T14:03:17Z	Epic 39	integrated_forward	feature=4c9bed21 head=a3edb162 conflicts_resolved=sprint-status.yaml
+2026-11-07T14:03:17Z	Epic 39	epic_runner_complete	stories_completed=1 note=SC-5_re-open_story_39.10(diagnostics_only,ruling_a);applied=none
