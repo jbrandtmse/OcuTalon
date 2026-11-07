@@ -135,14 +135,21 @@ test('D4: document events turn a row Ready and then remove it, without a reload'
   expect(await page.evaluate(() => (window as unknown as { documentsMarker?: number }).documentsMarker), 'the page was not reloaded').toBe(7);
 });
 
-/** D5: the keyboard reaches Add documents, Enter opens the file chooser, and a .png comes back refused by the real route. */
+/** D5: the keyboard reaches Add documents, Enter opens exactly one file chooser, and a .png comes back refused by the real route. */
 test('D5: Add documents works by keyboard, and a .png is refused with its reason', async ({ page }) => {
+  let choosers = 0;
+  // DW-825: Playwright turns file-chooser interception on, asynchronously, when the first 'filechooser' listener is added. It is armed here,
+  // before the page opens, so it has been on for the whole sign-in and navigation before the Enter below; a chooser that Enter opens is caught and counted.
+  page.on('filechooser', () => {
+    choosers += 1;
+  });
   await recordAnnouncements(page);
   await openDocuments(page);
   await page.locator('main.documents').focus();
   await page.keyboard.press('Tab');
   const add = page.getByRole('button', { name: 'Add documents', exact: true });
   await expect(add, 'Tab reaches Add documents').toBeFocused();
+  expect(choosers, 'no chooser before Enter').toBe(0);
   const chooser = page.waitForEvent('filechooser');
   const answer = posted(page);
   await page.keyboard.press('Enter');
@@ -157,6 +164,7 @@ test('D5: Add documents works by keyboard, and a .png is refused with its reason
   await expect.poll(() => announcements(page, WRONG_TYPE), 'the refusal is announced').toBe(1);
   await page.waitForTimeout(2500);
   expect(await announcements(page, WRONG_TYPE), 'and announced once').toBe(1);
+  expect(choosers, 'Enter opened exactly one chooser').toBe(1);
 });
 
 /** D6: files dropped on the page each go through the same route; the outline shows while they are over the page. */
