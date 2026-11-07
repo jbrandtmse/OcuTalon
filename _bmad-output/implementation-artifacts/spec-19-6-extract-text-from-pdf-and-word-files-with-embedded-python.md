@@ -286,6 +286,8 @@ Rejected:
 
 ## Spec Change Log
 
+- 2026-11-07 (lead): the Planner's install-figure ruling (about 01:32Z): A4 ends "In our test installs on an Apple silicon Mac, the downloads took about 20 seconds and the whole second run about 1 to 1.5 minutes." and A6 ends "... the whole second command about 1 to 1.5 minutes."; "about 250 MB" and "about 90 MB" kept. The figures-match test now reads four figures (sizes, download time, run time); mutation: README "about 20 seconds" -> "about 25 seconds" -> `test-release-sequence.sh static` red, restored byte-identical. x64 figure: from CI's ipm-install log, for the Planner (no x64 clause added).
+
 - 2026-11-06 (code review): the Planner's PUBLIC TEXT ruling applied. The nine reasons, the frame, the cut note and the page marker are the ruled strings, pinned by `TestReasonsAreTheRuledText`; `Reason`/`Failure` take an optional `size` so that `too_large` is the web catalog's "that file is {size}; the limit is 10 MB." when the size is known (the size written as the web app's `formatSize` writes it) and "it's over the 10 MB limit" otherwise; `Failure` gives a reason's own final period up to the frame's, so a catalog reason does not end the chat sentence with "..". The README paragraph (A4) and the install-page bullet (A6) end with the ruled sentences with n = 1, written "about 1 minute" (singular), pinned by `t_static`. Decided in-stage (small, reversible): the singular, the period hand-over and the optional `size` argument.
 
 - 2026-11-06 (lead, after implement): the Planner's PUBLIC TEXT ruling recorded under Design Notes; the code review stage conforms the built strings to it with fixed-strings tests (the implement built the proposals).
