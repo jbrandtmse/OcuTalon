@@ -4,6 +4,7 @@ type: 'bugfix'
 created: '2026-11-07'
 status: 'done'
 baseline_revision: 'b7710d2db03715613fbbd9a507cc85488a45b253'
+baseline_commit: 'b7710d2db03715613fbbd9a507cc85488a45b253'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -170,6 +171,11 @@ Every command runs from the worktree root after `git rev-parse --show-toplevel` 
 - mutation: AC2 - `If number '? 1.N Quit 0` replaced by `If number = "" Quit 0` -> TestOtherRowsKept red: "the letter-number row is kept".
 - mutation: AC4 - with `headerMark` "", every Ens.Alarm row left out -> red: "without the header mark / with an empty header mark, the below-mark, above-mark, low-number and empty-number rows are kept" (the one-argument form Heartbeat relies on).
 - mutation: AC3 - lead, Task 0: the unchanged class under planting, red 2 of 3.
+
+**AC3 proof (lead, 2026-11-07 11:45-12:06Z, warm lane-A `e11s28lw`).** The planter (scratch, `<scratchpad>/e11s28lead/`) waits for TestStartRefused's SystemPrompt refusal row, then plants 200 real dangling Ens.Alarm timers (an Ens.AlarmRequest sent from ApprovalStartIn, its header deleted once Ens.Alarm holds the timer) waking every 0.1 s from 8 s to 28 s after that row, which covers TestStartsWithNoKey's window; about 140 land per run.
+- Old code (b7710d2d's Runners.cls and RunnerFixture.cls) under planting: red 2 of 3 (Task 0) and red 2 of 3 again with the corrected planter, each `FAIL TestStartsWithNoKey: and the event log holds no error or alert row since the mark`; the rows after the control rows are `Ens.Alarm` "Message '<n>' can not be found, timer event ignored" rows.
+- Fixed code (8f63b716) under the same planting: green 20 of 20 (41-44 s each).
+- One earlier fixed run (before the planter was corrected) went red on an `Ens.Alarm` "MessageHeader #<n> can not be loaded" row: the first planter deleted a header before Ens.Alarm had dequeued it, a harness artefact that CI has never shown. The filter deliberately does not cover that text (intent: only the timer-ignored row of a pre-mark message), so the count restarted with the corrected planter.
 
 ## Auto Run Result
 
