@@ -3928,6 +3928,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T23:50:45Z occurrence=33-2-open-the-settings-page-as-an-admin by=harvest note=red_2_of_4_local_shard_lane-b_part_2/2_runs_in_the_implement_stage(e33s2i);green_alone_fresh_and_warm
 - 2026-11-06T11:44:00Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry by=ci note=run_42206920718_iris(image)_shard_lane-b_at_5fef1125;the_17.5_rework_head's_run_is_its_one_rerun
 - 2026-11-06T22:06:22Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=ci note=run_42296836927_iris(image)_lane-b_at_b94508c9(integrate_forward)
+- 2026-11-07T04:03:15Z occurrence=17-7-give-an-all-clear-only-when-every-check-passed by=ci note=run_42334354717_iris(image)_lane-b_at_7a9d1c86;one_rerun_of_the_failed_job
 
 ### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
