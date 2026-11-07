@@ -2566,3 +2566,6 @@
 2026-11-07T21:26:56Z	Epic 0	runner_dispatched	lane=A slot=ocutalon-slot-a model=opus prompt=dispatch-epic-0-016.md timebox=60m evidence_only
 2026-11-07T21:45:59Z	Run	hold_ordered	reason=owner_account_switch_94pct via=Contest_Planner runners=A(0.16_done),B(17.10),C(19.4),D(31.4),A2(Epic_11_ci_wait) no_new_stages no_extra_reruns
 2026-11-07T21:46:40Z	Epic 0	runner_complete	head=85b479e0 story=0.16 evidence_only S11=reproduced_154U_and_109U(c,d,e_died_9/9;a,b_survived_6/6) DW-792=not_a_bug(documented_kwargs_work) new=DW-889 planner_told=yes
+2026-11-07T21:50:35Z	Epic 31	runner_ended	reason=hold head=8262d61c(origin) stopped_at=31.4_after_smoke_before_fresh_check hold_patch=patches/epic-31/31.4-smoke.patch(QA+review,only_copy) resume=resume/epic-31.md ci_cancelled=42417668695,42417668791(head_lacks_patch) decisions=DW-485,DW-446(after_v1.0.4) DW-877(Lane_A_XML_export)
+2026-11-07T22:18:37Z	Run	planner_update	subject=v1.0.3_released main=8aceb395 tag=v1.0.3 mergeback=bed23f1d demo=1.0.3(host_check_109/0/1,walk_passed)
+2026-11-07T22:18:37Z	Run	planner_finding_ledgered	dw=DW-890 remember_request_decision_fallback priority=HIGH_1.0.4_after_hold_ahead_of_DW-879
