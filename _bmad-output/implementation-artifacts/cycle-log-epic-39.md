@@ -342,3 +342,6 @@
 2026-11-07T10:54:18Z	Epic 39	sprint_planning_complete	gate=PASS note=readiness_re-check;tracker_in_sync_after_39.10_insert model=claude-opus-5-5
 2026-11-07T10:54:18Z	Epic 39	deps_hash_rerecorded	reason=fix_forward story=39.10 note=for_the_orchestrator
 2026-11-07T10:54:18Z	Epic 39	ledger_routed_planned	story=39-10-the-heartbeat-production-test-is-stable-dw-639 entries=1 excess=0 by=load note=DW-639
+2026-11-07T10:54:25Z	Epic 39	ledger_load	total=819 open=1 routed=123 escalated=1 decision_pending=4 terminal=690 owner_unknown=0 note=corrects_the_previous_ledger_load_line(lead_typo)
+2026-11-07T10:55:44Z	Epic 39	epic_context_compiled	reason=planning_artifact_newer(39.10_inserted) model=opus
+2026-11-07T10:55:44Z	Story 39.10	stage_spawned	stage=plan spawn_at=2026-11-07T10:55:44Z model=opus agent_name=39-10-plan-1 cycle_iteration=1
