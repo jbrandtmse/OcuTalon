@@ -2455,3 +2455,5 @@
 2026-11-07T10:53:11Z	Epic 39	epic_merged_to_feature	merge=ace5bc88 head=fd3aed63 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine=untouched release_tools=untouched
 2026-11-07T10:53:11Z	Epic 39	decision_sheet_skipped	reason=no_open_decisions
 2026-11-07T10:53:11Z	Run	deps_hash_rerecorded	reason=fix_forward story=39.9(+11.27,11.28_on_branch_later) hash=9d06f4082a96
+2026-11-07T10:53:36Z	Epic 39	worktree_provisioned	branch=OCT-epic39 ff_to=ace5bc88 reason=story_39.10_DW-639
+2026-11-07T10:53:36Z	Epic 39	runner_redispatched	agent=addb36e0de0c494d8 lane=D story=39.10(DW-639) timebox=90m tier=3a
