@@ -2378,3 +2378,5 @@
 2026-11-07T04:19:41Z	Run	planner_ruling	subject=release_tool_freeze until=1.0.4_merged_back files=release/*.sh,upgrade-harness.sh,demo-host-check.sh,eval/run.sh,IPM_artifact_and_check_scripts exception=Planner_asks
 2026-11-07T04:19:41Z	Run	planner_question	subject=freeze_conflicts epic19_part1=release_hunks(U-294,19.8_check32)+upgrade-harness_unexplained 0.15=release.sh:575,upgrade-harness.sh:700,1053(previous_tree_fallback) options=a,b,c
 2026-11-07T04:19:57Z	Run	planner_ruling	subject=freeze_conflicts epic19_part1=asked_for(U-294_4_files+19.8_check32) condition=hunk_list_with_reasons upgrade-harness=own_reason_or_empty_3dot_from_feature unexplained=wait 0.15=option_b_after_v1.0.4_mergeback_then_option_a free_runner_order=39.9_visible,39.9_hygiene,19.7_lever,tier3
+2026-11-07T04:24:51Z	Run	ci_green_verified	head=30432036 runs=42333034390,42333034403 result=success via=gh
+2026-11-07T04:24:51Z	Epic 17	runner_ci_wait	head=99735c36 runs=42338069582,42338069651 integrate_forward=30432036 next=17.9_burndown(DW-771,DW-786,DW-728) contract_eta=~11Z decision=DW-850_bridge-guide_wording
