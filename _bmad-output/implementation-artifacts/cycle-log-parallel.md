@@ -2560,3 +2560,5 @@
 2026-11-07T21:21:49Z	Run	planner_request	subject=embedded_python_bug_bonus action=read-only_explore_agent no_filing(owner_posts)
 2026-11-07T21:23:52Z	Run	planner_update	subject=embedded_python_bug_candidates strong=signal11_AIHub_callback(S11,build154U,aarch64) weaker=kwargs_ignored(DW-792,retry_first),eval_globals,WorkMgr_busy_python_worker not_EP=DW-829(IPM/pip),DW-856,FastEmbed.EmbedBatch
 2026-11-07T21:25:27Z	Run	planner_request	subject=S11_reverification story=0.16(Epic_0_evidence_only) priority=next_free_runner_ahead_of_DW-879,DW-878 timebox=60m no_key no_product_change no_filing prompt=dispatch-epic-0-016.md
+2026-11-07T21:26:24Z	Epic 12	epic_merged_to_feature	merge=d24928c0 head=f7318fd8 story=12.12 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0 spine_lint=baseline note=merged_over_Planner_rc3_record_643a0d9d
+2026-11-07T21:26:24Z	Run	deps_hash_rerecorded	reason=fix_forward story=12.12 hash=96c987521d09
