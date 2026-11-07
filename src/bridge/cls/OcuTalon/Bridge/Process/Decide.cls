@@ -52,7 +52,9 @@ Include Ensemble
 ///   - The runner's reply goes to Conclude, with the text of the runner's failure when it failed (OnError keeps a runner's error status,
 ///     and a call whose Chat threw is answered with a failure Reply that holds FailureText). Conclude works out the facts and calls
 ///     Classify once. A reply that is usable is checked (CheckReply: one JSON object that the ReplyClass setting of the runner accepts,
-///     for decide and diagnose; non-empty text for a turn), the model-written text is filtered once by the ReplyFilterClass (the reasons, and the
+///     for decide and diagnose; non-empty text for a turn), except the reply of a model test request of kind decide or diagnose (Settings.IsTest),
+///     which is a connection test: any non-empty text is usable, it is never checked against the ReplyClass setting, and its Decision row keeps
+///     no reasons, confidence or payload (the Conventions row "Settings model Test"). The model-written text is filtered once by the ReplyFilterClass (the reasons, and the
 ///     properties that the reply class names in a FILTERED parameter, a dotted name for a property of an object property and a list item by item,
 ///     which are then checked again; the request is exposed to both checks through ReplyCheck, ended on every exit), the user
 ///     rule is applied, one Decision row is recorded, the event decision.recorded is fired after the commit (FireEvent) and the answer
@@ -1295,12 +1297,15 @@ ClassMethod HoldsAll(text As %String, pieces As %String) As %Boolean [ Private ]
 ///   1. works out the facts of Classify: the failure (the text the runner failed with; with none, a reply that is not a Reply is the
 ///      failure "The runner gave no Reply"), the reply's finishReason and text, and invalid, which is true when the reply fails its check
 ///      or nothing is left of it once the filter has run. For decide and diagnose, the check is CheckReply against replyClass; for a
-///      turn, the text itself;
+///      turn, the text itself. A model test request of kind decide or diagnose (Settings.IsTest) is a connection test: its reply is never
+///      checked, filtered or weighed against replyClass, so it is never invalid, and it is usable when its text is not empty once white space and control
+///      characters are stripped (Classify still reads the failure, the finish reason and an empty text);
 ///   2. calls Classify once. A reason goes to RecordFallback, which records the fallback and answers (below); for an invalid decide or diagnose
 ///      reply, what the check refused (problem, see Interpret: RefusalText's words, never the reply) is first logged, redacted, as one warning in the decision's trace session.
 ///      With retry 1 (a retry runner is set and not yet used, RetryConfigured) a reason that Retryable accepts for the reply (its ToolsRun, Broken) is not
 ///      recorded: Conclude records nothing, answers nothing, and gives the reason in retryReason, and the caller sends the retry (TryRetry);
-///   3. otherwise, the reply is usable and each model-written text was filtered once with filterClass (each reason; each property that
+///   3. otherwise, the reply is usable. The reply of a model test request of kind decide or diagnose keeps no model text: its row has the outcome
+///      tellnow, Fallback 0 and no reasons, confidence or payload, and steps 4 to 9 follow with those values. Otherwise each model-written text was filtered once with filterClass (each reason; each property that
 ///      the reply class names in its FILTERED parameter that is not empty, each item of a list, after which the payload is validated again; a
 ///      turn's reply text),
 ///      never the code-written line; each reason is one line of the row: its line breaks (CR LF, CR, LF, vertical tab, form feed, NEL and
@@ -1327,6 +1332,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	Set response = ""
 	Set kind = request.Kind
 	Set turn = (kind = "turn")
+	Set test = 'turn && ##class(OcuTalon.Bridge.Settings).IsTest(request)
 	Set sc = ##class(OcuTalon.Bridge.Ext.Accessor).Check("ReplyFilterClass", filterClass)
 	If $$$ISERR(sc) Quit sc
 	Set isReply = $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply")
@@ -1348,7 +1354,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 			If turn {
 				Set text = $ClassMethod(filterClass, "Filter", reply.Text)
 				If $ZStrip(text, "*WC") = "" Set invalid = 1
-			} Else {
+			} ElseIf 'test {
 				Set invalid = '..Interpret(request, reply.Text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc, .problem)
 			}
 		}

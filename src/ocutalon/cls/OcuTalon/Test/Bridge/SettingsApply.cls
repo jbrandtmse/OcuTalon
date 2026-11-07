@@ -15,6 +15,11 @@
 ///     Decision's cost is the sum of its rows;
 ///   - TestModelTestEachAgent: TestRequest for each of the three agents, sent to Decide, is answered (TestAnswer: answered, no reason), makes one request to the
 ///     mock with no sampling parameter, and its Usage rows are owned by instance; neither the answer nor the request holds a key;
+///   - TestModelTestIsAConnectionTest (DW-771): the test of a decide or diagnose runner passes on any non-empty reply, whatever the runner's reply class says.
+///     The diagnosis Test passes on a reply that fails DiagnosisPayload (the marker invalid-reply, and the fixed input as built, which the mock's diagnosis.json
+///     answers with a tool call and then a diagnosis that the check refuses), as the triage Test does; each makes its mock requests on the agent's model with no
+///     sampling parameter, records a Decision row without outcome text (Fallback 0, tellnow, no reasons, confidence or payload) and its Usage under instance. An
+///     empty reply is still the answer 0 with the reason empty. The same diagnose request with an ordinary ItemId is the fallback invalid;
 ///   - TestModelTestNotRetried: with a second model named, a model test whose first attempt is refused is a fallback with the reason refusal after exactly one mock
 ///     request, and the same request with an ordinary ItemId is retried (two requests);
 ///   - TestRestartKeepsValues: the three values, a price and a model survive the installer, the Public, Provider and Production steps' seeding;
@@ -315,7 +320,8 @@ Method TestPriceAppliesToLaterRows()
 }
 
 /// The model test of each agent, sent to Decide. The request is the one TestRequest builds; the diagnosis and chat requests get the mock marker of a one-reply
-/// scenario in front of the fixed input, because the default scripts of those two agents take a tool call first (chat.json) or a pack input (diagnosis.json).
+/// scenario in front of the fixed input, so that each test is one mock request: the default scripts of those two agents take a tool call first (chat.json and
+/// diagnosis.json).
 Method TestModelTestEachAgent()
 {
 	If '..Prepare() Quit
@@ -358,6 +364,76 @@ Method TestModelTestEachAgent()
 		Set json = answer.%ToJSON()_request.Input_request.Summary
 		Do $$$AssertTrue(($Find(json, "sk-") = 0) && ($Find(json, "AIza") = 0) && ($Find(json, "@{") = 0), label_"the answer and the request hold no key")
 	}
+}
+
+/// The settings model Test is a connection test for a decide or diagnose runner (DW-771; the Conventions row "Settings model Test"): any non-empty reply is an
+/// answer, and the reply is never checked against the runner's ReplyClass.
+Method TestModelTestIsAConnectionTest()
+{
+	If '..Prepare() Quit
+	Set fixture = ..#FIXTURE
+	Do ..Connect("DiagnosisAgent", "invalid-reply", "diagnosis, a reply that fails DiagnosisPayload: ", 0, 1, .response, .request)
+	Do ..Connect("TriageAgent", "invalid-reply", "triage, a reply that fails DecisionPayload: ", 0, 1, .response, .request)
+	Do ..Connect("DiagnosisAgent", "", "diagnosis, the fixed input as built: ", 0, "", .response, .request)
+	Do ..Connect("DiagnosisAgent", "empty", "diagnosis, an empty reply: ", 0, 1, .response, .request)
+	Do ..Connect("DiagnosisAgent", "invalid-reply", "not a test, the same diagnose request with an ordinary ItemId: ", 1, 1, .response, .request)
+	Set row = $ClassMethod(fixture, "DecisionOf", request.ItemId, request.Kind)
+	Do $$$AssertTrue($IsObject(row), "the ordinary request has a Decision row")
+	If $IsObject(row) Do $$$AssertEquals(row.Fallback_"|"_row.FallbackReason_"|"_row.Payload, "1|invalid|", "it is the fallback invalid, with no payload")
+}
+
+/// One request of the agent's own kind from TestRequest, with the mock marker in front of its input when there is one and a fresh ordinary ItemId when ordinary
+/// is 1, sent to Decide; label says which. The mock took requests mock requests (all when it is empty), every one for the agent's model and with no sampling
+/// parameter. A test request that is answered records a Decision row that holds no model text, and its Usage is owned by instance; an empty reply is the answer
+/// 0 with the reason empty after one request; an ordinary request is the fallback invalid. response and request are the answer and the request sent.
+Method Connect(agent As %String, marker As %String, label As %String, ordinary As %Boolean, requests As %Integer, Output response As %Persistent, Output request As OcuTalon.Bridge.Msg.Request) [ Private ]
+{
+	Set class = ..#SETTINGS
+	Set fixture = ..#FIXTURE
+	Do $$$AssertStatusOK($ClassMethod(class, "TestRequest", agent, .request), label_"the test request is built")
+	If marker '= "" Set request.Input = "[[mock:"_marker_"]] "_request.Input
+	If ordinary Set request.ItemId = $ClassMethod("OcuTalon.Bridge.Ids", "NewRef")
+	Do $$$AssertEquals($ClassMethod(class, "IsTest", request), 'ordinary, label_"IsTest says "_('ordinary))
+	Set ..ItemIds = ..ItemIds _ $ListBuild(request.ItemId)
+	Set mark = $ClassMethod(..#MOCK, "LogMark")
+	Set started = $ZHorolog
+	Set sc = $ClassMethod(fixture, "Run", request, .response, .session)
+	Set millis = ($ZHorolog - started * 1000) \ 1
+	Do $$$AssertStatusOK(sc, label_"Decide answers it")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "Drain", agent), label_"the runner is drained")
+	Do $$$AssertStatusOK($ClassMethod(..#MOCK, "LogSince", mark, .entries), label_"the mock's log is read")
+	Set chosen = ##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(agent, ##class(Ens.Director).GetActiveProductionName())
+	Set sent = 0
+	Set onModel = 0
+	Set sampling = 0
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If (entry.method = "POST") && (entry.path = "/v1/messages") {
+			Set sent = sent + 1
+			If entry.model = chosen Set onModel = onModel + 1
+			If entry.request.%IsDefined("temperature") || entry.request.%IsDefined("top_p") || entry.request.%IsDefined("top_k") Set sampling = 1
+		}
+	}
+	If requests '= "" Do $$$AssertEquals(sent, requests, label_requests_" request(s) reached the mock")
+	Do $$$AssertTrue(sent '< 1, label_"at least one request reached the mock: "_sent)
+	Do $$$AssertEquals(onModel_"|"_sampling, sent_"|0", label_"every request was for the agent's model "_chosen_", with no sampling parameter")
+	Set answer = $ClassMethod(class, "TestAnswer", response, millis)
+	If ordinary {
+		Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason, "1|invalid", label_"the answer is the fallback invalid")
+		Quit
+	}
+	If marker = "empty" {
+		Do $$$AssertEquals(answer.answered_"|"_answer.reason, "0|empty", label_"an empty reply is not an answer: "_answer.%ToJSON())
+		Quit
+	}
+	Do $$$AssertEquals(answer.answered_"|"_answer.reason, "1|", label_"the model answered: "_answer.%ToJSON())
+	Set row = $ClassMethod(fixture, "DecisionOf", request.ItemId, request.Kind)
+	Do $$$AssertTrue($IsObject(row), label_"one Decision row is recorded")
+	If $IsObject(row) Do $$$AssertEquals(row.Fallback_"|"_row.FallbackReason_"|"_row.Outcome_"|"_row.Reasons_"|"_row.Confidence_"|"_row.Payload, "0||tellnow|||", label_"and it holds no model text")
+	Set owners = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*), SUM(CASE WHEN OwnerRef = 'instance' THEN 1 ELSE 0 END) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", response.DecisionRef)
+	Do owners.%Next()
+	Do $$$AssertTrue(owners.%GetData(1) '< 1, label_"its Usage rows are recorded: "_owners.%GetData(1))
+	Do $$$AssertEquals(owners.%GetData(2), owners.%GetData(1), label_"and all are owned by instance")
 }
 
 /// A model test is never retried on the second model; the same request with an ordinary ItemId is.

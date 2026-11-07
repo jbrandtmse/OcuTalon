@@ -2,13 +2,21 @@
 title: 'Story 17.9: Epic 17 burn-down'
 type: 'bugfix'
 created: '2026-11-06'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '6c67526927bc3d55fc7083aadb02b0829ae9f060'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The guide now states that a second-model retry is checked against DecisionTokenBudget on its own estimate, but no test makes the first attempt pass the budget and the retry fail it.
+    evidence: |-
+      Decide.TryRetry runs Precheck against DecisionTokenBudget before it sends the retry (Decide.cls:687). Test.Bridge.SecondModel TestNeverRetried sets the budget to 1, so the first attempt is refused and the retry's precheck is never reached. The reviewer reports that removing that Precheck leaves the tests green (unverified), which would make the ruled DW-850 sentence untested.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Bridge/SecondModel.cls:207
+    severity: low
 ---
 
 <intent-contract>
@@ -181,6 +189,27 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-06 - Review pass
+- verdicts: 22 findings (blind hunter 9, edge case 6, verification gap 7, intent alignment 0) - high 0, medium 0, low 17, false 5, maybe-false 0. Rows below group findings that share a root cause; each member keeps the verdict and route of its row.
+- findings:
+  - `[low]` `patch` tables rule matches a name anywhere on a line (blind hunter 1, edge case 2 and 3) - patched: the pattern is anchored to `^| ` and a break sample moves a name to a second cell.
+  - `[low]` `patch` tables rule is not scoped to a section, so the `Model` row of `DecisionResponse` satisfied the AI Hub `Model` setting (blind hunter 2, edge case 2, verification gap 1, intent alignment) - patched: settings are looked up in the "Settings" section and Request properties in "Messages and enumerations"; two break samples added; removing the runner `Model` row now fails `tables`.
+  - `[low]` `patch` the `retrytext` header comment says the retry wording "is, line for line, the ruled text" while eight lines are pinned (blind hunter 3, verification gap) - patched: the header comment names the eight pinned lines and says the rest is not pinned.
+  - `[low]` `defer` the per-attempt budget wording of DW-850 is pinned only as text; no test has a first attempt that passes the budget and a retry that fails it (verification gap 2) - pre-existing behaviour, deferred (low).
+  - `[false]` `reject` the verification-gap note that the mock's default-script silent `Quit` and the empty-host `Quit` in the parity test hide a skip (edge case and verification gap other findings) - `Host()` asserts the shadow instance exists, so a missing host fails the test.
+  - `[low]` `reject` the guide does not say the model Test is a connection test (blind hunter 4) - new public text beyond the ruling is excluded by the intent ("no other wording"); it needs the Planner.
+  - `[false]` `reject` a passing Test records a real-looking decision and fires `decision.recorded` (blind hunter 5) - the owner `instance` publishes no `decision.recorded` (`Core.BridgeSink`), decided in-stage 3.
+  - `[low]` `reject` the parity test expects "at least 1 new failures" (blind hunter 6) - the wording is the unchanged `FINDINGATLEAST`; DW-786 forbids any wording change.
+  - `[low]` `reject` the parity cases omit some reads and the "equal" boundary is not stated (blind hunter 7, verification gap) - the unread path is pinned by `TestLiveRead`; low, and a fix only adds cases.
+  - `[low]` `reject` the structural assertions of `TestOneLiveReadHelper` are source-text checks (blind hunter 8, edge case 6, verification gap) - the spec plans them (Decided in-stage 6); behaviour is pinned by the parity half.
+  - `[low]` `reject` the new Process methods are public, `ScopedFailures` throws on a non-array, and `ReasonOf`/`KeyOf` round-trip display text (blind hunter 9) - the spec fixes public methods (Design Notes 5), `TestRunThrows` needs the throw, and the mapping is the spec's.
+  - `[low]` `reject` a request with a caller-chosen `test.` ItemId skips the reply-class check (edge case 1) - `IsTest` is the Conventions row's discriminator; the row holds no payload, outcome tellnow, no action; the ItemIds of real requests are references.
+  - `[low]` `reject` a failed fixture `Run` ends in an INVALID OREF (edge case 4) - the assertion before it already fails the test; a cosmetic message.
+  - `[false]` `reject` `Arm` is not called although the spec says to clean up through it (edge case 5) - nothing is armed (the marker selects the scenario); `..ItemIds` is the clean-up.
+  - `[false]` `reject` leg 3 cannot fail for the reason it states (verification gap 3) - the mutation that checks a test against `ReplyClass` again turns that leg red.
+  - `[false]` `reject` the mutation list is not caught by the tests (verification gap, other findings) - each demonstrated mutation went red; the unpinned paragraph of the retry section is outside DW-850's eight lines.
+  - Intent alignment (descriptive, no defect claimed): the diff implements the readings R1a/R2a/R3a; `ReasonOf` and `KeyOf` are two private methods for the one mapping; the 8 ruled lines match the ruling byte for byte (checked by script). No divergence needing action.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -276,9 +305,37 @@ Every test added or changed passes on a fresh environment, in either order.
 - `Process.Run` passes `cut` 0 to the reason chain: `TestOneLiveReadHelper` (b) and `Checks.Runs` go red.
 - The guide loses its `RetryItem` row: `test-bridge-guide.sh` `tables` goes red.
 
+**Mutations demonstrated (Rule 19; each applied, observed red, restored byte for byte):**
+- mutation: `Conclude` checks a test against `ReplyClass` again (`Set test = 0`): `SettingsApply` `TestModelTestIsAConnectionTest` red on the diagnosis, triage and as-built legs.
+- mutation: the test branch accepts an empty text (the facts' text forced to "x" for a test): the empty leg of `TestModelTestIsAConnectionTest` red.
+- mutation: the branch ignores `IsTest` (`Set test = 'turn`): the Not-a-test leg of `TestModelTestIsAConnectionTest` red, and `Test.Agent.Decide` red (`TestDecision`, `TestLowConfidence`, `TestReplyFallbacks`).
+- mutation: the test branch keeps the reply as `Payload`: the row assertion `0||tellnow|||` red.
+- mutation: `Coverage.Live` makes its own capital letter (`$ZConvert`) again: `Digest.Runs` `TestOneLiveReadHelper` (a) red.
+- mutation: `Process.Joined` drops the capital: `Checks.Runs` `TestFailed` and `Digest.Coverage` `TestLiveRead` red.
+- mutation: `Process.Run` passes `cut` 0 to `NotCheckedReason`: `TestOneLiveReadHelper` (b) red, and `Checks.Runs` `TestNotChecked` and `TestNotCheckedReportsNothing` red.
+- mutation: the guide loses its `RetryItem` row: `test-bridge-guide.sh` `tables` red. The runner settings table's `Model` row removed (the `DecisionResponse` `Model` row remains): `tables` red.
+- mutation: one character changed in the DW-850 `Model` row of the guide's pinned text (`first model.` to `first modem.`): `retrytext` red on ruled line 5. The script's own per-line break samples change one character of each of the eight ruled lines.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan stage only: the spec is written and checked against the READY FOR DEVELOPMENT standard. Nothing is implemented.
+**Summary.** DW-771: `Decide.Conclude` answers a model test of kind decide or diagnose on any non-empty reply, without `Interpret`; the row keeps no model text. DW-786: `Checks.Process` holds the shared public live-read methods (`NotCheckedReason`, `ScopedFailures`, `IsCut`, `StateText`, `FailureText`, `Joined`); `Process.Run`, `Process.Finding` and `Coverage.Live` call them, and `Coverage.ReasonOf`/`KeyOf` serve `RecordRun`, `WatchRow` and `Live`. DW-728 and DW-850: the two guide rows and the eight ruled strings are in `docs/bridge-guide.md` byte for byte (checked by script against this spec's strings); `test-bridge-guide.sh` has the `tables` and `retrytext` rules.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: the test branch of `Conclude`, and docs.
+- `src/bridge/cls/OcuTalon/Bridge/Settings.cls`: docs only.
+- `src/ocutalon/cls/OcuTalon/Checks/Process.cls`, `Checks/Coverage.cls`: the shared live-read methods and their callers.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/SettingsApply.cls`: `TestModelTestIsAConnectionTest` and the `Connect` helper.
+- `src/ocutalon/cls/OcuTalon/Test/Digest/Runs.cls`: `TestOneLiveReadHelper`.
+- `docs/bridge-guide.md`: the two DW-728 rows and the DW-850 lines (footprint extension).
+- `docker/tests/test-bridge-guide.sh`: the `tables` and `retrytext` rules.
+
+**Footprint extensions (Rule 11).** `Test/Bridge/SettingsApply.cls` (Epic 19 folder, unchanged on that branch), `docs/bridge-guide.md` (Epic 11, no branch changes), `docker/tests/test-bridge-guide.sh`. `Test/Bridge/{Decide,Gate}.cls` and `Test/Agent/Decide.cls` were run and not edited. Story 30.7's areas are untouched.
+
+**Review.** 4 layers, patches applied: 3 (all low; the tables rule anchored and scoped to its sections, the retrytext header comment); deferred: 1 (low, in the frontmatter `deferred:` list); rejected: see the triage log. Follow-up review recommended: false.
+
+**Verification.** On `ocutalon-slot-a` and the warm stack `e17s9iw` (torn down): the loop and once classes of the Verification section passed (`Test.Bridge.{SettingsApply,SettingsValues,SettingsStubs,Decide,SecondModel,Gate}`, `Test.Digest.{Runs,Coverage,AllClear,Compose,NoFalseClear,Send}`, `Test.Checks.{Runs,Turns,Snapshot}`, `Test.Agent.Decide`, `Test.Eval.Cases`; `Test.Digest.FailRowsDigest` and `FedRowsDigest` are probe classes with no tests, `Test.Digest.Send` uses them). On a fresh stack (`e17s9i`): `shard lane-a@Bridge` in 4 parts (9 classes each), `lane-a@Checks` (8 classes) and `lane-a@Digest` (20 classes) all passed. `bash docker/tests/test-bridge-guide.sh`, `test-class-rules.sh` and `test-boundaries.sh` pass after the last patch (the shards ran after it; the patch touched only the shell script).
+
+**Residual risks.** The `tables` rule is section-scoped by heading names ("Settings", "Messages and enumerations"); renaming those headings fails the rule until the script follows. The model-test discriminator is the `test.` ItemId prefix, as the Conventions row says.

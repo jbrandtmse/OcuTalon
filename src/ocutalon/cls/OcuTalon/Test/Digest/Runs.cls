@@ -7,7 +7,12 @@
 ///     the namespace's, and error for a read that throws; a failed run records no reason;
 ///   - TestTriggerFires: the trigger writes one row for each change of LastRunAt, by SQL and by object, and none for another update or for the same time;
 ///   - TestRecordRunReasons: the reason of a recorded run, from its finding;
-///   - TestFailedWriteWarns: a CheckRun that cannot be written logs one warning and throws nothing.
+///   - TestFailedWriteWarns: a CheckRun that cannot be written logs one warning and throws nothing;
+///   - TestOneLiveReadHelper (DW-786): the live-read rules are one helper. By structure, from the compiled methods: Coverage Live names no
+///     REASON or FINDING parameter of Checks.Process and makes no upper-case letter of its own, and Live, Process Run and Process Finding call the shared
+///     class methods of Process. By parity, for the reads unreadable, not current, timeout, unknown state, thrown, cut with none of the session's
+///     failures, stopped, suspended with a cut, troubled and running: the result and finding of a real Process run (the shadow probe) and the live row
+///     that Build gives (CoverageProbe, on a watch whose latest run passed) are equal, and are the expected texts.
 Class OcuTalon.Test.Digest.Runs Extends %UnitTest.TestCase
 {
 
@@ -156,6 +161,106 @@ Method TestRecordRunReasons()
 	Set other = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do $ClassMethod("OcuTalon.Checks.Coverage", "RecordRun", other, session, "2030-06-01T12:00:00Z", "failed", $Parameter(process, "REASONTIMEOUT"), "")
 	Do $$$AssertEquals(..RunsOf(other).%Get(0).reason, "", "a run that is not not_checked has no reason, whatever its finding")
+}
+
+Method TestOneLiveReadHelper()
+{
+	Set process = "OcuTalon.Checks.Process"
+	Set live = ..Body("OcuTalon.Checks.Coverage", "Live")
+	Set run = ..Body(process, "Run")
+	Set finding = ..Body(process, "Finding")
+	Do $$$AssertTrue(live [ "Process).", "control: the body of Live was read")
+	Do $$$AssertTrue(run [ "..Finding(", "control: the body of Run was read")
+	Do $$$AssertTrue(finding [ "..Joined(", "control: the body of Finding was read")
+	Set names = ""
+	Set parameters = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.ParameterDefinition WHERE parent = ? AND (Name %STARTSWITH 'FINDING' OR Name %STARTSWITH 'REASON')", process)
+	While parameters.%Next() {
+		Set name = parameters.%Get("Name")
+		Set names = names_$ListBuild(name)
+		Do $$$AssertEquals(live [ (""""_name_""""), 0, "Live does not name the parameter "_name_" of Process")
+		Do $$$AssertEquals(live [ ("Process).#"_name), 0, "nor read it directly")
+	}
+	Do $$$AssertTrue($ListLength(names) > 10, "control: the parameters of Process were listed")
+	Do $$$AssertEquals(live [ "$Parameter(", 0, "Live reads no parameter by name")
+	Do $$$AssertEquals(live [ "$ZConvert(", 0, "Live makes no upper-case first letter of its own")
+	Do $$$AssertEquals(run [ "$ZConvert(", 0, "nor does Run")
+	Do $$$AssertEquals(finding [ "$ZConvert(", 0, "nor does Finding")
+	For name = "NotCheckedReason", "ScopedFailures", "IsCut", "StateText", "FailureText", "Joined" {
+		Do $$$AssertTrue(live [ ("Process)."_name_"("), "Live calls "_name)
+	}
+	For name = "NotCheckedReason", "ScopedFailures", "IsCut" {
+		Do $$$AssertTrue(run [ (".."_name_"("), "Run calls "_name)
+	}
+	For name = "StateText", "FailureText", "Joined" {
+		Do $$$AssertTrue(finding [ (".."_name_"("), "Finding calls "_name)
+	}
+	Do ..ParityOfLiveRead()
+}
+
+/// The same reads fed to a real Process run and to the live read of Build: the result and the finding of each are equal and are the expected ones.
+Method ParityOfLiveRead()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set limit = ##class(OcuTalon.Watch.Mark).#MAXFAILURES
+	Set runSession = ..Session()
+	Set liveSession = ..Session()
+	Set otherSession = ..Session()
+	Set created = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -30)
+	Set ranAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -5)
+	Set labels = $ListBuild("unreadable", "not current", "timeout", "unknown state", "thrown", "cut with none of the session's", "stopped", "suspended with a cut", "troubled", "running")
+	Set specs = $ListBuild("{""outcome"":""unreadable"",""state"":""running""}", "{""outcome"":""not_current"",""state"":""running""}", "{""outcome"":""read"",""state"":""timeout"",""failures"":2}", "{""outcome"":""read"",""state"":""unknown""}", "{""throw"":""boom""}", "{""outcome"":""read"",""state"":""running"",""others"":"_limit_"}", "{""outcome"":""read"",""state"":""stopped"",""failures"":1}", "{""outcome"":""read"",""state"":""suspended"",""failures"":1,""others"":"_(limit - 1)_"}", "{""outcome"":""read"",""state"":""troubled"",""failures"":2}", "{""outcome"":""read"",""state"":""running""}")
+	Set expected = $ListBuild("not_checked|No read access to its namespace", "not_checked|No longer its namespace's production", "not_checked|No answer in time", "not_checked|Couldn't be read", "not_checked|Couldn't be read", "not_checked|Too many new failures to count", "failed|Production stopped, 1 new failure", "failed|Production suspended, at least 1 new failures", "failed|Production troubled, 2 new failures", "passed|")
+	For i = 1:1:$ListLength(labels) {
+		Set spec = ##class(%DynamicObject).%FromJSON($List(specs, i))
+		Set runProduction = "Zz.DPar"_i_"r"
+		Set liveProduction = "Zz.DPar"_i_"l"
+		Set runRefs(i) = ..Watch(runSession, runProduction, {"CreatedAt": (created)})
+		Do $ClassMethod(..#PROBE, "Feed", runProduction, ..ReadOf(spec, runSession, otherSession))
+		Set liveRefs(i) = ##class(OcuTalon.Test.Data.Fixture).Check(liveSession, "ZZNS", liveProduction, {"CreatedAt": (created)})
+		Set ..Refs = ..Refs_","_liveRefs(i)
+		Do $ClassMethod("OcuTalon.Checks.Coverage", "RecordRun", liveRefs(i), liveSession, ranAt, "passed", "", "")
+		Do $ClassMethod(..#COVERAGE, "FeedRead", liveProduction, ..ReadOf(spec, liveSession, otherSession))
+	}
+	Do ..Tick(host)
+	Set after = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 1)
+	Set sc = $ClassMethod(..#COVERAGE, "Build", liveSession, created, after, .rows, .lines)
+	Do $$$AssertStatusOK(sc, "Build is OK")
+	Do $$$AssertEquals(rows.%Size(), 5 + $ListLength(labels), "five vital rows and a row for each watch")
+	For i = 1:1:$ListLength(labels) {
+		Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(runRefs(i))
+		Set viaRun = row.Result_"|"_row.Finding
+		Set one = rows.%Get(4 + i)
+		Set viaLive = one.result_"|"_one.finding
+		Do $$$AssertEquals(viaRun, $List(expected, i), $List(labels, i)_": the run's result and finding")
+		Do $$$AssertEquals(viaLive, viaRun, $List(labels, i)_": the live row gives the same result and finding")
+	}
+}
+
+/// The read of a spec ({"outcome", "state", "failures" (of the session), "others" (of another session), "throw"}) for the probe: its rows hold the
+/// failures of the session and of the other session, each with the TraceRef of its session as the SuperSession.
+Method ReadOf(spec As %DynamicObject, session As %String, other As %String) As %DynamicObject
+{
+	Set read = {"outcome": (spec.outcome), "state": (spec.state), "throw": (spec.throw)}
+	Set rows = []
+	For n = 1:1:+spec.failures {
+		Do rows.%Push({"kind": "header", "headerId": (n), "superSession": (##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef), "at": "2030-06-01 11:59:59.000", "logId": ""})
+	}
+	For n = 1:1:+spec.others {
+		Do rows.%Push({"kind": "header", "headerId": (n + 100000), "superSession": (##class(OcuTalon.Data.Session).RefIndexOpen(other).TraceRef), "at": "2030-06-01 11:59:59.000", "logId": ""})
+	}
+	Do read.%Set("rows", rows)
+	Quit read
+}
+
+/// The code of a method, as compiled.
+ClassMethod Body(class As %String, method As %String) As %String
+{
+	Set definition = ##class(%Dictionary.MethodDefinition).%OpenId(class_"||"_method)
+	If '$IsObject(definition) Quit ""
+	Set stream = definition.Implementation
+	Do stream.Rewind()
+	Quit stream.Read(1000000)
 }
 
 Method TestFailedWriteWarns()

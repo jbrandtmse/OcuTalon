@@ -20,7 +20,10 @@
 ///     latest; (5) otherwise the latest run's result.
 ///   - A production watch whose result comes from rule 5 adds a live read of the production (Watch.Reader.Failures, from the span's start, in one
 ///     switch): anything it finds makes the row failed with the live finding at the read time, and a read that cannot be made makes it not_checked
-///     (unreachable, timeout or error), as the same reasons of Checks.Process do.
+///     (unreachable, timeout or error), as the same reasons of Checks.Process do. The rules of that read are Checks.Process's public class methods
+///     (NotCheckedReason, ScopedFailures, IsCut, StateText, FailureText and Joined), the ones a check's run applies, so that a row and a result cannot drift;
+///     Live adds only what a run does not read (items in error, disabled items, queued and waiting messages) and picks the digest key from the reason
+///     (ReasonOf and KeyOf: timeout, unreachable for an unreadable or not current namespace, else error), as RecordRun does for the CheckRun reason.
 ///   - RecordRun is the one writer of CheckRun. The trigger of OcuTalon.Data.BackgroundCheck calls it for each LastRunAt change.
 /// The thresholds come through OcuTalon.Data.Setting Get (the 60-second cache) with the defaults of THRESHOLDS.
 Class OcuTalon.Checks.Coverage
@@ -305,7 +308,7 @@ ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String,
 	If missed Quit
 	Set latest = runs.%Get(runs.%Size() - 1)
 	If latest.result = ..#NOTCHECKED {
-		Set key = $Case(latest.reason, "timeout": ..#KEYTIMEOUT, "unreachable": ..#KEYUNREACHABLE, : ..#KEYERROR)
+		Set key = ..KeyOf(latest.reason)
 		Set time = latest.ranAt
 		If key = ..#KEYUNREACHABLE {
 			For j = runs.%Size() - 1:-1:0 {
@@ -332,7 +335,6 @@ ClassMethod WatchRow(check As OcuTalon.Data.BackgroundCheck, fromUtc As %String,
 ClassMethod Live(check As OcuTalon.Data.BackgroundCheck, entry As %String, spanStart As %String, limit As %DynamicObject, rows As %DynamicArray, lines As %DynamicArray) As %Boolean [ Private ]
 {
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
-	Set process = "OcuTalon.Checks.Process"
 	Set max = ##class(OcuTalon.Watch.Mark).#MAXFAILURES
 	Set threw = 0
 	Set outcome = ""
@@ -347,44 +349,23 @@ ClassMethod Live(check As OcuTalon.Data.BackgroundCheck, entry As %String, spanS
 	} Catch {
 		Set threw = 1
 	}
-	Set reason = $Case(outcome, "unreadable": $Parameter(process, "REASONUNREADABLE"), "not_current": $Parameter(process, "REASONNOTCURRENT"), : "")
-	Set key = ..#KEYUNREACHABLE
-	If reason = "" {
-		If state = "timeout" {
-			Set reason = $Parameter(process, "REASONTIMEOUT")
-			Set key = ..#KEYTIMEOUT
-		} Else {
-			Set key = ..#KEYERROR
-			If threw || (outcome '= "read") || (state = "unknown") || (state = "") || '$IsObject(errored) || '$IsObject(queues) Set reason = $Parameter(process, "REASONREAD")
-		}
-	}
 	Set failures = 0
+	Set cut = 0
 	If $IsObject(failed) {
-		Set onlineDemo = ##class(OcuTalon.Watch.Reader).OnlineDemo()
-		Set iterator = failed.%GetIterator()
-		While iterator.%GetNext(, .failure) {
-			Set scope = ##class(OcuTalon.Watch.FailurePoller).Scope(failure.superSession)
-			If (scope = check.SessionRef) || ((scope = $Parameter(process, "INSTANCE")) && 'onlineDemo) Set failures = failures + 1
-		}
+		Set failures = ##class(OcuTalon.Checks.Process).ScopedFailures(failed, check.SessionRef, ##class(OcuTalon.Watch.Reader).OnlineDemo())
+		Set cut = ##class(OcuTalon.Checks.Process).IsCut(failed, max)
 	}
-	Set cut = ($IsObject(failed) && (failed.%Size() '< max))
-	If (reason = "") && cut && (failures = 0) {
-		Set reason = $Parameter(process, "REASONTOOMANY")
-		Set key = ..#KEYERROR
-	}
+	Set reason = ##class(OcuTalon.Checks.Process).NotCheckedReason(outcome, state, threw || '$IsObject(errored) || '$IsObject(queues), cut, failures)
 	If reason '= "" {
-		Do ..Add(rows, lines, ..#NOTCHECKED, entry, reason, now, key, {"entry": (entry), "time": (now)})
+		Do ..Add(rows, lines, ..#NOTCHECKED, entry, reason, now, ..KeyOf(..ReasonOf(reason)), {"entry": (entry), "time": (now)})
 		Quit 1
 	}
 	Set parts = ""
-	Set stateText = $Case(state, "stopped": $Parameter(process, "FINDINGSTOPPED"), "suspended": $Parameter(process, "FINDINGSUSPENDED"), "troubled": $Parameter(process, "FINDINGTROUBLED"), "network_stopped": $Parameter(process, "FINDINGNOTRUNNING"), : "")
+	Set stateText = ##class(OcuTalon.Checks.Process).StateText(state)
 	If stateText '= "" Set parts = parts_$ListBuild(stateText)
 	If errored.%Size() > 0 Set parts = parts_$ListBuild($Select(errored.%Size() = 1: ..#FINDINGITEMERROR, 1: ..Fill(..#FINDINGITEMSERROR, {"count": (errored.%Size())})))
 	If disabled.%Size() > 0 Set parts = parts_$ListBuild($Select(disabled.%Size() = 1: ..#FINDINGITEMDISABLED, 1: ..Fill(..#FINDINGITEMSDISABLED, {"count": (disabled.%Size())})))
-	If failures > 0 {
-		Set text = $Select(cut: $Parameter(process, "FINDINGATLEAST"), failures = 1: $Parameter(process, "FINDINGFAILURE"), 1: $Parameter(process, "FINDINGFAILURES"))
-		Set parts = parts_$ListBuild($Replace(text, "{count}", failures))
-	}
+	If failures > 0 Set parts = parts_$ListBuild(##class(OcuTalon.Checks.Process).FailureText(failures, cut))
 	Set most = 0
 	Set longest = 0
 	Set nowSeconds = ##class(OcuTalon.Data.Time).Seconds(now)
@@ -397,9 +378,7 @@ ClassMethod Live(check As OcuTalon.Data.BackgroundCheck, entry As %String, spanS
 	If most > 0 Set parts = parts_$ListBuild(..Fill(..#FINDINGQUEUED, {"count": (most)}))
 	If longest > 0 Set parts = parts_$ListBuild(..Fill(..#FINDINGWAITING, {"minutes": (longest \ 60)}))
 	If parts = "" Quit 0
-	Set finding = $ListToString(parts, ", ")
-	Set finding = $ZConvert($Extract(finding), "U")_$Extract(finding, 2, *)
-	Do ..AddChecked(rows, lines, entry, finding, now)
+	Do ..AddChecked(rows, lines, entry, ##class(OcuTalon.Checks.Process).Joined(parts), now)
 	Quit 1
 }
 
@@ -479,6 +458,20 @@ ClassMethod Gaps(fromUtc As %String, toUtc As %String) As %DynamicArray [ Privat
 	Quit ##class(OcuTalon.Schedule.Heartbeat).Gaps(fromUtc, toUtc)
 }
 
+/// The Reason of a not_checked run (the Reason of its CheckRun row) for the phrase that Checks.Process gave as its finding: timeout for REASONTIMEOUT,
+/// unreachable for REASONUNREADABLE and REASONNOTCURRENT, and error for anything else. RecordRun and the live read (Live) both take their reason from it.
+ClassMethod ReasonOf(finding As %String) As %String [ Private ]
+{
+	Set process = "OcuTalon.Checks.Process"
+	Quit $Case(finding, $Parameter(process, "REASONTIMEOUT"): "timeout", $Parameter(process, "REASONUNREADABLE"): "unreachable", $Parameter(process, "REASONNOTCURRENT"): "unreachable", : "error")
+}
+
+/// The catalog key of a not_checked row for its Reason (ReasonOf): KEYTIMEOUT for timeout, KEYUNREACHABLE for unreachable, else KEYERROR.
+ClassMethod KeyOf(reason As %String) As %String [ Private ]
+{
+	Quit $Case(reason, "timeout": ..#KEYTIMEOUT, "unreachable": ..#KEYUNREACHABLE, : ..#KEYERROR)
+}
+
 /// Records one run of a background check as a Digest.Data.CheckRun row, the one writer of the table (see the class description). The Reason of
 /// a not_checked run comes from its finding, the phrase that Checks.Process wrote: REASONTIMEOUT is timeout, REASONUNREADABLE and
 /// REASONNOTCURRENT are unreachable, and anything else is error. It is called inside the update of the check's row and catches its own errors: a
@@ -486,11 +479,8 @@ ClassMethod Gaps(fromUtc As %String, toUtc As %String) As %DynamicArray [ Privat
 ClassMethod RecordRun(ref As %String, sessionRef As %String, ranAt As %String, result As %String, finding As %String, headerId As %Integer = "")
 {
 	Try {
-		Set process = "OcuTalon.Checks.Process"
 		Set reason = ""
-		If result = ..#NOTCHECKED {
-			Set reason = $Case(finding, $Parameter(process, "REASONTIMEOUT"): "timeout", $Parameter(process, "REASONUNREADABLE"): "unreachable", $Parameter(process, "REASONNOTCURRENT"): "unreachable", : "error")
-		}
+		If result = ..#NOTCHECKED Set reason = ..ReasonOf(finding)
 		Set insert = ##class(%SQL.Statement).%ExecDirect(, "INSERT INTO OcuTalon_Digest_Data.CheckRun (CheckRef, SessionRef, RanAt, Result, Reason, Finding, HeaderId) VALUES (?, ?, ?, ?, ?, ?, ?)", ref, sessionRef, ranAt, result, reason, finding, headerId)
 		If insert.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, insert.%Message))
 	} Catch exception {

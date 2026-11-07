@@ -32,7 +32,8 @@
 ///   - TestRequest and TestAnswer: TestRequest builds one request of the agent's own kind (decide, diagnose or turn) with provenance untrusted,
 ///     owner instance, channel system, a fresh session, an ItemId of TESTITEMPREFIX and a part of a fresh reference, and the fixed code-written
 ///     TESTINPUT and TESTSUMMARY, which the caller sends to Decide synchronously. IsTest names such a request, and Decide never sends it to a
-///     second model. TestAnswer reads the response and the milliseconds it took and returns {answered, seconds, reason}: answered is true only for
+///     second model. The test is a connection test for every runner: a decide or diagnose test is answered on any non-empty reply that arrives
+///     within the timer, with no check against the runner's ReplyClass, and its Decision row keeps no model text. TestAnswer reads the response and the milliseconds it took and returns {answered, seconds, reason}: answered is true only for
 ///     a reply that is not a fallback and not busy, seconds has one decimal (at least 0.1 for a positive duration), and reason is "" when answered, the fallback reason when there is
 ///     one, and otherwise error.
 /// Every method above refuses a value that holds "@{" or is off the allow-list, with a plain-English reason that never holds the value, and changes
@@ -366,7 +367,8 @@ ClassMethod PriceKeys() As %String [ Private ]
 /// Builds the request that tests the agent's first model, for the caller to send to Decide synchronously: one request of the runner's kind
 /// (Decide RUNNERS), provenance untrusted, owner instance, channel system, a fresh session, the ItemId TESTITEMPREFIX and 17 characters of a
 /// new reference, TESTINPUT and TESTSUMMARY. It is refused for an agent that is not a first runner item, or whose name holds @{; request is
-/// then "". Nothing is sent or written.
+/// then "". Nothing is sent or written. The request tests the connection (the provider, model and key of the runner): Decide answers it on
+/// any non-empty reply within the timer and never checks the reply against the runner's ReplyClass.
 ClassMethod TestRequest(agent As %String, Output request As OcuTalon.Bridge.Msg.Request) As %Status
 {
 	Set request = ""
@@ -398,7 +400,7 @@ ClassMethod IsTest(request As OcuTalon.Bridge.Msg.Request) As %Boolean
 }
 
 /// Reads the response to the test request as {answered, seconds, reason}: answered is true only for a response that is not a fallback and not
-/// busy; seconds is durationMs / 1000 to one decimal, at least 0.1 for a positive duration; reason is "" when answered, the response's FallbackReason when it has one, and otherwise
+/// busy (a connection test, so a reply that fails the runner's reply class still answers); seconds is durationMs / 1000 to one decimal, at least 0.1 for a positive duration; reason is "" when answered, the response's FallbackReason when it has one, and otherwise
 /// error (no response, busy, or a fallback with no reason).
 ClassMethod TestAnswer(response As %Persistent, durationMs As %Integer) As %DynamicObject
 {

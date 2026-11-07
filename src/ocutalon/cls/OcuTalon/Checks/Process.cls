@@ -55,6 +55,9 @@
 ///     failed check joins up to three parts with ", " and an upper-case first letter: the state, the new failures (counted; "at least" when the read
 ///     was cut) and the most urgent unclosed incident. The texts are the FINDING* and REASON* parameters, built by code: no error text, event-log
 ///     text or diagnosis text ever reaches a finding, which Story 5.7's check_status trusts.
+///   - The live-read rules are public class methods, so that Checks.Coverage Live (the digest's coverage rows) applies the same ones as a run and the two
+///     cannot drift: NotCheckedReason (the reason chain above), ScopedFailures (the failures that are the session's), IsCut (the read stopped at its
+///     limit), StateText, FailureText and Joined (the join and the upper-case first letter), which Finding is built from.
 ///   - Record: one SQL UPDATE keyed by Ref sets LastRunAt, Result, Finding, LastRunHeaderId (this process's %SessionId, the Tick's trace session
 ///     (AD-26)), NextDueAt (the tick time plus INTERVALSECONDS) and Reported. Checks writes only these fields, and never re-creates a row: when no row is
 ///     updated (the watch was stopped meanwhile) nothing more happens, and nothing is sent. Only then is each finding sent (SendFinding), each in a trace
@@ -484,13 +487,8 @@ Method Run(row As %DynamicObject, tickAt As %String) [ Private ]
 		$$$LOGWARNING(..#LOGREAD_row.ref_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
 	Set onlineDemo = ##class(OcuTalon.Watch.Reader).OnlineDemo()
-	Set failures = 0
-	Set iterator = rows.%GetIterator()
-	While iterator.%GetNext(, .failure) {
-		Set scope = ##class(OcuTalon.Watch.FailurePoller).Scope(failure.superSession)
-		If (scope = row.sessionRef) || ((scope = ..#INSTANCE) && 'onlineDemo) Set failures = failures + 1
-	}
-	Set cut = (rows.%Size() '< limit)
+	Set failures = ..ScopedFailures(rows, row.sessionRef, onlineDemo)
+	Set cut = ..IsCut(rows, limit)
 	Set incident = ""
 	Set unread = 0
 	If (outcome = "read") && 'threw {
@@ -500,16 +498,7 @@ Method Run(row As %DynamicObject, tickAt As %String) [ Private ]
 			Set unread = 1
 		}
 	}
-	Set reason = $Case(outcome, "unreadable": ..#REASONUNREADABLE, "not_current": ..#REASONNOTCURRENT, : "")
-	If reason = "" {
-		If state = "timeout" {
-			Set reason = ..#REASONTIMEOUT
-		} ElseIf threw || (outcome '= "read") || (state = "unknown") || (state = "") || unread {
-			Set reason = ..#REASONREAD
-		} ElseIf cut && (failures = 0) {
-			Set reason = ..#REASONTOOMANY
-		}
-	}
+	Set reason = ..NotCheckedReason(outcome, state, threw || unread, cut, failures)
 	If reason '= "" {
 		Set result = "not_checked"
 		Set finding = reason
@@ -638,20 +627,73 @@ Method Unclosed(row As %DynamicObject, onlineDemo As %Boolean) As %String [ Priv
 	Quit urgent
 }
 
-/// The finding of a failed run, or "" when the run passed: the state, the new failures and the incident, as the class description gives them.
+/// The reason that a live read of a production could not be checked, or "" when it can: the one reason chain of Run and of Checks.Coverage Live. outcome
+/// is the read's outcome (read, unreadable or not_current), state the production's running state, unread 1 when the read threw or anything else it
+/// needs (the incidents) could not be read, cut 1 when the read stopped at its limit, and failures the session's scoped failures (ScopedFailures). The
+/// first rule that holds: REASONUNREADABLE (outcome unreadable), REASONNOTCURRENT (outcome not_current), REASONTIMEOUT (state timeout), REASONREAD (unread,
+/// an outcome other than read, or a state that is unknown or empty), REASONTOOMANY (cut with no failure of the session).
+ClassMethod NotCheckedReason(outcome As %String, state As %String, unread As %Boolean, cut As %Boolean, failures As %Integer) As %String
+{
+	Set reason = $Case(outcome, "unreadable": ..#REASONUNREADABLE, "not_current": ..#REASONNOTCURRENT, : "")
+	If reason '= "" Quit reason
+	If state = "timeout" Quit ..#REASONTIMEOUT
+	If unread || (outcome '= "read") || (state = "unknown") || (state = "") Quit ..#REASONREAD
+	If cut && (failures = 0) Quit ..#REASONTOOMANY
+	Quit ""
+}
+
+/// The number of the failures in rows (a dynamic array of the read's failures, each with a superSession) that are the session's (AD-4): the scope of
+/// a failure's SuperSession (Watch.FailurePoller Scope) is sessionRef, or is INSTANCE while the instance is not the online demo (onlineDemo). rows
+/// must be a dynamic array: anything else throws, as a read that gave no array does in a run.
+ClassMethod ScopedFailures(rows As %DynamicArray, sessionRef As %String, onlineDemo As %Boolean) As %Integer
+{
+	Set count = 0
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .failure) {
+		Set scope = ##class(OcuTalon.Watch.FailurePoller).Scope(failure.superSession)
+		If (scope = sessionRef) || ((scope = ..#INSTANCE) && 'onlineDemo) Set count = count + 1
+	}
+	Quit count
+}
+
+/// 1 when the read was cut at its limit: rows, the dynamic array of its failures, holds at least limit of them.
+ClassMethod IsCut(rows As %DynamicArray, limit As %Integer) As %Boolean
+{
+	Quit rows.%Size() '< limit
+}
+
+/// The part of a finding that names a production state that is not running (FINDINGSTOPPED, FINDINGSUSPENDED, FINDINGTROUBLED or FINDINGNOTRUNNING for a
+/// network_stopped one), or "" for any other state.
+ClassMethod StateText(state As %String) As %String
+{
+	Quit $Case(state, "stopped": ..#FINDINGSTOPPED, "suspended": ..#FINDINGSUSPENDED, "troubled": ..#FINDINGTROUBLED, "network_stopped": ..#FINDINGNOTRUNNING, : "")
+}
+
+/// The part of a finding that counts the new failures (failures, at least 1): FINDINGATLEAST when the read was cut, else FINDINGFAILURE for one and
+/// FINDINGFAILURES for more, with {count} put in.
+ClassMethod FailureText(failures As %Integer, cut As %Boolean) As %String
+{
+	Quit $Replace($Select(cut: ..#FINDINGATLEAST, failures = 1: ..#FINDINGFAILURE, 1: ..#FINDINGFAILURES), "{count}", failures)
+}
+
+/// The finding that joins its parts (a $List of texts) with ", " and makes the first letter upper case; "" when there is no part.
+ClassMethod Joined(parts As %List) As %String
+{
+	Set finding = $ListToString(parts, ", ")
+	Quit $ZConvert($Extract(finding), "U")_$Extract(finding, 2, *)
+}
+
+/// The finding of a failed run, or "" when the run passed: the state, the new failures and the incident, as the class description gives them,
+/// built from StateText, FailureText and Joined.
 ClassMethod Finding(state As %String, failures As %Integer, cut As %Boolean, incident As %String) As %String [ Private ]
 {
 	Set parts = ""
-	Set stateText = $Case(state, "stopped": ..#FINDINGSTOPPED, "suspended": ..#FINDINGSUSPENDED, "troubled": ..#FINDINGTROUBLED, "network_stopped": ..#FINDINGNOTRUNNING, : "")
+	Set stateText = ..StateText(state)
 	If stateText '= "" Set parts = parts_$ListBuild(stateText)
-	If failures > 0 {
-		Set text = $Select(cut: ..#FINDINGATLEAST, failures = 1: ..#FINDINGFAILURE, 1: ..#FINDINGFAILURES)
-		Set parts = parts_$ListBuild($Replace(text, "{count}", failures))
-	}
+	If failures > 0 Set parts = parts_$ListBuild(..FailureText(failures, cut))
 	Set incidentText = $Case(incident, ##class(OcuTalon.Watch.Transitions).#AWAITING: ..#FINDINGAWAITING, ##class(OcuTalon.Watch.Transitions).#FIXING: ..#FINDINGFIXING, ##class(OcuTalon.Watch.Transitions).#OPEN: ..#FINDINGOPEN, : "")
 	If incidentText '= "" Set parts = parts_$ListBuild(incidentText)
-	Set finding = $ListToString(parts, ", ")
-	Quit $ZConvert($Extract(finding), "U")_$Extract(finding, 2, *)
+	Quit ..Joined(parts)
 }
 
 /// A CheckChanged from WatchOps: the change goes out as a check event (see the class description). Always OK.
