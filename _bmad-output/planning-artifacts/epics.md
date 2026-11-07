@@ -8992,9 +8992,11 @@ So that a red on the image shard means a real defect.
 
 **Given** `OcuTalon.Test.Schedule.Heartbeat` in the image shard lane-b
 **When** it runs
-**Then** the cause of the "and the production runs every item" failure (`Install.Step.Production.NotRunning()` not empty) is confirmed with evidence: the old code fails under a repeat or load run
-**And** the fix is test-only unless the cause is in the product (a product cause is ruled before any product code changes)
-**And** the fixed test passes 20 of 20 runs under the same load; no pin is deleted or weakened, and no timeout is raised as the fix
+**Then** when the "and the production runs every item" pin fails (`Install.Step.Production.NotRunning()` not empty), its message names every missing item and the state of its job, so the next occurrence identifies the cause
+**And** the change is test-only; no pin is deleted, weakened or moved, no wait is added, and no timeout is raised
+**And** a demonstrated mutation (an item stopped before the pin's read) shows the new message naming the item
+
+[AMENDED 2026-11-07, orchestrator ruling ~12:10Z (option (a), diagnostics only, matching the Planner's 11.27 ruling on an unreproduced flake), after the plan's TIMEBOX: 0 red in 7 load runs, cause not confirmed. It read: "**Then** the cause of the "and the production runs every item" failure (`Install.Step.Production.NotRunning()` not empty) is confirmed with evidence: the old code fails under a repeat or load run / **And** the fix is test-only unless the cause is in the product (a product cause is ruled before any product code changes) / **And** the fixed test passes 20 of 20 runs under the same load; no pin is deleted or weakened, and no timeout is raised as the fix". The fix waits for the next named occurrence; DW-639 stays a flake class.]
 
 - DW-639: flake: OcuTalon.Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('and the production runs every item': Install.Step.Production.NotRunning() not empty) red in CI image shard lane-b (ledger; routed by orchestrator 2026-11-07)
 

@@ -6,7 +6,7 @@ status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
-warnings: ['oversized']
+warnings: []
 deferred: []
 ---
 
@@ -14,34 +14,29 @@ deferred: []
 
 ## Intent
 
-**Problem:** `OcuTalon.Test.Schedule.Heartbeat` `TestAfterAllTestsNothingSaved` fails at "and the production runs every item" (`Install.Step.Production.NotRunning()` not empty) in CI's `image` job (`shard:lane-b`), about once in a few runs (DW-639: 3 heads in 6 hours on 2026-11-07, earlier ones since 2026-11-03), and each red goes green on one rerun. So a red on the image shard does not mean a real defect. The planning stage could not confirm the cause inside its timebox (see TIMEBOX under Design Notes).
+**Problem:** `OcuTalon.Test.Schedule.Heartbeat` `TestAfterAllTestsNothingSaved` fails at "and the production runs every item" (`Install.Step.Production.NotRunning()` not empty) in CI's `image` job (`shard:lane-b`), about once in a few runs (DW-639: 3 heads in 6 hours on 2026-11-07, earlier ones since 2026-11-03), and each red goes green on one rerun. The planning stage could not reproduce it or confirm the cause inside its timebox (see TIMEBOX under Design Notes), and the CI logs do not say which item was missing.
 
-**Approach:** Measure first: the assertion names the missing items and their state, and Task 0 reproduces the red under a CI-like load run and identifies the item. Then make the test read a settled state: before it calls `OnAfterAllTests`, it waits (bounded, reported) until every enabled item runs, by the same predicate the pin uses; the pin after the call stays an immediate, raw `NotRunning()` check. The fix lands only with its proof: the old code red under the load run, the fixed code 20 of 20 under the same load.
+**Approach (orchestrator ruling 2026-11-07 ~12:10Z, option (a): diagnostics only):** the pin's failure message names the missing items and the state of their jobs, so the next CI occurrence identifies the cause. Nothing else changes: no wait, no precondition, no fixture change; the bounded wait is NOT landed (no reproduction, so it would break the proof rule). DW-639 stays a flake class.
 
 ## Boundaries & Constraints
 
 **Always:**
-- Test-only: `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls` and its fixture `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls`. Any cause found in product code is recorded as `PRODUCT CAUSE:` and stops the story for a ruling before any product change.
-- The pin keeps its predicate and its moment: right after `other.OnAfterAllTests()`, `Install.Step.Production.NotRunning()` must be `""`, read once, with no wait. Its message keeps the text "and the production runs every item" and adds, when it fails, the missing items and `RunnerFixture.StateOf` of them.
-- The new wait is a precondition, asserted as a control: "control: every item runs before the call". It is bounded by the fixture's `WAITSECONDS` (60) and, when it is not met, fails with the items and their state. It uses `NotRunning()` (every enabled item with a pool), not `NotRunningNow()`.
-- The 20-of-20 proof and the old-code red run under the same load, on lane D throwaways only, each command inside one 10-minute foreground call.
+- Test-only: `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls` (and, only if `StateOf` cannot be called as it is, nothing else: `RunnerFixture.StateOf` is reused unchanged).
+- The pin keeps its predicate, its moment and its text: right after `other.OnAfterAllTests()`, `Install.Step.Production.NotRunning()` is read ONCE into a variable, with no wait, and asserted equal to `""`. The message stays "and the production runs every item" on a pass; on a failure it adds ": <items> (<`RunnerFixture.StateOf` of them>)".
 - No shown text changes (39.10 changes no product string).
 
 **Never:**
-- Delete, skip or weaken any assertion of the class; move the pin after a wait; use `NotRunningNow()` for the pin; raise `WAITSECONDS`, `RECORDSECONDS`, `RUNSECONDS`, `RUNNOWSECONDS` or any other existing bound.
-- Change `Install/Step/Production.cls` or any other product class; change `ci/units.sh` (Epic 19's), `release/*`, `eval/run.sh` or the IPM scripts.
-- Load the shared Docker VM to make load: throttle only this stage's own throwaway (`docker update --cpus <n>` on its own iris container).
-- Run tests on `ocutalon-slot-d` or any other slot or instance.
+- Delete, skip or weaken any assertion of the class; add a wait or a precondition; move the pin; use `NotRunningNow()` for the pin; raise any existing bound.
+- Change `RunnerFixture.cls`, `Install/Step/Production.cls` or any other product class; change `ci/units.sh` (Epic 19's), `release/*`, `eval/run.sh` or the IPM scripts.
+- Run tests on `ocutalon-slot-d` or any other slot or instance; load the shared Docker VM.
 
 ## I/O & Edge-Case Matrix
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Settled production | every enabled item has its job | control passes at once; `OnAfterAllTests` returns OK; pin passes | none |
-| Item still coming up when the test begins | an item restarting (no job, or `Starting`) at the test's start | control waits until it runs (within 60 s), then the call and the pin as above | none; the wait time is in no assertion |
-| Item never comes up | an item with no job for 60 s | control fails naming the item and its state (`StateOf`); the call and pin still run | a red that names the item, never a silent pass |
-| Call disturbs the production (mutation) | `OnAfterAllTests` stops an item | pin fails at once, naming the item and its state | red, as before the fix |
-| Product cause | Task 0 shows an item's job dying on its own (Dead, `terminated`, `error`) | no fix planned in this story | `PRODUCT CAUSE:` recorded, story stops for a ruling |
+| Settled production | every enabled item has its job | pin passes with the message "and the production runs every item" (unchanged) | none |
+| Call disturbs the production (mutation) | `OnAfterAllTests` first stops an item | pin fails at once; its message names the item and its job state (`StateOf`) | red, as before, now with the item named |
+| The CI flake recurs | an item missing at the instant of the read | the same red as before, now naming the item and its state | the next occurrence's message decides the fix (a later story) |
 
 </intent-contract>
 
@@ -56,17 +51,16 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls` -- Task 0 (diagnostics, then measure, before the fix): read the pin's `NotRunning()` once into a variable and assert on it, with the message "and the production runs every item" followed, when it is not empty, by ": <items> (<StateOf of them>)". Then run the Task 0 load (Verification) with this version and record each run's result, the missing item and its state. Classify the cause with the matrix's last row and the Design Notes' decision table before any further change.
-- `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls` -- extend `WaitAllRun` with an optional `every As %Boolean = 0`: with 1 it polls `##class(OcuTalon.Install.Step.Production).NotRunning()` instead of `NotRunningNow()`, same bound and pace; the default is unchanged for every existing caller. Its doc comment states both modes.
-- `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls` -- in `TestAfterAllTestsNothingSaved`, before `other.OnAfterAllTests()`: `Do $$$AssertTrue($ClassMethod(..#FIXTURE, "WaitAllRun", 1), "control: every item runs before the call"_<": items (StateOf)" when not>)`. The pin after the call stays as Task 0 left it. Update the method's doc comment (what it pins and what it needs: a production running every item, waited for) and the class header's `(QA) TestAfterAllTestsNothingSaved` line to match.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls` -- in `TestAfterAllTestsNothingSaved`, read the pin's `NotRunning()` once into a variable and assert on it, with the message "and the production runs every item" followed, only when it is not empty, by ": <items> (<`$ClassMethod(..#FIXTURE, "StateOf", <items>)`>)" (check `StateOf`'s signature in `RunnerFixture.cls` L164-182 and call it as it is). Update the method's doc comment (the failure message names the missing items and their state, DW-639) and the class header's `(QA) TestAfterAllTestsNothingSaved` line if it describes the message. No other change.
 
 **Acceptance Criteria:**
-- Given the Task 0 load run (Verification) with the diagnostics-only version, when it runs, then at least one run is red at the pin and its message names the missing item and its state; the measurement (runs, reds, item, state, timing) is written under `## Verification` as `measured:` lines. If no run is red within the Task 0 budget, the stage stops with `## Clarification Needed` (TIMEBOX-2: not reproduced; diagnostics ready to ship alone) and lands no fix.
-- Given the cause Task 0 found is test-side (an item the setup or an earlier class restarted, still coming up), when the fixed class runs 20 times under the same load, then it passes 20 of 20, and every run's control and pin pass.
-- Given the mutation "`OnAfterAllTests` first stops an item" (Verification), when the fixed class runs, then the pin is red at once with the item named, so the precondition does not hide a production the call disturbed.
-- Given `Test.Schedule.Heartbeat` on a fresh stack, when `shard lane-b@Schedule` runs forward and with `--reverse`, then every class passes (the standing criterion).
+- AC 1 (DW-639, diagnostics) -- Given `TestAfterAllTestsNothingSaved`, when its pin fails, then the failure line names every missing item and its job state; when it passes, its message is unchanged.
+- AC 2 -- Given the mutation "the first line of `OnAfterAllTests` stops an item" (Verification), when the class runs on a fresh stack, then the pin is red at once and its message names that item and its state (demonstrated, reverted, tree byte-identical).
+- AC 3 -- Given `Test.Schedule.Heartbeat` on a fresh stack, when `shard lane-b@Schedule` runs forward and with `--reverse`, then every class passes (the standing criterion).
 
 ## Spec Change Log
+
+- 2026-11-07 ~12:10Z (orchestrator ruling, decide, option (a), matching the Planner's 11.27 ruling on an unreproduced flake): the story is narrowed to step 1, diagnostics only. The planned `WaitAllRun(every)` extension, the precondition control, the Task 0 load runs and the 20-of-20 proof are dropped from this story (no reproduction, so the fix would break the proof rule). DW-639 stays a flake class and is closed at the burn-down with the residual "diagnostics landed; fix on next named occurrence", not as resolved.
 
 ## Review Triage Log
 
@@ -80,50 +74,45 @@ deferred: []
 - Structural finding (read, not inferred): this pin is the only check in `lane-b` that samples `NotRunning()` without waiting; every other readiness check (`WaitAllRun`, `Install.Step.Production.Start`) waits up to 60 s. So a transient outage of any item at that instant fails it while every other class absorbs it, and the test acts without first establishing its own precondition (Rule 19: wait for the system to signal ready before acting).
 - Leading hypothesis (inference): an item that is still coming up, or restarting, in the first milliseconds after `OnBeforeAllTests` on a loaded CI host, caused by the setup's `UpdateProduction` or an earlier class. Not a product cause on present evidence.
 
-**Decision table for Task 0's red (the cause decides the fix; record it as `cause:` under Verification):**
+**[Superseded by the ruling of ~12:10Z; kept for the next occurrence's story] Decision table for a red that names the item (the cause decides the fix; record it as `cause:` under Verification):**
 - The missing item is Checks, or another item a test or the setup restarted, shown `Starting` or `jobs none` and clearing within seconds: test-side; the planned precondition fixes it.
 - An item whose job died (`Dead`, `last was: ...`, `terminated`, `error`) with no test stopping it: `PRODUCT CAUSE:` with the event-log rows; no fix in this story; stop for a ruling.
 - An item that never comes back within 60 s: a leftover of an earlier class (out of footprint): record it as a `deferred:` item naming the class; the precondition's control then fails with the item named (a real red), and the stage stops with a clarification for the runner.
 
-**Why the precondition does not weaken the pin.** The test pins "OnAfterAllTests of a class that saved nothing leaves the production as it is". "As it is" presumes a production that ran every item before the call; the test never established that. The pin's predicate, its moment (immediately after the call) and its text stay; the control is a new assertion, bounded and reported, that fails on a production that does not come up. A call that stops or restarts an item still turns the pin red (the mutation AC). The bound is the fixture's existing `WAITSECONDS`; no existing bound is raised.
+**[Superseded; the precondition is not landed] Why a precondition would not weaken the pin.** The test pins "OnAfterAllTests of a class that saved nothing leaves the production as it is". "As it is" presumes a production that ran every item before the call; the test never established that. The pin's predicate, its moment (immediately after the call) and its text stay; the control is a new assertion, bounded and reported, that fails on a production that does not come up. A call that stops or restarts an item still turns the pin red (the mutation AC). The bound is the fixture's existing `WAITSECONDS`; no existing bound is raised.
 
-**Decided in-stage:**
-- The precondition sits in the test, not in `OnBeforeAllTests`, so the test is self-contained (Rule 19) and the other tests' timing does not change.
-- The precondition uses `NotRunning()` (every enabled item with a pool), the pin's own predicate, not `NotRunningNow()`: otherwise an item hidden by an `Enabled` row 0 would pass the control and fail the pin.
-- Proof load = the shortest Task 0 load that went red (fresh `--part 3/4` first, else the CI-order cycle); the 20 runs repeat exactly it.
+**Decided in-stage:** (superseded by the ruling: no precondition, no fixture change, no load proof in this story.)
 
-**Extend, don't copy (Rule 2):** `WaitAllRun(every)` extends the fixture's own wait (the sibling `Install.Step.Production.StartLocked` poll is product code and stays untouched); `StateOf` is reused for the messages.
+**Extend, don't copy (Rule 2):** `RunnerFixture.StateOf` is reused for the message; nothing is copied.
 
-**Integration ACs:** `WaitAllRun(1)` is consumed by `TestAfterAllTestsNothingSaved` (the precondition AC). **Consumed-by:** `OcuTalon.Test.Schedule.Heartbeat` (this story). **Consumes:** `Install.Step.Production.NotRunning`, `RunnerFixture.StateOf`.
+**Integration ACs:** no service is introduced (a message change in one test). **Consumes:** `Install.Step.Production.NotRunning`, `RunnerFixture.StateOf`.
 
 **Governing ADs:** AD-22 (tests in throwaway stacks, sharded by area; the CI recipe), AD-23 (the Production step owns `NotRunning`; read-only here), AD-29 (lanes: both files are Lane A's test code; the home lane is A).
 
-**Ledger inbox:** DW-639 is addressed by all four ACs (cause measured, test-only fix, 20 of 20 under load, fresh check).
+**Ledger inbox:** DW-639 is addressed by AC 1-3 (diagnostics); the fix itself is declined in this story by the ruling (no reproduction) and waits for the next named occurrence. Declined DW-639 (the fix only): not reproduced; ruled diagnostics-only.
 
-**Footprint:** the two files above and this spec. Not touched by any in-flight epic's diff (checked against `origin/OCT-epic11`, `-epic19`, `-epic4`, `-epic17`, `-epic34` at planning).
+**Footprint:** `Test/Schedule/Heartbeat.cls` and this spec. Not touched by any in-flight epic's diff (checked against `origin/OCT-epic11`, `-epic19`, `-epic4`, `-epic17`, `-epic34` at planning).
 
 ## Verification
 
 `<lane>` is `OCUTALON_LOCK_DIR=<lock-dir>/lane-d OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=39 stage=implement'`; scratch files go under `<scratchpad>/e39s10impl/`.
 
-**Run rules:** one runner command per foreground call with `timeout: 600000`, never two at once; at most one fresh (`e39s10impl`) and one warm (`e39s10implw`) throwaway; tear down only those tags, also after a failure; no test runs on `ocutalon-slot-d` (identity check with `iris_server_info` before any compile there). Load is made only with `docker update --cpus <n>` on this stage's own iris container (`ci/warm.sh status` names its project).
+**Run rules:** one runner command per foreground call with `timeout: 600000`, never two at once; at most one fresh (`e39s10impl`) throwaway; tear down only that tag, also after a failure; no test runs on `ocutalon-slot-d`.
 
-**Shared surfaces:** `RunnerFixture.WaitAllRun` (a new optional argument; every existing caller passes none and keeps its behaviour); `Test.Schedule.Heartbeat`'s messages (no other test reads them).
+**Shared surfaces:** `Test.Schedule.Heartbeat`'s pin message (no other test reads it).
 
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 
-**ci_groups:** `image` (`shard:lane-b`, which runs `Test.Schedule.Heartbeat`); the fixture's compile reaches every shard group (`shards`, `shards-2`, `shards-4`, `image`), with no behaviour change for them. No bound or group changes.
+**ci_groups:** `image` (`shard:lane-b`, which runs `Test.Schedule.Heartbeat`). No bound or group changes.
 
 **Commands:**
-- (once) Task 0, fresh load: `<lane> OCUTALON_RUN_TAG=e39s10impl ci/iris.sh shard lane-b --part 3/4` (classes 55-81 of today's 107, `Data.Setting` to `Schedule.ReminderZone`; check the PART line), one per call, up to 6 calls. Expected: a red at the pin names the item; record each run as `measured:`.
-- (once) Task 0, CI-order load if the fresh one stays green: `<lane> OCUTALON_RUN_TAG=e39s10implw ci/warm.sh up`, `docker update --cpus 1.5 <its iris container>`, then `OCUTALON_WARM=1 ... ci/iris.sh shard 'lane-b@Contract,Core'` (about 265 s), `shard 'lane-b@Data,Demo,Live,Msg'` (about 154 s), `class OcuTalon.Test.Schedule.Heartbeat` (about 100 s), one per call; `ci/warm.sh down` between cycles; up to 3 cycles. An in-container sampler (a scratch routine that records each change of `NotRunning()` with `StateOf`, every 10 ms, into a scratch global of the throwaway; never a tracked file) may run during the cycle.
-- (loop) after the fix: the same load as the red, 20 runs, each run its own call(s). Expected: 20 of 20 green; control and pin pass in each.
-- (once) mutation on a fresh stack: first line of `OnAfterAllTests` `Do ##class(Ens.Director).TempStopConfigItem("SimPhoneOut", 1)`; `<lane> OCUTALON_RUN_TAG=e39s10impl ci/iris.sh class OcuTalon.Test.Schedule.Heartbeat`. Expected: `TestAfterAllTestsNothingSaved` red at the pin naming SimPhoneOut; revert; `git status --short` and `git diff --stat` byte-identical to before.
+- (loop) `<lane> OCUTALON_RUN_TAG=e39s10impl ci/iris.sh class OcuTalon.Test.Schedule.Heartbeat`. Expected: passed.
+- (once) mutation on a fresh stack: first line of `OnAfterAllTests` `Do ##class(Ens.Director).TempStopConfigItem("SimPhoneOut", 1)`; run the class as above. Expected: `TestAfterAllTestsNothingSaved` red at the pin, its message naming SimPhoneOut and its state; revert; `git status --short` and `git diff --stat` byte-identical to before. Record it as a `mutation:` line with the observed message.
 - (once) `<lane> OCUTALON_RUN_TAG=e39s10impl ci/iris.sh shard 'lane-b@Schedule'`, then the same with `--reverse`, one per call. Expected: every class passed.
-- (once) `bash docker/tests/test-class-rules.sh`, `bash docker/tests/test-boundaries.sh`, `bash docker/tests/test-ci-config.sh`, one per call. Expected: exit 0.
-- (once) `<lane> OCUTALON_RUN_TAG=e39s10implw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e39s10impl ci/iris.sh teardown`, also after a failure.
+- (once) `bash docker/tests/test-class-rules.sh`, `bash docker/tests/test-boundaries.sh`, one per call. Expected: exit 0.
+- (once) `<lane> OCUTALON_RUN_TAG=e39s10impl ci/iris.sh teardown`, also after a failure.
 
-**Pinning mutations:** the precondition AC: the control removed is the old code, red under the load (Task 0's measurement). The pin AC: the `TempStopConfigItem` mutation above.
+**Pinning mutations:** AC 1/2: the `TempStopConfigItem` mutation above.
 
 ## Auto Run Result
 
