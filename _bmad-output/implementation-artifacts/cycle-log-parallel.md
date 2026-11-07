@@ -2521,3 +2521,4 @@
 2026-11-07T17:56:29Z	Epic 7	epic_merged_to_feature	merge=c5118d34 head=c1e16cf9 story=7.10 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0
 2026-11-07T17:56:29Z	Epic 7	decision_sheet_recorded	DW-868=test-only_story_after_1.0.4
 2026-11-07T17:56:29Z	Run	deps_hash_rerecorded	reason=fix_forward story=7.10 hash=535f27f4df74
+2026-11-07T18:05:40Z	Run	owner_decision	subject=account_switch_hold by=Contest_Planner hold=owner_call_at_quota_low_90s not_tied_to_tag full_speed_until_HOLD quota=84%@18:05Z(~2.4%/h) likely=20:30-21:30Z
