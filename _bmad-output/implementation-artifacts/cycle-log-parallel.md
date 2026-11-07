@@ -2532,3 +2532,6 @@
 2026-11-07T18:33:58Z	Run	planner_ruling	dw=DW-879 option=B+skip_abandoned conditions=pool2_DiagnosisAgent_only,pins,stale_vs_live_test,concurrency_proof,no_new_strings host=gateway_120rpm,cap_20usd,LU_1of8 priority_1.0.4=12.12,17.10,DW-879,DW-878_then_tier3
 2026-11-07T19:44:09Z	Epic 39	runner_ci_wait	head=84e2ee03 runs=42404361697,42404361658 DW-880=HC8_test_defect(fix_84e2ee03) veto=U-301 flakes=DW-688,DW-333_sibling
 2026-11-07T19:44:09Z	Run	planner_update	subject=release_PR_risk DW-880 pick_candidate=84e2ee03(heartbeat-card.spec.ts_one_line)
+2026-11-07T19:52:46Z	Epic 11	runner_ci_wait	head=882b6d4b runs=42406393504,42406393478 stories=11.27,11.28 integrated_onto=c5118d34
+2026-11-07T19:52:46Z	Epic 32	runner_ci_wait	head=39364d5c ci=42401362858_rerun lane-a=green browser=1911s shards-5=2014s(sign-in-3_761s) reds=HC8(DW-880),infra,DW-639_class,load_class
+2026-11-07T19:52:46Z	Epic 32	orchestrator_ruling	subject=32.5_close_commit push_then_orchestrator_cancels_dup_CI_and_merges(feature_CI_proof)
