@@ -10,9 +10,14 @@
 #      comes before it: the CPF merge is the manifest's first resource;
 #   5. src/module.xml declares the preload resource of the second early step and invokes its MapAndStop once, at Initialize, After,
 #      and no other Invoke runs at Initialize, the phase where the first run stops (an Invoke of a later phase never runs there);
-#   6. .github/workflows/lane-a.yml defines job ipm-install, and the job runs release/ipm-install.sh;
-#   7. the job is wired the way the script needs: the base image in IRIS_IMAGE, a run tag that ends in -ipm, the web bundle built
-#      before the script runs, and a live deadline that ends before the job's timeout.
+#   6. .github/workflows/lane-a.yml defines the jobs ipm-install and ipm-install-p, and they are the only jobs that run
+#      release/ipm-install.sh, each with explicit modes (DW-864): ipm-install runs `a` then `r` (path A and its failed reinstalls),
+#      ipm-install-p runs `b` then `p` (path B and part p);
+#   7. each of the two jobs is wired the way the script needs: the base image in IRIS_IMAGE, a run tag of its own (ending in -ipm for
+#      ipm-install and -ipm-p for ipm-install-p), the web bundle built before the script runs, a live deadline shorter than the job's
+#      timeout (each run of the script counts it from its own start, so it bounds one run, not the job's two), and the step
+#      conditions: the job's first script run has no if: and the second has exactly if: ${{ !cancelled() }}, so a failed first mode
+#      never hides the second mode's checks; the two jobs keep the same timeout and deadline.
 #   8. src/module.xml declares the IPM entry point once: the exact Configure, After Invoke of OcuTalon.Install.Registry Ipm, on a line
 #      of its own after the MapAndStop Invoke, and no other Invoke at Configure (the Unconfigure Invoke of rule 13 is not one);
 #   9. docs/install-ipm.md (QA of Story 15.2) keeps the points of its task and agrees with the code it quotes: no ANSI code, the stop
@@ -33,7 +38,35 @@
 #      discarded, nothing lists repositories, each hash is kept in a variable and never echoed; and the real uninstall_checks passes only
 #      for equal hashes with at least one node, and prints none (U-232 condition 1);
 #  15. (QA of Story 15.4) docs/security-overview.md holds the ruled Data bullet on the repository mapping (U-232 condition 3).
-#  16. (Story 15.4) release/ipm-install.sh with no argument, the job's run, ends with part p (AC 5).
+#  16. (Story 15.4) release/ipm-install.sh with no argument (the mode all) ends with part p (AC 5).
+#  17. (Story 19.8, DW-829) the manifests (src/module.xml and module.xml) invoke OcuTalon.Install.Ipm RemoveStaleCopies once, at Reload, Before,
+#      with the module root, ${BypassPyDeps} and ${cmd} (the lifecycle command; DW-856) as its arguments, on a line of its own after the
+#      MapAndStop Invoke, and declare the Defaults BypassPyDeps (0) and cmd (empty) once each; no other Invoke runs at Reload, so IPM's pip
+#      step finds the stale copies of the pinned packages removed, and the step removes nothing when that pip step does not run.
+#  18. (Story 19.8, QA, DW-829) the Python of check 32 in release/ipm-install.sh, taken out of the script and run on a scratch folder (no
+#      container, no IPM): the import check passes the pinned copies (also a pin spelled with a leading zero and a module with no
+#      __version__) and fails a version-only difference (urllib3's __init__.py is the same file in both versions), code that is not the
+#      pinned RECORD's, a file outside the folder, a module that did not import and a missing pinned dist-info; the folder comparison
+#      accepts only the six moving to the pins and the pins added, and fails a stale dist-info that stays, a missing pin, a changed or
+#      missing or unpinned distribution, a lost top-level item, an IPM module that no longer imports and an empty import record; the
+#      uninstall comparison accepts only the two Python resources gone and fails a distribution gone, changed or added, a top-level item
+#      gone or added, a lost import and an empty import record; python_state writes the D and T lines the comparisons read; the licence
+#      gate's skip rule gates an older copy of a pinned name that was there before the install and skips a name that is no pin.
+#  19. (Story 19.8, QA, DW-829) release/ipm-install.sh runs the import check at both places of check 32: check_python_pins right after check_licences
+#      on path A (and path A then runs check_reinstall) and on part p (and part p runs check_uninstall_python after its uninstall, then the
+#      install command in USER from the local repository, which stops with its next command), and
+#      check_python_pins runs the import check, the folder comparison, zpm "list" and the Invoke's arguments; path A then runs
+#      check_pip_skipped (DW-856), which plants a stale idna whose RECORD names the pinned idna's package, takes the import record, runs a
+#      reload and a load with -bypass-py-deps and checks that each removed nothing (check_nothing_removed: no STEP Python line, the folder as
+#      planted, the version-and-hash import check, zpm "list").
+#  20. (Story 19.8, rework 2, DW-864) the two jobs of rule 6 split the no-argument run of release/ipm-install.sh: the main flow of the script
+#      (from `# --- the stack ---`), read with each mode's gates, runs in the no-argument run no line that the jobs' modes together do not run
+#      (a, r, b and p, read from the workflow), and each of the modes a, r, b and p alone runs only lines of the no-argument run (p adds
+#      only its own packaging stack: lines that name pkg-first, pkg-second or the packaging stack, or continue a quoted check_session
+#      argument), only its own set of the eight marker lines (first run, second run, install checks, reinstall check, failed reinstalls,
+#      path B, part p, packaging stack), and, for a, r and b, no line more often than the no-argument run; a gate the reader cannot read
+#      (an elif, a one-line else, a test of the mode outside an if line) or an unbalanced if is an error; and the code lines of the whole
+#      script that read or assign the mode are exactly its read and its case, then the seven gates of the main flow (the gate pin).
 # Each rule first runs on synthetic files, one that keeps it and one that breaks it, so a rule that can no longer fail makes the
 # test fail. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -125,29 +158,48 @@ early_step_declared() {
     END { exit (npre == 1 && ninv == 1 && !bad) ? 0 : 1 }' "$1"
 }
 
-# 6. The FR-57 job of lane-a.yml runs the script: the job's block holds the run line.
-ipm_job_runs_script() {
+# 6. The FR-57 jobs of lane-a.yml run the script, each with explicit modes (DW-864). ipm_jobs_modes <workflow>: one word "<job>=<modes>" for each
+# job with a run line of the script, in file order, the modes of its run lines joined by commas ("all" for a run line with no mode).
+ipm_jobs_modes() {
   awk '
-    /^  [A-Za-z0-9_-]+:[ \t]*$/ { injob = ($1 == "ipm-install:") ; next }
-    /^[^ ]/ { injob = 0 }
-    injob && $0 ~ /^[ \t]+(- )?run: bash release\/ipm-install\.sh[ \t]*$/ { found = 1 }
-    END { exit found ? 0 : 1 }' "$1"
+    /^  [A-Za-z0-9_-]+:[ \t]*$/ { job = $1; sub(/:$/, "", job); next }
+    /^[^ ]/ { job = "" }
+    job != "" && $0 ~ /^[ \t]+(- )?run: bash release\/ipm-install\.sh( [a-z]+)?[ \t]*$/ {
+      m = $0; sub(/.*ipm-install\.sh/, "", m); gsub(/[ \t]/, "", m); if (m == "") m = "all"
+      modes[job] = modes[job] (modes[job] == "" ? "" : ",") m
+      if (!(job in seen)) { seen[job] = 1; order[++n] = job }
+    }
+    END { for (i = 1; i <= n; i++) printf "%s=%s%s", order[i], modes[order[i]], (i < n ? " " : "\n") }' "$1"
 }
+ipm_job_runs_script() { [ "$(ipm_jobs_modes "$1")" = "ipm-install=a,r ipm-install-p=b,p" ]; }
 
-# 7. The job's wiring: the base image, the -ipm tag suffix, the bundle build before the script, deadline inside the timeout.
-ipm_job_wired() {
-  awk '
-    /^  [A-Za-z0-9_-]+:[ \t]*$/ { injob = ($1 == "ipm-install:") ; next }
-    /^[^ ]/ { injob = 0 }
+# 7. A job's wiring: the base image, its own tag suffix, the bundle build before the job's first script run, each run's deadline
+# inside the job's timeout, and the step conditions: the job's first script run has no if:, and every later one has exactly
+# if: ${{ !cancelled() }}, so a failed first mode never hides the checks of the next one and no other condition skips a mode.
+ipm_job_wired() { # ipm_job_wired <workflow> <job> <tag suffix>
+  awk -v job="$2" -v suffix="$3" '
+    function endstep() {
+      if (steprun) { nrun++; if ((nrun == 1 && stepif != "") || (nrun > 1 && stepif != "${{ !cancelled() }}")) badif = 1 }
+      steprun = 0; stepif = ""
+    }
+    /^  [A-Za-z0-9_-]+:[ \t]*$/ { if (injob) endstep(); injob = ($1 == job ":") ; next }
+    /^[^ ]/ { if (injob) endstep(); injob = 0 }
     !injob { next }
+    /^[ \t]+- / { endstep() }
     { line = $0; sub(/^[ \t]+(- )?/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line ~ /^if:/ { stepif = line; sub(/^if:[ \t]*/, "", stepif) }
+    line ~ /^run: bash release\/ipm-install\.sh/ { steprun = 1 }
     line == "IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0" { image = 1 }
-    line ~ /^OCUTALON_RUN_TAG: .*-ipm$/ { tag = 1 }
+    line ~ ("^OCUTALON_RUN_TAG: .*" suffix "$") { tag = 1 }
     line ~ /^timeout-minutes: [0-9]+$/ { timeout = substr(line, 18) + 0 }
     line ~ /^OCUTALON_LIVE_DEADLINE: "?[0-9]+"?$/ { d = line; gsub(/[^0-9]/, "", d); deadline = d + 0 }
     line == "run: bash ci/iris.sh build" { built = 1 }
-    line == "run: bash release/ipm-install.sh" { if (built) ordered = 1 }
-    END { exit (image && tag && ordered && timeout > 0 && deadline > 0 && deadline < timeout * 60) ? 0 : 1 }' "$1"
+    line ~ /^run: bash release\/ipm-install\.sh [a-z]+$/ { if (!ran) { ran = 1; ordered = built } }
+    END { if (injob) endstep(); exit (image && tag && ordered && !badif && nrun > 0 && timeout > 0 && deadline > 0 && deadline < timeout * 60) ? 0 : 1 }' "$1"
+}
+ipm_jobs_wired() { # both jobs wired, with the same timeout and the same deadline
+  ipm_job_wired "$1" ipm-install -ipm && ipm_job_wired "$1" ipm-install-p -ipm-p \
+    && [ "$(awk '/^  ipm-install:[ \t]*$/ { j = 1; next } /^  ipm-install-p:[ \t]*$/ { j = 2; next } /^  [A-Za-z0-9_-]+:[ \t]*$/ { j = 0 } /^[^ ]/ { j = 0 } j && /^[ \t]+(timeout-minutes|OCUTALON_LIVE_DEADLINE):/ { gsub(/[ \t"]/, ""); v[j] = v[j] $0 } END { print (v[1] == v[2]) ? "same" : "differ" }' "$1")" = same ]
 }
 
 # 8. The Configure Invoke of the IPM entry point: exactly one Invoke at Configure, the exact one, after the MapAndStop line.
@@ -386,24 +438,42 @@ jobs:
   ipm-install:
     steps:
       - run: bash ci/iris.sh build
-      - run: bash release/ipm-install.sh
+      - run: bash release/ipm-install.sh a
+      - run: bash release/ipm-install.sh r
+  ipm-install-p:
+    steps:
+      - run: bash ci/iris.sh build
+      - run: bash release/ipm-install.sh b
+      - run: bash release/ipm-install.sh p
 EOL
 grep -v 'release/ipm-install.sh' "$tmp/lane.good" > "$tmp/lane.no-run"
 sed 's/ipm-install:/ipm-installed:/' "$tmp/lane.good" > "$tmp/lane.renamed"
+sed 's/ipm-install-p:/ipm-installed-p:/' "$tmp/lane.good" > "$tmp/lane.renamed-p"
+sed 's/ipm-install.sh r$/ipm-install.sh/' "$tmp/lane.good" > "$tmp/lane.no-mode"
+sed 's/ipm-install.sh p$/ipm-install.sh b/' "$tmp/lane.good" > "$tmp/lane.p-twice-b"
+grep -v 'ipm-install.sh r$' "$tmp/lane.good" > "$tmp/lane.no-r"
+awk '/ipm-install.sh a$/ { held = $0; next } /ipm-install.sh r$/ { print; print held; next } { print }' "$tmp/lane.good" > "$tmp/lane.swapped"
+cat "$tmp/lane.good" > "$tmp/lane.third-job"
+printf '  other:\n    steps:\n      - run: bash release/ipm-install.sh p\n' >> "$tmp/lane.third-job"
 cat > "$tmp/lane.other-job" <<'EOL'
 jobs:
   ipm-install:
     steps:
       - run: bash ci/iris.sh build
+  ipm-install-p:
+    steps:
+      - run: bash ci/iris.sh build
   standalone-bridge:
     steps:
-      - run: bash release/ipm-install.sh
+      - run: bash release/ipm-install.sh a
 EOL
 if ipm_job_runs_script "$tmp/lane.good" && ! ipm_job_runs_script "$tmp/lane.no-run" && ! ipm_job_runs_script "$tmp/lane.renamed" \
+  && ! ipm_job_runs_script "$tmp/lane.renamed-p" && ! ipm_job_runs_script "$tmp/lane.no-mode" && ! ipm_job_runs_script "$tmp/lane.p-twice-b" \
+  && ! ipm_job_runs_script "$tmp/lane.no-r" && ! ipm_job_runs_script "$tmp/lane.swapped" && ! ipm_job_runs_script "$tmp/lane.third-job" \
   && ! ipm_job_runs_script "$tmp/lane.other-job"; then
-  pass "rule 6 on samples: a job ipm-install that runs the script passes; no run line, another job name or the line in another job fails"
+  pass "rule 6 on samples: ipm-install running the script in the modes a then r and ipm-install-p in b then p passes; no run line, a renamed job, a run with no mode, a mode run twice or missing, the modes in another order or a third job that runs the script fails"
 else
-  fail "rule 6 on samples: the checker accepts a workflow whose job ipm-install does not run release/ipm-install.sh, or rejects the right one"
+  fail "rule 6 on samples: the checker accepts jobs ipm-install and ipm-install-p that do not run release/ipm-install.sh in the modes a, r and b, p, or rejects the right ones"
 fi
 
 cat > "$tmp/wired.good" <<'EOL'
@@ -416,20 +486,44 @@ jobs:
       OCUTALON_LIVE_DEADLINE: "1500"
     steps:
       - run: bash ci/iris.sh build
-      - run: bash release/ipm-install.sh
+      - run: bash release/ipm-install.sh a
+      - name: the failed reinstalls
+        if: ${{ !cancelled() }}
+        run: bash release/ipm-install.sh r
+  ipm-install-p:
+    timeout-minutes: 30
+    env:
+      IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
+      OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-ipm-p
+      OCUTALON_LIVE_DEADLINE: "1500"
+    steps:
+      - run: bash ci/iris.sh build
+      - run: bash release/ipm-install.sh b
+      - name: part p
+        if: ${{ !cancelled() }}
+        run: bash release/ipm-install.sh p
 EOL
 sed 's/ocutalon-iris-base:2026.3.0AI.154.0/ocutalon-iris-base:latest/' "$tmp/wired.good" > "$tmp/wired.image"
 sed 's/-ipm$/-bridge/' "$tmp/wired.good" > "$tmp/wired.tag"
+sed 's/-ipm-p$/-ipm/' "$tmp/wired.good" > "$tmp/wired.tag-p"
 grep -v 'ci/iris.sh build' "$tmp/wired.good" > "$tmp/wired.no-build"
 awk '/ci\/iris.sh build/ { held = $0; next } /ipm-install.sh/ { print; print held; next } { print }' "$tmp/wired.good" > "$tmp/wired.build-late"
 sed 's/"1500"/"1800"/' "$tmp/wired.good" > "$tmp/wired.deadline"
 awk '/^  ipm-install:/ { print "  other:"; next } { print }' "$tmp/wired.good" > "$tmp/wired.renamed"
-if ipm_job_wired "$tmp/wired.good" && ! ipm_job_wired "$tmp/wired.image" && ! ipm_job_wired "$tmp/wired.tag" \
-  && ! ipm_job_wired "$tmp/wired.no-build" && ! ipm_job_wired "$tmp/wired.build-late" && ! ipm_job_wired "$tmp/wired.deadline" \
-  && ! ipm_job_wired "$tmp/wired.renamed"; then
-  pass "rule 7 on samples: a wired job passes; another image, a tag without -ipm, no build, a late build, a deadline past the timeout or no job fails"
+awk '/^  ipm-install-p:/ { print "  other:"; next } { print }' "$tmp/wired.good" > "$tmp/wired.renamed-p"
+awk '/^  ipm-install-p:/ { p = 1 } p && /timeout-minutes: 30/ { print "    timeout-minutes: 35"; next } { print }' "$tmp/wired.good" > "$tmp/wired.timeout-p"
+awk 'index($0, "if: ${{ !cancelled() }}") && !n++ { next } { print }' "$tmp/wired.good" > "$tmp/wired.no-if"
+awk 'index($0, "if: ${{ !cancelled() }}") && n++ { next } { print }' "$tmp/wired.good" > "$tmp/wired.no-if-p"
+awk 'index($0, "if: ${{ !cancelled() }}") && !n++ { print "        if: false"; next } { print }' "$tmp/wired.good" > "$tmp/wired.if-false"
+awk '/- run: bash release\/ipm-install.sh a$/ { print "      - if: ${{ !cancelled() }}"; print "        run: bash release/ipm-install.sh a"; next } { print }' "$tmp/wired.good" > "$tmp/wired.if-first"
+if ipm_jobs_wired "$tmp/wired.good" && ! ipm_jobs_wired "$tmp/wired.image" && ! ipm_jobs_wired "$tmp/wired.tag" && ! ipm_jobs_wired "$tmp/wired.tag-p" \
+  && ! ipm_jobs_wired "$tmp/wired.no-build" && ! ipm_jobs_wired "$tmp/wired.build-late" && ! ipm_jobs_wired "$tmp/wired.deadline" \
+  && ! ipm_jobs_wired "$tmp/wired.renamed" && ! ipm_jobs_wired "$tmp/wired.renamed-p" && ! ipm_jobs_wired "$tmp/wired.timeout-p" \
+  && ! ipm_jobs_wired "$tmp/wired.no-if" && ! ipm_jobs_wired "$tmp/wired.no-if-p" && ! ipm_jobs_wired "$tmp/wired.if-false" \
+  && ! ipm_jobs_wired "$tmp/wired.if-first"; then
+  pass "rule 7 on samples: two wired jobs pass; another image, a tag without -ipm or without -ipm-p, no build, a late build, a deadline past the timeout, a missing job, a timeout that differs between the jobs, a later script run without if: \${{ !cancelled() }} or with another condition, or a condition on the first script run fails"
 else
-  fail "rule 7 on samples: the checker accepts a mis-wired job ipm-install, or rejects the right one"
+  fail "rule 7 on samples: the checker accepts mis-wired jobs ipm-install and ipm-install-p, or rejects the right ones"
 fi
 
 # 10. The staff-requested system requirement (Story 15.3, U-231): src/module.xml declares the exact SystemRequirements element, once, on
@@ -580,6 +674,365 @@ else
   fail "rule 13 on samples: the checker accepts a manifest without the exact Unconfigure Invoke after the Configure Invoke, or rejects the right one"
 fi
 
+# 17. The early Reload Invoke of the stale-copy step (Story 19.8): the exact Invoke, once, after the MapAndStop line, the exact Defaults once each,
+# and no other Invoke at Reload or of that method.
+STALE_ELEMENT='<Invoke Class="OcuTalon.Install.Ipm" Method="RemoveStaleCopies" Phase="Reload" When="Before"><Arg>${root}</Arg><Arg>${BypassPyDeps}</Arg><Arg>${cmd}</Arg></Invoke>'
+DEFAULT_ELEMENT='<Default Name="BypassPyDeps" Value="0"/>'
+CMD_DEFAULT_ELEMENT='<Default Name="cmd" Value=""/>'
+stale_step_declared() {
+  awk -v inv="$INVOKE_ELEMENT" -v st="$STALE_ELEMENT" -v def="$DEFAULT_ELEMENT" -v cdef="$CMD_DEFAULT_ELEMENT" '
+    { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line == inv { if (!seen) seen = NR }
+    line == st { nst++; if (!seen) before = 1 }
+    line == def { ndef++ }
+    line == cdef { ncdef++ }
+    line ~ /^<Invoke[ \/>]/ && line ~ /Phase="Reload"/ && line != st { bad = 1 }
+    line ~ /RemoveStaleCopies/ && line != st { bad = 1 }
+    line ~ /^<Default[ \/>]/ && line != def && line != cdef { bad = 1 }
+    END { exit (nst == 1 && ndef == 1 && ncdef == 1 && !before && !bad) ? 0 : 1 }' "$1"
+}
+cat > "$tmp/manifest.stale" <<EOM
+<Module>
+  $DEFAULT_ELEMENT
+  $CMD_DEFAULT_ELEMENT
+  $CPF_ELEMENT
+  $PRELOAD_ELEMENT
+  $INVOKE_ELEMENT
+  $STALE_ELEMENT
+  $IPM_ELEMENT
+</Module>
+EOM
+grep -v 'RemoveStaleCopies' "$tmp/manifest.stale" > "$tmp/manifest.stale-none"
+grep -v 'Name="BypassPyDeps"' "$tmp/manifest.stale" > "$tmp/manifest.stale-nodefault"
+{ cat "$tmp/manifest.stale"; echo "  $STALE_ELEMENT"; } > "$tmp/manifest.stale-twice"
+awk -v st="  $STALE_ELEMENT" -v inv="  $INVOKE_ELEMENT" '$0 == inv { held = $0; next } $0 == st { print; print held; next } { print }' "$tmp/manifest.stale" > "$tmp/manifest.stale-first"
+sed '/RemoveStaleCopies/ s/Phase="Reload"/Phase="Validate"/' "$tmp/manifest.stale" > "$tmp/manifest.stale-phase"
+sed '/RemoveStaleCopies/ s/When="Before"/When="After"/' "$tmp/manifest.stale" > "$tmp/manifest.stale-after"
+sed '/RemoveStaleCopies/ s/<Arg>${BypassPyDeps}<\/Arg>//' "$tmp/manifest.stale" > "$tmp/manifest.stale-arg"
+sed 's/Name="BypassPyDeps" Value="0"/Name="BypassPyDeps" Value="1"/' "$tmp/manifest.stale" > "$tmp/manifest.stale-value"
+sed '/RemoveStaleCopies/ s/<Arg>${cmd}<\/Arg>//' "$tmp/manifest.stale" > "$tmp/manifest.stale-nocmdarg"
+grep -v 'Name="cmd"' "$tmp/manifest.stale" > "$tmp/manifest.stale-nocmd"
+sed 's/Name="cmd" Value=""/Name="cmd" Value="install"/' "$tmp/manifest.stale" > "$tmp/manifest.stale-cmdvalue"
+{ cat "$tmp/manifest.stale"; echo "  $CMD_DEFAULT_ELEMENT"; } > "$tmp/manifest.stale-cmdtwice"
+{ cat "$tmp/manifest.stale"; echo '  <Invoke Class="OcuTalon.Install.Registry" Method="Run" Phase="Reload" When="After"/>'; } > "$tmp/manifest.stale-other"
+{ cat "$tmp/manifest.stale"; echo '  <Invoke Class="OcuTalon.Install.Registry" Method="Run" Phase="Activate" When="After"/>'; } > "$tmp/manifest.stale-later"
+if stale_step_declared "$tmp/manifest.stale" && stale_step_declared "$tmp/manifest.stale-later" && ! stale_step_declared "$tmp/manifest.stale-none" \
+  && ! stale_step_declared "$tmp/manifest.stale-nodefault" && ! stale_step_declared "$tmp/manifest.stale-twice" && ! stale_step_declared "$tmp/manifest.stale-first" \
+  && ! stale_step_declared "$tmp/manifest.stale-phase" && ! stale_step_declared "$tmp/manifest.stale-after" && ! stale_step_declared "$tmp/manifest.stale-arg" \
+  && ! stale_step_declared "$tmp/manifest.stale-value" && ! stale_step_declared "$tmp/manifest.stale-other" && ! stale_step_declared "$tmp/manifest.stale-nocmdarg" \
+  && ! stale_step_declared "$tmp/manifest.stale-nocmd" && ! stale_step_declared "$tmp/manifest.stale-cmdvalue" && ! stale_step_declared "$tmp/manifest.stale-cmdtwice"; then
+  pass "rule 17 on samples: the Reload Invoke and the Defaults pass, also beside an Invoke of a later phase; none, no BypassPyDeps Default, two Invokes, one before MapAndStop, another phase, When=After, a changed argument or Default, no cmd argument, no cmd Default, a cmd Default with a value, two cmd Defaults, or another Invoke at Reload fails"
+else
+  fail "rule 17 on samples: the checker accepts a manifest without the exact Reload Invoke and Defaults after MapAndStop, or rejects the right one"
+fi
+
+stale_step_declared_both() { stale_step_declared src/module.xml && stale_step_declared module.xml; }
+
+# 18. The Python of check 32 (Story 19.8, QA): the heredocs of check_imports, check_python_moves and check_licences, run on scratch folders. The
+# driver builds each case (a pinned state, and the states that must fail) and compares the exit code and the text of the script; a script that
+# accepts a stale state, or rejects the pinned one, fails the check, and so does a script that cannot be taken out of release/ipm-install.sh.
+heredoc_of() { # heredoc_of <function> <n>: the nth heredoc (terminator EOP) of the function in release/ipm-install.sh
+  awk -v fn="$1" -v n="$2" '
+    index($0, fn "() {") == 1 { infn = 1; next }
+    infn && /^}/ { infn = 0 }
+    infn && !grab && /<< .EOP.( |$)/ { if (++count == n) grab = 1; next }
+    grab && /^EOP$/ { exit }
+    grab { print }' release/ipm-install.sh
+}
+cat > "$tmp/ipm-driver.py" << 'EOD'
+import base64, hashlib, os, shutil, subprocess, sys
+mode, script, work = sys.argv[1:4]
+SIX = [("certifi", "2026.10.23"), ("charset_normalizer", "3.5.2"), ("idna", "3.15"), ("requests", "2.34.2"),
+       ("typing_extensions", "4.16.0"), ("urllib3", "2.8.0")]
+problems = []
+def run(*args):
+    done = subprocess.run([sys.executable, script] + list(args), capture_output=True, text=True)
+    return done.returncode, done.stdout
+def put(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    open(path, "w").write(text)
+def expect(label, got, want):
+    if got != want:
+        problems.append("%s: got %r, wanted %r" % (label, got, want))
+def case_dir(name):
+    path = os.path.join(work, name)
+    shutil.rmtree(path, ignore_errors=True)
+    os.makedirs(path)
+    return path
+def module_file(name):
+    return "typing_extensions.py" if name == "typing_extensions" else name + "/__init__.py"
+def build(base, spelling=None):
+    """The folder with the six pinned distributions (file, dist-info with a RECORD) and the constraints file."""
+    target = os.path.join(base, "python")
+    for name, pin in SIX:
+        rel = module_file(name)
+        text = "# %s %s\n" % (name, pin)
+        put(os.path.join(target, rel), text)
+        digest = base64.urlsafe_b64encode(hashlib.sha256(text.encode()).digest()).rstrip(b"=").decode()
+        info = "%s-%s.dist-info" % (name, pin)
+        put(os.path.join(target, info, "RECORD"), "%s,sha256=%s,%d\n%s/RECORD,,\n" % (rel, digest, len(text), info))
+    lines = ["# pins"] + ["%s==%s" % (name.replace("_", "-"), (spelling or {}).get(name, pin)) for name, pin in SIX] + ["fastembed==0.8.0"]
+    put(os.path.join(base, "constraints.txt"), "\n".join(lines) + "\n")
+    return target, os.path.join(base, "constraints.txt")
+def imports(target, **override):
+    out = []
+    for name, pin in SIX:
+        version, path = ("" if name == "typing_extensions" else pin), os.path.join(target, module_file(name))
+        if name in override:
+            version, path = override[name]
+        out.append("CHK|import|%s|%s|%s" % (name, version, path))
+    return "\n".join(out)
+
+if mode == "imports":
+    def go(label, want_rc, want_last, mutate=None, spelling=None, override=None):
+        base = case_dir(label.replace(" ", "-"))
+        target, constraints = build(base, spelling)
+        override = override(base, target) if override else {}
+        if mutate:
+            mutate(base, target)
+        rc, out = run(target, constraints, imports(target, **override))
+        expect(label + " (exit)", rc, want_rc)
+        expect(label + " (last line)", out.strip().splitlines()[-1] if out.strip() else "", want_last)
+        if want_rc == 0 and "NOTE import typing_extensions - typing_extensions.py pinned" not in out:
+            problems.append(label + ": no NOTE line for typing_extensions with no version")
+    go("pinned copies", 0, "ALL PINNED")
+    go("a pin spelled with a leading zero", 0, "ALL PINNED", spelling={"certifi": "2026.010.23"},
+       override=lambda base, target: {"certifi": ("2026.010.23", os.path.join(target, "certifi/__init__.py"))})
+    go("version only", 1, "STALE urllib3", override=lambda base, target: {"urllib3": ("2.6.3", os.path.join(target, "urllib3/__init__.py"))})
+    go("stale code", 1, "STALE requests", mutate=lambda base, target: put(os.path.join(target, "requests/__init__.py"), "# an older requests\n"))
+    def outside(base, target):
+        put(os.path.join(base, "elsewhere", "certifi.py"), "# certifi 2026.10.23\n")
+        return {"certifi": ("2026.10.23", os.path.join(base, "elsewhere", "certifi.py"))}
+    go("outside the folder", 1, "STALE certifi", override=outside)
+    go("not imported", 1, "STALE idna", override=lambda base, target: {"idna": ("", "")})
+    def no_pinned(base, target):
+        shutil.rmtree(os.path.join(target, "idna-3.15.dist-info"))
+        put(os.path.join(target, "idna-3.0.dist-info", "RECORD"), "idna/__init__.py,sha256=x,1\n")
+    go("no pinned dist-info", 1, "STALE idna", mutate=no_pinned)
+    go("two stale copies", 1, "STALE charset_normalizer,urllib3", override=lambda base, target: {
+        "charset_normalizer": ("3.0.0", os.path.join(target, "charset_normalizer/__init__.py")),
+        "urllib3": ("2.6.3", os.path.join(target, "urllib3/__init__.py"))})
+
+elif mode == "moves":
+    def state(rows):
+        return "".join(row + "\n" for row in rows)
+    before = ["D certifi-2025.1.31.dist-info aaaa", "D requests-2.31.0.dist-info bbbb", "D oras-0.2.25.dist-info cccc",
+              "D attrs-24.1.dist-info dddd", "T certifi", "T requests", "T oras", "T attrs", "T bin"]
+    after = ["D certifi-2026.10.23.dist-info a2", "D requests-2.34.2.dist-info b2", "D oras-0.2.25.dist-info cccc",
+             "D attrs-24.1.dist-info dddd", "D fastembed-0.8.0.dist-info f1", "T certifi", "T requests", "T oras", "T attrs", "T bin", "T fastembed"]
+    imp_before = "CHK|imp|oras.provider|1\nCHK|imp|attrs|1\nCHK|imp|rpds|0\n"
+    def go(label, want_rc, want_text, after_rows=after, imp_after=imp_before, imp_first=imp_before):
+        base = case_dir(label.replace(" ", "-"))
+        put(os.path.join(base, "constraints.txt"), "certifi==2026.10.23\nrequests==2.34.2\nfastembed==0.8.0\n")
+        put(os.path.join(base, "before.state"), state(before))
+        put(os.path.join(base, "after.state"), state(after_rows))
+        put(os.path.join(base, "imports-before.txt"), imp_first)
+        rc, out = run(os.path.join(base, "constraints.txt"), os.path.join(base, "before.state"), os.path.join(base, "after.state"),
+                      os.path.join(base, "imports-before.txt"), imp_after)
+        expect(label + " (exit)", rc, want_rc)
+        if want_text not in out:
+            problems.append("%s: %r is not in %r" % (label, want_text, out))
+        if want_rc == 0 and "PROBLEM" in out:
+            problems.append("%s: a problem was reported: %r" % (label, out))
+    go("the six move and a pin is added", 0, "2 moved to the pins")
+    go("a stale dist-info stays", 1, "PROBLEM certifi-2025.1.31.dist-info is still in the folder", after + ["D certifi-2025.1.31.dist-info aaaa"])
+    go("a pin is missing", 1, "PROBLEM requests 2.34.2 is not in the folder", [r for r in after if "requests-2.34.2" not in r])
+    go("another distribution changed", 1, "PROBLEM oras-0.2.25.dist-info changed", [r.replace("cccc", "c3") for r in after])
+    go("another distribution is gone", 1, "PROBLEM attrs-24.1.dist-info is gone", [r for r in after if "D attrs" not in r])
+    go("a distribution that is no pin is added", 1, "PROBLEM rogue-1.0.dist-info was added and is no pin", after + ["D rogue-1.0.dist-info r1"])
+    go("a top-level item is gone", 1, "PROBLEM top-level item bin is gone", [r for r in after if r != "T bin"])
+    go("an IPM module no longer imports", 1, "PROBLEM oras.provider imported before the install and does not now",
+       imp_after="CHK|imp|oras.provider|0\nCHK|imp|attrs|1\n")
+    go("the import record is empty", 1, "PROBLEM the import record of IPM's packages is empty", imp_first="", imp_after="")
+    go("the import record lists other modules after", 1, "PROBLEM the import record of IPM's packages is empty or not the same list",
+       imp_after="CHK|imp|oras.provider|1\nCHK|imp|attrs|1\n")
+
+elif mode == "uninstall":
+    def state(rows):
+        return "".join(row + "\n" for row in rows)
+    after = ["D certifi-2026.10.23.dist-info a2", "D oras-0.2.25.dist-info cccc", "D fastembed-0.8.0.dist-info f1",
+             "T certifi", "T oras", "T fastembed", "T ocutalon_extract.py", "T ocutalon_memory.py"]
+    kept = [row for row in after if not row.endswith(".py")]
+    imp = "CHK|imp|oras.provider|1\nCHK|imp|certifi|1\n"
+    def go(label, want_rc, want_text, gone_rows=kept, imp_first=imp, imp_now=imp):
+        base = case_dir("uninstall-" + label.replace(" ", "-"))
+        put(os.path.join(base, "after.state"), state(after))
+        put(os.path.join(base, "gone.state"), state(gone_rows))
+        put(os.path.join(base, "imports-before.txt"), imp_first)
+        rc, out = run(os.path.join(base, "after.state"), os.path.join(base, "gone.state"), os.path.join(base, "imports-before.txt"), imp_now)
+        expect(label + " (exit)", rc, want_rc)
+        if want_text not in out:
+            problems.append("%s: %r is not in %r" % (label, want_text, out))
+        if want_rc == 0 and "PROBLEM" in out:
+            problems.append("%s: a problem was reported: %r" % (label, out))
+    go("the uninstall keeps all but the two resources", 0, "NOTE after the uninstall: 3 distributions (3 after the install)")
+    go("a distribution is gone", 1, "PROBLEM certifi-2026.10.23.dist-info is gone", [row for row in kept if "D certifi" not in row])
+    go("a distribution changed", 1, "PROBLEM oras-0.2.25.dist-info changed", [row.replace("cccc", "c3") for row in kept])
+    go("a distribution was added", 1, "PROBLEM rogue-1.0.dist-info was added", kept + ["D rogue-1.0.dist-info r1"])
+    go("a top-level item is gone", 1, "PROBLEM top-level item certifi is gone", [row for row in kept if row != "T certifi"])
+    go("a top-level item was added", 1, "PROBLEM top-level item rogue was added", kept + ["T rogue"])
+    go("an IPM module no longer imports", 1, "PROBLEM oras.provider imported before the install and does not now",
+       imp_now="CHK|imp|oras.provider|0\nCHK|imp|certifi|1\n")
+    go("the import record is empty", 1, "PROBLEM the import record of IPM's packages is empty", imp_first="", imp_now="")
+
+elif mode == "state":
+    base = case_dir("state")
+    target, out_file = os.path.join(base, "python"), os.path.join(base, "out.state")
+    put(os.path.join(target, "certifi-2026.10.23.dist-info", "RECORD"), "certifi/__init__.py,,\n")
+    os.makedirs(os.path.join(target, "oras-0.2.25.dist-info"))
+    put(os.path.join(target, "certifi", "__init__.py"), "x")
+    put(os.path.join(target, "bin", "normalizer"), "x")
+    put(os.path.join(target, "rpds.py"), "x")
+    rc, out = run(target, out_file)
+    expect("exit", rc, 0)
+    digest = hashlib.md5(b"certifi/__init__.py,,\n").hexdigest()
+    got = open(out_file).read().splitlines() if os.path.exists(out_file) else []
+    expect("state lines", got, ["T bin", "T certifi", "D certifi-2026.10.23.dist-info " + digest, "D oras-0.2.25.dist-info -", "T rpds.py"])
+
+elif mode == "skip":
+    base = case_dir("skip")
+    target, scratch = os.path.join(base, "python"), os.path.join(base, "scratch")
+    for entry in ["certifi-2025.1.31.dist-info", "certifi-2026.10.23.dist-info", "oras-0.2.25.dist-info", "fastembed-0.8.0.dist-info"]:
+        os.makedirs(os.path.join(target, entry))
+    put(os.path.join(target, "bin", "normalizer"), "x")
+    put(os.path.join(base, "before.txt"), "certifi-2025.1.31.dist-info\noras-0.2.25.dist-info\n")
+    put(os.path.join(base, "constraints.txt"), "certifi==2026.10.23\nfastembed==0.8.0\n")
+    rc, out = run(target, os.path.join(base, "before.txt"), os.path.join(base, "constraints.txt"), scratch)
+    expect("exit", rc, 0)
+    expect("gated", sorted(os.listdir(scratch)), ["certifi-2025.1.31.dist-info", "certifi-2026.10.23.dist-info", "fastembed-0.8.0.dist-info"])
+    if "oras-0.2.25 was in the folder before the install and is no pin: not gated" not in out:
+        problems.append("the unpinned name is not skipped with its NOTE: %r" % out)
+    if "NOTE 3 distributions gated" not in out:
+        problems.append("the count of gated distributions is not 3: %r" % out)
+
+for problem in problems:
+    print("PROBLEM " + problem)
+sys.exit(1 if problems else 0)
+EOD
+ipm_python_ok() { # ipm_python_ok <mode> <function>
+  local code
+  code="$tmp/ipm-$1.py"
+  heredoc_of "$2" 1 > "$code"
+  [ -s "$code" ] && python3 "$tmp/ipm-driver.py" "$1" "$code" "$tmp/ipm-work" > "$tmp/ipm-$1.out" 2>&1
+}
+
+# 19. The wiring of the import check (Story 19.8, QA): it runs where check 32 runs, and the checks it names are the ones that exist.
+follows() { # follows <file> <first line> <second line>: the second line comes right after the first one (indentation ignored), once or more
+  awk -v a="$2" -v b="$3" '{ line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
+    prev == a && line == b { found++ } { prev = line } END { exit found >= 1 ? 0 : 1 }' "$1"
+}
+function_body_has() { # function_body_has <file> <function> <line>...: the function holds every line (indentation ignored)
+  local file=$1 fn=$2 want
+  shift 2
+  awk -v fn="$fn" 'index($0, fn "() {") == 1 { infn = 1; next } infn && /^}/ { infn = 0 } infn { sub(/^[ \t]+/, ""); print }' "$file" > "$tmp/fn-body"
+  for want in "$@"; do grep -qxF -- "$want" "$tmp/fn-body" || return 1; done
+}
+pins_wired() { # pins_wired <script>
+  follows "$1" 'check_licences "install checks"' 'check_python_pins "install checks"' \
+    && follows "$1" 'check_start_by_step' 'check_reinstall' \
+    && follows "$1" 'check_reinstall' 'check_pip_skipped "pip skipped"' \
+    && function_body_has "$1" check_pip_skipped "run skip-reload OCUTALON 'zpm \"reload ocutalon\"'" 'check_nothing_removed "reload (pip skipped)" skip-reload' \
+      'check_nothing_removed "load -bypass-py-deps" skip-bypass' 'if ! plant_stale_copy "$mgr" /tmp/ocutalon-python-skip-planted.state; then' \
+      'run skip-bypass OCUTALON "zpm \"load -bypass-py-deps $SRC\""' 'skip_imports=$(python_imports)' \
+    && function_body_has "$1" plant_stale_copy 'open(os.path.join(info, "RECORD"), "w").write("idna/__init__.py,,\nidna-0.0.1.dist-info/RECORD,,\n")' \
+    && function_body_has "$1" check_nothing_removed "if ! grep -q '^STEP Python ' \"\$f\"; then" \
+      'if dc exec -T iris diff /tmp/ocutalon-python-skip-planted.state /tmp/ocutalon-python-skip-after.state > "$tmp/skip.diff" 2>&1; then' \
+      'check_imports "$label"' 'check_ipm_alive "$label" ocutalon' \
+    && follows "$1" 'check_licences "part p"' 'check_python_pins "part p"' \
+    && follows "$1" 'uninstall_checks "$h0" "$h1" "$h2"' 'check_uninstall_python "part p uninstall"' \
+    && function_body_has "$1" check_python_pins 'check_imports "$1"' 'check_python_moves "$1"' 'check_ipm_alive "$1" ocutalon' 'check_invoke_args "$1"' \
+    && function_body_has "$1" check_reinstall 'snapshot_python_before' 'check_python_pins "reinstall"' 'check_licences "reinstall"' \
+    && function_body_has "$1" check_uninstall_python 'check_imports "$label"' 'check_ipm_alive "$label" .' \
+    && follows "$1" 'check_uninstall_python "part p uninstall"' "run p-again USER 'zpm \"install ocutalon\"'" \
+    && follows "$1" "run p-again USER 'zpm \"install ocutalon\"'" \
+      'stops_with_next_command p-again "part p, the install command in USER after the uninstall (from the local repository)"'
+}
+good="$tmp/script.good"
+cat > "$good" << 'EOS'
+check_python_pins() {
+  check_imports "$1"
+  check_python_moves "$1"
+  check_ipm_alive "$1" ocutalon
+  check_invoke_args "$1"
+}
+check_reinstall() {
+  snapshot_python_before
+  check_python_pins "reinstall"
+  check_licences "reinstall"
+}
+check_uninstall_python() {
+  check_imports "$label"
+  check_ipm_alive "$label" .
+}
+plant_stale_copy() {
+open(os.path.join(info, "RECORD"), "w").write("idna/__init__.py,,\nidna-0.0.1.dist-info/RECORD,,\n")
+}
+check_nothing_removed() {
+  if ! grep -q '^STEP Python ' "$f"; then
+    pass "no STEP Python line"
+  fi
+  if dc exec -T iris diff /tmp/ocutalon-python-skip-planted.state /tmp/ocutalon-python-skip-after.state > "$tmp/skip.diff" 2>&1; then
+    pass "the folder as planted"
+  fi
+  check_imports "$label"
+  check_ipm_alive "$label" ocutalon
+}
+check_pip_skipped() {
+  if ! plant_stale_copy "$mgr" /tmp/ocutalon-python-skip-planted.state; then
+    fail "the stale copy could not be planted"
+  fi
+  skip_imports=$(python_imports)
+  run skip-reload OCUTALON 'zpm "reload ocutalon"'
+  check_nothing_removed "reload (pip skipped)" skip-reload
+  run skip-bypass OCUTALON "zpm \"load -bypass-py-deps $SRC\""
+  check_nothing_removed "load -bypass-py-deps" skip-bypass
+}
+part_p() {
+  check_licences "part p"
+  check_python_pins "part p"
+  uninstall_checks "$h0" "$h1" "$h2"
+  check_uninstall_python "part p uninstall"
+  run p-again USER 'zpm "install ocutalon"'
+  stops_with_next_command p-again "part p, the install command in USER after the uninstall (from the local repository)"
+}
+    check_licences "install checks"
+    check_python_pins "install checks"
+    check_start_by_step
+    check_reinstall
+    check_pip_skipped "pip skipped"
+EOS
+grep -v 'check_python_pins "install checks"' "$good" > "$tmp/script.no-a"
+grep -v 'check_python_pins "part p"' "$good" > "$tmp/script.no-p"
+grep -v '^    check_reinstall$' "$good" > "$tmp/script.no-reinstall"
+grep -v 'check_uninstall_python "part p uninstall"' "$good" > "$tmp/script.no-uninstall"
+grep -v 'check_python_moves "$1"' "$good" > "$tmp/script.no-moves"
+grep -v 'check_invoke_args "$1"' "$good" > "$tmp/script.no-args"
+grep -v 'check_pip_skipped "pip skipped"' "$good" > "$tmp/script.no-skipped"
+grep -v 'check_nothing_removed "load -bypass-py-deps"' "$good" > "$tmp/script.no-skipped-bypass"
+grep -v 'check_nothing_removed "reload (pip skipped)"' "$good" > "$tmp/script.no-skipped-reload"
+grep -v 'plant_stale_copy "$mgr"' "$good" > "$tmp/script.no-plant"
+grep -v 'run skip-bypass' "$good" > "$tmp/script.no-bypass-run"
+grep -v 'run skip-reload' "$good" > "$tmp/script.no-reload-run"
+grep -v 'skip_imports=' "$good" > "$tmp/script.no-skip-imports"
+sed 's|"idna/__init__.py,,|"zz/__init__.py,,|' "$good" > "$tmp/script.no-decoy-record"
+grep -v "grep -q '^STEP Python '" "$good" > "$tmp/script.no-step-check"
+grep -v 'diff /tmp/ocutalon-python-skip-planted.state' "$good" > "$tmp/script.no-folder-check"
+awk '/^check_nothing_removed\(\) \{/ { inf = 1 } inf && /check_imports/ { next } /^}/ { inf = 0 } { print }' "$good" > "$tmp/script.no-skip-import-check"
+awk '/^check_nothing_removed\(\) \{/ { inf = 1 } inf && /check_ipm_alive/ { next } /^}/ { inf = 0 } { print }' "$good" > "$tmp/script.no-skip-list"
+grep -v 'run p-again' "$good" > "$tmp/script.no-again"
+grep -v 'stops_with_next_command p-again' "$good" > "$tmp/script.no-again-stop"
+if pins_wired "$good" && ! pins_wired "$tmp/script.no-a" && ! pins_wired "$tmp/script.no-p" && ! pins_wired "$tmp/script.no-reinstall" \
+  && ! pins_wired "$tmp/script.no-uninstall" && ! pins_wired "$tmp/script.no-moves" && ! pins_wired "$tmp/script.no-args" \
+  && ! pins_wired "$tmp/script.no-again" && ! pins_wired "$tmp/script.no-again-stop" && ! pins_wired "$tmp/script.no-skipped" \
+  && ! pins_wired "$tmp/script.no-skipped-bypass" && ! pins_wired "$tmp/script.no-skipped-reload" \
+  && ! pins_wired "$tmp/script.no-plant" && ! pins_wired "$tmp/script.no-bypass-run" && ! pins_wired "$tmp/script.no-reload-run" \
+  && ! pins_wired "$tmp/script.no-skip-imports" && ! pins_wired "$tmp/script.no-decoy-record" && ! pins_wired "$tmp/script.no-step-check" \
+  && ! pins_wired "$tmp/script.no-folder-check" && ! pins_wired "$tmp/script.no-skip-import-check" && ! pins_wired "$tmp/script.no-skip-list"; then
+  pass "rule 19 on samples: the wiring passes; a missing call on path A or part p, the reinstall, the uninstall check, the folder comparison, the Invoke arguments, part p's install from the local repository after the uninstall, the runs without a pip step, the planted stale copy and its RECORD, the import record before them, or a check of what they removed (STEP line, folder, version-and-hash imports, zpm list) fails"
+else
+  fail "rule 19 on samples: the checker accepts a script without the import check at both places of check 32, or rejects the right one"
+fi
+
 # 14. The repository definitions stay private (Story 15.4, QA; U-232 condition 1 and the Boundaries): release/ipm-install.sh adds its
 # repository in a session whose output is discarded, never lists repositories, keeps each hash of USER's definitions in a variable and never
 # prints it; and uninstall_checks passes only when the hash after the uninstall equals the hash before it and the one before the first
@@ -690,15 +1143,244 @@ else
   fail "rule 15 on samples: the checker accepts an overview without the ruled bullet, or rejects the right one"
 fi
 
-# 16. The job's run includes part p (Story 15.4, AC 5): release/ipm-install.sh runs part_p when the mode is all.
-part_p_in_job() { grep -qxF 'if [ "$mode" = all ]; then part_p; fi' "$1"; }
-printf 'finish() { :; }\nif [ "$mode" = all ]; then part_p; fi\nfinish\n' > "$tmp/job.part-p"
+# 16. The no-argument run includes part p (Story 15.4, AC 5): release/ipm-install.sh has the mode all by default and runs part_p when the mode is all.
+part_p_in_job() { grep -qxF 'if [ "$mode" = all ]; then part_p; fi' "$1" && grep -qxF 'mode=${1:-all}' "$1"; }
+printf 'mode=${1:-all}\nfinish() { :; }\nif [ "$mode" = all ]; then part_p; fi\nfinish\n' > "$tmp/job.part-p"
 sed 's/= all ]/= p ]/' "$tmp/job.part-p" > "$tmp/job.other-mode"
 grep -v part_p "$tmp/job.part-p" > "$tmp/job.no-part-p"
-if part_p_in_job "$tmp/job.part-p" && ! part_p_in_job "$tmp/job.other-mode" && ! part_p_in_job "$tmp/job.no-part-p"; then
-  pass "rule 16 on samples: part_p run in mode all passes; another mode or no part_p call fails"
+sed 's/:-all}/:-a}/' "$tmp/job.part-p" > "$tmp/job.other-default"
+if part_p_in_job "$tmp/job.part-p" && ! part_p_in_job "$tmp/job.other-mode" && ! part_p_in_job "$tmp/job.no-part-p" && ! part_p_in_job "$tmp/job.other-default"; then
+  pass "rule 16 on samples: part_p run in mode all, the default mode, passes; another mode, another default or no part_p call fails"
 else
   fail "rule 16 on samples: the checker accepts a script whose no-argument run skips part p, or rejects the right one"
+fi
+
+# 20. The two jobs of rule 6 split the no-argument run (DW-864). ipm_mode_lines <script> <mode>: the statements of the script's main flow
+# (the lines after `# --- the stack ---`) that run in that mode, trimmed, one per line, in order. The gates read are the `if [ "$mode" = x ]`
+# and `!=` forms, joined by `||`, in the multi-line form (`if ...; then` ... `else` ... `fi`) and the one-line form (`if ...; then a; b; fi`);
+# every other `if` runs its body; a `finish` ends the run and is not printed. A gate of another form (an `elif`, a one-line `else`, a test of
+# $mode that is not an `if` line), an unbalanced `if` or an unfinished one is an error (exit 3) when the run reaches its end, so that a change
+# of the script's gating cannot go unread (the no-argument run reads it all).
+ipm_mode_lines() {
+  awk -v mode="$2" '
+    function holds(cond,   n, parts, i, t, w, ok) {
+      n = split(cond, parts, /\|\|/)
+      ok = 0
+      for (i = 1; i <= n; i++) {
+        t = parts[i]; gsub(/^[ \t]+|[ \t]+$/, "", t)
+        if (t ~ /^\[ "\$mode" (=|!=) [a-z]+ \]$/) {
+          split(t, w, " ")
+          if ((w[3] == "=" && mode == w[4]) || (w[3] == "!=" && mode != w[4])) ok = 1
+        } else {
+          unknown = 1
+        }
+      }
+      return ok
+    }
+    BEGIN { depth = 0; act[0] = 1 }
+    /^# --- the stack ---$/ { go = 1; next }
+    !go || done { next }
+    { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line == "" || line ~ /^#/ { next }
+    pend {
+      if (line ~ /; then$/) { depth++; ismode[depth] = 0; act[depth] = act[depth - 1]; pend = 0 }
+      next
+    }
+    line ~ /^if / && line ~ /; fi$/ {
+      if (line ~ /\$mode/) {
+        cond = line; sub(/^if /, "", cond); body = cond
+        sub(/; then .*$/, "", cond); sub(/^.*; then /, "", body); sub(/; fi$/, "", body)
+        if (body ~ /; else /) unknown = 1
+        if (act[depth] && holds(cond)) {
+          n = split(body, st, "; ")
+          for (i = 1; i <= n && !done; i++) { if (st[i] == "finish") done = 1; else print st[i] }
+        }
+      } else if (act[depth]) print line
+      next
+    }
+    line ~ /^if / && line ~ /; then$/ {
+      depth++
+      if (line ~ /\$mode/) {
+        cond = line; sub(/^if /, "", cond); sub(/; then$/, "", cond)
+        ismode[depth] = 1; mh[depth] = holds(cond); act[depth] = act[depth - 1] && mh[depth]
+      } else {
+        ismode[depth] = 0; act[depth] = act[depth - 1]
+      }
+      next
+    }
+    line ~ /^if / { if (line ~ /\$mode/) unknown = 1; pend = 1; next }
+    line !~ /^if / && line ~ /\$mode/ { unknown = 1; next }
+    line == "else" { if (ismode[depth]) act[depth] = act[depth - 1] && !mh[depth]; next }
+    line == "fi" { depth--; next }
+    line ~ /^elif / { unknown = 1; next }
+    act[depth] {
+      if (line == "finish") { done = 1; next }
+      print line
+    }
+    END { if (unknown || (!done && (pend || depth != 0))) exit 3 }' "$1"
+}
+# The eight marker lines of the script's main flow, one for each part of the no-argument run, and for each mode whether the mode runs it
+# (1) or not (0), in the order: first run, second run, install checks, reinstall check, failed reinstalls, path B, part p, packaging stack.
+IPM_MARKERS='run first-user USER "$INSTALL"
+run second-ocutalon OCUTALON "$INSTALL"
+check_install
+check_reinstall
+reinstall_failures
+run second-merge OCUTALON "$INSTALL"
+part_p
+run pkg-first USER "$INSTALL"'
+IPM_MODE_ROWS='all 1 1 1 1 1 1 1 0
+a 1 1 1 1 0 0 0 0
+r 1 1 0 0 1 0 0 0
+b 1 0 0 0 0 1 0 0
+p 0 0 0 0 0 0 1 1'
+# ipm_modes_alone <script>: each mode alone runs only its own markers, and a, r and b run no line that the no-argument run does not (p adds only
+# its packaging stack: its own run of the packaging, which the no-argument run never needs because it reuses path A's artifact).
+ipm_modes_alone() {
+  local script=$1 row mode bits i want got marker d="$tmp/modes.$$"
+  mkdir -p "$d"
+  for mode in all a r b p; do ipm_mode_lines "$script" "$mode" > "$d/$mode" || return 1; done
+  while IFS= read -r row; do
+    set -- $row
+    mode=$1
+    shift
+    i=0
+    while IFS= read -r marker; do
+      i=$((i + 1))
+      want=$1
+      shift
+      if grep -qxF -- "$marker" "$d/$mode"; then got=1; else got=0; fi
+      [ "$got" = "$want" ] || return 1
+    done <<< "$IPM_MARKERS"
+  done <<< "$IPM_MODE_ROWS"
+  sort -u "$d/all" > "$d/all.s"
+  for mode in a r b; do
+    sort -u "$d/$mode" > "$d/$mode.s"
+    [ -z "$(comm -23 "$d/$mode.s" "$d/all.s")" ] || return 1
+  done
+  # p adds only its packaging stack: a line of p that the no-argument run lacks names the packaging stack or continues its check_session.
+  sort -u "$d/p" > "$d/p.s"
+  [ -z "$(comm -23 "$d/p.s" "$d/all.s" | grep -v -e 'pkg-first' -e 'pkg-second' -e 'packaging stack' -e "^'")" ] || return 1
+  # a, r and b run no line of the no-argument run more often than it does (p is left out: the if and the else of its artifact both print).
+  for mode in a r b; do
+    [ -z "$(awk 'NR == FNR { n[$0]++; next } { m[$0]++ } END { for (l in m) if ((l in n) && m[l] > n[l]) print l }' "$d/all" "$d/$mode")" ] || return 1
+  done
+  return 0
+}
+# ipm_gates_pinned <script>: the code lines of the whole script that read $mode or ${mode or assign mode are exactly the argument's read
+# and the case that checks it before the main flow, and IPM_GATES in the main flow, so a gate that is added, removed or changed anywhere
+# (in a function, through a variable derived from the mode, in the ${mode} form) is read here, with the table above, before it can move
+# a check into another job.
+IPM_GATES='if [ "$mode" = p ]; then
+if [ "$mode" != b ]; then
+if [ "$mode" = all ]; then artifact_prepare; fi
+if [ "$mode" != r ]; then
+if [ "$mode" != a ]; then reinstall_failures; fi
+if [ "$mode" = a ] || [ "$mode" = r ]; then finish; fi
+if [ "$mode" = all ]; then part_p; fi'
+ipm_gates_pinned() {
+  local want
+  want=$(printf 'head %s\n' 'mode=${1:-all}' 'case $mode in'; printf '%s\n' "$IPM_GATES" | sed 's/^/main /')
+  [ "$(awk '
+    /^# --- the stack ---$/ { go = 1; next }
+    { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line ~ /^#/ { next }
+    line ~ /\$[{]?mode([^A-Za-z0-9_]|$)/ || line ~ /(^|[^A-Za-z0-9_.-])mode=/ { print (go ? "main " : "head ") line }' "$1")" = "$want" ]
+}
+# ipm_union_covers <script> <workflow>: the modes that the workflow's jobs pass together run every line of the no-argument run.
+ipm_union_covers() {
+  local script=$1 flow=$2 d="$tmp/union.$$" mode
+  mkdir -p "$d"
+  : > "$d/union"
+  for mode in $(ipm_jobs_modes "$flow" | tr ' ' '\n' | sed 's/^[^=]*=//' | tr ',' '\n' | sort -u); do
+    case $mode in all | a | r | b | p) ;; *) return 1 ;; esac
+    ipm_mode_lines "$script" "$mode" >> "$d/union" || return 1
+  done
+  ipm_mode_lines "$script" all > "$d/all" || return 1
+  sort -u "$d/union" > "$d/union.s"
+  sort -u "$d/all" > "$d/all.s"
+  [ -s "$d/all.s" ] && [ -z "$(comm -23 "$d/all.s" "$d/union.s")" ]
+}
+cat > "$tmp/modes.good" <<'EOS'
+mode=${1:-all}
+case $mode in
+  all | a | r | b | p) ;;
+  *) exit 2 ;;
+esac
+finish() { :; }
+# --- the stack ---
+setup_tag
+if [ "$mode" = p ]; then
+  if [ -n "${OCUTALON_IPM_ARTIFACT:-}" ]; then
+    artifact_prepare
+  else
+    run pkg-first USER "$INSTALL"
+    artifact_prepare
+  fi
+  part_p
+  finish
+fi
+run first-user USER "$INSTALL"
+if [ "$mode" != b ]; then
+  run second-ocutalon OCUTALON "$INSTALL"
+  if [ "$mode" = all ]; then artifact_prepare; fi
+  if [ "$mode" != r ]; then
+    check_install
+    if ! check_extra; then
+      die "extra"
+    fi
+    check_reinstall
+  fi
+  if [ "$mode" != a ]; then reinstall_failures; fi
+fi
+if [ "$mode" = a ] || [ "$mode" = r ]; then finish; fi
+echo PATH B
+run second-merge OCUTALON "$INSTALL"
+if [ "$mode" = all ]; then part_p; fi
+finish
+EOS
+sed 's/^if \[ "$mode" = all \]; then part_p; fi$/if [ "$mode" = p ]; then part_p; fi/' "$tmp/modes.good" > "$tmp/modes.no-part-p"
+sed 's/^  if \[ "$mode" != a \]; then reinstall_failures; fi$/  if [ "$mode" != a ] \&\& [ "$mode" != r ]; then reinstall_failures; fi/' "$tmp/modes.good" > "$tmp/modes.bad-gate"
+sed 's/^  if \[ "$mode" != a \]; then reinstall_failures; fi$/  if [ "$mode" = r ]; then reinstall_failures; fi/' "$tmp/modes.good" > "$tmp/modes.no-all-rf"
+sed 's/^  if \[ "$mode" != r \]; then$/  if [ "$mode" = a ]; then/' "$tmp/modes.good" > "$tmp/modes.checks-a-only"
+sed 's/^  if \[ "$mode" != a \]; then reinstall_failures; fi$/  if [ "$mode" != r ]; then reinstall_failures; fi/' "$tmp/modes.good" > "$tmp/modes.rf-in-a"
+sed 's/^if \[ "$mode" = a \] || \[ "$mode" = r \]; then finish; fi$/if [ "$mode" = a ]; then finish; fi/' "$tmp/modes.good" > "$tmp/modes.r-runs-b"
+sed 's/^if \[ "$mode" != b \]; then$/if [ "$mode" = all ]; then/' "$tmp/modes.good" > "$tmp/modes.second-all-only"
+awk '/^run first-user/ { print; print "if [ \"$mode\" = a ]; then extra_check; fi"; next } { print }' "$tmp/modes.good" > "$tmp/modes.extra-in-a"
+awk '/^run first-user/ { print; print "if [ \"$mode\" = b ]; then extra_check; fi"; next } { print }' "$tmp/modes.good" > "$tmp/modes.extra-in-b"
+sed 's/^    run pkg-first USER "$INSTALL"$/    :/' "$tmp/modes.good" > "$tmp/modes.p-no-pkg"
+sed 's/^  part_p$/  :/' "$tmp/modes.good" > "$tmp/modes.p-no-part-p"
+grep -v 'if \[ "$mode" != b \]; then$' "$tmp/modes.good" > "$tmp/modes.unbalanced"
+sed 's/^  if \[ "$mode" != r \]; then$/  if [ "$mode" != r ] \&\& [ "$mode" != b ]; then/' "$tmp/modes.good" > "$tmp/modes.and-gate"
+sed 's/^if \[ "$mode" = all \]; then part_p; fi$/if [ "$mode" = all ]; then part_p; else echo no; fi/' "$tmp/modes.good" > "$tmp/modes.else-oneline"
+awk '/^run first-user/ { print; print "[ \"$mode\" = a ] && extra_check"; next } { print }' "$tmp/modes.good" > "$tmp/modes.test-not-if"
+awk '/^  part_p$/ { print "  extra_p_check" } { print }' "$tmp/modes.good" > "$tmp/modes.p-extra"
+awk '/^    check_install$/ { print; print "    if [ \"$mode\" = a ]; then check_install; fi"; next } { print }' "$tmp/modes.good" > "$tmp/modes.dup-in-a"
+awk '/^finish\(\) / { print; print "check_web() {"; print "  [ \"$mode\" = all ] || return 0"; print "}"; next } { print }' "$tmp/modes.good" > "$tmp/modes.fn-gate"
+awk '/^finish\(\) / { print; print "full=0; case $mode in all) full=1 ;; esac"; next } { print }' "$tmp/modes.good" > "$tmp/modes.derived"
+awk '/^run first-user/ { print; print "if [ \"${mode}\" = all ]; then check_web; fi"; next } { print }' "$tmp/modes.good" > "$tmp/modes.brace"
+awk '/^run first-user/ { print; print "mode=all"; next } { print }' "$tmp/modes.good" > "$tmp/modes.reassign"
+cp "$tmp/lane.good" "$tmp/modes.flow-good"
+cp "$tmp/lane.no-r" "$tmp/modes.flow-no-r"
+grep -v 'ipm-install.sh b$' "$tmp/lane.good" > "$tmp/modes.flow-no-b"
+grep -v 'ipm-install.sh p$' "$tmp/lane.good" > "$tmp/modes.flow-no-p"
+grep -v 'ipm-install.sh a$' "$tmp/lane.good" > "$tmp/modes.flow-no-a"
+if ipm_modes_alone "$tmp/modes.good" && ipm_union_covers "$tmp/modes.good" "$tmp/modes.flow-good" \
+  && ! ipm_modes_alone "$tmp/modes.no-part-p" && ! ipm_modes_alone "$tmp/modes.bad-gate" && ! ipm_modes_alone "$tmp/modes.no-all-rf" \
+  && ! ipm_modes_alone "$tmp/modes.checks-a-only" && ! ipm_modes_alone "$tmp/modes.rf-in-a" && ! ipm_modes_alone "$tmp/modes.r-runs-b" \
+  && ! ipm_modes_alone "$tmp/modes.second-all-only" && ! ipm_modes_alone "$tmp/modes.extra-in-a" && ! ipm_modes_alone "$tmp/modes.extra-in-b" \
+  && ! ipm_modes_alone "$tmp/modes.p-no-pkg" && ! ipm_modes_alone "$tmp/modes.p-no-part-p" \
+  && ! ipm_modes_alone "$tmp/modes.unbalanced" && ! ipm_modes_alone "$tmp/modes.and-gate" \
+  && ! ipm_modes_alone "$tmp/modes.else-oneline" && ! ipm_modes_alone "$tmp/modes.test-not-if" && ! ipm_modes_alone "$tmp/modes.p-extra" \
+  && ! ipm_modes_alone "$tmp/modes.dup-in-a" && ipm_gates_pinned "$tmp/modes.good" && ! ipm_gates_pinned "$tmp/modes.extra-in-a" \
+  && ! ipm_gates_pinned "$tmp/modes.bad-gate" && ! ipm_gates_pinned "$tmp/modes.and-gate" && ! ipm_gates_pinned "$tmp/modes.unbalanced" \
+  && ! ipm_gates_pinned "$tmp/modes.fn-gate" && ! ipm_gates_pinned "$tmp/modes.derived" && ! ipm_gates_pinned "$tmp/modes.brace" \
+  && ! ipm_gates_pinned "$tmp/modes.reassign" \
+  && ! ipm_union_covers "$tmp/modes.good" "$tmp/modes.flow-no-r" && ! ipm_union_covers "$tmp/modes.good" "$tmp/modes.flow-no-b" \
+  && ! ipm_union_covers "$tmp/modes.good" "$tmp/modes.flow-no-p" && ! ipm_union_covers "$tmp/modes.good" "$tmp/modes.flow-no-a"; then
+  pass "rule 20 on samples: a script whose modes a, r, b and p split the no-argument run passes with the jobs a, r, b, p; a mode that lacks its part (part p, failed reinstalls, the install checks, path B), runs a part of another mode, adds a line of its own or repeats one, an unreadable gate (an elif, a one-line else, a test of the mode outside an if) or an unbalanced if fails, a gate that is added or changed (in the main flow, in a function, through a variable derived from the mode, in the \${mode} form, or a new assignment of mode) fails the gate pin, and a workflow that passes no mode a, r, b or p leaves part of the no-argument run unrun"
+else
+  fail "rule 20 on samples: the checker accepts modes that do not split the no-argument run of release/ipm-install.sh, or rejects the right ones"
 fi
 
 # --- the real files ---
@@ -708,17 +1390,27 @@ check "rule 2: $merge_file without its %Service_CallIn and %IPM lines equals $cp
 check "rule 3: $cpf_file creates the four databases, OCUTALON with Interoperability and the seven mappings" cpf_content "$cpf_file"
 check "rule 4: $manifest has the one CPF element, first" cpf_is_first "$manifest"
 check "rule 5: $manifest declares the preload resource and invokes MapAndStop once, at Initialize, After, and nothing else at Initialize" early_step_declared "$manifest"
-check "rule 6: .github/workflows/lane-a.yml defines job ipm-install, which runs release/ipm-install.sh" ipm_job_runs_script .github/workflows/lane-a.yml
-check "rule 7: job ipm-install has the base image, the -ipm tag, the bundle build before the script and a deadline inside the timeout" ipm_job_wired .github/workflows/lane-a.yml
+check "rule 6: .github/workflows/lane-a.yml defines the jobs ipm-install (release/ipm-install.sh a, then r) and ipm-install-p (b, then p), and no other job runs the script" ipm_job_runs_script .github/workflows/lane-a.yml
+check "rule 7: jobs ipm-install and ipm-install-p have the base image, the -ipm and -ipm-p tags, the bundle build before the script, a per-run deadline inside the timeout, the same timeout, and if: \${{ !cancelled() }} on the second script run only" ipm_jobs_wired .github/workflows/lane-a.yml
 check "rule 8: $manifest invokes OcuTalon.Install.Registry Ipm once, at Configure, After, after MapAndStop" ipm_entry_declared "$manifest"
 check "rule 9: $install_doc keeps its points and agrees with the stop sentence of Install.Ipm, the failure line and the order of Registry" install_doc_ok "$install_doc" "$stop_text" "$fail_tail" "$order_text"
 check "rule 10: $manifest declares the exact SystemRequirements element once" sysreq_declared "$manifest"
 check "rule 11: $install_doc starts in USER, quotes IPM's refusal exactly as release/ipm-install.sh asserts it and sends the reader back to USER" ns_doc_ok "$install_doc" "$script_refusal"
 check "rule 12: $install_doc opens with the registry install: enable -community before the first install command, the shared-repositories sentence, and no Node.js before the developers' section" registry_doc_ok "$install_doc"
 check "rule 13: $manifest invokes OcuTalon.Install.Ipm UnmapRepos once, at Unconfigure, Before, after the Configure Invoke" unmap_declared "$manifest"
+check "rule 17: $manifest and module.xml invoke OcuTalon.Install.Ipm RemoveStaleCopies once, at Reload, Before, after MapAndStop, with the root, BypassPyDeps and cmd arguments and their Defaults" stale_step_declared_both
+check "rule 18: check_imports passes the pinned copies of the six and fails a version-only difference, stale code, a file outside the folder, a module not imported and a missing pinned dist-info" ipm_python_ok imports check_imports
+check "rule 18: check_python_moves accepts only the six moving to the pins and the pins added, and fails a stale dist-info that stays, a missing pin, a changed, missing or unpinned distribution, a lost top-level item and an IPM module that no longer imports or an empty import record" ipm_python_ok moves check_python_moves
+check "rule 18: check_uninstall_python accepts only the two Python resources gone, and fails a distribution gone, changed or added, a top-level item gone or added, an IPM module that no longer imports and an empty import record" ipm_python_ok uninstall check_uninstall_python
+check "rule 18: python_state writes a D line with the RECORD's md5 (or - with no RECORD) for each dist-info and a T line for each other top-level item, in name order" ipm_python_ok state python_state
+check "rule 18: check_licences gates an older copy of a pinned name that was in the folder before the install and skips a name that is no pin" ipm_python_ok skip check_licences
+check "rule 19: release/ipm-install.sh runs check_python_pins after check_licences on path A and on part p, then the reinstall and the uninstall checks" pins_wired release/ipm-install.sh
 check "rule 14: release/ipm-install.sh adds its repository with the output discarded, never lists repositories and never prints a hash of the definitions" defs_private release/ipm-install.sh
 check "rule 15: docs/security-overview.md carries the ruled Data bullet on the repository mapping" overview_bullet_ok docs/security-overview.md
-check "rule 16: release/ipm-install.sh with no argument, the job's run, runs part p" part_p_in_job release/ipm-install.sh
+check "rule 16: release/ipm-install.sh with no argument (the mode all) runs part p" part_p_in_job release/ipm-install.sh
+check "rule 20: the modes a, r, b and p that the two jobs pass together run every line of the no-argument run of release/ipm-install.sh" ipm_union_covers release/ipm-install.sh .github/workflows/lane-a.yml
+check "rule 20: each mode alone runs only its own set: a path A without the failed reinstalls, r the failed reinstalls, b path B, p part p with its packaging stack, and no line outside the no-argument run" ipm_modes_alone release/ipm-install.sh
+check "rule 20: the code lines of release/ipm-install.sh that read or assign the mode are exactly its read and its case, then the seven gates that split the main flow (p, !=b, =all artifact_prepare, !=r, !=a reinstall_failures, a or r finish, =all part_p)" ipm_gates_pinned release/ipm-install.sh
 
 if [ "$fails" -ne 0 ]; then
   echo "test-cpf: $fails check(s) failed"

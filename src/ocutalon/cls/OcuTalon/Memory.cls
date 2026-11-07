@@ -1,12 +1,211 @@
-/// The memory area's entry points that other areas call (AD-21; Lane A). THIS CLASS HOLDS ONLY THE SIGN-OUT STUB until Story 19.5.
+/// The memory area's entry points that other areas call (AD-21; Lane A): the read side of the memories (Search and List), the statistics step that
+/// keeps the recall query on its index (Tune), and the sign-out stub (DropSession, until Story 19.5). Writes are MemoryOps' alone
+/// (OcuTalon.Memory.Ops). Every read is restricted to one owner, the SessionRef it is given, and no method here calls AI Hub or Python (AD-6): a
+/// query is embedded only through OcuTalon.Memory.Embedding.Embed, which queues the work to a worker.
+///   - Search: the memories of one session that answer a query. The query is embedded, and two lists are made, each restricted to the owner: the 20
+///     nearest memories by VECTOR_COSINE (the HNSW index EmbeddingIdx, with the owner filter applied while the index is walked) and the 20 best
+///     keyword hits of the %iFind index TextIdx, ranked by its rank procedure. The keyword query is the OR of the query's distinct runs of letters and
+///     digits (at most 32), each in quotes (the word or with a backslash instead, because iFind on build 154 refuses a quoted or), so that the operators and
+///     the punctuation of a question mean nothing. The two lists are merged by
+///     reciprocal-rank fusion: a memory scores the sum of 1 / (RRFK + its rank) over the lists that hold it, ties go to the newer SavedAt and then
+///     to the higher row id, and the best limit memories (1 to 5) come back in order as {memoryRef, text, savedAt, origin}. An empty query or a
+///     failed embedding is an error status. A keyword query that iFind refuses leaves the nearest list alone, and writes one Type 3 warning (redacted).
+///   - Fuse: the fusion of the two lists, on their own, so that the order, the ties and the cut are tested without a model.
+///   - List: the owner's newest 20 memories (by SavedAt, then row id), newest first, in the same form, and the owner's count.
+///   - Tune: gathers the SQL statistics of the memory table when a saved row's id is a multiple of STATSEVERY. The planner reads HNSW's plan from the
+///     table's statistics, and statistics taken while the table was small (or none) keep it on a scan of the owner's rows: measured in Story 19.3
+///     (evidence/19-3-task0-memory-indexes.md). A gather on a table of a few hundred rows or more keeps the index plan up to 10,000 rows and beyond.
 Class OcuTalon.Memory Extends %RegisteredObject
 {
 
-/// Called by OcuTalon.Core.SessionOps.End on an online-demo sign-out: drops the session's memories. THIS IS A STUB until Story 19.5: no
-/// memory exists before Epic 19, so it returns OK and changes nothing, and a sign-out that calls it keeps signing out.
+/// The most memories Search returns.
+Parameter MAXLIMIT = 5;
+
+/// How many nearest and how many keyword hits each list holds before the fusion.
+Parameter CANDIDATES = 20;
+
+/// The constant of the reciprocal-rank fusion (AD-21).
+Parameter RRFK = 60;
+
+/// The most words the keyword query holds.
+Parameter MAXWORDS = 32;
+
+/// How many memories List returns at most.
+Parameter LISTLIMIT = 20;
+
+/// Tune gathers the table's statistics at every id that is a multiple of this.
+Parameter STATSEVERY = 1000;
+
+/// The SQL name of the table.
+Parameter TABLE = "OcuTalon_Data.Memory";
+
+/// The query of the nearest memories of one owner: parameters are the SessionRef and the query's vector as text. With the table's statistics gathered (Tune)
+/// the planner reads EmbeddingIdx and applies the owner while it walks the index (Story 19.3, Task 0); Test.Memory.Volume explains this very text.
+Parameter NEARESTSQL = {"SELECT TOP "_..#CANDIDATES_" ID, Ref, Text, SavedAt, Origin FROM "_..#TABLE_" WHERE SessionRef = ? ORDER BY VECTOR_COSINE(Embedding, TO_VECTOR(?, DOUBLE, 384)) DESC"};
+
+/// The query of the best keyword hits of one owner: parameters are the rank argument (the keyword query), the SessionRef and the keyword query.
+Parameter KEYWORDSQL = {"SELECT TOP "_..#CANDIDATES_" ID, Ref, Text, SavedAt, Origin, "_..#TABLE_"_TextIdxRank(%ID, ?) AS Hit FROM "_..#TABLE_" WHERE SessionRef = ? AND %ID %FIND search_index(TextIdx, ?, 0) ORDER BY Hit DESC"};
+
+/// The memories of the session that answer the query, best first: rows(n) is {"memoryRef", "text", "savedAt", "origin"} and rows is a %DynamicArray
+/// of at most limit of them (limit is clamped to 1 to MAXLIMIT). See the class description for the ranking. An error status for an empty query, an
+/// empty session or a query that cannot be embedded; rows is then an empty array.
+ClassMethod Search(sessionRef As %String, query As %String, limit As %Integer = 5, Output rows As %DynamicArray) As %Status
+{
+	Set rows = []
+	Set text = $ZStrip($Get(query), "<>WC")
+	If ($Get(sessionRef) = "") || (text = "") Quit $SYSTEM.Status.Error(5001, "A search needs a session and a query")
+	Set sc = ##class(OcuTalon.Memory.Embedding).Embed(text, .vector)
+	If $$$ISERR(sc) Quit sc
+	Set sc = $$$OK
+	Try {
+		Set nearest = ..Hits(..#NEARESTSQL, sessionRef, ..ToText(vector))
+		Set keyword = []
+		Set words = ..Words(text)
+		If words '= "" {
+			Try {
+				Set keyword = ..Hits(..#KEYWORDSQL, words, sessionRef, words)
+			} Catch keywordFailure {
+				Set keyword = []
+				Do ##class(Ens.Util.Log).LogWarning($ClassName(), "Search", "The keyword search of the memories failed, so only the nearest memories were used: "_##class(OcuTalon.Bridge.Redact).Text(keywordFailure.DisplayString()))
+			}
+		}
+		Set rows = ..Fuse(nearest, keyword, limit)
+	} Catch exception {
+		Set rows = []
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// The reciprocal-rank fusion of two ranked lists of hits, best first: each hit is {"id", "memoryRef", "text", "savedAt", "origin"} with the row id.
+/// A memory scores the sum of 1 / (RRFK + its rank, from 1) over the lists that hold it (a memory is the same in both lists when it has the same id).
+/// The result is the best limit (clamped to 1 to MAXLIMIT) as {"memoryRef", "text", "savedAt", "origin"}, by score, then newer savedAt, then higher id.
+ClassMethod Fuse(nearest As %DynamicArray, keyword As %DynamicArray, limit As %Integer = 5) As %DynamicArray
+{
+	Set limit = $Select(+limit < 1: 1, +limit > ..#MAXLIMIT: ..#MAXLIMIT, 1: +limit \ 1)
+	Kill score, info, order
+	For list = 1, 2 {
+		Set iterator = $Select(list = 1: nearest, 1: keyword).%GetIterator()
+		Set rank = 0
+		While iterator.%GetNext(, .hit) {
+			Set rank = rank + 1
+			Set id = hit.id
+			Set score(id) = $Get(score(id)) + (1 / (..#RRFK + rank))
+			Set info(id) = hit
+		}
+	}
+	Set id = ""
+	For {
+		Set id = $Order(score(id))
+		Quit:id=""
+		Set order(+$FNumber(score(id), "", 12), info(id).savedAt, id) = ""
+	}
+	Set rows = []
+	Set total = ""
+	For {
+		Set total = $Order(order(total), -1)
+		Quit:total=""
+		Set savedAt = ""
+		For {
+			Set savedAt = $Order(order(total, savedAt), -1)
+			Quit:savedAt=""
+			Set id = ""
+			For {
+				Set id = $Order(order(total, savedAt, id), -1)
+				Quit:id=""
+				If rows.%Size() < limit {
+					Set hit = info(id)
+					Do rows.%Push({"memoryRef": (hit.memoryRef), "text": (hit.text), "savedAt": (hit.savedAt), "origin": (hit.origin)})
+				}
+			}
+		}
+	}
+	Quit rows
+}
+
+/// The owner's newest memories (at most LISTLIMIT), newest first, as {memoryRef, text, savedAt, origin} in the %DynamicArray rows, and the number of
+/// memories the owner has in total.
+ClassMethod List(sessionRef As %String, Output rows As %DynamicArray, Output total As %Integer) As %Status
+{
+	Set rows = []
+	Set total = 0
+	If $Get(sessionRef) = "" Quit $SYSTEM.Status.Error(5001, "A list needs a session")
+	Set sc = $$$OK
+	Try {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM "_..#TABLE_" WHERE SessionRef = ?", sessionRef)
+		If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The memories could not be counted: "_rs.%Message))
+		If rs.%Next() Set total = rs.%GetData(1)
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP "_..#LISTLIMIT_" Ref, Text, SavedAt, Origin FROM "_..#TABLE_" WHERE SessionRef = ? ORDER BY SavedAt DESC, ID DESC", sessionRef)
+		If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The memories could not be listed: "_rs.%Message))
+		While rs.%Next() {
+			Do rows.%Push({"memoryRef": (rs.%Get("Ref")), "text": (rs.%Get("Text")), "savedAt": (rs.%Get("SavedAt")), "origin": (rs.%Get("Origin"))})
+		}
+	} Catch exception {
+		Set rows = []
+		Set total = 0
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// Gathers the SQL statistics of the memory table when id is a multiple of STATSEVERY, and returns 1 when it did, else 0. Throws what the gather
+/// throws. A gather takes well under a second at 10,000 rows (Story 19.3, Task 0).
+ClassMethod Tune(id As %Integer) As %Boolean
+{
+	If (+id < 1) || (id # ..#STATSEVERY) Quit 0
+	Set sc = $SYSTEM.SQL.Stats.Table.GatherTableStats(..#TABLE)
+	If $$$ISERR(sc) $$$ThrowStatus(sc)
+	Quit 1
+}
+
+/// Called by SessionOps.End on an online-demo sign-out: drops the session's memories. THIS IS A STUB until Story 19.5: it returns OK and changes
+/// nothing, and a sign-out that calls it keeps signing out.
 ClassMethod DropSession(sessionRef As %String) As %Status
 {
 	Quit $$$OK
+}
+
+/// The rows of the SELECT as an array of {"id", "memoryRef", "text", "savedAt", "origin"} in the order of the result (its columns are ID, Ref, Text, SavedAt
+/// and Origin first); throws when the statement fails.
+ClassMethod Hits(sql As %String, args... As %String) As %DynamicArray [ Private ]
+{
+	Set hits = []
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, sql, args...)
+	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The memories could not be read: "_rs.%Message))
+	While rs.%Next() {
+		Do hits.%Push({"id": (rs.%Get("ID")), "memoryRef": (rs.%Get("Ref")), "text": (rs.%Get("Text")), "savedAt": (rs.%Get("SavedAt")), "origin": (rs.%Get("Origin"))})
+	}
+	Quit hits
+}
+
+/// The keyword query for the text: the OR of its distinct runs of letters and digits (distinct ignoring case), at most MAXWORDS, each in quotes, except
+/// the word or (in any case), which is written with a backslash: on build 154 iFind refuses a quoted or with a syntax error, and a word with a backslash is
+/// that word (measured in Story 19.3). "" when the text holds none. The words hold nothing but letters and digits, so no iFind operator or punctuation of
+/// the text reaches the search.
+ClassMethod Words(text As %String) As %String [ Private ]
+{
+	Set words = ""
+	Set count = 0
+	Set position = 1
+	While (count < ..#MAXWORDS) && $Locate(text, "[\p{L}\p{N}]+", position, end, word) {
+		Set position = end
+		Set key = $ZConvert(word, "L")
+		If $Data(seen(key)) Continue
+		Set seen(key) = ""
+		Set count = count + 1
+		Set words = words _ $Select(words '= "": " OR ", 1: "") _ $Select(key = "or": "\" _ word, 1: """" _ word _ """")
+	}
+	Quit words
+}
+
+/// The values of a vector as comma-separated text, which TO_VECTOR(text, DOUBLE, 384) reads.
+ClassMethod ToText(vector As %Vector) As %String [ Private ]
+{
+	Set text = ""
+	For i = 1:1:$VOP("length", vector) {
+		Set text = text _ $Select(i > 1: ",", 1: "") _ $VECTOR(vector, i)
+	}
+	Quit text
 }
 
 }

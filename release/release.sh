@@ -771,14 +771,14 @@ ipm_pack() {
   ipm_session ipm-load %SYS "Set sc=\$SYSTEM.OBJ.Load(\"$pkg/docker/ipm/$zpmfile\",\"ck-d\") Write !,\"IPMLOAD \",\$Select(\$SYSTEM.Status.IsError(sc):\"FAILED\",1:\"OK\")
 zpm \"enable -map -ns USER\""
   grep -q '^IPMLOAD OK' "$IPM_IDIR/ipm-load.log" || ipm_pack_fail install "IPM could not be loaded: $(last_prompt_free_line "$IPM_IDIR/ipm-load.log")"
-  ipm_session load-user USER "zpm \"load $pkg\""
+  ipm_session load-user USER "zpm \"load -bypass-py-deps $pkg\""
   last="$IPM_IDIR/load-user.log"
   if ipm_load_ok "$last" USER; then
     ns=USER
   else
     ipm_session ns-check %SYS 'Write !,"NSCHECK ",##class(Config.Namespaces).Exists("OCUTALON")'
     if grep -Eq '^NSCHECK 1[[:space:]]*$' "$IPM_IDIR/ns-check.log"; then
-      ipm_session load-ocutalon OCUTALON "zpm \"load $pkg\""
+      ipm_session load-ocutalon OCUTALON "zpm \"load -bypass-py-deps $pkg\""
       last="$IPM_IDIR/load-ocutalon.log"
       ! ipm_load_ok "$last" OCUTALON || ns=OCUTALON
     fi

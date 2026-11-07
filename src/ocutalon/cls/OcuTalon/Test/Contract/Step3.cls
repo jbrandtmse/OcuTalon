@@ -152,7 +152,10 @@ XData Contracts [ MimeType = application/json ]
   },
   "indexes": {
    "RefIndex": "Ref unique",
-   "SessionRefSavedAtIndex": "SessionRef,SavedAt"
+   "SessionRefSavedAtIndex": "SessionRef,SavedAt",
+   "EmbeddingIdx": "Embedding",
+   "TextIdx": "Text",
+   "$Memory": ""
   }
  },
  "OcuTalon.Data.Document": {

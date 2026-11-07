@@ -4,7 +4,7 @@
 
 ## Goal
 
-This epic is the climax of the two-minute demo. For a data-format cause, OcuTalon proposes repair and resend with a dry run that changes nothing, raises one approval request fixed to exact targets (later failures get their own dry run and request in the same incident), and after approval re-checks each target, resends repaired copies, leaves the originals untouched and reports how many went through, for at least 500 messages, never retrying without a new approval. Stories 7.1 to 7.8 are built. The epic is re-opened for one story, 7.9: before any fix is offered, the dry run also applies the repair in memory to recent good messages from the same source and shows that it would leave them unchanged. If the repair would change any good message, no fix is offered. The user then knows the fix touches only the broken messages. The target is the Saturday release (Sunday 19Z at the latest).
+This epic is the climax of the two-minute demo. For a data-format cause, OcuTalon proposes repair and resend with a dry run that changes nothing. It raises one approval request fixed to exact targets, and later failures in the same incident get their own dry run and request. After approval it re-checks each target, resends repaired copies, leaves the originals untouched and reports how many went through, for at least 500 messages. It never retries without a new approval. Stories 7.1 to 7.9 are built. The epic is re-opened once more for a single fix-forward story, 7.10. One test, `OcuTalon.Test.Fix.Refused` `TestPastExpiryCannotStart`, went red once in CI as a timing accident (DW-840). After 7.10 it should fail only when the product is wrong, so a red shard always means a real defect.
 
 ## Stories
 
@@ -16,70 +16,61 @@ This epic is the climax of the two-minute demo. For a data-format cause, OcuTalo
 - Story 7.5: A resend cut short by a restart says how far it got (done)
 - Story 7.7: A date repair that could read either way names its evidence (done)
 - Story 7.8: The web incident card shows the either-way date line too (done)
-- Story 7.9: The dry run shows the fix leaves good messages unchanged (next, last; backlog)
+- Story 7.9: The dry run shows the fix leaves good messages unchanged (done)
+- Story 7.10: The past-expiry refusal test is stable (DW-840) (next, last; backlog)
 
 ## Requirements & Constraints
 
-- **The check (7.9).** For a validated repair and resend whose dry run has targets, apply the registered reformatter, in memory only, to the same field of the last N=20 successfully processed messages from the same source as the failed ones. Record the count checked and the count the repair would change.
-- **Read only.** The check resends nothing and writes nothing to any message, header, body, setting or queue in either namespace. It calls no model: the CI mock receives no request during it.
-- **Nothing changed: one more notice line.** The with-fix notice's "Dry run:" paragraph gets one more line with the count checked and the count changed. The Planner rules the exact text at the spec gate. Never invent public wording; any wording question goes to the spec gate.
-- **Any change: no fix.** If any good message would change, no fix is offered and no request is raised. The incident gets the no-fix notice, following 7.7's no-evidence pattern (U-251). The Planner rules any no-fix wording at the spec gate.
-- **Approval runs exactly the dry run.** An approved request runs the same kind, parameters and fixed targets the dry run showed, and nothing else.
-- **Required tests.**
-  - A demonstrated mutation: a fix that changes one good message must withhold the offer.
-  - The case with no good messages.
-  - A case with fewer than 20 good messages.
-  - A check that the approved change equals the dry run's.
+- **The flake (7.10).**
+  - CI shard `shards-2` (`lane-a`, the Fix area among others) went red once on OCT-epic7 head 07951357, in 1 of 93 classes.
+  - The failing assertion was "the incident is resolved", from the `WaitIncidentState` poll. The class took 34.03 s, where it normally takes about 4 s.
+  - The same tree passed fresh on lane D in 8.99 s.
+  - The ledger note says a second red on the same head is a real defect, not a flake.
+- **Measure, then fix.**
+  - Run the test under a repeat or load run to measure the cause and name it.
+  - Show that the old code fails under that same run.
+  - After the fix, make the same run 20 times. It must pass 20 of 20.
+- **Forbidden fixes.**
+  - Don't delete or weaken any pin (assertion).
+  - Don't raise a timeout to make it pass.
+- **Test-only.**
+  - If the cause turns out to be in the product, stop and describe it before making any product change, so the Planner can rule on it.
+  - Any change to public text needs a Planner ruling.
+- **Timebox and release.**
+  - The timebox is 90 minutes, under the Planner's voting-week tier (3)(a).
+  - The story merges after the 1.0.3 cut. Nothing goes to `main` or `release/*`.
+- **Running tests.**
+  - Integration tests run only in throwaway stacks and CI, fresh, with demo mode on, through `Test.Watch.Case`.
+  - Make one `iris_execute_tests` call per message, and pass the server and namespace on every IRIS call.
+  - Each run must fit the 10-minute command cap: split long repeat runs, never raise the cap, and prefer warm mode.
 - **Epic-wide.**
   - Use only the CI mock and its recorded replies, never a real model key or a real Telegram bot.
   - `live:demo-path` and the online-demo specs stay green, and no recorded eval expectation changes.
 
 ## Technical Decisions
 
-- **Fix kinds (fixed set).**
-  - A kind implements `DryRun`, `Recheck` and `Execute` against fixed targets, with a parameter schema.
-  - The model picks only the kind and its parameters (field, source and target format). Code validates them, and no model-written code runs.
-  - `FixExecutor` loads the kind, targets and change from the `ApprovalRequest` row alone: `FixKind`, `FixParameters` and `FixTargets`.
-- **The stored dry run.**
-  - It is JSON on the row with exactly `DRYRUNKEYS` (`affected`, `resend`, `leftOut`, `field`, `before`, `after`, `itemNoun`), pinned by `Test/Fix/DryRun` and `Test/Data/Tables`.
-  - The architecture lets later fix kinds add their own keys. Whether 7.9's counts become stored keys (a bridge change plus both pinning tests) or are carried another way is the spec's decision, and the spec records it.
-- **Reading messages.**
-  - `OcuTalon.Watch.Reader` is the one class that switches namespace to read a production. Fix may call it.
-  - Today it reads only failed headers (Status Error) and their evidence. It has no read of successfully processed messages, so the good-message read belongs in the Reader, not in Fix.
-- **The reformatter.** `OcuTalon.Fix.Reformat.Convert` refuses a value that doesn't read in the source format. The spec must say how a good value that the source format refuses counts in "checked" and "changed".
-- **The refusal path (7.7).**
-  - A refused `RepairResend.DryRun` returns an error with a plain reason (as `NOEVIDENCE` does).
-  - `IncidentManager` then sends `incident.noFix` with the cause, raises no request, leaves the incident open with variant `no_fix`, and logs one Type 3 warning that names the reason.
-  - `Test/Fix/EitherWay` and `Test/Fix/Raise` show the pattern.
-- **Notice keys.**
-  - `Watch/Notice` picks the with-fix key: `incident.withFix` or `incident.withFixEitherWay`, and for later requests `incident.laterRequest` or `incident.laterRequestEitherWay`. It builds slots in `WithFixSlots`.
-  - The new line has to sit beside the either-way line without doubling the variant keys by hand. The spec decides how, and any catalog addition is one self-contained block.
-  - Producers never render text: `OcuTalon.Msg.Catalog.Render` does that in the `*Out` operations.
-- **Tests.**
-  - `%UnitTest` classes go under `OcuTalon.Test.<Area>`.
-  - Integration tests run on throwaways and in CI only, through `Test.Watch.Case`.
-  - The mock's request log is the evidence for "no model request".
-
-## UX & Interaction Patterns
-
-- **Dry run block and paragraph.**
-  - It gives the count, one before-and-after example naming the field, and what will be resent.
-  - It ends "Nothing has changed yet." while the request is pending.
-  - The voice puts numbers first, uses plain words ("becomes", never arrows) and has no exclamation marks.
-- **No-fix notice.** It shows the cause and the failure groups, with no approval request and no buttons. The demo guide already has a hint for a notice without a fix (P25).
-- **Scope of the card.** 7.9's criteria name only the notice's paragraph, not the web incident card. Any card change is out of scope unless the spec gate rules otherwise.
-- **Short screens.** At 1280x600 the incident card's headline, cause, dry-run count, Approve and Reject stay visible without scrolling.
+- **What the test checks.**
+  - An approved `repair_resend` request whose `ExpiresAt` has passed isn't refused outright. It ends as "could not start" (DW-384, U-161).
+  - The real `FixExecutor` item receives an Execute by name from `SimMailboxIn`. It sends one final `FixResult` with reason `NOSTART`. The request ends `failed`, with one ended `FixRun` that holds no copy.
+  - `IncidentManager` then resolves the incident and sends one `result.couldNotStart` notification.
+  - The audit log holds one Action entry, and a snapshot of OCUORDERS shows no change.
+- **Where the red sits.**
+  - The red is the step where the incident becomes resolved. That happens asynchronously in `IncidentManager`, after the `FixResult` assertions.
+  - Waits in `Test.Watch.Case` poll every 0.5 s up to `WAITRUN`, which is 30 s. The 34 s class time is consistent with that wait running out.
+- **Fixing the fix flows.**
+  - `FixExecutor` loads everything from the `ApprovalRequest` row alone (`FixKind`, `FixParameters`, `FixTargets`).
+  - Producers never render text: `OcuTalon.Msg.Catalog.Render` does that.
+  - 7.9 touched neither `Executor`, the incident transitions nor `Refused`.
+- **Tests.** `%UnitTest` classes sit under `OcuTalon.Test.<Area>`. CI runs `lane-a`'s Fix area in `shards-2`, in its own compose project.
+- **Pattern from an earlier flake story.** Story 34.4 (DW-825) is the model to follow:
+  - Record the cause under `_bmad-output/implementation-artifacts/evidence/<story>/` (for example `cause.md`).
+  - Where a red can't be forced deterministically, add a stack-free repro or probe.
+  - The lead owns the repeat proof (old code red, fix 20 of 20) and records it with run IDs.
 
 ## Cross-Story Dependencies
 
-- **What 7.9 builds on.**
-  - 7.1: `RepairResend.DryRun` and the registered reformatters.
-  - 7.2 and 7.6: the with-fix and later-request notices, and `Raise`.
-  - 7.3: `Recheck` and `Execute` read the row only.
-  - 7.7: the refusal path to `incident.noFix`, and the either-way line.
-  - Keep 7.7's evidence rule and 7.8's card row behaving exactly as they do now.
-- **Later requests.** Each request has its own dry run, so the check should apply to a later round's dry run the same way.
-- **Open ledger items.**
-  - DW-318: a dry run reads only each group's newest 1000 failure keys.
-  - DW-655 and DW-653 are burn-down items. Don't fix them in passing.
-- **Release.** Nothing goes to `main` or `release/*`. The exact public texts come from the Planner at the spec gate.
+- **Built on 7.3.** The past-expiry path is 7.3's refusal matrix ("Past expiry" row) and its `couldNotStart` result. Keep 7.3 to 7.9 behaving exactly as they do now.
+- **Ledger.**
+  - DW-840 is owned by 7.10.
+  - DW-639, another flake class, is queued after DW-840 under the same tier-3 ruling. It stays out of scope.
+  - DW-318, DW-655 and DW-653 remain open. Don't fix them in passing.
