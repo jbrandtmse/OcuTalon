@@ -2528,3 +2528,4 @@
 2026-11-07T18:28:10Z	Run	planner_update	subject=sign-in_split_pick_candidate sha=bc1ff88b
 2026-11-07T18:28:43Z	Run	planner_update	subject=1.0.3_eval_regression_triage result=queue_position_not_code mechanism=EvalIn_async+Decide_timer_at_send+DiagnosisAgent_PoolSize1 margin_1.0.2=1.7-3.3s check=run_case_alone fix=EvalIn_pacing(1-2h,release_pick_candidate) 1.0.4=PoolSize2_or_timer_at_runner_start,RetryItem
 2026-11-07T18:29:52Z	Run	planner_ruling	subject=1.0.3_eval_regression no_release_pick author_override=recorded_queue_cause 1.0.4=(1)EvalIn_pacing(Epic9)(2)diagnosis_timer_not_counting_queue(sizing_pending) priority=after_D1_D2 sign-in_split_pick=only_if_PR6_browser_times_out
+2026-11-07T18:33:25Z	Run	planner_update	subject=DW-879_sizing A=timer_at_runner_start(~15h,AD-8,med-high) B=DiagnosisAgent_PoolSize2(~3-4h,no_AD,low-med) recommend=B(+skip_abandoned_1h) host_checks=gateway_limits,licence_connections
