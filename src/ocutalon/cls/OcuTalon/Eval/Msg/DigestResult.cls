@@ -4,7 +4,7 @@
 ///   - The one writer is OcuTalon.Digest.Process (FinishCase). It saves the message by sending it.
 ///   - The readers are OcuTalon.Eval.Sink, which completes the row, and OcuTalon.Eval.Report, which scores the case from it (DigestOf).
 ///   - CatalogKey and AllClear are the verdict of the case's rows (Checks.Render and the vital signs), Named the entries that did not pass in the order
-///     Digest names them, and Checked the raw entries of the watched rows in the order they were recorded.
+///     Digest names them, and Checked the entries of the watched rows that are a result (Checks.Render's rule), in the order they were recorded.
 ///   - Fallback is true when the saved-for-later summary came back as a fallback or not at all; FallbackReason is then one of Msg.Enum FALLBACKREASON.
 Class OcuTalon.Eval.Msg.DigestResult Extends Ens.Request
 {
@@ -24,7 +24,7 @@ Property AllClear As %Boolean [ InitialExpression = 0 ];
 /// The entries of the watched rows that did not pass, as the text of a JSON array, failed rows first and then the rows not checked.
 Property Named As %String(MAXLEN = "");
 
-/// The entries of the watched rows, as the text of a JSON array, in the order recorded.
+/// The entries of the watched rows that are a result (an object with a non-blank string entry), as the text of a JSON array, in the order recorded.
 Property Checked As %String(MAXLEN = "");
 
 /// The Ref of the Decision of the summary request; empty when the case made none or it fell back with no decision.

@@ -729,11 +729,17 @@ ClassMethod ScoreUserTurn(report As %DynamicObject, row As %DynamicObject, expec
 /// The latest TurnResult of the ItemId, or "" when there is none.
 ClassMethod TurnOf(itemId As %String) As OcuTalon.Eval.Msg.TurnResult [ Private ]
 {
+	Quit ..LatestOf("OcuTalon.Eval.Msg.TurnResult", "OcuTalon_Eval_Msg.TurnResult", itemId)
+}
+
+/// The latest message of the result class (its SQL table) that holds the ItemId, or "" when there is none. A read error throws.
+ClassMethod LatestOf(class As %String, table As %String, itemId As %String) As %Persistent [ Private ]
+{
 	If itemId = "" Quit ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Eval_Msg.TurnResult WHERE ItemId = ? ORDER BY ID DESC", itemId)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM "_table_" WHERE ItemId = ? ORDER BY ID DESC", itemId)
 	If result.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(result.%SQLCODE, result.%Message)
 	If 'result.%Next() Quit ""
-	Quit ##class(OcuTalon.Eval.Msg.TurnResult).%OpenId(result.%GetData(1))
+	Quit $ClassMethod(class, "%OpenId", result.%GetData(1))
 }
 
 /// The names (each once, in step order, joined by a comma and a space) of the tools of the steps, whether or not they were denied.
@@ -1226,11 +1232,7 @@ ClassMethod Strings(value) As %Boolean [ Private ]
 /// The latest DigestResult of the ItemId, or "" when there is none.
 ClassMethod DigestOf(itemId As %String) As OcuTalon.Eval.Msg.DigestResult [ Private ]
 {
-	If itemId = "" Quit ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Eval_Msg.DigestResult WHERE ItemId = ? ORDER BY ID DESC", itemId)
-	If result.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(result.%SQLCODE, result.%Message)
-	If 'result.%Next() Quit ""
-	Quit ##class(OcuTalon.Eval.Msg.DigestResult).%OpenId(result.%GetData(1))
+	Quit ..LatestOf("OcuTalon.Eval.Msg.DigestResult", "OcuTalon_Eval_Msg.DigestResult", itemId)
 }
 
 }

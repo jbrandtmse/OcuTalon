@@ -52,8 +52,8 @@
 #                   digest              (Story 17.7) checks, an array of rows in the form of an all-clear case's; vitals, an object whose rows
 #                                       are an array of rows of the same form and whose figures are an object; expectation.allClear, a
 #                                       boolean, expectation.catalogKey, one of the four Checks.Render keys, and expectation.named and
-#                                       expectation.checked, each an array of strings; heldOut false; a folder name that starts with digest-;
-#                                       and no turn, no item and no mock marker;
+#                                       expectation.checked, each an array of strings; saved, when present, an array of strings; heldOut
+#                                       false; a folder name that starts with digest-; and no turn, no item and no mock marker;
 #   markers       eval/mock-wrong/ holds a case; a [[mock:<name>]] marker appears only in the cases below it; each such case is of kind item
 #                 and names a scenario ci/mock/scenarios/A/<name>.json whose first reply is a JSON text with an outcome other than the
 #                 case's expected outcome;
@@ -268,16 +268,16 @@ const shape = (file, item) => {
 };
 
 // The rows of an all-clear case's checks, and of a digest case's checks and vitals.rows (the form of check_status).
-const rowsOk = (file, list) => {
+const rowsOk = (file, list, name = 'checks') => {
   if (!Array.isArray(list) || !list.every((k) => isObject(k) && RESULTS.includes(k.result))) {
-    bad(file, 'checks is not an array of objects with a result of passed, failed or not_checked');
+    bad(file, `${name} is not an array of objects with a result of passed, failed or not_checked`);
     return;
   }
   for (const k of list) {
-    if (!text(k.entry)) bad(file, 'a checks row has no entry');
-    if (typeof k.finding !== 'string') bad(file, 'a checks row has no finding string');
-    if (typeof k.checkedAt !== 'string' || (k.checkedAt !== '' && !UTC.test(k.checkedAt))) bad(file, 'a checks row has a checkedAt that is neither empty nor a UTC time');
-    else if ((k.result === 'passed' || k.result === 'failed') && k.checkedAt === '') bad(file, 'a passed or failed checks row has no checkedAt');
+    if (!text(k.entry)) bad(file, `a ${name} row has no entry`);
+    if (typeof k.finding !== 'string') bad(file, `a ${name} row has no finding string`);
+    if (typeof k.checkedAt !== 'string' || (k.checkedAt !== '' && !UTC.test(k.checkedAt))) bad(file, `a ${name} row has a checkedAt that is neither empty nor a UTC time`);
+    else if ((k.result === 'passed' || k.result === 'failed') && k.checkedAt === '') bad(file, `a passed or failed ${name} row has no checkedAt`);
   }
 };
 const strings = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
@@ -388,7 +388,7 @@ try {
       if (!path.posix.basename(dir).startsWith('digest-')) bad(file, 'a digest case folder does not start with digest-');
       rowsOk(file, c.checks);
       if (!isObject(c.vitals) || !isObject(c.vitals.figures)) bad(file, 'vitals is not an object with rows and a figures object');
-      else rowsOk(file, c.vitals.rows);
+      else rowsOk(file, c.vitals.rows, 'vitals.rows');
       if (c.saved !== undefined && !strings(c.saved)) bad(file, 'saved is not an array of strings');
       if (typeof x.allClear !== 'boolean') bad(file, 'expectation.allClear is not a boolean');
       if (!text(x.catalogKey)) bad(file, 'has no expectation.catalogKey');
@@ -1081,9 +1081,9 @@ variant('cases', 'bad-digest-row-time', 'a checks row has a checkedAt that is ne
 variant('cases', 'bad-digest-passed-no-time', 'a passed or failed checks row has no checkedAt', (f) => { f[DIGEST].checks[0].checkedAt = ''; });
 variant('cases', 'bad-digest-no-vitals', 'vitals is not an object with rows and a figures object', (f) => { delete f[DIGEST].vitals; });
 variant('cases', 'bad-digest-no-figures', 'vitals is not an object with rows and a figures object', (f) => { delete f[DIGEST].vitals.figures; });
-variant('cases', 'bad-digest-vital-rows', 'checks is not an array of objects with a result', (f) => { f[DIGEST].vitals.rows = 'none'; });
-variant('cases', 'bad-digest-vital-row-result', 'checks is not an array of objects with a result', (f) => { f[DIGEST].vitals.rows[0].result = 'maybe'; });
-variant('cases', 'bad-digest-vital-row-time', 'a passed or failed checks row has no checkedAt', (f) => { f[DIGEST].vitals.rows[0].checkedAt = ''; });
+variant('cases', 'bad-digest-vital-rows', 'vitals.rows is not an array of objects with a result', (f) => { f[DIGEST].vitals.rows = 'none'; });
+variant('cases', 'bad-digest-vital-row-result', 'vitals.rows is not an array of objects with a result', (f) => { f[DIGEST].vitals.rows[0].result = 'maybe'; });
+variant('cases', 'bad-digest-vital-row-time', 'a passed or failed vitals.rows row has no checkedAt', (f) => { f[DIGEST].vitals.rows[0].checkedAt = ''; });
 variant('cases', 'bad-digest-saved', 'saved is not an array of strings', (f) => { f[DIGEST].saved = 'a summary'; });
 variant('cases', 'good-digest-saved', '', (f) => { f[DIGEST].saved = ['a summary']; });
 variant('cases', 'bad-digest-all-clear', 'expectation.allClear is not a boolean', (f) => { f[DIGEST].expectation.allClear = 'true'; });
@@ -2873,7 +2873,7 @@ if ! ENUM_OUTCOME="$outcomes" ENUM_DEMOCASE="$demo_case" ENUM_FINDINGKEYS="$find
   exit 1
 fi
 
-rule cases "every case.json below eval/ has its kind, held-out flag, record or turn, and expectation (an item may be a beat, an injection case may have a watch and expect key phrases, an outcome or both, an incident may expect no fix), and every folder holds a case.json" check_cases
+rule cases "every case.json below eval/ has its kind, held-out flag, record, turn or rows, and expectation (an item may be a beat, an injection case may have a watch and expect key phrases, an outcome or both, an incident may expect no fix), and every folder holds a case.json" check_cases
 rule markers "a mock marker is only in eval/mock-wrong/, and its scenario answers an outcome other than the expected one" check_markers
 rule set "the set holds at least 20 item cases, at least 3 for each outcome, items from the mailbox and the system channel, two injection cases (one with a watch of the demo's Orders production), the three all-clear situations, a command case and the three digest situations" check_set
 rule demo "the case that Eval.Report DEMOCASE names is an incident case of the Orders date-format failure: a data format change at OrderDate, fixed by repair and resend" check_demo

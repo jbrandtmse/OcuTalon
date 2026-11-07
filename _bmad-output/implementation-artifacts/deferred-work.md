@@ -4698,6 +4698,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T18:54:29Z status=wontfix-theoretical owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=cr note=real if a CI red shows an extra notice or model request that is a scheduled digest at 08:00 instance time
 - 2026-11-06T22:42:19Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
 - 2026-11-06T22:42:19Z status=routed owner=17-7-give-an-all-clear-only-when-every-check-passed by=cr note=reopened: CI red BeatOutcomes x4; tests' ahead ticks (+48h) digest all sessions, future-DueAt Sent rows mask real digests
+- 2026-11-07T03:13:47Z status=resolved-by:17-7-give-an-all-clear-only-when-every-check-passed by=adjudication note=FutureSent.Remove(fail-closed_drain)+Count_asserted_in_BeatCase.OnAfterOneTest_and_Test.Checks.Turns.OnAfterOneTest;due_rule_unchanged;mutations_recorded
 
 ### DW-817: A tick's scheduled Composes for several sessions share the tick's trace session (Digest keeps the inbound session and sets only SuperSession, as Intake.Join does for Checks' findings), against AD-26's own trace session per untrusted item
 - source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: low | fix-risk: low | footprint: in-story
@@ -4884,3 +4885,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: chk_measured (test-readme.sh 517-530) only requires each MEAS_LABELS label to start a row; README with '| The always-on online demo |' appended after line 39: git grep prints README.md:40, test-readme.sh PASS measured
 - 2026-11-06T08:38:06Z status=by-design owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=cr note=spec Never forbids a new rule/helper/self-test; QA declined the absence pin on purpose; AC1 absence held by the Verification git grep
+
+### DW-847: FutureSent.Remove after every beat test lets each +48h Tick re-digest the stack's long-lived sessions (Compose, Notify, model request) instead of only the first
+- source: spec-17-7-give-an-all-clear-only-when-every-check-passed.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Remove deletes the future Sent rows, so Covered no longer holds for the next test's tick; measured Test.Checks.Heartbeat warm 13.88 s without the drain, 15.75 s with it
+- 2026-11-07T03:12:16Z status=wontfix-accepted owner=17-7-give-an-all-clear-only-when-every-check-passed by=cr note=reopen_if=a Checks-shard class fails Remove's drained assertion, or Heartbeat or BeatOutcomes runs over twice its warm time
+
+### DW-848: A digest case's summary request mints a new ItemId instead of the case row's, so Test.Eval.Run's ItemId-keyed clean-up and TestUsage miss its Decision and Usage rows
+- source: spec-17-7-give-an-all-clear-only-when-every-check-passed.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Digest.Process Evaluated takes SummaryRequest's NewRef ItemId; turn cases send Decide the row's ItemId (Eval.In); no eval/digest-* case has saved (Decided 5)
+- 2026-11-07T03:12:16Z status=wontfix-theoretical owner=17-7-give-an-all-clear-only-when-every-check-passed by=cr note=real when an eval/digest-* case carries saved summaries
+
+### DW-849: Test.Eval.Run TestIsolation counts only Sent rows of owner eval, not any Sent row added during run 6
+- source: spec-17-7-give-an-all-clear-only-when-every-check-passed.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: diff Test/Eval/Run.cls counts SessionRef = 'eval' above the mark; an unscoped count would race real scheduled ticks; EvalCase.TestNoSessionEffects compares all sessions' Sent rows
+- 2026-11-07T03:12:16Z status=wontfix-accepted owner=17-7-give-an-all-clear-only-when-every-check-passed by=cr note=reopen_if=Evaluated or FinishCase gains a code path that can write a Sent row

@@ -197,6 +197,29 @@ Paths are under `src/ocutalon/cls/OcuTalon/`.
 - Given the three step-2 cases, when they run as automated tests and as eval cases, then the first two give no all-clear and name their entry first, and the third gives the all-clear with what was checked. The eval run writes no Notification, Delivery, Sent row or live event, and Report scores all three right.
 - Given UJ-2 with every fixture check passing, when the Slots are composed, then the figures, "(all running, no errors, no backlog)", "Your IRIS system is healthy" and "Everything I checked passed." come from code parts, never from the summary slot.
 
+
+### Review Findings
+
+Code review 2026-11-06 (bmad-code-review, full mode, four layers, warm tag `e17s7cw`). No high. Two medium and six low patched; three low closed in the ledger; the rest rejected below.
+
+- [x] [Review][Patch] (med) DW-816: `Test.Checks.Turns` `TestFailingOrdersInTheChat` ticks a watch's `NextDueAt` (`Watch.Case.Ahead()`, a day ahead) through the real Checks and Digest, so every session gets a future-dated scheduled Compose or Sent row, and nothing removed or asserted it - `Turns.OnAfterOneTest` now asserts `FutureSent.Remove()` drained and `Count()` is 0, as BeatCase does [src/ocutalon/cls/OcuTalon/Test/Checks/Turns.cls:31]
+- [x] [Review][Patch] (med) Rule 19 hermeticity: `FutureSent.TestNoFutureRowIsLeft` asserted on rows it never made (other tests' leftovers, run order), and in its own CI job (`shards-2`) no far-ahead tick runs before it - removed; the pin is the assertion in the OnAfterOneTest of BeatCase and Turns (Design Notes 16's "sweep" no longer exists) [src/ocutalon/cls/OcuTalon/Test/Digest/FutureSent.cls:166]
+- [x] [Review][Patch] (low) `FutureSent.Remove`'s doc claimed "no message in flight means no row is on its way"; a Compose with saved items has its header completed while Digest waits on Decide (`Ens.BusinessProcess` :461), which `Opened` does not count. No row can follow (the Sent row is written only from the deleted body; Ensemble's `%requestGet` fails and Digest records the error), so the doc now says that [src/ocutalon/cls/OcuTalon/Test/Digest/FutureSent.cls:57]
+- [x] [Review][Patch] (low) stale doc: `TestRemoveWaitsForTheMessage` said "half a second" for a 1.5 s job [src/ocutalon/cls/OcuTalon/Test/Digest/FutureSent.cls:228]
+- [x] [Review][Patch] (low) `test-eval-set.sh` `rowsOk` reported a bad `vitals.rows` row as a `checks` problem - it takes the name, and the three `bad-digest-vital-*` variants expect `vitals.rows` (mutation: the call without the name -> the three variants red) [docker/tests/test-eval-set.sh:271]
+- [x] [Review][Patch] (low) `test-eval-set.sh` header left out the digest case's optional `saved`, and the `cases` rule text said "record or turn" [docker/tests/test-eval-set.sh:52]
+- [x] [Review][Patch] (low) `DigestResult` doc said `Checked` holds the raw entries; it holds those Render takes as a result (`Entry`) [src/ocutalon/cls/OcuTalon/Eval/Msg/DigestResult.cls:7]
+- [x] [Review][Patch] (low) Rule 2: `Report.DigestOf` repeated `TurnOf` line for line - both now call one `LatestOf(class, table, itemId)` [src/ocutalon/cls/OcuTalon/Eval/Report.cls:730]
+- [x] [Review][Defer] (low) DW-847 `wontfix-accepted`: the drain after every beat test lets each +48 h Tick digest the stack's long-lived sessions again (each test's own new sessions were digested before too); measured `Test.Checks.Heartbeat` warm 13.88 s without the drain, 15.75 s with it [src/ocutalon/cls/OcuTalon/Test/Checks/BeatCase.cls:104] - deferred: not a two-way door (the alternative is the ruled due rule)
+- [x] [Review][Defer] (low) DW-848 `wontfix-theoretical`: a digest case's summary request mints a new ItemId, so `Test.Eval.Run`'s ItemId clean-up would miss its Decision and Usage rows [src/ocutalon/cls/OcuTalon/Digest/Process.cls:465] - deferred: no `eval/digest-*` case has `saved` (Decided 5)
+- [x] [Review][Defer] (low) DW-849 `wontfix-accepted`: `TestIsolation` counts only Sent rows of owner `eval` [src/ocutalon/cls/OcuTalon/Test/Eval/Run.cls] - deferred: an unscoped count races real scheduled ticks; `EvalCase.TestNoSessionEffects` covers all sessions
+
+Rejected:
+- `by-design` (spec-bound): Report's digest `cases[]` entry shows only the key in expected and got (the contract fixes the entry; `right` carries the whole comparison); a decided row with no DigestResult is "not right" with `NOKEY`, not unscored (the contract says so, and it fails closed); DigestCase has no owner property though AD-22 says "owner `eval`" (Decided 3: owner `eval` by construction, which is stronger).
+- `false`: "Remove deletes rows of every session" - a real Tick gives `DueAt` at most the tick time, so only test-made rows are dated ahead; "Remove deletes bodies when its wait times out" - it then answers 0 and the callers' assertion fails loudly; the Epic 39 contention note - Epic 39 has merged (`origin/OCT-epic39` has no diff against the feature).
+- `low`, unlikely and not a direct fix: `Opened` ignores messages over ten minutes old (a stack backed up for ten minutes); a test process that dies between saving and deleting its synthetic header; `Gain` reading a real Tick header that lives only between two reads a few ms apart, and `waited >= 1` passing on unrelated traffic; a digest case with no `vitals.figures` gets no `vitals.rows` report (it is already reported for the missing figures).
+- No AD mismatch (Rule 6: AD-18, AD-22, AD-28, AD-31, AD-32); Rule 3 holds (`Test.Digest.Send` through the real production and mock, `Test.Channel.TelegramDigest`); no new user-facing text or catalog key; `Report.cls` `TOOLCLASSES` untouched.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -339,9 +362,15 @@ Every test added or changed passes on a fresh environment, in either order.
 - DW-816:
   - mutation: `FutureSent` `Remove` quits at once -> `FutureSent` `TestRemovesFutureRows` red;
   - mutation: `BeatCase.OnAfterOneTest` without the `FutureSent.Remove()` call -> the assertion in `BeatCase.OnAfterOneTest` is red in every `Test.Checks.Heartbeat` test that ticks ahead ("no scheduled digest dated ahead of the clock is left by the test's Ticks"; applied 2026-11-06, observed red, restored byte-identical; the rows it left were removed by the next unmodified run);
+  - mutation: `Turns.OnAfterOneTest` without the `FutureSent.Remove()` call -> `Test.Checks.Turns` red ("no scheduled digest dated ahead of the clock is left by the test's Ticks", in `TestFailingOrdersInTheChat` and the test after it; code review 2026-11-06, applied, observed red, restored byte-identical, green again on the same stack);
 - Review additions (2026-11-06):
   - mutation: `Vitals` without the `ordered.%Size() '= vitals.rows.%Size()` term -> `EvalCase` `TestResults` red ("a vital row that is no result is not passed over");
   - mutation: `nothingWatched` from `watched.%Size() = 0` instead of `ordered.%Size() = 0` -> `EvalCase` `TestResults` red ("watched elements that are no result: nothing watched").
+
+**QA stage (2026-11-06; warm tag `e17s7qw`).** Tests changed or added (QA): `src/ocutalon/cls/OcuTalon/Test/Digest/FutureSent.cls` (`TestOpenedCountsOnlyInFlight`, `TestRemoveWaitsForTheMessage`, `TestRemoveSaysWhenItDidNotDrain`; `Remove` now answers 1 only when the look after its last deletion found nothing in flight, repeats while a message opened, and treats an unreadable header table as in flight) and `src/ocutalon/cls/OcuTalon/Test/Checks/BeatCase.cls` (`OnAfterOneTest` also asserts that `Remove` drained).
+- mutation: `Opened` status filter `< 8` instead of `IN (1, 2, 3, 6)` -> `FutureSent` `TestOpenedCountsOnlyInFlight` red (QA);
+- mutation: `Remove` skips the final look (`If 1`) and the wait -> `FutureSent` `TestRemoveWaitsForTheMessage` and `TestRemoveSaysWhenItDidNotDrain` red (QA);
+- sampled again, each red and restored byte-identical: nothing-watched key `checks.allPassed` -> `AllClear` `TestNothingWatched`; `named` from the raw rows -> `AllClear` `TestFailedBeforeNotChecked`; AllClear without the vitals term -> `AllClear` `TestVitalWithoutTime`; AllClear without the `needs.count` term -> `Compose` `TestAllClearNeedsVitalsAndNothingOpen`; `ScoreDigest` ignoring `Checked` -> `Eval.Report` `TestDigestScore`; `ReplyGuard.Filter` returning its input -> `Digest.Send` `TestModelClaimsFine` (nine phrases and "healthy" once); `EVALSINK` = `Notify` -> `Eval.Run` `TestDigestRun`, `TestHops`, `TestIsolation`.
 
 ## Auto Run Result
 

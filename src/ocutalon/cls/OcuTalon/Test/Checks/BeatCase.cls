@@ -101,7 +101,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	For i = 1:1:$Length(..Sessions, ",") {
 		If $Piece(..Sessions, ",", i) '= "" Do ##class(OcuTalon.Test.Checks.Beat).Forget($Piece(..Sessions, ",", i))
 	}
-	Do ##class(OcuTalon.Test.Digest.FutureSent).Remove()
+	Do $$$AssertEquals(##class(OcuTalon.Test.Digest.FutureSent).Remove(), 1, "Checks and Digest had no message in flight when the test's scheduled digests were removed")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Digest.FutureSent).Count(), 0, "no scheduled digest dated ahead of the clock is left by the test's Ticks")
 	Quit ##super(testname)
 }
