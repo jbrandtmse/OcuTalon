@@ -4914,6 +4914,57 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: chk_measured (test-readme.sh 517-530) only requires each MEAS_LABELS label to start a row; README with '| The always-on online demo |' appended after line 39: git grep prints README.md:40, test-readme.sh PASS measured
 - 2026-11-06T08:38:06Z status=by-design owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=cr note=spec Never forbids a new rule/helper/self-test; QA declined the absence pin on purpose; AC1 absence held by the Verification git grep
 
+### DW-804: Guide row 1 with the ruled More to try link no longer fits one line at 1280px on the Linux host (about 34px over 896px); Q11 was relaxed to at most two lines
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: implement stage measured children 930px in a 896px row on the lane-B throwaway; fix is row 1 spacing (link padding or gaps), placement is ruled
+- 2026-11-06T15:31:05Z status=open owner=4-11-other-things-to-try by=harvest note=in-story MED for code review: trim row 1 and restore the one-line Q11 pin, or justify the relaxation
+- 2026-11-07T01:08:02Z status=by-design by=adjudication note=row1_wraps_to_two_lines_in_steps_1-5_on_the_Linux_host_because_the_ruled_More_to_try_link_sits_there(placement_ruled);trimming_spacing_recovers_32_of_34.2px(review_arithmetic);one_line_in_the_finish_since_rework_2;Q11_pins_at_most_two_lines_with_label_and_steps_first
+
+### DW-805: Other things to try items 2 and 3 hand off by selector to the mailbox chip and the Break the feed box; whether those targets are on the page in the drawer and stacked layout bands is unverified
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: K6 and K7 run at the default viewport only; check at 1100x720 and 800x720 that the press reaches its control (or selects/reveals it first)
+- 2026-11-06T15:31:05Z status=open owner=4-11-other-things-to-try by=harvest note=in-story MED for code review/QA: verify in the narrow bands and fix the hand-off if a target is off the page
+- 2026-11-07T01:08:02Z status=resolved-by:4-11-other-things-to-try by=adjudication note=QA_K12/K13_press_items_2_and_3_at_1100x720_and_800x720:one_POST_each,focus_on_the_real_control
+
+### DW-809: Other things to try item 5 repeats TryItRow's send guard (used, blocked, describedBy) instead of sharing one helper
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: more-to-try.ts:143-149 and try-it-row.ts:100-110 compute the same allowance and in-flight guard; both reuse turnInFlight, AllowanceState and COMPOSER_REASON_ID
+- 2026-11-06T16:04:54Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a third demo send guard appears, or TryItRow's blocked gains a condition MoreToTry lacks
+
+### DW-810: Demo.Features' memory, documents and heartbeat class-name parameters cannot be killed by a test on this branch
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Memory.Ops and Docs.Ops carry STUB=1 and RunHeartbeat is absent, so product and test probes both give 0 for a misspelled name
+- 2026-11-06T16:04:54Z status=wontfix-theoretical owner=4-11-other-things-to-try by=cr note=real if a merge of 19.3, 19.4 or Epic 39 skipped Test.Demo.Features, whose own probes then differ and go red
+
+### DW-811: Other things to try item 6 (Documents link) does not activate with Space, while AC6 says every control works with Enter and Space
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: the spec mandates a native a routerLink for item 6 and forbids keydown handlers in more-to-try.ts; native links activate with Enter; item 6 is hidden on this branch
+- 2026-11-06T16:04:54Z status=by-design owner=4-11-other-things-to-try by=cr note=spec-bound: Always 6 names the native link; reopens only by spec amendment when Story 19.4 shows the item
+
+### DW-821: Other things to try: K16/K17 (chat height, window, no page scroll with the panel open) run in Chromium only; no Firefox or WebKit case opens the finish's panel
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: floor-firefox/floor-webkit run only @browsers floor cases (playwright.config.ts:82-83), none reaches the finish; 1280x600 margin is 3.5px (67.5 vs 64)
+- 2026-11-06T19:30:51Z status=routed owner=burndown by=cr note=settle: @browsers floor copy of the K16 measurement at 1280x600 and 1100x720; red there means a per-engine reserve
+- 2026-11-07T02:10:49Z status=wontfix-accepted by=burndown note=reopen_if=a_floor-firefox_or_floor-webkit_copy_of_K16_at_1280x600_or_1100x720_shows_the_chat_under_its_floor_or_a_page_scroll,or_a_report_of_the_finish_chat_collapsing_in_Firefox/Safari;margin_at_1280x600_is_now_21px(85.1_vs_64)_after_rework_2;layout_is_grid/max-height_only(engine-neutral_CSS);Epic_4_has_no_later_story
+
+### DW-822: Demo guide finish in the compact height band at drawer widths (1024-1279 wide, under 680 tall) collapses the chat and scrolls the page even with the Other things to try panel closed
+- source: spec-4-11-other-things-to-try.md | severity: high | fix-risk: med | footprint: in-epic
+- evidence: measured (4.11 re-review, panel closed): 1024x600 chat 0 page 79; 1024x650 chat 0 page 29; 1100x600 chat 0 page 23; finish guide 441-483px vs 292px at 1280
+- 2026-11-06T19:30:51Z status=routed owner=burndown by=cr note=pre-existing (4.4 compact row / 4.10 finish); 4.11's HIGH ruling option B would fix it in the rework
+- 2026-11-06T19:33:56Z status=routed owner=4-11-other-things-to-try by=adjudication note=in-epic_HIGH_taken_into_4.11_rework_iteration_2(option_B:_compact_finish_guide_at_drawer_widths);lead_ruling_decide
+- 2026-11-07T01:08:03Z status=resolved-by:4-11-other-things-to-try by=adjudication note=rework_2_compact_finish_at_drawer_widths;K19_panel_closed_chat_141.9px@1024x600,224.8px@1100x650,no_page_scroll;K16_open-panel_rows_stricter
+
+### DW-845: heartbeat-card.spec.ts HC1, HC4, HC5, HC8, HC10, HC11 fail whenever the UTC hour is 00-09: the spec's clock() takes ISO HH:MM (02:41) while the card shows H:MM (2:41)
+- source: spec-4-11-other-things-to-try.md | severity: high | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 42327859572 browser group at 02:41-02:56Z on OCT-epic4 621dd3a5; web/e2e/heartbeat-card.spec.ts:111 clock = iso.slice(11,16); feature CI at 20Z passed
+- 2026-11-07T03:00:22Z status=escalated owner=burndown by=cr note=inherited from Epic 39 (merged 31f812b9); time-of-day; reds every browser group 00-09Z on every branch; for the orchestrator
+- 2026-11-07T03:06:09Z status=dropped by=orchestrator note=duplicate_of_DW-839(inbox_U-298);resolved-by_99b9a24d_on_OCT-epic7(test-only:heartbeat-card.spec.ts_uses_shared_clock(iso,LOCALE,ZONE));product_correct_per_EXPERIENCE_Formats
+
+### DW-846: flake: documents.spec.ts D5 (Add documents by keyboard) timed out making its fixture document (waitForResponse 30s, then filechooser 30s) in the browser group
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 42327859572 browser group; error: the fixture document could not be made; not in Epic 4's diff
+- 2026-11-07T03:00:22Z status=routed owner=burndown by=cr note=unconfirmed flake: one rerun decides; not caused by 4.11 (no documents code touched)
+- 2026-11-07T03:06:09Z status=dropped by=orchestrator note=duplicate_of_DW-825;Planner:_fixed_before_the_cut_by_runner_D_on_feature_after_7.9
 ### DW-847: FutureSent.Remove after every beat test lets each +48h Tick re-digest the stack's long-lived sessions (Compose, Notify, model request) instead of only the first
 - source: spec-17-7-give-an-all-clear-only-when-every-check-passed.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Remove deletes the future Sent rows, so Covered no longer holds for the next test's tick; measured Test.Checks.Heartbeat warm 13.88 s without the drain, 15.75 s with it
@@ -4954,6 +5005,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T05:41:57Z occurrence=17-7-give-an-all-clear-only-when-every-check-passed by=ci note=second_red_on_the_same_head_99735c36_(run_42338069582_rerun_1,browser_live:sign-in_D5_filechooser_timeout);Epic_17_touches_no_documents_path
 - 2026-11-07T03:22:20Z status=routed owner=34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=load note=re-owned to Story 34.4 (SC-5 re-open of Epic 34, runner D) on the Planner's ruling 2026-11-07 ~03:05Z; closes at 34.4's adjudication or the burn-down
 - 2026-11-07T04:30:36Z status=resolved-by:34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=adjudication note=cause: Playwright 1.64.1 turns file-chooser interception on fire-and-forget at the first filechooser listener and D5 added it in the same tick as Enter (evidence/34-4/cause.md); fix 609316e1 arms the listener before sign-in, keeping every pin; proof on lane D (evidence/34-4/proof.md): old D5 failed 1/100 with the CI signature (documents.spec.ts:146 + posted 69), new D5 20/20 same stack and load; repro old 12/990 missed vs armed 0/680; reopen_if a filechooser timeout at documents.spec.ts:153 in CI
+- 2026-11-07T12:37:07Z occurrence=4-11-other-things-to-try note=documents.spec_D5_fixture_timeout_on_run_42327859572(OCT-epic4_621dd3a5);recorded_after_integrating_forward
 
 ### DW-826: CI unit shard:lane-a@rest (job iris shards-2) runs over the 1000 s unit line: 2031 s (5fef1125) and 2194 s (b94508c9) on Epic 17 heads; split it per the standing rule once ci/units.sh is free
 - source: runner_A_ci_report | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -5007,7 +5059,38 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Process/Decide.cls:1250 records rate_limited when the timer passes after a re-send; the guide row names only timeout; predates Story 17.2
 - 2026-11-07T04:55:03Z status=routed owner=burndown by=orchestrator note=voting week, docs only; any wording is PUBLIC TEXT for the Planner; NOT for 1.0.3 or 1.0.4
 
+### DW-860: keepRoom detects the squeeze only on a re-measure that a later resize triggers; after a write that changes no layout (window already at its least) none follows
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: more-to-try-room.ts measure(): tight() sits in the else-branch (bound unchanged); a squeeze arising after the first settle (font swap, list resize) leaves the panel open with the chat under its floor until any other resize; K24 polls with synthetic resize events
+- 2026-11-07T10:32:17Z status=routed owner=burndown by=cr note=re-review r4: fix = re-measure one frame after each write; pin = K24 without its synthetic resize; needs a live run
+- 2026-11-07T11:57:51Z status=dropped by=burndown note=duplicate_of_DW-863(same_root:keepRoom_squeeze_detection_waits_for_a_re-measure);DW-863_wontfix-accepted_with_reopen_if
+
+### DW-861: A default-open panel that closes by itself (viewport height across the band, a banner, a squeeze) while focus is inside it drops focus to the body
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: FOCUS_RULE whenGone for moreItem finds no prompt part in the finish; the finish stays, so focus has no target
+- 2026-11-07T10:32:17Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a keyboard user reports focus lost after a resize or banner while in the Other things to try panel
+
+### DW-862: Above the compact band, a panel the user opens where its shortest window and the chat's 160px floor cannot both fit leaves the chat under 160px (the chat gets the rest); the Planner's vertical-scroll fallback covers the compact band only
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: implement K21 patch review (fefb0b01); reachable only with a user-opened panel at heights 680px+ after banners on hosts with wide fonts
+- 2026-11-07T11:28:49Z status=escalated owner=burndown by=harvest note=for the decision sheet: extend the Planner's fallback (vertical page scroll so the chat keeps 160px) above the band, or accept
+
+### DW-863: keepRoom's first measure only writes the bound; when that write changes no layout the squeeze branch (compact floor min-height, tight()) may wait for a later resize
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: implement K21 patch review (fefb0b01); unverified; K21b passes by forcing the squeeze
+- 2026-11-07T11:28:49Z status=wontfix-accepted owner=4-11-other-things-to-try by=harvest note=reopen_if=a CI or field report of the finish's chat under its floor on first render that a resize fixes
 ### DW-859: Heartbeat card: Ownership.CheckInCost has no day bound while HeartbeatToday is day-bounded, so a check-in whose decision and read-only turn straddle instance-zone midnight reads more on Last check-in than on Today
 - source: spec-39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: checkInUsage (Ownership.cls Statement) has no RecordedAt bound; heartbeatUsage has one. Only a beat whose turn lands after local midnight (a few seconds a day) differs.
 - 2026-11-07T08:44:42Z status=by-design owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=cr note=spec Task SQL and Design Notes sum all of the Item's rows; a day bound would blank yesterday's last check-in; docs reworded
+
+### DW-865: Compact-band K21 hold: the chat list's inline min-height overflows the framed shell instead of growing it, so the chat panel's dock (composer) spills past main and the 100dvh app box; rail, main and device-panel backgrounds stop at the fold
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: keepRoom sets .list min-height 64px while app.ts :host is height 100dvh and main-page :host, .main and chat-panel :host are min-height 0 with overflow visible (CSS read; not seen in a browser: no live run in review). K21b asserts page scroll > 0 and the list height, not where .dock sits. Reachable: no-key banner, compact band, user-opened panel, squeeze (CI 1280x600 ~9px).
+- 2026-11-07T11:50:24Z status=routed owner=burndown by=cr note=fix in the framed shell (let app-root/main grow while held) plus a K21b dock-inside-main assertion; files outside the K21 diff
+- 2026-11-07T11:57:51Z status=escalated owner=burndown by=burndown note=for_the_decision_sheet:fix_needs_app.ts,main-page.ts,chat-panel.ts(shell_min-height_0_vs_100dvh);reachable_only_in_the_Planner's_compact-band_fallback_with_a_user-opened_panel;composer_reachable_by_scrolling;~9px_spill_inferred_from_CSS,unobserved
+
+### DW-866: K21's new before-More-to-try assertions (framed page does not scroll, no sideways scroll) have no mutation: line; the local closed chat is ~90px above its floor
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Verification's four K21-patch mutation lines target keepRoom and CHAT_FLOOR, which do not run while the panel is closed (demo-guide @if panelShown); no recorded red for start.page or the before sideways check. Closing it needs a live run, not allowed in this review.
+- 2026-11-07T11:50:24Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a closed compact finish that scrolls the page or sideways reaches CI or a smoke with K21 green

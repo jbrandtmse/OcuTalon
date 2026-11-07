@@ -2452,3 +2452,21 @@
 2026-11-07T10:52:54Z	Epic 39	runner_complete	head=fd3aed63 stories=1 ci=success(42363080747,42363080518)
 2026-11-07T10:52:54Z	Epic 39	amendments_verified	epics.md:8895_marker
 2026-11-07T10:52:54Z	Epic 39	epic_merge_started	head=fd3aed63 into=feature
+2026-11-07T10:53:11Z	Epic 39	epic_merged_to_feature	merge=ace5bc88 head=fd3aed63 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine=untouched release_tools=untouched
+2026-11-07T10:53:11Z	Epic 39	decision_sheet_skipped	reason=no_open_decisions
+2026-11-07T10:53:11Z	Run	deps_hash_rerecorded	reason=fix_forward story=39.9(+11.27,11.28_on_branch_later) hash=9d06f4082a96
+2026-11-07T10:53:36Z	Epic 39	worktree_provisioned	branch=OCT-epic39 ff_to=ace5bc88 reason=story_39.10_DW-639
+2026-11-07T10:53:36Z	Epic 39	runner_redispatched	agent=addb36e0de0c494d8 lane=D story=39.10(DW-639) timebox=90m tier=3a
+2026-11-07T12:07:34Z	Epic 39	runner_clarification	kind=timebox story=39.10 DW-639_not_reproduced(0/7) ruled_out=swap,busy_checks,Ens.Job_enumerate,half-disabled_telegram,job_death suspect=single_read_pin_no_wait head=19d7b9f2
+2026-11-07T12:07:34Z	Epic 39	orchestrator_ruling	subject=39.10 option=a diagnostics_only DW-639_stays_flake_class next=DW-840
+2026-11-07T12:07:34Z	Epic 39	runner_resumed	agent=addb36e0de0c494d8 reason=39.10_diagnostics
+2026-11-07T12:07:43Z	Run	ci_green_verified	head=ace5bc88 runs=42365824244,42365824211 result=success via=gh
+2026-11-07T12:08:29Z	Run	planner_ruling	subject=freeze_reminder after_16Z_only_part1_until_cut 39.10,11.28,11.27b_wait_for_cut_if_not_merged_green_by_16Z no_rush
+2026-11-07T13:02:40Z	Epic 4	runner_ci_wait	head=cc16128e code_tree=29eae8ff(green_12:36Z_42370390895,42370390889) fallback=B(vertical_scroll) PT-e=added decisions=DW-862,DW-865 veto=U-299
+2026-11-07T13:11:21Z	Epic 4	planner_ruling	DW-865=accepted_for_Sat(check_at_cut_walk) DW-862=tier3_after_flakes(same_conditions) U-299=keep
+2026-11-07T13:29:14Z	Epic 19	runner_clarification	kind=planner_report head=2df7b9d6 reds=shards-2_timeout(2421s),ipm-install_timeout(2125s),install-fresh_R3c(DW-550_class) forecast=16:15Z
+2026-11-07T13:29:14Z	Run	planner_question	subject=part1_ci_timeouts recommend=shards-5_split(DW-826)+ipm-install_split(release_hunk) note=feature_shards-2_37m22s_on_4.11
+2026-11-07T13:36:11Z	Run	planner_ruling	subject=part1_ci_splits 1a=shards-5(lane-a@Bridge,Agent)_discharges_DW-826 2a=ipm-install_mode_split(no-arg_unchanged,union_pin) 3=R3c_one_rerun_then_report
+2026-11-07T13:36:11Z	Epic 4	runner_complete	head=cc16128e stories=1 ci=success(42373412901,42373412877) code_tree=29eae8ff fallback=B
+2026-11-07T13:36:11Z	Epic 4	amendments_verified	epics.md=4.11_insert
+2026-11-07T13:36:11Z	Epic 4	epic_merge_started	head=cc16128e into=feature

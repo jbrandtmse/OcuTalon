@@ -12,8 +12,8 @@ let rows = 0;
 
 /**
  * The "Try it yourself" row (Story 4.10; EXPERIENCE: Demo guide and controls): a labelled group of four example prompts, one native
- * button each, named by its text alone. It renders only in the demo view (DemoView.on()), after the finish state's "More to try"
- * line and after the empty chat's last line. The label is a paragraph, never a heading: the page's heading lists are pinned.
+ * button each, named by its text alone. It renders only in the demo view (DemoView.on()), after the finish state's Other things to try
+ * panel and after the empty chat's last line. The label is a paragraph, never a heading: the page's heading lists are pinned.
  *
  * A press sends the chip's text through ChatOutbox.send, the composer's own path: a new message of the user's, not from the guide, that
  * counts against the session's message allowance. While a turn is in flight (turn-in-flight reader in try-it-view.ts) or the allowance
