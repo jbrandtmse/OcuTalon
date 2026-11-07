@@ -375,3 +375,6 @@
 2026-11-07T13:51:15Z	Epic 7	deps_hash_rerecorded	reason=fix_forward story=7.10 note=for_the_orchestrator
 2026-11-07T13:51:15Z	Epic 7	epic_status_reopened	epic-7=in-progress reason=SC-5_re-open_story_7.10
 2026-11-07T13:51:15Z	Story 7.10	ledger_routed_planned	story=7-10-the-past-expiry-refusal-test-is-stable-dw-840 entries=1(DW-840) excess=0 by=charter
+2026-11-07T14:10:48Z	Story 7.10	task0_measured	cause=Checks_quiet_sweep_closeQuiet_closes_the_fixture_incident_(LastAt_2026-10-25,>QUIETSECONDS)_right_after_FixResult_moves_it_fixing->resolved;WaitIncidentState_then_sees_closed_for_its_30s_(CI_class_34.03s_vs_3.64s_green) evidence=<scratchpad>/e7s10diag(warm_lane-B_e7s10warm;harness_ZzDiag840_untracked,extends_Refused,closeQuiet_storm_x2_jobs) old=failed_2_of_11_under_load(runs_1,9:FAIL_the_incident_is_resolved,class_38-43s) control=old-shape_copy_resolved->closed_within_0.25s_in_every_run fixed=FirstAt/LastAt_now_in_the_fixture:20_of_20_pass_under_the_same_load precedent=Test.Fix.DryRun.cls:94(LastAt_now,same_reason) product=correct(resolved+closeQuiet->closed_is_AD-15_table) scope=test-only
+2026-11-07T14:12:33Z	Epic 7	epic_context_compiled	reason=planning_artifact_newer(7.10_charter) model=claude-opus-5-5
+2026-11-07T14:12:33Z	Story 7.10	stage_spawned	stage=plan spawn_at=2026-11-07T14:13:03Z model=opus agent_name=7-10-plan-1 cycle_iteration=1
