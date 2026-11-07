@@ -4753,8 +4753,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: high | fix-risk: low | footprint: out-of-footprint
 - evidence: CI run 42327859572 browser group at 02:41-02:56Z on OCT-epic4 621dd3a5; web/e2e/heartbeat-card.spec.ts:111 clock = iso.slice(11,16); feature CI at 20Z passed
 - 2026-11-07T03:00:22Z status=escalated owner=burndown by=cr note=inherited from Epic 39 (merged 31f812b9); time-of-day; reds every browser group 00-09Z on every branch; for the orchestrator
+- 2026-11-07T03:06:09Z status=dropped by=orchestrator note=duplicate_of_DW-839(inbox_U-298);resolved-by_99b9a24d_on_OCT-epic7(test-only:heartbeat-card.spec.ts_uses_shared_clock(iso,LOCALE,ZONE));product_correct_per_EXPERIENCE_Formats
 
 ### DW-846: flake: documents.spec.ts D5 (Add documents by keyboard) timed out making its fixture document (waitForResponse 30s, then filechooser 30s) in the browser group
 - source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: CI run 42327859572 browser group; error: the fixture document could not be made; not in Epic 4's diff
 - 2026-11-07T03:00:22Z status=routed owner=burndown by=cr note=unconfirmed flake: one rerun decides; not caused by 4.11 (no documents code touched)
+- 2026-11-07T03:06:09Z status=dropped by=orchestrator note=duplicate_of_DW-825;Planner:_fixed_before_the_cut_by_runner_D_on_feature_after_7.9
