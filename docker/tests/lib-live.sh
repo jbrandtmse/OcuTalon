@@ -678,7 +678,7 @@ log_steps() { start_log | grep -E '^(STEP|RESULT) ' | sed 's/ OK [0-9.]*s$/ OK/'
 expected_run() { # expected_run <readiness> <ipm> <ipm-map> <public-classes> <package> <version>
   printf '%s\n' 'STEP merge OK' "STEP readiness $1" "STEP ipm $2" "STEP ipm-map $3" "STEP public-classes $4" "STEP package $5"
   printf '%s\n' 'STEP Bridge.Installer OK' 'STEP Public OK' 'STEP Roles OK' 'STEP Users OK' 'STEP Web OK' 'STEP SSL OK' \
-    'STEP Tasks OK' 'STEP Demo OK' 'STEP Provider OK' 'STEP Audit OK' 'STEP Telegram OK' 'STEP Memory OK' 'STEP Production OK' \
+    'STEP Tasks OK' 'STEP Demo OK' 'STEP Digest OK' 'STEP Provider OK' 'STEP Audit OK' 'STEP Telegram OK' 'STEP Memory OK' 'STEP Production OK' \
     'STEP Reconcile OK' 'STEP PrivateData OK' 'STEP Ready OK'
   printf '%s\n' "RESULT OK $6"
 }

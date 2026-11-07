@@ -19,6 +19,8 @@
 ///   - run 5 (Story 9.8): Start over zzwatch/, the fixture's subfolder of one injection case that declares a watch of the Orders production (zz-stop-orders),
 ///     which holds no case.json itself. EvalIn sets the eval watch up before it sends the Item to Intake and returns its setup record. The mock's countdown
 ///     of the marker eval-injection-stop is armed at 1 before it: the decide is answered act, and its untrusted turn calls stop_watch and then gets a text;
+///   - run 6 (Story 17.7): Start over the repository's eval/ with the names of the three digest cases (RUN6CASES). EvalIn sends each to Digest as a DigestCase,
+///     and Digest sends EvalSink the DigestResult;
 ///   - it waits up to WAITRUN seconds for each run; a case still undecided is a failure of TestItemPath or TestActTurn, and the other
 ///     tests still read what the runs wrote. The setup begins at BegunAt.
 /// The tests:
@@ -37,6 +39,9 @@
 ///   - TestIsolation (AC3, Story 9.6 AC2): no message of the runs reaches a router, a notice, a conversation, the digest, an approval, the fix
 ///     executor or any item ending in Out, none has a DryRun, Execute or Settle as its body, and no Delivery, ApprovalRequest, live event, FixRun,
 ///     Incident or FailureGroup (of any owner) is written;
+///   - TestDigestRun (Story 17.7, AC4): the three digest cases of run 6 go EvalIn to Digest and Digest to EvalSink only; their rows are decided with no
+///     decision, outcome or fallback, each DigestResult equals the case's expectation, the report scores the three right in allClear with no problem, and the
+///     run wrote no Sent row of the owner eval (TestIsolation also reads the Notifications, Deliveries and events);
 ///   - TestUsage (AC3): every Usage row of the runs' items has owner eval, their cost is above 0, and the daily spend is unchanged (fifteen
 ///     decisions: six decide, one diagnose and eight turn);
 ///   - TestHops (AC3): the messages of the runs go from and to the items of the item path only, EvalIn sends requests only to Intake, Decide (the
@@ -96,15 +101,18 @@ Parameter TURNS = "zzturn/";
 
 Parameter TURNCASES = "zz-turn-command,zz-turn-failing,zz-turn-nothing,zz-turn-passing,zz-turn-plain";
 
+/// The cases of run 6 (Story 17.7): the three digest cases of eval/, which EvalIn sends to Digest.
+Parameter RUN6CASES = "digest-production-error,digest-checks-paused,digest-all-passing";
+
 /// The reasons that stay in the message of Missing at most.
 Parameter MISSINGMAX = 200;
 
 /// The items that a message of a run may come from or go to: the item path and nothing else (Task 10's list of items that must not
 /// be reached is the denial; this is the permission, so an item that is not on it is a new hop that this story did not allow). They
-/// are the ones a throwaway run was observed to use: EvalIn, Intake and EvalSink, IncidentManager (the incident cases), Decide with the three agent runners it calls (the
+/// are the ones a throwaway run was observed to use: EvalIn, Intake and EvalSink, IncidentManager (the incident cases), Digest (the digest cases), Decide with the three agent runners it calls (the
 /// attention decision's TriageAgent, the untrusted or user turn's ChatAgent and the diagnosis's DiagnosisAgent), AgentSteps (which records their steps) and the Ens.Alarm
 /// timer. None of them sends to a person.
-Parameter ITEMPATH = "EvalIn,Intake,Decide,EvalSink,TriageAgent,ChatAgent,IncidentManager,DiagnosisAgent,AgentSteps,Ens.Alarm";
+Parameter ITEMPATH = "EvalIn,Intake,Decide,EvalSink,TriageAgent,ChatAgent,IncidentManager,DiagnosisAgent,AgentSteps,Ens.Alarm,Digest";
 
 /// 1 when the runner keys were pointed at the mock and must be put back.
 Property Pointed As %Boolean [ InitialExpression = 0 ];
@@ -138,6 +146,8 @@ Property Run4 As %String(MAXLEN = 22);
 
 Property Run5 As %String(MAXLEN = 22);
 
+Property Run6 As %String(MAXLEN = 22);
+
 /// How many cases each run sent.
 Property Sent1 As %Integer;
 
@@ -148,6 +158,8 @@ Property Sent3 As %Integer;
 Property Sent4 As %Integer;
 
 Property Sent5 As %Integer;
+
+Property Sent6 As %Integer;
 
 /// How many cases of each run were still undecided after the wait.
 Property Open1 As %Integer;
@@ -160,6 +172,8 @@ Property Open4 As %Integer;
 
 Property Open5 As %Integer;
 
+Property Open6 As %Integer;
+
 /// What each run did not send: a dynamic array of {"case","reason"}.
 Property Skipped1 As %DynamicArray;
 
@@ -170,6 +184,8 @@ Property Skipped3 As %DynamicArray;
 Property Skipped4 As %DynamicArray;
 
 Property Skipped5 As %DynamicArray;
+
+Property Skipped6 As %DynamicArray;
 
 /// The setup records {"case", "watch"} of run 5's eval watches (Eval.In.Start), which Finish removes.
 Property Watches5 As %DynamicArray;
@@ -226,7 +242,7 @@ Method Prepare() As %String [ Private ]
 	If $$$ISERR(sc) Quit "switching EvalIn on failed: "_$SYSTEM.Status.GetErrorText(sc)
 	Set sc = ..Apply(1)
 	If $$$ISERR(sc) Quit "switching EvalIn on failed: "_$SYSTEM.Status.GetErrorText(sc)
-	Set ..Marks = {"delivery": (..MaxId("OcuTalon_Data.Delivery")), "event": (..MaxId("OcuTalon_Live.Event")), "approval": (..MaxId("OcuTalon_Bridge_Data.ApprovalRequest")), "incident": (..MaxId("OcuTalon_Data.Incident")), "group": (..MaxId("OcuTalon_Data.FailureGroup")), "fixRun": (..MaxId("OcuTalon_Data.FixRun")), "spent": (+##class(OcuTalon.Bridge.Budget).State().spent)}
+	Set ..Marks = {"delivery": (..MaxId("OcuTalon_Data.Delivery")), "event": (..MaxId("OcuTalon_Live.Event")), "approval": (..MaxId("OcuTalon_Bridge_Data.ApprovalRequest")), "incident": (..MaxId("OcuTalon_Data.Incident")), "group": (..MaxId("OcuTalon_Data.FailureGroup")), "fixRun": (..MaxId("OcuTalon_Data.FixRun")), "sent": (..MaxId("OcuTalon_Digest_Data.Sent")), "spent": (+##class(OcuTalon.Bridge.Budget).State().spent)}
 	Set ..IncidentLogMark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
 	Set reason = ..WriteFixture()
 	If reason '= "" Quit reason
@@ -258,11 +274,16 @@ Method Prepare() As %String [ Private ]
 	If $$$ISERR(sc) Quit "run 5 did not start: "_$SYSTEM.Status.GetErrorText(sc)
 	Set ..Run5 = run, ..Sent5 = sent, ..Skipped5 = skipped, ..Watches5 = watches
 	Do ..Supers.%Push(run)
+	Set sc = ##class(OcuTalon.Eval.In).Start(##class(OcuTalon.Eval.In).#FOLDER, ..#RUN6CASES, .run, .sent, .skipped)
+	If $$$ISERR(sc) Quit "run 6 did not start: "_$SYSTEM.Status.GetErrorText(sc)
+	Set ..Run6 = run, ..Sent6 = sent, ..Skipped6 = skipped
+	Do ..Supers.%Push(run)
 	Set ..Open1 = ##class(OcuTalon.Eval.In).Wait(..Run1, ..#WAITRUN)
 	Set ..Open2 = ##class(OcuTalon.Eval.In).Wait(..Run2, ..#WAITRUN)
 	Set ..Open3 = ##class(OcuTalon.Eval.In).Wait(..Run3, ..#WAITRUN)
 	Set ..Open4 = ##class(OcuTalon.Eval.In).Wait(..Run4, ..#WAITRUN)
 	Set ..Open5 = ##class(OcuTalon.Eval.In).Wait(..Run5, ..#WAITRUN)
+	Set ..Open6 = ##class(OcuTalon.Eval.In).Wait(..Run6, ..#WAITRUN)
 	Quit ""
 }
 
@@ -395,7 +416,7 @@ Method OnAfterAllTests() As %Status
 	}
 	Set sc = $$$ADDSC(sc, ##class(OcuTalon.Eval.In).Finish(..Watches5))
 	Set items = ""
-	For number = 1, 2, 3, 4, 5 {
+	For number = 1, 2, 3, 4, 5, 6 {
 		Set run = $Property($This, "Run"_number)
 		If run = "" Continue
 		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ItemId FROM OcuTalon_Eval_Data.CaseResult WHERE RunRef = ?", run)
@@ -410,8 +431,9 @@ Method OnAfterAllTests() As %Status
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", itemId)
 		Do ..DeleteTurnResults(itemId)
 		Do ..DeleteIncidentCases(itemId)
+		Do ..DeleteDigestResults(itemId)
 	}
-	For number = 1, 2, 3, 4, 5 {
+	For number = 1, 2, 3, 4, 5, 6 {
 		Set run = $Property($This, "Run"_number)
 		If run '= "" Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(run)
 	}
@@ -441,6 +463,24 @@ ClassMethod DeleteTurnResults(itemId As %String) [ Private ]
 		Set id = $Order(bodies(id))
 		If id = "" Quit
 		Do ##class(OcuTalon.Eval.Msg.TurnResult).%DeleteId(id)
+	}
+}
+
+/// Deletes the DigestCase and DigestResult bodies of the ItemId: bodies that Digest and EvalIn sent and no header took away.
+ClassMethod DeleteDigestResults(itemId As %String) [ Private ]
+{
+	For class = "OcuTalon.Eval.Msg.DigestResult", "OcuTalon.Eval.Msg.DigestCase" {
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM "_$Translate(class, ".", "_")_" WHERE ItemId = ?", itemId)
+		Kill bodies
+		While result.%Next() {
+			Set bodies(result.%Get("ID")) = ""
+		}
+		Set id = ""
+		For {
+			Set id = $Order(bodies(id))
+			If id = "" Quit
+			Do $ClassMethod(class, "%DeleteId", id)
+		}
 	}
 }
 
@@ -475,7 +515,7 @@ Method Leftovers(items As %List) As %Status [ Private ]
 		}
 		If links Set left = left_", conversation links that name such a session"
 	}
-	For number = 1, 2, 3, 4, 5 {
+	For number = 1, 2, 3, 4, 5, 6 {
 		Set run = $Property($This, "Run"_number)
 		If run = "" Continue
 		If ..Count("OcuTalon_Eval_Data.CaseResult", "RunRef", run) Set left = left_", case rows of run "_number
@@ -483,7 +523,7 @@ Method Leftovers(items As %List) As %Status [ Private ]
 	}
 	Set position = 0
 	While $ListNext(items, position, itemId) {
-		If ..Count("OcuTalon_Bridge_Data.Decision", "ItemId", itemId) + ..Count("OcuTalon_Bridge_Data.Usage", "ItemId", itemId) + ..Count("OcuTalon_Eval_Msg.TurnResult", "ItemId", itemId) + ..Count("OcuTalon_Eval_Msg.IncidentCase", "IncidentRef", itemId) Set left = left_", Decision, Usage, TurnResult or IncidentCase rows of the Item "_itemId
+		If ..Count("OcuTalon_Bridge_Data.Decision", "ItemId", itemId) + ..Count("OcuTalon_Bridge_Data.Usage", "ItemId", itemId) + ..Count("OcuTalon_Eval_Msg.TurnResult", "ItemId", itemId) + ..Count("OcuTalon_Eval_Msg.IncidentCase", "IncidentRef", itemId) + ..Count("OcuTalon_Eval_Msg.DigestResult", "ItemId", itemId) + ..Count("OcuTalon_Eval_Msg.DigestCase", "ItemId", itemId) Set left = left_", Decision, Usage, TurnResult, IncidentCase, DigestCase or DigestResult rows of the Item "_itemId
 	}
 	If $IsObject(..Watches5) {
 		Set iterator = ..Watches5.%GetIterator()
@@ -705,7 +745,8 @@ Method TestRefusals()
 	Do $$$AssertEquals(..Reasons(..Skipped3)_"|"_..RowsOf(..Run3).%Size(), "|2", "run 3 skipped no case and made two rows")
 	Do $$$AssertEquals(..Reasons(..Skipped4)_"|"_..RowsOf(..Run4).%Size(), "|5", "run 4 skipped no case and made five rows")
 	Do $$$AssertEquals(..Reasons(..Skipped5)_"|"_..RowsOf(..Run5).%Size(), "|1", "run 5 skipped no case and made one row")
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Eval_Data.CaseResult WHERE (RunRef = ? OR RunRef = ? OR RunRef = ? OR RunRef = ? OR RunRef = ?) AND CaseName IN ('zz-missing', 'zz-badjson', 'zz-noid', 'zz-user', 'zz-empty', 'zzinj', 'zzturn', 'zzwatch')", ..Run1, ..Run2, ..Run3, ..Run4, ..Run5)
+	Do $$$AssertEquals(..Reasons(..Skipped6)_"|"_..RowsOf(..Run6).%Size(), "|3", "run 6 skipped no case and made three rows")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Eval_Data.CaseResult WHERE (RunRef = ? OR RunRef = ? OR RunRef = ? OR RunRef = ? OR RunRef = ? OR RunRef = ?) AND CaseName IN ('zz-missing', 'zz-badjson', 'zz-noid', 'zz-user', 'zz-empty', 'zzinj', 'zzturn', 'zzwatch')", ..Run1, ..Run2, ..Run3, ..Run4, ..Run5, ..Run6)
 	Do result.%Next()
 	Do $$$AssertEquals(+result.%GetData(1), 0, "no skipped case has a row")
 	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(..Run1), 1, "EvalIn", "Intake")
@@ -718,8 +759,10 @@ Method TestRefusals()
 	Do $$$AssertEquals(sent.%Size(), 0, "run 4 sent no message to Intake: its turn cases go to Decide")
 	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(..Run5), 1, "EvalIn", "Intake")
 	Do $$$AssertEquals(sent.%Size(), 1, "run 5 sent one message")
+	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(..Run6), 1, "EvalIn", "Intake")
+	Do $$$AssertEquals(sent.%Size(), 0, "run 6 sent no message to Intake: its digest cases go to Digest")
 	Set mark = ..LogMark
-	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "OnProcessInput", $Parameter(in, "LOGSKIPPED")), 4, "each of the four cases not sent was logged as a warning, and runs 3, 4 and 5 skipped none")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "OnProcessInput", $Parameter(in, "LOGSKIPPED")), 4, "each of the four cases not sent was logged as a warning, and runs 3, 4, 5 and 6 skipped none")
 }
 
 /// The two sendable cases of run 2 are two trace sessions under the run's one SuperSession, each with its own Item, row and decision.
@@ -754,7 +797,7 @@ Method TestIsolation()
 {
 	If '..Guard() Quit
 	Set bad = "", notices = 0, checked = 0, orders = ""
-	For run = ..Run1, ..Run2, ..Run3, ..Run4, ..Run5 {
+	For run = ..Run1, ..Run2, ..Run3, ..Run4, ..Run5, ..Run6 {
 		Set headers = ##class(OcuTalon.Test.Data.Fixture).Headers(run)
 		Set iterator = headers.%GetIterator()
 		While iterator.%GetNext(, .header) {
@@ -776,6 +819,7 @@ Method TestIsolation()
 	Do $$$AssertEquals(..CountAbove("OcuTalon_Data.Incident", ..Marks.incident, ""), 0, "no Incident row of any owner was written")
 	Do $$$AssertEquals(..CountAbove("OcuTalon_Data.FailureGroup", ..Marks.group, ""), 0, "no FailureGroup row of any owner was written")
 	Do $$$AssertEquals(..CountAbove("OcuTalon_Data.FixRun", ..Marks.fixRun, ""), 0, "and no FixRun row was written")
+	Do $$$AssertEquals(..CountAbove("OcuTalon_Digest_Data.Sent", ..Marks.sent, "SessionRef = 'eval'"), 0, "no digest Sent row of the owner eval was written (run 6's digest cases)")
 	Set refs = ..Refs()
 	Do $$$AssertTrue($ListLength(refs) >= 15, "the runs have refs to look for (a control): "_$ListLength(refs))
 	Set found = 0
@@ -798,7 +842,7 @@ Method TestHops()
 	If '..Guard() Quit
 	Kill pairs, requests
 	Set total = 0
-	For run = ..Run1, ..Run2, ..Run3, ..Run4, ..Run5 {
+	For run = ..Run1, ..Run2, ..Run3, ..Run4, ..Run5, ..Run6 {
 		Set iterator = ##class(OcuTalon.Test.Data.Fixture).Headers(run).%GetIterator()
 		While iterator.%GetNext(, .header) {
 			Set total = total + 1
@@ -818,8 +862,9 @@ Method TestHops()
 	Do $$$AssertTrue($Data(pairs("EvalIn>Intake")) && $Data(pairs("Intake>EvalSink")), "the two hops of the path were seen (a control): "_list)
 	Do $$$AssertTrue($Data(pairs("EvalIn>Decide")) && $Data(pairs("EvalIn>EvalSink")), "and the two hops of the turn path (a control): "_list)
 	Do $$$AssertTrue($Data(pairs("EvalIn>IncidentManager")) && $Data(pairs("IncidentManager>Decide")) && $Data(pairs("IncidentManager>EvalSink")), "and the three hops of the incident path (a control): "_list)
+	Do $$$AssertTrue($Data(pairs("EvalIn>Digest")) && $Data(pairs("Digest>EvalSink")), "and the two hops of the digest path (a control): "_list)
 	Do $$$AssertEquals(outside, "", "every message of the runs is between items of the item path: "_list)
-	Set fromIn = "", fromSink = "", fromIncident = "", toIncident = ""
+	Set fromIn = "", fromSink = "", fromIncident = "", toIncident = "", fromDigest = "", toDigest = ""
 	Set pair = ""
 	For {
 		Set pair = $Order(requests(pair))
@@ -828,11 +873,57 @@ Method TestHops()
 		If $Piece(pair, ">", 1) = "EvalSink" Set fromSink = fromSink_" "_pair
 		If $Piece(pair, ">", 1) = "IncidentManager" Set fromIncident = fromIncident_" "_pair
 		If $Piece(pair, ">", 2) = "IncidentManager" Set toIncident = toIncident_" "_pair
+		If $Piece(pair, ">", 1) = "Digest" Set fromDigest = fromDigest_" "_pair
+		If $Piece(pair, ">", 2) = "Digest" Set toDigest = toDigest_" "_pair
 	}
-	Do $$$AssertEquals(fromIn, " EvalIn>Decide EvalIn>EvalSink EvalIn>IncidentManager EvalIn>Intake", "EvalIn sends requests only to Decide and EvalSink (the turn cases), IncidentManager (the incident cases) and Intake (the others)")
+	Do $$$AssertEquals(fromIn, " EvalIn>Decide EvalIn>Digest EvalIn>EvalSink EvalIn>IncidentManager EvalIn>Intake", "EvalIn sends requests only to Decide and EvalSink (the turn cases), Digest (the digest cases), IncidentManager (the incident cases) and Intake (the others)")
+	Do $$$AssertEquals(fromDigest, " Digest>EvalSink", "Digest sends requests only to EvalSink (the DigestResults: the digest cases of eval/ have no saved summary), and no Notification, Compose or summary request")
+	Do $$$AssertEquals(toDigest, " EvalIn>Digest", "and no item but EvalIn sends Digest a request")
 	Do $$$AssertEquals(fromIncident, " IncidentManager>Decide IncidentManager>EvalSink", "IncidentManager sends requests only to Decide and EvalSink")
 	Do $$$AssertEquals(toIncident, " EvalIn>IncidentManager", "and no item but EvalIn sends IncidentManager a request")
 	Do $$$AssertEquals(fromSink, "", "EvalSink sends no request")
+}
+
+/// Run 6 (Story 17.7, AC4): the three digest cases of eval/ go EvalIn to Digest as DigestCases and Digest to EvalSink as DigestResults, and their rows are decided
+/// with no decision, outcome or fallback. Each result equals the case's expectation, the report scores the three right in allClear with no problem, and the run
+/// wrote no Sent row of the owner eval and no Notification (TestIsolation reads the rest).
+Method TestDigestRun()
+{
+	If '..Guard() Quit
+	Do $$$AssertEquals(..Sent6, 3, "run 6 sent three cases")
+	Do $$$AssertEquals(..Open6, 0, "and they were decided within "_..#WAITRUN_" seconds")
+	Do $$$AssertEquals(..Skipped6.%Size(), 0, "and it skipped none: "_..Skipped6.%ToJSON())
+	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(..Run6), 1, "EvalIn", "Digest")
+	Do $$$AssertEquals(sent.%Size(), 3, "EvalIn sent three DigestCases to Digest")
+	Set results = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(..Run6), 1, "Digest", "EvalSink")
+	Do $$$AssertEquals(results.%Size(), 3, "and Digest sent three DigestResults to EvalSink")
+	For name = "digest-all-passing", "digest-checks-paused", "digest-production-error" {
+		Set case = ##class(%DynamicAbstractObject).%FromJSONFile(##class(%File).NormalizeFilename("case.json", ##class(%File).SubDirectoryName(##class(OcuTalon.Eval.In).#FOLDER, name)))
+		Set expectation = case.expectation
+		Set row = ##class(OcuTalon.Eval.Data.CaseResult).RunCaseIndexOpen(..Run6, name)
+		Do $$$AssertTrue($IsObject(row), name_": the case has a row")
+		If '$IsObject(row) Continue
+		Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome_"|"_row.Fallback_"|"_row.SourceItemId, "decided|||0|"_name, name_": the row is decided with no decision, no outcome and no fallback")
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Eval_Msg.DigestResult WHERE ItemId = ?", row.ItemId)
+		Set found = result.%Next()
+		Do $$$AssertTrue(found, name_": a DigestResult of the row's ItemId exists")
+		If 'found Continue
+		Set body = ##class(OcuTalon.Eval.Msg.DigestResult).%OpenId(result.%GetData(1))
+		If '$IsObject(body) Continue
+		Do $$$AssertEquals(body.CatalogKey_"|"_body.AllClear_"|"_body.Fallback, expectation.catalogKey_"|"_(+expectation.allClear)_"|0", name_": the result has the expected key and all-clear flag")
+		Do $$$AssertEquals(body.Named_"|"_body.Checked, expectation.named.%ToJSON()_"|"_expectation.checked.%ToJSON(), name_": and names and lists the expected entries, in order")
+	}
+	Set report = ##class(OcuTalon.Eval.Report).Build(..Run6, ##class(OcuTalon.Eval.In).#FOLDER, ..Skipped6)
+	Do $$$AssertEquals(..Line(report.scores.allClear), "3 of 3 share 1 met -", "run 6: the three digest cases are right in allClear, with no target")
+	Do $$$AssertEquals(..Rights(report), "digest-all-passing:1;digest-checks-paused:1;digest-production-error:1", "each is right")
+	Do $$$AssertEquals(report.unscored.%Size()_"|"_report.fallbacks.%Size()_"|"_report.notComplete.%Size(), "0|0|0", "none is unscored, a fallback or incomplete")
+	Set list = ""
+	Set iterator = ##class(OcuTalon.Eval.Report).Problems(report).%GetIterator()
+	While iterator.%GetNext(, .problem) {
+		Set list = list_$Select(list = "": "", 1: "; ")_problem
+	}
+	Do $$$AssertEquals(list, "", "run 6 has no problem")
+	Do $$$AssertEquals(..CountAbove("OcuTalon_Digest_Data.Sent", ..Marks.sent, "SessionRef = 'eval'"), 0, "no Sent row of the owner eval exists")
 }
 
 /// Every Usage row of the runs' items is owned by eval (the rows are found by the ItemId that EvalIn opened its rows with, so a run that
@@ -842,7 +933,7 @@ Method TestUsage()
 {
 	If '..Guard() Quit
 	Set rows = 0, others = 0, cost = 0, decisions = 0, uncovered = 0
-	For number = 1, 2, 3, 4, 5 {
+	For number = 1, 2, 3, 4, 5, 6 {
 		Set cases = ..RowsOf($Property($This, "Run"_number))
 		Set iterator = cases.%GetIterator()
 		While iterator.%GetNext(, .case) {
@@ -1226,6 +1317,17 @@ Method TurnReport() As %DynamicObject [ Private ]
 	Quit report
 }
 
+/// The scored cases as "<case>:<right>" joined by semicolons.
+ClassMethod Rights(report As %DynamicObject) As %String [ Private ]
+{
+	Set text = ""
+	Set iterator = report.cases.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Set text = text_$Select(text = "": "", 1: ";")_one.case_":"_one.%Get("right")
+	}
+	Quit text
+}
+
 /// A score as text: "<right> of <total> share <share> met <met>", with - for a score that has no target.
 ClassMethod Line(score As %DynamicObject) As %String [ Private ]
 {
@@ -1248,14 +1350,14 @@ Method RowsOf(run As %String) As %DynamicArray [ Private ]
 /// The run Refs, the Refs of the eval watch rows of run 5, and the ItemId, DecisionRef and TurnDecisionRef of every row of the runs, as a list.
 Method Refs() As %List [ Private ]
 {
-	Set refs = $ListBuild(..Run1, ..Run2, ..Run3, ..Run4, ..Run5)
+	Set refs = $ListBuild(..Run1, ..Run2, ..Run3, ..Run4, ..Run5, ..Run6)
 	If $IsObject(..Watches5) {
 		Set iterator = ..Watches5.%GetIterator()
 		While iterator.%GetNext(, .record) {
 			If record.watch.%Get("Ref") '= "" Set refs = refs_$ListBuild(record.watch.%Get("Ref"))
 		}
 	}
-	For number = 1, 2, 3, 4, 5 {
+	For number = 1, 2, 3, 4, 5, 6 {
 		Set iterator = ..RowsOf($Property($This, "Run"_number)).%GetIterator()
 		While iterator.%GetNext(, .case) {
 			For ref = case.itemId, case.decisionRef, case.turnDecisionRef {

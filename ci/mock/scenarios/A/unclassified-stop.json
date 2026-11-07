@@ -1,0 +1,13 @@
+{
+  "name": "unclassified-stop",
+  "match": {
+    "marker": "unclassified-stop"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "stopReason": "pause_turn",
+      "text": "The CI mock pauses this reply with a stop reason that the bridge cannot classify."
+    }
+  ]
+}

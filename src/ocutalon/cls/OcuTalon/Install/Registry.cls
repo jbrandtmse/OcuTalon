@@ -11,7 +11,7 @@ Parameter AREAPACKAGE = "OcuTalon.Install.Step.";
 /// whose Run() is the step.
 ClassMethod Order() As %List
 {
-	Quit $ListBuild("Bridge.Installer", "Public", "Roles", "Users", "Web", "SSL", "Tasks", "Demo", "Provider", "Audit", "Telegram", "Memory", "Production", "Reconcile", "PrivateData", "Ready")
+	Quit $ListBuild("Bridge.Installer", "Public", "Roles", "Users", "Web", "SSL", "Tasks", "Demo", "Digest", "Provider", "Audit", "Telegram", "Memory", "Production", "Reconcile", "PrivateData", "Ready")
 }
 
 /// The class names of the areas, sorted by name: every compiled, non-abstract subclass of

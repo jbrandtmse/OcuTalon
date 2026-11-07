@@ -417,12 +417,17 @@ test('HC8: each outcome and each skip reads in the UX texts, and the Today line 
     await page.reload();
     await expect(todayOf(page), 'three check-ins read in the plural').toHaveText('Today: 3 check-ins, $0.0036');
     await expect(card(page).locator('p.line').first(), 'the on line holds the interval, the hours and the next check-in').toHaveText(
-      `Every 1 hour, 07:15 to 21:45 \u00b7 Next check-in ${clock(nextDueAt, LOCALE, ZONE)}`,
+      `Every hour, 07:15 to 21:45 \u00b7 Next check-in ${clock(nextDueAt, LOCALE, ZONE)}`,
     );
     shown = { today: { checkIns: 1, costUSD: 0.0012 }, on: true, interval: 1440, from: '', to: '', nextDueAt: null };
     await page.reload();
     await expect(todayOf(page), 'one check-in reads in the singular').toHaveText('Today: 1 check-in, $0.0012');
     await expect(card(page).locator('p.line').first(), 'all day with no next check-in is the interval alone').toHaveText('Every 24 hours');
+    // Story 39.9 (QA, DW-824): the GET of a check-in that acted carries its decision plus its read-only turn as lastCostUSD, so the two lines agree.
+    shown = { ...checkIn('act', { lastCostUSD: 0.0006 }), today: { checkIns: 1, costUSD: 0.0006 } };
+    await page.reload();
+    await expect(lastOf(page), 'an Act check-in shows the cost of its decision and its turn').toHaveText(exactly(`Last check-in ${time} \u00b7 Offered an action \u00b7 $0.0006 \u00b7 Trace`));
+    await expect(todayOf(page), 'and Today shows the same cost for the one check-in').toHaveText('Today: 1 check-in, $0.0006');
     shown = { today: { checkIns: 0, costUSD: 0 } };
     await page.reload();
     await expect(todayOf(page), 'none today: no Today line').toHaveCount(0);

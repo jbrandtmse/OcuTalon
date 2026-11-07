@@ -1,6 +1,6 @@
 Include Ensemble
 
-/// TelegramIn, the inbound service of the Telegram channel (Stories 12.2 to 12.5 and 12.7; AD-14, AD-18, AD-19, AD-5). An Ens.InboundAdapter service whose
+/// TelegramIn, the inbound service of the Telegram channel (Stories 12.2 to 12.5, 12.7 and 17.6; AD-14, AD-18, AD-19, AD-5). An Ens.InboundAdapter service whose
 /// CallInterval is 1 second in the production: each run makes at most one Bot API call, so a 5-second long poll follows the one before it.
 /// Included() is the switch that the Telegram installer step reads (AD-23): this release includes Telegram, and only a test can turn
 /// that off. The step also writes the ApiBase row from OCUTALON_TELEGRAM_API_BASE at every start, and the SSL step makes the client SSL configuration that SSLConfig names.
@@ -43,6 +43,11 @@ Include Ensemble
 ///         both with show_alert, as are not_paired and not_visible (press.notPairedChat) and unknown (press.unavailable);
 ///       - not_allowed, an error status of FromTelegram and a render error answer with no text and show_alert false, with one warning.
 ///     A press makes no Turn, calls no model and sends no chat message, and a failed answerCallbackQuery is one warning.
+///   - The Got it press (Story 17.6): the action gotit and the Ref of a tell-now notice (the Ref of its Decision). Msg.Command.GotIt {Ref, Channel
+///     telegram, SessionRef} is submitted through Commands.Submit with origin telegram only when all of these hold: the chat row is paired (it has a
+///     session), the Ref is a reference, the paired session has a telegram Delivery row for that Ref (Ownership.DeliveryByRef), and the chat of that row's
+///     message id is the pressing chat. Any other press submits nothing. Every Got it press is answered with answerCallbackQuery and no text, so the
+///     press adds no text of its own; a failed Submit is one warning.
 ///   - A turn takes the steps of WebChatIn.Accept (AD-20, AD-26, AD-30) for the session that the chat was paired with when its row was
 ///     read: the session's row must exist (else one warning and nothing sent); Allowance.TryConsume is asked with the channel telegram.
 ///     A refusal queues nothing and calls no model: with a retryAt, and on the first refusal of the window only, Notify gets the
@@ -129,6 +134,8 @@ Parameter LOGPRESSANSWER = "TelegramIn could not answer a button press: ";
 
 Parameter LOGPRESSTEXT = "TelegramIn could not render the answer to a button press, so it answered with no text: ";
 
+Parameter LOGGOTIT = "TelegramIn could not submit a Got it press: ";
+
 Parameter LOGNOTALLOWED = "TelegramIn's chat may not answer this kind of request, so the button press was answered with no text.";
 
 /// The item that takes every turn's Item.
@@ -139,6 +146,9 @@ Parameter NOTIFY = "Notify";
 
 /// The channel of the Items this service sends: one of Msg.Enum CHANNEL.
 Parameter CHANNEL = "telegram";
+
+/// The action in the callback data of the Got it button of a tell-now message.
+Parameter GOTITACTION = "gotit";
 
 /// The text that starts a pairing message: the command and one space, then the code.
 Parameter STARTPREFIX = "/start ";
@@ -380,6 +390,11 @@ Method Press(chatRef As %String, query As %DynamicObject) [ Private ]
 	Set data = $Select(query.%GetTypeOf("data") = "string": query.data, 1: "")
 	Set action = $Piece(data, ":", 1)
 	Set approvalRef = $Piece(data, ":", 2, *)
+	If action = ..#GOTITACTION {
+		Do ..GotIt(chatRef, approvalRef)
+		Do ..AnswerPress(query, "", 0)
+		Quit
+	}
 	Set code = "unknown", slots = {}
 	Set sc = $$$OK
 	Try {
@@ -393,6 +408,27 @@ Method Press(chatRef As %String, query As %DynamicObject) [ Private ]
 	} Else {
 		Set text = ..PressText(code, slots, .alert)
 	}
+	Do ..AnswerPress(query, text, alert)
+}
+
+/// Submits the Got it command of a press when the press is allowed (see the class comment): the chat is paired, the Ref is a reference, and the
+/// paired session's telegram Delivery row for the Ref belongs to the pressing chat. Any other press submits nothing.
+Method GotIt(chatRef As %String, decisionRef As %String) [ Private ]
+{
+	Set chat = ##class(OcuTalon.Data.Pairing).Chat(chatRef)
+	If '$IsObject(chat) || (chat.SessionRef = "") || '##class(OcuTalon.Bridge.Approval).IsRef(decisionRef) || '##class(OcuTalon.Bridge.Approval).IsRef(chat.SessionRef) Quit
+	Set row = ##class(OcuTalon.Data.Ownership).DeliveryByRef(decisionRef, ..#CHANNEL, chat.SessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) || '$IsObject(row) || ($Piece(row.ChannelMessageId, ":", 1) '= chatRef) Quit
+	Set command = ##class(OcuTalon.Msg.Command.GotIt).%New()
+	Set command.Ref = decisionRef
+	Set command.Channel = ..#CHANNEL
+	Set command.SessionRef = chat.SessionRef
+	Do ..Outcome(command, ..#LOGGOTIT)
+}
+
+/// Answers a button press once with answerCallbackQuery: the text when there is one, and show_alert. A failed answer is one warning.
+Method AnswerPress(query As %DynamicObject, text As %String, alert As %Boolean) [ Private ]
+{
 	Set id = $Select((query.%GetTypeOf("id") = "string") || (query.%GetTypeOf("id") = "number"): query.id, 1: "")
 	If id = "" {
 		$$$LOGWARNING(..#LOGPRESSANSWER_"the press has no id.")

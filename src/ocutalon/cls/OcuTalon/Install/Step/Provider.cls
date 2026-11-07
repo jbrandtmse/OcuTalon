@@ -1,13 +1,19 @@
 /// The Provider step (AD-19, AD-23): the only install-time writer of the Config Store entries of the agent runners, one
 /// AI.LLM.OcuTalon<Agent> entry per runner of OcuTalon.Production, where <Agent> is the last part of the runner's agent
-/// class name (AI.LLM.OcuTalonTriage). It then writes each runner's ProviderConfig setting, @{config:OcuTalon<Agent>}.
+/// class name (AI.LLM.OcuTalonTriage), and for a retry runner (an item whose name ends in Retry) AI.LLM.OcuTalon<Agent>Retry, so that
+/// a retry runner never shares its first runner's entry. It then writes each runner's ProviderConfig setting, @{config:OcuTalon<Agent>}
+/// (@{config:OcuTalon<Agent>Retry} for a retry runner).
 /// An entry holds the provider, the key placeholder @{env:ANTHROPIC_API_KEY}, the endpoint overrides of the environment and the
 /// timeouts of the bridge timer, and never a model (the model is the runner's Model setting, AD-7) and never a key: the placeholder
-/// stays unresolved through the Config Store and AI Hub's provider resolves it. No code here reads the key's value.
+/// stays unresolved through the Config Store and AI Hub's provider resolves it. No code here reads the key's value. An entry that exists
+/// keeps its provider and placeholder when they are a provider of the provider table and exactly that provider's own placeholder
+/// (KeepChosen), so that a provider chosen through the model-change API survives a start; every other field is structural. The endpoint
+/// overrides below are the Anthropic endpoints of CI and the online demo, so they are written only on an entry whose provider is anthropic: an
+/// entry that keeps another provider loses base_url, custom_headers and tls (ConfigStore.DropEndpoint, DW-758) and keeps its timeouts.
 /// The timeouts are the request timeout and the whole retry block of OcuTalon.Bridge.Timeouts.Derive (AD-8), for the TimerSeconds
 /// setting of Decide in OcuTalon.Production (the System Default Settings row, else the initial value), written into http_config of
-/// every entry, never a part of the block. A timer that Timeouts.Check refuses fails the step, naming TimerSeconds.
-/// Every value the step writes is structural: it is rewritten whole at every start, so a stale field disappears, and every
+/// every entry, never a part of the block; the entry of a retry runner derives from Timeouts.RetryTimer of that timer (DW-647). A timer that Timeouts.Check refuses fails the step, naming TimerSeconds.
+/// Every other value the step writes is structural: it is rewritten whole at every start, so a stale field disappears, and every
 /// entry gets the Config Store's default read and edit resource, %Admin_ConfigStore, again.
 /// The overrides, read from the environment at every start (AD-19, DW-39):
 ///   - OCUTALON_MODEL_BASE_URL: becomes base_url; it must be http(s)://host/... with no user name, query or fragment, and end
@@ -134,9 +140,25 @@ ClassMethod CheckCaFile(caFile As %String) As %Status
 }
 
 /// The name of the entry of an agent class, without the area and type: OcuTalon plus the last part of the class name.
-ClassMethod EntryName(agentClass As %String) As %String
+/// A retry runner item (its name ends in Retry, Timeouts.IsRetryItem) adds Retry, so that its entry is its own.
+ClassMethod EntryName(agentClass As %String, item As %String = "") As %String
 {
-	Quit ..#NAMEPREFIX_$Piece(agentClass, ".", $Length(agentClass, "."))
+	Quit ..#NAMEPREFIX_$Piece(agentClass, ".", $Length(agentClass, "."))_$Select(##class(OcuTalon.Bridge.Timeouts).IsRetryItem(item): ##class(OcuTalon.Bridge.Timeouts).#RETRYSUFFIX, 1: "")
+}
+
+/// Puts the provider and key placeholder that the existing entry holds into details, when they are a provider of the provider table
+/// (OcuTalon.Bridge.Providers) and exactly that provider's own placeholder, @{env:<its key variable>}: a provider that the model-change API
+/// chose survives a start. Any other pair is left out, so the entry gets the structural pair of Details. Only the entry's own two fields are
+/// read, and a value that is not that placeholder is never kept, logged or returned.
+ClassMethod KeepChosen(name As %String, details As %DynamicObject) [ Private ]
+{
+	If $$$ISERR(##class(OcuTalon.Bridge.ConfigStore).Details(name, .existing)) || '$IsObject(existing) Quit
+	If (existing.%GetTypeOf("model_provider") '= "string") || (existing.%GetTypeOf("api_key") '= "string") Quit
+	Set row = ##class(OcuTalon.Bridge.Providers).Row(existing.%Get("model_provider"))
+	If '$IsObject(row) Quit
+	If existing.%Get("api_key") '= ("@{env:"_row.%Get("keyVariable")_"}") Quit
+	Do details.%Set("model_provider", row.%Get("provider"))
+	Do details.%Set("api_key", existing.%Get("api_key"))
 }
 
 /// Writes one runner's entry with the default resources, checks that it exists, and then writes the runner's ProviderConfig
@@ -147,10 +169,13 @@ ClassMethod WriteRunner(production As %String, item As %String, agentClass As %S
 		If 'enabled Quit $SYSTEM.Status.OK()
 		Quit $SYSTEM.Status.Error(5001, "The runner "_item_" has no usable agent class: its AgentClass is '"_agentClass_"'")
 	}
-	Set name = ..EntryName(agentClass)
+	Set retry = ##class(OcuTalon.Bridge.Timeouts).IsRetryItem(item)
+	Set name = ..EntryName(agentClass, item)
 	Set fqn = ..#ENTRYPREFIX_name
-	Set details = ..Details(agentClass, baseUrl, caFile, mockKeyFlag, timer)
+	Set details = ..Details(agentClass, baseUrl, caFile, mockKeyFlag, $Select(retry: ##class(OcuTalon.Bridge.Timeouts).RetryTimer(timer), 1: timer))
 	If ##class(%ConfigStore.Configuration).Exists(fqn) {
+		Do ..KeepChosen(name, details)
+		If details.%Get("model_provider") '= "anthropic" Do ##class(OcuTalon.Bridge.ConfigStore).DropEndpoint(details)
 		Set sc = ##class(%ConfigStore.Configuration).Modify(fqn, details, , , ..#ENTRYRESOURCE, ..#ENTRYRESOURCE)
 	} Else {
 		Set sc = ##class(%ConfigStore.Configuration).Create("AI", "LLM", "", name, details, "", "Written by the Provider install step at every start; do not edit.", ..#ENTRYRESOURCE, ..#ENTRYRESOURCE)

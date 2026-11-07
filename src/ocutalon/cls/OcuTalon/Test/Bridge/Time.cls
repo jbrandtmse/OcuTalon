@@ -3,6 +3,16 @@
 ///   - TestAgreesWithDataTime: from 2025-03-08T00:00Z to 2025-03-11T00:00Z and from 2025-11-01T00:00Z to 2025-11-04T00:00Z, the two
 ///     daylight-saving changes of 2025, at every half hour, in America/New_York, Asia/Kolkata and with no zone set, ToLocal gives what
 ///     Data.Time.ToLocal gives, and LocalDate is its date;
+///   - TestAgreesWithDataTimeInstanceZone (Story 17.4; AD-18): the same walk after SetZone("America/New_York") instead of the process zone: ToLocal and LocalDate
+///     of the bridge, which Apply the zone first, give what Data.Time gives at each of the 290 instants, and after SetZone("") the zone that the process inherited is back;
+///   - TestApplyRule (Story 17.4): Apply does nothing for a process that never applied a zone while the zone is empty; it applies a name once, on a change only
+///     (a process zone put behind its back is not touched again), keeps the inherited zone, puts it back when the name becomes empty, and treats a name that
+///     CheckZone refuses (written by hand) as empty;
+///   - TestEachConversionAppliesZone (Story 17.4, QA): each of ToLocal, LocalDate, DayStartUtc and DayEndUtc, called first in a process that has not yet applied
+///     the zone, converts in the instance zone just saved by SetZone, not in the zone the process had (the walk above only reaches DayStartUtc through LocalDate,
+///     which has applied the zone already);
+///   - TestCheckZone (Story 17.4): CheckZone passes "" and a zone file, and refuses a placeholder, a name of 65 characters, a path with .., a folder, an
+///     unknown zone and a name with a character outside letters, digits, / _ - and +, with a reason that holds no value;
 ///   - TestDayBounds: DayStartUtc and DayEndUtc in New York: 2025-03-09 starts at 05:00Z and lasts 23 hours, 2025-11-02 lasts 25 hours,
 ///     the first instant of a day is its local midnight and the second before it is 23:59:59 of the day before; in America/Havana
 ///     2025-03-09, whose midnight does not exist, starts at its first instant, local 01:00; with no zone a day is a UTC day;
@@ -58,6 +68,110 @@ Method TestAgreesWithDataTime()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Time).ToLocal("2025-03-09T07:00:00Z"), "2025-03-09T03:00:00", "and on daylight-saving time right after it")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Time).LocalDate("2025-03-10T03:59:59Z"), "2025-03-09", "local midnight of 2025-03-10 is 04:00Z")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Time).LocalDate("2025-03-10T04:00:00Z"), "2025-03-10", "so 04:00Z is the next date")
+}
+
+/// The walk of TestAgreesWithDataTime with the zone set through SetZone, as an admin sets it (Story 17.4; AD-18). Nothing sets the process zone but
+/// Bridge.Time.Apply, which every conversion calls first, so Data.Time follows once the bridge has converted. The zone the process inherited is Asia/Kolkata
+/// here, and SetZone("") brings it back.
+Method TestAgreesWithDataTimeInstanceZone()
+{
+	Set time = "OcuTalon.Bridge.Time"
+	Do ..PutZone("Asia/Kolkata")
+	Do $$$AssertStatusOK($ClassMethod(time, "SetZone", "America/New_York"), "the instance zone is America/New_York")
+	Do $$$AssertEquals($ClassMethod(time, "Zone"), "America/New_York", "Zone reads it")
+	Set compared = 0
+	Set differences = ""
+	For start = "2025-03-08", "2025-11-01" {
+		Set days = $ZDateH(start, 3)
+		For seconds = 0:1800:(3 * 86400) {
+			Set utc = $Translate($ZDateTime((days + (seconds \ 86400))_","_(seconds # 86400), 3, 1), " ", "T")_"Z"
+			Set local = $ClassMethod(time, "ToLocal", utc)
+			Set date = $ClassMethod(time, "LocalDate", utc)
+			Set expected = ##class(OcuTalon.Data.Time).ToLocal(utc)
+			Set compared = compared + 1
+			If (expected = "") || (local '= expected) || (date '= $Piece(expected, "T", 1)) {
+				If $Length(differences) < 200 Set differences = differences _ " " _ utc
+			}
+		}
+	}
+	Do $$$AssertEquals(compared, 290, "290 instants are compared")
+	Do $$$AssertEquals(differences, "", "ToLocal and LocalDate agree with Data.Time at each of them")
+	Do $$$AssertEquals($ClassMethod(time, "ToLocal", "2025-03-09T06:59:59Z"), "2025-03-09T01:59:59", "New York is on standard time just before the change")
+	Do $$$AssertEquals($ClassMethod(time, "ToLocal", "2025-03-09T07:00:00Z"), "2025-03-09T03:00:00", "and on daylight-saving time right after it")
+	Do $$$AssertEquals($ClassMethod(time, "ToLocal", "2025-11-02T05:59:59Z"), "2025-11-02T01:59:59", "New York is on daylight-saving time just before the November change")
+	Do $$$AssertEquals($ClassMethod(time, "ToLocal", "2025-11-02T06:00:00Z"), "2025-11-02T01:00:00", "and on standard time right after it")
+	Do $$$AssertEquals($ClassMethod(time, "DayStartUtc", "2025-03-09"), "2025-03-09T05:00:00Z", "a day starts at its midnight in the instance zone")
+	Do $$$AssertEquals($ClassMethod(time, "DayEndUtc", "2025-03-09"), "2025-03-10T04:00:00Z", "and ends at the next midnight, 23 hours later")
+	Do $$$AssertStatusOK($ClassMethod(time, "SetZone", ""), "the instance zone is empty again")
+	Do $$$AssertEquals($ClassMethod(time, "ToLocal", "2025-07-01T12:00:00Z"), "2025-07-01T17:30:00", "the zone the process inherited is back (Asia/Kolkata)")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2025-07-01T12:00:00Z"), "2025-07-01T17:30:00", "and so is Data.Time's")
+	Do $$$AssertEquals(..CurrentZone(), "Asia/Kolkata", "the process zone is the inherited one")
+}
+
+/// Apply changes the process zone on a change of the name only, and keeps the zone that the process inherited (Story 17.4; AD-18).
+Method TestApplyRule()
+{
+	Set time = "OcuTalon.Bridge.Time"
+	Do ..PutZone("Asia/Kolkata")
+	Do $ClassMethod(time, "Apply")
+	Do $$$AssertEquals(..CurrentZone(), "Asia/Kolkata", "a process that never applied a zone, with the zone empty, is left alone")
+	Do $$$AssertEquals($Data(^||OcuTalon.Bridge.Time), 0, "and keeps no state")
+	Do $$$AssertStatusOK($ClassMethod(time, "SetZone", "Europe/Berlin"), "the instance zone is Europe/Berlin")
+	Do $ClassMethod(time, "Apply")
+	Do $$$AssertEquals(..CurrentZone(), "Europe/Berlin", "the first apply switches the process")
+	Do $$$AssertEquals($Get(^||OcuTalon.Bridge.Time("inherited")), "Asia/Kolkata", "and keeps the zone that the process inherited")
+	Do ..PutZone("Asia/Tokyo")
+	Do $ClassMethod(time, "Apply")
+	Do $$$AssertEquals(..CurrentZone(), "Asia/Tokyo", "an apply with the name that was applied does not call Process.TimeZone")
+	Do $$$AssertStatusOK($ClassMethod(time, "SetZone", "America/New_York"), "the instance zone is America/New_York")
+	Do $ClassMethod(time, "Apply")
+	Do $$$AssertEquals(..CurrentZone(), "America/New_York", "a new name is applied")
+	Do $$$AssertEquals($Get(^||OcuTalon.Bridge.Time("inherited")), "Asia/Kolkata", "and the inherited zone is still the first one")
+	Do $$$AssertStatusOK($ClassMethod(time, "SetZone", ""), "the instance zone is empty")
+	Do $ClassMethod(time, "Apply")
+	Do $$$AssertEquals(..CurrentZone(), "Asia/Kolkata", "an empty name puts the inherited zone back")
+	Do ..PutZone("Asia/Tokyo")
+	Do $ClassMethod(time, "Apply")
+	Do $$$AssertEquals(..CurrentZone(), "Asia/Tokyo", "and an empty name that was applied is not applied again")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault(##class(Ens.Director).GetActiveProductionName(), "Decide", "InstanceZone", "Mars/Olympus", "Written by a test; the test deletes it."), "a zone that no file backs is written by hand")
+	Do $ClassMethod(time, "Apply")
+	Do $$$AssertEquals(..CurrentZone(), "Asia/Kolkata", "a name that CheckZone refuses counts as empty, so the inherited zone comes back instead of UTC")
+}
+
+/// Each of the four conversions applies the instance zone itself (Story 17.4, QA; AD-18): called first in a process that has not applied a zone, with the process
+/// in another zone, it converts in the zone that SetZone saved. Pacific/Pago_Pago is UTC-11 all year.
+Method TestEachConversionAppliesZone()
+{
+	Set time = "OcuTalon.Bridge.Time"
+	For method = "ToLocal", "LocalDate", "DayStartUtc", "DayEndUtc" {
+		Kill ^||OcuTalon.Bridge.Time
+		Do $SYSTEM.Process.TimeZone("Asia/Tokyo")
+		Do $$$AssertStatusOK($ClassMethod(time, "SetZone", "Pacific/Pago_Pago"), method_": the instance zone is Pacific/Pago_Pago")
+		If method = "ToLocal" Set got = $ClassMethod(time, method, "2025-07-01T12:00:00Z"), expected = "2025-07-01T01:00:00"
+		If method = "LocalDate" Set got = $ClassMethod(time, method, "2025-07-01T05:00:00Z"), expected = "2025-06-30"
+		If method = "DayStartUtc" Set got = $ClassMethod(time, method, "2025-07-01"), expected = "2025-07-01T11:00:00Z"
+		If method = "DayEndUtc" Set got = $ClassMethod(time, method, "2025-07-01"), expected = "2025-07-02T11:00:00Z"
+		Do $$$AssertEquals(got, expected, method_" called first converts in the instance zone, not the process's")
+	}
+	Kill ^||OcuTalon.Bridge.Time
+	Do $$$AssertStatusOK($ClassMethod(time, "SetZone", ""), "the instance zone is empty again")
+}
+
+/// What CheckZone accepts and refuses (Story 17.4; AD-18, AD-19).
+Method TestCheckZone()
+{
+	Set time = "OcuTalon.Bridge.Time"
+	Do $$$AssertStatusOK($ClassMethod(time, "CheckZone", ""), "the empty zone passes")
+	Do $$$AssertStatusOK($ClassMethod(time, "CheckZone", "Europe/Berlin"), "a zone file passes")
+	Do $$$AssertStatusOK($ClassMethod(time, "CheckZone", "Etc/GMT+5"), "a name with + passes")
+	Do $$$AssertStatusOK($ClassMethod(time, "CheckZone", "America/Port-au-Prince"), "a name with - passes")
+	For bad = "@{env:X}", "Mars/Olympus", "America", "../etc/passwd", "Europe/../Europe/Berlin", "/Europe/Berlin", "Europe/Berlin/", "Europe//Berlin", "Europe/Berlin"_$Char(10), "zone.tab", $Translate($Justify("", 65), " ", "A"), "Europe/Berl'n" {
+		Set sc = $ClassMethod(time, "CheckZone", bad)
+		Do $$$AssertTrue($$$ISERR(sc), "refused: "_$Extract(bad, 1, 20))
+		Do $$$AssertTrue($$$ISERR(sc) && ($SYSTEM.Status.GetErrorText(sc) '[ bad), "and the reason does not hold the value: "_$Extract(bad, 1, 20))
+	}
+	Set long = $Translate($Justify("", 64), " ", "A")
+	Do $$$AssertTrue($$$ISERR($ClassMethod(time, "CheckZone", long)), "a 64-character name that no file backs is refused")
 }
 
 /// The first instant of a local date, and the end of the date.

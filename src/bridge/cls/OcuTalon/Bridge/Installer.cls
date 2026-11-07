@@ -6,7 +6,7 @@ Class OcuTalon.Bridge.Installer
 
 /// Prepares what the bridge needs in the current namespace: it registers the audit events of OcuTalon.Bridge.Audit, sets up the
 /// approvals' Workflow role and user (SetUpApprovals, AD-11), writes the three model families of OcuTalon.Bridge.Data.ModelFamily (AD-7)
-/// and the prices of the two Claude models of OcuTalon.Bridge.Data.Price that the product ships (AD-19, AD-20).
+/// and the prices of OcuTalon.Bridge.Data.Price for every selectable model of the provider table that the product ships (AD-19, AD-20).
 /// Returns an error naming the namespace when it is not an Interoperability namespace.
 ClassMethod Run() As %Status
 {
@@ -59,23 +59,47 @@ ClassMethod SeedModelFamilies() As %Status
 
 /// The prices that the bridge seeds, each a $ListBuild(Model, InputPerMTok, OutputPerMTok, CacheReadPerMTok, CacheWritePerMTok,
 /// LongThresholdTokens, LongInputPerMTok, LongOutputPerMTok), in US dollars per million tokens (AD-19, FR-2). The cache-write
-/// rate is the 5-minute rate, 1.25 times the input price, the only one AI Hub writes; the cache-read rate is 0.1 times the input
-/// price. Claude Haiku 5.5 has a long tier above 100,000 tokens, and Claude Sonnet 5.5 has none, so its base rates apply at every size.
+/// rate is the 5-minute rate, 1.25 times the input price, the only one AI Hub writes; the cache-read rate is the provider's own list
+/// figure (0.1 times the input price for Claude Haiku 5.5, 0.05 times for Claude Sonnet 5.5). Claude Haiku 5.5 has a long tier above
+/// 100,000 tokens, and Claude Sonnet 5.5 has none, so its base rates apply at every size.
+/// Every selectable model of the provider table (Providers) has a row, with the list price of the provider's own pricing page (looked up
+/// 2026-11-05, long tier included where the page has one): gpt-5.4 has a long tier above 272,000 tokens and gemini-3.1-pro-preview above
+/// 200,000, each cache rate scaling with the input price as Price.Cost does; the OpenAI and Gemini rows have no cache-write rate. The two
+/// Bedrock inference profiles carry the rows of the Claude models they run.
 ClassMethod Prices() As %List
 {
 	Quit $ListBuild(
 		$ListBuild("claude-haiku-5-5", 0.1, 0.5, 0.01, 0.125, 100000, 0.5, 2.5),
-		$ListBuild("claude-sonnet-5-5", 2, 10, 0.2, 2.5, "", "", ""))
+		$ListBuild("claude-sonnet-5-5", 2, 10, 0.1, 2.5, "", "", ""),
+		$ListBuild("gpt-5.4-mini", 0.75, 4.5, 0.075, 0, "", "", ""),
+		$ListBuild("gpt-5.4", 2.5, 15, 0.25, 0, 272000, 5, 22.5),
+		$ListBuild("gemini-3.1-flash-lite", 0.25, 1.5, 0.025, 0, "", "", ""),
+		$ListBuild("gemini-3.1-pro-preview", 2, 12, 0.2, 0, 200000, 4, 18),
+		$ListBuild("us.anthropic.claude-haiku-5-5", 0.1, 0.5, 0.01, 0.125, 100000, 0.5, 2.5),
+		$ListBuild("us.anthropic.claude-sonnet-5-5", 2, 10, 0.1, 2.5, "", "", ""))
+}
+
+/// The earlier seed of the row of claude-sonnet-5-5, whose cache-read price was 0.2 before it became the provider's list figure (DW-757), as a
+/// $ListBuild in the order of Prices(), with the model.
+ClassMethod EarlierSonnetSeed() As %List [ Private ]
+{
+	Quit $ListBuild("claude-sonnet-5-5", 2, 10, 0.2, 2.5, "", "", "")
 }
 
 /// Creates the rows of Prices() that no row has the Model of. A row that exists is left alone, whatever it holds: the prices are
-/// seed values (AD-19), so an admin's edit survives every start, and a deleted row is created again.
+/// seed values (AD-19), so an admin's edit survives every start, and a deleted row is created again. The one exception (DW-757) is the row of
+/// claude-sonnet-5-5 that still holds exactly EarlierSonnetSeed, all seven values: its cache-read price is set to the current seed, once. A row
+/// that has any other value, an edited one included, is never touched, and neither is a Usage row, which keeps its cost.
 ClassMethod SeedPrices() As %Status
 {
 	Set prices = ..Prices()
 	Set position = 0
 	While $ListNext(prices, position, price) {
-		If ##class(OcuTalon.Bridge.Data.Price).ModelIndexExists($List(price, 1)) Continue
+		If ##class(OcuTalon.Bridge.Data.Price).ModelIndexExists($List(price, 1)) {
+			Set sc = ..CorrectEarlierSeed(price)
+			If $$$ISERR(sc) Return sc
+			Continue
+		}
 		Set row = ##class(OcuTalon.Bridge.Data.Price).%New()
 		Set row.Model = $List(price, 1)
 		Set row.InputPerMTok = $List(price, 2)
@@ -89,6 +113,22 @@ ClassMethod SeedPrices() As %Status
 		If $$$ISERR(sc) Return sc
 	}
 	Quit $$$OK
+}
+
+/// Sets the cache-read price of the existing row of the model of the seed price to the seed's, when the model is claude-sonnet-5-5 and the
+/// row holds exactly EarlierSonnetSeed (SeedPrices).
+ClassMethod CorrectEarlierSeed(price As %List) As %Status [ Private ]
+{
+	Set earlier = ..EarlierSonnetSeed()
+	If $List(price, 1) '= $List(earlier, 1) Quit $$$OK
+	Set row = ##class(OcuTalon.Bridge.Data.Price).ModelIndexOpen($List(price, 1))
+	If '$IsObject(row) Quit $$$OK
+	Set held = $ListBuild(row.Model, row.InputPerMTok, row.OutputPerMTok, row.CacheReadPerMTok, row.CacheWritePerMTok, row.LongThresholdTokens, row.LongInputPerMTok, row.LongOutputPerMTok)
+	For i = 2:1:8 {
+		If +$List(held, i) '= +$List(earlier, i) Return $$$OK
+	}
+	Set row.CacheReadPerMTok = $List(price, 4)
+	Quit row.%Save()
 }
 
 /// Creates each of OcuTalon.Bridge.Audit.Events() that is missing, enabled, and enables each one that is disabled.

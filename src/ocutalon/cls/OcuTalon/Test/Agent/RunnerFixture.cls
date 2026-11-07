@@ -9,7 +9,7 @@ Include Ensemble
 ///   - DecisionOf, Headers, SessionOf, HeaderMark and SessionSince (Story 1.3): the Decision row of an item, and the message
 ///     headers of a session (the target, body class and body id of each header that a source item sent);
 ///   - PointKeys and RestoreKeys: CI starts with no model key on purpose, so the live tests point the entry of each runner at
-///     OCUTALON_MOCK_KEY_HEADER, a non-secret CI-only variable (value 1), through ConfigStore.Merge, and put the entries back to
+///     OCUTALON_MOCK_KEY_HEADER, a non-secret CI-only variable (value 1), (a fixture write through ConfigStore.Details and Modify, WriteKey), and put the entries back to
 ///     the placeholder of the Provider step afterwards. Both restart the runners, because a runner builds its agent once;
 ///     KeysAre reads the api_key placeholder of each runner's entry, so that a test can tell whether the entries are as the
 ///     Provider step left them;
@@ -69,6 +69,9 @@ Parameter PRODUCTION = "OcuTalon.Production";
 
 /// The runners of the production, in the order of the production.
 Parameter RUNNERS = "TriageAgent,DiagnosisAgent,ChatAgent";
+
+/// The retry runners of the production (Story 17.2), in the order of the runners; PointKeys, RestoreKeys and KeysAre take them as a runner list.
+Parameter RETRYRUNNERS = "TriageAgentRetry,DiagnosisAgentRetry,ChatAgentRetry";
 
 /// The longest to wait for every item to run, in seconds. A ceiling, not a delay: the wait polls once a second and returns as soon
 /// as the items run, so a slow machine takes longer and does not fail.
@@ -506,25 +509,25 @@ ClassMethod SessionSince(mark As %Integer, target As %String) As %Integer
 }
 
 /// Points the Config Store entry of each runner at the placeholder of OCUTALON_MOCK_KEY_HEADER and restarts the runners. The
-/// status is the first error.
-ClassMethod PointKeys() As %Status
+/// status is the first error. runners is a comma-separated list of runner items; empty means RUNNERS (Story 17.2 passes RUNNERS and RETRYRUNNERS).
+ClassMethod PointKeys(runners As %String = "") As %Status
 {
-	Quit ..SetKeys("@{env:"_..#MOCKKEYVARIABLE_"}")
+	Quit ..SetKeys("@{env:"_..#MOCKKEYVARIABLE_"}", runners)
 }
 
 /// Puts the entry of each runner back to the placeholder of the Provider step and restarts the runners. The status is the first
-/// error.
-ClassMethod RestoreKeys() As %Status
+/// error. runners is as in PointKeys.
+ClassMethod RestoreKeys(runners As %String = "") As %Status
 {
-	Quit ..SetKeys(##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER)
+	Quit ..SetKeys(##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER, runners)
 }
 
-/// 1 when the api_key of the Config Store entry of every runner is exactly the placeholder. The entries hold a placeholder only
-/// (ConfigStore.Merge refuses anything else), so no key is read.
-ClassMethod KeysAre(placeholder As %String) As %Boolean
+/// 1 when the api_key of the Config Store entry of every runner (runners as in PointKeys) is exactly the placeholder. The entries hold a
+/// placeholder only, so no key is read.
+ClassMethod KeysAre(placeholder As %String, runners As %String = "") As %Boolean
 {
 	Set are = 1
-	Set runners = $ListFromString(..#RUNNERS)
+	Set runners = $ListFromString($Select(runners = "": ..#RUNNERS, 1: runners))
 	Set position = 0
 	While $ListNext(runners, position, item) {
 		Set entry = ..EntryOf(item, .sc)
@@ -548,11 +551,21 @@ ClassMethod EntryOf(item As %String, Output sc As %Status) As %String [ Private 
 	Quit entry
 }
 
-/// Merges the api_key into the entry of each runner, then restarts the runners one after the other.
-ClassMethod SetKeys(placeholder As %String) As %Status [ Private ]
+/// Writes the api_key placeholder into the entry (a fixture write: ConfigStore.Merge refuses a placeholder that is not the provider's own, which
+/// is what the CI mock key variable is): the details as Details reads them, with the one field replaced, through Modify.
+ClassMethod WriteKey(entry As %String, placeholder As %String) As %Status [ Private ]
+{
+	Set sc = ##class(OcuTalon.Bridge.ConfigStore).Details(entry, .details)
+	If $$$ISERR(sc) Quit sc
+	Do details.%Set("api_key", placeholder)
+	Quit ##class(%ConfigStore.Configuration).Modify(##class(OcuTalon.Bridge.ConfigStore).FullName(entry), details)
+}
+
+/// Writes the api_key into the entry of each runner (runners as in PointKeys), then restarts the runners one after the other.
+ClassMethod SetKeys(placeholder As %String, runners As %String = "") As %Status [ Private ]
 {
 	Set sc = $$$OK
-	Set runners = $ListFromString(..#RUNNERS)
+	Set runners = $ListFromString($Select(runners = "": ..#RUNNERS, 1: runners))
 	Set position = 0
 	While $ListNext(runners, position, item) {
 		Set entry = ..EntryOf(item, .status)
@@ -560,7 +573,7 @@ ClassMethod SetKeys(placeholder As %String) As %Status [ Private ]
 			Set sc = $$$ADDSC(sc, status)
 			Continue
 		}
-		Set sc = $$$ADDSC(sc, ##class(OcuTalon.Bridge.ConfigStore).Merge(entry, {"api_key": (placeholder)}))
+		Set sc = $$$ADDSC(sc, ..WriteKey(entry, placeholder))
 	}
 	Set position = 0
 	While $ListNext(runners, position, item) {
@@ -867,9 +880,9 @@ ClassMethod Drain(item As %String) As %Status
 /// nothing is (QA, Story 1.6; AD-8, AD-26, AD-28, AD-30): the guarantees of every fallback in one place, so that no test leaves one out.
 ///   - the answer is a DecisionResponse for a decide or diagnose request and a Reply for a turn, with the outcome tellnow, Fallback true and
 ///     the reason, and no reasons, confidence or payload; a Reply also has no text, host data, steps, failure text or finish reason, and is
-///     not Busy (a Busy answer is never a fallback; Tainted, ToolsRun and SessionRotated are the runner's own, which a fallback carries, and
-///     SessionBroken is Decide's, for a user's turn whose history the provider rejected: none of the four is judged here, because a
-///     fallback after a tool ran, a rotation or a rejected history says so);
+///     not Busy (a Busy answer is never a fallback; Tainted and ToolsRun are the runner's own, which a fallback carries, SessionRotated is
+///     0 because a fallback moves no link, and SessionBroken is Decide's, for a user's turn whose history the provider rejected: none of
+///     these is judged here, because a fallback after a tool ran or a rejected history says so, and Test.Bridge.Decide pins the rotation);
 ///   - the XML of the answer, which Visual Trace shows, holds all three of <Outcome>tellnow</Outcome>, <Fallback>true</Fallback> and
 ///     <FallbackReason>the reason</FallbackReason>;
 ///   - the row exists, is of the kind, and holds the outcome tellnow, Fallback 1, the reason, no reasons, confidence or payload, and the

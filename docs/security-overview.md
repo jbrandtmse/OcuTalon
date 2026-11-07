@@ -23,6 +23,7 @@ No built-in tool runs operating-system commands, arbitrary ObjectScript or Pytho
 | `recent_activity` | `OcuTalon.Tools.RecentActivity` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Reading recent activity | safe | yes | yes | none |
 | `save_memory` | `OcuTalon.Tools.MemoryTools` | `OcuTalon.Tools.Memory` | `OcuTalon.Agent.Chat` | Saving a memory | safe | no | yes | none |
 | `search_memories` | `OcuTalon.Tools.MemoryTools` | `OcuTalon.Tools.Memory` | `OcuTalon.Agent.Chat` | Searching your memories | safe | yes | yes | none |
+| `send_digest` | `OcuTalon.Tools.DigestTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Sending your digest | safe | no | yes | none |
 | `set_reminder` | `OcuTalon.Tools.ReminderTools` | `OcuTalon.Tools.Reminders` | `OcuTalon.Agent.Chat` | Setting a reminder | safe | no | yes | none |
 | `start_watch` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Starting a watch | safe | no | yes | none |
 | `stop_watch` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Stopping a watch | safe | no | yes | none |

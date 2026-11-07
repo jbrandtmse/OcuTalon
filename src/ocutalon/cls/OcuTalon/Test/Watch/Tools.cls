@@ -4,7 +4,7 @@
 /// Watch.Reader and submit to Test.Tools.CommandsDouble, which sits behind the CommandsIn item and records every command. The tests call the tool
 /// methods in this process, with a bridge context begun for the turn, as Test.Tools.Reminders does.
 ///   - TestDeclarations: Chat's TOOLSETS names both toolsets; Watching offers exactly start_watch, stop_watch, list_productions, dismiss_incident and
-///     check_status of Tools.Names, each once, from WatchTools, and (Story 5.13) recent_activity from RecentActivity; each has its own step label and the flags of the spec (all safe and trusted output, only
+///     check_status of Tools.Names, each once, from WatchTools, (Story 5.13) recent_activity from RecentActivity and (Story 17.6) send_digest from DigestTools; each has its own step label and the flags of the spec (all safe and trusted output, only
 ///     list_productions, check_status and recent_activity read-only); the inputs are name (required) and namespace for start and stop, none for list, check_status and recent_activity, and incident
 ///     and production (none required) for dismiss, and none names a session, an owner or an origin;
 ///   - TestCheckStatus, TestCheckStatusHostData and TestCheckStatusNotRead (Story 5.7; matrix "check_status", "HostData kept", "Refused"): check_status gives the
@@ -66,18 +66,19 @@ Method TestDeclarations()
 	Set want("dismiss_incident") = $ListBuild("safe", 0, 1, "Dismissing an incident", "incident,production", "")
 	Set want("check_status") = $ListBuild("safe", 1, 1, "Reading the check results", "", "")
 	Set want("recent_activity") = $ListBuild("safe", 1, 1, "Reading recent activity", "", "")
-	Set expected = $ListBuild($Parameter(names, "STARTWATCH"), $Parameter(names, "STOPWATCH"), $Parameter(names, "LISTPRODUCTIONS"), $Parameter(names, "DISMISSINCIDENT"), $Parameter(names, "CHECKSTATUS"), $Parameter(names, "RECENTACTIVITY"))
+	Set want("send_digest") = $ListBuild("safe", 0, 1, "Sending your digest", "", "")
+	Set expected = $ListBuild($Parameter(names, "STARTWATCH"), $Parameter(names, "STOPWATCH"), $Parameter(names, "LISTPRODUCTIONS"), $Parameter(names, "DISMISSINCIDENT"), $Parameter(names, "CHECKSTATUS"), $Parameter(names, "RECENTACTIVITY"), $Parameter(names, "DIGESTTOOLS"))
 	Set tools = $ClassMethod(..#TOOLSET, "%New").%Discover().tools
-	Do $$$AssertEquals(tools.%Size(), 6, "the toolset offers six tools")
+	Do $$$AssertEquals(tools.%Size(), 7, "the toolset offers seven tools")
 	Set found = ""
 	Set iterator = tools.%GetIterator()
 	While iterator.%GetNext(, .tool) {
 		Set found = found _ $ListBuild(tool.name)
 		Set name = tool.name
-		Set provider = $Select(name = $Parameter(names, "RECENTACTIVITY"): "OcuTalon.Tools.RecentActivity", 1: ..#TOOLS)
+		Set provider = $Select(name = $Parameter(names, "RECENTACTIVITY"): "OcuTalon.Tools.RecentActivity", name = $Parameter(names, "DIGESTTOOLS"): "OcuTalon.Tools.DigestTools", 1: ..#TOOLS)
 		Do $$$AssertEquals(tool.provider, provider, name_" is a method of "_provider)
 		If '$Data(want(name)) {
-			Do $$$AssertTrue(0, name_" is not one of the six tools")
+			Do $$$AssertTrue(0, name_" is not one of the seven tools")
 			Continue
 		}
 		Set upper = $ZConvert($Translate(name, "_-"), "U")
@@ -125,7 +126,7 @@ Method TestDeclarations()
 	Set xml = $Select($IsObject(definition): definition.Data.Read(32000), 1: "")
 	Do $$$AssertTrue(xml '= "", "the toolset has its Definition")
 	Do $$$AssertTrue(xml '[ "Requirement", "and holds no Requirement element: the class parameters are the one declaration")
-	Do $$$AssertEquals(##class(%Dictionary.ClassDefinition).%OpenId(..#TOOLSET).DependsOn, ..#TOOLS_",OcuTalon.Tools.RecentActivity", "and it depends on both tool classes")
+	Do $$$AssertEquals(##class(%Dictionary.ClassDefinition).%OpenId(..#TOOLSET).DependsOn, ..#TOOLS_",OcuTalon.Tools.RecentActivity,OcuTalon.Tools.DigestTools", "and it depends on its three tool classes")
 	Do $$$AssertEquals($Parameter(..#TOOLS, "READMELINK"), "https://github.com/jbrandtmse/OcuTalon#readme", "the README link is the project's")
 }
 

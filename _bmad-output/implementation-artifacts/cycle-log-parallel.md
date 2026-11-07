@@ -2400,3 +2400,55 @@
 2026-11-07T06:17:10Z	Epic 34	amendments_verified	epics.md=34.4_insert
 2026-11-07T06:17:10Z	Epic 34	merge_enqueued	position=1 reason=planner_after_7.9_ahead_of_0.15
 2026-11-07T06:17:10Z	Epic 34	epic_merge_started	head=b6b75a34 into=feature
+2026-11-07T06:17:33Z	Epic 34	epic_merged_to_feature	merge=a092b15f head=b6b75a34 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine=untouched release_tools=untouched
+2026-11-07T06:17:33Z	Epic 34	decision_sheet_skipped	reason=no_open_decisions fact=f4b38c9e_local_paths_in_history_fixed_forward_985da210
+2026-11-07T06:17:33Z	Run	deps_hash_rerecorded	reason=fix_forward story=34.4 hash=050c31fd4ef4
+2026-11-07T06:18:17Z	Epic 39	worktree_provisioned	branch=OCT-epic39 ff_to=a092b15f kept_worktree reason=story_39.9
+2026-11-07T06:18:17Z	Epic 39	worktree_bootstrapped	epic=39 result=ok
+2026-11-07T06:18:17Z	Epic 39	runner_dispatched	agent=addb36e0de0c494d8 lane=D slot=ocutalon-slot-d model=opus prompt=dispatch-epic-39-followup.md duplicate_ci_cancelled=42346367650,42346367663
+2026-11-07T06:45:23Z	Epic 39	runner_clarification	kind=contended_paths files=Test/Live/Payloads.cls(E4),web/scripts/ux-strings.test.mjs(E4),Test/Checks/BeatOutcomes.cls(E17) head=87e2e6c8
+2026-11-07T06:45:23Z	Epic 39	orchestrator_ruling	subject=39.9_contended_paths result=plain_union proof=git_merge-file DW-824_approach=CheckInCost_sum_same_rows_no_string_change planner_told=yes
+2026-11-07T06:45:23Z	Epic 39	runner_resumed	agent=addb36e0de0c494d8 reason=implement
+2026-11-07T06:45:30Z	Run	ci_green_verified	head=a092b15f runs=42346346796,42346346817 result=success via=gh
+2026-11-07T07:30:46Z	Epic 39	merge_gate_blocked	reason=ci_red runs=42348320733 job=checks(boundaries_local_paths) head=87e2e6c8 files=spec-39-9:179,196
+2026-11-07T07:30:46Z	Run	planner_ruling	subject=boundaries_before_every_push applies=all_runners no_absolute_paths_in_tracked_files
+2026-11-07T08:34:21Z	Epic 19	runner_ci_wait	head=81fbdeb3 runs=42355431429,42355431449 scope=part1(19.1-19.3,19.6,19.8) integrated_onto=a092b15f readme_checks=ok release_hunks=U-294+19.8(upgrade-harness_3dot_empty) new=DW-856,DW-857 shards-2=2150s
+2026-11-07T08:34:21Z	Run	planner_question	subject=part1_ahead_of_4.11 default=hold_behind_4.11 also=DW-856_release_hunk,DW-857_public_text,two_ipm-install_pieces
+2026-11-07T08:34:21Z	Run	planner_update	subject=part1_forecast merged_green=~10:15Z part2_contract=01-07Z_Sun
+2026-11-07T08:43:59Z	Run	planner_ruling	subject=merge_order part1_first_ahead_of_4.11 then_4.11_and_17_green_order
+2026-11-07T08:43:59Z	Epic 19	owner_decision	dw=DW-856 fix_in_part1_before_merge release_hunk=Reload_invoke_cmd_approved behaviour=remove_only_if_pip_runs tests=reload_and_bypass_remove_nothing_red_without_guard rerun=paths_a,b,p merge_eta=11:30-12:30Z
+2026-11-07T08:43:59Z	Epic 19	public_text_ruled	dw=DW-857 older_versions->other_versions
+2026-11-07T08:43:59Z	Epic 19	planner_ruling	subject=check_invoke_args,check_reinstall asked_for=yes
+2026-11-07T08:43:59Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=DW-856_in_part1
+2026-11-07T09:14:48Z	Epic 17	runner_complete	head=17989a90 stories=8 ci=success(42353010024,42353010006) release_tool_hunks=none decisions=DW-773 note=log_says_9_stories_correct_is_8
+2026-11-07T09:14:48Z	Epic 17	merge_enqueued	position=after_epic19_part1 reason=planner_0845Z_part1_first
+2026-11-07T09:15:56Z	Run	planner_ruling	subject=epic17_merge_now option=B replaces=0845Z_17_over_part1 conditions=feature_green_before_part1_integrates,known_unions,Persona296_count_ok_if_wording_same,readme_checks_rerun,4.11_over_both DW-773=draft_now DW-639=tier3_flake_after_DW-840
+2026-11-07T09:15:56Z	Epic 17	amendments_verified	spine=5_rows epics.md=17.9,DW-816 spec-33-2:145
+2026-11-07T09:15:56Z	Epic 17	epic_merge_started	head=17989a90 into=feature
+2026-11-07T09:16:17Z	Epic 17	epic_merged_to_feature	merge=70e4246d head=17989a90 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine_lint=10_low_baseline(no_ad_id/fields) release_tools=untouched
+2026-11-07T09:16:17Z	Epic 17	decision_sheet_recorded	decided=DW-773_to_planner_public_text
+2026-11-07T09:16:17Z	Run	deps_hash_rerecorded	reason=burndown_inserted story=17.9 hash=23068bba45ad
+2026-11-07T09:16:41Z	Epic 19	runner_resumed	reason=integrate_over_epic17_after_feature_green
+2026-11-07T09:24:41Z	Epic 17	public_text_relayed	dw=DW-773 L153(+short_option) L340_optional AD-19_as_built_offer
+2026-11-07T09:25:15Z	Epic 17	public_text_ruled	dw=DW-773 L153=ruled_with_pool_clause(verify_Decide:456-465) L340=approved AD-19=amend_in_place_U7_marker in_flight_specs_citing_AD-19=none(checked_09:22Z)
+2026-11-07T09:25:15Z	Epic 17	worktree_provisioned	branch=OCT-epic17 ff_to=70e4246d reason=DW-773_docs_only_commit
+2026-11-07T09:25:33Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=DW-773_docs_only_commit
+2026-11-07T09:28:59Z	Epic 17	public_text_relayed	dw=DW-773 L153_shared_pool_clause_exception(invalid_value_reads_live) options=extended_clause_or_drop L340,AD-19_prepared
+2026-11-07T09:29:19Z	Epic 17	public_text_ruled	dw=DW-773 L153_final=instruction("in the shared actor pool, update the production after you change them.") L340,AD-19=approved_as_prepared
+2026-11-07T09:29:19Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=land_DW-773
+2026-11-07T09:45:49Z	Run	ci_green_verified	head=70e4246d runs=42359025069,42359025056 result=success via=gh
+2026-11-07T09:45:49Z	Epic 17	runner_ci_wait	head=b477f05d runs=42360121309,42360121514 docs_only=DW-773 amendments=AD-19
+2026-11-07T10:09:41Z	Epic 17	runner_complete	head=b477f05d docs_only=DW-773 ci=success(42360121309,42360121514)
+2026-11-07T10:09:41Z	Epic 17	epic_merge_started	head=b477f05d into=feature
+2026-11-07T10:09:55Z	Epic 17	epic_merged_to_feature	merge=d93456a9 head=b477f05d docs_only=DW-773 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 spine_lint=baseline
+2026-11-07T10:11:37Z	Epic 11	worktree_provisioned	branch=OCT-epic11 ff_to=d93456a9 kept_worktree reason=story_11.27_tier3a_DW-550/774
+2026-11-07T10:11:37Z	Epic 11	worktree_bootstrapped	epic=11 result=ok
+2026-11-07T10:11:37Z	Epic 11	runner_dispatched	agent=a9ecc108c6b23c2ec lane=A slot=ocutalon-slot-a model=opus prompt=dispatch-epic-11-1127.md timebox=3h duplicate_ci_cancelled=42362880501,42362880523
+2026-11-07T10:33:30Z	Epic 4	planner_ruling	subject=4.11_K21_fallback compact_band_vertical_scroll_if_panel_plus_64px_floor_cannot_fit no_sideways no_label_change panel_starts_closed pin_K21_banner_before_after only_if_no-scroll_fix_misses_timebox report_which
+2026-11-07T10:42:50Z	Epic 11	runner_clarification	kind=timebox_stop story=11.27 cause_ruled_out=gateway_session_cap evidence=3_stacks,60-1250ms,CI_IRIS_idle,DW-774_is_page.close options=a,b(recommended_diagnostics),c head=a0c09516
+2026-11-07T10:52:00Z	Epic 11	planner_ruling	subject=11.27 option=b(after_DW-688) conditions=traces_never_leave_CI_host,7d,no_upload_pin,stop_if_not_self-hosted;gateway_dump_counts_only;report_if_>2min;1.0.4_if_by_19Z_Sun option_a=no option_c=Planner
+2026-11-07T10:52:00Z	Epic 11	planner_ruling	subject=DW-688_first story=11.28 timebox=90m test_only proof=20/20
+2026-11-07T10:52:00Z	Epic 11	runner_resumed	agent=a9ecc108c6b23c2ec reason=DW-688_then_11.27b
+2026-11-07T10:52:54Z	Epic 39	runner_complete	head=fd3aed63 stories=1 ci=success(42363080747,42363080518)
+2026-11-07T10:52:54Z	Epic 39	amendments_verified	epics.md:8895_marker
+2026-11-07T10:52:54Z	Epic 39	epic_merge_started	head=fd3aed63 into=feature

@@ -120,7 +120,7 @@ Method TestRecordedCases()
 	If '$IsObject(service) Quit
 	Set service.RunRef = ..Run
 	Set before = ..Evals()
-	Set position = 0, sendable = 0, turns = 0, watched = 0, incidents = 0
+	Set position = 0, sendable = 0, turns = 0, watched = 0, incidents = 0, digests = 0
 	While $ListNext(names, position, name) {
 		Set case = ##class(%DynamicAbstractObject).%FromJSONFile(##class(%File).NormalizeFilename("case.json", ##class(%File).SubDirectoryName(folder, name)))
 		Do $$$AssertEquals(case.name, name, name_": the case's name is its folder's")
@@ -158,10 +158,21 @@ Method TestRecordedCases()
 			Do $$$AssertEquals($Length($List(sent, 1))_"|"_$List(sent, 2)_"|"_$List(sent, 3), "22|"_name_"|ocutalon.readerSnapshot/1", name_": a fresh IncidentRef, SourceItemId the folder name, and a snapshot of the reader format")
 			Do $$$AssertTrue($List(sent, 4) >= 1, name_": the snapshot holds at least one failure: "_$List(sent, 4))
 			Do $$$AssertEquals($List(sent, 5), 1, name_": its row was open when the IncidentCase was dispatched")
+		} ElseIf case.kind = "digest" {
+			Set digests = digests + 1
+			Do $$$AssertEquals(output.StringValue, "", name_": a case of kind digest is sent, not skipped")
+			Set sent = $Get(^OcuTalonTest("EvalIn", "digest", digests))
+			If sent = "" Do $$$AssertTrue(0, name_": the double was given its DigestCase") Continue
+			Do $$$AssertEquals($Length($List(sent, 1))_"|"_$List(sent, 2)_"|"_$List(sent, 6), "22|"_name_"|1", name_": a fresh ItemId, SourceItemId the folder name, and its row open when the DigestCase was dispatched")
+			Do $$$AssertEquals($List(sent, 3)_"|"_$List(sent, 4)_"|"_$List(sent, 5), case.checks.%ToJSON()_"|"_case.vitals.%ToJSON()_"|"_$Select($IsObject(case.%Get("saved")): case.saved.%ToJSON(), 1: ""), name_": the DigestCase holds the case's checks, vitals and saved summaries as JSON")
+			Do $$$AssertEquals(##class(OcuTalon.Checks.Render).Render(case.checks, .rows), case.expectation.catalogKey, name_": Checks.Render turns its checks into the key it expects")
+			Do $$$AssertTrue($Extract(name, 1, 7) = "digest-", name_": its folder starts with digest-")
 		} Else {
 			Do $$$AssertTrue(output.StringValue [ case.kind, name_": a case of kind "_case.kind_" is skipped with its kind in the reason: "_output.StringValue)
 		}
 	}
+	Do $$$AssertTrue(digests >= 3, "eval/ holds at least three digest cases, all sent: "_digests)
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "digest")), digests, "and the double was given exactly those DigestCases")
 	Do $$$AssertTrue(incidents >= 11, "eval/ holds at least eleven incident cases, all sent: "_incidents)
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "incident")), incidents, "and the double was given exactly those IncidentCases")
 	Do $$$AssertTrue(sendable >= 1, "eval/ holds at least one case that EvalIn sends: "_sendable)

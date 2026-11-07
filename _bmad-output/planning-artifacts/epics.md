@@ -5988,6 +5988,12 @@ So that I control what OcuTalon spends without restarting anything.
 
 **DW-100 moved to Story 18.3** [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M7: the routed ledger bullet became an acceptance criterion of Story 18.3, the Lane B story that owns `OcuTalon.Msg.Catalog.Core`, where both texts live]
 
+- DW-647: Retry entries' timeouts derive from RetryTimer(TimerSeconds) while Decide's retry wait T2 uses T1 = TimerFor(request): for a flagged turn T2 (about 30 s) is shorter than the retry entry's worst case (about 42 s); Timeouts.Apply makes the two agree (ledger; routed by adjudication 2026-11-05)
+- DW-727: Spine AD-8 now gives the retry entries Derive(max(MINTIMER, min(TimerSeconds, 110 - TimerSeconds))) (Timeouts.RetryTimer); Timeouts.Apply applies exactly that to the retry runners' entries (ledger; routed by cr 2026-11-05)
+
+- DW-757: An instance that already holds the claude-sonnet-5-5 Price row keeps cache-read 0.2 after upgrade (the page says 0.10); decide with the price edits whether a never-edited seeded price is corrected on upgrade (ledger; routed by harvest 2026-11-05)
+- DW-758: A resolved or newly chosen provider keeps the entry's base_url and headers; the bridge's provider change drops (or refuses) a base_url or headers that belong to another provider (ledger; routed by harvest 2026-11-05)
+
 ### Story 17.5: Check the vital signs and every coverage entry
 
 As a user,
@@ -6090,6 +6096,52 @@ So that a quiet digest really means everything I watch was checked and passed.
 **Given** UJ-2's morning digest (E › Key Flows › Flow 2) with every fixture check passing
 **When** its Slots are composed
 **Then** the vital-sign figures, the production summary ("all running, no errors, no backlog"), "Your IRIS system is healthy" and "Everything I checked passed." all come from code, as the flow requires (FR-37, UX-DR106, UX-DR120)
+- DW-816: tests that send ticks a day or more ahead (Epic 39's beat tests at now plus 48 hours) make Digest queue scheduled digests for every other session on the stack and leave future-dated Sent rows, which suppress that stack's real scheduled digests and can turn a test that counts its session's notices red; keep test ticks from making other sessions due, or scope the due check, so no test leaves a future Sent row (ledger; routed by cr 2026-11-06)
+
+### Story 17.8: Only Decide moves a conversation's link
+
+[ADDED 2026-11-05, fix-forward inside Epic 17: the Contest Planner's rulings on DW-729, DW-730 and DW-726 under the owner's delegation ("I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."), placed by runner A as a fix-forward story because Stories 17.3 and 17.4 do not touch the conversation-link path; it builds on Story 17.2 and must be merged into Epic 17's branch before the epic completes]
+
+As a user,
+I want the conversation to continue only from an answer I actually got,
+So that a late, superseded or failed model reply never changes what OcuTalon remembers of our chat.
+
+**Acceptance Criteria:**
+
+**Given** a `turn` whose reply `Decide` accepts as the decision's answer, on time and untainted
+**When** `Decide` accepts it
+**Then** `Decide`, and only `Decide`, points the conversation's link at that reply's session; runners never move the link (`SaveRetried` and `SaveLinked` record their session only), for a fresh, a compacted and a saved turn alike (AD-6, AD-8)
+
+**Given** a reply `Decide` does not accept (late, superseded, the first attempt or the retry)
+**When** it arrives
+**Then** its cost is counted and it moves nothing: the link keeps naming the session it named, whatever the turn type (AD-6, AD-8, AD-20)
+**And** tests pin, each with a mutation shown going red: a retry that finishes just after its timer while `Decide` is busy leaves the link unchanged (the race); a late first attempt with no retry, on a fresh turn and on a compacted turn, leaves it unchanged; an accepted on-time reply moves it; and Story 17.2's three late-retry tests still pass
+
+**Given** a second-model retry of a `turn`
+**When** its seed is built
+**Then** the seed is the stored conversation up to and including the current user message, and nothing the first attempt produced goes in (no partial reply, tool call or result, or error text); a test shows the seed holds no first-attempt content, with a mutation shown (AD-6, AD-8; an attempt in which a tool ran is never retried, so nothing the user saw is lost)
+
+**Given** `docs/bridge-guide.md`'s "Second-model retry" section
+**When** the arbiter is in place
+**Then** the section still says only what the code does; any wording change is public text that the Contest Planner approves before it is pushed (U-286)
+
+- DW-729: A retry that ends just after T2 while Decide is busy can still move the link (the runner reads lateness once); one arbiter: only Decide moves the link, on accepting a reply (ledger; ruled by the Contest Planner 2026-11-05)
+- DW-730: A late first attempt with no retry can move the link through SaveLinked on a fresh or compacted turn; closed by the same arbiter (ledger; ruled by the Contest Planner 2026-11-05)
+- DW-726: The retry's seed holds the first attempt's unseen exchange; the seed is the stored conversation up to and including the current user message, nothing from the first attempt (ledger; ruled by the Contest Planner 2026-11-05)
+
+### Story 17.9: Epic 17 burn-down
+
+[AMENDED 2026-11-07, chartered by Epic 17's burn-down gate, Rule 17: DW-771's work is in this story by the owner's ruling (decided by the Contest Planner under the owner's delegation, 2026-11-06T02:37:12Z: the settings model Test is a connection test for every runner); DW-786 and DW-728 waited on Epics 39 and 40, which have merged.]
+
+As an administrator,
+I want the settings page's model Test to tell me whether each agent's model answers, and the checks' live-read logic to live in one place,
+So that a working diagnosis model is never reported as not answering, and the digest and the checks can never drift apart.
+
+**Acceptance Criteria:**
+
+- DW-771: the settings model Test (`Bridge.Settings.TestRequest` / `TestAnswer`) is a connection test for every runner, the diagnosis agent's included: it passes on a non-empty reply within the timer through that runner's provider, model and key, with no reply-class validation (the spine's Conventions row "Settings model Test"); a test shows the diagnosis Test passes with a mock reply that fails `DiagnosisReply` validation (ledger; routed by the owner 2026-11-06)
+- DW-786: `Checks.Coverage.Live` and `Checks.Process.Run` share one live-read helper (the not_checked reason chain, the cut rule, the state text and the failure wording), so the digest's coverage rows and the checks' results cannot drift; the existing tests of both stay green (ledger; routed by cr 2026-11-06)
+- DW-728: `docs/bridge-guide.md` names `RetryItem` and `RetryOf` in its Settings and Messages reference tables as well as in the Second-model retry section, so the guide's structure stays consistent; no other wording changes (any is public text for the Contest Planner) (ledger; routed by cr 2026-11-05)
 
 ## Epic 18: An admin changes settings in the web app (step 2)
 
@@ -8928,6 +8980,42 @@ So that a save followed by a run works, and "Applies within a minute" is true fo
 
 - DW-780: a saved interval, hours or on/off change does not move the stored NextDueAt (ledger; routed by split 2026-11-06)
 - DW-803: Checks.Beat.RunNow reads the settings through the per-process 60-second cache, so a save followed at once by Run now is refused as empty (ledger; routed by cr 2026-11-06)
+
+### Story 39.9: Heartbeat follow-up: today's cost matches its check-ins, and the tidy-ups
+
+*Home lane: A and B (one runner; the Planner's follow-up rulings name both lanes' files).* [AMENDED 2026-11-07, Story 39.9 spec gate, apply-and-report (Rule 5 tier 1), as Story 39.7's home-lane amendment: it read "*Home lane: A.*"]
+
+[ADDED 2026-11-07, SC-5 re-open of Epic 39 for a post-merge follow-up, chartered by the runner under the Contest Planner's rulings of 2026-11-06 (relayed by the orchestrator; fix-forward, no boundary or dependency change): the Planner's 1.0.2 demo walk (DW-824), the "Every hour" schedule line (PUBLIC TEXT ruled by the Planner 2026-11-06), and the test hygiene routed here by Epic 39's burn-down ruling (DW-785, DW-670). Split rule (Planner 2026-11-06): if the third and fourth groups below would miss the 1.0.3 merge line, they split off as Story 39.10.]
+
+As a person watching the Heartbeat card,
+I want the Today line's cost to agree with the check-ins it counts, and the schedule to read naturally,
+So that the card never shows a total the count does not explain.
+
+**Acceptance Criteria:**
+
+**Given** the online-demo session of the 1.0.2 walk (a Watch, an incident with its approval, a Save with heartbeat On, then Run the heartbeat now, deciding Act with read-only checks)
+**When** the card shows "Last check-in … · $0.0003" and "Today: 1 check-in, $0.0006"
+**Then** the story first records, with evidence, exactly what Today's total sums (a second beat or decision, the notice, the run-now turn, or something else)
+**And** the Today line and its count then agree, or the line says what it sums; any change of shown text is PUBLIC TEXT, ruled before it is committed
+**And** a regression test reproduces the one-check-in, double-cost case and shows the fix, with a demonstrated mutation (Rule 19)
+
+**Given** a heartbeat interval of 60 minutes
+**When** the card's schedule line is shown
+**Then** it reads "Every hour, …" (for example "Every hour, 07:15 to 21:45", or "Every hour" all day) in place of "Every 1 hour, …", and every other interval reads exactly as before ("Every 30 minutes", "Every 2 hours", …) (PUBLIC TEXT ruled by the Planner 2026-11-06)
+**And** a fixed-strings test pins it, and EXPERIENCE.md is amended in place with a marker if it quotes the old form
+
+**Given** `docker/tests/test-heartbeat-overview.sh` and `docker/tests/test-triage-heartbeat.sh`
+**When** both run
+**Then** their duplicated security-overview check lives in one shared helper, and each script still checks exactly what it checks today; no pin is deleted or weakened
+
+**Given** `OcuTalon.Test.Web.GuideApi`'s `TestOnlyTheMarkerChanges` and `TestRunAgain`
+**When** either fails on its fingerprint
+**Then** the failure message prints both fingerprints, so the next occurrence can be diagnosed
+**And** the race is fixed only if its cause is plain and in Epic 39's code; otherwise the residual is recorded
+
+- DW-824: Heartbeat card: Today's cost sums more than the counted check-ins (online demo 1.0.2: Last check-in $0.0003, Today: 1 check-in, $0.0006) (ledger; routed by orchestrator 2026-11-06)
+- DW-785: docker/tests/test-heartbeat-overview.sh repeats about 25 lines of test-triage-heartbeat.sh's security-overview rule; unify both checks in one shared helper (ledger; routed by cr 2026-11-06)
+- DW-670: flake: GuideApi TestOnlyTheMarkerChanges and TestRunAgain went red on their fingerprint and passed on an unchanged rerun; print both fingerprints on failure (ledger; routed by harvest 2026-11-04)
 
 
 ## Epic 40: Choose how OcuTalon talks to you

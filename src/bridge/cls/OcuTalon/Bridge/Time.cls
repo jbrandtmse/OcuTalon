@@ -11,32 +11,86 @@
 ///   - SecondsUntil: the whole seconds, rounded down, from now to a UTC time, negative for a time in the past, which a re-armed
 ///     approval timer reads (AD-5). Ens.Util.Time.SecondsUntil reads a time that ends in Z as local time, so the bridge never calls it;
 ///   - DaysCutoff: the day check and UTC cutoff of a purge, which Bridge.Purge and the host's purges share (AD-27, DW-371): now moved back a whole number of days, at least 1.
-///   - Zone, SetZone and Apply: the instance zone's single run-time source (AD-18, Story 33.1). The source is the IANA name in the Decide host
-///     setting InstanceZone, empty for the container's TZ. Zone reads it (through Ext.Accessor.ValueFor), SetZone writes it after refusing a name
-///     that is not an IANA zone name with a file under /usr/share/zoneinfo, and Apply makes the process convert in the zone when the name changed since
-///     the process last applied one. THESE THREE ARE STUBS until Story 17.4: Zone returns "", SetZone answers "not implemented" (code 5003) and writes
-///     nothing, and Apply does nothing, so the process zone is untouched.
+///   - Zone, CheckZone, SetZone and Apply: the instance zone's single run-time source (AD-18). The source is the IANA name in the Decide host
+///     setting InstanceZone, empty for the container's TZ. Zone reads it (through Ext.Accessor.ValueFor; "" when it cannot be read), CheckZone
+///     refuses a name that is not "" or an IANA zone name (letters, digits, /, _, - and + only, so no dot and no @{, at most 64 characters) that names a file under
+///     /usr/share/zoneinfo, SetZone writes it (Settings.WriteRow) after CheckZone passes, and Apply makes the process convert in the zone when the
+///     name changed since the process last applied one. ToLocal, LocalDate, DayStartUtc and DayEndUtc call Apply first, so every job that converts
+///     follows a change with no restart, and a day ends at midnight in the zone. Apply keeps, in the process-private global ^||OcuTalon.Bridge.Time,
+///     the name it last applied and the zone the process inherited, which $SYSTEM.Process.TimeZone returned at the first apply (-1 is ""); it calls
+///     Process.TimeZone only on a change, puts the inherited zone back when the name becomes "", and does nothing in a process that never applied a
+///     zone and reads "". It never sets $ZTIMEZONE and uses no Python.
 /// Each returns "" for an unreadable input, except DaysCutoff, which returns an error status.
 Class OcuTalon.Bridge.Time
 {
 
-/// The instance zone's name as the setting InstanceZone holds it: an IANA zone name, or "" for the container's TZ. A stub until Story 17.4: "".
+/// The instance zone's name as the setting InstanceZone of Decide holds it: an IANA zone name, or "" for the container's TZ (and when the
+/// setting cannot be read).
 ClassMethod Zone() As %String
 {
-	Quit ""
+	Quit ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("InstanceZone")
 }
 
-/// Stores the instance zone, an IANA zone name or "" for the container's TZ. A stub until Story 17.4: not implemented (code 5003), nothing written.
+/// OK when the name is "" (the container's TZ) or an IANA zone name: 1 to 64 characters of letters, digits, / _ - and + only (so no dot, no ..
+/// and no @{), that names a file, not a folder, under ZONEINFO. Otherwise an error whose plain-English reason never holds the name. It changes nothing.
+ClassMethod CheckZone(name As %String) As %Status
+{
+	Set name = $Get(name)
+	If name = "" Quit $$$OK
+	If name [ "@{" Quit $$$ERROR($$$GeneralError, "The time zone is refused: a setting takes a plain value and never a placeholder")
+	If '$Match(name, "^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)*\z") || ($Length(name) > 64) {
+		Quit $$$ERROR($$$GeneralError, "The time zone must be empty (the container's own) or a name such as Europe/Berlin of at most 64 characters")
+	}
+	Set path = ..#ZONEINFO_name
+	If '##class(%File).Exists(path) || ##class(%File).DirectoryExists(path) {
+		Quit $$$ERROR($$$GeneralError, "The time zone is not one that this system knows: it must name a zone file such as Europe/Berlin")
+	}
+	Quit $$$OK
+}
+
+/// Stores the instance zone, an IANA zone name or "" for the container's TZ, in the Decide host setting InstanceZone (Settings.WriteRow, read
+/// back), after CheckZone passes; nothing is written when it does not. Every job follows with its next conversion (Apply).
 ClassMethod SetZone(name As %String) As %Status
 {
-	Quit $$$ERROR($$$NotImplemented)
+	Set name = $Get(name)
+	Set sc = ..CheckZone(name)
+	If $$$ISERR(sc) Quit sc
+	Set production = ##class(Ens.Director).GetActiveProductionName()
+	If production = "" Quit $$$ERROR($$$GeneralError, "No production is active, so the time zone cannot be changed")
+	Quit ##class(OcuTalon.Bridge.Settings).WriteRow(production, "Decide", "InstanceZone", name, ##class(OcuTalon.Bridge.Settings).#SETTINGROW)
 }
 
-/// Makes this process convert in the instance zone when the zone changed since the process last applied one. A stub until Story 17.4: does nothing.
+/// Makes this process convert in the instance zone when the zone changed since the process last applied one. It reads Zone and compares it
+/// with the name this process last applied, kept in ^||OcuTalon.Bridge.Time:
+///   - never applied and the zone is "": nothing;
+///   - never applied: the first apply, which keeps the zone the process inherited ($SYSTEM.Process.TimeZone returns it; -1 is "");
+///   - the name is the one last applied: nothing;
+///   - the name is "": the inherited zone is put back;
+///   - otherwise the new name is applied.
+/// A name that CheckZone refuses (a value written by hand) counts as "", so that Process.TimeZone is never given a name that no file under
+/// ZONEINFO backs, which it would silently read as UTC.
 ClassMethod Apply()
 {
-	Quit
+	Set name = ..Zone()
+	Set known = $Data(^||OcuTalon.Bridge.Time("applied"))
+	If known {
+		If name = ^||OcuTalon.Bridge.Time("applied") Quit
+	} ElseIf name = "" {
+		Quit
+	}
+	Set zone = $Select($$$ISOK(..CheckZone(name)): name, 1: "")
+	If 'known {
+		If zone = "" Quit
+		Set inherited = $SYSTEM.Process.TimeZone(zone)
+		Set ^||OcuTalon.Bridge.Time("inherited") = $Select(inherited = -1: "", 1: inherited)
+	} Else {
+		Do $SYSTEM.Process.TimeZone($Select(zone = "": ^||OcuTalon.Bridge.Time("inherited"), 1: zone))
+	}
+	Set ^||OcuTalon.Bridge.Time("applied") = name
 }
+
+/// The folder of the zone files.
+Parameter ZONEINFO = "/usr/share/zoneinfo/";
 
 /// The current time in UTC, YYYY-MM-DDThh:mm:ssZ, whatever the process zone.
 ClassMethod NowUtc() As %String
@@ -49,6 +103,7 @@ ClassMethod NowUtc() As %String
 ClassMethod ToLocal(utc As %String) As %String
 {
 	If utc '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" Quit ""
+	Do ..Apply()
 	Set horolog = $ZDateTimeH(utc, 3, 7, , , , , , , "")
 	If horolog = "" Quit ""
 	Quit $Translate($ZDateTime(horolog, 3, 1), " ", "T")
@@ -66,6 +121,7 @@ ClassMethod DayStartUtc(day As %String) As %String
 	If day '? 4N1"-"2N1"-"2N Quit ""
 	Set days = $ZDateH(day, 3, , , , , , , "")
 	If days = "" Quit ""
+	Do ..Apply()
 	Set utc = ""
 	Try {
 		Set utc = $Translate($ZDateTime($ZDateTime(days_",0", -3), 3, 1), " ", "T")_"Z"
