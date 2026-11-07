@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-07-2026 07:29
+last_updated: 11-07-2026 07:47
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -251,7 +251,7 @@ development_status:
   16-11-the-splash-promises-telegram-only-when-the-release-includes: done
   epic-16-retrospective: optional
 
-  epic-17: in-progress
+  epic-17: done
   17-2-retry-once-on-a-second-model-before-falling-back: done
   17-3-run-each-agent-on-a-supported-provider: done
   17-4-apply-model-price-budget-and-zone-changes-through-the-bridge: done

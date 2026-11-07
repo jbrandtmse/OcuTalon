@@ -310,3 +310,6 @@
 2026-11-07T07:31:25Z	Epic 17	standing_rule	rule=test-boundaries_before_every_push;no_absolute_local_paths_in_tracked_files check=epic_diff_clean(only_the_git-common-dir_lock_expression)
 2026-11-07T07:47:14Z	Story 17.9	smoke_complete	method=cli(fresh_live_production;docker/tests/test-bridge-guide.sh) result=pass iterations=1 defects_caught=0 evidence=e17s9s:production_30_PASS_rc=0;test-bridge-guide_rc=0 model=claude-opus-5-5
 2026-11-07T07:47:14Z	Story 17.9	fresh_check	env=recipe(fresh_warm_stacks_e17s9fw,e17s9rw) tests=3(Bridge.SettingsApply,Bridge.SecondModel,Digest.Runs) result=pass order=forward,reverse story_base=6c675269
+2026-11-07T07:47:30Z	Epic 17	epic_retro_skipped	reason=policy(gates.retrospective:skip)
+2026-11-07T07:47:30Z	Epic 17	epic_status_done	stories=9(17.2-17.9)
+2026-11-07T07:47:30Z	Epic 17	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=sonnet high_med_avg=1.9 unresolved_high_med_avg=1.1(first_reviews:17.2=4,17.5=3,17.6=2,others_0) metric=unresolved rework_stories=3(17.2,17.5,17.6;causes:AD/contention/CI,not_language_semantics) review_loop_thrash=0 rework_lang_defects=0 review_high=3(17.5_AD,17.6_AD-14,17.6_retry_trace) review_med=many result=hold applied=false(record_only)
