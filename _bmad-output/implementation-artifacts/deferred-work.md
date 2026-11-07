@@ -4790,11 +4790,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: IPM 0.10.10 Lifecycle.Base InstallOrDownloadPythonRequirements returns unless pParams(cmd) is install, load or update; the Reload Invoke cannot see cmd. Reachable after a -bypass-py-deps install, then zpm "ocutalon compile" in OCUTALON.
 - 2026-11-07T07:37:18Z status=escalated owner=burndown by=cr note=decision sheet: gate the step on cmd (a cmd Default arg); needs a live IPM measurement and a release hunk the freeze bars
+- 2026-11-07T08:44:51Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_08:45Z:fix_in_part_1_before_the_merge;remove_a_copy_only_when_the_pip_step_runs_in_the_same_lifecycle;Reload-invoke_cmd_argument_approved_under_the_freeze;tests_reload_and_-bypass-py-deps(nothing_removed;IPM_imports+zpm_list_work;red_without_the_guard);re-run_IPM_a,b,p
 
 ### DW-857: RemoveStaleCopies replaces any of the 36 pinned names at any other version (a newer copy, or another application's copy in the shared mgr/python), while the ruled disclosure bullet names only older copies of IPM's six
 - source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Replace compares only version equality with the pin (Ipm.cls); the Boundaries say version differs; docs/install-ipm.md disclosure says older versions of the six, which IPM installs for itself.
 - 2026-11-07T07:37:18Z status=decision-pending owner=burndown by=cr note=decision sheet: narrow the step to older copies, or rule a wider disclosure (PUBLIC TEXT); spec Boundaries vs ruled text
+- 2026-11-07T08:44:51Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_08:45Z:PUBLIC_TEXT_approved:the_disclosure_says_other_versions;fixed-strings_pin+mutation
 
 ### DW-858: No IPM check asserts the STEP Python replaced lines in the real install log (only unit tests on a redirected device), so check_reinstall's no-STEP grep could pass on a changed line format
 - source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: med | footprint: out-of-footprint

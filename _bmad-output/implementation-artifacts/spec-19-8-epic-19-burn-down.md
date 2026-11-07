@@ -2,7 +2,7 @@
 title: 'Epic 19 burn-down: the IPM install imports the pinned packages, and the docs name the hosts it contacts'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'e96be4f3014c6979b99f96f35710e5a89ef1f550'
 baseline_commit: 'e96be4f3014c6979b99f96f35710e5a89ef1f550'
 review_loop_iteration: 0
@@ -147,6 +147,9 @@ deferred:
   - If M5 shows that the image imports older copies, record that in the evidence and the frontmatter `deferred:` (a Lane B finding for the lead), and do not edit AD-23's "IPM's own Python packages don't clash (S11)".
 - LAST, separate task (DW-830 docs; only if M6's hosts differ from pypi.org, files.pythonhosted.org and huggingface.co). Change the host clause of README A4 and `docs/install-ipm.md` A6 to exactly the hosts seen, using the PUBLIC TEXT items below with the measured host list. Update `test-release-sequence.sh:2918,2920` to the new whole lines. If the hosts are the same three, change nothing and record that.
 
+- [ ] [Owner] DW-856 (the Contest Planner's ruling of about 08:45Z; fixed in part 1, before the merge): `RemoveStaleCopies` removes a copy ONLY when IPM's pip step runs in the same lifecycle -- it removes nothing unless the pinned version of that distribution will be installed or is already importable. Approved release-tool hunk under the freeze: the Reload-invoke `cmd` argument (both manifests: `<Default Name="cmd" Value=""/>` and a third `<Arg>${cmd}</Arg>` on the Reload Invoke; `release/ipm-install.sh` `check_invoke_args` expects the third argument; measure that `${cmd}` reaches the method on a live IPM). Tests: (a) a reload with pip skipped and (b) a `-bypass-py-deps` load: in each nothing is removed, and afterwards IPM's own imports and `zpm "list"` still work; each shown red with the guard removed (mutation lines). Then re-run IPM paths `a`, `b` and `p` (local paths only).
+- [ ] [Owner] DW-857 (PUBLIC TEXT approved): in `docs/install-ipm.md` the disclosure bullet becomes EXACTLY: "- The second command puts these packages in the instance's shared Python folder, mgr/python in the IRIS install directory. Where that folder already holds other versions of certifi, charset_normalizer, idna, requests, typing_extensions or urllib3, which IPM installs for itself, the second command replaces them with the versions OcuTalon pins. IPM's own packages work with these versions." Update its fixed-strings pin and show a mutation red. The last sentence still rests on condition 2, checked against IPM 0.10.10.
+
 **Acceptance Criteria:**
 - Given the local-artifact IPM install (path A and part p), when check 32 runs, then each of the six modules imports the pinned copy (`__file__` under `<mgr>/python` with the pinned RECORD's hash, `__version__` equal to the pin where defined), and check 32 fails otherwise (DW-829).
 - Given the unfixed tree, when Task 0 runs the import check, then the evidence file records `__version__` and `__file__` for all six and the decision taken. The import check's red on a stale copy is observed (on the unfixed tree, or under a mutation that skips the fix).
@@ -195,6 +198,8 @@ Rejected:
 - reported: AA3: release hunks beyond the literal freeze list (`check_invoke_args`, `check_reinstall`). They are listed for the orchestrator in the review's Decisions; no change.
 
 ## Spec Change Log
+
+- 2026-11-07 (lead): rework iteration 1 opened on the Contest Planner's rulings of about 08:45Z (DW-856 guard, DW-857 text); scope = the two [Owner] items only.
 
 - 2026-11-07 (lead, before implement): Task 0 measured ahead of implement (evidence committed); the Planner's rulings recorded under Design Notes "Rulings (2026-11-07 ...)": DW-829 fix with four conditions, the disclosure bullet, DW-830 Option 2 hosts.
 
