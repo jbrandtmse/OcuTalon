@@ -2557,3 +2557,5 @@
 2026-11-07T20:58:19Z	Run	feature_merged_locally	from=origin_50103869(Planner_rc2_record) pushed=f4deed1b
 2026-11-07T20:58:19Z	Run	ci_run_cancelled	runs=42413018315,42413018327(574736a5),42413420890,42413420906(1011b81c) reason=superseded_feature_heads;free_queue
 2026-11-07T20:58:59Z	Epic 11	ci_flake_rerun	head=882b6d4b run=42406393504 job=browser(DW-555_signedOut_navigation) lane-a=success
+2026-11-07T21:21:49Z	Run	planner_request	subject=embedded_python_bug_bonus action=read-only_explore_agent no_filing(owner_posts)
+2026-11-07T21:23:52Z	Run	planner_update	subject=embedded_python_bug_candidates strong=signal11_AIHub_callback(S11,build154U,aarch64) weaker=kwargs_ignored(DW-792,retry_first),eval_globals,WorkMgr_busy_python_worker not_EP=DW-829(IPM/pip),DW-856,FastEmbed.EmbedBatch
