@@ -1,0 +1,12 @@
+{
+  "name": "digest-claims-fine",
+  "match": {
+    "marker": "digest-claims-fine"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Everything I checked passed. Everything else I checked passed. Your IRIS system is healthy. All good. Everything\u2019s fine. Everything is fine. No issues. No problems. Nothing to worry about. A partner asked about an invoice."
+    }
+  ]
+}

@@ -11,6 +11,8 @@
 ///     and incidents together); with 200 unhandled Decisions five are named, count is 200 and more is 195;
 ///   - TestEmptyItemId: a Decision with no ItemId is listed, and is no incident's own;
 ///   - TestOverflowEmptyTime: an entry with no time is the oldest: with more entries than the bound it is the one that is dropped;
+///   - TestEvalOwner (Story 17.7): for the owner eval (a digest case) the list holds the failed rows alone, in their order, although eval has an unhandled
+///     tell-now Decision and an incident awaiting approval; with no failed row it is empty;
 ///   - TestNothing: no entry gives a count of 0, no names and no overflow.
 Class OcuTalon.Test.Digest.NeedsYou Extends %UnitTest.TestCase
 {
@@ -205,6 +207,24 @@ Method TestOverflowEmptyTime()
 	Set result = ..List(session, [(..Failed("Row at 25", "middle", 25)), (..Failed("Row at 45", "late", 45)), (undated)])
 	Do $$$AssertEquals(result.count_"|"_result.more_"|"_result.names.%Size(), "6|1|5", "six entries: five named and one more")
 	Do $$$AssertEquals(..Names(result), "Row at 25: middle|Row at 45: late|Mail 3|Mail 2|Mail 1", "the entry with no time is the oldest, so it is the one dropped")
+}
+
+Method TestEvalOwner()
+{
+	Set owner = ##class(OcuTalon.Data.Ownership).#EVAL
+	Do ..Decision(owner, 10, "Eval mail")
+	Set diagnosis = ##class(OcuTalon.Test.Data.Fixture).Decision(owner, "diagnose", ..At(5), {"Summary": "An eval diagnosis"})
+	Do ..Keep(diagnosis)
+	Do ..Incident(owner, 5, "awaiting_approval", diagnosis)
+	Set result = ..List(owner, [(..Failed("Billing source", "5 messages queued", 3)), (..Failed("Orders production", "", 4))])
+	Do $$$AssertEquals(..Names(result), "Billing source: 5 messages queued|Orders production", "only the failed rows, in their order")
+	Do $$$AssertEquals(result.count_"|"_result.more, "2|0", "two entries and no overflow")
+	Set result = ..List(owner)
+	Do $$$AssertEquals(result.%ToJSON(), "{""count"":0,""names"":[],""more"":0}", "with no failed row nothing needs the owner eval, whatever its Decisions and incidents")
+	Set session = ..Session()
+	Do ..Decision(session, 10, "A session's mail")
+	Set result = ..List(session)
+	Do $$$AssertEquals(..Names(result), "A session's mail", "control: a session still lists its Decisions")
 }
 
 Method TestNothing()

@@ -5,7 +5,8 @@
 ///   3. the session's incidents (Ownership.Incidents) that are awaiting approval, each named by the Summary of its diagnose Decision (the Decision
 ///      that Incident.DecisionRef points at), or by its Production when that is empty.
 /// A Decision whose Ref is an awaiting incident's DecisionRef, or whose ItemId is that incident's Ref, is the incident's own and appears once, as the
-/// incident. An entry with no name is left out.
+/// incident. An entry with no name is left out. For the owner eval (OcuTalon.Data.Ownership EVAL, a digest case) the list holds the failed rows alone,
+/// because the ownership API refuses eval and reads no session source for it.
 /// The result is {"count", "names", "more"}: count is the number of entries, names holds at most NEEDSYOUMAX names, and more is count minus the names
 /// kept. When there are more entries than NEEDSYOUMAX, the newest are kept and the oldest dropped (the time of a row is its checkedAt, of a Decision its
 /// RecordedAt, of an incident its NoticedAt), and the names kept stay in the order above. Lane A; it reads through the ownership API and writes nothing.
@@ -36,6 +37,10 @@ ClassMethod List(sessionRef As %String, failedRows As %DynamicArray, Output sc A
 				Set name = $Select(row.finding '= "": entry_": "_row.finding, 1: entry)
 				Do ..Add(.entries, .count, name, row.checkedAt)
 			}
+		}
+		If sessionRef = ##class(OcuTalon.Data.Ownership).#EVAL {
+			Set result = ..Bound(.entries, count)
+			Quit
 		}
 		Set incidents = ##class(OcuTalon.Data.Ownership).Incidents(sessionRef, .sc)
 		If $$$ISERR(sc) Quit

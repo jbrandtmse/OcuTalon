@@ -11,6 +11,9 @@
 ///   - Rows records its window as ^||DigestProbe("rows", n) = $ListBuild(fromUtc, toUtc) and gives the rows of Test.Digest.CoverageProbe (healthy vital
 ///     signs and the fed reads), and an error status when FailRows is set. After Feed, it gives instead the five vital rows that Feed was given and the
 ///     watched rows, with one coverage line for each;
+///   - SendResult (Story 17.7) records the DigestResult as ^||DigestProbe("result", n) = $ListBuild(itemId, sourceItemId, catalogKey, allClear, named, checked,
+///     decisionRef, fallback, fallbackReason), and fails when FailResult is set; Cost and Channels count their calls under ^||DigestProbe("cost") and
+///     ^||DigestProbe("channels") and then do the product's own work;
 ///   - Schedule and Resend work only for the sessions of Only (comma-separated), so that a tick queues and resends nothing for a session the test does not own;
 ///   - Covered records each answer of the product's check, in order, as ^||DigestProbe("covered", n) = 0 or 1.
 /// Cost and NeedsYou are the product's own: the tests feed them with fixture rows. LOCKSECONDS is 1, so that a held lock costs the test a second.
@@ -45,6 +48,8 @@ Property ThrowItems As %String [ Transient ];
 Property FailSummary As %Boolean [ InitialExpression = 0, Transient ];
 
 Property FailRows As %Boolean [ InitialExpression = 0, Transient ];
+
+Property FailResult As %Boolean [ InitialExpression = 0, Transient ];
 
 /// Forgets what the probe recorded.
 ClassMethod Reset()
@@ -226,6 +231,26 @@ Method SendCompose(compose As OcuTalon.Digest.Msg.Compose) As %Status [ Private 
 	Set n = $Increment(^||DigestProbe("compose"))
 	Set ^||DigestProbe("compose", n) = $ListBuild(compose.SessionRef, compose.Kind, compose.DueAt, compose.IdempotencyKey, compose.WindowStart, compose.WindowEnd, compose.%Id())
 	Quit $$$OK
+}
+
+Method SendResult(result As OcuTalon.Eval.Msg.DigestResult) As %Status [ Private ]
+{
+	Set n = $Increment(^||DigestProbe("result"))
+	Set ^||DigestProbe("result", n) = $ListBuild(result.ItemId, result.SourceItemId, result.CatalogKey, result.AllClear, result.Named, result.Checked, result.DecisionRef, result.Fallback, result.FallbackReason)
+	If ..FailResult Quit $SYSTEM.Status.Error(5001, "zz the DigestResult could not be sent")
+	Quit $$$OK
+}
+
+Method Cost(sessionRef As %String, at As %String, Output sc As %Status) As %Numeric [ Private ]
+{
+	Do $Increment(^||DigestProbe("cost"))
+	Quit ##super(sessionRef, at, .sc)
+}
+
+Method Channels(sessionRef As %String, Output channels As %List, Output own As %List) As %Status [ Private ]
+{
+	Do $Increment(^||DigestProbe("channels"))
+	Quit ##super(sessionRef, .channels, .own)
 }
 
 Method Own(sessionRef As %String) As %List [ Private ]

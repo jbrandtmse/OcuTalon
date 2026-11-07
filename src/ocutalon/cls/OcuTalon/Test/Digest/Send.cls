@@ -14,6 +14,10 @@
 ///   - TestTickReachesDigest (Q1): a real Tick through Checks with a due session sends one Tick from Checks to Digest in the tick's session, adds no
 ///     BackgroundCheck row, and the session gets one scheduled digest;
 ///   - TestTickForwardFails (Q1): a Tick whose send to Digest answers an error or throws is still answered OK, with one warning;
+///   - TestModelClaimsFine (Story 17.7, AC3): with a Digest whose Rows seam answers a failed check (FedRowsDigest), a saved item whose mocked summary claims
+///     that everything is fine (the three reserved sentences, the six banned phrases and one plain sentence) comes out of the real Decide and reply guard as
+///     the guard's filtering of that text: none of the nine phrases, the plain sentence kept. The digest has AllClear 0 and a CatalogKey that is no
+///     all-clear, and its rendering has no reserved sentence or banned phrase, and "Your IRIS system is healthy" once, from digest.healthy;
 ///   - TestSavedSummaryThroughDecide, TestSavedFallback, TestNothingSavedNoRequest (AD-30): items saved in the window make exactly one untrusted turn through
 ///     Decide (the mock's log, and the body of the request that went from Digest to Decide: untrusted, fresh, no seed), whose 300-character text is cut to 240; a provider error gives digest.savedNoSummary with the Decision's fallback and one
 ///     information line; no item makes no request.
@@ -430,6 +434,67 @@ Method Requests(mark As %Integer, marker As %String) As %Integer [ Private ]
 		If (entry.method = "POST") && (entry.path = "/v1/messages") && $Find(entry.%ToJSON(), """marker"":"""_marker_"""") Set count = count + 1
 	}
 	Quit count
+}
+
+/// The text that ci/mock/scenarios/A/digest-claims-fine.json answers: the three reserved sentences, the six banned phrases (one with the curly apostrophe)
+/// and one plain sentence.
+ClassMethod Claims() As %String
+{
+	Quit "Everything I checked passed. Everything else I checked passed. Your IRIS system is healthy. All good. Everything"_$Char(8217)_"s fine. Everything is fine. No issues. No problems. Nothing to worry about. "_..#PLAIN
+}
+
+/// The plain sentence of the mock's text, which the guard keeps.
+Parameter PLAIN = "A partner asked about an invoice.";
+
+Method TestModelClaimsFine()
+{
+	If '..Ready(1) Quit
+	Set session = ..Session()
+	Set sc = $ClassMethod(..#FIXTURE, "UseItemClass", "Digest", "OcuTalon.Test.Digest.FedRowsDigest", .saved)
+	If $IsObject(saved) Set ..Swap = saved.%ToJSON()
+	Do $$$AssertStatusOK(sc, "a Digest whose Rows seam answers a failed check is put behind the item")
+	If $$$ISERR(sc) Quit
+	Do ..Item(session, "Partner mail [[mock:digest-claims-fine]]")
+	Set mark = $ClassMethod(..#MOCK, "LogMark")
+	Set result = ..Submit(session, "zzclaims:1")
+	Do ..AssertSending(result, "the SendDigest")
+	Do $$$AssertEquals(..WaitSent(session, 1), 1, "one digest is sent")
+	Do $$$AssertEquals(..Requests(mark, "digest-claims-fine"), 1, "exactly one request reached the model, for the summary")
+	Set row = ..SentRow(session)
+	Do $$$AssertEquals(row.catalogKey_"|"_row.allClear, "checks.notEverything|0", "the digest has a CatalogKey that is no all-clear and AllClear 0")
+	Set slots = {}.%FromJSON(row.slots)
+	Set summary = ""
+	Set iterator = slots.parts.%GetIterator()
+	While iterator.%GetNext(, .part) {
+		If part.key = "digest.saved" Set summary = part.slots.summary
+	}
+	Set filtered = ##class(OcuTalon.Checks.ReplyGuard).Filter(..Claims())
+	Do $$$AssertEquals(filtered, ..#PLAIN, "control: the guard keeps the plain sentence of the mock's text and nothing else")
+	Do $$$AssertNotEquals(summary, "", "the digest holds digest.saved with a summary")
+	Do $$$AssertEquals(summary, filtered, "the summary is the guard's filtering of the mock's text")
+	Set phrases = $ListFromString(##class(OcuTalon.Checks.ReplyGuard).#RESERVED_","_##class(OcuTalon.Checks.ReplyGuard).#BANNED)
+	Do $$$AssertEquals($ListLength(phrases), 9, "the three reserved sentences and the six banned phrases")
+	Set lower = $ZConvert($Translate(summary, $Char(8217), "'"), "L")
+	Set position = 0
+	While $ListNext(phrases, position, phrase) {
+		Do $$$AssertTrue('(lower [ $ZConvert(phrase, "L")), "the summary holds no '"_phrase_"'")
+		Do $$$AssertTrue($ZConvert($Translate(..Claims(), $Char(8217), "'"), "L") [ $ZConvert(phrase, "L"), "control: the mock's text did say '"_phrase_"'")
+	}
+	Do $$$AssertTrue(summary [ ..#PLAIN, "and it keeps the plain sentence")
+	Set text = ""
+	Set iterator = slots.parts.%GetIterator()
+	While iterator.%GetNext(, .part) {
+		Set rendered = ##class(OcuTalon.Msg.Catalog).Render(part.key, part.slots, "telegram", .sc)
+		Do $$$AssertStatusOK(sc, part.key_" renders")
+		Set text = text_$Char(10)_rendered
+	}
+	Set text = $ZConvert($Translate(text, $Char(8217), "'"), "L")
+	Set position = 0
+	While $ListNext(phrases, position, phrase) {
+		Set lowerPhrase = $ZConvert(phrase, "L")
+		Set count = $Length(text, lowerPhrase) - 1
+		Do $$$AssertEquals(count, $Select(phrase = "Your IRIS system is healthy": 1, 1: 0), "the rendered digest holds '"_phrase_"' "_$Select(phrase = "Your IRIS system is healthy": "once, from digest.healthy", 1: "never"))
+	}
 }
 
 Method TestSavedSummaryThroughDecide()

@@ -6,7 +6,8 @@
 ///     the snapshot that a beat builds now, and the row as stored;
 ///   - WaitDecision and Marked: the person's decision for a beat Item, and the requests of the CI mock that carry the person's marker;
 ///   - Check: a BackgroundCheck row as stored now.
-/// OnAfterOneTest removes the HeartbeatBeat rows and the settings of the sessions, then the base's clean-up.
+/// OnAfterOneTest removes the HeartbeatBeat rows and the settings of the sessions, then the scheduled digests that a Tick sent ahead of the clock caused on the
+/// stack (Test.Digest.FutureSent Remove; DW-816), asserts that none is left, then the base's clean-up.
 Class OcuTalon.Test.Checks.BeatCase Extends OcuTalon.Test.Watch.Case [ Abstract ]
 {
 
@@ -100,6 +101,8 @@ Method OnAfterOneTest(testname As %String) As %Status
 	For i = 1:1:$Length(..Sessions, ",") {
 		If $Piece(..Sessions, ",", i) '= "" Do ##class(OcuTalon.Test.Checks.Beat).Forget($Piece(..Sessions, ",", i))
 	}
+	Do ##class(OcuTalon.Test.Digest.FutureSent).Remove()
+	Do $$$AssertEquals(##class(OcuTalon.Test.Digest.FutureSent).Count(), 0, "no scheduled digest dated ahead of the clock is left by the test's Ticks")
 	Quit ##super(testname)
 }
 

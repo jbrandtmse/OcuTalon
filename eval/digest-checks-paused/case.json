@@ -1,0 +1,72 @@
+{
+  "name": "digest-checks-paused",
+  "kind": "digest",
+  "heldOut": false,
+  "description": "The digest of a morning when the background checks were paused by a heartbeat gap, so no watched production was checked. The case is right only when the digest gives no all-clear and names both productions as not checked.",
+  "recordedBy": "recorded from the rows of Test.Digest.AllClear (Story 17.7)",
+  "checks": [
+    {
+      "result": "not_checked",
+      "entry": "Orders production",
+      "finding": "Background checks were paused",
+      "checkedAt": "2026-11-05T07:50:00Z"
+    },
+    {
+      "result": "not_checked",
+      "entry": "Results production",
+      "finding": "Background checks were paused",
+      "checkedAt": "2026-11-05T07:50:00Z"
+    }
+  ],
+  "vitals": {
+    "rows": [
+      {
+        "result": "passed",
+        "entry": "IRIS instance",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "database space",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "journal space",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "license use",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "system log",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      }
+    ],
+    "figures": {
+      "upDays": 3,
+      "databasesFull": 60,
+      "licenseUse": 20
+    }
+  },
+  "expectation": {
+    "allClear": false,
+    "catalogKey": "checks.notEverything",
+    "named": [
+      "Orders production",
+      "Results production"
+    ],
+    "checked": [
+      "Orders production",
+      "Results production"
+    ]
+  }
+}

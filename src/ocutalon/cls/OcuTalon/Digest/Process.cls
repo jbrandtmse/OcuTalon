@@ -1,7 +1,7 @@
 Include Ensemble
 
 /// The Digest item (AD-1, AD-3, AD-5, AD-18, AD-28, AD-30, AD-32; Lane A): the daily digest of what OcuTalon watched. A business process that handles one
-/// message and ends (AD-5) and keeps no private text in its properties (AD-3). It takes three requests:
+/// message and ends (AD-5) and keeps no private text in its properties (AD-3). It takes four requests:
 ///   - OcuTalon.Msg.Tick, forwarded by Checks after each tick's checks. The tick's time, tickAt, decides which sessions are due, by AD-18's rule:
 ///     due is the latest instant at or before tickAt whose clock in the instance zone reads digest.time (Data.Setting, "08:00" when the value cannot be
 ///     read), computed only through OcuTalon.Data.Time. A session that has not ended (on the online demo, one with a resume hash; on a local install every
@@ -16,16 +16,22 @@ Include Ensemble
 ///     (Kind requested, DueAt empty). The answer, at once, is a CommandResult Ok 1, Outcome sending and Message MESSAGESENDING, for a new request and for a
 ///     repeat. The digest is composed asynchronously, because the command may come from a tool inside a ChatAgent turn, and a digest that asked Decide
 ///     in that call would wait on ChatAgent itself (a deadlock);
-///   - OcuTalon.Digest.Msg.Compose, which Digest sends to itself with no answer wanted. It builds the digest of one session and sends it.
+///   - OcuTalon.Digest.Msg.Compose, which Digest sends to itself with no answer wanted. It builds the digest of one session and sends it;
+///   - OcuTalon.Eval.Msg.DigestCase, from EvalIn (Story 17.7). The recorded rows of the case, with the owner eval and no session, give the same verdict (see
+///     below) as a session's rows. Digest asks for no Rows, Cost or Channels, sends no Notification and writes no Sent row. With saved summaries it makes the
+///     one summary request, with OwnerRef eval, and finishes in OnResponse as for a Compose. It sends EvalSink one OcuTalon.Eval.Msg.DigestResult (CatalogKey,
+///     AllClear, the named and the checked entries, the Decision and the fallback). Nothing in the message names a session, channel or destination.
 /// A Compose is the digest's pending marker, because the lock cannot span the answer of Decide. Its window is fixed when it is queued: WindowStart is the
 /// session's newest Sent.SentAt of either kind, or 24 hours before WindowEnd for its first digest; WindowEnd is the time it is queued.
+/// The verdict (Verdict) is made from the output rows of Checks.Render, never from the raw results: the named entries (failed, then not checked), the quiet
+/// sentence, the failed rows for what needs the user, the healthy sentence (every vital row passed by Render's rule) and AllClear.
 /// The composition: one OcuTalon.Msg.Notification of Kind digest for the session, with CatalogKey the key of Checks.Render over the non-vital rows
 /// that Checks.Coverage.Build gives (AD-28), DecisionRef the Decision of the model request, and Slots {"parts", "lines", "rows"} (AD-32). parts holds
 /// {key, slots} in this order:
 ///   1. the greeting of the compose hour in the instance zone;
-///   2. digest.healthy when the five vital signs passed, else digest.vitalsNotAll;
-///   3. digest.checkedQuiet when every other row passed, else digest.checked, then the key of Render (with whatFailed, the entries that did not pass,
-///      for the two keys that name them); with nothing watched, digest.nothingWatched alone;
+///   2. digest.healthy when the five vital signs passed by Render's rule, else digest.vitalsNotAll;
+///   3. digest.checkedQuiet when no entry is named, else digest.checked, then the key of Render (with whatFailed, the entries that did not pass, failed
+///      first, for the two keys that name them); with nothing watched, digest.nothingWatched alone;
 ///   4. what needs the user (OcuTalon.Digest.NeedsYou): digest.needsYouOne or digest.needsYou, then digest.needsYouMore on overflow; no part for none;
 ///   5. what was saved for later: digest.savedNone, digest.saved with the summary, or digest.savedNoSummary with the fallback reason;
 ///   6. digest.cost, the cost of yesterday (OcuTalon.Digest.Cost).
@@ -45,7 +51,7 @@ Include Ensemble
 /// no channel took it, or a channel failed, the handling of the Compose returns an error status, so that Ensemble records it on the header of the
 /// Compose and in its trace session; no Sent row follows a digest that no channel took. A later tick sends the stored Slots of a row with Failed to
 /// the channels of Failed that are still reachable and named, at most MAXATTEMPTS times, and never to a channel in Channels.
-/// The private seams Rows, Saved, SendSummary, Cost, NeedsYou, Own, SendNotice and SendCompose are the calls that a test overrides.
+/// The private seams Rows, Saved, SendSummary, Cost, NeedsYou, Own, SendNotice, SendCompose and SendResult are the calls that a test overrides.
 Class OcuTalon.Digest.Process Extends Ens.BusinessProcess
 {
 
@@ -64,6 +70,9 @@ Parameter DECIDE = "Decide";
 
 /// The item that routes the digest.
 Parameter NOTIFY = "Notify";
+
+/// The item that takes the DigestResult of a digest case.
+Parameter EVALSINK = "EvalSink";
 
 /// The seconds to wait for the lock of a session's digest.
 Parameter LOCKSECONDS = 5;
@@ -133,7 +142,7 @@ ClassMethod Seeds() As %DynamicObject
 	Quit seeds
 }
 
-/// The three requests of the class description.
+/// The four requests of the class description.
 Method OnRequest(request As %Library.Persistent, Output response As %Library.Persistent) As %Status
 {
 	Set response = ""
@@ -141,6 +150,7 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 		If request.%IsA("OcuTalon.Msg.Tick") Quit ..Ticked(request)
 		If request.%IsA("OcuTalon.Msg.Command.SendDigest") Quit ..Requested(request, .response)
 		If request.%IsA("OcuTalon.Digest.Msg.Compose") Quit ..Composed(request)
+		If request.%IsA("OcuTalon.Eval.Msg.DigestCase") Quit ..Evaluated(request)
 	}
 	Quit $SYSTEM.Status.Error(5001, "Digest does not handle a request of the class '"_$Select($IsObject($Get(request)): $ClassName(request), 1: "none")_"'")
 }
@@ -158,7 +168,9 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 {
 	Set error = ..CallError
 	Set ..CallError = $$$OK
-	If '$IsObject($Get(request)) || 'request.%IsA("OcuTalon.Digest.Msg.Compose") Quit $$$OK
+	If '$IsObject($Get(request)) Quit $$$OK
+	Set evaluated = request.%IsA("OcuTalon.Eval.Msg.DigestCase")
+	If 'evaluated && 'request.%IsA("OcuTalon.Digest.Msg.Compose") Quit $$$OK
 	Set sc = $$$OK
 	Try {
 		Set answer = $Get(callresponse)
@@ -175,7 +187,7 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 			}
 		}
 		If reason '= "" $$$LOGINFO(..#LOGFELLBACK_reason)
-		Set sc = ..Finish(request, summary, reason, decisionRef)
+		Set sc = $Select(evaluated: ..FinishCase(request, summary, reason, decisionRef), 1: ..Finish(request, summary, reason, decisionRef))
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
@@ -436,6 +448,100 @@ Method Composed(compose As OcuTalon.Digest.Msg.Compose) As %Status [ Private ]
 	Quit sc
 }
 
+/// A DigestCase: the verdict of its recorded rows, as the owner eval (see the class description). It reads no session and no table of the product, asks for no
+/// Rows, Cost or Channels, sends no Notification and writes no Sent row. With saved summaries it asks Decide for the summary and finishes in OnResponse;
+/// otherwise it finishes at once.
+Method Evaluated(case As OcuTalon.Eval.Msg.DigestCase) As %Status [ Private ]
+{
+	Set ..ItemId = ""
+	Set ..CallError = $$$OK
+	Set sc = $$$OK
+	Try {
+		Set items = ..CaseSaved(case)
+		If items.%Size() = 0 {
+			Set sc = ..FinishCase(case, "", "", "")
+			Quit
+		}
+		Set request = ..SummaryRequest(items)
+		Set ..ItemId = request.ItemId
+		Set request.OwnerRef = ##class(OcuTalon.Data.Ownership).#EVAL
+		Set sc = ..SendSummary(request)
+		If $$$ISERR(sc) {
+			Set ..ItemId = ""
+			$$$LOGINFO(..#LOGFELLBACK_..#REASONUNUSABLE)
+			Set sc = ..FinishCase(case, "", ..#REASONUNUSABLE, "")
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// Sends EvalSink the DigestResult of the case: the verdict of its recorded rows, and the summary request's Decision and fallback.
+Method FinishCase(case As OcuTalon.Eval.Msg.DigestCase, summary As %String, reason As %String, decisionRef As %String) As %Status [ Private ]
+{
+	Do ..CaseRows(case, .rows, .vitals)
+	Set sc = ..Verdict(##class(OcuTalon.Data.Ownership).#EVAL, rows, vitals, .verdict)
+	If $$$ISERR(sc) Quit sc
+	Set result = ##class(OcuTalon.Eval.Msg.DigestResult).%New()
+	Set result.ItemId = case.ItemId
+	Set result.SourceItemId = case.SourceItemId
+	Set result.CatalogKey = verdict.checkKey
+	Set result.AllClear = verdict.allClear
+	Set result.Named = verdict.named.%ToJSON()
+	Set result.Checked = verdict.checked.%ToJSON()
+	Set result.DecisionRef = decisionRef
+	Set result.Fallback = (reason '= "")
+	Set result.FallbackReason = $Select(reason '= "": ..Reason(reason), 1: "")
+	Quit ..SendResult(result)
+}
+
+/// The rows of a digest case: the vital rows followed by the recorded checks, and the vital signs. A recorded value that cannot be read counts as [] or {}.
+ClassMethod CaseRows(case As OcuTalon.Eval.Msg.DigestCase, Output rows As %DynamicArray, Output vitals As %DynamicObject) [ Private ]
+{
+	Set checks = ..CaseJSON(case.RecordedChecks, "%Library.DynamicArray")
+	If '$IsObject(checks) Set checks = []
+	Set vitals = ..CaseJSON(case.RecordedVitals, "%Library.DynamicObject")
+	If '$IsObject(vitals) Set vitals = {}
+	If '$IsObject(vitals.%Get("rows")) || 'vitals.%Get("rows").%IsA("%Library.DynamicArray") Do vitals.%Set("rows", [])
+	If '$IsObject(vitals.%Get("figures")) || 'vitals.%Get("figures").%IsA("%Library.DynamicObject") Do vitals.%Set("figures", {})
+	Set rows = []
+	Set iterator = vitals.rows.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		Do rows.%Push(row)
+	}
+	Set iterator = checks.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		Do rows.%Push(row)
+	}
+}
+
+/// The saved summaries of a digest case as an array of {summary}; only the strings of the recorded array that are not blank.
+ClassMethod CaseSaved(case As OcuTalon.Eval.Msg.DigestCase) As %DynamicArray [ Private ]
+{
+	Set items = []
+	Set saved = ..CaseJSON(case.RecordedSaved, "%Library.DynamicArray")
+	If '$IsObject(saved) Quit items
+	For i = 0:1:saved.%Size() - 1 {
+		If (saved.%GetTypeOf(i) = "string") && ($ZStrip(saved.%Get(i), "<>WC") '= "") Do items.%Push({"summary": (saved.%Get(i))})
+	}
+	Quit items
+}
+
+/// The JSON text as a value of the class, or "" when the text is empty, is not JSON or is a value of another class.
+ClassMethod CaseJSON(text As %String, class As %String) As %DynamicAbstractObject [ Private ]
+{
+	If text = "" Quit ""
+	Set value = ""
+	Try {
+		Set value = ##class(%DynamicAbstractObject).%FromJSON(text)
+	} Catch exception {
+		Set value = ""
+	}
+	If '$IsObject(value) || 'value.%IsA(class) Quit ""
+	Quit value
+}
+
 /// 1 when the digest of the Compose is already sent: a Sent row holds its key, or is its scheduled digest.
 Method Sent(compose As OcuTalon.Digest.Msg.Compose) As %Boolean [ Private ]
 {
@@ -478,7 +584,8 @@ ClassMethod Reason(raw As %String) As %String
 }
 
 /// Builds the digest of the Compose, sends its Notification and writes its Sent row. summary is the model's summary ("" for none), reason the fallback
-/// reason when there is none although items were saved, and decisionRef the Decision of the model request.
+/// reason when there is none although items were saved, and decisionRef the Decision of the model request. The CatalogKey, the named entries, the
+/// quiet sentence, what needs the user, the vital-signs part and AllClear all come from Verdict, as they do for a digest case.
 Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason As %String, decisionRef As %String) As %Status [ Private ]
 {
 	Set sessionRef = compose.SessionRef
@@ -489,36 +596,25 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 	If $$$ISERR(sc) Quit sc
 	Set sc = ..Saved(sessionRef, compose.WindowStart, at, .items)
 	If $$$ISERR(sc) Quit sc
-	Set watched = [], failed = []
-	For i = vitals.rows.%Size():1:rows.%Size() - 1 {
-		Set row = rows.%Get(i)
-		Do watched.%Push(row)
-		If row.result = "failed" Do failed.%Push(row)
-	}
-	Set needs = ..NeedsYou(sessionRef, failed, .sc)
+	Set sc = ..Verdict(sessionRef, rows, vitals, .verdict)
 	If $$$ISERR(sc) Quit sc
+	Set needs = verdict.needs
 	Set cost = ..Cost(sessionRef, at, .sc)
 	If $$$ISERR(sc) Quit sc
-	Set checkKey = ##class(OcuTalon.Checks.Render).Render(watched)
-	Set parts = [], missing = []
+	Set checkKey = verdict.checkKey
+	Set parts = []
 	Do parts.%Push({"key": (..Greeting(at)), "slots": {}})
-	Set vitalsPart = ..Vitals(vitals)
-	Do parts.%Push(vitalsPart)
-	Set iterator = watched.%GetIterator()
-	While iterator.%GetNext(, .row) {
-		If row.result '= "passed" Do missing.%Push(row.entry)
-	}
-	If watched.%Size() = 0 {
+	Do parts.%Push(verdict.vitalsPart)
+	If verdict.nothingWatched {
 		Do parts.%Push({"key": "digest.nothingWatched", "slots": {}})
-		Set checkKey = "checks.nothingWatched"
 	} Else {
 		Set named = []
-		Set iterator = watched.%GetIterator()
-		While iterator.%GetNext(, .row) {
-			Do named.%Push("the "_row.entry)
+		Set iterator = verdict.checked.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			Do named.%Push("the "_entry)
 		}
-		Do parts.%Push({"key": ($Select(missing.%Size() = 0: "digest.checkedQuiet", 1: "digest.checked")), "slots": {"checked": (..Joined(named))}})
-		If checkKey '= "" Do parts.%Push({"key": (checkKey), "slots": ($Select(missing.%Size() > 0: {"whatFailed": (..Joined(missing))}, 1: {}))})
+		Do parts.%Push({"key": ($Select(verdict.named.%Size() = 0: "digest.checkedQuiet", 1: "digest.checked")), "slots": {"checked": (..Joined(named))}})
+		Do parts.%Push({"key": (checkKey), "slots": ($Select(verdict.named.%Size() > 0: {"whatFailed": (..Joined(verdict.named))}, 1: {}))})
 	}
 	If needs.count > 0 {
 		Set what = ""
@@ -557,12 +653,60 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 	Set row.SentAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Set row.CatalogKey = checkKey
 	Set row.Slots = slots
-	Set row.AllClear = (checkKey = "checks.allPassed") && (vitalsPart.key = "digest.healthy") && (needs.count = 0)
+	Set row.AllClear = verdict.allClear
 	Set row.IdempotencyKey = compose.IdempotencyKey
 	Set row.Channels = $ListToString(delivered)
 	Set row.Failed = $ListToString(failed)
 	Set saved = row.%Save()
 	Quit $Select($$$ISERR(saved): $SYSTEM.Status.AppendStatus(saved, sc), 1: sc)
+}
+
+/// The one verdict of a digest, for a session's rows and for a digest case's (the rows after rows' leading vital rows are the watched ones). The check
+/// rows come only from Checks.Render, so that no verdict is made from the raw results. verdict is {checkKey, nothingWatched, named, failed, checked,
+/// needs, vitalsPart, allClear}:
+///   - checkKey is Render's key over the watched rows; with no watched row, or none that Render takes as a result, it is checks.nothingWatched and
+///     nothingWatched is 1;
+///   - named holds the entries of Render's rows that did not pass, failed first and then not checked, and failed holds the failed rows;
+///   - checked holds the entry of each watched row that is a result, in the order of the rows;
+///   - needs is what NeedsYou gives the owner for the failed rows;
+///   - vitalsPart is digest.healthy only when Render gives checks.allPassed for every vital row, else digest.vitalsNotAll with the entries that did not pass;
+///   - allClear is 1 only when checkKey is checks.allPassed, the vital signs passed and nothing needs the owner.
+Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject, Output verdict As %DynamicObject) As %Status [ Private ]
+{
+	Set verdict = ""
+	Set watched = []
+	For i = vitals.rows.%Size():1:rows.%Size() - 1 {
+		Do watched.%Push(rows.%Get(i))
+	}
+	Set checkKey = ##class(OcuTalon.Checks.Render).Render(watched, .ordered)
+	Set named = [], failed = [], checked = []
+	Set iterator = ordered.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		If row.result '= "passed" Do named.%Push(row.entry)
+		If row.result = "failed" Do failed.%Push(row)
+	}
+	Set iterator = watched.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		If ..Entry(row) Do checked.%Push(row.entry)
+	}
+	Set nothingWatched = (ordered.%Size() = 0)
+	If nothingWatched Set checkKey = "checks.nothingWatched"
+	Set sc = $$$OK
+	Set needs = ..NeedsYou(owner, failed, .sc)
+	If $$$ISERR(sc) Quit sc
+	Set vitalsPart = ..Vitals(vitals)
+	Set verdict = {"checkKey": (checkKey), "named": (named), "failed": (failed), "checked": (checked), "needs": (needs), "vitalsPart": (vitalsPart)}
+	Do verdict.%Set("nothingWatched", nothingWatched, "boolean")
+	Do verdict.%Set("allClear", (checkKey = ##class(OcuTalon.Checks.Render).#KEYALLPASSED) && (vitalsPart.key = "digest.healthy") && (needs.count = 0), "boolean")
+	Quit $$$OK
+}
+
+/// 1 when the row is an object whose entry is a string that is not blank (Render's rule for an element that is a result).
+ClassMethod Entry(row) As %Boolean [ Private ]
+{
+	If '$IsObject(row) || 'row.%IsA("%Library.DynamicObject") Quit 0
+	If row.%GetTypeOf("entry") '= "string" Quit 0
+	Quit $ZStrip($Translate(row.entry, $Char(160), " "), "<>WC") '= ""
 }
 
 /// The Notification of kind digest of the session, with its CatalogKey, DecisionRef and Slots.
@@ -667,18 +811,21 @@ ClassMethod Greeting(at As %String) As %String
 	Quit $Select(hour < 12: "digest.greetingMorning", hour < 18: "digest.greetingAfternoon", 1: "digest.greetingEvening")
 }
 
-/// The vital-signs part: digest.healthy when the five signs passed, else digest.vitalsNotAll naming the entries that did not.
+/// The vital-signs part: digest.healthy only when Checks.Render gives checks.allPassed for the vital rows and keeps every one of them, else
+/// digest.vitalsNotAll naming the entries that did not pass, in Render's order.
 ClassMethod Vitals(vitals As %DynamicObject) As %DynamicObject
 {
+	Set key = ##class(OcuTalon.Checks.Render).Render(vitals.rows, .ordered)
 	Set missing = []
-	Set iterator = vitals.rows.%GetIterator()
+	Set iterator = ordered.%GetIterator()
 	While iterator.%GetNext(, .row) {
 		If row.result '= "passed" Do missing.%Push(row.entry)
 	}
-	If (missing.%Size() > 0) || (vitals.rows.%Size() = 0) {
+	If (key '= ##class(OcuTalon.Checks.Render).#KEYALLPASSED) || (ordered.%Size() '= vitals.rows.%Size()) {
 		Quit {"key": "digest.vitalsNotAll", "slots": {"whatFailed": (..Joined(missing))}}
 	}
 	Set figures = vitals.figures
+	If '$IsObject(figures) Set figures = {}
 	Quit {"key": "digest.healthy", "slots": {"count": (+figures.upDays), "itemNoun": {"one": "day", "other": "days"}, "databasesFull": (+figures.databasesFull), "licenseUse": (+figures.licenseUse)}}
 }
 
@@ -750,6 +897,12 @@ Method SendNotice(notification As OcuTalon.Msg.Notification, item As %String) As
 Method SendCompose(compose As OcuTalon.Digest.Msg.Compose) As %Status [ Private ]
 {
 	Quit ..SendRequestAsync(..#SELF, compose, 0)
+}
+
+/// The DigestResult to EvalSink, asynchronously, with no answer wanted (a seam for the tests).
+Method SendResult(result As OcuTalon.Eval.Msg.DigestResult) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#EVALSINK, result, 0)
 }
 
 /// The Ref of the item of the summary request; empty before it is made.

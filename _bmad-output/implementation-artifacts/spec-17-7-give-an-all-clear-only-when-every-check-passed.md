@@ -2,9 +2,10 @@
 title: 'Story 17.7: Give an all-clear only when every check passed'
 type: 'feature'
 created: '2026-11-06'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'fec729e92bd917c317a696b2ed8946aedc157369'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
 warnings: ['oversized']
@@ -146,19 +147,19 @@ Paths are under `src/ocutalon/cls/OcuTalon/`.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `Eval/Msg/DigestCase.cls` and `Eval/Msg/DigestResult.cls` (new, with storage, and docs naming the writer and readers as `TurnResult` does). These come first because the tasks after them compile against them.
-- [ ] `Digest/Process.cls`: one private verdict method shared by `Finish` and the case path. It computes the contract's `checkKey`, `ordered`, `named`, `failed`, `checked`, the vitals part and AllClear. `Vitals` follows Render's rule.
+- [x] `Eval/Msg/DigestCase.cls` and `Eval/Msg/DigestResult.cls` (new, with storage, and docs naming the writer and readers as `TurnResult` does). These come first because the tasks after them compile against them.
+- [x] `Digest/Process.cls`: one private verdict method shared by `Finish` and the case path. It computes the contract's `checkKey`, `ordered`, `named`, `failed`, `checked`, the vitals part and AllClear. `Vitals` follows Render's rule.
   - `Finish` keeps its parts, routing and `Sent` and takes its values from the verdict. The doc comment is updated.
   - `OnRequest` takes `OcuTalon.Eval.Msg.DigestCase` into a new `Evaluated(case)`. `OnResponse` also finishes a DigestCase into a new `FinishCase`.
   - New private seam `SendResult(result)` sends to `EvalSink`, with an `EVALSINK` parameter.
-- [ ] `Digest/NeedsYou.cls` `List`: for `sessionRef = Ownership.#EVAL`, name only the failed rows. Update the doc.
-- [ ] `Eval/In.cls`: `DIGESTKIND`, `KINDS` + `digest`, `DIGEST` = "Digest", `SendDigest` and `DispatchDigest`. Update the class doc.
-- [ ] `Eval/Sink.cls`: `Known` and `Refusal` take a DigestResult, and `Complete` handles it like a TurnResult. Update the doc.
-- [ ] `Eval/Report.cls`: `CASEKINDS` + `digest`, a `Score` branch, `ScoreDigest` and `DigestOf(itemId)`, all appended at the end of the class. Update the doc.
-- [ ] `eval/digest-production-error/`, `eval/digest-checks-paused/`, `eval/digest-all-passing/` (new `case.json` files, recorded from the rows of the automated test below, with no `saved`).
-- [ ] `ci/mock/scenarios/A/digest-claims-fine.json` (new). It has a marker match and one text reply holding the three reserved sentences, the six banned phrases (`everything’s fine` escaped) and one plain sentence.
-- [ ] `docker/tests/test-eval-set.sh`: a `digest` branch. It requires `checks` rows in the all-clear rules' shape, `vitals.rows` (the same shape) and a `figures` object, `expectation.allClear` boolean, `catalogKey` one of the Render keys, `named` and `checked` arrays of strings, and no `turn`, `item` or `heldOut` true. The `set` rule requires the three situations (one `allClear` true; one `checks.notEverythingRestPassed` with a failed row; one with a not_checked "Background checks were paused" row). Add bad variants for each, and update the header.
-- [ ] Tests:
+- [x] `Digest/NeedsYou.cls` `List`: for `sessionRef = Ownership.#EVAL`, name only the failed rows. Update the doc.
+- [x] `Eval/In.cls`: `DIGESTKIND`, `KINDS` + `digest`, `DIGEST` = "Digest", `SendDigest` and `DispatchDigest`. Update the class doc.
+- [x] `Eval/Sink.cls`: `Known` and `Refusal` take a DigestResult, and `Complete` handles it like a TurnResult. Update the doc.
+- [x] `Eval/Report.cls`: `CASEKINDS` + `digest`, a `Score` branch, `ScoreDigest` and `DigestOf(itemId)`, all appended at the end of the class. Update the doc.
+- [x] `eval/digest-production-error/`, `eval/digest-checks-paused/`, `eval/digest-all-passing/` (new `case.json` files, recorded from the rows of the automated test below, with no `saved`).
+- [x] `ci/mock/scenarios/A/digest-claims-fine.json` (new). It has a marker match and one text reply holding the three reserved sentences, the six banned phrases (`everything’s fine` escaped) and one plain sentence.
+- [x] `docker/tests/test-eval-set.sh`: a `digest` branch. It requires `checks` rows in the all-clear rules' shape, `vitals.rows` (the same shape) and a `figures` object, `expectation.allClear` boolean, `catalogKey` one of the Render keys, `named` and `checked` arrays of strings, and no `turn`, `item` or `heldOut` true. The `set` rule requires the three situations (one `allClear` true; one `checks.notEverythingRestPassed` with a failed row; one with a not_checked "Background checks were paused" row). Add bad variants for each, and update the header.
+- [x] Tests:
   - `Test/Digest/AllClear.cls` (new, ZoneCase, probe compose):
     - each of the three step-2 cases with rows from `CoverageProbe` Build (an errored production through `FeedRead`; a gap through `FeedGaps`; all passing);
     - the key, AllClear, `whatFailed` order and the rendered reserved part;
@@ -186,7 +187,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/`.
     - `TestRefusals` + run 6; `TestIsolation` covers run 6 and also checks that no `Sent` row was added;
     - `TestUsage` unchanged (no decisions).
 
-- [ ] DW-816 (routed to this story by Story 17.6's code review 3, 2026-11-06, after the spec gate): ticks a test sends a day or more ahead (Epic 39's beat tests at now plus 48 hours) make `Digest` queue scheduled digests for every other session on the stack and leave future-dated `Sent` rows, which suppress that stack's real scheduled digests. Make this story's own tests tick without making other sessions due, and either scope the due check so a test tick cannot reach other sessions or have the tests that send far-ahead ticks remove the `Sent` rows they cause; a test pins that no test leaves a future `Sent` row behind (with its mutation). If the fix needs a change to the ruled due rule, HALT with an intent gap.
+- [x] DW-816 (routed to this story by Story 17.6's code review 3, 2026-11-06, after the spec gate): ticks a test sends a day or more ahead (Epic 39's beat tests at now plus 48 hours) make `Digest` queue scheduled digests for every other session on the stack and leave future-dated `Sent` rows, which suppress that stack's real scheduled digests. Make this story's own tests tick without making other sessions due, and either scope the due check so a test tick cannot reach other sessions or have the tests that send far-ahead ticks remove the `Sent` rows they cause; a test pins that no test leaves a future `Sent` row behind (with its mutation). If the fix needs a change to the ruled due rule, HALT with an intent gap.
 
 **Acceptance Criteria:**
 - Given any rows (Build's or recorded), when a digest is composed, then the key, `whatFailed` (failed first, then not checked), the quiet sentence, the healthy sentence and AllClear all come from `Checks.Render`'s output. "Everything I checked passed." appears only when every entry passed, with `{checked}`. "Everything else I checked passed." follows the named entries only when another entry passed.
@@ -198,6 +199,44 @@ Paths are under `src/ocutalon/cls/OcuTalon/`.
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-11-06 - Review pass
+- verdicts: 34 findings - high 0, medium 8, low 18, false 8, maybe-false 0 (the medium rows form two patched entries: the FutureSent wait and the dropped-vital-row test)
+- findings:
+  - `[medium]` `patch` Blind: `FutureSent.Open` tests `Status < 8`, so Discarded, Suspended and Aborted messages count as open and every BeatCase test can wait 30 s - the status filter is now `IN (1, 2, 3, 6)` (in flight); `Open` and `Remove` doc updated.
+  - `[medium]` `patch` Blind: `Remove` waits only for messages to Digest, while a Tick still in Checks has no Digest header yet, so rows can arrive after the delete and the assertion - `Open` now also waits for Checks; the unordered pin is treated with the Verification-gap row below.
+  - `[low]` `reject` Blind: digest cases share the `allClear` tally - Decided 4 settles it (FR-37; no change to `Gate.SCORES`); a fall-back of a saved-summary request is part of a case being right by design.
+  - `[low]` `reject` Blind: `Report.IsDigest` re-reads `case.json` per row and `DIGESTKIND` sits at the class end - a small file read per case in an offline report, and the parameter sits with the appended block (Rule 2 sibling layout); no named harm.
+  - `[low]` `reject` Blind: `Entry` copies Render's non-blank rule and `checked` is raw while `named` is cut to `LIMIT` - the 1000-character entry is not reachable from Build (entries are production names) and the contract says `checked` holds the raw string entries.
+  - `[low]` `reject` Blind: missing `vitals.figures` gives "up 0 days" - Build always gives figures, `Verdict` guards the case path from a throw, and a case with `{}` figures is a fixture the author wrote; the contract requires only a `figures` object.
+  - `[low]` `reject` Blind: `SendDigest` does not refuse a bad `vitals` or `saved` - the contract refuses only a non-array `checks` and counts an unparsable value as `[]` or `{}`; widening it adds refusal texts (a spec decision).
+  - `[low]` `reject` Blind: `test-eval-set.sh` does not check consistency of `allClear`, `named`, `checked` - the shape checks and the three-situation `set` rule are what the contract names; `TestRecordedCasesAgree` and `TestDigestRun` check consistency against the real result.
+  - `[low]` `reject` Blind: no case with `saved`, failing vitals or nothing watched - Decided 5 (a `saved` case needs a mock marker); the unit tests cover vitalsNotAll and nothing watched; the `Sent`-row check on other sessions is covered by `NoSessionEffects`.
+  - `[low]` `patch` Blind: stale wording - `Sink.Refusal`, its doc and pin in `Test.Eval.Sink`, and the `Test.Eval.Run` `Leftovers` message now name the DigestResult and DigestCase.
+  - `[low]` `reject` Edge: empty `whatFailed` when `vitals.rows` is empty or holds a dropped element - Build always gives five vital rows; the empty case is as 17.6 left it; a new fallback text would be new user-facing text (not decided in-stage).
+  - `[false]` `reject` Edge: a failed row without a check time is named as not checked and left out of needs-you - the contract says `failed` holds the `ordered` rows whose result is failed, and Render makes that row not_checked by its rule.
+  - `[low]` `reject` Edge: `checked` holds the full entry while `named` holds the cut one - as the Blind row above.
+  - `[false]` `reject` Edge: unreadable watched rows are reported as "not watching any productions" - Decided 10 (Build never gives such rows; the contract's nothing-watched reading).
+  - `[false]` `reject` Edge: a throw in `CaseRows` or `Verdict` leaves the case row in state sent - the row is reported as not decided by Report and the error is returned to Ensemble (loud); no result with a made-up fallback is wanted.
+  - `[medium]` `patch` Edge: a Tick still in Checks when `Remove` runs - same root cause as the second Blind row; fixed there.
+  - `[medium]` `patch` Edge: Open's status range - same root cause as the first Blind row; fixed there.
+  - `[low]` `reject` Edge: `Report.Complete` does not ask a digest row for a decision when `saved` is expected - a digest with saved summaries and no decision ends in a fallback, which `ScoreDigest` already marks not right.
+  - `[low]` `reject` Edge: `SendDigest` and a bad `vitals` or `saved` - as the Blind row above.
+  - `[low]` `reject` Edge: `test-eval-set.sh` contradictions - as the Blind row above.
+  - `[false]` `reject` Edge (claim): "never from raw rows" while `checked` is raw - the contract itself defines `checked` as the watched rows' non-blank string entries in Build's order.
+  - `[false]` `reject` Edge (deletion): the old Finish passed raw failed rows to NeedsYou - the contract defines `failed` from `ordered`; Build rows with a check time are the same set.
+  - `[medium]` `patch` Verification gap: no test for a vital row that Render drops - `EvalCase.TestResults` now has the case, with a `mutation:` line.
+  - `[low]` `patch` Verification gap: no test for a non-empty `checks` with no usable result - added to `EvalCase.TestResults`, with a `mutation:` line.
+  - `[medium]` `patch` Verification gap: the DW-816 pin is order-dependent and no mutation covers `BeatCase` - the mutation on the `BeatCase` call was applied and is red in `Test.Checks.Heartbeat`; the order-dependent test is recorded as a sweep and its mutation line removed.
+  - `[medium]` `patch` Verification gap (other): `Open` status - same as the first Blind row.
+  - `[medium]` `patch` Verification gap (other): `Remove` and Checks - same as the second Blind row.
+  - `[low]` `patch` Verification gap (other): `Refusal` text - same as the stale wording row.
+  - `[low]` `reject` Verification gap (other): `checked` and `LIMIT` - as above.
+  - `[low]` `reject` Verification gap (other): `TestRecordedCasesAgree` compares only `checks` - the contract's agreement is on rows, expectation and the probe's results; vital rows are fixed text in the case files.
+  - `[low]` `reject` Verification gap (other): `TestNeedsYouIsFailedRowsOnly` doc says incidents - doc wording only; the incident branch is pinned by `Test.Digest.NeedsYou` `TestEvalOwner`.
+  - `[false]` `reject` Intent: R5 (broad nothing-watched) - Decided 10.
+  - `[false]` `reject` Intent: R6 (shared allClear tally) - Decided 4.
+  - `[false]` `reject` Intent: `test-eval-set.sh` and DW-816 are outside the intent block - both are named Tasks (the DW-816 task was added by the lead after the spec gate).
 
 ## Design Notes
 
@@ -221,6 +260,14 @@ Paths are under `src/ocutalon/cls/OcuTalon/`.
 7. **NeedsYou for `eval`** skips the session sources, because `Ownership.Rows` refuses `eval`. One guard in `List`, no copy (Rule 2).
 8. **Healthy needs every vital row** to pass by Render's rule, with no row dropped, so a vital row with no check time is named, not passed over.
 9. **No Task 0.** Every send here (service to process, process to operation, async with no answer) has a sibling in the code.
+10. **Watched rows that Render takes as no result** (a non-empty `watched` whose elements all have no entry) are treated as nothing watched: `checks.nothingWatched`, `digest.nothingWatched` alone, AllClear 0. Build never gives such rows; the recorded rows of an eval case might. The contract's "no watched row" wording is read as "no watched row that Render takes".
+11. **A digest row that made no model request is complete.** `Report.Complete` takes a `digest` flag (from the row's case file, `IsDigest`) and does not ask a digest row for a decision, cost or request size, because the three eval cases have no `saved`. Without it every digest case would be a "no decision" problem in `eval/run.sh`. Item, incident and turn rows are as they were.
+12. **`Sink.Refusal`** says "it is none of an ItemDecision, a TurnResult and a DigestResult" (changed in review, with the pin in `Test.Eval.Sink`). `Known` accepts the DigestResult.
+13. **Test helpers.** `Test.Digest.ProbeCase` (abstract, new) holds the compose helpers that `AllClear` and `EvalCase` share, so `Test.Digest.Compose` is untouched. `ProcessProbe` gains `SendResult` (records the DigestResult, fails on `FailResult`) and counting `Cost` and `Channels`. The "passing" step-2 situation builds Orders then Results, as the recorded case does; "error" builds Results then Orders.
+14. **EvalIn dispatch.** `SendDigest` sits beside the incident dispatch, before the persona step: a digest case has no persona, and a run's preset or language does not apply to it.
+15. **`test-eval-set.sh`.** The all-clear row checks moved into one `rowsOk` function used by the all-clear and digest branches (Rule 2). The `set` rule's third digest situation is any digest case with a `not_checked` row whose finding is "Background checks were paused".
+16. **DW-816.** This story's tests send no tick (they hand a Compose or a DigestCase to a shadow instance), so none of them can make another session due. The ruled due rule is not touched. The tests that do send far-ahead ticks are Epic 39's beat tests (`Test.Checks.BeatCase` `Due`, plus 48 hours): `BeatCase.OnAfterOneTest` now calls `Test.Digest.FutureSent` `Remove` (wait for Digest to finish what it was sent in the last ten minutes, then delete the scheduled Sent rows and Compose bodies dated later than the clock) and asserts that `Count` is 0. `FutureSent` pins `Remove` and `Count`; the pin that no test leaves a future-dated row is the assertion in `BeatCase.OnAfterOneTest` itself, with `FutureSent` `TestNoFutureRowIsLeft` as a sweep. `Remove` waits for in-flight messages (Created, Queued, Delivered, Deferred) of Checks and Digest. Epic 39 has merged, so `Test/Checks/BeatCase.cls` is base.
+17. **`eval/` cases.** `vitals.rows` are the five vital rows with the fixed time 2026-11-05T08:00:00Z, and the case rows are the rows `Test.Digest.AllClear` composes from (entry, result and finding agree; the times are fixed, and the test compares the rest).
 
 **Extend, don't copy (Rule 2):**
 - The shared verdict replaces `Finish`'s inline logic. It is used by both paths.
@@ -245,7 +292,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/`.
   - Epic 7 and Epic 11 show no diff.
 - New files go in contended folders: `eval/digest-*/` and `ci/mock/scenarios/A/digest-claims-fine.json` (no collision).
 - No Lane B class or test is touched.
-- Footprint extensions: `Eval/{In,Sink,Report}.cls`, `Eval/Msg/Digest{Case,Result}.cls`, `Test/Eval/{Cases,In,Sink,Report,Run,ZzIn}.cls`, and `docker/tests/test-eval-set.sh`.
+- Footprint extensions: `Eval/{In,Sink,Report}.cls`, `Eval/Msg/Digest{Case,Result}.cls`, `Test/Eval/{Cases,In,Sink,Report,Run,ZzIn}.cls`, `docker/tests/test-eval-set.sh`, and (DW-816, Epic 39 merged) `Test/Checks/BeatCase.cls`, `Test/Digest/{ProbeCase,AllClear,EvalCase,FedRowsDigest,FutureSent}.cls`.
 - Story 30.7: nothing here touches its list.
 
 **Ledger (Rule 17):** the inbox is empty.
@@ -275,21 +322,45 @@ Lane A variables on every `ci/` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-p
 
 Every test added or changed passes on a fresh environment, in either order.
 
-**Mutations (Rule 19; record one `mutation:` line per AC here):**
+**Mutations (Rule 19; one `mutation:` line per AC; each applied, observed red, and reverted with the file byte-identical, 2026-11-06):**
 - AC1:
-  - `named` from the raw watched rows in Build order → `AllClear` `TestFailedBeforeNotChecked` red;
-  - `checkedQuiet` from raw results → `TestPassWithoutTime` red;
-  - `Vitals` on raw results → `TestVitalWithoutTime` red.
-- AC2: the nothing-watched branch sets `checks.allPassed` → `AllClear` `TestNothingWatched` red.
-- AC3: `digest-claims-fine` text without the guard (point the test's expectation at the raw text) or `BANNED` minus one phrase → `Send` `TestModelClaimsFine` red.
+  - mutation: `named` from the raw watched rows in Build order -> `AllClear` `TestFailedBeforeNotChecked` red (the failed entry is no longer first);
+  - mutation: `checkedQuiet` chosen from the raw results -> `AllClear` `TestPassWithoutTime` red;
+  - mutation: `Vitals` on the raw results -> `AllClear` `TestVitalWithoutTime` red.
+- AC2: mutation: the nothing-watched branch sets `checks.allPassed` -> `AllClear` `TestNothingWatched` red (key and AllClear).
+- AC3: mutation: `ReplyGuard` `BANNED` without "no issues" -> `Send` `TestModelClaimsFine` red (the control that the guard keeps only the plain sentence, and the count of nine phrases).
 - AC4:
-  - AllClear without the `checkKey` term → `AllClear` case 1 red;
-  - `ScoreDigest` ignores `Named` → `Report` `TestDigestScore` red;
-  - `Evaluated` calls `SendNotice` → `EvalCase` red;
-  - run 6 to Notify → `Run` `TestIsolation` red.
-- AC5: the healthy figures replaced by constants → `AllClear` `TestMorningDigest` red.
+  - mutation: AllClear without the `checkKey` term -> `AllClear` `TestChecksPaused` red (case 1 has a failed row that needs the user, so its AllClear is 0 without the term; the paused case is the one that goes red), and `TestRecordedCasesAgree` red;
+  - mutation: `ScoreDigest` ignores `Named` -> `Report` `TestDigestScore` red;
+  - mutation: `Evaluated` calls `SendNotice` -> `EvalCase` `TestNoSessionEffects` and `TestSavedSummary` red;
+  - mutation: `EVALSINK` is `Notify` (the DigestResult goes to Notify, so Digest sends to Notify) -> `Run` `TestDigestRun`, `TestHops` and `TestIsolation` red.
+- AC5: mutation: the healthy figures replaced by the constants 3, 60 and 20 -> `AllClear` `TestMorningDigest` red (the second reading, 7 days, 35% and 41%).
+- DW-816:
+  - mutation: `FutureSent` `Remove` quits at once -> `FutureSent` `TestRemovesFutureRows` red;
+  - mutation: `BeatCase.OnAfterOneTest` without the `FutureSent.Remove()` call -> the assertion in `BeatCase.OnAfterOneTest` is red in every `Test.Checks.Heartbeat` test that ticks ahead ("no scheduled digest dated ahead of the clock is left by the test's Ticks"; applied 2026-11-06, observed red, restored byte-identical; the rows it left were removed by the next unmodified run);
+- Review additions (2026-11-06):
+  - mutation: `Vitals` without the `ordered.%Size() '= vitals.rows.%Size()` term -> `EvalCase` `TestResults` red ("a vital row that is no result is not passed over");
+  - mutation: `nothingWatched` from `watched.%Size() = 0` instead of `ordered.%Size() = 0` -> `EvalCase` `TestResults` red ("watched elements that are no result: nothing watched").
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `Digest` makes one verdict (`Verdict`) from `Checks.Render`'s output rows, used by the session compose and by the new eval path. The `named` entries come failed first and then not checked; the quiet sentence, the healthy sentence (every vital row by Render's rule) and AllClear come from the same rows. A `DigestCase` from EvalIn gives a `DigestResult` to EvalSink with owner `eval`, no session, no Notification and no Sent row; Report scores it into the `allClear` score. Three `eval/digest-*` cases and the `digest-claims-fine` mock scenario record the step-2 situations and the guard test. DW-816: the beat tests remove the future-dated scheduled rows their ticks cause and assert none is left; the due rule is untouched.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Digest/{Process,NeedsYou}.cls`: the shared verdict, the case path, `SendResult`, and the eval-owner list.
+- `src/ocutalon/cls/OcuTalon/Eval/{In,Sink,Report}.cls`: the kind `digest`, the DigestResult, the score.
+- `src/ocutalon/cls/OcuTalon/Eval/Msg/{DigestCase,DigestResult}.cls`: the new messages.
+- `eval/digest-{production-error,checks-paused,all-passing}/case.json`, `ci/mock/scenarios/A/digest-claims-fine.json`: fixtures.
+- `docker/tests/test-eval-set.sh`: the `digest` branch, the `set` rule and bad variants.
+- Tests: `Test/Digest/{AllClear,EvalCase,FedRowsDigest,FutureSent,ProbeCase}.cls` (new), `Test/Digest/{NeedsYou,ProcessProbe,Send}.cls`, `Test/Eval/{Cases,In,Report,Run,Sink,ZzIn}.cls`, `Test/Checks/BeatCase.cls` (DW-816).
+
+**Review.** 34 findings, no high. Patched entries: 4 (2 medium, 2 low). The medium ones are the `FutureSent` wait (in-flight statuses, Checks as well as Digest, and the mutation on the `BeatCase` call) and the missing dropped-vital-row test. The low ones are the junk-only watched test and the stale Sink and Leftovers wording. Deferred: none. The rest are rejected with the reasons in the triage log.
+
+**Follow-up review recommended: true.** Unverified risk: `FutureSent.Remove`'s wait on in-flight Checks and Digest messages is timing-based; on a slower stack a tick forwarded after the wait could still leave a future row (the `BeatCase` assertion would then fail loudly).
+
+**Verification.** Warm: `Test.Digest.{AllClear,EvalCase,FutureSent}`, `Test.Checks.{Heartbeat,BeatOutcomes}`, `Test.Eval.Sink` passed after the patches. Fresh: `lane-a@Digest` (2 parts, 20 classes) and `lane-a@Eval` (2 parts, 20 classes, including `Run`) passed; `Test.Channel.TelegramDigest`, `test-eval-set.sh`, `test-boundaries.sh`, `test-ci-config.sh` and `eval/run.sh` (all checks passed) passed. Earlier in the stage: `Test.Digest.Send`, `lane-a@Checks`, `test-mock.sh`, `test-class-rules.sh`, `test-storage.sh`. Mutations: see Verification.
+
+**Residual risks.** `Test/Checks/BeatCase.cls` (Epic 39's, merged) is touched for DW-816. `Eval/Report.cls` is edited at `Complete`, `Score`, `Build` and the class end, not at `TOOLCLASSES` (Epic 19). The first `checkKey` mutation line of AC4 goes red in `TestChecksPaused`, not case 1 (case 1 has a failed row that needs the user).
