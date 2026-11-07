@@ -32,7 +32,7 @@ Include Ensemble
 ///   2. digest.healthy when the five vital signs passed by Render's rule, else digest.vitalsNotAll;
 ///   3. digest.checkedQuiet when no entry is named, else digest.checked, then the key of Render (with whatFailed, the entries that did not pass, failed
 ///      first, for the two keys that name them); with nothing watched, digest.nothingWatched alone;
-///   4. what needs the user (OcuTalon.Digest.NeedsYou): digest.needsYouOne or digest.needsYou, then digest.needsYouMore on overflow; no part for none;
+///   4. what needs the user (OcuTalon.Digest.NeedsYou): digest.needsYouOne or digest.needsYou, then digest.needsYouMore on overflow; no part for none (a tell-now or act Decision counts only when it was recorded at or after the Compose's WindowStart);
 ///   5. what was saved for later: digest.savedNone, digest.saved with the summary, or digest.savedNoSummary with the fallback reason;
 ///   6. digest.cost, the cost of yesterday (OcuTalon.Digest.Cost).
 /// The summary is the one model request of the digest, made only when OcuTalon.Digest.Data.Item holds an item of the window: an OcuTalon.Bridge.Msg.Request
@@ -596,7 +596,7 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 	If $$$ISERR(sc) Quit sc
 	Set sc = ..Saved(sessionRef, compose.WindowStart, at, .items)
 	If $$$ISERR(sc) Quit sc
-	Set sc = ..Verdict(sessionRef, rows, vitals, .verdict)
+	Set sc = ..Verdict(sessionRef, rows, vitals, .verdict, compose.WindowStart)
 	If $$$ISERR(sc) Quit sc
 	Set needs = verdict.needs
 	Set cost = ..Cost(sessionRef, at, .sc)
@@ -668,10 +668,10 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 ///     nothingWatched is 1;
 ///   - named holds the entries of Render's rows that did not pass, failed first and then not checked, and failed holds the failed rows;
 ///   - checked holds the entry of each watched row that is a result, in the order of the rows;
-///   - needs is what NeedsYou gives the owner for the failed rows;
+///   - needs is what NeedsYou gives the owner for the failed rows, with the Decisions recorded at or after windowStart ("" for no bound; a digest case passes none);
 ///   - vitalsPart is digest.healthy only when Render gives checks.allPassed for every vital row, else digest.vitalsNotAll with the entries that did not pass;
 ///   - allClear is 1 only when checkKey is checks.allPassed, the vital signs passed and nothing needs the owner.
-Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject, Output verdict As %DynamicObject) As %Status [ Private ]
+Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject, Output verdict As %DynamicObject, windowStart As %String = "") As %Status [ Private ]
 {
 	Set verdict = ""
 	Set watched = []
@@ -692,7 +692,7 @@ Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject
 	Set nothingWatched = (ordered.%Size() = 0)
 	If nothingWatched Set checkKey = "checks.nothingWatched"
 	Set sc = $$$OK
-	Set needs = ..NeedsYou(owner, failed, .sc)
+	Set needs = ..NeedsYou(owner, failed, .sc, windowStart)
 	If $$$ISERR(sc) Quit sc
 	Set vitalsPart = ..Vitals(vitals)
 	Set verdict = {"checkKey": (checkKey), "named": (named), "failed": (failed), "checked": (checked), "needs": (needs), "vitalsPart": (vitalsPart)}
@@ -872,9 +872,9 @@ Method Cost(sessionRef As %String, at As %String, Output sc As %Status) As %Nume
 }
 
 /// What needs the user (a seam for the tests).
-Method NeedsYou(sessionRef As %String, failedRows As %DynamicArray, Output sc As %Status) As %DynamicObject [ Private ]
+Method NeedsYou(sessionRef As %String, failedRows As %DynamicArray, Output sc As %Status, windowStart As %String = "") As %DynamicObject [ Private ]
 {
-	Quit ##class(OcuTalon.Digest.NeedsYou).List(sessionRef, failedRows, .sc)
+	Quit ##class(OcuTalon.Digest.NeedsYou).List(sessionRef, failedRows, .sc, windowStart)
 }
 
 /// The session's own channels, the ones Notify's generic route reaches for a digest: web, phone when demo mode is on, telegram when the session is paired

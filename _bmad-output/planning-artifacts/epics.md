@@ -5292,6 +5292,42 @@ So that a release candidate's rehearsal is not failed by tests that refuse a rea
 **When** they run
 **Then** one check lists run 1's tests (`playwright test --list` with run 1's arguments) and fails if any listed spec reads the mock Telegram base or the dummy token, with the mutation shown (an untagged mock-reading spec reds it)
 
+### Story 12.12: Got it on Telegram marks the notice handled, and needs-you counts only what still needs you
+
+[ADDED 2026-11-07, fix-forward from DW-873 (the Contest Planner under the owner's delegation, ruling D1 option (a), 2026-11-07 ~15:50Z, relayed by the orchestrator; re-opens Epic 12 under SC-5 after Epic 12 merged, for Sunday's 1.0.4): Story 17.6 sends tell-now notices to Telegram with a **Got it** button, and Telegram's press submits the GotIt command, but SessionOps still answers it with the 5003 stub, so nothing is marked handled, the message is never edited, and the digest's "needs you" count only grows (it reads up to 1,000 Decisions with no time window). This story builds the GotIt branch of SessionOps for Telegram's press and bounds the needs-you count. The web chat's and the Simulated phone's **Got it** controls stay with Story 18.4, which reads the same handled marker this story writes. DW-695 (no end-of-session delete of Data.Handled) is closed here, because this story writes Data.Handled's first rows.]
+
+As a user who gets tell-now notices in Telegram,
+I want pressing **Got it** to mark the notice handled and edit the message, and the digest's "needs you" to hold only what still needs me,
+So that the button does what it says and the digest's count stays honest.
+
+**Acceptance Criteria:**
+
+**Given** a tell-now notice in the paired chat with its **Got it** button (Story 17.6)
+**When** the paired chat presses **Got it** and `TelegramIn` submits the GotIt command (origin telegram, channel telegram, the notice's decision Ref, the session of the chat's live pairing)
+**Then** `SessionOps` carries it out instead of answering the 5003 stub: it checks that the Ref is a reference and that the Decision is the command's session's own tell-now Decision, writes one `Data.Handled` row (Ref, SessionRef, HandledAt in UTC, Channel), and sends one `Notification` of kind `handled` with that DecisionRef to Notify, so that `TelegramOut`'s existing edit in place (`EditHandled`) replaces the button with the existing catalog text `handled.marked` and its time; the outcome is a CommandResult with Ok 1 (FR-35, AD-14, AD-27, UX-DR143)
+**And** a second press of the same notice, from any channel, changes nothing and sends no second notification: the first press wins, through `Data.Handled`'s unique index on Ref, and the answer is Ok with an outcome that says it was already handled (AD-14)
+**And** a GotIt whose Ref is not a reference, names no Decision, names another session's Decision, or names a Decision that is not a tell-now Decision, changes nothing, writes no row, sends no notification and answers Ok 0 (AD-14)
+**And** no new user-facing string is added: the button, the edit and its text are the ones Story 17.6 already ships
+
+**Given** a session that ends (`EndSession`, Story 16.4)
+**When** `SessionOps.End` runs its cleanup
+**Then** it also deletes the session's `Data.Handled` rows, next to the other cleanup, tried even when an earlier step failed, and a failed delete counts as a failed step like the others (AD-4, AD-27)
+- DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27) (ledger; routed by fix-forward 12.12, 2026-11-07)
+
+**Given** the digest's "what needs you" (`OcuTalon.Digest.NeedsYou`, Story 17.6)
+**When** a digest is composed for a session
+**Then** the session's tell-now and act Decisions count only while they are not marked handled AND were recorded inside the digest's window (`WindowStart`, the session's newest digest, or a day before its first), and failed check rows and incidents awaiting approval (open approval requests) always count while they are open, whatever their age (FR-35, AD-14)
+**And** tests pin both cases: an old unhandled tell-now Decision outside the window is not counted, one inside it is, a handled one is not, and an awaiting incident older than the window still is
+- DW-873: Telegram 'Got it' button on tell-now messages does nothing: SessionOps answers NotImplemented, nothing is marked handled, and the digest's needs-you count only grows (ledger; routed by fix-forward 12.12, 2026-11-07)
+
+**Given** the change
+**When** this story merges
+**Then** `TestGotItNotBuilt` gives way to tests of the built command (a press marks it handled, a second press is a no-op, another session's Ref and a Ref that is not a tell-now Decision are refused, End deletes the session's Handled rows), a CI-mock Telegram test shows the press reaching the edit in place, each new pin is shown red with a mutation, and CI is green on every workflow
+
+**Out of this story:** the web chat's and the Simulated phone's **Got it** controls and their "Marked as handled at {time}" copies stay with Story 18.4 (voting week), which reuses this story's command and marker. The digest's own wording does not change here; if the window needs a wording change in a `digest.*` text, that is PUBLIC TEXT for the Contest Planner.
+
+**On a runner without a bot:** this story uses the CI Telegram mock only; no real bot, chat or key.
+
 ## Epic 13: Any production can use the bridge
 
 A production developer follows the bridge developer guide to install the bridge into another production without OcuTalon (its classes load without IPM), configure it entirely through production settings, and run the example production, whose decisions, agent steps and approvals appear in Visual Trace.

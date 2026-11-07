@@ -2559,3 +2559,4 @@
 2026-11-07T20:58:59Z	Epic 11	ci_flake_rerun	head=882b6d4b run=42406393504 job=browser(DW-555_signedOut_navigation) lane-a=success
 2026-11-07T21:21:49Z	Run	planner_request	subject=embedded_python_bug_bonus action=read-only_explore_agent no_filing(owner_posts)
 2026-11-07T21:23:52Z	Run	planner_update	subject=embedded_python_bug_candidates strong=signal11_AIHub_callback(S11,build154U,aarch64) weaker=kwargs_ignored(DW-792,retry_first),eval_globals,WorkMgr_busy_python_worker not_EP=DW-829(IPM/pip),DW-856,FastEmbed.EmbedBatch
+2026-11-07T21:25:27Z	Run	planner_request	subject=S11_reverification story=0.16(Epic_0_evidence_only) priority=next_free_runner_ahead_of_DW-879,DW-878 timebox=60m no_key no_product_change no_filing prompt=dispatch-epic-0-016.md
