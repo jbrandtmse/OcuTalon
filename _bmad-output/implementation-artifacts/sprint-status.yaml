@@ -205,8 +205,7 @@ development_status:
   11-25-the-readme-s-judges-section-a-measured-table: done
   11-26-the-readme-s-measured-rows-say-exactly-what-was-measured: done
   11-27-live-pages-get-their-state-answer-under-load: backlog
-  11-28-the-no-key-runner-test-ignores-a-late-timer-row-of-the-test: 
-    ready-for-dev
+  11-28-the-no-key-runner-test-ignores-a-late-timer-row-of-the-test: in-progress
   epic-11-retrospective: optional
 
   epic-12: done
