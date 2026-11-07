@@ -6428,6 +6428,8 @@ So that no other visitor sees or searches what I added.
 **Then** it also creates a memory and a document before the upgrade, and both are present and searchable after it (FR-60, NFR-16, NFR-17, REL-6)
 
 - DW-783: `release/rehearse.sh`'s memory-offline step (Story 19.2) is proved on stub hosts only; a dry run on a real stack must show the clean host publishes its web port again after `docker network connect --alias iris` (ledger; routed by harvest 2026-11-06)
+- DW-892: `Demo.Features` lists the documents feature on the online demo, where `AddDocument` answers not_built until this story builds the per-session documents (ledger; routed by harvest 2026-11-07)
+- DW-893: an agent job builds its tools once, so the Chat agent's documents tool is attached or left out for the job's life by the online-demo setting at that moment; this story's per-turn tool manager is the fix (ledger; routed by harvest 2026-11-07)
 
 ### Story 19.6: Extract text from PDF and Word files with Embedded Python
 
@@ -6490,7 +6492,7 @@ So that I don't have to turn them into Markdown first.
 - DW-827: `OcuTalon.Docs.Extractor`'s MaxActiveWorkers 1 does not serialise reads (two concurrent reads ran on two worker jobs); serialise them or amend AD-21's "one worker" wording (ledger; routed by harvest 2026-11-06)
 - DW-828: a timed-out read cannot stop a single long C call (a decompression bomb can keep Read past its limit); bound it before the call (page or size caps) (ledger; routed by harvest 2026-11-06)
 - DW-831: Word text inside body-level content controls (w:sdt) and nested tables is not read; a file made only of content controls answers no_text (ledger; routed by harvest 2026-11-06)
-
+- DW-894: indexing costs one Embedder round trip (about 0.33 s) per passage, so large PDF and Word files take minutes to become ready: batch or parallelise the embedding (ledger; routed by harvest 2026-11-07)
 
 ### Story 19.8: Epic 19 burn-down
 
