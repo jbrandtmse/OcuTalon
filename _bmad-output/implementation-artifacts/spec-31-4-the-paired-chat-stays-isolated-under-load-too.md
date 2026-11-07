@@ -2,7 +2,8 @@
 title: 'Story 31.4: the paired chat stays isolated under load too (Story 29.4''s three paired-chat cases turned on with the demo full, plus DW-237, DW-446, DW-450, DW-474 and DW-511)'
 type: 'feature'
 created: '2026-11-07'
-status: 'ready-for-dev'
+status: 'in-progress'
+baseline_revision: '784f2ac173748232f8f03ea2e2eba25cadd14b88'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -161,7 +162,13 @@ All rows except 6 to 9 are in `web/e2e-online/demo-path/demo-path.spec.ts`, in t
 - Given `ReferenceHits` delegates to `KeyProof.GlobalHits`, when `live:online-demo` runs, then its row 6 scans (resume reference 0, controls found) and row 13 (raw 1, base64url 0) pass. If a count changes, or row 6 now finds the resume reference, stop with a clarification that names the node; it is a leak the old scan could not see.
 - Given the whole change, when `bash ci/checks.sh` runs, then `boundaries`, `class-rules` and `probe` pass with every other check.
 
+- [ ] [Lead R1] Restore `docker/probe.sh` and `docker/tests/test-probe.sh` to HEAD exactly (`git diff --quiet HEAD -- docker/probe.sh docker/tests/test-probe.sh`); drop row 6's tasks, its mutation line and its `(loop)` probe command; `bash ci/checks.sh` must then pass with `online-load` green.
+- [ ] [Lead R2] Restore `src/ocutalon/cls/OcuTalon/Watch/Msg/Failure.cls` to HEAD exactly; add the Lane B no-XML fallback for unexportable bodies to the message search (row 5), with its own pinning (a body class without `%XML.Adaptor` that holds a searched value is found by the fallback; a body unreadable by both paths fails the case) and a mutation line; reload the changed Lane B classes into the slot or throwaway you test on.
+- [ ] [Lead R3] Measure the routing case's `/state` stalls (at least 5 more lone runs, with what else ran on the machine) and act per ruling R3; record the measurements under Verification.
+
 ## Spec Change Log
+
+- 2026-11-07 (lead, after implement pass 1 halted `intent gap`): rulings R1 (DW-446 declined, release-tool freeze; probe files restored), R2 (AD-33 comply: Failure.cls restored, Lane B no-XML fallback in the message search) and R3 (measure the routing stalls) added under Design Notes and as `[Lead R1-R3]` tasks; status reset to `in-progress` for re-implement. The pass-1 diff stays in the tree as the starting point.
 
 ## Review Triage Log
 
@@ -189,6 +196,17 @@ No AC contradicts an AD's Rule.
 7. **DW-474's "Story 30.1's $List decode" is Story 30.8's.** 30.1 measured and 30.8 built (spec-30-8:268-273, :424). No stream decode is needed (branch N). The epics bullet is not amended: its intent is unchanged.
 8. **DW-446's stale wording in `release/` stays as it is.** `release/demo-host-checks.md:73` and `release/demo-load.sh:88` name "the probe's three". Both are frozen release tools or their notes, in Lane A's folder, so they are left for after the v1.0.0 merge-back. The lead may route them.
 9. **The local deadline.** A full local run passes `OCUTALON_LIVE_DEADLINE=900`, as Rule 21 records for `live:sign-in`. The default stays 540 s (`lib-live.sh` is contended), and the script's header already says to raise it on a slow machine.
+
+**Decided in-stage (implement):**
+10. **`OcuTalon.Watch.Msg.Failure` is XML-enabled** (`Extends (%SerialObject, %XML.Adaptor)`, `Watch/Msg/Failure.cls`). The first run of the message search gave -1 (unreadable) for every value in OCUTALON: `KeyProof.TraceHits` exports each body as XML, and the body of a `Watch.Msg.FailureBatch` that holds failures failed with `ERROR #6249: A class referenced by an XMLENABLED class must be a subclass of %XML.Adaptor: OcuTalon.Watch.Msg.Failure` (three batches in a run, from the FailurePoller of the Orders watch). Story 9.10's assumption that every message body extends `%XML.Adaptor` holds for the body class and not for a serial object inside it. The oracle (-1 fails) is unchanged; the class gained the adaptor and nothing else (no property, storage or behaviour change). It is a Lane A product class outside the contended list, reported as a footprint extension. `Test.Watch` (21 classes) and `Test.Eval.KeyProof` stay green.
+11. **E and F only fill the demo.** Their pages are closed after the sign-in (their sessions stay counted, which the busy status shows), so that only the four visitors that watch and press hold a live socket. Task 0 did not need the cut to A and C: the describe takes 37.7 s with its hooks, far under 240 s.
+12. **`ReferenceHits` now scans every global of the named databases**, as `KeyProof.GlobalHits` does, and no longer only the globals that the OCUTALON namespace maps there. Rows 6 and 13 of `live:online-demo` are a (once) line left to the lead; a changed count there is the clarification of the third AC.
+
+**Lead rulings on the implement stage's intent gaps (2026-11-07, runner D, unattended; `ruling ... category=decide`):**
+- **R1 (gap 1, DW-446 vs the release-tool freeze):** the dispatch's freeze rule applies: a ledger entry that needs a frozen release tool is re-routed, and the file is not edited. `docker/tests/test-online-load.sh` S16 pins `docker/probe.sh`'s degraded reasons to `release/demo-load.sh`'s `DEGRADED_REASONS`, so the probe half of DW-446 cannot land without the frozen edit, and weakening S16 is not allowed. So: `docker/probe.sh` and `docker/tests/test-probe.sh` go back to HEAD exactly (no change in this story), and DW-446 is declined here.
+  - Declined DW-446: release-tool freeze (its probe change must land together with `release/demo-load.sh`'s `DEGRADED_REASONS` and comments :50/:88, which `test-online-load.sh` S16 pins); re-routed by the lead to the burn-down until after the v1.0.4 merge-back.
+- **R2 (gap 2, `Watch/Msg/Failure.cls`, AD-33 "only the owning lane edits a class"):** comply first (doctrine U7 step 1). `Watch/Msg/Failure.cls` is Lane A's and goes back to HEAD exactly; no Lane A file is edited. The message search keeps its full scope (every OCUTALON and OCUORDERS header and body since the describe's marks) with a Lane B fallback for the bodies `KeyProof.TraceHits` cannot export as XML: such a body is opened and read without XML (for example `##class(%ZEN.Auxiliary.altJSONProvider).%ObjectToAET(body)` then `%ToJSON()`, or the body's storage node decoded with KeyProof's own matcher), and searched for the same values. Build it as a small classmethod in a Lane B test class (for example `OcuTalon.Test.Web.SessionEvents`), calling Lane A classes only to read. The case must still fail when a body is unreadable by both paths (no silent skip). Rule 2: the fallback is a second reader of bodies, forced by AD-33 (KeyProof and Failure are Lane A's); record that reason here when built. The missing `%XML.Adaptor` on `Watch.Msg.Failure` is filed by the lead as a ledger request for Lane A (AD-33: "the other lane ... asks for any property it needs").
+- **R3 (the routing case's 3-in-10 `/state` timeouts):** a test that is red 30 % of the time is not done. Measure before finalizing: run the routing case alone at least 5 more times and record each result and, for any stall, what else was running on this machine (other lanes' throwaway stacks, `docker stats`). If the stall is the machine's (other load), a test-side wait for C's and D's `/state` reads that stays inside the case's existing 90 s budget is acceptable (record it as Decided in-stage). If it is the product's (IRIS itself serializes or stalls with the demo full, with nothing else loading the machine), HALT `intent gap` with the measurement: that would be a real product finding under AD-13's full house, never something to wait out.
 
 **Ledger inbox (Rule 17):**
 - DW-237: addressed as "verify + pin" (row 9 and its task). It was already delegating on this tree (`Data/Pairing.cls:69-73`; the 11.0 fix).
@@ -249,6 +267,23 @@ The lane values are `OCUTALON_LOCK_DIR=<lock-dir>/lane-d`, `OCUTALON_TEST_WEB_PO
 - Row 8: the unparenthesised form is put back, and `test-class-rules.sh` goes red.
 - Row 9: `HashCode` repeats the SHA-256 line, and `TestHashCodeIsSessionHash` goes red.
 
+**Implement-stage results** (lane D, ARM developer machine, fresh throwaway `e31s4i`, warm `e31s4iw`):
+- MEASURED Story 31.4: the describe (`-g "the paired chat under load"`, hooks included) took 37.7 s in Playwright; its three cases took 20.2 s, 6.7 s and 1.2 s. The browser step of that run took 38 s and the unit 216 s.
+- MEASURED Story 31.4: each `TraceHits` pass took 0.06 to 0.11 s (16 passes: 7 values x 2 namespaces, then the 2 controls), over 166 messages in OCUTALON and 250 in OCUORDERS after the marks; 1.2 s in all.
+- MEASURED Story 31.4: 1 sendMessage or editMessageText call went out after the call mark of the routing case, and it went to CHAT_A (none to CHAT_B). The edit of A's answered line comes later and is the one edit CHAT_A gets in the press case.
+- The positive controls hold: A's SessionRef is found in OCUTALON and A's TraceRef in OCUORDERS.
+- Flake risk, not measured on the CI runner: the routing case's watch step (4 visitors watch at once) passed in 7 of 10 runs and failed in 3 with the same wait, a `/state` read of visitor C or D that timed out at 30 s while IRIS answered nothing for about 25 s (the sign-outs after it also took 25 s). The load average of the machine (the other lanes' stacks) read 6.8 and 4.6 after two of the earlier runs and 3.4 to 4.1 around the last four, which were all green `(inference: load; not isolated)`. Closing E's and F's pages did not stop it. Cutting the drivers to A and C is the spec's fallback only for a describe over 240 s.
+- (loop) `test-probe.sh`, `test-class-rules.sh`, `test-boundaries.sh`, `npm --prefix web run lint`: green. Warm classes `Test.Web.SessionEvents` (with `TestReferenceHitsReadsLists`), `Test.Data.PublicSettings`, `Test.Data.PairingRows`, `Test.Eval.KeyProof` and `shard lane-a@Watch` (21 classes, 468 s): passed.
+
+Mutations observed (Rule 19), each reverted to a byte-identical tree:
+- mutation: Row 2: `Ownership.cls` `WHERE SessionRef = ?` -> `<>` in the pairing query -> "the paired chat: A's paired chat gets the incident..." red (`buttonsOf(CHAT_A)` never showed A's buttons), the other two cases did not run.
+- mutation: Rows 3 and 4: `AnswersIn.FromTelegram` answers as the request's owner (`ApprovalRequest.OwnerRef`) instead of `chat.SessionRef` -> "...a press from B's paired chat..." red (no "Only the paired chat can answer this request." alert); the routing case stayed green.
+- mutation: Row 5: `Core.Msg.Answer` gained `ChatId`, set in `FromTelegram` from the chat row -> "the message search: ..." red, the first two cases green.
+- mutation: Row 6: `error` taken out of the degraded branch of `docker/probe.sh` -> `test-probe.sh` red (4 checks: the row 13 error run, its alert and count lines, and the QA path for error).
+- mutation: Row 7: `ReferenceHits`'s old body put back -> `TestReferenceHitsReadsLists` red ("a value held only inside a 16-bit $List element is found"); green again on the same warm stack after the revert.
+- mutation: Row 8: the unparenthesised `now ] $Translate(...)_"Z"` put back in `Test/Data/PublicSettings.cls` -> `test-class-rules.sh` red (assert-concat names line 105).
+- mutation: Row 9: `HashCode` repeats the SHA-256 line -> `TestHashCodeIsSessionHash` red ("with no hashing of its own"); green again on the same warm stack after the revert.
+
 **Shared surfaces:**
 - The report check of `docker/tests/test-online-demo-path.sh` (lines ~17, 106-172): it changes from "seven passed cases and the three skipped ones of Story 31.4" to ten passed cases and none skipped.
 - The headers of `demo-path.spec.ts` and the script.
@@ -262,5 +297,12 @@ The lane values are `OCUTALON_LOCK_DIR=<lock-dir>/lane-d`, `OCUTALON_TEST_WEB_PO
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap (two items; the diff is complete and uncommitted in the epic worktree, HEAD unchanged at the baseline)
+
+Implement stage result: every row of the matrix is built and the spec's checks that could run are green: `live online-demo-path` (ten passed cases, none skipped, `all checks passed`), `live online-demo` (rows 6 and 13 pass with `ReferenceHits` delegating), `shard lane-b` parts 1 and 2 (54 classes each), the three `(loop)` class runs, `test-probe.sh`, `test-class-rules.sh`, `test-boundaries.sh`, `npm --prefix web run lint`, and all check scripts of `ci/checks.sh` except one. The seven mutations are recorded under Verification. Review layers and finalize were not run, because of the two items below.
+
+1. `ci/checks.sh` check `online-load` is red (`FAIL S16: probe reasons [no_key timeout rate_limited error], missing from the script: error`). `docker/tests/test-online-load.sh` row S16 pins that every reason in `docker/probe.sh`'s degraded branch is listed in `DEGRADED_REASONS` of `release/demo-load.sh`. DW-446 (veto U-187) adds `error` to the probe, so the pin needs either `error` in `DEGRADED_REASONS` (`release/demo-load.sh:90`, with the comments at :50 and :88), which is a frozen release tool, or a change to the S16 pin in `test-online-load.sh`, which weakens a cross-check of that tool. The spec's AC 4 (`ci/checks.sh` green) cannot hold without one of them. Recommended: the Contest Planner rules the one-word frozen edit (`DEGRADED_REASONS="no_key timeout rate_limited error daily_cap"` plus the two comment lines), since `demo-load.sh` only counts a fallback visitor as a pass by that list and `error` is now a degraded outcome of the probe; or, if the freeze stands, defer the probe half of DW-446 (`docker/probe.sh`, `docker/tests/test-probe.sh`) until after the v1.0.0 merge-back and keep S16 as it is.
+2. `src/ocutalon/cls/OcuTalon/Watch/Msg/Failure.cls` (Lane A, Epic 5's class; AD-33: only the owning lane edits a class) had to become `Extends (%SerialObject, %XML.Adaptor)`. Without it `KeyProof.TraceHits` (which exports every body as XML) gives -1 for every value in OCUTALON, because the body of a `FailureBatch` holding failures fails with ERROR #6249; the oracle is unchanged and no value was found in any message. The change adds no property, storage or behaviour. Not on the contended list, not named by the spec (footprint_extensions: none). Recommended: rule it as a footprint extension of Story 31.4 (Rule 11(b); AD-33's exception list does not cover it, so the ruling is the lead's), or route the one-line change to a Lane A story and re-run this story after it.
+
+Also recorded for the lead: the routing case's watch step failed in 3 of 10 local runs on a loaded machine (a 30 s `/state` timeout for C or D); the last runs, including the full unit above, were green. The CI runner's rate is unmeasured.

@@ -2927,6 +2927,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T19:11:36Z status=decision-pending owner=burndown by=cr note=product call: should error also be degraded (alert-only)? U-157 named three; recommended: yes, like the three
 - 2026-10-31T09:02:42Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=veto_U-187:error_counts_as_degraded(alert_only,not_toward_the_reset),like_U-157's_three;with_a_probe_test
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
+- 2026-11-07T17:31:07Z status=routed owner=burndown by=spec_gate note=release-tool_freeze;after_the_v1.0.4_merge-back:the_probe's_error_reason_must_land_with_release/demo-load.sh_DEGRADED_REASONS(+comments_:50,:88),which_docker/tests/test-online-load.sh_S16_pins_to_docker/probe.sh;31.4_implement_found_it(ruling_R1);veto_U-187_still_stands
 
 ### DW-447: AD-25's probe bullet lists the outcomes busy, capped, auth_failed and no_decision, but the probe also has no_splash (Story 16.6) and degraded (Story 29.6, epic29_brief), and the spine does not record them
 - source: spec-29-6-the-probe-alerts-when-every-turn-falls-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -5095,3 +5096,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Verification's four K21-patch mutation lines target keepRoom and CHAT_FLOOR, which do not run while the panel is closed (demo-guide @if panelShown); no recorded red for start.page or the before sideways check. Closing it needs a live run, not allowed in this review.
 - 2026-11-07T11:50:24Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a closed compact finish that scrolls the page or sideways reaches CI or a smoke with K21 green
+
+### DW-877: Watch.Msg.Failure is not XML-enabled, so a FailureBatch body holding failures cannot be exported as XML (ERROR #6249) and KeyProof.TraceHits gives -1 for every value in OCUTALON over a run that has one
+- source: spec-31-4-the-paired-chat-stays-isolated-under-load-too.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 31.4 implement pass 1: TraceHits returned -1 until Failure gained %XML.Adaptor (one line, no storage change); AD-33 keeps the class Lane A's, so 31.4 reads such bodies through a Lane B fallback instead (ruling R2); also check whether anything else that XML-exports message bodies (the key proof of 9.10 and 30.8, the Visual Trace contents) meets the same error
+- 2026-11-07T17:31:07Z status=routed owner=burndown by=harvest note=AD-33_request_to_Lane_A:add_%XML.Adaptor_to_OcuTalon.Watch.Msg.Failure(Extends_(%SerialObject,%XML.Adaptor)),then_31.4's_fallback_can_go
