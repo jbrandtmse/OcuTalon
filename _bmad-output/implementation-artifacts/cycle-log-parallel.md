@@ -2556,3 +2556,4 @@
 2026-11-07T20:57:38Z	Epic 32	epic_merge_started	head=664e98ed into=feature kind=bookkeeping_close
 2026-11-07T20:58:19Z	Run	feature_merged_locally	from=origin_50103869(Planner_rc2_record) pushed=f4deed1b
 2026-11-07T20:58:19Z	Run	ci_run_cancelled	runs=42413018315,42413018327(574736a5),42413420890,42413420906(1011b81c) reason=superseded_feature_heads;free_queue
+2026-11-07T20:58:59Z	Epic 11	ci_flake_rerun	head=882b6d4b run=42406393504 job=browser(DW-555_signedOut_navigation) lane-a=success
