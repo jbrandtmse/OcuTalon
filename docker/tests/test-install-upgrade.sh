@@ -212,7 +212,7 @@ if grep -q '^STEP SSL FAILED ' "$tmp/actual.row7"; then
 else
   fail "row 7: the log does not name SSL as failed"
 fi
-if [ "$(sed -n '/^STEP SSL FAILED /,$p' "$tmp/actual.row7" | grep -cE '^STEP (Tasks|Demo|Provider|Audit|Telegram|Production|Reconcile|PrivateData|Ready) ')" = 0 ] \
+if [ "$(sed -n '/^STEP SSL FAILED /,$p' "$tmp/actual.row7" | grep -cE '^STEP (Tasks|Demo|Digest|Provider|Audit|Telegram|Memory|Production|Reconcile|PrivateData|Ready) ')" = 0 ] \
   && grep -q '^STEP Bridge.Installer OK$' "$tmp/actual.row7" && grep -q '^STEP Web OK$' "$tmp/actual.row7"; then
   pass "row 7: the steps before SSL ran and none after it"
 else

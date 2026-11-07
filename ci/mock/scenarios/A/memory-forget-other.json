@@ -1,0 +1,21 @@
+{
+  "name": "memory-forget-other",
+  "match": {
+    "marker": "memory-forget-other"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "forget_memory",
+        "input": {
+          "memoryRef": "zzMemoryForget00000001"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock could not forget that memory."
+    }
+  ]
+}

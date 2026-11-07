@@ -3,7 +3,7 @@
 /// Each scanner is first shown to flag a sample that breaks its rule and to pass one that keeps it.
 ///   - TestCallbackRule: a tool, toolset, policy or renderer class (a class that extends %AI.Tool, %AI.ToolSet, an %AI.Policy base or
 ///     %AI.Shell.StreamRenderer, or an extension base whose subclass the gate calls: the host sink and the classification extension), and a class whose
-///     methods they call (CALLBACKHELPERS: the step buffer, the context, the classes that the reminder tools call and the classes that the gate calls, Approval.Raise's included, and, since Story 5.1, Watch.Reader and the classes it calls, and the classes that BridgeSink calls when it publishes: DW-177), names %AI on no code
+///     methods they call (CALLBACKHELPERS: the step buffer, the context, the classes that the reminder tools call and the classes that the gate calls, Approval.Raise's included, and, since Story 5.1, Watch.Reader and the classes it calls, and the classes that BridgeSink calls when it publishes: DW-177, and the memory embedding endpoint, Memory.Embedding, which queues its Python work to a worker), names %AI on no code
 ///     line except its Class line, and uses no Python, because on build 154 a session
 ///     call from inside a callback deadlocked the job and a process that runs Python both inside and outside one crashes (AD-6);
 ///   - TestOnlyRunnersChat: no OcuTalon class outside the Test package, except the runner and its adapter, calls Chat, ChatWithContent,
@@ -37,10 +37,10 @@
 ///   - TestReplayOpensTheThrowawaySession (Story 30.3, DW-452; AD-6): Replay.Run, the replay of an approved tool call, calls the adapter's NewSession once
 ///     before it calls ExecuteTool and its ReleaseThrowaway once after, and ReleaseThrowaway drops the session (ReleaseSession), so that the throwaway AI
 ///     session that AD-6 asks for cannot be deleted without this test failing. The scanner is first shown to flag the order and to ignore comment lines;
-///   - TestOnlyTheRunnerWritesLinks (Story 1.8; AD-6, AD-33): no OcuTalon class outside the Test package, except ConversationLink, the adapter,
-///     Decide and Bridge.Purge, names the link class (as a class, as the table, or by the globals that hold its rows and its lock); Decide calls Lock, Unlock and
-///     SessionOf of it (Story 1.9: SessionOf only reads) and nothing else, a system method such as %New or %DeleteId included, and never Point; the
-///     adapter, the only caller of Point, calls Point, SessionOf, Lock and Unlock, and Point in one place; no line of either names the link class more often than it calls one of its methods, and none names its
+///   - TestOnlyDecideWritesLinks (Story 1.8, Story 17.8; AD-6, AD-8, AD-33): no OcuTalon class outside the Test package, except ConversationLink, the adapter,
+///     Decide and Bridge.Purge, names the link class (as a class, as the table, or by the globals that hold its rows and its lock); Decide, the only caller of
+///     Point, calls Lock, Unlock, SessionOf and Point of it and nothing else, a system method such as %New or %DeleteId included, and Point in one place
+///     (PointLink); the adapter only reads and locks: it calls SessionOf, Lock and Unlock and never Point; no line of either names the link class more often than it calls one of its methods, and none names its
 ///     table or its globals; Bridge.Purge (Story 30.2) calls no method of the link class, names its table on one line only, a SELECT that writes nothing,
 ///     and names neither its globals nor its lock; and Point is the only writer of the link class, which runs no SQL and touches no global directly;
 ///   - TestToolsReturnThroughResult (Story 1.9; AD-10, Consistency Conventions: Tool results): every product tool provider (a class of OcuTalon.Tools that
@@ -78,8 +78,8 @@ Parameter CALLBACKBASES = "%AI.Tool,%AI.ToolSet,%AI.Policy.Authorization,%AI.Pol
 /// (FireEvent) and OcuTalon's sink (also scanned as a host sink, CALLBACKBASES), and, since the gate holds a risky call (Story 3.6), the classes that
 /// Approval.Raise runs inside the callback: the approval API, the service that starts the hold, the reference generator, the clock, the request row
 /// that it validates and saves, and the start message that the service sends. Since the approval payload asks the notice's rule for the either-way line
-/// (Story 7.8), the notice (Watch.Notice, whose Reading FromRow calls) and the date reader it calls (Fix.Reformat).
-Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time,OcuTalon.Bridge.Data.ApprovalRequest,OcuTalon.Bridge.Msg.ApprovalStart,OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle,OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun,OcuTalon.Watch.Notice,OcuTalon.Fix.Reformat";
+/// (Story 7.8), the notice (Watch.Notice, whose Reading FromRow calls) and the date reader it calls (Fix.Reformat), and, since the memory tools embed a memory's text inside the callback (Story 19.2), the embedding endpoint (Memory.Embedding), which queues the Python work to a worker and holds no Python itself, and, since the document extraction (Story 19.6), the queue-and-wait base of the Python workers (Memory.Worker) and the caller side of the extraction (Docs.Extract), which hold no Python either.
+Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time,OcuTalon.Bridge.Data.ApprovalRequest,OcuTalon.Bridge.Msg.ApprovalStart,OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle,OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun,OcuTalon.Watch.Notice,OcuTalon.Fix.Reformat,OcuTalon.Memory.Embedding,OcuTalon.Memory,OcuTalon.Tools.HostData,OcuTalon.Memory.Worker,OcuTalon.Docs.Extract";
 
 /// The classes that the watch tools call inside the callback (Story 5.1): the answer shaping (Tools.WatchAnswers), the reader, the settings that it reads (the online-demo flag) and the Demo step, whose parameters name the Orders production; and, since stop_watch resolves from the session's own watches (Story 5.2), the ownership API (Data.Ownership.Checks) and the watch rows that it opens (Data.BackgroundCheck). Since the read tools of the Diagnosis agent (Story 5.4) read an incident's evidence: the evidence pack (Watch.EvidencePack), the group row it reads (Data.FailureGroup) and the pure helpers it calls for an error sentence and a pattern (Watch.ErrorText, Watch.Settle).
 Parameter READERCLASSES = "OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.Ownership,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle";
@@ -105,8 +105,8 @@ Parameter REMINDERREFERENCE = "ocutalon[._]data[._]reminder|ocutalonp\.reminder|
 Parameter GOVERNANCE = "ocutalon[._]bridge[._](\w+[._])?approval|ocutalonbp\.approval|approvalstartin|answersin|enslib[._]workflow|toolclassification|classificationclass|settingsops|ocutalon[._]data[._]setting|ocutalonp\.(setting|pairing)|accessor\W{1,4}writedefault\b|ocutalon[._]bridge[._]timeouts\W{1,4}(apply|restart)\b|public[._]settings\W{1,4}(set|setready|clearready)\b|ens\.director\W{1,6}(updateproduction|startproduction|stopproduction|restartproduction|recoverproduction|cleanproduction|deleteproduction|killproductionglobals|moveensruntimetoenssuspended|actualizeproductiondifferences|enableconfigitem|tempstopconfigitem|restartautoaddeditem|setautostart\w*|(set|remove)productionshutdowngroup|systemstart|systemstop|set\w*settingvalue)\b|ens\.config\.\w+\W{1,4}(%new|%deleteid|%delete|%deleteextent|%killextent)\b|ocutalon[._]mcp|mcpops|sessionops|ocutalon[._]data[._]pairing|msg[._]\w+command\b";
 
 /// The command classes that a tool may submit (AD-1: the verbs that CommandsIn accepts from origin tool and that exist): any other
-/// OcuTalon.Msg.Command.<Verb> in tool code is a governance command (Pair, Unpair, SetDemoMode, EndSession). ProposePersona is the persona tool's verb (Story 40.5). Story 19.3's memory verbs join when they exist.
-Parameter TOOLVERBS = "SetReminder,ListReminders,CancelReminder,StartWatch,StopWatch,Dismiss,ProposePersona";
+/// OcuTalon.Msg.Command.<Verb> in tool code is a governance command (Pair, Unpair, SetDemoMode, EndSession). ProposePersona is the persona tool's verb (Story 40.5). SendDigest (Story 17.6) takes no recipient. SaveMemory and ForgetMemory are the memory tools' verbs (Story 19.3).
+Parameter TOOLVERBS = "SetReminder,ListReminders,CancelReminder,StartWatch,StopWatch,Dismiss,ProposePersona,SendDigest,SaveMemory,ForgetMemory";
 
 /// A reference to AI Hub: %AI or EnsLib.AI as a word (the pattern of docker/tests/test-class-rules.sh).
 Parameter AIREFERENCE = "(^|[^a-z0-9_])%ai([^a-z0-9]|$)|enslib[._]ai([^a-z0-9]|$)";
@@ -351,8 +351,8 @@ Method TestOnlyChecksPublishesCheck()
 }
 
 /// Only the AD-8 retry path names RetryOf (Story 33.1, veto U-246): the scanner flags the property in each form a client class could use it, passes look-alike words and
-/// comment lines, and the scan finds no class outside the allow-list that names it. RetryOf does not exist yet (Story 17.2 builds it in the allowed classes), so the
-/// scan finds none today; the allowed classes are not required to name it.
+/// comment lines, and the scan finds no class outside the allow-list that names it. Story 17.2 built RetryOf in the allowed classes (the retry decision, the request, the runner, its adapter and the link), so the
+/// scan finds it only there; the allowed classes are not required to name it.
 Method TestOnlyTheRetryPathNamesRetryOf()
 {
 	Set pattern = ..#RETRYOF
@@ -493,12 +493,12 @@ ClassMethod ThrowawayOrder(text As %String) As %String [ Private ]
 	Quit $ListToString(order, ">")
 }
 
-/// Only the runner writes conversation links (AD-6, AD-33). No class outside the Test package, except ConversationLink, the adapter, Decide and Bridge.Purge
+/// Only Decide writes conversation links (AD-6, AD-8, AD-33). No class outside the Test package, except ConversationLink, the adapter, Decide and Bridge.Purge
 /// (which only reads the SessionId of every link), names the
-/// link class, its table or the globals of its rows and its lock. Decide calls Lock and Unlock of the class and nothing else (it takes the lock only to
-/// probe it); the adapter calls Point, SessionOf, Lock and Unlock and nothing else, and Point in one place; and Point is the only method of
+/// link class, its table or the globals of its rows and its lock. Decide calls Lock, Unlock, SessionOf and Point of the class and nothing else, and Point in one
+/// place; the adapter calls SessionOf, Lock and Unlock and nothing else, never Point; and Point is the only method of
 /// ConversationLink that saves or deletes a row. The scanners are first shown to flag samples and to pass look-alikes and comment lines.
-Method TestOnlyTheRunnerWritesLinks()
+Method TestOnlyDecideWritesLinks()
 {
 	Set pattern = ..#LINKREFERENCE
 	Set tab = $Char(9)
@@ -535,20 +535,21 @@ Method TestOnlyTheRunnerWritesLinks()
 
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Process.Decide", .decide), "Decide has source")
 	Set used = ..LinkCalls(decide, calls)
-	Do $$$AssertEquals($ListLength(used), 3, "Decide calls three methods of the link class and nothing else")
-	For method = "Lock", "Unlock", "SessionOf" {
+	Do $$$AssertEquals($ListLength(used), 4, "Decide calls four methods of the link class and nothing else")
+	For method = "Lock", "Unlock", "SessionOf", "Point" {
 		Do $$$AssertTrue($ListFind(used, method), "Decide calls "_method)
 	}
-	Do $$$AssertEquals($ListFind(used, "Point"), 0, "and never Point: it only reads the link")
+	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", decide, "conversationlink\)\.point\(")), 1, "and it calls Point in one place: PointLink, the acceptance of a reply")
 	Do $$$AssertEquals(..LinkMentions(decide, calls), 0, "and its code names the link class nowhere but in those calls")
 	Do $$$AssertEquals($ClassMethod(source, "Matches", decide, "ocutalonbp\.conv"), 0, "nor the globals of its rows and its lock")
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Adapter.Agent", .adapter), "the adapter has source")
 	Set used = ..LinkCalls(adapter, calls)
-	Do $$$AssertEquals($ListLength(used), 4, "the adapter calls four methods of the link class")
-	For method = "Point", "SessionOf", "Lock", "Unlock" {
+	Do $$$AssertEquals($ListLength(used), 3, "the adapter calls three methods of the link class: it only reads and locks")
+	For method = "SessionOf", "Lock", "Unlock" {
 		Do $$$AssertTrue($ListFind(used, method), "the adapter calls "_method)
 	}
-	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", adapter, "conversationlink\)\.point\(")), 2, "and it calls Point in two places: the save of a linked turn and the switch to a compaction fork (Story 30.1)")
+	Do $$$AssertEquals($ListFind(used, "Point"), 0, "and never Point: only Decide moves a link")
+	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", adapter, "conversationlink\)\.point\(")), 0, "so no line of it calls Point")
 	Do $$$AssertEquals(..LinkMentions(adapter, calls), 0, "and its code names the link class nowhere but in those calls")
 	Do $$$AssertEquals($ClassMethod(source, "Matches", adapter, "ocutalonbp\.conv"), 0, "nor the globals of its rows and its lock")
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Purge", .purge), "the bridge purge has source")

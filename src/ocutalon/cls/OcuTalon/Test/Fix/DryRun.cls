@@ -5,13 +5,13 @@
 /// removes the headers of the request's session in the end; the orders and the incident rows are removed by Case.
 ///   - TestFiftyOrdersChangeNothing (AC 3, AC 4): 50 failed orders of one session, with a snapshot (Test.Fix.Snapshot) of OCUTALON and OCUORDERS before and after: the
 ///     snapshot before holds the 50 orders with their bodies, the Orders production and its queues; the targets are the 50 header ids, ascending; the dry run has exactly the
-///     keys of DRYRUNKEYS and the values of the matrix's row; nothing in either namespace changed but the request's own session (and the firing of a timer that was
+///     keys of DRYRUNKEYS plus goodCheck ({0, 0}: no order from the same source went through) and the values of the matrix's row; nothing in either namespace changed but the request's own session (and the firing of a timer that was
 ///     already running, which Test.Fix.Snapshot leaves out), the incident's row and its group's rows are unchanged, FixExecutor wrote no event-log row in the
 ///     request's session; and the mock logged no request;
 ///   - TestLeftOutAndScope: of six failed orders of the scope, two do not read in the source format and are left out; a failed order of another scope and a header that
 ///     was delivered are not counted; the example is the lowest target;
 ///   - TestEitherWayWithArrival (Story 7.7, DW-644): three failed orders dated 11/03/2026, each of whose headers arrived on November 3, read both ways and match the source
-///     reading's day: the dry run is worked out, with all three as targets, the example 11/03/2026 and exactly the keys of DRYRUNKEYS;
+///     reading's day: the dry run is worked out, with all three as targets, the example 11/03/2026 and the keys of DRYRUNKEYS plus goodCheck;
 ///   - TestOneWayIsTheExample: a day above 12 among values that read both ways is evidence of its own (the arrivals match nothing), and its value is the example, not the first
 ///     target; with no such value the example is the first target whose readings differ, not a first value that reads as one date;
 ///   - TestNoEvidenceIsRefused: three orders dated 03/05/2026 that arrived on November 4 read both ways with nothing to choose: the dry run is refused with the reason that says so,
@@ -79,33 +79,6 @@ ClassMethod TraceOf(ref As %String) As %String [ Private ]
 	Quit ##class(OcuTalon.Data.Session).RefIndexOpen(ref).TraceRef
 }
 
-/// The names of the comma-separated list, sorted, comma-separated (the same order as SortedKeys).
-ClassMethod SortedNames(names As %String) As %String [ Private ]
-{
-	For i = 1:1:$Length(names, ",") {
-		Set keys($Piece(names, ",", i)) = ""
-	}
-	Set text = ""
-	Set key = ""
-	For {
-		Set key = $Order(keys(key))
-		Quit:key=""
-		Set text = text _ $Select(text = "": "", 1: ",") _ key
-	}
-	Quit text
-}
-
-/// The ids of the failed headers whose super session is the given one, in order, as a comma-separated list.
-ClassMethod IdsOf(failed As %DynamicArray, super As %String) As %String [ Private ]
-{
-	Set ids = ""
-	Set iterator = failed.%GetIterator()
-	While iterator.%GetNext(, .failure) {
-		If failure.superSession = super Set ids = ids _ $Select(ids = "": "", 1: ",") _ failure.id
-	}
-	Quit ids
-}
-
 Method TestFiftyOrdersChangeNothing()
 {
 	If '..Ready() Quit
@@ -151,7 +124,8 @@ Method TestFiftyOrdersChangeNothing()
 	Do $$$AssertEquals(response.IncidentRef_"|"_response.Reason, incident.Ref_"|", "the answer is for the incident and holds no reason")
 	Do $$$AssertEquals(response.Targets, ids, "Targets holds the 50 header ids, ascending")
 	Set dryRun = {}.%FromJSON(response.DryRun)
-	Do $$$AssertEquals(..SortedKeys(dryRun), ..SortedNames($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")), "the dry run has exactly the keys of DRYRUNKEYS")
+	Do $$$AssertEquals(..SortedKeys(dryRun), ..SortedNames($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")_",goodCheck"), "the dry run has exactly the keys of DRYRUNKEYS plus goodCheck")
+	Do $$$AssertEquals(dryRun.goodCheck.%ToJSON(), "{""checked"":0,""changed"":0}", "goodCheck says that no good message was checked: none from the same source went through")
 	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut, "50|50|0", "50 affected, 50 resent, none left out")
 	Do $$$AssertEquals(dryRun.field_"|"_dryRun.before_"|"_dryRun.after, "order date|10/16/2026|2026-10-16", "the field in words, and the first target's value before and after")
 	Do $$$AssertEquals(dryRun.itemNoun.%ToJSON(), ..#NOUN, "and the noun of the incident")
@@ -167,8 +141,8 @@ Method TestLeftOutAndScope()
 	If '..Fail(1, "") Quit
 	Set failed = ..WaitFailed(7)
 	If failed.%Size() < 7 Quit
-	Set scoped = ..IdsOf(failed, super)
-	Set other = ..IdsOf(failed, "")
+	Set scoped = ..SuperIds(failed, super)
+	Set other = ..SuperIds(failed, "")
 	Do $$$AssertEquals($Length(scoped, ",")_"|"_$Length(other, ","), "6|1", "six failed orders are of the owner's scope, one of the instance's")
 	Set delivered = ..LateHeader(super)
 	Set first = $Piece(scoped, ",", 1)
@@ -210,7 +184,8 @@ Method TestEitherWayWithArrival()
 	If '$IsObject(response) Quit
 	Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_ids, "the dry run is worked out, with the three orders as targets")
 	Set dryRun = {}.%FromJSON(response.DryRun)
-	Do $$$AssertEquals(..SortedKeys(dryRun), ..SortedNames($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")), "the dry run has exactly the keys of DRYRUNKEYS")
+	Do $$$AssertEquals(..SortedKeys(dryRun), ..SortedNames($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")_",goodCheck"), "the dry run has exactly the keys of DRYRUNKEYS plus goodCheck")
+	Do $$$AssertEquals(dryRun.goodCheck.%ToJSON(), "{""checked"":0,""changed"":0}", "goodCheck says that no good message was checked: none from the same source went through")
 	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut_"|"_dryRun.before_"|"_dryRun.after, "3|3|0|11/03/2026|2026-11-03", "three affected and resent, and the example")
 }
 
@@ -492,8 +467,8 @@ Method TestRefusals()
 	If '..Fail(1, "") Quit
 	Set failed = ..WaitFailed(3)
 	If failed.%Size() < 3 Quit
-	Set scoped = ..IdsOf(failed, super)
-	Set other = ..IdsOf(failed, "")
+	Set scoped = ..SuperIds(failed, super)
+	Set other = ..SuperIds(failed, "")
 	Set incident = ..Fixture(owner, scoped)
 	Set ref = incident.Ref
 	Do ..AssertRefused(ref, "repair_resend", ..Params("ShipDate"), super, "a field that the failed messages do not have", "is not a field of the sample message")

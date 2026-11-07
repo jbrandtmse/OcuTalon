@@ -34,14 +34,16 @@ XData ProductionDefinition
   <Item Name="ChatAgent" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
     <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Chat</Setting>
   </Item>
-  <Item Name="TriageAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="false">
-    <Setting Target="Adapter" Name="AgentClass"></Setting>
+  <Item Name="TriageAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
+    <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Triage</Setting>
+    <Setting Target="Host" Name="ReplyClass">OcuTalon.Bridge.Msg.DecisionPayload</Setting>
   </Item>
-  <Item Name="DiagnosisAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="false">
-    <Setting Target="Adapter" Name="AgentClass"></Setting>
+  <Item Name="DiagnosisAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
+    <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Diagnosis</Setting>
+    <Setting Target="Host" Name="ReplyClass">OcuTalon.Watch.Msg.DiagnosisPayload</Setting>
   </Item>
-  <Item Name="ChatAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="false">
-    <Setting Target="Adapter" Name="AgentClass"></Setting>
+  <Item Name="ChatAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
+    <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Chat</Setting>
   </Item>
   <Item Name="AgentSteps" ClassName="OcuTalon.Bridge.Operation.Steps" PoolSize="1" Enabled="true"/>
   <Item Name="OcuTalonApprovals" ClassName="EnsLib.Workflow.Operation" PoolSize="1" Enabled="true"/>
@@ -55,11 +57,11 @@ XData ProductionDefinition
   <Item Name="FixExecutor" ClassName="OcuTalon.Fix.Executor" PoolSize="2" Enabled="true"/>
   <Item Name="Checks" ClassName="OcuTalon.Checks.Process" PoolSize="1" Enabled="true"/>
   <Item Name="DigestStore" ClassName="OcuTalon.Digest.Store" PoolSize="1" Enabled="true"/>
-  <Item Name="Digest" ClassName="OcuTalon.Digest.Process" PoolSize="1" Enabled="false"/>
+  <Item Name="Digest" ClassName="OcuTalon.Digest.Process" PoolSize="1" Enabled="true"/>
   <Item Name="ReconcileIn" ClassName="OcuTalon.Install.ReconcileIn" PoolSize="1" Enabled="true">
     <Setting Target="Adapter" Name="CallInterval">5</Setting>
   </Item>
-  <Item Name="MemoryOps" ClassName="OcuTalon.Memory.Ops" PoolSize="1" Enabled="false"/>
+  <Item Name="MemoryOps" ClassName="OcuTalon.Memory.Ops" PoolSize="1" Enabled="true"/>
   <Item Name="DocumentOps" ClassName="OcuTalon.Docs.Ops" PoolSize="1" Enabled="false"/>
   <!-- lane A: end -->
   <!-- lane B: begin -->

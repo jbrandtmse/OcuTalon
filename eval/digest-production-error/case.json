@@ -1,0 +1,71 @@
+{
+  "name": "digest-production-error",
+  "kind": "digest",
+  "heldOut": false,
+  "description": "The digest of a morning when the Results production passed and the Orders production has an item in error. The case is right only when the digest gives no all-clear, names the Orders production, and carries the key that says everything else passed.",
+  "recordedBy": "recorded from the rows of Test.Digest.AllClear (Story 17.7)",
+  "checks": [
+    {
+      "result": "passed",
+      "entry": "Results production",
+      "finding": "",
+      "checkedAt": "2026-11-05T07:59:00Z"
+    },
+    {
+      "result": "failed",
+      "entry": "Orders production",
+      "finding": "1 item in error",
+      "checkedAt": "2026-11-05T07:59:00Z"
+    }
+  ],
+  "vitals": {
+    "rows": [
+      {
+        "result": "passed",
+        "entry": "IRIS instance",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "database space",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "journal space",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "license use",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "system log",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      }
+    ],
+    "figures": {
+      "upDays": 3,
+      "databasesFull": 60,
+      "licenseUse": 20
+    }
+  },
+  "expectation": {
+    "allClear": false,
+    "catalogKey": "checks.notEverythingRestPassed",
+    "named": [
+      "Orders production"
+    ],
+    "checked": [
+      "Results production",
+      "Orders production"
+    ]
+  }
+}

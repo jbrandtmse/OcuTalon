@@ -9,6 +9,9 @@ Include Ensemble
 ///   - MarkCapped marks a day as capped once, under a lock, and tells the host sink once (budget.capped). The callers are the paths
 ///     that record a daily_cap fallback (Decide.RecordFallback); the mark is a plain global of the private database,
 ///     ^OcuTalonBP.UsageCapped(day) = the UTC time of the mark.
+///   - Unmark removes the mark of a day, under MarkCapped's lock, when Settings.Set turns the daily cost cap off or raises it above the day's
+///     spend, so that cost fallbacks stop from the next decision. State's rule is unchanged: a day is still capped when it is marked or when the
+///     spend has reached the cap.
 /// This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Budget
 {
@@ -128,6 +131,35 @@ ClassMethod MarkCapped(day As %String = "", sinkClass As %String = "") As %Boole
 		Do ##class(OcuTalon.Bridge.Process.Decide).FireEvent(sinkClass, "instance", day, ##class(OcuTalon.Bridge.Ext.HostSink).#BUDGETCAPPED, ##class(OcuTalon.Bridge.Ext.HostSink).BudgetCappedPayload(day))
 	}
 	Quit marked
+}
+
+/// Removes the mark of the day (YYYY-MM-DD in the instance zone; empty means today), under Lock +^OcuTalonBP.UsageCapped(day):5, the lock of
+/// MarkCapped. Nothing is fired: no event tells the host sink that the cap is lifted. A day that is not a date, a lock that is not free in 5
+/// seconds and a failure are each refused with a warning and leave the mark. Returns 1 when this call removed the mark, otherwise 0 (also when
+/// the day was not marked). It never throws.
+ClassMethod Unmark(day As %String = "") As %Boolean
+{
+	If day = "" Set day = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
+	If (day '? 4N1"-"2N1"-"2N) || (##class(OcuTalon.Bridge.Time).DayStartUtc(day) = "") {
+		$$$LOGWARNING("The day '"_day_"' cannot be unmarked as capped: it is not a date, YYYY-MM-DD")
+		Quit 0
+	}
+	Set removed = 0
+	Set locked = 0
+	Try {
+		Lock +^OcuTalonBP.UsageCapped(day):5
+		Set locked = $Test
+		If 'locked {
+			$$$LOGWARNING("The day "_day_" is not unmarked as capped: its lock was not free within 5 seconds")
+		} ElseIf $Data(^OcuTalonBP.UsageCapped(day)) {
+			Kill ^OcuTalonBP.UsageCapped(day)
+			Set removed = 1
+		}
+	} Catch exception {
+		$$$LOGWARNING("The day "_day_" could not be unmarked as capped: "_exception.DisplayString())
+	}
+	If locked Lock -^OcuTalonBP.UsageCapped(day)
+	Quit removed
 }
 
 /// The sum of the CostUSD of the Usage rows recorded from the UTC time from (inclusive) to the UTC time to (exclusive), in US

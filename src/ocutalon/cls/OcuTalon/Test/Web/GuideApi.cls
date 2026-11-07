@@ -8,7 +8,8 @@
 ///     checks, reminders, incidents and Break the feed runs as they were (counts and refs); a sessionRef in the body is ignored;
 ///   - TestStateCarriesTheGuide: /state's guide is Compute's view with demo mode on, and absent with it off.
 /// The fixture session is a row of the IRIS user (zzguideapi rows are removed by Fixture.Clean); demo.mode is saved before the tests and
-/// put back after them.
+/// put back after them. The fingerprint assertions print both fingerprints when they fail (DW-670), and TestRunAgain's step check prints the steps, the
+/// view and the fingerprint, so that a failure of the flake names what changed.
 Class OcuTalon.Test.Web.GuideApi Extends %UnitTest.TestCase
 {
 
@@ -88,7 +89,7 @@ Method TestRunAgain()
 	For i = 0:1:4 {
 		Set done = done_view.steps.%Get(i).done
 	}
-	Do $$$AssertEquals(done, "10000", "steps 3 to 5 reset; the watch still counts")
+	Do $$$AssertEquals(done, "10000", "steps 3 to 5 reset; the watch still counts"_$Select(done = "10000": "", 1: ": done "_done_", view "_view.%ToJSON()_", fingerprint "_..Fingerprint(ref)))
 	Do $$$AssertEquals(view.finished, 0, "not finished")
 	Set row = ##class(OcuTalon.Data.GuideState).ForSession(ref)
 	Do $$$AssertEquals(row.RunEpoch_"|"_row.TraceOpened, "2|0", "the row has epoch 2 and no trace flag")
@@ -157,11 +158,14 @@ Method TestOnlyTheMarkerChanges()
 	Set before = ..Fingerprint(ref)
 	Set otherBefore = ..Fingerprint(other)
 	Do ..Post(csp, "{""marker"":""trace_opened"",""sessionRef"":"""_other_"""}", .response)
-	Do $$$AssertEquals(..Fingerprint(ref), before, "trace_opened changes none of the session's data rows")
+	Set after = ..Fingerprint(ref)
+	Do $$$AssertEquals(after, before, "trace_opened changes none of the session's data rows"_$Select(after = before: "", 1: ": before "_before_" after "_after))
 	Do ..Post(csp, "{""marker"":""run_again"",""sessionRef"":"""_other_"""}", .response)
 	Do $$$AssertEquals(..Ok(response), 1, "run_again answers 200")
-	Do $$$AssertEquals(..Fingerprint(ref), before, "run_again changes none of the session's data rows")
-	Do $$$AssertEquals(..Fingerprint(other), otherBefore, "and none of another session's")
+	Set after = ..Fingerprint(ref)
+	Do $$$AssertEquals(after, before, "run_again changes none of the session's data rows"_$Select(after = before: "", 1: ": before "_before_" after "_after))
+	Set otherAfter = ..Fingerprint(other)
+	Do $$$AssertEquals(otherAfter, otherBefore, "and none of another session's"_$Select(otherAfter = otherBefore: "", 1: ": before "_otherBefore_" after "_otherAfter))
 	Set row = ##class(OcuTalon.Data.GuideState).ForSession(other)
 	Do $$$AssertEquals(row.RunEpoch_"|"_row.TraceOpened, "5|1", "a sessionRef in the body is ignored")
 }

@@ -1,5 +1,5 @@
-/// One run of one background check (AD-18, AD-28, AD-33): the coverage storage of the daily digest. Lane A. The only writer is OcuTalon.Checks,
-/// one INSERT beside the BackgroundCheck update for each run (Story 17.5); OcuTalon.Checks.Coverage.Build reads the rows of a window to say
+/// One run of one background check (AD-18, AD-28, AD-33): the coverage storage of the daily digest. Lane A. The only writer is
+/// OcuTalon.Checks.Coverage RecordRun, which the update trigger of OcuTalon.Data.BackgroundCheck calls for each run (Story 17.5); OcuTalon.Checks.Coverage.Build reads the rows of a window to say
 /// which checks ran throughout it. The rows are purged with the digest area's rows (AD-27). Row ids never leave the server.
 Class OcuTalon.Digest.Data.CheckRun Extends %Persistent
 {
@@ -31,6 +31,21 @@ Property HeaderId As %Integer;
 Index CheckRefRanAtIndex On (CheckRef, RanAt);
 
 Index SessionRefRanAtIndex On (SessionRef, RanAt);
+
+/// Deletes the runs that finished before the cutoff: now in UTC moved back daysToKeep whole days (Bridge.Time.DaysCutoff). A run at the cutoff
+/// stays. daysToKeep must be a whole number of at least 1; anything else is an error status and nothing is deleted.
+ClassMethod Purge(daysToKeep As %Integer) As %Status
+{
+	Set sc = ##class(OcuTalon.Bridge.Time).DaysCutoff(daysToKeep, "OcuTalon.Digest.Data.CheckRun.Purge", .cutoff)
+	If $$$ISERR(sc) || (cutoff = "") Quit sc
+	Try {
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Digest_Data.CheckRun WHERE RanAt < ?", cutoff)
+		If result.%SQLCODE < 0 Set sc = $SYSTEM.Status.Error(5001, "Deleting the old check runs failed: "_result.%Message)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
 
 Storage Default
 {

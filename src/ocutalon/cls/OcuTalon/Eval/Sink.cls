@@ -1,10 +1,10 @@
 /// EvalSink, the business operation that receives the decisions of evaluation runs (AD-22, AD-30). Lane A. Intake sends it the
 /// OcuTalon.Msg.ItemDecision of an Item that EvalIn sent (owner eval), IncidentManager sends it the ItemDecision of an incident case (ItemId the IncidentRef
-/// that EvalIn opened the row with, SourceItemId the case's name), EvalIn sends it the OcuTalon.Eval.Msg.TurnResult of a turn case,
-/// and it completes that case's OcuTalon.Eval.Data.CaseResult row.
+/// that EvalIn opened the row with, SourceItemId the case's name), EvalIn sends it the OcuTalon.Eval.Msg.TurnResult of a turn case, Digest sends it the
+/// OcuTalon.Eval.Msg.DigestResult of a digest case, and it completes that case's OcuTalon.Eval.Data.CaseResult row.
 /// It sends nothing, calls no model, and only reads the bridge's Decision and Usage rows. It never throws: a failure is logged and the
 /// call answers OK, with no response.
-///   - A message that is neither an ItemDecision nor a TurnResult, or an ItemDecision whose OwnerRef is not eval, is refused with a
+///   - A message that is none of an ItemDecision, a TurnResult and a DigestResult, or an ItemDecision whose OwnerRef is not eval, is refused with a
 ///     warning and stores nothing.
 ///   - The row is the one in state sent for the message's ItemId (CaseResult.Pending). With none, which is an Item EvalIn did not send
 ///     or a second decision for a row already decided, a warning names the ItemId and SourceItemId and nothing is stored or changed.
@@ -18,6 +18,9 @@
 ///     DecisionRef is the turn's Decision, and the Outcome stays empty), CostUSD is the cost of the DecisionRef's Usage rows and
 ///     LargestRequestTokens their largest request. A turn case has no act turn, so TurnDecisionRef and TurnCostUSD stay empty. Report
 ///     scores the case from the row and from the TurnResult.
+///   - A DigestResult completes the row of its ItemId as a TurnResult does: DecisionRef (the summary request's, or empty), Fallback and FallbackReason come
+///     from the message, the Outcome stays empty, and the cost and size are those of the DecisionRef's Usage rows when it has one. Report scores the case
+///     from the row and from the DigestResult.
 ///   - The row ends in state decided with DecidedAt now.
 Class OcuTalon.Eval.Sink Extends Ens.BusinessOperation
 {
@@ -58,7 +61,7 @@ Method Complete(request As %RegisteredObject) [ Private ]
 		$$$LOGWARNING(..#LOGNOROW_..Describe(request))
 		Quit
 	}
-	Set turn = request.%IsA("OcuTalon.Eval.Msg.TurnResult")
+	Set turn = request.%IsA("OcuTalon.Eval.Msg.TurnResult") || request.%IsA("OcuTalon.Eval.Msg.DigestResult")
 	Set row.DecisionRef = request.DecisionRef
 	Set row.Outcome = $Select(turn: "", 1: request.Outcome)
 	Set row.Fallback = +request.Fallback
@@ -82,21 +85,21 @@ Method Complete(request As %RegisteredObject) [ Private ]
 	If $$$ISERR(sc) $$$LOGERROR(..#LOGFAILED_$SYSTEM.Status.GetOneStatusText(sc))
 }
 
-/// Why the message is not taken, "" when it is: neither an ItemDecision nor a TurnResult, or an ItemDecision of an owner other than eval.
+/// Why the message is not taken, "" when it is: none of an ItemDecision, a TurnResult and a DigestResult, or an ItemDecision of an owner other than eval.
 Method Refusal(request As %RegisteredObject) As %String [ Private ]
 {
-	If '..Known(request) Quit "it is neither an ItemDecision nor a TurnResult"
+	If '..Known(request) Quit "it is none of an ItemDecision, a TurnResult and a DigestResult"
 	If request.%IsA("OcuTalon.Msg.ItemDecision") && (request.OwnerRef '= ##class(OcuTalon.Data.Ownership).#EVAL) Quit "its owner is '"_$Extract(request.OwnerRef, 1, 40)_"', not eval"
 	Quit ""
 }
 
-/// 1 when the message is an ItemDecision or a TurnResult.
+/// 1 when the message is an ItemDecision, a TurnResult or a DigestResult.
 Method Known(request As %RegisteredObject) As %Boolean [ Private ]
 {
-	Quit $IsObject(request) && (request.%IsA("OcuTalon.Msg.ItemDecision") || request.%IsA("OcuTalon.Eval.Msg.TurnResult"))
+	Quit $IsObject(request) && (request.%IsA("OcuTalon.Msg.ItemDecision") || request.%IsA("OcuTalon.Eval.Msg.TurnResult") || request.%IsA("OcuTalon.Eval.Msg.DigestResult"))
 }
 
-/// The ItemId and SourceItemId of the message when it is an ItemDecision or a TurnResult, as the end of a log text, each cut at 40
+/// The ItemId and SourceItemId of the message when it is an ItemDecision, a TurnResult or a DigestResult, as the end of a log text, each cut at 40
 /// characters; empty for any other message.
 Method Describe(request As %RegisteredObject) As %String [ Private ]
 {

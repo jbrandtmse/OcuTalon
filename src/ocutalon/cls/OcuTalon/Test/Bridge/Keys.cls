@@ -34,6 +34,11 @@
 ///     text, and Status of such an item is 0; a value that is no text is recorded as unknown;
 ///   - TestAbsentOtherReadErrorIsNotAbsent: Absent of an item whose ProviderConfig read fails for another reason than a missing item (an
 ///     error status, and an exception) is exactly 0, so that a read that cannot be made never blocks a request.
+/// Added by Story 17.3 (AD-7, AD-8): a runner with no key resolves to another supported provider whose key is set, so Absent answers for it.
+///   - TestAbsentResolves: with the key variable of Anthropic set in this process, an entry of another provider whose variable is unset resolves
+///     (Absent is 0, Providers.Resolve names anthropic and its default model, with the entry's details and the placeholder of Anthropic), and an item
+///     with an admin's model, an entry of the supported provider itself, a key that is present and a form that is not judged do not resolve; each
+///     test starts and ends with every provider's key variable as it found it.
 Class OcuTalon.Test.Bridge.Keys Extends %UnitTest.TestCase
 {
 
@@ -59,6 +64,12 @@ Property Number As %Integer;
 /// The ProviderConfig row of TriageAgent before the test touched it (Test.Agent.RunnerFixture.SnapshotDefault), or "".
 Property Saved As %List;
 
+/// The Model row of TriageAgent before the test touched it, or "".
+Property SavedModel As %List;
+
+/// The key variables of the providers as the test found them, a list of $ListBuild(variable, was set, value), put back after each test.
+Property Env As %List;
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..Number = $Increment(^OcuTalonTest("Keys", "n"))
@@ -74,13 +85,38 @@ Method OnAfterAllTests() As %Status
 	Quit $$$OK
 }
 
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Set ..Env = ""
+	Set rows = ##class(OcuTalon.Bridge.Providers).Rows().%GetIterator()
+	While rows.%GetNext(, .row) {
+		Set variable = row.keyVariable
+		Set ..Env = ..Env _ $ListBuild($ListBuild(variable, ##class(OcuTalon.Test.Agent.KeyScan).HasEnv(variable), $SYSTEM.Util.GetEnviron(variable)))
+		Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv(variable)
+	}
+	Quit $$$OK
+}
+
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Set position = 0
+	While $ListNext(..Env, position, one) {
+		If $List(one, 2) {
+			Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv($List(one, 1), $List(one, 3))
+		} Else {
+			Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv($List(one, 1))
+		}
+	}
+	Set ..Env = ""
 	Do ..DeleteEntry()
 	Do ..KillRecords()
 	If ..Saved '= "" {
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault(..Saved)
 		Set ..Saved = ""
+	}
+	If ..SavedModel '= "" {
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault(..SavedModel)
+		Set ..SavedModel = ""
 	}
 	Quit $$$OK
 }
@@ -419,6 +455,40 @@ Method TestAbsentOtherReadErrorIsNotAbsent()
 	Do $$$AssertEquals(..ReadOutcome("Decide"), "exception", "control: the read of the ProviderConfig of Decide, which has no adapter, throws")
 	Do $$$AssertEquals($ClassMethod(keys, "Absent", "TelegramIn"), 0, "Absent of an item whose read returns another error is exactly 0")
 	Do $$$AssertEquals($ClassMethod(keys, "Absent", "Decide"), 0, "and so is Absent of an item whose read fails")
+}
+
+/// Story 17.3 (AD-7, AD-8): Absent and Providers.Resolve with the real table. Anthropic is the only supported provider, so its key variable is set (a fake
+/// value, in this process only) for the cases that resolve; the ProviderConfig and Model rows of TriageAgent are put back afterwards.
+Method TestAbsentResolves()
+{
+	Set keys = "OcuTalon.Bridge.Keys"
+	Set providers = "OcuTalon.Bridge.Providers"
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set scan = "OcuTalon.Test.Agent.KeyScan"
+	If ##class(Ens.Director).GetActiveProductionName() = "" {
+		Do $$$AssertTrue(0, "no production is active, so the ProviderConfig of TriageAgent cannot be read")
+		Quit
+	}
+	Set ..Saved = $ClassMethod(fixture, "SnapshotDefault", "TriageAgent", "ProviderConfig")
+	Set ..SavedModel = $ClassMethod(fixture, "SnapshotDefault", "TriageAgent", "Model")
+	Set openai = "{""model_provider"":""openai"",""api_key"":""@{env:OPENAI_API_KEY}""}"
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "TriageAgent", "Model", ##class(OcuTalon.Agent.Triage).#MODEL), "TriageAgent is on its agent's own model, the default")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "TriageAgent", "ProviderConfig", openai), "the ProviderConfig of TriageAgent is an OpenAI entry whose variable is unset")
+	Do $$$AssertEquals($ClassMethod(keys, "Absent", "TriageAgent"), 1, "with no key of a supported provider, Absent is 1: nothing resolves")
+	Do $ClassMethod(scan, "SetEnv", "ANTHROPIC_API_KEY", "ocutalon-zz-not-a-key")
+	Do $$$AssertEquals($ClassMethod(keys, "Absent", "TriageAgent"), 0, "with the key of Anthropic set, Absent is 0: the runner resolves to Anthropic")
+	Set provider = $ClassMethod(providers, "Resolve", "TriageAgent", "", openai, .config, .model)
+	Do $$$AssertEquals(provider_"|"_model, "anthropic|claude-haiku-5-5", "Resolve names Anthropic and its default model")
+	Do $$$AssertEquals($Select($IsObject(config): config."model_provider"_"|"_config."api_key", 1: ""), "anthropic|@{env:ANTHROPIC_API_KEY}", "with the placeholder of Anthropic and nothing else of a key")
+	Do $$$AssertEquals($ClassMethod(keys, "Present", $Select($IsObject(config): config.%ToJSON(), 1: "")), 1, "and that configuration holds a key that is present")
+	Do $$$AssertEquals($ClassMethod(providers, "Resolve", "TriageAgent", "", "{""model_provider"":""anthropic"",""api_key"":""@{env:ZZOCUTALONNOSUCHVAR}""}"), "", "an entry of the supported provider itself resolves to none: it is skipped")
+	Do $$$AssertEquals($ClassMethod(providers, "Resolve", "TriageAgent", "", "{""model_provider"":""openai"",""api_key"":""@{env:PATH}""}"), "", "a key that is present never resolves")
+	Do $$$AssertEquals($ClassMethod(providers, "Resolve", "TriageAgent", "", "{""model_provider"":""openai"",""api_key"":""literal-value""}"), "", "a form that is not judged (unknown) never resolves")
+	Do $$$AssertEquals($ClassMethod(providers, "Resolve", "TriageAgent", "", "not json"), "", "and neither does a text that is not JSON")
+
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "TriageAgent", "Model", "claude-sonnet-5-5"), "TriageAgent is given an admin's model")
+	Do $$$AssertEquals($ClassMethod(keys, "Absent", "TriageAgent"), 1, "Absent is 1 again: a model that an admin chose never resolves away")
+	Do $$$AssertEquals($ClassMethod(providers, "Resolve", "TriageAgent", "", openai), "", "and Resolve names none")
 }
 
 /// --- helpers ---

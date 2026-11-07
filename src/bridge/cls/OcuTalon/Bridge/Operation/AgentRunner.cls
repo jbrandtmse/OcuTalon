@@ -9,19 +9,24 @@
 /// step of the call and a FailureText when the call did not run or failed. A ToolInventory request gets
 /// an Ens.StringResponse that holds the JSON of the live ToolManager's tools. Any other message class gets "not implemented"
 /// and no response. Its ReplyClass setting names the %JSON.Adaptor class that Decide checks the runner's reply against
-/// (AD-7); the runner itself never reads it.
+/// (AD-7); the runner itself never reads it. Its RetryItem setting names the retry runner (Decide reads it; the runner itself does not).
 Class OcuTalon.Bridge.Operation.AgentRunner Extends Ens.BusinessOperation
 {
 
 Parameter ADAPTER = "OcuTalon.Bridge.Adapter.Agent";
 
-Parameter SETTINGS = "ReplyClass:Basic";
+Parameter SETTINGS = "ReplyClass:Basic,RetryItem:Basic";
 
 Property Adapter As OcuTalon.Bridge.Adapter.Agent;
 
 /// The compiled %JSON.Adaptor class that Decide checks this runner's reply against, for a decide or diagnose request
 /// (OcuTalon.Bridge.Msg.DecisionPayload for Triage). Empty for a runner whose reply is text.
 Property ReplyClass As %String(MAXLEN = 128);
+
+/// The name of this runner's retry runner item (AD-6, AD-8): Decide sends a request once to that item when this runner's attempt ends with a
+/// reason that is retried, and the second model is the Model setting of that item. Empty means no second model. The setting of a retry runner
+/// is never followed, so a retry is never retried.
+Property RetryItem As %String(MAXLEN = 128);
 
 Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.Persistent) As %Status
 {

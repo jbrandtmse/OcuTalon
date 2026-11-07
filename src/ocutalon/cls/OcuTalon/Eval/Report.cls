@@ -37,6 +37,13 @@
 ///         key phrase of expectation.keyPhrases, matched as for an injection. The score is commands, with no target.
 ///     Neither is a held-out score, and neither counts in SM-1's items. The report lists each turn case's key, rows, wording, tool calls,
 ///     missing phrases and reply for the author to read.
+///   - A digest case (Story 17.7, the kind digest, which EvalIn sends to Digest as a DigestCase) is scored from its row and from the
+///     OcuTalon.Eval.Msg.DigestResult of the row's ItemId. It is right only when its row is decided, neither the row nor the DigestResult is a fallback, a
+///     DigestResult exists, and its CatalogKey, AllClear, Named and Checked (the arrays in exactly that order) equal expectation.catalogKey,
+///     expectation.allClear (a boolean), expectation.named and expectation.checked (arrays of strings). A field the expectation lacks is unscored with
+///     REASONNOEXPECTATION; a decided row with no DigestResult is not right, with the got NOKEY. The score is allClear (the digest cases are FR-37's
+///     all-clear cases), with no target; the case's entry shows the catalog key as expected and got. A digest row that made no model request has no
+///     decision, cost or size and is complete without them.
 ///   - A user-turn case (Story 30.5, DW-500: a user's own chat message as Triage decides it, which EvalIn sends to Decide as a decide request of
 ///     provenance user) is scored from the Decision row of its row's DecisionRef and from its TurnResult. It is right only when its row is decided,
 ///     neither the row nor the TurnResult is a fallback, the decision's outcome is tellnow, the decision's reasons hold every group of
@@ -68,7 +75,7 @@ Class OcuTalon.Eval.Report
 {
 
 /// The kinds of case a case.json may hold, comma-separated.
-Parameter CASEKINDS = "item,injection,all-clear,command,user-turn,incident";
+Parameter CASEKINDS = "item,injection,all-clear,command,user-turn,incident,digest";
 
 /// The kinds that are scored by outcome, and count in SM-1's items.
 Parameter ITEMKINDS = "item";
@@ -94,7 +101,7 @@ Parameter NOKEY = "(none)";
 Parameter FINDINGKEYS = "watch.productionStopped,watch.itemDisabled";
 
 /// The classes whose READONLY<NAME> parameters say which tools are read-only (the classification the gate reads first), comma-separated.
-Parameter TOOLCLASSES = "OcuTalon.Tools.WatchTools,OcuTalon.Tools.ReminderTools,OcuTalon.Tools.RecentActivity";
+Parameter TOOLCLASSES = "OcuTalon.Tools.WatchTools,OcuTalon.Tools.ReminderTools,OcuTalon.Tools.RecentActivity,OcuTalon.Tools.MemoryTools";
 
 /// The kind that is scored by cause category and element at fault, and counts in SM-2's incidents.
 Parameter INCIDENTKIND = "incident";
@@ -184,7 +191,7 @@ ClassMethod Build(runRef As %String, folder As %String, skipped As %DynamicArray
 	If result.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(result.%SQLCODE, result.%Message)
 	While result.%Next() {
 		Set row = {"case": (result.%Get("CaseName")), "itemId": (result.%Get("ItemId")), "state": (result.%Get("State")), "decisionRef": (result.%Get("DecisionRef")), "outcome": (result.%Get("Outcome")), "fallback": (+result.%Get("Fallback")), "fallbackReason": (result.%Get("FallbackReason")), "causeCategory": (result.%Get("CauseCategory")), "elementAtFault": (result.%Get("ElementAtFault")), "fixKind": (result.%Get("FixKind")), "fixParameters": (result.%Get("FixParameters")), "costUSD": (..Number(result.%Get("CostUSD"))), "turnDecisionRef": (result.%Get("TurnDecisionRef")), "turnCostUSD": (..Number(result.%Get("TurnCostUSD"))), "tokens": (..Number(result.%Get("LargestRequestTokens")))}
-		Do ..Complete(report, row, .tally)
+		Do ..Complete(report, row, .tally, ..IsDigest(folder, row.case))
 		Do ..Score(report, row, folder, watches, .tally)
 	}
 	Do ..Finish(report, .tally)
@@ -324,8 +331,9 @@ ClassMethod Run(folder As %String = {##class(OcuTalon.Eval.In).#FOLDER}, names A
 }
 
 /// --- the parts of Build ---
-/// What the row alone says: whether it is complete, its fallback, its decisions' cost and model, and its request size.
-ClassMethod Complete(report As %DynamicObject, row As %DynamicObject, ByRef tally) [ Private ]
+/// What the row alone says: whether it is complete, its fallback, its decisions' cost and model, and its request size. A digest row that made no model
+/// request has no decision, cost or size, and is complete without them.
+ClassMethod Complete(report As %DynamicObject, row As %DynamicObject, ByRef tally, digest As %Boolean = 0) [ Private ]
 {
 	Set name = row.case
 	If row.state '= ##class(OcuTalon.Eval.Data.CaseResult).#DECIDED {
@@ -335,7 +343,7 @@ ClassMethod Complete(report As %DynamicObject, row As %DynamicObject, ByRef tall
 	If row.fallback Do report.fallbacks.%Push({"case": (name), "reason": (row.fallbackReason), "outcome": (row.outcome)})
 	Set reasons = ""
 	If row.decisionRef = "" {
-		Set reasons = ..#REASONNODECISION
+		If 'digest Set reasons = ..#REASONNODECISION
 	} Else {
 		Do ..AddDecision(report, name, row.decisionRef, "decide", row.costUSD, .tally)
 		If row.costUSD = "" Set reasons = ..#REASONNOCOST
@@ -345,7 +353,7 @@ ClassMethod Complete(report As %DynamicObject, row As %DynamicObject, ByRef tall
 		If row.turnCostUSD = "" Set reasons = reasons_$Select(reasons = "": "", 1: "; ")_..#REASONNOTURNCOST
 	}
 	If row.tokens = "" {
-		Do report.size.unknown.%Push(name)
+		If 'digest || (row.decisionRef '= "") Do report.size.unknown.%Push(name)
 		If row.decisionRef '= "" Set reasons = reasons_$Select(reasons = "": "", 1: "; ")_..#REASONNOSIZE
 	} Else {
 		If row.tokens > $Get(tally("size", "max"), -1) Set tally("size", "max") = row.tokens, tally("size", "case") = name
@@ -413,6 +421,9 @@ ClassMethod Score(report As %DynamicObject, row As %DynamicObject, folder As %St
 		Quit
 	} ElseIf (kind = ..#ALLCLEARKIND) || (kind = ..#COMMANDKIND) {
 		Do ..ScoreTurn(report, row, kind, expectation, .tally)
+		Quit
+	} ElseIf kind = ..#DIGESTKIND {
+		Do ..ScoreDigest(report, row, expectation, .tally)
 		Quit
 	} ElseIf kind = ..#USERTURNKIND {
 		Do ..ScoreUserTurn(report, row, expectation, .tally)
@@ -718,11 +729,17 @@ ClassMethod ScoreUserTurn(report As %DynamicObject, row As %DynamicObject, expec
 /// The latest TurnResult of the ItemId, or "" when there is none.
 ClassMethod TurnOf(itemId As %String) As OcuTalon.Eval.Msg.TurnResult [ Private ]
 {
+	Quit ..LatestOf("OcuTalon.Eval.Msg.TurnResult", "OcuTalon_Eval_Msg.TurnResult", itemId)
+}
+
+/// The latest message of the result class (its SQL table) that holds the ItemId, or "" when there is none. A read error throws.
+ClassMethod LatestOf(class As %String, table As %String, itemId As %String) As %Persistent [ Private ]
+{
 	If itemId = "" Quit ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM OcuTalon_Eval_Msg.TurnResult WHERE ItemId = ? ORDER BY ID DESC", itemId)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ID FROM "_table_" WHERE ItemId = ? ORDER BY ID DESC", itemId)
 	If result.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(result.%SQLCODE, result.%Message)
 	If 'result.%Next() Quit ""
-	Quit ##class(OcuTalon.Eval.Msg.TurnResult).%OpenId(result.%GetData(1))
+	Quit $ClassMethod(class, "%OpenId", result.%GetData(1))
 }
 
 /// The names (each once, in step order, joined by a comma and a space) of the tools of the steps, whether or not they were denied.
@@ -1162,6 +1179,60 @@ ClassMethod Write(file As %String, text As %String) As %Status [ Private ]
 	Set sc = stream.Write(text)
 	If $$$ISERR(sc) Quit sc
 	Quit stream.%Save()
+}
+
+/// The kind of case that is scored by the digest rule, into the score allClear.
+Parameter DIGESTKIND = "digest";
+
+/// 1 when the case file of the row's case holds the kind digest.
+ClassMethod IsDigest(folder As %String, name As %String) As %Boolean [ Private ]
+{
+	Set case = ..ReadCase(folder, name)
+	Quit $IsObject(case) && (##class(OcuTalon.Eval.In).Scalar(case, "kind") = ..#DIGESTKIND)
+}
+
+/// Scores a digest row (see the class description). Pushes the case's cases entry and tallies the score allClear.
+ClassMethod ScoreDigest(report As %DynamicObject, row As %DynamicObject, expectation As %DynamicObject, ByRef tally) [ Private ]
+{
+	Set name = row.case
+	Set expectedKey = ##class(OcuTalon.Eval.In).Scalar(expectation, "catalogKey")
+	Set field = $Select(expectation.%GetTypeOf("allClear") '= "boolean": "allClear", expectedKey = "": "catalogKey", '..Strings(expectation.%Get("named")): "named", '..Strings(expectation.%Get("checked")): "checked", 1: "")
+	If field '= "" {
+		Do ..Unscored(report, name, $Replace(..#REASONNOEXPECTATION, "{field}", field))
+		Quit
+	}
+	Set result = ..DigestOf(row.itemId)
+	Set fallback = +row.fallback || ($IsObject(result) && result.Fallback)
+	If fallback && 'row.fallback Do report.fallbacks.%Push({"case": (name), "reason": (result.FallbackReason), "outcome": ""})
+	Set decided = (row.state = ##class(OcuTalon.Eval.Data.CaseResult).#DECIDED) && 'fallback
+	Set right = decided && $IsObject(result) && (result.CatalogKey = expectedKey) && (+result.AllClear = +expectation.%Get("allClear"))
+	If right Set right = (result.Named = expectation.named.%ToJSON()) && (result.Checked = expectation.checked.%ToJSON())
+	Set entry = {"case": (name), "kind": (..#DIGESTKIND)}
+	Do entry.%Set("heldOut", 0, "boolean")
+	Do entry.%Set("state", row.state)
+	Set entry.expected = expectedKey
+	Set entry.got = $Select($IsObject(result) && (result.CatalogKey '= ""): result.CatalogKey, 1: ..#NOKEY)
+	Do entry.%Set("fallback", fallback, "boolean")
+	Do entry.%Set("right", right, "boolean")
+	Do report.cases.%Push(entry)
+	Do ..Tally(.tally, "allClear", right, 0, "")
+}
+
+/// 1 when the value is an array whose elements are all strings.
+ClassMethod Strings(value) As %Boolean [ Private ]
+{
+	If '$IsObject(value) || 'value.%IsA("%Library.DynamicArray") Quit 0
+	Set all = 1
+	For i = 0:1:value.%Size() - 1 {
+		If value.%GetTypeOf(i) '= "string" Set all = 0
+	}
+	Quit all
+}
+
+/// The latest DigestResult of the ItemId, or "" when there is none.
+ClassMethod DigestOf(itemId As %String) As OcuTalon.Eval.Msg.DigestResult [ Private ]
+{
+	Quit ..LatestOf("OcuTalon.Eval.Msg.DigestResult", "OcuTalon_Eval_Msg.DigestResult", itemId)
 }
 
 }

@@ -29,4 +29,7 @@ Property Trace As OcuTalon.Live.Payload.Part.TraceTarget(%JSONFIELDNAME = "trace
 /// The current run's total, only while the guide is finished.
 Property Run As OcuTalon.Live.Payload.Part.GuideRun(%JSONFIELDNAME = "run");
 
+/// The ids of the demo features this instance has (Demo.Features.Present), in the order the guide's "Other things to try" panel may show them.
+Property Features As list Of %String(%JSONFIELDNAME = "features", MAXLEN = 32);
+
 }

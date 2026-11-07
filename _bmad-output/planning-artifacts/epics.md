@@ -2815,6 +2815,47 @@ So that I try abilities the guide does not show, without having to think of what
 **And** the UX spec's "Demo guide and controls" (the finish state and the empty chat) gains the row, with a marker citing the owner's decision of 2026-11-01
 **And** CI is green on every workflow, and the story touches only `web/src/app/**` within Story 4.9's footprint, new mock scenario files, the web unit and e2e tests, and the UX files; the guide's existing mock scenarios (`guide-*.json`, Epic 11's) are not edited
 
+### Story 4.11: Other things to try
+
+[ADDED 2026-11-06, owner decision made by the Contest Planner under the owner's delegation (2026-11-06T05:27Z; logged `owner_decision` and `planner_ruling` in `cycle-log-parallel.md`). Epic 4 is re-opened for it under SC-5. Target: the Saturday release; not launch-blocking. Shows only in the demo view (Story 4.9's signal).]
+
+As a judge who has finished the demo guide, or who wants to look further at any time,
+I want a short list of other things to try, each with what to look for and one button that does it,
+So that I see more of what OcuTalon does without having to work out how.
+
+**Acceptance Criteria:**
+
+**Given** the demo view is on (Story 4.9's signal: the server's demo mode and the switch on)
+**When** the demo guide's five steps are done (the finish state), or I press the "More to try" link in the guide row at any time
+**Then** the guide shows an "Other things to try" panel; each item has a short label, one line on what to look for, and one button that does it, using only actions the demo already has (the exact wording is the UX spec's, under the public-text rules) (UX-DR47)
+**And** the panel's labels name the persona card and the Simulated mailbox's sample exactly as they appear on screen
+**And** with the demo view off, or on an install without demo mode, neither the panel nor the link shows
+
+**Given** the panel
+**When** it lists its items
+**Then** they are, in this order, each shown only when its feature is present on the instance: (1) change how OcuTalon talks: opens the persona card, suggesting a style such as Pirate or Spanish, then asking "Is anything wrong right now?"; (2) send a suspicious email: drops the existing suspicious sample into the Simulated mailbox, and look for the refusal and its reasons; (3) reject a fix: Break the feed again, then reject, and look for "Nothing was changed."; (4) see it as on your own install: turns the Demo view off; (5) ask it to remember something, then ask about it later (Epic 19's memory); (6) add a document and ask about it, and look for the citation (Epic 19's documents); (7) write a heartbeat checklist and press Run now (Epic 39's heartbeat)
+**And** each look-for line names only what the demo shows on screen, and no look-for line of items 1 to 4 points to memory, documents or the heartbeat
+
+**Given** the instance's installed features
+**When** the page learns which items to show
+**Then** availability comes from a catalog the server builds from what it already knows about its own installed classes and settings, read through a read-only read with no new write path, role or install step, so the panel ships with items 1 to 4 and grows without a client code change per feature; the client never hard-codes which epics have merged (if per-feature gating cannot avoid a code change, one line per item when its epic merges is the fallback, and the spec says which was built)
+**And** on this branch items 5 to 7 are hidden, because their features are not on the feature branch yet; their labels and look-for lines may be ruled now so the later epics only flip availability
+
+**Given** a button in the panel
+**When** I press it
+**Then** it performs its action on the demo path exactly as the existing control does (the persona card, the mailbox sample, Break the feed, the Demo view switch), and nothing happens without a press
+**And** every control is a native button or link, reachable and usable by keyboard; focus moves only on the user's own press, following the focus rule (shared/focus-rule.ts)
+
+**Given** the guide's finish state already ends with the line "More to try: simulate an incoming email …" (Story 4.7)
+**When** this story adds the "More to try" link
+**Then** the two coexist as the public text ruled at the spec gate says, and the existing line changes only if that ruling changes it
+
+**Given** the change
+**When** this story merges
+**Then** tests check: the panel appears after step 5 and through the link; each button performs its action on the demo path; items 5 to 7 are absent while their features are unavailable, and a unit test of the catalog shows that a feature's appearance shows its item; every control works by keyboard; none of it appears with the Demo view off or on a non-demo instance; the ruled strings are pinned by fixed-strings tests; any mock scenario is a new `ci/mock/scenarios/B/*.json` file, and no existing scenario is edited
+**And** EXPERIENCE.md's "Demo guide and controls" (the finish state and the guide row) and DESIGN.md, where the guide's look changes, gain the panel, each with a marker citing the owner decision of 2026-11-06
+**And** CI is green on every workflow, and the story touches only `web/src/app/guide/**`, new files under `web/src/app/`, at most one small new read-only server class or method for availability, the web unit and e2e tests, new mock scenario files, and the UX files
+
 ## Epic 5: OcuTalon watches a production and explains what broke
 
 A user asks in plain words to watch a production; new failures are picked up within 15 seconds, grouped by the settle rule into one incident with a plain-English cause, the element at fault and a proposed fix, with its evidence behind Show details; the incident moves through its states; asked whether everything is fine, OcuTalon never gives a false all-clear.
@@ -3583,6 +3624,57 @@ So that I see why the dates were read month first or day first wherever I approv
 **When** they run
 **Then** a payload test and a web test pin the row's presence for the either-way case and its absence for a day above 12; any new label comes back as a veto item (FR-25)
 - DW-645: the web incident card's dry-run block does not show U-249's either-way line; needs the ambiguity flag and reading on the approval payload and one card row (ledger; routed by veto U-252 2026-11-03)
+
+### Story 7.9: The dry run shows the fix leaves good messages unchanged
+
+[ADDED 2026-11-06, owner decision by the Contest Planner under the owner's delegation (2026-11-06T01:15Z, `owner_decision subject=new_stories_11.25_7.9` in cycle-log-parallel.md): an SC-5 re-open of Epic 7 for this one story. Target: the Saturday release (latest Sunday 19Z). The notice line's exact text, and any no-fix wording, are public text ruled by the Planner at the spec gate.]
+
+As a user approving a repair,
+I want the dry run to show that the repair would leave the messages that went through unchanged,
+So that I know the fix only touches the broken messages and doesn't rewrite good ones.
+
+**Acceptance Criteria:**
+
+**Given** a validated repair and resend whose dry run has targets
+**When** the dry run runs, before any fix is offered
+**Then** `OcuTalon.Fix.Reformat` is applied, in memory only, to the same field of the last N=20 good (successfully processed) messages from the same source as the failed ones, and the dry run records the count checked and the count that the repair would change (FR-25, AD-16)
+**And** the check reads only: it resends nothing, writes nothing to any message, header, body, setting or queue in either namespace, and calls no model (the CI mock receives no request during it) (FR-25, FR-8, AD-16)
+
+**Given** a dry run whose good-message check changes none of the messages it checked
+**When** the incident notice is sent with its fix and approval request
+**Then** the notice's Dry run paragraph carries one more line giving the count checked and the count changed (exact text: the Planner's ruling at this story's spec gate) (FR-25, UX-DR113)
+
+**Given** a dry run whose good-message check would change any good message
+**When** the dry run finishes
+**Then** no fix is offered and no approval request is raised: the incident gets the no-fix notice, following Story 7.7's no-evidence pattern (U-251; wording: the Planner's ruling at the spec gate) (FR-25, NFR-13, AD-16)
+
+**Given** an approved request whose dry run showed the good-message check
+**When** `FixExecutor` runs it
+**Then** it runs exactly the change the dry run showed (the same kind, parameters and fixed targets), and nothing else (FR-8, AD-11, AD-16)
+
+**Given** the tests
+**When** they run
+**Then** they include a demonstrated mutation (a fix that changes one good message must withhold the offer), the case with no good messages, a case with fewer than 20 good messages, and a check that the approved change equals the dry run's (FR-25, AD-16)
+
+### Story 7.10: The past-expiry refusal test is stable (DW-840)
+
+[ADDED 2026-11-07, the Contest Planner's voting-week tier (3)(a) ruling (about 04:19Z), under the owner's delegation: an SC-5 re-open of Epic 7 for this one fix-forward story, timeboxed at 90 minutes. Test-only unless the cause is in the product, in which case the runner stops and describes it before any product change. It merges after the 1.0.3 cut.]
+
+As the owner reading CI,
+I want `OcuTalon.Test.Fix.Refused` `TestPastExpiryCannotStart` to fail only when the product is wrong,
+So that a red shard means a real defect and never a timing accident.
+
+**Acceptance Criteria:**
+
+**Given** the test as it was (CI shards-2 red once on 07951357, "the incident is resolved", the class at 34.03 s where it normally takes about 4 s)
+**When** it is run under a repeat or load run
+**Then** the cause is measured and named, and the old code is shown to fail under that run (DW-840)
+
+**Given** the fix
+**When** the same repeat or load run is made 20 times
+**Then** it passes 20 of 20, with no pin deleted or weakened and no timeout raised as the fix (DW-840)
+
+- DW-840: flake: OcuTalon.Test.Fix.Refused TestPastExpiryCannotStart 'the incident is resolved' (WaitIncidentState) red once in CI shards-2 (ledger; routed by runner 2026-11-07)
 
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
@@ -5957,6 +6049,12 @@ So that I control what OcuTalon spends without restarting anything.
 
 **DW-100 moved to Story 18.3** [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M7: the routed ledger bullet became an acceptance criterion of Story 18.3, the Lane B story that owns `OcuTalon.Msg.Catalog.Core`, where both texts live]
 
+- DW-647: Retry entries' timeouts derive from RetryTimer(TimerSeconds) while Decide's retry wait T2 uses T1 = TimerFor(request): for a flagged turn T2 (about 30 s) is shorter than the retry entry's worst case (about 42 s); Timeouts.Apply makes the two agree (ledger; routed by adjudication 2026-11-05)
+- DW-727: Spine AD-8 now gives the retry entries Derive(max(MINTIMER, min(TimerSeconds, 110 - TimerSeconds))) (Timeouts.RetryTimer); Timeouts.Apply applies exactly that to the retry runners' entries (ledger; routed by cr 2026-11-05)
+
+- DW-757: An instance that already holds the claude-sonnet-5-5 Price row keeps cache-read 0.2 after upgrade (the page says 0.10); decide with the price edits whether a never-edited seeded price is corrected on upgrade (ledger; routed by harvest 2026-11-05)
+- DW-758: A resolved or newly chosen provider keeps the entry's base_url and headers; the bridge's provider change drops (or refuses) a base_url or headers that belong to another provider (ledger; routed by harvest 2026-11-05)
+
 ### Story 17.5: Check the vital signs and every coverage entry
 
 As a user,
@@ -6059,6 +6157,52 @@ So that a quiet digest really means everything I watch was checked and passed.
 **Given** UJ-2's morning digest (E › Key Flows › Flow 2) with every fixture check passing
 **When** its Slots are composed
 **Then** the vital-sign figures, the production summary ("all running, no errors, no backlog"), "Your IRIS system is healthy" and "Everything I checked passed." all come from code, as the flow requires (FR-37, UX-DR106, UX-DR120)
+- DW-816: tests that send ticks a day or more ahead (Epic 39's beat tests at now plus 48 hours) make Digest queue scheduled digests for every other session on the stack and leave future-dated Sent rows, which suppress that stack's real scheduled digests and can turn a test that counts its session's notices red; keep test ticks from making other sessions due, or scope the due check, so no test leaves a future Sent row (ledger; routed by cr 2026-11-06)
+
+### Story 17.8: Only Decide moves a conversation's link
+
+[ADDED 2026-11-05, fix-forward inside Epic 17: the Contest Planner's rulings on DW-729, DW-730 and DW-726 under the owner's delegation ("I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."), placed by runner A as a fix-forward story because Stories 17.3 and 17.4 do not touch the conversation-link path; it builds on Story 17.2 and must be merged into Epic 17's branch before the epic completes]
+
+As a user,
+I want the conversation to continue only from an answer I actually got,
+So that a late, superseded or failed model reply never changes what OcuTalon remembers of our chat.
+
+**Acceptance Criteria:**
+
+**Given** a `turn` whose reply `Decide` accepts as the decision's answer, on time and untainted
+**When** `Decide` accepts it
+**Then** `Decide`, and only `Decide`, points the conversation's link at that reply's session; runners never move the link (`SaveRetried` and `SaveLinked` record their session only), for a fresh, a compacted and a saved turn alike (AD-6, AD-8)
+
+**Given** a reply `Decide` does not accept (late, superseded, the first attempt or the retry)
+**When** it arrives
+**Then** its cost is counted and it moves nothing: the link keeps naming the session it named, whatever the turn type (AD-6, AD-8, AD-20)
+**And** tests pin, each with a mutation shown going red: a retry that finishes just after its timer while `Decide` is busy leaves the link unchanged (the race); a late first attempt with no retry, on a fresh turn and on a compacted turn, leaves it unchanged; an accepted on-time reply moves it; and Story 17.2's three late-retry tests still pass
+
+**Given** a second-model retry of a `turn`
+**When** its seed is built
+**Then** the seed is the stored conversation up to and including the current user message, and nothing the first attempt produced goes in (no partial reply, tool call or result, or error text); a test shows the seed holds no first-attempt content, with a mutation shown (AD-6, AD-8; an attempt in which a tool ran is never retried, so nothing the user saw is lost)
+
+**Given** `docs/bridge-guide.md`'s "Second-model retry" section
+**When** the arbiter is in place
+**Then** the section still says only what the code does; any wording change is public text that the Contest Planner approves before it is pushed (U-286)
+
+- DW-729: A retry that ends just after T2 while Decide is busy can still move the link (the runner reads lateness once); one arbiter: only Decide moves the link, on accepting a reply (ledger; ruled by the Contest Planner 2026-11-05)
+- DW-730: A late first attempt with no retry can move the link through SaveLinked on a fresh or compacted turn; closed by the same arbiter (ledger; ruled by the Contest Planner 2026-11-05)
+- DW-726: The retry's seed holds the first attempt's unseen exchange; the seed is the stored conversation up to and including the current user message, nothing from the first attempt (ledger; ruled by the Contest Planner 2026-11-05)
+
+### Story 17.9: Epic 17 burn-down
+
+[AMENDED 2026-11-07, chartered by Epic 17's burn-down gate, Rule 17: DW-771's work is in this story by the owner's ruling (decided by the Contest Planner under the owner's delegation, 2026-11-06T02:37:12Z: the settings model Test is a connection test for every runner); DW-786 and DW-728 waited on Epics 39 and 40, which have merged.]
+
+As an administrator,
+I want the settings page's model Test to tell me whether each agent's model answers, and the checks' live-read logic to live in one place,
+So that a working diagnosis model is never reported as not answering, and the digest and the checks can never drift apart.
+
+**Acceptance Criteria:**
+
+- DW-771: the settings model Test (`Bridge.Settings.TestRequest` / `TestAnswer`) is a connection test for every runner, the diagnosis agent's included: it passes on a non-empty reply within the timer through that runner's provider, model and key, with no reply-class validation (the spine's Conventions row "Settings model Test"); a test shows the diagnosis Test passes with a mock reply that fails `DiagnosisReply` validation (ledger; routed by the owner 2026-11-06)
+- DW-786: `Checks.Coverage.Live` and `Checks.Process.Run` share one live-read helper (the not_checked reason chain, the cut rule, the state text and the failure wording), so the digest's coverage rows and the checks' results cannot drift; the existing tests of both stay green (ledger; routed by cr 2026-11-06)
+- DW-728: `docs/bridge-guide.md` names `RetryItem` and `RetryOf` in its Settings and Messages reference tables as well as in the Second-model retry section, so the guide's structure stays consistent; no other wording changes (any is public text for the Contest Planner) (ledger; routed by cr 2026-11-05)
 
 ## Epic 18: An admin changes settings in the web app (step 2)
 
@@ -6195,6 +6339,8 @@ So that memory works offline and nothing I store leaves IRIS.
 **When** the package installs
 **Then** the package declares `fastembed==0.9.0` for the install, the memory area's install step downloads the model once into `<mgr>/fastembed/`, and `OcuTalon.Memory.Embedder` passes that folder as the package's `cache_dir` and sets `FASTEMBED_CACHE_DIR` inside its own worker before first use, by the path Story 34.1 (was 19.1) confirmed; later starts and upgrades don't download it again (FR-41, FR-57, AD-21)
 
+- DW-732: `/usr/irissys/mgr/python` is irisowner-owned (mode 555) in the base image, so the IRIS user could chmod it and replace the installed Python packages; the packages inside are root-owned and read-only (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+
 ### Story 19.3: Remember, recall, list and forget in the chat
 
 As a user,
@@ -6225,6 +6371,11 @@ So that what I know about my systems is kept in my own IRIS and comes back when 
 **When** a recall query runs
 **Then** its query plan uses the HNSW index, and memories survive a restart of IRIS or its container (NFR-16, AD-21)
 
+- DW-731: CommandsIn waits its whole TIMEOUT (120 s) on a send to a disabled owner item (SaveMemory/ForgetMemory to the disabled MemoryOps stub) until this story enables MemoryOps; a CommandsIn not_built answer for a disabled owner is the general fix (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-740: ForgetMemory carries a MemoryRef but nothing in Lane B checks that the memory belongs to the command's SessionRef, so MemoryOps must refuse another session's memory (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-782: no test calls `OcuTalon.Memory.Embedding` from inside an AI Hub callback (the S11 surface); settle it with a live tool call in a throwaway that saves and searches a memory (ledger; routed by harvest 2026-11-06)
+- DW-793: Story 19.2's operator diagnostics (Install.Step.Memory's warnings, the Embedder status texts, OcuTalon.Memory.Embedding's errors) are approved as worded, on the condition that none prints a key, a token or an environment-variable value (folder paths are fine): pin that with a test (ledger; routed by owner ruling 2026-11-06)
+
 ### Story 19.4: Answer from documents with citations
 
 As a user,
@@ -6254,6 +6405,13 @@ So that I can trust the answer and check the passage myself.
 **Given** UJ-2's runbook question with a recorded Results runbook added
 **When** the user asks what the runbook says about rotating the Results certificate
 **Then** the answer gives the steps and cites "Results runbook § Rotating the certificate", checked as an evaluation case (FR-42, FR-62, UX-DR106)
+
+- DW-720: owner ruling U-280 consistency: a reply that says 'None of your documents cover that.' carries no document citations, and a reply with document citations never says it; code decides both from the same turn's documents-tool results, and tests cover both directions (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-735: web e2e D8 and D10 (`web/e2e/documents/documents.spec.ts`) expect the real routes to answer an error while DocumentOps is disabled and go red once this story enables it; switch them to fulfilled answers (page.route) (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-739: no test executes the real Web.Documents route -> Commands.Submit -> CommandsIn path (while DocumentOps is disabled the OwnerRunning guard answers 501 first) (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-747: Data.Upload has no lifecycle beyond Take, the route's own delete and sign-out: nothing sweeps an abandoned row on a local install, a CommandsIn timeout drops the row while the AddDocument may still reach DocumentOps, and Take is at-most-once with no session check (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-832: a line of a file's own text that starts with '## ' is indistinguishable from an extraction marker; the splitter escapes or ignores such lines (ledger; routed by harvest 2026-11-06)
+- DW-833: `Test.Docs.Extract:TestNothingStored` gains the knowledge-base half of its signature once the KB tables exist (ledger; routed by harvest 2026-11-06)
 
 ### Story 19.5: Keep each online-demo session's documents and memories to itself
 
@@ -6289,6 +6447,8 @@ So that no other visitor sees or searches what I added.
 **When** it runs from this release on
 **Then** it also creates a memory and a document before the upgrade, and both are present and searchable after it (FR-60, NFR-16, NFR-17, REL-6)
 
+- DW-783: `release/rehearse.sh`'s memory-offline step (Story 19.2) is proved on stub hosts only; a dry run on a real stack must show the clean host publishes its web port again after `docker network connect --alias iris` (ledger; routed by harvest 2026-11-06)
+
 ### Story 19.6: Extract text from PDF and Word files with Embedded Python
 
 [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: a new story with Story 37.1 (was 26.1)'s extraction criteria, moved verbatim, and the IPM package line of its Python packages; only its cross-references name step 3's stories]
@@ -6316,6 +6476,10 @@ So that it can answer from it as a document.
 **Then** each file's text comes back right, each failure case gives its reason, extraction runs in the worker, and the CI check finds no Python method or `%SYS.Python` in a callback class (FR-54, AD-6, AD-22)
 **And** the tool inventory test still finds no tool that runs operating-system commands or arbitrary code (FR-10)
 
+- DW-792: `OcuTalon.Memory.Embedder` (Story 19.2) builds its two keyword calls with Python `eval` strings, a form the Conventions "Python" row does not name; move them into the `.py` resource this story creates under `src/ocutalon/python/` (ledger; routed by cr 2026-11-06)
+- DW-791: U-294 condition 1: the IPM path installs exactly the licence-measured set: the root `requirements.txt` pins `fastembed`, `pdfplumber` and `python-docx` AND every transitive distribution of U-285/DW-738's measured set at the constraints files' versions (any arm64/x64 difference is reported before commit), and `ipmcheck` runs the same licence gate on what IPM installed, failing outside the allowed families; condition 2: measure `ipmcheck` and the rehearsal with the model download (ledger; routed by owner ruling 2026-11-06)
+- DW-784: U-294 condition 3: the README's IPM section and `docs/install-ipm.md` say that the install downloads Python packages and the embedding model (size, typical time) and needs network access to PyPI and the model host, as PUBLIC TEXT to the Planner before commit; the sample output is re-shot from a real run (ledger; routed by owner ruling 2026-11-06)
+
 ### Story 19.7: Answer from PDF and Word documents
 
 [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner (PRD Open Question 3; the owner: "B. Yes."): reading PDF and Word files moves from step 6 into step 3, regardless of the bonus list: a new story with Story 26.2's PDF and Word document criteria, moved verbatim except that in step 3 a file is added from the Documents page; Story 26.2 keeps the files sent from the chat and Telegram. It follows Story 19.6]
@@ -6341,6 +6505,25 @@ So that I don't have to turn them into Markdown first.
 **Given** the image with `pdfplumber==0.11.10` and `python-docx==1.1.2` pinned by Lane B's Story 34.2 (was 20.1)
 **When** Story 19.6's extraction tests and this story's tests run on the IRIS runner
 **Then** they run on that real image, with no test-setup install of either package, and pass (FR-54, AD-22, AD-23)
+
+- DW-719: UX text after Epic 40 merges (owner ruling U-279): UX-DR144 and EXPERIENCE.md Step 3 Documents 'Adding' accept 'Markdown, plain text, PDF and Word (.docx) files.' (replacing 'then PDF and Word from step 6'), with the UX assumptions' local-install ownership line (ledger; routed by Epic 34, planned at Epic 19 start 2026-11-06)
+- DW-827: `OcuTalon.Docs.Extractor`'s MaxActiveWorkers 1 does not serialise reads (two concurrent reads ran on two worker jobs); serialise them or amend AD-21's "one worker" wording (ledger; routed by harvest 2026-11-06)
+- DW-828: a timed-out read cannot stop a single long C call (a decompression bomb can keep Read past its limit); bound it before the call (page or size caps) (ledger; routed by harvest 2026-11-06)
+- DW-831: Word text inside body-level content controls (w:sdt) and nested tables is not read; a file made only of content controls answers no_text (ledger; routed by harvest 2026-11-06)
+
+
+### Story 19.8: Epic 19 burn-down
+
+The burn-down story of Epic 19's part 1 (Stories 19.1-19.3 and 19.6, the memory-only part-merge): it settles the two install-accuracy findings the Contest Planner ruled must be measured and fixed inside part 1, before its merge. [Chartered at the part-1 burn-down gate, 2026-11-07]
+
+As an admin installing OcuTalon with IPM,
+I want the install to put exactly the measured Python packages in place and the docs to name exactly the hosts it contacts,
+So that what the README says about the install is true.
+
+**Acceptance Criteria:**
+
+- DW-829: on the local-artifact IPM install (`release/ipm-install.sh` with the local artifact; never the public IPM registry), import each of certifi, charset_normalizer, idna, requests, typing_extensions and urllib3 in the instance's embedded Python and record `__version__` and `__file__` for each; if the pinned copies are the ones imported, the README sentence A5 stays and that import check joins the installed-set gate (`ipm-install.sh` check 32's area); if they are not, the install is fixed (pip -t with --upgrade, or the stale copies removed), never the sentence, and the same import check gates the result (ledger; Contest Planner ruling 2026-11-07)
+- DW-830: each Hugging Face resolve URL the install fetches, and pip's download URLs, are probed with HEAD requests only (`curl -sI`), and the host in each Location header is recorded; README.md and `docs/install-ipm.md` name exactly the hosts seen (for example "huggingface.co and its download host cas-bridge.xethub.hf.co" if Xet is in use); any change to the host list is PUBLIC TEXT for the Planner before it is committed (ledger; Contest Planner ruling 2026-11-07)
 
 ## Epic 20: Add documents in the web app (step 3)
 
@@ -8064,6 +8247,28 @@ So that each story stops paying a fresh IRIS start for every test run, while the
 
 - Implementation note: build the warm mode in `ci/iris.sh` or a new `ci/warm.sh` on `docker/tests/lib-live.sh`'s existing functions; `lib-live.sh` is on Epic 2's contended paths until Epic 2 merges.
 
+### Story 32.5: live:sign-in splits again after 4.11's tests
+
+As the release's CI,
+I want the live:sign-in unit split again, the way the 2026-11-05 split made live:sign-in-2,
+So that no unit runs over the 1,000 s line or near its 1,200 s deadline, and every group stays under the 35-minute budget.
+
+[ADDED 2026-11-07, Epic 32 fix-forward (the Contest Planner's ruling of about 17:55Z, relayed by the orchestrator): after Story 4.11's 96 more-to-try tests joined the chromium project, live:sign-in took 1,170 s on OCT-epic11 623b9cb0 (ci run 42392984136) and 1,034 s on feature 5b47f052 (ci run 42393186349), over the 1,000 s unit line and against its 1,200 s deadline. Its own commit on its own branch, so the Planner may pick it onto the release branch. No deadline is raised; every test is kept; nothing else changes.]
+
+**Acceptance Criteria:**
+
+**Given** the chromium project's spec files today
+**When** live:sign-in is split into two units, as live:sign-in-2 was split from it (`ci/units.sh` :69-74, `docker/tests/test-sign-in-2.sh`, a Playwright project of its own in `web/playwright.config.ts`)
+**Then** the two units together list exactly today's chromium test list (`npx playwright test --list` per project, diffed against today's one-unit list), no test is lost or duplicated, and every other project's list is unchanged
+
+**Given** the new unit
+**When** it is placed in a group
+**Then** that group's clean time plus the unit stays under 35 minutes, no deadline is raised, and the pins that name the sign-in units (the unit list, the group map, the changed-inputs rules, the e2e-part and playwright-projects tests) cover the new unit as they cover live:sign-in-2
+
+**Given** the change
+**When** it is pushed
+**Then** `docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow
+
 ## Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 17.1 and 18.1, moved whole and verbatim as Stories 33.1 and 33.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 2's names fixed in the spine and in code as stubs, and an admin opens a settings page that saves each section on its own, applies it within a minute and records it in the audit log, so that Epics 17 and 18 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 17 and 18) and its partner in this epic.
@@ -8258,6 +8463,21 @@ So that my files are kept only as long as OcuTalon needs them.
 - DW-753: the 10 MB file limit and the documents route's ~14 MB body bound are enforced before any `Data.Upload` row is written, pinned by tests (no row exists after a refused add) (ledger; routed by burndown 2026-11-05)
 - DW-754: `Data.Upload` rows are owner-scoped like other session data (Ownership checks), and the online demo's reset clears them (golden restore); checked once on a throwaway reset with recorded evidence (ledger; routed by burndown 2026-11-05)
 - DW-738: the image's Python dependencies are pinned: one constraints file per architecture (arm64 and x64) pins every distribution of the measured set to its exact version (x64 measured, never assumed), the image build installs with `pip install -c` beside the three top-level pins, a test keeps the licence evidence's package list equal to the constraints, the licence gate still fails outside the allowed families, the IPM install uses the same pins if it installs Python packages, and each constraints file says that a version bump re-measures the licences in the same commit (ledger; decided by the Contest Planner under the owner's delegation 2026-11-05) [AMENDED 2026-11-05, Story 34.3, Contest Planner ruling on DW-738: an acceptance bullet added for a ledger entry routed to this story; no other text changed]
+
+
+### Story 34.4: The keyboard add-documents test is stable (DW-825)
+
+[AMENDED 2026-11-07, chartered as a fix-forward story under an SC-5 re-open of Epic 34 on the Contest Planner's ruling of 2026-11-07 ~03:05Z (under the owner's delegation; `planner_ruling dw=DW-825` in cycle-log-parallel.md): fix before the 1.0.3 cut, test-only unless the root cause is in the product, 90-minute timebox; Lane B's files, like Story 34.2]
+
+As a maintainer who reads the CI result,
+I want the Documents page's keyboard test (D5) to fail only when the page is wrong,
+So that a red browser job means a real defect and not a timing accident.
+
+**Acceptance Criteria:**
+
+- DW-825: D5 in `web/e2e/documents/documents.spec.ts` ("Add documents works by keyboard, and a .png is refused with its reason") no longer times out waiting for the `filechooser` event: the cause is found and recorded with evidence, and the fix is test-only unless the cause is in the Add documents control (then the Planner rules first) (ledger; routed by the Planner's ruling 2026-11-07)
+- D5 still proves everything it proves today: Tab reaches Add documents, Enter on it opens the file chooser, and a .png comes back refused by the real route with its reason, shown on its row and announced once; no pin is deleted or weakened, and a longer timeout alone is not the fix
+- Proof: D5 passes 20 of 20 with `--repeat-each=20` under the browser job's load (or an equivalent load that is documented), the old D5 fails at least once under the same repeat and load, and full CI is green on every workflow
 
 ## Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)
 
@@ -8843,6 +9063,64 @@ So that a save followed by a run works, and "Applies within a minute" is true fo
 
 - DW-780: a saved interval, hours or on/off change does not move the stored NextDueAt (ledger; routed by split 2026-11-06)
 - DW-803: Checks.Beat.RunNow reads the settings through the per-process 60-second cache, so a save followed at once by Run now is refused as empty (ledger; routed by cr 2026-11-06)
+
+### Story 39.9: Heartbeat follow-up: today's cost matches its check-ins, and the tidy-ups
+
+*Home lane: A and B (one runner; the Planner's follow-up rulings name both lanes' files).* [AMENDED 2026-11-07, Story 39.9 spec gate, apply-and-report (Rule 5 tier 1), as Story 39.7's home-lane amendment: it read "*Home lane: A.*"]
+
+[ADDED 2026-11-07, SC-5 re-open of Epic 39 for a post-merge follow-up, chartered by the runner under the Contest Planner's rulings of 2026-11-06 (relayed by the orchestrator; fix-forward, no boundary or dependency change): the Planner's 1.0.2 demo walk (DW-824), the "Every hour" schedule line (PUBLIC TEXT ruled by the Planner 2026-11-06), and the test hygiene routed here by Epic 39's burn-down ruling (DW-785, DW-670). Split rule (Planner 2026-11-06): if the third and fourth groups below would miss the 1.0.3 merge line, they split off as Story 39.10.]
+
+As a person watching the Heartbeat card,
+I want the Today line's cost to agree with the check-ins it counts, and the schedule to read naturally,
+So that the card never shows a total the count does not explain.
+
+**Acceptance Criteria:**
+
+**Given** the online-demo session of the 1.0.2 walk (a Watch, an incident with its approval, a Save with heartbeat On, then Run the heartbeat now, deciding Act with read-only checks)
+**When** the card shows "Last check-in … · $0.0003" and "Today: 1 check-in, $0.0006"
+**Then** the story first records, with evidence, exactly what Today's total sums (a second beat or decision, the notice, the run-now turn, or something else)
+**And** the Today line and its count then agree, or the line says what it sums; any change of shown text is PUBLIC TEXT, ruled before it is committed
+**And** a regression test reproduces the one-check-in, double-cost case and shows the fix, with a demonstrated mutation (Rule 19)
+
+**Given** a heartbeat interval of 60 minutes
+**When** the card's schedule line is shown
+**Then** it reads "Every hour, …" (for example "Every hour, 07:15 to 21:45", or "Every hour" all day) in place of "Every 1 hour, …", and every other interval reads exactly as before ("Every 30 minutes", "Every 2 hours", …) (PUBLIC TEXT ruled by the Planner 2026-11-06)
+**And** a fixed-strings test pins it, and EXPERIENCE.md is amended in place with a marker if it quotes the old form
+
+**Given** `docker/tests/test-heartbeat-overview.sh` and `docker/tests/test-triage-heartbeat.sh`
+**When** both run
+**Then** their duplicated security-overview check lives in one shared helper, and each script still checks exactly what it checks today; no pin is deleted or weakened
+
+**Given** `OcuTalon.Test.Web.GuideApi`'s `TestOnlyTheMarkerChanges` and `TestRunAgain`
+**When** either fails on its fingerprint
+**Then** the failure message prints both fingerprints, so the next occurrence can be diagnosed
+**And** the race is fixed only if its cause is plain and in Epic 39's code; otherwise the residual is recorded
+
+- DW-824: Heartbeat card: Today's cost sums more than the counted check-ins (online demo 1.0.2: Last check-in $0.0003, Today: 1 check-in, $0.0006) (ledger; routed by orchestrator 2026-11-06)
+- DW-785: docker/tests/test-heartbeat-overview.sh repeats about 25 lines of test-triage-heartbeat.sh's security-overview rule; unify both checks in one shared helper (ledger; routed by cr 2026-11-06)
+- DW-670: flake: GuideApi TestOnlyTheMarkerChanges and TestRunAgain went red on their fingerprint and passed on an unchanged rerun; print both fingerprints on failure (ledger; routed by harvest 2026-11-04)
+
+### Story 39.10: The heartbeat production test is stable (DW-639)
+
+*Home lane: B.* [AMENDED 2026-11-07, Story 39.10 code review (AD-29: `OcuTalon.Test.Schedule` is Lane B's), apply-and-report (Rule 5 tier 1): it read "*Home lane: A.*"]
+
+[ADDED 2026-11-07, SC-5 re-open of Epic 39, tier (3)(a) flake fix approved by the Contest Planner (relayed by the orchestrator); fix-forward, no boundary or dependency change: `OcuTalon.Test.Schedule.Heartbeat` `TestAfterAllTestsNothingSaved` failed "and the production runs every item" in CI's image shard lane-b on three heads in about six hours, each green on one rerun.]
+
+As a developer relying on CI,
+I want the heartbeat schedule tests to pass every time on a correct tree,
+So that a red on the image shard means a real defect.
+
+**Acceptance Criteria:**
+
+**Given** `OcuTalon.Test.Schedule.Heartbeat` in the image shard lane-b
+**When** it runs
+**Then** when the "and the production runs every item" pin fails (`Install.Step.Production.NotRunning()` not empty), its message names every missing item and the state of its job, so the next occurrence identifies the cause
+**And** the change is test-only; no pin is deleted, weakened or moved, no wait is added, and no timeout is raised
+**And** a demonstrated mutation (an item stopped before the pin's read) shows the new message naming the item
+
+[AMENDED 2026-11-07, orchestrator ruling ~12:10Z (option (a), diagnostics only, matching the Planner's 11.27 ruling on an unreproduced flake), after the plan's TIMEBOX: 0 red in 7 load runs, cause not confirmed. It read: "**Then** the cause of the "and the production runs every item" failure (`Install.Step.Production.NotRunning()` not empty) is confirmed with evidence: the old code fails under a repeat or load run / **And** the fix is test-only unless the cause is in the product (a product cause is ruled before any product code changes) / **And** the fixed test passes 20 of 20 runs under the same load; no pin is deleted or weakened, and no timeout is raised as the fix". The fix waits for the next named occurrence; DW-639 stays a flake class.]
+
+- DW-639: flake: OcuTalon.Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('and the production runs every item': Install.Step.Production.NotRunning() not empty) red in CI image shard lane-b (ledger; routed by orchestrator 2026-11-07)
 
 
 ## Epic 40: Choose how OcuTalon talks to you

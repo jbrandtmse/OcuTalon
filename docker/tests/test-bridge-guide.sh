@@ -15,6 +15,14 @@
 #                the follow-on sentence), the fixed phrases of PROSE_PHRASES in any section (step 6's Visual Trace path and timer, the
 #                Govern section's Portal notice, the user rule), and the USERANSWERED reason, read from Process/Decide.cls (a change
 #                to that parameter fails this rule until the guide follows it)
+#   - tables     every setting of Decide, Adapter.Agent and AgentRunner and every AI Hub runner setting is the first cell of a row of the
+#                guide's "Settings" section, and every property of Request the first cell of a row of its "Messages and enumerations"
+#                section (a name that only the prose mentions, or that a table of another section holds, is not in its reference table)
+#   - retrytext  the eight lines that DW-850 rules are, each as a whole line compared as a fixed string, in the guide: the TimerSeconds and
+#                DecisionTokenBudget rows, the two Timeouts paragraphs, the fallback route, the Model row of DecisionResponse, the retry list's
+#                bullet for a model test and the paragraph about the decision's record (the rest of the retry section is not pinned)
+#   - livetext   the two lines that DW-773 rules are, each as a whole line compared as a fixed string, in the guide: the Settings
+#                section's intro (which settings are read each time they are used) and the retry section's RetryItem bullet
 #   - u229       the sentence of the owner's answers U-229 and U-237 (what is audited: no entry for a setting change; a tool call is a step unless
 #                the decision times out; an approval and an approved call's run each write an entry) is, on one line, in the guide and in the
 #                "Approval and audit" section of docs/security-overview.md
@@ -421,6 +429,210 @@ if [ "$ref_samples_ok" -eq 1 ]; then
     fails=$((fails + 1))
   else
     echo "PASS reference: the guide names every setting, field and value of the bridge, and the fixed phrases"
+  fi
+fi
+
+# --- tables ---
+
+# tables_section <guide> <heading>: the lines of the "### <heading>" section of the guide, up to the next "##" or "###" heading.
+tables_section() {
+  awk -v h="### $2" '$0 == h { on = 1; next } /^###? / { on = 0 } on' "$1"
+}
+
+# tables_settings: every setting that must be the first cell of a row of the Settings tables, one per line.
+tables_settings() {
+  {
+    names_of SETTINGS "$BRIDGE/Process/Decide.cls"
+    names_of SETTINGS "$BRIDGE/Adapter/Agent.cls"
+    names_of SETTINGS "$BRIDGE/Operation/AgentRunner.cls"
+    printf '%s\n' $AIHUB_SETTINGS
+  } | sort -u
+}
+
+# tables_properties: every property of Request, one per line. Each must be the first cell of a row of the Messages and enumerations tables.
+tables_properties() {
+  properties_of "$BRIDGE/Msg/Request.cls" | sort -u
+}
+
+# tables_names: every name checked, one per line.
+tables_names() {
+  { tables_settings; tables_properties; } | sort -u
+}
+
+# tables_problems <guide>: one line per name that is not the first cell of a row of the section that documents it.
+tables_problems() {
+  local name
+  tables_section "$1" "Settings" > "$tmp/t/settings.md"
+  tables_section "$1" "Messages and enumerations" > "$tmp/t/messages.md"
+  for name in $(tables_settings); do
+    grep -q -- "^| \`$name\` |" "$tmp/t/settings.md" || echo "no row of the Settings tables of the guide starts with \`$name\`"
+  done
+  for name in $(tables_properties); do
+    grep -q -- "^| \`$name\` |" "$tmp/t/messages.md" || echo "no row of the Messages and enumerations tables of the guide starts with \`$name\`"
+  done
+}
+mkdir -p "$tmp/t"
+tables_ok=1
+if [ "$(tables_names | wc -l)" -lt 30 ]; then
+  echo "FAIL tables: the names read from the sources are too few ($(tables_names | wc -l | tr -d ' '))"
+  fails=$((fails + 1)); tables_ok=0
+fi
+{
+  echo "### Settings"
+  tables_settings | sed 's/.*/| `&` | a value | what it does |/'
+  echo "### Messages and enumerations"
+  tables_properties | sed 's/.*/| `&` | what it holds |/'
+  echo "### The fallback route"
+} > "$tmp/t/keep.md"
+if [ "$tables_ok" -eq 1 ] && [ -n "$(tables_problems "$tmp/t/keep.md")" ]; then
+  echo "FAIL tables: the rule flags a guide whose tables hold every name"
+  tables_problems "$tmp/t/keep.md" | sed 's/^/  /'
+  fails=$((fails + 1)); tables_ok=0
+fi
+# break_tables <label> <name> <sed program>: the keep sample with one edit must be flagged, and the problem must name the name.
+break_tables() {
+  sed "$3" "$tmp/t/keep.md" > "$tmp/t/g.md"
+  if cmp -s "$tmp/t/keep.md" "$tmp/t/g.md"; then
+    echo "FAIL tables: the break sample '$1' changed nothing"
+    fails=$((fails + 1)); tables_ok=0
+  elif ! printf "%s\n" "$(tables_problems "$tmp/t/g.md")" | grep -qF -- "\`$2\`"; then
+    echo "FAIL tables: the rule does not flag a break ($1)"
+    fails=$((fails + 1)); tables_ok=0
+  fi
+}
+if [ "$tables_ok" -eq 1 ]; then
+  break_tables "the RetryItem row removed" RetryItem '/^| `RetryItem` |/d'
+  break_tables "the RetryOf row removed" RetryOf '/^| `RetryOf` |/d'
+  break_tables "a setting that is named in prose only" TimerSeconds 's/^| `TimerSeconds` | a value /The `TimerSeconds` setting | a value /'
+  break_tables "a setting in the second cell of a row" TimerSeconds 's/^| `TimerSeconds` | a value /| Timer | `TimerSeconds` | a value /'
+  break_tables "a Request property in the Settings section only" RetryOf '/^### Messages and enumerations$/d'
+  break_tables "a setting in the Messages and enumerations section only" TimerSeconds 's/^### Settings$/### Messages and enumerations/'
+  break_tables "a section that runs into a chapter" RetryOf 's/^### The fallback route$/## Second-model retry/;/^| `RetryOf` |/d;$a\
+| `RetryOf` | what it holds |'
+  break_tables "an AI Hub setting removed" ProviderName '/^| `ProviderName` |/d'
+fi
+if [ "$tables_ok" -eq 1 ]; then
+  hits=$(tables_problems "$GUIDE")
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | sed 's/^/  /'
+    echo "FAIL tables: every setting is the first cell of a row of the Settings tables and every Request property of a row of the Messages and enumerations tables of the guide"
+    fails=$((fails + 1))
+  else
+    echo "PASS tables: every setting is the first cell of a row of the Settings tables and every Request property of a row of the Messages and enumerations tables of the guide"
+  fi
+fi
+
+# --- retrytext ---
+
+# retry_lines: the ruled lines of the guide (DW-850), one per line.
+retry_lines() {
+  cat << 'EOF'
+| `TimerSeconds` | 60 | How long `Decide` waits for the runner's reply, in whole seconds, from 12 seconds to 110 seconds. When it passes, the fallback route is taken with the reason `timeout`, unless the second-model retry is sent. The retry waits the lesser of `TimerSeconds` and 110 seconds minus the first attempt's timer. See "Timeouts" and "Second-model retry". |
+| `DecisionTokenBudget` | 0 (none) | The token budget of each attempt of a decision, checked against the attempt's estimate before it is sent. A request whose estimate is above it takes the fallback route with the reason `budget`, and is never sent. A second-model retry is checked against it again, on its own estimate. The budget is not a total over both attempts. |
+`TimerSeconds` is the one timer. A decision with a second-model retry has two attempts, which share the 110 seconds: the retry waits the lesser of `TimerSeconds` and 110 seconds minus the first attempt's timer (see "Second-model retry"). Two things depend on it, and `OcuTalon.Bridge.Timeouts` works both out so that no other place holds a second copy of a number:
+The timer can be 12 seconds at the least and 110 seconds at the most. After you change `TimerSeconds`, edit the `ProviderConfig` row so that its `http_config` is the new `Derive(timer)`'s (for a retry runner, `Derive(Timeouts.RetryTimer(timer))`'s, see "Second-model retry") and update the production, or keep the provider in the Config Store as an entry and let `Timeouts.Apply(timer)` change the timer, the entries and the runners together. Apply needs each runner's `ProviderConfig` to be `@{config:<name>}`, and restarts `Decide` and the runners.
+| `Model` | The model that answered. After a second-model retry, the second model; when the retry's timer passes before its reply arrives, the model of the last model request counted for the decision, which can be the first model. Empty when no model was asked. |
+When the model cannot give a usable answer, `Decide` does not guess. When a second model is set, `Decide` may first try the request once on it, as "Second-model retry" says, and takes the fallback route only when no retry is sent or the retry gives no usable answer either. It records one decision with the outcome `tellnow`, `Fallback` 1 and the reason (after a retry, the last attempt's), keeps no model text, and answers with it, so that the person is told. A fallback starts no tool, fix or approval. The reasons:
+- A model test request (its `ItemId` starts with `test.`), so that the test says whether the first model answered.
+The decision is still one record and one answer. Its tokens, cost and steps are the sums of both attempts, its `Model` is as the `Model` field of `OcuTalon.Bridge.Msg.DecisionResponse` says, and, when both attempts fail, its reason is the last attempt's.
+EOF
+}
+
+# retry_problems <guide>: one line per ruled line that the guide lacks as a whole line.
+retry_problems() {
+  local line n=0
+  while IFS= read -r line; do
+    n=$((n + 1))
+    grep -qxF -- "$line" "$1" || echo "the guide lacks ruled line $n of the second-model retry wording (starting '$(printf '%s' "$line" | cut -c1-40)')"
+  done < <(retry_lines)
+}
+mkdir -p "$tmp/m"
+retry_ok=1
+retry_lines > "$tmp/m/keep.md"
+if [ "$(wc -l < "$tmp/m/keep.md" | tr -d ' ')" -ne 8 ]; then
+  echo "FAIL retrytext: the ruled text is not eight lines"
+  fails=$((fails + 1)); retry_ok=0
+fi
+if [ "$retry_ok" -eq 1 ] && [ -n "$(retry_problems "$tmp/m/keep.md")" ]; then
+  echo "FAIL retrytext: the rule flags a guide that holds the ruled text"
+  retry_problems "$tmp/m/keep.md" | sed 's/^/  /'
+  fails=$((fails + 1)); retry_ok=0
+fi
+# One character of each ruled line changed, one line at a time: the rule must flag that line.
+if [ "$retry_ok" -eq 1 ]; then
+  for i in 1 2 3 4 5 6 7 8; do
+    awk -v n="$i" 'NR == n { sub(/[a-z]/, "X") } { print }' "$tmp/m/keep.md" > "$tmp/m/g.md"
+    if cmp -s "$tmp/m/keep.md" "$tmp/m/g.md"; then
+      echo "FAIL retrytext: the break sample for ruled line $i changed nothing"
+      fails=$((fails + 1)); retry_ok=0
+    elif ! retry_problems "$tmp/m/g.md" | grep -qF -- "ruled line $i "; then
+      echo "FAIL retrytext: the rule does not flag a changed character in ruled line $i"
+      fails=$((fails + 1)); retry_ok=0
+    fi
+  done
+fi
+if [ "$retry_ok" -eq 1 ]; then
+  hits=$(retry_problems "$GUIDE")
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | sed 's/^/  /'
+    echo "FAIL retrytext: the guide's second-model retry wording is the ruled text"
+    fails=$((fails + 1))
+  else
+    echo "PASS retrytext: the guide's second-model retry wording is the ruled text"
+  fi
+fi
+
+# --- livetext ---
+
+# live_lines: the ruled lines of the guide (DW-773), one per line.
+live_lines() {
+  cat << 'EOF'
+The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. These settings are read each time they are used, so a change needs no update: `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD`, `GatewaySpendUSD`, `GatewaySpendDate`, `InstanceZone`, `ServiceUser`, `ApprovalRole`, `ToolClassification` and `ClassificationClass` of `Decide`, and `ReplyClass` and `RetryItem` of a runner. `Decide` reads `DecisionTokenBudget` and `RequestTokenLimit` this way only when it runs in a job of its own (a pool size of 1 or more, as in the example); in the shared actor pool, update the production after you change them. `HostSinkClass` is read each time too, except for the events that `Decide` fires itself, which follow a change only after `Decide` restarts. Every other setting takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. For `TimerSeconds`, see "Timeouts".
+- `RetryItem` is a setting of a runner item, and `Decide` reads it. It names the retry runner of that runner: another enabled `OcuTalon.Bridge.Operation.AgentRunner` item of the production, whose `Model` setting is the second model. An empty value means no second model, and it is empty by default. A value that names the runner itself, a missing, disabled or non-runner item, or (for a decision or a diagnosis) an item whose `ReplyClass` is refused is not used: `Decide` logs one warning that names the setting and takes the fallback route. A retry runner's own `RetryItem` is never followed, so a retry is never retried. Write `RetryItem` as any setting in "Settings" is written. `Decide` reads it live, so it needs no update; a retry runner item that you add to the production starts when you update the production. The retry runner is set up like any runner: `AgentClass`, `AgentAllowList`, `ProviderConfig`, and `ReplyClass` for a decision or a diagnosis.
+EOF
+}
+
+# live_problems <guide>: one line per ruled line that the guide lacks as a whole line.
+live_problems() {
+  local line n=0
+  while IFS= read -r line; do
+    n=$((n + 1))
+    grep -qxF -- "$line" "$1" || echo "the guide lacks ruled line $n of the live-settings wording (starting '$(printf '%s' "$line" | cut -c1-40)')"
+  done < <(live_lines)
+}
+mkdir -p "$tmp/l"
+live_ok=1
+live_lines > "$tmp/l/keep.md"
+if [ "$(wc -l < "$tmp/l/keep.md" | tr -d ' ')" -ne 2 ]; then
+  echo "FAIL livetext: the ruled text is not two lines"
+  fails=$((fails + 1)); live_ok=0
+fi
+if [ "$live_ok" -eq 1 ] && [ -n "$(live_problems "$tmp/l/keep.md")" ]; then
+  echo "FAIL livetext: the rule flags a guide that holds the ruled text"
+  live_problems "$tmp/l/keep.md" | sed 's/^/  /'
+  fails=$((fails + 1)); live_ok=0
+fi
+# One character of each ruled line changed, one line at a time: the rule must flag that line.
+if [ "$live_ok" -eq 1 ]; then
+  for i in 1 2; do
+    awk -v n="$i" 'NR == n { sub(/[a-z]/, "X") } { print }' "$tmp/l/keep.md" > "$tmp/l/g.md"
+    if cmp -s "$tmp/l/keep.md" "$tmp/l/g.md"; then
+      echo "FAIL livetext: the break sample for ruled line $i changed nothing"
+      fails=$((fails + 1)); live_ok=0
+    elif ! live_problems "$tmp/l/g.md" | grep -qF -- "ruled line $i "; then
+      echo "FAIL livetext: the rule does not flag a changed character in ruled line $i"
+      fails=$((fails + 1)); live_ok=0
+    fi
+  done
+fi
+if [ "$live_ok" -eq 1 ]; then
+  hits=$(live_problems "$GUIDE")
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | sed 's/^/  /'
+    echo "FAIL livetext: the guide's live-settings wording is the ruled text"
+    fails=$((fails + 1))
+  else
+    echo "PASS livetext: the guide's live-settings wording is the ruled text"
   fi
 fi
 

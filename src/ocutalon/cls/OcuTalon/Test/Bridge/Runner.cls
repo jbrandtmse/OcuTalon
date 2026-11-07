@@ -870,6 +870,9 @@ Method TestSessionTimeout()
 	Do $$$AssertEquals(adapter.TimeoutMs(), 7000, "TimeoutMs gives 7000 for the shortest timer")
 	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "TimerSeconds", 110), "a TimerSeconds row of 110 is written")
 	Do $$$AssertEquals(adapter.TimeoutMs(), 105000, "and 105000 for the longest")
+	Do $$$AssertEquals(adapter.TimeoutMs(1), 7000, "a request with RetryOf gets the retry runner's timer: with a timer of 110 only 12 s are left, so 7000 as well")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "TimerSeconds", 60), "a TimerSeconds row of 60 is written")
+	Do $$$AssertEquals(adapter.TimeoutMs()_"|"_adapter.TimeoutMs(1), "55000|45000", "and with a timer of 60 the first runner gets 55000 and the retry runner 45000 (a timer of 50)")
 }
 
 /// The Reply says whether a tool ran (DW-56): ToolsRun is 1 for a turn that called two tools, and for a call that failed with a rate limit after
@@ -1238,6 +1241,18 @@ ClassMethod LinkCount() As %Integer [ Private ]
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ConversationLink")
 	Do result.%Next()
 	Quit result.%GetData(1)
+}
+
+/// Models Decide's acceptance of a runner's reply for the tests that drive a shadow runner without Decide (Story 17.8): it calls Decide PointLink for the
+/// reply of the request and sets the reply's SessionRotated as Decide's answer would. runner is the first runner, the agent of the link (a retried
+/// request's RetryOf). The reply keeps its SessionId, SessionFrom and HistoryCount, which Decide's answer clears. The status is PointLink's. It does not
+/// classify the reply (on time, usable): the caller accepts only a reply that Decide would accept, and passes no refused or late one.
+ClassMethod Accept(request As OcuTalon.Bridge.Msg.Request, reply As OcuTalon.Bridge.Msg.Reply, runner As %String = "ZzRunner") As %Status
+{
+	If '$IsObject(reply) Quit $$$OK
+	Set sc = ##class(OcuTalon.Bridge.Process.Decide).PointLink(request, runner, reply, .rotated)
+	Set reply.SessionRotated = $Get(rotated)
+	Quit sc
 }
 
 /// A runner host made in memory, a shadow named configName (ZzRunner unless another is given), whose adapter has the agent class, an

@@ -13,6 +13,7 @@
     "build": "node scripts/tokens.mjs --check && node scripts/payloads.mjs --check && node scripts/catalog.mjs --check && node scripts/brand.mjs && ng build",
     "e2e": "playwright test --project=chromium",
     "e2e:sign-in-2": "playwright test --project=sign-in-2",
+    "e2e:sign-in-3": "playwright test --project=sign-in-3",
     "e2e:demo-path": "playwright test --project=demo-path",
     "e2e:rehearsal": "playwright test --config=playwright.rehearsal.config.ts",
     "e2e:capture": "playwright test --config=playwright.capture.config.ts",

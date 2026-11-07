@@ -385,7 +385,7 @@ Method TestSinceRefuses()
 }
 
 /// The purge task with its default 90 days deletes the items recorded 91 days ago and 90 days and an hour ago, and keeps the ones of 90 days less an hour
-/// ago, of 89 days ago and of now, through the declaration of the Digest area; the area is registered and is not one of the steps that run at a start.
+/// ago, of 89 days ago and of now, through the declaration of the Digest area; the area is registered and is one of the steps that run at a start, for the thresholds it seeds.
 Method TestPurgeByTheTask()
 {
 	Set a = ..NewRef()
@@ -395,7 +395,7 @@ Method TestPurgeByTheTask()
 	Set beyond = ..Add(a, ..NewRef(), ..AgoUtc(90 * 86400 + 3600))
 	Set old = ..Add(a, ..NewRef(), ..AgoUtc(91 * 86400))
 	Do $$$AssertTrue($ListFind(##class(OcuTalon.Install.Registry).Areas(), "OcuTalon.Install.Step.Digest") > 0, "the registry lists the Digest area")
-	Do $$$AssertEquals($ListFind(##class(OcuTalon.Install.Registry).Order(), "Digest"), 0, "and the order of the steps does not name it")
+	Do $$$AssertEquals($ListFind(##class(OcuTalon.Install.Registry).Order(), "Digest"), 9, "and the order of the steps names it after Demo, for the thresholds it seeds")
 	Set task = ##class(OcuTalon.Install.Task.Purge).%New()
 	Do $$$AssertEquals(task.DaysToKeep, 90, "the purge task keeps 90 days by default")
 	Do $$$AssertStatusOK(task.OnTask(), "the purge task runs")

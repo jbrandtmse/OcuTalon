@@ -1,0 +1,17 @@
+{
+  "name": "retry-max-tokens",
+  "match": {
+    "marker": "retry-max-tokens"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "stopReason": "max_tokens",
+      "text": "This reply stops at the output cap before its answ"
+    },
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"digest\",\"reasons\":[\"The CI mock answers on the second model.\"],\"confidence\":0.7}"
+    }
+  ]
+}

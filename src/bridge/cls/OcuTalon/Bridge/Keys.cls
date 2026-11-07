@@ -22,6 +22,9 @@ Include Ensemble
 ///     (a killed job, a crash) leaves its record, so both read what their last start recorded until the runner starts again.
 ///   - Absent is Decide's read, live in the caller's process: only a key that the bridge can tell is absent blocks a request, so
 ///     that it never blocks a setup that it cannot judge. The runner's own failure is classified then (Decide.Classify).
+/// Provider resolution (AD-7, AD-8; Providers): a runner whose entry key is absent, on its agent's default model, runs on the first supported
+/// provider whose key is set, so the key that counts is that provider's. The adapter records the resolved configuration (Record), and Absent
+/// is 0 for an item that resolves, so that Status and Absent answer for the provider the runner uses.
 /// This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Keys
 {
@@ -56,8 +59,8 @@ ClassMethod Present(providerConfig As %String) As %Boolean
 /// 1 when the bridge can tell, now and in this process, that the model key of the runner item is absent, otherwise 0. It reads the
 /// ProviderConfig adapter setting of the item in the active production (Ens.Director.GetAdapterSettingValue, as
 /// AgentRunner.ResolveModel does). It is 1 when there is no active production, when agent is empty, when the item is not found, and
-/// when State of the setting is absent. It is 0 for a present key, for an unknown state, for any other read error and for any
-/// exception. It returns 0 or 1 and never throws.
+/// when State of the setting is absent and Providers.Resolve finds no provider for the item. It is 0 for a present key, for an unknown state,
+/// for an absent key that resolves to another provider, for any other read error and for any exception. It returns 0 or 1 and never throws.
 ClassMethod Absent(agent As %String) As %Boolean
 {
 	Set absent = 0
@@ -70,7 +73,7 @@ ClassMethod Absent(agent As %String) As %Boolean
 			If $$$ISERR(sc) {
 				If $SYSTEM.Status.Equals(sc, $$$EnsErrConfigItemNotFound) Set absent = 1
 			} Else {
-				Set absent = (..State(config) = "absent")
+				Set absent = (..State(config) = "absent") && (##class(OcuTalon.Bridge.Providers).Resolve(agent, production, config) = "")
 			}
 		}
 	} Catch {
@@ -115,7 +118,7 @@ ClassMethod Forget(item As %String)
 ///   - A JSON object: its api_key is judged.
 ///   - Anything else, a JSON array, text that does not parse and a reference with no name included: unknown.
 /// Any exception gives unknown. It never throws and never returns a value of a key.
-ClassMethod State(providerConfig As %String) As %String [ Private ]
+ClassMethod State(providerConfig As %String) As %String
 {
 	Set state = "unknown"
 	Try {

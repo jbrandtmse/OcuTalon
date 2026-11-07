@@ -6,8 +6,8 @@
 # that runs this test never leaks in.
 #   - row 9, the web classifier: web is true for each web input and false for other paths, so a change to DESIGN.md runs web;
 #   - the group classifier: the script of each live unit (group_units) runs exactly its own group; the web-only set runs every group
-#     but production; a change to ci/ or the workflow runs all nine, and each product source is claimed by a pattern; each declared
-#     non-input and each bookkeeping path runs no group; a path that nothing claims or declares runs all nine, naming the path;
+#     but production; a change to ci/ or the workflow runs all ten, and each product source is claimed by a pattern; each declared
+#     non-input and each bookkeeping path runs no group; a path that nothing claims or declares runs all ten, naming the path;
 #   - row 10, the base: the first commit of the history with a green push run (HEAD itself on a re-run of a green run); no
 #     base, web true and every group running, on a pull request, with no run, with no green run in the history, with a run that is not
 #     a push, and when the answer cannot be read or holds no run list;
@@ -143,7 +143,7 @@ runs "$tmp/green-c0.json" "success:$c0"
 # --- row 9: the classifier, with the paths given ---
 
 # The groups that a web change runs: every group but production, whose units never check the built web bundle.
-web_groups="install-fresh install-upgrade browser shards shards-2 image shards-3 shards-4"
+web_groups="install-fresh install-upgrade browser shards shards-2 image shards-3 shards-4 shards-5"
 
 paths_case() { # paths_case <label> <web> <groups that run: all, none or names> <path>...
   local label=$1 web=$2 groups=$3 f="$tmp/paths.txt"
@@ -174,20 +174,24 @@ unclassified_case() {
   if [ -z "$unnamed" ]; then pass "classifier: $label: the reason of each group names the unclassified path"; else fail "classifier: $label: the reason of$unnamed does not name $first"; fi
 }
 
-# The script of each live unit runs exactly the group that holds the unit, and no other group. The two sign-in scripts also run the
-# web job, because the web job's e2e-part tests read and run them, and test-sign-in.sh, which test-sign-in-2.sh runs, also runs the
-# group of live:sign-in-2 (the split of 2026-11-05).
+# The script of each live unit runs exactly the group that holds the unit, and no other group. The three sign-in scripts also run the
+# web job, because the web job's e2e-part tests read and run them, and test-sign-in.sh, which test-sign-in-2.sh and test-sign-in-3.sh run,
+# also runs the groups of live:sign-in-2 and live:sign-in-3 (the splits of 2026-11-05 and 2026-11-07).
 sign_in_2_group=""
+sign_in_3_group=""
 for grp in $IRIS_GROUPS; do
   case " $(group_units "$grp") " in
     *" live:sign-in-2 "*) sign_in_2_group=$grp ;;
+  esac
+  case " $(group_units "$grp") " in
+    *" live:sign-in-3 "*) sign_in_3_group=$grp ;;
   esac
 done
 for grp in $IRIS_GROUPS; do
   for unit in $(group_units "$grp"); do
     case $unit in
-      live:sign-in) paths_case "the script of $unit runs web, $grp and $sign_in_2_group, the group of live:sign-in-2" true "$grp $sign_in_2_group" "docker/tests/test-${unit#live:}.sh" ;;
-      live:sign-in-2) paths_case "the script of $unit runs web and only $grp" true "$grp" "docker/tests/test-${unit#live:}.sh" ;;
+      live:sign-in) paths_case "the script of $unit runs web, $grp, $sign_in_2_group (the group of live:sign-in-2) and $sign_in_3_group (the group of live:sign-in-3)" true "$grp $sign_in_2_group $sign_in_3_group" "docker/tests/test-${unit#live:}.sh" ;;
+      live:sign-in-2 | live:sign-in-3) paths_case "the script of $unit runs web and only $grp" true "$grp" "docker/tests/test-${unit#live:}.sh" ;;
       live:*) paths_case "the script of $unit runs only $grp" false "$grp" "docker/tests/test-${unit#live:}.sh" ;;
     esac
   done

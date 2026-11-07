@@ -230,6 +230,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T00:35:24Z occurrence=33-1-fix-the-step-2-contracts-in-the-spine
 - 2026-11-03T23:35:54Z status=routed owner=33-1-fix-the-step-2-contracts-in-the-spine by=burndown_gate note=U-254(b)_reverses_U-177_placement;goes_with_U-247's_InstanceZone_work;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_goes_to_the_Planner_at_33.1's_spec_gate
 - 2026-11-04T02:22:24Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=adjudication note=U-254_disposition:33.1_was_committed_(0196aafd)_and_ships_Bridge.Time.Zone/SetZone/Apply_as_stubs_only;Data.Time_is_Lane_B(U-177);residual:Data.Time.Zone()_and_ToLocal_must_both_follow_Bridge.Time.Zone()(AD-18_S5_InstanceZone),and_with_an_empty_InstanceZone_on_a_TZ-unset_non-UTC_host_report_the_OS_zone;test_on_a_non-UTC_process_zone;18.2_builds_Data.Time's_Apply_call
+- 2026-11-06T09:44:00Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry note=Watch.Reader.SevereLines reads messages.log stamps in the reader's zone; kernel lines are stamped in the OS zone when InstanceZone differs
 
 ### DW-35: A failed Orders header has Status 8 (Error), IsError 0 and an empty ErrorStatus; its error text is only the event-log row inside the Terminating BP wrapper, so a reader that keys on IsError or GetErrorText finds no failure
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
@@ -321,6 +322,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-21T17:28:39Z status=open owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=harvest note=deferred by 1.1 implement; adjudicate at 1.1's gate (likely route to 17-3 with the residual)
 - 2026-10-21T18:26:41Z occurrence=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor
 - 2026-10-21T18:39:25Z status=routed owner=17-3-run-each-agent-on-a-supported-provider by=adjudication note=residual: 17.3's model-change API must validate env var name, base_url, headers, model, secret:// before Merge (1.1 checks api_key, @{ only)
+- 2026-11-05T21:06:45Z status=resolved-by:17-3-run-each-agent-on-a-supported-provider by=adjudication note=ConfigStore.Merge accepts only the timeouts and model-change shapes; base_url, headers, secret://, foreign env and other @{ refused (Test.Bridge.ConfigStore)
 
 ### DW-53: cycle-log-epic-1.md line 1 held a local absolute path (state=), which test-boundaries.sh flags in every tracked file, so the hosted checks job would go red on the next push
 - source: _bmad-output/implementation-artifacts/spec-1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor.md | severity: med | fix-risk: low | footprint: in-story
@@ -2027,6 +2029,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T03:39:09Z owner=29-9-epic-29-burn-down by=burndown note=chartered into Story 29.9 (Epic 29 burn-down) at the burn-down gate
 - 2026-10-31T06:01:21Z status=resolved-by:29-9-epic-29-burn-down by=adjudication note=every sign-in followed by a 10 s snapshot-derived wait is wrapped in loadedAfter or signInReadmeLoaded: the Code Map's 38 sites in 24 files plus ten frame.spec.ts sites (F3 badge loop, F5, four F6, F7, three F8) found at review; AC1 mutation zz C7 old red with /state held 12 s, C7 green
 - 2026-11-01T19:13:12Z occurrence=4-10-try-it-yourself-example-prompts-one-press-each note=ci_run_41337078843_attempt1_iris(browser)_live:sign-in_trace/links.spec.ts:163_V1_open()->loadedAfter_GET_/state_not_seen_in_90s_after_signIn;same_readiness_class;233_others_passed;rerun_--failed
+- 2026-11-07T19:03:07Z occurrence=39-10-the-heartbeat-production-test-is-stable-dw-639 note=OCT-epic39_05f78577_run_42400798775_iris(shards-4)_live:sign-in-2_rail.spec.ts_R2_open():waitForResponse_GET_/state_30s_timeout(the_16.4_fix's_wait);sibling_signature;rerun_by_the_fix-forward_push
 ### DW-291: U-65 and U-107: Story 16.4's sign-out test must exercise the real ReminderOps cancel path that Story 8.4 delivers, not only the recording double
 - source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
@@ -2054,6 +2057,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T09:49:32Z status=routed owner=burndown by=burndown note=not_a_1.0.0_blocker(test_flake_in_contended_test-production.sh);first_daily_release_after_1.0.0
 - 2026-11-03T18:35:57Z occurrence=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=lead note=CI_run_41689251949_iris(production)_live:production_row_21_wanted_CHK|start-fails|1|1_got_empty;flake_rerun
 - 2026-11-05T19:31:24Z occurrence=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=ci note=run_42087551083_job_127456620696_row_21_got_empty_on_78bcb982;rerun_failed_job
+- 2026-11-06T21:03:13Z status=routed owner=burndown by=orchestrator note=occurrence=2026-11-06 run 42285847375 sha 9683c1f0 (merge-back of v1.0.2; tree differs from green b5dcbbfa only by module versions and release records): FAIL row 21, 1 of 5 values differ; rerun of failed jobs
+- 2026-11-06T21:53:29Z status=routed owner=burndown by=orchestrator note=rerun attempt 2 of run 42285847375 green on 9683c1f0
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2708,6 +2713,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 - 2026-11-02T14:56:21Z status=routed owner=burndown by=owner note=U-218_condition_2_(Planner_2026-11-02):30.7's_purge_must_cover_Delivery.Text_on_Telegram_rows_with_buttons(Story_12.7);1.0.0_has_no_Delivery_purge(accepted:redacted,no_chat_id,demo_wipes_every_4h);30.7_deferred_after_the_tag(d1)
 - 2026-11-02T21:12:36Z owner=30-7-epic-30-burn-down by=burndown note=ruling_d1(Contest_Planner,2026-11-02):30.7_entries_keep_owner_30-7;30.7_deferred_after_the_v1.0.0_tag(first_daily_release);conditions_unchanged(U-210/U-218_for_DW-437,U-215_for_DW-584)
+- 2026-11-07T08:44:42Z occurrence=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t
 
 ### DW-438: The OcuTalon heartbeat task's description (Install.Step.Schedule, 124 characters) is stored cut at 100 characters, mid-sentence, in the Task Manager
 - source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3084,6 +3090,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CI run 41207682542 attempt 1 (OCT-epic12 ec468c81, Story 12.2, no Fix change), iris shards-2: 5 asserts of TestCopiesFailAgain failed (57.4 s); attempt 2 green; the class passed on a fresh lane-C throwaway in 41 s; af47ff3c green on the same unit
 - 2026-10-31T15:28:23Z status=routed owner=burndown by=ci note=flake class from now: one rerun with occurrence=; likely a wait in Fix.Partial under CI load (inference); Fix is Lane A, Epic 7's area (Fix/Executor.cls is contended with Epic 30)
 - 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+- 2026-11-07T05:05:08Z occurrence=17-7-give-an-all-clear-only-when-every-check-passed by=ci note=run_42338069582_iris(shards-2)_lane-a@rest_at_99735c36;one_rerun
+- 2026-11-07T14:42:42Z status=routed owner=burndown by=ci note=occurrence OCT-epic39 d5b39c3d run 42379785616 shards-2 lane-a@rest Test.Fix.Partial TestSomeFailAgainAndSomeHadChanged (same 'order date still wasn't accepted' shape, a sibling method); 39.10 changes only Test/Schedule/Heartbeat.cls; one rerun requested by the orchestrator; candidate for the tier (3) flake list
 
 ### DW-499: The Telegram card's view module web/src/app/rail/telegram-card/telegram-card-view.ts has no Node unit test; its branches (missing status, missing or non-string time slot, state on) are pinned only by the browser tests T1 and T2
 - source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3336,6 +3344,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
 - 2026-11-05T08:19:00Z occurrence=34-1-settle-step-3-ownership-and-fix-its-contracts by=ci note=CI_run_41989403902_(de02fc38)_iris_(shards-3)_live:demo-switch_badge.spec.ts:19_goto_interrupted_by_chrome-error;one_rerun_of_the_failed_job
 - 2026-11-05T12:41:04Z occurrence=feature-merge-back by=orchestrator note=feature 8345cfca (v1.0.1 merge-back) run 42021667697 iris (browser) job 127225676199 live:sign-in page.goto interrupted by chrome-error://chromewebdata/; second sighting today (34.1 de02fc38 shards-3); failed job rerun once
+- 2026-11-07T01:02:46Z occurrence=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged note=local_live:demo-path_on_the_integrated_tree(e03ca809,lane-D,e7s9if):07_sign-in_page.goto_interrupted_by_navigation_to_?signedOut=1(not_chrome-error);08_cascaded(07's_replay_request_missing);unchanged_rerun_8_of_8_steps_floor_15_of_15
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
@@ -3894,6 +3903,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 41619944438 (OCT-epic15 head 6a18ed4c) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: attempt 1 red (1 of 38 classes, 5.00s), attempt 2 green on the same head; Epic 15 changed nothing under Watch since 082ac043
 - 2026-11-03T11:43:10Z status=routed owner=burndown by=cr note=flake class: one rerun and an occurrence trailer; Lane A Watch test (Story 30.4's area); first daily release after 1.0.0
+- 2026-11-06T09:09:40Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry by=qa note=local_warm_e17s5qw_long_run:failed_once,passed_on_4_reruns(incl._the_same_preceding_sequence)
 
 ### DW-628: The IPM artifact may ship the OcuTalon.Test.* classes: check whether module.xml's OcuTalon.PKG resource (ocutalon/cls) includes them and, if so, leave them out, so the artifact is smaller (4,940,685 bytes at 15.4, 98.8% of the release's soft 5,000,000-byte warning) and no test code reaches users' instances
 - source: Epic 15 merge gate (Contest Planner, 2026-11-03) | severity: low | fix-risk: low | footprint: small
@@ -3923,6 +3933,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; order or timing dependence in the shard
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;flake;first_daily_release_after_1.0.0;CI_run_41656484374(image_job)
 - 2026-11-04T23:50:45Z occurrence=33-2-open-the-settings-page-as-an-admin by=harvest note=red_2_of_4_local_shard_lane-b_part_2/2_runs_in_the_implement_stage(e33s2i);green_alone_fresh_and_warm
+- 2026-11-06T11:44:00Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry by=ci note=run_42206920718_iris(image)_shard_lane-b_at_5fef1125;the_17.5_rework_head's_run_is_its_one_rerun
+- 2026-11-06T22:06:22Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=ci note=run_42296836927_iris(image)_lane-b_at_b94508c9(integrate_forward)
+- 2026-11-07T04:03:15Z occurrence=17-7-give-an-all-clear-only-when-every-check-passed by=ci note=run_42334354717_iris(image)_lane-b_at_7a9d1c86;one_rerun_of_the_failed_job
+- 2026-11-07T05:48:01Z status=open owner=burndown by=ci note=occurrence OCT-epic34 b6b75a34 run 42341818725 image shard lane-b TestAfterAllTestsNothingSaved 'and the production runs every item' (2nd consecutive Epic 34 head; 34.4 is a browser-spec-only change); one rerun of the failed job requested by the orchestrator; frequency rising, candidate for tier (3) flakes
+- 2026-11-07T05:12:32Z occurrence=34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=ci note=OCT-epic34_f4b38c9e_run_42339077292_iris(image)_shard_lane-b_TestAfterAllTestsNothingSaved;no_rerun:the_fix-forward_push_reruns_it(orchestrator)
+- 2026-11-07T09:14:48Z status=open owner=burndown by=ci note=occurrence OCT-epic17 17989a90 run 42353010024 image TestAfterAllTestsNothingSaved; green on one rerun (runner A); 3rd occurrence on 3 heads since 04Z, candidate for the tier (3) flake list
+- 2026-11-07T10:54:18Z status=routed owner=39-10-the-heartbeat-production-test-is-stable-dw-639 by=load note=re-owned_to_Story_39.10_(tier_3a,Planner_approved,orchestrator_2026-11-07);acceptance_bullet_in_epics.md;not_a_flake_class_for_39.10:a_red_on_its_head_is_real
+- 2026-11-07T13:02:05Z status=routed owner=burndown by=adjudication note=residual:diagnostics_landed(Test.Schedule.Heartbeat_TestAfterAllTestsNothingSaved_names_the_missing_items_and_their_job_state);fix_on_next_named_occurrence;not_reproduced_in_7_load_runs(39.10_plan);orchestrator_ruling_option_a;stays_a_flake_class;closed_at_Epic_39's_burn-down
+- 2026-11-07T13:49:16Z status=wontfix-accepted by=burndown note=residual:diagnostics_landed;fix_on_next_named_occurrence(Story_39.10,7e96e0a9;orchestrator_ruling_option_a);stays_a_flake_class(one_rerun+occurrence) reopen_if=the_next_CI_occurrence's_message_names_the_missing_item_and_its_job_state(Alive:_transient;jobs_none/Starting:_still_missing;Dead:_job_died->PRODUCT_CAUSE_check)
 
 ### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
@@ -3959,37 +3978,47 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: evidence/33-1-task0-zone-measurement.md (Story 33.1 Task 0) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Task 0 Probe.Ambig on slot C build 154: Static() returned the second instant in all 3 zones; Python fold 0 gives the first
 - 2026-11-03T20:24:25Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=harvest note=Data.Time is Lane B's (U-177); 18.2 changes it for the run-time zone; fix with the Bridge.Time.Apply() reading that 33.1 fixes
+- 2026-11-06T10:39:30Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry
+- 2026-11-06T18:54:29Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
 
 ### DW-646: Digest.Data.CheckRun and Digest.Data.Sent have no purge yet although their docs and the spine (AD-27) say they are purged with the digest area's rows
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Install.Step.Digest.Purge calls only Digest.Data.Item.Purge; both tables stay empty until 17.5/17.6 write them; Install/** is under the stability watch
 - 2026-11-03T23:07:37Z status=routed owner=17-5-check-the-vital-signs-and-every-coverage-entry by=harvest note=add both purges (and Test.Install.Retention rows) with the first writer; 17.6 for Sent if 17.5 lands first without it
+- 2026-11-06T10:41:12Z status=resolved-by:17-5-check-the-vital-signs-and-every-coverage-entry by=adjudication note=CheckRun.Purge+Sent.Purge(1a9e60c1);Install.Step.Digest.Purge_runs_all_three;pinned_by_Test.Digest.Purge(TestPurgeKeepsRecent,TestNewestSentIsKept,TestStepRunsAll)+PurgeEdges
 
 ### DW-647: AD-8 retry timer: the retry entries derive from 110 - TimerSeconds while the wait is min(TimerSeconds, 110 - T1); a TimerSeconds above 98 leaves less than MINTIMER (12) for the retry
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: S4 text; Timeouts.Apply would derive an empty timeout set when 110 - TimerSeconds < 12 (unverified)
 - 2026-11-03T23:07:37Z status=routed owner=17-2-retry-once-on-a-second-model-before-falling-back by=harvest note=17.2 states which timer wins and whether TimerSeconds is capped at 98 when RetryItem is set
+- 2026-11-05T09:40:26Z occurrence=17-2-retry-once-on-a-second-model-before-falling-back note=retry timeouts use RetryTimer(TimerSeconds), T2 uses T1=TimerFor: flagged turn T2 30s < ~42s worst; no_key T2=T
+- 2026-11-05T09:42:46Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=adjudication note=TimerSeconds>98 resolved in 17.2 (MINTIMER clamp, RETRYSKIPPED); residual: retry entries use RetryTimer(TimerSeconds) but T2 uses T1=TimerFor (flagged turn)
+- 2026-11-05T22:03:09Z status=by-design by=spec_gate note=AD-8 timer split stands (T2 = min(TimerSeconds, 110 - T1)); 110 s limit holds; aligning the retry entry would cut each chat retry attempt to 10 s; DW-727 test kept
 
 ### DW-648: Coverage edge cases left to 17.5: a check with no run at all in the window, the key for a not_checked run with an empty or unknown Reason, non-whole percentages for digest.healthy's count slots
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-18 The daily digest fixes missed/stale/paused and three reasons only
 - 2026-11-03T23:07:37Z status=routed owner=17-5-check-the-vital-signs-and-every-coverage-entry by=harvest note=Coverage.Build maps Reason through a fixed table, treats no run since span start as missed, rounds percentages
+- 2026-11-06T10:41:12Z status=resolved-by:17-5-check-the-vital-signs-and-every-coverage-entry by=adjudication note=no_run_in_window->notCheckedMissed(Test.Digest.Coverage.TestMissed);empty/unknown_Reason->notCheckedError(TestReasonMap,Runs.TestRecordRunReasons);non-whole_percentages_rounded(spec_figures_rule,Coverage_tests)
 
 ### DW-649: Digest.Data.Sent's due lookup reads the newest scheduled row's DueAt but SessionRefDueAtIndex has no Kind and the spine does not say what DueAt holds for a requested row
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: a requested row with DueAt set could be taken for the newest scheduled row
 - 2026-11-03T23:07:37Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=harvest note=store an empty DueAt for requested digests or add an index on (SessionRef, Kind, DueAt)
+- 2026-11-06T20:24:55Z status=resolved-by:17-6-send-the-daily-digest-at-the-set-time-and-on-request by=adjudication note=due_lookup_filters_Kind='scheduled'(Digest/Process.cls:335,443);requested_digests_store_empty_DueAt;pinned_by_Test.Digest.Due+DueEdges
 
 ### DW-650: Story 17.2 has no acceptance criterion for the RetryOf behavioural tests (a)-(d) the spine records as notes (AD-6 sub-bullet, Conventions Retried turns, veto U-246); the 33.1 static pin cannot see a client value reaching RetryOf through a generic copy (case c)
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-epic
 - evidence: Test.Bridge.CodeRules.TestOnlyTheRetryPathNamesRetryOf passes vacuously until 17.2 adds RetryOf
 - 2026-11-04T00:16:14Z status=routed owner=17-2-retry-once-on-a-second-model-before-falling-back by=harvest note=orchestrator adds the DW bullet to 17.2's epics.md block post-merge (cross-epic); 17.2 builds tests (a)-(d)
+- 2026-11-05T09:42:46Z status=resolved-by:17-2-retry-once-on-a-second-model-before-falling-back by=adjudication note=RetryOf cases (a)-(d) pinned in Test.Bridge.SecondModel, Decide (Held d), Conversation; 905b0336 + QA
 
 ### DW-651: AD-18 due rule leaves a session with no scheduled Sent row undefined: read as due, every new session (each online-demo visitor) gets a digest at the first tick after digest.time
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: S6 'due when the latest digest.time has passed and its newest scheduled Sent row's DueAt is earlier' has no row on a new session; window text plans a first digest
 - 2026-11-04T00:35:24Z status=decision-pending owner=burndown by=cr note=product call: first digest of a new session at once, or at the next digest.time after its CreatedAt; 17.6 builds it
 - 2026-11-05T02:18:29Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=burndown note=ruled_2026-11-05_by_the_Contest_Planner_under_delegation(orchestrator):first_scheduled_digest_at_the_first_digest.time_after_CreatedAt;AD-18_amended_in_Epic_33_burn-down;DW-651_bullet_under_17.6;17.6_builds_and_tests_it
+- 2026-11-06T20:24:55Z status=resolved-by:17-6-send-the-daily-digest-at-the-set-time-and-on-request by=adjudication note=AD-18_amended_due_rule_built(DueAt>CreatedAt);Test.Digest.Due.TestCreatedBefore/TestCreatedAfter+DueEdges.TestCreatedAtTheDueTime
 
 ### DW-652: AD-18/AD-32 digest text does not say that the vital-signs part's key (digest.healthy or digest.vitalsNotAll) is chosen by Checks.Render, though AD-28's Rule reserves that choice to it
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: low | fix-risk: low | footprint: in-story
@@ -4030,6 +4059,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Msg/Catalog/Watch.cls block after incident.laterRequest: two entries equal to their parents plus U-249's line; forced by the spec ruling (an existing key's text may not change; no composition); Rule 2 forced copy
 - 2026-11-04T02:56:40Z status=routed owner=burndown by=cr note=unify when the catalog gains composition (a base key plus an appended line); no story owns that yet
+- 2026-11-06T23:23:46Z occurrence=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged
 
 ### DW-658: release.sh's header Output line and the steps banner do not mention the overview step's LOG line
 - source: spec-11-20-the-release-s-overview-step-hands-the-unit-files-the-contain.md | severity: low | fix-risk: low | footprint: in-story
@@ -4068,6 +4098,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T16:26:42Z status=routed owner=burndown by=harvest note=one occurrence on 092876ad; reads as a test race, cause not found
 - 2026-11-06T10:42:06Z occurrence=39-2-save-your-heartbeat-settings-and-ask-for-a-beat note=312498d6 run 42199537340 attempt 1, image shard:lane-b, the same two tests, class red in 0.46 s; HeartbeatApi runs after GuideApi (name order) so a 39.2 test cannot precede it; 39.2 changes no guide, marker, Live.Publish or session-row path (new routes only); fixture sessions are fresh refs; a tick's empty-checklist skip writes only HeartbeatBeat (not in the Fingerprint) and publishes nothing (U-283). Same as DW-453 (pre-Epic 39)
 - 2026-11-06T17:45:12Z status=routed owner=burndown by=owner note=Planner 2026-11-06: flake (test race, not a shipped-behaviour defect); to the post-merge Epic 39 follow-up with DW-453's findings (print both fingerprints on failure)
+- 2026-11-07T06:22:36Z status=routed owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=load note=re-owned_to_Story_39.9_(SC-5_re-open,_Planner_rulings_2026-11-06);acceptance_bullet_in_epics.md
+- 2026-11-07T08:47:42Z status=wontfix-accepted by=adjudication note=Planner_ruling_2026-11-06_applied:GuideApi_TestOnlyTheMarkerChanges/TestRunAgain_now_print_both_fingerprints(and_done,view,fingerprint)_on_failure;race_not_fixed(cause_not_plain,not_in_Epic_39:inference_instance_incidents_of_the_watched_Orders_production_visible_to_the_fixture_session,Ownership_INCIDENTVISIBLE);stays_a_flake_class(one_rerun+occurrence) reopen_if=the_next_occurrence's_printed_fingerprints_show_an_entry_the_test_did_not_make
 
 ### DW-676: Beat.Read: an error status from one Ownership read or the Usage SQL read is pinned only through the whole-Read override (BrokenBeat), not per branch
 - source: spec-39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built.md | severity: low | fix-risk: low | footprint: in-story
@@ -4143,6 +4175,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Not reproduced: Runners passed alone on a fresh lane-A stack, after PersonaTurns on a warm stack, and in lane-a@Agent forward and reversed (fresh). The warm stack's Ens_Util.Log shows TestStartRefused leaves asynchronous Ens.Alarm Type 2 rows (22:01:55-57) seconds after its own rows; ErrorRows counts any Type 2 row, any ConfigName. Runners and RunnerFixture unchanged by Story 40.3
 - 2026-11-04T22:02:46Z status=routed owner=burndown by=cr note=priority: ErrorRows in TestStartsWithNoKey should ignore Ens.Alarm 'timer event ignored' rows, or the test should wait for the previous method's timers; one rerun of the failed job requested 21:58Z
 - 2026-11-04T22:03:02Z status=routed owner=burndown by=ci note=filed by the runner at CI triage of 2a789066, not by a code review
+- 2026-11-07T02:32:43Z status=routed owner=burndown by=ci note=occurrence=2 OCT-epic19 b0bf1f14 run 42324833841 shards-2 lane-a@rest TestStartsWithNoKey same signature; one rerun requested by the orchestrator
+- 2026-11-07T15:33:18Z status=routed owner=burndown by=ci note=occurrence OCT-epic39 d5b39c3d run 42379785616 attempt 2 shards-2 TestStartsWithNoKey; 4th occurrence; Story 11.28 is on it
+- 2026-11-07T20:50:43Z status=routed owner=burndown by=orchestrator note=occurrence OCT-epic32 39364d5c run 42401362858 attempt 2 shards-5 (lane-a@Bridge,Agent) TestStartsWithNoKey; the Planner granted a one-time merge-gate exception for 32.5 on this red (~20:52Z, rc2 picks); fix waits in 11.28
+- 2026-11-07T19:03:07Z occurrence=39-10-the-heartbeat-production-test-is-stable-dw-639 note=OCT-epic39_05f78577_run_42400798775_iris(shards-5)_lane-a@Bridge,Agent_TestStartsWithNoKey_same_signature;Story_11.28_fix_not_merged;rerun_by_the_fix-forward_push
 ### DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27)
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data/Handled.cls keyed by SessionRef; SessionOps.End and the spine purge list do not cover it; first writer is Story 18.4
@@ -4153,6 +4189,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Production lists Digest Enabled=false; CommandsIn.IsStub recognises code 5003 only; tests route to a recording owner; no route submits SendDigest yet
 - 2026-11-04T23:50:45Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=harvest note=first caller runs it against the real production once Lane A enables the item, or CommandsIn maps the disabled-item error to not_built
 - 2026-11-05T01:02:21Z occurrence=33-2-open-the-settings-page-as-an-admin
+- 2026-11-06T20:24:55Z status=resolved-by:17-6-send-the-daily-digest-at-the-set-time-and-on-request by=adjudication note=Digest_enabled_in_Production.cls:60_(Q3_oracle_row);SendDigest_answers_ok/sending(Test.Digest.Send)
 
 ### DW-699: A demo mode saved on the settings page does not reach the open main page until a reload
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: high | footprint: in-story
@@ -4206,6 +4243,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: spec-33-2 L1; Test.Msg.Catalog refuses the prefix in Catalog.Core
 - 2026-11-04T12:08:42Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=orchestrator note=veto ; bullet goes on Story 17.6 at Epic 33's merge
 - 2026-11-04T12:09:11Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=orchestrator note=inbox=U-271 (the first line's blank veto id)
+- 2026-11-06T04:41:05Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=owner note=planner_ruling_2026-11-06~04:40Z(owner_delegation):one-time_U-177_exception_for_17.6:add_digest.cost_fixture_row_to_Lane_B_Test.Msg.Catalog,count_152->153,U-177_marker_citing_the_ruling,fix_any_web_catalog_test_it_trips,nothing_else_in_Lane_B;digest.cost_text_goes_to_the_Planner_as_PUBLIC_TEXT_before_17.6_commits
+- 2026-11-06T20:24:55Z status=resolved-by:17-6-send-the-daily-digest-at-the-set-time-and-on-request by=adjudication note=digest.cost_in_Msg/Catalog/Watch.cls:504_(dailyCost_slot);Test.Msg.Catalog_fixture_row_under_the_U-177_exception;text_ruled
 
 ### DW-663: flake candidate: live:online-demo web/e2e-online/busy.spec.ts:83 B1: the demoBusy banner stayed past 15 s after a place was free
 - source: CI run 41824429030 attempt 1, iris (install-fresh), OCT-epic33 b1f187da | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4271,6 +4310,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: run 41930634318 attempt 1 on OCT-epic39 149a8d8d (iris shards-2); same 84 classes and order green on feature ac2c4549 (41916844884); not reproduced on fresh or warm lane-D replays of the Fix tail and Eval.Record; incident window 23:32-23:38 matches Eval.KeyProof/Eval.Record then Fix.EitherWay (ended 23:35:29) and Fix.Later (ended 23:38:06)
 - 2026-11-05T00:11:45Z status=routed owner=burndown by=lead note=inference: an Epic 7 Fix.EitherWay cleanup and Fix.Later approval race; a second occurrence on any branch or on feature is real: replay lane-a@rest's 84 classes in CI order on one warm stack
+- 2026-11-07T15:55:27Z occurrence=19-8-epic-19-burn-down note=a86b532c_ci_run_42384900368_shards-2:Tools.RecentActivity(TestAnotherSession,TestDemoPath,TestPoisoned)+RecentActivityTurn;same_IRIS_code_passed_on_d6c43b92;one_rerun_of_the_failed_job
 
 ### DW-711: Test.Checks.Beat and Runs heartbeat fixtures (a pending decision then RunDue, RunNow, a probe Tick or BeatNow) can be settled first by a real HeartbeatIn Tick, whose RunDue settles every pending row
 - source: spec-39-7-publish-the-heartbeat-event.md | severity: low | fix-risk: high | footprint: in-story
@@ -4387,6 +4427,60 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic11 a8868ad8 run 41957022331 iris (shards) job 127036912190 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the run's artifact list is empty; the log names only 'Test timeout of 300000ms exceeded' and the error-context path
 - 2026-11-05T04:38:50Z status=routed owner=burndown by=Contest_Planner note=Contest Planner (delegated) 2026-11-05: first-daily-release burn-down story; on failure, upload the Playwright test-results (error-context.md, traces) of the browser units as a CI artifact, no secrets (CI dummy key/token only), short retention
+
+### DW-724: Decide.ToolsReadOnly judges only an agent's compiled TOOLSETS, so MCP servers attached at step 4 (AD-21) are invisible to the U-282 rule: once Triage or Diagnosis get an MCP server, a timed-out attempt could be retried after a state-changing MCP tool ran
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Decide.ToolsReadOnly reads TOOLSETS and the tool classes' CLASSIFICATION/READONLY; run-time MCP tools are known only to a live tool manager; no agent has an MCP server in this release
+- 2026-11-05T08:23:16Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=when MCP servers are attached to an agent, ToolsReadOnly must count them (unclassified or non-read-only server -> not read-only); 22.2 classifies MCP tools by server and name
+
+### DW-725: A second-model retry that ends after Decide's T2 timer still points the link at its session (SaveRetried, unconditional Point): the next turn continues from an answer the user never saw, and a next turn already running loses its compare-and-set save
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: SaveRetried points unconditionally (Conventions: a retry's point always applies); nothing bounds the retry by T2 (flagged turn T2 30 s vs ~42 s, multi-step loops); Conversation starts the next turn once Decide answers
+- 2026-11-05T09:40:35Z status=escalated owner=burndown by=cr note=spine-level: a late retry should not move the link (e.g. no Point once the Decision row exists); needs an AD-6/AD-8 ruling
+- 2026-11-05T10:47:33Z occurrence=17-2-retry-once-on-a-second-model-before-falling-back by=cr note=docs/bridge-guide.md Second-model retry section states the current behaviour (a completed, untainted retry moves the conversation); revise that sentence when DW-725 is ruled
+- 2026-11-05T10:56:52Z status=routed owner=17-2-retry-once-on-a-second-model-before-falling-back by=orchestrator note=decided by=Contest_Planner(delegated): a late retry moves nothing; link moves only if retry answers within T2 and untainted; 17.2 rework
+- 2026-11-05T11:39:47Z status=resolved-by:17-2-retry-once-on-a-second-model-before-falling-back by=adjudication note=SaveRetried points only when RetryIsLate=0; tests (1)-(3) + mutations (60835e2d + rework re-review); residual race is DW-729
+
+### DW-726: The retry's seed holds the first attempt's refused, cut-off or empty exchange (AnswerLinked saved it), so the second model sees the user's message twice and the user's history keeps an exchange the user never saw
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Decided-in-stage 18; live SecondModel run: the next turn's history reads '...user:[[mock:retry-chat]] What is my build server called?...assistant:The CI mock refuses this request.user:...'
+- 2026-11-05T09:40:35Z status=decision-pending owner=burndown by=cr note=product call: seed from the history before the turn (drop the unseen first exchange) or as Conventions Retried turns says
+- 2026-11-05T11:53:12Z status=routed owner=17-8-only-decide-moves-a-conversation-s-link by=orchestrator note=decided by=Contest_Planner(delegated): retry seed = stored conversation up to the current user message, nothing from the first attempt; 17.8
+- 2026-11-05T16:03:42Z status=resolved-by:17-8-only-decide-moves-a-conversation-s-link by=adjudication note=only Decide.PointLink (Conclude) moves the link; SaveLinked/SaveRetried/SwitchTo never Point; tests+mutations; ee860dfe+QA+CR
+
+### DW-727: Spine AD-8 says Timeouts.Apply gives the retry entries Derive(min(TimerSeconds, 110 - TimerSeconds)), but the DW-647 AC and Timeouts.RetryTimer clamp it at MINTIMER (100 gives Derive(12), not {}): the spine lags the approved spec
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-8 'The retry timer' bullet vs Timeouts.RetryTimer and the spec's DW-647 AC ('the retry entries hold Derive(12)')
+- 2026-11-05T09:40:35Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=cr note=lead writes AD-8's max(MINTIMER, ...) clamp into the spine (Rule 20); 17.4's Timeouts.Apply work reads it
+- 2026-11-06T02:35:24Z status=resolved-by:17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=adjudication note=Timeouts.Apply gives retry entries Derive(RetryTimer(T)); DW-727 test at T=60 and T=100
+
+### DW-728: docs/bridge-guide.md names RetryItem and RetryOf only in the appended Second-model retry section; fold both into the guide's Settings and Messages reference tables once Epic 40 (which also edits the guide) has merged, so the guide's structure stays consistent
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: U-286 answer (Contest Planner, 2026-11-05T10:37:03Z#867): the section was appended at the end because docs/bridge-guide.md is contended with Epic 40
+- 2026-11-05T10:40:07Z status=routed owner=burndown by=lead note=owner condition U-286 (2): after Epic 40 merges
+- 2026-11-05T10:47:33Z occurrence=17-2-retry-once-on-a-second-model-before-falling-back by=cr note=widen the fold: the TimerSeconds row, the DecisionTokenBudget row (checked per attempt, so a retried decision may use up to twice it), the Timeouts section, The fallback route and the DecisionResponse.Model row still describe one attempt
+- 2026-11-07T03:33:11Z status=routed owner=17-9-epic-17-burn-down by=burndown note=chartered_into_the_Epic_17_burn-down_story_17.9
+- 2026-11-07T07:31:03Z status=resolved-by:17-9-epic-17-burn-down by=adjudication note=RetryItem_and_RetryOf_rows_in_the_guide's_Settings_and_Messages_tables;test-bridge-guide.sh_tables_rule
+
+### DW-729: A second-model retry that completes within a few ms of T2 can still move the link: SaveRetried reads lateness once (RetryIsLate, the Decision row), so a timer Decide has queued but not handled, or one that fires between the check and the reply's arrival, leaves the link on a session whose reply Decide drops (residual of DW-725)
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Adapter.Agent SaveRetried checks RetryIsLate, then %Save and Point, then returns; Decide (PoolSize 1) handles the T2 alarm and the reply in queue order, so a reply queued after the alarm is dropped while the link has moved. Window: the save/Point/enqueue time plus Decide's queue latency, around T2; reachable because timeout_ms is checked per loop iteration and in-flight calls run on
+- 2026-11-05T11:38:35Z status=escalated owner=burndown by=cr note=close needs a single arbiter (Decide points on accepting the reply, or a claim Decide's timer honours): AD-6/AD-8 call; a deadline alone inverts the race
+- 2026-11-05T11:53:12Z status=routed owner=17-8-only-decide-moves-a-conversation-s-link by=orchestrator note=decided by=Contest_Planner(delegated): single arbiter, only Decide moves the link on accepting a reply; fix-forward 17.8
+- 2026-11-05T16:03:42Z status=resolved-by:17-8-only-decide-moves-a-conversation-s-link by=adjudication note=only Decide.PointLink (Conclude) moves the link; SaveLinked/SaveRetried/SwitchTo never Point; tests+mutations; ee860dfe+QA+CR
+
+### DW-730: A late first attempt with no retry can still move the link: SaveLinked rotates it on a fresh or compacted turn whose reply Decide has already dropped after its timer; the DW-725 ruling and AD-8 (2026-11-05) say a late reply of the first attempt moves nothing too
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-epic
+- evidence: Story 17.2 rework re-review 2 (rejected as outside the rework range): Adapter.Agent SaveLinked on a fresh/compacted turn after Decide's timer; pre-existing release 1 behaviour
+- 2026-11-05T11:39:48Z status=escalated owner=burndown by=lead note=for the Planner with DW-729: one arbiter (Decide points the link on accepting a reply) would close both; AD-6/AD-8 decision
+- 2026-11-05T11:53:12Z status=routed owner=17-8-only-decide-moves-a-conversation-s-link by=orchestrator note=decided by=Contest_Planner(delegated): a reply Decide does not accept moves nothing, any turn type; fix-forward 17.8
+- 2026-11-05T16:03:42Z status=resolved-by:17-8-only-decide-moves-a-conversation-s-link by=adjudication note=only Decide.PointLink (Conclude) moves the link; SaveLinked/SaveRetried/SwitchTo never Point; tests+mutations; ee860dfe+QA+CR
+
+### DW-746: HistoryCount (GetContext().%Size() of the opened session) may not index RequestSize.StoredMessages for a session holding tool-call messages, so the retry seed's cut could be off (DW-726 seed)
+- source: spec-17-8-only-decide-moves-a-conversation-s-link.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Task 0 agreed for plain turns only; no test covers a session with tool messages, delta records or a compacted history; probe: a tool-using continue turn on the CI mock
+- 2026-11-05T15:20:50Z status=open owner=17-8-only-decide-moves-a-conversation-s-link by=harvest note=QA/CR of 17.8 probes it; resolve or fix in-story
+- 2026-11-05T16:03:42Z status=resolved-by:17-8-only-decide-moves-a-conversation-s-link by=adjudication note=QA measured counts agree (tool messages 4/8/12; compaction 8); pinned TestHistoryCountIndexesTheStoredHistory, TestHistoryCountAcrossCompaction
 - 2026-11-05T10:38:22Z status=routed owner=11-22-first-daily-release-burn-down by=burndown note=chartered: first daily release burn-down (owner via the Planner 2026-11-05T01:51Z; orchestrator dispatch); Story 11.22
 - 2026-11-05T14:52:20Z status=resolved-by:11-22-first-daily-release-burn-down by=adjudication note=each browser unit keeps web/test-results/<unit>/; a failure-only upload step keeps error-context.md and the results folder, 3-day retention; traces are excluded on purpose (orchestrator ruling 2026-11-05): the repository is public and a trace can hold the throwaway stack's per-run sign-in passwords; pinned by ci-results.test.mjs and test-ci-config.sh
 
@@ -4467,11 +4561,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: measured in 34.2 Task 0 on DocumentOps (web server gave up at 60 s, CommandsIn waits 120 s)
 - 2026-11-05T12:23:42Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=harvest note=CommandsIn is contended with Epic 40; 19.3 enabling MemoryOps removes the case for memory verbs
 - 2026-11-05T13:03:31Z occurrence=34-2-add-and-remove-documents-on-a-documents-page
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=MemoryOps_Enabled=true_in_Production.cls(Lane_A_region);Test.Memory.Ops:TestAnswerTime_answers_a_save_within_10_s;the_general_CommandsIn_not_built_fix_for_a_disabled_owner_stays_Lane_B's
 
 ### DW-732: /usr/irissys/mgr/python is irisowner-owned (mode 555) in the base image, so the IRIS user could chmod it and replace the installed Python packages; the packages inside are root-owned and read-only
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: evidence/34-2-task0-image.md (34.2 Task 0 b)
 - 2026-11-05T12:23:42Z status=routed owner=19-2-compute-embeddings-offline-in-a-worker by=harvest note=decide whether to tighten the folder (Dockerfile) when 19.2 uses the packages
+- 2026-11-06T04:53:06Z status=wontfix-theoretical owner=19-2-compute-embeddings-offline-in-a-worker by=spec_gate note=the_folder_owner_irisowner_is_the_IRIS_process's_own_user,which_already_writes_the_code_database_and_mgr;the_folder_is_in_the_image_layer,reset_at_every_recreate;so_tightening_it_adds_no_boundary;real_if_the_IRIS_process_ever_runs_as_a_user_other_than_the_folder's_owner;fix_would_be_docker/Dockerfile(Lane_B,U-177)
 
 ### DW-733: flake candidate: Test.Live.GuideRefresh TestHookPublishesOnChange and TestEventsBodyServesTheGuide fail when the class runs alone on a warm stack the lane-b shard already used; pass in the shard on every fresh stack (order or state dependence of the test itself)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4507,6 +4603,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Command/ForgetMemory.cls doc says a tool forgets only its own session's memory; CommandsIn Carry checks SessionRef only; MemoryOps is Lane A's 5003 stub (34.2 review, Blind)
 - 2026-11-05T13:03:31Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=MemoryOps answers ForgetMemory not_found unless Data.Memory's owner is the command's SessionRef; test it with another session's MemoryRef
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=MemoryOps.OnForget_checks_row.SessionRef=request.SessionRef(else_not_found);Test.Memory.Ops:TestForgetOther,Test.Memory.Turns:TestForgetOtherSession
 
 ### DW-747: Data.Upload has no lifecycle beyond Take, the route's own delete and sign-out: nothing sweeps an abandoned row (a local install has no sign-out), a CommandsIn timeout drops the row while the AddDocument may still reach DocumentOps (whose Take then returns nothing), and Take is at-most-once with no session check
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -4543,6 +4640,121 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: irisScript (Story 11.21) has no abort signal; boundedStep rejects at DIAG_BOUND_MS while the retry loop continues; failure path of a failure path only
 - 2026-11-05T14:50:17Z status=wontfix-accepted owner=11-22-first-daily-release-burn-down by=cr note=reopen_if=a CI log shows a DIAG /state unavailable line followed by a docker exec left running after the test ended
 
+### DW-755: While only Anthropic is marked supported, no public text (README, bridge guide, settings page, release notes) may say another provider runs decisions; a live proof with that provider is required before any such claim
+- source: spec-17-3-run-each-agent-on-a-supported-provider.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: U-288 KEEP condition (Contest Planner, 2026-11-05T19:09:13Z#875): IG-1 accepted the in-process and shadow-runner proof instead of a live decision through a resolved runner
+- 2026-11-05T19:27:45Z status=routed owner=burndown by=lead note=owner condition U-288; re-own to the release-check story that marks a second provider supported
+- 2026-11-05T20:12:06Z occurrence=17-3-run-each-agent-on-a-supported-provider note=no test runs a runner job with a model key in its environment; live resolution and a job-side key scan proved in process only (IG-1 option B)
+- 2026-11-07T03:33:11Z status=resolved-by:17-3-run-each-agent-on-a-supported-provider by=burndown note=U-288_condition_held_at_Epic_17_close:README,docs,web_settings,release_texts_claim_no_other_provider_runs_decisions(docs/bridge-guide.md:39_names_model_families_only);reopen_if_any_public_text_names_another_provider_as_running_decisions
+
+### DW-757: An instance that already holds the claude-sonnet-5-5 Price row keeps cache-read 0.2 after upgrade (seed never overwrites a stored price); the pricing page of 2026-11-05 says 0.10, so its cache-read cost is over-stated
+- source: spec-17-3-run-each-agent-on-a-supported-provider.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Installer.SeedPrices never overwrites (AD-19 seed values); fresh installs get 0.1; Sonnet is not the default model
+- 2026-11-05T20:12:06Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=harvest note=17.4 price edits: decide whether a seeded-but-never-edited price row is corrected on upgrade (stored-data change: veto window)
+- 2026-11-06T02:35:24Z status=resolved-by:17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=adjudication note=SeedPrices corrects only a never-edited claude-sonnet-5-5 row to 0.10 (U-293); edited row untouched; pinned
+
+### DW-758: A resolved or newly chosen provider keeps the entry's base_url, http headers and TLS: unreachable today (only Anthropic supported; OCUTALON_MODEL_BASE_URL set only by CI and the online demo), reachable once REL-7 marks another provider supported while a base_url is set
+- source: spec-17-3-run-each-agent-on-a-supported-provider.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: 17.3 decided in-stage 5: resolved config keeps base_url and http_config from the entry (AD-19)
+- 2026-11-05T20:12:06Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=harvest note=17.4's bridge checks: a provider change drops a base_url/headers that belong to another provider (or refuses the change)
+- 2026-11-06T02:35:24Z status=resolved-by:17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=adjudication note=ConfigStore.DropEndpoint on provider change (Merge), Resolve and the Provider step; Conventions Provider endpoints
+
+### DW-771: The model Test for DiagnosisAgent cannot answer with the fixed TESTINPUT: against the mock it ends in fallback invalid (DiagnosisPayload needs an evidence pack), so the settings Test button would likely say a working diagnosis model did not answer
+- source: spec-17-4-apply-model-price-budget-and-zone-changes-through-the-bridge.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: 17.4 live test hides it with a [[mock:diagnosis-unknown]] marker; unverified on a real provider (none allowed)
+- 2026-11-06T02:03:39Z status=decision-pending owner=burndown by=harvest note=product call: how a diagnose-kind Test request is tested (e.g. a minimal evidence pack, or test the runner with a plain turn-shaped request)
+- 2026-11-06T04:22:35Z status=routed owner=burndown by=owner note=planner_ruling_2026-11-06T02:37:12Z(owner_delegation):Settings_Test_is_a_CONNECTION_test_for_every_runner(non-empty_reply_within_the_timer_via_the_runner's_provider,model,key;no_ReplyClass_validation);test:the_diagnosis_Test_passes_with_a_mock_reply_that_fails_DiagnosisReply_validation;spine_Conventions_row_Settings_model_Test;work_in_the_Epic_17_burn-down_story
+- 2026-11-07T03:33:11Z status=routed owner=17-9-epic-17-burn-down by=burndown note=chartered_into_the_Epic_17_burn-down_story_17.9
+- 2026-11-07T07:31:03Z status=resolved-by:17-9-epic-17-burn-down by=adjudication note=Decide.Conclude_answers_a_decide/diagnose_model_Test_on_any_non-empty_reply_(no_ReplyClass_check);Test.Bridge.SettingsApply.TestModelTestIsAConnectionTest
+
+### DW-773: docs/bridge-guide.md Settings intro (line 153) still says a Decide row takes effect only after a restart, with only ToolClassification and ApprovalRole read live; since Story 17.4 DecisionTokenBudget, RequestTokenLimit, DailyCostCapUSD and InstanceZone apply with no restart
+- source: spec-17-4-apply-model-price-budget-and-zone-changes-through-the-bridge.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Decide.SettingText reads DecisionTokenBudget/RequestTokenLimit as written in its own job; Budget.State reads the cap live; the new InstanceZone row says no restart; the guide is contended with Epic 40, which the lead limited to the InstanceZone row
+- 2026-11-06T02:33:27Z status=wontfix-accepted owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=cr note=reopen_if=bridge-guide Settings intro still names only ToolClassification and ApprovalRole as read live when DW-728's fold-in pass edits it
+- 2026-11-07T07:31:03Z status=escalated owner=burndown by=cr note=reopen_if_arguably_fired:Story_17.9_edited_the_guide_(DW-728,DW-850)_but_left_the_Settings_intro;rewording_is_public_text_for_the_Contest_Planner
+- 2026-11-07T09:31:21Z status=resolved-by:17-9-epic-17-burn-down by=owner note=Planner_rulings_2026-11-07_about_09:30Z_and_09:35Z(L153_final):docs/bridge-guide.md_Settings_intro(L153)_and_RetryItem_bullet(L340)_say_which_settings_are_read_each_time;pinned_by_test-bridge-guide.sh_livetext;AD-19_as-built
+
+### DW-779: docs/install-ipm.md's two sample install logs have no STEP Digest OK line after STEP Demo OK (Story 17.5 adds the Digest step to Registry.Order())
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docs/install-ipm.md:165; no test compares the sample logs with a real start
+- 2026-11-06T08:40:46Z status=routed owner=burndown by=harvest note=fix-pack-sized: two one-line inserts; docs/** is contended by Epic 11 (README and docs), so the burn-down story checks Epic 11's diff first
+- 2026-11-06T11:23:01Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry by=ci note=CI_red:test-cpf.sh_rule_9_compares_the_sample_logs_with_Registry's_order_(the_deferral's_'no_test_compares'_was_wrong);fixed_in_17.5_rework_iteration_2
+- 2026-11-06T12:31:07Z status=resolved-by:17-5-check-the-vital-signs-and-every-coverage-entry owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=commit 8f38315e: one STEP Digest OK 0.1s line after each STEP Demo OK 0.1s in docs/install-ipm.md; pinned by docker/tests/test-cpf.sh rule 9 (it compares the sample logs with Registry.Order(), so the evidence line's 'no test compares' was wrong); test-cpf.sh passed at code review rework 2
+
+### DW-786: Checks.Coverage.Live repeats Checks.Process.Run's live-read logic (the not_checked reason chain, the cut rule, the state text, the failure wording and the capital) beyond the 4-line scoping loop the spec declares; the two drift when either changes
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Coverage.cls:332-404 vs Process.cls Run :325-366 and private Finding :492-504; Process.cls is contended (Epic 39), so the copy is forced for now
+- 2026-11-06T09:44:00Z status=routed owner=burndown by=cr note=Rule 2 forced copy: unify into one Checks helper once Epic 39 frees Process.cls (make Finding callable)
+- 2026-11-07T03:33:11Z status=routed owner=17-9-epic-17-burn-down by=burndown note=chartered_into_the_Epic_17_burn-down_story_17.9
+- 2026-11-07T07:31:03Z status=resolved-by:17-9-epic-17-burn-down by=adjudication note=one_set_of_public_live-read_helpers_in_Checks.Process_used_by_Run,Finding,Coverage.Live;Test.Digest.Runs.TestOneLiveReadHelper(structure+parity)
+
+### DW-787: Test.Digest.Runs Host() and Tick() re-implement the Test.Checks.Runs instance helpers the spec said to reuse
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Digest/Runs.cls:174,206 vs Test/Checks/Runs.cls:903,1013; instance methods of a contended test case, not callable without inheriting its tests
+- 2026-11-06T09:44:00Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=Test.Checks.Runs Host or Tick changes and Test.Digest.Runs does not follow
+
+### DW-788: QA's digest test helpers repeat their siblings: PurgeEdges Session/Run/Sent (Purge.cls) and ThresholdKeys PutBack (Thresholds.cls)
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Test/Digest/PurgeEdges.cls:95-110 vs Purge.cls:125-142; ThresholdKeys.cls:76 vs Thresholds.cls:49
+- 2026-11-06T09:44:00Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=a third Test.Digest class copies the same helpers
+
+### DW-789: AD-23's after-start step list names neither the Digest step (Registry.Order() after Demo, Story 17.5) nor PrivateData, while Test.Install.Registry calls Order() the fixed list of AD-23
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: spine :793-801 vs Install/Registry.cls Order(); AD-19 (:650) already gives seeding to the digest area's install step
+- 2026-11-06T09:44:00Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=a test or script compares Registry.Order() with AD-23's list; spine contended (Epic 39), lead may bundle with the trigger arrow
+
+### DW-790: Test.Digest.Thresholds and ThresholdKeys write Lane B's Data.Setting directly (Set, %DeleteId) and expire its private cache entry ^||OcuTalon.Setting by layout
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Thresholds.cls:79,99,126-142; ThresholdKeys.cls:42,82,90; Lane B offers no flush seam (U-177)
+- 2026-11-06T09:44:00Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=Data.Setting's cache layout changes or Lane B adds a flush seam
+
+### DW-798: system log reads passed when a kept messages.old_* file inside the window was deleted (or compressed): Reader.SevereLines reads on past the gap and the deleted lines are not counted
+- source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SevereLines stops only at a file starting before fromUtc and assumes every newer kept file is present; IRIS has no retention of messages.old_* (irissys searched), so only an admin delete or compress within the window makes the gap; the spec's Task 0 rework records it as a residual
+- 2026-11-06T10:39:30Z status=wontfix-accepted owner=17-5-check-the-vital-signs-and-every-coverage-entry by=cr note=reopen_if=an install step, IRIS task or doc of ours deletes or compresses messages.old_* files, or a report of a passed system log after one was removed
+
+### DW-799: flake: docker/tests/test-mock.sh answered 400 where it expected 200 once, then passed on three unchanged reruns (Story 17.6 implement stage, local host)
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 17.6 implement report: one 400 vs 200, three green reruns; which check row and request were not recorded
+- 2026-11-06T15:12:04Z status=routed owner=burndown by=harvest note=flake candidate (orchestrator 2026-11-06): one rerun and an occurrence= line per sighting; record the failing row and request next time
+- 2026-11-06T15:12:04Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=lead note=first_sighting(implement_stage,local)
+- 2026-11-07T03:33:11Z status=routed owner=burndown by=burndown note=shared_flake_pool(as_Epic_40_DW-688):one_rerun_and_an_occurrence_per_sighting
+
+### DW-815: The Telegram digest's 4096-character bound (Q4 b) holds only for the needs-you list: the checked list, whatFailed and one coverage line per row are unbounded, so a session with many watched entries gets the digest in several messages
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Digest.Process.Finish puts every watched entry in digest.checked and whatFailed and Coverage.Build's lines are passed unchanged; TelegramOut.Send splits over 4096; about 22 failed or 45 passed rows exceed it
+- 2026-11-06T18:54:29Z status=decision-pending owner=burndown by=cr note=product call: bound or fold the coverage lines (AD-18/AD-32 say one line per row) or accept a split digest
+- 2026-11-06T19:07:35Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=owner note=Planner_ruling_2026-11-06:option_2_now(Telegram_splits_at_line_boundaries,in_order;Q4_b_amended);residual=option_1(fold_coverage_lines_past_a_limit_into_a_count;new_catalog_line=public_text;AD-18/AD-32_one_line_per_row)->Story_18.2_or_the_Epic_17_follow-up
+- 2026-11-06T20:22:27Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
+
+### DW-816: With Digest enabled, the installed heartbeat's tick at digest.time sends a scheduled digest to every alive session created before it, so a test that spans that minute and counts its session's notices or unscoped mock requests can go red
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Install.Step.Schedule's every-minute HeartbeatTask runs on CI stacks; Digest.Process.Ticked queues every session created before due (DW-651 rule); not observed in any run
+- 2026-11-06T18:54:29Z status=wontfix-theoretical owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=cr note=real if a CI red shows an extra notice or model request that is a scheduled digest at 08:00 instance time
+- 2026-11-06T22:42:19Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
+- 2026-11-06T22:42:19Z status=routed owner=17-7-give-an-all-clear-only-when-every-check-passed by=cr note=reopened: CI red BeatOutcomes x4; tests' ahead ticks (+48h) digest all sessions, future-DueAt Sent rows mask real digests
+- 2026-11-07T03:13:47Z status=resolved-by:17-7-give-an-all-clear-only-when-every-check-passed by=adjudication note=FutureSent.Remove(fail-closed_drain)+Count_asserted_in_BeatCase.OnAfterOneTest_and_Test.Checks.Turns.OnAfterOneTest;due_rule_unchanged;mutations_recorded
+
+### DW-817: A tick's scheduled Composes for several sessions share the tick's trace session (Digest keeps the inbound session and sets only SuperSession, as Intake.Join does for Checks' findings), against AD-26's own trace session per untrusted item
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Digest.Process.Schedule/Queue send the Compose with the Tick's %SessionId and SuperSession; Composed sets SuperSession to TraceRef when empty
+- 2026-11-06T18:54:29Z status=wontfix-accepted owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=cr note=reopen_if=a Visual Trace view at the hands-on pass shows two sessions' digests in one tick session and is judged confusing
+
+### DW-818: The Q1 Tick-forward warnings in Checks.Process.Tick log the raw status or exception text with no prefix, so the event log does not say that forwarding the tick to Digest failed
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Checks/Process.cls Tick: two LOGWARNING calls of Redact.Text(...) only; the ruled block allows no other line (Q1, contended with Epic 39)
+- 2026-11-06T18:54:29Z status=wontfix-accepted owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=cr note=reopen_if=an operator or a test cannot tell a Checks warning about the Digest forward from another
+
+### DW-819: Test.Digest.DueEdges copies the set-up of Test.Digest.Due (OnBefore/OnAfter, Session, Host, Tick, Utc) instead of sharing a base class
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: DueEdges.cls :30-107 are near-copies of Due.cls :40-121; they had drifted on the digest.time restore (fixed in this review)
+- 2026-11-06T18:54:29Z status=wontfix-accepted owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=cr note=reopen_if=a third Digest due-rule test class copies the same set-up, or the two drift again
+
+### DW-820: Digest.Process.Own copies Notify's generic route (the session's own channels) so Digest can narrow a digest to digest.channels and send to the outbound items directly; remove the copy when Notify routes kind digest by digest.channels
+- source: spec-17-6-send-the-daily-digest-at-the-set-time-and-on-request.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: AD-14 interim note (AMENDED 2026-11-06, Story 17.6); Rule 2: a test pins Own against Notify's actual generic-route targets until then
+- 2026-11-06T19:07:35Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=Rule 2 forced copy (Planner ruling 2026-11-06, AD-14 option a): Story 18.2 makes Notify honour digest.channels for kind digest and deletes Digest.Process.Own and the direct sends
+- 2026-11-06T20:22:27Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
 ### DW-748: Story 11.22's docs read stale beside 34.2's BodyBounds: Test.Web.BodyLimit says Test.Web.ApiProbe has no declaration (it now inherits Web.Api's POST /v1/documents entry), POSTROUTES is called every POST route but omits /v1/documents, and Web.BodyLimit's header example names /v1/documents at 14680064 bytes (the real bound is 13,985,112)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 11.22's assertions still hold (POSTROUTES omits /v1/documents; the declared-bound case uses /v1/messages); only the comments mislead; the files are Story 11.22's and outside 34.2's lane (34.2 re-review, Blind and Acceptance Auditor)
@@ -4620,6 +4832,180 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: an IRIS-internal race: a job's status node vanished while Ens.Job enumerated it during the restart (restart 2 took 147 s); every reminder check passed; Epic 34 touches no job or start code
 - 2026-11-06T02:28:05Z status=routed owner=burndown by=orchestrator note=failed job rerun once; if it recurs, the event-log check could ignore this one system-class race or wait for a steady production before sampling (like DW-692)
 
+### DW-782: No test calls OcuTalon.Memory.Embedding from inside an AI Hub callback (the S11 surface): whether queueing to and waiting on the WorkMgr worker from a tool's callback avoids the build-154 crash is unshown
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: TestCallbackRule proves only that the class holds no Python text; the unit tests call Embed from ordinary sessions; settle with a live tool call in a throwaway that saves and searches a memory
+- 2026-11-06T09:07:41Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=harvest note=Story 19.3's memory tools are the first callback callers
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=Test.Memory.Turns_runs_save_and_search_from_inside_the_tool_callback_with_the_ChatAgent_job_unchanged,run_by_live:memory-offline_on_a_fresh_throwaway(aarch64_ok=1;x64_in_CI)
+
+### DW-783: release/rehearse.sh memory-offline is proved on stub hosts only: a dry run on a real stack must show the clean host publishes its web port again after docker network connect --alias iris
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: docker/tests/test-rehearsal.sh pins the step on stubs; the sign-in step after it is the real check
+- 2026-11-06T09:07:41Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5 extends the release/ upgrade harness; run the rehearsal dry run on a lane-C throwaway there
+
+### DW-784: docs/install-ipm.md does not say that an IPM install fetches fastembed through requirements.txt and downloads the model (about 97 MB) into <mgr>/fastembed/, or what WARN Memory means; its sample output shows STEP Memory OK 0.1s and no WARN Memory
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the page only gained STEP Memory OK lines (test-cpf.sh rule 9); new wording is public text on Epic 11's page
+- 2026-11-06T09:07:42Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=harvest note=reopen_if=Epic_11_or_15_next_edits_docs/install-ipm.md,or_a_reader_asks_what_WARN_Memory_means;reported_to_orchestrator_for_routing
+- 2026-11-06T10:48:50Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=owner_ruling note=reopened_by_U-294_condition_3:PUBLIC_TEXT_to_the_Planner_before_commit:the_README_IPM_section_and_docs/install-ipm.md_say_the_install_downloads_Python_packages_and_the_embedding_model(size,typical_time)_and_needs_network_access_to_PyPI_and_the_model_host;re-shoot_the_sample_output
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=README_A4/A5_and_install-ipm.md_A6_carry_the_ruled_text_with_measured_figures(~250MB,~90MB,~1_minute),same_figures_pinned_by_test-release-sequence.sh;the_time_figure_is_67pct_below_the_proposal_and_goes_to_the_Planner_before_the_push;sample_output_re-shot
+
+### DW-791: The IPM install's requirements.txt pins only fastembed==0.9.0: its dependencies (onnxruntime, tokenizers, huggingface_hub, numpy) get no constraints file, licence gate or third-party notices, unlike the image's pip line
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: docker/Dockerfile holds every dependency to docker/licences/constraints-<arch>.txt and runs gate.py check and notices; root requirements.txt has one line; ipm-install.sh check 30 asserts only fastembed's version
+- 2026-11-06T09:48:59Z status=escalated owner=burndown by=cr note=licence and dependency policy for IPM installs (veto); per-arch pins do not fit one requirements.txt; decide at the decision sheet
+- 2026-11-06T10:48:50Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=owner_ruling note=U-294_condition_1(binds_inside_Epic_19):requirements.txt_pins_fastembed,pdfplumber,python-docx_AND_every_transitive_distribution_of_U-285/DW-738's_licence-measured_set_at_the_constraints_files'_versions(say_so_if_arm64_and_x64_differ,before_committing);ipmcheck_runs_the_same_licence_gate_on_what_IPM_installed,failing_outside_the_allowed_families;plus_condition_2:measure_ipmcheck_and_rehearsal_with_the_model_download
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=requirements.txt_pins_the_36_of_both_constraints_files(static_check);ipm-install.sh_check_32_gates_what_IPM_installed;ipm_artifact_check(B4)_proves_the_artifact_carries_requirements.txt_and_the_FileCopy;condition_2_CI_times_read_from_the_part-1_CI_runs;DW-829_(older_copies)_escalated_separately
+
+### DW-792: OcuTalon.Memory.Embedder builds its two keyword calls (TextEmbedding, snapshot_download) from Python source in builtins.eval lambda strings, a form the Conventions Python row (.py resources under src/ocutalon/python/) does not name
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Embedder.cls Embed and Download eval one-line lambdas because %SYS.Python passes no keyword argument on build 154 (spec Decided in-stage); the spec forbids an own .py file in this story
+- 2026-11-06T09:48:59Z status=routed owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=19.6 creates src/ocutalon/python/: move both lambdas into a .py resource imported with %SYS.Python.Import
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=Embedder's_keyword_calls_moved_into_src/ocutalon/python/ocutalon_memory.py;Test.Docs.Python_bans_eval/exec
+
+### DW-793: Memory install warnings can carry OcuTalon's own wording, not only an underlying error's text: 'The download left no model in <folder>', and Embedder statuses ('could not be made', 'did not finish within N seconds', 'No work group of category')
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Install/Step/Memory.cls EnsureModel Warn calls; spec Never: no new user-facing text (a step warning carries the underlying error's own text); other steps (Audit, Users, Schedule) warn in their own words
+- 2026-11-06T09:48:59Z status=decision-pending owner=burndown by=cr note=PUBLIC TEXT: recommend keeping them as operator diagnostics, as the other install steps do; else the spec's Never line is amended
+- 2026-11-06T10:48:51Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=owner_ruling note=approved_as_proposed_by_the_Contest_Planner(owner_delegation);condition:none_prints_a_key,token_or_environment-variable_value(folder_paths_fine);pin_it_with_a_test_if_not_already_pinned
+- 2026-11-06T15:54:28Z status=resolved-by:19-3-remember-recall-list-and-forget-in-the-chat by=adjudication note=Test.Memory.Install:TestDiagnosticsHoldNoSecret_and_Test.Memory.Diagnostics(TestSubmitTimeout,TestUnknownWorkItem,TestModelThatCannotLoad)_scan_the_messages_for_keys,tokens_and_env_values
+
+### DW-794: The callback check cannot cover OcuTalon.Memory.Embedder's caller-side methods (Submit, ModelFolder, HasModel run in the calling process) because the same class holds the worker's %SYS.Python code, so Python added to Submit would pass TestCallbackRule
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Test.Bridge.CodeRules CALLBACKHELPERS lists Memory.Embedding only; the spec puts ModelFolder, Submit and the worker entries in one class Embedder, which Story 19.4 reads
+- 2026-11-06T09:48:59Z status=by-design owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=spec-bound (one class per the Code Map and Consumed-by 19.4); reopen via spec amendment if Story 19.3's callback test shows a need
+
+### DW-795: release/ipm-install.sh check 31 cannot observe a repeated download: a snapshot_download into a complete cache leaves the file list and sizes unchanged, and the reinstall output is not checked for WARN Memory
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: memory_fingerprint compares paths and sizes only; the AC4 mutation (always download) is caught by Test.Memory.Install:TestPresentFolder, not by check 31
+- 2026-11-06T09:48:59Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=reopen_if=an FR-57 reinstall log shows a model download or fastembed pip output while check 31 passes
+
+### DW-796: Test.Memory.Offline:TestHubFromACopyInAWorker cannot tell whether AI Hub's FastEmbed read the copy: if the variable were ignored it would read the worker's inherited /opt/fastembed and still pass
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: HubWorker sets FASTEMBED_CACHE_DIR to a cp copy of the baked folder; no control with a folder lacking the model (rejected earlier: with a network AI Hub would download into it)
+- 2026-11-06T09:48:59Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=reopen_if=Story 19.4's DocumentOps sets the variable from ModelFolder() and an IPM install's documents are embedded from /opt or fail
+
+### DW-797: AD-22's 'CI as built' list of lane-a areas does not name Memory, which ci/units.sh now runs in shard lane-a
+- source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spine AD-22 Rule line lists Agent, Bridge, Checks, Fix, Install, Tools, Digest, Watch, Eval and Channel; Story 19.2 appended Memory to ci/units.sh; editing an existing Rule line of a contended spine is not a plain union
+- 2026-11-06T09:48:59Z status=wontfix-accepted owner=19-2-compute-embeddings-offline-in-a-worker by=cr note=reopen_if=the lead's next spine refresh of AD-22, or a reader places a Test/Memory class by that list; test-ci-config.sh enforces membership
+
+### DW-806: MemoryOps.OnSave can save after CommandsIn gave up: the session lock (5 s) plus Embed's own 120 s wait can outlast CommandsIn's 120 s TIMEOUT, so the model is told the save failed while the row is written
+- source: spec-19-3-remember-recall-list-and-forget-in-the-chat.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Memory/Ops.cls OnSave: Lock 5 s then Embedding.Embed with Embedder TIMEOUT 120; Core/CommandsIn.cls TIMEOUT 120 on SendRequestSync
+- 2026-11-06T15:51:37Z status=wontfix-accepted owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=needs an embed of 115-120 s; fix changes 19.2's Embed API; reopen_if=a MemoryOps row whose turn's save_memory answer was NOTSENT or failed
+
+### DW-807: Test/Install/SecurityOverview.cls doc comments of TestRecentActivityRow and TestProposePersonaRow still say 'one of the 13 rows' while the table has 17
+- source: spec-19-3-remember-recall-list-and-forget-in-the-chat.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: lines 58 and 79 unchanged by 19.3; TestToolRows expects RELEASE1 + propose_persona + MEMORYTOOLS = 17; Epic 17 adds a row too
+- 2026-11-06T15:51:37Z status=wontfix-accepted owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=contended file outside the Rulings scope (names only); reopen_if=after the Epic 17 and 19 merges the file still says 13 rows
+
+### DW-808: Test/Bridge/CodeRules.cls CALLBACKHELPERS doc comment gives no reason for OcuTalon.Memory and OcuTalon.Tools.HostData, which 19.3 appended
+- source: spec-19-3-remember-recall-list-and-forget-in-the-chat.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: line 81 doc ends at Memory.Embedding; line 82 list now ends ,OcuTalon.Memory,OcuTalon.Tools.HostData (Memory.Search runs SQL and queues an embedding in the callback; HostData merges the reply members)
+- 2026-11-06T15:51:37Z status=wontfix-accepted owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=Epic 17-contended doc line; a one-clause union at merge closes it; reopen_if=after the Epic 17 merge the doc still omits the two helpers
+
+### DW-827: OcuTalon.Docs.Extractor's MaxActiveWorkers 1 does not serialise reads: two concurrent Docs.Extract.Read calls ran on two worker jobs at once, so AD-21's one worker holds for the setting, not the number of simultaneous workers
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: evidence/19-6-task0-extraction.md M3
+- 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 is the first product caller; serialise or amend AD-21's wording
+
+### DW-828: Clear on a timed-out read waits for a work item inside one long C call (a 30 s sleep held Clear 29 s), so a PDF whose time goes into one C call (a decompression bomb) can keep Read past its limit
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: evidence/19-6-task0-extraction.md M3: the page loop stops, a single C call does not
+- 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 adds files from the Documents page; bound it there (page or size caps before the C call)
+
+### DW-829: On an IPM install, pip -t leaves older copies of six distributions that <mgr>/python already holds (certifi, charset_normalizer, idna, requests, typing_extensions, urllib3) beside the pinned dist-info, so the pinned files may not be the ones imported; U-294 condition 1 and README bullet A5 ('at the same versions') depend on it
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: release/ipm-install.sh path A (Story 19.6); check 32 gates only what the install added plus the pins
+- 2026-11-06T23:14:10Z status=escalated owner=burndown by=harvest note=for the Planner (U-294 release gate owner) at the part-1 contract; reported with the PUBLIC TEXT figures
+- 2026-11-07T01:36:04Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_2026-11-07:measure_the_six_imports(__version__,__file__)_on_the_local-artifact_IPM_install;pinned->A5_stays+import_check_in_check_32;else_fix_the_install(pip_-t_--upgrade_or_remove_stale)+same_gate;if_impossible_by_14Z:PUBLIC_TEXT_reworded_A5
+- 2026-11-07T07:40:49Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=OcuTalon.Install.Ipm.RemoveStaleCopies_before_IPM's_pip_step;conditions_1-4_met:pins_from_requirements.txt,mgr/python_only,idempotent,STEP_line_each;folder+IPM-import_snapshot_gate(check_32_area);uninstall_keeps_the_six;version+hash_import_check_on_path_A_and_part_p;A5_unchanged;evidence/19-8-task0-install-accuracy.md
+
+### DW-830: The README and docs/install-ipm.md list three hosts (pypi.org, files.pythonhosted.org, huggingface.co); huggingface_hub with hf-xet may also use CDN or Xet hosts, and the docs do not say what a blocked download looks like (the Memory step only warns)
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: review finding, unverified; settle by recording the hosts an install contacts on a lane-C throwaway
+- 2026-11-06T23:14:10Z status=escalated owner=burndown by=harvest note=public-text accuracy; for the Planner with the PUBLIC TEXT figures
+- 2026-11-07T01:36:04Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_2026-11-07:HEAD-only_curl_-sI_on_each_HF_resolve_URL_and_pip_download_URL;record_Location_hosts;docs_name_exactly_those_hosts;any_host-list_change_is_PUBLIC_TEXT_before_commit
+- 2026-11-07T07:40:49Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=HEAD-only_probes_recorded;README_A4_and_install-ipm.md_A6_carry_the_Planner's_Option_2_host_lists(huggingface.co_and_its_download_hosts_under_hf.co:us.aws.cdn.hf.co,cas-server.xethub.hf.co),pinned_and_paired;the_blocked-download_half_declined_(unruled_public_text)
+
+### DW-831: Word text inside body-level content controls (w:sdt) and inside nested tables is not read (iter_inner_content yields body paragraphs and tables; cell.text skips nested tables); a file made only of content controls answers no_text
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: python-docx 1.1.2 behaviour; no sample covers it
+- 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 answers from Word runbooks
+
+### DW-832: A line of a file's own text that starts with '## ' is indistinguishable from an extraction page or heading marker, so Story 19.4's splitter would open a section there
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: inherent in the Markdown markers (19.6's decided design)
+- 2026-11-06T23:14:10Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4's splitter escapes or ignores such lines
+
+### DW-833: Test.Docs.Extract:TestNothingStored compares an empty knowledge-base half (no KB table before Story 19.4) and only the $Data flag of the Document globals, so a stray write elsewhere is not caught
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: verification-gap finding
+- 2026-11-06T23:14:10Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 adds the KB half to the signature
+
+### DW-834: A .dotx/.docm (python-docx ValueError), a .docx with an encrypted zip entry (RuntimeError) or an unsupported zip compression (NotImplementedError) is reported as failed, not as wrong_type, encrypted or damaged
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: edge-case finding; the answer is honest (failed) and nothing is stored
+- 2026-11-06T23:14:10Z status=open owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=harvest note=code review: patch the mapping if mechanical, else wontfix-accepted with a probe
+- 2026-11-07T01:04:45Z status=resolved-by:19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=adjudication note=.docm/.dotx->wrong_type,encrypted_entry->encrypted,odd_compression/zlib/EOF->damaged;Test.Docs.ExtractEdges:TestWordFileVariants
+
+### DW-835: TestTimeLimit asserts only that a timed-out read ends in under 20 s (the matrix says about 3 s), and no test pins local_files_only=True or allow_patterns in ocutalon_memory.py
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: verification-gap findings; the 20 s bound follows the loaded-host measurement
+- 2026-11-06T23:14:11Z status=open owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=harvest note=code review: pin the two flags (fixed strings) and record why 20 s
+- 2026-11-07T01:04:45Z status=wontfix-accepted by=adjudication note=local_files_only/allow_patterns_pinned_by_ExtractEdges:TestEmbedderResource;the_20s_bound_of_TestTimeLimit_stays(loaded-host_measurement);reopen_if=TestTimeLimit_flakes_or_a_quiet-host_read_exceeds_5s
+
+### DW-841: Memory.Worker STOPONTIMEOUT (Clear(0) on a timeout) has no test that fails without it: releasing the work group also ends the busy worker, so TestTimeLimit stays green with STOPONTIMEOUT 0
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Spec Verification AC2 result: STOPONTIMEOUT 0 alone stayed green; only 0 plus a held group turned TestTimeLimit red. The AC (busy worker stopped, next read served) is pinned by TestTimeLimit.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=TestTimeLimit red on its job no longer exists, or a build where a released work group keeps its busy worker
+
+### DW-842: IPM check 32's before/after filter (a dist-info present before the install and not a pin is not gated) has no static test; moving snapshot_python_before after the install would let a newly installed unpinned distribution pass
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: release/ipm-install.sh check_licences skips entries in the before list that are no pin; gate.py itself is tested with planted folders (test-compose-file.sh); the snapshot runs just before the install command.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=snapshot_python_before moves after the install command, or check 32 passes while gate.py check on the whole new set fails
+
+### DW-843: IPM check 31 compares the resources' md5 before and after a reinstall of identical files, so it shows they are unchanged but not that a reinstall overwrites a changed resource on an IPM install
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: release/ipm-install.sh resources_fingerprint around check 31; the overwrite is measured on the Docker path's zpm load (evidence M1); the spine and evidence now label the IPM-install overwrite as inference.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=an IPM upgrade whose changed .py resource does not reach mgr/python (a worker imports the old code)
+
+### DW-844: Test.Docs.Extract:TestTimeLimit assumes the idle worker of the previous read takes the slow read (a group of one worker); a second idle worker of the category would make the job-gone assertion fail
+- source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestTimeLimit takes the worker job from a Pdf3 read and waits for that job to end after the timeout; TestCategory runs first and now restores the category to 1 and 1.
+- 2026-11-07T00:58:10Z status=wontfix-accepted owner=19-6-extract-text-from-pdf-and-word-files-with-embedded-python by=cr note=reopen_if=TestTimeLimit red on its job no longer exists in CI or on a fresh throwaway
+
+### DW-853: The two sample-output blocks of docs/install-ipm.md show an install without the six 'STEP Python replaced <name> <old> with <pin>' lines a plain instance's second command now prints between Reload START and requirements.txt START
+- source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: evidence/19-8-task0-install-accuracy.md; the page was limited to the host list and the disclosure bullet
+- 2026-11-07T06:32:45Z status=open owner=19-8-epic-19-burn-down by=harvest note=code review: add the lines if mechanical (sample output, plain union with Epic 17's STEP Digest lines), else wontfix-accepted with a probe
+- 2026-11-07T07:40:49Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=the_six_STEP_Python_replaced_lines_added_to_both_sample-output_blocks_from_a_real_path_b_log(plain_union_with_Epic_17's_STEP_Digest_lines)
+
+### DW-854: A process that imported the old requests, urllib3 or certifi before RemoveStaleCopies ran may lazily import from files the step removed, until it restarts (IPM's own process imports oras and requests)
+- source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: edge-case finding, unverified; path A and part p finish with Activate SUCCESS and IPM answers afterwards
+- 2026-11-07T06:32:45Z status=open owner=19-8-epic-19-burn-down by=harvest note=code review: judge whether IPM's install process is exposed (it imports oras before the pip step) and pin or close it
+- 2026-11-07T07:40:49Z status=wontfix-theoretical by=adjudication note=by_IPM_0.10.10's_code,oras/requests_are_imported_only_by_IPM.Installer(another_process)_and_the_ORAS_repository_classes;a_local-artifact_or_default-registry(HTTP)_install_imports_none_of_the_six_before_the_step;real_if_an_install_comes_from_an_ORAS-type_repository
+
+### DW-856: A lifecycle command that reaches Reload but is not install, load or update (reload, compile, test, package without -only) runs RemoveStaleCopies while IPM skips its pip step, so the stale copies go and nothing replaces them
+- source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: IPM 0.10.10 Lifecycle.Base InstallOrDownloadPythonRequirements returns unless pParams(cmd) is install, load or update; the Reload Invoke cannot see cmd. Reachable after a -bypass-py-deps install, then zpm "ocutalon compile" in OCUTALON.
+- 2026-11-07T07:37:18Z status=escalated owner=burndown by=cr note=decision sheet: gate the step on cmd (a cmd Default arg); needs a live IPM measurement and a release hunk the freeze bars
+- 2026-11-07T08:44:51Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_08:45Z:fix_in_part_1_before_the_merge;remove_a_copy_only_when_the_pip_step_runs_in_the_same_lifecycle;Reload-invoke_cmd_argument_approved_under_the_freeze;tests_reload_and_-bypass-py-deps(nothing_removed;IPM_imports+zpm_list_work;red_without_the_guard);re-run_IPM_a,b,p
+- 2026-11-07T11:39:37Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=RemoveStaleCopies(root,bypass,cmd,target)_removes_nothing_unless_bypass_is_unset_and_cmd_is_install,load_or_update(IPM_0.10.10_InstallOrDownloadPythonRequirements);Reload_Invoke_carries_cmd;TestReloadPipSkipped,TestBypassLoad,TestLifecycleCommands+check_pip_skipped(path_A),each_red_without_the_guard;IPM_a_75PASS,b_59,p_32
+
+### DW-857: RemoveStaleCopies replaces any of the 36 pinned names at any other version (a newer copy, or another application's copy in the shared mgr/python), while the ruled disclosure bullet names only older copies of IPM's six
+- source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Replace compares only version equality with the pin (Ipm.cls); the Boundaries say version differs; docs/install-ipm.md disclosure says older versions of the six, which IPM installs for itself.
+- 2026-11-07T07:37:18Z status=decision-pending owner=burndown by=cr note=decision sheet: narrow the step to older copies, or rule a wider disclosure (PUBLIC TEXT); spec Boundaries vs ruled text
+- 2026-11-07T08:44:51Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_08:45Z:PUBLIC_TEXT_approved:the_disclosure_says_other_versions;fixed-strings_pin+mutation
+- 2026-11-07T11:39:37Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=install-ipm.md_disclosure_reads_other_versions(ruled_text),fixed-strings_pin,mutation_red
+
+### DW-858: No IPM check asserts the STEP Python replaced lines in the real install log (only unit tests on a redirected device), so check_reinstall's no-STEP grep could pass on a changed line format
+- source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: release/ipm-install.sh greps only for the absence of STEP Python on the reinstall; the six lines were observed in this review's path b log and the evidence file, not asserted; a check needs a release hunk the freeze bars.
+- 2026-11-07T07:37:18Z status=wontfix-accepted owner=19-8-epic-19-burn-down by=cr note=reopen_if=a plain-instance path a second run prints other than 6 lines matching ^STEP Python replaced
 ### DW-780: A saved heartbeat interval, hours or on/off change does not move Checks.Beat's stored NextDueAt, so a shorter interval applies only after the next beat although Saved says Applies within a minute
 - source: spec-39-2-save-your-heartbeat-settings-and-ask-for-a-beat.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Checks/Beat.cls:426 RunDue tests the stored NextDueAt; a beat sets it to tick plus one interval; SaveHeartbeat writes only the five person keys
@@ -4640,6 +5026,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T09:32:40Z status=routed owner=burndown by=cr note=Rule 2: a spec-forced copy is routed to the story that may edit both scripts
 - 2026-11-06T09:32:48Z status=routed owner=burndown by=cr note=footprint is in-epic (test-triage-heartbeat.sh is Lane A's in Epic 39), not out-of-footprint
 - 2026-11-06T17:45:12Z status=routed owner=burndown by=owner note=Planner 2026-11-06 (relayed by the orchestrator): no burn-down before Epic 39's merge; test hygiene goes to the post-merge Epic 39 follow-up story for Saturday's release (key epic-39-followup not yet in the tracker)
+- 2026-11-07T06:22:36Z status=routed owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=load note=re-owned_to_Story_39.9_(SC-5_re-open,_Planner_rulings_2026-11-06);acceptance_bullet_in_epics.md
+- 2026-11-07T08:47:42Z status=resolved-by:39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=adjudication note=docker/tests/lib-heartbeat-overview.sh_holds_the_shared_overview_bullet_rule;both_scripts_byte-identical_output_on_the_real_tree_and_under_M3a,M3b;M3c_reds_both;no_pin_removed
 
 ### DW-800: heartbeat-card.spec.ts HC8, HC10 and HC11 skip within 40 minutes of midnight UTC, so about 5.6 percent of runs leave the outcome texts, the run refusals and the event re-read unpinned
 - source: spec-39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now.md | severity: low | fix-risk: med | footprint: in-story
@@ -4708,3 +5096,248 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: chk_measured (test-readme.sh 517-530) only requires each MEAS_LABELS label to start a row; README with '| The always-on online demo |' appended after line 39: git grep prints README.md:40, test-readme.sh PASS measured
 - 2026-11-06T08:38:06Z status=by-design owner=11-26-the-readme-s-measured-rows-say-exactly-what-was-measured by=cr note=spec Never forbids a new rule/helper/self-test; QA declined the absence pin on purpose; AC1 absence held by the Verification git grep
+
+### DW-804: Guide row 1 with the ruled More to try link no longer fits one line at 1280px on the Linux host (about 34px over 896px); Q11 was relaxed to at most two lines
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: implement stage measured children 930px in a 896px row on the lane-B throwaway; fix is row 1 spacing (link padding or gaps), placement is ruled
+- 2026-11-06T15:31:05Z status=open owner=4-11-other-things-to-try by=harvest note=in-story MED for code review: trim row 1 and restore the one-line Q11 pin, or justify the relaxation
+- 2026-11-07T01:08:02Z status=by-design by=adjudication note=row1_wraps_to_two_lines_in_steps_1-5_on_the_Linux_host_because_the_ruled_More_to_try_link_sits_there(placement_ruled);trimming_spacing_recovers_32_of_34.2px(review_arithmetic);one_line_in_the_finish_since_rework_2;Q11_pins_at_most_two_lines_with_label_and_steps_first
+
+### DW-805: Other things to try items 2 and 3 hand off by selector to the mailbox chip and the Break the feed box; whether those targets are on the page in the drawer and stacked layout bands is unverified
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: K6 and K7 run at the default viewport only; check at 1100x720 and 800x720 that the press reaches its control (or selects/reveals it first)
+- 2026-11-06T15:31:05Z status=open owner=4-11-other-things-to-try by=harvest note=in-story MED for code review/QA: verify in the narrow bands and fix the hand-off if a target is off the page
+- 2026-11-07T01:08:02Z status=resolved-by:4-11-other-things-to-try by=adjudication note=QA_K12/K13_press_items_2_and_3_at_1100x720_and_800x720:one_POST_each,focus_on_the_real_control
+
+### DW-809: Other things to try item 5 repeats TryItRow's send guard (used, blocked, describedBy) instead of sharing one helper
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: more-to-try.ts:143-149 and try-it-row.ts:100-110 compute the same allowance and in-flight guard; both reuse turnInFlight, AllowanceState and COMPOSER_REASON_ID
+- 2026-11-06T16:04:54Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a third demo send guard appears, or TryItRow's blocked gains a condition MoreToTry lacks
+
+### DW-810: Demo.Features' memory, documents and heartbeat class-name parameters cannot be killed by a test on this branch
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Memory.Ops and Docs.Ops carry STUB=1 and RunHeartbeat is absent, so product and test probes both give 0 for a misspelled name
+- 2026-11-06T16:04:54Z status=wontfix-theoretical owner=4-11-other-things-to-try by=cr note=real if a merge of 19.3, 19.4 or Epic 39 skipped Test.Demo.Features, whose own probes then differ and go red
+
+### DW-811: Other things to try item 6 (Documents link) does not activate with Space, while AC6 says every control works with Enter and Space
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: the spec mandates a native a routerLink for item 6 and forbids keydown handlers in more-to-try.ts; native links activate with Enter; item 6 is hidden on this branch
+- 2026-11-06T16:04:54Z status=by-design owner=4-11-other-things-to-try by=cr note=spec-bound: Always 6 names the native link; reopens only by spec amendment when Story 19.4 shows the item
+
+### DW-821: Other things to try: K16/K17 (chat height, window, no page scroll with the panel open) run in Chromium only; no Firefox or WebKit case opens the finish's panel
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: floor-firefox/floor-webkit run only @browsers floor cases (playwright.config.ts:82-83), none reaches the finish; 1280x600 margin is 3.5px (67.5 vs 64)
+- 2026-11-06T19:30:51Z status=routed owner=burndown by=cr note=settle: @browsers floor copy of the K16 measurement at 1280x600 and 1100x720; red there means a per-engine reserve
+- 2026-11-07T02:10:49Z status=wontfix-accepted by=burndown note=reopen_if=a_floor-firefox_or_floor-webkit_copy_of_K16_at_1280x600_or_1100x720_shows_the_chat_under_its_floor_or_a_page_scroll,or_a_report_of_the_finish_chat_collapsing_in_Firefox/Safari;margin_at_1280x600_is_now_21px(85.1_vs_64)_after_rework_2;layout_is_grid/max-height_only(engine-neutral_CSS);Epic_4_has_no_later_story
+
+### DW-822: Demo guide finish in the compact height band at drawer widths (1024-1279 wide, under 680 tall) collapses the chat and scrolls the page even with the Other things to try panel closed
+- source: spec-4-11-other-things-to-try.md | severity: high | fix-risk: med | footprint: in-epic
+- evidence: measured (4.11 re-review, panel closed): 1024x600 chat 0 page 79; 1024x650 chat 0 page 29; 1100x600 chat 0 page 23; finish guide 441-483px vs 292px at 1280
+- 2026-11-06T19:30:51Z status=routed owner=burndown by=cr note=pre-existing (4.4 compact row / 4.10 finish); 4.11's HIGH ruling option B would fix it in the rework
+- 2026-11-06T19:33:56Z status=routed owner=4-11-other-things-to-try by=adjudication note=in-epic_HIGH_taken_into_4.11_rework_iteration_2(option_B:_compact_finish_guide_at_drawer_widths);lead_ruling_decide
+- 2026-11-07T01:08:03Z status=resolved-by:4-11-other-things-to-try by=adjudication note=rework_2_compact_finish_at_drawer_widths;K19_panel_closed_chat_141.9px@1024x600,224.8px@1100x650,no_page_scroll;K16_open-panel_rows_stricter
+
+### DW-845: heartbeat-card.spec.ts HC1, HC4, HC5, HC8, HC10, HC11 fail whenever the UTC hour is 00-09: the spec's clock() takes ISO HH:MM (02:41) while the card shows H:MM (2:41)
+- source: spec-4-11-other-things-to-try.md | severity: high | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 42327859572 browser group at 02:41-02:56Z on OCT-epic4 621dd3a5; web/e2e/heartbeat-card.spec.ts:111 clock = iso.slice(11,16); feature CI at 20Z passed
+- 2026-11-07T03:00:22Z status=escalated owner=burndown by=cr note=inherited from Epic 39 (merged 31f812b9); time-of-day; reds every browser group 00-09Z on every branch; for the orchestrator
+- 2026-11-07T03:06:09Z status=dropped by=orchestrator note=duplicate_of_DW-839(inbox_U-298);resolved-by_99b9a24d_on_OCT-epic7(test-only:heartbeat-card.spec.ts_uses_shared_clock(iso,LOCALE,ZONE));product_correct_per_EXPERIENCE_Formats
+
+### DW-846: flake: documents.spec.ts D5 (Add documents by keyboard) timed out making its fixture document (waitForResponse 30s, then filechooser 30s) in the browser group
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 42327859572 browser group; error: the fixture document could not be made; not in Epic 4's diff
+- 2026-11-07T03:00:22Z status=routed owner=burndown by=cr note=unconfirmed flake: one rerun decides; not caused by 4.11 (no documents code touched)
+- 2026-11-07T03:06:09Z status=dropped by=orchestrator note=duplicate_of_DW-825;Planner:_fixed_before_the_cut_by_runner_D_on_feature_after_7.9
+### DW-847: FutureSent.Remove after every beat test lets each +48h Tick re-digest the stack's long-lived sessions (Compose, Notify, model request) instead of only the first
+- source: spec-17-7-give-an-all-clear-only-when-every-check-passed.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Remove deletes the future Sent rows, so Covered no longer holds for the next test's tick; measured Test.Checks.Heartbeat warm 13.88 s without the drain, 15.75 s with it
+- 2026-11-07T03:12:16Z status=wontfix-accepted owner=17-7-give-an-all-clear-only-when-every-check-passed by=cr note=reopen_if=a Checks-shard class fails Remove's drained assertion, or Heartbeat or BeatOutcomes runs over twice its warm time
+
+### DW-848: A digest case's summary request mints a new ItemId instead of the case row's, so Test.Eval.Run's ItemId-keyed clean-up and TestUsage miss its Decision and Usage rows
+- source: spec-17-7-give-an-all-clear-only-when-every-check-passed.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Digest.Process Evaluated takes SummaryRequest's NewRef ItemId; turn cases send Decide the row's ItemId (Eval.In); no eval/digest-* case has saved (Decided 5)
+- 2026-11-07T03:12:16Z status=wontfix-theoretical owner=17-7-give-an-all-clear-only-when-every-check-passed by=cr note=real when an eval/digest-* case carries saved summaries
+
+### DW-849: Test.Eval.Run TestIsolation counts only Sent rows of owner eval, not any Sent row added during run 6
+- source: spec-17-7-give-an-all-clear-only-when-every-check-passed.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: diff Test/Eval/Run.cls counts SessionRef = 'eval' above the mark; an unscoped count would race real scheduled ticks; EvalCase.TestNoSessionEffects compares all sessions' Sent rows
+- 2026-11-07T03:12:16Z status=wontfix-accepted owner=17-7-give-an-all-clear-only-when-every-check-passed by=cr note=reopen_if=Evaluated or FinishCase gains a code path that can write a Sent row
+
+### DW-850: docs/bridge-guide.md still describes one attempt where Story 17.2 made two (the TimerSeconds and DecisionTokenBudget rows, Timeouts, the fallback route, DecisionResponse.Model); rewording them is public text for the Contest Planner
+- source: spec-17-9-epic-17-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: DW-728's 2026-11-05 occurrence; Story 17.9's AC allows only the two table rows
+- 2026-11-07T03:45:42Z status=escalated owner=burndown by=burndown note=residual of DW-728 split off at Story 17.9's spec gate: the Planner decides the wording (public repository)
+- 2026-11-07T04:35:11Z status=routed owner=17-9-epic-17-burn-down by=owner note=Planner_ruling_about_04:35Z:fix_in_1.0.3_inside_17.9;wording_is_PUBLIC_TEXT(ruled_strings_land_with_fixed-string_pins);keep_the_docs_edit_separable
+- 2026-11-07T07:31:03Z status=resolved-by:17-9-epic-17-burn-down by=adjudication note=the_Planner's_eight_ruled_lines_landed_byte_for_byte_in_docs/bridge-guide.md;test-bridge-guide.sh_retrytext_rule
+### DW-824: Heartbeat card: Today's cost sums more than the counted check-ins (online demo 1.0.2: Last check-in $0.0003, Today: 1 check-in, $0.0006)
+- source: planner_demo_walk_1.0.2 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Planner live walk 2026-11-06 on 1.0.2: Save heartbeat On, Run the heartbeat now; decision Act with read-only checks; card Last check-in 12:20 PM Offered an action $0.0003 vs Today 1 check-in $0.0006
+- 2026-11-06T20:24:09Z status=routed owner=burndown by=orchestrator note=Epic 39 post-merge follow-up story (with DW-670, DW-785, Every hour): find what Today's total sums (second beat or decision, the notice, the run-now turn); make line and count agree or word the line to say what it sums; any text change is PUBLIC TEXT to the Planner
+- 2026-11-07T06:22:36Z status=routed owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=load note=re-owned_to_Story_39.9_(SC-5_re-open,_Planner_rulings_2026-11-06);acceptance_bullet_in_epics.md
+- 2026-11-07T08:47:42Z status=resolved-by:39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=adjudication note=Live.Payload.Heartbeat.FromRow_reads_Ownership.CheckInCost(the_Item's_heartbeat_Usage_rows,floor_the_row's_LastCostUSD);pinned_by_HeartbeatApi.TestGetCheckInCost(1_check-in,0.0003+0.0003=Today_0.0006),Payloads.TestHeartbeatFromRow,BeatOutcomes.TestAct(real_production);mutation_FromRow_back_to_row.LastCostUSD_red;build_0712077f+CR_patches
+
+### DW-825: flake candidate: web e2e D5 (documents.spec.ts:146) waits 30 s for a filechooser after Enter on Add documents and times out
+- source: ci_run_42285847375 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: run 42285847375 sha 9683c1f0 iris (browser) live:sign-in: TimeoutError page.waitForEvent filechooser at documents.spec.ts:146; the same spec passed on b5dcbbfa (42272673909), and the tree differs only by module versions and release records
+- 2026-11-06T21:03:13Z status=routed owner=burndown by=orchestrator note=occurrence=2026-11-06 run 42285847375; one rerun of failed jobs started; a second red on the same head is real
+- 2026-11-06T21:53:29Z status=routed owner=burndown by=orchestrator note=rerun attempt 2 of run 42285847375 green on 9683c1f0: flake class confirmed (one occurrence)
+- 2026-11-07T02:32:43Z status=open owner=burndown by=ci note=occurrence=2 OCT-epic19 b0bf1f14 run 42324833841 browser D5 documents.spec.ts:146 filechooser timeout; one rerun of failed jobs requested by the orchestrator
+- 2026-11-07T02:38:37Z status=open owner=burndown by=ci note=occurrence=3 OCT-epic7 2a96bcb4 run 42326336355 browser D5 documents.spec.ts:146 filechooser timeout (3 heads in ~6 h: 9683c1f0, b0bf1f14, 2a96bcb4); one rerun requested by the orchestrator; frequency rising, candidate for a fix in Epic 19 part 1's burn-down (19.8) since documents is Epic 19's area
+- 2026-11-07T03:06:19Z status=open owner=burndown by=orchestrator note=Planner 2026-11-07 ~03:05Z: fix before the 1.0.3 cut; test-only unless root cause is product (report first); timebox 90 min; proof D5 20/20 with --repeat-each=20 under browser-job load and the old code fails at least once; runner D lands it on feature after 7.9 merges, ahead of 0.15 (OCT-epic19 does not edit documents.spec.ts)
+- 2026-11-07T05:05:08Z occurrence=17-7-give-an-all-clear-only-when-every-check-passed by=ci note=run_42338069582_iris(browser)_live:sign-in_D5_filechooser_timeout_at_99735c36;one_rerun
+- 2026-11-07T05:41:57Z occurrence=17-7-give-an-all-clear-only-when-every-check-passed by=ci note=second_red_on_the_same_head_99735c36_(run_42338069582_rerun_1,browser_live:sign-in_D5_filechooser_timeout);Epic_17_touches_no_documents_path
+- 2026-11-07T03:22:20Z status=routed owner=34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=load note=re-owned to Story 34.4 (SC-5 re-open of Epic 34, runner D) on the Planner's ruling 2026-11-07 ~03:05Z; closes at 34.4's adjudication or the burn-down
+- 2026-11-07T04:30:36Z status=resolved-by:34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=adjudication note=cause: Playwright 1.64.1 turns file-chooser interception on fire-and-forget at the first filechooser listener and D5 added it in the same tick as Enter (evidence/34-4/cause.md); fix 609316e1 arms the listener before sign-in, keeping every pin; proof on lane D (evidence/34-4/proof.md): old D5 failed 1/100 with the CI signature (documents.spec.ts:146 + posted 69), new D5 20/20 same stack and load; repro old 12/990 missed vs armed 0/680; reopen_if a filechooser timeout at documents.spec.ts:153 in CI
+- 2026-11-07T12:37:07Z occurrence=4-11-other-things-to-try note=documents.spec_D5_fixture_timeout_on_run_42327859572(OCT-epic4_621dd3a5);recorded_after_integrating_forward
+
+### DW-826: CI unit shard:lane-a@rest (job iris shards-2) runs over the 1000 s unit line: 2031 s (5fef1125) and 2194 s (b94508c9) on Epic 17 heads; split it per the standing rule once ci/units.sh is free
+- source: runner_A_ci_report | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Epic 17 runner A reports 2026-11-06: lane-a@rest 2031 s and 2194 s (both on runs with other reds); ci/units.sh is in Epic 19's in-flight diff
+- 2026-11-06T23:06:17Z status=routed owner=burndown by=orchestrator note=measure on the next clean run; split after Epic 19 part 1 merges (ci/units.sh contended until then); never raise a deadline
+- 2026-11-07T13:37:10Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_13:35Z:new_iris_group_shards-5_takes_shard:lane-a@Bridge,Agent;resolve_by_19.8
+- 2026-11-07T15:08:07Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=new_iris_group_shards-5_runs_shard:lane-a@Bridge,Agent(51_classes);@rest_78;pins_in_test-ci-config/test-ci-changes;expected_shards-5~1250s,shards-2~1500s_(first_green_run_measures)
+### DW-823: A good-message refusal (Story 7.9, GOODCHANGED) reuses incident.noFix, whose 'None of my fixes applies to this' fits loosely when a fix exists but would also rewrite messages that went through; give it a precise line
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Msg/Catalog/Watch.cls incident.noFix (L179-180) is shown for the GOODCHANGED refusal; the reason is log-only (PT-b ruling)
+- 2026-11-06T19:44:07Z status=routed owner=burndown by=spec_gate note=Planner 2026-11-06: later wording, not now: 'The fix I would use would also change {noun} that went through, so I'm not proposing it.'
+
+### DW-836: Story 7.9 adds Test.Watch.GoodMessages (about 108-116 s locally) to CI group shards (shard:lane-a@Checks,Install,Watch) with no group re-measure; ci/units.sh's comments put shards near its about 1,940 s target, so the group may pass 33 minutes (unverified)
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/units.sh comments: shards about 1,710 s, target under about 1,940 s; the spec's estimate is 150-300 s of CI time for the class (inference); no CI shards time on record for the 7.9 tree yet
+- 2026-11-06T23:23:47Z status=routed owner=burndown by=cr note=unverified: settle from the first CI run of the 7.9 tree (shards group seconds); over 1,940 s means rebalance ci/units.sh (Epic 19's file)
+- 2026-11-07T01:51:48Z status=resolved-by:7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=burndown note=measured: CI run 42314928349 (07951357, GoodMessages in) job iris (shards) green in 1771 s wall (23:54:45Z-00:24:16Z, setup included), under the ~1,940 s target and the 35-minute group budget; no ci/units.sh change needed
+
+### DW-837: AC 5's clause 'the later presses of 07 carry the good-message line' has no assertion: only T8 (telegram-approval.spec.ts, ON_MOCK) asserts the line on the demo path
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/e2e/demo-path/07-failure-paths.spec.ts reads no notice text; T8 pins the same WithFixKey path on a later press of the same journey (mutation shown red by QA); the online-demo clause is PT-e's runner task
+- 2026-11-06T23:23:47Z status=wontfix-accepted owner=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=cr note=reopen_if=a demo-path run where a later 07 press's phone notice lacks 'Checked against the last' while T8's has it
+
+### DW-838: With failures from several source tuples the good-message line sums the per-source counts (up to 20 each), so it can read 'the last 40 orders from the same source'
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: RepairResend.DryRun reads GOODMAX per reference and adds them up; the spec's Always fixes '0 to 20 for each reference'; reachable only with several SourceConfigName/SuperSession tuples in one incident, never on the demo path
+- 2026-11-06T23:23:47Z status=by-design owner=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=cr note=spec-bound (Always, per-reference cap); each counted message is from a target's own source and the number is real; change only by a Planner text ruling
+
+### DW-839: flake (UTC hour 0): web/e2e/heartbeat-card.spec.ts HC1, HC4, HC5 build the expected clock from the ISO time (clock() = iso.slice(11,16), '00:16'), but the card shows pageWhen's browser-locale clock, which reads '0:16' in the 00:xx hour, so the three cases go red for every CI run in that hour
+- source: CI run 42314928349 (OCT-epic7 07951357), iris (browser) test-sign-in | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Expected 'You can run it again at 00:16.' Received '... at 0:16.' (HC5 L283), HC4 L728 /^...\d\d:\d\d\.$/ got '0:18', HC1 L173; code not in Epic 7's diff (Epic 39, f207f0b3/9a0e8125); web/src/app/chat/page-time.ts pageWhen is the browser's hour format by design
+- 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=inherited from feature (Epic 39's spec); red only in the 00:00-00:59Z hour; rerun after 01:00Z; fix: build the expected clock with the page's own formatter or pin the browser locale
+- 2026-11-07T01:29:07Z note=second red on the same head at 01:20Z: the page clock has no leading zero for every hour before 10 ('1:11', '1:19'), so the window is 00:00-09:59Z, not hour 0 only; HC1,HC4,HC5,HC11 and 2 more; real (inherited), see U-298
+- 2026-11-07T01:51:48Z status=resolved-by:7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=burndown note=99b9a24d (U-298 option a, Planner 01:32Z): the spec uses support/page.ts clock(iso, 'en-GB', 'UTC') and HC4's patterns accept a 1-2 digit hour; lane-D live:sign-in --part 11/15 at 01:41-01:43Z: 16 passed; mutation (the old slice clock) at 01:47-01:50Z: 5 failed (HC1, HC5, HC8, HC10, HC11), restored md5-equal; CI on the branch head before 10:00Z confirms
+
+### DW-840: flake: OcuTalon.Test.Fix.Refused TestPastExpiryCannotStart 'the incident is resolved' (WaitIncidentState) red once in CI shards-2 (lane-a@rest, class 34.03s) on OCT-epic7 07951357; passed fresh on lane D (8.99s) on the same tree
+- source: CI run 42314928349, iris (shards-2) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: SHARD lane-a@rest failed (1 of 93 classes) 1810s; local fresh e7s9ct CLASS passed 8.99s; Story 7.9 does not touch Executor, Transitions or Refused
+- 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=one rerun; a second red on the same head is real
+- 2026-11-07T13:51:15Z status=routed owner=7-10-the-past-expiry-refusal-test-is-stable-dw-840 by=load note=re-owned_to_the_7.10_fix-forward_story_(SC-5_re-open,Planner_tier_3a)
+- 2026-11-07T14:36:03Z status=resolved-by:7-10-the-past-expiry-refusal-test-is-stable-dw-840 by=adjudication note=cause_measured(Checks_quiet_sweep_closeQuiet_closed_the_stale-LastAt_fixture_after_resolved);fix_03c3048d_FirstAt/LastAt_now;old_red_2_of_11_under_closeQuiet_load,fix_20_of_20(+8_of_8_on_the_commit);evidence/7-10/cause.md
+
+### DW-855: No test makes a decision's first attempt pass DecisionTokenBudget while its second-model retry fails it, although the guide now states the retry is checked again on its own estimate
+- source: spec-17-9-epic-17-burn-down.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Decide.cls:687 TryRetry Precheck; Test.Bridge.SecondModel TestNeverRetried sets the budget to 1 so the first attempt is refused
+- 2026-11-07T06:43:42Z status=open owner=17-9-epic-17-burn-down by=harvest note=two-way door: one test in Test/Bridge/SecondModel.cls or SettingsApply.cls; QA closes it
+- 2026-11-07T07:31:03Z status=resolved-by:17-9-epic-17-burn-down by=adjudication note=Test.Bridge.SecondModel.TestRetryBudgetOwnEstimate(mutation:retry_Precheck_without_the_budget->red)
+### DW-851: Status answer and rail Background checks read the last watch run, taken before an approved fix finished, so for up to a minute they contradict the Resolved card and Approval requests (0)
+- source: Planner live walk of the 1.0.2 demo 2026-11-07 04:26-04:30Z | severity: low | fix-risk: med | footprint: cross-epic
+- evidence: 04:27Z fix approved from the simulated phone; card Resolved 'All 50 orders went through.'; <1 min later 'Is anything wrong right now?' answered 'Not everything: Orders production (50 new failures, a fix waiting for your approval, at 8:27 PM)'; rail Background checks the same; next check 04:29Z read Passed
+- 2026-11-07T04:34:48Z status=routed owner=burndown by=orchestrator note=tier (3) after 31.4 (Planner); NOT for 1.0.3 or 1.0.4; fix options: re-run the watch check on incident resolve, or treat a check result older than the resolution as stale; product change goes to the Planner described before it lands; any text change needs a PUBLIC TEXT ruling
+
+### DW-852: docs/bridge-guide.md TimerSeconds row (L159) does not say the reason is rate_limited when the timer passes after a re-send
+- source: DW-850 draft (Epic 17 runner A), item (iii); Planner ruling 2026-11-07 | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: Process/Decide.cls:1250 records rate_limited when the timer passes after a re-send; the guide row names only timeout; predates Story 17.2
+- 2026-11-07T04:55:03Z status=routed owner=burndown by=orchestrator note=voting week, docs only; any wording is PUBLIC TEXT for the Planner; NOT for 1.0.3 or 1.0.4
+
+### DW-860: keepRoom detects the squeeze only on a re-measure that a later resize triggers; after a write that changes no layout (window already at its least) none follows
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: more-to-try-room.ts measure(): tight() sits in the else-branch (bound unchanged); a squeeze arising after the first settle (font swap, list resize) leaves the panel open with the chat under its floor until any other resize; K24 polls with synthetic resize events
+- 2026-11-07T10:32:17Z status=routed owner=burndown by=cr note=re-review r4: fix = re-measure one frame after each write; pin = K24 without its synthetic resize; needs a live run
+- 2026-11-07T11:57:51Z status=dropped by=burndown note=duplicate_of_DW-863(same_root:keepRoom_squeeze_detection_waits_for_a_re-measure);DW-863_wontfix-accepted_with_reopen_if
+
+### DW-861: A default-open panel that closes by itself (viewport height across the band, a banner, a squeeze) while focus is inside it drops focus to the body
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: FOCUS_RULE whenGone for moreItem finds no prompt part in the finish; the finish stays, so focus has no target
+- 2026-11-07T10:32:17Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a keyboard user reports focus lost after a resize or banner while in the Other things to try panel
+
+### DW-862: Above the compact band, a panel the user opens where its shortest window and the chat's 160px floor cannot both fit leaves the chat under 160px (the chat gets the rest); the Planner's vertical-scroll fallback covers the compact band only
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: implement K21 patch review (fefb0b01); reachable only with a user-opened panel at heights 680px+ after banners on hosts with wide fonts
+- 2026-11-07T11:28:49Z status=escalated owner=burndown by=harvest note=for the decision sheet: extend the Planner's fallback (vertical page scroll so the chat keeps 160px) above the band, or accept
+- 2026-11-07T13:36:28Z status=routed owner=burndown by=owner note=Planner 2026-11-07 ~13:15Z: voting week tier (3) after the flakes; extend the vertical-scroll fallback above the band; no sideways scroll, no label changes, pins with and without the banner; not in 1.0.4 unless merged+green by Sun 19Z with nothing else waiting
+
+### DW-863: keepRoom's first measure only writes the bound; when that write changes no layout the squeeze branch (compact floor min-height, tight()) may wait for a later resize
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: implement K21 patch review (fefb0b01); unverified; K21b passes by forcing the squeeze
+- 2026-11-07T11:28:49Z status=wontfix-accepted owner=4-11-other-things-to-try by=harvest note=reopen_if=a CI or field report of the finish's chat under its floor on first render that a resize fixes
+### DW-864: release/ipm-install.sh check_pip_skipped (DW-856) adds about 64-68 s to path A locally and likely about twice that on x64 CI, where the ipm-install job already ran 1889-1950 s of its 35-minute timeout
+- source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 1) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: lane-a ipm-install job: 1889 s on 81fbdeb3 (run 42355431449), 1950 s on 6e5213ee, timeout-minutes 35 (2100 s); CI reinstall-same 145 s against 71 s locally, local skip-bypass 56-62 s. The job's no-argument sequence (check_pip_skipped, then reinstall_failures) has not run at this head.
+- 2026-11-07T11:37:12Z status=escalated owner=burndown by=cr note=first CI run at this head settles it; over budget means owner CI capacity (owner-fixed value 9) or a lighter check
+- 2026-11-07T13:37:10Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_13:35Z:split_ipm-install_into_ipm-install(path_A)+ipm-install-p(part_p,reinstall,uninstall);no-arg_unchanged
+- 2026-11-07T15:08:07Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=lane-a.yml:ipm-install(a,r)+ipm-install-p(b,p),separate_tags,second_step_if_!cancelled();release/ipm-install.sh_unchanged(no-arg=all);test-cpf_rules_6,7,16,20_pin_the_union_and_each_mode
+### DW-859: Heartbeat card: Ownership.CheckInCost has no day bound while HeartbeatToday is day-bounded, so a check-in whose decision and read-only turn straddle instance-zone midnight reads more on Last check-in than on Today
+- source: spec-39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: checkInUsage (Ownership.cls Statement) has no RecordedAt bound; heartbeatUsage has one. Only a beat whose turn lands after local midnight (a few seconds a day) differs.
+- 2026-11-07T08:44:42Z status=by-design owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=cr note=spec Task SQL and Design Notes sum all of the Item's rows; a day bound would blank yesterday's last check-in; docs reworded
+
+### DW-865: Compact-band K21 hold: the chat list's inline min-height overflows the framed shell instead of growing it, so the chat panel's dock (composer) spills past main and the 100dvh app box; rail, main and device-panel backgrounds stop at the fold
+- source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: keepRoom sets .list min-height 64px while app.ts :host is height 100dvh and main-page :host, .main and chat-panel :host are min-height 0 with overflow visible (CSS read; not seen in a browser: no live run in review). K21b asserts page scroll > 0 and the list height, not where .dock sits. Reachable: no-key banner, compact band, user-opened panel, squeeze (CI 1280x600 ~9px).
+- 2026-11-07T11:50:24Z status=routed owner=burndown by=cr note=fix in the framed shell (let app-root/main grow while held) plus a K21b dock-inside-main assertion; files outside the K21 diff
+- 2026-11-07T11:57:51Z status=escalated owner=burndown by=burndown note=for_the_decision_sheet:fix_needs_app.ts,main-page.ts,chat-panel.ts(shell_min-height_0_vs_100dvh);reachable_only_in_the_Planner's_compact-band_fallback_with_a_user-opened_panel;composer_reachable_by_scrolling;~9px_spill_inferred_from_CSS,unobserved
+- 2026-11-07T13:36:28Z status=wontfix-accepted owner=burndown by=owner note=Planner 2026-11-07 ~13:15Z: accepted for Saturday; checked in the 1366x768 and 1280x600 walk at the cut; follow-up in voting week
+
+### DW-866: K21's new before-More-to-try assertions (framed page does not scroll, no sideways scroll) have no mutation: line; the local closed chat is ~90px above its floor
+- source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Verification's four K21-patch mutation lines target keepRoom and CHAT_FLOOR, which do not run while the panel is closed (demo-guide @if panelShown); no recorded red for start.page or the before sideways check. Closing it needs a live run, not allowed in this review.
+- 2026-11-07T11:50:24Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a closed compact finish that scrolls the page or sideways reaches CI or a smoke with K21 green
+
+### DW-873: Telegram 'Got it' button on tell-now messages does nothing: SessionOps answers NotImplemented, nothing is marked handled, and the digest's needs-you count only grows (DECISIONMAX 1000, no time window)
+- source: Planner review of 1.0.3 notes 2026-11-07 ~15:35Z | severity: med | fix-risk: low | footprint: cross-epic
+- evidence: Channel/Telegram/Out.cls:32-35 adds the button; Core/SessionOps.cls:71 NotImplemented; Digest/NeedsYou.cls DECISIONMAX 1000, no window
+- 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) build the command that marks the decision handled, (b) hide the button; plus bound the needs-you count (time window or handled); PUBLIC TEXT at the spec gate
+
+### DW-874: Online demo: the digest is promised but invisible; visitors are told 'send my digest now' is on its way, but web chat and Simulated phone show no digest card; the morning run also sends to every demo session with a resume hash (model call when something was saved for later)
+- source: Planner review of 1.0.3 notes 2026-11-07 ~15:35Z | severity: med | fix-risk: med | footprint: cross-epic
+- evidence: Channel/WebChat/Out.cls:31 and SimPhone/Out.cls:31 CARDKINDS lack the digest; Digest/Process.cls:204-209 morning send to demo sessions
+- 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) show the digest as a web chat card on every install, (b) demo reply says it goes to Telegram (not set up on the demo) and the morning run skips demo sessions; Planner prefers (a) if it fits Sun 19Z; PUBLIC TEXT at the spec gate
+### DW-869: release/release.sh:940 says the CI job ipm-install runs the same command as the release's ipm step; after the CI split, ipm-install runs modes a and r and ipm-install-p runs b and p
+- source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rework 2 review finding; release.sh is under the release-tool freeze
+- 2026-11-07T14:40:35Z status=wontfix-accepted owner=19-8-epic-19-burn-down by=harvest note=reopen_if=the_release-tool_freeze_lifts(1.0.4_merged_back)_or_a_reader_relies_on_that_comment
+- 2026-11-07T15:05:57Z status=wontfix-accepted owner=19-8-epic-19-burn-down by=cr note=also release/ipm-install.sh:126 header calls the no-arg run (the job); same freeze; reopen_if=the_release-tool_freeze_lifts
+
+### DW-870: main's required status checks list iris (shards-2) but not iris (shards-5), so since the 19.8 CI split the Bridge and Agent test classes no longer gate a merge to main
+- source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 2) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: gh api branches/main/protection (read 2026-11-07): checks, web, install-macos, standalone-bridge, evaluation and iris install-fresh..shards-4; no iris (shards-5); ipm-install is not required either, so ipm-install-p matches it. Branch protection is a repository setting (owner-only); precedent: shards-4 was carried to the Planner.
+- 2026-11-07T15:05:47Z status=decision-pending owner=burndown by=cr note=human=add iris (shards-5) to main's required checks (and ipm-install-p only if ipm-install is made required) before the next release PR
+
+### DW-871: The as-built CI texts still describe nine IRIS groups after the 19.8 CI split: AD-22's CI as built bullet (lane-a in three pieces, Bridge and Agent in shards-2) and the header comment of .github/workflows/ci.yml
+- source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 2) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-22 Rule, CI as built: inside nine IRIS groups ... shards-3 and shards-4, lane-a in three pieces; ci.yml line 2: a matrix of nine groups. The spine bullet is an AD Rule line (not a stage edit; precedent DW-420, as-built amendment at the merge gate); the ruling allowed no other ci.yml line.
+- 2026-11-07T15:05:54Z status=escalated owner=burndown by=cr note=for the lead at the Epic 19 merge gate: as-built amendment of AD-22 (ten groups, shards-5 = lane-a@Bridge,Agent) and ci.yml:2
+- 2026-11-07T16:49:10Z status=resolved-by:19-8-epic-19-burn-down owner=burndown by=orchestrator note=resolved at the Epic 19 part 1 merge 5b47f052: AD-22 amended in place (ten groups, shards-5, ipm-install split) and ci.yml line-2 comment, per the Planner's ruling
+### DW-868: Test.Watch.Case Fixture defaults LastAt to 2026-10-25, so any fixture that reaches a closeQuiet-able state (resolved, or open and noticed with demo mode off) is swept by the next heartbeat; three tests override it inline (DryRun:95, GoodMessages:371/529, Refused:80) and a revert or a new caller re-opens DW-840's race with no deterministic test failing
+- source: spec-7-10-the-past-expiry-refusal-test-is-stable-dw-840.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Case.cls:852-853 stale defaults; DW-840 red once in CI and 2 of 11 under the lead's closeQuiet load; the Refused pin goes red on a revert only under load
+- 2026-11-07T14:31:47Z status=escalated owner=burndown by=cr note=Case.cls out of 7.10 footprint (Planner: test-only); fix-risk med: shared helper, other tests may assert on the default FirstAt/LastAt
+
+### DW-872: flake: live:sign-in-2 web/e2e/rail/rail.spec.ts:462 R10 'a reload shows the same rail': the heartbeat card's real check-in fired at 15:02 between the live snapshot and the reload (reload adds 'Next check-in 15:32 Skipped at 15:02: your checklist is empty.'), red once in CI shards-4 on OCT-epic7 37856843
+- source: CI run 42382574157, iris (shards-4) job 128433114430 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: rail text diverges at char 982 only in the HEARTBEAT CHECKLIST card; Epic 7's diff touches no web file; a time-of-day race with the heartbeat's half-hour schedule
+- 2026-11-07T15:06:23Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second red on the same head is real
+- 2026-11-07T15:47:24Z occurrence=7-10 note=rerun_of_iris(shards-4)_green_on_37856843_(attempt_2);flake_confirmed;stays_routed_burndown
+
+### DW-878: Eval: EvalIn sends every incident case at once, so later cases spend their 60 s Decide timer queued behind a single-job DiagnosisAgent (returns-negative-weight 10th, shipments-epoch-time 11th time out)
+- source: 1.0.3 rc1 eval triage 2026-11-07 (Planner author's override) | severity: med | fix-risk: low | footprint: cross-epic
+- evidence: 1.0.2 set durations 56.7-58.3 s vs 1.0.3 60.1 s for the 10th case; Eval/In.cls:8-9,480-483 async sends; Decide.cls:339-342 timer at send; Production.cls:30 PoolSize 1
+- 2026-11-07T18:29:38Z status=routed owner=burndown by=orchestrator note=1.0.4 Epic 9 fix-forward after D1/D2: pace incident cases (next after the previous CaseResult, ~70 s each; turn cases first); update Test/Eval/In pins; EvalIn stays disabled in the product
+
+### DW-879: Product: the diagnosis timer counts time spent queued at DiagnosisAgent (PoolSize 1), so several simultaneous incidents (e.g. demo visitors breaking the feed at once) can time out before the model is asked
+- source: 1.0.3 rc1 eval triage 2026-11-07 | severity: med | fix-risk: med | footprint: cross-epic
+- evidence: Decide.cls:339-342 SetTimer at send; DiagnosisAgent PoolSize 1 (Production.cls:30); timeout rows have no Usage and model ''
+- 2026-11-07T18:29:39Z status=routed owner=burndown by=orchestrator note=1.0.4 after D1/D2: options timer-at-runner-start (AD-8 amendment) or DiagnosisAgent PoolSize 2 (rate limits, no single-session state); never raise TimerSeconds; RetryItem wiring out of scope; sizing to the Planner
+- 2026-11-07T18:33:58Z status=routed owner=burndown by=owner note=Planner 2026-11-07 ~19:00Z: Option B + skip-abandoned for 1.0.4 (not A). PoolSize 2 for DiagnosisAgent only (IncidentManager and Decide stay 1); update pins Test/Agent/Runners.cls:417 and Test/Install/Production.cls:658; runner skips a request whose Decision row already exists (RetryIsLate pattern), logs one line, records no new decision, test stale-skipped vs live-not; proof two diagnoses run concurrently with the second well inside its timer; release-note line at most, any new string to the Planner. Host checks done: gateway 120 req/min, daily cap 20 USD, LUConsumed 1/8 idle (watch it in the demo-path smoke after the update). Priority: after D1 (12.12) and D2 (17.10), before eval pacing (DW-878)
+### DW-880: heartbeat-card.spec.ts HC8 DW-824 step (Story 39.9 QA) did not clear lastSkipAt/lastSkipReason, so a real tick's skip merged by rewriteGet showed 'Skipped at …: your checklist is empty.' instead of the Act check-in
+- source: ci-run-42400798775 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: run 42400798775 iris(browser) live:sign-in HC8 line 429: expected Last check-in 18:40 · Offered an action · $0.0006, received Skipped at 18:46: your checklist is empty.; the sibling loop cases spread lastSkipAt:null,lastSkipReason:'' and the QA step did not
+- 2026-11-07T19:03:07Z status=routed owner=39-10-the-heartbeat-production-test-is-stable-dw-639 by=ci note=fix-forward on OCT-epic39 (veto): the step clears the skip fields like its siblings
+- 2026-11-07T19:03:07Z status=resolved-by:39-10-the-heartbeat-production-test-is-stable-dw-639 by=adjudication note=heartbeat-card.spec.ts_HC8_step_now_spreads_lastSkipAt:null,lastSkipReason:''_before_checkIn('act');tsc,lint_0;CI_on_the_fix-forward_head_is_the_proof(no_throwaway:lane_D_slot_with_31.4)
