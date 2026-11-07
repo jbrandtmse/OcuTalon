@@ -2363,3 +2363,6 @@
 2026-11-07T03:14:01Z	Epic 7	epic_merged_to_feature	merge=30432036 head=2a96bcb4 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine=untouched
 2026-11-07T03:14:01Z	Epic 7	decision_sheet_skipped	reason=no_open_decisions
 2026-11-07T03:14:01Z	Run	deps_hash_rerecorded	reason=fix_forward story=7.9 hash=7fa819bacb8e
+2026-11-07T03:14:53Z	Epic 34	worktree_provisioned	branch=OCT-epic34 base=a91efe17 reason=story_34.4_DW-825
+2026-11-07T03:14:53Z	Epic 34	worktree_bootstrapped	epic=34 result=ok
+2026-11-07T03:14:53Z	Epic 34	runner_dispatched	agent=a256ebe8dfc38889a lane=D slot=ocutalon-slot-d model=opus prompt=dispatch-epic-34-344.md duplicate_ci_cancelled=42333063647,42333063625
