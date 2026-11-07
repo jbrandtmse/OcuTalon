@@ -74,6 +74,34 @@ deferred: []
 
 </intent-contract>
 
+**DW-850 (Contest Planner ruling, about 04:55Z 2026-11-07; PUBLIC TEXT, exact; re-owned to this story by the owner):** `docs/bridge-guide.md` describes what 1.0.3 does about the second-model retry. Land these EXACTLY, as one separable hunk of `docs/bridge-guide.md`, each pinned by a fixed-strings rule in `docker/tests/test-bridge-guide.sh` with a mutation shown red. Each NEW replaces the whole OLD line at the named line (the OLD text is in the lead's draft; it is the current line):
+- L159, the `TimerSeconds` row, becomes:
+
+    | `TimerSeconds` | 60 | How long `Decide` waits for the runner's reply, in whole seconds, from 12 seconds to 110 seconds. When it passes, the fallback route is taken with the reason `timeout`, unless the second-model retry is sent. The retry waits the lesser of `TimerSeconds` and 110 seconds minus the first attempt's timer. See "Timeouts" and "Second-model retry". |
+
+- L160, the `DecisionTokenBudget` row, becomes:
+
+    | `DecisionTokenBudget` | 0 (none) | The token budget of each attempt of a decision, checked against the attempt's estimate before it is sent. A request whose estimate is above it takes the fallback route with the reason `budget`, and is never sent. A second-model retry is checked against it again, on its own estimate. The budget is not a total over both attempts. |
+
+- L197, the Timeouts paragraph, becomes:
+
+    `TimerSeconds` is the one timer. A decision with a second-model retry has two attempts, which share the 110 seconds: the retry waits the lesser of `TimerSeconds` and 110 seconds minus the first attempt's timer (see "Second-model retry"). Two things depend on it, and `OcuTalon.Bridge.Timeouts` works both out so that no other place holds a second copy of a number:
+
+- L202, the Timeouts paragraph, becomes:
+
+    The timer can be 12 seconds at the least and 110 seconds at the most. After you change `TimerSeconds`, edit the `ProviderConfig` row so that its `http_config` is the new `Derive(timer)`'s (for a retry runner, `Derive(Timeouts.RetryTimer(timer))`'s, see "Second-model retry") and update the production, or keep the provider in the Config Store as an entry and let `Timeouts.Apply(timer)` change the timer, the entries and the runners together. Apply needs each runner's `ProviderConfig` to be `@{config:<name>}`, and restarts `Decide` and the runners.
+
+- L273, the fallback route, becomes:
+
+    When the model cannot give a usable answer, `Decide` does not guess. When a second model is set, `Decide` may first try the request once on it, as "Second-model retry" says, and takes the fallback route only when no retry is sent or the retry gives no usable answer either. It records one decision with the outcome `tellnow`, `Fallback` 1 and the reason (after a retry, the last attempt's), keeps no model text, and answers with it, so that the person is told. A fallback starts no tool, fix or approval. The reasons:
+
+- After L347 (the "never retried" list of the Second-model retry section), add the bullet:
+
+    - A model test request (its `ItemId` starts with `test.`), so that the test says whether the first model answered.
+
+- L242, the `DecisionResponse.Model` row: NOT YET. Its ruled clause did not match the code exactly (the lead sent a correction to the Planner); leave the row as it is until the lead passes the ruled row.
+- No other wording in the guide changes.
+
 ## Code Map
 
 - `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`
@@ -132,6 +160,8 @@ deferred: []
 - [ ] `docker/tests/test-bridge-guide.sh`: add a rule `tables` (DW-728). Every setting of `Decide`, `Adapter.Agent` and `AgentRunner`, every AI Hub runner setting, and every `Request` property is the first cell of a table row (`` | `<name>` | ``). The rule has a break sample (the `RetryItem` row removed) and a keep sample, as the other rules do, and the header gets one line for it.
 - [ ] `docs/bridge-guide.md` (DW-728): append the `RetryItem` row after the `ReplyClass` row and the `RetryOf` row after the `Compact` row, verbatim from Design Notes. Nothing else changes. The rows are reused text and not new public wording, so this task is not gated. Any other word needs the Planner (see Design Notes).
 
+- [ ] DW-850: the ruled `docs/bridge-guide.md` strings above, landed exactly as one separable hunk (L159, L160, L197, L202, L273, and the bullet after L347; not L242 yet), each pinned by a fixed-strings rule in `docker/tests/test-bridge-guide.sh`, with a mutation shown red (one character changed in a landed string). `test-bridge-guide.sh` passes.
+
 **Acceptance Criteria:**
 - Given a working diagnosis model whose reply fails `DiagnosisPayload` validation, when the settings model Test is sent to `Decide` through the running production, then `TestAnswer` reports it answered with no reason, and no model text is stored in its Decision row (DW-771).
 - Given any other decide or diagnose request with the same reply, when `Decide` concludes it, then it is still the fallback `invalid`.
@@ -139,6 +169,8 @@ deferred: []
 - Given the guide, when `bash docker/tests/test-bridge-guide.sh` runs, then every rule passes, including `tables`, and `git diff docs/bridge-guide.md` shows exactly the two added rows (DW-728).
 
 ## Spec Change Log
+
+- 2026-11-07 lead: DW-850 added (Contest Planner ruling about 04:55Z: the bridge guide's one-attempt wording, exact strings; the Model row's clause is held for a correction).
 
 ## Review Triage Log
 
