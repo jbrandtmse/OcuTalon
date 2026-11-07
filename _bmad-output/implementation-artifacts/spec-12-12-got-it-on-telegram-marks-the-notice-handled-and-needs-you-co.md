@@ -2,10 +2,10 @@
 title: 'Story 12.12: Got it on Telegram marks the notice handled, and needs-you counts only what still needs you'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'ready-for-dev'
-baseline_revision: '71bd67af44df6a945aa1f4283bbacc6df2c79dcb'
+status: 'done'
+baseline_revision: '9c3e7fe4bc62f0d8f3103ca54b584bbebf5be477'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-4, AD-14, AD-27, AD-28 and AD-33)'
 warnings: ['oversized']
@@ -134,6 +134,39 @@ deferred:
 
 ## Review Triage Log
 
+### 2026-11-07 - Review pass
+- verdicts: 28 findings - high 0, medium 4, low 19, false 5, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: a GotIt after End writes a Handled row nothing deletes - End unlinks the chat and clears the resume hash, so no channel can press for an ended session; the guard adds a branch for an unreachable case.
+  - `[low]` `[reject]` Blind: DropSession scans the table (no SessionRef index) - one small row per press; an index is a stored-data change (veto item) and `Data.Upload.DropSession` has the same shape.
+  - `[false]` `[reject]` Blind: `NOTFOUND` hard-codes 5810 - the same Parameter with the same reason is `Data.Upload.NOTFOUND`; the code is the documented `$$$DeleteObjectNotFound`.
+  - `[medium]` `[patch]` Blind: the exact-Ref rule has no test or mutation - added `TestExactRefRequired` (lower- and upper-case spellings of the own Ref, with a mutation line); grouped with Verification Gap 2.
+  - `[low]` `[patch]` Blind: the no-RecordedAt rule has no test - added `TestWindowUndated` with a mutation line.
+  - `[low]` `[reject]` Blind: no direct DropSession test - its success and keep-others paths run through `TestEndDeletesHandled`; the error branches mirror `Upload.DropSession`.
+  - `[low]` `[patch]` Blind: GotItProbe leaves globals - `Test.Core.GotIt` now kills `^OcuTalonTest("GotItProbe")` in `OnAfterAllTests`.
+  - `[low]` `[patch]` Blind: `TestGotItEdits` has no comment and a fixed sleep - comment added; the sleep now waits for the second press' answerCallbackQuery.
+  - `[low]` `[reject]` Blind: handled message texts are not asserted - they are model- and log-facing, and no AC names them.
+  - `[low]` `[reject]` Blind: GotIt writes no audit entry - the spec and AD-14 ask for none; the Handled row is the record.
+  - `[low]` `[reject]` Edge: GotIt after End (same as Blind 1) - carried, same reason.
+  - `[low]` `[reject]` Edge: a press between DropSession's SELECT and delete loop survives - needs a press for a session at the moment it ends, which End makes unreachable; the fix adds a retry loop.
+  - `[false]` `[reject]` Edge: a Channel that cannot press is accepted - the spec fixes the check as a `Msg.Enum` CHANNEL value (matrix row Refused).
+  - `[low]` `[reject]` Edge: an empty SessionRef gives failed, not not_found - every command carries its session; the answer is Ok 0 either way and nothing is written.
+  - `[false]` `[reject]` Edge: fractional-second RecordedAt - `Data.Time.NowUtc` writes to the second, and `Process.Saved` compares the same way.
+  - `[false]` `[reject]` Edge: an old unhandled tell-now leaves the count - ruling D1/DW-873: the window is the intent (Decided in-stage 5); failed rows and incidents stay unwindowed (AD-28).
+  - `[low]` `[patch]` Edge: probe global leaks - same patch as Blind 7.
+  - `[low]` `[patch]` Edge: fixed `Hang 2` - same patch as Blind 8.
+  - `[low]` `[patch]` Edge: End doc says "first five steps" - changed to six, with the Handled drop as its own step.
+  - `[medium]` `[patch]` Verification Gap: `TestNotARefRefused` "no row" cannot fail (Rows counts only the test's Decisions) - the pressed Refs are now counted and cleaned; mutation line written.
+  - `[medium]` `[patch]` Verification Gap: IsRef, exact compare and Channel checks have no mutation lines - lines written and each mutation observed red (see Verification); grouped with Blind 4.
+  - `[low]` `[patch]` Verification Gap: the second-press leg of `TestGotItEdits` waits on a sleep - it waits for the answerCallbackQuery of the second press, then 1 s; the unit test pins the SessionOps side.
+  - `[low]` `[patch]` Verification Gap: the undated branch is unpinned - `TestWindowUndated`.
+  - `[medium]` `[patch]` Verification Gap: the "no upper bound" ruling is unpinned - `TestProcessNoUpperBound` (a Decision after WindowEnd counts), mutation line written.
+  - `[low]` `[reject]` Verification Gap: DropSession error branches never run in a test - narrow, mirrors `Upload.DropSession`; the behavior that matters (End's failure count) is pinned through the seam.
+  - `[low]` `[patch]` Verification Gap, other: probe global leak - same patch as Blind 7.
+  - `[low]` `[reject]` Verification Gap, other: `TestSaveFailure` counts a shared-log text - tests run in one process in sequence and the text appears only on this failure path; the delta is exact.
+  - `[false]` `[reject]` Verification Gap, other: the Auto Run Result says ready-for-dev - it is rewritten at finalize.
+- Intent Alignment reported readings and divergences only (0 findings): the surfaces it names (`CommandsIn` relay, Notify fan-out, web half of AC2) are covered by `CommandsRouting`, the existing Web/SimPhone "other kind" tests and `SessionOps` `Channel=web`; the Never list excludes a web control.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -181,6 +214,8 @@ deferred:
 6. `windowStart` "" means no bound (the safe over-count), and eval passes "". `DECISIONMAX` stays: a window holding more than 1,000 Decisions is already beyond any digest's named five.
 7. The handled Notification carries CatalogKey "" and Slots "{}": TelegramOut uses its own `HANDLEDKEY`.
 8. The new probe class `Test/Core/GotItProbe.cls` and the CommandsIn doc line are this story's footprint extensions. Both are uncontended.
+9. (Implement) The Handled save sits in a private seam `SaveHandled(ref, sessionRef, channel)`, which `GotItProbe` overrides (`FailSave` "error" or "raced"), so the matrix row 'Insert fails otherwise' and the lost-race branch each have a test (`TestSaveFailure`); a unique-index failure cannot be provoked deterministically otherwise.
+10. (Implement) `Test.Channel.TelegramDigest.LastMessageId` counts the mock's `sendMessage` and `editMessageText` calls together, because the mock numbers message ids across both; without it `TestGotItEdits` shifted the ids `TestHandledEdit` expects. Test-only, inside the named class.
 
 **Needs-you wording:** "One thing needs you" / "{count} things need you" / "And {n} more on the OcuTalon page." claim no time span, so no `digest.*` text changes (no PUBLIC TEXT question).
 
@@ -215,12 +250,32 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 **Mutations (Rule 19; apply, see red, revert, and confirm that `git status --short`/`git diff --stat` are unchanged):**
 - mutation: AC1 the Handled save removed from the GotIt branch -> `GotIt` `TestPressMarksHandled` and `TelegramDigest` `TestGotItEdits` go red (no edit: no marker).
 - mutation: AC2 the `RefIndexExists` checks removed (a failed save answered `failed`) -> `TestSecondPressNoOp` goes red.
+- mutation: AC2 and the matrix row 'Insert fails otherwise': the `RefIndexExists` re-check after a failed save removed (a lost race answered `failed`) -> `TestSaveFailure` goes red ('a lost race: Ok 1, already_handled').
 - mutation: AC3 the Decision read through `Bridge.Data.Decision.RefIndexOpen` instead of `Ownership.Decision` -> `TestOtherSessionRefused` goes red. The Outcome check removed -> `TestNotTellNowRefused` goes red.
+- mutation: AC3 the exact compare `(decision.Ref '= ref) ||` removed -> `TestExactRefRequired` goes red (a letter-case spelling of the own Ref is marked). The `IsRef` check and the not-found guards removed -> `TestNotARefRefused` goes red. The Channel check removed -> `TestBadChannelRefused` goes red. (`IsRef` alone is an equivalent mutant: `Ownership.Decision` also finds nothing for a non-reference.)
 - mutation: AC4 `+ ..EndHandled(sessionRef)` dropped from the sum -> `TestEndDeletesHandled` and `TestEndHandledFailureCounts` go red.
 - mutation: AC5 `List` ignores windowStart -> `TestWindow` goes red. `Finish` passes "" -> `TestProcessWindow` goes red. Incidents filtered by the window -> `TestWindow`'s incident assertion goes red.
+- mutation: AC5 the `(decision.RecordedAt '= "") &&` term removed (an undated Decision dropped) -> `TestWindowUndated` goes red. `Finish` passes `compose.WindowEnd` instead of `WindowStart` -> `TestProcessNoUpperBound` and `TestProcessWindow` go red.
 - mutation: the stub line restored -> `SettingsCommands` `TestGotItBuilt` goes red.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none (the AD-14 intent gap of the plan pass was resolved by the Planner's approved amendment, 2026-11-07; see the Spec Change Log)
+Status: done
+Blocking condition: none
+
+**Summary.** SessionOps now carries out GotIt: it checks the Channel, the Ref and the session's own tell-now Decision (exact Ref), writes one Handled row (first press wins), and sends one `handled` Notification, so TelegramOut edits the message. End deletes the session's Handled rows as a sixth tried step. `NeedsYou.List` takes a `windowStart` and counts tell-now and act Decisions only from it; `Digest.Process` passes the Compose's WindowStart (eval passes none). No `digest.*` text, `Out.cls` or other Never-list file changed.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Core/SessionOps.cls`: GotIt branch, `SaveHandled`/`EndHandled`/`DropHandled` seams, three MESSAGE parameters, docs.
+- `src/ocutalon/cls/OcuTalon/Data/Handled.cls`: `DropSession`, class doc.
+- `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls`: doc line.
+- `src/ocutalon/cls/OcuTalon/Digest/NeedsYou.cls`, `Digest/Process.cls`: the window.
+- `src/ocutalon/cls/OcuTalon/Test/Core/GotIt.cls` (new), `Test/Core/GotItProbe.cls` (new), `Test/Core/SettingsCommands.cls`, `Test/Digest/NeedsYou.cls`, `Test/Channel/TelegramDigest.cls` (`TestGotItEdits`, `LastMessageId` counting edits too).
+
+**Review.** 28 findings: patches applied 7 entries covering 13 findings (3 medium entries: exact-Ref test and mutation lines, the unpinned "no row" assertion, the no-upper-bound test; 4 low: undated test, probe globals, second-press wait and comment, End doc); deferred 0 new (the frontmatter DW-695 purge item stands); rejected 15 findings (10 low, 5 false) with the reasons in the Review Triage Log. Follow-up review recommended: true, because three medium entries were patched. The unverified risk is the review-pass tests themselves (`TestExactRefRequired`, `TestWindowUndated`, `TestProcessNoUpperBound` and the `DigestNeeds` helper), which no second review has read; each was shown red under its mutation.
+
+**Verification.** Slot B (`ocutalon-slot-b`, OCUTALON): every changed class compiled. Warm stack (tag e12s12iw): `Core.GotIt`, `Core.SettingsCommands`, `Core.SessionOps`, `Core.SessionOpsDocuments`, `Digest.NeedsYou`, `Digest.Compose`, `Digest.AllClear`, `Digest.EvalCase`, `Channel.TelegramDigest`, `Core.SessionOpsProduction`, `Core.CommandsRouting`, `Contract.Ac`, `Msg.Contracts`, `Install.Production`, `Channel.TelegramOut` passed. After the last patch: fresh stacks (tag e12s12i) passed `Core.GotIt`, `Digest.NeedsYou`, `Channel.TelegramDigest`, `Core.SessionOpsDocuments`; `test-class-rules`, `test-boundaries`, `test-storage` and `test-ci-config` passed; the footprint `git status` printed nothing. Before the review patches (test and doc changes only), the fresh shards passed: `lane-b` parts 1/2 and 2/2 (55 and 54 classes, 391 s and 513 s), `lane-a@Channel` (14, 559 s), `lane-a@rest` parts 1 to 4 of 4 (29 classes each; 573, 506, 250 and 881 s). Part 4 of `lane-a@rest` ran over the 8-minute batch target (881 s) and was moved to the background by the harness; it finished green. Mutations: every AC's line in `## Verification` was applied, seen red and reverted. Throwaways: warm and fresh stacks torn down; the lane-b locks were released.
+
+**CI groups.** `Test.Core.GotIt` (new) and `Test.Core.SettingsCommands` run in shard `lane-b`, group `image`; `Test.Digest.NeedsYou` in `lane-a@rest`, group `shards-2`; `Test.Channel.TelegramDigest` in `lane-a@Channel`, group `shards-4`. No `ci/units.sh` change; `GotItProbe` has no tests and `test-ci-config` passes.
+
+**Residual risks.** A press that arrives for an ended session would write a Handled row nothing deletes (rejected: no channel can press then). `lane-a@rest` part 4 takes about 15 minutes on this machine, so a rebalance of that piece may be wanted by the lead. The deferred LOW (Handled has no purge task) stands for the harvest.

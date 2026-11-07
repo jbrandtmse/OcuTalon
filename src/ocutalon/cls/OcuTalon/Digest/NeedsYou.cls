@@ -1,9 +1,11 @@
 /// What needs the user, for a digest (AD-14, AD-20, FR-35; Story 17.6). List gives the entries in this order, each named by text that code wrote:
 ///   1. the failed rows of the checks that the digest covers, each "<entry>: <finding>" (the entry alone when the finding is empty);
-///   2. the session's decide Decisions (Ownership.Decisions) whose Outcome is tellnow or act and whose Ref is not marked handled (Data.Handled Marked),
-///      newest first, each named by its Summary;
+///   2. the session's decide Decisions (Ownership.Decisions) whose Outcome is tellnow or act, whose Ref is not marked handled (Data.Handled Marked) and
+///      that were recorded at or after the window's start (windowStart; a Decision with no RecordedAt counts, and with no windowStart every Decision
+///      counts), newest first, each named by its Summary;
 ///   3. the session's incidents (Ownership.Incidents) that are awaiting approval, each named by the Summary of its diagnose Decision (the Decision
 ///      that Incident.DecisionRef points at), or by its Production when that is empty.
+/// Items 1 and 3 count whatever their age, so nothing that waits for approval and no failed check can be windowed out (AD-28).
 /// A Decision whose Ref is an awaiting incident's DecisionRef, or whose ItemId is that incident's Ref, is the incident's own and appears once, as the
 /// incident. An entry with no name is left out. For the owner eval (OcuTalon.Data.Ownership EVAL, a digest case) the list holds the failed rows alone,
 /// because the ownership API refuses eval and reads no session source for it.
@@ -22,9 +24,10 @@ Parameter DECISIONMAX = 1000;
 /// The outcomes of a Decision that leave the user something to do.
 Parameter OUTCOMES = "tellnow,act";
 
-/// The entries that need the session (see the class description), given its failed rows (a %DynamicArray of {result, entry, finding, checkedAt}). The
-/// status is an error when a record cannot be read; the result is then empty and must not be used.
-ClassMethod List(sessionRef As %String, failedRows As %DynamicArray, Output sc As %Status) As %DynamicObject
+/// The entries that need the session (see the class description), given its failed rows (a %DynamicArray of {result, entry, finding, checkedAt}) and
+/// the UTC time (ISO, to the second) that the digest's window starts, or "" for no bound. The status is an error when a record cannot be read; the
+/// result is then empty and must not be used.
+ClassMethod List(sessionRef As %String, failedRows As %DynamicArray, Output sc As %Status, windowStart As %String = "") As %DynamicObject
 {
 	Set sc = $$$OK
 	Set result = {"count": 0, "names": [], "more": 0}
@@ -60,6 +63,7 @@ ClassMethod List(sessionRef As %String, failedRows As %DynamicArray, Output sc A
 		For i = 1:1:decisions.Count() {
 			Set decision = decisions.GetAt(i)
 			If '$ListFind($ListFromString(..#OUTCOMES), decision.Outcome) Continue
+			If (windowStart '= "") && (decision.RecordedAt '= "") && (windowStart ] decision.RecordedAt) Continue
 			If $Data(owned("decision", decision.Ref)) || ((decision.ItemId '= "") && $Data(owned("item", decision.ItemId))) Continue
 			If ##class(OcuTalon.Data.Handled).Marked(decision.Ref) '= "" Continue
 			Do ..Add(.entries, .count, decision.Summary, decision.RecordedAt)

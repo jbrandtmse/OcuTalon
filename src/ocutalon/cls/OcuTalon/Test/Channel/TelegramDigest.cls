@@ -21,12 +21,15 @@
 ///     the session's message, and for a message of the pressing chat whose Ref is not a reference, submits nothing, and each press is still answered;
 ///   - TestHandledEdit: a handled Notification edits the tell-now message in place to its text, a blank line and "Marked as handled at <time>", with no reply_markup, once; a
 ///     handled Notification with no marker or no message edits nothing and logs one warning, and a repeated one edits nothing and logs none.
-/// The fixture chats are 84017734160 to 84017734171, and the fixture sessions zztgdig....
+///   - TestGotItEdits (Story 12.12): the press of Got it under a tell-now message whose Decision is the session's runs through TelegramIn, SessionOps, Notify and
+///     TelegramOut: the message is edited once to its text, a blank line and "Marked as handled at <time>" (the marker's time) with no reply_markup, the Handled row
+///     holds the Ref, the session and the channel telegram, and a second press edits nothing more and adds no row.
+/// The fixture chats are 84017734160 to 84017734172, and the fixture sessions zztgdig....
 Class OcuTalon.Test.Channel.TelegramDigest Extends OcuTalon.Test.Channel.LiveCase
 {
 
 /// The fixture chat ids.
-Parameter CHATS = "84017734160,84017734161,84017734162,84017734163,84017734164,84017734165,84017734166,84017734167,84017734168,84017734169,84017734170,84017734171";
+Parameter CHATS = "84017734160,84017734161,84017734162,84017734163,84017734164,84017734165,84017734166,84017734167,84017734168,84017734169,84017734170,84017734171,84017734172";
 
 Parameter PROBE = "OcuTalon.Test.Digest.ProcessProbe";
 
@@ -286,14 +289,16 @@ Method TestDigestMessage()
 	}
 }
 
-/// The message_id that the mock gave the last sendMessage to the chat id.
+/// The message_id that the mock gave the last sendMessage to the chat id. The mock counts the message ids of sendMessage and editMessageText
+/// together, so an edit made earlier in the run moves the ids of the sends after it.
 Method LastMessageId(chatId As %String) As %String [ Private ]
 {
 	Set id = "", count = 0
-	Set iterator = ..CallsOf("sendMessage").%GetIterator()
+	Set iterator = ##class(OcuTalon.Test.Contract.Mock).Calls().%GetIterator()
 	While iterator.%GetNext(, .call) {
+		If (call.method '= "sendMessage") && (call.method '= "editMessageText") Continue
 		Set count = count + 1
-		If call.params."chat_id" = chatId Set id = count
+		If (call.method = "sendMessage") && (call.params."chat_id" = chatId) Set id = count
 	}
 	Quit id
 }
@@ -564,6 +569,51 @@ Method TestHandledEdit()
 		Do $$$AssertEquals(..Warned(mark, "did not edit a handled notice's message"), 1, "and logs one warning")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the handled test failed: "_..Safe(ex))
+	}
+}
+
+/// The press of Got it under a tell-now message whose Decision is the session's marks the notice handled and edits the message once; a second press
+/// is answered and changes nothing.
+Method TestGotItEdits()
+{
+	If '..Go() Quit
+	Try {
+		Set chatId = 84017734172
+		Set session = ..Paired(chatId, "Zqgotitedit", .chatRef)
+		Set decisionRef = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", ##class(OcuTalon.Data.Time).NowUtc(), {"Outcome": "tellnow"})
+		Do ..Keep(decisionRef)
+		Do $$$AssertStatusOK(..ToOut(..TellNow(session, decisionRef)), "a tell-now Notification for the session's own Decision is sent")
+		Set messageId = ..LastMessageId(chatId)
+		Set edits = ..EditsTo(chatId).%Size()
+		Set total = ..CallsOf("editMessageText").%Size()
+		Do ..Press(chatId, "Zqgotitedit", "gotit:"_decisionRef)
+		Do ..WaitCalls("editMessageText", total + 1)
+		Set edited = ..EditsTo(chatId)
+		Do $$$AssertEquals(edited.%Size(), edits + 1, "the message is edited once")
+		Set row = ##class(OcuTalon.Data.Handled).RefIndexOpen(decisionRef)
+		Do $$$AssertTrue($IsObject(row), "a Handled row exists")
+		If $IsObject(row) {
+			Set ..Marked = ..Marked_$Select(..Marked = "": "", 1: ",")_row.%Id()
+			Do $$$AssertEquals(row.Ref_"|"_row.SessionRef_"|"_row.Channel, decisionRef_"|"_session_"|telegram", "it holds the Ref, the session and the channel telegram")
+			If edited.%Size() = edits + 1 {
+				Set params = edited.%Get(edits)
+				Set expected = ..TellNowText()_$Char(10, 10)_##class(OcuTalon.Msg.Catalog).Render("handled.marked", {"time": (##class(OcuTalon.Data.Handled).Marked(decisionRef))}, "telegram")
+				Do $$$AssertEquals(params.text, expected, "the edit is the text, a blank line and 'Marked as handled at <time>' with the marker's time")
+				Do $$$AssertEquals(params."message_id"_"|"_params."chat_id"_"|"_params.%IsDefined("reply_markup"), messageId_"|"_chatId_"|0", "in place, with no reply_markup, so the button is gone")
+			}
+		}
+		Do $$$AssertEquals(..Rows(session), "tellnow|"_chatRef_":"_messageId_",handled|"_chatRef_":"_messageId, "the message has its tell-now and its handled row")
+		Set answers = ..CallsOf("answerCallbackQuery").%Size()
+		Do ..Press(chatId, "Zqgotitedit", "gotit:"_decisionRef)
+		Do $$$AssertEquals(..WaitCalls("answerCallbackQuery", answers + 1).%Size(), answers + 1, "the second press is answered")
+		Hang 1
+		Do $$$AssertEquals(..EditsTo(chatId).%Size(), edits + 1, "a second press edits nothing more")
+		Set count = 0
+		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Handled WHERE Ref = ?", decisionRef)
+		If rows.%Next() Set count = rows.%GetData(1)
+		Do $$$AssertEquals(count, 1, "and the Decision still has one Handled row")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the Got it edit test failed: "_..Safe(ex))
 	}
 }
 
