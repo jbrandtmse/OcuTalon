@@ -358,8 +358,8 @@ test.describe('loadedAfter: the /state diagnosis', () => {
   }
 
   function expectNoPlanted(text: string): void {
-    for (const [name, value] of Object.entries(planted)) expect(text, `the planted ${name} value`).not.toContain(value);
-    expect(text).not.toContain(cookiePair);
+    for (const [name, value] of Object.entries(planted)) expect.soft(text, `the planted ${name} value`).not.toContain(value);
+    expect.soft(text).not.toContain(cookiePair);
   }
 
   test('a cookie, token, body, key or full session id that the first read prints reaches neither the file nor stdout, and the counts and states do', async ({ browser }) => {
@@ -379,7 +379,7 @@ test.describe('loadedAfter: the /state diagnosis', () => {
     expect(logged).toContain('DIAG /state licence: LUAvailable=7, LUConsumed=1, Session=cookie=[redacted], Auth=Bearer [redacted]');
     expect(logged).toContain('DIAG /state csp process: pid=3249 state=READ routine=Cookie: [redacted]');
     expect(logged).toContain('DIAG /state session lock: held by pid 3222 (mode X, count 1) on session uLFv...');
-    expect(logged.find((line) => line.startsWith('DIAG /state csp process: pid=3248 state=EVTW routine=%SYS.cspServer3'))).toBeDefined();
+    expect(logged).toContain('DIAG /state csp process: pid=3248 state=EVTW routine=%SYS.cspServer3 key=[redacted] alt=[redacted] gh=[redacted] aws=[redacted] opaque=[redacted]');
     expect(logged).toContain('DIAG /state csp unavailable: failed with [redacted]');
     expect(logged).toContain('DIAG /state gateway 1 server 1: TotalConnections=6, ConnectionsInUse=1, PrivateConnections=0, QueuedRequests=0');
     expect(logged).toContain('DIAG /state gateway 1 connections: Free=4, InUse=1');
@@ -411,7 +411,16 @@ test.describe('loadedAfter: the /state diagnosis', () => {
       ['a glued, lower-case pair', `routine=x${['cspsession', 'id'].join('')}=${value} end`],
       ['a Set-Cookie header', `routine=${['Set-', 'Cookie'].join('')}: a=${value}; Path=/`],
       ['a Cookie header', `routine=${['Coo', 'kie'].join('')}: a=${value}`],
+      ['a lower-case cookie header', `routine=${['coo', 'kie'].join('')}: a=${value}`],
+      ['a header whose name ends in Cookie', `routine=HTTP_${['COO', 'KIE'].join('')}: a=${value}`],
+      ['a Cookie header with a carriage return', `routine=${['Coo', 'kie'].join('')}: a=1\r${value}`],
+      ['a pair with a space before its sign', `routine=${['CSPSESSION', 'ID'].join('')} = ${value} end`],
+      ['two pairs on one line', `routine=${['CSP', 'CHD'].join('')}=x, ${['CSPWSERVER', 'ID'].join('')}=${value} end`],
       ['a bearer token', `Auth=${['Bea', 'rer'].join('')} ${value}`],
+      ['a lower-case bearer token', `Auth=${['bea', 'rer'].join('')} ${value}`],
+      ['two bearer tokens on one line', `Auth=${['Bea', 'rer'].join('')} x, Proxy=${['Bea', 'rer'].join('')} ${value}`],
+      ['two long tokens on one line', `a=x${'1'.repeat(24)} b=${value}1`],
+      ['a JSON object with a carriage return', `failed with {"a":"1\r${value}"}`],
       ['a JSON object', `failed with {"a":"${value}"}`],
       ['a JSON array of objects', `failed with [{"a":"${value}"}]`],
       ['a JSON object with escaped quotes', `failed with {\\"a\\":\\"${value}\\"}`],
@@ -419,6 +428,7 @@ test.describe('loadedAfter: the /state diagnosis', () => {
       ['a ghp_ key', `key ${['gh', 'p_'].join('')}${value}`],
       ['an ASIA key', `key ${['AS', 'IA'].join('')}${value.toUpperCase()}`],
       ['an AKIA key', `key ${['AK', 'IA'].join('')}${value.toUpperCase()}`],
+      ['an AKIA key glued to a word', `key=id${['AK', 'IA'].join('')}${value.toUpperCase()}`],
       ['an xox token', `key ${['xo', 'xb-'].join('')}${value}`],
       ['an AIza key', `key ${['AI', 'za'].join('')}${value}`],
       ['an sk-ant- key', `key ${['sk-', 'ant-'].join('')}${value}`],
@@ -426,9 +436,11 @@ test.describe('loadedAfter: the /state diagnosis', () => {
     ];
     for (const [name, line] of cases) {
       const redacted = redactLine(line);
-      expect(redacted, name).not.toContain(value);
-      expect(redacted, name).toContain('[redacted]');
+      expect.soft(redacted, name).not.toContain(value);
+      expect.soft(redacted, name).toContain('[redacted]');
     }
+    expect.soft(redactLine(`routine=${['Set-', 'Cookie'].join('')}: a=${value}`), 'a Set-Cookie header is taken whole').toBe('routine=Cookie: [redacted]');
+    expect.soft(redactLine(`failed with [{"a":"${value}"}]`), 'a JSON array is taken whole').toBe('failed with [redacted]');
     const lock = 'DIAG /state session lock: held by pid 3222 (mode X, count 1) on session ';
     expect(redactLine(`${lock}uLFv${value}...`)).toBe(`${lock}uLFv...`);
     expect(redactLine(`${lock}u LF${value}...`)).toBe(`${lock}u LF...`);

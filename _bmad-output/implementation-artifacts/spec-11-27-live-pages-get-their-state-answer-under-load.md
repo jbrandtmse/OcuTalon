@@ -4,7 +4,7 @@ type: 'chore'
 created: '2026-11-07'
 status: 'done'
 baseline_revision: 'f49a6528778f5c9b60b81665dc3a8622403ee3a7'
-baseline_commit: '5352d39d991a20c58f17068f46815f57ed5fe562'
+baseline_commit: 'f49a6528778f5c9b60b81665dc3a8622403ee3a7'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -242,6 +242,31 @@ Code review 2026-11-07 (bmad-code-review, full mode, four layers, review tier fu
 - `low`, rejected (the fix edits the spec under review): the stale "part 1/3" in the planned mutation list and in the live command, and "ten `cmd_live` rows" in the Auto Run Result. D17 and the recorded mutation line are correct.
 - `low`, rejected: the `link` row's setup `mkdir` is removed again by `tk_live`, which is harmless. `tk_prune` also judges the root against the real checkout, which is correct while `TMPDIR` is outside the repository.
 
+### Review Findings (round 2: U-300 rework, baseline f49a6528)
+
+Code review 2026-11-07, rework re-review iteration 1 (bmad-code-review, full mode, four layers, full-opus). No HIGH, so the story closes (Rule 15 exit condition). Each entry: severity, fix-risk, footprint, spec-status, disposition.
+
+- [x] [Review][Patch] MED: the redaction's `g` and `i` flags had no planted value, so dropping one (a second cookie pair, Bearer or long token on a line; a lower-case `bearer` or `cookie:`) leaked with every test green [web/e2e/live/helper-waits.spec.ts:405] — fix-risk low, in-story, clear. Rows added (two pairs, two bearer tokens, two long tokens, lower-case bearer, lower-case cookie header); mutation line below.
+- [x] [Review][Patch] LOW: the Set-Cookie and JSON-array rows stayed green with `(?:Set-)?` or `\[?` removed, and the table's hard `expect` stopped at its first red, so the earlier AIza mutation was never observed [web/e2e/live/helper-waits.spec.ts:437] — fix-risk low, in-story. The table uses `expect.soft`; both rows now assert the exact output; the mutation line is re-recorded.
+- [x] [Review][Patch] LOW: the `pid=3248` line, which carries the four key shapes and the opaque token, was checked only by `startsWith`, so a rule that left a key's tail passed [web/e2e/live/helper-waits.spec.ts:382] — fix-risk low, in-story. It now asserts the exact redacted line.
+- [x] [Review][Patch] LOW: the header rule needed `\b` and a colon next to `Cookie` (`HTTP_COOKIE: a=<v>` passed), and the pair rule allowed no space before its sign (`CSPSESSIONID = <v>` passed) [web/e2e/support/diagnose.ts:204] — fix-risk low, in-story. `\b` dropped and `\s*` allowed in both; planted rows added.
+- [x] [Review][Patch] LOW: the three `.*$` rules stop at a carriage return or U+2028/2029, so a Cookie header or body text after one leaked [web/e2e/support/diagnose.ts:203-207] — fix-risk low, in-story. The `s` flag added to the three; two planted rows with a carriage return.
+- [x] [Review][Patch] LOW: the key rule's lookbehind blocked a key glued to a word (`idAKIA...`), and a 20-character AWS key is too short for the long-token rule [web/e2e/support/diagnose.ts:208] — fix-risk low, in-story. The lookbehind now guards only `sk-`; planted row added.
+- [x] [Review][Patch] LOW: the first U-300 mutation line claimed red "in the file and in stdout" for two cases, but `expectNoPlanted(file)` threw first and the table case went red too [spec ## Verification] — fix-risk low, in-story. `expectNoPlanted` uses `expect.soft`, the mutation was re-run, and the line rewritten.
+- [x] [Review][Patch] LOW: the header's key list left out ASIA and named only Cookie and Set-Cookie headers [web/e2e/support/diagnose.ts:33-34] — fix-risk low, in-story.
+
+**Rejected.**
+- `wontfix-theoretical`: the long-token rule could redact a valid gateway state of 24 or more characters with a digit. `%CSP.Mgr.Helper.Connection` `Status` values are short words (Free, InUse, Private, WebSocket, Server). This is real only if a gateway reports a one-word status that long with a digit, and then a name is lost, never a secret printed.
+- `by-design`: the session-id rule is not anchored to the lock line. A cut elsewhere loses text and never leaks; anchoring it would let a session id printed in an error text through.
+- `low`, rejected: AC5's real-stack test was not re-run after the redaction. The keep case pins the real line shapes, and the CI `iris` job's `live:sign-in-2` unit runs `state-diagnosis.spec.ts` before the merge; its licence and gateway line checks go red on an over-redaction. This review is hermetic only.
+- `wontfix-theoretical`: the key shapes differ from `lib-keys.sh` (Telegram, `dop_v1_`, PEM). The first two are caught by the long-token rule (24 or more characters with a digit); no diagnosis read prints a PEM block.
+- `false`: a bare `CSPSESSIONID` name holds no value. AC5's live check on the name is unchanged. `wontfix-theoretical`: a URL-encoded `%3D` pair or a quoted value with a space; no read prints either.
+- `false`: "the first pass's residual risks are recorded nowhere". AC4 stays a lead-side measurement in Verification, and D1 and D4 are in Design Notes. Rejected also because the fix (restoring the implement pass's Triage Log and Auto Run Result) edits the spec under review.
+- `low`, rejected (the fix edits the spec under review): the rework's triage counts (`low 20, false 9`; `24 rejected`) do not match its rows (19 low, 10 false; 23 rejected).
+- `false`: the frontmatter `status: 'done'` against sprint-status `review`. `bmad-build-auto` sets `done` by contract; the review syncs the sprint status.
+- `low`, rejected: the rework did not re-run `npm --prefix web test` or `ci/checks.sh`. Both are once per story and ran at implement. The rework changed only e2e files, which this review covered with lint, `test-boundaries.sh` and the hermetic suite in both orders.
+- `false`: AC4 has no pinning test. It is a lead-side measurement (round 1's `by-design`).
+
 ## Spec Change Log
 
 - 2026-11-07 rework iteration 1 (trigger: the Planner's U-300 ruling): one [Review] item, the no-secrets pin with a planted-value mutation.
@@ -439,8 +464,12 @@ mutation: CR AC2 the `~` and `home` checks removed from rule `traces` (test-ci-c
 mutation: CR AC2 the trace-folder-name term and the `tracename == ""` FAIL removed (rules.awk) -> `FAIL traces: [the trace folder own name is not flagged] [an unread folder name does not fail the rule]`; restored byte-identical.
 mutation: CR AC1 the `! -L "$f"` guard removed (ci/iris.sh), with the link now pointing outside the results folder -> `FAIL traces kept` ([trace link: the file was not kept, or the link was moved] [trace link: no 'TRACE removed 1 of fake' line]); restored byte-identical.
 mutation: CR AC1 the workspace check of `traces_on` disabled (ci/iris.sh) -> `FAIL traces kept` (among others [a root behind a link: the root was made]); restored byte-identical.
-mutation: U-300 the redaction disabled (`redactLine` returns its line, diagnose.ts) -> helper-waits' two planted-value cases red ("the planted cookie value" found in the file and in stdout); restored byte-identical (cmp against the backup; `git status --short` and `git diff --stat` unchanged).
-mutation: U-300 the AIza branch and the escaped-quote `\\?` of the JSON rule removed (`REDACTIONS`, diagnose.ts) -> helper-waits' alternatives case red (the planted value in `{\"a\":...}` found in the output); restored byte-identical (cmp against the backup; `git status --short` and `git diff --stat` unchanged).
+**Code review round 2 (2026-11-07).** After the patches: helper-waits + request-waits (sign-in-2, no stack) 36 passed, forward and in reverse file order; `npm --prefix web run lint` exit 0; `bash docker/tests/test-boundaries.sh` all rules passed; `lib-keys.sh` `key_like` finds no key-shaped literal in either changed file.
+
+mutation: U-300 the redaction disabled (`redactLine` returns its line, diagnose.ts) -> helper-waits' three planted-value cases red: the first-read and gateway-error cases (every planted value found in the file and in stdout, `expect.soft`) and the alternatives table (every row); the keep case stays green; restored byte-identical (cmp against the backup; `git status --short` and `git diff --stat` unchanged).
+mutation: U-300 the AIza branch, the JSON rule's `\\?` and `\[?`, and the header rule's `(?:Set-)?` removed together (`REDACTIONS`, diagnose.ts) -> the alternatives table red on four rows at once (`expect.soft`): "an AIza key", "a JSON object with escaped quotes", "a JSON array is taken whole" (`failed with [[redacted]`), "a Set-Cookie header is taken whole"; restored byte-identical (cmp against the backup).
+mutation: CR2 the `g` flag of the pair, Bearer and long-token rules and the `i` flag of the header and Bearer rules removed (diagnose.ts) -> the alternatives table red on "two pairs on one line", "two bearer tokens on one line", "two long tokens on one line", "a lower-case bearer token", "a lower-case cookie header", "a glued, lower-case pair" and "a header whose name ends in Cookie"; restored byte-identical (cmp against the backup).
+mutation: CR2 the review's rule fixes reverted (the rework's `REDACTIONS`: `\b` before Cookie, no `\s*` before the pair's sign, no `s` flag, the lookbehind over every key shape) -> the alternatives table red on "a header whose name ends in Cookie", "a Cookie header with a carriage return", "a pair with a space before its sign", "a JSON object with a carriage return" and "an AKIA key glued to a word"; restored byte-identical (cmp against the backup; `git status --short` and `git diff --stat` unchanged).
 
 ## Auto Run Result
 

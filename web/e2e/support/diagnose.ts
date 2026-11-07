@@ -30,8 +30,8 @@ import { irisScript } from './iris';
  * failure artifact when the unit's own output tail is too short to show it (DW-756); outside a test no file is written. Hermetic specs run
  * it against the OCUTALON_E2E_IRIS_EXEC stand-in.
  * Redaction: every DIAG line passes through redactLine once, before it is printed and appended, so the file equals the printed lines and no
- * line holds a cookie (a CSPSESSIONID, CSPCHD or CSPWSERVERID `name=value` or `name: value` pair, or a Cookie or Set-Cookie header), a bearer token, a request body (JSON
- * object text, also with escaped quotes), a key shape (sk-, ghp_ and its kin, github_pat_, AKIA, xox, AIza), a long opaque token (24 or more characters of letters,
+ * line holds a cookie (a CSPSESSIONID, CSPCHD or CSPWSERVERID `name=value` or `name: value` pair, or a header whose name ends in Cookie), a bearer token, a request body (JSON
+ * object text, also with escaped quotes), a key shape (sk-, ghp_ and its kin, github_pat_, AKIA, ASIA, xox, AIza), a long opaque token (24 or more characters of letters,
  * digits, `_` and `-` with a digit among them) or more than the first four characters of a session id. A redacted value becomes
  * `[redacted]`, a Cookie header or a body through the end of its line; the counts and states of the other values are kept.
  */
@@ -200,12 +200,12 @@ const REDACTED = '[redacted]';
 
 /** The redactions in order: the session id is cut first, so that the rule for long tokens does not take its first four characters too. */
 const REDACTIONS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/(on session .{0,4}).*(\.\.\.)$/, '$1$2'],
-  [/\b(?:Set-)?Cookie:.*$/i, `Cookie: ${REDACTED}`],
-  [/(?:CSPSESSIONID|CSPCHD|CSPWSERVERID)[^\s=:;,]*[=:]\s*[^\s;,]*/gi, `cookie=${REDACTED}`],
+  [/(on session .{0,4}).*(\.\.\.)$/s, '$1$2'],
+  [/(?:Set-)?Cookie\s*:.*$/is, `Cookie: ${REDACTED}`],
+  [/(?:CSPSESSIONID|CSPCHD|CSPWSERVERID)[^\s=:;,]*\s*[=:]\s*[^\s;,]*/gi, `cookie=${REDACTED}`],
   [/\bBearer\s+[^\s,;]+/gi, `Bearer ${REDACTED}`],
-  [/\[?\{\s*\\?".*$/, REDACTED],
-  [/(?<![A-Za-z0-9])(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|(?:AKIA|ASIA)[0-9A-Z]{12,}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{20,})/g, REDACTED],
+  [/\[?\{\s*\\?".*$/s, REDACTED],
+  [/(?:(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|(?:AKIA|ASIA)[0-9A-Z]{12,}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{20,})/g, REDACTED],
   [/(?<![A-Za-z0-9_-])(?=[A-Za-z_-]*\d)[A-Za-z0-9_-]{24,}/g, REDACTED],
 ];
 

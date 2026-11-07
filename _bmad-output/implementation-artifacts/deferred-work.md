@@ -5074,6 +5074,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 42373379335 job 128405908312 (OCT-epic11 1e16e44a, iris shards-4, live:sign-in-2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: expected vs received differ only at 'Every 30 minutes, 08:00 to 20:00' + ' · Next check-in 13:31 Skipped at 13:01: your checklist is empty.'; the head changes only Test/Agent classes; 128 other specs passed
 - 2026-11-07T13:04:04Z status=routed owner=burndown by=ci note=flake class: one rerun of the failed job; R10 should exclude the heartbeat card or wait out a tick boundary
+- 2026-11-07T19:17:38Z occurrence=32-5-live-sign-in-splits-again-after-4-11-s-tests by=runner note=OCT-epic32@39364d5c run 42401362858 iris(shards-5) live:sign-in-3 heartbeat-card.spec.ts:367 HC8 expected 'Last check-in 18:56 ...' received 'Skipped at 19:02: your checklist is empty.': the installed heartbeat ticked during the test (same root cause: a real tick overrides the card a test pins); one rerun
 
 ### DW-875: No hermetic case observes the gateway read's own 15 s ceiling (DIAG_BOUND_MS); the hang case is capped first by its 12 s test timeout
 - source: spec-11-27-live-pages-get-their-state-answer-under-load.md | severity: low | fix-risk: low | footprint: in-story

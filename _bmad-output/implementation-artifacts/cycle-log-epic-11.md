@@ -776,3 +776,9 @@
 2026-11-07T17:56:17Z	Epic 11	planner_ruling	subject=feature_freeze answer="lifted(rc1_cut);11.27/11.28_merge_after_the_split_in_green_order;integrate_forward_onto_the_named_feature_head_with_the_split_as_a_plain_union" via=orchestrator at=2026-11-07T17:55Z
 2026-11-07T18:28:54Z	Story 11.27	rework_opened	cycle_iteration=2 iteration=1 trigger=planner_ruling(U-300_pin) items=U-300_no-secrets_pin scope_baseline=5af11568
 2026-11-07T18:28:54Z	Story 11.27	stage_spawned	stage=implement spawn_at=2026-11-07T18:28:54Z model=sonnet agent_name=11-27-live-diagnostics-implement-2 cycle_iteration=2
+2026-11-07T18:58:00Z	Story 11.27	dev_complete	spawn_at=2026-11-07T18:28:54Z model=claude-sonnet build_sha=8c1a6e03 baseline_revision=f49a6528 review_loop_iteration=0 followup_review_recommended=false deferred=0 cycle_iteration=2 note=U-300_redactLine+4_hermetic_cases;2_mutations
+2026-11-07T18:58:01Z	Story 11.27	stage_spawned	stage=code-review spawn_at=2026-11-07T18:58:01Z model=opus agent_name=11-27-live-diagnostics-code-review-2 cycle_iteration=2 scope=f49a6528..HEAD+worktree
+2026-11-07T19:20:28Z	Story 11.27	cr_complete	spawn_at=2026-11-07T18:58:01Z model=claude-opus resolved=8 fixed_at_source=8 deferred=0 dismissed=10 high=0 med=1 low=7 rows=18 unresolved_high_med=0 cycle_iteration=2 note=rework_re-review_scoped_f49a6528..HEAD;no_HIGH_story_closes
+2026-11-07T19:20:28Z	Story 11.27	ledger_adjudicated	owned=0(slice_empty;DW-550/774_burndown,DW-756_resolved_at_iteration_1) resolved=0 reowned=0 terminal=0 cycle_iteration=2
+2026-11-07T19:23:10Z	Story 11.27	smoke_complete	method=cli result=pass iterations=2 defects_caught=1(CR2:g/i_flags_unpinned,4_redaction_gaps) evidence=helper-waits+request-waits_36_passed,lint_0,boundaries_pass,no_key-shaped_literal(grep) model=claude-opus-5-5 cycle_iteration=2
+2026-11-07T19:23:10Z	Story 11.27	fresh_check	env=clean-checkout(hermetic) tests=helper-waits,request-waits result=pass order=forward,reverse cycle_iteration=2
