@@ -17,7 +17,7 @@ Include Ensemble
 ///     and each of the first five steps is tried even when an earlier one failed: Unlink of the session's chat (reason session_end, no
 ///     notice); one CancelReminder for each pending reminder, sent to ReminderOps; one StopWatch for each production watch, sent to WatchOps;
 ///     Approval.Cancel for each pending approval request the session owns; SettingsOps.ForgetPerson for the session's per-person
-///     values (AD-19). Only when all of them succeeded is the row's ResumeHash cleared, so
+///     values (AD-19): the persona keys and the five heartbeat keys. Only when all of them succeeded is the row's ResumeHash cleared, so
 ///     that a resume cookie that outlives the sign-out resumes nothing; after a failed End the session stays resumable and the visitor can end
 ///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first five steps were
 ///     tried) and no_session (Ok 0, the session has no row). The session's conversation, orders and decisions stay with the row.

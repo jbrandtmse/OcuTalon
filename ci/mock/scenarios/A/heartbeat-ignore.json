@@ -1,0 +1,31 @@
+{
+  "name": "heartbeat-ignore",
+  "match": {
+    "marker": "heartbeat-ignore"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "body": {
+        "id": "msg_heartbeat_ignore",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"outcome\":\"ignore\",\"reasons\":[\"The CI mock finds nothing in the snapshot that the checklist asks about.\"],\"confidence\":0.9}"
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 1200,
+          "output_tokens": 300,
+          "cache_read_input_tokens": 2000,
+          "cache_creation_input_tokens": 600
+        }
+      }
+    }
+  ]
+}

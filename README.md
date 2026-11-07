@@ -23,6 +23,26 @@ OcuTalon runs as an IRIS Interoperability production, so the agent is an Interop
 
 ![Visual Trace of one whole decision: the incident manager hands the incident to the decision process, which calls the diagnosis agent, and each of the agent's model requests and tool calls shows as an agent step of its own; then come the dry run, the approval request held as a Workflow task and its answer, the fix run, and the notices to the web chat and the simulated phone, each a production message.](docs/images/vt-decision.png)
 
+## Measured
+
+From the real-model release evaluations (Claude Haiku 5.5), the persona sweep and the online demo's usage log:
+
+| What was measured | Result |
+| --- | --- |
+| Incidents diagnosed with the right cause and fix | 9 of 10 (target: 8) |
+| Routine attention decisions right | 19 of 22 (target: 20) |
+| The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs |
+| Prompt-injection attempts that led to an action | 0 |
+| Changes made without a person's approval | 0 |
+| Cost of one attention decision | about $0.0001 |
+| Cost of diagnosing 50 failed orders | $0.0005 to $0.0007 |
+| Model cost of the always-on online demo | about 9 to 10 cents a day |
+
+Two things to look at in the demo:
+
+- It works from real failures. The broken partner feed sends real orders that fail in the Orders production; OcuTalon reads the failed messages and groups them by cause into one incident.
+- Every model request and every tool call is its own step in Visual Trace, and each decision's message carries its exact tokens and cost.
+
 ## What you can use it for
 
 - **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes. On your own install you can also approve it in Telegram on your phone, without a laptop or the Management Portal ([how to set up Telegram](#telegram)).
@@ -152,17 +172,24 @@ docker compose ps
 
 OcuTalon is ready when the STATUS of the `iris` service ends in `(healthy)`, for example `Up About a minute (healthy)`. Then open http://localhost:52773/ocutalon/.
 
-The first start took 47 to 78 seconds in five measurements on an Apple silicon Mac, and about 3 minutes (160 seconds) on an x64 Linux machine with 4 CPUs. The install script waits up to 15 minutes. A slower machine can take longer; run `docker compose ps` again to see.
+On an x64 Linux machine with 4 CPUs and 8 GB of memory, the whole install took about 8 minutes in two measurements: about 2 minutes to build the image, then about 6 minutes for the first start. The install script waits up to 15 minutes. A slower machine can take longer; run `docker compose ps` again to see.
 
 ### Install it with IPM
 
-To install OcuTalon into an IRIS instance you already run (AI Hub build 154 with IPM 0.10.10), use the InterSystems Package Manager. In an IRIS terminal in %SYS, point IPM at the community package registry:
+To install OcuTalon into an IRIS instance you already run, use the InterSystems Package Manager (IPM) 0.10.10. These commands were run as written on fresh IRIS for Health instances of AI Hub build 154 and build 109. A fresh instance has no IPM in %SYS, so first open an IRIS terminal in %SYS and load IPM 0.10.10 from the community package registry:
 
 ```
+s r=##class(%Net.HttpRequest).%New(),r.Server="pm.community.intersystems.com",r.SSLConfiguration="ISC.FeatureTracker.SSL.Config" d r.Get("/packages/zpm/0.10.10/installer"),$system.OBJ.LoadStream(r.HttpResponse.Data,"c")
+```
+
+Its output is long and ends with `Load finished successfully.` If %SYS already has IPM 0.10.10, the line installs nothing new. Then, still in %SYS, enable IPM for USER and point it at the community package registry:
+
+```
+zpm "enable -map -ns USER"
 zpm "enable -community"
 ```
 
-This command first removes the package repositories that are already set up in %SYS, so note any you use before you run it.
+`enable -community` first removes the package repositories that are already set up in %SYS, so note any you use before you run it.
 
 Then open an IRIS terminal in USER, an Interoperability-enabled namespace, and run:
 
@@ -177,7 +204,7 @@ zn "OCUTALON"
 zpm "install ocutalon"
 ```
 
-This second run installs OcuTalon with demo mode off. [Install OcuTalon with IPM](docs/install-ipm.md) shows the output of both runs, and the install from the package folder, for developers.
+This second run installs OcuTalon with demo mode off. [Install OcuTalon with IPM](docs/install-ipm.md) shows the output of each command, and the install from the package folder, for developers.
 
 The second run also downloads OcuTalon's Python packages from PyPI (fastembed, pdfplumber and python-docx with their dependencies, about 250 MB once installed) and the embedding model from Hugging Face (about 90 MB), so the instance needs network access to pypi.org, files.pythonhosted.org, huggingface.co and its download hosts under hf.co (in our test installs us.aws.cdn.hf.co and cas-server.xethub.hf.co). In our test installs, the whole second run took about 1 to 1.5 minutes on an Apple silicon Mac and about 3 minutes on a shared x64 Linux build server. On the Mac, the downloads took about 20 seconds of that.
 

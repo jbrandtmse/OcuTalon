@@ -10,7 +10,7 @@
 ///     queue, the turn of a page's clientId, the queued and running turns, and the newest turn with a reply decision;
 ///     for a decision's trace target, the turn of an Item, TurnOfItem),
 ///     pending reminders, background checks, decisions (and one decision by its Ref), the usage rows of a turn's two
-///     decisions or since a time, noticed incidents, pending approval requests, pairing, and the web copies of the notice
+///     decisions or since a time, the session's heartbeat check-ins and cost in the cap's day (HeartbeatToday), noticed incidents, pending approval requests, pairing, the heartbeat row (Heartbeat), and the web copies of the notice
 ///     cards (RecentNotices), the messages of the simulated phone (RecentPhone), the emails of the simulated mailbox
 ///     (RecentMail), the session's own decide decision of an Item (DecisionOfItem) and the delivery of an approval message
 ///     (DeliveryFor), and the delivery of a notice by the notice's Ref (DeliveryByRef).
@@ -110,6 +110,41 @@ ClassMethod RunCost(sessionRef As %String, since As %String, Output sc As %Statu
 	Do ..Sum(usage, cost, .models)
 	Set cost.models = models
 	Quit cost
+}
+
+/// The session's heartbeat activity in the daily cap's day (Story 39.5; AD-20), as an object: {"checkIns", "costUSD"}, both numbers. The
+/// rows are the session's own Usage rows of Channel heartbeat recorded from the first instant of the instance-zone local date of now up to
+/// the first instant of the next date (the day of Bridge.Budget, from Data.Time, AD-18). checkIns is the count of their distinct non-empty
+/// ItemIds (the beats that reached the model; an Act's read-only turn shares the beat's Item), costUSD the sum of their CostUSD. A row of
+/// owner eval, instance or another session, of another channel or of another day is never counted. A failed read gives {} and an error
+/// status in sc.
+ClassMethod HeartbeatToday(sessionRef As %String, Output sc As %Status) As %DynamicObject
+{
+	Set sc = $SYSTEM.Status.OK()
+	Set date = $Piece(##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).NowUtc()), "T", 1)
+	Set from = ##class(OcuTalon.Data.Time).FromLocal(date_"T00:00:00")
+	Set next = $ZDate($ZDateH(date, 3) + 1, 3)
+	Set to = ##class(OcuTalon.Data.Time).FromLocal(next_"T00:00:00")
+	If (from = "") || (to = "") {
+		Set sc = $SYSTEM.Status.Error(5001, "The day of the heartbeat check-ins could not be worked out")
+		Quit {}
+	}
+	Set usage = ..Rows("heartbeatUsage", sessionRef, .sc, from, to)
+	If $SYSTEM.Status.IsError(sc) Quit {}
+	Kill seen
+	Set items = 0, usd = 0
+	For i = 1:1:usage.Count() {
+		Set row = usage.GetAt(i)
+		Set usd = usd + row.CostUSD
+		If (row.ItemId '= "") && '$Data(seen(row.ItemId)) {
+			Set seen(row.ItemId) = ""
+			Set items = items + 1
+		}
+	}
+	Set today = {}
+	Do today.%Set("checkIns", items, "number")
+	Do today.%Set("costUSD", usd, "number")
+	Quit today
 }
 
 /// Sets the four token totals and the cost of the Usage rows (none when rows is not a list) in cost, 0 for a total with no
@@ -342,6 +377,15 @@ ClassMethod Approvals(sessionRef As %String, Output sc As %Status) As %ListOfObj
 ClassMethod Pairing(sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Pairing
 {
 	Set rows = ..Rows("pairing", sessionRef, .sc)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
+/// The session's own HeartbeatBeat row, or "". The SessionRef is compared exactly (the property has the default collation, which ignores
+/// case), so a row of a Ref that differs only in case is not the session's. sc is an error status when the read failed.
+ClassMethod Heartbeat(sessionRef As %String, Output sc As %Status) As OcuTalon.Data.HeartbeatBeat
+{
+	Set rows = ..Rows("heartbeat", sessionRef, .sc)
 	If rows.Count() = 0 Quit ""
 	Quit rows.GetAt(1)
 }
@@ -802,6 +846,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 		Set class = "OcuTalon.Bridge.Data.Usage", binds = "oa"
 		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef = ? AND RecordedAt >= ? ORDER BY ID"
 	}
+	If kind = "heartbeatUsage" {
+		Set class = "OcuTalon.Bridge.Data.Usage", binds = "oaa"
+		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef = ? AND Channel = 'heartbeat' AND RecordedAt >= ? AND RecordedAt < ?"
+	}
 	If kind = "runDecisions" {
 		Set class = "OcuTalon.Bridge.Data.Decision", binds = "oa"
 		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Decision WHERE OwnerRef = ? AND RecordedAt >= ? ORDER BY ID"
@@ -829,6 +877,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "pairing" {
 		Set class = "OcuTalon.Data.Pairing", binds = "o"
 		Quit "SELECT TOP 1 ID FROM OcuTalon_Data.Pairing WHERE SessionRef = ? ORDER BY ID"
+	}
+	If kind = "heartbeat" {
+		Set class = "OcuTalon.Data.HeartbeatBeat", binds = "o"
+		Quit "SELECT TOP 1 h.ID FROM OcuTalon_Data.HeartbeatBeat h WHERE %EXACT(h.SessionRef) = ?"
 	}
 	If kind = "recentNotices" {
 		Set class = "OcuTalon.Data.Delivery", binds = "ao"

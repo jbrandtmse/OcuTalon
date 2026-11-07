@@ -1,11 +1,11 @@
 # Install OcuTalon with IPM
 
-This page installs OcuTalon into an IRIS instance you already run, with the InterSystems Package Manager (IPM). The install takes two commands of the same text, one after the other. The first one ends early on purpose and tells you what to do next. The second one gives a running OcuTalon with demo mode off. The page opens with the install from the community package registry; the install from the package folder, for developers, comes after it.
+This page installs OcuTalon into an IRIS instance you already run, with the InterSystems Package Manager (IPM). On a fresh instance it first loads IPM 0.10.10 and points it at the community package registry. The install itself takes two commands of the same text, one after the other. The first one ends early on purpose and tells you what to do next. The second one gives a running OcuTalon with demo mode off. The page opens with the install from the community package registry; the install from the package folder, for developers, comes after it.
 
 ## What you need
 
-- An InterSystems IRIS for AI Hub instance, build 154, with IPM 0.10.10 loaded in %SYS and enabled for USER (the examples start there). Build 109, which the Early Access portal now offers in place of build 154, has not been tested with the IPM install yet.
-- For the registry install: an instance that can reach the community package registry.
+- An InterSystems IRIS for AI Hub instance, build 154, with no IPM in %SYS or with IPM 0.10.10 there. Build 109, which the Early Access portal now offers in place of build 154, works the same way: the registry install on this page was run on fresh IRIS for Health instances of both builds.
+- An instance that can reach the community package registry, which serves IPM and the `ocutalon` package.
 - Network access from the instance to PyPI (pypi.org and files.pythonhosted.org) and to Hugging Face (huggingface.co and its download hosts under hf.co, in our test installs us.aws.cdn.hf.co and cas-server.xethub.hf.co): the second command downloads OcuTalon's Python packages, about 250 MB once installed, and the embedding model, about 90 MB. In our test installs, the whole second command took about 1 to 1.5 minutes on an Apple silicon Mac and about 3 minutes on a shared x64 Linux build server. On the Mac, the downloads took about 20 seconds of that.
 - The second command puts these packages in the instance's shared Python folder, mgr/python in the IRIS install directory. Where that folder already holds older versions of certifi, charset_normalizer, idna, requests, typing_extensions or urllib3, which IPM installs for itself, the second command replaces them with the versions OcuTalon pins. IPM's own packages work with these versions.
 
@@ -13,15 +13,49 @@ OcuTalon needs no other package: the one package `ocutalon` holds the bridge too
 
 ## Install from the package registry
 
-### Point IPM at the registry
+### Load IPM and point it at the registry
 
-In an IRIS terminal in %SYS, run:
+A fresh AI Hub instance has no IPM in %SYS: there, `zpm "version"` answers `<SYNTAX>`. In an IRIS terminal in %SYS, load IPM 0.10.10 from the community package registry:
 
 ```
+s r=##class(%Net.HttpRequest).%New(),r.Server="pm.community.intersystems.com",r.SSLConfiguration="ISC.FeatureTracker.SSL.Config" d r.Get("/packages/zpm/0.10.10/installer"),$system.OBJ.LoadStream(r.HttpResponse.Data,"c")
+```
+
+The line fetches IPM's installer for version 0.10.10 and runs it. Its output is several hundred lines. On build 154 it ended with these lines:
+
+```
+[%SYS|ZPM]	Activate SUCCESS2026-11-05 21:00:10 0 IPM.Installer: Installation succeeded at 2026-11-05 21:00:10
+2026-11-05 21:00:10 0 %Installer: Elapsed time 27.335204s
+
+Time spent 27.340316
+Load finished successfully.
+```
+
+On an instance that already has IPM 0.10.10 in %SYS, the line loads the installer and installs nothing new. Then, still in %SYS, run these two commands:
+
+```
+zpm "enable -map -ns USER"
 zpm "enable -community"
 ```
 
-The command first deletes the repositories configured in %SYS (`repo -delete-all` in its output), then adds the community registry. This is its output, with the terminal's colour codes removed:
+`zpm "enable -map -ns USER"` maps IPM into USER. This is its output on build 154, with the terminal's colour codes removed:
+
+```
+Version of IPM in current namespace:
+%SYS> zpm 0.10.10
+Mapping %IPM package in %SYS equivalently to USER
+Mapping %IPM.* routines in %SYS equivalently to USER
+Done.
+
+%SYS>  zpm 0.10.10
+HSLIB> zpm 0.10.5-SNAPSHOT
+HSSYS> zpm 0.10.5-SNAPSHOT
+       Installed In: HSLIB
+USER>  zpm 0.10.10
+       Installed In: %SYS
+```
+
+`enable -community` first deletes the repositories configured in %SYS (`repo -delete-all` in its output), then adds the community registry and maps it into USER (`Mapping IPM repository in %SYS equivalently to USER`). Run the two commands in this order. Without `enable -map -ns USER` first, `enable -community` maps IPM into USER but skips USER's repositories (`Skipping repository mapping of USER - IPM not mapped from source namespace.`), and the install in USER then stops with `ERROR! No repositories are configured and enabled in this namespace.` The two commands give the same result when USER already had IPM mapped from %SYS. If IPM was installed in USER itself, they leave USER's repositories as they are: then also run `zpm "enable -community"` in an IRIS terminal in USER before the install. There it first deletes the repositories configured in USER. This is the output of `enable -community` on build 154, with the terminal's colour codes removed:
 
 ```
 Version of IPM in current namespace:
@@ -111,10 +145,10 @@ USER>
 
 Building dependency graph...Done.
 [USER|ocutalon]	Initialize START
-Compilation started on 11/03/2026 07:21:52
+Compilation started on 11/05/2026 21:01:44
 Compiling class OcuTalon.Install.Ipm
 Compiling routine OcuTalon.Install.Ipm.1
-Compilation finished successfully in 0.004s.
+Compilation finished successfully in 0.016s.
 
 [ocutalon]	Initialize FAILURE
 ERROR! OcuTalon created namespace OCUTALON. Now run: zn "OCUTALON" then the same install command.
@@ -145,7 +179,7 @@ Building dependency graph...Done.
 Compilation started on 11/06/2026 18:35:08
 Compiling class OcuTalon.Install.Ipm
 Compiling routine OcuTalon.Install.Ipm.1
-Compilation finished successfully in 0.002s.
+Compilation finished successfully in 0.004s.
 
 [OCUTALON|ocutalon]	Initialize SUCCESS
 [OCUTALON|ocutalon]	Reload START (/tmp/ocutalon-repo/ocutalon-1.0.1/)
@@ -188,8 +222,6 @@ STEP Ready OK 0.0s
 OCUTALON>
 ```
 
-Until the package is published, these outputs come from the same package installed from a local IPM repository.
-
 The installer marks the OcuTalon production to start with the instance, so it comes back after an instance restart. It changes no service of the instance and no namespace or database it did not create.
 
 If a step fails after the code has loaded, the command reports the failure and names the step (`STEP <name> FAILED: the new OcuTalon code is installed. Run the same install command again.`, then IPM's `ERROR!` line), the new code stays installed, and running the same command again finishes the install; a failure while IPM loads or compiles the code is rolled back and the previous version keeps running.
@@ -204,6 +236,8 @@ npm --prefix web run build
 ```
 
 The instance needs no Node.js. Copy the `src` folder to a place the instance can read. The examples below call it `/opt/ocutalon-ipm/src`; use your own folder in its place.
+
+It also needs IPM 0.10.10 in %SYS, enabled for USER, as [Load IPM and point it at the registry](#load-ipm-and-point-it-at-the-registry) gives.
 
 ### The first command
 

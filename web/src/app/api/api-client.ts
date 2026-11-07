@@ -24,6 +24,7 @@ import type {
   StateSnapshot,
   UnpairDone,
 } from './api-types';
+import type { HeartbeatPut, HeartbeatSaved, HeartbeatState } from './heartbeat-types';
 import type { PersonaPut, PersonaSaved, PersonaState } from './persona-types';
 
 const BASE = '/ocutalon/api/v1';
@@ -189,5 +190,20 @@ export class ApiClient {
   /** Saves the persona: a PUT, which the envelope interceptor completes with its headers. A refusal fails as an HttpErrorResponse whose `error` is the body `{error:{code,message}}`. */
   savePersona(body: PersonaPut): Observable<PersonaSaved> {
     return this.http.put<PersonaSaved>(`${BASE}/persona`, body);
+  }
+
+  /** The signed-in session's heartbeat (Story 39.5): its settings, last check-in and skip, today's count and cost, the checklist and whether this is the online demo. */
+  heartbeat(): Observable<HeartbeatState> {
+    return this.http.get<HeartbeatState>(`${BASE}/heartbeat`);
+  }
+
+  /** Saves the heartbeat: a PUT, which the envelope interceptor completes with its headers. A refusal fails as an HttpErrorResponse whose `error` is the body `{error:{code,message}}`. */
+  saveHeartbeat(body: HeartbeatPut): Observable<HeartbeatSaved> {
+    return this.http.put<HeartbeatSaved>(`${BASE}/heartbeat`, body);
+  }
+
+  /** Asks for a beat now: a POST with an empty body (the envelope interceptor completes it). A 409 fails with the body `{error:{code,message},availableAt?}`. */
+  runHeartbeat(): Observable<unknown> {
+    return this.http.post<unknown>(`${BASE}/heartbeat/run`, {});
   }
 }

@@ -311,6 +311,25 @@ export interface CheckPayload {
   traceUrl?: string;
 }
 
+export interface HeartbeatPayload {
+  on?: boolean;
+  interval?: number;
+  from?: string;
+  to?: string;
+  nextDueAt?: string;
+  lastBeatAt?: string;
+  lastOutcome?: string;
+  lastFallback?: boolean;
+  lastCostUSD?: number;
+  traceHeaderId?: number;
+  traceNamespace?: string;
+  lastSkipAt?: string;
+  lastSkipReason?: string;
+  lastRunNowAt?: string;
+  backoffUntil?: string;
+  traceUrl?: string;
+}
+
 export type LiveEventType =
   | 'chat.message'
   | 'notification'
@@ -328,7 +347,8 @@ export type LiveEventType =
   | 'guide.state'
   | 'incident'
   | 'watch.progress'
-  | 'check';
+  | 'check'
+  | 'heartbeat';
 
 export interface LivePayloads {
   'chat.message': ChatMessagePayload;
@@ -348,4 +368,5 @@ export interface LivePayloads {
   'incident': IncidentPayload;
   'watch.progress': WatchProgressPayload;
   'check': CheckPayload;
+  'heartbeat': HeartbeatPayload;
 }

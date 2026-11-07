@@ -39,7 +39,7 @@ Method TestContracts()
 Method TestVerbsInheritTheCommonFields()
 {
 	Set classes = $ListBuild("IncidentCommand")
-	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession")
+	Set verbs = $ListBuild("SetReminder", "CancelReminder", "ListReminders", "StartWatch", "StopWatch", "Dismiss", "SetDemoMode", "SetPersona", "ProposePersona", "Pair", "Unpair", "EndSession", "SetHeartbeat", "RunHeartbeat")
 	Set position = 0
 	While $ListNext(verbs, position, verb) {
 		Set classes = classes _ $ListBuild("Command."_verb)
@@ -71,7 +71,7 @@ Method TestEnumerations()
 	Set expected("APPROVALKIND") = "fix,tool_call,setting"
 	Set expected("NOTIFICATIONKIND") = "tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest,handled"
 	Set expected("CHECKRESULT") = "passed,failed,not_checked"
-	Set expected("CHANNEL") = "web,phone,mailbox,telegram,email,webhook,slack,system"
+	Set expected("CHANNEL") = "web,phone,mailbox,telegram,email,webhook,slack,system,heartbeat"
 	Set expected("ORIGIN") = "web_user,web_admin,telegram,tool,timer,system"
 	Set expected("PERSONAPRESET") = "professional,starship,pirate,kindfriend,language,custom"
 	Set name = ""
@@ -329,6 +329,33 @@ XData Contracts [ MimeType = application/json ]
   },
   "sql": {
    "Language": "PersonaLanguage"
+  }
+ },
+ "OcuTalon.Msg.Command.SetHeartbeat": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "On": "%String(MAXLEN=)",
+   "Interval": "%String(MAXLEN=)",
+   "From": "%String(MAXLEN=)",
+   "To": "%String(MAXLEN=)",
+   "Checklist": "%String(MAXLEN=)"
+  },
+  "sql": {
+   "On": "HeartbeatOn",
+   "Interval": "HeartbeatInterval",
+   "From": "HeartbeatFrom",
+   "To": "HeartbeatTo"
+  }
+ },
+ "OcuTalon.Msg.Command.RunHeartbeat": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)"
   }
  },
  "OcuTalon.Msg.Command.ProposePersona": {

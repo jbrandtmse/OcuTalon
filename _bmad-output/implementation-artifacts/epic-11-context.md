@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 11 is release 1's merge point: the web demo path passes end to end in the REL-2 test, an in-place upgrade and a container restart keep every record, the clean-machine rehearsal times the demo path, and one scripted sequence (`release/release.sh`) cuts a candidate with its gates, notes, checklist and the Contest Planner's hands-on pass. Part 1 is built and 1.0.0 was cut from it; fix-forwards 11.20 and 11.21 and the first daily release's burn-down (11.22) are merged. Story 11.23 is the burn-down's follow-on: the Early Access portal now offers only build 109, and install.sh refuses it, so a judge's local install stops at its first step. 11.23 makes install.sh accept the build 109 image by its exact ref alongside today's build 154 ref, and retires the README's separate build-109 path; it ships in the next daily release. The gates, hands-on gate, outward steps and update hook (11.14 to 11.16, 11.18) stay in part 2.
+Epic 11 is release 1's merge point: the web demo path passes end to end in the REL-2 test, an in-place upgrade and a container restart keep every record, the clean-machine rehearsal times the demo path, and one scripted sequence (`release/release.sh`) cuts a candidate with its gates, notes, checklist and the Contest Planner's hands-on pass. Part 1 is built, 1.0.0 was cut from it, and fix-forwards 11.19 to 11.25 are merged (11.25 added the README's `## Measured` table for judges). Story 11.26 is the next fix-forward, on the owner's decision (DW-775): two of the Measured table's row labels claimed more than their sources measured, so they are renamed to say exactly what was measured, with the numbers and everything else unchanged. The gates, hands-on gate, outward steps and update hook (11.14 to 11.16, 11.18) stay in part 2.
 
 ## Stories
 
@@ -26,7 +26,10 @@ Epic 11 is release 1's merge point: the web demo path passes end to end in the R
 - Story 11.20: The overview step hands the unit files the container can read (done)
 - Story 11.21: A test's route callback never outlives its test (done)
 - Story 11.22: First daily release burn-down (done)
-- Story 11.23: install.sh accepts build 109 (next, backlog)
+- Story 11.23: install.sh accepts build 109 (done)
+- Story 11.24: The README's IPM install works literally on fresh build 154 and 109 (done)
+- Story 11.25: The README's judges section: a Measured table (done)
+- Story 11.26: The README's Measured rows say exactly what was measured (next, backlog)
 - Story 11.14: The release sequence runs every gate on the pushed candidate (part 2, backlog)
 - Story 11.15: The hands-on gate and its resume command (part 2, backlog)
 - Story 11.16: The sequence asks before each outward step after the gates (part 2, backlog)
@@ -34,26 +37,24 @@ Epic 11 is release 1's merge point: the web demo path passes end to end in the R
 
 ## Requirements & Constraints
 
-- **Accepted image refs (11.23).** install.sh accepts exactly two refs: the build 109 image `irishealth-community:2027.1.0AI.109.0` and today's build 154 ref; every other ref is refused as it is today. A test pins both accepted refs, and a mutation shows a third ref is refused. Match by exact ref, never by pattern or prefix.
-- **What install.sh still does.** It finds the loaded image and checks its CPU architecture against the machine; retags it to the name every compose file expects; runs `docker compose up` and waits up to 15 minutes for the health check, showing progress; prints the web address and sign-in details. A missing image or wrong architecture stops with a clear message giving the exact fix. It is safe to re-run, runs on macOS and Linux, and a hand load-and-retag followed by a plain `docker compose up` gives the same result.
-- **README is public text (11.23).** The README's separate "Start it with build 109" path is changed once install.sh accepts build 109. The new text goes to the Contest Planner verbatim before it is committed and is committed only once approved. `docker/tests/test-readme.sh`'s build-109 pins are updated, never deleted. The README claims only what the release ships.
-- **API errors.** REST errors are `{"error": {"code": "...", "message": "..."}}` in plain English with snake_case codes; any request body over 256 KB gets 413 `body_too_large` unless its route declares a larger bound of its own.
-- **Shared harness rules (still binding).** Route callbacks are removed at test end through one shared mechanism; helper waits carry bounds in the shared helpers or shared Playwright configuration, never per-spec copies, and fail with a message naming the step. A new bound is pinned by a test with the mutation shown.
-- **Release-wide rules.** No step pushes an image or signs in to a registry; no step prints an environment value (`docker compose config` only with `--quiet`, `docker inspect` only with `--format`). Records describe machines only by OS, CPU architecture and memory. Nothing outward happens without the author's word.
-- Every command fits one 10-minute call; prefer warm mode and split long runs.
+- **The two label changes (11.26), exactly as ruled.** In the README's `## Measured` table, the row label "The demo's incident, end to end with a live model" becomes "The demo's incident diagnosed with the right fix, on a live model" (its source, the eval demo gate, validates the fix and runs no dry run, approval or fix run), and "The always-on online demo" becomes "Model cost of the always-on online demo" (its number is the model cost only). Result cells ("30 of 30 runs", "about 9 to 10 cents a day") stay as they are.
+- **Smallest diff.** Only those two README lines change; no other file changes except `docker/tests/test-readme.sh` and this epic's bookkeeping.
+- **Pins.** The `measured` rule's label list replaces the two old labels with the new ones word for word, in place; every other pin is kept, none deleted or weakened, and the rule still fails when either new label is removed, renamed or moved out of the section. It pins no numbers.
+- **Out of scope.** DW-776 (the "19 of 22 (target: 20)" row) is closed by design and stays as is. The Contest Planner updates its own collateral source file; never copy that file's path into the README.
+- **Public text.** Any wording change beyond the two ruled labels (forced by the surroundings) goes to the Contest Planner verbatim as public text before commit.
+- **README rules (still binding).** It claims only what the release ships, is in plain language with no class names or error codes outside developer sections, carries the not-affiliated note and the credits, and contains no keys, local machine paths, private infrastructure details or other entrants' names.
+- **Release-wide rules.** No step pushes an image, signs in to a registry or prints an environment value. Nothing outward happens without the author's word. Every command fits one 10-minute call; prefer warm mode and split long runs.
 
 ## Technical Decisions
 
-- **Image and retag.** One Dockerfile builds `FROM` the retagged base image (`ocutalon-iris-base:...`, the name every compose file expects); a build argument (`IRIS_IMAGE`) selects the non-Health image. install.sh retags whichever accepted archive was loaded, preferring the IRIS for Health image when both are present. Build 154 (`irishealth-community:2026.3.0AI.154.0`) is the platform the architecture was checked against.
-- **Test layout.** The README pins live in `docker/tests/test-readme.sh`; Playwright 1.64.x specs under `web/e2e/` and `web/e2e-online/`. A turned-on test that must never skip again carries `@floor`.
-- **Lanes (AD-29).** `web/`, `docker/` and `docker/tests/`, `.github/workflows/ci.yml` and the rest of `ci/` are Lane B; `release/`, the release records and the `docs/` security overview are Lane A. Epic 11 may change either lane's files; the orchestrator serializes it against any epic whose files overlap. Shared files take one appended entry per story.
-- **Candidate model.** A candidate is identified by version and commit SHA on `release/<version>-rc<n>`, never changed after the cut; a failed gate means a fix on the integration branch and a new `rc<n+1>`. Rehearsal candidates are `rehearsal/<v>-rc<n>`, local bare remote only. After 1.0.0 a release goes out daily with whatever has merged (minor bump for a feature, patch for fixes only), each on the owner's word.
-- **Records.** `release/records/<version>/rc<n>.md` holds the SHA, each gate's result and the hands-on pass; stage only `rc<n>.md` by explicit pathspec, never the folder.
-- **Release script file mode.** `release.sh` and `lib-release.sh` keep `umask 077`; anything handed to a container whose user differs is opened with `chmod -R a+rX`.
+- **Lanes (AD-29).** README, install script, `docker/`, `docker/tests/` and `web/` are Lane B; `docs/install-ipm.md`, `release/` and the release records are Lane A. Epic 11 may change either; the orchestrator serializes it against overlapping epics. Epic 34's README and test-readme.sh hunks (licence notices, licence check) stay separate from Epic 11's.
+- **Success-metric context.** The release evaluation targets are SM-1 (routine attention decisions right, at least 90%) and SM-2 (incident causes right, at least 80%), run on Claude Haiku 5.5 on each release candidate; the table reports results, it does not redefine the targets.
+- **Shared harness rules.** Route callbacks are removed at test end through one shared mechanism; helper waits carry bounds in shared helpers or configuration and fail naming the step.
+- **Candidate model.** Candidates are `release/<version>-rc<n>`, never changed after the cut; rehearsals use `rehearsal/<v>-rc<n>` on a local bare remote. Daily releases follow 1.0.0 (minor for a feature, patch for fixes only), each on the owner's word. Records live at `release/records/<version>/rc<n>.md`, staged by explicit pathspec. `release.sh` and `lib-release.sh` keep `umask 077`.
 
 ## Cross-Story Dependencies
 
-- 11.23 was split out of 11.22 (declined there on size, 2 to 2.5 h) so 11.22's validated spec stands; it is independent of the part 2 release stories and ships in the next daily release.
-- 11.23's README change waits on the Contest Planner's approval of the verbatim public text before commit.
+- 11.26 edits the Measured section and `measured` rule that 11.25 added (and the README and `test-readme.sh` that 11.23 and 11.24 changed); build on their merged pins and leave the rest untouched.
+- 11.26 ships in the next daily release; the README goes public with the repository.
 - Part 2 stories add steps to 11.5's `release.sh`: 11.14's rehearsal gate calls `rehearse.sh run` once per phase with `OCUTALON_RUN_TAG`; 11.16 carries the fork-PR demo-path guard and the tracked web bundle's dirty-tree issue; 11.18 needs 11.14 to 11.16.
 - Epic 38 runs the real-key and hands-on passes (38.1 to 38.3) through this sequence.

@@ -3584,6 +3584,37 @@ So that I see why the dates were read month first or day first wherever I approv
 **Then** a payload test and a web test pin the row's presence for the either-way case and its absence for a day above 12; any new label comes back as a veto item (FR-25)
 - DW-645: the web incident card's dry-run block does not show U-249's either-way line; needs the ambiguity flag and reading on the approval payload and one card row (ledger; routed by veto U-252 2026-11-03)
 
+### Story 7.9: The dry run shows the fix leaves good messages unchanged
+
+[ADDED 2026-11-06, owner decision by the Contest Planner under the owner's delegation (2026-11-06T01:15Z, `owner_decision subject=new_stories_11.25_7.9` in cycle-log-parallel.md): an SC-5 re-open of Epic 7 for this one story. Target: the Saturday release (latest Sunday 19Z). The notice line's exact text, and any no-fix wording, are public text ruled by the Planner at the spec gate.]
+
+As a user approving a repair,
+I want the dry run to show that the repair would leave the messages that went through unchanged,
+So that I know the fix only touches the broken messages and doesn't rewrite good ones.
+
+**Acceptance Criteria:**
+
+**Given** a validated repair and resend whose dry run has targets
+**When** the dry run runs, before any fix is offered
+**Then** `OcuTalon.Fix.Reformat` is applied, in memory only, to the same field of the last N=20 good (successfully processed) messages from the same source as the failed ones, and the dry run records the count checked and the count that the repair would change (FR-25, AD-16)
+**And** the check reads only: it resends nothing, writes nothing to any message, header, body, setting or queue in either namespace, and calls no model (the CI mock receives no request during it) (FR-25, FR-8, AD-16)
+
+**Given** a dry run whose good-message check changes none of the messages it checked
+**When** the incident notice is sent with its fix and approval request
+**Then** the notice's Dry run paragraph carries one more line giving the count checked and the count changed (exact text: the Planner's ruling at this story's spec gate) (FR-25, UX-DR113)
+
+**Given** a dry run whose good-message check would change any good message
+**When** the dry run finishes
+**Then** no fix is offered and no approval request is raised: the incident gets the no-fix notice, following Story 7.7's no-evidence pattern (U-251; wording: the Planner's ruling at the spec gate) (FR-25, NFR-13, AD-16)
+
+**Given** an approved request whose dry run showed the good-message check
+**When** `FixExecutor` runs it
+**Then** it runs exactly the change the dry run showed (the same kind, parameters and fixed targets), and nothing else (FR-8, AD-11, AD-16)
+
+**Given** the tests
+**When** they run
+**Then** they include a demonstrated mutation (a fix that changes one good message must withhold the offer), the case with no good messages, a case with fewer than 20 good messages, and a check that the approved change equals the dry run's (FR-25, AD-16)
+
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
 A heartbeat runs every minute and runs the due background checks, each visible with its schedule, last run and result; a user asks for a reminder in plain words and it fires within 10 seconds on every channel, survives restarts (marked late if it fires more than 10 seconds after its due time), and can be listed and cancelled in the chat.
@@ -4764,6 +4795,90 @@ So that a local install does not stop at its first step.
 **When** install.sh accepts build 109
 **Then** the README's build-109 text is changed, sent to the Contest Planner verbatim as public text before it is committed, and committed only once approved; `docker/tests/test-readme.sh`'s build-109 pins are updated, never deleted
 - DW-636: install.sh looks only for build 154; make it find a build 109 image too, then drop the README's separate build-109 path (U-241) (ledger; chartered by the Contest Planner 2026-11-05)
+
+### Story 11.24: The README's IPM install works literally on a fresh build 154 and build 109 instance
+
+As a judge,
+I want the README's IPM commands to install OcuTalon on a fresh AI Hub instance exactly as written,
+So that an IPM install check on build 154 or build 109 passes with no extra command.
+
+[ADDED 2026-11-05, Epic 11 fix-forward, high priority (the Contest Planner's charter under the owner's delegation, relayed by the orchestrator): the registry check of 1.0.1 installed the package (Activate SUCCESS, production running, page 200), but the README's path stopped on a fresh AI Hub image: the image has no IPM and neither the README nor `docs/install-ipm.md` gives a command for it; with IPM loaded in %SYS only, the first `zpm "enable -community"` skipped the repository mapping of USER and the USER install failed with "ERROR! No repositories are configured and enabled in this namespace."; a second `enable -community` fixed it. Organizers check IPM installs on build 154 during judging.]
+
+**Acceptance Criteria:**
+
+**Given** a fresh instance from the plain AI Hub build 154 image, and another from the plain build 109 Health image (throwaway containers, never OcuTalon's built image)
+**When** the README's "Install it with IPM" commands are copied in literally, in order
+**Then** they install IPM 0.10.10, enable it for USER and install ocutalon from the public registry with no extra command; each run ends with OCUTALON Activate SUCCESS and the page answering 200; the evidence of both runs is committed under `_bmad-output/implementation-artifacts/evidence/`
+
+**Given** the step that points USER at the community registry
+**When** USER was, or was not, IPM-mapped before it ran
+**Then** the one documented sequence works in both cases (for example a `-map` step before `enable -community`), shown by a run of each case, not assumed
+
+**Given** `docs/install-ipm.md`
+**When** it gives the install
+**Then** it carries the same exact commands as the README, the stale sentence "Until the package is published, these outputs come from ... a local IPM repository." is gone, and its sample outputs come from a real public-registry run
+
+**Given** the README and `docs/install-ipm.md` changes are public text
+**When** they are ready
+**Then** both diffs go to the Contest Planner verbatim before they are committed, and are committed only once approved; `docker/tests/test-readme.sh`'s pins are updated in place, never deleted; Epic 34's README and test-readme.sh hunks (the licence notices and the licence check) stay separate from this story's
+
+### Story 11.25: The README's judges section: a Measured table
+
+As a judge,
+I want the README to show what was measured in the release evaluations, next to what makes OcuTalon interesting,
+So that I can see its results and costs without running the evaluations myself.
+
+[ADDED 2026-11-06, Epic 11 fix-forward (owner decision relayed by the Contest Planner at 2026-11-06T01:15Z; the public text was ruled by the Planner at 01:16:24Z and 01:19:35Z): the exact text is the Planner's file `../collateral/readme-11-25-measured.md` (the contest folder's collateral, beside the repository; outside git), lines 9-27 (its HTML comment is not part of the README; sha256 of those lines bcabdc9cb70c3e915ba78627e3d1f21dab11e425741f327e038ee9dd19a44b68). The numbers come from rc4's release-candidate evaluation (SM-2 9 of 10, SM-1 19 of 22 with target 90%), the 1.0.2 persona sweeps and the online demo's usage log; they are used exactly as given.]
+
+**Acceptance Criteria:**
+
+**Given** README.md
+**When** it is read
+**Then** it has a `## Measured` section placed after the `docs/images/vt-decision.png` image of "## What's interesting" and before "## What you can use it for", and its text is byte-identical to lines 9-27 of the Planner's file: the intro line, the eight-row Measured table (the "Routine attention decisions right" row reads "19 of 22 (target: 20)") and the two differentiator lines
+
+**Given** the README before this story
+**When** it is compared with the README after
+**Then** the only change is the inserted section and the blank lines that separate it from its neighbours; no other README line changes, and no other file changes except `docker/tests/test-readme.sh`
+
+**Given** `docker/tests/test-readme.sh`
+**When** it runs
+**Then** it pins the `## Measured` heading, each of the table's eight row labels, and the section's position between "What's interesting" and "What you can use it for", and fails when any of them is removed, renamed or moved; it pins no numbers or wording beyond those, and the existing pins are kept: the one that lists the README's first sections in order (the `top` rule) is updated in place to include Measured third, and none is deleted or weakened [AMENDED 2026-11-06, Story 11.25 plan, intent-preserving: it read "and the existing pins are untouched"; the `top` rule fails on any fifth section in the first five, so the position pin is that rule widened in place, as 11.24 updated its pins in place]
+
+**Given** the README already states one of the table's numbers
+**When** it states it differently
+**Then** the story stops and asks, quoting both places, and never reconciles them itself (checked at charter: the README states none of these numbers)
+
+**Given** the README's surroundings would force any wording change beyond the Planner's file (a link, a heading level, a line break that changes meaning)
+**When** that change is needed
+**Then** it goes to the Contest Planner verbatim as public text before it is committed
+
+### Story 11.26: The README's Measured rows say exactly what was measured
+
+As a judge,
+I want each row of the README's Measured table to name exactly what was measured,
+So that no row claims more than the evaluation or log behind it.
+
+[ADDED 2026-11-06, Epic 11 fix-forward (DW-775; owner decision relayed by the Contest Planner at 2026-11-06T07:51:58Z, ruling (a), logged `planner_ruling subject=DW-775` in the main checkout's `cycle-log-parallel.md`): the demo incident row's source, the eval demo gate, validates the fix and runs no dry run, approval or fix run, so "end to end" claimed more than it measured; the online demo row's number is the model cost only. Two row labels change, exactly as ruled; the numbers, the other rows and the rest of the README stay. DW-776 ("19 of 22 (target: 20)") is closed by-design and is not this story. The Planner updates its own collateral source file.]
+
+**Acceptance Criteria:**
+
+**Given** README.md's `## Measured` table
+**When** it is read
+**Then** the row `| The demo's incident, end to end with a live model | 30 of 30 runs |` reads exactly `| The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs |`, and the row `| The always-on online demo | about 9 to 10 cents a day |` reads exactly `| Model cost of the always-on online demo | about 9 to 10 cents a day |`
+
+**Given** the README before this story
+**When** it is compared with the README after
+**Then** the only changes are those two lines; no other README line changes, and no other file changes except `docker/tests/test-readme.sh` and this epic's bookkeeping
+
+**Given** `docker/tests/test-readme.sh`
+**When** it runs
+**Then** its `measured` rule pins the two new row labels word for word in place of the old ones (the two lines of its label list are updated in place), every other pin is kept, none is deleted or weakened, and the rule fails when either new label is removed, renamed or moved out of the section
+
+**Given** any other wording change the README's surroundings would force
+**When** it is needed
+**Then** it goes to the Contest Planner verbatim as public text before it is committed
+
+- DW-775: README Measured row 'The demo's incident, end to end with a live model: 30 of 30 runs' claims more than its source (ledger; routed by charter 2026-11-06)
 
 ## Epic 12: Approve from your own phone with Telegram
 
@@ -8214,6 +8329,21 @@ So that my files are kept only as long as OcuTalon needs them.
 - DW-754: `Data.Upload` rows are owner-scoped like other session data (Ownership checks), and the online demo's reset clears them (golden restore); checked once on a throwaway reset with recorded evidence (ledger; routed by burndown 2026-11-05)
 - DW-738: the image's Python dependencies are pinned: one constraints file per architecture (arm64 and x64) pins every distribution of the measured set to its exact version (x64 measured, never assumed), the image build installs with `pip install -c` beside the three top-level pins, a test keeps the licence evidence's package list equal to the constraints, the licence gate still fails outside the allowed families, the IPM install uses the same pins if it installs Python packages, and each constraints file says that a version bump re-measures the licences in the same commit (ledger; decided by the Contest Planner under the owner's delegation 2026-11-05) [AMENDED 2026-11-05, Story 34.3, Contest Planner ruling on DW-738: an acceptance bullet added for a ledger entry routed to this story; no other text changed]
 
+
+### Story 34.4: The keyboard add-documents test is stable (DW-825)
+
+[AMENDED 2026-11-07, chartered as a fix-forward story under an SC-5 re-open of Epic 34 on the Contest Planner's ruling of 2026-11-07 ~03:05Z (under the owner's delegation; `planner_ruling dw=DW-825` in cycle-log-parallel.md): fix before the 1.0.3 cut, test-only unless the root cause is in the product, 90-minute timebox; Lane B's files, like Story 34.2]
+
+As a maintainer who reads the CI result,
+I want the Documents page's keyboard test (D5) to fail only when the page is wrong,
+So that a red browser job means a real defect and not a timing accident.
+
+**Acceptance Criteria:**
+
+- DW-825: D5 in `web/e2e/documents/documents.spec.ts` ("Add documents works by keyboard, and a .png is refused with its reason") no longer times out waiting for the `filechooser` event: the cause is found and recorded with evidence, and the fix is test-only unless the cause is in the Add documents control (then the Planner rules first) (ledger; routed by the Planner's ruling 2026-11-07)
+- D5 still proves everything it proves today: Tab reaches Add documents, Enter on it opens the file chooser, and a .png comes back refused by the real route with its reason, shown on its row and announced once; no pin is deleted or weakened, and a longer timeout alone is not the fix
+- Proof: D5 passes 20 of 20 with `--repeat-each=20` under the browser job's load (or an equivalent load that is documented), the old D5 fails at least once under the same repeat and load, and full CI is green on every workflow
+
 ## Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 22.1 and 21.1, moved whole and verbatim as Stories 35.1 and 35.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 4's names fixed in the spine and in code as stubs, the MCP servers an admin registers are attached to OcuTalon's agents with every new tool unclassified, and webhooks with their own secrets turn JSON events into items, so that Epics 21 and 22 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 21 and 22) and its partner in this epic.
@@ -8594,6 +8724,8 @@ So that OcuTalon checks what I care about, when I want, and nobody else's settin
 **When** `SessionOps.End` runs
 **Then** it deletes the session's `person.<SessionRef>.heartbeat.*` keys (AD-4, AD-19)
 
+- DW-684: security overview: the beat sentence says at most once per interval; once POST /api/v1/heartbeat/run ships, it must also name a beat the person runs now (2-minute rule, daily cap) (ledger; routed by spec_gate 2026-11-04)
+
 ### Story 39.3: Beats fall due on the tick, and skip without a model call when they should
 
 *Home lane: A.*
@@ -8634,10 +8766,9 @@ So that it costs a few cents a day, never calls the model every minute, and surv
 **Then** it runs one beat at once, as the person's explicit request: active hours and an unchanged snapshot don't hold it back, and the empty-checklist, back-off, cap and key rules still skip it (FR-66, AD-18)
 **And** a run-now within 2 minutes of the session's `LastRunNowAt` is refused with outcome `cooldown` and its `availableAt`, and nothing is sent (FR-66)
 
-**Given** any beat, skip or recorded result
-**When** its row is committed
-**Then** `Checks` publishes the `heartbeat` event to the session's stream with the row's public view: on, the interval, the hours, next due, the last result and the last skip, but never the `SessionRef`, the checklist's text or a snapshot key (AD-12, AD-33)
-**And** automated tests in `OcuTalon.Test.Checks` cover each skip reason, an outside-hours window that spans midnight, the restart catch-up, the cooldown and the back-off, with fixed clocks
+**Given** the skip, beat and run-now rules above
+**When** `OcuTalon.Test.Checks` runs
+**Then** automated tests cover each skip reason, an outside-hours window that spans midnight, the restart catch-up, the cooldown and the back-off, with fixed clocks [AMENDED 2026-11-03, Story 39.3 spec gate, unattended ruling (split, decide): the `heartbeat` event AC moved to Story 39.7; this tests line was its **And**]
 
 **Given** the CI mock's request log
 **When** `OcuTalon.Test.Checks` drives an hour of ticks with fixed clocks for a person on a 30-minute interval
@@ -8657,7 +8788,7 @@ So that it tells me only what my list asks about, and never claims that all is w
 **When** `Beat.Snapshot(sessionRef, now)` builds the beat's text
 **Then** it writes the checklist first, then "Status at {local time} (built by OcuTalon):" and one line per entry (FR-64, AD-18):
 - each unclosed incident in scope: its production, state, failure count and first time;
-- each watch: its production and its last check result with its time, from the row;
+- each watch: its production and its last check result, from the row [AMENDED 2026-11-04, Story 39.4 spec gate, unattended ruling (veto U-274): it read "its last check result with its time, from the row". The run time moves every minute, so on an entry line it would change `Beat.Key` at every beat and the unchanged skip could never fire. FR-64 and AD-18 ask only for the latest check result. See the story change log]
 - each pending approval request: its kind, the fix kind or tool, the production, and its raised and expiry times;
 - each reminder due before the next beat: its text and due time;
 - the decisions since the last beat that made a decision, at most 10, beats excluded: each one's time, channel, outcome and code-written `Summary`.
@@ -8716,7 +8847,11 @@ So that the heartbeat is easy to trust and to try.
 
 **Given** Playwright specs `web/e2e/heartbeat-card.spec.ts`, on fixtures and the CI mock
 **When** they run
-**Then** they cover the states above, the refusal, the cooldown and the demo variant, and they don't change the demo-path specs (REL-2)
+**Then** they cover the states above, the refusal, the cooldown and the demo variant, and they don't change the demo-path specs (REL-2), except the rail's section count in `web/e2e/demo-path/01-page.spec.ts` (six to seven headings, Heartbeat checklist before Persona, so Persona stays last) [AMENDED 2026-11-06, Story 39.5 plan, unattended ruling (veto): every rail card has its h3 (EXPERIENCE), so the count follows, as Story 40.4 did for Persona]
+
+- DW-634: the UX lists no text for the run button while it is unavailable (cap reached or no key); reuse an accepted text or escalate (ledger; routed by harvest 2026-11-03)
+- DW-781: on the online demo GET shows the unsaved sample checklist, but POST /v1/heartbeat/run answers 409 empty for it; the card saves the sample before offering Run now, or keeps Run unavailable until a save (ledger; routed by harvest 2026-11-06)
+- DW-812: Lane B SettingsOps.HeartbeatValues repeats the five-key cache drop that Checks.Beat.Values(ref, 1) now does; call it instead (ledger; routed by harvest 2026-11-06)
 
 ### Story 39.6: Evaluation cases for the heartbeat
 
@@ -8745,6 +8880,55 @@ So that "stay quiet unless something needs you" is measured, not hoped.
 - DW-653: Eval.Record accepts an empty fixKind only for a data_format_change case expecting no repair (refusals pinned), plus one ambiguous-date eval case whose arrival days match neither reading, expecting no repair proposed (ledger; routed by merge_gate 2026-11-04, Planner ruling)
 
 **Release check:** at the first daily release that ships this epic, the Contest Planner's hands-on pass with real keys runs one beat of each outcome on the web app, sees a quiet beat followed by a skipped one while nothing changes, and does a run-now on the demo host (REL-7, as amended 2026-10-31).
+
+### Story 39.7: Publish the heartbeat event
+
+*Home lane: B.* [AMENDED 2026-11-04, orchestrator ruling (decide; re-homed so the story may edit `Live/Publish.cls` TYPES, `Test.Live.Payloads` and `web/src/app/live/payloads.ts`, and create `Live/Payload/Heartbeat.cls`; it read "Home lane: A."; see Story 39.3's change log)]
+
+[ADDED 2026-11-03, split from Story 39.3 at its spec gate, unattended ruling (decide; Rule 5 split into a sibling in the same epic): the event needs `OcuTalon.Live.Payload.Heartbeat` together with Lane B edits that Story 39.3 cannot make]
+
+As a user,
+I want the heartbeat card to learn of each beat, skip and result as it happens,
+So that what it shows is current without a reload.
+
+**Acceptance Criteria:**
+
+**Given** any beat, skip or recorded result
+**When** its row is committed
+**Then** `Checks` publishes the `heartbeat` event to the session's stream with the row's public view: on, the interval, the hours, next due, the last result and the last skip, but never the `SessionRef`, the checklist's text or a snapshot key (AD-12, AD-33)
+**And** a tick's skip because the checklist is empty publishes nothing, so a person who never wrote a checklist gets no heartbeat events (the row is still saved; a run-now still publishes) [AMENDED 2026-11-05, Story 39.7 rework after CI, unattended ruling (veto), kept by the Contest Planner under the owner's delegation (U-283 at=2026-11-05T07:37:07Z#857), on the owner's heartbeat rule that the model is called only at the interval and when a decision is needed. Why: on a local install every session has the heartbeat on by default, so each one's first tick and every interval after published an event that no card shows. Tests pin that the empty-checklist tick saves its row, publishes nothing and makes no model request, and that a run-now on an empty checklist still publishes. It read only the Given/When/Then above]
+
+- DW-633: OcuTalon.Live.Payload.Heartbeat not yet created; the class, the Live.Publish TYPES pair, the Test.Live.Payloads counts and web/src/app/live/payloads.ts land together before this story publishes the heartbeat event (ledger; routed by harvest 2026-11-03; moved with the split)
+
+### Story 39.8: Run now and a saved heartbeat read what is stored
+
+*Home lane: A.*
+
+[ADDED 2026-11-06, split from Story 39.5 at its code review, unattended ruling (decide; Rule 5 split into a sibling planned next in the same epic): Story 39.5's online-demo save-then-run (DW-781) needs Checks to read the values just saved, which only a Lane A story may change; DW-780 has the same root.]
+
+As a user,
+I want Run the heartbeat now and a saved interval to use what I just saved,
+So that a save followed by a run works, and "Applies within a minute" is true for the interval.
+
+**Acceptance Criteria:**
+
+**Given** a session whose heartbeat settings the Checks job has read within the last 60 seconds (its per-process settings cache)
+**When** the person saves a checklist and then asks for a beat now (`RunHeartbeat`, a `BeatNow`)
+**Then** `Checks.Beat.RunNow` reads the stored values: it drops the Checks process's cached heartbeat keys of that session before it reads them, so the run is not refused as empty (AD-18, AD-19)
+**And** a tick still reads through the cache, so nothing else changes how often settings are read
+
+**Given** a beat that set `NextDueAt` with the old interval
+**When** the person saves a shorter interval
+**Then** from the first tick that reads the new interval (within 60 seconds of the save), the next beat is due at its `LastBeatAt` plus the new interval, or at once if that time has passed, so the change applies within a minute (FR-63, AD-19)
+**And** a longer interval keeps the stored `NextDueAt` until the next beat, which then uses the new interval
+
+**Given** `Test.Checks` cases on the real tick and the CI mock
+**When** they run
+**Then** they pin the save-then-run on a session the tick has already read, and the shorter-interval reschedule, each with a demonstrated mutation (Rule 19)
+
+- DW-780: a saved interval, hours or on/off change does not move the stored NextDueAt (ledger; routed by split 2026-11-06)
+- DW-803: Checks.Beat.RunNow reads the settings through the per-process 60-second cache, so a save followed at once by Run now is refused as empty (ledger; routed by cr 2026-11-06)
+
 
 ## Epic 40: Choose how OcuTalon talks to you
 

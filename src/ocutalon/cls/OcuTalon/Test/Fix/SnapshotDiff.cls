@@ -4,6 +4,8 @@
 ///     missing after each give a line;
 ///   - TestNewHeaders: a new header gives a line, unless its session is one of the allowed sessions of its namespace or the session of a new HeartbeatIn header; a session
 ///     allowed in another namespace does not allow it; a changed or missing header gives a line;
+///   - TestGoodBodyEditIsAChange (Story 7.9): a changed body value of a header that went through (Completed, in a session that is not allowed) is one line, so the read-only
+///     proof of the good-message check sees an edit of a message the production accepted; the same body twice is no line;
 ///   - TestRunningTimersAreNotChanges: in OCUTALON, the request of a timer (a header to Ens.Alarm) that was Created, Queued or Delivered in "before", its completing,
 ///     and one wake-up header that Ens.Alarm sent in its session give no line. A timer armed after "before" (its request and its wake-up, in a new session or in the
 ///     session of the earlier timer), a second wake-up in the session (two running timers in one session allow two wake-ups, not three), a wake-up in a session with
@@ -84,6 +86,17 @@ Method TestNewHeaders()
 	Set changed = ..Taken({"1": (..Row(2, "A"))})
 	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, changed).%Size(), 1, "a changed header gives a line")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, ..Taken()).%Size(), 1, "and a missing header gives a line")
+}
+
+Method TestGoodBodyEditIsAChange()
+{
+	Set columns = ..Row(3, "PartnerOrdersIn", "OrdersFromPartner", "Completed")
+	Set was = ..Taken({"5": (columns_"OrderDate=2026-11-05"_$Char(31))})
+	Set edited = ..Taken({"5": (columns_"OrderDate=x"_$Char(31))})
+	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(was, edited, "9", "ZZNS")
+	Do $$$AssertEquals(lines.%Size(), 1, "a changed body value of a header that went through is one line, also when only another session is allowed: "_lines.%ToJSON())
+	If lines.%Size() = 1 Do $$$AssertTrue(lines.%Get(0) [ "headers 5 changed", "and the line names the header: "_lines.%Get(0))
+	Do $$$AssertEquals(##class(OcuTalon.Test.Fix.Snapshot).Diff(was, ..Taken({"5": (columns_"OrderDate=2026-11-05"_$Char(31))}), "9", "ZZNS").%Size(), 0, "the same body twice gives no line")
 }
 
 /// The lines Diff gives for headers in the namespace, from "before" to "after" (header id: row).

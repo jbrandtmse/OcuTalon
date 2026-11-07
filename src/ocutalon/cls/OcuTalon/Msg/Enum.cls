@@ -33,7 +33,7 @@ Parameter NOTIFICATIONKIND = "tellnow,incident,approval,answered,result,reminder
 Parameter CHECKRESULT = "passed,failed,not_checked";
 
 /// Channels (AD-14).
-Parameter CHANNEL = "web,phone,mailbox,telegram,email,webhook,slack,system";
+Parameter CHANNEL = "web,phone,mailbox,telegram,email,webhook,slack,system,heartbeat";
 
 /// Origins of a command (AD-1).
 Parameter ORIGIN = "web_user,web_admin,telegram,tool,timer,system";

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-07-2026 07:38
+last_updated: 11-07-2026 07:51
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -143,6 +143,7 @@ development_status:
   7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: done
   7-7-a-date-repair-that-could-read-either-way-names-its-evidence: done
   7-8-the-web-incident-card-shows-the-either-way-date-line-too: done
+  7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged: done
   epic-7-retrospective: optional
 
   epic-8: done
@@ -200,6 +201,9 @@ development_status:
   11-21-a-test-s-route-callback-never-outlives-its-test: done
   11-22-first-daily-release-burn-down: done
   11-23-install-sh-accepts-build-109: done
+  11-24-the-readme-s-ipm-install-works-literally-on-a-fresh-build-15: done
+  11-25-the-readme-s-judges-section-a-measured-table: done
+  11-26-the-readme-s-measured-rows-say-exactly-what-was-measured: done
   epic-11-retrospective: optional
 
   epic-12: done
@@ -380,6 +384,7 @@ development_status:
   34-1-settle-step-3-ownership-and-fix-its-contracts: done
   34-2-add-and-remove-documents-on-a-documents-page: done
   34-3-epic-34-burn-down: done
+  34-4-the-keyboard-add-documents-test-is-stable-dw-825: done
   epic-34-retrospective: optional
 
   epic-35: backlog
@@ -403,13 +408,15 @@ development_status:
   38-3-the-owner-s-telegram-pass-on-the-1-0-0-candidate: backlog
   epic-38-retrospective: optional
 
-  epic-39: backlog
-  39-1-fix-the-heartbeat-s-names-and-contracts: backlog
-  39-2-save-your-heartbeat-settings-and-ask-for-a-beat: backlog
-  39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe: backlog
-  39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built: backlog
-  39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now: backlog
-  39-6-evaluation-cases-for-the-heartbeat: backlog
+  epic-39: done
+  39-1-fix-the-heartbeat-s-names-and-contracts: done
+  39-2-save-your-heartbeat-settings-and-ask-for-a-beat: done
+  39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe: done
+  39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built: done
+  39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now: done
+  39-6-evaluation-cases-for-the-heartbeat: done
+  39-7-publish-the-heartbeat-event: done
+  39-8-run-now-and-a-saved-heartbeat-read-what-is-stored: done
   epic-39-retrospective: optional
 
   epic-40: done
