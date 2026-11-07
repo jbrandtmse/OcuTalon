@@ -2,7 +2,7 @@
 title: 'Answer from documents with citations'
 type: 'feature'
 created: '2026-11-06'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -68,153 +68,118 @@ deferred: []
 
 ## Code Map
 
-- `src/ocutalon/cls/OcuTalon/Docs/Ops.cls` -- the stub (`STUB = 1`, `OnMessage` answers 5003). It becomes the real operation. Delete `STUB` and `OnMessage`, and add an `XData MessageMap`: `AddDocument`->`OnAdd`, `RemoveDocument`->`OnRemove`, `OcuTalon.Docs.Msg.Index`->`OnIndex`.
-- `src/ocutalon/cls/OcuTalon/Memory/Ops.cls` -- the sibling to follow, as 19.3 built it: the MessageMap, `no_session` through `Data.Session.RefIndexOpen`, the `Answer(.response, ok, outcome, message, ref)` builder, `MESSAGE*` parameters and the `Failed` warning. `Watch/Ops.cls:58-68,247-273` is its own model.
-- `src/ocutalon/cls/OcuTalon/Data/Upload.cls:55-67` (Lane B, read-only) -- `Take(ref, sessionRef)` returns a `%Stream.TmpBinary` or "", through `Ownership.Upload`. 34.3 delivered the session check and the purge, so only DW-747's timeout case is this story's.
-- `src/ocutalon/cls/OcuTalon/Data/Document.cls` -- append `Sections As %String(MAXLEN = "")`, a JSON array with the section of each `chunk_index`. The Storage block may only grow (`docker/tests/test-storage.sh`).
-- `src/ocutalon/cls/OcuTalon/Live/Payload/Document.cls:28-38` -- `FromRow` leaves `Removed` 0. The publisher sets `Removed = 1` on the last event. `Live/Publish.cls:82` `Publish(stream, type, payload, .seq)`: the stream is `"instance"`, the type is `document` (already in `TYPES`), and it refuses inside an open transaction. The example caller is `Checks/Process.cls:532-538`.
-- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls:693-696` (Lane B, read-only) -- `LocalFlag` is `Data.Setting.Get("onlineDemo") '= 1`, and it is Private. Read the same setting directly.
-- `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls:39,77-95,193-194` (Lane B, read-only) -- the document verbs are `web_user` only and routed to `DocumentOps`, with `TIMEOUT` 120. A stub answers `not_built`.
-- `src/ocutalon/cls/OcuTalon/Web/Documents.cls:93-119,153-177,196-199` (Lane B, read-only) -- Ok gives 200 `{"result":"done","ref"}`. Ok 0 `not_built` gives 501, and any other Ok 0 gives 500. The upload row is dropped on any non-Ok answer. `OwnerRunning` is the 501 guard that turns itself off once the item is enabled.
-- `src/ocutalon/cls/OcuTalon/Test/Memory/Fixture.cls:87-105,150-170` -- `CreateTable`/`DropTable`, the DDL to copy (both statements with `DEFAULTGLOBAL`), and `HubFill`, which builds a vector store and a knowledge base.
-- `irislib/%AI/RAG/KnowledgeBase.cls:41-92,158-169` -- `Name` (the tool's name, measured), `Description`, `TopK`, `Build(embedding, store)`, `AddToAgent`/`AddToManager`. `%OnClose` releases the native handle, so the holder must stay referenced. `irislib/%AI/RAG/VectorStore/IRIS.cls:58-117` -- `Build()` runs `CREATE TABLE IF NOT EXISTS`, and does nothing once our table exists. `irislib/%AI/RAG/Embedding.cls:18-62` -- `EmbedBatch(texts) As %DynamicArray` (abstract). `Dimensions` and `ModelName` are ReadOnly (set through `i%`), and `Register()` must be called explicitly (`Build` does not call it).
-- `irislib/%AI/Agent.cls:197-234` -- `%Init` ends with `Return ..%OnInit()`, after the toolsets load and before the adapter's `OnAfterAgentInit` installs the gate and audit (`src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:155-183`). That is where the Chat agent attaches the knowledge base.
-- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls:18,26-72` -- `TOOLSETS` stays as it is. Its entries must be `OcuTalon.Tools.*` (`Test/Bridge/CodeRules.cls:720-727`), so the knowledge base cannot be added there. `INSTRUCTIONS`: the new bullets go before "Everything that comes from a tool...", after 19.3's memory bullets. `Test/Agent/PersonaBlock.cls:217-225` pins the end.
-- `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls:141-152,186-199,213-215,292-299` -- rule 3 and the taint. `Source()` is `mcp:`, else `metadata.origin_class`, else "", and "" means unclassified at 199. Next come the `ToolClassification` setting and then the extension, which forces `readOnly` 0. There is no `top_k` code yet, and lines 41/56 say the gate "never modifies the call". The replay `TakeGrant` check is at 143-147.
-- `src/bridge/cls/OcuTalon/Bridge/Policy/StepAudit.cls:18-31` -- `%LogExecution(call, metadata, result, ...)` receives `result.result_json` for every tool and hands it to `StepBuffer.Tool`. That is where the citations collector hooks in.
-- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:459-460` (`Converse`) -- `reply.HostData = context.HostData`, `reply.Tainted = context.Tainted`. `Adapter/StepRenderer.cls:36` resets `Context.ToolResultChars` at each model response.
-- `src/ocutalon/cls/OcuTalon/Tools/Result.cls:22,35-71` -- `STEPTOKENS` 10000 x 4 characters, against `Context.ToolResultChars`. A knowledge-base result is neither cut nor counted today.
-- `src/ocutalon/cls/OcuTalon/Tools/HostData.cls:14-34` -- 19.3's `Put/Get/Remove` merge rule (Rule 2 sibling). The bridge cannot name it (bridge-refs), so its body moves into a new bridge class, and `Tools.HostData` delegates to it.
-- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:367,614-621`, `src/bridge/cls/OcuTalon/Bridge/Ext/ReplyFilter.cls`, `src/ocutalon/cls/OcuTalon/Checks/ReplyGuard.cls` -- the reply filter runs once in `Decide` on text only. `ReplyGuard` is AD-28's precedent for removing a sentence that only code may make true. `Checks/Render.cls` with `Core/Conversation.cls:461-483` is the precedent for a code-rendered sentence.
-- `src/ocutalon/cls/OcuTalon/Production.cls:20-23,63` -- `Decide` holds its host settings, and `DocumentOps` is `Enabled="false"`. Lane A's region is 15-64.
-- `src/ocutalon/cls/OcuTalon/Test/Core/CommandsStep3.cls:122-143`, `CommandsStep3Probe.cls:16-24` -- `TestRealStubOwners`. Story 19.3's flip of `MemoryOps` (commit `a41d8141`) is the pattern: a `$Select` per verb, the STUB assert set to "", and a probe branch that calls the handlers.
-- `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls:13,676` -- the `DocumentOps` oracle row, `enabled 0, stub 1` today.
-- `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls`, `Test/Memory/Turns.cls`, `ci/mock/scenarios/A/memory-*.json` -- the turn-test template (`Send`, `NewRequest`, `ReadyReason`, `Run`, the `[[mock:<name>]]` marker, `StepProblems`, the job-id check).
-- `src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls:27-28,515,526-528` -- every offered tool must be an OcuTalon tool, ChatAgent offers exactly its list, and no logged request holds `"top_k"`. The knowledge-base tool's schema has a `top_k` property, so these change.
-- `src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls:275` -- the sorted names that the second ChatAgent request offers.
-- `src/ocutalon/cls/OcuTalon/Install/Step/PrivateData.cls:31-66` -- it covers every `OcuTalonKB.` class's storage and index locations. `Test/Install/PrivateData.cls` is read-only here.
-- `docker/tests/test-demo-switch.sh:56-68` -- `sign_in`, `api_get`, `api_post` (curl with the cookie jar). `docker/tests/test-memory-offline.sh` -- the `CHK|` class step and the restart wait. `ci/units.sh:80-92` -- `group_units`.
-- `src/ocutalon/cls/OcuTalon/Eval/{In,Report}.cls`, `Eval/Msg/TurnResult.cls`, `docker/tests/test-eval-set.sh` (Epic 39 contended) -- no case kind today can assert that a tool ran or that a citation exists, and nothing can seed a document. `watch` (`Eval/In.cls:38-43`) is the setup pattern.
-- `web/e2e/documents/documents.spec.ts:11-14,194-205,240-275` (Lane B) -- D8 posts a real 10 MB PDF and would leave an `instance` row behind. D10 expects the real `DELETE` to fail, and goes red once the item is built.
+Line numbers are those of the epic-19 head `b6ec0982` (feature `5b47f052`, Epic 17 and Epic 19 part 1 merged).
+
+Product, Lane A (ours):
+- `src/ocutalon/cls/OcuTalon/Docs/Ops.cls:1-19` -- the stub: doc 1-7, `Parameter STUB = 1` (12), `OnMessage` (14-17) answers `$$$NotImplemented`; no settings, no MessageMap. It becomes the real `DocumentOps`.
+- `src/ocutalon/cls/OcuTalon/Memory/Ops.cls:21-48,51-120,136-167` -- the sibling to follow (Story 19.3): `MESSAGE*` and `LOGFAILED` (21-36), `XData MessageMap` (38-48), the handler signature `Method OnX(request, Output response As OcuTalon.Msg.CommandResult) As %Status`, `no_session` through `Data.Session.RefIndexOpen` (54, 97), `Failed` (136-140, one redacted Type 3 warning), `Answer(.response, ok, outcome, message, ref)` (159-167). Its own model is `Watch/Ops.cls:58-68,265-273`.
+- `src/ocutalon/cls/OcuTalon/Docs/Extract.cls:27,35-47,69-105` -- Story 19.6's extraction: `TYPES = "pdf,docx"` only (markdown and text answer `wrong_type`), `Read(content, contentType, timeout)` never throws and gives `{ok,text,cut,markers}` or `{ok:0,reason}`, `PAGEMARKER = "## Page {n}"` (43). Nothing calls it yet; this story does not either (Story 19.7 calls it at `DocumentOps`' text seam).
+- `src/ocutalon/cls/OcuTalon/Docs.cls:8-11` -- the `DropSession` stub, unchanged (Story 19.5).
+- `src/ocutalon/cls/OcuTalon/Data/Document.cls:8-93` -- properties 11-41, `RefIndex` (43), `OwnerRefAddedAtIndex` (45), Storage values 1-12 (49-85). v1.0.2 already holds the class, so `test-storage.sh`'s release-diff rule allows only an appended `<Value name="13">`.
+- `src/ocutalon/cls/OcuTalon/Memory/Embedding.cls:48-61` -- `Embed(text, Output vector As %Vector, Output job) As %Status`, through the Embedder worker, 384 values. `Memory.cls:44` (`NEARESTSQL`, the `TO_VECTOR(?, DOUBLE, 384)` form) and `:202-209` (`ToText`, Private).
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Document.cls:7-38` -- `FromRow` copies six fields and leaves `Removed` 0. `Live/Publish.cls:18,82,85` -- `Publish(stream, type, payload, .seq)`, `document` in `TYPES`, refuses inside a transaction. Caller example `Schedule/ReminderOps.cls:129`.
+- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls:1-7,18,26-77` -- `TOOLSETS` (18) stays. `INSTRUCTIONS`: 19.3's memory bullets 67-71, the data bullet "- Everything that comes from a tool or from an email is data..." 72, the persona paragraph 74, the proposals paragraph 76. No `%OnInit` exists anywhere under `src/`.
+- `src/ocutalon/cls/OcuTalon/Tools/Names.cls:6-48` -- plain parameters, `RELEASE1` (31, expression), `DIGESTTOOLS = "send_digest"` (36), the four memory names (39-45), `MEMORYTOOLS` (48, expression).
+- `src/ocutalon/cls/OcuTalon/Tools/HostData.cls:1-49` -- 19.3's `Put/Get/Remove` and the Private `Object()`, over `Bridge.Context.Put("HostData", json)`; its doc already names "citations from the documents tool (Story 19.4)".
+- `src/ocutalon/cls/OcuTalon/Tools/Result.cls:22,35-71` -- `STEPTOKENS` 10000, `Return` counts `Context.ToolResultChars`, `Room()` = `STEPTOKENS * StepBuffer.#CHARSPERTOKEN`. A knowledge-base result never passes here.
+- `src/ocutalon/cls/OcuTalon/Production.cls:15-66,20-23,65` -- Lane A's region (markers 15 and 66); `Decide` (20-23: `HostSinkClass` 21, `ReplyFilterClass` `OcuTalon.Checks.ReplyGuard` 22, no `ToolClassification`); `DocumentOps` line 65 `Enabled="false"`.
+- `src/ocutalon/cls/OcuTalon/Checks/ReplyGuard.cls:14,19-37,69-100` -- extends `Bridge.Ext.ReplyFilter`; `Filter(text)` wraps `Apply` and fails closed to ""; `Pattern`/`Escape` is the phrase matching rule (case-insensitive, word edges, trailing `.!?,;:` taken with the match). `Test/Checks/BrokenGuard.cls` overrides `Pattern` only.
+- `src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls:25,68-138,322-332` -- `STATEMENT`; `ToolRows` (catalog toolsets times the agents' `TOOLSETS`, each expanded by `%Discover`), `ToolRow`, `Classification` (code only), `ToolsText`. A tool outside a toolset gets no row today. `docs/security-overview.md:5-31` is the generated tools region; `docker/tests/test-security-overview.sh` (`--write`; group `production`).
+- `src/ocutalon/cls/OcuTalon/Install/Step/PrivateData.cls:31-66` -- covers every storage and index global of an `OcuTalonKB.` class (a DDL table projects one); `Test/Install/PrivateData.cls:88-130` (`TestStep3Globals`, `TestKnowledgeBaseTables`) is read-only here.
+- `src/ocutalon/cls/OcuTalon/Eval/In.cls:43-49,79-104,127,150-173,330-355,446-464`, `Eval/Report.cls:78,104,963`, `Eval/Msg/TurnResult.cls:15-43` -- `KINDS`, `CASEKINDS`, the `watch` setup pattern (`WatchUp`/`Unwatch`), `TOOLCLASSES` (unchanged), the result's properties. Epic 39's code is on the feature (its branch's remaining diff is `Test/Schedule/Heartbeat.cls` only), so these are no longer contended.
+
+Bridge (Epic 17 merged; ruled under Q1 and Q3):
+- `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls` -- doc 3-59 (41 "The call is never modified;", 56 "The gate never modifies the call."); `ENTRYKEYS` (98); `Check` (114-128); `Decision` (131-154: the untrusted rule 141-142, `TakeGrant` 143-144, `Hold` 145-146, `ReportStep` 148, the taint after allow 149-152); `Source(toolref, metadata)` (186-191: `mcp:`, else `metadata.origin_class`, else ""); `ClassificationOf` (197-216: "" is unclassified at 199, the setting at 213-214 through `EntryFor` 304-340, keyed by class and tool); `FromExtension` (292-299) forces both flags to 0; `ArgumentsOf` (368-380) returns the arguments object by reference, or the JSON string; doc 382-383: AI Hub runs the call with whatever its arguments object holds after `%CanExecute`. No rewrite code exists, and the gate reads no `ToolResultChars`.
+- `src/bridge/cls/OcuTalon/Bridge/Policy/StepAudit.cls:18-31,78-94` -- `%LogExecution(call, metadata, result, duration, status)` hands `Field(result, "result_json")` to `StepBuffer.Tool`.
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:197-229,553-593` -- `BuildAgent` then AI Hub's init, which fires `OnAfterAgentInit` (installs the gate at 226 and the audit at 228, after `##super`); `Converse` sets `reply.HostData` (586) and `reply.Tainted` (587). `SessionConfigFor` (288-291) is Story 19.5's seam and stays untouched. `Adapter/StepRenderer.cls:36` resets `ToolResultChars` at each model response.
+- `src/bridge/cls/OcuTalon/Bridge/Context.cls:15,49-56,97-115` -- `Tainted`, `HostData` (a JSON string), `ToolResultChars`; `Current()` (a copy), `Put(name, value)`.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:139,212-213,255,1329-1403` -- `SETTINGS`, `ReplyFilterClass`, `ToolClassification` (only the gate parses it). `Conclude`: the turn's filter call at 1355 is `$ClassMethod(filterClass, "Filter", reply.Text)` with `reply` (a `Bridge.Msg.Reply`, `HostData` at `Msg/Reply.cls:53`) in scope; an emptied text is `invalid` (1356), which retries (1367-1370) or records a fallback; the turn response is `reply.%ConstructClone()` with only `Text` replaced (1389-1399), so `HostData` passes unchanged. The decide and diagnose filter calls (1522, 1544, 1547) stay one-argument.
+- `src/bridge/cls/OcuTalon/Bridge/Ext/ReplyFilter.cls:1-14` -- `ClassMethod Filter(text As %String) As %String { Quit text }`. Overrides: `Checks/ReplyGuard.cls`, `Test/Bridge/ProbeFilter.cls:8-14`. One-argument callers that stay valid with an optional second argument: `Eval/Report.cls:512,635`, `Eval/Sweep.cls:322`, `Test/Checks/Guard.cls`, `Test/Bridge/Ext.cls:201-203`, `Test/Digest/Send.cls:471`, `Test/Eval/Report.cls:545,1547-1548`. Contract pin `Test/Contract/Ac.cls:361`; developer docs `docs/bridge-guide.md:170,312`.
+- `docker/tests/lib-scan.sh:83-96` (`bridge_refs`, run by `test-class-rules.sh:341-349`) -- any `OcuTalon[._]<Name>` other than `Bridge`/`BridgeExample` in bridge source fails, string literals included: the bridge cannot name `Tools.Names`, `Tools.Result` or `Docs.*`.
+
+Lane B (read-only, except the granted lines):
+- `src/ocutalon/cls/OcuTalon/Data/Upload.cls:55-67` -- `Take(ref, sessionRef) As %Stream.Object`: a rewound `%Stream.TmpBinary`, the row deleted; "" for a missing, taken or failed row and for another session's (that row stays).
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls:341-366,756-759` -- `Documents`/`Document` read `OwnerRef = ? OR (local AND OwnerRef = 'instance')`; `LocalFlag` (Private) is `+(Data.Setting.Get("onlineDemo") '= 1)`: read the setting directly.
+- `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls:41,93-96,164-167,205-206` -- `AddDocument`/`RemoveDocument` are `web_user` only and go to `DocumentOps`; `TIMEOUT` 120; a 5003 answer is `not_built`, any other error `failed`. `Msg/Command/AddDocument.cls:7-14` (`Name`, `ContentType`, `UploadRef`), `RemoveDocument.cls:7` (`DocumentRef`).
+- `src/ocutalon/cls/OcuTalon/Web/Documents.cls:33,39,72-177,196-199` -- `EXTENSIONS`; `List` (`Ownership.Documents` + `FromRow`); `Add`: Ok gives 200 `{"result":"done","ref"}`, Ok 0 `not_built` 501, any other Ok 0 500; `Remove`: 404 before any submit when `Ownership.Document` finds nothing, then Ok 200, `not_found` 404; `Dispatch` drops the upload on any non-Ok end (175); `OwnerRunning` (196-199) reads `^Ens.Runtime(...,"IsEnabled")`. The body is `{name, content}` with the bytes in base64 (spine AD-21 "Adding and removing").
+- `src/ocutalon/cls/OcuTalon/Test/Core/CommandsStep3.cls:12-14,122-143,179-183`, `CommandsStep3Probe.cls:3,16-24` -- lines 134, 135 and 141 still expect `DocumentOps` to be a stub; the probe's Else branch calls `OnMessage`.
+- `web/e2e/documents/documents.spec.ts:9-16,201-213,247-281` -- the header's D8 sentence; D8 posts a real 10 MB PDF (status in `[200, 500, 501]`, no `bad_document`, no `body_too_large`); D10 clicks Remove against the real `DELETE` and expects "Couldn't remove it. Nothing was changed." (273), then routes the `DELETE` to success (276-278). `page.route` precedents: D9 (223), D11 (288), D12 (312). The file runs in `live:sign-in` (chromium project).
+
+AI Hub (reference, `irislib/`):
+- `%AI/RAG/KnowledgeBase.cls:41-62,69-92,158-172,175-186` -- `Name` is the tool's name, `Description`, `TopK` (default 5), `Build(embedding, store)` (needs both `%token`s), `AddToManager`/`AddToAgent`; `%OnClose` frees the native handle, so the holder must stay referenced.
+- `%AI/RAG/VectorStore/IRIS.cls:30-44,58-129` -- `Schema`, `TableName`, `Dimensions`, `ModelName`; `Build()` runs `CREATE TABLE IF NOT EXISTS` with no `DEFAULTGLOBAL`, so the table is made first.
+- `%AI/RAG/Embedding.cls:25-61` -- `Dimensions`/`ModelName` ReadOnly, `EmbedBatch(texts) As %DynamicArray` abstract, `Register()` must be called before `Build` for a custom subclass. `%AI/Agent.cls:197-238` -- `%Init` ends with `Return ..%OnInit()`, after the toolsets load.
+
+Tests, mock, CI and live scripts:
+- `src/ocutalon/cls/OcuTalon/Test/Memory/Fixture.cls:91-109,150-175,193-207` -- `CreateTable`/`DropTable` (the exact DDL: `id VARCHAR(64) NOT NULL, text VARCHAR(32000) NOT NULL, vector VECTOR(DOUBLE, 384) NOT NULL, metadata VARCHAR(32000), source VARCHAR(512), PRIMARY KEY (id)` and `_Config (model_name VARCHAR(255) NOT NULL, dimensions INTEGER NOT NULL)`, each `WITH %CLASSPARAMETER DEFAULTGLOBAL`), `HubFill`, `ToVector`/`ToString`.
+- `src/ocutalon/cls/OcuTalon/Test/Memory/Turns.cls:31-35,52-178,218-284` -- the turn-test template (`Ready`, `Turn`, `AssertTurn`, `AssertSteps` -> `StepProblems`, `SameJob`, the `[[mock:<name>]]` marker). `Test/Agent/RunnerFixture.cls` (`Send` 319, `NewRequest` 333, `ReadyReason` 363, `Run` 435, `PointKeys` 513, `StepProblems` 935, `FindRequests` 1038, `ToolNames` 1070, `ToolResults` 1089, `Jobs` 184) is Epic 11 contended and read-only here.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls:109,113-119,1299,1347-1365,1843,2192-2275` -- `TRUSTEDTOOLS`/`READONLYTOOLS` (unchanged), `TestTaintFollowsTrustedOutput` (the template: `PutSetting("ToolClassification", ...)`, `Begin("turn","untrusted")`), helpers `Begin`, `Call`, `Meta(class)`, `Verdict`, `Decided`, `Taint`, `Untaint`, `Sentence`, `Entry`, `PutSetting`.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls:72,82,109,196-242,708-730` -- `CALLBACKBASES`, `CALLBACKHELPERS` (ends `...,OcuTalon.Memory.Worker,OcuTalon.Docs.Extract`), `TOOLVERBS` (unchanged), `TestCallbackRule`, the `OcuTalon.Tools.` rule for `TOOLSETS` (726).
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls:181,624,849,965,1859-1892` -- `FILTER` = `ProbeFilter`, `TestFilter`, `TestFilterBlanks`, `TestConcludeChecksFilter`; `TestEstimateTokens` is unchanged (`Bridge/RequestSize.cls:21-36` counts `TOOLSETS` only).
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls:26-28,43-45,76-77,313,316-319,325,331-348,365-378,541-544` -- the OcuTalon-tool check (`source` `iris`, `provider` `OcuTalon.`), `REMINDERTOOLS`, `expected("ChatAgent")`, `providerOf` and its retry copies, and the scan of the whole logged request JSON for `"top_k"` (the knowledge-base tool's input schema holds a `top_k` property). Epic 11 (Story 11.28) changes lines 149-228 only.
+- The offered-tool pins (15 sorted names today): `Test/Watch/Turns.cls:63`, `Test/Tools/Reminders.cls:275`, `Test/Tools/Persona.cls:296`. `Test/Agent/Instructions.cls:195-249` and `Test/Watch/Tools.cls:62` pin toolsets only and stay.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls:28-64` -- the SQL leaves out `RELEASE1` and `MEMORYTOOLS`, count 18 (45), one assert per name. `Test/Agent/PersonaBlock.cls:211-232` -- the data bullet stays the last bullet.
+- `src/ocutalon/cls/OcuTalon/Test/Tools/Memory.cls:401-415` -- `TestInstructions` asserts the data bullet follows the fifth memory bullet DIRECTLY, which the Q6 placement breaks.
+- `src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls:37,43-44,108-149,432` -- the `released` expression, `TestToolsetScope`, `TestToolsMatchRunners`. `Test/Install/Production.cls:13,654,676` -- the step 3 sentence, the `Decide` settings row, the `DocumentOps` row (`"enabled": 0, "stub": 1`).
+- `src/ocutalon/cls/OcuTalon/Test/Contract/Step3.cls:14-29,161-180` -- the `Data.Document` contract block. `Test/Docs/Extract.cls:427-472` -- `TestNothingStored` and `Signature()` (DW-833).
+- `src/ocutalon/cls/OcuTalon/Test/Eval/{In,Cases,Report,Run}.cls` -- use the `eval/` cases as fixtures (`Test/Eval/In.cls:1092`, `Report.cls:1114-1118`: every `CASEKINDS` kind is in `In.KINDS`).
+- `ci/mock/scenarios/A/memory-save.json`, `memory-tainted-save-parallel.json` -- the scenario form (`name` = `match.marker`, `replies[].toolUse{name,input}` or a list, then `text`); `ci/mock/scenarios.mjs:39,216`; `ci/mock/test/constants.test.mjs:50-52,144-150` (plain-line `Names` parameters only; 19.3's "each memory name is called by a scenario").
+- `ci/units.sh:20,27,31-101,107-147` -- `Docs` is already a `lane-a` area (it runs in `shards-2` through `rest`); ten groups; `shards-5` is `shard:lane-a@Bridge,Agent`; the rationale comment block 31-86.
+- `docker/tests/test-memory-offline.sh:24-64,76,201-215` -- `live_start`, `finish`, `run_class`/`check_class` (the `CHK|` parse), the restart and its wait. `docker/tests/test-demo-switch.sh:38,46-47,57-69` -- `live_web_port`, `sign_in`, `api_get`, `api_post`. `docker/tests/test-eval-set.sh:18-57,224,289-401,2809` -- the per-kind validator. `docker/tests/test-storage.sh`, `test-boundaries.sh` (ASCII only, no local path).
 
 ## Tasks & Acceptance
 
 **Execution:**
-- Task 0 (measure first; product default 5). Use one fresh lane-C throwaway (`OCUTALON_RUN_TAG=e19s4i0`, the lane's variables, `OCUTALON_LOCK_OWNER='epic=19 stage=implement'`) with `OcuTalon.Docs.Embedding`, `OcuTalon.Docs.Store` and a scratch Chat override compiled. Record the results in `_bmad-output/implementation-artifacts/evidence/19-4-task0-documents.md`, then tear down.
-  - M1: the query path inside a real ChatAgent turn on the CI mock. The knowledge base is built with `OcuTalon.Docs.Embedding`, so `EmbedBatch` calls `Memory.Embedding.Embed` from inside AI Hub's tool execution. Over three turns with `documents` calls and one turn with `search_memories`, check:
-    - that results come back;
-    - that the embedding ran in the Embedder worker's job;
-    - that the runner job id is unchanged;
-    - that no S11 crash or deadlock occurs (wait up to 120 s).
-  - M2: what the real adapter's gate receives for the call (`toolref`, `metadata`; the plan stage saw `documents` and `{"requires_auth":false}` on a bare manager), and that toolset calls still carry `origin_class`.
-  - M3: a gate rewrite of `call.arguments.top_k` from 9 to 5 takes effect, on a document of 8 or more passages.
-  - M4: the floor. Use the real embedder and the UJ-2 runbook fixture (`eval/documents-runbook-rotate/results-runbook.md`). Score these queries:
-    - 3 relevant: rotating the certificate, by different wordings;
-    - 2 near-miss: other sections;
-    - 5 unrelated: for example the capital of France, resetting a password.
+- Task 0 (measure first; product default 5). One fresh lane-C throwaway (`OCUTALON_RUN_TAG=e19s4i0`, the lane's variables, `OCUTALON_LOCK_OWNER='epic=19 stage=implement'`) with `OcuTalon.Docs.Embedding`, `OcuTalon.Docs.Store` and a scratch Chat override compiled. Record in `_bmad-output/implementation-artifacts/evidence/19-4-task0-documents.md`, then tear down.
+  - M1: the query path in a real ChatAgent turn on the CI mock, the knowledge base built with `Docs.Embedding` (so `EmbedBatch` calls `Memory.Embedding.Embed` from inside AI Hub's tool execution). Over three `documents` turns and one `search_memories` turn: results come back, the embedding ran in the Embedder worker's job, the runner's job id is unchanged, and no S11 crash or deadlock (wait up to 120 s).
+  - M2: what the real adapter's gate receives for the call (`toolref`, `metadata`, the arguments' type: object or JSON string), and that toolset calls still carry `origin_class`.
+  - M3: a gate rewrite of `top_k` from 9 to 5 takes effect on a document of 8 or more passages, for the arguments type M2 saw.
+  - M4: the floor, with the real embedder and `eval/documents-runbook-rotate/results-runbook.md`: 3 relevant queries (rotating the certificate, three wordings), 2 near-misses (other sections), 5 unrelated (for example the capital of France, resetting a password). `CITEFLOOR` is midway between the highest unrelated top score and the lowest relevant top score.
+  - M5: `SendRequestAsync(..%ConfigName, index)` from `DocumentOps` to itself is handled after the current message, in FIFO order with commands.
 
-    Set `CITEFLOOR` midway between the highest unrelated top score and the lowest relevant top score.
-  - M5: `SendRequestAsync(..%ConfigName, index, 0)` from `DocumentOps` to itself is handled after the current message, in FIFO order with commands.
-
-  **Stop rule:** HALT `blocked` / `intent gap` with the measurement, naming AD-6/AD-21 ("Documents (step 3)"), if any of these holds:
-  - M1 crashes, deadlocks or recycles the job. The recommended amendment is then AI Hub's FastEmbed with the image's `FASTEMBED_CACHE_DIR`, and a ruling on IPM installs, which need `os.putenv` through `%SYS.Python` in two non-worker jobs.
-  - M2 shows that some non-knowledge-base tool lacks `origin_class`.
-  - M3 shows a rewrite has no effect.
-  - In M4, the relevant and unrelated scores overlap (no floor separates them). Then name DW-720 and FR-42 and recommend a coverage rule.
-- `src/ocutalon/cls/OcuTalon/Docs/Passages.cls` (new) -- `Split(text, contentType, Output passages As %DynamicArray)`. Each passage is `{text, section}`. Markdown rules:
-  - A line `## <heading>` starts a section, and its text is trimmed, with trailing `#` removed.
-  - Text before the first `##` has section "".
-  - `#` and `###`+ lines stay as passage lines.
-  - Heading lines of `##` are not passage text.
-
-  Plain text has one section "". Within a section, paragraphs separated by blank lines are packed into passages of at most `MAXPASSAGE` = 1,000 characters. A longer paragraph is cut at line, then sentence (". "), then word boundaries, else hard. Blank passages are dropped. It is a pure function with no SQL.
-- `src/ocutalon/cls/OcuTalon/Docs/Embedding.cls` (new; extends `%AI.RAG.Embedding`) -- `%OnNew` sets `i%Dimensions` 384 and `i%ModelName` "AllMiniLML6V2". `EmbedBatch` calls `OcuTalon.Memory.Embedding.Embed` for each text and returns `[[...384 floats]]`, throwing on an error status. It has no `%AI` call and no Python (it is a callback class: `CALLBACKHELPERS`).
-- `src/ocutalon/cls/OcuTalon/Docs/Store.cls` (new) -- the local knowledge base. It is the only class that names `%AI.RAG.VectorStore.IRIS` and holds the DDL.
-  - `TABLE` "OcuTalonKB.Docs" and `SUFFIX` "Docs".
-  - `EnsureTable()` makes both tables, as `Test/Memory/Fixture.cls:87-105` does, when they are missing, and does nothing otherwise.
-  - `Write(ref, name, passages, from, count)` embeds each passage (the text is `section _ $C(10) _ text` when the section is not empty), and inserts `id` `ref_":"_n`, `text`, `TO_VECTOR(...)`, `metadata` and `source`.
-  - `Remove(ref)` runs `DELETE ... WHERE source = ?`.
-  - `Attach(agent, Output holder)` returns no holder on the online demo. Otherwise it runs `EnsureTable`, then `Docs.Embedding` with `Register()`, the vector store (`Build`) and the `KnowledgeBase` (`Names.#DOCUMENTS`, `DESCRIPTION`, TopK 5, `Build`, `AddToAgent`). It returns a holder object with the three in its properties. A failure is one Type 3 warning and no holder; the agent still builds.
-  - `DocumentName(name)` is the `Name` without a final `.md`, `.markdown`, `.txt`, `.pdf` or `.docx`, in any case.
-- `src/ocutalon/cls/OcuTalon/Docs/Msg/Index.cls` (new; `Ens.Request`) -- `Ref` and `Next`.
-- `src/ocutalon/cls/OcuTalon/Docs/Ops.cls` -- the real `DocumentOps` (pool 1); `OnInit` runs `Store.EnsureTable()`.
-  - `OnAdd`:
-    1. `no_session` when the session is unknown.
-    2. Online demo: `not_built`.
-    3. `Take(UploadRef, SessionRef)`. An empty answer gives a failed row (`failed`) and Ok 0 `failed`.
-    4. `pdf`/`docx` give a failed row (`not_built`).
-    5. Decode UTF-8 and strip the BOM. A NUL, a decode failure or blank text gives a failed row (`unreadable`).
-    6. Otherwise save the row (`indexing`, `OwnerRef` `instance`, `AddedBy`, `Name`, `ContentType`, `Size`, `AddedAt` `NowUtc`, `Text`, `KnowledgeBase`) and publish.
-    7. Send `Index(Ref, 0)` to itself, and answer Ok 1 `added` with the `Ref`.
-
-    Every failed row is published, and answered Ok 1 with its `Ref` except the empty-take case.
-  - `OnIndex`:
-    1. Do nothing when the row is gone or not `indexing`.
-    2. `Passages.Split`. On `Next` 0, store `Sections` and run `Store.Remove(ref)`.
-    3. `Store.Write` at most `BATCH` = 32 passages from `Next`.
-    4. Re-queue `Index(Ref, Next+32)` while passages remain. Otherwise set `ready` and publish.
-    5. Any error runs `Store.Remove`, sets `failed` / `failed`, publishes, and logs one redacted warning.
-  - `OnRemove`: `no_session`. Then `not_found` unless the row exists with `OwnerRef` `instance`. Then `Store.Remove(ref)`, `%DeleteId`, publish `FromRow` with `Removed` 1, and Ok 1 `removed`.
-
-  Publish happens outside any transaction. A publish failure is a warning and never changes the answer. The model-facing `MESSAGE*` parameters follow MemoryOps. The doc comment states the contract (Rule 14).
-- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls` -- append one self-contained block at the end of the class:
-  - a `[ Transient ]` property `Documents`;
-  - `%OnInit`, which calls `##super()` and then `##class(OcuTalon.Docs.Store).Attach($this, .holder)`, keeps the holder, and returns OK;
-  - plus the INSTRUCTIONS bullets of Design Notes (PUBLIC TEXT) and one doc clause.
-- `src/ocutalon/cls/OcuTalon/Tools/Names.cls` -- `Parameter DOCUMENTS = "documents";` (a plain line, so the mock reads it) and `Parameter DOCUMENTSTOOLS = {..#DOCUMENTS}` (the expression form, which the mock skips), both outside `RELEASE1`.
-- `src/bridge/cls/OcuTalon/Bridge/HostData.cls` (new) -- `Put(member, value)`, `Get(member)` and `Remove(member)`, moved from `Tools.HostData`'s bodies. `src/ocutalon/cls/OcuTalon/Tools/HostData.cls` -- each method becomes a one-line delegation (Rule 2).
-- `src/bridge/cls/OcuTalon/Bridge/Citations.cls` (new) -- `Collect(call, metadata, result)`. Only when `metadata` has no `origin_class` and `result.result_json` parses as an array of `{text, score, metadata{source, chunk_index}}` does it run. It adds `$Length(result_json)` to `Context.ToolResultChars`. Then, for each item with `score` >= `CITEFLOOR` (Task 0 M4), it merges `{documentRef: source, document, section, passage: text, chunkIndex}` into `HostData.citations` through `Bridge.HostData`: distinct by (source, chunkIndex), in order, at most 5. It names no host package, makes no `%AI` call and runs no Python.
-- Ruling-gated (bridge, Epic 17 footprint): `src/bridge/cls/OcuTalon/Bridge/Policy/StepAudit.cls` -- one call of `Citations.Collect` in `%LogExecution`.
-- Ruling-gated (bridge, Epic 17 footprint): `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls`:
-  - (a) `Source()`: a call with no `mcp:` `toolref` and no `origin_class` has source `%AI.RAG.KnowledgeBase`.
-  - (b) For that source, after the `TakeGrant` check and before `ReportStep`, a numeric `top_k` above `MAXTOPK` = 5 becomes 5, and a value below 1 or not a number is removed.
-  - (c) It denies such a call, with a plain sentence, when `Context.ToolResultChars + RAGRESULTMAX` exceeds the step's 40,000 characters. `RAGRESULTMAX` = 8,000, which a host test pins at `>= 5 * (Passages.MAXPASSAGE + 400)`.
-  - Lines 41 and 56 name the two rewrites.
-- Ruling-gated: `src/ocutalon/cls/OcuTalon/Production.cls`:
-  - `DocumentOps` `Enabled="true"` (an allowed union).
-  - `Decide` gains `<Setting Target="Host" Name="ToolClassification">[{"class":"%AI.RAG.KnowledgeBase","tool":"documents","classification":"safe","readOnly":1,"trustedOutput":0}]</Setting>` (needs a ruling).
-- Ruling-gated (DW-720 b; mechanism under Design Notes): the code that keeps "None of your documents cover that." out of a reply that has citations, with `OcuTalon.Docs.Reply.Apply(text, hostData)` (new, pure, Lane A) as the rule. It removes the sentence, with the run of `.!?` that follows it, when `hostData.citations` is a non-empty array, and leaves the text unchanged otherwise.
-- Ruling-gated pins (shared surfaces):
-  - `Test/Install/Production.cls:13,676` -- an allowed union: enabled 1, stub 0, and the sentence.
-  - `Test/Agent/Runners.cls` -- the list at :515 gains `documents` (an allowed union). :27-28 exempt the `documents` tool, and :526-528 assert no top-level `top_k` (needs a ruling).
-  - `Test/Agent/{Instructions,Constants}.cls` -- the bullets and the `DOCUMENTS` name (an allowed union).
-  - `Test/Bridge/Decide.cls` `TestEstimateTokens` -- the tool's definition length (an allowed union).
-  - `Test/Install/SecurityOverview.cls:37` -- `released` appends `_ $ListFromString($Parameter("OcuTalon.Tools.Names", "DOCUMENTSTOOLS"))` (one term, an allowed union).
-  - `src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls` -- renders the `documents` row from Decide's `ToolClassification` entry. `docs/security-overview.md` is regenerated with `live:security-overview --write`.
-- The U-177 pre-granted flip: `src/ocutalon/cls/OcuTalon/Test/Core/CommandsStep3.cls:134-141` and `CommandsStep3Probe.cls:16-24`. `TestRealStubOwners` moves `DocumentOps` from `not_built` to "built": both verbs answer `0|no_session` for the test's unknown session, `STUB` is "", and the probe calls `OnAdd`/`OnRemove`. No other line changes.
-- Uncontended pins:
-  - `Test/Tools/Reminders.cls:275`, `Test/Tools/Persona.cls`, `Test/Watch/{Tools,Turns}.cls` -- the offered-tool lists gain `documents`. Search the tool lists for `propose_persona,recent_activity`.
-  - `Test/Bridge/CodeRules.cls:82` -- `CALLBACKHELPERS` appends `OcuTalon.Docs.Embedding,OcuTalon.Bridge.Citations,OcuTalon.Bridge.HostData`.
-  - `Test/Bridge/Gate.cls` -- new methods for (a) to (c) and for the taint. `TRUSTEDTOOLS` and `READONLYTOOLS` are unchanged.
-  - `ci/mock/test/constants.test.mjs` -- `DOCUMENTS` is read and called by a scenario.
-  - `Test/Contract/Step3.cls` -- `Data.Document`'s new property, if pinned.
-- `ci/mock/scenarios/A/documents-{runbook,none,topk,none-conflict,removed,then-save}.json` (new) -- scripted turns. The queries and `top_k` are fixed. `none-conflict` answers "None of your documents cover that." after a covered search.
-- `src/ocutalon/cls/OcuTalon/Test/Docs/Passages.cls` (new) -- the section and size rules of the matrix, the cut order, blanks, plain text and `DocumentName`.
-- `src/ocutalon/cls/OcuTalon/Test/Docs/Store.cls` (new) -- `EnsureTable` is idempotent. The globals resolve to OCUTALON_PRIVATE by `GetGlobalDest`, with no data-database directory entry and `^IRIS.KNNIndex` still empty. Through a bare `%AI.ToolMgr` in the test job: `Write` rows and their metadata, search, a removal visible to the next search, and the empty table. `Attach` on the demo gives no holder.
-- `src/ocutalon/cls/OcuTalon/Test/Docs/Ops.cls` (new; throwaway/CI) -- through the production and through `Commands.Submit` with origin `web_user` (DW-739): every add and remove row of the matrix and its events, read back from the instance stream. Also: origin `tool` refused, remove during indexing, `no_session`, and the answer time under 10 s.
-- `src/ocutalon/cls/OcuTalon/Test/Docs/Turns.cls` (new; throwaway/CI) -- live turns through `Decide` -> `ChatAgent` with the scenarios: covered (citations, `Tainted` 1), clamp, not covered, none-conflict (once ruled), removed, then-save denied, and the job id unchanged. `StepProblems` runs for each turn.
-- `src/ocutalon/cls/OcuTalon/Test/Bridge/Citations.cls` (new) -- the floor, distinctness, order, the cap of 5, non-knowledge-base results ignored, the characters counted, and malformed JSON ignored. `src/ocutalon/cls/OcuTalon/Test/Docs/Reply.cls` (new) -- `Reply.Apply` both ways.
-- `docker/tests/test-documents.sh` (new live unit `live:documents`; registered like `live:memory-offline`, in group `shards-2`).
-  - It signs in (the `test-demo-switch.sh` helpers), posts the runbook, waits up to 120 s for `ready`, and runs a class step that searches the table.
-  - It then runs `docker restart`, waits for ready, and checks that the list and the search still hold the document (AD-5).
-  - Finally it posts a `.pdf` (giving `not_built`) and a NUL `.txt` (giving `unreadable`), deletes all three, and checks that the list and the KB are empty.
-- `ci/units.sh` -- the area `Docs` joins `lane-a`'s area list (a one-name append), and `live:documents` joins `shards-2`.
-- Ruling-gated (Epic 39 contended `Eval/**`): kind `documents` in `Eval/In.cls`, `Eval/Report.cls` and `Eval/Msg/TurnResult.cls` (`Citations`), and in `docker/tests/test-eval-set.sh`. Its setup is `documents` (files added through `DocumentOps` before the turn and removed in `Finish`). Its expectations are `citations` (`[{document, section}]`) or `none` (the reply holds the sentence and has no citations).
-  - `eval/documents-none-cover/case.json`, `eval/documents-runbook-rotate/{case.json,results-runbook.md}` (new, ours), with mock scenarios.
-  - The real-model run is the owner's release gate.
-- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- plain unions with `[AMENDED 2026-11-06, Story 19.4, ...]`:
-  - an AD-21 "Indexing and search (Story 19.4)" bullet: the measurements, the passages, the metadata keys, `Docs.Embedding`, `CITEFLOOR` and the attach in `%OnInit`;
-  - one sentence on the `%AI.RAG.KnowledgeBase` source in the Conventions "Tool classification" row;
-  - the ownership tables: `OcuTalon.Docs.Msg.Index` and `OcuTalonKB.Docs`.
-
-  Lint afterwards.
+  **Stop rule:** HALT `blocked` / `intent gap` with the measurement, naming AD-6/AD-21 ("Documents (step 3)"), when: M1 crashes, deadlocks or recycles the job (recommended amendment: AI Hub's FastEmbed with the image's `FASTEMBED_CACHE_DIR`, plus a ruling on IPM installs, which need `os.putenv` through `%SYS.Python` in two non-worker jobs); M2 shows a non-knowledge-base tool without `origin_class`; M3 shows the rewrite has no effect; or M4's relevant and unrelated scores overlap (name DW-720 and FR-42 and recommend a coverage rule).
+- `src/ocutalon/cls/OcuTalon/Docs/Passages.cls` (new) -- `Split(text, contentType, Output passages As %DynamicArray) As %Status`, each passage `{text, section}`, pure, no SQL. For `markdown`: a line `## <heading>` opens a section (trimmed, trailing `#`s removed) and is not passage text; text before the first `##` has section ""; `#` and `###`+ lines stay passage lines; a line that starts `\## ` is the passage line `## ...` and opens nothing (the escape Story 19.7's extracted text uses for a file's own `## ` lines, DW-832). For `text`: one section "", no line opens a section. Within a section, blank-line paragraphs pack into passages of at most `MAXPASSAGE` = 1,000 characters; a longer paragraph is cut at a line, then a sentence (". "), then a word boundary, else hard. Blank passages are dropped.
+- `src/ocutalon/cls/OcuTalon/Docs/Embedding.cls` (new; extends `%AI.RAG.Embedding`) -- `%OnNew` sets `i%Dimensions` 384 and `i%ModelName` "AllMiniLML6V2"; `EmbedBatch(texts)` calls `OcuTalon.Memory.Embedding.Embed` per text and returns `[[384 floats], ...]`, throwing on an error status. No `%AI` call, no Python (callback helper).
+- `src/ocutalon/cls/OcuTalon/Data/Document.cls` -- append `Property Sections As %String(MAXLEN = "")` (a JSON array: the section of each `chunk_index`) as Storage `<Value name="13">`, and one doc clause.
+- `src/ocutalon/cls/OcuTalon/Tools/Names.cls` -- `Parameter DOCUMENTS = "documents";` (a plain line, so the mock reads it), outside `RELEASE1`.
+- `src/ocutalon/cls/OcuTalon/Docs/Store.cls` (new) -- the local knowledge base, the only class that names `%AI.RAG.VectorStore.IRIS` and holds the DDL. `TABLE` "OcuTalonKB.Docs", `SUFFIX` "Docs". `EnsureTable()` makes both tables as `Test/Memory/Fixture.CreateTable` does when missing, else nothing. `Write(ref, name, passages, from, count)` embeds each passage (text `section _ $C(10) _ text` when the section is not empty) and inserts `id` `ref_":"_n`, `text`, `TO_VECTOR(...)`, `metadata` `{source, chunk_index, document, section}` and `source`. `Remove(ref)` runs `DELETE ... WHERE source = ?`. `Attach(agent, Output holder)`: no holder on the online demo; otherwise `EnsureTable`, `Docs.Embedding` with `Register()`, the vector store (`Build`), the `KnowledgeBase` (`Name` `Names.#DOCUMENTS`, `DESCRIPTION`, `TopK` 5, `Build`, `AddToAgent`), and a holder object with the three in its properties; a failure is one Type 3 warning and no holder, and the agent still builds. `DocumentName(name)` drops a final `.md`, `.markdown`, `.txt`, `.pdf` or `.docx` in any case. Its vector-to-text helper is the twin of `Memory.ToText` (Private there).
+- `src/ocutalon/cls/OcuTalon/Docs/Msg/Index.cls` (new; `Ens.Request`, like `Eval/Msg/TurnResult`) -- `Ref`, `Next`.
+- `src/ocutalon/cls/OcuTalon/Docs/Ops.cls` -- the real `DocumentOps` (pool 1): delete `STUB` and `OnMessage`; `XData MessageMap` `AddDocument`->`OnAdd`, `RemoveDocument`->`OnRemove`, `OcuTalon.Docs.Msg.Index`->`OnIndex`; `OnInit` runs `Store.EnsureTable()` on a local install.
+  - `OnAdd`: (1) `no_session` for an unknown session; (2) online demo: `not_built`; (3) `Take(UploadRef, SessionRef)` once, and an empty answer is a failed row (`failed`) answered Ok 0 `failed` with its `Ref` (DW-747); (4) the text seam `Text(content, contentType, .text, .reason)`: `markdown`/`text` decode UTF-8 and strip a BOM, and a NUL, a decode failure or blank text is `unreadable`; `pdf`/`docx` give `not_built` (Story 19.7 sends them through `Extract.Read` here); a reason is a failed row; (5) otherwise save the row (`indexing`, `OwnerRef` `instance`, `AddedBy`, `Name`, `ContentType`, `Size`, `AddedAt` `NowUtc`, `Text`, `KnowledgeBase`) and publish; (6) send `Index(Ref, 0)` to itself and answer Ok 1 `added` with the `Ref`. Every failed row is published and answered Ok 1 with its `Ref`, except the empty take.
+  - `OnIndex`: nothing when the row is gone or not `indexing`; `Passages.Split`; on `Next` 0 store `Sections` and run `Store.Remove(ref)`; `Store.Write` at most `BATCH` = 32 passages from `Next`; re-queue `Index(Ref, Next+32)` while passages remain, else set `ready` and publish; any error runs `Store.Remove`, sets `failed`/`failed`, publishes and logs one redacted warning.
+  - `OnRemove`: `no_session`; `not_found` unless the row exists with `OwnerRef` `instance`; `Store.Remove(ref)`, `%DeleteId`, publish `FromRow` with `Removed` 1, and Ok 1 `removed`.
+  - Publish runs outside any transaction; a publish failure is a warning and never changes the answer. `MESSAGE*` parameters follow MemoryOps'. The doc comment states the contract (Rule 14).
+- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls` -- one self-contained block at the end of the class: a `[ Transient ]` property `Documents` and `Method %OnInit() As %Status`, which calls `##super()`, then `##class(OcuTalon.Docs.Store).Attach($this, .holder)`, keeps the holder in `Documents` and returns OK; the two Q6 bullets inserted between line 71 (memory bullet 5) and line 72 (the data bullet), word for word; one doc clause.
+- `src/bridge/cls/OcuTalon/Bridge/HostData.cls` (new) -- `Put(member, value)`, `Get(member)`, `Remove(member)` and the Private `Object()`, moved from `Tools.HostData`. `src/ocutalon/cls/OcuTalon/Tools/HostData.cls` -- each public method becomes a one-line delegation (Rule 2).
+- `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls` (Q3, narrow):
+  - (a) Parameters `RAGSOURCE` "%AI.RAG.KnowledgeBase" and `RAGTOOL` "documents"; public `RagCall(name, metadata, toolref)` is 1 only for a non-`mcp:` toolref with no `origin_class` and `name = RAGTOOL`; `Source()` gives `RAGSOURCE` exactly then. The classification still comes from Decide's `ToolClassification` entry; with no entry the call is unclassified as today.
+  - (b) For a `RagCall`, after `TakeGrant` and before `ReportStep`: a numeric `top_k` above `MAXTOPK` 5 becomes 5, and one below 1 or not a number is removed, in the arguments object (or the JSON string, re-set) per Task 0 M2/M3.
+  - (c) It denies a `RagCall`, with the `NOROOM` sentence, when `Context.ToolResultChars + RAGRESULTMAX` exceeds `STEPTOKENS * StepBuffer.#CHARSPERTOKEN` (`STEPTOKENS` 10000, the twin of `Tools.Result`'s, which the bridge cannot name; `RAGRESULTMAX` 8,000).
+  - Lines 41 and 56 name the `top_k` rewrite (AD-10 already lists it); the doc gains one clause for the fallback.
+- `src/bridge/cls/OcuTalon/Bridge/Citations.cls` (new) -- `Collect(call, metadata, result) As %Status`, a no-op unless `Gate.RagCall(call.name, metadata)` holds (below) and `result.result_json` parses to `{value:[{text, score, metadata{source, chunk_index, document, section}}]}`; it adds `$Length(result_json)` to `Context.ToolResultChars`; then each item with `score` >= `CITEFLOOR` (Task 0 M4) merges `{documentRef: source, document, section, passage: text, chunkIndex}` into `HostData.citations` through `Bridge.HostData`: distinct by (source, chunkIndex), in order, at most `MAXCITATIONS` 5. Malformed JSON is ignored. It names no host package, makes no `%AI` call and runs no Python.
+- `src/bridge/cls/OcuTalon/Bridge/Policy/StepAudit.cls` -- one call of `Citations.Collect(call, metadata, result)` in `%LogExecution`, before `StepBuffer.Tool`, its error ignored (Q3).
+- `src/bridge/cls/OcuTalon/Bridge/Ext/ReplyFilter.cls` (Q1, AD-31 additive) -- `ClassMethod Filter(text As %String, hostData As %String = "") As %String { Quit text }`; the doc says `hostData` is a turn reply's `HostData` JSON, else "".
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` -- line 1355 becomes `$ClassMethod(filterClass, "Filter", reply.Text, reply.HostData)`; the doc of `Conclude` gains one clause. Nothing else.
+- `src/ocutalon/cls/OcuTalon/Docs/Reply.cls` (new, pure) -- `Apply(text, hostData) As %String`: when `hostData` parses and `citations` is a non-empty array, removes every "None of your documents cover that." (ReplyGuard's matching rule: case-insensitive, word edges, the run of `.!?` after it, spaces collapsed in that line), else returns the text unchanged.
+- `src/ocutalon/cls/OcuTalon/Checks/ReplyGuard.cls` -- `Filter(text, hostData = "")`: `Apply` first, then `##class(OcuTalon.Docs.Reply).Apply(result, hostData)`, still failing closed. `src/ocutalon/cls/OcuTalon/Test/Bridge/ProbeFilter.cls` -- the same signature; it records `hostData` in `^||ZzProbeFilter(n, "hostData")`.
+- `src/ocutalon/cls/OcuTalon/Production.cls` (Lane A region) -- `DocumentOps` `Enabled="true"`; `Decide` gains `<Setting Target="Host" Name="ToolClassification">[{"class":"%AI.RAG.KnowledgeBase","tool":"documents","classification":"safe","readOnly":1,"trustedOutput":0}]</Setting>`.
+- `src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls` -- `ToolRows` adds one row per `ToolClassification` entry of class `%AI.RAG.KnowledgeBase` in `OcuTalon.Production`'s `Decide` item (name `documents`, source `%AI.RAG.KnowledgeBase`, toolset `OcuTalon.Docs.Store`, agents `OcuTalon.Agent.Chat`, the label `LabelFor` gives, classification and flags from the entry, no resources); `ToolsText` prints the fallback sentence (PUBLIC TEXT 1) after the table as a parameter `RAGSTATEMENT`. `docs/security-overview.md` is regenerated with `live:security-overview --write`, never by hand.
+- `docs/bridge-guide.md:312` -- the `Filter(text, hostData)` contract line (PUBLIC TEXT 2).
+- Eval (Q5): kind `documents` in `Eval/In.cls` (`KINDS`; setup `documents`: each `{name, file}` of the case added as `web_user` through `Commands.Submit` with an upload row, waited to `ready`, removed in `Finish`), `Eval/Report.cls` (`CASEKINDS`; scores `citations` `[{document, section}]` each found in the turn's citations, or `none`: the reply holds the sentence and the turn has no citations), `Eval/Msg/TurnResult.cls` (`Citations`, the turn's `HostData.citations` JSON), `docker/tests/test-eval-set.sh` (the kind's rules). New `eval/documents-runbook-rotate/{case.json,results-runbook.md}` and `eval/documents-none-cover/case.json`. The real-model run is the Planner's release gate, never run here.
+- `ci/mock/scenarios/A/documents-{runbook,none,topk,none-conflict,none-only,removed,then-save}.json` (new) -- fixed queries and `top_k`; `none-conflict` answers a covered search with steps and then "None of your documents cover that."; `none-only` answers it with that sentence alone; `then-save` calls `documents`, then `save_memory`. `ci/mock/test/constants.test.mjs` -- `DOCUMENTS` is called by a scenario (19.3's check extended).
+- Tests (new): `Test/Docs/Passages.cls` (the matrix's section and size rules, the cut order, blanks, plain text, the `\## ` escape, `DocumentName`); `Test/Docs/Store.cls` (`EnsureTable` idempotent; every global resolves to OCUTALON_PRIVATE by `GetGlobalDest`, no data-database entry, `^IRIS.KNNIndex` empty; through a bare `%AI.ToolMgr`: rows and metadata, search, a removal seen by the next search, the empty table, re-indexing X leaves Y's rows (Q2 c); `Attach` on the demo gives no holder); `Test/Docs/Ops.cls` (through the production and `Commands.Submit` as `web_user`, DW-739: every add and remove row of the matrix with its events read back from the instance stream, `tool` refused, remove during indexing, a second add of the same file leaves the first's and Y's passages (Q2 c), answer under 10 s); `Test/Docs/Turns.cls` (live turns through `Decide` -> `ChatAgent` with the scenarios: covered (citations, `Tainted` 1), clamp, not covered (no citations, Q2 b), none-conflict and none-only (no outbound text holds the sentence; none-only takes Decide's invalid path), removed, then-save denied, the job id unchanged, `StepProblems` for each); `Test/Docs/Reply.cls` (Q1 a to c, directly and through `ReplyGuard.Filter` and `Decide.Conclude`); `Test/Docs/Chat.cls` (the Q6 bullets by fixed strings, once each, memory bullet 5 then bullet 1 then bullet 2 then the data bullet; `Gate.RAGTOOL` = `Names.#DOCUMENTS`, `Gate.STEPTOKENS` = `Tools.Result.#STEPTOKENS`, `RAGRESULTMAX` >= 5 * (`MAXPASSAGE` + 400)); `Test/Docs/Live.cls` (skips unless `^OcuTalonTest("Docs","live")` names a `Ref`; searches the table for it through a bare `%AI.ToolMgr`); `Test/Bridge/Citations.cls` (the floor both sides, distinctness, order, the cap, non-knowledge-base results ignored, the characters counted, malformed JSON ignored).
+- Tests (changed): `Test/Bridge/Gate.cls` -- new methods for (a) to (c), the near-misses (`documents` with an `origin_class`, another name with none, `mcp:documents`) still held or denied as today, an unknown source still held, and after a `documents` call `save_memory` and a risky tool denied with `UNTRUSTED`. `Test/Bridge/Decide.cls` -- one test that `Conclude` hands `reply.HostData` to the filter (`ProbeFilter`'s record). `Test/Tools/Memory.cls:401-415` -- the five bullets stay contiguous and before the data bullet (no longer directly). `Test/Docs/Extract.cls:460-472` (DW-833) -- `Signature()` adds the KB half (asserted non-empty: `OcuTalonKB.Docs` exists) and `$Get(^OcuTalonP.DocumentD)` and the KB row count in place of the `$Data` flags. `Test/Contract/Step3.cls:161-180` -- `Sections`. `Test/Contract/Ac.cls:361` -- `"args": "text,hostData"`. `Test/Install/Production.cls:13,654,676` -- `DocumentOps` enabled 1 stub 0, the step 3 sentence, `Decide`'s new setting. `Test/Install/SecurityOverview.cls:37,43-44` -- `released` appends `_ $ListFromString($Parameter("OcuTalon.Tools.Names", "DOCUMENTS"))` (one term) and one doc clause. `Test/Agent/Constants.cls:28,45` -- 19 names and a `DOCUMENTS` assert. `Test/Agent/Runners.cls` -- `REMINDERTOOLS` and `expected("ChatAgent")` gain `documents`; `providerOf` and the OcuTalon-tool check (365-378) accept exactly one other ChatAgent tool, `Names.#DOCUMENTS`, of the source Task 0 M2 records; 541-544 assert no top-level `temperature`, `top_p` or `top_k` key of the request. `Test/Watch/Turns.cls:63`, `Test/Tools/Reminders.cls:275`, `Test/Tools/Persona.cls:296` -- 16 sorted names with `documents`. `Test/Bridge/CodeRules.cls:82` -- `CALLBACKHELPERS` appends `OcuTalon.Docs.Embedding,OcuTalon.Bridge.Citations,OcuTalon.Bridge.HostData`. `Test/Eval/{In,Cases,Report}.cls` -- the `documents` kind, setup and scoring. `src/ocutalon/cls/OcuTalon/Test/Core/CommandsStep3.cls:12-14,134-141` and `CommandsStep3Probe.cls:16-24` (the U-177 pre-granted flip, no other line): both verbs answer `0|no_session` with `MESSAGENOSESSION`, `STUB` is "", and the probe calls `OnAdd`/`OnRemove`.
+- `web/e2e/documents/documents.spec.ts` (U-177 grant Q4) -- D8 fulfils its `POST` with `page.route` (`{result:'done', ref}`), D10 fulfils its first `DELETE` with an error answer through `page.route`; every page-visible assertion stays word for word; the header's D8 sentence says so.
+- `docker/tests/test-documents.sh` (new live unit `live:documents`) -- signs in (the two `test-demo-switch.sh` helpers), posts the runbook as `{name, content}`, waits up to 120 s for `ready`, and runs `Test.Docs.Live` (`CHK|` parse); restarts the iris container (`docker restart`), waits for ready, signs in again and checks that the list and the search still hold it (AD-5); posts a 10,485,760-byte `.pdf` (200, `failed`/`not_built`: D8's real-route size check) and a NUL `.txt` (`unreadable`); deletes all three and checks the list and the table are empty. `ci/units.sh` -- `live:documents` appended to `shards-5`, with one comment line.
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- plain unions marked `[AMENDED 2026-11-06, Story 19.4, owner ruling via the Contest Planner]`: AD-21 "Documents (step 3)" gains the Q2 clarification ("the FastEmbed model, run through the embedding worker": `OcuTalon.Docs.Embedding` over Story 19.2's worker) and an "Indexing and search (Story 19.4)" bullet (the measurements, `Passages.Split`, the metadata keys, `CITEFLOOR` and its evidence, the attach in `%OnInit`); AD-10 one sub-bullet for the fallback, the clamp and the room check; AD-31 the `Filter(text, hostData)` amendment; the Conventions "Tool classification" row one sentence for `documents`; the ownership tables `OcuTalon.Docs.Msg.Index` and `OcuTalonKB.Docs`. No new `AD-n`. Lint afterwards.
 
 **Acceptance Criteria:**
-- Given a Markdown or plain-text document sent to `DocumentOps`, when it is indexed, then `OcuTalonKB.Docs` (created by `OcuTalon.Docs`, globals in OCUTALON_PRIVATE) holds its passages with `source` = `Ref`, `chunk_index` and section. `Data.Document` keeps the text and the section of each passage. `document` events go from `indexing` to `ready`, or to `failed` with `unreadable`/`not_built`/`failed`.
-- Given a question the documents cover, when the Chat agent searches, then the tool is named `documents` and returns at most 5 passages (the gate clamps `top_k`), the `Reply`'s `HostData.citations` names each cited passage's document and section from `source` and `chunk_index`, and the turn is tainted. `documents` is in `OcuTalon.Tools.Names` and in the mock's scenarios.
-- Given a question no document covers, when the agent answers, then no citation is carried and the reply may say "None of your documents cover that.". Given citations, the reply that leaves `Decide` never says it (DW-720, both directions tested).
+- Given a Markdown or plain-text document sent to `DocumentOps`, when it is indexed, then `OcuTalonKB.Docs` (created by `OcuTalon.Docs`, globals in OCUTALON_PRIVATE) holds its passages with `source` = `Ref`, `chunk_index` and section, `Data.Document` keeps the text and the section of each passage, and `document` events go from `indexing` to `ready`, or to `failed` with `unreadable`/`not_built`/`failed`.
+- Given a question the documents cover, when the Chat agent searches, then the tool is named `documents`, is classified safe and read-only and not trusted output by the narrow `%AI.RAG.KnowledgeBase:documents` fallback alone, returns at most 5 passages (the gate clamps `top_k`), the `Reply`'s `HostData.citations` names each cited passage's document and section from `source` and `chunk_index`, and the turn is tainted; a near-miss call is still held or denied as before.
+- Given a question no document covers, when the agent answers, then no citation is carried and the reply may say "None of your documents cover that."; given citations, the reply that leaves `Decide` never says it, and the citations stay (DW-720, both directions tested).
 - Given a removed document, when the remove command is handled, then its passages leave search at once and no later reply cites it.
-- Given the real route, when a person adds and removes a document through `/v1/documents`, then it reaches `ready` through `CommandsIn` -> `DocumentOps` and then leaves the list and the knowledge base (DW-739). After an iris container restart, the document is still listed and found.
+- Given the real route, when a person adds and removes a document through `/v1/documents`, then it reaches `ready` through `CommandsIn` -> `DocumentOps` and then leaves the list and the knowledge base (DW-739); after an iris container restart it is still listed and found.
+- Given the generated security overview, when `live:security-overview` compares it, then it lists `documents` (safe, read-only, not trusted output) and the fallback sentence, with no drift.
 
 ## Spec Change Log
 
@@ -222,87 +187,109 @@ deferred: []
 
 - 2026-11-06 (lead): the Planner's rulings on the blocking question and the "Needs a ruling" items recorded under Design Notes "Rulings"; the story waits for Epic 17's merge, then status reset and spec gate.
 
+
 ## Review Triage Log
 
 ## Design Notes
 
 **Architecture decisions:**
 - AD-1: commands through `CommandsIn` from `web_user`, answered synchronously.
-- AD-4: `instance` owner locally, and `AddedBy`.
-- AD-5: rows survive a restart.
-- AD-6: knowledge-base attach outside callbacks, query embedding in the worker, no `%AI` or Python in callbacks.
-- AD-10: taint, the `top_k` clamp, NFR-3.
-- AD-12: the event.
-- AD-21: Documents (step 3).
-- AD-22: tests, mock scenarios, eval.
-- AD-29: Lane A.
-- AD-31: no new extension class.
-- AD-33: one writer and one publisher.
+- AD-4: owner `instance` locally, and `AddedBy`.
+- AD-5: rows and the table survive a restart.
+- AD-6: the attach outside callbacks, the query embedded in the worker, no `%AI` call or Python in a callback; no request-level `temperature`, `top_p` or `top_k`.
+- AD-10: the gate's narrow fallback (Q3), taint, the `top_k` clamp (already one of its two rewrites), NFR-3's step bound.
+- AD-12: the `document` event.
+- AD-21: Documents (step 3), amended by Q2.
+- AD-22: tests, mock scenarios under `A/`, the eval kind.
+- AD-28: the precedent for removing a sentence only code may make true (`ReplyGuard`).
+- AD-29: Lane A files; Lane B's read-only except the U-177 grants.
+- AD-31: `Filter(text, hostData)`, amended by Q1; no new extension class.
+- AD-33: one writer of `Data.Document` and the table rows, one publisher of `document`.
 - Conventions: "Citations and memories", "Tool results", "Tool classification", "Python".
 
-**Plan-stage measurement (slot C `ocutalon-slot-c`, build 154U ARM64; a scratch `%AI.RAG.Embedding` subclass with synthetic vectors, scratch policies and table `OcuTalonKB.ZzE19s4`; all deleted after, slot left clean):**
+**Plan-stage measurement (2026-11-06; slot C `ocutalon-slot-c`, build 154U ARM64; a scratch `%AI.RAG.Embedding` subclass with synthetic vectors, scratch policies and table `OcuTalonKB.ZzE19s4`; all deleted after, slot left clean):**
 - The tool's name is exactly the knowledge base's `Name`. Its schema is `query` (required) and `top_k` (integer, optional), and its catalog entry is `source:"rag"` with `metadata:{}`.
 - A result is `{"timing","value":[{id, score, text, metadata:{chunk_index, source, <caller keys>}}]}`.
 - The authorization policy received `toolref` `documents` and metadata `{"requires_auth":false}` (no `origin_class`). The audit received `result_json`.
-- Chunking: AI Hub splits only after a heading line, and glues the heading to the END of the previous chunk. Blank-line paragraphs stayed together, and a 20,783-character text stayed one chunk.
-- A second `AddDocument` (or an `AddDocuments` entry) for a `source` replaces all its chunks. `ReindexDocument(source, "")` leaves 0.
+- Chunking: AI Hub splits only after a heading line and glues the heading to the END of the previous chunk; blank-line paragraphs stayed together, and a 20,783-character text stayed one chunk.
+- A second `AddDocument` (or an `AddDocuments` entry) for a `source` replaces all its chunks; `ReindexDocument(source, "")` leaves 0.
 - Rows inserted, updated or deleted by SQL show in the very next search. An unrelated query still returns every passage with scores near 0, and an empty table returns `[]`.
 - The `EmbedBatch` callback ran in the calling job.
 
-These force `DocumentOps` to write passages itself and code to apply a floor. AI Hub's FastEmbed was not run (the slot has no model).
+These force `DocumentOps` to write passages itself and code to apply a floor. This re-plan (2026-11-07) re-read the current files only; it ran nothing on any runtime.
 
-**Integration ACs:** the matrix row "Integration: consumer ChatAgent" (`Test.Docs.Turns`: the real runner, gate, AI Hub tool, `CommandsIn` and `DocumentOps`, with no double), and "Real route" (`live:documents`).
+**Integration ACs:** the matrix row "Integration: consumer ChatAgent" (`Test.Docs.Turns`: the real runner, gate, AI Hub tool, `CommandsIn` and `DocumentOps`, no double) and "Real route" (`live:documents`).
 
 **Consumed-by:**
-- 19.5: `Docs.Store` per-session tables, `Attach` replaced by `TurnToolsClass`, `Docs.DropSession` over `Store.Remove`.
-- 19.6: the extracted text enters `OnAdd`.
-- 19.7: `Passages.Split` with page and heading markers, and the eval kind.
+- 19.5: `Docs.Store` (per-session tables, `Remove` for `Docs.DropSession`); `Attach` replaced by `TurnToolsClass`.
+- 19.7: `DocumentOps`' text seam (`Text`) for `Extract.Read`, `Passages.Split` with the page and heading markers and the `\## ` escape, the eval kind.
 - 20.2 (Lane B): `HostData.citations` and the "None" consistency at display.
 
 **Consumes:**
-- 34.1: names, table, stubs.
-- 34.2: verbs, routes, `Live.Payload.Document.FromRow`, reason codes.
-- 34.3: `Upload.Take(ref, sessionRef)`.
-- 19.2: `Memory.Embedding.Embed`.
-- 19.3: `Tools.HostData`.
+- 34.1 (names, table, stubs), 34.2 (verbs, routes, `Live.Payload.Document.FromRow`, reason codes), 34.3 (`Upload.Take(ref, sessionRef)`).
+- 19.2 (`Memory.Embedding.Embed`), 19.3 (`Tools.HostData`, the memory bullets' place).
+- Epic 17's merged bridge (`Decide.Conclude`, `StepAudit`, the gate) as it stands at `5b47f052`.
 
 **Extend, don't copy:**
-- `DocumentOps` follows `Memory.Ops`/`Watch.Ops`.
-- `Docs.Store`'s DDL is `Test/Memory/Fixture.CreateTable`'s (product twin; the fixture may later call it).
-- `Bridge.HostData` takes `Tools.HostData`'s bodies and `Tools.HostData` delegates, so there is no copy.
+- `DocumentOps` follows `Memory.Ops` / `Watch.Ops`.
+- `Docs.Store`'s DDL is `Test/Memory/Fixture.CreateTable`'s (the product twin; the fixture may call it later); its vector-to-text helper is `Memory.ToText`'s twin, because that one is Private and 19.3's class is not this story's to open up.
+- `Bridge.HostData` takes `Tools.HostData`'s bodies and `Tools.HostData` delegates: no copy.
 - `Docs.Embedding` wraps `Memory.Embedding.Embed`.
-- `Docs.Reply` follows `Checks.ReplyGuard`'s matching rule.
-- The live unit copies `test-demo-switch.sh`'s two sign-in lines, as `test-bundle-folder.sh` did, because `lib-live.sh` is shared.
+- `Docs.Reply` reuses `ReplyGuard`'s matching rule (phrase, case, word edges, trailing punctuation).
+- `Gate.STEPTOKENS` repeats `Tools.Result.#STEPTOKENS` because the bridge cannot name a host class (`bridge_refs`); `Test.Docs.Chat` pins them equal.
+- `Citations.Collect` uses the gate's one `RagCall` test, so the pair is defined once.
+- The live unit copies `test-demo-switch.sh`'s sign-in helpers and `test-memory-offline.sh`'s `CHK|` and restart steps, because `lib-live.sh` is shared.
 
 **Decided in-stage:**
-- Query and passage vectors come from `OcuTalon.Docs.Embedding` (the 19.2 worker's fastembed 0.9.0, the AllMiniLM-L6-v2 that AD-21 pins, equal to AI Hub's FastEmbed within 1.3e-7, with `ModelName` "AllMiniLML6V2"), not AI Hub's `FastEmbed.Create()`. So no FastEmbed and no Python run in `DocumentOps`, in the ChatAgent job or in a callback. IPM installs need no `FASTEMBED_CACHE_DIR` in those jobs, and one model is loaded per worker rather than per runner. This replaces the line "DocumentOps sets `FASTEMBED_CACHE_DIR` ... before `FastEmbed.Create()`" (confirmation requested; Task 0 M1 decides, with the stop rule as the fallback).
-- "At most 5 passages per model request" is read as per `documents` call, as the AC's parenthetical defines it. NFR-3's step bound covers several calls in one step (gate (c)).
-- `MAXPASSAGE` 1,000 characters (about 250 word pieces in English, under the 256 that the model embeds) and `BATCH` 32.
+- (Ruled Q2) Query and passage vectors come from `OcuTalon.Docs.Embedding` (the 19.2 worker's fastembed 0.9.0, AllMiniLM-L6-v2 as AD-21 pins, within 1.3e-7 of AI Hub's FastEmbed, `ModelName` "AllMiniLML6V2"), never AI Hub's `FastEmbed.Create()`; no FastEmbed or Python runs in `DocumentOps`, the ChatAgent job or a callback.
+- "At most 5 passages per model request" is per `documents` call, as the AC's parenthetical says; NFR-3's step bound covers several calls in one step (gate (c)).
+- `MAXPASSAGE` 1,000 characters (about 250 word pieces, under the 256 the model embeds), `BATCH` 32, `RAGRESULTMAX` 8,000.
 - A section's heading is embedded with its passage but not stored in its text.
-- `document` in a citation is the name without its file extension, so the AC's "Results runbook (section sign, U+00A7) Rotating the certificate" comes from `document` + `section`. The section-sign join is the chip's (Lane B).
-- An empty `Take` writes a failed row (spine Lane B contract: "an empty answer is a failed row") and answers Ok 0. The route has already answered when it timed out.
+- `document` in a citation is the name without its extension; the AC's "Results runbook (section sign, U+00A7) Rotating the certificate" is `document` + `section`, joined by the chip (Lane B).
+- An empty `Take` writes a failed row (the spine's Lane B contract: "an empty answer is a failed row") and answers Ok 0; the route has already answered when it timed out.
 - The knowledge base's `DESCRIPTION` (model-facing): "Searches the documents added to OcuTalon, such as runbooks, and returns the passages that best match the query, each with its document and section."
-- `live:documents` joins `shards-2`, whose only unit is `shard:lane-a@rest`. A unit over 1,000 s on a clean run is split; a group only above 35 minutes on two clean runs.
+- The matrix row "PDF/Word (until 19.6)" reads "until 19.7": Story 19.6 built the extractor and Story 19.7 wires it into `DocumentOps`' text seam. This story never calls `Extract.Read`.
+- DW-832, the splitter's half: only a `markdown` document's `## ` lines open sections, a `text` document's never do, and `\## ` is the escaped passage line Story 19.7's extracted text will use for a file's own `## ` lines.
+- `DocumentOps` and `Attach` create the table only on a local install; the online demo gets nothing until Story 19.5.
+- (Q3 mechanics) The fallback is the gate's `RagCall` (no `mcp:`, no `origin_class`, name exactly `RAGTOOL` "documents", the source then `RAGSOURCE` "%AI.RAG.KnowledgeBase"); the classification still needs the `ToolClassification` entry, so with no entry the call is unclassified as before. The bridge holds the name `documents` as a literal because it cannot name `Tools.Names`; `Test.Docs.Chat` pins it.
+- (Q2 b reading) "an unrelated question gets no passages" means no passage reaches `HostData.citations`: AI Hub's tool result reaches the model unchanged (no policy hook can change it), and bullet 2 governs the sentence.
+- (Q2 c reading) Each `AddDocument` is its own document with a new `Ref`; re-indexing X deletes only X's rows, and a second add of the same file keeps the first's passages and Y's.
+- (Q1 mechanics) `hostData` is the turn reply's `HostData` JSON string; the decide and diagnose calls pass none. `ReplyGuard` runs its own `Apply` first, then `Docs.Reply.Apply`. A reply that the strip empties takes `Decide`'s existing invalid path (retry or fallback), so the sentence never leaves `Decide`.
+- The `documents` step shows the existing generic label "Running a tool" (`StepBuffer.GENERICLABEL`): a specific label would need a label source for a tool with no class, which is not this story's, and would be new text.
+- The security overview's `documents` row names `OcuTalon.Docs.Store` in its Toolset column (the class that attaches it) and reads its classification from `Production.cls`' entry, so the document cannot drift from the gate.
+- `Tools.Names` gets one plain parameter `DOCUMENTS` and no list parameter (one tool); `released` gains one `$ListFromString` term for it, as 19.3's ruling shaped it, and `Test.Agent.Constants` counts 19.
+- `Test.Agent.Runners`' sampling check reads the request's top-level keys: AD-6's "no request sets top_k" is about sampling, while the knowledge-base tool's schema declares a `top_k` argument, which AD-10 clamps.
+- `Test.Bridge.Decide:TestEstimateTokens` stays: `RequestSize.AgentChars` counts `TOOLSETS` only, so the estimate leaves out the knowledge-base schema (a few hundred characters, inference), inside the test's 10% tolerance.
+- `Test.Tools.Memory:TestInstructions` keeps its five bullets and their order but no longer requires the data bullet directly after them; `Test.Docs.Chat` pins the new sequence.
+- The story's own unrouted e2e (Q4) is `live:documents`: real HTTP through a signed-in web session, the page's own requests (`POST` `{name, content}`, `GET` list, `DELETE`), because `web/**` beyond D8 and D10 is Lane B. It also posts a real 10 MB `.pdf`, keeping D8's real-route size check. The header sentence of `documents.spec.ts` that describes D8's setup changes with D8.
+- `live:documents` joins `shards-5`: 1,253 s on ci run 42384900368 (`OCT-epic19`), plus about 300-450 s (inference from `live:memory-offline`'s 243 s in CI and this unit's restart), under 35 minutes. It reads the web bundle (a sign-in on the web port), as `shards-5`'s inputs already do. The new `Test.Docs.*` classes run in `shards-2` (1,520 s) through `rest`.
+- `DocumentOps`' `MESSAGE*` texts are developer-facing (`Web.Documents` maps outcomes, not messages); the gate's `NOROOM` sentence goes to the model and the trace, and is listed under PUBLIC TEXT because the trace is shown to developers.
 
-**Needs a ruling** (the rest of the plan does not depend on these):
-- `src/bridge/cls/OcuTalon/Bridge/Policy/Gate.cls` (Epic 17's bridge footprint; Epic 19's paths_hint does not include `Policy/`) -- (a) the source fallback for a call with no `origin_class` (AI Hub sends none for a knowledge base, measured), (b) AD-10's `top_k` clamp, (c) NFR-3's room check for knowledge-base results. Without them, `documents` is unclassified and held for approval in every user turn.
-- `src/bridge/cls/OcuTalon/Bridge/Policy/StepAudit.cls` (same footprint) -- one call of `OcuTalon.Bridge.Citations.Collect` in `%LogExecution`, the only place that sees a knowledge-base result (no host hook receives tool results).
-- `src/ocutalon/cls/OcuTalon/Production.cls` (Epic 17 contended) -- `Decide`'s `ToolClassification` setting entry for `%AI.RAG.KnowledgeBase:documents` (safe, readOnly 1, trustedOutput 0), beside the allowed `DocumentOps` `Enabled="true"`.
-- `src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls` (Epic 17 contended) -- beyond the list append: `:27-28` exempt the knowledge-base tool from "every tool is an OcuTalon tool", and `:526-528` assert no top-level `top_k` (the tool's schema has the property).
-- `web/e2e/documents/documents.spec.ts` (Lane B, U-177; DW-735) -- D8 fulfils its POST with `page.route` (today it would leave a real `instance` row), D10 fulfils the failing `DELETE` with `page.route` (it goes red once the item is built), and the header lines 11-14. If declined, route it to Lane B Story 20.2, but `live:sign-in`/`browser` are then red from this story's merge.
-- `src/ocutalon/cls/OcuTalon/Eval/{In,Report}.cls`, `Eval/Msg/TurnResult.cls`, `docker/tests/test-eval-set.sh` (Epic 39 contended) -- the `documents` case kind and setup. No existing kind can assert a tool call or a citation.
-- The DW-720 b mechanism (contended `Decide.cls`, `Ext/ReplyFilter.cls`, `Checks/ReplyGuard.cls`; see the blocking question).
+**Ruled items (were "Needs a ruling"; each is now a planned task):** `Bridge/Policy/Gate.cls` (a) to (c) and `Bridge/Policy/StepAudit.cls` (Q3); `Production.cls` `ToolClassification` (Q3); `Test/Agent/Runners.cls` beyond the list append (the knowledge-base tool in the inventory check, the top-level sampling check; epic context "Other 19.4 rulings"); `web/e2e/documents/documents.spec.ts` D8 and D10 (Q4); the Eval kind (Q5); the DW-720 b mechanism (Q1); the Chat bullets (Q6); the embedder (Q2).
 
-**PUBLIC TEXT needed:**
-- `Agent/Chat.cls` INSTRUCTIONS, inserted after Story 19.3's memory bullets and before "Everything that comes from a tool...", with the PersonaBlock pins still last. Proposed:
-  1. "When the user asks about something their documents may cover, such as a runbook, call documents with the question, and answer only from the passages it returns, naming the document and section of each step you give."
-  2. "If no passage that documents returns answers the question, reply with exactly this sentence and nothing else: None of your documents cover that."
+**PUBLIC TEXT needed** (the plan does not depend on the wording; the implementer uses the proposal until the lead rules otherwise):
+- PUBLIC TEXT needed: `Install/SecurityOverview.cls` `RAGSTATEMENT`, printed after the tools table of `docs/security-overview.md` (Q3) -- proposed: "One tool is not a class of its own: `documents`, the search over your added documents that AI Hub's knowledge base gives the Chat agent. AI Hub sends no source class with its calls, so the gate classifies exactly this tool, and no other, by the bridge's classification setting: safe and read-only, but never trusted output, so a turn that searches your documents is treated as holding untrusted content. The gate also limits each search to 5 passages. Any other call that arrives without a source class stays unclassified and counts as risky."
+- PUBLIC TEXT needed: `docs/bridge-guide.md:312` (the AD-31 amendment, Q1) -- proposed: "`Filter(text, hostData)` returns the text to use in place of model-written text. For a chat turn, `hostData` is the reply's `HostData` JSON; otherwise it is empty. It returns the text unchanged by default."
+- PUBLIC TEXT needed: `Bridge/Policy/Gate.cls` `NOROOM` (the room-check denial, model-facing, shown in the trace) -- proposed: "This step's tool results are near their size limit, so the documents search was not run. Answer from the results you already have."
 
 **Ledger inbox:**
-- DW-720 is addressed by `Citations.Collect` with the floor (direction a) and the ruling-gated reply rule (direction b), with tests both ways in `Test.Docs.Turns` and `Test.Docs.Reply`.
-- DW-735 is ruling-gated (above).
-- DW-739 is addressed by `Test.Docs.Ops` (`Commands.Submit` -> `CommandsIn` -> `DocumentOps` for real) and `live:documents` (the real `Web.Documents` route over HTTP). What remains is `Test.Web.DocumentsApi`'s stale comment at :537 (Lane B).
-- DW-747 is addressed by `OnAdd`'s single `Take` with the command's `SessionRef` and its empty-take failed row (matrix "Upload gone"). 34.3 delivered the sweep and the session check.
+- DW-720: addressed by `Citations.Collect` with the floor (direction a) and Q1's reply filter (direction b), tested both ways in `Test.Docs.Turns`, `Test.Docs.Reply` and `Test.Bridge.Citations`.
+- DW-735: addressed under Q4 (D8 and D10's network setup through `page.route`; `live:documents` covers the real path).
+- DW-739: addressed by `Test.Docs.Ops` (`Commands.Submit` -> `CommandsIn` -> `DocumentOps` for real) and `live:documents` (the real `Web.Documents` route over HTTP). Residual: `Test.Web.DocumentsApi`'s stale comment at :537 (Lane B).
+- DW-747: addressed by `OnAdd`'s single `Take` with the command's `SessionRef` and its empty-take failed row (matrix "Upload gone"); 34.3 delivered the sweep and `Take`'s session check; `Data/Upload.cls` stays read-only.
+- DW-832: the splitter's half addressed (Decided in-stage); the extraction side's escaping is Story 19.7's (epic context).
+- DW-833: addressed by `Test.Docs.Extract`'s `Signature()` change (the KB half, asserted non-empty, and real counts in place of the `$Data` flags).
+
+**File footprint:**
+- New: `src/ocutalon/cls/OcuTalon/Docs/{Passages,Embedding,Store,Reply}.cls`, `src/ocutalon/cls/OcuTalon/Docs/Msg/Index.cls`, `src/bridge/cls/OcuTalon/Bridge/{HostData,Citations}.cls`, `src/ocutalon/cls/OcuTalon/Test/Docs/{Passages,Store,Ops,Turns,Reply,Chat,Live}.cls`, `src/ocutalon/cls/OcuTalon/Test/Bridge/Citations.cls`, `ci/mock/scenarios/A/documents-{runbook,none,topk,none-conflict,none-only,removed,then-save}.json`, `eval/documents-runbook-rotate/{case.json,results-runbook.md}`, `eval/documents-none-cover/case.json`, `docker/tests/test-documents.sh`, `_bmad-output/implementation-artifacts/evidence/19-4-task0-documents.md`.
+- Edited, product: `src/ocutalon/cls/OcuTalon/Docs/Ops.cls`, `Data/Document.cls`, `Agent/Chat.cls`, `Tools/Names.cls`, `Tools/HostData.cls`, `Production.cls`, `Checks/ReplyGuard.cls`, `Install/SecurityOverview.cls`, `Eval/In.cls`, `Eval/Report.cls`, `Eval/Msg/TurnResult.cls`; `src/bridge/cls/OcuTalon/Bridge/Policy/{Gate,StepAudit}.cls`, `Bridge/Process/Decide.cls`, `Bridge/Ext/ReplyFilter.cls`.
+- Edited, tests: `src/ocutalon/cls/OcuTalon/Test/Bridge/{ProbeFilter,CodeRules,Gate,Decide}.cls`, `Test/Tools/{Memory,Reminders,Persona}.cls`, `Test/Watch/Turns.cls`, `Test/Agent/{Runners,Constants}.cls`, `Test/Install/{Production,SecurityOverview}.cls`, `Test/Contract/{Step3,Ac}.cls`, `Test/Docs/Extract.cls`, `Test/Eval/{In,Cases,Report}.cls`, `Test/Core/{CommandsStep3,CommandsStep3Probe}.cls`, `ci/mock/test/constants.test.mjs`, `web/e2e/documents/documents.spec.ts`.
+- Edited, CI, docs and spine: `ci/units.sh`, `docker/tests/test-eval-set.sh`, `docs/security-overview.md` (regenerated), `docs/bridge-guide.md` (line 312), `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`.
+- Never: `release/**`, `eval/run.sh`, the IPM check scripts, `docker/tests/test-ci-config.sh`, `Test/Agent/RunnerFixture.cls`, `Data/Upload.cls`, `Core/**`, `Web/**`, any other `web/**` file.
+
+**Contended files (checked 2026-11-07 after `git fetch`, `git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<M>`):** `Test/Agent/Runners.cls` (Epic 11, Story 11.28: hunks at 149-228 in `TestStartsWithNoKey`; this story's edits are at 26-28, 43-45, 76-77, 313-348, 365-378 and 541-544); `Test/Core/CommandsStep3.cls` and `CommandsStep3Probe.cls` (Epic 12's 12.12 plans `Test/Core/**`; its branch holds no code yet; this story changes only the pre-granted lines); the spine (Epic 12's AD-14 amendment; this story's unions sit in AD-10, AD-21, AD-31 and the Conventions rows). Epics 31 and 17 show no unmerged code, and Epic 39's only unmerged file is `Test/Schedule/Heartbeat.cls`.
+
+**Shared test-list additions:** `CodeRules` `CALLBACKHELPERS` + `OcuTalon.Docs.Embedding,OcuTalon.Bridge.Citations,OcuTalon.Bridge.HostData`; `CodeRules` `TOOLVERBS` none; `Gate` `TRUSTEDTOOLS` and `READONLYTOOLS` none (the tool has no class; its flags live in the setting entry); the Chat offered-tool lists of `Test.Tools.Reminders`, `Test.Tools.Persona`, `Test.Watch.Turns` and `Test.Agent.Runners` (`REMINDERTOOLS`, `expected("ChatAgent")`) + `documents` (16 names); `Test.Agent.Constants` + `DOCUMENTS` (19); `Test.Install.SecurityOverview` `released` + one term; `Eval.In.KINDS` and `Eval.Report.CASEKINDS` + `documents`.
 
 **Rulings (2026-11-06; the Contest Planner under the owner's delegation, relayed by the orchestrator). They answer the blocking question and every "Needs a ruling" / "PUBLIC TEXT needed" item above. Every spine amendment below carries the marker `[AMENDED 2026-11-06, Story 19.4, owner ruling via the Contest Planner]`.**
 - ORDER: this story waits for Epic 17's merge (as 19.5 does). At that merge: integrate forward, then reset `status` per the re-dispatch protocol (`ready-for-dev` if the plan stands with these rulings, `draft` if it must be re-planned around Epic 17's merged bridge files), and only then the lead's spec gate. Until then nothing here is implemented and none of the contended files is touched.
@@ -317,57 +304,49 @@ These force `DocumentOps` to write passages itself and code to apply a floor. AI
 
 ## Verification
 
-Lane variables go on every `ci/iris.sh` / `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=19 stage=implement'`. Every call runs in the foreground with `timeout: 600000`.
+Lane variables go on every `ci/iris.sh` / `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=19 stage=implement'`. Every call runs in the foreground with `timeout: 600000`, one test class or one part per call.
 
-Runtime targets:
-- lane C warm `e19s4iw` (`ci/warm.sh up` once, `down` at the end and after a failure);
-- fresh `e19s4i` (live, shards, destructive);
-- fresh `e19s4i0` (Task 0);
-- `ocutalon-slot-c` / `OCUTALON` only for `iris_doc_load` compile checks.
+Runtime targets: lane C warm `e19s4iw` (`ci/warm.sh up` once, `down` at the end and after a failure); fresh `e19s4i` (live units, shards, destructive); fresh `e19s4i0` (Task 0); `ocutalon-slot-c` / `OCUTALON` only for `iris_doc_load` compile checks (pass `server` and `namespace` on every call; check `iris_server_info` first). Run `ci/iris.sh build` once before the first browser unit (the bundle is rebuilt after a merge).
 
 **Commands:**
-- `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e19s4iw ci/iris.sh class <C>` (loop), one call each, for C in:
-  - `OcuTalon.Test.Docs.`: `Passages`, `Store`, `Ops`, `Turns`, `Reply`;
-  - `OcuTalon.Test.Bridge.`: `Citations`, `Gate`, `CodeRules`, `Decide`;
-  - `OcuTalon.Test.Tools.`: `HostData`, `Memory`, `Reminders`, `Persona`;
-  - `OcuTalon.Test.Watch.`: `Tools`, `Turns`;
-  - `OcuTalon.Test.Agent.`: `Instructions`, `Constants`, `Runners`, `PersonaBlock`;
-  - `OcuTalon.Test.Install.`: `Production`, `SecurityOverview`, `PrivateData`;
-  - `OcuTalon.Test.Core.CommandsStep3`, `OcuTalon.Test.Contract.Step3`, `OcuTalon.Test.Memory.Turns`.
-
-  Expected: CLASS passed, no SKIP.
+- `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e19s4iw ci/iris.sh class <C>` (loop), one call each, for C in `OcuTalon.Test.Docs.` `Passages`, `Store`, `Ops`, `Turns`, `Reply`, `Chat`, `Live`, `Extract`; `OcuTalon.Test.Bridge.` `Citations`, `Gate`, `Decide`, `CodeRules`, `Ext`, `Example`, `ReplyCheck`; `OcuTalon.Test.Checks.Guard`; `OcuTalon.Test.Tools.` `HostData`, `Memory`, `Reminders`, `Persona`; `OcuTalon.Test.Watch.Turns`; `OcuTalon.Test.Agent.` `Constants`, `Runners`, `Instructions`, `PersonaBlock`; `OcuTalon.Test.Install.` `Production`, `SecurityOverview`, `PrivateData`; `OcuTalon.Test.Contract.` `Step3`, `Ac`; `OcuTalon.Test.Core.CommandsStep3`; `OcuTalon.Test.Eval.` `In`, `Cases`, `Report`; `OcuTalon.Test.Memory.Turns` -- expected: `CLASS ... passed`, and no SKIP except `Test.Docs.Live`'s.
 - `OCUTALON_LIVE_DEADLINE=1200 OCUTALON_RUN_TAG=e19s4i ci/iris.sh live documents` (loop; destructive: a container restart), then `ci/iris.sh teardown` with that tag -- expected: every PASS.
-- `OCUTALON_RUN_TAG=e19s4i ci/iris.sh live security-overview` (once) -- expected: no `DRIFT`.
-- `OCUTALON_RUN_TAG=e19s4i ci/iris.sh live sign-in --part 1/2`, then `--part 2/2`, one each (once, after the DW-735 ruling and a `ci/iris.sh build`) -- expected: every test passed.
+- `OCUTALON_RUN_TAG=e19s4i ci/iris.sh live security-overview --write` once, then without `--write` (once) -- expected: no `DRIFT`; `git diff docs/security-overview.md` shows only the `documents` row and the fallback sentence.
+- `OCUTALON_RUN_TAG=e19s4i ci/iris.sh live sign-in --part 1/2`, then `--part 2/2`, one each (once, after `ci/iris.sh build`) -- expected: every test passed, D8 and D10 included.
 - `OCUTALON_LIVE_DEADLINE=1200 OCUTALON_RUN_TAG=e19s4i ci/iris.sh live memory-offline` (once) -- expected: `MEMORY-OFFLINE engine=aarch64 ok=1`.
 - `OCUTALON_RUN_TAG=e19s4i ci/iris.sh shard lane-a --part k/12` for k = 1..12, one call each (once) -- expected: every class passed.
 - `OCUTALON_RUN_TAG=e19s4i ci/iris.sh shard lane-b --part k/4` for k = 1..4, one call each (once) -- expected: every class passed.
 - `bash docker/tests/test-<n>.sh` for n = `ci-config`, `class-rules`, `storage`, `boundaries`, `ci-changes`, `mock`, `eval-set`, one call each (once) -- expected: PASS.
-- `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` (once) -- expected: no new finding.
-- CI: `iris (shards-2)` runs `Test.Docs.*` and `live:documents`. Record its seconds.
+- `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` (once, before and after the spine edit) -- expected: no new finding.
+- CI (after the lead's push): `iris (shards-5)` runs `live:documents` and `iris (shards-2)` the `Test.Docs.*` classes; record both groups' seconds.
 
 **Shared surfaces:**
-- ChatAgent's offered tools: `Test.Tools.{Reminders,Persona}`, `Test.Watch.{Tools,Turns}`, `Test.Agent.Runners`, `Test.Bridge.Decide`.
+- ChatAgent's offered tools: `Test.Tools.{Reminders,Persona}`, `Test.Watch.Turns`, `Test.Agent.Runners`.
 - `Tools.Names` (`Test.Agent.Constants`, `ci/mock/test/constants.test.mjs`).
 - The security overview's tools region (`docs/security-overview.md`, `Test.Install.SecurityOverview`, `live:security-overview`).
-- `CodeRules.CALLBACKHELPERS`.
-- Gate classification and rewrites (`Test.Bridge.Gate`).
+- `CodeRules.CALLBACKHELPERS`; the `ReplyFilter` signature (`Test.Contract.Ac`, `Test.Bridge.{Decide,Ext,Example}`, `Test.Checks.Guard`, `ProbeFilter`).
+- The gate's classification and rewrites (`Test.Bridge.Gate`).
 - The production oracle (`Test.Install.Production`) and `Test.Core.CommandsStep3`.
 - `Data.Document`'s schema (`test-storage.sh`, `Test.Contract.Step3`, `Test.Install.PrivateData`).
-- The Chat INSTRUCTIONS order (`Test.Agent.PersonaBlock`).
-- `web/e2e/documents` D8/D10.
-- `ci/units.sh` areas and groups (`test-ci-config.sh`).
+- The Chat INSTRUCTIONS order (`Test.Agent.PersonaBlock`, `Test.Tools.Memory:TestInstructions`, `Test.Docs.Chat`).
+- The `OcuTalonKB` tables (`Test.Docs.Extract:Signature`, `Test.Install.PrivateData`).
+- The eval kinds (`Test.Eval.*`, `test-eval-set.sh`).
+- `web/e2e/documents` D8 and D10.
+- `ci/units.sh` groups (`test-ci-config.sh`).
 
 Every test added or changed passes on a fresh environment, in either order.
 
 **Mutations (one per AC; the implement stage records each result):**
-- AC1: `mutation:` drop the `section` from the inserted metadata -> `Test.Docs.Store` red. `mutation:` drop `DEFAULTGLOBAL` from the DDL -> `Test.Docs.Store` globals check red.
-- AC2: `mutation:` skip `Citations.Collect` -> `Test.Docs.Turns` covered case red. `mutation:` drop the clamp -> `Test.Bridge.Gate` and `Test.Docs.Turns` clamp red. `mutation:` set the setting's `trustedOutput` to 1 -> the taint case red.
-- AC3: `mutation:` `CITEFLOOR` 0 -> the not-covered case red. `mutation:` `Docs.Reply.Apply` returns the text unchanged -> `Test.Docs.Reply` and the none-conflict turn red.
+- AC1: `mutation:` drop `section` from the inserted metadata -> `Test.Docs.Store` red. `mutation:` drop `DEFAULTGLOBAL` from the DDL -> `Test.Docs.Store`'s globals check red.
+- AC2: `mutation:` skip `Citations.Collect` in `StepAudit` -> `Test.Docs.Turns` covered case red. `mutation:` drop the clamp -> `Test.Bridge.Gate` and `Test.Docs.Turns` clamp red. `mutation:` `RagCall` ignores the name -> `Test.Bridge.Gate` near-miss red. `mutation:` the entry's `trustedOutput` 1 -> the taint and then-save cases red.
+- AC3: `mutation:` `CITEFLOOR` 0 -> the not-covered cases red. `mutation:` `Docs.Reply.Apply` returns the text unchanged -> `Test.Docs.Reply` and the none-conflict turn red. `mutation:` `Decide` passes no `HostData` -> `Test.Bridge.Decide`'s hand-over test red.
 - AC4: `mutation:` skip `Store.Remove` in `OnRemove` -> `Test.Docs.Ops` remove red.
 - AC5: `mutation:` keep `DocumentOps` `Enabled="false"` -> `live:documents` red.
+- AC6: `mutation:` drop the `documents` row from `ToolRows` -> `Test.Install.SecurityOverview` red.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: DW-720 / owner ruling U-280 condition (1) ("both are decided by code from the same turn's tool results") has two defensible readings that give different replies, and each needs a change this story cannot decide alone. (A, recommended) The model writes "None of your documents cover that." (PUBLIC TEXT bullet 2), code decides the citations from the turn's documents results with a measured score floor (CITEFLOOR, Task 0 M4), and the reply filter removes the sentence from any reply whose HostData holds citations: this needs Decide to hand the reply's HostData to the ReplyFilterClass (OcuTalon.Bridge.Ext.ReplyFilter.Filter(text, hostData), an AD-31 extension-contract change in Epic 17-contended Decide.cls and Ext/ReplyFilter.cls) and OcuTalon.Checks.ReplyGuard (Epic 17/39-contended Checks/**) to apply OcuTalon.Docs.Reply.Apply. (B) AD-28's pattern, code alone writes the sentence: ReplyGuard always removes the model's copy, the runner side records in HostData that the documents tool ran and nothing reached the floor, and Conversation (Lane B, Story 20.2) renders the sentence from it as it renders Checks.Render's; then AC3's sentence first appears with Story 20.2 (part of an AC moved to a not-yet-planned Lane B story). Please also confirm the Decided in-stage embedder: query and passage vectors from OcuTalon.Docs.Embedding (the Story 19.2 worker's fastembed 0.9.0, the same model as AI Hub's FastEmbed within 1.3e-7) instead of AI Hub's FastEmbed.Create() with FASTEMBED_CACHE_DIR set in DocumentOps' job, because an IPM install would then need %SYS.Python os.putenv in DocumentOps' and the ChatAgent's non-worker jobs. Evidence: the plan-stage measurement and the AD-28 precedent under Design Notes. Everything else is planned; the contended-file edits are under Design Notes "Needs a ruling" and do not block on this question.
+Status: ready-for-dev
+Blocking condition: none
+
+Re-planned 2026-11-07 (plan stage, `Halt after planning.`) from the `draft` that the lead reset after Epic 17's merge. The intent-contract block and the Rulings block are kept verbatim; every Code Map anchor and task was re-derived against `b6ec0982` (feature `5b47f052`). Every earlier "Needs a ruling" item is a planned task under Q1 to Q6. Three PUBLIC TEXT proposals and the file footprint are under Design Notes. Nothing ran on any runtime in this stage.
