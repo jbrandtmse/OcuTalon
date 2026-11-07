@@ -158,3 +158,4 @@
 2026-11-07T13:20:53Z	Epic 19	forecast	part1_merged_green_on_feature=after_15:00Z(needs_a_CI-structure/release-tool_ruling,a_fix_commit,a_~40min_CI_run) -> PLANNER_REPORT
 2026-11-07T13:37:11Z	Epic 19	planner_ruling	subject=part1_ci_splits 1a=new_iris_group_shards-5(shard:lane-a@Bridge,Agent;discharges_DW-826;nothing_else_in_ci.yml) 2a=ipm-install+ipm-install-p_by_explicit_modes(no-arg_unchanged;other_callers_unchanged;union_test) 3=R3c_rerun_by_the_fix_push;red_again->Clarification timing=~16:15Z_ok,cut_17Z,23Z_hard_stop,report_only_for_slips_past_16:30Z
 2026-11-07T13:37:11Z	Story 19.8	rework_opened	cycle_iteration=3 iteration=2 trigger=owner_ruling items=DW-826,DW-864 scope_baseline=2df7b9d6
+2026-11-07T13:37:11Z	Story 19.8	stage_spawned	stage=implement spawn_at=2026-11-07T13:37:11Z model=sonnet agent_name=19-8-epic-19-burn-down-implement-3 cycle_iteration=3
