@@ -2428,3 +2428,4 @@
 2026-11-07T09:16:17Z	Epic 17	epic_merged_to_feature	merge=70e4246d head=17989a90 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine_lint=10_low_baseline(no_ad_id/fields) release_tools=untouched
 2026-11-07T09:16:17Z	Epic 17	decision_sheet_recorded	decided=DW-773_to_planner_public_text
 2026-11-07T09:16:17Z	Run	deps_hash_rerecorded	reason=burndown_inserted story=17.9 hash=23068bba45ad
+2026-11-07T09:16:41Z	Epic 19	runner_resumed	reason=integrate_over_epic17_after_feature_green
