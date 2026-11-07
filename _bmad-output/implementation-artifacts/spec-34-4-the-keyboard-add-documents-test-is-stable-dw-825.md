@@ -2,8 +2,8 @@
 title: 'Story 34.4: The keyboard add-documents test is stable (DW-825)'
 type: 'bugfix'
 created: '2026-11-06'
-status: 'ready-for-dev'
-baseline_revision: '80c93ef39f25cd869fbbeb86756767b36f94bac4'
+status: 'done'
+baseline_revision: '7b811445d17feb86e4906f0677f302c28e1ec04b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -69,6 +69,22 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-06 — Review pass
+- verdicts: 12 findings — high 0, medium 0, low 6, false 5, maybe-false 1
+- findings:
+  - `[false]` `[reject]` Blind: the spec's `## Auto Run Result` still says ready-for-dev — finalize rewrites that section in this same pass.
+  - `[low]` `[patch]` Blind: the comment says a chooser is "always caught", stronger than the fix proves — reworded to state the mechanism (armed for the whole sign-in and navigation before the Enter); no behaviour change.
+  - `[low]` `[reject]` Blind: `choosers` toBe(0) before Enter has little power — the spec's Tasks require it as the proof the counted chooser came from the Enter; a stronger form adds complexity for a cosmetic gain.
+  - `[low]` `[reject]` Blind: the stack-run mutations are predictions, and the AC 1-2 proof is probabilistic — the spec assigns both to the lead's live-stack proof and states the 31 % figure (Verification, Lead-owned proof).
+  - `[maybe-false]` `[reject]` Edge: no barrier confirms interception is on before Enter — it is armed before the page opens, seconds before the press, and a swallowed subscription error needs a closed page; if it were real it would be a harness-level change outside the footprint, and nothing shows the bad outcome is reachable (settled by the lead's 20-repeat run).
+  - `[low]` `[reject]` Edge: a double-open after the 2.5 s window goes uncounted — the window is D5's existing one; widening it adds a timeout, which the intent forbids.
+  - `[low]` `[patch]` Verification-gap: the exactly-one count (high side) and the none-before-Enter guard have no `mutation:` line, and the AC 2-3 line named an unreachable red (`toBe(1)` is after `waitForEvent`) — added a planned third mutation line (double open, open on load) and corrected the second line; the lead records the observed red.
+  - `[low]` `[reject]` Verification-gap: the early-listener ordering has no deterministic pin — a unit test of statement order is not a behaviour pin; the spec accepts a probabilistic pin carried by the lead's repeat proof and the stack-free repro.
+  - `[false]` `[reject]` Verification-gap (other): AC 3 and AC 4 have no mutation line — AC 3 is the baseline D5 assertions, unchanged (diff check), and AC 4 is a set of commands, not a test.
+  - `[false]` `[reject]` Verification-gap (other): `MODE=armed` listens only milliseconds before the press — the repro models the ordering, not D5's seconds of margin; it is labelled mechanism evidence only.
+  - `[false]` `[reject]` Intent alignment: the diff implements the minimal literal reading; the 34-4 evidence folder is present in the tree (the auditor could not see it) — no divergence from the intent.
+  - `[false]` `[reject]` Intent alignment: the diff alone does not show D5 stops flaking — by design; the lead-owned live-stack proof carries it (Verification, Lead-owned proof).
+
 ## Design Notes
 
 **Governing ADs (Rule 6):** AD-22 (testing and CI: the browser specs, the lead's proof on a throwaway, never a slot), AD-29 (Lane B's files: the web app's e2e specs), AD-21 (the documents route whose refusal D5 pins; unchanged). Spine rows: Consistency Conventions "Tests" (Playwright specs under `web/e2e/`) and Stack "Playwright 1.64.x" (the version whose `addListener` is fire-and-forget). No AC contradicts an AD's Rule; no spine change.
@@ -114,15 +130,28 @@ expect(choosers, 'Enter opened exactly one chooser').toBe(1);
 **Standing criterion (Rule 19):** every test added or changed passes on a fresh environment, in either order.
 
 **Mutations (one per AC group; red observed by the lead on the stack, mechanism shown by implement with the repro):**
-- AC 1-2 (interception armed before the press): move the early `page.on('filechooser', ...)` back to just before `keyboard.press('Enter')`, in the same tick as the `waitForEvent` (the old order) → the repro's `MODE=old` shows misses where `MODE=armed` shows none, and the lead's repeat run of the mutated D5 shows at least one `page.waitForEvent: Timeout` red. Planned; the lead appends the observed red (test, line, run) here after its run.
-- AC 2-3 (a chooser opened by Enter is required): drop `await chooser` and its `setFiles` → no file is set, no POST is made, and D5 goes red at `await answer` (`posted()`'s `page.waitForResponse` times out); with the count assertion kept, a page whose Enter opens no chooser also goes red at `waitForEvent` or at `choosers` toBe(1). Planned; the lead appends the observed red (test, line, run) here after its run.
+- AC 1-2 (interception armed before the press): move the early `page.on('filechooser', ...)` back to just before `keyboard.press('Enter')`, in the same tick as the `waitForEvent` (the old order) → the repro's `MODE=old` shows misses where `MODE=armed` shows none, and the lead's repeat run of the mutated D5 shows at least one `page.waitForEvent: Timeout` red. Planned; mechanism shown stack-free by implement: `MODE=old N=300` missed=2, `MODE=armed N=300` missed=0. The lead appends the observed red (test, line, run) here after its run.
+- AC 2-3 (a chooser opened by Enter is required): drop `await chooser` and its `setFiles` → no file is set, no POST is made, and D5 goes red at `await answer` (`posted()`'s `page.waitForResponse` times out); with the count assertion kept, a page whose Enter opens no chooser goes red at `waitForEvent` (it comes before the count). Planned (not run by implement: needs a live stack); the lead appends the observed red (test, line, run) here after its run.
+- AC 2 (exactly one chooser; none before Enter): make the page open the picker twice on one Enter (a second `picker.click()` in the button's click handler) → D5 goes red at `choosers` toBe(1) ("Enter opened exactly one chooser"), provided Chromium reports both choosers; make the page open the picker on load → red at "no chooser before Enter". Planned (needs a live stack and a product edit the lead reverts); the lead appends the observed red (test, line, run) here, or records that Chromium suppresses the second chooser.
 
 **Lead-owned proof (verification arrangement (b); not a stage command):**
 - On lane D's throwaway (`OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-d`, `OCUTALON_TEST_WEB_PORT=52804`, the lead's own run tag), under a documented load: the new D5 passes 20 of 20 with `--repeat-each=20`; the old D5 (baseline `80c93ef3`) fails at least once under the same repeat and load; then full CI green on every workflow. `test-sign-in.sh` takes no test filter or repeat option, so how D5 alone is run with `--repeat-each=20` is the lead's arrangement; no harness change is in this story's footprint.
 - Note for the old-D5 red (inference): at the repro's about 1.8 % miss rate, 20 repeats show at least one miss only about 31 % of the time; the CI rate under the browser job's load is unmeasured. Expect to need heavier documented load or more than one round of 20.
-- The two mutation runs above, each on the same stack, then reverted (`git status --short` and `git diff --stat` unchanged).
+- The mutation runs above, each on the same stack, then reverted (`git status --short` and `git diff --stat` unchanged).
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** D5 now registers a `filechooser` listener (a counter) as its first statement, before `recordAnnouncements` and `openDocuments`, with a DW-825 contract comment; it asserts 0 choosers before the Enter, keeps `page.waitForEvent('filechooser')` as the proof that Enter opened the chooser, and asserts exactly 1 after the final 2.5 s wait. Every other pin, the title and every timeout are unchanged.
+
+**Files changed.**
+- `web/e2e/documents/documents.spec.ts` -- D5 only (early listener, two count assertions, doc comment).
+- This spec -- tracking sections only (mutation lines, triage log, this result, frontmatter).
+
+**Review.** 12 findings (low 6, false 5, maybe-false 1); 2 patched (the comment wording; the spec's mutation lines), 0 deferred, 10 rejected with reasons in the Review Triage Log. Follow-up review recommended: false (no high, no patched medium).
+
+**Verification.** `npm --prefix web run lint` exit 0; Playwright `--list` shows `Total: 13 tests in 1 file` with D5 under its unchanged title; `npm --prefix web test` 1494 pass, 0 fail; repro `MODE=old N=300` missed=3 (and missed=2 in the handoff's run), `MODE=armed N=300` missed=0; `git diff` shows no `timeout` change and no non-ASCII. No IRIS stack was started.
+
+**Residual risks.** The new D5 has never run on a live stack: its pass (20 of 20 under load), the old D5's red, and the three planned mutation reds are the lead's proof. The old-order miss rate is about 1.8 %, so 20 repeats show a miss only about 31 % of the time.
