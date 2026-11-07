@@ -2510,3 +2510,7 @@
 2026-11-07T17:18:44Z	Run	ci_run_cancelled	run=42392760843 branch=OCT-epic11 head=a18ddd45 reason=superseded_by_623b9cb0;free_runners_for_feature_5b47f052(cut_trigger)
 2026-11-07T17:27:54Z	Epic 19	public_text_ruled	story=19.4 RAGSTATEMENT=changed bridge-guide:312=approved NOROOM=approved Q2b=cited_reading_accepted(pin_both) Q4=live:documents_shards-5(pdf_generated,report_time)
 2026-11-07T17:27:54Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=19.4_implement
+2026-11-07T17:50:37Z	Epic 11	runner_clarification	kind=planner_report story=11.27 browser=+281s(traces~40s,4.11_tests) risk=live:sign-in_1170s/1200s options=a,b,c 11.28=done(DW-688) veto=U-300
+2026-11-07T17:50:37Z	Run	planner_question	subject=live:sign-in_split when=release_branch_or_after_cut
+2026-11-07T17:54:59Z	Run	ci_green_verified	head=5b47f052 runs=42393186349,42393186350 result=success via=gh note=1.0.3_cut_trigger planner_told=yes
+2026-11-07T17:54:59Z	Run	planner_ruling	subject=live:sign-in_split own_commit_own_branch_on_5b47f052 same_test_list_check pick_onto_release_if_timeout else_after_cut traces=option_a U-300=keep+no_secrets_pin
