@@ -701,8 +701,9 @@ EOP
 
 # check_python_moves <label> [<state file of the install>] (check 32, Story 19.8): the folder <mgr>/python now against what snapshot_python_before
 # recorded. The only differences allowed are the stale copies of pinned names (the six) gone and the pins in their place, and the pins that the
-# install adds: every other dist-info is there with the same RECORD, every top-level item is still there, and every module of IPM's packages that
-# imported before imports now. Writes the current state to /tmp/ocutalon-python-after.state.
+# install adds: every other dist-info is there with the same RECORD, every top-level item is still there, the import record names the same modules
+# before and after (an empty one fails), and every module of IPM's packages that imported before imports now. Writes the current state to
+# /tmp/ocutalon-python-after.state.
 check_python_moves() {
   local label=$1 mgr out rc now
   mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
@@ -765,6 +766,8 @@ for item in sorted(bt - at):
 def imports(text):
     return dict(re.findall(r"CHK\|imp\|([^|]+)\|(\d)", text))
 ib, ia = imports(open(imports_before).read()), imports(imports_after)
+if not ib or set(ib) != set(ia):
+    problems.append("the import record of IPM's packages is empty or not the same list before and after (%d and %d modules)" % (len(ib), len(ia)))
 for module, ok in sorted(ib.items()):
     if ok == "1" and ia.get(module) != "1":
         problems.append("%s imported before the install and does not now" % module)
@@ -1834,7 +1837,7 @@ part_p() {
 # check_uninstall_python <label> (check 32, Story 19.8, DW-829 condition 3): after the uninstall, the Python folder holds every distribution and
 # every top-level item that it held after the install, but the two Python resources that the uninstall's FileCopy removal may take
 # (ocutalon_extract.py and ocutalon_memory.py), so the six stay in place; they still import their pinned copies, IPM's own packages import as
-# before the install and zpm "list" answers.
+# before the install (the import record names the same modules both times, and an empty one fails) and zpm "list" answers.
 check_uninstall_python() {
   local label=$1 mgr out rc now started=$SECONDS
   mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
@@ -1875,6 +1878,8 @@ for item in sorted(ut - at):
 def imports(text):
     return dict(re.findall(r"CHK\|imp\|([^|]+)\|(\d)", text))
 ib, ia = imports(open(imports_before).read()), imports(imports_after)
+if not ib or set(ib) != set(ia):
+    problems.append("the import record of IPM's packages is empty or not the same list before and after (%d and %d modules)" % (len(ib), len(ia)))
 for module, ok in sorted(ib.items()):
     if ok == "1" and ia.get(module) != "1":
         problems.append("%s imported before the install and does not now" % module)

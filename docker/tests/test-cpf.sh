@@ -37,6 +37,19 @@
 #  17. (Story 19.8, DW-829) the manifests (src/module.xml and module.xml) invoke OcuTalon.Install.Ipm RemoveStaleCopies once, at Reload, Before,
 #      with the module root and ${BypassPyDeps} as its arguments, on a line of its own after the MapAndStop Invoke, and declare the Default
 #      BypassPyDeps (0) once; no other Invoke runs at Reload, so IPM's pip step finds the stale copies of the pinned packages removed.
+#  18. (Story 19.8, QA, DW-829) the Python of check 32 in release/ipm-install.sh, taken out of the script and run on a scratch folder (no
+#      container, no IPM): the import check passes the pinned copies (also a pin spelled with a leading zero and a module with no
+#      __version__) and fails a version-only difference (urllib3's __init__.py is the same file in both versions), code that is not the
+#      pinned RECORD's, a file outside the folder, a module that did not import and a missing pinned dist-info; the folder comparison
+#      accepts only the six moving to the pins and the pins added, and fails a stale dist-info that stays, a missing pin, a changed or
+#      missing or unpinned distribution, a lost top-level item, an IPM module that no longer imports and an empty import record; the
+#      uninstall comparison accepts only the two Python resources gone and fails a distribution gone, changed or added, a top-level item
+#      gone or added, a lost import and an empty import record; python_state writes the D and T lines the comparisons read; the licence
+#      gate's skip rule gates an older copy of a pinned name that was there before the install and skips a name that is no pin.
+#  19. (Story 19.8, QA, DW-829) release/ipm-install.sh runs the import check at both places of check 32: check_python_pins right after check_licences
+#      on path A (and path A then runs check_reinstall) and on part p (and part p runs check_uninstall_python after its uninstall, then the
+#      install command in USER from the local repository, which stops with its next command), and
+#      check_python_pins runs the import check, the folder comparison, zpm "list" and the Invoke's arguments.
 # Each rule first runs on synthetic files, one that keeps it and one that breaks it, so a rule that can no longer fail makes the
 # test fail. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -629,6 +642,263 @@ fi
 
 stale_step_declared_both() { stale_step_declared src/module.xml && stale_step_declared module.xml; }
 
+# 18. The Python of check 32 (Story 19.8, QA): the heredocs of check_imports, check_python_moves and check_licences, run on scratch folders. The
+# driver builds each case (a pinned state, and the states that must fail) and compares the exit code and the text of the script; a script that
+# accepts a stale state, or rejects the pinned one, fails the check, and so does a script that cannot be taken out of release/ipm-install.sh.
+heredoc_of() { # heredoc_of <function> <n>: the nth heredoc (terminator EOP) of the function in release/ipm-install.sh
+  awk -v fn="$1" -v n="$2" '
+    index($0, fn "() {") == 1 { infn = 1; next }
+    infn && /^}/ { infn = 0 }
+    infn && !grab && /<< .EOP.( |$)/ { if (++count == n) grab = 1; next }
+    grab && /^EOP$/ { exit }
+    grab { print }' release/ipm-install.sh
+}
+cat > "$tmp/ipm-driver.py" << 'EOD'
+import base64, hashlib, os, shutil, subprocess, sys
+mode, script, work = sys.argv[1:4]
+SIX = [("certifi", "2026.10.23"), ("charset_normalizer", "3.5.2"), ("idna", "3.15"), ("requests", "2.34.2"),
+       ("typing_extensions", "4.16.0"), ("urllib3", "2.8.0")]
+problems = []
+def run(*args):
+    done = subprocess.run([sys.executable, script] + list(args), capture_output=True, text=True)
+    return done.returncode, done.stdout
+def put(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    open(path, "w").write(text)
+def expect(label, got, want):
+    if got != want:
+        problems.append("%s: got %r, wanted %r" % (label, got, want))
+def case_dir(name):
+    path = os.path.join(work, name)
+    shutil.rmtree(path, ignore_errors=True)
+    os.makedirs(path)
+    return path
+def module_file(name):
+    return "typing_extensions.py" if name == "typing_extensions" else name + "/__init__.py"
+def build(base, spelling=None):
+    """The folder with the six pinned distributions (file, dist-info with a RECORD) and the constraints file."""
+    target = os.path.join(base, "python")
+    for name, pin in SIX:
+        rel = module_file(name)
+        text = "# %s %s\n" % (name, pin)
+        put(os.path.join(target, rel), text)
+        digest = base64.urlsafe_b64encode(hashlib.sha256(text.encode()).digest()).rstrip(b"=").decode()
+        info = "%s-%s.dist-info" % (name, pin)
+        put(os.path.join(target, info, "RECORD"), "%s,sha256=%s,%d\n%s/RECORD,,\n" % (rel, digest, len(text), info))
+    lines = ["# pins"] + ["%s==%s" % (name.replace("_", "-"), (spelling or {}).get(name, pin)) for name, pin in SIX] + ["fastembed==0.8.0"]
+    put(os.path.join(base, "constraints.txt"), "\n".join(lines) + "\n")
+    return target, os.path.join(base, "constraints.txt")
+def imports(target, **override):
+    out = []
+    for name, pin in SIX:
+        version, path = ("" if name == "typing_extensions" else pin), os.path.join(target, module_file(name))
+        if name in override:
+            version, path = override[name]
+        out.append("CHK|import|%s|%s|%s" % (name, version, path))
+    return "\n".join(out)
+
+if mode == "imports":
+    def go(label, want_rc, want_last, mutate=None, spelling=None, override=None):
+        base = case_dir(label.replace(" ", "-"))
+        target, constraints = build(base, spelling)
+        override = override(base, target) if override else {}
+        if mutate:
+            mutate(base, target)
+        rc, out = run(target, constraints, imports(target, **override))
+        expect(label + " (exit)", rc, want_rc)
+        expect(label + " (last line)", out.strip().splitlines()[-1] if out.strip() else "", want_last)
+        if want_rc == 0 and "NOTE import typing_extensions - typing_extensions.py pinned" not in out:
+            problems.append(label + ": no NOTE line for typing_extensions with no version")
+    go("pinned copies", 0, "ALL PINNED")
+    go("a pin spelled with a leading zero", 0, "ALL PINNED", spelling={"certifi": "2026.010.23"},
+       override=lambda base, target: {"certifi": ("2026.010.23", os.path.join(target, "certifi/__init__.py"))})
+    go("version only", 1, "STALE urllib3", override=lambda base, target: {"urllib3": ("2.6.3", os.path.join(target, "urllib3/__init__.py"))})
+    go("stale code", 1, "STALE requests", mutate=lambda base, target: put(os.path.join(target, "requests/__init__.py"), "# an older requests\n"))
+    def outside(base, target):
+        put(os.path.join(base, "elsewhere", "certifi.py"), "# certifi 2026.10.23\n")
+        return {"certifi": ("2026.10.23", os.path.join(base, "elsewhere", "certifi.py"))}
+    go("outside the folder", 1, "STALE certifi", override=outside)
+    go("not imported", 1, "STALE idna", override=lambda base, target: {"idna": ("", "")})
+    def no_pinned(base, target):
+        shutil.rmtree(os.path.join(target, "idna-3.15.dist-info"))
+        put(os.path.join(target, "idna-3.0.dist-info", "RECORD"), "idna/__init__.py,sha256=x,1\n")
+    go("no pinned dist-info", 1, "STALE idna", mutate=no_pinned)
+    go("two stale copies", 1, "STALE charset_normalizer,urllib3", override=lambda base, target: {
+        "charset_normalizer": ("3.0.0", os.path.join(target, "charset_normalizer/__init__.py")),
+        "urllib3": ("2.6.3", os.path.join(target, "urllib3/__init__.py"))})
+
+elif mode == "moves":
+    def state(rows):
+        return "".join(row + "\n" for row in rows)
+    before = ["D certifi-2025.1.31.dist-info aaaa", "D requests-2.31.0.dist-info bbbb", "D oras-0.2.25.dist-info cccc",
+              "D attrs-24.1.dist-info dddd", "T certifi", "T requests", "T oras", "T attrs", "T bin"]
+    after = ["D certifi-2026.10.23.dist-info a2", "D requests-2.34.2.dist-info b2", "D oras-0.2.25.dist-info cccc",
+             "D attrs-24.1.dist-info dddd", "D fastembed-0.8.0.dist-info f1", "T certifi", "T requests", "T oras", "T attrs", "T bin", "T fastembed"]
+    imp_before = "CHK|imp|oras.provider|1\nCHK|imp|attrs|1\nCHK|imp|rpds|0\n"
+    def go(label, want_rc, want_text, after_rows=after, imp_after=imp_before, imp_first=imp_before):
+        base = case_dir(label.replace(" ", "-"))
+        put(os.path.join(base, "constraints.txt"), "certifi==2026.10.23\nrequests==2.34.2\nfastembed==0.8.0\n")
+        put(os.path.join(base, "before.state"), state(before))
+        put(os.path.join(base, "after.state"), state(after_rows))
+        put(os.path.join(base, "imports-before.txt"), imp_first)
+        rc, out = run(os.path.join(base, "constraints.txt"), os.path.join(base, "before.state"), os.path.join(base, "after.state"),
+                      os.path.join(base, "imports-before.txt"), imp_after)
+        expect(label + " (exit)", rc, want_rc)
+        if want_text not in out:
+            problems.append("%s: %r is not in %r" % (label, want_text, out))
+        if want_rc == 0 and "PROBLEM" in out:
+            problems.append("%s: a problem was reported: %r" % (label, out))
+    go("the six move and a pin is added", 0, "2 moved to the pins")
+    go("a stale dist-info stays", 1, "PROBLEM certifi-2025.1.31.dist-info is still in the folder", after + ["D certifi-2025.1.31.dist-info aaaa"])
+    go("a pin is missing", 1, "PROBLEM requests 2.34.2 is not in the folder", [r for r in after if "requests-2.34.2" not in r])
+    go("another distribution changed", 1, "PROBLEM oras-0.2.25.dist-info changed", [r.replace("cccc", "c3") for r in after])
+    go("another distribution is gone", 1, "PROBLEM attrs-24.1.dist-info is gone", [r for r in after if "D attrs" not in r])
+    go("a distribution that is no pin is added", 1, "PROBLEM rogue-1.0.dist-info was added and is no pin", after + ["D rogue-1.0.dist-info r1"])
+    go("a top-level item is gone", 1, "PROBLEM top-level item bin is gone", [r for r in after if r != "T bin"])
+    go("an IPM module no longer imports", 1, "PROBLEM oras.provider imported before the install and does not now",
+       imp_after="CHK|imp|oras.provider|0\nCHK|imp|attrs|1\n")
+    go("the import record is empty", 1, "PROBLEM the import record of IPM's packages is empty", imp_first="", imp_after="")
+    go("the import record lists other modules after", 1, "PROBLEM the import record of IPM's packages is empty or not the same list",
+       imp_after="CHK|imp|oras.provider|1\nCHK|imp|attrs|1\n")
+
+elif mode == "uninstall":
+    def state(rows):
+        return "".join(row + "\n" for row in rows)
+    after = ["D certifi-2026.10.23.dist-info a2", "D oras-0.2.25.dist-info cccc", "D fastembed-0.8.0.dist-info f1",
+             "T certifi", "T oras", "T fastembed", "T ocutalon_extract.py", "T ocutalon_memory.py"]
+    kept = [row for row in after if not row.endswith(".py")]
+    imp = "CHK|imp|oras.provider|1\nCHK|imp|certifi|1\n"
+    def go(label, want_rc, want_text, gone_rows=kept, imp_first=imp, imp_now=imp):
+        base = case_dir("uninstall-" + label.replace(" ", "-"))
+        put(os.path.join(base, "after.state"), state(after))
+        put(os.path.join(base, "gone.state"), state(gone_rows))
+        put(os.path.join(base, "imports-before.txt"), imp_first)
+        rc, out = run(os.path.join(base, "after.state"), os.path.join(base, "gone.state"), os.path.join(base, "imports-before.txt"), imp_now)
+        expect(label + " (exit)", rc, want_rc)
+        if want_text not in out:
+            problems.append("%s: %r is not in %r" % (label, want_text, out))
+        if want_rc == 0 and "PROBLEM" in out:
+            problems.append("%s: a problem was reported: %r" % (label, out))
+    go("the uninstall keeps all but the two resources", 0, "NOTE after the uninstall: 3 distributions (3 after the install)")
+    go("a distribution is gone", 1, "PROBLEM certifi-2026.10.23.dist-info is gone", [row for row in kept if "D certifi" not in row])
+    go("a distribution changed", 1, "PROBLEM oras-0.2.25.dist-info changed", [row.replace("cccc", "c3") for row in kept])
+    go("a distribution was added", 1, "PROBLEM rogue-1.0.dist-info was added", kept + ["D rogue-1.0.dist-info r1"])
+    go("a top-level item is gone", 1, "PROBLEM top-level item certifi is gone", [row for row in kept if row != "T certifi"])
+    go("a top-level item was added", 1, "PROBLEM top-level item rogue was added", kept + ["T rogue"])
+    go("an IPM module no longer imports", 1, "PROBLEM oras.provider imported before the install and does not now",
+       imp_now="CHK|imp|oras.provider|0\nCHK|imp|certifi|1\n")
+    go("the import record is empty", 1, "PROBLEM the import record of IPM's packages is empty", imp_first="", imp_now="")
+
+elif mode == "state":
+    base = case_dir("state")
+    target, out_file = os.path.join(base, "python"), os.path.join(base, "out.state")
+    put(os.path.join(target, "certifi-2026.10.23.dist-info", "RECORD"), "certifi/__init__.py,,\n")
+    os.makedirs(os.path.join(target, "oras-0.2.25.dist-info"))
+    put(os.path.join(target, "certifi", "__init__.py"), "x")
+    put(os.path.join(target, "bin", "normalizer"), "x")
+    put(os.path.join(target, "rpds.py"), "x")
+    rc, out = run(target, out_file)
+    expect("exit", rc, 0)
+    digest = hashlib.md5(b"certifi/__init__.py,,\n").hexdigest()
+    got = open(out_file).read().splitlines() if os.path.exists(out_file) else []
+    expect("state lines", got, ["T bin", "T certifi", "D certifi-2026.10.23.dist-info " + digest, "D oras-0.2.25.dist-info -", "T rpds.py"])
+
+elif mode == "skip":
+    base = case_dir("skip")
+    target, scratch = os.path.join(base, "python"), os.path.join(base, "scratch")
+    for entry in ["certifi-2025.1.31.dist-info", "certifi-2026.10.23.dist-info", "oras-0.2.25.dist-info", "fastembed-0.8.0.dist-info"]:
+        os.makedirs(os.path.join(target, entry))
+    put(os.path.join(target, "bin", "normalizer"), "x")
+    put(os.path.join(base, "before.txt"), "certifi-2025.1.31.dist-info\noras-0.2.25.dist-info\n")
+    put(os.path.join(base, "constraints.txt"), "certifi==2026.10.23\nfastembed==0.8.0\n")
+    rc, out = run(target, os.path.join(base, "before.txt"), os.path.join(base, "constraints.txt"), scratch)
+    expect("exit", rc, 0)
+    expect("gated", sorted(os.listdir(scratch)), ["certifi-2025.1.31.dist-info", "certifi-2026.10.23.dist-info", "fastembed-0.8.0.dist-info"])
+    if "oras-0.2.25 was in the folder before the install and is no pin: not gated" not in out:
+        problems.append("the unpinned name is not skipped with its NOTE: %r" % out)
+    if "NOTE 3 distributions gated" not in out:
+        problems.append("the count of gated distributions is not 3: %r" % out)
+
+for problem in problems:
+    print("PROBLEM " + problem)
+sys.exit(1 if problems else 0)
+EOD
+ipm_python_ok() { # ipm_python_ok <mode> <function>
+  local code
+  code="$tmp/ipm-$1.py"
+  heredoc_of "$2" 1 > "$code"
+  [ -s "$code" ] && python3 "$tmp/ipm-driver.py" "$1" "$code" "$tmp/ipm-work" > "$tmp/ipm-$1.out" 2>&1
+}
+
+# 19. The wiring of the import check (Story 19.8, QA): it runs where check 32 runs, and the checks it names are the ones that exist.
+follows() { # follows <file> <first line> <second line>: the second line comes right after the first one (indentation ignored), once or more
+  awk -v a="$2" -v b="$3" '{ line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
+    prev == a && line == b { found++ } { prev = line } END { exit found >= 1 ? 0 : 1 }' "$1"
+}
+function_body_has() { # function_body_has <file> <function> <line>...: the function holds every line (indentation ignored)
+  local file=$1 fn=$2 want
+  shift 2
+  awk -v fn="$fn" 'index($0, fn "() {") == 1 { infn = 1; next } infn && /^}/ { infn = 0 } infn { sub(/^[ \t]+/, ""); print }' "$file" > "$tmp/fn-body"
+  for want in "$@"; do grep -qxF -- "$want" "$tmp/fn-body" || return 1; done
+}
+pins_wired() { # pins_wired <script>
+  follows "$1" 'check_licences "install checks"' 'check_python_pins "install checks"' \
+    && follows "$1" 'check_start_by_step' 'check_reinstall' \
+    && follows "$1" 'check_licences "part p"' 'check_python_pins "part p"' \
+    && follows "$1" 'uninstall_checks "$h0" "$h1" "$h2"' 'check_uninstall_python "part p uninstall"' \
+    && function_body_has "$1" check_python_pins 'check_imports "$1"' 'check_python_moves "$1"' 'check_ipm_alive "$1" ocutalon' 'check_invoke_args "$1"' \
+    && function_body_has "$1" check_reinstall 'snapshot_python_before' 'check_python_pins "reinstall"' 'check_licences "reinstall"' \
+    && function_body_has "$1" check_uninstall_python 'check_imports "$label"' 'check_ipm_alive "$label" .' \
+    && follows "$1" 'check_uninstall_python "part p uninstall"' "run p-again USER 'zpm \"install ocutalon\"'" \
+    && follows "$1" "run p-again USER 'zpm \"install ocutalon\"'" \
+      'stops_with_next_command p-again "part p, the install command in USER after the uninstall (from the local repository)"'
+}
+good="$tmp/script.good"
+cat > "$good" << 'EOS'
+check_python_pins() {
+  check_imports "$1"
+  check_python_moves "$1"
+  check_ipm_alive "$1" ocutalon
+  check_invoke_args "$1"
+}
+check_reinstall() {
+  snapshot_python_before
+  check_python_pins "reinstall"
+  check_licences "reinstall"
+}
+check_uninstall_python() {
+  check_imports "$label"
+  check_ipm_alive "$label" .
+}
+part_p() {
+  check_licences "part p"
+  check_python_pins "part p"
+  uninstall_checks "$h0" "$h1" "$h2"
+  check_uninstall_python "part p uninstall"
+  run p-again USER 'zpm "install ocutalon"'
+  stops_with_next_command p-again "part p, the install command in USER after the uninstall (from the local repository)"
+}
+    check_licences "install checks"
+    check_python_pins "install checks"
+    check_start_by_step
+    check_reinstall
+EOS
+grep -v 'check_python_pins "install checks"' "$good" > "$tmp/script.no-a"
+grep -v 'check_python_pins "part p"' "$good" > "$tmp/script.no-p"
+grep -v '^    check_reinstall$' "$good" > "$tmp/script.no-reinstall"
+grep -v 'check_uninstall_python "part p uninstall"' "$good" > "$tmp/script.no-uninstall"
+grep -v 'check_python_moves "$1"' "$good" > "$tmp/script.no-moves"
+grep -v 'check_invoke_args "$1"' "$good" > "$tmp/script.no-args"
+grep -v 'run p-again' "$good" > "$tmp/script.no-again"
+grep -v 'stops_with_next_command p-again' "$good" > "$tmp/script.no-again-stop"
+if pins_wired "$good" && ! pins_wired "$tmp/script.no-a" && ! pins_wired "$tmp/script.no-p" && ! pins_wired "$tmp/script.no-reinstall" \
+  && ! pins_wired "$tmp/script.no-uninstall" && ! pins_wired "$tmp/script.no-moves" && ! pins_wired "$tmp/script.no-args" \
+  && ! pins_wired "$tmp/script.no-again" && ! pins_wired "$tmp/script.no-again-stop"; then
+  pass "rule 19 on samples: the wiring passes; a missing call on path A or part p, the reinstall, the uninstall check, the folder comparison, the Invoke arguments or part p's install from the local repository after the uninstall fails"
+else
+  fail "rule 19 on samples: the checker accepts a script without the import check at both places of check 32, or rejects the right one"
+fi
+
 # 14. The repository definitions stay private (Story 15.4, QA; U-232 condition 1 and the Boundaries): release/ipm-install.sh adds its
 # repository in a session whose output is discarded, never lists repositories, keeps each hash of USER's definitions in a variable and never
 # prints it; and uninstall_checks passes only when the hash after the uninstall equals the hash before it and the one before the first
@@ -766,6 +1036,12 @@ check "rule 11: $install_doc starts in USER, quotes IPM's refusal exactly as rel
 check "rule 12: $install_doc opens with the registry install: enable -community before the first install command, the shared-repositories sentence, and no Node.js before the developers' section" registry_doc_ok "$install_doc"
 check "rule 13: $manifest invokes OcuTalon.Install.Ipm UnmapRepos once, at Unconfigure, Before, after the Configure Invoke" unmap_declared "$manifest"
 check "rule 17: $manifest and module.xml invoke OcuTalon.Install.Ipm RemoveStaleCopies once, at Reload, Before, after MapAndStop, with the Default BypassPyDeps" stale_step_declared_both
+check "rule 18: check_imports passes the pinned copies of the six and fails a version-only difference, stale code, a file outside the folder, a module not imported and a missing pinned dist-info" ipm_python_ok imports check_imports
+check "rule 18: check_python_moves accepts only the six moving to the pins and the pins added, and fails a stale dist-info that stays, a missing pin, a changed, missing or unpinned distribution, a lost top-level item and an IPM module that no longer imports or an empty import record" ipm_python_ok moves check_python_moves
+check "rule 18: check_uninstall_python accepts only the two Python resources gone, and fails a distribution gone, changed or added, a top-level item gone or added, an IPM module that no longer imports and an empty import record" ipm_python_ok uninstall check_uninstall_python
+check "rule 18: python_state writes a D line with the RECORD's md5 (or - with no RECORD) for each dist-info and a T line for each other top-level item, in name order" ipm_python_ok state python_state
+check "rule 18: check_licences gates an older copy of a pinned name that was in the folder before the install and skips a name that is no pin" ipm_python_ok skip check_licences
+check "rule 19: release/ipm-install.sh runs check_python_pins after check_licences on path A and on part p, then the reinstall and the uninstall checks" pins_wired release/ipm-install.sh
 check "rule 14: release/ipm-install.sh adds its repository with the output discarded, never lists repositories and never prints a hash of the definitions" defs_private release/ipm-install.sh
 check "rule 15: docs/security-overview.md carries the ruled Data bullet on the repository mapping" overview_bullet_ok docs/security-overview.md
 check "rule 16: release/ipm-install.sh with no argument, the job's run, runs part p" part_p_in_job release/ipm-install.sh

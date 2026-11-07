@@ -155,6 +155,45 @@ deferred:
 - Given M6's measurements, when a reader opens README A4 and `docs/install-ipm.md` A6, then they name exactly the hosts seen (unchanged if the same three), and any change ships only as the ruled PUBLIC TEXT (DW-830).
 - Given the image (read only), when M5 runs, then the evidence says whether the image imports pinned or older copies of the six.
 
+### Review Findings
+
+Code review 2026-11-07 (tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 0 decision-needed, 8 patch, 3 defer, 21 rejected.
+
+- [x] [Review][Patch] The link guard accepted any folder inside the target, and the stale dist-info and `__pycache__` removals had no guard, so a link could lead the removal to another distribution or out of `<mgr>/python` (condition 1) [src/preload/cls/OcuTalon/Install/Ipm.cls:138] -- fixed: `IsOwnFolder` (a folder is removed or searched only when it resolves to itself in the resolved target), the dist-info goes through `RemoveItem`; tests `TestSymlinkInside`, `TestDistInfoSymlinkOutside`, `TestPycacheSymlinkOutside`; byte copy in `preload/`.
+- [x] [Review][Patch] The IPM-import comparison of condition 2 passed on an empty or partial import record (a producer that prints nothing made both snapshots empty) [release/ipm-install.sh:769] -- fixed in `check_python_moves` and `check_uninstall_python`: an empty record, or one that lists other modules after than before, fails; test-cpf rule 18 cases.
+- [x] [Review][Patch] The uninstall comparison of condition 3 had no hermetic test [release/ipm-install.sh:1881] -- test-cpf rule 18 mode `uninstall` (the two resources may go; a distribution gone, changed or added, a top-level item gone or added, a lost import and an empty record fail).
+- [x] [Review][Patch] The folder-state producer `python_state` was unpinned, so a broken digest or lost `T` lines would silently disable the comparisons [release/ipm-install.sh:533] -- test-cpf rule 18 mode `state`.
+- [x] [Review][Patch] Part p's install from the local repository after the uninstall (condition 2) was not pinned by rule 19 [docker/tests/test-cpf.sh:844] -- rule 19 now requires `run p-again` after `check_uninstall_python` and its stop check after it.
+- [x] [Review][Patch] `TestBadInput` called the step with no target, so its default reached the shared instance's real `<mgr>/python` path (Rule 19 hermeticity) [src/ocutalon/cls/OcuTalon/Test/Install/StaleCopies.cls:235] -- the call passes the fixture target; the "nothing is removed" assert follows it.
+- [x] [Review][Patch] The AD-23 union of Story 19.8 had no closing bracket, so it ran into the existing judges' compose sentence [ARCHITECTURE-SPINE.md:800] -- bracketed like the 19.6 union (own text only).
+- [x] [Review][Patch] DW-853: the two sample-output blocks of `docs/install-ipm.md` lacked the six `STEP Python replaced` lines [docs/install-ipm.md:152] -- added between `Reload START` and `requirements.txt START`, copied from this review's path b log (the same lines as the evidence's M3 block); Epic 17's `STEP Digest OK` hunks are about 45 lines away, a plain union.
+- [x] [Review][Defer] A lifecycle command that reaches Reload but is not install, load or update runs the step while IPM skips pip [src/preload/cls/OcuTalon/Install/Ipm.cls:76] -- deferred: DW-856 escalated (fix needs a `cmd` argument, a live IPM measurement and a release hunk the freeze bars).
+- [x] [Review][Defer] The step replaces any pinned name at any other version (newer, another application's), while the ruled disclosure names only older copies of the six [src/preload/cls/OcuTalon/Install/Ipm.cls:110] -- deferred: DW-857 decision-pending (spec Boundaries against ruled text).
+- [x] [Review][Defer] No IPM check asserts the STEP Python lines in the real install log [release/ipm-install.sh:826] -- deferred: DW-858 wontfix-accepted (the check needs a release hunk the freeze bars).
+
+Rejected:
+- `false`: B6/VG5: `-bypass-py-deps` might not reach the step, or the Default might override it. IPM's modifier sets `pParams("BypassPyDeps")=1` (dataAlias), `GetCustomParameters` prefers `pParams` over a `<Default>`, a `<Default>` is never merged into `pParams` (only `<Parameter>` is), and M4 measured `GetArgsArray`.
+- `false`: B5: the public `target` argument lets a caller delete any tree. A caller who can run class methods can delete those files with `%File` already, and the manifest passes no target.
+- `false`: E14: the folder comparison fails when a stale distribution's top-level item is absent from the pin (a mypyc `.so`). The stale charset_normalizer 2.1.1 is pure Python (evidence M2); a future case fails loudly.
+- `false`: VG: the reinstall's negated grep passes on a missing file. The `Activate SUCCESS` grep on the same file fails first.
+- `false`: VG: QA's additions are uncommitted. That is the stage protocol; the lead commits.
+- by-design: B1/E6/AA5: with a shared folder the stale dist-info goes and the STEP line is written while `google/` stays. This is the matrix row "Shared folder" and the Residual risks; there is no overlap in the 36 pins (M2).
+- by-design: B8/VG6/AA1: no ORAS operation is exercised, `p-again` stops at Initialize, and path A has no repository install. Condition 2 is gated as ruled (top-level imports, `zpm "list"`, a local-repository install); the local repository is a folder and needs no Python; an ORAS call needs a local OCI endpoint.
+- by-design: E3: a failed pip step leaves the six absent. This is in the spec's Residual risks. The same command restores them for local and default-registry installs, which import no oras before Reload.
+- by-design: VG: AC4 rests on Story 19.6's mutation and AC6 is a measurement. The spec's Verification says so.
+- `low`: B7: `check_imports` drops a Python traceback. It still FAILs; the fix adds a branch.
+- `low`: small: test-cpf's rule 18 data uses idna 3.15 as the pin. The data is self-consistent; this is cosmetic.
+- `low`: E11: PEP 440 spellings (1.0 against 1.0.0). This is the same as the implement review's row: none of the 36 pins needs it.
+- `low`: E12: `python_state` raises when `<mgr>/python` is missing. It fails loudly, and IPM always creates the folder.
+- `low`: VG7: the always-OK status asserts. They can fail against a mutation of the wrapper's `Quit`; this was triaged in implement.
+- `low`: VG: `check_ipm_alive "."` after the uninstall. The error-token half carries the check (implement triage).
+- theoretical: B4: only `bin` and `__pycache__` are protected. It would be real if a pinned distribution's RECORD named a shared data folder (`share/`, `include/`) that unrecorded files of others use.
+- theoretical: E8: a nested link inside a stale package folder is followed by `RemoveDirectoryTree`. It would be real if an operator linked a folder inside a pinned package; wheels hold no links.
+- theoretical: E10: a dangling top-level link. It would be real only for a hand-made link.
+- theoretical: E4: other processes importing during the seconds between the step and pip. It would be real if another application's process imports requests from `mgr/python` during a first install.
+- theoretical: E5/DW-854: a process that imported the old modules lazily imports removed files. By code read of IPM 0.10.10, only `IPM.Installer` (at IPM load, another process) and the ORAS repository classes import oras or requests; a local-artifact or default-registry (`%IPM.Repo.Remote`, HTTP) install imports none of the six before the step. It would be real for an install from an ORAS-type repository.
+- reported: AA3: release hunks beyond the literal freeze list (`check_invoke_args`, `check_reinstall`). They are listed for the orchestrator in the review's Decisions; no change.
+
 ## Spec Change Log
 
 - 2026-11-07 (lead, before implement): Task 0 measured ahead of implement (evidence committed); the Planner's rulings recorded under Design Notes "Rulings (2026-11-07 ...)": DW-829 fix with four conditions, the disclosure bullet, DW-830 Option 2 hosts.
@@ -353,6 +392,26 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation (AC3, partial removal): the dist-info removed although an item stays (`If 'kept,` dropped) -> `TestSymlinkOutside` red; the resolve guard of `RemoveItem` dropped on its own -> `TestSymlinkOutside` red; `Replace` made a no-op -> `TestIdempotent` red (its first call now asserts the STEP line and the removal). Each applied from a backup, reverted byte-identical (`git status --short` equal, the two `Ipm.cls` copies equal), and the class green again on the same warm stack.
 - (once) lines run after the last patch: `release/ipm-install.sh a` (63 PASS; `TIME second-ocutalon 58s`, `python-pins 2s`, `reinstall-checks 54s`) and `p` (all PASS; `TIME p-fresh 146s`, `python-pins 1s`, `uninstall-python 0s`), `test-release-sequence.sh static`, `test-pinned-sources.sh`, `test-class-rules.sh`, `test-boundaries.sh`; `OcuTalon.Test.Install.StaleCopies` and `OcuTalon.Test.Bridge.CodeRules` on warm `e19s8iw`. Not repeated after the patch: `release/ipm-install.sh b`, `ci/iris.sh live install-start` (both passed before it: `b` 59 PASS in 439 s and `install-start` PASS in 451 s on the lead's re-run), `test-cpf.sh`, `test-ci-config.sh`, `test-compose-file.sh`, `test-readme.sh`, the spine lint (no file they read changed).
 - The lead's first `p` run failed in its first command ("Error merging CPF file. $zf(-100) exited with 7", Initialize, before any Story 19.8 code ran); the rerun on the same tree passed. Recorded as a host flake.
+
+**QA stage (2026-11-07; files marked (QA)):**
+- (QA) `docker/tests/test-cpf.sh` -- rule 18 (the Python of `check_imports`, `check_python_moves` and `check_licences`' skip rule taken out of `release/ipm-install.sh` and run on scratch folders with no container: the pinned state passes, each stale state fails) and rule 19 (check_python_pins runs after check_licences on path A and part p, then the reinstall and the uninstall checks). Before this, check 32's import check, the folder comparison and the new skip rule were observed only on a live IPM install.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Install/StaleCopies.cls` -- `TestDotDotDoesNotBlock`, `TestNameSpelling`, `TestSymlinkToTarget` (21 tests now).
+- Run: `OCUTALON_WARM=1 ci/iris.sh class OcuTalon.Test.Install.StaleCopies` and `OcuTalon.Test.Bridge.CodeRules` pass on warm `e19s8qw` (taken down); `test-cpf.sh`, `test-boundaries.sh`, `test-class-rules.sh`, `test-pinned-sources.sh` pass.
+- mutation (QA, AC1 and AC2): the RECORD hash compare of `check_imports` dropped (`elif not listed:`) -> `test-cpf.sh` rule 18 (imports) red; the `__version__` compare dropped (`if False:`) -> rule 18 (imports) red.
+- mutation (QA, the Rulings' condition 2): the RECORD checksum compare of `check_python_moves` dropped -> rule 18 (moves) red.
+- mutation (QA, the gate's skip rule): reverted to `pins.get(norm(name)) != version` -> rule 18 (skip) red.
+- mutation (QA, AC1 wiring): `check_python_pins "install checks"` deleted from path A -> rule 19 red.
+- mutation (QA, AC3): the `..` skip of `RecordTops` dropped on its own -> `TestDotDotDoesNotBlock` red ("and so is the stale dist-info ..."; `TestBinAndOutside` stayed green, which is the gap this test closes); `RemoveItem`'s `<=` made `<` (a link to the target itself) -> `TestSymlinkToTarget` red; the lower-casing in `Normalize` dropped -> `TestNameSpelling` red. Each applied from a backup in the QA scratch folder and reverted byte-identical (`cmp` against the backup, `git status --short` equal, the two `Ipm.cls` copies equal); `release/ipm-install.sh` was edited only for the first five mutations and restored byte-identical each time (no QA edit remains).
+- mutations_demonstrated=8.
+
+**Code review stage (2026-11-07; lane C, tags `e19s8c` fresh and `e19s8cw` warm, both torn down):**
+- Run after the review patches, one call each: `release/ipm-install.sh b` (59 PASS, all checks passed; `TIME second-merge 58s`; the six `STEP Python replaced` lines in its second merge), `ci/iris.sh live install-start` (95 PASS, 0 FAIL, no `STEP Python` line on the Docker path), `release/ipm-install.sh p` (all checks passed; `TIME p-fresh 130s`; import record 14 modules before and after) and `a` (63 PASS; `TIME second-ocutalon 61s`, `reinstall-checks 59s`), each with `OCUTALON_LIVE_DEADLINE` raised for a loaded host (load average about 7). Static: `test-cpf`, `test-pinned-sources`, `test-class-rules`, `test-boundaries`, `test-release-checklist`, `test-ci-config`, `test-readme`, `test-release-sequence` (all rules, 252 s) pass; the spine lint shows the same 10 findings (no new one). `OcuTalon.Test.Install.StaleCopies` (24 tests) and `OcuTalon.Test.Bridge.CodeRules` pass on warm `e19s8cw`.
+- mutation (review, condition 1): `RemoveItem`'s `IsOwnFolder` line dropped -> `TestSymlinkInside`, `TestDistInfoSymlinkOutside`, `TestSymlinkOutside`, `TestSymlinkToTarget` red; the stale dist-info removed with `RemoveDirectoryTree` again -> `TestDistInfoSymlinkOutside` red; the `__pycache__` guard dropped -> `TestPycacheSymlinkOutside` red. Each restored from the review's backup (`cmp` equal, the two `Ipm.cls` copies equal) and the class green again on the same warm stack.
+- mutation (review, condition 2): the import-record check dropped from `check_python_moves` -> test-cpf rule 18 (moves) red.
+- mutation (review, condition 3): the import-record check dropped from `check_uninstall_python` -> rule 18 (uninstall) red; its `changed` compare made `elif False:` -> rule 18 (uninstall) red.
+- mutation (review, the producer): `python_state` reading `RECORDS` -> rule 18 (state) red.
+- mutation (review, condition 2 wiring): `run p-again USER ...` deleted from part p -> rule 19 red. Each `release/ipm-install.sh` mutation restored byte-identical from the review's backup (`cmp`), `git status --short` and `git diff --stat` equal before and after.
+- Found already covered (no new test): every matrix row, the Rulings' condition 1 (pins read from the file, STEP line, idempotence, nothing outside `<mgr>/python`), the symlink-out guard, partial removal, the test-cpf rule 17 samples, the host-list and disclosure pins of `test-release-sequence.sh static`. Not covered by a hermetic test and left to the live runs: the Rulings' conditions 2 and 3 as a whole (imports of IPM's packages, `zpm "list"`, the uninstall), which need a real IPM.
 
 ## Auto Run Result
 

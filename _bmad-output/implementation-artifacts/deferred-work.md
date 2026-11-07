@@ -4634,12 +4634,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: release/ipm-install.sh path A (Story 19.6); check 32 gates only what the install added plus the pins
 - 2026-11-06T23:14:10Z status=escalated owner=burndown by=harvest note=for the Planner (U-294 release gate owner) at the part-1 contract; reported with the PUBLIC TEXT figures
 - 2026-11-07T01:36:04Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_2026-11-07:measure_the_six_imports(__version__,__file__)_on_the_local-artifact_IPM_install;pinned->A5_stays+import_check_in_check_32;else_fix_the_install(pip_-t_--upgrade_or_remove_stale)+same_gate;if_impossible_by_14Z:PUBLIC_TEXT_reworded_A5
+- 2026-11-07T07:40:49Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=OcuTalon.Install.Ipm.RemoveStaleCopies_before_IPM's_pip_step;conditions_1-4_met:pins_from_requirements.txt,mgr/python_only,idempotent,STEP_line_each;folder+IPM-import_snapshot_gate(check_32_area);uninstall_keeps_the_six;version+hash_import_check_on_path_A_and_part_p;A5_unchanged;evidence/19-8-task0-install-accuracy.md
 
 ### DW-830: The README and docs/install-ipm.md list three hosts (pypi.org, files.pythonhosted.org, huggingface.co); huggingface_hub with hf-xet may also use CDN or Xet hosts, and the docs do not say what a blocked download looks like (the Memory step only warns)
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: review finding, unverified; settle by recording the hosts an install contacts on a lane-C throwaway
 - 2026-11-06T23:14:10Z status=escalated owner=burndown by=harvest note=public-text accuracy; for the Planner with the PUBLIC TEXT figures
 - 2026-11-07T01:36:04Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_2026-11-07:HEAD-only_curl_-sI_on_each_HF_resolve_URL_and_pip_download_URL;record_Location_hosts;docs_name_exactly_those_hosts;any_host-list_change_is_PUBLIC_TEXT_before_commit
+- 2026-11-07T07:40:49Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=HEAD-only_probes_recorded;README_A4_and_install-ipm.md_A6_carry_the_Planner's_Option_2_host_lists(huggingface.co_and_its_download_hosts_under_hf.co:us.aws.cdn.hf.co,cas-server.xethub.hf.co),pinned_and_paired;the_blocked-download_half_declined_(unruled_public_text)
 
 ### DW-831: Word text inside body-level content controls (w:sdt) and inside nested tables is not read (iter_inner_content yields body paragraphs and tables; cell.text skips nested tables); a file made only of content controls answers no_text
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
@@ -4692,8 +4694,25 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: evidence/19-8-task0-install-accuracy.md; the page was limited to the host list and the disclosure bullet
 - 2026-11-07T06:32:45Z status=open owner=19-8-epic-19-burn-down by=harvest note=code review: add the lines if mechanical (sample output, plain union with Epic 17's STEP Digest lines), else wontfix-accepted with a probe
+- 2026-11-07T07:40:49Z status=resolved-by:19-8-epic-19-burn-down by=adjudication note=the_six_STEP_Python_replaced_lines_added_to_both_sample-output_blocks_from_a_real_path_b_log(plain_union_with_Epic_17's_STEP_Digest_lines)
 
 ### DW-854: A process that imported the old requests, urllib3 or certifi before RemoveStaleCopies ran may lazily import from files the step removed, until it restarts (IPM's own process imports oras and requests)
 - source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: edge-case finding, unverified; path A and part p finish with Activate SUCCESS and IPM answers afterwards
 - 2026-11-07T06:32:45Z status=open owner=19-8-epic-19-burn-down by=harvest note=code review: judge whether IPM's install process is exposed (it imports oras before the pip step) and pin or close it
+- 2026-11-07T07:40:49Z status=wontfix-theoretical by=adjudication note=by_IPM_0.10.10's_code,oras/requests_are_imported_only_by_IPM.Installer(another_process)_and_the_ORAS_repository_classes;a_local-artifact_or_default-registry(HTTP)_install_imports_none_of_the_six_before_the_step;real_if_an_install_comes_from_an_ORAS-type_repository
+
+### DW-856: A lifecycle command that reaches Reload but is not install, load or update (reload, compile, test, package without -only) runs RemoveStaleCopies while IPM skips its pip step, so the stale copies go and nothing replaces them
+- source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: IPM 0.10.10 Lifecycle.Base InstallOrDownloadPythonRequirements returns unless pParams(cmd) is install, load or update; the Reload Invoke cannot see cmd. Reachable after a -bypass-py-deps install, then zpm "ocutalon compile" in OCUTALON.
+- 2026-11-07T07:37:18Z status=escalated owner=burndown by=cr note=decision sheet: gate the step on cmd (a cmd Default arg); needs a live IPM measurement and a release hunk the freeze bars
+
+### DW-857: RemoveStaleCopies replaces any of the 36 pinned names at any other version (a newer copy, or another application's copy in the shared mgr/python), while the ruled disclosure bullet names only older copies of IPM's six
+- source: spec-19-8-epic-19-burn-down.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Replace compares only version equality with the pin (Ipm.cls); the Boundaries say version differs; docs/install-ipm.md disclosure says older versions of the six, which IPM installs for itself.
+- 2026-11-07T07:37:18Z status=decision-pending owner=burndown by=cr note=decision sheet: narrow the step to older copies, or rule a wider disclosure (PUBLIC TEXT); spec Boundaries vs ruled text
+
+### DW-858: No IPM check asserts the STEP Python replaced lines in the real install log (only unit tests on a redirected device), so check_reinstall's no-STEP grep could pass on a changed line format
+- source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: release/ipm-install.sh greps only for the absence of STEP Python on the reinstall; the six lines were observed in this review's path b log and the evidence file, not asserted; a check needs a release hunk the freeze bars.
+- 2026-11-07T07:37:18Z status=wontfix-accepted owner=19-8-epic-19-burn-down by=cr note=reopen_if=a plain-instance path a second run prints other than 6 lines matching ^STEP Python replaced

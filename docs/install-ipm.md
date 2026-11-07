@@ -149,6 +149,12 @@ Compilation finished successfully in 0.002s.
 
 [OCUTALON|ocutalon]	Initialize SUCCESS
 [OCUTALON|ocutalon]	Reload START (/tmp/ocutalon-repo/ocutalon-1.0.1/)
+STEP Python replaced certifi 2025.1.31 with 2026.10.23
+STEP Python replaced charset_normalizer 2.1.1 with 3.5.2
+STEP Python replaced idna 3.15 with 3.20
+STEP Python replaced requests 2.32.3 with 2.34.2
+STEP Python replaced typing_extensions 4.12.2 with 4.16.0
+STEP Python replaced urllib3 2.6.3 with 2.8.0
 [OCUTALON|ocutalon]	requirements.txt START
 [OCUTALON|ocutalon]	requirements.txt SUCCESS
 [OCUTALON|ocutalon]	Reload SUCCESS
@@ -253,6 +259,12 @@ Compilation finished successfully in 0.003s.
 
 [OCUTALON|ocutalon]	Initialize SUCCESS
 [OCUTALON|ocutalon]	Reload START (/opt/ocutalon-ipm/src/)
+STEP Python replaced certifi 2025.1.31 with 2026.10.23
+STEP Python replaced charset_normalizer 2.1.1 with 3.5.2
+STEP Python replaced idna 3.15 with 3.20
+STEP Python replaced requests 2.32.3 with 2.34.2
+STEP Python replaced typing_extensions 4.12.2 with 4.16.0
+STEP Python replaced urllib3 2.6.3 with 2.8.0
 [OCUTALON|ocutalon]	requirements.txt START
 [OCUTALON|ocutalon]	requirements.txt SUCCESS
 [OCUTALON|ocutalon]	Reload SUCCESS

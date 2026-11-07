@@ -54,8 +54,8 @@ ClassMethod MapRepos() As %Status [ Private ]
 /// A distribution is stale when a name-version.dist-info folder of target has the name of a pin and another version. Of a stale
 /// distribution it removes the top-level items (folders and files) named by the first segment of its RECORD paths, and then its own
 /// dist-info folder, but only an item that no dist-info folder of another distribution lists (the namespace folder google/ stays
-/// when another distribution lists a path in it), and only an item that resolves to a place inside target. It skips absolute and ..
-/// paths, bin/, __pycache__/ and every dist-info folder, takes the __pycache__ files of a single-file module with the module, and keeps
+/// when another distribution lists a path in it), and only a folder that is itself in target (a symbolic link is never followed, also for
+/// the dist-info and __pycache__ folders). It skips absolute and .. paths, bin/, __pycache__/ and every dist-info folder, takes the __pycache__ files of a single-file module with the module, and keeps
 /// a stale dist-info folder that has no RECORD. A distribution at its pinned version, a name that is no pin and every other file stay.
 /// For each distribution it replaces it writes one line, STEP Python replaced name old-version with pinned-version, after the removal;
 /// a second call finds nothing stale and writes nothing. With no requirements.txt in root (the image path), with bypass set, or with a
@@ -126,27 +126,25 @@ ClassMethod Replace(root As %String, bypass As %Boolean, target As %String) [ Pr
 				If ##class(%File).Exists(target _ top) || ##class(%File).DirectoryExists(target _ top) Set kept = 1
 			}
 		}
-		If 'kept, ##class(%File).RemoveDirectoryTree(target _ item) {
+		If 'kept, ..RemoveItem(target, real, item) {
 			Write !, "STEP Python replaced ", $List(entry, 1), " ", $List(entry, 3), " with ", pin
 		}
 	}
 }
 
-/// Removes target's top-level item top, a folder with its content or a file with the __pycache__ files of the module of a .py file,
-/// when it resolves to a place inside real (the resolved target, with a closing slash). Returns 1 when it removed the item.
+/// Removes target's top-level item top, a folder with its content or a file with the __pycache__ files of the module of a .py file. A
+/// folder (top itself, or __pycache__) is removed or searched only when it resolves to the same folder in real (the resolved target, with
+/// a closing slash), so a symbolic link is never followed. Returns 1 when it removed the item.
 ClassMethod RemoveItem(target As %String, real As %String, top As %String) As %Boolean [ Private ]
 {
 	Set path = target _ top
 	If ##class(%File).DirectoryExists(path) {
-		Set resolved = ##class(%File).ResolvePath(path)
-		If resolved = "" Quit 0
-		Set resolved = ##class(%File).NormalizeDirectory(resolved)
-		If $Length(resolved) <= $Length(real) || ($Extract(resolved, 1, $Length(real)) '= real) Quit 0
+		If '..IsOwnFolder(path, real _ top) Quit 0
 		Quit ##class(%File).RemoveDirectoryTree(path)
 	}
 	If '##class(%File).Exists(path) Quit 0
 	If '##class(%File).Delete(path) Quit 0
-	If ..EndsWith(top, ".py") {
+	If ..EndsWith(top, ".py"), ..IsOwnFolder(target _ "__pycache__", real _ "__pycache__") {
 		Set set = ##class(%ResultSet).%New("%File:FileSet")
 		If $IsObject(set), $$$ISOK(set.Execute(target _ "__pycache__", $Extract(top, 1, $Length(top) - 3) _ ".*.pyc", "Name", 0)) {
 			While set.Next() {
@@ -155,6 +153,15 @@ ClassMethod RemoveItem(target As %String, real As %String, top As %String) As %B
 		}
 	}
 	Quit 1
+}
+
+/// 1 when the folder path exists and resolves to the folder expected (a resolved path), that is, when it is no symbolic link to another place.
+ClassMethod IsOwnFolder(path As %String, expected As %String) As %Boolean [ Private ]
+{
+	If '##class(%File).DirectoryExists(path) Quit 0
+	Set resolved = ##class(%File).ResolvePath(path)
+	If resolved = "" Quit 0
+	Quit ##class(%File).NormalizeDirectory(resolved) = ##class(%File).NormalizeDirectory(expected)
 }
 
 /// Reads the pins of root's requirements.txt into pins(normalized name) = version. A pin is a name==version line; comments (# at the

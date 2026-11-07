@@ -11,7 +11,12 @@
 ///   - TestPinsAreRead, TestVersionSpelling, TestQuotedRecordField: the pins come from the file, 2025.01.31 and 2025.1.31 are one version, and a quoted
 ///     CSV field is read;
 ///   - TestStepLines, TestIdempotent: one STEP line for each replaced distribution, and a second call removes and writes nothing;
-///   - TestSymlinkOutside: a link out of the target is not followed, and a copy that could not be removed is retried by the next call.
+///   - TestSymlinkOutside: a link out of the target is not followed, and a copy that could not be removed is retried by the next call;
+///   - (QA) TestDotDotDoesNotBlock, TestNameSpelling, TestSymlinkToTarget: a RECORD path out of the target does not keep the stale copy
+///     from being replaced, names are matched as PEP 503 spells them (case, runs of - _ . and a name with a hyphen), and a link to the
+///     target itself is never followed;
+///   - TestSymlinkInside, TestDistInfoSymlinkOutside, TestPycacheSymlinkOutside: a link to another folder of the target, a stale dist-info
+///     that is a link out of the target and a __pycache__ that is a link out of the target are never followed.
 Class OcuTalon.Test.Install.StaleCopies Extends %UnitTest.TestCase
 {
 
@@ -227,9 +232,9 @@ Method TestBadInput()
 	Do $$$AssertStatusOK(sc, "an empty root returns OK")
 	Do ..Run(, .sc, ..Base _ "no-such-root")
 	Do $$$AssertStatusOK(sc, "a missing root returns OK")
+	Set sc = ##class(OcuTalon.Install.Ipm).RemoveStaleCopies(, , ..Target())
+	Do $$$AssertStatusOK(sc, "called with the default root and flag it returns OK")
 	Do $$$AssertEquals(..Has("requests/__init__.py") && ..Has("requests-2.31.0.dist-info"), 1, "nothing is removed")
-	Set sc = ##class(OcuTalon.Install.Ipm).RemoveStaleCopies()
-	Do $$$AssertStatusOK(sc, "called with no arguments it returns OK")
 }
 
 /// The pins come from the file: a name that no code lists is replaced when the file pins it.
@@ -305,6 +310,90 @@ Method TestIdempotent()
 	Do $$$AssertEquals(out, "", "the second call writes nothing")
 	Do $$$AssertEquals(..Has("requests/__init__.py"), 1, "and removes nothing")
 	Do $$$AssertEquals(..Has("charset_normalizer/__init__.py") && ..Has("charset_normalizer-3.5.2.dist-info"), 1, "a distribution at its pin stays")
+}
+
+/// (QA) A RECORD path out of the target (../) is skipped and the rest of the copy is replaced: the stale dist-info goes, the STEP line is
+/// written, and the file that the path names stays. A copy whose dist-info stayed would be found and tried again on every install.
+Method TestDotDotDoesNotBlock()
+{
+	Do ..Put(..Base _ "x", "outside")
+	Do ..Dist("charset_normalizer", "2.1.1", $ListBuild("charset_normalizer/__init__.py", "../../x"))
+	Set out = ..Run(, .sc)
+	Do $$$AssertEquals(..Has("charset_normalizer"), 0, "the stale folder is gone")
+	Do $$$AssertEquals(..Has("charset_normalizer-2.1.1.dist-info"), 0, "and so is the stale dist-info, in spite of the ../ path in its RECORD")
+	Do $$$AssertEquals(out, "STEP Python replaced charset_normalizer 2.1.1 with 3.5.2", "its STEP line is written")
+	Do $$$AssertEquals(##class(%File).Exists(..Base _ "x"), 1, "the file that the ../ path names stays")
+}
+
+/// (QA) Names are matched as PEP 503 spells them: the pin Zz.Widget_Thing and the folder ZZ_widget-thing-1.0.dist-info (upper case, a dot, an
+/// underscore and a hyphen inside the name) are one name, and the version is what follows the last hyphen.
+Method TestNameSpelling()
+{
+	Do ..Put(..Base _ "root/requirements.txt", "Zz.Widget_Thing==2.0" _ $Char(10))
+	Do ..Dist("ZZ_widget-thing", "1.0", $ListBuild("zz_widget_thing/__init__.py"))
+	Do ..Dist("zz_other", "1.0", $ListBuild("zz_other/__init__.py"))
+	Set out = ..Run(, .sc)
+	Do $$$AssertEquals(..Has("zz_widget_thing"), 0, "the folder of the differently spelled name is gone")
+	Do $$$AssertEquals(..Has("ZZ_widget-thing-1.0.dist-info"), 0, "and so is its dist-info")
+	Do $$$AssertEquals(out, "STEP Python replaced ZZ_widget-thing 1.0 with 2.0", "the STEP line names the distribution as its dist-info spells it")
+	Do $$$AssertEquals(..Has("zz_other/__init__.py") && ..Has("zz_other-1.0.dist-info"), 1, "a name that only starts like the pin stays")
+}
+
+/// (QA) A top-level item that is a link to the target itself is never followed and never removed: the target and what it holds stay, and
+/// so does the stale dist-info, so that the next call retries.
+Method TestSymlinkToTarget()
+{
+	Do ..Dist("requests", "2.31.0", $ListBuild("requests/__init__.py"))
+	Do ..Dist("oras", "0.2.25", $ListBuild("oras/provider.py"))
+	Do ##class(%File).RemoveDirectoryTree(..Target() _ "requests")
+	Do $$$AssertEquals($ZF(-100, "/SHELL", "ln", "-s", ..Target(), ..Target() _ "requests"), 0, "a link named requests points to the target itself")
+	Set out = ..Run(, .sc)
+	Do $$$AssertEquals(..Has("oras/provider.py") && ..Has("oras-0.2.25.dist-info"), 1, "what the target holds stays")
+	Do $$$AssertEquals(..Has("requests-2.31.0.dist-info"), 1, "the stale dist-info stays")
+	Do $$$AssertEquals(out, "", "and no STEP line is written")
+	Do $$$AssertEquals($ZF(-100, "/SHELL", "rm", "-f", ..Target() _ "requests"), 0, "the link is removed")
+}
+
+/// A top-level item that is a link to another distribution's folder inside the target is never followed: that folder stays, and so does
+/// the stale dist-info, with no STEP line.
+Method TestSymlinkInside()
+{
+	Do ..Dist("requests", "2.31.0", $ListBuild("requests/__init__.py"))
+	Do ..Dist("oras", "0.2.25", $ListBuild("oras/provider.py"))
+	Do ##class(%File).RemoveDirectoryTree(..Target() _ "requests")
+	Do $$$AssertEquals($ZF(-100, "/SHELL", "ln", "-s", ..Target() _ "oras", ..Target() _ "requests"), 0, "a link named requests points to oras/")
+	Set out = ..Run(, .sc)
+	Do $$$AssertEquals(..Has("oras/provider.py"), 1, "the folder of the other distribution stays")
+	Do $$$AssertEquals(..Has("requests-2.31.0.dist-info"), 1, "the stale dist-info stays")
+	Do $$$AssertEquals(out, "", "and no STEP line is written")
+	Do $$$AssertEquals($ZF(-100, "/SHELL", "rm", "-f", ..Target() _ "requests"), 0, "the link is removed")
+}
+
+/// A stale dist-info folder that is a link to a folder outside the target is never followed: the folder outside stays, and no STEP line
+/// is written.
+Method TestDistInfoSymlinkOutside()
+{
+	Do ..Put(..Base _ "outside/RECORD", "requests/__init__.py,sha256=x,1" _ $Char(10))
+	Do ..Put(..Target() _ "requests/__init__.py")
+	Do $$$AssertEquals($ZF(-100, "/SHELL", "ln", "-s", ..Base _ "outside", ..Target() _ "requests-2.31.0.dist-info"), 0, "the stale dist-info is a link out of the target")
+	Set out = ..Run(, .sc)
+	Do $$$AssertEquals(##class(%File).Exists(..Base _ "outside/RECORD"), 1, "the folder outside the target stays")
+	Do $$$AssertEquals(out, "", "no STEP line is written")
+	Do $$$AssertEquals($ZF(-100, "/SHELL", "rm", "-f", ..Target() _ "requests-2.31.0.dist-info"), 0, "the link is removed")
+}
+
+/// A __pycache__ folder that is a link to a folder outside the target is never searched: the single-file module and its dist-info go, and
+/// the .pyc file outside the target stays.
+Method TestPycacheSymlinkOutside()
+{
+	Do ..Dist("typing_extensions", "4.12.2", $ListBuild("typing_extensions.py"))
+	Do ..Put(..Base _ "outside/typing_extensions.cpython-312.pyc")
+	Do $$$AssertEquals($ZF(-100, "/SHELL", "ln", "-s", ..Base _ "outside", ..Target() _ "__pycache__"), 0, "__pycache__ is a link out of the target")
+	Set out = ..Run(, .sc)
+	Do $$$AssertEquals(..Has("typing_extensions.py") || ..Has("typing_extensions-4.12.2.dist-info"), 0, "the stale module and its dist-info are gone")
+	Do $$$AssertEquals(##class(%File).Exists(..Base _ "outside/typing_extensions.cpython-312.pyc"), 1, "the .pyc file outside the target stays")
+	Do $$$AssertEquals(out, "STEP Python replaced typing_extensions 4.12.2 with 4.16.0", "its STEP line is written")
+	Do $$$AssertEquals($ZF(-100, "/SHELL", "rm", "-f", ..Target() _ "__pycache__"), 0, "the link is removed")
 }
 
 }
