@@ -446,3 +446,12 @@
 2026-11-03T18:53:08Z	Epic 0	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5-5 high_med_avg=1.00 unresolved_high_med_avg=0.00 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=1 result=hold applied=false scope=reopen_story_0.14_only
 2026-11-03T18:53:08Z	Epic 0	integrated_forward	feature=679955b1 head=277895a7 conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(SC-4-P_step_4:ours+regenerate+re-set_13-4=done) checks=test-lib-live,test-upgrade-harness,test-bridge-guide,test-boundaries,test-ci-config,test-ci-warm,test-readme,test-rehearsal,test-release-sequence:pass smoke=live_install-start(e0s14m):pass(95_PASS,check_log_rows_1-4) note=Epic_13_re-open_merged(docs+test-bridge-guide.sh_only)
 2026-11-03T18:53:08Z	Epic 0	epic_runner_complete	stories_completed=1
+2026-11-07T21:29:27Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-07T21:29:27Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-07T21:29:27Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-07T21:29:27Z	Epic 0	epic_branch_reopened	reason=story_0.16_ep_bug_evidence from=dd908d6d
+2026-11-07T21:29:27Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_0.16 lane=A slot=ocutalon-slot-a
+2026-11-07T21:29:27Z	Epic 0	epic_branch_checked_out	repos=. head=dd908d6d ci=gh note=evidence_only_story;CI_does_not_gate(dispatch)
+2026-11-07T21:29:27Z	Epic 0	deps_hash_rerecorded	reason=fix_forward note=story_0.16_chartered_after_0.14(0.15_deferred_until_after_v1.0.4,not_chartered);no_boundary_or_dependency_change
+2026-11-07T21:29:27Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) story=0.16
+2026-11-07T21:29:27Z	Story 0.16	story_chartered	key=0-16-the-embedded-python-callback-crash-s11-is-re-verified-with-a status=in-progress path=light(evidence_only:no_plan_implement_qa_cr_stages;dispatch) timebox=60min model=claude-opus-5-5
