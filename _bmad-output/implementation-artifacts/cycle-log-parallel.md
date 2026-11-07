@@ -2425,3 +2425,6 @@
 2026-11-07T09:15:56Z	Run	planner_ruling	subject=epic17_merge_now option=B replaces=0845Z_17_over_part1 conditions=feature_green_before_part1_integrates,known_unions,Persona296_count_ok_if_wording_same,readme_checks_rerun,4.11_over_both DW-773=draft_now DW-639=tier3_flake_after_DW-840
 2026-11-07T09:15:56Z	Epic 17	amendments_verified	spine=5_rows epics.md=17.9,DW-816 spec-33-2:145
 2026-11-07T09:15:56Z	Epic 17	epic_merge_started	head=17989a90 into=feature
+2026-11-07T09:16:17Z	Epic 17	epic_merged_to_feature	merge=70e4246d head=17989a90 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine_lint=10_low_baseline(no_ad_id/fields) release_tools=untouched
+2026-11-07T09:16:17Z	Epic 17	decision_sheet_recorded	decided=DW-773_to_planner_public_text
+2026-11-07T09:16:17Z	Run	deps_hash_rerecorded	reason=burndown_inserted story=17.9 hash=23068bba45ad
