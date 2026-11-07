@@ -2415,3 +2415,8 @@
 2026-11-07T08:34:21Z	Epic 19	runner_ci_wait	head=81fbdeb3 runs=42355431429,42355431449 scope=part1(19.1-19.3,19.6,19.8) integrated_onto=a092b15f readme_checks=ok release_hunks=U-294+19.8(upgrade-harness_3dot_empty) new=DW-856,DW-857 shards-2=2150s
 2026-11-07T08:34:21Z	Run	planner_question	subject=part1_ahead_of_4.11 default=hold_behind_4.11 also=DW-856_release_hunk,DW-857_public_text,two_ipm-install_pieces
 2026-11-07T08:34:21Z	Run	planner_update	subject=part1_forecast merged_green=~10:15Z part2_contract=01-07Z_Sun
+2026-11-07T08:43:59Z	Run	planner_ruling	subject=merge_order part1_first_ahead_of_4.11 then_4.11_and_17_green_order
+2026-11-07T08:43:59Z	Epic 19	owner_decision	dw=DW-856 fix_in_part1_before_merge release_hunk=Reload_invoke_cmd_approved behaviour=remove_only_if_pip_runs tests=reload_and_bypass_remove_nothing_red_without_guard rerun=paths_a,b,p merge_eta=11:30-12:30Z
+2026-11-07T08:43:59Z	Epic 19	public_text_ruled	dw=DW-857 older_versions->other_versions
+2026-11-07T08:43:59Z	Epic 19	planner_ruling	subject=check_invoke_args,check_reinstall asked_for=yes
+2026-11-07T08:43:59Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=DW-856_in_part1
