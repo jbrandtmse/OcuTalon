@@ -2554,3 +2554,5 @@
 2026-11-07T20:56:22Z	Epic 39	epic_merged_to_feature	merge=1011b81c head=84e2ee03 story=39.10 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0 planner_told=yes rc2_picks_on_feature=bc1ff88b,84e2ee03
 2026-11-07T20:57:38Z	Epic 32	runner_complete	head=664e98ed bookkeeping_only_over=39364d5c ci_on=39364d5c(exception) dup_ci_cancelled=42413469435,42413469393
 2026-11-07T20:57:38Z	Epic 32	epic_merge_started	head=664e98ed into=feature kind=bookkeeping_close
+2026-11-07T20:58:19Z	Run	feature_merged_locally	from=origin_50103869(Planner_rc2_record) pushed=f4deed1b
+2026-11-07T20:58:19Z	Run	ci_run_cancelled	runs=42413018315,42413018327(574736a5),42413420890,42413420906(1011b81c) reason=superseded_feature_heads;free_queue
