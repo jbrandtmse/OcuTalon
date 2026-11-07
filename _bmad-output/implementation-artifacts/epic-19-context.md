@@ -4,55 +4,92 @@
 
 ## Goal
 
-A user tells OcuTalon to remember something and gets it back later by meaning or keyword, offline, from OcuTalon's own database. OcuTalon also answers from added Markdown, plain-text, PDF and Word documents, cites the document and section it used, and says so when nothing is relevant. Every vector is computed on the instance and nothing leaves IRIS. The epic merges in two parts. Part 1 (19.1-19.3 and 19.6, memory plus PDF/Word extraction) is built; its burn-down, Story 19.8, makes the IPM install and its docs exactly true before part 1 merges. Part 2 (19.4, 19.5, 19.7: documents, per-session isolation, PDF/Word answers) follows Epic 17.
+OcuTalon answers from added Markdown, plain-text, PDF and Word documents, cites the document and section, and says so when nothing is relevant; every vector is computed on the instance. Part 1 is merged (memory: `OcuTalon.Memory.*`, `Tools.MemoryTools`, `Tools.HostData`, the `Memory.Worker` base; extraction: `Docs.Extract`/`Extractor`). Part 2 builds documents on it and on Epic 17's merged bridge. The order is 19.4, then 19.5 (including `Memory.DropSession`), then 19.7's documents side. 19.7 may run on a second runner after 19.4, but only if the 19.5 and 19.7 specs share no files: list the footprints.
 
 ## Stories
 
-- Story 19.1: moved to Story 34.1 (step 3 contracts)
+- Story 19.1: moved to Story 34.1
 - Story 19.2: Compute embeddings offline in a worker (done)
 - Story 19.3: Remember, recall, list and forget in the chat (done)
-- Story 19.4: Answer from documents with citations (part 2)
+- Story 19.4: Answer from documents with citations (part 2; spec `blocked`, rulings recorded)
 - Story 19.5: Keep each online-demo session's documents and memories to itself (part 2)
 - Story 19.6: Extract text from PDF and Word files with Embedded Python (done)
 - Story 19.7: Answer from PDF and Word documents (part 2)
-- Story 19.8: Epic 19 burn-down (part 1, next)
+- Story 19.8: Epic 19 burn-down (done)
 
 ## Requirements & Constraints
 
-**Story 19.8 (install accuracy, the Contest Planner's ruling):**
-- **Installed set (DW-829).** Use the local-artifact IPM install (`release/ipm-install.sh` with the local artifact), never the public IPM registry. In the instance's Embedded Python, import certifi, charset_normalizer, idna, requests, typing_extensions and urllib3, and record `__version__` and `__file__` for each. If the pinned copies are the ones imported, the README licence-notices sentence ("same Python packages, at the same versions") stays, and the import check joins the installed-set gate (check 32's area). If they are not, fix the install (for example pip `-t` with `--upgrade`, or removing the stale copies) and never the sentence; the same import check then gates the result.
-- **Hosts (DW-830).** Probe each Hugging Face resolve URL the install fetches, and pip's download URLs, with HEAD requests only (`curl -sI`), and record the host of each `Location` header. README.md and `docs/install-ipm.md` must name exactly the hosts seen. Today they name pypi.org, files.pythonhosted.org and huggingface.co; hf-xet may add a Xet or CDN host such as cas-bridge.xethub.hf.co. Any change to the host list is PUBLIC TEXT: send it to the Planner before commit.
-- **Install docs are ruled text.** The README's IPM paragraph (A4), its licence bullet (A5) and the install page's "What you need" bullet (A6) are pinned whole-line by `t_static` checks in `docker/tests/test-release-sequence.sh`. A figures-match test checks that both files quote the same four figures: about 250 MB of packages, about 90 MB of model, about 20 seconds of downloads, and 1 to 1.5 minutes for the second run (ARM-measured). Every figure comes from local or offline paths, and a figure taken from public PyPI must say so. A figure more than 20% off goes to the Planner. `test-readme.sh` and `test-cpf.sh` (the sample-output blocks and their `STEP` order) must stay green. README.md is Epic 11's file: change only that one paragraph and that one bullet.
-- **Time bounds.** A full `release/ipm-install.sh` over 1,800 s is reported, because the release `ipmcheck` deadline is 1,980 s. CI's `ipm-install` job is capped at 35 minutes. Going over goes to the standing split ruling; never raise a timeout. Path `b` takes 11 minutes or more, so poll it in short foreground calls.
-
-**Whole epic:**
-- **Documents.** Answers cite each document and section used. With nothing relevant the reply says exactly "None of your documents cover that." and cites nothing; code decides both from the same documents-tool results, and tests cover both directions. Local-install documents are shared (owner `instance`); demo documents are per session. A removed document leaves search at once.
-- **Limits.** At most 5 passages per model request and 5 memories per recall. No request over 100,000 input tokens, and no tool result over about 10,000 tokens.
-- **Data stays home.** Memory, document and knowledge-base globals, and `^IRIS.IF.*`, live in the private database; the start-up private-data check fails otherwise.
-- **Isolation and durability.** No session sees another's memories or documents, even when two concurrent sessions ask the same question. Memories and documents survive restart and in-place upgrade.
-- **Release gate.** The release that carries Epic 19 needs the real-model release-candidate eval. It is the owner's action item and is never run by a runner.
+- **Citations.** A reply cites each document and section it used. When nothing is relevant it says exactly "None of your documents cover that." and cites nothing. A reply with citations never contains that sentence. Code decides both from the same turn's `documents` results, and tests cover both directions.
+- **Limits.** A `documents` call returns at most 5 passages (the gate clamps `top_k`) and a reply carries at most 5 citations. All tool results of one model step stay within 10,000 tokens, `documents` results included.
+- **Ownership.** A local-install document has owner `instance` and is shared, with `AddedBy` set to the adding session. On the online demo each session has its own knowledge base. A removed document leaves search at once, and no later reply cites it.
+- **Isolation.** Concurrent demo sessions see only their own passages and memories. Sign-out drops are idempotent and session-scoped; a reset restores the golden copy and runs no code; a dropped table is never reopened.
+- **Durability.** Documents and memories survive a restart and an in-place upgrade. From 19.5 on, the `release/` upgrade harness creates a memory and a document before the upgrade, and both are present and searchable after it.
+- **Data stays home.** Every knowledge-base global resolves to OCUTALON_PRIVATE, and `^IRIS.KNNIndex` stays empty.
+- **Taint.** Document results are never trusted output. The turn is tainted, the next turn is quarantined, and a later `save_memory` in the same turn is denied.
+- **Tests.** Each test owns its state and passes fresh, in either order; mock scenarios go under `ci/mock/scenarios/A/`; 19.7 runs 19.6's tests on the real image with no test-setup install. The real-model release eval is the owner's gate, never run by a runner.
 
 ## Technical Decisions
 
-- **IPM install path (as built in 19.6).** IPM 0.10.10 runs `pip install -t <mgr>/python -r requirements.txt --only-binary=:all:` from the module root; a module cannot add `--upgrade` to that step. The root `requirements.txt` pins the same 36 distributions as `docker/licences/constraints-arm64.txt` and `constraints-x64.txt`, which are identical today. A version change edits both constraints files and re-measures the licences in the same commit. `docker/licences/**` and `docker/Dockerfile` are Lane B's: read and copy them only.
-- **What `<mgr>/python` already holds.** Before the install, the plain image's `<mgr>/python` holds 11 distributions: 5 unpinned dependencies of IPM itself and 6 older versions of pinned names (the six DW-829 lists). So a gate over the whole folder fails by design. `stage_licence_gate` stages `gate.py`, `allowed.txt` and the `uname -m` constraints file. `snapshot_python_before` records the folder before the install. Check 32 runs `gate.py check` on every dist-info except a pre-existing non-pin, and `gate.py notices` must name all 36. `gate.py` reads only `*.dist-info` folders.
-- **Other IPM checks.** Check 30 covers the model download and the fastembed, pdfplumber and python-docx versions. Check 31 covers the reinstall, with the resources unchanged. Check 33 reads a real PDF and a real .docx through `Docs.Extract.Read`. `release/lib-release.sh` `ipm_artifact_check` requires the artifact's `requirements.txt` to equal the tree's, and checks each resource's `FileCopy` Name and Target and its bytes.
-- **Python resources.** Python runs only in `%SYSTEM.WorkMgr` workers, imported with `%SYS.Python.Import`. There is no `[Language = python]` and no `eval`/`exec`; CI scans tool, policy, renderer and `CALLBACKHELPERS` classes for this. The two resources, `src/ocutalon/python/ocutalon_extract.py` and `ocutalon_memory.py`, reach `<mgr>/python/<file>` through a single-file `<FileCopy>` in both manifests. They are copied as single files so that an uninstall never removes the pip packages beside them. A change to a `.py` file or a manifest needs a fresh warm stack.
-- **Extraction (19.6).** `OcuTalon.Docs.Extract.Read(stream, contentType, timeout)` is the caller side: it holds no Python, never throws and stores nothing. It hands the bytes through a temporary file below `<temp>/ocutalon-extract/` to the worker class and category `OcuTalon.Docs.Extractor`, which runs on the shared base `OcuTalon.Memory.Worker` (as the Embedder does). It waits `TIMEOUT` (120 s) and stops the busy worker on a timeout. The answer is `{ok:1, text, cut, markers}` or `{ok:0, reason}`. Markers: `## Page n` per PDF page with text; for Word, Title is `#` and Heading n is n+1 `#`, so Heading 1 is a `##` section. The codes are `too_large`, `contents_too_large`, `wrong_type`, `encrypted`, `damaged`, `no_text`, `legacy_doc`, `timed_out` and `failed`. Their ruled wording is `Docs.Extract` parameters, and `Failure(code, size)` frames each as "I couldn't read that file: {reason}.". The limits are `MAXBYTES` 10,485,760 (pinned equal to `Web.Documents` `FILEMAX`), `MAXTEXT` 200,000 characters with a cut note, and `MAXUNPACKED` 100 MB. `Install.Step.Memory` creates both worker categories.
-- **Memory (19.2, 19.3).** `OcuTalon.Data.Memory` has HNSW and `%iFind` indexes under `^OcuTalonP.MemoryI` (iFind's shared dictionary is set to `INDEX`). `Memory.Search` merges hits by RRF and returns the top 5. `MemoryOps` checks `SessionRef` itself. A recall is trusted only when every memory it returns has `Origin` `tool`. FastEmbed's model folder comes from `Embedder.ModelFolder()`.
-- **Documents (part 2).** `%AI.RAG.KnowledgeBase` over `%AI.RAG.VectorStore.IRIS` with FastEmbed, tool name `documents`, `TopK` ≤ 5, and its results always taint the turn. Only `OcuTalon.Docs` creates the knowledge-base tables (`OcuTalonKB.Docs` locally, `OcuTalonKB.S<id>` per demo session, each with `_Config`), with AI Hub's exact columns and `DEFAULTGLOBAL` under `^OcuTalonP.`, before `Build()`. A dropped table is never reopened (CI rule `kb-ddl`). `DocumentOps` (`Docs.Ops`, a disabled stub until 19.4) takes bytes via `Data.Upload.Take(ref, sessionRef)`, stores the text in `Data.Document`, splits it into `##` sections, and is the single publisher of the `document` event. Lane A's runner puts `citations` and `memories` on the bridge `Reply`'s `HostData`, through `OcuTalon.Tools.HostData`, built from tool results and never from model text.
-- **Per-turn tools and removal (19.5).** The `TurnToolsClass` bridge extension returns the owner's knowledge base. The adapter builds a fresh tool manager every turn, before `OpenSession`, holding the agent tools, the knowledge base, the gate, the audit policy and the MCP toolsets from `OnAfterAgentInit`. Sign-out's `SessionOps.End` calls `Docs.DropSession` and `Memory.DropSession`, which must be idempotent and touch no other session. A demo reset restores a golden copy and runs no code.
-- **Lanes.** Lane A edits only Lane A files. `Data.Upload`, `Web/**`, `Core/**`, `docker/Dockerfile`, `docker/licences/**` and `web/**` are Lane B's. Edits to contended files (`Production.cls`, `Test/Bridge/CodeRules.cls`, `docs/install-ipm.md` against Epic 17's `STEP Digest OK` lines) are plain unions.
+- **19.4's re-dispatch.** Epic 17 has merged: reset `status` to `ready-for-dev` if the plan stands with the rulings, else `draft`, then the lead's spec gate. Its Code Map line numbers predate Epic 17 (`Converse` and the session-config method moved).
+- **Indexing.** `DocumentOps` writes the passages itself. No `KnowledgeBase.AddDocument`, `AddDocuments` or `ReindexDocument`, measured as follows: a repeated add replaces every chunk of a `source`, and AI Hub's chunker neither sections nor bounds passages.
+  - `Passages.Split` splits on `##` headings. `MAXPASSAGE` is 1,000 characters, and indexing proceeds in self-queued batches of 32.
+  - Each row has id `ref:n` and metadata `{source, chunk_index, document, section}`. `Data.Document` appends the section map, and its storage may only grow.
+  - `OcuTalon.Docs.Store` alone holds the DDL and names `%AI.RAG.VectorStore.IRIS`.
+- **Embedder (approved).** `OcuTalon.Docs.Embedding` is an `%AI.RAG.Embedding` over `Memory.Embedding.Embed` in the 19.2 worker. AI Hub's `FastEmbed.Create()` is not used, and no `%SYS.Python` runs in `DocumentOps` or the ChatAgent job. Conditions:
+  - The `CITEFLOOR` value and the measurement behind it go in the spec and an evidence file.
+  - Tests cover both sides of the floor.
+  - Adding X a second time replaces only X's passages.
+- **19.4 Task 0** measures the in-turn query path, the gate's inputs, the `top_k` rewrite and the floor; its stop rule halts on a crash or recycled job, a missing `origin_class`, an ineffective rewrite, or overlapping scores.
+- **Attach (19.4, local only).** The Chat agent's `%OnInit` calls `Docs.Store.Attach`, because `TOOLSETS` entries must be `OcuTalon.Tools.*`. The holder must stay referenced, because `%OnClose` frees the native handle. On the demo, nothing is attached until 19.5.
+- **Gate source fallback (ruled, narrow).**
+  - The fallback applies only when `origin_class` is absent and the pair is exactly `%AI.RAG.KnowledgeBase:documents`. Such a call is safe and read-only, and its output is not trusted.
+  - `top_k` is clamped to 5, and an invalid value is removed. A room check (`RAGRESULTMAX`) runs against the step's 40,000 characters.
+  - Tests: clamp, room check, other unknown sources and near-misses still hold, no escape from the untrusted-content outcomes.
+  - Decide's `ToolClassification` in `Production.cls` gains the entry. The security-overview sentence naming the fallback is PUBLIC TEXT for the spec gate.
+- **Citations.** `OcuTalon.Bridge.Citations.Collect` is called once from `StepAudit.%LogExecution`, the only place that sees a knowledge-base result. It also adds the result's length to `ToolResultChars`. It applies the floor and keeps citations distinct by (source, chunk_index), in order, at most 5. `Tools.HostData`'s bodies move to a new `OcuTalon.Bridge.HostData`, because the bridge cannot name a host class, and `Tools.HostData` delegates to it.
+- **ReplyFilter (additive AD-31 amendment).** It becomes `Filter(text, hostData)`: `Decide` (`Conclude`) hands over the reply's HostData. `ReplyGuard` applies `OcuTalon.Docs.Reply.Apply`, which strips the sentence, with the run of `.!?` after it, when `citations` is non-empty. Tests:
+  - the sentence is stripped from a reply with citations;
+  - a reply that is only the sentence, with no citations, is unchanged;
+  - citations are never stripped.
+
+  The do-nothing default must still let the bridge run alone.
+- **Chat bullets (approved PUBLIC TEXT).** Pin each with a fixed-strings test. They go after 19.3's memory bullets and before "Everything that comes from a tool...", with the PersonaBlock pins still last.
+  1. "When the user asks about something their documents may cover, such as a runbook, call documents with the question, and answer only from the passages it returns, naming the document and section of each step you give."
+  2. "If no passage that documents returns answers the question, reply with exactly this sentence and nothing else: None of your documents cover that."
+- **Other 19.4 rulings.**
+  - The `documents` eval kind is a plain add; web e2e D8/D10 move only their network setup to `page.route` (assertions verbatim), and one e2e covers the real path.
+  - `documents` joins `Tools.Names` and the offered-tool pins; its `top_k` schema changes the `Runners` checks.
+  - Spine edits: plain unions marked `[AMENDED 2026-11-06, Story 19.4, owner ruling via the Contest Planner]`, no new AD id, then lint.
+- **Per-session tables (19.5).** Each demo session gets `OcuTalonKB.S<rowid>` and its `_Config`, where `<rowid>` is the `Data.Session` row id. The globals are `^OcuTalonP.KB<suffix>` and `^OcuTalonP.KB<suffix>Config`. The tables are created before `Build()`.
+- **Per-turn tools (19.5).**
+  - Base `OcuTalon.Bridge.Ext.TurnTools` has `ClassMethod Tools(ownerRef, kind, Output tools As %ListOfObjects)`, which returns an empty list by default.
+  - The `TurnToolsClass` setting goes on `Decide` (category Extensions). `Ext.Accessor`'s `BASES` gains the pair.
+  - `OcuTalon.Docs.TurnTools` returns the owner's knowledge base for a `turn` request.
+- **Session config (19.5).** The adapter builds a fresh tool manager every turn: agent tools, the knowledge base, gate, audit policy and the MCP toolsets attached in `OnAfterAgentInit`. It assigns the manager before `OpenSession`, in the session-config method. After Epic 17 that method is `SessionConfigFor`: `NewSession` and `OpenSession` both call it, and it carries the retry timer. It replaces 19.4's `%OnInit` attach.
+  - A fixture toolset attached in `OnAfterAgentInit` is found in the turn's manager.
+  - The standalone `OcuTalon.BridgeExample` job still passes.
+- **Sign-out drops (19.5).** `Docs.DropSession` and `Memory.DropSession` replace the stubs in `Docs.cls` and `Memory.cls`. Lane B's `SessionOps.End` calls them beside `Upload.DropSession`.
+- **19.7.** `OnAdd` sends `pdf`/`docx` through `Extract.Read`, not `not_built`, and maps its codes to `Document.Reason`. The `## Page n` and heading markers feed `Passages.Split`. The file's own `## ` lines are escaped (DW-832). Three gaps to close:
+  - Serialise extractor reads, or amend the "one worker" wording (DW-827).
+  - Bound a single long C call before it runs (DW-828).
+  - Read Word content controls and nested tables (DW-831).
+- **Lanes.** Lane B's `Core/**`, `Web/**`, `web/**`, `Data/Upload.cls`, `Data/Ownership.cls` and `Msg/Command/**` are read-only, except the U-177 grants (`CommandsStep3` flip, D8/D10). Contended files take plain unions.
+- **CI.** `shards-2` was split into `shards-5` to fit its 35-minute cap. Place new units, such as `live:documents`, so that no group exceeds the cap. Never raise a timeout.
 
 ## UX & Interaction Patterns
 
-- Citation chips read like "Results runbook § Rotating the certificate". Lane B (Story 20.2) renders them; this epic supplies the data. Labels state provenance ("Sources", "From memory").
-- The Documents page owns the text for each reason code, in its frame "Couldn't read it: {reason}". Story 19.7 updates the UX text so that "Adding" accepts "Markdown, plain text, PDF and Word (.docx) files." (DW-719).
+- Answers end with citation chips like "Results runbook § Rotating the certificate". `document` is the name without its extension, and the chip joins it to the section; chips render in Story 20.2. Labels state provenance ("Sources", "From memory"), never "used" or "based on".
+- On the Documents page:
+  - The list shows "Indexing…", "Ready" or "Couldn't read it: {reason}".
+  - Removing asks "Remove 'Results runbook'? Answers will stop citing it."
+  - 19.7 updates "Adding" to accept "Markdown, plain text, PDF and Word (.docx) files." (DW-719).
 
 ## Cross-Story Dependencies
 
-- **19.8** builds on 19.6's `release/ipm-install.sh` checks 30 to 33, `requirements.txt` and the ruled README/install-page lines, and must be done before part 1 merges.
-- **19.4** enables `DocumentOps`, which turns web e2e D8 and D10 red; switch them to `page.route` answers. It adds a test of the real `Web.Documents` → `Commands.Submit` → `CommandsIn` path (DW-739) and addresses the `Data.Upload` lifecycle gaps (DW-747). Its splitter must handle a file line that starts with `## ` (DW-832). `Test.Docs.Extract:TestNothingStored` gains its knowledge-base half (DW-833). It also revisits the instance-wide `^IRIS.KNNIndex` read.
-- **19.5** needs Epic 17's Story 17.3 change to the session-config method. The upgrade harness must create a memory and a document and find both after the upgrade. `rehearse.sh`'s memory-offline step needs a real-stack dry run (DW-783).
-- **19.7** reads PDF and Word through `Extract.Read` and maps its codes to `Document.Reason`. It must serialise concurrent reads or amend the "one worker" wording (DW-827), bound one long C call before it runs (DW-828), and read Word content controls and nested tables (DW-831). It runs 19.6's tests on the real image and uses CI mock scenarios under `ci/mock/scenarios/A/`.
-- **Downstream.** Epic 20 carries `citations` and `memories` onto `chat.message`. Story 26.2 uses `Failure(code)` for files sent in the chat. Epic 41 extends `Data.Memory`, and Story 35.1 relies on the per-turn manager.
+- **19.4 → 19.5.** 19.5 builds on 19.4's `Docs.Store` (per-session tables, `Remove` for `DropSession`). 19.4 also carries these ledger items:
+  - DW-739: test the real `Web.Documents` → `CommandsIn` path.
+  - DW-747: an empty `Take` gives a failed row.
+  - DW-833: the knowledge-base half of `TestNothingStored`.
+- **19.4 → 19.7.** 19.7 uses `Passages.Split` and the eval kind.
+- **19.5.** It needs `SessionOps.End` from Story 16.4 and the standalone bridge job from Epic 13. DW-783 needs a real-stack dry run of `rehearse.sh`'s memory-offline step.
+- **Downstream.** Story 20.2 carries `citations` and `memories` onto `chat.message` and keeps the "None" consistency at display. Story 26.2 reuses `Failure(code)`. Story 35.1 attaches MCP servers through the per-turn manager.

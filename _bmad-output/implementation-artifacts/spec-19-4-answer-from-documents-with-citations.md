@@ -2,7 +2,7 @@
 title: 'Answer from documents with citations'
 type: 'feature'
 created: '2026-11-06'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -217,6 +217,8 @@ deferred: []
 - Given the real route, when a person adds and removes a document through `/v1/documents`, then it reaches `ready` through `CommandsIn` -> `DocumentOps` and then leaves the list and the knowledge base (DW-739). After an iris container restart, the document is still listed and found.
 
 ## Spec Change Log
+
+- 2026-11-07 (lead, part 2 re-open): Epic 17 is merged (feature 5b47f052); status reset to `draft` to re-plan around the merged bridge files; the Design Notes "Rulings (2026-11-06 ...)" block stays binding and verbatim.
 
 - 2026-11-06 (lead): the Planner's rulings on the blocking question and the "Needs a ruling" items recorded under Design Notes "Rulings"; the story waits for Epic 17's merge, then status reset and spec gate.
 
