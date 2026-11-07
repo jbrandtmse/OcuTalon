@@ -2481,3 +2481,5 @@
 2026-11-07T14:43:23Z	Epic 31	worktree_provisioned	branch=OCT-epic31 base=05823d01 reason=story_31.4_tier3c
 2026-11-07T14:43:23Z	Epic 31	worktree_bootstrapped	epic=31 result=ok
 2026-11-07T14:43:23Z	Epic 31	runner_dispatched	agent=a01380f4a2843c759 lane=D slot=ocutalon-slot-d model=opus prompt=dispatch-epic-31-314.md DW-485=frozen_reroute
+2026-11-07T14:43:52Z	Run	planner_ruling	subject=tier3_flakes add=DW-494_after_DW-840 DW-485=rerouted_after_v1.0.4
+2026-11-07T14:43:52Z	Run	planner_update	subject=quota_and_hold quota=77%@14:35Z(~2.1%/h) hold_expected=20:30-21Z_after_1.0.3_tag
