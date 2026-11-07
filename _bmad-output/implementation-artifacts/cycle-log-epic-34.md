@@ -146,3 +146,5 @@
 2026-11-07T03:22:27Z	Story 34.4	ledger_reowned	DW-825 owner=34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=load
 2026-11-07T03:22:52Z	Epic 34	sprint_planning_complete	gate=PASS scope=story_34.4 model=claude-opus-5-5 note=headless;valid=true
 2026-11-07T03:24:06Z	Epic 34	epic_context_compiled	reason=planning_artifact_newer(story_34.4_chartered) model=opus bytes=5467
+2026-11-07T03:24:33Z	Story 34.4	cause_found	evidence=_bmad-output/implementation-artifacts/evidence/34-4/cause.md mechanism=playwright_filechooser_interception_enabled_fire_and_forget_by_waitForEvent;Enter_in_same_tick_can_reach_chromium_first product=not_at_fault repro=old_7/390_missed(2/40,1/80,0/120,4/150);armed_0/80;each_miss_second_press_after_500ms_opened_chooser ci_snapshot=Add_documents_[active]_no_row_no_POST
+2026-11-07T03:24:33Z	Story 34.4	stage_spawned	stage=plan spawn_at=2026-11-07T03:24:33Z model=opus agent_name=34-4-plan-1 cycle_iteration=1
