@@ -161,3 +161,5 @@
 2026-11-07T04:30:45Z	Story 34.4	ledger_adjudicated	owned=1 resolved=1(DW-825) reowned=0 terminal=0 model=claude-opus-5-5 note=DW-735(19.4,D8/D10_same_file)_untouched
 2026-11-07T04:34:43Z	Story 34.4	smoke_complete	method=browser result=pass iterations=1 defects_caught=0 evidence=_bmad-output/implementation-artifacts/evidence/34-4/proof.md runs=e34s4prf(new_20/20_under_16_burners,old_1/100_red),e34s4smk(new_20/20) model=claude-opus-5-5
 2026-11-07T04:34:43Z	Story 34.4	fresh_check	env=recipe(test-sign-in_fresh_stack_lane-d_tag_e34s4smk) tests=1(D5_x20) result=pass order=forward,reverse note=one_self-contained_case_repeated;order_moot;both_stacks_torn_down
+2026-11-07T04:35:36Z	Story 34.4	committed	sha=f4b38c9e submodules= ci=pending runs=42339077292,42339078167 amendments=epics.md:Story_34.4_block_chartered(fix_forward)
+2026-11-07T04:35:36Z	Story 34.4	story_cycle	plan_to_commit_min=72 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
