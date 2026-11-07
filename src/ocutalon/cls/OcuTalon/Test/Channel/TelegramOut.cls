@@ -23,7 +23,7 @@
 ///     name and an unknown key are as the Boundaries say; with the online demo on the time is followed by " ET"; a row with an entry only,
 ///     one with a time and no finding, one with no entry, and CheckRows that are not a JSON array give the literal forms of the Boundaries;
 ///     checks.notEverything with a failed row names it with nothing after, and checks.everythingElsePassed gives its catalog text;
-///   - TestOtherKinds: a Notification of kind status, digest or fallback sends nothing and records no row, where one of kind tellnow does;
+///   - TestOtherKinds: a Notification of kind status or fallback sends nothing and records no row, where one of kind tellnow does;
 ///   - TestButtons (Story 12.7; AC1): an incident notice and a later approval request with an ApprovalRef go as one sendMessage whose
 ///     reply_markup holds the Approve and Reject buttons with callback data approve:<Ref> and reject:<Ref>; a 5,000-character request notice
 ///     goes in parts of at most 3,840 units with the buttons on the last part only; the Delivery row records the Ref and the last part's
@@ -581,7 +581,7 @@ Method TestCheckSentence()
 	Do ..Cleanup()
 }
 
-/// A Notification of a kind that has no Telegram form (status, digest, fallback) sends nothing and records no row; a tellnow one before
+/// A Notification of a kind that has no Telegram form (status, fallback) sends nothing and records no row; a tellnow one before
 /// them does, so that the silence is not a broken path.
 Method TestOtherKinds()
 {
@@ -595,12 +595,12 @@ Method TestOtherKinds()
 		Do $$$AssertEquals(..SentTo(8604).%Size(), 1, "it reaches the chat")
 		Set row = "tellnow||"_ref_":"_..LastId(8604)
 		Do $$$AssertEquals(..Rows(session), row, "and has its row")
-		For kind = "status", "digest", "fallback" {
+		For kind = "status", "fallback" {
 			Set notice = ..TellNow(session, "zz Disk almost full")
 			Set notice.Kind = kind
 			Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", notice, .response), "a Notification of kind "_kind_" is sent")
 		}
-		Do $$$AssertEquals(..SentTo(8604).%Size(), 1, "none of the three reaches the chat")
+		Do $$$AssertEquals(..SentTo(8604).%Size(), 1, "neither reaches the chat")
 		Do $$$AssertEquals(..Rows(session), row, "and none records a row")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the other-kinds test failed: "_..Safe(ex))

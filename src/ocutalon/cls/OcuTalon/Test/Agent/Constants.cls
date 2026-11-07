@@ -3,7 +3,7 @@
 /// called.
 ///   - TestAgents: each agent extends %AI.Agent, has MODEL claude-haiku-5-5 and its own MOCKKEY (the template-token check
 ///     on the INSTRUCTIONS is in OcuTalon.Test.Agent.Instructions);
-///   - TestToolNames: the tool names are distinct snake_case values (the twelve release-1 names and propose_persona), and
+///   - TestToolNames: the tool names are distinct snake_case values (the twelve release-1 names, propose_persona and send_digest), and
 ///     RELEASE1 lists exactly the twelve;
 ///   - TestCompactionPrompt: the prompt is ASCII, starts with the prefix and names the seven keys of the summary.
 Class OcuTalon.Test.Agent.Constants Extends %UnitTest.TestCase
@@ -25,8 +25,8 @@ Method TestAgents()
 	Do $$$AssertTrue(($List(keys, 1) '= $List(keys, 2)) && ($List(keys, 1) '= $List(keys, 3)) && ($List(keys, 2) '= $List(keys, 3)), "the keys are distinct")
 }
 
-/// OcuTalon.Tools.Names holds 13 distinct snake_case values, and RELEASE1 lists the 12 release-1 names, comma-separated;
-/// propose_persona is a parameter and is not in RELEASE1.
+/// OcuTalon.Tools.Names holds 14 distinct snake_case values (12 of release 1, propose_persona and, since Story 17.6, DIGESTTOOLS), and RELEASE1 lists exactly the 12 of release 1, comma-separated;
+/// propose_persona and send_digest are parameters and are not in RELEASE1.
 Method TestToolNames()
 {
 	Set statement = ##class(%SQL.Statement).%New()
@@ -41,15 +41,17 @@ Method TestToolNames()
 		Do $$$AssertTrue('$ListFind(names, value), value_" is distinct")
 		Set names = names _ $ListBuild(value)
 	}
-	Do $$$AssertEquals(count, 13, "there are 13 tool names")
+	Do $$$AssertEquals(count, 14, "there are 14 tool names")
 	Set release = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1"))
 	Do $$$AssertEquals($ListLength(release), 12, "RELEASE1 lists 12 names")
+	Do $$$AssertEquals($ListFind(release, $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")), 0, "and send_digest of step 2 is not among them")
 	Set missing = ""
 	Set position = 0
 	While $ListNext(release, position, name) {
 		If '$ListFind(names, name) Set missing = missing _ " " _ name
 	}
 	Do $$$AssertEquals(missing, "", "every name in RELEASE1 is a parameter")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS"), "send_digest", "the digest tool is send_digest")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "CHECKSTATUS"), "check_status", "the status tool is check_status")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), "propose_persona", "the persona proposal tool is propose_persona")
 	Do $$$AssertTrue('$ListFind(release, "propose_persona"), "RELEASE1 does not list propose_persona")

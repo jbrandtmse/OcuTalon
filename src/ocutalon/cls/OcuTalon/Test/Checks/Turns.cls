@@ -9,8 +9,9 @@
 ///     carries the same; and the decision has one tool step, "Reading the check results", ok;
 ///   - TestAllClearOnlyFromCode (AC 2): the same message for a watch whose run is passed (and not due for a day, so that no real Tick changes it): the same reply, the key checks.allPassed and one passed row;
 ///   - TestNothingWatchedInTheChat (AC 2): the same message for a session that watches nothing: the same reply, the key checks.nothingWatched and no row.
-/// Every reply is also checked against both lists of phrases of the guard (AssertNoAllClear). After each test the countdown is cleared, and the turns of the
-/// run's sessions are removed with their decisions.
+/// Every reply is also checked against both lists of phrases of the guard (AssertNoAllClear). After each test the countdown is cleared, the scheduled digests
+/// that a Tick a day ahead caused on the stack are removed and none is left (Test.Digest.FutureSent Remove and Count; DW-816), and the turns of the run's
+/// sessions are removed with their decisions.
 Class OcuTalon.Test.Checks.Turns Extends OcuTalon.Test.Watch.Case
 {
 
@@ -30,6 +31,8 @@ Parameter WAIT = 90;
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ##class(OcuTalon.Test.Contract.Mock).Arm(..#MARKER, "")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Digest.FutureSent).Remove(), 1, "Checks and Digest had no message in flight when the test's scheduled digests were removed")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Digest.FutureSent).Count(), 0, "no scheduled digest dated ahead of the clock is left by the test's Ticks")
 	Quit ##super(testname)
 }
 

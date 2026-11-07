@@ -582,6 +582,7 @@ const SOURCES = {
       'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.',
     ],
     'Story 34.2: Add and remove documents on a Documents page (the page title "Documents \u00b7 OcuTalon")': ['Documents \u00b7 OcuTalon'],
+    'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
     'Story 39.5 ruling planner-2026-11-06-39.5 (the Contest Planner under the owner\'s delegation, 2026-11-06, relayed by the orchestrator: the Heartbeat card\'s Today singular, the labels of its Edit form, the interval names, and 39.2\'s two ruled unavailable reasons of DW-634; the skip line\'s cap fragment is the UX\'s since the same ruling amended EXPERIENCE.md; the labels To and Checklist and the names 4 hours and 8 hours of the same ruling sit under ux, because EXPERIENCE.md holds those words incidentally and this test names the UX first)': [

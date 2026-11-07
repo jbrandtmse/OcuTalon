@@ -6,6 +6,7 @@
 #   - overview (Story 39.6; FR-64): docs/security-overview.md holds the sentence "A heartbeat check-in (a beat) sends the person's checklist and a status
 #     snapshot to the configured provider, at most once per interval." exactly once in the whole file, and that once is inside the line that starts
 #     `- In model requests to the configured provider`, under `Data leaves the instance only:` with no heading between.
+# The overview rule is overview_bullet_rule of docker/tests/lib-heartbeat-overview.sh, which test-heartbeat-overview.sh shares.
 # Each rule first runs on a synthetic pair that breaks it and on one that keeps it, so a rule that can no longer flag anything fails. A failing rule
 # prints what is wrong. Prints one PASS or FAIL line for each rule; exits 0 only when every rule passes.
 set -u
@@ -13,8 +14,10 @@ set -u
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root" || exit 1
 
-OVERVIEW="docs/security-overview.md"
-SENTENCE="A heartbeat check-in (a beat) sends the person's checklist and a status snapshot to the configured provider, at most once per interval."
+. "$root/docker/tests/lib-heartbeat-overview.sh"
+
+OVERVIEW="$HEARTBEAT_OVERVIEW"
+SENTENCE="$HEARTBEAT_BEAT_SENTENCE"
 EXPERIENCE="_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md"
 TRIAGE="src/ocutalon/cls/OcuTalon/Agent/Triage.cls"
 
@@ -53,22 +56,9 @@ chk_paragraph() {
   fi
 }
 
-# chk_overview <security-overview.md>: prints one line for each way the sentence is wrong
+# chk_overview <security-overview.md>: prints one line for each way the sentence is wrong (the rule is lib-heartbeat-overview.sh's)
 chk_overview() {
-  local total placed
-  total=$(grep -oF -e "$SENTENCE" "$1" | wc -l | tr -d ' ')
-  if [ "$total" != "1" ]; then
-    echo "overview: $1 holds the sentence about a heartbeat check-in $total times, not once"
-  fi
-  placed=$(S="$SENTENCE" awk '
-    BEGIN { s = ENVIRON["S"]; sect = 0; ok = 0 }
-    /^#/ { sect = 0 }
-    $0 == "Data leaves the instance only:" { sect = 1; next }
-    sect && index($0, "- In model requests to the configured provider") == 1 && index($0, s) > 0 { ok = 1 }
-    END { print ok }' "$1")
-  if [ "$placed" != "1" ]; then
-    echo "overview: $1 does not hold the sentence about a heartbeat check-in in the line '- In model requests to the configured provider' under 'Data leaves the instance only:'"
-  fi
+  overview_bullet_rule overview "$1" "$SENTENCE" "$SENTENCE" "the sentence about a heartbeat check-in"
 }
 
 printf '%s\n' '- **Triage, heartbeat:** "An item on the channel heartbeat is the checklist."' > "$tmp/good-ux.md"

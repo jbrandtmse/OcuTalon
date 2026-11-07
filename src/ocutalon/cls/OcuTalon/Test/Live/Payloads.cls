@@ -499,8 +499,16 @@ Method TestCheckFromRow()
 /// Heartbeat.FromRow (Story 39.7) builds the public view of an unsaved HeartbeatBeat row and the settings: every value below differs, so a field copied from
 /// the wrong property is caught. The JSON holds exactly the listed keys and none of the tokens that sit in the SessionRef, the snapshot keys, the Item's Id, the
 /// decision's Ref or the checklist; the trace pair is there only with a LastTraceSessionId. With no row (a person who has not had a beat) only the settings go out.
+/// lastCostUSD is not the row's LastCostUSD (0.000234, the decision's own) but the sum of the session's heartbeat Usage rows of the row's Item (Story 39.9,
+/// DW-824: 0.0002 + 0.0003; a row of the web channel on the same Item is not in it); a row with no decision yet, a row with no Item and a read that fails export
+/// none, and an Item whose rows are gone (purged) exports the row's own. The fixture Usage rows are removed at the end.
 Method TestHeartbeatFromRow()
 {
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set refs = "ZzHbUseA"_..Number_",ZzHbUseB"_..Number_",ZzHbUseC"_..Number
+	Do $ClassMethod(fixture, "Usage", "ZzHbUseA"_..Number, "ZzHbRefTok"_..Number, {"ItemId": "ZzHbItemTok", "Kind": "decide", "Channel": "heartbeat", "CostUSD": 0.0002})
+	Do $ClassMethod(fixture, "Usage", "ZzHbUseB"_..Number, "ZzHbRefTok"_..Number, {"ItemId": "ZzHbItemTok", "Kind": "turn", "Channel": "heartbeat", "CostUSD": 0.0003})
+	Do $ClassMethod(fixture, "Usage", "ZzHbUseC"_..Number, "ZzHbRefTok"_..Number, {"ItemId": "ZzHbItemTok", "Kind": "turn", "Channel": "web", "CostUSD": 0.4})
 	Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
 	Set row.SessionRef = "ZzHbRefTok"_..Number
 	Set row.NextDueAt = "2030-02-03T04:06:06Z"
@@ -508,7 +516,7 @@ Method TestHeartbeatFromRow()
 	Set row.LastItemId = "ZzHbItemTok"
 	Set row.LastOutcome = "ignore"
 	Set row.LastFallback = 1
-	Set row.LastCostUSD = 0.012345
+	Set row.LastCostUSD = 0.000234
 	Set row.LastDecisionRef = "ZzHbDecTok"
 	Set row.LastSkipAt = "2030-02-03T03:05:06Z"
 	Set row.LastSkipReason = "unchanged"
@@ -519,7 +527,7 @@ Method TestHeartbeatFromRow()
 	Set values = {"on": 1, "interval": 60, "from": "07:30", "to": "21:15", "checklist": "ZzHbChecklistTok"}
 	Set payload = ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values)
 	Do $$$AssertEquals(payload.On_"|"_payload.Interval_"|"_payload.From_"|"_payload.To, "1|60|07:30|21:15", "on, interval, from and to are the settings")
-	Do $$$AssertEquals(payload.NextDueAt_"|"_payload.LastBeatAt_"|"_payload.LastOutcome_"|"_payload.LastFallback_"|"_payload.LastCostUSD, "2030-02-03T04:06:06Z|2030-02-03T04:05:06Z|ignore|1|.012345", "nextDueAt, lastBeatAt, lastOutcome, lastFallback and lastCostUSD are the row's")
+	Do $$$AssertEquals(payload.NextDueAt_"|"_payload.LastBeatAt_"|"_payload.LastOutcome_"|"_payload.LastFallback_"|"_payload.LastCostUSD, "2030-02-03T04:06:06Z|2030-02-03T04:05:06Z|ignore|1|.0005", "nextDueAt, lastBeatAt, lastOutcome and lastFallback are the row's, and lastCostUSD is the check-in's Usage rows' sum, not the row's own")
 	Do $$$AssertEquals(payload.LastSkipAt_"|"_payload.LastSkipReason_"|"_payload.LastRunNowAt_"|"_payload.BackoffUntil, "2030-02-03T03:05:06Z|unchanged|2030-02-03T02:05:06Z|2030-02-03T08:05:06Z", "the last skip, the last run now and the back-off are the row's")
 	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "|", "a row with no trace session has no trace pair")
 	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
@@ -528,7 +536,7 @@ Method TestHeartbeatFromRow()
 	For token = "ZzHbRefTok", "ZzHbItemTok", "ZzHbDecTok", "ZzHbSnapTok", "ZzHbQuietTok", "ZzHbChecklistTok" {
 		Do $$$AssertTrue(json '[ token, token_" is not in the JSON")
 	}
-	Do $$$AssertEquals(exported.on_"|"_exported.interval_"|"_exported.lastFallback_"|"_exported.lastCostUSD, "1|60|1|.012345", "and its values are the view's")
+	Do $$$AssertEquals(exported.on_"|"_exported.interval_"|"_exported.lastFallback_"|"_exported.lastCostUSD, "1|60|1|.0005", "and its values are the view's")
 	Set row.LastTraceSessionId = 31337
 	Set payload = ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values)
 	Do $$$AssertEquals(payload.TraceHeaderId_"|"_payload.TraceNamespace, "31337|"_$Namespace, "the trace target is the row's LastTraceSessionId in the running namespace")
@@ -549,6 +557,31 @@ Method TestHeartbeatFromRow()
 	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, {"on": 1, "interval": 30, "from": "", "to": "", "checklist": ""}).%JSONExportToString(.json)
 	Set exported = ##class(%DynamicObject).%FromJSON(json)
 	Do $$$AssertEquals(exported.%IsDefined("from")_"|"_exported.%IsDefined("to")_"|"_exported.interval, "0|0|30", "an all-day person's empty from and to are left out of the JSON")
+
+	// pending: no decision yet, so no cost
+	Set row.LastDecisionRef = ""
+	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values).%JSONExportToString(.json)
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.%IsDefined("lastCostUSD"), 0, "a row with no decision yet exports no lastCostUSD")
+
+	// a decision on a row with no Item: nothing to total, so no cost
+	Set row.LastDecisionRef = "ZzHbDecTok", row.LastItemId = ""
+	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values).%JSONExportToString(.json)
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.%IsDefined("lastCostUSD"), 0, "a decision with no Item to total exports no lastCostUSD, never a partial number")
+
+	// an Item with no Usage rows left (purged): the decision's own recorded cost, never 0
+	Set row.LastItemId = "ZzHbPurgedTok"
+	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values).%JSONExportToString(.json)
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(+exported.lastCostUSD, .000234, "an Item whose Usage rows are gone exports the row's own LastCostUSD")
+
+	// a read that fails (no session to read for): no cost
+	Set row.SessionRef = "", row.LastItemId = "ZzHbItemTok"
+	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values).%JSONExportToString(.json)
+	Set exported = ##class(%DynamicObject).%FromJSON(json)
+	Do $$$AssertEquals(exported.%IsDefined("lastCostUSD"), 0, "a failed Usage read exports no lastCostUSD")
+	Do $ClassMethod(fixture, "Clean", refs)
 }
 
 /// The keys of a dynamic object, sorted and comma-separated.

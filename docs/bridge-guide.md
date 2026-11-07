@@ -150,18 +150,19 @@ The pending requests are the rows of the table `OcuTalon_Bridge_Data.ApprovalReq
 
 ### Settings
 
-The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. A row takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. `ToolClassification` and `ApprovalRole` are read when they are used, so they need no update.
+The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. These settings are read each time they are used, so a change needs no update: `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD`, `GatewaySpendUSD`, `GatewaySpendDate`, `InstanceZone`, `ServiceUser`, `ApprovalRole`, `ToolClassification` and `ClassificationClass` of `Decide`, and `ReplyClass` and `RetryItem` of a runner. `Decide` reads `DecisionTokenBudget` and `RequestTokenLimit` this way only when it runs in a job of its own (a pool size of 1 or more, as in the example); in the shared actor pool, update the production after you change them. `HostSinkClass` is read each time too, except for the events that `Decide` fires itself, which follow a change only after `Decide` restarts. Every other setting takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. For `TimerSeconds`, see "Timeouts".
 
 The settings of the `Decide` item:
 
 | Setting | Default | What it does |
 |---|---|---|
-| `TimerSeconds` | 60 | How long `Decide` waits for the runner's reply, in whole seconds, from 12 seconds to 110 seconds. When it passes, the fallback route is taken with the reason `timeout`. See "Timeouts". |
-| `DecisionTokenBudget` | 0 (none) | The most tokens one decision may use. A request whose estimate is above it takes the fallback route with the reason `budget`, and is never sent. |
+| `TimerSeconds` | 60 | How long `Decide` waits for the runner's reply, in whole seconds, from 12 seconds to 110 seconds. When it passes, the fallback route is taken with the reason `timeout`, unless the second-model retry is sent. The retry waits the lesser of `TimerSeconds` and 110 seconds minus the first attempt's timer. See "Timeouts" and "Second-model retry". |
+| `DecisionTokenBudget` | 0 (none) | The token budget of each attempt of a decision, checked against the attempt's estimate before it is sent. A request whose estimate is above it takes the fallback route with the reason `budget`, and is never sent. A second-model retry is checked against it again, on its own estimate. The budget is not a total over both attempts. |
 | `RequestTokenLimit` | 100000 | The largest request, in tokens. A request above it takes the fallback route with the reason `too_large`. An empty value, 0 or a value above 100000 counts as 100000. |
 | `DailyCostCapUSD` | 0 (off) | The most the bridge may spend in a day, in US dollars. At the cap, requests take the fallback route with the reason `daily_cap`. |
 | `GatewaySpendUSD` | empty | The spend that an outbound gateway reports for the day in `GatewaySpendDate`. Only a deployment with such a gateway sets it. |
 | `GatewaySpendDate` | empty | The date, YYYY-MM-DD, that `GatewaySpendUSD` counts. |
+| `InstanceZone` | empty (the container's time zone) | The time zone in which the bridge works out a day, an IANA name such as `Europe/Berlin`; the day of the daily cost cap ends at midnight in it. Read it with `OcuTalon.Bridge.Time.Zone` and change it with `OcuTalon.Bridge.Time.SetZone`, which refuses a name that is no zone; it applies to the next conversion with no restart. |
 | `ServiceUser` | `OcuTalonService` | The IRIS user whose privileges the bridge checks for a tool that declares resources. OcuTalon's own install creates `OcuTalonService`. On your own instance, set it to an IRIS user of your own. The bridge checks it only for a tool that declares resources, and a user that does not exist holds nothing, so such a tool is denied. |
 | `ApprovalRole` | `OcuTalonUser` | The role a person needs to answer an approval request. OcuTalon's own install creates `OcuTalonUser`. On your own instance, set the role you create, as the example does. An empty value refuses to raise a request. |
 | `ToolClassification` | empty | The classification of your own tools. See "Tool classification". |
@@ -180,6 +181,7 @@ The settings of a runner item (the example's `TriageAgent`, which is an `OcuTalo
 | `Model` | the agent's `MODEL` | The model of this runner. A row for it replaces the agent's `MODEL` for that runner (`claude-haiku-5-5` for the example). This is an AI Hub setting. |
 | `Effort` | empty | How much effort an Anthropic model puts in: `low`, `medium` or `high`. Empty sends none. |
 | `ReplyClass` | none | The class the runner's reply is checked against, for a decision. The example uses `OcuTalon.Bridge.Msg.DecisionPayload`. |
+| `RetryItem` | empty | It names the retry runner of that runner: another enabled `OcuTalon.Bridge.Operation.AgentRunner` item of the production, whose `Model` setting is the second model. An empty value means no second model. See "Second-model retry". |
 
 The allow-list is the safeguard that stops a setting from running an arbitrary class as an agent. For a production of your own, set `AgentAllowList` to your agent class, as the example's production does. The list that OcuTalon's own install writes for OcuTalon's runners holds OcuTalon's three agents; on your own instance you extend the list with your own class.
 
@@ -193,12 +195,12 @@ The bridge governs the agent's tools, so it refuses AI Hub's own settings that w
 
 ### Timeouts
 
-`TimerSeconds` is the one timer. Two things depend on it, and `OcuTalon.Bridge.Timeouts` works both out so that no other place holds a second copy of a number:
+`TimerSeconds` is the one timer. A decision with a second-model retry has two attempts, which share the 110 seconds: the retry waits the lesser of `TimerSeconds` and 110 seconds minus the first attempt's timer (see "Second-model retry"). Two things depend on it, and `OcuTalon.Bridge.Timeouts` works both out so that no other place holds a second copy of a number:
 
 - `Timeouts.Derive(timer)` returns the `timeout_ms` of the agent session (the timer minus 5 seconds, which bounds the tool loop) and the `http_config` of the provider: a `request_timeout_secs` and a whole `retry` block. The example's `provider` block writes `Derive(60).http_config` into the row.
 - AI Hub waits for a provider's Retry-After header for as long as 30 seconds, and has its own default request timeout, when `http_config` has no complete `retry` block. Give the provider both.
 
-The timer can be 12 seconds at the least and 110 seconds at the most. After you change `TimerSeconds`, edit the `ProviderConfig` row so that its `http_config` is the new `Derive(timer)`'s and update the production, or keep the provider in the Config Store as an entry and let `Timeouts.Apply(timer)` change the timer, the entries and the runners together. Apply needs each runner's `ProviderConfig` to be `@{config:<name>}`, and restarts `Decide` and the runners.
+The timer can be 12 seconds at the least and 110 seconds at the most. After you change `TimerSeconds`, edit the `ProviderConfig` row so that its `http_config` is the new `Derive(timer)`'s (for a retry runner, `Derive(Timeouts.RetryTimer(timer))`'s, see "Second-model retry") and update the production, or keep the provider in the Config Store as an entry and let `Timeouts.Apply(timer)` change the timer, the entries and the runners together. Apply needs each runner's `ProviderConfig` to be `@{config:<name>}`, and restarts `Decide` and the runners.
 
 ### Messages and enumerations
 
@@ -220,6 +222,7 @@ The timer can be 12 seconds at the least and 110 seconds at the most. After you 
 | `SeedText` | A recap the runner sends on a fresh turn of a conversation. |
 | `SystemNote` | Text the runner sends before the input. |
 | `Compact` | `Decide` sets it to 1 for a turn that is large enough to compact. |
+| `RetryOf` | `Decide` sets it, on the one retry request it sends, to the first runner's item. A value that a caller sets is ignored. See "Second-model retry". |
 
 **`OcuTalon.Bridge.Msg.DecisionResponse`** is the answer for a decision. It carries the result fields below and `Payload`, the checked reply as JSON. The fields that every result carries:
 
@@ -238,7 +241,7 @@ The timer can be 12 seconds at the least and 110 seconds at the most. After you 
 | `AgentStepCount` | The number of agent steps. |
 | `DurationMs` | The duration of the turn in milliseconds. |
 | `CostUSD` | The cost of the turn in US dollars. |
-| `Model` | The model that answered. |
+| `Model` | The model that answered. After a second-model retry, the second model; when the retry's timer passes before its reply arrives, the model of the last model request counted for the decision, which can be the first model. Empty when no model was asked. |
 
 **`OcuTalon.Bridge.Msg.AgentStep`** is one step of an agent turn, sent to `AgentSteps`:
 
@@ -269,7 +272,7 @@ The user rule: for a `decide` request whose provenance is `user`, `Decide` chang
 
 ### The fallback route
 
-When the model cannot give a usable answer, `Decide` does not guess. It records one decision with the outcome `tellnow`, `Fallback` 1 and the reason, keeps no model text, and answers with it, so that the person is told. A fallback starts no tool, fix or approval. The reasons:
+When the model cannot give a usable answer, `Decide` does not guess. When a second model is set, `Decide` may first try the request once on it, as "Second-model retry" says, and takes the fallback route only when no retry is sent or the retry gives no usable answer either. It records one decision with the outcome `tellnow`, `Fallback` 1 and the reason (after a retry, the last attempt's), keeps no model text, and answers with it, so that the person is told. A fallback starts no tool, fix or approval. The reasons:
 
 - `no_key`: the key placeholder names a variable that is not set.
 - `daily_cap`: the daily cost cap is reached.
@@ -329,3 +332,28 @@ Two parts of AI Hub that the bridge builds on are experimental in build 154, so 
 ## Where to go next
 
 OcuTalon's own README describes the product that is built on this bridge. The bridge's classes are in `src/bridge/cls/OcuTalon/Bridge`, and the example is in `src/bridge/cls/OcuTalon/BridgeExample`.
+
+## Second-model retry
+
+A decision that gets no usable answer from the first model can be tried once on a second model before `Decide` takes the fallback route. Nothing turns this on by default: the install sets no second model, so `Decide` behaves as "The fallback route" says.
+
+- `RetryItem` is a setting of a runner item, and `Decide` reads it. It names the retry runner of that runner: another enabled `OcuTalon.Bridge.Operation.AgentRunner` item of the production, whose `Model` setting is the second model. An empty value means no second model, and it is empty by default. A value that names the runner itself, a missing, disabled or non-runner item, or (for a decision or a diagnosis) an item whose `ReplyClass` is refused is not used: `Decide` logs one warning that names the setting and takes the fallback route. A retry runner's own `RetryItem` is never followed, so a retry is never retried. Write `RetryItem` as any setting in "Settings" is written. `Decide` reads it live, so it needs no update; a retry runner item that you add to the production starts when you update the production. The retry runner is set up like any runner: `AgentClass`, `AgentAllowList`, `ProviderConfig`, and `ReplyClass` for a decision or a diagnosis.
+- `RetryOf` is a property of `OcuTalon.Bridge.Msg.Request`. `Decide` sets it, on the one retry request it sends, to the first runner's item. A value that a caller sets is ignored: `Decide` clears it on every first send and every re-send, and a request that carries one does not skip the wait for a conversation that is in use. The retry runner acts on `RetryOf` only when the named runner's `RetryItem` names it; for any other `RetryOf` it returns an error and sends nothing.
+
+The retry is the same request, with the same `DecisionRef` and `ItemId`, sent once. The retry runner takes its session config from its own model's family, and the bridge sets no `temperature`, `top_p` or `top_k` on it. The retry runner has its own key check and its own budget and size checks before the request is sent.
+
+The reasons that are retried once are `timeout`, `rate_limited`, `error`, `refusal`, `cut_off`, `empty`, `invalid`, `unusable` and `no_key` (for `no_key`, the retry runner's own key is the one that is checked). After `rate_limited`, `Decide` re-sends to the same runner as before while time remains, and the retry follows when no re-send fits. These are never retried:
+
+- `daily_cap`, `budget` and `too_large`.
+- An attempt in which a tool ran (`ToolsRun`).
+- A turn of a saved conversation that failed because the provider rejected the stored conversation (its error holds "Invalid input"), and a request of the kind `tool`.
+- A model test request (its `ItemId` starts with `test.`), so that the test says whether the first model answered.
+- The retry itself. `Decide` does not send it again after `rate_limited`, and a fallback after it carries its reason.
+
+A timer that fired leaves it unknown whether a tool ran, so an attempt whose timer fired is retried only when no tool can have changed anything. A `turn` whose timer fired is never retried: it takes the fallback route with the reason `timeout` (`rate_limited` when it had been re-sent after a rate limit). A `decide` or `diagnose` request whose timer fired is retried only when every tool of its agent is read-only by what the tool classes declare, and a toolset that this cannot be judged for counts as not read-only.
+
+The two attempts share the 110 seconds. The first attempt keeps its timer T1: `TimerSeconds`, or 20 seconds more (at most 110) for a turn that is compacted first, and 0 when the first attempt was refused before it was sent. The retry waits T2, the lesser of `TimerSeconds` and 110 seconds minus T1. The retry is sent only when T2 is at least 12 seconds: when the first attempt waited the default 60 seconds, the retry waits 50 seconds, and when T1 is more than 98 seconds the retry is never sent. When it is not sent, the fallback route is taken with the first attempt's reason, and the decision's reasons read: "The second model was not tried, because too little time was left within the decision's 110-second limit." The retry runner's timeouts come from `Timeouts.RetryTimer(timer)`, the greater of 12 and the lesser of the timer and 110 minus the timer: its session's `timeout_ms` derives from it, and its `http_config` should be `Timeouts.Derive(Timeouts.RetryTimer(timer)).http_config`. `Timeouts.Apply(timer)` writes that `http_config` only for a retry runner whose name is its runner's name with `Retry` added (for the example, `TriageAgentRetry`) and whose `ProviderConfig` is `@{config:<name>}`. For any other retry runner, write it yourself, as step 3 does for `TriageAgent`. A reply that reaches `Decide` after its timer counts its cost and is dropped.
+
+The decision is still one record and one answer. Its tokens, cost and steps are the sums of both attempts, its `Model` is as the `Model` field of `OcuTalon.Bridge.Msg.DecisionResponse` says, and, when both attempts fail, its reason is the last attempt's.
+
+A retried turn of a conversation that the bridge saves runs without the conversation lock, in a new AI session. `Decide` seeds it with a code-written recap of the stored conversation as it stood before the turn (or with `SeedText` when the turn starts fresh), and the turn's input follows; nothing that the first attempt produced goes in. Only `Decide` moves a conversation to another AI session, and only when it accepts a reply as the decision's answer: a reply that reached it within its timer, is usable and is not tainted. A reply that `Decide` does not accept, the first attempt's or the retry's, moves nothing: the conversation stays in the AI session it was in.

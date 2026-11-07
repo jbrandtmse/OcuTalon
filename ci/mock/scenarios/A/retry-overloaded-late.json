@@ -1,0 +1,20 @@
+{
+  "name": "retry-overloaded-late",
+  "match": {
+    "marker": "retry-overloaded-late"
+  },
+  "replies": [
+    {
+      "status": 529,
+      "delayMs": 10500,
+      "headers": {
+        "Retry-After": "1"
+      },
+      "text": "CI mock: overloaded, late."
+    },
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"digest\",\"reasons\":[\"The CI mock answers on the second model.\"],\"confidence\":0.7}"
+    }
+  ]
+}

@@ -293,7 +293,7 @@ Method TestProposeThroughATurn()
 	}
 	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
-		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,check_status,dismiss_incident,list_productions,list_reminders,propose_persona,recent_activity,set_reminder,start_watch,stop_watch", "the second request offers propose_persona with the other nine tools of Chat")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,check_status,dismiss_incident,list_productions,list_reminders,propose_persona,recent_activity,send_digest,set_reminder,start_watch,stop_watch", "the second request offers propose_persona with the other ten tools of Chat, send_digest (since Story 17.6) among them")
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 		Do $$$AssertEquals($ListLength(results), 1, "and carries one tool result")
 		If $ListLength(results) = 1 Do ..AssertObject($List(results, 1), ..Proposed(), "the model reads the answer of the owner")

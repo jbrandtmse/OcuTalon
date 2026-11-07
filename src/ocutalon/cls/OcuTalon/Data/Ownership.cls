@@ -116,8 +116,8 @@ ClassMethod RunCost(sessionRef As %String, since As %String, Output sc As %Statu
 /// rows are the session's own Usage rows of Channel heartbeat recorded from the first instant of the instance-zone local date of now up to
 /// the first instant of the next date (the day of Bridge.Budget, from Data.Time, AD-18). checkIns is the count of their distinct non-empty
 /// ItemIds (the beats that reached the model; an Act's read-only turn shares the beat's Item), costUSD the sum of their CostUSD. A row of
-/// owner eval, instance or another session, of another channel or of another day is never counted. A failed read gives {} and an error
-/// status in sc.
+/// owner eval, instance or another session, of another channel or of another day is never counted. CheckInCost sums the same rows of one
+/// ItemId with no day bound, so a check-in whose rows all fall in this day costs the same in both. A failed read gives {} and an error status in sc.
 ClassMethod HeartbeatToday(sessionRef As %String, Output sc As %Status) As %DynamicObject
 {
 	Set sc = $SYSTEM.Status.OK()
@@ -145,6 +145,25 @@ ClassMethod HeartbeatToday(sessionRef As %String, Output sc As %Status) As %Dyna
 	Do today.%Set("checkIns", items, "number")
 	Do today.%Set("costUSD", usd, "number")
 	Quit today
+}
+
+/// The cost of one heartbeat check-in (Story 39.9; AD-20), as an object shaped like TurnCost's: the sums of the session's own Usage rows of
+/// Channel heartbeat that carry the check-in's ItemId, {"inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "costUSD"}.
+/// They are the rows HeartbeatToday counts for that Item, of any day (no day bound): the decision and, on an Act, its read-only turn. A row of
+/// another session, of another channel or of another Item is never counted. An empty itemId or a failed read gives {} and an error status in sc. itemId comes
+/// from a HeartbeatBeat row read through this class, never from request input.
+ClassMethod CheckInCost(sessionRef As %String, itemId As %String, Output sc As %Status) As %DynamicObject
+{
+	Set sc = $SYSTEM.Status.OK()
+	If itemId = "" {
+		Set sc = $SYSTEM.Status.Error(5001, "There is no check-in to total")
+		Quit {}
+	}
+	Set rows = ..Rows("checkInUsage", sessionRef, .sc, itemId)
+	If $SYSTEM.Status.IsError(sc) Quit {}
+	Set cost = {}
+	Do ..Sum(rows, cost)
+	Quit cost
 }
 
 /// Sets the four token totals and the cost of the Usage rows (none when rows is not a list) in cost, 0 for a total with no
@@ -849,6 +868,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "heartbeatUsage" {
 		Set class = "OcuTalon.Bridge.Data.Usage", binds = "oaa"
 		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef = ? AND Channel = 'heartbeat' AND RecordedAt >= ? AND RecordedAt < ?"
+	}
+	If kind = "checkInUsage" {
+		Set class = "OcuTalon.Bridge.Data.Usage", binds = "oa"
+		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef = ? AND Channel = 'heartbeat' AND ItemId = ?"
 	}
 	If kind = "runDecisions" {
 		Set class = "OcuTalon.Bridge.Data.Decision", binds = "oa"

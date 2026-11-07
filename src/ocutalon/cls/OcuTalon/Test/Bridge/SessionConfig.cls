@@ -12,6 +12,10 @@
 ///   - TestInstallerRun: Installer.Run, the call of the after-start installer, writes the three families (it needs an Interoperability
 ///     namespace, and registers the audit events as it does at every start);
 ///   - TestComposeBranches: a family row that has no CapKey fails the compose, naming the model, and gives no config.
+/// Added by Story 17.3 (AD-7):
+///   - TestEveryListedModel: the config that Compose gives for every selectable model of the provider table (OcuTalon.Bridge.Providers) has the cap of 8000 in the
+///     family's key (extra_params.max_completion_tokens for gpt-5*, max_tokens otherwise) and in no other, an effort only for a claude-* model, the cache block, and no
+///     temperature, top_p or top_k at any depth.
 /// Added by Story 1.7 (AD-7, AD-8):
 ///   - TestTimeoutMs: Compose with no timeoutMs ("" or not passed) gives exactly the config it gave before, and with a timeoutMs adds
 ///     "timeout_ms" last, as a number, for every family; a compose that fails still gives no config.
@@ -228,6 +232,45 @@ Method TestTimeoutMs()
 		Set sc = $ClassMethod(agent, "Compose", "", "", "low", .none, 55000)
 		Do $$$AssertStatusNotOK(sc, "an empty model still fails with a timeoutMs")
 		Do $$$AssertEquals(none, "", "and gives no config")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..Restore()
+}
+
+/// Story 17.3 (AD-7): the config that Compose gives for every selectable model of the provider table has no sampling parameter at any depth, a cap of 8000
+/// in the family's key (extra_params.max_completion_tokens for gpt-5*, max_tokens otherwise), an effort only for a claude-* model, and the cache block.
+Method TestEveryListedModel()
+{
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Installer).SeedModelFamilies(), "the installer's families are written")
+	Try {
+		Set count = 0
+		Set iterator = ##class(OcuTalon.Bridge.Providers).Rows().%GetIterator()
+		While iterator.%GetNext(, .row) {
+			Set models = row.models.%GetIterator()
+			While models.%GetNext(, .model) {
+				Set count = count + 1
+				Set label = row.provider_" "_model_": "
+				Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Adapter.Agent).Compose("", model, "low", .config), label_"a config is composed")
+				If '$IsObject(config) Continue
+				Set gpt = ($Extract(model, 1, 5) = "gpt-5")
+				Set extra = $Select(config.%IsDefined("extra_params"): config.%Get("extra_params"), 1: {})
+				Set cap = $Select(gpt: extra.%Get("max_completion_tokens"), 1: config.%Get("max_tokens"))
+				Do $$$AssertEquals(cap, 8000, label_"the cap is 8000 in "_$Select(gpt: "extra_params.max_completion_tokens", 1: "max_tokens"))
+				Set other = $Select(gpt: config.%IsDefined("max_tokens"), 1: extra.%IsDefined("max_completion_tokens"))
+				Do $$$AssertEquals(other, 0, label_"and in no other family's key")
+				Set claude = ($Extract(model, 1, 7) = "claude-")
+				Set output = $Select(extra.%IsDefined("output_config"): extra.%Get("output_config"), 1: {})
+				Set effort = output.%Get("effort")
+				Do $$$AssertEquals(effort, $Select(claude: "low", 1: ""), label_$Select(claude: "the effort is set", 1: "no effort is set"))
+				Do $$$AssertEquals(config.%Get("cache").%ToJSON(), ..#CACHE, label_"the cache block is there")
+				Set json = config.%ToJSON()
+				For key = "temperature", "top_p", "top_k" {
+					Do $$$AssertTrue(json '[ ("""" _ key _ """"), label_"no "_key_" at any depth")
+				}
+			}
+		}
+		Do $$$AssertEquals(count, 8, "the table lists eight selectable models")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}

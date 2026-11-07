@@ -29,10 +29,10 @@ Method Converse(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Ses
 	Quit ##super(request, session, input, opened, .reply, .completed)
 }
 
-Method SaveLinked(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, fresh As %Boolean, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
+Method SaveLinked(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
 {
 	Do ..Note("save")
-	Do ##super(request, session, fresh, reply)
+	Do ##super(request, session, reply)
 }
 
 Method ReleaseSession() [ Private ]

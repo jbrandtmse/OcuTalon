@@ -151,7 +151,7 @@ CHK|router-sent|0" \
   'Set rs=##class(%SQL.Statement).%ExecDirect(,q2,"OutcomeRouter","CommandsIn") Do rs.%Next() Write !,"CHK|router-sent|",(rs.%GetData(1)-out0)' \
   'Halt'
 item_jobs "$tmp/jobs.16.after"
-targets='^(SessionOps|Intake|TriageAgent|OutcomeRouter)'
+targets=$'^(SessionOps|Intake|TriageAgent|OutcomeRouter)\t'
 if [ "$(grep -cE "$targets" "$tmp/jobs.16.before")" = 4 ] \
   && [ "$(grep -E "$targets" "$tmp/jobs.16.before")" = "$(grep -E "$targets" "$tmp/jobs.16.after")" ]; then
   pass "row 16: SessionOps, Intake, TriageAgent and OutcomeRouter keep the jobs they had"

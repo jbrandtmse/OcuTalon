@@ -9,6 +9,9 @@
 /// session of its own, so the tests of the GET compare the settings and the private fields, not the whole answer, where a row could appear.
 ///   - TestGetDefaults, TestGetOnlineDemoSample, TestGetAfterPut, TestGetRowView, TestGetFails: the GET: the settings, the online demo's sample,
 ///     the values just saved (never a cached older one), the row's public view with traceUrl and none of its private fields, a failed read;
+///   - TestGetCheckInCost (Story 39.9, DW-824): lastCostUSD is the cost of the row's whole check-in (its Item's heartbeat Usage rows: the decision and the
+///     read-only turn of an act, never another channel's, another session's or another Item's row), so that it equals Today's cost for a person's only
+///     check-in, and a pending beat has none;
 ///   - TestPutAccepted, TestPutRefusals, TestPutBadBody, TestPutLongChecklist, TestPutBodyNamesSession: the PUT: the answer, the keys and the audit entry
 ///     read back from the IRIS audit log, the refusals, the bodies that submit nothing and a sessionRef in the body that is ignored;
 ///   - TestPutOutcomes: the mapping of the owner's outcomes, and what the route submits, through the probe;
@@ -194,6 +197,56 @@ Method TestGetRowView()
 	Do $$$AssertEquals(answer.traceUrl, url, "and the answer carries it as traceUrl")
 	Do $$$AssertEquals(answer.checklist_"|"_answer.sample, "|0", "the checklist and sample follow the view")
 	Do ..AssertNoPrivate(body, session)
+}
+
+/// DW-824: the card's "Last check-in" cost and its "Today" cost agree. The check-in that acted has a decision row (0.0003) and the row of its read-only turn
+/// (0.0003) on the same Item; the answer's lastCostUSD is both (0.0006), not the decision's alone (the row's own LastCostUSD, 0.0003). A row of the Item on
+/// another channel or of another session is nowhere in Today or in lastCostUSD, and a row of another Item is in Today only (a second check-in). With the other Item's row gone, the person's only check-in costs 0.0006 on both lines. A beat with no decision yet has no lastCostUSD.
+/// The person's heartbeat is saved off first, so that no Tick runs a beat that changes the row or the rows.
+Method TestGetCheckInCost()
+{
+	If '..Guard() Quit
+	Set session = ..Session()
+	Set theirs = ##class(OcuTalon.Test.Data.Fixture).Session("zzheartbeatapi"_..Number_"cost")
+	Set ..Sessions = ..Sessions_","_theirs
+	Set ..Refs = ..Refs_","_theirs
+	Do ..Keep(theirs)
+	Do ..Put({"on": false, "interval": 30, "from": "", "to": "", "checklist": ""}.%ToJSON(), .response)
+	Do $$$AssertEquals(..KeyValue(session, "on"), 0, "precondition: the person's heartbeat is off")
+	Set item = ##class(OcuTalon.Bridge.Ids).NewRef(), decision = ##class(OcuTalon.Bridge.Ids).NewRef(), turn = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set web = ##class(OcuTalon.Bridge.Ids).NewRef(), foreign = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set second = ##class(OcuTalon.Bridge.Ids).NewRef(), secondItem = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..Refs = ..Refs_","_decision_","_turn_","_web_","_foreign_","_second
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(session)
+	If '$IsObject(row) Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
+	Set row.SessionRef = session
+	Set row.NextDueAt = "2030-01-01T10:30:00Z"
+	Set row.LastBeatAt = "2030-01-01T10:00:00Z"
+	Set row.LastItemId = item
+	Set row.LastOutcome = "act"
+	Set row.LastDecisionRef = decision
+	Set row.LastCostUSD = 0.0003
+	Do $$$AssertStatusOK(row.%Save(), "the person's row is made: one check-in that acted, with the decision's own cost")
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(decision, session, {"ItemId": (item), "Kind": "decide", "Channel": "heartbeat", "CostUSD": 0.0003})
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(turn, session, {"ItemId": (item), "Kind": "turn", "Channel": "heartbeat", "CostUSD": 0.0003})
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(web, session, {"ItemId": (item), "Kind": "turn", "Channel": "web", "CostUSD": 0.5})
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(foreign, theirs, {"ItemId": (item), "Kind": "turn", "Channel": "heartbeat", "CostUSD": 0.7})
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(second, session, {"ItemId": (secondItem), "Kind": "decide", "Channel": "heartbeat", "CostUSD": 0.0001})
+	Set answer = {}.%FromJSON(..Get(.response))
+	Do $$$AssertEquals(answer.today.checkIns_"|"_(+$FNumber(answer.today.costUSD, "", 6)), "2|"_.0007, "Today holds two check-ins: the person's rows of the heartbeat channel")
+	Do $$$AssertEquals(+answer.lastCostUSD, .0006, "lastCostUSD is the decision plus its read-only turn")
+	Do $$$AssertEquals(+$FNumber(answer.today.costUSD - .0001, "", 6), +answer.lastCostUSD, "and it is Today's cost less the other check-in's")
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean(second)
+	Set answer = {}.%FromJSON(..Get(.response))
+	Do $$$AssertEquals(answer.today.checkIns_"|"_(+$FNumber(answer.today.costUSD, "", 6)), "1|"_.0006, "the only check-in: Today is 1 check-in and 0.0006")
+	Do $$$AssertEquals(+answer.lastCostUSD, .0006, "the last check-in costs 0.0006, twice the decision's own cost: the two lines agree")
+	Do $$$AssertEquals(+$FNumber(answer.today.costUSD, "", 6), +answer.lastCostUSD, "equal")
+	Set row.LastDecisionRef = ""
+	Do $$$AssertStatusOK(row.%Save(), "the beat is pending: no decision yet")
+	Set body = ..Get(.response)
+	Set answer = {}.%FromJSON(body)
+	Do $$$AssertEquals(answer.%IsDefined("lastCostUSD"), 0, "a pending beat has no lastCostUSD")
+	Do $$$AssertEquals(answer.today.checkIns, 1, "though Today still counts its Item's rows")
 }
 
 /// A read that fails is 500 server_error and sends no value: not the settings that the failed read held. The cause goes to ServerError, which logs it.

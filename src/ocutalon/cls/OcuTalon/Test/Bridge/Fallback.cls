@@ -17,6 +17,10 @@
 ///     (Test.Bridge.Decide TestPrecheckOrder pins the fact tooLarge);
 ///   - TestCatalogMap (AC5): each of the 12 reasons rendered through "conversation.turnFallback" gives exactly one of the 11
 ///     fallbackReason.* texts, invalid and unusable give the generic one, refusal and cut_off their own, and all 11 are reached.
+/// Added by Story 17.3 (AD-8, NFR-5):
+///   - TestUnclassifiedStop: a reply with text and a finish reason that is not empty, not refusal or max_tokens and not a normal end (end_turn,
+///     stop_sequence, tool_use and stop, compared without regard to case) is unusable, whatever the provider calls it (pause_turn, content_filter, length,
+///     SAFETY); the normal ends stay usable, and the earlier rules still come first.
 /// Added by Story 1.7 (AD-8, FR-4):
 ///   - TestTimedOut: a timer that fired (timedOut) gives timeout, and rate_limited once Decide has re-sent (resends above 0); the precheck
 ///     reasons win over it, and it wins over the text of a failure, the finish reason, an empty text and invalid; resends without timedOut
@@ -78,6 +82,25 @@ Method TestOrder()
 	Do ..AssertReason({"finishReason": "refusal", "invalid": true, "text": "A refusal"}, "refusal", "refusal before invalid")
 	Do ..AssertReason({"finishReason": "end_turn", "text": "  ", "invalid": true}, "empty", "an empty text before invalid")
 	Do ..AssertReason({"finishReason": "", "text": "", "invalid": true}, "unusable", "and so is the unusable one")
+}
+
+/// A reply with text and a finish reason that the bridge cannot classify is unusable and never an answer (rule 6 of Classify).
+Method TestUnclassifiedStop()
+{
+	For reason = "pause_turn", "content_filter", "length", "SAFETY", "recitation", "Other" {
+		Do ..AssertReason({"finishReason": (reason), "text": "A reply."}, "unusable", "the finish reason "_reason_" with a text")
+		Do ..AssertReason({"finishReason": (reason), "text": "A reply.", "invalid": true}, "unusable", "and before invalid: "_reason)
+	}
+	For reason = "end_turn", "stop_sequence", "tool_use", "stop", "STOP", "End_Turn", "TOOL_USE" {
+		Do ..AssertReason({"finishReason": (reason), "text": "A reply."}, "", "the normal end "_reason_" with a text stays usable")
+		Do ..AssertReason({"finishReason": (reason), "text": "A reply.", "invalid": true}, "invalid", "and still fails its check when invalid: "_reason)
+	}
+	Do ..AssertReason({"finishReason": "pause_turn", "text": "  "}, "empty", "an empty text with another finish reason is still empty")
+	Do ..AssertReason({"finishReason": "pause_turn"}, "", "with no text fact there is no reply to judge")
+	Do ..AssertReason({"finishReason": "SAFETY", "text": "A reply.", "failure": "something failed"}, "error", "a failure comes first")
+	Do ..AssertReason({"finishReason": "refusal", "text": "A reply."}, "refusal", "refusal comes before the rule")
+	Do ..AssertReason({"finishReason": "max_tokens", "text": "A reply."}, "cut_off", "and so does max_tokens")
+	Do ..AssertReason({"finishReason": "pause_turn", "text": "A reply.", "noKey": true}, "no_key", "and a precheck")
 }
 
 /// The rule for a timer that fired comes after the prechecks and before the failure text (AD-8): timedOut gives timeout, or rate_limited when

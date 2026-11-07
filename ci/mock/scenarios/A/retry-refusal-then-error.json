@@ -1,0 +1,17 @@
+{
+  "name": "retry-refusal-then-error",
+  "match": {
+    "marker": "retry-refusal-then-error"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "stopReason": "refusal",
+      "text": "The CI mock refuses this request."
+    },
+    {
+      "status": 500,
+      "text": "CI mock: the second model failed."
+    }
+  ]
+}
