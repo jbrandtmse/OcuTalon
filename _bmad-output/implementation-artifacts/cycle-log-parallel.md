@@ -2539,3 +2539,6 @@
 2026-11-07T19:58:44Z	Epic 12	runner_ci_wait	head=f7318fd8 runs=42408652621,42408652617 story=12.12 merge-file_Out.cls=0_conflicts
 2026-11-07T19:58:44Z	Epic 17	worktree_provisioned	branch=OCT-epic17 ff_to=84906388 reason=story_17.10_D2
 2026-11-07T19:58:44Z	Epic 17	runner_dispatched	lane=B slot=ocutalon-slot-b model=opus prompt=dispatch-epic-17-1710.md note=lane_B_free_while_12.12_waits_on_CI
+2026-11-07T19:58:49Z	Epic 17	runner_dispatched_id	agent=ac542a9661b40c696
+2026-11-07T20:19:18Z	Epic 39	ci_infra_rerun	head=84e2ee03 run=42404361697 job=production(first_start_not_ready_400s,no_test_ran)
+2026-11-07T20:38:30Z	Epic 17	runner_clarification	story=17.10 Q1=AD-18_online_demo_not_due Q2=AD-33_lane_exception Q3=browser_33-39min(32.5_fixes:1911s) to=planner(U7) protocol_note=pushed_before_boundaries(passed_after)
