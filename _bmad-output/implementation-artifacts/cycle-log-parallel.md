@@ -2542,3 +2542,8 @@
 2026-11-07T19:58:49Z	Epic 17	runner_dispatched_id	agent=ac542a9661b40c696
 2026-11-07T20:19:18Z	Epic 39	ci_infra_rerun	head=84e2ee03 run=42404361697 job=production(first_start_not_ready_400s,no_test_ran)
 2026-11-07T20:38:30Z	Epic 17	runner_clarification	story=17.10 Q1=AD-18_online_demo_not_due Q2=AD-33_lane_exception Q3=browser_33-39min(32.5_fixes:1911s) to=planner(U7) protocol_note=pushed_before_boundaries(passed_after)
+2026-11-07T20:39:21Z	Run	planner_ruling	subject=17.10 Q1=AD-18_approved Q2=AD-33_exception_approved Q3=keep_notice.spec
+2026-11-07T20:39:21Z	Run	planner_request	subject=rc2_picks shas=bc1ff88b(32.5),84e2ee03(HC8) action=merge_both_to_feature_asap PR6_browser_failed_twice(sign-in_1168s,1193s) fallback=84e2ee03_alone;bc1ff88b_alone_if_>45min
+2026-11-07T20:49:55Z	Epic 32	ci_flake_rerun	head=39364d5c run=42401362858 attempt=3 job=shards-5 red=DW-688(TestStartsWithNoKey;fix_in_11.28_unmerged) note=32.5_changes_no_ObjectScript planner_told=yes
+2026-11-07T20:50:43Z	Epic 32	planner_ruling	subject=merge_gate_exception(one-time) story=32.5 head=39364d5c red=shards-5_only_TestStartsWithNoKey(DW-688_exact_signature,1_of_51_classes) others=green(incl_browser,live:sign-in-3_701s) reason=no_ObjectScript;fix_in_11.28;rc2_PR_runs_full_suite source=Planner_message_~20:52Z
+2026-11-07T20:50:43Z	Epic 32	epic_merge_started	head=39364d5c into=feature exception=planner_one_time third_rerun=already_started(not_cancelled)

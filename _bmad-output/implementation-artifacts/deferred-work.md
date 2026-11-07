@@ -4173,6 +4173,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T22:03:02Z status=routed owner=burndown by=ci note=filed by the runner at CI triage of 2a789066, not by a code review
 - 2026-11-07T02:32:43Z status=routed owner=burndown by=ci note=occurrence=2 OCT-epic19 b0bf1f14 run 42324833841 shards-2 lane-a@rest TestStartsWithNoKey same signature; one rerun requested by the orchestrator
 - 2026-11-07T15:33:18Z status=routed owner=burndown by=ci note=occurrence OCT-epic39 d5b39c3d run 42379785616 attempt 2 shards-2 TestStartsWithNoKey; 4th occurrence; Story 11.28 is on it
+- 2026-11-07T20:50:43Z status=routed owner=burndown by=orchestrator note=occurrence OCT-epic32 39364d5c run 42401362858 attempt 2 shards-5 (lane-a@Bridge,Agent) TestStartsWithNoKey; the Planner granted a one-time merge-gate exception for 32.5 on this red (~20:52Z, rc2 picks); fix waits in 11.28
 ### DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27)
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data/Handled.cls keyed by SessionRef; SessionOps.End and the spine purge list do not cover it; first writer is Story 18.4
