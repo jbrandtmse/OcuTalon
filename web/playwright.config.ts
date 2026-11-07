@@ -34,8 +34,11 @@ import { ONLINE_IRIS_SCRIPT_MS, ONLINE_WAITS } from './e2e/support/bounds.ts';
  * The floor unit runs the three floor projects one after the other on its one stack (the e2e:floor script), Chromium first.
  * The five online projects bound their waits (e2e/support/bounds.ts): a page action, a navigation and an irisScript session each fail on their own bound.
  * When OCUTALON_E2E_JSON names a file, a JSON report is written there beside the list reporter.
+ * Traces are off unless ci/iris.sh sets OCUTALON_E2E_TRACE=retain-on-failure on a self-hosted runner (RUNNER_ENVIRONMENT=self-hosted, checked
+ * here too): then a failing test keeps its trace without screenshots, and ci/iris.sh moves it off the workspace (Story 11.27, DW-550, DW-774).
  */
 const jsonReport = process.env['OCUTALON_E2E_JSON'];
+const keepTraces = process.env['OCUTALON_E2E_TRACE'] === 'retain-on-failure' && process.env['RUNNER_ENVIRONMENT'] === 'self-hosted';
 
 /**
  * The folders of e2e/ whose specs the sign-in-2 project runs and the chromium project does not: a contiguous run of the chromium project's
@@ -58,7 +61,7 @@ export default defineConfig({
   outputDir: process.env['OCUTALON_E2E_OUTPUT'] || 'test-results',
   use: {
     baseURL: process.env['OCUTALON_URL'],
-    trace: 'off',
+    trace: keepTraces ? { mode: 'retain-on-failure', screenshots: false } : 'off',
     screenshot: 'off',
   },
   projects: [

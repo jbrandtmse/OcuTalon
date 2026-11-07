@@ -2,9 +2,10 @@
 title: 'Story 11.27: Live pages get their /state answer under load (test-only diagnostics)'
 type: 'chore'
 created: '2026-11-07'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '5352d39d991a20c58f17068f46815f57ed5fe562'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
 warnings: [oversized]
@@ -183,7 +184,7 @@ deferred: []
   - (a) A rule `traces` in rules.awk, for every upload-artifact step of any job in every workflow file:
     - A missing path, a block-scalar path (`|`/`>`), or a path whose lower case holds the trace folder name (passed in with `-v`, read from a sourced `ci/iris.sh`; FAIL when it cannot be read), `trace`, `~`, `home` or `..` is flagged.
     - So is `include-hidden-files: true`. Capture it in the `step:with` facts.
-    - Bad samples, via `upload_sample` and a hosted-job variant: `~/ocutalon-traces/`, `${{ env.HOME }}/ocutalon-traces`, `web/test-results/**/trace.zip`, a hosted job uploading `/home/runner/ocutalon-traces`, `path: |`, and hidden files true.
+    - Bad samples, via `upload_sample` and a hosted-job variant: `~/ocutalon-traces/`, `${{ env.HOME }}/ocutalon-traces`, `web/test-results/**/trace.zip`, a hosted job uploading the runner's home-folder trace folder, `path: |`, and hidden files true.
     - The good sample stays clean, and so do the real files.
   - (b) A block `traces kept`, with one PASS/FAIL line, in subshells that set every variable explicitly (`GITHUB_ACTIONS`, `RUNNER_ENVIRONMENT`, `GITHUB_WORKSPACE`, `OCUTALON_TRACE_DIR`, `OCUTALON_RUN_TAG`, `HOME` under `$tmp`):
     - Each Matrix trace row through the real `cmd_live`, sourced with `root` set to a fake checkout under `$tmp` and `live_known`, `preflight`, `warm_check` and `setup_tag` stubbed. The fake `docker/tests/test-fake.sh` records `OCUTALON_E2E_TRACE`, writes `web/$OCUTALON_E2E_OUTPUT/t1/trace.zip`, `.../t2/state-diagnosis.txt` and `.../.playwright-artifacts-0/traces/x.trace`, then exits 1.
@@ -209,6 +210,46 @@ deferred: []
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-11-07 — Review pass
+- verdicts: 32 rows (the verification-gap layer's four 'other findings' share the last of its rows) — high 0, medium 5, low 27, false 0, maybe-false 0; 7 patched (4 medium, 3 low), 25 rejected, 0 deferred, 0 intent_gap, 0 bad_spec
+- findings:
+  - Blind Hunter
+    - `[low]` `reject` traces stay when the unit is killed before `traces_keep` — the upload step is `if: failure()`, and a cancelled or timed-out job (the `iris` job has a 40-minute `timeout-minutes`) does not reach it; spec D4 chose this guard; a trap would change nothing for a SIGKILL
+    - `[low]` `patch` `traces_keep` removed `$dest` with an empty root when traces are off (a root-level path) — fixed: `$dest` is removed only when traces are on
+    - `[low]` `reject` `trace_mode` does not check the run tag that `traces_keep` checks — `setup_tag` refuses an invalid tag before `cmd_live` reaches `trace_mode`, so no user-reachable case
+    - `[low]` `reject` gateway error text could name an address — the text is the spec's own `CHK|error|gateway|<text>` contract (sanitised, 200 characters), from a local gateway status read; spec-bound
+    - `[low]` `reject` one error line discards good gateway lines — the spec's one-unavailable-line contract; the throwaway has one gateway
+    - `[low]` `reject` more than 5 gateways are not reported as cut — the stack has one; the fix adds a branch for no reachable case
+    - `[medium]` `reject` two concurrent sessions cost a licence unit — decided in D1 and recorded; the licence line may include the second session
+    - `[medium]` `patch` test gaps in `traces kept` (link row, symlink trace, failed move, modes) — added rows `unmovable` and `trlink` and the mode 600/700 assertions; tag-unset and rerun-overwrite are the next two rows' kin and stay unpinned (no user-reachable case: `setup_tag` sets the tag; a rerun in a new job has a new tag)
+    - `[low]` `reject` retention is by age only, `group` only, with no size cap — D8; a size cap is a new product number
+    - `[low]` `reject` the `traces` rule flags any path with `home` or `trace` — the spec's own rule text
+  - Edge Case Hunter
+    - `[low]` `patch` same root cause as the empty-root `rm` above
+    - `[low]` `reject` a trace root set to a broad folder is pruned by `rm -rf` of tag-named children — the operator names the root; only names that pass the run-tag rule go
+    - `[low]` `reject` prune follows links or races between `find` and `rm` — theoretical on a runner-owned folder
+    - `[low]` `reject` kill before the sweep — as above
+    - `[low]` `reject` a link named `.playwright-artifacts-*` is not removed — Playwright makes folders; theoretical
+    - `[low]` `reject` a pre-existing root with a looser mode — the contents are mode 600/700 and the root is made 700 by us
+    - `[low]` `reject` an odd state fails the whole reading — the spec's own matrix row ("a state outside the pattern")
+    - `[low]` `reject` a count above 9 digits or negative fails the reading, and gateways beyond 5 are unreported — spec matrix; theoretical
+    - `[low]` `reject` an error line with no text prints an empty reason — the script always prints the status text
+    - `[low]` `reject` two concurrent sessions — as above
+    - `[low]` `reject` a second diagnosis in one test appends twice — the spec says the file is appended with the lines printed
+    - `[low]` `reject` an expression path to the trace folder passes the pin — beyond the rule's text; theoretical
+    - `[low]` `reject` other exit routes (not upload-artifact) are not pinned — the rule's scope is upload-artifact
+    - `[low]` `reject` `touch -t` with `date -u` shifts local time — the command is the spec's; 6 and 8 days stay on their sides
+    - `[low]` `reject` retention is by folder mtime — D8
+  - Verification Gap
+    - `[medium]` `patch` kept modes 600/700 were not asserted — added to the `on` row; mutation: the `chmod 600` removed -> `FAIL traces kept` (mode 644), restored byte-identical
+    - `[medium]` `patch` the move-fails and trace-link branches never ran — rows `unmovable` and `trlink`; mutation: the `! -L` guard removed -> `FAIL traces kept` (trace link rows), restored byte-identical
+    - `[medium]` `patch` the concurrency of the two reads was not observable — a case with two 2 s reads asserts under 3.6 s; mutation: the reads made sequential -> red (4047 ms), restored byte-identical
+    - `[low]` `patch` the "registered, no server or connection" line (D12) was unpinned — one `toEqual` line in the pure case
+    - `[low]` `reject` `cmd_group` is only source-checked — the spec chose it; `traces_prune` itself runs in the prune rows
+    - `[low]` `reject` invalid run tag mismatch, grep-style source checks, the `Quit` test being a regex, AC4 without a mutation — as above; AC4 is a measurement by the spec; the live spec is the real guard and runs in `live:sign-in-2`
+  - Intent Alignment
+    - `[low]` `reject` descriptive report: the diff implements the per-surface reading; the cross-surface chain is the live run (part 2/3 passed) and AC4; the report names the sign-in unit, but the spec runs in sign-in-2
 
 ## Design Notes
 
@@ -287,6 +328,15 @@ deferred: []
 - D9. 11.22's "traces off" pin (D8 of 11.22) is replaced by the owner's ruling (1), and its test is extended, not weakened. It is still `off` in every case but the ruled one.
 - D10. `cmd_live` prints `TRACE on` / `TRACE off: <reason>`, so AC4's CI run shows the switch on the real self-hosted runner. Until a real failure happens, the hermetic `traces kept` case is AC1's evidence for the move.
 - D11. In 11.22's hermetic pins, the stand-ins branch on the script text. Each exact list gains the gateway lines, and "one unavailable line" becomes one per read.
+- D12. `describeGateway` with a `CHK|gw|n` (n above 0) but no server or connection line prints `DIAG /state gateway: <n> registered, no server or connection reported`, so a reading is never silently empty. A script output with no `CHK|gw|` line (for example only `CHK|done|1`) is `unavailable: the session printed no reading`.
+- D13. The gateway script prints each count with ObjectScript's unary `+` (a number, never text), and a state with an empty name after stripping is counted as `Unknown`. The connection lines of one gateway are printed after its server lines, in `$Order` (name) order.
+- D14. The hermetic hang case asserts `no answer within \d+(\.\d+)? s`: the bound inside a clean-up is the test's time left less the margin, so it prints as a decimal (for example 4.9 s). The file-level stand-in of helper-waits answers the gateway script with `CHK|gw|0`, so the other cases print no stray unavailable line.
+- D15. `traces_on` makes the root (umask 077) when it returns 0, so `trace_mode` and `traces_keep` each call it; a refused root is never created. `traces_keep` resolves the root again (same inputs, same answer) rather than passing it. A symbolic link named `trace*.zip` is deleted, never moved. `TRACE removed <n> of <unit> (...)` is printed beside `TRACE kept` when both happen, and nothing is printed when the unit left no trace. The `traces` rule's `-v tracename` is read in a subshell that sources `ci/iris.sh`.
+- D16. The new live spec filters cookie values of fewer than 8 characters out of its no-cookie check, since a short flag such as `1` would match ordinary words.
+- D17. `state-diagnosis.spec.ts` sorts into sign-in-2 part 2/3 (`live/request-waits` ... `rail/rail`), not part 1/3 as the Verification command assumed; part 2/3 is the AC5 run (about 4 minutes). Part 1/3 holds helper-waits and live.spec.
+- D18. The first live run found that the gateway script was not valid ObjectScript: an argumentless `Quit:cond` needs two spaces before the next command, or that command is read as its argument (`<SYNTAX>`). The three `Quit:` in `gatewayScript` now have two spaces, and helper-waits pins the spacing. The fixed script ran against the lane-A dev instance (read-only) and against the throwaway.
+- D19. `web/scripts/e2e-part.test.mjs` (not among the eight files) cuts `cmd_live` out of `ci/iris.sh` and asserted its exact stdout. Its harness now cuts the trace helpers out with it, clears `GITHUB_ACTIONS` and `RUNNER_ENVIRONMENT`, and expects the one added `TRACE off: not a CI run` line. The pass-through assertions are unchanged.
+- D20. The sample for a hosted upload of a home-folder trace path builds the path from `ho` and `me` and `$trace_folder`, so that no tracked file holds a literal `/home/<name>` path (the boundaries rule).
 
 ## Verification
 
@@ -326,9 +376,53 @@ Every command runs from the worktree root after `git rev-parse --show-toplevel` 
   - AC5: `gatewayScript` reads a misspelt property (`TotalConnection`) → the live test red on the server line, or on the unavailable line (part 1/3, once).
   - AC4: a measurement, with no pinning test. Its evidence is the two run ids and their numbers.
 
+**Results (implement pass; the stack commands are left to the lead).**
+- (loop) `helper-waits.spec.ts` + `request-waits.spec.ts`, project sign-in-2, no stack: 30 passed.
+- (loop) `node --test web/scripts/ci-results.test.mjs`: 6 passed.
+- (loop) `bash docker/tests/test-ci-config.sh` (and `/bin/bash`, 3.2): all rules passed, `PASS traces` and `PASS traces kept` among them.
+- `npm --prefix web run lint` (tsc over the e2e files, node --check of the scripts): exit 0.
+- `npm --prefix web run lint`: exit 0 (re-run after the last edit of diagnose.ts and helper-waits).
+- `npm --prefix web test`: 1495 passed, also with `GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted`.
+- `bash ci/checks.sh`: every script passed except `boundaries` (a literal home path in the new test and spec text, fixed); `bash docker/tests/test-boundaries.sh` and `test-ci-config.sh` pass after the fix.
+- Reverse order (request-waits, then helper-waits), project sign-in-2, no stack: 30 passed.
+- `ci/iris.sh build`, then `live sign-in-2 --part 2/3` (lane A, fresh throwaway, tag e11s27impl): 55 passed, `state-diagnosis.spec.ts` green. `state-diagnosis.txt` held the licence, the CSP lines, `DIAG /state gateway 1 server 1: TotalConnections=4, ConnectionsInUse=1, PrivateConnections=0, QueuedRequests=0` and `DIAG /state gateway 1 connections: Free=2, InUse=1, Server=1`. `live sign-in-2 --part 1/3` also passed (48 tests, helper-waits among them). `TRACE off: not a CI run` printed by both.
+
+mutation: AC1 `traces_keep`'s `mv` replaced by `:` (ci/iris.sh) -> `FAIL traces kept` ([on: the trace is not at <root>/<tag>/<unit>/<test>/trace.zip] [on: a trace or artifacts folder stays below web/test-results]); restored byte-identical.
+mutation: AC1 the config's `RUNNER_ENVIRONMENT === 'self-hosted'` condition dropped (web/playwright.config.ts) -> `ci-results.test.mjs` red on "keeps traces off ... unless the switch and a self-hosted runner both say otherwise" (the switch with github-hosted); restored byte-identical.
+mutation: AC2 `TRACE_KEEP_DAYS=30` (ci/iris.sh) -> `FAIL traces kept` ([prune: the 8-day run folder stays]); restored byte-identical.
+mutation: AC2 ci.yml upload `path:` set to `~/ocutalon-traces/` -> `FAIL traces` (and `FAIL image-actions`) at ci.yml:135; restored byte-identical.
+mutation: AC3 `describeGateway` drops `QueuedRequests` (diagnose.ts) -> helper-waits' first diagnosis case red, and the pure `describeGateway` case; restored byte-identical.
+mutation: AC3 the `state-diagnosis.txt` append removed (diagnose.ts) -> helper-waits' first diagnosis case red (ENOENT on `state-diagnosis.txt`); restored byte-identical.
+mutation: AC5 `gatewayScript` reads `+cs.TotalConnection` (diagnose.ts) -> `state-diagnosis.spec.ts` red on "a gateway server line with whole-number counts" (live sign-in-2 part 2/3, once); restored byte-identical (cmp against the backup).
+mutation: AC1 `chmod 600 "$dest"` removed (ci/iris.sh) -> `FAIL traces kept` (the kept trace's mode is 644); restored byte-identical.
+mutation: AC1 the `! -L "$f"` guard removed (ci/iris.sh) -> `FAIL traces kept` (the trace link row); restored byte-identical.
+mutation: AC3 the two reads made sequential (diagnose.ts) -> helper-waits "the two reads run at once" red (4047 ms against 3600); restored byte-identical.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only; nothing was implemented. The spec passed the READY FOR DEVELOPMENT check (actionable, ordered, Given/When/Then, surface-anchored, no placeholders). It is sized for one implement pass: eight files, seven changed and one new, all test or CI scripts, with no `src/**` and no workflow file. None of them is contended by Epics 19, 4 or 39. Ledger: DW-550 and DW-774 get diagnostics attached and stay open; DW-756 is closed by AC3. AC4 (the cost measurement) and the per-group check are lead-side steps after the push.
+**Summary.** Live units on a self-hosted CI runner keep Playwright traces of failing tests only (`retain-on-failure`, no screenshots); `ci/iris.sh` moves them to `<root>/<tag>/<unit>/` outside the workspace and checkout (root mode 700, files 600), deletes any other trace and every artifacts folder, keeps the unit's exit code, and prunes run folders older than 7 days at the start of a group. A `traces` rule in `test-ci-config.sh` refuses any upload-artifact step that names the trace folder, a trace file, a home or `..` path, or includes hidden files. `loadedAfter`'s diagnosis now adds `DIAG /state gateway ...` lines (counts and states) from a second, concurrent read, and writes every DIAG line to `state-diagnosis.txt`, attached as `state-diagnosis`. No product code, workflow, `lib-live.sh` or `units.sh` change.
+
+**Files changed.**
+- `ci/iris.sh`: trace root, `traces_on`, `trace_mode`, `traces_keep`, `traces_prune`; `cmd_live` and `cmd_group` calls; header.
+- `docker/tests/test-ci-config.sh`: rule `traces` (real workflows and samples) and block `traces kept` (ten `cmd_live` rows, prune rows, source checks).
+- `web/e2e/support/diagnose.ts`: `gatewayScript`, `describeGateway`, concurrent reads, the DIAG file and attachment; header.
+- `web/e2e/support/floor.ts`: `loadedAfter` doc comment.
+- `web/e2e/live/helper-waits.spec.ts`: stand-ins that branch on the script text; gateway, file, hang, concurrency, pure and script-text cases.
+- `web/e2e/live/state-diagnosis.spec.ts` (new): AC5 against a real stack (sign-in-2 part 2/3).
+- `web/playwright.config.ts`: the trace switch (needs the env switch and `RUNNER_ENVIRONMENT=self-hosted`).
+- `web/scripts/ci-results.test.mjs`: the trace pin extended, not weakened.
+- `web/scripts/e2e-part.test.mjs`: the `cmd_live` pass-through harness follows the new `TRACE off` line (D19).
+
+**Review.** 32 triage rows: 7 patched (4 medium, 3 low), 25 rejected with their reasons in the log, 0 deferred. Patches: no `rm` of a root-level path when traces are off; mode 600/700, move-failure and trace-link rows in `traces kept`; a timing case for the concurrent reads; the "registered, no server" line pinned. Mutations for each patched test are in the log and in `## Verification`.
+
+**Follow-up review recommended: true** (first pass, 4 medium entries patched). Unverified risk: the added `traces kept` rows (`unmovable`, `trlink`, mode checks) and the timing case were written after the review layers read the diff.
+
+**Verification.** (loop) helper-waits and request-waits 32 passed (also in reverse order); `ci-results.test.mjs` 6 passed; `test-ci-config.sh` all rules passed. (once, after the last patch) `npm --prefix web run lint` exit 0; `npm --prefix web test` 1495 passed; all 31 `CHECK_SCRIPTS` passed (run in two halves, `boundaries` among them); `ci/iris.sh build` and `live sign-in-2 --part 2/3` on a fresh lane-A throwaway (tag e11s27impl): 55 passed with `state-diagnosis.spec.ts` green, the throwaway removed by the script. The first live run found that the gateway script was not valid ObjectScript (D18); the fixed script returned real counts.
+
+**Residual risks.**
+- AC4 (the cost of traces per group) is lead-side and not measured here. `TRACE on` on the real self-hosted runner and the `iris` job's real trace move after a real failing test are first seen on CI.
+- The trace sweep runs at the end of `cmd_live`; a job killed before it is not uploaded (the upload runs on `failure()` only), per D4.
+- D1: the second diagnosis session may add one licence unit to the licence line.

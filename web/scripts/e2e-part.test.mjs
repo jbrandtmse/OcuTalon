@@ -480,23 +480,28 @@ describe('ci/iris.sh live, its pass-through', () => {
     const harness = [
       'set -u',
       'BROWSER_UNITS=""; FIREFOX_WEBKIT_UNITS=""; WARM_MODE=cold',
-      'live_known() { [ "$1" = fake ]; }; warm_check() { :; }; setup_tag() { :; }; preflight() { :; }',
+      'live_known() { [ "$1" = fake ]; }; warm_check() { :; }; setup_tag() { :; }; preflight() { :; }; root=$PWD',
+      // The trace helpers (Story 11.27) are cut out with cmd_live; off CI they print one TRACE line and touch nothing.
+      `eval "$(sed -n '/^TRACE_FOLDER_NAME=/,/^cmd_live() {/p' ${JSON.stringify(irisPath)} | sed '$d')"`,
       `eval "$(sed -n '/^cmd_live() {/,/^}/p' ${JSON.stringify(irisPath)})"`,
       'cmd_live "$@"',
     ].join('\n');
-    return spawnSync('bash', ['-c', harness, 'bash', ...args], { cwd: root, env: bareEnv(), encoding: 'utf8' });
+    const env = bareEnv();
+    delete env.GITHUB_ACTIONS;
+    delete env.RUNNER_ENVIRONMENT;
+    return spawnSync('bash', ['-c', harness, 'bash', ...args], { cwd: root, env, encoding: 'utf8' });
   }
 
   it('gives the script no argument when there is none after the unit name, as before', () => {
     const run = live('fake');
     assert.equal(run.status, 0, run.stderr);
-    assert.equal(run.stdout, 'PORT the web port of the browser units: auto\nargc=0\n');
+    assert.equal(run.stdout, 'PORT the web port of the browser units: auto\nTRACE off: not a CI run\nargc=0\n');
   });
 
   it('gives the script the arguments after the unit name, each whole', () => {
     const run = live('fake', '--part', '1/2', 'two words');
     assert.equal(run.status, 0, run.stderr);
-    assert.equal(run.stdout, 'PORT the web port of the browser units: auto\nargc=3\narg=[--part]\narg=[1/2]\narg=[two words]\n');
+    assert.equal(run.stdout, 'PORT the web port of the browser units: auto\nTRACE off: not a CI run\nargc=3\narg=[--part]\narg=[1/2]\narg=[two words]\n');
   });
 
   it('still refuses an unknown unit with exit 2', () => {
