@@ -164,14 +164,14 @@ describe('the simulated mailbox', () => {
 });
 
 describe('who reads the allowance (the Always list: Break the feed, Approve and Reject are never disabled by it)', () => {
-  it('AllowanceState is injected by the banner stack, the composer, the guide, the outbox and the Try it yourself row and by nothing else', () => {
+  it('AllowanceState is injected by the banner stack, the composer, the guide, the outbox, the Try it yourself row and the Other things to try panel and by nothing else', () => {
     const injecting = files.filter((one) => /inject\(\s*AllowanceState\s*\)/.test(one.code)).map((one) => one.name);
-    assert.deepEqual(injecting, ['banners/banner-stack.ts', 'chat/chat-outbox.ts', 'chat/composer.ts', 'chat/try-it-row.ts', 'guide/demo-guide.ts']);
+    assert.deepEqual(injecting, ['banners/banner-stack.ts', 'chat/chat-outbox.ts', 'chat/composer.ts', 'chat/try-it-row.ts', 'guide/demo-guide.ts', 'guide/more-to-try.ts']);
   });
 
   it('so Break the feed\'s box and the approval and incident cards never name it', () => {
     const naming = files.filter((one) => /\bAllowanceState\b|allowance-state|allowance-view/.test(one.code)).map((one) => one.name);
-    assert.deepEqual(naming, ['banners/banner-stack.ts', 'chat/chat-outbox.ts', 'chat/composer.ts', 'chat/try-it-row.ts', 'guide/demo-guide.ts', 'live/allowance-state.ts', 'mailbox/simulated-mailbox.ts']);
+    assert.deepEqual(naming, ['banners/banner-stack.ts', 'chat/chat-outbox.ts', 'chat/composer.ts', 'chat/try-it-row.ts', 'guide/demo-guide.ts', 'guide/more-to-try.ts', 'live/allowance-state.ts', 'mailbox/simulated-mailbox.ts']);
     assert.ok(!naming.some((name) => /^(?:feed|approval|incident)\//.test(name)));
   });
 });

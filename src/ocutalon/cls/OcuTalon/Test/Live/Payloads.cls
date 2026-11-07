@@ -1102,7 +1102,8 @@ XData Contracts [ MimeType = application/json ]
    "Step4Variant": "%String(%JSONFIELDNAME=step4Variant,MAXLEN=32)",
    "TelegramRow": "%Boolean(%JSONFIELDNAME=telegramRow)",
    "Trace": "OcuTalon.Live.Payload.Part.TraceTarget(%JSONFIELDNAME=trace)",
-   "Run": "OcuTalon.Live.Payload.Part.GuideRun(%JSONFIELDNAME=run)"
+   "Run": "OcuTalon.Live.Payload.Part.GuideRun(%JSONFIELDNAME=run)",
+   "Features": "list Of %String(%JSONFIELDNAME=features,MAXLEN=32)"
   }
  },
  "OcuTalon.Live.Payload.Heartbeat": {

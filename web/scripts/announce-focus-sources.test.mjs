@@ -128,6 +128,7 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/chat/composer.ts': [1, 'the field takes focus after the user\'s own Send'],
     'app/chat/chat-panel.ts': [1, 'the target of the New messages button, which the user pressed'],
     'app/guide/demo-guide.ts': [1, 'Show me focuses the phone\'s pending notification or its feed, for the user\'s own press (Story 4.7)'],
+    'app/guide/more-to-try.ts': [1, 'an item of Other things to try hands focus to the control it presses, for the user\'s own press (Story 4.11)'],
     'app/devices/device-panel.ts': [1, 'the tab that the user\'s arrow key moved to'],
     'app/rail/heartbeat-card/heartbeat-card.ts': [1, 'Edit, after the user\'s own Esc collapses its disclosure'],
     'app/rail/persona-card/persona-card.ts': [1, 'Change, after the user\'s own Esc collapses its disclosure'],
@@ -152,8 +153,8 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.deepEqual(filesWith(/\bautofocus\b|cdkTrapFocus|cdkFocusInitial|FocusTrap|FocusMonitor|focusVia|focusInitialElement|\.select\(\)/), []);
   });
 
-  it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) that the user opened, the first field in error of a settings form that the user saved, for the focus rule, and for the request card to read where focus is before it announces an answer from elsewhere', () => {
-    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/guide/demo-guide.ts', 'app/mailbox/simulated-mailbox.ts', 'app/settings/check-thresholds-section.ts', 'app/settings/demo-mode-section.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
+  it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) or the control an Other things to try item hands off to, that the user opened, to measure the room that the Other things to try panel and the banners leave, the first field in error of a settings form that the user saved, for the focus rule, and for the request card to read where focus is before it announces an answer from elsewhere', () => {
+    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try-room.ts', 'app/guide/more-to-try.ts', 'app/mailbox/simulated-mailbox.ts', 'app/settings/check-thresholds-section.ts', 'app/settings/demo-mode-section.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
   it('gives the banner stack, the rail, the chat panel, the device panel, the approval request card, the phone\'s request message, the demo guide, the main page, the header and the app (the resetting view, Story 16.8) the shared rule, and each its own rule only', () => {

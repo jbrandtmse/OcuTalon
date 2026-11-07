@@ -725,7 +725,7 @@ a{color:inherit;text-decoration:none}
               <span class="g-step"><span class="mk done"><svg class="ic"><use href="#i-check"/></svg></span>Approve</span><svg class="ic chev"><use href="#i-chevron-right"/></svg>
               <span class="g-step"><span class="mk done"><svg class="ic"><use href="#i-check"/></svg></span>Open the trace</span>
             </div>
-            <span class="g-meta">About 2 minutes</span>
+            <button type="button" class="link" aria-expanded="true" style="margin-left:auto">More to try</button>
             <button type="button" class="btn btn-ghost">Hide guide</button>
           </div>
           <div class="g-row2">
@@ -737,7 +737,31 @@ a{color:inherit;text-decoration:none}
                 <a class="link" href="#">Install OcuTalon yourself <svg class="ic"><use href="#i-external-link"/></svg></a>
                 <a class="link" href="#">Use the same bridge in your own production <svg class="ic"><use href="#i-external-link"/></svg></a>
               </div>
-              <div class="muted">More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.</div>
+              <div role="group" aria-labelledby="c4-more">
+                <p class="muted" id="c4-more" style="margin:0">Other things to try</p>
+                <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+                <li style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+                  <p style="flex:1 1 100%;margin:0;font-weight:600">Change how OcuTalon talks</p>
+                  <p class="muted" style="flex:1 1 20rem;margin:0">In the Persona card, choose Pirate, or Another language and then Spanish, and press Save. Then ask "Is anything wrong right now?" and look for the new style in the replies. The check results under them are written by OcuTalon's code, so they stay the same in any style.</p>
+                  <button type="button" class="btn btn-secondary">Go to the Persona card</button>
+                </li>
+                <li style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+                  <p style="flex:1 1 100%;margin:0;font-weight:600">Send a suspicious email</p>
+                  <p class="muted" style="flex:1 1 20rem;margin:0">This sends "Sample: suspicious request" to the Simulated mailbox. The email asks OcuTalon to resend every failed order and approve pending requests. Look for its decision and the reasons under it: nothing is resent or approved.</p>
+                  <button type="button" class="btn btn-secondary">Send the suspicious email</button>
+                </li>
+                <li style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+                  <p style="flex:1 1 100%;margin:0;font-weight:600">Reject a fix</p>
+                  <p class="muted" style="flex:1 1 20rem;margin:0">This presses Break the feed again. OcuTalon usually notices within a minute. When the fix waits for your approval, press Reject in the chat or on the Simulated phone, and look for "Nothing was changed."</p>
+                  <button type="button" class="btn btn-secondary">Break it again</button>
+                </li>
+                <li style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+                  <p style="flex:1 1 100%;margin:0;font-weight:600">See the page as on your own install</p>
+                  <p class="muted" style="flex:1 1 20rem;margin:0">The demo guide, Break the feed and the Simulated devices are hidden, as on your own install. Turn Demo view back on in the top bar to return.</p>
+                  <button type="button" class="btn btn-secondary">Show the page without the demo</button>
+                </li>
+                </ul>
+              </div>
             </div>
             <button type="button" class="btn btn-secondary" style="align-self:flex-end">Run again</button>
           </div>
@@ -747,7 +771,7 @@ a{color:inherit;text-decoration:none}
           <button type="button" class="btn btn-attention"><svg class="ic"><use href="#i-zap"/></svg>Break the feed</button>
         </div>
       </div>
-      <p class="cap"><b>C4 · Finish state.</b> EXPERIENCE › Demo Mode and the Online Demo › The demo guide: finish state (the run total, three links, "More to try", Run again) · Break the feed: Active (a resolved incident doesn't block it; the replay rule) · DESIGN › Demo guide (minimum height, so the strip grows), Links (underlined). The style of the run-total line isn't specified; it is set in semibold here.</p>
+      <p class="cap"><b>C4 · Finish state.</b> EXPERIENCE › Demo Mode and the Online Demo › The demo guide: finish state (the run total, three links, the Other things to try panel, Run again) · Break the feed: Active (a resolved incident doesn't block it; the replay rule) · DESIGN › Demo guide (minimum height, so the strip grows), Links (underlined). The style of the run-total line isn't specified; it is set in semibold here. [ADDED 2026-11-06, Story 4.11, owner decision made by the Contest Planner under the owner's delegation] The panel replaces the "More to try" line, the "More to try" link is in row 1, and the items shown are items 1 to 4 (item 7 also shows where the instance has the heartbeat, and items 5 and 6 appear when their features exist). [AMENDED 2026-11-06, Story 4.11 rework 2, implement-stage decision kept by the lead's ruling (veto window, inbox U-297)] Row 1 leaves out "About 2 minutes" once the guide is finished. [AMENDED 2026-11-07, Story 4.11, the Planner, 2026-11-07] This mockup shows the finish with the height left at 680px or more, where the panel is open; in the compact band (under 680px left after the banners) the finish starts with the panel closed and "More to try" collapsed (aria-expanded false).</p>
     </div>
 
     <!-- C5 -->

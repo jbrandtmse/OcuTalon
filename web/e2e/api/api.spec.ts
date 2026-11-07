@@ -152,7 +152,8 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
     pausedUntil: '',
   });
   expect(body['status'], 'the computed no-key condition of this stack: the model key is not set (Story 2.10)').toEqual([{ condition: 'noModelKey', active: true }]);
-  expect(body['guide'], "the README session has no rows: the blank guide of Story 4.2, last because demo mode is on").toEqual({
+  const { features, ...guide } = body['guide'] as { features?: string[] };
+  expect(guide, "the README session has no rows: the blank guide of Story 4.2, last because demo mode is on").toEqual({
     runEpoch: 1,
     step: 1,
     finished: false,
@@ -161,6 +162,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
     step4Variant: 'unpaired',
     telegramRow: false,
   });
+  expect(features, "the guide lists the demo's own controls among the features this instance has (Story 4.11)").toEqual(expect.arrayContaining(['suspiciousEmail', 'rejectFix', 'demoView']));
 });
 
 /**

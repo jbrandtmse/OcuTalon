@@ -56,12 +56,12 @@ describe('the placements', () => {
     assert.equal(count(code, /<app-try-it-row/g), 1);
   });
 
-  it('has the guide\'s finish hold the row after More to try and before Run again, as the finish part tryIt', () => {
+  it('has the guide\'s finish hold the row after the Other things to try panel and before Run again, as the finish part tryIt', () => {
     const { code } = file('guide/demo-guide.ts');
-    const more = code.indexOf('class="more"');
+    const more = code.indexOf('<app-more-to-try');
     const row = code.indexOf('<app-try-it-row');
     const again = code.indexOf('class="run-again"');
-    assert.ok(more > 0 && row > more && again > row, 'more < row < run again');
+    assert.ok(more > 0 && row > more && again > row, 'panel < row < run again');
     assert.match(code, /<app-try-it-row data-guide-focus="tryIt"/);
     assert.match(code, /const FINISH_PARTS = \[[^\]]*'tryIt'[^\]]*\]/);
   });

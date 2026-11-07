@@ -1,4 +1,4 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, Injector, signal, untracked } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, signal, untracked } from '@angular/core';
 import { type Observable, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
@@ -26,12 +26,11 @@ import { readFlag, writeFlag } from '../shared/stored-flag';
 import { TraceLink } from '../shared/trace-link';
 import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
 import { advance, followSelection, GUIDE_HIDDEN_FLAG, GUIDE_HIDDEN_KEY, GUIDE_SHOWN_FLAG, GUIDE_TEXTS, guideOf, guideView, telegramRowOf, type GuideSnapshot, type RunFormat } from './guide-view';
+import { MoreToTry } from './more-to-try';
+import { BREAK_FEED_BUTTON, chatFloor, inCompactBand, itemsFor, MORE_TO_TRY_TEXTS } from './more-to-try-view';
 
 /** The attribute that marks the elements that focus may need to find again: the prompt bar's parts, the Hide and Show buttons and the box's Do step 1. */
 const FOCUS_KEY = 'data-guide-focus';
-
-/** The Break the feed button of the box, which takes focus when an update removes Do step 1 beside it, or a prompt or finish part while the prompt bar shows step 3. */
-const BREAK_FEED_BUTTON = 'app-break-feed-box app-server-button button';
 
 /** The attribute that marks the prompt bar while it shows step 3, so the focus rule can hand focus to the box beside it. */
 const STEP_MARK = 'data-guide-step';
@@ -47,7 +46,10 @@ const TELEGRAM_TEXT_ID = 'guide-telegram-text';
 
 /** The finish state's first line and the parts that hand focus back to the prompt bar when the prompt bar replaces the finish. */
 const FINISH_KEY = 'finish';
-const FINISH_PARTS = ['finish', 'finishLink', 'tryIt', 'runAgain'];
+const FINISH_PARTS = ['finish', 'finishLink', 'moreItem', 'tryIt', 'runAgain'];
+
+/** The id of the "Other things to try" panel, which the "More to try" link controls while the panel is open. */
+const MORE_PANEL_ID = 'guide-more-to-try';
 
 /** The page's token and cost formats, which the finish's run line is written with. */
 const RUN_FORMAT: RunFormat = { tokens: formatTokens, cost: formatCost };
@@ -62,7 +64,9 @@ const phoneMessage = (ref: string) => `app-simulated-phone .notification[data-ke
  * itself hand it to the first of the three that is still there (the action button that now carries the next step, else the prompt text,
  * else the bar), else to the finish's first line. While the prompt bar shows step 3 (data-guide-step), a lost prompt part or finish
  * part hands focus to the box's Break the feed button instead, active or inactive; nothing is pressed. The finish's parts (its first
- * line, its links, the Try it yourself row and Run again) hand it to the prompt bar's parts in the same order when Run again brings the prompt bar back. Focus
+ * line, its links, the Other things to try panel's controls, the Try it yourself row and Run again) hand it to the prompt bar's parts in
+ * the same order when Run again brings the prompt bar back; the panel's scrolling group counts among those parts, and a panel part whose
+ * panel is still on the page hands it to that panel's first part. Focus
  * anywhere else is never moved. The Telegram row's Show me hands it to the prompt bar, else to the finish's first line, when the band or the
  * row takes the button away.
  */
@@ -95,12 +99,16 @@ const FOCUS_RULE: FocusRule = {
  * The demo guide (Story 4.4; UX-DR45, UX-DR131): the region "Demo guide" between the banners and the rail and chat, in demo mode only. It
  * shows the server's guide view (AD-12; guide-view.ts) and decides none of its progress. Row 1 holds the label, the five steps (buttons in
  * a list, joined by decorative chevrons; the current step carries aria-current="step" and its state is in every step's name), "About
- * 2 minutes" and Hide guide. Row 2, the prompt bar, shows the selected step's exact prompt and its action (guide-view.ts promptOf):
+ * 2 minutes", the "More to try" link and Hide guide. Row 2, the prompt bar, shows the selected step's exact prompt and its action (guide-view.ts promptOf):
  * Send sends the prompt as the user's own message from the guide (ChatOutbox, fromGuide), Show me selects the Simulated phone tab and
  * focuses the pending notification, and Open the trace is the run's trace link, which writes the trace_opened marker once a Visual Trace
  * tab opens. Once the server's view is finished the finish state
- * replaces the prompt bar: the exact lines, the run total, the two links, More to try, the "Try it yourself" row (app-try-it-row,
- * a finish part for focus) and Run again, which writes the run_again marker. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
+ * replaces the prompt bar: the exact lines, the run total, the two links, the "Other things to try" panel (app-more-to-try), the
+ * "Try it yourself" row (app-try-it-row, a finish part for focus) and Run again, which writes the run_again marker. The panel starts open in
+ * the finish, except in the compact band (the viewport's height less the banners' is under 680px; the Planner, 2026-11-07), where it starts
+ * closed; opened by the user there, the chat's list still keeps its 64px floor and the page scrolls vertically where the panel's shortest
+ * window and that floor cannot both fit (never sideways; the Planner, 2026-11-07; more-to-try-room.ts). Above the band it also starts closed where the room is too small for it even at its shortest window (implement-stage decision 13 kept
+ * by the lead's ruling, veto window, inbox U-299); the "More to try" link opens and closes it at any time. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
  * is marked done by a click. The Break the feed box sits at the right.
  *
  * While the session's message allowance is used up (Story 16.9; AllowanceState.active) a prompt whose action is Send is aria-disabled, not
@@ -111,7 +119,10 @@ const FOCUS_RULE: FocusRule = {
  * Hide guide collapses the region to one bar, "Demo guide - step n of 5 - Show guide" with Show guide aria-expanded, and the box keeps its
  * place at the bar's right end; the choice is stored in this browser (ocutalon.guide.hidden). Under 680px tall the steps (numbers only) and
  * the prompt bar share one compact row, from 1024 to 1279px wide the steps show numbers instead of labels, and below 1024px the box
- * follows the prompt bar.
+ * follows the prompt bar. The finish state leaves out "About 2 minutes" (row 1 then stays on one line at 1280px), takes the guide's whole width under its
+ * first row wherever the page fills the viewport and is under 680px tall, and from 1024 to 1279px wide its line is body-sm, the Try it
+ * yourself row's own margin gives way to the finish's gap, and Run again sits at the end of the row's last line, so that the chat keeps
+ * its room.
  *
  * Announcements and focus: "Step {n} of 5: {step}" is announced once when the view advances to a later step of the same run (never for the
  * first view, a reload or a lower step), through the Announcer; the guide is not a live region, and the finish and Run again are silent.
@@ -127,7 +138,7 @@ const FOCUS_RULE: FocusRule = {
  */
 @Component({
   selector: 'app-demo-guide',
-  imports: [BreakFeedBox, Icon, ServerButton, TraceLink, TryItRow],
+  imports: [BreakFeedBox, Icon, MoreToTry, ServerButton, TraceLink, TryItRow],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (model(); as guide) {
@@ -144,7 +155,7 @@ const FOCUS_RULE: FocusRule = {
           </div>
         } @else {
           <div class="main">
-            <div class="row1">
+            <div class="row1" [class.finished]="guide.finish !== undefined">
               <span class="label" id="demo-guide-label">{{ texts.label }}</span>
               <ol class="steps">
                 @for (step of guide.steps; track step.n) {
@@ -176,6 +187,14 @@ const FOCUS_RULE: FocusRule = {
                 }
               </ol>
               <span class="duration">{{ texts.duration }}</span>
+              <button
+                type="button"
+                class="link more-link"
+                data-guide-focus="moreLink"
+                [attr.aria-expanded]="moreOpen()"
+                [attr.aria-controls]="panelShown() ? morePanelId : null"
+                (click)="toggleMore()"
+              >{{ moreTexts.link }}</button>
               <button type="button" class="button button-ghost" data-guide-focus="hide" (click)="setHidden(true)">{{ texts.hide }}</button>
             </div>
             @if (guide.finish; as finish) {
@@ -195,7 +214,9 @@ const FOCUS_RULE: FocusRule = {
                     >{{ texts.bridgeLink }}<span aria-hidden="true"> {{ trace.arrow }}</span><span class="visually-hidden"> {{ trace.opensInNewTab }}</span></a
                   >
                 </p>
-                <p class="more">{{ texts.moreToTry }}</p>
+                @if (panelShown()) {
+                  <app-more-to-try [id]="morePanelId" [items]="items()" [floor]="floor()" (pressed)="chosen.set(true)" (squeezed)="squeezed.set(true)" />
+                }
                 <app-try-it-row data-guide-focus="tryIt" />
                 <app-server-button class="run-again" variant="secondary" [action]="runAgain" data-guide-focus="runAgain">{{ texts.runAgain }}</app-server-button>
               </div>
@@ -239,6 +260,9 @@ const FOCUS_RULE: FocusRule = {
                   }
                 }
               </div>
+              @if (panelShown()) {
+                <app-more-to-try [id]="morePanelId" [items]="items()" [floor]="floor()" (pressed)="chosen.set(true)" (squeezed)="squeezed.set(true)" />
+              }
             }
           </div>
         }
@@ -296,6 +320,26 @@ const FOCUS_RULE: FocusRule = {
       line-height: var(--type-label-line-height);
       letter-spacing: var(--type-label-letter-spacing);
       text-transform: uppercase;
+    }
+    .more-link {
+      min-height: var(--space-target-min);
+      padding: 0 var(--space-2);
+      border: 0;
+      background: none;
+      font: inherit;
+      font-size: var(--type-caption-font-size);
+      line-height: var(--type-caption-line-height);
+      cursor: pointer;
+    }
+    .finish > app-more-to-try {
+      align-self: stretch;
+      justify-self: stretch;
+    }
+    .row1.finished > .duration {
+      display: none;
+    }
+    .row1.finished > .more-link {
+      margin-inline-start: auto;
     }
     .duration {
       margin-inline-start: auto;
@@ -453,8 +497,7 @@ const FOCUS_RULE: FocusRule = {
     .finish-done:focus-visible {
       outline-offset: -2px;
     }
-    .run-total,
-    .more {
+    .run-total {
       color: var(--ink-muted);
       font-size: var(--type-body-sm-font-size);
       line-height: var(--type-body-sm-line-height);
@@ -487,6 +530,27 @@ const FOCUS_RULE: FocusRule = {
       .step-label {
         display: none;
       }
+      .finish {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        justify-items: start;
+        align-items: end;
+        column-gap: var(--space-3);
+      }
+      .finish > * {
+        grid-column: 1 / -1;
+      }
+      .finish-done {
+        font-size: var(--type-body-sm-font-size);
+        line-height: var(--type-body-sm-line-height);
+      }
+      .finish > app-try-it-row {
+        grid-column: 1;
+        margin-top: calc(var(--space-3) * -1);
+      }
+      .finish > .run-again {
+        grid-column: 2;
+      }
     }
     @media ${LAYOUT_QUERIES.wide} {
       .guide:not(.collapsed) {
@@ -499,20 +563,27 @@ const FOCUS_RULE: FocusRule = {
       }
       .main {
         flex-direction: row;
+        flex-wrap: wrap;
         align-items: center;
         gap: var(--space-3);
+      }
+      .main > app-more-to-try {
+        flex: 1 1 100%;
       }
       .step-label,
       .duration,
       .main .label {
         display: none;
       }
+      /* Row 1 never passes the main column: where the column is narrower than the row's controls, the row shrinks and its link and
+         Hide guide wrap to a second line. The prompt bar and the finish keep 12rem before they share a line with row 1, so the bar's
+         Send button is never squeezed past the page's width. */
       .row1 {
-        flex: none;
+        flex: 0 1 auto;
       }
       .prompt,
       .finish {
-        flex: 1;
+        flex: 1 1 12rem;
         min-width: 0;
       }
     }
@@ -526,6 +597,15 @@ const FOCUS_RULE: FocusRule = {
       }
       .main {
         flex-wrap: wrap;
+      }
+    }
+    @media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.framed} {
+      .main {
+        justify-content: flex-start;
+        row-gap: var(--space-1);
+      }
+      .finish {
+        flex-basis: 100%;
       }
     }
     @media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.stacked} {
@@ -547,12 +627,15 @@ export class DemoGuide {
   private readonly injector = inject(Injector);
   private readonly popovers = inject(Popovers);
   private readonly layout = inject(Layout);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly texts = GUIDE_TEXTS;
   protected readonly trace = TRACE_TEXTS;
   protected readonly readme = README_URL;
   protected readonly bridgeGuide = BRIDGE_GUIDE_URL;
   protected readonly telegramTextId = TELEGRAM_TEXT_ID;
+  protected readonly moreTexts = MORE_TO_TRY_TEXTS;
+  protected readonly morePanelId = MORE_PANEL_ID;
 
   /** The id of the reason that a Send prompt is described by while the message allowance is used up. */
   protected readonly reasonId = 'guide-allowance-reason';
@@ -594,9 +677,38 @@ export class DemoGuide {
     return { ...guideView(view, selected, RUN_FORMAT), view, telegram, conversation: this.conversation() };
   });
 
+  /** The items of the "Other things to try" panel: the registry's entries for the features that the server's view lists. */
+  protected readonly items = computed(() => itemsFor(this.view()?.features));
+
+  /** True while the server's view is finished. */
+  private readonly finished = computed(() => this.view()?.finished === true);
+
+  /** The viewport's height and the height of the banners above the guide, in px, as the page has them now. */
+  private readonly viewport = signal(window.innerHeight);
+  private readonly banners = signal(0);
+
+  /** True while the height left after the banners is under the compact band's edge (680px; the Planner, 2026-11-07). */
+  protected readonly compact = computed(() => inCompactBand(this.viewport(), this.banners()));
+
+  /** The least height of the chat's list that the open panel leaves it: 64px in the compact band, 160px above it. */
+  protected readonly floor = computed(() => chatFloor(this.compact()));
+
+  /** True when the room is too small for the panel even at its shortest window (more-to-try-room.ts); it is cleared when the viewport or the banners change, and at each new finish. */
+  protected readonly squeezed = signal(false);
+
+  /** The user's choice for the panel: undefined until the user presses the link or one of its controls, and again after each new finish. */
+  protected readonly chosen = signal<boolean | undefined>(undefined);
+
+  /** True while the panel shows: the user's choice, else open in the finish state where the band and the room allow it, and closed elsewhere. */
+  protected readonly moreOpen = computed(() => this.chosen() ?? (this.finished() && !this.compact() && !this.squeezed()));
+
+  /** True while the panel is on the page: it is open and the server lists an item to show. */
+  protected readonly panelShown = computed(() => this.moreOpen() && this.items().length > 0);
+
   private last: GuideStatePayload | undefined;
 
   constructor() {
+    afterNextRender(() => this.watchRoom());
     effect(() => {
       const view = this.view();
       untracked(() => this.follow(view));
@@ -612,9 +724,38 @@ export class DemoGuide {
     });
   }
 
+  /** Keeps the viewport's height and the banners' height current: the band is decided on the space the banners leave. */
+  private watchRoom(): void {
+    const slot = this.host.nativeElement.parentElement?.querySelector<HTMLElement>(':scope > .banner-slot') ?? null;
+    const read = (): void => {
+      const [viewport, banners] = [window.innerHeight, slot?.offsetHeight ?? 0];
+      if (viewport !== this.viewport() || banners !== this.banners()) {
+        this.squeezed.set(false);
+      }
+      this.viewport.set(viewport);
+      this.banners.set(banners);
+    };
+    const observer = new ResizeObserver(read);
+    observer.observe(document.documentElement);
+    if (slot !== null) {
+      observer.observe(slot);
+    }
+    window.addEventListener('resize', read);
+    this.destroyRef.onDestroy(() => {
+      window.removeEventListener('resize', read);
+      observer.disconnect();
+    });
+    read();
+  }
+
   /** The user selected a step: only the selection and the prompt change. */
   protected select(step: number): void {
     this.selected.set(step);
+  }
+
+  /** The user pressed the "More to try" link: the panel opens, or closes when it is open. */
+  protected toggleMore(): void {
+    this.chosen.set(!this.moreOpen());
   }
 
   /** The user pressed Hide guide or Show guide; the choice is kept in this browser. */
@@ -669,8 +810,12 @@ export class DemoGuide {
     return this.api.postGuideMarker(marker).pipe(tap((view) => this.answered.set(view)));
   }
 
-  /** A view arrived: the selection follows the current step when it changes, and an advance is announced once. */
+  /** A view arrived: the panel's choice resets when a finish begins, the selection follows the current step when it changes, and an advance is announced once. */
   private follow(view: GuideStatePayload | undefined): void {
+    if (view?.finished === true && this.last?.finished !== true) {
+      this.chosen.set(undefined);
+      this.squeezed.set(false);
+    }
     const said = advance(this.last, view);
     this.selected.set(followSelection(this.last, view, this.selected()));
     this.last = view;

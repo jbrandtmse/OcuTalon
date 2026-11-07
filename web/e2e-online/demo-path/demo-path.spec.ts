@@ -15,8 +15,12 @@ import {
   doneTurn,
   expectGuideMessage,
   expectIncidentAwaitingApproval,
+  guideRegion,
   guideSend,
   incidentCard,
+  incidentCardOf,
+  incidentRefs,
+  newIncidentRef,
   phoneNotes,
   readState,
   reminderThroughGuide,
@@ -54,6 +58,11 @@ import {
  *   too (Story 11.7, DW-221): the guide's own Send for the watch and for the reminder, Break the feed and the incident awaiting approval
  *   (the phone's notice and "Approval requests, 1"), and Approve on the simulated phone to "All 50 orders went through.", the audit line and
  *   Resolved. They run in order on one session, as the web run's do, and skip the heartbeat's last-run wait that the web run proves.
+ * - Step 5's second press (PT-e of Story 7.9, ruled for Story 4.11's item 3): once the approved fix has gone through, the guide's "Other things to try"
+ *   item "Break it again" presses Break the feed again in the same session, and the new incident's approval request on the simulated phone
+ *   holds 7.9's line "Checked against the last {n} orders from the same source that went through: 0 would change.". It is asserted by pattern on
+ *   the real notice text. It is the end of the step 5 case, because the second press needs the session whose fix just went through and the
+ *   unit's report keeps exactly its seven cases (docker/tests/test-online-demo-path.sh); the project already runs this folder.
  * - Step 6 is real: the guide's watch prompt gets its reply, and the reply's Trace link opens Visual Trace at the turn, signed in, drawing
  *   the turn's header and its agent steps, with the steps and the cost in the decision's details.
  * - "Second visitor" is the isolation run (Story 29.4): visitors A and B each watch Orders (through the guide's Send), A presses Break the feed, and A's incident, its
@@ -183,11 +192,40 @@ test.describe('steps 2 to 5: one visitor watches Orders, sets a reminder, breaks
     request = await expectIncidentAwaitingApproval(page);
   });
 
-  test('step 5: Approve on the phone ends with "All 50 orders went through.", the audit line and Resolved, and the request leaves the rail', async () => {
-    test.setTimeout(240_000);
+  test('step 5: Approve on the phone ends with "All 50 orders went through.", the audit line and Resolved, and the request leaves the rail; then Break it again of Other things to try gives a new incident whose request holds the good-message line with "0 would change"', async () => {
+    test.setTimeout(540_000);
     expect(request, 'step 4 found the approval request').not.toBe('');
     // The online demo's message times carry " ET" (Msg.Catalog's time slot).
     await approveOnPhone(pageOf(), request, ' ET');
+
+    // The second press (PT-e of Story 7.9, ruled for Story 4.11's item 3), in the same case so that the unit's report keeps its seven cases.
+    const page = pageOf();
+    const known = await incidentRefs(page);
+    expect(known.length, 'steps 4 and 5 left the session with its approved incident').toBeGreaterThan(0);
+
+    // The panel is closed while the guide is at step 5; the link opens it. Item 3 presses the box's own Break the feed.
+    const more = guideRegion(page).getByRole('button', { name: 'More to try', exact: true });
+    if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+    const again = guideRegion(page).getByRole('group', { name: 'Other things to try', exact: true }).getByRole('button', { name: 'Break it again', exact: true });
+    await expect(again, 'item 3 is on the page').toBeVisible();
+    await expect(breakFeedButton(page), 'Break the feed is active once the fix has gone through').not.toHaveAttribute('aria-disabled', 'true', { timeout: 30_000 });
+    const pressed = page.waitForResponse((response) => response.url().includes(BREAK_FEED) && response.request().method() === 'POST');
+    await again.click();
+    expect((await pressed).status(), "item 3's press is Break the feed's own, and it answers 200").toBe(200);
+
+    // A new incident awaits approval; its request on the simulated phone carries the ruled line (the real text, by pattern).
+    const card = incidentCardOf(page, await newIncidentRef(page, known));
+    await expect(card.locator('.chip-row .chip'), 'the new incident awaits approval').toHaveText('Awaiting approval', { timeout: 90_000 });
+    const notice = phoneNotes(page).filter({ has: page.getByRole('button', { name: /^Approve/ }) });
+    await expect(notice, "the phone has the new request's notice").toHaveCount(1, { timeout: 90_000 });
+    await expect(notice, 'its dry run says what the repair did to good messages: none would change').toContainText(
+      /Checked against the last [1-9]\d* orders? from the same source that went through: 0 would change\./,
+    );
+
+    // Leave the session as step 5 does: the request is approved on the phone and the incident resolves.
+    const key = (await card.locator('[data-part="approval"]').getAttribute('data-key')) ?? '';
+    expect(key, "the new request's Ref").toMatch(/^[A-Za-z0-9_-]{22}$/);
+    await approveOnPhone(page, key, ' ET', card);
   });
 });
 
