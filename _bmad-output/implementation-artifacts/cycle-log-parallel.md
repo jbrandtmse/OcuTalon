@@ -2547,3 +2547,5 @@
 2026-11-07T20:49:55Z	Epic 32	ci_flake_rerun	head=39364d5c run=42401362858 attempt=3 job=shards-5 red=DW-688(TestStartsWithNoKey;fix_in_11.28_unmerged) note=32.5_changes_no_ObjectScript planner_told=yes
 2026-11-07T20:50:43Z	Epic 32	planner_ruling	subject=merge_gate_exception(one-time) story=32.5 head=39364d5c red=shards-5_only_TestStartsWithNoKey(DW-688_exact_signature,1_of_51_classes) others=green(incl_browser,live:sign-in-3_701s) reason=no_ObjectScript;fix_in_11.28;rc2_PR_runs_full_suite source=Planner_message_~20:52Z
 2026-11-07T20:50:43Z	Epic 32	epic_merge_started	head=39364d5c into=feature exception=planner_one_time third_rerun=already_started(not_cancelled)
+2026-11-07T20:51:13Z	Epic 32	epic_merged_to_feature	merge=574736a5 head=39364d5c story=32.5 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0 exception=planner_one_time(DW-688) planner_told=yes
+2026-11-07T20:51:13Z	Run	deps_hash_rerecorded	reason=fix_forward story=32.5 hash=0f6ad18d4a84
