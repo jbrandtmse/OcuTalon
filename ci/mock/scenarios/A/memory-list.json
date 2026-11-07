@@ -1,0 +1,19 @@
+{
+  "name": "memory-list",
+  "match": {
+    "marker": "memory-list"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "list_memories",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock listed the memories."
+    }
+  ]
+}

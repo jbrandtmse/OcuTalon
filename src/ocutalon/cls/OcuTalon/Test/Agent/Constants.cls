@@ -3,7 +3,7 @@
 /// called.
 ///   - TestAgents: each agent extends %AI.Agent, has MODEL claude-haiku-5-5 and its own MOCKKEY (the template-token check
 ///     on the INSTRUCTIONS is in OcuTalon.Test.Agent.Instructions);
-///   - TestToolNames: the tool names are distinct snake_case values (the twelve release-1 names, propose_persona and send_digest), and
+///   - TestToolNames: the tool names are distinct snake_case values (the twelve release-1 names, propose_persona, send_digest and the four memory names), and
 ///     RELEASE1 lists exactly the twelve;
 ///   - TestCompactionPrompt: the prompt is ASCII, starts with the prefix and names the seven keys of the summary.
 Class OcuTalon.Test.Agent.Constants Extends %UnitTest.TestCase
@@ -25,13 +25,13 @@ Method TestAgents()
 	Do $$$AssertTrue(($List(keys, 1) '= $List(keys, 2)) && ($List(keys, 1) '= $List(keys, 3)) && ($List(keys, 2) '= $List(keys, 3)), "the keys are distinct")
 }
 
-/// OcuTalon.Tools.Names holds 14 distinct snake_case values (12 of release 1, propose_persona and, since Story 17.6, DIGESTTOOLS), and RELEASE1 lists exactly the 12 of release 1, comma-separated;
-/// propose_persona and send_digest are parameters and are not in RELEASE1.
+/// OcuTalon.Tools.Names holds 18 distinct snake_case values (12 of release 1, propose_persona, since Story 17.6, DIGESTTOOLS, and the four memory names), and RELEASE1 lists exactly the 12 of release 1, comma-separated;
+/// propose_persona, send_digest and the four memory names are parameters and are not in RELEASE1, and MEMORYTOOLS lists the four memory names.
 Method TestToolNames()
 {
 	Set statement = ##class(%SQL.Statement).%New()
-	Do $$$AssertStatusOK(statement.%Prepare("SELECT Name FROM %Dictionary.CompiledParameter WHERE parent = ? AND Name <> ? ORDER BY Name"), "the parameters are listed")
-	Set result = statement.%Execute("OcuTalon.Tools.Names", "RELEASE1")
+	Do $$$AssertStatusOK(statement.%Prepare("SELECT Name FROM %Dictionary.CompiledParameter WHERE parent = ? AND Name <> ? AND Name <> ? ORDER BY Name"), "the parameters are listed")
+	Set result = statement.%Execute("OcuTalon.Tools.Names", "RELEASE1", "MEMORYTOOLS")
 	Set count = 0
 	Set names = ""
 	While result.%Next() {
@@ -41,7 +41,7 @@ Method TestToolNames()
 		Do $$$AssertTrue('$ListFind(names, value), value_" is distinct")
 		Set names = names _ $ListBuild(value)
 	}
-	Do $$$AssertEquals(count, 14, "there are 14 tool names")
+	Do $$$AssertEquals(count, 18, "there are 18 tool names")
 	Set release = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1"))
 	Do $$$AssertEquals($ListLength(release), 12, "RELEASE1 lists 12 names")
 	Do $$$AssertEquals($ListFind(release, $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")), 0, "and send_digest of step 2 is not among them")
@@ -55,6 +55,12 @@ Method TestToolNames()
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "CHECKSTATUS"), "check_status", "the status tool is check_status")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), "propose_persona", "the persona proposal tool is propose_persona")
 	Do $$$AssertTrue('$ListFind(release, "propose_persona"), "RELEASE1 does not list propose_persona")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "SAVEMEMORY"), "save_memory", "the memory save tool is save_memory")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "SEARCHMEMORIES"), "search_memories", "the memory search tool is search_memories")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "LISTMEMORIES"), "list_memories", "the memory list tool is list_memories")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "FORGETMEMORY"), "forget_memory", "the memory forget tool is forget_memory")
+	Do $$$AssertTrue('$ListFind(release, "save_memory") && '$ListFind(release, "search_memories") && '$ListFind(release, "list_memories") && '$ListFind(release, "forget_memory"), "RELEASE1 does not list the memory names")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS"), "save_memory,search_memories,list_memories,forget_memory", "MEMORYTOOLS lists the four memory names")
 }
 
 /// Compaction.Prompt() is ASCII, its first line starts with OCUTALON-COMPACTION-V1, and it names the seven keys of the

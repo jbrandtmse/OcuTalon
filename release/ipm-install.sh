@@ -87,6 +87,28 @@
 #   25. the install command with the next version (a scratch copy of the package folder with the patch number raised, loaded in
 #       OCUTALON): Initialize to Activate SUCCESS and one STEP OK per step in order, the raised module version, a new job id for
 #       every item, no new ReconcileIn row, the configuration and the foreign setting unchanged, and the data and the waiters intact.
+# Story 19.2 (U-294) adds the Python requirement and the model:
+#   30. after path A's second run: the install fetched fastembed 0.9.0 through requirements.txt (the module root's file, staged beside
+#       src/module.xml by stage_requirements), the output has STEP Memory OK and no WARN Memory line, and <mgr>/fastembed/ holds the model
+#       once (one models--Qdrant--all-MiniLM-L6-v2-onnx folder, which the Memory step downloaded in a worker);
+#   31. check 25's reinstall downloads nothing new: the folder's file list and sizes are the same before and after, and so are the two Python
+#       resources in <mgr>/python (Story 19.6).
+# Story 19.6 (U-294) adds the licence-measured pin set and the PDF and Word reading:
+#   32. after path A's second run and after part p's install: docker/licences/gate.py check passes on <mgr>/python against the constraints
+#       file of the architecture (staged by stage_licence_gate), so every installed distribution is under an allowed licence and is pinned at
+#       its installed version, and gate.py notices writes a non-empty file that names every one of the 36 distributions. Story 19.8 (DW-829)
+#       adds to check 32, from check_python_pins: certifi, charset_normalizer, idna, requests, typing_extensions and urllib3 import their pinned
+#       copies (each __file__ is under <mgr>/python with the sha256 of the pinned dist-info's RECORD, each __version__ is the pin), so that
+#       a stale copy of IPM's own dependencies fails the check; the folder's distributions before and after the install differ only in
+#       those six moving to the pins and the pins OcuTalon adds, and IPM's own packages (oras.provider and the rest) import as before; zpm
+#       "list" answers and the module's early RemoveStaleCopies Invoke gets the module root, the -bypass-py-deps flag and the lifecycle command as
+#       arguments. Path A then runs the same install command again: it replaces nothing and the checks hold; then, with a stale copy of
+#       idna planted, `zpm "reload ocutalon"` and a load with -bypass-py-deps (no pip step runs in either) remove nothing, and IPM's own
+#       packages and zpm "list" still work (DW-856). Part p, after its uninstall, shows that the uninstall
+#       leaves the Python folder's distributions in place, IPM still lists and still installs from the local repository;
+#   33. after the same two installs: OcuTalon.Docs.Extract.Read of Test.Docs.Samples' 3-page PDF and its headings .docx answers ok with page
+#       and heading markers, so the Python resources and the extraction category reached the IPM install. Check 30 also names pdfplumber
+#       0.11.10 and python-docx 1.1.2.
 # Story 15.4 adds part p, the exact release artifact installed from an IPM repository on a fresh instance with no Node.js:
 #   The artifact is OCUTALON_IPM_ARTIFACT (the .tgz that the release sequence's ipm step made), or, when that is unset, the module that
 #   path A's second run installed, packaged with `zpm "package ocutalon -only"` (TIME package) and checked with lib-release's
@@ -454,6 +476,504 @@ CHK|settings-dest|ocutalon_public" \
     'Write !,"CHK|ready|",##class(OcuTalon.Data.Public.Settings).Get("ready")' \
     'Set d=##class(%SYS.Namespace).GetRoutineDest("OCUTALON","OcuTalon.Data.Public.Settings.1","INT") Write !,"CHK|settings-dest|",$Piece(d,"/",$Length(d,"/")-1)' \
     'Halt'
+}
+
+# stage_requirements: puts the repository root's requirements.txt beside src/module.xml in the container, as it sits beside module.xml in the
+# published package, so that IPM installs the Python requirements of the module root (Story 19.2, U-294). The folder is the image's, owned by
+# root and read-only, so root writes the file. The image is built from the allow-listed context of release/ipm/Dockerfile, which holds only src/.
+stage_requirements() {
+  dc exec -T -u root iris sh -c "cat > $SRC/requirements.txt && chmod 444 $SRC/requirements.txt" < requirements.txt || die "requirements.txt could not be staged in the container"
+}
+
+# stage_licence_gate: puts docker/licences/gate.py, allowed.txt and the constraints file of the container's architecture (uname -m) into a scratch
+# folder of the container, as root and read-only (Story 19.6, U-294). The image is built from the
+# allow-listed context of release/ipm/Dockerfile, which holds only src/, so the files are staged the way requirements.txt is.
+LICENCES=/tmp/ocutalon-licences
+
+# manager_directory: the container's manager directory (with the closing slash) from a %SYS session, tried up to 6 times, 5 seconds apart, because
+# a busy host can answer a session late right after the stack is up.
+manager_directory() {
+  local try=1 mgr=""
+  while [ -z "$mgr" ] && [ "$try" -le 6 ]; do
+    mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | session_value %SYS mgr)
+    [ -n "$mgr" ] || sleep 5
+    try=$((try + 1))
+  done
+  printf '%s' "$mgr"
+}
+stage_licence_gate() {
+  local arch name
+  arch=$(dc exec -T iris uname -m 2> /dev/null | tr -d '\r')
+  case $arch in
+    x86_64) arch=x64 ;;
+    aarch64) arch=arm64 ;;
+    *) die "no Python constraints file for the container's architecture '$arch'" ;;
+  esac
+  LICENCE_CONSTRAINTS="$LICENCES/constraints-$arch.txt"
+  dc exec -T -u root iris mkdir -p "$LICENCES" || die "the licence gate could not be staged in the container"
+  for name in gate.py allowed.txt "constraints-$arch.txt"; do
+    dc exec -T -u root iris sh -c "cat > $LICENCES/$name && chmod 444 $LICENCES/$name" < "docker/licences/$name" || die "docker/licences/$name could not be staged in the container"
+  done
+  dc exec -T -u root iris chmod 555 "$LICENCES" || die "the licence gate folder could not be made read-only"
+}
+
+# IPM's own Python packages (its ORAS dependencies) and the six distributions of them that OcuTalon pins (Story 19.8, DW-829): the modules
+# whose import is recorded before and after the install.
+PY_SIX="certifi charset_normalizer idna requests typing_extensions urllib3"
+PY_IPM="attr attrs jsonschema jsonschema_specifications oras oras.provider referencing rpds"
+
+# python_imports: one CHK|imp|<module>|<1 or 0> line for each module of IPM's own packages and of the six, from a %SYS session: whether the
+# import works.
+python_imports() {
+  local mods="" m
+  for m in $PY_IPM $PY_SIX; do mods="$mods\"$m\","; done
+  printf '%s\n' "For m=${mods%,} { Set ok=1 Try { Do ##class(%SYS.Python).Import(m) } Catch { Set ok=0 } Write !,\"CHK|imp|\",m,\"|\",ok }" 'Halt' | iris_script %SYS
+}
+
+# python_state <python folder> <file in the container>: writes one line for each entry of the folder: "D <dist-info folder> <md5 of its RECORD,
+# or ->" and "T <other top-level item>".
+python_state() {
+  dc exec -T iris python3 - "$1" "$2" << 'EOP'
+import hashlib, os, sys
+target, out = sys.argv[1:3]
+lines = []
+for entry in sorted(os.listdir(target)):
+    if entry.endswith(".dist-info"):
+        try:
+            digest = hashlib.md5(open(os.path.join(target, entry, "RECORD"), "rb").read()).hexdigest()
+        except OSError:
+            digest = "-"
+        lines.append("D %s %s" % (entry, digest))
+    else:
+        lines.append("T %s" % entry)
+open(out, "w").write("\n".join(lines) + "\n")
+EOP
+}
+
+# snapshot_python_before: records the distributions that <mgr>/python holds now, just before the install command that installs the requirements
+# (the image's own packages, and IPM's own dependencies once IPM is loaded): the dist-info names for check 32's gate, the folder's entries and
+# the imports of IPM's packages for check_python_pins (Story 19.8). It prints the dist-infos it found.
+snapshot_python_before() {
+  local mgr
+  mgr=$(manager_directory)
+  [ -n "$mgr" ] || die "the manager directory could not be read, so the Python folder could not be recorded"
+  dc exec -T iris sh -c "ls '${mgr}python' 2> /dev/null | grep '[.]dist-info\$' > /tmp/ocutalon-python-before.txt; true" || die "the Python folder could not be recorded"
+  python_state "${mgr}python" /tmp/ocutalon-python-before.state || die "the Python folder's entries could not be recorded"
+  python_imports | dc exec -T iris sh -c 'cat > /tmp/ocutalon-imports-before.txt' || die "the imports of IPM's packages could not be recorded"
+  echo "NOTE python before the install, <mgr>/python holds: $(dc exec -T iris cat /tmp/ocutalon-python-before.txt | tr -d '\r' | sed 's/[.]dist-info$//' | tr '\n' ' ')"
+}
+
+# check_licences <label> (check 32): the licence gate on what IPM installed into <mgr>/python, and the notices it writes. What IPM installed is
+# every distribution of the folder except one that snapshot_python_before found there and whose name is no pin of the constraints file (the
+# image's own Python packages and IPM's own dependencies: the gate is not theirs); a pin that was there already counts as installed, and an
+# older copy of a pinned name that is still there fails the gate.
+check_licences() {
+  local label=$1 mgr out rc named scratch=/tmp/ocutalon-installed
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the licence gate did not run"
+    return
+  fi
+  dc exec -T iris python3 - "${mgr}python" /tmp/ocutalon-python-before.txt "$LICENCE_CONSTRAINTS" "$scratch" << 'EOP' | tr -d '\r' | sed 's/^/  /'
+import os, re, shutil, sys
+target, before_file, constraints, scratch = sys.argv[1:5]
+def norm(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+pins = {}
+for line in open(constraints):
+    line = line.strip()
+    if line and not line.startswith("#"):
+        name, _, version = line.partition("==")
+        pins[norm(name)] = version
+before = set(open(before_file).read().split())
+shutil.rmtree(scratch, ignore_errors=True)
+os.makedirs(scratch)
+kept = 0
+for entry in sorted(os.listdir(target)):
+    if not entry.endswith(".dist-info"):
+        continue
+    name, _, version = entry[: -len(".dist-info")].rpartition("-")
+    if entry in before and norm(name) not in pins:
+        print("NOTE %s was in the folder before the install and is no pin: not gated" % entry[: -len(".dist-info")])
+        continue
+    os.symlink(os.path.join(target, entry), os.path.join(scratch, entry))
+    kept += 1
+print("NOTE %d distributions gated" % kept)
+EOP
+  out=$(dc exec -T iris python3 "$LICENCES/gate.py" check "$scratch" "$LICENCE_CONSTRAINTS" 2>&1)
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
+    pass "$label: the licence gate passes on what IPM installed ($(printf '%s\n' "$out" | tail -n 1 | tr -d '\r'))"
+  else
+    printf '%s\n' "$out" | tr -d '\r' | grep -e FAIL | cut -c1-300 | sed 's/^/  gate: /'
+    fail "$label: the licence gate fails on what IPM installed (exit $rc)"
+  fi
+  named=$(dc exec -T iris sh -c "python3 $LICENCES/gate.py notices '$scratch' /tmp/ocutalon-notices.txt > /dev/null 2>&1; python3 - '$LICENCE_CONSTRAINTS' /tmp/ocutalon-notices.txt" 2> /dev/null << 'EOP' | tr -d '\r'
+import re, sys
+def norm(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+pins = [l.strip().split("==") for l in open(sys.argv[1]) if l.strip() and not l.startswith("#")]
+lines = set(norm(l.strip()) for l in open(sys.argv[2], encoding="utf-8", errors="replace"))
+named = sum(1 for name, version in pins if norm(name + " " + version) in lines)
+print("%d/%d" % (named, len(pins)))
+EOP
+)
+  if [ -n "$named" ] && [ "${named%/*}" = "${named#*/}" ] && [ "${named%/*}" -gt 0 ] 2> /dev/null; then
+    pass "$label: gate.py notices writes a file that names all ${named#*/} distributions at their pinned versions"
+  else
+    fail "$label: the notices name '$named' of the pinned distributions"
+  fi
+}
+
+# check_imports <label> (check 32, Story 19.8, DW-829): certifi, charset_normalizer, idna, requests, typing_extensions and urllib3 import the pinned
+# copies. An OCUTALON session's Embedded Python imports each and prints __version__ ("" when it has none) and __file__; the container's python3
+# then requires that __file__ is under <mgr>/python, that the RECORD of the pinned dist-info <name>-<pin>.dist-info lists it with the sha256 of
+# the file (urlsafe base64, unpadded), and that __version__, when there is one, is the pin. The hash alone is not enough: urllib3's __init__.py is
+# the same in 2.6.3 and 2.8.0. One NOTE line for each module.
+check_imports() {
+  local label=$1 mgr imports out rc
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the import check did not run"
+    return
+  fi
+  imports=$(printf '%s\n' \
+    'Set b=##class(%SYS.Python).Import("builtins") For m="certifi","charset_normalizer","idna","requests","typing_extensions","urllib3" { Try { Set mod=##class(%SYS.Python).Import(m) Write !,"CHK|import|",m,"|",b.getattr(mod,"__version__",""),"|",b.getattr(mod,"__file__","") } Catch { Write !,"CHK|import|",m,"||" } }' \
+    'Halt' | iris_script OCUTALON)
+  out=$(dc exec -T iris python3 - "${mgr}python" "$LICENCE_CONSTRAINTS" "$imports" 2>&1 << 'EOP'
+import base64, csv, hashlib, os, re, sys
+target, constraints, imports = sys.argv[1:4]
+def norm(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+def vnorm(version):
+    return ".".join(str(int(part)) if part.isdigit() else part for part in version.split("."))
+pins = {}
+for line in open(constraints):
+    line = line.strip()
+    if line and not line.startswith("#"):
+        name, _, version = line.partition("==")
+        pins[norm(name)] = version
+seen = {}
+for line in imports.splitlines():
+    parts = line.strip().split("|", 4)
+    if len(parts) == 5 and parts[:2] == ["CHK", "import"]:
+        seen[parts[2]] = (parts[3], parts[4])
+root = os.path.realpath(target)
+stale = []
+for name in ["certifi", "charset_normalizer", "idna", "requests", "typing_extensions", "urllib3"]:
+    pin = pins.get(norm(name))
+    version, path = seen.get(name, ("", ""))
+    why = []
+    rel = "-"
+    if not path:
+        why.append("not imported")
+    else:
+        rel = os.path.relpath(os.path.realpath(path), root)
+        if rel.startswith(".."):
+            why.append("not under mgr/python")
+        else:
+            record = None
+            for entry in os.listdir(target):
+                base = entry[: -len(".dist-info")] if entry.endswith(".dist-info") else None
+                if base is not None and norm(base.rpartition("-")[0]) == norm(name) and vnorm(base.rpartition("-")[2]) == vnorm(pin):
+                    record = os.path.join(target, entry, "RECORD")
+            digest = base64.urlsafe_b64encode(hashlib.sha256(open(os.path.realpath(path), "rb").read()).digest()).rstrip(b"=").decode()
+            listed = [row for row in csv.reader(open(record)) if row and row[0] == rel] if record else []
+            if record is None:
+                why.append("no pinned dist-info")
+            elif not listed or listed[0][1] != "sha256=" + digest:
+                why.append("not the file of the pinned RECORD")
+        if version and vnorm(version) != vnorm(pin):
+            why.append("version %s, pin %s" % (version, pin))
+    print("NOTE import %s %s %s %s%s" % (name, version or "-", rel, "stale" if why else "pinned", " (" + ", ".join(why) + ")" if why else ""))
+    if why:
+        stale.append(name)
+print("STALE " + ",".join(stale) if stale else "ALL PINNED")
+sys.exit(1 if stale else 0)
+EOP
+)
+  rc=$?
+  printf '%s\n' "$out" | tr -d '\r' | grep '^NOTE' | sed 's/^/  /'
+  if [ "$rc" -eq 0 ]; then
+    pass "$label: certifi, charset_normalizer, idna, requests, typing_extensions and urllib3 import their pinned copies (version and RECORD hash)"
+  else
+    fail "$label: the import check fails for $(printf '%s\n' "$out" | tr -d '\r' | sed -n 's/^STALE //p')"
+  fi
+}
+
+# check_python_moves <label> [<state file of the install>] (check 32, Story 19.8): the folder <mgr>/python now against what snapshot_python_before
+# recorded. The only differences allowed are the stale copies of pinned names (the six) gone and the pins in their place, and the pins that the
+# install adds: every other dist-info is there with the same RECORD, every top-level item is still there, the import record names the same modules
+# before and after (an empty one fails), and every module of IPM's packages that imported before imports now. Writes the current state to
+# /tmp/ocutalon-python-after.state.
+check_python_moves() {
+  local label=$1 mgr out rc now
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the folder comparison did not run"
+    return
+  fi
+  python_state "${mgr}python" /tmp/ocutalon-python-after.state || { fail "$label: the Python folder's entries could not be recorded"; return; }
+  now=$(python_imports)
+  out=$(dc exec -T iris python3 - "$LICENCE_CONSTRAINTS" /tmp/ocutalon-python-before.state /tmp/ocutalon-python-after.state /tmp/ocutalon-imports-before.txt "$now" 2>&1 << 'EOP'
+import re, sys
+constraints, before_file, after_file, imports_before, imports_after = sys.argv[1:6]
+def norm(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+def vnorm(version):
+    return ".".join(str(int(part)) if part.isdigit() else part for part in version.split("."))
+pins = {}
+for line in open(constraints):
+    line = line.strip()
+    if line and not line.startswith("#"):
+        name, _, version = line.partition("==")
+        pins[norm(name)] = version
+def load(path):
+    dists, tops = {}, set()
+    for line in open(path):
+        parts = line.split()
+        if parts and parts[0] == "D":
+            dists[parts[1]] = parts[2]
+        elif parts and parts[0] == "T":
+            tops.add(parts[1])
+    return dists, tops
+def split(entry):
+    name, _, version = entry[: -len(".dist-info")].rpartition("-")
+    return norm(name), name, version
+bd, bt = load(before_file)
+ad, at = load(after_file)
+problems, moved, added = [], [], []
+for entry, digest in sorted(bd.items()):
+    key, name, version = split(entry)
+    pin = pins.get(key)
+    if pin is not None and vnorm(version) != vnorm(pin):
+        moved.append("%s %s -> %s" % (name, version, pin))
+        if entry in ad:
+            problems.append("%s is still in the folder" % entry)
+        if not any(split(e)[0] == key and vnorm(split(e)[2]) == vnorm(pin) for e in ad):
+            problems.append("%s %s is not in the folder" % (name, pin))
+    elif entry not in ad:
+        problems.append("%s is gone" % entry)
+    elif ad[entry] != digest:
+        problems.append("%s changed" % entry)
+for entry in sorted(ad):
+    if entry not in bd:
+        key, name, version = split(entry)
+        if key in pins and vnorm(pins[key]) == vnorm(version):
+            added.append(entry)
+        else:
+            problems.append("%s was added and is no pin" % entry)
+for item in sorted(bt - at):
+    problems.append("top-level item %s is gone" % item)
+def imports(text):
+    return dict(re.findall(r"CHK\|imp\|([^|]+)\|(\d)", text))
+ib, ia = imports(open(imports_before).read()), imports(imports_after)
+if not ib or set(ib) != set(ia):
+    problems.append("the import record of IPM's packages is empty or not the same list before and after (%d and %d modules)" % (len(ib), len(ia)))
+for module, ok in sorted(ib.items()):
+    if ok == "1" and ia.get(module) != "1":
+        problems.append("%s imported before the install and does not now" % module)
+print("NOTE python folder: %d distributions before, %d after; %d moved to the pins%s; %d pinned distributions added" % (len(bd), len(ad), len(moved), (": " + ", ".join(moved)) if moved else "", len(added)))
+print("NOTE imports before and after: %s" % ", ".join("%s %s>%s" % (m, ib[m], ia.get(m, "-")) for m in sorted(ib)))
+for problem in problems:
+    print("PROBLEM " + problem)
+sys.exit(1 if problems else 0)
+EOP
+)
+  rc=$?
+  printf '%s\n' "$out" | tr -d '\r' | grep -e '^NOTE' -e '^PROBLEM' | cut -c1-400 | sed 's/^/  /'
+  if [ "$rc" -eq 0 ]; then
+    pass "$label: the Python folder differs from before the install only by the six moving to the pins and the pins added, and IPM's own packages import as before"
+  else
+    fail "$label: the Python folder differs from before the install by more than the six moving to the pins and the pins added, or an IPM package no longer imports"
+  fi
+}
+
+# check_ipm_alive <label> <module pattern> (check 32, Story 19.8): IPM still works in OCUTALON: zpm "list" answers without an error and shows the
+# pattern (a module name; "." for any text).
+check_ipm_alive() {
+  local out
+  out=$(printf '%s\nHalt\n' 'zpm "list"' | dc exec -T iris iris session IRIS -U OCUTALON 2>&1 | tr -d '\r' | strip_ansi)
+  printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | head -n 12 | cut -c1-200 | sed 's/^/  zpm list: /'
+  if printf '%s\n' "$out" | grep -q -e "$2" && ! printf '%s\n' "$out" | grep -q -e '^ERROR' -e 'FAILURE' -e '<[A-Z]*>'; then
+    pass "$1: zpm \"list\" answers in OCUTALON without an error"
+  else
+    fail "$1: zpm \"list\" gave an error or no answer"
+  fi
+}
+
+# check_invoke_args <label> (check 32, Story 19.8): the installed module's Reload Invoke of RemoveStaleCopies gets the module root, the
+# -bypass-py-deps flag and the lifecycle command as its arguments: with a root set on the module, the first argument is that root, the second is
+# 0 and the third is empty when IPM's parameters hold neither, and the second is 1 and the third is the command (install here) with
+# pParams("BypassPyDeps") and pParams("cmd") set, as the -bypass-py-deps modifier and the install command set them (DW-856).
+check_invoke_args() {
+  check_session "$1: the Reload Invoke of RemoveStaleCopies gets the module root, the -bypass-py-deps flag (0, and 1 when set) and the lifecycle command (empty, and install when set)" OCUTALON \
+    "CHK|args|1|/zz/root/|0||1|install|Reload|Before" \
+    'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon"),n=0 If $IsObject(m) { Set m.Root="/zz/root" Set key="" For { Set inv=m.Invokes.GetNext(.key) Quit:key=""  If inv.Method="RemoveStaleCopies" { Set n=n+1 Kill p,a Do inv.GetArgsArray(.p,.a) Set a1=a(1),a2=a(2),a3=a(3) Set p("BypassPyDeps")=1,p("cmd")="install" Kill a Do inv.GetArgsArray(.p,.a) Write !,"CHK|args|",n,"|",a1,"|",a2,"|",a3,"|",a(2),"|",a(3),"|",inv.Phase,"|",inv.When } } }' \
+    'Halt'
+}
+
+# check_python_pins <label> (check 32, Story 19.8, DW-829): the imports of the six, the folder against what it held before, IPM's answer and the
+# Invoke's arguments, on what the install left.
+check_python_pins() {
+  local started=$SECONDS
+  check_imports "$1"
+  check_python_moves "$1"
+  check_ipm_alive "$1" ocutalon
+  check_invoke_args "$1"
+  echo "TIME python-pins $((SECONDS - started))s"
+}
+
+# check_reinstall (check 32, Story 19.8): the install command again in OCUTALON, from the same folder: it ends in Activate SUCCESS without an
+# error and replaces nothing (no STEP Python line), and the checks of check_python_pins hold, with the folder the same as before it.
+check_reinstall() {
+  local f="$tmp/reinstall-same.txt" started=$SECONDS
+  snapshot_python_before
+  run reinstall-same OCUTALON "$INSTALL"
+  if grep -q 'Activate SUCCESS' "$f" && ! grep -q 'FAILURE' "$f" && ! grep -q '^ERROR!' "$f"; then
+    pass "reinstall: the install command again ends in Activate SUCCESS without an error"
+  else
+    fail "reinstall: the install command again did not end in Activate SUCCESS"
+  fi
+  if ! grep -q '^STEP Python ' "$f"; then
+    pass "reinstall: the early step replaced nothing (no STEP Python line)"
+  else
+    grep '^STEP Python ' "$f" | sed 's/^/  /'
+    fail "reinstall: the early step replaced a distribution on the second install"
+  fi
+  check_python_pins "reinstall"
+  check_licences "reinstall"
+  echo "TIME reinstall-checks $((SECONDS - started))s"
+}
+
+# plant_stale_copy <mgr> <state file>: puts a decoy stale distribution into <mgr>/python, a dist-info folder idna-0.0.1 whose RECORD names the
+# idna package that IPM's own packages import, and writes the folder's entries to the state file. idna is pinned, so a step that removes
+# stale copies without a pip step behind it would remove the package of the pinned idna that is in use.
+plant_stale_copy() {
+  dc exec -T iris python3 - "$1python" << 'EOP' || return 1
+import os, sys
+info = os.path.join(sys.argv[1], "idna-0.0.1.dist-info")
+os.makedirs(info, exist_ok=True)
+open(os.path.join(info, "RECORD"), "w").write("idna/__init__.py,,\nidna-0.0.1.dist-info/RECORD,,\n")
+open(os.path.join(info, "METADATA"), "w").write("Name: idna\nVersion: 0.0.1\n")
+EOP
+  python_state "$1python" "$2"
+}
+
+# check_nothing_removed <label> <run name>: after a run in which IPM's pip step does not run (check_pip_skipped): the run reached the end of its
+# Reload phase without a failure, the early step wrote no STEP Python line, the Python folder holds exactly what it held with the decoy planted
+# (the pinned idna included), IPM's own packages import as they did, the six still import their pinned copies (the base image also holds
+# older copies in a user folder, so a missing pinned copy would still import), and zpm "list" answers.
+check_nothing_removed() {
+  local label=$1 f="$tmp/$2.txt" mgr now
+  if grep -q 'Reload SUCCESS' "$f" && ! grep -q 'FAILURE' "$f" && ! grep -q '^ERROR!' "$f"; then
+    pass "$label: the run ends its Reload phase without an error"
+  else
+    grep -e 'Reload' -e 'FAILURE' -e '^ERROR!' "$f" | head -n 6 | cut -c1-200 | sed 's/^/  /'
+    fail "$label: the run did not end its Reload phase, or ended with an error"
+  fi
+  if ! grep -q '^STEP Python ' "$f"; then
+    pass "$label: the early step replaced nothing (no STEP Python line)"
+  else
+    grep '^STEP Python ' "$f" | sed 's/^/  /'
+    fail "$label: the early step replaced a distribution although IPM's pip step did not run"
+  fi
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the folder comparison did not run"
+    return
+  fi
+  python_state "${mgr}python" /tmp/ocutalon-python-skip-after.state || { fail "$label: the Python folder's entries could not be recorded"; return; }
+  if dc exec -T iris diff /tmp/ocutalon-python-skip-planted.state /tmp/ocutalon-python-skip-after.state > "$tmp/skip.diff" 2>&1; then
+    pass "$label: the Python folder holds exactly what it held before the run (the stale copy and the pinned idna included)"
+  else
+    sed 's/^/  folder: /' "$tmp/skip.diff" | head -n 12
+    fail "$label: the run removed or changed something in the Python folder"
+  fi
+  now=$(python_imports)
+  if [ -n "$now" ] && [ "$now" = "$skip_imports" ] && printf '%s\n' "$now" | grep -q 'CHK|imp|idna|1' && printf '%s\n' "$now" | grep -q 'CHK|imp|requests|1' \
+    && printf '%s\n' "$now" | grep -q 'CHK|imp|oras.provider|1'; then
+    pass "$label: IPM's own packages and the six import as before the run"
+  else
+    printf '%s\n' "$now" | grep '|0$' | sed 's/^/  not imported: /'
+    fail "$label: an import record is empty, or differs from the one before the run, or idna, requests or oras.provider no longer imports"
+  fi
+  check_imports "$label"
+  check_ipm_alive "$label" ocutalon
+}
+
+# check_pip_skipped <label> (check 32, Story 19.8, DW-856): the early step removes a stale copy only when IPM's pip step runs in the same
+# lifecycle. With a decoy stale idna in <mgr>/python, `zpm "reload ocutalon"` (the pip step runs for install, load and update only) and a load
+# with -bypass-py-deps each remove nothing, and IPM's own packages and zpm "list" still work. The decoy goes at the end.
+check_pip_skipped() {
+  local label=$1 mgr started=$SECONDS skip_imports
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the runs without a pip step did not run"
+    return
+  fi
+  if ! plant_stale_copy "$mgr" /tmp/ocutalon-python-skip-planted.state; then
+    dc exec -T iris rm -rf "${mgr}python/idna-0.0.1.dist-info"
+    fail "$label: the stale copy could not be planted, so the runs without a pip step did not run"
+    return
+  fi
+  skip_imports=$(python_imports)
+  run skip-reload OCUTALON 'zpm "reload ocutalon"'
+  check_nothing_removed "reload (pip skipped)" skip-reload
+  run skip-bypass OCUTALON "zpm \"load -bypass-py-deps $SRC\""
+  check_nothing_removed "load -bypass-py-deps" skip-bypass
+  dc exec -T iris rm -rf "${mgr}python/idna-0.0.1.dist-info" || fail "$label: the stale copy that was planted could not be removed again"
+  echo "TIME pip-skipped $((SECONDS - started))s"
+}
+
+# check_extract <label> (check 33): the PDF and Word reading works in the installed package.
+check_extract() {
+  check_session "$1: Docs.Extract.Read answers a PDF and a Word file, in a worker of the extraction category" OCUTALON \
+    "CHK|pdf|1|page
+CHK|docx|1|heading" \
+    'Set a=##class(OcuTalon.Docs.Extract).Read(##class(OcuTalon.Test.Docs.Samples).Pdf3(),"pdf") Write !,"CHK|pdf|",a.ok,"|",a.markers' \
+    'Set a=##class(OcuTalon.Docs.Extract).Read(##class(OcuTalon.Test.Docs.Samples).DocxHeadings(),"docx") Write !,"CHK|docx|",a.ok,"|",a.markers' \
+    'Halt'
+}
+
+# check_memory [<run name> [<label>]] (check 30): the Python requirement and the model, on the output of the run (default second-ocutalon).
+check_memory() {
+  local f="$tmp/${1:-second-ocutalon}.txt" label="${2:-install checks}"
+  if grep -q '^STEP Memory OK' "$f" && ! grep -q '^WARN Memory ' "$f"; then
+    pass "$label: the output has STEP Memory OK and no WARN Memory line"
+  else
+    grep '^WARN Memory ' "$f" | cut -c1-300
+    fail "$label: the output has no STEP Memory OK, or has a WARN Memory line"
+  fi
+  check_session "$label: IPM installed fastembed 0.9.0, pdfplumber 0.11.10 and python-docx 1.1.2 from requirements.txt, and the model sits once in <mgr>/fastembed/" OCUTALON \
+    "CHK|fastembed|0.9.0
+CHK|pdfplumber|0.11.10
+CHK|python-docx|1.1.2
+CHK|models|1
+CHK|hasmodel|1" \
+    'Write !,"CHK|fastembed|",##class(%SYS.Python).Import("importlib.metadata").version("fastembed")' \
+    'Write !,"CHK|pdfplumber|",##class(%SYS.Python).Import("importlib.metadata").version("pdfplumber")' \
+    'Write !,"CHK|python-docx|",##class(%SYS.Python).Import("importlib.metadata").version("python-docx")' \
+    'Set n=0,d=$ZSearch($SYSTEM.Util.ManagerDirectory()_"fastembed/models--*") While d'"'"'="" { Set n=n+1 Set d=$ZSearch("") } Write !,"CHK|models|",n' \
+    'Write !,"CHK|hasmodel|",+##class(OcuTalon.Memory.Embedder).HasModel($SYSTEM.Util.ManagerDirectory()_"fastembed/")' \
+    'Halt'
+}
+
+# memory_fingerprint: a checksum of the file list and sizes of <mgr>/fastembed/ in the container, and the number of its files; empty when
+# the manager directory cannot be read.
+memory_fingerprint() {
+  local mgr
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  [ -n "$mgr" ] || return 0
+  dc exec -T iris sh -c "cd '${mgr}fastembed' && { find . -printf '%p %s\n' | sort | md5sum | cut -c1-12; find . -type f | wc -l; }" 2> /dev/null | tr -d '\r' | tr '\n' ' '
+}
+
+# resources_fingerprint: the checksums of the two Python resources in <mgr>/python of the container; empty when they cannot be read.
+resources_fingerprint() {
+  local mgr
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  [ -n "$mgr" ] || return 0
+  dc exec -T iris sh -c "md5sum '${mgr}python/ocutalon_extract.py' '${mgr}python/ocutalon_memory.py'" 2> /dev/null | tr -d '\r' | awk '{ printf "%s ", $1 }'
 }
 
 # check_signin <label> [logout]: the sign-in page is served and not the online demo's, and ocutalon/ocutalon signs in; the session stays
@@ -1149,7 +1669,7 @@ CHK|routine|1" \
 # reinstall_next (check 25): the install command with the next version, from a scratch copy of the package folder with only <Version>
 # raised, on the stack of path B after the restart checks.
 reinstall_next() {
-  local copy=/tmp/ocutalon-scratch-next ver raised rows started=$SECONDS label="reinstall, next version"
+  local copy=/tmp/ocutalon-scratch-next ver raised rows started=$SECONDS label="reinstall, next version" memory_before memory_after resources_before resources_after
   ver=$(module_version)
   raised=$(printf '%s' "$ver" | awk -F. 'NF == 3 { print $1 "." $2 "." $3 + 1 }')
   if [ -z "$raised" ]; then
@@ -1158,6 +1678,8 @@ reinstall_next() {
   fi
   item_jobs "$tmp/jobs-next-before.tsv"
   rows=$(reconcile_rows)
+  memory_before=$(memory_fingerprint)
+  resources_before=$(resources_fingerprint)
   scratch_copy "$copy" \
     "sed -i 's|<Version>$ver</Version>|<Version>$raised</Version>|' $copy/module.xml" \
     "grep -c '<Version>$raised</Version>' $copy/module.xml" > "$tmp/scratch-next.out" 2>&1
@@ -1168,6 +1690,18 @@ reinstall_next() {
   fi
   run reinstall-next OCUTALON "zpm \"load $copy\""
   check_run_ok reinstall-next "$label"
+  memory_after=$(memory_fingerprint)
+  if [ -n "$memory_before" ] && [ "$memory_before" = "$memory_after" ]; then
+    pass "$label: <mgr>/fastembed/ is unchanged, so nothing was downloaded again ($memory_after)"
+  else
+    fail "$label: <mgr>/fastembed/ went from '$memory_before' to '$memory_after'"
+  fi
+  resources_after=$(resources_fingerprint)
+  if [ -n "$resources_before" ] && [ "$resources_before" = "$resources_after" ]; then
+    pass "$label: the Python resources in <mgr>/python are unchanged ($resources_after)"
+  else
+    fail "$label: the Python resources in <mgr>/python went from '$resources_before' to '$resources_after'"
+  fi
   if [ "$(module_version)" = "$raised" ]; then
     pass "$label: the module is recorded with version $raised"
   else
@@ -1327,6 +1861,7 @@ part_p() {
     die "the part p stack did not become ready"
   fi
   echo "TIME ready-p $((SECONDS - started))s"
+  stage_licence_gate
   ipm_precondition "part p"
   take_snapshot p-base "part p"
   derive_dbs "$tmp/p-base.snap"
@@ -1349,6 +1884,7 @@ part_p() {
   # The repository is added in a session whose output is discarded: the repository definitions are never printed.
   printf '%s\nHalt\n' 'zpm "repo -name ocutalon-local -fs -depth 2 -path /tmp/ocutalon-repo/"' | dc exec -T iris iris session IRIS -U USER > /dev/null 2>&1
   h0=$(defs_hash)
+  snapshot_python_before
   run p-first USER 'zpm "install ocutalon"'
   take_snapshot p-first "part p first command"
   stops_with_next_command p-first "part p, the install command in USER"
@@ -1364,6 +1900,9 @@ part_p() {
   check_no_repo_data "part p, before the same command in OCUTALON"
   run p-second OCUTALON 'zpm "install ocutalon"'
   check_run_ok p-second "part p, the same command in OCUTALON"
+  check_licences "part p"
+  check_python_pins "part p"
+  check_extract "part p"
   check_signin "part p" logout
   take_snapshot p-second "part p second command"
   same_config "part p, the same command in OCUTALON" p-first p-second
@@ -1372,7 +1911,77 @@ part_p() {
   take_snapshot p-uninstall "part p uninstall"
   h2=$(defs_hash)
   uninstall_checks "$h0" "$h1" "$h2"
+  check_uninstall_python "part p uninstall"
+  run p-again USER 'zpm "install ocutalon"'
+  stops_with_next_command p-again "part p, the install command in USER after the uninstall (from the local repository)"
   echo "TIME p-fresh $((SECONDS - started))s"
+}
+
+# check_uninstall_python <label> (check 32, Story 19.8, DW-829 condition 3): after the uninstall, the Python folder holds every distribution and
+# every top-level item that it held after the install, but the two Python resources that the uninstall's FileCopy removal may take
+# (ocutalon_extract.py and ocutalon_memory.py), so the six stay in place; they still import their pinned copies, IPM's own packages import as
+# before the install (the import record names the same modules both times, and an empty one fails) and zpm "list" answers.
+check_uninstall_python() {
+  local label=$1 mgr out rc now started=$SECONDS
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the folder comparison did not run"
+    return
+  fi
+  python_state "${mgr}python" /tmp/ocutalon-python-uninstalled.state || { fail "$label: the Python folder's entries could not be recorded"; return; }
+  now=$(python_imports)
+  out=$(dc exec -T iris python3 - /tmp/ocutalon-python-after.state /tmp/ocutalon-python-uninstalled.state /tmp/ocutalon-imports-before.txt "$now" 2>&1 << 'EOP'
+import re, sys
+after_file, gone_file, imports_before, imports_after = sys.argv[1:5]
+def load(path):
+    dists, tops = {}, set()
+    for line in open(path):
+        parts = line.split()
+        if parts and parts[0] == "D":
+            dists[parts[1]] = parts[2]
+        elif parts and parts[0] == "T":
+            tops.add(parts[1])
+    return dists, tops
+ad, at = load(after_file)
+ud, ut = load(gone_file)
+resources = {"ocutalon_extract.py", "ocutalon_memory.py"}
+problems = []
+for entry, digest in sorted(ad.items()):
+    if entry not in ud:
+        problems.append("%s is gone" % entry)
+    elif ud[entry] != digest:
+        problems.append("%s changed" % entry)
+for entry in sorted(set(ud) - set(ad)):
+    problems.append("%s was added" % entry)
+for item in sorted(at - ut):
+    if item not in resources:
+        problems.append("top-level item %s is gone" % item)
+for item in sorted(ut - at):
+    problems.append("top-level item %s was added" % item)
+def imports(text):
+    return dict(re.findall(r"CHK\|imp\|([^|]+)\|(\d)", text))
+ib, ia = imports(open(imports_before).read()), imports(imports_after)
+if not ib or set(ib) != set(ia):
+    problems.append("the import record of IPM's packages is empty or not the same list before and after (%d and %d modules)" % (len(ib), len(ia)))
+for module, ok in sorted(ib.items()):
+    if ok == "1" and ia.get(module) != "1":
+        problems.append("%s imported before the install and does not now" % module)
+print("NOTE after the uninstall: %d distributions (%d after the install); removed top-level items: %s" % (len(ud), len(ad), ", ".join(sorted(at - ut)) or "none"))
+for problem in problems:
+    print("PROBLEM " + problem)
+sys.exit(1 if problems else 0)
+EOP
+)
+  rc=$?
+  printf '%s\n' "$out" | tr -d '\r' | grep -e '^NOTE' -e '^PROBLEM' | cut -c1-400 | sed 's/^/  /'
+  if [ "$rc" -eq 0 ]; then
+    pass "$label: the uninstall leaves the Python folder's distributions in place (only the two Python resources may go), and IPM's own packages import as before"
+  else
+    fail "$label: the uninstall removed or changed a distribution of the Python folder, or an IPM package no longer imports"
+  fi
+  check_imports "$label"
+  check_ipm_alive "$label" .
+  echo "TIME uninstall-python $((SECONDS - started))s"
 }
 
 # uninstall_checks <hash before the first command> <hash before the uninstall> <hash after it> (U-232 condition 1; the hashes are
@@ -1436,6 +2045,8 @@ if ! dc up -d --build --wait --wait-timeout "$((deadline - SECONDS))" > "$tmp/up
 fi
 live_track_image
 echo "TIME ready $((SECONDS - started))s"
+stage_requirements
+stage_licence_gate
 
 # --- part p alone: the package is installed from the folder and packaged first when there is no OCUTALON_IPM_ARTIFACT ---
 
@@ -1535,16 +2146,23 @@ check_session "IPM answers in OCUTALON, so the next command can start there" OCU
 # --- path A: the second run ---
 
 if [ "$mode" != b ]; then
+  snapshot_python_before
   run second-ocutalon OCUTALON "$INSTALL"
   check_second_run
   if [ "$mode" = all ]; then artifact_prepare; fi
   if [ "$mode" != r ]; then
     check_install
+    check_memory
+    check_licences "install checks"
+    check_python_pins "install checks"
+    check_extract "install checks"
     check_web
     check_package
     check_demo_switch
     check_start_outside
     check_start_by_step
+    check_reinstall
+    check_pip_skipped "pip skipped"
   fi
   if [ "$mode" != a ]; then reinstall_failures; fi
 fi
@@ -1561,6 +2179,8 @@ if ! dc up -d --wait --wait-timeout "$((deadline - SECONDS))" > "$tmp/up.log" 2>
   die "the second stack did not become ready"
 fi
 echo "TIME ready-b $((SECONDS - started))s"
+stage_requirements
+stage_licence_gate
 fails_before_load=$fails
 check_session "path B: IPM 0.10.10 is loaded in %SYS of the fresh instance" %SYS "CHK|load|1" \
   'Set sc=$SYSTEM.OBJ.Load("/opt/ocutalon-ipm/zpm-0.10.10.xml","ck-d") Write !,"CHK|load|",$SYSTEM.Status.IsOK(sc)' \

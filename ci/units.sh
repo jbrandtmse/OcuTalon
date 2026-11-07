@@ -17,14 +17,14 @@ SHARDS="lane-a lane-b"
 # shard_areas <shard>: the areas of a shard.
 shard_areas() {
   case $1 in
-    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel" ;;
+    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel Memory Docs" ;;
     lane-b) echo "Contract Core Data Demo Live Msg Schedule Web" ;;
     *) return 1 ;;
   esac
 }
 
-# The IRIS groups, in the order of the matrix of .github/workflows/ci.yml (eight since Epic 30's CI step, nine since Epic 12's close).
-IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4"
+# The IRIS groups, in the order of the matrix of .github/workflows/ci.yml (eight since Epic 30's CI step, nine since Epic 12's close, ten since Story 19.8's CI split).
+IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5"
 
 # group_units <group>: the units of a group in the order they run. live:<name> is docker/tests/test-<name>.sh and
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
@@ -77,6 +77,13 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # 725 s on those runs (jobs of 12.7 minutes). Each half was aimed at about 400 s of browser run and so about 680 s a unit (under the
 # 800 s that the ruling sets for each); browser becomes about 1,680 s and shards-4 about 1,410 s. Each unit prints one SPEC line per
 # spec file with its seconds, so that a later move between the two projects can be made by spec file from CI's own numbers.
+# CI split of Story 19.8 (2026-11-07; the Contest Planner's ruling of about 13:35Z, discharging DW-826) added the tenth group shards-5 for
+# shard:lane-a@Bridge,Agent, so that shard:lane-a@rest in shards-2 no longer runs the Bridge and Agent areas (rest is computed from the
+# pieces the groups name, so every area of lane-a stays in exactly one piece). The new unit is not in NO_WEB_BUNDLE_UNITS, as shard:lane-a@rest
+# is not, so shards-5 runs and skips on the inputs that its areas had in shards-2. Measured on part 1's head (ci run 42373301364): the
+# shards-2 job was cancelled at its 40-minute timeout after 2,421 s, in the Memory area and before Tools (Fix 755, Bridge 665, Agent 282,
+# Eval 178, Memory 76 so far, Docs 67 and Digest 37 s of classes, READY 267 s); Tools took 27 s on ci run 42375447084. Bridge and Agent
+# are 947 s of that, so shards-2 is about 1,500 s and shards-5 about 1,250 s (inference until a run measures them).
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
@@ -87,7 +94,8 @@ group_units() {
     shards-2) echo "shard:lane-a@rest" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
     shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit" ;;
-    shards-4) echo "shard:lane-a@Channel live:sign-in-2" ;;
+    shards-4) echo "shard:lane-a@Channel live:sign-in-2 live:memory-offline" ;;
+    shards-5) echo "shard:lane-a@Bridge,Agent" ;;
     *) return 1 ;;
   esac
 }
