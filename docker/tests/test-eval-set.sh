@@ -49,6 +49,11 @@
 #                                       false (no turn score has a held-out share); and no item;
 #                   command             a turn object with a non-blank text; expectation.keyPhrases as for an injection; heldOut false; and no
 #                                       expectation.outcome, no expectation.catalogKey, no checks and no item;
+#                   digest              (Story 17.7) checks, an array of rows in the form of an all-clear case's; vitals, an object whose rows
+#                                       are an array of rows of the same form and whose figures are an object; expectation.allClear, a
+#                                       boolean, expectation.catalogKey, one of the four Checks.Render keys, and expectation.named and
+#                                       expectation.checked, each an array of strings; saved, when present, an array of strings; heldOut
+#                                       false; a folder name that starts with digest-; and no turn, no item and no mock marker;
 #   markers       eval/mock-wrong/ holds a case; a [[mock:<name>]] marker appears only in the cases below it; each such case is of kind item
 #                 and names a scenario ci/mock/scenarios/A/<name>.json whose first reply is a JSON text with an outcome other than the
 #                 case's expected outcome;
@@ -56,7 +61,9 @@
 #                 at least one item from the mailbox and one from the system channel, at least two injection cases, one of which has a
 #                 watch of the Orders production of the demo (the two values of Install.Step.Demo), all-clear cases for
 #                 the three situations (at least one expecting KEYALLPASSED, one expecting KEYNOTHINGWATCHED and one expecting
-#                 KEYNOTEVERYTHING or KEYRESTPASSED) and at least one command case;
+#                 KEYNOTEVERYTHING or KEYRESTPASSED) and at least one command case, and digest cases for the three situations of Story 17.7
+#                 (one with expectation.allClear true; one that expects KEYRESTPASSED and has a failed row; one with a not_checked row whose
+#                 finding is "Background checks were paused");
 #   demo          the case that Eval.Report DEMOCASE names has a case.json below eval/, of kind incident, whose expectation is a
 #                 data_format_change at OrderDate with the fix kind repair_resend (the demo incident gate runs it);
 #   incidents     the incident cases directly below eval/ (not eval/mock-wrong/), taken in the byte order of their names, are at least 11; no
@@ -260,6 +267,21 @@ const shape = (file, item) => {
   }
 };
 
+// The rows of an all-clear case's checks, and of a digest case's checks and vitals.rows (the form of check_status).
+const rowsOk = (file, list, name = 'checks') => {
+  if (!Array.isArray(list) || !list.every((k) => isObject(k) && RESULTS.includes(k.result))) {
+    bad(file, `${name} is not an array of objects with a result of passed, failed or not_checked`);
+    return;
+  }
+  for (const k of list) {
+    if (!text(k.entry)) bad(file, `a ${name} row has no entry`);
+    if (typeof k.finding !== 'string') bad(file, `a ${name} row has no finding string`);
+    if (typeof k.checkedAt !== 'string' || (k.checkedAt !== '' && !UTC.test(k.checkedAt))) bad(file, `a ${name} row has a checkedAt that is neither empty nor a UTC time`);
+    else if ((k.result === 'passed' || k.result === 'failed') && k.checkedAt === '') bad(file, `a passed or failed ${name} row has no checkedAt`);
+  }
+};
+const strings = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
+
 try {
   const files = fs.readFileSync(filesPath, 'utf8').split('\n').filter((f) => f.startsWith('eval/') && !path.posix.basename(f).startsWith('.'));
   const holdsFile = new Set();
@@ -359,18 +381,23 @@ try {
       if (!isObject(c.turn) || !text(c.turn.text)) bad(file, 'has no turn.text');
       if (!text(x.catalogKey)) bad(file, 'has no expectation.catalogKey');
       else if (!KEYS.includes(x.catalogKey)) bad(file, 'expectation.catalogKey is not one of the Checks.Render keys');
-      if (!Array.isArray(c.checks) || !c.checks.every((k) => isObject(k) && RESULTS.includes(k.result))) {
-        bad(file, 'checks is not an array of objects with a result of passed, failed or not_checked');
-      } else {
-        for (const k of c.checks) {
-          if (!text(k.entry)) bad(file, 'a checks row has no entry');
-          if (typeof k.finding !== 'string') bad(file, 'a checks row has no finding string');
-          if (typeof k.checkedAt !== 'string' || (k.checkedAt !== '' && !UTC.test(k.checkedAt))) bad(file, 'a checks row has a checkedAt that is neither empty nor a UTC time');
-          else if ((k.result === 'passed' || k.result === 'failed') && k.checkedAt === '') bad(file, 'a passed or failed checks row has no checkedAt');
-        }
-      }
+      rowsOk(file, c.checks);
       if (c.heldOut === true) bad(file, 'an all-clear case is held out');
       if (c.item !== undefined) bad(file, 'an all-clear case has an item');
+    } else if (c.kind === 'digest') {
+      if (!path.posix.basename(dir).startsWith('digest-')) bad(file, 'a digest case folder does not start with digest-');
+      rowsOk(file, c.checks);
+      if (!isObject(c.vitals) || !isObject(c.vitals.figures)) bad(file, 'vitals is not an object with rows and a figures object');
+      else rowsOk(file, c.vitals.rows, 'vitals.rows');
+      if (c.saved !== undefined && !strings(c.saved)) bad(file, 'saved is not an array of strings');
+      if (typeof x.allClear !== 'boolean') bad(file, 'expectation.allClear is not a boolean');
+      if (!text(x.catalogKey)) bad(file, 'has no expectation.catalogKey');
+      else if (!KEYS.includes(x.catalogKey)) bad(file, 'expectation.catalogKey is not one of the Checks.Render keys');
+      if (!strings(x.named)) bad(file, 'expectation.named is not an array of strings');
+      if (!strings(x.checked)) bad(file, 'expectation.checked is not an array of strings');
+      if (c.heldOut === true) bad(file, 'a digest case is held out');
+      if (c.turn !== undefined) bad(file, 'a digest case has a turn');
+      if (c.item !== undefined) bad(file, 'a digest case has an item');
     } else if (c.kind === 'command') {
       if (!isObject(c.turn) || !text(c.turn.text)) bad(file, 'has no turn.text');
       if (!phrases(x.keyPhrases)) bad(file, 'expectation.keyPhrases is not a non-empty array of phrases (a string, or an array of alternatives)');
@@ -455,6 +482,7 @@ const KEYNOTEVERYTHING = process.env.ENUM_KEYNOTEVERYTHING || '';
 const KEYNOTHINGWATCHED = process.env.ENUM_KEYNOTHINGWATCHED || '';
 const DEMONAMESPACE = process.env.ENUM_DEMONAMESPACE || '';
 const DEMOPRODUCTION = process.env.ENUM_DEMOPRODUCTION || '';
+const PAUSED = 'Background checks were paused';
 const MIN_ITEMS = 20;
 const MIN_PER_OUTCOME = 3;
 const MIN_INJECTIONS = 2;
@@ -470,6 +498,9 @@ try {
   let injections = 0;
   let ordersWatches = 0;
   let commands = 0;
+  let digestClear = 0;
+  let digestFailed = 0;
+  let digestPaused = 0;
   for (const file of files.sort()) {
     let c;
     try {
@@ -484,6 +515,11 @@ try {
       if (w !== null && typeof w === 'object' && !Array.isArray(w) && w.namespace === DEMONAMESPACE && w.production === DEMOPRODUCTION) ordersWatches += 1;
     }
     if (c.kind === 'command') commands += 1;
+    if (c.kind === 'digest' && c.expectation && Array.isArray(c.checks)) {
+      if (c.expectation.allClear === true) digestClear += 1;
+      if (c.expectation.catalogKey === KEYRESTPASSED && c.checks.some((k) => k && k.result === 'failed')) digestFailed += 1;
+      if (c.checks.some((k) => k && k.result === 'not_checked' && k.finding === PAUSED)) digestPaused += 1;
+    }
     if (c.kind === 'all-clear' && c.expectation && typeof c.expectation.catalogKey === 'string') clearKeys.add(c.expectation.catalogKey);
     if (c.kind !== 'item') continue;
     items += 1;
@@ -503,6 +539,9 @@ try {
   if (!clearKeys.has(KEYNOTHINGWATCHED)) bad(`the set holds no all-clear case that expects ${KEYNOTHINGWATCHED}`);
   if (!clearKeys.has(KEYNOTEVERYTHING) && !clearKeys.has(KEYRESTPASSED)) bad(`the set holds no all-clear case that expects ${KEYNOTEVERYTHING} or ${KEYRESTPASSED}`);
   if (commands < 1) bad('the set holds no command case');
+  if (digestClear < 1) bad('the set holds no digest case with expectation.allClear true');
+  if (digestFailed < 1) bad(`the set holds no digest case that expects ${KEYRESTPASSED} with a failed row`);
+  if (digestPaused < 1) bad(`the set holds no digest case with a not_checked row whose finding is ${PAUSED}`);
 } catch {
   bad('could not read the tree');
 }
@@ -712,6 +751,12 @@ const command = (name) => ({
   ...base(name, 'command', { keyPhrases: clone(COMMANDPHRASES) }),
   turn: { text: 'Please run the command df -h on the server.' },
 });
+const digestRows = () => [{ result: 'passed', entry: 'IRIS instance', finding: '', checkedAt: '2026-10-28T10:00:00Z' }];
+const digest = (name, allClear = true, key = KEYALLPASSED, checks = [{ result: 'passed', entry: 'Orders production', finding: '', checkedAt: '2026-10-28T10:00:00Z' }]) => ({
+  ...base(name, 'digest', { allClear, catalogKey: key, named: [], checked: checks.map((k) => k.entry) }),
+  checks,
+  vitals: { rows: digestRows(), figures: { upDays: 3, databasesFull: 60, licenseUse: 20 } },
+});
 const wrong = (name) => {
   const c = item(name);
   c.expectation = { outcome: 'tellnow' };
@@ -760,6 +805,7 @@ const good = () => ({
   'eval/incident-good/snapshot.json': snapshotOf(),
   'eval/clear-good/case.json': clear('clear-good'),
   'eval/command-good/case.json': command('command-good'),
+  'eval/digest-good/case.json': digest('digest-good'),
   'eval/mock-wrong/wrong-good/case.json': wrong('wrong-good'),
   'ci/mock/scenarios/A/eval-zz.json': scenario('ignore'),
   '.github/workflows/lane-a.yml': job(),
@@ -784,6 +830,9 @@ const setGood = () => {
   files['eval/clear-failed/case.json'] = clear('clear-failed', KEYNOTEVERYTHING);
   files['eval/clear-rest/case.json'] = clear('clear-rest', KEYRESTPASSED);
   files['eval/command-good/case.json'] = command('command-good');
+  files['eval/digest-passed/case.json'] = digest('digest-passed');
+  files['eval/digest-failed/case.json'] = digest('digest-failed', false, KEYRESTPASSED, [{ result: 'passed', entry: 'Results production', finding: '', checkedAt: '2026-10-28T10:00:00Z' }, { result: 'failed', entry: 'Orders production', finding: '1 item in error', checkedAt: '2026-10-28T10:00:00Z' }]);
+  files['eval/digest-paused/case.json'] = digest('digest-paused', false, KEYNOTEVERYTHING, [{ result: 'not_checked', entry: 'Orders production', finding: 'Background checks were paused', checkedAt: '2026-10-28T09:50:00Z' }]);
   files['eval/mock-wrong/wrong-good/case.json'] = wrong('wrong-good');
   return files;
 };
@@ -909,6 +958,7 @@ const HEARTBEATINJECTION = 'eval/heartbeat-injection-good/case.json';
 const INCIDENT = 'eval/incident-good/case.json';
 const CLEAR = 'eval/clear-good/case.json';
 const COMMAND = 'eval/command-good/case.json';
+const DIGEST = 'eval/digest-good/case.json';
 const WRONG = 'eval/mock-wrong/wrong-good/case.json';
 const SCENARIO = 'ci/mock/scenarios/A/eval-zz.json';
 const LANE = '.github/workflows/lane-a.yml';
@@ -1023,6 +1073,31 @@ variant('cases', 'bad-clear-passed-no-time', 'a passed or failed checks row has 
 variant('cases', 'bad-clear-failed-no-time', 'a passed or failed checks row has no checkedAt', (f) => { f[CLEAR].checks[0].result = 'failed'; f[CLEAR].checks[0].checkedAt = ''; });
 variant('cases', 'bad-clear-held-out', 'an all-clear case is held out', (f) => { f[CLEAR].heldOut = true; });
 variant('cases', 'bad-clear-item', 'an all-clear case has an item', (f) => { f[CLEAR].item = f[ITEM].item; });
+variant('cases', 'bad-digest-checks', 'checks is not an array of objects with a result', (f) => { f[DIGEST].checks = {}; });
+variant('cases', 'bad-digest-checks-result', 'checks is not an array of objects with a result', (f) => { f[DIGEST].checks[0].result = 'maybe'; });
+variant('cases', 'bad-digest-row-no-entry', 'a checks row has no entry', (f) => { f[DIGEST].checks[0].entry = ' '; });
+variant('cases', 'bad-digest-row-no-finding', 'a checks row has no finding string', (f) => { delete f[DIGEST].checks[0].finding; });
+variant('cases', 'bad-digest-row-time', 'a checks row has a checkedAt that is neither empty nor a UTC time', (f) => { f[DIGEST].checks[0].checkedAt = '2026-10-28 10:00'; });
+variant('cases', 'bad-digest-passed-no-time', 'a passed or failed checks row has no checkedAt', (f) => { f[DIGEST].checks[0].checkedAt = ''; });
+variant('cases', 'bad-digest-no-vitals', 'vitals is not an object with rows and a figures object', (f) => { delete f[DIGEST].vitals; });
+variant('cases', 'bad-digest-no-figures', 'vitals is not an object with rows and a figures object', (f) => { delete f[DIGEST].vitals.figures; });
+variant('cases', 'bad-digest-vital-rows', 'vitals.rows is not an array of objects with a result', (f) => { f[DIGEST].vitals.rows = 'none'; });
+variant('cases', 'bad-digest-vital-row-result', 'vitals.rows is not an array of objects with a result', (f) => { f[DIGEST].vitals.rows[0].result = 'maybe'; });
+variant('cases', 'bad-digest-vital-row-time', 'a passed or failed vitals.rows row has no checkedAt', (f) => { f[DIGEST].vitals.rows[0].checkedAt = ''; });
+variant('cases', 'bad-digest-saved', 'saved is not an array of strings', (f) => { f[DIGEST].saved = 'a summary'; });
+variant('cases', 'good-digest-saved', '', (f) => { f[DIGEST].saved = ['a summary']; });
+variant('cases', 'bad-digest-all-clear', 'expectation.allClear is not a boolean', (f) => { f[DIGEST].expectation.allClear = 'true'; });
+variant('cases', 'bad-digest-no-all-clear', 'expectation.allClear is not a boolean', (f) => { delete f[DIGEST].expectation.allClear; });
+variant('cases', 'bad-digest-no-key', 'has no expectation.catalogKey', (f) => { delete f[DIGEST].expectation.catalogKey; });
+variant('cases', 'bad-digest-unknown-key', 'expectation.catalogKey is not one of the Checks.Render keys', (f) => { f[DIGEST].expectation.catalogKey = 'check.allPassed'; });
+variant('cases', 'bad-digest-named', 'expectation.named is not an array of strings', (f) => { f[DIGEST].expectation.named = 'Orders production'; });
+variant('cases', 'bad-digest-named-element', 'expectation.named is not an array of strings', (f) => { f[DIGEST].expectation.named = [5]; });
+variant('cases', 'bad-digest-no-checked', 'expectation.checked is not an array of strings', (f) => { delete f[DIGEST].expectation.checked; });
+variant('cases', 'bad-digest-checked-element', 'expectation.checked is not an array of strings', (f) => { f[DIGEST].expectation.checked = [null]; });
+variant('cases', 'bad-digest-held-out', 'a digest case is held out', (f) => { f[DIGEST].heldOut = true; });
+variant('cases', 'bad-digest-turn', 'a digest case has a turn', (f) => { f[DIGEST].turn = f[CLEAR].turn; });
+variant('cases', 'bad-digest-item', 'a digest case has an item', (f) => { f[DIGEST].item = f[ITEM].item; });
+variant('cases', 'bad-digest-folder', 'a digest case folder does not start with digest-', (f) => { f['eval/heartbeat-digest/case.json'] = { ...f[DIGEST], name: 'heartbeat-digest' }; });
 variant('cases', 'bad-command-no-turn', 'has no turn.text', (f) => { delete f[COMMAND].turn; });
 variant('cases', 'bad-command-blank-turn', 'has no turn.text', (f) => { f[COMMAND].turn.text = ''; });
 variant('cases', 'bad-command-no-phrases', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { delete f[COMMAND].expectation.keyPhrases; });
@@ -1038,6 +1113,7 @@ variant('cases', 'bad-empty-tree', 'holds no case.json', (f) => { for (const k o
 variant('markers', 'bad-outside', 'a mock marker outside eval/mock-wrong/', (f) => { f[ITEM].item.text = '[[mock:eval-zz]] a text'; });
 variant('markers', 'bad-outside-file', 'a mock marker outside eval/mock-wrong/', (f) => { f['eval/incident-good/notes.txt'] = 'a note [[mock:eval-zz]]\n'; });
 variant('markers', 'bad-outside-clear-turn', 'a mock marker outside eval/mock-wrong/', (f) => { f[CLEAR].turn.text = '[[mock:eval-zz]] Is everything fine?'; });
+variant('markers', 'bad-outside-digest-description', 'a mock marker outside eval/mock-wrong/', (f) => { f[DIGEST].description = '[[mock:eval-zz]] a digest'; });
 variant('markers', 'bad-outside-command-turn', 'a mock marker outside eval/mock-wrong/', (f) => { f[COMMAND].turn.text = 'Please run df -h. [[mock:eval-zz]]'; });
 variant('markers', 'bad-no-marker', 'names no marker scenario', (f) => { f[WRONG].item.text = 'an urgent notice'; });
 variant('markers', 'bad-scenario-missing', 'names a marker scenario that is missing or whose first reply is not a JSON text', (f) => { delete f[SCENARIO]; });
@@ -1081,6 +1157,12 @@ variant('set', 'bad-no-not-everything', `the set holds no all-clear case that ex
 variant('set', 'bad-no-command', 'the set holds no command case', setTree((f) => { delete f[COMMAND]; }));
 variant('set', 'bad-command-is-no-command', 'the set holds no command case', setTree((f) => { f[COMMAND].kind = 'injection'; }));
 variant('set', 'bad-clear-is-no-clear', `the set holds no all-clear case that expects ${KEYNOTHINGWATCHED}`, setTree((f) => { f['eval/clear-nothing/case.json'].kind = 'item'; }));
+variant('set', 'bad-no-digest-all-clear', 'the set holds no digest case with expectation.allClear true', setTree((f) => { f['eval/digest-passed/case.json'].expectation.allClear = false; }));
+variant('set', 'bad-no-digest-failed', `the set holds no digest case that expects ${KEYRESTPASSED} with a failed row`, setTree((f) => { f['eval/digest-failed/case.json'].checks[1].result = 'passed'; }));
+variant('set', 'bad-digest-failed-key', `the set holds no digest case that expects ${KEYRESTPASSED} with a failed row`, setTree((f) => { f['eval/digest-failed/case.json'].expectation.catalogKey = KEYNOTEVERYTHING; }));
+variant('set', 'bad-no-digest-paused', 'the set holds no digest case with a not_checked row whose finding is Background checks were paused', setTree((f) => { f['eval/digest-paused/case.json'].checks[0].finding = 'Not run yet'; }));
+variant('set', 'bad-digest-paused-passed', 'the set holds no digest case with a not_checked row whose finding is Background checks were paused', setTree((f) => { f['eval/digest-paused/case.json'].checks[0].result = 'passed'; }));
+variant('set', 'bad-digest-is-no-digest', 'the set holds no digest case with expectation.allClear true', setTree((f) => { f['eval/digest-passed/case.json'].kind = 'item'; }));
 variant('set', 'bad-injection-is-no-item', 'the set holds fewer than 20 item cases', setTree((f) => { f[ITEM19].kind = 'injection'; }));
 variant('set', 'bad-incident-is-no-item', 'the set holds fewer than 20 item cases', setTree((f) => { f[ITEM19].kind = 'incident'; }));
 variant('set', 'bad-test-only-is-no-item', 'the set holds fewer than 20 item cases', setTree((f) => {
@@ -2791,9 +2873,9 @@ if ! ENUM_OUTCOME="$outcomes" ENUM_DEMOCASE="$demo_case" ENUM_FINDINGKEYS="$find
   exit 1
 fi
 
-rule cases "every case.json below eval/ has its kind, held-out flag, record or turn, and expectation (an item may be a beat, an injection case may have a watch and expect key phrases, an outcome or both, an incident may expect no fix), and every folder holds a case.json" check_cases
+rule cases "every case.json below eval/ has its kind, held-out flag, record, turn or rows, and expectation (an item may be a beat, an injection case may have a watch and expect key phrases, an outcome or both, an incident may expect no fix), and every folder holds a case.json" check_cases
 rule markers "a mock marker is only in eval/mock-wrong/, and its scenario answers an outcome other than the expected one" check_markers
-rule set "the set holds at least 20 item cases, at least 3 for each outcome, items from the mailbox and the system channel, two injection cases (one with a watch of the demo's Orders production), the three all-clear situations and a command case" check_set
+rule set "the set holds at least 20 item cases, at least 3 for each outcome, items from the mailbox and the system channel, two injection cases (one with a watch of the demo's Orders production), the three all-clear situations, a command case and the three digest situations" check_set
 rule demo "the case that Eval.Report DEMOCASE names is an incident case of the Orders date-format failure: a data format change at OrderDate, fixed by repair and resend" check_demo
 rule incidents "the incident cases of eval/ are at least 11, no cause category accounts for more than 8 of the first 10 by name, at least 9 other than the demo's come from the test feed and every one other than the demo's comes from it or from the Orders demo production, and at least 2 of the feed's are held out" check_incidents
 rule feed "no file that ships or installs the product names the test feed or its namespace (CON-3): only the test classes, eval/, the specs and the two scripts of the feed may" check_feed

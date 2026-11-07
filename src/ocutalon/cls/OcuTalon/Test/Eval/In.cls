@@ -39,6 +39,10 @@
 ///   - TestIncidentRefuses: an incident case with no snapshot, a snapshot name with a slash, a backslash or two dots, a missing snapshot file, and a file
 ///     that is not a reader snapshot (not JSON, another format) are each skipped with their reason, logged as a warning, with no row and nothing dispatched;
 ///   - TestIncidentSendFails: a dispatch that fails or throws deletes the row, returns the error text as the reason, and the case can be sent again;
+///   - TestSendsDigest (Story 17.7): a digest case is sent once as a DigestCase with a fresh ItemId, the case's checks, vitals and saved summaries as JSON and
+///     the folder name as SourceItemId; its row is open with that ItemId when it is dispatched;
+///   - TestDigestRefuses: a digest case whose checks is missing or not an array is refused with REASONNOCHECKS, with no row and nothing dispatched;
+///   - TestDigestSendFails: a dispatch that fails or throws deletes the row and returns the error text, and the case can be sent again;
 ///   - TestSendOrder: the turn kinds come first, then the others, each group in the order of the list;
 ///   - TestSendsWatch (Story 9.8, AC4): a case with a watch of the Orders production has its eval watch row when its Item is dispatched (the double
 ///     counts the rows of owner eval, list position 13), the service's Watches holds {case, watch} with the stored fields of that row, and Finish
@@ -741,7 +745,7 @@ Method TestBeforeFallback()
 Method TestSendOrder()
 {
 	Set folder = ##class(%File).SubDirectoryName(..Folder, "ordered")
-	For entry = $ListBuild("zz-a", "item"), $ListBuild("zz-b", "all-clear"), $ListBuild("zz-c", "injection"), $ListBuild("zz-d", "command"), $ListBuild("zz-f", "incident") {
+	For entry = $ListBuild("zz-a", "item"), $ListBuild("zz-b", "all-clear"), $ListBuild("zz-c", "injection"), $ListBuild("zz-d", "command"), $ListBuild("zz-f", "incident"), $ListBuild("zz-g", "digest") {
 		Set directory = ##class(%File).SubDirectoryName(folder, $List(entry, 1))
 		Do ##class(%File).CreateDirectoryChain(directory)
 		Do ..WriteFile(directory, {"kind": ($List(entry, 2))}.%ToJSON())
@@ -751,8 +755,8 @@ Method TestSendOrder()
 	Do ..WriteFile(directory, "this is not json")
 	Set in = "OcuTalon.Eval.In"
 	Set list = $ClassMethod(in, "CaseNames", folder, "")
-	Do $$$AssertEquals($ListToString(list, "|"), "zz-a|zz-b|zz-c|zz-d|zz-e|zz-f", "control: the folder lists its cases in name order")
-	Do $$$AssertEquals($ListToString($ClassMethod(in, "SendOrder", folder, list), "|"), "zz-b|zz-d|zz-a|zz-c|zz-e|zz-f", "the all-clear and command cases come first, then the rest, each group in name order; a case whose kind cannot be read goes with the rest")
+	Do $$$AssertEquals($ListToString(list, "|"), "zz-a|zz-b|zz-c|zz-d|zz-e|zz-f|zz-g", "control: the folder lists its cases in name order")
+	Do $$$AssertEquals($ListToString($ClassMethod(in, "SendOrder", folder, list), "|"), "zz-b|zz-d|zz-a|zz-c|zz-e|zz-f|zz-g", "the all-clear and command cases come first, then the rest (a digest case among them), each group in name order; a case whose kind cannot be read goes with the rest")
 	Do $$$AssertEquals($ListToString($ClassMethod(in, "SendOrder", folder, $ListBuild("zz-d", "zz-c", "zz-b", "zz-a")), "|"), "zz-d|zz-b|zz-c|zz-a", "a list in another order keeps that order within each group")
 	Do $$$AssertEquals($ListLength($ClassMethod(in, "SendOrder", folder, "")), 0, "an empty list gives an empty list")
 	Do $$$AssertEquals($ListToString($ClassMethod(in, "SendOrder", folder, $ListBuild("zz-missing", "zz-b")), "|"), "zz-b|zz-missing", "and a case that is not there goes with the rest")
@@ -845,6 +849,70 @@ Method TestIncidentSendFails()
 	Do $$$AssertEquals(..Rows(), 1, "and has its row")
 }
 
+/// A digest case is sent once as a DigestCase with a fresh ItemId, the case's checks, vitals and saved summaries as JSON text and its name as SourceItemId, and
+/// its row is open with that ItemId when the DigestCase is dispatched. A case with no vitals or no saved sends them empty.
+Method TestSendsDigest()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set checks = [{"result": "failed", "entry": "Orders production", "finding": "1 item in error", "checkedAt": "2026-11-05T07:59:00Z"}]
+	Set vitals = {"rows": [{"result": "passed", "entry": "IRIS instance", "finding": "", "checkedAt": "2026-11-05T08:00:00Z"}], "figures": {"upDays": 3}}
+	Do ..WriteCase("zz-dg-a", {"kind": "digest", "checks": (checks), "vitals": (vitals), "saved": ["A partner asked about an invoice."]}.%ToJSON())
+	Do ..WriteCase("zz-dg-b", {"kind": "digest", "checks": []}.%ToJSON())
+	Do $$$AssertEquals(..Process(service, "zz-dg-a"), "", "a digest case is sent")
+	Do $$$AssertEquals(..Digests(), 1, "one DigestCase was dispatched")
+	Set seen = ..DigestAt(1)
+	Do $$$AssertEquals($Length($List(seen, 1)), 22, "its ItemId is 22 characters")
+	Do $$$AssertEquals($List(seen, 2), "zz-dg-a", "SourceItemId is the case's folder name")
+	Do $$$AssertEquals($List(seen, 3)_"|"_$List(seen, 4)_"|"_$List(seen, 5), checks.%ToJSON()_"|"_vitals.%ToJSON()_"|"_["A partner asked about an invoice."].%ToJSON(), "RecordedChecks, RecordedVitals and RecordedSaved are the case's, as JSON")
+	Do $$$AssertEquals($List(seen, 6)_"|"_$List(seen, 7), "1|"_..Run, "the case's row was open when the DigestCase was dispatched, and the service's SuperSession is the run's Ref")
+	Set row = ##class(OcuTalon.Eval.Data.CaseResult).RunCaseIndexOpen(..Run, "zz-dg-a")
+	Do $$$AssertTrue($IsObject(row), "the row stays")
+	If $IsObject(row) Do $$$AssertEquals(row.State_"|"_row.SourceItemId_"|"_row.ItemId, "sent|zz-dg-a|"_$List(seen, 1), "in state sent, with the DigestCase's ItemId")
+	Do $$$AssertEquals(..Process(service, "zz-dg-b"), "", "a second digest case is sent")
+	Set seen = ..DigestAt(2)
+	Do $$$AssertEquals($List(seen, 4)_"|"_$List(seen, 5), "|", "a case with no vitals and no saved sends them empty")
+	Do $$$AssertEquals(..Seen()_"|"_..Asked()_"|"_..Incidents()_"|"_..Rows(), "0|0|0|2", "no Item, turn or IncidentCase was sent, and each case has its row")
+}
+
+/// A digest case whose checks is missing or is not an array is refused with REASONNOCHECKS, logged, with no row and nothing dispatched.
+Method TestDigestRefuses()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set in = "OcuTalon.Eval.In"
+	Do ..WriteCase("zz-dg-none", {"kind": "digest"}.%ToJSON())
+	Do ..WriteCase("zz-dg-object", {"kind": "digest", "checks": {}}.%ToJSON())
+	Do ..WriteCase("zz-dg-text", {"kind": "digest", "checks": "none"}.%ToJSON())
+	For name = "zz-dg-none", "zz-dg-object", "zz-dg-text" {
+		Do $$$AssertEquals(..Process(service, name), $Parameter(in, "REASONNOCHECKS"), name_": the reason is REASONNOCHECKS")
+	}
+	Do $$$AssertEquals(..Digests()_"|"_..Rows(), "0|0", "nothing was dispatched and no row was made")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .warning, "OnProcessInput", $Parameter(in, "LOGSKIPPED")), 3, "each case was logged as a warning")
+}
+
+/// A dispatch that fails or throws removes the row and returns the error text; the case can then be sent.
+Method TestDigestSendFails()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Do ..WriteCase("zz-dg-fail", {"kind": "digest", "checks": []}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "fail") = "the target is not there"
+	Set reason = ..Process(service, "zz-dg-fail")
+	Do $$$AssertTrue(reason [ "the target is not there", "the reason is the error text: "_reason)
+	Do $$$AssertEquals(..Digests(), 1, "the send was tried once")
+	Do $$$AssertEquals($List(..DigestAt(1), 6), 1, "with the row open")
+	Do $$$AssertEquals(..Rows(), 0, "and the row is deleted")
+	Kill ^OcuTalonTest("EvalIn", "fail")
+	Set ^OcuTalonTest("EvalIn", "throw") = "the send threw"
+	Set reason = ..Process(service, "zz-dg-fail")
+	Do $$$AssertTrue(reason [ "the send threw", "a send that throws gives the exception's text as the reason: "_reason)
+	Do $$$AssertEquals(..Rows(), 0, "and the row is deleted")
+	Kill ^OcuTalonTest("EvalIn", "throw")
+	Do $$$AssertEquals(..Process(service, "zz-dg-fail"), "", "the case is sent when the target answers")
+	Do $$$AssertEquals(..Rows(), 1, "and has its row")
+}
+
 /// --- helpers ---
 /// The text of the demo incident's recorded snapshot, or "" with the failure reported.
 Method Snapshot() As %String [ Private ]
@@ -881,6 +949,19 @@ ClassMethod Incidents() As %Integer [ Private ]
 ClassMethod IncidentAt(n As %Integer) As %List [ Private ]
 {
 	Quit $Get(^OcuTalonTest("EvalIn", "incident", n))
+}
+
+/// How many DigestCases the double was given.
+ClassMethod Digests() As %Integer [ Private ]
+{
+	Quit +$Get(^OcuTalonTest("EvalIn", "digest"))
+}
+
+/// The nth DigestCase the double was given, as a list: ItemId, SourceItemId, RecordedChecks, RecordedVitals, RecordedSaved, 1 when the case's row was open
+/// and the service's SuperSession.
+ClassMethod DigestAt(n As %Integer) As %List [ Private ]
+{
+	Quit $Get(^OcuTalonTest("EvalIn", "digest", n))
 }
 
 /// The watch that a case of the Orders production declares: the namespace and production of the demo.

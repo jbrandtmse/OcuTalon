@@ -51,6 +51,13 @@ Property Reported As %String(MAXLEN = "");
 
 Index RefIndex On Ref [ Unique ];
 
+/// Records each run in Digest.Data.CheckRun (Story 17.5): when an update changes LastRunAt to a time, Checks.Coverage.RecordRun writes one row
+/// for it, in the same statement as the update. A run that cannot be recorded logs a warning there and never fails the update.
+Trigger RecordRun [ Event = UPDATE, Foreach = row/object, Time = AFTER ]
+{
+	If {LastRunAt*C} && ({LastRunAt} '= "") Do ##class(OcuTalon.Checks.Coverage).RecordRun({Ref}, {SessionRef}, {LastRunAt}, {Result}, {Finding}, {LastRunHeaderId})
+}
+
 Index SessionRefIndex On SessionRef;
 
 Index NamespaceProductionIndex On (Namespace, Production);

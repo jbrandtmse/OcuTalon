@@ -7,8 +7,10 @@
 ///     first run that found the session with no link, in the private database like ^OcuTalonBP.UsageCapped (Budget). A run deletes a session whose
 ///     mark is at least 86,400 s old and that is still unnamed, clears the mark of a session that a link names and of one that is gone, and marks
 ///     the others. The session rule does not depend on daysToKeep. It covers every AI session of the namespace; only the bridge's runner saves
-///     sessions in OCUTALON (Adapter.Agent), and it points a link at a session right after it saves it, so a session that is saved and not yet named
-///     is marked and then kept for a day.
+///     sessions in OCUTALON (Adapter.Agent), and Decide points a link at a session when it accepts the reply of the turn that saved it (Process.Decide
+///     PointLink), within the decision's 110 s, so a session that is saved and not yet named is marked and then kept for a day. A new session whose
+///     reply Decide did not accept (a late, refused or superseded one, or the fork of a compaction that was not accepted) stays unnamed and is deleted
+///     after a day.
 /// The purge reads the links' SessionId values with one SELECT and compares them in ObjectScript; it takes no conversation lock and writes no link
 /// (AD-6). It works in the current namespace only (AD-3), touches no audit entry (AD-17) and names no other OcuTalon package (AD-2). Each part runs
 /// whatever an earlier part returned, and their errors are combined into one status.

@@ -1,0 +1,16 @@
+{
+  "name": "retry-diagnosis",
+  "match": {
+    "marker": "retry-diagnosis"
+  },
+  "replies": [
+    {
+      "status": 500,
+      "text": "CI mock: the provider failed."
+    },
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"causeCategory\":\"data_format_change\",\"elementAtFault\":\"OrderDate\",\"evidence\":[\"failed_messages\",\"OrderDate\"],\"fixKind\":\"repair_resend\",\"fixParameters\":{\"field\":\"OrderDate\",\"sourceFormat\":\"MM/DD/YYYY\",\"targetFormat\":\"YYYY-MM-DD\"},\"cause\":\"The partner now sends the order date as month, day and year with slashes, and the production expects year, month and day with dashes.\",\"fixSummary\":\"rewrite the order date of the failed orders in the format the production expects and send them again\",\"itemNoun\":{\"one\":\"order\",\"other\":\"orders\"},\"reasons\":[\"The failed orders all hold an order date in the new format.\",\"Read month first, each order date matches the day its order arrived, within a day, or has a day above 12; read day first, it does neither.\",\"The CI mock read the failed messages.\"],\"confidence\":0.9}"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "digest-send-now",
+  "match": {
+    "marker": "digest-send-now"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "send_digest",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock asked for the digest."
+    }
+  ]
+}

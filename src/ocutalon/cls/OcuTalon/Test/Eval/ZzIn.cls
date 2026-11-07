@@ -5,6 +5,9 @@
 ///   - DispatchIncident (an incident case) records each IncidentCase it is given under ^OcuTalonTest("EvalIn", "incident", n) as a list: IncidentRef,
 ///     SourceItemId, the format of the snapshot text, the number of failures in it, 1 when the case's row was open at that moment (found by the IncidentRef)
 ///     and the SuperSession of the service. It answers and throws as Dispatch does, by the same "fail" and "throw" records.
+///   - DispatchDigest (a digest case) records each DigestCase it is given under ^OcuTalonTest("EvalIn", "digest", n) as a list: ItemId, SourceItemId,
+///     RecordedChecks, RecordedVitals, RecordedSaved, 1 when the case's row was open at that moment and the SuperSession of the service. It answers and
+///     throws as Dispatch does, by the same "fail" and "throw" records.
 ///   - Ask (a turn case's call to Decide) records each request under ^OcuTalonTest("EvalIn", "asked", n) as a list: Kind, Provenance, OwnerRef,
 ///     ItemId, Input, Summary, TraceRef, Channel, ThreadSessionId, SessionMode, SeedText, SystemNote, 1 when the case's TurnResult exists,
 ///     its RecordedChecks, 1 when the case's row was open, and the SuperSession of the service. It answers what
@@ -39,6 +42,16 @@ Method DispatchIncident(incident As OcuTalon.Eval.Msg.IncidentCase) As %Status [
 	Set open = ''$IsObject(##class(OcuTalon.Eval.Data.CaseResult).Pending(incident.IncidentRef))
 	Set snapshot = ##class(%DynamicAbstractObject).%FromJSON(incident.Snapshot)
 	Set ^OcuTalonTest("EvalIn", "incident", $Increment(^OcuTalonTest("EvalIn", "incident"))) = $ListBuild(incident.IncidentRef, incident.SourceItemId, snapshot.format, snapshot.failures.%Size(), open, ..%SuperSession)
+	Set throw = $Get(^OcuTalonTest("EvalIn", "throw"))
+	If throw '= "" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, throw))
+	Set fail = $Get(^OcuTalonTest("EvalIn", "fail"))
+	Quit $Select(fail '= "": $SYSTEM.Status.Error(5001, fail), 1: $$$OK)
+}
+
+Method DispatchDigest(digest As OcuTalon.Eval.Msg.DigestCase) As %Status [ Private ]
+{
+	Set open = ''$IsObject(##class(OcuTalon.Eval.Data.CaseResult).Pending(digest.ItemId))
+	Set ^OcuTalonTest("EvalIn", "digest", $Increment(^OcuTalonTest("EvalIn", "digest"))) = $ListBuild(digest.ItemId, digest.SourceItemId, digest.RecordedChecks, digest.RecordedVitals, digest.RecordedSaved, open, ..%SuperSession)
 	Set throw = $Get(^OcuTalonTest("EvalIn", "throw"))
 	If throw '= "" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, throw))
 	Set fail = $Get(^OcuTalonTest("EvalIn", "fail"))

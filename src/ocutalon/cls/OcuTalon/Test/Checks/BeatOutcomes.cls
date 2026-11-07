@@ -265,6 +265,15 @@ Method TestWatchRunsAgain()
 	Do ..AssertNoCheck(case, 1)
 }
 
+/// A fixture session as the ancestor makes it, created far ahead so that no digest is due for it: a Tick reaches Digest too, and a digest sent for the person
+/// would add a notice that these tests count.
+Method Session(name As %String) As %String [ Private ]
+{
+	Set ref = ##super(name)
+	Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.Session SET CreatedAt = ? WHERE Ref = ?", "2999-01-01T00:00:00Z", ref)
+	Quit ref
+}
+
 /// A person with a beat due at a time no real Tick reaches, whose checklist holds the scenario's marker (named with the person's Ref): the Tick at that time is sent
 /// and the one Item that Checks sent to Intake for the person is awaited. session is the person (made here when empty). It answers {session, trace, t0, text, mark,
 /// floor, item, checks}, item being {itemId, sessionId, superSession, provenance, channel, subject, text}, or "" with a failed assertion.

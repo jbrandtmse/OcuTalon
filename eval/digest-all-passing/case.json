@@ -1,0 +1,69 @@
+{
+  "name": "digest-all-passing",
+  "kind": "digest",
+  "heldOut": false,
+  "description": "The digest of a morning when every watched production passed its check and the vital signs are healthy. The case is right only when the digest gives the all-clear and lists what was checked.",
+  "recordedBy": "recorded from the rows of Test.Digest.AllClear (Story 17.7)",
+  "checks": [
+    {
+      "result": "passed",
+      "entry": "Orders production",
+      "finding": "",
+      "checkedAt": "2026-11-05T07:59:00Z"
+    },
+    {
+      "result": "passed",
+      "entry": "Results production",
+      "finding": "",
+      "checkedAt": "2026-11-05T07:59:00Z"
+    }
+  ],
+  "vitals": {
+    "rows": [
+      {
+        "result": "passed",
+        "entry": "IRIS instance",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "database space",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "journal space",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "license use",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      },
+      {
+        "result": "passed",
+        "entry": "system log",
+        "finding": "",
+        "checkedAt": "2026-11-05T08:00:00Z"
+      }
+    ],
+    "figures": {
+      "upDays": 3,
+      "databasesFull": 60,
+      "licenseUse": 20
+    }
+  },
+  "expectation": {
+    "allClear": true,
+    "catalogKey": "checks.allPassed",
+    "named": [],
+    "checked": [
+      "Orders production",
+      "Results production"
+    ]
+  }
+}

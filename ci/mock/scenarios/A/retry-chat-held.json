@@ -1,0 +1,17 @@
+{
+  "name": "retry-chat-held",
+  "match": {
+    "marker": "retry-chat-held"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "delayMs": 20000,
+      "text": "The first model answers late."
+    },
+    {
+      "status": 200,
+      "text": "The second model answers the turn."
+    }
+  ]
+}
