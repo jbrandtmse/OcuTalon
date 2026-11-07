@@ -856,29 +856,7 @@ Ships after the contest. [AMENDED 2026-10-31, owner decision, relayed by the Con
 **FRs covered:** none (delivery).
 **Also covers:** REL-4, REL-2; AD-22.
 
-#### Story 32.5: live:sign-in splits again after 4.11's tests
-
-As the release's CI,
-I want the live:sign-in unit split again, the way the 2026-11-05 split made live:sign-in-2,
-So that no unit runs over the 1,000 s line or near its 1,200 s deadline, and every group stays under the 35-minute budget.
-
-[ADDED 2026-11-07, Epic 32 fix-forward (the Contest Planner's ruling of about 17:55Z, relayed by the orchestrator): after Story 4.11's 96 more-to-try tests joined the chromium project, live:sign-in took 1,170 s on OCT-epic11 623b9cb0 (ci run 42392984136) and 1,034 s on feature 5b47f052 (ci run 42393186349), over the 1,000 s unit line and against its 1,200 s deadline. Its own commit on its own branch, so the Planner may pick it onto the release branch. No deadline is raised; every test is kept; nothing else changes.]
-
-**Acceptance Criteria:**
-
-**Given** the chromium project's spec files today
-**When** live:sign-in is split into two units, as live:sign-in-2 was split from it (`ci/units.sh` :69-74, `docker/tests/test-sign-in-2.sh`, a Playwright project of its own in `web/playwright.config.ts`)
-**Then** the two units together list exactly today's chromium test list (`npx playwright test --list` per project, diffed against today's one-unit list), no test is lost or duplicated, and every other project's list is unchanged
-
-**Given** the new unit
-**When** it is placed in a group
-**Then** that group's clean time plus the unit stays under 35 minutes, no deadline is raised, and the pins that name the sign-in units (the unit list, the group map, the changed-inputs rules, the e2e-part and playwright-projects tests) cover the new unit as they cover live:sign-in-2
-
-**Given** the change
-**When** it is pushed
-**Then** `docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow
-
-## Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
+### Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 17.1 and 18.1, moved whole and verbatim as Stories 33.1 and 33.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 2's names fixed in the spine and in code as stubs, and an admin opens a settings page that saves each section on its own, applies it within a minute and records it in the audit log, so that Epics 17 and 18 build in parallel.
 **Lane:** pool (runner A, B or C; in Lane A's files for Story 33.1 and Lane B's for Story 33.2; the dispatch fixes the runner). **Depends on:** Epic 12, merged, with v0.1.0 tagged (real: the start gate on v0.1.0), merging only once 0.1.1 has shipped (real: the merge gate on v0.1.1, Story 12.7's hands-on pass and Story 11.5's release sequence, so no step work reaches the feature branch before Telegram ships); story-level: Story 33.1 needs Epic 30 merged (footprint: the bridge stubs and the `OcuTalon.Msg.Catalog.Watch` keys it adds, beside Epic 30's bridge, `Checks` and `Catalog.Watch` changes). Story 33.2 follows Story 33.1 (real: it uses Story 33.1's names). Runner order: the first step epic in the pool, after Epic 12 and the 1.0.0 kit epics (30, 13, 31, 15 and 14). [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." the step-contract epic added; its edges follow the recommended graph] [AMENDED 2026-10-31, decided by the Contest Planner under the owner's delegation; the owner: "I agree with your recommendations.": the start gate moved from v0.1.1 to Epic 12's merge with v0.1.0 tagged, and a merge gate on v0.1.1 was added, as on Epic 31; it read "Epic 12, with 0.1.1 shipped (real: the v0.1.1 gate, Story 12.7's hands-on pass and Story 11.5's release sequence, so no step work starts before Telegram ships)"; the owner is away from November 2 about noon PST to November 3 morning, and a late Epic 12 merge would leave the runners idle about 18 hours waiting for the tag] [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet": the start gate on v0.1.0 is gone (it starts once Epic 12 has merged), and the merge gate is now `release/1.0.0-rc1` existing instead of 0.1.1 shipping, so no step work enters 1.0.0]
@@ -8248,6 +8226,28 @@ So that each story stops paying a fresh IRIS start for every test run, while the
 **Then** Rule 21's recipe gains when the stages use it (appended as a recipe, the run's own write), and the story measures the same classes run warm and fresh in one stage and records both times
 
 - Implementation note: build the warm mode in `ci/iris.sh` or a new `ci/warm.sh` on `docker/tests/lib-live.sh`'s existing functions; `lib-live.sh` is on Epic 2's contended paths until Epic 2 merges.
+
+### Story 32.5: live:sign-in splits again after 4.11's tests
+
+As the release's CI,
+I want the live:sign-in unit split again, the way the 2026-11-05 split made live:sign-in-2,
+So that no unit runs over the 1,000 s line or near its 1,200 s deadline, and every group stays under the 35-minute budget.
+
+[ADDED 2026-11-07, Epic 32 fix-forward (the Contest Planner's ruling of about 17:55Z, relayed by the orchestrator): after Story 4.11's 96 more-to-try tests joined the chromium project, live:sign-in took 1,170 s on OCT-epic11 623b9cb0 (ci run 42392984136) and 1,034 s on feature 5b47f052 (ci run 42393186349), over the 1,000 s unit line and against its 1,200 s deadline. Its own commit on its own branch, so the Planner may pick it onto the release branch. No deadline is raised; every test is kept; nothing else changes.]
+
+**Acceptance Criteria:**
+
+**Given** the chromium project's spec files today
+**When** live:sign-in is split into two units, as live:sign-in-2 was split from it (`ci/units.sh` :69-74, `docker/tests/test-sign-in-2.sh`, a Playwright project of its own in `web/playwright.config.ts`)
+**Then** the two units together list exactly today's chromium test list (`npx playwright test --list` per project, diffed against today's one-unit list), no test is lost or duplicated, and every other project's list is unchanged
+
+**Given** the new unit
+**When** it is placed in a group
+**Then** that group's clean time plus the unit stays under 35 minutes, no deadline is raised, and the pins that name the sign-in units (the unit list, the group map, the changed-inputs rules, the e2e-part and playwright-projects tests) cover the new unit as they cover live:sign-in-2
+
+**Given** the change
+**When** it is pushed
+**Then** `docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow
 
 ## Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
 
