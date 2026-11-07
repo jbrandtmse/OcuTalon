@@ -2,8 +2,8 @@
 title: 'Story 4.11: Other things to try'
 type: 'feature'
 created: '2026-11-06'
-status: 'in-progress'
-baseline_revision: 'd6dcc0b02017fda70413dd6c1041bba6b9faecc9'
+status: 'done'
+baseline_revision: '82c2a5579dfe27fda8b4dc6f24feace9387cd7e0'
 baseline_commit: 'd672a28d2d3c4e4314713ae77f13795c67d24be2'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -23,6 +23,20 @@ deferred:
       K6 and K7 run at the default viewport only. Settle it by running them at 1100x720 and 800x720: if the Simulated devices column or the box is not on the page there, the press finds nothing and does nothing.
     location: >-
       web/src/app/guide/more-to-try.ts press (suspiciousEmail, rejectFix)
+    severity: medium (unverified)
+  - summary: >-
+      Above the compact band, a panel the user opens where its shortest window and the chat's 160px floor cannot both fit still leaves the chat under 160px (the chat gets the rest), while EXPERIENCE.md says the chat keeps 160px above the band with and without a banner; only the compact band is covered by the Planner's floor ruling of 2026-11-07.
+    evidence: |-
+      Found by the blind review of the K21 patch; decision 13 (kept by the lead's ruling, veto window, inbox U-299) starts that panel closed but a user-opened one is allowed to squeeze the chat. The patch is not the cause. A browser case at 1280x700 with the banner and a squeezed guide, opening the panel by the link, would settle what the chat measures.
+    location: >-
+      web/src/app/guide/more-to-try-room.ts keepRoom; EXPERIENCE.md Other things to try
+    severity: medium (unverified)
+  - summary: >-
+      keepRoom's first measure only writes the bound, so when that write changes no layout the squeeze branch (the compact floor's min-height, and tight()) may not run until some later resize.
+    evidence: |-
+      Found by the edge-case review: the squeeze check is an else-if of the bound write, observed on documentElement, the host and the chat list only. The structure predates the patch. A case where the first measured bound equals the stylesheet's max-height while the chat is under its floor would settle it.
+    location: >-
+      web/src/app/guide/more-to-try-room.ts measure
     severity: medium (unverified)
 ---
 
@@ -469,7 +483,8 @@ Rejected:
 
 
 #### Exception iteration 4, CI patch (the Planner's K21 fallback, ~10:30Z, pre-approved, layout only; inside the 13:00Z deadline)
-- [ ] [CI] K21 at 1280x600 with the no-key banner (CI run 42359898984, Linux): with the panel OPENED by the user, the chat is 55.125px against the 64px floor. The re-review's relaxation (the chat may go under its floor once the user opens the panel) is NOT accepted: the Planner's rule is that the floor holds. Land ONE of these, and say which in the spec: (A, preferred if it fits the time box) a layout fix with no page scroll in which the panel's shortest window and the 64px chat floor both fit (e.g. a tighter shortest window: the label line and one control with less padding, within DESIGN.md's tokens, with no label change or truncation); or (B, the Planner's pre-approved FALLBACK) in the compact band only, when the user has opened the panel (More to try) and its shortest window plus the chat's 64px floor cannot both fit, the page may scroll VERTICALLY so the chat keeps its floor. In both: no sideways scroll at any size; no label change or truncation; the panel still starts closed in the compact band. Restore K21's floor assertion and pin K21 with the banner shown both BEFORE (panel closed as the finish starts: floor, no page scroll) and AFTER More to try (floor holds; under B the page may scroll vertically, never sideways); make K23's compact rows match; correct EXPERIENCE.md/DESIGN.md and the comments to say exactly what landed (citing "the Planner, 2026-11-07" for B).
+- [x] [CI] K21 at 1280x600 with the no-key banner (CI run 42359898984, Linux): with the panel OPENED by the user, the chat is 55.125px against the 64px floor. The re-review's relaxation (the chat may go under its floor once the user opens the panel) is NOT accepted: the Planner's rule is that the floor holds. Land ONE of these, and say which in the spec: (A, preferred if it fits the time box) a layout fix with no page scroll in which the panel's shortest window and the 64px chat floor both fit (e.g. a tighter shortest window: the label line and one control with less padding, within DESIGN.md's tokens, with no label change or truncation); or (B, the Planner's pre-approved FALLBACK) in the compact band only, when the user has opened the panel (More to try) and its shortest window plus the chat's 64px floor cannot both fit, the page may scroll VERTICALLY so the chat keeps its floor. In both: no sideways scroll at any size; no label change or truncation; the panel still starts closed in the compact band. Restore K21's floor assertion and pin K21 with the banner shown both BEFORE (panel closed as the finish starts: floor, no page scroll) and AFTER More to try (floor holds; under B the page may scroll vertically, never sideways); make K23's compact rows match; correct EXPERIENCE.md/DESIGN.md and the comments to say exactly what landed (citing "the Planner, 2026-11-07" for B).
+  - DONE (implement pass 7, 2026-11-07, option B landed: option A was not attempted inside the time box). In the compact band only, when the user has opened the panel and its shortest window plus the chat's 64px floor cannot both fit, `keepRoom` (`more-to-try-room.ts`) gives the chat's list a `min-height` of the floor, so the page scrolls vertically and the chat keeps 64px; the `min-height` is removed when the band is left and when the panel goes. Never sideways; no label changed or cut; the panel still starts closed in the compact band; above the band nothing changed. K21 asserts the floor again (before More to try: chat >= 64, no page scroll, no sideways; after: chat >= 64, no sideways; the page may scroll vertically in the band), K23's compact rows match, and K21b makes the squeeze itself (the local host has room at 1280x600 with the banner: closed chat 154px, so K21 and K23 alone cannot reach the squeeze here). EXPERIENCE.md, DESIGN.md and the comments say it, citing the Planner, 2026-11-07.
 
 ## Spec Change Log
 
@@ -692,6 +707,29 @@ Rejected:
   - `[false]` `[reject]` Intent: item 3's label "Break it again" cannot be checked against the intent — it is the ruled text in EXPERIENCE.md and the ITEMS oracle
   - `[false]` `[reject]` Intent: step 5 of the online path first presses More to try — by design: the panel is closed before the finish
 - patches applied: the DESIGN.md band sentences; K16/K16b edge mode; K23 edge recomputation and its either-way assertion; K24 (new); K2, K3, K7, K8 at 1280x900. No high patched.
+
+### 2026-11-07 — Review pass (exception iteration 4, CI patch)
+- verdicts: 19 findings — high 0, medium 3, low 15, false 0, maybe-false 1
+- findings:
+  - `[medium]` `patch` (blind) the release of the chat list's `min-height` (panel closing, band leaving) has no test — K21b now closes the panel, reopens it, grows the viewport to 1280x900 and asserts the inline `min-height` cleared and held; two mutation lines written (both red).
+  - `[low]` `reject` (blind) the CI failure is unverified, no CI run for the fix — the lead pushes and CI is the check; the local host cannot reach the squeeze and K21b makes it (stated under Verification).
+  - `[low]` `patch` (blind) K21b hard-codes the geometry and claims independence from fonts — comment reworded; where the closed chat is near the floor `extra` is 0 and the open panel squeezes it all the same, so the assertions hold.
+  - `[low]` `patch` (blind) DESIGN.md says the page does not scroll as a whole at the compact sizes while the new sentence allows it — qualifier "(but for the one case in the next sentence)" added; EXPERIENCE.md's "it scrolls on its own" refers to the panel, unchanged.
+  - `[medium]` `defer` (blind) above the compact band a user-opened panel can still leave the chat under 160px — pre-existing (decision 13), outside the Planner's compact-band ruling; deferred, unverified.
+  - `[low]` `patch` (blind) the decision-13 credit sat on the min-height sentence — moved to the `tight` sentence in `more-to-try-room.ts`; the long line in `demo-guide.ts` is cosmetic and the "one exception" clause in `more-to-try.ts` is explicit, left.
+  - `[low]` `reject` (blind) console.log lines and K21's after-branch has no vertical-scroll bound — the K23 and K21 logs are the project's record lines; the contract allows vertical scroll there, so no upper bound is ruled.
+  - `[low]` `reject` (edge) a stale hold when the squeeze eases inside the band — the held value equals the floor the chat keeps anyway; harmless, and released on leaving the band or the panel.
+  - `[medium]` `defer` (edge, maybe-false) the first measure may not reach the squeeze branch — structure predates the patch; deferred, unverified.
+  - `[low]` `reject` (edge) `held` may point at a replaced list — the chat list is one persistent element in the page; the fix adds a branch for a state not shown reachable.
+  - `[low]` `reject` (edge) the stacked layout leaves the hold on — the stacked chat is far above 64px so the min-height has no effect, and it is released with the panel.
+  - `[low]` `patch` (edge) K21b's `extra` clamps to 0 on a host with a short closed chat — same root as the hard-coded geometry row; handled by the same comment change.
+  - `[low]` `reject` (edge) K21 passes on a host with room without the min-height line — stated limitation; K21b pins the mechanism.
+  - `[medium]` `patch` (verification-gap) no test or mutation for the release path — same root as the first row; patched there.
+  - `[low]` `reject` (verification-gap) K21 and K23 cannot fail locally for the CI defect — K21b pins the mechanism once and the mutation of the floor turns K21 and K23 red.
+  - `[low]` `reject` (verification-gap) K16/K17 `expectRoom` still asserts no page scroll in compact rows — those rows passed on CI run 42359898984 and do not reach the squeeze; the assertion is stricter than the contract, not a defect.
+  - `[low]` `reject` (verification-gap) `tight()` still fires in the compact band — harmless for a user-opened panel (demo-guide ignores it when the user chose the panel).
+  - `[low]` `reject` (verification-gap) diagnostic console.log and annotations — duplicates the blind row.
+  - `[low]` `reject` (intent-alignment) an inline min-height on the sibling chat list is outside the panel's own look — option B is the Planner's pre-approved fallback and writes exactly that.
 
 ## Design Notes
 
@@ -1058,6 +1096,14 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: the panel's `max-height: max(var(--more-window-min), var(--more-max))` removed (bundle rebuilt) -> 44 cases red, among them K21 1280x600 and 1280x700 and K23 1280x600 and 1280x719 (banner under) at "the chat's list keeps some height" (the new link-opened assertions); reverted from a saved copy, `shasum` equal, tree status unchanged, bundle rebuilt.
 - Attempted, equivalent: `squeezed` starting `true` -> 95 pass, because the first finish clears it (`follow()`). `expectClosedHolds`'s new squeeze proof is not reachable on this host or on CI (both start the 680-759px rows open), so it has no observed red (inference: a wrong squeeze there now fails at "it started closed only because ...").
 
+**Exception iteration 4, CI patch (implement pass 7, 2026-11-07; tag `e4s11i7`, lane B; option B).** `npm --prefix web test` 1535 pass; `npm --prefix web run lint` exit 0; `ci/iris.sh build`; `live sign-in --part 8/16` (PART line: `guide/more-to-try.spec.ts`, now 96 tests with K21b) 96 pass; `live floor` not run (the change is an inline `min-height` in the compact band, outside the floor cases).
+- mutation: K21b (new), the `list.style.minHeight` line removed from `keepRoom` (bundle rebuilt) -> live: K21b red (opened chat 39.125px against 64); reverted byte-identical (`cmp`).
+- mutation: K21 (floor restored, before and after) and K23 compact rows, `CHAT_FLOOR.compact` set to 0 in `more-to-try-view.ts` (bundle rebuilt) -> live: K21 1280x600 and 1280x700, K23 1280x600 and 1280x719 (banner under) red at the floor assertions (16 red in all, with K16, K16b and K21b); reverted byte-identical (`cmp`).
+- The local host cannot reach the CI squeeze (closed chat 154px at 1280x600 with the banner; CI measured 55.1px opened), so K21 and K23 are red only under a product mutation; K21b makes the state itself.
+- Review patch (implement stage, same pass; `live sign-in --part 8/16` 96 pass after it; `npm --prefix web test` 1535 and lint green): K21b now also closes the panel (link) and expects the chat list's inline `min-height` cleared, reopens it and expects it held at 64px again, then grows the viewport to 1280x900 and expects it cleared.
+- mutation: K21b, `destroyRef.onDestroy(release)` removed from `keepRoom` (bundle rebuilt) -> live: K21b red ("the panel going releases the chat list's min-height"), 95 other cases pass; reverted byte-identical (`cmp`).
+- mutation: K21b, the `held !== undefined && floor() > CHAT_FLOOR.compact` release branch disabled (bundle rebuilt) -> live: K21b red ("leaving the compact band releases the chat list's min-height"), 95 other cases pass; reverted byte-identical (`cmp`).
+
 ## Auto Run Result
 
 Status: done
@@ -1115,3 +1161,9 @@ Blocking condition: none
 - Review (four layers): 37 findings, high 0, medium 6, low 23, false 7, maybe-false 1; patched 9 rows (DESIGN.md sentences, K16/K16b edge mode, K23 edge and assertion, K24, K2/K3/K7/K8 at 1280x900), the rest rejected with reasons. Follow-up review recommended: false (no high patched).
 - Verification: `npm --prefix web test` 1535, lint, `live sign-in` parts 7/16 (18), 8/16 (95), 5/16 (10), `live cards` (28, E8 unchanged), `live floor` (107, three engines), `live online-demo-path`, `live demo-path` (8 of 8) and `bash ci/checks.sh` green; mutation lines under Verification.
 - Residual risks: (1) the squeeze rule (decision 13) starts the panel closed at 680px and up when even its shortest window leaves the chat under its floor; it goes beyond the ruling's text and is for the lead to confirm. (2) The local no-key banner is 44px, so at the default 1280x720 the local finish starts closed; CI's ~40px banner sits exactly at the edge, so cases open the panel with the link or use a taller viewport. (3) The CI Linux fonts were not run locally; K23 stands in. (4) The real CI push is the lead's.
+
+**Exception iteration 4, CI patch (2026-11-07, implement stage and review).** Option B landed (the Planner's fallback; option A was not attempted inside the time box).
+- Changed: in the compact band, with the panel opened by the user and its shortest window plus the 64px chat floor unable to fit, `keepRoom` gives the chat list a `min-height` of its floor so the page scrolls vertically and the chat keeps 64px (never sideways; no label changed; the panel still starts closed in the band); the hold is released on leaving the band and when the panel goes. K21 asserts the floor again (before More to try: chat 64px or more, no page scroll, no sideways scroll; after: chat 64px or more, no sideways scroll), K23's compact rows match, K21b makes the squeeze itself and pins the hold and both releases; DESIGN.md, EXPERIENCE.md and the comments say what landed.
+- Review (four layers): 19 findings, high 0, medium 3, low 15, maybe-false 1; patched the release-path test (K21b, two mutation lines), the K21b comment, DESIGN.md's qualifier and a comment's credit; deferred 2 (above-band floor for a user-opened panel; the first measure's squeeze branch), both pre-existing and unverified; the rest rejected with reasons in the Review Triage Log. Follow-up review recommended: false (no high patched).
+- Verification: `npm --prefix web test` 1535 pass, `npm --prefix web run lint` exit 0, `ci/iris.sh build`, `live sign-in --part 8/16` (guide/more-to-try.spec.ts) 96 pass, twice (before and after the review patch); `live floor` not run (no CSS changed). The other `(once)` lines are run by the lead and CI in this pass.
+- Residual risks: the CI Linux squeeze at 1280x600 with the banner is not reproduced locally; K21b stands in and the lead's CI run is the proof.

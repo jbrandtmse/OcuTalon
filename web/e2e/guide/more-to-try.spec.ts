@@ -37,8 +37,11 @@ import { blockLiveSocket } from '../support/socket';
  *   - K20: the finish's own layout where the page is framed: row 1 above the finish and on one line without "About 2 minutes" (its
  *     link and Hide guide at its right end from 680px tall), and Run again at the end of the Try it yourself row from 1024 to 1279px,
  *     below it elsewhere;
- *   - K21: with the no-model-key banner shown the finish with the panel open (the link opens it where the banner puts the page in the
- *     compact band) has no sideways scroll at 1280x600, 1280x700 and 320x700, no page scroll when framed, and a chat at its floor;
+ *   - K21: with the no-model-key banner shown the finish has no sideways scroll at 1280x600, 1280x700 and 320x700, and a chat at its
+ *     floor and no page scroll when framed before the panel is opened; after More to try the chat is still at its floor (the page may
+ *     scroll vertically in the compact band, the Planner, 2026-11-07) and the framed page above the band does not scroll;
+ *   - K21b: where the case squeezes the room itself (1280x600, the banner), the panel the user opens is at its shortest window, the
+ *     chat keeps 64px and the page scrolls vertically, never sideways;
  *   - K22: at the narrow widths (305 to 480px, 320px at any height from 360 to 900px) the page does not scroll sideways, with the guide
  *     at step 1 (panel closed, then opened by the link) and in the finish;
  *   - K23: with wider font metrics (a wide family and letter and word spacing) at 1280x680, 1280x600, 1024x680, 320x700 and with the
@@ -702,6 +705,9 @@ async function openRealFinish(page: Page, banner = false): Promise<void> {
 /** The height of the banners above the guide, as the page has it now. */
 const bannersOf = (page: Page): Promise<number> => page.locator('.banner-slot').evaluate((slot) => (slot as HTMLElement).offsetHeight);
 
+/** How far the page scrolls sideways. */
+const sidewaysOf = (page: Page): Promise<number> => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
 /** The height left after the banners is under 680px: the compact band, where the panel starts closed in the finish. */
 async function compactOf(page: Page): Promise<boolean> {
   return (await page.evaluate(() => window.innerHeight)) - (await bannersOf(page)) < 680;
@@ -1156,10 +1162,10 @@ for (const [width, height] of [
 
 /**
  * K21: the status banner "OcuTalon has no model key..." sits above the guide on a stack without a key. Most room cases route it off; this
- * one routes it on and asks what must hold whatever is above the guide: with the panel open in the finish (the link opens it where the
- * banner puts the page in the compact band) the page does not scroll sideways and the framed page does not scroll as a whole; the chat
- * keeps its floor (64px in the band, 160px above it) with the panel as the finish starts it, and with the panel the user opened unless
- * that panel is at its least window (the label line and one control), which the user's press keeps.
+ * one routes it on and asks what must hold whatever is above the guide. Before the user opens the panel (the finish starts it closed in
+ * the compact band, open above it) the framed page does not scroll and the chat keeps its floor (64px in the band, 160px above it).
+ * After the user opens it (More to try) the chat still keeps its floor and the page does not scroll sideways; in the compact band the
+ * page may scroll vertically to keep it (the Planner, 2026-11-07), above it the framed page does not scroll as a whole.
  */
 for (const [width, height] of [
   [1280, 600],
@@ -1169,29 +1175,74 @@ for (const [width, height] of [
   test(`K21: with the no-model-key banner shown the open panel leaves no sideways scroll and the chat its floor (${width}x${height})`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await openRealFinish(page, true);
-    const floor = (await compactOf(page)) ? 64 : 160;
+    const compact = await compactOf(page);
+    const floor = compact ? 64 : 160;
     const start = await settledChat(page);
     if (width >= 1024) {
       expect(start.chat, `${width}x${height}: the chat's list keeps its floor with the panel as the finish starts it`).toBeGreaterThanOrEqual(floor);
+      expect(start.page, `${width}x${height}: the framed page does not scroll as the finish starts`).toBeLessThanOrEqual(1);
     }
-    await openPanel(page, await compactOf(page));
+    expect(await sidewaysOf(page), `${width}x${height}: the page does not scroll sideways as the finish starts`).toBeLessThanOrEqual(0);
+    await openPanel(page, compact);
     const room = await settledRoom(page);
-    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    const sideways = await sidewaysOf(page);
     test.info().annotations.push({ type: 'K21', description: `${width}x${height} chat=${room.chat} page scroll=${room.page} sideways=${sideways}` });
+    console.log(`K21 ${width}x${height} before: chat=${start.chat} page scroll=${start.page}; after: chat=${room.chat} window=${room.window} page scroll=${room.page} sideways=${sideways}`);
     expect(sideways, `${width}x${height}: the page does not scroll sideways`).toBeLessThanOrEqual(0);
     expect(room.sideways, `${width}x${height}: nothing in the panel reaches past its own width`).toBeLessThanOrEqual(1);
     expect(room.overflowX, `${width}x${height}: the panel stays within the page's width`).toBeLessThanOrEqual(1);
     if (width >= 1024) {
-      expect(room.chat, `${width}x${height}: the chat's list keeps some height`).toBeGreaterThan(0);
-      expect(
-        room.chat >= floor || room.window <= room.need + 1,
-        `${width}x${height}: the chat's list keeps its floor, or the panel the user opened is at its least window (chat=${room.chat} window=${room.window} need=${room.need})`,
-      ).toBe(true);
-      expect(room.page, `${width}x${height}: the framed page does not scroll as a whole`).toBeLessThanOrEqual(1);
+      expect(room.chat, `${width}x${height}: the chat's list keeps its floor with the panel the user opened (chat=${room.chat} window=${room.window} need=${room.need})`).toBeGreaterThanOrEqual(floor);
+      if (!compact) {
+        expect(room.page, `${width}x${height}: the framed page does not scroll as a whole`).toBeLessThanOrEqual(1);
+      }
     } else {
       expect(room.chat, `${width}x${height}: the chat's list keeps some height`).toBeGreaterThan(0);
     }
   });
+}
+
+/**
+ * K21b: the squeeze made by the case itself: at 1280x600 with the no-model-key banner the case adds height to the guide so that the chat
+ * keeps its floor with the panel closed but falls under it by about half of the panel's shortest window once the panel is open (where the
+ * machine's closed chat is already near the floor, the open panel squeezes it all the same). The panel the user opens is at its shortest window, the chat still keeps its 64px,
+ * and the page scrolls vertically to keep it (the Planner, 2026-11-07), never sideways.
+ */
+test('K21b: with the room squeezed by the case, the panel the user opens leaves the chat 64px and the page scrolls vertically, never sideways', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await openRealFinish(page, true);
+  expect(await compactOf(page), 'the banner puts 1280x600 in the compact band').toBe(true);
+  await expect(panelOf(page), 'the compact band starts the panel closed').toHaveCount(0);
+  const closed = await settledChat(page);
+  // The panel's shortest window is about 66px: leave the closed chat 33px above the floor, so the open panel takes it 33px under.
+  const extra = Math.max(0, Math.floor(closed.chat - 64 - 33));
+  await page.addStyleTag({ content: `app-demo-guide .guide { padding-bottom: ${extra}px !important; }` });
+  const squeezed = await settledChat(page);
+  expect(squeezed.chat, 'the case leaves the chat its floor with the panel closed').toBeGreaterThanOrEqual(64);
+  expect(squeezed.page, 'and the framed page does not scroll with the panel closed').toBeLessThanOrEqual(1);
+  await openPanel(page, true);
+  const room = await settledRoom(page);
+  const sideways = await sidewaysOf(page);
+  test.info().annotations.push({ type: 'K21b', description: `closed chat=${closed.chat} extra=${extra} opened chat=${room.chat} window=${room.window} need=${room.need} page scroll=${room.page} sideways=${sideways}` });
+  expect(room.window, 'the panel the user opened is at its shortest window').toBeLessThanOrEqual(room.need + 1);
+  expect(room.chat, 'the chat keeps its 64px floor').toBeGreaterThanOrEqual(64);
+  expect(room.page, 'the page scrolls vertically to keep it').toBeGreaterThan(0);
+  expect(sideways, 'and never sideways').toBeLessThanOrEqual(0);
+  expect(room.overflowX, 'the panel stays within the page\'s width').toBeLessThanOrEqual(1);
+  expect(await listMinHeightOf(page), 'the chat list holds the floor as a min-height while the panel is open').toBe('64px');
+  await linkOf(page).click();
+  await expect(panelOf(page), 'the link closes the panel').toHaveCount(0);
+  expect(await listMinHeightOf(page), 'the panel going releases the chat list\'s min-height').toBe('');
+  await linkOf(page).click();
+  await expect(panelOf(page), 'the link opens the panel again').toBeVisible();
+  await expect.poll(() => listMinHeightOf(page), { message: 'the squeeze holds the floor again' }).toBe('64px');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect.poll(() => listMinHeightOf(page), { message: 'leaving the compact band releases the chat list\'s min-height' }).toBe('');
+});
+
+/** The chat list's inline min-height, which the room keeper sets to the compact floor while the squeeze holds and clears after. */
+async function listMinHeightOf(page: Page): Promise<string> {
+  return page.evaluate(() => (document.querySelector('app-chat-panel .list') as HTMLElement | null)?.style.minHeight ?? 'missing');
 }
 
 /**
@@ -1248,8 +1299,8 @@ const WIDE_TEXT = '*, *::before, *::after { font-family: Verdana, "DejaVu Sans",
  * no-model-key banner at 1280 wide, one pixel under and at the band's edge): the finish's panel is open from the band's edge up (closed
  * instead where the wider text leaves no room for it even at its shortest window) and closed under it; the chat keeps its floor (64px in
  * the compact band, 160px from the edge) with the panel as the page starts it, and in the compact band also with the panel opened by the
- * link unless that panel is at its least window (the user's press keeps it); from the edge up a panel that started closed is only opened by the link (the user's press wins over the floor); the framed page
- * does not scroll as a whole, and no page scrolls sideways.
+ * link (the page may then scroll vertically to keep it, the Planner, 2026-11-07); from the edge up a panel that started closed is only
+ * opened by the link; the framed page does not scroll as a whole except with the panel opened in the compact band, and no page scrolls sideways.
  */
 for (const { width, height, banner } of [
   { width: 1280, height: 680, banner: undefined },
@@ -1288,15 +1339,13 @@ for (const { width, height, banner } of [
     const framed = width >= 1024;
     const expectHolds = async (state: string, opened = false): Promise<void> => {
       if (opened && framed) {
-        // A panel the user opened keeps at least its least window; the chat keeps its floor unless that window alone leaves it less.
+        // A panel the user opened (compact band only): the chat keeps its floor and the page may scroll vertically to keep it, never sideways.
         const room = await settledRoom(page);
         const sideways = (await measure()).sideways;
         test.info().annotations.push({ type: 'K23', description: `${at} ${state} chat=${room.chat} window=${room.window} page scroll=${room.page} sideways=${sideways}` });
         console.log(`K23 ${at} ${state} chat=${room.chat} window=${room.window} page scroll=${room.page} sideways=${sideways}`);
         expect(sideways, `${at} ${state}: the page does not scroll sideways`).toBeLessThanOrEqual(0);
-        expect(room.chat, `${at} ${state}: the chat's list keeps some height`).toBeGreaterThan(0);
-        expect(room.chat >= floor || room.window <= room.need + 1, `${at} ${state}: the chat's list keeps its floor, or the panel is at its least window (chat=${room.chat} window=${room.window} need=${room.need})`).toBe(true);
-        expect(room.page, `${at} ${state}: the page does not scroll as a whole`).toBeLessThanOrEqual(1);
+        expect(room.chat, `${at} ${state}: the chat's list keeps its floor (chat=${room.chat} window=${room.window} need=${room.need})`).toBeGreaterThanOrEqual(floor);
         return;
       }
       if (framed) {

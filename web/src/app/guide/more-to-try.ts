@@ -44,7 +44,8 @@ let panels = 0;
  * panel label (the project's rule for a scroller), with no gap under the label and no margin above the group, since the guide's own gap
  * separates it. Its window takes only the room that the chat's list leaves above its floor (the `floor` input; windowBound), measured
  * on the page as it is and kept in the host's `--more-max`, and never less than the label's line and one control. So the chat keeps its
- * floor and the page does not scroll as a whole, whatever fonts and banners the page has. Before the first measurement a fixed reserve
+ * floor and the page does not scroll as a whole, whatever fonts and banners the page has; the one exception is the compact band with the panel
+ * opened, where the window is already at its shortest and the chat still keeps its floor, so the page scrolls vertically (the Planner, 2026-11-07). Before the first measurement a fixed reserve
  * stands in. The items lay out in as many columns as fit, and the list ends in a gutter that holds the last control's ring. The group
  * carries the focus rule's `moreItem` key like the controls, so a focused group hands focus on when the finish leaves.
  * In the stacked column the page scrolls and the group grows with its items.

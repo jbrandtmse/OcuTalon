@@ -106,8 +106,9 @@ const FOCUS_RULE: FocusRule = {
  * replaces the prompt bar: the exact lines, the run total, the two links, the "Other things to try" panel (app-more-to-try), the
  * "Try it yourself" row (app-try-it-row, a finish part for focus) and Run again, which writes the run_again marker. The panel starts open in
  * the finish, except in the compact band (the viewport's height less the banners' is under 680px; the Planner, 2026-11-07), where it starts
- * closed. Above the band it also starts closed where the room is too small for it even at its shortest window (an implement-stage
- * choice, Story 4.11 decision 13); the "More to try" link opens and closes it at any time. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
+ * closed; opened by the user there, the chat's list still keeps its 64px floor and the page scrolls vertically where the panel's shortest
+ * window and that floor cannot both fit (never sideways; the Planner, 2026-11-07; more-to-try-room.ts). Above the band it also starts closed where the room is too small for it even at its shortest window (implement-stage decision 13 kept
+ * by the lead's ruling, veto window, inbox U-299); the "More to try" link opens and closes it at any time. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
  * is marked done by a click. The Break the feed box sits at the right.
  *
  * While the session's message allowance is used up (Story 16.9; AllowanceState.active) a prompt whose action is Send is aria-disabled, not
