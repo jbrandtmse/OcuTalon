@@ -2470,3 +2470,6 @@
 2026-11-07T13:36:11Z	Epic 4	runner_complete	head=cc16128e stories=1 ci=success(42373412901,42373412877) code_tree=29eae8ff fallback=B
 2026-11-07T13:36:11Z	Epic 4	amendments_verified	epics.md=4.11_insert
 2026-11-07T13:36:11Z	Epic 4	epic_merge_started	head=cc16128e into=feature
+2026-11-07T13:36:28Z	Epic 4	epic_merged_to_feature	merge=4c9bed21 head=cc16128e verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine=untouched release_tools=untouched
+2026-11-07T13:36:28Z	Epic 4	decision_sheet_recorded	DW-865=accepted DW-862=tier3
+2026-11-07T13:36:28Z	Run	deps_hash_rerecorded	reason=fix_forward story=4.11 hash=736cd80b7a39

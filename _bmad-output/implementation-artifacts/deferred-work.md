@@ -5071,6 +5071,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: implement K21 patch review (fefb0b01); reachable only with a user-opened panel at heights 680px+ after banners on hosts with wide fonts
 - 2026-11-07T11:28:49Z status=escalated owner=burndown by=harvest note=for the decision sheet: extend the Planner's fallback (vertical page scroll so the chat keeps 160px) above the band, or accept
+- 2026-11-07T13:36:28Z status=routed owner=burndown by=owner note=Planner 2026-11-07 ~13:15Z: voting week tier (3) after the flakes; extend the vertical-scroll fallback above the band; no sideways scroll, no label changes, pins with and without the banner; not in 1.0.4 unless merged+green by Sun 19Z with nothing else waiting
 
 ### DW-863: keepRoom's first measure only writes the bound; when that write changes no layout the squeeze branch (compact floor min-height, tight()) may wait for a later resize
 - source: spec-4-11-other-things-to-try.md | severity: med | fix-risk: low | footprint: in-story
@@ -5086,6 +5087,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: keepRoom sets .list min-height 64px while app.ts :host is height 100dvh and main-page :host, .main and chat-panel :host are min-height 0 with overflow visible (CSS read; not seen in a browser: no live run in review). K21b asserts page scroll > 0 and the list height, not where .dock sits. Reachable: no-key banner, compact band, user-opened panel, squeeze (CI 1280x600 ~9px).
 - 2026-11-07T11:50:24Z status=routed owner=burndown by=cr note=fix in the framed shell (let app-root/main grow while held) plus a K21b dock-inside-main assertion; files outside the K21 diff
 - 2026-11-07T11:57:51Z status=escalated owner=burndown by=burndown note=for_the_decision_sheet:fix_needs_app.ts,main-page.ts,chat-panel.ts(shell_min-height_0_vs_100dvh);reachable_only_in_the_Planner's_compact-band_fallback_with_a_user-opened_panel;composer_reachable_by_scrolling;~9px_spill_inferred_from_CSS,unobserved
+- 2026-11-07T13:36:28Z status=wontfix-accepted owner=burndown by=owner note=Planner 2026-11-07 ~13:15Z: accepted for Saturday; checked in the 1366x768 and 1280x600 walk at the cut; follow-up in voting week
 
 ### DW-866: K21's new before-More-to-try assertions (framed page does not scroll, no sideways scroll) have no mutation: line; the local closed chat is ~90px above its floor
 - source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: low | footprint: in-story
