@@ -4720,6 +4720,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ci/units.sh comments: shards about 1,710 s, target under about 1,940 s; the spec's estimate is 150-300 s of CI time for the class (inference); no CI shards time on record for the 7.9 tree yet
 - 2026-11-06T23:23:47Z status=routed owner=burndown by=cr note=unverified: settle from the first CI run of the 7.9 tree (shards group seconds); over 1,940 s means rebalance ci/units.sh (Epic 19's file)
+- 2026-11-07T01:51:48Z status=resolved-by:7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=burndown note=measured: CI run 42314928349 (07951357, GoodMessages in) job iris (shards) green in 1771 s wall (23:54:45Z-00:24:16Z, setup included), under the ~1,940 s target and the 35-minute group budget; no ci/units.sh change needed
 
 ### DW-837: AC 5's clause 'the later presses of 07 carry the good-message line' has no assertion: only T8 (telegram-approval.spec.ts, ON_MOCK) asserts the line on the demo path
 - source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4736,6 +4737,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Expected 'You can run it again at 00:16.' Received '... at 0:16.' (HC5 L283), HC4 L728 /^...\d\d:\d\d\.$/ got '0:18', HC1 L173; code not in Epic 7's diff (Epic 39, f207f0b3/9a0e8125); web/src/app/chat/page-time.ts pageWhen is the browser's hour format by design
 - 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=inherited from feature (Epic 39's spec); red only in the 00:00-00:59Z hour; rerun after 01:00Z; fix: build the expected clock with the page's own formatter or pin the browser locale
 - 2026-11-07T01:29:07Z note=second red on the same head at 01:20Z: the page clock has no leading zero for every hour before 10 ('1:11', '1:19'), so the window is 00:00-09:59Z, not hour 0 only; HC1,HC4,HC5,HC11 and 2 more; real (inherited), see U-298
+- 2026-11-07T01:51:48Z status=resolved-by:7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=burndown note=99b9a24d (U-298 option a, Planner 01:32Z): the spec uses support/page.ts clock(iso, 'en-GB', 'UTC') and HC4's patterns accept a 1-2 digit hour; lane-D live:sign-in --part 11/15 at 01:41-01:43Z: 16 passed; mutation (the old slice clock) at 01:47-01:50Z: 5 failed (HC1, HC5, HC8, HC10, HC11), restored md5-equal; CI on the branch head before 10:00Z confirms
 
 ### DW-840: flake: OcuTalon.Test.Fix.Refused TestPastExpiryCannotStart 'the incident is resolved' (WaitIncidentState) red once in CI shards-2 (lane-a@rest, class 34.03s) on OCT-epic7 07951357; passed fresh on lane D (8.99s) on the same tree
 - source: CI run 42314928349, iris (shards-2) | severity: med | fix-risk: low | footprint: in-epic
