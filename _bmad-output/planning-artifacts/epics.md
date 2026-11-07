@@ -3656,6 +3656,26 @@ So that I know the fix only touches the broken messages and doesn't rewrite good
 **When** they run
 **Then** they include a demonstrated mutation (a fix that changes one good message must withhold the offer), the case with no good messages, a case with fewer than 20 good messages, and a check that the approved change equals the dry run's (FR-25, AD-16)
 
+### Story 7.10: The past-expiry refusal test is stable (DW-840)
+
+[ADDED 2026-11-07, the Contest Planner's voting-week tier (3)(a) ruling (about 04:19Z), under the owner's delegation: an SC-5 re-open of Epic 7 for this one fix-forward story, timeboxed at 90 minutes. Test-only unless the cause is in the product, in which case the runner stops and describes it before any product change. It merges after the 1.0.3 cut.]
+
+As the owner reading CI,
+I want `OcuTalon.Test.Fix.Refused` `TestPastExpiryCannotStart` to fail only when the product is wrong,
+So that a red shard means a real defect and never a timing accident.
+
+**Acceptance Criteria:**
+
+**Given** the test as it was (CI shards-2 red once on 07951357, "the incident is resolved", the class at 34.03 s where it normally takes about 4 s)
+**When** it is run under a repeat or load run
+**Then** the cause is measured and named, and the old code is shown to fail under that run (DW-840)
+
+**Given** the fix
+**When** the same repeat or load run is made 20 times
+**Then** it passes 20 of 20, with no pin deleted or weakened and no timeout raised as the fix (DW-840)
+
+- DW-840: flake: OcuTalon.Test.Fix.Refused TestPastExpiryCannotStart 'the incident is resolved' (WaitIncidentState) red once in CI shards-2 (ledger; routed by runner 2026-11-07)
+
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
 A heartbeat runs every minute and runs the due background checks, each visible with its schedule, last run and result; a user asks for a reminder in plain words and it fires within 10 seconds on every channel, survives restarts (marked late if it fires more than 10 seconds after its due time), and can be listed and cancelled in the chat.

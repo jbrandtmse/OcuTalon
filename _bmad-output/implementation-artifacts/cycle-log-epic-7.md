@@ -365,3 +365,13 @@
 2026-11-07T01:51:49Z	Epic 7	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5-5 high_med_avg=3.0 unresolved_high_med_avg=0.0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=3 scope=re-open(7.9) result=hold applied=false note=gates.model_tier=record_only
 2026-11-07T01:52:14Z	Epic 7	integrated_forward	feature=9683c1f0 head=e03ca809 conflicts_resolved=none diagnosis=auto_merged(module.xml,src/module.xml_version_1.0.2,release/records/1.0.2/rc1.md) checks=test-boundaries,test-class-rules,test-ci-config_pass,web_lint_pass smoke=live:demo-path_8_of_8_steps,floor_15_of_15(lane-D_e7s9if,second_run;first_run_DW-555_occurrence) after=99b9a24d(U-298_spec_fix,own_commit) note=feature_head_unchanged_at_01:52Z;the_full_IRIS_groups_run_in_CI_on_the_branch_head kind=final model=claude-opus-5-5
 2026-11-07T01:52:14Z	Epic 7	epic_runner_complete	stories_completed=1(7.9_in_this_re-open;epic_total_9) applied=U-298
+2026-11-07T13:50:31Z	Epic 7	epic_branch_reopened	reason=story_7.10_tier3_flake from=4c9bed21
+2026-11-07T13:50:31Z	Epic 7	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_7.10 lane=B slot=ocutalon-slot-b
+2026-11-07T13:50:31Z	Epic 7	epic_branch_checked_out	repos=. head=4c9bed21
+2026-11-07T13:50:31Z	Epic 7	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-07T13:50:36Z	Epic 7	ledger_load	total=834 open=1 routed=123 escalated=3 decision_pending=4 terminal=703 owner_unknown=0 burndown=84 reowned_none=0
+2026-11-07T13:50:36Z	Epic 7	retro_review_skipped	reason=skip(no_X.0_input;SC-5_re-open_for_story_7.10)
+2026-11-07T13:51:15Z	Epic 7	sprint_planning_complete	gate=PASS scope=7.10_inserted warnings=standing_non-story_headings(19,580) model=claude-opus-5-5
+2026-11-07T13:51:15Z	Epic 7	deps_hash_rerecorded	reason=fix_forward story=7.10 note=for_the_orchestrator
+2026-11-07T13:51:15Z	Epic 7	epic_status_reopened	epic-7=in-progress reason=SC-5_re-open_story_7.10
+2026-11-07T13:51:15Z	Story 7.10	ledger_routed_planned	story=7-10-the-past-expiry-refusal-test-is-stable-dw-840 entries=1(DW-840) excess=0 by=charter

@@ -5040,6 +5040,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42314928349, iris (shards-2) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: SHARD lane-a@rest failed (1 of 93 classes) 1810s; local fresh e7s9ct CLASS passed 8.99s; Story 7.9 does not touch Executor, Transitions or Refused
 - 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=one rerun; a second red on the same head is real
+- 2026-11-07T13:51:15Z status=routed owner=7-10-the-past-expiry-refusal-test-is-stable-dw-840 by=load note=re-owned_to_the_7.10_fix-forward_story_(SC-5_re-open,Planner_tier_3a)
 
 ### DW-855: No test makes a decision's first attempt pass DecisionTokenBudget while its second-model retry fails it, although the guide now states the retry is checked again on its own estimate
 - source: spec-17-9-epic-17-burn-down.md | severity: low | fix-risk: low | footprint: in-story
