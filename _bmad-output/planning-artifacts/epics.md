@@ -4880,6 +4880,39 @@ So that no row claims more than the evaluation or log behind it.
 
 - DW-775: README Measured row 'The demo's incident, end to end with a live model: 30 of 30 runs' claims more than its source (ledger; routed by charter 2026-11-06)
 
+### Story 11.27: Live pages get their /state answer under load
+
+As a judge or visitor with several OcuTalon pages open,
+I want every live page to get its `/state` answer promptly,
+So that no page sits waiting behind its siblings and the live tests stop failing on a loaded host.
+
+[ADDED 2026-11-07, Epic 11 fix-forward (DW-550, DW-774), timeboxed to 3 hours (the Contest Planner's ruling of 2026-11-06 about 05:02Z, logged `planner_ruling subject=CI_split_rule_and_B_order` in the main checkout's `cycle-log-parallel.md`; voting-week tier (3)(a), the Planner's ruling of 2026-11-07 about 04:19Z). Suspected cause, to confirm or rule out: several live pages share one CSP session, the web gateway's per-session connection cap (`Maximum_Session_Connections`) queues the next `/state`, and the request waits behind the others. A product change to the install's web-application or gateway settings goes to the Planner as a described change before any product code changes; a cause in the tests is fixed in the tests. No pin is deleted or weakened, and no timeout or deadline is raised as the fix.]
+
+**Acceptance Criteria:**
+
+**Given** N live pages open in one CSP session on a real IRIS instance (a throwaway or the lane's dev slot)
+**When** one more page asks `GET /ocutalon/api/v1/state`
+**Then** the measurement shows whether that request is queued, with the gateway's per-session connection counts and its configured limits read beside it, and the cause of the missing `/state` answer is recorded as confirmed or ruled out, with evidence
+
+**Given** the cause is confirmed as the per-session connection cap
+**When** the fix is chosen
+**Then** OcuTalon's install sets the limit for its web application by the gateway's documented mechanism, it survives an upgrade and a container rebuild, and N live pages in one session each get their `/state` answer in under 5 s; this product change goes to the Contest Planner (file, lines, how upgrade and rebuild keep it) before any product code changes
+
+**Given** the cause is in the tests (for example a spec that opens pages and leaves them open)
+**When** it is fixed
+**Then** the fix is test-only, and the specs that failed (I10 in `web/e2e/cards/incident-card.spec.ts`, the online-session `leave.spec` L5/L6, the sign-in-2 live-socket W3 case) keep every pin and every timeout
+
+**Given** the fix
+**When** it is proved
+**Then** the old code fails under a repeat or load run, the fixed code passes 20 of 20 under the same load, and full CI is green on every workflow
+
+**Given** the 3-hour timebox
+**When** the cause is not confirmed and fixed with proof inside it
+**Then** the story stops and reports what was ruled out
+
+- DW-550: flake: live:cards I10 timed out (90 s) in loadedAfter's /state wait after sign-in; passed on an unchanged rerun (ledger; routed by charter 2026-11-07)
+- DW-774: flake: live:online-session leave.spec page.close no answer within 30 s (L5, L6) and sign-in-2 live-socket W3 GET /state no answer in 30 s under heavy CI load (ledger; routed by charter 2026-11-07)
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]

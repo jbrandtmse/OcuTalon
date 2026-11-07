@@ -704,3 +704,15 @@
 2026-11-06T09:10:03Z	Epic 11	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=0 unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=0 result=hold applied=false(record_only) note=part_11.26
 2026-11-06T09:12:06Z	Epic 11	integrated_forward	feature=c390b58b head=7186dfac conflicts_resolved=none checks=tree_source-identical_to_70057698(feature_side_bookkeeping_only:cycle-log-parallel.md);70057698_ci_green(42189812984,42189813006);test-readme,test-boundaries,test-release-notes,test-cpf,test-bridge-guide_passed_on_the_merged_tree feature_ci=green(42183537162,42183537102)
 2026-11-06T09:12:06Z	Epic 11	epic_runner_complete	stories_completed=1(11.26) part_merge=11.26 applied=none decisions_for_user=none amendments=spec-11-25:117,141(DW-775_marker)
+2026-11-07T10:12:46Z	Epic 11	epic_branch_reopened	reason=story_11.27_tier3_flake from=d93456a9
+2026-11-07T10:12:46Z	Epic 11	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_11.27 lane=A slot=ocutalon-slot-a
+2026-11-07T10:12:46Z	Epic 11	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-07T10:12:46Z	Epic 11	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-07T10:12:46Z	Epic 11	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-07T10:12:46Z	Epic 11	epic_branch_checked_out	repos=. head=d93456a9 ci_expected=ci.yml,lane-a.yml note=OCT-epic11_CI_runs_at_d93456a9_cancelled_by_orchestrator_as_duplicates
+2026-11-07T10:12:52Z	Epic 11	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-07T10:12:52Z	Epic 11	ledger_load	total=818 open=1 routed=126 escalated=1 decision_pending=4 terminal=686 owner_unknown=0 burndown=85 reowned_none=0
+2026-11-07T10:12:52Z	Epic 11	retro_review_skipped	reason=skip(no_X.0_input;SC-5_reopen_for_one_fix-forward_story)
+2026-11-07T10:13:12Z	Epic 11	sprint_planning_complete	gate=PASS in_sync=true model=claude-opus-5-5
+2026-11-07T10:13:34Z	Epic 11	deps_hash_rerecorded	reason=fix_forward story=11.27 note=for_the_orchestrator(inserted_after_11.26;no_boundary_or_dependency_statement_changed)
+2026-11-07T10:13:34Z	Epic 11	ledger_routed_planned	story=11-27-live-pages-get-their-state-answer-under-load entries=2(DW-550,DW-774) excess=0 by=charter
