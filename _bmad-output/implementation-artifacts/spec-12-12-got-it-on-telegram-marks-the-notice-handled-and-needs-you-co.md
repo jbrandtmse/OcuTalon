@@ -2,7 +2,7 @@
 title: 'Story 12.12: Got it on Telegram marks the notice handled, and needs-you counts only what still needs you'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'blocked'
+status: 'ready-for-dev'
 baseline_revision: '71bd67af44df6a945aa1f4283bbacc6df2c79dcb'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -130,6 +130,8 @@ deferred:
 
 ## Spec Change Log
 
+- 2026-11-07, spec gate (runner): the plan's AD-14 intent gap is resolved. The Contest Planner approved the amendment as proposed (option (a), about 16:45Z, relayed by the orchestrator). The spine now reads, at AD-14's Got it bullet and the Structural Seed's `Data.Handled.Marked` row, that Story 12.12 builds SessionOps' GotIt branch and writes Handled's rows, and Story 18.4 adds the web and phone controls (marker `[AMENDED 2026-11-07, Story 12.12, Planner ruling]`). No re-plan; status set to ready-for-dev. The DW-695 purge-task part stays a deferred LOW, as recorded.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -137,7 +139,7 @@ deferred:
 **Governing ADs:**
 - AD-1: GotIt is a production command through CommandsIn.
 - AD-4: the ownership API reads the Decision. A Ref the session cannot see answers like a missing one. End removes the session's records.
-- AD-14: the Got it contract: the verb, first press wins, Handled, kind `handled` to each Out, and FindByRef. This story conflicts with its line "Until Story 18.4, SessionOps answers a GotIt with not_built" (see the Auto Run Result).
+- AD-14: the Got it contract: the verb, first press wins, Handled, kind `handled` to each Out, and FindByRef. Amended 2026-11-07 for this story (Planner ruling): SessionOps carries out GotIt from Story 12.12.
 - AD-27: retention (see Declined DW-695 part).
 - AD-28: AllClear stays code-made from `needs.count`. Awaiting approvals and failed rows are never windowed, so nothing that waits for approval can give an all-clear.
 - AD-32: producers never render. The handled Notification carries no text.
@@ -220,5 +222,5 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: AD-14's Rule contradicts the story's ACs. AD-14 (spine :478) says "**Got it** (Story 18.4; Story 33.2 creates the names) ... Until Story 18.4, `SessionOps` answers a `GotIt` with `not_built`", and the Structural Seed row (spine :1346) names "Story 18.4 (writer)" for `Data.Handled`. Story 12.12's ACs (ruling D1 (a)) have SessionOps carry out GotIt now and write Handled's first rows. An AD amendment is not the plan stage's to make (Rule 6, U7). Recommended amendment (light path, marker `[AMENDED 2026-11-07, Story 12.12, ruling D1]`): at :478, read "**Got it** (Story 12.12 for Telegram's press; Story 18.4 for the web chat and the Simulated phone; Story 33.2 creates the names)" and replace "Until Story 18.4, `SessionOps` answers a `GotIt` with `not_built`." with "From Story 12.12, `SessionOps` carries out a `GotIt`: it refuses (Ok 0, nothing changed) a Ref that is not the session's own tell-now Decision, writes one `Handled` row (the first press wins through its unique `Ref`) and sends one `handled` Notification, and `SessionOps.End` deletes the session's `Handled` rows; Story 18.4 adds the web chat's and the Simulated phone's controls and their handled copies." At :1346, read "Story 12.12 (writer; Story 18.4 the web and phone controls)". The spec is otherwise complete and self-checked against the READY-FOR-DEVELOPMENT standard: once the amendment lands, set `status: ready-for-dev` with no re-plan. Note for the same commit: the cross-lane edits (AD-33: Lane B's SessionOps and Data.Handled, and Lane A's Digest files) are as the ruling and the epic context assign them, with no ownership change.
+Status: ready-for-dev
+Blocking condition: none (the AD-14 intent gap of the plan pass was resolved by the Planner's approved amendment, 2026-11-07; see the Spec Change Log)
