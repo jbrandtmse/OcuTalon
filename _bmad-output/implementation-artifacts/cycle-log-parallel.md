@@ -2400,3 +2400,6 @@
 2026-11-07T06:17:10Z	Epic 34	amendments_verified	epics.md=34.4_insert
 2026-11-07T06:17:10Z	Epic 34	merge_enqueued	position=1 reason=planner_after_7.9_ahead_of_0.15
 2026-11-07T06:17:10Z	Epic 34	epic_merge_started	head=b6b75a34 into=feature
+2026-11-07T06:17:33Z	Epic 34	epic_merged_to_feature	merge=a092b15f head=b6b75a34 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine=untouched release_tools=untouched
+2026-11-07T06:17:33Z	Epic 34	decision_sheet_skipped	reason=no_open_decisions fact=f4b38c9e_local_paths_in_history_fixed_forward_985da210
+2026-11-07T06:17:33Z	Run	deps_hash_rerecorded	reason=fix_forward story=34.4 hash=050c31fd4ef4
