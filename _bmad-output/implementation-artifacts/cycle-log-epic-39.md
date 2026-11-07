@@ -291,3 +291,16 @@
 2026-11-06T17:52:04Z	Epic 39	integrated_forward_suite	feature=e5ae26af head=ff185ee8 conflicts_resolved=sprint-status.yaml_last_updated merged_paths=README.md,docker/tests/test-readme.sh,docker/tests/test-release-notes.sh,docs/install-ipm.md,_bmad/custom/epic-dependencies.yaml(no_product_code) checks=readme,release-notes,release-checklist,boundaries,heartbeat-overview,triage-heartbeat,ci-config,class-rules_all_pass smoke=39.5_tree_demo-path_8/8,online-demo-path_7,sign-in_3/3_79(product_code_unchanged_by_the_merge)
 2026-11-06T17:52:04Z	Epic 39	integrated_forward	feature=e5ae26af head=ff185ee8 conflicts_resolved=sprint-status.yaml
 2026-11-06T17:52:04Z	Epic 39	epic_runner_complete	stories_completed=8 note=39.2,39.5,39.8_this_dispatch;applied=U-275,U-283,U-295
+2026-11-07T06:21:33Z	Epic 39	epic_branch_reopened	reason=story_39.9_followup from=a092b15f
+2026-11-07T06:21:33Z	Epic 39	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_39.9 lane=D slot=ocutalon-slot-d
+2026-11-07T06:21:33Z	Epic 39	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-07T06:21:33Z	Epic 39	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-07T06:21:33Z	Epic 39	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-07T06:21:33Z	Epic 39	epic_branch_checked_out	repos=. head=a092b15f ci_expected=ci.yml,lane-a.yml bootstrap_check=ok
+2026-11-07T06:21:33Z	Epic 39	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-07T06:21:39Z	Epic 39	ledger_load	total=786 open=1 routed=130 escalated=1 decision_pending=4 terminal=650 owner_unknown=0 burndown=83 reowned_none=0
+2026-11-07T06:21:39Z	Epic 39	retro_review_skipped	reason=skip(no_X.0_input)_sc5_reopen_for_39.9
+2026-11-07T06:21:59Z	Epic 39	sprint_planning_complete	gate=PASS in_sync=true model=claude-opus-5-5
+2026-11-07T06:22:36Z	Epic 39	deps_hash_rerecorded	reason=fix_forward story=39.9 note=for_the_orchestrator(inserted_Story_39.9_after_39.8;no_boundary_or_dependency_change)
+2026-11-07T06:22:36Z	Epic 39	epic_reopened_status	epic-39=in-progress(SC-5_re-open;sanctioned_downgrade_from_done) story=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t=backlog
+2026-11-07T06:22:36Z	Epic 39	ledger_routed_planned	story=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t entries=3 excess=0 by=load note=DW-824,DW-785,DW-670_re-owned_from_burndown

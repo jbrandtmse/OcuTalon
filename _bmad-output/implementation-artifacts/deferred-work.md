@@ -4074,6 +4074,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T16:26:42Z status=routed owner=burndown by=harvest note=one occurrence on 092876ad; reads as a test race, cause not found
 - 2026-11-06T10:42:06Z occurrence=39-2-save-your-heartbeat-settings-and-ask-for-a-beat note=312498d6 run 42199537340 attempt 1, image shard:lane-b, the same two tests, class red in 0.46 s; HeartbeatApi runs after GuideApi (name order) so a 39.2 test cannot precede it; 39.2 changes no guide, marker, Live.Publish or session-row path (new routes only); fixture sessions are fresh refs; a tick's empty-checklist skip writes only HeartbeatBeat (not in the Fingerprint) and publishes nothing (U-283). Same as DW-453 (pre-Epic 39)
 - 2026-11-06T17:45:12Z status=routed owner=burndown by=owner note=Planner 2026-11-06: flake (test race, not a shipped-behaviour defect); to the post-merge Epic 39 follow-up with DW-453's findings (print both fingerprints on failure)
+- 2026-11-07T06:22:36Z status=routed owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=load note=re-owned_to_Story_39.9_(SC-5_re-open,_Planner_rulings_2026-11-06);acceptance_bullet_in_epics.md
 
 ### DW-676: Beat.Read: an error status from one Ownership read or the Usage SQL read is pinned only through the whole-Read override (BrokenBeat), not per branch
 - source: spec-39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built.md | severity: low | fix-risk: low | footprint: in-story
@@ -4647,6 +4648,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T09:32:40Z status=routed owner=burndown by=cr note=Rule 2: a spec-forced copy is routed to the story that may edit both scripts
 - 2026-11-06T09:32:48Z status=routed owner=burndown by=cr note=footprint is in-epic (test-triage-heartbeat.sh is Lane A's in Epic 39), not out-of-footprint
 - 2026-11-06T17:45:12Z status=routed owner=burndown by=owner note=Planner 2026-11-06 (relayed by the orchestrator): no burn-down before Epic 39's merge; test hygiene goes to the post-merge Epic 39 follow-up story for Saturday's release (key epic-39-followup not yet in the tracker)
+- 2026-11-07T06:22:36Z status=routed owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=load note=re-owned_to_Story_39.9_(SC-5_re-open,_Planner_rulings_2026-11-06);acceptance_bullet_in_epics.md
 
 ### DW-800: heartbeat-card.spec.ts HC8, HC10 and HC11 skip within 40 minutes of midnight UTC, so about 5.6 percent of runs leave the outcome texts, the run refusals and the event re-read unpinned
 - source: spec-39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now.md | severity: low | fix-risk: med | footprint: in-story
@@ -4720,6 +4722,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: planner_demo_walk_1.0.2 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Planner live walk 2026-11-06 on 1.0.2: Save heartbeat On, Run the heartbeat now; decision Act with read-only checks; card Last check-in 12:20 PM Offered an action $0.0003 vs Today 1 check-in $0.0006
 - 2026-11-06T20:24:09Z status=routed owner=burndown by=orchestrator note=Epic 39 post-merge follow-up story (with DW-670, DW-785, Every hour): find what Today's total sums (second beat or decision, the notice, the run-now turn); make line and count agree or word the line to say what it sums; any text change is PUBLIC TEXT to the Planner
+- 2026-11-07T06:22:36Z status=routed owner=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t by=load note=re-owned_to_Story_39.9_(SC-5_re-open,_Planner_rulings_2026-11-06);acceptance_bullet_in_epics.md
 
 ### DW-825: flake candidate: web e2e D5 (documents.spec.ts:146) waits 30 s for a filechooser after Enter on Add documents and times out
 - source: ci_run_42285847375 | severity: low | fix-risk: low | footprint: out-of-footprint
