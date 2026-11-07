@@ -3625,6 +3625,37 @@ So that I see why the dates were read month first or day first wherever I approv
 **Then** a payload test and a web test pin the row's presence for the either-way case and its absence for a day above 12; any new label comes back as a veto item (FR-25)
 - DW-645: the web incident card's dry-run block does not show U-249's either-way line; needs the ambiguity flag and reading on the approval payload and one card row (ledger; routed by veto U-252 2026-11-03)
 
+### Story 7.9: The dry run shows the fix leaves good messages unchanged
+
+[ADDED 2026-11-06, owner decision by the Contest Planner under the owner's delegation (2026-11-06T01:15Z, `owner_decision subject=new_stories_11.25_7.9` in cycle-log-parallel.md): an SC-5 re-open of Epic 7 for this one story. Target: the Saturday release (latest Sunday 19Z). The notice line's exact text, and any no-fix wording, are public text ruled by the Planner at the spec gate.]
+
+As a user approving a repair,
+I want the dry run to show that the repair would leave the messages that went through unchanged,
+So that I know the fix only touches the broken messages and doesn't rewrite good ones.
+
+**Acceptance Criteria:**
+
+**Given** a validated repair and resend whose dry run has targets
+**When** the dry run runs, before any fix is offered
+**Then** `OcuTalon.Fix.Reformat` is applied, in memory only, to the same field of the last N=20 good (successfully processed) messages from the same source as the failed ones, and the dry run records the count checked and the count that the repair would change (FR-25, AD-16)
+**And** the check reads only: it resends nothing, writes nothing to any message, header, body, setting or queue in either namespace, and calls no model (the CI mock receives no request during it) (FR-25, FR-8, AD-16)
+
+**Given** a dry run whose good-message check changes none of the messages it checked
+**When** the incident notice is sent with its fix and approval request
+**Then** the notice's Dry run paragraph carries one more line giving the count checked and the count changed (exact text: the Planner's ruling at this story's spec gate) (FR-25, UX-DR113)
+
+**Given** a dry run whose good-message check would change any good message
+**When** the dry run finishes
+**Then** no fix is offered and no approval request is raised: the incident gets the no-fix notice, following Story 7.7's no-evidence pattern (U-251; wording: the Planner's ruling at the spec gate) (FR-25, NFR-13, AD-16)
+
+**Given** an approved request whose dry run showed the good-message check
+**When** `FixExecutor` runs it
+**Then** it runs exactly the change the dry run showed (the same kind, parameters and fixed targets), and nothing else (FR-8, AD-11, AD-16)
+
+**Given** the tests
+**When** they run
+**Then** they include a demonstrated mutation (a fix that changes one good message must withhold the offer), the case with no good messages, a case with fewer than 20 good messages, and a check that the approved change equals the dry run's (FR-25, AD-16)
+
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
 A heartbeat runs every minute and runs the due background checks, each visible with its schedule, last run and result; a user asks for a reminder in plain words and it fires within 10 seconds on every channel, survives restarts (marked late if it fires more than 10 seconds after its due time), and can be listed and cancelled in the chat.
@@ -8299,6 +8330,21 @@ So that my files are kept only as long as OcuTalon needs them.
 - DW-753: the 10 MB file limit and the documents route's ~14 MB body bound are enforced before any `Data.Upload` row is written, pinned by tests (no row exists after a refused add) (ledger; routed by burndown 2026-11-05)
 - DW-754: `Data.Upload` rows are owner-scoped like other session data (Ownership checks), and the online demo's reset clears them (golden restore); checked once on a throwaway reset with recorded evidence (ledger; routed by burndown 2026-11-05)
 - DW-738: the image's Python dependencies are pinned: one constraints file per architecture (arm64 and x64) pins every distribution of the measured set to its exact version (x64 measured, never assumed), the image build installs with `pip install -c` beside the three top-level pins, a test keeps the licence evidence's package list equal to the constraints, the licence gate still fails outside the allowed families, the IPM install uses the same pins if it installs Python packages, and each constraints file says that a version bump re-measures the licences in the same commit (ledger; decided by the Contest Planner under the owner's delegation 2026-11-05) [AMENDED 2026-11-05, Story 34.3, Contest Planner ruling on DW-738: an acceptance bullet added for a ledger entry routed to this story; no other text changed]
+
+
+### Story 34.4: The keyboard add-documents test is stable (DW-825)
+
+[AMENDED 2026-11-07, chartered as a fix-forward story under an SC-5 re-open of Epic 34 on the Contest Planner's ruling of 2026-11-07 ~03:05Z (under the owner's delegation; `planner_ruling dw=DW-825` in cycle-log-parallel.md): fix before the 1.0.3 cut, test-only unless the root cause is in the product, 90-minute timebox; Lane B's files, like Story 34.2]
+
+As a maintainer who reads the CI result,
+I want the Documents page's keyboard test (D5) to fail only when the page is wrong,
+So that a red browser job means a real defect and not a timing accident.
+
+**Acceptance Criteria:**
+
+- DW-825: D5 in `web/e2e/documents/documents.spec.ts` ("Add documents works by keyboard, and a .png is refused with its reason") no longer times out waiting for the `filechooser` event: the cause is found and recorded with evidence, and the fix is test-only unless the cause is in the Add documents control (then the Planner rules first) (ledger; routed by the Planner's ruling 2026-11-07)
+- D5 still proves everything it proves today: Tab reaches Add documents, Enter on it opens the file chooser, and a .png comes back refused by the real route with its reason, shown on its row and announced once; no pin is deleted or weakened, and a longer timeout alone is not the fix
+- Proof: D5 passes 20 of 20 with `--repeat-each=20` under the browser job's load (or an equivalent load that is documented), the old D5 fails at least once under the same repeat and load, and full CI is green on every workflow
 
 ## Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)
 

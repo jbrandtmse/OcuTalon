@@ -2054,6 +2054,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T09:49:32Z status=routed owner=burndown by=burndown note=not_a_1.0.0_blocker(test_flake_in_contended_test-production.sh);first_daily_release_after_1.0.0
 - 2026-11-03T18:35:57Z occurrence=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=lead note=CI_run_41689251949_iris(production)_live:production_row_21_wanted_CHK|start-fails|1|1_got_empty;flake_rerun
 - 2026-11-05T19:31:24Z occurrence=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=ci note=run_42087551083_job_127456620696_row_21_got_empty_on_78bcb982;rerun_failed_job
+- 2026-11-06T21:03:13Z status=routed owner=burndown by=orchestrator note=occurrence=2026-11-06 run 42285847375 sha 9683c1f0 (merge-back of v1.0.2; tree differs from green b5dcbbfa only by module versions and release records): FAIL row 21, 1 of 5 values differ; rerun of failed jobs
+- 2026-11-06T21:53:29Z status=routed owner=burndown by=orchestrator note=rerun attempt 2 of run 42285847375 green on 9683c1f0
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3336,6 +3338,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
 - 2026-11-05T08:19:00Z occurrence=34-1-settle-step-3-ownership-and-fix-its-contracts by=ci note=CI_run_41989403902_(de02fc38)_iris_(shards-3)_live:demo-switch_badge.spec.ts:19_goto_interrupted_by_chrome-error;one_rerun_of_the_failed_job
 - 2026-11-05T12:41:04Z occurrence=feature-merge-back by=orchestrator note=feature 8345cfca (v1.0.1 merge-back) run 42021667697 iris (browser) job 127225676199 live:sign-in page.goto interrupted by chrome-error://chromewebdata/; second sighting today (34.1 de02fc38 shards-3); failed job rerun once
+- 2026-11-07T01:02:46Z occurrence=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged note=local_live:demo-path_on_the_integrated_tree(e03ca809,lane-D,e7s9if):07_sign-in_page.goto_interrupted_by_navigation_to_?signedOut=1(not_chrome-error);08_cascaded(07's_replay_request_missing);unchanged_rerun_8_of_8_steps_floor_15_of_15
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
@@ -3923,6 +3926,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; order or timing dependence in the shard
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;flake;first_daily_release_after_1.0.0;CI_run_41656484374(image_job)
 - 2026-11-04T23:50:45Z occurrence=33-2-open-the-settings-page-as-an-admin by=harvest note=red_2_of_4_local_shard_lane-b_part_2/2_runs_in_the_implement_stage(e33s2i);green_alone_fresh_and_warm
+- 2026-11-07T05:48:01Z status=open owner=burndown by=ci note=occurrence OCT-epic34 b6b75a34 run 42341818725 image shard lane-b TestAfterAllTestsNothingSaved 'and the production runs every item' (2nd consecutive Epic 34 head; 34.4 is a browser-spec-only change); one rerun of the failed job requested by the orchestrator; frequency rising, candidate for tier (3) flakes
+- 2026-11-07T05:12:32Z occurrence=34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=ci note=OCT-epic34_f4b38c9e_run_42339077292_iris(image)_shard_lane-b_TestAfterAllTestsNothingSaved;no_rerun:the_fix-forward_push_reruns_it(orchestrator)
 
 ### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
@@ -4030,6 +4035,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Msg/Catalog/Watch.cls block after incident.laterRequest: two entries equal to their parents plus U-249's line; forced by the spec ruling (an existing key's text may not change; no composition); Rule 2 forced copy
 - 2026-11-04T02:56:40Z status=routed owner=burndown by=cr note=unify when the catalog gains composition (a base key plus an appended line); no story owns that yet
+- 2026-11-06T23:23:46Z occurrence=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged
 
 ### DW-658: release.sh's header Output line and the steps banner do not mention the overview step's LOG line
 - source: spec-11-20-the-release-s-overview-step-hands-the-unit-files-the-contain.md | severity: low | fix-risk: low | footprint: in-story
@@ -4143,6 +4149,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Not reproduced: Runners passed alone on a fresh lane-A stack, after PersonaTurns on a warm stack, and in lane-a@Agent forward and reversed (fresh). The warm stack's Ens_Util.Log shows TestStartRefused leaves asynchronous Ens.Alarm Type 2 rows (22:01:55-57) seconds after its own rows; ErrorRows counts any Type 2 row, any ConfigName. Runners and RunnerFixture unchanged by Story 40.3
 - 2026-11-04T22:02:46Z status=routed owner=burndown by=cr note=priority: ErrorRows in TestStartsWithNoKey should ignore Ens.Alarm 'timer event ignored' rows, or the test should wait for the previous method's timers; one rerun of the failed job requested 21:58Z
 - 2026-11-04T22:03:02Z status=routed owner=burndown by=ci note=filed by the runner at CI triage of 2a789066, not by a code review
+- 2026-11-07T02:32:43Z status=routed owner=burndown by=ci note=occurrence=2 OCT-epic19 b0bf1f14 run 42324833841 shards-2 lane-a@rest TestStartsWithNoKey same signature; one rerun requested by the orchestrator
 ### DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27)
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data/Handled.cls keyed by SessionRef; SessionOps.End and the spine purge list do not cover it; first writer is Story 18.4
@@ -4760,3 +4767,65 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CI run 42327859572 browser group; error: the fixture document could not be made; not in Epic 4's diff
 - 2026-11-07T03:00:22Z status=routed owner=burndown by=cr note=unconfirmed flake: one rerun decides; not caused by 4.11 (no documents code touched)
 - 2026-11-07T03:06:09Z status=dropped by=orchestrator note=duplicate_of_DW-825;Planner:_fixed_before_the_cut_by_runner_D_on_feature_after_7.9
+### DW-824: Heartbeat card: Today's cost sums more than the counted check-ins (online demo 1.0.2: Last check-in $0.0003, Today: 1 check-in, $0.0006)
+- source: planner_demo_walk_1.0.2 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Planner live walk 2026-11-06 on 1.0.2: Save heartbeat On, Run the heartbeat now; decision Act with read-only checks; card Last check-in 12:20 PM Offered an action $0.0003 vs Today 1 check-in $0.0006
+- 2026-11-06T20:24:09Z status=routed owner=burndown by=orchestrator note=Epic 39 post-merge follow-up story (with DW-670, DW-785, Every hour): find what Today's total sums (second beat or decision, the notice, the run-now turn); make line and count agree or word the line to say what it sums; any text change is PUBLIC TEXT to the Planner
+
+### DW-825: flake candidate: web e2e D5 (documents.spec.ts:146) waits 30 s for a filechooser after Enter on Add documents and times out
+- source: ci_run_42285847375 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: run 42285847375 sha 9683c1f0 iris (browser) live:sign-in: TimeoutError page.waitForEvent filechooser at documents.spec.ts:146; the same spec passed on b5dcbbfa (42272673909), and the tree differs only by module versions and release records
+- 2026-11-06T21:03:13Z status=routed owner=burndown by=orchestrator note=occurrence=2026-11-06 run 42285847375; one rerun of failed jobs started; a second red on the same head is real
+- 2026-11-06T21:53:29Z status=routed owner=burndown by=orchestrator note=rerun attempt 2 of run 42285847375 green on 9683c1f0: flake class confirmed (one occurrence)
+- 2026-11-07T02:32:43Z status=open owner=burndown by=ci note=occurrence=2 OCT-epic19 b0bf1f14 run 42324833841 browser D5 documents.spec.ts:146 filechooser timeout; one rerun of failed jobs requested by the orchestrator
+- 2026-11-07T02:38:37Z status=open owner=burndown by=ci note=occurrence=3 OCT-epic7 2a96bcb4 run 42326336355 browser D5 documents.spec.ts:146 filechooser timeout (3 heads in ~6 h: 9683c1f0, b0bf1f14, 2a96bcb4); one rerun requested by the orchestrator; frequency rising, candidate for a fix in Epic 19 part 1's burn-down (19.8) since documents is Epic 19's area
+- 2026-11-07T03:06:19Z status=open owner=burndown by=orchestrator note=Planner 2026-11-07 ~03:05Z: fix before the 1.0.3 cut; test-only unless root cause is product (report first); timebox 90 min; proof D5 20/20 with --repeat-each=20 under browser-job load and the old code fails at least once; runner D lands it on feature after 7.9 merges, ahead of 0.15 (OCT-epic19 does not edit documents.spec.ts)
+- 2026-11-07T03:22:20Z status=routed owner=34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=load note=re-owned to Story 34.4 (SC-5 re-open of Epic 34, runner D) on the Planner's ruling 2026-11-07 ~03:05Z; closes at 34.4's adjudication or the burn-down
+- 2026-11-07T04:30:36Z status=resolved-by:34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=adjudication note=cause: Playwright 1.64.1 turns file-chooser interception on fire-and-forget at the first filechooser listener and D5 added it in the same tick as Enter (evidence/34-4/cause.md); fix 609316e1 arms the listener before sign-in, keeping every pin; proof on lane D (evidence/34-4/proof.md): old D5 failed 1/100 with the CI signature (documents.spec.ts:146 + posted 69), new D5 20/20 same stack and load; repro old 12/990 missed vs armed 0/680; reopen_if a filechooser timeout at documents.spec.ts:153 in CI
+
+### DW-826: CI unit shard:lane-a@rest (job iris shards-2) runs over the 1000 s unit line: 2031 s (5fef1125) and 2194 s (b94508c9) on Epic 17 heads; split it per the standing rule once ci/units.sh is free
+- source: runner_A_ci_report | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Epic 17 runner A reports 2026-11-06: lane-a@rest 2031 s and 2194 s (both on runs with other reds); ci/units.sh is in Epic 19's in-flight diff
+- 2026-11-06T23:06:17Z status=routed owner=burndown by=orchestrator note=measure on the next clean run; split after Epic 19 part 1 merges (ci/units.sh contended until then); never raise a deadline
+### DW-823: A good-message refusal (Story 7.9, GOODCHANGED) reuses incident.noFix, whose 'None of my fixes applies to this' fits loosely when a fix exists but would also rewrite messages that went through; give it a precise line
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Msg/Catalog/Watch.cls incident.noFix (L179-180) is shown for the GOODCHANGED refusal; the reason is log-only (PT-b ruling)
+- 2026-11-06T19:44:07Z status=routed owner=burndown by=spec_gate note=Planner 2026-11-06: later wording, not now: 'The fix I would use would also change {noun} that went through, so I'm not proposing it.'
+
+### DW-836: Story 7.9 adds Test.Watch.GoodMessages (about 108-116 s locally) to CI group shards (shard:lane-a@Checks,Install,Watch) with no group re-measure; ci/units.sh's comments put shards near its about 1,940 s target, so the group may pass 33 minutes (unverified)
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/units.sh comments: shards about 1,710 s, target under about 1,940 s; the spec's estimate is 150-300 s of CI time for the class (inference); no CI shards time on record for the 7.9 tree yet
+- 2026-11-06T23:23:47Z status=routed owner=burndown by=cr note=unverified: settle from the first CI run of the 7.9 tree (shards group seconds); over 1,940 s means rebalance ci/units.sh (Epic 19's file)
+- 2026-11-07T01:51:48Z status=resolved-by:7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=burndown note=measured: CI run 42314928349 (07951357, GoodMessages in) job iris (shards) green in 1771 s wall (23:54:45Z-00:24:16Z, setup included), under the ~1,940 s target and the 35-minute group budget; no ci/units.sh change needed
+
+### DW-837: AC 5's clause 'the later presses of 07 carry the good-message line' has no assertion: only T8 (telegram-approval.spec.ts, ON_MOCK) asserts the line on the demo path
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/e2e/demo-path/07-failure-paths.spec.ts reads no notice text; T8 pins the same WithFixKey path on a later press of the same journey (mutation shown red by QA); the online-demo clause is PT-e's runner task
+- 2026-11-06T23:23:47Z status=wontfix-accepted owner=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=cr note=reopen_if=a demo-path run where a later 07 press's phone notice lacks 'Checked against the last' while T8's has it
+
+### DW-838: With failures from several source tuples the good-message line sums the per-source counts (up to 20 each), so it can read 'the last 40 orders from the same source'
+- source: spec-7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: RepairResend.DryRun reads GOODMAX per reference and adds them up; the spec's Always fixes '0 to 20 for each reference'; reachable only with several SourceConfigName/SuperSession tuples in one incident, never on the demo path
+- 2026-11-06T23:23:47Z status=by-design owner=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=cr note=spec-bound (Always, per-reference cap); each counted message is from a target's own source and the number is real; change only by a Planner text ruling
+
+### DW-839: flake (UTC hour 0): web/e2e/heartbeat-card.spec.ts HC1, HC4, HC5 build the expected clock from the ISO time (clock() = iso.slice(11,16), '00:16'), but the card shows pageWhen's browser-locale clock, which reads '0:16' in the 00:xx hour, so the three cases go red for every CI run in that hour
+- source: CI run 42314928349 (OCT-epic7 07951357), iris (browser) test-sign-in | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Expected 'You can run it again at 00:16.' Received '... at 0:16.' (HC5 L283), HC4 L728 /^...\d\d:\d\d\.$/ got '0:18', HC1 L173; code not in Epic 7's diff (Epic 39, f207f0b3/9a0e8125); web/src/app/chat/page-time.ts pageWhen is the browser's hour format by design
+- 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=inherited from feature (Epic 39's spec); red only in the 00:00-00:59Z hour; rerun after 01:00Z; fix: build the expected clock with the page's own formatter or pin the browser locale
+- 2026-11-07T01:29:07Z note=second red on the same head at 01:20Z: the page clock has no leading zero for every hour before 10 ('1:11', '1:19'), so the window is 00:00-09:59Z, not hour 0 only; HC1,HC4,HC5,HC11 and 2 more; real (inherited), see U-298
+- 2026-11-07T01:51:48Z status=resolved-by:7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged by=burndown note=99b9a24d (U-298 option a, Planner 01:32Z): the spec uses support/page.ts clock(iso, 'en-GB', 'UTC') and HC4's patterns accept a 1-2 digit hour; lane-D live:sign-in --part 11/15 at 01:41-01:43Z: 16 passed; mutation (the old slice clock) at 01:47-01:50Z: 5 failed (HC1, HC5, HC8, HC10, HC11), restored md5-equal; CI on the branch head before 10:00Z confirms
+
+### DW-840: flake: OcuTalon.Test.Fix.Refused TestPastExpiryCannotStart 'the incident is resolved' (WaitIncidentState) red once in CI shards-2 (lane-a@rest, class 34.03s) on OCT-epic7 07951357; passed fresh on lane D (8.99s) on the same tree
+- source: CI run 42314928349, iris (shards-2) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: SHARD lane-a@rest failed (1 of 93 classes) 1810s; local fresh e7s9ct CLASS passed 8.99s; Story 7.9 does not touch Executor, Transitions or Refused
+- 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=one rerun; a second red on the same head is real
+
+### DW-851: Status answer and rail Background checks read the last watch run, taken before an approved fix finished, so for up to a minute they contradict the Resolved card and Approval requests (0)
+- source: Planner live walk of the 1.0.2 demo 2026-11-07 04:26-04:30Z | severity: low | fix-risk: med | footprint: cross-epic
+- evidence: 04:27Z fix approved from the simulated phone; card Resolved 'All 50 orders went through.'; <1 min later 'Is anything wrong right now?' answered 'Not everything: Orders production (50 new failures, a fix waiting for your approval, at 8:27 PM)'; rail Background checks the same; next check 04:29Z read Passed
+- 2026-11-07T04:34:48Z status=routed owner=burndown by=orchestrator note=tier (3) after 31.4 (Planner); NOT for 1.0.3 or 1.0.4; fix options: re-run the watch check on incident resolve, or treat a check result older than the resolution as stale; product change goes to the Planner described before it lands; any text change needs a PUBLIC TEXT ruling
+
+### DW-852: docs/bridge-guide.md TimerSeconds row (L159) does not say the reason is rate_limited when the timer passes after a re-send
+- source: DW-850 draft (Epic 17 runner A), item (iii); Planner ruling 2026-11-07 | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: Process/Decide.cls:1250 records rate_limited when the timer passes after a re-send; the guide row names only timeout; predates Story 17.2
+- 2026-11-07T04:55:03Z status=routed owner=burndown by=orchestrator note=voting week, docs only; any wording is PUBLIC TEXT for the Planner; NOT for 1.0.3 or 1.0.4

@@ -39,6 +39,10 @@ Include (EnsConstants, EnsErrors)
 ///     included: the caller redacts them. Given resent 1 (Story 7.3), each failure also gains resentBy, an array of the ids of the headers of its session
 ///     whose Description names it as resent: the ids that follow "Resent " and precede any ":" (IRIS writes "Resent <id>[,<earlier ids>][: <description>]" on a
 ///     copy, whoever resends it); without the flag the failures have no such member.
+///   - Good reads, for each failed header given as a reference (Story 7.9), the newest good messages from the same source: at most limit headers of Status 9 (Completed),
+///     IsError 0 and Type 1 (Request) whose SourceConfigName, TargetConfigName, MessageBodyClassName and SuperSession all equal the reference's (an empty SuperSession
+///     matches only an empty one), highest header id first, no id twice. It reads them inside Current, under the same two checks as Evidence, through the same
+///     per-header read, and gives the failures of that snapshot (the shape Evidence gives) as good.
 /// The Orders identity is read from OcuTalon.Install.Step.Demo (NAMESPACE and PRODUCTION), never copied. The namespace switch is in one method,
 /// Current, which calls no OcuTalon class while it is in the other namespace. A reader runs inside AI Hub's callback, so this class makes no
 /// AI Hub call, no Python call and no session call (AD-6).
@@ -223,6 +227,31 @@ ClassMethod Evidence(namespace As %String, production As %String, item As %Strin
 	Quit outcome
 }
 
+/// The newest good messages of the same source as each reference (see the class description), for the production's item in the namespace: references are failed
+/// header ids, comma-separated, and good (a dynamic array) holds, for each reference in turn, at most limit headers in the shape of an Evidence failure (the header's
+/// fields, status and body), highest header id first, no header twice. The outcome is read (good holds what was found, possibly nothing), unreadable (the service user
+/// cannot read the namespace: nothing was entered) or not_current (the production is not the namespace's own, or a name is empty: nothing was read), as for Evidence.
+/// A namespace that cannot be read for another reason is an error. It writes nothing.
+ClassMethod Good(namespace As %String, production As %String, item As %String, references As %String, limit As %Integer, Output good As %DynamicArray) As %String
+{
+	Set good = []
+	Set snapshot = {"format": "ocutalon.readerSnapshot/1", "source": {"namespace": ($Get(namespace)), "production": ($Get(production)), "item": ($Get(item))}, "failures": [], "eventLog": [], "items": [], "trace": []}
+	If ($Get(namespace) = "") || ($Get(production) = "") || ($Get(item) = "") Quit "not_current"
+	Set user = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("ServiceUser", , , .sc)
+	If $$$ISERR(sc) $$$ThrowStatus(sc)
+	If '..Readable(user, namespace) Quit "unreadable"
+	Set keys = ""
+	For i = 1:1:$Length($Get(references), ",") {
+		Set id = $Piece(references, ",", i)
+		If id ? 1.N Set keys = keys _ $Select(keys = "": "", 1: ",") _ "g" _ id
+	}
+	Set limit = +$Get(limit)
+	Do ..Current(namespace, .description, production, "", limit, .rows, .outcome, .fault, item, $Select(limit > 0: keys, 1: ""), .snapshot)
+	If fault '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The good messages of "_production_" in "_namespace_" could not be read: "_fault))
+	Set good = snapshot.failures
+	Quit outcome
+}
+
 /// 1 when the name of a setting is one whose value must never leave the reader: it holds one of CREDENTIALPARTS, in any case (pure).
 ClassMethod CredentialName(name As %String) As %Boolean
 {
@@ -246,6 +275,8 @@ ClassMethod CredentialName(name As %String) As %Boolean
 /// When item is not empty (Evidence) it reads, instead of the failures from a time on, the evidence of the failures with the keys (comma-separated
 /// h<header id> and l<log id>) into snapshot, by the same rule for the text of a header's error (see Evidence for the shape). The body of a header
 /// is read through the class dictionary: the stored datatype properties of its class, at most VALUEMAX characters each.
+/// A key g<header id> in keys (Good only, with limit as the most per reference) stands for the newest good messages of the same source as that header: the headers of Status 9,
+/// IsError 0 and Type 1 whose SourceConfigName, TargetConfigName, MessageBodyClassName and SuperSession equal the header's, highest id first, each read as a key h<id> is.
 /// state is the production's running state from the same GetProductionStatus call (see Failures): "" when the production is not the namespace's own or the
 /// read threw. With the outcome read, disabled (a dynamic array) holds the names of the production's items that are disabled as IRIS runs them (the
 /// Ens_Config.Item rows of the production, each Enabled overridden by a System Default Setting Enabled when one matches, as Ens.Director decides; a name
@@ -305,12 +336,43 @@ ClassMethod Current(namespace As %String, Output description As %String, product
 				Set headerIds = ""
 				Set logIds = ""
 				If evidence {
+					Set referenceIds = ""
 					For i = 1:1:$Length(keys, ",") {
 						Set key = $Piece(keys, ",", i)
 						If key ? 1"h".N {
 							Set headerIds = headerIds _ $ListBuild(+$Extract(key, 2, *))
 						} ElseIf key ? 1"l".N {
 							Set logIds = logIds _ $ListBuild(+$Extract(key, 2, *))
+						} ElseIf key ? 1"g".N {
+							Set referenceIds = referenceIds _ $ListBuild(+$Extract(key, 2, *))
+						}
+					}
+					If $ListLength(referenceIds) && (limit > 0) {
+						Set reference = ##class(%SQL.Statement).%New()
+						$$$ThrowOnError(reference.%Prepare("SELECT SourceConfigName, TargetConfigName, MessageBodyClassName, SuperSession FROM Ens.MessageHeader WHERE ID = ?", 1))
+						Set newestTagged = ##class(%SQL.Statement).%New()
+						$$$ThrowOnError(newestTagged.%Prepare("SELECT TOP ? ID FROM Ens.MessageHeader WHERE Status = 9 AND IsError = 0 AND Type = 1 AND SourceConfigName = ? AND TargetConfigName = ? AND MessageBodyClassName = ? AND SuperSession = ? ORDER BY ID DESC", 1))
+						Set newestUntagged = ##class(%SQL.Statement).%New()
+						$$$ThrowOnError(newestUntagged.%Prepare("SELECT TOP ? ID FROM Ens.MessageHeader WHERE Status = 9 AND IsError = 0 AND Type = 1 AND SourceConfigName = ? AND TargetConfigName = ? AND MessageBodyClassName = ? AND (SuperSession IS NULL OR SuperSession = '') ORDER BY ID DESC", 1))
+						For r = 1:1:$ListLength(referenceIds) {
+							Set result = reference.%Execute($List(referenceIds, r))
+							If result.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, result.%Message))
+							If 'result.%Next() Continue
+							Set refSource = result.%GetData(1)
+							Set refTarget = result.%GetData(2)
+							Set refClass = result.%GetData(3)
+							Set refSuper = result.%GetData(4)
+							If refSuper = "" {
+								Set result = newestUntagged.%Execute(limit, refSource, refTarget, refClass)
+							} Else {
+								Set result = newestTagged.%Execute(limit, refSource, refTarget, refClass, refSuper)
+							}
+							If result.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, result.%Message))
+							While result.%Next() {
+								Set goodId = +result.%GetData(1)
+								If $ListFind(headerIds, goodId) Continue
+								Set headerIds = headerIds _ $ListBuild(goodId)
+							}
 						}
 					}
 				}

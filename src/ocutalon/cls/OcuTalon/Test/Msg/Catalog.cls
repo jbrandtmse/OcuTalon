@@ -1,8 +1,8 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 105 keys of OcuTalon.Msg.Catalog.Core and the 49 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 105 keys of OcuTalon.Msg.Catalog.Core and the 53 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
-///   - OneForms: for each of the 11 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
+///   - OneForms: for each of the 15 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
 ///   - Reasons: the plain-words text of each of the 12 Msg.Enum FALLBACKREASON values;
 ///   - Fixtures: for every key, its slots (the UJ-1 values) and the exact text it renders on the message channels, and its
@@ -78,9 +78,9 @@ Method TestEntries()
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
 	Do $$$AssertEquals(keys.core.%Size(), 105, "the expected Core list has 105 keys")
-	Do $$$AssertEquals(keys.watch.%Size(), 49, "the expected Watch list has 49 keys")
+	Do $$$AssertEquals(keys.watch.%Size(), 53, "the expected Watch list has 53 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 105 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 49 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 53 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -118,7 +118,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 154 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 158 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system,heartbeat", "five Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -483,9 +483,9 @@ Method TestWebWording()
 	While iterator.%GetNext(.key, .fixture) {
 		If fixture.%IsDefined("web") Set inFixtures(key) = ""
 	}
-	Set wanted = "answered.approved,answered.approvedBy,incident.laterRequest,incident.laterRequestEitherWay,incident.withFix,incident.withFixEitherWay"
-	Do $$$AssertEquals(..Names(.inCatalog), wanted, "exactly six catalog entries have a web wording")
-	Do $$$AssertEquals(..Names(.inFixtures), wanted, "exactly six fixtures have a web text")
+	Set wanted = "answered.approved,answered.approvedBy,incident.laterRequest,incident.laterRequestChecked,incident.laterRequestEitherWay,incident.laterRequestEitherWayChecked,incident.withFix,incident.withFixChecked,incident.withFixEitherWay,incident.withFixEitherWayChecked"
+	Do $$$AssertEquals(..Names(.inCatalog), wanted, "exactly ten catalog entries have a web wording")
+	Do $$$AssertEquals(..Names(.inFixtures), wanted, "exactly ten fixtures have a web text")
 }
 
 /// The characters of the texts: ASCII apart from U+2026 in banner.reconnecting and U+00B7 in signIn.title, which are the UX's
@@ -544,7 +544,7 @@ Method TestNounForms()
 			Do $$$AssertTrue((text [ picked) && (text '[ other), key_" with the count "_count_" shows only the form '"_picked_"'")
 		}
 	}
-	Do $$$AssertEquals(keys, 16, "the keys with a noun are swept")
+	Do $$$AssertEquals(keys, 20, "the keys with a noun are swept")
 }
 
 /// Rows 1 to 9: the count-of-one forms. Exactly the 9 entries of the OneForms block carry a one form. With the form's slot at 1 each
@@ -565,7 +565,7 @@ Method TestCountOfOneForms()
 		}
 	}
 	Do $$$AssertEquals(..Names(.carriers), ..SortedKeys(forms), "exactly the entries of the OneForms block carry a one form")
-	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 11, "11 entries carry a one form")
+	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 15, "15 entries carry a one form")
 	Set iterator = forms.%GetIterator()
 	While iterator.%GetNext(.key, .form) {
 		For channel = "phone", "mailbox", "telegram", "web" {
@@ -1088,6 +1088,10 @@ XData Keys [ MimeType = application/json ]
   "incident.laterRequest",
   "incident.withFixEitherWay",
   "incident.laterRequestEitherWay",
+  "incident.withFixChecked",
+  "incident.laterRequestChecked",
+  "incident.withFixEitherWayChecked",
+  "incident.laterRequestEitherWayChecked",
   "incident.fallback",
   "incident.noFix",
   "incident.noFixUnknown",
@@ -1169,6 +1173,38 @@ XData OneForms [ MimeType = application/json ]
   "slots": {"count": 1, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:20:00Z", "fixSummary": "repair and resend it", "field": "order date", "before": "11/03/2026", "after": "2026-11-03", "resendCount": 1, "reading": "month first", "item": "order"},
   "text": "1 more order failed since 14:20 ET, with the same cause. I can repair and resend it. Approve?\n\nDry run: 1 order affected. Example: order date 11/03/2026 becomes 2026-11-03. The date is valid whether read month first or day first. Read month first, it matches the day the order arrived. I'll resend 1 repaired copy; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
   "web": "1 more order failed since 14:20 ET, with the same cause. I can repair and resend it.\n\nDry run: 1 order affected. Example: order date 11/03/2026 becomes 2026-11-03. The date is valid whether read month first or day first. Read month first, it matches the day the order arrived. I'll resend 1 repaired copy; the original stays unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "plural": "I'll resend {n} repaired copies; the originals stay unchanged.",
+  "singular": "1 repaired copy; the original stays unchanged."
+ },
+ "incident.withFixChecked": {
+  "slot": "resendCount",
+  "slots": {"count": 1, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "fixSummary": "repair and resend it", "field": "order date", "before": "10/16/2026", "after": "2026-10-16", "resendCount": 1, "goodChecked": 1, "goodChanged": 0, "goodNoun": "order"},
+  "text": "1 order failed since 14:12 ET. The partner changed its date format. I can repair and resend it. Approve?\n\nDry run: 1 order affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last 1 order from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "1 order failed since 14:12 ET. The partner changed its date format. I can repair and resend it.\n\nDry run: 1 order affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last 1 order from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "plural": "I'll resend {n} repaired copies; the originals stay unchanged.",
+  "singular": "1 repaired copy; the original stays unchanged."
+ },
+ "incident.laterRequestChecked": {
+  "slot": "resendCount",
+  "slots": {"count": 1, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:20:00Z", "fixSummary": "repair and resend it", "field": "order date", "before": "10/16/2026", "after": "2026-10-16", "resendCount": 1, "goodChecked": 1, "goodChanged": 0, "goodNoun": "order"},
+  "text": "1 more order failed since 14:20 ET, with the same cause. I can repair and resend it. Approve?\n\nDry run: 1 order affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last 1 order from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "1 more order failed since 14:20 ET, with the same cause. I can repair and resend it.\n\nDry run: 1 order affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last 1 order from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "plural": "I'll resend {n} repaired copies; the originals stay unchanged.",
+  "singular": "1 repaired copy; the original stays unchanged."
+ },
+ "incident.withFixEitherWayChecked": {
+  "slot": "resendCount",
+  "slots": {"count": 1, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "fixSummary": "repair and resend it", "field": "order date", "before": "11/03/2026", "after": "2026-11-03", "resendCount": 1, "reading": "month first", "item": "order", "goodChecked": 1, "goodChanged": 0, "goodNoun": "order"},
+  "text": "1 order failed since 14:12 ET. The partner changed its date format. I can repair and resend it. Approve?\n\nDry run: 1 order affected. Example: order date 11/03/2026 becomes 2026-11-03. The date is valid whether read month first or day first. Read month first, it matches the day the order arrived. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last 1 order from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "1 order failed since 14:12 ET. The partner changed its date format. I can repair and resend it.\n\nDry run: 1 order affected. Example: order date 11/03/2026 becomes 2026-11-03. The date is valid whether read month first or day first. Read month first, it matches the day the order arrived. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last 1 order from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "plural": "I'll resend {n} repaired copies; the originals stay unchanged.",
+  "singular": "1 repaired copy; the original stays unchanged."
+ },
+ "incident.laterRequestEitherWayChecked": {
+  "slot": "resendCount",
+  "slots": {"count": 1, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:20:00Z", "fixSummary": "repair and resend it", "field": "order date", "before": "11/03/2026", "after": "2026-11-03", "resendCount": 1, "reading": "month first", "item": "order", "goodChecked": 1, "goodChanged": 0, "goodNoun": "order"},
+  "text": "1 more order failed since 14:20 ET, with the same cause. I can repair and resend it. Approve?\n\nDry run: 1 order affected. Example: order date 11/03/2026 becomes 2026-11-03. The date is valid whether read month first or day first. Read month first, it matches the day the order arrived. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last 1 order from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
+  "web": "1 more order failed since 14:20 ET, with the same cause. I can repair and resend it.\n\nDry run: 1 order affected. Example: order date 11/03/2026 becomes 2026-11-03. The date is valid whether read month first or day first. Read month first, it matches the day the order arrived. I'll resend 1 repaired copy; the original stays unchanged. Checked against the last 1 order from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.",
   "plural": "I'll resend {n} repaired copies; the originals stay unchanged.",
   "singular": "1 repaired copy; the original stays unchanged."
  },
@@ -1379,6 +1415,10 @@ XData Fixtures [ MimeType = application/json ]
  "incident.laterRequest": {"slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:20:00Z", "fixSummary": "repair and resend all 3", "field": "order date", "before": "10/16/2026", "after": "2026-10-16", "resendCount": 3}, "text": "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3. Approve?\n\nDry run: 3 orders affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 3 repaired copies; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.", "web": "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3.\n\nDry run: 3 orders affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 3 repaired copies; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."},
  "incident.withFixEitherWay": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "fixSummary": "repair and resend all 50", "field": "order date", "before": "11/03/2026", "after": "2026-11-03", "resendCount": 50, "reading": "month first", "item": "order"}, "text": "50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50. Approve?\n\nDry run: 50 orders affected. Example: order date 11/03/2026 becomes 2026-11-03. All 50 dates are valid whether read month first or day first. Read month first, they match the day each order arrived. I'll resend 50 repaired copies; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.", "web": "50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50.\n\nDry run: 50 orders affected. Example: order date 11/03/2026 becomes 2026-11-03. All 50 dates are valid whether read month first or day first. Read month first, they match the day each order arrived. I'll resend 50 repaired copies; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."},
  "incident.laterRequestEitherWay": {"slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:20:00Z", "fixSummary": "repair and resend all 3", "field": "order date", "before": "11/03/2026", "after": "2026-11-03", "resendCount": 3, "reading": "month first", "item": "order"}, "text": "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3. Approve?\n\nDry run: 3 orders affected. Example: order date 11/03/2026 becomes 2026-11-03. All 3 dates are valid whether read month first or day first. Read month first, they match the day each order arrived. I'll resend 3 repaired copies; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.", "web": "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3.\n\nDry run: 3 orders affected. Example: order date 11/03/2026 becomes 2026-11-03. All 3 dates are valid whether read month first or day first. Read month first, they match the day each order arrived. I'll resend 3 repaired copies; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."},
+ "incident.withFixChecked": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "fixSummary": "repair and resend all 50", "field": "order date", "before": "10/16/2026", "after": "2026-10-16", "resendCount": 50, "goodChecked": 20, "goodChanged": 0, "goodNoun": "orders"}, "text": "50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50. Approve?\n\nDry run: 50 orders affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 50 repaired copies; the originals stay unchanged. Checked against the last 20 orders from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.", "web": "50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50.\n\nDry run: 50 orders affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 50 repaired copies; the originals stay unchanged. Checked against the last 20 orders from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."},
+ "incident.laterRequestChecked": {"slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:20:00Z", "fixSummary": "repair and resend all 3", "field": "order date", "before": "10/16/2026", "after": "2026-10-16", "resendCount": 3, "goodChecked": 20, "goodChanged": 0, "goodNoun": "orders"}, "text": "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3. Approve?\n\nDry run: 3 orders affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 3 repaired copies; the originals stay unchanged. Checked against the last 20 orders from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.", "web": "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3.\n\nDry run: 3 orders affected. Example: order date 10/16/2026 becomes 2026-10-16. I'll resend 3 repaired copies; the originals stay unchanged. Checked against the last 20 orders from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."},
+ "incident.withFixEitherWayChecked": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "cause": "The partner changed its date format.", "fixSummary": "repair and resend all 50", "field": "order date", "before": "11/03/2026", "after": "2026-11-03", "resendCount": 50, "reading": "month first", "item": "order", "goodChecked": 20, "goodChanged": 0, "goodNoun": "orders"}, "text": "50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50. Approve?\n\nDry run: 50 orders affected. Example: order date 11/03/2026 becomes 2026-11-03. All 50 dates are valid whether read month first or day first. Read month first, they match the day each order arrived. I'll resend 50 repaired copies; the originals stay unchanged. Checked against the last 20 orders from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.", "web": "50 orders failed since 14:12 ET. The partner changed its date format. I can repair and resend all 50.\n\nDry run: 50 orders affected. Example: order date 11/03/2026 becomes 2026-11-03. All 50 dates are valid whether read month first or day first. Read month first, they match the day each order arrived. I'll resend 50 repaired copies; the originals stay unchanged. Checked against the last 20 orders from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."},
+ "incident.laterRequestEitherWayChecked": {"slots": {"count": 3, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:20:00Z", "fixSummary": "repair and resend all 3", "field": "order date", "before": "11/03/2026", "after": "2026-11-03", "resendCount": 3, "reading": "month first", "item": "order", "goodChecked": 20, "goodChanged": 0, "goodNoun": "orders"}, "text": "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3. Approve?\n\nDry run: 3 orders affected. Example: order date 11/03/2026 becomes 2026-11-03. All 3 dates are valid whether read month first or day first. Read month first, they match the day each order arrived. I'll resend 3 repaired copies; the originals stay unchanged. Checked against the last 20 orders from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page.", "web": "3 more orders failed since 14:20 ET, with the same cause. I can repair and resend all 3.\n\nDry run: 3 orders affected. Example: order date 11/03/2026 becomes 2026-11-03. All 3 dates are valid whether read month first or day first. Read month first, they match the day each order arrived. I'll resend 3 repaired copies; the originals stay unchanged. Checked against the last 20 orders from the same source that went through: 0 would change. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page."},
  "incident.fallback": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "fallbackReason": "timeout", "groups": [{"itemName": "OrdersFromPartner", "count": 50, "errorSummary": "The order date was not in the expected format", "firstAt": "2026-10-16T18:12:00Z"}]}, "text": "50 orders failed since 14:12 ET. I couldn't work out the cause (the model didn't answer within 60 seconds), so I'm not proposing a fix. Nothing was changed.\n\nFailures:\nOrdersFromPartner: 50, 'The order date was not in the expected format', first at 14:12 ET\n\nDetails and trace: on your OcuTalon page."},
  "incident.noFix": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "cause": "The partner now requires a signed header.", "groups": [{"itemName": "OrdersFromPartner", "count": 50, "errorSummary": "The order date was not in the expected format", "firstAt": "2026-10-16T18:12:00Z"}]}, "text": "50 orders failed since 14:12 ET. The partner now requires a signed header. None of my fixes applies to this, so I'm not proposing one. Nothing was changed.\n\nFailures:\nOrdersFromPartner: 50, 'The order date was not in the expected format', first at 14:12 ET\n\nDetails and trace: on your OcuTalon page."},
  "incident.noFixUnknown": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "time": "2026-10-16T18:12:00Z", "groups": [{"itemName": "OrdersFromPartner", "count": 50, "errorSummary": "The order date was not in the expected format", "firstAt": "2026-10-16T18:12:00Z"}]}, "text": "50 orders failed since 14:12 ET. I couldn't tell the cause from the failed messages and their errors, so I'm not proposing a fix. Nothing was changed.\n\nFailures:\nOrdersFromPartner: 50, 'The order date was not in the expected format', first at 14:12 ET\n\nDetails and trace: on your OcuTalon page."},

@@ -2,7 +2,7 @@
 /// the two formats (the parameters field, sourceFormat and targetFormat); the formats are those registered in OcuTalon.Fix.Reformat, and the field must be
 /// a field of the sample message that the diagnosis was given. This class checks the parameters (CheckParameters), works out the dry run (DryRun), re-checks the
 /// approved targets (Recheck) and resends a repaired copy of each target that passes (Execute).
-/// The dry run reads the failed messages of the incident's failure groups through OcuTalon.Watch.Reader.Evidence only, changes nothing and calls no model.
+/// The dry run reads the failed messages of the incident's failure groups through OcuTalon.Watch.Reader.Evidence, and the good messages of their sources through Reader.Good (see below), changes nothing and calls no model.
 /// It reads the keys that each group's newest ask covers (FailureGroup.AskedKeys: the window that IncidentManager marked before it sent the ask, or the whole
 /// Seen of a group with no mark), so that a later request holds only the failures that arrived after the request before it (Story 7.6).
 /// A group's Seen keeps only its newest SEENMAX keys, so the failures of its window that Seen no longer lists (FailureGroup.Unlisted) cannot be read: each counts as
@@ -23,6 +23,12 @@
 /// chosen), none (otherwise), or n/a (the source is not an order format). The dry run refuses, with a reason, exactly when the evidence is none. Its example
 /// (before and after) is the first one-way target, else the first target whose readings differ, else the first target, so that a raised request's before reads
 /// two ways with different readings exactly when every target value does. The stored dry run keeps its keys. Lane A.
+/// Good messages (Story 7.9, FR-25): before a fix is offered, the dry run reads, for each distinct source of its targets (SourceConfigName, TargetConfigName, body class
+/// and SuperSession of a target, the reference being the lowest target header id of that tuple), the newest GOODMAX messages from that source that went through
+/// (OcuTalon.Watch.Reader Good: Completed, no error, requests) and applies the target test and the repair to each in memory (GoodChanges). A good message is changed
+/// exactly when its field reads in the source format and the repair gives another text. The dry run is refused (GOODCHANGED, a reason for the log) when any would change.
+/// Otherwise the answer also holds goodCheck {"checked", "changed"}: the number read and the number changed, which is 0. goodCheck belongs to the answer only: the stored
+/// dry run keeps exactly the keys of DRYRUNKEYS (IncidentManager). The check reads and counts, and never resends or changes a good message.
 Class OcuTalon.Fix.Kind.RepairResend Extends OcuTalon.Fix.Kind
 {
 
@@ -44,6 +50,15 @@ Parameter NOEVIDENCE = "The dates read as valid dates both month first and day f
 
 /// The status text of a message that failed, as Reader.Evidence gives it.
 Parameter ERRORSTATUS = "Error";
+
+/// The most good messages the dry run reads for each source of its targets (the newest ones, Reader.Good).
+Parameter GOODMAX = 20;
+
+/// The key of the dry run's answer that holds the counts of the good-message check; it is not a key of DRYRUNKEYS and is never stored.
+Parameter GOODCHECK = "goodCheck";
+
+/// The reason of a dry run whose repair would also change good messages; {changed} and {checked} are the two counts. It is a reason for the log, never shown.
+Parameter GOODCHANGED = "The repair would also change {changed} of the {checked} messages from the same source that went through";
 
 /// The base's schema check, then: the field is a member of fields (exact match), both formats are registered, they are of one family and they differ.
 ClassMethod CheckParameters(parameters As %DynamicObject, fields As %DynamicArray) As %Status
@@ -113,7 +128,9 @@ ClassMethod Lower(char As %String) As %Boolean [ Private ]
 /// The targets and the dry run for the incident's failure groups (see the class description). targets holds the header ids, ascending; dryRun holds the keys
 /// of OcuTalon.Bridge.Data.ApprovalRequest DRYRUNKEYS: affected, resend and leftOut (counts), field (the property name in words), before and after (the
 /// first target's value and its repair, or empty when there is none) and itemNoun ({one, other}). An error status when the production cannot be read,
-/// the incident has no failed message of its scope or the parameters do not pass CheckParameters against the body of the first of them that has one.
+/// the incident has no failed message of its scope or the parameters do not pass CheckParameters against the body of the first of them that has one, or when the
+/// repair would also change a good message from the source of a target (see the class description). With targets, dryRun also holds GOODCHECK, {"checked", "changed"}
+/// (changed is 0 here), which is not a key of DRYRUNKEYS.
 ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, Output targets As %String, Output dryRun As %DynamicObject) As %Status
 {
 	Set targets = ""
@@ -151,6 +168,7 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 			Set scoped(id) = $Select($IsObject(failure.body) && failure.body.%IsA("%Library.DynamicObject"): failure.body, 1: {})
 			Set classes(id) = failure.bodyClass
 			Set arrived(id) = failure.timeCreated
+			Set origin(id) = $ListBuild(failure.sourceConfigName, failure.targetConfigName, failure.bodyClass, failure.superSession)
 		}
 	}
 	Set first = $Order(scoped(""))
@@ -204,6 +222,26 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 		}
 		If ..Evidence(values, sourceFormat) = "none" Quit $$$ERROR($$$GeneralError, ..#NOEVIDENCE)
 	}
+	Set goodChecked = 0
+	If targets '= "" {
+		Set references = ""
+		For i = 1:1:$Length(targets, ",") {
+			Set id = $Piece(targets, ",", i)
+			If $Data(reference(origin(id))) Continue
+			Set reference(origin(id)) = id
+			Set references = references _ $Select(references = "": "", 1: ",") _ id
+		}
+		Set outcome = ##class(OcuTalon.Watch.Reader).Good(incident.Namespace, incident.Production, groups.GetAt(1).ItemName, references, ..#GOODMAX, .good)
+		If outcome '= "read" {
+			Quit $$$ERROR($$$GeneralError, "The messages from the same source that went through, in "_incident.Production_" in "_incident.Namespace_", could not be read: "_$Select(outcome = "unreadable": "the service user cannot read the namespace", outcome = "not_current": "the production is not the one that runs there", 1: outcome))
+		}
+		Set goodChanged = 0
+		For i = 0:1:good.%Size() - 1 {
+			Set goodChecked = goodChecked + 1
+			If ..GoodChanges(good.%Get(i).body, parameters) Set goodChanged = goodChanged + 1
+		}
+		If goodChanged > 0 Quit $$$ERROR($$$GeneralError, $Replace($Replace(..#GOODCHANGED, "{changed}", goodChanged), "{checked}", goodChecked))
+	}
 	Set noun = ""
 	If incident.ItemNoun '= "" {
 		Try {
@@ -232,7 +270,19 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 			Return $$$ERROR($$$GeneralError, "The dry run has no value for the key '"_key_"'")
 		}
 	}
+	If targets '= "" {
+		Do dryRun.%Set(..#GOODCHECK, {"checked": (goodChecked), "changed": 0})
+	}
 	Quit $$$OK
+}
+
+/// 1 when the repair would change the message: its body (as Reader.Good reads it) passes the target test (Readable: the field is there and its value reads in the source
+/// format) and the repaired value differs from the current one, compared as text. A value that does not read, an empty or missing field and an unreadable body are not
+/// changed, and neither is a value that converts to itself (11/11/2026 from MM/DD/YYYY to DD/MM/YYYY). Pure.
+ClassMethod GoodChanges(body As %DynamicObject, parameters As %DynamicObject) As %Boolean
+{
+	If ..Readable($Get(body), parameters, .current, .repaired) '= "" Quit 0
+	Quit ($Get(current) '= $Get(repaired))
 }
 
 /// What singles out the source reading of the dates of values (see the class description): "n/a" when format is not an order format, "oneway" when any value reads
