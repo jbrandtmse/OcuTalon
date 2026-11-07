@@ -2518,3 +2518,6 @@
 2026-11-07T17:56:00Z	Epic 32	worktree_provisioned	branch=OCT-epic32 base=97324169 reason=story_32.5_live:sign-in_split runner=a9ecc108c6b23c2ec(lane_A)
 2026-11-07T17:56:00Z	Epic 11	runner_resumed	agent=a9ecc108c6b23c2ec reason=sign-in_split_first(epic-32)_then_11.27
 2026-11-07T17:56:06Z	Epic 7	epic_merge_started	head=c1e16cf9 into=feature story=7.10
+2026-11-07T17:56:29Z	Epic 7	epic_merged_to_feature	merge=c5118d34 head=c1e16cf9 story=7.10 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0
+2026-11-07T17:56:29Z	Epic 7	decision_sheet_recorded	DW-868=test-only_story_after_1.0.4
+2026-11-07T17:56:29Z	Run	deps_hash_rerecorded	reason=fix_forward story=7.10 hash=535f27f4df74
