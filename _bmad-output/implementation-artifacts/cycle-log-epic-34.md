@@ -131,3 +131,16 @@
 2026-11-06T01:57:15Z	Epic 34	merged_tree_suite	feature=0721083f(Epic_40_merged) head=de265c2f lane-a=144/144_warm(e34s4mw) lane-b=104/104_warm checks=boundaries,storage,class-rules,compose-file,readme,ci-config,ci-changes_pass node=1455/1455 lint=pass smoke=fresh_e34s4s_live_sign-in_part_1/2_119_passed(documents.spec_included) feature_ci=0721083f_success
 2026-11-06T01:57:15Z	Epic 34	integrated_forward	feature=0721083f head=de265c2f conflicts_resolved=src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls(TOOLVERBS_plain_union_as_ruled:...,Dismiss,SendDigest,SaveMemory,ForgetMemory,ProposePersona),_bmad-output/implementation-artifacts/sprint-status.yaml(SC-4-P_step_4) ledger=union_dropped_3_trailers(DW-543,DW-710x2)_restored;743_entries_verified
 2026-11-06T01:57:15Z	Epic 34	epic_runner_complete	stories_completed=3 note=re-sent_after_Epic_40_integrate-forward
+2026-11-07T03:15:53Z	Epic 34	epic_branch_reopened	reason=story_34.4_DW-825_planner_ruling from=a91efe17 head=a91efe17
+2026-11-07T03:15:53Z	Epic 34	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_34.4 lane=D slot=ocutalon-slot-d port=52804 hashes_checked=main_checkout_match
+2026-11-07T03:15:53Z	Epic 34	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-07T03:15:53Z	Epic 34	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh bootstrap_check=pass
+2026-11-07T03:15:53Z	Epic 34	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-07T03:15:53Z	Epic 34	epic_branch_checked_out	repos=. head=a91efe17 ci_expected=ci.yml,lane-a.yml
+2026-11-07T03:15:53Z	Epic 34	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-07T03:15:53Z	Epic 34	ledger_load	total=784 open=1 routed=129 escalated=1 decision_pending=4 terminal=649 owner_unknown=0 burndown=82 reowned_none=0
+2026-11-07T03:22:27Z	Epic 34	retro_review_skipped	reason=sc5_reopen_no_x0_input(dispatch)
+2026-11-07T03:22:27Z	Epic 34	story_chartered	story=34.4 key=34-4-the-keyboard-add-documents-test-is-stable-dw-825 reason=fix_forward source=planner_ruling_DW-825_2026-11-07T03:05Z epics_md=after_34.3
+2026-11-07T03:22:27Z	Epic 34	deps_hash_rerecorded	reason=fix_forward note=story_34.4_inserted_inside_epic_34;no_boundary_or_dependency_change;for_the_orchestrator
+2026-11-07T03:22:27Z	Epic 34	epic_status_reopened	epic-34=in-progress via=SPRINT_PLAN_set reason=SC-5_reopen
+2026-11-07T03:22:27Z	Story 34.4	ledger_reowned	DW-825 owner=34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=load
