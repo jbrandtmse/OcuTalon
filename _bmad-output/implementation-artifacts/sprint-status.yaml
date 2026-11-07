@@ -145,7 +145,7 @@ development_status:
   7-7-a-date-repair-that-could-read-either-way-names-its-evidence: done
   7-8-the-web-incident-card-shows-the-either-way-date-line-too: done
   7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged: done
-  7-10-the-past-expiry-refusal-test-is-stable-dw-840: ready-for-dev
+  7-10-the-past-expiry-refusal-test-is-stable-dw-840: in-progress
   epic-7-retrospective: optional
 
   epic-8: done
