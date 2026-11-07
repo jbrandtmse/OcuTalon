@@ -2360,3 +2360,6 @@
 2026-11-07T03:13:30Z	Epic 7	amendments_verified	epics.md=7.9_insert EXPERIENCE.md=2_bullets_marked
 2026-11-07T03:13:30Z	Epic 7	merge_enqueued	position=1 order=7.9,4.11,first_green(17,19p1)
 2026-11-07T03:13:30Z	Epic 7	epic_merge_started	head=2a96bcb4 into=feature
+2026-11-07T03:14:01Z	Epic 7	epic_merged_to_feature	merge=30432036 head=2a96bcb4 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0 sprint_valid=yes spine=untouched
+2026-11-07T03:14:01Z	Epic 7	decision_sheet_skipped	reason=no_open_decisions
+2026-11-07T03:14:01Z	Run	deps_hash_rerecorded	reason=fix_forward story=7.9 hash=7fa819bacb8e
