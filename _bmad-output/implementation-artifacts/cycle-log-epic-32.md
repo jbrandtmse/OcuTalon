@@ -156,3 +156,8 @@
 2026-10-23T16:43:24Z	Epic 32	smoke_complete	scope=integrated_tree method=cli result=pass evidence=ci/checks.sh_all_passed(55s);test-ci-warm.sh_--live_all_live_checks_passed(117s,lane_c,e32s4lt);tree_byte-identical;source_tree_identical_to_c89f5ca(CI_green) model=claude-opus-5-5
 2026-10-23T16:43:24Z	Epic 32	integrated_forward	feature=21eba88 head=989729d conflicts_resolved=none
 2026-10-23T16:43:24Z	Epic 32	epic_runner_complete	stories_completed=1 scope=reopen(story_32.4)
+2026-11-07T17:58:07Z	Epic 32	epic_branch_reopened	reason=story_32.5_live_sign-in_split(Planner_ruling_17:55Z) from=97324169
+2026-11-07T17:58:07Z	Epic 32	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=runner_A_(Epic_11_runner)_side_task_lane=A slot=ocutalon-slot-a
+2026-11-07T17:58:07Z	Epic 32	deps_hash_rerecorded	reason=fix_forward story=32.5 note=for_the_orchestrator
+2026-11-07T17:58:07Z	Epic 32	retro_review_skipped	reason=skip(no_X.0_input;SC-5_reopen_for_one_fix-forward_story)
+2026-11-07T17:58:07Z	Epic 32	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md status=final
