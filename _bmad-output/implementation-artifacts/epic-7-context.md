@@ -4,7 +4,7 @@
 
 ## Goal
 
-This epic is the climax of the two-minute demo. For a data-format cause, OcuTalon proposes repair and resend with a dry run that changes nothing, raises one approval request fixed to exact targets (later failures get their own dry run and request in the same incident), and after approval re-checks each target, resends repaired copies, leaves the originals untouched and reports how many went through, for at least 500 messages, never retrying without a new approval and never leaving a run cut short by a restart unreported. Stories 7.1 to 7.7 are built. One post-1.0.0 story remains: 7.7 made a date repair whose values read as valid dates both month first and day first name its evidence in the notice, and people on the demo path approve on the web incident card, so the same line must show there. A plausible conversion is never the only reason to approve a resend. Until November 13 every date the demo partner sends is ambiguous this way.
+This epic is the climax of the two-minute demo. For a data-format cause, OcuTalon proposes repair and resend with a dry run that changes nothing, raises one approval request fixed to exact targets (later failures get their own dry run and request in the same incident), and after approval re-checks each target, resends repaired copies, leaves the originals untouched and reports how many went through, for at least 500 messages, never retrying without a new approval. Stories 7.1 to 7.8 are built. The epic is re-opened for one story, 7.9: before any fix is offered, the dry run also applies the repair in memory to recent good messages from the same source and shows that it would leave them unchanged. If the repair would change any good message, no fix is offered. The user then knows the fix touches only the broken messages. The target is the Saturday release (Sunday 19Z at the latest).
 
 ## Stories
 
@@ -14,67 +14,72 @@ This epic is the climax of the two-minute demo. For a data-format cause, OcuTalo
 - Story 7.3: Approved repairs are re-checked and resent (done)
 - Story 7.4: OcuTalon reports how many orders went through (done)
 - Story 7.5: A resend cut short by a restart says how far it got (done)
-- Story 7.7: A date repair that could read either way names its evidence (done; first CI pending)
-- Story 7.8: The web incident card shows the either-way date line too (next, last; ledger item DW-645)
+- Story 7.7: A date repair that could read either way names its evidence (done)
+- Story 7.8: The web incident card shows the either-way date line too (done)
+- Story 7.9: The dry run shows the fix leaves good messages unchanged (next, last; backlog)
 
 ## Requirements & Constraints
 
-- **The payload (7.8).** For an approval whose date repair found every value valid both ways, the approval payload carries the ambiguity flag and the reading (month first or day first) with the dry run's other fields.
-- **The card row (7.8).** The dry-run block shows one row with U-249's catalog line, word for word as the notice shows it. The row is absent whenever the notice's line is absent: any day above 12, same-date values only (11/11, 12/12), or no either-way case.
-- **The line (U-249).**
-  - Many values: "All {count} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived."
-  - One value: "The date is valid whether read month first or day first. Read {reading}, it matches the day the {item} arrived."
-  - `{count}` is the resend count. `{item}` is the one form of the item noun ("order" in the demo, "message" when unknown).
-- **No new public text.** Any new label comes back as a veto item, never a silent choice. Any other wording change is a `## Clarification Needed`.
-- **Tests (7.8).** A payload test and a web test pin the row's presence for the either-way case and its absence for a day above 12.
+- **The check (7.9).** For a validated repair and resend whose dry run has targets, apply the registered reformatter, in memory only, to the same field of the last N=20 successfully processed messages from the same source as the failed ones. Record the count checked and the count the repair would change.
+- **Read only.** The check resends nothing and writes nothing to any message, header, body, setting or queue in either namespace. It calls no model: the CI mock receives no request during it.
+- **Nothing changed: one more notice line.** The with-fix notice's "Dry run:" paragraph gets one more line with the count checked and the count changed. The Planner rules the exact text at the spec gate. Never invent public wording; any wording question goes to the spec gate.
+- **Any change: no fix.** If any good message would change, no fix is offered and no request is raised. The incident gets the no-fix notice, following 7.7's no-evidence pattern (U-251). The Planner rules any no-fix wording at the spec gate.
+- **Approval runs exactly the dry run.** An approved request runs the same kind, parameters and fixed targets the dry run showed, and nothing else.
+- **Required tests.**
+  - A demonstrated mutation: a fix that changes one good message must withhold the offer.
+  - The case with no good messages.
+  - A case with fewer than 20 good messages.
+  - A check that the approved change equals the dry run's.
 - **Epic-wide.**
-  - Nothing changes during a dry run, and the CI mock receives no request during a dry run or an execution.
-  - The model picks only the kind and its parameters, and code validates them. No model-written code runs.
-  - Use the CI mock and its recorded replies only, never a real model key or a real Telegram bot.
-  - `live:demo-path` and the online-demo specs stay green; no recorded eval expectation changes.
+  - Use only the CI mock and its recorded replies, never a real model key or a real Telegram bot.
+  - `live:demo-path` and the online-demo specs stay green, and no recorded eval expectation changes.
 
 ## Technical Decisions
 
-- **What 7.7 settled (do not reopen).**
-  - `RepairResend.Evidence` gives `oneway`, `arrival`, `same`, `none` or `n/a`. The dry run refuses on `none`, so every raised request with differing readings has its evidence. Arrival means the UTC date of the failed header, one day of tolerance either way.
-  - A value whose two readings are the same date is not ambiguous: no line, no evidence needed (U-250). A mixed set shows the line as worded.
-  - A data-format reply with no fix gets `incident.noFix` with its cause, nothing approvable (U-251).
-- **The either-way test is derived, not stored.**
-  - The stored dry run keeps exactly the `DRYRUNKEYS` list, which `Test/Fix/DryRun` and `Test/Data/Tables` pin. No flag is on the row.
-  - The notice decides in `Watch/Notice.cls`: the private `Reading(dryRun, parameters)` needs the request's source format to be an order format and the dry run's `before` to read both ways as two different dates. The example rule in the dry run makes that true exactly when every target value reads both ways.
-  - The source format is in the row's `FixParameters`, which the payload does not expose. `Live/Payload` references neither `Watch.Notice` nor `Fix` today.
-  - The notice and the row must agree by one rule, not two copies. The spec decides how the payload gets it and records it. A stored key would mean a bridge change and both pinning tests.
-- **Payload.**
-  - `Live.Payload.Approval.FromRow` is the one builder for live events, REST and the rail. It maps the dry run key by key into `Part.DryRun`, whose doc says its keys are DRYRUNKEYS.
-  - `web/src/app/live/payloads.ts` is generated from the payload classes (`npm --prefix web run payloads`). Never hand-edit it.
-- **The page catalog cannot render the line yet.**
-  - The line has no key of its own: it sits inside `incident.withFixEitherWay` and `incident.laterRequestEitherWay` (and their one forms). The two keys copy their parents' text (DW-655).
-  - `web/scripts/catalog.mjs` keeps an allowlist with no `incident.*` key. It refuses a listed key with both a web form and a one form (both variants have both), and it allows a text slot only for the keys of `TEXT_SLOT_KEYS` (`reading` and `item` are text slots).
-  - The notice's text is rendered by the server; the page's `msg/catalog.ts` is generated. A hand copy of the line in `APPROVAL_TEXTS` is how the card and the notice would drift. The spec decides how the page gets the words, and a test holds them equal to the catalog's.
-- **The card.**
-  - `approval-view.ts` builds `DryRunView` as text and the component only interpolates it. It stays framework-free and runs under Node in `web/scripts/approval-view.test.mjs`.
-  - The block's labelled rows are Before, After and Will resend; `dry-note` is the existing row with no label.
-  - A later request is its own approval payload, so the rule covers later rounds with no special case.
-- **Tests.** `%UnitTest` classes go under `OcuTalon.Test.<Area>` and run on throwaways. The mock's request log is the evidence for "no model request".
+- **Fix kinds (fixed set).**
+  - A kind implements `DryRun`, `Recheck` and `Execute` against fixed targets, with a parameter schema.
+  - The model picks only the kind and its parameters (field, source and target format). Code validates them, and no model-written code runs.
+  - `FixExecutor` loads the kind, targets and change from the `ApprovalRequest` row alone: `FixKind`, `FixParameters` and `FixTargets`.
+- **The stored dry run.**
+  - It is JSON on the row with exactly `DRYRUNKEYS` (`affected`, `resend`, `leftOut`, `field`, `before`, `after`, `itemNoun`), pinned by `Test/Fix/DryRun` and `Test/Data/Tables`.
+  - The architecture lets later fix kinds add their own keys. Whether 7.9's counts become stored keys (a bridge change plus both pinning tests) or are carried another way is the spec's decision, and the spec records it.
+- **Reading messages.**
+  - `OcuTalon.Watch.Reader` is the one class that switches namespace to read a production. Fix may call it.
+  - Today it reads only failed headers (Status Error) and their evidence. It has no read of successfully processed messages, so the good-message read belongs in the Reader, not in Fix.
+- **The reformatter.** `OcuTalon.Fix.Reformat.Convert` refuses a value that doesn't read in the source format. The spec must say how a good value that the source format refuses counts in "checked" and "changed".
+- **The refusal path (7.7).**
+  - A refused `RepairResend.DryRun` returns an error with a plain reason (as `NOEVIDENCE` does).
+  - `IncidentManager` then sends `incident.noFix` with the cause, raises no request, leaves the incident open with variant `no_fix`, and logs one Type 3 warning that names the reason.
+  - `Test/Fix/EitherWay` and `Test/Fix/Raise` show the pattern.
+- **Notice keys.**
+  - `Watch/Notice` picks the with-fix key: `incident.withFix` or `incident.withFixEitherWay`, and for later requests `incident.laterRequest` or `incident.laterRequestEitherWay`. It builds slots in `WithFixSlots`.
+  - The new line has to sit beside the either-way line without doubling the variant keys by hand. The spec decides how, and any catalog addition is one self-contained block.
+  - Producers never render text: `OcuTalon.Msg.Catalog.Render` does that in the `*Out` operations.
+- **Tests.**
+  - `%UnitTest` classes go under `OcuTalon.Test.<Area>`.
+  - Integration tests run on throwaways and in CI only, through `Test.Watch.Case`.
+  - The mock's request log is the evidence for "no model request".
 
 ## UX & Interaction Patterns
 
-- **Dry run block.** It gives the count, one before-and-after example naming the field, and what will be resent, ending "Nothing has changed yet." while pending. After the answer the block stays as a record; the spec decides whether the row stays with it (the notice's line does not depend on the state).
-- **Short screens.** At 1280x600 the incident card's headline, cause, dry-run count, Approve and Reject must stay visible without scrolling the chat. The demo path has this row every day until November 13, so the extra line must not push them off.
-- **Voice.** Numbers first, plain words ("becomes", never arrows).
-- **EXPERIENCE.md.** It has no row for the line today. If it needs one, append it to the dry-run section, away from Epic 33's and Epic 40's blocks.
+- **Dry run block and paragraph.**
+  - It gives the count, one before-and-after example naming the field, and what will be resent.
+  - It ends "Nothing has changed yet." while the request is pending.
+  - The voice puts numbers first, uses plain words ("becomes", never arrows) and has no exclamation marks.
+- **No-fix notice.** It shows the cause and the failure groups, with no approval request and no buttons. The demo guide already has a hint for a notice without a fix (P25).
+- **Scope of the card.** 7.9's criteria name only the notice's paragraph, not the web incident card. Any card change is out of scope unless the spec gate rules otherwise.
+- **Short screens.** At 1280x600 the incident card's headline, cause, dry-run count, Approve and Reject stay visible without scrolling.
 
 ## Cross-Story Dependencies
 
-- **7.8 builds on 7.7** (the line, the two variant keys, `Notice.Reading`, the evidence rule) and on Epic 6's approval card. 7.1 to 7.6 are untouched. 7.7 never waits for 7.8.
-- **7.8's footprint.** Epic 31 has merged, so the wait is over. U-252 allows exactly these Lane B files in this Lane A epic: the `Live/Payload` approval payload and `web/src/app/approvals/approval-view.ts`. Anything else it needs (the card component, `catalog.mjs`, generated modules, `Notice.cls`, tests) is a footprint extension to report.
-- **Contended now (fetch and compare heads first; never write in another worktree):**
-  - `Test/Live/Payloads.cls`, `Live/Publish.cls` and `payloads.ts`: Story 39.7 (re-homed to Lane B) edits them. 7.8 may append in `Test/Live/Payloads.cls`, and the second to merge makes the plain union, then regenerates `payloads.ts`.
-  - `Msg/Catalog/Watch.cls`: Epic 33 adds `digest.*` keys. `Test/Msg/Catalog.cls`: Epics 33 and 40. Any catalog addition is one self-contained block at the end of the dry-run keys, never on lines another branch edits, and no existing key's text changes.
-  - No open branch touches `web/src/app/approvals/**`.
-- **Never edit:** the install path (`Install/**`, `src/module.xml`, `src/cpf/**`, `docker/**`, `install.sh`), under the Planner's stability watch until the tag; any other Lane B class or test. `Demo/**` and `eval/**` stay read-only.
-- **Release.** The rc freeze and push holds on this lane ended at the rc4 cut; nothing goes to `main` or `release/*`. Epic 7's merge waits for the 1.0.0 tag and for U-253: the Planner's five real-model trials on a pushed green head, where 5 of 5 merges and less holds. 7.8 ships in the same daily release as 7.7 if it makes the cut.
-- **Open ledger items:**
-  - DW-645 is 7.8's.
-  - DW-655 (the variant keys copy their parents) and DW-653 (`Eval.Record` refuses a fix-less data-format expectation) are burn-down items; don't fix them in passing.
+- **What 7.9 builds on.**
+  - 7.1: `RepairResend.DryRun` and the registered reformatters.
+  - 7.2 and 7.6: the with-fix and later-request notices, and `Raise`.
+  - 7.3: `Recheck` and `Execute` read the row only.
+  - 7.7: the refusal path to `incident.noFix`, and the either-way line.
+  - Keep 7.7's evidence rule and 7.8's card row behaving exactly as they do now.
+- **Later requests.** Each request has its own dry run, so the check should apply to a later round's dry run the same way.
+- **Open ledger items.**
   - DW-318: a dry run reads only each group's newest 1000 failure keys.
+  - DW-655 and DW-653 are burn-down items. Don't fix them in passing.
+- **Release.** Nothing goes to `main` or `release/*`. The exact public texts come from the Planner at the spec gate.

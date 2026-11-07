@@ -5,6 +5,7 @@ import { changeSnapshot } from './support/api';
 import { pointKeys, restoreKeys } from './support/devices';
 import { applied, railOf, signInReadmeLoaded } from './support/floor';
 import { chk, irisScript, publishStatus, quoted } from './support/iris';
+import { clock } from './support/page';
 import { sessionRef } from './support/persona';
 
 /**
@@ -24,7 +25,10 @@ import { sessionRef } from './support/persona';
  *   - HC11 and HC12 (QA) publish `heartbeat` events with a rewritten GET (no reload; a failed read leaves the heading; the next event reads again) and fail a
  *     save's re-read, so focus goes to the heading.
  */
-test.use({ timezoneId: 'UTC', locale: 'en-GB' });
+/** The locale and the zone the spec's page runs with; the page's clock is the locale's numeric hour in that zone. */
+const LOCALE = 'en-GB';
+const ZONE = 'UTC';
+test.use({ timezoneId: ZONE, locale: LOCALE });
 
 const HEARTBEAT = '/ocutalon/api/v1/heartbeat';
 const RUN = '/ocutalon/api/v1/heartbeat/run';
@@ -107,8 +111,6 @@ async function writeRow(ref: string, fields: RowFields): Promise<void> {
 
 /** An ISO time to the second, the given number of milliseconds from now. */
 const at = (ms: number): string => new Date(Date.now() + ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
-/** The page's rendering of such a time on today's date (the zone is UTC): HH:MM. */
-const clock = (iso: string): string => iso.slice(11, 16);
 const MINUTE = 60_000;
 
 /** True within 40 minutes of midnight UTC, where "now plus or minus 30 minutes" would be rendered with a day word. */
@@ -170,7 +172,7 @@ test('HC1: the Heartbeat checklist section comes before Persona with the default
     const skippedAt = at(-5_000);
     await writeRow(ref, { LastSkipAt: skippedAt, LastSkipReason: 'empty', NextDueAt: at(24 * 60 * MINUTE) });
     await page.reload();
-    await expect(lastOf(page), 'a forced skip shows the skip line').toHaveText(`Skipped at ${clock(skippedAt)}: your checklist is empty.`);
+    await expect(lastOf(page), 'a forced skip shows the skip line').toHaveText(`Skipped at ${clock(skippedAt, LOCALE, ZONE)}: your checklist is empty.`);
   });
 });
 
@@ -280,11 +282,11 @@ test('HC5: Run is held for 120 seconds after LastRunNowAt, still after a reload,
       await conditionsOff(page);
       const ends = new Date(Date.parse(ran) + 120_000).toISOString();
       await expect(runOf(page), 'Run is held').toHaveAttribute('aria-disabled', 'true');
-      await expect(runOf(page)).toHaveAccessibleDescription(`You can run it again at ${clock(ends)}.`);
+      await expect(runOf(page)).toHaveAccessibleDescription(`You can run it again at ${clock(ends, LOCALE, ZONE)}.`);
       await page.reload();
       await conditionsOff(page);
       await expect(runOf(page), 'after a reload it is still held, from LastRunNowAt').toHaveAttribute('aria-disabled', 'true');
-      await expect(runOf(page)).toHaveAccessibleDescription(`You can run it again at ${clock(ends)}.`);
+      await expect(runOf(page)).toHaveAccessibleDescription(`You can run it again at ${clock(ends, LOCALE, ZONE)}.`);
       await expect(runOf(page), 'and enabled again when the cooldown ends, with no reload').not.toHaveAttribute('aria-disabled', 'true', {
         timeout: Math.max(Date.parse(ends) - Date.now(), 0) + 5_000,
       });
@@ -377,7 +379,7 @@ test('HC8: each outcome and each skip reads in the UX texts, and the Today line 
     traceUrl: 'https://example.test/trace/4242',
     ...extra,
   });
-  const time = clock(beat);
+  const time = clock(beat, LOCALE, ZONE);
   const skipAt = at(-2 * MINUTE);
   const backoff = at(30 * MINUTE);
   const cases: Array<[string, Record<string, unknown>, string]> = [
@@ -392,15 +394,15 @@ test('HC8: each outcome and each skip reads in the UX texts, and the Today line 
     ],
     ['pending', { lastBeatAt: beat }, `Last check-in ${time}`],
     ['unknown outcome', checkIn('zz_unknown'), `Last check-in ${time}`],
-    ['skip empty', { ...checkIn('ignore'), lastSkipAt: skipAt, lastSkipReason: 'empty' }, `Skipped at ${clock(skipAt)}: your checklist is empty.`],
-    ['skip hours', { lastSkipAt: skipAt, lastSkipReason: 'hours' }, `Skipped at ${clock(skipAt)}: outside your active hours.`],
-    ['skip unchanged', { lastSkipAt: skipAt, lastSkipReason: 'unchanged' }, `Skipped at ${clock(skipAt)}: nothing has changed since the last quiet check-in.`],
-    ['skip cap', { lastSkipAt: skipAt, lastSkipReason: 'cap' }, `Skipped at ${clock(skipAt)}: today's cost limit has been reached.`],
-    ['skip nokey', { lastSkipAt: skipAt, lastSkipReason: 'nokey' }, `Skipped at ${clock(skipAt)}: no model key is set.`],
+    ['skip empty', { ...checkIn('ignore'), lastSkipAt: skipAt, lastSkipReason: 'empty' }, `Skipped at ${clock(skipAt, LOCALE, ZONE)}: your checklist is empty.`],
+    ['skip hours', { lastSkipAt: skipAt, lastSkipReason: 'hours' }, `Skipped at ${clock(skipAt, LOCALE, ZONE)}: outside your active hours.`],
+    ['skip unchanged', { lastSkipAt: skipAt, lastSkipReason: 'unchanged' }, `Skipped at ${clock(skipAt, LOCALE, ZONE)}: nothing has changed since the last quiet check-in.`],
+    ['skip cap', { lastSkipAt: skipAt, lastSkipReason: 'cap' }, `Skipped at ${clock(skipAt, LOCALE, ZONE)}: today's cost limit has been reached.`],
+    ['skip nokey', { lastSkipAt: skipAt, lastSkipReason: 'nokey' }, `Skipped at ${clock(skipAt, LOCALE, ZONE)}: no model key is set.`],
     [
       'skip backoff',
       { lastSkipAt: skipAt, lastSkipReason: 'backoff', backoffUntil: backoff },
-      `Skipped at ${clock(skipAt)}: waiting after a failed check-in, until ${clock(backoff)}.`,
+      `Skipped at ${clock(skipAt, LOCALE, ZONE)}: waiting after a failed check-in, until ${clock(backoff, LOCALE, ZONE)}.`,
     ],
   ];
   await withCard(page, async () => {
@@ -415,7 +417,7 @@ test('HC8: each outcome and each skip reads in the UX texts, and the Today line 
     await page.reload();
     await expect(todayOf(page), 'three check-ins read in the plural').toHaveText('Today: 3 check-ins, $0.0036');
     await expect(card(page).locator('p.line').first(), 'the on line holds the interval, the hours and the next check-in').toHaveText(
-      `Every 1 hour, 07:15 to 21:45 \u00b7 Next check-in ${clock(nextDueAt)}`,
+      `Every 1 hour, 07:15 to 21:45 \u00b7 Next check-in ${clock(nextDueAt, LOCALE, ZONE)}`,
     );
     shown = { today: { checkIns: 1, costUSD: 0.0012 }, on: true, interval: 1440, from: '', to: '', nextDueAt: null };
     await page.reload();
@@ -518,7 +520,7 @@ test('HC10: a 409 cooldown holds Run to its time, a 409 empty and a 500 show the
     answer = { status: 409, json: { error: { code: 'cooldown', message: 'zz' }, availableAt } };
     await runOf(page).click();
     await expect(runOf(page), 'a 409 cooldown holds Run').toHaveAttribute('aria-disabled', 'true');
-    await expect(runOf(page)).toHaveAccessibleDescription(`You can run it again at ${clock(availableAt)}.`);
+    await expect(runOf(page)).toHaveAccessibleDescription(`You can run it again at ${clock(availableAt, LOCALE, ZONE)}.`);
     expect(posts, 'one POST').toEqual(['POST']);
 
     await page.reload();
@@ -615,7 +617,7 @@ test('HC11: a heartbeat event shows the new state with no reload, a failed read 
       today: { checkIns: 1, costUSD: 0.0012 },
     };
     await applied(page, await publishHeartbeat(ref, beat));
-    await expect(lastOf(page), 'the next event reads again: the new check-in shows').toHaveText(exactly(`Last check-in ${clock(beat)} \u00b7 Stayed quiet \u00b7 $0.0012 \u00b7 Trace`));
+    await expect(lastOf(page), 'the next event reads again: the new check-in shows').toHaveText(exactly(`Last check-in ${clock(beat, LOCALE, ZONE)} \u00b7 Stayed quiet \u00b7 $0.0012 \u00b7 Trace`));
     await expect(todayOf(page), 'and Today follows').toHaveText('Today: 1 check-in, $0.0012');
     expect(await page.evaluate(() => (globalThis as unknown as Record<string, unknown>)['hc11']), 'all of it on the same page, with no reload').toBe('same page');
   });
@@ -725,9 +727,9 @@ test.describe('HC4 (Integration)', () => {
       const response = await answered;
       expect(response.status(), `Run is accepted (${await response.text()})`).toBe(202);
       await expect(runOf(page), 'the button is held for the cooldown').toHaveAttribute('aria-disabled', 'true');
-      await expect(runOf(page)).toHaveAccessibleDescription(/^You can run it again at \d\d:\d\d\.$/);
+      await expect(runOf(page)).toHaveAccessibleDescription(/^You can run it again at \d{1,2}:\d\d\.$/);
 
-      await expect(lastOf(page), 'from the tick, with no reload: the outcome, the cost and a trace link').toHaveText(/^Last check-in \d\d:\d\d \u00b7 Stayed quiet \u00b7 \$\d+\.\d+ \u00b7 Trace/, {
+      await expect(lastOf(page), 'from the tick, with no reload: the outcome, the cost and a trace link').toHaveText(/^Last check-in \d{1,2}:\d\d \u00b7 Stayed quiet \u00b7 \$\d+\.\d+ \u00b7 Trace/, {
         timeout: 120_000,
       });
       await expect(lastOf(page).locator('app-trace-link'), 'the Trace link is there').toHaveCount(1);

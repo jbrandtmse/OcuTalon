@@ -102,7 +102,7 @@ ClassMethod CheckParameters(parameters As %DynamicObject, fields As %DynamicArra
 }
 
 /// Works out, for the incident's failure group, the header ids to resend (targets: comma-separated, ascending) and the dry run (a dynamic object with
-/// exactly the keys of OcuTalon.Bridge.Data.ApprovalRequest DRYRUNKEYS), and changes nothing. An error status that says why when it cannot be worked out.
+/// the keys of OcuTalon.Bridge.Data.ApprovalRequest DRYRUNKEYS, and the kind's own transient keys such as repair_resend's goodCheck, which are never stored), and changes nothing. An error status that says why when it cannot be worked out.
 ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, Output targets As %String, Output dryRun As %DynamicObject) As %Status
 {
 	Set targets = ""
