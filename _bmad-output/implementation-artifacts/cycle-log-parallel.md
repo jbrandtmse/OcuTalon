@@ -2487,3 +2487,5 @@
 2026-11-07T15:11:14Z	Epic 19	runner_resumed	reason=wait_a86b532c
 2026-11-07T15:19:58Z	Run	planner_ruling	subject=part1_timing ok=17:00-17:15Z cut=when_green hard_stop=23Z DW-871=yes(AD-22_U7+ci.yml_comment_in_part1_merge) DW-870=owner_raised;release_gate_requires_all_checks DW-869=ok owner_approved=merge_tag_1.0.3_and_demo hold=20:30-21:30Z quota=78%@15:35Z
 2026-11-07T15:29:02Z	Run	planner_finding_ledgered	dw=DW-873(D1_Got_it_button) dw=DW-874(D2_demo_digest_invisible) target=1.0.4 priority=ahead_of_tier3 next_free_runner sizing=read-only_explore_agent
+2026-11-07T15:33:18Z	Epic 39	merge_gate_blocked	reason=ci_red head=d5b39c3d run=42379785616 attempt1=DW-494_sibling attempt2=DW-688 decision=hold_until_after_cut;integrate_onto_part1_split_then_fresh_CI
+2026-11-07T15:33:43Z	Run	planner_update	subject=D1_D2_sizing D1a=5-7h D1b=1-1.5h window=2-3h D2a=7-10h(web) D2b=3-4h recommend=D1b+window,D2a staffing=next_free_runners_as_17.10,17.11
