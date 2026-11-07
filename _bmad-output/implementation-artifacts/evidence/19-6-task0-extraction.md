@@ -73,3 +73,9 @@ The figures that the README and `docs/install-ipm.md` quote (installed size, dow
 - Download: the wheels of the 36 pinned distributions are 75,994,243 bytes in 36 files.
 - Model: `<mgr>/fastembed` holds 91,103,785 bytes (about 90 MB).
 - Time: the second command takes 58 to 63 s on a quiet host and 87 to 90 s on a loaded host (93 s on the loaded host of the run above); of that, pip and the download take about 21 s. The `docker build --no-cache` step that runs pip and fetches the model takes 26.0 s on the clean host. The README and docs round up to "about 1 minute" for an ordinary connection.
+
+## x64 install time (2026-11-07, for the Planner's x64 clause)
+
+- Source: CI lane-a run 42324833802, job `ipm-install` 128257598130, IPM path A (local artifact): `TIME second-ocutalon 177s`, on the shared Intel CI host (x64 Linux build server).
+- Beside the ARM figures above: on the Apple silicon Mac the second command took 58 to 63 s quiet and 87 to 94 s loaded, of which about 21 s was pip and the model download.
+- Text (the Planner's ruling of about 02:38Z): "about 1 to 1.5 minutes on an Apple silicon Mac and about 3 minutes on a shared x64 Linux build server. On the Mac, the downloads took about 20 seconds of that."
