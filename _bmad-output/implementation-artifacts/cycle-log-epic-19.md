@@ -104,3 +104,5 @@
 2026-11-07T01:36:04Z	Epic 19	ruling	question=part1_burndown_with_DW-829,DW-830(remainder_2,under_cap) choice=charter_Story_19.8_Epic_19_burn-down(both_entries) why=the_Planner_requires_both_settled_inside_part_1_by_measurement_and_install_fix;the_gate's_resolve/re-own_paths_cannot_meet_that rejected=re-own_to_a_next-epic_key(must_settle_before_the_part-1_contract) category=decide policy=5086036
 2026-11-07T01:36:04Z	Epic 19	ledger_routed_planned	story=19-8 entries=2 excess=0 by=burndown ids=DW-829,DW-830
 2026-11-07T01:36:04Z	Epic 19	deps_hash_rerecorded	reason=burndown_inserted note=Story_19.8_inserted_in_Epic_19(no_boundary_or_dependency_change);the_orchestrator_re-records_the_graph_hash
+2026-11-07T01:38:13Z	Epic 19	epic_context_compiled	sha=be8852af reason=burndown_inserted(19.8) model=opus words=1755
+2026-11-07T01:38:13Z	Story 19.8	stage_spawned	stage=plan spawn_at=2026-11-07T01:38:13Z model=opus agent_name=19-8-epic-19-burn-down-plan-1 cycle_iteration=1
