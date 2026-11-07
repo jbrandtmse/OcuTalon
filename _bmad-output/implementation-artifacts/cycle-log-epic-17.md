@@ -333,3 +333,5 @@
 2026-11-07T20:01:47Z	Epic 17	deps_hash_rerecorded	reason=fix_forward story=17.10 for=orchestrator
 2026-11-07T20:01:47Z	Epic 17	epic_status_reopened	from=done to=in-progress reason=sc5_reopen(story_17.10)
 2026-11-07T20:01:47Z	Epic 17	ledger_routed_planned	story=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges entries=1(DW-874) excess=0 by=load
+2026-11-07T20:11:36Z	Epic 17	epic_context_compiled	sha=24cabba4 reason=planning_artifact_newer(17.10_chartered) model=opus
+2026-11-07T20:12:08Z	Story 17.10	stage_spawned	stage=plan spawn_at=2026-11-07T20:12:08Z model=opus agent_name=17-10-plan-1 cycle_iteration=1
