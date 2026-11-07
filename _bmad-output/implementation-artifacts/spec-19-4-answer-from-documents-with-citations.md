@@ -183,6 +183,8 @@ Tests, mock, CI and live scripts:
 
 ## Spec Change Log
 
+- 2026-11-07 (lead, before implement): the Planner's PUBLIC TEXT ruling (about 17:25Z) recorded under Design Notes: RAGSTATEMENT changed slightly, the bridge-guide line and NOROOM approved as drafted; Q2(b) and Q4 conditions.
+
 - 2026-11-07 (lead, part 2 re-open): Epic 17 is merged (feature 5b47f052); status reset to `draft` to re-plan around the merged bridge files; the Design Notes "Rulings (2026-11-06 ...)" block stays binding and verbatim.
 
 - 2026-11-06 (lead): the Planner's rulings on the blocking question and the "Needs a ruling" items recorded under Design Notes "Rulings"; the story waits for Epic 17's merge, then status reset and spec gate.
@@ -301,6 +303,13 @@ These force `DocumentOps` to write passages itself and code to apply a floor. Th
 - Q6 (PUBLIC TEXT, APPROVED as written), placed after Story 19.3's memory bullets and before "Everything that comes from a tool...", PersonaBlock pins still last; pin both with fixed-strings tests:
   1. "When the user asks about something their documents may cover, such as a runbook, call documents with the question, and answer only from the passages it returns, naming the document and section of each step you give."
   2. "If no passage that documents returns answers the question, reply with exactly this sentence and nothing else: None of your documents cover that."
+
+**PUBLIC TEXT ruling (2026-11-07, the Contest Planner under the owner's delegation, about 17:25Z). Every string is EXACT; pin each with a fixed-strings test and show a mutation red. It replaces the three "PUBLIC TEXT needed" proposals:**
+1. `Install/SecurityOverview.cls` `RAGSTATEMENT` (changed slightly from the proposal; printed in the generated `docs/security-overview.md`, which is regenerated through the generator, never by hand): "One tool has no class of its own: `documents`, the search over your added documents that AI Hub's knowledge base gives the Chat agent. AI Hub sends no source class with its calls, so the gate classifies this one tool, and no other, by the bridge's classification setting: safe and read-only, but its output is never trusted, so a turn that searches your documents is treated as holding untrusted content. The gate also limits each search to 5 passages. Any other call that arrives without a source class stays unclassified and counts as risky."
+2. `docs/bridge-guide.md:312` (approved as drafted): "`Filter(text, hostData)` returns the text to use in place of model-written text. For a chat turn, `hostData` is the reply's `HostData` JSON; otherwise it is empty. It returns the text unchanged by default."
+3. `Bridge/Policy/Gate.cls` `NOROOM` (model-facing; approved as drafted): "This step's tool results are near their size limit, so the documents search was not run. Answer from the results you already have."
+- Q2(b) reading ACCEPTED: "an unrelated question gets no passages" means no passage is CITED. When nothing clears the score floor, the reply carries "None of your documents cover that." and no citation, AND the turn still counts as holding untrusted content because the search ran: pin BOTH. A passage reaching the model unfiltered is accepted (no hook exists).
+- Q4 `live:documents` in `shards-5` ACCEPTED, with conditions: the 10 MB `.pdf` is GENERATED at test time, never committed; if it must be a file, it is kept out of the IPM artifact and the Docker image, and a test pins that exclusion. The lead reports `shards-5`'s first measured time; over 35 minutes stops before any rerun.
 
 ## Verification
 
