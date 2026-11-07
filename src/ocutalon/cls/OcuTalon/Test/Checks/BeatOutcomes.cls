@@ -10,7 +10,8 @@
 ///     holds a mail decision with a Usage row, whose channel is in the mock's request: the Usage read works in the production's own job;
 ///   - TestDigest (AC 6): heartbeat-digest: one Digest.Data.Item (channel heartbeat, the beat's subject), and no notice;
 ///   - TestAct (AC 6, AC 10; NFR-14): heartbeat-act, armed once, whose turn asks for recent_activity and stop_watch: a turn Decision, untrusted, the stop_watch step
-///     is denied (UNTRUSTED), the read-only step runs, no approval request exists, nothing reaches WatchOps or CommandsIn, and the watch is still there;
+///     is denied (UNTRUSTED), the read-only step runs, no approval request exists, nothing reaches WatchOps or CommandsIn, and the watch is still there; the next
+///     Tick records the decision, and the heartbeat event's lastCostUSD is the decision's cost plus the turn's, which is Today's cost with one check-in (Story 39.9, DW-824);
 ///   - TestAllClearIsGuarded (AC 8): heartbeat-all-clear: the reserved wording is gone from the Decision's reasons and from the notice, whose reason is the second one;
 ///   - TestWatchRunsAgain (AC 4): a person with a real watch and heartbeat-ignore: the watch runs again between the beats with the same result, and the beat due one
 ///     interval later is skipped as unchanged, with no request.
@@ -204,6 +205,27 @@ Method TestAct()
 	Set rows = ..Rows(session, 0)
 	Do $$$AssertEquals(rows.%Size(), 1, "the person still has one watch")
 	If rows.%Size() = 1 Do $$$AssertEquals(rows.%Get(0).ref, ref, "which is the one that the model asked to stop")
+
+	// DW-824: the check-in's cost holds the decision and its turn, on the event and in Today
+	Set ownership = "OcuTalon.Data.Ownership"
+	Set end = $ZHorolog + ..#WAITDIAGNOSIS
+	For {
+		Set cost = $ClassMethod(ownership, "CheckInCost", case.session, item.itemId, .sc)
+		If ($SYSTEM.Status.IsOK(sc) && (+cost.costUSD > +decision.CostUSD)) || ($ZHorolog > end) Quit
+		Hang 0.5
+	}
+	Do $$$AssertTrue(+turn.CostUSD > 0, "control: the turn has a cost of its own: "_turn.CostUSD)
+	Do $$$AssertTrue(+cost.costUSD > +decision.CostUSD, "the check-in's Usage rows hold more than the decision's cost: "_cost.costUSD_" and "_decision.CostUSD)
+	If ..Tick(##class(OcuTalon.Data.Time).AddSeconds(case.t0, 60)) = "" Quit
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(case.session, "heartbeat", 2, ..#WAITDIAGNOSIS)
+	Do $$$AssertTrue(events.%Size() >= 2, "the Tick that records the decision publishes a heartbeat event")
+	If events.%Size() >= 2 {
+		Set payload = events.%Get(events.%Size() - 1).payload
+		Set today = $ClassMethod(ownership, "HeartbeatToday", case.session, .sc)
+		Do $$$AssertStatusOK(sc, "Today is read")
+		Do $$$AssertEquals(payload.lastOutcome_"|"_(+payload.lastCostUSD), "act|"_(+$FNumber(decision.CostUSD + turn.CostUSD, "", 6)), "the event's lastCostUSD is the decision's cost plus the turn's")
+		Do $$$AssertEquals(today.checkIns_"|"_(+$FNumber(today.costUSD, "", 6)), "1|"_(+payload.lastCostUSD), "and it is Today's cost, with one check-in")
+	}
 	Do ..AssertNoCheck(case, 1)
 }
 

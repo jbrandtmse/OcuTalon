@@ -4,6 +4,7 @@
 #     the daily cost cap." exactly once in the whole file, that once is inside the line that starts `- In model requests to the configured provider` under
 #     `Data leaves the instance only:` with no heading between, and it comes directly after the beat sentence ("A heartbeat check-in (a beat) sends the
 #     person's checklist and a status snapshot to the configured provider, at most once per interval."), a space between.
+# The overview rule is overview_bullet_rule of docker/tests/lib-heartbeat-overview.sh, which test-triage-heartbeat.sh shares.
 # Each way of breaking the rule is first tried on a synthetic file that must be flagged, and a good one that must not be, so a rule that can no longer flag
 # anything fails. A failing rule prints what is wrong. Prints one PASS or FAIL line for each rule; exits 0 only when every rule passes.
 set -u
@@ -11,29 +12,18 @@ set -u
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root" || exit 1
 
-OVERVIEW="docs/security-overview.md"
-BEAT="A heartbeat check-in (a beat) sends the person's checklist and a status snapshot to the configured provider, at most once per interval."
+. "$root/docker/tests/lib-heartbeat-overview.sh"
+
+OVERVIEW="$HEARTBEAT_OVERVIEW"
+BEAT="$HEARTBEAT_BEAT_SENTENCE"
 SENTENCE="Run now sends the same kind of beat, at most once every 2 minutes per session and only within the daily cost cap."
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ho.XXXXXX") || exit 1
 trap 'rm -rf "$tmp"' EXIT
 
-# chk_runnow <security-overview.md>: prints one line for each way the sentence is wrong
+# chk_runnow <security-overview.md>: prints one line for each way the sentence is wrong (the rule is lib-heartbeat-overview.sh's)
 chk_runnow() {
-  local total placed
-  total=$(grep -oF -e "$SENTENCE" "$1" | wc -l | tr -d ' ')
-  if [ "$total" != "1" ]; then
-    echo "runnow: $1 holds the run-now sentence $total times, not once"
-  fi
-  placed=$(S="$SENTENCE" B="$BEAT" awk '
-    BEGIN { s = ENVIRON["S"]; b = ENVIRON["B"]; both = b " " s; sect = 0; ok = 0 }
-    /^#/ { sect = 0 }
-    $0 == "Data leaves the instance only:" { sect = 1; next }
-    sect && index($0, "- In model requests to the configured provider") == 1 && index($0, both) > 0 { ok = 1 }
-    END { print ok }' "$1")
-  if [ "$placed" != "1" ]; then
-    echo "runnow: $1 does not hold the run-now sentence directly after the beat sentence in the line '- In model requests to the configured provider' under 'Data leaves the instance only:'"
-  fi
+  overview_bullet_rule runnow "$1" "$SENTENCE" "$BEAT $SENTENCE" "the run-now sentence" " directly after the beat sentence"
 }
 
 # good_overview <text>: a synthetic overview whose model-requests bullet ends with the text, under the right heading

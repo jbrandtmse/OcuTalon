@@ -1137,6 +1137,7 @@ Method TestTickPublishesTheBeats()
 	Set itemD = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(d).LastItemId
 	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(d, "decide", , {"Outcome": "tellnow", "Fallback": 1, "CostUSD": 0.0025, "TraceSessionId": 4242, "ItemId": (itemD)})
 	Set ..Refs = ..Refs_","_decision
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(decision, d, {"ItemId": (itemD), "Kind": "decide", "Channel": "heartbeat", "CostUSD": 0.0025})
 	Do ..Tick(host, ..#NEXT)
 	Set events = ..BeatEvents(d)
 	Do $$$AssertEquals(events.%Size(), 2, "the next Tick records the result and publishes one more event")
@@ -1345,6 +1346,7 @@ Method TestOffPersonsRecordedResultIsPublishedWithTheirSettings()
 	Do $$$AssertStatusOK(row.%Save(), "the pending beat is saved")
 	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(a, "decide", , {"Outcome": "ignore", "CostUSD": 0.0031, "TraceSessionId": 4243, "ItemId": (row.LastItemId)})
 	Set ..Refs = ..Refs_","_decision
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(decision, a, {"ItemId": (row.LastItemId), "Kind": "decide", "Channel": "heartbeat", "CostUSD": 0.0031})
 	Set host.BeatSessions = a
 	Do ..Tick(host, ..#TICK)
 	Set events = ..BeatEvents(a)

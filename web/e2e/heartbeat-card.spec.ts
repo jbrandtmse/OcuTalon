@@ -417,7 +417,7 @@ test('HC8: each outcome and each skip reads in the UX texts, and the Today line 
     await page.reload();
     await expect(todayOf(page), 'three check-ins read in the plural').toHaveText('Today: 3 check-ins, $0.0036');
     await expect(card(page).locator('p.line').first(), 'the on line holds the interval, the hours and the next check-in').toHaveText(
-      `Every 1 hour, 07:15 to 21:45 \u00b7 Next check-in ${clock(nextDueAt, LOCALE, ZONE)}`,
+      `Every hour, 07:15 to 21:45 \u00b7 Next check-in ${clock(nextDueAt, LOCALE, ZONE)}`,
     );
     shown = { today: { checkIns: 1, costUSD: 0.0012 }, on: true, interval: 1440, from: '', to: '', nextDueAt: null };
     await page.reload();

@@ -2,8 +2,8 @@
 title: "Story 39.9: Heartbeat follow-up: today's cost matches its check-ins, and the tidy-ups"
 type: 'bugfix'
 created: '2026-11-07'
-status: 'ready-for-dev'
-baseline_revision: '4497f66072a88e572de4d88403aadb2d363fc644'
+status: 'done'
+baseline_revision: '9fce6cbee980dfea2cc4dc2d2d09b9a4b7f2d3c9'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -135,6 +135,32 @@ Item 4, DW-670:
 
 ## Review Triage Log
 
+### 2026-11-07 -- Review pass
+- verdicts: 22 findings -- high 0, medium 0, low 16, false 6, maybe-false 0
+- findings:
+  - `[low]` `[reject]` blind: `checkInUsage` has no ItemId index, so each read scans the owner's Usage rows -- the intent forbids adding an index; the owner's rows per day are few.
+  - `[low]` `[reject]` blind: `CheckInCost` has no day bound while Today has one, so a check-in across local midnight differs -- the intent sums "all of the Item's heartbeat rows" (Design Notes); a day bound would change the specified behavior; negligible in use.
+  - `[low]` `[patch]` blind: a failed or empty-Item read leaves `lastCostUSD` empty silently and the path is untested -- added the empty-Item assertion to `TestHeartbeatFromRow` (mutation line added); the failed read stays unpinned as the matrix says.
+  - `[false]` `[reject]` blind: `If ..Tick(...) = "" Quit` hides a failed Tick -- Tick returns "" only after its own failed assertion; four siblings in the class use the same line.
+  - `[low]` `[reject]` blind: the wait loop's timeout is not named -- the next assertion fails with both costs in its text; not worth a branch.
+  - `[low]` `[reject]` blind: `HeartbeatBeat.LastCostUSD` docs still read as the displayed cost -- they sit in `Data/HeartbeatBeat.cls` and `Checks/Beat.cls` (frozen, out of footprint); the row keeps AD-18's "records its cost".
+  - `[false]` `[reject]` blind: the spec's Auto Run Result and path placeholders are inconsistent -- the result is rewritten at finalize; `test-boundaries.sh` forbids local paths in tracked files (the placeholders were needed for it to pass).
+  - `[false]` `[reject]` blind: `stateLine` hard-codes 60 and the wording is split from the picker -- the two whole constants are the spec's ruled design; the all-day case is pinned in `heartbeat-card-view.test.mjs`.
+  - `[false]` `[reject]` edge: the event keeps a partial sum until the next publish when the turn lands late -- matrix row "Turn still running at the recording tick" rules this; the next read shows both.
+  - `[low]` `[reject]` edge: no day bound (as above) -- carried claim, same evidence.
+  - `[low]` `[reject]` edge: a recorded decision without Usage rows shows 0 instead of the row's cost -- a decision with a cost always has its Usage row; the Runs fixtures were given theirs as the spec directs.
+  - `[low]` `[patch]` edge: silent failed read when `LastDecisionRef` is set and `LastItemId` empty -- same patch as the third row.
+  - `[low]` `[reject]` edge: `TestHeartbeatFromRow` leaves Usage rows if it throws -- the same Clean-at-end shape as its siblings, and fixture rows are removed by the class's own cleanup of refs; negligible.
+  - `[low]` `[reject]` edge: a timed-out wait is not named -- same as the fifth row.
+  - `[low]` `[patch]` verification-gap: no recorded mutation for the `OwnerRef` and `ItemId` clauses -- both run, both red in `TestGetCheckInCost`, lines written, tree byte-identical after the revert.
+  - `[low]` `[patch]` verification-gap: empty-Item and failed-read branches unpinned, the `IsOK(sc)` guard unkillable -- the empty-Item branch is now pinned (mutation line); the guard is redundant by construction and the failed read is "not pinned" by the matrix.
+  - `[low]` `[reject]` verification-gap: the lib's failure text is checked only by a recorded `cmp` -- the text prints only on failure; the flag behavior and M3c are pinned; byte identity was verified under M3a and M3b.
+  - `[low]` `[reject]` verification-gap: a run across instance-zone midnight would fail the exact Today asserts -- unlikely and the same as existing Today tests.
+  - `[false]` `[reject]` intent-alignment: no test renders the card's two cost lines for an Act check-in -- the card renders the GET (39.5's tests), and the GET is pinned by `TestGetCheckInCost` with the event by `TestAct`; AC 1 names the GET.
+  - `[low]` `[reject]` intent-alignment: day window differs -- carried claim, same evidence.
+  - `[low]` `[reject]` intent-alignment: no rows at all gives 0 not the decision's cost -- same as the eleventh row.
+  - `[false]` `[reject]` intent-alignment: a second lib rather than extending `lib-security-overview.sh` -- Rule 2 reason in Design Notes (that file is frozen).
+
 ## Design Notes
 
 **Governing ADs:** AD-20 (Usage rows per turn; "totals that don't add up" is what it prevents; totals live in the ownership API beside `TurnCost`), AD-18 (the agent heartbeat: a beat is one decision plus one read-only turn on act; the row records the decision's cost, kept; the Event bullet: the payload is "the row's public view", read here as the view of the row's check-in, see below), AD-12 (one view per commit; the GET and the event are one view), AD-28 (no all-clear: no text added), AD-29 and AD-33 (lanes, see below), AD-22 (the CI mock and throwaway stacks).
@@ -177,7 +203,7 @@ Item 4, DW-670:
 
 ## Verification
 
-`<lane>` is `OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-d OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=39 stage=implement'` (another stage puts its own name in `stage=`).
+`<lane>` is `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-d OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=39 stage=implement'` (another stage puts its own name in `stage=`).
 
 **Run rules:**
 - Every command is a foreground call with `timeout: 600000`, one test class, shard piece or live part per call, never two at once.
@@ -194,7 +220,7 @@ Item 4, DW-670:
 **ci_groups:** `image` (`shard:lane-b`: HeartbeatApi, Payloads, GuideApi, about 1,740 s plus a few seconds), `shards` (`shard:lane-a@Checks,Install,Watch`: BeatOutcomes and Runs, about 1,830 s plus about 10 s for `TestAct`'s extra Tick and wait), `browser` (`live:sign-in`: one changed expectation, no new test), the hosted `web` job (node tests) and the hosted `checks` job (the two scripts). Every group stays under 35 minutes.
 
 **Commands:**
-- (once) Before any edit: `bash docker/tests/test-triage-heartbeat.sh > /private/tmp/claude-501/-Users-jbrandt-git-contests-contest-49-OcuTalon/5cb996a5-0bf2-4d36-8f9c-3ef0d5515c56/scratchpad/e39s9impl/th-clean.txt; echo $?` and the same for `test-heartbeat-overview.sh` (`ho-clean.txt`); then each of M3a and M3b below applied to `docs/security-overview.md`, both scripts run into `th-M3a.txt`, `ho-M3a.txt`, …, and the file reverted (`git diff --quiet -- docs/security-overview.md`). Expected: clean exit 0; M3a red in both; M3b red in `heartbeat-overview` only.
+- (once) Before any edit: `bash docker/tests/test-triage-heartbeat.sh > <scratchpad>/e39s9impl/th-clean.txt; echo $?` and the same for `test-heartbeat-overview.sh` (`ho-clean.txt`); then each of M3a and M3b below applied to `docs/security-overview.md`, both scripts run into `th-M3a.txt`, `ho-M3a.txt`, …, and the file reverted (`git diff --quiet -- docs/security-overview.md`). Expected: clean exit 0; M3a red in both; M3b red in `heartbeat-overview` only.
 - (loop) `<lane> OCUTALON_RUN_TAG=e39s9implw ci/warm.sh up`, once. Expected: READY.
 - (loop) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e39s9implw ci/iris.sh class OcuTalon.Test.Live.Payloads`. Expected: passed.
 - (loop) the same, warm, one per call, for `OcuTalon.Test.Checks.Runs`, `OcuTalon.Test.Core.SettingsHeartbeat` and `OcuTalon.Test.Web.GuideApi`. Expected: passed.
@@ -221,9 +247,46 @@ Item 4, DW-670:
 - AC 3: M3a, the beat sentence in `docs/security-overview.md` ends "at most once per day." Expected: both scripts FAIL, output identical before and after the refactor. M3b, the run-now sentence removed. Expected: `heartbeat-overview` FAIL runnow, `triage-heartbeat` PASS, identical before and after. M3c, the helper's `/^#/ { sect = 0 }` removed. Expected: both scripts FAIL on their `heading` variant (the helper's Integration AC).
 - AC 4: in `TestOnlyTheMarkerChanges`, a temporary `Do $ClassMethod(fixture, "Reminder", ref)` after the trace_opened post. Expected red, with a failure line holding both fingerprints (one more `Reminders:` entry). In `TestRunAgain`, a temporary open fixture incident before run_again. Expected red, with `done`, the view and the fingerprint in the line.
 
+**Mutations run (implement stage; each applied, observed red, reverted, `git status --short` and `git diff --stat` byte-identical to before):**
+- mutation: AC 1, `FromRow` sets `payload.LastCostUSD = row.LastCostUSD` again -> red: `Payloads.TestHeartbeatFromRow` (the values assertions), `HeartbeatApi.TestGetCheckInCost` (lastCostUSD .0003, not .0006; the 1-check-in case's equality lines), `BeatOutcomes.TestAct` (the event's lastCostUSD is the decision's alone).
+- mutation: AC 1, filter: the `checkInUsage` statement without `AND Channel = 'heartbeat'` -> red: `Payloads.TestHeartbeatFromRow`, `HeartbeatApi.TestGetCheckInCost`.
+- mutation: AC 1, pending: the `LastDecisionRef '= ""` guard removed -> red: `Payloads.TestHeartbeatFromRow` (pending row), `HeartbeatApi.TestGetCheckInCost` (pending step).
+- mutation: AC 1, the `checkInUsage` statement without its `OwnerRef = ?` clause -> red: `HeartbeatApi.TestGetCheckInCost` (the other session's 0.7 row is counted; four assertions).
+- mutation: AC 1, the `checkInUsage` statement without its `ItemId = ?` clause -> red: `HeartbeatApi.TestGetCheckInCost` (the other Item's row is counted; two assertions).
+- mutation: AC 1, `CheckInCost` without its empty-`itemId` guard -> red: `Payloads.TestHeartbeatFromRow` (a decision on a row with no Item exports `lastCostUSD` 0 instead of none).
+- mutation: AC 2, `const hourly = false` in `stateLine` -> red: `heartbeat-card-view.test.mjs` (the two 60-minute state line cases).
+- mutation: AC 2, other intervals, `hourly = interval >= 60` -> red: the state line case and the new fixed-strings case ("Every 2 hours").
+- mutation: AC 3, M3a and M3b on `docs/security-overview.md` -> both scripts' outputs `cmp`-identical to the recorded pre-refactor ones; M3c (the helper's `/^#/ { sect = 0 }` removed) -> both scripts FAIL on their `heading` variant.
+- mutation: AC 4, `Reminder` fixture after the trace_opened post -> `TestOnlyTheMarkerChanges` red with both fingerprints in the line (one more `Reminders:` entry); an open fixture incident before run_again -> `TestRunAgain` red with `done 10100`, the view and the fingerprint.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (Halt after planning). Nothing implemented; no IRIS call made; nothing committed.
+**Summary.** The Heartbeat card's last check-in cost is now the sum of the check-in Item's heartbeat Usage rows (`Ownership.CheckInCost`, read in `Live.Payload.Heartbeat.FromRow`), so it equals Today's cost for a person's only check-in (DW-824); the 60-minute schedule reads "Every hour" (ruled text); the two docker overview scripts share one helper (DW-785); GuideApi's failures print both fingerprints (DW-670, diagnostics only; the race is not fixed). Items 3 and 4 were done in this pass (not split).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`: `CheckInCost` and the `checkInUsage` statement.
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Heartbeat.cls`: `FromRow` reads the check-in cost; docs.
+- `src/ocutalon/cls/OcuTalon/Test/Web/HeartbeatApi.cls`: `TestGetCheckInCost` (the 1-check-in, 2x-cost case).
+- `src/ocutalon/cls/OcuTalon/Test/Checks/BeatOutcomes.cls`: `TestAct` pins the event's cost against Today on the real production.
+- `src/ocutalon/cls/OcuTalon/Test/Live/Payloads.cls`: `TestHeartbeatFromRow` seeds Usage rows; pending and no-Item cases.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls`: two fixtures also seed their decide Usage row.
+- `src/ocutalon/cls/OcuTalon/Test/Web/GuideApi.cls`: failure messages carry the values.
+- `web/src/app/rail/heartbeat-card/heartbeat-card-view.ts`, `web/scripts/heartbeat-card-view.test.mjs`, `web/scripts/ux-strings.test.mjs`, `web/e2e/heartbeat-card.spec.ts`: "Every hour".
+- `docker/tests/lib-heartbeat-overview.sh` (new), `docker/tests/test-triage-heartbeat.sh`, `docker/tests/test-heartbeat-overview.sh`: the shared rule.
+
+**Review.** 22 findings from four layers: patches applied 3 rows (one root cause each: the empty-Item/failed-read assertion, and the two missing mutation lines), deferred 0, rejected 19 with their reasons in the Review Triage Log (6 false, 13 low). High 0, medium 0. Follow-up review recommended: false.
+
+**Verification performed.**
+- Class tests (warm): `Live.Payloads`, `Checks.Runs`, `Core.SettingsHeartbeat`, `Web.GuideApi` passed. Fresh: `Web.HeartbeatApi` passed (8.5 s of test, about 126 s call with the stack), `Checks.BeatOutcomes` passed (28.1 s test, about 164 s call), `Checks.Heartbeat` passed (14.6 s).
+- Shards, fresh: `lane-b@Live,Web` forward (28 classes, 123 s to ready) and `--reverse` (154 s to ready), `lane-a@Checks` forward (8 classes, 139 s) and `--reverse` (148 s): every class passed; `BeatOutcomes` 27.8 s and 26.7 s in them.
+- `npm --prefix web test` 1495 of 1495; `lint` and `build` exit 0; `live sign-in --part 3/3` passed (79 tests; `heartbeat-card.spec.ts` 15 tests, 208 s).
+- Docker scripts: both outputs `cmp`-identical to the pre-change outputs on the real tree and under M3a and M3b; M3c red on both `heading` variants; `bash -n` and the ASCII check clean; `test-ci-config.sh`, `test-ci-changes.sh`, `test-boundaries.sh`, `test-class-rules.sh` exit 0.
+- `git diff --name-only` since the baseline lists only the Footprint files and this spec.
+- merge-file: src/ocutalon/cls/OcuTalon/Test/Live/Payloads.cls vs origin/OCT-epic4 exit=0 clean union
+- merge-file: web/scripts/ux-strings.test.mjs vs origin/OCT-epic4 exit=0 clean union
+- merge-file: src/ocutalon/cls/OcuTalon/Test/Checks/BeatOutcomes.cls vs origin/OCT-epic17 exit=0 clean union
+
+**Residual risks.** `CheckInCost` has no day bound (the intent sums all of the Item's heartbeat rows), so a check-in across local midnight can differ from Today for that Item. The failed-read path is unpinned (the matrix says so). `footprint_extensions:` `Data/Ownership.cls`, `Test/Live/Payloads.cls`, `Test/Checks/Runs.cls`, `web/scripts/ux-strings.test.mjs`. The spec's Verification commands use `<main checkout>` and `<scratchpad>` placeholders because `test-boundaries.sh` forbids local paths in tracked files. Slot D was not used (all runs in throwaways).
