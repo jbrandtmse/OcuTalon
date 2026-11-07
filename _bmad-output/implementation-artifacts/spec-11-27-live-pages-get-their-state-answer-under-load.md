@@ -2,7 +2,7 @@
 title: 'Story 11.27: Live pages get their /state answer under load (test-only diagnostics)'
 type: 'chore'
 created: '2026-11-07'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '5352d39d991a20c58f17068f46815f57ed5fe562'
 baseline_commit: '5352d39d991a20c58f17068f46815f57ed5fe562'
 review_loop_iteration: 0
@@ -208,6 +208,8 @@ deferred: []
 - AC4 (cost; lead-side measurement). Given the browser group on CI with traces on and no failures, when its time is compared with the same group's time on the last green run before this story, then the added time is recorded here. More than 2 minutes is reported to the Planner before the merge. Every group stays under REL-4's 35 minutes.
 - AC5 (Integration: consumer `loadedAfter` against a real stack). Given a live sign-in-2 stack whose `/state` is held at the browser, when `loadedAfter` passes its bound, then the real IRIS answers with a licence line, gateway server and connections lines with integer counts, and no unavailable line. The output file holds the same lines, and no line holds a cookie value or `CSPSESSIONID`.
 
+- [ ] [Review] U-300 pin (the Contest Planner's ruling of 2026-11-07 ~17:55Z: keep 11.22's lines, add one pin) — `web/e2e/support/diagnose.ts`, `web/e2e/live/helper-waits.spec.ts` — `state-diagnosis.txt` (and so the printed DIAG lines, which the file equals) never contains a cookie (a `CSPSESSIONID...=<value>` pair or a `Cookie:` header), a token (`Bearer <x>`, a long opaque token), a request body (a JSON object text), a full session id (the lock line keeps at most the first 4 characters even if the IRIS side sends more), or a key shape (for example `sk-ant-...`, `sk-...`, `ghp_...`, `AKIA...`). Add one redaction step that every DIAG line passes through before it is printed and written (so the file still equals the printed lines), and a hermetic test that plants each value into the stand-in IRIS output (the lock field, a CSP routine, the licence line, the gateway and diagnosis error texts) and asserts none of the planted values reaches the file or stdout, while the counts and states still do. Demonstrate it with a planted-value mutation: disable the redaction, observe the new test red on the planted values, restore byte-identical, and write the `mutation:` line. No 11.22 line is removed and no pin is weakened.
+
 ### Review Findings
 
 Code review 2026-11-07 (bmad-code-review, full mode, four layers, review tier full-opus: `_bmad/custom/model-overrides.yaml` absent). Each entry: severity, fix-risk, footprint, spec-status, disposition.
@@ -241,6 +243,8 @@ Code review 2026-11-07 (bmad-code-review, full mode, four layers, review tier fu
 - `low`, rejected: the `link` row's setup `mkdir` is removed again by `tk_live`, which is harmless. `tk_prune` also judges the root against the real checkout, which is correct while `TMPDIR` is outside the repository.
 
 ## Spec Change Log
+
+- 2026-11-07 rework iteration 1 (trigger: the Planner's U-300 ruling): one [Review] item, the no-secrets pin with a planted-value mutation.
 
 ## Review Triage Log
 
