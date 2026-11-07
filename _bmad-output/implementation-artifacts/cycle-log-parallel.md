@@ -2535,3 +2535,7 @@
 2026-11-07T19:52:46Z	Epic 11	runner_ci_wait	head=882b6d4b runs=42406393504,42406393478 stories=11.27,11.28 integrated_onto=c5118d34
 2026-11-07T19:52:46Z	Epic 32	runner_ci_wait	head=39364d5c ci=42401362858_rerun lane-a=green browser=1911s shards-5=2014s(sign-in-3_761s) reds=HC8(DW-880),infra,DW-639_class,load_class
 2026-11-07T19:52:46Z	Epic 32	orchestrator_ruling	subject=32.5_close_commit push_then_orchestrator_cancels_dup_CI_and_merges(feature_CI_proof)
+2026-11-07T19:58:44Z	Run	feature_merged_locally	from=origin_84906388(Planner_release_record_1.0.3_rc1) local=e66427fa
+2026-11-07T19:58:44Z	Epic 12	runner_ci_wait	head=f7318fd8 runs=42408652621,42408652617 story=12.12 merge-file_Out.cls=0_conflicts
+2026-11-07T19:58:44Z	Epic 17	worktree_provisioned	branch=OCT-epic17 ff_to=84906388 reason=story_17.10_D2
+2026-11-07T19:58:44Z	Epic 17	runner_dispatched	lane=B slot=ocutalon-slot-b model=opus prompt=dispatch-epic-17-1710.md note=lane_B_free_while_12.12_waits_on_CI
