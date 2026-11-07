@@ -5094,3 +5094,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Verification's four K21-patch mutation lines target keepRoom and CHAT_FLOOR, which do not run while the panel is closed (demo-guide @if panelShown); no recorded red for start.page or the before sideways check. Closing it needs a live run, not allowed in this review.
 - 2026-11-07T11:50:24Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a closed compact finish that scrolls the page or sideways reaches CI or a smoke with K21 green
+
+### DW-873: Telegram 'Got it' button on tell-now messages does nothing: SessionOps answers NotImplemented, nothing is marked handled, and the digest's needs-you count only grows (DECISIONMAX 1000, no time window)
+- source: Planner review of 1.0.3 notes 2026-11-07 ~15:35Z | severity: med | fix-risk: low | footprint: cross-epic
+- evidence: Channel/Telegram/Out.cls:32-35 adds the button; Core/SessionOps.cls:71 NotImplemented; Digest/NeedsYou.cls DECISIONMAX 1000, no window
+- 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) build the command that marks the decision handled, (b) hide the button; plus bound the needs-you count (time window or handled); PUBLIC TEXT at the spec gate
+
+### DW-874: Online demo: the digest is promised but invisible; visitors are told 'send my digest now' is on its way, but web chat and Simulated phone show no digest card; the morning run also sends to every demo session with a resume hash (model call when something was saved for later)
+- source: Planner review of 1.0.3 notes 2026-11-07 ~15:35Z | severity: med | fix-risk: med | footprint: cross-epic
+- evidence: Channel/WebChat/Out.cls:31 and SimPhone/Out.cls:31 CARDKINDS lack the digest; Digest/Process.cls:204-209 morning send to demo sessions
+- 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) show the digest as a web chat card on every install, (b) demo reply says it goes to Telegram (not set up on the demo) and the morning run skips demo sessions; Planner prefers (a) if it fits Sun 19Z; PUBLIC TEXT at the spec gate

@@ -2483,3 +2483,7 @@
 2026-11-07T14:43:23Z	Epic 31	runner_dispatched	agent=a01380f4a2843c759 lane=D slot=ocutalon-slot-d model=opus prompt=dispatch-epic-31-314.md DW-485=frozen_reroute
 2026-11-07T14:43:52Z	Run	planner_ruling	subject=tier3_flakes add=DW-494_after_DW-840 DW-485=rerouted_after_v1.0.4
 2026-11-07T14:43:52Z	Run	planner_update	subject=quota_and_hold quota=77%@14:35Z(~2.1%/h) hold_expected=20:30-21Z_after_1.0.3_tag
+2026-11-07T15:11:14Z	Epic 19	runner_clarification	kind=planner_report head=a86b532c forecast=17:00-17:15Z cause=runner_queueing splits=built release_hunk=none shards-2=1604s ipm-install=1560s decisions=DW-870(owner_branch_protection),DW-871(AD-22+ci.yml_comment),DW-869
+2026-11-07T15:11:14Z	Epic 19	runner_resumed	reason=wait_a86b532c
+2026-11-07T15:19:58Z	Run	planner_ruling	subject=part1_timing ok=17:00-17:15Z cut=when_green hard_stop=23Z DW-871=yes(AD-22_U7+ci.yml_comment_in_part1_merge) DW-870=owner_raised;release_gate_requires_all_checks DW-869=ok owner_approved=merge_tag_1.0.3_and_demo hold=20:30-21:30Z quota=78%@15:35Z
+2026-11-07T15:29:02Z	Run	planner_finding_ledgered	dw=DW-873(D1_Got_it_button) dw=DW-874(D2_demo_digest_invisible) target=1.0.4 priority=ahead_of_tier3 next_free_runner sizing=read-only_explore_agent
