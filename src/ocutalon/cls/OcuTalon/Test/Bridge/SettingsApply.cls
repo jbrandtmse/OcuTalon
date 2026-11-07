@@ -19,7 +19,7 @@
 ///     The diagnosis Test passes on a reply that fails DiagnosisPayload (the marker invalid-reply, and the fixed input as built, which the mock's diagnosis.json
 ///     answers with a tool call and then a diagnosis that the check refuses), as the triage Test does; each makes its mock requests on the agent's model with no
 ///     sampling parameter, records a Decision row without outcome text (Fallback 0, tellnow, no reasons, confidence or payload) and its Usage under instance. An
-///     empty reply is still the answer 0 with the reason empty. The same diagnose request with an ordinary ItemId is the fallback invalid;
+///     empty reply is still the answer 0 with the reason empty. The same diagnose request with an ordinary ItemId, with no second model named (the test writes the empty RetryItem row), is the fallback invalid;
 ///   - TestModelTestNotRetried: with a second model named, a model test whose first attempt is refused is a fallback with the reason refusal after exactly one mock
 ///     request, and the same request with an ordinary ItemId is retried (two requests);
 ///   - TestRestartKeepsValues: the three values, a price and a model survive the installer, the Public, Provider and Production steps' seeding;
@@ -342,25 +342,9 @@ Method TestModelTestEachAgent()
 		Do $$$AssertEquals(answer.answered_"|"_answer.reason, "1|", label_"the model answered: "_answer.%ToJSON())
 		Do $$$AssertTrue((answer.seconds > 0) && (answer.seconds < 30), label_"in "_answer.seconds_" seconds")
 		Do $$$AssertStatusOK($ClassMethod(fixture, "Drain", agent), label_"the runner is drained")
-		Do $$$AssertStatusOK($ClassMethod(..#MOCK, "LogSince", mark, .entries), label_"the mock's log is read")
-		Set chosen = ##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(agent, ##class(Ens.Director).GetActiveProductionName())
-		Set sent = 0
-		Set onModel = 0
-		Set sampling = 0
-		Set iterator = entries.%GetIterator()
-		While iterator.%GetNext(, .entry) {
-			If (entry.method = "POST") && (entry.path = "/v1/messages") {
-				Set sent = sent + 1
-				If entry.model = chosen Set onModel = onModel + 1
-				If entry.request.%IsDefined("temperature") || entry.request.%IsDefined("top_p") || entry.request.%IsDefined("top_k") Set sampling = 1
-			}
-		}
-		Do $$$AssertEquals(sent_"|"_onModel_"|"_sampling, "1|1|0", label_"one request reached the mock, for the agent's model "_chosen_", with no sampling parameter")
-		Set ref = response.DecisionRef
-		Set owners = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*), SUM(CASE WHEN OwnerRef = 'instance' THEN 1 ELSE 0 END) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", ref)
-		Do owners.%Next()
-		Do $$$AssertTrue(owners.%GetData(1) '< 1, label_"its Usage rows are recorded: "_owners.%GetData(1))
-		Do $$$AssertEquals(owners.%GetData(2), owners.%GetData(1), label_"and all are owned by instance")
+		Set counts = ..MockRequests(agent, mark, label, .chosen)
+		Do $$$AssertEquals(counts, "1|1|0", label_"one request reached the mock, for the agent's model "_chosen_", with no sampling parameter")
+		Do ..AssertInstanceUsage(response.DecisionRef, label)
 		Set json = answer.%ToJSON()_request.Input_request.Summary
 		Do $$$AssertTrue(($Find(json, "sk-") = 0) && ($Find(json, "AIza") = 0) && ($Find(json, "@{") = 0), label_"the answer and the request hold no key")
 	}
@@ -376,6 +360,7 @@ Method TestModelTestIsAConnectionTest()
 	Do ..Connect("TriageAgent", "invalid-reply", "triage, a reply that fails DecisionPayload: ", 0, 1, .response, .request)
 	Do ..Connect("DiagnosisAgent", "", "diagnosis, the fixed input as built: ", 0, "", .response, .request)
 	Do ..Connect("DiagnosisAgent", "empty", "diagnosis, an empty reply: ", 0, 1, .response, .request)
+	Do ..Put("DiagnosisAgent", "RetryItem", "")
 	Do ..Connect("DiagnosisAgent", "invalid-reply", "not a test, the same diagnose request with an ordinary ItemId: ", 1, 1, .response, .request)
 	Set row = $ClassMethod(fixture, "DecisionOf", request.ItemId, request.Kind)
 	Do $$$AssertTrue($IsObject(row), "the ordinary request has a Decision row")
@@ -401,22 +386,11 @@ Method Connect(agent As %String, marker As %String, label As %String, ordinary A
 	Set millis = ($ZHorolog - started * 1000) \ 1
 	Do $$$AssertStatusOK(sc, label_"Decide answers it")
 	Do $$$AssertStatusOK($ClassMethod(fixture, "Drain", agent), label_"the runner is drained")
-	Do $$$AssertStatusOK($ClassMethod(..#MOCK, "LogSince", mark, .entries), label_"the mock's log is read")
-	Set chosen = ##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(agent, ##class(Ens.Director).GetActiveProductionName())
-	Set sent = 0
-	Set onModel = 0
-	Set sampling = 0
-	Set iterator = entries.%GetIterator()
-	While iterator.%GetNext(, .entry) {
-		If (entry.method = "POST") && (entry.path = "/v1/messages") {
-			Set sent = sent + 1
-			If entry.model = chosen Set onModel = onModel + 1
-			If entry.request.%IsDefined("temperature") || entry.request.%IsDefined("top_p") || entry.request.%IsDefined("top_k") Set sampling = 1
-		}
-	}
+	Set counts = ..MockRequests(agent, mark, label, .chosen)
+	Set sent = $Piece(counts, "|", 1)
 	If requests '= "" Do $$$AssertEquals(sent, requests, label_requests_" request(s) reached the mock")
 	Do $$$AssertTrue(sent '< 1, label_"at least one request reached the mock: "_sent)
-	Do $$$AssertEquals(onModel_"|"_sampling, sent_"|0", label_"every request was for the agent's model "_chosen_", with no sampling parameter")
+	Do $$$AssertEquals($Piece(counts, "|", 2, 3), sent_"|0", label_"every request was for the agent's model "_chosen_", with no sampling parameter")
 	Set answer = $ClassMethod(class, "TestAnswer", response, millis)
 	If ordinary {
 		Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason, "1|invalid", label_"the answer is the fallback invalid")
@@ -430,7 +404,34 @@ Method Connect(agent As %String, marker As %String, label As %String, ordinary A
 	Set row = $ClassMethod(fixture, "DecisionOf", request.ItemId, request.Kind)
 	Do $$$AssertTrue($IsObject(row), label_"one Decision row is recorded")
 	If $IsObject(row) Do $$$AssertEquals(row.Fallback_"|"_row.FallbackReason_"|"_row.Outcome_"|"_row.Reasons_"|"_row.Confidence_"|"_row.Payload, "0||tellnow|||", label_"and it holds no model text")
-	Set owners = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*), SUM(CASE WHEN OwnerRef = 'instance' THEN 1 ELSE 0 END) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", response.DecisionRef)
+	Do ..AssertInstanceUsage(response.DecisionRef, label)
+}
+
+/// The requests that reached the mock since mark (MOCK LogMark) as "sent|onModel|sampling": sent counts the POSTs to /v1/messages, onModel those for the model
+/// that the agent's runner resolves to (chosen), and sampling is 1 when any of them set temperature, top_p or top_k. A log that cannot be read counts nothing.
+Method MockRequests(agent As %String, mark As %Integer, label As %String, Output chosen As %String) As %String [ Private ]
+{
+	Do $$$AssertStatusOK($ClassMethod(..#MOCK, "LogSince", mark, .entries), label_"the mock's log is read")
+	Set chosen = ##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(agent, ##class(Ens.Director).GetActiveProductionName())
+	Set sent = 0
+	Set onModel = 0
+	Set sampling = 0
+	If '$IsObject($Get(entries)) Quit "0|0|0"
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If (entry.method = "POST") && (entry.path = "/v1/messages") {
+			Set sent = sent + 1
+			If entry.model = chosen Set onModel = onModel + 1
+			If entry.request.%IsDefined("temperature") || entry.request.%IsDefined("top_p") || entry.request.%IsDefined("top_k") Set sampling = 1
+		}
+	}
+	Quit sent_"|"_onModel_"|"_sampling
+}
+
+/// Asserts that the decision has Usage rows and that every one is owned by instance (AD-20).
+Method AssertInstanceUsage(decisionRef As %String, label As %String) [ Private ]
+{
+	Set owners = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*), SUM(CASE WHEN OwnerRef = 'instance' THEN 1 ELSE 0 END) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", decisionRef)
 	Do owners.%Next()
 	Do $$$AssertTrue(owners.%GetData(1) '< 1, label_"its Usage rows are recorded: "_owners.%GetData(1))
 	Do $$$AssertEquals(owners.%GetData(2), owners.%GetData(1), label_"and all are owned by instance")

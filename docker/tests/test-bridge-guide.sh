@@ -432,9 +432,9 @@ fi
 
 # --- tables ---
 
-# tables_section <guide> <heading>: the lines of the "### <heading>" section of the guide, up to the next "###" heading.
+# tables_section <guide> <heading>: the lines of the "### <heading>" section of the guide, up to the next "##" or "###" heading.
 tables_section() {
-  awk -v h="### $2" '$0 == h { on = 1; next } /^### / { on = 0 } on' "$1"
+  awk -v h="### $2" '$0 == h { on = 1; next } /^###? / { on = 0 } on' "$1"
 }
 
 # tables_settings: every setting that must be the first cell of a row of the Settings tables, one per line.
@@ -493,7 +493,7 @@ break_tables() {
   if cmp -s "$tmp/t/keep.md" "$tmp/t/g.md"; then
     echo "FAIL tables: the break sample '$1' changed nothing"
     fails=$((fails + 1)); tables_ok=0
-  elif ! tables_problems "$tmp/t/g.md" | grep -qF -- "\`$2\`"; then
+  elif ! printf "%s\n" "$(tables_problems "$tmp/t/g.md")" | grep -qF -- "\`$2\`"; then
     echo "FAIL tables: the rule does not flag a break ($1)"
     fails=$((fails + 1)); tables_ok=0
   fi
@@ -503,7 +503,10 @@ if [ "$tables_ok" -eq 1 ]; then
   break_tables "the RetryOf row removed" RetryOf '/^| `RetryOf` |/d'
   break_tables "a setting that is named in prose only" TimerSeconds 's/^| `TimerSeconds` | a value /The `TimerSeconds` setting | a value /'
   break_tables "a setting in the second cell of a row" TimerSeconds 's/^| `TimerSeconds` | a value /| Timer | `TimerSeconds` | a value /'
-  break_tables "a Request property in the Settings section only" RetryOf '/^| `RetryOf` |/{h;d;};/^### Messages and enumerations/{x;p;x;}'
+  break_tables "a Request property in the Settings section only" RetryOf '/^### Messages and enumerations$/d'
+  break_tables "a setting in the Messages and enumerations section only" TimerSeconds 's/^### Settings$/### Messages and enumerations/'
+  break_tables "a section that runs into a chapter" RetryOf 's/^### The fallback route$/## Second-model retry/;/^| `RetryOf` |/d;$a\
+| `RetryOf` | what it holds |'
   break_tables "an AI Hub setting removed" ProviderName '/^| `ProviderName` |/d'
 fi
 if [ "$tables_ok" -eq 1 ]; then

@@ -8,7 +8,7 @@
 ///   - TestTriggerFires: the trigger writes one row for each change of LastRunAt, by SQL and by object, and none for another update or for the same time;
 ///   - TestRecordRunReasons: the reason of a recorded run, from its finding;
 ///   - TestFailedWriteWarns: a CheckRun that cannot be written logs one warning and throws nothing;
-///   - TestOneLiveReadHelper (DW-786): the live-read rules are one helper. By structure, from the compiled methods: Coverage Live names no
+///   - TestOneLiveReadHelper (DW-786): the live-read rules are one helper. By structure, from the method definitions: Coverage Live names no
 ///     REASON or FINDING parameter of Checks.Process and makes no upper-case letter of its own, and Live, Process Run and Process Finding call the shared
 ///     class methods of Process. By parity, for the reads unreadable, not current, timeout, unknown state, thrown, cut with none of the session's
 ///     failures, stopped, suspended with a cut, troubled and running: the result and finding of a real Process run (the shadow probe) and the live row
@@ -253,7 +253,7 @@ Method ReadOf(spec As %DynamicObject, session As %String, other As %String) As %
 	Quit read
 }
 
-/// The code of a method, as compiled.
+/// The code of a method, as its class definition holds it (%Dictionary.MethodDefinition).
 ClassMethod Body(class As %String, method As %String) As %String
 {
 	Set definition = ##class(%Dictionary.MethodDefinition).%OpenId(class_"||"_method)

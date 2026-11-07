@@ -308,3 +308,5 @@
 2026-11-07T07:31:25Z	Story 17.9	cr_complete	spawn_at=2026-11-07T07:06:25Z model=opus final=done resolved=5 deferred=0 dismissed=31 high=0 med=2 low=3 rows=36 unresolved_high_med=0 clarifications=0 closing_sections_present=true public_text=byte-exact review_tier=full-opus
 2026-11-07T07:31:25Z	Story 17.9	ledger_adjudicated	owned=5 resolved=5(DW-771,DW-786,DW-728,DW-850,DW-855) reowned=0 terminal=0 also=DW-773_escalated(reopen_if;public_text_for_the_Planner)
 2026-11-07T07:31:25Z	Epic 17	standing_rule	rule=test-boundaries_before_every_push;no_absolute_local_paths_in_tracked_files check=epic_diff_clean(only_the_git-common-dir_lock_expression)
+2026-11-07T07:47:14Z	Story 17.9	smoke_complete	method=cli(fresh_live_production;docker/tests/test-bridge-guide.sh) result=pass iterations=1 defects_caught=0 evidence=e17s9s:production_30_PASS_rc=0;test-bridge-guide_rc=0 model=claude-opus-5-5
+2026-11-07T07:47:14Z	Story 17.9	fresh_check	env=recipe(fresh_warm_stacks_e17s9fw,e17s9rw) tests=3(Bridge.SettingsApply,Bridge.SecondModel,Digest.Runs) result=pass order=forward,reverse story_base=6c675269

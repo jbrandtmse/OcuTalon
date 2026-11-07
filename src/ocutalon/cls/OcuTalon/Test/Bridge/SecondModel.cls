@@ -2,8 +2,8 @@
 /// THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), against the CI mock: they need OcuTalon.Production running with its six runner items and the CI
 /// override's environment. The entries of the six runners are pointed at the mock key variable (Test.Agent.RunnerFixture PointKeys and RestoreKeys with the
 /// retry runners), a test names a second model by two System Default Settings rows (the RetryItem of the first runner and the Model of the retry runner, here
-/// claude-sonnet-5-5), and OnAfterOneTest deletes every row a test wrote (Test.Bridge.SettingsStubs expects no RetryItem row anywhere), starts the changed
-/// items again, waits for the late replies of the first attempts, and removes the decisions, usage rows, steps and AI sessions of the test. The countdown of
+/// claude-sonnet-5-5), and OnAfterOneTest deletes every row a test wrote (Test.Bridge.SettingsStubs expects no RetryItem row anywhere), puts back the agent
+/// of a retry runner that a test swapped, starts the changed items again, waits for the late replies of the first attempts, and removes the decisions, usage rows, steps and AI sessions of the test. The countdown of
 /// the mock (POST /_mock/countdown) is armed at 1 for the retry scenarios, so that the first attempt gets the first reply and the retry the second.
 ///   - TestRetryAnswers: a decide request whose first attempt is refused, cut off, empty, a provider error, held past the timer (T 12) or rate limited late (T 12)
 ///     is answered by the second model: one runner request each, the same DecisionRef, the retry's RetryOf, one row and one answer, the Model of the second
@@ -11,6 +11,8 @@
 ///   - TestRetryFails: the same cases with a retry that fails too give release 1's fallback with the retry's reason (the one-reply scenarios, decide-late, overloaded,
 ///     and retry-refusal-then-error for the retry's own reason), with one row, one answer and no second retry;
 ///   - TestNeverRetried: a token budget of 1, a day that is capped, a request-size limit of 1 and the gateway's 403 fall back with no request to the retry runner;
+///   - TestRetryBudgetOwnEstimate (DW-855): a first attempt whose estimate fits DecisionTokenBudget and is refused is not retried when the retry's own estimate (its runner
+///     reads a larger agent) is above the budget: one request to the first runner, none to the retry runner, the fallback reason budget;
 ///   - TestNoSecondModel: with no RetryItem a refusal is release 1's fallback after one runner request;
 ///   - TestDiagnosisRetried: a diagnose request is retried on DiagnosisAgentRetry;
 ///   - TestRetriedTurnKeepsTheConversation: a user's turn that is refused is answered by the second model in a session seeded with the messages the first attempt
@@ -64,6 +66,10 @@ Property SavedRows As %List;
 /// The items to start again after the rows are put back.
 Property Restarts As %List;
 
+/// What RunnerFixture UseAgent saved of TriageAgentRetry when a test swapped its agent (an object with allowListSet), for OnAfterOneTest to put back; anything
+/// else means that no agent is swapped.
+Property SavedAgent As %DynamicObject;
+
 /// The replies that a test leaves late, as a list of $ListBuild(session, runner item) to wait for.
 Property Late As %List;
 
@@ -90,6 +96,10 @@ Method OnAfterOneTest(testname As %String) As %Status
 	}
 	Set ..Late = ""
 	Do $ClassMethod(fixture, "DropSince", ..SessionMark)
+	If $IsObject(..SavedAgent) && ..SavedAgent.%IsDefined("allowListSet") {
+		Do $$$AssertStatusOK($ClassMethod(fixture, "RestoreAgent", "TriageAgentRetry", ..SavedAgent), "TriageAgentRetry's agent is put back")
+		Set ..SavedAgent = ""
+	}
 	Set position = 0
 	While $ListNext(..ItemIds, position, itemId) {
 		Do $ClassMethod(fixture, "DeleteSteps", itemId)
@@ -242,6 +252,33 @@ Method TestNeverRetried()
 	Do $$$AssertStatusOK(sc, "daily_cap (gateway 403): Decide answers")
 	Do ..AssertFellBack("daily_cap (gateway 403): ", request, response, session, "daily_cap", 0)
 	Do $$$AssertEquals(..SentTo(session, "TriageAgent"), 1, "daily_cap (gateway 403): the first runner was asked once")
+}
+
+/// DecisionTokenBudget is checked again for the second-model retry, on the retry's own estimate (DW-855; AD-8, the guide's DecisionTokenBudget row). The retry runner
+/// reads the larger Chat agent (RunnerFixture UseAgent, put back by OnAfterOneTest), so the retry's estimate is above the first attempt's. The budget is the first attempt's estimate: the first attempt
+/// fits it, is sent and is refused (retry-refusal), and the retry is never sent, so the fallback reason is budget (the retry's precheck) with one request to the first runner
+/// and none to the retry runner. The estimates are worked out here with Decide's own methods, and the test asserts that the retry's is the larger, so a setup that makes
+/// them equal fails here and not by chance.
+Method TestRetryBudgetOwnEstimate()
+{
+	If '..Prepare() Quit
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Do $$$AssertStatusOK($ClassMethod(..#FIXTURE, "UseAgent", "TriageAgentRetry", "OcuTalon.Agent.Chat", .saved), "the retry runner reads the Chat agent")
+	Set ..SavedAgent = $Get(saved)
+	Do ..UseSecondModel("Triage")
+	Do ..Arm("retry-refusal", 1)
+	Set request = ..Ask("decide", "[[mock:retry-refusal]] Triage this item.", .ref)
+	Set first = $ClassMethod(decide, "EstimateTokens", request, "TriageAgent")
+	Set second = $ClassMethod(decide, "EstimateTokens", $ClassMethod(decide, "RetryRequest", request, "ref", 0, "TriageAgent", ""), "TriageAgentRetry")
+	Do $$$AssertTrue((first > 0) && (second > first), "the retry's own estimate is above the first attempt's: "_first_" and "_second)
+	If '((first > 0) && (second > first)) Quit
+	Do ..Put("Decide", "DecisionTokenBudget", first)
+	Do ..UseDecideRestart()
+	Set sc = $ClassMethod(..#FIXTURE, "Run", request, .response, .session)
+	Do $$$AssertStatusOK(sc, "Decide answers")
+	Do ..AssertFellBack("retry over budget: ", request, response, session, "budget", 0)
+	Do $$$AssertEquals(..SentTo(session, "TriageAgent"), 1, "retry over budget: the first attempt fitted the budget and was sent once")
+	Do $$$AssertEquals(..SentTo(session, "TriageAgentRetry"), 0, "retry over budget: and the retry, whose own estimate is above the budget, was never sent")
 }
 
 /// With no RetryItem (what the install leaves; the test writes the empty row itself, so a row that another run left cannot decide it) a refused reply is
