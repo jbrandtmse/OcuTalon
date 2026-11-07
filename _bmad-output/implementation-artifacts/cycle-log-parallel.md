@@ -2433,3 +2433,6 @@
 2026-11-07T09:25:15Z	Epic 17	public_text_ruled	dw=DW-773 L153=ruled_with_pool_clause(verify_Decide:456-465) L340=approved AD-19=amend_in_place_U7_marker in_flight_specs_citing_AD-19=none(checked_09:22Z)
 2026-11-07T09:25:15Z	Epic 17	worktree_provisioned	branch=OCT-epic17 ff_to=70e4246d reason=DW-773_docs_only_commit
 2026-11-07T09:25:33Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=DW-773_docs_only_commit
+2026-11-07T09:28:59Z	Epic 17	public_text_relayed	dw=DW-773 L153_shared_pool_clause_exception(invalid_value_reads_live) options=extended_clause_or_drop L340,AD-19_prepared
+2026-11-07T09:29:19Z	Epic 17	public_text_ruled	dw=DW-773 L153_final=instruction("in the shared actor pool, update the production after you change them.") L340,AD-19=approved_as_prepared
+2026-11-07T09:29:19Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=land_DW-773
