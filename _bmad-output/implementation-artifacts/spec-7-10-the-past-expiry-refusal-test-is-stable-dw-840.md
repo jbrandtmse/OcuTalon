@@ -70,6 +70,25 @@ deferred: []
 - Given a fresh throwaway in lane B, when `ci/iris.sh class OcuTalon.Test.Fix.Refused` runs, then it prints `CLASS OcuTalon.Test.Fix.Refused passed` with both tests passing and no `FAIL` or `SKIP` line (DW-840).
 - Given the story's evidence folder, when `evidence/7-10/cause.md` is read, then it names the cause (the quiet sweep's closeQuiet closing the stale-LastAt fixture after its move to resolved), the lead's old-code red (2 of 11) and the fix's 20 of 20 under the same load (DW-840).
 
+### Review Findings
+
+Code review 2026-11-07 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; tier full-opus). Code change matches AC 1 exactly (24 `$$$Assert*` and 6 wait lines byte-identical to 48b1d438; `Case.cls` untouched). Rule 3 exempt (test-only, no user surface).
+
+- [x] [Review][Patch] cause.md's other-callers list named `GoodMessages.cls` (sets `LastAt` to now at 371 and 529) and `Payload.cls` (its own `Fixture`, not `Case.Fixture`) as default-`LastAt` callers [evidence/7-10/cause.md:35-36] -- low, fix-risk low (doc wording); corrected.
+- [x] [Review][Patch] cause.md cited `DryRun.cls:94` (the comment) for the code at 95, and the `not_quiet` re-check had no anchor [evidence/7-10/cause.md:25,28] -- low, fix-risk low; now `DryRun.cls:94-95` and `Watch/IncidentManager.cls:1155`.
+- [x] [Review][Patch] cause.md's control (`closed@0.33 s` every run) read as contradicting the 2-of-11 red rate [evidence/7-10/cause.md:19] -- low, fix-risk low; added that `WaitIncidentState` returns on its first poll that reads `resolved`, so the test goes red only when that poll comes after the close.
+- [x] [Review][Patch] cause.md's shortened class paths did not resolve from the repo root [evidence/7-10/cause.md:3] -- low, fix-risk low; added one line naming their base `src/ocutalon/cls/OcuTalon/`.
+- [x] [Review][Defer] A revert of the fixture line ships undetected outside the lead's load; root cause is `Case.Fixture`'s stale default `LastAt` (also covers other default-`LastAt` fixtures whose non-wait assertions could meet the sweep) [src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls:852-853] -- deferred: DW-868, med, fix-risk med (shared helper; other tests may assert on the defaults), out-of-footprint, `escalated owner=burndown`. The in-story part is by-design: the pin can fail (red 2 of 11 under load, the spec's `mutation:` line), so it is not a Rule 19 unfalsifiable pin, and a committed freshness assertion would break AC 1's "only code change" limit and only re-assert the setup (the implement stage's rejection stands).
+
+Rejected:
+- low: the new code comment says "FirstAt and LastAt are now, so that ... sweep does not close" though only `LastAt` drives the sweep -- the line is the spec's prescribed text and is not false; changing it means editing the spec under review.
+- false: cause.md cites no CI-run log tying the red to the sweep -- even if the CI red had been a product defect (incident stays `fixing`), the fix does not mask it: the I/O matrix's "real defect" row still goes red at the same pin.
+- false: cycle log `story_base=1cdb21db` vs baseline 48b1d438 -- 1cdb21db is the parent of 48b1d438 (the implement spawn commit); bookkeeping, not part of the change.
+- false: AC 2 does not show both tests passing -- `CLASS ... passed` with no `FAIL` line is the class runner's both-pass signal.
+- rejected (spec edit): the spec's Review Triage Log tally ("low 3") disagrees with its own list; the Design Notes and Code Map still credit demo mode for protecting the open-not-noticed fixtures (cause.md is correct) -- fixes would edit the spec under review.
+- false: "either order" claim unbacked -- each test builds its own session, failures and incident and gates on `Ready()`; no order dependence found.
+- false: spec `status: done` vs sprint-status `review` -- the build-auto/epic-cycle convention; code review sets the sprint status.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -114,6 +133,8 @@ No full-suite or shard run here: CI runs the shards (the CI-fresh arrangement). 
 Every test added or changed passes on a fresh environment, in either order.
 
 mutation: fixture LastAt back to the Case default (2026-10-25) under the closeQuiet load → TestPastExpiryCannotStart red ("the incident is resolved"), lead Task 0
+
+(QA) No new test file: this is a test-only fix to an existing pinning test. Checked read-only: `ci/iris.sh classes lane-a@rest` (the shards-2 unit) lists `OcuTalon.Test.Fix.Refused`; `Refused.cls` is not gitignored and carries no skip tag; all 24 `$$$Assert*` lines are byte-identical to 48b1d438; `Case.cls` is untouched. No IRIS run and no new mutation by QA (the lead's Task 0 mutation above stands).
 
 ## Auto Run Result
 

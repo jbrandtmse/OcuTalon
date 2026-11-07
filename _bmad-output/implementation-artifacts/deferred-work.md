@@ -5041,6 +5041,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: SHARD lane-a@rest failed (1 of 93 classes) 1810s; local fresh e7s9ct CLASS passed 8.99s; Story 7.9 does not touch Executor, Transitions or Refused
 - 2026-11-07T00:33:38Z status=routed owner=burndown by=ci note=one rerun; a second red on the same head is real
 - 2026-11-07T13:51:15Z status=routed owner=7-10-the-past-expiry-refusal-test-is-stable-dw-840 by=load note=re-owned_to_the_7.10_fix-forward_story_(SC-5_re-open,Planner_tier_3a)
+- 2026-11-07T14:36:03Z status=resolved-by:7-10-the-past-expiry-refusal-test-is-stable-dw-840 by=adjudication note=cause_measured(Checks_quiet_sweep_closeQuiet_closed_the_stale-LastAt_fixture_after_resolved);fix_03c3048d_FirstAt/LastAt_now;old_red_2_of_11_under_closeQuiet_load,fix_20_of_20(+8_of_8_on_the_commit);evidence/7-10/cause.md
 
 ### DW-855: No test makes a decision's first attempt pass DecisionTokenBudget while its second-model retry fails it, although the guide now states the retry is checked again on its own estimate
 - source: spec-17-9-epic-17-burn-down.md | severity: low | fix-risk: low | footprint: in-story
@@ -5092,3 +5093,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-11-other-things-to-try.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Verification's four K21-patch mutation lines target keepRoom and CHAT_FLOOR, which do not run while the panel is closed (demo-guide @if panelShown); no recorded red for start.page or the before sideways check. Closing it needs a live run, not allowed in this review.
 - 2026-11-07T11:50:24Z status=wontfix-accepted owner=4-11-other-things-to-try by=cr note=reopen_if=a closed compact finish that scrolls the page or sideways reaches CI or a smoke with K21 green
+
+### DW-868: Test.Watch.Case Fixture defaults LastAt to 2026-10-25, so any fixture that reaches a closeQuiet-able state (resolved, or open and noticed with demo mode off) is swept by the next heartbeat; three tests override it inline (DryRun:95, GoodMessages:371/529, Refused:80) and a revert or a new caller re-opens DW-840's race with no deterministic test failing
+- source: spec-7-10-the-past-expiry-refusal-test-is-stable-dw-840.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Case.cls:852-853 stale defaults; DW-840 red once in CI and 2 of 11 under the lead's closeQuiet load; the Refused pin goes red on a revert only under load
+- 2026-11-07T14:31:47Z status=escalated owner=burndown by=cr note=Case.cls out of 7.10 footprint (Planner: test-only); fix-risk med: shared helper, other tests may assert on the default FirstAt/LastAt
