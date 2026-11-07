@@ -2387,3 +2387,8 @@
 2026-11-07T04:45:56Z	Epic 34	runner_ci_wait	head=f4b38c9e runs=42339077292,42339078167 cause=playwright_listener_race test_only proof=40/40_new,old_failed_1/100
 2026-11-07T04:55:03Z	Epic 17	public_text_ruled	dw=DW-850 1,3a,3b,4=approved 2=changed 5=exact_completed(verify_vs_Decide:1622-1628,Usage:182-204) opt_i=yes opt_ii=no opt_iii=ledgered
 2026-11-07T04:55:18Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=DW-850_ruled_land_in_17.9
+2026-11-07T05:04:19Z	Epic 17	public_text_relayed	dw=DW-850 row5_correction(last_model_request_counted) points=empty_model_precheck,line_354
+2026-11-07T05:04:19Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=17.9_implement_after_ci_green row5_pending
+2026-11-07T05:10:59Z	Epic 34	merge_gate_blocked	reason=ci_red runs=42339077292 jobs=checks(test-boundaries_local_paths_REAL),image(DW-639_flake) head=f4b38c9e
+2026-11-07T05:10:59Z	Epic 34	protocol_violation	kind=local_path_in_pushed_files files=evidence/34-4/*.mjs:5,spec-34-4:169 branch=OCT-epic34 remedy=fix_forward_no_rewrite
+2026-11-07T05:10:59Z	Epic 34	runner_resumed	agent=a256ebe8dfc38889a reason=fix_local_paths
