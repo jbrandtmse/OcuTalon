@@ -6283,6 +6283,20 @@ So that I don't have to turn them into Markdown first.
 - DW-828: a timed-out read cannot stop a single long C call (a decompression bomb can keep Read past its limit); bound it before the call (page or size caps) (ledger; routed by harvest 2026-11-06)
 - DW-831: Word text inside body-level content controls (w:sdt) and nested tables is not read; a file made only of content controls answers no_text (ledger; routed by harvest 2026-11-06)
 
+
+### Story 19.8: Epic 19 burn-down
+
+The burn-down story of Epic 19's part 1 (Stories 19.1-19.3 and 19.6, the memory-only part-merge): it settles the two install-accuracy findings the Contest Planner ruled must be measured and fixed inside part 1, before its merge. [Chartered at the part-1 burn-down gate, 2026-11-07]
+
+As an admin installing OcuTalon with IPM,
+I want the install to put exactly the measured Python packages in place and the docs to name exactly the hosts it contacts,
+So that what the README says about the install is true.
+
+**Acceptance Criteria:**
+
+- DW-829: on the local-artifact IPM install (`release/ipm-install.sh` with the local artifact; never the public IPM registry), import each of certifi, charset_normalizer, idna, requests, typing_extensions and urllib3 in the instance's embedded Python and record `__version__` and `__file__` for each; if the pinned copies are the ones imported, the README sentence A5 stays and that import check joins the installed-set gate (`ipm-install.sh` check 32's area); if they are not, the install is fixed (pip -t with --upgrade, or the stale copies removed), never the sentence, and the same import check gates the result (ledger; Contest Planner ruling 2026-11-07)
+- DW-830: each Hugging Face resolve URL the install fetches, and pip's download URLs, are probed with HEAD requests only (`curl -sI`), and the host in each Location header is recorded; README.md and `docs/install-ipm.md` name exactly the hosts seen (for example "huggingface.co and its download host cas-bridge.xethub.hf.co" if Xet is in use); any change to the host list is PUBLIC TEXT for the Planner before it is committed (ledger; Contest Planner ruling 2026-11-07)
+
 ## Epic 20: Add documents in the web app (step 3)
 
 A user adds Markdown and plain-text documents from the web app and sees which documents an answer cited.

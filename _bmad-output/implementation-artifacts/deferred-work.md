@@ -4633,11 +4633,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: release/ipm-install.sh path A (Story 19.6); check 32 gates only what the install added plus the pins
 - 2026-11-06T23:14:10Z status=escalated owner=burndown by=harvest note=for the Planner (U-294 release gate owner) at the part-1 contract; reported with the PUBLIC TEXT figures
+- 2026-11-07T01:36:04Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_2026-11-07:measure_the_six_imports(__version__,__file__)_on_the_local-artifact_IPM_install;pinned->A5_stays+import_check_in_check_32;else_fix_the_install(pip_-t_--upgrade_or_remove_stale)+same_gate;if_impossible_by_14Z:PUBLIC_TEXT_reworded_A5
 
 ### DW-830: The README and docs/install-ipm.md list three hosts (pypi.org, files.pythonhosted.org, huggingface.co); huggingface_hub with hf-xet may also use CDN or Xet hosts, and the docs do not say what a blocked download looks like (the Memory step only warns)
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: review finding, unverified; settle by recording the hosts an install contacts on a lane-C throwaway
 - 2026-11-06T23:14:10Z status=escalated owner=burndown by=harvest note=public-text accuracy; for the Planner with the PUBLIC TEXT figures
+- 2026-11-07T01:36:04Z status=routed owner=19-8-epic-19-burn-down by=owner_ruling note=Planner_2026-11-07:HEAD-only_curl_-sI_on_each_HF_resolve_URL_and_pip_download_URL;record_Location_hosts;docs_name_exactly_those_hosts;any_host-list_change_is_PUBLIC_TEXT_before_commit
 
 ### DW-831: Word text inside body-level content controls (w:sdt) and inside nested tables is not read (iter_inner_content yields body paragraphs and tables; cell.text skips nested tables); a file made only of content controls answers no_text
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
