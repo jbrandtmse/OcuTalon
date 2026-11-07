@@ -305,3 +305,6 @@
 2026-11-07T06:43:42Z	Story 17.9	stage_spawned	stage=qa spawn_at=2026-11-07T06:43:42Z model=sonnet agent_name=17-9-epic-17-burn-down-qa-1 cycle_iteration=1
 2026-11-07T07:06:25Z	Story 17.9	qa_complete	spawn_at=2026-11-07T06:43:42Z model=sonnet tests=Test/Bridge/SecondModel(TestRetryBudgetOwnEstimate) tests_added=1 mutations_demonstrated=9 first_run_failures=0 clarifications=0 closing_sections_present=true gap_closed=DW-855
 2026-11-07T07:06:25Z	Story 17.9	stage_spawned	stage=code-review spawn_at=2026-11-07T07:06:25Z model=opus agent_name=17-9-epic-17-burn-down-code-review-1 cycle_iteration=1
+2026-11-07T07:31:25Z	Story 17.9	cr_complete	spawn_at=2026-11-07T07:06:25Z model=opus final=done resolved=5 deferred=0 dismissed=31 high=0 med=2 low=3 rows=36 unresolved_high_med=0 clarifications=0 closing_sections_present=true public_text=byte-exact review_tier=full-opus
+2026-11-07T07:31:25Z	Story 17.9	ledger_adjudicated	owned=5 resolved=5(DW-771,DW-786,DW-728,DW-850,DW-855) reowned=0 terminal=0 also=DW-773_escalated(reopen_if;public_text_for_the_Planner)
+2026-11-07T07:31:25Z	Epic 17	standing_rule	rule=test-boundaries_before_every_push;no_absolute_local_paths_in_tracked_files check=epic_diff_clean(only_the_git-common-dir_lock_expression)

@@ -4445,6 +4445,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T10:40:07Z status=routed owner=burndown by=lead note=owner condition U-286 (2): after Epic 40 merges
 - 2026-11-05T10:47:33Z occurrence=17-2-retry-once-on-a-second-model-before-falling-back by=cr note=widen the fold: the TimerSeconds row, the DecisionTokenBudget row (checked per attempt, so a retried decision may use up to twice it), the Timeouts section, The fallback route and the DecisionResponse.Model row still describe one attempt
 - 2026-11-07T03:33:11Z status=routed owner=17-9-epic-17-burn-down by=burndown note=chartered_into_the_Epic_17_burn-down_story_17.9
+- 2026-11-07T07:31:03Z status=resolved-by:17-9-epic-17-burn-down by=adjudication note=RetryItem_and_RetryOf_rows_in_the_guide's_Settings_and_Messages_tables;test-bridge-guide.sh_tables_rule
 
 ### DW-729: A second-model retry that completes within a few ms of T2 can still move the link: SaveRetried reads lateness once (RetryIsLate, the Decision row), so a timer Decide has queued but not handled, or one that fires between the check and the reply's arrival, leaves the link on a session whose reply Decide drops (residual of DW-725)
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-story
@@ -4646,11 +4647,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T02:03:39Z status=decision-pending owner=burndown by=harvest note=product call: how a diagnose-kind Test request is tested (e.g. a minimal evidence pack, or test the runner with a plain turn-shaped request)
 - 2026-11-06T04:22:35Z status=routed owner=burndown by=owner note=planner_ruling_2026-11-06T02:37:12Z(owner_delegation):Settings_Test_is_a_CONNECTION_test_for_every_runner(non-empty_reply_within_the_timer_via_the_runner's_provider,model,key;no_ReplyClass_validation);test:the_diagnosis_Test_passes_with_a_mock_reply_that_fails_DiagnosisReply_validation;spine_Conventions_row_Settings_model_Test;work_in_the_Epic_17_burn-down_story
 - 2026-11-07T03:33:11Z status=routed owner=17-9-epic-17-burn-down by=burndown note=chartered_into_the_Epic_17_burn-down_story_17.9
+- 2026-11-07T07:31:03Z status=resolved-by:17-9-epic-17-burn-down by=adjudication note=Decide.Conclude_answers_a_decide/diagnose_model_Test_on_any_non-empty_reply_(no_ReplyClass_check);Test.Bridge.SettingsApply.TestModelTestIsAConnectionTest
 
 ### DW-773: docs/bridge-guide.md Settings intro (line 153) still says a Decide row takes effect only after a restart, with only ToolClassification and ApprovalRole read live; since Story 17.4 DecisionTokenBudget, RequestTokenLimit, DailyCostCapUSD and InstanceZone apply with no restart
 - source: spec-17-4-apply-model-price-budget-and-zone-changes-through-the-bridge.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Decide.SettingText reads DecisionTokenBudget/RequestTokenLimit as written in its own job; Budget.State reads the cap live; the new InstanceZone row says no restart; the guide is contended with Epic 40, which the lead limited to the InstanceZone row
 - 2026-11-06T02:33:27Z status=wontfix-accepted owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=cr note=reopen_if=bridge-guide Settings intro still names only ToolClassification and ApprovalRole as read live when DW-728's fold-in pass edits it
+- 2026-11-07T07:31:03Z status=escalated owner=burndown by=cr note=reopen_if_arguably_fired:Story_17.9_edited_the_guide_(DW-728,DW-850)_but_left_the_Settings_intro;rewording_is_public_text_for_the_Contest_Planner
 
 ### DW-779: docs/install-ipm.md's two sample install logs have no STEP Digest OK line after STEP Demo OK (Story 17.5 adds the Digest step to Registry.Order())
 - source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4664,6 +4667,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Coverage.cls:332-404 vs Process.cls Run :325-366 and private Finding :492-504; Process.cls is contended (Epic 39), so the copy is forced for now
 - 2026-11-06T09:44:00Z status=routed owner=burndown by=cr note=Rule 2 forced copy: unify into one Checks helper once Epic 39 frees Process.cls (make Finding callable)
 - 2026-11-07T03:33:11Z status=routed owner=17-9-epic-17-burn-down by=burndown note=chartered_into_the_Epic_17_burn-down_story_17.9
+- 2026-11-07T07:31:03Z status=resolved-by:17-9-epic-17-burn-down by=adjudication note=one_set_of_public_live-read_helpers_in_Checks.Process_used_by_Run,Finding,Coverage.Live;Test.Digest.Runs.TestOneLiveReadHelper(structure+parity)
 
 ### DW-787: Test.Digest.Runs Host() and Tick() re-implement the Test.Checks.Runs instance helpers the spec said to reuse
 - source: spec-17-5-check-the-vital-signs-and-every-coverage-entry.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4918,6 +4922,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: DW-728's 2026-11-05 occurrence; Story 17.9's AC allows only the two table rows
 - 2026-11-07T03:45:42Z status=escalated owner=burndown by=burndown note=residual of DW-728 split off at Story 17.9's spec gate: the Planner decides the wording (public repository)
 - 2026-11-07T04:35:11Z status=routed owner=17-9-epic-17-burn-down by=owner note=Planner_ruling_about_04:35Z:fix_in_1.0.3_inside_17.9;wording_is_PUBLIC_TEXT(ruled_strings_land_with_fixed-string_pins);keep_the_docs_edit_separable
+- 2026-11-07T07:31:03Z status=resolved-by:17-9-epic-17-burn-down by=adjudication note=the_Planner's_eight_ruled_lines_landed_byte_for_byte_in_docs/bridge-guide.md;test-bridge-guide.sh_retrytext_rule
 ### DW-824: Heartbeat card: Today's cost sums more than the counted check-ins (online demo 1.0.2: Last check-in $0.0003, Today: 1 check-in, $0.0006)
 - source: planner_demo_walk_1.0.2 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Planner live walk 2026-11-06 on 1.0.2: Save heartbeat On, Run the heartbeat now; decision Act with read-only checks; card Last check-in 12:20 PM Offered an action $0.0003 vs Today 1 check-in $0.0006
@@ -4975,3 +4980,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-9-epic-17-burn-down.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Decide.cls:687 TryRetry Precheck; Test.Bridge.SecondModel TestNeverRetried sets the budget to 1 so the first attempt is refused
 - 2026-11-07T06:43:42Z status=open owner=17-9-epic-17-burn-down by=harvest note=two-way door: one test in Test/Bridge/SecondModel.cls or SettingsApply.cls; QA closes it
+- 2026-11-07T07:31:03Z status=resolved-by:17-9-epic-17-burn-down by=adjudication note=Test.Bridge.SecondModel.TestRetryBudgetOwnEstimate(mutation:retry_Precheck_without_the_budget->red)

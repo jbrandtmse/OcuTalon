@@ -64,7 +64,7 @@ deferred:
 **Never:**
 - Any edit to `Test/Bridge/{Decide,Gate,CodeRules}.cls`, `Test/Agent/{Constants,Instructions,Runners}.cls`, `ci/units.sh`, `ci/mock/**`, `docker/tests/lib-live.sh`, `Install/Registry.cls`, `Tools/Names.cls` or any other path that Epic 19's branch changed. Also no edit to any existing `Test/Checks/**` file, the spine, or a Lane B class or test (U-177).
 - A new, renamed, moved or re-valued `FINDING*`/`REASON*` parameter of `Checks.Process`, or any change to a check result or digest row.
-- Any guide wording beyond the two rows: in particular not the Settings intro (DW-773), nor the one-attempt rows of the DW-728 occurrence (see Design Notes).
+- Any guide wording beyond the two rows and the DW-850 lines the Contest Planner ruled (Design Notes, the DW-850 block) [AMENDED 2026-11-07 by the lead: the DW-850 ruling supersedes "nor the one-attempt rows"]: in particular not the Settings intro (DW-773).
 - DW-483, or any change to the purge, `Reconcile`, `Redact`, `KeyProof` or `list_productions` (Story 30.7).
 - A real provider, a real key, a real Telegram bot, the public IPM registry, or any destructive run on `ocutalon-slot-a`.
 
@@ -184,7 +184,36 @@ deferred:
 - Given the existing tests of `Checks.Process` and `Checks.Coverage` (Code Map pins), when they run after the refactor, then every one passes unedited. `TestOneLiveReadHelper` shows that the two paths call the one helper and give equal results for the same read (DW-786).
 - Given the guide, when `bash docker/tests/test-bridge-guide.sh` runs, then every rule passes, including `tables`, and `git diff docs/bridge-guide.md` shows exactly the two added rows (DW-728).
 
+### Review Findings
+
+Code review, 2026-11-07 (bmad-code-review, full mode, four layers at the full-opus tier; 36 raw findings, 5 entries kept: high 0, med 2, low 3, all patched; the rest rejected below).
+- [x] [Review][Patch] `[med]` The ordinary leg of `TestModelTestIsAConnectionTest` relied on `DiagnosisAgent` having no `RetryItem` row, which it never wrote (Rule 19, hermeticity). A row left over from another run would retry the leg on a second model. Fix: `..Put("DiagnosisAgent", "RetryItem", "")` before the leg, as `SecondModel.TestNoSecondModel` does; the class doc says so [`src/ocutalon/cls/OcuTalon/Test/Bridge/SettingsApply.cls`] (fix-risk low: one restored SDS row).
+- [x] [Review][Patch] `[med]` Rule 2: `Connect` repeated `TestModelTestEachAgent`'s loop body: the mock-log count over POST /v1/messages for the resolved model and sampling, and the Usage owner query with its two assertions. Fix: both now call the new private helpers `MockRequests` and `AssertInstanceUsage`. A log that cannot be read now counts nothing instead of failing on an undefined variable. The assertions are unchanged [`SettingsApply.cls`] (fix-risk low; the class passes on the warm stack).
+- [x] [Review][Patch] `[low]` The `tables` self-check did not test its own section scoping. The sample "a Request property in the Settings section only" deleted the row and never moved it into Settings, and `tables_section` ran past a `##` chapter heading. Fix:
+  - the sample deletes the Messages heading;
+  - a new sample puts the settings under the Messages heading;
+  - a new sample makes the Messages section run into a `## ` chapter;
+  - the section ends at a `##` or `###` heading;
+  - the break check reads the whole problem list, which removes the "Broken pipe" noise on stderr.
+  [`docker/tests/test-bridge-guide.sh`] (fix-risk low).
+- [x] [Review][Patch] `[low]` `SecondModel.OnAfterOneTest` ignored the status of `RestoreAgent`, and its guard `$IsObject(..SavedAgent)` holds in every test (the `%DynamicObject` property never reads as ""). So every test that did not swap the agent called `RestoreAgent`, which failed silently ("There is nothing to restore"); the asserted status showed this on the warm run. Fix: the guard requires `allowListSet`, the restore's status is asserted, and the property and class docs name what is put back [`src/ocutalon/cls/OcuTalon/Test/Bridge/SecondModel.cls`] (fix-risk low).
+- [x] [Review][Patch] `[low]` `Test.Digest.Runs` said "from the compiled methods" and "as compiled", but `Body` reads `%Dictionary.MethodDefinition`. Fix: the doc wording [`src/ocutalon/cls/OcuTalon/Test/Digest/Runs.cls`].
+- Rejected:
+  - The floor of 30 names in `tables` (low; a guard per file adds complexity).
+  - `Coverage.Live`'s Catch keeps a partial `state`, which `Run` resets: unchanged from before the refactor. Making `Live` reset it would change its behaviour, which DW-786 forbids. It is real only if `Watch.Reader.Failures` sets `state` to timeout and then throws.
+  - `UseAgent` or `TestRequest` failing in the new tests (the assertion before them already fails the test).
+  - DW-855 still open in the ledger and the frontmatter: for the lead's `ledger_adjudicated`; QA's test and its mutation close it.
+  - The spec's `status: done` while sprint status says review: build-auto's machine state.
+  - The Auto Run Result, the unticked tasks and the triage log's counts: spec bookkeeping.
+  - AC 4, Always and Never saying "two rows only", against the DW-850 block: the lead's 2026-11-07 amendment governs. It is noted for the lead.
+  - The guide not saying that the model Test is a connection test: the guide never described the Test, and new wording needs the Planner.
+  - `Checks/Process.cls` not listed as contended: the lead's prompt has Epic 39 merged, 39.9's spec forbids that file, and `origin/OCT-epic39` touches no `Checks/` file.
+  - "Not a total over both attempts" pinned only as text (low; the code checks the clone's own estimate, and a total is a design no path has).
+  - `ReasonOf`/`KeyOf` as two methods (the spec's intent: each mapping lives once).
+
 ## Spec Change Log
+
+- 2026-11-07 lead: the L242 Model row and the L354 clause were ruled by the Contest Planner (about 05:10Z) and landed with the other DW-850 lines; the Boundaries line on guide wording and the DW-728 partial decline are marked superseded.
 
 - 2026-11-07 lead: DW-850 added (Contest Planner ruling about 04:55Z: the bridge guide's one-attempt wording, exact strings; the Model row's clause is held for a correction).
 
@@ -230,7 +259,7 @@ No AC contradicts an AD's Rule. The Conventions row, added by the Planner's ruli
 **Ledger (Rule 17):**
 - DW-771 is addressed by the `Conclude` task, the first six matrix rows and `TestModelTestIsAConnectionTest`.
 - DW-786 is addressed by the `Process`/`Coverage` tasks, the parity row and `TestOneLiveReadHelper`.
-- DW-728 is addressed by the two rows and the `tables` rule. Partly declined: the occurrence of 2026-11-05 asks to widen the fold to the one-attempt wording (the `TimerSeconds` and `DecisionTokenBudget` rows, Timeouts, the fallback route and `DecisionResponse.Model`). That would be new public text, and Story 17.9's AC says "no other wording changes". The lead's adjudication should re-own that residual, or route it to the Planner as public text.
+- [SUPERSEDED 2026-11-07 by DW-850, ruled by the Contest Planner and landed in this story.] DW-728 is addressed by the two rows and the `tables` rule. Partly declined: the occurrence of 2026-11-05 asks to widen the fold to the one-attempt wording (the `TimerSeconds` and `DecisionTokenBudget` rows, Timeouts, the fallback route and `DecisionResponse.Model`). That would be new public text, and Story 17.9's AC says "no other wording changes". The lead's adjudication should re-own that residual, or route it to the Planner as public text.
 
 **Decided in-stage:**
 1. The spine and epics say "`DiagnosisReply`", but the class is `OcuTalon.Watch.Msg.DiagnosisPayload` (the `ReplyClass` of `DiagnosisAgent` in `Production.cls`). The test names the real class.
@@ -316,6 +345,13 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: `Process.Run` passes `cut` 0 to `NotCheckedReason`: `TestOneLiveReadHelper` (b) red, and `Checks.Runs` `TestNotChecked` and `TestNotCheckedReportsNothing` red.
 - mutation: the guide loses its `RetryItem` row: `test-bridge-guide.sh` `tables` red. The runner settings table's `Model` row removed (the `DecisionResponse` `Model` row remains): `tables` red.
 - mutation: one character changed in the DW-850 `Model` row of the guide's pinned text (`first model.` to `first modem.`): `retrytext` red on ruled line 5. The script's own per-line break samples change one character of each of the eight ruled lines.
+
+**QA stage additions (QA):**
+- test (QA): `TestRetryBudgetOwnEstimate` in `src/ocutalon/cls/OcuTalon/Test/Bridge/SecondModel.cls` (DW-855). The retry runner reads the Chat agent (`RunnerFixture UseAgent`, put back by `OnAfterOneTest`), so the retry's own estimate is above the first attempt's; the budget is the first attempt's estimate; the first attempt is sent and refused, the retry is never sent, and the fallback reason is `budget`. The test asserts that the retry's estimate is the larger.
+- mutation: `TryRetry`'s retry `Precheck` gets an empty budget instead of `DecisionTokenBudget` (`Decide.cls:687`) -> `Test.Bridge.SecondModel` `TestRetryBudgetOwnEstimate` red (fallback reason, no request to the retry runner, retry never sent); restored byte for byte.
+- mutations sampled by QA (each applied, observed red, restored byte for byte): `Conclude` `Set test = 0` -> `SettingsApply` `TestModelTestIsAConnectionTest` red (diagnosis, triage and as-built legs); `Set test = 'turn` (IsTest ignored) -> its not-a-test leg red; `Coverage.Live` `IsCut(failed, max + 1)` -> `Digest.Runs` `TestOneLiveReadHelper` red (cut legs); `Coverage.Live` `FailureText(failures, 0)` -> `TestOneLiveReadHelper` red (suspended with a cut); `Process.Run` drops `unread` -> `Checks.Runs` `TestNotChecked` and `TestNotCheckedReportsNothing` red.
+- mutation (code review): `tables_problems` greps the whole guide instead of its two sections -> `test-bridge-guide.sh` `tables` red on the break samples "a Request property in the Settings section only", "a setting in the Messages and enumerations section only" and "a section that runs into a chapter"; `tables_section` ends only at `### ` again -> `tables` red on "a section that runs into a chapter"; script restored byte for byte (cmp equal).
+- mutation: one character changed in each of the ruled guide lines L159, L160, L197, L202, L242, L273, L354 and the bullet after L347 -> `test-bridge-guide.sh` `retrytext` red each time; the `RetryOf` first cell changed -> `tables` red; guide restored (checksum equal).
 
 ## Auto Run Result
 
