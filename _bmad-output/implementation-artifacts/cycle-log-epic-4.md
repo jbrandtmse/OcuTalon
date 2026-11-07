@@ -391,3 +391,4 @@
 2026-11-07T03:00:22Z	Story 4.11	ci_red_classified	run=42327859572 workflow=.github/workflows/ci.yml class=flake? test=browser:documents.spec_D5(fixture_document_timeout;DW-846;unconfirmed)
 2026-11-07T03:00:42Z	Story 4.11	rework_opened	cycle_iteration=4 iteration=3 trigger=ci items=CI-E8-320px-sideways,CI-K16-banner-hermeticity(+320x700) scope_baseline=621dd3a5 note=last_iteration_under_cap;inherited_HC*(DW-845)_and_D5(DW-846)_excluded
 2026-11-07T03:06:18Z	Epic 4	runner_resumed	via=orchestrator rulings=DW-845_dup_DW-839(fixed_99b9a24d_OCT-epic7),DW-846_dup_DW-825(runner_D_after_7.9;occurrence_trailer_pending:DW-825_not_in_this_ledger_until_integrate),U-296_keep,U-297_keep,merge_order=7.9_then_4.11,PT-e_0_would_change_assertion_is_4.11's_after_integrating_onto_7.9 hold=none
+2026-11-07T03:06:19Z	Story 4.11	stage_spawned	stage=implement spawn_at=2026-11-07T03:06:19Z model=claude-sonnet agent_name=4-11-other-things-to-try-implement-5 cycle_iteration=4
