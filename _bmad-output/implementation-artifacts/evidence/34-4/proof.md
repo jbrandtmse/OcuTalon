@@ -40,3 +40,8 @@ CI host): MODE=old **31/40 missed**, MODE=armed **0/40 missed**.
 The real page's miss rate here is about 1 in 100 (1/100 old D5 runs over the two stacks); CI saw 3 hits in about 6 hours. The armed D5
 removes the race itself (interception is on before sign-in), so its rate is 0 whatever the load: 0/20 here, 0/680 armed repro runs
 across loads, while the old order missed 7/390 unthrottled and 31/40 throttled.
+
+## Smoke and fresh check (after code review, second fresh stack)
+Stack `ocutalon-t03-e34s4smk-1794025649-48229` (lane D, port 52804), the same narrowed unit: old D5 x5 then **new D5 x20: 20/20 passed**
+(1.9 min; `SPEC documents/documents.spec.ts 25 tests 105s`, `all checks passed`). The `taskpolicy -b` wrapper tried here did not slow the
+test workers (per-test times unchanged), so this run adds no old-code evidence; the old x5 passed. Live new-D5 total: 40/40.
