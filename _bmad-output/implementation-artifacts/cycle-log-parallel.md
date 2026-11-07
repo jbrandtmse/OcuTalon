@@ -2514,3 +2514,6 @@
 2026-11-07T17:50:37Z	Run	planner_question	subject=live:sign-in_split when=release_branch_or_after_cut
 2026-11-07T17:54:59Z	Run	ci_green_verified	head=5b47f052 runs=42393186349,42393186350 result=success via=gh note=1.0.3_cut_trigger planner_told=yes
 2026-11-07T17:54:59Z	Run	planner_ruling	subject=live:sign-in_split own_commit_own_branch_on_5b47f052 same_test_list_check pick_onto_release_if_timeout else_after_cut traces=option_a U-300=keep+no_secrets_pin
+2026-11-07T17:56:00Z	Run	planner_update	subject=1.0.3_rc1_cut source=5b47f052 cut_commit=8f142259 branch=release/1.0.3-rc1 feature_freeze=lifted release_tool_freeze=holds
+2026-11-07T17:56:00Z	Epic 32	worktree_provisioned	branch=OCT-epic32 base=97324169 reason=story_32.5_live:sign-in_split runner=a9ecc108c6b23c2ec(lane_A)
+2026-11-07T17:56:00Z	Epic 11	runner_resumed	agent=a9ecc108c6b23c2ec reason=sign-in_split_first(epic-32)_then_11.27
