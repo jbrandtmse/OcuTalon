@@ -28,7 +28,7 @@ Include Ensemble
 ///     gives the platform's own ErrProductionQuiescent, and the task ends OK, sends nothing and leaves the marks;
 ///   - (QA) TestFailureReturned (Always): a failure that is not a quiet one (a service that is not in the running production) is returned by OnTask;
 ///   - (QA) TestOtherProduction (Always): with another production named as the task's own, OnTask ends OK, sends nothing and leaves the marks;
-///   - (QA) TestAfterAllTestsNothingSaved: OnAfterAllTests of a class that saved nothing (the state after a failed OnBeforeAllTests) leaves everything alone.
+///   - (QA) TestAfterAllTestsNothingSaved: OnAfterAllTests of a class that saved nothing (the state after a failed OnBeforeAllTests) leaves everything alone, and the production runs every item (a failure names the missing items and their job state).
 /// OnAfterOneTest and OnAfterAllTests put back what a test changed, also after a failure: the task's Suspended value, HeartbeatIn enabled, the
 /// production running with every item, the Checks item's class, the tick mark (and then, with the production running, one real tick, so that
 /// the class ends with a fresh mark for the classes that read the real heartbeat through Status.Computed; that tick may record a gap mark of its own), the gap marks (all of them are saved before the tests and put back after them, because the
@@ -592,7 +592,8 @@ Method TestOtherProduction()
 /// (QA) OnAfterAllTests of a class that saved nothing leaves everything alone. A failed OnBeforeAllTests leaves the instance as a new one (it quits before it
 /// assigns anything, and before Saved is set), and the manager still calls OnAfterAllTests. A new instance runs it here, with the production running:
 /// it returns OK, kills no record of the double, leaves the task's Suspended value and the production as they are. Without the guard, Restore would put
-/// back what was never saved (and start a production that the class never stopped).
+/// back what was never saved (and start a production that the class never stopped). The production is read once, right after the call, with no wait;
+/// when an item is missing, the failure message names the items and the state of their jobs (DW-639).
 Method TestAfterAllTestsNothingSaved()
 {
 	Set other = ##class(OcuTalon.Test.Schedule.Heartbeat).%New("")
@@ -608,7 +609,8 @@ Method TestAfterAllTestsNothingSaved()
 	Do $$$AssertEquals($Get(^OcuTalonTest("Heartbeat", "sentinel")), 1, "or the record of the tests")
 	Set task = ##class(%SYS.Task).%OpenId(##class(%SYS.Task).FindId(..#TASK))
 	Do $$$AssertEquals($Select($IsObject(task): task.Suspended, 1: ""), suspended, "the task has the Suspended value that it had")
-	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).NotRunning(), "", "and the production runs every item")
+	Set missing = ##class(OcuTalon.Install.Step.Production).NotRunning()
+	Do $$$AssertEquals(missing, "", "and the production runs every item"_$Select(missing = "": "", 1: ": "_missing_" ("_$ClassMethod(..#FIXTURE, "StateOf", missing)_")"))
 }
 
 /// The lock. This test holds the lock of the heartbeat while a job runs the task: the run waits for the lock, ends OK after about 5 s, sends

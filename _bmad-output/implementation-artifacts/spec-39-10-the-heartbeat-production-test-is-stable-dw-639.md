@@ -2,7 +2,8 @@
 title: 'Story 39.10: The heartbeat production test is stable (DW-639)'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '16724981da54eb8d7e6f045d80614024076b1946'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -64,6 +65,26 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-07 - Review pass
+- verdicts: 16 findings - high 0, medium 0, low 5, false 11, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: no fix, no wait, the test is as flaky as before - the intent (ruling, option (a)) is diagnostics only; the story title is the DW's, the Spec Change Log records the narrowing.
+  - `[low]` `[reject]` Blind: the message duplicates `RunnerFixture.NotRunningText()` - that helper reads `NotRunningNow()`, which the intent forbids for the pin; the inline text is one expression and calls `StateOf` unchanged as the spec says.
+  - `[false]` `[reject]` Blind: the pin should use `NotRunningNow()` - the intent says never use it for the pin (it would hide an item with an Enabled row 0).
+  - `[low]` `[reject]` Blind, Edge, VG, Intent: `NotRunning()` can return "OcuTalon.Production is not running", which `StateOf` prints as an item with `row -, runtime flag 0, jobs none` - the sentence still names the cause, `StateOf` does not throw on it (read), the case is unlikely in this test and a guard would add a branch; cosmetic.
+  - `[false]` `[reject]` Blind: the mutation covers one branch only - AC 2 asks for one demonstrated mutation (Rule 19), recorded with the observed message; the other `StateOf` branches are the fixture's, reused unchanged.
+  - `[false]` `[reject]` Blind: 254.51 s run cost - the mutation ran inside one call's cap (Rule 18); not a defect of the change.
+  - `[false]` `[reject]` Blind, Edge, VG: the spec's Auto Run Result still says ready-for-dev - written at finalize.
+  - `[low]` `[reject]` Blind: the item name appears twice in the message - that is `StateOf`'s format, which the intent says to reuse unchanged.
+  - `[low]` `[reject]` Edge, VG, Intent: `StateOf` reads a later enumeration than `NotRunning()` - inherent to the specified message (no wait, one read); the message names the item, which is the story's goal.
+  - `[false]` `[reject]` Edge: `StateOf` may throw on the failure path - read: it only builds a result set and reads the settings; the only call that could fail is the fixture's own `SnapshotDefault`, which `NotRunningNow` also uses on every wait.
+  - `[false]` `[reject]` Edge: the read is after three more assertions, not immediately after the call - the position of the pin is unchanged from before (the intent keeps its moment); the assertions in between do not touch the production.
+  - `[low]` `[reject]` VG: no executing test pins the message text - the intent allows no extra structure; Rule 19's evidence is the recorded mutation, applied, red with the item named, reverted, tree byte-identical.
+  - `[false]` `[reject]` VG: Rule 19 results (no unfalsifiable assertion, `mutation:` line present, hermeticity excluded by the ruling) - no defect.
+  - `[false]` `[reject]` Intent: the observed message is local, not the CI log - the CI runner prints the same `FAIL <test>: <message>` line (the DW's own logs show it); not a defect of the change.
+  - `[false]` `[reject]` Intent: the diff edits the spec - the spec is the story's own tracking artifact.
+  - `[false]` `[reject]` remaining descriptive readings (R1 to R4) - the diff implements R1 and R3; no divergence needs action.
+
 ## Design Notes
 
 **TIMEBOX (planning stage, 10:57Z to 12:04Z; cause not confirmed).** Measured on lane D throwaways (`e39s10plan`, `e39s10planw`), old code, the pin's value captured by a temporary probe (reverted, tree byte-identical):
@@ -114,7 +135,21 @@ deferred: []
 
 **Pinning mutations:** AC 1/2: the `TempStopConfigItem` mutation above.
 
+mutation: first line of `OnAfterAllTests` = `Do ##class(Ens.Director).TempStopConfigItem("SimPhoneOut", 1)`; `ci/iris.sh class OcuTalon.Test.Schedule.Heartbeat` on a fresh stack (e39s10impl): `CLASS OcuTalon.Test.Schedule.Heartbeat failed 254.51s`, `FAIL TestAfterAllTestsNothingSaved: and the production runs every item: SimPhoneOut (SimPhoneOut row -, runtime flag 1, jobs none)`; reverted, `git status --short` and `git diff` byte-identical to before the mutation.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: `TestAfterAllTestsNothingSaved` reads `Install.Step.Production.NotRunning()` once into `missing` right after `other.OnAfterAllTests()` (no wait, same predicate and moment) and asserts it equals `""`. The message stays "and the production runs every item" on a pass; on a failure it adds ": <items> (<`RunnerFixture.StateOf` of them>)". DW-639 stays a flake class (diagnostics landed; fix on the next named occurrence).
+
+Files changed:
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls` - the pin, the method's doc comment and the class header's `(QA)` line.
+- this spec - frontmatter, the `mutation:` line, triage log and result.
+
+Review: 4 layers, 16 triage rows (similar findings from several layers grouped per row). Patches applied 0, deferred 0, rejected 16 (reasons in the triage log). Follow-up review recommended: false.
+
+Verification (lane D, fresh throwaway `e39s10impl`, torn down): `ci/iris.sh class OcuTalon.Test.Schedule.Heartbeat` passed (91.74 s); the mutation turned the pin red with the item named (`mutation:` line above), reverted with the tree byte-identical; `shard lane-b@Schedule` forward passed (7 classes, 431 s; Heartbeat 82.03 s) and `--reverse` passed (7 classes, 382 s; Heartbeat 102.16 s); `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-boundaries.sh` exit 0.
+
+Residual risks: the next CI occurrence's message decides the fix; the state in the message is a second enumeration taken just after the pin's read.
