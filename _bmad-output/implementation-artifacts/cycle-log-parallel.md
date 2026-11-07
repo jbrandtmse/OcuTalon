@@ -2549,3 +2549,5 @@
 2026-11-07T20:50:43Z	Epic 32	epic_merge_started	head=39364d5c into=feature exception=planner_one_time third_rerun=already_started(not_cancelled)
 2026-11-07T20:51:13Z	Epic 32	epic_merged_to_feature	merge=574736a5 head=39364d5c story=32.5 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0 exception=planner_one_time(DW-688) planner_told=yes
 2026-11-07T20:51:13Z	Run	deps_hash_rerecorded	reason=fix_forward story=32.5 hash=0f6ad18d4a84
+2026-11-07T20:55:50Z	Epic 39	runner_complete	head=84e2ee03 story=39.10 ci=success(42404361697_after_infra_rerun,42404361658) DW-880_fixed veto=U-301 note=contract_fields_from_runner_CI_WAIT_report
+2026-11-07T20:55:50Z	Epic 39	epic_merge_started	head=84e2ee03 into=feature reason=rc2_pick
