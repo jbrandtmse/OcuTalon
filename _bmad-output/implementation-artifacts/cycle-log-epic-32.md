@@ -163,3 +163,6 @@
 2026-11-07T17:58:07Z	Epic 32	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md status=final
 2026-11-07T18:00:43Z	Epic 32	epic_context_compiled	reason=planning_artifact_newer(32.5_chartered) model=claude-opus
 2026-11-07T18:00:43Z	Story 32.5	stage_spawned	stage=plan spawn_at=2026-11-07T18:00:43Z model=opus agent_name=32-5-sign-in-split-plan-1 cycle_iteration=1
+2026-11-07T18:10:27Z	Story 32.5	story_created	spawn_at=2026-11-07T18:00:43Z model=claude-opus path=_bmad-output/implementation-artifacts/spec-32-5-live-sign-in-splits-again-after-4-11-s-tests.md build_status=ready-for-dev epic_context=reused
+2026-11-07T18:10:27Z	Story 32.5	spec_validated	service_introducing=false integration_ac=declared(CI_unit_map) decision_dependency=none sections_created=none owned_ledger=none mutates_shared_runtime=false placement=shards-5(~1950s,inference) model=claude-opus-5-5
+2026-11-07T18:10:28Z	Story 32.5	stage_spawned	stage=implement spawn_at=2026-11-07T18:10:28Z model=sonnet agent_name=32-5-sign-in-split-implement-1 cycle_iteration=1 story_base=3781e64b
