@@ -826,7 +826,8 @@ Method TestLastRepliedTurn()
 
 /// RecentNotices gives the session's web cards of the kinds tellnow and reminder, newest RecordedAt first and then newest ID
 /// first, at most max: a card of another kind, of another channel, a reply (kind empty) and another session's cards are left out,
-/// and every kind that WebChatOut makes a card of (its CARDKINDS) is one.
+/// and every kind that WebChatOut makes a card of (its CARDKINDS) is one. The kind digest (Story 17.10) is one of them, when its row has
+/// a ChannelMessageId; a digest row with none (recorded before the digest card, with no text) is not a card.
 /// DeliveryFor gives the newest row for the approval Ref and channel, and "" for a Ref in another case, another channel, another
 /// session and an empty value.
 Method TestRecentNotices()
@@ -857,6 +858,12 @@ Method TestRecentNotices()
 		Do $ClassMethod(fixture, "Delivery", tied, {"RecordedAt": "2030-01-01T10:00:05Z", "Kind": (kind)})
 	}
 	Do $$$AssertEquals($ClassMethod(ownership, "RecentNotices", tied).Count(), $ListLength(kinds), "every kind that WebChatOut makes a card of is a card of the snapshot's chat")
+	Do $$$AssertTrue($ListFind(kinds, "digest") > 0, "the digest is one of the card kinds")
+	Set digested = $ClassMethod(fixture, "Session", "zzown"_..Number_"nd")
+	Set digest = $ClassMethod(fixture, "Delivery", digested, {"RecordedAt": "2030-01-01T10:00:05Z", "Kind": "digest"})
+	Do $ClassMethod(fixture, "Delivery", digested, {"RecordedAt": "2030-01-01T10:00:06Z", "Kind": "digest", "ChannelMessageId": "", "Text": ""})
+	Set cards = $ClassMethod(ownership, "RecentNotices", digested)
+	Do $$$AssertEquals(cards.Count()_"|"_..Refs(cards), "1|"_digest, "a web digest row with a message id is a card, and one with none (no text) is not")
 
 	Set approval = "ZzApproval"_..Number
 	Do $ClassMethod(fixture, "Delivery", a, {"ApprovalRef": (approval), "Channel": "telegram", "Kind": "", "ChannelMessageId": "ZzChat:1"})

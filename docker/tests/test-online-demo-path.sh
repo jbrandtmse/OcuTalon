@@ -10,10 +10,11 @@
 #       step 1 (the splash and the sign-in), steps 2 to 5 (one visitor's journey through the step functions of web/e2e/support/demo-path.ts,
 #       which the web run's 02 to 05 call too: the guide's own Send for the watch and for the reminder, Break the feed and the incident awaiting
 #       approval, and Approve on the simulated phone to the result), step 6 (the trace link opens Visual Trace at the turn, signed in, with its
-#       agent steps and the cost), and "second visitor" (A and B each watch Orders through the guide's Send and A presses Break the feed:
+#       agent steps and the cost), step 7 (Story 17.10: the same visitor's "Send my digest now." in the composer
+#       shows one digest card in that visitor's chat, and the simulated phone gets none), and "second visitor" (A and B each watch Orders through the guide's Send and A presses Break the feed:
 #       A's incident, notice and approval request reach only A, B's page, /state and /events get nothing, B's answer to A's request is
 #       refused, and A answers on its simulated phone);
-#   - the report check (with no arguments): the JSON report holds exactly seven passed cases (steps 1 to 6 and the second visitor) and
+#   - the report check (with no arguments): the JSON report holds exactly eight passed cases (steps 1 to 7 and the second visitor) and
 #     three skipped ones, the paired chat and message search cases of Story 31.4, each with its skip text. A case that is skipped without
 #     its text, or one that is missing or extra, fails the unit. With arguments (a mutation run: -g <title>) only those cases run and the
 #     set check is skipped;
@@ -103,7 +104,7 @@ run_e2e() {
 }
 
 # report_check <report>: the cases of the JSON report by their ends. It prints one FAIL line for each defect and nothing when the report
-# holds exactly the seven passed cases (steps 1 to 6 and the second visitor) and the three skipped ones of Story 31.4, each skipped case
+# holds exactly the eight passed cases (steps 1 to 7 and the second visitor) and the three skipped ones of Story 31.4, each skipped case
 # with its "Story <id> turns this on" text.
 report_check() {
   node -e '
@@ -127,7 +128,7 @@ report_check() {
     for (const suite of report.suites ?? []) walk(suite);
     for (const error of report.errors ?? []) problems.push("Playwright reported an error: " + String(error.message ?? error).split("\n")[0]);
     const passed = cases.filter((c) => c.status === "passed").map((c) => c.title);
-    const wanted = [/^step 1:/, /^step 2:/, /^step 3:/, /^step 4:/, /^step 5:/, /^step 6:/, /^second visitor:/];
+    const wanted = [/^step 1:/, /^step 2:/, /^step 3:/, /^step 4:/, /^step 5:/, /^step 6:/, /^step 7:/, /^second visitor:/];
     for (const re of wanted) {
       const hits = passed.filter((t) => re.test(t));
       if (hits.length !== 1) problems.push("wanted exactly one passed case matching " + re + ", found " + hits.length);
@@ -143,7 +144,7 @@ report_check() {
     }
     if (bystory["31.4"] !== 3) problems.push("wanted 3 skipped cases of Story 31.4, found " + bystory["31.4"]);
     for (const c of cases.filter((x) => x.status !== "passed" && x.status !== "skipped")) problems.push("the case \"" + c.title + "\" ended " + c.status);
-    if (cases.length !== 10) problems.push("wanted 10 cases in all, found " + cases.length);
+    if (cases.length !== 11) problems.push("wanted 11 cases in all, found " + cases.length);
     for (const p of problems) console.log(p);
   ' "$1"
 }
@@ -169,10 +170,10 @@ else
   if [ "$#" -eq 0 ] && [ "$e2e_status" -eq 0 ]; then
     problems=$(report_check "$e2e_json") || problems="the report check could not run"
     if [ -z "$problems" ]; then
-      pass "the report holds the seven passed cases (steps 1 to 6 and the second visitor) and the three skipped ones of Story 31.4, each with its skip text"
+      pass "the report holds the eight passed cases (steps 1 to 7 and the second visitor) and the three skipped ones of Story 31.4, each with its skip text"
     else
       printf '%s\n' "$problems" | redact | sed 's/^/  /'
-      fail "the report does not hold exactly the seven passed and the three skipped cases"
+      fail "the report does not hold exactly the eight passed and the three skipped cases"
     fi
   fi
 fi

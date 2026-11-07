@@ -19,6 +19,11 @@
 ///   - TestPersonaCards (Story 40.6): the persona notices of Core.SettingsOps (approval.persona with kind approval, persona.applied and
 ///     persona.stale with kind result), with an ApprovalRef, are cards as a tool call's are; without an ApprovalRef, or with the kind
 ///     answered, they record their Delivery row only;
+///   - TestDigestCard (Story 17.10): a digest Notification is a card: its text is the pieces of OcuTalon.Channel.DigestText rendered for the web, one on
+///     each line (the parts up to the after-lines parts, the lines, then the rest; the lines last when no part is an after-lines part), recorded with the
+///     kind digest, a new message id, the DecisionRef as sent, no due time and no reason, published as one notification event with the whole text and
+///     an empty whyNow, and listed in RecentNotices; Slots with no parts or no lines, and a part or line with an unknown key, are an error with no row and
+///     no event;
 ///   - TestOtherKindsRecordOnly: any other kind records its Delivery row, with no text and no event;
 ///   - TestReplyRecordsItsDeliveryOnly: a reply records its Delivery row for the web, with its DecisionRef and no event;
 ///   - TestRenderErrorRecordsNothing: a text that cannot be rendered is an error with no row and no event;
@@ -295,8 +300,61 @@ Method TestPersonaCards()
 /// and no event, and the row is not one of the chat's cards.
 Method TestOtherKindsRecordOnly()
 {
-	Do ..AssertRecordOnly(..Session("other"), $ListFromString("fallback,pairing,status,digest"), "the other kinds")
-	Do $$$AssertEquals(##class(OcuTalon.Channel.WebChat.Out).#CARDKINDS, "tellnow,reminder,allowance", "allowance is a card kind, so it is not one of them")
+	Do ..AssertRecordOnly(..Session("other"), $ListFromString("fallback,pairing,status"), "the other kinds")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.WebChat.Out).#CARDKINDS, "tellnow,reminder,allowance,digest", "allowance and digest are card kinds, so they are not one of them")
+}
+
+/// A digest (Story 17.10) is a card of kind digest. Its text is the rendering for the web of the parts and the lines of its Slots, one piece on each line,
+/// with the lines before the first after-lines part (here digest.saved), or last when there is none. The row keeps the DecisionRef as sent, no due time and
+/// no reason, and the one notification event carries the whole text, with an empty whyNow. Slots that cannot be read or rendered record nothing.
+Method TestDigestCard()
+{
+	Set session = ..Session("digest")
+	Set slots = {"parts": [{"key": "digest.greetingMorning", "slots": {}}, {"key": "digest.checked", "slots": {"checked": "the Chat agent and the Orders service"}}, {"key": "checks.notEverythingRestPassed", "slots": {"whatFailed": "the Orders service"}}, {"key": "digest.saved", "slots": {"count": 1, "summary": "One alert was handled."}}, {"key": "digest.cost", "slots": {"cost": 0.042}}], "lines": [{"key": "digest.notCheckedSizeLimit", "slots": {"entry": "the Billing database"}}, {"key": "digest.notCheckedSizeLimit", "slots": {"entry": "the Orders database"}}], "rows": []}
+	Set expected = "Good morning."
+		_$Char(10)_"I checked the Chat agent and the Orders service."
+		_$Char(10)_"Not everything: the Orders service. Everything else I checked passed."
+		_$Char(10)_"Not checked: the Billing database (OcuTalon can't read this database's size limit)."
+		_$Char(10)_"Not checked: the Orders database (OcuTalon can't read this database's size limit)."
+		_$Char(10)_"Saved for later (1): One alert was handled."
+		_$Char(10)_"Yesterday's cost: $0.04."
+	Set notification = ..Notification(session, "digest", "checks.notEverythingRestPassed", slots)
+	Set notification.DecisionRef = "ZzDigestDecision"
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the digest is delivered")
+	Do $$$AssertEquals(..Rows(session), 1, "one row is recorded")
+	Set row = ..Newest(session)
+	Do $$$AssertTrue($IsObject(row), "the digest is a card in RecentNotices")
+	If $IsObject(row) {
+		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.DecisionRef_"|"_row.DueAt_"|"_row.FallbackReason_"|"_row.ApprovalRef, "web|digest|ZzDigestDecision|||", "its channel, kind and decision, and nothing else")
+		Do $$$AssertTrue(row.ChannelMessageId ? 22(1AN,1"-",1"_"), "a new message id")
+		Do $$$AssertEquals(row.Text, expected, "the text is the pieces in order, one on each line")
+		Do $$$AssertEquals(row.Text, ##class(OcuTalon.Channel.DigestText).Text(slots.%ToJSON(), "web"), "and the text of the shared helper for the web")
+	}
+	Set events = ..Notifications(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one notification event")
+	If events.%Size() = 1 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.kind_"|"_payload.whyNow_"|"_payload.dueAt_"|"_payload.fallbackReason, "digest|||", "the payload: kind digest, no whyNow, no due time and no reason")
+		Do $$$AssertEquals(payload.text, expected, "and the whole text")
+		Do $$$AssertEquals(payload.%ToJSON() [ """kind"":""digest""", 1, "and its JSON names the kind")
+	}
+
+	Set quiet = ..Session("digestlast")
+	Set noAfter = {"parts": [{"key": "digest.greetingEvening", "slots": {}}, {"key": "digest.checkedQuiet", "slots": {"checked": "the Chat agent"}}, {"key": "checks.allPassed", "slots": {}}], "lines": [{"key": "digest.notCheckedSizeLimit", "slots": {"entry": "the Billing database"}}], "rows": []}
+	Do $$$AssertStatusOK(..Out().OnNotification(..Notification(quiet, "digest", "checks.allPassed", noAfter), .response), "a digest with no after-lines part is delivered")
+	Set row = ..Newest(quiet)
+	If $IsObject(row) Do $$$AssertEquals(row.Text, "Good evening."_$Char(10)_"I checked the Chat agent (all running, no errors, no backlog)."_$Char(10)_"Everything I checked passed."_$Char(10)_"Not checked: the Billing database (OcuTalon can't read this database's size limit).", "the lines come last")
+
+	Set broken = ..Session("digestbad")
+	Set unknownPart = {"parts": [{"key": "digest.noSuchKey", "slots": {}}], "lines": [], "rows": []}
+	Set unknownLine = {"parts": [{"key": "digest.greetingMorning", "slots": {}}], "lines": [{"key": "digest.noSuchKey", "slots": {}}], "rows": []}
+	Set noParts = {"lines": [], "rows": []}
+	Set noLines = {"parts": [{"key": "digest.greetingMorning", "slots": {}}], "rows": []}
+	For bad = unknownPart, unknownLine, noParts, noLines {
+		Do $$$AssertStatusNotOK(..Out().OnNotification(..Notification(broken, "digest", "checks.allPassed", bad), .response), "a digest that cannot be rendered is an error: "_bad.%ToJSON())
+	}
+	Do $$$AssertEquals(..Rows(broken), 0, "and records no row")
+	Do $$$AssertEquals(..Notifications(broken).%Size(), 0, "and publishes no event")
 }
 
 /// The kind allowance (Story 16.9) is a card, as tellnow and reminder are: the session allowance notice and the daily-cap message
