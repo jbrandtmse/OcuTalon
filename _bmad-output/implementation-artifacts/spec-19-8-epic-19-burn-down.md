@@ -140,6 +140,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-07 (lead, before implement): Task 0 measured ahead of implement (evidence committed); the Planner's rulings recorded under Design Notes "Rulings (2026-11-07 ...)": DW-829 fix with four conditions, the disclosure bullet, DW-830 Option 2 hosts.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -202,6 +204,20 @@ deferred: []
 - A pinned distribution whose top-level folder another distribution owns (a namespace folder) is still skipped by pip `-t`. M2 lists any overlap.
 - `-bypass-py-deps` (if M4 refutes the Default): the step still removes stale copies.
 - The pip `-t` skip behaviour is inference (pip's target-directory handling) until M1.
+
+**Rulings (2026-11-07, the Contest Planner under the owner's delegation, about 03:05Z; relayed by the orchestrator). They settle Task 0's decision and the PUBLIC TEXT task; Task 0's measurements are DONE (evidence `_bmad-output/implementation-artifacts/evidence/19-8-task0-install-accuracy.md`, committed): reuse them, do not re-measure, except part p's starting state, which is still to measure.**
+- DW-829 (owner decision): APPROVED. `OcuTalon.Install.Ipm.RemoveStaleCopies` runs before IPM's pip step, and README A5 stays, under these CONDITIONS:
+  1. Its pinned list is READ FROM `requirements.txt` (nothing hard-coded). It never touches a file outside `<mgr>/python`. It is idempotent: a second install removes nothing. It writes a `STEP` line to the install log for each distribution it replaces.
+  2. Snapshot every distribution in `<mgr>/python` before and after the install. Both times, import each top-level module of IPM's own packages (`oras.provider` and the rest: attrs, jsonschema, jsonschema_specifications, oras, referencing and the six). The only differences allowed are the six moving to the pinned versions, plus OcuTalon's own additions. `zpm "list"` and an install from the local repository must still work afterwards. Gate this in the IPM check (path A and part p).
+  3. Uninstall: measure what OcuTalon's uninstall does to the six. IPM must still work after it (the same imports, and `zpm "list"`). If the uninstall removes the six, change it so it leaves them in place. Record the measurement in the evidence file.
+  4. The version+hash import check (both `__version__` and the RECORD hash; urllib3's `__init__.py` is byte-identical across the two versions) gates path A and part p, in check 32's area.
+- DISCLOSURE (new PUBLIC TEXT, ruled), in `docs/install-ipm.md` ONLY, directly after the "Network access ..." bullet in "What you need", EXACTLY:
+  "- The second command puts these packages in the instance's shared Python folder, mgr/python in the IRIS install directory. Where that folder already holds older versions of certifi, charset_normalizer, idna, requests, typing_extensions or urllib3, which IPM installs for itself, the second command replaces them with the versions OcuTalon pins. IPM's own packages work with these versions."
+  The last sentence stands ONLY if condition 2 passes; if it fails, HALT `blocked` with an intent gap naming it (the lead brings the bullet back to the Planner). README gets no matching sentence: exempt this bullet from the A4/A6 pairing test, and pin it with a fixed-strings test.
+- DW-830 hosts: Option 2, EXACTLY, in both files (each is the same sentence/bullet as today with only the host list changed; the final sentences stay as ruled for Story 19.6):
+  - README: "...so the instance needs network access to pypi.org, files.pythonhosted.org, huggingface.co and its download hosts under hf.co (in our test installs us.aws.cdn.hf.co and cas-server.xethub.hf.co)."
+  - `docs/install-ipm.md`: "- Network access from the instance to PyPI (pypi.org and files.pythonhosted.org) and to Hugging Face (huggingface.co and its download hosts under hf.co, in our test installs us.aws.cdn.hf.co and cas-server.xethub.hf.co): ..."
+  The HEAD evidence is in the Task 0 evidence file. The pairing test keeps the two host lists matched; update its fixed-strings pins.
 
 ## Verification
 
