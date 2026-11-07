@@ -35,8 +35,9 @@
 #  15. (QA of Story 15.4) docs/security-overview.md holds the ruled Data bullet on the repository mapping (U-232 condition 3).
 #  16. (Story 15.4) release/ipm-install.sh with no argument, the job's run, ends with part p (AC 5).
 #  17. (Story 19.8, DW-829) the manifests (src/module.xml and module.xml) invoke OcuTalon.Install.Ipm RemoveStaleCopies once, at Reload, Before,
-#      with the module root and ${BypassPyDeps} as its arguments, on a line of its own after the MapAndStop Invoke, and declare the Default
-#      BypassPyDeps (0) once; no other Invoke runs at Reload, so IPM's pip step finds the stale copies of the pinned packages removed.
+#      with the module root, ${BypassPyDeps} and ${cmd} (the lifecycle command; DW-856) as its arguments, on a line of its own after the
+#      MapAndStop Invoke, and declare the Defaults BypassPyDeps (0) and cmd (empty) once each; no other Invoke runs at Reload, so IPM's pip
+#      step finds the stale copies of the pinned packages removed, and the step removes nothing when that pip step does not run.
 #  18. (Story 19.8, QA, DW-829) the Python of check 32 in release/ipm-install.sh, taken out of the script and run on a scratch folder (no
 #      container, no IPM): the import check passes the pinned copies (also a pin spelled with a leading zero and a module with no
 #      __version__) and fails a version-only difference (urllib3's __init__.py is the same file in both versions), code that is not the
@@ -49,7 +50,8 @@
 #  19. (Story 19.8, QA, DW-829) release/ipm-install.sh runs the import check at both places of check 32: check_python_pins right after check_licences
 #      on path A (and path A then runs check_reinstall) and on part p (and part p runs check_uninstall_python after its uninstall, then the
 #      install command in USER from the local repository, which stops with its next command), and
-#      check_python_pins runs the import check, the folder comparison, zpm "list" and the Invoke's arguments.
+#      check_python_pins runs the import check, the folder comparison, zpm "list" and the Invoke's arguments; path A then runs
+#      check_pip_skipped (DW-856), which runs a reload and a load with -bypass-py-deps and checks that each removed nothing.
 # Each rule first runs on synthetic files, one that keeps it and one that breaks it, so a rule that can no longer fail makes the
 # test fail. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -598,22 +600,25 @@ fi
 
 # 17. The early Reload Invoke of the stale-copy step (Story 19.8): the exact Invoke, once, after the MapAndStop line, the exact Default once, and no
 # other Invoke at Reload or of that method.
-STALE_ELEMENT='<Invoke Class="OcuTalon.Install.Ipm" Method="RemoveStaleCopies" Phase="Reload" When="Before"><Arg>${root}</Arg><Arg>${BypassPyDeps}</Arg></Invoke>'
+STALE_ELEMENT='<Invoke Class="OcuTalon.Install.Ipm" Method="RemoveStaleCopies" Phase="Reload" When="Before"><Arg>${root}</Arg><Arg>${BypassPyDeps}</Arg><Arg>${cmd}</Arg></Invoke>'
 DEFAULT_ELEMENT='<Default Name="BypassPyDeps" Value="0"/>'
+CMD_DEFAULT_ELEMENT='<Default Name="cmd" Value=""/>'
 stale_step_declared() {
-  awk -v inv="$INVOKE_ELEMENT" -v st="$STALE_ELEMENT" -v def="$DEFAULT_ELEMENT" '
+  awk -v inv="$INVOKE_ELEMENT" -v st="$STALE_ELEMENT" -v def="$DEFAULT_ELEMENT" -v cdef="$CMD_DEFAULT_ELEMENT" '
     { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
     line == inv { if (!seen) seen = NR }
     line == st { nst++; if (!seen) before = 1 }
     line == def { ndef++ }
+    line == cdef { ncdef++ }
     line ~ /^<Invoke[ \/>]/ && line ~ /Phase="Reload"/ && line != st { bad = 1 }
     line ~ /RemoveStaleCopies/ && line != st { bad = 1 }
-    line ~ /^<Default[ \/>]/ && line != def { bad = 1 }
-    END { exit (nst == 1 && ndef == 1 && !before && !bad) ? 0 : 1 }' "$1"
+    line ~ /^<Default[ \/>]/ && line != def && line != cdef { bad = 1 }
+    END { exit (nst == 1 && ndef == 1 && ncdef == 1 && !before && !bad) ? 0 : 1 }' "$1"
 }
 cat > "$tmp/manifest.stale" <<EOM
 <Module>
   $DEFAULT_ELEMENT
+  $CMD_DEFAULT_ELEMENT
   $CPF_ELEMENT
   $PRELOAD_ELEMENT
   $INVOKE_ELEMENT
@@ -629,15 +634,19 @@ sed '/RemoveStaleCopies/ s/Phase="Reload"/Phase="Validate"/' "$tmp/manifest.stal
 sed '/RemoveStaleCopies/ s/When="Before"/When="After"/' "$tmp/manifest.stale" > "$tmp/manifest.stale-after"
 sed '/RemoveStaleCopies/ s/<Arg>${BypassPyDeps}<\/Arg>//' "$tmp/manifest.stale" > "$tmp/manifest.stale-arg"
 sed 's/Name="BypassPyDeps" Value="0"/Name="BypassPyDeps" Value="1"/' "$tmp/manifest.stale" > "$tmp/manifest.stale-value"
+sed '/RemoveStaleCopies/ s/<Arg>${cmd}<\/Arg>//' "$tmp/manifest.stale" > "$tmp/manifest.stale-nocmdarg"
+grep -v 'Name="cmd"' "$tmp/manifest.stale" > "$tmp/manifest.stale-nocmd"
+sed 's/Name="cmd" Value=""/Name="cmd" Value="install"/' "$tmp/manifest.stale" > "$tmp/manifest.stale-cmdvalue"
 { cat "$tmp/manifest.stale"; echo '  <Invoke Class="OcuTalon.Install.Registry" Method="Run" Phase="Reload" When="After"/>'; } > "$tmp/manifest.stale-other"
 { cat "$tmp/manifest.stale"; echo '  <Invoke Class="OcuTalon.Install.Registry" Method="Run" Phase="Activate" When="After"/>'; } > "$tmp/manifest.stale-later"
 if stale_step_declared "$tmp/manifest.stale" && stale_step_declared "$tmp/manifest.stale-later" && ! stale_step_declared "$tmp/manifest.stale-none" \
   && ! stale_step_declared "$tmp/manifest.stale-nodefault" && ! stale_step_declared "$tmp/manifest.stale-twice" && ! stale_step_declared "$tmp/manifest.stale-first" \
   && ! stale_step_declared "$tmp/manifest.stale-phase" && ! stale_step_declared "$tmp/manifest.stale-after" && ! stale_step_declared "$tmp/manifest.stale-arg" \
-  && ! stale_step_declared "$tmp/manifest.stale-value" && ! stale_step_declared "$tmp/manifest.stale-other"; then
-  pass "rule 17 on samples: the Reload Invoke and the Default pass, also beside an Invoke of a later phase; none, no Default, two Invokes, one before MapAndStop, another phase, When=After, a changed argument or Default, or another Invoke at Reload fails"
+  && ! stale_step_declared "$tmp/manifest.stale-value" && ! stale_step_declared "$tmp/manifest.stale-other" && ! stale_step_declared "$tmp/manifest.stale-nocmdarg" \
+  && ! stale_step_declared "$tmp/manifest.stale-nocmd" && ! stale_step_declared "$tmp/manifest.stale-cmdvalue"; then
+  pass "rule 17 on samples: the Reload Invoke and the Defaults pass, also beside an Invoke of a later phase; none, no Default, two Invokes, one before MapAndStop, another phase, When=After, a changed argument or Default, no cmd argument, no cmd Default, a cmd Default with a value, or another Invoke at Reload fails"
 else
-  fail "rule 17 on samples: the checker accepts a manifest without the exact Reload Invoke and Default after MapAndStop, or rejects the right one"
+  fail "rule 17 on samples: the checker accepts a manifest without the exact Reload Invoke and Defaults after MapAndStop, or rejects the right one"
 fi
 
 stale_step_declared_both() { stale_step_declared src/module.xml && stale_step_declared module.xml; }
@@ -844,6 +853,10 @@ function_body_has() { # function_body_has <file> <function> <line>...: the funct
 pins_wired() { # pins_wired <script>
   follows "$1" 'check_licences "install checks"' 'check_python_pins "install checks"' \
     && follows "$1" 'check_start_by_step' 'check_reinstall' \
+    && follows "$1" 'check_reinstall' 'check_pip_skipped "pip skipped"' \
+    && function_body_has "$1" check_pip_skipped "run skip-reload OCUTALON 'zpm \"reload ocutalon\"'" 'check_nothing_removed "reload (pip skipped)" skip-reload' \
+      'check_nothing_removed "load -bypass-py-deps" skip-bypass' 'if ! plant_stale_copy "$mgr" /tmp/ocutalon-python-skip-planted.state; then' \
+      'run skip-bypass OCUTALON "zpm \"load -bypass-py-deps $SRC\""' \
     && follows "$1" 'check_licences "part p"' 'check_python_pins "part p"' \
     && follows "$1" 'uninstall_checks "$h0" "$h1" "$h2"' 'check_uninstall_python "part p uninstall"' \
     && function_body_has "$1" check_python_pins 'check_imports "$1"' 'check_python_moves "$1"' 'check_ipm_alive "$1" ocutalon' 'check_invoke_args "$1"' \
@@ -870,6 +883,15 @@ check_uninstall_python() {
   check_imports "$label"
   check_ipm_alive "$label" .
 }
+check_pip_skipped() {
+  if ! plant_stale_copy "$mgr" /tmp/ocutalon-python-skip-planted.state; then
+    fail "the stale copy could not be planted"
+  fi
+  run skip-reload OCUTALON 'zpm "reload ocutalon"'
+  check_nothing_removed "reload (pip skipped)" skip-reload
+  run skip-bypass OCUTALON "zpm \"load -bypass-py-deps $SRC\""
+  check_nothing_removed "load -bypass-py-deps" skip-bypass
+}
 part_p() {
   check_licences "part p"
   check_python_pins "part p"
@@ -882,6 +904,7 @@ part_p() {
     check_python_pins "install checks"
     check_start_by_step
     check_reinstall
+    check_pip_skipped "pip skipped"
 EOS
 grep -v 'check_python_pins "install checks"' "$good" > "$tmp/script.no-a"
 grep -v 'check_python_pins "part p"' "$good" > "$tmp/script.no-p"
@@ -889,12 +912,19 @@ grep -v '^    check_reinstall$' "$good" > "$tmp/script.no-reinstall"
 grep -v 'check_uninstall_python "part p uninstall"' "$good" > "$tmp/script.no-uninstall"
 grep -v 'check_python_moves "$1"' "$good" > "$tmp/script.no-moves"
 grep -v 'check_invoke_args "$1"' "$good" > "$tmp/script.no-args"
+grep -v 'check_pip_skipped "pip skipped"' "$good" > "$tmp/script.no-skipped"
+grep -v 'check_nothing_removed "load -bypass-py-deps"' "$good" > "$tmp/script.no-skipped-bypass"
+grep -v 'check_nothing_removed "reload (pip skipped)"' "$good" > "$tmp/script.no-skipped-reload"
+grep -v 'plant_stale_copy "$mgr"' "$good" > "$tmp/script.no-plant"
+grep -v 'run skip-bypass' "$good" > "$tmp/script.no-bypass-run"
 grep -v 'run p-again' "$good" > "$tmp/script.no-again"
 grep -v 'stops_with_next_command p-again' "$good" > "$tmp/script.no-again-stop"
 if pins_wired "$good" && ! pins_wired "$tmp/script.no-a" && ! pins_wired "$tmp/script.no-p" && ! pins_wired "$tmp/script.no-reinstall" \
   && ! pins_wired "$tmp/script.no-uninstall" && ! pins_wired "$tmp/script.no-moves" && ! pins_wired "$tmp/script.no-args" \
-  && ! pins_wired "$tmp/script.no-again" && ! pins_wired "$tmp/script.no-again-stop"; then
-  pass "rule 19 on samples: the wiring passes; a missing call on path A or part p, the reinstall, the uninstall check, the folder comparison, the Invoke arguments or part p's install from the local repository after the uninstall fails"
+  && ! pins_wired "$tmp/script.no-again" && ! pins_wired "$tmp/script.no-again-stop" && ! pins_wired "$tmp/script.no-skipped" \
+  && ! pins_wired "$tmp/script.no-skipped-bypass" && ! pins_wired "$tmp/script.no-skipped-reload" \
+  && ! pins_wired "$tmp/script.no-plant" && ! pins_wired "$tmp/script.no-bypass-run"; then
+  pass "rule 19 on samples: the wiring passes; a missing call on path A or part p, the reinstall, the uninstall check, the folder comparison, the Invoke arguments, part p's install from the local repository after the uninstall, or the runs without a pip step, the planted stale copy and their checks fails"
 else
   fail "rule 19 on samples: the checker accepts a script without the import check at both places of check 32, or rejects the right one"
 fi
@@ -1035,7 +1065,7 @@ check "rule 10: $manifest declares the exact SystemRequirements element once" sy
 check "rule 11: $install_doc starts in USER, quotes IPM's refusal exactly as release/ipm-install.sh asserts it and sends the reader back to USER" ns_doc_ok "$install_doc" "$script_refusal"
 check "rule 12: $install_doc opens with the registry install: enable -community before the first install command, the shared-repositories sentence, and no Node.js before the developers' section" registry_doc_ok "$install_doc"
 check "rule 13: $manifest invokes OcuTalon.Install.Ipm UnmapRepos once, at Unconfigure, Before, after the Configure Invoke" unmap_declared "$manifest"
-check "rule 17: $manifest and module.xml invoke OcuTalon.Install.Ipm RemoveStaleCopies once, at Reload, Before, after MapAndStop, with the Default BypassPyDeps" stale_step_declared_both
+check "rule 17: $manifest and module.xml invoke OcuTalon.Install.Ipm RemoveStaleCopies once, at Reload, Before, after MapAndStop, with the root, BypassPyDeps and cmd arguments and their Defaults" stale_step_declared_both
 check "rule 18: check_imports passes the pinned copies of the six and fails a version-only difference, stale code, a file outside the folder, a module not imported and a missing pinned dist-info" ipm_python_ok imports check_imports
 check "rule 18: check_python_moves accepts only the six moving to the pins and the pins added, and fails a stale dist-info that stays, a missing pin, a changed, missing or unpinned distribution, a lost top-level item and an IPM module that no longer imports or an empty import record" ipm_python_ok moves check_python_moves
 check "rule 18: check_uninstall_python accepts only the two Python resources gone, and fails a distribution gone, changed or added, a top-level item gone or added, an IPM module that no longer imports and an empty import record" ipm_python_ok uninstall check_uninstall_python

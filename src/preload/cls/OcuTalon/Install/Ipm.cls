@@ -49,8 +49,11 @@ ClassMethod MapRepos() As %Status [ Private ]
 /// The package's early Reload step (Story 19.8, DW-829): removes the stale copies of the Python distributions that requirements.txt pins,
 /// so that IPM's pip step, which installs with --target and so skips every top-level item that exists already, puts the pinned
 /// copies in their place. The manifest invokes it at Reload, before IPM's pip step. root is the module root that holds requirements.txt
-/// (its name==version lines are the only pins; nothing is listed here), bypass is IPM's -bypass-py-deps flag, and target is the folder
-/// to clean, by default <mgr>/python.
+/// (its name==version lines are the only pins; nothing is listed here), bypass is IPM's -bypass-py-deps flag, cmd is the lifecycle command
+/// that IPM is running (install, load, update, reload and so on; IPM runs its pip step only for install, load and update), and target is
+/// the folder to clean, by default <mgr>/python. It removes a copy only when IPM's pip step runs in this lifecycle, because only then
+/// is the pinned version installed in its place: with bypass set, or a cmd other than install, load or update (including none), it
+/// removes nothing and writes nothing.
 /// A distribution is stale when a name-version.dist-info folder of target has the name of a pin and another version. Of a stale
 /// distribution it removes the top-level items (folders and files) named by the first segment of its RECORD paths, and then its own
 /// dist-info folder, but only an item that no dist-info folder of another distribution lists (the namespace folder google/ stays
@@ -61,19 +64,19 @@ ClassMethod MapRepos() As %Status [ Private ]
 /// a second call finds nothing stale and writes nothing. With no requirements.txt in root (the image path), with bypass set, or with a
 /// missing target it removes nothing. A stale distribution with an item that could not be removed keeps its dist-info folder and writes
 /// no line, so that the next call finds it and tries again. It never throws and always returns OK.
-ClassMethod RemoveStaleCopies(root As %String = "", bypass As %String = 0, target As %String = "") As %Status
+ClassMethod RemoveStaleCopies(root As %String = "", bypass As %String = 0, cmd As %String = "", target As %String = "") As %Status
 {
 	Try {
-		Do ..Replace($Get(root), +$Get(bypass), $Get(target))
+		Do ..Replace($Get(root), +$Get(bypass), $Get(cmd), $Get(target))
 	} Catch {
 	}
 	Quit $$$OK
 }
 
 /// The work of RemoveStaleCopies; see there. Throws on an unexpected error.
-ClassMethod Replace(root As %String, bypass As %Boolean, target As %String) [ Private ]
+ClassMethod Replace(root As %String, bypass As %Boolean, cmd As %String, target As %String) [ Private ]
 {
-	If bypass || (root = "") Quit
+	If bypass || (root = "") || '$ListFind($ListBuild("install", "load", "update"), cmd) Quit
 	If target = "" Set target = $SYSTEM.Util.ManagerDirectory() _ "python/"
 	Set target = ##class(%File).NormalizeDirectory(target)
 	If '##class(%File).DirectoryExists(target) Quit

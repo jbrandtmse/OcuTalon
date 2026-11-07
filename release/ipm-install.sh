@@ -101,8 +101,10 @@
 #       copies (each __file__ is under <mgr>/python with the sha256 of the pinned dist-info's RECORD, each __version__ is the pin), so that
 #       a stale copy of IPM's own dependencies fails the check; the folder's distributions before and after the install differ only in
 #       those six moving to the pins and the pins OcuTalon adds, and IPM's own packages (oras.provider and the rest) import as before; zpm
-#       "list" answers and the module's early RemoveStaleCopies Invoke gets the module root and the -bypass-py-deps flag as arguments. Path A
-#       then runs the same install command again: it replaces nothing and the checks hold. Part p, after its uninstall, shows that the uninstall
+#       "list" answers and the module's early RemoveStaleCopies Invoke gets the module root, the -bypass-py-deps flag and the lifecycle command as
+#       arguments. Path A then runs the same install command again: it replaces nothing and the checks hold; then, with a stale copy of
+#       idna planted, `zpm "reload ocutalon"` and a load with -bypass-py-deps (no pip step runs in either) remove nothing, and IPM's own
+#       packages and zpm "list" still work (DW-856). Part p, after its uninstall, shows that the uninstall
 #       leaves the Python folder's distributions in place, IPM still lists and still installs from the local repository;
 #   33. after the same two installs: OcuTalon.Docs.Extract.Read of Test.Docs.Samples' 3-page PDF and its headings .docx answers ok with page
 #       and heading markers, so the Python resources and the extraction category reached the IPM install. Check 30 also names pdfplumber
@@ -800,13 +802,14 @@ check_ipm_alive() {
   fi
 }
 
-# check_invoke_args <label> (check 32, Story 19.8): the installed module's Reload Invoke of RemoveStaleCopies gets the module root and the
-# -bypass-py-deps flag as its arguments: with a root set on the module, the first argument is that root and the second is 0, and 1 with
-# pParams("BypassPyDeps") set, as the -bypass-py-deps modifier sets it.
+# check_invoke_args <label> (check 32, Story 19.8): the installed module's Reload Invoke of RemoveStaleCopies gets the module root, the
+# -bypass-py-deps flag and the lifecycle command as its arguments: with a root set on the module, the first argument is that root, the second is
+# 0 and the third is empty when IPM's parameters hold neither, and the second is 1 and the third is the command (install here) with
+# pParams("BypassPyDeps") and pParams("cmd") set, as the -bypass-py-deps modifier and the install command set them (DW-856).
 check_invoke_args() {
-  check_session "$1: the Reload Invoke of RemoveStaleCopies gets the module root, and the -bypass-py-deps flag (0, and 1 when set)" OCUTALON \
-    "CHK|args|1|/zz/root/|0|1|Reload|Before" \
-    'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon"),n=0 If $IsObject(m) { Set m.Root="/zz/root" Set key="" For { Set inv=m.Invokes.GetNext(.key) Quit:key=""  If inv.Method="RemoveStaleCopies" { Set n=n+1 Kill p,a Do inv.GetArgsArray(.p,.a) Set a1=a(1),a2=a(2) Set p("BypassPyDeps")=1 Kill a Do inv.GetArgsArray(.p,.a) Write !,"CHK|args|",n,"|",a1,"|",a2,"|",a(2),"|",inv.Phase,"|",inv.When } } }' \
+  check_session "$1: the Reload Invoke of RemoveStaleCopies gets the module root, the -bypass-py-deps flag (0, and 1 when set) and the lifecycle command (empty, and install when set)" OCUTALON \
+    "CHK|args|1|/zz/root/|0||1|install|Reload|Before" \
+    'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon"),n=0 If $IsObject(m) { Set m.Root="/zz/root" Set key="" For { Set inv=m.Invokes.GetNext(.key) Quit:key=""  If inv.Method="RemoveStaleCopies" { Set n=n+1 Kill p,a Do inv.GetArgsArray(.p,.a) Set a1=a(1),a2=a(2),a3=a(3) Set p("BypassPyDeps")=1,p("cmd")="install" Kill a Do inv.GetArgsArray(.p,.a) Write !,"CHK|args|",n,"|",a1,"|",a2,"|",a3,"|",a(2),"|",a(3),"|",inv.Phase,"|",inv.When } } }' \
     'Halt'
 }
 
@@ -841,6 +844,86 @@ check_reinstall() {
   check_python_pins "reinstall"
   check_licences "reinstall"
   echo "TIME reinstall-checks $((SECONDS - started))s"
+}
+
+# plant_stale_copy <mgr> <state file>: puts a decoy stale distribution into <mgr>/python, a dist-info folder idna-0.0.1 whose RECORD names the
+# idna package that IPM's own packages import, and writes the folder's entries to the state file. idna is pinned, so a step that removes
+# stale copies without a pip step behind it would remove the package of the pinned idna that is in use.
+plant_stale_copy() {
+  dc exec -T iris python3 - "$1python" << 'EOP' || return 1
+import os, sys
+info = os.path.join(sys.argv[1], "idna-0.0.1.dist-info")
+os.makedirs(info, exist_ok=True)
+open(os.path.join(info, "RECORD"), "w").write("idna/__init__.py,,\nidna-0.0.1.dist-info/RECORD,,\n")
+open(os.path.join(info, "METADATA"), "w").write("Name: idna\nVersion: 0.0.1\n")
+EOP
+  python_state "$1python" "$2"
+}
+
+# check_nothing_removed <label> <run name>: after a run in which IPM's pip step does not run (check_pip_skipped): the run reached the end of its
+# Reload phase without a failure, the early step wrote no STEP Python line, the Python folder holds exactly what it held with the decoy planted
+# (the pinned idna included), IPM's own packages import as they did, the six still import their pinned copies (the base image also holds
+# older copies in a user folder, so a missing pinned copy would still import), and zpm "list" answers.
+check_nothing_removed() {
+  local label=$1 f="$tmp/$2.txt" mgr now
+  if grep -q 'Reload SUCCESS' "$f" && ! grep -q 'FAILURE' "$f" && ! grep -q '^ERROR!' "$f"; then
+    pass "$label: the run ends its Reload phase without an error"
+  else
+    grep -e 'Reload' -e 'FAILURE' -e '^ERROR!' "$f" | head -n 6 | cut -c1-200 | sed 's/^/  /'
+    fail "$label: the run did not end its Reload phase, or ended with an error"
+  fi
+  if ! grep -q '^STEP Python ' "$f"; then
+    pass "$label: the early step replaced nothing (no STEP Python line)"
+  else
+    grep '^STEP Python ' "$f" | sed 's/^/  /'
+    fail "$label: the early step replaced a distribution although IPM's pip step did not run"
+  fi
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the folder comparison did not run"
+    return
+  fi
+  python_state "${mgr}python" /tmp/ocutalon-python-skip-after.state || { fail "$label: the Python folder's entries could not be recorded"; return; }
+  if dc exec -T iris diff /tmp/ocutalon-python-skip-planted.state /tmp/ocutalon-python-skip-after.state > "$tmp/skip.diff" 2>&1; then
+    pass "$label: the Python folder holds exactly what it held before the run (the stale copy and the pinned idna included)"
+  else
+    sed 's/^/  folder: /' "$tmp/skip.diff" | head -n 12
+    fail "$label: the run removed or changed something in the Python folder"
+  fi
+  now=$(python_imports)
+  if [ -n "$now" ] && [ "$now" = "$skip_imports" ] && printf '%s\n' "$now" | grep -q 'CHK|imp|idna|1' && printf '%s\n' "$now" | grep -q 'CHK|imp|requests|1' \
+    && printf '%s\n' "$now" | grep -q 'CHK|imp|oras.provider|1'; then
+    pass "$label: IPM's own packages and the six import as before the run"
+  else
+    printf '%s\n' "$now" | grep '|0$' | sed 's/^/  not imported: /'
+    fail "$label: an import record is empty, or differs from the one before the run, or idna, requests or oras.provider no longer imports"
+  fi
+  check_imports "$label"
+  check_ipm_alive "$label" ocutalon
+}
+
+# check_pip_skipped <label> (check 32, Story 19.8, DW-856): the early step removes a stale copy only when IPM's pip step runs in the same
+# lifecycle. With a decoy stale idna in <mgr>/python, `zpm "reload ocutalon"` (the pip step runs for install, load and update only) and a load
+# with -bypass-py-deps each remove nothing, and IPM's own packages and zpm "list" still work. The decoy goes at the end.
+check_pip_skipped() {
+  local label=$1 mgr started=$SECONDS skip_imports
+  mgr=$(printf '%s\n' 'Write !,"CHK|mgr|",$SYSTEM.Util.ManagerDirectory()' 'Halt' | chk mgr)
+  if [ -z "$mgr" ]; then
+    fail "$label: the manager directory could not be read, so the runs without a pip step did not run"
+    return
+  fi
+  if ! plant_stale_copy "$mgr" /tmp/ocutalon-python-skip-planted.state; then
+    dc exec -T iris rm -rf "${mgr}python/idna-0.0.1.dist-info"
+    fail "$label: the stale copy could not be planted, so the runs without a pip step did not run"
+    return
+  fi
+  skip_imports=$(python_imports)
+  run skip-reload OCUTALON 'zpm "reload ocutalon"'
+  check_nothing_removed "reload (pip skipped)" skip-reload
+  run skip-bypass OCUTALON "zpm \"load -bypass-py-deps $SRC\""
+  check_nothing_removed "load -bypass-py-deps" skip-bypass
+  dc exec -T iris rm -rf "${mgr}python/idna-0.0.1.dist-info" || fail "$label: the stale copy that was planted could not be removed again"
+  echo "TIME pip-skipped $((SECONDS - started))s"
 }
 
 # check_extract <label> (check 33): the PDF and Word reading works in the installed package.
@@ -2079,6 +2162,7 @@ if [ "$mode" != b ]; then
     check_start_outside
     check_start_by_step
     check_reinstall
+    check_pip_skipped "pip skipped"
   fi
   if [ "$mode" != a ]; then reinstall_failures; fi
 fi

@@ -8,6 +8,8 @@
 ///   - TestSharedFolder, TestNotPinned, TestBinAndOutside, TestNoRecord: the guards (a folder another distribution lists, a name that is no pin, bin/
 ///     and a path out of the target, a dist-info without RECORD);
 ///   - TestNoRequirements, TestBypass, TestBadInput: the cases that remove nothing and never throw;
+///   - (DW-856) TestReloadPipSkipped, TestBypassLoad, TestLifecycleCommands: the step removes a copy only when IPM's pip step runs in the same
+///     lifecycle, so a reload (cmd reload, or none) and a load with -bypass-py-deps remove nothing, and install, load and update remove;
 ///   - TestPinsAreRead, TestVersionSpelling, TestQuotedRecordField: the pins come from the file, 2025.01.31 and 2025.1.31 are one version, and a quoted
 ///     CSV field is read;
 ///   - TestStepLines, TestIdempotent: one STEP line for each replaced distribution, and a second call removes and writes nothing;
@@ -77,16 +79,18 @@ Method Has(item As %String) As %Boolean
 	Quit ##class(%File).Exists(..Target() _ item) || ##class(%File).DirectoryExists(..Target() _ item)
 }
 
-/// Runs RemoveStaleCopies on the fixture and returns what it wrote, without the line breaks at its ends; sc is its status.
-Method Run(bypass As %String = 0, ByRef sc As %Status, root As %String, target As %String) As %String
+/// Runs RemoveStaleCopies on the fixture and returns what it wrote, without the line breaks at its ends; sc is its status. cmd is the
+/// lifecycle command that IPM runs, install unless given.
+Method Run(bypass As %String = 0, ByRef sc As %Status, root As %String, target As %String, cmd As %String) As %String
 {
 	If '$Data(root) Set root = ..Base _ "root"
 	If '$Data(target) Set target = ..Target()
+	If '$Data(cmd) Set cmd = "install"
 	Set io = $IO
 	Set file = ..Base _ "out.txt"
 	Open file:"NWS":5
 	Use file
-	Set sc = ##class(OcuTalon.Install.Ipm).RemoveStaleCopies(root, bypass, target)
+	Set sc = ##class(OcuTalon.Install.Ipm).RemoveStaleCopies(root, bypass, cmd, target)
 	Use io
 	Close file
 	Set stream = ##class(%Stream.FileCharacter).%New()
@@ -222,6 +226,43 @@ Method TestBypass()
 	Do $$$AssertEquals(..Has("requests"), 0, "with the flag 0 the stale copy is removed")
 }
 
+/// A reload runs no pip step in IPM, so a stale copy that the pinned copy does not replace stays: nothing is removed and nothing is written, with
+/// the lifecycle command reload, with no command, and with a command that IPM does not run pip for. The pinned folder that the stale RECORD
+/// names (IPM's own packages import it) stays too.
+Method TestReloadPipSkipped()
+{
+	For cmd = "reload", "", "compile", "uninstall", "Install" {
+		Do ..Dist("requests", "2.31.0", $ListBuild("requests/__init__.py"))
+		Do ..Dist("requests", "2.34.2", $ListBuild("requests/__init__.py"))
+		Set out = ..Run(0, .sc, , , cmd)
+		Do $$$AssertStatusOK(sc, "cmd '" _ cmd _ "' returns OK")
+		Do $$$AssertEquals(..Has("requests/__init__.py") && ..Has("requests-2.31.0.dist-info") && ..Has("requests-2.34.2.dist-info"), 1, "cmd '" _ cmd _ "': nothing is removed")
+		Do $$$AssertEquals(out, "", "cmd '" _ cmd _ "': nothing is written")
+	}
+}
+
+/// A load with -bypass-py-deps (IPM sets the flag 1 and the command is load) runs no pip step, so nothing is removed and nothing is written.
+Method TestBypassLoad()
+{
+	Do ..Dist("requests", "2.31.0", $ListBuild("requests/__init__.py"))
+	Do ..Dist("requests", "2.34.2", $ListBuild("requests/__init__.py"))
+	Set out = ..Run(1, .sc, , , "load")
+	Do $$$AssertStatusOK(sc, "returns OK")
+	Do $$$AssertEquals(..Has("requests/__init__.py") && ..Has("requests-2.31.0.dist-info") && ..Has("requests-2.34.2.dist-info"), 1, "nothing is removed")
+	Do $$$AssertEquals(out, "", "nothing is written")
+}
+
+/// IPM runs its pip step for install, load and update: with each of them the stale copy is replaced.
+Method TestLifecycleCommands()
+{
+	For cmd = "install", "load", "update" {
+		Do ..Dist("requests", "2.31.0", $ListBuild("requests/__init__.py"))
+		Set out = ..Run(0, .sc, , , cmd)
+		Do $$$AssertEquals(..Has("requests"), 0, "cmd " _ cmd _ ": the stale copy is removed")
+		Do $$$AssertEquals(out, "STEP Python replaced requests 2.31.0 with 2.34.2", "cmd " _ cmd _ ": it writes the STEP line")
+	}
+}
+
 /// A missing target, an empty root and a root that does not exist return OK and remove nothing.
 Method TestBadInput()
 {
@@ -232,7 +273,7 @@ Method TestBadInput()
 	Do $$$AssertStatusOK(sc, "an empty root returns OK")
 	Do ..Run(, .sc, ..Base _ "no-such-root")
 	Do $$$AssertStatusOK(sc, "a missing root returns OK")
-	Set sc = ##class(OcuTalon.Install.Ipm).RemoveStaleCopies(, , ..Target())
+	Set sc = ##class(OcuTalon.Install.Ipm).RemoveStaleCopies(, , "install", ..Target())
 	Do $$$AssertStatusOK(sc, "called with the default root and flag it returns OK")
 	Do $$$AssertEquals(..Has("requests/__init__.py") && ..Has("requests-2.31.0.dist-info"), 1, "nothing is removed")
 }

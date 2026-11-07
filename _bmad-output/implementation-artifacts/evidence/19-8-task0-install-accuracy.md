@@ -180,3 +180,36 @@ The Docker path loads the manifest with the new Invoke: the warm stack's after-s
 - Path A: `python-pins` 1 s, plus the install command again, `reinstall-same` 71 s, with its checks 74 s in all (`reinstall-checks`), on a quiet host; 95 to 97 s on a loaded host.
 - Part p: `python-pins` 2 s, `uninstall-python` 1 s, and `p-again` 3 s: about 6 s.
 - The second command itself is unchanged in length (the step adds under a second): `second-ocutalon` 76 s (quiet host) against 91 to 113 s in the runs on the loaded host.
+
+## Rework iteration 1 (2026-11-07, DW-856): the lifecycle command reaches the step
+
+Measured by the Epic 19 runner (lane C), stage "implement" (rework), on lane-C throwaways of run tag `e19s8r` (local folder and local artifact only; the public IPM registry was never used). Lane variables on every call: `OCUTALON_LOCK_DIR=<lock-dir>/lane-c OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=19 stage=implement'`.
+
+### What IPM 0.10.10 does (read from the packaged source in `docker/ipm/zpm-0.10.10.xml`)
+
+- `%IPM.Lifecycle.Base:InstallOrDownloadPythonRequirements` runs the pip step only when `pParams("cmd")` is `install`, `load` or `update`, and not when `pParams("BypassPyDeps")` is set. For every other command (`reload`, `compile`, `test`, `package` and the rest) it returns at once.
+- `%IPM.Main` sets `pParams("cmd")` to `load` (the load command), `install` (the install command) and the command's own name for a one-phase command (`RunOnePhase`: `reload`). `-bypass-py-deps` is the modifier with `dataAlias="BypassPyDeps" dataValue="1"`.
+- `%IPM.Storage.InvokeReference:GetArgsArray` evaluates `<Arg>${cmd}</Arg>` through the module's `<Default>` parameters, which `pParams` overrides when it holds the name. With `<Default Name="cmd" Value=""/>` an Invoke called without `pParams("cmd")` gets an empty string.
+
+### Measurement: what `${cmd}` holds in the method
+
+A probe line (a global write of the three arguments) was put into the container's copy of the preload class of a scratch copy of `release/ipm-install.sh`; nothing of it is in the repository. Path A of that copy, then part p of that copy, with the new manifests:
+
+| command (in OCUTALON) | first argument (`${root}`) | second (`${BypassPyDeps}`) | third (`${cmd}`) |
+|-----------------------|----------------------------|----------------------------|------------------|
+| `zpm "load <module folder>"` (path A's second run) | the module folder | 0 | `load` |
+| the same command again (the reinstall) | the module folder | 0 | `load` |
+| `zpm "reload ocutalon"` | the module folder | 0 | `reload` |
+| `zpm "load -bypass-py-deps <module folder>"` | the module folder | 1 | `load` |
+| `zpm "install ocutalon"` from the local repository (part p) | the unpacked artifact folder of the repository | 0 | `install` |
+
+The first run in USER stops at Initialize and never reaches Reload, so the probe has no row for it. `zpm "update"` and an install from the public registry were not run (the registry is forbidden here); that `update` carries `cmd` = `update` is an inference from the source read above. So `${cmd}` reaches the method, the pip step runs for exactly the rows with `load` or `install` and the flag 0, and the step must remove nothing in the `reload` row and in the `-bypass-py-deps` row.
+
+### The guard and its reds
+
+`RemoveStaleCopies(root, bypass, cmd, target)` returns without removing anything when `bypass` is set or `cmd` is none of install, load and update. On path A (`release/ipm-install.sh a`), after the reinstall, a decoy dist-info `idna-0.0.1.dist-info` (RECORD naming `idna/__init__.py`, the pinned idna's package) is planted in `<mgr>/python`, then `zpm "reload ocutalon"` and `zpm "load -bypass-py-deps <module folder>"` run, each checked for: Reload SUCCESS without an error, no `STEP Python` line, the folder's entries equal to the planted state, IPM's packages importing as before, the six still importing their pinned copies (the base image also holds older copies of the six in the user's `~/.local`, so a plain import of `idna` still works after its pinned package is gone; check 32's version-and-hash import check does not), and `zpm "list"` answering.
+- Under these mutations the reds came from the STEP line, the folder comparison and check 32's version-and-hash import check (the plain import record, `zpm "list"` and the Reload SUCCESS line stayed green: on this image they hold the same with or without the removal, so they guard other defects).
+- Both guards removed: the reload row failed three ways (a STEP line `STEP Python replaced idna 0.0.1 with 3.20`, `idna` and the decoy gone from the folder) and so did the bypass row (folder).
+- The `cmd` guard alone removed: the reload row failed (STEP line, folder, and the import check for idna).
+- The `bypass` guard alone removed: only the `-bypass-py-deps` row failed (STEP line, folder, and the import check for idna); the reload row passed.
+- Unmutated: path A 75 PASS (`TIME skip-reload 2s`, `skip-bypass 62s`, `pip-skipped 68s`, `second-ocutalon 86s`, `reinstall-checks 107s`), path b 59 PASS, part p 32 PASS (`TIME p-fresh 204s`). The Invoke-argument check (`check_invoke_args`) now expects the third argument: empty by default and `install` when `pParams("cmd")` is `install`.
