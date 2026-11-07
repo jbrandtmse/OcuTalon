@@ -2506,3 +2506,7 @@
 2026-11-07T16:49:02Z	Epic 19	spine_updated	ad=AD-22 reason=decision_sheet by=orchestrator lint=ok
 2026-11-07T16:49:02Z	Run	deps_hash_rerecorded	reason=burndown_inserted story=19.8 hash=1b9a45a78f74
 2026-11-07T16:49:45Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=part2_reopen(19.4,19.5,19.7) base=5b47f052 lever=preapproved_after_19.4
+2026-11-07T17:18:25Z	Epic 19	public_text_relayed	story=19.4 strings=RAGSTATEMENT,bridge-guide:312,Gate.NOROOM choices=Q2b_cited,live:documents_in_shards-5 forecast=08-10Z_Sun(lever)/14-16Z
+2026-11-07T17:18:44Z	Run	ci_run_cancelled	run=42392760843 branch=OCT-epic11 head=a18ddd45 reason=superseded_by_623b9cb0;free_runners_for_feature_5b47f052(cut_trigger)
+2026-11-07T17:27:54Z	Epic 19	public_text_ruled	story=19.4 RAGSTATEMENT=changed bridge-guide:312=approved NOROOM=approved Q2b=cited_reading_accepted(pin_both) Q4=live:documents_shards-5(pdf_generated,report_time)
+2026-11-07T17:27:54Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=19.4_implement
