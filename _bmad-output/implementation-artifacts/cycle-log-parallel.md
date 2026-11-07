@@ -2436,3 +2436,5 @@
 2026-11-07T09:28:59Z	Epic 17	public_text_relayed	dw=DW-773 L153_shared_pool_clause_exception(invalid_value_reads_live) options=extended_clause_or_drop L340,AD-19_prepared
 2026-11-07T09:29:19Z	Epic 17	public_text_ruled	dw=DW-773 L153_final=instruction("in the shared actor pool, update the production after you change them.") L340,AD-19=approved_as_prepared
 2026-11-07T09:29:19Z	Epic 17	runner_resumed	agent=a69a13ff12f8408f8 reason=land_DW-773
+2026-11-07T09:45:49Z	Run	ci_green_verified	head=70e4246d runs=42359025069,42359025056 result=success via=gh
+2026-11-07T09:45:49Z	Epic 17	runner_ci_wait	head=b477f05d runs=42360121309,42360121514 docs_only=DW-773 amendments=AD-19
