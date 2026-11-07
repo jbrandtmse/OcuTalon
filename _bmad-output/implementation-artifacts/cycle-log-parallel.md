@@ -2444,3 +2444,8 @@
 2026-11-07T10:11:37Z	Epic 11	worktree_provisioned	branch=OCT-epic11 ff_to=d93456a9 kept_worktree reason=story_11.27_tier3a_DW-550/774
 2026-11-07T10:11:37Z	Epic 11	worktree_bootstrapped	epic=11 result=ok
 2026-11-07T10:11:37Z	Epic 11	runner_dispatched	agent=a9ecc108c6b23c2ec lane=A slot=ocutalon-slot-a model=opus prompt=dispatch-epic-11-1127.md timebox=3h duplicate_ci_cancelled=42362880501,42362880523
+2026-11-07T10:33:30Z	Epic 4	planner_ruling	subject=4.11_K21_fallback compact_band_vertical_scroll_if_panel_plus_64px_floor_cannot_fit no_sideways no_label_change panel_starts_closed pin_K21_banner_before_after only_if_no-scroll_fix_misses_timebox report_which
+2026-11-07T10:42:50Z	Epic 11	runner_clarification	kind=timebox_stop story=11.27 cause_ruled_out=gateway_session_cap evidence=3_stacks,60-1250ms,CI_IRIS_idle,DW-774_is_page.close options=a,b(recommended_diagnostics),c head=a0c09516
+2026-11-07T10:52:00Z	Epic 11	planner_ruling	subject=11.27 option=b(after_DW-688) conditions=traces_never_leave_CI_host,7d,no_upload_pin,stop_if_not_self-hosted;gateway_dump_counts_only;report_if_>2min;1.0.4_if_by_19Z_Sun option_a=no option_c=Planner
+2026-11-07T10:52:00Z	Epic 11	planner_ruling	subject=DW-688_first story=11.28 timebox=90m test_only proof=20/20
+2026-11-07T10:52:00Z	Epic 11	runner_resumed	agent=a9ecc108c6b23c2ec reason=DW-688_then_11.27b
