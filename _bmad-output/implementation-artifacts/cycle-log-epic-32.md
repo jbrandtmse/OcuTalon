@@ -161,3 +161,5 @@
 2026-11-07T17:58:07Z	Epic 32	deps_hash_rerecorded	reason=fix_forward story=32.5 note=for_the_orchestrator
 2026-11-07T17:58:07Z	Epic 32	retro_review_skipped	reason=skip(no_X.0_input;SC-5_reopen_for_one_fix-forward_story)
 2026-11-07T17:58:07Z	Epic 32	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md status=final
+2026-11-07T18:00:43Z	Epic 32	epic_context_compiled	reason=planning_artifact_newer(32.5_chartered) model=claude-opus
+2026-11-07T18:00:43Z	Story 32.5	stage_spawned	stage=plan spawn_at=2026-11-07T18:00:43Z model=opus agent_name=32-5-sign-in-split-plan-1 cycle_iteration=1
