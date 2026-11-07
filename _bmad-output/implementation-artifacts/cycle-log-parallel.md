@@ -2489,3 +2489,4 @@
 2026-11-07T15:29:02Z	Run	planner_finding_ledgered	dw=DW-873(D1_Got_it_button) dw=DW-874(D2_demo_digest_invisible) target=1.0.4 priority=ahead_of_tier3 next_free_runner sizing=read-only_explore_agent
 2026-11-07T15:33:18Z	Epic 39	merge_gate_blocked	reason=ci_red head=d5b39c3d run=42379785616 attempt1=DW-494_sibling attempt2=DW-688 decision=hold_until_after_cut;integrate_onto_part1_split_then_fresh_CI
 2026-11-07T15:33:43Z	Run	planner_update	subject=D1_D2_sizing D1a=5-7h D1b=1-1.5h window=2-3h D2a=7-10h(web) D2b=3-4h recommend=D1b+window,D2a staffing=next_free_runners_as_17.10,17.11
+2026-11-07T15:34:07Z	Run	planner_ruling	subject=D1_D2 D1=option_a_build_GotIt_Telegram+window(tellnow/act_decisions_only;failed_checks_and_awaiting_incidents_always) D2=option_a_web_card_plain_text_web_only,telegram_golden_byte_identical,demo_morning_skip,demo_SendDigest_composes,online-demo-path_step staffing=D1_first_free(B),D2_next(A) Out.cls=merge-file_proof_or_D2_first
