@@ -2,9 +2,9 @@
 title: 'Story 4.11: Other things to try'
 type: 'feature'
 created: '2026-11-06'
-status: 'in-progress'
-baseline_revision: 'f58488787c600928f27b8cb4d69f6c13ae124023'
-baseline_commit: 'f58488787c600928f27b8cb4d69f6c13ae124023'
+status: 'done'
+baseline_revision: 'd672a28d2d3c4e4314713ae77f13795c67d24be2'
+baseline_commit: 'd672a28d2d3c4e4314713ae77f13795c67d24be2'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -422,9 +422,9 @@ Rejected:
 
 
 #### Rework iteration 3 (lead, 2026-11-07; CI red on 621dd3a5, run 42327859572; the last iteration the cap allows)
-- [ ] [CI] shards: `live:cards` E8 (`web/e2e/cards/either-way.spec.ts:318`) fails on CI: at 320x360 the page scrolls sideways 23px. The cards page is in demo mode and its guide row 1 now holds "More to try" (CI page snapshot); E8 passed on feature 9683c1f0's CI. Fix the guide's row 1 (and anything else of this story's) so nothing widens the page at 320px wide in any height band, without changing ruled text, placement or the open-in-the-finish condition; reproduce `live cards` on the lane-B throwaway first. Do not edit `web/e2e/cards/**` beyond nothing: E8 is Epic 6/7's pin and must pass unchanged.
-- [ ] [CI] browser: K16 fails on CI at 1280x590, 1280x600, 1280x680 and 1280x684 (chat 45.1, 55.1, 136.1, 140.1px against floors 64/64/160/160) and at 320x700 (sideways 12px). Cause found by the lead: the CI stack shows the "OcuTalon has no model key, so every decision uses fixed rules..." banner above the guide (about 40px), the local throwaway does not; K16, K17, K19 and K20 measured a page whose banners depend on the environment (Rule 19 hermeticity). Make every room/width case set the state it measures: route the conditions so no banner shows (find how the no-key banner's condition reaches the page, and route or clear it in the case as the cases already route `/state`), and add one case that, with the no-key banner shown, the finish with the panel open still has no page scroll, no sideways scroll at 320px and a chat taller than 0 at 1280x600. Reproduce the CI condition locally (run the units the way CI runs them: check `.github/workflows/ci.yml` and `ci/iris.sh` for the mock-key header setting, OCUTALON_MOCK_KEY_HEADER is CI-only) and re-measure. If the 320x700 sideways scroll persists without the banner, fix its cause in this story's layout.
-- [ ] [CI] Not this story's, do NOT fix: `heartbeat-card.spec.ts` HC1, HC4, HC5, HC8, HC10, HC11 (Epic 39; the spec's clock() is HH:MM, the card shows H:MM; red at UTC hours 00-09; DW-845, escalated to the orchestrator) and `documents.spec.ts` D5 (fixture timeout; DW-846, unconfirmed flake). Report them; they are not rework items.
+- [x] [CI] shards: `live:cards` E8 (`web/e2e/cards/either-way.spec.ts:318`) fails on CI: at 320x360 the page scrolls sideways 23px. The cards page is in demo mode and its guide row 1 now holds "More to try" (CI page snapshot); E8 passed on feature 9683c1f0's CI. Fix the guide's row 1 (and anything else of this story's) so nothing widens the page at 320px wide in any height band, without changing ruled text, placement or the open-in-the-finish condition; reproduce `live cards` on the lane-B throwaway first. Do not edit `web/e2e/cards/**` beyond nothing: E8 is Epic 6/7's pin and must pass unchanged. DONE (rework pass 4): cause measured, not guessed: in the compact height band `.row1` was `flex: none`, so the row kept its max-content width (361px with the link) and passed the 288px column at 320px (page scrolled 20px sideways locally); at 480x360 the prompt bar was squeezed to 75px and its Send reached 41px past the page. Fixed in `demo-guide.ts`: `.row1` is `flex: 0 1 auto` (its link and Hide guide wrap to a second line) and the prompt bar and finish are `flex: 1 1 12rem`. E8 passes unchanged (`live cards`, 28 pass).
+- [x] [CI] browser: K16 fails on CI at 1280x590, 1280x600, 1280x680 and 1280x684 (chat 45.1, 55.1, 136.1, 140.1px against floors 64/64/160/160) and at 320x700 (sideways 12px). Cause found by the lead: the CI stack shows the "OcuTalon has no model key, so every decision uses fixed rules..." banner above the guide (about 40px), the local throwaway does not; K16, K17, K19 and K20 measured a page whose banners depend on the environment (Rule 19 hermeticity). Make every room/width case set the state it measures: route the conditions so no banner shows (find how the no-key banner's condition reaches the page, and route or clear it in the case as the cases already route `/state`), and add one case that, with the no-key banner shown, the finish with the panel open still has no page scroll, no sideways scroll at 320px and a chat taller than 0 at 1280x600. Reproduce the CI condition locally (run the units the way CI runs them: check `.github/workflows/ci.yml` and `ci/iris.sh` for the mock-key header setting, OCUTALON_MOCK_KEY_HEADER is CI-only) and re-measure. If the 320x700 sideways scroll persists without the banner, fix its cause in this story's layout. DONE (rework pass 4): `openWith` clears the noModelKey condition from the routed `/state` `status` and the polls drop noModelKey `status` events, and asserts the page has no no-key banner, so K16, K17, K19 and K20 measure a bannerless page (measured: 1280x600 chat 139.1px without the banner, 95.1px with it). K21 shows the banner. The 320x700 sideways 12px is a control wider than its item: `.item .button` was `flex: none`, so "Show the page without the demo" could not wrap in a page narrowed by a classic scrollbar; it is now `flex: 0 1 auto; max-width: 100%`, pinned at 305x700 (K16 row, K22).
+- [x] [CI] Not this story's, do NOT fix: `heartbeat-card.spec.ts` HC1, HC4, HC5, HC8, HC10, HC11 (Epic 39; the spec's clock() is HH:MM, the card shows H:MM; red at UTC hours 00-09; DW-845, escalated to the orchestrator) and `documents.spec.ts` D5 (fixture timeout; DW-846, unconfirmed flake). Report them; they are not rework items. Not this story's: no change, no file touched (`heartbeat-card.spec.ts` HC*, `documents.spec.ts` D5).
 
 ## Spec Change Log
 
@@ -585,6 +585,22 @@ Rejected:
   - `[low]` `[reject]` (intent) hiding "About 2 minutes" goes beyond the intent and K20 fixes it — recorded for the lead's veto; reversible by one rule.
   - `[low]` `[reject]` (intent) the closed-panel case is measured at two sizes — DW-822's case names those two.
   - `[low]` `[reject]` (intent) the focus target relies on `tabindex="-1"` headings of the rail — K1b focuses the real heading on the real stack.
+
+### 2026-11-07 — Review pass (rework iteration 3, CI items)
+- verdicts: 24 findings — high 0, medium 0, low 9, false 0, maybe-false 0 (15 rejected or moot, below)
+- findings:
+  - `low` `patch` K21 kept the stack's other statuses (blind, verification-gap) — K21 now routes exactly `[noModelKey]`.
+  - `low` `patch` the `openWith` any-banner count had no mutation of its own and could only fire for page-own conditions (verification-gap, edge-case x3: throws on a deleted status, stale `bannerFree`, counted once) — the count and `bannerFree` are removed; the no-key assertion stays and has its mutation.
+  - `low` `patch` K21 has no layout mutation (verification-gap) — mutation line added (the panel's `max-height` removed, K21 red at 1280x600).
+  - `low` `patch` stale "6 cases red" line in the pass 4 notes (blind) — corrected in `## Verification`.
+  - `low` `reject` K22/compact band assert only sideways scroll; the prompt bar and finish may wrap under row 1 at 360px tall and 481-1023px wide (blind, edge-case x2, verification-gap, intent-alignment) — the page is stacked there and scrolls by design; the framed compact rows (K16 590/600, K20) passed unchanged, so no framed floor moved. Not worth a guard.
+  - `low` `reject` K22 widths do not cover 480x700 or 481-1023px at 360px (blind, edge-case) — the row is 361px, so any column of 449px or more holds it; the 305-480px cases bracket the failure.
+  - `low` `reject` the wrapped item button has no legibility or tap-height pin (blind) — the text wraps inside the control, nothing clips; no named harm.
+  - `low` `reject` `keepRoutedGuide` drops every status event for every caller (edge-case) — each caller supplies its statuses through `/state`; the whole part passes.
+  - `low` `reject` K21 asserts "chat > 0" only (edge-case, verification-gap) — the item's own text asks for it.
+  - `low` `reject` "placement unchanged" claim vs the prompt bar's wrap (edge-case claim, intent-alignment 2 and 3) — the ruled placement is the link's place in row 1 (DOM and tab order kept); the item button wrap is the fix the item asks for.
+  - `low` `reject` K22 sideways reading repeated and read once (verification-gap), `review_loop_iteration` and the iteration header (blind) — no named harm; tracking fields are the lead's.
+  - intent-alignment layer: descriptive, no divergence from the intent; the narrow widths and the banner come from the rework items.
 
 ## Design Notes
 
@@ -889,6 +905,21 @@ Rejected:
 - mutation (replaces the stale "15 cases red" line): `run` dropped from `openRealFinish`'s routed finish (test file) -> 20 K16 cases red at "the finish carries the run total"; the run then stopped with 19 not run.
 - Each was applied, observed red, and reverted from a saved copy in the scratch folder. `shasum` of `demo-guide.ts` and `more-to-try.spec.ts` matched the patched copies, and `git status --short` and `git diff --stat` were identical to before. `ci/iris.sh teardown` for the tag: nothing left.
 
+**Rework pass 4 (2026-11-07, implement stage, tag e4s11i5, lane B; the third rework iteration's `[CI]` items).**
+- Cases: `more-to-try.spec.ts` K21 (no-key banner shown, finish with the panel open, 1280x600 and 320x700: no sideways scroll, the framed page does not scroll, chat taller than 0), K22 (step 1 closed and open, and the finish, at 320x360, 305x360, 480x360, 320x700, 305x700: the page does not scroll sideways, the panel stays inside the page), a K16 row at 305x700, and `openWith`'s banner clearing with its assertion.
+- Measured with a probe (removed): compact band 320x360 page scroll 20px sideways, row 1 361px in a 288px column; 480x360 prompt bar 75px wide, Send 41px past the page; 360x360, 640x360 and the 700px rows had none.
+- Runs on the patched tree: `live cards` 28 pass (E8); `live sign-in --part 8/16` (`guide/more-to-try.spec.ts`) 72 pass; `--part 7/16` (`guide/guide.spec.ts`) 18 pass; `live floor` 107 pass; `live demo-path` 28 pass, 8 of 8 steps, floor 15 of 15; `npm --prefix web test` 1531 pass; lint exit 0; `bash ci/checks.sh` pass. The sign-in parts follow the file count: the probe file moved part numbers by one while it existed, and with it removed more-to-try is 8/16 and guide.spec is 7/16.
+- mutation: `.row1` made `flex: none` in the compact band -> K22 red at 320x360 and 305x360 (step 1 and finish).
+- mutation: `.item .button` made `flex: none` -> K16 (305x700) and K22 (305x700 finish) red at "nothing in the panel reaches past its own width".
+- (The two mutations above were applied in one build: 4 and 2 cases red.)
+- `openWith` routes `/state` with `status: []` (a case adds its own through `change`, K9's allowance) and `keepRoutedGuide` drops every `status` event, so no banner depends on the stack; the no-key banner is asserted absent in every `openWith` case. K21 routes exactly `[noModelKey]`.
+- mutation: `openWith` sets the noModelKey condition instead of clearing the status -> 35 cases red at "the page shows no no-model-key banner" (`live sign-in --part 8/16`; reverted from the scratch copy, `cmp` equal, tree status unchanged).
+- mutation: the prompt bar and finish made `flex: 1` (basis 0) again -> K22 red at 480x360 (step 1).
+- mutation: K21 not setting the condition -> K21 red (both sizes) at "the no-key banner is shown".
+- mutation: the panel's two `max-height` declarations in `more-to-try.ts` removed (bundle rebuilt) -> K21 red at 1280x600 (`live sign-in --part 8/16`); reverted from the scratch copy, `cmp` equal, bundle rebuilt, part 8/16 green again (72 pass).
+- Each was applied, observed red, reverted from a saved copy in the scratch folder: `shasum` of `demo-guide.ts`, `more-to-try.ts` and `more-to-try.spec.ts` equal to before, and `git status --short` identical to before.
+- Not this story's, not run as a gate and not edited: `heartbeat-card.spec.ts` HC1/4/5/8/10/11 and `documents.spec.ts` D5.
+
 **Shared surfaces:**
 - the guide's row 1 controls and Tab order (floor M1, guide Q1 and Q11);
 - the finish's content, order and focus parts (floor M9, M10 and M14; `chat/try-it.spec.ts` Y1; `try-it-sources`; `FINISH_PARTS`);
@@ -947,3 +978,9 @@ Blocking condition: none
 - Review (rework 2, four layers): 28 findings, high 0, medium 1, low 26, false 1; patched 9 rows (the panel host's margin outside the framed bands, the row 1 controls' right alignment without the duration, K20's bottom-edge bound, `measureRoom` reading the host's margin, mutation lines, one stale message), the rest rejected with reasons in the Review Triage Log. Follow-up review recommended: false (no high patched).
 - Decision for the lead (veto window): this pass hides "About 2 minutes" in row 1 once the guide is finished (`.row1.finished > .duration`), because with the run total the targets fail without the roughly 40px it frees; DESIGN.md's row 1 marker records it as an implement-stage decision. The alternative, trimming row 1's spacing instead, fits with about 6px to spare (DW-804). One CSS rule and its pins revert it.
 - Final runs: `npm --prefix web test` 1531 pass; lint exit 0; `live sign-in` part 9/16 58 pass and part 8/16 18 pass; `live floor` 107 pass in three engines; `live demo-path` 28 pass (8 of 8 steps; the first run hit the 540 s local deadline at test 22 on a loaded host and passed with `OCUTALON_LIVE_DEADLINE=900`); `bash ci/checks.sh` and `docker/tests/test-web-build.sh` pass.
+
+**Rework pass 4 (2026-11-07, implement stage; the third rework iteration's `[CI]` items).** Both items are met and the third is marked not this story's; no intent gap, no contended file touched.
+- Changed: in the compact height band `.row1` shrinks (`flex: 0 1 auto`) and `.prompt` and `.finish` take a 12rem basis, so at 320px the row's link and Hide guide wrap instead of widening the page (E8 passes unchanged); `.item .button` may shrink and wrap its text (the 305px page); `more-to-try.spec.ts` routes no status in every `openWith` case and drops status events, asserts the no-key banner absent, and adds K21 (no-key banner shown, finish with the panel open, 1280x600 and 320x700), K22 (nothing widens the page at 305 to 480px) and a K16 row at 305x700.
+- Review: 24 findings, high 0, medium 0, low 9 patched or closed (4 patched: K21's status, the any-banner count removed, K21's mutation line, the stale notes line), the rest rejected with reasons in the Review Triage Log. Follow-up review recommended: false (no high patched).
+- Verification: `live cards` 28, `live sign-in --part 8/16` 72 and `--part 7/16` 18, `live floor` 107 (three engines), `live demo-path` 28, `npm --prefix web test` 1531, lint and `bash ci/checks.sh` pass (see "Rework pass 4" under Verification); mutation lines written.
+- Residual risks: CI's measured chat (55.1px at 1280x600 with the banner) is 40px under the 95.1px measured locally with the no-key banner, a gap not explained locally (a second banner on CI is a guess); with every status cleared the cases do not depend on it, and K21 asserts only the lower bounds the item names. Neither the CI banner state nor the Linux 12px sideways scroll at 320x700 was reproduced locally; the cause fixed (`.item .button`, at a 305px page) is reasoned and pinned at 305x700. `heartbeat-card.spec.ts` HC* and `documents.spec.ts` D5 are not this story's and were not run.

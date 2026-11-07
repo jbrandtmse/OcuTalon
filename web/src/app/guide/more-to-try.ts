@@ -137,8 +137,12 @@ let panels = 0;
       font-weight: var(--type-body-sm-font-weight);
       line-height: var(--type-body-sm-line-height);
     }
+    /* A control keeps its whole text on one line while its item is wide enough, and wraps the text inside the control when the item
+       is narrower (the narrowest page, whose width a classic scrollbar reduces), so no control passes the panel's width. */
     .item .button {
-      flex: none;
+      flex: 0 1 auto;
+      min-width: 0;
+      max-width: 100%;
     }
     /* Where the page fills the viewport, the panel is a scroll region of its own: it leaves the chat the room it needs, so the page
        never scrolls as a whole. The reserve is the height that the rest of the page needs (header, rail and chat chrome, the guide

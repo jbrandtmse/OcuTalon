@@ -571,12 +571,15 @@ const FOCUS_RULE: FocusRule = {
       .main .label {
         display: none;
       }
+      /* Row 1 never passes the main column: where the column is narrower than the row's controls, the row shrinks and its link and
+         Hide guide wrap to a second line. The prompt bar and the finish keep 12rem before they share a line with row 1, so the bar's
+         Send button is never squeezed past the page's width. */
       .row1 {
-        flex: none;
+        flex: 0 1 auto;
       }
       .prompt,
       .finish {
-        flex: 1;
+        flex: 1 1 12rem;
         min-width: 0;
       }
     }

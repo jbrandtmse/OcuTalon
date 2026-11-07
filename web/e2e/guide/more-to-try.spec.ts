@@ -34,6 +34,10 @@ import { blockLiveSocket } from '../support/socket';
  *   - K20: the finish's own layout where the page is framed: row 1 above the finish and on one line without "About 2 minutes" (its
  *     link and Hide guide at its right end from 680px tall), and Run
  *     again at the end of the Try it yourself row from 1024 to 1279px, below it elsewhere;
+ *   - K21: with the no-model-key banner shown (the cases above show none) the finish with the panel open has no sideways scroll at 1280x600
+ *     and 320x700, no page scroll at 1280x600, and a chat taller than 0;
+ *   - K22: at the narrow widths (305 to 480px) in the compact and the tall height band the page does not scroll sideways, with the guide
+ *     at step 1 (panel closed, then opened by the link) and in the finish;
  *   - K18: a focused panel group hands focus on when the finish leaves;
  *   - K14 (matrix 5, error): item 1 focuses the Persona heading when the card has not loaded;
  *   - K15 (matrix 6, error): item 2 sends nothing while the email limit holds, and focuses the inactive chip.
@@ -118,7 +122,10 @@ function guide(features: string[], over: Record<string, unknown> = {}): Record<s
 const finished = (features: string[], over: Record<string, unknown> = {}): Record<string, unknown> =>
   guide(features, { step: 5, finished: true, steps: [1, 2, 3, 4, 5].map((step) => ({ step, done: true })), ...over });
 
-/** Answers the page's polls without their guide.state events, so the routed guide stands. Call it before the page loads. */
+/**
+ * Answers the page's polls without their guide.state and status events, so the routed guide and the routed status stand: the banners
+ * are whatever the case's /state says (openWith clears them; K21 sets the no-model-key one). Call it before the page loads.
+ */
 async function keepRoutedGuide(page: Page): Promise<void> {
   await blockLiveSocket(page);
   await page.addInitScript(() => {
@@ -129,7 +136,7 @@ async function keepRoutedGuide(page: Page): Promise<void> {
       if (!/\/ocutalon\/api\/v1\/events\?/.test(url)) return response;
       try {
         const body = (await response.clone().json()) as { events: Array<{ type: string }> };
-        body.events = body.events.filter((event) => event.type !== 'guide.state');
+        body.events = body.events.filter((event) => event.type !== 'guide.state' && event.type !== 'status');
         return new Response(JSON.stringify(body), { status: response.status, statusText: response.statusText, headers: response.headers });
       } catch {
         return response;
@@ -140,12 +147,14 @@ async function keepRoutedGuide(page: Page): Promise<void> {
 
 /**
  * Signs in with the guide that the case names, kept against the live polls, and waits for the loaded page. A second page of a case
- * (`again`) shares the first page's sign-in and only loads the page.
+ * (`again`) shares the first page's sign-in and only loads the page. The page's statuses are exactly the ones `change` adds
+ * (none for most cases, K9's allowance), whatever the stack's key state is: a banner is above the guide and takes the chat's height.
  */
 async function openWith(page: Page, view: Record<string, unknown>, change?: (snapshot: Record<string, unknown>) => void, again = false): Promise<void> {
   await keepRoutedGuide(page);
   await changeSnapshot(page, (snapshot) => {
     snapshot['guide'] = view;
+    snapshot['status'] = [];
     change?.(snapshot);
   });
   if (again) {
@@ -154,6 +163,7 @@ async function openWith(page: Page, view: Record<string, unknown>, change?: (sna
     await signInReadmeLoaded(page);
   }
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await expect(page.locator('app-banner-stack [data-banner="noModelKey"]'), 'the page shows no no-model-key banner').toHaveCount(0);
 }
 
 /** Records the POSTs of the page whose path ends with the suffix. */
@@ -776,6 +786,7 @@ const FINISH_ROOM = [
   { band: 'drawer, just over the compact band', width: 1100, height: 690, chat: 160, window: 0, framed: true },
   { band: 'reference, just over the compact band', width: 1280, height: 684, chat: 160, window: 0, framed: true },
   { band: 'compact height', width: 1280, height: 590, chat: 64, window: 0, framed: true },
+  { band: 'stacked, narrowest with a classic scrollbar', width: 305, height: 700, chat: 1, window: 0, framed: false },
 ] as const;
 
 /** Asserts what the panel owes at a size, for K16 and K17: the chat, the page, the window, the columns and the stacked contract. */
@@ -1001,4 +1012,75 @@ for (const [width, height] of [
       expect(boxes.run.top, `${at}: Run again is below the Try it yourself row`).toBeGreaterThanOrEqual(boxes.tryIt.bottom - 1);
     }
   });
+}
+
+/**
+ * K21: the status banner "OcuTalon has no model key..." sits above the guide on a stack without a key. Every room case routes it off; this
+ * one routes it on and asks only what must hold whatever is above the guide: with the panel open in the finish the page does not scroll
+ * sideways, the framed page does not scroll as a whole, and the chat keeps some height.
+ */
+for (const [width, height] of [
+  [1280, 600],
+  [320, 700],
+] as const) {
+  test(`K21: with the no-model-key banner shown the open panel leaves no sideways scroll and the chat some height (${width}x${height})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await keepRoutedGuide(page);
+    await changeSnapshot(page, (snapshot) => {
+      snapshot['guide'] = finished(FOUR, { breakFeed: { active: true }, run: RUN });
+      snapshot['status'] = [{ condition: 'noModelKey', active: true }];
+    });
+    await signInReadmeLoaded(page);
+    await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(page.locator('app-banner-stack [data-banner="noModelKey"]'), 'the no-key banner is shown').toBeVisible();
+    await expect(panelOf(page), 'the panel is open in the finish').toBeVisible();
+    const room = await settledRoom(page);
+    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    test.info().annotations.push({ type: 'K21', description: `${width}x${height} chat=${room.chat} page scroll=${room.page} sideways=${sideways}` });
+    expect(sideways, `${width}x${height}: the page does not scroll sideways`).toBeLessThanOrEqual(0);
+    expect(room.sideways, `${width}x${height}: nothing in the panel reaches past its own width`).toBeLessThanOrEqual(1);
+    expect(room.overflowX, `${width}x${height}: the panel stays within the page's width`).toBeLessThanOrEqual(1);
+    expect(room.chat, `${width}x${height}: the chat's list keeps some height`).toBeGreaterThan(0);
+    if (width >= 1024) {
+      expect(room.page, `${width}x${height}: the framed page does not scroll as a whole`).toBeLessThanOrEqual(1);
+    }
+  });
+}
+
+/**
+ * K22: nothing of the guide widens the page at the narrow widths, in the compact height band (360px) and the tall band (700px): row 1
+ * with the "More to try" link, the prompt bar's Send button and the finish. A viewport of 305px is the narrowest page (320px less a
+ * classic scrollbar). The guide at step 1 is measured closed and with the link's panel open; the finish with its panel open.
+ */
+for (const [width, height] of [
+  [320, 360],
+  [305, 360],
+  [480, 360],
+  [320, 700],
+  [305, 700],
+] as const) {
+  for (const view of ['step 1', 'finish'] as const) {
+    test(`K22: the guide at ${view} does not widen the page (${width}x${height})`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      const sideways = (): Promise<number> => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      if (view === 'finish') {
+        await openRealFinish(page);
+      } else {
+        await openWith(page, guide(FOUR));
+      }
+      await page.evaluate(() => document.fonts.ready.then(() => true));
+      await expect(guideRegion(page).getByRole('button', { name: 'Hide guide', exact: true }), 'row 1 shows its last control').toBeVisible();
+      expect(await sideways(), `${width}x${height} ${view}: the page does not scroll sideways`).toBeLessThanOrEqual(0);
+      if (view === 'step 1') {
+        await expect(guideRegion(page).getByRole('button', { name: 'Send', exact: true }), 'the prompt bar shows its Send').toBeVisible();
+        expect(await sideways(), `${width}x${height} step 1: the page does not scroll sideways`).toBeLessThanOrEqual(0);
+        await linkOf(page).click();
+      }
+      await expect(panelOf(page), 'the panel is open').toBeVisible();
+      const room = await settledRoom(page);
+      expect(await sideways(), `${width}x${height} ${view}, panel open: the page does not scroll sideways`).toBeLessThanOrEqual(0);
+      expect(room.sideways, `${width}x${height} ${view}: nothing in the panel reaches past its own width`).toBeLessThanOrEqual(1);
+      expect(room.overflowX, `${width}x${height} ${view}: the panel stays within the page's width`).toBeLessThanOrEqual(1);
+    });
+  }
 }
