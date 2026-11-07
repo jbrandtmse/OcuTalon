@@ -2562,3 +2562,5 @@
 2026-11-07T21:25:27Z	Run	planner_request	subject=S11_reverification story=0.16(Epic_0_evidence_only) priority=next_free_runner_ahead_of_DW-879,DW-878 timebox=60m no_key no_product_change no_filing prompt=dispatch-epic-0-016.md
 2026-11-07T21:26:24Z	Epic 12	epic_merged_to_feature	merge=d24928c0 head=f7318fd8 story=12.12 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0 spine_lint=baseline note=merged_over_Planner_rc3_record_643a0d9d
 2026-11-07T21:26:24Z	Run	deps_hash_rerecorded	reason=fix_forward story=12.12 hash=96c987521d09
+2026-11-07T21:26:56Z	Epic 0	worktree_provisioned	branch=OCT-epic0 base=dd908d6d reason=story_0.16_S11_reverification
+2026-11-07T21:26:56Z	Epic 0	runner_dispatched	lane=A slot=ocutalon-slot-a model=opus prompt=dispatch-epic-0-016.md timebox=60m evidence_only
