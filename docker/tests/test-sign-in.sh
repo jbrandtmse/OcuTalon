@@ -47,14 +47,16 @@
 # Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default and 1200 s in CI, counted from the moment the
 # throwaway lock is held), so even a failing run ends within it; the browser run's global timeout is what is left of it minus 20 s.
 # Prints one PASS or FAIL line per check, and after the browser run one "SPEC <file> <n> tests <s>s" line per spec file that ran (the
-# list reporter's times summed by file; a file's beforeAll counts in its first test), so that the two sign-in units can be balanced
+# list reporter's times summed by file; a file's beforeAll counts in its first test), so that the sign-in units can be balanced
 # from CI's own numbers; exits 0 only when all pass.
-# The browser specs are split by spec file into two units (the Contest Planner's ruling of 2026-11-05: the one unit took 1047 s in CI,
-# over the 1,000 s line), each on its own stack with the whole setup above: live:sign-in runs the Playwright project chromium, and
-# live:sign-in-2 (docker/tests/test-sign-in-2.sh, which runs this script with --project sign-in-2) runs the project sign-in-2, whose
-# folders web/playwright.config.ts names in SIGN_IN_2_DIRS and the chromium project ignores. With --project chromium|sign-in-2 (or
-# --project=...) it runs that project; chromium is the default. The texts below that name the chromium project name the project run.
-# With --part k/n (or --part=k/n) it runs part k of n of the chromium project's spec files on its own fresh stack, with the whole
+# The browser specs are split by spec file into three units (the Contest Planner's rulings of 2026-11-05, when the one unit took 1047 s
+# in CI, and of 2026-11-07, when it took 1034 s and 1170 s again, both over the 1,000 s line), each on its own stack with the whole setup
+# above: live:sign-in runs the Playwright project chromium, live:sign-in-2 (docker/tests/test-sign-in-2.sh, which runs this script with
+# --project sign-in-2) runs the project sign-in-2, whose folders web/playwright.config.ts names in SIGN_IN_2_DIRS, and live:sign-in-3
+# (docker/tests/test-sign-in-3.sh, --project sign-in-3) runs the project sign-in-3, whose folders and file it names in SIGN_IN_3_DIRS and
+# SIGN_IN_3_FILES; the chromium project ignores both. With --project chromium|sign-in-2|sign-in-3 (or --project=...) it runs that project;
+# chromium is the default. The texts below that name the chromium project name the project run.
+# With --part k/n (or --part=k/n) it runs part k of n of the spec files of the project run on its own fresh stack, with the whole
 # setup above, so that a stage can run the unit in calls that each fit the foreground cap. A part is a run of whole spec files, in
 # path order, cut by the project's tests the way ci/iris.sh shard --part cuts its classes (web/scripts/e2e-part.mjs, which reads
 # Playwright's own listing, so a new spec file joins a part with no change); the parts taken in order run every spec file once. It
@@ -78,7 +80,7 @@ while [ "$#" -gt 0 ]; do
     --project | --project=*)
       if [ "$1" = --project ]; then
         if [ "$#" -lt 2 ]; then
-          echo "test-sign-in: --project needs one value, chromium or sign-in-2 (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
+          echo "test-sign-in: --project needs one value, chromium, sign-in-2 or sign-in-3 (usage: test-sign-in.sh [--project chromium|sign-in-2|sign-in-3] [--part k/n])"
           exit 2
         fi
         value=$2
@@ -88,13 +90,13 @@ while [ "$#" -gt 0 ]; do
         shift
       fi
       if [ "$project_given" -eq 1 ]; then
-        echo "test-sign-in: --project is given once, and again as '$value' (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
+        echo "test-sign-in: --project is given once, and again as '$value' (usage: test-sign-in.sh [--project chromium|sign-in-2|sign-in-3] [--part k/n])"
         exit 2
       fi
       case $value in
-        chromium | sign-in-2) ;;
+        chromium | sign-in-2 | sign-in-3) ;;
         *)
-          echo "test-sign-in: unknown project '$value': use chromium or sign-in-2 (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
+          echo "test-sign-in: unknown project '$value': use chromium, sign-in-2 or sign-in-3 (usage: test-sign-in.sh [--project chromium|sign-in-2|sign-in-3] [--part k/n])"
           exit 2
           ;;
       esac
@@ -103,11 +105,11 @@ while [ "$#" -gt 0 ]; do
       ;;
     --part)
       if [ "$part_given" -eq 1 ]; then
-        echo "test-sign-in: --part is given once, and again as '${2:-}' (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
+        echo "test-sign-in: --part is given once, and again as '${2:-}' (usage: test-sign-in.sh [--project chromium|sign-in-2|sign-in-3] [--part k/n])"
         exit 2
       fi
       if [ "$#" -lt 2 ]; then
-        echo "test-sign-in: --part needs one value k/n (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
+        echo "test-sign-in: --part needs one value k/n (usage: test-sign-in.sh [--project chromium|sign-in-2|sign-in-3] [--part k/n])"
         exit 2
       fi
       part=$2
@@ -116,7 +118,7 @@ while [ "$#" -gt 0 ]; do
       ;;
     --part=*)
       if [ "$part_given" -eq 1 ]; then
-        echo "test-sign-in: --part is given once, and again as '${1#--part=}' (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
+        echo "test-sign-in: --part is given once, and again as '${1#--part=}' (usage: test-sign-in.sh [--project chromium|sign-in-2|sign-in-3] [--part k/n])"
         exit 2
       fi
       part=${1#--part=}
@@ -124,7 +126,7 @@ while [ "$#" -gt 0 ]; do
       shift
       ;;
     *)
-      echo "test-sign-in: unknown argument '$1' (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
+      echo "test-sign-in: unknown argument '$1' (usage: test-sign-in.sh [--project chromium|sign-in-2|sign-in-3] [--part k/n])"
       exit 2
       ;;
   esac
@@ -141,6 +143,11 @@ case $project in
     e2e_script=e2e:sign-in-2
     unit_label=t03b
     unit_name=test-sign-in-2
+    ;;
+  sign-in-3)
+    e2e_script=e2e:sign-in-3
+    unit_label=t03c
+    unit_name=test-sign-in-3
     ;;
 esac
 

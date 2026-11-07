@@ -2,7 +2,8 @@
 title: "Story 32.5: live:sign-in splits again after 4.11's tests"
 type: 'chore'
 created: '2026-11-07'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ae5d4a7a4ffea31c734fe047da83faf224f6809b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -152,6 +153,30 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-07 - Review pass
+- verdicts: 22 findings - high 0, medium 0, low 21, false 1, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind Hunter 2 and Edge Case Hunter 2: `docker/tests/test-sign-in.sh` header still says "the two sign-in units" and "the chromium project's spec files" for `--part` - patched in two comment phrases. The same wording in the untouched `test-sign-in-2.sh` header is rejected below.
+  - `[low]` `[reject]` Blind Hunter 1 and Edge Case Hunter 1, and Verification Gap other finding 1: `ci/iris.sh` lines 24 and 25 name the projects differently - the spec fixes line 25 byte-identical and dictates line 24's text, so the fix edits the spec's contract.
+  - `[low]` `[reject]` Blind Hunter 2 (second half): `test-sign-in-2.sh`'s header still says two units - the file is outside the spec's file list and the binding scope is "change nothing else"; a comment only.
+  - `[low]` `[reject]` Blind Hunter 3 and Edge Case Hunter 3: the `ci/units.sh` timing figures do not reconcile - they are the spec's recorded measurements ("the lead's; recorded, not re-derived"), labelled `(inference)`; a run measures them.
+  - `[low]` `[reject]` Blind Hunter 4: the Story 19.8 paragraph still says shards-5 about 1,250 s - that paragraph is the history of its own move, true when written, and the new paragraph above it states the new figure.
+  - `[low]` `[reject]` Blind Hunter 5: figures in comments are not checked by a script - a numeric guard on expected seconds is new scope the intent does not ask for.
+  - `[low]` `[reject]` Blind Hunter 6: no near-miss test for `test-sign-in-3.sh` in the `WEB_INPUT_PATTERN` cases - the sign-in-2 sibling has none either (Rule 2); the anchor is the same regex shape.
+  - `[low]` `[reject]` Blind Hunter 7: the `sign-in-4` case runs twice - the table case checks the named value, the second the usage line the matrix row names; negligible cost.
+  - `[low]` `[reject]` Blind Hunter 8: a new root-level spec stays in chromium and the config does not say so - the config doc says the root file is listed by name, and `playwright-projects.test.mjs` catches overlap and gaps.
+  - `[low]` `[reject]` Verification Gap 1: `BROWSER_UNITS` membership of the wrappers is pinned by no test - the spec's "Known parity gap (not new)" and its never-edit list for `test-ci-config.sh`; `wontfix-accepted`, reopen_if a `live:sign-in-3` run in CI skips the Chromium install.
+  - `[low]` `[reject]` Verification Gap 2: the label `t03c` is pinned by no test - same as `t03b` for sign-in-2; `wontfix-accepted`, reopen_if two sign-in units share a label in one run.
+  - `[low]` `[reject]` Verification Gap 3: more pins have no `mutation:` line - Rule 19 asks one demonstrated mutation per AC; AC1 and AC2 each have one, AC3 is the lead's gate.
+  - `[low]` `[reject]` Verification Gap other finding 2: the new project's specs have not run in isolation on a stack - the spec names it as the risk (inference) and makes the lead's CI run the proof; step 8 is optional.
+  - `[low]` `[reject]` Intent Auditor 1: no timing check in the diff - CI wall-clock is AC3, the lead's gate.
+  - `[low]` `[reject]` Intent Auditor 2: thin margin at `shards-5` (about 32.5 minutes of 35) - the spec's Placement note states it and the 40-minute job limit is untouched by the intent.
+  - `[low]` `[reject]` Intent Auditor 3: `ci/iris.sh` line 25 describes the projects differently - the same as the line 24 and 25 finding above.
+  - `[low]` `[reject]` Intent Auditor 4: `test-ci-config.sh`'s `shards-5` fixture is unchanged and no pin there names `live:sign-in-3` - the file is on the spec's never-edit list.
+  - `[low]` `[reject]` Intent Auditor 5: test-by-test equality against the old chromium listing is a one-off step, not a test - the spec makes it Verification step 2 (once), recorded above.
+  - `[false]` `[reject]` Intent Auditor 6: the spec file is modified in the working tree - the spec is the story's own tracking file, updated by the workflow, and is not in the boundary list.
+  - Remaining rows: Edge Case Hunter and Intent Auditor readings (1), (2) are descriptive and raised no separate defect.
+
 ## Design Notes
 
 **Governing ADs.**
@@ -268,9 +293,9 @@ P="chromium sign-in-2 demo-path demo-switch floor answers cards floor-firefox fl
 1. `(once)`, before any edit, about 15 s: `for p in $P; do keys $p > "$SCR/before-$p.keys"; done; wc -l "$SCR"/before-*.keys`. Expected: the counts in Design Notes (chromium 339).
 2. `(once)` after the edits, about 15 s: `for p in $P sign-in-3; do keys $p > "$SCR/after-$p.keys"; done; diff "$SCR/before-chromium.keys" <(LC_ALL=C sort "$SCR/after-chromium.keys" "$SCR/after-sign-in-3.keys") && [ -z "$(LC_ALL=C comm -12 "$SCR/after-chromium.keys" "$SCR/after-sign-in-3.keys")" ] && for p in $P; do [ $p = chromium ] || diff -q "$SCR/before-$p.keys" "$SCR/after-$p.keys" || echo "CHANGED $p"; done; wc -l "$SCR/after-chromium.keys" "$SCR/after-sign-in-3.keys"`. Expected: no diff output and no `CHANGED`, with 202 and 137 lines. Record the output in this section.
 3. `(loop)`, about 6 s: `node --test web/scripts/playwright-projects.test.mjs web/scripts/e2e-part.test.mjs`. Expected: everything passes.
-   - mutation: remove `...SIGN_IN_3_FILES.map(...)` from chromium's `testIgnore`. Then the playwright-projects case "share no spec file" goes red (`heartbeat-card.spec.ts` is in both).
+   - mutation: remove `...SIGN_IN_3_FILES.map(...)` from chromium's `testIgnore` (that line only; backup under the scratchpad, reverted byte-identical, `git diff --stat` unchanged) → red: playwright-projects "chromium (the e2e script) lists exactly the spec files outside ..." and "the three sign-in units ... share no spec file ..." (`heartbeat-card.spec.ts` is in both).
 4. `(loop)`, about 20 s: `bash docker/tests/test-ci-changes.sh`. Expected: every PASS, 0 failed.
-   - mutation: change L212 of `ci/units.sh` back to `live:sign-in-2)`. Then "the script of live:sign-in runs web, browser, shards-4 and shards-5" goes red.
+   - mutation: change the `group_input_pattern` case of `ci/units.sh` back to `live:sign-in-2)` (backup under the scratchpad, reverted byte-identical) → red: test-ci-changes "classifier: the script of live:sign-in runs web, browser, shards-4 (the group of live:sign-in-2) and shards-5 (the group of live:sign-in-3)" (1 check failed; ran browser and shards-4 only).
 5. `(once)`, about 35 s: `bash docker/tests/test-ci-config.sh`. Expected: 0 failed, unchanged.
 6. `(once)`: `bash docker/tests/test-boundaries.sh` and `npm --prefix web run lint`. Expected: both pass.
 7. `(once)`: `bash ci/iris.sh list | grep -n 'sign-in'`. Expected: `live:sign-in-3` appears under `shards-5`.
@@ -287,7 +312,30 @@ P="chromium sign-in-2 demo-path demo-switch floor answers cards floor-firefox fl
 
 Every test that asserts these is listed in the Code Map and updated by the tasks above.
 
+**Step 2 output (2026-11-07, taken by the lead after the edits; the "before" lists were taken first, before any edit):** the `diff` printed nothing, no `CHANGED` line printed, and `wc -l` printed 202 `after-chromium.keys`, 137 `after-sign-in-3.keys`, 339 total (before: chromium 339, sign-in-2 129, demo-path 28, demo-switch 26, floor 69, answers 23, cards 28, floor-firefox 19, floor-webkit 19, online-demo 53, online-session 13, online-allowance 12, online-demo-path 10, online-visitors 1).
+
+**Steps 3 to 7 (lead's run after the edits):** `node --test` 81 of 81 pass; `test-ci-changes.sh` all checks passed; `test-ci-config.sh` all rules passed; `test-boundaries.sh` all rules passed; `npm --prefix web run lint` clean; `bash ci/iris.sh list` shows `group shards-5: shard:lane-a@Bridge,Agent live:sign-in-3`. Step 8 (live stack) not run, as the dispatch allows.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The chromium Playwright project is split again: a new project `sign-in-3` takes `guide/`, `heartbeat/` and `heartbeat-card.spec.ts`, and the new unit `live:sign-in-3` runs it in `shards-5`. The before and after `--list` proof holds: chromium 339 becomes chromium 202 plus sign-in-3 137, none in both, and the other 13 projects' lists are byte-identical. No deadline, timeout, `ci.yml` line, spec file or `use:` block changed.
+
+**Files changed.**
+- `web/playwright.config.ts`: `SIGN_IN_3_DIRS`, `SIGN_IN_3_FILES`, chromium's `testIgnore`, the `sign-in-3` project, the header.
+- `web/package.json`: `e2e:sign-in-3`.
+- `docker/tests/test-sign-in-3.sh` (new, mode 100755): the one-line wrapper.
+- `docker/tests/test-sign-in.sh`: accepts `sign-in-3`, `t03c`, `test-sign-in-3`, usage and error strings, header.
+- `ci/units.sh`: `live:sign-in-3` in `shards-5`, `BROWSER_UNITS`, `WEB_INPUT_PATTERN`, the `group_input_pattern` case, a comment paragraph with the measurements.
+- `ci/iris.sh`: line 24 of the help text only.
+- `docker/tests/test-ci-changes.sh`: `sign_in_3_group` and the `live:sign-in` and `live:sign-in-3` cases.
+- `web/scripts/e2e-part.mjs`: header comments.
+- `web/scripts/e2e-part.test.mjs`, `web/scripts/playwright-projects.test.mjs`: the sign-in-2 cases extended into loops over both projects; a `sign-in-3` exact-list case; the three-unit disjoint-and-complete case.
+
+**Review findings.** 22 findings from four layers: 1 patched (stale comment phrases in `test-sign-in.sh`), 0 deferred, 21 rejected with their reasons in the Review Triage Log (20 low, 1 false). Followed-up review recommended: false (no high, one low patched).
+
+**Verification performed (lead).** Listing proof (before lists first, then after): no diff, no `CHANGED`, 202 and 137. `node --test` 81 of 81. `test-ci-changes.sh`, `test-ci-config.sh` and `test-boundaries.sh` all pass. `npm --prefix web run lint` clean. `bash ci/iris.sh list` shows `live:sign-in-3` under `shards-5`. Two mutations observed red and reverted byte-identical (Verification steps 3 and 4). The once-steps were re-run after the last patch. The optional live stack run (step 8) was not run.
+
+**Residual risks.** `shards-5` at about 1,950 s, `browser` at about 1,750 s and each unit at about 690 s are inference until a CI run measures them. A `sign-in-3` spec that leaned on state left by an earlier chromium file would only show red in CI. `BROWSER_UNITS` membership of the sign-in wrappers is pinned by no test (the known parity gap). Story 19.4's `live:documents`, planned for `shards-5`, then needs another home.
