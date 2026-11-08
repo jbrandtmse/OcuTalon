@@ -4,15 +4,15 @@
 /// zone back after it.
 ///   - TestZoneFollowsBridge: after SetZone, the first conversion of the process is a Data.Time call and it converts, formats a message time and
 ///     reads a local time in the saved zone; Zone() names it;
-///   - TestZoneCleared: after SetZone("") the conversions go back to the zone the process inherited, and Zone() names it;
+///   - TestZoneCleared: after SetZone("") Zone() names the zone the process inherited, before any conversion, and the conversions go back to it;
 ///   - TestOsZone: with no row and no TZ, Zone() is OsZone() or UTC, and OsZone reads a zone file's name, the UTC aliases as UTC and "" for a
 ///     link that does not resolve;
 ///   - TestFoldZero: FromLocal of a repeated-hour time in New York, Berlin and Sydney, and of a repeated half hour in Lord Howe, gives the first
 ///     instant after each of six preceding calls (none, a winter and a summer ToLocal, a winter and a summer FromLocal, a conversion in another
 ///     zone), each in a process that has converted nothing before them;
 ///   - TestGapKept: the hour that a spring-forward day leaves out is read one hour later;
-///   - TestAgreesWithBridgeAfterSetZone: the 290 instants around the two 2025 changes give the same local time from Data.Time and
-///     Bridge.Time after SetZone to America/New_York and then to Europe/Berlin, Data.Time converting first after each change;
+///   - TestAgreesWithBridgeAfterSetZone: the 290 instants around each zone's two 2025 changes give the same local time from Data.Time and
+///     Bridge.Time after SetZone to America/New_York and then to Europe/Berlin, Data.Time converting first after each change and at each instant;
 ///   - TestPreamble: Agent.Input.Preamble shows the saved zone and the local time in it;
 ///   - TestReminderKeepsDueAt: a zone change moves the text of a pending reminder's time, and the stored DueAt stays.
 Class OcuTalon.Test.Data.TimeSource Extends OcuTalon.Test.Bridge.ZoneCase
@@ -68,8 +68,8 @@ Method TestZoneCleared()
 	Do ..Save("Asia/Kolkata")
 	Do $$$AssertEquals($ClassMethod(time, "ToLocal", "2026-01-15T12:00:00Z"), "2026-01-15T17:30:00", "the saved zone is applied")
 	Do ..Save("")
+	Do $$$AssertEquals($ClassMethod(time, "Zone"), "Europe/Berlin", "Zone() reports the inherited TZ, before any conversion follows the change")
 	Do $$$AssertEquals($ClassMethod(time, "ToLocal", "2026-01-15T12:00:00Z"), "2026-01-15T13:00:00", "the inherited zone (Europe/Berlin) is back")
-	Do $$$AssertEquals($ClassMethod(time, "Zone"), "Europe/Berlin", "Zone() reports the inherited TZ")
 }
 
 /// With no row and no TZ, Zone() is the operating system's zone.
@@ -82,11 +82,18 @@ Method TestOsZone()
 	Do $$$AssertEquals($ClassMethod(time, "Zone"), $Select(os = "": "UTC", 1: os), "Zone() is OsZone(), or UTC when that is empty")
 	Do $$$AssertEquals($ClassMethod(time, "OsZone", "/usr/share/zoneinfo/Europe/Berlin"), "Europe/Berlin", "a zone file gives its name")
 	Do $$$AssertEquals($ClassMethod(time, "OsZone", "/usr/share/zoneinfo/Zz/NoSuchZone"), "", "an unresolvable link gives an empty name")
+	If ##class(%File).Exists("/usr/share/zoneinfo/Europe/Berlin") {
+		Do $$$AssertEquals($ClassMethod(time, "Zone", "/usr/share/zoneinfo/Europe/Berlin"), "Europe/Berlin", "with no row and no TZ, Zone() takes the zone of the operating system's link (DW-34)")
+	}
+	Do $$$AssertEquals($ClassMethod(time, "Zone", "/usr/share/zoneinfo/Zz/NoSuchZone"), "UTC", "with no row, no TZ and a link that does not resolve, Zone() is UTC")
 	If ##class(%File).Exists("/usr/share/zoneinfo/Etc/UTC") {
 		Do $$$AssertEquals($ClassMethod(time, "OsZone", "/usr/share/zoneinfo/Etc/UTC"), "UTC", "Etc/UTC is reported as UTC")
 	}
 	Do ..Save("America/New_York")
 	Do $$$AssertEquals($ClassMethod(time, "Zone"), "America/New_York", "a saved zone comes before the operating system's")
+	If ##class(%File).Exists("/usr/share/zoneinfo/Europe/Berlin") {
+		Do $$$AssertEquals($ClassMethod(time, "Zone", "/usr/share/zoneinfo/Europe/Berlin"), "America/New_York", "a saved zone also comes before the operating-system link given to Zone()")
+	}
 }
 
 /// FromLocal of a repeated-hour time is the first instant, after each of six preceding calls.
@@ -132,12 +139,12 @@ Method TestGapKept()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Time).FromLocal("2026-03-08T03:30:00"), "2026-03-08T07:30:00Z", "03:30 after the gap")
 }
 
-/// The walk of Test.Bridge.Time across the 2025 changes, with Data.Time converting first after each change of the saved zone.
+/// The walk of Test.Bridge.Time across each zone's 2025 changes, with Data.Time converting first after each change of the saved zone.
 Method TestAgreesWithBridgeAfterSetZone()
 {
 	Set data = "OcuTalon.Data.Time"
 	Set bridge = "OcuTalon.Bridge.Time"
-	Set zones = $ListBuild($ListBuild("America/New_York", "2025-07-01T12:00:00Z", "2025-07-01T08:00:00"), $ListBuild("Europe/Berlin", "2025-07-01T12:00:00Z", "2025-07-01T14:00:00"))
+	Set zones = $ListBuild($ListBuild("America/New_York", "2025-07-01T12:00:00Z", "2025-07-01T08:00:00", $ListBuild("2025-03-08", "2025-11-01")), $ListBuild("Europe/Berlin", "2025-07-01T12:00:00Z", "2025-07-01T14:00:00", $ListBuild("2025-03-29", "2025-10-25")))
 	Set position = 0
 	While $ListNext(zones, position, row) {
 		Set zone = $List(row, 1)
@@ -145,12 +152,14 @@ Method TestAgreesWithBridgeAfterSetZone()
 		Do $$$AssertEquals($ClassMethod(data, "ToLocal", $List(row, 2)), $List(row, 3), zone _ ": the first conversion after the change, a Data.Time one, is in the new zone")
 		Set compared = 0
 		Set differences = ""
-		For start = "2025-03-08", "2025-11-01" {
+		Set windows = $List(row, 4)
+		Set windowPosition = 0
+		While $ListNext(windows, windowPosition, start) {
 			Set days = $ZDateH(start, 3)
 			For seconds = 0:1800:(3 * 86400) {
 				Set utc = $Translate($ZDateTime((days + (seconds \ 86400)) _ "," _ (seconds # 86400), 3, 1), " ", "T") _ "Z"
-				Set expected = $ClassMethod(bridge, "ToLocal", utc)
 				Set actual = $ClassMethod(data, "ToLocal", utc)
+				Set expected = $ClassMethod(bridge, "ToLocal", utc)
 				Set compared = compared + 1
 				If (expected = "") || (actual '= expected) {
 					If $Length(differences) < 200 Set differences = differences _ " " _ utc

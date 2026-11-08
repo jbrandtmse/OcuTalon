@@ -37,7 +37,7 @@ Parameter CHANNELSKEY = "digest.channels";
 /// The InstanceZone row of Decide before the run (ZoneCase ForgetZoneRow).
 Property ZoneRow As %List;
 
-/// The zone of the process before the run: -1 for none.
+/// The zone of the process before the run: -1 or "" for none (PutZone puts either back).
 Property ProcessZone As %String;
 
 /// The demo.mode row before the run.
@@ -69,7 +69,7 @@ Method OnAfterAllTests() As %Status
 {
 	Do ##class(OcuTalon.Test.Bridge.ZoneCase).RestoreZoneRow(..ZoneRow)
 	Kill ^||OcuTalon.Bridge.Time
-	If ..ProcessZone '= "" Do ##class(OcuTalon.Test.Bridge.ZoneCase).PutZone(..ProcessZone)
+	Do ##class(OcuTalon.Test.Bridge.ZoneCase).PutZone(..ProcessZone)
 	If ..Missing = "" {
 		Do ##class(OcuTalon.Test.Demo.Step).PutBack(..DemoFound, ..DemoValue, ..DemoUpdatedAt)
 		Do ..PutRow(..#TIMEKEY, ..TimeRow)

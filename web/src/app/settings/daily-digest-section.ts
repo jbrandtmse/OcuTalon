@@ -7,7 +7,7 @@ import type { SettingsError, SettingsSaved, SettingsSections } from '../api/api-
 import { Icon } from '../icon/icon';
 import { Announcer } from '../shared/announcer';
 import { ServerButton } from '../shared/server-button';
-import { digestBody, digestChannelBoxes, digestChannelsBody, type DigestChannel, isDigestDirty, SETTINGS_TEXTS, storedChannels } from './settings-view';
+import { digestBody, digestChannelBoxes, digestChannelsBody, type DigestChannel, isDigestDirty, isDigestFormDirty, SETTINGS_TEXTS, storedChannels } from './settings-view';
 
 /** The id of the error under the Save button, which the button is described by. */
 const FORM_ERROR_ID = 'digest-error';
@@ -222,7 +222,7 @@ export class DailyDigestSection {
     });
     let last = false;
     effect(() => {
-      const dirty = isDigestDirty(this.body(), this.baseline());
+      const dirty = isDigestFormDirty(this.timeText(), this.checked(), digestChannelBoxes(this.demoMode(), this.telegramShown()), this.baseline());
       if (dirty !== last) {
         last = dirty;
         this.dirtyChange.emit(dirty);

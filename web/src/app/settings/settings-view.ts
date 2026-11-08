@@ -245,6 +245,12 @@ export function isDigestDirty(current: { time: string; channels: string }, saved
   return current.time.trim() !== saved.time.trim() || storedChannels(current.channels).join(',') !== storedChannels(saved.channels).join(',');
 }
 
+/** True when the form differs from the saved values: its time, or a shown box whose check differs from the saved channels (a hidden channel keeps its stored state). */
+export function isDigestFormDirty(time: string, checked: readonly DigestChannel[], shown: readonly DigestChannel[], saved: { time: string; channels: string }): boolean {
+  const kept = storedChannels(saved.channels);
+  return time.trim() !== saved.time.trim() || shown.some((channel) => checked.includes(channel) !== kept.includes(channel));
+}
+
 /** Which view the read-only Channels section shows. */
 export interface ChannelsView {
   kind: 'hidden' | 'not-set-up' | 'paused' | 'on';

@@ -231,6 +231,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T23:35:54Z status=routed owner=33-1-fix-the-step-2-contracts-in-the-spine by=burndown_gate note=U-254(b)_reverses_U-177_placement;goes_with_U-247's_InstanceZone_work;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_goes_to_the_Planner_at_33.1's_spec_gate
 - 2026-11-04T02:22:24Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=adjudication note=U-254_disposition:33.1_was_committed_(0196aafd)_and_ships_Bridge.Time.Zone/SetZone/Apply_as_stubs_only;Data.Time_is_Lane_B(U-177);residual:Data.Time.Zone()_and_ToLocal_must_both_follow_Bridge.Time.Zone()(AD-18_S5_InstanceZone),and_with_an_empty_InstanceZone_on_a_TZ-unset_non-UTC_host_report_the_OS_zone;test_on_a_non-UTC_process_zone;18.2_builds_Data.Time's_Apply_call
 - 2026-11-06T09:44:00Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry note=Watch.Reader.SevereLines reads messages.log stamps in the reader's zone; kernel lines are stamped in the OS zone when InstanceZone differs
+- 2026-11-08T10:49:01Z occurrence=18-2-set-the-time-zone-and-the-daily-digest-at-run-time note=18.2 cr: Apply puts an inherited unset TZ back as TZ="" (UTC) while Zone() names the OS zone (Lane A Apply)
+- 2026-11-08T10:51:48Z status=routed owner=burndown by=adjudication note=Lane_B_half_resolved_by_18.2(a4770526+cr:Data.Time.Zone_calls_Bridge.Time.Apply_then_TZ_then_OsZone(osLink);Test.Data.TimeSource_TestOsZone,TestZoneCleared);residual_Lane_A:Bridge.Time.Apply_puts_an_inherited_unset_TZ_back_as_TZ=''(UTC)_while_Zone()_names_the_OS_zone(17.4_Edge_8),and_Watch.Reader_stamps(17.5_occurrence);for_a_Lane_A_story
 
 ### DW-35: A failed Orders header has Status 8 (Error), IsError 0 and an empty ErrorStatus; its error text is only the event-log row inside the Terminating BP wrapper, so a reader that keys on IsError or GetErrorText finds no failure
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
@@ -4000,6 +4002,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T20:24:25Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=harvest note=Data.Time is Lane B's (U-177); 18.2 changes it for the run-time zone; fix with the Bridge.Time.Apply() reading that 33.1 fixes
 - 2026-11-06T10:39:30Z occurrence=17-5-check-the-vital-signs-and-every-coverage-entry
 - 2026-11-06T18:54:29Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
+- 2026-11-08T10:51:48Z status=resolved-by:18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=adjudication note=a4770526:Data.Time.FromLocal_returns_the_earliest_round-trip_candidate(fold_0);Test.Data.TimeSource_TestFoldZero(resets_state_per_iteration,Lord_Howe_30-min_case);mutation_return_u_only->TestFoldZero_red
 
 ### DW-646: Digest.Data.CheckRun and Digest.Data.Sent have no purge yet although their docs and the spine (AD-27) say they are purged with the digest area's rows
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4781,6 +4784,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: AD-14 interim note (AMENDED 2026-11-06, Story 17.6); Rule 2: a test pins Own against Notify's actual generic-route targets until then
 - 2026-11-06T19:07:35Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=Rule 2 forced copy (Planner ruling 2026-11-06, AD-14 option a): Story 18.2 makes Notify honour digest.channels for kind digest and deletes Digest.Process.Own and the direct sends
 - 2026-11-06T20:22:27Z occurrence=17-6-send-the-daily-digest-at-the-set-time-and-on-request
+- 2026-11-08T10:51:48Z status=routed owner=burndown by=adjudication note=Notify_half_resolved_by_18.2(a4770526:Core/Rule/Notify_digest_branch+Functions.DigestNamed;Test.Core.Routing_TestNotifyDigestTargets,SettingsRunTime);residual_Lane_A:remove_Digest.Process.Own,SendDigest_direct_sends,ROUTEREASON,Test.Digest.Compose_NotifyChannels/TestOwnMatchesNotify_and_route_Resent_through_Notify;for_a_Lane_A_story
 ### DW-748: Story 11.22's docs read stale beside 34.2's BodyBounds: Test.Web.BodyLimit says Test.Web.ApiProbe has no declaration (it now inherits Web.Api's POST /v1/documents entry), POSTROUTES is called every POST route but omits /v1/documents, and Web.BodyLimit's header example names /v1/documents at 14680064 bytes (the real bound is 13,985,112)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 11.22's assertions still hold (POSTROUTES omits /v1/documents; the declared-bound case uses /v1/messages); only the comments mislead; the files are Story 11.22's and outside 34.2's lane (34.2 re-review, Blind and Acceptance Auditor)
@@ -5501,8 +5505,45 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: web/e2e/settings/settings.spec.ts S9-S12 written, not run locally (live:sign-in-2, group shards-4); settings-view.test.mjs twins carry the AC 5 mutation
 - 2026-11-08T10:17:02Z status=open owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=harvest note=settle at 18.2 QA/adjudication: observe one mutation red, or close wontfix-accepted with a probe
+- 2026-11-08T10:51:48Z status=wontfix-accepted by=adjudication note=reopen_if=a_Settings_Time_zone/Daily_digest/Channels_regression_reaches_feature_while_S9-S12_are_green(the_browser_tier_cannot_run_inside_the_150s_command_rule:live:sign-in-2_builds_its_own_stack;settings-view.test.mjs_twins_carry_the_AC_5_mutation;CI_runs_S9-S12_on_every_push)
 
 ### DW-939: Data.Time.Zone() falling back to OsZone() is pinned only through OsZone(): /etc/localtime cannot be redirected in a test, so deleting the OsZone step in Zone() stays green on a UTC host
 - source: _bmad-output/implementation-artifacts/spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: src/ocutalon/cls/OcuTalon/Data/Time.cls Zone(); matrix row TZ unset OS zone
 - 2026-11-08T10:17:02Z status=open owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=harvest note=a link-parameter seam on Zone would pin it; settle at QA/adjudication
+- 2026-11-08T10:51:48Z status=resolved-by:18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=adjudication note=QA_seam:Data.Time.Zone(osLink)_passes_the_link_to_OsZone;Test.Data.TimeSource_TestOsZone(Berlin_link,unresolvable_link,saved_zone_wins);mutation_Zone_skips_OsZone->TestOsZone_red
+
+### DW-942: Api.SendDigest's non-Ok answer (500 server_error) has no test: CommandsIn and Digest.Requested never refuse a web_admin SendDigest today, and the route has no submit seam
+- source: spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Web/Api.cls SendDigest If 'result.Ok Quit ..ServerError; TestSendDigest covers only 202; S11 stubs the 500 in the browser
+- 2026-11-08T10:49:01Z status=wontfix-accepted owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=reopen_if=CommandsIn or Digest.Requested gains a refusal outcome for a web_admin SendDigest
+
+### DW-943: The Time zone and Daily digest sections' refusal wiring (400 field error and focus, 403 denied, the send's 403) runs in no unit or browser test; only their pure helpers are tested
+- source: spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: time-zone-section.ts and daily-digest-section.ts refused() and the send error path; S9 and S10 test success only; Playwright runs only in CI
+- 2026-11-08T10:49:01Z status=wontfix-accepted owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=reopen_if=a refused Settings save in a CI browser run or smoke shows no field error
+
+### DW-944: AC 2a's through-Notify path (Digest.Process.Deliver with digest.channels equal to Own) is pinned in halves: Test.Digest.Send (Digest to Notify) and SettingsRunTime's hand-built digest Notification (Notify to Delivery)
+- source: spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SettingsRunTime saves channels web with demo on, so its real digests take the direct subset path; one joined run needs a second 61 s cache window
+- 2026-11-08T10:49:14Z status=wontfix-accepted owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=reopen_if=a digest that Deliver hands to Notify reaches a channel outside digest.channels
+
+### DW-945: The spine's REST surface table has no row for POST /api/v1/settings/daily-digest/send, and its channels row still says 501 until Stories 18.3 and 18.2
+- source: spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md REST table (near line 1510) lists heartbeat/run and the per-section saves only; spine edits are the lead's (struck at the spec gate)
+- 2026-11-08T10:49:14Z status=wontfix-accepted owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=reopen_if=the lead's close-time AD-14 spine edit lands and the REST table still lacks the send route
+
+### DW-946: S10 and S12 assert the stack's ambient state (its demo mode, its Telegram state), so each CI run exercises one branch: the hidden-channel save only on a demo-off stack, one Channels view only
+- source: spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: settings.spec.ts S10 adapts to before.demo, S12 to /v1/state; every branch is pinned by the pure twins in settings-view.test.mjs
+- 2026-11-08T10:49:15Z status=wontfix-accepted owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=reopen_if=a Channels or Daily digest template change ships green while its branch is not the CI stack's state
+
+### DW-947: Test.Core.SettingsRunTime copies SentCount, WaitSent and SentRow from Lane A's private Test.Digest.Send helpers, and Test.Web.SettingsApi has its own WaitSent: two Lane B copies that could share one helper (Rule 2)
+- source: spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SettingsRunTime.cls:293-318 vs Test/Digest/Send.cls:159-185 (Lane A, private, U-177); SettingsApi.cls:271
+- 2026-11-08T10:49:15Z status=wontfix-accepted owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=reopen_if=a third Lane B test class adds its own Sent-row count or wait helper
+
+### DW-948: Each Settings section repeats the same refusal block (403 to denied, 400 fields to field errors, else the form error): time-zone and daily-digest copy check-thresholds' and demo-mode's (Rule 2)
+- source: spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: time-zone-section.ts refused(), daily-digest-section.ts refused() vs check-thresholds-section.ts refused(); about 10 lines each
+- 2026-11-08T10:49:15Z status=wontfix-accepted owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=reopen_if=Story 18.3 adds the Models or Budgets section with a fifth copy of the refusal block

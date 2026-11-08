@@ -604,6 +604,7 @@ test('S10: the Daily digest section saves the time and the channels, and keeps a
   }
   const restored = await instanceValues(page);
   expect(restored.time, 'the time is back').toBe(before.time);
+  expect(restored.channels, 'and so are the channels').toBe(before.channels);
 });
 
 /** S11: Send my digest now follows the busy pattern and then shows the confirmation (the answer is stubbed, so no digest is made); a failed send shows the failure text. */
@@ -624,7 +625,7 @@ test('S11: Send my digest now is busy, then shows the confirmation, and a failed
     await send.click();
     await expect(send, 'the button is busy').toHaveAttribute('aria-busy', 'true');
     await expect(send, 'and aria-disabled, never disabled').toHaveAttribute('aria-disabled', 'true');
-    await send.click();
+    await send.click({ force: true });
     release();
     await expect(page.getByText('Sending your digest now.', { exact: true }).first(), 'the confirmation shows').toBeVisible();
     await expect(send, 'and the button is restored').not.toHaveAttribute('aria-busy', 'true');
@@ -649,7 +650,9 @@ test('S11: Send my digest now is busy, then shows the confirmation, and a failed
 /** S12: the Channels section shows the Telegram state that /v1/state holds and nothing to edit: no Save button, no field, no token. */
 test('S12: the Channels section shows the state of Telegram, read only', async ({ page }) => {
   await openSection(page, 'Channels');
-  const telegram = ((await (await page.request.get('/ocutalon/api/v1/state')).json()) as { telegram: { included: boolean; state: string; pausedUntil: string } }).telegram;
+  const state = (await (await page.request.get('/ocutalon/api/v1/state')).json()) as { telegram: { included: boolean; state: string }; status: { condition?: string; active?: boolean }[] };
+  const telegram = state.telegram;
+  const pausedNow = state.status.some((one) => one.condition === 'telegramPaused' && one.active === true);
   await expect(page.getByText("This part of OcuTalon isn't built yet."), 'the section is built').toHaveCount(0);
   await expect(saveButton(page), 'it has no Save button').toHaveCount(0);
   await expect(page.getByRole('textbox'), 'and no field, so no token can be entered').toHaveCount(0);
@@ -658,7 +661,7 @@ test('S12: the Channels section shows the state of Telegram, read only', async (
   const on = page.getByText('Telegram on', { exact: true });
   if (!telegram.included) {
     await expect(notSetUp.or(paused).or(on), 'a release without Telegram shows no Telegram block').toHaveCount(0);
-  } else if (telegram.pausedUntil !== '') {
+  } else if (pausedNow) {
     await expect(paused, 'a paused bot shows the paused text').toBeVisible();
     await expect(page.getByText(/^Trying again at /), 'and when it tries again').toBeVisible();
   } else if (telegram.state === 'off' || telegram.state === 'rejected') {

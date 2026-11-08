@@ -2,7 +2,7 @@
 title: 'Story 18.2: Set the time zone and the daily digest at run time'
 type: 'feature'
 created: '2026-11-08'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'd8dac27538c4ff0af7747bdbac363cc7673f2f9a'
 baseline_commit: 'd8dac27538c4ff0af7747bdbac363cc7673f2f9a'
 review_loop_iteration: 0
@@ -163,6 +163,8 @@ deferred:
 - `web/e2e/settings/settings.spec.ts` -- in S1, leave only Budgets as not built. Add S9 (Time zone save shows the saved text, and the GET returns the zone, then puts it back), S10 (Daily digest save and the channel boxes for the stack's demo mode) and S11 (Send my digest now: busy, then the confirmation).
 - (No spine edit in this story: struck by the lead at the spec gate. AD-18 already says the run-time source is "an IANA zone name, or empty for the container's `TZ`", which with `TZ` unset is the inherited OS zone, so the DW-34 fallback complies as written (doctrine U7 step 1). The proposed clarifying sentence goes to the orchestrator (U14); do NOT edit `ARCHITECTURE-SPINE.md` and do NOT run `lint_spine.py` for it.)
 
+- [ ] [Smoke] S9 fails in the lead's per-story smoke (fresh lane-D live:sign-in-2 --part 3/3, OCUTALON_LIVE_DEADLINE=1200): `page.getByLabel('Time zone', { exact: true })` resolves to 2 elements (the Time zone section, a region named by its heading, and the select), a Playwright strict-mode violation -- `web/e2e/settings/settings.spec.ts:553` and `:566` -- target the select unambiguously (e.g. `getByRole('combobox', { name: 'Time zone', exact: true })`, scoped to the section if needed), with no product change; S10-S12 and S1-S8 passed in the same run. Check the other new specs (S10-S12) for the same label/region ambiguity.
+
 **Acceptance Criteria:**
 - **AC 1.** Given an admin picks a zone in Time zone and saves, when the save answers, then:
   - the page shows "Saved. Applies within a minute. Recorded in the audit log.";
@@ -190,7 +192,50 @@ deferred:
   - the production's start time is unchanged.
 - **AC 5.** Given the Channels section opens, when Telegram is not set up, on, or paused, then it shows that state (with the README link, or with "Trying again at {time}"), and no token is shown or asked for.
 
+### Review Findings
+
+Code review 2026-11-08 (four layers, review tier full-opus; 39 raw rows, 18 entries after grouping, 18 rows rejected). Every patch was applied in the review pass; dispositions follow Rule 15.
+
+- [x] [Review][Patch] HIGH `Test.Web.Api` `TestRoutes` still expected 25 routes; the URL map has 26 with the send route, so `shard:lane-b` would go red (verification-gap, acceptance-auditor) [src/ocutalon/cls/OcuTalon/Test/Web/Api.cls:953] -- added `POST /v1/settings/daily-digest/send SendDigest` in map order, 26. Fix-risk low (list and count). Contended with OCT-epic41, which edits the same line (its own four routes; the merge is 30).
+- [x] [Review][Patch] HIGH S11's second press clicked an `aria-disabled` button, which Playwright waits on until the 45 s timeout, because the gate opens only after it (edge-case-hunter) [web/e2e/settings/settings.spec.ts:627] -- `click({ force: true })`, as `heartbeat-card.spec.ts` does. Fix-risk low.
+- [x] [Review][Patch] MED `Data.Time.Zone()` did not call `Bridge.Time.Apply()`, so after `InstanceZone` was cleared a process that had applied a zone reported the stale `TZ` (`/v1/state` `instanceZone`, `ListReminders`) until its next conversion (blind-hunter, edge-case-hunter) [src/ocutalon/cls/OcuTalon/Data/Time.cls:118] -- `Zone()` applies first; `TestZoneCleared` now reads `Zone()` before any conversion (mutation below). Fix-risk low.
+- [x] [Review][Patch] MED `SettingsRunTime` skipped the process-zone restore when `$SYSTEM.Process.TimeZone()` gave "" (measured on slot D: a fresh process gives "", not -1), leaking the test zone into later classes (edge-case-hunter; Rule 19 hermeticity) [src/ocutalon/cls/OcuTalon/Test/Core/SettingsRunTime.cls:72] -- the restore is unconditional (`PutZone` maps -1 and "" alike). Fix-risk low.
+- [x] [Review][Patch] MED No test reached the send route through the URL map as an admin, though AC 3 names "the route" (acceptance-auditor) [src/ocutalon/cls/OcuTalon/Test/Web/Api.cls:953] -- closed by the `TestRoutes` patch, which pins the route-to-`SendDigest` entry.
+- [x] [Review][Patch] LOW S12 chose "paused" from `telegram.pausedUntil`, which the page never reads (blind-hunter, edge-case-hunter, verification-gap) [web/e2e/settings/settings.spec.ts:652] -- it now reads the snapshot's active `telegramPaused` condition, the card's own rule.
+- [x] [Review][Patch] LOW The Daily digest form opened dirty when the saved channels were only hidden ones (for example `phone` with demo mode off), so leaving asked about unsaved changes with no edit (edge-case-hunter) [web/src/app/settings/daily-digest-section.ts:216] -- `isDigestFormDirty` compares the time and the shown boxes only (unit test and mutation below).
+- [x] [Review][Patch] LOW The DST walk's Berlin half crossed none of Berlin's 2025 changes, and Bridge.Time converted first at each instant (verification-gap) [src/ocutalon/cls/OcuTalon/Test/Data/TimeSource.cls:147] -- per-zone windows (Berlin 2025-03-29 and 2025-10-25, still 290 instants), Data.Time first.
+- [x] [Review][Patch] LOW `Test.Web.BodyLimit` `POSTROUTES`, "every POST route", lacked the send route (verification-gap) [src/ocutalon/cls/OcuTalon/Test/Web/BodyLimit.cls:14] -- appended, 18. Contended with OCT-epic41 (it appends its own; the merge is 19).
+- [x] [Review][Patch] LOW S10's clean-up checked only that the time came back (blind-hunter) [web/e2e/settings/settings.spec.ts:606] -- also checks the channels.
+- [x] [Review][Defer] LOW `Api.SendDigest`'s non-Ok 500 branch has no test (verification-gap) [src/ocutalon/cls/OcuTalon/Web/Api.cls:1496] -- deferred: DW-942 wontfix-accepted (needs a submit seam; unreachable today).
+- [x] [Review][Defer] LOW The two new forms' refusal wiring (400 field error and focus, 403) runs in no test (blind-hunter, verification-gap) [web/src/app/settings/time-zone-section.ts:213] -- deferred: DW-943 wontfix-accepted.
+- [x] [Review][Defer] LOW AC 2a's through-Notify path is pinned in halves, never in one real Digest send (acceptance-auditor) [src/ocutalon/cls/OcuTalon/Test/Core/SettingsRunTime.cls:186] -- deferred: DW-944 wontfix-accepted (Test.Digest.Send pins Digest to Notify; this class pins Notify to Delivery).
+- [x] [Review][Defer] LOW The spine's REST surface table lacks the send route; its channels row is stale (acceptance-auditor) [ARCHITECTURE-SPINE.md, REST table] -- deferred: DW-945 wontfix-accepted, for the lead's close-time AD-14 edit.
+- [x] [Review][Defer] LOW S10 and S12 follow the stack's ambient demo and Telegram state, one branch per run (verification-gap) [web/e2e/settings/settings.spec.ts:575] -- deferred: DW-946 wontfix-accepted (the pure twins pin every branch).
+- [x] [Review][Defer] LOW Rule 2: `SettingsRunTime` copies Lane A's private Sent helpers and `SettingsApi` has its own `WaitSent` (reviewer) [src/ocutalon/cls/OcuTalon/Test/Core/SettingsRunTime.cls:293] -- deferred: DW-947 wontfix-accepted.
+- [x] [Review][Defer] LOW Rule 2: the new sections repeat the sections' refusal block (reviewer) [web/src/app/settings/daily-digest-section.ts:275] -- deferred: DW-948 wontfix-accepted, reopen when Story 18.3 adds a fifth copy.
+- [x] [Review][Defer] MED After `Bridge.Time.Apply` puts an inherited unset `TZ` back as `TZ=""` (UTC), `Zone()` names the OS zone on a TZ-unset non-UTC host (edge-case-hunter) [src/bridge/cls/OcuTalon/Bridge/Time.cls:Apply] -- deferred: an occurrence on DW-34 (Lane A, `Bridge.Time.Apply`; the residual (a) the Design Notes give the lead).
+
+Rejected:
+- low: the zone list can show `Asia/Kolkata` beside the browser's `Asia/Calcutta` (blind-hunter) -- cosmetic, and both names have zone files; an alias map adds complexity; a name the container lacks gets `CheckZone`'s refusal (Decided in-stage 6).
+- by-design: a Telegram box that hides while the form is open falls back to the stored value (blind-hunter) -- Decided in-stage 4, hidden channels keep their stored state.
+- by-design: the Channels section shows nothing for a release without Telegram (blind-hunter) -- the spec says "included=false: no Telegram block"; the unloaded case is transient.
+- by-design: `ForMessage` calls `Apply()` before its `ToLocal` calls (blind-hunter) -- the Tasks require it; the extra calls are a cached setting read.
+- low: assertions repeated between `Test.Data.Time` and `Test.Data.TimeSource` (blind-hunter) -- no named harm.
+- by-design: a copied `/etc/localtime` or a symlinked zone folder gives `UTC` (edge-case-hunter) -- the matrix row says an unresolvable link reports UTC.
+- wontfix-theoretical: `posix/` or `right/` link targets (edge-case-hunter) -- the images link to the plain zone files; real once an image ships a `right/` link.
+- by-design: folds over 60 minutes (Antarctica/Troll) (edge-case-hunter, twice) -- the Tasks fix the candidates at 3600 and 1800 s.
+- by-design: Notify and Digest read `digest.channels` through their own 60 s caches (edge-case-hunter) -- AC 2 states the cache window.
+- by-design: an empty digest `<when>` leaves no trace (edge-case-hunter) -- the spec says no target.
+- low: production caches keep the test's digest rows for up to 60 s after `SettingsRunTime` (edge-case-hunter) -- already triaged at implement; no later class in the shard reads them through the production.
+- false: AC 4's phone text and start time lack mutation lines (verification-gap) -- Rule 19 needs one per AC; AC 4 has three, and the spec says why these two can't be mutated.
+- low: `TestReminderKeepsDueAt`'s DueAt and State asserts can't fail (verification-gap) -- already triaged; the `ForMessage` pair carries the AC 1 mutation.
+- low: `TestUnsetZone`/`TestZoneFromOs` derive their expected value from `OsZone()` (verification-gap) -- not the pinning test; QA's seam test pins DW-34 with a mutation.
+- false: `The simulated phone` and `Telegram on` are under `ux` (acceptance-auditor) -- the binding ruling puts strings EXPERIENCE.md holds under `ux`, and the test enforces it; the key label was given verbatim.
+- low: DW-939 still reads open (acceptance-auditor) -- the lead's `ledger_adjudicated` gate closes it; the frontmatter is build-auto state.
+- false: the added `UTC` choice is unruled text (acceptance-auditor) -- an IANA zone identifier shown as a value, like the browser's list.
+
 ## Spec Change Log
+- 2026-11-08, rework iteration 1 (lead, trigger=smoke): the per-story smoke ran settings.spec.ts on a fresh lane-D stack; S9 failed on an ambiguous label locator (one [Smoke] item under Tasks & Acceptance). Scope: that item only.
 - 2026-11-08, PUBLIC TEXT ruling (Contest Planner under the owner's delegation, relayed by the orchestrator): rows 1-6 and 14 confirmed verbatim (reused); rows 8-13 and 15-17 approved as written; row 7 reworded to "Message times, reminders, the daily digest and the current time that OcuTalon gives the model use this zone. Times on this page stay in your browser's zone." All pinned with fixed strings; `ux-strings` ruling key `planner-2026-11-08-18.2`.
 - 2026-11-08, AD-14 (Contest Planner ruling, relayed by the orchestrator): the interim sub-bullet at spine line 476 is reworded by the LEAD at this story's close/integrate-forward as an as-built correction, marker `[AMENDED 2026-11-08, Story 18.2, Contest Planner ruling]`. Not a stage edit: implement, QA and review do not touch the spine. AD-18's clarifying sentence waits for an attended `bmad-architecture` Update (nothing to do in this story).
 
@@ -368,6 +413,20 @@ Lane D variables (`$LANE_D` below):
 - mutation: Fold 0, 30-minute fold: `FromLocal`'s loop reduced to `For back = 3600` -> `Test.Data.TimeSource` `TestFoldZero` red for Australia/Lord_Howe (5 of 6 orders).
 - AC 4 `StartTime` unchanged and the phone text: no mutation could be applied from here (a restart is not buildable; the phone text is also produced by the same `ForMessage`). The phone assertion stayed green with `Apply` removed because the SimPhoneOut job already follows the bridge in this build.
 - AC 1 "pending reminders keep their `DueAt`" (`TestReminderKeepsDueAt`): the `DueAt` and `State` asserts are a structural guard (nothing in `Data.Time` or the bridge writes a reminder); the 10:00/19:30 `ForMessage` pair is the part that goes red under the AC 1 mutation.
+
+**QA stage (2026-11-08; lane-D warm throwaway `e18s2qw`, started and torn down by the QA stage; every mutation applied, observed red, reverted, and `git status --short` / file hashes confirmed unchanged):**
+- (QA) `src/ocutalon/cls/OcuTalon/Data/Time.cls`: `Zone(osLink = "/etc/localtime")`, a seam that `Zone()` passes to `OsZone` (behaviour unchanged for every caller). `src/ocutalon/cls/OcuTalon/Test/Data/TimeSource.cls` `TestOsZone` now pins the DW-34 fallback through `Zone`: a Berlin zoneinfo link gives `Europe/Berlin`, an unresolvable link gives `UTC`, and a saved zone still wins over the link. (No new test file; DW-939 settled.)
+- mutation: DW-34 fallback: `Zone()` stops calling `OsZone(osLink)` (sets "") -> `Test.Data.TimeSource` `TestOsZone` red ("with no row and no TZ, Zone() takes the zone of the operating system's link (DW-34)").
+- mutation: AC 3 (re-observed): `Api.SendDigest` submits with origin `web_user` -> `Test.Web.SettingsApi` `TestSendDigest` red (no requested Sent row).
+- mutation: AC 2 (re-observed, different edit): removed the empty `Kind=digest` fall-through `<when>` from `Core.Rule.Notify` -> `Test.Core.Routing` `TestNotifyDigestTargets` red (a digest with no channel takes the generic route).
+- mutation: AC 5 (re-observed): `channelsView` ignores the paused card kind -> `web/scripts/settings-view.test.mjs` "says \"paused\" with the retry line while the pause condition holds, whatever the state is" red.
+- Baseline on `e18s2qw` after the seam: `Test.Data.TimeSource`, `Test.Data.Time`, `Test.Core.Routing`, `Test.Core.SettingsRunTime` (70 s), `Test.Web.SettingsApi`, `Test.Schedule.ReminderZone`, `Test.Agent.Render`, `Test.Bridge.Time` passed; `node --test web/scripts/settings-view.test.mjs web/scripts/ux-strings.test.mjs` 42 pass; `bash docker/tests/test-boundaries.sh` passed.
+- DW-938 not settled: Playwright S9 to S12 cannot run inside the 150 s rule. The warm stack publishes no port and holds no fixture users, and its web bundle is part of the image (a changed web file refuses a warm run). The only runner is the `live:sign-in-2` unit (`docker/tests/test-sign-in-2.sh`), which builds its own image and throwaway, waits up to 400 s for the first start, creates the fixture users, then runs the whole project; it is one script with no split point (`--part k/n` cuts only the browser step). So no S9 mutation line; S9 to S12 stay in CI (group `shards-4`), with their pure-function twins in `settings-view.test.mjs` (AC 5 mutation above).
+
+**Code review (2026-11-08; slot D for `Test.Web.Api` `TestRoutes`, `Test.Web.BodyLimit`, `Test.Data.Time`; lane-D warm throwaway `e18s2cw`, started and torn down by the review, for `Test.Data.TimeSource`, `Test.Core.SettingsRunTime` (70 s), `Test.Web.Api`, `Test.Agent.Render`, `Test.Tools.Reminders`; all passed after the patches; `node --test web/scripts/settings-view.test.mjs` 30 pass, `ux-strings` 13 pass, `npm --prefix web run lint` and `build` exit 0, `test-boundaries.sh` passed):**
+- mutation: AC 1, `Zone()` after a clear: removed the `Bridge.Time.Apply()` line from `Data.Time.Zone` -> `Test.Data.TimeSource` `TestZoneCleared` red ("Zone() reports the inherited TZ, before any conversion follows the change"); restored byte-identical, green again.
+- mutation: AC 2, the Daily digest form's dirty rule: `isDigestFormDirty` made to compare the save body (`isDigestDirty` of `digestChannelsBody`, the rule before the patch) -> `web/scripts/settings-view.test.mjs` "keeps the form clean on open when the saved channels are hidden ones ..." red; restored byte-identical.
+- S10, S11 and S12 were changed but not run here (DW-938: CI only, group `shards-4`).
 
 **Shared surfaces:**
 - Notify's targets for kind `digest` (`Test.Core.Routing`; `Test.Digest.Compose` `TestOwnMatchesNotify`, which must stay green unchanged).

@@ -113,14 +113,17 @@ ClassMethod ForMessage(utc As %String, now As %String = "") As %String
 }
 
 /// The instance zone's name, the first of: the zone OcuTalon.Bridge.Time holds, when it is not empty and Bridge.Time.CheckZone accepts it;
-/// the TZ environment variable of the process; the operating system's zone (OsZone); UTC.
-ClassMethod Zone() As %String
+/// the TZ environment variable of the process; the operating system's zone (OsZone of osLink); UTC. It calls Bridge.Time.Apply first, as the
+/// converters do, so that the TZ it reads is the one the process converts in. osLink is the seam that lets a test pin the operating-system
+/// step: callers leave it at the default, /etc/localtime.
+ClassMethod Zone(osLink As %String = "/etc/localtime") As %String
 {
+	Do ##class(OcuTalon.Bridge.Time).Apply()
 	Set zone = ##class(OcuTalon.Bridge.Time).Zone()
 	If (zone '= "") && $SYSTEM.Status.IsOK(##class(OcuTalon.Bridge.Time).CheckZone(zone)) Quit zone
 	Set zone = $SYSTEM.Util.GetEnviron("TZ")
 	If zone '= "" Quit zone
-	Set zone = ..OsZone()
+	Set zone = ..OsZone(osLink)
 	Quit $Select(zone = "": "UTC", 1: zone)
 }
 

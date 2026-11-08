@@ -23,6 +23,7 @@ const {
   digestChannelsBody,
   firstInError,
   isDigestDirty,
+  isDigestFormDirty,
   isDirty,
   pageOf,
   sectionLabel,
@@ -250,6 +251,14 @@ describe('the Daily digest section (Story 18.2)', () => {
     assert.equal(isDigestDirty({ time: ' 08:00 ', channels: 'phone, web' }, saved), false, 'white space and order do not count');
     assert.equal(isDigestDirty({ time: '08:01', channels: 'web,phone' }, saved), true);
     assert.equal(isDigestDirty({ time: '08:00', channels: 'web' }, saved), true);
+  });
+
+  it('keeps the form clean on open when the saved channels are hidden ones, and dirty only for an edit of a shown box or the time', () => {
+    const phoneOnly = { time: '08:00', channels: 'phone' };
+    assert.equal(isDigestFormDirty('08:00', ['phone'], ['web'], phoneOnly), false, 'demo mode off, phone saved: nothing was edited');
+    assert.equal(isDigestFormDirty('08:00', ['phone', 'web'], ['web'], phoneOnly), true, 'checking the web chat is an edit');
+    assert.equal(isDigestFormDirty('08:30', ['phone'], ['web'], phoneOnly), true, 'so is a new time');
+    assert.equal(isDigestFormDirty('08:00', ['web'], ['web', 'phone'], { time: '08:00', channels: 'web,phone' }), true, 'unchecking a shown box is an edit');
   });
 
   it('pins the ruled texts of the section, byte for byte', () => {
