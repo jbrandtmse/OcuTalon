@@ -113,6 +113,45 @@ deferred: []
 - Given the test on unchanged product code, when it runs, then it is green. If it is red, that is a real leak: the leak is fixed in this story as a HIGH, the pin is green after the fix, and the mutation still turns it red.
 - Given a fresh stack, when `shard lane-a@Digest` runs forward and in reverse, then every class passes, `onlineDemo` reads as it did before each test, and `Test.Digest.Coverage` `TestLiveRead`'s "not the online demo" control passes.
 
+### Review Findings
+
+Code review, 2026-11-08 (UTC). Full-opus tier, four layers: Blind Hunter, Edge Case Hunter, Verification Gap and Acceptance Auditor. 27 raw findings became 5 entries (high 0, medium 1, low 4), and all five are patched. 16 rejected, 0 deferred, 0 decision-needed. No product code changed, and no leak was found.
+
+- [x] [Review][Patch] The test never checked that the online demo was on [src/ocutalon/cls/OcuTalon/Test/Digest/OnlineDemoFacts.cls:168]. Medium, fix-risk low (test-only, one class), in-story, spec-clear (Decided 5). Sources: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor.
+  - Problem: no assertion read `OnlineDemo()`. The passing case planted only another visitor's failures, and no instance counts those, so the `'onlineDemo` leg of `ScopedFailures` (`Checks/Coverage.cls` :355) was never reached. Forcing :355 to "not the online demo" left the class green (observed).
+  - Patch: `Consumed` asserts that the online demo is on. The passing read also carries two failures scoped to the instance, each with the error-text carrier: one with no superSession and one of a trace that no session owns. The docs are corrected.
+- [x] [Review][Patch] Nothing checked that the plants still match KEYLIKE and the IPv4 shape [OnlineDemoFacts.cls:171]. If an alternative in `lib-keys.sh` changed, its absence leg would silently stop being able to fail. Low, fix-risk low, in-story. Source: blind-hunter.
+  - Patch: `Consumed` asserts that each KEYLIKE alternative and `IPV4` is found in `Carrier()`. The IPv4 regex is now one parameter.
+- [x] [Review][Patch] The class doc gave the wrong reason for running on throwaways only ("key-shaped values in IRIS rows") [OnlineDemoFacts.cls:22]. The shapes live in process-private globals, and the risk on a shared runtime is the instance-wide `onlineDemo` flip. Low, fix-risk low; doc only. Source: blind-hunter.
+- [x] [Review][Patch] The class doc said the failing text "holds the two failed lines" [OnlineDemoFacts.cls:13]. The plant fails five rows, and the test anchors two of them (database space and the production). Low, fix-risk low; doc only. Source: blind-hunter.
+- [x] [Review][Patch] Only a reverse-order run guarded the `onlineDemo` restore, and CI never runs one [OnlineDemoFacts.cls:46]. Dropping the restore left the class green. Low, fix-risk low, in-story. Source: verification-gap.
+  - Patch: `OnAfterOneTest` asserts that the key reads as it did before the test, the same check `Test.Install.Users` makes on its guard. A dropped restore is now red in forward order.
+
+**Rejected:**
+- `low`, Edge: the restore is skipped if `##super` throws in `OnAfterOneTest`. wontfix-theoretical:
+  - the ProbeCase and ZoneCase teardowns delete through `%ExecDirect` and do not throw;
+  - `Test.Digest.TelegramText` uses the same order.
+  - It becomes real if a teardown step starts to throw.
+- `low`, Edge: an error status from `##super` in `OnBeforeOneTest` skips both the test and the restore. wontfix-theoretical: `ZoneCase.OnBeforeOneTest` always returns OK, and the fix would add a guard. It becomes real if ZoneCase or ProbeCase start to return an error.
+- `low`, Edge: no probe looks for a host-path tail ("/mgr/"). wontfix-theoretical: no code path strips a directory's host prefix and keeps its tail. The path, user, IP and IPv4 legs cover a directory leak, and the :253 mutation turns them red.
+- `low`, Edge: `$$$AssertStatusOK` appends a failed status's text to the result. wontfix-theoretical: no status on these paths quotes an instance string.
+  - The Slots have `MAXLEN = ""`.
+  - Catalog `Fail` quotes a value only for channel and fallbackReason slots.
+  - `Text`'s own error names no value.
+  - It becomes real if a render error ever quotes the value of a text slot.
+- `low`, Auditor: the passing case's plants cannot be told apart from the probe's defaults.
+  - Both cases feed through one helper, and the failing anchors prove that path.
+  - This review's `OnlineDemo` mutation turns the passing case red through its planted read.
+  - Telling the vital signs apart would change the healthy figures the spec sets.
+- `low`, Auditor: the failing case also creates the second visitor session. Harmless: both sessions are kept and cleaned up.
+- `low`, Auditor: nothing in the class prevents a run on a slot. The lead's spec gate and the class doc govern this, and a guard would add a branch. Implement triaged it the same way.
+- `low`, Blind: the Always line "and on the dev slot" contradicts the Spec Change Log. The fix would edit the spec's intent, and the Spec Change Log (lead gate) governs.
+- `low`, Blind: the spec does not record the QA backup incident on `Digest/Process.cls`. The fix would edit the spec. `Process.cls` is identical to HEAD, and this stage's fresh-stack run (under Verification) does not depend on any warm stack.
+- `low`, Blind: the Auto Run Result's "run again after the last patch" predates QA's change. The fix would edit build-auto's section; this stage's fresh run is recorded under Verification.
+- `low`, Blind, Edge and Auditor: "Rejected: 11" should read 12. Cosmetic, and the fix would edit build-auto's Auto Run Result.
+- `low`, Blind: QA's Slots-only mutation contradicts triage row "no cheap composer mutation reaches Slots only". Cosmetic, and the fix would edit the implement triage log.
+- `low`, Blind and Auditor: the cycle log's `dev_complete` has an empty `loc_added=`. The cycle log is the lead's, and this stage writes no cycle-log entries.
+
 ## Spec Change Log
 
 - 2026-11-08, lead spec gate: the test runs only on lane B's throwaways, never on `ocutalon-slot-b` (it plants key-shaped values in IRIS rows and sets `onlineDemo`); the slot keeps the compile check. No other change.
@@ -216,7 +255,26 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: `Checks/Coverage.cls` :253 `{"name": (database.name), ...}` -> `{"name": (database.directory), ...}` -> `TestFailingDigest` red (the database-space anchor, and the host path, IP address, user name and IPv4 legs, in the text and in the Slots); `TestPassingDigest` stays green. Restored byte for byte (`cmp`), class green again on the same warm stack.
 - mutation: `Checks/Coverage.cls` `Live`, after the failures part (:368), add `Set parts = parts_$ListBuild(failed.%Get(0).errorText)` -> `TestFailingDigest` red on every planted value and fragment, all seven KEYLIKE alternatives and the IPv4 shape, in the text and in the Slots (`TestPassingDigest` red too, as the line is unconditional). Restored byte for byte (`cmp`), class green again.
 - mutation: `Checks/Process.cls` `ScopedFailures`, the condition `If (scope = sessionRef) || ((scope = ..#INSTANCE) && 'onlineDemo)` removed so that every failure counts -> `TestPassingDigest` red ("the production sentence" and "the reserved sentence"), `TestFailingDigest` green. Restored byte for byte (`cmp`), class green again.
-- mutation: `OnlineDemoFacts` `OnAfterOneTest`, the `Set("onlineDemo", ..SavedOnline)` restore deleted -> `OnlineDemoFacts` stays green, and `Test.Digest.Coverage` `TestLiveRead` is red on its "control: this is not the online demo" assertion when it runs after it (the reverse-order shard is the guard). The key was reset, the class restored byte for byte (`cmp`), and `Coverage` was green again.
+- mutation: `OnlineDemoFacts` `OnAfterOneTest`, the `Set("onlineDemo", ..SavedOnline)` restore deleted -> `OnlineDemoFacts` `TestFailingDigest` red ("the test left the onlineDemo key as it found it"), in forward order. Corrected in code review, after the restore check was added. Before the check, `OnlineDemoFacts` stayed green, and only `Test.Digest.Coverage` `TestLiveRead` went red when it ran afterwards.
+
+**QA stage (QA), warm tag `e17s11qw` on lane B; each mutation made from a backup in the stage scratch folder, restored byte for byte (`cmp`), tree back to the pre-mutation state:**
+- Tests changed (QA): `src/ocutalon/cls/OcuTalon/Test/Digest/OnlineDemoFacts.cls` (`Consumed`: the "of the watched production" assertion no longer throws `<INVALID OREF>` when no live read happened, so a vacuous run reports every failed precondition and anchor). No new test file.
+- mutation: `Checks/Coverage.cls` :253 `database.name` -> `database.directory` -> `OnlineDemoFacts` `TestFailingDigest` red (database-space anchor; host path, IP address, user name and IPv4 legs, in the text and in the Slots). AC 1 and the failing-digest row.
+- mutation: `Checks/Coverage.cls` `Live`, after the failures part, `Set parts = parts_$ListBuild(failed.%Get(0).errorText)` -> `TestFailingDigest` and `TestPassingDigest` red on all five values, the fragment probes, all seven KEYLIKE alternatives and the IPv4 shape, in the text and in the Slots.
+- mutation (Slots leg alone): `Checks/Coverage.cls` `Build`, after `VitalRows`, `If rows.%Size() > 0 Do rows.%Get(0).%Set("dir", reading.journal.directory)` -> only the "the Slots has no ..." legs red (host path, IP address, user name, IPv4) in both tests; every text leg green. A mutation that pushes a new row instead (`rows.%Push`) reddens the text too, because rows feed the lines.
+- mutation (passing-digest row): `Checks/Process.cls` `ScopedFailures`, the scope condition removed so every failure counts -> `TestPassingDigest` red ("and the production sentence", "and the reserved sentence"); `TestFailingDigest` green.
+- mutation (plants consumed): `Checks/Coverage.cls` `Build`, the `WatchRow` call replaced by a no-op -> both tests red on "one live read", "of the watched production" and the production anchors, with no throw.
+- mutation (`onlineDemo` restored): `OnlineDemoFacts` `OnAfterOneTest` restore line deleted. On QA's version: `OnlineDemoFacts` green, then `Test.Digest.Coverage` `TestLiveRead` red on "control: this is not the online demo" and on the instance-failures assertion. Since code review: red in `OnlineDemoFacts` itself (see the code-review block below).
+- Also green on the warm stack: `OnlineDemoFacts`, `Test.Digest.Coverage`; `test-boundaries.sh` and `test-class-rules.sh` pass; compile check on `ocutalon-slot-b` (build 154) OK.
+
+**Code review stage, warm tag `e17s11cw` and fresh tag `e17s11c` on lane B.** Each mutation was made from a backup in the stage scratch folder and restored byte for byte (`cmp`). The product tree is unchanged at the end.
+- Gap shown before the patch: `Checks/Coverage.cls` :355 `ScopedFailures(failed, check.SessionRef, ##class(OcuTalon.Watch.Reader).OnlineDemo())` -> `..., 0)`. QA's `OnlineDemoFacts` stayed green.
+- mutation (online-demo scoping): the same :355 change on the patched class -> `TestPassingDigest` red ("and the production sentence", "and the reserved sentence"); `TestFailingDigest` green. Passing-digest row; it pins that the online demo does not count failures scoped to the instance.
+- mutation (online demo on): `OnlineDemoFacts` `OnBeforeOneTest`, the `Set("onlineDemo", 1)` line deleted -> both tests red on "on the online demo", and `TestPassingDigest` also red on the production and reserved sentences.
+- mutation (plants match KEYLIKE): `OnlineDemoFacts` `OtherKeys`, the DigitalOcean fill `b` -> `g` (not hex) -> both tests red on "a planted value matches KEYLIKE alternative 5", and on nothing else.
+- mutation (AC 1, re-run on the patched class): `Checks/Coverage.cls` :253 `database.name` -> `database.directory` -> `TestFailingDigest` red on the database-space anchor and on the host path, IP address, user name and IPv4 legs, in the text and in the Slots. The failure lines name labels only.
+- mutation (`onlineDemo` restored): `OnlineDemoFacts` `OnAfterOneTest`, the restore line deleted -> `TestFailingDigest` red on "the test left the onlineDemo key as it found it", in forward order. This was the last warm run; the stack was torn down after it.
+- Green after the reverts: `OnlineDemoFacts` (warm), `Test.Digest.Coverage` (warm, run after it). Fresh stack: `ci/iris.sh class OcuTalon.Test.Digest.OnlineDemoFacts` passed (ready 116 s, class 0.44 s). `test-boundaries.sh` ("keys: nothing key-like", "ascii") and `test-class-rules.sh` (assert-concat) pass. Compile check on `ocutalon-slot-b` (build 154) OK; the class was not run there. Both tags were torn down.
 
 ## Auto Run Result
 

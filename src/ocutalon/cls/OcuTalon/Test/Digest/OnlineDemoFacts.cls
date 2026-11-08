@@ -9,18 +9,24 @@
 ///     this file holds key-like text. They are planted where the online demo
 ///     really holds them: the session's IrisUser, the watch's AskedBy, the directories of the databases and of the journal, and the error texts, items,
 ///     sources, queue names and body classes of the live read;
-///   - TestFailingDigest (the pin): databases, journal, license and system log failing and the production troubled. The text holds the two failed
-///     lines, and neither the text nor the Notification's whole Slots JSON holds a planted value (without regard to case), a match of any alternative of
-///     Test.Bridge.Redact KEYLIKE or an IPv4 shape;
-///   - TestPassingDigest: healthy readings with the directories still under the planted path, and failures of another visitor's trace that the online
-///     demo does not count. The text holds the healthy sentence, the production sentence and the reserved sentence, with the same absences.
-/// A failure message names a planted value by its label only; the digest text and the planted values never go into a result or a log. The digest makes
-/// no model request (nothing is saved for later). The class needs the process zone and the digest.channels row of ProbeCase, and puts the onlineDemo key
-/// back after each test; it creates and removes every row it reads, and it plants key-shaped values in IRIS rows, so it runs on a throwaway stack only.
+///   - TestFailingDigest (the pin): databases, journal, license and system log failing and the production troubled. The text holds the failed
+///     database-space and production lines, and neither the text nor the Notification's whole Slots JSON holds a planted value (without regard to case),
+///     a match of any alternative of Test.Bridge.Redact KEYLIKE or an IPv4 shape;
+///   - TestPassingDigest: healthy readings with the directories still under the planted path, and failures that the online demo does not count: two of
+///     another visitor's trace and two scoped to the instance (of no visitor's trace). The text holds the healthy sentence, the production sentence and
+///     the reserved sentence, with the same absences.
+/// Both tests first check that the online demo is on, that the plants were read, and that every alternative of KEYLIKE and the IPv4 shape match the
+/// planted values. A failure message names a planted value by its label only; the digest text and the planted values never go into a result or a log.
+/// The digest makes no model request (nothing is saved for later). The class needs the process zone and the digest.channels row of ProbeCase, puts the
+/// onlineDemo key back after each test and checks that it did, and creates and removes every row it reads. It sets the instance-wide onlineDemo key
+/// while it runs and plants key-shaped values in process-private globals, so it runs on a throwaway stack only.
 Class OcuTalon.Test.Digest.OnlineDemoFacts Extends OcuTalon.Test.Digest.ProbeCase
 {
 
 Parameter PRODUCTION = "Zz.Leak.Orders";
+
+/// The IPv4 shape.
+Parameter IPV4 = "[0-9]{1,3}(\.[0-9]{1,3}){3}";
 
 /// The onlineDemo key before the test.
 Property SavedOnline As %String;
@@ -37,6 +43,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	Set sc = ##super(testname)
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Public.Settings).Get("onlineDemo"), ..SavedOnline, "the test left the onlineDemo key as it found it")
 	Quit sc
 }
 
@@ -104,19 +111,20 @@ ClassMethod Vitals(dataFree As %Integer, ordersFree As %Integer, journalFree As 
 	Quit {"instance": {"outcome": "read", "upSeconds": 259500}, "databases": [{"name": "OCUTALON_DATA", "directory": (..Path() _ "ocutalon_data/"), "volumeFreePercent": (dataFree), "maxBlocks": 0, "outcome": "read"}, {"name": "OCUORDERS_DATA", "directory": (..Path() _ "ocuorders_data/"), "volumeFreePercent": (ordersFree), "maxBlocks": 0, "outcome": "read"}], "journal": {"outcome": "read", "directory": (..Path() _ "journal/"), "freePercent": (journalFree)}, "license": {"outcome": "read", "units": 100, "consumed": (licenseUse), "usePercent": (licenseUse)}, "systemLog": {"outcome": "read", "count": (severe)}}
 }
 
-/// Two failures of the trace, every raw string of the live read holding the planted values.
-ClassMethod Failures(trace As %String) As %DynamicArray
+/// One failure for each superSession of traces, every raw string of the live read holding the planted values.
+ClassMethod Failures(traces As %List) As %DynamicArray
 {
 	Set rows = []
-	For i = 1:1:2 {
-		Do rows.%Push({"kind": "header", "superSession": (trace), "item": (..CarrierName()), "source": (..CarrierName()), "bodyClass": (..CarrierName()), "errorText": (..Carrier())})
+	For i = 1:1:$ListLength(traces) {
+		Do rows.%Push({"kind": "header", "superSession": ($List(traces, i)), "item": (..CarrierName()), "source": (..CarrierName()), "bodyClass": (..CarrierName()), "errorText": (..Carrier())})
 	}
 	Quit rows
 }
 
 /// Composes the digest of a visitor (the session of the planted user, whose Orders watch is asked for by the planted user and has ten passed runs in the
 /// window) and gives {text, sc, json}: the text of Text(slots, "web"), its status and the Slots of the one Notification as stored. The failing
-/// digest takes the failures of the visitor's own trace; the passing one, those of another visitor's.
+/// digest takes two failures of the visitor's own trace; the passing one, two of another visitor's trace, one with no superSession and one of a
+/// trace that no session owns, none of which the online demo counts.
 Method Digest(failing As %Boolean) As %DynamicObject
 {
 	Set session = ##class(OcuTalon.Test.Data.Fixture).Session(..User())
@@ -126,16 +134,17 @@ Method Digest(failing As %Boolean) As %DynamicObject
 	Do ..Keep(other)
 	Set ..Sessions = ..Sessions _ "," _ other
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen($Select(failing: session, 1: other)).TraceRef
+	Set traces = $ListBuild(trace, trace) _ $Select(failing: "", 1: $ListBuild("", "zz.leak.untagged"))
 	Set compose = ..Compose(session, "2030-06-03T09:00:00", session _ ":leak")
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Check(session, "ZZNS", ..#PRODUCTION, {"CreatedAt": "2030-05-01T10:00:00Z", "DisplayName": "Orders", "AskedBy": (..User())})
 	Do ..Keep(ref)
 	Do ..Every(ref, session, compose)
 	If failing {
 		Do $ClassMethod(..#COVERAGE, "Feed", ..Vitals(3, 4, 8, 95, 2))
-		Do $ClassMethod(..#COVERAGE, "FeedRead", ..#PRODUCTION, {"state": "troubled", "errored": [(..CarrierName())], "disabled": [(..CarrierName())], "queues": [{"name": (..CarrierName()), "count": 150, "oldestAt": (..Ago(900))}], "rows": (..Failures(trace))})
+		Do $ClassMethod(..#COVERAGE, "FeedRead", ..#PRODUCTION, {"state": "troubled", "errored": [(..CarrierName())], "disabled": [(..CarrierName())], "queues": [{"name": (..CarrierName()), "count": 150, "oldestAt": (..Ago(900))}], "rows": (..Failures(traces))})
 	} Else {
 		Do $ClassMethod(..#COVERAGE, "Feed", ..Vitals(40, 40, 50, 20, 0))
-		Do $ClassMethod(..#COVERAGE, "FeedRead", ..#PRODUCTION, {"queues": [{"name": (..CarrierName()), "count": 3, "oldestAt": (..Ago(30))}], "rows": (..Failures(trace))})
+		Do $ClassMethod(..#COVERAGE, "FeedRead", ..#PRODUCTION, {"queues": [{"name": (..CarrierName()), "count": 3, "oldestAt": (..Ago(30))}], "rows": (..Failures(traces))})
 	}
 	Set host = ..Host()
 	Do $$$AssertStatusOK(..Handle(compose, host), "the Compose is handled")
@@ -152,12 +161,19 @@ ClassMethod Ago(seconds As %Integer) As %String
 	Quit ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -seconds)
 }
 
-/// Asserts that the live read was consumed and that a digest came out: one live read of the production, the vital signs read, an OK status, a text.
+/// Asserts that the digest was composed on the online demo, that every alternative of KEYLIKE and the IPv4 shape match the planted values, and that
+/// the live read was consumed and a digest came out: one live read of the production, the vital signs read, an OK status, a text.
 Method Consumed(got As %DynamicObject, label As %String)
 {
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Reader).OnlineDemo(), 1, label _ ": on the online demo")
+	Set alternatives = $ListFromString(##class(OcuTalon.Test.Bridge.Redact).#KEYLIKE, "|")
+	For i = 1:1:$ListLength(alternatives) {
+		Do $$$AssertTrue(##class(%Regex.Matcher).%New($List(alternatives, i), ..Carrier()).Locate(), label _ ": a planted value matches KEYLIKE alternative " _ i)
+	}
+	Do $$$AssertTrue(##class(%Regex.Matcher).%New(..#IPV4, ..Carrier()).Locate(), label _ ": and one matches the IPv4 shape")
 	Set calls = $ClassMethod(..#COVERAGE, "Calls")
 	Do $$$AssertEquals(calls.%Size(), 1, label _ ": one live read")
-	Do $$$AssertEquals(calls.%Get(0).production, ..#PRODUCTION, label _ ": of the watched production")
+	Do $$$AssertEquals($Select(calls.%Size() > 0: calls.%Get(0).production, 1: ""), ..#PRODUCTION, label _ ": of the watched production")
 	Do $$$AssertTrue(+$Get(^||CoverageProbe("vitalsCalls")) > 0, label _ ": the vital signs were read")
 	Do $$$AssertStatusOK(got.sc, label _ ": the digest renders")
 	Do $$$AssertTrue(got.text '= "", label _ ": and the text is not empty")
@@ -182,7 +198,7 @@ Method Absent(text As %String, where As %String)
 		Set matched = ##class(%Regex.Matcher).%New($List(alternatives, i), text).Locate()
 		Do $$$AssertTrue('matched, where _ " has no match of KEYLIKE alternative " _ i)
 	}
-	Set matched = ##class(%Regex.Matcher).%New("[0-9]{1,3}(\.[0-9]{1,3}){3}", text).Locate()
+	Set matched = ##class(%Regex.Matcher).%New(..#IPV4, text).Locate()
 	Do $$$AssertTrue('matched, where _ " has no IPv4 shape")
 }
 
