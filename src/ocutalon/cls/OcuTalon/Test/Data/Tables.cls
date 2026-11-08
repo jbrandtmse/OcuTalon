@@ -398,6 +398,7 @@ XData Contracts [ MimeType = application/json ]
    "TraceItemIndex": "%Integer",
    "TraceItemIndexNoEvents": "%Integer",
    "Tainted": "%Boolean",
+   "SessionRotated": "%Boolean",
    "Attempt": "%Integer",
    "CheckKey": "%String(MAXLEN=128)",
    "CheckRows": "%String(MAXLEN=)"

@@ -7,7 +7,7 @@
 ///   - the trace: Intake keeps the session of its inbound header, which is the item's own trace session (AD-26), and sets
 ///     %SuperSession to the owner session's TraceRef when the header carries none and the owner is a session;
 ///   - the decide request: Intake sends Decide a request of Kind decide (key decide, an answer required) that RequestFor
-///     builds from the Item: Agent.Input.Render of the Item, the item's provenance, ids and channel, the owner and a code-written
+///     builds from the Item: Agent.Input.Render of the Item (with no context: only Conversation's turn requests pass one), the item's provenance, ids and channel, the owner and a code-written
 ///     Summary ("{Sender}: {Subject}", or the one that is set, else the first line of the text, cut at 80 characters);
 ///   - Decide's answer: a DecisionResponse whose Outcome is in Msg.Enum OUTCOME gives the DecisionRef, the Outcome (tellnow
 ///     for a fallback), Fallback and FallbackReason (unusable when the reason is not in FALLBACKREASON). Anything else, an
@@ -147,13 +147,15 @@ Method Join(item As OcuTalon.Msg.Item) [ Private ]
 }
 
 /// The request to Decide for the item (AD-6): rendered input and code-written fields only. Conversation builds its requests
-/// here too, from the Item that stands for a turn.
-ClassMethod RequestFor(item As OcuTalon.Msg.Item, kind As %String, traceRef As %String, threadSessionId As %Integer) As OcuTalon.Bridge.Msg.Request
+/// here too, from the Item that stands for a turn. context is the optional third argument of Agent.Input.Render and carries only
+/// sessionStart (AD-21): Conversation passes it on the turn request of a session start, and with the default "" the Input is that
+/// of Render(item). Intake's own requests never pass one.
+ClassMethod RequestFor(item As OcuTalon.Msg.Item, kind As %String, traceRef As %String, threadSessionId As %Integer, context As %DynamicObject = "") As OcuTalon.Bridge.Msg.Request
 {
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
 	Set request.Kind = kind
 	Set request.Provenance = item.Provenance
-	Set request.Input = ##class(OcuTalon.Agent.Input).Render(item)
+	Set request.Input = ##class(OcuTalon.Agent.Input).Render(item, "", context)
 	Set request.ItemId = item.ItemId
 	Set request.Summary = ..SummaryOf(item)
 	Set request.OwnerRef = item.SessionRef

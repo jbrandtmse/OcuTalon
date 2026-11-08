@@ -10,7 +10,7 @@
 ///   - TestNoise: a decision the session can't see is 404 before anything is submitted; its own submits a MarkNoise with channel phone only for the exact body
 ///     {"channel":"phone"}; the owner's answers are mapped (marked and already_marked 200 with markedAt; too_old 409; not_found 404; not_built 501; the rest 500);
 ///   - TestTooOldText: the approved sentence of the 409, pinned by a copy held here;
-///   - TestNotes: today, yesterday and no day are 200 {"day","date","lines":[]} with the instance-zone date, and any other day is 404;
+///   - TestNotes: today, yesterday and no day are 200 {"day","date","lines":[]} for a session that has no records, with the instance-zone date, and any other day is 404;
 ///   - TestNoteLines: the note text is split on line feeds into non-empty strings, the builder gets the session and the local date, and a throw is 500 server_error;
 ///   - TestNoSessionIs500: with no CSP session every route is 500 server_error and nothing is submitted.
 Class OcuTalon.Test.Web.MemoryApi Extends %UnitTest.TestCase
@@ -172,7 +172,7 @@ Method TestTooOldText()
 	Do $$$AssertEquals(error.code_"|"_error.message, "too_old|"_..#TOOOLD, "the code and the sentence")
 }
 
-/// GET /v1/memory/notes: today, yesterday and no day are 200 {"day","date","lines":[]} (the note builder is a stub in this story), with the date of the day in
+/// GET /v1/memory/notes: today, yesterday and no day are 200 {"day","date","lines":[]} (the fixture session has no records, so the real builder answers no line), with the date of the day in
 /// the instance zone; any other day is 404 not_found.
 Method TestNotes()
 {

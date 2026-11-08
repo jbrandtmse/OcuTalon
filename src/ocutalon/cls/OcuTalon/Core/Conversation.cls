@@ -12,7 +12,9 @@
 ///     decide answer was (an error status and a wrong class included). The request carries the ids and one code-written
 ///     Summary, never the text of another turn. The decision landing stores the DecisionRef and publishes chat.message
 ///     (running); a turn request is fresh with a code-written recap (Recap) when the session's last replied turn was Tainted,
-///     and continues otherwise;
+///     and continues otherwise. The turn request of a session start also carries the context {"sessionStart": 1} for Agent.Input.Render
+///     (AD-21): a session start is the session's first turn of its local day in the instance zone, a turn that is fresh, and the turn after a
+///     reply with SessionRotated, which the Turn keeps (StartsSession). No other request carries a context: not the decide request, and not Intake's;
 ///   - the turn's answer: Busy waits BUSYWAIT seconds (a timer) and sends the request again, at most BUSYMAX times, and the next
 ///     Busy is the fallback rate_limited; SessionBroken sends the request once more as a new Decide call under a new ItemId
 ///     (RetryItemId), fresh with the recap, and a second SessionBroken is the fallback with the reply's reason (the broken
@@ -111,6 +113,9 @@ Parameter ERRORBUSY = "The turn queue of the session is busy: its lock wasn't fr
 Parameter ERRORSWEEP = "The sweep could not read the turns: ";
 
 Parameter LOGCHECKS = "Conversation added no check results: ";
+
+/// The start of the warning when StartsSession could not read what it needs; the reason follows it.
+Parameter LOGSTART = "Conversation could not read the session's turns, so the turn starts a session: ";
 
 Parameter LOGPOSITION = "Conversation could not work out where the Item is in the trace: ";
 
@@ -362,10 +367,10 @@ Method Join(turn As OcuTalon.Data.Turn) [ Private ]
 	Set ..%SuperSession = $Select($IsObject(session): session.TraceRef, 1: "")
 }
 
-/// The request to Decide for the turn (AD-6): rendered input and code-written fields only.
-Method Request(turn As OcuTalon.Data.Turn, kind As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
+/// The request to Decide for the turn (AD-6): rendered input and code-written fields only. context is the optional context of Agent.Input.Render.
+Method Request(turn As OcuTalon.Data.Turn, kind As %String, context As %DynamicObject = "") As OcuTalon.Bridge.Msg.Request [ Private ]
 {
-	Quit ##class(OcuTalon.Core.Intake).RequestFor(..ItemOf(turn), kind, ..%SuperSession, ..%SessionId)
+	Quit ##class(OcuTalon.Core.Intake).RequestFor(..ItemOf(turn), kind, ..%SuperSession, ..%SessionId, context)
 }
 
 /// The Item that the turn's row stands for, built for Agent.Input.Render.
@@ -410,12 +415,16 @@ Method Decided(answer As %RegisteredObject) As %Status [ Private ]
 /// Sends the turn request: fresh with the recap when the session's history was rejected (BrokenRetried) or its last replied
 /// turn was Tainted, otherwise continue. After a broken session the request is a new Decide call, so it carries RetryItemId of
 /// the turn's ItemId instead of the ItemId itself (AD-20: one decision per ItemId and Kind); a Busy answer that is asked again
-/// after the retry carries the same one. A send that fails ends the turn with the fallback unusable.
+/// after the retry carries the same one. A turn that starts a session (StartsSession) sends the context {"sessionStart": 1} with the request. A send that
+/// fails ends the turn with the fallback unusable.
 Method Ask(turn As OcuTalon.Data.Turn) As %Status [ Private ]
 {
-	Set request = ..Request(turn, "turn")
+	Set fresh = ..BrokenRetried || ..AfterTaint(turn.SessionRef)
+	Set context = ""
+	If ..StartsSession(turn, fresh) Set context = {"sessionStart": 1}
+	Set request = ..Request(turn, "turn", context)
 	Set request.SystemNote = ..ToolNote(turn)
-	If ..BrokenRetried || ..AfterTaint(turn.SessionRef) {
+	If fresh {
 		Set request.SessionMode = "fresh"
 		Set request.SeedText = ..Recap(turn.SessionRef, turn.Ref)
 		If ..BrokenRetried Set request.ItemId = ..RetryItemId(turn.ItemId)
@@ -429,6 +438,38 @@ Method Ask(turn As OcuTalon.Data.Turn) As %Status [ Private ]
 		Quit ..Replied("")
 	}
 	Quit $$$OK
+}
+
+/// 1 when the turn starts a session (AD-21), so that its turn request carries the context {"sessionStart": 1}: fresh (the turn request is fresh, whether
+/// because of a taint or a broken session), or the first turn of its local day in the instance zone (no earlier turn of the session that is not refused was
+/// created on the same local date as this turn's CreatedAt), or the session's last replied turn has SessionRotated. It reads only the Turn rows, and the
+/// answer is the same each time the turn is asked, a Busy resend included. A read that fails counts as a session start, with one warning, so that a failure
+/// adds a block of the code-written notes and never loses it.
+ClassMethod StartsSession(turn As OcuTalon.Data.Turn, fresh As %Boolean) As %Boolean
+{
+	If fresh Quit 1
+	Set turns = ##class(OcuTalon.Data.Ownership).Turns(turn.SessionRef, .sc)
+	Set date = $Piece(##class(OcuTalon.Data.Time).ToLocal(turn.CreatedAt), "T", 1)
+	If $$$ISERR(sc) || (date = "") {
+		$$$LOGWARNING(..#LOGSTART_$Select($$$ISERR(sc): $SYSTEM.Status.GetErrorText(sc), 1: "the turn has no readable time"))
+		Quit 1
+	}
+	Set first = 1
+	For i = 1:1:turns.Count() {
+		Set other = turns.GetAt(i)
+		If other.Ref = turn.Ref Quit
+		If (other.State '= "refused") && ($Piece(##class(OcuTalon.Data.Time).ToLocal(other.CreatedAt), "T", 1) = date) {
+			Set first = 0
+			Quit
+		}
+	}
+	If first Quit 1
+	Set last = ##class(OcuTalon.Data.Ownership).LastRepliedTurn(turn.SessionRef, .sc)
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGSTART_$SYSTEM.Status.GetErrorText(sc))
+		Quit 1
+	}
+	Quit $IsObject(last) && last.SessionRotated
 }
 
 /// 1 when the session's last replied turn was Tainted: the next turn then starts a fresh AI session (AD-10). A read that
@@ -450,6 +491,7 @@ Method Replied(answer As %RegisteredObject) As %Status [ Private ]
 	If '$IsObject(turn) Quit $$$OK
 	If $$$ISERR(error) || '$IsObject(answer) || 'answer.%IsA("OcuTalon.Bridge.Msg.Reply") Quit ..Conclude(turn, "", "unusable")
 	Set turn.Tainted = answer.Tainted
+	Set turn.SessionRotated = answer.SessionRotated
 	If answer.DecisionRef '= "" Set turn.TurnDecisionRef = answer.DecisionRef
 	If answer.Busy Quit ..Delay(turn)
 	If answer.SessionBroken Quit ..Rebuild(turn, answer)

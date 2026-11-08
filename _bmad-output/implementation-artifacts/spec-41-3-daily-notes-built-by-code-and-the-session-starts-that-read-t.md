@@ -2,9 +2,10 @@
 title: "Story 41.3: Daily notes built by code, and the session starts that read them"
 type: 'feature'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'e949be5c4c24ff85d42a091f2e00c7a98d36ed3d'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-41-context.md'
 warnings: [oversized]
@@ -171,6 +172,41 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full.
 
 ## Review Triage Log
 
+### 2026-11-08 - Review pass
+- verdicts: 31 findings - high 0, medium 6, low 23, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: StartsSession reads the whole turn history on every Ask - the spec's Design Notes say to reuse `Turns` as `AfterTaint` and `ToolNote` do; no measured cost, and a bounded query would be a new Rows kind for a rare cost.
+  - `[false]` `[reject]` Blind: Cut drops the newest entries first - the Matrix row says "whole lines from the earliest, then (more not shown)"; by design.
+  - `[low]` `[reject]` Blind: a reminder Text is not capped per line - the spec puts the reminder Text in the line whole; a line can never exceed MAXCHARS because Cut bounds the whole text.
+  - `[low]` `[reject]` Blind: per-row reads before the cut - small per-day volumes; fix is batching new reads.
+  - `[low]` `[reject]` Blind: the first-of-day test counts an earlier turn that never reached a model - the Matrix says "every earlier non-refused Turn"; spec-bound.
+  - `[low]` `[reject]` Blind: the LastRepliedTurn failure branch is untested - a failure of that read needs a seam in `Ownership`; the branch is four lines and mirrors the tested first branch.
+  - `[low]` `[reject]` Blind: no DST-day test - the window is built from FromLocal of two local midnights, as the Always list says; a zone-dependent fixture is not worth its cost.
+  - `[medium]` `[patch]` Blind: the e2e check for the decision is vacuous - patched: `memory.spec.ts` now asserts a `hh:mm decision: digest` line is listed.
+  - `[low]` `[patch]` Blind: the e2e seed can leak a saved Turn when the Decision fails - patched: `seedNote` removes what it saved before it throws. Crossing local midnight is not guarded (unlikely, not worth a branch).
+  - `[low]` `[patch]` Blind: the Turn comment says old rows read 0 - patched: "hold no value, which counts as false".
+  - `[false]` `[reject]` Blind: "1 failures" - the line forms are the approved public text (Spec Change Log); no other wording may be added.
+  - `[low]` `[reject]` Edge: first-of-day counts failed turns - same as row 5.
+  - `[low]` `[reject]` Edge: whole-history read - same as row 1.
+  - `[low]` `[reject]` Edge: a lost reply after a rotation never reaches the Turn - no data exists to keep; the spec's trigger is "the last replied Turn has SessionRotated".
+  - `[low]` `[patch]` Edge: Turn comment about old rows - same as row 10.
+  - `[low]` `[reject]` Edge: a decision with an empty Outcome gets no line - Decide always sets an Outcome; no machine value to show.
+  - `[low]` `[reject]` Edge: U+2028 and U+2029 survive Clean - no consumer splits on them (the route and the block split on line feed).
+  - `[low]` `[reject]` Edge: the class comment says Agent.Input renders the notes - the spec asks the comment to name its readers, Agent.Input from 41.4.
+  - `[low]` `[patch]` Edge: TestOtherTurnsUnchanged compares an Input with the clock to the minute - patched: the comparisons drop the preamble line.
+  - `[low]` `[reject]` Edge: the e2e seeded turn is the newest line and can be cut on a busy account - the README account holds few rows; a cut needs about 40 lines.
+  - `[low]` `[reject]` Edge: the e2e test across local midnight - same as row 9, not guarded.
+  - `[medium]` `[reject]` Gap: nothing observes the context reaching Render - by design: Design Notes say 41.4's `memory-*` scenarios pin the pass-through, because Render ignores the context until then and Agent/** is not this lane's.
+  - `[medium]` `[patch]` Gap: "a failed read throws" is not pinned for the real reads - patched: `DailyNoteProbe.Read` runs each of the five real reads with an empty window and `TestReadFailureThrows` asserts each throws the status text. Mutation: `Messages` without its `Check` -> that test red for "messages" only.
+  - `[low]` `[reject]` Gap: the LastRepliedTurn failure branch - same as row 6.
+  - `[medium]` `[patch]` Gap: Fill's "a value is never searched for slots" is not pinned - patched: `TestOneLinePerEntry` has a reminder whose Text is `Call {state} {time}`. Mutation: Fill rescans its output -> that test red.
+  - `[low]` `[patch]` Gap: clock-dependent Input comparison - same as row 19.
+  - `[medium]` `[patch]` Gap: the HTTP half has no positive decision assertion - same as row 8; the HTTP half runs under `live:sign-in` in CI.
+  - `[low]` `[reject]` Gap: no recorded mutation for the other two triggers of AC 5 - one mutation per AC is recorded (Rule 19).
+  - `[medium]` `[reject]` Intent: the context is observed at the Request seam only - same as row 22.
+  - `[low]` `[reject]` Intent: the LastRepliedTurn failure is not exercised - same as row 6.
+  - `[low]` `[reject]` Intent: "earlier" is positional (list order) - Turns lists by ID, which is creation order; a turn is never created before an earlier one's CreatedAt.
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -281,6 +317,18 @@ Run every command from the worktree root, one per call.
 - AC 6: the slot side is `NoteText` returning ""; the HTTP side runs in CI.
 - AC 7: drop the property from the contract.
 
+**Mutations run (Rule 19), each applied, seen red, and reverted byte-identical:**
+- AC 1: mutation: every entry kind gets the same rank in `DailyNote` (the kind-order tie-break dropped) -> `Test.Data.DailyNote:TestOrder` red.
+- AC 2: mutation: the Decision `Summary` appended to the decision line -> `Test.Data.DailyNote:TestNeverHolds` red (the code-held-values assertion and the `zzsender`, `zzsubject` and "Ignore your rules" assertions).
+- AC 3: mutation: `MAXCHARS` 2001 -> `Test.Data.DailyNote:TestCut` red (the closing line and the 2,000-character limit).
+- AC 4: mutation: the `AND CreatedAt < ?` bound of `noteTurns` dropped (replaced by `AND ? IS NOT NULL`, which keeps the bind count) -> `Test.Data.OwnershipNotes:TestWindows` red ("NoteTurns: from is in, to is out").
+- AC 5: mutation: `StartsSession` ignores `fresh` -> `Test.Core.ConversationSessionStart:TestFresh` and `:TestStartsSessionBoundaries` red; and, as the second mutation, `Ask` passes `""` as the context -> `TestFirstOfDay`, `TestAfterRotation` and `TestFresh` red.
+- AC 6: mutation: `DailyNote.Build` answers `""` at once (the slot half; the route's `NoteText` seam sits in `Web/Api.cls`, which this epic does not edit) -> twelve of the thirteen `Test.Data.DailyNote` tests red. The HTTP half, `memory.spec.ts` under `live:sign-in`, runs in CI.
+- AC 7: mutation: `Property SessionRotated` removed from `Data.Turn` -> `Test.Data.Tables:TestContracts` red ("property SessionRotated is missing").
+
+- Review patches: mutation: `Messages` without its `Check` -> `Test.Data.DailyNote:TestReadFailureThrows` red for "messages" only; mutation: `Fill` rescans its output (a value is searched for slots) -> `Test.Data.DailyNote:TestOneLinePerEntry` red. Both reverted byte-identical.
+- The HTTP half of AC 6 (`memory.spec.ts`, now with a positive decision line) runs in CI under `live:sign-in`; its red is not observable on the slot.
+
 **Shared surfaces:**
 - the `Turn` table contract and storage (`Test.Data.Tables`, `test-storage.sh`);
 - `Ownership`'s statement kinds;
@@ -292,5 +340,24 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: `DailyNote.Build` is real: it reads `Ownership.NoteTurns`, `NoteDecisions`, `NoteIncidents`, `NoteApprovals`, `NoteReminders` and `DecisionChannel` (new `Rows` kinds with a private `Window` guard for empty bounds), builds the eight approved line forms and the closing line from parameters, and throws on a failed read. `Intake.RequestFor` takes an optional `context` for `Render`; `Conversation` computes `fresh`, then `StartsSession(turn, fresh)`, and passes `{"sessionStart": 1}` on the `turn` request only; `Replied` keeps `SessionRotated` on the new `Data.Turn.SessionRotated` (appended, storage Value 23).
+
+Files changed:
+- `src/ocutalon/cls/OcuTalon/Data/DailyNote.cls`: the builder, its parameters and the cut.
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`: five note reads, `DecisionChannel`, `Window`, their statement kinds (insertions only).
+- `src/ocutalon/cls/OcuTalon/Data/Turn.cls`: `SessionRotated`.
+- `src/ocutalon/cls/OcuTalon/Core/Conversation.cls`, `Core/Intake.cls`: the context pass-through, `StartsSession`, `Ask`'s reorder, `Replied` keeping the flag.
+- `Test/Data/DailyNote.cls`, `DailyNoteProbe.cls`, `OwnershipNotes.cls`, `Test/Core/ConversationSessionStart.cls`, `ConversationStartProbe.cls`: the new tests.
+- `Test/Data/Tables.cls`, `Precedent.cls`, `Test/Web/MemoryApi.cls`, `Test/Core/DecideDouble.cls`: updated shared surfaces.
+- `web/e2e/api/memory.spec.ts`: Rule 3 evidence for the notes route with the real builder.
+
+Review: 31 findings; patches applied 9 rows in 6 entries (3 medium entries: e2e decision line, real-read failure pins, Fill slot pin; 3 low: Turn comment, Input clock, e2e seed leak); deferred 0; rejected 23 with the reasons in the Review Triage Log.
+
+Follow-up review recommended: true. Unverified risk: the new positive decision assertion in `memory.spec.ts` runs only in CI under `live:sign-in`, and the probe's `Read` uses a process-private flag with `##super`. Patched entries by verdict: medium 3, low 3.
+
+Verification performed (slot `ocutalon-slot-a`, build 154, OCUTALON): `Test.Data.DailyNote` 13/13, `OwnershipNotes` 6/6, `Test.Core.ConversationSessionStart` 7/7, `Test.Web.MemoryApi` 7/7, `Test.Data.Tables` 5/5 (and in the implement pass `Precedent`, `Ownership`, `OwnershipPrecedents`, `ConversationTurns`, `Intake`, `ExampleTriage`, `Contract.Ac`, `Web.Api` all green); `Test.Eval.In` 1 class passed on a fresh lane-A throwaway (its 7 slot failures were the slot lacking a running production and the `/opt/ocutalon/eval` mount); `test-class-rules.sh`, `test-storage.sh`, `test-ci-config.sh`, `test-boundaries.sh` pass; `cd web && npm run lint` exits 0. Left to CI: `live:sign-in`, the full `lane-b` shard, the fresh-environment check.
+
+Residual risks: the context reaching `Render` is pinned only by 41.4's `memory-*` scenarios; a failed `LastRepliedTurn` inside `StartsSession` is untested.

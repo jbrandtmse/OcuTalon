@@ -1,5 +1,5 @@
 /// Tests of the precedent table (Story 41.2; AD-3, AD-5, AD-21, AD-27): KeyFor, KeyForRequest, Similar, View, Has, DropSession, RemoveRun and Purge of
-/// OcuTalon.Data.Precedent, the DailyNote stub, and the three Core.Msg contracts of the story. Safe on a slot: no production is needed. Each test saves its
+/// OcuTalon.Data.Precedent, and the three Core.Msg contracts of the story. Safe on a slot: no production is needed. Each test saves its
 /// rows directly (the one writer, PrecedentOps, is tested in Test.Core.PrecedentOps) and removes them by Ref in OnAfterOneTest.
 ///   - TestKeyFor: the KeyFor rows of the matrix (mail, webhook, slack, heartbeat, check finding; "" for a user item, no object and an unknown channel);
 ///   - TestKeyForCheckFinding: a finding keys through the one production check of the item's session with that display name, else "";
@@ -9,7 +9,6 @@
 ///   - TestHasAndDropSession: Has, DropSession (not another session's rows, not eval rows) and RemoveRun;
 ///   - TestPurge: the 100-day row (a seeded one too) goes and the 10-day row stays; a bad day count is an error and deletes nothing; the Core area's Purge
 ///     deletes a row answered in 1900;
-///   - TestDailyNoteStub: Build answers "";
 ///   - TestMessageContracts: the contracts of RecordPrecedent, SeedPrecedent and RemoveSeededPrecedents.
 Class OcuTalon.Test.Data.Precedent Extends OcuTalon.Test.Contract
 {
@@ -225,13 +224,6 @@ Method TestPurge()
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Core).Purge(36500), "the Core area's Purge(36500) is OK")
 	Do $$$AssertEquals(..Exists(ancient)_..Exists(recent), "01", "it deletes the row answered in 1900 and keeps the recent one")
 	Do $$$AssertStatusNotOK(##class(OcuTalon.Install.Step.Core).Purge(0), "the Core area's Purge(0) is an error")
-}
-
-/// DailyNote.Build is the stub of Story 41.2: it answers "" for any session and day.
-Method TestDailyNoteStub()
-{
-	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build("zzsession", "2030-01-01"), "", "Build answers an empty note")
-	Do $$$AssertEquals(##class(OcuTalon.Data.DailyNote).Build("", ""), "", "also for empty arguments")
 }
 
 /// The three messages that PrecedentOps takes besides the verbs have exactly their contracts, and the class sets its global.

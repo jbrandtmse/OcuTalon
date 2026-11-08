@@ -46,6 +46,10 @@
 ///     first: Conversation's code-written note to the next turn reads it (AD-30). It is a Rows kind like the others.
 ///   - Precedents and Precedent (Story 41.2) are the session's own precedents (Data.Precedent), newest answer first, and one by its Ref; Rows kinds too. A row of
 ///     another session or of owner eval, and a row that has an EvalRunRef, answers like a missing one.
+///   - The daily note's reads (Story 41.3) are Rows kinds too, each owner-scoped and each in a window [from, to) of UTC times: NoteTurns (the session's turns that are not
+///     refused, by CreatedAt), NoteDecisions (its decide decisions, by RecordedAt), NoteIncidents (the incidents it sees, as Incidents does, by NoticedAt), NoteApprovals (the
+///     requests it sees, as Approvals does, placed by AnsweredAt, else RaisedAt) and NoteReminders (its reminders of every state, by DueAt). DecisionChannel is the Channel of a
+///     decision's own usage rows. A window with an empty bound gives an empty list and an error status in sc.
 Class OcuTalon.Data.Ownership
 {
 
@@ -681,6 +685,65 @@ ClassMethod Precedent(ref As %String, sessionRef As %String, Output sc As %Statu
 	Quit rows.GetAt(1)
 }
 
+/// The session's turns that are not refused and were created in the window [from, to) (UTC strings, as CreatedAt is), by CreatedAt and then ID. An empty bound gives an empty
+/// list and an error status in sc, and so does a failed read.
+ClassMethod NoteTurns(sessionRef As %String, from As %String, to As %String, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Window("noteTurns", sessionRef, $Get(from), $Get(to), .sc)
+}
+
+/// The session's own decide decisions recorded in the window [from, to), by RecordedAt and then ID; the bounds and sc are those of NoteTurns.
+ClassMethod NoteDecisions(sessionRef As %String, from As %String, to As %String, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Window("noteDecisions", sessionRef, $Get(from), $Get(to), .sc)
+}
+
+/// The incidents that the session sees (as Incidents does) and that were noticed in the window [from, to), by NoticedAt and then ID; the bounds and sc are those of NoteTurns.
+ClassMethod NoteIncidents(sessionRef As %String, from As %String, to As %String, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Window("noteIncidents", sessionRef, $Get(from), $Get(to), .sc, ..LocalFlag())
+}
+
+/// The approval requests that the session sees (as Approvals does, in any state) whose time is in the window [from, to), by that time and then ID. A request's time is its
+/// AnsweredAt when it has one, otherwise its RaisedAt. The bounds and sc are those of NoteTurns.
+ClassMethod NoteApprovals(sessionRef As %String, from As %String, to As %String, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Window("noteApprovals", sessionRef, $Get(from), $Get(to), .sc, ..LocalFlag())
+}
+
+/// The session's own reminders, in every state, that are due in the window [from, to), by DueAt and then ID; the bounds and sc are those of NoteTurns.
+ClassMethod NoteReminders(sessionRef As %String, from As %String, to As %String, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Window("noteReminders", sessionRef, $Get(from), $Get(to), .sc)
+}
+
+/// The Channel of the decision's own usage rows: the first that is not empty, by ID, or "" when there is none (a decision that no model call served has no usage row). decisionRef
+/// comes from a row read through this class, never from request input. sc is an error status when the read failed.
+ClassMethod DecisionChannel(decisionRef As %String, sessionRef As %String, Output sc As %Status) As %String
+{
+	Set sc = $SYSTEM.Status.OK()
+	If $Get(decisionRef) = "" Quit ""
+	Set rows = ..Rows("turnUsage", sessionRef, .sc, decisionRef, decisionRef)
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	For i = 1:1:rows.Count() {
+		Set channel = rows.GetAt(i).Channel
+		If channel '= "" Quit
+	}
+	Quit $Get(channel)
+}
+
+/// The rows of a note kind in the window [from, to): an empty bound gives an empty list and an error status in sc, as FinishedToolCalls does for an empty end; extra is the bound
+/// that the kind takes before the window (the local flag of the incident kinds), "" for none.
+ClassMethod Window(kind As %String, sessionRef As %String, from As %String, to As %String, Output sc As %Status, extra As %String = "") As %ListOfObjects [ Private ]
+{
+	If (from = "") || (to = "") {
+		Set sc = $SYSTEM.Status.Error(5001, "A read of the note needs both ends of its window")
+		Quit ##class(%ListOfObjects).%New()
+	}
+	If extra '= "" Quit ..Rows(kind, sessionRef, .sc, extra, from, to)
+	Quit ..Rows(kind, sessionRef, .sc, from, to)
+}
+
 /// The IncidentRef of the approval request whose Ref is exactly ref (case-sensitive) when its owner is instance, "" for
 /// every other request, an unknown Ref and an empty one. One fixed statement narrows the rows by the collated index and
 /// the Ref is then compared exactly. It reads across owners and has no session, so it is prepared with the privilege
@@ -1004,6 +1067,26 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "precedent" {
 		Set class = "OcuTalon.Data.Precedent", binds = "ao"
 		Quit "SELECT p.ID FROM OcuTalon_Data.Precedent p WHERE p.Ref = ? AND p.OwnerRef = ? AND p.EvalRunRef IS NULL"
+	}
+	If kind = "noteTurns" {
+		Set class = "OcuTalon.Data.Turn", binds = "oaa"
+		Quit "SELECT ID FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND State <> 'refused' AND CreatedAt >= ? AND CreatedAt < ? ORDER BY CreatedAt, ID"
+	}
+	If kind = "noteDecisions" {
+		Set class = "OcuTalon.Bridge.Data.Decision", binds = "oaa"
+		Quit "SELECT ID FROM OcuTalon_Bridge_Data.Decision WHERE OwnerRef = ? AND Kind = 'decide' AND RecordedAt >= ? AND RecordedAt < ? ORDER BY RecordedAt, ID"
+	}
+	If kind = "noteIncidents" {
+		Set class = "OcuTalon.Data.Incident", binds = "oaoaa"
+		Quit "SELECT i.ID FROM OcuTalon_Data.Incident i WHERE "_..#INCIDENTVISIBLE_" AND i.NoticedAt >= ? AND i.NoticedAt < ? ORDER BY i.NoticedAt, i.ID"
+	}
+	If kind = "noteApprovals" {
+		Set class = "OcuTalon.Bridge.Data.ApprovalRequest", binds = "oaoaa"
+		Quit "SELECT a.ID FROM OcuTalon_Bridge_Data.ApprovalRequest a WHERE "_..#APPROVALVISIBLE_" AND COALESCE(NULLIF(a.AnsweredAt, ''), a.RaisedAt) >= ? AND COALESCE(NULLIF(a.AnsweredAt, ''), a.RaisedAt) < ? ORDER BY COALESCE(NULLIF(a.AnsweredAt, ''), a.RaisedAt), a.ID"
+	}
+	If kind = "noteReminders" {
+		Set class = "OcuTalon.Data.Reminder", binds = "oaa"
+		Quit "SELECT ID FROM OcuTalon_Data.Reminder WHERE SessionRef = ? AND DueAt >= ? AND DueAt < ? ORDER BY DueAt, ID"
 	}
 	Quit ""
 }
