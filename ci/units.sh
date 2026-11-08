@@ -93,16 +93,31 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # shards-2 job was cancelled at its 40-minute timeout after 2,421 s, in the Memory area and before Tools (Fix 755, Bridge 665, Agent 282,
 # Eval 178, Memory 76 so far, Docs 67 and Digest 37 s of classes, READY 267 s); Tools took 27 s on ci run 42375447084. Bridge and Agent
 # are 947 s of that, so shards-2 is about 1,500 s and shards-5 about 1,250 s (inference until a run measures them).
+# Story 19.4 (2026-11-07) added live:documents: the real /v1/documents routes over HTTP, four chat turns, a container restart and the 10 MB size check.
+# Measured in ci run 42425571857 (a loaded queue): live:documents 315 s in shards-5. Story 32.5 puts live:sign-in-3 into shards-5, so live:documents runs in
+# shards-3, whose units no Epic 19 story changes (that run: shards-3 1,807 s, shards-2 1,803 s, image 1,840 s; clean shards-3 about 1,710 s on ci run 42384900368).
+# The Test.Docs classes run in shard:lane-a@rest.
+# Story 19.5 (2026-11-08; the orchestrator's ruling of 2026-11-08, item 6, carried out before the push) added live:session-data (the online demo's per-session
+# tables and sign-out, curl only, about 300 s in CI, inference from live:documents' 315 s with a restart; 155 s and 339 s on a lane-C throwaway) and the classes Test.Docs.{TurnTools,Sessions,
+# SessionTurns,SessionLive}, Test.Memory.Drop and Test.Bridge.TurnTools (7, 35, 18, 0, 18 and 10 s on a lane-C warm stack), with Test.Docs.{Store,Ops,Turns}
+# growing by about 25 s: about 100 s for the Docs and Memory areas and 10 s for Bridge. Measured inputs (green runs, group seconds): this branch at 881ac467 (ci run
+# 42445320545) shards-2 1,766 (READY 280; areas Fix 738, Docs 225, Memory 197, Eval 170, Tools 93, Digest 40), shards 1,763, shards-3 1,976, shards-4 about 1,940,
+# image about 1,790, shards-5 about 1,270 (Bridge and Agent only); the feature at 550bf9b8 (ci run 42425689094) shards-5 1,901 (Bridge and Agent 1,222 and Story
+# 32.5's live:sign-in-3 678), shards 1,868, image 1,895, shards-3 1,831, shards-4 1,917, browser 1,765. Projection with the larger figure of each group and the
+# feature's shards-5, which the integrate-forward brings: shards-2 would be 1,766 + 100 + 300 = 2,166 s, over the 2,100 s line, so the Eval area (170 s) moved out of
+# shard:lane-a@rest into the piece of shards (rest is computed from the pieces the groups name, so every area of lane-a stays in exactly one piece): shards-2 about
+# 1,996 s (Fix, Tools, Digest, Memory and Docs, and live:session-data) and shards about 2,038 s (1,868 + 170). shards-5 keeps about 1,911 s (1,901 + 10). No other
+# group changes, and none is added, renamed or given a longer deadline. The first measured CI run replaces these figures (inference until then).
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
     install-upgrade) echo "live:install-upgrade live:online-allowance live:online-visitors live:compose-start" ;;
     production) echo "live:production live:production-restart live:reminder-restart live:security-overview" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
-    shards) echo "shard:lane-a@Checks,Install,Watch live:online-session live:cards" ;;
-    shards-2) echo "shard:lane-a@rest" ;;
+    shards) echo "shard:lane-a@Checks,Install,Watch,Eval live:online-session live:cards" ;;
+    shards-2) echo "shard:lane-a@rest live:session-data" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
-    shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit" ;;
+    shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit live:documents" ;;
     shards-4) echo "shard:lane-a@Channel live:sign-in-2 live:memory-offline" ;;
     shards-5) echo "shard:lane-a@Bridge,Agent live:sign-in-3" ;;
     *) return 1 ;;
@@ -185,6 +200,8 @@ NOT_BOOKKEEPING_PATTERN='^_bmad-output/planning-artifacts/ux-designs/'
 IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|release/demo-load\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
 # The generated overview is read by live:security-overview, which compares it with a fresh generation (Story 14.1); this claim outranks docs/ in NOT_IRIS_INPUT_PATTERN.
 IRIS_INPUT="$IRIS_INPUT|docs/security-overview\.md\$"
+# live:documents reads the line of docs/bridge-guide.md that states the Filter(text, hostData) contract (Story 19.4), so a change of that guide runs the IRIS groups too.
+IRIS_INPUT="$IRIS_INPUT|docs/bridge-guide\.md\$"
 
 # The inputs of the built web bundle, which every stack installs; a unit that reads, compares or serves the bundle's files depends on them.
 WEB_BUNDLE_INPUT='web/|logo/|_bmad-output/planning-artifacts/ux-designs/'

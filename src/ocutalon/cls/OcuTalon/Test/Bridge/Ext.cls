@@ -1,12 +1,13 @@
 /// Tests of the bridge's extension points and of its per-call context (Story 0.6, matrix rows 2, 6 and 7). Nothing starts
 /// a production, and nothing is written to the audit log.
-///   - TestAccessorInAnotherJob: a job that did not start the production reads the three extension classes of Decide
+///   - TestAccessorInAnotherJob: a job that did not start the production reads the four extension classes of Decide (Story 19.5 added TurnToolsClass)
 ///     from the production definition, and gets "" with an error for a bad setting, item, production or class;
 ///   - TestValueFor: the accessor's general read of a host setting of the Decide item, and its errors (Story 1.4); since Story 1.9 also of a setting of
 ///     an item's adapter, such as the AgentClass of a runner, when the target is Adapter;
 ///   - TestExtensionBases: HostSink lists exactly its eight event types, accepts each, builds its three payloads with
 ///     exactly their keys, and BridgeSink adds nothing and publishes no live event; the reply filter passes
-///     text through, ReplyGuard removes a reserved sentence (Story 5.7; Test.Checks.Guard pins the rest) and Classification classifies nothing;
+///     text through, ReplyGuard removes a reserved sentence (Story 5.7; Test.Checks.Guard pins the rest), Classification classifies nothing and TurnTools
+///     (Story 19.5) gives no tool;
 ///   - TestWriteDefault (Story 1.7): WriteDefault creates the System Default Settings row of a setting (any class) with the value and the
 ///     description, changes the row when it exists, and ValueFor reads the value;
 ///   - TestContext: no context before Begin; Begin carries the request's fields and the SuperSession into Current and starts the taint, the host data, the
@@ -38,8 +39,8 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// Row 2: from another job, ClassFor gives the host sink, the reply filter and the classification class that the
-/// definition names (the last through the initial value of its setting), and gives "" with an error status for the
+/// Row 2: from another job, ClassFor gives the host sink, the reply filter, the classification class and the turn tools class that the
+/// definition names (the third through the initial value of its setting), and gives "" with an error status for the
 /// setting ZzClass, the item Zz<n>, the production Zz<n>.Production, and, for Check, a class that does not extend its
 /// base, an empty class and a class that does not exist.
 Method TestAccessorInAnotherJob()
@@ -53,6 +54,7 @@ Method TestAccessorInAnotherJob()
 	Do $$$AssertEquals($Get(@run@("HostSinkClass")), "OcuTalon.Core.BridgeSink|1", "HostSinkClass is OcuTalon.Core.BridgeSink")
 	Do $$$AssertEquals($Get(@run@("ReplyFilterClass")), "OcuTalon.Checks.ReplyGuard|1", "ReplyFilterClass is OcuTalon.Checks.ReplyGuard")
 	Do $$$AssertEquals($Get(@run@("ClassificationClass")), "OcuTalon.Bridge.Ext.Classification|1", "ClassificationClass is OcuTalon.Bridge.Ext.Classification")
+	Do $$$AssertEquals($Get(@run@("TurnToolsClass")), "OcuTalon.Docs.TurnTools|1", "TurnToolsClass is OcuTalon.Docs.TurnTools")
 	For case = "setting", "item", "production", "check", "checkEmpty", "checkMissing" {
 		Do $$$AssertEquals($Get(@run@(case)), "|0", "the "_case_" case gives an empty class and an error status")
 	}
@@ -146,7 +148,7 @@ ClassMethod AccessorProbe(number As %Integer, production As %String)
 	Set run = $Name(^OcuTalonTest("BridgeExt", number))
 	Try {
 		Set @run@("namespace") = $Namespace
-		For setting = "HostSinkClass", "ReplyFilterClass", "ClassificationClass" {
+		For setting = "HostSinkClass", "ReplyFilterClass", "ClassificationClass", "TurnToolsClass" {
 			Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor(setting, production, , .sc)
 			Set @run@(setting) = class_"|"_$SYSTEM.Status.IsOK(sc)
 		}
@@ -173,7 +175,7 @@ ClassMethod AccessorProbe(number As %Integer, production As %String)
 
 /// Row 6: HostSink accepts each of its eight event types and lists exactly those in EVENTS, builds the three payloads
 /// with exactly their keys, and BridgeSink extends it, does nothing and writes no live event; the reply filter and
-/// ReplyGuard removes a reserved sentence (Story 5.7), and Classify returns "".
+/// ReplyGuard removes a reserved sentence (Story 5.7), Classify returns "" and TurnTools gives no tool.
 Method TestExtensionBases()
 {
 	Set expected = $ListBuild("turn.step", "decision.recorded", "approval.raised", "approval.answered", "approval.expired", "approval.cancelled", "approval.result", "budget.capped")
@@ -203,6 +205,8 @@ Method TestExtensionBases()
 	Do $$$AssertTrue($ClassMethod("OcuTalon.Checks.ReplyGuard", "%Extends", "OcuTalon.Bridge.Ext.ReplyFilter"), "ReplyGuard extends ReplyFilter")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Classification).Classify("OcuTalon.Tools.WatchReads", "read_event_log"), "", "Classify returns an empty string")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Classification).Classify("mcp:docs", "read_event_log", {"a": 1}), "", "also for an MCP source and with arguments")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Ext.TurnTools).Tools("zzowner", "turn", .tools), "TurnTools answers OK")
+	Do $$$AssertEquals(tools.Count(), 0, "and gives no tool (Story 19.5)")
 }
 
 /// Row 7: with no context, Active is 0 and Current is empty. After Begin, Active is 1 and Current carries the request's

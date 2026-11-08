@@ -24,11 +24,11 @@
 ///     read_item_settings for Diagnosis), and Diagnosis's second
 ///     request carries the result of its tool as the JSON object {"items":[]}, not as a JSON string;
 ///   - TestToolInventory: the live ToolManager of each runner, the retry runners included (INVENTORYRUNNERS), holds the tools of its agent (none for Triage, the three reminder tools and the four watching tools for Chat and the three
-///     read-only watch tools for Diagnosis) and no AI Hub shell, filesystem, SQL or web-search tool, and every tool is an OcuTalon tool of source iris whose
+///     read-only watch tools for Diagnosis; not the documents tool, which reaches a turn through TurnToolsClass since Story 19.5) and no AI Hub shell, filesystem, SQL or web-search tool, and every tool is an OcuTalon tool of source iris whose
 ///     code is clean (Test.Bridge.CodeRules.ToolCodeClean) and whose provider is the class that implements it;
 ///   - TestForeignMessage: a message of a class the runner does not handle gets "not implemented" and no response, and the runner
 ///     keeps its job;
-///   - TestPoolIsTheCap: each runner has as many alive jobs as its pool size;
+///   - TestPoolIsTheCap: each runner has as many alive jobs as its pool size; it pins 2 for DiagnosisAgent (Story 5.14) and 1 for the other five runners;
 ///   - TestKeysAreRead: RunnerFixture.KeysAre tells the entries of the Provider step from the entries that PointKeys changed, which is
 ///     what lets TestStartsWithNoKey start from the entries of the Provider step whatever ran before it; and (QA, Story 1.6) Keys.Status
 ///     of each runner is 0 with the entries at the placeholder of an unset variable and 1 once PointKeys names the variable that is
@@ -73,8 +73,8 @@ Parameter MODEL = "claude-haiku-5-5";
 /// The tools of the Diagnosis agent, sorted: the three read-only watch tools (AD-7).
 Parameter WATCHTOOLS = "read_event_log,read_failed_messages,read_item_settings";
 
-/// The tools of the Chat agent, sorted: the three reminder tools and, since Story 5.1, the watching tools (AD-7, AD-18), and since Stories 5.9, 5.7 and 5.13 dismiss_incident, check_status and recent_activity among them, since Story 40.5 propose_persona, since Story 17.6 send_digest and since Story 19.3 the four memory tools.
-Parameter REMINDERTOOLS = "cancel_reminder,check_status,dismiss_incident,forget_memory,list_memories,list_productions,list_reminders,propose_persona,recent_activity,save_memory,search_memories,send_digest,set_reminder,start_watch,stop_watch";
+/// The tools that a local turn of the Chat agent offers, sorted: the three reminder tools and, since Story 5.1, the watching tools (AD-7, AD-18), and since Stories 5.9, 5.7 and 5.13 dismiss_incident, check_status and recent_activity among them, since Story 40.5 propose_persona, since Story 17.6 send_digest and since Story 19.3 the four memory tools and since Story 19.4 documents (AI Hub's knowledge base, which a local turn is offered through TurnToolsClass since Story 19.5; it is no tool of the agent's own tool manager).
+Parameter REMINDERTOOLS = "cancel_reminder,check_status,dismiss_incident,documents,forget_memory,list_memories,list_productions,list_reminders,propose_persona,recent_activity,save_memory,search_memories,send_digest,set_reminder,start_watch,stop_watch";
 
 /// The longest to wait for a refusal to show in the event log and in the jobs, in seconds. A ceiling, not a delay (the wait polls
 /// once a second), and as long as RunnerFixture's wait for the items to run.
@@ -168,7 +168,7 @@ Method TestStartsWithNoKey()
 	Set position = 0
 	While $ListNext(runners, position, item) {
 		Set before = ##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(item)
-		Do $$$AssertEquals($ListLength(before), 1, item_" has one job")
+		Do $$$AssertEquals($ListLength(before), ..PoolOf(item), item_" has the jobs of its pool")
 		For attempt = 1, 2 {
 			Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).Ask(item, "decide", "user", "Triage this item.", .reply, .requests)
 			Do $$$AssertStatusNotOK(sc, item_" answers request "_attempt_" with an error status")
@@ -247,7 +247,7 @@ Method TestStartRefused()
 	Set position = 0
 	While $ListNext(others, position, other) {
 		Set jobs = ##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(other)
-		Do $$$AssertEquals($ListLength(jobs), 1, other_" has its one job before the change")
+		Do $$$AssertEquals($ListLength(jobs), ..PoolOf(other), other_" has the jobs of its pool before the change")
 		Set otherJobs = otherJobs _ $ListBuild(jobs)
 	}
 	Try {
@@ -397,21 +397,33 @@ Method TestForeignMessage()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(item), before, item_" keeps its job")
 }
 
-/// Each runner has as many alive jobs as its pool size: the pool size is the concurrency cap of the runner (AD-6).
+/// The pool size of each runner, as item:size (Story 5.14, DW-879): DiagnosisAgent runs two jobs, so that two diagnoses chat at once, and every other
+/// runner one.
+Parameter POOLS = "TriageAgent:1,DiagnosisAgent:2,ChatAgent:1,TriageAgentRetry:1,DiagnosisAgentRetry:1,ChatAgentRetry:1";
+
+/// Each runner has the pool size that POOLS names and as many alive jobs as its pool size: the pool size is the concurrency cap of the runner (AD-6).
 Method TestPoolIsTheCap()
 {
 	If '..Ready() Quit
-	Set runners = $ListFromString(..#RUNNERS)
+	Set pools = $ListFromString(..#POOLS)
 	Set position = 0
-	While $ListNext(runners, position, item) {
-		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT PoolSize FROM Ens_Config.Item WHERE Production = ? AND Name = ?", ..#PRODUCTION, item)
-		Set found = result.%Next()
-		Do $$$AssertTrue(found, item_" is an item of the production")
-		If 'found Continue
-		Set pool = result.%GetData(1)
-		Do $$$AssertEquals(pool, 1, item_" has a pool size of 1")
+	While $ListNext(pools, position, entry) {
+		Set item = $Piece(entry, ":", 1)
+		Set expected = $Piece(entry, ":", 2)
+		Set pool = ..PoolOf(item)
+		Do $$$AssertTrue(pool > 0, item_" is an item of the production")
+		If pool = 0 Continue
+		Do $$$AssertEquals(pool, expected, item_" has a pool size of "_expected)
 		Do $$$AssertEquals($ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(item)), pool, item_" has as many alive jobs as its pool size")
 	}
+}
+
+/// The pool size of the runner item in the production (Ens_Config.Item), which is the number of jobs it runs; 0 for an item that is not there.
+ClassMethod PoolOf(item As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT PoolSize FROM Ens_Config.Item WHERE Production = ? AND Name = ?", ..#PRODUCTION, item)
+	If 'result.%Next() Quit 0
+	Quit +result.%GetData(1)
 }
 
 /// RunnerFixture.KeysAre reads the api_key placeholder of each runner's Config Store entry: true for the placeholder of the Provider
@@ -520,7 +532,9 @@ Method Point(runners As %String = "") As %Boolean [ Private ]
 Method AssertRequests(requests As %DynamicArray, effort As %String, agentClass As %String, literal As %String, label As %String, marked As %Boolean, systemMarked As %Boolean = 0) [ Private ]
 {
 	Set expected = ..OfferedTools(agentClass)
-	Do $$$AssertEquals(expected, literal, label_": the toolsets of "_agentClass_" give today's list of tools: '"_literal_"'")
+	// A local Chat turn also offers AI Hub's knowledge-base tool documents, which no toolset discovers and no agent's own tool manager holds: it reaches the turn through TurnToolsClass (Story 19.5).
+	If agentClass = "OcuTalon.Agent.Chat" Set expected = $ListToString(..Sorted($ListFromString(expected) _ $ListBuild(##class(OcuTalon.Tools.Names).#DOCUMENTS)))
+	Do $$$AssertEquals(expected, literal, label_": the toolsets of "_agentClass_" and the knowledge base give today's list of tools: '"_literal_"'")
 	Set iterator = requests.%GetIterator()
 	While iterator.%GetNext(.position, .logged) {
 		Set here = label_" request "_(position + 1)
@@ -541,10 +555,15 @@ Method AssertRequests(requests As %DynamicArray, effort As %String, agentClass A
 		} Else {
 			Do $$$AssertEquals(logged.request.tools.%Size(), 0, here_" offers no tool, so no block of it is marked")
 		}
+		// No sampling parameter (AD-6, AD-7): temperature and top_p nowhere in the request; top_k nowhere outside the tools, because the knowledge-base tool's input
+		// schema declares a top_k argument (Story 19.4), which the gate clamps (AD-10), and which is not a sampling parameter of the request.
 		Set json = logged.request.%ToJSON()
-		For key = "temperature", "top_p", "top_k" {
+		For key = "temperature", "top_p" {
 			Do $$$AssertTrue(json '[ ("""" _ key _ """"), here_" holds no "_key)
 		}
+		Set untooled = {}.%FromJSON(json)
+		Do untooled.%Remove("tools")
+		Do $$$AssertTrue(untooled.%ToJSON() '[ """top_k""", here_" holds no top_k outside its tools")
 	}
 }
 
@@ -604,18 +623,18 @@ Method AssertOthersKeep(others As %List, jobs As %List) [ Private ]
 	}
 }
 
-/// Asserts that the other runners run, each with exactly one alive job. A row for every item (the allow-list) changes the settings of
+/// Asserts that the other runners run, each with exactly the alive jobs of its pool (PoolOf). A row for every item (the allow-list) changes the settings of
 /// every runner, so the production update that follows a restart gives the other runners new jobs: they run again, but not as the
-/// jobs they had. Each runner is given up to WAITSECONDS to get its job.
+/// jobs they had. Each runner is given up to WAITSECONDS to get its jobs.
 Method AssertOthersRun(others As %List) [ Private ]
 {
 	Set deadline = $ZHorolog + ..#WAITSECONDS
 	Set position = 0
 	While $ListNext(others, position, other) {
-		While ($ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(other)) '= 1) && ($ZHorolog < deadline) {
+		While ($ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(other)) '= ..PoolOf(other)) && ($ZHorolog < deadline) {
 			Hang 1
 		}
-		Do $$$AssertEquals($ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(other)), 1, other_" runs with its one job")
+		Do $$$AssertEquals($ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(other)), ..PoolOf(other), other_" runs with the jobs of its pool")
 	}
 }
 

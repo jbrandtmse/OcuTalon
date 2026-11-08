@@ -4,7 +4,7 @@
 /// production and send no message; where eval/ is not mounted (a dev slot) they fail with the reason.
 ///   - TestRecordedCases: every case of eval/ (a subfolder that holds a case.json) is named for its folder; every case of a kind that holds a
 ///     recorded Item (item or injection) is sent by EvalIn as the Item that the record says, so a run over the whole folder skips no
-///     such case; a case of a turn kind (all-clear, command or user-turn) is sent as a user turn of owner eval (a fresh turn request, or for a user-turn case the decide request of a user's chat turn) whose Input holds its turn.text and whose
+///     such case; a case of a turn kind (all-clear, command, user-turn or documents) is sent as a user turn of owner eval (a fresh turn request, or for a user-turn case the decide request of a user's chat turn) whose Input holds its turn.text and whose
 ///     recorded checks are its checks as JSON (or none, for a command case), and every all-clear case's checks are what Checks.Render turns into
 ///     the key it expects, so an all-clear case added later cannot expect a key that no model could get; a case of kind incident (Story 9.6) is sent as an
 ///     IncidentCase whose snapshot is of the format ocutalon.readerSnapshot/1 and holds at least one failure, with a fresh IncidentRef, its folder name as
@@ -13,7 +13,7 @@
 ///     expects, the three situations are all there (failing with a fix waiting, every check passing, nothing watched), each asks "Is everything
 ///     fine?", the command case records the key phrases of the UX sentence, and every turn case is plain ASCII, not held out, has no item, and
 ///     holds the fields of its kind and nothing else;
-///   - TestUserTurnCases (Story 30.5, DW-500): exactly four user-turn cases, one for each "Try it yourself" chip, and one remember case (Story 30.9, DW-890), each with the chip's exact text, the key
+///   - TestUserTurnCases (Story 30.5, DW-500): exactly four user-turn cases, one for each "Try it yourself" chip, one remember case (Story 30.9, DW-890) and one forget case (Story 9.11, DW-902), each with the chip's exact text, the key
 ///     phrase "user" and the absent phrases of a reason that describes production state or tool limits, and the fields of its kind and nothing else;
 ///   - (QA) TestCommandPhrasesAreSentence (Story 9.7): each key phrase of the command case (one of its alternatives) is part of the catalog sentence
 ///     agent.noCommands, which the INSTRUCTIONS of the Chat agent hold (Test.Agent.Instructions), so the case cannot expect words that the product never says;
@@ -120,7 +120,7 @@ Method TestRecordedCases()
 	If '$IsObject(service) Quit
 	Set service.RunRef = ..Run
 	Set before = ..Evals()
-	Set position = 0, sendable = 0, turns = 0, watched = 0, incidents = 0, digests = 0
+	Set position = 0, sendable = 0, turns = 0, watched = 0, incidents = 0, digests = 0, documentsSeen = 0
 	While $ListNext(names, position, name) {
 		Set case = ##class(%DynamicAbstractObject).%FromJSONFile(##class(%File).NormalizeFilename("case.json", ##class(%File).SubDirectoryName(folder, name)))
 		Do $$$AssertEquals(case.name, name, name_": the case's name is its folder's")
@@ -140,7 +140,7 @@ Method TestRecordedCases()
 				Set watched = watched + 1
 				Do $$$AssertEquals($List(seen, 13), before + watched, name_": its eval watch row, and only the rows of the cases before it, existed when its Item was dispatched")
 			}
-		} ElseIf $ListFind($ListBuild("all-clear", "command", "user-turn"), case.kind) {
+		} ElseIf $ListFind($ListBuild("all-clear", "command", "user-turn", "documents"), case.kind) {
 			Set turns = turns + 1
 			Do $$$AssertEquals(output.StringValue, "", name_": a case of kind "_case.kind_" is sent")
 			Set asked = $Get(^OcuTalonTest("EvalIn", "asked", turns))
@@ -150,6 +150,18 @@ Method TestRecordedCases()
 			Do $$$AssertEquals($List(asked, 14), $Select($IsObject(case.%Get("checks")): case.checks.%ToJSON(), 1: ""), name_": the checks recorded for the turn are the case's checks as JSON, or none")
 			Do $$$AssertEquals($List(asked, 13)_"|"_$List(asked, 15), "1|1", name_": its TurnResult and its row exist when Decide is asked")
 			If case.kind = "all-clear" Do $$$AssertEquals(##class(OcuTalon.Checks.Render).Render(case.checks, .rows), case.expectation.%Get("catalogKey"), name_": Checks.Render turns its checks into the key it expects")
+			If case.kind = "documents" {
+				Set documentsSeen = documentsSeen + 1
+				Set added = $Get(^OcuTalonTest("EvalIn", "documents", documentsSeen))
+				Set docNames = "", docFiles = ""
+				Set again = case.documents.%GetIterator()
+				While again.%GetNext(, .one) {
+					Set docNames = docNames _ $Select(docNames '= "": ",", 1: "") _ one.name
+					Set docFiles = docFiles _ $Select(docFiles '= "": ",", 1: "") _ one.file
+				}
+				Do $$$AssertEquals($List(added, 1)_"|"_$List(added, 2), docNames_"|"_docFiles, name_": its documents were set up before its turn, with the names and files of the case")
+				Do $$$AssertTrue($IsObject(case.expectation.%Get("citations")) || (case.expectation.%Get("citations") = "none"), name_": it expects citations or none")
+			}
 		} ElseIf case.kind = "incident" {
 			Set incidents = incidents + 1
 			Do $$$AssertEquals(output.StringValue, "", name_": a case of kind incident is sent, not skipped")
@@ -181,7 +193,8 @@ Method TestRecordedCases()
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "asked")), turns, "and the double was asked for exactly those turns")
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "delivered")), turns, "and each was delivered")
 	Do $$$AssertTrue(watched >= 1, "at least one injection case declares a watch: "_watched)
-	Do $$$AssertEquals($Select($IsObject(service.Watches): service.Watches.%Size(), 1: 0), watched, "and the service holds a setup record for each of them")
+	Do $$$AssertEquals($Select($IsObject(service.Watches): service.Watches.%Size(), 1: 0), watched + documentsSeen, "and the service holds a setup record for each of them and for each documents case")
+	Do $$$AssertTrue(documentsSeen >= 2, "eval/ holds at least two documents cases (the runbook question and the question no document covers): "_documentsSeen)
 	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish(service.Watches), "Finish removes their watch rows")
 	Do $$$AssertEquals(..Evals(..Begun), 0, "and no eval watch row created by the test is left")
 }
@@ -231,9 +244,9 @@ Method TestTurnCases()
 	Do $$$AssertTrue(command.%GetTypeOf("checks") = "unassigned", "and it records no checks")
 }
 
-/// The user-turn cases of the set (Story 30.5, DW-500): exactly one for each of the four "Try it yourself" chips, with the chip's exact text,
+/// The user-turn cases of the set (Story 30.5, DW-500): exactly one for each of the four "Try it yourself" chips, one remember case (Story 30.9, DW-890) and one forget case (Story 9.11, DW-902), with the chip's exact text,
 /// kind user-turn, not held out, the key phrase "user" and a list of absent phrases (the words of a reason that describes production state, tool
-/// limits or an all-clear), and the fields of its kind and nothing else, and one remember case (Story 30.9, DW-890).
+/// limits or an all-clear), and the fields of its kind and nothing else.
 Method TestUserTurnCases()
 {
 	Set folder = ..Folder()
@@ -245,7 +258,7 @@ Method TestUserTurnCases()
 		Set case = ..Read(folder, name)
 		If $IsObject(case) && (case.kind = "user-turn") Set count = count + 1
 	}
-	Do $$$AssertEquals(count, 5, "eval/ holds exactly five user-turn cases")
+	Do $$$AssertEquals(count, 6, "eval/ holds exactly six user-turn cases")
 	Set wanted = $ListBuild($ListBuild("user-turn-productions", "Which productions are running?"), $ListBuild("user-turn-anything-wrong", "Is anything wrong right now?"), $ListBuild("user-turn-failure-earlier", "What was that failure earlier?"), $ListBuild("user-turn-what-can-you-do", "What can you do?"))
 	Set position = 0
 	While $ListNext(wanted, position, entry) {

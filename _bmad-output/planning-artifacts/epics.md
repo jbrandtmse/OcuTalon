@@ -473,7 +473,7 @@ From the architecture spine (`ARCHITECTURE-SPINE.md`, final, updated 2026-10-17)
 - UX-DR141 [S2] Settings (admins): Via header navigation; sections Models, Budgets, Channels, Daily digest, Time zone, Check thresholds, Demo mode, Tools and MCP servers (S4), Roles (S6). Each saves separately (**Save changes**), warning on unsaved exit; texts are as in the source (keys: saved, save failed, no key set, Test result, permission denied). A provider without a key can't be chosen, keys never show (NFR-11), and non-admins get no link. (Supports: FR-16, FR-17, FR-39, FR-40, NFR-11; Source: E › Later Steps › Step 2)
 - UX-DR142 [S2] Digest and digest card: One message, parts in PRD order: prose in Telegram and on the phone; D `digest-card` in the web chat, its "What I checked ({n})" disclosure expanded if anything failed or wasn't checked. Code-computed all-clear (UX-DR120); Telegram lines start "Passed:", "Failed:" or "Not checked:"; time-of-day greeting; two-decimal cost. "Send my digest now" works in chat and Settings. (Supports: FR-35, FR-36, FR-37, UJ-2; Source: E › Later Steps › Step 2)
 - UX-DR143 [S2] Got it: **Got it** on the web notice card, the phone notification, and inline on Telegram tell-now messages marks the notice handled; the answered line reads "Marked as handled at {time}". (Supports: FR-35; Source: E › Later Steps › Step 2)
-- UX-DR144 [S3] Memory, documents, citations: Memory answers show a "From memory" chip (popover: text, date); forgetting confirms "Forgotten." Documents: **Add documents** (picker or drag-and-drop; Markdown, plain text; PDF, Word from S6); rows show name, date, size, status; removal is confirmed. Answers end with D `citation-chip` chips (popover: passage ≤ 6 lines, document, section, "Open document"); texts per the source; online-demo data per session (PRD change 9, adopted through P23). (Supports: FR-15, FR-41, FR-42; Source: E › Later Steps › Step 3)
+- UX-DR144 [S3] Memory, documents, citations: Memory answers show a "From memory" chip (popover: text, date); forgetting confirms "Forgotten." Documents: **Add documents** (picker or drag-and-drop; Markdown, plain text, PDF and Word (.docx) files); rows show name, date, size, status; removal is confirmed. Answers end with D `citation-chip` chips (popover: passage ≤ 6 lines, document, section, "Open document"); texts per the source; online-demo data per session (PRD change 9, adopted through P23). (Supports: FR-15, FR-41, FR-42; Source: E › Later Steps › Step 3)
 - UX-DR145 [S4] MCP servers, tool classes: Settings › Tools and MCP servers: server list, **Add server** (tools arrive Unclassified), confirmed **Remove** (names tools and cancelled requests), tools table filterable to "Unclassified only". Per tool a `role="radiogroup"`: Unclassified (risky), Read-only, Risky (D `classification-*`), saved at once ("Saved"), audited (FR-48); changed tools revert to Unclassified with a notice; read-only tools can be digest source polls (FR-50). Tool-call requests: "Run {tool} on {server}" plus exact inputs, or the no-dry-run sentence (FR-8). (Supports: FR-8, FR-47 to FR-50; Source: E › Later Steps › Step 4)
 - UX-DR146 [S5] More fixes: Reroute, suspend and resume, and roll back each use the approval card with their own dry run (FR-26); a partner warning shows exact text and recipients (FR-29); a setting-change cause adds "The feed broke four minutes after this setting changed." (FR-27). (Supports: FR-26, FR-27, FR-29; Source: E › Later Steps › Step 5)
 - UX-DR147 [S6] Usage, history, files, roles: Usage: range, grouping, D `usage-chart` plus table, daily largest request vs the 100,000-token limit. History: Decisions and Incidents tabs, rows ≥ 40px, filters in the address, no infinite scroll. Files and photos: paperclip or drag-and-drop (Telegram too), 10 MB limit, **Add to documents**, "Saved to memory" chip; roles approver and viewer (read-only, no composer). Texts per the source (keys: usage empty, history empty, too large, unreadable, approver only). (Supports: FR-11, FR-52, FR-53, FR-54; Source: E › Later Steps › Step 6)
@@ -3258,6 +3258,40 @@ So that it tells me what failed, what I approved and how the fix went.
 **Then** CI is green on every workflow, the evaluation set on the mock passes, and the story touches only the new tool class, the Watching toolset's tool list, the gate's tool classification entry, and their tests and mock scenarios
 - Optional, if it costs nothing extra: reminders fired today (trusted), in the same tool's output.
 
+### Story 5.14: Several incidents at once are each diagnosed inside their timer
+
+[ADDED 2026-11-08 for Sunday's 1.0.4, DW-879, fix-forward, Planner-approved: the Contest Planner's ruling under the owner's delegation (`planner_ruling dw=DW-879 option=B+skip_abandoned`, 2026-11-07T18:33:58Z; placement `planner_ruling subject=DW-879,DW-878_placement`, 2026-11-08). Epic 5 is re-opened for it under SC-5. Decide starts a diagnosis's timer when it sends the request (`Decide.cls` SetTimer at send), and `DiagnosisAgent` runs one job (PoolSize 1), so when several incidents arrive together (for example, several online-demo visitors breaking the feed at once) the later ones spend their timer queued behind the first and can time out before the model is ever asked: their timeout rows carry no Usage and an empty model. The Planner chose option B plus skip-abandoned: a second DiagnosisAgent job, and a runner that skips a request Decide has already concluded. Option A (starting the timer when the runner starts, an AD-8 amendment) was not chosen.]
+
+As a user whose production fails in several places at once, or one of several online-demo visitors who break the feed together,
+I want each incident diagnosed inside its own timer,
+So that an incident never falls back to a timeout only because another diagnosis was ahead of it.
+
+**Acceptance Criteria:**
+
+**Given** the production class `OcuTalon.Production`
+**When** this story merges
+**Then** the `DiagnosisAgent` item has PoolSize 2, and `IncidentManager`, `Decide`, `DiagnosisAgentRetry` and every other item keep their pool sizes; each runner's pool size is still its concurrency cap (AD-6)
+**And** the pins that hold DiagnosisAgent's pool size read 2 (`OcuTalon.Test.Agent.Runners`, its pool and alive-jobs check, and the DiagnosisAgent row of `OcuTalon.Test.Install.Production`'s oracle), the other runners' pins still read 1, and any other test the change trips is updated and named in the spec
+
+**Given** a request that reaches an agent runner after Decide has already concluded its decision, so that the request's `DecisionRef` already has a `OcuTalon.Bridge.Data.Decision` row (for example, its timer fired while it waited in the runner's queue)
+**When** the runner takes it
+**Then** the runner skips it: no model request, no tool call and no Usage row; it writes one log line that names the runner item and the DecisionRef and holds no key, message body or model text; and Decide records no new decision for it (the RetryIsLate pattern of Story 17.2's late-retry fix, DW-725: `Data.Decision` `RefIndexExists`)
+**And** a request whose DecisionRef has no row yet (a live one) runs exactly as before, and a request the bridge sends on purpose after a decision is recorded (for example, the replay of an approved tool call) is never skipped; the spec names which request kinds the skip covers
+**And** a test shows a stale request skipped and a live one not
+
+**Given** two incidents whose diagnoses Decide sends at nearly the same time, on the CI model mock with a reply delay
+**When** both run
+**Then** they run at the same time on DiagnosisAgent's two jobs, and the second diagnosis is answered well inside its timer; the spec's `## Verification` records the measured send and answer times of both and the timer (NFR-7, AD-6, AD-8)
+
+**Given** the change
+**When** this story merges
+**Then** `TimerSeconds` and every timeout are unchanged, the timer still starts when Decide sends (AD-8), and no RetryItem is wired (out of scope)
+**And** CI is green on every workflow on the CI mock only (no real model key), the evaluation set on the mock passes, and the change touches only `Production.cls`'s DiagnosisAgent item, the agent runner and its adapter (`OcuTalon.Bridge.Operation.AgentRunner`, `OcuTalon.Bridge.Adapter.Agent`), their tests, the pool-size pins and new mock scenarios (new files only)
+**And** user-facing text is at most one release-note line; any new or changed user-facing string goes to the Contest Planner before it is committed
+- DW-879: Product: the diagnosis timer counts time spent queued at DiagnosisAgent (PoolSize 1), so several simultaneous incidents can time out before the model is asked (ledger; routed by charter 2026-11-08)
+
+Not in this story: pacing the evaluation's incident cases (DW-878, Epic 9's fix-forward), and starting the timer at the runner (option A, not chosen).
+
 ## Epic 6: Incidents and approvals you can answer from the page
 
 Incident cards and approval requests appear in the chat and on the simulated phone with the dry run, Approve and Reject, Show details and Dismiss; the first answer wins and every other place shows who answered and where; a rejected, expired or fallback incident reads correctly; nothing on the page can answer another session's request.
@@ -4104,6 +4138,36 @@ So that a release candidate can never pass on an average that hides an expensive
 **Given** `eval/run.sh --release-candidate` has written `eval/release-candidate.json` and `.md`
 **When** it checks them before the author commits them
 **Then** it scans both with the same key-like patterns that `docker/tests/test-boundaries.sh` uses (one shared definition, not a copy), and on any match it exits non-zero with a message telling the author not to commit the files (owner condition U-166 (c))
+
+### Story 9.11: The evaluation paces its incident cases so none waits out its timer in a queue
+
+[ADDED 2026-11-08, fix-forward from DW-878 (the 1.0.3 rc1 evaluation triage), placed and scoped by the Contest Planner under the owner's delegation (`planner_ruling subject=DW-879,DW-878_placement`, 2026-11-08); re-opens Epic 9 under SC-5 for Sunday's 1.0.4. EvalIn sends every incident case at once; IncidentManager hands each diagnosis to `Decide`, which sets the diagnosis's 60-second timer when it sends the request to `DiagnosisAgent`, a single job (`Decide.cls` 339-342, `Production.cls`); so the later incident cases spend that timer queued behind the earlier ones. On the 1.0.3 rc1 set the 10th and 11th incident cases (returns-negative-weight, shipments-epoch-time) timed out at about 60.1 s, where 1.0.2's set took 56.7-58.3 s for its 10th. EvalIn stays disabled in the product; no case's expectation, no score, no timer and no timeout changes; `eval/run.sh`, the IPM artifact and the check scripts are frozen until the v1.0.4 merge-back and are not edited. DW-879 (the product's own diagnosis queue, Story 5.14) is not in this story.]
+
+As the author,
+I want the evaluation to send each incident case only once the previous one has its result,
+So that no incident case runs out its diagnosis timer while it waits in a queue, and the cause score measures the diagnosis, not the queue.
+
+**Acceptance Criteria:**
+
+**Given** a run whose cases include turn cases, item cases and several incident cases
+**When** `EvalIn` (`OcuTalon.Eval.In`) sends them
+**Then** the turn cases are still sent first, and each incident case after the first is sent only after the previous incident case's `OcuTalon.Eval.Data.CaseResult` row is completed (about 70 seconds each on Claude Haiku 5.5), so at most one incident case is being diagnosed at a time and none spends its `Decide` timer queued behind `DiagnosisAgent` (FR-62, AD-22, AD-30)
+**And** the pacing depends on the previous case's result, not on the pool size, so it still holds when `DiagnosisAgent` runs two jobs (Story 5.14)
+**And** the wait for a row is bounded, so a result that never arrives cannot hang the run, and the bound is at least as long as a diagnosis can take under `Decide`'s timers (AD-5, AD-8); no existing timer, timeout or wait changes, and the spec says what EvalIn does when the bound is reached
+
+**Given** an incident case whose `CaseResult` row is completed late
+**When** EvalIn paces the next incident case
+**Then** the next incident case is not sent before that row is completed, so a late result never lets two incident cases overlap
+
+**Given** `OcuTalon.Test.Eval.In` and any other test the change trips (the spec names each one)
+**When** the suite runs
+**Then** a test proves the sending order (turn cases first, then the incident cases one at a time) and that a late `CaseResult` does not let two incident cases overlap, each with a demonstrated mutation (Rule 19), and the existing pins are updated to the new order rather than removed
+
+**Given** the product as installed (the judges' compose file or an IPM install)
+**When** its items are listed
+**Then** `EvalIn` is still disabled, and no case in `eval/` has a changed expectation (AD-16, AD-22)
+- DW-878: Eval: EvalIn sends every incident case at once, so later cases spend their 60 s Decide timer queued behind a single-job DiagnosisAgent (returns-negative-weight 10th, shipments-epoch-time 11th time out) (ledger; routed by charter 2026-11-08)
+- DW-902: an eval case for the forget half of Story 30.9's Triage sentence (ledger; routed by orchestrator 2026-11-08)
 
 ## Epic 10: Install in one command, with a README that gets a judge running
 
@@ -6557,9 +6621,13 @@ So that no other visitor sees or searches what I added.
 
 **Given** the upgrade-in-place harness in `release/`
 **When** it runs from this release on
-**Then** it also creates a memory and a document before the upgrade, and both are present and searchable after it (FR-60, NFR-16, NFR-17, REL-6)
+**Then** it also creates a memory and a document before the upgrade when the previous release can save or index them (otherwise on the upgraded candidate, checked after the restart, with the row's note), and both are present and searchable after it (FR-60, NFR-16, NFR-17, REL-6) [AMENDED 2026-11-08, Story 19.5 plan, Rule 5 tier-1 (reachability: no release before this one can index a document, so the first runs create them on the candidate); it read "creates a memory and a document before the upgrade, and both are present and searchable after it"]
 
 - DW-783: `release/rehearse.sh`'s memory-offline step (Story 19.2) is proved on stub hosts only; a dry run on a real stack must show the clean host publishes its web port again after `docker network connect --alias iris` (ledger; routed by harvest 2026-11-06)
+- DW-892: `Demo.Features` lists the documents feature on the online demo, where `AddDocument` answers not_built until this story builds the per-session documents (ledger; routed by harvest 2026-11-07)
+- DW-893: an agent job builds its tools once, so the Chat agent's documents tool is attached or left out for the job's life by the online-demo setting at that moment; this story's per-turn tool manager is the fix (ledger; routed by harvest 2026-11-07)
+- DW-900: evaluation documents (OwnerRef `eval`) that a crash leaves between `Docs.Ops` AddEval and `Eval.In` Finish stay searchable in `OcuTalonKB.Docs` and removable by no route; add a start-of-run sweep of the `eval` rows (ledger; routed by harvest 2026-11-08)
+- DW-901: while an evaluation run is in flight its documents sit in the shared `OcuTalonKB.Docs` table, so a person's chat turn on the same instance can retrieve and cite them; the per-session tables and the per-turn attach scope retrieval (ledger; routed by harvest 2026-11-08)
 
 ### Story 19.6: Extract text from PDF and Word files with Embedded Python
 
@@ -6622,7 +6690,8 @@ So that I don't have to turn them into Markdown first.
 - DW-827: `OcuTalon.Docs.Extractor`'s MaxActiveWorkers 1 does not serialise reads (two concurrent reads ran on two worker jobs); serialise them or amend AD-21's "one worker" wording (ledger; routed by harvest 2026-11-06)
 - DW-828: a timed-out read cannot stop a single long C call (a decompression bomb can keep Read past its limit); bound it before the call (page or size caps) (ledger; routed by harvest 2026-11-06)
 - DW-831: Word text inside body-level content controls (w:sdt) and nested tables is not read; a file made only of content controls answers no_text (ledger; routed by harvest 2026-11-06)
-
+- DW-894: indexing costs one Embedder round trip (about 0.33 s) per passage, so large PDF and Word files take minutes to become ready: batch or parallelise the embedding (ledger; routed by harvest 2026-11-07)
+- DW-832: a line of a file's own text that starts with `## ` is indistinguishable from an extraction heading marker; Story 19.4's splitter opens sections only on a markdown document's `## ` lines and reads `\## ` as an escaped passage line, so this story's extraction must write a PDF's or Word file's own `## ` lines as `\## ` (ledger; routed by adjudication 2026-11-08)
 
 ### Story 19.8: Epic 19 burn-down
 

@@ -40,6 +40,9 @@
 ///     EvidencePack.Load). EvalIn sends IncidentManager one OcuTalon.Eval.Msg.IncidentCase (a fresh IncidentRef from OcuTalon.Bridge.Ids.NewRef, the
 ///     case's folder name as SourceItemId, and the snapshot's JSON text) and, before the send, opens the case's row with ItemId the IncidentRef, which
 ///     is the ItemId of the ItemDecision that IncidentManager sends EvalSink. A send that fails deletes the row and skips the case with the error text.
+///     The run's incident cases are paced: each one after the first is sent only once the previous one's row is no longer in state sent, after at most
+///     INCIDENTWAIT seconds of INCIDENTPOLL-second pauses; at that bound the run sends no more incident cases (REASONPACED), so no case waits out its
+///     diagnosis timer in DiagnosisAgent's queue.
 ///   - A case of kind item or injection may declare a watch {namespace, production}: the production that the case's email talks about, with a
 ///     watch of it set up for the run. Before the case's row is opened and its Item is sent, EvalIn calls OcuTalon.Watch.Ops.EvalWatch (the
 ///     watch of owner eval, never polled, never due, no CheckChanged). A watch that is not an object with a non-blank namespace and production
@@ -57,6 +60,13 @@
 ///     asked linked (SessionMode empty), so it opens the session that the old turn saved (AD-6), and only the case's turn is scored. A before
 ///     that is not valid, or that gets no Reply (none, a Busy one after BUSYMAX asks, or a fallback, which saves no session), ends the case with
 ///     REASONBEFORE or REASONNOREPLY and leaves no row.
+///   - A documents case (Story 19.4; AD-21): a turn case, like a command case, whose case.json also holds documents, an array of {name, file}. Before the case's turn
+///     is asked, EvalIn indexes each file (Markdown or plain text, a path relative to the case's folder that stays inside the folder of the cases) as a document of
+///     the owner eval, in its own process through OcuTalon.Docs.Ops.AddEval (AD-22): no command, no session or Session row, no web_user origin, no upload, no
+///     message to DocumentOps and no live event; no route lists an eval document. It waits at most DOCUMENTSWAIT seconds for all of them; a document that cannot be
+///     added or does not become ready skips the case with REASONDOCUMENTS and removes what was added. The TurnResult keeps the Reply's HostData.citations
+///     (Citations). A sent case's record {case, documents{refs}} joins the Watches of the service, and Finish removes the documents of the records it is given
+///     (DocumentsDown) with their passages.
 ///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26), the old turn
 ///     of a before included.
 /// Wait polls the rows of a run until none is still sent, or the seconds have passed.
@@ -76,17 +86,25 @@ Parameter DECIDE = "Decide";
 Parameter SINK = "EvalSink";
 
 /// The kinds of case that EvalIn sends, comma-separated.
-Parameter KINDS = "item,injection,all-clear,command,user-turn,incident,digest";
+Parameter KINDS = "item,injection,all-clear,command,user-turn,incident,digest,documents";
 
 /// The kinds of case that hold a recorded Item, and go to Intake.
 Parameter ITEMKINDS = "item,injection";
 
 /// The kinds of case that are a user turn, and go to Decide.
-Parameter TURNKINDS = "all-clear,command,user-turn";
+Parameter TURNKINDS = "all-clear,command,user-turn,documents";
 
 /// The kind of turn case that is a user's own chat message as Triage decides it (Story 30.5, DW-500): its request is a decide request of
 /// provenance user, answered with a DecisionResponse, and it has no reply text.
 Parameter USERTURNKIND = "user-turn";
+
+/// The kind of turn case whose documents are added before its turn (Story 19.4): its documents member is an array of {name, file}, each file the path of a
+/// Markdown or plain-text file relative to the case's folder (and inside the folder of the cases), indexed as documents of the owner eval (Docs.Ops.AddEval) and
+/// removed again by Finish.
+Parameter DOCUMENTSKIND = "documents";
+
+/// The seconds to wait for the documents of a case to be ready, all of them together.
+Parameter DOCUMENTSWAIT = 120;
 
 /// The kind of case that holds a recorded reader snapshot, and goes to IncidentManager.
 Parameter INCIDENTKIND = "incident";
@@ -115,6 +133,13 @@ Parameter BUSYWAIT = 3;
 
 Parameter BUSYMAX = 5;
 
+/// The seconds an incident case waits for the previous incident case's row to leave state sent: above the longest a diagnose decision takes under
+/// Decide's timers (MAXTIMER, 110) and the hops to and from it (a test pins it above MAXTIMER). At that bound the run sends no more incident cases.
+Parameter INCIDENTWAIT = 150;
+
+/// The seconds between two checks of the previous incident case's row.
+Parameter INCIDENTPOLL = 1;
+
 /// The name of the file that holds a case.
 Parameter CASEFILE = "case.json";
 
@@ -142,6 +167,9 @@ Parameter REASONPERSONA = "its persona is not valid: {why}";
 /// {why} says what is wrong with the case's before.
 Parameter REASONBEFORE = "its before is not valid: {why}";
 
+/// {why} says what is wrong with the documents the case declares or what went wrong adding them (Story 19.4).
+Parameter REASONDOCUMENTS = "its documents could not be set up: {why}";
+
 Parameter REASONNOSNAPSHOT = "it has no snapshot file name";
 
 /// {why} is the text of the status that EvidencePack.Load returned, or says that the name is not a plain file name.
@@ -152,11 +180,17 @@ Parameter REASONWATCHSHAPE = "its watch is not an object with a namespace and a 
 /// {why} is the text of the status that WatchOps.EvalWatch returned.
 Parameter REASONWATCH = "its watch could not be set up: {why}";
 
+/// {case} is the incident case whose row was still sent at the bound, and {seconds} is INCIDENTWAIT.
+Parameter REASONPACED = "the incident case {case} had no result after {seconds} seconds, so this run sends no more incident cases";
+
 /// The start of the warning for a case that is not sent; the case's name and its reason follow it.
 Parameter LOGSKIPPED = "EvalIn did not send the case ";
 
 /// The start of the warning for a TurnResult that could not be sent to EvalSink; the case's name and the error follow it.
 Parameter LOGNOTDELIVERED = "EvalIn could not send the TurnResult of the case ";
+
+/// The start of the warning for an evaluation document of an earlier run that the start of a run could not remove; the Ref and the error follow it.
+Parameter LOGSWEEP = "EvalIn could not remove a document that an earlier run left: ";
 
 /// The start of the warning for check rows in a Reply that Checks.Render could not take; the error follows it.
 Parameter LOGCHECKS = "EvalIn could not render the check rows of the Reply: ";
@@ -172,7 +206,20 @@ Property PersonaLanguage As %String(MAXLEN = 40);
 /// The setup records of the run's watches, a dynamic array of {"case", "watch"}: one for each sent case that declared a watch. Start sets it.
 Property Watches As %DynamicArray;
 
-/// Starts a run: creates EvalIn, mints the run's Ref and sends each case once.
+/// The IncidentRef of the last incident case this service dispatched successfully; "" before the first. The next incident case waits for its row.
+Property PaceRef As %String(MAXLEN = 22);
+
+/// The case name of that incident case, which REASONPACED names at the bound; "" before the first.
+Property PaceCase As %String(MAXLEN = 128);
+
+/// 1 once the previous incident case's row was still sent at the bound: the run then sends no more incident cases.
+Property PaceStalled As %Boolean [ InitialExpression = 0 ];
+
+/// Starts a run: sweeps the evaluation documents that an earlier run left, creates EvalIn, mints the run's Ref and sends each case once.
+///   - The sweep (DW-900) removes every document of the owner eval, with its passages, through Docs.Ops RemoveEval before anything else, so before the first case is set up: a run that
+///     was killed before its Finish leaves such documents, and a case that does not name them would otherwise be answered from them. A removal that fails is one
+///     warning, and the run goes on. Evaluation runs do not overlap (one release gate or one test class at a time), which is what lets a run take every eval
+///     document for a leftover.
 ///   - folder holds the case folders. names is a comma-separated list of case folder names; "" means every subfolder that holds a
 ///     case.json, in name order.
 ///   - runRef is the run's Ref, 22 characters, "" when the run did not start. sent is the number of cases sent. skipped is a dynamic
@@ -186,6 +233,7 @@ Property Watches As %DynamicArray;
 ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output runRef As %String, Output sent As %Integer, Output skipped As %DynamicArray, Output watches As %DynamicArray, preset As %String = "", language As %String = "") As %Status
 {
 	Set runRef = "", sent = 0, skipped = [], watches = []
+	Do ..SweepDocuments()
 	Set sc = ##class(Ens.Director).CreateBusinessService("EvalIn", .service)
 	If $$$ISERR(sc) Quit sc
 	If '$IsObject(service) || 'service.%IsA("OcuTalon.Eval.In") Quit $SYSTEM.Status.Error(5001, "The item EvalIn is not an OcuTalon.Eval.In")
@@ -222,8 +270,8 @@ ClassMethod Wait(runRef As %String, seconds As %Integer) As %Integer
 	Quit open
 }
 
-/// Removes the watch rows of the records that Start returned in watches, each through OcuTalon.Watch.Ops.RemoveEvalWatch, and nothing else. A
-/// row that is already gone is no error. Every record is tried; the status is the first error, and Finish never throws.
+/// Removes the watch rows of the records that Start returned in watches, each through OcuTalon.Watch.Ops.RemoveEvalWatch, and the documents of the
+/// records of a documents case (DocumentsDown), and nothing else. A row that is already gone is no error. Every record is tried; the status is the first error, and Finish never throws.
 ClassMethod Finish(watches As %DynamicArray) As %Status
 {
 	Set result = $$$OK
@@ -233,6 +281,10 @@ ClassMethod Finish(watches As %DynamicArray) As %Status
 			While iterator.%GetNext(, .record) {
 				Set sc = ..Unwatch($Select($IsObject(record) && record.%IsA("%Library.DynamicObject"): record.%Get("watch"), 1: ""))
 				If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
+				If $IsObject(record) && record.%IsA("%Library.DynamicObject") && $IsObject(record.%Get("documents")) {
+					Set sc = ..DocumentsDown(record.%Get("documents"))
+					If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
+				}
 			}
 		}
 	} Catch exception {
@@ -332,7 +384,19 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	If kind = ..#DIGESTKIND Quit ..SendDigest(case, name)
 	Set reason = ..Persona(case, .preset, .language)
 	If reason '= "" Quit reason
-	If $ListFind($ListFromString(..#TURNKINDS), kind) Quit ..SendTurn(case, kind, name, preset, language)
+	If $ListFind($ListFromString(..#TURNKINDS), kind) {
+		If kind '= ..#DOCUMENTSKIND Quit ..SendTurn(case, kind, name, preset, language)
+		Set reason = ..DocumentsUp(case, folder, .documents)
+		If reason '= "" Quit reason
+		Set reason = ..SendTurn(case, kind, name, preset, language)
+		If reason '= "" {
+			Do ..DocumentsDown(documents)
+		} Else {
+			If '$IsObject(..Watches) Set ..Watches = []
+			Do ..Watches.%Push({"case": (name), "documents": (documents)})
+		}
+		Quit reason
+	}
 	Set record = case.item
 	If '$IsObject(record) || 'record.%IsA("%Library.DynamicObject") || (..Scalar(record, "itemId") = "") Quit ..#REASONNOITEMID
 	Set provenance = ..Scalar(record, "provenance")
@@ -378,7 +442,8 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 
 /// The steps for one incident case: the reason it was not sent, or "" when it was. The case's snapshot member must be a plain file name (no path
 /// separator, no ..) of a recorded reader snapshot in the case's folder that EvidencePack.Load takes; otherwise the case is refused before anything is saved.
-/// Otherwise the row is opened with the IncidentRef as ItemId, and the IncidentCase is sent; a send that fails or throws deletes the row.
+/// Otherwise, once Pace allows it (the previous incident case's row is no longer sent), the row is opened with the IncidentRef as ItemId, and the IncidentCase is
+/// sent; a send that fails or throws deletes the row. A case that Pace refuses is not sent and leaves no row. Only a case that was sent becomes the previous one.
 Method SendIncident(case As %DynamicObject, folder As %String, name As %String) As %String [ Private ]
 {
 	Set file = ..Scalar(case, "snapshot")
@@ -390,6 +455,8 @@ Method SendIncident(case As %DynamicObject, folder As %String, name As %String) 
 	Set incident.IncidentRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set incident.SourceItemId = name
 	Set incident.Snapshot = snapshot.%ToJSON()
+	Set reason = ..Pace()
+	If reason '= "" Quit reason
 	Set opened = 0
 	Try {
 		Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, name, incident.IncidentRef)
@@ -405,7 +472,35 @@ Method SendIncident(case As %DynamicObject, folder As %String, name As %String) 
 		If opened Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..RunRef, name)
 		Quit $SYSTEM.Status.GetOneStatusText(sc)
 	}
+	Set ..PaceRef = incident.IncidentRef, ..PaceCase = name
 	Quit ""
+}
+
+/// The wait before an incident case: "" when it may be sent, otherwise REASONPACED. With no previous incident case it is "". Otherwise, until the previous
+/// case's row is no longer sent, it pauses INCIDENTPOLL seconds and checks again, at most INCIDENTWAIT \ INCIDENTPOLL times. A row still sent after the last
+/// pause sets PaceStalled, and from then on every incident case of the run gets REASONPACED at once, with no check and no pause.
+Method Pace() As %String [ Private ]
+{
+	If ..PaceRef = "" Quit ""
+	If '..PaceStalled {
+		Set pauses = 0
+		While ..StillSent(..PaceRef) {
+			If pauses '< (..#INCIDENTWAIT \ ..#INCIDENTPOLL) {
+				Set ..PaceStalled = 1
+				Quit
+			}
+			Do ..Pause(..#INCIDENTPOLL)
+			Set pauses = pauses + 1
+		}
+	}
+	If '..PaceStalled Quit ""
+	Quit $Replace($Replace(..#REASONPACED, "{case}", ..PaceCase), "{seconds}", ..#INCIDENTWAIT)
+}
+
+/// 1 while the row of the ItemId is in state sent; a row that is decided or removed is not.
+Method StillSent(itemId As %String) As %Boolean [ Private ]
+{
+	Quit $IsObject(##class(OcuTalon.Eval.Data.CaseResult).Pending(itemId))
 }
 
 /// The steps for one digest case: the reason it was not sent, or "" when it was. A case whose checks is not an array is refused with REASONNOCHECKS before
@@ -556,6 +651,7 @@ Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As
 		Set result.Fallback = +reply.Fallback
 		Set result.FallbackReason = reply.FallbackReason
 		Do ..Render(result, reply.HostData)
+		Do ..Cite(result, reply.HostData)
 	}
 	Set sc = result.%Save()
 	If $$$ISOK(sc) Set sc = ..Deliver(result)
@@ -683,6 +779,112 @@ Method Render(result As OcuTalon.Eval.Msg.TurnResult, hostData As %String) [ Pri
 	} Catch exception {
 		$$$LOGWARNING(..#LOGCHECKS_exception.DisplayString())
 	}
+}
+
+/// Puts the citations of the Reply's HostData (an array) in the TurnResult as JSON. A HostData with no citations array adds nothing.
+Method Cite(result As OcuTalon.Eval.Msg.TurnResult, hostData As %String) [ Private ]
+{
+	If hostData = "" Quit
+	Try {
+		Set data = ##class(%DynamicAbstractObject).%FromJSON(hostData)
+		If ($ClassName(data) '= "%Library.DynamicObject") || (data.%GetTypeOf("citations") '= "array") Quit
+		If data.citations.%Size() > 0 Set result.Citations = data.citations.%ToJSON()
+	} Catch exception {
+		$$$LOGWARNING(..#LOGCHECKS_exception.DisplayString())
+	}
+}
+
+/// Adds the documents that a documents case declares (Story 19.4, AD-22; a test subclass overrides it, and Test.Docs.Turns calls it on a shadow instance of EvalIn):
+/// each file is indexed as a document of the owner eval by OcuTalon.Docs.Ops.AddEval, in this process, within DOCUMENTSWAIT seconds for all of them. documents is the
+/// setup record {"refs"} for DocumentsDown. Returns the reason the case is not sent (REASONDOCUMENTS), or "" with the documents ready; on a reason nothing is left behind.
+Method DocumentsUp(case As %DynamicObject, folder As %String, Output documents As %DynamicObject) As %String
+{
+	Set documents = ""
+	Set declared = case.%Get("documents")
+	If '$IsObject(declared) || 'declared.%IsA("%Library.DynamicArray") || (declared.%Size() = 0) Quit $Replace(..#REASONDOCUMENTS, "{why}", "documents is not a non-empty array")
+	Set root = ##class(%File).ParentDirectoryName(##class(%File).NormalizeDirectory(folder))
+	Set files = []
+	Set iterator = declared.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		If '$IsObject(one) || 'one.%IsA("%Library.DynamicObject") Quit
+		Set name = ..Scalar(one, "name"), file = ..Scalar(one, "file")
+		Set path = ##class(%File).NormalizeFilename(file, folder)
+		Set type = $Case($ZConvert($Piece(name, ".", $Length(name, ".")), "L"), "md": "markdown", "markdown": "markdown", "txt": "text", : "")
+		If ($ZStrip(name, "<>WC") = "") || (file = "") || (type = "") Quit
+		If ($Extract(path, 1, $Length(root)) '= root) || '##class(%File).Exists(path) Quit
+		Do files.%Push({"name": (name), "path": (path), "type": (type)})
+	}
+	If files.%Size() '= declared.%Size() Quit $Replace(..#REASONDOCUMENTS, "{why}", "each document needs a name, and a file of the cases' folder that is Markdown or plain text")
+	Set documents = {"refs": []}
+	Set reason = ""
+	Set end = $ZHorolog + ..#DOCUMENTSWAIT
+	Set iterator = files.%GetIterator()
+	While iterator.%GetNext(, .file) && (reason = "") {
+		Set reason = ..AddOne(documents, file, end)
+	}
+	If reason '= "" {
+		Do ..DocumentsDown(documents)
+		Set documents = ""
+		Quit $Replace(..#REASONDOCUMENTS, "{why}", reason)
+	}
+	Quit ""
+}
+
+/// Indexes one file as a document of the owner eval and adds its Ref to the record's refs. The reason there is not a ready document, or "". The wait is what is left of
+/// the case's DOCUMENTSWAIT at the time end ($ZHorolog).
+Method AddOne(documents As %DynamicObject, file As %DynamicObject, end As %Integer) As %String [ Private ]
+{
+	Set bytes = ##class(%Stream.TmpBinary).%New()
+	Set source = ##class(%Stream.FileBinary).%New()
+	Set sc = source.LinkToFile(file.path)
+	If $$$ISOK(sc) Set sc = bytes.CopyFrom(source)
+	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
+	Do bytes.Rewind()
+	Set wait = end - $ZHorolog
+	If wait < 0 Set wait = 0
+	Set reason = ##class(OcuTalon.Docs.Ops).AddEval(bytes, file.name, file.type, wait, .ref)
+	If reason '= "" Quit file.name_" was not added ("_reason_")"
+	Do documents.refs.%Push(ref)
+	Quit ""
+}
+
+/// Removes every document of the owner eval with its passages (Docs.Ops RemoveEval), the leftovers of an earlier run (DW-900). A removal that fails, or a
+/// failure to list them, is one warning. It never throws.
+ClassMethod SweepDocuments() [ Private ]
+{
+	Try {
+		Set refs = []
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Document WHERE OwnerRef = ?", ##class(OcuTalon.Docs.Store).#EVALOWNER)
+		If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, rs.%Message))
+		While rs.%Next() {
+			Do refs.%Push(rs.%Get("Ref"))
+		}
+		Set iterator = refs.%GetIterator()
+		While iterator.%GetNext(, .ref) {
+			Set sc = ##class(OcuTalon.Docs.Ops).RemoveEval(ref)
+			If $$$ISERR(sc) $$$LOGWARNING(..#LOGSWEEP_ref_": "_$SYSTEM.Status.GetOneStatusText(sc))
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGSWEEP_exception.DisplayString())
+	}
+}
+
+/// Removes the documents of a setup record {"refs"} with their passages (Docs.Ops.RemoveEval, which removes only documents of the owner eval). Every ref is tried;
+/// the status is the first error, and it never throws. A document that is already gone is no error.
+ClassMethod DocumentsDown(documents As %DynamicObject) As %Status
+{
+	Set result = $$$OK
+	Try {
+		If '$IsObject(documents) || '$IsObject(documents.%Get("refs")) Quit
+		Set iterator = documents.refs.%GetIterator()
+		While iterator.%GetNext(, .ref) {
+			Set sc = ##class(OcuTalon.Docs.Ops).RemoveEval(ref)
+			If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
+		}
+	} Catch exception {
+		If $$$ISOK(result) Set result = exception.AsStatus()
+	}
+	Quit result
 }
 
 /// Deletes the case's row and its TurnResult.

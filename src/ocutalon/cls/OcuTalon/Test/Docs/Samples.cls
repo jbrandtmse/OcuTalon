@@ -12,6 +12,13 @@
 ///     DocxBroken(), ZipWithoutDocument(): Word files built from paragraphs and a table (raw replaces the whole document part, as junk);
 ///   - DocxMacro(), DocxEncryptedEntry(), DocxOddCompression(), DocxDeflateJunk(): a macro-enabled main part, a password-protected document entry, a
 ///     document entry with a compression method zipfile does not have, and a deflated document entry whose bytes are not deflate data;
+///   - PdfRunbook(), DocxRunbook(): the Results runbook as a two-page PDF ("Page 1" the title and the intro, "Page 2" the rotation steps) and the lab feed runbook
+///     as a Word file (a Title, two Heading 1 sections and a table), for the documents tests of Story 19.7; PdfHashLine(), DocxHashLine(): own lines that start
+///     with two number signs and a space (DW-832); DocxContentControls(), DocxOnlyControls(): body-level and inline content controls, a nested table and a
+///     text box, and a file of content controls alone (DW-831); PdfBomb(): one Flate content stream of about 1 MB that inflates to about 165 MB (DW-828);
+///     DocxHyperlinks(): a paragraph and a table cell with a hyperlink; DocxTracked(): a paragraph with a tracked insertion and deletion, a simple field, a smart
+///     tag and custom XML (DW-926); PdfFlate(), PdfFlateTruncated(): a one-page PDF whose content stream is zlib data (stored
+///     block), whole and without its Adler-32 (FlateStored builds the data);
 ///   - Ole(name): the OLE2 signature followed by the UTF-16LE stream name, as a legacy .doc (WordDocument), an encrypted .docx (EncryptedPackage) or neither;
 ///   - Junk(prefix), Padded(size), Empty(): a prefix and filler, a file of exactly size bytes of filler, and no bytes.
 /// The text of each sample is in Expected* so that the tests compare against one place.
@@ -88,8 +95,8 @@ ClassMethod NL() As %String [ CodeMode = expression ]
 $Char(10)
 }
 
-/// A PDF; see the class text. pages(n) is the content stream of page n.
-ClassMethod Pdf(ByRef pages, count As %Integer, padTo As %Integer = 0, encrypt As %Boolean = 0) As %Stream.TmpBinary
+/// A PDF; see the class text. pages(n) is the content stream of page n; with filter (for example FlateDecode) each content stream names it as its /Filter.
+ClassMethod Pdf(ByRef pages, count As %Integer, padTo As %Integer = 0, encrypt As %Boolean = 0, filter As %String = "") As %Stream.TmpBinary
 {
 	Set nl = ..NL()
 	Set kids = ""
@@ -101,7 +108,7 @@ ClassMethod Pdf(ByRef pages, count As %Integer, padTo As %Integer = 0, encrypt A
 	Set objects(3) = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
 	For i = 1:1:count {
 		Set objects(2 * i + 2) = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents " _ (2 * i + 3) _ " 0 R /Resources << /Font << /F1 3 0 R >> >> >>"
-		Set objects(2 * i + 3) = "<< /Length " _ $Length(pages(i)) _ " >>" _ nl _ "stream" _ nl _ pages(i) _ nl _ "endstream"
+		Set objects(2 * i + 3) = "<< /Length " _ $Length(pages(i)) _ $Select(filter '= "": " /Filter /" _ filter, 1: "") _ " >>" _ nl _ "stream" _ nl _ pages(i) _ nl _ "endstream"
 	}
 	Set total = 2 * count + 3
 	Set extra = ""
@@ -406,6 +413,224 @@ ClassMethod Ole(name As %String) As %Stream.TmpBinary
 		Set data = data _ $Extract(name, i) _ $Char(0)
 	}
 	Quit ..Stream(data _ $Translate($Justify("", 600), " ", $Char(0)))
+}
+
+/// The Results runbook as a PDF: page 1 holds the title and the intro, page 2 the three steps of the rotation (the Markdown runbook of the documents tests).
+ClassMethod PdfRunbook() As %Stream.TmpBinary
+{
+	Set lines(1) = "Results runbook"
+	Set lines(2) = "This runbook covers the Results production, the lab results feed"
+	Set lines(3) = "that the clinic reads every morning."
+	Set pages(1) = ..TextPage(.lines, 3)
+	Kill lines
+	Set lines(1) = "Rotating the Results certificate"
+	Set lines(2) = "1. Stop the item named Results.Sender."
+	Set lines(3) = "2. Install the new certificate in the SSL configuration named ResultsClient,"
+	Set lines(4) = "then restart the item."
+	Set lines(5) = "3. Send one test result and write the new expiry date in the on-call log."
+	Set pages(2) = ..TextPage(.lines, 5)
+	Quit ..Pdf(.pages, 2)
+}
+
+/// The text of PdfRunbook as the extraction returns it.
+ClassMethod ExpectedPdfRunbook() As %String
+{
+	Set marker = ##class(OcuTalon.Docs.Extract).#PAGEMARKER
+	Set lf = $Char(10)
+	Quit $Replace(marker, "{n}", 1) _ lf _ "Results runbook" _ lf _ "This runbook covers the Results production, the lab results feed" _ lf _ "that the clinic reads every morning." _ lf _ lf _ $Replace(marker, "{n}", 2) _ lf _ "Rotating the Results certificate" _ lf _ "1. Stop the item named Results.Sender." _ lf _ "2. Install the new certificate in the SSL configuration named ResultsClient," _ lf _ "then restart the item." _ lf _ "3. Send one test result and write the new expiry date in the on-call log."
+}
+
+/// The lab feed runbook as a Word file: the Title, Heading 1 "Restarting the lab feed" with two steps, and Heading 1 "Checking the lab numbers" with a 2x2 table.
+ClassMethod DocxRunbook() As %Stream.TmpBinary
+{
+	Set rows(1, 1) = "Counter", rows(1, 2) = "Expected", rows(2, 1) = "Queue length", rows(2, 2) = "zero"
+	Quit ..Docx(..Paragraph("Lab feed runbook", "Title") _ ..Paragraph("Restarting the lab feed", "Heading1") _ ..Paragraph("1. Stop the item named Lab.Feed in the Management Portal.") _ ..Paragraph("2. Start the item again and watch the queue for ten minutes.") _ ..Paragraph("Checking the lab numbers", "Heading1") _ ..Table(.rows, 2, 2))
+}
+
+/// The text of DocxRunbook as the extraction returns it.
+ClassMethod ExpectedDocxRunbook() As %String
+{
+	Set lf = $Char(10)
+	Quit "# Lab feed runbook" _ lf _ lf _ "## Restarting the lab feed" _ lf _ lf _ "1. Stop the item named Lab.Feed in the Management Portal." _ lf _ lf _ "2. Start the item again and watch the queue for ten minutes." _ lf _ lf _ "## Checking the lab numbers" _ lf _ lf _ "Counter | Expected" _ lf _ "Queue length | zero"
+}
+
+/// One PDF page whose own text has a line that starts with two number signs and a space.
+ClassMethod PdfHashLine() As %Stream.TmpBinary
+{
+	Set lines(1) = "Intro line"
+	Set lines(2) = "## Not a heading"
+	Set lines(3) = "Last line"
+	Set pages(1) = ..TextPage(.lines, 3)
+	Quit ..Pdf(.pages, 1)
+}
+
+/// The text of PdfHashLine as the extraction returns it: the file's own line is escaped with a backslash, the page marker is the only section line.
+ClassMethod ExpectedPdfHashLine() As %String
+{
+	Set lf = $Char(10)
+	Quit $Replace(##class(OcuTalon.Docs.Extract).#PAGEMARKER, "{n}", 1) _ lf _ "Intro line" _ lf _ "\## Not a heading" _ lf _ "Last line"
+}
+
+/// A Word file with a Heading 1, then own lines that start with two number signs and a space in a paragraph, in a table row and in a content control.
+ClassMethod DocxHashLine() As %Stream.TmpBinary
+{
+	Set rows(1, 1) = "## Cell line", rows(1, 2) = "x"
+	Quit ..Docx(..Paragraph("Real section", "Heading1") _ ..Paragraph("## Not a heading") _ ..Table(.rows, 1, 2) _ ..Control(..Paragraph("## In a control")))
+}
+
+/// The text of DocxHashLine as the extraction returns it.
+ClassMethod ExpectedDocxHashLine() As %String
+{
+	Set lf = $Char(10)
+	Quit "## Real section" _ lf _ lf _ "\## Not a heading" _ lf _ lf _ "\## Cell line | x" _ lf _ lf _ "\## In a control"
+}
+
+/// A block-level content control around the blocks (the XML of paragraphs and tables).
+ClassMethod Control(blocks As %String) As %String
+{
+	Quit "<w:sdt><w:sdtPr><w:alias w:val=""control""/></w:sdtPr><w:sdtContent>" _ blocks _ "</w:sdtContent></w:sdt>"
+}
+
+/// A table of one row with the cells (the XML of their blocks), with its grid.
+ClassMethod Row(first As %String, second As %String) As %String
+{
+	Quit "<w:tbl><w:tblGrid><w:gridCol w:w=""2000""/><w:gridCol w:w=""2000""/></w:tblGrid><w:tr><w:tc>" _ first _ "</w:tc><w:tc>" _ second _ "</w:tc></w:tr></w:tbl>"
+}
+
+/// A Word file with a paragraph, a body-level content control, a paragraph with an inline content control, a table whose first cell holds a paragraph and a nested
+/// table, a paragraph with a text box, and a last paragraph.
+ClassMethod DocxContentControls() As %Stream.TmpBinary
+{
+	Set inline = "<w:p><w:r><w:t xml:space=""preserve"">Inline </w:t></w:r><w:sdt><w:sdtPr><w:alias w:val=""inline""/></w:sdtPr><w:sdtContent><w:r><w:t>control</w:t></w:r></w:sdtContent></w:sdt><w:r><w:t xml:space=""preserve""> end</w:t></w:r></w:p>"
+	Set nested = ..Row("<w:p><w:r><w:t>n1</w:t></w:r></w:p>", "<w:p><w:r><w:t>n2</w:t></w:r></w:p>")
+	Set outer = ..Row(..Paragraph("Outer") _ nested _ "<w:p/>", ..Paragraph("Side"))
+	Set box = "<w:p><w:r><w:t>Around the box</w:t></w:r><w:r><w:pict><v:shape xmlns:v=""urn:schemas-microsoft-com:vml""><v:textbox><w:txbxContent>" _ ..Paragraph("Box text") _ "</w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>"
+	Quit ..Docx(..Paragraph("Before controls") _ ..Control(..Paragraph("Body control text")) _ inline _ outer _ box _ ..Paragraph("After the box"))
+}
+
+/// The text of DocxContentControls as the extraction returns it: each text once, the nested table inside the outer cell, no text box.
+ClassMethod ExpectedDocxContentControls() As %String
+{
+	Set lf = $Char(10)
+	Quit "Before controls" _ lf _ lf _ "Body control text" _ lf _ lf _ "Inline control end" _ lf _ lf _ "Outer n1 n2 | Side" _ lf _ lf _ "Around the box" _ lf _ lf _ "After the box"
+}
+
+/// A Word file made only of content controls.
+ClassMethod DocxOnlyControls() As %Stream.TmpBinary
+{
+	Quit ..Docx(..Control(..Paragraph("Only a control")) _ ..Control(..Paragraph("And another")))
+}
+
+/// The text of DocxOnlyControls as the extraction returns it.
+ClassMethod ExpectedDocxOnlyControls() As %String
+{
+	Quit "Only a control" _ $Char(10, 10) _ "And another"
+}
+
+/// A PDF with one page whose content stream is Flate data of about 1 MB that inflates to about 165 MB (a decompression bomb): a zlib header, one fixed-Huffman
+/// block of one literal and copies of 258 bytes at distance 1 (13 bits each, so eight copies are 13 bytes that repeat), an end of block and the Adler-32.
+ClassMethod PdfBomb() As %Stream.TmpBinary
+{
+	Set pages(1) = ..BombFlate(80000)
+	Quit ..Pdf(.pages, 1, 0, 0, "FlateDecode")
+}
+
+/// The zlib data of PdfBomb: one literal A and 1 + 8 * groups copies of length 258 and distance 1, so 1 + 258 * (1 + 8 * groups) bytes of A.
+ClassMethod BombFlate(groups As %Integer) As %String
+{
+	Set copy = "1100010100000"
+	Set cycle = ""
+	For i = 1:1:8 Set cycle = cycle _ copy
+	Set pattern = ..Pack(cycle)
+	Set body = ""
+	For i = 1:1:groups Set body = body _ pattern
+	Set n = 1 + (258 * (1 + (8 * groups)))
+	Set a = (1 + (65 * n)) # 65521
+	Set b = (n + (65 * ((n * (n + 1) \ 2) # 65521))) # 65521
+	Quit $Char(120, 1) _ ..Pack("110" _ "01110001" _ copy) _ body _ $Char(0) _ $Char(b \ 256, b # 256, a \ 256, a # 256)
+}
+
+/// The zlib data that holds data as one stored (uncompressed) deflate block, followed by its Adler-32 unless adler is 0 (a truncated stream).
+ClassMethod FlateStored(data As %String, adler As %Boolean = 1) As %String
+{
+	Set a = 1
+	Set b = 0
+	For i = 1:1:$Length(data) {
+		Set a = (a + $Ascii(data, i)) # 65521
+		Set b = (b + a) # 65521
+	}
+	Set out = $Char(120, 1, 1) _ ..LE($Length(data), 2) _ ..LE(65535 - $Length(data), 2) _ data
+	If adler Set out = out _ $Char(b \ 256, b # 256, a \ 256, a # 256)
+	Quit out
+}
+
+/// A PDF of one page of two lines whose content stream is zlib data (a /FlateDecode stored block, with its Adler-32).
+ClassMethod PdfFlate() As %Stream.TmpBinary
+{
+	Set lines(1) = "Flate page one"
+	Set lines(2) = "second line of the Flate page"
+	Set pages(1) = ..FlateStored(..TextPage(.lines, 2))
+	Quit ..Pdf(.pages, 1, 0, 0, "FlateDecode")
+}
+
+/// PdfFlate with the Adler-32 cut off: zlib reports an incomplete stream and pdfminer reads it through its fallback for corrupted data.
+ClassMethod PdfFlateTruncated() As %Stream.TmpBinary
+{
+	Set lines(1) = "Flate page one"
+	Set lines(2) = "second line of the Flate page"
+	Set pages(1) = ..FlateStored(..TextPage(.lines, 2), 0)
+	Quit ..Pdf(.pages, 1, 0, 0, "FlateDecode")
+}
+
+/// The text of PdfFlate and of PdfFlateTruncated as the extraction returns it.
+ClassMethod ExpectedPdfFlate() As %String
+{
+	Quit $Replace(##class(OcuTalon.Docs.Extract).#PAGEMARKER, "{n}", 1) _ $Char(10) _ "Flate page one" _ $Char(10) _ "second line of the Flate page"
+}
+
+/// A Word file with a paragraph that holds a hyperlink and a table whose first cell holds the same paragraph.
+ClassMethod DocxHyperlinks() As %Stream.TmpBinary
+{
+	Set link = "<w:p><w:r><w:t xml:space=""preserve"">See </w:t></w:r><w:hyperlink w:anchor=""top""><w:r><w:t>the linked words</w:t></w:r></w:hyperlink><w:r><w:t xml:space=""preserve""> now</w:t></w:r></w:p>"
+	Quit ..Docx(link _ ..Row(link, ..Paragraph("Side")))
+}
+
+/// The text of DocxHyperlinks as the extraction returns it: the hyperlink's words are in the paragraph and in the cell.
+ClassMethod ExpectedDocxHyperlinks() As %String
+{
+	Quit "See the linked words now" _ $Char(10, 10) _ "See the linked words now | Side"
+}
+
+/// A Word file with one paragraph whose words sit in a tracked insertion, a simple field, a smart tag and custom XML, beside a tracked deletion, and a table
+/// cell with the same paragraph (DW-926).
+ClassMethod DocxTracked() As %Stream.TmpBinary
+{
+	Set run = "<w:r><w:t xml:space=""preserve"">{t}</w:t></w:r>"
+	Set para = "<w:p>" _ $Replace(run, "{t}", "Plain ") _ "<w:ins w:id=""1"" w:author=""a"" w:date=""2026-01-01T00:00:00Z"">" _ $Replace(run, "{t}", "inserted ") _ "</w:ins>"
+	Set para = para _ "<w:del w:id=""2"" w:author=""a"" w:date=""2026-01-01T00:00:00Z""><w:r><w:delText>deleted </w:delText></w:r></w:del>"
+	Set para = para _ "<w:fldSimple w:instr="" PAGE "">" _ $Replace(run, "{t}", "7 ") _ "</w:fldSimple><w:smartTag w:uri=""urn:x"" w:element=""place"">" _ $Replace(run, "{t}", "tagged ") _ "</w:smartTag>"
+	Set para = para _ "<w:customXml w:element=""part"">" _ $Replace(run, "{t}", "custom") _ "</w:customXml></w:p>"
+	Quit ..Docx(para _ ..Row(para, ..Paragraph("Side")))
+}
+
+/// The text of DocxTracked as the extraction returns it: the inserted, field, smart tag and custom XML words are read, the deleted word is not.
+ClassMethod ExpectedDocxTracked() As %String
+{
+	Quit "Plain inserted 7 tagged custom" _ $Char(10, 10) _ "Plain inserted 7 tagged custom | Side"
+}
+
+/// The bytes of a string of 0 and 1 characters, 8 to a byte, the first of each eight being the lowest bit (deflate's bit order).
+ClassMethod Pack(bits As %String) As %String
+{
+	Set out = ""
+	For i = 1:8:$Length(bits) {
+		Set value = 0
+		For j = 0:1:7 {
+			If $Extract(bits, i + j) = 1 Set value = value + (2 ** j)
+		}
+		Set out = out _ $Char(value)
+	}
+	Quit out
 }
 
 }
