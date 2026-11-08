@@ -1,0 +1,16 @@
+{
+  "name": "remember-no-confidence",
+  "match": {
+    "marker": "remember-no-confidence"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"A request from the user; the user is answered directly.\",\"The user asks OcuTalon to remember a partner's contact.\"]}"
+    },
+    {
+      "status": 200,
+      "text": "Noted."
+    }
+  ]
+}

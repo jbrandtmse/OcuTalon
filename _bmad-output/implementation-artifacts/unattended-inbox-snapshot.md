@@ -46,6 +46,13 @@ recommendation: keep: AD-5 says values an admin may change live in System Defaul
 blocks: nothing (Story 19.4 continues; reversal = one Production.cls line plus dropping the seed)
 answer: (none yet -- answer with the script or --review)
 
+### U-305 | veto | Story 19.5 | 2026-11-08T04:46:11Z
+question: Evaluation documents move to their own knowledge-base table OcuTalonKB.Eval (with _Config, globals ^OcuTalonP.KBEval*), swept at the start of each eval run, so no person's chat turn can search them (DW-900, DW-901). This changes how stored data is kept (a new table). Keep, or reverse?
+options: keep | reverse (eval documents stay in the shared OcuTalonKB.Docs table with OwnerRef eval)
+recommendation: keep: it is a plain addition under AD-21's per-owner tables and closes a real leak between an eval run and a person's turn
+blocks: nothing (Story 19.5 continues)
+answer: (none yet -- answer with the script or --review)
+
 ## Holds
 
 ### U-220 | hold | Run 20261026T1518Z-1-37 | 2026-11-02T16:32:46Z
@@ -392,4 +399,4 @@ answer: (none yet -- answer with the script or --review)
 - U-300 | veto | Story 11.27: The new state-diagnosis.txt (uploaded with web/test-results on a failed live run, public repo) copies every DIAG /state line, including 11.22's existing lines: 'session lock: held by pid <pid> ... on session <first 4 chars>...' and 'csp process: pid=...', and a failed gateway read's sanitised error text (200 chars). Ruled: keep them as they are. They already print in the public CI job log since 11.22; they come from a throwaway CI stack; no cookie, token, request body or full session id is included; the gateway dump itself prints counts and states only, as ruled. -> Keep. The pid, the 4-character session prefix and the sanitised 200-character gateway error come from a throwaway CI stack and already print in the public job log. Condition: pin that state-diagnosis.txt never contains a cookie, token, request body, full session id or a key shape (sk-ant-, a bot token), with a planted-value mutation. (by Contest Planner, 2026-11-07T17:51:00Z#911; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-08T02:29:37Z -- Epic 11 part 11.27/11.28 merging; runner applied=U-300 (pin 8c1a6e03+9fc660bd)
 - U-302 | hold | Run 20261026T1518Z-1-37: Hold for the account switch (the owner at 94 percent quota via the Contest Planner, ordered about 21:35Z Nov 7) is complete: every runner ended at a stage boundary and every head is on origin (feature 1792d28f with the v1.0.3 merge-back; OCT-epic0 85b479e0; OCT-epic11 882b6d4b; OCT-epic17 b52d069b; OCT-epic19 0cb88c2b; OCT-epic31 8262d61c with its hold patch patches/epic-31/31.4-smoke.patch). No local-only work. -> (no answer); resolved by orchestrator, 2026-11-08T00:03:27Z -- resumed 2026-11-08T00:03Z by session 0b5234; HOLD cleared
 
-<!-- journal: 928 lines -->
+<!-- journal: 929 lines -->

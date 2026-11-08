@@ -4105,6 +4105,36 @@ So that a release candidate can never pass on an average that hides an expensive
 **When** it checks them before the author commits them
 **Then** it scans both with the same key-like patterns that `docker/tests/test-boundaries.sh` uses (one shared definition, not a copy), and on any match it exits non-zero with a message telling the author not to commit the files (owner condition U-166 (c))
 
+### Story 9.11: The evaluation paces its incident cases so none waits out its timer in a queue
+
+[ADDED 2026-11-08, fix-forward from DW-878 (the 1.0.3 rc1 evaluation triage), placed and scoped by the Contest Planner under the owner's delegation (`planner_ruling subject=DW-879,DW-878_placement`, 2026-11-08); re-opens Epic 9 under SC-5 for Sunday's 1.0.4. EvalIn sends every incident case at once; IncidentManager hands each diagnosis to `Decide`, which sets the diagnosis's 60-second timer when it sends the request to `DiagnosisAgent`, a single job (`Decide.cls` 339-342, `Production.cls`); so the later incident cases spend that timer queued behind the earlier ones. On the 1.0.3 rc1 set the 10th and 11th incident cases (returns-negative-weight, shipments-epoch-time) timed out at about 60.1 s, where 1.0.2's set took 56.7-58.3 s for its 10th. EvalIn stays disabled in the product; no case's expectation, no score, no timer and no timeout changes; `eval/run.sh`, the IPM artifact and the check scripts are frozen until the v1.0.4 merge-back and are not edited. DW-879 (the product's own diagnosis queue, Story 5.14) is not in this story.]
+
+As the author,
+I want the evaluation to send each incident case only once the previous one has its result,
+So that no incident case runs out its diagnosis timer while it waits in a queue, and the cause score measures the diagnosis, not the queue.
+
+**Acceptance Criteria:**
+
+**Given** a run whose cases include turn cases, item cases and several incident cases
+**When** `EvalIn` (`OcuTalon.Eval.In`) sends them
+**Then** the turn cases are still sent first, and each incident case after the first is sent only after the previous incident case's `OcuTalon.Eval.Data.CaseResult` row is completed (about 70 seconds each on Claude Haiku 5.5), so at most one incident case is being diagnosed at a time and none spends its `Decide` timer queued behind `DiagnosisAgent` (FR-62, AD-22, AD-30)
+**And** the pacing depends on the previous case's result, not on the pool size, so it still holds when `DiagnosisAgent` runs two jobs (Story 5.14)
+**And** the wait for a row is bounded, so a result that never arrives cannot hang the run, and the bound is at least as long as a diagnosis can take under `Decide`'s timers (AD-5, AD-8); no existing timer, timeout or wait changes, and the spec says what EvalIn does when the bound is reached
+
+**Given** an incident case whose `CaseResult` row is completed late
+**When** EvalIn paces the next incident case
+**Then** the next incident case is not sent before that row is completed, so a late result never lets two incident cases overlap
+
+**Given** `OcuTalon.Test.Eval.In` and any other test the change trips (the spec names each one)
+**When** the suite runs
+**Then** a test proves the sending order (turn cases first, then the incident cases one at a time) and that a late `CaseResult` does not let two incident cases overlap, each with a demonstrated mutation (Rule 19), and the existing pins are updated to the new order rather than removed
+
+**Given** the product as installed (the judges' compose file or an IPM install)
+**When** its items are listed
+**Then** `EvalIn` is still disabled, and no case in `eval/` has a changed expectation (AD-16, AD-22)
+- DW-878: Eval: EvalIn sends every incident case at once, so later cases spend their 60 s Decide timer queued behind a single-job DiagnosisAgent (returns-negative-weight 10th, shipments-epoch-time 11th time out) (ledger; routed by charter 2026-11-08)
+- DW-902: an eval case for the forget half of Story 30.9's Triage sentence (ledger; routed by orchestrator 2026-11-08)
+
 ## Epic 10: Install in one command, with a README that gets a judge running
 
 On a machine with the build 154 image loaded, one script checks, retags and starts OcuTalon, waits for it with progress and prints the address and sign-in details, failing with an exact fix when the image or architecture is wrong; the README's release-1 sections tell a judge what to download, how to start, how to sign in and how to set the key.
@@ -8125,6 +8155,31 @@ So that no key reaches the trace or a log in a shape the redactor misses, and th
 
 - DW-386: `OcuTalon.Bridge.Redact` replaces every key shape that `docker/tests/test-boundaries.sh` `key_like` flags, DigitalOcean tokens (`dop_v1_...`) and PEM private-key headers (`-----BEGIN ... PRIVATE KEY`) included, and also the Anthropic key (`sk-ant-...`) and the Telegram bot token (digits, a colon, 35 characters) if `key_like` lacks them; one test per shape (U-184, kept; before 1.0.0) (ledger; routed by merge_gate 2026-10-31, re-owned from Story 30.7 by spec_gate 2026-11-02, fix-forward)
 - DW-448: `Test.Eval.KeyProof`'s Walk decodes `$List` elements, so a key stored as one element of a list (nested lists included) is found; and a measurement on a throwaway answers whether a message body can store a key in a compressed or split `%Stream.Global*` chunk: yes, the walk decodes those too; no, that half closes `wontfix-accepted` and the ledger entry records the evidence (the throwaway's build, the message class, what was stored). The release candidate's key proof is otherwise unchanged; Lane B's copy (`Test.Web.SessionEvents`, DW-474) stays with its own entry (U-185, kept; before 1.0.0) (ledger; routed by merge_gate 2026-10-31, re-owned from Story 30.7 by spec_gate 2026-11-02, fix-forward)
+
+### Story 30.9: A 'Remember that ...' chat message gets a usable attention decision
+
+[ADDED 2026-11-08 at Epic 30's SC-5 re-open, by the orchestrator's dispatch: DW-890, fix-forward, Planner-approved placement (`planner_ruling subject=DW-890_placement`, 2026-11-08), for the 1.0.4 release. Story 30.7 stays deferred and is not part of this re-open.]
+
+On the 1.0.3 demo, every "Remember that ..." chat message, typed or sent by the panel's "Ask it to remember" form, gets a Fallback attention decision: the strip reads "Tell now · Fallback" and "The model's reply couldn't be used." (1 agent step, about 66 output tokens), while the chat turn itself answers and the memory is saved. The demo host's trace holds one Story 30.6 warning for it: `Decide` refused the reply because it is not one JSON object that `OcuTalon.Bridge.Msg.DecisionPayload` accepts (ERROR #5001), with no "After the reply filter ran" line, so it is not a length, datatype or enum failure. This story finds the cause from the code and a CI-mock reproduction of that reply shape, fixes it at the cause with the smallest change, and adds a CI test and an evaluation case so it cannot come back.
+
+As a user,
+I want a "Remember that ..." message to get a real attention decision,
+So that the strip never says the model's reply couldn't be used when nothing went wrong.
+
+**Acceptance Criteria:**
+
+**Given** a user chat message that begins "Remember that ...", both the typed form and the panel's "Ask it to remember" form
+**When** Triage decides its attention
+**Then** the decision is a usable one, decided under the user's-own-message rule (tell now; Story 30.5, AD-28), and not Fallback; the cause, found from evidence (the demo host's 30.6 warning, code reading and a CI-mock reproduction of the reply shape it implies), is stated in the spec's Design Notes, and the fix is at that cause: no timeout or `TimerSeconds` is raised, no reply check is loosened for other replies, and no other outcome's behaviour changes
+
+**Given** the CI mock
+**When** the bridge and agent tests run
+**Then** a test drives a "Remember that ..." user message, in both forms, through the decision and pins that it decides without Fallback, and a named mutation that restores the cause turns it red (Rule 19)
+
+**Given** Epic 9's evaluation set
+**When** it runs
+**Then** a new case folder `eval/<case>/case.json`, shaped like `eval/user-turn-productions/`, states that a "Remember that ..." item must decide without Fallback; `eval/run.sh` is not changed, and any test that pins the evaluation set's case count or list is updated with the new case
+- DW-890: On the 1.0.3 demo every 'Remember that ...' chat message's attention decision falls back (strip 'Tell now · Fallback', 'The model's reply couldn't be used.'; 1 agent step, 66 output tokens, 0.9 s) while the chat turn works and the memory is saved; the demo's 30.6 warning shows `Decide` refused the reply as not one JSON object `DecisionPayload` accepts (ERROR #5001); find the cause, fix it, and add the eval regression case (ledger; routed by orchestrator 2026-11-08, Story 30.9 fix-forward)
 
 ## Epic 31: Lane B post-demo hardening
 

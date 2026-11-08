@@ -2932,6 +2932,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 - 2026-11-07T17:31:07Z status=routed owner=burndown by=spec_gate note=release-tool_freeze;after_the_v1.0.4_merge-back:the_probe's_error_reason_must_land_with_release/demo-load.sh_DEGRADED_REASONS(+comments_:50,:88),which_docker/tests/test-online-load.sh_S16_pins_to_docker/probe.sh;31.4_implement_found_it(ruling_R1);veto_U-187_still_stands
 - 2026-11-08T02:32:04Z status=routed owner=burndown by=burndown note=epic-31_burn-down(31.4_scope):overflow;waits_for_the_release-tool_freeze(release/demo-load.sh_DEGRADED_REASONS+docker/probe.sh,S16_pin)_to_lift_after_the_v1.0.4_merge-back;no_open_story_owns_it;listed_under_decisions_for_user(recommended:route_to_a_post-1.0.4_release-tool_story)
+- 2026-11-08T03:46:29Z status=routed owner=burndown by=unattended note=decision sheet Epic 31: a release-tool story after the v1.0.4 merge-back (release/demo-load.sh, docker/probe.sh; freeze), paired with DW-485
 
 ### DW-447: AD-25's probe bullet lists the outcomes busy, capped, auth_failed and no_decision, but the probe also has no_splash (Story 16.6) and degraded (Story 29.6, epic29_brief), and the spine does not record them
 - source: spec-29-6-the-probe-alerts-when-every-turn-falls-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3092,6 +3093,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 - 2026-11-07T15:15:39Z status=routed owner=burndown by=spec_gate note=release-tool_freeze;after_the_v1.0.4_merge-back(31.4_declined:release/demo-host-check.sh_frozen);also_after_the_merge-back:release/demo-host-checks.md:73_and_release/demo-load.sh:88_still_name_the_probe's_three_degraded_reasons(DW-446_adds_error)
 - 2026-11-08T02:32:04Z status=routed owner=burndown by=burndown note=epic-31_burn-down(31.4_scope):overflow;release/demo-host-check.sh_allow-hyperevent_check_waits_for_the_release-tool_freeze_to_lift_after_the_v1.0.4_merge-back;no_open_story_owns_it;listed_under_decisions_for_user(recommended:route_to_the_same_post-1.0.4_release-tool_story_as_DW-446)
+- 2026-11-08T03:46:29Z status=routed owner=burndown by=unattended note=decision sheet Epic 31: the same post-merge-back release-tool story as DW-446 (release/demo-host-check.sh allow-hyperevent check; freeze)
 
 ### DW-494: flake: OcuTalon.Test.Fix.Partial TestCopiesFailAgain ('and stores 3/3/0/3/0 with the reason the order date still wasn't accepted' and four more asserts) red in CI shards-2 (shard:lane-a@rest), green on an unchanged rerun
 - source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -5448,6 +5450,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: 1.0.3 rc1 eval triage 2026-11-07 (Planner author's override) | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: 1.0.2 set durations 56.7-58.3 s vs 1.0.3 60.1 s for the 10th case; Eval/In.cls:8-9,480-483 async sends; Decide.cls:339-342 timer at send; Production.cls:30 PoolSize 1
 - 2026-11-07T18:29:38Z status=routed owner=burndown by=orchestrator note=1.0.4 Epic 9 fix-forward after D1/D2: pace incident cases (next after the previous CaseResult, ~70 s each; turn cases first); update Test/Eval/In pins; EvalIn stays disabled in the product
+- 2026-11-08T03:25:46Z owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=runner note=charter(Story_9.11_fix-forward;SC-5_reopen;planner_ruling_2026-11-08)
+- 2026-11-08T05:45:45Z status=resolved-by:9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=adjudication note=EvalIn paces incident cases: SendIncident.Pace waits for the previous CaseResult row (INCIDENTWAIT 150 > MAXTIMER 110, REASONPACED at the bound); pins TestPacesIncidents, TestPaceBound, TestPaceLastCheck, TestSendsIncident (commit a937291e + QA/CR in the 9.11 commit); SM-2 counts a skip as not right (TestSkippedIncidentScored)
 
 ### DW-879: Product: the diagnosis timer counts time spent queued at DiagnosisAgent (PoolSize 1), so several simultaneous incidents (e.g. demo visitors breaking the feed at once) can time out before the model is asked
 - source: 1.0.3 rc1 eval triage 2026-11-07 | severity: med | fix-risk: med | footprint: cross-epic
@@ -5466,8 +5470,50 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: panel 'Ask it to remember' press and a typed 'Remember that the Orders partner contact is Kim.' both show Fallback; recall 'Who do I call about Results?' answers 'You should call Lee.' (0.95); Decision <$0.0001, Turn $0.0004
 - 2026-11-07T22:18:37Z status=routed owner=burndown by=orchestrator note=1.0.4, HIGH, after the hold and ahead of DW-879; find why Triage's decision on a remember request is unusable (unverified guesses: decide agent sees or attempts memory tools, or the output schema rejects the reply); add an eval regression case (a 'Remember that ...' item must decide without Fallback); any string change to the Planner
 - 2026-11-08T00:11:59Z by=orchestrator note=demo 30.6 warning (Planner, 00:11Z Sun, read-only): Decide Conclude refused the reply as not one JSON object DecisionPayload accepts (ERROR #5001); no After-the-reply-filter line; length/datatype/enum ruled out; to Story 30.9 (Epic 30 SC-5 re-open, Planner-approved)
+- 2026-11-08T01:46:51Z owner=30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio by=runner note=charter: Story 30.9 (Epic 30 SC-5 re-open, fix-forward, Planner-approved placement 2026-11-08); DW-890: bullet in its ACs
+- 2026-11-08T04:12:53Z status=resolved-by:30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio by=adjudication note=fix 8fc6db19 (Triage.cls:37); RememberDecision+TriageUserTurn+eval case; reopen_if 1.0.4 rc eval shows Fallback
+
+### DW-902: The forget half of Triage's ruled remember-or-forget sentence (Triage.cls:37) has no real-Haiku proof: no eval case sends a 'Forget ...' user turn
+- source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Story 30.9 proves only the remember form (eval/user-turn-remember); whether Haiku 5.5 gives a confidence for a forget request is unmeasured (unverified)
+- 2026-11-08T04:09:34Z status=decision-pending owner=burndown by=cr note=human=Planner's RC eval runs a 'Forget that ...' user turn on Haiku 5.5: no Fallback and a confidence (unverified med)
+- 2026-11-08T05:11:24Z status=routed owner=burndown by=merge_gate note=decision sheet Epic 30 (Planner YES): the forget eval case eval/user-turn-forget/ lands in Story 9.11 (9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it), which is not on this feature yet; 9.11's runner re-owns at its charter
+- 2026-11-08T05:55:03Z owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=runner note=forget eval case delivered in 9.11
+- 2026-11-08T05:55:03Z status=resolved-by:9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=adjudication note=eval/user-turn-forget/case.json (kind user-turn, heldOut false, turn 'Forget that the Orders partner contact is Kim.', the remember case's expectation; report-only); pinned by Test.Eval.In TestForgetCaseRecorded and Test.Eval.Cases TestUserTurnCases (count 6 after the union with 30.9); real-Haiku proof is the Planner's rc eval at the cut
+
+### DW-903: shards-5 (shard:lane-a@Bridge,Agent) may pass REL-4's 35-minute CI budget once Epic 19's live:documents joins it
+- source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Spec 30.9 Verification: shards-5 measured 32m09s-33m37s; Epic 19 estimates +300-450 s for live:documents; Story 30.9 adds about 10 s (unverified projection)
+- 2026-11-08T04:09:34Z status=escalated owner=burndown by=cr note=unverified; settle: shards-5 job time <=35 min on the first feature CI run with Epic 19's live:documents
+- 2026-11-08T05:11:24Z status=routed owner=19-4-answer-from-documents-with-citations by=merge_gate note=decision sheet Epic 30 (Planner confirmed): Epic 19 moves live:documents off shards-5 in 19.4 (orchestrator ruling of 2026-11-08); shards-5 ran 32.9 min on e915eccb
+
+### DW-904: Test.Watch.Case subclasses copy the Armed countdown clean-up loop instead of a shared base helper (third copy in RememberDecision)
+- source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Same Armed property, append and OnAfterOneTest loop in PersonaTurns.cls:43-50, BeatOutcomes.cls:27-34 and RememberDecision.cls:31-48
+- 2026-11-08T04:09:34Z status=wontfix-accepted owner=30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio by=cr note=reopen_if=a fourth test class adds the same Armed countdown clean-up loop (grep 'Mock).Arm($Piece(..Armed')
+
+### DW-905: Test.Eval.Cases: TestUserTurnCases' doc lines and :180's message still describe four chip-only user-turn cases after the remember case
+- source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Cases.cls:16 says each user-turn case has 'the chip's exact text'; :180 says 'four user-turn'; the wanted loop covers the four chips only (the remember case is pinned by RememberDecision.TestEvalCase)
+- 2026-11-08T04:09:34Z status=by-design owner=30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio by=cr note=ruled 3-line plain union with Epic 19 (Ruling 4) fixes the wording; reopens only via a spec amendment after Epic 19 merges
 - 2026-11-08T02:28:50Z by=owner note=Planner probe 02:30Z (read-only, stored ref): branch C, Haiku's reply is one valid object with outcome and 2 reasons but NO confidence; fix = Triage sentence (approved PUBLIC TEXT, with 'or forget'); to Story 30.9
 ### DW-889: S11 re-verified: one IRIS process that runs embedded Python both outside and inside an AI Hub tool callback dies with signal 11 (builds 154 and 109), reproduced with two classes and no model
 - source: evidence/ep-bug-s11/results.md (Story 0.16) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 9/9 crossing runs died, 6/6 one-sided runs survived per build (orders c,d,e vs a,b); messages.log caught signal 11 JobType=Interactive job; OcuTalon avoids it by AD-6 (embeddings in a WorkMgr worker)
 - 2026-11-07T21:43:35Z status=by-design owner=0-16-the-embedded-python-callback-crash-s11-is-re-verified-with-a by=evidence note=AI_Hub_platform_defect_not_ours;AD-6_rule_stands;public_report_drafted_by_the_Planner_posted_by_the_owner(no_filing_here);reopen_if=a_build_after_2027.1.0AI.109_survives_orders_c,d,e_of_ep-bug-s11/run.sh
+
+### DW-908: Eval: no test pins the content of the user-turn remember and forget cases (turn text, key phrases, absent phrases, heldOut, recordedBy); Test.Eval.Cases' user-turn count pin accepts any extra case and its wanted list holds only the four chips
+- source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Eval/Cases.cls TestUserTurnCases checks the forget (9.11) and remember (30.9) cases only through the kind count; Test/Eval/Report.cls TestShippedChipCasesScoreTheHostReasons lists the four chips; both files contended (Epic 19 19.4), ruling allowed only the count pin
+- 2026-11-08T05:13:42Z status=escalated owner=burndown by=harvest note=for the decision sheet: recommended routed to the next eval story after 1.0.4 (extend the wanted list and the Report loop with both cases' exact text); not fixable inside 9.11's ruling
+- 2026-11-08T05:43:35Z occurrence=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=forget content pinned in Test/Eval/In.cls TestForgetCaseRecorded; open: remember, Report loop; fix moves pin to Cases
+
+### DW-909: Eval: at the integrate-forward over Story 30.9, Test/Eval/Cases.cls's user-turn count pin merges cleanly as 5 (both branches changed :248 to the same text) while the merged eval/ holds 6 user-turn cases; the doc lines :16 and :236-237 conflict
+- source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: origin/OCT-epic30 Cases.cls:248 is AssertEquals(count, 5, eval/ holds exactly five user-turn cases), byte-identical to OCT-epic9's, so git takes 5 with no conflict; epic-9-context.md and the spec's [Ledger] item call the union plain
+- 2026-11-08T05:43:27Z status=escalated owner=burndown by=cr note=integrate-forward over 30.9: set Cases.cls:248 to 6/six by hand; resolve :16, :236-237 naming both cases
+
+### DW-910: Eval: the rule that a skipped incident case counts as not right in SM-2 (and the held-out incidents) is recorded only in Eval.Report and the 9.11 spec, not in the epic context's Scoring rule or the proposed AD-22 as-built bullet
+- source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Report.cls :61 and AddSkipped tally a skipped incident case (AC7, the Planner's condition); epic-9-context.md Scoring and the spec's proposed AD-22 spine bullet mention only the pacing
+- 2026-11-08T05:43:35Z status=wontfix-accepted owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=reopen_if=a later eval story's spec or review reads SM-2 as leaving skipped incident cases out of its total
