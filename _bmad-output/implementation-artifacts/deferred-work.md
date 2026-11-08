@@ -5545,3 +5545,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 17.10 rework 2 review layer: BeatOutcomes waits WaitDeliveries(case.session,1,WAITDIAGNOSIS) then reads web rows; settle by one run of each test with a phone row forced first
 - 2026-11-08T14:58:30Z status=routed owner=burndown by=harvest note=unverified; same root cause class as DW-964; fix by waiting on the web row, as DW-964's fix in Test.Checks.Heartbeat
+- 2026-11-08T15:04:25Z status=routed owner=burndown by=cr note=narrower: both sites call Quiet (decision at OutcomeRouter + 4s) before WebNotices; other WaitDeliveries callers count all rows
