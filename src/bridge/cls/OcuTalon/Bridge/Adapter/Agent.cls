@@ -20,6 +20,14 @@ Include Ensemble
 ///   - It adds the gate (OcuTalon.Bridge.Policy.Gate) as the authorization policy and the step audit policy to every agent it builds
 ///     (OnAfterAgentInit), after any policy that a setting names, and refuses the AuthPolicy and AuditPolicy settings (REFUSED), so that
 ///     the gate decides every tool call and every tool call is a step (AD-6, AD-9, AD-10).
+/// The skipped request (AD-6, AD-8, AD-20): a request of kind decide, diagnose or turn whose DecisionRef already has a Decision row (Concluded) is
+/// skipped, whatever its provenance and whether it is a first attempt, a rate-limit re-send or a second-model retry. Decide records that row when it
+/// concludes, and its timer starts when it sends, so a request taken once the row exists (it waited in the runner's queue past its timer, or its retry
+/// answered first) would have its answer dropped. The skip builds nothing and makes no model request, tool call, Usage row, AI session, conversation
+/// lock or link; it writes one Info row and answers status OK with no reply, which Decide's completed process discards. A request of kind tool (the
+/// replay), a request with no DecisionRef and a request whose row does not exist yet are never skipped; a first attempt taken while the second-model
+/// retry that its timer sent is still running has no row yet, so it runs. The row is read once, before the build: a request already in Chat when the
+/// timer fires runs to its end.
 /// Answer is the runner's answer to a Request: the context is set before Chat and ended on every path, and the reply holds the
 /// text, the provider's stop reason, and the host data and taint that the tools put in the context.
 /// The conversation (AD-6, AD-10): only a turn with provenance user is linked (IsLinked), under the key (OwnerRef, the name of the runner item). AnswerLinked
@@ -38,8 +46,9 @@ Include Ensemble
 /// status, with no Chat. Decide sends the retry of a linked turn as a fresh one, whose SeedText it wrote from the stored messages that the first attempt
 /// began with (DW-726). A linked turn with RetryOf takes no conversation lock (AnswerRetried): it chats in a new AI session, seeded through ChatInput with
 /// that SeedText, and after a completed, untainted Chat that is not late (RetryIsLate) it saves the session and names it in the reply (SessionId;
-/// SessionFrom is the session that the first runner's link names). A late retry (Decide has already recorded the decision of its DecisionRef, because the
-/// retry's timer fired) saves no session: its cost is counted and its reply is dropped by Decide (AD-8). The retry runner never links a conversation of its
+/// SessionFrom is the session that the first runner's link names). A retry that is already late when the runner takes it (Decide has already recorded the
+/// decision of its DecisionRef, because the retry's timer fired while it waited) is skipped, as below. A retry whose timer fires during its Chat saves no
+/// session: its cost is counted and its reply is dropped by Decide (AD-8). The retry runner never links a conversation of its
 /// own, and Decide points the first runner's link at the retry's session only when it accepts the reply. The session config of a request with RetryOf
 /// takes timeout_ms from Timeouts.RetryTimer of the bridge timer.
 /// Compaction (AD-6, AD-20): a request that Decide flags (Compact 1) and that continues a linked conversation is compacted by Compact in
@@ -349,7 +358,8 @@ Method OpenSession(id As %String, Output session As %AI.Agent.Session) As %Statu
 
 /// Answers a request with a reply. A request with RetryOf that RetryAllowed refuses is an error status that names RetryOf, with no Chat and no
 /// context. A request of kind tool is the replay of an approved tool call and is answered by Replay.Run (no model request,
-/// no Chat, no conversation link; the context it sets carries the runner item and a grant). It refuses any kind that is not a request kind, an Input that is
+/// no Chat, no conversation link; the context it sets carries the runner item and a grant). Any other request whose decision Decide has already
+/// recorded (Concluded) is skipped: one Info row, status OK and no reply, before the agent is built or the context is set. It refuses any kind that is not a request kind, an Input that is
 /// empty once white space is removed, and a linked turn (IsLinked) with an empty OwnerRef, which names OwnerRef; builds the agent if
 /// needed; sets the context with the super session before Chat; and answers in one of two ways.
 ///   - A turn with provenance user is linked to its conversation (AnswerLinked): the runner holds the conversation lock, opens the AI
@@ -374,6 +384,10 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 		Quit $$$ERROR($$$GeneralError, "The RetryOf '"_request.RetryOf_"' of the request does not name an item whose RetryItem setting is "_..BusinessHost.%ConfigName_", so nothing is sent")
 	}
 	If kind = "tool" Quit ##class(OcuTalon.Bridge.Replay).Run($this, request, superSession, .reply)
+	If ..Concluded(request) {
+		$$$LOGINFO(..BusinessHost.%ConfigName_" skipped the "_kind_" request of the decision "_request.DecisionRef_": Decide has already recorded that decision, so no model request was made and no tool ran.")
+		Quit $$$OK
+	}
 	If $ZStrip(request.Input, "<>WC") = "" Quit $$$ERROR($$$GeneralError, "The request of kind "_kind_" has an empty Input, so nothing is sent")
 	Set linked = ..IsLinked(request)
 	If linked && (request.OwnerRef = "") Quit $$$ERROR($$$GeneralError, "The turn of the user has an empty OwnerRef, so it has no conversation to open or link, and nothing is sent")
@@ -529,11 +543,20 @@ Method SaveRetried(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.
 	}
 }
 
-/// 1 when the retry of the request is late (AD-8, DW-725): Decide has already recorded the decision of the request's DecisionRef. Decide records
+/// 1 when the retry of the request is late (AD-8, DW-725): Decide has already recorded the decision of the request's DecisionRef (Concluded). Decide records
 /// it when it concludes, and once the retry is sent it concludes before the retry's reply only when the retry's timer fires, so the user was
 /// answered without this retry and its reply is dropped. An on-time retry saves and points before its reply reaches Decide, so no row exists yet.
 /// Lateness is read once, before the save: a timer that Decide handles after this check moves nothing back. A retry with no DecisionRef is never late.
+/// A retry that is late when the runner takes it never gets here (Answer skips it); this guards the retry whose timer fires during its Chat.
 Method RetryIsLate(request As OcuTalon.Bridge.Msg.Request) As %Boolean [ Private ]
+{
+	Quit ..Concluded(request)
+}
+
+/// 1 when Decide has already recorded the decision of the request's DecisionRef: the Decision row of that Ref exists (AD-8, AD-20). Decide allocates the
+/// Ref before it sends and writes the row only when it concludes, so a row means that the request's answer would be dropped. A request with no
+/// DecisionRef is never concluded. The one source of the skip (Answer) and of the late retry (RetryIsLate).
+Method Concluded(request As OcuTalon.Bridge.Msg.Request) As %Boolean [ Private ]
 {
 	Quit (request.DecisionRef '= "") && ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(request.DecisionRef)
 }

@@ -4,6 +4,8 @@
 ///   - with a LateToken, SaveLinked of a linked turn first notes ^IRIS.Temp.ZzLate(token, "waiting") and waits, up to a minute, for
 ///     ^IRIS.Temp.ZzLate(token, "go"), so that a test can run the retry while the first attempt still holds the conversation lock, and then
 ///     lets the late attempt save its session (the adapter points no link: only Decide does);
+///   - with a ConcludeRef, SaveRetried of a retry first records the Decision row of that Ref (Test.Bridge.Runner RecordConcluded), as Decide
+///     does when the retry's timer fires during the retry's Chat, and then runs the adapter's own SaveRetried, which then sees a late retry;
 ///   - SessionConfigFor notes the timeout_ms of each config it composes, and whether the request being served carries a RetryOf, in
 ///     ^||ZzRetryConfig(n), as "timeout_ms|retrying".
 /// Nothing else differs from the adapter.
@@ -12,6 +14,9 @@ Class OcuTalon.Test.Bridge.ZzRetryAdapter Extends OcuTalon.Bridge.Adapter.Agent
 
 /// The token of the test that waits for this adapter's save, or "" for none.
 Property LateToken As %String;
+
+/// The DecisionRef whose Decision row SaveRetried records before the save, or "" for none.
+Property ConcludeRef As %String;
 
 Method RetryAllowed(retryOf As %String) As %Boolean
 {
@@ -23,6 +28,12 @@ Method SessionConfigFor(Output config As %DynamicObject) As %Status
 	Set sc = ##super(.config)
 	If $$$ISOK(sc) && $IsObject(config) Set ^||ZzRetryConfig($Increment(^||ZzRetryConfig)) = config.%Get("timeout_ms")_"|"_..Retrying
 	Quit sc
+}
+
+Method SaveRetried(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
+{
+	If ..ConcludeRef '= "" Do ##class(OcuTalon.Test.Bridge.Runner).RecordConcluded(..ConcludeRef, request.ItemId, request.Kind, request.OwnerRef)
+	Do ##super(request, session, reply)
 }
 
 Method SaveLinked(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]

@@ -4,7 +4,7 @@
 
 ## Goal
 
-A user asks OcuTalon in plain words to watch a production. New failures are picked up within seconds and grouped by the settle rule into one incident. The incident gets a plain-English cause, the element at fault, a proposed fix and evidence, and moves through fixed states. OcuTalon never gives a false all-clear. Stories 5.1 to 5.12 are done. Epic 5 is re-opened under SC-5 for one launch-blocking story, 5.13, and the online demo stays gated until it merges. In the owner's walk-through of the demo, the visitor asked about the earlier failure and OcuTalon could not recall it. There are three reasons. The incident card is an `IncidentManager` notice, not a chat turn, so it never enters Chat's AI session. Chat's toolsets (Reminders, Watching) cannot read past incidents. And `check_status` gives only the latest check, which reads "passed" once the fix has run. Story 5.13 gives Chat a trusted, read-only way to answer from OcuTalon's own records.
+A user asks OcuTalon in plain words to watch a production. New failures are picked up within seconds and grouped by the settle rule into one incident. Each incident is diagnosed into a plain-English cause, the element at fault and a proposed fix, with its evidence, and moves through fixed states. OcuTalon never gives a false all-clear. Stories 5.1 to 5.13 are done. Epic 5 is re-opened under SC-5 for one fix-forward story, 5.14 (DW-879), for Sunday's 1.0.4. The problem: `Decide` starts a diagnosis's timer when it sends the request, and `DiagnosisAgent` runs one job. When several incidents arrive together, for example several online-demo visitors breaking the feed at once, the later diagnoses spend their timer in the queue and time out before the model is asked. Their timeout rows carry no Usage and an empty model, and the visitor gets the fallback notice with no fix. The Contest Planner chose option B plus skip-abandoned: a second DiagnosisAgent job, and runners that skip a request `Decide` has already concluded.
 
 ## Stories
 
@@ -21,76 +21,52 @@ A user asks OcuTalon in plain words to watch a production. New failures are pick
 - Story 5.11: The demo guide's tests hold now that incidents are real
 - Story 5.12: A correct diagnosis is never refused for an over-long evidence reference
 - Story 5.13: Ask OcuTalon what happened earlier, and it tells you from its own records
+- Story 5.14: Several incidents at once are each diagnosed inside their timer
 
 ## Requirements & Constraints
 
-Story 5.13 is the only open story.
+Story 5.14 is the only open story.
 
-- **One new tool, `recent_activity`.**
-  - It lives in its own class in `OcuTalon.Tools` and is added to the Watching toolset's tool list.
-  - It is classified safe and read-only, and declared `TrustedOutput`, so a call never taints the turn or starts a fresh session.
-  - Its description tells Chat to call it when the user asks about earlier failures, incidents, approvals or fixes, or about what happened.
-- **What it returns.** At most 5 of the session owner's own incidents from the last 24 hours, newest first, each holding only fields that code builds:
-  - the production and the item, the failed-message count, and the first and last failure times;
-  - the element at fault (shown only when it exactly matches the approved fix's field or an item name), the cause category and the fix kind;
-  - the approval's answer (approved, rejected or expired), with its channel and time;
-  - the fix result's counts (resent, went through, failed);
-  - the incident's state (open, awaiting approval, fixing, resolved or dismissed).
-- **Times** are shown in the instance's zone with its zone label, as the catalog's times are (the DW-484 direction).
-- **Never in the output:**
-  - the model-written cause sentence;
-  - any message body or header text.
-
-  Either one would make the output untrusted.
-- **Isolation.** On the online demo the tool returns only the session's own incidents, never another visitor's.
-- **Nothing in 24 hours.** The tool says so plainly and makes no claim that everything is fine.
-- **The demo path.** After Break the feed, the notice, Approve and the result, the user asks "What was that failure earlier?" The reply names the failed count, the element at fault, the approval and the fix result. It contains no all-clear, and the reply guard still applies.
+- **Two diagnosis jobs.** In `OcuTalon.Production`, the `DiagnosisAgent` item gets PoolSize 2. `IncidentManager`, `Decide`, `DiagnosisAgentRetry` and every other item keep their pool sizes. A runner's pool size is still its concurrency cap.
+- **Pins.** Every pin on DiagnosisAgent's pool size reads 2: `OcuTalon.Test.Agent.Runners` (its pool check and its alive-jobs check) and the DiagnosisAgent row of `OcuTalon.Test.Install.Production`'s oracle. The other runners' pins still read 1. Any other test the change trips is updated and named in the spec.
+- **Skip an abandoned request.** A request can reach an agent runner after `Decide` has already concluded its decision, so its `DecisionRef` already has an `OcuTalon.Bridge.Data.Decision` row (for example, its timer fired while it waited in the queue). The runner skips that request:
+  - no model request, no tool call and no Usage row, and `Decide` records no new decision for it;
+  - exactly one log line, naming the runner item and the `DecisionRef`, with no key, message body or model text.
+- **Never skip a live or deliberate request.** A request whose `DecisionRef` has no row yet runs exactly as before. A request the bridge sends on purpose after a decision is recorded, such as the replay of an approved tool call, is never skipped. The spec names which request kinds the skip covers.
 - **Tests:**
-  - a gate test that `recent_activity` is read-only and `TrustedOutput`;
-  - a test that its output never holds the cause sentence or a message body.
-- **Footprint and gates.** Touch only the new tool class, the Watching toolset's tool list, the gate's classification entry, and their tests and mock scenarios. CI is green on every workflow, and the evaluation set passes on the mock.
-- **Optional, only if it costs nothing extra:** reminders fired today (trusted) in the same output.
+  - a stale request is skipped and a live one is not;
+  - on the CI model mock with a reply delay, two diagnoses that `Decide` sends at nearly the same time run at once on the two jobs, and the second is answered well inside its timer. The spec's `## Verification` records the measured send and answer times of both diagnoses and the timer.
+- **Unchanged:** `TimerSeconds` and every timeout. The timer still starts when `Decide` sends. No RetryItem is wired.
+- **Footprint.** Touch only these: `Production.cls`'s DiagnosisAgent item, `OcuTalon.Bridge.Operation.AgentRunner`, `OcuTalon.Bridge.Adapter.Agent`, their tests, the pool-size pins and new mock scenario files.
+- **CI.** CI is green on every workflow using the CI mock only, with no real model key, and the evaluation set passes on the mock.
+- **User-facing text.** At most one release-note line. Any new or changed user-facing string goes to the Contest Planner before it is committed.
+- **Time budget.** The incident notice arrives within 60 seconds in 19 of 20 runs: pickup within 15 s, settle within 30 s of the first failure, diagnosis within 20 s, delivery within 5 s. The online demo serves about 6 concurrent visitors, each within that budget.
+- **Out of scope:**
+  - pacing the evaluation's incident cases (DW-878);
+  - starting the timer at the runner (option A, not chosen).
 
 ## Technical Decisions
 
-- **Classification.** A built-in tool declares its classification as class parameters of its tool class: `CLASSIFICATION` (`safe` or `risky`), `READONLY` and `TRUSTEDOUTPUT` (1 or 0). A class that holds several tools adds a `<NAME>` suffix for each one. The gate fails closed: an undeclared tool is unclassified and counts as risky. In an untrusted or tainted turn, only safe, read-only calls run. Any allowed call whose tool is not trusted output taints the turn.
-- **Trusted output** is built by code from OcuTalon's own records and holds no text from outside a user's untainted turn. The classification convention now names `recent_activity` of `OcuTalon.Tools.RecentActivity` as read-only trusted output, on the same condition as its precedents:
-  - `dismiss_incident` (5.9) and `check_status` (5.7) are trusted output because a `Test.Bridge.Gate` test pins each answer to its code-built fields, so a free-text field added later fails it.
-  - `recent_activity`'s answer is built by code from the session's own incident, fix-run and approval rows only: production, item, failed count, first and last times, element at fault (only on an exact match with the approved fix's field or an item name), cause category, fix kind, the approval's answer, channel and time, the fix result's counts and the state.
-  - It never carries the diagnosis's cause sentence or any message body or header, and `Test.Tools.RecentActivity` pins its answer to those code-built fields.
-- **Not Epic 23's incident summary.** That later tool returns the evidence line and the sample error, so it is not trusted output. `recent_activity` must stay off those fields and off the diagnosis's sentences.
-- **Data and ownership.**
-  - Lane A owns the tables this tool reads: `Incident`, `FailureGroup`, `FixRun`, `ApprovalRequest` and `Decision`. Lane B owns `Session` and the ownership API (`OcuTalon.Data.Ownership`). Only the owning lane edits a class, and Epic 5 is Lane A.
-  - Owned records carry `SessionRef` or `OwnerRef`.
-  - On a local install, an `instance` incident belongs to every session that watches its production; `Session.Recipients(ownerRef, incidentRef)` resolves those sessions.
-  - Reads of incidents leave one out until its `NoticedAt` is set. (inference: do the same here)
-- **States.** `IncidentState` is `open`, `awaiting_approval`, `fixing`, `resolved` or `closed`, and `IncidentOpenVariant` (`fallback`, `no_fix`, `rejected`, `expired`) is stored beside it. There is no `dismissed` value. The spec must say how a closed incident is labelled, because Dismiss, `closeQuiet` and `closeForReplay` all close one. (inference)
-- **Times.** Stored times are UTC ISO 8601 to the second and are rendered only through `OcuTalon.Data.Time`; on the online demo the renderer adds " ET".
-- **Tool results** go through `OcuTalon.Tools.Result` as a dynamic object or plain text, never a pre-encoded JSON string. Results are cut against the step's 10,000-token budget.
-- **Naming and labels.**
-  - Built-in tool names are defined once in `OcuTalon.Tools.Names`. Other stories that add a tool also add its name to the CI mock's tool-name check (`ci/mock/test/constants.test.mjs`).
-  - A step label is a `STEPLABEL` parameter and never holds arguments or model text.
-- **The all-clear comes only from code.** `OcuTalon.Checks.ReplyGuard` runs once on every model-written text leaving `Decide` and removes the reserved sentences and the banned all-clear phrases. An all-clear reaches a reply only through `check_status` and `Checks.Render`.
-- **Mock and tests.**
-  - Lane A adds mock behaviour only as files under `ci/mock/scenarios/A/`. Chat's `MOCKKEY` is `chat`.
-  - Tests are `%UnitTest` classes named `OcuTalon.Test.<Area>`; the watch tools' tests sit in `OcuTalon.Test.Watch`, and the new tool's pinning test is `Test.Tools.RecentActivity`.
-
-## UX & Interaction Patterns
-
-- The answer is plain English, built from code-built facts: the count, the element, the approval with its channel and time, and the fix result.
-- The reply never uses the banned all-clear phrases: "all good", "everything's fine", "everything is fine", "no issues", "no problems" and "nothing to worry about".
-- With nothing in the last 24 hours, the reply says that plainly and makes no health claim.
-- Times carry a zone label so that the visitor isn't shown clocks that disagree (DW-484).
+- **The pipeline.** Every model use goes caller → `OcuTalon.Bridge.Process.Decide` → one agent runner operation per agent (`TriageAgent`, `DiagnosisAgent`, `ChatAgent`) → response.
+  - All runners are `AgentRunner` on the adapter `OcuTalon.Bridge.Adapter.Agent`, and only runners call `Chat`.
+  - `Decide` sends asynchronously with `SetTimer(timeout)`, classifies the reply, records the decision and answers its caller.
+  - `IncidentManager` calls `Decide` with kind `diagnose` and consumes the decision itself.
+  - Request kinds: `decide`, `diagnose`, `turn` and `tool`. A `tool` request uses no model; it is an approved call's replay or a source poll.
+- **Timer and late replies.** The bridge timer is 60 s by default and capped at 110 s. Derived timeouts come only from `OcuTalon.Bridge.Timeouts.Derive`, and a timer change restarts the runners. A reply after the timer is counted for cost and dropped, and it changes nothing.
+- **Decision rows.** `Decide` allocates the `DecisionRef` before sending and passes it in the request. It records one `Decision` row per call, unique on (`ItemId`, `Kind`), when the decision concludes. So an existing row for a request's `DecisionRef` means `Decide` is done with it. Reuse Story 17.2's late-retry check (DW-725: the `RetryIsLate` pattern on `Data.Decision` `RefIndexExists`), which is already on this branch.
+- **The AD-8 retry** goes to `DiagnosisAgentRetry` with the same `DecisionRef` as the first attempt, and the one row is written only at conclusion. A live retry therefore has no row yet and must not be skipped.
+- **Usage.** The runner, not `Decide`, writes one `Usage` row per `Chat` call, even after `Decide` has stopped waiting. A skipped request writes none.
+- **Production class.** It holds structure only: items, classes, pool sizes and enabled flags. Settings values live elsewhere.
+- **Mock.** Lane A adds mock behaviour only as new files under `ci/mock/scenarios/A/`.
+  - A request picks its scenario by a `[[mock:<name>]]` marker in its newest user message. Otherwise the default script for the agent's `MOCKKEY` answers it, which is `diagnosis` for this runner.
+  - A reply's `delayMs` gives the reply delay.
+- **Ownership and tests.** Epic 5 is Lane A, and the Bridge, Agent, Watch and Tools packages are all Lane A. Tests are `%UnitTest` classes named `OcuTalon.Test.<Area>`.
 
 ## Cross-Story Dependencies
 
-- 5.13 builds on these done stories:
-  - 5.1: the Watching toolset;
-  - 5.5: the states and variants;
-  - 5.7: `check_status` and the reply guard;
-  - 5.9: the pinned trusted-output pattern;
-  - 7.2 and 7.4: the approval requests and the fix result counts;
-  - Epic 3: the approval rows with their answer and channel.
-- Epic 23's incident-summary tool is a separate, untrusted tool and comes later.
-- DW-484, the agent-written times that carry no zone label, is an Epic 30 ledger entry. 5.13 only follows its direction.
-- The online demo's go-live waits on this merge.
+- 5.14 builds on these:
+  - 5.4: diagnosis through `Decide` and `IncidentManager`;
+  - Story 17.2: the retry runners and the late-retry check (DW-725);
+  - Epic 0: the production and the runner pins.
+- DW-878, pacing the evaluation's incident cases, is Epic 9's fix-forward and is handled separately.
+- The motivating load is the online demo's concurrent visitors (NFR-23), shipping in release 1.0.4.
