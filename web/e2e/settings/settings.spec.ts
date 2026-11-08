@@ -550,7 +550,8 @@ test('S9: saving a time zone shows the saved text, and GET /v1/settings returns 
   await recordAnnouncements(page);
   await openSection(page, 'Time zone');
   const before = await instanceValues(page);
-  const select = page.getByLabel('Time zone', { exact: true });
+  // The role keeps the locator on the select: the section region carries the same name.
+  const select = page.getByRole('combobox', { name: 'Time zone', exact: true });
   await expect(select, 'the select is preselected from the stored zone').toHaveValue(before.zone);
   await expect(select.locator('option').first(), 'the first choice is the Server default').toHaveText('Server default');
   await expect(page.getByText("Message times, reminders, the daily digest and the current time that OcuTalon gives the model use this zone. Times on this page stay in your browser's zone.")).toBeVisible();
@@ -563,7 +564,7 @@ test('S9: saving a time zone shows the saved text, and GET /v1/settings returns 
     expect((await instanceValues(page)).zone, 'GET shows the new zone at once').toBe(zone);
     await page.reload();
     await sectionsNav(page).getByRole('link', { name: 'Time zone', exact: true }).click();
-    await expect(page.getByLabel('Time zone', { exact: true }), 'a reload shows the saved zone').toHaveValue(zone);
+    await expect(page.getByRole('combobox', { name: 'Time zone', exact: true }), 'a reload shows the saved zone').toHaveValue(zone);
   } finally {
     const put = await page.request.post(`${SETTINGS}/time-zone`, { headers: envelope(), data: { InstanceZone: before.zone } });
     expect(put.status(), 'the zone is put back').toBe(200);

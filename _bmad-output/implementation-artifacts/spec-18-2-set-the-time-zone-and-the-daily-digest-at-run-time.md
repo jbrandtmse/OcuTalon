@@ -2,11 +2,11 @@
 title: 'Story 18.2: Set the time zone and the daily digest at run time'
 type: 'feature'
 created: '2026-11-08'
-status: 'in-progress'
-baseline_revision: 'd8dac27538c4ff0af7747bdbac363cc7673f2f9a'
+status: 'done'
+baseline_revision: '8e5e9f1842becc37445ab1a01ba4a42782b77e07'
 baseline_commit: 'd8dac27538c4ff0af7747bdbac363cc7673f2f9a'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-18-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/33-1-task0-zone-measurement.md'
@@ -163,7 +163,7 @@ deferred:
 - `web/e2e/settings/settings.spec.ts` -- in S1, leave only Budgets as not built. Add S9 (Time zone save shows the saved text, and the GET returns the zone, then puts it back), S10 (Daily digest save and the channel boxes for the stack's demo mode) and S11 (Send my digest now: busy, then the confirmation).
 - (No spine edit in this story: struck by the lead at the spec gate. AD-18 already says the run-time source is "an IANA zone name, or empty for the container's `TZ`", which with `TZ` unset is the inherited OS zone, so the DW-34 fallback complies as written (doctrine U7 step 1). The proposed clarifying sentence goes to the orchestrator (U14); do NOT edit `ARCHITECTURE-SPINE.md` and do NOT run `lint_spine.py` for it.)
 
-- [ ] [Smoke] S9 fails in the lead's per-story smoke (fresh lane-D live:sign-in-2 --part 3/3, OCUTALON_LIVE_DEADLINE=1200): `page.getByLabel('Time zone', { exact: true })` resolves to 2 elements (the Time zone section, a region named by its heading, and the select), a Playwright strict-mode violation -- `web/e2e/settings/settings.spec.ts:553` and `:566` -- target the select unambiguously (e.g. `getByRole('combobox', { name: 'Time zone', exact: true })`, scoped to the section if needed), with no product change; S10-S12 and S1-S8 passed in the same run. Check the other new specs (S10-S12) for the same label/region ambiguity.
+- [x] [Smoke] S9 fails in the lead's per-story smoke (fresh lane-D live:sign-in-2 --part 3/3, OCUTALON_LIVE_DEADLINE=1200): `page.getByLabel('Time zone', { exact: true })` resolves to 2 elements (the Time zone section, a region named by its heading, and the select), a Playwright strict-mode violation -- `web/e2e/settings/settings.spec.ts:553` and `:566` -- target the select unambiguously (e.g. `getByRole('combobox', { name: 'Time zone', exact: true })`, scoped to the section if needed), with no product change; S10-S12 and S1-S8 passed in the same run. Check the other new specs (S10-S12) for the same label/region ambiguity.
 
 **Acceptance Criteria:**
 - **AC 1.** Given an admin picks a zone in Time zone and saves, when the save answers, then:
@@ -236,12 +236,23 @@ Rejected:
 
 ## Spec Change Log
 - 2026-11-08, rework iteration 1 (lead, trigger=smoke): the per-story smoke ran settings.spec.ts on a fresh lane-D stack; S9 failed on an ambiguous label locator (one [Smoke] item under Tasks & Acceptance). Scope: that item only.
+- 2026-11-08, rework iteration 1 implement pass: S9's two `getByLabel('Time zone')` sites now use `getByRole('combobox', { name: 'Time zone', exact: true })`; S10-S12 checked, no other label meets a same-named region (`Send at` labels only the time input). No product change; the implement handoff subagent was not used (a two-line test edit, the rest of the story left as committed).
 - 2026-11-08, PUBLIC TEXT ruling (Contest Planner under the owner's delegation, relayed by the orchestrator): rows 1-6 and 14 confirmed verbatim (reused); rows 8-13 and 15-17 approved as written; row 7 reworded to "Message times, reminders, the daily digest and the current time that OcuTalon gives the model use this zone. Times on this page stay in your browser's zone." All pinned with fixed strings; `ux-strings` ruling key `planner-2026-11-08-18.2`.
 - 2026-11-08, AD-14 (Contest Planner ruling, relayed by the orchestrator): the interim sub-bullet at spine line 476 is reworded by the LEAD at this story's close/integrate-forward as an as-built correction, marker `[AMENDED 2026-11-08, Story 18.2, Contest Planner ruling]`. Not a stage edit: implement, QA and review do not touch the spine. AD-18's clarifying sentence waits for an attended `bmad-architecture` Update (nothing to do in this story).
 
 - 2026-11-08, spec gate (lead, Epic 18 runner): struck the AD-18 spine edit from Tasks & Acceptance. Reason: doctrine U14 (a runner never amends an AD itself) and U7 step 1 (comply first): AD-18's Rule already covers an empty `InstanceZone` with `TZ` unset as the container's inherited zone. The clarifying sentence and AD-14's interim sub-bullet ("Until Story 18.2, Digest narrows ...") were sent to the orchestrator. Planned behaviour is unchanged.
 
 ## Review Triage Log
+
+### 2026-11-08 — Review pass (rework 1, S9 locator)
+- verdicts: 5 findings — high 0, medium 0, low 5, false 0, maybe-false 0
+- findings:
+  - `low` `reject` The same role locator appears twice in S9 — two sites on purpose (before and after a reload); a shared helper adds structure for no named harm.
+  - `low` `patch` No comment says why the role is needed — added a one-line contract comment at the first site in `web/e2e/settings/settings.spec.ts`.
+  - `low` `patch` (verification-gap) S9 has no `mutation:` line — written in `## Verification` as "not observed locally (DW-938)", per the pre-answered override; the existing frontmatter `deferred:` item for S9 to S12 stands.
+  - `low` `reject` (verification-gap) S9's preselect assertion can pass on a stack with an empty stored zone — pre-existing assertion, not changed by this diff; the post-reload check is non-vacuous; a fix needs a new precondition (more than a direct correction).
+  - `low` `reject` (verification-gap) S9's restore sits in `finally` and could leak a zone if it fails — one worker, no race; the reviewer itself found it acceptable.
+  - Edge-case hunter: no findings. Intent-alignment auditor: no divergence (the diff implements the narrow selector fix, page-wide form A1; S10-S12 need no edit).
 
 ### 2026-11-08 — Review pass
 - verdicts: 24 rows covering the 32 findings the layers reported (the same defect reported by two layers shares one row, with every source named) — high 0, medium 6, low 17, false 1, maybe-false 0; the intent-alignment layer reported readings and divergences, no defects
@@ -420,6 +431,7 @@ Lane D variables (`$LANE_D` below):
 - mutation: AC 3 (re-observed): `Api.SendDigest` submits with origin `web_user` -> `Test.Web.SettingsApi` `TestSendDigest` red (no requested Sent row).
 - mutation: AC 2 (re-observed, different edit): removed the empty `Kind=digest` fall-through `<when>` from `Core.Rule.Notify` -> `Test.Core.Routing` `TestNotifyDigestTargets` red (a digest with no channel takes the generic route).
 - mutation: AC 5 (re-observed): `channelsView` ignores the paused card kind -> `web/scripts/settings-view.test.mjs` "says \"paused\" with the retry line while the pause condition holds, whatever the state is" red.
+- mutation: AC 1, S9 (browser tier, locator fix): `web/e2e/settings/settings.spec.ts` S9 now targets the select with `getByRole('combobox', { name: 'Time zone', exact: true })` at both sites; mutation (revert either site to `getByLabel('Time zone', { exact: true })`, or drop the saved-text check) -> S9 red -- not observed locally (DW-938). The spec parses (`playwright test --list --project=sign-in-2`, 21 tests) and `npm --prefix web run lint` passes; the browser run is the lead's re-smoke.
 - Baseline on `e18s2qw` after the seam: `Test.Data.TimeSource`, `Test.Data.Time`, `Test.Core.Routing`, `Test.Core.SettingsRunTime` (70 s), `Test.Web.SettingsApi`, `Test.Schedule.ReminderZone`, `Test.Agent.Render`, `Test.Bridge.Time` passed; `node --test web/scripts/settings-view.test.mjs web/scripts/ux-strings.test.mjs` 42 pass; `bash docker/tests/test-boundaries.sh` passed.
 - DW-938 not settled: Playwright S9 to S12 cannot run inside the 150 s rule. The warm stack publishes no port and holds no fixture users, and its web bundle is part of the image (a changed web file refuses a warm run). The only runner is the `live:sign-in-2` unit (`docker/tests/test-sign-in-2.sh`), which builds its own image and throwaway, waits up to 400 s for the first start, creates the fixture users, then runs the whole project; it is one script with no split point (`--part k/n` cuts only the browser step). So no S9 mutation line; S9 to S12 stay in CI (group `shards-4`), with their pure-function twins in `settings-view.test.mjs` (AC 5 mutation above).
 
@@ -444,6 +456,8 @@ Every test added or changed passes on a fresh environment, in either order.
 
 Status: done
 Blocking condition: none
+
+**Rework 1 pass (smoke, S9 locator).** This pass covers only the open [Smoke] item. `web/e2e/settings/settings.spec.ts`: S9's two `getByLabel('Time zone', { exact: true })` sites now use `getByRole('combobox', { name: 'Time zone', exact: true })` (the section region shares the name; the role keeps the locator on the select), with a one-line comment. S10-S12 checked: no ambiguity, no edit. No product change. Review: 5 findings, all low; 2 patched (the comment, the S9 `mutation:` line as "not observed locally (DW-938)"), 3 rejected with reasons in the triage log; follow-up review recommended: false (no high patched). Verification: `playwright test e2e/settings/settings.spec.ts --list --project=sign-in-2` parses (21 tests), `npm --prefix web run lint` and `bash docker/tests/test-boundaries.sh` pass; the browser run is the lead's re-smoke. Residual risk: S9 is unobserved in a browser until that re-smoke.
 
 **Summary.** `Data.Time` follows `Bridge.Time` (Apply first, bridge zone, then TZ, then the OS zone, then UTC) and reads the first instant of a repeated hour whatever the process converted before. `Notify` has a `digest` branch that reads `digest.channels` (`Functions.DigestNamed`). `POST /v1/settings/daily-digest/send` submits one `SendDigest` (origin `web_admin`). The Settings page has the Time zone, Daily digest (with Send my digest now) and Channels sections. `Test.Core.SettingsRunTime` changes all three values on the running production without a restart.
 
