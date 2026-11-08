@@ -385,7 +385,7 @@ Method TestZoneCase()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2025-07-01T12:00:00Z"), "2025-07-01T12:00:00", "and no zone")
 	Set ..SavedZone = own
 
-	Set classes = $ListBuild("OcuTalon.Test.Bridge.Time", "OcuTalon.Test.Agent.Render", "OcuTalon.Test.Bridge.Usage", "OcuTalon.Test.Bridge.Budget", "OcuTalon.Test.Bridge.Decide", "OcuTalon.Test.Tools.Reminders")
+	Set classes = $ListBuild("OcuTalon.Test.Bridge.Time", "OcuTalon.Test.Agent.Render", "OcuTalon.Test.Agent.RenderMemory", "OcuTalon.Test.Bridge.Usage", "OcuTalon.Test.Bridge.Budget", "OcuTalon.Test.Bridge.Decide", "OcuTalon.Test.Tools.Reminders")
 	Set position = 0
 	While $ListNext(classes, position, class) {
 		Do $$$AssertTrue($ClassMethod(class, "%Extends", base), class_" extends the zone base")

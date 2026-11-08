@@ -5749,3 +5749,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-4-the-notes-and-your-answers-reach-the-model.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: measured in 41.4 rework (SecondModel mock request log): first turn's session-start input quotes zz17first in the notes block and again as the message
 - 2026-11-08T19:54:46Z status=routed owner=burndown by=harvest note=Lane B fix with DW-967: DailyNote.Build (or Conversation) leaves the current turn and any later turn out of the note; same family as DW-967 (fallback first turn)
+- 2026-11-08T20:21:51Z status=routed owner=burndown by=cr note=fix also updates SecondModel:TestIntegrationWebChat (notesBlocks>0, notesWrong=0 assert today's quote)

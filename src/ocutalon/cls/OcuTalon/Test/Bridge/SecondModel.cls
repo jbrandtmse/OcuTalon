@@ -24,7 +24,7 @@
 ///     conversation lock, so the request that reaches ChatAgent has none;
 ///   - TestIntegrationWebChat (Rule 1): a message through WebChatIn to the real Conversation and Decide, with a second model on ChatAgent and a refused first
 ///     attempt, is answered by the second model with no fallback, and the next message is answered with that exchange in its history and none of the refused one. The first
-///     message is counted outside the notes block, which the session-start input of the first turn carries and which quotes the message once.
+///     message is counted outside every notes block: the session-start input of the first turn carries one, and each block quotes the message once.
 Class OcuTalon.Test.Bridge.SecondModel Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -575,16 +575,19 @@ Method TestIntegrationWebChat()
 		Set messages = $ClassMethod(..#FIXTURE, "Messages", entry)
 		If (messages [ "zz17first") && (messages [ ("assistant:"_..#SECONDTEXT)) && (messages [ "zz17next") Set held = held + 1
 		If messages [ "The CI mock refuses this request." Set refused = refused + 1
-		// the first turn began the day, so the history it seeded holds its session-start input: the notes block quotes the message once beside the message itself (AD-21)
-		Set notes = ..NotesBlock(messages, opening, .outside)
-		If notes '= "" {
+		// the first turn began the day, so the history it seeded holds its session-start input, whose notes block quotes the message once beside the message
+		// itself (today's note holds the turn's own line, DW-977); a next turn on a new local day carries a block of its own, which quotes it once as yesterday's
+		Set outside = messages
+		For {
+			Set notes = ..NotesBlock(outside, opening, .outside)
+			If notes = "" Quit
 			Set notesBlocks = notesBlocks + 1
 			If $Length(notes, "zz17first") '= 2 Set notesWrong = notesWrong + 1
 		}
 		If $Length(outside, "zz17first") > 2 Set repeated = repeated + 1
 	}
 	Do $$$AssertEquals(held, 1, "one model request of the next turn holds the first message, the second model's reply and the new message in its history ("_logged.%Size()_" requests carry the new message)")
-	Do $$$AssertEquals(refused_"|"_repeated, "0|0", "none holds the refused exchange, and none holds the first message twice outside the notes block (DW-726)")
+	Do $$$AssertEquals(refused_"|"_repeated, "0|0", "none holds the refused exchange, and none holds the first message twice outside the notes blocks (DW-726)")
 	Do $$$AssertTrue(notesBlocks > 0, "the session-start input of the first turn, seeded into the next turn's history, holds a notes block")
 	Do $$$AssertEquals(notesWrong, 0, "and every notes block a request holds quotes the first message once")
 }
