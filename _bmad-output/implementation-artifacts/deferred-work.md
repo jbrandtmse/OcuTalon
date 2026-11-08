@@ -3994,6 +3994,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T08:27:34Z status=routed owner=burndown by=burndown note=epic17_reopen_burndown_overflow:shared_flake_pool(filed_by_Epic_31;on_the_dispatch_flake_list);38ab54d4_image_green_without_a_code_change(the_17.10_rework_was_spec-only);probable_mechanism:Install.Step.Production.NotRunning()_reads_the_run-time_flag_while_the_System_Default_row_0_governs_TelegramIn;Install/Step/Production.cls_is_Epic_19's(contended);for_the_orchestrator_to_route_post-merge
 - 2026-11-08T12:38:27Z occurrence=OCT-epic18-90360113 by=orchestrator note=run 42475836390 iris(image) shard:lane-b Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved: TelegramIn row 0, runtime flag 1, jobs none (same as Epic 17's twice this morning); 18.2 changes Settings/web only; rerun of failed jobs 12:3xZ; for 32.7
 - 2026-11-08T19:17:40Z occurrence=OCT-epic5-ff7de7ee by=orchestrator note=run 42490955974 iris(image) lane-b TestAfterAllTestsNothingSaved TelegramIn row 0 runtime 1 jobs none; not rerun: the head is superseded by its integrate-forward, whose CI is the gate
+- 2026-11-08T22:41:17Z occurrence=OCT-epic41-ef38622e by=orchestrator note=run 42525785483: iris(image) lane-b Heartbeat TestAfterAllTestsNothingSaved TelegramIn row 0 runtime 1 jobs none (fix in flight in 32.7)
 
 ### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
@@ -4174,6 +4175,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 41909512271 attempt 2 on OCT-epic39 d701b6e6 (unit 578 s); passed on a fresh lane-D run at the same sha; Story 39.4 code never runs there (no checklist, beat skips empty)
 - 2026-11-04T22:12:29Z status=routed owner=burndown by=lead note=attempt 3 rerun decides; DW-321 reopen_if not met (578 s)
 - 2026-11-04T22:35:23Z occurrence=39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built note=attempt_3_of_run_41909512271_green_on_unchanged_rerun_flake_confirmed
+- 2026-11-08T22:41:17Z occurrence=OCT-epic41-ef38622e by=orchestrator note=run 42525785483: iris(production) live:reminder-restart restart 2 took 176 s under load, R_future already due; 4 checks
 ### DW-664: Under Another language or a custom persona, a model-worded all-clear can pass ReplyGuard's English closed lists (AD-7 vs AD-28 Prevents)
 - source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: RESERVED and BANNED in Checks.ReplyGuard are English; AD-7 keeps the guard to that list; under Spanish only Chat's instruction stands between the model and a false all-clear (FR-37, AD-28 Prevents). The catalog all-clear itself stays code-only.
@@ -4368,6 +4370,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T12:39:56Z status=routed owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=runner note=charter:Story_7.11_test-only_Planner_ruling_2026-11-08(b);occurrences_OCT-epic17-321dcad7(x2),OCT-epic32-cf04f99a
 - 2026-11-08T13:31:15Z status=resolved-by:7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=adjudication note=Snapshot.DiffCategory_excuses_new_and_completing_headers_Ens.ScheduleService->Ens.ScheduleHandler_only(ScheduleWrite);pinned_by_SnapshotDiff.TestScheduleWritesAreNotChanges(5_mutations_red);forced-condition_harness_old_red_20/20,fix_20/20(evidence/7-11/cause.md);callers_green_warm
 - 2026-11-08T13:44:12Z occurrence=OCT-epic32-cf04f99a-attempt2 by=orchestrator note=run 42472273728 attempt 2 TestFewerThanTwentyGood ScheduleService header again; one more rerun under the Planner's (c) deviation; 7.11 fixes it
+- 2026-11-08T22:41:17Z occurrence=OCT-epic41-ef38622e by=orchestrator note=run 42525785483: iris(shards) lane-a@Checks,Install,Watch,Eval Test.Watch.GoodMessages TestFewerThanTwentyGood (Ens.ScheduleService header); head predates 7.11 on feature (integrated onto c25902c3): inherited, fixed by the integrate-forward
 
 ### DW-698: flake: lane-a@rest Tools.RecentActivity and RecentActivityTurn saw a leaked resolved Orders/OrdersFromPartner incident (count 50, approved on web, 50 resent); TestPoisoned hit INVALID OREF in Test.Watch.Case.SortedKeys
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -5852,3 +5855,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner live demo walk of v1.0.4, 2026-11-08 ~21:30Z | severity: high | fix-risk: low | footprint: in-epic
 - evidence: demo host v1.0.4 (host check 109/0/1); Watch/Reader.cls messages.log severity count (Story 17.5)
 - 2026-11-08T21:35:08Z status=routed owner=burndown by=orchestrator note=planner_ruling: HIGH for 1.0.5 after D3's slot; Task 0 measures which lines a fresh Docker install logs at start on builds 154 and 109; then report the narrowest fix before implementing: (a) ignore those exact start-up signatures or (b) count only errors after the instance start sequence ends; tests: start-up noise passes, a real later error still fails; any string change to the Planner
+
+### DW-981: flake candidate: OcuTalon.Test.Data.PairingRows TestTakeReplySlot 'a call 59 seconds later gets 0' red once in CI image lane-b under heavy load (a wall-clock bound)
+- source: CI run 42525785483 attempt 1 (OCT-epic41 ef38622e) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: iris(image) shard:lane-b 22:16:04Z; Epic 41 touches no Pairing code
+- 2026-11-08T22:41:16Z status=routed owner=burndown by=orchestrator note=first sighting; candidate for the next flake story

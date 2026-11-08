@@ -2942,3 +2942,6 @@
 2026-11-08T22:00:20Z	Epic 30	worktree_removed	
 2026-11-08T22:00:20Z	Epic 30	epic_branches_deleted	local+remote(ancestor_verified)
 2026-11-08T22:00:20Z	Epic 41	runner_clarification	kind=CI_WAIT agent=a70c5c6c3ec305303 sha=ef38622e local=900b4bfa applied=U-309,U-310,U-314 recorded=41.7_rulings(AD-7_amended;AC6_report-only)
+2026-11-08T22:00:34Z	Run	ruling	question=feature_CI_ab73a661_after_30.7_merged category=decide choice=cancel(42524580700,42524580677;superseded_by_2992191c_which_contains_it;dispatches_wait_for_2992191c_green) policy=5086036
+2026-11-08T22:41:17Z	Epic 41	ci_red_classified	sha=ef38622e run=42525785483 jobs=iris(shards):GoodMessages(DW-675_inherited;fixed_on_feature_by_7.11),iris(image):Heartbeat(DW-639)+PairingRows_TestTakeReplySlot(new_DW-981),iris(production):live:reminder-restart(DW-689;restart2_176s) lane-a=success class=inherited+flakes(none_Epic_41_code) action=integrate_forward_onto_feature(brings_7.11)+fresh_CI
+2026-11-08T22:41:43Z	Epic 41	runner_resumed	agent=a70c5c6c3ec305303 with=ef38622e_red_classified;integrate_onto_2992191c;41.6_local_under_outage_rule
