@@ -2,7 +2,7 @@
 title: "Story 41.4: The notes and your answers reach the model"
 type: 'feature'
 created: '2026-11-08'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'ca18d9af331bb63f783c4356ff06ddde2793fc5a'
 baseline_commit: 'ca18d9af331bb63f783c4356ff06ddde2793fc5a'
 review_loop_iteration: 0
@@ -179,6 +179,9 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they are given in full.
      - its act turn's Chat request (tools) holds none.
    - `TestPersonTurnHasNone`: a message of A's session has no `PRECEDENTSOPENING` in its Triage request or its Chat request.
 
+- [ ] [CI] `iris (shards-5)` `OcuTalon.Test.Bridge.Time:TestZoneCase` red on e13cd097 (ci run 42496961697): "none outside the base calls the process time zone ... OcuTalon.Test.Agent.RenderMemory" — `src/ocutalon/cls/OcuTalon/Test/Agent/RenderMemory.cls` (QA's `TestLocalDates` and its zone save/restore hooks) — the fix must make `RenderMemory` extend `OcuTalon.Test.Bridge.ZoneCase` (or move `TestLocalDates` into a class that does) and drop its own zone save/restore, so `TestZoneCase` passes and `TestLocalDates` still turns red under both UTC-date mutations.
+- [ ] [CI] `iris (shards-5)` `OcuTalon.Test.Bridge.SecondModel:TestIntegrationWebChat` red on e13cd097: "none holds the refused exchange, and none holds the first message twice (DW-726)" — `src/ocutalon/cls/OcuTalon/Test/Bridge/SecondModel.cls` (the `repeated` count at the end of the test) — find why the next turn's request now holds "zz17first" more than once (lead's hypothesis: the second-model retry sets `SessionRotated`, so the next turn is a session start and the notes block quotes the first message's opening beside the seeded history — by design under AD-21). If the hypothesis holds, keep DW-726's intent (the seed never holds the refused exchange or the user's message twice) by counting only outside the notes block (the lines after `NOTESOPENING` up to the blank line), and add an assertion that the notes block, when present, quotes the first message once. If the cause is anything else (a product defect in 41.4's Render), fix the product code instead. Lane A files only; never a Lane B class or test.
+
 **Acceptance Criteria:**
 1. **Notes at a session start.** Given a person's item rendered with `{"sessionStart":1}` and records on D-1 and D, when `Test.Agent.RenderMemory` runs, then every notes row of the Matrix holds. The block (`NOTESOPENING`, then each day's date line and its `Build` lines, quoted) sits after the persona block and before the text, and a day with nothing adds nothing (FR-71, AD-7, AD-21).
 2. **A failed read.** Given a `Build` that throws, when `Render` runs, then the input is the one without notes, `Render` neither throws nor answers "", and one warning is logged (AD-28: no false all-clear).
@@ -227,6 +230,8 @@ Code review 2026-11-08 (full mode; layers: Blind Hunter, Edge Case Hunter, Verif
 - `false` The QA change to `RenderMemory.cls` is uncommitted - process: the lead commits.
 
 ## Spec Change Log
+
+- 2026-11-08 rework iteration 1 (trigger: CI red on e13cd097, `iris (shards-5)`): two [CI] items added under Tasks & Acceptance. Only those items are worked.
 
 - 2026-11-08 (rulings relayed by the orchestrator; Contest Planner under the owner's delegation, owner-level for the AD under U14):
   - **PUBLIC TEXT APPROVED:** `PRECEDENTDECIDED` = "; OcuTalon decided " and `PRECEDENTANSWER` = "; your answer: ", with the precedent line shape as built (`{date} ({channel}): {summary}; OcuTalon decided {outcome}; your answer: {answer}`) and the no-outcome form for approval rows (`{date} ({channel}): {summary}; your answer: {answer}`); the notes block's date-only quoted day lines (yesterday first). **Pin them with fixed strings** (test-held copies of both parameters and of one built line of each form).
