@@ -9785,7 +9785,7 @@ So that memory can't be poisoned through the notes or the precedents.
 **Then** neither `DailyNote.Build`'s text nor the session-start block contains any part of it, its sender or its body (FR-71, NFR-14)
 
 **Given** the evaluation harness
-**When** a case seeds precedents for owner `eval` (`EvalIn` sends them to `PrecedentOps` as `RecordPrecedent`, owner `eval` only, only while `OCUTALON_EVAL=1`, and removes them after the run)
+**When** a case seeds precedents for owner `eval` (`EvalIn` sends them to `PrecedentOps` as `SeedPrecedent`, owner `eval` only, only while `OCUTALON_EVAL=1`, and removes them after the run with `RemoveSeededPrecedents`) [AMENDED 2026-11-08, Story 41.7 plan, Rule 5 apply-and-report: it read "as `RecordPrecedent`"; DW-920 and AD-21 as amended name `SeedPrecedent`]
 **Then** the set gains a pair of cases on one recorded email:
 - without precedents, it is expected as tellnow;
 - with three "noise" precedents from the same sender, it is expected as digest or ignore.
