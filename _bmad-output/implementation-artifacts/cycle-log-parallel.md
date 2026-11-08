@@ -2639,3 +2639,11 @@
 2026-11-08T03:10:22Z	Epic 31	runner_clarification	kind=CI_WAIT agent=a6cdbe9192b94db01 sha=7ccdd0bf(origin;verified;contains_ab50e3cd) integrated_forward=ab50e3cd(merge_a84bde84) runs=42441528510,42441528548 checks=green(lane-b@Web_2/2,lane-b@Data,live:online-demo-path_10_passed)
 2026-11-08T03:20:01Z	Epic 17	runner_clarification	kind=CI_WAIT agent=ad607fde4a29806c8 sha=596eb1f7(origin;verified;contains_ab50e3cd) carries=17.10(c217ad34)+17.11(bc4a8536,U-303_pin,no_leak)+integrate_merge_d30e5823 runs=42442077870,42442077880 local_unpushed=f8ea55e2(bookkeeping) applied=U-303 notes=two_warm_class_runs_in_one_message_by_implement(both_passed;Rule_18(3)_slip_reported_by_runner);stale_own-tag_warm-iris.lock_cleared_by_teardown
 2026-11-08T03:20:01Z	Run	merge_order_note	epics=17,31 both_integrated_onto=ab50e3cd shared_files=docker/tests/test-online-demo-path.sh,web/e2e-online/demo-path/demo-path.spec.ts rule=first_green_merges;second_re-integrates_with_the_eleven-case_union(ruled_00:5xZ)
+2026-11-08T03:20:47Z	Epic 9	worktree_provisioned	branch=OCT-epic9 base=19bb32c7(feature_bookkeeping_over_ab50e3cd_green) reason=story_9.11_DW-878 sc5_reopen=yes ci_runs_on_bookkeeping_head_cancelled=42442289663,42442289669
+2026-11-08T03:20:47Z	Epic 9	worktree_bootstrapped	epic=9 result=ok
+2026-11-08T03:21:06Z	Epic 9	runner_dispatched	runner=ab2b48e59bf60d65e lane=B slot=ocutalon-slot-b model=opus prompt=prompts/dispatch-epic-9-dw878.md story=9.11_DW-878(1.0.4;EvalIn_pacing) base=19bb32c7 note=lane_B_shared_with_Epic_17_runner_in_CI_WAIT(throwaways_only)
+2026-11-08T03:45:24Z	Epic 31	ci_green_verified	runs=42441528510,42441528548 head=7ccdd0bf result=success via=none
+2026-11-08T03:45:24Z	Epic 31	runner_resumed	agent=a6cdbe9192b94db01 with=green_contract_request(merges_first;17_re-integrates_with_union)
+2026-11-08T03:46:00Z	Epic 31	runner_complete	agent=a6cdbe9192b94db01 stories=1(31.4) head=7ccdd0bf ci=success(42441528510,42441528548) decisions_for_user=DW-446,DW-485 applied=none amendments=none extensions=none release_tool_hunks=none
+2026-11-08T03:46:00Z	Epic 31	amendments_verified	amendments=0 extensions=0 ok=true
+2026-11-08T03:46:00Z	Epic 31	merge_enqueued	policy=when_green epic=31_done(all_7_stories) retro=skipped(policy) vetoes_open<20
