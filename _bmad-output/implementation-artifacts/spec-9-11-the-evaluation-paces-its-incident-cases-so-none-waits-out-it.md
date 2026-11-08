@@ -17,7 +17,7 @@ deferred: []
 
 **Problem:** `EvalIn` (`OcuTalon.Eval.In`) sends every incident case of a run at once. `Decide` starts a diagnosis's timer when it sends the request to `DiagnosisAgent`, which has one job, so the later incident cases spend their 60-second timer queued behind the earlier ones. On the 1.0.3 rc1 set the 10th and 11th incident cases (`returns-negative-weight`, `shipments-epoch-time`) timed out at about 60.1 s, so the cause score measured the queue, not the diagnosis (DW-878).
 
-**Approach:** `EvalIn` paces its incident cases where it sends one (`SendIncident`). Each incident case after the first in a run is sent only once the previous one's `CaseResult` row is no longer in state sent. The wait is bounded by a new `INCIDENTWAIT` of 150 s, above `Decide`'s `MAXTIMER` of 110 s. At the bound, the run sends no more incident cases. Turn cases still go first (`SendOrder` is unchanged), and nothing else changes.
+**Approach:** `EvalIn` paces its incident cases where it sends one (`SendIncident`). Each incident case after the first in a run is sent only once the previous one's `CaseResult` row is no longer in state sent. The wait is bounded by a new `INCIDENTWAIT` of 150 s, above `Decide`'s `MAXTIMER` of 110 s. At the bound, the run sends no more incident cases. Turn cases still go first (`SendOrder` is unchanged). A skipped incident case counts as not right in SM-2's incident score and stays in its denominator (`Eval.Report` tallies it), so a stall can only lower that score, never raise it (the Contest Planner's condition, 2026-11-08). Nothing else changes.
 
 ## Boundaries & Constraints
 
@@ -48,7 +48,8 @@ deferred: []
 - No change to an existing timer, timeout or wait: `TURNWAIT`, `BUSYWAIT`, `BUSYMAX`, `Wait`, `OCUTALON_EVAL_WAIT` and every timer of `Decide` stay as they are. No change to any case under `eval/`, to any score, or to `EvalIn`'s disabled state in the product.
 - No edit to:
   - the frozen files: `eval/run.sh`, `release/*.sh`, the IPM artifact and the check scripts;
-  - `Eval/Report.cls`, `Eval/Gate.cls`, `Eval/Sweep.cls`, `Eval/Sink.cls` and `Eval/Data/CaseResult.cls`;
+  - `Eval/Gate.cls`, `Eval/Sweep.cls`, `Eval/Sink.cls` and `Eval/Data/CaseResult.cls`;
+  - `Eval/Report.cls` outside its header line about skipped cases (:61), `Build`'s last calls (:197-198) and `AddSkipped` (:952-966) (the Planner's condition; these hunks do not overlap Story 19.4's, ruled a plain union);
   - `Production.cls`, `Decide.cls`, `Watch/IncidentManager.cls` and `ci/units.sh`;
   - `Test/Eval/Cases.cls`.
 - No real model key. No new persistent class, table, production item, event or message class. No new `LOG*` text.
@@ -67,6 +68,7 @@ deferred: []
 | `DiagnosisAgent` with two jobs (Story 5.14) | PoolSize 2 | The same behaviour, because the rule reads rows only | No error expected |
 | The three callers | `Report.Run` (eval/run.sh's set and release-candidate attempts), `Gate.Demo` (one incident case per run), `Sweep.Pass` (no incident case) | `Start` returns after the last incident case is sent, and `Wait` then bounds the rest as before. The demo and the sweep never wait | No error expected |
 | Integration: Lane A's `evaluation` job (CI) | `eval/run.sh` unchanged, the CI mock, the 11 incident cases of `eval/` | `CHK\|problems\|0`, one `CHK\|case\|...\|incident` line for each incident case, and the demo 10 of 10 | A case paced out would be a `not sent` problem and fail the job |
+| Skipped incident case in the report (the Planner's condition) | `Report.Build` given a skip of an incident case (`REASONPACED` or any other reason), held out or not | It counts in `scores.incidents` as not right: `total` includes it and `right` does not; when the case is held out, likewise in `heldOutIncidents`. It is still listed under `skipped` and is still a problem. A skip of any other kind counts in no score, as today | No error expected |
 | The product | The judges' compose file, or an IPM install | `EvalIn` disabled (pool 0, Enabled 0), and `eval/` unchanged | No error expected |
 
 </intent-contract>
@@ -201,6 +203,13 @@ Paths are relative to the repository root. Class paths are under `src/ocutalon/c
   - Header bullets for the two new tests and the changed bullet of `TestSendsIncident`.
 
   These are the pins of AC1 to AC4.
+- `src/ocutalon/cls/OcuTalon/Eval/Report.cls` -- [Planner condition 2026-11-08] Count a skipped incident case as not right in SM-2:
+  - In `Build`, call `AddSkipped` before `Finish` and pass the tally: `Do ..AddSkipped(report, skipped, folder, .tally)` then `Do ..Finish(report, .tally)` (today Finish runs first, :197-198).
+  - `AddSkipped(report, skipped, folder, ByRef tally)`: for an entry whose kind is `INCIDENTKIND` and that is not `notRunYet`, `Do ..Tally(.tally, "incidents", 0, heldOut, "heldOutIncidents")`, with `heldOut` read from the case as `Score` reads it (:406); `heldOut` is 0 when the case.json cannot be read. Nothing else in the entry changes.
+  - The header line (:61) and `AddSkipped`'s doc say that a skipped incident case counts as not right in the incidents (and held-out incidents) and that any other skip counts in no score.
+  - Touch nothing else in the class: above all not `Finish` (:917-922), `Text`, `Score` or the header lines 44-49, which Story 19.4 edits.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/In.cls` -- also add `TestSkippedIncidentScored` (the Planner's condition), with its header bullet: on one ZzIn double with `late` = `"never"`, process incident cases `zz-sc-a`, `zz-sc-b` and `zz-sc-c` (`zz-sc-c` with `heldOut: true` in its case.json); collect the skipped `{case, reason}` of `b` and `c` (both `REASONPACED`); `Answer` a's row; then build the report twice from the same rows: the control `Report.Build(<the run's RunRef>, ..Folder, [])` and `Report.Build(<the run's RunRef>, ..Folder, skipped)`. Assert, against the control, that `scores.incidents.total` is larger by exactly 2 and `right` is unchanged, that `scores.heldOutIncidents.total` is larger by exactly 1 and `right` unchanged (so the share can only fall), and that `b` and `c` are listed under `skipped` and counted by `Report.Problems`. Give the incident case.json files a recorded expectation (cause category and element at fault) if `WriteIncident` does not, so that a's row is scored, not unscored; record in the spec which it was. The assertion messages say a stall can only lower the score.
+- `TestPaceBound` also pins the ruled text with a fixed string: `##class(OcuTalon.Eval.In).#REASONPACED` equals `the incident case {case} had no result after {seconds} seconds, so this run sends no more incident cases` exactly.
 - No edit: `Test/Eval/Cases.cls`, `Test/Eval/Switch.cls` -- run them unchanged (AC5, AC6) -- `TestRecordedCases` relies on the double's default answer, and `Switch` pins the disabled `EvalIn`.
 
 **Acceptance Criteria:**
@@ -218,9 +227,12 @@ Paths are relative to the repository root. Class paths are under `src/ocutalon/c
 - **AC5, the callers and the whole set.** Given the 11 incident cases of `eval/` and `eval/run.sh` unchanged:
   - when `Test.Eval.Cases.TestRecordedCases` hands every case to one `EvalIn` double, then every incident case is sent with its row open;
   - when Lane A's `evaluation` job runs in CI, then it reports `CHK|problems|0`, a `CHK|case` line for each incident case and 10 of 10 demo runs.
+- **AC7, a stall can only lower SM-2 (the Planner's condition).** Given incident cases skipped by the pacing (one of them held out), when `Report.Build` builds the run's report, then each skipped incident case counts as not right in `scores.incidents` (and in `heldOutIncidents` when held out) and stays in the denominator; it is still listed under `skipped` and counted by `Problems`; a skip of any other kind still counts in no score (`TestSkippedIncidentScored`). The ruled `REASONPACED` text is pinned verbatim (`TestPaceBound`).
 - **AC6, the product.** Given the product's production definition, when `Test.Eval.Switch.TestDefinition` lists its items, then `EvalIn` is an `OcuTalon.Eval.In` with pool 0 and Enabled 0. And `git diff --stat` of `eval/` and `Production.cls` against the story's baseline is empty.
 
 ## Spec Change Log
+
+- 2026-11-08, spec gate (lead), applying the orchestrator's resume message: (b) PUBLIC TEXT `REASONPACED` APPROVED as drafted by the Contest Planner under the owner's delegation, and the design approved (previous-row pacing, the 150 s stall bound, turn cases first, no timer changes); CONDITION (Planner): a skipped incident case counts as NOT RIGHT in SM-2 and stays in its denominator, pinned by a test with a mutation. Today `Report` counts a skipped case in no score (header :61; `AddSkipped` runs after `Finish`), so this spec now edits `Eval/Report.cls` (:61, :197-198, :952-966; no overlap with 19.4's hunks) and adds `TestSkippedIncidentScored` and AC7. (a) RULED (orchestrator, decide): the `Eval/In.cls`, `Test/Eval/ZzIn.cls` and `Test/Eval/In.cls` edits are plain unions with Story 19.4's hunks, and so is the non-overlapping `Eval/Report.cls` hunk. The intent block's Approach, Never list and matrix carry the condition.
 
 ## Review Triage Log
 
@@ -299,7 +311,7 @@ No AC contradicts an AD's Rule, and no NFR is unmeasurable. "About 70 seconds ea
 - Declined: none.
 
 **Strings** (for the lead to send to the Contest Planner before the implement stage).
-- New, in `src/ocutalon/cls/OcuTalon/Eval/In.cls`, parameter `REASONPACED`:
+- RULED 2026-11-08 (Contest Planner, under the owner's delegation): approved as drafted. New, in `src/ocutalon/cls/OcuTalon/Eval/In.cls`, parameter `REASONPACED`:
   `the incident case {case} had no result after {seconds} seconds, so this run sends no more incident cases`
   - `{case}` is the stalled case's folder name, and `{seconds}` is `INCIDENTWAIT` (150).
 - Where the reason reaches, with no change to those classes:
@@ -327,11 +339,16 @@ No AC contradicts an AD's Rule, and no NFR is unmeasurable. "About 70 seconds ea
 | `Test/Eval/ZzIn.cls` | `Answer` and `StillSent` between :59 and :61 | No. 19.4 adds `DocumentsUp` after `Deliver` (:107) |
 | `Test/Eval/ZzIn.cls` | `Pause` (:109-112) is not touched | 19.4's insertion sits right above it |
 
-19.4 also edits `Test/Eval/Cases.cls` and `Eval/Report.cls`, and 9.11 edits neither. The `documents` kind is a turn kind, so pacing never applies to it.
+| `Eval/Report.cls` | the header line about skipped cases (:61) | No. 19.4's header hunk is 44-49 |
+| `Eval/Report.cls` | `Build`'s last two calls (:197-198) | No. 19.4's nearest hunks are 93-98 and 246-252 |
+| `Eval/Report.cls` | `AddSkipped`'s doc, signature and body (:952-966) | No. 19.4's nearest hunk is 916-922 (`Finish`'s scores line), which 9.11 does not touch |
+
+RULED 2026-11-08 (orchestrator, decide): the edits in `Eval/In.cls`, `Test/Eval/ZzIn.cls` and `Test/Eval/In.cls` are plain unions with 19.4's hunks, and a non-overlapping `Eval/Report.cls` hunk for the Planner's condition is a plain union too; whichever epic merges second takes the union. 19.4 also edits `Test/Eval/Cases.cls`, which 9.11 does not edit. The `documents` kind is a turn kind, so pacing never applies to it.
 
 **Footprint.**
 - Edited: `Eval/In.cls`, `Test/Eval/In.cls` and `Test/Eval/ZzIn.cls`, plus this spec.
-- No new mock scenario file. No footprint extension. No frozen file is needed.
+- Footprint extension (reported by the lead): `Eval/Report.cls`, for the Planner's condition only.
+- No new mock scenario file. No frozen file is needed.
 
 **Proposed spine text (for the lead, optional), an AD-22 as-built bullet:**
 > **Incident pacing (Story 9.11).** `EvalIn` sends a run's incident cases one at a time. Each one after the first is sent only once the previous one's `CaseResult` row is no longer sent, after at most `INCIDENTWAIT` (150 s, above `MAXTIMER`) in 1-s pauses. At the bound, the run sends no further incident case (`REASONPACED`). It reads only that row, never a pool size.
@@ -375,8 +392,10 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.In` -- expected: a `WARM reloaded` line, then `CLASS OcuTalon.Test.Eval.In passed`.
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.Cases` -- expected: passed, with every incident case of `eval/` sent.
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.Switch` -- expected: passed.
+- (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.Report` -- expected: passed (no existing report pin changes).
+- (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.Gate` -- expected: passed.
 - (loop) `bash docker/tests/test-class-rules.sh` -- expected: every rule PASS, `assert-concat` included.
-- (loop) `git diff --stat -- eval/ src/bridge/ ci/ release/ docker/ .github/ src/ocutalon/cls/OcuTalon/Production.cls src/ocutalon/cls/OcuTalon/Eval/Report.cls src/ocutalon/cls/OcuTalon/Eval/Gate.cls src/ocutalon/cls/OcuTalon/Eval/Sweep.cls src/ocutalon/cls/OcuTalon/Eval/Sink.cls src/ocutalon/cls/OcuTalon/Eval/Data/ src/ocutalon/cls/OcuTalon/Watch/ src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` -- expected: empty output. `git status --short` lists only the three classes and this spec.
+- (loop) `git diff --stat -- eval/ src/bridge/ ci/ release/ docker/ .github/ src/ocutalon/cls/OcuTalon/Production.cls src/ocutalon/cls/OcuTalon/Eval/Gate.cls src/ocutalon/cls/OcuTalon/Eval/Sweep.cls src/ocutalon/cls/OcuTalon/Eval/Sink.cls src/ocutalon/cls/OcuTalon/Eval/Data/ src/ocutalon/cls/OcuTalon/Watch/ src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` -- expected: empty output. `git status --short` lists only the four classes (`Eval/In.cls`, `Eval/Report.cls`, `Test/Eval/ZzIn.cls`, `Test/Eval/In.cls`) and this spec; `git diff` of `Eval/Report.cls` touches only :61, :197-198 and :952-966.
 - (loop, at the stage's end, also after a failure) `<B> OCUTALON_RUN_TAG=e9s11iw ci/warm.sh down`, then `<B> OCUTALON_RUN_TAG=e9s11i ci/iris.sh teardown` -- expected: the projects are removed and no lock of this stage is left in the lane-b folder.
 
 **Left to CI**, and so omitted here while CI is available:
@@ -396,6 +415,8 @@ A local `eval/run.sh` does not fit in one 150-s call. The lead's Rule 19 fresh c
 | AC3 | `INCIDENTWAIT = 100` | `TestPaceBound` (not above `MAXTIMER`) |
 | AC4 | Delete the `Pace()` call in `SendIncident` | `TestSendsIncident` (position 7 of `zz-inc-b` is 1) |
 | AC5 | `Pace` returns `REASONPACED` whenever `PaceRef` is set | `Test.Eval.Cases` `TestRecordedCases` (the second incident case is skipped) |
+| AC7 | `AddSkipped` no longer tallies the skipped incident case (skipped cases dropped from the denominator) | `TestSkippedIncidentScored` (`total` equals the control's, not control + 2) |
+| AC7 | `REASONPACED` text changed by one word | `TestPaceBound` (the fixed-string pin) |
 | AC6 | `Production.cls` sets EvalIn `Enabled="true"` | `Test.Eval.Switch` `TestDefinition` (green again after the revert) |
 
 ## Auto Run Result
