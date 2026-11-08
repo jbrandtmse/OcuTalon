@@ -2830,3 +2830,4 @@
 2026-11-08T15:36:41Z	Epic 7	ci_green_verified	head=1dad4ebd runs=42486386378,42486386412 result=success
 2026-11-08T15:36:41Z	Epic 7	runner_resumed	agent=adc7a70fe743ed3a5 with=integrate_onto_c25902c3(part2_merged)
 2026-11-08T15:48:33Z	Epic 7	runner_clarification	kind=CI_WAIT agent=adc7a70fe743ed3a5 sha=cdf4bc99(integrated_onto_c25902c3_8d10128e) runs=42496615105,42496615026
+2026-11-08T15:57:39Z	Epic 18	runner_clarification	kind=CI_WAIT agent=ad68d74c02763d478 sha=70136ffe(18.3_done;cr_no_HIGH;spine_REST_rows) runs=42496713889,42496713902 waiting=18.4_on_Epic_17(story_waiting) decisions_for_user=AD-18_sentence,AD-19_note,DW-968(model_Test_holds_SettingsOps_up_to_45s)
