@@ -2765,3 +2765,5 @@
 2026-11-08T10:35:44Z	Epic 32	runner_resumed	agent=aad5a4394f85fc76a with=green;close+integrate_onto_d6b8af41(U9)
 2026-11-08T10:38:52Z	Epic 32	runner_clarification	kind=CI_WAIT agent=aad5a4394f85fc76a sha=cf04f99a(final;integrated_onto_d6b8af41) runs=42472273728,42472273515 epic_close=done(epic-32_done;DW-911_to_decision_sheet;DW-774_page.close_overflow_for_32.7)
 2026-11-08T10:45:13Z	Epic 41	runner_clarification	kind=PUBLIC_TEXT agent=a70c5c6c3ec305303 head=4bce5195(local) origin=4beea3c2(41.2_done;CI_queued_42471000486,42471000422) story=41.3_spec_gate strings=daily-note_line_formats(DailyNote.cls) vetoes=U-309(Data.Turn.SessionRotated_append),U-310(decision_line_without_channel;DW-941_escalated)
+2026-11-08T10:45:33Z	Epic 41	planner_ruling	subject=41.3_PUBLIC_TEXT text=APPROVED_as_listed(all_daily-note_line_formats;fixed-string_pins;41.6_card_labels_come_separately) U-309,U-310=keep(inbox) DW-941=stays_escalated_until_after_Epic_19_merge via=Contest_Planner_1(delegation)
+2026-11-08T10:45:43Z	Epic 41	runner_resumed	agent=a70c5c6c3ec305303 with=41.3_text_approved;U-309,U-310_keep
