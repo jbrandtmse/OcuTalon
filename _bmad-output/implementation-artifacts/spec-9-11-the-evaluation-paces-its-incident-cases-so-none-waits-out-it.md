@@ -2,7 +2,8 @@
 title: 'Story 9.11: The evaluation paces its incident cases so none waits out its timer in a queue'
 type: 'bugfix'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'blocked'
+baseline_revision: '225042eab4d6874c706ffa5dbfa44c6cbda3c8b5'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -262,6 +263,8 @@ No AC contradicts an AD's Rule, and no NFR is unmeasurable. "About 70 seconds ea
    - AC1 to AC4 observe `OnProcessInput` called in `SendOrder`'s order on one instance, which is exactly `Start`'s loop (:193, :199-209).
    - `Start` itself needs the enabled `EvalIn` item and a running production, so its real-surface evidence is AC5's CI job, which runs `eval/run.sh` unchanged.
    - Adding a second incident case to `Test.Eval.Run`'s run 1 would also prove it live, but that file is outside the footprint, so it is not planned.
+7. **(Implement stage.) `WriteIncident` records no expectation**, so `TestSkippedIncidentScored` writes its three case.json files itself (cause category `configuration`, element at fault `Orders.Process.Route`, with `heldOut` as a JSON boolean) beside `WriteSnapshot`. The answered case `zz-sc-a` is therefore scored (not unscored) and not right. `WriteIncident` is unchanged.
+8. **(Implement stage.) Two existing pins of `Test/Eval/Report.cls` contradict the Planner's condition.** `TestSkipped` (the incidents line `0 of 0 share null met null` after a skip of an incident case) and `TestText` (the `| Incidents (SM-2) | 0 | 0 | not measured |` line) fail on the warm stack now that a skipped incident case is tallied as not right. That file is outside the footprint, so it is not edited here; its owner must update both pins (one skipped incident case: 0 of 1) before merge. The Verification line "`Test.Eval.Report` passed (no existing report pin changes)" does not hold.
 
 **The three callers, with `eval/run.sh` unchanged.**
 - **`Report.Run`** (eval/run.sh's push run, its `--on-mock` rehearsals and the release-candidate attempts):
@@ -419,11 +422,27 @@ A local `eval/run.sh` does not fit in one 150-s call. The lead's Rule 19 fresh c
 | AC7 | `REASONPACED` text changed by one word | `TestPaceBound` (the fixed-string pin) |
 | AC6 | `Production.cls` sets EvalIn `Enabled="true"` | `Test.Eval.Switch` `TestDefinition` (green again after the revert) |
 
+**Mutations run (implement stage, warm stack `e9s11iw`, reverted from backups in `<scratchpad>/e9s11impl/sub/`; after each revert the class was green again and `git status --short` / `git diff --stat` were as before):**
+- mutation: AC1 -- deleted the `Pace()` call in `SendIncident` -> `Test.Eval.In` red: `TestPacesIncidents` (position 7 not 0, pauses and checks missing, last row state) -- reverted, green.
+- mutation: AC4 -- the same deletion -> `TestSendsIncident` red (position 7 of `zz-inc-b` is 1, no check, `zz-inc-a`'s row still sent) -- reverted, green.
+- mutation: AC2 -- `Pace` returns "" at the bound (`If 1 Quit ""` before the `REASONPACED` return) -> `TestPaceBound` red (`b` dispatched, row made, no reason; later cases sent too) -- reverted, green.
+- mutation: AC3 -- `Pace` never sets `PaceStalled` (a local flag decides the return, so it waits again for each later case) -> `TestPaceBound` red (the pauses and checks grow after `c`; the late result releases `d`) -- reverted, green.
+- mutation: AC3 -- `INCIDENTWAIT = 100` -> `TestPaceBound` red (not above `Decide.MAXTIMER`) -- reverted, green.
+- mutation: AC5 -- `Pace` sets `PaceStalled` whenever `PaceRef` is set (REASONPACED for every incident case after the first) -> `Test.Eval.Cases` `TestRecordedCases` red (every incident case after the first is skipped) -- reverted, green.
+- mutation: AC7 -- `AddSkipped` no longer tallies the skipped incident case -> `TestSkippedIncidentScored` red (`total` equals the control's, not control + 2; held-out likewise) -- reverted, green.
+- mutation: AC7 -- one word of the `REASONPACED` text changed ("no more" to "no further") -> `TestPaceBound` red (the fixed-string pin) -- reverted, green.
+- mutation: AC6 -- `Production.cls` sets EvalIn `Enabled="true"` (the warm stack took the reload) -> `Test.Eval.Switch` `TestDefinition` red ("EvalIn is disabled in the definition") -- reverted, `Switch` green, `Production.cls` unchanged in `git diff`.
+
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap: needs `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` (outside the four named classes, and contended by Epic 19's Story 19.4)
 
-- Plan stage (2026-11-08): the spec was planned and checked against the READY FOR DEVELOPMENT standard, then halted after planning as directed. Nothing was implemented.
-- No frozen file is needed (`eval/run.sh`, `release/*.sh`, the IPM artifact and the check scripts are unchanged), and no path outside the footprint is needed.
-- The strings for the Contest Planner are under Design Notes, Strings: one new reason, `REASONPACED`.
+- Implement stage (2026-11-08): the four named classes are implemented and left uncommitted in the epic-9 worktree (Eval/In.cls, Eval/Report.cls inside :61, :197-198 and :952-971, Test/Eval/ZzIn.cls, Test/Eval/In.cls), with the nine `mutation:` lines under Verification. Warm-stack runs on lane B: `Test.Eval.In`, `Cases`, `Switch` and `Gate` pass; `docker/tests/test-class-rules.sh` passes; the out-of-footprint `git diff --stat` is empty. The review layers were not run.
+- The gap: AC7 (a skipped incident case counts as not right in SM-2) reverses two existing pins in `Test.Eval.Report`, which the spec's Verification expected to stay green. Both fail now:
+  - `TestSkipped` (`Test/Eval/Report.cls` :1108): `Do $$$AssertEquals(..Line(report.scores.incidents), "0 of 0 share null met null", "the incident case is not scored")` must read the incident case as one not-right incident, `"0 of 1 share 0 met 0"` (value to confirm by running), with the message saying a skipped incident case is scored as not right.
+  - `TestText` (:1268): `"| Incidents (SM-2) | 0 | 0 | not measured | 80% | not measured |"` must read `"| Incidents (SM-2) | 0 | 1 | 0.0% | 80% | not met |"` (by analogy with the items line at :1267), with the message adjusted.
+  - The header bullet at :48-49 of the same class ("a skipped case is listed and scored in nothing") also needs the incident exception.
+- Why it is a halt: the lead's instruction forbids editing `Test/Eval/Report.cls`, and Story 19.4 edits that file (45 lines on `origin/OCT-epic19`). Without the two pins updated, `shards-2` in CI is red.
+- Resume: amend the spec's footprint to allow these three hunks of `Test/Eval/Report.cls` (a plain union with 19.4 if they do not overlap), then re-dispatch; the implementation in the tree needs only that edit, then the Verification loop (once the Report class is green), the review layers and the finalize commit. Verification line 395 ("no existing report pin changes") should read "TestSkipped and TestText updated for AC7".
+- The warm stack `e9s11iw` was torn down; no fresh stack was started; `HEAD` is unchanged at the baseline.
