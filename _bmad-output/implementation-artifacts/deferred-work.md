@@ -4221,6 +4221,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T16:21:26Z status=routed owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=load note=12.12_writes_Data.Handled's_first_rows_(GotIt_branch);End_deletes_the_session's_rows;was_owned_by_18.4
 - 2026-11-07T18:39:59Z occurrence=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=harvest note=deferred_low_from_12.12_spec:Data.Handled_has_no_Purge(daysToKeep)_and_Install.Task.Purge(Lane_A)_calls_none;local-install_rows_grow_one_per_press;End_delete_delivered_in_be48cc97
 - 2026-11-07T19:16:03Z status=routed owner=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=adjudication note=end-of-session_delete_delivered_by_12.12(be48cc97:Handled.DropSession,SessionOps.EndHandled;pins_Test.Core.GotIt.TestEndDeletesHandled/TestEndHandledFailureCounts/TestEndHandledAfterEarlierFailure);RESIDUAL(deferred_LOW_per_Planner):Data.Handled_has_no_Purge(daysToKeep)_and_Lane_A's_Install.Task.Purge_calls_none,so_on_a_local_install_rows_grow_one_per_Got_it_press;18.4_(the_web/phone_Got_it_story,which_already_carries_the_DW-695_bullet)_adds_the_purge_with_its_controls
+- 2026-11-08T22:56:48Z status=resolved-by:18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=adjudication note=1cfbca57:Data.Handled.Purge(daysToKeep)_via_Bridge.Time.DaysCutoff(AD-27_DaysToKeep_90,U-312)_registered_in_Install/Step/Core.cls_Purge(U-177_grant);Test.Data.HandledPurge(TestBadDayCountsDeleteNothing);end-of-session_delete_was_12.12's_Handled.DropSession
 
 ### DW-696: SendDigest sent to the disabled Digest item answers failed, not not_built
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
@@ -5754,6 +5755,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/e2e/settings/settings.spec.ts S9-S12 written, not run locally (live:sign-in-2, group shards-4); settings-view.test.mjs twins carry the AC 5 mutation
 - 2026-11-08T10:17:02Z status=open owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=harvest note=settle at 18.2 QA/adjudication: observe one mutation red, or close wontfix-accepted with a probe
 - 2026-11-08T10:51:48Z status=wontfix-accepted by=adjudication note=reopen_if=a_Settings_Time_zone/Daily_digest/Channels_regression_reaches_feature_while_S9-S12_are_green(the_browser_tier_cannot_run_inside_the_150s_command_rule:live:sign-in-2_builds_its_own_stack;settings-view.test.mjs_twins_carry_the_AC_5_mutation;CI_runs_S9-S12_on_every_push)
+- 2026-11-08T22:54:34Z occurrence=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled
 
 ### DW-939: Data.Time.Zone() falling back to OsZone() is pinned only through OsZone(): /etc/localtime cannot be redirected in a test, so deleting the OsZone step in Zone() stays green on a UTC host
 - source: _bmad-output/implementation-artifacts/spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: low | footprint: in-story
@@ -5878,3 +5880,33 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/src/app/documents/documents-view.ts:21; pinned in documents-view.test.mjs, documents.spec.ts, ux-strings.test.mjs; EXPERIENCE.md source
 - 2026-11-08T18:00:37Z status=escalated owner=burndown by=harvest note=public_text_ruling_needed;for_the_Planner_at_the_decision_sheet;recommended:_rule_text_now_or_route_to_20-2
 - 2026-11-08T19:16:11Z status=routed owner=20-2-see-citations-and-memories-in-answers by=merge_gate note=planner_ruling_2026-11-08~18:10Z(2):keep_'cited answers'_in_1.0.4(the answer names document+section);Planner_checks_on_the_1.0.4_demo_walk,else_new_text_for_1.0.5;otherwise_rides_with_20.2
+
+### DW-982: Act notices are tell-now Notifications (Rule.Outcome/Rule.Notice) that SessionOps.GotIt refuses (Outcome must be tellnow): Telegram still offers Got it on them (GOTITKINDS=tellnow) and Digest.NeedsYou counts act items that no Got it can clear
+- source: spec-18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Core/Rule/Outcome.cls:25 routes tellnow and act to Rule.Notice (Kind tellnow); SessionOps.cls:259 refuses Outcome'=tellnow; NeedsYou OUTCOMES=tellnow,act. 18.4 review hid Got it for act on web and phone (chat-view noticeOf, SimPhoneOut.IsAct); Telegram is Lane A
+- 2026-11-08T22:54:33Z status=decision-pending owner=burndown by=cr note=product: may an Act notice be marked handled? no -> Telegram hides Got it for act (Lane A); yes -> SessionOps + AD-14 amend, web/phone unhide
+
+### DW-983: Install.Step.Core.Purge returns only the first error when both Pairing.Purge and Handled.Purge fail, and no test reaches a Handled-only failure through it
+- source: spec-18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Install/Step/Core.cls Purge: Set sc=Pairing, Set handled=Handled, If error Quit sc, Quit handled; a bad day count fails both with the same error; U-177 grant (a) allows only the registration
+- 2026-11-08T22:54:34Z status=wontfix-accepted owner=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=cr note=reopen_if=a_purge_task_log_shows_OK_while_Handled_rows_older_than_DaysToKeep_remain_after_a_Pairing_failure
+
+### DW-984: web/src/app/chat/got-it.ts messageOf is a verbatim copy of web/src/app/incidents/incident-dismiss.ts messageOf (error.message of the reply body)
+- source: spec-18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Rule 2: the spec's stated reason covers the component, not the helper; incident-dismiss.ts is out of Epic 18's footprint and Epic 41's branch already exports messageOf from it
+- 2026-11-08T22:54:34Z status=wontfix-accepted owner=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=cr note=reopen_if=after_Epic_41_merges_export_function_messageOf_exists_in_incident-dismiss.ts_while_got-it.ts_keeps_its_own_copy
+
+### DW-985: The handled line's time differs by channel: the web card uses pageTimeBeside (browser zone, no ET, no day), the phone the server's Data.Time.ForMessage (instance zone, ET on the online demo)
+- source: spec-18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: notice-card.ts handled() vs SimPhone/Out.cls EditHandled Render(handled.marked); spec Decided in-stage 4 and the task name pageTimeBeside (AD-32: the page formats times)
+- 2026-11-08T22:54:34Z status=by-design owner=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=cr note=spec-bound: Decided in-stage 4; reopens only by a spec amendment that names messageTime for catalog lines on cards
+
+### DW-986: AD-27 does not list Data.Handled.Purge (Story 18.4: purge task DaysToKeep, registered in Install/Step/Core.cls Purge); the bullet waits because in-flight Stories 41.2, 30.7 and 32.7 cite AD-27
+- source: spec-18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-27 lists the purges; Handled.Purge exists since 1cfbca57
+- 2026-11-08T23:16:40Z status=routed owner=burndown by=lead note=orchestrator ruling 2026-11-08: add the AD-27 Handled-purge bullet once no in-flight epic cites AD-27 (41.2, 30.7, 32.7 at 18.4 close)
+
+### DW-987: flake: live:online-demo-path L2 (Story 29.8 load phase): visitor 2 read 2/2 at sign-in (expected the 1/1 baseline) while visitor 1's trace pages were open; passed on an unchanged rerun
+- source: spec-18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: lane-D smoke 2026-11-08 23:20Z: L2 visitor readings 1/1,3/2 2/2,5/2 1/1,7/2; rerun 23:28Z 1/1 for all three
+- 2026-11-08T23:29:15Z status=routed owner=burndown by=lead note=flake, priority; the three load visitors overlap at sign-in (inference)

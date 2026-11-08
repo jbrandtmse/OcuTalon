@@ -104,7 +104,7 @@ test('N2: a code-written notice keeps its own two lines', async ({ page }) => {
   expect(plain(await card.locator('.body').innerText()).split('Why now:').length - 1, 'the card says why now once').toBe(1);
 });
 
-/** N3: only Tell now and Act notify: an ignore and a digest show nothing, an act shows its card with the chip Act, also after a reload. */
+/** N3: only Tell now and Act notify: an ignore and a digest show nothing, an act shows its card with the chip Act and no Got it (on the phone too), also after a reload. */
 test('N3: only Tell now and Act notify', async ({ page }) => {
   const { user } = fixtureUser('NOTICE');
   await open(page);
@@ -122,6 +122,10 @@ test('N3: only Tell now and Act notify', async ({ page }) => {
   await expect(card, 'the act shows its card').toHaveCount(1, { timeout: CARD_MS });
   await expect(card.locator('app-decision-strip app-outcome-chip .chip'), 'with the chip Act').toHaveText('Act');
   await expect(card.locator('.why'), 'and the first reason as its Why now line').toHaveText('Why now: zz reason.');
+  await expect(card.getByRole('button', { name: 'Got it', exact: true }), 'and no Got it: it marks tell-now decisions only (AD-14)').toHaveCount(0);
+  const actMessage = messageOf(page, acted);
+  await expect(actMessage, 'the act reaches the phone').toHaveCount(1, { timeout: CARD_MS });
+  await expect(actMessage.getByRole('button', { name: 'Got it', exact: true }), 'with no Got it either').toHaveCount(0);
   await expect(cardOf(page, ignored), 'the ignore shows nothing').toHaveCount(0);
   await expect(cardOf(page, digested), 'nor does the digest').toHaveCount(0);
   // The status rail lists every attention decision of the session, an ignored one too, so these absence checks look in the chat.
@@ -596,7 +600,9 @@ test('N17: Got it on the web card marks the notice handled on the card and on th
   await expect(cardGotIt, 'the web card has Got it').toHaveCount(1);
   await expect(phoneGotIt, 'and so has the phone message').toHaveCount(1);
 
+  const sent = page.waitForRequest((request) => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/got-it'));
   await cardGotIt.click();
+  expect((await sent).postDataJSON(), 'the web press sends no channel').toEqual({});
   const assertHandled = async (when: string): Promise<void> => {
     await expect(card.locator('[data-part="handled"]'), `${when}: the web card says it was handled`).toHaveText(HANDLED);
     await expect(cardGotIt, `${when}: the web card has no Got it`).toHaveCount(0);
@@ -624,7 +630,9 @@ test('N18: Got it on the phone message marks the notice handled on the phone and
   const phoneGotIt = message.getByRole('button', { name: 'Got it', exact: true });
   await expect(phoneGotIt).toHaveCount(1);
 
+  const sent = page.waitForRequest((request) => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/got-it'));
   await phoneGotIt.click();
+  expect((await sent).postDataJSON(), 'the phone press sends the phone channel').toEqual({ channel: 'phone' });
   await expect(message.locator('.answer'), 'the phone message says it was handled').toHaveText(HANDLED);
   await expect(phoneGotIt, 'with no Got it').toHaveCount(0);
   await expect(card.locator('[data-part="handled"]'), 'and so does the web card').toHaveText(HANDLED);

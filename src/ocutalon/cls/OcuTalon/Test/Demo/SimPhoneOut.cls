@@ -19,6 +19,7 @@
 ///     greeting first, the coverage lines ("Passed:", "Failed:", "Not checked:"), the cost last with two decimals, no Markdown; one Delivery row of the kind
 ///     digest, no ApprovalRef or DecisionRef on the message, and one phone event; a piece that cannot be rendered is an error with no row and no event;
 ///   - TestTellNowKeepsDecisionRef: a tell-now message keeps the DecisionRef (the payload's decisionRef too); no other message kind does;
+///   - TestActMessageHasNoGotIt: a tell-now message of an act Decision keeps no DecisionRef (no Got it); one of a tell-now Decision keeps it;
 ///   - TestHandledEditsInPlace: a handled Notification sets the Answer of the tell-now message to the rendered handled.marked line, keeping its Ref, Text and
 ///     DecisionRef, with one more phone event and a Delivery row of the kind handled that names the message;
 ///   - TestHandledFirstAnswerStays: a message that has an Answer (an earlier edit, or a second press) keeps it: the Delivery row only, with no event;
@@ -194,6 +195,23 @@ Method TestTellNowKeepsDecisionRef()
 	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(quiet, 10)
 	Do $$$AssertEquals(rows.Count(), 2, "two messages")
 	For i = 1:1:rows.Count() Do $$$AssertEquals(..Message(rows.GetAt(i).Ref).DecisionRef, "", "message "_i_" has no DecisionRef")
+}
+
+/// A tell-now Notification whose DecisionRef names an act Decision of the session (OutcomeRouter sends act items as tell-now notices) is a message
+/// with no DecisionRef, so the page shows no Got it, which SessionOps would refuse; the session's own tell-now Decision keeps it.
+Method TestActMessageHasNoGotIt()
+{
+	For outcome = "act", "tellnow" {
+		Set session = ..Session("ref"_outcome)
+		Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", , {"Outcome": (outcome)})
+		Set notification = ..Notification(session, "tellnow", "notice.tellNow", {"whatHappened": ("zz "_outcome), "reason": "zz reason."})
+		Set notification.DecisionRef = decision
+		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the "_outcome_" notice is delivered")
+		Set message = ..Newest(session)
+		If '$IsObject(message) Do $$$AssertTrue(0, "the "_outcome_" message exists") Continue
+		Do $$$AssertEquals(message.DecisionRef, $Select(outcome = "act": "", 1: decision), "the "_outcome_" message's DecisionRef")
+		Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Phone).FromRow(message).DecisionRef, message.DecisionRef, "and its payload's decisionRef")
+	}
 }
 
 /// A handled Notification for a tell-now message sets its Answer to the rendered handled.marked line (the phone render, with the time that Handled.Marked

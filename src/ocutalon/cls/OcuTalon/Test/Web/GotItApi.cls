@@ -9,7 +9,8 @@
 ///   - TestPressUpdatesEveryCopy (AC 4): the press of the session's own tell-now notice is 200 {"result":"done","handledAt"}; one Handled row with the
 ///     route's channel (web); one more notification event of the card's ref carrying handledAt; one more phone event whose answer is the rendered handled
 ///     line; Digest.NeedsYou no longer counts the notice; a second press is 200 with the same handledAt and no new event;
-///   - TestSecondPressIs200: the second press reaches SessionOps (already_handled) and answers the first handledAt, writes no row and publishes nothing;
+///   - TestSecondPressIs200: the second press reaches SessionOps (already_handled) and answers the first handledAt, writes no row, sends no second handled
+///     Notification (the hops SessionOps to Notify) and publishes nothing;
 ///   - TestPhoneBody: exactly {"channel":"phone"} is the phone's press (the Handled row's channel is phone), and any other body is the web's;
 ///   - TestOtherSessionIs404: another session's tell-now Decision, an unknown Ref and a Ref that is not one are 404 not_found before anything is
 ///     submitted: no GotIt reaches SessionOps, no row is written and no event is published;
@@ -108,8 +109,10 @@ Method TestPressUpdatesEveryCopy()
 	If phones.%Size() = 2 Do $$$AssertEquals(phones.%Get(1).payload.answer, expected, "whose answer is the rendered handled line")
 	Do $$$AssertEquals(..NeedsYou(session), needed - 1, "the notice no longer counts as needing the user")
 	Do $$$AssertEquals(..Hops(trace, "CommandsIn", "SessionOps"), hops + 1, "one GotIt reached SessionOps")
+	Set notices = ..Hops(trace, "SessionOps", "Notify")
 	Set again = ..Call(session, decision, .response)
 	Do $$$AssertEquals(response.Status_"|"_again, "200 OK|"_body, "a second press is 200 with the same handledAt")
+	Do $$$AssertEquals(..Hops(trace, "SessionOps", "Notify"), notices, "SessionOps sends no second handled Notification")
 	Hang 1
 	Do $$$AssertEquals(..EventsOf(session, "notification", card).%Size()_"|"_..EventsOf(session, "phone", message).%Size(), "2|2", "and publishes no new event")
 	Do $$$AssertEquals(..HandledRows(decision), 1, "and writes no new row")
@@ -129,8 +132,11 @@ Method TestSecondPressIs200()
 	Do ..WaitEvents(session, "phone", message, 2)
 	Set events = ..EventsOf(session, "notification", card).%Size()_"|"_..EventsOf(session, "phone", message).%Size()
 	Set marked = ##class(OcuTalon.Data.Handled).Marked(decision)
+	Set notices = ..Hops(trace, "SessionOps", "Notify")
+	Do $$$AssertEquals(notices, 1, "the first press sent one handled Notification")
 	Hang 1
 	Set second = ..Call(session, decision, .response)
+	Do $$$AssertEquals(..Hops(trace, "SessionOps", "Notify"), notices, "the second sends none")
 	Do $$$AssertEquals(response.Status_"|"_second, "200 OK|"_first, "the second press is 200 with the first handledAt")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Handled).Marked(decision), marked, "the mark is the first press's")
 	Do $$$AssertEquals(..Hops(trace, "CommandsIn", "SessionOps"), hops + 2, "both presses reached SessionOps")
@@ -282,10 +288,12 @@ Method AllEvents(session As %String) As %Integer [ Private ]
 	Quit ##class(OcuTalon.Test.Core.Observe).Events(session, "notification").%Size() + ##class(OcuTalon.Test.Core.Observe).Events(session, "phone").%Size()
 }
 
-/// The number of Handled rows for the Ref.
+/// The number of Handled rows for the Ref, counted in the table.
 Method HandledRows(ref As %String) As %Integer [ Private ]
 {
-	Quit ##class(OcuTalon.Data.Handled).RefIndexExists(ref)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Handled WHERE Ref = ?", ref)
+	Do $$$AssertTrue(result.%SQLCODE >= 0, "the Handled rows are counted")
+	Quit $Select(result.%Next(): +result.%GetData(1), 1: 0)
 }
 
 /// The number of entries that need the session (Digest.NeedsYou).

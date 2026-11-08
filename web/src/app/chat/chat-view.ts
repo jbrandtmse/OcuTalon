@@ -168,7 +168,7 @@ export interface NoticeView {
   checks: readonly CheckRow[];
   /** An ISO time: when the user marked a tell-now notice as handled, "" while it is not handled. */
   handledAt: string;
-  /** The Ref of the notice: the Decision behind it, "" when it has none. Got it names it. */
+  /** The Ref of the notice: the Decision behind it, "" when it has none or that Decision is an act one (Got it marks tell-now Decisions only, AD-14). Got it names it. */
   decisionRef: string;
 }
 
@@ -238,7 +238,7 @@ export function noticeOf(item: LiveItem): NoticeView | undefined {
     strip: false,
     checks: payload.checks ?? [],
     handledAt: payload.handledAt ?? '',
-    decisionRef: payload.decisionRef ?? '',
+    decisionRef: payload.decision?.outcome === 'act' ? '' : (payload.decisionRef ?? ''),
   };
   const decision = payload.decision;
   if (decision !== undefined) {

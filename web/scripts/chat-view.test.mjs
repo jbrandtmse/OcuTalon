@@ -46,6 +46,13 @@ describe('the digest card and Got it (Story 18.4)', () => {
     assert.equal(noticeOf(tellNow('T2', { decisionRef: 'DR2' })).handledAt, '', 'not handled yet');
   });
 
+  it('gives an act decision\'s tell-now notice no decisionRef, so it shows no Got it, which SessionOps would refuse (AD-14)', () => {
+    const decisionOf = (outcome) => ({ ref: 'DR3', outcome, reasons: ['zz first.'], confidence: 0.9 });
+    assert.equal(noticeOf(tellNow('T4', { decisionRef: 'DR3', decision: decisionOf('act') })).decisionRef, '', 'an act decision');
+    assert.equal(noticeOf(tellNow('T5', { decisionRef: 'DR3', decision: decisionOf('tellnow') })).decisionRef, 'DR3', 'a tell-now decision keeps it');
+    assert.equal(noticeOf(tellNow('T6', { decisionRef: 'DR3' })).decisionRef, 'DR3', 'and so does a card whose decision was not read');
+  });
+
   it('reads a payload of an older row, with no checks, handledAt or decisionRef, as a card with none of them (U-313)', () => {
     for (const item of [digest('D2'), tellNow('T3'), notice('R1')]) {
       const one = view(item);

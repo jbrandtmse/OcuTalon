@@ -221,6 +221,31 @@ deferred: []
 - **AC 6.** Given the demo-path tests and the web tests, when this story merges, then the demo path still passes (with the step 7 phone note). The Playwright tests cover the Settings page as the README account (already met: `settings.spec.ts` S1 to S14), a fixture digest card (N16, N19) and **Got it** (N17, N18).
 - **AC 7 (DW-695).** Given Handled rows of different ages, when `Handled.Purge(daysToKeep)` runs, then exactly the rows handled before `DaysCutoff(daysToKeep)` are deleted, and a bad day count deletes nothing. Pinned by `Test.Data.HandledPurge`. The registration is a LANE A RESIDUAL (Design Notes).
 
+### Review Findings
+
+Code-review stage, 2026-11-08 (layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all inheriting the session model, none below sonnet; every layer verified clean: HEAD 92b69de3, no file changed). 0 decision-needed, 4 patch (applied), 0 defer, 17 rejected or closed in the ledger.
+
+- [x] [Review][Patch] (med) Got it was shown on Act notices, and every press was a 404: OutcomeRouter sends act items through `Rule.Notice` as kind `tellnow` with their DecisionRef, while `SessionOps.GotIt` (and AD-14) mark tell-now Decisions only. Got it is now hidden for an act Decision: `noticeOf` gives no `decisionRef` when the payload's decision is `act`, and `SimPhoneOut.Save` keeps no DecisionRef for one (`IsAct`). Pins: `chat-view.test.mjs` "gives an act decision's tell-now notice no decisionRef", `Test.Demo.SimPhoneOut` `TestActMessageHasNoGotIt`, and N3 (no Got it on the act card or its phone message). Telegram's copy (Lane A) and the product question go to DW-982 [web/src/app/chat/chat-view.ts:241, src/ocutalon/cls/OcuTalon/Channel/SimPhone/Out.cls:141]
+- [x] [Review][Patch] (low) `GotItApi.HandledRows` returned `RefIndexExists`, a boolean, so "writes no new row" could not fail. It is now a SQL `COUNT(*)` [src/ocutalon/cls/OcuTalon/Test/Web/GotItApi.cls:292]
+- [x] [Review][Patch] (low) The second-press "no new event" checks could not catch a second handled Notification: both Outs absorb it, and the check sleeps a fixed 1 s. Both tests now assert that the hops from SessionOps to Notify are unchanged after the second press. `TestSecondPressIs200` also asserts there is exactly one after the first press [src/ocutalon/cls/OcuTalon/Test/Web/GotItApi.cls:112]
+- [x] [Review][Patch] (low) The phone's `{"channel":"phone"}` body was pinned only by source text. N18 now asserts the request body `{channel: 'phone'}`, and N17 asserts `{}`. These run in CI only [web/e2e/chat/notice.spec.ts:635]
+
+Rejected or closed:
+- (low, wontfix-accepted, DW-983) `Install.Step.Core.Purge` keeps only the first error when both purges fail. U-177 grant (a) allows only the registration. A one-line `$$$ADDSC` is unsafe because it evaluates its first argument twice.
+- (false) The `Core.Purge` hunk goes past the grant. It registers only `Data.Handled.Purge`: the single `Quit` had to become four lines to hold a second call. The doc lines are unchanged.
+- (low, wontfix-accepted, DW-984) `got-it.ts` `messageOf` copies `incident-dismiss.ts`. That file is out of the footprint and contended by Epic 41, which exports `messageOf` from it.
+- (low, by-design, DW-985) The web handled line uses `pageTimeBeside`, while the phone uses the server's message time. This follows Decided in-stage 4.
+- (low) Focus after a press, and the 200's `handledAt` not being used. In the chat, `FOCUS_RULE` keeps focus on the card, whose key stays. On the phone, a fix needs a new focus rule, and the case (a keyboard press on the Simulated phone) is rare.
+- (low) Newest-row lookups miss a card when a later row of the same Ref exists, including a re-press after the 90-day purge. No producer writes such a row; this matches the earlier triage.
+- (low) The busy notice can be announced twice when an error reply arrives after 10 s. This is the same ServerButton pattern as Dismiss, and it is rare.
+- (low, theoretical) The Handled row is dropped between the answer and the `Marked` read, `HandledAt` is NULL (`SaveHandled` always sets it), or `handledAt` cannot be parsed.
+- (low) AC 2's reserved-sentence leg. The pin is equality with `DigestText.Text(slots, "phone")`, as the spec defines it, and DigestText's sentences are Lane A's tests.
+- (holds) Rule 3. `GotItApi` runs on a live production, and N3 and N16-N19 run in CI.
+- (low) The U-313 rows are written through the new schema with the column empty, which is equivalent to an old storage node.
+- (low) `TestNotificationFromRow` deletes its Handled row inline. Its Ref is new on every run, so nothing leaks into another test.
+- (reject, spec edit) The stale "registration is Lane A's" sentences, the U-177 checkbox wording, and `status: done` versus sprint `review`.
+- (by-design, DW-938 occurrence) The Playwright pins (N3, N16-N19, the chat, decision and api specs, and both demo paths) were not observed red locally.
+
 ## Spec Change Log
 - 2026-11-08, rulings (Contest Planner under the owner's delegation, relayed by the orchestrator; key planner-2026-11-08-18.4): PUBLIC TEXT rows 1-6 APPROVED exactly as listed, all pinned with fixed strings; U-177 grant (a): one appended call registering `Data.Handled.Purge` in `Install/Step/Core.cls` `Purge`, nothing else in Lane A (whichever of Epics 18 and 41 merges second takes it as a plain union); the demo path's "no digest note" assertion becomes exactly one phone digest note, nothing else changes; the `DigestText` class-comment doc change is allowed; access unchanged.
 - 2026-11-08, inbox answers applied (owner via the inbox, relayed): U-312 at=2026-11-08T20:03:06Z#950 KEEP -- `Data.Handled.Purge` uses AD-27's `DaysToKeep` (90 days), no new number; U-313 at=2026-11-08T20:03:06Z#951 KEEP -- two nullable columns (`Delivery.CheckRows`, `SimMessage.DecisionRef`), older rows read empty, no migration, and ADD a pin that an older row (both columns empty) renders without error (task added).
@@ -433,6 +458,27 @@ Runtime:
 - mutation: `WebChatOut.OnHandled` drops its tell-now test on the card -> `Test.Core.WebChatOut` `TestHandledWithNoCardRecordsOnly` red (review pass).
 - mutation: `SimPhoneOut.Save` sets `DecisionRef` for every kind -> `Test.Demo.SimPhoneOut` `TestTellNowKeepsDecisionRef` red (review pass).
 - AC 6 (the demo path stays green) has no mutation of its own: its pins are the Playwright specs above and `live:demo-path` / `live:online-demo-path`, which run in CI only; not observed locally (DW-938 pattern).
+
+**QA stage (2026-11-08; warm throwaway tag e18s4qw, torn down; mutations by `python3` replace, backup, run, restore, `cmp` identical, `git status --short` clean after each). No test file was added: every AC and the U-313 ruling already had a pin, and each pin below went red:**
+- mutation (AC 1): `WebChatOut.RowsOf` returns `[]` for a Slots with rows -> `Test.Core.WebChatOut` `TestDigestCard` red.
+- mutation (AC 1): `digestOpen` uses `every` instead of `some` -> `chat-view.test.mjs` "opens the disclosure when any row did not pass" red.
+- mutation (AC 2): `SimPhoneOut` digest branch switched off (`If 0`, so the digest renders from its CatalogKey) -> `Test.Demo.SimPhoneOut` `TestDigestMessage` and `TestTellNowKeepsDecisionRef` red.
+- mutation (AC 2, survived, equivalent): `DigestText.Text(..., "web")` or `"telegram"` in place of `"phone"` in `SimPhoneOut` -> still green, because the catalog's digest keys render the same plain text on all three channels. Not a test defect; the pin that matters (the digest branch itself) is the line above.
+- mutation (AC 3): `SimPhoneOut.EditHandled` stops announcing its `phone` event -> `Test.Core.GotItChannels` `TestPhoneEditsTheMessage` red.
+- mutation (AC 4): the route answers `handledAt` as the time now instead of `Handled.Marked` -> `Test.Web.GotItApi` `TestSecondPressIs200` red.
+- mutation (AC 5): `meaningDigest` = "Saved for later" -> `chat-view.test.mjs` "the fixed strings" and `ux-strings.test.mjs` red; README line 74 = "Saved for later." -> `docker/tests/test-readme.sh` red (1 rule failed).
+- mutation (AC 7): `Handled.Purge` with a bad day count falls back to a far-future cutoff (deletes everything) -> `Test.Data.HandledPurge` `TestBadDayCountsDeleteNothing` red.
+- mutation (U-313, web): `noticeOf` reads `payload.checks` with no `?? []` -> `chat-view.test.mjs` "reads a payload of an older row ... (U-313)" red.
+- mutation (U-313, phone): `gotItShown` dereferences `decisionRef` without a default -> `phone-view.test.mjs` "is false for a message with no decisionRef ... (U-313 ...)" red. The IRIS side (`TestOlderDigestRowRenders`, `TestOlderMessageRenders`, `Test.Live.Payloads`) is pinned by the implement stage's strict-read mutation above.
+- AC 6 (the demo path), read not run: `git diff 6514ea2a..1cfbca57 -- web/e2e-online docker/tests` changes only step 7's title and comment, the exact assertion `toHaveCount(1)` ("the simulated phone gets exactly one digest note"), a greeting first-line check, a cost last-line check, and the one comment line of `test-online-demo-path.sh`. No other demo-path line changed. It is pinned by Playwright only (`live:online-demo-path`), so no mutation was run for it.
+- Regression after the last restore: `Test.Core.WebChatOut`, `Test.Core.GotItChannels`, `Test.Demo.SimPhoneOut`, `Test.Live.Payloads`, `Test.Data.HandledPurge`, `Test.Data.Tables`, `Test.Web.GotItApi`, `Test.Web.Api`, `Test.Web.BodyLimit`, `Test.Contract.Ac` passed; `npm --prefix web test` 1643 of 1643 passed.
+
+**Code-review stage (2026-11-08; warm throwaway tag e18s4cw, torn down; each mutation restored byte-identical, `cmp` against a backup):**
+- mutation (review patch, Act notices, web): `noticeOf` keeps `decisionRef` for an act decision -> `chat-view.test.mjs` "gives an act decision's tell-now notice no decisionRef ..." red.
+- mutation (review patch, Act notices, phone): `SimPhoneOut.Save` drops the `IsAct` test -> `Test.Demo.SimPhoneOut` `TestActMessageHasNoGotIt` red.
+- mutation (review patch, AC 4 second press): `SessionOps.GotIt` (temporary, restored) goes on to send the handled Notification for an already-marked Ref -> `Test.Web.GotItApi` `TestPressUpdatesEveryCopy` ("SessionOps sends no second handled Notification") and `TestSecondPressIs200` ("the second sends none") red; their event-count checks stayed green, as the gap layer said.
+- N3's act Got it absence and the N17/N18 request bodies: Playwright only, not observed locally (DW-938 pattern).
+- Regression after the patches: `Test.Demo.SimPhoneOut`, `Test.Web.GotItApi`, `Test.Core.GotItChannels`, `Test.Core.WebChatOut`, `Test.Live.Payloads`, `Test.Data.HandledPurge` passed; `npm --prefix web test` 1644 of 1644; `npm --prefix web run lint` and `build` exit 0; `test-boundaries.sh` passed.
 
 **Shared surfaces:**
 - the `notification` and `phone` payload shapes (`Test.Live.Payloads`, `payloads.ts`, `payloads.test.mjs`);

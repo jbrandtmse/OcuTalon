@@ -8,7 +8,7 @@
 ///     message (a SimMessage of Kind phone, direction out, with the text) and its Delivery row (channel phone, the
 ///     SimMessage's Ref as ChannelMessageId, the kind and the Refs, no text). The message keeps the notification's ApprovalRef
 ///     only for the kinds incident and approval (AD-32): that Ref is what makes the page draw Approve and Reject, so no
-///     other kind ever gives a message one. A tell-now message keeps the notification's DecisionRef (Story 18.4): that Ref is what makes the page
+///     other kind ever gives a message one. A tell-now message keeps the notification's DecisionRef (Story 18.4) unless that Decision is an act one (IsAct): that Ref is what makes the page
 ///     draw Got it, and no other kind ever gives a message one. A result (Story 6.4) is a new message of its own, never an edit of the request's message,
 ///     with no ApprovalRef and so no buttons; the answered edit below stays the only edit. After the commit it publishes one phone event on the session's stream, with
 ///     Live.Payload.Phone.FromRow of the message: it is the only publisher of that event (AD-33). A render error is
@@ -138,9 +138,18 @@ Method Save(request As OcuTalon.Msg.Notification, text As %String, Output row As
 	Set message.Direction = "out"
 	Set message.Text = text
 	If $ListFind($ListFromString(..#REQUESTKINDS), request.Kind) Set message.ApprovalRef = request.ApprovalRef
-	If request.Kind = "tellnow" Set message.DecisionRef = request.DecisionRef
+	If (request.Kind = "tellnow") && '..IsAct(request) Set message.DecisionRef = request.DecisionRef
 	Set message.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Quit ..Keep(message, ..#CHANNEL, request.ApprovalRef, request.Kind, request.DecisionRef, .row)
+}
+
+/// True when the notification's DecisionRef names an act Decision of its session (Ownership.Decision): Got it marks tell-now Decisions only
+/// (AD-14), so such a message keeps no DecisionRef and shows no Got it. A Decision that cannot be read is not an act.
+Method IsAct(request As OcuTalon.Msg.Notification) As %Boolean [ Private ]
+{
+	If request.DecisionRef = "" Quit 0
+	Set decision = ##class(OcuTalon.Data.Ownership).Decision(request.DecisionRef, request.SessionRef, .sc)
+	Quit $IsObject(decision) && (decision.Outcome = "act")
 }
 
 }
