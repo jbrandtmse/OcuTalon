@@ -4,7 +4,7 @@ Include Ensemble
 /// message and ends (AD-5) and keeps no private text in its properties (AD-3). It takes four requests:
 ///   - OcuTalon.Msg.Tick, forwarded by Checks after each tick's checks. The tick's time, tickAt, decides which sessions are due, by AD-18's rule:
 ///     due is the latest instant at or before tickAt whose clock in the instance zone reads digest.time (Data.Setting, "08:00" when the value cannot be
-///     read), computed only through OcuTalon.Data.Time. A session that has not ended (on the online demo, one with a resume hash; on a local install every
+///     read), computed only through OcuTalon.Data.Time. On the online demo no session is due (AD-18, amended 2026-11-07: a visitor gets a digest only by asking); on a local install a session (every
 ///     Session row) is due when due is later than its CreatedAt, it has no Sent row of Kind scheduled whose DueAt is at least due, and no Compose body of Kind
 ///     scheduled whose DueAt is at least due (a digest already queued). The check is made again under Lock +^OcuTalon.Digest.Due(sessionRef), and the
 ///     Compose is queued inside that lock, so a digest missed while IRIS was down goes once and never twice. After the sessions, the tick sends the
@@ -32,7 +32,7 @@ Include Ensemble
 ///   2. digest.healthy when the five vital signs passed by Render's rule, else digest.vitalsNotAll;
 ///   3. digest.checkedQuiet when no entry is named, else digest.checked, then the key of Render (with whatFailed, the entries that did not pass, failed
 ///      first, for the two keys that name them); with nothing watched, digest.nothingWatched alone;
-///   4. what needs the user (OcuTalon.Digest.NeedsYou): digest.needsYouOne or digest.needsYou, then digest.needsYouMore on overflow; no part for none;
+///   4. what needs the user (OcuTalon.Digest.NeedsYou): digest.needsYouOne or digest.needsYou, then digest.needsYouMore on overflow; no part for none (a tell-now or act Decision counts only when it was recorded at or after the Compose's WindowStart);
 ///   5. what was saved for later: digest.savedNone, digest.saved with the summary, or digest.savedNoSummary with the fallback reason;
 ///   6. digest.cost, the cost of yesterday (OcuTalon.Digest.Cost).
 /// The summary is the one model request of the digest, made only when OcuTalon.Digest.Data.Item holds an item of the window: an OcuTalon.Bridge.Msg.Request
@@ -194,7 +194,9 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 	Quit sc
 }
 
-/// A Tick: the sessions that are due get one Compose each (see the class description). A session that fails is one warning and the rest go on.
+/// A Tick: on a local install the sessions that are due get one Compose each (see the class description); on the online demo (Data.Public.Settings
+/// onlineDemo on) no session is due, so none gets a scheduled Compose, and only the resends below run (AD-18, amended 2026-11-07). A session that fails is one
+/// warning and the rest go on.
 Method Ticked(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 {
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
@@ -202,11 +204,11 @@ Method Ticked(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 	Set due = ..DueFor(tickAt)
 	If due = "" Quit $SYSTEM.Status.Error(5001, "Digest cannot work out the due time of the tick '"_$Extract(tick.TickAt, 1, 40)_"'")
 	Set online = +##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
-	Set sessions = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, CreatedAt, ResumeHash FROM OcuTalon_Data.Session")
+	If online Quit ..Resends()
+	Set sessions = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, CreatedAt FROM OcuTalon_Data.Session")
 	If sessions.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "Digest could not read the sessions: "_sessions.%Message)
 	While sessions.%Next() {
 		Set ref = sessions.%Get("Ref")
-		If online && (sessions.%Get("ResumeHash") = "") Continue
 		If '(due ] sessions.%Get("CreatedAt")) Continue
 		Try {
 			Set sc = ..Schedule(ref, due, now)
@@ -596,7 +598,7 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 	If $$$ISERR(sc) Quit sc
 	Set sc = ..Saved(sessionRef, compose.WindowStart, at, .items)
 	If $$$ISERR(sc) Quit sc
-	Set sc = ..Verdict(sessionRef, rows, vitals, .verdict)
+	Set sc = ..Verdict(sessionRef, rows, vitals, .verdict, compose.WindowStart)
 	If $$$ISERR(sc) Quit sc
 	Set needs = verdict.needs
 	Set cost = ..Cost(sessionRef, at, .sc)
@@ -668,10 +670,10 @@ Method Finish(compose As OcuTalon.Digest.Msg.Compose, summary As %String, reason
 ///     nothingWatched is 1;
 ///   - named holds the entries of Render's rows that did not pass, failed first and then not checked, and failed holds the failed rows;
 ///   - checked holds the entry of each watched row that is a result, in the order of the rows;
-///   - needs is what NeedsYou gives the owner for the failed rows;
+///   - needs is what NeedsYou gives the owner for the failed rows, with the Decisions recorded at or after windowStart ("" for no bound; a digest case passes none);
 ///   - vitalsPart is digest.healthy only when Render gives checks.allPassed for every vital row, else digest.vitalsNotAll with the entries that did not pass;
 ///   - allClear is 1 only when checkKey is checks.allPassed, the vital signs passed and nothing needs the owner.
-Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject, Output verdict As %DynamicObject) As %Status [ Private ]
+Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject, Output verdict As %DynamicObject, windowStart As %String = "") As %Status [ Private ]
 {
 	Set verdict = ""
 	Set watched = []
@@ -692,7 +694,7 @@ Method Verdict(owner As %String, rows As %DynamicArray, vitals As %DynamicObject
 	Set nothingWatched = (ordered.%Size() = 0)
 	If nothingWatched Set checkKey = "checks.nothingWatched"
 	Set sc = $$$OK
-	Set needs = ..NeedsYou(owner, failed, .sc)
+	Set needs = ..NeedsYou(owner, failed, .sc, windowStart)
 	If $$$ISERR(sc) Quit sc
 	Set vitalsPart = ..Vitals(vitals)
 	Set verdict = {"checkKey": (checkKey), "named": (named), "failed": (failed), "checked": (checked), "needs": (needs), "vitalsPart": (vitalsPart)}
@@ -872,9 +874,9 @@ Method Cost(sessionRef As %String, at As %String, Output sc As %Status) As %Nume
 }
 
 /// What needs the user (a seam for the tests).
-Method NeedsYou(sessionRef As %String, failedRows As %DynamicArray, Output sc As %Status) As %DynamicObject [ Private ]
+Method NeedsYou(sessionRef As %String, failedRows As %DynamicArray, Output sc As %Status, windowStart As %String = "") As %DynamicObject [ Private ]
 {
-	Quit ##class(OcuTalon.Digest.NeedsYou).List(sessionRef, failedRows, .sc)
+	Quit ##class(OcuTalon.Digest.NeedsYou).List(sessionRef, failedRows, .sc, windowStart)
 }
 
 /// The session's own channels, the ones Notify's generic route reaches for a digest: web, phone when demo mode is on, telegram when the session is paired

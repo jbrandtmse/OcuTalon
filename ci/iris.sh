@@ -23,6 +23,9 @@
 #                                         and Firefox and WebKit as well for a name in FIREFOX_WEBKIT_UNITS (the floor unit)
 #                                         The arguments after <name> go to the script; only test-sign-in.sh, test-sign-in-2.sh and test-sign-in-3.sh read any: --part k/n, --project sign-in-3
 #                                         (and test-sign-in.sh's --project chromium|sign-in-2)
+#                                         On a self-hosted CI runner (GITHUB_ACTIONS=true and RUNNER_ENVIRONMENT=self-hosted) the unit's
+#                                         Playwright run keeps the trace of a failing test only (OCUTALON_E2E_TRACE=retain-on-failure) and
+#                                         the unit's exit code is kept; see the trace paragraph below
 #   ci/iris.sh group <name>               the units of a group in order, each in its own process and project; one
 #                                         "UNIT <unit> passed|failed <s>s" line each; exit 1 naming the failed units
 #   ci/iris.sh teardown                   removes only the projects, volumes, networks and images of the tag (ocutalon-<label>-<tag>-<epoch>-<pid>),
@@ -38,6 +41,19 @@
 # OCUTALON_WARM=1 ci/iris.sh class|shard ... runs on the warm throwaway of the tag (ci/warm.sh up) after reloading the changed
 # classes, with no new start, and exits 1 when that stack is missing, stopped or stale or the reload fails; live, group and all never
 # run warm. A value of OCUTALON_WARM other than 1, 0 or empty exits 2.
+# Traces (Story 11.27, DW-550, DW-774): a trace never leaves the CI host. Live units write traces only when GITHUB_ACTIONS=true and
+# RUNNER_ENVIRONMENT=self-hosted (web/playwright.config.ts checks the runner again) and the trace root is valid: OCUTALON_TRACE_DIR, else
+# $HOME/ocutalon-traces, an absolute folder outside GITHUB_WORKSPACE and outside this checkout, created with umask 077. After a unit,
+# every trace*.zip under web/test-results moves to <root>/<OCUTALON_RUN_TAG>/<its path below web/test-results> (which begins with
+# <unit>/), and every .playwright-artifacts-* folder is deleted; a trace that cannot be moved, or that is found while traces are off, is
+# deleted, so that the failure artifact upload (ci.yml) never holds one. The sweep runs in CI only. `group` first deletes the root's run
+# folders (names that pass the run-tag rule) older than 7 days. Log lines name only <tag>/<unit>, never the host path.
+# Retries (Story 32.6, DW-550, DW-774): a live page whose snapshot GET of /state has no answer by half of its bound reloads once, inside the
+# same bound, and prints `RETRY <spec>:<line> <step>` (web/e2e/support/bounds.ts reportRetry). `live` points OCUTALON_E2E_RETRY_LOG at
+# web/test-results/<unit>-retries.txt (removed before the unit starts), where each retry also appends its line, because a passing test's
+# stdout does not reach the job log. After the unit it prints those lines and `RETRIES <n> in live:<unit>` when n is above 0 (the exit code
+# is the unit's). `group` prints `RETRIES <total> in group <name>[ (<unit> <n>, ...)]` before its GROUP line on every run, 0 included, and when
+# GITHUB_STEP_SUMMARY is set and the total is above 0 it appends that line and every RETRY line with its unit to the step summary.
 # Needs bash 3.2 or later, docker compose, and the base image IRIS_IMAGE (default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
 
@@ -435,12 +451,194 @@ live_known() { # live_known <name>: the name is a live unit of some group
   return 1
 }
 
+# --- Playwright traces (Story 11.27): kept on the runner's own disk, never in the workspace ---
+
+TRACE_FOLDER_NAME=ocutalon-traces
+TRACE_KEEP_DAYS=7
+
+# trace_root: the folder that holds the kept traces (empty when neither OCUTALON_TRACE_DIR nor HOME names one).
+trace_root() {
+  if [ -n "${OCUTALON_TRACE_DIR:-}" ]; then
+    printf '%s\n' "$OCUTALON_TRACE_DIR"
+  elif [ -n "${HOME:-}" ]; then
+    printf '%s\n' "$HOME/$TRACE_FOLDER_NAME"
+  fi
+}
+
+# trace_physical <path>: the path with its existing part resolved by pwd -P (the path itself may not exist yet).
+trace_physical() {
+  local p=$1 rest="" base
+  while [ "${p%/}" != "$p" ] && [ "$p" != / ]; do p=${p%/}; done
+  while [ ! -d "$p" ]; do
+    base=${p##*/}
+    rest="/$base$rest"
+    p=${p%/*}
+    [ -n "$p" ] || p=/
+  done
+  (cd "$p" 2>/dev/null && printf '%s%s\n' "$(pwd -P | sed 's|/$||')" "$rest")
+}
+
+# trace_inside <path> <folder>: 0 when the path is the folder or lies below it (both physical).
+trace_inside() {
+  case $1/ in "$2"/*) return 0 ;; esac
+  return 1
+}
+
+# traces_on: prints why traces are off and returns 1, unless this is a self-hosted CI runner and the trace root is an absolute folder
+# outside GITHUB_WORKSPACE and the checkout; then it makes the root (umask 077), prints nothing and returns 0.
+traces_on() {
+  local troot phys ws=""
+  if [ "${GITHUB_ACTIONS:-}" != true ]; then
+    echo "not a CI run"
+    return 1
+  fi
+  if [ "${RUNNER_ENVIRONMENT:-}" != self-hosted ]; then
+    echo "not a self-hosted runner"
+    return 1
+  fi
+  troot=$(trace_root)
+  case $troot in
+    /*) ;;
+    *)
+      echo "the trace folder is not an absolute path"
+      return 1
+      ;;
+  esac
+  case /$troot/ in
+    */../*)
+      echo "the trace folder holds .."
+      return 1
+      ;;
+  esac
+  phys=$(trace_physical "$troot")
+  if [ -z "$phys" ]; then
+    echo "the trace folder cannot be resolved"
+    return 1
+  fi
+  if [ -n "${GITHUB_WORKSPACE:-}" ] && [ -d "$GITHUB_WORKSPACE" ]; then ws=$(cd "$GITHUB_WORKSPACE" && pwd -P); fi
+  if { [ -n "$ws" ] && trace_inside "$phys" "$ws"; } || trace_inside "$phys" "$(cd "$root" && pwd -P)"; then
+    echo "the trace folder is inside the workspace or the checkout"
+    return 1
+  fi
+  if ! (umask 077 && mkdir -p "$troot") 2>/dev/null; then
+    echo "the trace folder cannot be made"
+    return 1
+  fi
+  return 0
+}
+
+# trace_mode: prints retain-on-failure when traces are on (traces_on), else nothing.
+trace_mode() {
+  if traces_on >/dev/null; then echo retain-on-failure; fi
+  return 0
+}
+
+# traces_keep <results dir> <unit>: CI only. Moves every trace*.zip under the results folder to <root>/<tag>/<its path below the results
+# folder> (mode 600, folders 700) when traces are on, deletes it when they are off or the move fails, and deletes every
+# .playwright-artifacts-* folder. Prints one TRACE line for what it kept and one for what it removed; nothing when it found no trace.
+traces_keep() {
+  local results=$1 unit=$2 on=0 troot="" tag=${OCUTALON_RUN_TAG:-} f rel dest kept=0 removed=0
+  [ "${GITHUB_ACTIONS:-}" = true ] || return 0
+  [ -d "$results" ] || return 0
+  if traces_on >/dev/null && live_tag_ok "$tag"; then
+    on=1
+    troot=$(trace_root)
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    rel=${f#"$results"/}
+    dest="$troot/$tag/$rel"
+    if [ "$on" = 1 ] && [ -f "$f" ] && [ ! -L "$f" ] && (umask 077 && mkdir -p "$(dirname "$dest")") 2>/dev/null && mv -f "$f" "$dest" 2>/dev/null; then
+      chmod 600 "$dest" 2>/dev/null
+      kept=$((kept + 1))
+    else
+      rm -f "$f" 2>/dev/null
+      if [ "$on" = 1 ]; then rm -f "$dest" 2>/dev/null; fi
+      removed=$((removed + 1))
+    fi
+  done < <(find "$results" \( -type f -o -type l \) -name 'trace*.zip' 2>/dev/null)
+  while IFS= read -r f; do
+    [ -n "$f" ] && rm -rf "$f"
+  done < <(find "$results" -type d -name '.playwright-artifacts-*' -prune 2>/dev/null)
+  if [ "$kept" -gt 0 ]; then echo "TRACE kept $kept of $unit under $tag/$unit"; fi
+  if [ "$removed" -gt 0 ]; then echo "TRACE removed $removed of $unit (traces are off or could not be moved)"; fi
+  return 0
+}
+
+# traces_prune: when traces are on, deletes the root's run folders (a name that passes live_tag_ok) older than TRACE_KEEP_DAYS days.
+# A folder that is gone or cannot be removed (another job may prune at once) is ignored.
+traces_prune() {
+  local troot dir n=0
+  traces_on >/dev/null || return 0
+  troot=$(trace_root)
+  while IFS= read -r dir; do
+    [ -n "$dir" ] || continue
+    live_tag_ok "${dir##*/}" || continue
+    rm -rf "$dir" 2>/dev/null
+    n=$((n + 1))
+  done < <(find "$troot" -mindepth 1 -maxdepth 1 -type d -mmin "+$((TRACE_KEEP_DAYS * 24 * 60))" 2>/dev/null)
+  if [ "$n" -gt 0 ]; then echo "TRACE pruned $n run folder(s) older than $TRACE_KEEP_DAYS days"; fi
+  return 0
+}
+
+# --- Retries of a live page's snapshot wait (Story 32.6): counted from the file that the unit's Playwright run appends to ---
+
+# retry_log_of <unit>: the file that the unit's retries are appended to (OCUTALON_E2E_RETRY_LOG).
+retry_log_of() {
+  printf '%s\n' "$root/web/test-results/$1-retries.txt"
+}
+
+# retry_lines <unit>: the RETRY lines of the unit's file (the shape that web/e2e/support/bounds.ts retryLine prints); nothing when there is no file.
+retry_lines() {
+  LC_ALL=C grep -E '^RETRY [A-Za-z0-9._/-]+:[0-9]+ [A-Za-z0-9 ./:_-]+$' "$(retry_log_of "$1")" 2>/dev/null
+  return 0
+}
+
+# retry_count <unit>: the number of RETRY lines of the unit's file (0 without one).
+retry_count() {
+  retry_lines "$1" | wc -l | tr -d ' '
+}
+
+# retries_report <unit>: prints the unit's RETRY lines and `RETRIES <n> in live:<unit>` when n is above 0; nothing otherwise.
+retries_report() {
+  local n
+  n=$(retry_count "$1")
+  [ "$n" -gt 0 ] || return 0
+  retry_lines "$1"
+  echo "RETRIES $n in live:$1"
+}
+
+# retries_summary <group> <total> <detail>: prints `RETRIES <total> in group <group>` (with ` (<detail>)` when the detail is not empty). When
+# GITHUB_STEP_SUMMARY is set and the total is above 0 it appends that line and each RETRY line with its unit; the detail is a list of
+# `live:<unit> <n>` entries separated by `, `. A summary file that cannot be written is ignored.
+retries_summary() {
+  local group=$1 total=$2 detail=${3:-} line entries
+  line="RETRIES $total in group $group"
+  if [ -n "$detail" ]; then line="$line ($detail)"; fi
+  echo "$line"
+  [ "$total" -gt 0 ] || return 0
+  [ -n "${GITHUB_STEP_SUMMARY:-}" ] || return 0
+  entries=${detail//, /$'\n'}
+  {
+    echo "$line"
+    printf '%s\n' "$entries" | while IFS= read -r entry; do
+      unit=${entry%% *}
+      unit=${unit#live:}
+      [ -n "$unit" ] || continue
+      retry_lines "$unit" | while IFS= read -r l; do echo "- live:$unit: $l"; done
+    done
+  } 2>/dev/null >> "$GITHUB_STEP_SUMMARY"
+  return 0
+}
+
 cmd_live() {
-  local name=${1:-}
+  local name=${1:-} mode rc
   if [ -z "$name" ] || ! live_known "$name" || [ ! -f "docker/tests/test-$name.sh" ]; then
     echo "unknown live unit '$name'; see: ci/iris.sh list"
     exit 2
   fi
+  # A file from an earlier run is never counted for this one.
+  rm -f "$(retry_log_of "$name")"
   warm_check
   if [ "$WARM_MODE" = warm ]; then
     echo "FAIL live units never run warm: unset OCUTALON_WARM"
@@ -456,8 +654,23 @@ cmd_live() {
     *" $name "*) npx --prefix web playwright install firefox webkit || exit 1 ;;
   esac
   shift
+  mode=$(trace_mode)
+  unset OCUTALON_E2E_TRACE
+  if [ -n "$mode" ]; then
+    echo "TRACE on"
+    export OCUTALON_E2E_TRACE=$mode
+  else
+    echo "TRACE off: $(traces_on)"
+  fi
+  # The retries of the unit's tests are appended to this file (web/e2e/support/bounds.ts reportRetry).
+  export OCUTALON_E2E_RETRY_LOG
+  OCUTALON_E2E_RETRY_LOG=$(retry_log_of "$name")
   # Each unit keeps its Playwright results in its own folder (web/playwright.config.ts outputDir), so that a later unit of the job does not clear them.
   OCUTALON_E2E_OUTPUT="test-results/$name" bash "docker/tests/test-$name.sh" "$@"
+  rc=$?
+  traces_keep "$root/web/test-results" "$name"
+  retries_report "$name"
+  exit "$rc"
 }
 
 # fresh_only <what>: a command whose units all start fresh stacks. A warm request is dropped with one line, and no unit sees it.
@@ -468,13 +681,14 @@ fresh_only() {
 }
 
 cmd_group() {
-  local name=${1:-} units unit kind arg started rc failed="" total=$SECONDS
+  local name=${1:-} units unit kind arg started rc failed="" total=$SECONDS retried=0 retries_detail="" n
   if ! units=$(group_units "$name"); then
     echo "unknown group '$name'; groups: $IRIS_GROUPS"
     exit 2
   fi
   fresh_only "group $name"
   setup_tag
+  traces_prune
   preflight
   ensure_web_bundle || exit 1
   for unit in $units; do
@@ -490,7 +704,15 @@ cmd_group() {
       echo "UNIT $unit failed $((SECONDS - started))s"
       failed="$failed $unit"
     fi
+    if [ "$kind" = live ]; then
+      n=$(retry_count "$arg")
+      if [ "$n" -gt 0 ]; then
+        retried=$((retried + n))
+        retries_detail="${retries_detail:+$retries_detail, }$unit $n"
+      fi
+    fi
   done
+  retries_summary "$name" "$retried" "$retries_detail"
   if [ -n "$failed" ]; then
     echo "GROUP $name failed:$failed ($((SECONDS - total))s)"
     exit 1

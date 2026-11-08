@@ -94,7 +94,7 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
   documents: {
     label: 'Ask about a document',
     lookFor:
-      'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat and look for the citation under the answer.',
+      'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file.',
     button: 'Open the Documents page',
   },
   heartbeat: {

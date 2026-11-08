@@ -1,6 +1,6 @@
 Include Ensemble
 
-/// SessionOps, the business operation that carries out the session commands Pair, Unpair and EndSession (AD-1, AD-4, AD-12, AD-17, AD-32).
+/// SessionOps, the business operation that carries out the session commands Pair, Unpair, EndSession and GotIt (AD-1, AD-4, AD-12, AD-14, AD-17, AD-32).
 /// It is the only writer of a chat row's SessionRef (Data.Pairing), the only code that marks a pairing code used, and the only publisher of
 /// the pairing live event. It compares hashes only: a pairing code never reaches it (AD-4). Its answer is always a CommandResult; the
 /// Telegram service that sent the command writes the reply from the outcome.
@@ -14,13 +14,21 @@ Include Ensemble
 ///     command's session, whose paired chat must be the ChatRef when one is given, with the notice pairing.unpairedFromPage. The outcomes
 ///     are unpaired and not_paired (Ok 0, nothing changed, nothing audited).
 ///   - EndSession {SessionRef} ends an online-demo session (Story 16.4; AD-4): the page's Sign out, through POST /v1/session/end. In order,
-///     and each of the first five steps is tried even when an earlier one failed: Unlink of the session's chat (reason session_end, no
+///     and each of the first six steps is tried even when an earlier one failed: Unlink of the session's chat (reason session_end, no
 ///     notice); one CancelReminder for each pending reminder, sent to ReminderOps; one StopWatch for each production watch, sent to WatchOps;
 ///     Approval.Cancel for each pending approval request the session owns; SettingsOps.ForgetPerson for the session's per-person
-///     values (AD-19): the persona keys and the five heartbeat keys. Only when all of them succeeded is the row's ResumeHash cleared, so
-///     that a resume cookie that outlives the sign-out resumes nothing; after a failed End the session stays resumable and the visitor can end
-///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first five steps were
+///     values (AD-19): the persona keys and the five heartbeat keys; Data.Handled.DropSession for the session's Handled rows. Only when all
+///     of them succeeded is the row's ResumeHash cleared, so that a resume cookie that outlives the sign-out resumes nothing; after a failed
+///     End the session stays resumable and the visitor can end
+///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first six steps were
 ///     tried) and no_session (Ok 0, the session has no row). The session's conversation, orders and decisions stay with the row.
+///   - GotIt {Ref, Channel} marks one of the session's own tell-now notices as handled (AD-14; Story 12.12). In order it checks that the
+///     Channel is a Msg.Enum CHANNEL value, that the Ref is a reference, that the session's own Decision (Data.Ownership.Decision, compared by
+///     its exact Ref) has that Ref and its Outcome is tellnow. Any of them failing is not_found (Ok 0, nothing written, nothing sent), so
+///     another session's notice answers like a missing one. A notice that Data.Handled already marks is already_handled (Ok 1, nothing
+///     changed; the first press wins through the table's unique Ref). Otherwise one Handled row {Ref, SessionRef, now, Channel} is saved and
+///     one Notification of kind handled, with the Decision's Ref and no text, goes to Notify, so that each channel updates its copy of
+///     the notice; a failed send is a warning and the marker stands. A save that fails while the Ref is still not marked is failed (Ok 0).
 /// Every pair outcome is audited as a Pairing entry (linked or rejected) through Bridge.Audit.Record, and every unlink as an unlinked
 /// entry, with the session's IRIS user (else the job's user), the session, the channel of the command's origin and no chat id or display
 /// name. A link needs its audit entry: when the entry can't be written nothing links and the outcome is failed, and a chat that the pair had already dropped stays dropped. An unlink stands when its
@@ -57,6 +65,12 @@ Parameter MESSAGEENDED = "The session was ended.";
 
 Parameter MESSAGENOSESSION = "That session is not known, so nothing was ended.";
 
+Parameter MESSAGEHANDLED = "The notice is marked as handled.";
+
+Parameter MESSAGEALREADYHANDLED = "The notice was already marked as handled, so nothing was changed.";
+
+Parameter MESSAGENOTICENOTFOUND = "That notice is not known, so nothing was marked.";
+
 /// The item that carries out the reminder commands End sends.
 Parameter REMINDERITEM = "ReminderOps";
 
@@ -68,13 +82,12 @@ Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.P
 	Set pResponse = ""
 	Set command = $Get(pRequest)
 	Set class = $Select($IsObject(command): $ClassName(command), 1: "")
-	If class = "OcuTalon.Msg.Command.GotIt" Quit $$$ERROR($$$NotImplemented)
-	If '$ListFind($ListBuild("OcuTalon.Msg.Command.Pair", "OcuTalon.Msg.Command.Unpair", "OcuTalon.Msg.Command.EndSession"), class) {
+	If '$ListFind($ListBuild("OcuTalon.Msg.Command.Pair", "OcuTalon.Msg.Command.Unpair", "OcuTalon.Msg.Command.EndSession", "OcuTalon.Msg.Command.GotIt"), class) {
 		$$$LOGERROR("OcuTalon.Core.SessionOps: it carries out no " _ $Select(class = "": "message that is not an object", 1: class))
-		Quit $SYSTEM.Status.Error(5001, "SessionOps carries out only Pair, Unpair and EndSession")
+		Quit $SYSTEM.Status.Error(5001, "SessionOps carries out only Pair, Unpair, EndSession and GotIt")
 	}
 	Try {
-		Set pResponse = $Case(class, "OcuTalon.Msg.Command.Pair": ..Pair(command), "OcuTalon.Msg.Command.Unpair": ..Unpair(command), : ..End(command))
+		Set pResponse = $Case(class, "OcuTalon.Msg.Command.Pair": ..Pair(command), "OcuTalon.Msg.Command.Unpair": ..Unpair(command), "OcuTalon.Msg.Command.GotIt": ..GotIt(command), : ..End(command))
 	} Catch exception {
 		$$$LOGERROR(exception.DisplayString())
 		Set pResponse = ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
@@ -232,8 +245,39 @@ Method Unpair(command As OcuTalon.Msg.Command.Unpair) As OcuTalon.Msg.CommandRes
 	Quit ..Result(0, "not_paired", ..#MESSAGENOTPAIRED)
 }
 
+/// Carries out a GotIt command and returns the CommandResult to answer (see the class description). The answers are handled and
+/// already_handled (Ok 1), not_found (Ok 0: a Channel that is not a CHANNEL value, a Ref that is not a reference or names no tell-now
+/// Decision of the session) and failed (Ok 0: a read or save error that left the notice unmarked).
+Method GotIt(command As OcuTalon.Msg.Command.GotIt) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set ref = command.Ref
+	If '$ListFind($ListFromString(##class(OcuTalon.Msg.Enum).#CHANNEL), command.Channel) Quit ..Result(0, "not_found", ..#MESSAGENOTICENOTFOUND)
+	If '##class(OcuTalon.Bridge.Approval).IsRef(ref) Quit ..Result(0, "not_found", ..#MESSAGENOTICENOTFOUND)
+	Set decision = ##class(OcuTalon.Data.Ownership).Decision(ref, command.SessionRef, .sc)
+	If $$$ISERR(sc) Quit ..Failed("the notice could not be read", sc)
+	If '$IsObject(decision) Quit ..Result(0, "not_found", ..#MESSAGENOTICENOTFOUND)
+	If (decision.Ref '= ref) || (decision.Outcome '= "tellnow") Quit ..Result(0, "not_found", ..#MESSAGENOTICENOTFOUND)
+	Set ref = decision.Ref
+	Set decision = ""
+	If ##class(OcuTalon.Data.Handled).RefIndexExists(ref) Quit ..Result(1, "already_handled", ..#MESSAGEALREADYHANDLED)
+	Set sc = ..SaveHandled(ref, command.SessionRef, command.Channel)
+	If $$$ISERR(sc) {
+		If ##class(OcuTalon.Data.Handled).RefIndexExists(ref) Quit ..Result(1, "already_handled", ..#MESSAGEALREADYHANDLED)
+		Quit ..Failed("the notice could not be marked as handled", sc)
+	}
+	Set notification = ##class(OcuTalon.Msg.Notification).%New()
+	Set notification.SessionRef = command.SessionRef
+	Set notification.Kind = "handled"
+	Set notification.DecisionRef = ref
+	Set notification.CatalogKey = ""
+	Set notification.Slots = "{}"
+	Set sent = ..SendNotice(notification)
+	If $$$ISERR(sent) Do ..Warn("the handled notice of session " _ command.SessionRef _ " was not sent", sent)
+	Quit ..Result(1, "handled", ..#MESSAGEHANDLED)
+}
+
 /// Carries out an EndSession command and returns the CommandResult to answer (see the class description). The document, memory and upload drops,
-/// Unlink, the reminders, the watches and the approval requests each run even when an earlier one failed or threw, and a failure is a
+/// Unlink, the reminders, the watches, the approval requests, the per-person settings and the Handled rows each run even when an earlier one failed or threw, and a failure is a
 /// warning with the step's reason; the resume hash is cleared last, and only when none of them failed, so a failed End leaves the session
 /// resumable.
 Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandResult [ Private ]
@@ -251,7 +295,7 @@ Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandRe
 		Set failed = 1
 		Do ..Warn("the chat could not be unlinked at the end of session " _ sessionRef, exception.AsStatus())
 	}
-	Set failed = ..EndReminders(command) + ..EndWatches(command) + ..EndApprovals(sessionRef, channel) + ..EndSettings(sessionRef) + failed
+	Set failed = ..EndReminders(command) + ..EndWatches(command) + ..EndApprovals(sessionRef, channel) + ..EndSettings(sessionRef) + ..EndHandled(sessionRef) + failed
 	If 'failed Set failed = ..EndResume(sessionRef)
 	Quit $Select(failed: ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED), 1: ..Result(1, "ended", ..#MESSAGEENDED))
 }
@@ -356,6 +400,41 @@ Method EndSettings(sessionRef As %String) As %Integer [ Private ]
 Method Forget(sessionRef As %String) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Core.SettingsOps).ForgetPerson(sessionRef)
+}
+
+/// End's Handled step: the session's Handled rows are deleted. The result is 1 when the delete failed (an error status or an error thrown), a
+/// warning with the reason, else 0.
+Method EndHandled(sessionRef As %String) As %Integer [ Private ]
+{
+	Set failed = 0
+	Try {
+		Set sc = ..DropHandled(sessionRef)
+		If $$$ISERR(sc) {
+			Set failed = 1
+			Do ..Warn("the handled marks of session " _ sessionRef _ " were not deleted", sc)
+		}
+	} Catch exception {
+		Set failed = 1
+		Do ..Warn("the handled marks of session " _ sessionRef _ " were not deleted", exception.AsStatus())
+	}
+	Quit failed
+}
+
+/// The one call that saves a Handled row {ref, sessionRef, now, channel} (a seam for the tests). The unique Ref makes the first save win.
+Method SaveHandled(ref As %String, sessionRef As %String, channel As %String) As %Status [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Handled).%New()
+	Set row.Ref = ref
+	Set row.SessionRef = sessionRef
+	Set row.HandledAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set row.Channel = channel
+	Quit row.%Save()
+}
+
+/// The one call that deletes a session's Handled rows (Lane B; a seam for the tests).
+Method DropHandled(sessionRef As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Handled).DropSession(sessionRef)
 }
 
 /// End's last step, run only when every earlier step succeeded: the row's ResumeHash is cleared (saved only when it holds one). The result

@@ -1,0 +1,33 @@
+{
+  "name": "user-turn-forget",
+  "kind": "user-turn",
+  "heldOut": false,
+  "description": "The user asks OcuTalon to forget a partner's contact, the forget counterpart of the remember request (Story 9.11, DW-902). The case is right only when Triage decides tell now with no fallback, which needs a reply that gives a confidence, and its reasons only classify the turn as the user's own message: they never describe the state of a production, what Triage can or cannot look up, or whether anything needs the user.",
+  "turn": {
+    "text": "Forget that the Orders partner contact is Kim."
+  },
+  "expectation": {
+    "keyPhrases": [
+      [
+        "user"
+      ]
+    ],
+    "absentPhrases": [
+      "tool",
+      "access",
+      "look up",
+      "cannot",
+      "can't",
+      "unable",
+      "needs the user",
+      "need the user",
+      "nothing",
+      "healthy",
+      "all clear",
+      "everything is",
+      "no failure",
+      "no error"
+    ]
+  },
+  "recordedBy": "written for the evaluation set (Story 9.11, DW-902)"
+}

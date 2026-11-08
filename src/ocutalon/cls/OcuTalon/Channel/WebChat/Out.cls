@@ -9,6 +9,10 @@
 ///     with no row and no event, and a failed publish is logged and leaves the row. A reload shows the card from the row (DW-62).
 ///     An allowance card (Story 16.9) is the session's message allowance or the online demo's daily-cap message; its text is the
 ///     catalog's, rendered for the web with the time in instance time and "ET", and its row keeps no FallbackReason;
+///   - Notification of the kind digest (Story 17.10): it takes the same card path, with the text of OcuTalon.Channel.DigestText.Text(Slots,
+///     "web", .sc) in place of the rendering of the CatalogKey: the shared digest.* and checks.* texts, one piece per line, with no title. The
+///     row's DueAt and FallbackReason are "" and its DecisionRef is the one sent. A Slots or a piece that cannot be rendered is an error with
+///     no row and no event. The full digest card, with its check rows, is Story 18.4's;
 ///   - Notification of a tool-call card (Story 31.6; ToolCallCard: kind approval or result, an ApprovalRef, and a CatalogKey that is
 ///     one of Core.BridgeSink's five tool-call keys): it takes the same card path, so the chat shows the request with Approve and
 ///     Reject, the result and DW-454's held-call reason from the one Notification that the bridge sink built (DW-601). The persona
@@ -17,7 +21,7 @@
 ///   - Notification of any other incident kind (INCIDENTKINDS: incident, approval, answered, result): only its Delivery row (the kind,
 ///     the decision and the approval Ref), with no text and no event, because the web form of these kinds is the incident card,
 ///     which the page draws from the incident event (Story 6.1). A fix's notices and the kind answered stay here;
-///   - Notification of any other kind: only its Delivery row, with no text and no event, until the story that designs that kind's
+///   - Notification of any other kind (fallback, pairing, status): only its Delivery row, with no text and no event, until the story that designs that kind's
 ///     web form;
 ///   - Outbound (a reply): only its Delivery row for channel web, with the DecisionRef and no ChannelMessageId, because the page
 ///     shows the turn itself.
@@ -28,7 +32,7 @@ Class OcuTalon.Channel.WebChat.Out Extends OcuTalon.Channel.Operation
 Parameter CHANNEL = "web";
 
 /// The notification kinds that the web chat shows as cards.
-Parameter CARDKINDS = "tellnow,reminder,allowance";
+Parameter CARDKINDS = "tellnow,reminder,allowance,digest";
 
 /// The notification kinds whose web form is the incident card: they record their Delivery row only and never a card or an event.
 Parameter INCIDENTKINDS = "incident,approval,answered,result";
@@ -52,7 +56,7 @@ XData MessageMap
 </MapItems>
 }
 
-/// A notification: a card kind or a tool-call card is rendered, recorded and published; an incident kind or any other kind is
+/// A notification: a card kind (a digest included) or a tool-call card is rendered, recorded and published; an incident kind or any other kind is
 /// recorded only.
 Method OnNotification(request As OcuTalon.Msg.Notification, Output response As Ens.Response) As %Status
 {
@@ -61,7 +65,11 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 	If '$ListFind($ListFromString(..#CARDKINDS), request.Kind) && '..ToolCallCard(request) {
 		Quit ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, "", request.ApprovalRef, request.Kind, "", request.DecisionRef)
 	}
-	Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
+	If request.Kind = "digest" {
+		Set text = ##class(OcuTalon.Channel.DigestText).Text(request.Slots, ..#TEXTCHANNEL, .sc)
+	} Else {
+		Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
+	}
 	If $$$ISERR(sc) Quit sc
 	Set sc = ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), request.ApprovalRef, request.Kind, text, request.DecisionRef, $Select(request.Kind = "reminder": ..SlotOf(request, "dueAt"), 1: ""), ..FallbackReasonOf(request), .row)
 	If $$$ISERR(sc) Quit sc

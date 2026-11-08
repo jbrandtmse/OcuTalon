@@ -318,7 +318,10 @@ describe('the slow-step breadcrumb', () => {
 describe('the close of a page', () => {
   it('goes through boundedClose for every page of the context', () => {
     const fixtures = read('e2e/support/fixtures.ts');
-    assert.match(fixtures, /page\.close = \(options\) => boundedStep\(close\(options\), waitMs\(\), 'page\.close'\);/);
+    assert.match(
+      fixtures,
+      /page\.close = \(options\) => diagnosedAtBound\(boundedStep\(close\(options\), waitMs\(\), 'page\.close'\), 'page\.close', \(\) => closeDiagnosis\(page, watch\)\);/,
+    );
     assert.match(fixtures, /context\.on\('page', \(page\) => boundedClose\(page, closeWait\)\);/);
   });
 });

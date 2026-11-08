@@ -123,20 +123,40 @@ Parameter CAP = 8000;
 /// the escaped prompt, and the envelope the same after a second exchange.
 Parameter ENVELOPECHARS = 500;
 
+/// The characters of the knowledge-base tool of the documents (its name, description and input schema), which Chat's requests carry since Story 19.4 and which
+/// Decide's estimate leaves out (RequestSize counts the toolsets of the agent, and the tool is attached in the agent's %OnInit): the runner's own count is that
+/// much higher, so the estimate is that much less above it. A measured 117 tokens (about 470 characters) on build 154; the bound has room for a longer description.
+Parameter KNOWLEDGEBASECHARS = 600;
+
 /// A model of the Anthropic family other than the agents' own, with a Price row (Bridge.Installer), for TestResumeFollowsTheRunner.
 Parameter OTHERMODEL = "claude-sonnet-5-5";
 
 /// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark).
 Property SessionMark As %Integer;
 
+/// What RunnerFixture.UseItemSetting saved of the TurnToolsClass setting of Decide (NoTurnTools), as JSON text, to be put back; empty when the test left it.
+Property SavedTurnTools As %String(MAXLEN = "");
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set ..SessionMark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	Set ..SavedTurnTools = ""
 	Quit $$$OK
+}
+
+/// Gives the requests of the test no tool of their own (the base class of TurnToolsClass), so that the tool catalog that a request carries is the one that the agent's
+/// own tool manager holds: the test reads that catalog from the agent, outside a request. OnAfterOneTest puts the setting back.
+Method NoTurnTools()
+{
+	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).UseItemSetting("Decide", "Host", "TurnToolsClass", "OcuTalon.Bridge.Ext.TurnTools", .saved)
+	If (..SavedTurnTools = "") && $IsObject(saved) Set ..SavedTurnTools = saved.%ToJSON()
+	Do $$$AssertStatusOK(sc, "the requests of the test get no tool of their own")
 }
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	If ..SavedTurnTools '= "" Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreItemSetting("Decide", {}.%FromJSON(..SavedTurnTools))
+	Set ..SavedTurnTools = ""
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.ConversationLink WHERE Agent = ?", ..#AGENT)
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", ..#AGENT)
@@ -452,9 +472,9 @@ Method TestLinkPointRefusals()
 }
 
 /// A retry moves the link only when it is on time and Decide accepts it (DW-725, Story 17.8; AD-6, AD-8). A retry whose DecisionRef already has a Decision row
-/// is late, because Decide records the decision when the retry's timer fires: its reply is dropped there, so it must move nothing here. It still answers and its
-/// model request is still counted (one Usage row under the DecisionRef), but it saves no AI session, leaves the link on the session it named and leaves
-/// SessionRotated 0. A retry with no Decision row yet is on time: the link moves to its session when Decide accepts the reply (Test.Bridge.Runner Accept); a
+/// is late, because Decide records the decision when the retry's timer fires: its reply is dropped there, so it must move nothing here. Since Story 5.14 a retry
+/// that is already late when the runner takes it is skipped (no model request, no Usage row, no reply, no AI session), and it moves nothing. A retry whose
+/// timer fires during its Chat saves no session (Test.Bridge.Runner TestRetryLateAfterItsChat). A retry with no Decision row yet is on time: the link moves to its session when Decide accepts the reply (Test.Bridge.Runner Accept); a
 /// later late retry then leaves the link on the on-time retry's session. The late retries are not accepted, as Decide drops them.
 Method TestRetryMovesTheLinkOnlyWhenOnTime()
 {
@@ -474,11 +494,11 @@ Method TestRetryMovesTheLinkOnlyWhenOnTime()
 	Set sessions = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
 	Set sc = ..Send(retryHost, retry, .late, .logged, 0)
 	Do $$$AssertStatusOK(sc, "the late retry runner answers")
-	Do $$$AssertEquals(logged.%Size(), 1, "with one model request")
-	Do $$$AssertEquals($Select($IsObject(late): late.Busy_"|"_(late.Text '= "")_"|"_late.SessionRotated_"|"_late.FailureText, 1: "none"), "0|1|0|", "a reply with a text and SessionRotated 0")
+	Do $$$AssertEquals(logged.%Size(), 0, "with no model request")
+	Do $$$AssertTrue('$IsObject(late), "and no reply")
 	Do $$$AssertEquals(..LinkOf(owner), s1, "the link still names S1: the late retry did not point it")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), sessions, "and the late retry saved no AI session")
-	Do $$$AssertEquals(..UsageRowsOf(ref), 1, "its model request is counted: one Usage row under the DecisionRef")
+	Do $$$AssertEquals(..UsageRowsOf(ref), 0, "and no Usage row under the DecisionRef")
 
 	// (2) an on-time retry: no decision is recorded yet
 	Set ask2 = ..NewTurn("[[mock:recall-ask]] What is my build server called, once more?", owner)
@@ -498,7 +518,7 @@ Method TestRetryMovesTheLinkOnlyWhenOnTime()
 	Set retry3 = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask3, ref3, 0, ..#AGENT)
 	Do ..RecordDecision(ref3, ask3.ItemId, owner)
 	Do $$$AssertStatusOK(..Send(retryHost, retry3, .late3, .logged3, 0), "a second late retry answers")
-	Do $$$AssertEquals($Select($IsObject(late3): late3.SessionRotated, 1: "none"), 0, "with SessionRotated 0")
+	Do $$$AssertTrue('$IsObject(late3), "with no reply")
 	Do $$$AssertEquals(..LinkOf(owner), s2, "and the link still names S2, the session of the on-time retry")
 }
 
@@ -1103,6 +1123,7 @@ Method TestFirstStepCountsHistory()
 {
 	If ..Guard() Quit
 	Set buffer = "OcuTalon.Bridge.Adapter.StepBuffer"
+	Do ..NoTurnTools()
 	Set host = ..NewHost()
 	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set one = ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner)
@@ -1172,8 +1193,8 @@ Method TestPrecheckCountsHistory()
 	Set prompt = $Length([(host.Adapter.Agent.SystemPrompt)].%ToJSON()) - 4
 	Do $$$AssertTrue(prompt > 0, "the system prompt of the agent, JSON-escaped as the stored history holds it, is read: "_prompt_" characters")
 	Set allowed = ..Tokens(prompt + ..#ENVELOPECHARS)
-	Set least = ..Tokens(prompt) - ..Tokens(..#ENVELOPECHARS)
-	Do $$$AssertTrue(estimate - runner '< least, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by at least the system prompt less the envelope, "_least_" tokens, so the history is counted: "_(estimate - runner))
+	Set least = ..Tokens(prompt) - ..Tokens(..#ENVELOPECHARS) - ..Tokens(..#KNOWLEDGEBASECHARS)
+	Do $$$AssertTrue(estimate - runner '< least, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by at least the system prompt less the envelope and the knowledge-base tool, "_least_" tokens, so the history is counted: "_(estimate - runner))
 	Do $$$AssertTrue(estimate - runner '> allowed, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by no more than the system prompt and the envelope, "_allowed_" tokens: "_(estimate - runner))
 }
 

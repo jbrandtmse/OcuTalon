@@ -75,8 +75,18 @@
 /// Added by Story 1.13 (AD-6; DW-149):
 ///   - TestShadowRecordsNothing: the adapter of a shadow host, which is no item in its own job, records no key state in OnInit and forgets
 ///     none in OnTearDown, even a record that this job wrote.
-/// Every AI session that a test saves is deleted again, and so is every Usage row that the shadow runner ZzRunner wrote, and every System
-/// Default Settings row that a test put is put back.
+/// Added by Story 5.14 (a request whose decision Decide has recorded is skipped; AD-6, AD-8, AD-20; DW-879):
+///   - TestSkipsAConcludedRequest: a decide, a diagnose and an untrusted turn whose DecisionRef has a Decision row, a linked user turn, and the retry of
+///     a linked turn on the retry runner ZzRetry, each taken by a fresh shadow runner, get status OK and no response, and the agent is not built, no
+///     model request, Usage row, AI session or link comes of them, and one Info row names the runner item, the kind and the DecisionRef; a decide and a
+///     linked turn whose DecisionRef has no row are answered as before; a request with no DecisionRef is never skipped; a concluded retry with a
+///     refused RetryOf and a concluded request of an unknown kind keep their errors; the replay of an approved tool call whose DecisionRef has a row
+///     runs once and writes no skip row;
+///   - TestRetryLateAfterItsChat: a retry whose decision is recorded after its Chat and before its save is answered, counted, and saves no session;
+///   - TestSkipLineText: the Info row of a skip is exactly the approved text;
+///   - TestSkipLineHoldsNothingElse: a stale request that carries a key-shaped token, model text, an ItemId and an OwnerRef leaves none of them in the event log.
+/// Every AI session that a test saves is deleted again, and so is every Usage row that the shadow runners ZzRunner and ZzRetry wrote, every Decision
+/// row that RecordConcluded saved, and every System Default Settings row that a test put is put back.
 Class OcuTalon.Test.Bridge.Runner Extends %UnitTest.TestCase
 {
 
@@ -97,13 +107,19 @@ Method OnBeforeOneTest(testname As %String) As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Kill ^||ZzStepsSecond, ^||ZzStepsBase
 	Do ..RemoveRows()
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", "ZzRunner")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", "ZzRetry")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE Summary = ?", ..#CONCLUDEDMARK)
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(..SavedRows)
 	Set ..SavedRows = ""
 	Quit $$$OK
 }
+
+/// The Summary of the Decision rows that RecordConcluded saves, which OnAfterOneTest deletes.
+Parameter CONCLUDEDMARK = "ZzConcluded";
 
 /// The agent of the default runner of the tests.
 Parameter AGENT = "OcuTalon.Agent.Triage";
@@ -633,7 +649,7 @@ Method TestSteps()
 {
 	If ..Guard() Quit
 	Set buffer = "OcuTalon.Bridge.Adapter.StepBuffer"
-	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent")
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent", , , , "OcuTalon.Test.Bridge.ZzStepsRunner")
 	Set request = ..NewUsageRequest("turn", "[[mock:steps-two-tools]] Read the note and the card.")
 	Set sc = host.OnMessage(request, .reply)
 	Do $$$AssertStatusOK(sc, "the request is answered")
@@ -654,7 +670,7 @@ Method TestSteps()
 		Set kinds = kinds _ $Select(i = 0: "", 1: ",") _ steps.%Get(i).kind
 	}
 	Do $$$AssertEquals(kinds, "model,tool,model,tool,model", "in the order of the calls: model, tool, model, tool, model")
-	Set base = $Length(agent.SystemPrompt) + $Length(agent.ToolManager.%Discover().%ToJSON()) + $Length(request.Input)
+	Set base = $Length(agent.SystemPrompt) + $Get(^||ZzStepsBase) + $Length(request.Input)
 	Do $$$AssertTrue(base > 0, "the base of the estimates is measured: " _ base)
 	Set model1 = steps.%Get(0)
 	Set note = steps.%Get(1)
@@ -693,9 +709,10 @@ Method TestStepsRedacted()
 {
 	If ..Guard() Quit
 	Set note = "OcuTalon.Test.Bridge.StepsNote"
-	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent")
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent", , , , "OcuTalon.Test.Bridge.ZzStepsRunner")
+	Set ^||ZzStepsSecond = 1
 	Do $$$AssertStatusOK(host.Adapter.BuildAgent(), "the agent builds")
-	Do $$$AssertStatusOK(host.Adapter.Agent.ToolManager.SetAuditPolicy(##class(OcuTalon.Test.Bridge.StepsSeen).%New()), "a second audit policy is chained after the step audit policy")
+	Do $$$AssertEquals(host.Adapter.Agent.ToolManager.AuditPolicy.%ClassName(1), "OcuTalon.Test.Bridge.StepsSeen", "a second audit policy is chained after the step audit policy on every manager that serves a request (the test adapter's Govern)")
 	Kill ^||ZzStepsSeen
 	Set request = ..NewUsageRequest("turn", "[[mock:steps-secrets]] Read the secret note.")
 	Set mark = ..LogMark()
@@ -741,7 +758,7 @@ Method TestStepsRedacted()
 			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LeakPlaces(value, steps, reply, mark), "", "the " _ kind _ " " _ where _ " is in no step record, not in the Reply (its Steps and its XML), in no event-log row since the test began and in nothing that the key scan names")
 		}
 	}
-	Kill ^||ZzStepsSeen
+	Kill ^||ZzStepsSeen, ^||ZzStepsSecond
 }
 
 /// The tools answer text and fail with a JSON body (the scenario steps-secrets-text). The form matters: the product's tools return a
@@ -1179,6 +1196,300 @@ Method TestReplayOpensAndReleasesTheThrowawaySession()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), ..SessionMark, "and no session was saved")
 	Kill ^||ZzSpy
 	Do ..RemoveRows()
+}
+
+/// Saves the timeout fallback Decision row of the Ref, as Decide does when it concludes a decision, so that a request that carries the Ref has a decision
+/// that is already recorded (Adapter.Agent Concluded). Its Summary is CONCLUDEDMARK, which OnAfterOneTest deletes. The status is the save's.
+ClassMethod RecordConcluded(ref As %String, itemId As %String, kind As %String, owner As %String) As %Status
+{
+	Set row = ##class(OcuTalon.Bridge.Data.Decision).%New()
+	Set row.Ref = ref
+	Set row.Kind = kind
+	Set row.ItemId = itemId
+	Set row.OwnerRef = owner
+	Set row.Summary = ..#CONCLUDEDMARK
+	Set row.Outcome = "tellnow"
+	Set row.Fallback = 1
+	Set row.FallbackReason = "timeout"
+	Quit row.%Save()
+}
+
+/// The text a skip logs, with the runner item, the kind and the DecisionRef put in (the approved text of Story 5.14).
+ClassMethod SkipText(item As %String, kind As %String, ref As %String) As %String [ Private ]
+{
+	Quit item_" skipped the "_kind_" request of the decision "_ref_": Decide has already recorded that decision, so no model request was made and no tool ran."
+}
+
+/// The texts of the Info rows of Answer after the event-log mark whose text holds the DecisionRef, as a list, oldest first.
+ClassMethod SkipRows(mark As %Integer, ref As %String) As %List [ Private ]
+{
+	Set rows = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND SourceMethod = 'Answer' AND Text [ ? ORDER BY ID", mark, ref)
+	While result.%Next() {
+		Set rows = rows _ $ListBuild(result.%GetData(1))
+	}
+	Quit rows
+}
+
+/// A request of the kind and provenance for a new item and a new DecisionRef (NewUsageRequest), whose Input holds the ItemId, so that the mock's log
+/// and the event log can be searched for it. A turn of provenance user is linked to a conversation of its own.
+Method NewTagged(kind As %String, provenance As %String, text As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
+{
+	Set request = ..NewUsageRequest(kind, text)
+	Set request.Provenance = provenance
+	If (kind = "turn") && (provenance '= "user") Set request.OwnerRef = "instance"
+	Set request.Input = text_" (test "_request.ItemId_")"
+	Quit request
+}
+
+/// What a skip leaves out, asserted for the request that the runner took with status sc and the response, from the marks taken before the call: no
+/// model request that carries the ItemId, no Usage row, no AI session, no link, the context over, and the Decision row of the item still the one.
+Method AssertNothingDone(label As %String, sc As %Status, response As %RegisteredObject, request As OcuTalon.Bridge.Msg.Request, mockMark As %Integer, sessions As %Integer, links As %Integer) [ Private ]
+{
+	Do $$$AssertStatusOK(sc, label_": the skip is status OK")
+	Do $$$AssertTrue('$IsObject(response), label_": and gives no response")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mockMark, .entries), label_": the mock's log is read")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).FindRequests(entries, request.ItemId).%Size(), 0, label_": no mock request carries the request")
+	Do $$$AssertEquals(..UsageIds(request.ItemId).%Size()_"|"_##class(OcuTalon.Test.Agent.RunnerFixture).UsageIds("DecisionRef", request.DecisionRef).%Size(), "0|0", label_": and no Usage row exists for it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), sessions, label_": no AI session was saved")
+	Do $$$AssertEquals(..LinkCount(), links, label_": and no link was made")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).Active(), 0, label_": the context is over")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).DecisionRowCount(request.ItemId), 1, label_": the item still has the one Decision row")
+}
+
+/// A request whose decision Decide has already recorded is skipped (Story 5.14; AD-6, AD-8, AD-20; DW-879). A decide, a diagnose and an untrusted turn
+/// (each on a fresh shadow runner of Triage, Diagnosis and Chat), a linked user turn, and the retry of a linked turn on the retry runner ZzRetry are
+/// answered with status OK and no response; the first four run on a lock-spy runner (Test.Bridge.ZzLockSpyRunner), which notes no point (no conversation
+/// lock, no session, not the end of the answer). The agent is not built; no model request, tool call, Usage row, AI session or link comes of them; one Info
+/// row of Answer names the runner item, the kind and the DecisionRef and holds neither the Input nor the ItemId. A concluded retry whose RetryOf the
+/// runner refuses, and a concluded request of an unknown kind, keep their errors and write no skip row: the skip comes after those checks. A decide and
+/// a linked turn whose DecisionRef has no row are answered as before, with no skip row, and a request with no DecisionRef is never skipped. The replay
+/// of an approved tool call whose DecisionRef has a row runs once, and writes no skip row.
+Method TestSkipsAConcludedRequest()
+{
+	If ..Guard() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set kinds = $ListBuild("decide", "diagnose", "turn")
+	Set agents = $ListBuild("OcuTalon.Agent.Triage", "OcuTalon.Agent.Diagnosis", "OcuTalon.Agent.Chat")
+	For case = 1:1:3 {
+		Set kind = $List(kinds, case)
+		Set label = "stale "_kind
+		Set host = ..NewRunner($List(agents, case), "low", ..ProviderConfig("triage"), , "OcuTalon.Test.Bridge.ZzLockSpyRunner")
+		Set request = ..NewTagged(kind, "untrusted", "Skip this "_kind_".")
+		Set host.Adapter.SpyOwner = request.OwnerRef
+		Do $$$AssertStatusOK(..RecordConcluded(request.DecisionRef, request.ItemId, kind, request.OwnerRef), label_": the decision of its DecisionRef is recorded")
+		Set mockMark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+		Set eventMark = ..LogMark()
+		Set sessions = $ClassMethod(fixture, "SessionMark")
+		Set links = ..LinkCount()
+		Set sc = host.OnMessage(request, .response)
+		Do ..AssertNothingDone(label, sc, response, request, mockMark, sessions, links)
+		Do $$$AssertTrue('$IsObject(host.Adapter.Agent), label_": the agent is not built")
+		Do $$$AssertEquals(host.Adapter.Noted(), "", label_": and the answer reached no session point nor the end of the answer")
+		Set rows = ..SkipRows(eventMark, request.DecisionRef)
+		Do $$$AssertEquals($ListLength(rows), 1, label_": one Info row of Answer names the DecisionRef")
+		Do $$$AssertEquals($ClassMethod(fixture, "Warnings", eventMark, host.Adapter.%ClassName(1), "Answer", $ListBuild("ZzRunner", kind, request.DecisionRef), 4), 1, label_": and it holds the runner item, the kind and the DecisionRef")
+		Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", eventMark, request.ItemId)_"|"_$ClassMethod(fixture, "LogRowsHolding", eventMark, request.Input), "0|0", label_": and no row holds the ItemId or the Input")
+		Do $$$AssertEquals($ClassMethod(fixture, "Warnings", eventMark, host.Adapter.%ClassName(1), "Answer"), 0, label_": and no warning")
+	}
+
+	// a linked user turn
+	Set host = ..NewRunner("OcuTalon.Agent.Chat", "low", ..ProviderConfig("chat"), , "OcuTalon.Test.Bridge.ZzLockSpyRunner")
+	Set request = ..NewTagged("turn", "user", "Skip this linked turn.")
+	Set host.Adapter.SpyOwner = request.OwnerRef
+	Do $$$AssertStatusOK(..RecordConcluded(request.DecisionRef, request.ItemId, "turn", request.OwnerRef), "stale linked turn: the decision is recorded")
+	Set mockMark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set eventMark = ..LogMark()
+	Set sessions = $ClassMethod(fixture, "SessionMark")
+	Set links = ..LinkCount()
+	Set sc = host.OnMessage(request, .response)
+	Do ..AssertNothingDone("stale linked turn", sc, response, request, mockMark, sessions, links)
+	Do $$$AssertEquals(host.Adapter.Noted(), "", "stale linked turn: it took no conversation lock and opened no session")
+	Do $$$AssertTrue('$IsObject(host.Adapter.Agent), "stale linked turn: the agent is not built")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, "ZzRunner"), "", "stale linked turn: the owner has no link")
+	Do $$$AssertEquals($ListLength(..SkipRows(eventMark, request.DecisionRef)), 1, "stale linked turn: one Info row")
+
+	// the retry of a linked turn, on the retry runner
+	Set retryHost = ..NewRunner("OcuTalon.Agent.Chat", "low", , "ZzRetry", "OcuTalon.Test.Bridge.ZzRetryRunner")
+	Set ask = ..NewTagged("turn", "user", "Skip this retry.")
+	Set retry = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask, ask.DecisionRef, 0, "ZzRunner")
+	Do $$$AssertEquals(retry.RetryOf, "ZzRunner", "stale retry: the request is the retry of ZzRunner")
+	Do $$$AssertStatusOK(..RecordConcluded(retry.DecisionRef, retry.ItemId, "turn", retry.OwnerRef), "stale retry: its decision is recorded")
+	Set mockMark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set eventMark = ..LogMark()
+	Set sessions = $ClassMethod(fixture, "SessionMark")
+	Set links = ..LinkCount()
+	Set sc = retryHost.OnMessage(retry, .response)
+	Do ..AssertNothingDone("stale retry", sc, response, retry, mockMark, sessions, links)
+	Do $$$AssertTrue('$IsObject(retryHost.Adapter.Agent), "stale retry: the agent is not built")
+	Set rows = ..SkipRows(eventMark, retry.DecisionRef)
+	Do $$$AssertEquals($ListLength(rows), 1, "stale retry: one Info row")
+	If $ListLength(rows) = 1 Do $$$AssertEquals($List(rows, 1), ..SkipText("ZzRetry", "turn", retry.DecisionRef), "stale retry: it names the retry runner ZzRetry")
+
+	// a concluded retry whose RetryOf the runner refuses, and a concluded request of an unknown kind: their errors come before the skip
+	Set retryHost = ..NewRunner("OcuTalon.Agent.Chat", "low", , "ZzRetry", "OcuTalon.Test.Bridge.ZzRetryRunner")
+	Set ask = ..NewTagged("turn", "user", "Refuse this retry.")
+	Set retry = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask, ask.DecisionRef, 0, "TriageAgent")
+	Do $$$AssertStatusOK(..RecordConcluded(retry.DecisionRef, retry.ItemId, "turn", retry.OwnerRef), "refused RetryOf: its decision is recorded")
+	Set eventMark = ..LogMark()
+	Set sc = retryHost.OnMessage(retry, .response)
+	Do $$$AssertStatusNotOK(sc, "refused RetryOf: the request is refused, not skipped")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "RetryOf", "refused RetryOf: the error names RetryOf: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals($ListLength(..SkipRows(eventMark, retry.DecisionRef)), 0, "refused RetryOf: and no skip row")
+	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
+	Set request = ..NewTagged("decide", "untrusted", "Refuse this kind.")
+	Do $$$AssertStatusOK(..RecordConcluded(request.DecisionRef, request.ItemId, "decide", request.OwnerRef), "unknown kind: its decision is recorded")
+	Set request.Kind = "zzkind"
+	Set eventMark = ..LogMark()
+	Set sc = host.OnMessage(request, .response)
+	Do $$$AssertStatusNotOK(sc, "unknown kind: the request is refused, not skipped")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "zzkind", "unknown kind: the error names the kind")
+	Do $$$AssertEquals($ListLength(..SkipRows(eventMark, request.DecisionRef)), 0, "unknown kind: and no skip row")
+
+	// live: no row for the DecisionRef
+	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
+	Set request = ..NewTagged("decide", "untrusted", "Triage this item.")
+	Set mockMark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set eventMark = ..LogMark()
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "live decide: answered")
+	Do $$$AssertTrue($IsObject(reply) && (reply.Text '= ""), "live decide: with a Reply that holds a text")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mockMark, .entries), "live decide: the mock's log is read")
+	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, request.ItemId).%Size(), 1, "live decide: one request reached the mock")
+	Do $$$AssertEquals(..UsageIds(request.ItemId).%Size(), 1, "live decide: one Usage row")
+	Do $$$AssertEquals($ListLength(..SkipRows(eventMark, request.DecisionRef)), 0, "live decide: no skip row")
+
+	Set host = ..NewRunner("OcuTalon.Agent.Chat", "low", ..ProviderConfig("chat"))
+	Set request = ..NewTagged("turn", "user", "Look at the productions.")
+	Set mockMark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set eventMark = ..LogMark()
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "live linked turn: answered")
+	Do $$$AssertTrue($IsObject(reply) && (reply.Text '= ""), "live linked turn: with a Reply that holds a text")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mockMark, .entries), "live linked turn: the mock's log is read")
+	Do $$$AssertTrue($ClassMethod(fixture, "FindRequests", entries, request.ItemId).%Size() > 0, "live linked turn: a request reached the mock")
+	Do $$$AssertEquals(..UsageIds(request.ItemId).%Size(), 1, "live linked turn: one Usage row")
+	Do $$$AssertEquals($ListLength(..SkipRows(eventMark, request.DecisionRef)), 0, "live linked turn: no skip row")
+
+	// no DecisionRef: never skipped
+	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
+	Set request = ..NewTagged("decide", "untrusted", "Triage this item.")
+	Set request.DecisionRef = ""
+	Set mockMark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "no DecisionRef: answered")
+	Do $$$AssertTrue($IsObject(reply) && (reply.Text '= ""), "no DecisionRef: with a Reply that holds a text")
+	Do $$$AssertEquals(..UsageIds(request.ItemId).%Size(), 1, "no DecisionRef: one Usage row")
+
+	// the replay of an approved call whose DecisionRef has a row
+	Kill ^OcuTalonTest("Replay")
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.ZzReplayAgent", "low", ..ProviderConfig())
+	Set tool = "OcuTalon.Test.Bridge.ZzReplayTool"
+	Set approved = ..ApprovedRow("zz_replay_send", "{}", tool, 3600)
+	Set request = ..ToolRequest(approved)
+	Do $$$AssertStatusOK(..RecordConcluded(request.DecisionRef, approved, "tool", request.OwnerRef), "replay: the decision of its DecisionRef is recorded")
+	Set eventMark = ..LogMark()
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "replay: answered")
+	Do $$$AssertTrue($IsObject(reply) && (reply.ToolsRun = 1), "replay: with a Reply whose ToolsRun is 1")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), 1, "replay: the tool ran once")
+	Do $$$AssertEquals(..Prop(approved, "State")_"|"_..Prop(approved, "Result"), "done|done", "replay: the approval row is done")
+	Do $$$AssertEquals($ListLength(..SkipRows(eventMark, request.DecisionRef)), 0, "replay: and no skip row was written")
+	Do ..RemoveRows()
+}
+
+/// A retry whose decision Decide records after the retry's Chat and before its save (the timer fires during the Chat) is answered and counted, and saves
+/// no AI session (Adapter.Agent RetryIsLate; DW-725). ZzRetryAdapter ConcludeRef records the row at the save, as Decide does. The retry names no
+/// session, the link keeps naming the session of the first turn, and the retry's model request has its one Usage row.
+Method TestRetryLateAfterItsChat()
+{
+	If ..Guard() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set host = ..NewRunner("OcuTalon.Agent.Chat", "low")
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set one = ..NewOwnedTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner)
+	Do $$$AssertStatusOK(host.OnMessage(one, .first), "the first turn is answered")
+	Do $$$AssertStatusOK(..Accept(one, first, "ZzRunner"), "Decide accepts it")
+	Set s1 = ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, "ZzRunner")
+	Do $$$AssertTrue(s1 '= "", "the link names the session S1: "_s1)
+
+	Set retryHost = ..NewRunner("OcuTalon.Agent.Chat", "low", , "ZzRetry", "OcuTalon.Test.Bridge.ZzRetryRunner")
+	Set ask = ..NewOwnedTurn("[[mock:recall-ask]] What is my build server called?", owner)
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set retry = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask, ref, 0, "ZzRunner")
+	Set retryHost.Adapter.ConcludeRef = ref
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(ref), 0, "the decision of the retry is not recorded when the runner takes it")
+	Set sessions = $ClassMethod(fixture, "SessionMark")
+	Set mockMark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set sc = retryHost.OnMessage(retry, .answer)
+	Do $$$AssertStatusOK(sc, "the retry is answered")
+	Do $$$AssertTrue($IsObject(answer) && (answer.Text '= ""), "with a Reply that holds a text")
+	Do $$$AssertEquals($Select($IsObject(answer): answer.SessionId, 1: "none"), "", "which names no session")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mockMark, .entries), "the mock's log is read")
+	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, ask.ItemId).%Size(), 1, "one model request reached the mock")
+	Do $$$AssertEquals($ClassMethod(fixture, "UsageIds", "DecisionRef", ref).%Size(), 1, "and its one Usage row counts it")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(ref), 1, "the decision was recorded during the call")
+	Do $$$AssertEquals($ClassMethod(fixture, "SessionMark"), sessions, "no AI session was saved")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, "ZzRunner"), s1, "and the link still names S1")
+}
+
+/// The Info row of a skip is exactly the approved text, with the runner item, the kind and the DecisionRef put in, compared as one string (Story 5.14).
+Method TestSkipLineText()
+{
+	If ..Guard() Quit
+	Set kinds = $ListBuild("decide", "diagnose", "turn")
+	Set agents = $ListBuild("OcuTalon.Agent.Triage", "OcuTalon.Agent.Diagnosis", "OcuTalon.Agent.Chat")
+	For case = 1:1:3 {
+		Set kind = $List(kinds, case)
+		Set host = ..NewRunner($List(agents, case), "low", ..ProviderConfig("triage"))
+		Set request = ..NewTagged(kind, "untrusted", "Skip this "_kind_".")
+		Do $$$AssertStatusOK(..RecordConcluded(request.DecisionRef, request.ItemId, kind, request.OwnerRef), kind_": the decision is recorded")
+		Set eventMark = ..LogMark()
+		Do $$$AssertStatusOK(host.OnMessage(request, .response), kind_": the request is skipped")
+		Set rows = ..SkipRows(eventMark, request.DecisionRef)
+		Do $$$AssertEquals($ListLength(rows), 1, kind_": one Info row")
+		If $ListLength(rows) = 1 Do $$$AssertEquals($List(rows, 1), ..SkipText("ZzRunner", kind, request.DecisionRef), kind_": the whole text of the row is the approved text")
+	}
+	Do $$$AssertEquals(..SkipText("DiagnosisAgent", "diagnose", "Qx3v9KpZt0aLmB7cR2dE4f"), "DiagnosisAgent skipped the diagnose request of the decision Qx3v9KpZt0aLmB7cR2dE4f: Decide has already recorded that decision, so no model request was made and no tool ran.", "the approved example reads as the text does")
+}
+
+/// A skip logs the runner item, the kind and the DecisionRef and nothing else of the request (Story 5.14): a stale request that carries a key-shaped
+/// token, model text, an ItemId, an OwnerRef, an Input and a SeedText leaves none of them in any event-log row written during the skip, and its Info row
+/// is exactly the fixed text.
+Method TestSkipLineHoldsNothingElse()
+{
+	If ..Guard() Quit
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set token = "sk-ant-"_"zzplanted-5-14-key"
+	Set model = "ZZPLANTED-MODEL-TEXT-5-14"
+	Set owner = "ZzPlantedOwner-5-14"
+	Set host = ..NewRunner("OcuTalon.Agent.Chat", "low", ..ProviderConfig("chat"))
+	Set request = ..NewTagged("turn", "user", "Planted "_token_" and "_model_".")
+	Set request.OwnerRef = owner
+	Set request.SeedText = "Earlier: "_model_" with "_token_"."
+	Do $$$AssertStatusOK(..RecordConcluded(request.DecisionRef, request.ItemId, "turn", owner), "the decision of the stale request is recorded")
+	Set mockMark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set eventMark = ..LogMark()
+	Set sessions = $ClassMethod(fixture, "SessionMark")
+	Set links = ..LinkCount()
+	Set sc = host.OnMessage(request, .response)
+	Do ..AssertNothingDone("planted", sc, response, request, mockMark, sessions, links)
+	Set values = $ListBuild(token, "zzplanted-5-14-key", model, request.ItemId, owner, request.Input, request.SeedText)
+	Set names = $ListBuild("the key-shaped token", "the token's planted word", "the model text", "the ItemId", "the OwnerRef", "the Input", "the SeedText")
+	For i = 1:1:$ListLength(values) {
+		Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", eventMark, $List(values, i)), 0, "no event-log row written during the skip holds "_$List(names, i))
+	}
+	Set rows = ..SkipRows(eventMark, request.DecisionRef)
+	Do $$$AssertEquals($ListLength(rows), 1, "one Info row names the DecisionRef")
+	If $ListLength(rows) = 1 Do $$$AssertEquals($List(rows, 1), ..SkipText("ZzRunner", "turn", request.DecisionRef), "and its text is exactly the fixed text")
+}
+
+/// A turn of provenance user for the owner, with an ItemId and a DecisionRef of its own and the ItemId in its Input.
+Method NewOwnedTurn(input As %String, owner As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
+{
+	Set request = ..NewTagged("turn", "user", input)
+	Set request.OwnerRef = owner
+	Quit request
 }
 
 /// A request of kind tool for the Ref, as the hold sends it through Decide.

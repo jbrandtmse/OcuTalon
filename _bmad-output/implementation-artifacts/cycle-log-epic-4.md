@@ -425,3 +425,27 @@
 2026-11-07T12:37:57Z	Epic 4	decision_sheet_deferred_to_orchestrator	entries=DW-862,DW-865(escalated) runner_never_decides
 2026-11-07T12:37:57Z	Epic 4	integrated_forward	feature=ace5bc88 head=25af8cc6(merge;+story_commits_29eae8ff) conflicts_resolved=sprint-status.yaml(last_updated;regenerated) unions=Test/Live/Payloads.cls(count_32+Features),payloads.ts(regenerated_no_change) earlier_merges=91f63138(b5dcbbfa),eff12e08(9683c1f0),e1c62e51(a092b15f) verification=CI_29eae8ff_all_green(42370390895,42370390889);smoke_online-demo-path+sign-in_8/16 readme='8 minutes'_present,'160 seconds'_absent
 2026-11-07T12:37:57Z	Epic 4	epic_runner_complete	stories_completed=1(4.11) landed=K21_option_B(Planner_vertical-scroll_fallback) vetoes=U-296(kept_then_reversed_by_Planner),U-297,U-299
+2026-11-08T17:50:41Z	Epic 4	epic_branch_reopened	reason=story_4.12_guide_citation_promise from=5cb58db7
+2026-11-08T17:50:41Z	Epic 4	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_4.12 lane=none slot=none
+2026-11-08T17:50:41Z	Epic 4	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-08T17:50:41Z	Epic 4	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-08T17:50:41Z	Epic 4	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-08T17:50:41Z	Epic 4	epic_branch_checked_out	repos=. head=5cb58db7 bootstrap_check=ok
+2026-11-08T17:50:49Z	Epic 4	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-08T17:50:49Z	Epic 4	ledger_load	total=940 open=0 routed=121 escalated=2 decision_pending=4 terminal=813 owner_unknown=0 reowned_none=0
+2026-11-08T17:50:49Z	Epic 4	retro_review_skipped	reason=skip(no_X.0_input;fix_forward_reopen)
+2026-11-08T17:50:49Z	Epic 4	readiness_skipped	reason=fix_forward_urgent_planner
+2026-11-08T17:51:38Z	Epic 4	story_chartered	story=4-12-the-demo-guide-s-document-tip-promises-only-what-1-0-4-shows marker=ADDED_2026-11-08 amendments=EXPERIENCE.md:251(item6_lookFor_ruled_string;ux-strings.test.mjs_reads_it_as_the_ux_source)
+2026-11-08T17:51:38Z	Epic 4	deps_hash_rerecorded	reason=fix_forward
+2026-11-08T17:51:38Z	Epic 4	ruling	question=ux-strings.test.mjs_needs_EXPERIENCE.md_to_hold_its_ux_strings_verbatim choice=lead_amends_EXPERIENCE.md:251_to_the_ruled_string(tier-1,planning_artifact,not_under_web/) rejected=move_entry_to_ruled_table(not_a_one-string_swap);leave_EXPERIENCE_stale(test_red) why=same_Planner-ruled_text,no_new_public_text category=decide policy=5086036
+2026-11-08T17:53:06Z	Epic 4	epic_context_compiled	reason=planning_artifact_newer(story_4.12_chartered) model=claude-opus
+2026-11-08T17:53:06Z	Story 4.12	stage_spawned	stage=build-auto(plan+implement,compressed_ruled) spawn_at=2026-11-08T17:53:06Z model=sonnet effort=high agent_name=4-12-build-auto-1 cycle_iteration=1 story_base=5cb58db7
+2026-11-08T18:00:50Z	Story 4.12	story_created	spawn_at=2026-11-08T17:53Z model=sonnet path=_bmad-output/implementation-artifacts/spec-4-12-the-demo-guide-s-document-tip-promises-only-what-1-0-4-shows.md build_status=ready-for-dev epic_context=reused note=compressed_plan+implement_one_stage
+2026-11-08T18:00:50Z	Story 4.12	spec_validated	service_introducing=false integration_ac=n/a adr_constrained_acs= decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false
+2026-11-08T18:00:50Z	Story 4.12	dev_complete	spawn_at=2026-11-08T17:53Z model=sonnet build_sha=a65aaefa baseline_revision=6ea174e7 story_base=6ea174e7 review_loop_iteration=0 followup_review_recommended=false deferred=1(DW-976) files=4 loc_added=4 loc_removed=4 cycle_iteration=1 note=story_base_corrected_from_stage_spawned(5cb58db7_equal_on_SRC)
+2026-11-08T18:00:50Z	Story 4.12	adr_verifications_complete	result=none_required
+2026-11-08T18:00:50Z	Story 4.12	qa_skipped	reason=orchestrator_ruling(the_change_IS_the_pins) mutations_demonstrated=1(drop_comma->4_red)
+2026-11-08T18:00:50Z	Story 4.12	cr_complete	model=claude-opus-5-5 reviewer=lead(ruled) result=done files=4_under_web each_hunk=one-string_swap byte_match=ruled_text(grep_-F_1_per_file) high=0 med=0 low=0 unresolved_high_med=0 build_auto_layers=4(no_high)
+2026-11-08T18:00:50Z	Story 4.12	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0
+2026-11-08T18:00:50Z	Story 4.12	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=node_--test_more-to-try-view+ux-strings_36/36;web_unit_1587/1587(stage);grep_old_phrase_none;test-boundaries_all_pass model=claude-opus-5-5
+2026-11-08T18:00:50Z	Story 4.12	fresh_check	env=clean-checkout tests=2 result=pass order=forward note=e2e_in_CI

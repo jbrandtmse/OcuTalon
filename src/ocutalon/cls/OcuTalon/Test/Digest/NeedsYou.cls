@@ -13,7 +13,13 @@
 ///   - TestOverflowEmptyTime: an entry with no time is the oldest: with more entries than the bound it is the one that is dropped;
 ///   - TestEvalOwner (Story 17.7): for the owner eval (a digest case) the list holds the failed rows alone, in their order, although eval has an unhandled
 ///     tell-now Decision and an incident awaiting approval; with no failed row it is empty;
-///   - TestNothing: no entry gives a count of 0, no names and no overflow.
+///   - TestNothing: no entry gives a count of 0, no names and no overflow;
+///   - TestWindow (Story 12.12): with a window start, an unhandled tell-now or act Decision recorded before it is not counted and one at or after it
+///     is, a handled one is not, and a failed row and an incident awaiting approval older than the start are counted;
+///   - TestNoWindow: with no window start the same fixtures count every unhandled tell-now and act Decision;
+///   - TestWindowUndated: a Decision with no RecordedAt counts whatever the window start;
+///   - TestProcessWindow: a digest Compose passes its WindowStart on, so the digest names only the Decision recorded inside the window;
+///   - TestProcessNoUpperBound: a Decision recorded after the Compose's WindowEnd is still counted.
 Class OcuTalon.Test.Digest.NeedsYou Extends %UnitTest.TestCase
 {
 
@@ -103,9 +109,9 @@ Method Names(result As %DynamicObject) As %String
 	Quit names
 }
 
-Method List(session As %String, failed As %DynamicArray = "") As %DynamicObject
+Method List(session As %String, failed As %DynamicArray = "", windowStart As %String = "") As %DynamicObject
 {
-	Set result = $ClassMethod(..#CLASS, "List", session, $Select($IsObject(failed): failed, 1: []), .sc)
+	Set result = $ClassMethod(..#CLASS, "List", session, $Select($IsObject(failed): failed, 1: []), .sc, windowStart)
 	Do $$$AssertStatusOK(sc, "the list is read")
 	Quit result
 }
@@ -225,6 +231,99 @@ Method TestEvalOwner()
 	Do ..Decision(session, 10, "A session's mail")
 	Set result = ..List(session)
 	Do $$$AssertEquals(..Names(result), "A session's mail", "control: a session still lists its Decisions")
+}
+
+/// The fixtures of the window tests, with W = At(100): a failed row checked at At(5), an incident awaiting approval noticed at At(10), unhandled tell-now
+/// Decisions at At(50), At(100) and At(150), a handled tell-now at At(120) and an act Decision at At(60). Returns the session.
+Method WindowFixtures() As %String
+{
+	Set session = ..Session()
+	Do ..Decision(session, 50, "Old mail")
+	Do ..Decision(session, 60, "Old act", "act")
+	Do ..Decision(session, 100, "Mail at the start")
+	Do ..Decision(session, 150, "Late mail")
+	Do ..Handle(..Decision(session, 120, "Handled mail"))
+	Do ..Incident(session, 10, "awaiting_approval")
+	Quit session
+}
+
+Method TestWindow()
+{
+	Set session = ..WindowFixtures()
+	Set result = ..List(session, [(..Failed("Billing source", "5 messages queued", 5))], ..At(100))
+	Do $$$AssertEquals(..Names(result), "Billing source: 5 messages queued|Late mail|Mail at the start|Orders.Production", "the failed row, the Decisions from the start on (newest first) and the incident")
+	Do $$$AssertEquals(result.count_"|"_result.more, "4|0", "four entries: the Decisions before the start and the handled one are not counted")
+}
+
+Method TestNoWindow()
+{
+	Set session = ..WindowFixtures()
+	Set result = ..List(session, [(..Failed("Billing source", "5 messages queued", 5))])
+	Do $$$AssertEquals(..Names(result), "Late mail|Mail at the start|Old act|Old mail|Orders.Production", "with no window every unhandled tell-now and act Decision counts: the five newest entries are named")
+	Do $$$AssertEquals(result.count_"|"_result.more, "6|1", "six entries (the failed row is the oldest, so it is the one more), the handled Decision still left out")
+}
+
+Method TestWindowUndated()
+{
+	Set session = ..Session()
+	Do ..Decision(session, 50, "Old mail")
+	Do ..Decision(session, 0, "Undated mail", "tellnow", {"RecordedAt": ""})
+	Set result = ..List(session, "", ..At(100))
+	Do $$$AssertEquals(..Names(result), "Undated mail", "the Decision with no time counts and the old dated one does not")
+}
+
+Method TestProcessWindow()
+{
+	Set session = ..Session()
+	Do ..Decision(session, 50, "Old mail")
+	Do ..Decision(session, 150, "Late mail")
+	Do $$$AssertEquals(..DigestNeeds(session), "digest.needsYouOne|Late mail", "the digest names the one Decision recorded inside the window")
+}
+
+Method TestProcessNoUpperBound()
+{
+	Set session = ..Session()
+	Do ..Decision(session, 50, "Old mail")
+	Do ..Decision(session, 150, "Late mail")
+	Do ..Decision(session, 250, "Later mail")
+	Do $$$AssertEquals($Piece(..DigestNeeds(session), "|", 1), "digest.needsYou", "the Decision recorded after the window's end counts too: two things need the owner")
+}
+
+/// Handles a digest Compose of the session (WindowStart At(100), WindowEnd At(200)) in a ProcessProbe and returns the key and the "what" slot of the digest's
+/// needs-you part, joined with "|" ("" when the digest has none).
+Method DigestNeeds(session As %String) As %String [ Private ]
+{
+	Set probe = "OcuTalon.Test.Digest.ProcessProbe"
+	Do $ClassMethod(probe, "Reset")
+	Do $ClassMethod(probe, "Feed", [])
+	Set was = $ClassMethod(probe, "ForgetChannels")
+	Set found = ""
+	Try {
+		Set host = ##class(Ens.Host).GetShadowInstance("class||"_probe, .sc)
+		Do $$$AssertTrue($IsObject(host), "a shadow instance of the probe is made")
+		Set host.OwnChannels = "web"
+		Set compose = ##class(OcuTalon.Digest.Msg.Compose).%New()
+		Set compose.SessionRef = session
+		Set compose.Kind = "scheduled"
+		Set compose.DueAt = ..At(200)
+		Set compose.WindowStart = ..At(100)
+		Set compose.WindowEnd = ..At(200)
+		Kill response
+		Do $$$AssertStatusOK(host.OnRequest(compose, .response), "the Compose is handled")
+		Set record = $ClassMethod(probe, "Record", "notice", 1)
+		Do $$$AssertTrue(record '= "", "a digest is sent")
+		Set slots = {}.%FromJSON($List(record, 5))
+		Set iterator = slots.parts.%GetIterator()
+		While iterator.%GetNext(, .part) {
+			If (part.key = "digest.needsYouOne") || (part.key = "digest.needsYou") Set found = part.key_"|"_part.slots.what
+		}
+	} Catch exception {
+		Do $$$AssertTrue(0, "the digest test threw: "_exception.DisplayString())
+	}
+	Do $ClassMethod(probe, "PutChannelsBack", was)
+	Do $ClassMethod(probe, "Clean", session)
+	Do $ClassMethod(probe, "Reset")
+	Quit found
 }
 
 Method TestNothing()

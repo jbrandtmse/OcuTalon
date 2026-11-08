@@ -1,0 +1,21 @@
+{
+  "name": "turn-tools-probe",
+  "match": {
+    "marker": "turn-tools-probe"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_turn_probe",
+        "input": {
+          "topic": "probe"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock used the turn tool."
+    }
+  ]
+}

@@ -44,6 +44,11 @@
 ///     REASONNOEXPECTATION; a decided row with no DigestResult is not right, with the got NOKEY. The score is allClear (the digest cases are FR-37's
 ///     all-clear cases), with no target; the case's entry shows the catalog key as expected and got. A digest row that made no model request has no
 ///     decision, cost or size and is complete without them.
+///   - A documents case (Story 19.4: a turn case whose documents EvalIn adds before the turn) is scored from the TurnResult's Citations (the Reply's
+///     HostData.citations, which code builds) and its reply text. It is right only when its row is decided, neither the row nor the TurnResult is a fallback,
+///     and every {document, section} of expectation.citations is among the citations, or expectation.citations is "none", the turn has no citation and the
+///     reply holds None of your documents cover that. The score is documents, with no target and no held-out score; it is printed ("Documents") and never
+///     checked.
 ///   - A user-turn case (Story 30.5, DW-500: a user's own chat message as Triage decides it, which EvalIn sends to Decide as a decide request of
 ///     provenance user) is scored from the Decision row of its row's DecisionRef and from its TurnResult. It is right only when its row is decided,
 ///     neither the row nor the TurnResult is a fallback, the decision's outcome is tellnow, the decision's reasons hold every group of
@@ -58,7 +63,9 @@
 ///     each decision of the cost lists holds durationMs, the Decision row's DurationMs (null when it has none). OcuTalon.Eval.Gate reads both.
 ///   - DEMOCASE names the incident case that the demo incident gate runs (Story 9.5), and Gate runs it. Save writes through WriteFiles, as
 ///     Gate.Save does, and ScoreLine, Percent, Money and Cell are public for Gate's text.
-///   - A case that Eval.In.Start skipped is listed with its kind and reason and counts in no score. A skip of a kind of CASEKINDS that EvalIn does not send
+///   - A case that Eval.In.Start skipped is listed with its kind and reason. A skipped incident case counts as not right in the incidents (and, when it
+///     is held out, in the held-out incidents) and stays in their totals, so a stall can only lower those scores; any other skip counts in no score.
+///     A skip of a kind of CASEKINDS that EvalIn does not send
 ///     (none now: its KINDS holds every kind) is notRunYet. A row that cannot be scored (no readable case.json, no expectation, an injection with no key phrases, a kind that Build does
 ///     not score) is listed as unscored.
 ///   - Problems are the texts that fail a mock run: no row, a row not complete, a skip that is not notRunYet, a row not scored, a run that acted
@@ -75,7 +82,7 @@ Class OcuTalon.Eval.Report
 {
 
 /// The kinds of case a case.json may hold, comma-separated.
-Parameter CASEKINDS = "item,injection,all-clear,command,user-turn,incident,digest";
+Parameter CASEKINDS = "item,injection,all-clear,command,user-turn,incident,digest,documents";
 
 /// The kinds that are scored by outcome, and count in SM-1's items.
 Parameter ITEMKINDS = "item";
@@ -92,6 +99,9 @@ Parameter COMMANDKIND = "command";
 /// The kind of turn case that is a user's own chat message as Triage decides it, scored by its decision row's outcome and reasons into its own
 /// score, which has no target (Story 30.5, DW-500).
 Parameter USERTURNKIND = "user-turn";
+
+/// The kind of turn case that is scored by the citations of its Reply (Story 19.4), into its own score, which has no target.
+Parameter DOCUMENTSKIND = "documents";
 
 /// The shown text of a got that names no catalog key.
 Parameter NOKEY = "(none)";
@@ -194,8 +204,8 @@ ClassMethod Build(runRef As %String, folder As %String, skipped As %DynamicArray
 		Do ..Complete(report, row, .tally, ..IsDigest(folder, row.case))
 		Do ..Score(report, row, folder, watches, .tally)
 	}
+	Do ..AddSkipped(report, skipped, folder, .tally)
 	Do ..Finish(report, .tally)
-	Do ..AddSkipped(report, skipped, folder)
 	Quit report
 }
 
@@ -246,7 +256,7 @@ ClassMethod Text(report As %DynamicObject, title As %String = "") As %String
 	Set text = text_..ScoreLine("Items (SM-1)", scores.items)_..ScoreLine("Incidents (SM-2)", scores.incidents)
 	Set text = text_..ScoreLine("Held-out items", scores.heldOutItems)_..ScoreLine("Held-out incidents", scores.heldOutIncidents)
 	Set text = text_..ScoreLine("Injections", scores.injections)_..ScoreLine("Held-out injections", scores.heldOutInjections)
-	Set text = text_..ScoreLine("All-clear", scores.allClear)_..ScoreLine("Command", scores.commands)_..ScoreLine("User turns", scores.userTurns)_nl
+	Set text = text_..ScoreLine("All-clear", scores.allClear)_..ScoreLine("Command", scores.commands)_..ScoreLine("User turns", scores.userTurns)_..ScoreLine("Documents", scores.documents)_nl
 	Set text = text_"## Tell-now cases decided Ignore or Digest"_nl_nl
 	Set text = text_..List(report.tellNowMissed, "{case}: decided {got}")
 	Set text = text_nl_"## Fallbacks"_nl_nl
@@ -421,6 +431,9 @@ ClassMethod Score(report As %DynamicObject, row As %DynamicObject, folder As %St
 		Quit
 	} ElseIf (kind = ..#ALLCLEARKIND) || (kind = ..#COMMANDKIND) {
 		Do ..ScoreTurn(report, row, kind, expectation, .tally)
+		Quit
+	} ElseIf kind = ..#DOCUMENTSKIND {
+		Do ..ScoreDocuments(report, row, expectation, .tally)
 		Quit
 	} ElseIf kind = ..#DIGESTKIND {
 		Do ..ScoreDigest(report, row, expectation, .tally)
@@ -672,6 +685,83 @@ ClassMethod ScoreTurn(report As %DynamicObject, row As %DynamicObject, kind As %
 	Do ..Tally(.tally, $Select(allClear: "allClear", 1: "commands"), right, 0, "")
 }
 
+/// Scores a documents row (Story 19.4) from the TurnResult of its ItemId: the citations of the Reply's HostData (code built them from the passages that cleared
+/// the score floor) and its text. expectation.citations is an array of {document, section}, and the case is right when its row is decided, neither the row nor
+/// the TurnResult is a fallback and every one of them is among the turn's citations; or it is the string none, and the case is right when the turn has no
+/// citation and the reply holds the sentence None of your documents cover that. The score is documents, with no target; the case's cases entry shows what was
+/// expected and what citations the turn had. A row whose case has no valid expectation.citations, or a decided row with no TurnResult, is listed as unscored.
+ClassMethod ScoreDocuments(report As %DynamicObject, row As %DynamicObject, expectation As %DynamicObject, ByRef tally) [ Private ]
+{
+	Set name = row.case
+	Set wanted = expectation.%Get("citations")
+	Set none = (expectation.%GetTypeOf("citations") = "string") && (wanted = "none")
+	If 'none {
+		Set valid = $IsObject(wanted) && wanted.%IsA("%Library.DynamicArray") && (wanted.%Size() > 0)
+		If valid {
+			Set iterator = wanted.%GetIterator()
+			While iterator.%GetNext(, .one) {
+				If '$IsObject(one) || 'one.%IsA("%Library.DynamicObject") || (##class(OcuTalon.Eval.In).Scalar(one, "document") = "") Set valid = 0
+			}
+		}
+		If 'valid {
+			Do ..Unscored(report, name, $Replace(..#REASONNOEXPECTATION, "{field}", "citations"))
+			Quit
+		}
+	}
+	Set turn = ..TurnOf(row.itemId)
+	If '$IsObject(turn) && (row.state = ##class(OcuTalon.Eval.Data.CaseResult).#DECIDED) {
+		Do ..Unscored(report, name, ..#REASONNOTURN)
+		Quit
+	}
+	Set cited = []
+	If $IsObject(turn) && (turn.Citations '= "") {
+		Try {
+			Set parsed = ##class(%DynamicAbstractObject).%FromJSON(turn.Citations)
+			If $IsObject(parsed) && parsed.%IsA("%Library.DynamicArray") Set cited = parsed
+		} Catch exception {
+			Set cited = []
+		}
+	}
+	Set reply = $Select($IsObject(turn): turn.ReplyText, 1: "")
+	Set fallback = +row.fallback || ($IsObject(turn) && turn.Fallback)
+	If fallback && 'row.fallback Do report.fallbacks.%Push({"case": (name), "reason": (turn.FallbackReason), "outcome": (row.outcome)})
+	Set decided = (row.state = ##class(OcuTalon.Eval.Data.CaseResult).#DECIDED) && 'fallback
+	Set gotText = ""
+	Set iterator = cited.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set gotText = gotText_$Select(gotText '= "": "; ", 1: "")_entry.%Get("document")_" / "_entry.%Get("section")
+	}
+	If none {
+		Set right = decided && (cited.%Size() = 0) && (reply [ ##class(OcuTalon.Docs.Reply).#NONE)
+		Set expected = "no citation; the reply says: "_##class(OcuTalon.Docs.Reply).#NONE
+		Set got = $Select(cited.%Size() = 0: "no citation", 1: "cites: "_gotText)
+	} Else {
+		Set right = decided
+		Set expected = ""
+		Set iterator = wanted.%GetIterator()
+		While iterator.%GetNext(, .one) {
+			Set expected = expected_$Select(expected '= "": "; ", 1: "")_one.%Get("document")_" / "_one.%Get("section")
+			Set found = 0
+			Set again = cited.%GetIterator()
+			While again.%GetNext(, .entry) {
+				If (entry.%Get("document") = one.%Get("document")) && (entry.%Get("section") = one.%Get("section")) Set found = 1
+			}
+			If 'found Set right = 0
+		}
+		Set expected = "cites: "_expected
+		Set got = $Select(cited.%Size() = 0: "no citation", 1: "cites: "_gotText)
+	}
+	Set entry = {"case": (name), "kind": (..#DOCUMENTSKIND)}
+	Do entry.%Set("heldOut", 0, "boolean")
+	Do entry.%Set("state", row.state)
+	Set entry.expected = expected
+	Set entry.got = got
+	Do entry.%Set("fallback", fallback, "boolean")
+	Do entry.%Set("right", right, "boolean")
+	Do report.cases.%Push(entry)
+	Do ..Tally(.tally, "documents", right, 0, "")
+}
+
 /// Scores a user-turn row from its decision row (by the row's DecisionRef) and its TurnResult. It is right only when the row is decided, neither
 /// the row nor the TurnResult is a fallback, the decision's outcome is tellnow, the reasons hold every group of expectation.keyPhrases, and
 /// none of the strings of expectation.absentPhrases (an array, optional) is in the reasons; both texts are compared as for an injection's
@@ -916,7 +1006,7 @@ ClassMethod Tally(ByRef tally, group As %String, right As %Boolean, heldOut As %
 /// The scores, the mean and the maximum cost and the largest request, from the tallies.
 ClassMethod Finish(report As %DynamicObject, ByRef tally) [ Private ]
 {
-	Set report.scores = {"items": (..Share(+$Get(tally("items", "right")), +$Get(tally("items", "total")), ..#ITEMTARGET)), "incidents": (..Share(+$Get(tally("incidents", "right")), +$Get(tally("incidents", "total")), ..#INCIDENTTARGET)), "heldOutItems": (..Share(+$Get(tally("heldOutItems", "right")), +$Get(tally("heldOutItems", "total")))), "heldOutIncidents": (..Share(+$Get(tally("heldOutIncidents", "right")), +$Get(tally("heldOutIncidents", "total")))), "injections": (..Share(+$Get(tally("injections", "right")), +$Get(tally("injections", "total")))), "heldOutInjections": (..Share(+$Get(tally("heldOutInjections", "right")), +$Get(tally("heldOutInjections", "total")))), "allClear": (..Share(+$Get(tally("allClear", "right")), +$Get(tally("allClear", "total")))), "commands": (..Share(+$Get(tally("commands", "right")), +$Get(tally("commands", "total")))), "userTurns": (..Share(+$Get(tally("userTurns", "right")), +$Get(tally("userTurns", "total"))))}
+	Set report.scores = {"items": (..Share(+$Get(tally("items", "right")), +$Get(tally("items", "total")), ..#ITEMTARGET)), "incidents": (..Share(+$Get(tally("incidents", "right")), +$Get(tally("incidents", "total")), ..#INCIDENTTARGET)), "heldOutItems": (..Share(+$Get(tally("heldOutItems", "right")), +$Get(tally("heldOutItems", "total")))), "heldOutIncidents": (..Share(+$Get(tally("heldOutIncidents", "right")), +$Get(tally("heldOutIncidents", "total")))), "injections": (..Share(+$Get(tally("injections", "right")), +$Get(tally("injections", "total")))), "heldOutInjections": (..Share(+$Get(tally("heldOutInjections", "right")), +$Get(tally("heldOutInjections", "total")))), "allClear": (..Share(+$Get(tally("allClear", "right")), +$Get(tally("allClear", "total")))), "commands": (..Share(+$Get(tally("commands", "right")), +$Get(tally("commands", "total")))), "userTurns": (..Share(+$Get(tally("userTurns", "right")), +$Get(tally("userTurns", "total")))), "documents": (..Share(+$Get(tally("documents", "right")), +$Get(tally("documents", "total"))))}
 	Set report.cost.priced = +$Get(tally("cost", "n"))
 	If report.cost.priced {
 		Do report.cost.%Set("meanUSD", $Number(tally("cost", "sum") / tally("cost", "n"), 6), "number")
@@ -949,8 +1039,9 @@ ClassMethod Share(right As %Integer, total As %Integer, target As %String = "") 
 	Quit score
 }
 
-/// Lists the cases that Start skipped, each with the kind its case.json holds, when that can be read.
-ClassMethod AddSkipped(report As %DynamicObject, skipped As %DynamicArray, folder As %String) [ Private ]
+/// Lists the cases that Start skipped, each with the kind its case.json holds, when that can be read. A skipped incident case that EvalIn sends (not notRunYet)
+/// is tallied as not right in the incidents, and in the held-out incidents when its case.json says heldOut (false when it cannot be read); a skip of any other kind counts in no score.
+ClassMethod AddSkipped(report As %DynamicObject, skipped As %DynamicArray, folder As %String, ByRef tally) [ Private ]
 {
 	If '$IsObject(skipped) Quit
 	Set iterator = skipped.%GetIterator()
@@ -960,8 +1051,13 @@ ClassMethod AddSkipped(report As %DynamicObject, skipped As %DynamicArray, folde
 		Set case = ..ReadCase(folder, name)
 		Set kind = $Select($IsObject(case): ##class(OcuTalon.Eval.In).Scalar(case, "kind"), 1: "")
 		Set entry = {"case": (name), "kind": (kind), "reason": (one.%Get("reason"))}
-		Do entry.%Set("notRunYet", $ListFind($ListFromString(..#CASEKINDS), kind) && '$ListFind($ListFromString(##class(OcuTalon.Eval.In).#KINDS), kind), "boolean")
+		Set notRunYet = $ListFind($ListFromString(..#CASEKINDS), kind) && '$ListFind($ListFromString(##class(OcuTalon.Eval.In).#KINDS), kind)
+		Do entry.%Set("notRunYet", notRunYet, "boolean")
 		Do report.skipped.%Push(entry)
+		If (kind = ..#INCIDENTKIND) && 'notRunYet {
+			Set heldOut = $IsObject(case) && (case.%GetTypeOf("heldOut") = "boolean") && case.%Get("heldOut")
+			Do ..Tally(.tally, "incidents", 0, heldOut, "heldOutIncidents")
+		}
 	}
 }
 

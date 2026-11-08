@@ -76,6 +76,9 @@ Method OnAfterOneTest(testname As %String) As %Status
 	If ..Saved {
 		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..Before)
 		Set ..Saved = 0
+		// The Chat runner builds its agent once for its job and attaches the documents tool only off the online demo (Story 19.4), so a turn that ran with the demo
+		// on has left a job without the tool: the job is started afresh with the setting back.
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).Restart("ChatAgent")
 	}
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Kill ^OcuTalonTest("CommandsDouble")
@@ -293,7 +296,7 @@ Method TestProposeThroughATurn()
 	}
 	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
 	If requests.%Size() = 2 {
-		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,check_status,dismiss_incident,forget_memory,list_memories,list_productions,list_reminders,propose_persona,recent_activity,save_memory,search_memories,send_digest,set_reminder,start_watch,stop_watch", "the second request offers propose_persona with the other fourteen tools of Chat, send_digest (since Story 17.6) among them")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1)), "cancel_reminder,check_status,dismiss_incident,documents,forget_memory,list_memories,list_productions,list_reminders,propose_persona,recent_activity,save_memory,search_memories,send_digest,set_reminder,start_watch,stop_watch", "the second request offers propose_persona with the other fifteen tools of Chat, send_digest (since Story 17.6) among them")
 		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
 		Do $$$AssertEquals($ListLength(results), 1, "and carries one tool result")
 		If $ListLength(results) = 1 Do ..AssertObject($List(results, 1), ..Proposed(), "the model reads the answer of the owner")

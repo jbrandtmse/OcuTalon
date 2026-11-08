@@ -843,6 +843,34 @@ Method TestResponseFromRow()
 	Do $$$AssertEquals(..Totals(made), ..Totals(response), "as the answer that Conclude gave does")
 }
 
+/// Story 19.4 (AD-31): a turn's reply text goes to the filter with the reply's HostData as its second argument, and the HostData passes to the answer
+/// unchanged; the decide and diagnose filter calls get none. ProbeFilter keeps the hostData of each call in ^||ZzProbeFilter(<call>, "hostData").
+Method TestFilterGetsHostData()
+{
+	Kill ^||ZzProbeFilter
+	Set hostData = "{""citations"":[{""documentRef"":""zzdoc1"",""document"":""Runbook"",""section"":""Rotating"",""passage"":""Step one."",""chunkIndex"":1}]}"
+	Set request = ..NewRequest("turn", "user")
+	Set reply = ..NewReply("Step one.")
+	Set reply.HostData = hostData
+	Set sc = ..Conclude(request, reply, .response, ..#FILTER)
+	Do $$$AssertStatusOK(sc, "a turn reply that carries HostData is recorded")
+	Do $$$AssertEquals(+$Get(^||ZzProbeFilter), 1, "the filter ran once on the text of the turn")
+	Do $$$AssertEquals($Get(^||ZzProbeFilter(1, "hostData")), hostData, "and got the reply's HostData as its second argument")
+	Do $$$AssertEquals(response.HostData, hostData, "which the answer carries unchanged")
+	Kill ^||ZzProbeFilter
+	Set request = ..NewRequest("turn", "user")
+	Set sc = ..Conclude(request, ..NewReply("No data."), .response, ..#FILTER)
+	Do $$$AssertEquals($Get(^||ZzProbeFilter(1, "hostData"), "unset"), "", "a turn reply with no HostData hands the filter an empty second argument")
+	Kill ^||ZzProbeFilter
+	Set request = ..NewRequest("decide")
+	Set reply = ..NewReply("{""outcome"":""ignore"",""reasons"":[""One reason.""],""confidence"":0.9}")
+	Set reply.HostData = hostData
+	Set sc = ..Conclude(request, reply, .response, ..#FILTER)
+	Do $$$AssertEquals($Get(^||ZzProbeFilter(1)), "One reason.", "a decide reply's reason is filtered")
+	Do $$$AssertEquals($Get(^||ZzProbeFilter(1, "hostData"), "unset"), "", "with no hostData: only a turn's text gets the reply's HostData")
+	Kill ^||ZzProbeFilter
+}
+
 /// A decision with no reason left once the filter has run, and a turn with no text left, are not answers: Conclude records each as a
 /// fallback with the reason invalid, for a user's item too, with one decision.recorded and no model text. A reason that the filter
 /// blanks while another stays is dropped from the row.
