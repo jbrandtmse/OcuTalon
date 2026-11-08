@@ -2611,3 +2611,4 @@
 2026-11-08T01:44:12Z	Epic 17	runner_resumed	agent=ad607fde4a29806c8 with=apply_U-303(keep+pin)_as_burn-down_Story_17.11
 2026-11-08T01:50:56Z	Epic 31	ci_resolved	story=31.4 sha=7a591521 runs=42430830217,42430830244 result=failure failed=.github/workflows/ci.yml(iris_shards:shard:lane-a@Checks,Install,Watch_TestFailedReconcile_precondition_every_item_runs) via=none resolved_at=orchestrator_poll note=classification_by_runner(DW-639_class_facts_sent;OCT-epic31_lacks_39.10)
 2026-11-08T01:50:56Z	Epic 31	runner_resumed	agent=a6cdbe9192b94db01 with=ci_failure_facts+17.10/31.4_union_answer+slot_D_lent_to_30.9(throwaways_only) note=5_live_runners_briefly_vs_max_4(Epic_31_holds_no_slot;expected_back_to_CI_WAIT_after_its_rerun)
+2026-11-08T01:59:33Z	Epic 11	runner_clarification	kind=CI_WAIT agent=afcf458555539abd2 sha=66d7b1c7(origin;verified) runs=42436132783,42436132784 integrated_forward=feature_550bf9b8(head_01e72eca) unpushed=none slot_A=free(to_5.14)
