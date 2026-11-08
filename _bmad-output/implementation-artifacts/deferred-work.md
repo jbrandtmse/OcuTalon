@@ -5553,3 +5553,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md (cr rework 1) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: cycle-log-epic-18.md dev_complete lines 20 and 30 say model=claude-sonnet-5; build commit 58085308 is signed Claude Sonnet 5.5; grep of cycle-log-*.md: 48 claude-sonnet-5 vs 424 claude-sonnet-5-5. The cycle log is the lead's file, which review stages may not write.
 - 2026-11-08T11:15:58Z status=wontfix-accepted owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=lead-owned file; reopen_if=a retro or telemetry count by model shows a claude-sonnet-5 row apart from claude-sonnet-5-5
+
+### DW-965: A model Test press leaves a Decision row and a Usage row with ItemId test.<ref>; whether the Recent decisions list, the usage totals, the daily cap or the digest cost line count them is unverified
+- source: _bmad-output/implementation-artifacts/spec-18-3-choose-models-and-set-budgets-in-settings.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Bridge.Settings.TestRequest (17.4) makes the request; Decide writes the rows; 18.3 read no view or aggregate
+- 2026-11-08T14:53:06Z status=open owner=18-3-choose-models-and-set-budgets-in-settings by=harvest note=QA verifies on the throwaway; then close (they skip or the count is right) or route the Lane A reader fix
