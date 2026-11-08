@@ -1,0 +1,198 @@
+---
+title: 'Story 17.11: Epic 17 burn-down: the online-demo digest names no host path, address, user or key'
+type: 'chore'
+created: '2026-11-07'
+status: 'ready-for-dev'
+review_loop_iteration: 0
+followup_review_recommended: false
+context:
+  - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
+warnings: ['oversized']
+deferred: []
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** On the online demo a visitor can ask for the digest, and it shows the demo instance's own vital signs and the Orders production's coverage row. The owner kept this (U-303) on one condition: the digest never names a host path, an IP address, a user name or a key. Nothing pins that today.
+
+**Approach:** Add one test class. It turns the online demo on, plants a host path, an IP address, a user name and two key shapes (an `sk-ant-` key and a Telegram bot token) in the instance facts the digest reads (the session and watch rows, the vital signs, the production's live read). It then composes a visitor's digest through the real `Digest.Process` and `Checks.Coverage.Build` code and renders it with `Channel.DigestText.Text(slots, "web")`. None of the planted values may appear. The test changes no product code. A red on unchanged code is a real leak, a HIGH that this story fixes.
+
+## Boundaries & Constraints
+
+**Always:**
+- The test composes the digest through the real `Digest.Process` `Composed`/`Finish` and the real `Checks.Coverage.Build`. Only the seams that `Test.Digest.ProcessProbe` and `Test.Digest.CoverageProbe` already provide are under test control: the vital signs, the live read, the gaps, and the recording of the sends. The text under test is `OcuTalon.Channel.DigestText.Text(slots, "web", .sc)` of the recorded Notification's Slots.
+- The online demo is on for each test (`Data.Public.Settings` `onlineDemo` 1). After each test the key is put back to the value it had before.
+- Every planted value is made up. The IP is from the documentation range 203.0.113.0/24. The user and the path are invented. The two key shapes are built at run time from fragments, as `Test.Bridge.Redact` builds them, so no source line holds key-like text (`test-boundaries.sh` scans the repository for it). No real demo host detail is used (AD-25).
+- Assertion messages name a planted value only by its label ("the planted Telegram token shape"), never by its text. On a failure, neither the digest text nor a planted value goes into `^UnitTest.Result` or a CI log.
+- Nothing is saved for later, so the digest makes no model request. No mock scenario is needed.
+- The test creates and removes every row it reads: sessions, the watch, CheckRuns, Compose bodies, Sent rows and Ens.Rule.Log rows. It passes on a fresh stack, in either order, and on the dev slot.
+
+**Never:**
+- No product string, catalog entry or product class changes. The one exception is the leak fix below.
+- If the pin is red on unchanged code, the leak is a HIGH. Fix it in this story with the smallest change in the composer, and add no new string. A fix that needs new user-facing text is a HALT with `intent gap`, and its condition begins `PUBLIC TEXT:` and gives the exact text. In `Digest/Process.cls`, a fix stays out of Epic 12's hunks (:32, :596, :668-695, :872-880).
+- No browser test. No new probe class. No edit to `ProbeCase`, `ProcessProbe` or `CoverageProbe` (they are shared with other tests).
+- These files are not edited: `Test/Channel/TelegramDigest.cls`, `Channel/SimPhone/Out.cls`, `web/e2e/support/floor.ts`, `web/playwright.config.ts`, `ci/iris.sh`, `ci/units.sh`, `web/e2e/heartbeat-card.spec.ts`, `release/*`, `eval/run.sh`, the IPM artifact and check scripts, any existing file under `ci/mock/scenarios/`, and anything under `_bmad/` or `.claude/`.
+- No real model key and no real Telegram bot.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Failing digest (the pin, DW-898) | `onlineDemo` 1. The visitor session's IrisUser is USER. Its Orders watch has AskedBy USER and ten passed runs in the 10-minute window. Vital signs: OCUTALON_DATA 3% and OCUORDERS_DATA 4% free, with directories under PATH. The journal is 8% free, with its directory under PATH. License use is 95% and the system log has 2 severe lines. Live read: state troubled. One errored item, one disabled item and one queue (150 messages, the oldest 900 s old) are named CARRIERNAME. Two failures of the visitor's own trace have errorText CARRIER, and item and source CARRIERNAME. | One Notification is sent and `Text(slots, "web")` returns OK. The text holds `Failed: database space (OCUTALON_DATA 3% free, OCUORDERS_DATA 4% free, at` and `Failed: Orders production (Production troubled, 1 item in error, 1 item disabled, 2 new failures, 150 messages queued, a message waiting 15 minutes, at`. It holds none of PATH, IP, USER, ANTKEY or BOTTOKEN (compared without regard to case), no match of any KEYLIKE alternative, and no IPv4 shape. The Notification's whole Slots JSON (parts, lines and rows) holds none of them either. | A red on unchanged code is a real leak: a HIGH, fixed in this story |
+| Passing digest | The same plants, but healthy readings: 3 days up, OCUTALON_DATA 40% free, journal 50% free, license 20%, no severe line, directories still under PATH. Live read: running. One queue named CARRIERNAME holds 3 messages, the oldest 30 s old. Two failures with CARRIER belong to another visitor's trace, so the online demo does not count them. | The text holds `Your IRIS system is healthy: up 3 days, databases 60% full, journal space fine, license use 20%.`, `I checked the Orders production (all running, no errors, no backlog).` and `Everything I checked passed.`. It holds none of the planted values, no KEYLIKE match and no IPv4 shape, in the text or in the Slots | As above |
+
+</intent-contract>
+
+## Code Map
+
+**Where instance facts enter the digest** (read during planning; recorded under Design Notes):
+- `src/ocutalon/cls/OcuTalon/Watch/Reader.cls`
+  - `Vitals` :235-271: its raw strings are `databases[].name`, `databases[].directory` and `journal.directory` (:252). The rest are numbers.
+  - `Database` :277-299 and `DatabaseName` :302-309: the name is the last folder of the directory, in upper case.
+  - `Databases` :320-343.
+  - `Failures` doc :23-35: the raw strings are errorText, item, source, bodyClass, the disabled and errored item names, and the queue names.
+- `src/ocutalon/cls/OcuTalon/Checks/Coverage.cls`
+  - `Build` :128-160 (the Vitals seam :145, `VitalRows` :150, `WatchRow` :154).
+  - `VitalRows` :201-234 reads only outcome, upSeconds, freePercent, usePercent and count.
+  - `DatabaseRow` :237-269 puts `database.name` into FINDINGDATABASE at :253. This is the one raw instance string that reaches a slot.
+  - `Live` :335-383: its findings are counts and code texts only (:363-379).
+  - The seams: `Vitals` :444, `Read` :450 and `Gaps` :456.
+- `src/ocutalon/cls/OcuTalon/Digest/Process.cls`
+  - `Composed` :420-451: with no saved item it goes to `Finish` with no model request (:434-436).
+  - `Finish` :591-664: the parts :607-643 and the Slots `{parts, lines, rows}` :644.
+  - `Vitals` :818-832: the figures are taken as numbers.
+  - The `Rows` seam :846.
+- `src/ocutalon/cls/OcuTalon/Digest/NeedsYou.cls` :1-12, `List` :27: a failed row is named "<entry>: <finding>".
+- `src/ocutalon/cls/OcuTalon/Channel/DigestText.cls` `Text` :17-41: it renders parts and lines only.
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`
+  - The `digest.*` keys :434-610.
+  - The `checks.*` keys :54-82.
+  - Text slots: entry, finding, checked, whatFailed and what.
+  - `Catalog.Render` trims and strips control characters and redacts nothing (AD-32).
+
+**Test scaffolding to reuse (read-only):**
+- `src/ocutalon/cls/OcuTalon/Test/Digest/ProbeCase.cls`: the base to extend.
+  - `OnBeforeOneTest` :23 and `OnAfterOneTest` :34: zone, probe resets, digest.channels, cleanup of `Sessions`/`Refs`.
+  - Helpers: `Keep` :49, `Host` :67, `Compose` :77 (requested, 10-minute window ending 2030-06-03 09:00 New York), `Handle` :89, `Notice` :96, `Keys` :104 and `Every` :189 (ten passed runs).
+  - `Session` :54 and `Watch` :174 take no user or fields, so the new class calls `Fixture.Session(USER)` and `Fixture.Check(...)` itself and appends to `..Sessions`/`..Refs`.
+- `src/ocutalon/cls/OcuTalon/Test/Digest/ProcessProbe.cls`
+  - `Rows` :291: when not fed, it calls `CoverageProbe.Build`, the real code over the probe's seams.
+  - `SendNotice` :272 records the Slots (record field 5).
+- `src/ocutalon/cls/OcuTalon/Test/Digest/CoverageProbe.cls`: `Feed` :56, `FeedRead` :68 (the spec shape in the class doc :5-7), `Healthy` :50, `Calls` :80, `Reset` :99, and the vitals call count `^||CoverageProbe("vitalsCalls")`.
+- Patterns:
+  - `Test/Digest/AllClear.cls` `Situation` :29 (watch, Every, FeedRead, Handle, Notice).
+  - `Test/Digest/Coverage.cls` `TestLiveRead` :375 (a failure of the session is `{"superSession": <session TraceRef>}`; another session's is not counted on the online demo, `Checks.Process.ScopedFailures` :648-657) and `TestVitalFailures` :122 (the database finding).
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Redact.cls`
+  - `KEYLIKE` :44, the verbatim copy of `docker/tests/lib-keys.sh` KEY_LIKE_ERE. Read it with `$Parameter`; never copy it.
+  - The fragment-built key shapes :85-101 and the `%Regex.Matcher` loop over its alternatives :411-416.
+- `src/ocutalon/cls/OcuTalon/Test/Digest/Due.cls` :42-83: how the `onlineDemo` key is saved and put back.
+- `src/ocutalon/cls/OcuTalon/Test/Data/Fixture.cls`: `Session(user)` :22 sets IrisUser, and `Check(session, ns, production, fields)` :70 sets AskedBy and other fields.
+- `docker/tests/test-class-rules.sh` assert-concat: put the concatenation in parentheses, as in `$$$AssertTrue((text [ ("a"_b)), ...)`.
+- `ci/units.sh` :20 (lane-a areas, Digest among them) and :94 (`shards-2` = `shard:lane-a@rest`): a new `Test/Digest` class joins `shards-2` with no edit.
+
+## Tasks & Acceptance
+
+**Execution:**
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Digest/OnlineDemoFacts.cls` (new) -- `Extends OcuTalon.Test.Digest.ProbeCase`. The class doc says what it pins and what it needs (Rule 14), and the file is ASCII only. It adds:
+  - `OnBeforeOneTest`/`OnAfterOneTest` that call `##super` and save `onlineDemo`, set it to 1, and put the saved value back.
+  - The planted values as class methods, built at run time: USER, IP, PATH = `/home/` USER `/` IP `/mgr/`, ANTKEY = `"sk-" _ "ant-api03-" _` 40 `Z`, BOTTOKEN = `"987654321" _ ":" _ "AAH" _` 32 `z`. CARRIERNAME is USER `@` IP. CARRIER is one error text that holds all five values.
+  - A helper that composes one digest (Fixture.Session(USER) and Keep, a second visitor session for the passing case, `Fixture.Check(session, "ZZNS", "Zz.Leak.Orders", {"CreatedAt": "2030-05-01T10:00:00Z", "DisplayName": "Orders", "AskedBy": USER})`, `Every`, `CoverageProbe.Feed`/`FeedRead`, `Handle` on `Host()`, then `Notice(1)`).
+  - A leak check that asserts, for the text and for the Slots JSON, each planted value by label, every KEYLIKE alternative and an IPv4 shape (`[0-9]{1,3}(\.[0-9]{1,3}){3}`).
+  - `TestFailingDigest` and `TestPassingDigest` for the two matrix rows (DW-898).
+  - Both tests first assert that the plants were consumed: one live read (`Calls().%Size() = 1`), the vital signs were read, `sc` is OK and the text is not empty. Then they assert the expected anchor lines and the absences.
+- [ ] Mutations (Rule 19) -- apply each one on the warm stack, observe red, restore byte for byte (`cmp` against a backup), and see the class green again on the same stack. Record each under Verification:
+  - (pinning) `Checks/Coverage.cls` :253 `{"name": (database.name), ...}` -> `{"name": (database.directory), ...}`: `TestFailingDigest` is red (the PATH, IP and USER legs, in the text and in the Slots).
+  - `Checks/Coverage.cls` `Live`: after the failures part (:368) add `Set parts = parts_$ListBuild(failed.%Get(0).errorText)`: `TestFailingDigest` is red on all five values, KEYLIKE and IPv4.
+
+**Acceptance Criteria:**
+- Given the online demo and the planted host path, IP address, user name and key shapes in the instance facts the digest reads, when a visitor's digest is composed and rendered with `Channel.DigestText` for channel "web", then none of the planted values (and no key-like text and no IPv4 shape) appears in the text or in the Notification's Slots, the pin goes red under the database-directory mutation, and no product string changes (DW-898).
+- Given the test on unchanged product code, when it runs, then it is green. If it is red, that is a real leak: the leak is fixed in this story as a HIGH, the pin is green after the fix, and the mutation still turns it red.
+- Given a fresh stack, when `shard lane-a@Digest` runs forward and in reverse, then every class passes, `onlineDemo` reads as it did before each test, and `Test.Digest.Coverage` `TestLiveRead`'s "not the online demo" control passes.
+
+## Spec Change Log
+
+- 2026-11-08, lead spec gate: the test runs only on lane B's throwaways, never on `ocutalon-slot-b` (it plants key-shaped values in IRIS rows and sets `onlineDemo`); the slot keeps the compile check. No other change.
+
+## Review Triage Log
+
+## Design Notes
+
+**What the measurement found (Task 0, during planning; no real leak today).**
+- The digest's slot values that come from instance facts:
+  - the vital figures, which are numbers;
+  - the vital entries and findings, which are code texts and percentages;
+  - `databases[].name` in the failed database finding;
+  - the production row's entry ("<DisplayName> production"; on the online demo only the Orders production can be watched);
+  - its findings, which are code texts and counts. CheckRun's Finding is built by `Checks.Process` from its FINDING*/REASON* parameters only (class doc :52-57).
+- The raw host strings never reach a slot: `databases[].directory`, `journal.directory` and every string of the live read. They do not reach the Slots' rows either.
+- The database name is the database's own name. `merge.cpf` creates the folders `ocutalon_code`/`_data`/`_private`/`_public` under the manager directory, and `Install.Step.Demo.Directory` :196 does the same for `ocuorders_code`/`_data`. So the name is the CPF database name, not a path. U-303 keeps "OcuTalon's databases and how full", so database names stay (Decided 1).
+- Measured on `ocutalon-slot-b` (read only, `Watch.Reader.Vitals()`): OCUTALON_CODE/DATA/PRIVATE/PUBLIC with directories `/durable/iris/mgr/ocutalon_*/`, and journal `/durable/iris/mgr/journal/`. The directories are in the raw reading and nowhere in the rows.
+- A grep finds no read in `Digest/*`, `Checks/Coverage.cls`, `Checks/Render.cls`, `Channel/DigestText.cls` or `Watch/Reader.cls` of `proxyAddress`, `demoUser`, `readonlyUser`, `IrisUser` or `AskedBy`. The online demo's own settings, where its address and users live, never reach the digest.
+- Rendered times read like `Jun 3, 2030 at 08:59` or `20:32`, and the cost reads `$1234.50.`. So the IPv4-shape leg has no false match.
+
+**Governing ADs (Rule 6):**
+- AD-18: the coverage rows and vital signs come only from `Coverage.Build` and `Watch.Reader`.
+- AD-28: the rows and all-clear come only from code. The test reads them and changes nothing.
+- AD-32: the digest Slots and the renderer. `rows` is for the web card of Story 18.4, so the Slots are pinned too.
+- AD-19: no key in IRIS. The planted shapes are fake and built at run time.
+- AD-25: no demo infrastructure detail in the repository. All the values are made up.
+- AD-22: tests use the CI mock and fixtures. This test makes no model call.
+- AD-29: Lane A's Digest test area, Epic 17's own.
+- No AC contradicts an AD.
+
+**Ledger (Rule 17):** DW-898 is addressed by the OnlineDemoFacts task, the two matrix rows and the first AC.
+
+**Integration ACs (Rule 1):** this story is test-only and introduces no service, module or shared component.
+- Consumed-by: none.
+- Consumes: `Checks.Coverage.Build` (Story 17.5), `Digest.Process` (Stories 17.6-17.7), `Channel.DigestText` (Story 17.10) and the online-demo flag (Epic 16).
+
+**Extend, don't copy (Rule 2):**
+- The class extends `Test.Digest.ProbeCase` and uses the existing probes as they are.
+- KEYLIKE is read from `Test.Bridge.Redact`, with no third copy.
+- The session and watch rows come from `Test.Data.Fixture`, called directly, because `ProbeCase.Session`/`Watch` take no user or fields and the shared base stays unedited.
+- The test does not drive WebChatOut: `Test.Core.WebChatOut` `TestDigestCard` already pins that the card text equals `DigestText.Text(slots, "web")`.
+
+**PUBLIC TEXT:** none.
+
+**Decided in-stage:**
+1. Database names stay in the digest. They are CPF database names, not paths, and U-303 keeps "OcuTalon's databases and how full".
+2. The plants go where the online demo really holds a user, a path, an address or a key: the session's IrisUser, the watch's AskedBy, the vital-sign directories, and the live read's error texts and item and queue names. They do not go into the public settings, because the digest reads none of them (see the grep above), so a plant there could not go red under a composer mutation.
+3. Both the text and the Slots JSON are checked, without regard to case. Database names are upper-cased, so a leaked value could come back in upper case.
+4. Besides the five values, every KEYLIKE alternative and an IPv4 shape are checked, so a key or address that was not planted is caught too.
+5. Two cases. The failing digest is the pin, because the database finding and the full live finding are its leak-prone paths. The passing digest covers the healthy sentence, the passed lines and the online-demo scoping of another visitor's failures.
+6. Class `OcuTalon.Test.Digest.OnlineDemoFacts` is in the Digest area, so it runs in `shard:lane-a@rest` in group `shards-2` (about 28 min) and `ci/units.sh` is not edited. Its expected time is under 1 s locally and a few seconds on the CI runner (inference): `Test.Digest.AllClear` on `ocutalon-slot-b` (run 717) took 18-271 ms per probe-composed test. Its `TestRecordedCasesAgree` fails on the slot because it needs the eval/ mount, which only a throwaway has.
+7. Visitor-typed and model-written text (the saved summary, and the Summaries of Decisions and incidents in needs-you) are not instance facts. The ruling scopes the pin to the instance facts, so this test does not plant them.
+
+**Footprint (Rule 11):** one new file in Epic 17's own `Test/Digest`. `git diff --name-only HEAD...origin/OCT-epic<N>` for every OCT-epic branch on 2026-11-08 shows `Test/Digest/NeedsYou.cls` only (epics 0 and 12), and no branch touches `Checks/Coverage.cls`.
+
+## Verification
+
+Every `ci/*.sh` call sets `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=17 stage=implement'`.
+- Tags: `e17s11iw` (warm) and `e17s11i` (fresh).
+- Run one call at a time, in the foreground, with `timeout: 600000`, and size each call to about 150 s.
+- Slot calls go to `ocutalon-slot-b` / `OCUTALON` only, after `iris_server_info` shows build 154. Make one `iris_execute_tests` per message.
+
+**Commands:**
+- (once) `iris_doc_load` of `OnlineDemoFacts.cls` on `ocutalon-slot-b`. Expected: it compiles.
+- [Lead, spec gate 2026-11-08] The test is never run on `ocutalon-slot-b`: it plants key-shaped values in IRIS rows and sets `onlineDemo`, so it runs only on this lane's throwaways (warm and fresh, below). The slot is used for the compile check alone.
+- (once) `OCUTALON_RUN_TAG=e17s11iw ci/warm.sh up`. Expected: a ready warm stack (about 110-135 s).
+- (loop) `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e17s11iw ci/iris.sh class OcuTalon.Test.Digest.OnlineDemoFacts`. Expected: `CLASS ... passed`. The mutation runs use this command.
+- (once) The same warm command, one class per call, for `OcuTalon.Test.Digest.Coverage`, `AllClear`, `Due` and `Compose`. Expected: each passes, unedited.
+- (once) `bash docker/tests/test-boundaries.sh`, then `bash docker/tests/test-class-rules.sh`, then `bash docker/tests/test-ci-config.sh`, one per call. Expected: all PASS, "keys: nothing key-like" and assert-concat included.
+- (once) Fresh: `OCUTALON_RUN_TAG=e17s11i ci/iris.sh shard lane-a@Digest`, then the same with `--reverse`, then `OCUTALON_RUN_TAG=e17s11i ci/iris.sh teardown`, each in its own call. Use `--part k/2` when a call nears 150 s. Expected: every class passes.
+- (once) `OCUTALON_RUN_TAG=e17s11iw ci/warm.sh down` at the stage's end, also after a failure.
+
+**Shared surfaces:** none changed. The test sets the public key `onlineDemo` and puts it back after each test. That key is read by `Test.Digest.Coverage` `TestLiveRead`'s control and by `Test.Digest.Due`. ProbeCase takes the digest.channels row out of the way and puts it back.
+
+Every test added or changed passes on a fresh environment, in either order.
+
+**Mutations observed:** (the implement stage writes the `mutation: <change> -> <red test>` lines here)
+
+## Auto Run Result
+
+Status: ready-for-dev
+Blocking condition: none
+
+Planned only (Halt after planning). Measurement (read only on ocutalon-slot-b, build 154): no real leak today; the raw host strings (database and journal directories, the live read's texts and names) never reach a slot; the one raw string in a slot is the database name, which is the CPF database name. One test class planned, no product change.
