@@ -15,6 +15,10 @@ Include Ensemble
 ///     it still fires after that session has ended. Diff leaves out any change of that request (it completes, or ends in another final status) and, for each such
 ///     request, one new header that ALARM sent in the same session (the wake-up). A timer armed after "before" (its request is new), a running timer's request that
 ///     is missing after, and every other header still count.
+///   - A schedule call is no change of the fix, in any namespace: Ens.Alarm jobs off Ens.ScheduleService.CallScheduleService() when it cannot open a timer's request
+///     header, at a time no test controls, and that call sends one header from SCHEDULESERVICE to SCHEDULEHANDLER. Diff leaves out such a header when it is new, and a
+///     change of one that was already in "before" (it completes or ends in another status). It leaves out nothing else: such a header that is missing after, a header from SCHEDULESERVICE to any
+///     other target, a header from any other source to SCHEDULEHANDLER, one in the opposite direction, and every other header of the call's session still count.
 /// It only reads. It switches namespace in QueuedIn and TakeIn, which call Ens, %SQL and dictionary classes there and open each header's body through its own class.
 Class OcuTalon.Test.Fix.Snapshot
 {
@@ -27,6 +31,12 @@ Parameter HEARTBEAT = "HeartbeatIn";
 
 /// The config name that timers are sent to, and that sends their wake-ups.
 Parameter ALARM = "Ens.Alarm";
+
+/// The source of a schedule call's header, which Diff leaves out in every namespace.
+Parameter SCHEDULESERVICE = "Ens.ScheduleService";
+
+/// The target of a schedule call's header, which Diff leaves out in every namespace.
+Parameter SCHEDULEHANDLER = "Ens.ScheduleHandler";
 
 /// The only namespace in which Diff leaves out the firing of a timer that was already running (OcuTalon's own, whose processes arm timers).
 Parameter ALARMIN = "OCUTALON";
@@ -168,6 +178,7 @@ ClassMethod DiffCategory(namespace As %String, category As %String, was As %Dyna
 			Do lines.%Push(namespace_" "_category_" "_key_" is missing after")
 		} ElseIf now.%Get(key) '= value {
 			If $Data(pending(key)) Continue
+			If (category = "headers") && ..ScheduleWrite($Piece(value, $Char(30), 1)) && ..ScheduleWrite($Piece(now.%Get(key), $Char(30), 1)) Continue
 			Do lines.%Push(namespace_" "_category_" "_key_" changed")
 		}
 	}
@@ -186,6 +197,7 @@ ClassMethod DiffCategory(namespace As %String, category As %String, was As %Dyna
 			Set columns = $Piece(value, $Char(30), 1)
 			Set session = ..Column(columns, "SessionId")
 			If $ListFind($ListFromString(allowedSessions), session) || $Data(allowed(session)) Continue
+			If ..ScheduleWrite(columns) Continue
 			If (..Column(columns, "SourceConfigName") = ..#ALARM) && ($Get(wakeups(session)) > 0) {
 				Set wakeups(session) = wakeups(session) - 1
 				Continue
@@ -195,6 +207,12 @@ ClassMethod DiffCategory(namespace As %String, category As %String, was As %Dyna
 			Do lines.%Push(namespace_" "_category_" "_key_" is new")
 		}
 	}
+}
+
+/// Whether the header row (its columns, as Take keeps them) is a schedule call's: from SCHEDULESERVICE to SCHEDULEHANDLER.
+ClassMethod ScheduleWrite(columns As %String) As %Boolean [ Private ]
+{
+	Quit (..Column(columns, "SourceConfigName") = ..#SCHEDULESERVICE) && (..Column(columns, "TargetConfigName") = ..#SCHEDULEHANDLER)
 }
 
 /// The timers that were running in "before": pending(header id) for each request to ALARM whose status was Created, Queued or Delivered (any other value, final or
