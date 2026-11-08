@@ -73,3 +73,7 @@
 2026-11-08T10:45:59Z	Story 41.3	ruling	question=41.3_public_text(8_DailyNote_line_formats) choice=approved_as_listed(pin_all_with_fixed_strings) by=contest_planner_owner_delegation(relayed_by_orchestrator) category=veto_ruled_upstream policy=5086036 recorded=spec_change_log
 2026-11-08T10:45:59Z	Story 41.3	owner_decision	id=U-309 at=2026-11-08T10:45:25Z#940 via=orchestrator by=contest_planner_owner_delegation answer=keep
 2026-11-08T10:45:59Z	Story 41.3	owner_decision	id=U-310 at=2026-11-08T10:45:26Z#941 via=orchestrator by=contest_planner_owner_delegation answer=keep note=DW-941_stays_escalated_until_after_epic19_merge
+2026-11-08T12:39:00Z	Epic 41	runner_resumed	via=orchestrator note=4beea3c2_green
+2026-11-08T12:39:00Z	Story 41.2	ci_resolved	story=41.2 sha=4beea3c2 runs=42471000486(attempt2),42471000422 result=success failed=none via=none first_ci=infra(image_job_docker_failed_programming_external_connectivity_before_tests;rerun_by_orchestrator) resolved_at=next_plan(41.3_implement)
+2026-11-08T12:39:00Z	Story 41.3	contended_check	feature=d6b8af41 epic17=Data/Ownership.cls(ruled_union,insertions_away_from_its_lines) epic18=Web/Api.cls,Test/Web/Api.cls(41.3_edits_neither) epic7,19,30,32=free result=pass
+2026-11-08T12:39:00Z	Story 41.3	stage_spawned	stage=implement spawn_at=2026-11-08T12:39:00Z model=sonnet effort=high agent_name=41-3-implement-1 cycle_iteration=1 story_base=e8b1b525
