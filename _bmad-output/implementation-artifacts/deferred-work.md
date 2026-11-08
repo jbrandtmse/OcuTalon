@@ -5428,3 +5428,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: evidence/ep-bug-s11/results.md (Story 0.16) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 9/9 crossing runs died, 6/6 one-sided runs survived per build (orders c,d,e vs a,b); messages.log caught signal 11 JobType=Interactive job; OcuTalon avoids it by AD-6 (embeddings in a WorkMgr worker)
 - 2026-11-07T21:43:35Z status=by-design owner=0-16-the-embedded-python-callback-crash-s11-is-re-verified-with-a by=evidence note=AI_Hub_platform_defect_not_ours;AD-6_rule_stands;public_report_drafted_by_the_Planner_posted_by_the_owner(no_filing_here);reopen_if=a_build_after_2027.1.0AI.109_survives_orders_c,d,e_of_ep-bug-s11/run.sh
+
+### DW-908: Eval: no test pins the content of the user-turn remember and forget cases (turn text, key phrases, absent phrases, heldOut, recordedBy); Test.Eval.Cases' user-turn count pin accepts any extra case and its wanted list holds only the four chips
+- source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Eval/Cases.cls TestUserTurnCases checks the forget (9.11) and remember (30.9) cases only through the kind count; Test/Eval/Report.cls TestShippedChipCasesScoreTheHostReasons lists the four chips; both files contended (Epic 19 19.4), ruling allowed only the count pin
+- 2026-11-08T05:13:42Z status=escalated owner=burndown by=harvest note=for the decision sheet: recommended routed to the next eval story after 1.0.4 (extend the wanted list and the Report loop with both cases' exact text); not fixable inside 9.11's ruling

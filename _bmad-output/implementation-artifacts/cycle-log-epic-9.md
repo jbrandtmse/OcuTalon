@@ -344,3 +344,5 @@
 2026-11-08T04:46:23Z	Epic 9	ledger_routed_planned	story=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it entries=1(DW-902) excess=0 by=orchestrator
 2026-11-08T04:49:12Z	Epic 9	epic_context_compiled	sha=f59b9629 reason=planning_artifact_newer(DW-902_bullet) model=opus header=ok spawn_at=2026-11-08T04:46:24Z
 2026-11-08T04:49:12Z	Story 9.11	stage_spawned	stage=implement spawn_at=2026-11-08T04:49:12Z model=sonnet agent_name=9-11-implement-3 cycle_iteration=3 note=scope_addition_DW-902(not_rework)
+2026-11-08T05:13:52Z	Story 9.11	dev_complete	spawn_at=2026-11-08T04:49:12Z model=sonnet build_sha=4085d4fc baseline_revision=7f7d1a9b review_loop_iteration=0 followup_review_recommended=false deferred=1(DW-908_escalated_burndown) loc_added=36 loc_removed=3 files=2(eval/user-turn-forget/case.json_new,Test/Eval/Cases.cls_count_pin_5) self_review=15_rows(0_high;0_patched) mutations=14 cycle_iteration=3 scope=DW-902
+2026-11-08T05:14:02Z	Story 9.11	stage_spawned	stage=qa spawn_at=2026-11-08T05:14:02Z model=sonnet agent_name=9-11-qa-1 cycle_iteration=1
