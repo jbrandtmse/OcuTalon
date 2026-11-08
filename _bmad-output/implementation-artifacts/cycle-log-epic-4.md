@@ -449,3 +449,5 @@
 2026-11-08T18:00:50Z	Story 4.12	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0
 2026-11-08T18:00:50Z	Story 4.12	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=node_--test_more-to-try-view+ux-strings_36/36;web_unit_1587/1587(stage);grep_old_phrase_none;test-boundaries_all_pass model=claude-opus-5-5
 2026-11-08T18:00:50Z	Story 4.12	fresh_check	env=clean-checkout tests=2 result=pass order=forward note=e2e_in_CI
+2026-11-08T18:01:21Z	Story 4.12	committed	sha=cb7a2215 build_sha=a65aaefa submodules= ci=pending runs=42507818397,42507818342 amendments=_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md:251
+2026-11-08T18:01:21Z	Story 4.12	story_cycle	plan_to_commit_min=12 implement_passes=1 reviews=1(lead) rework=0 first_ci=pending models=plan:sonnet,implement:sonnet,qa:none,cr:lead-opus
