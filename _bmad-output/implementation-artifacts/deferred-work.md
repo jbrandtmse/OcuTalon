@@ -5496,3 +5496,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Report.cls :61 and AddSkipped tally a skipped incident case (AC7, the Planner's condition); epic-9-context.md Scoring and the spec's proposed AD-22 spine bullet mention only the pacing
 - 2026-11-08T05:43:35Z status=wontfix-accepted owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=reopen_if=a later eval story's spec or review reads SM-2 as leaving skipped incident cases out of its total
+
+### DW-938: Playwright S9-S12 (Settings: Time zone, Daily digest, Send my digest now, Channels) have no observed mutation line; the browser tier runs only in CI
+- source: _bmad-output/implementation-artifacts/spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/e2e/settings/settings.spec.ts S9-S12 written, not run locally (live:sign-in-2, group shards-4); settings-view.test.mjs twins carry the AC 5 mutation
+- 2026-11-08T10:17:02Z status=open owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=harvest note=settle at 18.2 QA/adjudication: observe one mutation red, or close wontfix-accepted with a probe
+
+### DW-939: Data.Time.Zone() falling back to OsZone() is pinned only through OsZone(): /etc/localtime cannot be redirected in a test, so deleting the OsZone step in Zone() stays green on a UTC host
+- source: _bmad-output/implementation-artifacts/spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: src/ocutalon/cls/OcuTalon/Data/Time.cls Zone(); matrix row TZ unset OS zone
+- 2026-11-08T10:17:02Z status=open owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=harvest note=a link-parameter seam on Zone would pin it; settle at QA/adjudication
