@@ -2612,3 +2612,6 @@
 2026-11-08T01:50:56Z	Epic 31	ci_resolved	story=31.4 sha=7a591521 runs=42430830217,42430830244 result=failure failed=.github/workflows/ci.yml(iris_shards:shard:lane-a@Checks,Install,Watch_TestFailedReconcile_precondition_every_item_runs) via=none resolved_at=orchestrator_poll note=classification_by_runner(DW-639_class_facts_sent;OCT-epic31_lacks_39.10)
 2026-11-08T01:50:56Z	Epic 31	runner_resumed	agent=a6cdbe9192b94db01 with=ci_failure_facts+17.10/31.4_union_answer+slot_D_lent_to_30.9(throwaways_only) note=5_live_runners_briefly_vs_max_4(Epic_31_holds_no_slot;expected_back_to_CI_WAIT_after_its_rerun)
 2026-11-08T01:59:33Z	Epic 11	runner_clarification	kind=CI_WAIT agent=afcf458555539abd2 sha=66d7b1c7(origin;verified) runs=42436132783,42436132784 integrated_forward=feature_550bf9b8(head_01e72eca) unpushed=none slot_A=free(to_5.14)
+2026-11-08T02:00:13Z	Epic 5	worktree_provisioned	branch=OCT-epic5 base=034cc8b5(feature_bookkeeping_over_550bf9b8=bed23f1d_code_green) reason=story_5.14_DW-879 sc5_reopen=yes ci_runs_on_bookkeeping_head_cancelled=42436587244,42436587240
+2026-11-08T02:00:13Z	Epic 5	worktree_bootstrapped	epic=5 result=ok
+2026-11-08T02:00:31Z	Epic 5	runner_dispatched	runner=a67b9032db54c1667 lane=A slot=ocutalon-slot-a model=opus prompt=prompts/dispatch-epic-5-dw879.md story=5.14_DW-879(1.0.4;option_B+skip-abandoned) base=034cc8b5
