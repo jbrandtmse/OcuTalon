@@ -162,6 +162,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full.
 
 ## Spec Change Log
 
+- 2026-11-08 (PUBLIC TEXT ruling relayed by the orchestrator; Contest Planner under the owner's delegation): **APPROVED as listed** under Design Notes "PUBLIC TEXT needed": `LINEDECISION`, `LINEDECISIONBARE`, `LINEMESSAGE` (first 80 characters), `LINEINCIDENT` plus `LINEINCIDENTFIX`, `LINEAPPROVAL`, `LINEAPPROVALBARE`, `LINEREMINDER` plus `STATEFIREDLATE` "fired late", and `MORE` "(more not shown)" verbatim. **Pin every one with a fixed string** (a test-held copy of each exact text, compared with the parameter, and at least one built line per format asserted against the copy). No other wording may be added; 41.6's Memory card brings its own labels to the Planner separately. Veto rulings U-309 and U-310 were kept by the owner's delegate (answers 2026-11-08T10:45:25Z#940, 10:45:26Z#941); DW-941 stays escalated until after Epic 19's merge.
+
 - 2026-11-08 (spec gate, lead rulings under U3, veto items for the owner):
   - **`Data.Turn.SessionRotated` ALLOWED** (veto window 3, inbox U-309): one `%Boolean`, appended (AD-5), old rows read 0. Task 3 and the rotation half of task 4 proceed.
   - **Missing channel on pre-model fallback decisions ACCEPTED for this story** (veto window 4, inbox U-310): such lines read `hh:mm decision: <outcome>` (`LINEDECISIONBARE`). The bridge change (append `Decision.Channel`) is ledgered as DW-941 (`escalated`, for the decision sheet; Bridge is outside this epic's footprint and contended by Epic 19).
