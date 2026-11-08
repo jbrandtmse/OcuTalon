@@ -323,3 +323,6 @@
 2026-11-08T01:46:51Z	Epic 30	story_chartered	story=30.9 key=30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio source=DW-890 marker=ADDED_2026-11-08 by=runner
 2026-11-08T01:46:51Z	Epic 30	deps_hash_rerecorded	reason=fix_forward by=orchestrator(main_checkout) note=Story_30.9_inserted_inside_Epic_30;no_boundary_or_dependency_statement_changed
 2026-11-08T01:46:51Z	Epic 30	ledger_routed_planned	story=30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio entries=1(DW-890) excess=0 by=runner
+2026-11-08T01:50:20Z	Epic 30	epic_context_compiled	sha=0be92201 reason=planning_artifact_newer(30.9_charter) model=claude-opus-5-5
+2026-11-08T01:51:54Z	Epic 30	slot_reloaded	slot=ocutalon-slot-d ns=OCUTALON bridge=58/58 ocutalon=751/751 compile=ok from=0be92201 identity=iris_server_info(port_52793,build_154U)
+2026-11-08T01:52:26Z	Story 30.9	stage_spawned	stage=plan spawn_at=2026-11-08T01:52:26Z model=claude-opus-5-5 agent_name=30-9-plan-1 cycle_iteration=1
