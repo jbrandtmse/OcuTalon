@@ -2,7 +2,8 @@
 title: 'Story 17.11: Epic 17 burn-down: the online-demo digest names no host path, address, user or key'
 type: 'chore'
 created: '2026-11-07'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ca94fe48bb27f29a67b469bc241453bf613dc755'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -117,6 +118,28 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-07 — Review pass
+- verdicts: 17 findings — high 0, medium 1, low 13, false 3, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: mutation lines cite Coverage.cls by line number — the fix edits this spec's wording; the lines are the spec's own anchors (:253, :368).
+  - `[low]` `[reject]` Blind: `plain` (backslash-stripped) and lowercase branches of `Absent` and a Slots-only leak are not shown by a mutation — both branches are defensive extras of one function that reddens the same way on the text and on the Slots; the prescribed mutations show red for both; no cheap composer mutation reaches Slots only.
+  - `[low]` `[reject]` Blind: only header rows and four fields are planted in the live read — the class doc names exactly the planted fields, and `Watch.Reader.Failures` documents these as the raw strings.
+  - `[false]` `[reject]` Blind: other channels are not covered — the intent pins "web", and the online demo is the polling web path; the Telegram text is pinned in Test.Channel.TelegramDigest (never edited here).
+  - `[false]` `[reject]` Blind: `Consumed` reads `^||CoverageProbe("vitalsCalls")` directly — the spec names that exact global, and CoverageProbe must not be edited.
+  - `[low]` `[patch]` Blind: `Digest` returns an unused `session`, and `Ago` is an instance method with no state — removed the field, made `Ago` a ClassMethod.
+  - `[low]` `[reject]` Blind: the "15 minutes" anchor depends on wall-clock — the window is 60 s against a 0.1 s test; an unlikely flake, and the fix adds complexity.
+  - `[low]` `[patch]` Edge: only whole planted values are checked, a truncated key or token id would escape — added the `sk-ant-` prefix and the Telegram bot id as fragment probes.
+  - `[low]` `[reject]` Edge: other row kinds and fields of the live read are not planted — same as the Blind row above.
+  - `[low]` `[reject]` Edge: the IPv4 pattern has no boundary — it is green on every digest shape measured (times and cost cannot match), and a boundary adds a regex nobody needs.
+  - `[low]` `[reject]` Edge: the passing digest plants only the other visitor's failures — the matrix row asks exactly that (running, no errors, another visitor's failures).
+  - `[low]` `[reject]` Edge: "makes no model request" is not asserted — no saved item means `Composed` goes to `Finish` with no request by construction (Process.cls :434-436), and the Notification count of 1 confirms the path.
+  - `[false]` `[reject]` Edge: the spec says `Notice(1)` but the helper reads `Record` — the helper takes the raw Slots JSON string, which is stricter than the parsed object; a fix would only edit the spec.
+  - `[low]` `[patch]` Verification-gap: restoring `onlineDemo` has no mutation line — demonstrated (drop the restore; `Coverage` `TestLiveRead` control red), line written under Verification.
+  - `[medium]` `[patch]` Verification-gap: five of the seven KEYLIKE alternatives had no planted value, so 20 assertions could not fail — planted one fragment-built value per other alternative (labels only), re-ran the Coverage.cls :368 mutation: all seven alternatives red.
+  - `[low]` `[patch]` Verification-gap: `TestPassingDigest` has no mutation of its own — demonstrated with the `ScopedFailures` mutation (red on the passing sentences), line written under Verification.
+  - `[low]` `[reject]` Verification-gap, other findings: a package-level run on a slot would run the class, and no baseline exists if a crash left `onlineDemo` at 1 — the lead's spec gate and the class doc forbid slot runs; a crash baseline needs extra state for a rare case.
+  - Intent-alignment: descriptive only, no finding (reading A is implemented; the raw-reading layer below the probe seams and the WebChat.Out card are outside this story by the spec; the stale Auto Run Result is rewritten at finalize).
+
 ## Design Notes
 
 **What the measurement found (Task 0, during planning; no real leak today).**
@@ -188,11 +211,27 @@ Every `ci/*.sh` call sets `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCUTALON_TEST_WEB
 
 Every test added or changed passes on a fresh environment, in either order.
 
-**Mutations observed:** (the implement stage writes the `mutation: <change> -> <red test>` lines here)
+**Mutations observed:**
+- mutation: `Checks/Coverage.cls` :253 `{"name": (database.name), ...}` -> `{"name": (database.directory), ...}` -> `TestFailingDigest` red (the database-space anchor, and the host path, IP address, user name and IPv4 legs, in the text and in the Slots); `TestPassingDigest` stays green. Restored byte for byte (`cmp`), class green again on the same warm stack.
+- mutation: `Checks/Coverage.cls` `Live`, after the failures part (:368), add `Set parts = parts_$ListBuild(failed.%Get(0).errorText)` -> `TestFailingDigest` red on every planted value and fragment, all seven KEYLIKE alternatives and the IPv4 shape, in the text and in the Slots (`TestPassingDigest` red too, as the line is unconditional). Restored byte for byte (`cmp`), class green again.
+- mutation: `Checks/Process.cls` `ScopedFailures`, the condition `If (scope = sessionRef) || ((scope = ..#INSTANCE) && 'onlineDemo)` removed so that every failure counts -> `TestPassingDigest` red ("the production sentence" and "the reserved sentence"), `TestFailingDigest` green. Restored byte for byte (`cmp`), class green again.
+- mutation: `OnlineDemoFacts` `OnAfterOneTest`, the `Set("onlineDemo", ..SavedOnline)` restore deleted -> `OnlineDemoFacts` stays green, and `Test.Digest.Coverage` `TestLiveRead` is red on its "control: this is not the online demo" assertion when it runs after it (the reverse-order shard is the guard). The key was reset, the class restored byte for byte (`cmp`), and `Coverage` was green again.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (Halt after planning). Measurement (read only on ocutalon-slot-b, build 154): no real leak today; the raw host strings (database and journal directories, the live read's texts and names) never reach a slot; the one raw string in a slot is the database name, which is the CPF database name. One test class planned, no product change.
+**Summary.** One new test class pins that the online-demo digest names no host path, IP address, user name or key. It plants made-up values in the instance facts the digest reads, composes the digest through the real `Digest.Process` and `Checks.Coverage.Build`, renders it with `DigestText.Text(slots, "web")`, and checks the text and the Notification's whole Slots JSON. On unchanged product code it is green: no leak today, and no product code changed.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Test/Digest/OnlineDemoFacts.cls` (new): `TestFailingDigest` (the pin) and `TestPassingDigest`; leak check of five planted values, two fragment probes, one key shape for each other KEYLIKE alternative, every KEYLIKE alternative and an IPv4 shape.
+- This spec: status, the Review Triage Log and the Verification mutation lines.
+
+**Review findings.** Patches applied: 5 (1 medium: plants for the five unplanted KEYLIKE alternatives; 4 low: unused return field and a ClassMethod, two fragment probes, two mutation lines demonstrated). Deferred: none. Rejected: 11 with the reasons in the triage log (low or false, or the fix edits this spec or a file on the Never list).
+
+**Follow-up review recommended:** false (one medium patched).
+
+**Verification.** Compile check on `ocutalon-slot-b` (build 154): OK. On the warm stack (lane B): `OnlineDemoFacts`, `Coverage`, `AllClear`, `Due` and `Compose` pass. `test-boundaries.sh`, `test-class-rules.sh` and `test-ci-config.sh` pass ("keys: nothing key-like", assert-concat included). Fresh stack: `shard lane-a@Digest` passes forward and in reverse (22 classes), run again after the last patch. The four mutations above were each applied, observed red, restored byte for byte and seen green again. Both stacks are torn down.
+
+**Residual risks.** The "a message waiting 15 minutes" anchor depends on under 60 s between planting and reading. The test must never run on a dev slot (it plants key-shaped values and sets `onlineDemo`).
