@@ -2863,3 +2863,8 @@
 2026-11-08T17:27:11Z	Run	deps_hash_rerecorded	reason=fix_forward stories=7.11 hash=a143b66fe18e
 2026-11-08T17:27:11Z	Epic 7	worktree_removed	
 2026-11-08T17:27:11Z	Epic 7	epic_branches_deleted	local+remote(ancestor_of_feature_verified)
+2026-11-08T17:48:43Z	Run	planner_ruling	subject=guide_documents_citation_promise answer=URGENT_before_1.0.4_cut(cut_HELD);more-to-try-view.ts:59_documents.lookFor_ends_look_for_the_citation_under_the_answer_but_web_chat_shows_no_citations_in_1.0.4(Story_20.2);PUBLIC_TEXT_ruled:"...Then_ask_about_it_in_the_chat,_and_look_for_the_answer_that_comes_from_your_file.";exactly_4_places(view.ts:59,more-to-try.spec.ts:97,more-to-try-view.test.mjs:66,ux-strings.test.mjs:433);fastest_free_runner_one-commit_fix-forward(Epic_4);fresh_CI_then_merge;cut_from_first_green_feature_head_containing_it via=Contest_Planner_1(delegation)
+2026-11-08T17:48:43Z	Run	ruling	question=CI_priority_for_4.12 choice=cancel_superseded_feature_runs(5cb58db7:42505007557,42505007747;42e5bdd4:42503424152;42503424104_already_done) rejected=keep_fallback(no_head_without_the_fix_is_cuttable_now) category=decide policy=5086036
+2026-11-08T17:48:43Z	Run	ruling	question=4.12_pipeline category=decide choice=SC-5_reopen_kept_epic-4_worktree_ff_to_5cb58db7;one_build-auto_stage(plan+implement);no_QA_stage(the_change_is_the_pins);lead_diff_review_instead_of_code-review_stage;readiness_skipped rejected=full_4-stage_pipeline(cut_held;4-string_ruled_swap) policy=5086036
+2026-11-08T17:48:43Z	Epic 4	worktree_bootstrapped	epic=4 result=ok base=5cb58db7(ff_kept_worktree)
+2026-11-08T17:48:43Z	Epic 4	runner_dispatched	runner=a668895609b486146 model=opus effort=high lane=none story=4.12_guide_citation_promise prompt=prompts/dispatch-epic-4-412.md
