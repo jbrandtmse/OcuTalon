@@ -228,6 +228,40 @@ Re-derived on 2026-11-08 against `76c31e50` (OCT-epic30). Paths are under `src/o
 - Given `IncidentManager.Purge(n)`, when it runs, then its cutoff is `Bridge.Time.DaysCutoff`'s and `Test.Watch.Lifecycle`'s purge tests pass unchanged (DW-371).
 - Given the Chat agent calls `list_productions`, when Orders is stopped, then its entry's `state` is `stopped`, built from IRIS's status code alone (DW-541).
 
+### Review Findings
+
+Code review 2026-11-08 (bmad-code-review, review_mode full, baseline 350be778 plus the working tree; tier full-opus: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, no model override). 32 rows, 27 entries after grouping: high 0, medium 3, low 17, maybe-false 1, false 5, by-design 1. No decision-needed. Every patch was applied and re-run on the warm throwaway `e30s7rw` (lane B); mutation lines under Verification.
+
+- [x] [Review][Patch] (medium; fix-risk low, test-only) list_reminders assertion in `ListAndCancel` could not fail: `Result.Return` returns the refusal object too, so `$IsObject(listed)` held for `{"ok":false}`. Now asserts `ok` is true [src/ocutalon/cls/OcuTalon/Test/Schedule/Reminders.cls:791]
+- [x] [Review][Patch] (medium; fix-risk low, test-only) `Test.Bridge.Interrupted` counted every `approval.result` of the shared sink; Reconcile's pass 4 closes every executing tool_call row in the namespace, so a row another class left would change the counts. Counts now go through `ResultsOf(ref)`/`WaitResults` (payload names the Ref) [src/ocutalon/cls/OcuTalon/Test/Bridge/Interrupted.cls:100]
+- [x] [Review][Patch] (medium; fix-risk low, test-only) `TestHoldOfAnInterruptedReplayEnds` asserted `Ens.Queue.GetCount("ChatAgent") = 1` across all senders; now `QueuedFor(session, runner)`, the hold session's headers with Status 2 (Queued) [src/ocutalon/cls/OcuTalon/Test/Bridge/Interrupted.cls:189]
+- [x] [Review][Patch] (low; fix-risk low, a guard aligned with Ownership.Rows) `DropLinks` compared `instance`/`eval` exactly while `OwnerRef` is SQLUPPER, so `Instance` or `EVAL ` passed the guard and the DELETE would match the real instance/eval links. Now compares by `$SYSTEM.Util.Collation(..., 7)`; `TestDropLinks` refuses `Instance` and `EVAL ` too [src/bridge/cls/OcuTalon/Bridge/Purge.cls:59]
+- [x] [Review][Patch] (low; fix-risk low, two cases) `Keeps`' "at or after the cutoff" was pinned at the boundary for Turn only; cases "a Delivery at the cutoff" and "a Decision at the cutoff" added [src/ocutalon/cls/OcuTalon/Test/Data/Purge.cls:134]
+- [x] [Review][Patch] (low; fix-risk low, scan only) condition 2's static scan missed a delete through another class's method or a dynamic call; the scan now allows only the classes the purge names (`%SQL.Statement`, `Bridge.Time`, `Bridge.Purge`, `Data.Session`, `Data.Ownership`) and no `$ClassMethod`/`$Method`/`Xecute` [src/ocutalon/cls/OcuTalon/Test/Data/Purge.cls:300]
+- [x] [Review][Patch] (low; fix-risk low, test-only) `TestToolFailureReasons` "no Reply at all" never fed its no-key text (with no Reply the failure was "The runner gave no Reply"); the case now sets `RunnerError` to the no-key text, so it pins ConcludeTool's `$IsObject(reply)` guard [src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls:445]
+- [x] [Review][Patch] (low; fix-risk low) new test SQL unchecked: `Test.Bridge.Purge.LinkCount` and `Test.Bridge.Interrupted.DecideAnswers` return -1 on an SQL error (so a failed read cannot pass as "0 links"), and `Test.Data.Purge.OnAfterOneTest` asserts its memory clean-up [src/ocutalon/cls/OcuTalon/Test/Bridge/Purge.cls:321]
+- [x] [Review][Patch] (low; fix-risk low, doc) `Test.Data.Purge` class doc did not list `TestFarCutoffDeletesNothing` and `TestRetentionPassesOneNowHostFirst` (Rule 14) [src/ocutalon/cls/OcuTalon/Test/Data/Purge.cls:22]
+- [x] [Review][Defer] (low; fix-risk low; out-of-footprint, Lane B) DW-596's reopen_if is met: REPLAYNOKEY and REPLAYPROVIDER now exist, but `Core/BridgeSink.cls` `HeldReasons` still lists only HELDBEFOREUPDATE, so the result notice carries no reason (the Decision row's Reasons, U-214's surface, does) [src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls:304] — deferred: DW-596 occurrence + wontfix-accepted, reopen_if=the result notice must show them
+- [x] [Review][Defer] (low; fix-risk low) DW-955's note said incidents purge on their own 90-day rule; `IncidentManager.Purge` deletes closed incidents only, so an open incident of a purged session keeps its OwnerRef until it closes [src/ocutalon/cls/OcuTalon/Data/Purge.cls:121] — deferred: DW-955 occurrence + corrected wontfix-accepted note
+
+**Rejected** (each with its Rule 15 close):
+- maybe-false (low), wontfix-theoretical: `ConcludeTool` reads `reply.ToolsRun` on a non-Reply object — only a RunnerError holding the no-key text together with a non-Reply response reaches it, and no runner produces that; it fails loudly. Real if a runner answers a class other than Msg.Reply with an Ens error.
+- false: purged session's Pairing code row is orphaned — `Data.Pairing.Purge` deletes rows with no SessionRef by age (code rows have none).
+- false: `AnswerHold` reports a send when the header has no return queue — the hold's pending responses come from `SendRequestAsync` with a response required, whose headers always carry the hold's return queue.
+- low, rejected (fix edits the spec): Auto Run Result counts root-cause entries, the triage log counts rows.
+- low, wontfix-accepted: a failed turn or delivery delete still lets sessions go, leaving old rows the next run deletes; reopen_if=a purge task status shows a turn or delivery delete failure.
+- low, wontfix-theoretical: a CSP application timeout of 0 stores no absolute timeout, so `Signed` misses that session — Install.Step.Web sets 120 s or 8 h on every OcuTalon application, and a signed-in session gets a daily digest Delivery; real if an admin sets Timeout 0.
+- false: a Session row with an empty Ref — every Ref is `Bridge.Ids.NewRef()` under a unique index.
+- low, wontfix-theoretical: a BreakFeedRun in state `sending` of a purged session — a feed runs for an active session, which has newer rows; real if a feed run is seen sending for a session idle 90 days.
+- low, wontfix-accepted: DW-588's direct answer is pinned for Approve only — Reject and cancel share `HoldResponse`'s unchanged branches, and `Test.Bridge.Approval` sits at about 138 s of the call cap; reopen_if=the `task` branch of HoldResponse changes.
+- false: "one now" pinned only by source — the layer's own mutation (a second NowUtc) is caught by `TestRetentionPassesOneNowHostFirst`, mutation line recorded.
+- low, wontfix-accepted (carried): no fault seam for a failing `DeleteOwnedRows`; reopen_if=a change to Found or DeleteOwnedRows.
+- by-design: a missing Config Store key gets `error` with no sentence — Decide's `Classify` gives `no_key` only for the NOKEYTEXT pieces (U-170), and the lead gate ruled U-214's provider sentence only for `Failed to create provider` (Design Notes).
+- low, wontfix-accepted: if the Action entry fails but `FinishExecution` succeeds, `CloseInterrupted` sends no `AnswerHold` and pass 4 does not retry; reopen_if=an Event Log warning "The interrupted replay of <ref> was not closed" with the row failed.
+- false: AD-27's "a live Telegram pairing" vs any Pairing row — a chat row's SessionRef is set only while paired, and Ownership.Pairing counts every row with a SessionRef as a live pairing (Pairing class doc).
+- low, no action: new internal and operator strings outside the PUBLIC TEXT inventory ("another replay of this call is running, so nothing was run", the Data.Purge and DropLinks statuses) — none reaches a person (no host reader of Reply.FailureText; RecordFallback stores no FailureText).
+- low, rejected: spec frontmatter `status: done` during review — build-auto's machine state, not this review's to change.
+
 ## Spec Change Log
 
 - 2026-11-08 (lead, SC-5 re-open, runner B): the set-aside patch did not apply on 2e78a4f7 (`git apply --3way` exit 1: Bridge/Approval, Test/Install/Retention, Redact, Test/Bridge/Redact, Test/Eval/KeyProof and the spine conflicted), so per doctrine U4 the story is re-planned (status draft, review_loop_iteration 0) with the patch kept as reference. The intent now carries the owner decisions U-210, U-214 and U-215, drops DW-386 and DW-448 (Story 30.8), and adds DW-495, DW-581, DW-582, DW-584, DW-588, DW-589 and DW-590; the deferred: list was removed (already harvested as DW-588 to DW-590). The I/O matrix rows 10 and 17 are void (30.8), and row 15 follows U-214.
@@ -527,6 +561,35 @@ How to run:
 - mutation (review pass): `Signed` ignores the store entry's timeout -> red: `Test.Data.Purge.TestSessionKeptWhileActiveOrCurrent` ("a session with only an expired store entry is purged").
 - mutation (review pass): `Approval.Reconcile` without pass 4 -> red: `Test.Bridge.Interrupted.TestHoldOfAnInterruptedReplayEnds` (row failed/interrupted, hold ended, one approval.result, the audit entries).
 - mutation (review pass): Reconcile pass 1 cancels nothing -> red: `Test.Bridge.Approval.TestAnswerBeforeTheTaskExists` (a) ("no open task of the Ref remains"), `TestReconcileCancelsOnlyOrphans`, `TestReconcileLeavesSettledRows`.
+
+**QA stage (2026-11-08, warm throwaway `e30s7qw`, lane B; each mutation applied, observed red, reverted byte for byte, `git status --short` and `git diff --stat` unchanged):**
+- (QA) test added: `Test.Data.Purge.TestCurrentSessionLosesNoRows` (U-308): a session kept by an open approval request, by a watch and by a pending reminder keeps its Session row, its GuideState, SimMessage, Reminder and BreakFeedRun rows, its conversation link and a linked AI session, in a run that purges an idle session beside them. File: `src/ocutalon/cls/OcuTalon/Test/Data/Purge.cls` (QA).
+- mutation (QA): `Keeps` ignores an open approval -> red: `Test.Data.Purge.TestCurrentSessionLosesNoRows` (session, rows and link of the approval case), `TestSessionKeptWhileActiveOrCurrent`.
+- mutation (QA): `Keeps` ignores a watch (BackgroundCheck) -> red: `TestCurrentSessionLosesNoRows` (watch case), `TestSessionKeptWhileActiveOrCurrent`.
+- mutation (QA): `Keeps` ignores a pending reminder -> red: `TestCurrentSessionLosesNoRows` (reminder case), `TestSessionKeptWhileActiveOrCurrent`, `TestSessionRowsGoWithIt`.
+- mutation (QA): the GuideState delete takes every session's rows (`OR 1 = 1`) -> red: `TestCurrentSessionLosesNoRows` (all three current sessions lose rows), `TestSessionRowsGoWithIt`.
+- mutation (QA): the session select drops its `CreatedAt < ?` bound (age is not checked) -> red: `TestSessionKeptWhileActiveOrCurrent` ("a session created after the cutoff with no rows is kept").
+- mutation (QA): a Memory delete before `Keeps` (memory rows touched) -> red: `TestSessionRowsGoWithIt` (the memory session is purged and its memory gone), `TestSessionKeptWhileActiveOrCurrent`, `TestOnlyOwnTablesAndAuditKept` (the delete list).
+- mutation (QA): `Run` kills the IRIS audit data, with the names split so the static scan misses it -> red: `TestOnlyOwnTablesAndAuditKept`, only its two dynamic asserts ("the Approval entry is still in the IRIS audit log", "and the Action entry"); the audit class's Delete removes nothing in this build, so the mutation kills `^IRIS.AuditD` in `%SYS` of the throwaway.
+- mutation (QA): the no-key sentence without the `ToolsRun = 0` test -> red: `Test.Bridge.Decide.TestToolFailureReasons` ("no key text from a tool that ran").
+- mutation (QA): the provider sentence without the `ToolsRun = 0` test -> red: `TestToolFailureReasons` ("that text from a tool that ran").
+- mutation (QA): the provider sentence for any ToolsRun 0 failure (PROVIDERTEXT test dropped) -> red: `TestToolFailureReasons` ("a provider error that is not the no-key one", "a Config Store entry that is missing", "a context failure before the call").
+- mutation (QA): the no-key branch takes any Reply (a tool's own error becomes no_key) -> red: `TestToolFailureReasons` ("a tool's own error" and every other case), `TestToolRequest`.
+- mutation (QA): `REPLAYPROVIDER` wording changed -> red: `TestToolFailureReasons` ("the provider sentence is the agreed one (U-214)"); likewise `REPLAYNOKEY` ("the sentence is the agreed one").
+- mutation (QA): `PROVIDERTEXT` no longer matches the measured error -> red: `Test.Bridge.Runner.TestReplayWithoutAKey` ("(unknown provider) the failure text holds PROVIDERTEXT").
+- mutation (QA): `NOKEYTEXT` no longer matches the measured error -> red: `Test.Bridge.Runner.TestReplayWithoutAKey` ("(no key) the failure text holds 'has no value...'").
+- mutation (QA): `ReminderOps.Cancel` skips the keyed lookup for the key `:2`, then `:3`, then `:4` (three runs) -> red: `Test.Schedule.Reminders.TestToolCallKeysAfterAList` each time ("its command 1/2/3 gets its first answer"; for `:4` only this test, `TestSeveralCancelsFromOneToolCall` has three refs).
+- mutation (QA): `CommandCall.Run` counts the key position one too many (keys `:3`, `:4`, `:5`) -> red: `TestToolCallKeysAfterAList` ("its row holds the key ...:2: the list took :1", and `:3`, `:4`), `TestSeveralCancelsFromOneToolCall`, `TestCancelEndsWaiter`.
+- Final clean run of the touched classes on `e30s7qw`: `Test.Data.Purge`, `Test.Bridge.Decide`, `Test.Bridge.Runner`, `Test.Schedule.Reminders`, `Test.Bridge.CodeRules`, `Test.Bridge.Purge` passed; `test-class-rules.sh` passed. Warm stack removed, teardown of `e30s7q` and `e30s7qw` done.
+
+**Code review stage (2026-11-08, warm throwaway `e30s7rw`, lane B; each mutation applied, observed red, restored from a backup, `cmp` identical and the product files equal to HEAD):**
+- mutation (CR): `DropLinks` guard back to the exact compare -> red: `Test.Bridge.Purge.TestDropLinks` ("DropLinks of 'Instance' is an error that names the method", and of 'EVAL ').
+- mutation (CR): `Keeps`' Delivery check `RecordedAt >= ?` made `>` -> red: `Test.Data.Purge.TestSessionKeptWhileActiveOrCurrent` ("a session with a Delivery at the cutoff is kept"); the Decision check likewise ("a Decision at the cutoff").
+- mutation (CR): `DeleteOwnedRows` also calls `##class(OcuTalon.Data.Handled).DropSession(ref)` -> red: `TestOnlyOwnTablesAndAuditKept` ("the purge calls no class but ..."); the same through `$ClassMethod` -> red ("and makes no dynamic call").
+- mutation (CR): `ConcludeTool`'s no-key branch without `$IsObject(reply)` -> red: `Test.Bridge.Decide.TestToolFailureReasons` (`<INVALID OREF>` in ConcludeTool, the runner-error case with no Reply).
+- mutation (CR): `ReminderTools.ListReminders` answers a refusal -> red: `Test.Schedule.Reminders.TestToolCallKeysAfterAList` ("list_reminders answers ok").
+- mutation (CR): `Replay.CloseInterrupted` skips `AnswerHold` -> red: `Test.Bridge.Interrupted.TestHoldOfAnInterruptedReplayEnds` on the Ref-filtered counts ("the hold ends within 10 seconds", "the one response that the hold got is the deferred one").
+- Clean runs after the patches: `Test.Bridge.Purge`, `Test.Data.Purge`, `Test.Bridge.Decide`, `Test.Schedule.Reminders` (84 s), `Test.Bridge.Interrupted`, `Test.Bridge.CodeRules` passed; `test-class-rules.sh` and `test-boundaries.sh` passed. Warm stack down, `e30s7r` and `e30s7rw` torn down.
 
 ## Auto Run Result
 

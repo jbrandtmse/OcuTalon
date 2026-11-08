@@ -435,7 +435,7 @@ Method TestToolFailureReasons()
 		$ListBuild("that text from a tool that ran", noProvider, 1, 1, "1|error|"),
 		$ListBuild("a Config Store entry that is missing", noStore, 0, 1, "1|error|"),
 		$ListBuild("a context failure before the call", "The bridge context could not begin", 0, 1, "1|error|"),
-		$ListBuild("no Reply at all", noKey, "", 0, "1|error|"))
+		$ListBuild("a runner error with the no-key text and no Reply at all", noKey, "", 0, "1|error|"))
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Set label = "(" _ $List(case, 1) _ ")"
@@ -452,6 +452,8 @@ Method TestToolFailureReasons()
 			Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
 			Set reply.FailureText = $List(case, 2)
 			Set reply.ToolsRun = $List(case, 3)
+		} Else {
+			Set process.RunnerError = $SYSTEM.Status.Error(5001, $List(case, 2))
 		}
 		Do $$$AssertStatusOK(process.OnResponse(request, .out, call, reply, "reply"), label _ " OnResponse takes the reply")
 		Set row = ..RowOf(ref, "tool")

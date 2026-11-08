@@ -97,14 +97,14 @@ Method TestInterruptedReplayIsClosed()
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "Reconcile runs")
 	Do $$$AssertEquals(..Prop(ref, "State")_"|"_..Prop(ref, "Result"), "failed|interrupted", "the row is failed with the Result interrupted")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Approval).JustNow(..Prop(ref, "FinishedAt")), "and its FinishedAt is set: "_..Prop(ref, "FinishedAt"))
-	Set results = ##class(OcuTalon.Test.Bridge.Approval).WaitSinkCalls("approval.result", 1, 15)
+	Set results = ..WaitResults(ref, 1, 15)
 	Do $$$AssertEquals(results.%Size(), 1, "approval.result fires once")
 	If results.%Size() = 1 Do $$$AssertEquals(results.%Get(0).ownerRef_"|"_results.%Get(0).payload, owner_"|{""ref"":"""_ref_"""}", "owned by the row's OwnerRef, with only the Ref")
 	Do ..AssertClosedEntries(audit, ref)
 	Do $$$AssertEquals(..RunnerRequests(ref), before, "no tool request was sent, so the call did not run again")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "and the tool ran 0 times")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "a second Reconcile runs")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.result").%Size(), 1, "and fires nothing more")
+	Do $$$AssertEquals(..ResultsOf(ref).%Size(), 1, "and fires nothing more")
 }
 
 /// Matrix 12 (DW-444): another job holds the replay lock of an executing tool_call, as a live replay does. Reconcile leaves the row executing and
@@ -124,7 +124,7 @@ Method TestLiveReplayIsLeftAlone()
 	Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "Reconcile runs")
 	Do $$$AssertEquals(..Prop(ref, "State")_"|"_..Prop(ref, "Result")_"|"_..Prop(ref, "FinishedAt"), "executing||", "the row stays executing")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.result").%Size(), 0, "no event fires")
+	Do $$$AssertEquals(..ResultsOf(ref).%Size(), 0, "no event fires")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, "OcuTalon", "Approval", "Approval", ref).%Size(), 0, "no Approval entry names the Ref")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, "OcuTalon", "Action", "Action", ref).%Size(), 0, "and no Action entry")
 	Set ^OcuTalonTest("Approval", "job", number, "release") = 1
@@ -147,7 +147,7 @@ Method TestExecutingFixIsLeftAlone()
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "Reconcile runs")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Approval).RowText(fix), fixText, "the executing fix row is unchanged")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Approval).RowText(setting), settingText, "and so is the executing setting row")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.result").%Size(), 0, "and no event fires")
+	Do $$$AssertEquals(..ResultsOf(fix).%Size() + ..ResultsOf(setting).%Size(), 0, "and no event fires")
 }
 
 /// Matrix 20 (DW-582): the hold of a replay that never got to run ends when Reconcile closes the row. The test approves a tool_call whose runner it
@@ -180,15 +180,15 @@ Method TestHoldOfAnInterruptedReplayEnds()
 	Do $$$AssertTrue(..WaitsOnReplay(ref, 20), "the hold waits on its replay request")
 	Do $$$AssertEquals(..Prop(ref, "State"), "approved", "the row is still approved: the runner is disabled, so no replay started")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).StartExecution(ref), $$$OK, "StartExecution makes the row executing, as the replay that crashed did")
-	Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.result").%Size()
+	Set results = ..ResultsOf(ref).%Size()
 	Set began = $ZHorolog
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "Reconcile runs")
 	Do $$$AssertEquals(..Prop(ref, "State")_"|"_..Prop(ref, "Result"), "failed|interrupted", "the row is failed with the Result interrupted")
 	Set gone = ##class(OcuTalon.Test.Bridge.Approval).WaitHoldGone(ref, 10)
 	Do $$$AssertEquals(gone, 1, "the hold ends within 10 seconds of Reconcile ("_$Number($ZHorolog - began, 1)_" seconds)")
-	Do $$$AssertEquals(##class(Ens.Queue).GetCount(..#RUNNER), 1, "and while the replay request still waits on the disabled runner's queue, so neither the runner nor Decide's timer ended it")
+	Do $$$AssertEquals(..QueuedFor(session, ..#RUNNER), 1, "and while the replay request still waits on the disabled runner's queue, so neither the runner nor Decide's timer ended it")
 	Do $$$AssertEquals(..DecideAnswers(session), 1, "the one response that the hold got is the deferred one")
-	Set sent = ##class(OcuTalon.Test.Bridge.Approval).WaitSinkCalls("approval.result", results + 1, 15)
+	Set sent = ..WaitResults(ref, results + 1, 15)
 	Do $$$AssertEquals(sent.%Size(), results + 1, "one approval.result fires")
 	Do ..AssertClosedEntries(audit, ref)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "the tool ran 0 times")
@@ -199,7 +199,7 @@ Method TestHoldOfAnInterruptedReplayEnds()
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Drain(..#RUNNER), "it handles the request that was queued for it")
 	Do $$$AssertEquals(..Prop(ref, "State")_"|"_..Prop(ref, "Result"), "failed|interrupted", "the row is as Reconcile left it")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).LiveHold(ref), "", "and no hold came back")
-	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.result").%Size(), results + 1, "still one approval.result")
+	Do $$$AssertEquals(..ResultsOf(ref).%Size(), results + 1, "still one approval.result")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, "OcuTalon", "Action", "Action", ref).%Size(), 1, "and one Action entry")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "the tool still ran 0 times")
 }
@@ -266,8 +266,45 @@ ClassMethod WaitsOnReplay(ref As %String, seconds As %Integer) As %Boolean
 ClassMethod DecideAnswers(session As %String) As %Integer
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ? AND SourceConfigName = 'Decide' AND TargetConfigName = 'ApprovalHold' AND Type = 2", session)
+	If result.%SQLCODE < 0 Quit -1
 	Do result.%Next()
+	If result.%SQLCODE < 0 Quit -1
 	Quit +result.%GetData(1)
+}
+
+/// The number of messages of the session that wait, queued, for the target item (Ens.MessageHeader Status 2, Queued): the session's own requests
+/// only, whatever else the item's queue holds.
+ClassMethod QueuedFor(session As %String, target As %String) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ? AND TargetConfigName = ? AND Status = 2", session, target)
+	If result.%SQLCODE < 0 Quit -1
+	Do result.%Next()
+	If result.%SQLCODE < 0 Quit -1
+	Quit +result.%GetData(1)
+}
+
+/// The approval.result calls of the shared sink whose payload names the Ref (oldest first), so that an event of a row this test did not make is
+/// never counted.
+ClassMethod ResultsOf(ref As %String) As %DynamicArray
+{
+	Set mine = []
+	Set calls = ##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.result")
+	For i = 0:1:calls.%Size() - 1 {
+		If calls.%Get(i).payload [ (""""_ref_"""") Do mine.%Push(calls.%Get(i))
+	}
+	Quit mine
+}
+
+/// ResultsOf the Ref, polled until it holds at least count calls or the seconds pass.
+ClassMethod WaitResults(ref As %String, count As %Integer, seconds As %Integer) As %DynamicArray
+{
+	Set deadline = $ZHorolog + seconds
+	Set calls = ..ResultsOf(ref)
+	While (calls.%Size() < count) && ($ZHorolog < deadline) {
+		Hang 0.2
+		Set calls = ..ResultsOf(ref)
+	}
+	Quit calls
 }
 
 /// Saves an executing tool_call row for the replay tool and the runner ChatAgent (the source and runner of a call that a replay would send), so that a

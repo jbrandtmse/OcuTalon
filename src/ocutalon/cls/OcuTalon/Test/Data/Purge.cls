@@ -13,11 +13,16 @@ Include %cspBuild
 ///   - TestSessionRowsGoWithIt (matrix 23, DW-581): the GuideState, SimMessage, BreakFeedRun and finished Reminder rows and the conversation link of a
 ///     purged session go with it and the bridge's purge of the same run finds its AI session unlinked; the same rows of a kept session stay, and a
 ///     memory of a third, kept session is untouched;
+///   - TestCurrentSessionLosesNoRows (matrix 23, U-308): a session that is current through an open approval request, a watch or a pending reminder
+///     keeps its Session row and all five kinds of rows (GuideState, SimMessage, Reminder, BreakFeedRun and the conversation link), and the AI
+///     session of its link stays linked, in a run that purges an idle session beside them;
 ///   - TestOnlyOwnTablesAndAuditKept (matrix 7): the approval and action entries of the IRIS audit log that name a purged session are still there, and
 ///     the purge's source names no system namespace, no audit class and no table but the OcuTalon_Data and OcuTalon_Bridge_Data ones, and deletes
 ///     only from Turn, Delivery, GuideState, SimMessage, Reminder, BreakFeedRun and Session, plus the one DropLinks call;
 ///   - TestBadArguments (matrix 8): a day count of 0, x, "" or 1.5 and a malformed now give an error status that names OcuTalon.Data.Purge.Run and
-///     delete nothing.
+///     delete nothing;
+///   - TestFarCutoffDeletesNothing: a day count whose cutoff falls before the calendar is OK and deletes nothing;
+///   - TestRetentionPassesOneNowHostFirst (matrix 3): Retention.Purge calls the host part first and then the bridge part, both with the one now it took.
 Class OcuTalon.Test.Data.Purge Extends %UnitTest.TestCase
 {
 
@@ -55,7 +60,8 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Memory WHERE Ref %STARTSWITH 'ZzPurge'")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Memory WHERE Ref %STARTSWITH 'ZzPurge'")
+	If result.%SQLCODE < 0 Do $$$AssertEquals(result.%SQLCODE, 0, "the test's memory rows are removed: "_result.%Message)
 	Set position = 0
 	While $ListNext(..Owners, position, owner) {
 		Do ##class(OcuTalon.Bridge.Purge).DropLinks(owner)
@@ -127,8 +133,12 @@ Method TestSessionKeptWhileActiveOrCurrent()
 	Do ..Track($ClassMethod(fixture, "Turn", keep("a Turn at the cutoff"), cutoff))
 	Set keep("a Delivery after the cutoff") = ..Session(91)
 	Do ..Track($ClassMethod(fixture, "Delivery", keep("a Delivery after the cutoff"), {"RecordedAt": (recent)}))
+	Set keep("a Delivery at the cutoff") = ..Session(91)
+	Do ..Track($ClassMethod(fixture, "Delivery", keep("a Delivery at the cutoff"), {"RecordedAt": (cutoff)}))
 	Set keep("a Decision after the cutoff") = ..Session(91)
 	Do ..Track($ClassMethod(fixture, "Decision", keep("a Decision after the cutoff"), "decide", recent))
+	Set keep("a Decision at the cutoff") = ..Session(91)
+	Do ..Track($ClassMethod(fixture, "Decision", keep("a Decision at the cutoff"), "decide", cutoff))
 	Set keep("a live CSP session") = ..Session(91)
 	Set @store@(1) = ..Stored(..Seconds() + 3600)
 	Set @store@(1, 0, keys) = keep("a live CSP session")
@@ -205,6 +215,42 @@ Method TestSessionRowsGoWithIt()
 	Do $$$AssertEquals($Data(^OcuTalonBP.Unlinked(keptAI)), 0, "and the kept session's AI session linked")
 }
 
+/// Matrix 23, U-308 (owner decision "Keep"). A session that is current through an open approval request, a watch or a pending reminder is never purged, so
+/// it loses none of its rows: its GuideState, SimMessage, fired and cancelled Reminder and BreakFeedRun rows and its conversation link all stay and its AI
+/// session stays linked. An idle session in the same run goes with its rows, so the run did purge.
+Method TestCurrentSessionLosesNoRows()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set gone = ..Session(91)
+	Do ..Rows(gone)
+	Set goneAI = ..Linked(gone)
+	Set kept("an open approval") = ..Session(91)
+	Do ..Track($ClassMethod(fixture, "Approval", kept("an open approval"), "", "pending"))
+	Set kept("a watch") = ..Session(91)
+	Do ..Track($ClassMethod(fixture, "Check", kept("a watch")))
+	Set kept("a pending reminder") = ..Session(91)
+	Do ..Track($ClassMethod(fixture, "Reminder", kept("a pending reminder"), "2030-01-01T10:00:00Z", "pending"))
+	Set signal = ""
+	For {
+		Set signal = $Order(kept(signal))
+		Quit:signal=""
+		Do ..Rows(kept(signal))
+		Set keptAI(signal) = ..Linked(kept(signal))
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Retention).Purge(90), "Retention.Purge(90) is OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(gone), 0, "the idle session is gone")
+	Do $$$AssertEquals(..OwnedRows(gone), "0|0|0|0|0", "with its five kinds of rows")
+	Do $$$AssertEquals($Data(^OcuTalonBP.Unlinked(goneAI)) > 0, 1, "and its AI session is found unlinked")
+	Set signal = ""
+	For {
+		Set signal = $Order(kept(signal))
+		Quit:signal=""
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(kept(signal)), 1, "the session with "_signal_" is kept")
+		Do $$$AssertEquals(..OwnedRows(kept(signal)), "1|1|"_$Select(signal = "a pending reminder": 3, 1: 2)_"|1|1", "and loses none of its GuideState, SimMessage, Reminder and BreakFeedRun rows and its link ("_signal_")")
+		Do $$$AssertEquals($Data(^OcuTalonBP.Unlinked(keptAI(signal))), 0, "its AI session stays linked ("_signal_")")
+	}
+}
+
 /// Matrix 7. The audit entries of a purged session stay; the purge touches only OcuTalon's own tables.
 Method TestOnlyOwnTablesAndAuditKept()
 {
@@ -251,7 +297,14 @@ Method TestOnlyOwnTablesAndAuditKept()
 			Set deletes = deletes _ $ListBuild($Piece($Piece(found, "(", 2), ")", 1)_".DropLinks")
 			Set start = after
 		}
+		Set start = 1
+		While $Locate(line, "(?i)##class\([%A-Za-z0-9.]+\)", start, after, found) {
+			Set class = $Piece($Piece(found, "(", 2), ")", 1)
+			Do $$$AssertTrue($ListFind($ListBuild("%SQL.Statement", "OcuTalon.Bridge.Time", "OcuTalon.Bridge.Purge", "OcuTalon.Data.Session", "OcuTalon.Data.Ownership"), class), "the purge calls no class but SQL, Bridge.Time, Bridge.Purge, Data.Session and Data.Ownership: "_class)
+			Set start = after
+		}
 	}
+	Do $$$AssertEquals($ClassMethod(source, "Matches", text, "\$(?:classmethod|method|zobjclassmethod|zobjmethod)\(|\bxecute\b"), 0, "and makes no dynamic call, so no other class's method can delete rows")
 	Do $$$AssertTrue($ListLength(tables) > 0, "the scan found the tables the purge names")
 	Set position = 0
 	While $ListNext(tables, position, table) {

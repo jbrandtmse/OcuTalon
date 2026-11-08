@@ -788,7 +788,12 @@ Method ListAndCancel(session As %String, item As %String, refs As %List) As %Dyn
 	Set entries = []
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Schedule.ReminderFixture).Begin(session, item), "the context of the call begins")
 	Set listed = ##class(OcuTalon.Tools.ReminderTools).ListReminders()
-	Do $$$AssertTrue($IsObject(listed) || (listed [ """ok"":true"), "list_reminders answers")
+	Set listedOk = 0
+	Try {
+		Set listedOk = ($Select($IsObject(listed): listed, 1: {}.%FromJSON(listed)).%Get("ok") = 1)
+	} Catch {
+	}
+	Do $$$AssertTrue(listedOk, "list_reminders answers ok: " _ $Extract($Select($IsObject(listed): listed.%ToJSON(), 1: listed), 1, 200))
 	Set array = []
 	For i = 1:1:$ListLength(refs) Do array.%Push($List(refs, i))
 	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder(array)

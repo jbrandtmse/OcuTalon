@@ -300,7 +300,7 @@ Method TestDropLinks()
 		Do $$$AssertStatusOK($ClassMethod(..#PURGE, "DropLinks", ..Owner), "DropLinks of the owner is OK")
 		Do $$$AssertEquals(..Links(), "", "both links of the owner are gone")
 		Do $$$AssertEquals(..LinkCount(other), 1, "the other owner's link stays")
-		For ref = "", "instance", "eval" {
+		For ref = "", "instance", "eval", "Instance", "EVAL " {
 			Set keep = ##class(OcuTalon.Bridge.Ids).NewRef()
 			Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(keep, ..#AGENT, s1), "a link of a fresh owner is saved")
 			Set sc = $ClassMethod(..#PURGE, "DropLinks", ref)
@@ -319,7 +319,9 @@ Method TestDropLinks()
 ClassMethod LinkCount(owner As %String) As %Integer
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ConversationLink WHERE OwnerRef = ?", owner)
+	If result.%SQLCODE < 0 Quit -1
 	Do result.%Next()
+	If result.%SQLCODE < 0 Quit -1
 	Quit +result.%GetData(1)
 }
 

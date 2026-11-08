@@ -52,11 +52,12 @@ ClassMethod DeleteBefore(table As %String, cutoff As %String) As %Status
 }
 
 /// Deletes every conversation link whose OwnerRef is the argument, for any agent, so that the next Run finds the AI sessions those links named
-/// unlinked. An empty argument, instance and eval are refused with an error status that names this method, and nothing is deleted: they are not a
-/// person's session.
+/// unlinked. An empty argument, and an argument that the SQL equality takes for instance or eval (the column's default collation, SQLUPPER: any
+/// case, trailing blanks ignored), are refused with an error status that names this method, and nothing is deleted: they are not a person's session.
 ClassMethod DropLinks(ownerRef As %String) As %Status
 {
-	If (ownerRef = "") || (ownerRef = "instance") || (ownerRef = "eval") {
+	Set literal = $SYSTEM.Util.Collation(ownerRef, 7)
+	If (ownerRef = "") || (literal = $SYSTEM.Util.Collation("instance", 7)) || (literal = $SYSTEM.Util.Collation("eval", 7)) {
 		Quit $SYSTEM.Status.Error(5001, "OcuTalon.Bridge.Purge.DropLinks: the owner "_$Select(ownerRef = "": "(empty)", 1: ownerRef)_" is not a session whose links can be dropped")
 	}
 	Set sc = $$$OK
