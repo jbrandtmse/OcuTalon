@@ -5744,3 +5744,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Report.cls :61 and AddSkipped tally a skipped incident case (AC7, the Planner's condition); epic-9-context.md Scoring and the spec's proposed AD-22 spine bullet mention only the pacing
 - 2026-11-08T05:43:35Z status=wontfix-accepted owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=reopen_if=a later eval story's spec or review reads SM-2 as leaving skipped incident cases out of its total
+
+### DW-977: At a session start, today's note quotes the current message's own opening (its Turn row exists before Render), so the model's input holds the person's current words twice (note line + message text)
+- source: spec-41-4-the-notes-and-your-answers-reach-the-model.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: measured in 41.4 rework (SecondModel mock request log): first turn's session-start input quotes zz17first in the notes block and again as the message
+- 2026-11-08T19:54:46Z status=routed owner=burndown by=harvest note=Lane B fix with DW-967: DailyNote.Build (or Conversation) leaves the current turn and any later turn out of the note; same family as DW-967 (fallback first turn)
