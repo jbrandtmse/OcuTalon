@@ -4539,6 +4539,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: U-280 at=2026-11-05T05:37:42Z#849 condition 1; spine Conventions row 'Citations and memories'
 - 2026-11-05T07:02:58Z status=routed owner=19-4-answer-from-documents-with-citations by=spec_gate note=19.7 inherits it for PDF and Word answers
+- 2026-11-08T03:39:47Z status=resolved-by:19-4-answer-from-documents-with-citations by=adjudication note=Test.Docs.Turns(TestNotCovered,TestNoneConflict,TestNoneOnly)+Test.Docs.Reply+Test.Bridge.Decide:TestFilterGetsHostData+live:documents_step_2b(four_chat_turns_on_POST_/v1/messages);both_directions_mutation-pinned
 
 ### DW-721: Owner ruling U-280 chips: citation and memory chips are built by code from the turn's tool results (at most 5 each); labels state provenance, never 'used', 'relied on' or 'based on' ('Sources' and 'From memory' are fine); the UI shows 'None of your documents cover that.' and document citations never together, with tests in both directions; FR-41 is met by the 'From memory' chip
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4581,6 +4582,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: D10 failure-notice step and D8 accepted statuses rely on the stub era
 - 2026-11-05T12:23:42Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 changes them when it builds DocumentOps
+- 2026-11-08T03:39:47Z status=resolved-by:19-4-answer-from-documents-with-citations by=adjudication note=D8_and_D10_network_setup_through_page.route(Q4_grant);live:documents_covers_the_real_route
 
 ### DW-738: The image's transitive Python packages are not pinned (only fastembed, pdfplumber and python-docx are), so a judge's local image build resolves newer dependencies than CI measured; a new dependency or an upstream licence change fails the licence gate and the build, and the model download relies on huggingface_hub's cache layout
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: high | footprint: out-of-footprint
@@ -4593,6 +4595,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test.Web.DocumentsApi TestRealSubmitOrigin is a source-text match; e2e D8/D10 stop at the guard's 501 (34.2 review, verification-gap and acceptance auditor)
 - 2026-11-05T13:03:31Z status=routed owner=19-4-answer-from-documents-with-citations by=cr note=when 19.4 enables DocumentOps add an executed test that CommandsIn receives AddDocument and RemoveDocument from the route as web_user
+- 2026-11-08T03:39:48Z status=resolved-by:19-4-answer-from-documents-with-citations by=adjudication note=Test.Docs.Ops_runs_Commands.Submit->CommandsIn->DocumentOps_for_real;live:documents_drives_the_Web.Documents_route_over_HTTP(27_PASS_fresh);stale_Lane_B_comment_is_DW-895
 
 ### DW-740: ForgetMemory carries a MemoryRef but nothing in Lane B checks that the memory belongs to the command's SessionRef: CommandsIn's context check compares SessionRef with the context's OwnerRef only, so MemoryOps must refuse another session's memory
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4607,6 +4610,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T17:39:16Z occurrence=34-2-add-and-remove-documents-on-a-documents-page
 - 2026-11-05T19:14:52Z occurrence=34-3-epic-34-burn-down by=burndown note=its_sweep_part_(orphaned_rows)_is_DW-752,built_in_34.3;the_timeout_case_and_Take's_session_check_stay_with_19.4
 - 2026-11-05T22:44:46Z status=routed owner=19-4-answer-from-documents-with-citations by=cr note=34.3 delivered Take's session check (Take(ref,sessionRef) via Ownership.Upload) and the sweep; 19.4 keeps the timeout case
+- 2026-11-08T03:39:48Z status=resolved-by:19-4-answer-from-documents-with-citations by=adjudication note=OnAdd_takes_the_upload_once_with_the_command's_SessionRef;an_empty_take_is_a_failed_row_answered_Ok_0(matrix_Upload_gone,Test.Docs.Ops);34.3_delivered_the_sweep
 
 ### DW-741: Epic 34 merge: Web.Api's OnPreDispatch refuses a POST /v1/documents body over 256 KB with 413 before OcuTalon.Web.Documents (Map-forwarded) runs; 34.2 must declare XData BodyBounds in Api.cls (url /v1/documents) and in Documents.cls (url "")
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4933,11 +4937,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: inherent in the Markdown markers (19.6's decided design)
 - 2026-11-06T23:14:10Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4's splitter escapes or ignores such lines
+- 2026-11-08T03:39:48Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=adjudication note=residual:the_splitter_half_is_done(only_markdown_##_lines_open_sections;\##_is_the_escaped_passage_line);Story_19.7's_extraction_must_write_a_file's_own_##_lines_as_\##
 
 ### DW-833: Test.Docs.Extract:TestNothingStored compares an empty knowledge-base half (no KB table before Story 19.4) and only the $Data flag of the Document globals, so a stray write elsewhere is not caught
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: verification-gap finding
 - 2026-11-06T23:14:10Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 adds the KB half to the signature
+- 2026-11-08T03:39:48Z status=resolved-by:19-4-answer-from-documents-with-citations by=adjudication note=Test.Docs.Extract_Signature()_asserts_the_KB_half_non-empty_and_real_row_counts_in_place_of_the_$Data_flags
 
 ### DW-834: A .dotx/.docm (python-docx ValueError), a .docx with an encrypted zip entry (RuntimeError) or an unsupported zip compression (NotImplementedError) is reported as failed, not as wrong_type, encrypted or damaged
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
@@ -5313,6 +5319,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Q1 AD-31 amendment; Decide.cls call site
 - 2026-11-07T23:30:12Z status=open owner=19-4-answer-from-documents-with-citations by=harvest note=code review: judge a compatibility call or a pinned contract note
 - 2026-11-08T01:47:04Z status=open owner=19-4-answer-from-documents-with-citations by=cr note=cr measured slot C 154U: a one-arg Filter override compiles; a 2-arg $ClassMethod call runs it; no <PARAMETER>
+- 2026-11-08T03:39:48Z status=dropped by=adjudication note=premise_measured_false_by_the_19.4_review_on_slot_C(build_154U):a_one-argument_Filter(text)_override_compiles_and_runs_under_Decide's_two-argument_call
 
 ### DW-892: Demo.Features lists the documents feature on every instance now that Docs.Ops has no STUB parameter, including the online demo, where AddDocument answers not_built until Story 19.5
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: low | footprint: in-epic

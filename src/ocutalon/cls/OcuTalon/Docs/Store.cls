@@ -2,7 +2,8 @@ Include Ensemble
 
 /// The local documents' knowledge base (AD-5, AD-6, AD-21, Story 19.4; Lane A): the table OcuTalonKB.Docs (AI Hub's vector-store table, with its columns
 /// exactly) and the attach of AI Hub's knowledge-base tool "documents" to the Chat agent. This is the only class that names %AI.RAG.VectorStore.IRIS and the
-/// only one that holds the DDL, and it is the only writer of the rows of OcuTalonKB.Docs besides DocumentOps' calls into it.
+/// only one that holds the DDL, and it is the only writer of the rows of OcuTalonKB.Docs besides the calls of OcuTalon.Docs.Ops into it (DocumentOps, and the
+/// evaluation path AddEval and RemoveEval in the caller's process).
 ///   - EnsureTable makes OcuTalonKB.Docs and OcuTalonKB.Docs_Config when one is missing, each with DEFAULTGLOBAL ^OcuTalonP.KBDocs and ^OcuTalonP.KBDocsConfig
 ///     on the CREATE TABLE line (kb-ddl), so every global resolves to OCUTALON_PRIVATE (AD-3, AD-5). It is called before any AI Hub Build().
 ///   - Write embeds passages through OcuTalon.Memory.Embedding.Embed (the worker) and inserts them by SQL: one row for each passage, id <Ref>:<chunk_index>,

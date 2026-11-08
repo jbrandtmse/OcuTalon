@@ -3,7 +3,7 @@
 /// AD-22 says an evaluation run writes no Notification, Delivery or live event; the documents kind adds documents before its turn, so these tests run its setup
 /// (the real EvalIn.DocumentsUp and DocumentsDown, and Finish) and read what it wrote:
 ///   - TestIsolation: a documents case's files become ready documents of the owner eval (OwnerRef and AddedBy eval, passages in the table, sections kept), and the
-///     setup wrote and deleted no Session row, no Upload row, no Delivery row and no live event, and sent no message to DocumentOps; no row of the documents is owned by
+///     setup wrote and deleted no Session row, no Upload row, no Delivery row and no live event, sent no Notification and no message to DocumentOps; no row of the documents is owned by
 ///     the instance or a session, which is all that the documents routes list; DocumentsDown and Finish take the passages and the rows away;
 ///   - TestLongDocument: AddEval indexes a document of more passages than one batch to the end: every passage is a row of the table, the document is ready and
 ///     owned by eval, and RemoveEval takes it away;
@@ -117,12 +117,12 @@ Method MakeCase() As %DynamicObject [ Private ]
 	Quit {"cases": (cases), "folder": (folder)}
 }
 
-/// The counts and marks that an evaluation must not move, as one text: the Session, Upload and Delivery rows (number and highest id) and the message headers
-/// from or to DocumentOps.
+/// The counts and marks that an evaluation must not move, as one text: the Session, Upload and Delivery rows (number and highest id), the message headers
+/// from or to DocumentOps and the message headers of a Notification (AD-22).
 ClassMethod Marks() As %String [ Private ]
 {
 	Set text = ""
-	For sql = "SELECT COUNT(*), MAX(ID) FROM OcuTalon_Data.Session", "SELECT COUNT(*), MAX(ID) FROM OcuTalon_Data.Upload", "SELECT COUNT(*), MAX(ID) FROM OcuTalon_Data.Delivery", "SELECT COUNT(*), MAX(ID) FROM Ens.MessageHeader WHERE TargetConfigName = 'DocumentOps' OR SourceConfigName = 'DocumentOps'" {
+	For sql = "SELECT COUNT(*), MAX(ID) FROM OcuTalon_Data.Session", "SELECT COUNT(*), MAX(ID) FROM OcuTalon_Data.Upload", "SELECT COUNT(*), MAX(ID) FROM OcuTalon_Data.Delivery", "SELECT COUNT(*), MAX(ID) FROM Ens.MessageHeader WHERE TargetConfigName = 'DocumentOps' OR SourceConfigName = 'DocumentOps'", "SELECT COUNT(*), MAX(ID) FROM Ens.MessageHeader WHERE MessageBodyClassName = 'OcuTalon.Msg.Notification'" {
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, sql)
 		Do rs.%Next()
 		Set text = text _ $Select(text = "": "", 1: ";") _ rs.%GetData(1) _ "/" _ rs.%GetData(2)
@@ -170,11 +170,11 @@ Method TestIsolation()
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Document WHERE Ref = ? AND (OwnerRef = 'instance' OR OwnerRef IN (SELECT Ref FROM OcuTalon_Data.Session))", ref)
 	Do rs.%Next()
 	Do $$$AssertEquals(rs.%GetData(1), 0, "no route lists it: the documents routes list the documents of the instance and of a session")
-	Do $$$AssertEquals(..Marks(), before, "the setup wrote no Session, Upload or Delivery row and sent no message to DocumentOps")
+	Do $$$AssertEquals(..Marks(), before, "the setup wrote no Session, Upload or Delivery row and sent no Notification and no message to DocumentOps")
 	Do $$$AssertEquals(..Events(eventMark), 0, "and published no live event")
 	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish([{"case": "zz-eval-documents", "documents": (documents)}]), "Finish answers OK")
 	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref) _ "|" _ $IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(ref)), "0|0", "and takes the passages and the document away")
-	Do $$$AssertEquals(..Marks(), before, "the whole run left the Session, Upload and Delivery rows and the messages to DocumentOps as they were")
+	Do $$$AssertEquals(..Marks(), before, "the whole run left the Session, Upload and Delivery rows, the Notifications and the messages to DocumentOps as they were")
 	Do $$$AssertEquals(..Events(eventMark), 0, "with no live event at all")
 	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish([{"case": "zz-eval-documents", "documents": (documents)}]), "a second Finish of the same record is no error")
 }

@@ -1,7 +1,8 @@
 Include Ensemble
 
 /// DocumentOps (AD-1, AD-4, AD-5, AD-12, AD-21, AD-33; Lane A): the business operation that keeps the documents of a local install. An adapterless operation,
-/// like MemoryOps. It alone writes OcuTalon.Data.Document and the rows of OcuTalonKB.Docs (through OcuTalon.Docs.Store), and it is the single publisher of the
+/// like MemoryOps. It alone writes OcuTalon.Data.Document and the rows of OcuTalonKB.Docs (through OcuTalon.Docs.Store), with the one exception of the evaluation
+/// path of this class (AddEval and RemoveEval, below), which writes only documents of the owner eval in the caller's process, and it is the single publisher of the
 /// document live event (OcuTalon.Live.Payload.Document, on the instance stream). It answers AddDocument and RemoveDocument synchronously with an
 /// OcuTalon.Msg.CommandResult, and indexes asynchronously: a message to itself (OcuTalon.Docs.Msg.Index) indexes BATCH passages at a time, so the commands that
 /// queue meanwhile are handled between the batches.

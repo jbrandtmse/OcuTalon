@@ -421,7 +421,8 @@ Method TestSeedAllowList()
 
 /// SeedClassification (Story 19.4; AD-5) writes the System Default Setting row (production, Decide, any class, ToolClassification) with the product's entry for the
 /// documents search, merging with the row it finds: a missing or blank row becomes the product's entries; the developer's entries stay in their places, a wrong
-/// documents entry is replaced in its place (and a repeated one dropped), a second run changes nothing, and a row that is not a JSON array is left as it is
+/// documents entry is replaced in its place (and a repeated one dropped), a second run changes nothing, a row that already holds the result is not written
+/// again (its text and description stay), an element that is not an object is kept as it is, and a row that is not a JSON array is left as it is
 /// with one warning. The oracle's Decide item holds no ToolClassification setting (TestDefinition). The rows are those of the fixture production.
 Method TestSeedClassification()
 {
@@ -451,6 +452,14 @@ Method TestSeedClassification()
 		Do ..PutClassification(fixture, "["_dev1_","_wrong_","_dev2_","_wrong_"]")
 		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a row with a wrong documents entry, twice")
 		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide=["_dev1_","_docs_","_dev2_"]", "and replaces the first in its place, drops the repeat and keeps the developer's entries")
+
+		Set spaced = "[ "_dev1_" , "_docs_" ]"
+		Do ..PutClassification(fixture, spaced)
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a row that already holds the product's entry, written with spaces")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification")_"|"_##class(Ens.Config.DefaultSettings).%OpenId(fixture_"||Decide||*||ToolClassification").Description, "Decide="_spaced_"|Zz test row", "and does not write it again: its text and its description stay")
+		Do ..PutClassification(fixture, "["_dev1_",null,true]")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a row with a null and a true element")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide=["_dev1_",null,true,"_docs_"]", "and keeps those elements as they are")
 
 		Do ..PutClassification(fixture, " "_$Char(10))
 		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a blank row")

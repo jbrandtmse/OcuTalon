@@ -36,22 +36,19 @@ Method OnAfterOneTest(testname As %String) As %Status
 
 /// The rows are the 19 built-in tools: the 12 of release 1 (Tools.Names RELEASE1), propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), since Story 17.6, send_digest (Tools.Names DIGESTTOOLS), the four memory tools (Tools.Names MEMORYTOOLS, Story 19.3) and documents (Tools.Names DOCUMENTS, Story 19.4: AI Hub's knowledge base, a row that comes from the product's classification entry and not from a toolset), sorted by name, none of them a fixture or the bridge's example agent, and the
 /// classification, the read-only flag and the trusted-output flag of each row are those that the gate gives (Gate.ClassificationOf); for a tool that
-/// classifies by its arguments only the two flags are compared, since its classification is decided per call.
+/// classifies by its arguments only the two flags are compared, since its classification is decided per call. The test seeds Decide's ToolClassification
+/// row through the install step first, so that the gate reads the product's entry, and puts the row back exactly as it found it.
 Method TestToolRows()
 {
-	Set id = ..#PRODUCTION_"||Decide||*||ToolClassification"
-	Set held = $Select(##class(Ens.Config.DefaultSettings).%ExistsId(id): ##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue, 1: $Char(0))
+	Set saved = ""
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.saved, "Decide", "ToolClassification")
 	Try {
 		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedClassification(..#PRODUCTION), "the install step has seeded the ToolClassification row that the gate reads")
 		Do ..CheckToolRows()
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the rows are checked without an exception")
 	}
-	If held = $Char(0) {
-		If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
-	} ElseIf ##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue '= held {
-		Do ##class(OcuTalon.Install.Step.Production).WriteDefault(..#PRODUCTION, "Decide", "ToolClassification", held, "Put back by Test.Install.SecurityOverview.")
-	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(saved), "the ToolClassification row of Decide is put back exactly as it was found: its value and description, or no row")
 }
 
 /// The rows of ToolRows against the gate's classification, flags and the classes of OcuTalon.Tools.

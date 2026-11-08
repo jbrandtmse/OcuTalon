@@ -6495,6 +6495,7 @@ So that I don't have to turn them into Markdown first.
 - DW-828: a timed-out read cannot stop a single long C call (a decompression bomb can keep Read past its limit); bound it before the call (page or size caps) (ledger; routed by harvest 2026-11-06)
 - DW-831: Word text inside body-level content controls (w:sdt) and nested tables is not read; a file made only of content controls answers no_text (ledger; routed by harvest 2026-11-06)
 - DW-894: indexing costs one Embedder round trip (about 0.33 s) per passage, so large PDF and Word files take minutes to become ready: batch or parallelise the embedding (ledger; routed by harvest 2026-11-07)
+- DW-832: a line of a file's own text that starts with `## ` is indistinguishable from an extraction heading marker; Story 19.4's splitter opens sections only on a markdown document's `## ` lines and reads `\## ` as an escaped passage line, so this story's extraction must write a PDF's or Word file's own `## ` lines as `\## ` (ledger; routed by adjudication 2026-11-08)
 
 ### Story 19.8: Epic 19 burn-down
 

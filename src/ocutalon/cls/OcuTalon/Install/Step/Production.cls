@@ -15,8 +15,8 @@ Include Ensemble
 /// and one AgentAllowList row for every item, holding the AgentClass values of the runners, when no runner resolves an
 /// allow-list (AD-6, AD-19). It also seeds the product's entry for the documents search into the System Default Settings row of
 /// Decide's ToolClassification (AD-5, AD-10, Story 19.4), merging with what the row holds: every other entry stays, a different
-/// entry for the same class and tool is replaced, and a row that is not a JSON array is left as it is with one warning, so that the
-/// documents call stays unclassified and is held. The step never saves the production and never enables an item through the director.
+/// entry for the same class and tool is replaced, and a row that is not a JSON array is left as it is with one warning (the gate, which
+/// cannot read it, then denies the documents call). The step never saves the production and never enables an item through the director.
 /// What it does with the production it finds:
 ///   - running, this production: restarts it, so every item gets its job again;
 ///   - running, Troubled or Suspended under another name: fails naming it, and stops, recovers and starts nothing;
@@ -290,8 +290,9 @@ ClassMethod ClassificationEntries() As %DynamicArray
 /// Seeds the System Default Setting row (production, Decide, any class, ToolClassification) with the product's entries (ClassificationEntries),
 /// merged with what the row holds (AD-5): a missing or blank row becomes the entries; in an existing JSON array every other entry stays, in its
 /// place, the first entry for the same class and tool is replaced by the product's and any further one for that pair is dropped; a row that already
-/// holds exactly that is not written again. A row that is not a JSON array is left as it is with one warning, and so is a row that cannot be written:
-/// the documents call is then unclassified and the gate holds it, which is the safe direction. The step runs at every start, so a reinstall restores the entry.
+/// holds exactly that is not written again. A row that is not a JSON array is left as it is with one warning, and the gate, which cannot read it, denies the
+/// documents call; a row that cannot be read or written is left as it is with one warning too, and the documents call, unclassified, is held. Both are the safe
+/// direction. The step runs at every start, so a reinstall restores the entry.
 ClassMethod SeedClassification(production As %String) As %Status
 {
 	Set id = production_"||"_..#CLASSIFYITEM_"||*||"_..#CLASSIFYSETTING
@@ -299,19 +300,19 @@ ClassMethod SeedClassification(production As %String) As %Status
 	If ##class(Ens.Config.DefaultSettings).%ExistsId(id) {
 		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id, , .sc)
 		If $$$ISERR(sc) {
-			Do ..WarnClassification("the row cannot be read: "_$SYSTEM.Status.GetOneStatusText(sc))
+			Do ..WarnClassification("the row cannot be read: "_$SYSTEM.Status.GetOneStatusText(sc), 0)
 			Quit $$$OK
 		}
 		Set current = row.SettingValue
 	}
 	Set merged = ..MergeClassification(current, ..ClassificationEntries(), .reason)
 	If reason '= "" {
-		Do ..WarnClassification(reason)
+		Do ..WarnClassification(reason, 1)
 		Quit $$$OK
 	}
 	If merged = "" Quit $$$OK
 	Set sc = ..WriteDefault(production, ..#CLASSIFYITEM, ..#CLASSIFYSETTING, merged, "Seeded by the Production install step with the product's entry for the documents search, merged with the entries already here; the step keeps every other entry.")
-	If $$$ISERR(sc) Do ..WarnClassification("the row cannot be written: "_$SYSTEM.Status.GetOneStatusText(sc))
+	If $$$ISERR(sc) Do ..WarnClassification("the row cannot be written: "_$SYSTEM.Status.GetOneStatusText(sc), 0)
 	Quit $$$OK
 }
 
@@ -333,10 +334,10 @@ ClassMethod MergeClassification(current As %String, entries As %DynamicArray, Ou
 	Set merged = []
 	Kill placed
 	Set iterator = held.%GetIterator()
-	While iterator.%GetNext(, .entry) {
+	While iterator.%GetNext(, .entry, .type) {
 		Set product = ..SamePair(entry, entries)
 		If product = "" {
-			Do merged.%Push(entry)
+			Do merged.%Push(entry, $Select((type = "null") || (type = "boolean"): type, 1: ""))
 			Continue
 		}
 		Set key = product.class_$Char(1)_product.tool
@@ -365,10 +366,11 @@ ClassMethod SamePair(entry As %DynamicAbstractObject, entries As %DynamicArray) 
 	Quit product
 }
 
-/// The one warning of a ToolClassification row that the step leaves alone.
-ClassMethod WarnClassification(why As %String) [ Private ]
+/// The one warning of a ToolClassification row that the step leaves alone; denied is 1 when the gate cannot read the row (it is not a JSON array) and so
+/// denies the documents search, 0 when the search is only left unclassified, which the gate holds.
+ClassMethod WarnClassification(why As %String, denied As %Boolean) [ Private ]
 {
-	Do ..Warn("The System Default Setting "_..#CLASSIFYSETTING_" of "_..#CLASSIFYITEM_" was left as it is ("_why_"), so the documents search is unclassified and the gate holds it for approval.")
+	Do ..Warn("The System Default Setting "_..#CLASSIFYSETTING_" of "_..#CLASSIFYITEM_" was left as it is ("_why_"), so "_$Select(denied: "the gate cannot read it and denies the documents search.", 1: "the documents search may be unclassified, and the gate then holds it for approval."))
 }
 
 /// 1 when a System Default Setting row of any specificity exists for the adapter setting of the runner item, whatever its
