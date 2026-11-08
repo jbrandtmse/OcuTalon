@@ -67,3 +67,4 @@
 2026-11-08T20:04:15Z	Story 18.4	owner_decision	id=U-312 at=2026-11-08T20:03:06Z#950 via=inbox by=owner(relayed_by_orchestrator) answer=keep:Handled.Purge_uses_AD-27_DaysToKeep_90_no_new_number applied=spec_change_log
 2026-11-08T20:04:15Z	Story 18.4	owner_decision	id=U-313 at=2026-11-08T20:03:06Z#951 via=inbox by=owner(relayed_by_orchestrator) answer=keep:two_nullable_columns_no_migration+pin_older_row_renders applied=spec_task_added
 2026-11-08T20:04:15Z	Story 18.4	ruling	question=public_text_18.4(6_rows) choice=approved_as_listed key=planner-2026-11-08-18.4 grant=U-177(a)_one_call_Install/Step/Core.cls_Purge demo_path=exactly_one_phone_digest_note spine_at_close=AD-14_as-built,Notice_cards_row,REST_row(AD-27_waits) by=orchestrator(Contest_Planner) category=veto policy=5086036
+2026-11-08T21:18:36Z	Epic 18	ci_resolved	story=integrate_forward sha=676ac876 runs=42516519577,42516519528 result=success failed=none via=none resolved_at=next_plan
