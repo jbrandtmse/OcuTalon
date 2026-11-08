@@ -1,0 +1,30 @@
+{
+  "name": "documents-then-save",
+  "match": {
+    "marker": "documents-then-save"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "documents",
+        "input": {
+          "query": "how do I rotate the Results certificate?"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "save_memory",
+        "input": {
+          "text": "the Results certificate is rotated in March"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock tried to save a memory."
+    }
+  ]
+}

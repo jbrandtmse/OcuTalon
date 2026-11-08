@@ -42,6 +42,9 @@ Property Fallback As %Boolean [ InitialExpression = 0 ];
 /// The fallback reason: one of Msg.Enum FALLBACKREASON. Empty when Fallback is false.
 Property FallbackReason As %String(MAXLEN = 32);
 
+/// The citations of the Reply's HostData as a JSON array, for a documents case (Story 19.4); empty when the Reply carried none.
+Property Citations As %String(MAXLEN = "");
+
 Storage Default
 {
 <Data name="TurnResultDefaultData">
@@ -75,6 +78,9 @@ Storage Default
 </Value>
 <Value name="10">
 <Value>FallbackReason</Value>
+</Value>
+<Value name="11">
+<Value>Citations</Value>
 </Value>
 </Data>
 <DefaultData>TurnResultDefaultData</DefaultData>

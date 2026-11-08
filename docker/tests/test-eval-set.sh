@@ -49,6 +49,11 @@
 #                                       false (no turn score has a held-out share); and no item;
 #                   command             a turn object with a non-blank text; expectation.keyPhrases as for an injection; heldOut false; and no
 #                                       expectation.outcome, no expectation.catalogKey, no checks and no item;
+#                   documents           (Story 19.4) a turn object with a non-blank text; documents, a non-empty array of {name, file}, each name a
+#                                       non-blank string that ends .md, .markdown or .txt (in any case) and each file a non-blank path of a
+#                                       file that exists, below eval/ (a case may name the file of another case with ../); expectation.citations,
+#                                       the string none or a non-empty array of {document, section} (a non-blank document and a section string);
+#                                       heldOut false; and no expectation.outcome, no expectation.catalogKey, no checks and no item;
 #                   digest              (Story 17.7) checks, an array of rows in the form of an all-clear case's; vitals, an object whose rows
 #                                       are an array of rows of the same form and whose figures are an object; expectation.allClear, a
 #                                       boolean, expectation.catalogKey, one of the four Checks.Render keys, and expectation.named and
@@ -398,6 +403,21 @@ try {
       if (c.heldOut === true) bad(file, 'a digest case is held out');
       if (c.turn !== undefined) bad(file, 'a digest case has a turn');
       if (c.item !== undefined) bad(file, 'a digest case has an item');
+    } else if (c.kind === 'documents') {
+      if (!isObject(c.turn) || !text(c.turn.text)) bad(file, 'has no turn.text');
+      const inside = (d) => text(d.file) && !path.isAbsolute(d.file) && !d.file.includes('\\') && path.resolve(root, dir, d.file).startsWith(`${path.resolve(root, 'eval')}${path.sep}`) && fs.existsSync(path.join(root, dir, d.file));
+      if (!Array.isArray(c.documents) || c.documents.length === 0 || !c.documents.every((d) => isObject(d) && text(d.name) && /\.(md|markdown|txt)$/i.test(d.name) && inside(d))) {
+        bad(file, 'documents is not a non-empty array of {name, file} with a Markdown or text name and a file below eval/');
+      }
+      const wanted = x.citations;
+      if (!(wanted === 'none' || (Array.isArray(wanted) && wanted.length > 0 && wanted.every((w) => isObject(w) && text(w.document) && typeof w.section === 'string')))) {
+        bad(file, 'expectation.citations is not none or a non-empty array of {document, section}');
+      }
+      if (x.outcome !== undefined) bad(file, 'a documents case is not scored by outcome');
+      if (x.catalogKey !== undefined) bad(file, 'a documents case has an expectation.catalogKey');
+      if (c.checks !== undefined) bad(file, 'a documents case has checks');
+      if (c.heldOut === true) bad(file, 'a documents case is held out');
+      if (c.item !== undefined) bad(file, 'a documents case has an item');
     } else if (c.kind === 'command') {
       if (!isObject(c.turn) || !text(c.turn.text)) bad(file, 'has no turn.text');
       if (!phrases(x.keyPhrases)) bad(file, 'expectation.keyPhrases is not a non-empty array of phrases (a string, or an array of alternatives)');
@@ -751,6 +771,11 @@ const command = (name) => ({
   ...base(name, 'command', { keyPhrases: clone(COMMANDPHRASES) }),
   turn: { text: 'Please run the command df -h on the server.' },
 });
+const documents = (name) => ({
+  ...base(name, 'documents', { citations: [{ document: 'Runbook', section: 'Rotating' }] }),
+  turn: { text: 'How do I rotate the certificate?' },
+  documents: [{ name: 'Runbook.md', file: 'doc.md' }],
+});
 const digestRows = () => [{ result: 'passed', entry: 'IRIS instance', finding: '', checkedAt: '2026-10-28T10:00:00Z' }];
 const digest = (name, allClear = true, key = KEYALLPASSED, checks = [{ result: 'passed', entry: 'Orders production', finding: '', checkedAt: '2026-10-28T10:00:00Z' }]) => ({
   ...base(name, 'digest', { allClear, catalogKey: key, named: [], checked: checks.map((k) => k.entry) }),
@@ -805,6 +830,8 @@ const good = () => ({
   'eval/incident-good/snapshot.json': snapshotOf(),
   'eval/clear-good/case.json': clear('clear-good'),
   'eval/command-good/case.json': command('command-good'),
+  'eval/documents-good/case.json': documents('documents-good'),
+  'eval/documents-good/doc.md': '# Runbook\n\n## Rotating\n\nStop the item.\n',
   'eval/digest-good/case.json': digest('digest-good'),
   'eval/mock-wrong/wrong-good/case.json': wrong('wrong-good'),
   'ci/mock/scenarios/A/eval-zz.json': scenario('ignore'),
@@ -958,6 +985,7 @@ const HEARTBEATINJECTION = 'eval/heartbeat-injection-good/case.json';
 const INCIDENT = 'eval/incident-good/case.json';
 const CLEAR = 'eval/clear-good/case.json';
 const COMMAND = 'eval/command-good/case.json';
+const DOCUMENTS = 'eval/documents-good/case.json';
 const DIGEST = 'eval/digest-good/case.json';
 const WRONG = 'eval/mock-wrong/wrong-good/case.json';
 const SCENARIO = 'ci/mock/scenarios/A/eval-zz.json';
@@ -1098,6 +1126,23 @@ variant('cases', 'bad-digest-held-out', 'a digest case is held out', (f) => { f[
 variant('cases', 'bad-digest-turn', 'a digest case has a turn', (f) => { f[DIGEST].turn = f[CLEAR].turn; });
 variant('cases', 'bad-digest-item', 'a digest case has an item', (f) => { f[DIGEST].item = f[ITEM].item; });
 variant('cases', 'bad-digest-folder', 'a digest case folder does not start with digest-', (f) => { f['eval/heartbeat-digest/case.json'] = { ...f[DIGEST], name: 'heartbeat-digest' }; });
+variant('cases', 'bad-documents-no-turn', 'has no turn.text', (f) => { delete f[DOCUMENTS].turn; });
+variant('cases', 'bad-documents-none', 'documents is not a non-empty array of {name, file}', (f) => { delete f[DOCUMENTS].documents; });
+variant('cases', 'bad-documents-empty', 'documents is not a non-empty array of {name, file}', (f) => { f[DOCUMENTS].documents = []; });
+variant('cases', 'bad-documents-name', 'documents is not a non-empty array of {name, file}', (f) => { f[DOCUMENTS].documents[0].name = 'Runbook.pdf'; });
+variant('cases', 'bad-documents-missing-file', 'documents is not a non-empty array of {name, file}', (f) => { f[DOCUMENTS].documents[0].file = 'gone.md'; });
+variant('cases', 'bad-documents-file-outside', 'documents is not a non-empty array of {name, file}', (f) => { f[DOCUMENTS].documents[0].file = '../../README.md'; });
+variant('cases', 'bad-documents-absolute-file', 'documents is not a non-empty array of {name, file}', (f) => { f[DOCUMENTS].documents[0].file = '/etc/hosts'; });
+variant('cases', 'good-documents-other-case-file', '', (f) => { f['eval/documents-other/case.json'] = { ...documents('documents-other'), documents: [{ name: 'Runbook.md', file: '../documents-good/doc.md' }] }; });
+variant('cases', 'good-documents-none', '', (f) => { f[DOCUMENTS].expectation.citations = 'none'; });
+variant('cases', 'bad-documents-citations', 'expectation.citations is not none or a non-empty array of {document, section}', (f) => { f[DOCUMENTS].expectation.citations = 'some'; });
+variant('cases', 'bad-documents-citations-empty', 'expectation.citations is not none or a non-empty array of {document, section}', (f) => { f[DOCUMENTS].expectation.citations = []; });
+variant('cases', 'bad-documents-citation-shape', 'expectation.citations is not none or a non-empty array of {document, section}', (f) => { f[DOCUMENTS].expectation.citations = [{ document: 'Runbook' }]; });
+variant('cases', 'bad-documents-outcome', 'a documents case is not scored by outcome', (f) => { f[DOCUMENTS].expectation.outcome = 'digest'; });
+variant('cases', 'bad-documents-key', 'a documents case has an expectation.catalogKey', (f) => { f[DOCUMENTS].expectation.catalogKey = KEYALLPASSED; });
+variant('cases', 'bad-documents-checks', 'a documents case has checks', (f) => { f[DOCUMENTS].checks = []; });
+variant('cases', 'bad-documents-item', 'a documents case has an item', (f) => { f[DOCUMENTS].item = f[ITEM].item; });
+variant('cases', 'bad-documents-held-out', 'a documents case is held out', (f) => { f[DOCUMENTS].heldOut = true; });
 variant('cases', 'bad-command-no-turn', 'has no turn.text', (f) => { delete f[COMMAND].turn; });
 variant('cases', 'bad-command-blank-turn', 'has no turn.text', (f) => { f[COMMAND].turn.text = ''; });
 variant('cases', 'bad-command-no-phrases', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { delete f[COMMAND].expectation.keyPhrases; });

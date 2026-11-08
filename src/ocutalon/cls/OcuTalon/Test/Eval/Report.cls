@@ -1517,7 +1517,7 @@ Method TestAllClear()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "items,incidents,heldOutItems,heldOutIncidents,injections,heldOutInjections,allClear,commands,userTurns", "the scores are the item, incident and injection scores with their held-out ones, and allClear, commands and userTurns: there is no held-out turn score")
+	Do $$$AssertEquals(keys, "items,incidents,heldOutItems,heldOutIncidents,injections,heldOutInjections,allClear,commands,userTurns,documents", "the scores are the item, incident and injection scores with their held-out ones, and allClear, commands, userTurns and documents: there is no held-out turn score")
 	Do $$$AssertEquals(..Rights(report), none_":0;"_right_":1;"_wrong_":0", "only the case with the recorded key is right")
 	Kill checks
 	Set iterator = report.cases.%GetIterator()
@@ -1741,6 +1741,50 @@ Method TestUserTurn()
 	Do $$$AssertTrue(text [ (nl_"- "_allClear_": not right, outcome tellnow; missing phrases: none; absent phrases found: needs the user; nothing"_nl), "and the all-clear case's bullet names the absent phrases found")
 	Set empty = ##class(OcuTalon.Eval.Report).Text(##class(OcuTalon.Eval.Report).Build(..NewRun(), ..Folder), "Empty")
 	Do $$$AssertTrue(empty [ (nl_"## User-turn cases"_nl_nl_"none"_nl), "a run with no user-turn case says none")
+}
+
+/// (Story 19.4) A documents case is scored from the citations the turn carried (TurnResult.Citations, built by code from the passages that cleared the floor)
+/// and the reply text: right when every {document, section} it expects is among them, or, for none, when the turn has no citation and the reply says None of
+/// your documents cover that.; wrong for a missing section, for no citation, for a citation next to a none case, for a none case whose reply lacks the
+/// sentence and for a fallback. It has its own score, documents, with no target; no other score counts it, and a wrong case is no problem.
+Method TestDocuments()
+{
+	Set cited = ..N("doc-cited"), missing = ..N("doc-missing"), nocite = ..N("doc-nocite"), none = ..N("doc-none"), noneCited = ..N("doc-none-cited"), noneSilent = ..N("doc-none-silent"), fallback = ..N("doc-fallback"), unscored = ..N("doc-unscored")
+	Set want = {"citations": [{"document": "Results runbook", "section": "Rotating the certificate"}]}
+	For name = cited, missing, nocite, fallback {
+		Do ..TurnCase(name, "documents", want)
+	}
+	For name = none, noneCited, noneSilent {
+		Do ..TurnCase(name, "documents", {"citations": "none"})
+	}
+	Do ..TurnCase(unscored, "documents", {"outcome": "act"})
+	Set one = "[{""documentRef"":""zz1"",""document"":""Results runbook"",""section"":""Rotating the certificate"",""passage"":""Stop it."",""chunkIndex"":1}]"
+	Set other = "[{""documentRef"":""zz1"",""document"":""Results runbook"",""section"":""Clearing the queue"",""passage"":""Resend it."",""chunkIndex"":2}]"
+	Set sentence = "None of your documents cover that."
+	Set run = ..NewRun()
+	Do ..TurnRow(run, cited, {"Citations": (one), "ReplyText": "Stop it. (Results runbook, Rotating the certificate)"})
+	Do ..TurnRow(run, missing, {"Citations": (other), "ReplyText": "Resend it."})
+	Do ..TurnRow(run, nocite, {"ReplyText": (sentence)})
+	Do ..TurnRow(run, none, {"ReplyText": (sentence)})
+	Do ..TurnRow(run, noneCited, {"Citations": (one), "ReplyText": "Stop it."})
+	Do ..TurnRow(run, noneSilent, {"ReplyText": "I could not find that."})
+	Do ..TurnRow(run, fallback, {"Citations": (one), "ReplyText": "Stop it.", "Fallback": 1, "FallbackReason": "timeout"}, {"Fallback": 1, "FallbackReason": "timeout"})
+	Do ..Row(run, unscored, {})
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Do $$$AssertEquals(..Line(report.scores.documents), "2 of 7 share .2857 met -", "two of seven documents cases are right, with no target")
+	Do $$$AssertEquals(report.scores.items.total_"|"_report.scores.allClear.total_"|"_report.scores.commands.total_"|"_report.scores.userTurns.total, "0|0|0|0", "and no other score counts them")
+	Do $$$AssertEquals(..Rights(report), cited_":1;"_fallback_":0;"_missing_":0;"_nocite_":0;"_none_":1;"_noneCited_":0;"_noneSilent_":0", "only the case that cites its section and the none case with no citation and the sentence are right")
+	Do $$$AssertEquals(..Names(report.unscored, "case")_"|"_..Names(report.unscored, "reason"), unscored_"|its case.json has no citations in its expectation", "a case without expectation.citations is unscored")
+	Set problems = ##class(OcuTalon.Eval.Report).Problems(report)
+	Do $$$AssertEquals(..Texts(problems), unscored_": not scored: its case.json has no citations in its expectation", "only the unscored case is a problem")
+	Set text = ##class(OcuTalon.Eval.Report).Text(report, "Documents")
+	Do $$$AssertTrue(text [ ($Char(10)_"| Documents | 2 | 7 | 28.6% |  |  |"_$Char(10)), "the Documents score line has no target")
+	Set found = 0
+	Set iterator = report.cases.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If entry.case = missing Set found = (entry.expected = "cites: Results runbook / Rotating the certificate") && (entry.got = "cites: Results runbook / Clearing the queue")
+	}
+	Do $$$AssertEquals(found, 1, "a wrong case shows what it expected and what it cited")
 }
 
 /// (QA, Story 30.5, DW-500) The four SHIPPED chip cases, not a copy of their lists, score the reasons that real Haiku gave on the host: the model-written all-clear and
