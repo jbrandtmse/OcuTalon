@@ -2699,3 +2699,8 @@
 2026-11-08T06:54:37Z	Epic 9	runner_complete	agent=ab2b48e59bf60d65e stories=1(9.11) head=21d50316 ci=success(42453224774,42453224770) decisions_for_user=DW-908,DW-909 applied=DW-878+REASONPACED+SM-2+unions+DW-902 release_tool_hunks=none
 2026-11-08T06:54:37Z	Epic 9	amendments_verified	amendments=2(epics.md_9.11_charter+DW-902_bullet) extensions=4(Eval/Report.cls,Test/Eval/Report.cls,Test/Eval/Cases.cls,eval/user-turn-forget/;ruled_plain_unions) ok=true
 2026-11-08T06:54:37Z	Epic 9	merge_enqueued	policy=when_green retro=skipped(policy)
+2026-11-08T06:55:04Z	Epic 9	epic_merged_to_feature	merge=a315ed3f head=21d50316 story=9.11 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0(897=expected) sprint_valid=yes(epic-9_done) feature_ci=pending
+2026-11-08T06:55:04Z	Epic 9	decision_sheet_recorded	decided=2(DW-909:resolved-by_9.11;DW-908:routed_burndown_next_eval_story_after_the_v1.0.4_merge-back) to_action_items=0 to_x0=0 by=merge_gate category=decide
+2026-11-08T06:55:04Z	Run	deps_hash_rerecorded	reason=fix_forward story=9.11 hash=dc7dd9e96536
+2026-11-08T06:55:04Z	Epic 9	worktree_removed	path=.worktrees/epic-9
+2026-11-08T06:55:04Z	Epic 9	epic_branches_deleted	local+remote=OCT-epic9
