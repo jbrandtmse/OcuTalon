@@ -2,14 +2,21 @@
 title: 'Story 9.11: The evaluation paces its incident cases so none waits out its timer in a queue'
 type: 'bugfix'
 created: '2026-11-08'
-status: 'in-progress'
-baseline_revision: 'a811cf179630729616db7b3959fd9fb2b89c0951'
+status: 'done'
+baseline_revision: '7f7d1a9bb79b881ce22bd222319b253f57329f6e'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-9-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      No test pins the content of eval/user-turn-forget/case.json (turn text, key phrases, the 14 absent phrases, heldOut false, recordedBy), and the count pin accepts any fifth user-turn case.
+    evidence: |-
+      Test.Eval.Cases TestUserTurnCases checks the forget case only through the count of kind user-turn; its wanted list and the recordedBy assertion are the four chip cases'. Test.Eval.Report TestShippedChipCasesScoreTheHostReasons lists the four chips only. Both files are contended and the ruling for this item allows only the count pin and two doc lines in Cases.cls. Settled by: after the integrate-forward over Story 30.9, give Cases.cls a forget (and remember) entry with its own recordedBy and an existence assertion, and add the case to the Report.cls loop.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls:249, src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls:1759
+    severity: medium
 ---
 
 <intent-contract>
@@ -215,7 +222,7 @@ Paths are relative to the repository root. Class paths are under `src/ocutalon/c
   - the header bullet at :48-49 gains the exception: a skipped incident case counts as not right in SM-2's incidents (any other skip is still scored in nothing);
   - `TestSkipped` (:1108): the incidents expectation becomes `"0 of 1 share 0 met 0"`, with a message saying the skipped incident case counts as not right;
   - `TestText` (:1268): the `Incidents (SM-2)` row takes the exact text the run gives for 0 right of 1 (run the class, read the row, pin it verbatim).
-- [ ] [Ledger] DW-902 (RULED 2026-11-08, orchestrator, decide; the Contest Planner said yes under the owner's delegation): add the eval case `eval/user-turn-forget/case.json` (a NEW folder; never edit another case), the forget half of Story 30.9's Triage sentence. It has the SAME shape and scoring as Story 30.9's `eval/user-turn-remember/case.json` (on `origin/OCT-epic30`; read it with `git show origin/OCT-epic30:eval/user-turn-remember/case.json`, do not check it out): `name` `user-turn-forget`, `kind` `user-turn`, `heldOut` false, `turn.text` exactly `Forget that the Orders partner contact is Kim.` (ruled by the Planner, eval data), the same `expectation` (`keyPhrases` `[["user"]]` and the same `absentPhrases` list, in the same order), a `description` that mirrors the remember case's for a forget request (right only when Triage decides tell now with no fallback, which needs a reply that gives a confidence, and its reasons only classify the turn as the user's own message; cite Story 9.11 and DW-902), and `recordedBy` `written for the evaluation set (Story 9.11, DW-902)`; plain ASCII, the remember case's key order and formatting. It is report-only like the other user-turn cases (no target).
+- [x] [Ledger] DW-902 (RULED 2026-11-08, orchestrator, decide; the Contest Planner said yes under the owner's delegation): add the eval case `eval/user-turn-forget/case.json` (a NEW folder; never edit another case), the forget half of Story 30.9's Triage sentence. It has the SAME shape and scoring as Story 30.9's `eval/user-turn-remember/case.json` (on `origin/OCT-epic30`; read it with `git show origin/OCT-epic30:eval/user-turn-remember/case.json`, do not check it out): `name` `user-turn-forget`, `kind` `user-turn`, `heldOut` false, `turn.text` exactly `Forget that the Orders partner contact is Kim.` (ruled by the Planner, eval data), the same `expectation` (`keyPhrases` `[["user"]]` and the same `absentPhrases` list, in the same order), a `description` that mirrors the remember case's for a forget request (right only when Triage decides tell now with no fallback, which needs a reply that gives a confidence, and its reasons only classify the turn as the user's own message; cite Story 9.11 and DW-902), and `recordedBy` `written for the evaluation set (Story 9.11, DW-902)`; plain ASCII, the remember case's key order and formatting. It is report-only like the other user-turn cases (no target).
   - `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` `TestUserTurnCases` (RULED: a plain union with Epic 19's and Story 30.9's non-overlapping hunks): this branch does not have 30.9's remember case yet, so the count pin becomes `5` (`eval/ holds exactly five user-turn cases`), and the two doc lines (the header bullet :16 and the method doc :236) add `and one forget case (Story 9.11, DW-902)`. At the integrate-forward over 30.9 the lead takes the union (6, both cases named). Touch nothing else in the file; check whether the test also checks the new case's fields and that it passes.
   - Check every other pin that counts or lists eval cases or user-turn cases (for example `Test.Eval.PersonaSweep`, `Test.Eval.Report`, `docker/tests/test-eval-set.sh`) and run the ones that read `eval/`; if one trips and needs an edit outside this item's two files, HALT `blocked` with `intent gap: <file and line>` (contended or frozen) rather than editing it.
 - No edit: `Test/Eval/Cases.cls` (except the [Ledger] DW-902 pin above), `Test/Eval/Switch.cls` -- run them unchanged (AC5, AC6) -- `TestRecordedCases` relies on the double's default answer, and `Switch` pins the disabled `EvalIn`.
@@ -274,6 +281,26 @@ Paths are relative to the repository root. Class paths are under `src/ocutalon/c
   - `[low]` `[patch]` (verification-gap) `TestSendsIncident`'s `If $IsObject(first)` guard can never fail -- replaced by an assertion that the row exists.
   - `[low]` `[reject]` (verification-gap, other) The `$IsObject(case) &&` guard in `AddSkipped` is unreachable -- harmless, and the spec words it ("0 when the case.json cannot be read").
   - (intent-alignment) No finding: it reports reading B (any skipped incident case is scored) as implemented, and the unit surface of the tests against CI's end-to-end surface (AC5), both as the spec states.
+
+### 2026-11-07 -- Review pass (DW-902 follow-up; AC8 only)
+- verdicts: 15 findings -- high 0, medium 8, low 7, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (blind) The two `Cases.cls` doc lines say "exactly four ... and one forget case ... each with the chip's exact text" -- the wording is the ruled insert ("add `and one forget case (Story 9.11, DW-902)`"), so a reword edits a ruled hunk; cosmetic.
+  - `[medium]` `[defer]` (blind) No test asserts the forget case's fields (`TestUserTurnCases`'s `wanted` list holds the four chips and hard-codes their `recordedBy`) -- real; the fix edits `Test/Eval/Cases.cls` beyond the ruled count pin and two doc lines ("touch nothing else"), a contended file, so it is deferred (see `deferred:`).
+  - `[medium]` `[defer]` (blind) The count pin counts any `user-turn` case, so a renamed or emptied forget case still passes -- same root cause and same fix as the row above.
+  - `[low]` `[reject]` (blind) The item's required pin audit (`PersonaSweep`, `Report`, `test-eval-set.sh`) has no record in the diff -- the record is this pass's `## Auto Run Result`; `PersonaSweep`, `Report` and `test-eval-set.sh` ran green and read no user-turn count.
+  - `[low]` `[reject]` (blind) The "non-overlapping hunks" claim: 30.9 may edit the same count line and doc lines -- the integrate-forward over 30.9 is the lead's (ruled a plain union, count 6, both cases named); not this story's code.
+  - `[low]` `[reject]` (blind) The description says "the forget counterpart of the remember request", and `eval/user-turn-remember` is not on this branch yet -- eval data, harmless prose that resolves at the integrate-forward over 30.9; it is not scored.
+  - `[low]` `[reject]` (blind) The AC8 mutation covers only `kind` -- Rule 19 asks for one mutation per AC; a content mutation would be red only with the field test deferred above.
+  - `[medium]` `[defer]` (edge) Fields of the forget case not asserted -- same root cause as the second row.
+  - `[medium]` `[defer]` (edge) The count of five is met by any `user-turn` folder; no assertion that `user-turn-forget` exists -- same root cause as the third row.
+  - `[low]` `[reject]` (edge) The doc lines contradict the pin and the chip text -- same as the first row.
+  - `[medium]` `[defer]` (edge) `Test.Eval.Report` `TestShippedChipCasesScoreTheHostReasons` lists only the four chips, so the forget case's absent phrases never meet example reasons -- real, same root cause (the forget case's content is pinned by no test); `Test/Eval/Report.cls` is contended and outside this item's two files; deferred with the entry above.
+  - `[medium]` `[defer]` (edge, claim) AC8's "the user-turn count pin reads it" suggests the content is pinned; it is not -- same root cause; the deferred entry settles it.
+  - `[medium]` `[defer]` (verification-gap) Regression gap: only the case's `kind` is pinned, not the turn text, expectation, `heldOut` or `recordedBy` -- same root cause as the second row.
+  - `[medium]` `[defer]` (verification-gap) Missing-adoption gap: the host-reason scoring test covers only the four chips -- same as the edge row on `Report.cls`.
+  - `[low]` `[reject]` (verification-gap, other) The doc lines overstate what the test pins -- same as the first row.
+  - (intent-alignment) No finding: reading A (data file plus count pin and doc lines) is implemented; it reports the unpinned fields, the end-to-end claim that lives at Lane A's `evaluation` job (CI) and the unrecorded pin audit, all as above.
 
 ## Design Notes
 
@@ -474,6 +501,7 @@ A local `eval/run.sh` does not fit in one 150-s call. The lead's Rule 19 fresh c
 - mutation: Matrix row "previous row removed" -- `StillSent` also answers 1 when `RunCaseIndexExists(RunRef, PaceCase)` is 0 -> `TestPaceAfterNoRow` red (the fourth case is not sent, its check was of the removed row) -- reverted from backup, green.
 - mutation: AC3 -- `INCIDENTWAIT = 1500` -> `TestPaceBound` red ("and is the ruled 150 seconds") -- reverted from backup, green.
 - mutation: AC6 -- `Production.cls` sets EvalIn `Enabled="true"` (the warm stack took the reload) -> `Test.Eval.Switch` `TestDefinition` red ("EvalIn is disabled in the definition") -- reverted, `Switch` green, `Production.cls` unchanged in `git diff`.
+- mutation: AC8 -- `eval/user-turn-forget/case.json`'s `kind` changed from `user-turn` to `command` -> `Test.Eval.Cases` `TestUserTurnCases` red ("eval/ holds exactly five user-turn cases") -- reverted from backup in `<scratchpad>/e9s11impl3/sub/`, `Cases` green again, `git status --short` / `git diff --stat` as before.
 
 ## Auto Run Result
 
@@ -485,3 +513,9 @@ Blocking condition: none
 - Follow-up review recommendation: false (no high patched; 2 medium, 3 low patched).
 - Verification on the final tree (lane B warm stack, tag `e9s11iw`, torn down): `Test.Eval.In`, `Cases`, `Switch`, `Report` and `Gate` passed; `docker/tests/test-class-rules.sh` passed; the out-of-footprint `git diff --stat` is empty; `git status` lists only the five classes and this spec. Thirteen `mutation:` lines (four new or updated) were observed red and reverted from backup.
 - Residual risk: the end-to-end evidence for AC5 is Lane A's `evaluation` job in CI (not run here).
+
+- Re-dispatch pass (2026-11-07), the open [Ledger] DW-902 item (AC8): added `eval/user-turn-forget/case.json` (the remember case's shape and expectation; only name, turn text, description and recordedBy differ) and `Test/Eval/Cases.cls`'s count pin (5) and two doc lines.
+- Review (4 layers): 15 findings, none high. Patched: none. Deferred: 1 entry (8 findings, one root cause, medium): the forget case's content is pinned by no test, and fixing it edits contended files outside the ruling. Rejected: 7 low (doc wording is the ruled insert, the audit record is this section, the 30.9 merge is the lead's, the description's prose, the one-mutation-per-AC line), each with its reason in the triage log.
+- Follow-up review recommendation: false (nothing patched).
+- Verification on the final tree (lane B warm stack, tag `e9s11iw`, torn down): `Test.Eval.In`, `Cases`, `Switch`, `Report`, `Gate` and `PersonaSweep` passed; `docker/tests/test-class-rules.sh` and `docker/tests/test-eval-set.sh` passed; the out-of-footprint `git diff --stat` is empty; `git diff --name-only` since this pass's baseline lists only this spec, the case file and `Test/Eval/Cases.cls`. One `mutation:` line (AC8) observed red and reverted.
+- Residual risk: the forget case's content is unpinned until the deferred entry is closed; Lane A's `evaluation` job (CI) is the end-to-end evidence that it is sent and reported.
