@@ -177,6 +177,10 @@ Parameter USERANSWERED = "The outcome was changed because a message the user wri
 /// empty), which is closed failed instead of replayed (FailUnroutable). It is plain English for the person: no class name, no code, no status text.
 Parameter HELDBEFOREUPDATE = "This request was held before an update and cannot be run again safely, so please ask again.";
 
+/// The reason line of the fallback Decision row of a replay that failed because no model key is set, before the approved call ran (ConcludeTool):
+/// plain English for the person, with the words of the catalog's fallbackReason.noKey and conversation.turnFallback.
+Parameter REPLAYNOKEY = "No model key is set, so the approved call did not run. Nothing was changed.";
+
 /// The words of the online demo gateway's HTTP 403 for a reached daily cost cap, which Classify finds in a failure text: daily_cap
 /// (source: AD-8; Story 1.6 Task 0 (b) measured the text that AI Hub raises for it). Matched without regard to case.
 Parameter DAILYCAPTEXT = "daily cost cap reached";
@@ -184,6 +188,15 @@ Parameter DAILYCAPTEXT = "daily cost cap reached";
 /// The two pieces of the provider error for a key placeholder whose variable is not set, both held by a failure text: no_key (source:
 /// Story 1.2's measurement of "@{env:ANTHROPIC_API_KEY} has no value and no :-fallback was given"). Matched without regard to case.
 Parameter NOKEYTEXT = "@{env:|has no value";
+
+/// The words of the AI Hub error for a provider object that cannot be built from the runner's settings (an unknown provider name): the replay fails in
+/// BuildAgent, before the call, and ConcludeTool gives it REPLAYPROVIDER (source: Story 30.7 Task 0a measured "ProviderCreateFailed: Failed to create
+/// provider 'zznope'" for an unknown provider name). Matched without regard to case.
+Parameter PROVIDERTEXT = "Failed to create provider";
+
+/// The reason line of the fallback Decision row of a replay whose provider object could not be built, before the approved call ran (ConcludeTool; owner
+/// decision U-214): plain English for the person.
+Parameter REPLAYPROVIDER = "The model provider could not be reached, so the approved call did not run. Nothing was changed.";
 
 /// The words of the provider's timeout error: timeout (source: AD-8, S2). Matched without regard to case.
 Parameter TIMEOUTTEXT = "operation timed out";
@@ -1434,7 +1447,10 @@ ClassMethod PointLink(request As OcuTalon.Bridge.Msg.Request, runner As %String,
 
 /// Conclude for kind tool: the reply of a replay holds no model text, so nothing is classified, filtered or checked. A failure (the text of the
 /// runner's failure, or of a Reply whose FailureText is set) is a fallback with the reason error (RecordFallback), whatever the text says, so
-/// that a tool's own error text never marks the day as capped. A failure while the approval row is still approved means the run never started
+/// that a tool's own error text never marks the day as capped. The one exception is a failure that holds both pieces of NOKEYTEXT in a Reply whose
+/// ToolsRun is 0 (the agent could not be built and the call did not run): its reason is no_key (AD-8) and its Reasons is REPLAYNOKEY. A failure that
+/// holds PROVIDERTEXT in such a Reply (the provider object could not be built for another reason) keeps the reason error and has the Reasons
+/// REPLAYPROVIDER. A failure while the approval row is still approved means the run never started
 /// (the row's lock was not taken): no Decision row is recorded, so that a later replay of the row is not answered from a fallback, and the answer
 /// is a Reply that holds only the FailureText. Otherwise one Decision row is saved with the outcome act, no reasons, no
 /// confidence and no payload, decision.recorded is fired after the save (FireEvent), and the answer is the row's Reply (ResponseFromRow). A
@@ -1448,7 +1464,15 @@ ClassMethod ConcludeTool(request As OcuTalon.Bridge.Msg.Request, decisionRef As 
 			Set response.FailureText = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Part(failure, ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE)
 			Quit $$$OK
 		}
-		Quit ..RecordFallback(request, decisionRef, "error", reply, sinkClass, traceSessionId, .response, durationMs, stepCount)
+		Set reason = "error"
+		Set reasons = ""
+		If ..HoldsAll($ZConvert(failure, "L"), ..#NOKEYTEXT) && $IsObject(reply) && (reply.ToolsRun = 0) {
+			Set reason = "no_key"
+			Set reasons = ..#REPLAYNOKEY
+		} ElseIf ..HoldsAll($ZConvert(failure, "L"), ..#PROVIDERTEXT) && $IsObject(reply) && (reply.ToolsRun = 0) {
+			Set reasons = ..#REPLAYPROVIDER
+		}
+		Quit ..RecordFallback(request, decisionRef, reason, reply, sinkClass, traceSessionId, .response, durationMs, stepCount, 0, reasons)
 	}
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, request.Kind, .id) {
 		Quit ..ResponseFromId(id, .response)

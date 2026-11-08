@@ -13,6 +13,9 @@
 /// tests, and Clean puts its agent class back. TestApprovedToolCallReplays (rows 1, 3, 4a, 4c, 10, 15, 16), TestReplayReachesTheLiveStream (row 2,
 /// DW-99), TestReplayDeniesAnotherSource (6b), TestReplayOfAnUnroutableRow (9), TestHoldReArmsAfterATaskWithoutAnAnswer (11),
 /// TestExpireRetriesWhenTheLockIsHeld (12), TestReconcileDeliversWhatLostHoldsOwed (13) and TestLateStartIsRefusedByItsAge (14).
+/// Story 30.7 (DW-462, DW-588): TestAnswerBeforeTheTaskExists shows that an answer which finds no task within TASKSECONDS goes to the hold directly, so
+/// the hold ends with one approved outcome, and that a task which appears late or inside the window leaves no open task after Reconcile. The tests of
+/// Reconcile's pass 4 (DW-444, DW-582) are in Test.Bridge.Interrupted, which reuses this class's public helpers.
 /// Story 3.6: TestRaiseKeepsTheCallersJobIds (row 5a, DW-191) shows that Raise leaves the caller's session and current header ids as they were.
 /// TestRaiseRefusesInATransaction (DW-187) shows that Raise itself refuses at $TLevel above 0 and leaves the caller's transaction open and uncommitted.
 /// Its helpers Clean, TaskIds, WaitHoldSettled, Age, TrackOwner, WaitTask, HoldMessages, HoldRequests, HoldCount and StartsSince are public class methods, which
@@ -49,7 +52,8 @@
 ///     open, so a stale copy cannot win;
 ///   - TestStartExecutionAtOnce (row 11): of two StartExecution calls through the gate exactly one succeeds;
 ///   - TestAnswerReArmed (row 12): an answer completes the new task of a re-armed request, and the outcome comes from the new hold's session;
-///   - TestAnswerBeforeTheTaskExists (row 13): an answer waits for the task, completes it once it appears, and the outcome is sent;
+///   - TestAnswerBeforeTheTaskExists (row 13, DW-462, DW-588): an answer that finds no task within TASKSECONDS while OcuTalonApprovals is disabled goes
+///     to the hold directly (one approved outcome, the hold ends); a task that appears late or inside the window is discarded by Reconcile;
 ///   - TestHoldReArmsAfterATaskWithoutAnAnswer (row 14, Story 30.3 row 11): a task completed directly while the row is pending arms the hold
 ///     again and sends nothing, and a task completed with Approve on a row that shows rejected delivers the rejection;
 ///   - TestTimerDeliversAnUndeliveredAnswer (row 15): the timer delivers an approved and a rejected answer whose task was never completed, and
@@ -1407,43 +1411,77 @@ Method TestAnswerReArmed()
 	Do ..AssertOneOutcome(ref, "approved", info, newSession, "the outcome comes from the new hold's session")
 }
 
-/// Row 13: an answer that arrives before the task exists is recorded, waits for the task, and completes it once it appears: the hold ends and
-/// sends one approved outcome.
+/// Row 13 (DW-462, DW-588): an answer that arrives before the task exists is recorded and waits up to TASKSECONDS for the task; when none appears,
+/// the answer goes to the hold directly (Approval.AnswerHold), so the hold ends with one approved outcome and does not wait for its 24-hour timer.
+/// OcuTalonApprovals is disabled while the request is raised, so the Workflow operation cannot create the task:
+///   - (a) the item stays disabled until the answer job has returned. The hold gets the answer from the job (one approved outcome, the hold gone).
+///     Then the item is enabled: the operation creates the task of the request late, and Reconcile discards it, leaving no open task of the Ref and
+///     still one outcome;
+///   - (b) the item is enabled while the answer job still polls. Whichever comes first, the poll completing the task or the direct answer, the hold
+///     ends and exactly one approved outcome is sent, and Reconcile leaves no open task of the Ref. No timing is asserted.
 Method TestAnswerBeforeTheTaskExists()
 {
 	If '..Ready() Quit
 	Set user = ..Answerer()
 	If user = "" Quit
+	Set taskSeconds = ##class(OcuTalon.Bridge.Approval).#TASKSECONDS
+
+	// (a) the task appears after the answer went to the hold
 	Set ..ApprovalsDisabled = 1
-	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 0), "OcuTalonApprovals is disabled")
+	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 0), "(a) OcuTalonApprovals is disabled")
 	Set row = ..NewRow("fix")
 	Set trace = row.TraceRef
 	Set incident = row.IncidentRef
 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
 	Set sc = ..Raise(row, .ref)
 	Kill row
-	Do $$$AssertStatusOK(sc, "the fix request is raised")
+	Do $$$AssertStatusOK(sc, "(a) the fix request is raised")
 	If $$$ISERR(sc) Quit
 	Set session = ..HoldMessages(mark, ref).session
-	Do $$$AssertEquals(..TaskCount(ref), 0, "no task exists")
+	Do $$$AssertEquals(..TaskCount(ref), 0, "(a) no task exists")
 	Set number = ..StartJob("answer", ref, "approve", "web", user)
+	Do ..WaitNode($Name(^OcuTalonTest("Approval", "job", number, "done")), taskSeconds + 15)
+	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", number, "result"))_"|"_$Get(^OcuTalonTest("Approval", "job", number, "error")), "done|", "(a) the answer job returns done")
+	Do $$$AssertEquals(..Prop(ref, "State"), "approved", "(a) the row shows the answer")
+	Do $$$AssertEquals(..TaskCount(ref), 0, "(a) and still no task exists")
+	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "(a) the hold received the answer and ended, long before its timer")
+	Do ..AssertOneOutcome(ref, "approved", {"incident": (incident), "trace": (trace)}, session, "(a) the outcome, in the hold's session")
+	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 1), "(a) OcuTalonApprovals is enabled again")
+	Set ..ApprovalsDisabled = 0
+	Set late = ..WaitTask(ref, 60)
+	Do $$$AssertTrue(late '= "", "(a) the operation creates the task of the request late, as Task 0b measured: "_late)
+	If late '= "" Do $$$AssertEquals($Piece(..TaskFacts(late), "|", 3), 0, "(a) it is open: nothing answered it")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "(a) Reconcile runs")
+	Do $$$AssertEquals(..OpenTasks(ref), "", "(a) and discards it, so that no open task of the Ref remains")
+	Do $$$AssertEquals(..Outcomes(ref).%Size(), 1, "(a) and there is still exactly one outcome")
+
+	// (b) the task may appear inside the window
+	Set ..ApprovalsDisabled = 1
+	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 0), "(b) OcuTalonApprovals is disabled")
+	Set row = ..NewRow("fix")
+	Set trace = row.TraceRef
+	Set incident = row.IncidentRef
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+	Set sc = ..Raise(row, .second)
+	Kill row
+	Do $$$AssertStatusOK(sc, "(b) the second fix request is raised")
+	If $$$ISERR(sc) Quit
+	Set session = ..HoldMessages(mark, second).session
+	Set number = ..StartJob("answer", second, "approve", "web", user)
 	Set deadline = $ZHorolog + 10
-	While (..Prop(ref, "State") '= "approved") && ($ZHorolog < deadline) {
+	While (..Prop(second, "State") '= "approved") && ($ZHorolog < deadline) {
 		Hang 0.05
 	}
-	Do $$$AssertEquals(..Prop(ref, "State"), "approved", "the row shows the answer while the job waits for the task")
-	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", number, "done")), "", "and the job has not returned yet")
-	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 1), "OcuTalonApprovals is enabled again")
+	Do $$$AssertEquals(..Prop(second, "State"), "approved", "(b) the row shows the answer while the job waits for the task")
+	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 1), "(b) OcuTalonApprovals is enabled again")
 	Set ..ApprovalsDisabled = 0
-	Set taskSeconds = ##class(OcuTalon.Bridge.Approval).#TASKSECONDS
 	Do ..WaitNode($Name(^OcuTalonTest("Approval", "job", number, "done")), taskSeconds + 15)
-	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", number, "result"))_"|"_$Get(^OcuTalonTest("Approval", "job", number, "error")), "done|", "the job gets done")
-	Set ids = ..TaskIds(ref)
-	Do $$$AssertEquals($ListLength(ids), 1, "the task appeared within TASKSECONDS ("_taskSeconds_" seconds) of the answer")
-	If $ListLength(ids) = 1 Do $$$AssertEquals(..TaskFacts($List(ids, 1)), "Approve|OcuTalonWorkflow|1|", "and was completed with Approve by OcuTalonWorkflow")
-	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "the hold ends")
-	Do $$$AssertTrue(session > mark, "the hold has its session: "_session)
-	Do ..AssertOneOutcome(ref, "approved", {"incident": (incident), "trace": (trace)}, session, "the outcome, in the hold's session")
+	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", number, "result"))_"|"_$Get(^OcuTalonTest("Approval", "job", number, "error")), "done|", "(b) the answer job returns done")
+	Do $$$AssertEquals(..WaitHoldGone(second, 15), 1, "(b) the hold ends")
+	Do ..AssertOneOutcome(second, "approved", {"incident": (incident), "trace": (trace)}, session, "(b) the outcome, in the hold's session")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "(b) Reconcile runs")
+	Do $$$AssertEquals(..OpenTasks(second), "", "(b) no open task of the Ref remains")
+	Do $$$AssertEquals(..Outcomes(second).%Size(), 1, "(b) and there is still exactly one outcome")
 }
 
 /// Row 15: an answer that the row shows but whose task was never completed is delivered when the timer fires: for an approved and a rejected
@@ -2397,13 +2435,13 @@ ClassMethod TaskIds(ref As %String, openOnly As %Boolean = 0) As %List
 }
 
 /// The id of the one open task of the Ref, or "" (none), or the ids as a comma list when there are several.
-ClassMethod OpenTasks(ref As %String) As %String [ Private ]
+ClassMethod OpenTasks(ref As %String) As %String
 {
 	Quit $ListToString(..TaskIds(ref, 1), ",")
 }
 
 /// The number of tasks, open or not, of the Ref.
-ClassMethod TaskCount(ref As %String) As %Integer [ Private ]
+ClassMethod TaskCount(ref As %String) As %Integer
 {
 	Quit $ListLength(..TaskIds(ref))
 }
@@ -2421,7 +2459,7 @@ ClassMethod WaitTask(ref As %String, seconds As %Integer) As %String
 }
 
 /// 1 when the UTC time YYYY-MM-DDThh:mm:ssZ is a readable time within the last 5 seconds (an empty or unreadable time is 0).
-ClassMethod JustNow(stamp As %String) As %Boolean [ Private ]
+ClassMethod JustNow(stamp As %String) As %Boolean
 {
 	If stamp '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" Quit 0
 	Set age = ##class(OcuTalon.Bridge.Time).SecondsUntil(stamp)
@@ -2457,7 +2495,7 @@ ClassMethod WaitHoldSettled(ref As %String, session As %String, seconds As %Inte
 }
 
 /// 1 once no hold of the Ref is live (polled up to the seconds), otherwise 0.
-ClassMethod WaitHoldGone(ref As %String, seconds As %Integer) As %Boolean [ Private ]
+ClassMethod WaitHoldGone(ref As %String, seconds As %Integer) As %Boolean
 {
 	Set deadline = $ZHorolog + seconds
 	While (##class(OcuTalon.Bridge.Approval).LiveHold(ref) '= "") && ($ZHorolog < deadline) {
@@ -2467,7 +2505,7 @@ ClassMethod WaitHoldGone(ref As %String, seconds As %Integer) As %Boolean [ Priv
 }
 
 /// Waits (up to the seconds) for the global node to be set.
-ClassMethod WaitNode(node As %String, seconds As %Integer) [ Private ]
+ClassMethod WaitNode(node As %String, seconds As %Integer)
 {
 	Set deadline = $ZHorolog + seconds
 	While ($Get(@node) = "") && ($ZHorolog < deadline) {
@@ -2836,15 +2874,25 @@ ClassMethod SetAuditEvent(enabled As %Boolean) [ Private ]
 /// puts it back, also after a failed run. 1 when the swap is done.
 Method UseReplayAgent() As %Boolean [ Private ]
 {
+	Set keys = ..PointReplayAgent(.agent)
+	Do $$$AssertStatusOK(keys, "the runners' entries point at the CI mock key (the agent is built to run the tool, so its provider needs a key)")
+	If $$$ISERR(keys) Quit 0
+	Do $$$AssertStatusOK(agent, "ChatAgent runs ZzReplayAgent")
+	Quit $$$ISOK(agent)
+}
+
+/// The work of UseReplayAgent, for the tests of other classes: points the runners' entries at the CI mock key (the returned status) and puts
+/// ZzReplayAgent behind ChatAgent (agent), both remembered for Clean. agent is empty when the keys failed.
+ClassMethod PointReplayAgent(Output agent As %Status) As %Status
+{
 	Kill ^OcuTalonTest("Replay")
+	Set agent = ""
 	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()
 	Set ^OcuTalonTest("Approval", "keys") = 1
-	Do $$$AssertStatusOK(sc, "the runners' entries point at the CI mock key (the agent is built to run the tool, so its provider needs a key)")
-	If $$$ISERR(sc) Quit 0
-	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).UseAgent("ChatAgent", "OcuTalon.Test.Bridge.ZzReplayAgent", .saved)
+	If $$$ISERR(sc) Quit sc
+	Set agent = ##class(OcuTalon.Test.Agent.RunnerFixture).UseAgent("ChatAgent", "OcuTalon.Test.Bridge.ZzReplayAgent", .saved)
 	If $IsObject(saved) Set ^OcuTalonTest("Approval", "agent") = saved.%ToJSON()
-	Do $$$AssertStatusOK(sc, "ChatAgent runs ZzReplayAgent")
-	Quit $$$ISOK(sc)
+	Quit sc
 }
 
 /// Puts ChatAgent's agent class and allow-list, and the runners' keys, back when UseReplayAgent changed them (Clean calls it).
@@ -2900,7 +2948,7 @@ Method HeldCall(tool As %String, arguments As %DynamicObject, runner As %String 
 }
 
 /// The calls of the type that the shared sink recorded, polled until there are at least count of them or the seconds pass.
-ClassMethod WaitSinkCalls(type As %String, count As %Integer, seconds As %Integer) As %DynamicArray [ Private ]
+ClassMethod WaitSinkCalls(type As %String, count As %Integer, seconds As %Integer) As %DynamicArray
 {
 	Set deadline = $ZHorolog + seconds
 	Set calls = ##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls(type)
@@ -2939,8 +2987,14 @@ ClassMethod ToolRequest(ref As %String, owner As %String) As OcuTalon.Bridge.Msg
 /// The number of requests of kind tool for the Ref that ChatAgent has been sent since this run began.
 Method RunnerRequests(ref As %String) As %Integer [ Private ]
 {
+	Quit ..RunnerRequestsSince(..Mark, ref)
+}
+
+/// The number of requests of kind tool for the Ref that ChatAgent has been sent after the message header id mark.
+ClassMethod RunnerRequestsSince(mark As %Integer, ref As %String) As %Integer
+{
 	Set count = 0
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND TargetConfigName = 'ChatAgent' AND MessageBodyClassName = 'OcuTalon.Bridge.Msg.Request'", ..Mark)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND TargetConfigName = 'ChatAgent' AND MessageBodyClassName = 'OcuTalon.Bridge.Msg.Request'", mark)
 	While result.%Next() {
 		Set body = ##class(OcuTalon.Bridge.Msg.Request).%OpenId(result.%GetData(1))
 		If $IsObject(body) && (body.Kind = "tool") && (body.ItemId = ref) Set count = count + 1
@@ -3027,13 +3081,13 @@ Method FixtureRow(state As %String, expiresIn As %Integer = 3600, kind As %Strin
 }
 
 /// The column of the row, read again from the database (the instance is not kept).
-ClassMethod Prop(ref As %String, name As %String) As %String [ Private ]
+ClassMethod Prop(ref As %String, name As %String) As %String
 {
 	Quit ##class(OcuTalon.Test.Bridge.ApprovalRows).Prop(ref, name)
 }
 
 /// All the columns of the row but those in skip (a comma list), as "name=value|" text.
-ClassMethod RowText(ref As %String, skip As %String = "") As %String [ Private ]
+ClassMethod RowText(ref As %String, skip As %String = "") As %String
 {
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
 	If '$IsObject(row) Quit "<no row>"
@@ -3230,12 +3284,19 @@ Method Run(op As %String, ref As %String, user As %String, Output winner As %Dyn
 /// for OnAfterOneTest. 1 when it is set.
 Method UseSharedSink() As %Boolean [ Private ]
 {
-	Kill ^OcuTalonTest("ProbeSink")
-	Set ^OcuTalonTest("ProbeSink", "shared") = 1
-	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).UseItemSetting("Decide", "Host", "HostSinkClass", ..#SINK, .saved)
+	Set sc = ..SharedSink(.saved)
 	Set ..SavedSink = saved
 	Do $$$AssertStatusOK(sc, "Decide's HostSinkClass is ProbeSink in its shared mode")
 	Quit $$$ISOK(sc)
+}
+
+/// The work of UseSharedSink, for the tests of other classes: sets ProbeSink's shared mode and Decide's HostSinkClass to it; saved is what the item had
+/// (RunnerFixture.RestoreItemSetting puts it back).
+ClassMethod SharedSink(Output saved As %DynamicObject) As %Status
+{
+	Kill ^OcuTalonTest("ProbeSink")
+	Set ^OcuTalonTest("ProbeSink", "shared") = 1
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).UseItemSetting("Decide", "Host", "HostSinkClass", ..#SINK, .saved)
 }
 
 /// Starts a job that calls Answer (kind answer) or StartExecution (kind start) and returns its number; ^OcuTalonTest("Approval","job",<n>) gets

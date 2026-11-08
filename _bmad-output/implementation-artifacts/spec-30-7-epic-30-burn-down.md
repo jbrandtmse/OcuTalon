@@ -2,14 +2,29 @@
 title: 'Epic 30 burn-down'
 type: 'bugfix'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '350be77825dc9f300bb9c5ce3755a54160056b6f'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
   - '{project-root}/_bmad-output/implementation-artifacts/set-aside/30-7-epic-30-burn-down-1.patch'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Rows keyed by a purged session that the purge leaves behind now also include Incident (OwnerRef) and Upload rows.
+    evidence: |-
+      U-210 defines "current" by the listed signals and DW-581 by its list, so the purge follows them; an incident or upload owned by a purged session keeps a Ref that no session holds. The spec's "For the lead" list already names Handled, HeartbeatBeat, Digest rows, Setting rows and two globals. Settles it: a product call on whether an open incident keeps its session.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Data/Purge.cls (Keeps, DeleteOwnedRows)
+    severity: low
+  - summary: >-
+      A duplicate replay request that finds the replay lock busy gets a failure Reply that Decide records as a fallback Decision row for the Ref.
+    evidence: |-
+      Before this story a request for an executing row was refused by StartExecution and recorded as a fallback the same way (Replay.Run, Decide.ConcludeTool), and the real replay's later Reply is then answered from that row (ItemIdKindIndexExists). Only the failure text changed here. Settles it: whether Ens can deliver a second replay request while the first runs.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Replay.cls (Run), src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls (ConcludeTool)
+    severity: low
 ---
 
 <intent-contract>
@@ -273,6 +288,68 @@ Re-derived on 2026-11-08 against `76c31e50` (OCT-epic30). Paths are under `src/o
     - `[low]` `[reject]` the default CSP store read is untested — the store is a seam as in Status.Visitors
 
 
+### 2026-11-08 — Review pass (implement stage)
+- verdicts: 54 findings — high 0, medium 2, low 46, false 6, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[low]` `[reject]` purge races with live activity (no lock or transaction around Keeps, the owned-row deletes and %DeleteId) — carried from the 2026-11-02 pass: the window is a few milliseconds for a session idle 90 days; closing it needs a lock or transaction, more than a direct correction
+    - `[low]` `[defer]` Keeps does not look at other rows keyed by a session (Incident, Upload, Handled, HeartbeatBeat, Digest rows) — U-210 defines "current" by the listed signals, so the code follows the ruling; Handled, HeartbeatBeat and Digest rows are already under "For the lead"; Incident and Upload added to `deferred:` as a product call
+    - `[low]` `[reject]` Signed scans the whole CSP store for every candidate — carried: the SQL checks run first, so the scan runs only for sessions that survive them; building a set once adds structure for a daily task
+    - `[low]` `[reject]` DeleteTurns and DeleteDeliveries are single unbounded DELETEs — carried: the form of Digest.Data.Item.Purge, which the spec names as the model; a first run is one-off
+    - `[false]` `[reject]` REPLAYPROVIDER says "could not be reached" for a provider object that cannot be built — the sentence is U-214 verbatim and the intent fixes it; the test pins it; the story does not own the wording
+    - `[low]` `[reject]` a person is not told when an interrupted replay is closed — the intent (row 11) lists the outputs (row, approval.result, audit entries); a new notice would be new user-facing text, which the story forbids without the lead gate
+    - `[low]` `[reject]` a late Workflow task stays open until Reconcile — as the spec decides and Task 0b (3) measured: Reconcile pass 1 cancels it, and completing it earlier changes nothing because the hold is gone
+    - `[false]` `[reject]` TestTurnsReadNoPurgedDecision second delivery assertion is vacuous — refuted: the first assertion counts every delivery of the owner, the Telegram row included, so a surviving row fails it; the second only narrows the message
+    - `[low]` `[reject]` Data.Purge.Run takes a test-only store parameter — the precedent is Web.Public.Status.Visitors; the default serves the product
+    - `[low]` `[reject]` Test.Bridge.Interrupted copies helpers from Test.Bridge.Approval and widens its helpers — the spec allows the helpers to become ClassMethods or move; a shared fixture class is a larger change
+    - `[low]` `[reject]` Execute ignores the status of Record in the interrupted branch — Record logs a warning naming the Ref, and the next Reconcile pass 4 closes a row left executing
+    - `[low]` `[reject]` worst-case Retention wait of about 24 minutes on a stuck task — failure-only; a total ceiling adds a parameter for a case that already fails
+  - Edge Case Hunter
+    - `[low]` `[reject]` Signed: a session with timeout 0 or empty reads as expired — the same read as Status.Visitors; CSP stores an absolute timeout for every session
+    - `[low]` `[reject]` race between Keeps and the delete — same root cause as the first Blind row
+    - `[low]` `[reject]` owned rows and links gone when %DeleteId of the Session fails — the deletes are idempotent and the next run retries the session; nothing is lost that the purge would not delete
+    - `[low]` `[reject]` Signed raises <LIST> on a non-list node — carried: the outer Try returns the error and deletes nothing; Status.Visitors reads the store the same way
+    - `[low]` `[reject]` Pairing check ignores CodeSessionRef — carried: a pending code is minutes old
+    - `[low]` `[patch]` CloseInterrupted answers the hold although Record failed — patched: the answer is sent only when the row was closed (Replay.CloseInterrupted); the next Reconcile tries both again
+    - `[false]` `[reject]` Reconcile early return skips pass 4 — the spec says the early return stays (Task 1); the next Reconcile closes the rows, and the doc says so
+    - `[low]` `[reject]` a task that appears after the direct answer stays open — same root cause as the third Blind row (spec-designed, Reconcile pass 1 cancels it)
+    - `[low]` `[defer]` a duplicate request that finds the replay lock busy gets a failure Reply that ConcludeTool records as a fallback Decision row — pre-existing: before this story a request for an executing row was refused by StartExecution and recorded the same way; only the text of the failure changed
+    - `[low]` `[reject]` list_productions entry with an empty state when Current throws — theoretical: Current sets state straight after GetProductionStatus, before anything that throws
+    - `[low]` `[reject]` claim: a "live" pairing — the check keeps a session on any Pairing row of it; that keeps more than the wording and Pairing rows without a paired session carry no SessionRef
+    - `[low]` `[patch]` claim: AnswerHold after FinishExecution — same root cause as the CloseInterrupted row above; patched
+    - `[false]` `[reject]` claim: Reconcile always runs four passes — same as the early-return row; the doc says the early return skips them
+  - Verification Gap Reviewer
+    - `[medium]` `[patch]` list_productions state is pinned for "running" only at the tool boundary — patched: Test.Watch.Tools.TestListedCarriesEachState (two entries, running and stopped); mutation line written
+    - `[low]` `[reject]` direct-answer path pinned for Approve only — TestAnswerBeforeTheTaskExists already takes the class to about 138 s of one command; the action is copied as it is, and the Reject path is the same code
+    - `[low]` `[patch]` Data.Purge.Run far-cutoff has no test — patched: Test.Data.Purge.TestFarCutoffDeletesNothing; its guard is redundant for the result (an empty bound deletes nothing), so the pin is on the result, with a mutation line
+    - `[low]` `[reject]` failed-read and failed-delete paths of Keeps and DeleteOwnedRows are untested — they need a failure seam; the code keeps the session on every error; reopen_if a change to Found or DeleteOwnedRows
+    - `[low]` `[patch]` Retention.Purge sharing one now is not pinned — patched: Test.Data.Purge.TestRetentionPassesOneNowHostFirst scans the two calls (host first, both with the now); mutation lines written
+    - `[low]` `[reject]` audit-entry runtime assertions of TestOnlyOwnTablesAndAuditKept cannot fail — carried: audit entries are written now and cannot be back-dated; the static scan is the pin
+    - `[low]` `[reject]` "the tool ran 0 times" asserted right after Reconcile in TestHoldOfAnInterruptedReplayEnds — the later assertion after the drain is the real one
+    - `[low]` `[reject]` ListAndCancel asserts only that the list answer is an object — the key assertions that follow are the pins
+    - `[low]` `[reject]` oldDelivery _ keptDelivery assertion holds for any Ref — a fixture sanity check; the counts after the purge are the pins
+    - `[low]` `[reject]` the "no Reply at all" case of TestToolFailureReasons does not feed its text — it pins that a non-object Reply raises nothing; the guard order is short-circuit
+    - `[low]` `[patch]` no mutation line for a wrong timeout test in Signed — mutation run and line written
+    - `[low]` `[patch]` no mutation line for Reconcile without pass 4 — mutation run and line written
+    - `[low]` `[patch]` no mutation line for "a task that appears later changes nothing" — mutation (pass 1 cancels nothing) run and line written
+    - `[low]` `[patch]` no mutation line for the host-first order — swapped order run and line written
+    - `[low]` `[reject]` no test for "no public text claims a replay works without a provider connection" — the spec makes it a one-off git grep; run, no hit
+    - `[low]` `[reject]` DW-590 WaitRun is not an AC and has no mutation — its failure branches fire only on a stuck task
+    - `[low]` `[reject]` (b) of TestAnswerBeforeTheTaskExists may pass vacuously if the direct answer wins — in (b) the item is enabled while the job waits, so the task exists within 0.1 s and the poll finds it long before TASKSECONDS
+    - `[low]` `[reject]` Stored() mirrors the product layout of the CSP store — the precedent is Test.Web.Status; the layout is the store format
+    - `[low]` `[reject]` Test.Bridge.Interrupted couples to a namespace-wide Reconcile — no leaking executing tool_call row was found; each test removes its rows
+    - `[low]` `[reject]` Retention.Purge(90) in the tests reads the instance CSP store — throwaway-only by the class doc and the spec
+  - Intent Alignment Auditor
+    - `[low]` `[reject]` row 14 is tested in two halves (Runner for the real text, Decide for the Decision row) — the shared constants compose them; no chain through hold, Decide and runner is needed
+    - `[false]` `[reject]` row 15 maps "cannot be built", not "cannot be reached" — the lead gate ruled it (ruling 1): the replay sends no provider request, and a closed port fails no replay (measured)
+    - `[false]` `[reject]` row 15b has no surface — the lead gate ruled it: no MCP replay path exists (Epic 22)
+    - `[low]` `[reject]` row 22 is tested at the tool-method level, not through an approved-call replay — ruling 2; the replay uses the stored commands, so the keys are the tool call's
+    - `[medium]` `[patch]` row 19: the stopped state is asserted at Reader only, not at the tool answer — same root cause as the first Verification Gap row; patched
+    - `[low]` `[reject]` row 18 relies on an explicit Reconcile in the test — the spec designs it so: Reconcile runs at every production start
+    - `[low]` `[reject]` Keeps keeps on Memory and Document and on any Pairing row, beyond the intent's list — decided in-stage and recorded in Design Notes; it keeps more, never less, and the AD-27 bullet says so
+    - `[low]` `[reject]` row 24 shows no negative control in the diff — the mutation line (READONLYCANCELREMINDER = 1) records the red
+    - `[low]` `[reject]` Test.Bridge.CodeRules and Test.Bridge.Approval are outside the contended-paths list — CodeRules had to follow DropLinks (patched in this story, recorded in Design Notes); Approval is Lane A's test for this story's own rows; DW-589 (no code) and DW-590 are closed by the spec
+
 ## Design Notes
 
 **Architecture decisions (Rule 6).** AD-27 (the one amendment, the U-210 bullet; marker `[AMENDED 2026-11-08, Story 30.7, owner decision U-210 (kept)]`); AD-1 (U-215: the keys as built, the lead's 2026-11-08 marker; no change); AD-2 (the bridge names no OcuTalon package; the host calls `Bridge.Purge.DropLinks`, never the reverse); AD-4 (the Session row and the records it owns); AD-8 (`no_key` for a missing key, `error` for anything else; a sentence lives in Reasons, never as a new reason); AD-10 (the replay through the full policy chain; replay is for MCP and developer tools); AD-11 (rows change only through the Approval API; `interrupted` leaves `failed`; the hold acts only on what the row shows); AD-15 (`list_productions` reads through `Watch.Reader`); AD-16 (`interrupted`, as for `FixRun`); AD-17 (no audit entry is purged; every close is audited); AD-22 (destructive and purge runs on throwaways); AD-31 (the HostSink and `approval.result`); AD-33 (one owner per table; see Footprint). No AC contradicts an AD's Rule.
@@ -289,9 +366,34 @@ Re-derived on 2026-11-08 against `76c31e50` (OCT-epic30). Paths are under `src/o
 - **U-214, the endpoints.** The replay needs the model provider only as the provider object that `BuildAgent` builds from the runner's settings; it sends no request to the provider (2026-11-02, closed port: the tool ran; code read above). So the no-key sentence applies to a missing key, the provider sentence only to a provider object that cannot be built for another reason (Task 0a (ii)), and a closed or unreachable provider fails no replay, so it has no sentence. The tool's-server sentence has no case: the product has no MCP client or MCP replay path yet (Epic 22), and a developer tool's own error after it ran stays unchanged (intent). The tests name their endpoint: the AI Hub provider object of the runner's `BuildAgent`.
 - **U-215, "refused on a repeat"** is pinned as the owner ignoring a repeat (AD-1: the first result, no second effect), plus the refusal `reused_key` for a key reused for another reminder; that is the as-built rule U-215 keeps with no code change.
 - **DW-590** keeps the real Task Manager runs (Story 30.2 AC 2) and makes the wait start-aware, so a slow start and a slow run are told apart in the failure text.
+- **The provider sentence is for `Failed to create provider` only.** The measured AI Hub text of a provider object that cannot be built is `ProviderCreateFailed`; a lookup that fails (an unset environment variable is `no_key`; a missing Config Store entry, a missing provider name or a ProviderConfig that is not JSON) is a different failure, and telling the person "the provider could not be reached" for it would be a guess. They stay `error` with no sentence (row 16 shape), as does every failure with ToolsRun above 0.
+- **`Reconcile`'s early return stays.** When the pending rows cannot be read it returns before pass 3 and so before pass 4, as the spec says; the next Reconcile closes the rows.
+- **`DropLinks` refusal text** is "OcuTalon.Bridge.Purge.DropLinks: the owner (empty) is not a session whose links can be dropped" (the owner's name for `instance` and `eval`): it names the method and is read by an operator only.
+- **The re-delivered replay and the lock.** `Test.Bridge.Runner`'s (duplicate) case used an executing row with a free lock as "another run holds it"; since a free lock now means a dead replay, the case holds the replay lock from a job (`Test.Bridge.Interrupted.HoldReplayLockInJob`), which is what a live replay is.
+- **`Test.Bridge.Interrupted` mirrors `Test.Bridge.Approval`'s set-up and clean-up** (its `Clean`, the ApprovalRole default row, the sink and the agent swap), and ChatAgent is enabled again and drained after each test. The helpers it reuses were made public in `Test.Bridge.Approval` (`Prop`, `JustNow`, `WaitHoldGone`, `WaitNode`, `WaitSinkCalls`, `RowText`, `TaskCount`, `OpenTasks`), and the work of `UseSharedSink`, `UseReplayAgent` and `RunnerRequests` moved to the ClassMethods `SharedSink`, `PointReplayAgent` and `RunnerRequestsSince` that the instance methods call (no change of behaviour).
+- **"Before Decide's timer" is asserted from the queue.** The deferred response is stored as a response from Decide to the hold, so the header count cannot tell it from Decide's own answer; the test asserts that Decide's request still waits on the disabled runner's queue (`Ens.Queue` count 1) when the hold has gone, which Decide's 110 s timer could not have produced.
+- **`Test.Bridge.CodeRules.TestOnlyDecideWritesLinks` follows `DropLinks`.** Story 30.2's rule let `Bridge.Purge` name the link table on one SELECT line only. The test now pins two lines: the one SELECT, and `DropLinks`'s DELETE by `OwnerRef` written exactly as in the spec (no other condition); every other pin of that test is unchanged (the spine states no "only Decide writes links" rule: AD-6 and AD-33 are not amended). Found by running the source-scanning classes after the handoff.
+- **DW-590's start test** is the Task Manager's own: the task has a job (`RunningJobNumber`) or its `LastStarted` is not the value read before `RunNow`, or the history already holds a run.
 - **Test placement.** The DW-444 and DW-582 tests go to a new class, `Test.Bridge.Interrupted`, because `Test.Bridge.Approval` already takes about 140 s and must fit one command.
 
-**Measured at implementation.** Empty until Task 0 runs; Task 0a and 0b record their results here.
+**Measured at implementation** (2026-11-08, warm throwaway `e30s7iw`, mock only, no real key).
+- **0a, U-214, the replay through the shadow runner ZzRunner (agent ZzReplayAgent).** The step column is the first step that failed; `NewSession`, `Context` and `ExecuteTool` were reached only by the closed port.
+
+| Case | Step that failed | FailureText (start) | ToolsRun | Tool ran | Row |
+|---|---|---|---|---|---|
+| (i) key placeholder names an unset variable | `BuildAgent` | `<%AICore>ProviderConfigError: PROVIDERCONFIG is invalid > <%AICore>InternalError: ... @{env:OCUTALON_ZZ_UNSET_KEY} has no value and no :-fallback was given` (both NOKEYTEXT pieces) | 0 | no | failed/failed |
+| (ii-a) unknown provider name | `BuildAgent` | `<%AICore>ProviderCreateFailed: Failed to create provider 'zznope' > <%AICore>ProviderNotFound: LLM provider not found: zznope` | 0 | no | failed/failed |
+| (ii-b) missing Config Store entry for the key | `BuildAgent` | `<%AICore>ProviderConfigError: PROVIDERCONFIG is invalid > <%AICore>SettingLookupFailed: SettingStore lookup failed for @{config:...}` | 0 | no | failed/failed |
+| (ii-c) no provider named | `BuildAgent` | `<%AICore>ProviderNotSpecified: No LLM provider specified: set the PROVIDER parameter` | 0 | no | failed/failed |
+| (ii-d) ProviderConfig is not JSON | `BuildAgent` | `<%AICore>ProviderConfigError: PROVIDERCONFIG is invalid > ... Parsing error` | 0 | no | failed/failed |
+| (iii) key set, base URL a closed port | none (`BuildAgent` and `NewSession` OK) | empty | 1 | once | done/done |
+
+  So a replay needs the model provider only as the AI Hub provider object that `BuildAgent` builds from the runner's settings; it sends no request to the provider. Case (ii-a) is a provider object that cannot be built for a reason that is not a missing key: it has its case, so `PROVIDERTEXT` ("Failed to create provider", the piece of (ii-a)) and `REPLAYPROVIDER` are written. The other `BuildAgent` failures ((ii-b) to (ii-d)) are a settings or key lookup that failed and stay `error` with no sentence (see Decided in-stage). No MCP path exists, so row 15b has no case.
+- **0b, Ens, on the running production (`Test.Bridge.Interrupted`, `Test.Bridge.Approval`).**
+  - (1) holds: with `ChatAgent` disabled, the hold's replay request reaches Decide, and Decide's request to `ChatAgent` waits on its queue (`Ens.Queue` count 1, header status 2); the hold waits on the key `replay` and the row stays `approved`.
+  - (2) holds: `Ens.Host.SendDeferredResponse` on the `RequestHeaderId` of the live hold's pending response ended the hold at once. Key `replay` (a failure `Msg.Reply`): the hold ended 10 seconds or less after Reconcile, one response header (type 2, from Decide to ApprovalHold, status completed) was added, and the queued request, handled after the runner was enabled again, added a second response that the gone hold discarded (one `approval.result`, the row unchanged). Key `task` (an `Ens.StringResponse`, value `Approve`): the hold gave one approved outcome 5.2 seconds after the answer, with no task existing.
+  - (3) holds: once `OcuTalonApprovals` was enabled again the operation created the task of the answered `TaskRequest` within 0.1 s (task open, no action, worklist item for OcuTalonWorkflow), and Reconcile pass 1 cancelled it (no open task of the Ref remained, no hold live). `TestAnswerBeforeTheTaskExists` (a) asserts the late task is open, then discards it.
+  - So DW-582 and DW-588 are built (no `blocked`).
 
 **PUBLIC TEXT (for the lead's gate before implement).**
 - Public (a person reads it), new:
@@ -379,6 +481,7 @@ How to run:
 - Reconcile gains pass 4 and `CompleteHoldTask` answers the hold directly: every test that runs Reconcile with an executing `tool_call` row (none today, search `Test/` for `Reconcile` and `executing`), and every test that asserts the old "so none was completed" warning or a hold left waiting after a late task.
 - `HoldResponse`'s `task` key also takes `Ens.StringResponse`.
 - `Watch.Reader.Productions` entries (+`state`): `TestOrdersIsListed`; the `list_productions` answer: `Test.Watch.Tools`.
+- `Test.Bridge.CodeRules.TestOnlyDecideWritesLinks` (the link table's lines in `Bridge.Purge`).
 - `TestNoSettingRead`'s class list; `TestOnlyOwnTablesAndAuditKept`'s list of deletes.
 - Every test added or changed passes on a fresh environment, in either order.
 
@@ -400,10 +503,39 @@ How to run:
 | DW-371 | `DaysCutoff` called with `daysToKeep + 1` in `IncidentManager.Purge` | `Test.Watch.Lifecycle.TestPurge` |
 | DW-541 (row 19) | `state` dropped from `Listed` | `Test.Watch.Tools.TestListProductions` |
 
+**Mutations run at implementation (2026-11-08, warm `e30s7iw`; each applied, observed red, reverted from a backup; `git diff` of `src/` and the spine byte-identical after each):**
+- mutation: `Retention.Purge` does not call `Data.Purge` -> red: `Test.Data.Purge.TestTurnsReadNoPurgedDecision` (the 91-day turn, delivery, Telegram row and session stay), `TestSessionRowsGoWithIt`; `Test.Install.Retention.TestOcuTalonPurge` ("the turn created 61 days ago is gone").
+- mutation: `Keeps` without one signal, each of Memory, Document, Turn, Delivery, Decision, Pairing, open ApprovalRequest, BackgroundCheck, pending Reminder, Signed (nine SQL checks and the store scan, one at a time) -> red: `TestSessionKeptWhileActiveOrCurrent`, that signal's case each time (Memory and the pending reminder also `TestSessionRowsGoWithIt`). A `Reminder` delete that also takes pending rows stays green: a session with a pending reminder is current and never reaches the delete, so that mutant is equivalent.
+- mutation: `Data.Purge` skips `DropLinks` -> red: `TestSessionRowsGoWithIt` (the link stays, the AI session is not found unlinked) and `TestOnlyOwnTablesAndAuditKept`.
+- mutation: an eighth delete from a table outside the named ones (`OcuTalon_Data.Handled`) -> red: `TestOnlyOwnTablesAndAuditKept`.
+- mutation: the turn delete takes `CreatedAt <= cutoff` -> red: `TestTurnsReadNoPurgedDecision` ("the turn created at the cutoff stays"), `TestSessionKeptWhileActiveOrCurrent` (a Turn at the cutoff).
+- mutation: `DropLinks` accepts `instance` and `eval` / deletes every owner's links -> red: `Test.Bridge.Purge.TestDropLinks`.
+- mutation: a brace token (`{rows}`) in the new spine bullet -> red: the lint shows 11 findings; reverted, 10.
+- mutation: `CloseInterrupted` skips `AnswerHold` -> red: `Test.Bridge.Interrupted.TestHoldOfAnInterruptedReplayEnds` (the hold does not end within 10 s).
+- mutation: `Run` does not close an executing row it finds -> red: `Test.Bridge.Runner.TestReplayOfADeadExecutingRow`.
+- mutation: `CompleteHoldTask` does not call `AnswerHold` -> red: `Test.Bridge.Approval.TestAnswerBeforeTheTaskExists` ((a) the hold does not end, no outcome).
+- mutation: `ConcludeTool` keeps `error` and no sentence for the no-key text / for the provider text -> red: `Test.Bridge.Decide.TestToolFailureReasons`, that case each time.
+- mutation: `DropLinks`'s DELETE gets `OR 1 = 1` -> red: `Test.Bridge.CodeRules.TestOnlyDecideWritesLinks` ("the other is DropLinks's DELETE of the links of one OwnerRef").
+- mutation: the `KeyedRow` block of `ReminderOps.Cancel` deleted -> red: `Test.Schedule.Reminders.TestToolCallKeysAfterAList` (and `TestSeveralCancelsFromOneToolCall`).
+- mutation: `Parameter READONLYCANCELREMINDER = 1` -> red: `Test.Bridge.Gate` (the tainted and untrusted rows report cancel_reminder not denied, `TestFlagsAreListed`, `TestWatchToolsAreClassified`).
+- mutation: `IncidentManager.Purge` calls `DaysCutoff` with `daysToKeep + 1` -> red: `Test.Watch.Lifecycle.TestPurge`.
+- mutation: `state` dropped from `WatchAnswers.Listed` -> red: `Test.Watch.Tools.TestListProductions`.
+- mutation (review pass): `Listed` copies the state "running" for every entry -> red: `Test.Watch.Tools.TestListedCarriesEachState`.
+- mutation (review pass): a day count whose cutoff is empty is treated as `now` in `Data.Purge.Run` -> red: `Test.Data.Purge.TestFarCutoffDeletesNothing`.
+- mutation (review pass): `Retention.Purge` calls the bridge part without the now, and with the two parts swapped -> red: `Test.Data.Purge.TestRetentionPassesOneNowHostFirst` (and, swapped, `TestSessionRowsGoWithIt`: the bridge's purge does not find the AI session unlinked).
+- mutation (review pass): `Signed` ignores the store entry's timeout -> red: `Test.Data.Purge.TestSessionKeptWhileActiveOrCurrent` ("a session with only an expired store entry is purged").
+- mutation (review pass): `Approval.Reconcile` without pass 4 -> red: `Test.Bridge.Interrupted.TestHoldOfAnInterruptedReplayEnds` (row failed/interrupted, hold ended, one approval.result, the audit entries).
+- mutation (review pass): Reconcile pass 1 cancels nothing -> red: `Test.Bridge.Approval.TestAnswerBeforeTheTaskExists` (a) ("no open task of the Ref remains"), `TestReconcileCancelsOnlyOrphans`, `TestReconcileLeavesSettledRows`.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-- Re-planned on `76c31e50` (2026-11-08). The intent contract is unchanged. Task 1 reuses the set-aside patch's 14 clean files and merges `Bridge/Approval.cls` and `Test/Install/Retention.cls` by hand; the later tasks add DW-581, DW-582, DW-584, DW-588, DW-495, DW-590, U-214's endpoints (Task 0a) and the Ens checks (Task 0b). DW-589 is closed by CI numbers with no code.
-- For the lead's gate: PUBLIC TEXT, Contended hunks, the footprint extensions and "For the lead" are under Design Notes.
+- Implemented (all 13 entries): DW-437/DW-581 (`Data.Purge`, `Bridge.Purge.DropLinks`, `Retention.Purge` with one now, AD-27 bullet), DW-444/DW-582/DW-588 (`Replay` lock, `CloseInterrupted` as Reconcile pass 4, `Approval.AnswerHold`), DW-470 (`REPLAYNOKEY`, `REPLAYPROVIDER`), DW-584 (test only), DW-462, DW-590, DW-371, DW-541, DW-495. DW-589 is closed by CI numbers with no code. Task 0a/0b are measured under Design Notes; 0b held, so nothing was blocked.
+- Files changed: the spine (AD-27 bullet, `updated`), `Bridge/Approval.cls`, `Bridge/Replay.cls`, `Bridge/Purge.cls`, `Bridge/Process/Decide.cls` (parameters and `ConcludeTool`), `Install/Step/Retention.cls`, `Data/Purge.cls` (new), the Watch and Tools files of DW-371/DW-541, and the tests: `Test/Data/Purge.cls` (new), `Test/Bridge/Interrupted.cls` (new), `Test/Bridge/{Approval,Decide,Gate,Purge,Runner,CodeRules}.cls`, `Test/Install/Retention.cls`, `Test/Schedule/Reminders.cls`, `Test/Watch/{Reader,Tools}.cls`. `Test/Bridge/CodeRules.cls` follows `DropLinks` (Design Notes).
+- Review (54 findings: high 0, medium 2, low 46, false 6): patched 1 medium entry and 7 low rows (CloseInterrupted answers the hold only after the row closed; `TestListedCarriesEachState`; `TestFarCutoffDeletesNothing`; `TestRetentionPassesOneNowHostFirst`; four mutation lines); 2 deferred (Incident/Upload rows of a purged session; a duplicate replay request recorded as a fallback); the rest rejected with their reasons in the Review Triage Log.
+- Follow-up review recommended: false (one medium entry patched, no high).
+- Verification (warm throwaway `e30s7iw`, lane B; every command in the foreground): `test-boundaries.sh` and `test-class-rules.sh` pass; every (loop) class passed (Data.Purge, Bridge.Purge, Bridge.Interrupted, Bridge.Runner, Bridge.Decide, Schedule.Reminders, Bridge.Gate, Watch.Lifecycle/Reader/Tools, Data.Ownership, Install.Registry, Bridge.Approval 138 s, Install.Retention 79 s); also passed: Bridge.CodeRules (after its patch), Install.RetentionRules, Digest.Purge, Core.AnswersInProduction/ConversationProduction/ConversationTurns, Fix.Raise, Bridge.Keys, Bridge.Time, Install.Users, Live.Payloads. `ci/checks.sh` passed (all scripts). Spine lint: the 10 baseline low findings. The `git grep` line found no text that claims a replay works without a provider connection (`docs/bridge-guide.md:132` says a replay makes "no model request", which is accurate). About 40 mutations were run (the subagent's and the review pass's), each red, each reverted byte for byte.
+- Left to CI and the lead: the lane-a and lane-b shard runs (`shards-5` with `Test.Bridge.Interrupted` is the tightest group; the full shards need hours of 150 s calls and were not run here); the memlog append for AD-27 (the memlog file is gitignored and exists only in the main checkout, which this stage must not write; the lead appends: "AD-27: the host purge of turns, deliveries and idle sessions with their rows (U-210 kept, DW-581), Story 30.7"); the Delivery `Text` doc line (Lane B's class, declined).
+- Residual risks: the 138 s `Test.Bridge.Approval` and 79 s `Test.Install.Retention` sit near the 170 s call cap; the session purge has no lock or transaction around its checks and deletes (accepted, recorded); a late Workflow task stays open until the next Reconcile (measured, by design).

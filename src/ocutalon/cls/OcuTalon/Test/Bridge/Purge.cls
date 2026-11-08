@@ -13,6 +13,8 @@
 ///     OcuTalon.Bridge.Purge.Run, delete no row or session and write no mark;
 ///   - TestPartsRunAlone: an error in one part does not stop the others (the decision part fails here, in Test.Bridge.ZzPurgeFailing, the usage and session parts still run);
 ///   - TestLinkWithoutSession: a link with no session id is ignored;
+///   - TestDropLinks (DW-581): DropLinks deletes the links of one owner for every agent, keeps another owner's link, and refuses "", instance and eval with an
+///     error that names OcuTalon.Bridge.Purge.DropLinks and deletes nothing;
 ///   - TestOtherDataKept (QA, Boundaries "Never"): Run deletes no ApprovalRequest, Price, ModelFamily, BackgroundCheck or WatchMark row, however old.
 /// Every row, session and link that a test made, and the marks of its own sessions, are removed after the test, also after a failure. The marks that
 /// Run writes on the other unlinked sessions of the namespace stay; only Bridge.Purge reads them.
@@ -279,6 +281,46 @@ Method TestLinkWithoutSession()
 	Set s = ..NewSession(##class(OcuTalon.Bridge.Time).PlusSeconds(t, -5 * ..#DAY))
 	Do $$$AssertStatusOK($ClassMethod(..#PURGE, "Run", 90, t), "Run(90, T) is OK")
 	Do $$$AssertEquals(..Mark(s), t, "and the unlinked session is marked")
+}
+
+/// DW-581. DropLinks deletes every link of the owner, whatever the agent, and no other owner's link; "", instance and eval are refused.
+Method TestDropLinks()
+{
+	Set other = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set second = ..#AGENT _ "2"
+	Set ..Agents = ..Agents _ $ListBuild(second)
+	Set t = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set s1 = ..NewSession(t)
+	Set s2 = ..NewSession(t)
+	Set s3 = ..NewSession(t)
+	Do ..Point(s1)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(..Owner, second, s2), "a second agent's link of the owner is saved")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(other, ..#AGENT, s3), "another owner's link is saved")
+	Try {
+		Do $$$AssertStatusOK($ClassMethod(..#PURGE, "DropLinks", ..Owner), "DropLinks of the owner is OK")
+		Do $$$AssertEquals(..Links(), "", "both links of the owner are gone")
+		Do $$$AssertEquals(..LinkCount(other), 1, "the other owner's link stays")
+		For ref = "", "instance", "eval" {
+			Set keep = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(keep, ..#AGENT, s1), "a link of a fresh owner is saved")
+			Set sc = $ClassMethod(..#PURGE, "DropLinks", ref)
+			Do $$$AssertTrue($$$ISERR(sc) && ($SYSTEM.Status.GetErrorText(sc) [ "OcuTalon.Bridge.Purge.DropLinks"), "DropLinks of '"_ref_"' is an error that names the method")
+			Do $$$AssertEquals(..LinkCount(keep) _ "|" _ ..LinkCount(other), "1|1", "and deletes nothing")
+			Do ##class(OcuTalon.Bridge.Data.ConversationLink).%DeleteId(##class(OcuTalon.Bridge.Data.ConversationLink).OwnerRefAgentIndexOpen(keep, ..#AGENT).%Id())
+		}
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "DropLinks raised no exception")
+	}
+	Set link = ##class(OcuTalon.Bridge.Data.ConversationLink).OwnerRefAgentIndexOpen(other, ..#AGENT)
+	If $IsObject(link) Do ##class(OcuTalon.Bridge.Data.ConversationLink).%DeleteId(link.%Id())
+}
+
+/// The number of links of the owner.
+ClassMethod LinkCount(owner As %String) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.ConversationLink WHERE OwnerRef = ?", owner)
+	Do result.%Next()
+	Quit +result.%GetData(1)
 }
 
 /// --- helpers ---

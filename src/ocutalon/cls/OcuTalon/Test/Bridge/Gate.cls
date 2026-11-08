@@ -2011,7 +2011,7 @@ Method AssertSafeReadOnlyOnly(provenance As %String, tainted As %Boolean, label 
 	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(candidate)
 	Set runs = $ListBuild(
 		$ListBuild("OcuTalon.Tools.Reminders", "set_reminder", "{""text"":""x"",""delaySeconds"":60}"),
-		$ListBuild("OcuTalon.Tools.Reminders", "cancel_reminder", "{""reminderRef"":""x""}"),
+		$ListBuild("OcuTalon.Tools.Reminders", "cancel_reminder", "{""reminderRefs"":[""x""]}"),
 		$ListBuild("OcuTalon.Tools.Watching", "start_watch", "{""name"":""Orders""}"),
 		$ListBuild("OcuTalon.Tools.Watching", "stop_watch", "{""name"":""Orders""}"),
 		$ListBuild("OcuTalon.Tools.Watching", "dismiss_incident", "{}"),

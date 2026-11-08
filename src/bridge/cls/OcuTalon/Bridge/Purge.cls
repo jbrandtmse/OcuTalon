@@ -12,7 +12,8 @@
 ///     reply Decide did not accept (a late, refused or superseded one, or the fork of a compaction that was not accepted) stays unnamed and is deleted
 ///     after a day.
 /// The purge reads the links' SessionId values with one SELECT and compares them in ObjectScript; it takes no conversation lock and writes no link
-/// (AD-6). It works in the current namespace only (AD-3), touches no audit entry (AD-17) and names no other OcuTalon package (AD-2). Each part runs
+/// (AD-6). The only other deleter of links is DropLinks, which the host calls for a session it purges (AD-27), and the only writer is Decide's PointLink.
+/// It works in the current namespace only (AD-3), touches no audit entry (AD-17) and names no other OcuTalon package (AD-2). Each part runs
 /// whatever an earlier part returned, and their errors are combined into one status.
 Class OcuTalon.Bridge.Purge
 {
@@ -44,6 +45,24 @@ ClassMethod DeleteBefore(table As %String, cutoff As %String) As %Status
 	Try {
 		Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM "_table_" WHERE RecordedAt < ?", cutoff)
 		If result.%SQLCODE < 0 Set sc = $SYSTEM.Status.Error(5001, "Deleting the old rows of "_table_" failed: "_result.%Message)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// Deletes every conversation link whose OwnerRef is the argument, for any agent, so that the next Run finds the AI sessions those links named
+/// unlinked. An empty argument, instance and eval are refused with an error status that names this method, and nothing is deleted: they are not a
+/// person's session.
+ClassMethod DropLinks(ownerRef As %String) As %Status
+{
+	If (ownerRef = "") || (ownerRef = "instance") || (ownerRef = "eval") {
+		Quit $SYSTEM.Status.Error(5001, "OcuTalon.Bridge.Purge.DropLinks: the owner "_$Select(ownerRef = "": "(empty)", 1: ownerRef)_" is not a session whose links can be dropped")
+	}
+	Set sc = $$$OK
+	Try {
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.ConversationLink WHERE OwnerRef = ?", ownerRef)
+		If result.%SQLCODE < 0 Set sc = $SYSTEM.Status.Error(5001, "OcuTalon.Bridge.Purge.DropLinks: deleting the links of "_ownerRef_" failed: "_result.%Message)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}

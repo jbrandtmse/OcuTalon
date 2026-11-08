@@ -1288,18 +1288,13 @@ Method Drop(ref As %String, event As %String, state As %String) [ Private ]
 }
 
 /// Deletes the incidents that were closed before the cutoff, with their groups and their fix runs (AD-27), one incident per transaction. The cutoff is now (UTC) moved back
-/// daysToKeep whole days; an incident closed at the cutoff stays, and so does every incident that is not closed, a closed one with no ClosedAt included.
+/// daysToKeep whole days (Bridge.Time.DaysCutoff); an incident closed at the cutoff stays, and so does every incident that is not closed, a closed one with no ClosedAt included.
 /// daysToKeep must be a whole number of at least 1; anything else is an error status and nothing is deleted. The result is OK, or the errors of the
 /// incidents that could not be deleted (the others are deleted).
 ClassMethod Purge(daysToKeep As %Integer) As %Status
 {
-	Set bad = $SYSTEM.Status.Error(5001, "OcuTalon.Watch.IncidentManager.Purge needs a whole number of days, at least 1, not '"_$Extract(daysToKeep, 1, 40)_"'")
-	If daysToKeep '? 1.N Quit bad
-	If +daysToKeep < 1 Quit bad
-	Set now = ##class(OcuTalon.Data.Time).NowUtc()
-	Set day = $ZDateH($Piece(now, "T", 1), 3) - daysToKeep
-	If day < 0 Quit $$$OK
-	Set cutoff = $ZDate(day, 3)_"T"_$Piece(now, "T", 2)
+	Set sc = ##class(OcuTalon.Bridge.Time).DaysCutoff(daysToKeep, "OcuTalon.Watch.IncidentManager.Purge", .cutoff)
+	If $$$ISERR(sc) || (cutoff = "") Quit sc
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.Incident WHERE State = 'closed' AND ClosedAt < ?", cutoff)
 	If rs.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "Reading the closed incidents failed: "_rs.%Message)
 	While rs.%Next() {

@@ -28,7 +28,8 @@ Include Ensemble
 ///   - Reconcile (declared by Install.Step.Approvals, AD-23) cancels the Workflow tasks that no live hold of a pending row owns, starts
 ///     a new hold for each pending row whose hold is gone, timed from the row's ExpiresAt, and starts a delivery hold for each row that owes
 ///     a delivery whose hold is gone: an approved tool_call, and an approved, rejected or expired fix or setting with a ResultTarget whose ApprovalOutcome
-///     was not sent.
+///     was not sent. It also closes an executing tool_call whose replay is no longer alive, as failed with the result interrupted (Replay.CloseInterrupted,
+///     DW-444), and never runs the call again.
 /// Nothing here makes a %AI call or runs Python (AD-6).
 Class OcuTalon.Bridge.Approval
 {
@@ -602,8 +603,11 @@ ClassMethod HoldTask(ref As %String) As %String [ Private ]
 }
 
 /// Completes the hold's task (HoldTask) as WORKFLOWUSER: AssignTask, then CompleteTask with the action (Approve or Reject), or with no action
-/// for a cancel (Workflow status Cancelled). It polls up to TASKSECONDS for the task to exist. A task that does not appear, or fails to
-/// complete, and any exception on the way, is logged as a warning that names the Ref and never escapes; the row's change stands.
+/// for a cancel (Workflow status Cancelled). It polls up to TASKSECONDS for the task to exist. When none appears (the Workflow operation is not
+/// running yet), the answer goes to the hold directly (AnswerHold, key task, an Ens.StringResponse holding the action, empty for a cancel), so
+/// that the hold acts on what the row shows now and not when its timer fires; a task that appears afterwards stays open, and Reconcile discards
+/// it once its hold is no longer live. A task that fails to complete, and any exception on the way, is logged as a warning that names the Ref
+/// and never escapes; the row's change stands.
 ClassMethod CompleteHoldTask(ref As %String, action As %String) [ Private ]
 {
 	Try {
@@ -614,7 +618,13 @@ ClassMethod CompleteHoldTask(ref As %String, action As %String) [ Private ]
 			Set taskId = ..HoldTask(ref)
 		}
 		If taskId = "" {
-			$$$LOGWARNING("OcuTalon.Bridge.Approval: no open task of " _ ref _ " appeared in " _ ..#TASKSECONDS _ " seconds, so none was completed")
+			Set answer = ##class(Ens.StringResponse).%New()
+			Set answer.StringValue = action
+			If ..AnswerHold(ref, "task", answer) {
+				$$$LOGWARNING("OcuTalon.Bridge.Approval: no open task of " _ ref _ " appeared in " _ ..#TASKSECONDS _ " seconds, so the answer went to its hold directly")
+			} Else {
+				$$$LOGWARNING("OcuTalon.Bridge.Approval: no open task of " _ ref _ " appeared in " _ ..#TASKSECONDS _ " seconds, so none was completed")
+			}
 		} Else {
 			Set task = ##class(EnsLib.Workflow.TaskResponse).%OpenId(taskId)
 			Set sc = task.AssignTask(..#WORKFLOWUSER)
@@ -626,6 +636,41 @@ ClassMethod CompleteHoldTask(ref As %String, action As %String) [ Private ]
 	} Catch exception {
 		$$$LOGWARNING("OcuTalon.Bridge.Approval: the task of " _ ref _ " was not completed: " _ exception.DisplayString())
 	}
+}
+
+/// Answers a request that the live hold of the Ref is waiting on: finds the hold's one pending response that is not a timer and has the completion
+/// key (task or replay), and sends the response to it with Ens.Host.SendDeferredResponse, so that the hold's OnResponse runs once with that key and
+/// a later answer to the same request (the Workflow task's, or Decide's) is discarded. 1 when it was sent; 0 when the Ref has no live hold or the hold
+/// waits on no such response, or the send failed. It never raises: a failure is a warning that names the Ref.
+ClassMethod AnswerHold(ref As %String, completionKey As %String, response As %Persistent) As %Boolean [ Internal ]
+{
+	Set sent = 0
+	Try {
+		Set holdId = ..LiveHold(ref)
+		Set hold = $Select(holdId = "": "", 1: ##class(OcuTalon.Bridge.Process.ApprovalHold).%OpenId(holdId))
+		Set headerId = ""
+		If $IsObject(hold) {
+			For i = 1:1:hold.%MasterPendingResponses.Count() {
+				Set pending = hold.%MasterPendingResponses.GetAt(i)
+				If 'pending.IsTimer && (pending.CompletionKey = completionKey) {
+					Set headerId = pending.RequestHeaderId
+					Quit
+				}
+			}
+		}
+		If headerId '= "" {
+			Set sc = ##class(Ens.Host).SendDeferredResponse(headerId _ "|" _ $Get($$$EnsRuntime("Name")), response)
+			If $$$ISOK(sc) {
+				Set sent = 1
+			} Else {
+				$$$LOGWARNING("OcuTalon.Bridge.Approval: the answer " _ completionKey _ " of " _ ref _ " was not delivered to its hold: " _ $SYSTEM.Status.GetErrorText(sc))
+			}
+		}
+	} Catch exception {
+		Set sent = 0
+		$$$LOGWARNING("OcuTalon.Bridge.Approval: the answer " _ completionKey _ " of " _ ref _ " was not delivered to its hold: " _ exception.DisplayString())
+	}
+	Quit sent
 }
 
 /// The logic of ApprovalHold.OnRequest (AD-5): holds the request that the start names. It stores the Ref on the process, and in this order:
@@ -676,7 +721,8 @@ ClassMethod StartAge(hold As OcuTalon.Bridge.Process.ApprovalHold) As %Integer [
 }
 
 /// Arms the hold for a pending row: sends the Workflow task when withTask is 1, and sets the timer for the whole seconds until the row's
-/// ExpiresAt (at least 1) with the key expiry. An unreadable ExpiresAt is an error that names the Ref.
+/// ExpiresAt (at least 1) with the key expiry. The task's answer, or the direct answer that CompleteHoldTask sends when the task does not exist in time
+/// (AnswerHold), ends the wait on the task; the timer is the last resort. An unreadable ExpiresAt is an error that names the Ref.
 ClassMethod Arm(hold As OcuTalon.Bridge.Process.ApprovalHold, row As OcuTalon.Bridge.Data.ApprovalRequest, withTask As %Boolean) As %Status [ Private ]
 {
 	Set seconds = ##class(OcuTalon.Bridge.Time).SecondsUntil(row.ExpiresAt)
@@ -699,11 +745,12 @@ ClassMethod Arm(hold As OcuTalon.Bridge.Process.ApprovalHold, row As OcuTalon.Br
 ///   2. For the key expiry it first calls Expire(Ref); a row that is no longer pending is refused, which is expected, and any other failure is
 ///      logged as a warning that names the Ref.
 ///   3. It reads the row; with no row it does nothing.
-///   4. For the key task the outcome is approved when the TaskResponse's %Action is Approve and the row is approved, and rejected when the
-///      action is Reject and the row is rejected.
-///   5. For the key expiry the outcome is the row's state when that is expired, approved or rejected, so that an answer whose task Answer could
-///      not complete is delivered when the timer fires at the latest (for a tool_call that replay comes at its ExpiresAt, which StartExecution
-///      refuses, so the runner closes the row failed).
+///   4. For the key task the action is the TaskResponse's %Action, or the StringValue of an Ens.StringResponse (what AnswerHold sends when no task
+///      appeared in time); the outcome is approved when the action is Approve and the row is approved, and rejected when the action is Reject and
+///      the row is rejected.
+///   5. For the key expiry the outcome is the row's state when that is expired, approved or rejected, so that an answer that reached the hold by no
+///      task and no direct answer (AnswerHold) is delivered when the timer fires at the latest (for a tool_call that replay comes at its
+///      ExpiresAt, which StartExecution refuses, so the runner closes the row failed).
 ///   6. An approved tool_call is replayed: a Msg.Request of kind tool, provenance user, the Ref in ItemId, the row's OwnerRef and TraceRef, the
 ///      channel of the answer (else system), the tool's name as the summary and the hold's trace session, goes to DECIDEITEM with the key replay
 ///      and a response required. Any other outcome (every outcome of a fix or a setting) is sent to the row's ResultTarget as an OcuTalon.Bridge.Msg.ApprovalOutcome,
@@ -738,7 +785,7 @@ ClassMethod HoldResponse(hold As OcuTalon.Bridge.Process.ApprovalHold, response 
 	If $$$ISERR(sc) Quit $$$OK
 	Set outcome = ""
 	If completionKey = "task" {
-		Set action = $Select($IsObject(response) && response.%IsA("EnsLib.Workflow.TaskResponse"): response.%Action, 1: "")
+		Set action = $Select('$IsObject(response): "", response.%IsA("EnsLib.Workflow.TaskResponse"): response.%Action, response.%IsA("Ens.StringResponse"): response.StringValue, 1: "")
 		If (action = "Approve") && (row.State = "approved") Set outcome = "approved"
 		If (action = "Reject") && (row.State = "rejected") Set outcome = "rejected"
 	} ElseIf completionKey = "expiry" {
@@ -822,8 +869,8 @@ ClassMethod IsLive(holdId As %String) As %Boolean [ Private ]
 	Quit 'hold.%IsCompleted && 'hold.%IsTerminated && (hold.%MasterPendingResponses.Count() > 0)
 }
 
-/// Re-arms the holds after a start (AD-5, AD-23), in three passes that try every task and every row and combine the failures into one status,
-/// each naming its Ref. It is idempotent and fires no event.
+/// Re-arms the holds after a start (AD-5, AD-23), in four passes that try every task and every row and combine the failures into one status,
+/// each naming its Ref. It is idempotent; passes 1 to 3 fire no event, and pass 4 fires approval.result for each replay it closes.
 ///   1. It cancels, with EnsLib.Workflow.Engine.%CancelRequest, every incomplete task of the role WORKFLOWROLE that is not the task of a live
 ///      hold of a pending row. The hold that sent a task is the BusinessProcessId of its TaskRequest's message header.
 ///   2. It starts, through ApprovalStartIn, a new hold for every pending row that has no live hold, in a new session whose SuperSession is the
@@ -831,6 +878,9 @@ ClassMethod IsLive(holdId As %String) As %Boolean [ Private ]
 ///   3. It starts a delivery hold, through ApprovalStartIn, for every row that owes a delivery and has no live hold (DW-192): an approved
 ///      tool_call (its replay), and an approved, rejected or expired fix or setting with a ResultTarget whose ExpiresAt lies within DELIVERYDAYS and for
 ///      which no ApprovalOutcome message names the Ref. A cancelled, executing, done or failed row, and a row that is older, gets no hold.
+///   4. It closes, through Replay.CloseInterrupted, every executing tool_call row whose replay lock it can take at once, meaning that no replay is
+///      alive (DW-444): the row becomes failed with the result interrupted, the Action entry and the Approval entry are written and approval.result
+///      fires. It never runs the call again (NFR-13). A row whose replay is alive, and an executing fix or setting row, are left alone.
 /// The Lane A declaration OcuTalon.Install.Step.Approvals.Reconcile calls it, and the Reconcile step runs it after the production starts.
 ClassMethod Reconcile() As %Status
 {
@@ -866,7 +916,8 @@ ClassMethod Reconcile() As %Status
 		Set one = ..StartHold(ref, "", $List(entry, 2))
 		If $$$ISERR(one) Set sc = ..Combine(sc, "the hold of " _ ref _ " did not start: " _ $SYSTEM.Status.GetErrorText(one))
 	}
-	Quit ..ReconcileDeliveries(sc)
+	Set sc = ..ReconcileDeliveries(sc)
+	Quit $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Bridge.Replay).CloseInterrupted())
 }
 
 /// Reconcile's pass 3: starts a delivery hold for each row that owes a delivery and has no live hold; see Reconcile.
