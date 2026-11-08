@@ -5454,6 +5454,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-14-several-incidents-at-once-are-each-diagnosed-inside-their-ti.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Decide.TryRetry, on the timer, sends the retry with the same DecisionRef and records no Decision row; a first attempt still queued has no row when a DiagnosisAgent job takes it, so Adapter.Agent Concluded is 0 and it runs a model call, tools and a Usage row whose reply Decide discards. Only with a RetryItem set (none at install).
 - 2026-11-08T05:09:52Z status=escalated owner=burndown by=cr note=fix needs Decide (never-edit here; Epic 19 and 30) to mark a superseded attempt; for the user at the decision sheet
+- 2026-11-08T10:04:57Z status=wontfix-accepted by=merge_gate note=decision sheet Epic 5: reopen_if=a RetryItem is configured (DiagnosisAgentRetry wired); then route to the wiring story with a Decide change marking the superseded attempt
 
 ### DW-907: Two docs outside 5.14's ruled lines still say a call already late when the runner takes it answers and is counted: Test.Bridge.Conversation's class header and Decide's class doc
 - source: spec-5-14-several-incidents-at-once-are-each-diagnosed-inside-their-ti.md | severity: low | fix-risk: low | footprint: in-epic

@@ -2745,3 +2745,8 @@
 2026-11-08T10:04:43Z	Epic 5	runner_complete	agent=a7bf44d82c9187734 stories=1(5.14) head=043df8c0 ci=success decisions_for_user=DW-906 applied=DW-879_planner_ruling
 2026-11-08T10:04:43Z	Epic 5	amendments_verified	amendments=1(spine_Conventions_row_Abandoned_requests) extensions=5 ok=true
 2026-11-08T10:04:43Z	Epic 5	merge_enqueued	policy=when_green
+2026-11-08T10:04:57Z	Epic 5	epic_merged_to_feature	merge=d6b8af41 head=043df8c0 story=5.14 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0(899) sprint_valid=yes(epic-5_done)
+2026-11-08T10:04:57Z	Epic 5	decision_sheet_recorded	decided=1(DW-906:wontfix-accepted_reopen_if_RetryItem) by=merge_gate category=decide
+2026-11-08T10:04:57Z	Run	deps_hash_rerecorded	reason=fix_forward story=5.14 hash=a528d16d52bd
+2026-11-08T10:04:57Z	Epic 5	worktree_removed	path=.worktrees/epic-5
+2026-11-08T10:04:57Z	Epic 5	epic_branches_deleted	local+remote=OCT-epic5
