@@ -976,7 +976,7 @@ Lighter specs. Components with behavior of their own are under Component Pattern
 
 - **Memory** lives in the chat (FR-41). An answer that uses a memory carries a "From memory" chip, whose popover shows the remembered text and its date. Forgetting confirms with "Forgotten."
 - **Documents** (FR-42):
-  - **Adding:** an **Add documents** button (a file picker, with drag-and-drop as a second way), accepting Markdown and plain text, then PDF and Word from step 6.
+  - **Adding:** an **Add documents** button (a file picker, with drag-and-drop as a second way), accepting Markdown, plain text, PDF and Word (.docx) files.
   - **The list:** each document's name, date added, size, and status: "Indexing…", "Ready", or "Couldn't read it: {reason}".
   - **Removing** asks first: "Remove 'Results runbook'? Answers will stop citing it."
   - **Answers** end with citation chips. When no document is relevant, the reply says "None of your documents cover that."
@@ -1136,6 +1136,7 @@ Changes 1 to 5 and 8 were adopted into the PRD on October 16, and changes 6 and 
 - The rail's background checks and reminders are read-only in release 1.
 - Details shows the decision's cost beside the turn's cost when they differ.
 - On the online demo, documents and memories are per session (PRD change 9, adopted through P23).
+- On a local install, memories belong to each user and documents are shared by every user of the install (P23).
 - The "From the demo guide" tag is display-only; the message text stays exact (FR-16).
 - The splash screen states the PRD's assumed defaults: a 4-hour reset and 50 messages an hour.
 - The online demo allows 20 simulated emails an hour per session (PRD FR-40 assumption).

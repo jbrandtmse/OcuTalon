@@ -13,7 +13,10 @@ Include Ensemble
 /// no item setting and no System Default Setting holds a model, so a model chosen later is never overwritten (AD-7, AD-19).
 /// In the same way it seeds the Effort row of each runner whose agent class has an EFFORT parameter and that has no effort,
 /// and one AgentAllowList row for every item, holding the AgentClass values of the runners, when no runner resolves an
-/// allow-list (AD-6, AD-19). The step never saves the production and never enables an item through the director.
+/// allow-list (AD-6, AD-19). It also seeds the product's entry for the documents search into the System Default Settings row of
+/// Decide's ToolClassification (AD-5, AD-10, Story 19.4), merging with what the row holds: every other entry stays, a different
+/// entry for the same class and tool is replaced, and a row that is not a JSON array is left as it is with one warning (the gate, which
+/// cannot read it, then denies the documents call). The step never saves the production and never enables an item through the director.
 /// What it does with the production it finds:
 ///   - running, this production: restarts it, so every item gets its job again;
 ///   - running, Troubled or Suspended under another name: fails naming it, and stops, recovers and starts nothing;
@@ -48,8 +51,16 @@ Parameter RUNNERCLASS = "OcuTalon.Bridge.Operation.AgentRunner";
 /// The job statuses that mean a job does not run.
 Parameter DEADSTATUSES = "error,halted,terminated";
 
-/// Writes the EvalIn switch from the environment, seeds the Model and the Effort of the runners that have none and the
-/// allow-list of the agent classes, then starts the production and waits for it.
+/// The item whose ToolClassification row the step seeds, and the setting.
+Parameter CLASSIFYITEM = "Decide";
+
+Parameter CLASSIFYSETTING = "ToolClassification";
+
+/// The class of the product's entry: AI Hub's knowledge base, whose calls carry no source class (the gate's RagCall).
+Parameter DOCUMENTSCLASS = "%AI.RAG.KnowledgeBase";
+
+/// Writes the EvalIn switch from the environment, seeds the Model and the Effort of the runners that have none, the
+/// allow-list of the agent classes and the documents entry of Decide's ToolClassification, then starts the production and waits for it.
 ClassMethod Run() As %Status
 {
 	Set sc = ..SetEval(..EvalEnabled($SYSTEM.Util.GetEnviron("OCUTALON_EVAL")))
@@ -59,6 +70,8 @@ ClassMethod Run() As %Status
 	Set sc = ..SeedEfforts(..#PRODUCTION)
 	If $$$ISERR(sc) Quit sc
 	Set sc = ..SeedAllowList(..#PRODUCTION)
+	If $$$ISERR(sc) Quit sc
+	Set sc = ..SeedClassification(..#PRODUCTION)
 	If $$$ISERR(sc) Quit sc
 	Set sc = ..Start(..#WAITSECONDS)
 	If $$$ISERR(sc) Quit sc
@@ -264,6 +277,100 @@ ClassMethod SeedAllowList(production As %String) As %Status
 	}
 	If resolved || (classes = "") Quit $$$OK
 	Quit ..WriteDefault(production, "*", "AgentAllowList", $ListToString(classes, ","), "Seeded by the Production install step when no runner has an allow-list, with the AgentClass of each runner; the step never overwrites it.")
+}
+
+/// The entries of Decide's ToolClassification that the product ships, as a JSON array: one, for AI Hub's knowledge-base tool documents
+/// (Tools.Names DOCUMENTS): safe and read-only, and its output is never trusted (AD-10). It is the one source of the seeded row and of the
+/// documents row of the security overview.
+ClassMethod ClassificationEntries() As %DynamicArray
+{
+	Quit [{"class": (..#DOCUMENTSCLASS), "tool": (##class(OcuTalon.Tools.Names).#DOCUMENTS), "classification": "safe", "readOnly": 1, "trustedOutput": 0}]
+}
+
+/// Seeds the System Default Setting row (production, Decide, any class, ToolClassification) with the product's entries (ClassificationEntries),
+/// merged with what the row holds (AD-5): a missing or blank row becomes the entries; in an existing JSON array every other entry stays, in its
+/// place, the first entry for the same class and tool is replaced by the product's and any further one for that pair is dropped; a row that already
+/// holds exactly that is not written again. A row that is not a JSON array is left as it is with one warning, and the gate, which cannot read it, denies the
+/// documents call; a row that cannot be read or written is left as it is with one warning too, and the documents call, unclassified, is held. Both are the safe
+/// direction. The step runs at every start, so a reinstall restores the entry.
+ClassMethod SeedClassification(production As %String) As %Status
+{
+	Set id = production_"||"_..#CLASSIFYITEM_"||*||"_..#CLASSIFYSETTING
+	Set current = ""
+	If ##class(Ens.Config.DefaultSettings).%ExistsId(id) {
+		Set row = ##class(Ens.Config.DefaultSettings).%OpenId(id, , .sc)
+		If $$$ISERR(sc) {
+			Do ..WarnClassification("the row cannot be read: "_$SYSTEM.Status.GetOneStatusText(sc), 0)
+			Quit $$$OK
+		}
+		Set current = row.SettingValue
+	}
+	Set merged = ..MergeClassification(current, ..ClassificationEntries(), .reason)
+	If reason '= "" {
+		Do ..WarnClassification(reason, 1)
+		Quit $$$OK
+	}
+	If merged = "" Quit $$$OK
+	Set sc = ..WriteDefault(production, ..#CLASSIFYITEM, ..#CLASSIFYSETTING, merged, "Seeded by the Production install step with the product's entry for the documents search, merged with the entries already here; the step keeps every other entry.")
+	If $$$ISERR(sc) Do ..WarnClassification("the row cannot be written: "_$SYSTEM.Status.GetOneStatusText(sc), 0)
+	Quit $$$OK
+}
+
+/// The text of the ToolClassification row after the entries are merged into the text it holds now, or "" when the row needs no write; reason is "" or why
+/// the row is left alone (it is not a JSON array). See SeedClassification.
+ClassMethod MergeClassification(current As %String, entries As %DynamicArray, Output reason As %String) As %String
+{
+	Set reason = ""
+	If $ZStrip(current, "*WC") = "" Quit entries.%ToJSON()
+	Try {
+		Set held = {}.%FromJSON(current)
+	} Catch {
+		Set held = ""
+	}
+	If '$IsObject(held) || ($ClassName(held) '= "%Library.DynamicArray") {
+		Set reason = "the row is not a JSON array"
+		Quit ""
+	}
+	Set merged = []
+	Kill placed
+	Set iterator = held.%GetIterator()
+	While iterator.%GetNext(, .entry, .type) {
+		Set product = ..SamePair(entry, entries)
+		If product = "" {
+			Do merged.%Push(entry, $Select((type = "null") || (type = "boolean"): type, 1: ""))
+			Continue
+		}
+		Set key = product.class_$Char(1)_product.tool
+		If $Data(placed(key)) Continue
+		Set placed(key) = ""
+		Do merged.%Push(product)
+	}
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .product) {
+		If '$Data(placed(product.class_$Char(1)_product.tool)) Do merged.%Push(product)
+	}
+	If merged.%ToJSON() = held.%ToJSON() Quit ""
+	Quit merged.%ToJSON()
+}
+
+/// The entry of entries for the same class and tool as entry (an object), or "".
+ClassMethod SamePair(entry As %DynamicAbstractObject, entries As %DynamicArray) As %DynamicObject [ Private ]
+{
+	If '$IsObject(entry) || ($ClassName(entry) '= "%Library.DynamicObject") Quit ""
+	Set product = ""
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .product) {
+		If (entry.%Get("class") = product.class) && (entry.%Get("tool") = product.tool) Quit
+		Set product = ""
+	}
+	Quit product
+}
+
+/// The one warning of a ToolClassification row that the step leaves alone; denied is 1 when the gate cannot read the row (it is not a JSON array) and so
+/// denies the documents search, 0 when the search is only left unclassified, which the gate holds.
+ClassMethod WarnClassification(why As %String, denied As %Boolean) [ Private ]
+{
+	Do ..Warn("The System Default Setting "_..#CLASSIFYSETTING_" of "_..#CLASSIFYITEM_" was left as it is ("_why_"), so "_$Select(denied: "the gate cannot read it and denies the documents search.", 1: "the documents search may be unclassified, and the gate then holds it for approval."))
 }
 
 /// 1 when a System Default Setting row of any specificity exists for the adapter setting of the runner item, whatever its

@@ -24,31 +24,55 @@ ClassMethod AllRunners() As %String [ Private ]
 /// 1 while the entries of the runners are pointed at the CI mock key variable.
 Property Pointed As %Boolean [ InitialExpression = 0 ];
 
+/// The tool that reaches a request through TurnToolsClass and is no tool of an agent's own tool manager.
+Parameter TURNTOOL = "documents";
+
+/// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark), for the turn that AssertTurnTool sends.
+Property SessionMark As %Integer;
+
 /// Puts the keys of the runners back when TestToolsMatchRunners pointed them at the mock, also after a failure.
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	If ..Pointed {
 		Set ..Pointed = 0
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(..AllRunners())
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	}
 	Quit $$$OK
 }
 
-/// The rows are the 18 built-in tools: the 12 of release 1 (Tools.Names RELEASE1), propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), since Story 17.6, send_digest (Tools.Names DIGESTTOOLS), and the four memory tools (Tools.Names MEMORYTOOLS, Story 19.3), sorted by name, none of them a fixture or the bridge's example agent, and the
+/// The rows are the 19 built-in tools: the 12 of release 1 (Tools.Names RELEASE1), propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), since Story 17.6, send_digest (Tools.Names DIGESTTOOLS), the four memory tools (Tools.Names MEMORYTOOLS, Story 19.3) and documents (Tools.Names DOCUMENTS, Story 19.4: AI Hub's knowledge base, a row that comes from the product's classification entry and not from a toolset), sorted by name, none of them a fixture or the bridge's example agent, and the
 /// classification, the read-only flag and the trusted-output flag of each row are those that the gate gives (Gate.ClassificationOf); for a tool that
-/// classifies by its arguments only the two flags are compared, since its classification is decided per call.
+/// classifies by its arguments only the two flags are compared, since its classification is decided per call. The test seeds Decide's ToolClassification
+/// row through the install step first, so that the gate reads the product's entry, and puts the row back exactly as it found it.
 Method TestToolRows()
 {
+	Set saved = ""
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.saved, "Decide", "ToolClassification")
+	Try {
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedClassification(..#PRODUCTION), "the install step has seeded the ToolClassification row that the gate reads")
+		Do ..CheckToolRows()
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the rows are checked without an exception")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(saved), "the ToolClassification row of Decide is put back exactly as it was found: its value and description, or no row")
+}
+
+/// The rows of ToolRows against the gate's classification, flags and the classes of OcuTalon.Tools.
+Method CheckToolRows() [ Private ]
+{
 	Set rows = $ClassMethod(..#GENERATOR, "ToolRows")
-	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS"))
-	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1, one for propose_persona and one for send_digest")
+	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "DOCUMENTS"))
+	Do $$$AssertEquals(rows.%Size(), $ListLength(released), "one row per tool of release 1, one for propose_persona, one for send_digest, one for each memory tool and one for documents")
 	Set names = ""
 	Set bad = ""
 	Set iterator = rows.%GetIterator()
 	While iterator.%GetNext(, .row) {
 		Set names = names _ $ListBuild(row.name)
-		If '..StartsWith(row.source, "OcuTalon.Tools.") Set bad = bad _ " " _ row.name _ ":" _ row.source
-		If '..StartsWith(row.toolset, "OcuTalon.Tools.") Set bad = bad _ " " _ row.name _ ":" _ row.toolset
+		If row.name '= ##class(OcuTalon.Tools.Names).#DOCUMENTS {
+			If '..StartsWith(row.source, "OcuTalon.Tools.") Set bad = bad _ " " _ row.name _ ":" _ row.source
+			If '..StartsWith(row.toolset, "OcuTalon.Tools.") Set bad = bad _ " " _ row.name _ ":" _ row.toolset
+		}
 		Set facts = ##class(OcuTalon.Bridge.Policy.Gate).ClassificationOf(row.source, row.name)
 		If '(row.classification [ "per call: ") {
 			Set shown = $Select(facts.classification = "": "unclassified", 1: facts.classification)
@@ -80,6 +104,30 @@ Method TestRecentActivityRow()
 	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
 	Set expected = "| `recent_activity` | `OcuTalon.Tools.RecentActivity` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Reading recent activity | safe | yes | yes | none |"
 	Do $$$AssertTrue(..HasLine(sections("tools"), expected), "the table of the tools section holds this row for recent_activity")
+}
+
+/// Story 19.4 (AC 6; the Contest Planner's PUBLIC TEXT ruling of 2026-11-07): documents is a row of the table, from the product's classification entry (Install.Step.Production ClassificationEntries)
+/// of the class %AI.RAG.KnowledgeBase, with the flags of that entry (safe, read-only, not trusted output), held by the Chat agent, with the generic
+/// step label and no resources, and the tools section ends with the fallback sentence RAGSTATEMENT, once, word for word.
+Method TestDocumentsRow()
+{
+	Set row = ..RowOf("documents")
+	If '$IsObject(row) {
+		Do $$$AssertTrue(0, "the model has a row for documents")
+		Quit
+	}
+	Do $$$AssertEquals(row.source, "%AI.RAG.KnowledgeBase", "its source is AI Hub's knowledge base")
+	Do $$$AssertEquals(row.toolset, "OcuTalon.Docs.Store", "its toolset is the class that attaches it")
+	Do $$$AssertEquals(row.agents.%Size()_"|"_row.agents.%Get(0), "1|OcuTalon.Agent.Chat", "the Chat agent holds it")
+	Do $$$AssertEquals(row.label, "Running a tool", "its step label is the generic one")
+	Do $$$AssertEquals(row.classification_"|"_row.readOnly_"|"_row.trustedOutput_"|"_row.resources.%Size(), "safe|1|0|0", "safe, read-only, not trusted output, no resources")
+	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
+	Set expected = "| `documents` | `%AI.RAG.KnowledgeBase` | `OcuTalon.Docs.Store` | `OcuTalon.Agent.Chat` | Running a tool | safe | yes | no | none |"
+	Do $$$AssertTrue(..HasLine(sections("tools"), expected), "the table of the tools section holds this row for documents")
+	Set statement = "One tool has no class of its own: `documents`, the search over your added documents that AI Hub's knowledge base gives the Chat agent. AI Hub sends no source class with its calls, so the gate classifies this one tool, and no other, by the bridge's classification setting: safe and read-only, but its output is never trusted, so a turn that searches your documents is treated as holding untrusted content. The gate also limits each search to 5 passages. Any other call that arrives without a source class stays unclassified and counts as risky."
+	Do $$$AssertEquals($Parameter(..#GENERATOR, "RAGSTATEMENT"), statement, "the fallback sentence is the ruled text, word for word")
+	Do $$$AssertEquals($Length(sections("tools"), statement) - 1, 1, "and the tools section prints it once")
+	Do $$$AssertTrue(sections("tools") [ ($Char(10)_$Char(10)_statement_$Char(10)), "on a line of its own after the table")
 }
 
 /// Story 40.5 (AC 8): propose_persona is one of the 13 rows, held by the Chat agent through its toolset, with its source, label, classification and flags, in the table as well.
@@ -125,9 +173,9 @@ Method TestToolsetScope()
 	Set rows = $ClassMethod(..#GENERATOR, "ToolRows")
 	Set iterator = rows.%GetIterator()
 	While iterator.%GetNext(, .row) {
-		If '$ListFind(toolsets, row.toolset) Set used = used _ " " _ row.name
+		If '$ListFind(toolsets, row.toolset) && (row.name '= ##class(OcuTalon.Tools.Names).#DOCUMENTS) Set used = used _ " " _ row.name
 	}
-	Do $$$AssertEquals(used, "", "every row is a tool of one of those toolsets")
+	Do $$$AssertEquals(used, "", "every row but documents (AI Hub's knowledge base, which has no toolset) is a tool of one of those toolsets")
 	Set agents = $ClassMethod("%AI.Catalog", "Agents", "OcuTalon.%")
 	Set outside = 0
 	Set iterator = agents.%GetIterator()
@@ -428,7 +476,8 @@ Method TestAscii()
 
 /// Every enabled agent runner of the production holds exactly the tools that the rows list for its agent: a ToolInventory request to each runner
 /// is compared with the rows whose agents hold the runner's AgentClass. The test names the runner and the tool of a difference. A production that
-/// does not run fails the test.
+/// does not run fails the test. The one tool that reaches a request through TurnToolsClass (Story 19.5), documents, is no tool of the agent's own tool manager,
+/// which the inventory lists: its row is checked against what a local turn of the agent offers (the first model request of a Chat turn through the runner).
 Method TestToolsMatchRunners()
 {
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
@@ -438,6 +487,7 @@ Method TestToolsMatchRunners()
 		Quit
 	}
 	Set ..Pointed = 1
+	Set ..SessionMark = $ClassMethod(fixture, "SessionMark")
 	Set sc = $ClassMethod(fixture, "PointKeys", ..AllRunners())
 	Do $$$AssertStatusOK(sc, "the entries of the runners, the retry runners included, are pointed at the CI mock key variable")
 	If $$$ISERR(sc) Quit
@@ -457,7 +507,7 @@ Method TestToolsMatchRunners()
 		While iterator.%GetNext(, .row) {
 			Set holders = row.agents.%GetIterator()
 			While holders.%GetNext(, .holder) {
-				If holder = agent Set listed = listed _ $ListBuild(row.name)
+				If (holder = agent) && (row.name '= ..#TURNTOOL) Set listed = listed _ $ListBuild(row.name)
 			}
 		}
 		Set sc = $ClassMethod(fixture, "Send", item, ##class(OcuTalon.Bridge.Msg.ToolInventory).%New(), .response)
@@ -484,6 +534,36 @@ Method TestToolsMatchRunners()
 		Do $$$AssertEquals(problems, "", item_" holds the tools that the overview lists for "_agent_": "_$ListToString(..Sorted(held)))
 	}
 	Do $$$AssertTrue(checked > 0, "at least one enabled agent runner was compared: "_checked)
+	Do ..AssertTurnTool(.runners, rows)
+}
+
+/// The tool documents reaches a request through TurnToolsClass, so the overview's row for it is checked against a local turn: for each enabled runner whose agent
+/// the row lists, a turn (the CI mock's recall-ask) offers the tool in its first model request, and at least one runner is checked.
+Method AssertTurnTool(ByRef runners, rows As %DynamicArray) [ Private ]
+{
+	Set holders = ""
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		If row.name '= ..#TURNTOOL Continue
+		Set agents = row.agents.%GetIterator()
+		While agents.%GetNext(, .agent) {
+			Set holders = holders _ $ListBuild(agent)
+		}
+	}
+	Do $$$AssertTrue($ListLength(holders) > 0, "the overview has a row for " _ ..#TURNTOOL)
+	Set checked = 0
+	For i = 1:1:runners {
+		Set item = $List(runners(i), 1)
+		If ('$List(runners(i), 3)) || (item [ "Retry") Continue
+		Set agent = $List(runners(i), 2)
+		If ($ListFind(holders, agent) = 0) Continue
+		Set checked = checked + 1
+		Set sc = $ClassMethod("OcuTalon.Test.Agent.RunnerFixture", "Ask", item, "turn", "user", "[[mock:recall-ask]] Where is the build server?", .reply, .requests, .ref)
+		Do $$$AssertStatusOK(sc, item _ " answers a local turn")
+		Set offered = $Select($IsObject(requests) && (requests.%Size() > 0): $ClassMethod("OcuTalon.Test.Agent.RunnerFixture", "ToolNames", requests.%Get(0)), 1: "")
+		Do $$$AssertTrue($ListFind($ListFromString(offered), ..#TURNTOOL) > 0, item _ " offers " _ ..#TURNTOOL _ " to a local turn, as the overview's row for " _ agent _ " says: " _ offered)
+	}
+	Do $$$AssertTrue(checked > 0, "at least one enabled runner of an agent that holds " _ ..#TURNTOOL _ " was asked: " _ checked)
 }
 
 /// The security records of the instance are the model: each listed role holds exactly its resources and permissions (the base grants, and with

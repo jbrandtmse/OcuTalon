@@ -10,7 +10,7 @@
 ///     with the four markers once each in order and no item outside a region;
 ///   - TestStubsAnswer: every item class that carries STUB answers "not implemented" (code 5003), with no response and no
 ///     new log row; the two rule classes carry STUB and hold a rule set with no rule. Decide (built in Story 1.3), the three
-///     agent runners and AgentSteps (built in Story 1.5) and DigestStore (built in Story 1.12) carry no STUB, so the oracle marks them "stub": 0, and so do ApprovalHold and ApprovalStartIn (built in Story 3.4) and FailurePoller (built in Story 5.2: an inbound adapter service every 3 seconds, so its row has pool 1 and the setting CallInterval 3), IncidentManager (built in Story 5.5), Checks (built in Story 5.6), and FixExecutor (built in Story 7.3), and ReconcileIn (built in Story 15.2: an inbound adapter service every 5 seconds, so its row has pool 1 and the setting CallInterval 5). EvalIn and EvalSink are built in Story 9.1. From step 2 (Story 33.1), the three retry runners TriageAgentRetry, DiagnosisAgentRetry and ChatAgentRetry were disabled with an empty AgentClass setting, and Digest was disabled and carried STUB; Story 17.2 built the retry runners: they are enabled, with the AgentClass of their first runner (and the ReplyClass of Triage and Diagnosis), and no RetryItem is set anywhere at install, so a default install makes no second-model request; Story 17.6 built Digest: it is enabled and carries no STUB; From step 3 (Story 34.1), MemoryOps and DocumentOps are disabled and carry STUB; Stories 19.3 and 19.4 build them; MemoryOps is built (Story 19.3): enabled, with no STUB;
+///     agent runners and AgentSteps (built in Story 1.5) and DigestStore (built in Story 1.12) carry no STUB, so the oracle marks them "stub": 0, and so do ApprovalHold and ApprovalStartIn (built in Story 3.4) and FailurePoller (built in Story 5.2: an inbound adapter service every 3 seconds, so its row has pool 1 and the setting CallInterval 3), IncidentManager (built in Story 5.5), Checks (built in Story 5.6), and FixExecutor (built in Story 7.3), and ReconcileIn (built in Story 15.2: an inbound adapter service every 5 seconds, so its row has pool 1 and the setting CallInterval 5). EvalIn and EvalSink are built in Story 9.1. From step 2 (Story 33.1), the three retry runners TriageAgentRetry, DiagnosisAgentRetry and ChatAgentRetry were disabled with an empty AgentClass setting, and Digest was disabled and carried STUB; Story 17.2 built the retry runners: they are enabled, with the AgentClass of their first runner (and the ReplyClass of Triage and Diagnosis), and no RetryItem is set anywhere at install, so a default install makes no second-model request; Story 17.6 built Digest: it is enabled and carries no STUB; From step 3 (Story 34.1), MemoryOps and DocumentOps are disabled and carry STUB; Stories 19.3 and 19.4 build them; MemoryOps is built (Story 19.3): enabled, with no STUB; DocumentOps is built (Story 19.4): enabled, with no STUB, and the Decide item gains the ToolClassification setting that classifies the documents search (AD-10; its class is written \u0025AI.RAG.KnowledgeBase in the XML, which JSON reads as the class name, because the rule ai-allowlist of test-class-rules.sh reads the XData of Production.cls as code);
 ///   - TestRunnerModels: UnresolvedRunners names exactly the enabled runners with no model in a fixture production (the
 ///     runners of OcuTalon.Production itself are checked by OcuTalon.Test.Agent.Models);
 ///   - TestSeedModels: Runners lists the runners of the fixture production, and SeedModels writes the Model row of the runner
@@ -419,6 +419,69 @@ Method TestSeedAllowList()
 	Do $$$AssertEquals(..SettingRows(fixture, "AgentAllowList"), "", "the fixture production has no AgentAllowList row afterwards")
 }
 
+/// SeedClassification (Story 19.4; AD-5) writes the System Default Setting row (production, Decide, any class, ToolClassification) with the product's entry for the
+/// documents search, merging with the row it finds: a missing or blank row becomes the product's entries; the developer's entries stay in their places, a wrong
+/// documents entry is replaced in its place (and a repeated one dropped), a second run changes nothing, a row that already holds the result is not written
+/// again (its text and description stay), an element that is not an object is kept as it is, and a row that is not a JSON array is left as it is
+/// with one warning. The oracle's Decide item holds no ToolClassification setting (TestDefinition). The rows are those of the fixture production.
+Method TestSeedClassification()
+{
+	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
+	Set step = "OcuTalon.Install.Step.Production"
+	Set own = $ClassMethod(step, "ClassificationEntries").%ToJSON()
+	Set docs = "{""class"":""%AI.RAG.KnowledgeBase"",""tool"":""documents"",""classification"":""safe"",""readOnly"":1,""trustedOutput"":0}"
+	Do $$$AssertEquals(own, "["_docs_"]", "the product ships one entry: AI Hub's knowledge base, documents, safe, read-only, output not trusted")
+	Set dev1 = "{""class"":""Zz.Tools"",""tool"":""zz_a"",""classification"":""risky""}"
+	Set dev2 = "{""class"":""Zz.Tools"",""tool"":""zz_b"",""classification"":""safe"",""readOnly"":1}"
+	Do ..DeleteRows(fixture, "ToolClassification")
+	Try {
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "", "the fixture production has no ToolClassification row")
+		Do ..TakeWarnings()
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a production with no row")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide="_own, "and creates the row of Decide with the product's entries")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs again")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide="_own, "and the second run leaves the row as it is")
+
+		Do ..PutClassification(fixture, "["_dev1_","_dev2_"]")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a row of the developer's entries")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide=["_dev1_","_dev2_","_docs_"]", "and adds the documents entry after them, losing none")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs again on it")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide=["_dev1_","_dev2_","_docs_"]", "and is idempotent there too")
+
+		Set wrong = "{""class"":""%AI.RAG.KnowledgeBase"",""tool"":""documents"",""classification"":""risky"",""trustedOutput"":1}"
+		Do ..PutClassification(fixture, "["_dev1_","_wrong_","_dev2_","_wrong_"]")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a row with a wrong documents entry, twice")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide=["_dev1_","_docs_","_dev2_"]", "and replaces the first in its place, drops the repeat and keeps the developer's entries")
+
+		Set spaced = "[ "_dev1_" , "_docs_" ]"
+		Do ..PutClassification(fixture, spaced)
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a row that already holds the product's entry, written with spaces")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification")_"|"_##class(Ens.Config.DefaultSettings).%OpenId(fixture_"||Decide||*||ToolClassification").Description, "Decide="_spaced_"|Zz test row", "and does not write it again: its text and its description stay")
+		Do ..PutClassification(fixture, "["_dev1_",null,true]")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a row with a null and a true element")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide=["_dev1_",null,true,"_docs_"]", "and keeps those elements as they are")
+
+		Do ..PutClassification(fixture, " "_$Char(10))
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a blank row")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide="_own, "and a blank row becomes the product's entries")
+
+		Do ..TakeWarnings()
+		For malformed = "not json", "{""class"":""x""}", "42" {
+			Do ..PutClassification(fixture, malformed)
+			Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on '"_malformed_"'")
+			Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide="_malformed, "and leaves that row as it is")
+		}
+		Set warnings = ..TakeWarnings()
+		Do $$$AssertEquals($ListLength(warnings), 3, "with one warning each")
+		Do $$$AssertTrue($ListGet(warnings, 1) [ "ToolClassification", "that names the setting")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..DeleteRows(fixture, "ToolClassification")
+	Do ..TakeWarnings()
+	Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "", "the fixture production has no ToolClassification row afterwards")
+}
+
 /// Row 5: EvalEnabled is 1 only for "1"; SetEval writes the System Default Setting row (production, EvalIn, any class,
 /// Enabled) with 1, then with 0, and says in its description that the step writes it; NotRunning says that
 /// OcuTalon.Production is not running when it does not run.
@@ -564,6 +627,18 @@ ClassMethod SettingRows(production As %String, setting As %String) As %String [ 
 	Quit rows
 }
 
+/// Writes the ToolClassification row of Decide for the production with the value (the row is deleted afterwards by the test).
+ClassMethod PutClassification(production As %String, value As %String) [ Private ]
+{
+	Do ##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault(production, "Decide", "ToolClassification", value, "Zz test row")
+}
+
+/// The warnings the install step recorded since the last call, as a list.
+ClassMethod TakeWarnings() As %List [ Private ]
+{
+	Quit ##class(OcuTalon.Install.Step.Production).TakeWarnings()
+}
+
 /// Deletes the rows of a production for a setting.
 ClassMethod DeleteRows(production As %String, setting As %String) [ Private ]
 {
@@ -651,7 +726,7 @@ XData Items [ MimeType = application/json ]
 [
  {"lane": "A", "name": "TelegramIn", "class": "OcuTalon.Channel.Telegram.In", "pool": 1, "enabled": 0, "stub": 0, "settings": [{"target": "Adapter", "name": "CallInterval", "value": "1"}]},
  {"lane": "A", "name": "TelegramOut", "class": "OcuTalon.Channel.Telegram.Out", "pool": 1, "enabled": 0, "stub": 0, "settings": []},
- {"lane": "A", "name": "Decide", "class": "OcuTalon.Bridge.Process.Decide", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Host", "name": "HostSinkClass", "value": "OcuTalon.Core.BridgeSink"}, {"target": "Host", "name": "ReplyFilterClass", "value": "OcuTalon.Checks.ReplyGuard"}]},
+ {"lane": "A", "name": "Decide", "class": "OcuTalon.Bridge.Process.Decide", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Host", "name": "HostSinkClass", "value": "OcuTalon.Core.BridgeSink"}, {"target": "Host", "name": "ReplyFilterClass", "value": "OcuTalon.Checks.ReplyGuard"}, {"target": "Host", "name": "TurnToolsClass", "value": "OcuTalon.Docs.TurnTools"}]},
  {"lane": "A", "name": "ApprovalHold", "class": "OcuTalon.Bridge.Process.ApprovalHold", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "ApprovalStartIn", "class": "OcuTalon.Bridge.Service.ApprovalStart", "pool": 0, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "TriageAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Triage"}, {"target": "Host", "name": "ReplyClass", "value": "OcuTalon.Bridge.Msg.DecisionPayload"}]},
@@ -673,7 +748,7 @@ XData Items [ MimeType = application/json ]
  {"lane": "A", "name": "Digest", "class": "OcuTalon.Digest.Process", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "ReconcileIn", "class": "OcuTalon.Install.ReconcileIn", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "CallInterval", "value": "5"}]},
  {"lane": "A", "name": "MemoryOps", "class": "OcuTalon.Memory.Ops", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
- {"lane": "A", "name": "DocumentOps", "class": "OcuTalon.Docs.Ops", "pool": 1, "enabled": 0, "stub": 1, "settings": []}
+ {"lane": "A", "name": "DocumentOps", "class": "OcuTalon.Docs.Ops", "pool": 1, "enabled": 1, "stub": 0, "settings": []}
 ]
 }
 

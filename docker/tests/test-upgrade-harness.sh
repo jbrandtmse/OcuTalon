@@ -20,6 +20,10 @@
 #     notification, fails on a changed Pairing row or on a missing sendMessage, and writes the note that its upgrade part joins later when
 #     the previous build did not include Telegram; the candidate's chat is paired at the end of the upgrade phase, and the restart check
 #     passes only with the row intact and the notification delivered, and fails with no paired chat left;
+#   - memory-document (Story 19.5): the memory and document families over stubs of built_class, run_turn, session_value and api_post/api_get: a previous
+#     build whose MemoryOps or DocumentOps is not built seeds nothing and the upgrade row carries the note that its upgrade part joins later, one that is
+#     built is seeded and checked after the upgrade, a search that misses (or a document that is not listed ready) is a fail line, and the record made on the
+#     candidate is checked after the restart;
 #   - run: the run command chained over a stub of the harness: the phases in order, the options only on build, the tag shared, report and
 #     down after any failed phase, and only down after a refused build;
 #   - static: the harness holds no docker push, login, save or export, no compose config without --quiet and no inspect without
@@ -439,7 +443,7 @@ write_results() {
   : > "$f"
   case $2 in
     pass | fail | partial)
-      for id in previous-build upgrade conversation reminder approval watch settings restart storage private-globals pairing; do
+      for id in previous-build upgrade conversation reminder approval watch settings restart storage private-globals pairing memory document; do
         if [ "$2" = partial ] && [ "$id" = restart ]; then continue; fi
         if [ "$2" = partial ] && [ "$id" = storage ]; then continue; fi
         printf 'RECORD %s pass the first check of %s\nRECORD %s pass the second | check\n' "$id" "$id" "$id" >> "$f"
@@ -482,8 +486,8 @@ t_record() {
   eq "the run line" "$(printf '%s\n' "$sec" | sed -n 's/^Run: //p')" "2026-11-01T10:00:00Z to 2026-11-01T10:20:00Z, tag e11s2t"
   lacks "no note for a release tag" "$sec" "Note:"
   eq "the heading is the first line" "$(printf '%s\n' "$sec" | head -n 1)" "## Upgrade harness"
-  eq "the table has a header, a separator and eleven rows" "$(printf '%s\n' "$sec" | grep -c '^| ')" 13
-  eq "the rows are in order, pairing last" "$(printf '%s\n' "$sec" | sed -n 's/^| \([a-z ]*\) | [a-z ]* | .*/\1/p' | tr '\n' ',')" "previous build,upgrade,conversation,reminder,approval,watch,settings,restart,storage,private globals,pairing,"
+  eq "the table has a header, a separator and thirteen rows" "$(printf '%s\n' "$sec" | grep -c '^| ')" 15
+  eq "the rows are in order, memory and document last" "$(printf '%s\n' "$sec" | sed -n 's/^| \([a-z ]*\) | [a-z ]* | .*/\1/p' | tr '\n' ',')" "previous build,upgrade,conversation,reminder,approval,watch,settings,restart,storage,private globals,pairing,memory,document,"
   has "pairing is a pass row in the table" "$sec" "| pairing | pass | 2 checks passed |"
   lacks "no row is off" "$sec" "| off |"
   has "a note adds to a pass detail" "$sec" "| reminder | pass | 2 checks passed; R1 fired late |"
@@ -502,7 +506,7 @@ t_record() {
   sec=$(record_section /dev/null "$o")
   eq "no results is not run" "$(printf '%s\n' "$sec" | sed -n 's/^Result: //p')" "not run"
   eq "a dry run's mode" "$(printf '%s\n' "$sec" | sed -n 's/^Mode: //p')" "dry run"
-  eq "every row is not run, pairing too" "$(printf '%s\n' "$sec" | grep -c '| not run | not run |')" 11
+  eq "every row is not run, pairing, memory and document too" "$(printf '%s\n' "$sec" | grep -c '| not run | not run |')" 13
 
   write_results "$r" fail
   sec=$(record_section "$r" "$o")
@@ -763,7 +767,7 @@ t_record_contract() {
   eq "every row's result is pass, fail, not run or off" "$(printf '%s\n' "$rows" | awk -F' [|] ' '$2 != "pass" && $2 != "fail" && $2 != "not run" && $2 != "off" { bad++ } END { print bad + 0 }')" 0
   eq "the section is plain ASCII" "$(printf '%s\n' "$sec" | LC_ALL=C grep -c '[^ -~]')" 0
   v=$(printf '%s\n' "$rows" | sed -n 's/^| \([a-z ]*\) | .*/\1/p' | wc -l | tr -d ' ')
-  eq "the rows are the eleven records" "$v" 11
+  eq "the rows are the thirteen records" "$v" 13
   [ "$bad" -eq 0 ]
 }
 b_record_contract() {
@@ -901,6 +905,179 @@ t_pairing() {
   [ "$bad" -eq 0 ]
 }
 b_pairing() { pairing_reached() { return 0; }; }
+
+# --- memory and document (Story 19.5) ---
+
+# The families over stubs of the stack's readings. STUB_BUILT is built_class's answer, STUB_TURN_RC the status of the memory-save turn, STUB_MEM the newest
+# memory row ("<Ref>|<SessionRef>"), STUB_MFOUND the memory search (1 or 0), STUB_POST_CODE the POST /v1/documents status, STUB_DOCSTATE the state the list
+# shows and STUB_DFOUND the document search ("ok" or its reason).
+memdoc_stubs() {
+  wait_until() { shift; "$@"; }
+  built_class() { echo "${STUB_BUILT-}"; }
+  run_turn() { # run_turn <clientId> <scenario> <text> <reply> <label>: the real one records its failure
+    if [ "${STUB_TURN_RC-0}" != 0 ]; then
+      fail "$5: the turn failed"
+      return 1
+    fi
+    return 0
+  }
+  session_value() { # session_value <namespace> <name>
+    local script
+    script=$(cat)
+    case $2 in
+      mem) echo "${STUB_MEM-}" ;;
+      found)
+        case $script in
+          *"Docs.Live"*) echo "${STUB_DFOUND-ok}" ;;
+          *) echo "${STUB_MFOUND-1}" ;;
+        esac
+        ;;
+    esac
+  }
+  api_post() {
+    printf '{"result":"done","ref":"zzdoc1"}' > "$tmp/post.body"
+    echo "${STUB_POST_CODE-200}"
+  }
+  api_get() {
+    printf '{"documents":[{"ref":"zzdoc1","state":"%s"}]}' "${STUB_DOCSTATE-ready}" > "$tmp/get.body"
+    echo 200
+  }
+}
+md_lines() { grep -c "^RECORD $1 $2 " "$results" 2> /dev/null; }
+
+t_memory_document() {
+  local bad=0
+  memdoc_stubs
+  harness_root=$root
+  jar=$tmp/jar
+  key=zzkey
+
+  # The seed: nothing on a previous build that cannot save a memory or index a document, the record on one that can.
+  pairing_fresh
+  seeding=1
+  STUB_BUILT=0 seed_memory > /dev/null
+  STUB_BUILT=0 seed_document > /dev/null
+  eq "a previous build whose MemoryOps is a stub: no memory is seeded" "$(env_get "$state/seed.env" mem_ref)" ""
+  eq "and the seed remembers that it was not built" "$(env_get "$state/seed.env" prev_memory)$(env_get "$state/seed.env" prev_document)" 00
+  eq "likewise no document" "$(env_get "$state/seed.env" doc_ref)" ""
+  eq "and nothing is recorded" "$(md_lines memory pass)$(md_lines memory fail)$(md_lines document pass)$(md_lines document fail)" 0000
+  pairing_fresh
+  seeding=1
+  STUB_BUILT=1 STUB_MEM="zzmem1|zzsession1" seed_memory > /dev/null
+  STUB_BUILT=1 seed_document > /dev/null
+  eq "a previous build that saves memories: the memory and its session are seeded" "$(env_get "$state/seed.env" mem_ref)|$(env_get "$state/seed.env" mem_session)" "zzmem1|zzsession1"
+  eq "and the document" "$(env_get "$state/seed.env" doc_ref)" zzdoc1
+  eq "each seed writes one seed line, which is no check" "$(md_lines memory seed)$(md_lines document seed)$(md_lines memory pass)$(md_lines document pass)" 1100
+  pairing_fresh
+  seeding=1
+  STUB_BUILT=1 STUB_TURN_RC=1 seed_memory > /dev/null
+  STUB_BUILT=1 STUB_POST_CODE=501 seed_document > /dev/null
+  eq "a turn that fails and a route that refuses fail the seeds" "$(md_lines memory fail)$(md_lines document fail)" 11
+  eq "and seed nothing" "$(env_get "$state/seed.env" mem_ref)$(env_get "$state/seed.env" doc_ref)" ""
+  pairing_fresh
+  seeding=1
+  STUB_BUILT=1 STUB_MEM="" seed_memory > /dev/null
+  eq "a turn that saved no memory fails the seed" "$(md_lines memory fail)" 1
+  pairing_fresh
+  seeding=1
+  STUB_BUILT="" seed_memory > /dev/null
+  STUB_BUILT="" seed_document > /dev/null
+  eq "an empty answer of built_class fails both seeds and is never 'not built'" "$(md_lines memory fail)$(md_lines document fail)|$(env_get "$state/seed.env" prev_memory)$(env_get "$state/seed.env" prev_document)" "11|"
+
+  # The upgrade part: the note without a seed, the checks with one.
+  pairing_fresh
+  env_set "$state/seed.env" prev_memory 0
+  env_set "$state/seed.env" prev_document 0
+  check_memory_upgrade > /dev/null
+  check_document_upgrade > /dev/null
+  eq "an older previous build: the notes say the upgrade part joins later" "$(grep -c "^RECORD memory note $MEMORY_UPGRADE_NOTE\$" "$results")$(grep -c "^RECORD document note $DOCUMENT_UPGRADE_NOTE\$" "$results")" 11
+  eq "and nothing is checked" "$(md_lines memory pass)$(md_lines memory fail)$(md_lines document pass)$(md_lines document fail)" 0000
+  pairing_fresh
+  env_set "$state/seed.env" prev_memory 1
+  env_set "$state/seed.env" prev_document 1
+  env_set "$state/seed.env" mem_ref zzmem1
+  env_set "$state/seed.env" mem_session zzsession1
+  env_set "$state/seed.env" doc_ref zzdoc1
+  check_memory_upgrade > /dev/null
+  check_document_upgrade > /dev/null
+  eq "a seeded memory that is found: one pass" "$(md_lines memory pass)$(md_lines memory fail)" 10
+  eq "a seeded document that is listed ready and found: two passes" "$(md_lines document pass)$(md_lines document fail)" 20
+  pairing_fresh
+  env_set "$state/seed.env" prev_memory 1
+  env_set "$state/seed.env" prev_document 1
+  env_set "$state/seed.env" mem_ref zzmem1
+  env_set "$state/seed.env" mem_session zzsession1
+  env_set "$state/seed.env" doc_ref zzdoc1
+  STUB_MFOUND=0 check_memory_upgrade > /dev/null
+  STUB_DFOUND="the search returned no passage of the document" check_document_upgrade > /dev/null
+  eq "a search that misses the memory is a fail line" "$(md_lines memory fail)" 1
+  eq "a search that misses the document is a fail line (its listing passed)" "$(md_lines document pass)$(md_lines document fail)" 11
+  for answer in "" ok; do
+    pairing_fresh
+    env_set "$state/seed.env" prev_document 1
+    env_set "$state/seed.env" doc_ref zzdoc1
+    STUB_DFOUND=$answer check_document_upgrade > /dev/null
+    eq "the search's answer '$answer': an empty one is a fail line and never found, a real one passes" "$(md_lines document pass)$(md_lines document fail)" "$([ -z "$answer" ] && echo 11 || echo 20)"
+  done
+  pairing_fresh
+  env_set "$state/seed.env" prev_document 1
+  env_set "$state/seed.env" doc_ref zzdoc1
+  STUB_DOCSTATE=indexing check_document_upgrade > /dev/null
+  eq "a document that is not listed ready fails and is not searched" "$(md_lines document fail)$(md_lines document pass)" 10
+  pairing_fresh
+  env_set "$state/seed.env" prev_memory 1
+  env_set "$state/seed.env" prev_document 1
+  check_memory_upgrade > /dev/null
+  check_document_upgrade > /dev/null
+  eq "a previous build that saves and indexes with nothing seeded fails" "$(md_lines memory fail)$(md_lines document fail)" 11
+
+  # The candidate's records, made when the seed could not, and checked after the restart.
+  pairing_fresh
+  env_set "$state/seed.env" prev_memory 0
+  env_set "$state/seed.env" prev_document 0
+  STUB_MEM="zzmem2|zzsession2" memory_candidate > /dev/null
+  document_candidate > /dev/null
+  eq "the candidate's memory is made and kept for the restart" "$(env_get "$state/upgrade.env" mem_ref)|$(env_get "$state/upgrade.env" mem_session)" "zzmem2|zzsession2"
+  eq "and its document" "$(env_get "$state/upgrade.env" doc_ref)" zzdoc1
+  STUB_MFOUND=1 check_memory_restart > /dev/null
+  check_document_restart > /dev/null
+  eq "the candidate made both (a pass each) and after the restart both are found (one pass for the memory, two for the document)" "$(md_lines memory pass)$(md_lines document pass)" 23
+  pairing_fresh
+  env_set "$state/seed.env" prev_memory 1
+  env_set "$state/seed.env" prev_document 1
+  memory_candidate > /dev/null
+  document_candidate > /dev/null
+  eq "records seeded on the previous build are not made again on the candidate" "$(env_get "$state/upgrade.env" mem_ref)$(env_get "$state/upgrade.env" doc_ref)" ""
+  env_set "$state/seed.env" mem_ref zzmem1
+  env_set "$state/seed.env" mem_session zzsession1
+  env_set "$state/seed.env" doc_ref zzdoc1
+  check_memory_restart > /dev/null
+  check_document_restart > /dev/null
+  eq "and the restart checks the seeded ones" "$(md_lines memory pass)$(md_lines document pass)" 12
+  pairing_fresh
+  STUB_MFOUND=0 check_memory_restart > /dev/null
+  check_document_restart > /dev/null
+  eq "no record to check after the restart fails both rows" "$(md_lines memory fail)$(md_lines document fail)" 11
+  pairing_fresh
+  env_set "$state/upgrade.env" mem_ref zzmem2
+  env_set "$state/upgrade.env" mem_session zzsession2
+  env_set "$state/upgrade.env" doc_ref zzdoc1
+  STUB_MFOUND=0 STUB_DOCSTATE=failed check_memory_restart > /dev/null
+  STUB_MFOUND=0 STUB_DOCSTATE=failed check_document_restart > /dev/null
+  eq "after the restart a lost memory and a document that is no longer ready fail" "$(md_lines memory fail)$(md_lines document fail)" 11
+
+  # The phases' wiring.
+  eq "phase_seed seeds the memory and the document" "$(declare -f phase_seed | tr -s ' \t\n' ' ' | grep -c 'if family_on memory; then seed_memory; fi; if family_on document; then seed_document; fi;')" 1
+  eq "phase_upgrade checks both and makes the candidate's" "$(declare -f phase_upgrade | tr -s ' \t\n' ' ' | grep -c 'check_memory_upgrade; memory_candidate; fi; if family_on document; then check_document_upgrade; document_candidate; fi;')" 1
+  eq "phase_restart checks both" "$(declare -f phase_restart | tr -s ' \t\n' ' ' | grep -c 'if family_on memory; then check_memory_restart; fi; if family_on document; then check_document_restart; fi;')" 1
+  on=off
+  rows=short
+  case " $HARNESS_ON " in *" memory document "*) on=on ;; esac
+  case "$HARNESS_ROWS" in *" pairing memory document") rows=rows ;; esac
+  eq "the families are on and the rows end with memory and document" "$on$rows" onrows
+  [ "$bad" -eq 0 ]
+}
+b_memory_document() { document_found() { echo; }; memory_found() { echo 1; }; }
 
 # --- run ---
 
@@ -1166,6 +1343,7 @@ rule real-tree t_real b_real
 rule storage-base t_storage_base b_storage_base
 rule record-contract t_record_contract b_record_contract
 rule pairing t_pairing b_pairing
+rule memory-document t_memory_document b_memory_document
 rule run t_run b_run
 rule report t_report b_report
 rule merge-retries t_merge_retries b_merge_retries

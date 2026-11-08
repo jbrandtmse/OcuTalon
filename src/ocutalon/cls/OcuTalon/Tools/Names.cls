@@ -47,4 +47,8 @@ Parameter FORGETMEMORY = "forget_memory";
 /// The four memory tools above, comma-separated, in the order of the parameters.
 Parameter MEMORYTOOLS = {..#SAVEMEMORY_","_..#SEARCHMEMORIES_","_..#LISTMEMORIES_","_..#FORGETMEMORY};
 
+/// The documents tool of step 3 (AD-21, Story 19.4): the name of AI Hub's knowledge-base tool that searches the documents. It is not a release-1 tool, so
+/// RELEASE1 does not list it, and it has no class of its own.
+Parameter DOCUMENTS = "documents";
+
 }

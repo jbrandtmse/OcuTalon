@@ -38,6 +38,12 @@ describe('the strings', () => {
       unreadable: 'OcuTalon found no text in it.',
       not_built: "this part of OcuTalon isn't built yet.",
       failed: 'something went wrong inside OcuTalon.',
+      contents_too_large: 'its text is too long to read.',
+      encrypted: "it's protected with a password.",
+      damaged: "it's damaged or incomplete.",
+      no_text: 'it has no text to read, for example a scanned PDF without a text layer.',
+      legacy_doc: "it's an old Word file (.doc); save it as .docx and try again.",
+      timed_out: 'reading it took too long.',
     });
   });
 

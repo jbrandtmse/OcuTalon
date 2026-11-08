@@ -1,0 +1,24 @@
+{
+  "name": "documents-runbook-rotate",
+  "kind": "documents",
+  "heldOut": false,
+  "description": "The user asks how to rotate the Results certificate, with the Results runbook added as a document. The case is right only when the reply cites the runbook and its section Rotating the certificate, taken by code from the documents tool's results.",
+  "turn": {
+    "text": "How do I rotate the Results certificate?"
+  },
+  "documents": [
+    {
+      "name": "Results runbook.md",
+      "file": "results-runbook.md"
+    }
+  ],
+  "expectation": {
+    "citations": [
+      {
+        "document": "Results runbook",
+        "section": "Rotating the certificate"
+      }
+    ]
+  },
+  "recordedBy": "written for the evaluation set (Story 19.4)"
+}
