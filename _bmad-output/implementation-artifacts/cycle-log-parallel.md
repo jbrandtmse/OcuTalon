@@ -2704,3 +2704,5 @@
 2026-11-08T06:55:04Z	Run	deps_hash_rerecorded	reason=fix_forward story=9.11 hash=dc7dd9e96536
 2026-11-08T06:55:04Z	Epic 9	worktree_removed	path=.worktrees/epic-9
 2026-11-08T06:55:04Z	Epic 9	epic_branches_deleted	local+remote=OCT-epic9
+2026-11-08T07:02:16Z	Epic 17	runner_clarification	kind=CI_WAIT agent=ad607fde4a29806c8 sha=38ab54d4(origin;verified;17.10+17.11+rework_5e5fd65c+integrate_f22db31e_onto_47d0004c+union) runs=42456844217,42456844244 rework1=no_fix(class_order_identical;watcher:TelegramIn_changes_state_only_inside_Test.Core.PersonaAnswers;same_assertion_red_on_e75b90bc,b6b75a34_without_Epic_17_code;re-review_no_HIGH) protocol_note=implement_ran_inline_without_handoff/review_layers(runner_logged) local=f8b8a481(bookkeeping)
+2026-11-08T07:02:16Z	Run	flake_lead	dw=DW-639 lead=Test.Core.PersonaAnswers_is_the_only_class_that_changes_TelegramIns_state_in_shard:lane-b(Epic_17_rework_watcher) evidence=same_assertion_red_on_e75b90bc,b6b75a34(no_Epic_17_code) route=DW-639_owner(burndown;tier_3_flakes)
