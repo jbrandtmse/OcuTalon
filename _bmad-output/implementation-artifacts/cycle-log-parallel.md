@@ -2873,3 +2873,8 @@
 2026-11-08T18:10:41Z	Run	planner_ruling	subject=DW-976 answer=(2)cut_on_cb7a2215_as_is;no_second_commit;"Add_a_runbook_to_get_cited_answers."_defensible_in_1.0.4(answer_names_document+section);Planner_checks_on_1.0.4_demo_walk;else_new_text_for_1.0.5;otherwise_rides_with_20.2 EXPERIENCE.md_item6_amendment=ACCEPTED via=Contest_Planner_1(delegation)
 2026-11-08T18:39:00Z	Epic 4	ci_red_classified	sha=cb7a2215 run=42507818397 job=iris(shards-2) class=flake test=Test.Docs.ExtractMore_TestTimeLeft ledger=DW-973 lane-a=success(42507818342) action=rerun_failed(orchestrator;runner_in_CI_WAIT) note=not_4.12_code
 2026-11-08T18:47:37Z	Run	planner_ruling	subject=4.12_shards-2_rerun_pre-ruling answer=if_rerun_red_AGAIN_and_ONLY_DW-973_exact_signature(Test.Docs.ExtractMore_TestTimeLeft)_merge_4.12_anyway_as_logged_Planner_exception;any_other_red_signature=stop_and_tell_Planner via=Contest_Planner_1(delegation)
+2026-11-08T19:16:11Z	Epic 4	ci_green_verified	head=cb7a2215 result=success runs=42507818397(attempt2:shards-2_DW-973_rerun),42507818342
+2026-11-08T19:16:11Z	Epic 4	epic_merged_to_feature	merge=a77f9a87 head=cb7a2215 stories=4.12 verified_on_origin=yes method=commit-tree_on_5cb58db7(tree_identical_to_cb7a2215;git_diff_--quiet_ok) merge_head_runs_cancelled=42514118478,42514118498(planner_ruling_a) 1.0.4=CUT_HEAD note=epic-4_close_pending_runner_resume
+2026-11-08T19:16:11Z	Epic 4	decision_sheet_recorded	decided=1(DW-976_routed_to_20.2_per_planner_(2)) to_action_items=0 to_x0=0 by=merge_gate
+2026-11-08T19:16:11Z	Run	deps_hash_rerecorded	reason=fix_forward stories=4.12 hash=4b5f4f10137c
+2026-11-08T19:16:11Z	Run	bookkeeping_merged_locally	local=49d155b9(merge_of_a77f9a87_into_local_bookkeeping) push=after_planner_confirms_cut

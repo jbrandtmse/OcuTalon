@@ -5788,3 +5788,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-12-the-demo-guide-s-document-tip-promises-only-what-1-0-4-shows.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: web/src/app/documents/documents-view.ts:21; pinned in documents-view.test.mjs, documents.spec.ts, ux-strings.test.mjs; EXPERIENCE.md source
 - 2026-11-08T18:00:37Z status=escalated owner=burndown by=harvest note=public_text_ruling_needed;for_the_Planner_at_the_decision_sheet;recommended:_rule_text_now_or_route_to_20-2
+- 2026-11-08T19:16:11Z status=routed owner=20-2-see-citations-and-memories-in-answers by=merge_gate note=planner_ruling_2026-11-08~18:10Z(2):keep_'cited answers'_in_1.0.4(the answer names document+section);Planner_checks_on_the_1.0.4_demo_walk,else_new_text_for_1.0.5;otherwise_rides_with_20.2
