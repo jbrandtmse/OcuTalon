@@ -2818,3 +2818,9 @@
 2026-11-08T14:45:45Z	Epic 19	runner_complete	agent=aad203ead2336b5b5 part_merge=19.4,19.5,19.7 head=0b34089a(bookkeeping_only_over_f6290959) ci=success(42480549642,42480549480)via=f6290959 applied=U-304,U-305,DW-940,decision_sheet release_tool_hunks=H1-H9+DW-940(ruled)
 2026-11-08T14:45:45Z	Epic 19	amendments_verified	amendments=epics.md:6428,476;EXPERIENCE.md:979,1139;spine_AD-21_unions ok=true
 2026-11-08T14:45:45Z	Epic 19	merge_enqueued	policy=when_green priority=1(Planner)
+2026-11-08T14:46:09Z	Epic 19	epic_merged_to_feature	merge=c25902c3 head=0b34089a(f6290959_green) part=2(19.4,19.5,19.7) verified_on_origin=yes conflicts=none ledger_union=lost0,dup0(921) sprint_valid=yes(epic-19_done) spine_lint=no_ad_findings 1.0.4=IN
+2026-11-08T14:46:09Z	Epic 19	decision_sheet_recorded	decided=3(DW-950_routed_22-6;DW-870_dropped;DW-871_resolved) by=owner(on_branch)
+2026-11-08T14:46:09Z	Run	inbox_resolved	items=U-304,U-305
+2026-11-08T14:46:09Z	Run	deps_hash_rerecorded	reason=fix_forward stories=19.4,19.5,19.7 hash=9fc5b2fb0ceb
+2026-11-08T14:46:09Z	Epic 19	worktree_removed	paths=.worktrees/epic-19,.worktrees/epic-19b
+2026-11-08T14:46:09Z	Epic 19	epic_branches_deleted	local+remote=OCT-epic19,OCT-epic19b
