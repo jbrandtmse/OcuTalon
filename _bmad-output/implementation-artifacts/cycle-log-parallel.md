@@ -2840,3 +2840,7 @@
 2026-11-08T17:05:18Z	Epic 17	amendments_verified	amendments=AD-18,AD-33,epics.md_17.10/17.11 extensions=4(incl_Test/Checks/Heartbeat.cls_under_DW-964) ok=true
 2026-11-08T17:05:18Z	Epic 17	ci_green_verified	head=6ac45643 result=success
 2026-11-08T17:05:18Z	Epic 17	merge_enqueued	policy=when_green priority=2
+2026-11-08T17:05:40Z	Epic 17	epic_merged_to_feature	merge=f58b3dbb head=6ac45643 stories=17.10,17.11 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0(927) sprint_valid=yes 1.0.4=IN(if_feature_CI_green)
+2026-11-08T17:05:40Z	Epic 17	decision_sheet_skipped	reason=empty
+2026-11-08T17:05:40Z	Run	planner_ruling	subject=1.0.4_merges+41.6 merges=32.6_on_its_own_green_head_db837463_without_integrating_over_17(clean_merge_required);7.11_same_when_cdf4bc99_green;order_17,32.6,7.11;feature_CI_on_final_head_is_the_check;cut_from_newest_green_~19-20Z;tell_Planner_when_last_1.0.4_merge_green 41.6=text_APPROVED(channel_as_sent);demo-path_01-page.spec_7->8+Memory-before-Persona;shards-5_rebalance_APPROVED(move_one_area_of_lane-a@Bridge,Agent_to_production;CI-only;after_cut;before/after_times) via=Contest_Planner_1(delegation)
+2026-11-08T17:05:40Z	Run	deps_hash_rerecorded	reason=fix_forward stories=17.10,17.11 hash=125360099d1f
