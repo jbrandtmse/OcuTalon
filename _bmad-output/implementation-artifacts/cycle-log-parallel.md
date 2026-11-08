@@ -2880,3 +2880,11 @@
 2026-11-08T19:16:11Z	Run	bookkeeping_merged_locally	local=49d155b9(merge_of_a77f9a87_into_local_bookkeeping) push=after_planner_confirms_cut
 2026-11-08T19:16:25Z	Run	planner_ruling	subject=1.0.4_cut answer=rc1_CUT_from_feature_a77f9a87(cut_commit_c7d8fa75_release/1.0.4-rc1);merge_freeze_LIFTED;held_merges_in_green_order(41_part1,18,30.7,5.15);dispatch_32.7;RELEASE-TOOL_FREEZE_holds_until_v1.0.4_merged_back;then_Epic_11_part2,0.15,DW-446/485_free;nothing_to_release/*_except_Planner_picks via=Contest_Planner_1(delegation)
 2026-11-08T19:16:25Z	Run	ci_green_verified	head=a77f9a87 result=success via=tree_identical_to_cb7a2215(42507818397,42507818342) note=merge_head_runs_cancelled_by_planner_ruling_a
+2026-11-08T19:17:40Z	Epic 5	ci_red_classified	sha=ff7de7ee run=42490955974 job=iris(image) class=flake ledger=DW-639 lane-a=success action=no_rerun(superseded_by_integrate-forward;its_CI_is_the_gate)
+2026-11-08T19:17:40Z	Run	ruling	question=post-cut_order category=decide choice=resume_30.7,5.15_and_Epic_4_close_for_integrate-forward_onto_ce50aa62_then_contract;Epic_18_integrate_then_18.4(Epic_17_merged);dispatch_32.7;Epic_41_runner_live(continues);merge_in_green_order policy=5086036
+2026-11-08T19:18:24Z	Epic 32	worktree_bootstrapped	epic=32 result=ok base=ce50aa62(ff_kept_worktree)
+2026-11-08T19:18:24Z	Epic 32	runner_dispatched	runner=a9f9e85b541d9b31f model=opus effort=high lane=A(throwaways) story=32.7(DW-211,DW-639,DW-774_page.close,DW-973,DW-966,DW-911) prompt=prompts/dispatch-epic-32-327.md
+2026-11-08T19:18:24Z	Epic 30	runner_resumed	agent=a8d3c06dd54fd2725 with=94a7dcca_green;close+integrate_onto_ce50aa62
+2026-11-08T19:18:24Z	Epic 5	runner_resumed	agent=a791fb7a9d55ae432 with=ff7de7ee_DW-639_flake;close+integrate_onto_ce50aa62
+2026-11-08T19:18:24Z	Epic 18	runner_resumed	agent=ad68d74c02763d478 with=70136ffe_green;Epic_17_merged;integrate_onto_ce50aa62_then_18.4
+2026-11-08T19:18:24Z	Epic 4	runner_resumed	agent=a668895609b486146 with=cb7a2215_green_merged_a77f9a87;close+integrate(bookkeeping)
