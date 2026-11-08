@@ -342,3 +342,5 @@
 2026-11-08T04:45:26Z	Story 9.11	adr_verifications_complete	tool=none acs=none result=none_required mutations=none(no_AD_commits_agent-time_tooling;13_pin_mutations_by_implement) note=deferred_until_after_DW-902_pass?no:recorded_now;AD-tooled_none model=claude-opus-5-5
 2026-11-08T04:46:23Z	Story 9.11	scope_added	item=DW-902(eval/user-turn-forget/case.json+Test/Eval/Cases.cls_user-turn_count_pin_5) via=orchestrator_ruling(decide;planner_yes_owner_delegation) epics_md=9.11_DW-902_bullet spec=[Ledger]_item+AC8 note=not_a_rework_iteration;DW-902_entry_lives_on_origin/OCT-epic30_ledger(trailer_after_integrate-forward_over_30.9)
 2026-11-08T04:46:23Z	Epic 9	ledger_routed_planned	story=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it entries=1(DW-902) excess=0 by=orchestrator
+2026-11-08T04:49:12Z	Epic 9	epic_context_compiled	sha=f59b9629 reason=planning_artifact_newer(DW-902_bullet) model=opus header=ok spawn_at=2026-11-08T04:46:24Z
+2026-11-08T04:49:12Z	Story 9.11	stage_spawned	stage=implement spawn_at=2026-11-08T04:49:12Z model=sonnet agent_name=9-11-implement-3 cycle_iteration=3 note=scope_addition_DW-902(not_rework)
