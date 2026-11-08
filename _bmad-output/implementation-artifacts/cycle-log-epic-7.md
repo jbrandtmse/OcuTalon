@@ -401,3 +401,16 @@
 2026-11-07T15:48:21Z	Epic 7	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5-5 high_med_avg=1.0 unresolved_high_med_avg=0.0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=1 scope=re-open(7.10) result=hold applied=false(record_only)
 2026-11-07T15:48:21Z	Epic 7	integrated_forward	feature=4c9bed21 head=37856843 conflicts_resolved=none diagnosis=feature_already_ancestor(no_merge_needed;origin/feature=4c9bed21_green_42377742996,42377742980) checks=test-boundaries,test-class-rules_pass;README_x64_sentence=1,160_seconds=0 suite=CI_37856843_green(all_groups);smoke=warm_closeQuiet_load_8_of_8+fresh_class_pass
 2026-11-07T15:48:21Z	Epic 7	epic_runner_complete	stories_completed=1(7.10_in_this_re-open;epic_total_10) applied=none
+2026-11-08T12:40:06Z	Epic 7	epic_branch_reopened	reason=story_7.11_dw675 from=1c5086c7
+2026-11-08T12:40:06Z	Epic 7	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_story_7.11_urgent lane=A slot=none(throwaways)
+2026-11-08T12:40:06Z	Epic 7	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-08T12:40:06Z	Epic 7	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-08T12:40:06Z	Epic 7	launch_env	depth=4 watchdog=default bash_max_ms=default note=bash_backgrounded_at_~170s(switch-20261108)
+2026-11-08T12:40:06Z	Epic 7	epic_branch_checked_out	repos=. head=1c5086c7
+2026-11-08T12:40:06Z	Epic 7	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-08T12:40:06Z	Epic 7	ledger_load	total=899 open=0 routed=128 escalated=2 decision_pending=5 terminal=764 owner_unknown=0 burndown=89 reowned_none=0
+2026-11-08T12:40:06Z	Epic 7	retro_review_skipped	reason=skip(no_X.0_input;SC-5_re-open_for_story_7.11)
+2026-11-08T12:40:06Z	Epic 7	deps_hash_rerecorded	reason=fix_forward story=7.11 note=for_the_orchestrator
+2026-11-08T12:40:06Z	Epic 7	epic_status_reopened	epic-7=in-progress reason=SC-5_re-open_story_7.11
+2026-11-08T12:40:06Z	Story 7.11	ledger_routed_planned	story=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr entries=1(DW-675) excess=0 by=charter
+2026-11-08T12:40:22Z	Epic 7	sprint_planning_complete	gate=PASS scope=7.11_inserted new_entries=7-11 explicit_set=epic-7=in-progress(SC-5_reopen) model=claude-opus-5-5

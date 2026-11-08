@@ -3733,6 +3733,30 @@ So that a red shard means a real defect and never a timing accident.
 
 - DW-840: flake: OcuTalon.Test.Fix.Refused TestPastExpiryCannotStart 'the incident is resolved' (WaitIncidentState) red once in CI shards-2 (ledger; routed by runner 2026-11-07)
 
+### Story 7.11: The dry-run snapshot excuses the alarm job's own schedule writes
+
+[ADDED 2026-11-08, the Contest Planner's ruling under the owner's delegation, for Sunday's 1.0.4 (DW-675, test-only, Planner ruling): an SC-5 re-open of Epic 7 for this one test-only story. `OcuTalon.Test.Fix.Snapshot` also excuses message headers whose source is `Ens.ScheduleService` and whose target is `Ens.ScheduleHandler` (the alarm job's own writes: `Ens.Alarm` jobs off `Ens.ScheduleService.CallScheduleService()` when a timer's request header is missing), and nothing else. No product file changes, and no other excusal is widened.]
+
+As the owner reading CI,
+I want the "nothing changed" tests to ignore the schedule check that IRIS's alarm job starts on its own,
+So that a red shard means the fix changed something and never that a background schedule call landed inside the dry-run window.
+
+**Acceptance Criteria:**
+
+**Given** a "before" snapshot and an "after" snapshot that differ only by a new header from `Ens.ScheduleService` to `Ens.ScheduleHandler` (as CI saw in `OcuTalon.Test.Watch.GoodMessages` `TestFewerThanTwentyGood` and `OcuTalon.Test.Fix.DryRun` `TestFiftyOrdersChangeNothing`)
+**When** `Snapshot.Diff` compares them
+**Then** it gives no line, and the old code is shown to give one (a forced-condition test that plants such a header inside the window: old code red, the fix 20 of 20) (DW-675)
+
+**Given** a new header from `Ens.ScheduleService` to any other target, from any other source to `Ens.ScheduleHandler`, or any other header that counts today
+**When** `Snapshot.Diff` compares the snapshots
+**Then** each still gives its line, so nothing but the alarm job's own schedule writes is excused, and removing the new excusal turns the pinning test red (Rule 19) (DW-675)
+
+**Given** the dry-run tests that use the snapshot (`TestFewerThanTwentyGood`, `TestFiftyOrdersChangeNothing` and their siblings in `OcuTalon.Test.Fix` and `OcuTalon.Test.Watch.GoodMessages`)
+**When** they run on a fresh environment, forward and reversed
+**Then** they stay green (DW-675)
+
+- DW-675: flake: OcuTalon.Test.Fix.DryRun TestFiftyOrdersChangeNothing saw a new OCUTALON header from Ens.ScheduleService to Ens.ScheduleHandler during the test (a schedule call that started inside the window, not a timer already running) (ledger; routed by runner 2026-11-08)
+
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
 A heartbeat runs every minute and runs the due background checks, each visible with its schedule, last run and result; a user asks for a reminder in plain words and it fires within 10 seconds on every channel, survives restarts (marked late if it fires more than 10 seconds after its due time), and can be listed and cancelled in the chat.
