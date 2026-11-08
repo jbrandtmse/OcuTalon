@@ -416,3 +416,5 @@
 2026-11-08T12:40:22Z	Epic 7	sprint_planning_complete	gate=PASS scope=7.11_inserted new_entries=7-11 explicit_set=epic-7=in-progress(SC-5_reopen) model=claude-opus-5-5
 2026-11-08T12:42:00Z	Epic 7	epic_context_compiled	reason=planning_artifact_newer(7.11_charter) model=claude-opus-5-5 spawn_at=2026-11-08T12:41:30Z
 2026-11-08T12:42:00Z	Story 7.11	stage_spawned	stage=plan spawn_at=2026-11-08T12:42:00Z model=opus agent_name=7-11-plan-1 cycle_iteration=1
+2026-11-08T12:50:03Z	Story 7.11	story_created	spawn_at=2026-11-08T12:42:00Z model=opus path=_bmad-output/implementation-artifacts/spec-7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr.md build_status=ready-for-dev epic_context=reused warnings=oversized
+2026-11-08T12:50:03Z	Story 7.11	spec_validated	service_introducing=false integration_ac=present(AC3_callers_on_real_production) adr_constrained_acs=AD-16,AD-22,AD-29 decision_dependency=none sections_created=none owned_ledger=DW-675 addressed=1 declined=0 mutates_shared_runtime=true(lane-A_throwaways_named;slot-a_forbidden) model=claude-opus-5-5
