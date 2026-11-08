@@ -2,8 +2,8 @@
 title: 'A ''Remember that ...'' chat message gets a usable attention decision'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'ready-for-dev'
-baseline_revision: 'b51128a7310cfe74d8dae3d2136023273c9592aa'
+status: 'done'
+baseline_revision: '9c52797fab66fc1b619355e05f570e10b8ad433a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -331,23 +331,54 @@ So it is left out, and Decide and DecisionPayload are untouched.
 
 **Planned mutations (Rule 19; one per AC; apply, observe red on the warm stack, revert, confirm `git status --short` and `git diff --stat` unchanged, then the class green again on the same stack):**
 - AC 1 -- mutation: delete the appended sentence from `Triage.cls:37` → `TriageUserTurn.TestRememberSentence` red.
+  - Observed (implement): applied on the warm stack `e30s9iw` (the sentence deleted from `Triage.cls:37`): `TriageUserTurn` failed, `TestRememberSentence` red on both assertions (the sentence held once; it follows the last sentence and ends the paragraph). Reverted; `git status --short` and `git diff --stat` identical to before; `TriageUserTurn` passed again.
 - AC 2 -- mutation: in `RememberDecision`, pass `remember-no-confidence` as the scenario of `TestTypedForm` and `TestPanelForm` (the probe's exact shape, armed at 1) → both red on Fallback 1 / `invalid`, the missing confidence, the strip's fallback flag and one warning that is exactly the demo's.
+  - Observed (implement): applied (both `Ask` calls given `..#SCENARIO`): `TestTypedForm` and `TestPanelForm` both red on the Decision row (not tellnow with no fallback), its missing confidence, the strip's decision and its missing confidence, and the refusal warning naming the decision (text ending "ERROR #5001"); `TestProbeShapeIsTheDemoWarning` and `TestEvalCase` stayed green. Reverted; tree identical.
 - AC 3 -- mutation: delete the missing-confidence refusal (`DecisionPayload.cls:30`) → `TestProbeShapeIsTheDemoWarning` red (Fallback 0, no warning). This relies on an inference: `CheckReply` makes a new instance for each reply, so the warm reload reaches the running Decide job. If no red shows, restart the warm stack's production (`Ens.Director.RestartProduction()`; this stage started the stack), then revert, restart again and re-run green.
+  - Observed (implement): applied (line 30 of `DecisionPayload.cls` deleted; the warm reload reached the running Decide job with no production restart): `TestProbeShapeIsTheDemoWarning` red on the fallback row, the strip's fallback, the single warning and its text; the other three tests green. Reverted byte-identically (`git diff --stat -- src/bridge` empty, tree identical); `RememberDecision` passed again after the reload.
 - AC 4 -- mutation: change `turn.text` of `eval/user-turn-remember/case.json` (or move the folder away) → `RememberDecision.TestEvalCase` red, and with the folder moved `Test.Eval.Cases.TestUserTurnCases` red (count 4).
+  - Observed (implement): `turn.text` changed ("Lee." to "Max."): `TestEvalCase` red on "it asks the panel's exact text". Reverted (cmp identical). The folder moved away: `Test.Eval.Cases.TestUserTurnCases` red on "eval/ holds exactly five user-turn cases" (count 4). Moved back (cmp identical); both classes passed again.
 - AC 5 -- check: `git diff --name-only <baseline_revision>` lists only the Execution files and this spec.
+
+## Review Triage Log
+
+### 2026-11-08 - Review pass
+- verdicts: 18 findings - high 0, medium 0, low 8, false 10, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: Cases.cls doc still says "exactly four ... and one remember case" - the three doc/count lines are ruled verbatim in Design Notes "Contended edits"; the wording is the Planner's/orchestrator's text and cannot change here.
+  - `[low]` `[reject]` Blind: TestUserTurnCases has no field-level loop entry for the fifth case - extending `wanted` is an edit to Cases.cls beyond the ruled three lines; `RememberDecision.TestEvalCase` pins the fields and ASCII.
+  - `[low]` `[reject]` Blind and Edge: `Test/Eval/Report.cls` shipped-chip scoring is not extended to the new case - Report.cls is contended with Epic 19 and outside the Execution list; the case's expectation is pinned equal to user-turn-productions by TestEvalCase.
+  - `[false]` `[reject]` Blind and verification-gap and intent-alignment: the mock tests pass with or without the sentence - by design (AD-22: the mock never picks by prompt wording; spec Design Notes "Root cause"); the sentence is pinned by TestRememberSentence and its effect on Haiku by the Planner's 1.0.4 release-candidate eval, as the intent states.
+  - `[false]` `[reject]` Blind: scenario has two reasons while the sentence says "one reason" - the intent requires the probe's exact shape (2 non-blank reasons, no confidence).
+  - `[false]` `[reject]` Blind: scenario's Chat reply "Noted." never exercises save_memory - the story pins the attention decision, not Chat's memory tool (AD-21 unchanged).
+  - `[low]` `[reject]` Blind and Edge: no test or eval case for a "Forget ..." message - no forget failure was observed (spec Public Text); the ruled pairing names remember only.
+  - `[false]` `[reject]` Blind: DEMOTAIL is a literal copy of the demo warning - the intent requires exactly that text.
+  - `[false]` `[reject]` Blind: eval description's "needs a reply that gives a confidence" is not a case field - the report has no expectation key for a confidence (spec Tasks); the description states it.
+  - `[low]` `[patch]` Edge: `Ask` quits before recording `row.ItemId` when the turn is not done in time, so the Decision rows of a timed-out turn stay - fixed: the ItemId is recorded as soon as the row is an object (RememberDecision.Ask); RememberDecision re-run green (4 tests).
+  - `[false]` `[reject]` Edge: `event.payload` may be missing - the same dereference is PersonaTurns' pattern (`PersonaTurns.cls:224`) and Live events of type chat.message always carry a payload.
+  - `[false]` `[reject]` Edge: an empty `row.TriageDecisionRef` widens the warning match - the preceding `decision.Ref = row.TriageDecisionRef` assertion fails first on an empty ref, so the test cannot pass on it.
+  - `[false]` `[reject]` Edge: Chat's reply text is not compared in AC 3 - "done||" (State done, no FallbackReason, no ReplyCatalogKey) is the sibling's way to show Chat's own reply and is what the AC states.
+  - `[low]` `[reject]` Edge: shape checks name only the four chip cases - same as the Cases.cls and Report.cls rows above.
+  - `[low]` `[reject]` Verification-gap: TestEvalCase is coupled to user-turn-productions' expectation - the spec requires the case to share that expectation; no harm found.
+  - `[false]` `[reject]` Verification-gap: AC 2 guards plumbing, not the prompt - same as the by-design row above (AC 1 pins the prompt).
+  - `[low]` `[reject]` Verification-gap: Cases.cls header says "each with the chip's exact text" for five cases - the ruled wording.
+  - `[false]` `[reject]` Intent-alignment: expectation surface (real Haiku reply) differs from the exercised surface (instruction text, mock reply, case file) - the intent itself defers the real-Haiku proof to the Planner's release-candidate eval; no divergence from the intent's three-part pairing.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-- Re-plan (round 2) of a spec whose round 1 halted for a real-model probe (`blocked`, intent gap; superseded, see Spec Change Log). The probe selected branch C (no `confidence`), and every question is ruled.
-- Planned:
-  - the ruled sentence on `Triage.cls:37`;
-  - `TriageUserTurn.TestRememberSentence`;
-  - the new scenario `ci/mock/scenarios/A/remember-no-confidence.json`;
-  - the new `Test.Agent.RememberDecision`: both forms usable, the demo's shape and warning reproduced, the eval case's fields;
-  - `eval/user-turn-remember/case.json`;
-  - the ruled three-line plain union in `Test/Eval/Cases.cls`.
-- Decide, DecisionPayload, Chat, `eval/run.sh` and `ci/units.sh` stay untouched. The optional warning wording is left out (Design Notes).
-- No source file was changed and no runtime was started in this pass. Read-only: `git fetch` and diffs of the in-flight branches, and `gh run` job timings.
+- Summary: the ruled sentence is appended to `Triage.cls:37` (branch C of DW-890); the regression is the fixed-strings test, the mock end-to-end test of both forms plus the probe-shape reproduction with the demo's exact warning, and the new eval case.
+- Files changed:
+  - `src/ocutalon/cls/OcuTalon/Agent/Triage.cls`: the one ruled sentence on line 37.
+  - `src/ocutalon/cls/OcuTalon/Test/Agent/TriageUserTurn.cls`: `TestRememberSentence`.
+  - `src/ocutalon/cls/OcuTalon/Test/Agent/RememberDecision.cls` (new): typed form, panel form, the demo's reply shape and warning, the eval case's fields.
+  - `ci/mock/scenarios/A/remember-no-confidence.json` (new): the probe's exact reply shape.
+  - `eval/user-turn-remember/case.json` (new): the user-turn case.
+  - `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls`: the ruled three lines (count 5, two doc lines).
+  - This spec: the observed mutation lines, the triage log and this result.
+- Review findings: 18 reported by the four layers; 1 patch applied (low: `Ask` records the ItemId before the done check); 0 deferred; 0 intent_gap, 0 bad_spec; the rest rejected with the reasons in the triage log (ruled scope, by-design AD-22, or refuted).
+- Follow-up review recommended: false (one low patch).
+- Verification: on lane D warm stack `e30s9iw`: `TriageUserTurn`, `Instructions`, `PersonaBlock`, `Test.Eval.Cases` passed; `RememberDecision` passed (4 tests) twice, the second time after the review patch; mutations for AC 1 to AC 4 observed red and reverted (see Verification). Outside IRIS: `test-triage-heartbeat.sh`, `scenarios.test.mjs` (85), `test-eval-set.sh`, `test-mock.sh` (133 pass), and all 31 scripts of `ci/checks.sh` run one by one, each exit 0 (`ci/checks.sh` itself exceeds one call on this loaded machine). The warm stack was brought down (1 project removed, nothing left over).
+- Residual risks: whether the sentence changes Haiku's reply is not shown here (the mock cannot show it); the Planner's 1.0.4 release-candidate eval does. The forget half of the sentence has no case of its own. `shards-5` timing is Epic 19's rebalance at its integration.

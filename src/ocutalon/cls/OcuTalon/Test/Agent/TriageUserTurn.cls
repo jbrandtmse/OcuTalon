@@ -5,6 +5,9 @@
 ///     a production, what Triage can or cannot look up or access, or whether anything needs the user, also when the user asks to resend, approve or change
 ///     something (the paragraph on arriving items that ask for these is not about the user's own message);
 ///   - TestNoToolsSentence: the INSTRUCTIONS no longer say "You have no tools", which fed reasons that describe Triage's tool limits.
+///   - TestRememberSentence (Story 30.9, DW-890): the paragraph ends with the one sentence that makes a request to remember or forget something the
+///     user's own message, to be decided "tellnow" with the one reason and a confidence, and the sentence is held once, right after the paragraph's
+///     former last sentence.
 /// The mock cannot show a real model's wording: the user-turn cases of the evaluation set score it in a release-candidate run.
 Class OcuTalon.Test.Agent.TriageUserTurn Extends %UnitTest.TestCase
 {
@@ -26,6 +29,17 @@ Method TestNoToolsSentence()
 {
 	Set text = ..Instructions()
 	Do $$$AssertTrue('(text [ "You have no tools"), "the instructions do not say 'You have no tools'")
+}
+
+/// A request to remember or forget something is the user's own message: the sentence is held once, follows the paragraph's last sentence after one
+/// space, and ends the paragraph.
+Method TestRememberSentence()
+{
+	Set text = ..Instructions()
+	Set before = "never about the user's own message."
+	Set sentence = "A request to remember or forget something is also the user's own message: choose ""tellnow"" for it, give the one reason, and give a confidence as for any other message."
+	Do $$$AssertEquals($Length(text, sentence) - 1, 1, "the instructions hold the remember sentence exactly once")
+	Do $$$AssertTrue(text [ (before_" "_sentence_$Char(10)_$Char(10)_"An item on the channel heartbeat"), "it follows 'never about the user's own message.' and one space, and the paragraph ends after it")
 }
 
 /// --- helpers ---
