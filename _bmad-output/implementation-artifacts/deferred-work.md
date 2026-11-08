@@ -5451,11 +5451,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Story 30.9 proves only the remember form (eval/user-turn-remember); whether Haiku 5.5 gives a confidence for a forget request is unmeasured (unverified)
 - 2026-11-08T04:09:34Z status=decision-pending owner=burndown by=cr note=human=Planner's RC eval runs a 'Forget that ...' user turn on Haiku 5.5: no Fallback and a confidence (unverified med)
+- 2026-11-08T05:11:24Z status=routed owner=burndown by=merge_gate note=decision sheet Epic 30 (Planner YES): the forget eval case eval/user-turn-forget/ lands in Story 9.11 (9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it), which is not on this feature yet; 9.11's runner re-owns at its charter
 
 ### DW-903: shards-5 (shard:lane-a@Bridge,Agent) may pass REL-4's 35-minute CI budget once Epic 19's live:documents joins it
 - source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Spec 30.9 Verification: shards-5 measured 32m09s-33m37s; Epic 19 estimates +300-450 s for live:documents; Story 30.9 adds about 10 s (unverified projection)
 - 2026-11-08T04:09:34Z status=escalated owner=burndown by=cr note=unverified; settle: shards-5 job time <=35 min on the first feature CI run with Epic 19's live:documents
+- 2026-11-08T05:11:24Z status=routed owner=19-4-answer-from-documents-with-citations by=merge_gate note=decision sheet Epic 30 (Planner confirmed): Epic 19 moves live:documents off shards-5 in 19.4 (orchestrator ruling of 2026-11-08); shards-5 ran 32.9 min on e915eccb
 
 ### DW-904: Test.Watch.Case subclasses copy the Armed countdown clean-up loop instead of a shared base helper (third copy in RememberDecision)
 - source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: low | fix-risk: low | footprint: out-of-footprint

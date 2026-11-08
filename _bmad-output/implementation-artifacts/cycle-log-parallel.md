@@ -2673,3 +2673,6 @@
 2026-11-08T05:11:14Z	Epic 30	amendments_verified	amendments=1(epics.md:8081-8104_ADDED_marker_present) extensions=0 ok=true
 2026-11-08T05:11:14Z	Epic 30	ci_green_verified	runs=42447293133,42447293176 head=e915eccb result=success via=none note=epic_head_db428c2a_bookkeeping_only_over(ruled)
 2026-11-08T05:11:14Z	Epic 30	merge_enqueued	policy=when_green part=30.9 retro=skipped(policy)
+2026-11-08T05:11:40Z	Epic 30	epic_merged_to_feature	merge=71a2312e head=db428c2a part=30.9 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0(894=expected) sprint_valid=yes spine=untouched release_tools=untouched feature_ci=pending
+2026-11-08T05:11:40Z	Epic 30	decision_sheet_recorded	decided=2(DW-902:routed_burndown_note_9.11_forget_eval_case(Planner_YES;9.11_key_not_on_feature_yet),DW-903:routed_19.4) to_action_items=0 to_x0=0 by=merge_gate
+2026-11-08T05:11:40Z	Run	deps_hash_rerecorded	reason=fix_forward story=30.9 hash=d32f38fd06ee
