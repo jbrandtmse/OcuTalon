@@ -205,3 +205,5 @@
 2026-11-08T05:58:23Z	Story 32.6	ruling_inbox	corrects=the_ruling_line_above(inbox=_empty:_the_add_had_not_run) inbox=U-306 category=veto
 2026-11-08T05:58:23Z	Story 32.6	timebox_closed	result=none_in_timebox used_min=25 note=Task_0_05:32-05:43Z;old-code_batches_05:43-05:57Z
 2026-11-08T05:58:56Z	Story 32.6	stage_spawned	stage=implement spawn_at=2026-11-08T05:58:56Z model=sonnet agent_name=32-6-state-wait-implement-1 cycle_iteration=1 story_base=ed87dcf6
+2026-11-08T06:39:26Z	Story 32.6	dev_complete	spawn_at=2026-11-08T05:58:56Z model=claude-sonnet build_sha=ddbabfca baseline_revision=ec5edd7f story_base=ed87dcf6 review_loop_iteration=0 followup_review_recommended=true deferred=0 loc_added=1467 44 11 loc_removed= files= branch=B(+host_DIAG) self_review=29_findings(0_high,5_med,18_low;12_patched) cycle_iteration=1
+2026-11-08T06:39:26Z	Story 32.6	adr_verifications_complete	result=none_required note=no_AD_commits_a_tool_stack_for_this_story's_ACs(AD-12/13/19/22/29_checked_at_review) model=claude-opus-5-5
