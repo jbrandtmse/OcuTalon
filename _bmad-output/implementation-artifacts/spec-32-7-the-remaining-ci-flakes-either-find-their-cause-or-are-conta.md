@@ -291,6 +291,16 @@ Write the five groups' results (G1 to G5) into `### Investigation result` before
 - Build none of that group's B task.
 - A5 (DW-966, race shown): a private poll of `WebNotices(case.session)` up to `WAITDIAGNOSIS` before each `Quiet`, in the shape of DW-964's loop in `Test.Checks.Heartbeat:201-211`. It replaces the two `WaitDeliveries` calls.
 
+**Build list (the lead, after Task 0 and the Planner's ruling `planner-2026-11-08-32.7`; binding for the implement stage).** Build exactly these; build NO Branch B task (B0 to B4) and no A5:
+- C1 to C4 (DW-911, by printing in `ci/iris.sh`; `.github/workflows/ci.yml` stays untouched) and C3 (the one-method run).
+- D1 (G1) and D4 (G4).
+- A1, G1, DW-211, `src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls` `AssertRefused`, wait lines only: `settled` also requires no `Ens.Job` row of the item in State Starting or Alive and `Ens.ScheduleHandler` idle (through the existing `RunnerFixture.Idle` or its sibling; extend, do not copy), both true on 2 polls in a row. `WAITSECONDS`, the assertions and their messages stay (plus D1).
+- A2, G2, DW-639 (approved check-line change): `src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls` line 612's check reads `RunnerFixture.NotRunningNow` instead of the product `Install.Step.Production.NotRunning()`, and the message at 613 is kept; the same change at `Restore` (about line 180). Never touch `Install/Step/Production.cls` (the product fix is DW-978, a later story).
+- A3, G3, DW-774 page.close: `web/e2e-online/session/leave.spec.ts` close lines only. L6: before `page.close()`, after `signOutGroup(context)`, wait for the page's exit to the splash to finish (the `Sign in and start` control visible, then `waitForLoadState('load')`), or close before the sign-out where the test's intent allows; L5: the same wait on `second` before `second.close()`. Do not use `landedOnSplash` as it is (it asserts the plain address). `boundedClose`, its bound and its diagnosis stay unchanged.
+- A4, G4, DW-973: `src/ocutalon/cls/OcuTalon/Test/Docs/ExtractMore.cls` `TestTimeLeft` timing lines only: take the split from the holder's `end` node (D4); keep `elapsed > 4`; keep `< 15` on the lock wait; bound the part after the release at `< 20` (the sibling `Test.Docs.Extract` `TestTimeLimit`'s bound for the same path; evidence in G4's result, confirmed by the lead's proof).
+- Each A task gets its hermetic pinning test where one is possible without a stack and its `mutation:` line; the lead runs the stack proofs (below).
+- Lead proofs (not the implement stage), lane A throwaways, old code red and the fix 20 of 20 under load, recorded under `## Verification`: G1, a scratch injection that calls `Ens.ScheduleService.CallScheduleService()` when the poll first settles; G2, on a parked stack TelegramIn's runtime flag set to 1 before the read (old check red, `NotRunningNow` green); G3, a route that holds the splash document about 2 s after the 401 with the close inside the hold; G4, the class under the CPU-burn load with D4's split read (and `Hang 21` after `ReadSample` as the new bound's mutation). A group whose proof does not confirm its cause falls back to its B task in a further pass.
+
 **Acceptance Criteria:**
 - **AC0.** Given the spec gate, when each group's 90 minutes end, then its `### Investigation result` holds `cause:` with its evidence and fix, `none_in_timebox` with what was read and ruled out, or `product:` with the evidence that was sent to the Planner. G5 holds the measurement. The implement stage builds only the named branches, and it stops `blocked` when a subsection holds none of these.
 - **AC1 (DW-911).** Given a unit with retries, when `ci/iris.sh` reports them, then its `RETRY` lines, its retry-time `DIAG` lines and `RETRIES <n> in <kind>:<unit>` appear in the job log, and the counts and the step summary are unchanged in shape.
@@ -305,11 +315,14 @@ Write the five groups' results (G1 to G5) into `### Investigation result` before
 
 ## Spec Change Log
 
+- planner-2026-11-08-32.7 (the Contest Planner under the owner's delegation, relayed by the orchestrator, 2026-11-08 about 20:2xZ): DW-639 option (2) APPROVED inside 32.7: `Heartbeat.cls:612`'s check reads `RunnerFixture.NotRunningNow` with the message at 613 kept, and the same at `Restore` (:180); proof on a parked stack with TelegramIn's flag set to 1 (old red, new green), then 20 of 20 under load. The product fix (option 1) is NOT in 32.7: ledgered as DW-978 (`owner=burndown`, its own story later); `Install/Step/Production.cls` is never touched. DW-211, DW-774's page.close half and DW-973: the fixes as described in `### Investigation result` APPROVED, each with its proof (old red, fix 20 of 20 under load); DW-973's post-release bound is 20 s, as `TestTimeLimit`. A group whose proof does not confirm its cause falls back to the single logged retry. DW-966: declined (no race; G5), closed terminal. DW-911: the DIAG lines go in `ci/iris.sh`; `.github/workflows/ci.yml` stays untouched (`ci_yml_hunk: none`). One push at the end, after the integrate-forward onto the newest green feature head; the release-tool freeze holds. AC7's "wait, timing, retry-log and message lines" is widened by this ruling to A2's two check lines only.
 - 2026-11-08 (lead, Task 0): `### Investigation result` filled for G1 to G5. G1 cause (AssertRefused wait), G3 cause (close during the 401 exit to the splash), G4 cause (the post-release part of TestTimeLeft's bound), G5 race not shown (DW-966 to be declined at adjudication), G2 product (`Install.Step.Production.NotRunning()` reads only the runtime flag): G2 stopped and reported to the Planner before any fix (PLANNER REPORT); its branch waits for the ruling.
 
 ## Review Triage Log
 
 ## Design Notes
+
+**Ruling (the Planner, `planner-2026-11-08-32.7`).** G2's product cause stays out of this story (DW-978); the test-side check-line change A2 is approved. `Declined DW-966: race not shown (G5's measurement); closed terminal at the ruling.`
 
 **Governing ADs (Rule 6).**
 - **AD-22:** `ci/iris.sh` stays the one recipe; units run on throwaways; ObjectScript tests stay `%UnitTest` classes sharded by area; no secret reaches an artifact or the log.
