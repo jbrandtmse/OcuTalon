@@ -2751,3 +2751,6 @@
 2026-11-08T10:04:57Z	Epic 5	worktree_removed	path=.worktrees/epic-5
 2026-11-08T10:04:57Z	Epic 5	epic_branches_deleted	local+remote=OCT-epic5
 2026-11-08T10:05:35Z	Epic 30	runner_dispatched	runner=a8d3c06dd54fd2725 effort=high lane=B slot=ocutalon-slot-b story=30.7(burn-down;U-210,U-214,U-215) base=2e78a4f7(ff) merge=held_until_after_cut reason=Planner_lane_B_busy
+2026-11-08T10:05:48Z	Epic 32	runner_clarification	kind=CI_WAIT agent=aad5a4394f85fc76a sha=57b1acec run=42464338633_attempt_2(shards_rerun_~10:04Z) diag=page.close_hangs_with_renderer(23ms)+browser(8ms)_answering;host_load_4.1/8 ledger=DW-774_reopened_routed_burndown(page.close_half,for_32.7);DW-550_containment_seen_working(RETRY_resume.spec:104,then_passed) shards-4=2113s(first_over_35min;split_needs_2) local=ca7a08fe
+2026-11-08T10:08:15Z	Epic 17	ci_green_verified	head=57a201e9 runs=42465218409,42465218432 result=success
+2026-11-08T10:08:15Z	Epic 17	orchestrator_error	fault=orchestrator what=told_runner_no_integrate-forward_needed_although_feature_moved_with_code(5.14_d6b8af41) correction=sent_at_once:integrate_onto_d6b8af41,merged-tree_checks,push,CI_then_contract(U9_step_1)
