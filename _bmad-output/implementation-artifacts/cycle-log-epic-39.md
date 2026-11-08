@@ -382,3 +382,15 @@
 2026-11-07T19:03:23Z	Epic 39	ruling	question=HC8_red_on_05f78577(Epic_39_own_test,inherited_from_feature_via_39.9) choice=fix-forward_one_line_test-only(clear_lastSkipAt/lastSkipReason_like_the_sibling_cases) rejected=rerun_only(a_real_tick_race,recurs),stop_the_epic why=failing_code_in_this_epic(U5_inherited_red:one_fix-forward_per_root_cause);no_throwaway_allowed(lane_D_slot_with_31.4):tsc+lint+node+boundaries_locally,CI_proves category=veto inbox=U-301 reversal=revert_the_one_line policy=5086036
 2026-11-07T19:03:43Z	Story 39.10	committed	sha=this_commit(the_head_of_OCT-epic39_after_the_push) fix_for=39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t(DW-880,veto_U-301) ci=pending checks=tsc_e2e_0,lint_0,node_1536/1536,31_hosted_check_scripts_0,boundaries_0 note=no_throwaway(lane_D_slot_with_31.4);superseded_run_42400798775_cancelled
 2026-11-07T19:03:43Z	Epic 39	epic_runner_complete	stories_completed=1 note=39.10_fresh_run_on_c5118d34+DW-880_fix-forward;applied=none
+2026-11-08T23:12:06Z	Epic 39	epic_branch_reopened	reason=story_39.11_dw978 from=2992191c
+2026-11-08T23:12:06Z	Epic 39	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_39.11_dw978 lane=C slot=ocutalon-slot-c
+2026-11-08T23:12:06Z	Epic 39	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-08T23:12:06Z	Epic 39	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-08T23:12:06Z	Epic 39	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-08T23:12:06Z	Epic 39	epic_branch_checked_out	repos=. head=2992191c bootstrap_check=ok ci_expected=ci,lane-a
+2026-11-08T23:12:06Z	Epic 39	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-08T23:12:06Z	Epic 39	ledger_load	total=948 open=0 routed=113 escalated=2 decision_pending=4 terminal=829 owner_unknown=0 burndown=91 reowned_none=0
+2026-11-08T23:12:06Z	Epic 39	retro_review_skipped	reason=no_x0_input(SC-5_re-open_for_one_fix-forward_story;dispatch)
+2026-11-08T23:13:05Z	Epic 39	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=headless_readiness_re-check;new_entries=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is;epic-39=in-progress(SC-5)
+2026-11-08T23:13:05Z	Epic 39	deps_hash_rerecorded	reason=fix_forward story=39.11 note=for_the_orchestrator(epics.md_story_insert_only)
+2026-11-08T23:13:05Z	Epic 39	ledger_routed_planned	story=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is entries=1 excess=0 by=runner(charter) dw=DW-978

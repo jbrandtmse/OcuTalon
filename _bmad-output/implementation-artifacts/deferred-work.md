@@ -5842,6 +5842,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Story 32.7 investigation G2 (DW-639 cause) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 32.7 PLANNER REPORT: every DW-639 red is 'TelegramIn row 0, runtime flag 1, jobs none'; Ens takes effective Enabled from the System Default row (Ens.Director getProductionItems ~1084, EnableConfigItem 1572-1580); NotRunning() lines 154-177
 - 2026-11-08T20:16:31Z status=routed owner=burndown by=orchestrator note=planner_ruling 2026-11-08: OWN small story on the next free lane after 32.7, ahead of tier 3; Task 0 measures how Ens holds flag 1 against row 0; tests: a disabled-by-default item is not named, an enabled stopped item still is; no strings (else to the Planner)
+- 2026-11-08T23:13:05Z status=routed owner=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=runner note=charter(Story_39.11;SC-5_re-open;planner_ruling_2026-11-08)
 
 ### DW-979: D3: 'Needs you' counts the person's own chat messages: after three chat questions, 'Send my digest now' printed '3 things need you: Send my digest now; What is the capital of France according to my documents?; How do I rotate the Results certificate?'. User-turn decisions ('A request from the user; the user is answered directly', outcome tellnow) were already answered and must never count
 - source: Contest Planner live demo walk of v1.0.4, 2026-11-08 ~21:30Z | severity: high | fix-risk: low | footprint: in-epic

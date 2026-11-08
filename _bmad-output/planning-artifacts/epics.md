@@ -9491,6 +9491,31 @@ So that a red on the image shard means a real defect.
 
 - DW-639: flake: OcuTalon.Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('and the production runs every item': Install.Step.Production.NotRunning() not empty) red in CI image shard lane-b (ledger; routed by orchestrator 2026-11-07)
 
+### Story 39.11: The install's production check doesn't name an item that is turned off by default
+
+*Home lane: A.*
+
+[ADDED 2026-11-08, SC-5 re-open of Epic 39 for DW-978, fix-forward, Planner-ruled scope (`planner_ruling subject=32.7`, 2026-11-08 ~21:00Z: "its OWN small story on the next free lane after 32.7, ahead of tier 3"); no boundary or dependency change. Story 32.7's Task 0 (G2) found that every DW-639 red names TelegramIn with its System Default Settings row of Enabled at 0, the production's runtime flag at 1 and no job: `Install.Step.Production.NotRunning()` reads only the runtime flag, while `Runners()` in the same class honours the row.]
+
+As an administrator installing or updating OcuTalon,
+I want the install's production check to name only the items that are meant to run and do not,
+So that an item turned off by default (TelegramIn without a bot) never shows as "not running" and never fails a start or a check.
+
+**Acceptance Criteria:**
+
+**Given** how Ens comes to hold an item's runtime flag at 1 while its System Default Settings row of Enabled is 0 (TelegramIn)
+**When** Task 0 measures it, before the fix, on lane C's slot or a throwaway
+**Then** the spec's Design Notes record what Ens does, with evidence; a cause in OcuTalon's own install or update code is reported, and fixed only if it lies inside `Install/Step/Production.cls` and this story's intent (anything wider goes to the Planner first)
+
+**Given** an item of the running production whose System Default Settings row of Enabled is 0
+**When** `Install.Step.Production.NotRunning()` is read
+**Then** it does not name the item, even while the production's runtime flag for it is 1, matching how `Runners()` already honours that row
+**And** an enabled item (no row, or a row of 1) that has a pool and no live job is still named
+**And** each of the two has a pinning test with a demonstrated mutation (Rule 19)
+**And** no user-facing string changes
+
+- DW-978: Install/Step/Production.cls NotRunning() names an item whose System Default Enabled row is 0 as not running (checks only the runtime flag); Runners() in the same file honours the row (ledger; routed by orchestrator 2026-11-08)
+
 
 ## Epic 40: Choose how OcuTalon talks to you
 
