@@ -2655,3 +2655,5 @@
 2026-11-08T04:04:56Z	Epic 9	ruling	question=9.11_edits_in_Eval/In.cls,Test/Eval/ZzIn.cls,Test/Eval/In.cls_also_edited_by_19.4 choice=plain_union(no_shared_lines;whoever_merges_second) rejected=wait_for_Epic_19 category=decide policy=5086036 pending=REASONPACED_text_to_the_Planner
 2026-11-08T04:13:59Z	Epic 9	planner_ruling	subject=9.11_PUBLIC_TEXT+design text=APPROVED_as_drafted(REASONPACED) design=approved(previous-row_pacing,150s_stall_bound,turn_cases_first,no_timer_changes) condition=a_skipped_incident_case_counts_NOT_RIGHT_in_the_incident_score(SM-2)_and_stays_in_its_denominator;pin_with_a_test unions=fine via=Contest_Planner_1[d4cd5f](delegation)
 2026-11-08T04:14:11Z	Epic 9	runner_resumed	agent=ab2b48e59bf60d65e with=PUBLIC_TEXT_approved+SM-2_denominator_condition+contended_union_ruling
+2026-11-08T04:14:24Z	Run	ci_green_verified	runs=42444092244,42444092292 head=47d0004c result=success via=none note=feature_with_Epic_31
+2026-11-08T04:14:42Z	Epic 17	runner_resumed	agent=ad607fde4a29806c8 with=integrate_locally_onto_47d0004c(green)+11-case_union;push_only_after_596eb1f7_resolves note=5_live_runners_briefly(Epic_17_on_lane-B_throwaways,no_slot)
