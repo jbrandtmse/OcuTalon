@@ -390,3 +390,4 @@
 2026-11-08T02:07:45Z	Story 5.14	story_chartered	key=5-14-several-incidents-at-once-are-each-diagnosed-inside-their-ti epics_md=after_story_5.13 marker=[ADDED_2026-11-08_DW-879_fix-forward_Planner-approved] source=planner_ruling(dw=DW-879,option=B+skip_abandoned,2026-11-07T18:33:58Z)
 2026-11-08T02:07:45Z	Epic 5	deps_hash_rerecorded	reason=fix_forward note=story_5.14_inserted_inside_epic_5;no_boundary_or_dependency_statement_changed;for_the_orchestrator
 2026-11-08T02:07:45Z	Story 5.14	ledger_routed_planned	story=5-14-several-incidents-at-once-are-each-diagnosed-inside-their-ti entries=1(DW-879) excess=0 by=charter
+2026-11-08T02:10:41Z	Epic 5	epic_context_compiled	sha=pending_this_commit reason=planning_artifact_newer(story_5.14_added) model=claude-opus-5-5 spawn_at=2026-11-08T02:08:30Z lines=72
