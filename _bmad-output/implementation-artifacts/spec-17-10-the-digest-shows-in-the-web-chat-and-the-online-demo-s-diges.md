@@ -192,6 +192,47 @@ Code review 2026-11-08 (bmad-code-review, full mode, four layers, review tier fu
 - Auditor 5 (the history can't show that the golden ran before the move): false. Runs 702 and 703 are recorded on the slot, and the diff shows the move unchanged except for `channel`, which TelegramOut passes as `TEXTCHANNEL` "telegram".
 - Own check (a CI run that crosses `digest.time` now puts a digest card into every open session's chat, so a notice count taken before and after could be off by one): low. The window is one tick a day against a few seconds per counted test, the fix (pinning `digest.time` in CI or filtering the counts) is more than a direct correction, and a flake takes the one-rerun path (compare DW-872).
 
+Code review 2026-11-08, round 2 (rework iteration 1; bmad-code-review, full mode, four layers, review tier full-opus; diff c390d57f..c3501d59, the spec only). 25 layer rows, 7 entries kept, all low; no high or medium. No code changed, so round 1's AD and Rule 3 checks stand. The corrections below are recorded here, not in Design Notes.
+
+Checklist, the `[CI]` item: confirmed closed. This story's tests and code cannot leave TelegramIn enabled at run time with no job. The proof is a static argument that this review completed; the CI logs record no TelegramIn state, so they cannot prove it.
+- Ens writes the run-time flag in one place: the registration of a production start or update (`irislib/Ens/Director.cls:1347`, `$$$ConfigIsEnabled`).
+- None of the following calls `Ens.Director`, a production start, stop, update, enable or temp-stop, `Ens.Config.*`, `^Ens` or `$$$EnsRuntime` (0 hits, as merged at HEAD):
+  - the two lane-b tests the story changed, `Test.Core.WebChatOut` and `Test.Data.Ownership`, both plain `%UnitTest.TestCase`;
+  - the fixtures they call: `Test.Data.Fixture`, `Test.Core.Observe`, and `Data.Public.Settings`, which is a plain `^OcuTalonPublic` write;
+  - the five product classes the story changed.
+- `Out()`'s `GetShadowInstance("class||…")` is an in-process `%New`.
+- The red head's other additions are lane-a or not IRIS code: 17.11's `Test.Digest.OnlineDemoFacts`, the B mock scenarios and the docker script.
+- 17.10's code was green before the integrate-forward: run 42425470320 on b52d069b, image group, shard lane-b, with WebChatOut, Data.Ownership and Heartbeat passing.
+- The same assertion was red on seven CI runs before 17.10 existed. Two were spot-checked: 41656484374 on e75b90bc and 42341818725 on b6b75a34, image job failed on attempt 1. Neither head has `Checks/Coverage.cls`, so neither holds any Epic 17 code from 17.5 on.
+
+- [x] [Review][Patch] The item's evidence names the run logs as its basis. Its grep covers only the two test files and the five product classes, for nine method names, while the item also asked about anything the tests call [spec :166, :286] — low / low (record only) / in-story / clear. Patched in this record: the static argument above (the single writer, the fixtures, the shadow instance, the merged `Process.cls`) and the b52d069b green run.
+- [x] [Review][Patch] "The only product code that restarts or updates the production is `Install.Step.Production.Start`" is false [spec :286] — low / low / in-story / clear. Corrected:
+  - `OcuTalon.Bridge.Timeouts.Restart` (`src/bridge`, :202-205) temp-stops runner items, and each call ends in an `UpdateProduction`. It is called from `Bridge.Settings.SetModel` and `Timeouts.Apply`.
+  - `Install.Step.Demo` starts and stops the demo namespace's own production.
+  - None of 17.10's files calls these, so the story's proof stands. The correction matters for DW-639's cause hunt and is in its trailer.
+- [x] [Review][Patch] "Epic 17's diff is not it", "cannot reach TelegramIn" and the green head "without Epic 17" claim more than the evidence shows [spec :166, :283, :388] — low / low / in-story / clear. Corrected:
+  - 7ccdd0bf holds Stories 17.2 to 17.9, through feature ab50e3cd. The red-versus-green difference is only 17.10 and 17.11, and that is what the proof covers.
+  - The earlier Epic 17 stories are on both heads. The assertion also went red on heads with none of their code (e75b90bc, b6b75a34, f4b38c9e), so the red does not need them either.
+- [x] [Review][Patch] The local runs are described as on "the merged tree (HEAD c390d57f)", and the other differences as "none of them a lane-b order or tree difference" [spec :283, :285, :289] — low / low / in-story / clear. Corrected:
+  - c390d57f is the union of both heads, not 596eb1f7's tree.
+  - The green head also carries Story 31.4's lane-b changes, which the red head lacks: `Test.Data.PublicSettings` :105 (a one-assertion precedence fix) runs before Heartbeat; `Test.Web.SessionEvents` and the `NoXml*` helpers run after it.
+  - Neither change touches the production, so the result stands.
+- [x] [Review][Patch] DW-639 is described as TelegramIn's stuck flag, and the head's red on both attempts is not addressed [spec :290, :388] — low / low / in-story / clear. Corrected:
+  - The earlier occurrences came before Story 39.10's diagnostics and named no item.
+  - Story 33.2's local reds ran lane-b part 2/2, which holds no `PersonaAnswers`.
+  - The 31.4 occurrence is a different assertion, in lane-a: `Test.Install.ReconcileIn`.
+  - So the history shows only that the assertion was red before 17.10. The named state (TelegramIn row 0, flag 1, no job) has one CI record, 596eb1f7's two attempts, and its earlier precedent is DW-591 (`RunnerFixture.NotRunningNow`).
+  - Earlier occurrences were green on their rerun and this head was not. The static argument answers that, not a rate.
+- [x] [Review][Defer] The watcher class and the probes behind :287-:289 were deleted along with their output [spec :287, :291] — deferred: DW-639 (occurrence appended, by=cr). The timeline and the "an update clears the flag" measurement cannot be re-run, and DW-639's proposed next step needs that watcher. Low / low / out-of-footprint (DW-639's owner) / clear.
+- [x] [Review][Defer] `Test.Schedule.Heartbeat` `TestAfterAllTestsNothingSaved` reads every item's run-time state raw, with no wait, in its last assertion. Its set-up wait (`RunnerFixture.NotRunningNow`) skips items whose Enabled row is 0, so it never waits for TelegramIn [src/ocutalon/cls/OcuTalon/Test/Schedule/Heartbeat.cls:612] — deferred: pre-existing. This is DW-639's own root cause, so it gets an occurrence line, not a new entry. Low / med (the assertion's meaning; Story 39.10's area) / out-of-footprint / clear.
+
+**Rejected, round 2** (one line each):
+- Blind 3 (the red "needs Epic 17's changes with new feature content", and the merged `Process.cls` exists only on the red head): false as a path to TelegramIn. The static argument does not depend on the tree: the merged `Process.cls` at HEAD has 0 production calls, and only a production start or update writes the run-time flag.
+- Blind 5 (the Rework 1 paragraph says no review layers ran, while the cycle log records that as a protocol note): low. It is build-auto's record and the lead's log, the lead already logged it, and this round is the scoped re-review.
+- Blind 6 and Gap other (the extra Heartbeat seconds, the race needing a writer, the conditions of the 720-update probe, the runners' hosts and load): these belong to DW-639's open cause, which the spec says it did not find, not to this story.
+- Blind 7 (the watcher's clock, "changes state once", "x2", who ran which run): low. It is prose in a story record, and the fix edits the spec under review.
+- Auditor 6 and Gap other (frontmatter `status: done` while the tracker says `review`; `baseline_commit` moved to c390d57f; the cycle log's `scope_baseline=d7622990`): the lead's machine state, set by the rework protocol. The story's first baseline, 686baec7, is recorded in round 1, and this review syncs the tracker.
+
 ## Spec Change Log
 
 - 2026-11-08, rework iteration 1 (trigger ci, orchestrator ruling b): re-opened for the one [CI] item under Tasks & Acceptance.
