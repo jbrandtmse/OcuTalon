@@ -172,6 +172,8 @@ deferred: []
 - **AC 5.** Given the Channels section opens, when Telegram is not set up, on, or paused, then it shows that state (with the README link, or with "Trying again at {time}"), and no token is shown or asked for.
 
 ## Spec Change Log
+- 2026-11-08, PUBLIC TEXT ruling (Contest Planner under the owner's delegation, relayed by the orchestrator): rows 1-6 and 14 confirmed verbatim (reused); rows 8-13 and 15-17 approved as written; row 7 reworded to "Message times, reminders, the daily digest and the current time that OcuTalon gives the model use this zone. Times on this page stay in your browser's zone." All pinned with fixed strings; `ux-strings` ruling key `planner-2026-11-08-18.2`.
+- 2026-11-08, AD-14 (Contest Planner ruling, relayed by the orchestrator): the interim sub-bullet at spine line 476 is reworded by the LEAD at this story's close/integrate-forward as an as-built correction, marker `[AMENDED 2026-11-08, Story 18.2, Contest Planner ruling]`. Not a stage edit: implement, QA and review do not touch the spine. AD-18's clarifying sentence waits for an attended `bmad-architecture` Update (nothing to do in this story).
 
 - 2026-11-08, spec gate (lead, Epic 18 runner): struck the AD-18 spine edit from Tasks & Acceptance. Reason: doctrine U14 (a runner never amends an AD itself) and U7 step 1 (comply first): AD-18's Rule already covers an empty `InstanceZone` with `TZ` unset as the container's inherited zone. The clarifying sentence and AD-14's interim sub-bullet ("Until Story 18.2, Digest narrows ...") were sent to the orchestrator. Planned behaviour is unchanged.
 
@@ -229,7 +231,7 @@ All are exercised against the real running production in `Test.Core.SettingsRunT
 
 **Footprint extensions (Rule 11 b):** `Core/Rule/Functions.cls`, `web/scripts/settings-view.test.mjs` and `web/scripts/ux-strings.test.mjs`. None of them is in an open branch's diff (checked 2026-11-08). The spine is not edited (struck at the spec gate; see the Spec Change Log).
 
-**PUBLIC TEXT (proposed):**
+**PUBLIC TEXT (RULED 2026-11-08 by the Contest Planner under the owner's delegation, relayed by the orchestrator; use these strings exactly, pinned by fixed-string tests):**
 
 | # | String | Source | File |
 |---|--------|--------|------|
@@ -239,17 +241,20 @@ All are exercised against the real running production in `Test.Core.SettingsRunT
 | 4 | Telegram paused | EXPERIENCE.md :386 (existing `TELEGRAM_CARD_TEXTS`) | reused |
 | 5 | Trying again at {time} | EXPERIENCE.md :386 (existing) | reused |
 | 6 | Time zone (field label) | section label, existing | `settings-view.ts` |
-| 7 | Message times, reminders, the daily digest and the time OcuTalon tells the model use this zone. Times on this page stay in your browser's zone. | none, proposed (AC 1, UX-DR123) | `settings-view.ts` |
-| 8 | Server default | none, proposed | `settings-view.ts` |
-| 9 | Send at | none, proposed | `settings-view.ts` |
-| 10 | In the instance's time zone. Applies from the next digest. | none, proposed (AC 2) | `settings-view.ts` |
-| 11 | Send to | none, proposed | `settings-view.ts` |
-| 12 | The web chat | none, proposed (EXPERIENCE.md :188 "the web chat") | `settings-view.ts` |
-| 13 | The simulated phone | none, proposed (EXPERIENCE.md :188) | `settings-view.ts` |
+| 7 | Message times, reminders, the daily digest and the current time that OcuTalon gives the model use this zone. Times on this page stay in your browser's zone. | RULED (reworded by the Planner) | `settings-view.ts` |
+| 8 | Server default | RULED | `settings-view.ts` |
+| 9 | Send at | RULED | `settings-view.ts` |
+| 10 | In the instance's time zone. Applies from the next digest. | RULED (AC 2) | `settings-view.ts` |
+| 11 | Send to | RULED | `settings-view.ts` |
+| 12 | The web chat | RULED | `settings-view.ts` |
+| 13 | The simulated phone | RULED (demo mode only) | `settings-view.ts` |
 | 14 | Telegram | EXPERIENCE.md :188 | `settings-view.ts` |
-| 15 | Sending your digest now. | none, proposed; it says "sending", never "sent" (AD-18) | `settings-view.ts` |
-| 16 | Couldn't send your digest. Try again. | none, proposed | `settings-view.ts` |
-| 17 | Telegram on | none, proposed (AC 5's "on") | `settings-view.ts` |
+| 15 | Sending your digest now. | RULED | `settings-view.ts` |
+| 16 | Couldn't send your digest. Try again. | RULED | `settings-view.ts` |
+| 17 | Telegram on | RULED | `settings-view.ts` |
+
+
+**PUBLIC TEXT ruling for the implement stage (binding):** rows 1-6 and 14 are confirmed verbatim as reused UX strings; rows 7-13 and 15-17 are approved as written in the table above (row 7 as REWORDED there). Write them byte for byte, and pin every one with a fixed-string assertion (a test that compares the exact string, not a pattern). In `web/scripts/ux-strings.test.mjs` put the new strings that EXPERIENCE.md does not hold under `ruled`, keyed `'Story 18.2 ruling planner-2026-11-08-18.2 (the Contest Planner under the owner\'s delegation, 2026-11-08, relayed by the orchestrator: the Time zone help text (reworded by the ruling) and its Server default choice, the Daily digest labels Send at and Send to, its help line, the web chat and simulated phone channel names, the send-now confirmation and failure, and the Channels section\'s Telegram on)'`; the reused ones stay under `ux`. No other new user-facing string may ship.
 
 The texts "Saved. Applies within a minute. Recorded in the audit log.", "Couldn't save. Nothing was changed.", "Save changes" and the busy notice are reused unchanged.
 
