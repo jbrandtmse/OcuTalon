@@ -4333,6 +4333,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T19:33:23Z status=routed owner=burndown by=adjudication note=flake candidate: Test.Fix.Snapshot exempts only a timer already running; a ScheduleService call is another background writer; note every occurrence
 - 2026-11-08T12:22:09Z occurrence=OCT-epic32-cf04f99a by=orchestrator note=run 42472273728 iris(shards) Test.Watch.GoodMessages TestFewerThanTwentyGood: Ens.ScheduleService headers inside the dry-run window (2nd branch in 1 h after OCT-epic17 321dcad7); 32.6 is test-only web; rerun of failed jobs 12:2xZ; for 32.7
 - 2026-11-08T12:39:56Z status=routed owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=runner note=charter:Story_7.11_test-only_Planner_ruling_2026-11-08(b);occurrences_OCT-epic17-321dcad7(x2),OCT-epic32-cf04f99a
+- 2026-11-08T13:31:15Z status=resolved-by:7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=adjudication note=Snapshot.DiffCategory_excuses_new_and_completing_headers_Ens.ScheduleService->Ens.ScheduleHandler_only(ScheduleWrite);pinned_by_SnapshotDiff.TestScheduleWritesAreNotChanges(5_mutations_red);forced-condition_harness_old_red_20/20,fix_20/20(evidence/7-11/cause.md);callers_green_warm
 
 ### DW-698: flake: lane-a@rest Tools.RecentActivity and RecentActivityTurn saw a leaked resolved Orders/OrdersFromPartner incident (count 50, approved on web, 50 resent); TestPoisoned hit INVALID OREF in Test.Watch.Case.SortedKeys
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -5512,3 +5513,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Report.cls :61 and AddSkipped tally a skipped incident case (AC7, the Planner's condition); epic-9-context.md Scoring and the spec's proposed AD-22 spine bullet mention only the pacing
 - 2026-11-08T05:43:35Z status=wontfix-accepted owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=reopen_if=a later eval story's spec or review reads SM-2 as leaving skipped incident cases out of its total
+
+### DW-958: Snapshot.Diff excuses no queue count: a schedule call landing after Take's queue wait, before the handler takes it, gives '<ns> queues Ens.ScheduleHandler changed'
+- source: spec-7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TakeIn reads queues after headers (Test/Fix/Snapshot.cls 105-108); the Planner's ruling excuses headers of the pair and nothing else; not seen in the three CI occurrences
+- 2026-11-08T13:29:26Z status=wontfix-accepted owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=cr note=reopen_if=a nothing-changed red whose Snapshot.Diff line is '<ns> queues Ens.ScheduleHandler changed'
+
+### DW-959: Snapshot.Diff does not excuse the schedule handler's follow-on Ens.Alarm request (sent when Ens.Director.UpdateProduction fails or an item has a Schedule)
+- source: spec-7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: irislib/Ens/ScheduleHandler.cls 26-81; spec Never: don't excuse a follow-on write of the schedule call; harness measured 1 header per call, 20 of 20
+- 2026-11-08T13:29:26Z status=by-design owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=cr note=spec Never forbids excusing a follow-on write (Planner's ruling); a line for it is the intended outcome
+
+### DW-960: The schedule-write excusal has no committed real-window test, and the changed-row excusal no real-window run at all; only SnapshotDiff's hand-made rows pin it
+- source: spec-7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Decided in-stage (4): the forced-condition harness is untracked and deleted; Take drains queues, so the harness only exercised the new-header line
+- 2026-11-08T13:29:26Z status=by-design owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=cr note=Decided in-stage (4): SnapshotDiff stays stack-free; harness body kept in evidence/7-11/cause.md

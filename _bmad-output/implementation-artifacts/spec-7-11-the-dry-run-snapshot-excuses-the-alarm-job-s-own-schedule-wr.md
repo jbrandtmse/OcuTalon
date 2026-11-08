@@ -114,6 +114,29 @@ deferred: []
 - Given the snapshot's consumers `DryRun`, `GoodMessages`, `Execute`, `Raise`, `Refused`, `Runs` and `Recheck`, when each runs once on the warm lane-A stack after the fix, then each prints `CLASS <name> passed` with no `FAIL` line. The lead's fresh check runs them forward and reversed (DW-675; Integration AC).
 - Given the change, when `git diff --stat` is read, then only `Snapshot.cls`, `SnapshotDiff.cls`, `evidence/7-11/cause.md` and this spec differ, and no existing `$$$Assert*` line of `SnapshotDiff.cls` changed.
 
+### Review Findings
+
+Code review 2026-11-08 (four layers, full mode). 20 rows, 11 entries after grouping, all low; 0 high, 0 medium. Scope check against the Planner's ruling: exact source/target pair, no session/source-only/target-only/follow-on widening, no product file, changed-row excusal only when both rows match. AD-16, AD-22, AD-29 hold.
+
+- [x] [Review][Patch] Class description said the changed-row excusal covers "completes or ends in another status"; the code excuses any change while both rows stay the pair — wording now says so (fix-risk low: doc only) [src/ocutalon/cls/OcuTalon/Test/Fix/Snapshot.cls:18]
+- [x] [Review][Patch] Two doc-comment lines spliced to 194 and 215 characters — re-wrapped (fix-risk low: doc only) [src/ocutalon/cls/OcuTalon/Test/Fix/SnapshotDiff.cls:15]
+- [x] [Review][Patch] Negative cases (other target, other source, reverse, same session, stops/starts) pinned in ZZNS only, against Task 3's "Cover OCUTALON and ZZNS" — moved into the namespace loop; mutations re-observed (fix-risk low: test-only, green after) [src/ocutalon/cls/OcuTalon/Test/Fix/SnapshotDiff.cls:265]
+- [x] [Review][Patch] Reverse-direction assertion never shown red — mutation "accept either direction" observed red (2 FAIL), line written in Verification (fix-risk low: no code change) [src/ocutalon/cls/OcuTalon/Test/Fix/SnapshotDiff.cls:265]
+- [x] [Review][Patch] AC 3 and AC 4 had no `mutation:` line — AC 3's line cites the harness's old-code red on the caller shape and states it is a no-regression check on ordinary runs; AC 4 is a reading, no mutation applies (fix-risk low: tracking doc) [spec ## Verification]
+- [x] [Review][Patch] Evidence claimed the schedule call writes only one header and left out `UpdateProduction` — now says "in these runs", and names the follow-on Ens.Alarm path that still gives a line (fix-risk low: evidence doc) [_bmad-output/implementation-artifacts/evidence/7-11/cause.md:14]
+- [x] [Review][Patch] Evidence's "OCUORDERS gave no line either" read as proof; the harness never called the schedule service there — now says so; OCUORDERS's production cited (fix-risk low: evidence doc) [_bmad-output/implementation-artifacts/evidence/7-11/cause.md:71]
+- [x] [Review][Patch] AD-16 reasoning in the Design Notes is imprecise (resends copy the original's target); the real guard is that a schedule-call header has no body, which `Executor.Resend` skips — stated in the evidence's rule section (fix-risk low: evidence doc) [_bmad-output/implementation-artifacts/evidence/7-11/cause.md:22]
+- [x] [Review][Defer] Queue counts are read after headers and excused for nothing: a schedule call after the queue wait can give `<ns> queues Ens.ScheduleHandler changed` [src/ocutalon/cls/OcuTalon/Test/Fix/Snapshot.cls:105] — deferred: DW-958 `wontfix-accepted` (fix-risk med; excusing a queue widens the Planner's ruling), reopen_if a nothing-changed red with that line; evidence notes it
+- [x] [Review][Defer] The handler's follow-on Ens.Alarm request (UpdateProduction failure, or an item with a Schedule) is not excused [src/ocutalon/cls/OcuTalon/Test/Fix/Snapshot.cls:200] — deferred: DW-959 `by-design` (spec Never: no follow-on write is excused)
+- [x] [Review][Defer] No committed real-window test; the changed-row excusal has no real-window run [src/ocutalon/cls/OcuTalon/Test/Fix/SnapshotDiff.cls:265] — deferred: DW-960 `by-design` (Decided in-stage (4)); evidence states the gap
+
+Rejected:
+- `low` Cycle log `dev_complete` records loc 170/6 from the old base (168/4 from 68602fec) — the cycle log is the lead's append-only bookkeeping, which this stage does not write; the same line's note already names the base.
+- `false` Spec frontmatter `status: done` while sprint-status says `review` — the frontmatter is build-auto's machine state; sprint-status carries the review state.
+- `false` (same, acceptance layer) Paperwork says done before review — as above.
+- `false` Fresh-environment check not shown — it is the lead's gate after review, by the spec's Verification.
+- `low` Intent/Approach and matrix say "it completes" while the code excuses any change of a matching row — fix edits the spec's intent; Decided in-stage (1) already states the scope, and the class description now matches the code.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -137,7 +160,7 @@ deferred: []
 ## Design Notes
 
 - **Architecture decisions (Rule 6).**
-  - AD-16: the dry run changes nothing, and this oracle is what proves it. `FixExecutor`'s writes are resends and FixResults to its own targets, never a header from `Ens.ScheduleService` to `Ens.ScheduleHandler`. So the excusal cannot hide a fix's change, and AD-16's Prevents line is kept.
+  - AD-16: the dry run changes nothing, and this oracle is what proves it. `FixExecutor`'s writes are resends and FixResults to its own targets, never a header from `Ens.ScheduleService` to `Ens.ScheduleHandler`. So the excusal cannot hide a fix's change, and AD-16's Prevents line is kept. [Corrected by the lead at the spec gate after review, 2026-11-08: a resend copies the original's target, so the real guard is that a schedule call's header carries no body (`SendRequestAsync("Ens.ScheduleHandler", $$$NULLOREF)`) and `Executor.Resend` resends only headers whose body it can read; see `evidence/7-11/cause.md`.]
   - AD-22: tests are `%UnitTest` classes under `OcuTalon.Test.<Area>` and run only in throwaways and CI.
   - AD-29: `Test/Fix` belongs to lane A.
   - No AC contradicts an AD.
@@ -177,10 +200,13 @@ Rules for every command:
 - (once) `git status --short` and `git diff --stat`. Expected: only the files of AC 4, and no `ZzScheduleWindow.cls`.
 
 **Mutations (Rule 19).** Before each one, record `shasum` of `Snapshot.cls`, `git status --short` and `git diff --stat`. Apply the change, run the warm SnapshotDiff call, revert, and confirm that all three match. A red counts only if the class is green again on the same stack after the revert.
-- mutation: delete the new-header `If ..ScheduleWrite(columns) Continue` line in `DiffCategory` → `TestScheduleWritesAreNotChanges` red at the "no line" assertion for a new header from `Ens.ScheduleService` to `Ens.ScheduleHandler` (AC 1). The harness's old-code run is this same red on a real window. Observed (implement, warm lane-A): 3 FAIL lines, class green again after the revert with shasum, `git status --short` and `git diff --stat` identical. Real-window harness: old code red 20 of 20 (one line each, the planted header's: `OCUTALON header 5 is new: session 5, from Ens.ScheduleService to Ens.ScheduleHandler` for iteration 1), fix green 20 of 20 (exactly 1 planted and 1 new header each); details in `evidence/7-11/cause.md`.
-- mutation: make `ScheduleWrite` test the source only, dropping the target condition → `TestScheduleWritesAreNotChanges` red at the other-target line (AC 2). Observed: 3 FAIL lines (other target, a header that stops being a schedule call's, one that becomes one), green again after the revert, tree identical.
-- mutation: delete the changed-row `If (category = "headers") && ..ScheduleWrite(...) Continue` line in `DiffCategory` → `TestScheduleWritesAreNotChanges` red at the "was in before and completes" and "ends in another status" assertions, in OCUTALON and ZZNS (AC 1). Observed: 4 FAIL lines, green again after the revert, tree identical.
-- mutation: make `ScheduleWrite` test the target only, dropping the source condition → `TestScheduleWritesAreNotChanges` red at the other-source line (AC 2). Observed: 1 FAIL line, green again after the revert, tree identical.
+- mutation: delete the new-header `If ..ScheduleWrite(columns) Continue` line in `DiffCategory` → `TestScheduleWritesAreNotChanges` red at the "no line" assertion for a new header from `Ens.ScheduleService` to `Ens.ScheduleHandler` (AC 1). The harness's old-code run is this same red on a real window. Observed (implement, warm lane-A): 3 FAIL lines; re-observed at code review after the negative cases moved into both namespaces: 4 FAIL lines; class green again after the revert with shasum, `git status --short` and `git diff --stat` identical. Real-window harness: old code red 20 of 20 (one line each, the planted header's: `OCUTALON header 5 is new: session 5, from Ens.ScheduleService to Ens.ScheduleHandler` for iteration 1), fix green 20 of 20 (exactly 1 planted and 1 new header each); details in `evidence/7-11/cause.md`.
+- mutation: make `ScheduleWrite` test the source only, dropping the target condition → `TestScheduleWritesAreNotChanges` red at the other-target line (AC 2). Observed: 3 FAIL lines (other target, a header that stops being a schedule call's, one that becomes one); re-observed at code review: 6 FAIL lines (the same, in OCUTALON and ZZNS), green again after the revert, tree identical.
+- mutation: delete the changed-row `If (category = "headers") && ..ScheduleWrite(...) Continue` line in `DiffCategory` → `TestScheduleWritesAreNotChanges` red at the "was in before and completes" and "ends in another status" assertions, in OCUTALON and ZZNS (AC 1). Observed: 4 FAIL lines (re-observed at code review: 4), green again after the revert, tree identical.
+- mutation: make `ScheduleWrite` test the target only, dropping the source condition → `TestScheduleWritesAreNotChanges` red at the other-source line (AC 2). Observed: 1 FAIL line; re-observed at code review: 2 FAIL lines (OCUTALON and ZZNS), green again after the revert, tree identical.
+- mutation (code review): make `ScheduleWrite` also accept the reverse direction (source `SCHEDULEHANDLER`, target `SCHEDULESERVICE`) → `TestScheduleWritesAreNotChanges` red at the reverse-direction line (AC 2). Observed: 2 FAIL lines (OCUTALON and ZZNS), green again after the revert, tree identical.
+- mutation (AC 3, the Integration AC): the old `Snapshot.cls` (neither `Continue` line) under the forced condition → the caller-shaped harness (Take, `CallScheduleService()`, Take, `Diff`, assert no line: the assertion of `DryRun` and `GoodMessages`) red 20 of 20 (implement stage, `evidence/7-11/cause.md`). The callers themselves cannot be forced, because the alarm job's timing is not controllable, so on an ordinary run AC 3 is a no-regression check.
+- AC 4 is a reading of `git diff --stat`, not a test; no mutation applies.
 
 **Fresh-environment check (the lead's; Rule 19 and Rule 21).** Use fresh lane-A throwaways, never warm, forward and then `--reverse`.
 - Run `ci/iris.sh class OcuTalon.Test.Fix.SnapshotDiff`.

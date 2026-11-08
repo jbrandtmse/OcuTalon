@@ -12,10 +12,10 @@
 ///     no running timer, a request in any other status in "before" (Discarded, Suspended, Deferred, Aborted, Error, Completed, or no status), a header to another
 ///     target, a new header from another source and a changed header in the running timer's session, its request missing after, and the same headers in another
 ///     namespace give a line each, and the four lines that isolate one condition each are checked by their text;
-///   - TestScheduleWritesAreNotChanges (Story 7.11): a header from Ens.ScheduleService to Ens.ScheduleHandler (the alarm job's schedule call) that is new, in OCUTALON or in
-///     any other namespace, or that was in "before" and completes or ends in another status, gives no line. The same header missing after (in OCUTALON too), a header from Ens.ScheduleService to another target, from
-///     another source to Ens.ScheduleHandler, from Ens.ScheduleHandler to Ens.ScheduleService, another new header in the schedule call's session, and a header that stops
-///     being a schedule call's give a line each, and those lines are checked by their text;
+///   - TestScheduleWritesAreNotChanges (Story 7.11), in OCUTALON and in another namespace: a header from Ens.ScheduleService to Ens.ScheduleHandler (the alarm job's
+///     schedule call) that is new, or that was in "before" and completes or ends in another status, gives no line. The same header missing after, a header from
+///     Ens.ScheduleService to another target, from another source to Ens.ScheduleHandler, from Ens.ScheduleHandler to Ens.ScheduleService, another new header in the
+///     schedule call's session, and a header that stops or starts being a schedule call's give a line each, and those lines are checked by their text;
 ///   - TestNothingChanged: two equal snapshots give no line.
 Class OcuTalon.Test.Fix.SnapshotDiff Extends %UnitTest.TestCase
 {
@@ -180,8 +180,8 @@ Method TestScheduleWritesAreNotChanges()
 	Set handler = ##class(OcuTalon.Test.Fix.Snapshot).#SCHEDULEHANDLER
 	Set call = ..Row(8, service, handler, 2)
 	Set done = ..Row(8, service, handler, 9)
-	Set other = {"1": (..Row(1, "A", "B", 9))}
 	For ns = ##class(OcuTalon.Test.Fix.Snapshot).#ALARMIN, "ZZNS" {
+		Set other = {"1": (..Row(1, "A", "B", 9))}
 		Set was = {"1": (..Row(1, "A", "B", 9))}
 		Set lines = ..Lines(ns, was, {"1": (..Row(1, "A", "B", 9)), "2": (call)})
 		Do $$$AssertEquals(lines.%Size(), 0, ns_": a new header from the schedule service to the schedule handler gives no line "_lines.%ToJSON())
@@ -192,20 +192,19 @@ Method TestScheduleWritesAreNotChanges()
 		Do $$$AssertEquals(lines.%Size(), 0, ns_": such a header that was in before and ends in another status gives no line "_lines.%ToJSON())
 		Set lines = ..Lines(ns, was, {"1": (..Row(1, "A", "B", 9))})
 		Do $$$AssertEquals(..One(lines), ns_" headers 2 is missing after", ns_": such a header that is missing after gives its line")
+		Set lines = ..Lines(ns, other, {"1": (..Row(1, "A", "B", 9)), "2": (..Row(8, service, "Other", 2))})
+		Do $$$AssertEquals(..One(lines), ns_" header 2 is new: session 8, from "_service_" to Other", ns_": a new header from the schedule service to another target gives its line")
+		Set lines = ..Lines(ns, other, {"1": (..Row(1, "A", "B", 9)), "2": (..Row(8, "Other", handler, 2))})
+		Do $$$AssertEquals(..One(lines), ns_" header 2 is new: session 8, from Other to "_handler, ns_": a new header from another source to the schedule handler gives its line")
+		Set lines = ..Lines(ns, other, {"1": (..Row(1, "A", "B", 9)), "2": (..Row(8, handler, service, 2))})
+		Do $$$AssertEquals(..One(lines), ns_" header 2 is new: session 8, from "_handler_" to "_service, ns_": a new header from the schedule handler to the schedule service gives its line")
+		Set lines = ..Lines(ns, other, {"1": (..Row(1, "A", "B", 9)), "2": (call), "3": (..Row(8, "A", "B", 1))})
+		Do $$$AssertEquals(..One(lines), ns_" header 3 is new: session 8, from A to B", ns_": another new header in the schedule call's session gives its line, and the call's own header none")
+		Set lines = ..Lines(ns, {"1": (call)}, {"1": (..Row(8, service, "Other", 9))})
+		Do $$$AssertEquals(..One(lines), ns_" headers 1 changed", ns_": a header that stops being a schedule call's gives its line")
+		Set lines = ..Lines(ns, {"1": (..Row(8, service, "Other", 2))}, {"1": (done)})
+		Do $$$AssertEquals(..One(lines), ns_" headers 1 changed", ns_": and so does one that becomes a schedule call's")
 	}
-
-	Set lines = ..Lines("ZZNS", other, {"1": (..Row(1, "A", "B", 9)), "2": (..Row(8, service, "Other", 2))})
-	Do $$$AssertEquals(..One(lines), "ZZNS header 2 is new: session 8, from "_service_" to Other", "a new header from the schedule service to another target gives its line")
-	Set lines = ..Lines("ZZNS", other, {"1": (..Row(1, "A", "B", 9)), "2": (..Row(8, "Other", handler, 2))})
-	Do $$$AssertEquals(..One(lines), "ZZNS header 2 is new: session 8, from Other to "_handler, "a new header from another source to the schedule handler gives its line")
-	Set lines = ..Lines("ZZNS", other, {"1": (..Row(1, "A", "B", 9)), "2": (..Row(8, handler, service, 2))})
-	Do $$$AssertEquals(..One(lines), "ZZNS header 2 is new: session 8, from "_handler_" to "_service, "a new header from the schedule handler to the schedule service gives its line")
-	Set lines = ..Lines("ZZNS", other, {"1": (..Row(1, "A", "B", 9)), "2": (call), "3": (..Row(8, "A", "B", 1))})
-	Do $$$AssertEquals(..One(lines), "ZZNS header 3 is new: session 8, from A to B", "another new header in the schedule call's session gives its line, and the call's own header none")
-	Set lines = ..Lines("ZZNS", {"1": (call)}, {"1": (..Row(8, service, "Other", 9))})
-	Do $$$AssertEquals(..One(lines), "ZZNS headers 1 changed", "a header that stops being a schedule call's gives its line")
-	Set lines = ..Lines("ZZNS", {"1": (..Row(8, service, "Other", 2))}, {"1": (done)})
-	Do $$$AssertEquals(..One(lines), "ZZNS headers 1 changed", "and so does one that becomes a schedule call's")
 }
 
 }

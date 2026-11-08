@@ -16,9 +16,11 @@ Include Ensemble
 ///     request, one new header that ALARM sent in the same session (the wake-up). A timer armed after "before" (its request is new), a running timer's request that
 ///     is missing after, and every other header still count.
 ///   - A schedule call is no change of the fix, in any namespace: Ens.Alarm jobs off Ens.ScheduleService.CallScheduleService() when it cannot open a timer's request
-///     header, at a time no test controls, and that call sends one header from SCHEDULESERVICE to SCHEDULEHANDLER. Diff leaves out such a header when it is new, and a
-///     change of one that was already in "before" (it completes or ends in another status). It leaves out nothing else: such a header that is missing after, a header from SCHEDULESERVICE to any
-///     other target, a header from any other source to SCHEDULEHANDLER, one in the opposite direction, and every other header of the call's session still count.
+///     header, at a time no test controls, and that call sends one header from SCHEDULESERVICE to SCHEDULEHANDLER. Diff leaves out such a header when it is new, and
+///     any change of one that was already in "before" while both rows are from SCHEDULESERVICE to SCHEDULEHANDLER (it completes, or ends in another status). It
+///     leaves out nothing else: such a header that is missing after, a header that stops or starts being one, a header from SCHEDULESERVICE to any other target, a
+///     header from any other source to SCHEDULEHANDLER, one in the opposite direction, and every other header of the call's session (the handler's own requests too)
+///     still count.
 /// It only reads. It switches namespace in QueuedIn and TakeIn, which call Ens, %SQL and dictionary classes there and open each header's body through its own class.
 Class OcuTalon.Test.Fix.Snapshot
 {
