@@ -2935,3 +2935,10 @@
 2026-11-08T21:59:33Z	Epic 30	ci_green_verified	head=17406fd7 result=failure_on_DW-973_only(planner_exception_one-off) runs=42515884139(attempt1:DW-349,DW-453,DW-494,DW-973;attempt2:DW-973_only),42515884041(success) via=planner_ruling_30.7_(a)
 2026-11-08T21:59:33Z	Epic 30	merge_enqueued	policy=when_green+planner_exception note=feature_moved_with_5.15_code;merge-tree_clean;IncidentManager.cls_disjoint_hunks(30.7:Drop~1288;5.15:<=1160)
 2026-11-08T21:59:33Z	Run	planner_ruling	subject=30.7_DW-973 answer=(a)merge_17406fd7_now_one-off_exception;resolve_U-210,U-214,U-215,U-308;free_lane_B_for_17.12/17.13 standing=YES_until_32.7_merges:epic_whose_ONLY_red_is_DW-973_exact_signature_may_merge_if_every_other_job_green+touches_nothing_under_Docs/Extract/extraction_lock+each_use_logged_against_DW-973 via=Contest_Planner_1(delegation)
+2026-11-08T22:00:20Z	Epic 30	epic_merged_to_feature	merge=2992191c head=17406fd7 stories=30.7 verified_on_origin=yes conflicts=sprint-status.yaml(bookkeeping;SC-4-P_step4) code_conflicts=none(IncidentManager.cls_auto_disjoint) ledger_union=lost0,dup0(948) sprint_valid=yes spine_lint=baseline feature_ci=42527950695,42527950742, exception=DW-973_one-off(planner) release=1.0.5
+2026-11-08T22:00:20Z	Epic 30	decision_sheet_skipped	reason=empty(burn-down_0_left)
+2026-11-08T22:00:20Z	Run	inbox_resolved	U-210,U-214,U-215,U-308(Epic_30_merge),U-314(Epic_41_applied)
+2026-11-08T22:00:20Z	Run	deps_hash_rerecorded	reason=fix_forward stories=30.7 hash=cfaffbab13d2
+2026-11-08T22:00:20Z	Epic 30	worktree_removed	
+2026-11-08T22:00:20Z	Epic 30	epic_branches_deleted	local+remote(ancestor_verified)
+2026-11-08T22:00:20Z	Epic 41	runner_clarification	kind=CI_WAIT agent=a70c5c6c3ec305303 sha=ef38622e local=900b4bfa applied=U-309,U-310,U-314 recorded=41.7_rulings(AD-7_amended;AC6_report-only)
