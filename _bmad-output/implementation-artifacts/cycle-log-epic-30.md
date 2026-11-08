@@ -309,3 +309,17 @@
 2026-11-02T22:27:26Z	Epic 30	full_suite_on_merged_tree	evidence=30.8_implement_(once):lane-a_parts_1-6+lane-b_parts_1-3_pass_on_the_integrated_tree;ci/checks.sh_all_scripts_passed_(21:39Z,with_the_CI_step);CI_f80b35fd_ran_all_8_iris_groups_green(every_unit,ci/_changed) smoke=30.8_smoke_on_slot_B(integrated_tree)+fresh_check note=the_final_integrate-forward_is_a_no-op:origin/feature_1c9952c4_already_merged_at_8b2f15f9
 2026-11-02T22:27:26Z	Epic 30	integrated_forward	feature=1c9952c4 head=8b2f15f9 conflicts_resolved=sprint-status.yaml(at_8b2f15f9;no_new_merge_needed:feature_unchanged_since) note=final_check_at_2026-11-02T22:27:26Z
 2026-11-02T22:27:26Z	Epic 30	epic_runner_complete	stories_completed=2(30.1,30.8) partial=30.7_held_out(deferred_after_the_v1.0.0_tag,d1) ci_change=eighth_group_name=shards-3 new_required_check=iris_(shards-3)
+2026-11-08T01:45:26Z	Epic 30	epic_branch_reopened	reason=story_30.9_dw890 from=4bcbcaff
+2026-11-08T01:45:26Z	Epic 30	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_30.9_dw890 lane=D slot=ocutalon-slot-d
+2026-11-08T01:45:26Z	Epic 30	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-08T01:45:26Z	Epic 30	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-08T01:45:26Z	Epic 30	launch_env	depth=4 watchdog=0 bash_max_ms=default note=harness_backgrounds_bash_at_~170s(switch-20261108-common)
+2026-11-08T01:45:26Z	Epic 30	bootstrap_check	result=ok
+2026-11-08T01:45:26Z	Epic 30	epic_branch_checked_out	repos=. head=4bcbcaff ci_expected=ci,lane-a
+2026-11-08T01:45:26Z	Epic 30	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-08T01:45:26Z	Epic 30	ledger_load	total=884 open=0 routed=130 escalated=2 decision_pending=5 terminal=747 owner_unknown=0 burndown=87 reowned_none=0
+2026-11-08T01:46:51Z	Epic 30	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=headless_readiness_re-check;in_sync;standing_warnings=epics.md:19,580(non-epic_headings)
+2026-11-08T01:46:51Z	Epic 30	retro_review_skipped	reason=no_x0_input(SC-5_re-open_for_one_fix-forward_story;dispatch)
+2026-11-08T01:46:51Z	Epic 30	story_chartered	story=30.9 key=30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio source=DW-890 marker=ADDED_2026-11-08 by=runner
+2026-11-08T01:46:51Z	Epic 30	deps_hash_rerecorded	reason=fix_forward by=orchestrator(main_checkout) note=Story_30.9_inserted_inside_Epic_30;no_boundary_or_dependency_statement_changed
+2026-11-08T01:46:51Z	Epic 30	ledger_routed_planned	story=30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio entries=1(DW-890) excess=0 by=runner

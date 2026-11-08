@@ -8002,6 +8002,31 @@ So that no key reaches the trace or a log in a shape the redactor misses, and th
 - DW-386: `OcuTalon.Bridge.Redact` replaces every key shape that `docker/tests/test-boundaries.sh` `key_like` flags, DigitalOcean tokens (`dop_v1_...`) and PEM private-key headers (`-----BEGIN ... PRIVATE KEY`) included, and also the Anthropic key (`sk-ant-...`) and the Telegram bot token (digits, a colon, 35 characters) if `key_like` lacks them; one test per shape (U-184, kept; before 1.0.0) (ledger; routed by merge_gate 2026-10-31, re-owned from Story 30.7 by spec_gate 2026-11-02, fix-forward)
 - DW-448: `Test.Eval.KeyProof`'s Walk decodes `$List` elements, so a key stored as one element of a list (nested lists included) is found; and a measurement on a throwaway answers whether a message body can store a key in a compressed or split `%Stream.Global*` chunk: yes, the walk decodes those too; no, that half closes `wontfix-accepted` and the ledger entry records the evidence (the throwaway's build, the message class, what was stored). The release candidate's key proof is otherwise unchanged; Lane B's copy (`Test.Web.SessionEvents`, DW-474) stays with its own entry (U-185, kept; before 1.0.0) (ledger; routed by merge_gate 2026-10-31, re-owned from Story 30.7 by spec_gate 2026-11-02, fix-forward)
 
+### Story 30.9: A 'Remember that ...' chat message gets a usable attention decision
+
+[ADDED 2026-11-08 at Epic 30's SC-5 re-open, by the orchestrator's dispatch: DW-890, fix-forward, Planner-approved placement (`planner_ruling subject=DW-890_placement`, 2026-11-08), for the 1.0.4 release. Story 30.7 stays deferred and is not part of this re-open.]
+
+On the 1.0.3 demo, every "Remember that ..." chat message, typed or sent by the panel's "Ask it to remember" form, gets a Fallback attention decision: the strip reads "Tell now · Fallback" and "The model's reply couldn't be used." (1 agent step, about 66 output tokens), while the chat turn itself answers and the memory is saved. The demo host's trace holds one Story 30.6 warning for it: `Decide` refused the reply because it is not one JSON object that `OcuTalon.Bridge.Msg.DecisionPayload` accepts (ERROR #5001), with no "After the reply filter ran" line, so it is not a length, datatype or enum failure. This story finds the cause from the code and a CI-mock reproduction of that reply shape, fixes it at the cause with the smallest change, and adds a CI test and an evaluation case so it cannot come back.
+
+As a user,
+I want a "Remember that ..." message to get a real attention decision,
+So that the strip never says the model's reply couldn't be used when nothing went wrong.
+
+**Acceptance Criteria:**
+
+**Given** a user chat message that begins "Remember that ...", both the typed form and the panel's "Ask it to remember" form
+**When** Triage decides its attention
+**Then** the decision is a usable one, decided under the user's-own-message rule (tell now; Story 30.5, AD-28), and not Fallback; the cause, found from evidence (the demo host's 30.6 warning, code reading and a CI-mock reproduction of the reply shape it implies), is stated in the spec's Design Notes, and the fix is at that cause: no timeout or `TimerSeconds` is raised, no reply check is loosened for other replies, and no other outcome's behaviour changes
+
+**Given** the CI mock
+**When** the bridge and agent tests run
+**Then** a test drives a "Remember that ..." user message, in both forms, through the decision and pins that it decides without Fallback, and a named mutation that restores the cause turns it red (Rule 19)
+
+**Given** Epic 9's evaluation set
+**When** it runs
+**Then** a new case folder `eval/<case>/case.json`, shaped like `eval/user-turn-productions/`, states that a "Remember that ..." item must decide without Fallback; `eval/run.sh` is not changed, and any test that pins the evaluation set's case count or list is updated with the new case
+- DW-890: On the 1.0.3 demo every 'Remember that ...' chat message's attention decision falls back (strip 'Tell now · Fallback', 'The model's reply couldn't be used.'; 1 agent step, 66 output tokens, 0.9 s) while the chat turn works and the memory is saved; the demo's 30.6 warning shows `Decide` refused the reply as not one JSON object `DecisionPayload` accepts (ERROR #5001); find the cause, fix it, and add the eval regression case (ledger; routed by orchestrator 2026-11-08, Story 30.9 fix-forward)
+
 ## Epic 31: Lane B post-demo hardening
 
 [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: a new epic, the parts of Lane B's demo-path stories moved after the demo path.] On a local install the page gets live events over a WebSocket, with polling as the fallback, and a risky tool call's approval request reaches the simulated phone and the paired chat with Approve and Reject and is edited in place when answered. Each part lands before 1.0.0.
