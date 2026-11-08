@@ -2800,3 +2800,7 @@
 2026-11-08T12:56:41Z	Epic 5	ruling	question=5.15_Watch/IncidentManager.cls_vs_Epic_30_30.7(Purge_L1288-1320) choice=plain_union(5.15_edits_~L1132;separate_hunks;second_merger) category=decide policy=5086036
 2026-11-08T12:57:02Z	Epic 5	planner_ruling	subject=5.15 answer=(1)proceed_~2.5h_as_designed (2)expired_KEEP_in_trigger (3)DW-957_WIDEN_to_dismiss+closeQuiet_of_a_noticed_open_incident(~3_lines+1_test;any_move_changing_An_open_incident_refreshes_the_check) union=fine via=Contest_Planner_1(delegation)
 2026-11-08T13:43:10Z	Epic 30	runner_clarification	kind=CI_WAIT agent=a8d3c06dd54fd2725 sha=94a7dcca(30.7_done;cr_high0_med3_patched;DropLinks_case_bug_fixed) runs=42485997543,42485997548 applied=U-210,U-214,U-215,U-308 extensions=+Test/Bridge/CodeRules.cls,Test/Bridge/Runner.cls(plain_unions_with_Epic_19;accepted) merge=after_cut
+2026-11-08T13:44:12Z	Epic 19	ci_red_classified	sha=f6290959 run=42480549642 job=iris(shards) class=flake test=leave.spec_L6_page.close(DW-774_page.close_half) action=rerun_once
+2026-11-08T13:44:12Z	Epic 32	ci_rerun	sha=cf04f99a run=42472273728_attempt_3 reason=Planner_deviation_c(DW-675_signature_only)
+2026-11-08T13:44:25Z	Epic 17	ci_resolved	sha=321dcad7 attempt=3 result=failure test=TestDisabledItemIsReportedOnce(web_chat_notification_count;NOT_ledgered;not_the_DW-675_signature) note=possible_story_red(17.10_WebChat.Out);runner_classifies
+2026-11-08T13:44:25Z	Epic 18	ci_green_verified	head=90360113 result=success(after_DW-639_rerun) note=18.2
