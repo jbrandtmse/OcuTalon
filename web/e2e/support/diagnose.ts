@@ -1,9 +1,11 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { test } from '@playwright/test';
+import { test, type Page, type Request } from '@playwright/test';
 
-import { asCleanup, boundedStep } from './bounds';
+import { STATE } from './api';
+import { asCleanup, boundedStep, secs } from './bounds';
+import { describeHost, readHost, swapInMark, type HostReading } from './host';
 import { irisScript } from './iris';
 
 /**
@@ -34,6 +36,23 @@ import { irisScript } from './iris';
  * object text, also with escaped quotes), a key shape (sk-, ghp_ and its kin, github_pat_, AKIA, ASIA, xox, AIza), a long opaque token (24 or more characters of letters,
  * digits, `_` and `-` with a digit among them) or more than the first four characters of a session id. A redacted value becomes
  * `[redacted]`, a Cookie header or a body through the end of its line; the counts and states of the other values are kept.
+ *
+ * Story 32.6 (DW-550, DW-774) adds what the page and the browser did, as lines that follow the IRIS lines:
+ * - `DIAG /state request: none issued by the page since the sign-in began`, or up to five newest lines
+ *   `DIAG /state request <i> of <n>: issued <s> s after the sign-in began, <no answer yet|answered <status> at <s> s|failed at <s> s (<class>)>`
+ *   (the GETs of the snapshot that a watchRequests watch saw);
+ * - `DIAG /state page: <n> request(s) in flight (<type>=<k>, ... in name order), the oldest issued <s> s ago`, or `no request in flight`;
+ * - `DIAG /state page: the page answered in <ms> ms (readyState <complete|interactive|loading|other>)`, or `gave no answer within 2 s` or `is closed`
+ *   (probePage, a document.readyState read that asks whether the renderer answers);
+ * - `DIAG /state host: ...`, the worker host's load, pressure and swap-in rate (host.ts).
+ * The request, page and host lines are also printed when the snapshot wait retries (floor.ts, at half of its bound, so a retried test that passes still
+ * leaves state-diagnosis.txt), and `DIAG /state reload failed: <class>` says that the retry's reload was refused.
+ * A page.close that passed its bound (fixtures.ts) prints, to close-diagnosis.txt and the `close-diagnosis` attachment, `DIAG page.close:` (the
+ * page open or closed, the pages of its context, the browser connected or not), `DIAG page.close requests:` (the in-flight phrase),
+ * `DIAG page.close renderer:` (the probe), `DIAG page.close browser:` (a Browser.getVersion over a browser CDP session, answered in <ms> ms,
+ * `gave no answer within 2 s` or `not measured (not Chromium)`) and `DIAG page.close host:`. Every value that these lines print is checked: an
+ * error class outside `^[A-Za-z][A-Za-z0-9_:.]{0,39}$` prints as `another error`, a resource type outside `^[a-z]{1,20}$` as `other`, and no
+ * URL, query, body, header, cookie, session id, PID, address or host name is read into a line.
  */
 
 /** The longest the read may take, in ms (the test's own deadline may shorten it, bounds.ts capToDeadline). */
@@ -181,15 +200,15 @@ async function read(script: string, describe: (lines: string[]) => string[], una
   }
 }
 
-/** Appends the printed lines to state-diagnosis.txt in the running test's output folder and attaches the file once. Outside a test, or on a write failure, it does nothing. */
-function keepLines(lines: string[]): void {
+/** Appends the printed lines to <name>.txt in the running test's output folder and attaches the file once as `name`. Outside a test, or on a write failure, it does nothing. */
+function keepLines(lines: string[], name = 'state-diagnosis'): void {
   try {
     const info = test.info();
-    const file = info.outputPath('state-diagnosis.txt');
+    const file = info.outputPath(`${name}.txt`);
     mkdirSync(dirname(file), { recursive: true });
     appendFileSync(file, `${lines.join('\n')}\n`);
-    if (!info.attachments.some((attachment) => attachment.name === 'state-diagnosis')) {
-      info.attachments.push({ name: 'state-diagnosis', path: file, contentType: 'text/plain' });
+    if (!info.attachments.some((attachment) => attachment.name === name)) {
+      info.attachments.push({ name, path: file, contentType: 'text/plain' });
     }
   } catch {
     // Best effort: a test outside Playwright, or a folder that cannot be written, keeps only the printed lines.
@@ -220,7 +239,259 @@ export async function stateDiagnosis(): Promise<void> {
     read(SCRIPT, describeDiagnosis, 'DIAG /state unavailable'),
     read(GATEWAY_SCRIPT, describeGateway, 'DIAG /state gateway unavailable'),
   ]);
-  const lines = [...first, ...gateway].map(redactLine);
-  for (const line of lines) console.log(line);
-  keepLines(lines);
+  printDiagnosis([...first, ...gateway], 'state-diagnosis');
+}
+
+/** Redacts the lines (redactLine), prints them, and keeps them in <name>.txt of the test's output folder (keepLines). The file equals the printed lines. */
+export function printDiagnosis(lines: string[], name: string): void {
+  const redacted = lines.map(redactLine);
+  for (const line of redacted) console.log(line);
+  keepLines(redacted, name);
+}
+
+// --- What the page and the browser did (Story 32.6) ---
+
+/** How long a probe of the page or the browser waits for an answer, in ms. */
+export const PROBE_BOUND_MS = 2_000;
+
+const MAX_RECORDS = 200;
+const MAX_REQUEST_LINES = 5;
+const ERROR_CLASS = /^[A-Za-z][A-Za-z0-9_:.]{0,39}$/;
+const RESOURCE_TYPE = /^[a-z]{1,20}$/;
+const READY_STATES = ['complete', 'interactive', 'loading'];
+
+/** One request of a page: when it was issued (ms), its resource type, whether it is a GET of /state, and how it went. */
+export interface RequestRecord {
+  issuedAt: number;
+  type: string;
+  state: boolean;
+  status?: number;
+  answeredAt?: number;
+  endedAt?: number;
+  failedAt?: number;
+  error?: string;
+}
+
+/** The requests that a page has issued since watchRequests began, and the host's swap-in at that time. */
+export interface RequestWatch {
+  records(): RequestRecord[];
+  host(): HostReading;
+  stop(): void;
+}
+
+/** The text as an error class if it has the shape of one, else `another error`: an odd value is never echoed. */
+export function errorClass(text: unknown): string {
+  return typeof text === 'string' && ERROR_CLASS.test(text) ? text : 'another error';
+}
+
+const typeName = (type: string): string => (RESOURCE_TYPE.test(type) ? type : 'other');
+
+const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+const since = (at: number, began: number): string => secs(Math.max(0, at - began));
+
+/**
+ * Records every request of the page (its issue time, resource type, whether it is a GET of /state, and its status, end or failure) until
+ * stop() or the page's close, at most 200 records (the finished ones are dropped first, then those that are not a GET of /state). It also reads the host's swap-in count, so that
+ * host() gives the rate since the watch began. It never throws.
+ */
+export function watchRequests(page: Page): RequestWatch {
+  const list: RequestRecord[] = [];
+  const by = new Map<Request, RequestRecord>();
+  const mark = swapInMark();
+  const onRequest = (request: Request): void => {
+    try {
+      const record: RequestRecord = {
+        issuedAt: Date.now(),
+        type: request.resourceType(),
+        state: request.method() === 'GET' && new URL(request.url()).pathname === STATE,
+      };
+      list.push(record);
+      by.set(request, record);
+      if (list.length > MAX_RECORDS) {
+        // The finished ones go first, then the other requests: the GETs of /state that are in flight are the last to go.
+        const done = list.findIndex((item) => item.endedAt !== undefined || item.failedAt !== undefined);
+        const other = done >= 0 ? done : list.findIndex((item) => !item.state);
+        const [dropped] = list.splice(other >= 0 ? other : 0, 1);
+        for (const [key, value] of by) if (value === dropped) by.delete(key);
+      }
+    } catch {
+      // A request that cannot be read is left out.
+    }
+  };
+  const onResponse = (response: { request(): Request; status(): number }): void => {
+    const record = by.get(response.request());
+    if (record !== undefined) {
+      record.status = response.status();
+      record.answeredAt = Date.now();
+    }
+  };
+  const onFinished = (request: Request): void => {
+    const record = by.get(request);
+    if (record !== undefined) record.endedAt = Date.now();
+  };
+  const onFailed = (request: Request): void => {
+    const record = by.get(request);
+    if (record !== undefined) {
+      record.failedAt = Date.now();
+      record.error = request.failure()?.errorText;
+    }
+  };
+  const stop = (): void => {
+    page.off('request', onRequest);
+    page.off('response', onResponse);
+    page.off('requestfinished', onFinished);
+    page.off('requestfailed', onFailed);
+    page.off('close', stop);
+  };
+  page.on('request', onRequest);
+  page.on('response', onResponse);
+  page.on('requestfinished', onFinished);
+  page.on('requestfailed', onFailed);
+  page.on('close', stop);
+  return { records: () => list.map((record) => ({ ...record })), host: () => readHost(mark), stop };
+}
+
+/** The `DIAG /state request` lines: up to the five newest GETs of /state in the records, or the line that says the page issued none. */
+export function describeStateRequests(records: RequestRecord[], began: number, _now: number): string[] {
+  const mine = records.filter((record) => record.state);
+  if (mine.length === 0) return ['DIAG /state request: none issued by the page since the sign-in began'];
+  const first = Math.max(0, mine.length - MAX_REQUEST_LINES);
+  return mine.slice(first).map((record, k) => {
+    const head = `DIAG /state request ${first + k + 1} of ${mine.length}: issued ${since(record.issuedAt, began)} s after the sign-in began`;
+    if (record.failedAt !== undefined) return `${head}, failed at ${since(record.failedAt, began)} s (${errorClass(record.error)})`;
+    if (record.status !== undefined && record.answeredAt !== undefined) {
+      const status = Number.isInteger(record.status) && record.status >= 100 && record.status <= 599 ? String(record.status) : 'other';
+      return `${head}, answered ${status} at ${since(record.answeredAt, began)} s`;
+    }
+    return `${head}, no answer yet`;
+  });
+}
+
+/** The `<prefix>: <n> request(s) in flight (<type>=<k>, ... in name order), the oldest issued <s> s ago` line, or `no request in flight`. */
+export function describeInFlight(prefix: string, records: RequestRecord[], now: number): string {
+  const open = records.filter((record) => record.endedAt === undefined && record.failedAt === undefined);
+  if (open.length === 0) return `${prefix}: no request in flight`;
+  const counts = new Map<string, number>();
+  for (const record of open) counts.set(typeName(record.type), (counts.get(typeName(record.type)) ?? 0) + 1);
+  const types = [...counts.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([type, k]) => `${type}=${k}`);
+  const oldest = Math.min(...open.map((record) => record.issuedAt));
+  return `${prefix}: ${plural(open.length, 'request')} in flight (${types.join(', ')}), the oldest issued ${since(now, oldest)} s ago`;
+}
+
+/** What a probe of the page or the browser found. */
+export type Probe =
+  | { kind: 'answered'; ms: number; readyState?: string }
+  | { kind: 'none' }
+  | { kind: 'closed' }
+  | { kind: 'failed'; error: string }
+  | { kind: 'unmeasured' };
+
+/** The line for a probe: `<prefix> answered in <ms> ms[ (readyState x)]`, `gave no answer within 2 s`, `is closed`, `failed (<class>)` or `not measured (not Chromium)`. */
+export function describeProbe(prefix: string, probe: Probe): string {
+  if (probe.kind === 'answered') {
+    const ms = Number.isFinite(probe.ms) && probe.ms >= 0 ? Math.round(probe.ms) : 0;
+    if (probe.readyState === undefined) return `${prefix} answered in ${ms} ms`;
+    return `${prefix} answered in ${ms} ms (readyState ${READY_STATES.includes(probe.readyState) ? probe.readyState : 'other'})`;
+  }
+  if (probe.kind === 'none') return `${prefix} gave no answer within ${secs(PROBE_BOUND_MS)} s`;
+  if (probe.kind === 'closed') return `${prefix} is closed`;
+  if (probe.kind === 'unmeasured') return `${prefix} not measured (not Chromium)`;
+  return `${prefix} failed (${errorClass(probe.error)})`;
+}
+
+/** Settles with the work's value, or with onTimeout after ms; the work's late outcome is dropped. */
+function within<T>(work: Promise<T>, ms: number, onTimeout: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(onTimeout), ms);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => undefined,
+    );
+  });
+}
+
+/** Asks the page's renderer for document.readyState within ms. It never throws. */
+export async function probePage(page: Page, ms: number): Promise<Probe> {
+  try {
+    if (page.isClosed()) return { kind: 'closed' };
+    const began = Date.now();
+    const asked = page.evaluate(() => document.readyState).then(
+      (readyState): Probe => ({ kind: 'answered', ms: Date.now() - began, readyState: String(readyState) }),
+      (error: unknown): Probe => (page.isClosed() ? { kind: 'closed' } : { kind: 'failed', error: errorClass(error instanceof Error ? error.name : undefined) }),
+    );
+    return await within<Probe>(asked, ms, { kind: 'none' });
+  } catch {
+    return { kind: 'failed', error: 'another error' };
+  }
+}
+
+/** Asks the browser for Browser.getVersion over a browser CDP session within ms: only the elapsed time is kept. It never throws. */
+async function probeBrowser(page: Page, ms: number): Promise<Probe> {
+  try {
+    const browser = page.context().browser();
+    if (browser === null) return { kind: 'unmeasured' };
+    const began = Date.now();
+    const asked = (async (): Promise<Probe> => {
+      let session;
+      try {
+        session = await browser.newBrowserCDPSession();
+      } catch {
+        return { kind: 'unmeasured' };
+      }
+      try {
+        await session.send('Browser.getVersion');
+        return { kind: 'answered', ms: Date.now() - began };
+      } catch (error) {
+        return { kind: 'failed', error: errorClass(error instanceof Error ? error.name : undefined) };
+      } finally {
+        session.detach().catch(() => undefined);
+      }
+    })();
+    return await within<Probe>(asked, ms, { kind: 'none' });
+  } catch {
+    return { kind: 'unmeasured' };
+  }
+}
+
+/** The page-side lines of a snapshot GET that has no answer: the request lines, the in-flight line, the page probe and the host line. */
+export function pageSideLines(watch: RequestWatch, began: number, probe: Probe, now: number = Date.now()): string[] {
+  const records = watch.records();
+  return [
+    ...describeStateRequests(records, began, now),
+    describeInFlight('DIAG /state page', records, now),
+    describeProbe('DIAG /state page: the page', probe),
+    describeHost('DIAG /state host', watch.host()),
+  ];
+}
+
+/**
+ * Prints the close diagnosis of a page whose close passed its bound (DW-774) to stdout and close-diagnosis.txt: whether the page, its context
+ * and the browser are there, what is in flight, whether the renderer and the browser answer, and the host. It runs as a clean-up and never throws.
+ */
+export async function closeDiagnosis(page: Page, watch: RequestWatch): Promise<void> {
+  try {
+    await asCleanup(async () => {
+      const [renderer, browser] = await Promise.all([probePage(page, PROBE_BOUND_MS), probeBrowser(page, PROBE_BOUND_MS)]);
+      const context = page.context();
+      const pages = context.pages().length;
+      const connected = context.browser()?.isConnected() === true;
+      const records = watch.records();
+      printDiagnosis(
+        [
+          `DIAG page.close: the page is ${page.isClosed() ? 'closed' : 'open'}, ${plural(pages, 'page')} in its context, the browser is ${connected ? 'connected' : 'not connected'}`,
+          describeInFlight('DIAG page.close requests', records, Date.now()),
+          describeProbe('DIAG page.close renderer:', renderer),
+          describeProbe('DIAG page.close browser:', browser),
+          describeHost('DIAG page.close host', watch.host()),
+        ],
+        'close-diagnosis',
+      );
+    });
+  } catch {
+    // A diagnosis never replaces the error that it describes.
+  }
 }

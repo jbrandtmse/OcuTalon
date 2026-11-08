@@ -3,9 +3,20 @@ import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 import { STATE } from '../support/api';
-import { describeDiagnosis, describeGateway, gatewayScript, redactLine, stateDiagnosis } from '../support/diagnose';
+import {
+  describeDiagnosis,
+  describeGateway,
+  describeInFlight,
+  describeProbe,
+  describeStateRequests,
+  gatewayScript,
+  redactLine,
+  stateDiagnosis,
+  watchRequests,
+  type RequestRecord,
+} from '../support/diagnose';
 import { loadedAfter } from '../support/floor';
-import { expect, test, type Browser, type Page } from '../support/fixtures';
+import { boundedClose, expect, test, type Browser, type Page } from '../support/fixtures';
 import { gotoSettled } from '../support/navigate';
 import { epochOf, landedOn, signInFromSplash, signOutGroup } from '../../e2e-online/support';
 
@@ -21,14 +32,47 @@ import { epochOf, landedOn, signInFromSplash, signOutGroup } from '../../e2e-onl
  * With a bound removed, a case runs into its test timeout instead. The helper pages come from browser.newContext(), as the online specs'
  * second visitors do. Needs a local Chromium only: its server answers the pages at once and never answers /slow, /state, the sign-in POST
  * or a sign-out (IRISLogout=end).
+ *
+ * Story 32.6 (DW-550, DW-774) adds three describes. `the page-side DIAG lines` pins the describers of the request, in-flight and probe lines
+ * (no browser). `page.close: the close diagnosis` shows that a close past its bound prints the page, request, renderer, browser and host lines.
+ * `loadedAfter: one reload of the page` holds the first GET of /state of a /retry page: with a 20 s bound the page reloads once at 10 s
+ * (R1: the reload's GET is answered; R2: it is not, and the call fails as it always did, with the diagnosis once). Every page-side line of
+ * the diagnosis cases below is matched by pattern, because it holds seconds and milliseconds.
  */
 
 let server: Server;
 let origin = '';
 const held: ServerResponse[] = [];
+/** The GETs of /state that the stand-in has seen for each id of a /retry page (loadedAfter's reload cases). */
+const stateSeen = new Map<string, number>();
 
 test.beforeAll(async () => {
   server = createServer((request, response) => {
+    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    if (url.pathname === '/retry') {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end(
+        '<!doctype html><title>retry</title><main class="main"></main>' +
+          `<script>fetch(${JSON.stringify(STATE)} + location.search).then(function (r) { if (r.ok) document.querySelector('main.main').setAttribute('data-snapshot', 'loaded'); }).catch(function () {});</script>`,
+      );
+      return;
+    }
+    const mode = url.pathname === STATE ? url.searchParams.get('mode') : null;
+    if (mode !== null) {
+      const id = url.searchParams.get('id') ?? '';
+      const seen = (stateSeen.get(id) ?? 0) + 1;
+      stateSeen.set(id, seen);
+      if (mode === 'reset') {
+        request.socket.destroy();
+        return;
+      }
+      if (mode === 'hold' || (mode === 'once' && seen === 1)) held.push(response);
+      else {
+        response.writeHead(mode === 'fail' ? 500 : 200, { 'content-type': 'application/json' });
+        response.end('{}');
+      }
+      return;
+    }
     if (request.url === '/') {
       response.writeHead(200, { 'content-type': 'text/html' });
       response.end(`<!doctype html><title>helper waits</title><script>fetch(${JSON.stringify(STATE)}).catch(function () {});</script>`);
@@ -215,6 +259,19 @@ function standIn(first: string, gateway: string): string {
 
 const printing = (...lines: string[]): string => `printf '%s\\n' ${lines.map((line) => `'${line}'`).join(' ')}`;
 
+/**
+ * The page-side lines (Story 32.6) that follow 11.27's lines when the snapshot GET of a page that issued it once is still unanswered: the one
+ * request, the one fetch in flight, the answer of the page's renderer and the worker host's line. Matched by pattern, because the seconds and
+ * the milliseconds vary (and the host line holds the host's own readings or `not measured`).
+ */
+function expectPageLines(lines: string[]): void {
+  expect(lines, 'the four page-side lines').toHaveLength(4);
+  expect(lines[0]).toMatch(/^DIAG \/state request 1 of 1: issued \d+(\.\d)? s after the sign-in began, no answer yet$/);
+  expect(lines[1]).toMatch(/^DIAG \/state page: 1 request in flight \(fetch=1\), the oldest issued \d+(\.\d)? s ago$/);
+  expect(lines[2]).toMatch(/^DIAG \/state page: the page answered in \d+ ms \(readyState complete\)$/);
+  expect(lines[3]).toMatch(/^DIAG \/state host: /);
+}
+
 test.describe('loadedAfter: the /state diagnosis', () => {
   const SESSION_VARIABLES = ['OCUTALON_E2E_IRIS_EXEC', 'OCUTALON_E2E_IRIS_CONTAINER', 'OCUTALON_URL'] as const;
   const saved: Partial<Record<(typeof SESSION_VARIABLES)[number], string>> = {};
@@ -257,8 +314,9 @@ test.describe('loadedAfter: the /state diagnosis', () => {
       'DIAG /state gateway 1 server 1: TotalConnections=6, ConnectionsInUse=1, PrivateConnections=0, QueuedRequests=0',
       'DIAG /state gateway 1 connections: Free=4, InUse=1',
     ];
-    expect(logged).toEqual(expected);
-    expect(readFileSync(test.info().outputPath('state-diagnosis.txt'), 'utf8')).toBe(`${expected.join('\n')}\n`);
+    expect(logged.slice(0, expected.length)).toEqual(expected);
+    expectPageLines(logged.slice(expected.length));
+    expect(readFileSync(test.info().outputPath('state-diagnosis.txt'), 'utf8')).toBe(`${logged.join('\n')}\n`);
     const attached = test.info().attachments.filter((attachment) => attachment.name === 'state-diagnosis');
     expect(attached, 'one state-diagnosis attachment').toHaveLength(1);
     expect(attached[0]?.path).toBe(test.info().outputPath('state-diagnosis.txt'));
@@ -271,7 +329,8 @@ test.describe('loadedAfter: the /state diagnosis', () => {
     await withPage(browser, async (page) => {
       await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);
     });
-    expect(logged).toEqual(['DIAG /state licence: LUAvailable=7, LUConsumed=1', 'DIAG /state session lock: none held', 'DIAG /state gateway: none registered']);
+    expect(logged.slice(0, 3)).toEqual(['DIAG /state licence: LUAvailable=7, LUConsumed=1', 'DIAG /state session lock: none held', 'DIAG /state gateway: none registered']);
+    expectPageLines(logged.slice(3));
   });
 
   test('a dump that cannot run prints one unavailable line per read, and the error text is unchanged', async ({ browser }) => {
@@ -279,9 +338,10 @@ test.describe('loadedAfter: the /state diagnosis', () => {
     await withPage(browser, async (page) => {
       await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);
     });
-    expect(logged).toHaveLength(2);
+    expect(logged).toHaveLength(6);
     expect(logged[0]).toMatch(/^DIAG \/state unavailable: OCUTALON_URL must be set/);
     expect(logged[1]).toMatch(/^DIAG \/state gateway unavailable: OCUTALON_URL must be set/);
+    expectPageLines(logged.slice(2));
   });
 
   test('a gateway read that hangs past its bound costs none of the first read\'s lines, and the test still ends in time', async ({ browser }) => {
@@ -290,9 +350,10 @@ test.describe('loadedAfter: the /state diagnosis', () => {
     await withPage(browser, async (page) => {
       await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);
     });
-    expect(logged).toHaveLength(3);
+    expect(logged).toHaveLength(7);
     expect(logged.slice(0, 2)).toEqual(['DIAG /state licence: LUAvailable=7', 'DIAG /state session lock: none held']);
     expect(logged[2]).toMatch(/^DIAG \/state gateway unavailable: .*no answer within \d+(\.\d+)? s/);
+    expectPageLines(logged.slice(3));
   });
 
   test('the two reads run at once: two reads of 2 s each end in well under 4 s, with the lines of both', async () => {
@@ -354,6 +415,7 @@ test.describe('loadedAfter: the /state diagnosis', () => {
     });
     const file = readFileSync(test.info().outputPath('state-diagnosis.txt'), 'utf8');
     expect(file, 'the file equals the printed lines').toBe(`${logged.join('\n')}\n`);
+    expectPageLines(logged.slice(-4));
     return { file, shown: logged.join('\n') };
   }
 
@@ -497,6 +559,374 @@ test.describe('loadedAfter: the /state diagnosis', () => {
     const script = gatewayScript();
     expect(script).toMatch(/Quit:\S+ {2}\S/);
     expect(script, 'a Quit with one space before the next command').not.toMatch(/Quit(?::\S+)? \S/);
+  });
+});
+
+/**
+ * DW-550, DW-774 (Story 32.6), the page-side `DIAG` lines are built from checked values only: the describers of diagnose.ts, with no browser.
+ */
+test.describe('the page-side DIAG lines', () => {
+  const began = 1_000;
+  const now = 5_000;
+  const record = (extra: Partial<RequestRecord> = {}): RequestRecord => ({ issuedAt: 2_200, type: 'fetch', state: true, ...extra });
+  const cookiePair = `${['CSPSESSIONID', '-SP-52773-UP-csp-'].join('')}=${['PLANTED', 'COOKIE', 'VALUE', '0123'].join('')}`;
+
+  test('a page that issued no /state says so', async () => {
+    expect(describeStateRequests([], began, now)).toEqual(['DIAG /state request: none issued by the page since the sign-in began']);
+    expect(describeStateRequests([record({ state: false })], began, now)).toEqual(['DIAG /state request: none issued by the page since the sign-in began']);
+  });
+
+  test('a request is described by its issue time and its outcome: no answer yet, answered, or failed', async () => {
+    expect(describeStateRequests([record()], began, now)).toEqual(['DIAG /state request 1 of 1: issued 1.2 s after the sign-in began, no answer yet']);
+    expect(describeStateRequests([record({ status: 200, answeredAt: 2_700, endedAt: 2_800 })], began, now)).toEqual([
+      'DIAG /state request 1 of 1: issued 1.2 s after the sign-in began, answered 200 at 1.7 s',
+    ]);
+    expect(describeStateRequests([record({ failedAt: 3_000, error: 'net::ERR_ABORTED' })], began, now)).toEqual([
+      'DIAG /state request 1 of 1: issued 1.2 s after the sign-in began, failed at 2 s (net::ERR_ABORTED)',
+    ]);
+  });
+
+  test('only the five newest requests are listed, numbered among all', async () => {
+    const seven = Array.from({ length: 7 }, (_, i) => record({ issuedAt: 1_000 + i * 100 }));
+    const lines = describeStateRequests(seven, began, now);
+    expect(lines).toHaveLength(5);
+    expect(lines[0]).toMatch(/^DIAG \/state request 3 of 7: /);
+    expect(lines[4]).toMatch(/^DIAG \/state request 7 of 7: /);
+  });
+
+  test('an error text outside the class shape, such as a planted cookie pair, prints as another error; an odd status as other', async () => {
+    const [line] = describeStateRequests([record({ failedAt: 3_000, error: `net::ERR_X ${cookiePair}` })], began, now);
+    expect(line).toBe('DIAG /state request 1 of 1: issued 1.2 s after the sign-in began, failed at 2 s (another error)');
+    expect(line).not.toContain('PLANTED');
+    expect(describeStateRequests([record({ failedAt: 3_000, error: cookiePair })], began, now)[0]).toContain('(another error)');
+    expect(describeStateRequests([record({ failedAt: 3_000 })], began, now)[0]).toContain('(another error)');
+    expect(describeStateRequests([record({ status: 99_999, answeredAt: 2_700 })], began, now)[0]).toContain('answered other at 1.7 s');
+  });
+
+  test('the requests in flight are counted by type in name order, with the age of the oldest', async () => {
+    const records = [
+      record({ issuedAt: 3_000, type: 'xhr' }),
+      record({ issuedAt: 2_000 }),
+      record({ issuedAt: 2_500, type: 'document', endedAt: 2_600 }),
+      record({ issuedAt: 1_500, type: 'script', failedAt: 1_600 }),
+      record({ issuedAt: 4_000, type: 'fetch' }),
+    ];
+    expect(describeInFlight('DIAG /state page', records, now)).toBe('DIAG /state page: 3 requests in flight (fetch=2, xhr=1), the oldest issued 3 s ago');
+    expect(describeInFlight('DIAG /state page', [record({ issuedAt: 4_500 })], now)).toBe('DIAG /state page: 1 request in flight (fetch=1), the oldest issued 0.5 s ago');
+    expect(describeInFlight('DIAG page.close requests', [record({ endedAt: 3_000 })], now)).toBe('DIAG page.close requests: no request in flight');
+    expect(describeInFlight('DIAG page.close requests', [], now)).toBe('DIAG page.close requests: no request in flight');
+  });
+
+  test('a resource type outside the shape prints as other, and is never echoed', async () => {
+    const line = describeInFlight('DIAG /state page', [record({ type: `Fetch ${cookiePair}` }), record({ type: 'websocket' })], now);
+    expect(line).toBe('DIAG /state page: 2 requests in flight (other=1, websocket=1), the oldest issued 2.8 s ago');
+  });
+
+  test('a probe says that the page answered, gave no answer, is closed or failed, and an odd ready state prints as other', async () => {
+    const prefix = 'DIAG /state page: the page';
+    expect(describeProbe(prefix, { kind: 'answered', ms: 12.4, readyState: 'complete' })).toBe(`${prefix} answered in 12 ms (readyState complete)`);
+    expect(describeProbe(prefix, { kind: 'answered', ms: 3, readyState: 'interactive' })).toBe(`${prefix} answered in 3 ms (readyState interactive)`);
+    expect(describeProbe(prefix, { kind: 'answered', ms: 3, readyState: 'loading' })).toBe(`${prefix} answered in 3 ms (readyState loading)`);
+    expect(describeProbe(prefix, { kind: 'answered', ms: 3, readyState: cookiePair })).toBe(`${prefix} answered in 3 ms (readyState other)`);
+    expect(describeProbe(prefix, { kind: 'none' })).toBe(`${prefix} gave no answer within 2 s`);
+    expect(describeProbe(prefix, { kind: 'closed' })).toBe(`${prefix} is closed`);
+    expect(describeProbe(prefix, { kind: 'failed', error: 'Error' })).toBe(`${prefix} failed (Error)`);
+    expect(describeProbe(prefix, { kind: 'failed', error: cookiePair })).toBe(`${prefix} failed (another error)`);
+  });
+
+  test('the browser probe has no ready state, and says when the browser is not Chromium', async () => {
+    const prefix = 'DIAG page.close browser:';
+    expect(describeProbe(prefix, { kind: 'answered', ms: 7 })).toBe(`${prefix} answered in 7 ms`);
+    expect(describeProbe(prefix, { kind: 'none' })).toBe(`${prefix} gave no answer within 2 s`);
+    expect(describeProbe(prefix, { kind: 'unmeasured' })).toBe(`${prefix} not measured (not Chromium)`);
+  });
+});
+
+/**
+ * DW-774 (Story 32.6): a page whose close passes its bound prints the close diagnosis before the same error. The page is a real one of its own
+ * context, and its close is replaced by a promise that never settles.
+ */
+test.describe('page.close: the close diagnosis', () => {
+  test('prints the page, request, renderer, browser and host lines to stdout and to close-diagnosis.txt, then fails as before', async ({ browser }) => {
+    test.setTimeout(30_000);
+    const logged: string[] = [];
+    const log = console.log;
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      page.close = () => new Promise<void>(() => undefined);
+      boundedClose(page, () => 1_000);
+      await page.goto(`${origin}/`);
+      console.log = (...args: unknown[]) => void logged.push(args.join(' '));
+      const failure = await page.close().then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      console.log = log;
+      expect(failure instanceof Error ? failure.message : String(failure)).toMatch(/^page\.close: no answer within 1 s$/);
+    } finally {
+      console.log = log;
+      await context.close();
+    }
+    expect(logged, 'five lines').toHaveLength(5);
+    expect(logged[0]).toBe('DIAG page.close: the page is open, 1 page in its context, the browser is connected');
+    expect(logged[1]).toMatch(/^DIAG page\.close requests: 1 request in flight \(fetch=1\), the oldest issued \d+(\.\d)? s ago$/);
+    expect(logged[2]).toMatch(/^DIAG page\.close renderer: answered in \d+ ms \(readyState complete\)$/);
+    expect(logged[3]).toMatch(/^DIAG page\.close browser: answered in \d+ ms$/);
+    expect(logged[4]).toMatch(/^DIAG page\.close host: /);
+    expect(readFileSync(test.info().outputPath('close-diagnosis.txt'), 'utf8')).toBe(`${logged.join('\n')}\n`);
+    const attached = test.info().attachments.filter((attachment) => attachment.name === 'close-diagnosis');
+    expect(attached, 'one close-diagnosis attachment').toHaveLength(1);
+    expect(attached[0]?.path).toBe(test.info().outputPath('close-diagnosis.txt'));
+  });
+
+  test('a close that ends in time prints nothing', async ({ browser }) => {
+    test.setTimeout(30_000);
+    const logged: string[] = [];
+    const log = console.log;
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      boundedClose(page, () => 5_000);
+      console.log = (...args: unknown[]) => void logged.push(args.join(' '));
+      await page.close();
+    } finally {
+      console.log = log;
+      await context.close();
+    }
+    expect(logged).toEqual([]);
+  });
+});
+
+/**
+ * DW-550 (Story 32.6): a snapshot GET with no answer by half of its bound (20 s here, so 10 s) gets one logged retry inside the same bound: the
+ * page reloads once and its own GET gets the rest. The stand-in's /retry page fetches /state with its own query; mode=once holds the first
+ * GET of an id and answers the later ones, mode=hold holds them all. The project's waits are 20 s and 10 s, as an online project sets its own.
+ */
+test.describe('loadedAfter: one reload of the page', () => {
+  const own = { actionTimeout: 20_000, navigationTimeout: 10_000 };
+  const step = `loadedAfter the snapshot GET ${STATE}`;
+  let before: { actionTimeout?: number; navigationTimeout?: number } = {};
+  let retryFileBefore: string | undefined;
+  let execBefore: string | undefined;
+  const logged: string[] = [];
+  let log = console.log;
+
+  test.beforeEach(() => {
+    const use = test.info().project.use as { actionTimeout?: number; navigationTimeout?: number };
+    before = { actionTimeout: use.actionTimeout, navigationTimeout: use.navigationTimeout };
+    Object.assign(use, own);
+    retryFileBefore = process.env['OCUTALON_E2E_RETRY_LOG'];
+    process.env['OCUTALON_E2E_RETRY_LOG'] = test.info().outputPath('retries.txt');
+    execBefore = process.env['OCUTALON_E2E_IRIS_EXEC'];
+    logged.length = 0;
+    log = console.log;
+    console.log = (...args: unknown[]) => void logged.push(args.join(' '));
+  });
+
+  test.afterEach(() => {
+    console.log = log;
+    const use = test.info().project.use as Record<string, unknown>;
+    for (const [key, value] of Object.entries(before)) {
+      if (value === undefined) delete use[key];
+      else use[key] = value;
+    }
+    if (retryFileBefore === undefined) delete process.env['OCUTALON_E2E_RETRY_LOG'];
+    else process.env['OCUTALON_E2E_RETRY_LOG'] = retryFileBefore;
+    if (execBefore === undefined) delete process.env['OCUTALON_E2E_IRIS_EXEC'];
+    else process.env['OCUTALON_E2E_IRIS_EXEC'] = execBefore;
+  });
+
+  const retryLine = (): string => `RETRY e2e/live/helper-waits.spec.ts:${test.info().line} ${step}`;
+
+  test('R1: the reload\'s GET is answered: one RETRY line, one reload, the page loaded within the bound', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const id = `r1-${Date.now()}`;
+    let elapsed = 0;
+    await withPage(browser, async (page) => {
+      const began = Date.now();
+      await loadedAfter(page, async () => void (await page.goto(`${origin}/retry?mode=once&id=${id}`)));
+      elapsed = Date.now() - began;
+      await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+    });
+    expect(elapsed, 'the first attempt waited half of the bound').toBeGreaterThanOrEqual(10_000);
+    expect(elapsed, 'the call resolved within the bound').toBeLessThan(20_000);
+    expect(logged, 'RETRY, the four page-side lines, SLOW').toHaveLength(6);
+    expect(logged[0]).toBe(retryLine());
+    expectPageLines(logged.slice(1, 5));
+    expect(logged[5]).toMatch(/^SLOW loadedAfter the snapshot GET \/ocutalon\/api\/v1\/state \d+ s$/);
+    expect(readFileSync(test.info().outputPath('retries.txt'), 'utf8')).toBe(`${logged[0]}\n`);
+    expect(stateSeen.get(id), 'the server saw two GETs of /state').toBe(2);
+  });
+
+  test('R2: the reload\'s GET is not answered either: one RETRY line, the same error at the bound, the diagnosis once', async ({ browser }) => {
+    test.setTimeout(60_000);
+    process.env['OCUTALON_E2E_IRIS_EXEC'] = standIn(printing('CHK|licence|LUAvailable=7', 'CHK|done|1'), printing('CHK|gw|0', 'CHK|done|1'));
+    const id = `r2-${Date.now()}`;
+    const began = Date.now();
+    let failure: unknown;
+    await withPage(browser, async (page) => {
+      failure = await loadedAfter(page, async () => void (await page.goto(`${origin}/retry?mode=hold&id=${id}`))).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    });
+    const elapsed = Date.now() - began;
+    expect(failure instanceof Error ? failure.message : String(failure)).toMatch(/^loadedAfter the snapshot GET \/ocutalon\/api\/v1\/state: no answer within 20 s$/);
+    expect(elapsed).toBeGreaterThanOrEqual(20_000);
+    expect(elapsed).toBeLessThan(37_000);
+    expect(logged.filter((line) => line.startsWith('RETRY ')), 'one RETRY line').toEqual([retryLine()]);
+    expect(logged.filter((line) => line.startsWith('DIAG /state licence:')), "11.27's lines appear once").toEqual(['DIAG /state licence: LUAvailable=7']);
+    expect(logged.filter((line) => line.startsWith('DIAG /state gateway:')), "11.27's gateway line appears once").toEqual(['DIAG /state gateway: none registered']);
+    const requests = logged.filter((line) => line.startsWith('DIAG /state request '));
+    expect(requests.some((line) => line.startsWith('DIAG /state request 1 of 1: '))).toBe(true);
+    expect(requests.some((line) => /^DIAG \/state request 1 of 2: /.test(line))).toBe(true);
+    expect(requests.some((line) => /^DIAG \/state request 2 of 2: issued .* no answer yet$/.test(line))).toBe(true);
+    expect(readFileSync(test.info().outputPath('retries.txt'), 'utf8')).toBe(`${retryLine()}\n`);
+    expect(stateSeen.get(id), 'the server saw two GETs of /state').toBe(2);
+  });
+
+  test('a reload that throws is logged by its class, and the bound decides', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const id = `r5-${Date.now()}`;
+    let failure: unknown;
+    await withPage(browser, async (page) => {
+      page.reload = () => Promise.reject(new Error(`the reload was refused ${['CSPSESSIONID', '-x'].join('')}=PLANTEDCOOKIEVALUE0123`));
+      failure = await loadedAfter(page, async () => void (await page.goto(`${origin}/retry?mode=once&id=${id}`))).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    });
+    expect(failure instanceof Error ? failure.message : String(failure)).toMatch(/^loadedAfter the snapshot GET \/ocutalon\/api\/v1\/state: no answer within 20 s$/);
+    expect(logged.filter((line) => line.startsWith('RETRY ')), 'one RETRY line').toEqual([retryLine()]);
+    expect(logged.filter((line) => line.startsWith('DIAG /state reload failed')), 'the class only').toEqual(['DIAG /state reload failed: Error']);
+    expect(logged.join('\n')).not.toContain('PLANTED');
+    expect(stateSeen.get(id), 'the page was not reloaded').toBe(1);
+  });
+
+  test('a bound under 20 s stays one wait: no RETRY, no reload, the diagnosis once', async ({ browser }) => {
+    test.setTimeout(60_000);
+    (test.info().project.use as { actionTimeout?: number }).actionTimeout = 6_000;
+    const id = `r3-${Date.now()}`;
+    let failure: unknown;
+    await withPage(browser, async (page) => {
+      failure = await loadedAfter(page, async () => void (await page.goto(`${origin}/retry?mode=once&id=${id}`))).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    });
+    expect(failure instanceof Error ? failure.message : String(failure)).toMatch(/^loadedAfter the snapshot GET \/ocutalon\/api\/v1\/state: no answer within 6 s$/);
+    expect(logged.filter((line) => line.startsWith('RETRY '))).toEqual([]);
+    expect(stateSeen.get(id), 'the page was not reloaded').toBe(1);
+    expectPageLines(logged.slice(-4));
+  });
+
+  test('a bound that the test deadline shortens is split at half of the shortened bound', async ({ browser }) => {
+    // Own wait 30 s, a 33 s test: the bound is 33 s less the 10 s reserve and the time used, about 22 s, so the retry comes at about 11 s, not at 15 s.
+    test.setTimeout(33_000);
+    (test.info().project.use as { actionTimeout?: number }).actionTimeout = 30_000;
+    const id = `r6-${Date.now()}`;
+    let elapsed = 0;
+    await withPage(browser, async (page) => {
+      const began = Date.now();
+      await loadedAfter(page, async () => void (await page.goto(`${origin}/retry?mode=once&id=${id}`)));
+      elapsed = Date.now() - began;
+    });
+    expect(elapsed, 'the retry came at half of the shortened bound').toBeGreaterThanOrEqual(10_000);
+    expect(elapsed, 'not at half of the own bound').toBeLessThan(14_000);
+    expect(logged.filter((line) => line.startsWith('RETRY ')), 'one RETRY line').toEqual([retryLine()]);
+    expect(stateSeen.get(id), 'the server saw two GETs of /state').toBe(2);
+  });
+
+  test('a first GET that is answered while the page is probed is kept: no RETRY, no reload', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const id = `r8-${Date.now()}`;
+    await withPage(browser, async (page) => {
+      const evaluate = page.evaluate.bind(page);
+      // The probe of the page is the first evaluate of the call: the held GET is answered just before it runs.
+      page.evaluate = (async (...args: Parameters<Page['evaluate']>) => {
+        for (const response of held.splice(0)) {
+          try {
+            response.writeHead(200, { 'content-type': 'application/json' });
+            response.end('{}');
+          } catch {
+            // A response of an earlier case that is gone.
+          }
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return evaluate(...args);
+      }) as Page['evaluate'];
+      await loadedAfter(page, async () => void (await page.goto(`${origin}/retry?mode=once&id=${id}`)));
+      await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+      // A reload that was wrongly going on would reach the server within this time.
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+    });
+    expect(logged.filter((line) => line.startsWith('RETRY ')), 'no RETRY line').toEqual([]);
+    expect(logged.filter((line) => line.startsWith('DIAG ')), 'no page-side lines').toEqual([]);
+    expect(stateSeen.get(id), 'the page was not reloaded').toBe(1);
+  });
+
+  test('a page that closes while the snapshot is awaited is not retried and not reloaded', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const id = `r7-${Date.now()}`;
+    let failure: unknown;
+    const began = Date.now();
+    await withPage(browser, async (page) => {
+      setTimeout(() => void page.close().catch(() => undefined), 1_000);
+      failure = await loadedAfter(page, async () => void (await page.goto(`${origin}/retry?mode=hold&id=${id}`))).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    });
+    expect(failure instanceof Error ? failure.message : String(failure)).toMatch(/closed/i);
+    expect(Date.now() - began, 'it failed when the page closed, not at the bound').toBeLessThan(8_000);
+    expect(logged.filter((line) => line.startsWith('RETRY '))).toEqual([]);
+    expect(stateSeen.get(id), 'the page was not reloaded').toBe(1);
+  });
+
+  test('a request watch records the answer and the failure of a GET of /state, keeps the requests in flight past 200 records, and stops', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const ok = `w1-${Date.now()}`;
+    const reset = `w2-${Date.now()}`;
+    await withPage(browser, async (page) => {
+      const began = Date.now();
+      const watch = watchRequests(page);
+      await page.goto(`${origin}/retry?mode=ok&id=${ok}`);
+      await page.goto(`${origin}/retry?mode=reset&id=${reset}`);
+      await expect
+        .poll(() => watch.records().filter((record) => record.state && (record.status !== undefined || record.failedAt !== undefined)).length)
+        .toBe(2);
+      const lines = describeStateRequests(watch.records(), began, Date.now());
+      expect(lines[0]).toMatch(/^DIAG \/state request 1 of 2: issued \d+(\.\d)? s after the sign-in began, answered 200 at \d+(\.\d)? s$/);
+      expect(lines[1]).toMatch(/^DIAG \/state request 2 of 2: issued \d+(\.\d)? s after the sign-in began, failed at \d+(\.\d)? s \(net::ERR_[A-Z_]+\)$/);
+
+      // One GET of /state stays in flight while 230 finished requests follow: the finished ones are dropped first.
+      await page.evaluate((url) => void fetch(url).catch(() => undefined), `${origin}${STATE}?mode=hold&id=w3-${Date.now()}`);
+      await page.evaluate(async (url) => void (await Promise.all(Array.from({ length: 230 }, () => fetch(url).then((r) => r.text())))), `${origin}/`);
+      const kept = watch.records();
+      expect(kept.length, 'at most 200 records').toBeLessThanOrEqual(200);
+      expect(kept.filter((record) => record.state && record.status === undefined && record.failedAt === undefined), 'the unanswered GET of /state is kept').toHaveLength(1);
+
+      watch.stop();
+      const count = watch.records().length;
+      await page.evaluate((url) => fetch(url).then((r) => r.text()), `${origin}/`);
+      expect(watch.records().length, 'a stopped watch records nothing').toBe(count);
+    });
+  });
+
+  test('a /state answered with 500 is not retried: the snapshot is not served', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const id = `r4-${Date.now()}`;
+    let failure: unknown;
+    await withPage(browser, async (page) => {
+      failure = await loadedAfter(page, async () => void (await page.goto(`${origin}/retry?mode=fail&id=${id}`))).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    });
+    expect(failure instanceof Error ? failure.message : String(failure)).toMatch(/the snapshot is served/);
+    expect(logged).toEqual([]);
+    expect(stateSeen.get(id)).toBe(1);
   });
 });
 

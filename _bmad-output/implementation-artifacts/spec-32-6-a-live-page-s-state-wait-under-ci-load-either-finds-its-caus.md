@@ -2,9 +2,10 @@
 title: "Story 32.6: A live page's /state wait under CI load either finds its cause or retries once, logged"
 type: 'chore'
 created: '2026-11-07'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ec5edd7fd6a0887773c298e5ba1341de2497ade9'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-32-context.md'
 warnings: ['oversized']
@@ -373,6 +374,42 @@ Write the result into `### Investigation result` before the implement spawn. The
 
 ## Review Triage Log
 
+### 2026-11-08 - Review pass
+- verdicts: 29 findings - high 0, medium 5, low 18, false 6, maybe-false 0 (the intent-alignment layer reported readings only, no findings)
+- findings:
+  - Blind Hunter
+    - `[medium]` `[patch]` first GET answered during the retry's page probe is thrown away (`retried` set before the probe) - `floor.ts withOneReload`: `retried` now set only after the probe, the probe is checked for `cancelled`/closed before anything is printed or reloaded, and the RETRY line is printed after that check; case `a first GET that is answered while the page is probed ...` added (grouped with Edge E1)
+    - `[low]` `[reject]` second attempt gets less than 10 s because the probe and commit run inside it - the probe is a main step counted inside B by Decided in-stage 3; the comment says "least a snapshot wait gives each", the margin is the spec's; not worth a guard
+    - `[low]` `[patch]` retry goes on after the bound failed (page lines printed late) - covered by the same check after the probe (`cancelled` is set by the call's `finally`); a reload that already started keeps its `whole + WAIT_SLACK_MS` timeout by the spec
+    - `[false]` `[reject]` bare `page.reload()` could re-submit a POST - the Code Map's application facts state that a reload is valid at each of the 87 call sites (sign-in 303 to a GET, AD-13)
+    - `[low]` `[reject]` `retry_lines` regex can drop a line with an unusual path character - the regex is the spec's; `find web/e2e web/e2e-online -name '*.spec.ts'` shows no path outside `[A-Za-z0-9._/-]`
+    - `[low]` `[reject]` wall-clock windows in R1 and R2 - the windows (10 to 20 s, 20 to 37 s) are the spec's R1/R2 text
+    - `[low]` `[patch]` claims in the `loadedAfter` comment not tested (closed page, failed sign-in, failing retried unit) - case `a page that closes while the snapshot is awaited ...` added; a failed sign-in never calls `begin()`, so it cannot retry by construction; the `cmd_group` failure path is untouched code
+    - `[low]` `[patch]` `state-diagnosis` file on a passing retried test, header silent - `diagnose.ts` header sentence added
+    - `[low]` `[patch]` small defects in `diagnose.ts` - the 200-record cap dropped an in-flight GET of /state when nothing had finished: now the non-/state ones go first, with a case; the unused `_now` is the spec's signature, `within()` never sees a rejecting work, and the CDP session leak is at a failure path only (rejected)
+    - `[low]` `[reject]` `use.actionTimeout` restore and `held()` wording in `state-retry.spec.ts` - an own property set to `undefined` reads as unset; `held()` is unchanged code
+    - `[false]` `[reject]` step summary only from `group` - AC5 says `cmd_group` writes the step summary
+  - Edge Case Hunter
+    - `[medium]` `[patch]` same defect as Blind 1 (answer during the probe) - fixed as above
+    - `[false]` `[reject]` reload on a non-GET document - same as Blind 4
+    - `[low]` `[reject]` `pageSideLines`/`printDiagnosis` throwing before the reload - both are bounded and swallow their failures (`keepLines`, `probePage`); no path shown that throws
+    - `[false]` `[reject]` the 2 s probe delays the reload - the spec puts the probe inside B ("a main step inside B")
+    - `[low]` `[patch]` redirect error of an unwritable step summary shown on stderr - `2>/dev/null` moved before the redirect; the unit case asserts the path is not on stderr
+    - `[low]` `[reject]` same as Blind 5 (count undercount)
+    - `[false]` `[reject]` unit twice in a group or a stale file - no group lists a unit twice (`ci/iris.sh list`), and an unknown unit exits before it can write
+    - `[low]` `[reject]` persistent context reported as "not Chromium" - the fixture contexts have a browser; a persistent context is not used in the footprint
+    - `[low]` `[patch]` 200-record cap evicts in-flight /state records - same fix as Blind 9
+    - `[low]` `[reject]` RETRY line not through `redactLine` - the spec's `reportRetry` task prints and appends the line only, and it holds a file path, a line number and a constant
+    - `[false]` `[reject]` four lines in the spec, five printed - the lead's Investigation result adds the host line
+    - `[low]` `[reject]` the close line's swap-in rate runs over the page's life - the spec has `watchRequests` start read the first `pswpin`
+  - Verification Gap
+    - `[medium]` `[patch]` capped bound unpinned (`capToDeadline` replaceable by the own wait) - case `a bound that the test deadline shortens ...` added; mutation recorded
+    - `[medium]` `[patch]` `watchRequests` handlers (answer, failure, cap, stop) unobserved - case `a request watch records the answer ...` added with a `reset` mode on the stand-in; mutations recorded
+    - `[medium]` `[patch]` mutation lines missing for AC4's other half and AC5's other behaviours - ten mutation lines added after running each
+    - `[low]` `[patch]` closed-page guards unpinned - case `a page that closes while the snapshot is awaited ...` and its mutation
+    - `[low]` `[reject]` "not measured (not Chromium)" also covers a failed CDP session - wording only
+    - `[low]` `[reject]` `holdState(page, first)` has no hermetic test - AC6's lead-side L3 mutation pins it, as the spec says
+
 ## Design Notes
 
 **Decided by the lead** (the plan stage's framing, binding):
@@ -535,6 +572,30 @@ Run from the worktree root after `git rev-parse --show-toplevel` matches it, wit
 - AC5: drop `retries_report`'s count line, or make `cmd_group` skip `retries_summary` → `state-wait.test.mjs` goes red.
 - AC6, lead: skip the reload → `state-retry.spec.ts` goes red on L3.
 
+**Mutation results (implement stage; each applied, observed red, restored byte-identical from a backup, `git diff --stat` checked).**
+- mutation: AC1, `floor.ts` final diagnosis does not print `pageSideLines` → helper-waits `the /state diagnosis` went red, 6 of 15 (the five cases that assert the page lines and the planted-value cases that read the file).
+- mutation: AC2, `fixtures.ts` `boundedClose` without `diagnosedAtBound` → helper-waits `the close diagnosis` went red (1 of 2: ENOENT on `close-diagnosis.txt`), and the `bounded-waits.test.mjs` pin went red (1 failure).
+- mutation: AC3, `floor.ts` skips `page.reload` → helper-waits R1 went red (`loadedAfter the snapshot GET ...: no answer within 20 s`, at 20.1 s).
+- mutation: AC3, `bounds.ts` `reportRetry` without the `appendFileSync` → helper-waits R1 went red (ENOENT on `retries.txt`).
+- mutation: AC4, `floor.ts` outer `boundedStep(state, waits.action * 2, ...)` → helper-waits R2 went red (a different message at a different time).
+- mutation: AC5, `ci/iris.sh` `retries_report` without its `RETRIES <n> in live:<unit>` line → `state-wait.test.mjs` went red (1 failure).
+- mutation: AC5, `ci/iris.sh` `cmd_group` without `retries_summary` → `state-wait.test.mjs` went red (5 failures).
+- mutation: AC5, `ci/iris.sh` `retries_summary` writes the step summary at a total of 0 → `state-wait.test.mjs` went red (1 failure).
+- mutation: `diagnosedAtBound` without the swallow of a throwing `diagnose` → `state-wait.test.mjs` went red (1 failure).
+- mutation: `firstAttemptMs` splits at 10 s instead of 20 s → `state-wait.test.mjs` went red (1 failure).
+- mutation: `host.ts` `describeHost` prints the swap-in pages, not pages per second → `state-wait.test.mjs` went red (1 failure).
+- mutation: AC1, `diagnose.ts` `watchRequests` without the body of its response handler → helper-waits `a request watch records the answer ...` went red (the `answered 200` line).
+- mutation: AC1, `diagnose.ts` `watchRequests` drops the oldest request when none has finished (not the non-/state ones first) → the same case went red (the GET in flight is gone).
+- mutation: AC3/AC4, `floor.ts` `whole = actionMs` (not `capToDeadline(actionMs).ms`) → helper-waits `a bound that the test deadline shortens ...` went red (the retry came at 15 s).
+- mutation: AC4, `bounds.ts` `firstAttemptMs` splits every finite bound → helper-waits `a bound under 20 s stays one wait` went red.
+- mutation: AC3, `floor.ts` without the check of `cancelled` and `page.isClosed()` after the page probe → helper-waits `a first GET that is answered while the page is probed ...` went red (a RETRY line and a second GET).
+- mutation: AC4, `floor.ts` first attempt's rejection not passed on (`reject(error)` removed) → helper-waits `a page that closes while the snapshot is awaited ...` went red (it ended at the bound, not at the close).
+- mutation: AC5, `ci/iris.sh` `cmd_live` without `rm -f` of the unit's file → `state-wait.test.mjs` went red (a stale file printed).
+- mutation: AC5, `ci/iris.sh` `cmd_live` without the `export` of `OCUTALON_E2E_RETRY_LOG` → `state-wait.test.mjs` went red (the unit's file is not written).
+- mutation: AC5, `ci/iris.sh` `retry_lines` matches `^RETRY ` only → `state-wait.test.mjs` went red (a line of another shape is counted).
+- mutation: AC5, `ci/iris.sh` `retries_summary` writes `>> "$GITHUB_STEP_SUMMARY" 2>/dev/null` (the redirect error shown) → `state-wait.test.mjs` went red (1 failure: the summary path on stderr).
+- AC6 (lead): not run here (it needs a stack).
+
 **Lead-side (`(lead)`; after implement unless stated).**
 - `<laneD>` stands for `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-d OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=32 stage=proof'`.
 - Each call first runs `SCR=<scratchpad>/e32s6proof; export SCR REAL_NPM=$(command -v npm) MOCK_IMAGE=$(bash -c '. ci/iris.sh && mock_image')`. Then it runs its command with `PATH="$SCR/bin:$PATH"`.
@@ -618,7 +679,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan stage (HALT after planning).**
@@ -632,3 +693,25 @@ Blocking condition: none
 - Footprint extensions to report: `web/scripts/bounded-waits.test.mjs` (one regex), and in Branch B `web/e2e/live/state-retry.spec.ts`.
 - No workflow edit is needed.
 - Risk: the old code may not go red under local load (11.27 could not reproduce the miss). Verification L1 records the count, and AC7 goes to the Planner if it is 0 of 20.
+
+**Implement stage (Branch B; Branch A tasks not taken).** A bounded retry landed.
+- The retry: a `loadedAfter` snapshot GET with no answer by half of its bound, when the bound is 20 s or more, prints `RETRY <spec>:<line> loadedAfter the snapshot GET /ocutalon/api/v1/state` (stdout, and appended to the file `OCUTALON_E2E_RETRY_LOG` names), reloads the page once, and the reload's GET has the rest of the bound. A second miss, a bound under 20 s, a failed sign-in, a closed page and a non-200 answer fail as before.
+- The count: `ci/iris.sh live` prints a unit's `RETRY` lines and `RETRIES <n> in live:<unit>` (only above 0); `ci/iris.sh group` prints `RETRIES <total> in group <name>[ (live:<unit> <n>, ...)]` before its `GROUP` line on every run, and appends it with each `RETRY` line and its unit to `GITHUB_STEP_SUMMARY` when the total is above 0.
+- `page.close` is diagnosed, never retried (`close-diagnosis.txt`, attachment `close-diagnosis`: five lines, the fifth being the host line).
+- The investigation result's addition is built: `DIAG /state host:` and `DIAG page.close host:` come from the new `web/e2e/support/host.ts` (1-minute load and CPUs, `/proc/pressure/*` avg10, `pswpin` per second since the watch began; `not measured (no /proc/pressure)` where there is none).
+- Footprint extensions (Rule 11 (b)): `web/scripts/bounded-waits.test.mjs` (the `boundedClose` regex), `web/e2e/live/state-retry.spec.ts` (new), `web/scripts/state-wait.test.mjs` (new), `web/e2e/support/host.ts` (new).
+- Decided in the build: (1) the first-attempt timer starts when the snapshot wait starts (a `begin()` after the sign-in), not at arming, so that the first attempt is `floor(B/2)` of the same B that the pinned `boundedStep` computes and the total never exceeds B; (2) `host.ts` is a separate file with no relative import because Node cannot import `diagnose.ts` (its relative imports have no extension) and `state-wait.test.mjs` pins the host describer; (3) the in-flight and page phrases are pluralised (`1 request`, `2 requests`; `1 page`), as the helper-waits pattern in the Tasks reads; (4) the host line is a fourth page-side line, so helper-waits R1 holds six lines (RETRY, four page-side lines, SLOW); (5) once the reload has started, a late outcome of the first wait is ignored.
+- Added beyond the Tasks: helper-waits cases for a reload that throws, a bound under 20 s, a 500 answer and a close that ends in time; `ci/iris.sh` `cmd_live` removes a unit's stale retry file right after the unit name is checked.
+- Verified here (hermetic): loop line 1 123 of 123 (`node --test` over the four files), line 2 15 of 15, line 3 15 of 15 (14 in one run, plus the reload-throws case alone), line 4 13 of 13, line 5 `test-ci-config.sh` exit 0 with 40 PASS lines (`traces kept` among them); `npm --prefix web run lint` green. Not run here: `(once)` lines 6 to 9 and every `(lead)` line, including `state-retry.spec.ts` (needs a stack).
+
+**Review and finalize (implement stage).**
+- Review pass: 29 findings - high 0, medium 5, low 18, false 6, maybe-false 0. Patched: 5 medium (as 4 entries) and 7 low. Deferred: none. Rejected: 6 false (refutations in the triage log) and 11 low (reasons in the triage log).
+- Patches after review:
+  - `floor.ts withOneReload`: the page probe is checked for a settled call, a cancel or a closed page before the `RETRY` line, the page lines or the reload; `retried` is set only at that point. The `RETRY` line is now printed after the probe, with the lines in the same order.
+  - `diagnose.ts watchRequests`: the 200-record cap drops finished records, then the others, and a GET of /state in flight last. Header sentence on the retry-time lines.
+  - `ci/iris.sh retries_summary`: `2>/dev/null` before the redirect, so an unwritable summary path is not shown.
+  - helper-waits: the stand-in answers `mode=reset` by destroying the socket; four cases added (deadline-shortened bound, answer during the probe, page closed while waiting, request watch); `state-wait.test.mjs` asserts the summary path is not on stderr. Ten mutation lines added under `## Verification`.
+- Follow-up review recommended: true. The unverified risk is the post-review rewrite of `withOneReload` (the probe check and the position of the `RETRY` line) and the four new hermetic cases, which no independent layer re-read; they are pinned by their own mutations.
+- Verification here (final tree): loop 1 123 of 123; loop 2 15 of 15; loop 3 19 of 19 (the grep now holds 19 cases, about 85 s); loop 4 13 of 13; loop 5 `test-ci-config.sh` exit 0; `(once)` lint green, `test-boundaries.sh` all rules passed, `npm --prefix web test` 1573 of 1573, lines 4, 3, 2 again green. `git diff --stat` holds only `ci/iris.sh`, `web/e2e/live/helper-waits.spec.ts`, `web/e2e/support/{api,bounds,diagnose,fixtures,floor}.ts`, `web/scripts/bounded-waits.test.mjs`, and the new `web/e2e/live/state-retry.spec.ts`, `web/e2e/support/host.ts`, `web/scripts/state-wait.test.mjs`. No non-ASCII byte or local absolute path in them.
+- Not run (lead-side or needs a stack): `state-retry.spec.ts`, every `(lead)` line (L0 to L5, the injected-stall L2s), AC6's live mutation, AC7 and AC9.
+- Residual risks: on a macOS dev machine the host line always reads `not measured (no /proc/pressure)`; the real load, pressure and swap-in readings are pinned by stand-in readings only; `holdState(page, first)` is exercised only by `state-retry.spec.ts`.

@@ -1,9 +1,9 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page, type Response } from '@playwright/test';
 
 import { signIn, signInReadme } from '../sign-in/helpers';
 import { STATE } from './api';
-import { WAIT_SLACK_MS, boundedStep, waitsFor } from './bounds';
-import { stateDiagnosis } from './diagnose';
+import { WAIT_SLACK_MS, asCleanup, boundedStep, capToDeadline, diagnosedAtBound, firstAttemptMs, reportRetry, waitsFor } from './bounds';
+import { PROBE_BOUND_MS, errorClass, pageSideLines, printDiagnosis, probePage, stateDiagnosis, watchRequests, type RequestWatch } from './diagnose';
 import {
   cleanFixtureRows,
   fixtureUser,
@@ -136,31 +136,105 @@ export function settled(page: Page): Promise<void> {
 }
 
 /**
+ * The snapshot wait of loadedAfter, with at most one reload (Story 32.6, DW-550, DW-774). `asked` is the page's wait for the snapshot GET,
+ * armed before the sign-in. The wait that this returns starts when begin() is called, once the sign-in has ended, and settles like `asked`
+ * unless the bound whole (the snapshot bound that boundedStep computes at that moment) is at least twice RETRY_MIN_ATTEMPT_MS and `asked`
+ * has not settled by half of it. Then, unless the page is closed, it prints the `RETRY` line and the page-side lines, arms a new wait for the
+ * snapshot GET, reloads the page once (`waitUntil: 'commit'`, so that the document's own GET of /state is the one waited for) and settles
+ * with the new wait, which has the rest of the bound (a late outcome of `asked` is then ignored). A reload that fails prints `DIAG /state reload failed: <class>` and the bound decides.
+ * cancel() stops a retry that has not reloaded yet. Nothing here changes the bound or the error: the outer boundedStep owns both.
+ */
+function withOneReload(
+  page: Page,
+  asked: Promise<Response>,
+  answers: (response: Response) => boolean,
+  actionMs: number,
+  watch: RequestWatch,
+  began: number,
+): { wait: Promise<Response>; begin: () => void; cancel: () => void } {
+  let begin: () => void = () => undefined;
+  let cancelled = false;
+  const started = new Promise<void>((resolve) => {
+    begin = resolve;
+  });
+  const wait = started.then(() => {
+    const whole = capToDeadline(actionMs).ms;
+    const firstMs = firstAttemptMs(whole);
+    if (firstMs === undefined) return asked;
+    return new Promise<Response>((resolve, reject) => {
+      let retried = false;
+      const retry = async (): Promise<Response> => {
+        if (cancelled || page.isClosed()) return asked;
+        const probe = await probePage(page, PROBE_BOUND_MS);
+        // The first GET may have been answered (the call has then ended and cancelled the retry), or the page closed, while the page was probed.
+        if (cancelled || page.isClosed()) return asked;
+        retried = true;
+        reportRetry(`loadedAfter the snapshot GET ${STATE}`);
+        printDiagnosis(pageSideLines(watch, began, probe), 'state-diagnosis');
+        const second = page.waitForResponse(answers, { timeout: whole + WAIT_SLACK_MS });
+        second.catch(() => undefined);
+        await page.reload({ waitUntil: 'commit', timeout: whole + WAIT_SLACK_MS }).catch((error: unknown) => {
+          printDiagnosis([`DIAG /state reload failed: ${errorClass(error instanceof Error ? error.name : undefined)}`], 'state-diagnosis');
+        });
+        return second;
+      };
+      const timer = setTimeout(() => retry().then(resolve, reject), firstMs);
+      asked.then(
+        (response) => {
+          if (retried) return;
+          clearTimeout(timer);
+          resolve(response);
+        },
+        (error: unknown) => {
+          if (retried) return;
+          clearTimeout(timer);
+          reject(error);
+        },
+      );
+    });
+  });
+  return { wait, begin: () => begin(), cancel: () => void (cancelled = true) };
+}
+
+/**
  * Runs the sign-in action and waits until the page has loaded its snapshot (DW-333). The wait is on the answer: the GET of /state is armed
  * before the action and awaited with its status, and only then does the page get its time to show the snapshot, so a /state that a loaded
  * host answers late is waited for and a failed one is named. The action may be any sign-in that ends at the application's page.
  * Both steps have a bound of their own, shorter than the test's timeout (currentWaits: the navigation wait for the sign-in, the action wait
  * for the snapshot), and a step that does not end in time fails naming itself: `loadedAfter the sign-in` or
- * `loadedAfter the snapshot GET /ocutalon/api/v1/state`, with the bound. When the snapshot GET passes its bound, diagnose.ts prints
- * `DIAG /state` lines (the licence units, the CSP processes and the session locks, then the web gateway's servers and connections, counts
- * and states only) before the same error is thrown (DW-550). The same lines are appended to state-diagnosis.txt in the test's output
- * folder, attached as `state-diagnosis`, so that the failure artifact holds them (DW-756).
+ * `loadedAfter the snapshot GET /ocutalon/api/v1/state`, with the bound.
+ * DW-550 and DW-774 (D2, D4 and W3 go through it): a snapshot GET with no answer by half of its bound, when that bound is 20 s or more,
+ * gets one logged retry inside the same bound (withOneReload): a `RETRY <spec>:<line> loadedAfter the snapshot GET ...` line, which ci/iris.sh
+ * counts, and one reload of the page, whose own GET has the rest of the bound. A sign-in that fails, a closed page and an answer that is not
+ * 200 are not retried. When the snapshot GET passes its bound, diagnose.ts prints `DIAG /state` lines (the licence units, the CSP processes
+ * and the session locks, then the web gateway's servers and connections, counts and states only; then what the page did, whether its
+ * renderer answers, and the worker host's load) before the same error is thrown. The same lines are appended to state-diagnosis.txt in the
+ * test's output folder, attached as `state-diagnosis`, so that the failure artifact holds them (DW-756).
  */
 export async function loadedAfter(page: Page, signInAction: () => Promise<unknown>): Promise<void> {
+  const began = Date.now();
+  const watch = watchRequests(page);
   const waits = currentWaits() ?? { action: waitsFor(0).actionTimeout, navigation: waitsFor(0).navigationTimeout };
-  const state = page.waitForResponse((response) => response.request().method() === 'GET' && new URL(response.url()).pathname === STATE, {
-    timeout: waits.navigation + waits.action + WAIT_SLACK_MS,
-  });
+  const answers = (response: Response): boolean => response.request().method() === 'GET' && new URL(response.url()).pathname === STATE;
+  const asked = page.waitForResponse(answers, { timeout: waits.navigation + waits.action + WAIT_SLACK_MS });
   // The wait is awaited below; a sign-in that fails first must not leave its timeout unhandled.
-  state.catch(() => undefined);
-  await boundedStep(signInAction(), waits.navigation, 'loadedAfter the sign-in');
-  const answered = await boundedStep(state, waits.action, `loadedAfter the snapshot GET ${STATE}`).catch(async (error: unknown) => {
-    // A GET that passed its bound: read what could hold it (diagnose.ts) while it still waits, then fail as before.
-    if (error instanceof Error && error.message.startsWith(`loadedAfter the snapshot GET ${STATE}: no answer within`)) await stateDiagnosis();
-    throw error;
-  });
-  expect(answered.status(), 'the snapshot is served').toBe(200);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+  asked.catch(() => undefined);
+  const retrying = withOneReload(page, asked, answers, waits.action, watch, began);
+  const state = retrying.wait;
+  try {
+    await boundedStep(signInAction(), waits.navigation, 'loadedAfter the sign-in');
+    retrying.begin();
+    const answered = await diagnosedAtBound(boundedStep(state, waits.action, `loadedAfter the snapshot GET ${STATE}`), `loadedAfter the snapshot GET ${STATE}`, async () => {
+      // A GET that passed its bound: read what could hold it (diagnose.ts) while it still waits, then fail as before.
+      const [, probe] = await Promise.all([stateDiagnosis(), asCleanup(() => probePage(page, PROBE_BOUND_MS))]);
+      printDiagnosis(pageSideLines(watch, began, probe), 'state-diagnosis');
+    });
+    expect(answered.status(), 'the snapshot is served').toBe(200);
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+  } finally {
+    retrying.cancel();
+    watch.stop();
+  }
 }
 
 /** Signs the README account in (signInReadme) and waits until the page has loaded its snapshot (loadedAfter, DW-333). */
