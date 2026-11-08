@@ -1,0 +1,10 @@
+2026-11-08T08:53:55Z	Epic 18	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=dispatch_epic_18 lane=D slot=ocutalon-slot-d
+2026-11-08T08:53:55Z	Epic 18	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-08T08:53:55Z	Epic 18	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-08T08:53:55Z	Epic 18	launch_env	depth=4 watchdog=0 bash_max_ms=default note=harness_backgrounds_bash_at_about_170s
+2026-11-08T08:53:55Z	Epic 18	telemetry_gate	pending=1 action=none reason=gates.model_tier=record_only
+2026-11-08T08:53:55Z	Epic 18	epic_branch_checked_out	repos=. head=6c57179b feature=a315ed3f ci_feature=success runs=42456641418,42456641444 bootstrap_check=ok
+2026-11-08T08:53:55Z	Epic 18	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-08T08:53:55Z	Epic 18	ledger_load	total=897 open=0 routed=127 escalated=2 decision_pending=5 terminal=763 owner_unknown=0 burndown=89 reowned_none=0 owned_epic18=6(18.2:DW-34,DW-643,DW-815,DW-820;18.3:DW-100;18.4:DW-695)
+2026-11-08T08:53:55Z	Epic 18	retro_review_skipped	reason=no_x0_input_in_authority sources=ledger_owned_epic18:6(planned_work_stays),burndown:89(none_in_epic18_authority:DW-874_resolved_by_17.10_on_OCT-epic17,DW-574_Planner_after_1.0.0,DW-417_Agent_text),to_x0:0,action_items:user_owned,retro:none(gates.retrospective=skip) dispatch=first_dispatch
+2026-11-08T08:54:28Z	Epic 18	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true validate=valid warnings=2_title_and_epic_list_headings(known),18.4_overlaps_17.10(unmerged_OCT-epic17)_and_12.12(merged):judge_ACs_on_delivered_code_at_plan
