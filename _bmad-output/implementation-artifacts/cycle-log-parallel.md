@@ -2771,3 +2771,5 @@
 2026-11-08T10:52:03Z	Epic 30	runner_clarification	kind=contended agent=a8d3c06dd54fd2725 head=1618ad28(local) story=30.7_re-planned(set-aside_patch_conflicted;U4_step_3) veto=U-308(DW-581) files=Bridge/Process/Decide.cls,Test/Bridge/Decide.cls,Test/Bridge/Gate.cls(also_Epic_19/19b)
 2026-11-08T10:52:03Z	Epic 30	ruling	question=30.7_hunks_in_Decide.cls,Test/Bridge/Decide.cls,Test/Bridge/Gate.cls_vs_Epic_19/19b choice=plain_union(self-contained_non-overlapping_hunks;second_merger) rejected=wait_for_Epic_19 category=decide policy=5086036
 2026-11-08T10:52:34Z	Epic 30	planner_ruling	subject=30.7_digest_delivery_counts answer=keep_as_worded(a_session_still_receiving_the_daily_digest_is_active,never_purged;local_install=durable_session;online_demo:17.10_morning_run_skips_demo_sessions_so_they_age_out) U-308=keep_with_conditions(inbox) via=Contest_Planner_1(delegation)
+2026-11-08T11:25:19Z	Epic 19	ci_green_verified	head=2a9561a2(OCT-epic19b;19.7) runs=42470273464,42470273352 result=success
+2026-11-08T11:25:19Z	Epic 19	runner_resumed	agent=ac7afc0f1c96ef0f3 with=green;finish+contract
