@@ -79,8 +79,9 @@
 ///   - TestSkipsAConcludedRequest: a decide, a diagnose and an untrusted turn whose DecisionRef has a Decision row, a linked user turn, and the retry of
 ///     a linked turn on the retry runner ZzRetry, each taken by a fresh shadow runner, get status OK and no response, and the agent is not built, no
 ///     model request, Usage row, AI session or link comes of them, and one Info row names the runner item, the kind and the DecisionRef; a decide and a
-///     linked turn whose DecisionRef has no row are answered as before; a request with no DecisionRef is never skipped; the replay of an approved
-///     tool call whose DecisionRef has a row runs once and writes no skip row;
+///     linked turn whose DecisionRef has no row are answered as before; a request with no DecisionRef is never skipped; a concluded retry with a
+///     refused RetryOf and a concluded request of an unknown kind keep their errors; the replay of an approved tool call whose DecisionRef has a row
+///     runs once and writes no skip row;
 ///   - TestRetryLateAfterItsChat: a retry whose decision is recorded after its Chat and before its save is answered, counted, and saves no session;
 ///   - TestSkipLineText: the Info row of a skip is exactly the approved text;
 ///   - TestSkipLineHoldsNothingElse: a stale request that carries a key-shaped token, model text, an ItemId and an OwnerRef leaves none of them in the event log.
@@ -1256,10 +1257,12 @@ Method AssertNothingDone(label As %String, sc As %Status, response As %Registere
 
 /// A request whose decision Decide has already recorded is skipped (Story 5.14; AD-6, AD-8, AD-20; DW-879). A decide, a diagnose and an untrusted turn
 /// (each on a fresh shadow runner of Triage, Diagnosis and Chat), a linked user turn, and the retry of a linked turn on the retry runner ZzRetry are
-/// answered with status OK and no response on a lock-spy runner (Test.Bridge.ZzLockSpyRunner), which notes no point (no conversation lock, no session, not the end of the answer); the agent is not built; no model request, tool call, Usage row, AI session or link comes of them; one Info
-/// row of Answer names the runner item, the kind and the DecisionRef and holds neither the Input nor the ItemId. A decide and a linked turn whose
-/// DecisionRef has no row are answered as before, with no skip row, and a request with no DecisionRef is never skipped. The replay of an approved
-/// tool call whose DecisionRef has a row runs once, and writes no skip row.
+/// answered with status OK and no response; the first four run on a lock-spy runner (Test.Bridge.ZzLockSpyRunner), which notes no point (no conversation
+/// lock, no session, not the end of the answer). The agent is not built; no model request, tool call, Usage row, AI session or link comes of them; one Info
+/// row of Answer names the runner item, the kind and the DecisionRef and holds neither the Input nor the ItemId. A concluded retry whose RetryOf the
+/// runner refuses, and a concluded request of an unknown kind, keep their errors and write no skip row: the skip comes after those checks. A decide and
+/// a linked turn whose DecisionRef has no row are answered as before, with no skip row, and a request with no DecisionRef is never skipped. The replay
+/// of an approved tool call whose DecisionRef has a row runs once, and writes no skip row.
 Method TestSkipsAConcludedRequest()
 {
 	If ..Guard() Quit
@@ -1300,6 +1303,7 @@ Method TestSkipsAConcludedRequest()
 	Set sc = host.OnMessage(request, .response)
 	Do ..AssertNothingDone("stale linked turn", sc, response, request, mockMark, sessions, links)
 	Do $$$AssertEquals(host.Adapter.Noted(), "", "stale linked turn: it took no conversation lock and opened no session")
+	Do $$$AssertTrue('$IsObject(host.Adapter.Agent), "stale linked turn: the agent is not built")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, "ZzRunner"), "", "stale linked turn: the owner has no link")
 	Do $$$AssertEquals($ListLength(..SkipRows(eventMark, request.DecisionRef)), 1, "stale linked turn: one Info row")
 
@@ -1315,9 +1319,30 @@ Method TestSkipsAConcludedRequest()
 	Set links = ..LinkCount()
 	Set sc = retryHost.OnMessage(retry, .response)
 	Do ..AssertNothingDone("stale retry", sc, response, retry, mockMark, sessions, links)
+	Do $$$AssertTrue('$IsObject(retryHost.Adapter.Agent), "stale retry: the agent is not built")
 	Set rows = ..SkipRows(eventMark, retry.DecisionRef)
 	Do $$$AssertEquals($ListLength(rows), 1, "stale retry: one Info row")
 	If $ListLength(rows) = 1 Do $$$AssertEquals($List(rows, 1), ..SkipText("ZzRetry", "turn", retry.DecisionRef), "stale retry: it names the retry runner ZzRetry")
+
+	// a concluded retry whose RetryOf the runner refuses, and a concluded request of an unknown kind: their errors come before the skip
+	Set retryHost = ..NewRunner("OcuTalon.Agent.Chat", "low", , "ZzRetry", "OcuTalon.Test.Bridge.ZzRetryRunner")
+	Set ask = ..NewTagged("turn", "user", "Refuse this retry.")
+	Set retry = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask, ask.DecisionRef, 0, "TriageAgent")
+	Do $$$AssertStatusOK(..RecordConcluded(retry.DecisionRef, retry.ItemId, "turn", retry.OwnerRef), "refused RetryOf: its decision is recorded")
+	Set eventMark = ..LogMark()
+	Set sc = retryHost.OnMessage(retry, .response)
+	Do $$$AssertStatusNotOK(sc, "refused RetryOf: the request is refused, not skipped")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "RetryOf", "refused RetryOf: the error names RetryOf: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals($ListLength(..SkipRows(eventMark, retry.DecisionRef)), 0, "refused RetryOf: and no skip row")
+	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
+	Set request = ..NewTagged("decide", "untrusted", "Refuse this kind.")
+	Do $$$AssertStatusOK(..RecordConcluded(request.DecisionRef, request.ItemId, "decide", request.OwnerRef), "unknown kind: its decision is recorded")
+	Set request.Kind = "zzkind"
+	Set eventMark = ..LogMark()
+	Set sc = host.OnMessage(request, .response)
+	Do $$$AssertStatusNotOK(sc, "unknown kind: the request is refused, not skipped")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "zzkind", "unknown kind: the error names the kind")
+	Do $$$AssertEquals($ListLength(..SkipRows(eventMark, request.DecisionRef)), 0, "unknown kind: and no skip row")
 
 	// live: no row for the DecisionRef
 	Set host = ..NewRunner(..#AGENT, "low", ..ProviderConfig("triage"))
@@ -1448,9 +1473,9 @@ Method TestSkipLineHoldsNothingElse()
 	Set sc = host.OnMessage(request, .response)
 	Do ..AssertNothingDone("planted", sc, response, request, mockMark, sessions, links)
 	Set values = $ListBuild(token, "zzplanted-5-14-key", model, request.ItemId, owner, request.Input, request.SeedText)
-	Set position = 0
-	While $ListNext(values, position, value) {
-		Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", eventMark, value), 0, "no event-log row written during the skip holds '"_$Extract(value, 1, 24)_"'")
+	Set names = $ListBuild("the key-shaped token", "the token's planted word", "the model text", "the ItemId", "the OwnerRef", "the Input", "the SeedText")
+	For i = 1:1:$ListLength(values) {
+		Do $$$AssertEquals($ClassMethod(fixture, "LogRowsHolding", eventMark, $List(values, i)), 0, "no event-log row written during the skip holds "_$List(names, i))
 	}
 	Set rows = ..SkipRows(eventMark, request.DecisionRef)
 	Do $$$AssertEquals($ListLength(rows), 1, "one Info row names the DecisionRef")

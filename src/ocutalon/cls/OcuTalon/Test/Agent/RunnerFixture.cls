@@ -909,13 +909,13 @@ ClassMethod SinkCalls(type As %String = "") As %DynamicArray
 
 /// Waits until the runner item has taken up every message that was sent to it and has answered one of its own (QA, Story 1.6): the queue of
 /// the item is empty (a poll, up to SENDSECONDS, because a request of Decide's that is still in the queue has not been sent to the model yet),
-/// then a ToolInventory request, which makes no model request and writes no row, is answered. A runner has a pool of 1, so its one job
-/// handles the messages one after the other: when the answer is back, the job has finished any request that it took before, and that
-/// request has reached the mock (its log) or failed. A test that asserts that nothing reached the mock calls this first; without it the
-/// read of the log can come before a request that Decide sent could have arrived. The status is that of the ToolInventory request: an
-/// error for a runner with no key, whose answer still shows that the job is free; or an error when the queue stays full. The guarantee holds for a
-/// runner with a pool of 1, which is every runner but DiagnosisAgent (a pool of 2, Story 5.14): another job may still be chatting when the answer is
-/// back. No caller drains DiagnosisAgent; Idle waits for an item of any pool.
+/// then a ToolInventory request, which makes no model request and writes no row, is answered. A runner with a pool of 1, which is every runner
+/// but DiagnosisAgent (a pool of 2, Story 5.14), handles the messages one after the other with its one job: when the answer is back, the job has
+/// finished any request that it took before, and that request has reached the mock (its log) or failed. A test that asserts that nothing reached
+/// the mock calls this first; without it the read of the log can come before a request that Decide sent could have arrived. The status is that of
+/// the ToolInventory request: an error for a runner with no key, whose answer still shows that the job is free; or an error when the queue stays
+/// full. For DiagnosisAgent the answer shows only that one of its jobs is free: a request whose answer Decide already gave from the runner's reply
+/// has finished, but one that the other job holds may not have. Idle waits until every job of an item of any pool is free.
 ClassMethod Drain(item As %String) As %Status
 {
 	Set deadline = $ZHorolog + ..#SENDSECONDS

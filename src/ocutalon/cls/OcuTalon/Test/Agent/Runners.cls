@@ -407,11 +407,9 @@ Method TestPoolIsTheCap()
 	While $ListNext(pools, position, entry) {
 		Set item = $Piece(entry, ":", 1)
 		Set expected = $Piece(entry, ":", 2)
-		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT PoolSize FROM Ens_Config.Item WHERE Production = ? AND Name = ?", ..#PRODUCTION, item)
-		Set found = result.%Next()
-		Do $$$AssertTrue(found, item_" is an item of the production")
-		If 'found Continue
-		Set pool = result.%GetData(1)
+		Set pool = ..PoolOf(item)
+		Do $$$AssertTrue(pool > 0, item_" is an item of the production")
+		If pool = 0 Continue
 		Do $$$AssertEquals(pool, expected, item_" has a pool size of "_expected)
 		Do $$$AssertEquals($ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(item)), pool, item_" has as many alive jobs as its pool size")
 	}

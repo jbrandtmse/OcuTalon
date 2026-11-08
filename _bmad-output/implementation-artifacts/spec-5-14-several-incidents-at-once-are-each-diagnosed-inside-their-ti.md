@@ -201,6 +201,72 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
   - the only new operator-facing string is the log line under Public text.
 - **AC7 (the Planner's conditions on the approved text, 2026-11-08).** Given a stale request that carries planted values (a key-shaped token, an Input, a SeedText with model text, an ItemId and an OwnerRef), when the runner skips it, then its one Info row equals the approved text exactly, with the item, the kind and the Ref put in (`TestSkipLineText`), and no event-log row written during the skip holds any planted value (`TestSkipLineHoldsNothingElse`), each pinned by a demonstrated mutation.
 
+### Review Findings
+
+Code review of 2026-11-08 (`bmad-code-review`; review tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor). 34 rows from the layers, 10 entries after grouping: high 0, medium 2, low 8. Decision-needed 0, patches 8 (all applied), deferred 2 (ledgered), rejected 16. Each entry gives severity, fix-risk, footprint and spec-status (Rule 15).
+
+- [x] [Review][Patch] The skip's place after the kind and `RetryOf` checks was not pinned [src/ocutalon/cls/OcuTalon/Test/Bridge/Runner.cls:TestSkipsAConcludedRequest]
+  - Ratings: medium, fix-risk low (test only), in-story, spec-clear (Boundaries: "after the kind check, the RetryOf check").
+  - Fix: two cases added. A concluded retry with a refused `RetryOf`, and a concluded request of an unknown kind, keep their errors and write no skip row. Two mutations are recorded under Verification.
+  - Layer: verification-gap.
+- [x] [Review][Patch] The skip's docs misstated which requests are skipped [src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:23] [src/bridge/cls/OcuTalon/Bridge/Operation/AgentRunner.cls:12]
+  - Ratings: low, fix-risk low (doc only), in-story, spec-clear.
+  - Fix in `Adapter.Agent`: the doc names both ways a row exists before the runner takes a request (its timer fired while it waited, or its retry answered first). It also says that a first attempt taken while its second-model retry is still running is not skipped (DW-906).
+  - Fix in `AgentRunner`: the doc names the kinds and says that a tool request is never skipped.
+  - Layers: blind-hunter, edge-case-hunter and acceptance-auditor.
+- [x] [Review][Patch] `RunnerFixture.Drain`'s doc said that no caller drains DiagnosisAgent [src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls:Drain]
+  - Ratings: low, fix-risk low (doc only), in-story.
+  - The claim was false: `Test.Bridge.SettingsApply` drains DiagnosisAgent in `TestModelTestEachAgent` and `Connect`. The doc now states what a drain's answer shows for a pool of 2.
+  - `SettingsApply` passed on the review stack. Its drains come after Decide has answered from the runner's own reply.
+  - Layers: blind-hunter, edge-case-hunter and acceptance-auditor. The verification-gap layer's "no caller drains DiagnosisAgent" is refuted by those calls.
+- [x] [Review][Patch] Two stale cases asserted less than the test's doc says [src/ocutalon/cls/OcuTalon/Test/Bridge/Runner.cls:TestSkipsAConcludedRequest]
+  - Ratings: low, fix-risk low, in-story.
+  - Fix: the stale linked turn and the stale retry now assert that the agent is not built. The doc says that the lock spy covers the first four cases. The mutation is re-run under Verification.
+  - Layer: blind-hunter.
+- [x] [Review][Patch] `TestPoolIsTheCap` kept its own copy of `PoolOf`'s query [src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls:TestPoolIsTheCap]
+  - Ratings: low, fix-risk low, in-story. The edit stays within the already-changed lines and clear of Epic 19's hunks.
+  - Fix: the test calls `PoolOf`, as the Execution item says. The PoolSize mutation is re-run.
+  - Layer: acceptance-auditor.
+- [x] [Review][Patch] `TestSkipLineHoldsNothingElse` wrote the planted values into its own assertion messages [src/ocutalon/cls/OcuTalon/Test/Bridge/Runner.cls:TestSkipLineHoldsNothingElse]
+  - Ratings: low, fix-risk low, in-story.
+  - On a failure, the CI log would have shown a key-shaped excerpt. The messages now name each value by a fixed label. The ItemId mutation is re-run.
+  - Layer: acceptance-auditor.
+- [x] [Review][Patch] Four guards that cannot fail today were not recorded as such [this spec, `## Verification`]
+  - Ratings: low, tracking doc.
+  - The note now lists `AssertNothingDone`'s one-Decision-row and no-link checks, the stale linked turn's owner-link check, and `QueuedPastTimer`'s "no AgentStep".
+  - Layer: verification-gap.
+- [x] [Review][Patch] AC6 had no `mutation:` line [this spec, `## Verification`]
+  - Ratings: low (Rule 19).
+  - The RetryItem mutation was applied, seen red on `Test.Install.Production` and reverted. The merge-gate clauses are named as the lead's.
+  - Layer: verification-gap.
+- [x] [Review][Defer] A first attempt taken while its second-model retry runs is not skipped [src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:Concluded]
+  - Deferred: DW-906, `escalated owner=burndown`.
+  - Ratings: medium, fix-risk medium, out-of-footprint. The fix needs Decide to mark the superseded attempt, and `Decide.cls` is never-edit here (contended by Epics 19 and 30).
+  - It happens only with a RetryItem set, and the install sets none.
+  - Layers: blind-hunter and edge-case-hunter.
+- [x] [Review][Defer] Two docs outside this story's ruled lines still say that a call already late when the runner takes it answers and is counted [src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls:71] [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:72]
+  - Deferred: DW-907, `wontfix-accepted` with `reopen_if`.
+  - Ratings: low. The `Conversation.cls` edits are ruled to the named lines, and `Decide.cls` is never-edit here.
+  - Layers: blind-hunter, verification-gap and acceptance-auditor.
+
+Rejected:
+- Blind 4: the spec's own records (Auto Run Result, cycle log) disagree on `ci/checks.sh` and the mutation counts. The fix edits the spec's records. The review re-ran `test-boundaries`, `test-class-rules` and `test-bridge-guide`, and all pass.
+- Blind 5: the residual risks leave out the `shards` group. The fix edits the spec. `DiagnoseTogether` adds about 26 s to the group's 1,880 s, under 2,100 s, and CI time is the lead's condition.
+- Blind 6a, `Idle` copies `Settle`: false as filed. The copy carries its reason under Design Notes, "Extend, don't copy".
+- Blind 6b, `StatusOf` repeats `AnswerStatus`: low. The shared part is a two-line status-name idiom over a different query, and sharing it would touch a third class.
+- Blind 9, `Warnings` with type 4 counts Info rows: low and spec-bound. The spec extends `Warnings` with an optional type.
+- Edge 1, `Idle` treats a Dead job entry as busy: low and theoretical. Only `Test.Fix.Executor` terminates jobs, and those are FixExecutor's. `Settle` behaves the same.
+- Edge 2, skip on another Ref's row for the same ItemId and kind: spec-bound. The skip is defined by the Ref's own row, and IncidentManager sends one diagnosis per incident.
+- Edge 4, DiagnosisAgentRetry keeps a pool of 1: spec-bound. Boundaries keep every other item's pool.
+- Edge 6 and Edge 11, `POOLS` and `RUNNERS` can drift: false. `Test.Install.Production`'s oracle pins every item's pool.
+- Edge 7 and Acceptance 6, `QueuedPastTimer` does not check RetryItem: low. The install sets none, the tests that set one restore it, and the failure is red, never green.
+- Edge 8, `DiagnoseTogether` has no idle wait after the test: low. It matters only on the failure path, and an idle wait cannot hold back Decide's later row.
+- Edge 9, `ZzRetryAdapter` ignores the status of `RecordConcluded`: low. The Ref and the ItemId are fresh, so the save cannot collide.
+- Edge 12, `Timeouts.Restart` returns after one new DiagnosisAgent job: false. `TempStopConfigItem` stops every job of the item first, so any new job runs the new settings.
+- Verification-gap other, `DiagnoseTogether` does not assert the 60 s timer: low. A wrong ambient row only gives a red, and the 16 s bound decides the test.
+- Acceptance 5, the AC7 task text was reworded at implement without a change-log line: the fix edits the spec under review, and the approved Public text is untouched.
+- Acceptance 6, the timing margins: measured on the review stack, R3 was skipped 7.8 s after its timer fired, and the two diagnoses at once were answered in 10.03 s against the 16 s bound. Both tests fail red, never green.
+
 ## Spec Change Log
 
 - 2026-11-08, lead spec gate: added "CI time" and "Calls the harness moves to the background" under `## Verification`, and the Epic 11 merge note under Footprint. Epic 11 merged into feature at ece74afb after the plan, so its hunks in `Test/Agent/Runners.cls` and `Test/Agent/RunnerFixture.cls` are no longer contended; the end-of-epic integrate-forward takes them (no overlap with this story's lines). The contended edits to Epic 19's paths wait on the orchestrator's ruling.
@@ -461,7 +527,7 @@ Measured (AC5; times are UTC from the message headers, Decide to DiagnosisAgent 
 - QueuedPastTimer, timer 12 s: R1 sent 2026-11-08 03:09:14.122, answered 03:09:34.142, 20020 ms; R2 sent 03:09:14.125, answered 03:09:34.142, 20017 ms; R3 sent 03:09:14.303, answered 03:09:34.142, 19839 ms. R3's answer is the runner's skip when a job freed, 8 s after its timeout fallback.
 
 Mutations (Rule 19), each applied, observed red and reverted from a backup copy, with `git status --short` and `git diff --stat` identical afterwards:
-- mutation: DiagnosisAgent `PoolSize` back to 1 (after `warm.sh down` and `up`) -> `Test.Agent.Runners` `TestPoolIsTheCap` red ("DiagnosisAgent has a pool size of 2")
+- mutation: DiagnosisAgent `PoolSize` back to 1 (after `warm.sh down` and `up`) -> `Test.Agent.Runners` `TestPoolIsTheCap` red ("DiagnosisAgent has a pool size of 2"); re-run at code review, after `TestPoolIsTheCap` began to read `PoolOf`: the same red
 - mutation: DiagnosisAgent `PoolSize` back to 1 -> `Test.Install.Production` `TestDefinition` red ("item 7 is DiagnosisAgent as the ownership table says")
 - mutation: DiagnosisAgent `PoolSize` back to 1 -> `Test.Watch.DiagnoseTogether` `TestTwoAtOnce` red ("less than 10 s apart: 10024 ms" and "two: answered within 16 s of its send: 20058 ms")
 - mutation: DiagnosisAgent `PoolSize` back to 1 -> `Test.Agent.QueuedPastTimer` `TestSkippedAfterItsTimer` red (R2 never reaches the mock while R1 holds the one job)
@@ -472,13 +538,28 @@ Mutations (Rule 19), each applied, observed red and reverted from a backup copy,
 - mutation: `Concluded` returning 1 for any non-empty `DecisionRef` -> `Test.Bridge.Runner` `TestSkipsAConcludedRequest` red on "live decide" and "live linked turn" (and `TestRetryLateAfterItsChat`)
 - mutation: `RetryIsLate` returning 0 -> `Test.Bridge.Runner` `TestRetryLateAfterItsChat` red ("which names no session", "no AI session was saved")
 - mutation: "skipped" changed to "dropped" in the logged text -> `Test.Bridge.Runner` `TestSkipLineText` red (also `TestSkipLineHoldsNothingElse`)
-- mutation: the request's ItemId appended to the logged text -> `Test.Bridge.Runner` `TestSkipLineHoldsNothingElse` red ("holds" the ItemId)
+- mutation: the request's ItemId appended to the logged text -> `Test.Bridge.Runner` `TestSkipLineHoldsNothingElse` red ("no event-log row written during the skip holds the ItemId"; re-run at code review after the messages took fixed labels)
 - mutation: the request's Input appended to the logged text -> `Test.Bridge.Runner` `TestSkipLineHoldsNothingElse` red (holds the key-shaped token, the model text, the Input)
-- mutation: the skip moved below `BuildAgent` (above `Retrying`) -> `Test.Bridge.Runner` `TestSkipsAConcludedRequest` red on "the agent is not built" (the three stale kinds)
+- mutation: the skip moved below `BuildAgent` (above `Retrying`) -> `Test.Bridge.Runner` `TestSkipsAConcludedRequest` red on "the agent is not built" (the three stale kinds; re-run at code review: also the stale linked turn and the stale retry)
 - mutation: the skip moved below `Context.Begin` and falling through to the end of `Answer` -> `Test.Bridge.Runner` `TestSkipsAConcludedRequest` red on "the answer reached no session point nor the end of the answer" (the three stale kinds) and "it took no conversation lock and opened no session" (the stale linked turn), through the lock spy `Test.Bridge.ZzLockSpyRunner`
 - mutation: `Concluded` returning 1 for an empty `DecisionRef` -> `Test.Bridge.Runner` red (`TestUnbuiltKinds` and the No DecisionRef block: an empty-Ref request is skipped instead of answered or refused)
 - note: dropping the `DecisionRef '= ""` guard of `Concluded` alone survives, because `RefIndexExists("")` is 0; the guard is the spec's explicit contract and the mutation above pins the behaviour it protects
-- note: the "no link was made" assertions of `AssertNothingDone` are matrix-specified guards: the adapter never points a link (Decide does), so they cannot fail today and only guard a future adapter change; "no lock" and "before the end of `Answer`" are pinned by the lock spy above
+- note: these four checks are matrix-specified guards that cannot fail today and only guard a future change; "no lock" and "before the end of `Answer`" are pinned by the lock spy above. They are:
+  - `AssertNothingDone`'s "no link was made" and "the stale linked turn: the owner has no link": the adapter never points a link (Decide does);
+  - `AssertNothingDone`'s "the item still has the one Decision row": no runner path writes a Decision row;
+  - `QueuedPastTimer`'s "R3: and no AgentStep": Decide sends no step for a reply it discards.
+- mutation: the `RetryOf` check moved below the skip in `Answer` -> `Test.Bridge.Runner` `TestSkipsAConcludedRequest` red ("refused RetryOf: the request is refused, not skipped") (Boundaries: the skip comes after the `RetryOf` check; added at code review)
+- mutation: the kind check moved below the skip in `Answer` -> `Test.Bridge.Runner` `TestSkipsAConcludedRequest` red ("unknown kind: the request is refused, not skipped") (Boundaries: the skip comes after the kind check; added at code review)
+- mutation: a `RetryItem` setting (DiagnosisAgentRetry) added to DiagnosisAgent in `Production.cls` -> `Test.Install.Production` `TestDefinition` red ("item 7 is DiagnosisAgent as the ownership table says") (AC6: no RetryItem is set; added at code review)
+- note (AC6): its other clauses are merge-gate checks and have no unit test: CI green on every workflow, the evaluation set on the mock, the diff limited to the Execution list, and the one new operator-facing string. The lead checks them at the merge. `TimerSeconds` and the timeouts are unchanged in the diff (no edit to `Decide.cls`, `Timeouts.cls` or the Decide row of `Production.cls`).
+
+### Code review results (warm stack `e5s14rw`, lane A, torn down)
+
+After the review's patches, each class in its own call: `Test.Bridge.Runner` passed 15.97 s (15.32 s after the mutations), `Test.Agent.Runners` 38.53 s, `Test.Agent.QueuedPastTimer` 27.95 s, `Test.Watch.DiagnoseTogether` 26.40 s, `Test.Bridge.SettingsApply` 23.98 s (it drains DiagnosisAgent, with a pool of 2), `Test.Install.Production` 0.41 s and `Test.Bridge.Conversation` 10.46 s. `docker/tests/test-boundaries.sh`, `test-class-rules.sh` and `test-bridge-guide.sh` pass. Every mutation above that is marked as re-run or added at code review was applied, seen red and reverted from a backup copy, with `git status --short` and `git diff --stat` unchanged afterwards.
+
+Measured (UTC, from the message headers):
+- QueuedPastTimer, timer 12 s: R1 sent 2026-11-08 05:01:24.208 and answered 05:01:44.246 (20038 ms). R2 sent 05:01:24.212 and answered 05:01:44.247 (20035 ms). R3 sent 05:01:24.419 and answered 05:01:44.247 (19828 ms). R3's skip came about 7.8 s after its timer fired.
+- DiagnoseTogether, timer 60 s: `one` sent 05:02:56.907 and answered 05:03:06.944 (10037 ms); `two` sent 05:02:56.912 and answered 05:03:06.942 (10030 ms).
 
 ## Auto Run Result
 

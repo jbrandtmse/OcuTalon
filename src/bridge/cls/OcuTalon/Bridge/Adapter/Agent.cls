@@ -22,11 +22,12 @@ Include Ensemble
 ///     the gate decides every tool call and every tool call is a step (AD-6, AD-9, AD-10).
 /// The skipped request (AD-6, AD-8, AD-20): a request of kind decide, diagnose or turn whose DecisionRef already has a Decision row (Concluded) is
 /// skipped, whatever its provenance and whether it is a first attempt, a rate-limit re-send or a second-model retry. Decide records that row when it
-/// concludes, and its timer starts when it sends, so a request that waited in the runner's queue past its timer is taken after the decision was answered
-/// with its fallback: its answer would be dropped. The skip builds nothing and makes no model request, tool call, Usage row, AI session, conversation
+/// concludes, and its timer starts when it sends, so a request taken once the row exists (it waited in the runner's queue past its timer, or its retry
+/// answered first) would have its answer dropped. The skip builds nothing and makes no model request, tool call, Usage row, AI session, conversation
 /// lock or link; it writes one Info row and answers status OK with no reply, which Decide's completed process discards. A request of kind tool (the
-/// replay), a request with no DecisionRef and a request whose row does not exist yet are never skipped. The row is read once, before the build: a request
-/// already in Chat when the timer fires runs to its end.
+/// replay), a request with no DecisionRef and a request whose row does not exist yet are never skipped; a first attempt taken while the second-model
+/// retry that its timer sent is still running has no row yet, so it runs. The row is read once, before the build: a request already in Chat when the
+/// timer fires runs to its end.
 /// Answer is the runner's answer to a Request: the context is set before Chat and ended on every path, and the reply holds the
 /// text, the provider's stop reason, and the host data and taint that the tools put in the context.
 /// The conversation (AD-6, AD-10): only a turn with provenance user is linked (IsLinked), under the key (OwnerRef, the name of the runner item). AnswerLinked
