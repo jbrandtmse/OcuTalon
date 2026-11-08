@@ -2669,3 +2669,7 @@
 2026-11-08T05:09:01Z	Epic 30	ci_resolved	story=30.9 sha=e915eccb runs=42447293133,42447293176 result=success failed=none via=none resolved_at=orchestrator_poll
 2026-11-08T05:09:01Z	Epic 30	runner_resumed	agent=a7b67ebff3986dc77 with=green;no_further_integrate(feature_still_47d0004c);bookkeeping_push+contract
 2026-11-08T05:10:29Z	Epic 30	ruling	question=wait_for_CI_on_bookkeeping-only_head_db428c2a choice=merge_on_code_head_e915eccb_green(42447293133_13/13,42447293176);cancel_db428c2a_runs_42449664635,42449664632 rejected=wait_30-60min_in_saturated_queue why=db428c2a_differs_only_in_cycle-log-epic-30.md(bookkeeping_path);precedent_2026-11-07T20:57:38Z_Epic_32(bookkeeping_only_over,ci_on_code_head);30.9_is_1.0.4_HIGH category=decide policy=5086036
+2026-11-08T05:11:14Z	Epic 30	runner_complete	agent=a7b67ebff3986dc77 part_merge=30.9 head=db428c2a ci=success(42447293133,42447293176)via=e915eccb decisions_for_user=DW-902,DW-903 applied=DW-890_placement,probe+PUBLIC_TEXT_rulings release_tool_hunks=none
+2026-11-08T05:11:14Z	Epic 30	amendments_verified	amendments=1(epics.md:8081-8104_ADDED_marker_present) extensions=0 ok=true
+2026-11-08T05:11:14Z	Epic 30	ci_green_verified	runs=42447293133,42447293176 head=e915eccb result=success via=none note=epic_head_db428c2a_bookkeeping_only_over(ruled)
+2026-11-08T05:11:14Z	Epic 30	merge_enqueued	policy=when_green part=30.9 retro=skipped(policy)
