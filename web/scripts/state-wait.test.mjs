@@ -191,9 +191,17 @@ describe('the host line', () => {
     assert.equal(line, 'DIAG /state host: 1-minute load n/a on n/a CPU(s), pressure avg10 in percent: cpu some n/a, full n/a, memory some n/a, full n/a, io some n/a, full n/a, swap-in not measured');
   });
 
-  it('holds no path, PID, address or host name', () => {
-    const line = describeHost('DIAG /state host', readHost({ pages: 1000, at: 1_000 }, 31_000, sources(FILES)));
-    assert.doesNotMatch(line, /\/proc\/(?!pressure\))|\d+\.\d+\.\d+\.\d+|pid/i);
+  it('holds no path, PID, address or host name: only fixed words and plain numbers', () => {
+    const value = '(\\d+\\.\\d|n/a)';
+    const shape = new RegExp(
+      `^DIAG /state host: 1-minute load ${value} on (\\d+|n/a) CPU\\(s\\), pressure avg10 in percent: ` +
+        `cpu some ${value}, full ${value}, memory some ${value}, full ${value}, io some ${value}, full ${value}, ` +
+        `(swap-in \\d+\\.\\d pages/s over \\d+\\.\\d s|swap-in not measured)$`,
+    );
+    assert.match(describeHost('DIAG /state host', readHost({ pages: 1000, at: 1_000 }, 31_000, sources(FILES))), shape);
+    assert.match(describeHost('DIAG /state host', readHost(undefined, 31_000, sources(FILES))), shape);
+    // The worker's own host: the same shape, or not measured where there is no /proc/pressure.
+    assert.match(describeHost('DIAG /state host', readHost({ pages: 1000, at: 1_000 })), new RegExp(`(?:${shape.source})|(?:^DIAG /state host: not measured \\(no /proc/pressure\\)$)`));
   });
 });
 
@@ -240,13 +248,13 @@ describe('ci/iris.sh counts the retries', () => {
     return spawnSync('bash', ['-c', harness, 'bash', name], { cwd: root, env: bareEnv(extra), encoding: 'utf8' });
   }
 
-  /** cmd_group over the units, whose retries a fake ci/iris.sh writes; the real cmd_live is covered above. */
-  function group(units, retries, extra = {}) {
+  /** cmd_group over the units, whose retries a fake ci/iris.sh writes and of which the ones named in failing exit 1; the real cmd_live is covered above. */
+  function group(units, retries, extra = {}, failing = []) {
     writeFileSync(
       join(root, 'ci', 'iris.sh'),
       `#!/bin/bash\nmkdir -p web/test-results\ncase $2 in\n${Object.entries(retries)
         .map(([name, text]) => `${name}) printf '%b' ${JSON.stringify(text)} > web/test-results/${name}-retries.txt;;`)
-        .join('\n')}\nesac\nexit 0\n`,
+        .join('\n')}\nesac\n${failing.map((name) => `[ "$2" = ${name} ] && exit 1\n`).join('')}exit 0\n`,
     );
     const harness = [
       'set -u',
@@ -295,6 +303,16 @@ describe('ci/iris.sh counts the retries', () => {
     const lines = run.stdout.trimEnd().split('\n');
     assert.equal(lines.at(-2), 'RETRIES 1 in group g (live:a 1)');
     assert.match(lines.at(-1), /^GROUP g passed \(\d+s\)$/);
+  });
+
+  it('cmd_group prints the RETRIES line before GROUP failed, writes the step summary, and still exits 1', () => {
+    const summary = join(work, `summary-failed-${seq}.md`);
+    const run = group('live:a live:b', { a: `${RETRY_A}\n` }, { GITHUB_STEP_SUMMARY: summary }, ['b']);
+    assert.equal(run.status, 1, run.stderr);
+    const lines = run.stdout.trimEnd().split('\n');
+    assert.equal(lines.at(-2), 'RETRIES 1 in group g (live:a 1)');
+    assert.match(lines.at(-1), /^GROUP g failed: live:b \(\d+s\)$/);
+    assert.equal(readFileSync(summary, 'utf8'), `RETRIES 1 in group g (live:a 1)\n- live:a: ${RETRY_A}\n`);
   });
 
   it('cmd_group prints RETRIES 0 when no unit retried', () => {

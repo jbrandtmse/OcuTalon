@@ -2,18 +2,23 @@ import { readFileSync } from 'node:fs';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { STATE } from '../support/api';
+import { STATE, holdState } from '../support/api';
 import {
+  PROBE_BOUND_MS,
+  closeDiagnosis,
   describeDiagnosis,
   describeGateway,
   describeInFlight,
   describeProbe,
   describeStateRequests,
   gatewayScript,
+  printDiagnosis,
+  probePage,
   redactLine,
   stateDiagnosis,
   watchRequests,
   type RequestRecord,
+  type RequestWatch,
 } from '../support/diagnose';
 import { loadedAfter } from '../support/floor';
 import { boundedClose, expect, test, type Browser, type Page } from '../support/fixtures';
@@ -36,8 +41,11 @@ import { epochOf, landedOn, signInFromSplash, signOutGroup } from '../../e2e-onl
  * Story 32.6 (DW-550, DW-774) adds three describes. `the page-side DIAG lines` pins the describers of the request, in-flight and probe lines
  * (no browser). `page.close: the close diagnosis` shows that a close past its bound prints the page, request, renderer, browser and host lines.
  * `loadedAfter: one reload of the page` holds the first GET of /state of a /retry page: with a 20 s bound the page reloads once at 10 s
- * (R1: the reload's GET is answered; R2: it is not, and the call fails as it always did, with the diagnosis once). Every page-side line of
- * the diagnosis cases below is matched by pattern, because it holds seconds and milliseconds.
+ * (R1: the reload's GET is answered; R2: it is not, and the call fails as it always did, with the diagnosis once). A /retry page's `mode`
+ * says how its GETs of /state are answered (once, hold, fail, ok, reset, and late: the first GET is answered as the reload's document is
+ * asked for, which follows 300 ms later, and the reloaded page's GET 2.5 s after it is issued), and `delay` how long the page waits after
+ * the answer before it shows its snapshot. Every page-side line of the diagnosis cases below is matched by pattern, because it holds seconds
+ * and milliseconds.
  */
 
 let server: Server;
@@ -45,16 +53,34 @@ let origin = '';
 const held: ServerResponse[] = [];
 /** The GETs of /state that the stand-in has seen for each id of a /retry page (loadedAfter's reload cases). */
 const stateSeen = new Map<string, number>();
+/** The documents of a /retry page that the stand-in has served for each id, and the held first GET of /state of each `mode=late` id. */
+const documentsSeen = new Map<string, number>();
+const lateHeld = new Map<string, ServerResponse>();
 
 test.beforeAll(async () => {
   server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     if (url.pathname === '/retry') {
-      response.writeHead(200, { 'content-type': 'text/html' });
-      response.end(
-        '<!doctype html><title>retry</title><main class="main"></main>' +
-          `<script>fetch(${JSON.stringify(STATE)} + location.search).then(function (r) { if (r.ok) document.querySelector('main.main').setAttribute('data-snapshot', 'loaded'); }).catch(function () {});</script>`,
-      );
+      const id = url.searchParams.get('id') ?? '';
+      const documents = (documentsSeen.get(id) ?? 0) + 1;
+      documentsSeen.set(id, documents);
+      const send = (): void => {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end(
+          '<!doctype html><title>retry</title><main class="main"></main>' +
+            `<script>fetch(${JSON.stringify(STATE)} + location.search).then(function (r) { if (r.ok) setTimeout(function () { document.querySelector('main.main').setAttribute('data-snapshot', 'loaded'); }, Number(new URLSearchParams(location.search).get('delay')) || 0); }).catch(function () {});</script>`,
+        );
+      };
+      const first = lateHeld.get(id);
+      if (url.searchParams.get('mode') === 'late' && documents === 2 && first !== undefined) {
+        // The reload's document: the first document's held GET of /state is answered first, and the document follows 300 ms later.
+        lateHeld.delete(id);
+        first.writeHead(200, { 'content-type': 'application/json' });
+        first.end('{}');
+        setTimeout(send, 300);
+        return;
+      }
+      send();
       return;
     }
     const mode = url.pathname === STATE ? url.searchParams.get('mode') : null;
@@ -64,6 +90,11 @@ test.beforeAll(async () => {
       stateSeen.set(id, seen);
       if (mode === 'reset') {
         request.socket.destroy();
+        return;
+      }
+      if (mode === 'late') {
+        if (seen === 1) lateHeld.set(id, response);
+        else setTimeout(() => response.writeHead(200, { 'content-type': 'application/json' }).end('{}'), 2_500);
         return;
       }
       if (mode === 'hold' || (mode === 'once' && seen === 1)) held.push(response);
@@ -822,9 +853,9 @@ test.describe('loadedAfter: one reload of the page', () => {
   });
 
   test('a bound that the test deadline shortens is split at half of the shortened bound', async ({ browser }) => {
-    // Own wait 30 s, a 33 s test: the bound is 33 s less the 10 s reserve and the time used, about 22 s, so the retry comes at about 11 s, not at 15 s.
-    test.setTimeout(33_000);
-    (test.info().project.use as { actionTimeout?: number }).actionTimeout = 30_000;
+    // Own wait 40 s, a 36 s test: the bound is 36 s less the 10 s reserve and the time used, about 25 s, so the retry comes at about 13 s, not at 20 s.
+    test.setTimeout(36_000);
+    (test.info().project.use as { actionTimeout?: number }).actionTimeout = 40_000;
     const id = `r6-${Date.now()}`;
     let elapsed = 0;
     await withPage(browser, async (page) => {
@@ -833,37 +864,66 @@ test.describe('loadedAfter: one reload of the page', () => {
       elapsed = Date.now() - began;
     });
     expect(elapsed, 'the retry came at half of the shortened bound').toBeGreaterThanOrEqual(10_000);
-    expect(elapsed, 'not at half of the own bound').toBeLessThan(14_000);
+    expect(elapsed, 'not at half of the own bound').toBeLessThan(17_000);
     expect(logged.filter((line) => line.startsWith('RETRY ')), 'one RETRY line').toEqual([retryLine()]);
     expect(stateSeen.get(id), 'the server saw two GETs of /state').toBe(2);
   });
 
-  test('a first GET that is answered while the page is probed is kept: no RETRY, no reload', async ({ browser }) => {
+  test('a first GET that is answered while the page is probed is kept: no RETRY, no reload; the first attempt counts from the end of the sign-in', async ({ browser }) => {
     test.setTimeout(60_000);
     const id = `r8-${Date.now()}`;
+    let probedAfter = 0;
     await withPage(browser, async (page) => {
       const evaluate = page.evaluate.bind(page);
-      // The probe of the page is the first evaluate of the call: the held GET is answered just before it runs.
+      const began = Date.now();
+      let probed = false;
+      // The probe of the page is the first evaluate of the call: the held GET is answered, and its answer has reached the test, before the
+      // probe runs. The page shows its snapshot 1.5 s after the answer, so the call is still waiting on the page when the probe ends.
       page.evaluate = (async (...args: Parameters<Page['evaluate']>) => {
-        for (const response of held.splice(0)) {
-          try {
-            response.writeHead(200, { 'content-type': 'application/json' });
-            response.end('{}');
-          } catch {
-            // A response of an earlier case that is gone.
+        if (!probed) {
+          probed = true;
+          probedAfter = Date.now() - began;
+          const answered = page.waitForResponse((response) => new URL(response.url()).pathname === STATE);
+          for (const response of held.splice(0)) {
+            try {
+              response.writeHead(200, { 'content-type': 'application/json' });
+              response.end('{}');
+            } catch {
+              // A response of an earlier case that is gone.
+            }
           }
+          await answered;
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
-        await new Promise((resolve) => setTimeout(resolve, 500));
         return evaluate(...args);
       }) as Page['evaluate'];
-      await loadedAfter(page, async () => void (await page.goto(`${origin}/retry?mode=once&id=${id}`)));
+      // The sign-in goes on for 2.5 s after the page has issued its GET: a first attempt counted from the call's start would end 2.5 s early.
+      await loadedAfter(page, async () => {
+        await page.goto(`${origin}/retry?mode=once&delay=1500&id=${id}`);
+        await new Promise((resolve) => setTimeout(resolve, 2_500));
+      });
       await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
       // A reload that was wrongly going on would reach the server within this time.
       await new Promise((resolve) => setTimeout(resolve, 1_500));
     });
+    expect(probedAfter, 'the first attempt began when the sign-in ended').toBeGreaterThanOrEqual(12_000);
     expect(logged.filter((line) => line.startsWith('RETRY ')), 'no RETRY line').toEqual([]);
     expect(logged.filter((line) => line.startsWith('DIAG ')), 'no page-side lines').toEqual([]);
     expect(stateSeen.get(id), 'the page was not reloaded').toBe(1);
+  });
+
+  test('an answer to the first document\'s GET during the reload does not end the wait: the reloaded page\'s own GET is the one waited for', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const id = `r9-${Date.now()}`;
+    await withPage(browser, async (page) => {
+      // mode=late: the first GET is answered as the reload's document is asked for, and the reloaded page's GET 2.5 s after it is issued.
+      await loadedAfter(page, async () => void (await page.goto(`${origin}/retry?mode=late&id=${id}`)));
+      await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+    });
+    expect(logged.filter((line) => line.startsWith('RETRY ')), 'one RETRY line').toEqual([retryLine()]);
+    const slow = logged.find((line) => line.startsWith(`SLOW ${step} `)) ?? '';
+    expect(Number(/ (\d+) s$/.exec(slow)?.[1]), 'the snapshot step ended with the answer to the reloaded page\'s GET, not to the first').toBeGreaterThanOrEqual(12);
+    expect(stateSeen.get(id), 'the server saw two GETs of /state').toBe(2);
   });
 
   test('a page that closes while the snapshot is awaited is not retried and not reloaded', async ({ browser }) => {
@@ -892,6 +952,8 @@ test.describe('loadedAfter: one reload of the page', () => {
       const began = Date.now();
       const watch = watchRequests(page);
       await page.goto(`${origin}/retry?mode=ok&id=${ok}`);
+      // The page's GET of /state has ended before the next document replaces the page.
+      await expect.poll(() => watch.records().some((record) => record.state && record.endedAt !== undefined)).toBe(true);
       await page.goto(`${origin}/retry?mode=reset&id=${reset}`);
       await expect
         .poll(() => watch.records().filter((record) => record.state && (record.status !== undefined || record.failedAt !== undefined)).length)
@@ -908,9 +970,11 @@ test.describe('loadedAfter: one reload of the page', () => {
       expect(kept.filter((record) => record.state && record.status === undefined && record.failedAt === undefined), 'the unanswered GET of /state is kept').toHaveLength(1);
 
       watch.stop();
+      const stoppedAt = Date.now();
       const count = watch.records().length;
       await page.evaluate((url) => fetch(url).then((r) => r.text()), `${origin}/`);
       expect(watch.records().length, 'a stopped watch records nothing').toBe(count);
+      expect(watch.records().filter((record) => record.issuedAt > stoppedAt), 'no request issued after the stop is recorded').toEqual([]);
     });
   });
 
@@ -945,4 +1009,213 @@ test.beforeEach(() => {
 test.afterEach(() => {
   if (execBefore === undefined) delete process.env['OCUTALON_E2E_IRIS_EXEC'];
   else process.env['OCUTALON_E2E_IRIS_EXEC'] = execBefore;
+});
+
+// --- Stand-in pages (QA, Story 32.6): the probes, the close diagnosis's wiring and holdState's first-N hold, with no stack ---
+
+/** A page that is only as real as the probes and the close diagnosis read it: evaluate, isClosed, and a context with its pages and browser. */
+function stubPage(options: { closed?: boolean; pages?: number; browser?: unknown; evaluate?: () => Promise<unknown> } = {}): Page {
+  return {
+    isClosed: () => options.closed === true,
+    evaluate: options.evaluate ?? (() => Promise.resolve('complete')),
+    context: () => ({ pages: () => Array.from({ length: options.pages ?? 1 }), browser: () => options.browser ?? null }),
+  } as unknown as Page;
+}
+
+/** A browser whose CDP session is the given one (or cannot be opened when it is undefined). */
+function stubBrowser(session?: { send: () => Promise<unknown> }, connected = true): unknown {
+  return {
+    isConnected: () => connected,
+    newBrowserCDPSession: () => (session === undefined ? Promise.reject(new Error('no CDP here')) : Promise.resolve({ send: session.send, detach: () => Promise.resolve() })),
+  };
+}
+
+const quietWatch = { records: () => [], host: () => ({ load1: 0.5, cpus: 4 }), stop: () => undefined } as RequestWatch;
+const never = (): Promise<never> => new Promise<never>(() => undefined);
+const named = (name: string): Error => Object.assign(new Error('refused'), { name });
+
+/** Runs the step with console.log captured, and returns what it printed. */
+async function captured(step: () => Promise<unknown> | unknown): Promise<string[]> {
+  const logged: string[] = [];
+  const log = console.log;
+  console.log = (...args: unknown[]) => void logged.push(args.join(' '));
+  try {
+    await step();
+  } finally {
+    console.log = log;
+  }
+  return logged;
+}
+
+test.describe('the page-side DIAG lines: probePage on stand-in pages', () => {
+  test('the probe is bounded at 2 s, as the matrix says', () => {
+    expect(PROBE_BOUND_MS).toBe(2_000);
+  });
+
+  test('a closed page is closed, and the renderer is not asked', async () => {
+    let asked = 0;
+    const probe = await probePage(stubPage({ closed: true, evaluate: () => (asked += 1, Promise.resolve('complete')) }), 500);
+    expect(probe).toEqual({ kind: 'closed' });
+    expect(asked).toBe(0);
+  });
+
+  test('a renderer that answers gives its ready state and the time it took', async () => {
+    const probe = await probePage(stubPage({ evaluate: () => Promise.resolve('interactive') }), 500);
+    expect(probe).toMatchObject({ kind: 'answered', readyState: 'interactive' });
+    expect(describeProbe('p:', probe)).toMatch(/^p: answered in \d+ ms \(readyState interactive\)$/);
+  });
+
+  test('a failed ask keeps an error class, prints another error for an odd one, and is closed when the page closed meanwhile', async () => {
+    const odd = `Cookie: ${['CSPSESSIONID', '-x'].join('')}=PLANTEDCOOKIEVALUE0123`;
+    const kept = await probePage(stubPage({ evaluate: () => Promise.reject(named('TargetClosedError')) }), 500);
+    expect(describeProbe('p:', kept)).toBe('p: failed (TargetClosedError)');
+    const hidden = await probePage(stubPage({ evaluate: () => Promise.reject(named(odd)) }), 500);
+    expect(describeProbe('p:', hidden)).toBe('p: failed (another error)');
+    expect(JSON.stringify(hidden)).not.toContain('PLANTED');
+    let closed = false;
+    const page = { ...stubPage({ evaluate: () => (closed = true, Promise.reject(named('TargetClosedError'))) }), isClosed: () => closed } as unknown as Page;
+    expect(await probePage(page, 500)).toEqual({ kind: 'closed' });
+  });
+
+  test('a renderer that gives no answer ends the probe at its bound, and a page that throws is a failed probe, never a throw', async () => {
+    const began = Date.now();
+    expect(await probePage(stubPage({ evaluate: never }), 150)).toEqual({ kind: 'none' });
+    expect(Date.now() - began, 'the bound, not the test timeout').toBeLessThan(2_000);
+    const broken = { isClosed: () => { throw new Error('gone'); } } as unknown as Page;
+    expect(await probePage(broken, 150)).toEqual({ kind: 'failed', error: 'another error' });
+  });
+});
+
+test.describe('page.close: the close diagnosis, on stand-in pages', () => {
+  const fileLines = (): string => readFileSync(test.info().outputPath('close-diagnosis.txt'), 'utf8');
+
+  test('a closed page with no browser says so in each line, and the lines go to stdout, the file and one attachment', async () => {
+    const logged = await captured(() => closeDiagnosis(stubPage({ closed: true, pages: 0 }), quietWatch));
+    expect(logged.slice(0, 4)).toEqual([
+      'DIAG page.close: the page is closed, 0 pages in its context, the browser is not connected',
+      'DIAG page.close requests: no request in flight',
+      'DIAG page.close renderer: is closed',
+      'DIAG page.close browser: not measured (not Chromium)',
+    ]);
+    expect(logged).toHaveLength(5);
+    expect(logged[4]).toMatch(/^DIAG page\.close host: /);
+    expect(fileLines()).toBe(`${logged.join('\n')}\n`);
+    expect(test.info().attachments.filter((attachment) => attachment.name === 'close-diagnosis')).toHaveLength(1);
+  });
+
+  test('an open page of a connected browser whose CDP session cannot be opened is not measured, not failed', async () => {
+    const logged = await captured(() =>
+      closeDiagnosis(stubPage({ pages: 2, browser: stubBrowser(undefined, true), evaluate: () => Promise.resolve('interactive') }), quietWatch),
+    );
+    expect(logged[0]).toBe('DIAG page.close: the page is open, 2 pages in its context, the browser is connected');
+    expect(logged[2]).toMatch(/^DIAG page\.close renderer: answered in \d+ ms \(readyState interactive\)$/);
+    expect(logged[3]).toBe('DIAG page.close browser: not measured (not Chromium)');
+  });
+
+  test('a browser that answers prints its time only; one that fails prints an error class, or another error for an odd one', async () => {
+    const answered = await captured(() => closeDiagnosis(stubPage({ browser: stubBrowser({ send: () => Promise.resolve({ product: 'Chrome' }) }) }), quietWatch));
+    expect(answered[3]).toMatch(/^DIAG page\.close browser: answered in \d+ ms$/);
+    expect(answered.join('\n')).not.toContain('Chrome');
+    const failed = await captured(() => closeDiagnosis(stubPage({ browser: stubBrowser({ send: () => Promise.reject(named('TargetClosedError')) }) }), quietWatch));
+    expect(failed[3]).toBe('DIAG page.close browser: failed (TargetClosedError)');
+    const odd = await captured(() => closeDiagnosis(stubPage({ browser: stubBrowser({ send: () => Promise.reject(named('Cookie: x=1')) }) }), quietWatch));
+    expect(odd[3]).toBe('DIAG page.close browser: failed (another error)');
+  });
+
+  test('a renderer and a browser that give no answer cost one probe bound together, not two', async () => {
+    test.setTimeout(30_000);
+    const began = Date.now();
+    const logged = await captured(() => closeDiagnosis(stubPage({ evaluate: never, browser: stubBrowser({ send: never }) }), quietWatch));
+    const elapsed = Date.now() - began;
+    expect(logged[2]).toBe('DIAG page.close renderer: gave no answer within 2 s');
+    expect(logged[3]).toBe('DIAG page.close browser: gave no answer within 2 s');
+    expect(elapsed, 'the probes ran at once').toBeGreaterThanOrEqual(1_900);
+    expect(elapsed, 'one bound, not two').toBeLessThan(3_500);
+  });
+
+  test('a page that throws on every read ends the diagnosis without a throw and without a line', async () => {
+    const broken = {
+      isClosed: () => { throw new Error('gone'); },
+      evaluate: () => Promise.reject(new Error('gone')),
+      context: () => { throw new Error('gone'); },
+    } as unknown as Page;
+    const logged = await captured(() => expect(closeDiagnosis(broken, quietWatch), 'the diagnosis resolves').resolves.toBeUndefined());
+    expect(logged).toEqual([]);
+  });
+
+  test('printDiagnosis redacts a secret-shaped value before it reaches stdout or the file, under any name', async () => {
+    const planted = `DIAG page.close requests: ${['CSPSESSIONID', '-x'].join('')}=PLANTEDCOOKIEVALUE0123 and Bearer PLANTEDTOKENVALUE0123456789abc`;
+    const logged = await captured(() => printDiagnosis([planted, 'DIAG page.close requests: no request in flight'], 'close-diagnosis'));
+    expect(logged).toHaveLength(2);
+    expect(logged.join('\n')).not.toContain('PLANTED');
+    expect(fileLines()).not.toContain('PLANTED');
+    expect(fileLines()).toBe(`${logged.join('\n')}\n`);
+  });
+});
+
+test.describe('loadedAfter: one reload of the page, the first requests held by holdState', () => {
+  let plain: Server;
+  let plainOrigin = '';
+  let plainSeen = 0;
+
+  test.beforeAll(async () => {
+    plain = createServer((request, response) => {
+      if (request.url === STATE) {
+        plainSeen += 1;
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end('{}');
+        return;
+      }
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end('<!doctype html><title>plain</title>');
+    });
+    await new Promise<void>((done) => plain.listen(0, '127.0.0.1', done));
+    plainOrigin = `http://127.0.0.1:${(plain.address() as AddressInfo).port}`;
+  });
+
+  test.afterAll(async () => {
+    plain.closeAllConnections();
+    await new Promise<void>((done) => plain.close(() => done()));
+  });
+
+  /** Starts `count` GETs of /state in the page and gives the promise of their statuses. */
+  const startGets = (page: Page, count: number): Promise<number[]> =>
+    page.evaluate((args) => {
+      const w = window as unknown as { gets?: Promise<number[]> };
+      w.gets = Promise.all(Array.from({ length: args.count }, () => fetch(args.url).then((r) => r.status)));
+      return Promise.resolve([] as number[]);
+    }, { count, url: STATE });
+
+  test('holdState(page, 2) holds the first two GETs of /state, lets the third and later ones through, and release lets the held ones through', async ({ browser }) => {
+    test.setTimeout(30_000);
+    plainSeen = 0;
+    await withPage(browser, async (page) => {
+      await page.goto(plainOrigin);
+      const hold = await holdState(page, 2);
+      await startGets(page, 3);
+      await expect.poll(() => plainSeen, { message: 'the third GET went straight to the server' }).toBe(1);
+      expect(hold.held(), 'two GETs wait').toBe(2);
+      hold.release();
+      expect(hold.held(), 'release empties the waiting list').toBe(0);
+      const statuses = await page.evaluate(() => (window as unknown as { gets: Promise<number[]> }).gets);
+      expect(statuses).toEqual([200, 200, 200]);
+      expect(plainSeen).toBe(3);
+      await startGets(page, 1);
+      expect(await page.evaluate(() => (window as unknown as { gets: Promise<number[]> }).gets), 'after the release nothing is held').toEqual([200]);
+    });
+  });
+
+  test('holdState(page) without a count holds every GET of /state, as it always did', async ({ browser }) => {
+    test.setTimeout(30_000);
+    plainSeen = 0;
+    await withPage(browser, async (page) => {
+      await page.goto(plainOrigin);
+      const hold = await holdState(page);
+      await startGets(page, 3);
+      await expect.poll(() => hold.held()).toBe(3);
+      expect(plainSeen, 'none reached the server').toBe(0);
+      hold.release();
+      expect(await page.evaluate(() => (window as unknown as { gets: Promise<number[]> }).gets)).toEqual([200, 200, 200]);
+    });
+  });
 });

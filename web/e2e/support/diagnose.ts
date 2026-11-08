@@ -293,7 +293,7 @@ const since = (at: number, began: number): string => secs(Math.max(0, at - began
 /**
  * Records every request of the page (its issue time, resource type, whether it is a GET of /state, and its status, end or failure) until
  * stop() or the page's close, at most 200 records (the finished ones are dropped first, then those that are not a GET of /state). It also reads the host's swap-in count, so that
- * host() gives the rate since the watch began. It never throws.
+ * host() gives the rate since the watch began. It never throws: a page with no events (a stand-in) gives a watch that records nothing.
  */
 export function watchRequests(page: Page): RequestWatch {
   const list: RequestRecord[] = [];
@@ -338,17 +338,26 @@ export function watchRequests(page: Page): RequestWatch {
     }
   };
   const stop = (): void => {
-    page.off('request', onRequest);
-    page.off('response', onResponse);
-    page.off('requestfinished', onFinished);
-    page.off('requestfailed', onFailed);
-    page.off('close', stop);
+    try {
+      page.off('request', onRequest);
+      page.off('response', onResponse);
+      page.off('requestfinished', onFinished);
+      page.off('requestfailed', onFailed);
+      page.off('close', stop);
+    } catch {
+      // A page with no events (a stand-in that only closes) holds none of these listeners.
+    }
   };
-  page.on('request', onRequest);
-  page.on('response', onResponse);
-  page.on('requestfinished', onFinished);
-  page.on('requestfailed', onFailed);
-  page.on('close', stop);
+  try {
+    page.on('request', onRequest);
+    page.on('response', onResponse);
+    page.on('requestfinished', onFinished);
+    page.on('requestfailed', onFailed);
+    page.on('close', stop);
+  } catch {
+    // A page with no events records nothing.
+    stop();
+  }
   return { records: () => list.map((record) => ({ ...record })), host: () => readHost(mark), stop };
 }
 

@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, type Response } from '@playwright/test';
+import { expect, type Locator, type Page, type Request, type Response } from '@playwright/test';
 
 import { signIn, signInReadme } from '../sign-in/helpers';
 import { STATE } from './api';
@@ -139,9 +139,11 @@ export function settled(page: Page): Promise<void> {
  * The snapshot wait of loadedAfter, with at most one reload (Story 32.6, DW-550, DW-774). `asked` is the page's wait for the snapshot GET,
  * armed before the sign-in. The wait that this returns starts when begin() is called, once the sign-in has ended, and settles like `asked`
  * unless the bound whole (the snapshot bound that boundedStep computes at that moment) is at least twice RETRY_MIN_ATTEMPT_MS and `asked`
- * has not settled by half of it. Then, unless the page is closed, it prints the `RETRY` line and the page-side lines, arms a new wait for the
- * snapshot GET, reloads the page once (`waitUntil: 'commit'`, so that the document's own GET of /state is the one waited for) and settles
- * with the new wait, which has the rest of the bound (a late outcome of `asked` is then ignored). A reload that fails prints `DIAG /state reload failed: <class>` and the bound decides.
+ * has not settled by half of it. Then, unless `asked` settles, the call ends or the page closes before the page-side probe is done, it prints
+ * the `RETRY` line and the page-side lines, arms a new wait for a snapshot GET that the page issues from then on, reloads the page once
+ * (`waitUntil: 'commit'`, so that the reloaded document's own GET of /state is the one waited for; an answer to the first document's GET is
+ * not) and settles with the new wait, which has the rest of the bound (a late outcome of `asked` is then ignored). A reload that fails prints
+ * `DIAG /state reload failed: <class>` and the bound decides.
  * cancel() stops a retry that has not reloaded yet. Nothing here changes the bound or the error: the outer boundedStep owns both.
  */
 function withOneReload(
@@ -163,16 +165,22 @@ function withOneReload(
     if (firstMs === undefined) return asked;
     return new Promise<Response>((resolve, reject) => {
       let retried = false;
+      let settled = false;
       const retry = async (): Promise<Response> => {
-        if (cancelled || page.isClosed()) return asked;
+        if (settled || cancelled || page.isClosed()) return asked;
         const probe = await probePage(page, PROBE_BOUND_MS);
-        // The first GET may have been answered (the call has then ended and cancelled the retry), or the page closed, while the page was probed.
-        if (cancelled || page.isClosed()) return asked;
+        // While the page was probed, the first GET may have been answered or have failed, the call may have ended, or the page closed.
+        if (settled || cancelled || page.isClosed()) return asked;
         retried = true;
         reportRetry(`loadedAfter the snapshot GET ${STATE}`);
         printDiagnosis(pageSideLines(watch, began, probe), 'state-diagnosis');
-        const second = page.waitForResponse(answers, { timeout: whole + WAIT_SLACK_MS });
-        second.catch(() => undefined);
+        // Only a GET that the reloaded page issues counts: the first document's GET can still be answered before the reload commits.
+        const issued = new WeakSet<Request>();
+        const mark = (request: Request): void => void issued.add(request);
+        page.on('request', mark);
+        const second = page.waitForResponse((response) => issued.has(response.request()) && answers(response), { timeout: whole + WAIT_SLACK_MS });
+        const unmark = (): void => void page.off('request', mark);
+        second.then(unmark, unmark);
         await page.reload({ waitUntil: 'commit', timeout: whole + WAIT_SLACK_MS }).catch((error: unknown) => {
           printDiagnosis([`DIAG /state reload failed: ${errorClass(error instanceof Error ? error.name : undefined)}`], 'state-diagnosis');
         });
@@ -182,11 +190,13 @@ function withOneReload(
       asked.then(
         (response) => {
           if (retried) return;
+          settled = true;
           clearTimeout(timer);
           resolve(response);
         },
         (error: unknown) => {
           if (retried) return;
+          settled = true;
           clearTimeout(timer);
           reject(error);
         },
