@@ -5497,3 +5497,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Report.cls :61 and AddSkipped tally a skipped incident case (AC7, the Planner's condition); epic-9-context.md Scoring and the spec's proposed AD-22 spine bullet mention only the pacing
 - 2026-11-08T05:43:35Z status=wontfix-accepted owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=reopen_if=a later eval story's spec or review reads SM-2 as leaving skipped incident cases out of its total
+
+### DW-955: Rows keyed by a purged session that Story 30.7's purge leaves behind also include Incident (OwnerRef) and Upload rows (beside Handled, HeartbeatBeat, Digest rows, person Setting rows and two globals)
+- source: _bmad-output/implementation-artifacts/spec-30-7-epic-30-burn-down.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Data/Purge.cls Keeps/DeleteOwnedRows follow U-210's current signals and U-308's list; an incident or upload of a purged session keeps a Ref no session holds
+- 2026-11-08T12:31:34Z status=wontfix-accepted owner=30-7-epic-30-burn-down by=harvest note=reopen_if=an_owner_reports_an_orphaned_incident_or_upload_row_or_a_query_by_Ref_finds_one_after_a_purge(Incident_purges_on_its_own_90-day_rule;Upload_rows_go_after_1_h)
+
+### DW-956: A duplicate replay request that finds the replay lock busy gets a failure Reply that Decide records as a fallback Decision row for the Ref (pre-existing shape: StartExecution's refusal was recorded the same way)
+- source: _bmad-output/implementation-artifacts/spec-30-7-epic-30-burn-down.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Replay.Run lock refusal; Decide.ConcludeTool records RecordFallback; the real replay's later Reply is answered from that row (ItemIdKindIndexExists)
+- 2026-11-08T12:31:34Z status=wontfix-accepted owner=30-7-epic-30-burn-down by=harvest note=reopen_if=a_trace_shows_a_real_replay_result_answered_from_a_busy-lock_fallback_row(Ens_delivers_one_request_per_Ref;a_duplicate_needs_a_manual_resend)
