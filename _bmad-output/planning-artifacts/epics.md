@@ -9672,6 +9672,8 @@ So that OcuTalon learns from my answers and never from its own guesses.
 **Then** they cover the mark, a repeat, the phone, an approval and a rejection, and they don't change the demo-path specs (REL-2)
 - DW-923: the 'This was noise' refusal `too_old` (Item already purged) has no user-facing text in EXPERIENCE.md or its Message Catalog; its words are approved (Contest Planner under the owner's delegation, 2026-11-08): "This notice is too old to mark as noise. Nothing was changed.", the same as Story 41.2's noise-route 409 body; pin both with fixed strings (ledger; routed by cr 2026-11-08)
 - DW-932: the noise route's 200 body (`markedAt`), its `already_marked` answer, the phone-versus-web body mapping and the 409 `too_old` are not yet run over real HTTP; this story's `web/e2e/memory-noise.spec.ts` covers them (ledger; routed by harvest 2026-11-08)
+- DW-933: `PrecedentOps.Record` must compare `RecordPrecedent`'s `Action` with the request's stored answer (`AnsweredAction`/`State`) before writing, so a mis-sent message cannot record an answer the person never gave (ledger; routed by cr 2026-11-08)
+- DW-934: a precedent written just after sign-out can survive `SessionOps.End` (End's `Has()` is read before a queued `MarkNoise`/`RecordPrecedent` lands, and `Record` accepts an ended session); `Record` refuses an ended session, or End's drop is ordered after queued writes (ledger; routed by cr 2026-11-08)
 
 ### Story 41.6: The Memory card: your notes and your answers
 

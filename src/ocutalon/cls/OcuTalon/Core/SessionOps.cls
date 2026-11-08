@@ -281,7 +281,7 @@ Method GotIt(command As OcuTalon.Msg.Command.GotIt) As OcuTalon.Msg.CommandResul
 }
 
 /// Carries out an EndSession command and returns the CommandResult to answer (see the class description). The document, memory and upload drops,
-/// Unlink, the reminders, the watches, the approval requests, the per-person settings and the Handled rows each run even when an earlier one failed or threw, and a failure is a
+/// Unlink, the reminders, the watches, the approval requests, the per-person settings, the Handled rows and the precedents each run even when an earlier one failed or threw, and a failure is a
 /// warning with the step's reason; the resume hash is cleared last, and only when none of them failed, so a failed End leaves the session
 /// resumable.
 Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandResult [ Private ]

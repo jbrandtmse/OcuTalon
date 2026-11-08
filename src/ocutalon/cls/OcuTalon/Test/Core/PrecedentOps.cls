@@ -344,7 +344,7 @@ Method TestSenders()
 			Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_allowed", verb_" with origin '"_origin_"' is not_allowed")
 		}
 	}
-	Do $$$AssertEquals(..Owned(session)_"|"_..Exists(mine)_"|"_..Exists(seeded)_"|"_##class(OcuTalon.Data.Precedent).SourceRefIndexExists(decision)_"|"_##class(OcuTalon.Data.Precedent).SourceRefIndexExists(approval), "1|1|1|0|0", "no row was written or deleted")
+	Do $$$AssertEquals(..Owned(session)_"|"_..Exists(mine)_"|"_..Exists(seeded)_"|"_..Total("eval", run)_"|"_##class(OcuTalon.Data.Precedent).SourceRefIndexExists(decision)_"|"_##class(OcuTalon.Data.Precedent).SourceRefIndexExists(approval), "1|1|1|1|0|0", "no row was written or deleted")
 }
 
 /// A class that PrecedentOps does not carry out, and a message that is no object, answer an error status and one error is logged; nothing is written.

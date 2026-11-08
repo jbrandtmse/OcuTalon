@@ -5,7 +5,8 @@
 ///     seeded rows; the resume hash is cleared;
 ///   - TestNoRowsSendsNothing: a session with no rows makes no call, and End answers ended;
 ///   - TestFailedDropFailsEnd: a drop that fails or throws makes End answer failed, keeps the rows and the resume hash, and still runs the other steps (here a pending
-///     approval request's cancel); a later End finishes.
+///     approval request's cancel); a later End finishes;
+///   - TestDropAfterEarlierFailure: when an earlier step (the per-person settings) fails, the drop is still called and deletes the rows, and End answers failed.
 Class OcuTalon.Test.Core.SessionOpsPrecedents Extends %UnitTest.TestCase
 {
 
@@ -98,7 +99,7 @@ Method TestFailedDropFailsEnd()
 		Set result = ..End(probe, "web_user", session)
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", label_": Ok 0, failed")
 		Do $$$AssertEquals(..Owned(session), 1, label_": the row stays")
-		Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request).State, "cancelled", label_": a later step still ran, the pending request is cancelled")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request).State, "cancelled", label_": the other steps still ran, the pending request is cancelled")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session).ResumeHash, ##class(OcuTalon.Data.Session).Hash("fail"_how), label_": the resume hash is kept")
 		If how = "throw" Do $$$AssertEquals(..Logged(text) - warnings, 1, label_": one warning names the session")
 		Set probe.FailDrop = ""
@@ -106,6 +107,21 @@ Method TestFailedDropFailsEnd()
 		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|ended", label_": a later End finishes")
 		Do $$$AssertEquals(..Owned(session)_"|"_##class(OcuTalon.Data.Session).RefIndexOpen(session).ResumeHash, "0|", label_": and deletes the row and clears the resume hash")
 	}
+}
+
+/// An earlier step that fails does not skip the precedents step: the drop is called for the session and its rows go, and End answers failed.
+Method TestDropAfterEarlierFailure()
+{
+	Set session = ..Session("early")
+	Do ..Row(session, "zz.early@example.com")
+	Do ..SetResumeHash(session, "early")
+	Set probe = ..Probe()
+	Set probe.SettingsAnswer = "error"
+	Set result = ..End(probe, "web_user", session)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "an earlier failed step: Ok 0, failed")
+	Do $$$AssertEquals(..Calls(), session, "the drop was still called, with the session's SessionRef")
+	Do $$$AssertEquals(..Owned(session), 0, "and the session's rows are deleted")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session).ResumeHash, ##class(OcuTalon.Data.Session).Hash("early"), "the resume hash is kept")
 }
 
 /// --- helpers ---

@@ -8,7 +8,8 @@ import { sessionRef } from '../support/persona';
  * Story 41.2, the Rule 3 evidence for the four memory routes over real HTTP, on the stack that test-sign-in.sh seeds (the README account's
  * session): POST /api/v1/decisions/:ref/noise, GET /api/v1/memory/precedents, DELETE /api/v1/memory/precedents/:ref and
  * GET /api/v1/memory/notes. Each route answers 401 signed_out with no session. The signed-in README account lists a precedent row that the test
- * seeded through irisScript and does not list a seeded row of owner eval; deleting the listed row is 200 and the list is then empty; deleting the
+ * seeded through irisScript and does not list a seeded row of owner eval; deleting the listed row is 200 and the list then holds neither row (only
+ * the test's own rows are asserted on, so other rows of the account change nothing); deleting the
  * seeded row, deleting an unknown ref and marking an unknown decision as noise are 404 not_found; the notes of today are 200 with no lines
  * (the note builder arrives with Story 41.3) and an unknown day is 404. The rows the test seeds are removed in `finally`.
  */
@@ -50,16 +51,10 @@ async function removeRow(ref: string): Promise<void> {
   );
 }
 
-/** The number of rows of the owner with the test's key. */
-async function rowCount(owner: string): Promise<number> {
-  const lines = await irisScript(
-    [
-      `Set r=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Precedent WHERE OwnerRef = ? AND MatchKey = ?",${quoted(owner)},${quoted(KEY)})`,
-      'Do r.%Next()',
-      'Write !,"CHK|count|",+r.%GetData(1)',
-    ].join('\n'),
-  );
-  return Number(chk(lines, 'count') ?? Number.NaN);
+/** 1 when the row with the Ref is there, else 0. */
+async function rowExists(ref: string): Promise<number> {
+  const lines = await irisScript([`Write !,"CHK|exists|",##class(OcuTalon.Data.Precedent).RefIndexExists(${quoted(ref)})`].join('\n'));
+  return Number(chk(lines, 'exists') ?? Number.NaN);
 }
 
 test('the memory routes: signed out, the list, a delete, unknown refs, and the notes', async ({ request, playwright, baseURL }) => {
@@ -93,20 +88,21 @@ test('the memory routes: signed out, the list, a delete, unknown refs, and the n
     const listed = await request.get(`${MEMORY}/precedents`);
     expect(listed.status(), await listed.text()).toBe(200);
     expect(listed.headers()['content-type']).toContain('application/json');
-    const rows = ((await listed.json()) as { precedents: Array<Record<string, string>> }).precedents;
-    expect(rows.map((row) => row['ref']), 'the list holds the session\'s own row and no seeded row').toEqual([own]);
+    const rows = ((await listed.json()) as { precedents: Array<Record<string, string>> }).precedents.filter((row) => seeded.includes(row['ref'] ?? ''));
+    expect(rows.map((row) => row['ref']), 'of the test\'s rows, the list holds the session\'s own row and no seeded row').toEqual([own]);
     expect(Object.keys(rows[0] ?? {})).toEqual(['ref', 'answeredAt', 'channel', 'answeredChannel', 'summary', 'outcome', 'answer']);
     expect(rows[0]).toEqual({ ref: own, answeredAt: '2030-01-01T10:00:00Z', channel: 'mailbox', answeredChannel: 'phone', summary: 'zz memory spec', outcome: 'tellnow', answer: 'noise' });
 
     await expectError(await request.fetch(`${MEMORY}/precedents/${eval_}`, { method: 'DELETE', headers: envelope() }), 404, 'not_found', NOT_FOUND);
-    expect(await rowCount('eval'), 'the seeded row is still there').toBeGreaterThanOrEqual(1);
+    expect(await rowExists(eval_), 'the seeded row is still there').toBe(1);
 
     const deleted = await request.fetch(`${MEMORY}/precedents/${own}`, { method: 'DELETE', headers: envelope() });
     expect(deleted.status(), await deleted.text()).toBe(200);
     expect(await deleted.json()).toEqual({ result: 'done' });
-    expect(await rowCount(ref), 'the row is gone').toBe(0);
+    expect(await rowExists(own), 'the row is gone').toBe(0);
     const after = await request.get(`${MEMORY}/precedents`);
-    expect(((await after.json()) as { precedents: unknown[] }).precedents, 'the list is then empty').toEqual([]);
+    const left = ((await after.json()) as { precedents: Array<Record<string, string>> }).precedents.filter((row) => seeded.includes(row['ref'] ?? ''));
+    expect(left, 'the list then holds none of the test\'s rows').toEqual([]);
 
     await expectError(await request.fetch(`${MEMORY}/precedents/zzunknownref`, { method: 'DELETE', headers: envelope() }), 404, 'not_found', NOT_FOUND);
     await expectError(await request.fetch(NOISE('zzunknownref'), { method: 'POST', headers: envelope(), data: '{"channel":"phone"}' }), 404, 'not_found', NOT_FOUND);

@@ -2429,6 +2429,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T15:56:40Z status=routed owner=burndown by=cr note=Lane A side done in 30.2 (Bridge.Time.DaysCutoff, used by Digest); left: Data.Pairing.Purge (Lane B), IncidentManager.Purge
 - 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
+- 2026-11-08T10:13:09Z occurrence=41-2-the-precedent-table-its-one-writer-and-the-routes
 
 ### DW-372: The Story 10.3 Pairing test classes each carry their own NewChat, Code, Submit, Hops and WaitHops helpers (SessionOps, SessionOpsProduction, AnswersTelegramProduction, PairingApi, beside RoutingProduction.WaitHops)
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: low | fix-risk: med | footprint: in-story
@@ -5492,6 +5493,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-1-fix-the-names-and-contracts-of-memory-s-first-part.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: ARCHITECTURE-SPINE.md AD-21 (KeyFor forms; precedents read only in an untrusted item's decide request) against epics.md Story 41.2 AC 'keyed by the request's production or tool'
 - 2026-11-08T07:48:47Z status=routed owner=41-2-the-precedent-table-its-one-writer-and-the-routes by=cr note=decide the tool_call key form (or drop tool_call precedents) at 41.2's plan, with the AD-21 amendment
+- 2026-11-08T10:14:44Z status=resolved-by:41-2-the-precedent-table-its-one-writer-and-the-routes by=adjudication note=tool_call rows keyed tool:<ToolName> (Precedent.KeyFor/RecordPrecedent path, spine AD-29 names-as-built line); written, listed, forgettable, never read in this release (FR-72 matches sender/source/production/heartbeat only); pinned in Test.Data.Precedent and Test.Core.PrecedentOps (build 2f9db81b)
 
 ### DW-923: The 'This was noise' refusal too_old (Item already purged) has no user-facing text: EXPERIENCE.md and its Message Catalog give only the success line 'Marked as noise at {time}...', so 41.5's card has no words for a refused press
 - source: spec-41-1-fix-the-names-and-contracts-of-memory-s-first-part.md | severity: med | fix-risk: low | footprint: in-epic
@@ -5503,3 +5505,29 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-41-2-the-precedent-table-its-one-writer-and-the-routes.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: web/e2e/api/memory.spec.ts; slot tests pin them via the SubmitMemory seam, the production test pins Commands.Submit
 - 2026-11-08T09:51:19Z status=routed owner=41-5-this-was-noise-and-your-approval-answers-become-precedents by=harvest note=41.5's own AC (web/e2e/memory-noise.spec.ts covers the mark, a repeat, the phone) exercises the route over HTTP; adjudicate there as resolved-by
+- 2026-11-08T10:13:08Z occurrence=41-2-the-precedent-table-its-one-writer-and-the-routes
+
+### DW-933: PrecedentOps.Record trusts RecordPrecedent's Action: it never compares it with the request's AnsweredAction (or State), so a mis-sent message records an answer the person never gave
+- source: spec-41-2-the-precedent-table-its-one-writer-and-the-routes.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Core/PrecedentOps.cls Record: answer comes from request.Action only; the first save wins on SourceRef, so a later true answer is already_recorded. Unreachable until 41.5's AnswerOps sends it.
+- 2026-11-08T10:13:09Z status=routed owner=41-5-this-was-noise-and-your-approval-answers-become-precedents by=cr note=41.5 pins RecordPrecedent sent only after done with the answered action, or adds the AnsweredAction check
+
+### DW-934: A precedent written after sign-out survives End: End's Has() is read before a queued MarkNoise/RecordPrecedent lands, and Record accepts an ended session (its Session row is kept)
+- source: spec-41-2-the-precedent-table-its-one-writer-and-the-routes.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: SessionOps.EndPrecedents sends EndSession only when Precedent.Has is 1; PrecedentOps.Record checks only that the Session row exists. 41.5's async RecordPrecedent makes the window real.
+- 2026-11-08T10:13:09Z status=routed owner=41-5-this-was-noise-and-your-approval-answers-become-precedents by=cr note=41.5 builds the async sender: refuse writes for an ended session or drop after the queue drains; pin sign-out right after an answer
+
+### DW-935: Precedent.Similar for owner eval returns seeded rows of every run, so rows left by a crashed or overlapping run reach another run's decide request
+- source: spec-41-2-the-precedent-table-its-one-writer-and-the-routes.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Data/Precedent.cls Similar filters OwnerRef = eval with no EvalRunRef condition; the pinned signature has no run argument (spec matrix and Contract.Ac).
+- 2026-11-08T10:13:09Z status=wontfix-accepted owner=41-2-the-precedent-table-its-one-writer-and-the-routes by=cr note=reopen_if=an eval run's Similar('eval',...) returns a row whose EvalRunRef is not the running run's Ref
+
+### DW-936: Install.Step.Core.Purge returning Precedent.Purge's error is not pinned: every tested failure (a bad day count) fails Pairing.Purge first
+- source: spec-41-2-the-precedent-table-its-one-writer-and-the-routes.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Mutating Purge to Quit sc keeps Test.Data.Precedent, PairingRows and TelegramPair green; a pin needs a failure seam in Data.Precedent.
+- 2026-11-08T10:13:09Z status=wontfix-accepted owner=41-2-the-precedent-table-its-one-writer-and-the-routes by=cr note=reopen_if=the purge task logs OK while Precedent rows answered more than DaysToKeep days ago remain
+
+### DW-937: The notes route's call of DailyNote.Build is not pinned: MemoryApiProbe overrides NoteText and the HTTP spec's lines [] is the only value the stub can give
+- source: spec-41-2-the-precedent-table-its-one-writer-and-the-routes.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Web/Api.cls NoteText -> DailyNote.Build(sessionRef, date); returning "" without calling Build, or swapping the arguments, keeps every test green.
+- 2026-11-08T10:13:09Z status=wontfix-accepted owner=41-2-the-precedent-table-its-one-writer-and-the-routes by=cr note=reopen_if=41.3's built note is not served by GET /v1/memory/notes over real HTTP (41.3 replaces the stub and must pin it)

@@ -246,6 +246,41 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full.
    - the real `SessionOps.End` removes it.
 9. **The production item.** Given `Production.cls`, when `Test.Install.Production` and `Test.Core.ProductionItems` are read, then `PrecedentOps` is in Lane B's region and the oracle matches (AD-33).
 
+### Review Findings
+
+Code review 2026-11-08 (full mode; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; no AD mismatch, no HIGH; Rule 3 met by `memory.spec.ts` over real HTTP).
+
+- [x] [Review][Patch] (med) `memory.spec.ts` asserted on the README account's whole precedent list (`toEqual([own])`, then `[]`) and on any eval row with the key, so other rows of the account turned it red (Rule 19 hermeticity): now only the test's own Refs are asserted on, and the seeded and deleted rows are checked by Ref [web/e2e/api/memory.spec.ts:103]
+- [x] [Review][Patch] (low) `ItemOf` answered "" on a failed header read, so a read error reached the person as 409 `too_old`: it now throws, which `OnMessage` logs and answers `failed` [src/ocutalon/cls/OcuTalon/Core/PrecedentOps.cls:268]
+- [x] [Review][Patch] (low) `EvalOn`'s comment claimed only the `(…, EvalIn, *, Enabled)` row counts: corrected to the item's resolved setting, as `%GetSetting` resolves it [src/ocutalon/cls/OcuTalon/Core/PrecedentOps.cls:91]
+- [x] [Review][Patch] (low) `SessionOps.End`'s method comment did not list the precedents step [src/ocutalon/cls/OcuTalon/Core/SessionOps.cls:284]
+- [x] [Review][Patch] (low) no test showed the precedents step still runs after an earlier step fails, and the "a later step still ran" label named a step that runs first: added `TestDropAfterEarlierFailure` (the probe now extends `Test.Core.SessionOpsProbe` for `SettingsAnswer`) and relabelled the assertion [src/ocutalon/cls/OcuTalon/Test/Core/SessionOpsPrecedents.cls]
+- [x] [Review][Patch] (low) `TestSenders` did not count rows of the run, so a wrong-sender `SeedPrecedent` row was invisible to its "no row was written" check [src/ocutalon/cls/OcuTalon/Test/Core/PrecedentOps.cls:347]
+- [x] [Review][Defer] (med) `Record` trusts `RecordPrecedent`'s Action and never compares it with the request's `AnsweredAction` [src/ocutalon/cls/OcuTalon/Core/PrecedentOps.cls:152] — deferred: DW-933, routed to 41-5 (its `AnswerOps` sender makes it reachable)
+- [x] [Review][Defer] (med) a precedent written after sign-out survives End (`Has` is read before a queued write lands; `Record` accepts an ended session) [src/ocutalon/cls/OcuTalon/Core/SessionOps.cls:429] — deferred: DW-934, routed to 41-5 (the async sender)
+- [x] [Review][Defer] (low) `Similar("eval", …)` spans every run's seeded rows [src/ocutalon/cls/OcuTalon/Data/Precedent.cls] — deferred: DW-935 wontfix-accepted (the signature is pinned by the spec)
+- [x] [Review][Defer] (low) `Install.Step.Core.Purge` returning the precedent purge's error is not pinned [src/ocutalon/cls/OcuTalon/Install/Step/Core.cls:9] — deferred: DW-936 wontfix-accepted (needs a failure seam)
+- [x] [Review][Defer] (low) the notes route's call of `DailyNote.Build` is not pinned while `Build` is a stub [src/ocutalon/cls/OcuTalon/Web/Api.cls] — deferred: DW-937 wontfix-accepted (41.3 replaces the stub)
+- [x] [Review][Defer] (low) the noise route's 200/409/phone mapping over real HTTP [web/e2e/api/memory.spec.ts] — deferred: DW-932 occurrence (owned by 41-5)
+- [x] [Review][Defer] (low) `Precedent.Purge` repeats the day-count check and UTC cutoff of `Pairing.Purge` (Rule 2; the Code Map asks for the copy) [src/ocutalon/cls/OcuTalon/Data/Precedent.cls:216] — deferred: DW-371 occurrence
+
+Rejected:
+- (by-design) "This was noise" on a heartbeat or check notice older than the 7-day message retention answers `too_old`: the matrix's Item purged row and the approved text.
+- (by-design) `KeyFor` gives "" for a finding whose check was renamed or duplicated: the matrix's KeyFor row.
+- (low) `Alerts <>` and an unterminated `<` give odd keys: outside the spec's normalization rule, no realistic sender.
+- (false) the class comment's "first seven steps" miscounts: it keeps the baseline's convention, where the documents step is documented on its own line.
+- (false) `EvalOn` matching a wildcard or class-specific row: that is how the running item resolves its own Enabled (the same call as `Install.Step.Production:179`); the comment is patched above.
+- (wontfix-theoretical) `Carry` takes `not_allowed` (Ok 0) as success: real only if `PrecedentOps` or `SessionOps` is renamed, which `Test.Core.ProductionItems` pins.
+- (by-design) `Similar` never returns `tool:` rows with an empty channel: DW-922.
+- (low) CRLF in note text: the builder is a stub; 41.3 owns the format.
+- (false) the run Ref cut from `Date.now()` can collide: it only labels the seeded row, which is removed by Ref.
+- (false) ACs whose named tests have no mutation of their own: each AC 1-9 has a recorded mutation, one per AC.
+- (by-design) `TestPurge` purges across the namespace: the spec's own `Purge(90)` and `Purge(36500)` calls.
+- (wontfix-theoretical) `PutBackEval` keeps a leftover row at 1: real only after a crashed run, on a stack that runs `EvalIn`.
+- (low) `Fixture.Clean()` with no arguments: the repository's convention (68 uses).
+- (low) `SessionOpsPrecedentsProbe` does not call `##super`: no production runs on a slot, and AC 8's production test runs the real `DropPrecedents` and `Carry`.
+- (low) `SubmitMemory` and `DeleteWhere` resemble siblings: the spec states the reasons, and `SubmitMemory` is the class's one-line per-feature seam.
+
 ## Spec Change Log
 
 - 2026-11-08 (rulings relayed by the orchestrator; Contest Planner under the owner's delegation):
@@ -436,6 +471,20 @@ Run every command from the worktree root, one per call.
 - mutation: `ItemOf` in `Core/PrecedentOps.cls` binds `decision.OwnerRef` instead of `decision.TraceSessionId` (item restarted after the reload; a running host keeps its loaded code) -> `Test.Core.PrecedentOpsProduction:TestNoiseThroughTheProduction` red on a warm throwaway ("MarkNoise is marked", the row, `Similar`, `Ownership.Precedents`, the repeat); green again after the restore (AC 8)
 - mutation: the empty-line filter dropped in `Web/Api.cls` `Notes` -> `Test.Web.MemoryApi:TestNoteLines` red ("two lines, no empty one") (AC 6, the notes route)
 - The Playwright HTTP side of AC 6 (`web/e2e/api/memory.spec.ts`) runs in CI (`live:sign-in`, over 500 s locally); its slot-safe pin is the AC 6 mutation above.
+
+**QA stage (2026-11-08, slot `ocutalon-slot-a`; each file backed up in the scratchpad, mutated, loaded and compiled `ck`, observed red, restored from the backup, reloaded, and checked byte-identical by `shasum` and `git status --short`):**
+- Gap check: every AC 1-9 and every I/O & Edge-Case Matrix row has a pinning test; no gap needed a new test, so no test file was created or changed (QA): none.
+- `MESSAGETOOOLD` is pinned with a fixed string: `Test.Web.MemoryApi` holds a copy (`TOOOLD`), `TestTooOldText` compares the parameter with the sentence written out in the test and with the copy, and `TestNoise` and `TestTooOldText` assert the 409 body against it.
+- mutation (QA): the second sentence dropped from `Parameter MESSAGETOOOLD` in `Web/Api.cls` -> `Test.Web.MemoryApi:TestTooOldText` red (parameter, copy and 409 body) and `TestNoise` red ("too_old is mapped") (AC 6, the approved text)
+- mutation (QA): `EvalOn` quits 1 instead of `(value = 1)` in `Core/PrecedentOps.cls` -> `Test.Core.PrecedentOps:TestEvalOn` ("the row at 0: off"), `TestSeedRefused` ("EvalOn 0: not_allowed") and `TestRemoveSeeded` red (AC 5, the switch half; the implement stage's AC 5 mutation covered the `EvalRunRef IS NULL` half)
+- mutation (QA): `web_user,web_admin` as the origins of the `MarkNoise` route in `Core/CommandsIn.cls` -> `Test.Core.CommandsPrecedent:TestOrigins` ("MarkNoise from 'web_admin' is not_allowed") and `TestNeitherIsAToolVerb` red; `TestToolRefused` stays green, as for the implement stage's `tool` mutation (AC 3)
+- mutation (QA): `BridgeSink.Recorded` saves a `Precedent` row after publishing the decision (temporary lines in `Core/BridgeSink.cls`) -> `Test.Core.PrecedentOps:TestDecisionRecordedWritesNoRow` red ("no row for the session or for the Decision") (AC 2, the `decision.recorded` half; the implement stage's AC 2 mutation covered the sender check)
+- Slot run after the restores, one class per call, all green: `Test.Core.CommandsPrecedent` 3, `Test.Core.PrecedentOps` 18, `Test.Web.MemoryApi` 7, `Test.Data.Precedent` 9, `Test.Data.OwnershipPrecedents` 4, `Test.Core.SessionOpsPrecedents` 3, `Test.Web.Api` 38, `Test.Data.Tables` 5, `Test.Msg.Contracts` 6, `Test.Contract.Ac` 6. No `zz.%` Precedent row is left on the slot.
+- Not run in this stage: `Test.Core.PrecedentOpsProduction` (the implement stage's warm and fresh runs stand; no lane-A throwaway was started) and `web/e2e/api/memory.spec.ts` (CI only; the noise route's 200/409/phone mapping over HTTP stays DW-932).
+
+**Code review (2026-11-08, slot `ocutalon-slot-a`; the file was backed up in the scratchpad, mutated, loaded and compiled `ck`, observed red, restored from the backup and checked byte-identical by `shasum`):**
+- mutation (CR): `End` runs `EndPrecedents` only when no earlier step failed (`If 'failed Set failed = ..EndPrecedents(command)`) in `Core/SessionOps.cls` -> `Test.Core.SessionOpsPrecedents:TestDropAfterEarlierFailure` red ("the drop was still called", "the session's rows are deleted") (AC 7, every step is tried)
+- After the patches and the restore, one class per call, all green: `Test.Core.SessionOpsPrecedents` 4, `Test.Core.PrecedentOps` 18; `test-class-rules.sh` passes; `npm run lint` in `web` exits 0. The `memory.spec.ts` change is type-checked here and runs in CI (`live:sign-in`).
 
 **Shared surfaces:**
 - `Web.Api`'s Url map (`Test.Web.Api` `TestRoutes`)

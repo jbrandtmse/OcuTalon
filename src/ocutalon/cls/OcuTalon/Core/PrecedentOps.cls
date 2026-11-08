@@ -88,8 +88,9 @@ Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.P
 	Quit $$$OK
 }
 
-/// 1 only when the System Default Setting row (OcuTalon.Production, EvalIn, any class, Enabled) exists and holds 1. The install step writes the row at every
-/// start from OCUTALON_EVAL (AD-22); a missing row means off.
+/// 1 only when the Enabled System Default Setting of the EvalIn item, as the running item resolves it (Ens.Config.DefaultSettings.%GetSetting, the most
+/// specific matching row), holds 1. The install step writes the row (OcuTalon.Production, EvalIn, *, Enabled) at every start from OCUTALON_EVAL (AD-22);
+/// no matching row means off.
 ClassMethod EvalOn() As %Boolean
 {
 	Set value = ""
@@ -258,12 +259,13 @@ Method Refuse(message As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priv
 }
 
 /// The Item that the Decision was made on, or "": the Msg.Item bodies of the messages of the Decision's trace session are opened, and the one whose
-/// ItemId is the Decision's ItemId is returned. A Decision with no trace session, and an Item that is no longer kept, answer "". A seam for the tests.
+/// ItemId is the Decision's ItemId is returned. A Decision with no trace session, and an Item that is no longer kept, answer "". A failed read of the
+/// headers throws, so the message answers failed rather than too_old. A seam for the tests.
 Method ItemOf(decision As OcuTalon.Bridge.Data.Decision) As OcuTalon.Msg.Item [ Private ]
 {
 	If (decision.TraceSessionId = "") || (decision.ItemId = "") Quit ""
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId FROM Ens.MessageHeader WHERE SessionId = ? AND MessageBodyClassName = 'OcuTalon.Msg.Item' ORDER BY ID", decision.TraceSessionId)
-	If result.%SQLCODE < 0 Quit ""
+	If result.%SQLCODE < 0 Throw ##class(%Exception.SQL).CreateFromSQLCODE(result.%SQLCODE, result.%Message)
 	While result.%Next() {
 		Set item = ##class(OcuTalon.Msg.Item).%OpenId(result.%GetData(1))
 		If $IsObject(item) && (item.ItemId = decision.ItemId) Quit
