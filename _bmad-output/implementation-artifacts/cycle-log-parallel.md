@@ -2852,3 +2852,5 @@
 2026-11-08T17:08:56Z	Epic 32	decision_sheet_recorded	decided=1(DW-911_keep_RETRY_lines;DIAG_print_with_32.7_after_cut) to_action_items=0 to_x0=0 by=unattended
 2026-11-08T17:08:56Z	Run	deps_hash_rerecorded	reason=fix_forward stories=32.6 hash=1ba9f2582e8f
 2026-11-08T17:08:56Z	Epic 32	worktree_kept	reason=32.7_next(planner_ruling_10:03Z;after_cut_merge)
+2026-11-08T17:09:32Z	Run	ruling	question=feature_CI_f58b3dbb_after_32.6_merged choice=cancel_f58b3dbb_runs(42503179217,42503179208);42e5bdd4_contains_it_and_is_the_fallback_cut_head_if_7.11_slips rejected=keep_both(saturated_runners_slow_the_final_head) category=decide policy=5086036
+2026-11-08T17:10:28Z	Run	ledger_recorded	id=DW-974 subject=leaked_ci_throwaway_stacks(ci-b_production_6d,ci-c_shards-2_4d) status=resolved removed_by=Contest_Planner_1(owner-approved)~15:45Z note=not_this_run's_resources;planner_request

@@ -5756,3 +5756,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 17.10 rework 2 review layer: BeatOutcomes waits WaitDeliveries(case.session,1,WAITDIAGNOSIS) then reads web rows; settle by one run of each test with a phone row forced first
 - 2026-11-08T14:58:30Z status=routed owner=burndown by=harvest note=unverified; same root cause class as DW-964; fix by waiting on the web row, as DW-964's fix in Test.Checks.Heartbeat
 - 2026-11-08T15:04:25Z status=routed owner=burndown by=cr note=narrower: both sites call Quiet (decision at OutcomeRouter + 4s) before WebNotices; other WaitDeliveries callers count all rows
+
+### DW-974: Leaked CI throwaway stacks: a production stack on ci-b (6 days, run finished Nov 2) and a shards-2 stack on ci-c (4 days, run finished Nov 4) were still up, adding to the memory and swap overcommit on the CI hosts
+- source: 32.6 runner contract (host facts) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 32.6 diagnostics: CI hosts 2.1 to 3.3 times overcommitted on memory and swap under load. Removed by the Contest Planner about 15:45Z 2026-11-08 under the owner's approval, with their volumes and networks; swap use fell from 4 to 2 GB (ci-b) and from 5 to 3 GB (ci-c); ci-d had none
+- 2026-11-08T17:10:23Z status=resolved-by:32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus owner=burndown by=orchestrator note=removed by the Contest Planner (owner-approved) ~15:45Z; not this run's resources, so the run did not touch them; recorded at the Planner's request
