@@ -621,48 +621,205 @@ Method TestClientAddressEdges()
 	Do $$$AssertEquals(proxied, 0, "not proxied")
 }
 
-/// The number of nodes of the OCUTALON namespace's globals that sit in the given databases (names, comma-separated) and hold the value in a
-/// subscript or in their data: the unit's scan for the resume reference (matrix row 6). It prints and keeps nothing, and answers -1 for an
-/// empty value or a database that does not exist, so that an empty search never reads as a clean one. It reads the databases' directories
-/// from %SYS, and enumerates the namespace's globals with %SYS.GlobalQuery (system globals included).
+/// The number of nodes of every global of the given databases (names, comma-separated) that hold the value in a subscript or in their data:
+/// the unit's scan for the resume reference (matrix row 6) and for the raw and encoded references (row 13). It is the key proof's walk
+/// (Eval.KeyProof.GlobalHits), which also reads the value inside an element of a $List (8-bit, 16-bit or nested); no stream decode is
+/// needed, because no message body holds a global stream (Eval.KeyProof.TestNoMessageBodyHoldsAGlobalStream). It prints and keeps nothing,
+/// and answers -1 for an empty value, an empty list of databases (which the key proof's walk would read as every database) or a database
+/// that does not exist, so that an empty search never reads as a clean one.
 ClassMethod ReferenceHits(value As %String, databases As %String = "OCUTALON_DATA,OCUTALON_PRIVATE,OCUTALON_PUBLIC") As %Integer
 {
-	If value = "" Quit -1
-	New $Namespace
-	Set home = $Namespace
-	Kill directories
-	Set $Namespace = "%SYS"
-	Set missing = 0
-	For i = 1:1:$Length(databases, ",") {
-		If $SYSTEM.Status.IsError(##class(Config.Databases).Get($Piece(databases, ",", i), .properties)) {
-			Set missing = 1
-			Quit
+	If $ZStrip(databases, "<>W") = "" Quit -1
+	Quit ##class(OcuTalon.Test.Eval.KeyProof).GlobalHits(value, databases)
+}
+
+/// The number of messages of the Interoperability namespace (every one when it is empty) after the header id whose header or body holds the
+/// value: the key proof's trace search (Eval.KeyProof.TraceHits), and for a message that it cannot export as XML (a body with a serial
+/// property that is not XML-enabled) a second reader that opens the header and the body and reads the body without XML (the abstract tree
+/// of %ZEN.Auxiliary.altJSONProvider). A message that neither reader can read, a body with a character stream property (the tree provider
+/// gives up on it) and a namespace that cannot be visited all give -1, and so does an empty value: no message is skipped. The second reader reads what the tree projects: the
+/// public properties whose names hold no "%"; it leaves out private, %-named and multidimensional properties and reads a binary stream
+/// property and a $List value as empty (the bodies that reach it today, Watch.Msg.FailureBatch and its Failure parts, hold none of those).
+/// places and stats are the key proof's, with stats.unreadable left holding what neither reader could read and stats.fallback naming the
+/// messages that the second reader covered. When the second reader runs, the count is of the places the key proof recorded (at most its
+/// limit) plus the hits of the second reader: it is exact as zero or not zero.
+ClassMethod MessageHits(value As %String, after As %Integer = 0, namespace As %String = "", Output places As %DynamicArray, Output stats As %DynamicObject) As %Integer
+{
+	Set hits = ##class(OcuTalon.Test.Eval.KeyProof).TraceHits(value, after, .places, .stats, namespace)
+	If (hits '= -1) || (value = "") || 'stats.unreadable.%Size() Quit hits
+	Set listed = stats.unreadable
+	Set stats.unreadable = [], stats.fallback = []
+	Set hits = places.%Size()
+	For i = 0:1:listed.%Size() - 1 {
+		Set entry = listed.%Get(i)
+		Set space = $Piece(entry, ":", 1), id = $Piece(entry, ":", 2, 99)
+		If (space = "") || (id '? 1.N) || (entry [ " (") {
+			Do stats.unreadable.%Push(entry)
+			Continue
 		}
-		Set directories(##class(%File).NormalizeDirectory(properties("Directory"))) = ""
-	}
-	Set $Namespace = home
-	If missing || '$Data(directories) Quit -1
-	Set hits = 0
-	Kill seen
-	Set rows = ##class(%ResultSet).%New("%SYS.GlobalQuery:NameSpaceList")
-	If $SYSTEM.Status.IsError(rows.Execute(home, "*", 1, , , , 1)) Quit -1
-	While rows.Next() {
-		Set location = ##class(%File).NormalizeDirectory(rows.Get("Location"))
-		If '$Data(directories(location)) Continue
-		Set name = $Piece($Piece(rows.Get("Name"), "(", 1), "^", $Length($Piece(rows.Get("Name"), "(", 1), "^"))
-		If $Data(seen(location, name)) Continue
-		Set seen(location, name) = ""
-		Set reference = "^|""^^"_location_"""|"_name
-		Set data = ""
-		Set has = $Data(@reference, data)
-		If ((has = 1) || (has = 11)) && (data [ value) Set hits = hits + 1
-		For {
-			Set reference = $Query(@reference, 1, data)
-			Quit:reference=""
-			If (reference [ value) || (data [ value) Set hits = hits + 1
+		Try {
+			If ..MessageHolds(space, id, value) {
+				Set hits = hits + 1
+				If places.%Size() < ##class(OcuTalon.Test.Eval.KeyProof).#MAXPLACES Do places.%Push(entry)
+			}
+			Do stats.fallback.%Push(entry)
+		} Catch exception {
+			Do stats.unreadable.%Push(entry_" ("_$Extract($SYSTEM.Status.GetErrorText(exception.AsStatus()), 1, 120)_")")
 		}
 	}
+	If stats.unreadable.%Size() Quit -1
 	Quit hits
+}
+
+/// 1 when the header of the message or its body holds the value, 0 when not; it throws when either cannot be read. The header is read as XML
+/// and the body as a tree of its properties (the second reader of MessageHits, with the limits that MessageHits names): a body whose tree
+/// cannot be built (one with a character stream property) throws.
+ClassMethod MessageHolds(namespace As %String, headerId As %Integer, value As %String) As %Boolean [ Private ]
+{
+	New $Namespace
+	Set $Namespace = namespace
+	Set header = ##class(Ens.MessageHeader).%OpenId(headerId, , .sc)
+	If '$IsObject(header) Throw ##class(%Exception.StatusException).CreateFromStatus($Select($SYSTEM.Status.IsError(sc): sc, 1: $SYSTEM.Status.Error(5001, "the header could not be opened")))
+	Set stream = ##class(%Stream.TmpCharacter).%New()
+	Set sc = header.XMLExportToStream(.stream)
+	If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+	Set found = ..StreamHolds(stream, value)
+	If 'found && (header.MessageBodyId '= "") {
+		Set body = $ClassMethod(header.MessageBodyClassName, "%OpenId", header.MessageBodyId, , .sc)
+		If '$IsObject(body) Throw ##class(%Exception.StatusException).CreateFromStatus($Select($SYSTEM.Status.IsError(sc): sc, 1: $SYSTEM.Status.Error(5001, "the body could not be opened")))
+		Set tree = ##class(%ZEN.Auxiliary.altJSONProvider).%ObjectToAET(body)
+		If '$IsObject(tree) Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "the body could not be read as a tree"))
+		Set found = (tree.%ToJSON() [ value)
+	}
+	Quit found
+}
+
+/// 1 when the stream holds the value, reading it in chunks that overlap by the value's length less one.
+ClassMethod StreamHolds(stream As %Stream.Object, value As %String) As %Boolean [ Private ]
+{
+	Do stream.Rewind()
+	Set tail = "", keep = $Length(value) - 1
+	While 'stream.AtEnd {
+		Set size = 32000
+		Set chunk = tail_stream.Read(.size)
+		If chunk [ value Quit
+		Set tail = $Select(keep > 0: $Extract(chunk, $Select($Length(chunk) > keep: $Length(chunk) - keep + 1, 1: 1), *), 1: "")
+	}
+	Quit $Get(chunk) [ value
+}
+
+/// ReferenceHits reads a value that only sits inside a 16-bit element of a $List value, as the key proof's walk does (DW-474, DW-450):
+/// the node is in the default globals database of the namespace (^OcuTalonTest has no mapping), an empty value gives -1 and so do a database
+/// that does not exist and an empty list of databases. The node is killed after the test.
+Method TestReferenceHitsReadsLists()
+{
+	Set value = "referencehits-"_##class(OcuTalon.Bridge.Ids).NewRef()
+	Set number = $Job_$Random(1000000000)
+	Kill ^OcuTalonTest("ReferenceHits", number)
+	Try {
+		Set ^OcuTalonTest("ReferenceHits", number) = $ListBuild("zz", $Char(8364)_value)
+		Do $$$AssertTrue(##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits(value, "OCUTALON_DATA") >= 1, "a value held only inside a 16-bit $List element is found")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits(value_"-nobody", "OCUTALON_DATA"), 0, "a value nobody holds gives 0")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits("", "OCUTALON_DATA"), -1, "an empty value gives -1")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits(value, "ZZNONE"), -1, "a database that does not exist gives -1")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits(value, ""), -1, "an empty list of databases gives -1, and not a scan of every database")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the scan runs without an exception")
+	}
+	Kill ^OcuTalonTest("ReferenceHits", number)
+}
+
+/// MessageHits finds a value held by a body that cannot be exported as XML (a serial property that is not XML-enabled), and one held by the
+/// header of such a message, through its second reader, and counts them with the messages that the key proof's search reads: the key
+/// proof's own search gives -1 for the same messages (so the case is not vacuous), a value nobody holds gives 0, an empty value gives -1 and
+/// a mark after the messages finds none. The lists are checked for the test's own messages only, since the production may write others.
+Method TestMessageHitsReadsWhatXmlCannot()
+{
+	Set value = "messagehits-"_##class(OcuTalon.Bridge.Ids).NewRef()
+	Set bodyId = "", otherId = "", headerId = "", inHeaderId = "", plainId = ""
+	Try {
+		Set mark = +$Order(^Ens.MessageHeaderD(""), -1)
+		For which = 1, 2 {
+			Set body = ##class(OcuTalon.Test.Web.NoXmlBody).%New()
+			Set body.Label = "zz"
+			Set part = ##class(OcuTalon.Test.Web.NoXmlPart).%New()
+			Set part.Text = $Select(which = 1: "inside "_value, 1: "inside zz")
+			Do body.Parts.Insert(part)
+			Do $$$AssertStatusOK(body.%Save(), "the body is saved")
+			If which = 1 { Set bodyId = body.%Id() } Else { Set otherId = body.%Id() }
+		}
+		Do $$$AssertTrue(..SaveHeader("OcuTalon.Test.Web.NoXmlBody", bodyId, "ZzMessageHits", .headerId), "the header of the body that holds the value is saved")
+		Do $$$AssertTrue(..SaveHeader("OcuTalon.Test.Web.NoXmlBody", otherId, "ZzMessageHits-"_value, .inHeaderId), "the header that holds the value over a body that does not is saved")
+		Do $$$AssertTrue(..SaveHeader("", "", "ZzMessageHits-"_value, .plainId), "the plain header is saved")
+		Set named = $Namespace_":"_headerId, inHeader = $Namespace_":"_inHeaderId
+		Do $$$AssertTrue(##class(OcuTalon.Test.Eval.KeyProof).TraceHits(value, mark, , .keyStats, $Namespace) = -1, "the key proof's search cannot read the bodies")
+		Do $$$AssertTrue(..Names(keyStats.unreadable, named) && ..Names(keyStats.unreadable, inHeader), "and names both headers")
+		Set hits = ..MessageHits(value, mark, $Namespace, .places, .stats)
+		Do $$$AssertEquals(hits, 3, "the body that XML cannot export, the header of such a message and the plain header that hold the value are all found")
+		Do $$$AssertEquals(stats.unreadable.%Size(), 0, "nothing is left unreadable")
+		Do $$$AssertTrue(..Names(stats.fallback, named) && ..Names(stats.fallback, inHeader), "the second reader covered both messages")
+		Do $$$AssertTrue(..Names(places, named) && ..Names(places, inHeader), "and both are among the places")
+		Do $$$AssertEquals(..MessageHits(value_"-nobody", mark, $Namespace), 0, "a value nobody holds gives 0")
+		Do $$$AssertEquals(..MessageHits(value, plainId, $Namespace), 0, "a message at or before the mark is not scanned")
+		Do $$$AssertEquals(..MessageHits("", mark, $Namespace), -1, "an empty value gives -1")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the search runs without an exception")
+	}
+	For id = headerId, inHeaderId, plainId {
+		If id '= "" Do ##class(Ens.MessageHeader).%DeleteId(id)
+	}
+	For id = bodyId, otherId {
+		If id '= "" Do ##class(OcuTalon.Test.Web.NoXmlBody).%DeleteId(id)
+	}
+}
+
+/// A message that neither reader can read (its body does not exist) makes MessageHits give -1, even when the other messages hold the value,
+/// and names the message in stats.unreadable, and not the readable header that holds the value. The list is checked for the test's own
+/// messages only, since the production may write others.
+Method TestMessageHitsUnreadableByBoth()
+{
+	Set value = "messagehits-"_##class(OcuTalon.Bridge.Ids).NewRef()
+	Set headerId = "", plainId = ""
+	Try {
+		Set mark = +$Order(^Ens.MessageHeaderD(""), -1)
+		Do $$$AssertTrue(..SaveHeader("OcuTalon.Test.Web.NoXmlBody", "zz-no-such-body", "ZzMessageHits", .headerId), "the header of the missing body is saved")
+		Do $$$AssertTrue(..SaveHeader("", "", "ZzMessageHits-"_value, .plainId), "the plain header is saved")
+		Set hits = ..MessageHits(value, mark, $Namespace, , .stats)
+		Do $$$AssertEquals(hits, -1, "a body that cannot be read by either reader gives -1")
+		Do $$$AssertTrue(..Names(stats.unreadable, $Namespace_":"_headerId), "and its header is named")
+		Do $$$AssertTrue('..Names(stats.unreadable, $Namespace_":"_plainId), "and the readable header is not")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the search runs without an exception")
+	}
+	If headerId '= "" Do ##class(Ens.MessageHeader).%DeleteId(headerId)
+	If plainId '= "" Do ##class(Ens.MessageHeader).%DeleteId(plainId)
+}
+
+/// 1 when the list of a search's places or stats names the message <namespace>:<header id>, alone or with its reason in brackets (the key
+/// proof's own helper, ListHas, is private to it and Lane A's: DW-888).
+ClassMethod Names(list As %DynamicArray, message As %String) As %Boolean [ Private ]
+{
+	Set found = 0
+	If '$IsObject(list) Quit found
+	For i = 0:1:list.%Size() - 1 {
+		Set entry = list.%Get(i)
+		If (entry = message) || ($Extract(entry, 1, $Length(message) + 2) = (message_" (")) Set found = 1
+	}
+	Quit found
+}
+
+/// Saves a message header for the message tests of MessageHits and answers its id in headerId.
+ClassMethod SaveHeader(bodyClass As %String, bodyId As %String, source As %String, Output headerId As %String) As %Boolean [ Private ]
+{
+	Set header = ##class(Ens.MessageHeader).%New()
+	Set header.MessageBodyClassName = bodyClass
+	Set header.MessageBodyId = bodyId
+	Set header.SourceConfigName = source
+	Set header.TargetConfigName = "ZzMessageHits"
+	Set header.Type = 1
+	Set sc = header.%Save()
+	Set headerId = $Select($SYSTEM.Status.IsOK(sc): header.%Id(), 1: "")
+	Quit $SYSTEM.Status.IsOK(sc)
 }
 
 /// The online demo's sign-in of a user without the OcuTalon user role (matrix row 9's no-role contract): behind the proxy, with a visitor's
