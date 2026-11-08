@@ -2,7 +2,7 @@
 title: 'A ''Remember that ...'' chat message gets a usable attention decision'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'blocked'
+status: 'draft'
 baseline_revision: 'b51128a7310cfe74d8dae3d2136023273c9592aa'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -19,6 +19,27 @@ The plan stopped at the root cause, as the dispatch requires. Code reading and m
 - there is no confidence.
 
 The fix depends on which of the three Haiku produces, and that cannot be known without looking at the stored real-model reply. So this spec gives the Planner a read-only probe for the demo host (Design Notes, "The probe"), what each result means, and the instruction wording each result would call for. With the probe's lines and those rulings, the re-plan is short. There is no intent contract and there are no tasks yet: both depend on the probe.
+
+[RE-PLAN 2026-11-08T02:30:11Z, runner: the probe ran and every question is ruled (Design Notes, "Rulings of 2026-11-08"). The probe selects branch C. The intent below is ruled; re-derive the tasks around it.]
+
+<intent-contract>
+
+## Intent
+
+On the 1.0.3 demo, Haiku's decide reply to a "Remember that ..." user message (the stored typed ref `5GpLt-Y6YmUb7IMg72-5gA`) is one JSON object of `DecisionPayload`'s own fields with a valid outcome (one of the four) and 2 non-blank reasons, but NO `confidence` field. `DecisionPayload.%OnValidateObject` refuses it (ERROR #5001), so `Decide` falls back. The fix is the Planner-approved sentence appended to Triage's user's-own-message paragraph (`src/ocutalon/cls/OcuTalon/Agent/Triage.cls`, line 37, after its last sentence, which stays word for word), telling the model that a remember or forget request is the user's own message and to give a confidence as for any other message. The regression is the accepted three-part pairing: a fixed-strings test of the sentence, a mock end-to-end test of both forms with a discriminating mutation (a new `ci/mock/scenarios/A/` scenario that answers with the probe's exact shape and reproduces the demo's warning), and the eval case `eval/user-turn-remember/case.json`.
+
+## Boundaries & Constraints
+
+- Always: the new sentence, verbatim (PUBLIC TEXT, approved by the Contest Planner under the owner's delegation, 2026-11-08): `A request to remember or forget something is also the user's own message: choose "tellnow" for it, give the one reason, and give a confidence as for any other message.` It is appended after line 37's last sentence, `This holds also when the user asks OcuTalon to resend, approve or change something: the next paragraph is about items that arrived on a channel, never about the user's own message.`, which stays word for word, in the same paragraph.
+- Always: every other rule of Triage's instructions stays intact (DW-500's reasons rule and its pinned phrases, the no-all-clear rule of AD-28, the injection, heartbeat and approval paragraphs, the persona paragraph last, no `{{`, AD-7).
+- Always: the mock scenario and the discriminating mutation answer the probe's EXACT shape: a valid outcome, 2 non-blank reasons, and no `confidence`. Against the current code that shape gives Fallback `invalid` and exactly the demo's warning text ("The reply check refused the reply of the decision <ref>: The reply check failed: the reply is not one JSON object that OcuTalon.Bridge.Msg.DecisionPayload accepts: ERROR #5001").
+- Always: `eval/user-turn-remember/case.json`, shaped like `eval/user-turn-productions/case.json` (kind `user-turn`), states that the item must decide without Fallback and with a confidence present. Eval `userTurns` stay report-only (no new target). The real-Haiku proof is the Planner's release-candidate eval at the 1.0.4 cut; this story does not run it.
+- Always: `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` changes only by the ruled plain union with Epic 19 (non-overlapping hunks): line 248's count 4 becomes 5 with "five", and the header doc (`:16`) and the method doc (`:234-236`) each add "and one remember case (Story 30.9, DW-890)".
+- Never: line 31 (the outcome line) changes (branch A' was not selected). No other instruction text and no user-facing string changes.
+- Never: raise a timeout or a `TimerSeconds`; loosen or normalise the reply check in `Decide` or `DecisionPayload` (a missing confidence stays refused, AD-7/AD-8); change another outcome's behaviour; edit `eval/run.sh` (release-tool freeze); edit `Agent/Chat.cls` or any contended line of Epic 19's (`Decide.cls`'s doc comment near `Conclude` and its `Filter` call in `Conclude`'s turn branch).
+- Optional, at the plan's judgment (the Planner's nice-to-have): the refusal warning for a missing confidence may name the property ("confidence missing") ONLY if the change touches no line Epic 19 changes, stays inside Story 30.6's rule (`Decide.Judge` names the property, quotes no reply content), and adds no user-facing string. Otherwise leave it out and say so under Design Notes.
+
+</intent-contract>
 
 ## Code Map
 
@@ -78,7 +99,30 @@ The fix depends on which of the three Haiku produces, and that cannot be known w
 - `Agent` and `Bridge` run in `shards-5` (`shard:lane-a@Bridge,Agent` measured at 1,246 s on 5b47f052). With `live:sign-in-3` that is about 1,950 s, about 150 s under REL-4's 35 minutes (inference, not yet measured).
 - `Eval`, `Memory` and the other lane-a areas run in `shards-2` (`lane-a@rest`), about 1,500 s (inference).
 
+## Spec Change Log
+
+- 2026-11-08T02:30:11Z, runner (re-dispatch protocol after the plan's `intent gap` HALT, round 1): the probe ran on the demo host and selected branch C. The orchestrator relayed the Planner's answers and its own rulings (logged as `ruling` in Epic 30's cycle log; resume message of 2026-11-08). Applied: the intent contract above (ruled intent and constraints) and "Rulings of 2026-11-08" below. Status `blocked` → `draft` for the re-plan.
+
 ## Design Notes
+
+### Rulings of 2026-11-08 (via the orchestrator; binding for the re-plan)
+
+1. **The probe's result** (the Contest Planner ran it at 02:30Z on the demo host, read-only, exactly as listed under "The probe", against the stored typed ref `5GpLt-Y6YmUb7IMg72-5gA`). Printed, verbatim:
+   ```
+   request header 54
+   reply found
+   output tokens 86, steps 1, finish end_turn, persona block 0
+   check: ERROR #5001; fenced 0
+   one JSON object: 1
+   types: outcome string, reasons array, confidence unassigned; other fields 0
+   outcome: empty 0, one of the four 1, one of the four once case, spaces and punctuation are folded 1, a word of the user's message 0
+   reasons: 2, blank or not a string 0
+   confidence: unassigned
+   ```
+   **Branch C:** the outcome is valid and the reasons are fine; the confidence is missing. The panel and control refs were not run; the stored ref settled it. (The stored reply has 86 output tokens; the strip showed 66 for the 21:50Z walk.)
+2. **PUBLIC TEXT, approved** (the Contest Planner under the owner's delegation): the combined sentence WITH "or forget", appended after line 37's last sentence, which stays word for word: `A request to remember or forget something is also the user's own message: choose "tellnow" for it, give the one reason, and give a confidence as for any other message.` NOT branch A': line 31 stays as it is. No other text changes.
+3. **The Planner's conditions:** the regression's mutation and the new mock scenario answer the probe's exact shape (a valid outcome, 2 reasons, no confidence) and reproduce the demo's warning. The eval case `eval/user-turn-remember/` must show no Fallback and a confidence present on real Haiku in the Planner's release-candidate eval at the 1.0.4 cut (the Planner reports that; this story does not run it). Optional nice-to-have: see the last line of the intent contract's constraints.
+4. **Ruled by the orchestrator (decide):** the three-part regression pairing ("Questions for the Planner", 3) is accepted; eval `userTurns` stay report-only (no new target); the `Test/Eval/Cases.cls` count 4 → 5 plus the two doc lines is a plain union with Epic 19 (non-overlapping hunks).
 
 ### Root cause (DW-890)
 
@@ -301,8 +345,8 @@ None is decided in this stage. The instruction text of Triage counts as Public T
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: root cause needs a real-model probe
+Status: blocked (round 1; superseded by the re-plan of 2026-11-08, see Spec Change Log)
+Blocking condition: intent gap: root cause needs a real-model probe (answered: branch C)
 
 - The plan halted before any intent contract or task, because the fix depends on which of the three `%OnValidateObject` refusals (A outcome, B reasons, C confidence) Haiku's stored reply hits.
 - Verified: the reply was one JSON object of `DecisionPayload`'s own fields that passed import. Prose, a second object or a tool call give #5035, not #5001, and the after-filter check never runs for `DecisionPayload`.
