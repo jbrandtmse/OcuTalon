@@ -2945,3 +2945,9 @@
 2026-11-08T22:00:34Z	Run	ruling	question=feature_CI_ab73a661_after_30.7_merged category=decide choice=cancel(42524580700,42524580677;superseded_by_2992191c_which_contains_it;dispatches_wait_for_2992191c_green) policy=5086036
 2026-11-08T22:41:17Z	Epic 41	ci_red_classified	sha=ef38622e run=42525785483 jobs=iris(shards):GoodMessages(DW-675_inherited;fixed_on_feature_by_7.11),iris(image):Heartbeat(DW-639)+PairingRows_TestTakeReplySlot(new_DW-981),iris(production):live:reminder-restart(DW-689;restart2_176s) lane-a=success class=inherited+flakes(none_Epic_41_code) action=integrate_forward_onto_feature(brings_7.11)+fresh_CI
 2026-11-08T22:41:43Z	Epic 41	runner_resumed	agent=a70c5c6c3ec305303 with=ef38622e_red_classified;integrate_onto_2992191c;41.6_local_under_outage_rule
+2026-11-08T23:08:57Z	Run	ci_red_classified	sha=2992191c(feature) run=42527950695 job=iris(shards-2) test=TestTimeLeft(15.20) ledger=DW-973 other_jobs=all_green lane-a=success(42527950742) action=rerun_failed
+2026-11-08T23:08:57Z	Run	ruling	question=dispatch_onto_2992191c_whose_only_red_is_DW-973 category=decide choice=dispatch_39.11(lane_C)+Epic_17_17.12/17.13(lane_B)_now;the_Planner_standing_yes_covers_DW-973-only_reds;rerun_running rejected=wait_~40min_with_two_lanes_idle policy=5086036
+2026-11-08T23:09:17Z	Epic 39	worktree_bootstrapped	epic=39 result=ok base=2992191c(ff_kept_worktree)
+2026-11-08T23:09:17Z	Epic 39	runner_dispatched	runner=a00692abf621741ea model=opus effort=high lane=C slot=ocutalon-slot-c story=39.11_DW-978 prompt=prompts/dispatch-epic-39-3911.md
+2026-11-08T23:09:17Z	Epic 17	worktree_bootstrapped	epic=17 result=ok base=2992191c(ff_kept_worktree)
+2026-11-08T23:09:17Z	Epic 17	runner_dispatched	runner=ac394a16089ac2b79 model=opus effort=high lane=B slot=ocutalon-slot-b stories=17.12(D3_DW-979),17.13(D4_DW-980) prompt=prompts/dispatch-epic-17-1712.md
