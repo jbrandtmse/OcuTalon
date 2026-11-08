@@ -2428,6 +2428,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T15:56:40Z status=routed owner=burndown by=cr note=Lane A side done in 30.2 (Bridge.Time.DaysCutoff, used by Digest); left: Data.Pairing.Purge (Lane B), IncidentManager.Purge
 - 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
+- 2026-11-08T10:14:04Z status=routed owner=30-7-epic-30-burn-down by=runner note=SC-5_re-open_of_30.7(2026-11-08,after_the_1.0.4_cut):Lane_A_half(IncidentManager.Purge_uses_Bridge.Time.DaysCutoff)_is_an_AC_bullet_of_30.7;Data.Pairing.Purge_stays_Lane_B's
 
 ### DW-372: The Story 10.3 Pairing test classes each carry their own NewChat, Code, Submit, Hops and WaitHops helpers (SessionOps, SessionOpsProduction, AnswersTelegramProduction, PairingApi, beside RoutingProduction.WaitHops)
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: low | fix-risk: med | footprint: in-story
@@ -3734,6 +3735,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Epic 11 merge decision sheet (DW-496, veto U-215 kept by the Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-1 amended a9a221ed; TestCancelAllThroughChat asserts the keys but not the repeat refusal per key
 - 2026-11-02T13:25:27Z status=routed owner=burndown by=merge_gate note=Epic 30 part 2 burn-down 30.7 (sent to its runner with U-215's apply)
+- 2026-11-08T10:14:04Z status=routed owner=30-7-epic-30-burn-down by=runner note=U-215_owner_answer(at=2026-11-02T13:19:05Z#651,kept):one_test_that_cancel_reminder's_keys_:2,:3,:4_are_each_accepted_once_and_refused_on_a_repeat;AD-1_as-built_marker_2026-11-08
 
 ### DW-592: Web chat tool-call card: after a page reload an answered, expired or finished tool-call request shows no answered line, because /state serves pending approvals only (Ownership.Approvals through Web/Api.cls RailBody); the live page shows who answered
 - source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: in-epic

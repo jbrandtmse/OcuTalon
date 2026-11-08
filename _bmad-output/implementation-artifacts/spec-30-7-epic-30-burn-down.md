@@ -2,80 +2,60 @@
 title: 'Epic 30 burn-down'
 type: 'bugfix'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'draft'
 baseline_revision: '0e5d27304acbf24dcc1896176578ec0013d8fda1'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
 warnings: ['oversized']
-deferred:
-  - summary: >-
-      An answer that outlives TASKSECONDS before its approval task exists leaves the hold waiting on its 24 hour timer: Reconcile pass 1 discards the late task and sends the hold no deferred response (DW-462, rows 18 (b)).
-    evidence: |-
-      Measured at implementation on build 154U: EnsLib.Workflow.Engine.%CancelRequest discards the task without a deferred response, so the hold never learns of it; the row stays approved until the timer delivers the outcome. Test (b) of TestAnswerBeforeTheTaskExists pins only the documented 5 s contract.
-    location: >-
-      src/bridge/cls/OcuTalon/Bridge/Approval.cls (CompleteHoldTask, Reconcile pass 1)
-    severity: medium
-  - summary: >-
-      Test.Eval.KeyProof.Walk now runs a list check on every node's data and a subscript decode on every node's reference, which may slow the key-proof global scan on large databases.
-    evidence: |-
-      Unmeasured. Settle it by timing eval/key-proof.sh's global scan (GlobalHits over all local databases) before and after this story on a throwaway; if the scan grows past its budget, test the cheap substring first (done) and skip the decode for nodes whose first byte cannot start a list.
-    location: >-
-      src/ocutalon/cls/OcuTalon/Test/Eval/KeyProof.cls (Holds, HoldsSubscript)
-    severity: medium (unverified)
-  - summary: >-
-      Test.Install.Retention failed twice because the two stock Ens purge tasks did not start inside the test's wait, in a run with a second IRIS stack beside it and once in the implement pass.
-    evidence: |-
-      The OcuTalon purge task's own assertions passed in every run and four other fresh runs of the same tree passed. Settle whether this change contributes by running the class on CI over several pushes (the DW-349 flake class) or on a throwaway beside a loaded machine with and without the diff.
-    location: >-
-      src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls
-    severity: medium (unverified)
 ---
 
 <intent-contract>
-
 ## Intent
 
-**Problem:** Epic 30 still owns eight ledger entries:
-- The 90-day purge leaves Turn, Delivery and Session rows behind, so a kept turn can read a purged decision (DW-437).
-- A replay interrupted by a crash stays `executing` forever (DW-444).
-- A replay that fails on the provider does not say why (DW-470).
-- `Bridge.Redact` misses two `key_like` shapes (DW-386).
-- The key proof misses a key inside a `$List` element (DW-448).
-- Approval row 13 flakes on slow runners (DW-462).
-- `IncidentManager.Purge` keeps its own copy of the day rule (DW-371).
+**Problem:** Epic 30 still owns thirteen ledger entries (re-opened 2026-11-08, SC-5, built now and merged after the 1.0.4 cut):
+- The 90-day purge leaves Turn, Delivery and Session rows behind, so a kept turn can read a purged decision (DW-437, owner decision U-210), and a purged session's other rows stay (DW-581).
+- A replay interrupted by a crash stays `executing` forever (DW-444), and the approval hold waiting on it is never ended (DW-582); an answer that outlives `TASKSECONDS` before its task exists leaves the hold on its 24-hour timer (DW-588).
+- A replay that fails because the provider or the tool's server cannot be reached, or because no key is set, does not say why (DW-470, owner decision U-214).
+- No test pins that a several-ref `cancel_reminder`'s IdempotencyKeys are each accepted once and refused on a repeat (DW-584, owner decision U-215).
+- Approval row 13 flakes on slow runners (DW-462); `Test.Install.Retention` failed twice when the stock purge tasks did not start inside its wait (DW-590, unverified).
+- `IncidentManager.Purge` keeps its own copy of the day rule (DW-371, Lane A half).
 - `list_productions` cannot say whether a production is running (DW-541).
+- `Test.Bridge.Gate`'s untrusted-turn row can no longer fail for `cancel_reminder` (DW-495).
+- The key proof's `$List` decode (Story 30.8) may slow the global scan on large databases (DW-589, unmeasured).
 
-**Approach:** One small, separable task per entry, in this priority order: DW-437, DW-386, DW-444, DW-470, DW-448, DW-462, DW-371, DW-541. Each task carries its own tests.
-- **Independent of 30.1.** Nothing here uses or assumes Story 30.1's code: compaction, `Bridge.Compaction`, `Decide.TimerFor`/`RequestLimit`, `Usage.FromEstimate`, the thinking smoke.
-- **Deferrable on its own.** The story lands in commits of its own, so the Contest Planner may move it after the rc1 tag if the forecast slips past 2026-11-03 18:00Z.
+**Approach:** One small, separable task per entry, each with its own tests, in this priority order: DW-437 (with DW-581), DW-444 with DW-582 and DW-588, DW-470, DW-584, DW-462, DW-590, DW-371, DW-541, DW-495, DW-589.
+- **Reuse the set-aside work.** `_bmad-output/implementation-artifacts/set-aside/30-7-epic-30-burn-down-1.patch` (story_base 58dbdd26, build 0fae3b72, implemented and self-reviewed on 2026-11-02) is reference material: its hunks for Data/Purge, Test/Data/Purge, Install/Step/Retention, Replay, Decide (ConcludeTool), Test/Bridge/Runner and Decide, Test/Bridge/Approval, Watch/Reader, Watch/IncidentManager, Tools/WatchAnswers, Tools/WatchTools, Test/Watch/Reader and Test/Watch/Tools applied cleanly on 2e78a4f7; its Bridge/Approval and Test/Install/Retention hunks conflict with later changes and are merged by hand; its Redact, Test/Bridge/Redact and Test/Eval/KeyProof hunks are void (Story 30.8 delivered DW-386 and DW-448). Its AD-27 spine bullet is written again by this story.
+- **Owner decisions (apply exactly):**
+  - **U-210** (at=2026-11-02T09:22:13Z#641, kept): keep the 90-day retention purge with two conditions. (1) A Session row is purged only when the session has no Turn, Delivery or Decision newer than the 90-day cut AND it is not a current session (signed in, or with an open approval request, watch or reminder); never by age alone. (2) The purge touches only OcuTalon's own tables: the IRIS audit log entries for approvals and actions are never purged by this story. One test for each condition, next to the TurnCost/ShownDecisionRef test. The AD-27 retention extension marker is fine.
+  - **U-214** (at=2026-11-02T13:19:05Z#650, kept with one condition): the failed row's sentence names what actually failed. If the replay path really needs the model provider (for example the AI Hub provider object or its key) and cannot reach it: "The model provider could not be reached, so the approved call did not run. Nothing was changed." If what is unreachable is the tool's own server (an MCP server or tool set): "The tool's server could not be reached, so the approved call did not run. Nothing was changed." The story's test names which endpoint it checks, and the wording follows it. The no-key case reuses U-170's no_key wording plus "Nothing was changed.".
+  - **U-215** (at=2026-11-02T13:19:05Z#651, kept): AD-1's wording is the as-built rule (the command's position in the turn), marked and linted by the lead on 2026-11-08, with no code change; the approved-call replay uses the stored commands, so positions are stable and exactly-once holds. One test that the several-ref `cancel_reminder`'s keys `:2`, `:3` and `:4` are each accepted once and refused on a repeat.
+- **Independent and separable.** The story lands in commits of its own; nothing here uses Epic 19's unmerged work.
 
 ## Boundaries & Constraints
 
 **Always:**
 - **Purge.** The host purge (`OcuTalon.Data.Purge`) uses the same `now`, and so the same cutoff (`Bridge.Time.DaysCutoff`), as `Bridge.Purge.Run` in one `Retention.Purge` call.
   - Turns go by `CreatedAt < cutoff`, deliveries by `RecordedAt < cutoff`.
-  - A Session row goes only when all of these hold:
-    - its `CreatedAt` is before the cutoff;
-    - no Turn, Delivery or Decision of it is at or after the cutoff;
-    - it is not current. Current means any one of: a live CSP session holding its Ref (signed in); a live Telegram pairing; a pending, approved or executing approval request; a BackgroundCheck row (watch); a pending reminder.
-  - The checks run again right before each delete.
-- **What the purge may touch.** Every delete names an `OcuTalon_Data` table. Nothing touches `%SYS`, an IRIS audit entry, a message or an AI session.
-- **Replay lock.** A replay holds `LOCK ^OcuTalon.Bridge.Replay(ref)` from before `StartExecution` until after `FinishExecution`, and releases it on every path.
-  - Reconcile closes an executing `tool_call` row only when it can take that lock at once (no live replay). It closes the row through `FinishExecution(ref, "interrupted")` and never re-runs the call (NFR-13).
+  - A Session row goes only when all of these hold: its `CreatedAt` is before the cutoff; no Turn, Delivery or Decision of it is at or after the cutoff; it is not current. Current means any one of: a live CSP session holding its Ref (signed in); a live Telegram pairing; a pending, approved or executing approval request; a BackgroundCheck row (watch); a pending reminder. The checks run again right before each delete.
+  - DW-581: when a session row goes, the rows keyed only by that session go in the same pass (its GuideState, SimMessage, finished Reminder and BreakFeedRun rows, and its ConversationLink, so the bridge's own purge then frees the AI sessions); Memory rows are not touched (Epic 19's `Memory.DropSession`). This is a retention change ruled by the runner as a veto item.
+- **What the purge may touch.** Every delete names an `OcuTalon_Data` table, or the bridge's ConversationLink through the bridge's own API. Nothing touches `%SYS`, an IRIS audit entry, a message or an AI session directly.
+- **Replay lock.** A replay holds `LOCK ^OcuTalon.Bridge.Replay(ref)` from before `StartExecution` until after `FinishExecution`, and releases it on every path. Reconcile closes an executing `tool_call` row only when it can take that lock at once (no live replay), through `FinishExecution(ref, "interrupted")`, never re-runs the call (NFR-13), and ends the hold that waits on it with that result (DW-582).
+- **Failure sentences.** Exactly the owner's U-214 strings and the no_key sentence; which one applies is decided from what the code observed (the step that failed), never from a guess; Task 0 measures on the slot or a throwaway which step needs which endpoint (bridge `BuildAgent`/`NewSession`: the provider; `ExecuteTool` of an MCP tool: the tool's server). A tool's own error after it ran is unchanged.
 - **Test data.** Fake secrets are built from fragments at runtime, so no committed file matches `key_like`.
 - **SQL.** Every new SQL checks `%SQLCODE`, so `docker/tests/test-class-rules.sh` stays green.
 - **Comments.** Comments state the contract only (Rule 14).
 - **Stored data.** No stored property is added, renamed or retyped, and no `Storage` block changes.
+- **Contended paths.** `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`, `Test/Bridge/Decide.cls` and `Test/Bridge/Gate.cls` are also changed by Epic 19 (unmerged): this story's hunks there are separate, self-contained hunks (new parameters, `ConcludeTool`, new test methods or one row) that the lead clears with the orchestrator before the implement stage.
 
 **Never:**
-- No edit to `Data/Session.cls`, `Test/Data/Session.cls`, `Bridge/Msg/Enum.cls`, `Test/Msg/Catalog.cls`, or any other contended path (dispatch list).
+- No edit to `Data/Session.cls`, `Test/Data/Session.cls`, `Bridge/Msg/Enum.cls`, `Test/Msg/Catalog.cls`, `Agent/Chat.cls`, Memory or Docs code, Settings (`Data/Setting`, `Core/SettingsOps`), `release/**`, `eval/run.sh`, or any other contended path.
 - No new catalog key, FallbackReason value or stored column.
-- No AD other than AD-27 is amended.
-- No purge of `%AI.Agent.Session`, ConversationLink, GuideState, SimMessage or Reminder rows.
-- No change to Lane B's `Test.Web.SessionEvents.ReferenceHits`, `Data.Pairing.Purge`, the web chip text, or `ci/mock/scenarios/B/`.
-- No real model key, and no destructive or purge run on slot B.
+- No AD other than AD-27 (and the lead's AD-1 marker) is amended.
+- No change to Lane B's `Test.Web.SessionEvents`, `Data.Pairing.Purge`, the web chip text, or `ci/mock/scenarios/B/`.
+- No new or changed user-facing string beyond the owner's U-214 strings without the lead's PUBLIC TEXT gate.
+- No real model key or bot, and no destructive or purge run on slot B (throwaways only).
 
 ## I/O & Edge-Case Matrix
 
@@ -90,16 +70,23 @@ deferred:
 | 7 | DW-437 cond. 2 | Approval and Action audit entries (via `Bridge.Audit.Record`) whose data names S1's Ref, written before the run | All still found in the IRIS audit log after the run, while S1's rows are gone |
 | 8 | DW-437 bad args | `daysToKeep` 0, "x", "" or 1.5; a malformed `now` | Error status naming `OcuTalon.Data.Purge.Run`; nothing deleted |
 | 9 | DW-437 task path | The Task Manager runs the OcuTalon purge task with DaysToKeep 60 (`Test.Install.Retention`) | The turn created 61 d ago is gone; the one created 59 d ago is kept |
-| 10 | DW-386 shapes | Each of: a `dop_v1_`+hex token; a PEM block, both with an END line and header-only; `sk-ant-...`; a Telegram token with a 10-digit and a 13-digit id. Each inside text and inside a JSON string | Each is replaced by `[redacted]` (a PEM block from BEGIN through its END line, or to the end of the text). A second pass changes nothing |
+| 10 | (void) | DW-386 was delivered by Story 30.8 | No row of this story |
 | 11 | DW-444 dead replay | An executing `tool_call` row and no job holds its replay lock. Run the Reconcile step | Row: `failed`, Result `interrupted`, `FinishedAt` set. `approval.result` fires. Approval audit `finished`/`interrupted`, plus an Action entry `interrupted`. No `tool` request is sent |
 | 12 | DW-444 live replay | Another job holds `^OcuTalon.Bridge.Replay(ref)`. Run Reconcile | Row stays executing; no event; no audit entry |
 | 13 | DW-444 fix row | An executing `fix` row | Untouched by this pass (`Fix.Run` owns it) |
-| 14 | DW-470 no key | Replay of an approved `tool_call` on a runner whose key is unset | Row `failed`. The kind-`tool` Decision row has FallbackReason `no_key` and Reasons = REPLAYNOKEY |
-| 15 | DW-470 unreachable | Replay with the provider unreachable (Task 0 measures how this fails) | By the Task 0 rule: Reasons = REPLAYUNREACHABLE, or measured evidence that the tool ran or that the failure text cannot be told apart |
+| 14 | DW-470 no key | Replay of an approved `tool_call` on a runner whose key is unset | Row `failed`. The kind-`tool` Decision row has FallbackReason `no_key` and Reasons = REPLAYNOKEY ("No model key is set, so the approved call did not run. Nothing was changed.") |
+| 15 | DW-470 provider unreachable (U-214) | Replay whose provider object cannot be built or reached (the step Task 0 measured as needing the model provider; the test names that endpoint) | Row `failed`; FallbackReason an existing value (the plan picks it from `Bridge.Msg.Enum`; no new value); Reasons = "The model provider could not be reached, so the approved call did not run. Nothing was changed." |
+| 15b | DW-470 tool server unreachable (U-214) | Replay of an approved MCP tool call whose server cannot be reached (the test names that server) | Row `failed`; Reasons = "The tool's server could not be reached, so the approved call did not run. Nothing was changed." |
 | 16 | DW-470 tool's own error | A tool that fails after it ran | Unchanged: FallbackReason `error`, no sentence |
-| 17 | DW-448 `$List` | Key planted as an 8-bit `$List` element, as a 16-bit element (with `$Char(8364)`), and in a nested list | `GlobalHits` counts each |
+| 17 | (void) | DW-448 was delivered by Story 30.8 | No row of this story |
 | 18 | DW-462 | Row 13, with Workflow item re-enable taking any time | Deterministic: the poll completes a task that appears inside the window; a late real task is healed by Reconcile; exactly one approved outcome |
 | 19 | DW-541 | `list_productions` with Orders running, then cleanly stopped | Each production carries `state` (`running`, `stopped`, …) from `GetProductionStatus`'s code |
+| 20 | DW-582 hold of an interrupted replay | An executing `tool_call` row whose hold waits on the replay result; Reconcile closes it interrupted | The hold ends with the interrupted result once; no second outcome |
+| 21 | DW-588 late task | An answer that outlives `TASKSECONDS` before its task exists | The hold is answered (not left on its 24-hour timer); exactly one outcome |
+| 22 | DW-584 (U-215) | A several-ref `cancel_reminder` from one tool call submits keys `<ItemId>:2`, `:3`, `:4`; each is re-submitted | Each key accepted once; each repeat refused (no second effect) |
+| 23 | DW-581 | A purged session with GuideState, SimMessage, a finished Reminder, a BreakFeedRun and a ConversationLink | All go with the session; a kept session's rows stay; Memory rows untouched |
+| 24 | DW-495 | `Test.Bridge.Gate` untrusted-turn row for `cancel_reminder` | Sends a valid `reminderRefs` shape so the "its method did not run" check can fail |
+| 25 | DW-590 / DW-589 | Retention test wait; key-proof scan time | Deterministic wait on the stock tasks (or measured evidence); scan timed before/after on a throwaway and closed with the numbers |
 
 </intent-contract>
 
@@ -251,6 +238,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
 - Given the Chat agent calls `list_productions`, when Orders is stopped, then its entry's state is `stopped`, built from IRIS's status code and no other field (DW-541).
 
 ## Spec Change Log
+
+- 2026-11-08 (lead, SC-5 re-open, runner B): the set-aside patch did not apply on 2e78a4f7 (`git apply --3way` exit 1: Bridge/Approval, Test/Install/Retention, Redact, Test/Bridge/Redact, Test/Eval/KeyProof and the spine conflicted), so per doctrine U4 the story is re-planned (status draft, review_loop_iteration 0) with the patch kept as reference. The intent now carries the owner decisions U-210, U-214 and U-215, drops DW-386 and DW-448 (Story 30.8), and adds DW-495, DW-581, DW-582, DW-584, DW-588, DW-589 and DW-590; the deferred: list was removed (already harvested as DW-588 to DW-590). The I/O matrix rows 10 and 17 are void (30.8), and row 15 follows U-214.
 
 - 2026-11-02 (lead, set-aside): DEFERRED by the Contest Planner (reserve lever d1) to after the v1.0.0 tag, first daily release. The implemented and self-reviewed work (finalize commit 0fae3b72) was taken out of the tree by a forward set-aside commit and saved as `_bmad-output/implementation-artifacts/set-aside/30-7-epic-30-burn-down-1.patch` (the source diff from story_base 58dbdd26 plus the AD-27 U-210 spine bullet). Pick-up (doctrine U4): apply the patch with `git apply --3way`, commit, set this spec `in-review` with `baseline_revision` = the commit before the pick-up, then QA and code review. The frontmatter `deferred:` items are harvested to the ledger (owner 30.7). Not yet code-reviewed or QA'd.
 
