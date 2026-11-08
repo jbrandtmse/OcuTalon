@@ -15,10 +15,13 @@ no network call and holds no user-facing text: the page marker comes in as an ar
 
 The text it returns is Markdown-shaped: the page marker lines of a PDF and the Heading 1 lines of a .docx
 are the only lines that start with "## "; a line of the file's own text that starts with "## " is written "\\## ".
-While a PDF is read, every Flate decoding of pdfminer.six asks zlib for at most the unpacked bytes that are left of
-max_unpacked, so a decompression bomb is refused as contents_too_large instead of filling the worker.
+While a PDF is read, every Flate, LZW, RunLength and CCITT fax decoding of pdfminer.six counts its output against
+max_unpacked before it keeps it (Flate asks zlib for at most the bytes that are left), and once the budget is passed every
+later decoding of the read is refused too, so a decompression bomb is refused as contents_too_large instead of filling the
+worker. ASCII85 and ASCIIHex output is at most four times the file's bytes and is not counted.
 """
 
+import contextlib
 import re
 import zipfile
 import zlib
@@ -44,10 +47,11 @@ class _TooLarge(Exception):
 
 
 class _BoundedZlib:
-    """A stand-in for the zlib module of pdfminer.pdftypes for one read.
+    """A stand-in for the zlib module of pdfminer.pdftypes for one read, and the budget of its other decoders.
 
     It offers what that module uses (decompress, decompressobj, error, MAX_WBITS). Every call asks zlib for at most the
-    bytes that are left of the budget plus one, and raises _TooLarge once the budget is passed.
+    bytes that are left of the budget plus one; the LZW, RunLength and CCITT fax decoders count their output before they
+    keep it. A call past the budget raises _TooLarge, and so does every later call, also when a caller swallowed the first.
     """
 
     error = zlib.error
@@ -56,22 +60,75 @@ class _BoundedZlib:
     def __init__(self, budget):
         self.left = budget
 
+    def room(self):
+        """The most bytes the next call may produce: what is left plus the one byte that proves an excess."""
+        if self.left < 0:
+            raise _TooLarge()
+        return self.left + 1
+
     def spend(self, count):
         self.left -= count
         if self.left < 0:
             raise _TooLarge()
 
     def decompress(self, data, wbits=zlib.MAX_WBITS, bufsize=16384):
-        """Like zlib.decompress: the whole stream, or zlib.error for a bad or truncated one."""
+        """Like zlib.decompress: the whole stream, or zlib.error for a bad or truncated one (then nothing is counted, as
+        pdfminer reads the same data again through its fallback, which counts it)."""
         stream = zlib.decompressobj(wbits)
-        out = stream.decompress(data, self.left + 1)
-        self.spend(len(out))
-        if not stream.eof:
+        out = stream.decompress(data, self.room())
+        if not stream.eof and len(out) <= self.left:
             raise zlib.error("Error -5 while decompressing data: incomplete or truncated stream")
+        self.spend(len(out))
         return out
 
     def decompressobj(self, wbits=zlib.MAX_WBITS, zdict=b""):
         return _BoundedObject(self, wbits, zdict)
+
+    def lzwdecode(self, data):
+        """Like pdfminer's lzwdecode, each decoded piece counted before it is kept."""
+        from io import BytesIO
+        from pdfminer.lzw import LZWDecoder
+
+        pieces = []
+        for piece in LZWDecoder(BytesIO(data)).run():
+            self.spend(len(piece))
+            pieces.append(piece)
+        return b"".join(pieces)
+
+    def rldecode(self, data):
+        """Like pdfminer's rldecode, once the length it decodes to is counted."""
+        from pdfminer.runlength import rldecode
+
+        self.room()
+        total = 0
+        at = 0
+        while at < len(data) and data[at] != 128:
+            if data[at] < 128:
+                total += data[at] + 1
+                at += data[at] + 2
+            else:
+                total += 257 - data[at]
+                at += 2
+        self.spend(total)
+        return rldecode(data)
+
+    def ccittfaxdecode(self, data, params):
+        """Like pdfminer's ccittfaxdecode, each decoded row counted before it is kept."""
+        import pdfminer.ccitt as ccitt
+
+        owner = self
+        base = ccitt.CCITTFaxDecoder
+
+        class _Rows(base):
+            def output_line(self, y, bits):
+                owner.spend((len(bits) + 7) // 8)
+                base.output_line(self, y, bits)
+
+        ccitt.CCITTFaxDecoder = _Rows
+        try:
+            return ccitt.ccittfaxdecode(data, params)
+        finally:
+            ccitt.CCITTFaxDecoder = base
 
 
 class _BoundedObject:
@@ -82,7 +139,7 @@ class _BoundedObject:
         self._inner = zlib.decompressobj(wbits, zdict) if zdict else zlib.decompressobj(wbits)
 
     def decompress(self, data, max_length=0):
-        limit = self._owner.left + 1
+        limit = self._owner.room()
         if max_length:
             limit = min(limit, max_length)
         out = self._inner.decompress(data, limit)
@@ -91,6 +148,26 @@ class _BoundedObject:
 
     def __getattr__(self, name):
         return getattr(self._inner, name)
+
+
+BOUNDED_DECODERS = ("zlib", "lzwdecode", "rldecode", "ccittfaxdecode")
+
+
+@contextlib.contextmanager
+def _bounded_decoding(pdftypes, budget):
+    """For one read, the decoders that pdfminer.pdftypes uses (BOUNDED_DECODERS) are those of a _BoundedZlib of the
+    budget, which is yielded; the module's own are put back afterwards, whatever happened."""
+    bounded = _BoundedZlib(budget)
+    saved = {name: getattr(pdftypes, name) for name in BOUNDED_DECODERS}
+    pdftypes.zlib = bounded
+    pdftypes.lzwdecode = bounded.lzwdecode
+    pdftypes.rldecode = bounded.rldecode
+    pdftypes.ccittfaxdecode = bounded.ccittfaxdecode
+    try:
+        yield bounded
+    finally:
+        for name, value in saved.items():
+            setattr(pdftypes, name, value)
 
 
 def _fail(reason, detail=""):
@@ -119,10 +196,8 @@ def _read_pdf(path, limit, max_unpacked, page_marker):
     parts = []
     size = 0
     cut = False
-    original = pdftypes.zlib
-    pdftypes.zlib = _BoundedZlib(max_unpacked)
     try:
-        with pdfplumber.open(path) as pdf:
+        with _bounded_decoding(pdftypes, max_unpacked), pdfplumber.open(path) as pdf:
             for number, page in enumerate(pdf.pages, 1):
                 text = _escape((page.extract_text() or "").strip())
                 if not text:
@@ -134,18 +209,16 @@ def _read_pdf(path, limit, max_unpacked, page_marker):
                     cut = True
                     break
     except _TooLarge:
-        return _fail("contents_too_large", "a Flate stream inflates past %d bytes" % max_unpacked)
+        return _fail("contents_too_large", "the streams decode past %d bytes" % max_unpacked)
     except PdfminerException as error:
         wrapped = error.args[0] if error.args else error
         if isinstance(wrapped, _TooLarge):
-            return _fail("contents_too_large", "a Flate stream inflates past %d bytes" % max_unpacked)
+            return _fail("contents_too_large", "the streams decode past %d bytes" % max_unpacked)
         if isinstance(wrapped, PDFEncryptionError):
             return _fail("encrypted", type(wrapped).__name__)
         return _fail("damaged", "%s: %s" % (type(wrapped).__name__, wrapped))
     except (MalformedPDFException, PSException) as error:
         return _fail("damaged", "%s: %s" % (type(error).__name__, error))
-    finally:
-        pdftypes.zlib = original
     return _finish(parts, limit, cut, "page")
 
 
@@ -177,15 +250,17 @@ def _blocks(element, parent):
 
 
 def _runs_text(element, paragraph):
-    """The text of the runs of a paragraph, of its hyperlinks and of its inline content controls (nested ones too), in order; a text box is not read."""
+    """The text of the runs of a paragraph, of its hyperlinks, tracked insertions, simple fields, smart tags and custom XML, and of its inline content
+    controls (nested ones too), in order; a text box and a tracked deletion are not read."""
     from docx.oxml.ns import qn
     from docx.text.run import Run
 
+    wrappers = (qn("w:hyperlink"), qn("w:ins"), qn("w:fldSimple"), qn("w:smartTag"), qn("w:customXml"))
     out = []
     for child in element.iterchildren():
         if child.tag == qn("w:r"):
             out.append(Run(child, paragraph).text)
-        elif child.tag == qn("w:hyperlink"):
+        elif child.tag in wrappers:
             out.append(_runs_text(child, paragraph))
         elif child.tag == qn("w:sdt"):
             content = child.find(qn("w:sdtContent"))
@@ -294,7 +369,7 @@ def extract(path, limit, max_unpacked, page_marker):
 
     limit is the most characters of text kept (the text is cut at the last line break at or before it, and the
     reading stops once over it). max_unpacked is the most bytes a .docx may declare in all its zip entries, and the
-    most bytes that all Flate streams of a PDF may inflate to.
+    most bytes that all Flate, LZW, RunLength and CCITT fax streams of a PDF may decode to.
     page_marker is a format string with {n} for the page number.
     """
     with open(path, "rb") as stream:

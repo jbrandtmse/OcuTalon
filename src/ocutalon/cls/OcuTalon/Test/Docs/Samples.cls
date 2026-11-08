@@ -16,7 +16,8 @@
 ///     as a Word file (a Title, two Heading 1 sections and a table), for the documents tests of Story 19.7; PdfHashLine(), DocxHashLine(): own lines that start
 ///     with two number signs and a space (DW-832); DocxContentControls(), DocxOnlyControls(): body-level and inline content controls, a nested table and a
 ///     text box, and a file of content controls alone (DW-831); PdfBomb(): one Flate content stream of about 1 MB that inflates to about 165 MB (DW-828);
-///     DocxHyperlinks(): a paragraph and a table cell with a hyperlink; PdfFlate(), PdfFlateTruncated(): a one-page PDF whose content stream is zlib data (stored
+///     DocxHyperlinks(): a paragraph and a table cell with a hyperlink; DocxTracked(): a paragraph with a tracked insertion and deletion, a simple field, a smart
+///     tag and custom XML (DW-926); PdfFlate(), PdfFlateTruncated(): a one-page PDF whose content stream is zlib data (stored
 ///     block), whole and without its Adler-32 (FlateStored builds the data);
 ///   - Ole(name): the OLE2 signature followed by the UTF-16LE stream name, as a legacy .doc (WordDocument), an encrypted .docx (EncryptedPackage) or neither;
 ///   - Junk(prefix), Padded(size), Empty(): a prefix and filler, a file of exactly size bytes of filler, and no bytes.
@@ -598,6 +599,24 @@ ClassMethod DocxHyperlinks() As %Stream.TmpBinary
 ClassMethod ExpectedDocxHyperlinks() As %String
 {
 	Quit "See the linked words now" _ $Char(10, 10) _ "See the linked words now | Side"
+}
+
+/// A Word file with one paragraph whose words sit in a tracked insertion, a simple field, a smart tag and custom XML, beside a tracked deletion, and a table
+/// cell with the same paragraph (DW-926).
+ClassMethod DocxTracked() As %Stream.TmpBinary
+{
+	Set run = "<w:r><w:t xml:space=""preserve"">{t}</w:t></w:r>"
+	Set para = "<w:p>" _ $Replace(run, "{t}", "Plain ") _ "<w:ins w:id=""1"" w:author=""a"" w:date=""2026-01-01T00:00:00Z"">" _ $Replace(run, "{t}", "inserted ") _ "</w:ins>"
+	Set para = para _ "<w:del w:id=""2"" w:author=""a"" w:date=""2026-01-01T00:00:00Z""><w:r><w:delText>deleted </w:delText></w:r></w:del>"
+	Set para = para _ "<w:fldSimple w:instr="" PAGE "">" _ $Replace(run, "{t}", "7 ") _ "</w:fldSimple><w:smartTag w:uri=""urn:x"" w:element=""place"">" _ $Replace(run, "{t}", "tagged ") _ "</w:smartTag>"
+	Set para = para _ "<w:customXml w:element=""part"">" _ $Replace(run, "{t}", "custom") _ "</w:customXml></w:p>"
+	Quit ..Docx(para _ ..Row(para, ..Paragraph("Side")))
+}
+
+/// The text of DocxTracked as the extraction returns it: the inserted, field, smart tag and custom XML words are read, the deleted word is not.
+ClassMethod ExpectedDocxTracked() As %String
+{
+	Quit "Plain inserted 7 tagged custom" _ $Char(10, 10) _ "Plain inserted 7 tagged custom | Side"
 }
 
 /// The bytes of a string of 0 and 1 characters, 8 to a byte, the first of each eight being the lowest bit (deflate's bit order).

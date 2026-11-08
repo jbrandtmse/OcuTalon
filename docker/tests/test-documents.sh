@@ -3,7 +3,7 @@
 # account in, and drives the REAL routes /v1/documents over HTTP, the way the page does, so that CommandsIn, DocumentOps, the Embedder worker and OcuTalonKB.Docs
 # are all real (no double, no page.route):
 #   1. the texts that Story 19.4's rulings fix are in the files that ship them (docs/bridge-guide.md, docs/security-overview.md), and the texts that DW-719's
-#      owner ruling fixes (Story 19.7: two lines of EXPERIENCE.md), word for word;
+#      owner ruling fixes (Story 19.7: two lines of EXPERIENCE.md and the UX-DR144 wording of epics.md), word for word;
 #   2. POST /v1/documents with a Markdown runbook ({name, content} with the bytes in base64) answers 200 {"result":"done","ref"}; the list shows the document
 #      ready within 120 s; OcuTalon.Test.Docs.Live (TestFound) finds its passages, with their document and section, in OcuTalonKB.Docs, and a search through AI Hub's
 #      knowledge base returns the passage of the certificate first with a score over the floor;
@@ -190,6 +190,8 @@ fi
 EXPERIENCE="$root/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md"
 ADDING='- **Adding:** an **Add documents** button (a file picker, with drag-and-drop as a second way), accepting Markdown, plain text, PDF and Word (.docx) files.'
 OWNERSHIP='- On a local install, memories belong to each user and documents are shared by every user of the install (P23).'
+EPICS="$root/_bmad-output/planning-artifacts/epics.md"
+UXDR144='(picker or drag-and-drop; Markdown, plain text, PDF and Word (.docx) files)'
 if [ "$(grep -cF -- "$ADDING" "$EXPERIENCE")" = 1 ]; then
   pass "EXPERIENCE.md holds DW-719's Adding line once, word for word"
 else
@@ -199,6 +201,11 @@ if [ "$(grep -cF -- "$OWNERSHIP" "$EXPERIENCE")" = 1 ]; then
   pass "EXPERIENCE.md holds DW-719's local-install ownership line once, word for word"
 else
   fail "EXPERIENCE.md does not hold DW-719's local-install ownership line exactly once"
+fi
+if [ "$(grep -cF -- "$UXDR144" "$EPICS")" = 1 ]; then
+  pass "epics.md holds DW-719's UX-DR144 wording once, word for word"
+else
+  fail "epics.md does not hold DW-719's UX-DR144 wording exactly once"
 fi
 tracked=$(cd "$root" && git ls-files 2> /dev/null)
 if [ -z "$tracked" ]; then

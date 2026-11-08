@@ -89,7 +89,7 @@ ClassMethod Read(content As %Stream.Object, contentType As %String, timeout As %
 				Set answer = ..Fail("timed_out", "Another read of a file held the extraction for " _ timeout _ " seconds")
 			} Else {
 				Set locked = 1
-				Set left = timeout - ($ZHorolog - began)
+				Set left = (timeout - ($ZHorolog - began)) \ 1
 				If left < 1 Set left = 1
 				Do ..Purge()
 				Set folder = ..Folder()

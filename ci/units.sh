@@ -216,6 +216,7 @@ group_input_pattern() {
   for u in $units; do
     case $u in
       live:sign-in-2) pattern="$pattern|docker/tests/test-sign-in-2"'\.sh$'"|docker/tests/test-sign-in"'\.sh$' ;;
+      live:documents) pattern="$pattern|docker/tests/test-documents"'\.sh$'"|_bmad-output/planning-artifacts/epics"'\.md$' ;;
       live:*) pattern="$pattern|docker/tests/test-${u#live:}"'\.sh$' ;;
     esac
   done
