@@ -305,6 +305,8 @@ Write the five groups' results (G1 to G5) into `### Investigation result` before
 
 ## Spec Change Log
 
+- 2026-11-08 (lead, Task 0): `### Investigation result` filled for G1 to G5. G1 cause (AssertRefused wait), G3 cause (close during the 401 exit to the splash), G4 cause (the post-release part of TestTimeLeft's bound), G5 race not shown (DW-966 to be declined at adjudication), G2 product (`Install.Step.Production.NotRunning()` reads only the runtime flag): G2 stopped and reported to the Planner before any fix (PLANNER REPORT); its branch waits for the ruling.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -357,19 +359,88 @@ Nothing is declined at plan time.
 ### Investigation result
 
 #### G1 (DW-211)
-_(lead, Task 0)_
+_(lead, Task 0, 2026-11-08 20:00Z to about 20:15Z; timebox to 21:30:52Z)_
+
+**Result: cause: AssertRefused's poll ends on the first instant the three conditions hold, but Ens starts the refused item once more after that (a deferred UpdateProduction), and the re-reads catch that second refused start alive.**
+- 3 occurrences, each attempt 1 and green on rerun: 40209749982 (ci-13, class 35.93 s, only "not running" failed); 42454441383 job 128650353188 (ci-18, 41.96 s, "no alive job" and "not running"); new, 42461088729 job 128670335503 (`1cb64cdf`, ci-5, 41.58 s, only "no alive job").
+- The wait did not time out. In 34 passing Runners runs (failed shard jobs) the class took 35.81-46.27 s, and every failed run took under 46 s. A missed 120 s poll takes at least 120 s, so the poll read `settled` = true and the next reads differed. The ledger's "past WAITSECONDS" is wrong.
+- (a) A new start. The event-log assertion and `refused '= before` passed in all 3. The 3 patterns are one transient job caught at different points between the two reads: it registers Alive, it is Alive, then it ends.
+- (b) Not logged: there is no StateOf in the messages, and the logs do not say whether line 258 or 270 failed. From Ens source: during OnInit the job is State Alive with a status outside DEADSTATUSES, and its interim `X` row is State Starting.
+- (c) Yes, Ens does. `findProductionDifferences` starts any enabled item that has fewer jobs than its pool. An update that finds a changed checksum (SDS rows feed `ModifiedSettings`) sets `pToUpdateScheduler`, which sends an async request to Ens.ScheduleHandler (auto-added), and that handler runs one more UpdateProduction. Which call started the job in CI is not measured: no event log was kept. (inference) It is this deferred update. No product code updates the production on this path.
+- (d) Yes, the refused job ends. The adapter's OnInit returns the error, and `Ens.Job` Start goes to Exit (LOGERROR, a Dead ghost row, UnRegister). So this is not `product:`.
+- Fix (A1, wait lines of `AssertRefused` only; WAITSECONDS, the assertions and the messages unchanged): `settled` also needs (1) no Ens.Job row of the item in State Starting or Alive; (2) Ens.ScheduleHandler idle (queue empty, no active message, e.g. `RunnerFixture.Idle`); (3) all of this on 2 polls in a row. Plus D1.
+- Proof injection (throwaway scratch, reverted): when the poll first sees the three conditions, call `Ens.ScheduleService.CallScheduleService()`, then wait up to 10 s for an Alive job of the item. Old code: red (inference: every run). Fix: it settles after the second start ends. Plain load gives a window of only milliseconds (inference).
+- Note: `gh run view --job` returned attempt 2's log. Use `gh api .../jobs/<id>/logs`.
 
 #### G2 (DW-639)
-_(lead, Task 0)_
+_(lead, Task 0, 2026-11-08 20:00Z to about 20:15Z; timebox to 21:30:52Z)_
+
+**Result: product: `NotRunning()` reads only Ens's runtime flag, so it names TelegramIn, whose SDS row 0 makes its effective Enabled 0**
+- Runs (lane-b, image): 42442077870 attempts 1 and 2 (the rerun was red too) and 42475836390. Each gives one FAIL: `TelegramIn row 0, runtime flag 1, jobs none`. Run 42353010024 predates 39.10 and names no item.
+- Order: classes run alphabetically, and Heartbeat is the 81st. The other runs differ by 1-4 classes, none of them Telegram classes. The failing method runs first in its class (`%UnitTest.Manager` 1340-1365), right after `OnBeforeAllTests`, whose `UpdateProduction(60)` and `WaitAllRun` (`NotRunningNow`) succeeded.
+- (c) Yes. Ens takes effective Enabled from the SDS row when one exists (`Director` `getProductionItems` ~1084, `EnableConfigItem` 1572-1580, `Item.Checksum`). Row 0 means the item is not meant to run. `NotRunning()` (154-177) checks only `$$$ConfigIsEnabled`, while `Runners` in the same file honours the row. `TelegramParked` pins this divergence (DW-591).
+- (d) Not a transient (inference from code). Ens writes `IsEnabled` and `Checksum` only when it registers an item (Director 1347-1348). An update with an unchanged checksum and job count leaves the item alone. The state survived the successful update just before the read, so B2's poll would not clear it (Design Note 4 agrees).
+- (a) No lane-b class before Heartbeat writes the flag. Its writers are `TelegramParked` (lane-a) and `DocumentsApi` (after Heartbeat, its own item). Only `PersonaAnswers` (LiveCase `Enable`/`Disable`) and the stack-start park toggle TelegramIn. Both restore row 0 and wait until there is no job; neither touches the flag. How Ens comes to hold flag 1 with a row-0 checksum is unmeasured (inference: a row write inside another update).
+- (b) The order is fixed, so the cause is timing (inference). Durations show no signal: PersonaAnswers took 20.75-21.45 s red and 20.94-21.07 s green.
+- Options for the Planner:
+  1. Product fix in Epic 19's `Install/Step/Production.cls`: `NotRunning()` skips items whose Enabled row is 0.
+  2. Test-side check-line change at `Heartbeat.cls:612`: read `RunnerFixture.NotRunningNow` (the DW-591 sibling) and keep the message at 613. `Restore` (180) is exposed the same way. This is a check-line change, not a wait line, so it is the Planner's call.
+- Proof injection: on a parked stack, set `$$$ConfigIsEnabled("TelegramIn")=1` before the read. The old check goes red; `NotRunningNow` stays green.
 
 #### G3 (DW-774, page.close)
-_(lead, Task 0)_
+_(lead, Task 0, 2026-11-08 20:00Z to about 20:15Z; timebox to 21:30:52Z)_
+
+**Result: cause: the test closes the page while the page's own 401 exit to the splash is in flight; the group sign-out just before starts that exit, and Chromium does not act on that close (inference for the mechanism)**
+
+- Read: 4 failed jobs (L6 on ci-d 15 and 17 and on ci-b 5; L5 on ci-c 12), with units of 454-508 s. The 2 ci-d traces were read in place. The older runs kept none.
+- (a) Yes. In both traces `Page.close` (`leave.spec.ts:367`, after `signOutGroup` at 366) has a `before` and no `after`.
+- The timeline from the start of the sign-out GET, trace 1 / trace 2, in ms:
+  - the page's `/events` poll gets a 401: +5 / +19;
+  - the page requests the splash document: +15 / +31;
+  - `Page.close` is sent: +39 / +37;
+  - the splash's first subresource: +45 / +51.
+  - So the close is sent inside the navigation in 2 of 2 traces.
+- (b) Not measurable: the trace ends before the teardown. `Close context` took 11 ms with no error.
+- (c) The close waits only on `closedPromise`, which `Target.detachedFromTarget` resolves. Before `Target.closeTarget` it waits only on coverage and screencast clients, and this config has neither.
+  - No handler: there is no `dialog` event, and the app adds `beforeunload` only on the settings page.
+  - At +30 s the target was alive: a fresh CDP session answered in 23 ms. So `Target.closeTarget` was not acted on, and the cause is not a lost `targetDestroyed`.
+- (d) Both lines close a page whose CSP session a group sign-out has just ended. Its next poll (1 s delay) gets a 401, and the page leaves with `location.replace`. L6: the test's own `signOutGroup`. L5: the first page's `IRISLogout=end` ends the session of `second` too, since the two share cookies (inference: no L5 trace).
+- Fix (A, test only): close only a page that has settled.
+  - L6: close before `signOutGroup`, or first wait for the `Sign in and start` button and `waitForLoadState('load')`.
+  - L5: the same wait on `second` before it closes.
+  - Not `landedOnSplash`: it asserts the plain address, which was not measured for a 401 exit.
+  - No bound changes.
+- Proof: hold the splash document with a route for about 2 s after the 401, and close inside that hold. The old code should go red, and the fix should pass 20 of 20 under load. If the hold does not reproduce the stall, the result falls back to `none_in_timebox` and B3.
+- B3 is sound by the code. A second `page.close()` sends nothing and only awaits `closedPromise`. A `Target.closeTarget` re-sent from a browser session settles the first close once the target detaches.
 
 #### G4 (DW-973)
-_(lead, Task 0)_
+_(lead, Task 0, 2026-11-08 20:00Z to about 20:15Z; timebox to 21:30:52Z)_
+
+**Result: cause: `< 15` leaves about 10 s after the 5 s hold for the 1 s wait plus the stop of the busy worker. 19.6 measured that stop at 6 to 10 s loaded (2.3 s quiet); sibling `Test.Docs.Extract` TestTimeLimit (same path, timeout 1) bounds it at 20 s.**
+
+- (c) The answer was right: each miss has one `FAIL`, the elapsed line (15.89, 15.16). `0|timed_out` passed, since `class_script` prints only failed asserts. Class times were 47.60 s and 46.90 s, inside the green range of 44.85 to 49.96 s (5 runs), so nothing hung.
+- Load: 26 and 23 self-hosted jobs ran at the misses (9 and 5 on the host of the miss), against 18 at the 3 green runs read in the same window.
+- (a) The CI message has no split. From the code, the lock part is about 5.0 s: `HoldLock` releases 5 s after `held`, and `began` comes after `held` is seen. That leaves about 10.2 s and 10.9 s after the release (inference).
+- (b) `left` = 1, and `Submit` honours it with `WaitOne(left)`, which returns at 1.00 s (19.6 M3). Then `Clear(0)` runs: per irislib `AbstractWorkMgr`, a `DeleteGroup` with timeout 0 that stops the worker busy in Python, then a new `CreateWorkers`. `Kill queue` runs a second `DeleteGroup` (`DeleteTimeout` 1), then come `ReleaseGroupLocks` and the file delete. Measured in 19.6: `Clear(0)` takes 1.3 s quiet, and the stop takes 6 to 10 s from the call at load average 8 to 13. The worker start and the import are inside the 1 s wait. The source of `%SYS.WorkQueueMgr` is not in irislib.
+- Not product: `Read` and `Submit` honour `left`, and the cleanup is AD-21's chosen stop. The 15 s is a test bound added in 19.7's review (DW-928), not a product target. The AC is pinned by the `timed_out` assert: with `timeout` in place of `left`, that assert goes red, not the bound.
+- Fix (A4, `TestTimeLeft` timing lines only): take the split from the holder's `end` node (the D4 message). Keep `elapsed > 4` and keep the lock part `< 15`. Bound the part after the release at `< 20`, TestTimeLimit's bound for the same 1 s Submit and stop. Evidence: the two misses above (answer right, more load) and 19.6's loaded stop of 6 to 10 s.
+- Mutation: `Hang 21` after `ReadSample`, in a scratch copy, turns the new bound red.
+- Decided here: the split on CI is an inference. The AC6 proof must show it in D4's message under load. If the lock part is the late part, G4 falls back to B4.
 
 #### G5 (DW-966, measurement)
-_(lead, Task 0)_
+_(lead, Task 0, 2026-11-08 20:00Z to about 20:15Z; timebox to 21:30:52Z)_
+
+**Result: race not shown: with a phone Delivery row forced first, both tests read the one web row and passed; DW-966 is declined, no change.**
+
+- Setup: old code (HEAD), one lane A warm throwaway. A scratch edit put `Fixture.Delivery(session, {"Channel": "phone"})` before `Start` in both tests (in `TestAllClearIsGuarded`, the session is made first and passed to `Start`). It also recorded the Delivery rows before the wait, after `WaitDeliveries` and after `Quiet`. The file was restored byte-identical (`cmp` OK; `git status --short` and `git diff --stat` the same as before).
+- Run: `class OcuTalon.Test.Checks.BeatOutcomes`, the whole class, because `class` cannot run one method yet. Passed in 28.29 s with no FAIL or SKIP line.
+- Rows in ID order, the same for both tests: the forced phone row, then the product's own phone `tellnow` row, then the web `tellnow` row, all in the same second.
+- `WaitDeliveries` returned after 0.024 s (`TestAllClearIsGuarded`) and 0.0004 s (`TestTellNow`). The web row was already there before the wait (3 rows, 1 web). `Quiet` took 4.01 s in each test, and the rows did not change during it.
+- Asserted after the wait, all of it green:
+  - `TestTellNow`: exactly 1 web row, `web|tellnow`, and its text is `notice.tellNow` with the beat's subject and the first reason;
+  - `TestAllClearIsGuarded`: exactly 1 web row, with no "everything is fine", and its text is `notice.tellNow` with the second reason.
+- Finding: the product records its own phone row before the web row even without the forced row. So the wait already returns on a non-web row in every run, and forcing one changes nothing. What keeps the web count correct is `Quiet` (the decision at OutcomeRouter, plus `QUIETWAIT` 4 s), and here the web row came well inside it.
+- Not measured: what happens under CI load. If the web row ever came more than 4 s after OutcomeRouter, the red would come from `Quiet`'s bound, not from the order of the rows.
 
 ## Verification
 
