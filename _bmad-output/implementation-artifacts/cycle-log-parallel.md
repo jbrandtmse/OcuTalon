@@ -2796,3 +2796,5 @@
 2026-11-08T12:37:44Z	Epic 7	runner_dispatched	runner=adc7a70fe743ed3a5 effort=high lane=A(throwaways_only) story=7.11_DW-675(test-only;merges_to_feature_FIRST)
 2026-11-08T12:38:27Z	Epic 18	ci_red_classified	sha=90360113 run=42475836390 job=iris(image) class=flake test=Test.Schedule.Heartbeat_TestAfterAllTestsNothingSaved(TelegramIn_jobs_none) ledger=DW-639 action=rerun_failed(orchestrator;runner_in_CI_WAIT)
 2026-11-08T12:38:27Z	Epic 41	ci_green_verified	head=4beea3c2 result=success(after_infra_rerun) note=41.2
+2026-11-08T12:56:41Z	Epic 5	runner_clarification	kind=PLANNER_REPORT agent=a791fb7a9d55ae432 story=5.15(spec_gate_passed;no_user-facing_strings;~2.5h>2h) head=25a45375(local) design=IncidentManager.Apply_sends_Checks.Msg.CheckNow_on_resolve(finished)/rejected/expired;Checks.Now_runs_in-scope_watches_via_existing_Run/Record(keep_NextDueAt) new=DW-957(dismiss/closeQuiet_gap)
+2026-11-08T12:56:41Z	Epic 5	ruling	question=5.15_Watch/IncidentManager.cls_vs_Epic_30_30.7(Purge_L1288-1320) choice=plain_union(5.15_edits_~L1132;separate_hunks;second_merger) category=decide policy=5086036
