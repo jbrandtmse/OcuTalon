@@ -5551,3 +5551,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Data/DailyNote.cls Literal vs Data/Ownership.cls Rows lines 856-857; a new owner literal in Rows would make Build throw (500) instead of answering empty; Rows still refuses, so nothing leaks
 - 2026-11-08T13:31:39Z status=wontfix-accepted owner=41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t by=cr note=reopen_if=Ownership.Rows gains an owner literal beyond instance/eval, or Ownership.cls leaves the contended list
+
+### DW-967: A person's first turn of the day that ends in a fallback (no_key, daily_cap, budget, too_large, or a failed Chat request) still counts as the day's first turn, so Conversation.StartsSession marks no later turn that day as a session start and that day's notes never reach a model
+- source: spec-41-4-the-notes-and-your-answers-reach-the-model.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Core/Conversation.cls StartsSession (~line 443) counts every earlier non-refused Turn of the local day; a pre-runner fallback sends no model request
+- 2026-11-08T15:15:04Z status=routed owner=burndown by=harvest note=Contest Planner ruling 2026-11-08: to Epic 41's burn-down (Lane B fix in Conversation: count only turns whose request reached a model) and onto Epic 41's retro list
