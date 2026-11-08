@@ -1,0 +1,21 @@
+{
+  "name": "documents-none-only",
+  "match": {
+    "marker": "documents-none-only"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "documents",
+        "input": {
+          "query": "how do I rotate the Results certificate?"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "None of your documents cover that."
+    }
+  ]
+}

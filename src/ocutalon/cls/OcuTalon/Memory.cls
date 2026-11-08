@@ -1,6 +1,6 @@
 /// The memory area's entry points that other areas call (AD-21; Lane A): the read side of the memories (Search and List), the statistics step that
-/// keeps the recall query on its index (Tune), and the sign-out stub (DropSession, until Story 19.5). Writes are MemoryOps' alone
-/// (OcuTalon.Memory.Ops). Every read is restricted to one owner, the SessionRef it is given, and no method here calls AI Hub or Python (AD-6): a
+/// keeps the recall query on its index (Tune), and the sign-out deletion of a session's memories (DropSession, Story 19.5). Writes are MemoryOps' alone
+/// (OcuTalon.Memory.Ops), except that deletion, which runs in SessionOps' job under MemoryOps' lock for the session. Every read is restricted to one owner, the SessionRef it is given, and no method here calls AI Hub or Python (AD-6): a
 /// query is embedded only through OcuTalon.Memory.Embedding.Embed, which queues the work to a worker.
 ///   - Search: the memories of one session that answer a query. The query is embedded, and two lists are made, each restricted to the owner: the 20
 ///     nearest memories by VECTOR_COSINE (the HNSW index EmbeddingIdx, with the owner filter applied while the index is walked) and the 20 best
@@ -15,6 +15,7 @@
 ///   - Tune: gathers the SQL statistics of the memory table when a saved row's id is a multiple of STATSEVERY. The planner reads HNSW's plan from the
 ///     table's statistics, and statistics taken while the table was small (or none) keep it on a scan of the owner's rows: measured in Story 19.3
 ///     (evidence/19-3-task0-memory-indexes.md). A gather on a table of a few hundred rows or more keeps the index plan up to 10,000 rows and beyond.
+///   - DropSession: deletes the memories of one session on its sign-out, under MemoryOps' lock for the session.
 Class OcuTalon.Memory Extends %RegisteredObject
 {
 
@@ -158,11 +159,24 @@ ClassMethod Tune(id As %Integer) As %Boolean
 	Quit 1
 }
 
-/// Called by SessionOps.End on an online-demo sign-out: drops the session's memories. THIS IS A STUB until Story 19.5: it returns OK and changes
-/// nothing, and a sign-out that calls it keeps signing out.
+/// Called by SessionOps.End on an online-demo sign-out, in the job of SessionOps: deletes the session's memories, and only those (Story 19.5). It takes
+/// the lock that MemoryOps takes for the session (^OcuTalon.Memory(sessionRef), 5 seconds), so a save or a forget in progress is finished first. A lock that
+/// is not free in time is an error status, and the sign-out stays resumable. It is idempotent: a session with no memory, an empty or unknown reference and a
+/// second call are OK and change nothing.
 ClassMethod DropSession(sessionRef As %String) As %Status
 {
-	Quit $$$OK
+	If sessionRef = "" Quit $$$OK
+	Lock +^OcuTalon.Memory(sessionRef):5
+	If '$Test Quit $SYSTEM.Status.Error(5001, "The memories of the session are busy: the lock was not free within 5 seconds")
+	Set sc = $$$OK
+	Try {
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM " _ ..#TABLE _ " WHERE SessionRef = ?", sessionRef)
+		If result.%SQLCODE < 0 Set sc = $SYSTEM.Status.Error(5001, "The memories of the session cannot be deleted: " _ result.%Message)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Lock -^OcuTalon.Memory(sessionRef)
+	Quit sc
 }
 
 /// The rows of the SELECT as an array of {"id", "memoryRef", "text", "savedAt", "origin"} in the order of the result (its columns are ID, Ref, Text, SavedAt

@@ -1334,6 +1334,144 @@ Method TestTaintFollowsTrustedOutput()
 	Do $$$AssertEquals(..Taint(), 0, "and, trusted output by the same entry, leaves the taint at 0")
 }
 
+/// Added by Story 19.4 (AD-10; the narrow fallback for AI Hub's knowledge-base tool, spine AD-10 "[AMENDED 2026-11-06, Story 19.4]"): the call of the tool documents
+/// carries no origin_class, so Gate.RagCall recognises it by its name, and only it takes the source %AI.RAG.KnowledgeBase, which Decide's ToolClassification
+/// entry classifies as safe, read-only and not trusted output.
+///   - TestRagFallback: with the entry, `documents` is allowed in a user's turn and in an untrusted one, it taints the turn, and its source is RAGSOURCE; with
+///     no entry it is held as an unclassified call; a later save_memory and a risky tool are then denied with UNTRUSTED;
+///   - TestRagNearMisses: `documents` with an origin_class, another name with none, mcp:documents and a call whose name differs in case are not a RagCall: the
+///     entry never classifies them, and they are held or denied as before; an unknown source is still held;
+///   - TestRagClamp: a top_k above 5 becomes 5, one below 1 or not a number is removed, a top_k from 1 to 5 and a call with no top_k are left alone, and the
+///     other members are kept, for the arguments as an object and as a JSON text; the second run of the policy on the rewritten call reports no second step;
+///   - TestRagRoom: a search runs only when the results of the step so far leave RAGRESULTMAX characters of the step's STEPTOKENS tokens; otherwise it is denied
+///     with NOROOM, reports nothing and taints nothing; the text of NOROOM is pinned word for word.
+Method TestRagFallback()
+{
+	Set gate = ..#GATE
+	Set meta = {"requires_auth": false}
+	Do $$$AssertEquals($Parameter(gate, "RAGSOURCE")_"|"_$Parameter(gate, "RAGTOOL"), "%AI.RAG.KnowledgeBase|documents", "the fallback is the pair %AI.RAG.KnowledgeBase and documents")
+	Do $$$AssertEquals($Parameter(gate, "RAGTOOL"), $Parameter("OcuTalon.Tools.Names", "DOCUMENTS"), "and the tool is the name of Tools.Names DOCUMENTS")
+	Do $$$AssertEquals($Parameter(gate, "STEPTOKENS"), $Parameter("OcuTalon.Tools.Result", "STEPTOKENS"), "the gate's step bound is the tools' own")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Policy.Gate).Source("documents", meta, "documents"), "%AI.RAG.KnowledgeBase", "the source of the documents call is RAGSOURCE")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Policy.Gate).Source("documents", meta), "", "and Source with no name still gives nothing for it")
+	Do ..PutSetting("ToolClassification", "")
+	Do ..Begin()
+	Set held = $Parameter(gate, "HELD")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("documents", ..Call("documents", {"query": "x"}), meta, ..#SINK)), held, "with no ToolClassification entry the documents call is unclassified, so it is held")
+	Do $$$AssertEquals(..Taint(), 0, "and a held call does not taint")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set entries = []
+	Do entries.%Push(..Entry("%AI.RAG.KnowledgeBase", "documents", "safe", {"readOnly": 1, "trustedOutput": 0}))
+	Do ..PutSetting("ToolClassification", entries.%ToJSON())
+	Do ..Begin()
+	Set result = ##class(OcuTalon.Bridge.Policy.Gate).ClassificationOf("%AI.RAG.KnowledgeBase", "documents")
+	Do $$$AssertEquals(result.%ToJSON(), {"classification": "safe", "readOnly": 1, "trustedOutput": 0, "by": "setting"}.%ToJSON(), "the entry classifies the pair as safe, read-only and not trusted output")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("documents", ..Call("documents", {"query": "x"}), meta, ..#SINK)), "<OK>", "with the entry the documents call is allowed in a user's turn")
+	Do $$$AssertEquals(..Taint(), 1, "and it taints the turn: its passages are not trusted output")
+	Do $$$AssertEquals(..SinkCalls("turn.step"), 1, "and reports one step")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("save_memory", ..Call("save_memory", {"text": "x"}), ..Meta("OcuTalon.Tools.MemoryTools"), ..#SINK)), $Parameter(gate, "UNTRUSTED"), "save_memory after it is denied with UNTRUSTED")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("zz_change_endpoint", ..Call("zz_change_endpoint", {}), ..Meta(..#TOOLS), ..#SINK)), $Parameter(gate, "UNTRUSTED"), "and so is a risky tool")
+	Do $$$AssertEquals(..SinkCalls("approval.raised"), 1, "and only the first, unclassified call raised a request")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do ..Begin("turn", "untrusted")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("documents", ..Call("documents", {"query": "x"}), meta, ..#SINK)), "<OK>", "it is also allowed in an untrusted turn, which only safe, read-only tools may use")
+	Do $$$AssertEquals(..Taint(), 1, "and taints that too")
+}
+
+Method TestRagNearMisses()
+{
+	Set gate = ..#GATE
+	Set entries = []
+	Do entries.%Push(..Entry("%AI.RAG.KnowledgeBase", "documents", "safe", {"readOnly": 1, "trustedOutput": 0}))
+	Do ..PutSetting("ToolClassification", entries.%ToJSON())
+	Set held = $Parameter(gate, "HELD")
+	Do ..Begin()
+	Set args = {"query": "x"}
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Policy.Gate).RagCall("documents", {"requires_auth": false}, "documents"), 1, "documents without an origin_class is a RagCall")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Policy.Gate).RagCall("documents", {"origin_class": "OcuTalon.Tools.Zz", "requires_auth": false}, "documents"), 0, "documents with an origin_class is not")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Policy.Gate).RagCall("documents", {"origin_class": "", "requires_auth": false}, "documents"), 0, "nor with an empty one")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Policy.Gate).RagCall("search_docs", {"requires_auth": false}, "search_docs"), 0, "another name with none is not")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Policy.Gate).RagCall("Documents", {"requires_auth": false}, "Documents"), 0, "nor a name that differs in case")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Policy.Gate).RagCall("documents", {"requires_auth": false}, "mcp:zzserver"), 0, "nor an MCP call named documents")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Policy.Gate).RagCall("documents", {"requires_auth": false}, "MCP:zzserver"), 0, "in any case")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("search_docs", ..Call("search_docs", args), {"requires_auth": false}, ..#SINK)), held, "another name without a source is held as unclassified")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("mcp:zzserver", ..Call("documents", args), {"requires_auth": false}, ..#SINK)), held, "an MCP documents call is held")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("documents", ..Call("documents", args), ..Meta("OcuTalon.Tools.Zz"), ..#SINK)), held, "documents of another class is unclassified, so it is held, and the entry for the knowledge base does not apply")
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("zz_unknown", ..Call("zz_unknown", args), {"requires_auth": false}, ..#SINK)), held, "an unknown source is still held")
+	Do $$$AssertEquals(..Taint(), 0, "and none of them tainted the turn")
+	Do $$$AssertEquals(..SinkCalls("turn.step"), 0, "or reported a step")
+}
+
+Method TestRagClamp()
+{
+	Set entries = []
+	Do entries.%Push(..Entry("%AI.RAG.KnowledgeBase", "documents", "safe", {"readOnly": 1, "trustedOutput": 0}))
+	Do ..PutSetting("ToolClassification", entries.%ToJSON())
+	Set meta = {"requires_auth": false}
+	Set cases = $ListBuild($ListBuild("{""query"":""q"",""top_k"":9}", "{""query"":""q"",""top_k"":5}"), $ListBuild("{""query"":""q"",""top_k"":6}", "{""query"":""q"",""top_k"":5}"), $ListBuild("{""query"":""q"",""top_k"":100000}", "{""query"":""q"",""top_k"":5}"), $ListBuild("{""query"":""q"",""top_k"":0}", "{""query"":""q""}"), $ListBuild("{""query"":""q"",""top_k"":-3}", "{""query"":""q""}"), $ListBuild("{""query"":""q"",""top_k"":""7""}", "{""query"":""q""}"), $ListBuild("{""query"":""q"",""top_k"":null}", "{""query"":""q""}"), $ListBuild("{""query"":""q"",""top_k"":true}", "{""query"":""q""}"), $ListBuild("{""query"":""q"",""top_k"":3}", "{""query"":""q"",""top_k"":3}"), $ListBuild("{""query"":""q"",""top_k"":5}", "{""query"":""q"",""top_k"":5}"), $ListBuild("{""query"":""q"",""top_k"":1}", "{""query"":""q"",""top_k"":1}"), $ListBuild("{""query"":""q""}", "{""query"":""q""}"), $ListBuild("{""top_k"":9,""query"":""q"",""x"":[1,2]}", "{""query"":""q"",""x"":[1,2],""top_k"":5}"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set sent = $List(case, 1)
+		Set expected = {}.%FromJSON($List(case, 2))
+		For form = "object", "text" {
+			Do ..Begin()
+			Set call = $Select(form = "object": ..Call("documents", {}.%FromJSON(sent)), 1: ..Call("documents", sent))
+			Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check("documents", call, meta, ..#SINK)
+			Do $$$AssertEquals(..Sentence(sc), "<OK>", sent_" ("_form_") is allowed")
+			Set after = $Select(form = "object": call.arguments.%ToJSON(), 1: call.arguments)
+			Set seen = {}.%FromJSON(after)
+			Do $$$AssertEquals(seen.%Get("top_k")_"|"_seen.query_"|"_..Member(seen, "x"), expected.%Get("top_k")_"|"_expected.query_"|"_..Member(expected, "x"), sent_" ("_form_") is "_$Select(sent = $List(case, 2): "left as it is", 1: "rewritten to "_$List(case, 2)))
+			Do $$$AssertEquals(call.%GetTypeOf("arguments"), $Select(form = "object": "object", 1: "string"), "and the arguments keep their type")
+			Do $$$AssertEquals(..SinkCalls("turn.step"), 1, "with one step reported")
+			If after '= sent {
+				Set again = ##class(OcuTalon.Bridge.Policy.Gate).Check("documents", call, meta, ..#SINK)
+				Do $$$AssertEquals(..Sentence(again), "<OK>", "the second run of the policy on the rewritten call allows it")
+				Do $$$AssertEquals(..SinkCalls("turn.step"), 1, "and reports no second step")
+				Do $$$AssertEquals(..Taint(), 1, "the turn is tainted")
+			}
+			Kill ^||ZzProbeSink
+			Do ##class(OcuTalon.Bridge.Context).End()
+		}
+	}
+	Do ..Begin()
+	Set call = ..Call("documents", {"query": "q", "top_k": 9})
+	Do ##class(OcuTalon.Bridge.Policy.Gate).Check("documents", call, meta, ..#SINK)
+	Do ##class(OcuTalon.Bridge.Policy.Gate).Check("documents", ..Call("documents", {"query": "q", "top_k": 5}), meta, ..#SINK)
+	Do $$$AssertEquals(..SinkCalls("turn.step"), 1, "the second run of the policy on the rewritten call reports no second step")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do ..Begin()
+	Set call = ..Call("documents", [1, 2])
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("documents", call, meta, ..#SINK)), "<OK>", "arguments that are an array are allowed and left alone")
+	Do $$$AssertEquals(call.%GetTypeOf("arguments"), "array", "as an array")
+}
+
+Method TestRagRoom()
+{
+	Set gate = ..#GATE
+	Set entries = []
+	Do entries.%Push(..Entry("%AI.RAG.KnowledgeBase", "documents", "safe", {"readOnly": 1, "trustedOutput": 0}))
+	Do ..PutSetting("ToolClassification", entries.%ToJSON())
+	Do $$$AssertEquals($Parameter(gate, "NOROOM"), "This step's tool results are near their size limit, so the documents search was not run. Answer from the results you already have.", "the NOROOM sentence, word for word")
+	Do $$$AssertTrue($Parameter(gate, "RAGRESULTMAX") '< (5 * (##class(OcuTalon.Docs.Passages).#MAXPASSAGE + 400)), "RAGRESULTMAX holds five passages of the largest size and their metadata")
+	Set limit = $Parameter(gate, "STEPTOKENS") * ##class(OcuTalon.Bridge.Adapter.StepBuffer).#CHARSPERTOKEN
+	Set room = $Parameter(gate, "RAGRESULTMAX")
+	Set meta = {"requires_auth": false}
+	Do ..Begin()
+	Do ##class(OcuTalon.Bridge.Context).Put("ToolResultChars", limit - room)
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("documents", ..Call("documents", {"query": "x"}), meta, ..#SINK)), "<OK>", "with exactly RAGRESULTMAX characters of room the search runs")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do ..Begin()
+	Do ##class(OcuTalon.Bridge.Context).Put("ToolResultChars", limit - room + 1)
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("documents", ..Call("documents", {"query": "x"}), meta, ..#SINK)), $Parameter(gate, "NOROOM"), "with one character less it is denied with NOROOM")
+	Do $$$AssertEquals(..Taint(), 0, "a denied search taints nothing")
+	Do $$$AssertEquals(..SinkCalls("turn.step"), 1, "and reports no step: the one step is the first search's")
+	Do $$$AssertEquals(..SinkCalls("approval.raised"), 0, "and raises no request")
+	Do ##class(OcuTalon.Bridge.Context).Put("ToolResultChars", 0)
+	Set call = ..Call("documents", {"query": "x", "top_k": 9})
+	Do $$$AssertEquals(..Sentence(##class(OcuTalon.Bridge.Policy.Gate).Check("documents", call, meta, ..#SINK)), "<OK>", "once the step has room again it runs")
+	Do $$$AssertEquals(call.arguments.%Get("top_k"), 5, "and its top_k is clamped")
+}
+
 /// Row 5: the privilege check comes before the provenance check. zz_gate_admin (safe, not read-only, %Admin_Secure:U) in an untrusted turn is denied with
 /// NOPRIVILEGE that names %Admin_Secure:U, not with UNTRUSTED.
 Method TestPrivilegeBeforeProvenance()
@@ -2186,6 +2324,12 @@ ClassMethod FreeIncident(owner As %String, state As %String, noticedAt As %Strin
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, noticedAt, "ZZNS", "Zz.Gate.Production", fields)
 	Set refs = refs_$Select(refs = "": "", 1: ",")_ref
 	Quit ref
+}
+
+/// The JSON of the member of the object, "" when it has none.
+ClassMethod Member(object As %DynamicObject, name As %String) As %String [ Private ]
+{
+	Quit $Select(object.%IsDefined(name): object.%Get(name).%ToJSON(), 1: "")
 }
 
 /// The call object AI Hub gives the gate: {"id","name","arguments"}, the arguments an object or a JSON string.
