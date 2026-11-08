@@ -382,9 +382,11 @@ Write the result into `### Investigation result` before the implement spawn. The
 4. The load harness is lead-side: one fresh lane-D throwaway at a time, four concurrent Playwright processes against it, optionally a host CPU load beside them, the old code first and then the fix 20 of 20. It is sized for the 150 s rule, with scratch in `<scratchpad>/e32s6proof/`.
 5. The implement stage's own verification is hermetic and fast. Live units are left to the lead's proof and to CI.
 
+**Ruling (the lead, 2026-11-08 about 05:58Z, category veto; the Planner may reverse it): the proof's "old red" half.** The Planner's proof asks that the old code go red under the load harness. Locally it does not: 0 of 164 at a 1-minute load up to 49.5 on 16 cores (L1), as 11.27 also found. So L2 keeps the plain load harness for the fix (expected all green), and adds L2s, the same harness with an injected stall: in each run the first `/state` GET of the sign-in is held at the browser for the whole bound. The old code must go red on it, and the fix must pass 20 of 20. Rejected: stopping the story until a CI-host reproduction exists (it idles the release's fix for a flake that recurs about daily); claiming the load harness red (false). Reversal: the Planner asks for a CI-host reproduction, and the retry waits, or is reverted, until it exists.
+
 ### Investigation result
 
-**`none_in_timebox`** (the lead, Task 0, 2026-11-08 05:32Z to about 06:05Z; the timebox ran from 05:32Z, the spec gate, to 07:02Z). Branch B is built, with the one addition below. Counts, states and times only.
+**`none_in_timebox`** (the lead, Task 0, 2026-11-08 05:32Z to 05:43Z, then the old-code batches of Verification L1 from 05:43Z to 05:57Z; the timebox ran from 05:32Z, the spec gate, to 07:02Z). Branch B is built, with the one addition below. Counts, states and times only.
 
 What was read:
 1. **Occurrences on a head with 11.27's code: none.** `gh run list --workflow ci.yml` since 2026-11-07T16:00Z gave 51 runs (26 success, 19 cancelled, 6 failure). Three runs on heads that contain `eca467b0` had a red attempt, and none of them is this class:
@@ -589,6 +591,10 @@ Run from the worktree root after `git rev-parse --show-toplevel` matches it, wit
   2. in its own call, `<laneD> OCUTALON_RUN_TAG=e32s6po<b> bash ci/iris.sh teardown`, and `docker ps -aq --filter name=e32s6burn` prints nothing.
 
   Record the 20 `LOAD old-*` lines as `old: <failed> of 20 red`. Name each red by the failing step in its `$SCR/old-<b>-<k>.log`. Only a `loadedAfter the snapshot GET ... no answer within` red counts as the occurrence class. Record the others by their step. Expected: at least one red of the occurrence class. See the Risk.
+  **Result (the lead, 2026-11-08 05:43Z to 05:57Z, before the implement spawn): `old: 0 of 164 red`.**
+  - Batch 1 ran `--repeat-each 1` (4 runs); batches 2 to 5 ran `--repeat-each 10` (40 runs each), so that the four processes sign in back to back for about 20 s instead of overlapping for 1 s (decided by the lead).
+  - `LOAD_BURN` was 4 for batches 1 to 4 and 8 for batch 5, not 16: the Mac's 16 cores are shared with lanes A to C, whose own runs a 32-loop burn could make flake (decided by the lead). The Mac's 1-minute load went from 10.5 to 49.5 during batch 5.
+  - Every W3 answered `/state` in about 1 s; no `RETRY` (none possible on the old code); every stack and burner gone after each batch (`docker ps -aq --filter name=e32s6` empty).
 - L2, the fix: the same five batch pairs with `OCUTALON_RUN_TAG=e32s6pf<b>` and `LOAD_TAG=fix-<b>`. Record them as `fix: <passed> of 20, <retries> RETRY lines`. Expected: 20 of 20.
 - L3, Branch B, AC6 on a real stack: `<laneD> OCUTALON_RUN_TAG=e32s6pl LOAD_SCRIPT=e2e:sign-in-2 LOAD_ARGS='e2e/live/state-retry.spec.ts' LOAD_PROCS=1 LOAD_BURN=0 LOAD_TAG=live PATH="$SCR/bin:$PATH" bash ci/iris.sh live sign-in-2`, then its teardown. Expected: `passed=1 failed=0`. Run it again with AC6's mutation for the red, and restore byte-identical.
 - L4: the fresh-environment check (Rule 19) of the added and changed tests (lines 1 to 4), forward and reversed.
