@@ -2916,3 +2916,7 @@
 2026-11-08T21:18:22Z	Run	ruling	question=epic_heads_after_non-code_feature_move(18b9d973:release_record+module.xml_version) category=decide choice=no_new_integrate-forward_needed_for_heads_integrated_onto_ce50aa62(merge-tree_code_clean;tracker_conflict_per_SC-4-P_step4) rejected=integrate_again(a_45-60min_CI_round_for_no_code) policy=5086036
 2026-11-08T21:18:22Z	Epic 5	runner_resumed	agent=a791fb7a9d55ae432 with=28e67c3d_green;end_with_contract
 2026-11-08T21:18:22Z	Epic 18	runner_resumed	agent=ad68d74c02763d478 with=676ac876_green;implement_18.4
+2026-11-08T21:18:41Z	Epic 5	runner_complete	agent=a791fb7a9d55ae432 stories=1(5.15) head=28e67c3d ci=success(42515030806_attempt2_shards-2_timeout_rerun,42515030819) applied=DW-851_planner_ruling decisions_for_user=none protocol_violations=2(parallel_test_runs;all_passed)
+2026-11-08T21:18:41Z	Epic 5	amendments_verified	amendments=epics.md_5.15,spine_message_table_CheckNow_row,spine_Background_checks_convention_sentence(Rule20_light;no_AD_change) extensions=0 ok=true
+2026-11-08T21:18:41Z	Epic 5	ci_green_verified	head=28e67c3d result=success runs=42515030806,42515030819
+2026-11-08T21:18:41Z	Epic 5	merge_enqueued	policy=when_green note=feature_moved_non-code_only(no_integrate;ruling)
