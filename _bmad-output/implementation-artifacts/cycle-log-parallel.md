@@ -2760,3 +2760,6 @@
 2026-11-08T10:31:30Z	Epic 19	runner_clarification	kind=RESPAWN agent=a2d503bc1d50dde15 head=42f8ba24(13_unpushed_over_881ac467) story=19.5_after_implement(ee6f75ac;H1-H9_applied) new=DW-940(harness_reads_empty_IRIS_answer_as_success;fix_edits_approved_H5/H6;Planner) forecast=19.5_green_13:30-14:30Z;part2_merged_16:30-18:00Z(at_17Z_checkpoint)
 2026-11-08T10:31:36Z	Epic 19	runner_redispatched	runner=aad203ead2336b5b5 effort=high lane=C reason=owner_effort_high_respawn(prev_a2d503bc1d50dde15_ended_RESPAWN) next=19.5_QA
 2026-11-08T10:32:00Z	Epic 19	planner_ruling	subject=part2_timing+DW-940 timing=17Z_checkpoint_REPLACED:part2_ships_in_1.0.4_iff_merged_AND_green_on_feature_by_19:00Z,else_1.0.5_Mon;cut_~20Z;update_to_Planner_at_17Z DW-940=a(minimal_fix_in_H5/H6:empty_IRIS_answer_counts_as_FAILURE;limited_to_that_check;test_pins_empty_fails+real_passes;no_other_harness_line;exact_hunk_in_19.5s_merge_report) via=Contest_Planner_1(delegation)
+2026-11-08T10:35:44Z	Epic 32	ci_resolved	story=32.6 sha=57b1acec result=success(after_L6_rerun) runs=42464338633,42464338631
+2026-11-08T10:35:44Z	Run	ci_green_verified	head=d6b8af41 result=success note=feature_with_5.14
+2026-11-08T10:35:44Z	Epic 32	runner_resumed	agent=aad5a4394f85fc76a with=green;close+integrate_onto_d6b8af41(U9)
