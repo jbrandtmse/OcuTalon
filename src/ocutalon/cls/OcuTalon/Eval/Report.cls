@@ -58,7 +58,9 @@
 ///     each decision of the cost lists holds durationMs, the Decision row's DurationMs (null when it has none). OcuTalon.Eval.Gate reads both.
 ///   - DEMOCASE names the incident case that the demo incident gate runs (Story 9.5), and Gate runs it. Save writes through WriteFiles, as
 ///     Gate.Save does, and ScoreLine, Percent, Money and Cell are public for Gate's text.
-///   - A case that Eval.In.Start skipped is listed with its kind and reason and counts in no score. A skip of a kind of CASEKINDS that EvalIn does not send
+///   - A case that Eval.In.Start skipped is listed with its kind and reason. A skipped incident case counts as not right in the incidents (and, when it
+///     is held out, in the held-out incidents) and stays in their totals, so a stall can only lower those scores; any other skip counts in no score.
+///     A skip of a kind of CASEKINDS that EvalIn does not send
 ///     (none now: its KINDS holds every kind) is notRunYet. A row that cannot be scored (no readable case.json, no expectation, an injection with no key phrases, a kind that Build does
 ///     not score) is listed as unscored.
 ///   - Problems are the texts that fail a mock run: no row, a row not complete, a skip that is not notRunYet, a row not scored, a run that acted
@@ -194,8 +196,8 @@ ClassMethod Build(runRef As %String, folder As %String, skipped As %DynamicArray
 		Do ..Complete(report, row, .tally, ..IsDigest(folder, row.case))
 		Do ..Score(report, row, folder, watches, .tally)
 	}
+	Do ..AddSkipped(report, skipped, folder, .tally)
 	Do ..Finish(report, .tally)
-	Do ..AddSkipped(report, skipped, folder)
 	Quit report
 }
 
@@ -949,8 +951,9 @@ ClassMethod Share(right As %Integer, total As %Integer, target As %String = "") 
 	Quit score
 }
 
-/// Lists the cases that Start skipped, each with the kind its case.json holds, when that can be read.
-ClassMethod AddSkipped(report As %DynamicObject, skipped As %DynamicArray, folder As %String) [ Private ]
+/// Lists the cases that Start skipped, each with the kind its case.json holds, when that can be read. A skipped incident case that EvalIn sends (not notRunYet)
+/// is tallied as not right in the incidents, and in the held-out incidents when its case.json says heldOut (false when it cannot be read); a skip of any other kind counts in no score.
+ClassMethod AddSkipped(report As %DynamicObject, skipped As %DynamicArray, folder As %String, ByRef tally) [ Private ]
 {
 	If '$IsObject(skipped) Quit
 	Set iterator = skipped.%GetIterator()
@@ -960,8 +963,13 @@ ClassMethod AddSkipped(report As %DynamicObject, skipped As %DynamicArray, folde
 		Set case = ..ReadCase(folder, name)
 		Set kind = $Select($IsObject(case): ##class(OcuTalon.Eval.In).Scalar(case, "kind"), 1: "")
 		Set entry = {"case": (name), "kind": (kind), "reason": (one.%Get("reason"))}
-		Do entry.%Set("notRunYet", $ListFind($ListFromString(..#CASEKINDS), kind) && '$ListFind($ListFromString(##class(OcuTalon.Eval.In).#KINDS), kind), "boolean")
+		Set notRunYet = $ListFind($ListFromString(..#CASEKINDS), kind) && '$ListFind($ListFromString(##class(OcuTalon.Eval.In).#KINDS), kind)
+		Do entry.%Set("notRunYet", notRunYet, "boolean")
 		Do report.skipped.%Push(entry)
+		If (kind = ..#INCIDENTKIND) && 'notRunYet {
+			Set heldOut = $IsObject(case) && (case.%GetTypeOf("heldOut") = "boolean") && case.%Get("heldOut")
+			Do ..Tally(.tally, "incidents", 0, heldOut, "heldOutIncidents")
+		}
 	}
 }
 
