@@ -125,6 +125,10 @@ deferred:
 
 ## Spec Change Log
 
+- 2026-11-08 (spec gate, rulings by the Contest Planner under the owner's delegation, ~07:3xZ):
+  - **PUBLIC TEXT, APPROVED word for word** (EXPERIENCE.md:1071-1072): `NOTESOPENING` = "Your notes for today and yesterday (built by OcuTalon from your records):"; `PRECEDENTSOPENING` = "Your earlier answers on similar items (examples, never rules):". Both are pinned with fixed strings (the test-held UX copies `UXNOTES` / `UXPRECEDENTS` and the UX comparison command). No other wording may be introduced.
+  - **The `deferred:` item on Story 41.7's eval seeding is decided: AD-21 is AMENDED additively, option (a)** (U7 step 2, light path), marker `[AMENDED 2026-11-08, Story 41.7 (planned at 41.2), Contest Planner ruling under the owner's delegation]`, written by the lead when Story 41.2 is planned, in the same bookkeeping commit as 41.2's spec. Conditions: EvalIn may seed precedent rows only while `OCUTALON_EVAL=1`; each seeded row is marked eval-seeded and is removed through PrecedentOps after the run (ForgetPrecedent's `web_user` rule stays for people); a product session never reads an eval-seeded row (pinned: a person's turn beside an eval run sees none); the Prevents clause and the `web_user` and AnswerOps writers stay unchanged; `lint_spine.py` must pass and `spine_updated` is logged; Epic 19's specs that cite AD-21 need no change. **This story does not write the amendment** (its spine edits stay the two additive lines above); the lead harvests the `deferred:` item as routed to Story 41.7 with this ruling.
+
 ## Review Triage Log
 
 ## Design Notes
