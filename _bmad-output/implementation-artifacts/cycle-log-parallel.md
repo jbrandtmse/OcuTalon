@@ -2891,3 +2891,7 @@
 2026-11-08T19:19:43Z	Epic 4	runner_complete	agent=a668895609b486146 stories=1(4.12) head=33816324(bookkeeping_only_over_code_on_feature) ci=success(cb7a2215:42507818397,42507818342) applied=guide_documents_citation_promise decisions_for_user=none
 2026-11-08T19:19:43Z	Epic 4	amendments_verified	amendments=EXPERIENCE.md_item6(accepted_by_Planner),epics.md_4.12 extensions=0 ok=true
 2026-11-08T19:19:43Z	Epic 4	merge_enqueued	policy=when_green note=bookkeeping-only_head_over_green_code(precedent)
+2026-11-08T19:20:28Z	Epic 4	epic_merged_to_feature	merge=542986e3 head=33816324 kind=bookkeeping_close(code_on_feature_since_a77f9a87) verified_on_origin=yes ledger_union=lost0,dup0(942) sprint_valid=yes duplicate_runs_cancelled=42514495621,42514495622(feature),42514443787,42514443577(OCT-epic4)
+2026-11-08T19:20:28Z	Epic 4	decision_sheet_skipped	reason=recorded_at_4.12_merge(DW-976)
+2026-11-08T19:20:28Z	Epic 4	worktree_removed	
+2026-11-08T19:20:28Z	Epic 4	epic_branches_deleted	local+remote(ancestor_verified)
