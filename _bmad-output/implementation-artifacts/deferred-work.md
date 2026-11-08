@@ -5531,3 +5531,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-2-the-precedent-table-its-one-writer-and-the-routes.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Web/Api.cls NoteText -> DailyNote.Build(sessionRef, date); returning "" without calling Build, or swapping the arguments, keeps every test green.
 - 2026-11-08T10:13:09Z status=wontfix-accepted owner=41-2-the-precedent-table-its-one-writer-and-the-routes by=cr note=reopen_if=41.3's built note is not served by GET /v1/memory/notes over real HTTP (41.3 replaces the stub and must pin it)
+
+### DW-941: A daily-note decision line has no channel when no model call ran (no_key, daily_cap, budget, too_large fallbacks): the bridge Decision row has no Channel; append Decision.Channel set from the request so DailyNote can show it
+- source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Bridge Decision has no Channel; only Usage rows (model calls) carry one; 41.3 veto U-310
+- 2026-11-08T10:38:56Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: a Lane A bridge story appends Decision.Channel (AD-5); DailyNote then prefers it (one line); inbox U-310
