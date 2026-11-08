@@ -2844,3 +2844,7 @@
 2026-11-08T17:05:40Z	Epic 17	decision_sheet_skipped	reason=empty
 2026-11-08T17:05:40Z	Run	planner_ruling	subject=1.0.4_merges+41.6 merges=32.6_on_its_own_green_head_db837463_without_integrating_over_17(clean_merge_required);7.11_same_when_cdf4bc99_green;order_17,32.6,7.11;feature_CI_on_final_head_is_the_check;cut_from_newest_green_~19-20Z;tell_Planner_when_last_1.0.4_merge_green 41.6=text_APPROVED(channel_as_sent);demo-path_01-page.spec_7->8+Memory-before-Persona;shards-5_rebalance_APPROVED(move_one_area_of_lane-a@Bridge,Agent_to_production;CI-only;after_cut;before/after_times) via=Contest_Planner_1(delegation)
 2026-11-08T17:05:40Z	Run	deps_hash_rerecorded	reason=fix_forward stories=17.10,17.11 hash=125360099d1f
+2026-11-08T17:07:55Z	Epic 32	runner_complete	agent=aad5a4394f85fc76a stories=1(32.6) head=db837463 ci=success(42495633417,42495633416) cause=none_in_timebox applied=U-306,DW-550/774_planner_ruling decisions_for_user=DW-911 overflow=DW-774_page.close_to_32.7
+2026-11-08T17:07:55Z	Epic 32	amendments_verified	amendments=0 extensions=5(web/scripts/{bounded-waits,state-wait,retry-bounds}.test.mjs,web/e2e/support/host.ts,web/e2e/live/state-retry.spec.ts) ok=true
+2026-11-08T17:07:55Z	Epic 32	ci_green_verified	head=db837463 result=success runs=42495633417,42495633416
+2026-11-08T17:07:55Z	Epic 32	merge_enqueued	policy=when_green priority=3 note=planner_ruling_no_integrate_over_17(merge-tree_clean)
