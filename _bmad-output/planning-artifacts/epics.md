@@ -6503,6 +6503,52 @@ So that showing the demo instance's own vital signs can never leak anything abou
 
 - DW-898: Online demo: pin that the digest text never names a host path, an IP address, a user name or a key (U-303 keep-condition) (ledger; routed by the owner 2026-11-08)
 
+### Story 17.12: "Needs you" never counts the person's own chat messages
+
+[ADDED 2026-11-08, fix-forward inside Epic 17 under the SC-5 re-open: DW-979, HIGH, demo walk, Planner-ruled scope (`planner_ruling subject=demo_walk_v1.0.4`, the Contest Planner under the owner's delegation, 2026-11-08 about 21:30Z: "the demo is what judges see this week, so these two come first in 1.0.5"); for 1.0.5, ahead of Story 17.13]
+
+As a user who chats with OcuTalon,
+I want the digest's "needs you" to leave out my own chat messages,
+So that a question I asked, and already got an answer to, is never listed as something that needs me.
+
+**Acceptance Criteria:**
+
+**Given** a session whose own chat or user turns each recorded a decide Decision with the outcome tellnow (for example "A request from the user; the user is answered directly"), on any channel
+**When** its digest is composed through `OcuTalon.Digest.NeedsYou` (the morning digest or "send my digest now")
+**Then** those Decisions never count and are never named in "needs you", whatever their window or handled marker, while real tell-now and act items (items that arrived on a channel), incidents awaiting approval and failed check rows still count exactly as Story 12.12 fixes, with 12.12's window and **Got it** handling unchanged (FR-35, AD-14)
+**And** a test with a user turn plus one real tell-now item gives a count of exactly 1, naming only the real item, pinned with a mutation shown going red (Rule 19)
+
+**Given** the other channels' copies of the digest (the Telegram digest and the web chat's digest card)
+**When** they show "needs you"
+**Then** they render the same composed parts from the one `NeedsYou` list, so the same rule holds on every channel; the spec records that no channel reads "needs you" another way
+
+**Given** the change
+**When** it merges
+**Then** no user-facing string is added or changed; if one is needed, it goes to the Contest Planner as public text before it is committed
+
+- DW-979: D3: 'Needs you' counts the person's own chat messages ('3 things need you: Send my digest now; What is the capital of France according to my documents?; ...'); NeedsYou excludes decisions on the person's own chat or user turns; a user turn plus a real tell-now item gives exactly 1 (ledger; routed by the Contest Planner's demo walk ruling 2026-11-08)
+
+### Story 17.13: The system-log vital sign is not a false alarm after a restart
+
+[ADDED 2026-11-08, fix-forward inside Epic 17 under the SC-5 re-open: DW-980, HIGH, demo walk, Planner-ruled scope (`planner_ruling subject=demo_walk_v1.0.4`, the Contest Planner under the owner's delegation, 2026-11-08 about 21:30Z); for 1.0.5, after Story 17.12; a Task 0 measurement and a report to the Planner come before any fix]
+
+As a user who restarts OcuTalon's container,
+I want the system-log vital sign to fail only on real errors,
+So that a restart never makes the digest report "Failed: system log" for the instance's own start-up lines.
+
+**Acceptance Criteria:**
+
+**Given** fresh Docker installs of builds 154 and 109, each started in a throwaway stack (never the demo host)
+**When** Task 0 reads the lines their `messages.log` holds at severity 2 or above once start-up is over
+**Then** the spec records those lines, with host names and container ids redacted, and the narrowest fix is reported with that evidence to the Contest Planner before anything is implemented: (a) ignore those exact start-up signatures, or (b) count only errors logged after the instance's start sequence ends
+
+**Given** the fix the Planner rules
+**When** the system-log vital sign (`OcuTalon.Watch.Reader`'s `messages.log` severity count, Story 17.5, and the "system log" entry of `OcuTalon.Checks.Coverage`) reads an instance's log after a restart
+**Then** start-up noise alone passes, and a real error logged later still fails with its count and time, each pinned by a test with a mutation shown going red (FR-36, Rule 19)
+**And** any change to a user-facing string goes to the Contest Planner first
+
+- DW-980: D4: the system-log vital sign is a false alarm on every container restart ('Failed: system log (6 errors, at 16:24 ET)'; messages.log severity 2 holds only start-up noise: 'System appears to have failed over from node <old container id>' and 'ERROR #5002 ... <METHOD DOES NOT EXIST>Sharding+2^STU *Sharding,SYS.ICM'); Task 0, then the Planner's ruling on the narrowest fix (ledger; routed by the Contest Planner's demo walk ruling 2026-11-08)
+
 ## Epic 18: An admin changes settings in the web app (step 2)
 
 An admin opens a settings page to change models, budgets, channels, the digest time and channels, the time zone and check thresholds; each change takes effect within a minute without a restart and is audited; non-admins can't open it.

@@ -453,3 +453,19 @@
 2026-11-08T15:32:20Z	Epic 17	merged_tree_checks	merge=a8f9bd01 feature=c25902c3(Epic_19_part_2;green:42491404218,42491404301) code_overlap=none conflicts=sprint-status.yaml(theirs+regenerated;17.10,17.11,epic-17=done_re-applied;epic-19,19.4,19.5,19.7_kept;validate=ok) auto_merged=ARCHITECTURE-SPINE.md(lint=baseline_10_low_placeholders,same_as_feature;33_ADs;no_dup_ids),ci/units.sh,epics.md,deferred-work.md readme=about_8_minutes_present,160_seconds_absent live_online-demo-path(no_args)=all_checks_passed(11_passed,0_skipped;report,clean-up,load_L1/L2;298s;OCUTALON_LIVE_DEADLINE=720_local) class_Checks.Heartbeat=pass(15.32s,fresh) boundaries=pass class_rules=pass ci_config=pass(40) slot=not_used(lane-b_throwaways_only)
 2026-11-08T15:32:20Z	Epic 17	integrated_forward	feature=c25902c3 head=a8f9bd01 conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(bookkeeping;SC-4-P_step_4) code_conflicts=none
 2026-11-08T15:32:20Z	Epic 17	epic_runner_complete	stories_completed=2(17.10,17.11) applied=U-303(at=2026-11-08T01:11:22Z#926) rework=17.10_iteration_2(DW-964,test-only,Planner_exception) ready_for_merge=true
+2026-11-08T23:11:31Z	Epic 17	epic_branch_reopened	reason=stories_17.12_17.13_dw979_dw980 from=2992191c
+2026-11-08T23:11:31Z	Epic 17	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_17.12_17.13 lane=B slot=ocutalon-slot-b hashes_checked=main_checkout_match hold=absent inbox_verify=ok
+2026-11-08T23:11:31Z	Epic 17	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-08T23:11:31Z	Epic 17	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-08T23:11:31Z	Epic 17	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-08T23:11:31Z	Epic 17	epic_branch_checked_out	repos=. head=2992191c ci_expected=ci,lane-a bootstrap_check=ok origin_epic17=6ac45643(ff_ancestor)
+2026-11-08T23:11:32Z	Epic 17	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-08T23:11:32Z	Epic 17	ledger_load	total=948 open=0 routed=113 escalated=2 decision_pending=4 terminal=829 owner_unknown=0 burndown=91 reowned_none=0
+2026-11-08T23:11:32Z	Epic 17	retro_review_skipped	reason=no_x0_input(sc5_reopen_fix_forward)
+2026-11-08T23:12:40Z	Epic 17	sprint_planning_complete	gate=PASS model=claude-opus-5-5 warnings=2(title_and_epic_list_headings,known)
+2026-11-08T23:12:40Z	Epic 17	story_chartered	story=17.12 key=17-12-needs-you-never-counts-the-person-s-own-chat-messages reason=fix_forward(DW-979,HIGH,Planner_demo_walk_v1.0.4) after=17.11
+2026-11-08T23:12:40Z	Epic 17	story_chartered	story=17.13 key=17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta reason=fix_forward(DW-980,HIGH,Planner_demo_walk_v1.0.4;task0_then_planner_report) after=17.12
+2026-11-08T23:12:40Z	Epic 17	deps_hash_rerecorded	reason=fix_forward stories=17.12,17.13 for=orchestrator
+2026-11-08T23:12:40Z	Epic 17	epic_status_reopened	from=done to=in-progress reason=sc5_reopen(stories_17.12,17.13)
+2026-11-08T23:12:40Z	Epic 17	ledger_routed_planned	story=17-12-needs-you-never-counts-the-person-s-own-chat-messages entries=1(DW-979) excess=0 by=charter
+2026-11-08T23:12:40Z	Epic 17	ledger_routed_planned	story=17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta entries=1(DW-980) excess=0 by=charter

@@ -5847,8 +5847,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner live demo walk of v1.0.4, 2026-11-08 ~21:30Z | severity: high | fix-risk: low | footprint: in-epic
 - evidence: demo host v1.0.4; Digest/NeedsYou.cls (12.12 window, 17.x)
 - 2026-11-08T21:35:08Z status=routed owner=burndown by=orchestrator note=planner_ruling: HIGH for 1.0.5, ahead of tier 3, right after the DW-978 story; fix: NeedsYou excludes decisions on the person's own chat/user turns; test: a user turn plus a real tell-now item gives exactly 1; no new strings
+- 2026-11-08T23:12:40Z status=routed owner=17-12-needs-you-never-counts-the-person-s-own-chat-messages by=runner note=charter(fix-forward_17.12,Planner_demo_walk_ruling_2026-11-08)
 
 ### DW-980: D4: the system-log vital sign is a false alarm on every container restart: the digest said 'Failed: system log (6 errors, at 16:24 ET)'; messages.log severity 2 holds only start-up noise ('System appears to have failed over from node <old container id>' as the hostname changes on restart, and 'ERROR #5002 ... <METHOD DOES NOT EXIST>Sharding+2^STU *Sharding,SYS.ICM' from the EAP image start-up)
 - source: Contest Planner live demo walk of v1.0.4, 2026-11-08 ~21:30Z | severity: high | fix-risk: low | footprint: in-epic
 - evidence: demo host v1.0.4 (host check 109/0/1); Watch/Reader.cls messages.log severity count (Story 17.5)
 - 2026-11-08T21:35:08Z status=routed owner=burndown by=orchestrator note=planner_ruling: HIGH for 1.0.5 after D3's slot; Task 0 measures which lines a fresh Docker install logs at start on builds 154 and 109; then report the narrowest fix before implementing: (a) ignore those exact start-up signatures or (b) count only errors after the instance start sequence ends; tests: start-up noise passes, a real later error still fails; any string change to the Planner
+- 2026-11-08T23:12:40Z status=routed owner=17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta by=runner note=charter(fix-forward_17.13,Planner_demo_walk_ruling_2026-11-08;Task_0_then_PLANNER_REPORT)
