@@ -469,3 +469,5 @@
 2026-11-08T23:12:40Z	Epic 17	epic_status_reopened	from=done to=in-progress reason=sc5_reopen(stories_17.12,17.13)
 2026-11-08T23:12:40Z	Epic 17	ledger_routed_planned	story=17-12-needs-you-never-counts-the-person-s-own-chat-messages entries=1(DW-979) excess=0 by=charter
 2026-11-08T23:12:40Z	Epic 17	ledger_routed_planned	story=17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta entries=1(DW-980) excess=0 by=charter
+2026-11-08T23:16:03Z	Epic 17	epic_context_compiled	sha=0f9ff8ff reason=planning_artifact_newer(17.12,17.13_chartered) model=opus effort=high header=ok
+2026-11-08T23:16:14Z	Story 17.12	stage_spawned	stage=plan spawn_at=2026-11-08T23:16:14Z model=opus effort=high agent_name=17-12-plan-1 cycle_iteration=1
