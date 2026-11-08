@@ -386,6 +386,7 @@ development_status:
   32-3-every-iris-job-finishes-in-about-ten-minutes: done
   32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane: done
   32-5-live-sign-in-splits-again-after-4-11-s-tests: done
+  32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus: done
   epic-32-retrospective: optional
 
   epic-33: done

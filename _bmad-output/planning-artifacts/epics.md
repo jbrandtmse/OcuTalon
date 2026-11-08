@@ -8523,6 +8523,43 @@ So that no unit runs over the 1,000 s line or near its 1,200 s deadline, and eve
 **When** it is pushed
 **Then** `docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow
 
+### Story 32.6: A live page's /state wait under CI load either finds its cause or retries once, logged
+
+As the release's CI,
+I want the live pages' `/state` and `page.close` waits that fail only on a loaded CI host either explained and fixed in the tests, or retried once and counted,
+So that a host-load flake no longer turns a green head red, and every retry is visible instead of silent.
+
+[ADDED 2026-11-08, Epic 32 re-open (SC-5) for DW-550 and DW-774, test-only, on the Contest Planner's terms under the owner's delegation (logged `planner_ruling subject=DW-550/774_flake_story`, about 01:2xZ, relayed by the orchestrator). Timeboxed: 90 minutes of investigation from the spec gate. No product change; no release tool (`release/*.sh`, `eval/run.sh`, the upgrade harness, demo-host-check and the IPM scripts are frozen). It builds on Story 11.27's diagnostics (retain-on-failure traces of live units kept on the self-hosted runner, the `DIAG /state gateway` lines, `state-diagnosis.txt`), which measured that under host load the request never reaches IRIS.]
+
+**Acceptance Criteria:**
+
+**Given** DW-550's and DW-774's occurrences and Story 11.27's diagnostics (its traces on the CI hosts, the DIAG lines, the failure artifacts)
+**When** the lead investigates, for at most 90 minutes from the spec gate
+**Then** the spec records either the cause, with its evidence (where the `/state` GET or the `page.close` waited: never sent by the page, queued in the browser, queued at the web gateway, or held in IRIS), fixed in test support code, specs or `ci/` test scripts; or `none_in_timebox`, with what was read and ruled out
+
+**Given** a fix that makes a wait longer
+**When** it is proposed
+**Then** its own diagnostics show that the page did send `/state` and that the answer was queued on the CI host, not lost in IRIS; without that evidence no bound changes (`web/e2e/support/bounds.ts`, `loadedAfter` in `web/e2e/support/floor.ts`, the projects' waits, the test timeouts and `OCUTALON_LIVE_DEADLINE` stay as they are)
+
+**Given** the timebox ends without a cause
+**When** the fallback lands
+**Then** the diagnostics land with a bounded retry of the page load, at most one per wait, which prints `RETRY <spec>:<line> <step>` and which the CI summary counts; a second failure fails as today, naming its step, and the retry is reported in the completion contract
+
+**Given** the change
+**When** it is proved
+**Then** the old code goes red under the load harness (four concurrent CI-like runs, or the project's load recipe if one is recorded) and the fix passes 20 of 20 under the same load, both recorded with their counts in the spec's `## Verification`
+
+**Given** the change
+**When** it is reviewed
+**Then** nothing under `src/**` and no release tool changes, no real model key is used, and no other epic's spec changes beyond the shared support files (`web/e2e/support/**`) and the wait-related lines of the specs the occurrences name
+
+**Given** the change
+**When** it is pushed
+**Then** `docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow
+
+- DW-550: flake: live:cards I10 (and others) time out in loadedAfter's /state wait after sign-in on a loaded host; passed on an unchanged rerun (ledger; routed by charter 2026-11-08)
+- DW-774: flake: live:online-session leave.spec page.close no answer within 30 s (L5, L6) and loadedAfter GET /state no answer within 30 s (decision D2, sign-in-2 W3) under heavy CI load (ledger; routed by charter 2026-11-08)
+
 ## Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 17.1 and 18.1, moved whole and verbatim as Stories 33.1 and 33.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 2's names fixed in the spine and in code as stubs, and an admin opens a settings page that saves each section on its own, applies it within a minute and records it in the audit log, so that Epics 17 and 18 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 17 and 18) and its partner in this epic.
