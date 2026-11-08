@@ -5144,6 +5144,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T10:53:41Z status=routed owner=11-27-live-pages-get-their-state-answer-under-load by=runner note=Planner_ruling_2026-11-07T10:55Z_option_(b):_stays_open;_11.27_becomes_test-only_diagnostics_(CI-host-only_retain-on-failure_traces_for_live_units,_no_upload,_7-day_job-side_deletion,_a_pin_that_no_upload_path_includes_the_folder;_gateway-status_dump_in_loadedAfter);_(c)_is_the_Planner's
 - 2026-11-07T16:40:13Z status=routed owner=burndown by=adjudication note=diagnostics attached by Story 11.27 (Planner ruling 2026-11-07T10:55Z: stays open): on the next CI occurrence the failing live test's retain-on-failure trace is kept on the self-hosted runner under $HOME/ocutalon-traces/<run tag>/<unit>/ for 7 days (never uploaded), loadedAfter prints DIAG /state gateway lines (per-server total/in-use/private/queued, per-state connection counts) beside 11.22's lines, and state-diagnosis.txt reaches the uploaded artifact; next: read the trace's network entry for /state (sent, stalled or never sent) and the gateway counts at the bound
 - 2026-11-08T13:44:12Z occurrence=OCT-epic19-f6290959 by=orchestrator note=run 42480549642 iris(shards) live:online-session leave.spec L6 page.close no answer 30 s (page.close half; for 32.7); part 2 head; rerun of failed jobs 13:4xZ
+- 2026-11-08T16:12:45Z occurrence=OCT-epic17-6ac45643 by=orchestrator note=run 42495328974 iris(browser) decision.spec:139 D2 loadedAfter GET /state no answer 30 s (the /state half; 32.6's retry not on feature yet); rerun of failed jobs 16:1xZ
 
 ### DW-778: test-readme.sh measured rule does not fail on an extra Measured row, so an old 11.25 label re-added as a ninth row passes CI
 - source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
@@ -5661,3 +5662,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Report.cls :61 and AddSkipped tally a skipped incident case (AC7, the Planner's condition); epic-9-context.md Scoring and the spec's proposed AD-22 spine bullet mention only the pacing
 - 2026-11-08T05:43:35Z status=wontfix-accepted owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=reopen_if=a later eval story's spec or review reads SM-2 as leaving skipped incident cases out of its total
+
+### DW-973: flake: Test.Docs TestTimeLeft (Story 19.7) red under CI load: 'after the wait for the lock and the second that was left (15.89)'; a timing bound on a loaded host
+- source: cycle-log-parallel.md OCT-epic17 6ac45643 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: run 42495328974 job 128776327087 iris(shards-2) unit shard:lane-a@rest 1966 s; 19.7's own heads and feature c25902c3 passed it
+- 2026-11-08T16:12:45Z status=routed owner=burndown by=orchestrator note=flake candidate for 32.7; first occurrence on a non-19 branch
