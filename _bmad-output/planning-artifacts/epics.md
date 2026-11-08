@@ -1384,6 +1384,29 @@ So that a rare #453 no longer fails a check whose start became healthy, and ever
 **Then** `docker/tests/test-lib-live.sh` (and `docker/tests/test-upgrade-harness.sh` for the count) pin it with fixtures: one RETRY followed by OK passes; a RETRY with no OK, two RETRY lines, a RETRY followed by FAILED, and a near-miss RETRY line each fail; the harness count reads 0 and 1 in its fixtures; `docker/after-start.sh` and `docker/merge.cpf` are unchanged; CI is green on every workflow
 - DW-624: lib-live.sh's log_steps keeps every STEP line, so a live-test or upgrade-harness start that recovers through Story 0.13's retry still fails check_log on the RETRY line (ledger; routed by Story 0.13's review, 2026-11-03)
 
+### Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction
+
+[ADDED 2026-11-07, SC-5 re-open of Epic 0 for one evidence-only story, at the Contest Planner's request (about 21:10Z): the S11 spike (docs/handoff/spike-results/S11.md) found that build 154 kills the IRIS process (signal 11) when embedded Python runs both inside and outside an AI Hub tool callback in one process. Before anyone reports it, the crash is re-measured with two classes and no model. Story 0.15 (the Dockerfile move) is deferred until after v1.0.4 and is not chartered here. This story changes no product code, no test suite and no public text.]
+
+As the author deciding whether to report an AI Hub defect,
+I want the S11 crash reproduced with the smallest possible classes, on a fresh throwaway, in a throwaway namespace,
+So that any report carries exact orders, outcomes, messages.log lines and versions, and no OcuTalon code.
+
+**Acceptance Criteria:**
+
+**Given** a fresh lane-A throwaway stack from the project's throwaway tooling (build 154's image, and build 109's when it is already on the host), a throwaway namespace, and only two classes: `Repro.Py` (a `[Language = python]` class method `PyPing()` that imports `threading` and `os` and returns a string) and `Repro.Tools` (extends `%AI.Tool`, whose `PyPing` calls `##class(Repro.Py).PyPing()`)
+**When** each of five orders runs three times, each run in a fresh `iris session` process ending with `halt`: (a) Python outside only; (b) inside only (`%AI.ToolMgr.%New()`, `AddTool`, `ExecuteTool("PyPing",{})`); (c) outside, then ToolMgr, then inside; (d) ToolMgr, then inside, then outside; (e) `##class(%SYS.Python).Import("json")` outside, then inside
+**Then** the evidence folder `_bmad-output/implementation-artifacts/evidence/ep-bug-s11/` records, for every run, survived or died and the exact `messages.log` line (the "caught signal 11" line with its JobType, if any), plus `$ZV`, the Python version, the CPU architecture and the image tag
+**And** no model key is present and no model is called; if `%AI.ToolMgr` needs a provider, that is recorded and that order stops
+
+**Given** DW-792 (19.2 found that `%SYS.Python` passes no keyword argument from ObjectScript)
+**When** a Python function is called with a keyword argument in the documented form (a `%DynamicObject` as the last argument, passed with `args...`) and in the form 19.2 used
+**Then** `results.md` reports whether the keyword arrives in each form, citing the documentation relied on, and DW-792 gets a ledger trailer with the result
+
+**Given** the evidence
+**When** this story closes
+**Then** the folder holds only `Repro.Py.cls`, `Repro.Tools.cls`, a one-line `run.sh` and `results.md`; no loader or test picks up the two `.cls` files; no tracked file names an absolute local path; a new LOW ledger entry records the re-verification; the throwaway is torn down; and nothing is filed publicly (the Planner drafts any report and the owner posts it)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
