@@ -44,3 +44,4 @@
 2026-11-08T11:48:26Z	Story 18.3	ruling	question=spine_REST_row_1510_and_models/test_row choice=lead_at_18.3_close(as-built) AD-19_nested_body=attended_Update(decisions_for_user) by=orchestrator(Contest_Planner) category=veto(AD) policy=5086036
 2026-11-08T13:45:01Z	Story 18.2	ci_red_classified	run=42475836390 workflow=.github/workflows/ci.yml class=flake test=DW-639(Heartbeat_TelegramIn_jobs_none,image_job) action=one_rerun(orchestrator)
 2026-11-08T13:45:01Z	Story 18.2	ci_resolved	story=18.2 sha=90360113 runs=42475836390(attempt_2),42475836427 result=success failed=none via=none resolved_at=next_plan first_ci=flake
+2026-11-08T13:45:12Z	Story 18.3	stage_spawned	stage=implement spawn_at=2026-11-08T13:45:12Z model=sonnet agent_name=18-3-choose-models-and-set-budgets-in-settings-implement-1 cycle_iteration=1 story_base=b91b2321 effort=high
