@@ -198,6 +198,34 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they are given in full.
    Both hops of `Conversation.Request -> Intake.RequestFor -> Render` are observed (DW-961, Rule 2, Rule 3).
 7. **No regression.** Given no notes and no precedents, when `Test.Agent.RenderContext`, `Render`, `PersonaBlock`, `PersonaTurns`, `RememberDecision`, `Test.Core.Intake`, `ConversationTurns` (after Clarification 2) and `ConversationSessionStart` run, then each passes (AD-7).
 
+### Review Findings
+
+Code review 2026-11-08 (full mode; layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor). 0 decision-needed, 5 patch (all applied), 0 defer, 16 rejected (sightings of one root cause across layers are merged).
+
+- [x] [Review][Patch] The `instance` owner assertion of `TestPrecedentOwners` could not fail: no row had the owner `instance`, so an `IsRef` check narrowed to `eval` stayed green (medium, Rule 19; fix-risk low: one fixture row, removed by Ref). An instance-owned row is seeded; the mutation is observed red under `## Verification` [src/ocutalon/cls/OcuTalon/Test/Agent/RenderMemory.cls:272]
+- [x] [Review][Patch] `RenderMemory` counted and deleted every `Agent.Input` warning since its mark, including a concurrent production job's (medium, Rule 19 hermeticity; fix-risk low: a `Job = $Job` filter on its three log queries) [src/ocutalon/cls/OcuTalon/Test/Agent/RenderMemory.cls:106]
+- [x] [Review][Patch] `Render` read the clock twice when `now` is "", so across local midnight the preamble and the notes' today could name different days (low; fix-risk low: one line, output otherwise byte-identical) [src/ocutalon/cls/OcuTalon/Agent/Input.cls:42]
+- [x] [Review][Patch] `TestActTurnHasNone` says "the fourth email" for its second email (low; fix-risk low: message text) [src/ocutalon/cls/OcuTalon/Test/Agent/MemoryTurns.cls:202]
+- [x] [Review][Patch] Comment nits: a stray comma in the `PRECEDENTDECIDED` comment, an over-long class-comment line, and a dangling line in `RenderContext`'s header (low; fix-risk low: comments only) [src/ocutalon/cls/OcuTalon/Agent/Input.cls:25]
+
+**Rejected:**
+- `low` Precedent summary is sender text and can imitate the `; OcuTalon decided` / `; your answer:` separators - by design: AD-21 keeps the decision's Summary in the row and the approved line shape carries it, quoted under the "examples, never rules" opening; Triage has no tools (AD-10); escaping would change the approved form. 41.7's instruction-shaped Summary proof is the probe.
+- `false` Today's note can hold a later queued message, and the `ConversationTurns` :382 strip hides it - accepted behaviour under the Clarification 2 ruling; the strip is the ruled edit.
+- `false` No slot-safe test checks Intake's `{"decide": 1}` - the context is pinned by `MemoryTurns` with observed mutations (both hops and the act turn); `Test.Core.Intake`'s assertion still holds with no rows (and is Lane B).
+- `maybe-false` (low if true) A session-start turn after an earlier same-day marker message could pick the earlier marker - the plan's scan found only `RememberDecision:136` (fixed); a hit would be a loud CI 500, never a product defect. Settled by a scan of fresh or rotated turns after a different marker.
+- `false` `NotesPart` has no owner check, so the notes owner assertions cannot fail at Input - the spec gives the owner guard to `Build` (Never list), pinned by `Test.Data.DailyNote`.
+- `low` `TestActTurnHasNone` builds the line without checking `row.outcome`/`row.answer` first - a wrong row still turns `AssertBlock` red; diagnostics only.
+- `low` A row with an unreadable `AnsweredAt` takes one of the 3 slots - `AnsweredAt` is written only by `NowUtc`; the spec's rule is "left out".
+- `false` An outcome of only control characters gives "; OcuTalon decided ;" - the outcome is a code value of `Msg.Enum OUTCOME`.
+- `false` `PrecedentPart` has no Try, and the Catch's `LogWarning` could throw - every callee is total (as the implement-stage triage found); a throwing `LogWarning` is theoretical.
+- `low` `TestPersonTurnHasNone` cannot fail through one change - defense in depth (`KeyFor` answers "" for a user item, pinned by `Test.Data.Precedent:TestKeyFor`); AC 6 rests on the three tests with observed mutations.
+- `low` `TestLocalDates` restores an undefined TZ as "" - the same pattern as `HeartbeatLogic`, `Catalog` and `Beat`; real only with TZ undefined and a non-UTC container localtime. The instance zone is never written (checked).
+- `low` Today's reminder in `TestNotesAtSessionStart` is at 00:00, not the task's 12:00 - deliberate (it sorts before the message's own line at any clock time); the fix is a spec edit.
+- `false` The `ConversationTurns` edits touch :251 and four lines at :382 - inside the ruled edits and the Code Map ranges 238-251 and 380-383.
+- `false` The cap text in Boundaries is looser than the code - the code (closing blank line counted) is stricter and complies.
+- `low` The Auto Run Result says 10 `RenderMemory` tests, QA made 11 - lead-owned bookkeeping; a spec edit.
+- `false` The QA change to `RenderMemory.cls` is uncommitted - process: the lead commits.
+
 ## Spec Change Log
 
 - 2026-11-08 (rulings relayed by the orchestrator; Contest Planner under the owner's delegation, owner-level for the AD under U14):
@@ -384,6 +412,31 @@ Run every command from the worktree root, one per call. `server` `ocutalon-slot-
 - the mock's scenario set (`test-mock.sh`).
 
 Every test added or changed passes on a fresh environment, in either order.
+
+**QA stage (gap check; each mutation applied, observed red, reverted byte-identical, `git status --short` unchanged):**
+- Files changed by QA: `src/ocutalon/cls/OcuTalon/Test/Agent/RenderMemory.cls` (QA: `TestLocalDates`, the zone saved and put back in the hooks).
+- Gap closed: no implement-stage test could tell a local date from a UTC date (the fixtures are built through `FromLocal`, and the zone is UTC or a zone where noon and 10:00 share the UTC date), so AD-18 was unpinned for the notes date lines and the precedent date. `TestLocalDates` runs in America/New_York at 2030-06-15T02:30:00Z (local Friday 2030-06-14 22:30). Both mutations below passed the implement-stage tests before it was added.
+- mutation: the precedent date taken from the UTC `answeredAt` -> `Test.Agent.RenderMemory:TestLocalDates` red (also `TestPrecedentUnreadable`) (AD-18).
+- mutation: the notes' `today` taken from the UTC `now` -> `Test.Agent.RenderMemory:TestLocalDates` red (AD-18).
+- mutation: yesterday's date line dropped -> `RenderMemory:TestNotesBlock` red (AC 1, re-observed).
+- mutation: `Throw exception` first in `NotesPart`'s Catch (the Try removed) -> `RenderMemory:TestNotesReadFailure` red (AC 2, re-observed).
+- mutation: `PRECEDENTMAX` 601 -> `RenderMemory:TestPrecedentCap` and `TestTexts` red (AC 3, re-observed).
+- mutation: `Similar("eval", ...)` for a session item -> `TestPrecedentBlock`, `TestPrecedentCap`, `TestPrecedentOwners`, `TestPrecedentUnreadable` and `TestPrecedentWhere` red (AC 4, lead note c, re-observed).
+- mutation: the `IsRef` check dropped -> `RenderMemory:TestPrecedentOwners` red (AC 4, re-observed).
+- mutation: "rules" to "orders" in Triage's paragraph -> `RenderMemory:TestTriageParagraph` red (AC 5, re-observed).
+- mutation: `NotesPart` ignores `sessionStart` -> `RenderMemory:TestNotesOnlyAtAStart` and `TestNotesReadFailure` red (AC 7, re-observed).
+- mutation: `PRECEDENTANSWER` "; you answered: " -> `RenderMemory:TestTexts` and `TestPrecedentBlock` red (the approved text, lead note a).
+- mutation: the bare form always writes "; OcuTalon decided " -> `RenderMemory:TestPrecedentBlock` red (the no-outcome form, lead note a).
+- mutation: the `decide` flag check dropped from `PrecedentPart` -> `RenderMemory:TestPrecedentWhere` red (the act turn's unit-level pin, lead note b).
+- mutation: `Conversation.Request` passes "" as the context, and Intake's act turn passes `{"decide": 1}` (Lane B, temporary, one fresh stack `e41s4qa`) -> `Test.Agent.MemoryTurns:TestNotesAtSessionStart` and `TestActTurnHasNone` red, `TestPrecedentInDecide` and `TestPersonTurnHasNone` green (DW-961 hop 1; the act-turn pin).
+- mutation: `Intake.RequestFor` renders with `Render(item, "", "")` (Lane B, temporary, a second fresh stack) -> `MemoryTurns:TestNotesAtSessionStart`, `TestPrecedentInDecide` and `TestActTurnHasNone` red, `TestPersonTurnHasNone` green (DW-961 hop 2).
+- Not a mutation (equivalent): dropping `item.Provenance = "user"` from `PrecedentPart` changes nothing, because `Precedent.KeyFor` answers "" for any item that is not untrusted; `Quit` to `Continue` in the cap loop changes nothing at 3 rows, because the longest line (about 226 characters) cannot push the second line past 600.
+- Evidence kept outside the tests: the paragraph is in EXPERIENCE.md, Triage.cls and RenderMemory.cls, once each (`grep -cF` 1/1/1). No permanent test reads EXPERIENCE.md (it is not on the server), so the test-held copy is the only guard against EXPERIENCE.md drifting.
+- Green after the last edit: slot A `RenderMemory` (11), fresh `e41s4qa` stacks `MemoryTurns` (4) and `RenderMemory` (11); torn down.
+
+**Code review (2026-11-08; mutation applied, observed red, reverted byte-identical):**
+- mutation: the `IsRef` check in `PrecedentPart` narrowed to `item.SessionRef = "eval"` -> `Test.Agent.RenderMemory:TestPrecedentOwners` red ("the owner 'instance' has no block", with the review's instance-owned row) (AC 4, the `instance` item).
+- Green after the review patches: slot A `RenderMemory` (11), `RenderContext` (4), `Render` (4). `MemoryTurns` changed only in an assertion message (left to CI).
 
 ## Auto Run Result
 

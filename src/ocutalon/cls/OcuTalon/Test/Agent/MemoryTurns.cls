@@ -199,7 +199,7 @@ Method TestActTurnHasNone()
 	Set itemD = ..Mail(session, sender, markerD, .mark)
 	If itemD = "" Quit
 	Set decideD = ..WaitDecision(itemD, "decide")
-	Do $$$AssertTrue($IsObject(decideD), "Decide recorded the decision of the fourth email")
+	Do $$$AssertTrue($IsObject(decideD), "Decide recorded the decision of the second email")
 	If '$IsObject(decideD) Quit
 	Do $$$AssertEquals(decideD.Outcome, "act", "and it is the script's act")
 	Do $$$AssertTrue($IsObject(..WaitDecision(itemD, "turn")), "the act turn ran")

@@ -2,8 +2,8 @@
 /// nothing is written, no model is called and no zone is set; the renders that are compared are made in one process with one fixed time.
 ///   - TestNoMemoryNoChange: with no notes and no precedents, Render(item, now, context) is Render(item, now), byte for byte, for every
 ///     provenance, channel and owner of the matrix and for every context (none, "", {}, sessionStart 1 and 0, a string, an array and
-///     decide 1), and an item with nothing to say, a
-///     user item of white space, an unreadable time and no item render "" with a context too;
+///     decide 1), and an item with nothing to say, a user item of white space, an unreadable time and no item render "" with a
+///     context too;
 ///   - TestSignature: the compiled Render is a class method with the formal spec item, now and an optional context, and returns a string;
 ///   - TestOpenings: NOTESOPENING and PRECEDENTSOPENING are the lines of EXPERIENCE.md, each one line, with no {{, no @{ and no control
 ///     character;

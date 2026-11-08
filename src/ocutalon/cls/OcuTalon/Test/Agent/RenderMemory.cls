@@ -10,6 +10,7 @@
 ///   - TestPrecedentWhere: only an untrusted item of a session with the context decide 1;
 ///   - TestPrecedentUnreadable: a row whose answeredAt can't be read is left out;
 ///   - TestPrecedentCap: whole lines in at most 600 characters, and one line for each row;
+///   - TestLocalDates: in the zone America/New_York, with a time whose local date is not its UTC date, the date lines of the notes and the date of a precedent line are local (AD-18);
 ///   - TestTriageParagraph: Triage's paragraph of the UX, once, in its place.
 Class OcuTalon.Test.Agent.RenderMemory Extends %UnitTest.TestCase
 {
@@ -56,6 +57,9 @@ Property Personas As %String(MAXLEN = "");
 /// The highest ID of the log before the test.
 Property LogMark As %Integer;
 
+/// The process zone before the test (-1 when TZ was undefined), put back after it.
+Property SavedZone As %String;
+
 /// The test-held paragraphs of EXPERIENCE.md for Triage.
 XData UX [ MimeType = application/json ]
 {
@@ -77,11 +81,13 @@ Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Kill ^||InputProbe
 	Set ..LogMark = ..LogTop()
+	Set ..SavedZone = $SYSTEM.Process.TimeZone()
 	Quit $$$OK
 }
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
 	Kill ^||InputProbe
 	For i = 1:1:$Length(..Rows, ",") {
 		Set ref = $Piece(..Rows, ",", i)
@@ -97,7 +103,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Set ..Personas = ""
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ?", ..LogMark, "OcuTalon.Agent.Input")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ? AND Job = ?", ..LogMark, "OcuTalon.Agent.Input", $Job)
 	While result.%Next() {
 		Do ##class(Ens.Util.Log).%DeleteId(result.%Get("ID"))
 	}
@@ -252,7 +258,7 @@ Method TestPrecedentBlock()
 	Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(other, ..Now(), context), ##class(OcuTalon.Agent.Input).Render(other, ..Now()), "a sender with no rows has no block")
 }
 
-/// Only the item's own session's rows: another session's and an eval-seeded row with the same channel and key are never shown.
+/// Only the item's own session's rows: another session's, an eval-seeded and an instance-owned row with the same channel and key are never shown.
 Method TestPrecedentOwners()
 {
 	Set pre = ..Preamble()_$Char(10, 10)
@@ -263,6 +269,7 @@ Method TestPrecedentOwners()
 	Do ..Row(theirs, "mailbox", ..#KEY, ..At("2030-06-14", "10:00:00"), "Zz theirs", "tellnow", "noise")
 	Do ..Row("eval", "mailbox", ..#KEY, ..At("2030-06-14", "11:00:00"), "Zz seeded", "tellnow", "noise", run)
 	Do ..Row(seededOnly, "mailbox", ..#KEY, ..At("2030-06-14", "12:00:00"), "Zz seeded owner", "tellnow", "noise", run)
+	Do ..Row("instance", "mailbox", ..#KEY, ..At("2030-06-14", "13:00:00"), "Zz instance", "tellnow", "noise")
 	Set item = ..Item(mine, "untrusted", "mailbox", "Please look.", ..#SENDER, "Invoice")
 	Set label = ..#LABELMAILBOX_$Char(10)_"> From: "_..#SENDER_$Char(10)_"> Subject: Invoice"_$Char(10)_"> "_$Char(10)_"> Please look."
 	Set expected = pre_..#COPYPRECEDENTS_$Char(10)_"> 2030-06-13 (mailbox): Zz mine; OcuTalon decided tellnow; your answer: noise"_$Char(10, 10)_label
@@ -327,6 +334,30 @@ Method TestPrecedentCap()
 	Set item = ..Item(one, "untrusted", "mailbox", "Please look.", ..#SENDER, "Invoice")
 	Set expected = pre_..#COPYPRECEDENTS_$Char(10)_"> 2030-06-13 (mailbox): Zz ab c de; OcuTalon decided tellnow; your answer: noi se"_$Char(10, 10)_label
 	Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(item, ..Now(), context), expected, "a value with CR, LF, U+2028 and U+2029 stays on one line")
+}
+
+/// The dates are the local ones of the instance zone (AD-18). In America/New_York the time 2030-06-15T02:30:00Z is still Friday 2030-06-14 22:30, so the notes
+/// are those of 2030-06-13 and 2030-06-14, and a row answered at 22:00 local on 2030-06-13 (02:00 UTC of the next day) is dated 2030-06-13. Under UTC the
+/// fixtures of the other tests can't tell a local date from a UTC one.
+Method TestLocalDates()
+{
+	Do $SYSTEM.Process.TimeZone("America/New_York")
+	Set now = "2030-06-15T02:30:00Z"
+	Set pre = "Local time: Friday 2030-06-14 22:30 (time zone America/New_York)"_$Char(10, 10)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal(now), "2030-06-14T22:30:00", "the zone is in force: the local time is behind the UTC date")
+	Set session = ..Session("local")
+	Do ..Reminder(session, "2030-06-13", "23:30:00", "Zz notes y")
+	Do ..Reminder(session, "2030-06-14", "23:00:00", "Zz notes t")
+	Set expected = pre_..#COPYNOTES_$Char(10)_"> 2030-06-13"_$Char(10)_"> 23:30 reminder due: Zz notes y (fired)"_$Char(10)_"> 2030-06-14"_$Char(10)_"> 23:00 reminder due: Zz notes t (fired)"_$Char(10, 10)_"Hello there"
+	Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(..Item(session, "user", "web", "Hello there"), now, {"sessionStart": 1}), expected, "the notes are those of the local yesterday and the local today, under their local dates")
+
+	Set mail = ..Session("localmail")
+	Do ..Row(mail, "mailbox", ..#KEY, ..At("2030-06-13", "22:00:00"), "Zz local", "tellnow", "noise")
+	Do $$$AssertEquals(..At("2030-06-13", "22:00:00"), "2030-06-14T02:00:00Z", "the row was answered on the next UTC date")
+	Set item = ..Item(mail, "untrusted", "mailbox", "Please look.", ..#SENDER, "Invoice")
+	Set label = ..#LABELMAILBOX_$Char(10)_"> From: "_..#SENDER_$Char(10)_"> Subject: Invoice"_$Char(10)_"> "_$Char(10)_"> Please look."
+	Set expected = pre_..#COPYPRECEDENTS_$Char(10)_"> 2030-06-13 (mailbox): Zz local; OcuTalon decided tellnow; your answer: noise"_$Char(10, 10)_label
+	Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(item, now, {"decide": 1}), expected, "the precedent line is dated with the local date of the answer")
 }
 
 /// A row whose answeredAt can't be read is left out and the rows around it stay.
@@ -460,18 +491,18 @@ ClassMethod LogTop() As %Integer [ Private ]
 	Quit +result.%GetData(1)
 }
 
-/// The number of warnings that Agent.Input logged since the test began.
+/// The number of warnings that Agent.Input logged in this job since the test began.
 Method Warnings() As %Integer [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ?", ..LogMark, "OcuTalon.Agent.Input")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ? AND Job = ?", ..LogMark, "OcuTalon.Agent.Input", $Job)
 	Do result.%Next()
 	Quit +result.%GetData(1)
 }
 
-/// The text of the newest warning that Agent.Input logged since the test began, or "".
+/// The text of the newest warning that Agent.Input logged in this job since the test began, or "".
 Method LastWarning() As %String [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Text FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ? ORDER BY ID DESC", ..LogMark, "OcuTalon.Agent.Input")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Text FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ? AND Job = ? ORDER BY ID DESC", ..LogMark, "OcuTalon.Agent.Input", $Job)
 	If result.%Next() Quit result.%GetData(1)
 	Quit ""
 }

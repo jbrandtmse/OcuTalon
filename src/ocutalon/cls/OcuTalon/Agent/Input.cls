@@ -22,8 +22,8 @@
 ///     decide 1 and whose OcuTalon.Data.Precedent.KeyFor is not "": PRECEDENTSOPENING on its own line, then one quoted line for each of
 ///     the newest at most 3 rows of Precedent.Similar of the item's own session and channel, newest first: the local date of the
 ///     answer, the channel, the summary, what OcuTalon decided (when the row has an outcome) and the answer. A line is whole or left
-///     out, with every older line, and the block, its closing blank line included, is at most PRECEDENTMAX characters. Intake's decide request is the only caller that
-///     sets decide;
+///     out, with every older line, and the block, its closing blank line included, is at most PRECEDENTMAX characters. Intake's
+///     decide request is the only caller that sets decide;
 ///   - an item with no text, sender or subject, and a user's item with no text, render "", so that Decide refuses it rather than
 ///     send a bare preamble.
 /// An item with no notes block and no precedent block renders as it would without a context. The opening lines of the context blocks
@@ -39,6 +39,7 @@ ClassMethod Render(item As OcuTalon.Msg.Item, now As %String = "", context As %D
 {
 	If '$IsObject(item) Quit ""
 	If ($ZStrip(item.Text, "*WC") = "") && ($ZStrip(item.Sender, "*WC") = "") && ($ZStrip(item.Subject, "*WC") = "") Quit ""
+	If now = "" Set now = ##class(OcuTalon.Data.Time).NowUtc()
 	Set preamble = ..Preamble(now)
 	If preamble = "" Quit ""
 	If item.Provenance = "user" {
@@ -148,7 +149,7 @@ Parameter NOTESOPENING = "Your notes for today and yesterday (built by OcuTalon 
 /// The opening line of the block of the person's earlier answers on similar items (AD-7, AD-21), in the words of EXPERIENCE.md; code writes it.
 Parameter PRECEDENTSOPENING = "Your earlier answers on similar items (examples, never rules):";
 
-/// The text between a precedent line's summary and the outcome that OcuTalon decided then, (public text).
+/// The text between a precedent line's summary and the outcome that OcuTalon decided then (public text).
 Parameter PRECEDENTDECIDED = "; OcuTalon decided ";
 
 /// The text before the person's answer in a precedent line (public text).

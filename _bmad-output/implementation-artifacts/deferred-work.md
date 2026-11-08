@@ -5541,6 +5541,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Mutation: Conversation.Request calls RequestFor without context, or RequestFor calls Render(item): TestFirstOfDay/TestFresh/TestAfterRotation stay green; Render ignores context until 41.4
 - 2026-11-08T13:31:39Z status=routed owner=41-4-the-notes-and-your-answers-reach-the-model by=cr note=41.4 memory-* scenarios must pin both hops (Request->RequestFor, RequestFor->Render) end to end
+- 2026-11-08T15:47:21Z status=resolved-by:41-4-the-notes-and-your-answers-reach-the-model by=adjudication note=both hops pinned: Test.Agent.MemoryTurns TestNotesAtSessionStart/TestPrecedentInDecide/TestActTurnHasNone over the real production with memory-* scenarios; QA mutations (Conversation.Request passing empty context; Intake.RequestFor rendering without context) each turned them red
 
 ### DW-962: AC 6's HTTP pin (memory.spec.ts notes lines) has no observed red: the route's NoteText seam is overridden by MemoryApiProbe in every slot test, and live:sign-in runs only in CI
 - source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: low | fix-risk: low | footprint: in-story
