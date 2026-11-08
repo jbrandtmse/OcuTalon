@@ -2932,6 +2932,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 - 2026-11-07T17:31:07Z status=routed owner=burndown by=spec_gate note=release-tool_freeze;after_the_v1.0.4_merge-back:the_probe's_error_reason_must_land_with_release/demo-load.sh_DEGRADED_REASONS(+comments_:50,:88),which_docker/tests/test-online-load.sh_S16_pins_to_docker/probe.sh;31.4_implement_found_it(ruling_R1);veto_U-187_still_stands
 - 2026-11-08T02:32:04Z status=routed owner=burndown by=burndown note=epic-31_burn-down(31.4_scope):overflow;waits_for_the_release-tool_freeze(release/demo-load.sh_DEGRADED_REASONS+docker/probe.sh,S16_pin)_to_lift_after_the_v1.0.4_merge-back;no_open_story_owns_it;listed_under_decisions_for_user(recommended:route_to_a_post-1.0.4_release-tool_story)
+- 2026-11-08T03:46:29Z status=routed owner=burndown by=unattended note=decision sheet Epic 31: a release-tool story after the v1.0.4 merge-back (release/demo-load.sh, docker/probe.sh; freeze), paired with DW-485
 
 ### DW-447: AD-25's probe bullet lists the outcomes busy, capped, auth_failed and no_decision, but the probe also has no_splash (Story 16.6) and degraded (Story 29.6, epic29_brief), and the spine does not record them
 - source: spec-29-6-the-probe-alerts-when-every-turn-falls-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3092,6 +3093,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 - 2026-11-07T15:15:39Z status=routed owner=burndown by=spec_gate note=release-tool_freeze;after_the_v1.0.4_merge-back(31.4_declined:release/demo-host-check.sh_frozen);also_after_the_merge-back:release/demo-host-checks.md:73_and_release/demo-load.sh:88_still_name_the_probe's_three_degraded_reasons(DW-446_adds_error)
 - 2026-11-08T02:32:04Z status=routed owner=burndown by=burndown note=epic-31_burn-down(31.4_scope):overflow;release/demo-host-check.sh_allow-hyperevent_check_waits_for_the_release-tool_freeze_to_lift_after_the_v1.0.4_merge-back;no_open_story_owns_it;listed_under_decisions_for_user(recommended:route_to_the_same_post-1.0.4_release-tool_story_as_DW-446)
+- 2026-11-08T03:46:29Z status=routed owner=burndown by=unattended note=decision sheet Epic 31: the same post-merge-back release-tool story as DW-446 (release/demo-host-check.sh allow-hyperevent check; freeze)
 
 ### DW-494: flake: OcuTalon.Test.Fix.Partial TestCopiesFailAgain ('and stores 3/3/0/3/0 with the reason the order date still wasn't accepted' and four more asserts) red in CI shards-2 (shard:lane-a@rest), green on an unchanged rerun
 - source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: med | footprint: out-of-footprint

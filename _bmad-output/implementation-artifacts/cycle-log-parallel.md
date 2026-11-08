@@ -2647,3 +2647,7 @@
 2026-11-08T03:46:00Z	Epic 31	runner_complete	agent=a6cdbe9192b94db01 stories=1(31.4) head=7ccdd0bf ci=success(42441528510,42441528548) decisions_for_user=DW-446,DW-485 applied=none amendments=none extensions=none release_tool_hunks=none
 2026-11-08T03:46:00Z	Epic 31	amendments_verified	amendments=0 extensions=0 ok=true
 2026-11-08T03:46:00Z	Epic 31	merge_enqueued	policy=when_green epic=31_done(all_7_stories) retro=skipped(policy) vetoes_open<20
+2026-11-08T03:46:29Z	Epic 31	epic_merged_to_feature	merge=47d0004c head=7ccdd0bf story=31.4 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0(890=expected) sprint_valid=yes(epic-31_done) feature_ci=pending
+2026-11-08T03:46:29Z	Epic 31	decision_sheet_recorded	decided=2(DW-446,DW-485:routed_burndown_to_a_release-tool_story_after_the_v1.0.4_merge-back) to_action_items=0 to_x0=0 by=unattended category=decide
+2026-11-08T03:46:39Z	Epic 31	worktree_removed	path=.worktrees/epic-31
+2026-11-08T03:46:39Z	Epic 31	epic_branches_deleted	local+remote=OCT-epic31
