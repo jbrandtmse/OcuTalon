@@ -327,3 +327,5 @@
 2026-11-08T03:25:46Z	Epic 9	deps_hash_rerecorded	reason=fix_forward story=9.11 for=orchestrator
 2026-11-08T03:25:46Z	Epic 9	ledger_routed_planned	story=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it entries=1(DW-878) excess=0 by=charter
 2026-11-08T03:28:37Z	Epic 9	epic_context_compiled	sha=407f0984 reason=planning_artifact_newer(9.11_chartered) model=opus header=ok spawn_at=2026-11-08T03:26:01Z
+2026-11-08T03:29:52Z	Epic 9	slot_loaded	slot=ocutalon-slot-b id=62AB8833 namespace=OCUTALON build=154U from=7928e98c bridge=58 ocutalon=752 compile=CompilePackage(OcuTalon,ck-d)_ok_errors=0 note=Epic_17's_tree_was_there_before
+2026-11-08T03:30:16Z	Story 9.11	stage_spawned	stage=plan spawn_at=2026-11-08T03:30:16Z model=opus agent_name=9-11-plan-1 cycle_iteration=1
