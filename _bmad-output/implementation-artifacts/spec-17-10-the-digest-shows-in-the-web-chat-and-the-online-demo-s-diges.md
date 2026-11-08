@@ -2,7 +2,7 @@
 title: 'Story 17.10: The digest shows in the web chat, and the online demo''s digest is visible'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'c390d57f1326d22b445db88fcd1cfbae49395f52'
 baseline_commit: 'c390d57f1326d22b445db88fcd1cfbae49395f52'
 review_loop_iteration: 0
@@ -164,6 +164,7 @@ deferred: []
 - Given the tests that pin the card kinds and the online-demo scheduled rule, when the suite runs on a fresh stack in either order, then every one passes, and each new pin has a `mutation:` line shown red.
 
 - [x] [CI] iris (image) / shard:lane-b: `OcuTalon.Test.Schedule.Heartbeat` `TestAfterAllTestsNothingSaved` red twice on 596eb1f7 (ci run 42442077870, job iris (image), attempts 1 and 2): "and the production runs every item: TelegramIn (TelegramIn row 0, runtime flag 1, jobs none)" -- https://github.com/jbrandtmse/OcuTalon/actions/runs/42442077870 -- the same shard is green on 7ccdd0bf (31.4's head, without Epic 17). Find and fix (Rule 19, hermeticity) the test that leaves TelegramIn enabled at run time with no job before Heartbeat's check: `Install.Step.Production.NotRunning()` reads the run-time flag, so a production update or restart that stops TelegramIn's job and does not put it back gives exactly that message. Prime suspects are this story's lane-b tests (`Test.Core.WebChatOut`, `Test.Data.Ownership`) and anything they start, swap or update. Reproduce on a fresh lane-B throwaway, fix with a demonstrated mutation, and show the shard green; if the run logs prove this story's tests cannot affect TelegramIn, record that evidence under Design Notes instead of changing code. Resolved without a code change: the evidence that this story's tests and code cannot affect TelegramIn is under Design Notes, "CI red of 2026-11-08"; the cause of the stuck runtime flag itself is not found (DW-639 stays open).
+- [ ] [CI] iris (shards) / shard:lane-a@Checks,Install,Watch: `OcuTalon.Test.Checks.Heartbeat` `TestDisabledItemIsReportedOnce` red twice on 321dcad7 (ci run 42470657226, attempts 3 and 4, jobs 128733036530 and 128749625178): "the session's web chat got one notification" (DW-964) -- src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls, the Integration AC block of TestDisabledItemIsReportedOnce (the `WaitDeliveries(session, 1, ..#WAITDIAGNOSIS)` line and the web-row count after it) -- the test waits for the WEB Delivery row it counts, not for the session's first row of any channel: poll `Test.Core.Observe.DeliveryRows(session)` until at least one row with Channel = `WebChat.Out.#CHANNEL` exists or WAITDIAGNOSIS seconds have passed, then keep the existing assertions unchanged (exactly one web row, its text the catalog's rendering, the Why now line, the disabled wording). Cause, reproduced on a fresh lane-B throwaway: the simulated phone's tellnow row (id 17) was recorded first, the wait returned, the web count read 0; ten seconds later the web row (id 20) was there, and each channel had its row once. Scope (Planner's pre-approved U-177 exception for DW-964, under the owner's delegation): test-only, this one test method, no product file and no other test changes; the "reported once" assertion is not loosened. Proof the lead runs after review: the old wait red under the race (the repro above), the fixed test 20 of 20 on a lane-B throwaway; write its `mutation:` line under ## Verification (for example: wait on any row again -> red).
 
 ### Review Findings
 
@@ -235,6 +236,7 @@ Checklist, the `[CI]` item: confirmed closed. This story's tests and code cannot
 
 ## Spec Change Log
 
+- 2026-11-08, rework iteration 2 (trigger ci, story red: the same test twice on 321dcad7): re-opened for the one open [CI] item (DW-964), test-only by the Planner's pre-approved exception.
 - 2026-11-08, rework iteration 1 (trigger ci, orchestrator ruling b): re-opened for the one [CI] item under Tasks & Acceptance.
 
 - 2026-11-07, lead spec gate: Q1-Q3 ruled by the Contest Planner (about 20:45Z); AD-18 and AD-33 amended in the spine; N16 placement kept in notice.spec.ts; the Process.cls class comment :7-8 moved into scope (the plan's deferred item withdrawn); status `blocked` -> `ready-for-dev`.
