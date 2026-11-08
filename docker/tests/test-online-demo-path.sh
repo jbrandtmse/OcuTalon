@@ -12,11 +12,17 @@
 #       approval, and Approve on the simulated phone to the result), step 6 (the trace link opens Visual Trace at the turn, signed in, with its
 #       agent steps and the cost), and "second visitor" (A and B each watch Orders through the guide's Send and A presses Break the feed:
 #       A's incident, notice and approval request reach only A, B's page, /state and /events get nothing, B's answer to A's request is
-#       refused, and A answers on its simulated phone);
-#   - the report check (with no arguments): the JSON report holds exactly seven passed cases (steps 1 to 6 and the second visitor) and
-#     three skipped ones, the paired chat and message search cases of Story 31.4, each with its skip text. A case that is skipped without
-#     its text, or one that is missing or extra, fails the unit. With arguments (a mutation run: -g <title>) only those cases run and the
-#     set check is skipped;
+#       refused, and A answers on its simulated phone),
+#       and "the paired chat under load" (Story 31.4; the demo is full): six proxied visitors fill the visitor cap (the proxy address is set to
+#       the host's address, which the unit passes in as OCUTALON_ONLINE_HOST_ADDRESS, and put back), A and B are paired to two mock Telegram
+#       chats, and A, C and D press Break the feed at the same time: A's paired chat gets A's incident notice with its approval request and
+#       no message goes to B's chat, a press from B's chat on A's request is refused and changes nothing, A answers from its own chat, and a
+#       search of every OCUTALON and OCUORDERS message header and body of the run finds no Telegram value and no IRIS user name;
+#   - the report check (with no arguments): the JSON report holds exactly ten passed cases (steps 1 to 6, the second visitor, the two paired
+#     chat cases and the message search) and no skipped one: a case that is skipped, missing or extra fails the unit. With arguments (a
+#     mutation run: -g <title>) only those cases run and the set check is skipped;
+#   - the clean-up check (with or without arguments): after the browser step the proxy address reads its start value and the paired chat's
+#     six visitor addresses keep no counter row; the stalled reads that the routing case waited out are counted on a MEASURED line;
 #   - the load phase (Story 29.8; rows L1 and L2 of its spec), which runs the author's release/demo-load.sh against this throwaway with the
 #     keys at the mock: the proxy address is set to the address that IRIS sees for this host's requests (host_address, set_proxy of
 #     lib-online.sh), each visitor sends its own X-Forwarded-For, and the address is put back to its start value after the phase. It needs
@@ -91,6 +97,7 @@ show_log() { tail -n "$1" "$e2e_log" | redact | sed 's/^/  /'; }
 run_e2e() {
   local left=$((deadline - SECONDS))
   OCUTALON_URL="$base" \
+    OCUTALON_ONLINE_HOST_ADDRESS="$host_ip" \
     OCUTALON_DEMOACCOUNT_USER="$demo_user" \
     OCUTALON_DEMOACCOUNT_PASSWORD="$demo_password" \
     OCUTALON_READONLYACCOUNT_USER="$readonly_user" \
@@ -103,8 +110,7 @@ run_e2e() {
 }
 
 # report_check <report>: the cases of the JSON report by their ends. It prints one FAIL line for each defect and nothing when the report
-# holds exactly the seven passed cases (steps 1 to 6 and the second visitor) and the three skipped ones of Story 31.4, each skipped case
-# with its "Story <id> turns this on" text.
+# holds exactly the ten passed cases (steps 1 to 6, the second visitor, the two paired chat cases and the message search) and no skipped one.
 report_check() {
   node -e '
     const fs = require("node:fs");
@@ -127,27 +133,20 @@ report_check() {
     for (const suite of report.suites ?? []) walk(suite);
     for (const error of report.errors ?? []) problems.push("Playwright reported an error: " + String(error.message ?? error).split("\n")[0]);
     const passed = cases.filter((c) => c.status === "passed").map((c) => c.title);
-    const wanted = [/^step 1:/, /^step 2:/, /^step 3:/, /^step 4:/, /^step 5:/, /^step 6:/, /^second visitor:/];
+    const wanted = [/^step 1:/, /^step 2:/, /^step 3:/, /^step 4:/, /^step 5:/, /^step 6:/, /^second visitor:/, /^the paired chat: A.s paired chat/, /^the paired chat: a press from B.s paired chat/, /^the message search:/];
     for (const re of wanted) {
       const hits = passed.filter((t) => re.test(t));
       if (hits.length !== 1) problems.push("wanted exactly one passed case matching " + re + ", found " + hits.length);
     }
     if (passed.length !== wanted.length) problems.push("wanted " + wanted.length + " passed cases, found " + passed.length + ": " + passed.join(" | "));
-    const skipped = cases.filter((c) => c.status === "skipped");
-    const bystory = { "31.4": 0 };
-    for (const c of skipped) {
-      const text = c.notes.find((n) => /^Story \d+\.\d+ turns this on$/.test(n)) ?? "";
-      const story = (/^Story (\d+\.\d+)/.exec(text) ?? [])[1];
-      if (story === undefined || !(story in bystory)) problems.push("the skipped case \"" + c.title + "\" has no \"Story <id> turns this on\" text of 31.4 (" + c.notes.join("; ") + ")");
-      else bystory[story] += 1;
-    }
-    if (bystory["31.4"] !== 3) problems.push("wanted 3 skipped cases of Story 31.4, found " + bystory["31.4"]);
+    for (const c of cases.filter((x) => x.status === "skipped")) problems.push("the case \"" + c.title + "\" was skipped (" + c.notes.join("; ") + ")");
     for (const c of cases.filter((x) => x.status !== "passed" && x.status !== "skipped")) problems.push("the case \"" + c.title + "\" ended " + c.status);
     if (cases.length !== 10) problems.push("wanted 10 cases in all, found " + cases.length);
     for (const p of problems) console.log(p);
   ' "$1"
 }
 
+host_ip=$(host_address)
 browser_started=$SECONDS
 if [ $((deadline - SECONDS)) -lt 120 ]; then
   fail "the browser step: only $((deadline - SECONDS)) s of the deadline are left"
@@ -169,12 +168,28 @@ else
   if [ "$#" -eq 0 ] && [ "$e2e_status" -eq 0 ]; then
     problems=$(report_check "$e2e_json") || problems="the report check could not run"
     if [ -z "$problems" ]; then
-      pass "the report holds the seven passed cases (steps 1 to 6 and the second visitor) and the three skipped ones of Story 31.4, each with its skip text"
+      pass "the report holds the ten passed cases (steps 1 to 6, the second visitor, the two paired chat cases and the message search) and no skipped one"
     else
       printf '%s\n' "$problems" | redact | sed 's/^/  /'
-      fail "the report does not hold exactly the seven passed and the three skipped cases"
+      fail "the report does not hold exactly the ten passed cases and no skipped one"
     fi
   fi
+  # The paired chat under load (Story 31.4) puts back what it changed, before the load phase sets the proxy again: the proxy address
+  # reads its start value and its six visitor addresses keep no counter row. The stalled reads that its routing case waited out (ruling
+  # R3, cause not isolated) are counted here, so that a run that had one shows it.
+  proxy_now=$(printf '%s\n' 'Write !,"CHK|proxy|",##class(OcuTalon.Data.Public.Settings).Get("proxyAddress")' 'Halt' | session_value OCUTALON proxy)
+  rows_left=0
+  for i in 1 2 3 4 5 6; do
+    n=$(counter_rows "198.51.100.10$i")
+    case $n in '' | *[!0-9]*) n=99 ;; esac
+    rows_left=$((rows_left + n))
+  done
+  if [ "$proxy_now" = "$proxy_start" ] && [ "$rows_left" = 0 ]; then
+    pass "after the browser step the proxy address reads its start value and the paired chat's visitor addresses keep no counter row"
+  else
+    fail "after the browser step the proxy address reads '$proxy_now' (the start: '$proxy_start') and the paired chat's visitor addresses keep $rows_left counter rows"
+  fi
+  echo "MEASURED Story 31.4: $(grep -c 'MEASURED Story 31.4: a read stalled' "$e2e_log") stalled reads were waited out in the browser step"
 fi
 
 # --- the load phase (Story 29.8) ---
