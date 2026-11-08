@@ -5370,6 +5370,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/tests/test-documents.sh step 1; ci/units.sh group_input_pattern
 - 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=implement deviation; fix needs a ci/units.sh pattern union or a hosted check
 - 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=QA:ci/units.sh_live:documents)_claim_of_epics.md_for_shards-3+test-documents.sh_step1_UX-DR144_check+test-ci-changes.sh_cases(orchestrator_ruling;veto_U-307);AC7_mutations_red
+- 2026-11-08T10:04:54Z status=routed owner=burndown by=owner note=U-307_reversed(2026-11-08T09:26:56Z#935):no_shards-3_claim_of_epics.md;residual:pin_the_UX-DR144_line_(epics.md:476)_with_a_static_grep_in_the_hosted_checks_job,which_needs_a_CHECK_SCRIPTS_entry_in_ci/units.sh
 
 ### DW-925: A PDF or Word text cut at MAXTEXT (200,000 chars) shows ready with no hint its tail is not indexed (Docs.Ops.Text drops answer.cut)
 - source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: med | footprint: in-story

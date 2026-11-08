@@ -261,8 +261,7 @@ paths_case "a live script next to documentation runs only its group" false produ
 
 # Bookkeeping runs no group; the UX design documents are not bookkeeping.
 paths_case "_bmad/ alone is bookkeeping" false none _bmad/custom/skill-rules.md
-paths_case "_bmad-output/ alone, outside the design documents, is bookkeeping" false none _bmad-output/implementation-artifacts/sprint-status.yaml _bmad-output/planning-artifacts/prd.md
-paths_case "epics.md is read by live:documents (UX-DR144), so it runs only that unit's group shards-3" false shards-3 _bmad-output/planning-artifacts/epics.md
+paths_case "_bmad-output/ alone, outside the design documents, is bookkeeping" false none _bmad-output/implementation-artifacts/sprint-status.yaml _bmad-output/planning-artifacts/epics.md
 paths_case "bookkeeping with one code path runs every group" false all _bmad/custom/parallel.yaml docker/after-start.sh
 paths_case "no path at all runs no group" false none
 
