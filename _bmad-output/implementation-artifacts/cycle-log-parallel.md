@@ -2920,3 +2920,8 @@
 2026-11-08T21:18:41Z	Epic 5	amendments_verified	amendments=epics.md_5.15,spine_message_table_CheckNow_row,spine_Background_checks_convention_sentence(Rule20_light;no_AD_change) extensions=0 ok=true
 2026-11-08T21:18:41Z	Epic 5	ci_green_verified	head=28e67c3d result=success runs=42515030806,42515030819
 2026-11-08T21:18:41Z	Epic 5	merge_enqueued	policy=when_green note=feature_moved_non-code_only(no_integrate;ruling)
+2026-11-08T21:19:16Z	Epic 5	epic_merged_to_feature	merge=ab73a661 head=28e67c3d stories=5.15 verified_on_origin=yes conflicts=sprint-status.yaml(bookkeeping;SC-4-P_step4) code_conflicts=none non-code_delta_vs_green_head=module.xml,src/module.xml,release/records/1.0.4/rc1.md ledger_union=lost0,dup0(944) sprint_valid=yes spine_lint=baseline(10_low) feature_ci=42524580700,42524580677,(running) release=1.0.5
+2026-11-08T21:19:16Z	Epic 5	decision_sheet_skipped	reason=empty
+2026-11-08T21:19:16Z	Run	deps_hash_rerecorded	reason=fix_forward stories=5.15 hash=a5f4a942ef69
+2026-11-08T21:19:16Z	Epic 5	worktree_removed	
+2026-11-08T21:19:16Z	Epic 5	epic_branches_deleted	local+remote(ancestor_verified)
