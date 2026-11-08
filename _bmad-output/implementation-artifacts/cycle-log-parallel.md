@@ -2794,3 +2794,5 @@
 2026-11-08T12:37:17Z	Epic 17	ci_rerun	run=42470657226_attempt_3 reason=Planner_deviation_c(DW-675_signature_only)
 2026-11-08T12:37:44Z	Epic 7	worktree_provisioned	kind=ff_of_kept_worktree(c1e16cf9->1c5086c7) reason=story_7.11_DW-675_urgent
 2026-11-08T12:37:44Z	Epic 7	runner_dispatched	runner=adc7a70fe743ed3a5 effort=high lane=A(throwaways_only) story=7.11_DW-675(test-only;merges_to_feature_FIRST)
+2026-11-08T12:38:27Z	Epic 18	ci_red_classified	sha=90360113 run=42475836390 job=iris(image) class=flake test=Test.Schedule.Heartbeat_TestAfterAllTestsNothingSaved(TelegramIn_jobs_none) ledger=DW-639 action=rerun_failed(orchestrator;runner_in_CI_WAIT)
+2026-11-08T12:38:27Z	Epic 41	ci_green_verified	head=4beea3c2 result=success(after_infra_rerun) note=41.2
