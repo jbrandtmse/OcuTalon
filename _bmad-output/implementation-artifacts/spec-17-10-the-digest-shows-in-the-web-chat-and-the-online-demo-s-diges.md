@@ -2,7 +2,7 @@
 title: 'Story 17.10: The digest shows in the web chat, and the online demo''s digest is visible'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '686baec753690d78b69dd1dd616404947856dce1'
 baseline_commit: '686baec753690d78b69dd1dd616404947856dce1'
 review_loop_iteration: 0
@@ -163,6 +163,8 @@ deferred: []
 - Given the online demo, when the morning tick passes `digest.time`, then no visitor session gets a digest. When the visitor asks for the digest in the chat, the card appears in that visitor's own chat, and REL-2's online run passes with step 7.
 - Given the tests that pin the card kinds and the online-demo scheduled rule, when the suite runs on a fresh stack in either order, then every one passes, and each new pin has a `mutation:` line shown red.
 
+- [ ] [CI] iris (image) / shard:lane-b: `OcuTalon.Test.Schedule.Heartbeat` `TestAfterAllTestsNothingSaved` red twice on 596eb1f7 (ci run 42442077870, job iris (image), attempts 1 and 2): "and the production runs every item: TelegramIn (TelegramIn row 0, runtime flag 1, jobs none)" -- https://github.com/jbrandtmse/OcuTalon/actions/runs/42442077870 -- the same shard is green on 7ccdd0bf (31.4's head, without Epic 17). Find and fix (Rule 19, hermeticity) the test that leaves TelegramIn enabled at run time with no job before Heartbeat's check: `Install.Step.Production.NotRunning()` reads the run-time flag, so a production update or restart that stops TelegramIn's job and does not put it back gives exactly that message. Prime suspects are this story's lane-b tests (`Test.Core.WebChatOut`, `Test.Data.Ownership`) and anything they start, swap or update. Reproduce on a fresh lane-B throwaway, fix with a demonstrated mutation, and show the shard green; if the run logs prove this story's tests cannot affect TelegramIn, record that evidence under Design Notes instead of changing code.
+
 ### Review Findings
 
 Code review 2026-11-08 (bmad-code-review, full mode, four layers, review tier full-opus). 23 layer rows, 8 entries kept, all low; no high or medium. Each entry has severity / fix-risk / footprint / spec-status.
@@ -191,6 +193,8 @@ Code review 2026-11-08 (bmad-code-review, full mode, four layers, review tier fu
 - Own check (a CI run that crosses `digest.time` now puts a digest card into every open session's chat, so a notice count taken before and after could be off by one): low. The window is one tick a day against a few seconds per counted test, the fix (pinning `digest.time` in CI or filtering the counts) is more than a direct correction, and a flake takes the one-rerun path (compare DW-872).
 
 ## Spec Change Log
+
+- 2026-11-08, rework iteration 1 (trigger ci, orchestrator ruling b): re-opened for the one [CI] item under Tasks & Acceptance.
 
 - 2026-11-07, lead spec gate: Q1-Q3 ruled by the Contest Planner (about 20:45Z); AD-18 and AD-33 amended in the spine; N16 placement kept in notice.spec.ts; the Process.cls class comment :7-8 moved into scope (the plan's deferred item withdrawn); status `blocked` -> `ready-for-dev`.
 
