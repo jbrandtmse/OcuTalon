@@ -326,3 +326,4 @@
 2026-11-08T03:25:46Z	Epic 9	story_chartered	story=9.11 key=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it reason=fix_forward(DW-878;planner_ruling_subject=DW-879,DW-878_placement_2026-11-08) after=9.10
 2026-11-08T03:25:46Z	Epic 9	deps_hash_rerecorded	reason=fix_forward story=9.11 for=orchestrator
 2026-11-08T03:25:46Z	Epic 9	ledger_routed_planned	story=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it entries=1(DW-878) excess=0 by=charter
+2026-11-08T03:28:37Z	Epic 9	epic_context_compiled	sha=407f0984 reason=planning_artifact_newer(9.11_chartered) model=opus header=ok spawn_at=2026-11-08T03:26:01Z
