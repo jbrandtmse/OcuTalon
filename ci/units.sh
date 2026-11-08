@@ -84,8 +84,10 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # shards-2 job was cancelled at its 40-minute timeout after 2,421 s, in the Memory area and before Tools (Fix 755, Bridge 665, Agent 282,
 # Eval 178, Memory 76 so far, Docs 67 and Digest 37 s of classes, READY 267 s); Tools took 27 s on ci run 42375447084. Bridge and Agent
 # are 947 s of that, so shards-2 is about 1,500 s and shards-5 about 1,250 s (inference until a run measures them).
-# Story 19.4 (2026-11-07) added live:documents to shards-5: the real /v1/documents routes over HTTP, a container restart and the 10 MB size check, about 300 to 450 s
-# (inference from live:memory-offline's 243 s in CI and this unit's restart; ci run 42384900368 had shards-5 at 1,253 s). The Test.Docs classes run in shard:lane-a@rest.
+# Story 19.4 (2026-11-07) added live:documents: the real /v1/documents routes over HTTP, four chat turns, a container restart and the 10 MB size check.
+# Measured in ci run 42425571857 (a loaded queue): live:documents 315 s in shards-5. Story 32.5 puts live:sign-in-3 into shards-5, so live:documents runs in
+# shards-3, whose units no Epic 19 story changes (that run: shards-3 1,807 s, shards-2 1,803 s, image 1,840 s; clean shards-3 about 1,710 s on ci run 42384900368).
+# The Test.Docs classes run in shard:lane-a@rest.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
@@ -95,9 +97,9 @@ group_units() {
     shards) echo "shard:lane-a@Checks,Install,Watch live:online-session live:cards" ;;
     shards-2) echo "shard:lane-a@rest" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
-    shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit" ;;
+    shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit live:documents" ;;
     shards-4) echo "shard:lane-a@Channel live:sign-in-2 live:memory-offline" ;;
-    shards-5) echo "shard:lane-a@Bridge,Agent live:documents" ;;
+    shards-5) echo "shard:lane-a@Bridge,Agent" ;;
     *) return 1 ;;
   esac
 }
