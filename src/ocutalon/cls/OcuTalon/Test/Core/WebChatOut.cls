@@ -343,6 +343,7 @@ Method TestDigestCard()
 	Set noAfter = {"parts": [{"key": "digest.greetingEvening", "slots": {}}, {"key": "digest.checkedQuiet", "slots": {"checked": "the Chat agent"}}, {"key": "checks.allPassed", "slots": {}}], "lines": [{"key": "digest.notCheckedSizeLimit", "slots": {"entry": "the Billing database"}}], "rows": []}
 	Do $$$AssertStatusOK(..Out().OnNotification(..Notification(quiet, "digest", "checks.allPassed", noAfter), .response), "a digest with no after-lines part is delivered")
 	Set row = ..Newest(quiet)
+	Do $$$AssertTrue($IsObject(row), "the digest with no after-lines part is a card in RecentNotices")
 	If $IsObject(row) Do $$$AssertEquals(row.Text, "Good evening."_$Char(10)_"I checked the Chat agent (all running, no errors, no backlog)."_$Char(10)_"Everything I checked passed."_$Char(10)_"Not checked: the Billing database (OcuTalon can't read this database's size limit).", "the lines come last")
 
 	Set broken = ..Session("digestbad")

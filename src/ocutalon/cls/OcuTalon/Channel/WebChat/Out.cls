@@ -71,7 +71,7 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 		Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
 	}
 	If $$$ISERR(sc) Quit sc
-	Set sc = ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), request.ApprovalRef, request.Kind, text, request.DecisionRef, $Select(request.Kind = "reminder": ..SlotOf(request, "dueAt"), 1: ""), $Select(request.Kind = "digest": "", 1: ..FallbackReasonOf(request)), .row)
+	Set sc = ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), request.ApprovalRef, request.Kind, text, request.DecisionRef, $Select(request.Kind = "reminder": ..SlotOf(request, "dueAt"), 1: ""), ..FallbackReasonOf(request), .row)
 	If $$$ISERR(sc) Quit sc
 	Do ..Announce(row.OwnerRef, "notification", "OcuTalon.Live.Payload.Notification", row)
 	Quit $$$OK

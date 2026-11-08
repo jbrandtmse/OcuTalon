@@ -19,7 +19,8 @@
 ///   - TestOnlineDemoSkipped (DW-874; AD-18 as amended 2026-11-07): on the online demo the scheduled run queues no Compose for any session, the one with a resume
 ///     hash (a visitor) and the one without (ended) alike, while on a local install both get one; a visitor's SendDigest (origin tool) on the online demo still
 ///     queues one requested Compose with an empty DueAt and is answered Ok and sending;
-///   - TestOnlineDemoResends: the tick on the online demo still gives a digest that missed a channel its resend (the attempt is counted on its Sent row).
+///   - TestOnlineDemoResends: the tick on the online demo still gives a digest that missed a channel its resend: one Notification to the web chat it missed, and
+///     the Sent row counts the attempt, lists the web chat as reached and misses none; its routing row is the probe's TRACESESSION's, which Clean deletes.
 Class OcuTalon.Test.Digest.Due Extends OcuTalon.Test.Bridge.ZoneCase
 {
 
@@ -320,6 +321,7 @@ Method TestOnlineDemoResends()
 {
 	Set visitor = ..Session("2030-06-03T07:30:00", ##class(OcuTalon.Bridge.Ids).NewRef())
 	Set host = ..Host(visitor)
+	Set host.%SessionId = $Parameter(..#PROBE, "TRACESESSION")
 	Set sent = ##class(OcuTalon.Digest.Data.Sent).%New()
 	Set sent.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set sent.SessionRef = visitor
@@ -336,6 +338,9 @@ Method TestOnlineDemoResends()
 	Do $$$AssertEquals($ClassMethod(..#PROBE, "Count", "compose"), 0, "the tick queues no Compose")
 	Set again = ##class(OcuTalon.Digest.Data.Sent).%OpenId(id)
 	Do $$$AssertEquals(again.Attempts, 1, "but the digest that missed a channel is given its resend (the attempt is counted)")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "Count", "notice"), 1, "one Notification is sent again")
+	If $ClassMethod(..#PROBE, "Count", "notice") = 1 Do $$$AssertEquals($List($ClassMethod(..#PROBE, "Record", "notice", 1), 6), "WebChatOut", "to the web chat, the channel it missed")
+	Do $$$AssertEquals(again.Channels_"|"_again.Failed, "web|", "and the Sent row lists the web chat as reached and misses none")
 }
 
 }

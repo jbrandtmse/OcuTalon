@@ -5085,6 +5085,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T04:40:46Z status=routed owner=burndown by=orchestrator note=first occurrence pair; next burn-down with DW-550 (CSP session cap) and DW-685; a red on a quiet host makes it real
 - 2026-11-06T04:52:15Z occurrence=feature-61f32de8 by=orchestrator note=run 42161844768: live:answers close-loop C3 GET /state no answer 60s (127709120576); shard:lane-b Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved 'production runs every item' (127709120793); groups 1786-1828s; 4 concurrent ci.yml runs on 18 services; rerun --failed at low load
 - 2026-11-06T05:21:27Z occurrence=feature-61f32de8-rerun-green by=orchestrator note=attempt 2 of 42161844768 green at low load: flake class confirmed
+- 2026-11-08T00:56:22Z occurrence=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges note=OCT-epic17_b52d069b_run_42425470320_iris(shards)_live:online-session_L5_page.close_30s(2026-11-08T00:42Z);one_rerun_of_the_failed_job
 
 ### DW-778: test-readme.sh measured rule does not fail on an extra Measured row, so an old 11.25 label re-added as a ninth row passes CI
 - source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
@@ -5294,6 +5295,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Channel/WebChat/Out.cls:31 and SimPhone/Out.cls:31 CARDKINDS lack the digest; Digest/Process.cls:204-209 morning send to demo sessions
 - 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) show the digest as a web chat card on every install, (b) demo reply says it goes to Telegram (not set up on the demo) and the morning run skips demo sessions; Planner prefers (a) if it fits Sun 19Z; PUBLIC TEXT at the spec gate
 - 2026-11-07T20:01:47Z owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=load note=chartered_as_story_17.10(SC-5_reopen,Planner_D2_option_a_2026-11-07T15:50Z)
+- 2026-11-08T00:46:46Z status=resolved-by:17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=adjudication note=delivered_4be9d24b+cr_patches:WebChatOut_digest_branch(CARDKINDS+DigestText,TestDigestCard),Ownership_recentNotices(TestRecentNotices),web_notice_card(N16_live+reload),Ticked_skips_onlineDemo(TestOnlineDemoSkipped,TestOnlineDemoResends),online_step_7(live_online-demo-path);SimPhone_half_out_by_Planner_D2_option_a
 ### DW-869: release/release.sh:940 says the CI job ipm-install runs the same command as the release's ipm step; after the CI split, ipm-install runs modes a and r and ipm-install-p runs b and p
 - source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: rework 2 review finding; release.sh is under the release-tool freeze
@@ -5320,3 +5322,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rail text diverges at char 982 only in the HEARTBEAT CHECKLIST card; Epic 7's diff touches no web file; a time-of-day race with the heartbeat's half-hour schedule
 - 2026-11-07T15:06:23Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second red on the same head is real
 - 2026-11-07T15:47:24Z occurrence=7-10 note=rerun_of_iris(shards-4)_green_on_37856843_(attempt_2);flake_confirmed;stays_routed_burndown
+
+### DW-896: The online-demo visitor's digest card shows the demo instance's own vital signs (uptime, databases full and their names, journal, licence use)
+- source: spec-17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Coverage.Build reads Watch.Reader.Vitals with no online-demo limit; step 7 makes the card visible. Cost is session+instance, and no instance usage arises on the demo (AD-4)
+- 2026-11-08T00:43:03Z status=by-design owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=cr note=by-design: AD-18 coverage rows + Planner ruling D2 (a) make the demo digest visible; reopens only by spec amendment
+- 2026-11-08T00:46:28Z status=by-design owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=unattended note=veto_window(security_posture):kept_as_built;owner_may_reverse_via_U-303_before_1.0.4
+
+### DW-897: docker/tests/test-sign-in.sh still names Story 2.7's N1-N15 in its header (:26) and PASS/FAIL lines (:398, :404); notice.spec.ts now holds N16
+- source: spec-17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: notice.spec.ts gained N16 (Story 17.10); test-sign-in.sh is outside Epic 17's footprint and is edited by OCT-epic32 (Story 32.5 sign-in split)
+- 2026-11-08T00:43:03Z status=wontfix-accepted owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=cr note=reopen_if=a sign-in run's PASS/FAIL line is cited as the notice cases that ran; file contended by Epic 32 (32.5)

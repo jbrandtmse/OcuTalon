@@ -37,7 +37,7 @@
 ///     check, report a failed read in sc, and run only in production jobs and tests.
 ///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
 ///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. RecentTurns leaves out a refused
-///     turn, and RecentNotices includes the allowance cards and, since Story 17.10, the digest cards.
+///     turn, and RecentNotices includes the allowance cards and the digest cards (Story 17.10).
 ///   - The Documents page's reads (Story 34.2) are Rows kinds too: Documents, the session's own documents (and on a local install those of
 ///     owner instance, which every user shares), newest first, and Document, one by its Ref; a document the session can't see answers "".
 ///   - Upload (Story 34.3) is the session's own upload by its Ref, a Rows kind too; Data.Upload's Take and Drop read through it, and an upload of

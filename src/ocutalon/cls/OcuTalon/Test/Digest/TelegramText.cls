@@ -1,8 +1,8 @@
 /// The golden test of the digest text that TelegramOut sends (Story 17.10; AD-32). It is safe on a slot: no production runs. A shadow instance of
 /// OcuTalon.Test.Digest.TelegramOutProbe handles a digest Notification as the framework would, and the probe records the text that TelegramOut gives
 /// to Send. The process zone is America/New_York and the onlineDemo key is off, so that every time reads the same on every run. Each expected text is
-/// written out here, never read from the catalog, and its pieces are joined with a line feed. The text must be the same before and after the digest
-/// rendering moved out of TelegramOut into OcuTalon.Channel.DigestText.
+/// written out here, never read from the catalog, and its pieces are joined with a line feed, so that TelegramOut's digest text is pinned byte for byte,
+/// whichever class renders it.
 ///   - TestFullDigest: greeting, vital signs, the checked part with checks.notEverythingRestPassed, three coverage lines (passed, failed and not checked,
 ///     with dated times), what needs the user, what was saved for later and the cost, in that order; the message goes as plain text with no markup;
 ///   - TestNoAfterLines: parts with none of the after-lines keys end with the coverage lines;
