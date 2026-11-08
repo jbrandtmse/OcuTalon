@@ -2,13 +2,21 @@
 title: 'Story 17.12: "Needs you" never counts the person''s own chat messages'
 type: 'bugfix'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'b51badfd2690df2206070029ea3359044519a267'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      NeedsYou.List reads the newest 1000 decide Decisions (DECISIONMAX) before it skips own-turn ones, so a session with more than 1000 newer own-turn Decisions in the window could hide an older real tell-now item and give count 0.
+    evidence: |-
+      Ownership.Decisions(sessionRef, DECISIONMAX) is newest first and capped; the own-turn skip runs after the read. Before this story those Decisions were counted (a false positive), now they are skipped, so the cap can no longer over-count. Reaching it needs over 1000 chat messages newer than the real item inside one digest window (the demo allowance is 50 messages an hour). reopen_if: a session is seen with over 1000 decide Decisions inside one digest window, or Ownership gains a read that excludes turn Decisions.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Digest/NeedsYou.cls:62
+    severity: low
 ---
 
 <intent-contract>
@@ -118,6 +126,25 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-08 - Review pass
+- verdicts: 15 findings - high 0, medium 0, low 14, false 1, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: up to 1000 TurnOfItem reads per Compose, move the handled check ahead of the read - the order and the per-Decision read are Decided in-stage 2 (same as Checks.Beat); reordering changes no result and departs from the spec's stated order; a bound of tell-now/act Decisions in the window, not a user-visible cost.
+  - `[low]` `[reject]` Blind: TestOwnTurnsEveryKind's pre-window and handled rows, and the telegram/guide variants, pass without the skip - those two rows are matrix-required and observably equivalent (another filter already drops them); the rows that can fail (no RecordedAt, act, fallback, in-window) are pinned by the mutation; Channel and FromGuide are deliberately unread by the rule.
+  - `[low]` `[reject]` Blind: the error path of the TurnOfItem read has no test - the read only fails when the SQL statement fails (Ownership.Rows), which no fixture can provoke without editing Data/Ownership (other lane); two lines that mirror the existing `If $$$ISERR(sc) Quit` pattern. reopen_if: Ownership gains a test seam for a failing read.
+  - `[low]` `[reject]` Blind: the e2e assertion is narrower than its comment and could pass with no needs-you line - the spec task names exactly this assertion; the CI mock triages the message act, so the unfixed code names it in the card (the D3 repro); the greeting and cost lines are already asserted.
+  - `[low]` `[reject]` Blind: purge deletes Turns before Decisions, so a surviving own-turn Decision is counted again - the Design Notes record it as within seconds of the cutoff (inference); the fix is in Data/Purge or Bridge/Purge, outside the footprint; the class doc's "whatever its time" is about the window.
+  - `[low]` `[defer]` Edge: the 1000-Decision read is capped before the skip, so over 1000 newer own-turn Decisions in one window could hide an older real item - real but practically unreachable (50 messages an hour in the demo); the fix needs a paged or filtered Ownership read (out of footprint); recorded in `deferred:` with reopen_if.
+  - `[low]` `[reject]` Edge: one SQL read per Decision, load the session's turn ItemIds once - same as the first row (Decided in-stage 2 rejects a full Ownership.Turns read, which loads every turn of a long session).
+  - `[low]` `[reject]` Edge: purge makes the Turn vanish before its Decision - same as the fifth row.
+  - `[low]` `[reject]` Edge: no test for TurnOfItem failing in the loop - same as the third row.
+  - `[false]` `[reject]` Edge: no test for an empty ItemId - `TestEmptyItemId` (an existing test, unchanged and green) plants a tell-now `act` Decision with ItemId "" and asserts it is listed.
+  - `[low]` `[reject]` Edge: Channel and FromGuide never reach the code path, so the every-kind tests are one path - that is the rule (any turn of the session, whatever its channel); the cases pin it against a future channel filter.
+  - `[low]` `[reject]` Verification-gap: the error path of the TurnOfItem read is unpinned - same as the third row.
+  - `[low]` `[reject]` Verification-gap: two rows of TestOwnTurnsEveryKind cannot fail for the defect - same as the second row.
+  - `[low]` `[patch]` Verification-gap: step 7's absence assertion has no mutation line - it runs in CI only, so a local red cannot be shown; patched by writing the `mutation:` line in `## Verification`, labelled CI-only and (inference).
+  - `[low]` `[reject]` Intent-alignment: readings A (List), B (composed digest) and C (delivered card); the diff implements A and B in unit tests, and C through the CI-only step 7 assertion; allClear is covered through the count - descriptive only, no divergence beyond what the spec states (matrix row 7 is CI only).
+
 ## Design Notes
 
 **How a user-turn Decision is identified.** A Decision is the person's own when `Ownership.TurnOfItem(decision.ItemId, sessionRef)` finds a turn. This is the narrowest reliable test:
@@ -186,7 +213,30 @@ Every `ci/*.sh` call sets `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCUTALON_TEST_WEB
 
 Every test added or changed passes on a fresh environment, in either order.
 
+**Implementation evidence (Rule 19), run on the warm stack `e17s12iw`:**
+- mutation: (pinning) deleted the `TurnOfItem` skip in `Digest/NeedsYou.cls` -> `Test.Digest.NeedsYou` red: `TestOwnTurnNotCounted`, `TestOwnTurnsEveryKind`, `TestOnlyOwnTurns`, `TestDigestOwnTurnChannels` and `TestDigestOnlyOwnTurns` failed; restored byte for byte (`cmp`), class green.
+- mutation: (over-exclusion) replaced the skip with `If decision.ItemId '= "" Continue` -> red: `TestOwnTurnNotCounted` and `TestOtherSessionTurn` failed ("Disk alert mail" lost), and so did the older tests that plant Decisions with an ItemId (`TestOrder`, `TestOverflow`, `TestOverflow200`, `TestOverflowEmptyTime`, `TestWindow`, `TestWindowUndated`, `TestProcessWindow`, `TestProcessNoUpperBound`); restored byte for byte (`cmp`), class green.
+- mutation: (scope) replaced the `TurnOfItem` call with the unscoped `OcuTalon.Data.Turn` `ItemIdIndexOpen(decision.ItemId)` -> red: `TestOtherSessionTurn` alone failed; restored byte for byte (`cmp`), class green.
+- mutation: (CI only, not demonstrated locally: `live:online-demo-path` is over the per-call cap) deleting the `TurnOfItem` skip in `Digest/NeedsYou.cls` -> step 7's `not.toContain('Send my digest now')` goes red, because the CI mock triages that message act and the card would name it (inference). The unit tests above pin ACs 1 to 3; the step 7 assertion is Rule 3's real-runtime evidence.
+- `OcuTalon.Test.Digest.NeedsYou`, `Compose` and `AllClear` pass on the warm stack; `cd web && npx tsc -p tsconfig.e2e.json` has no error.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `OcuTalon.Digest.NeedsYou.List` now skips every decide Decision whose `ItemId` is the `ItemId` of one of the session's turns (`Ownership.TurnOfItem`, session-scoped), so the person's own chat messages are never counted or named in the digest or in its all-clear count. A failed read returns the error status and the empty result. No user-facing string changed.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Digest/NeedsYou.cls`: the TurnOfItem skip in the Decision loop and the class doc.
+- `src/ocutalon/cls/OcuTalon/Test/Digest/NeedsYou.cls`: the `OwnTurn` helper, `DigestNeeds` returns the Slots JSON, and six new tests (one per matrix row).
+- `web/e2e-online/demo-path/demo-path.spec.ts`: step 7 asserts the card does not contain "Send my digest now" (Rule 11 (b) footprint extension, CI only).
+- This spec: Verification evidence, triage log, deferred item.
+
+**Review.** Four layers, 15 findings: patches applied 1 (the step 7 `mutation:` line, low); deferred 1 (the 1000-Decision read cap, low, in `deferred:`); rejected 13 (12 low with their reasons in the triage log, 1 false). No high or medium.
+
+**Follow-up review recommended:** false (no patched high, fewer than two patched medium).
+
+**Verification.** Both classes compiled on the slot (build 154U). Warm stack `e17s12iw`: `Test.Digest.NeedsYou`, `Compose`, `AllClear`, `EvalCase`, `TelegramText`, `Test.Checks.Snapshot` passed; `test-boundaries.sh` and `test-class-rules.sh` passed; `npx tsc -p tsconfig.e2e.json` clean; warm stack down. Fresh `shard lane-a@Digest` forward and `--reverse`: 22 of 22 classes passed each time; fresh tag torn down. Three Rule 19 mutations demonstrated (pinning, over-exclusion, scope) and restored byte for byte. `live:online-demo-path` runs in CI only.
+
+**Residual risks.** Step 7's assertion is unexercised locally (its `mutation:` line is labelled inference). The 1000-Decision cap (deferred) is practically unreachable.
