@@ -9590,6 +9590,7 @@ So that only a person's answers can ever become precedents.
 **When** they are called
 **Then** each is session-checked and owner-scoped. The notes route answers from `DailyNote.Build`, a stub until Story 41.3 (AD-4)
 **And** `SessionOps.End` deletes the ended session's precedents through `PrecedentOps` (AD-4)
+- DW-921: AD-21's accepts-only list for PrecedentOps names MarkNoise and RecordPrecedent but not ForgetPrecedent, which AD-1 and the Epic 41 names sub-bullet route to PrecedentOps from web_user; fold into the AD-21 amendment written at this story's plan (ledger; routed by harvest 2026-11-08)
 
 ### Story 41.3: Daily notes built by code, and the session starts that read them
 
@@ -9719,6 +9720,7 @@ So that memory can't be poisoned through the notes or the precedents.
 **Given** the security overview
 **When** this story updates its section on what data leaves the instance
 **Then** that section says that daily notes and precedents are sent to the configured model provider inside requests (FR-61, NFR-18)
+- DW-920: Story 41.7's eval seeding does not fit the first part's contracts as fixed (RecordPrecedent's fields, AD-21's one sender, ForgetPrecedent's origin); decided by the Contest Planner under the owner's delegation: AD-21 is amended additively at 41.2's plan, and this story seeds precedent rows only while OCUTALON_EVAL=1, marks each row eval-seeded, removes them through PrecedentOps after the run, and pins that a person's turn beside an eval run reads none (ledger; routed by harvest 2026-11-08)
 
 **Release check:** at the first daily release that ships this part, the Contest Planner's hands-on pass with real keys marks a notice as noise on the web app, then sends a similar sample email, and reads a day's notes (REL-7, as amended 2026-10-31).
 

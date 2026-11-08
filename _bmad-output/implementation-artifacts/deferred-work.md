@@ -5473,3 +5473,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: evidence/ep-bug-s11/results.md (Story 0.16) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 9/9 crossing runs died, 6/6 one-sided runs survived per build (orders c,d,e vs a,b); messages.log caught signal 11 JobType=Interactive job; OcuTalon avoids it by AD-6 (embeddings in a WorkMgr worker)
 - 2026-11-07T21:43:35Z status=by-design owner=0-16-the-embedded-python-callback-crash-s11-is-re-verified-with-a by=evidence note=AI_Hub_platform_defect_not_ours;AD-6_rule_stands;public_report_drafted_by_the_Planner_posted_by_the_owner(no_filing_here);reopen_if=a_build_after_2027.1.0AI.109_survives_orders_c,d,e_of_ep-bug-s11/run.sh
+
+### DW-920: Story 41.7's eval seeding does not fit the first part's contracts: RecordPrecedent has no match key/summary/noise answer, AD-21 names AnswerOps as RecordPrecedent's only sender, and ForgetPrecedent is web_user only, so EvalIn has no seeding or removal path
+- source: _bmad-output/implementation-artifacts/spec-41-1-fix-the-names-and-contracts-of-memory-s-first-part.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: epics.md 41.7 AC 2 vs spine AD-21 only-writer list and RecordPrecedent row; AD-1
+- 2026-11-08T07:35:42Z status=routed owner=41-7-evaluation-and-tests-for-memory-s-first-part by=harvest note=Decided by the Contest Planner (owner delegation, 2026-11-08): AD-21 amended additively, option (a), written by the lead at 41.2's plan; 41.7 implements eval-only seeding (OCUTALON_EVAL=1), eval-seeded marker, removal via PrecedentOps, product sessions never read eval rows
+
+### DW-921: AD-21's accepts-only list for PrecedentOps names MarkNoise and RecordPrecedent but not ForgetPrecedent, which AD-1 and the Epic 41 names sub-bullet route to PrecedentOps from web_user
+- source: _bmad-output/implementation-artifacts/spec-41-1-fix-the-names-and-contracts-of-memory-s-first-part.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: spine AD-21 PrecedentOps accepts-only line vs AD-1 line 117 and AD-29 Epic 41's names sub-bullet
+- 2026-11-08T07:35:42Z status=routed owner=41-2-the-precedent-table-its-one-writer-and-the-routes by=harvest note=Fold into the AD-21 additive amendment the lead writes at 41.2's plan (extends the Rule to a case AD-1 already states); if it needs a separate ruling, the lead asks the orchestrator then
