@@ -11,7 +11,6 @@
 ///     already written and sends a failed event;
 ///   - TestPlainText: 5,000 characters of text become passages of at most 1,000 characters with no section;
 ///   - TestUnreadable: bytes that are not UTF-8, hold a NUL or are blank after a BOM give a failed row with the reason unreadable, an event and Ok 1, and no KB row;
-///   - TestNotBuilt: a pdf and a docx give a failed row with the reason not_built until Story 19.7, an event and Ok 1;
 ///   - TestUploadGone (DW-747): an upload already taken, one that never was, and another session's give Ok 0 failed with a failed row (reason failed) and its event,
 ///     and another session's upload stays;
 ///   - TestNoSession: either verb for an unknown session gives Ok 0 no_session, writes no row and takes nothing;
@@ -347,20 +346,6 @@ Method TestUnreadable()
 	Do $$$AssertTrue(..WaitState(result.Ref, "ready"), "control: a file that starts with a BOM and has text is read")
 	Set row = ..Row(result.Ref)
 	Do $$$AssertEquals(row.Text.Read($$$MaxLocalLength), "# Title" _ $Char(10) _ "Body text.", "with the BOM stripped from its text")
-}
-
-Method TestNotBuilt()
-{
-	If '..Ready() Quit
-	Set session = ..Session("notbuilt")
-	For type = "pdf", "docx" {
-		Set sc = ..Add(session, "scan." _ type, type, "%PDF-1.4 bytes", .result, .seconds)
-		Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome _ "|" _ (result.Ref '= ""), "1|added|1", type _ " is answered Ok 1 with the Ref")
-		Set row = ..Row(result.Ref)
-		Do $$$AssertEquals($Select($IsObject(row): row.State _ "|" _ row.Reason _ "|" _ row.ContentType, 1: "no row"), "failed|not_built|" _ type, type _ " is a failed row with the reason not_built until Story 19.7")
-		Do $$$AssertEquals(..Events(result.Ref), "failed", "with its one event")
-		Do $$$AssertEquals($ClassMethod(..#STORE, "Count", result.Ref), 0, "and no KB row")
-	}
 }
 
 Method TestUploadGone()

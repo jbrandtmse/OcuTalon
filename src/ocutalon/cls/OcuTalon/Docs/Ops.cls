@@ -10,7 +10,7 @@ Include Ensemble
 ///     nothing and writes no row (Story 19.5). Otherwise the upload is taken once with the command's SessionRef (Upload.Take); an upload that is gone (taken, dropped
 ///     or another session's, DW-747) writes a failed row (reason failed) and answers failed (Ok 0) with the row's Ref. The bytes of a markdown or text document must
 ///     be UTF-8 without a NUL and not blank once a BOM is stripped, else the row is failed with the reason unreadable; a pdf or docx document is failed with the
-///     reason not_built (Story 19.7 sends them through Docs.Extract at the Text seam). Every failed row is published and the answer is added (Ok 1) with its Ref
+///     code of Docs.Extract's answer when it cannot be read (otherwise Docs.Extract reads it in its worker and it is indexed like Markdown). Every failed row is published and the answer is added (Ok 1) with its Ref
 ///     and the message MESSAGENOTINDEXED. An unexpected failure answers failed (Ok 0) with CommandsIn's failure text and logs one redacted warning.
 ///     Otherwise the row is saved with the state indexing (OwnerRef the literal instance, AddedBy the command's session, the text, KnowledgeBase OcuTalonKB.Docs),
 ///     published, and Index(Ref, 0) is sent to this operation; the answer is added (Ok 1) with the Ref.
@@ -301,15 +301,36 @@ Method OnRemove(request As OcuTalon.Msg.Command.RemoveDocument, Output response 
 	Quit sc
 }
 
-/// The text of the bytes of a document of the content type, in text, or the reason in reason: markdown and text are UTF-8 (a BOM is dropped) with no NUL and
-/// something that is not blank, else unreadable; pdf and docx are not built until Story 19.7 (not_built). Never throws; a text that is too long to hold is
-/// failed.
-ClassMethod Text(bytes As %Stream.Object, contentType As %String, Output text As %String, Output reason As %String) As %Boolean
+/// Seconds that the reading of a pdf or docx file may take, the wait for the extraction lock included (Docs.Extract.Read's timeout): well inside CommandsIn's
+/// 120 seconds, so that two worst-case adds queued on this operation (pool 1) still answer in time.
+Parameter EXTRACTWAIT = 45;
+
+/// The start of the warning for a pdf or docx file that Docs.Extract failed or timed out on (developer-facing): followed by the code and the redacted detail.
+Parameter LOGEXTRACT = "DocumentOps could not read a file: ";
+
+/// The text of the bytes of a document of the content type, in text, or the reason in reason. markdown and text are UTF-8 (a BOM is dropped) with no NUL and
+/// something that is not blank, else unreadable. pdf and docx are read by OcuTalon.Docs.Extract.Read (in its worker, within wait seconds, the wait for its lock
+/// included; a caller that passes four arguments gets EXTRACTWAIT): the text it answers is the text, indexed like Markdown, and a file it cannot read gives its code
+/// (one of Docs.Extract's CODES, for example encrypted, damaged, no_text, legacy_doc, contents_too_large or timed_out) as the reason; the codes failed and timed_out
+/// also log one warning that starts with LOGEXTRACT. Any other type is wrong_type. Never throws; a text that is too long to hold is failed.
+ClassMethod Text(bytes As %Stream.Object, contentType As %String, Output text As %String, Output reason As %String, wait As %Integer = {..#EXTRACTWAIT}) As %Boolean
 {
 	Set text = ""
 	Set reason = ""
+	If (contentType = "pdf") || (contentType = "docx") {
+		Set answer = ##class(OcuTalon.Docs.Extract).Read(bytes, contentType, wait)
+		If answer.ok {
+			Set text = answer.text
+		} Else {
+			Set reason = answer.reason
+			If (reason = "failed") || (reason = "timed_out") {
+				$$$LOGWARNING(..#LOGEXTRACT_reason_" "_##class(OcuTalon.Bridge.Redact).Text(answer.detail))
+			}
+		}
+		Quit reason = ""
+	}
 	If (contentType '= "markdown") && (contentType '= "text") {
-		Set reason = "not_built"
+		Set reason = "wrong_type"
 		Quit 0
 	}
 	Try {

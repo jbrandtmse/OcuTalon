@@ -2,7 +2,8 @@
 title: 'Answer from PDF and Word documents'
 type: 'feature'
 created: '2026-11-07'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'eb074638e6c577f71d6337b0797460575c832233'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -10,7 +11,42 @@ context:
   - '{project-root}/_bmad-output/implementation-artifacts/spec-19-4-answer-from-documents-with-citations.md'
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/19-6-task0-extraction.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      DW-719's UX-DR144 wording of epics.md line 476 has no check script that pins it.
+    evidence: |-
+      docker/tests/test-documents.sh cannot read epics.md, because docker/tests/test-ci-config.sh (rule inputs) requires the input pattern of group shards-3 in ci/units.sh (Story 19.5's file) to claim every file a live script reads. Adding _bmad-output/planning-artifacts/epics.md to that pattern, or a hosted check script that greps the line, belongs to the lead or the Epic 19 burn-down.
+    location: >-
+      docker/tests/test-documents.sh step 1, ci/units.sh group_input_pattern
+    severity: low
+  - summary: >-
+      A PDF or Word text that is cut at MAXTEXT (200,000 characters) shows as ready with no sign that its tail is not indexed.
+    evidence: |-
+      Docs.Ops.Text keeps answer.text and drops answer.cut (Docs.Extract's flag from Story 19.6); the Design Notes record the cut as designed, but the Documents page and the answer give no hint. A hint needs new user-facing text (PUBLIC TEXT), so it is a product decision.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Docs/Ops.cls Text
+    severity: low
+  - summary: >-
+      The Word reader does not read text inside tracked changes, simple fields, smart tags or custom XML in a paragraph.
+    evidence: |-
+      _runs_text reads w:r, w:hyperlink and w:sdt only, as python-docx 1.1.2's Paragraph.text did before this story, so it is not a regression; a document made only of w:ins runs is no_text.
+    location: >-
+      src/ocutalon/python/ocutalon_extract.py _runs_text
+    severity: medium
+  - summary: >-
+      The Flate bound does not cover the other PDF filters (RunLength, LZW, ASCII85), and a swallowed _TooLarge leaves a negative budget that makes the next zlib call unbounded.
+    evidence: |-
+      Unverified (not measured): a RunLength stream expands at most 128 to 1, so a 10 MB file could reach about 1.3 GB in Python; and _BoundedZlib asks zlib for left + 1 bytes, which is 0 (no limit) once left is -1, if pdfminer or pdfplumber catches the private error. Settle it with a bomb sample for each filter and a grep of the installed pdfminer for broad excepts around stream decoding; the fix is max(left, 0) + 1 and a budget for the other filters.
+    location: >-
+      src/ocutalon/python/ocutalon_extract.py _BoundedZlib, _BoundedObject
+    severity: medium (unverified)
+  - summary: >-
+      No test pins that the worker gets only the seconds left of the timeout after the extraction lock wait.
+    evidence: |-
+      TestOneReadAtATime's lock waits are short and its timeout case returns before the remaining time is computed; replacing left by timeout in Docs.Extract.Read keeps every test green. A pinning test needs a read that is slow by design (a fixture the lead may add with the Epic 19 burn-down).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Docs/Extract.cls Read
+    severity: low
 ---
 
 <intent-contract>
@@ -157,6 +193,36 @@ File footprint (every file this story creates or edits; `[19.5]` = Story 19.5's 
 
 ## Review Triage Log
 
+### 2026-11-08 — Review pass
+- verdicts: 26 rows for the 35 findings of the three code layers (Blind Hunter 11, Edge Case Hunter 10, Verification Gap 14, grouped by shared root cause) and the Intent Alignment Auditor's descriptive report — high 0, medium 2, low 22, false 1, maybe-false 1
+- findings:
+  - `[low]` `[defer]` Blind 1 / Edge 6: `Text` drops `answer.cut`, so a text cut at MAXTEXT shows ready — the cut is recorded as designed (Design Notes, DW-894 decline); a hint needs PUBLIC TEXT; deferred.
+  - `[medium]` `[defer]` Blind 2 / Edge 5: tracked changes, fields, smart tags not read — python-docx 1.1.2's `Paragraph.text` read only `w:r` and `w:hyperlink` before this story, so it is pre-existing; deferred.
+  - `[maybe-false]` `[defer]` Blind 3 / Edge 2 / Edge 3: non-Flate filters unbounded and a swallowed `_TooLarge` makes the next call unbounded — if true it is medium (whether pdfminer swallows the error was not measured; the fix would add a guard for a state not demonstrated); deferred as unverified with what would settle it.
+  - `[low]` `[reject]` Blind 4: `contents_too_large` text is "its text is too long to read." — the six texts are ruled word for word (Q1), so the fix would edit the ruling.
+  - `[low]` `[reject]` Blind 5 / Edge 7: three queued worst-case adds pass 120 s; the wait floors at 1 s — `EXTRACTWAIT` 45 s and "at least 1 s" are the spec's decisions (Design Notes, Tasks).
+  - `[false]` `[reject]` Blind 6: `doc_is` pattern may be loose — `doc_is` compares the literal string `state|reason` (`[ "$(doc_state "$1")" = "$2" ]`), so `ready|` and `failed|encrypted` are exact.
+  - `[low]` `[reject]` Blind 7 / Verification gap 4 / Rule 19 TestOnlineDemoParity: passes on two identical refusals before 19.5 — by design: falsifiable only once 19.5 has merged (Design Notes), the mutation line is recorded by the second integrator.
+  - `[low]` `[reject]` Blind 8: helpers copied from `Test.Docs.Turns` — the copy and its reason are in the spec (Design Notes "Extend, don't copy").
+  - `[low]` `[reject]` Blind 9 / Edge 4 / Verification gap other (escape): a file's own `\## ` line loses its backslash — the spec decides it (Design Notes: left as it is, harmless).
+  - `[low]` `[reject]` Blind 10 / Intent 4: `not_built` text remains and a zero-byte `.pdf` is `wrong_type` — `not_built` still answers the online demo; `wrong_type` for no signature is AC'd (matrix "Not a PDF").
+  - `[low]` `[reject]` Blind 11: the six texts are not pinned to `Docs.Extract`'s REASON parameters, and the EXPERIENCE.md ownership line is unrelated — the texts are the Planner's ruling; the line is DW-719's owner-ruled wording (Task "DW-719").
+  - `[low]` `[patch]` Edge 1: a PDF line of NUL and then `## ` escapes after `_finish` strips the NUL, so it opens a section — real; `_escape` now removes NUL first; pinned by TestWorkerEscape (mutation line added).
+  - `[low]` `[defer]` Edge 8: the epics.md UX-DR144 check is missing from `test-documents.sh` — the spec's Task conflicts with "no `ci/units.sh` edit" and `test-ci-config.sh` rule `inputs`; dropped and deferred (in-stage decision).
+  - `[low]` `[reject]` Edge 9: `AddEval`'s doc :211 not updated — the spec's "Hunks apart from Story 19.5" forbids editing it (19.5's :210 is adjacent); `Text`'s doc names the reasons.
+  - `[low]` `[reject]` Edge 10: a cell with an empty paragraph reads with one space less — cosmetic and not reachable by any existing sample.
+  - `[medium]` `[patch]` Verification gap 1: no test reads a Flate-compressed PDF, so the stand-in's success path and the `decompress_corrupted` path are unproven — real; `Samples.PdfFlate`, `PdfFlateTruncated`, `FlateStored`, `TestFlateStreams`, and TestBombStops reads a Flate PDF as its next read; mutation lines added.
+  - `[low]` `[defer]` Verification gap 2: the seconds left after the lock wait are unpinned — needs a slow-by-design read fixture; deferred.
+  - `[low]` `[patch]` Verification gap 3: the hyperlink branch has no sample — `Samples.DocxHyperlinks` and assertions in TestContentControls; mutation line added.
+  - `[low]` `[reject]` Verification gap 5 / Rule 19 AC4: the recorded AC4 mutation changes the test's expected version, not the system — the stand-in package of the spec needs a worker `sys.path` edit; the assertion is shown able to fail and the image pins are checked by CI.
+  - `[low]` `[patch]` Rule 19 TestBombStops "put back": the next read of an unfiltered PDF cannot detect the restore — the message no longer claims it and the next read is a Flate PDF (Verification gap 1's patch).
+  - `[low]` `[reject]` Rule 19 "at most 5": the knowledge base holds five passages, so the cap cannot fail — the cap is `Bridge.Citations`' contract pinned by Story 19.4's tests (code unchanged); the lower bound is real.
+  - `[low]` `[reject]` Rule 19 `answer.%IsDefined("job") = 0`: also true for a worker timeout — the elapsed and `ok` assertions beside it carry the claim.
+  - `[low]` `[reject]` Rule 19 hermeticity: the lock-held tests assume nobody else holds the lock — the tests run one at a time on a stack with no other reader of the extraction.
+  - `[low]` `[reject]` Verification gap other: the Flate budget is cumulative per file — the spec says "the budget is `max_unpacked` per file".
+  - `[low]` `[reject]` Verification gap other: the `failed` branch of the warning is untested — no input makes the worker answer `failed` without a library bug.
+  - `[low]` `[reject]` Intent 1-3 (AC5 read as "refused alike", the page not rendered in a test, the real route stops at the list): descriptive findings; AC5 is 19.5's to complete, the page grant covers the strings only, and citations are pinned in-stack by `Test.Docs.Files` (Design Notes).
+
 ## Design Notes
 
 **Architecture decisions:** AD-1 (synchronous add answer), AD-4 (owner `instance`), AD-5 (rows survive), AD-6 (Python only in the Extractor worker), AD-10 (document results untrusted, unchanged), AD-12 (`document` event), AD-21 ("Documents (step 3)", "PDF and Word"), AD-22 (Test areas, mock scenarios under `A/`), AD-23 (image pins, no test-setup install), AD-29 (Lane A files), AD-33 (DocumentOps the single writer; `OcuTalon.Docs` owns the tables). No AC contradicts an AD; no NFR is unmeasurable.
@@ -176,6 +242,7 @@ File footprint (every file this story creates or edits; `[19.5]` = Story 19.5's 
 - A file's own line that starts with `\## ` is left as it is: the splitter shows it without its backslash and opens nothing (harmless).
 - Word: table rows wrapped in a content control (repeating sections) stay out, as python-docx's `rows` gives them (residual, recorded in the evidence).
 - A content type other than the four gives `wrong_type` (no caller sends one).
+- `live:documents` step 1 checks DW-719's two `EXPERIENCE.md` lines only: its UX-DR144 check of `epics.md` was dropped because `test-ci-config.sh` (rule `inputs`) fails a live script that reads a file its group's input pattern in `ci/units.sh` (Story 19.5's file, not editable here) does not claim; the `epics.md` wording is pinned by the diff and recorded in `deferred:`.
 - `live:documents` checks the real route for PDF and Word (ready, encrypted, delete); citations are pinned in-stack by `Test.Docs.Files` (`chat.message` carries no citations until Story 20.2).
 - `TestOnlineDemoParity` is falsifiable only once Story 19.5 has merged (both answers are `not_built` before): its `mutation:` line is recorded by whichever of 19.5 and 19.7 is integrated second.
 
@@ -228,17 +295,41 @@ Lane variables on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR="
 - AC6: the lock removed from `Read` -> TestOneReadAtATime red; the bounded stand-in not installed -> TestBombStops red (`timed_out` or over 15 s); the escape removed -> TestEscapedLines red; the walker replaced by `iter_inner_content` -> TestContentControls red.
 - AC7: "PDF and Word (.docx) files." -> "PDF and Word files." in `EXPERIENCE.md` -> `live:documents` step 1 red.
 
+**Mutation results (implement stage; each applied from a backup in the stage's scratch folder, observed red, reverted, `git status --short` and `git diff --stat` equal before and after; the class ones on the warm stack `e19bs7iw` with the `DocumentOps` item restarted after a `Docs/Ops.cls` reload, the `.py` ones on a rebuilt warm stack, three in one run so that each test names its own):**
+- mutation: AC1: `Text` answers `not_built` for `pdf` again -> `Test.Docs.Files` TestAddPdf, TestCited, TestNotCovered, TestRemoved and TestSeamTimeout red ("the document becomes ready", "the row keeps the extracted text"); `live:documents` step 4b ran green on the unmutated tree (228 s); the mutation was not applied to it.
+- mutation: AC1: `Passages.TYPES` without `pdf` -> TestAddPdf, TestCited, TestNotCovered and TestRemoved red (the PDF is not ready) and `Test.Docs.Passages` TestExtractedText red ("The splitter reads markdown, text, pdf and docx, not 'pdf'").
+- mutation: AC1: `Text` maps every extraction code to `failed` -> TestFileFailures red for all five codes ("a failed row with the extraction's code") and TestSeamTimeout red.
+- mutation: AC1 (Q1 a): `REASON_TEXTS` without `encrypted` -> `web/scripts/documents-view.test.mjs` red ("has the ruled reason texts").
+- mutation: AC2: `Text` keeps the extraction text but strips its `## ` marker lines -> TestCited red (first citation) and TestAddPdf, TestAddWord red (Sections, the row's text).
+- mutation: AC2: the `LOGEXTRACT` warning removed -> TestSeamTimeout red ("one warning starts with LOGEXTRACT", "and holds the code").
+- mutation: AC3: `DocumentOps.OnRemove` skips `Store.Remove` (the item restarted) -> TestRemoved red ("and no citation names the PDF", "the search returned none of its passages").
+- mutation: AC3: the Word sample's "Restarting the lab feed" written as Heading 2 -> TestCited red (the first citation's section) and TestAddWord red (Sections).
+- mutation: AC4 (a variant of the spec's stand-in): `ExtractMore` `PDFPLUMBER` pinned at "0.0.0" instead of "0.11.10" -> TestImagePackages red ("pdfplumber is the pinned version"); the stand-in `pdfplumber` of the spec would also have to be put on the worker's `sys.path` and taken off again, which this pass did not build.
+- mutation: AC5: not recorded here (Story 19.5 has not merged; `TestOnlineDemoParity` is falsifiable only after it, Design Notes).
+- mutation: AC6: the lock removed from `Read` -> TestOneReadAtATime red ("and holds the extraction lock", "a read that cannot get the lock within 2 seconds is timed_out").
+- mutation: AC6: the bounded stand-in not installed (`pdftypes.zlib = original`) -> TestBombStops red (not `contents_too_large`, 120.17 s, the read timed out); the escape removed -> TestEscapedLines red (all four assertions of both samples); the walker replaced by `iter_inner_content()` -> TestContentControls red (the body control and the nested table are missing, and the controls-only file is `no_text`).
+- mutation: AC6 (review patch, Flate success path): the stand-in's `_BoundedZlib.decompress` returning `b""` for a complete stream -> TestFlateStreams (first read) and TestBombStops (the next read) red; `_BoundedObject.decompress` returning `b""` -> TestFlateStreams (the read without its Adler-32, which pdfminer reads through `decompress_corrupted`) red. Inverting `stream.eof` is NOT caught, because pdfminer's own fallback then reads the same text.
+- mutation: AC6 (review patch, DW-831 hyperlinks): the `w:hyperlink` branch deleted from `_runs_text` -> TestContentControls red ("with the hyperlink's words in both").
+- mutation: AC6 (review patch, DW-832 with a NUL): the NUL removal deleted from `_escape` -> TestWorkerEscape red.
+- mutation: AC7: "PDF and Word (.docx) files." -> "PDF and Word files." in `EXPERIENCE.md` -> the step 1 check's `grep -cF` of `live:documents` counts 0 where it wants 1 (the check is run alone here; the live unit itself is the once-line).
+
 **Shared surfaces:** `Docs.Ops.Text`'s answer for `pdf`/`docx` (`Test.Docs.Ops` TestNotBuilt, removed; `live:documents` step 4); `Passages.TYPES` (`Test.Docs.Passages` TestWrongType); the output of `ocutalon_extract.py` for every existing sample (`Test.Docs.Extract`, `ExtractEdges`); the Extractor's concurrency (no test reads concurrently today); the rows of `OcuTalonKB.Docs` (tests judge only their own `source`); the `documents` list count of `live:documents`; the `A/` scenario names (`ci/mock/test/constants.test.mjs`, names only); the strings of `EXPERIENCE.md` (`web/scripts/ux-strings.test.mjs`, `host-pages.test.mjs`); `REASON_TEXTS` if Q1 is (a) (`documents-view.test.mjs`, `ux-strings.test.mjs`).
 
 Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none (the plan's intent gap was ruled 2026-11-08; Spec Change Log). The plan stage's condition was: intent gap: Q1 (Lane B, U-177): the Documents page's reason catalog `web/src/app/documents/documents-view.ts` `REASON_TEXTS` (Lane B) reads every code it does not know as `failed`, so after this story an encrypted, damaged, text-less, legacy .doc, too-long or too-slow PDF or Word file would show "Couldn't read it: something went wrong inside OcuTalon." instead of its reason (AC1 "or shows the failure reason"); recommended (a): a U-177 grant scoped to six `REASON_TEXTS` entries (`contents_too_large`, `encrypted`, `damaged`, `no_text`, `legacy_doc`, `timed_out`) with the Planner's A1 reasons plus the catalog's final period (PUBLIC TEXT), their pins in `web/scripts/documents-view.test.mjs` and source rows in `web/scripts/ux-strings.test.mjs`, nothing else; alternatives (b) a Lane B story (the page shows the `failed` text for those codes until it merges) or (c) store `unreadable`/`failed` instead of the extraction codes (lossy, not recommended). Q2 (contended path): DW-719's two edits of `EXPERIENCE.md` (the Step 3 Documents 'Adding' bullet at :979 and one Assumptions line after :1138) touch a file that Epic 17's open diff (17.10) edits at :966-969; recommended: a plain union (no overlapping or adjacent lines).
+Status: done
+Blocking condition: none
 
-**Plan state.** The plan is complete under the recommended rulings (Q1 (a), Q2 plain union): every task, the matrix, the mutations and the Verification commands are written for them, and the "Only if Q1 is ruled (a)" items drop out under (b) or (c) (under (c) the Text seam also maps the codes, and AC1's reason clause and its `documents-view.test.mjs` mutation change). Once both are ruled, the lead can record the rulings under Design Notes and set `status: ready-for-dev`; no re-plan is needed unless Q1 is ruled (c). The READY-FOR-DEVELOPMENT check otherwise passed: every task names a file and an action, the tasks are in dependency order (Task 0, the resource, `Docs.Extract`, `Passages`, the Text seam, samples, tests, mock, live unit, spine, docs), every AC is Given/When/Then and observed at the outermost surface available today (the real route, `HostData.citations` of a real turn, the worker on the image), and nothing else is open.
+**Summary.** PDF and Word files now reach the index. `Docs.Ops.Text` sends `pdf` and `docx` through `Docs.Extract.Read` (45 s, lock wait included) and a failure is a failed row whose `Reason` is the extraction's code; `Docs.Passages` reads both as Markdown (sections `Page n` and Heading 1). `Docs.Extract` takes the lock `^OcuTalon.Docs.Extract` (DW-827); the worker bounds Flate decoding with a stand-in for `pdfminer.pdftypes.zlib` (DW-828: `PdfBomb()` is `contents_too_large` in 0.26 s, measured in Task 0), escapes a file's own `## ` lines (DW-832) and walks content controls, hyperlinks and nested tables (DW-831). The six reason texts (Q1 a), DW-719's wording, the AD-21 amendments, two mock scenarios, `Test.Docs.Files` and `Test.Docs.ExtractMore` and `live:documents` step 4b are in.
 
-**Footprint shared with Story 19.5:** 3 files (`Docs/Ops.cls`, `Test/Docs/Ops.cls`, the spine), each in hunks apart from 19.5's (Design Notes "Shared with Story 19.5"). No `ci/units.sh` edit and no new CI unit; `shards-2` needs the lead's rebalance before the second of 19.5 and 19.7 merges (Design Notes "CI").
+**Files.** `src/ocutalon/cls/OcuTalon/Docs/{Ops,Extract,Passages}.cls`, `src/ocutalon/python/ocutalon_extract.py`, `Test/Docs/{Files,ExtractMore}.cls` (new), `Test/Docs/{Samples,Ops,Passages}.cls`, `ci/mock/scenarios/A/documents-{pdf,word}.json` (new), `docker/tests/test-documents.sh`, `ARCHITECTURE-SPINE.md` (AD-21 :701, :703), `EXPERIENCE.md` (:979, one line after :1138), `epics.md` (:476), `web/src/app/documents/documents-view.ts`, `web/scripts/{documents-view,ux-strings}.test.mjs` (the Q1 grant), `evidence/19-7-task0-files.md` (new).
 
-**Context note.** `epic-19-context.md` (committed 2026-11-07 20:09 local) is older than `epics.md` (19.5's planning amendment, 20:46); it was reused as the dispatch ordered, and this story's block in `epics.md` was read directly for the ACs and the ledger bullets.
+**Hunks in the files shared with Story 19.5.** `Docs/Ops.cls`: class doc line 13 only; two parameters and the rewritten doc and body of `Text` after the blank line :303 (`Text`'s closing brace and the blank line after it unchanged); `AddEval`'s doc not touched. `Test/Docs/Ops.cls`: doc line 14 and `TestNotBuilt` (old :352-365) removed. Spine: the "Adding and removing" and "PDF and Word" bullets only.
+
+**Review.** One pass, four layers. Patched 4: `_escape` removes NUL first (low); a Flate-compressed PDF sample, an Adler-less one and `TestFlateStreams` (medium: the stand-in's success path was unproven); a hyperlink sample (low); `TestBombStops`' next read is a Flate PDF (low). Deferred 5 (frontmatter `deferred:`): the cut flag, tracked changes and fields, non-Flate filters with a swallowed private error (unverified), the epics.md check script, the unpinned remaining seconds. Rejected 17 with reasons in the log. Follow-up review not recommended (one medium patched).
+
+**Verification performed.** `iris_doc_load` compile of the changed classes on `ocutalon-slot-b` (clean). Warm stack `e19bs7iw`: `Test.Docs.ExtractMore`, `Files`, `Passages`, `Ops`, `Extract`, `ExtractEdges`, `Python`, `Turns`, `Store`, `Test.Eval.Documents`, `Test.Bridge.CodeRules` passed, and `ExtractMore`, `Extract`, `ExtractEdges`, `Files`, `Passages` again after the review patches. Fresh `e19bs7i`: `live documents` passed (228 s, step 4b green); `shard lane-a` parts 6/12 (twice, the second after the patches) and 7/12 passed (every `Test.Docs.*` and `Test.Eval.*` class, no SKIP). `test-class-rules`, `test-boundaries`, `test-ci-config`, `test-mock` passed; `node --test` on `ux-strings`, `host-pages`, `documents-view` 49 pass; the spine lint has the same 10 findings before and after. Mutations are recorded in `## Verification`. After the last edit of `test-documents.sh` (the epics.md check dropped) the live unit was not re-run (the change deletes one check; `bash -n` passes).
+
+**Residual risks.** `TestOneReadAtATime` compares the end times of two jobs and could flake if the background job's end write lags its lock release. AC5 has no mutation line until 19.5 merges. `shards-2` needs the lead's rebalance before the second of 19.5 and 19.7 merges (Design Notes "CI"). CI seconds are not measured here: expect `Test.Docs.Files` about 30 to 45 s and `Test.Docs.ExtractMore` about 20 to 25 s on ARM (x64 about three times), in `shard:lane-a@rest` (group `shards-2`); `live:documents` step 4b adds a few seconds on ARM (the unit took 228 s).

@@ -29,7 +29,7 @@ export const DOCUMENTS_TEXTS = {
   removeFailed: "Couldn't remove it. Nothing was changed.",
 } as const;
 
-/** Why a file could not be read, by the code of the reason (the route's, and DocumentOps' failed rows). {size} is the file's size, as formatSize writes it. */
+/** Why a file could not be read, by the code of the reason (the route's, and DocumentOps' failed rows, the extraction's codes included). {size} is the file's size, as formatSize writes it. */
 export const REASON_TEXTS = {
   wrong_type: "it isn't a Markdown, plain-text, PDF or Word (.docx) file.",
   too_large: 'that file is {size}; the limit is 10 MB.',
@@ -37,6 +37,12 @@ export const REASON_TEXTS = {
   unreadable: 'OcuTalon found no text in it.',
   not_built: "this part of OcuTalon isn't built yet.",
   failed: 'something went wrong inside OcuTalon.',
+  contents_too_large: 'its text is too long to read.',
+  encrypted: "it's protected with a password.",
+  damaged: "it's damaged or incomplete.",
+  no_text: 'it has no text to read, for example a scanned PDF without a text layer.',
+  legacy_doc: "it's an old Word file (.doc); save it as .docx and try again.",
+  timed_out: 'reading it took too long.',
 } as const;
 
 /** The extensions the file picker offers, as the route accepts them. */

@@ -8,6 +8,8 @@
 ///     stay passage lines, the line \## is the escaped passage line ## that opens nothing (DW-832), and a heading longer than MAXSECTION is cut;
 ///   - TestBlanks: blank text, a heading with no body and CR LF line ends;
 ///   - TestWrongType: any other content type is an error with no passage;
+///   - TestExtractedText (Story 19.7): the text that Docs.Extract writes for a PDF and a Word file is split as Markdown: a PDF by its ## Page n lines, a Word file by its
+///     Heading 1 lines, an escaped own line is a passage line, a # Title line is passage text;
 ///   - TestDocumentName: the name of a citation drops one final .md, .markdown, .txt, .pdf or .docx in any case.
 Class OcuTalon.Test.Docs.Passages Extends %UnitTest.TestCase
 {
@@ -147,11 +149,27 @@ Method TestBlanks()
 
 Method TestWrongType()
 {
-	For type = "pdf", "docx", "", "html" {
+	For type = "", "html", "text/plain" {
 		Set sc = $ClassMethod(..#CLASS, "Split", "text", type, .passages)
 		Do $$$AssertStatusNotOK(sc, "'" _ type _ "' is not a type the splitter reads")
 		Do $$$AssertEquals(passages.%Size(), 0, "and gives no passage")
 	}
+}
+
+Method TestExtractedText()
+{
+	Set lf = $Char(10)
+	Set samples = "OcuTalon.Test.Docs.Samples"
+	Do $$$AssertStatusOK($ClassMethod(..#CLASS, "Split", $ClassMethod(samples, "ExpectedPdfRunbook"), "pdf", .passages), "a PDF's text is split")
+	Do $$$AssertEquals(..Compact(passages), "Page 1|Results runbook" _ lf _ "This runbook covers the Results production, the lab results feed" _ lf _ "that the clinic reads every morning.;Page 2|Rotating the Results certificate" _ lf _ "1. Stop the item named Results.Sender." _ lf _ "2. Install the new certificate in the SSL configuration named ResultsClient," _ lf _ "then restart the item." _ lf _ "3. Send one test result and write the new expiry date in the on-call log.", "by its ## Page n lines: sections Page 1 and Page 2, with no page line inside a passage")
+	Do $$$AssertStatusOK($ClassMethod(..#CLASS, "Split", $ClassMethod(samples, "ExpectedDocxRunbook"), "docx", .passages), "a Word file's text is split")
+	Do $$$AssertEquals(..Compact(passages), "|# Lab feed runbook;Restarting the lab feed|1. Stop the item named Lab.Feed in the Management Portal." _ lf _ lf _ "2. Start the item again and watch the queue for ten minutes.;Checking the lab numbers|Counter | Expected" _ lf _ "Queue length | zero", "by its Heading 1 lines; the # Title line is passage text with the section empty and the table rows are passage text")
+	Do $ClassMethod(..#CLASS, "Split", $ClassMethod(samples, "ExpectedPdfHashLine"), "pdf", .passages)
+	Do $$$AssertEquals(..Compact(passages), "Page 1|Intro line" _ lf _ "## Not a heading" _ lf _ "Last line", "a PDF's own ## line is escaped by the extraction: it is a passage line and opens no section")
+	Do $ClassMethod(..#CLASS, "Split", $ClassMethod(samples, "ExpectedDocxHashLine"), "docx", .passages)
+	Do $$$AssertEquals(..Compact(passages), "Real section|## Not a heading" _ lf _ lf _ "## Cell line | x" _ lf _ lf _ "## In a control", "a Word file's own ## lines (a paragraph, a table row, a content control) are passage lines of the Heading 1 section")
+	Do $ClassMethod(..#CLASS, "Split", "## Page 1" _ lf _ "text", "text", .passages)
+	Do $$$AssertEquals(..Compact(passages), "|## Page 1" _ lf _ "text", "the same text as a text document opens no section")
 }
 
 Method TestDocumentName()

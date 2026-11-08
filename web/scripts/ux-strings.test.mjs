@@ -680,6 +680,14 @@ const SOURCES = {
       "this part of OcuTalon isn't built yet.",
       'something went wrong inside OcuTalon.',
     ],
+    'Story 19.7 ruling at the spec gate 2026-11-08 (Q1 (a), U-177 grant: the Planner\'s A1 reasons of Story 19.6 for the extraction codes, with the catalog\'s final period, each shown in "Couldn\'t read it: {reason}")': [
+      'its text is too long to read.',
+      "it's protected with a password.",
+      "it's damaged or incomplete.",
+      'it has no text to read, for example a scanned PDF without a text layer.',
+      "it's an old Word file (.doc); save it as .docx and try again.",
+      'reading it took too long.',
+    ],
   },
   calendar: [
     'Sunday',

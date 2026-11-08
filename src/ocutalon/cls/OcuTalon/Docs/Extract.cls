@@ -10,6 +10,9 @@
 ///     Reason(code, size) is the plain reason, REASON<CODE> without the underscores (too_large with a known size: REASONTOOLARGESIZE), and
 ///     Failure(code, size) puts it in FAILUREFRAME.
 ///   - The type and the size are checked first, with no worker and no file: wrong_type, too_large (over MAXBYTES) and damaged (no bytes).
+///   - One read at a time on the instance (DW-827): the category has one worker, but two simultaneous callers would get two worker jobs, so a read takes the
+///     lock ^OcuTalon.Docs.Extract after the type and size checks and before it writes its file, and releases it on every path. The wait for the lock counts
+///     within timeout: a lock not got in time answers timed_out with no file and no worker, and the work item gets the seconds that are left (at least 1).
 ///   - Answer(sc, .result) maps a work item's status and result to the answer, so that every branch is testable without a worker.
 Class OcuTalon.Docs.Extract
 {
@@ -69,6 +72,7 @@ Parameter REASONFAILED = "something went wrong while reading it";
 ClassMethod Read(content As %Stream.Object, contentType As %String, timeout As %Integer = {..#TIMEOUT}) As %DynamicObject
 {
 	Set file = ""
+	Set locked = 0
 	Try {
 		Set type = $ZConvert($Get(contentType), "L")
 		Set size = $Select($IsObject($Get(content)): content.Size, 1: 0)
@@ -79,28 +83,38 @@ ClassMethod Read(content As %Stream.Object, contentType As %String, timeout As %
 		} ElseIf size = 0 {
 			Set answer = ..Fail("damaged")
 		} Else {
-			Do ..Purge()
-			Set folder = ..Folder()
-			If '##class(%File).DirectoryExists(folder) Do ##class(%File).CreateDirectoryChain(folder)
-			Set file = folder _ $ZConvert($SYSTEM.Util.CreateGUID(), "L") _ "." _ type
-			Set stream = ##class(%Stream.FileBinary).%New()
-			Set sc = stream.LinkToFile(file)
-			If $SYSTEM.Status.IsOK(sc) {
-				Do content.Rewind()
-				Set sc = stream.CopyFromAndSave(content)
-			}
-			Kill stream
-			If $SYSTEM.Status.IsError(sc) {
-				Set answer = ..Answer(sc, .result)
+			Set began = $ZHorolog
+			Lock +^OcuTalon.Docs.Extract:timeout
+			If '$Test {
+				Set answer = ..Fail("timed_out", "Another read of a file held the extraction for " _ timeout _ " seconds")
 			} Else {
-				Set sc = ##class(OcuTalon.Docs.Extractor).Submit("Read", timeout, .result, file, ..#MAXTEXT, ..#MAXUNPACKED, ..#PAGEMARKER)
-				Set answer = ..Answer(sc, .result)
+				Set locked = 1
+				Set left = timeout - ($ZHorolog - began)
+				If left < 1 Set left = 1
+				Do ..Purge()
+				Set folder = ..Folder()
+				If '##class(%File).DirectoryExists(folder) Do ##class(%File).CreateDirectoryChain(folder)
+				Set file = folder _ $ZConvert($SYSTEM.Util.CreateGUID(), "L") _ "." _ type
+				Set stream = ##class(%Stream.FileBinary).%New()
+				Set sc = stream.LinkToFile(file)
+				If $SYSTEM.Status.IsOK(sc) {
+					Do content.Rewind()
+					Set sc = stream.CopyFromAndSave(content)
+				}
+				Kill stream
+				If $SYSTEM.Status.IsError(sc) {
+					Set answer = ..Answer(sc, .result)
+				} Else {
+					Set sc = ##class(OcuTalon.Docs.Extractor).Submit("Read", left, .result, file, ..#MAXTEXT, ..#MAXUNPACKED, ..#PAGEMARKER)
+					Set answer = ..Answer(sc, .result)
+				}
 			}
 		}
 	} Catch exception {
 		Set answer = ..Fail("failed", exception.DisplayString())
 	}
 	If file '= "" Do ##class(%File).Delete(file)
+	If locked Lock -^OcuTalon.Docs.Extract
 	Quit answer
 }
 

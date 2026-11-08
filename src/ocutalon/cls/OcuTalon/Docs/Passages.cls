@@ -1,9 +1,11 @@
 /// Splits a document's text into passages, each under the section it belongs to (AD-21, Story 19.4; Lane A). A pure function of the text and the content
 /// type: no SQL, no global, no AI Hub call and no Python, so DocumentOps, the tests and Story 19.7 (extracted text) share one splitter.
-///   - markdown: a line that starts with the two characters ## and a space opens a section. The heading (trimmed, trailing # characters removed, and cut to
-///     at most MAXSECTION characters) is the section of every passage up to the next such line, and the heading line is not passage text. Text before the first one has the section "". A line
-///     of one # or of three or more # is an ordinary line. A line that starts with a backslash and then ## and a space (the escape that Story 19.7's
-///     extracted text uses for a file's own ## lines, DW-832) is the passage line without the backslash and opens nothing.
+///   - markdown, pdf and docx: the text that Docs.Extract writes for a PDF (a ## Page n line for each page) or a Word file (a ## line for each Heading 1) is read as
+///     Markdown, so a PDF is sectioned by its page lines and a Word file by its Heading 1 lines. A line that starts with the two characters ## and a space opens a
+///     section. The heading (trimmed, trailing # characters removed, and cut to at most MAXSECTION characters) is the section of every passage up to the next such
+///     line, and the heading line is not passage text. Text before the first one has the section "". A line of one # or of three or more # is an ordinary line. A
+///     line that starts with a backslash and then ## and a space (the escape that Docs.Extract uses for a file's own ## lines, DW-832) is the passage line without
+///     the backslash and opens nothing.
 ///   - text: one section "" and no line opens a section.
 ///   - Within a section, the paragraphs (separated by blank lines) are packed into passages of at most MAXPASSAGE characters, joined by a blank line. A
 ///     paragraph longer than MAXPASSAGE is cut at the last line break that fits, else at the last sentence end (a full stop and a space), else at the last
@@ -19,19 +21,22 @@ Parameter MAXPASSAGE = 1000;
 /// the gate keeps for one search (Policy.Gate RAGRESULTMAX, NFR-3).
 Parameter MAXSECTION = 100;
 
-/// The content types the splitter reads; any other type is an error.
-Parameter TYPES = "markdown,text";
+/// The content types the splitter reads; any other type is an error. pdf and docx are read as markdown (MARKDOWNTYPES).
+Parameter TYPES = "markdown,text,pdf,docx";
 
-/// Splits text (a document of the content type markdown or text) into passages (a dynamic array of {"text","section"}).
+/// The content types whose lines ## open a section.
+Parameter MARKDOWNTYPES = "markdown,pdf,docx";
+
+/// Splits text (a document of the content type markdown, text, pdf or docx) into passages (a dynamic array of {"text","section"}).
 ClassMethod Split(text As %String, contentType As %String, Output passages As %DynamicArray) As %Status
 {
 	Set passages = []
 	If ($ListFind($ListFromString(..#TYPES), contentType) = 0) {
-		Quit $SYSTEM.Status.Error(5001, "The splitter reads markdown and text, not '"_contentType_"'")
+		Quit $SYSTEM.Status.Error(5001, "The splitter reads markdown, text, pdf and docx, not '"_contentType_"'")
 	}
 	Set sc = $SYSTEM.Status.OK()
 	Try {
-		Set markdown = (contentType = "markdown")
+		Set markdown = ($ListFind($ListFromString(..#MARKDOWNTYPES), contentType) > 0)
 		Set text = $Replace($Replace(text, $Char(13, 10), $Char(10)), $Char(13), $Char(10))
 		Set section = ""
 		Set block = ""
