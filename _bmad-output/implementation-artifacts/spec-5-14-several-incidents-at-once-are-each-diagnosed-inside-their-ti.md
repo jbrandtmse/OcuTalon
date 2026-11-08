@@ -156,6 +156,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
   - a public `RecordConcluded(ref, itemId, kind, owner)` that saves a timeout fallback Decision row with the Summary of a new parameter `CONCLUDEDMARK` ("ZzConcluded"). `OnAfterOneTest` deletes the Decision rows with that Summary, and the Usage rows of `ZzRetry` as well as those of `ZzRunner`;
   - `TestSkipsAConcludedRequest` covers the matrix rows Stale each kind, Stale linked turn, Stale retry, Live and Replay with a row (with the setup of `TestReplayThroughTheRunner`);
   - `TestRetryLateAfterItsChat` covers the row Late during its Chat;
+  - (Planner's condition, spec gate 2026-11-08) `TestSkipLineText` pins the Info row with a fixed-strings check: the whole text of the row equals `<item> skipped the <kind> request of the decision <DecisionRef>: Decide has already recorded that decision, so no model request was made and no tool ran.` with the runner's config name, the kind and the request's Ref put in, compared as one string (no pattern, no `[` contains check);
+  - (Planner's condition) `TestSkipLineHoldsNothingElse` plants distinctive values in a stale request: a key-shaped token (for example `sk-ant-zzplanted-5-14-key`) and a model-text marker in its Input and SeedText, and planted ItemId and OwnerRef values. It asserts that no event-log row written during the skip holds any of the planted values, and that the Info row's text is exactly the fixed string. Its `mutation:` line (appending the ItemId, or the Input, to the logged text turns it red) goes under `## Verification`;
   - the header names both tests (Story 5.14).
 - `src/ocutalon/cls/OcuTalon/Test/Agent/QueuedPastTimer.cls` (new) -- It extends `%UnitTest.TestCase` and runs in throwaway stacks and CI only. Its one test, `TestSkippedAfterItsTimer`, is the matrix row Queued past its timer:
   - the test checks that the stack is ready and points the keys (RunnerFixture `ReadyReason` and `PointKeys`; `RestoreKeys` in `OnAfterAllTests`), then waits for `Idle("DiagnosisAgent", 60)`;
@@ -175,7 +177,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
   - L169 (`"has one job"`) and L247 assert `..PoolOf(item)` jobs (`..PoolOf(other)` on L247), with messages that say "the jobs of its pool". `AssertOthersRun` (L604-616) waits for and asserts `..PoolOf(other)` jobs, and its doc says so;
   - header L31: TestPoolIsTheCap pins 2 for DiagnosisAgent (Story 5.14) and 1 for the other five runners.
 - `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` -- Set `"pool": 2` on L658 and change nothing else (Epic 19 edits L654 and the header).
-- `src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls` -- Contended: edit it only with the orchestrator's ruling (see Design Notes, Footprint). Nothing else in the file changes:
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls` -- Contended, RULED 2026-11-08 (option (a); a plain union with Epic 19's hunks at L123-133 and L1172-1179). Nothing else in the file changes:
   - L454-457: the doc says that since Story 5.14 a retry already late when the runner takes it is skipped (no model request, no Usage row, no reply, no session) and moves nothing;
   - L477 expects 0 model requests, L478 no reply, L481 0 Usage rows, and L501 no reply.
 - This spec's `## Verification` -- The implement stage adds the Measured line from the two integration tests' `$$$LogMessage` output (AC5) and each `mutation:` line.
@@ -195,10 +197,17 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
   - the evaluation set on the mock passes;
   - the diff is the files of the Execution list;
   - the only new operator-facing string is the log line under Public text.
+- **AC7 (the Planner's conditions on the approved text, 2026-11-08).** Given a stale request that carries planted values (a key-shaped token, an Input, a SeedText with model text, an ItemId and an OwnerRef), when the runner skips it, then its one Info row equals the approved text exactly, with the item, the kind and the Ref put in (`TestSkipLineText`), and no event-log row written during the skip holds any planted value (`TestSkipLineHoldsNothingElse`), each pinned by a demonstrated mutation.
 
 ## Spec Change Log
 
 - 2026-11-08, lead spec gate: added "CI time" and "Calls the harness moves to the background" under `## Verification`, and the Epic 11 merge note under Footprint. Epic 11 merged into feature at ece74afb after the plan, so its hunks in `Test/Agent/Runners.cls` and `Test/Agent/RunnerFixture.cls` are no longer contended; the end-of-epic integrate-forward takes them (no overlap with this story's lines). The contended edits to Epic 19's paths wait on the orchestrator's ruling.
+- 2026-11-08, spec gate answers (orchestrator RESUME; logged as `ruling` and `planner_ruling` in the cycle logs):
+  - (1) PUBLIC TEXT approved as drafted by the Contest Planner under the owner's delegation: the Info row under Design Notes, Public text. Conditions: a fixed-strings test pins it, and a test with planted values pins that it never carries a key, the Input, the ItemId, the OwnerRef or model text, with a mutation. The release note stays the title that `release/notes.sh` drafts (the Planner writes the public notes at the cut). Added as Tasks & Acceptance items and AC7.
+  - (2) Ruled (decide): the edits in Epic 19's files (`Production.cls` L30, `Test/Install/Production.cls` L658, `Test/Agent/Runners.cls`, `Test/Bridge/Conversation.cls`) are plain unions with Epic 19's non-overlapping hunks, done by whichever epic merges second. Epic 11 has merged (ece74afb) and no longer contends.
+  - (3) Ruled (decide; the Planner agrees): option (a). The skip also covers a second-model retry already late when the runner takes it; `Test/Bridge/Conversation.cls` `TestRetryMovesTheLinkOnlyWhenOnTime` reverses as planned, and the save-guard check moves to `Test.Bridge.Runner` `TestRetryLateAfterItsChat`.
+  - (4) Ruled (decide; the Planner agrees): the "Abandoned requests" row is in the spine's Consistency Conventions (Rule 20 light path; no AD amendment, so no id claim), written by the lead at this gate.
+  - Condition (Planner): `shards-5` projects at about 2,040 s. If the measured CI run of this story's head is over 2,100 s, this story splits it as a CI-only change. Never raise a timeout.
 
 ## Review Triage Log
 
@@ -303,6 +312,8 @@ So no live request is ever skipped: a row with a request's Ref exists only after
 
 ### Public text
 
+[APPROVED 2026-11-08 as drafted, by the Contest Planner under the owner's delegation, relayed by the orchestrator: the Info row below, verbatim, with the conditions of AC7. The release note stays the drafted title.]
+
 - `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls` (`Answer`, `$$$LOGINFO`; an operator-facing event-log row), with `<item>` the runner item's config name, `<kind>` one of `decide`, `diagnose` or `turn`, and `<DecisionRef>` the 22-character Ref:
   `<item> skipped the <kind> request of the decision <DecisionRef>: Decide has already recorded that decision, so no model request was made and no tool ran.`
   For example: `DiagnosisAgent skipped the diagnose request of the decision Qx3v9KpZt0aLmB7cR2dE4f: Decide has already recorded that decision, so no model request was made and no tool ran.`
@@ -363,7 +374,9 @@ The rules for every run:
   - the `$$$LOGINFO` line removed. `TestSkipsAConcludedRequest` goes red on "one Info row" (AC2);
   - the skip moved above the `tool` line. `TestSkipsAConcludedRequest` goes red on "the replay runs" (AC3);
   - `Concluded` returning 1 for any non-empty `DecisionRef`. It goes red on Live (AC3);
-  - `RetryIsLate` returning 0. `TestRetryLateAfterItsChat` goes red, because the session is saved (AC3).
+  - `RetryIsLate` returning 0. `TestRetryLateAfterItsChat` goes red, because the session is saved (AC3);
+  - one word of the logged text changed (for example "skipped" to "dropped"). `TestSkipLineText` goes red (AC7);
+  - the request's ItemId (then, separately, its Input) appended to the logged text. `TestSkipLineHoldsNothingElse` goes red (AC7).
 
   Record each as `mutation: <change> → <test> red` under this section, with the Measured line (AC5): the send and answer times (UTC, from the message headers) of both diagnoses, their milliseconds and the timer, as `DiagnoseTogether` logs them, and the same for R1, R2 and R3 from `QueuedPastTimer`.
 - **(once)** `bash docker/tests/test-mock.sh`. Expected: it passes, and the two new scenario files load.
