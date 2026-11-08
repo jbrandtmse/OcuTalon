@@ -1,7 +1,8 @@
-/// Tests of the names and contracts that OcuTalon.Agent.Input fixes for memory's first part (Story 41.1; AD-7, AD-21, UX-DR117). Pure:
+/// Tests of the names and contracts that OcuTalon.Agent.Input fixes for memory's first part (Story 41.1, 41.4; AD-7, AD-21, UX-DR117). Pure:
 /// nothing is written, no model is called and no zone is set; the renders that are compared are made in one process with one fixed time.
-///   - TestContextIgnored: Render(item, now, context) is Render(item, now), byte for byte, for every provenance, channel and owner of
-///     the matrix and for every context (none, "", {}, sessionStart 1 and 0, a string and an array), and an item with nothing to say, a
+///   - TestNoMemoryNoChange: with no notes and no precedents, Render(item, now, context) is Render(item, now), byte for byte, for every
+///     provenance, channel and owner of the matrix and for every context (none, "", {}, sessionStart 1 and 0, a string, an array and
+///     decide 1), and an item with nothing to say, a
 ///     user item of white space, an unreadable time and no item render "" with a context too;
 ///   - TestSignature: the compiled Render is a class method with the formal spec item, now and an optional context, and returns a string;
 ///   - TestOpenings: NOTESOPENING and PRECEDENTSOPENING are the lines of EXPERIENCE.md, each one line, with no {{, no @{ and no control
@@ -35,7 +36,8 @@ ClassMethod MakeItem(provenance As %String, channel As %String, owner As %String
 	Quit item
 }
 
-/// The context of the matrix with the number i (1 to 6): "", {}, sessionStart 1, sessionStart 0, a string and an array (a value, not a string).
+/// The context of the matrix with the number i (1 to 7): "", {}, sessionStart 1, sessionStart 0, a string, an array (a value, not a string)
+/// and decide 1.
 ClassMethod ContextAt(i As %Integer)
 {
 	Quit $Case(i,
@@ -45,11 +47,12 @@ ClassMethod ContextAt(i As %Integer)
 		4: {"sessionStart": 0},
 		5: "x",
 		6: [],
+		7: {"decide": 1},
 		: "")
 }
 
-/// Render gives the same text with any context as without one.
-Method TestContextIgnored()
+/// An item that has no notes and no precedents renders the same text with any context as without one.
+Method TestNoMemoryNoChange()
 {
 	Set owners = $ListBuild("", ##class(OcuTalon.Data.Ownership).#INSTANCE, ##class(OcuTalon.Data.Ownership).#EVAL, ..#STRAYREF)
 	Set shapes = $ListBuild(
@@ -64,14 +67,14 @@ Method TestContextIgnored()
 			Set item = ..MakeItem($List(shape, 1), $List(shape, 2), $List(owners, o), $List(shape, 3), $List(shape, 4), $List(shape, 5))
 			Set plain = ##class(OcuTalon.Agent.Input).Render(item, ..#NOW)
 			Do $$$AssertTrue(plain '= "", "the item "_s_" of owner "_o_" has text")
-			For c = 1:1:6 {
+			For c = 1:1:7 {
 				Set text = ##class(OcuTalon.Agent.Input).Render(item, ..#NOW, ..ContextAt(c))
 				Set count = count + 1
 				Do $$$AssertEquals(text, plain, "item "_s_", owner "_o_" and context "_c_" render as without a context")
 			}
 		}
 	}
-	Do $$$AssertEquals(count, 96, "every item and every context was compared")
+	Do $$$AssertEquals(count, 112, "every item and every context was compared")
 
 	Set empty = ##class(OcuTalon.Msg.Item).%New()
 	Set white = ..MakeItem("user", "web", "", "", "", $Char(32, 9, 10, 13)_"  ")

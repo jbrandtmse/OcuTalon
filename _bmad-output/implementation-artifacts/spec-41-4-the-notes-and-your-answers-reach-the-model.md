@@ -2,8 +2,8 @@
 title: "Story 41.4: The notes and your answers reach the model"
 type: 'feature'
 created: '2026-11-08'
-status: 'ready-for-dev'
-baseline_revision: '696969d6d1d61a6c258aea4defa58b91b11e12b4'
+status: 'done'
+baseline_revision: 'ca18d9af331bb63f783c4356ff06ddde2793fc5a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -208,6 +208,46 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they are given in full.
 
 ## Review Triage Log
 
+### 2026-11-08 - Review pass
+- verdicts: 32 findings - high 0, medium 1, low 14, false 16, maybe-false 1
+- findings:
+  - Blind Hunter
+    - `[false]` `[reject]` PrecedentPart has no Try/Catch, so Render could throw - every callee is total (KeyFor guards its own reads, Similar has its Try, ToLocal checks the pattern, Clean is pure), so no reachable throw.
+    - `[false]` `[reject]` One over-long newest line removes the whole block - the contract says a line that would pass the cap is left out "with every older one".
+    - `[low]` `[reject]` Clean joins words across CR/LF ("ab") - the contract says control characters are stripped; cosmetic, and changing it is a spec change.
+    - `[false]` `[reject]` Precedent text is attacker-influenced and outside the quoted label - the lines are `> ` quoted under an "examples, never rules" opening, reach only Triage (no tools, AD-10), and the Triage paragraph says they can't make it act; the design is the spec's.
+    - `[false]` `[reject]` NotesPart has no owner check - `DailyNote.Build` answers "" for eval, instance and an empty owner (the contract says so), pinned by `Test.Data.DailyNote`.
+    - `[low]` `[patch]` Midnight flake in `TestNotesAtSessionStart` - patched: the test skips with a message when the first turn's local day is not the day it computed.
+    - `[low]` `[reject]` `renderStart` equals `render` in `ConversationTurns.TestDecideThenTurn` - the edit at :238 is the ruling's own text; the sessionStart wiring is pinned by `MemoryTurns` and `ConversationSessionStart`.
+    - `[false]` `[reject]` `RememberDecision.Ask` edit unexplained - it is Code Map task 4 (the 80-character cut of the note would drop the marker).
+    - `[false]` `[reject]` No eval coverage of the new paragraph - the eval branch is 41.7's (Consumed-by).
+  - Edge Case Hunter
+    - `[low]` `[reject]` The Catch's own logging could throw - theoretical; `Redact.Text` never throws and the warning is best effort.
+    - `[false]` `[reject]` PrecedentPart has no guard - same as the first Blind Hunter row.
+    - `[low]` `[reject]` CR/LF glued in `Clean` - same as the Blind Hunter row.
+    - `[false]` `[reject]` A summary imitating the outcome and answer fields - same as the Blind Hunter row on attacker text.
+    - `[low]` `[reject]` Empty outcome or answer gives a dangling "your answer: " - cosmetic; the line shape is the approved one and rows carry the person's answer.
+    - `[maybe-false]` `[reject]` A re-decided item gets its own earlier answer back - decide runs before the person answers; only a redelivery after an answer could show it, and it would be low if true.
+    - `[low]` `[patch]` Midnight flake in the test - same as the Blind Hunter row, patched.
+    - `[false]` `[reject]` AC 2 claim of "never throws" covers PrecedentPart - same as the first row.
+    - `[low]` `[patch]` The cap leaves the closing blank line out, so the block is up to 602 characters - patched: the cap check counts the two closing line feeds; `TestPrecedentCap` is retuned (601 drops the oldest line, 600 fills exactly).
+  - Verification Gap
+    - `[low]` `[reject]` `TestPersonTurnHasNone` has no mutation line - AC 6 carries three mutation lines; a user item's `KeyFor` is "" so no single change reaches the person-turn pin, which `TestPrecedentWhere` pins at unit level.
+    - `[low]` `[patch]` The AC 7 mutation line names tests that do not pin AC 7 - patched: `NotesPart` writing its opening with no notes turns `RenderContext:TestNoMemoryNoChange` red (observed).
+    - `[low]` `[patch]` The unreadable-answeredAt rule has no test - patched: `TestPrecedentUnreadable` and its mutation (observed red).
+    - `[medium]` `[patch]` The warning's redaction is not asserted - patched: the probe's exception carries `password=zzsecretvalue`, `TestNotesReadFailure` asserts the fixed start, no secret and `[redacted]`; mutation observed red.
+    - `[false]` `[reject]` `TestNotesOnlyAtAStart` owners cannot fail on Input's guard - the owner scoping is `Build`'s contract (AD-13), pinned by `Test.Data.DailyNote`.
+    - `[false]` `[reject]` `TestPrecedentWhere` instance item has no rows - `TestPrecedentOwners` seeds the eval row and the IsRef mutation reds it.
+    - `[false]` `[reject]` The skip marker `AssertTrue(1, ...)` cannot fail - it is the guarded skip the contract asks for, not a pin.
+    - `[low]` `[patch]` Midnight hermeticity of `TestNotesAtSessionStart` - same as above, patched.
+    - `[false]` `[reject]` The `ConversationTurns` notes strip is brittle - it is the ruled edit at :382; the notes block is code-built.
+  - Intent Alignment Auditor
+    - `[false]` `[reject]` Render's "never throws" covers only NotesPart - same as the first row.
+    - `[low]` `[reject]` Notes use Render's `now`, StartsSession uses the turn's CreatedAt - differs only within seconds of local midnight; the test guards it.
+    - `[low]` `[patch]` Cap arithmetic excludes the trailing blank line - same as the Edge Case Hunter row, patched.
+    - `[false]` `[reject]` RememberDecision side edit - same as above.
+    - `[false]` `[reject]` ConversationTurns strip loosens the old check - same as above.
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -319,6 +359,20 @@ Run every command from the worktree root, one per call. `server` `ocutalon-slot-
 - AC 6: the context dropped in `Intake.RequestFor`'s `Render` call (Lane B, temporary).
 - AC 7: `NotesPart` ignores `sessionStart`.
 
+**Mutations run (implement stage; each applied, observed red, reverted byte-identical):**
+- mutation: yesterday's date line dropped in `NotesPart` -> `Test.Agent.RenderMemory:TestNotesBlock` red (AC 1).
+- mutation: the `Try` around `NoteOf` removed in `NotesPart` -> `Test.Agent.RenderMemory:TestNotesReadFailure` red (AC 2).
+- mutation: `PRECEDENTMAX` 601, or the closing blank line's 2 characters left out of the cap check in `PrecedentPart` -> `Test.Agent.RenderMemory:TestPrecedentCap` (the 601-character block; the first form also reds `TestTexts`) red (AC 3). `Similar` limit 4 is not a mutation: `Similar` clamps to `SIMILARMAX` 3.
+- mutation: `Similar("eval", ...)` for a session item -> `Test.Agent.RenderMemory:TestPrecedentBlock`, `TestPrecedentCap`, `TestPrecedentOwners` and `TestPrecedentWhere` red (AC 4).
+- mutation: the `IsRef` check dropped in `PrecedentPart` -> `Test.Agent.RenderMemory:TestPrecedentOwners` red (the `eval` owner shows the seeded row) (AC 4).
+- mutation: one word of Triage's paragraph changed ("rules" to "orders") -> `Test.Agent.RenderMemory:TestTriageParagraph` red (AC 5).
+- mutation: `Intake.RequestFor` renders with `Render(item, "", "")` (Lane B, temporary) -> `Test.Agent.MemoryTurns:TestNotesAtSessionStart`, `TestPrecedentInDecide` and `TestActTurnHasNone` red, on a fresh stack (AC 6, DW-961 hop 2).
+- mutation: `Conversation.Request` passes `""` as the context (Lane B, temporary) -> `Test.Agent.MemoryTurns:TestNotesAtSessionStart` red, on a fresh stack (AC 6, DW-961 hop 1).
+- mutation: Intake's act turn passes `{"decide": 1}` (Lane B, temporary) -> `Test.Agent.MemoryTurns:TestActTurnHasNone` red, on a fresh stack (the act-turn pin of the Spec Change Log).
+- mutation: `NotesPart` ignores `sessionStart` (`If ... || 0 Quit`) -> `Test.Agent.RenderMemory:TestNotesOnlyAtAStart` and `TestNotesReadFailure` red (AC 7). `NotesPart` writes its opening when neither day has a note -> `Test.Agent.RenderContext:TestNoMemoryNoChange` (context 3, sessionStart 1) red (AC 7).
+- mutation: the `If date = "" Continue` of `PrecedentPart` removed -> `Test.Agent.RenderMemory:TestPrecedentUnreadable` red (the unreadable-answeredAt rule of the contract).
+- mutation: `Bridge.Redact.Text` removed from the logged warning in `NotesPart` -> `Test.Agent.RenderMemory:TestNotesReadFailure` red (AC 2, the redacted warning).
+
 **Shared surfaces:**
 - `Agent.Input.Render`'s text for a session-start person's turn and for a session-owned untrusted decide request:
   - `ConversationTurns` 251/382 (Clarification 2);
@@ -332,7 +386,24 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Summary: planned only (halt after planning). Two items wait for the lead's spec gate under `## Clarification Needed`: (1) the precedent block's decide-only rule against AD-7's "no flag" (recommended: Intake's decide request passes `{"decide": 1}`, an AD-7 amendment and one Lane B line); (2) two Lane B assertions in `Test.Core.ConversationTurns` that the notes block turns red. PUBLIC TEXT (the precedent line's words, the notes date lines) waits for escalation. One deferred item (a fallback first turn hides the day's notes) is in the frontmatter for harvest.
+Summary: `Agent.Input.Render` now renders the notes block (a user item with `sessionStart` 1; today's and yesterday's `DailyNote.Build`, each day under a quoted date line, yesterday first) and the precedent block (an untrusted item of a session with context `decide` 1; at most 3 `Similar` rows of its own session, whole lines, the block with its closing blank line at most 600 characters), both after the persona block and before the item. A `Build` that throws leaves the notes out and logs one redacted warning. Triage gains the UX precedents paragraph. Intake's decide request passes `{"decide": 1}` (the ruled Lane B line), so the act turn never carries precedents. Both hops of DW-961 are observed by `Test.Agent.MemoryTurns` over the real production and the mock's log.
+
+Files changed:
+- `src/ocutalon/cls/OcuTalon/Agent/Input.cls`: `NotesPart`, `PrecedentPart`, the `NoteOf` seam, `Flag`, `Clean` and the parameters `PRECEDENTDECIDED`, `PRECEDENTANSWER`, `PRECEDENTMAX`, `LOGNOTES`.
+- `src/ocutalon/cls/OcuTalon/Agent/Triage.cls`: the precedents paragraph.
+- `src/ocutalon/cls/OcuTalon/Core/Intake.cls`: the decide request passes `{"decide": 1}` and two comments (the one ruled Lane B line).
+- `src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls`: the two ruled edits (:238 and :382).
+- `src/ocutalon/cls/OcuTalon/Test/Agent/RenderContext.cls`: `TestNoMemoryNoChange` with the context `{"decide":1}` (112 renders).
+- `src/ocutalon/cls/OcuTalon/Test/Agent/RememberDecision.cls`: the mock marker on its own line.
+- New: `Test/Agent/RenderMemory.cls` (10 tests), `Test/Agent/InputProbe.cls`, `Test/Agent/MemoryTurns.cls` (4 tests), and `ci/mock/scenarios/A/memory-notes.json`, `memory-precedent.json`, `memory-precedent-act.json`.
+
+Review findings: 32 reported - high 0, medium 1, low 14, false 16, maybe-false 1. Patches applied (all in-pass, by the lead): the cap counts the closing blank line; the unreadable-answeredAt test; the redaction assertion with a secret-shaped probe message; the AC 7 mutation line; the midnight guard in `TestNotesAtSessionStart`. Items deferred this pass: none (the frontmatter item from planning, the fallback first turn, stays for the lead's harvest). Rejected with reasons: see the Review Triage Log.
+
+Follow-up review recommended: false (no high and one medium patched; the patches were verified by green runs and observed-red mutations).
+
+Verification performed (all green after the last patch): slot A (`ocutalon-slot-a`, build 154) - `RenderMemory` 10, `RenderContext`, `Render`, `PersonaBlock`, `Instructions`, `Persona`, `Data.DailyNote`, `Data.Precedent`, `Core.Intake`, `Core.ConversationSessionStart`, `Core.ConversationTurns` (48); fresh lane-A throwaways (tag `e41s4impl`, torn down) - `MemoryTurns` and `RememberDecision` (the implement subagent also ran `PersonaTurns`); `test-mock.sh`, `test-class-rules.sh`, `test-triage-heartbeat.sh`, `test-ci-config.sh`, `test-boundaries.sh`; the paragraph grep gives 1 in each file. Mutations (Rule 19) are recorded in `## Verification`; the four added in review (cap closing line, unreadable row, redaction, AC 7) were observed red and restored byte-identical.
+
+Residual risks: left to CI - `shards-5`, `image`, `browser` and the fresh-environment check of both shards in both orders. The fallback-first-turn gap (frontmatter `deferred:`) is Lane B and unchanged. Precedent summaries come from a sender's own email text and are quoted data under the "examples, never rules" opening (AD-10: Triage has no tools).

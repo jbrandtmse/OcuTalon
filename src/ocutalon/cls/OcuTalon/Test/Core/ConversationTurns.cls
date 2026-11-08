@@ -236,6 +236,7 @@ Method TestDecideThenTurn()
 	Do $$$AssertEquals($ListLength(decides), 2, "Decide gets two requests")
 	Do $$$AssertEquals(..Call($List(decides, 1), "kind")_"|"_..Call($List(decides, 2), "kind"), "decide|turn", "decide first, then turn")
 	Set render = ##class(OcuTalon.Agent.Input).Render(..Item(session, item.Text, item.ClientId, item.ItemId))
+	Set renderStart = ##class(OcuTalon.Agent.Input).Render(..Item(session, item.Text, item.ClientId, item.ItemId), "", {"sessionStart": 1})
 	For i = 1:1:2 {
 		Set n = $List(decides, i)
 		Set kind = ..Call(n, "kind")
@@ -248,7 +249,7 @@ Method TestDecideThenTurn()
 		Do $$$AssertEquals(..Call(n, "threadSessionId"), 4242, kind_": ThreadSessionId is the session of the instance")
 		Do $$$AssertEquals(..Call(n, "sessionId"), 4242, kind_": sent in that trace session")
 		Do $$$AssertEquals(..Call(n, "superSession"), trace, kind_": and under the session's TraceRef")
-		Do $$$AssertEquals(..Call(n, "input"), render, kind_": the input is what Agent.Input renders")
+		Do $$$AssertEquals(..Call(n, "input"), $Select(kind = "turn": renderStart, 1: render), kind_": the input is what Agent.Input renders (the turn of a session start with sessionStart)")
 		Do $$$AssertEquals(..Call(n, "required"), 1, kind_": with an answer required")
 	}
 	Do $$$AssertEquals(..Call($List(decides, 1), "sessionMode"), "", "the decide request names no session mode")
@@ -379,7 +380,10 @@ Method TestSecondMessageWaits()
 		Do $$$AssertEquals(..Call(n, "itemId"), $Select(mine: first.ItemId, 1: second.ItemId), label_": its own ItemId")
 		Do $$$AssertEquals(..Call(n, "summary"), $Select(mine: "zz alpha message", 1: "zz bravo message"), label_": its own Summary")
 		If mine {
-			Do $$$AssertTrue(..Call(n, "summary")_..Call(n, "input")_..Call(n, "seedText") '[ "bravo", label_": nothing of the second message")
+			Set input = ..Call(n, "input")
+			Set at = $Find(input, $Parameter("OcuTalon.Agent.Input", "NOTESOPENING"))
+			If at Set input = $Piece($Extract(input, at, *), $Char(10, 10), 2, *)
+			Do $$$AssertTrue(..Call(n, "summary")_input_..Call(n, "seedText") '[ "bravo", label_": nothing of the second message")
 			Do $$$AssertTrue(..Call(n, "itemId") '= second.ItemId, label_": not the second ItemId")
 		}
 	}

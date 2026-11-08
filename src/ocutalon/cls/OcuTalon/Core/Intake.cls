@@ -7,7 +7,7 @@
 ///   - the trace: Intake keeps the session of its inbound header, which is the item's own trace session (AD-26), and sets
 ///     %SuperSession to the owner session's TraceRef when the header carries none and the owner is a session;
 ///   - the decide request: Intake sends Decide a request of Kind decide (key decide, an answer required) that RequestFor
-///     builds from the Item: Agent.Input.Render of the Item (with no context: only Conversation's turn requests pass one), the item's provenance, ids and channel, the owner and a code-written
+///     builds from the Item: Agent.Input.Render of the Item (with the context decide 1, which allows the precedent block; Conversation's turn requests of a session start pass sessionStart), the item's provenance, ids and channel, the owner and a code-written
 ///     Summary ("{Sender}: {Subject}", or the one that is set, else the first line of the text, cut at 80 characters);
 ///   - Decide's answer: a DecisionResponse whose Outcome is in Msg.Enum OUTCOME gives the DecisionRef, the Outcome (tellnow
 ///     for a fallback), Fallback and FallbackReason (unusable when the reason is not in FALLBACKREASON). Anything else, an
@@ -80,7 +80,7 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	Set sc = $$$OK
 	Try {
 		Do ..Join(request)
-		Set sc = ..Send(..#DECIDE, ..RequestFor(request, "decide", ..%SuperSession, ..%SessionId), 1, "decide")
+		Set sc = ..Send(..#DECIDE, ..RequestFor(request, "decide", ..%SuperSession, ..%SessionId, {"decide": 1}), 1, "decide")
 		If $$$ISERR(sc) {
 			$$$LOGSTATUS(sc)
 			Set ..CallError = sc
@@ -148,8 +148,8 @@ Method Join(item As OcuTalon.Msg.Item) [ Private ]
 
 /// The request to Decide for the item (AD-6): rendered input and code-written fields only. Conversation builds its requests
 /// here too, from the Item that stands for a turn. context is the optional third argument of Agent.Input.Render and carries only
-/// sessionStart (AD-21): Conversation passes it on the turn request of a session start, and with the default "" the Input is that
-/// of Render(item). Intake's own requests never pass one.
+/// sessionStart (AD-21) or decide (AD-7): Conversation passes sessionStart on the turn request of a session start, Intake passes
+/// decide 1 on its decide request only, and with the default "" the Input is that of Render(item). Intake's act turn passes none.
 ClassMethod RequestFor(item As OcuTalon.Msg.Item, kind As %String, traceRef As %String, threadSessionId As %Integer, context As %DynamicObject = "") As OcuTalon.Bridge.Msg.Request
 {
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()

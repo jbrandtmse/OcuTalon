@@ -131,7 +131,7 @@ Method Ask(session As %String, text As %String, scenario As %String, tag As %Str
 		Set marker = scenario_":"_..Number_tag
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).Arm(marker, 1), "the countdown of "_marker_" is armed at 1")
 		Set ..Armed = ..Armed_$Select(..Armed = "": "", 1: ",")_marker
-		Set sent = text_" [[mock:"_marker_"]]"
+		Set sent = text_$Char(10)_"[[mock:"_marker_"]]"
 	}
 	Set clientId = "zzr"_..Number_tag
 	Do $$$AssertStatusOK(..Send(session, clientId, sent, .output), tag_": the message is accepted by WebChatIn")
