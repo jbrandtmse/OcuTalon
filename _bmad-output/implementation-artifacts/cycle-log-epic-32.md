@@ -181,3 +181,16 @@
 2026-11-07T19:56:16Z	Epic 32	epic_status_done	stories=5(32.1-32.5)
 2026-11-07T19:56:16Z	Epic 32	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=0 unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 result=hold applied=false(record_only)
 2026-11-07T19:56:16Z	Epic 32	epic_runner_complete	stories_completed=1(32.5) code=bc1ff88b note=CI_verified_on_39364d5c;close_commit_bookkeeping_only
+2026-11-08T04:38:27Z	Epic 32	epic_branch_reopened	reason=story_32.6_dw550_dw774 from=abc6e1eb
+2026-11-08T04:38:27Z	Epic 32	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_32.6_flakes lane=D slot=ocutalon-slot-d
+2026-11-08T04:38:27Z	Epic 32	lead_model_gate	model=claude-opus-5-5 action=proceed role=runner_d
+2026-11-08T04:38:27Z	Epic 32	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-08T04:38:27Z	Epic 32	launch_env	depth=4 watchdog=0 bash_max_ms=default
+2026-11-08T04:38:27Z	Epic 32	epic_branch_checked_out	repos=. head=abc6e1eb ci=gh(ci.yml,lane-a.yml)
+2026-11-08T04:38:27Z	Epic 32	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md status=final
+2026-11-08T04:38:27Z	Epic 32	ledger_load	total=890 open=0 routed=127 escalated=2 decision_pending=5 terminal=756 owner_unknown=0 burndown=90 reowned_none=0
+2026-11-08T04:38:27Z	Epic 32	retro_review_skipped	reason=skip(no_X.0_input;SC-5_reopen_for_one_test-only_story_32.6)
+2026-11-08T04:40:27Z	Epic 32	sprint_planning_complete	gate=PASS in_sync=true validate=valid scope=SC-5_reopen(one_test-only_story) model=claude-opus-5-5
+2026-11-08T04:40:27Z	Epic 32	epic_status_reopened	epic-32=in-progress reason=SC-5_reopen_story_32.6
+2026-11-08T04:40:27Z	Epic 32	deps_hash_rerecorded	reason=fix_forward story=32.6 note=for_the_orchestrator
+2026-11-08T04:40:27Z	Epic 32	ledger_routed_planned	story=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus entries=2(DW-550,DW-774) excess=0 by=charter
