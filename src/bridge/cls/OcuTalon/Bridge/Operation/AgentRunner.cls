@@ -9,7 +9,9 @@
 /// step of the call and a FailureText when the call did not run or failed. A ToolInventory request gets
 /// an Ens.StringResponse that holds the JSON of the live ToolManager's tools. Any other message class gets "not implemented"
 /// and no response. Its ReplyClass setting names the %JSON.Adaptor class that Decide checks the runner's reply against
-/// (AD-7); the runner itself never reads it. Its RetryItem setting names the retry runner (Decide reads it; the runner itself does not).
+/// (AD-7); the runner itself never reads it. A Request whose decision Decide has already recorded (Adapter.Agent Concluded) gets no response and a
+/// status OK: the request waited past Decide's timer, and the adapter skips it. A pool above 1 (DiagnosisAgent) runs that many requests at once.
+/// Its RetryItem setting names the retry runner (Decide reads it; the runner itself does not).
 Class OcuTalon.Bridge.Operation.AgentRunner Extends Ens.BusinessOperation
 {
 
