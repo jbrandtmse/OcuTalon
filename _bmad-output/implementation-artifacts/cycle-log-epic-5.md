@@ -391,3 +391,4 @@
 2026-11-08T02:07:45Z	Epic 5	deps_hash_rerecorded	reason=fix_forward note=story_5.14_inserted_inside_epic_5;no_boundary_or_dependency_statement_changed;for_the_orchestrator
 2026-11-08T02:07:45Z	Story 5.14	ledger_routed_planned	story=5-14-several-incidents-at-once-are-each-diagnosed-inside-their-ti entries=1(DW-879) excess=0 by=charter
 2026-11-08T02:10:41Z	Epic 5	epic_context_compiled	sha=pending_this_commit reason=planning_artifact_newer(story_5.14_added) model=claude-opus-5-5 spawn_at=2026-11-08T02:08:30Z lines=72
+2026-11-08T02:11:20Z	Story 5.14	stage_spawned	stage=plan spawn_at=2026-11-08T02:11:20Z model=claude-opus-5-5 agent_name=5-14-plan-1 cycle_iteration=1
