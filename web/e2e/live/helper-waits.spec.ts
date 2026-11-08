@@ -1,8 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 import { STATE } from '../support/api';
-import { describeDiagnosis } from '../support/diagnose';
+import { describeDiagnosis, describeGateway, gatewayScript, redactLine, stateDiagnosis } from '../support/diagnose';
 import { loadedAfter } from '../support/floor';
 import { expect, test, type Browser, type Page } from '../support/fixtures';
 import { gotoSettled } from '../support/navigate';
@@ -200,10 +201,20 @@ test.describe('the helpers, in a project that sets no waits', () => {
 });
 
 /**
- * DW-550 (Story 11.22): when loadedAfter's snapshot GET passes its bound, diagnose.ts prints `DIAG /state` lines from one read of the stack's
- * IRIS before the same named error is thrown; the read is best effort and its failure is one `DIAG /state unavailable` line. The session is
- * the OCUTALON_E2E_IRIS_EXEC stand-in, a shell command that prints the CHK lines a real read would.
+ * DW-550 (Stories 11.22 and 11.27): when loadedAfter's snapshot GET passes its bound, diagnose.ts prints `DIAG /state` lines from two reads of
+ * the stack's IRIS (the licence, CSP processes and locks, then the web gateway) before the same named error is thrown; each read is best
+ * effort and its failure is one `DIAG /state unavailable` or `DIAG /state gateway unavailable` line. Every printed line is also in
+ * state-diagnosis.txt of the test's output folder. The session is the OCUTALON_E2E_IRIS_EXEC stand-in, a shell command that prints the CHK
+ * lines a real read would; it branches on the script text, because the two reads are told apart by it (the gateway script names
+ * GetGatewayRegistry).
  */
+/** A stand-in session that answers the gateway script with the gateway lines and any other script with the first lines (a command line of printf arguments). */
+function standIn(first: string, gateway: string): string {
+  return `s=$(cat); case $s in *GetGatewayRegistry*) ${gateway};; *) ${first};; esac`;
+}
+
+const printing = (...lines: string[]): string => `printf '%s\\n' ${lines.map((line) => `'${line}'`).join(' ')}`;
+
 test.describe('loadedAfter: the /state diagnosis', () => {
   const SESSION_VARIABLES = ['OCUTALON_E2E_IRIS_EXEC', 'OCUTALON_E2E_IRIS_CONTAINER', 'OCUTALON_URL'] as const;
   const saved: Partial<Record<(typeof SESSION_VARIABLES)[number], string>> = {};
@@ -230,37 +241,68 @@ test.describe('loadedAfter: the /state diagnosis', () => {
     }
   });
 
-  test('the dump runs, shows the licence, the CSP processes and the lock, and the error text is unchanged', async ({ browser }) => {
+  test('the dump runs, shows the licence, the CSP processes, the lock and the gateway, keeps the lines in a file, and the error text is unchanged', async ({ browser }) => {
     test.setTimeout(12_000);
-    process.env['OCUTALON_E2E_IRIS_EXEC'] =
-      "cat > /dev/null; printf '%s\\n' 'CHK|licence|LUAvailable=7|LUConsumed=1|KeyEnforcedUnits=8|CSPUsers=0|InstanceConnections=1' " +
-      "'CHK|csp|3248|EVTW|%SYS.cspServer3' 'CHK|lock|3222|X|1|uLFv' 'CHK|done|1'";
+    process.env['OCUTALON_E2E_IRIS_EXEC'] = standIn(
+      printing('CHK|licence|LUAvailable=7|LUConsumed=1|KeyEnforcedUnits=8|CSPUsers=0|InstanceConnections=1', 'CHK|csp|3248|EVTW|%SYS.cspServer3', 'CHK|lock|3222|X|1|uLFv', 'CHK|done|1'),
+      printing('CHK|gw|1', 'CHK|gwserver|1|1|6|1|0|0', 'CHK|gwconn|1|Free|4', 'CHK|gwconn|1|InUse|1', 'CHK|done|1'),
+    );
     await withPage(browser, async (page) => {
       await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);
     });
-    expect(logged).toEqual([
+    const expected = [
       'DIAG /state licence: LUAvailable=7, LUConsumed=1, KeyEnforcedUnits=8, CSPUsers=0, InstanceConnections=1',
       'DIAG /state csp process: pid=3248 state=EVTW routine=%SYS.cspServer3',
       'DIAG /state session lock: held by pid 3222 (mode X, count 1) on session uLFv...',
-    ]);
+      'DIAG /state gateway 1 server 1: TotalConnections=6, ConnectionsInUse=1, PrivateConnections=0, QueuedRequests=0',
+      'DIAG /state gateway 1 connections: Free=4, InUse=1',
+    ];
+    expect(logged).toEqual(expected);
+    expect(readFileSync(test.info().outputPath('state-diagnosis.txt'), 'utf8')).toBe(`${expected.join('\n')}\n`);
+    const attached = test.info().attachments.filter((attachment) => attachment.name === 'state-diagnosis');
+    expect(attached, 'one state-diagnosis attachment').toHaveLength(1);
+    expect(attached[0]?.path).toBe(test.info().outputPath('state-diagnosis.txt'));
+    expect(attached[0]?.contentType).toBe('text/plain');
   });
 
   test('a session with no lock says so', async ({ browser }) => {
     test.setTimeout(12_000);
-    process.env['OCUTALON_E2E_IRIS_EXEC'] = "cat > /dev/null; printf '%s\\n' 'CHK|licence|LUAvailable=7|LUConsumed=1' 'CHK|done|1'";
+    process.env['OCUTALON_E2E_IRIS_EXEC'] = standIn(printing('CHK|licence|LUAvailable=7|LUConsumed=1', 'CHK|done|1'), printing('CHK|gw|0', 'CHK|done|1'));
     await withPage(browser, async (page) => {
       await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);
     });
-    expect(logged).toEqual(['DIAG /state licence: LUAvailable=7, LUConsumed=1', 'DIAG /state session lock: none held']);
+    expect(logged).toEqual(['DIAG /state licence: LUAvailable=7, LUConsumed=1', 'DIAG /state session lock: none held', 'DIAG /state gateway: none registered']);
   });
 
-  test('a dump that cannot run prints one unavailable line, and the error text is unchanged', async ({ browser }) => {
+  test('a dump that cannot run prints one unavailable line per read, and the error text is unchanged', async ({ browser }) => {
     test.setTimeout(12_000);
     await withPage(browser, async (page) => {
       await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);
     });
-    expect(logged).toHaveLength(1);
+    expect(logged).toHaveLength(2);
     expect(logged[0]).toMatch(/^DIAG \/state unavailable: OCUTALON_URL must be set/);
+    expect(logged[1]).toMatch(/^DIAG \/state gateway unavailable: OCUTALON_URL must be set/);
+  });
+
+  test('a gateway read that hangs past its bound costs none of the first read\'s lines, and the test still ends in time', async ({ browser }) => {
+    test.setTimeout(12_000);
+    process.env['OCUTALON_E2E_IRIS_EXEC'] = standIn(printing('CHK|licence|LUAvailable=7', 'CHK|done|1'), 'exec sleep 60');
+    await withPage(browser, async (page) => {
+      await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);
+    });
+    expect(logged).toHaveLength(3);
+    expect(logged.slice(0, 2)).toEqual(['DIAG /state licence: LUAvailable=7', 'DIAG /state session lock: none held']);
+    expect(logged[2]).toMatch(/^DIAG \/state gateway unavailable: .*no answer within \d+(\.\d+)? s/);
+  });
+
+  test('the two reads run at once: two reads of 2 s each end in well under 4 s, with the lines of both', async () => {
+    test.setTimeout(12_000);
+    process.env['OCUTALON_E2E_IRIS_EXEC'] = standIn(`sleep 2; ${printing('CHK|licence|LUAvailable=7', 'CHK|done|1')}`, `sleep 2; ${printing('CHK|gw|0', 'CHK|done|1')}`);
+    const started = Date.now();
+    await stateDiagnosis();
+    const elapsed = Date.now() - started;
+    expect(logged).toEqual(['DIAG /state licence: LUAvailable=7', 'DIAG /state session lock: none held', 'DIAG /state gateway: none registered']);
+    expect(elapsed, 'two sequential reads would take 4 s or more').toBeLessThan(3_600);
   });
 
   test('a sign-in that never ends is not diagnosed: only a snapshot GET that passed its bound is', async ({ browser }) => {
@@ -285,11 +327,176 @@ test.describe('loadedAfter: the /state diagnosis', () => {
     expect(logged).toEqual([]);
   });
 
+  /**
+   * Values that the redaction must keep out of the printed lines and the file. They are built from parts at run time, so that no key-shaped
+   * literal sits in the repository, and they hold no single quote and no pipe (the stand-in prints them inside single quotes, in CHK lines).
+   */
+  const planted = {
+    cookie: ['PLANTED', 'COOKIE', 'VALUE', '0123'].join(''),
+    header: ['PLANTED', 'HEADER', 'COOKIE', '4567'].join(''),
+    bearer: ['PLANTED', 'BEARER', 'TOKEN', '89ab'].join(''),
+    opaque: ['PLANTED', 'OPAQUE', 'TOKEN', 'cdef', '0123'].join(''),
+    body: ['PLANTED', 'BODY', 'TEXT'].join(''),
+    session: ['PLANTED', 'SESSION', 'REST', '4567'].join(''),
+    anthropic: ['sk-', 'ant-', 'PLANTED', 'KEY', '0123'].join(''),
+    openai: ['sk-', 'PLANTED', 'KEY', '4567'].join(''),
+    github: ['gh', 'p_', 'PLANTED', 'KEY', '0123456789'].join(''),
+    aws: ['AK', 'IA', 'PLANTED', '0123456789'].join(''),
+  } as const;
+  const cookiePair = `${['CSPSESSIONID', '-SP-52773-UP-csp-'].join('')}=${planted.cookie}`;
+  const jsonBody = `{"user":"${planted.body}","n":1}`;
+
+  async function runPlanted(browser: Browser, first: string[], gateway: string[]): Promise<{ file: string; shown: string }> {
+    test.setTimeout(12_000);
+    process.env['OCUTALON_E2E_IRIS_EXEC'] = standIn(printing(...first, 'CHK|done|1'), printing(...gateway, 'CHK|done|1'));
+    await withPage(browser, async (page) => {
+      await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);
+    });
+    const file = readFileSync(test.info().outputPath('state-diagnosis.txt'), 'utf8');
+    expect(file, 'the file equals the printed lines').toBe(`${logged.join('\n')}\n`);
+    return { file, shown: logged.join('\n') };
+  }
+
+  function expectNoPlanted(text: string): void {
+    for (const [name, value] of Object.entries(planted)) expect.soft(text, `the planted ${name} value`).not.toContain(value);
+    expect.soft(text).not.toContain(cookiePair);
+  }
+
+  test('a cookie, token, body, key or full session id that the first read prints reaches neither the file nor stdout, and the counts and states do', async ({ browser }) => {
+    const { file, shown } = await runPlanted(
+      browser,
+      [
+        `CHK|licence|LUAvailable=7|LUConsumed=1|Session=${cookiePair}|Auth=Bearer ${planted.bearer}`,
+        `CHK|csp|3248|EVTW|%SYS.cspServer3 key=${planted.anthropic} alt=${planted.openai} gh=${planted.github} aws=${planted.aws} opaque=${planted.opaque}`,
+        `CHK|csp|3249|READ|Cookie: other=1; ${['CSPSESSIONID', '-x'].join('')}=${planted.header}`,
+        `CHK|error|csp|failed with ${jsonBody}`,
+        `CHK|lock|3222|X|1|uLFv${planted.session}`,
+      ],
+      ['CHK|gw|1', 'CHK|gwserver|1|1|6|1|0|0', 'CHK|gwconn|1|Free|4', 'CHK|gwconn|1|InUse|1'],
+    );
+    expectNoPlanted(file);
+    expectNoPlanted(shown);
+    expect(logged).toContain('DIAG /state licence: LUAvailable=7, LUConsumed=1, Session=cookie=[redacted], Auth=Bearer [redacted]');
+    expect(logged).toContain('DIAG /state csp process: pid=3249 state=READ routine=Cookie: [redacted]');
+    expect(logged).toContain('DIAG /state session lock: held by pid 3222 (mode X, count 1) on session uLFv...');
+    expect(logged).toContain('DIAG /state csp process: pid=3248 state=EVTW routine=%SYS.cspServer3 key=[redacted] alt=[redacted] gh=[redacted] aws=[redacted] opaque=[redacted]');
+    expect(logged).toContain('DIAG /state csp unavailable: failed with [redacted]');
+    expect(logged).toContain('DIAG /state gateway 1 server 1: TotalConnections=6, ConnectionsInUse=1, PrivateConnections=0, QueuedRequests=0');
+    expect(logged).toContain('DIAG /state gateway 1 connections: Free=4, InUse=1');
+  });
+
+  test('a cookie, token, body or key that the gateway read\'s error text carries reaches neither the file nor stdout', async ({ browser }) => {
+    const { file, shown } = await runPlanted(
+      browser,
+      ['CHK|licence|LUAvailable=7|LUConsumed=1'],
+      [`CHK|error|gateway|<PROTECT> refused for ${planted.anthropic} and ${cookiePair} and Bearer ${planted.bearer} and ${planted.opaque} with ${jsonBody}`],
+    );
+    expectNoPlanted(file);
+    expectNoPlanted(shown);
+    expect(logged).toContain('DIAG /state licence: LUAvailable=7, LUConsumed=1');
+    const gateway = logged.filter((line) => line.startsWith('DIAG /state gateway unavailable: <PROTECT> refused for '));
+    expect(gateway, 'the gateway line keeps its reason').toHaveLength(1);
+  });
+
+  /**
+   * One planted value per alternative of the redaction. A key value holds no digit, so that the rule for long opaque tokens cannot take it in
+   * place of its own rule.
+   */
+  test('each kind of cookie, header, token, body and key that the redaction names is removed, and a session id is cut to four characters', async () => {
+    const value = ['PLANTED', 'KEY', 'LETTERS', 'ONLY', 'ABCDEF'].join('');
+    const cases: Array<[string, string]> = [
+      ['a CSPCHD pair', `routine=${['CSP', 'CHD'].join('')}=${value} end`],
+      ['a CSPWSERVERID pair', `routine=${['CSPWSERVER', 'ID'].join('')}=${value} end`],
+      ['a name: value pair', `routine=${['CSPSESSION', 'ID'].join('')}: ${value} end`],
+      ['a glued, lower-case pair', `routine=x${['cspsession', 'id'].join('')}=${value} end`],
+      ['a Set-Cookie header', `routine=${['Set-', 'Cookie'].join('')}: a=${value}; Path=/`],
+      ['a Cookie header', `routine=${['Coo', 'kie'].join('')}: a=${value}`],
+      ['a lower-case cookie header', `routine=${['coo', 'kie'].join('')}: a=${value}`],
+      ['a header whose name ends in Cookie', `routine=HTTP_${['COO', 'KIE'].join('')}: a=${value}`],
+      ['a Cookie header with a carriage return', `routine=${['Coo', 'kie'].join('')}: a=1\r${value}`],
+      ['a pair with a space before its sign', `routine=${['CSPSESSION', 'ID'].join('')} = ${value} end`],
+      ['two pairs on one line', `routine=${['CSP', 'CHD'].join('')}=x, ${['CSPWSERVER', 'ID'].join('')}=${value} end`],
+      ['a bearer token', `Auth=${['Bea', 'rer'].join('')} ${value}`],
+      ['a lower-case bearer token', `Auth=${['bea', 'rer'].join('')} ${value}`],
+      ['two bearer tokens on one line', `Auth=${['Bea', 'rer'].join('')} x, Proxy=${['Bea', 'rer'].join('')} ${value}`],
+      ['two long tokens on one line', `a=x${'1'.repeat(24)} b=${value}1`],
+      ['a JSON object with a carriage return', `failed with {"a":"1\r${value}"}`],
+      ['a JSON object', `failed with {"a":"${value}"}`],
+      ['a JSON array of objects', `failed with [{"a":"${value}"}]`],
+      ['a JSON object with escaped quotes', `failed with {\\"a\\":\\"${value}\\"}`],
+      ['a github_pat_ key', `key ${['github', '_pat_'].join('')}${value}`],
+      ['a ghp_ key', `key ${['gh', 'p_'].join('')}${value}`],
+      ['an ASIA key', `key ${['AS', 'IA'].join('')}${value.toUpperCase()}`],
+      ['an AKIA key', `key ${['AK', 'IA'].join('')}${value.toUpperCase()}`],
+      ['an AKIA key glued to a word', `key=id${['AK', 'IA'].join('')}${value.toUpperCase()}`],
+      ['an xox token', `key ${['xo', 'xb-'].join('')}${value}`],
+      ['an AIza key', `key ${['AI', 'za'].join('')}${value}`],
+      ['an sk-ant- key', `key ${['sk-', 'ant-'].join('')}${value}`],
+      ['an sk- key', `key ${['sk', '-'].join('')}${value}`],
+    ];
+    for (const [name, line] of cases) {
+      const redacted = redactLine(line);
+      expect.soft(redacted, name).not.toContain(value);
+      expect.soft(redacted, name).toContain('[redacted]');
+    }
+    expect.soft(redactLine(`routine=${['Set-', 'Cookie'].join('')}: a=${value}`), 'a Set-Cookie header is taken whole').toBe('routine=Cookie: [redacted]');
+    expect.soft(redactLine(`failed with [{"a":"${value}"}]`), 'a JSON array is taken whole').toBe('failed with [redacted]');
+    const lock = 'DIAG /state session lock: held by pid 3222 (mode X, count 1) on session ';
+    expect(redactLine(`${lock}uLFv${value}...`)).toBe(`${lock}uLFv...`);
+    expect(redactLine(`${lock}u LF${value}...`)).toBe(`${lock}u LF...`);
+    expect(redactLine(`${lock}uL...`)).toBe(`${lock}uL...`);
+  });
+
+  test('the redaction keeps the lines that carry counts and states as they are', async () => {
+    for (const line of [
+      'DIAG /state licence: LUAvailable=7, LUConsumed=1, KeyEnforcedUnits=8, CSPUsers=0, InstanceConnections=1',
+      'DIAG /state csp process: pid=3248 state=EVTW routine=%SYS.cspServer3',
+      'DIAG /state session lock: held by pid 3222 (mode X, count 1) on session uLFv...',
+      'DIAG /state gateway 1 server 1: TotalConnections=6, ConnectionsInUse=1, PrivateConnections=0, QueuedRequests=0',
+      'DIAG /state gateway 1 connections: Free=4, InUse=1',
+      'DIAG /state gateway unavailable: <PROTECT> no use of %CSP.Mgr.GatewayMgr',
+    ]) {
+      expect(redactLine(line)).toBe(line);
+    }
+  });
+
   test('a read that the session refuses is named, and an unread lock is not reported as none held', async () => {
     expect(describeDiagnosis(['CHK|licence|LUAvailable=7', 'CHK|error|lock|<PROTECT> no use of %SYS.LockQuery', 'CHK|done|1'])).toEqual([
       'DIAG /state licence: LUAvailable=7',
       'DIAG /state lock unavailable: <PROTECT> no use of %SYS.LockQuery',
     ]);
+  });
+
+  test('a gateway read is described by its servers and states, and a refused or odd one is named without its value', async () => {
+    expect(describeGateway(['CHK|gw|1', 'CHK|gwserver|1|1|6|1|0|0', 'CHK|gwconn|1|Free|4', 'CHK|gwconn|1|InUse|1', 'CHK|done|1'])).toEqual([
+      'DIAG /state gateway 1 server 1: TotalConnections=6, ConnectionsInUse=1, PrivateConnections=0, QueuedRequests=0',
+      'DIAG /state gateway 1 connections: Free=4, InUse=1',
+    ]);
+    expect(describeGateway(['CHK|gw|0', 'CHK|done|1'])).toEqual(['DIAG /state gateway: none registered']);
+    expect(describeGateway(['CHK|gw|2', 'CHK|done|1'])).toEqual(['DIAG /state gateway: 2 registered, no server or connection reported']);
+    expect(describeGateway(['CHK|gw|1', 'CHK|error|gateway|<PROTECT> no use of %CSP.Mgr.GatewayMgr', 'CHK|done|1'])).toEqual([
+      'DIAG /state gateway unavailable: <PROTECT> no use of %CSP.Mgr.GatewayMgr',
+    ]);
+    expect(describeGateway(['CHK|gw|1', 'CHK|gwserver|1|1|6|x7|0|0', 'CHK|done|1'])).toEqual(['DIAG /state gateway unavailable: an unexpected reading']);
+    expect(describeGateway(['CHK|gw|1', 'CHK|gwserver|1|1|6|1|0', 'CHK|done|1'])).toEqual(['DIAG /state gateway unavailable: an unexpected reading']);
+    const cookie = describeGateway(['CHK|gw|1', 'CHK|gwserver|1|1|6|1|0|0', 'CHK|gwconn|1|CSPSESSIONID=abc|1', 'CHK|done|1']);
+    expect(cookie).toEqual(['DIAG /state gateway unavailable: an unexpected reading']);
+    expect(describeGateway(['CHK|done|1'])).toEqual(['DIAG /state gateway unavailable: the session printed no reading']);
+    expect(describeGateway([])).toEqual(['DIAG /state gateway unavailable: the session printed no reading']);
+  });
+
+  test('the gateway script reads counts and states only: it names no PID, address, port, server name, idle time or activity', async () => {
+    const script = gatewayScript();
+    for (const property of ['WebServerPID', 'CacheServerPID', 'IPAddress', 'TCPPort', 'CacheServerName', 'IdleTime', 'Activity']) {
+      expect(script, property).not.toContain(property);
+    }
+    for (const property of ['TotalConnections', 'ConnectionsInUse', 'PrivateConnections', 'QueuedRequests']) expect(script).toContain(property);
+  });
+
+  test('the gateway script parses as one session line: an argumentless Quit is followed by two spaces, so that the next command is not its argument', async () => {
+    const script = gatewayScript();
+    expect(script).toMatch(/Quit:\S+ {2}\S/);
+    expect(script, 'a Quit with one space before the next command').not.toMatch(/Quit(?::\S+)? \S/);
   });
 });
 
@@ -302,7 +509,7 @@ let execBefore: string | undefined;
 
 test.beforeEach(() => {
   execBefore = process.env['OCUTALON_E2E_IRIS_EXEC'];
-  process.env['OCUTALON_E2E_IRIS_EXEC'] = "cat > /dev/null; printf '%s\\n' 'CHK|done|1'";
+  process.env['OCUTALON_E2E_IRIS_EXEC'] = standIn(printing('CHK|done|1'), printing('CHK|gw|0', 'CHK|done|1'));
 });
 
 test.afterEach(() => {

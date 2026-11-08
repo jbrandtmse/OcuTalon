@@ -13,7 +13,7 @@
 ///     expects, the three situations are all there (failing with a fix waiting, every check passing, nothing watched), each asks "Is everything
 ///     fine?", the command case records the key phrases of the UX sentence, and every turn case is plain ASCII, not held out, has no item, and
 ///     holds the fields of its kind and nothing else;
-///   - TestUserTurnCases (Story 30.5, DW-500): exactly four user-turn cases, one for each "Try it yourself" chip, each with the chip's exact text, the key
+///   - TestUserTurnCases (Story 30.5, DW-500): exactly four user-turn cases, one for each "Try it yourself" chip, and one remember case (Story 30.9, DW-890), each with the chip's exact text, the key
 ///     phrase "user" and the absent phrases of a reason that describes production state or tool limits, and the fields of its kind and nothing else;
 ///   - (QA) TestCommandPhrasesAreSentence (Story 9.7): each key phrase of the command case (one of its alternatives) is part of the catalog sentence
 ///     agent.noCommands, which the INSTRUCTIONS of the Chat agent hold (Test.Agent.Instructions), so the case cannot expect words that the product never says;
@@ -233,7 +233,7 @@ Method TestTurnCases()
 
 /// The user-turn cases of the set (Story 30.5, DW-500): exactly one for each of the four "Try it yourself" chips, with the chip's exact text,
 /// kind user-turn, not held out, the key phrase "user" and a list of absent phrases (the words of a reason that describes production state, tool
-/// limits or an all-clear), and the fields of its kind and nothing else.
+/// limits or an all-clear), and the fields of its kind and nothing else, and one remember case (Story 30.9, DW-890).
 Method TestUserTurnCases()
 {
 	Set folder = ..Folder()
@@ -245,7 +245,7 @@ Method TestUserTurnCases()
 		Set case = ..Read(folder, name)
 		If $IsObject(case) && (case.kind = "user-turn") Set count = count + 1
 	}
-	Do $$$AssertEquals(count, 4, "eval/ holds exactly four user-turn cases")
+	Do $$$AssertEquals(count, 5, "eval/ holds exactly five user-turn cases")
 	Set wanted = $ListBuild($ListBuild("user-turn-productions", "Which productions are running?"), $ListBuild("user-turn-anything-wrong", "Is anything wrong right now?"), $ListBuild("user-turn-failure-earlier", "What was that failure earlier?"), $ListBuild("user-turn-what-can-you-do", "What can you do?"))
 	Set position = 0
 	While $ListNext(wanted, position, entry) {

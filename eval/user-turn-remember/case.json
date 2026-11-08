@@ -1,0 +1,33 @@
+{
+  "name": "user-turn-remember",
+  "kind": "user-turn",
+  "heldOut": false,
+  "description": "The user asks OcuTalon to remember a partner's contact, as the guide's Ask it to remember control sends it (Story 30.9, DW-890). The case is right only when Triage decides tell now with no fallback, which needs a reply that gives a confidence, and its reasons only classify the turn as the user's own message: they never describe the state of a production, what Triage can or cannot look up, or whether anything needs the user.",
+  "turn": {
+    "text": "Remember that the Results partner's contact is Lee."
+  },
+  "expectation": {
+    "keyPhrases": [
+      [
+        "user"
+      ]
+    ],
+    "absentPhrases": [
+      "tool",
+      "access",
+      "look up",
+      "cannot",
+      "can't",
+      "unable",
+      "needs the user",
+      "need the user",
+      "nothing",
+      "healthy",
+      "all clear",
+      "everything is",
+      "no failure",
+      "no error"
+    ]
+  },
+  "recordedBy": "written for the evaluation set (Story 30.9, DW-890)"
+}

@@ -1,7 +1,8 @@
 // Pins the Playwright results that CI keeps (Story 11.22, DW-710): each live unit writes them to a folder of its own (ci/iris.sh cmd_live sets
 // OCUTALON_E2E_OUTPUT to test-results/<unit>, which web/playwright.config.ts reads as outputDir), so that a later unit of the same job does not
-// clear an earlier unit's results, and traces stay off with and without CI (a trace can hold the sign-in passwords of the job's throwaway
-// stack, and the repository is public). It also pins the iris job's one upload in ci.yml: a failure-only upload of web/test-results, kept 3 days.
+// clear an earlier unit's results. Traces are off in every case but one (Story 11.27): OCUTALON_E2E_TRACE=retain-on-failure together with
+// RUNNER_ENVIRONMENT=self-hosted keeps a failing test's trace without screenshots, and ci/iris.sh moves it to the runner's own disk (a trace
+// can hold the sign-in passwords of the job's throwaway stack, and the repository is public). It also pins the iris job's one upload in ci.yml: a failure-only upload of web/test-results, kept 3 days.
 // No browser starts and no stack is needed.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
@@ -20,6 +21,8 @@ function loadConfig(extra) {
   const env = { ...process.env };
   delete env.OCUTALON_E2E_OUTPUT;
   delete env.CI;
+  delete env.OCUTALON_E2E_TRACE;
+  delete env.RUNNER_ENVIRONMENT;
   Object.assign(env, extra);
   const script = `const { default: config } = await import(${JSON.stringify(configUrl)});
     console.log(JSON.stringify({ outputDir: config.outputDir, trace: config.use?.trace, projects: (config.projects ?? []).map((project) => project.use?.trace) }));`;
@@ -36,8 +39,17 @@ describe('the Playwright results of a unit (DW-710)', () => {
     assert.equal(loadConfig({ OCUTALON_E2E_OUTPUT: 'test-results/cards', CI: '1' }).outputDir, 'test-results/cards');
   });
 
-  it('keeps traces off, with and without CI and with a unit folder', () => {
-    for (const extra of [{}, { CI: '1' }, { CI: 'true', OCUTALON_E2E_OUTPUT: 'test-results/online-session' }]) {
+  it('keeps traces off, with and without CI, with a unit folder, and unless the switch and a self-hosted runner both say otherwise', () => {
+    const off = [
+      {},
+      { CI: '1' },
+      { CI: 'true', OCUTALON_E2E_OUTPUT: 'test-results/online-session' },
+      { OCUTALON_E2E_TRACE: 'retain-on-failure' },
+      { RUNNER_ENVIRONMENT: 'self-hosted' },
+      { OCUTALON_E2E_TRACE: 'retain-on-failure', RUNNER_ENVIRONMENT: 'github-hosted' },
+      { OCUTALON_E2E_TRACE: 'on', RUNNER_ENVIRONMENT: 'self-hosted' },
+    ];
+    for (const extra of off) {
       const config = loadConfig(extra);
       assert.equal(config.trace, 'off', JSON.stringify(extra));
       assert.deepEqual(
@@ -46,6 +58,17 @@ describe('the Playwright results of a unit (DW-710)', () => {
         `no project turns a trace on (${JSON.stringify(extra)})`,
       );
     }
+  });
+
+  it('keeps a failing test\'s trace, without screenshots, on a self-hosted runner that ci/iris.sh set the switch for', () => {
+    const config = loadConfig({ OCUTALON_E2E_TRACE: 'retain-on-failure', RUNNER_ENVIRONMENT: 'self-hosted', OCUTALON_E2E_OUTPUT: 'test-results/cards' });
+    assert.deepEqual(config.trace, { mode: 'retain-on-failure', screenshots: false });
+    assert.equal(config.outputDir, 'test-results/cards');
+    assert.deepEqual(
+      config.projects.filter((trace) => trace !== null && trace !== undefined),
+      [],
+      'no project sets a trace of its own: each inherits the ruled object',
+    );
   });
 
   it('gives every live unit its own folder: cmd_live of ci/iris.sh sets OCUTALON_E2E_OUTPUT="test-results/$name"', () => {

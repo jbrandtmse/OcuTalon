@@ -102,7 +102,7 @@ Method TestNextReset()
 
 	Set now = $ClassMethod(accessor, "NextReset")
 	Do $$$AssertTrue(now ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "without now, the answer is a UTC time: "_now)
-	Do $$$AssertTrue(now ] $Translate($ZDateTime($ZTimeStamp, 3, 1), " ", "T")_"Z", "without now, the answer is in the future")
+	Do $$$AssertTrue(now ] ($Translate($ZDateTime($ZTimeStamp, 3, 1), " ", "T")_"Z"), "without now, the answer is in the future")
 
 	Do $ClassMethod(accessor, "Set", "resetIntervalHours", 0.5)
 	Do $$$AssertEquals($ClassMethod(accessor, "NextReset", "2026-10-18T00:10:00Z"), "2026-10-18T00:30:00Z", "a fractional interval")

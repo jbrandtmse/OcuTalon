@@ -149,7 +149,9 @@ Method OnAfterOneTest(testname As %String) As %Status
 /// With no model key in the container, every runner runs, and a Request to each gets an error that names the key placeholder, with
 /// no response. A second Request tries the build again and gets the same error, and so does a ToolInventory request, which needs
 /// the built agent too. The entries must hold the placeholder of the Provider step and no job may hold an agent built before, so the
-/// test puts the entries back and restarts the runners first. Nothing reaches the mock, and the item keeps its job.
+/// test puts the entries back and restarts the runners first. Nothing reaches the mock, and the item keeps its job. The last check
+/// reads the event log with the header mark: a timer-ignored row of Ens.Alarm for a message header from before the mark is an earlier
+/// test's timer, not this test's (Story 11.28).
 Method TestStartsWithNoKey()
 {
 	If '..Ready() Quit
@@ -205,6 +207,7 @@ Method TestStartsWithNoKey()
 		Do $$$AssertTrue((status = 0) || (status = 1), "exactly 0 or 1: '"_status_"'")
 	}
 	Set errorMark = $ClassMethod(fixture, "EventMark")
+	Set headerMark = $ClassMethod(fixture, "HeaderMark")
 	Set mockMark = $ClassMethod(mock, "LogMark")
 	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "Triage this item.", .decideRef)
 	Set ..ItemIds = ..ItemIds _ $ListBuild(decideRef)
@@ -225,7 +228,7 @@ Method TestStartsWithNoKey()
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mockMark, .entries), "the mock's log is read")
 	Do $$$LogMessage(entries.%Size()_" request(s) reached the mock since the mark; a runner with no key sends nothing in any case, so what shows that Decide did not send is its targets above and the event log below")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).NotRunning(), "", "every item still runs")
-	Do $$$AssertEquals($ListToString($ClassMethod(fixture, "ErrorRows", errorMark), "; "), "", "and the event log holds no error or alert row since the mark")
+	Do $$$AssertEquals($ListToString($ClassMethod(fixture, "ErrorRows", errorMark, headerMark), "; "), "", "and the event log holds no error or alert row since the mark")
 }
 
 /// A SystemPrompt row for TriageAgent, and then an allow-list that leaves out Triage, each stop the item at its start: it has no

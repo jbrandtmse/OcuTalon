@@ -55,9 +55,9 @@ OcuTalon.Data.Ownership:Rows"
 SAMPLE_ALLOW="OcuTalon.Data.Session:ForUser
 OcuTalon.Live.Event:Since"
 
-# The only assertions of src/ that compare with a concatenation on the right of "[" (DW-505), Class:Method, one per line. This one is Lane B's
-# (Epic 31 fixes it); in the change that fixes the line, the entry goes too, or the stale check fails.
-ALLOW_CONCAT="OcuTalon.Test.Data.PublicSettings:TestNextReset"
+# The assertions of src/ that compare with a concatenation on the right of "[" (DW-505), Class:Method, one per line. None is left; an entry
+# added here goes in the change that parenthesises the line, or the stale check fails.
+ALLOW_CONCAT=""
 SAMPLE_ALLOW_CONCAT="OcuTalon.Zz.Allowed:Run"
 
 # The packages that may use %AI (AD-2), by whole name; a sub-package belongs to its package.
