@@ -3316,6 +3316,33 @@ So that an incident never falls back to a timeout only because another diagnosis
 
 Not in this story: pacing the evaluation's incident cases (DW-878, Epic 9's fix-forward), and starting the timer at the runner (option A, not chosen).
 
+### Story 5.15: After an incident resolves, the status answer and the rail say so within seconds
+
+[ADDED 2026-11-08 for 1.0.5, DW-851, fix-forward, Planner-ruled design: the Contest Planner's ruling under the owner's delegation (`planner_ruling subject=DW-851_on_lane_C`, 2026-11-08T12:32:16Z; home `ruling question=DW-851_home choice=SC-5_re-open_of_Epic_5_as_fix-forward_Story_5.15`). Epic 5 is re-opened for it under SC-5; its merge waits until after the 1.0.4 cut, and it ships in 1.0.5. The status answer ("Is anything wrong right now?", Story 5.7's check_status) and the rail's Background checks read the production watch's last check (the Checks item's run of a `OcuTalon.Data.BackgroundCheck` row, Story 5.6). That check runs on the heartbeat, so after an approved fix finishes, for up to a minute both still report the failures and the fix waiting for approval, while the incident card already reads Resolved (the Planner's live walk of the 1.0.2 demo, 2026-11-07 04:27Z). The Planner chose: when an incident resolves, the watch of that production runs its check once, at once, through the existing check path. No new strings, and no change to the check's own rules or schedule.]
+
+As a user who has just approved a fix, or rejected one,
+I want OcuTalon's status answer and the Background checks rail to reflect that within seconds,
+So that they never contradict the incident card I am looking at.
+
+**Acceptance Criteria:**
+
+**Given** a watched production with an incident whose fix run finishes (all through or partly through, so the incident moves to resolved), or whose fix request is rejected
+**When** IncidentManager applies that event
+**Then** the watch of that production runs its check once, at once, through the existing check path (the Checks item's run of the `BackgroundCheck` row: the same read, scope, findings and result rules, the same record, check event and log line), without waiting for the next heartbeat
+**And** the next status read (check_status) and the rail's Background checks show that post-resolve check, so a fix that resolved the failures reads passed (or what the check finds) within seconds rather than up to a minute later
+**And** only the watches whose scope (AD-4) includes the incident are re-checked; a watch of another production, or another session's watch that does not see the incident, is not
+
+**Given** the change
+**When** this story merges
+**Then** the check's own rules (read, scope, findings, result, the FINDING* and REASON* texts) and its schedule (the heartbeat, INTERVALSECONDS, DUESLACKSECONDS, how NextDueAt is set by a scheduled run) are unchanged, the Checks item keeps PoolSize 1, and no new user-facing string is added
+**And** the re-check never runs the quiet sweep, the fix sweep or the agent heartbeat's beats, and a re-check that fails or finds no row logs at most one warning and changes nothing else
+**And** a test shows: an incident resolves, then the next status read shows the post-resolve check; the same for a rejected fix; a mutation that removes the re-check goes red (Rule 19); and the story's tests pass on a fresh environment, forward and reversed
+**And** the change stays in Lane A's Watch area (IncidentManager, the Checks process and its messages, their tests), its file footprint is listed in the spec, and CI is green on every workflow on the CI mock only (no real model key)
+- DW-851: Status answer and rail Background checks read the last watch run, taken before an approved fix finished, so for up to a minute they contradict the Resolved card and Approval requests (0) (ledger; routed by charter 2026-11-08)
+- DW-957: Dismissing or quiet-closing a noticed open incident leaves the status answer and rail Background checks on 'An open incident' for up to a minute; the trigger also covers dismiss and closeQuiet of a noticed open incident (ledger; routed by planner_ruling 2026-11-08)
+
+Not in this story: treating a check result older than the resolution as stale (the other option, not chosen), any change to the status answer's or the rail's text, and the expired-request path unless the spec shows it moves the incident the same way.
+
 ## Epic 6: Incidents and approvals you can answer from the page
 
 Incident cards and approval requests appear in the chat and on the simulated phone with the dry run, Approve and Reject, Show details and Dismiss; the first answer wins and every other place shows who answered and where; a rejected, expired or fallback incident reads correctly; nothing on the page can answer another session's request.

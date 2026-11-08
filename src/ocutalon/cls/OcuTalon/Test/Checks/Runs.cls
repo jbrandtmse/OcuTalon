@@ -70,6 +70,12 @@
 ///   - TestBeatLogsAreRedacted: a secret in the error text of a RunDue or a RunNow is redacted from the LOGBEAT and LOGBEATNOW line, which still holds the text before it, and a
 ///     SessionRef in the error text of a RunNow, in any case, is left out, whether RunNow answers it or throws it;
 ///   - TestBeatNowKeepsEachSession: two BeatNows of two sessions call RunNow twice, in order, each with its own SessionRef, and a repeated BeatNow is not collapsed;
+///   - TestCheckNow (Story 5.15; matrix "Check now runs", "Empty NextDueAt"): a CheckNow runs only the owner's rows of the request's production, each once: its run
+///     fields are set, NextDueAt is left as it was (also when it is empty), one check event (FromRow) and one LOGRAN line; the owner's other production and another
+///     session's row are unchanged; nothing is quieted, no fix result is sent, no beat runs and nothing goes to Digest;
+///   - TestCheckNowScope ("Scope"): the owner a session, instance on a local install, instance on the online demo, eval, an empty owner and another namespace;
+///   - TestCheckNowFailures ("Read fails / no row"): a read of the rows that throws logs one LOGNOW warning that names the incident and changes nothing, no matching
+///     row logs nothing, and a row whose run throws logs LOGRUN while the next row still runs;
 ///   - TestUnknownRequest ("Unknown request"): a request of another class is an error 5001 that names the class.
 /// The fixture rows, streams and the log lines that the tests made are removed after each test.
 Class OcuTalon.Test.Checks.Runs Extends %UnitTest.TestCase
@@ -1561,6 +1567,156 @@ Method TestBeatNowKeepsEachSession()
 	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 0, "and RunDue is never called")
 }
 
+Method TestCheckNow()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("nowA")
+	Set b = ..Owner("nowB")
+	Set later = "2030-06-02T12:00:00Z"
+	Set one = ..Watch(a, "Zz.Now1", {"NextDueAt": (later)})
+	Set two = ..Watch(a, "Zz.Now2", {"NextDueAt": (later)})
+	Set theirs = ..Watch(b, "Zz.Now1", {"NextDueAt": (later)})
+	Set unset = ..Watch(a, "Zz.Now3", {"NextDueAt": ""})
+	For production = "Zz.Now1", "Zz.Now2", "Zz.Now3" {
+		Do ..Feed(production, "read", "running")
+	}
+	// what a Tick would do besides the due checks: quiet an incident, send a fix result, run the beats
+	Set quiet = ..Incident(a, "resolved", "Zz.NowQuiet", {"LastAt": (##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, -960))})
+	Set host.QuietAt = ..#TICK
+	Set host.Swept = ##class(%ListOfObjects).%New()
+	Do host.Swept.Insert(..Result(##class(OcuTalon.Bridge.Ids).NewRef(), quiet))
+	Do ..Now(host, "ZZNS", "Zz.Now1", a, quiet)
+	Set row = ..Row(one)
+	Do $$$AssertNotEquals(row.LastRunAt, "", "A's row on the production ran")
+	Do $$$AssertEquals(row.Result_"|"_row.Finding, "passed|", "with the result of a run")
+	Do $$$AssertEquals(row.LastRunHeaderId, ..#SESSIONID, "in the process's session")
+	Do $$$AssertEquals(row.NextDueAt, later, "and NextDueAt is as it was")
+	Do $$$AssertEquals(..Reads(), "Zz.Now1", "the production was read once")
+	Set events = ..Events(a)
+	Do $$$AssertEquals(events.%Size(), 1, "one check event is published")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.%ToJSON(), ..ViewOf(one), "it is FromRow of the row")
+	Do $$$AssertEquals(..Ran(one), 1, "and one LOGRAN line is logged")
+	Set other = ..Row(two)
+	Do $$$AssertEquals(other.LastRunAt_"|"_other.Result_"|"_other.NextDueAt, "||"_later, "A's other production is unchanged")
+	Set theirRow = ..Row(theirs)
+	Do $$$AssertEquals(theirRow.LastRunAt_"|"_theirRow.Result_"|"_theirRow.NextDueAt, "||"_later, "B's row on the same production is unchanged")
+	Do $$$AssertEquals(..Events(b).%Size(), 0, "and publishes nothing on B's stream")
+	Do $$$AssertEquals(..Size(host.Quieted)_"|"_..Size(host.Sent)_"|"_..Size(host.Order)_"|"_..Size(host.Beats), "0|0|0|0", "nothing was quieted, no fix result sent, no beat run and nothing sent")
+
+	// an empty NextDueAt stays empty
+	Do ..Now(host, "ZZNS", "Zz.Now3", a, quiet)
+	Set row = ..Row(unset)
+	Do $$$AssertEquals(row.Result_"|"_row.NextDueAt, "passed|", "a row with no NextDueAt runs and still has none")
+
+	// the same request on a Tick probe: nothing goes to Digest
+	Kill ^||TickProbe
+	Set shadow = ..Host("OcuTalon.Test.Digest.TickProbe")
+	If '$IsObject(shadow) Quit
+	Do ..Now(shadow, "ZZNS", "Zz.Now1", a, quiet)
+	Do $$$AssertEquals($Get(^||TickProbe("digest")), "", "a CheckNow forwards nothing to Digest")
+	Do ..Tick(shadow, ..#TICK)
+	Do $$$AssertEquals($Get(^||TickProbe("digest")), 1, "where a Tick does")
+	Kill ^||TickProbe
+}
+
+Method TestCheckNowScope()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("scopeNowA")
+	Set b = ..Owner("scopeNowB")
+	Do ..ScopeCase(host, a, b, "session", "ZZNS", a, "A")
+	Do ..ScopeCase(host, a, b, "session B", "ZZNS", b, "B")
+	Do ..ScopeCase(host, a, b, "instance", "ZZNS", "instance", "A,B")
+	Do ..ScopeCase(host, a, b, "eval", "ZZNS", "eval", "")
+	Do ..ScopeCase(host, a, b, "empty owner", "ZZNS", "", "")
+	Do ..ScopeCase(host, a, b, "another namespace", "ZZELSE", a, "")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1"), "onlineDemo is set")
+	Do ..ScopeCase(host, a, b, "instance on the online demo", "ZZNS", "instance", "")
+	Do ..ScopeCase(host, a, b, "session on the online demo", "ZZNS", a, "A")
+}
+
+Method TestCheckNowFailures()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("nowFail")
+	Set incident = ..Incident(a, "resolved", "Zz.NowFail1")
+	Set ref = ..Watch(a, "Zz.NowFail1")
+	Do ..Feed("Zz.NowFail1", "read", "running")
+
+	// the read of the rows throws
+	Set host.FailWatching = 1
+	Do ..Now(host, "ZZNS", "Zz.NowFail1", a, incident)
+	Do $$$AssertEquals(..Warnings("Now", $Parameter(..#PROBE, "LOGNOW"), .text, ..Incidents), 1, "a read of the rows that throws logs one warning")
+	Do $$$AssertTrue(text [ incident, "which names the incident: "_text)
+	Set row = ..Row(ref)
+	Do $$$AssertEquals(row.LastRunAt_"|"_row.Result, "|", "the row is unchanged")
+	Do $$$AssertEquals(..Events(a).%Size()_"|"_..Ran(ref), "0|0", "nothing is published or logged as run")
+
+	// no row matches
+	Set host.FailWatching = 0
+	Do ..Now(host, "ZZNS", "Zz.NowNone", a, incident)
+	Do $$$AssertEquals(..Warnings("Now", $Parameter(..#PROBE, "LOGNOW"), , ..Incidents), 1, "no matching row adds no warning")
+	Do $$$AssertEquals(..Reads(), "", "and reads nothing")
+
+	// a run that throws does not stop the next row of the same request (instance: both sessions' rows)
+	Set b = ..Owner("nowFailB")
+	Set bad = ..Watch(a, "Zz.NowFail2")
+	Set good = ..Watch(b, "Zz.NowFail2")
+	Do ..Feed("Zz.NowFail2", "read", "running")
+	Set host.RunThrows = bad
+	Do ..Now(host, "ZZNS", "Zz.NowFail2", "instance", incident)
+	Set host.RunThrows = ""
+	Do $$$AssertEquals(..Warnings("Now", $Parameter(..#PROBE, "LOGRUN"), .text, bad), 1, "a run that throws logs one LOGRUN warning")
+	Do $$$AssertTrue(text [ bad, "which names the check: "_text)
+	Set row = ..Row(bad)
+	Do $$$AssertEquals(row.LastRunAt_"|"_row.Result, "|", "and records nothing")
+	Do $$$AssertEquals(..Row(good).Result, "passed", "the next row of the same request still runs")
+}
+
+/// One CheckNow for the production, handled by the host over the test's rows (the probe keeps only those); the status is asserted OK and the answer empty.
+Method Now(host As OcuTalon.Test.Checks.Probe, namespace As %String, production As %String, owner As %String, incident As %String)
+{
+	Set request = ##class(OcuTalon.Checks.Msg.CheckNow).%New()
+	Set request.Namespace = namespace
+	Set request.Production = production
+	Set request.OwnerRef = owner
+	Set request.IncidentRef = incident
+	Set host.Only = ..Checks
+	Set host.OnlyIncidents = ..Incidents
+	Kill response
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "the CheckNow for "_production_" is answered OK")
+	Do $$$AssertEquals($Get(response), "", "with no response")
+}
+
+/// A case of the scope: A's and B's rows on a new production, a row of A's in another namespace (C) and a row of the session eval (E, as an evaluation run's watch), a
+/// CheckNow for the namespace from the owner, and the rows that ran asserted (A, B, comma-separated; none for ""). C and E must never run.
+Method ScopeCase(host As OcuTalon.Test.Checks.Probe, a As %String, b As %String, label As %String, namespace As %String, owner As %String, expected As %String)
+{
+	Set ..Cases = ..Cases + 1
+	Set production = "Zz.NowScope"_..Cases
+	Set ra = ..Watch(a, production)
+	Set rb = ..Watch(b, production)
+	Set rc = ..Watch(a, production, {"Namespace": "ZZOTHER"})
+	Set re = ..Watch("eval", production)
+	Do ..Feed(production, "read", "running")
+	Do ..Now(host, namespace, production, owner, "")
+	Set ran = ""
+	If ..Row(ra).LastRunAt '= "" Set ran = ran_$Select(ran = "": "", 1: ",")_"A"
+	If ..Row(rb).LastRunAt '= "" Set ran = ran_$Select(ran = "": "", 1: ",")_"B"
+	If ..Row(rc).LastRunAt '= "" Set ran = ran_$Select(ran = "": "", 1: ",")_"C"
+	If ..Row(re).LastRunAt '= "" Set ran = ran_$Select(ran = "": "", 1: ",")_"E"
+	Do $$$AssertEquals(ran, expected, label_": the rows that ran")
+}
+
+/// The number of entries of a probe's recorded array, 0 while nothing was recorded.
+ClassMethod Size(list As %DynamicArray) As %Integer
+{
+	Quit $Select($IsObject(list): list.%Size(), 1: 0)
+}
+
 Method TestUnknownRequest()
 {
 	Set host = ..Host()
@@ -1572,10 +1728,10 @@ Method TestUnknownRequest()
 }
 
 /// --- helpers ---
-/// A shadow instance of the probe, in this process, with a known session.
-Method Host() As OcuTalon.Test.Checks.Probe
+/// A shadow instance of the probe (or of a class that extends it), in this process, with a known session.
+Method Host(class As %String = {..#PROBE}) As OcuTalon.Test.Checks.Probe
 {
-	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+	Set host = ##class(Ens.Host).GetShadowInstance("class||"_class, .sc)
 	Do $$$AssertTrue($IsObject(host), "a shadow instance of the probe is made")
 	If $IsObject(host) Set host.%SessionId = ..#SESSIONID
 	Quit host
@@ -1884,6 +2040,7 @@ Method RemoveLogs()
 		If ref = "" Continue
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Run", $Parameter(..#PROBE, "LOGREAD")_ref)
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Tick", $Parameter(..#PROBE, "LOGRUN")_ref)
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Now", $Parameter(..#PROBE, "LOGRUN")_ref)
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Announce", $Parameter(..#PROBE, "LOGPUBLISH")_ref)
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Record", $Parameter(..#PROBE, "LOGFINDING")_ref)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGRAN")_ref)
@@ -1892,6 +2049,7 @@ Method RemoveLogs()
 		Set ref = $Piece(..Incidents, ",", i)
 		If ref = "" Continue
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Sweep", $Parameter(..#PROBE, "LOGQUIET")_ref)
+		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Now", $Parameter(..#PROBE, "LOGNOW")_ref)
 	}
 	For i = 1:1:$Length(..Requests, ",") {
 		Set ref = $Piece(..Requests, ",", i)
