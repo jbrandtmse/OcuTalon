@@ -2804,3 +2804,4 @@
 2026-11-08T13:44:12Z	Epic 32	ci_rerun	sha=cf04f99a run=42472273728_attempt_3 reason=Planner_deviation_c(DW-675_signature_only)
 2026-11-08T13:44:25Z	Epic 17	ci_resolved	sha=321dcad7 attempt=3 result=failure test=TestDisabledItemIsReportedOnce(web_chat_notification_count;NOT_ledgered;not_the_DW-675_signature) note=possible_story_red(17.10_WebChat.Out);runner_classifies
 2026-11-08T13:44:25Z	Epic 18	ci_green_verified	head=90360113 result=success(after_DW-639_rerun) note=18.2
+2026-11-08T13:45:11Z	Epic 7	runner_clarification	kind=CI_WAIT agent=adc7a70fe743ed3a5 sha=1dad4ebd(7.11_done;epic_close_in_same_push;contains_d6b8af41) runs=42486386378,42486386412 proof=planted_header_old_20/20_red,fix_20/20;5_mutations cr=high0_med0 merge=FIRST
