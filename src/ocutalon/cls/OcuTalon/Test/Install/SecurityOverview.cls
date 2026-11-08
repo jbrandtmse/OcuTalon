@@ -34,10 +34,28 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Quit $$$OK
 }
 
-/// The rows are the 19 built-in tools: the 12 of release 1 (Tools.Names RELEASE1), propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), since Story 17.6, send_digest (Tools.Names DIGESTTOOLS), the four memory tools (Tools.Names MEMORYTOOLS, Story 19.3) and documents (Tools.Names DOCUMENTS, Story 19.4: AI Hub's knowledge base, a row that comes from Decide's ToolClassification entry and not from a toolset), sorted by name, none of them a fixture or the bridge's example agent, and the
+/// The rows are the 19 built-in tools: the 12 of release 1 (Tools.Names RELEASE1), propose_persona (Tools.Names PROPOSEPERSONA, which the spine keeps out of RELEASE1), since Story 17.6, send_digest (Tools.Names DIGESTTOOLS), the four memory tools (Tools.Names MEMORYTOOLS, Story 19.3) and documents (Tools.Names DOCUMENTS, Story 19.4: AI Hub's knowledge base, a row that comes from the product's classification entry and not from a toolset), sorted by name, none of them a fixture or the bridge's example agent, and the
 /// classification, the read-only flag and the trusted-output flag of each row are those that the gate gives (Gate.ClassificationOf); for a tool that
 /// classifies by its arguments only the two flags are compared, since its classification is decided per call.
 Method TestToolRows()
+{
+	Set id = ..#PRODUCTION_"||Decide||*||ToolClassification"
+	Set held = $Select(##class(Ens.Config.DefaultSettings).%ExistsId(id): ##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue, 1: $Char(0))
+	Try {
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedClassification(..#PRODUCTION), "the install step has seeded the ToolClassification row that the gate reads")
+		Do ..CheckToolRows()
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the rows are checked without an exception")
+	}
+	If held = $Char(0) {
+		If ##class(Ens.Config.DefaultSettings).%ExistsId(id) Do ##class(Ens.Config.DefaultSettings).%DeleteId(id)
+	} ElseIf ##class(Ens.Config.DefaultSettings).%OpenId(id).SettingValue '= held {
+		Do ##class(OcuTalon.Install.Step.Production).WriteDefault(..#PRODUCTION, "Decide", "ToolClassification", held, "Put back by Test.Install.SecurityOverview.")
+	}
+}
+
+/// The rows of ToolRows against the gate's classification, flags and the classes of OcuTalon.Tools.
+Method CheckToolRows() [ Private ]
 {
 	Set rows = $ClassMethod(..#GENERATOR, "ToolRows")
 	Set released = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1")) _ $ListBuild($Parameter("OcuTalon.Tools.Names", "PROPOSEPERSONA"), $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS")) _ $ListFromString($Parameter("OcuTalon.Tools.Names", "DOCUMENTS"))
@@ -84,7 +102,7 @@ Method TestRecentActivityRow()
 	Do $$$AssertTrue(..HasLine(sections("tools"), expected), "the table of the tools section holds this row for recent_activity")
 }
 
-/// Story 19.4 (AC 6; the Contest Planner's PUBLIC TEXT ruling of 2026-11-07): documents is a row of the table, from Decide's ToolClassification entry
+/// Story 19.4 (AC 6; the Contest Planner's PUBLIC TEXT ruling of 2026-11-07): documents is a row of the table, from the product's classification entry (Install.Step.Production ClassificationEntries)
 /// of the class %AI.RAG.KnowledgeBase, with the flags of that entry (safe, read-only, not trusted output), held by the Chat agent, with the generic
 /// step label and no resources, and the tools section ends with the fallback sentence RAGSTATEMENT, once, word for word.
 Method TestDocumentsRow()

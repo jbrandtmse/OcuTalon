@@ -58,11 +58,12 @@
 ///     that is not valid, or that gets no Reply (none, a Busy one after BUSYMAX asks, or a fallback, which saves no session), ends the case with
 ///     REASONBEFORE or REASONNOREPLY and leaves no row.
 ///   - A documents case (Story 19.4; AD-21): a turn case, like a command case, whose case.json also holds documents, an array of {name, file}. Before the case's turn
-///     is asked, EvalIn adds each file (Markdown or plain text, a path relative to the case's folder that stays inside the folder of the cases) as a document
-///     of a Session row of its own (ocutalon-eval-documents), as web_user through Commands.Submit with an Upload row, and waits up to DOCUMENTSWAIT seconds
-///     for it to be ready; a document that cannot be added or does not become ready skips the case with REASONDOCUMENTS and removes what was added. The
-///     TurnResult keeps the Reply's HostData.citations (Citations). A sent case's record {case, documents{session, refs}} joins the Watches of the service, and
-///     Finish removes the documents of the records it is given (DocumentsDown) and the session row.
+///     is asked, EvalIn indexes each file (Markdown or plain text, a path relative to the case's folder that stays inside the folder of the cases) as a document of
+///     the owner eval, in its own process through OcuTalon.Docs.Ops.AddEval (AD-22): no command, no session or Session row, no web_user origin, no upload, no
+///     message to DocumentOps and no live event; no route lists an eval document. It waits at most DOCUMENTSWAIT seconds for all of them; a document that cannot be
+///     added or does not become ready skips the case with REASONDOCUMENTS and removes what was added. The TurnResult keeps the Reply's HostData.citations
+///     (Citations). A sent case's record {case, documents{refs}} joins the Watches of the service, and Finish removes the documents of the records it is given
+///     (DocumentsDown) with their passages.
 ///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26), the old turn
 ///     of a before included.
 /// Wait polls the rows of a run until none is still sent, or the seconds have passed.
@@ -95,11 +96,11 @@ Parameter TURNKINDS = "all-clear,command,user-turn,documents";
 Parameter USERTURNKIND = "user-turn";
 
 /// The kind of turn case whose documents are added before its turn (Story 19.4): its documents member is an array of {name, file}, each file the path of a
-/// Markdown or plain-text file relative to the case's folder (and inside the folder of the cases), added as web_user through Commands.Submit, waited to
-/// ready, and removed again by Finish.
+/// Markdown or plain-text file relative to the case's folder (and inside the folder of the cases), indexed as documents of the owner eval (Docs.Ops.AddEval) and
+/// removed again by Finish.
 Parameter DOCUMENTSKIND = "documents";
 
-/// The seconds to wait for a document to be ready.
+/// The seconds to wait for the documents of a case to be ready, all of them together.
 Parameter DOCUMENTSWAIT = 120;
 
 /// The kind of case that holds a recorded reader snapshot, and goes to IncidentManager.
@@ -732,10 +733,9 @@ Method Cite(result As OcuTalon.Eval.Msg.TurnResult, hostData As %String) [ Priva
 	}
 }
 
-/// Adds the documents that a documents case declares (Story 19.4; a test subclass overrides it, and Test.Docs.Turns calls it on a shadow instance of EvalIn): a Session row of the run's own, an Upload row for each file and the command AddDocument
-/// as web_user through Commands.Submit, then waits up to DOCUMENTSWAIT seconds for each document to be ready. documents is the setup record
-/// {"session", "refs"} for DocumentsDown. Returns the reason the case is not sent (REASONDOCUMENTS), or "" with the documents ready; on a reason nothing is
-/// left behind.
+/// Adds the documents that a documents case declares (Story 19.4, AD-22; a test subclass overrides it, and Test.Docs.Turns calls it on a shadow instance of EvalIn):
+/// each file is indexed as a document of the owner eval by OcuTalon.Docs.Ops.AddEval, in this process, within DOCUMENTSWAIT seconds for all of them. documents is the
+/// setup record {"refs"} for DocumentsDown. Returns the reason the case is not sent (REASONDOCUMENTS), or "" with the documents ready; on a reason nothing is left behind.
 Method DocumentsUp(case As %DynamicObject, folder As %String, Output documents As %DynamicObject) As %String
 {
 	Set documents = ""
@@ -754,19 +754,12 @@ Method DocumentsUp(case As %DynamicObject, folder As %String, Output documents A
 		Do files.%Push({"name": (name), "path": (path), "type": (type)})
 	}
 	If files.%Size() '= declared.%Size() Quit $Replace(..#REASONDOCUMENTS, "{why}", "each document needs a name, and a file of the cases' folder that is Markdown or plain text")
-	Set row = ##class(OcuTalon.Data.Session).%New()
-	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.TraceRef = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.Epoch = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.IrisUser = "ocutalon-eval-documents"
-	Set row.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
-	Set sc = row.%Save()
-	If $$$ISERR(sc) Quit $Replace(..#REASONDOCUMENTS, "{why}", $SYSTEM.Status.GetOneStatusText(sc))
-	Set documents = {"session": (row.Ref), "refs": []}
+	Set documents = {"refs": []}
 	Set reason = ""
+	Set end = $ZHorolog + ..#DOCUMENTSWAIT
 	Set iterator = files.%GetIterator()
 	While iterator.%GetNext(, .file) && (reason = "") {
-		Set reason = ..AddOne(documents, file)
+		Set reason = ..AddOne(documents, file, end)
 	}
 	If reason '= "" {
 		Do ..DocumentsDown(documents)
@@ -776,8 +769,9 @@ Method DocumentsUp(case As %DynamicObject, folder As %String, Output documents A
 	Quit ""
 }
 
-/// Adds one file as a document of the record's session and waits for it to be ready; its Ref joins the record's refs. The reason there is not a ready document, or "".
-Method AddOne(documents As %DynamicObject, file As %DynamicObject) As %String [ Private ]
+/// Indexes one file as a document of the owner eval and adds its Ref to the record's refs. The reason there is not a ready document, or "". The wait is what is left of
+/// the case's DOCUMENTSWAIT at the time end ($ZHorolog).
+Method AddOne(documents As %DynamicObject, file As %DynamicObject, end As %Integer) As %String [ Private ]
 {
 	Set bytes = ##class(%Stream.TmpBinary).%New()
 	Set source = ##class(%Stream.FileBinary).%New()
@@ -785,50 +779,24 @@ Method AddOne(documents As %DynamicObject, file As %DynamicObject) As %String [ 
 	If $$$ISOK(sc) Set sc = bytes.CopyFrom(source)
 	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
 	Do bytes.Rewind()
-	Set upload = ##class(OcuTalon.Data.Upload).Put(documents.session, bytes, .sc)
-	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
-	Set command = ##class(OcuTalon.Msg.Command.AddDocument).%New()
-	Set command.SessionRef = documents.session
-	Set command.Name = file.name
-	Set command.ContentType = file.type
-	Set command.UploadRef = upload
-	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
-	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
-	If $IsObject(result) && (result.Ref '= "") Do documents.refs.%Push(result.Ref)
-	If '$IsObject(result) || (result.Ok '= 1) Quit file.name_" was not added"_$Select($IsObject(result): " ("_result.Outcome_")", 1: "")
-	Set end = $ZHorolog + ..#DOCUMENTSWAIT
-	Set state = ""
-	For {
-		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT State FROM OcuTalon_Data.Document WHERE Ref = ?", result.Ref)
-		Set state = $Select(rs.%Next(): rs.%Get("State"), 1: "")
-		If (state = "ready") || (state = "failed") || ($ZHorolog '< end) Quit
-		Hang 0.5
-	}
-	Quit $Select(state = "ready": "", 1: file.name_" did not become ready (state "_$Select(state = "": "missing", 1: state)_")")
+	Set wait = end - $ZHorolog
+	If wait < 0 Set wait = 0
+	Set reason = ##class(OcuTalon.Docs.Ops).AddEval(bytes, file.name, file.type, wait, .ref)
+	If reason '= "" Quit file.name_" was not added ("_reason_")"
+	Do documents.refs.%Push(ref)
+	Quit ""
 }
 
-/// Removes the documents of a setup record {"session", "refs"} (RemoveDocument as web_user through Commands.Submit), drops the session's uploads and deletes the
-/// session row. Every step is tried; the status is the first error, and it never throws. A document that is already gone is no error.
+/// Removes the documents of a setup record {"refs"} with their passages (Docs.Ops.RemoveEval, which removes only documents of the owner eval). Every ref is tried;
+/// the status is the first error, and it never throws. A document that is already gone is no error.
 ClassMethod DocumentsDown(documents As %DynamicObject) As %Status
 {
 	Set result = $$$OK
 	Try {
-		If '$IsObject(documents) || (documents.%Get("session") = "") Quit
-		Set session = documents.session
+		If '$IsObject(documents) || '$IsObject(documents.%Get("refs")) Quit
 		Set iterator = documents.refs.%GetIterator()
 		While iterator.%GetNext(, .ref) {
-			Set command = ##class(OcuTalon.Msg.Command.RemoveDocument).%New()
-			Set command.SessionRef = session
-			Set command.DocumentRef = ref
-			Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .answer)
-			If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
-		}
-		Do ##class(OcuTalon.Data.Upload).DropSession(session)
-		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
-		If $IsObject(row) {
-			Set id = row.%Id()
-			Set row = ""
-			Set sc = ##class(OcuTalon.Data.Session).%DeleteId(id)
+			Set sc = ##class(OcuTalon.Docs.Ops).RemoveEval(ref)
 			If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
 		}
 	} Catch exception {

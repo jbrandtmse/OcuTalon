@@ -412,9 +412,9 @@ ClassMethod Holds(result As %DynamicArray, ref As %String) As %Integer [ Private
 	Quit count
 }
 
-/// The documents kind of the evaluation set (Story 19.4, Q5): EvalIn's DocumentsUp adds the files of a documents case as documents of a session row of its own
-/// through Commands.Submit and DocumentOps and waits until they are ready (the second case names the file of the first with ../), DocumentsDown removes them, the
-/// uploads and the session row, and a case with a file that is not there adds nothing and leaves nothing.
+/// The documents kind of the evaluation set (Story 19.4, Q5; AD-22): EvalIn's DocumentsUp indexes the files of a documents case as documents of the owner eval through
+/// Docs.Ops (the second case names the file of the first with ../), in its own process, and waits until they are ready; DocumentsDown takes the passages and the rows away;
+/// a case with a file that is not there adds nothing and leaves nothing. No Session row is written or deleted (Test.Eval.Documents proves the rest of the isolation).
 Method TestEvalDocuments()
 {
 	If '..Ready() Quit
@@ -425,7 +425,8 @@ Method TestEvalDocuments()
 	}
 	Set service = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Eval.In", .sc)
 	Do $$$AssertStatusOK(sc, "a shadow instance of EvalIn is made")
-	Set sessions = ..EvalSessions()
+	Set sessions = ..SessionState()
+	Set documentRows = ..Count("OcuTalon_Data.Document")
 	For name = "documents-runbook-rotate", "documents-none-cover" {
 		Set case = ##class(%DynamicAbstractObject).%FromJSONFile(##class(%File).NormalizeFilename("case.json", ##class(%File).SubDirectoryName(folder, name)))
 		Set reason = service.DocumentsUp(case, ##class(%File).SubDirectoryName(folder, name), .documents)
@@ -435,15 +436,13 @@ Method TestEvalDocuments()
 		Set ref = documents.refs.%Get(0)
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT State, Name, OwnerRef, AddedBy FROM OcuTalon_Data.Document WHERE Ref = ?", ref)
 		Do rs.%Next()
-		Do $$$AssertEquals(rs.%Get("State") _ "|" _ rs.%Get("Name") _ "|" _ rs.%Get("OwnerRef") _ "|" _ (rs.%Get("AddedBy") = documents.session), "ready|Results runbook.md|instance|1", "it is ready, named as the case says, the install's and added by the run's session")
+		Do $$$AssertEquals(rs.%Get("State") _ "|" _ rs.%Get("Name") _ "|" _ rs.%Get("OwnerRef") _ "|" _ rs.%Get("AddedBy"), "ready|Results runbook.md|eval|eval", "it is ready, named as the case says and the owner eval's")
 		Do $$$AssertTrue($ClassMethod(..#STORE, "Count", ref) > 0, "and its passages are in the table")
-		Do $$$AssertTrue($IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(documents.session)), "the run's session row exists")
 		Do $$$AssertStatusOK(service.DocumentsDown(documents), "DocumentsDown answers OK")
 		Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref), 0, "the passages are gone")
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Document WHERE Ref = ?", ref)
 		Do rs.%Next()
 		Do $$$AssertEquals(rs.%GetData(1), 0, "and so is the document")
-		Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(documents.session)), 0, "and the session row")
 	}
 	Set name = "documents-runbook-rotate"
 	Set case = ##class(%DynamicAbstractObject).%FromJSONFile(##class(%File).NormalizeFilename("case.json", ##class(%File).SubDirectoryName(folder, name)))
@@ -451,7 +450,7 @@ Method TestEvalDocuments()
 	Do $$$AssertEquals(reason, "", "a case's documents are added again")
 	Set ref = documents.refs.%Get(0)
 	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish([{"documents": (documents)}]), "Finish answers OK for a record that holds the documents")
-	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref) _ "|" _ $IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(ref)) _ "|" _ $IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(documents.session)), "0|0|0", "and Finish took the passages, the document and the session row away")
+	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref) _ "|" _ $IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(ref)), "0|0", "and Finish took the passages and the document away")
 	Set bad = {"documents": [{"name": "Gone.md", "file": "nothing-here.md"}]}
 	Set reason = service.DocumentsUp(bad, ##class(%File).SubDirectoryName(folder, "documents-runbook-rotate"), .documents)
 	Do $$$AssertEquals(reason, $Replace($Parameter("OcuTalon.Eval.In", "REASONDOCUMENTS"), "{why}", "each document needs a name, and a file of the cases' folder that is Markdown or plain text"), "a file that is not there skips the case with the reason")
@@ -460,13 +459,22 @@ Method TestEvalDocuments()
 	Do $$$AssertTrue(reason [ "each document needs a name", "and a file outside the folder of the cases is refused too")
 	Set bad = {"documents": []}
 	Do $$$AssertTrue(service.DocumentsUp(bad, folder, .documents) [ "not a non-empty array", "an empty list is refused")
-	Do $$$AssertEquals(..EvalSessions(), sessions, "nothing was left behind: the run's session rows are as they were")
+	Do $$$AssertEquals(..SessionState(), sessions, "no Session row was written or deleted")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Document"), documentRows, "and nothing was left behind: the document rows are as they were")
 }
 
-/// The number of session rows of the evaluation's documents.
-ClassMethod EvalSessions() As %Integer [ Private ]
+/// The number and the highest id of the Session rows, as one text.
+ClassMethod SessionState() As %String [ Private ]
 {
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Session WHERE IrisUser = 'ocutalon-eval-documents'")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*), MAX(ID) FROM OcuTalon_Data.Session")
+	Do rs.%Next()
+	Quit rs.%GetData(1) _ "|" _ rs.%GetData(2)
+}
+
+/// The number of rows of a table.
+ClassMethod Count(table As %String) As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM " _ table)
 	Do rs.%Next()
 	Quit rs.%GetData(1)
 }

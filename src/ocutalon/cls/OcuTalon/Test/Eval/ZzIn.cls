@@ -121,7 +121,7 @@ Method DocumentsUp(case As %DynamicObject, folder As %String, Output documents A
 	Set ^OcuTalonTest("EvalIn", "documents", $Increment(^OcuTalonTest("EvalIn", "documents"))) = $ListBuild(names, files)
 	Set fail = $Get(^OcuTalonTest("EvalIn", "documentsFail"))
 	If fail '= "" Quit fail
-	Set documents = {"session": "zzEvalDocSession00001", "refs": ["zzEvalDocRef0000000001"]}
+	Set documents = {"refs": ["zzEvalDocRef0000000001"]}
 	Quit ""
 }
 

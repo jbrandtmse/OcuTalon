@@ -139,9 +139,6 @@ Property SavedRows As %List;
 /// The setting of Decide's HostSinkClass before a test put its own (RunnerFixture.UseItemSetting), "" when none was put.
 Property SavedSink As %DynamicObject;
 
-/// What Decide's item setting ToolClassification was before the first PutSetting of the test (RunnerFixture.UseItemSetting), put back by OnAfterOneTest.
-Property SavedTool As %DynamicObject;
-
 /// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark).
 Property SessionMark As %Integer;
 
@@ -193,10 +190,6 @@ Method OnAfterOneTest(testname As %String) As %Status
 	If ..Pointed {
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(), "the entries of the runners are put back to the placeholder of the Provider step")
 		Set ..Pointed = 0
-	}
-	If $IsObject(..SavedTool) && ..SavedTool.%IsDefined("valueSet") {
-		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreItemSetting("Decide", ..SavedTool), "Decide's ToolClassification is put back")
-		Set ..SavedTool = ""
 	}
 	If $IsObject(..SavedSink) && ..SavedSink.%IsDefined("valueSet") {
 		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreItemSetting("Decide", ..SavedSink), "Decide's HostSinkClass is put back")
@@ -2425,14 +2418,6 @@ ClassMethod Entry(class As %String, tool As %String, classification As %String, 
 /// Writes the System Default Settings row of the setting of Decide, after remembering the row as it was (put back after the test).
 Method PutSetting(setting As %String, value As %String) [ Private ]
 {
-	// Decide's ToolClassification is an item setting of the production since Story 19.4 (the entry for the documents search), and an item setting outranks a
-	// System Default Settings row: the tests set the item's own value, and OnAfterOneTest puts the first one back.
-	If setting = "ToolClassification" {
-		Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).UseItemSetting("Decide", "Host", setting, value, .saved)
-		If '(..SavedTool.%IsDefined("valueSet")) && $IsObject(saved) Set ..SavedTool = saved
-		Do $$$AssertStatusOK(sc, "Decide's item setting " _ setting _ " is written")
-		Quit
-	}
 	Set rows = ..SavedRows
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.rows, "Decide", setting)
 	Set ..SavedRows = rows

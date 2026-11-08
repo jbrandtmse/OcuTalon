@@ -3,7 +3,7 @@
 /// ships and what the installer grants. It changes no security record, grant or role: it reads and lists.
 ///   - Model builds the facts as one object: the tools (read through %AI.Catalog with the pattern OcuTalon.%, kept to the agents of
 ///     OcuTalon.Agent. and the toolsets of OcuTalon.Tools., the scope of Install.Step.Tools.Toolsets; each toolset is expanded with
-///     %Discover, because the catalog cannot expand toolsets, plus one row for each ToolClassification entry of Decide that names AI Hub's knowledge base, RagRows),
+///     %Discover, because the catalog cannot expand toolsets, plus one row for each entry of the product's classification (Install.Step.Production ClassificationEntries) that names AI Hub's knowledge base, RagRows),
 ///     the fix kinds, the roles as Install.Step.Roles.Compose composes them
 ///     from the Grants() of the areas, the grants that only demo mode adds (Install.Step.Demo WithOrdersData and WithOrders), the SQL
 ///     privileges of the trace role, the service user and the application roles of the web applications;
@@ -30,7 +30,7 @@ Parameter STATEMENT = "No built-in tool runs operating-system commands, arbitrar
 /// its own, AI Hub's knowledge base over the added documents, which the gate classifies by the bridge's classification setting.
 Parameter RAGSTATEMENT = "One tool has no class of its own: `documents`, the search over your added documents that AI Hub's knowledge base gives the Chat agent. AI Hub sends no source class with its calls, so the gate classifies this one tool, and no other, by the bridge's classification setting: safe and read-only, but its output is never trusted, so a turn that searches your documents is treated as holding untrusted content. The gate also limits each search to 5 passages. Any other call that arrives without a source class stays unclassified and counts as risky.";
 
-/// The class of the entries of Decide's ToolClassification setting that name AI Hub's knowledge base, the toolset that attaches it and the agent that holds it.
+/// The class of the product's classification entries that name AI Hub's knowledge base, the toolset that attaches it and the agent that holds it.
 Parameter RAGCLASS = "%AI.RAG.KnowledgeBase";
 
 Parameter RAGTOOLSET = "OcuTalon.Docs.Store";
@@ -117,19 +117,15 @@ ClassMethod ToolRows() As %DynamicArray
 	Quit result
 }
 
-/// The rows of the tools that have no class of their own (Story 19.4): one for each entry of Decide's ToolClassification setting in OcuTalon.Production
-/// whose class is RAGCLASS, read from the compiled production definition so that the document cannot drift from the gate. The name and the source are
-/// the entry's, the toolset is the class that attaches the tool (RAGTOOLSET), the agent is RAGAGENT, the step label is the one LabelFor gives, the
-/// classification and the flags are the entry's, and there are no resources. The rows are in ragRows, under the keys of ToolRows.
+/// The rows of the tools that have no class of their own (Story 19.4): one for each entry of the product's classification (Install.Step.Production
+/// ClassificationEntries, the entries that the install step seeds into Decide's ToolClassification row) whose class is RAGCLASS, so that the document cannot
+/// drift from what ships and does not depend on a row that an administrator may have changed. The name and the source are the entry's, the toolset is the class
+/// that attaches the tool (RAGTOOLSET), the agent is RAGAGENT, the step label is the one LabelFor gives, the classification and the flags are the entry's, and
+/// there are no resources. The rows are in ragRows, under the keys of ToolRows.
 ClassMethod RagRows(Output ragRows) [ Private ]
 {
 	Kill ragRows
-	Set xdata = ##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Production||ProductionDefinition")
-	If '$IsObject(xdata) $$$ThrowStatus($SYSTEM.Status.Error(5001, "The production definition of OcuTalon.Production cannot be read"))
-	$$$ThrowOnError(##class(%XML.XPATH.Document).CreateFromStream(xdata.Data, .document))
-	$$$ThrowOnError(document.EvaluateExpression("/Production/Item[@Name='Decide']/Setting[@Name='ToolClassification']", "text()", .results))
-	If results.Count() = 0 Quit
-	Set entries = [].%FromJSON(results.GetAt(1).Value)
+	Set entries = ##class(OcuTalon.Install.Step.Production).ClassificationEntries()
 	Set iterator = entries.%GetIterator()
 	While iterator.%GetNext(, .entry) {
 		If entry.class '= ..#RAGCLASS Continue

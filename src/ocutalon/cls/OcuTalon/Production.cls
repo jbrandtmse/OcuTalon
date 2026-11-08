@@ -20,7 +20,6 @@ XData ProductionDefinition
   <Item Name="Decide" ClassName="OcuTalon.Bridge.Process.Decide" PoolSize="1" Enabled="true">
     <Setting Target="Host" Name="HostSinkClass">OcuTalon.Core.BridgeSink</Setting>
     <Setting Target="Host" Name="ReplyFilterClass">OcuTalon.Checks.ReplyGuard</Setting>
-    <Setting Target="Host" Name="ToolClassification">[{"class":"\u0025AI.RAG.KnowledgeBase","tool":"documents","classification":"safe","readOnly":1,"trustedOutput":0}]</Setting>
   </Item>
   <Item Name="ApprovalHold" ClassName="OcuTalon.Bridge.Process.ApprovalHold" PoolSize="1" Enabled="true"/>
   <Item Name="ApprovalStartIn" ClassName="OcuTalon.Bridge.Service.ApprovalStart" PoolSize="0" Enabled="true"/>

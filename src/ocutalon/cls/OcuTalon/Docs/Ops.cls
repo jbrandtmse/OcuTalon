@@ -20,6 +20,10 @@ Include Ensemble
 ///   - RemoveDocument: an unknown session answers no_session. A Ref that no document of the instance has answers not_found (Ok 0). Otherwise the rows of the
 ///     document leave the knowledge base, then the row is deleted, a last event with removed true is published, and the answer is removed (Ok 1). The next search
 ///     returns none of its passages, and a later Index finds no row and stops.
+///   - The evaluation path (AddEval, RemoveEval; AD-22): a documents case of the evaluation set indexes its files here without a command, a session, an Upload or
+///     a message to this operation. AddEval writes a row with OwnerRef and AddedBy the literal eval (no route lists it: they list instance or a session) and runs the
+///     same IndexBatch that Index runs, batch after batch, in the caller's process; it publishes no event. RemoveEval takes the passages and the row of an eval
+///     document away, and refuses a document of any other owner.
 /// A publish that fails is one redacted warning and never changes an answer. Publish runs outside any transaction. A document is shared by every user of the
 /// install: the commands come from CommandsIn from web_user only (AD-1).
 Class OcuTalon.Docs.Ops Extends Ens.BusinessOperation
@@ -30,6 +34,9 @@ Parameter BATCH = 8;
 
 /// The owner of every document of a local install (AD-4).
 Parameter OWNER = "instance";
+
+/// The owner, and the adder, of the documents of an evaluation run (AD-22): not an instance, not a session, so that no route lists them.
+Parameter EVALOWNER = "eval";
 
 Parameter MESSAGEADDED = "The document was added and is being indexed.";
 
@@ -122,15 +129,46 @@ Method OnIndex(request As OcuTalon.Docs.Msg.Index, Output response As Ens.Respon
 	Set response = ""
 	Set ref = request.Ref
 	Try {
+		Set from = +request.ChunkFrom
+		Set sc = ..IndexBatch(ref, from, .state, .row)
+		If $$$ISERR(sc) $$$ThrowStatus(sc)
+		If state = "more" {
+			Set index = ##class(OcuTalon.Docs.Msg.Index).%New()
+			Set index.Ref = ref
+			Set index.ChunkFrom = from + ..#BATCH
+			Set sc = ..SendRequestAsync(..%ConfigName, index)
+			If $$$ISERR(sc) $$$ThrowStatus(sc)
+		} ElseIf state = "ready" {
+			Do ..Publish(row, 0)
+		}
+	} Catch exception {
+		Do ..Fail(ref, exception.AsStatus())
+	}
+	Quit $$$OK
+}
+
+/// Splits the text of the document ref and writes the passages from chunk_index from, BATCH of them (the one step of the indexing that DocumentOps and the
+/// evaluation path share; it changes no state but the document's and publishes nothing). state is gone when the row is missing or is not indexing (nothing is
+/// done), more when passages remain after this batch, and ready when the last passage was written: the row is then saved as ready and returned in row. At
+/// from 0 the section of each passage is stored in the row and the document's old rows leave the table first. A document that is gone or no longer indexing once the
+/// last batch is written has its rows removed again (state gone). Returns the first error and leaves the cleanup to the caller.
+ClassMethod IndexBatch(ref As %String, from As %Integer, Output state As %String, Output row As OcuTalon.Data.Document) As %Status
+{
+	Set state = "gone"
+	Set row = ""
+	Set sc = $$$OK
+	Try {
 		Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
-		If '$IsObject(row) || (row.State '= "indexing") Quit
+		If '$IsObject(row) || (row.State '= "indexing") {
+			Set row = ""
+			Quit
+		}
 		Do row.Text.Rewind()
 		Set text = row.Text.Read($$$MaxLocalLength)
 		Set name = ##class(OcuTalon.Docs.Store).DocumentName(row.Name)
 		Set sc = ##class(OcuTalon.Docs.Passages).Split(text, row.ContentType, .passages)
 		If $$$ISERR(sc) $$$ThrowStatus(sc)
-		Set next = +request.ChunkFrom
-		If next = 0 {
+		If from = 0 {
 			Set sections = []
 			Set i = 0
 			While i < passages.%Size() {
@@ -143,29 +181,92 @@ Method OnIndex(request As OcuTalon.Docs.Msg.Index, Output response As Ens.Respon
 			Set sc = ##class(OcuTalon.Docs.Store).Remove(ref)
 			If $$$ISERR(sc) $$$ThrowStatus(sc)
 		}
-		Set sc = ##class(OcuTalon.Docs.Store).Write(ref, name, passages, next, ..#BATCH)
+		Set sc = ##class(OcuTalon.Docs.Store).Write(ref, name, passages, from, ..#BATCH)
 		If $$$ISERR(sc) $$$ThrowStatus(sc)
-		If (next + ..#BATCH) < passages.%Size() {
-			Set index = ##class(OcuTalon.Docs.Msg.Index).%New()
-			Set index.Ref = ref
-			Set index.ChunkFrom = next + ..#BATCH
-			Set sc = ..SendRequestAsync(..%ConfigName, index)
-			If $$$ISERR(sc) $$$ThrowStatus(sc)
+		If (from + ..#BATCH) < passages.%Size() {
+			Set state = "more"
+			Set row = ""
 		} Else {
 			Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
 			If $IsObject(row) && (row.State = "indexing") {
 				Set row.State = "ready"
 				Set sc = row.%Save()
 				If $$$ISERR(sc) $$$ThrowStatus(sc)
-				Do ..Publish(row, 0)
+				Set state = "ready"
 			} Else {
+				Set row = ""
 				Do ##class(OcuTalon.Docs.Store).Remove(ref)
 			}
 		}
 	} Catch exception {
-		Do ..Fail(ref, exception.AsStatus())
+		Set row = ""
+		Set sc = exception.AsStatus()
 	}
-	Quit $$$OK
+	Quit sc
+}
+
+/// Adds the document of an evaluation case (AD-22) and indexes it to the end in the caller's process, giving up when wait seconds have passed at the start of a batch (a batch in progress is finished): the bytes are read as OnAdd reads them
+/// (Text), the row has OwnerRef and AddedBy EVALOWNER, and IndexBatch writes the passages. No command, session, upload, message or live event is involved. Returns "" with the
+/// document ready (its Ref in ref), else the reason it is not (unreadable, failed, not_built, or timeout), after the document's passages and row are taken away again.
+ClassMethod AddEval(bytes As %Stream.Object, name As %String, contentType As %String, wait As %Integer, Output ref As %String) As %String
+{
+	Set ref = ""
+	If ..OnlineDemo() Quit "not_built"
+	Do ..Text(bytes, contentType, .text, .reason)
+	If reason '= "" Quit reason
+	Set outcome = ""
+	Try {
+		Set sc = ##class(OcuTalon.Docs.Store).EnsureTable()
+		If $$$ISERR(sc) $$$ThrowStatus(sc)
+		Set row = ..NewRow(..#EVALOWNER, ..#EVALOWNER, name, contentType, bytes.Size, text, "indexing", "")
+		Set ref = row.Ref
+		Set row = ""
+		Set deadline = $ZHorolog + wait
+		Set from = 0
+		Set state = "more"
+		While state = "more" {
+			If $ZHorolog '< deadline {
+				Set outcome = "timeout"
+				Quit
+			}
+			Set sc = ..IndexBatch(ref, from, .state, .row)
+			If $$$ISERR(sc) $$$ThrowStatus(sc)
+			Set from = from + ..#BATCH
+		}
+		If outcome = "" Set outcome = $Select(state = "ready": "", 1: "failed")
+	} Catch exception {
+		Set outcome = "failed"
+	}
+	If outcome '= "" {
+		Do ..RemoveEval(ref)
+		Set ref = ""
+	}
+	Quit outcome
+}
+
+/// Takes the passages and the row of the evaluation document ref away. A document that is not there is no error; a document of any other owner is refused and
+/// left as it is (an error status), so that this method can never remove a document that a person added.
+ClassMethod RemoveEval(ref As %String) As %Status
+{
+	If ref = "" Quit $$$OK
+	Set sc = $$$OK
+	Try {
+		Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
+		If $IsObject(row) && (row.OwnerRef '= ..#EVALOWNER) {
+			Set sc = $SYSTEM.Status.Error(5001, "The document " _ ref _ " is not an evaluation document, so it was not removed")
+		} Else {
+			Set sc = ##class(OcuTalon.Docs.Store).Remove(ref)
+			If $IsObject(row) {
+				Set id = row.%Id()
+				Set row = ""
+				Set deleted = ##class(OcuTalon.Data.Document).%DeleteId(id)
+				If $$$ISOK(sc) Set sc = deleted
+			}
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
 }
 
 /// Removes the command's document, or answers that there is none (see the class description).
@@ -202,7 +303,7 @@ Method OnRemove(request As OcuTalon.Msg.Command.RemoveDocument, Output response 
 /// The text of the bytes of a document of the content type, in text, or the reason in reason: markdown and text are UTF-8 (a BOM is dropped) with no NUL and
 /// something that is not blank, else unreadable; pdf and docx are not built until Story 19.7 (not_built). Never throws; a text that is too long to hold is
 /// failed.
-Method Text(bytes As %Stream.Object, contentType As %String, Output text As %String, Output reason As %String) As %Boolean
+ClassMethod Text(bytes As %Stream.Object, contentType As %String, Output text As %String, Output reason As %String) As %Boolean
 {
 	Set text = ""
 	Set reason = ""
@@ -244,12 +345,20 @@ ClassMethod OnlineDemo() As %Boolean [ Private ]
 /// Saves the row of the command's document with the state, and publishes it.
 Method Save(request As OcuTalon.Msg.Command.AddDocument, size As %Integer, text As %String, state As %String, reason As %String) As OcuTalon.Data.Document [ Private ]
 {
+	Set row = ..NewRow(..#OWNER, request.SessionRef, request.Name, request.ContentType, size, text, state, reason)
+	Do ..Publish(row, 0)
+	Quit row
+}
+
+/// Saves a new document row for the owner and the adder, and throws when it cannot be saved. It publishes nothing: Save publishes, the evaluation path does not.
+ClassMethod NewRow(owner As %String, addedBy As %String, name As %String, contentType As %String, size As %Integer, text As %String, state As %String, reason As %String) As OcuTalon.Data.Document [ Private ]
+{
 	Set row = ##class(OcuTalon.Data.Document).%New()
 	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set row.OwnerRef = ..#OWNER
-	Set row.AddedBy = request.SessionRef
-	Set row.Name = request.Name
-	Set row.ContentType = request.ContentType
+	Set row.OwnerRef = owner
+	Set row.AddedBy = addedBy
+	Set row.Name = name
+	Set row.ContentType = contentType
 	Set row.Size = size
 	Set row.AddedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Set row.State = state
@@ -258,7 +367,6 @@ Method Save(request As OcuTalon.Msg.Command.AddDocument, size As %Integer, text 
 	If text '= "" Do row.Text.Write(text)
 	Set sc = row.%Save()
 	If $$$ISERR(sc) $$$ThrowStatus(sc)
-	Do ..Publish(row, 0)
 	Quit row
 }
 

@@ -419,6 +419,60 @@ Method TestSeedAllowList()
 	Do $$$AssertEquals(..SettingRows(fixture, "AgentAllowList"), "", "the fixture production has no AgentAllowList row afterwards")
 }
 
+/// SeedClassification (Story 19.4; AD-5) writes the System Default Setting row (production, Decide, any class, ToolClassification) with the product's entry for the
+/// documents search, merging with the row it finds: a missing or blank row becomes the product's entries; the developer's entries stay in their places, a wrong
+/// documents entry is replaced in its place (and a repeated one dropped), a second run changes nothing, and a row that is not a JSON array is left as it is
+/// with one warning. The oracle's Decide item holds no ToolClassification setting (TestDefinition). The rows are those of the fixture production.
+Method TestSeedClassification()
+{
+	Set fixture = "OcuTalon.Test.Install.ZzProd"_..Number
+	Set step = "OcuTalon.Install.Step.Production"
+	Set own = $ClassMethod(step, "ClassificationEntries").%ToJSON()
+	Set docs = "{""class"":""%AI.RAG.KnowledgeBase"",""tool"":""documents"",""classification"":""safe"",""readOnly"":1,""trustedOutput"":0}"
+	Do $$$AssertEquals(own, "["_docs_"]", "the product ships one entry: AI Hub's knowledge base, documents, safe, read-only, output not trusted")
+	Set dev1 = "{""class"":""Zz.Tools"",""tool"":""zz_a"",""classification"":""risky""}"
+	Set dev2 = "{""class"":""Zz.Tools"",""tool"":""zz_b"",""classification"":""safe"",""readOnly"":1}"
+	Do ..DeleteRows(fixture, "ToolClassification")
+	Try {
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "", "the fixture production has no ToolClassification row")
+		Do ..TakeWarnings()
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a production with no row")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide="_own, "and creates the row of Decide with the product's entries")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs again")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide="_own, "and the second run leaves the row as it is")
+
+		Do ..PutClassification(fixture, "["_dev1_","_dev2_"]")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a row of the developer's entries")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide=["_dev1_","_dev2_","_docs_"]", "and adds the documents entry after them, losing none")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs again on it")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide=["_dev1_","_dev2_","_docs_"]", "and is idempotent there too")
+
+		Set wrong = "{""class"":""%AI.RAG.KnowledgeBase"",""tool"":""documents"",""classification"":""risky"",""trustedOutput"":1}"
+		Do ..PutClassification(fixture, "["_dev1_","_wrong_","_dev2_","_wrong_"]")
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a row with a wrong documents entry, twice")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide=["_dev1_","_docs_","_dev2_"]", "and replaces the first in its place, drops the repeat and keeps the developer's entries")
+
+		Do ..PutClassification(fixture, " "_$Char(10))
+		Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on a blank row")
+		Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide="_own, "and a blank row becomes the product's entries")
+
+		Do ..TakeWarnings()
+		For malformed = "not json", "{""class"":""x""}", "42" {
+			Do ..PutClassification(fixture, malformed)
+			Do $$$AssertStatusOK($ClassMethod(step, "SeedClassification", fixture), "SeedClassification runs on '"_malformed_"'")
+			Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "Decide="_malformed, "and leaves that row as it is")
+		}
+		Set warnings = ..TakeWarnings()
+		Do $$$AssertEquals($ListLength(warnings), 3, "with one warning each")
+		Do $$$AssertTrue($ListGet(warnings, 1) [ "ToolClassification", "that names the setting")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do ..DeleteRows(fixture, "ToolClassification")
+	Do ..TakeWarnings()
+	Do $$$AssertEquals(..SettingRows(fixture, "ToolClassification"), "", "the fixture production has no ToolClassification row afterwards")
+}
+
 /// Row 5: EvalEnabled is 1 only for "1"; SetEval writes the System Default Setting row (production, EvalIn, any class,
 /// Enabled) with 1, then with 0, and says in its description that the step writes it; NotRunning says that
 /// OcuTalon.Production is not running when it does not run.
@@ -564,6 +618,18 @@ ClassMethod SettingRows(production As %String, setting As %String) As %String [ 
 	Quit rows
 }
 
+/// Writes the ToolClassification row of Decide for the production with the value (the row is deleted afterwards by the test).
+ClassMethod PutClassification(production As %String, value As %String) [ Private ]
+{
+	Do ##class(OcuTalon.Bridge.Ext.Accessor).WriteDefault(production, "Decide", "ToolClassification", value, "Zz test row")
+}
+
+/// The warnings the install step recorded since the last call, as a list.
+ClassMethod TakeWarnings() As %List [ Private ]
+{
+	Quit ##class(OcuTalon.Install.Step.Production).TakeWarnings()
+}
+
 /// Deletes the rows of a production for a setting.
 ClassMethod DeleteRows(production As %String, setting As %String) [ Private ]
 {
@@ -651,7 +717,7 @@ XData Items [ MimeType = application/json ]
 [
  {"lane": "A", "name": "TelegramIn", "class": "OcuTalon.Channel.Telegram.In", "pool": 1, "enabled": 0, "stub": 0, "settings": [{"target": "Adapter", "name": "CallInterval", "value": "1"}]},
  {"lane": "A", "name": "TelegramOut", "class": "OcuTalon.Channel.Telegram.Out", "pool": 1, "enabled": 0, "stub": 0, "settings": []},
- {"lane": "A", "name": "Decide", "class": "OcuTalon.Bridge.Process.Decide", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Host", "name": "HostSinkClass", "value": "OcuTalon.Core.BridgeSink"}, {"target": "Host", "name": "ReplyFilterClass", "value": "OcuTalon.Checks.ReplyGuard"}, {"target": "Host", "name": "ToolClassification", "value": "[{\"class\":\"\\u0025AI.RAG.KnowledgeBase\",\"tool\":\"documents\",\"classification\":\"safe\",\"readOnly\":1,\"trustedOutput\":0}]"}]},
+ {"lane": "A", "name": "Decide", "class": "OcuTalon.Bridge.Process.Decide", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Host", "name": "HostSinkClass", "value": "OcuTalon.Core.BridgeSink"}, {"target": "Host", "name": "ReplyFilterClass", "value": "OcuTalon.Checks.ReplyGuard"}]},
  {"lane": "A", "name": "ApprovalHold", "class": "OcuTalon.Bridge.Process.ApprovalHold", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "ApprovalStartIn", "class": "OcuTalon.Bridge.Service.ApprovalStart", "pool": 0, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "TriageAgent", "class": "OcuTalon.Bridge.Operation.AgentRunner", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "AgentClass", "value": "OcuTalon.Agent.Triage"}, {"target": "Host", "name": "ReplyClass", "value": "OcuTalon.Bridge.Msg.DecisionPayload"}]},
