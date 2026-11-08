@@ -46,6 +46,7 @@
 ///     first: Conversation's code-written note to the next turn reads it (AD-30). It is a Rows kind like the others.
 ///   - Precedents and Precedent (Story 41.2) are the session's own precedents (Data.Precedent), newest answer first, and one by its Ref; Rows kinds too. A row of
 ///     another session or of owner eval, and a row that has an EvalRunRef, answers like a missing one.
+///   - PhoneDecision (Story 41.5) is the DecisionRef of the session's own phone tell-now Delivery row for a simulated phone message's Ref; a Rows kind too.
 ///   - The daily note's reads (Story 41.3) are Rows kinds too, each owner-scoped and each in a window [from, to) of UTC times: NoteTurns (the session's turns that are not
 ///     refused, by CreatedAt), NoteDecisions (its decide decisions, by RecordedAt), NoteIncidents (the incidents it sees, as Incidents does, by NoticedAt), NoteApprovals (the
 ///     requests it sees, as Approvals does, placed by AnsweredAt, else RaisedAt) and NoteReminders (its reminders of every state, by DueAt). DecisionChannel is the Channel of a
@@ -490,6 +491,25 @@ ClassMethod DeliveryByRef(ref As %String, channel As %String, sessionRef As %Str
 		Set row = rows.GetAt(i)
 		If (row.DecisionRef = ref) && (row.Channel = channel) && (row.OwnerRef = sessionRef) {
 			Set found = row
+			Quit
+		}
+	}
+	Quit found
+}
+
+/// The DecisionRef of the session's newest phone Delivery row of kind tellnow whose ChannelMessageId is exactly the simulated phone message's Ref, or "": a row of
+/// owner eval, instance or another session, of another channel or kind, and one whose Ref differs only in case all answer like a missing one. The statement
+/// narrows the rows by OwnerRefChannelIndex; the values are then compared exactly.
+ClassMethod PhoneDecision(messageRef As %String, sessionRef As %String, Output sc As %Status) As %String
+{
+	Set sc = $SYSTEM.Status.OK()
+	If messageRef = "" Quit ""
+	Set rows = ..Rows("phoneDecision", sessionRef, .sc, messageRef)
+	Set found = ""
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		If (row.ChannelMessageId = messageRef) && (row.Channel = "phone") && (row.Kind = "tellnow") && (row.OwnerRef = sessionRef) {
+			Set found = row.DecisionRef
 			Quit
 		}
 	}
@@ -1019,6 +1039,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "deliveryByRef" {
 		Set class = "OcuTalon.Data.Delivery", binds = "aao"
 		Quit "SELECT ID FROM OcuTalon_Data.Delivery WHERE DecisionRef = ? AND Channel = ? AND OwnerRef = ? ORDER BY ID DESC"
+	}
+	If kind = "phoneDecision" {
+		Set class = "OcuTalon.Data.Delivery", binds = "ao"
+		Quit "SELECT ID FROM OcuTalon_Data.Delivery WHERE ChannelMessageId = ? AND Channel = 'phone' AND Kind = 'tellnow' AND OwnerRef = ? ORDER BY ID DESC"
 	}
 	If kind = "reminderSetOrFired" {
 		Set class = "OcuTalon.Data.Reminder", binds = "o"

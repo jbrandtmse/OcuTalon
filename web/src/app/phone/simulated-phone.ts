@@ -2,6 +2,8 @@ import { AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementR
 
 import { pageTimeBeside } from '../chat/page-time';
 import { CHAT_TEXTS } from '../chat/chat-view';
+import { NoiseControl } from '../chat/noise-control';
+import { phoneNoiseRef } from '../chat/noise-view';
 import { SimulatedLabel } from '../devices/simulated-label';
 import { newRefs } from '../devices/device-view';
 import { Icon } from '../icon/icon';
@@ -22,7 +24,8 @@ import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './pho
  * The phone decides nothing and renders no text (AD-12, AD-32): its list is the snapshot's `phone` and the store's phone events
  * (phone-view.ts), and each message's text is the server's. A message that names an approval request (`approvalRef`, which the server
  * sets for the kinds incident and approval only) is drawn by app-phone-request, with Approve and Reject until it has an answer
- * (Story 6.3); every other message keeps the plain markup. The phone is not a live region: it announces only the notices of its own
+ * (Story 6.3); every other message keeps the plain markup, and a tell-now message that names its decision (`decisionRef`, with no `approvalRef`) has the
+ * ghost "This was noise" control after its time (Story 41.5; noise-control.ts). The phone is not a live region: it announces only the notices of its own
  * press (phone-request.ts), and the chat's request card announces an answer once.
  *
  * The feed is a tab stop and the scroller (a region named by its tab). It follows like the chat list: it is at the bottom when within
@@ -33,7 +36,7 @@ import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './pho
  */
 @Component({
   selector: 'app-simulated-phone',
-  imports: [Icon, PhoneRequest, SimulatedLabel],
+  imports: [Icon, NoiseControl, PhoneRequest, SimulatedLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="frame">
@@ -62,6 +65,9 @@ import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './pho
                     } @else {
                       <p class="text">{{ one.text }}</p>
                       <span class="time">{{ timeOf(one) }}</span>
+                      @if (phoneNoiseRef(one); as ref) {
+                        <app-noise-control [decisionRef]="ref" channel="phone" [instanceZone]="instanceZone()" />
+                      }
                     }
                   </div>
                 }
@@ -217,6 +223,8 @@ export class SimulatedPhone implements AfterViewInit {
   private readonly content = viewChild.required<ElementRef<HTMLElement>>('content');
 
   protected readonly texts = PHONE_TEXTS;
+  /** The decision Ref the "This was noise" control of a message acts on; "" for a message that gets none. */
+  protected readonly phoneNoiseRef = phoneNoiseRef;
   protected readonly newMessages = CHAT_TEXTS.newMessages;
 
   /** The refs the phone has shown, as of its last look; undefined until the first look, which records the messages and counts none as new. */

@@ -1,9 +1,9 @@
-/// Tests of End's precedents step of OcuTalon.Core.SessionOps (Story 41.2; AD-4, AD-21): an online-demo sign-out sends one EndSession to PrecedentOps when the session has
-/// precedent rows, and PrecedentOps deletes them. Safe on a slot: no production is needed, because the probe (Test.Core.SessionOpsPrecedentsProbe) hands the
+/// Tests of End's precedents step of OcuTalon.Core.SessionOps (Story 41.2; AD-4, AD-21): an online-demo sign-out always sends one EndSession to PrecedentOps, with
+/// or without precedent rows, so that the drop queues behind every write already queued, and PrecedentOps deletes the rows. Safe on a slot: no production is needed, because the probe (Test.Core.SessionOpsPrecedentsProbe) hands the
 /// message to a shadow instance of the real PrecedentOps. The sessions are fixture rows and the Precedent rows are saved directly; the test removes both.
 ///   - TestEndDropsRows: End answers ended, calls the drop once with the session's Ref, deletes the session's rows, and leaves another session's rows and the
 ///     seeded rows; the resume hash is cleared;
-///   - TestNoRowsSendsNothing: a session with no rows makes no call, and End answers ended;
+///   - TestNoRowsStillSends: a session with no rows still makes one drop call, and End answers ended;
 ///   - TestFailedDropFailsEnd: a drop that fails or throws makes End answer failed, keeps the rows and the resume hash, and still runs the other steps (here a pending
 ///     approval request's cancel); a later End finishes;
 ///   - TestDropAfterEarlierFailure: when an earlier step (the per-person settings) fails, the drop is still called and deletes the rows, and End answers failed.
@@ -68,8 +68,8 @@ Method TestEndDropsRows()
 	Do ##class(OcuTalon.Data.Precedent).RemoveRun("zzrunend"_..Number)
 }
 
-/// A session with no precedent rows makes no call: the existing End tests need no PrecedentOps.
-Method TestNoRowsSendsNothing()
+/// A session with no precedent rows still makes one drop call, so that the drop queues behind every write already queued.
+Method TestNoRowsStillSends()
 {
 	Set mine = ..Session("norows"), other = ..Session("norowsother")
 	Do ..Row(other, "zz.norows@example.com")
@@ -77,7 +77,7 @@ Method TestNoRowsSendsNothing()
 	Set probe = ..Probe()
 	Set result = ..End(probe, "web_user", mine)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|ended", "Ok 1, ended")
-	Do $$$AssertEquals(..Calls(), "", "no drop was called")
+	Do $$$AssertEquals(..Calls(), mine, "the drop was called once, with the session's SessionRef")
 	Do $$$AssertEquals(..Owned(other), 1, "another session's row stays")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(mine).ResumeHash, "", "the resume hash is cleared")
 }

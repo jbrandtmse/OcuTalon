@@ -18,7 +18,7 @@ Include Ensemble
 ///     notice); one CancelReminder for each pending reminder, sent to ReminderOps; one StopWatch for each production watch, sent to WatchOps;
 ///     Approval.Cancel for each pending approval request the session owns; SettingsOps.ForgetPerson for the session's per-person
 ///     values (AD-19): the persona keys and the five heartbeat keys; Data.Handled.DropSession for the session's Handled rows; one EndSession
-///     to PrecedentOps for the session's precedents, sent only when the session has rows (AD-21). Only when all
+///     to PrecedentOps for the session's precedents, always sent, so that the drop queues behind every write already queued (AD-21). Only when all
 ///     of them succeeded is the row's ResumeHash cleared, so that a resume cookie that outlives the sign-out resumes nothing; after a failed
 ///     End the session stays resumable and the visitor can end
 ///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first seven steps were
@@ -424,18 +424,16 @@ Method EndHandled(sessionRef As %String) As %Integer [ Private ]
 	Quit failed
 }
 
-/// End's precedents step: when the session has rows (Data.Precedent.Has), one EndSession goes to PrecedentOps, which deletes them; a session with no
-/// rows sends nothing. The result is 1 when the drop failed (an error status, a failed answer or an error thrown), a warning with the reason, else 0.
+/// End's precedents step: one EndSession always goes to PrecedentOps, which deletes the session's rows; sent even for a session with no rows, so that the
+/// drop queues behind every write already queued. The result is 1 when the drop failed (an error status, a failed answer or an error thrown), a warning with the reason, else 0.
 Method EndPrecedents(command As OcuTalon.Msg.Command.EndSession) As %Integer [ Private ]
 {
 	Set failed = 0
 	Try {
-		If ##class(OcuTalon.Data.Precedent).Has(command.SessionRef) {
-			Set drop = ##class(OcuTalon.Msg.Command.EndSession).%New()
-			Set drop.SessionRef = command.SessionRef
-			Set drop.Origin = command.Origin
-			Set failed = ..DropPrecedents(drop)
-		}
+		Set drop = ##class(OcuTalon.Msg.Command.EndSession).%New()
+		Set drop.SessionRef = command.SessionRef
+		Set drop.Origin = command.Origin
+		Set failed = ..DropPrecedents(drop)
 	} Catch exception {
 		Set failed = 1
 		Do ..Warn("the precedents of session " _ command.SessionRef _ " were not deleted", exception.AsStatus())

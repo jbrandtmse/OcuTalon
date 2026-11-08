@@ -3,7 +3,9 @@
 ///   - TestIsolation: two sessions read none of each other's rows through either kind, and a row answers in the order newest first;
 ///   - TestSeededRowsAreInvisible: a seeded row (owner eval) and a row of a session that has an EvalRunRef are never read, through either kind;
 ///   - TestRefusals: both kinds refuse an empty owner and the owners eval and instance, through Test.Data.OwnershipProbe.Call and the public reads;
-///   - TestBounds: Precedents returns at most max rows.
+///   - TestBounds: Precedents returns at most max rows;
+///   - TestPhoneDecision (Story 41.5): PhoneDecision answers the DecisionRef of the session's own newest phone tell-now Delivery row for a message Ref, and "" for another
+///     session, the owners eval and instance, the channel web, the kind reminder, a Ref that differs only in case and an empty Ref.
 Class OcuTalon.Test.Data.OwnershipPrecedents Extends %UnitTest.TestCase
 {
 
@@ -143,6 +145,52 @@ Method Make(owner As %String, answeredAt As %String, run As %String = "") As %St
 	Do $$$AssertStatusOK(row.%Save(), "a fixture row is saved")
 	Set ..Rows = ..Rows_$Select(..Rows = "": "", 1: ",")_row.Ref
 	Quit row.Ref
+}
+
+/// PhoneDecision reads the session's own phone tell-now Delivery row of the message, newest first, and nothing else.
+Method TestPhoneDecision()
+{
+	Set a = ..Session("pda"), b = ..Session("pdb")
+	Set message = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..Refs = ..Refs_","_message
+	Do ..Delivery(a, message, "phone", "tellnow", "ZzDecisionOld"_..Number)
+	Do ..Delivery(a, message, "phone", "tellnow", "ZzDecisionNew"_..Number)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision(message, a, .sc), "ZzDecisionNew"_..Number, "the newest of the session's own rows")
+	Do $$$AssertStatusOK(sc, "the read is OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision(message, b), "", "another session reads none")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision(message, ""), "", "an empty session reads none")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision("", a), "", "an empty message Ref reads none")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision(message _ "x", a), "", "a Ref that names nothing reads none")
+	Set other = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..Refs = ..Refs_","_other
+	Do ..Delivery(a, other, "web", "tellnow", "ZzDecisionWeb"_..Number)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision(other, a), "", "a web row is not read")
+	Set reminder = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..Refs = ..Refs_","_reminder
+	Do ..Delivery(a, reminder, "phone", "reminder", "ZzDecisionRem"_..Number)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision(reminder, a), "", "a reminder row is not read")
+	Set cased = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..Refs = ..Refs_","_cased
+	Do ..Delivery(a, cased, "phone", "tellnow", "ZzDecisionCase"_..Number)
+	Set variant = $ZConvert(cased, "L")
+	If variant = cased Set variant = $ZConvert(cased, "U")
+	Do $$$AssertNotEquals(variant, cased, "control: the Ref in another letter case differs")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision(variant, a), "", "a Ref that differs only in case is not read")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision(cased, a), "ZzDecisionCase"_..Number, "control: the exact Ref is read")
+	Set owned = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ..Refs = ..Refs_","_owned
+	Do ..Delivery("eval", owned, "phone", "tellnow", "ZzDecisionEval"_..Number)
+	Do ..Delivery("instance", owned, "phone", "tellnow", "ZzDecisionInst"_..Number)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision(owned, a), "", "rows of the owners eval and instance are not read")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision(owned, "eval", .sc), "", "the owner eval reads none")
+	Do $$$AssertTrue($SYSTEM.Status.IsError(sc), "and the read reports an error")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).PhoneDecision(owned, "instance"), "", "the owner instance reads none")
+}
+
+/// Saves a Delivery row for the owner with the message Ref as ChannelMessageId, recorded under that Ref for the clean-up (the caller adds the Ref to Refs).
+Method Delivery(owner As %String, message As %String, channel As %String, kind As %String, decision As %String) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Data.Fixture).Delivery(owner, {"ChannelMessageId": (message), "Channel": (channel), "Kind": (kind), "DecisionRef": (decision)})
 }
 
 /// The Refs of the rows of a list, comma-separated.

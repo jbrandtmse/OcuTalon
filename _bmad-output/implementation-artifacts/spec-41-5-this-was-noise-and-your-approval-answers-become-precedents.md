@@ -2,7 +2,8 @@
 title: 'Story 41.5: "This was noise", and your approval answers, become precedents'
 type: 'feature'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'd597ec58f445ec27d58dda396890e5d1f8fc5b6a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -112,6 +113,11 @@ Server paths are under `src/ocutalon/cls/OcuTalon/`; web paths are under `web/`.
   - Epic 17 changes this file at about 40, 413 and 910. These insertions touch none of them, so they are a plain union.
 - `Live/Payload/Phone.cls`: add `Property DecisionRef As %String(%JSONFIELDNAME = "decisionRef", MAXLEN = 22);` after `ApprovalRef` (15). In `FromRow` (25-35), when `row.ApprovalRef = ""`, set it from `Ownership.PhoneDecision(row.Ref, row.SessionRef, .sc)`. A failed read leaves it empty. The sibling is `Live/Payload/Notification.cls:65-72`, which reads the decision through Ownership.
 
+**Files to change (DW-934 Option B, ruled in the Spec Change Log; it supersedes the intent block's "Change `SessionOps.End`" Never line and the Decided in-stage note for this one change)**
+- `Core/SessionOps.cls` `EndPrecedents` (427-444): send the `DropPrecedents` call always, with no `Precedent.Has()` gate, so the drop queues behind every write already queued. Update the method and class comments (the class comment at 21 says "sent only when the session has rows").
+- `Test/Core/SessionOpsProbe.cls`: override `DropPrecedents(request)` so it answers 0 and sends nothing when `Data.Precedent.Has(request.SessionRef)` is 0, and otherwise behaves as the real method. This keeps `Test.Core.SessionOps`, `SessionOpsDocuments` and any other test that runs `End` without a production free of sends.
+- `Test/Core/SessionOpsPrecedents.cls` `TestNoRowsSendsNothing` (72-83) and its header comment: update to the new behaviour. Read `Test/Core/SessionOpsPrecedentsProbe.cls` first: the test records calls through that probe, so a session with no rows now makes one drop call, and the assertions and the header say so.
+
 **Files to change (web)**
 - `src/app/api/api-client.ts`: one method appended at the end of the class (after `runHeartbeat`, 206-208, before the closing `}` at 209):
   - `markNoise(ref: string, channel: import('./memory-types').NoiseChannel): Observable<import('./memory-types').NoiseMarked>` posts `` `${BASE}/decisions/${encodeURIComponent(ref)}/noise` `` with `{ channel }`.
@@ -196,6 +202,7 @@ Server paths are under `src/ocutalon/cls/OcuTalon/`; web paths are under `web/`.
 **Execution:**
 1. `Core/PrecedentOps.cls`: add `Ended` and the `OnlineDemo` seam, the DW-934 refusals in `Mark` and `Record`, and the DW-933 comparison in `Record`; update the class comment. `Test/Core/PrecedentOpsProbe.cls`: the `OnlineDemo` override.
 2. `Core/AnswerOps.cls`: `PRECEDENTITEM`, the `SendPrecedent` seam and the send on `done`; update the class comment. `Test/Core/AnswerOpsProbe.cls`: the `SendPrecedent` override.
+2b. DW-934 Option B: `Core/SessionOps.cls`, `Test/Core/SessionOpsProbe.cls`, `Test/Core/SessionOpsPrecedents.cls`, as under the Code Map's Option B heading. Run `Test.Core.SessionOps`, `SessionOpsDocuments`, `SessionOpsPrecedents` and `SessionOpsProduction` (the last in the throwaway) afterwards.
 3. `Data/Ownership.cls`: `PhoneDecision` and the `phoneDecision` statement. `Live/Payload/Phone.cls`: `DecisionRef` and the `FromRow` lookup. Then `npm --prefix web run payloads`.
 4. Server tests:
    - `Test/Core/PrecedentOps.cls`:
@@ -252,6 +259,39 @@ Server paths are under `src/ocutalon/cls/OcuTalon/`; web paths are under `web/`.
 - 2026-11-08 (spec gate, lead): the absolute working-directory path in `## Verification` is replaced by "the worktree root" (no local path in a tracked file).
 
 ## Review Triage Log
+
+### 2026-11-08 — Review pass
+- verdicts: 24 findings — high 0, medium 3, low 19, false 2, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[low]` `[reject]` `Phone.FromRow` runs one SQL read per phone message — the spec's Design Notes decide it (at most PHONEMAX 100 per /state, narrowed by (OwnerRef, Channel); cost unmeasured, labelled inference); a batch read or a new index changes storage or the spec's approach; reopen_if a /state snapshot with 100 phone messages is measured over 1 s.
+    - `[low]` `[reject]` a failed `PhoneDecision` read leaves the control out — the Code Map specifies "A failed read leaves it empty"; a later event shows it again; nothing false is claimed.
+    - `[low]` `[reject]` `Ended()` race window and a failed End leaving the hash set — the residual is accepted in the Spec Change Log ruling (U-311, Options A and B); the always-send drop is what narrows it.
+    - `[low]` `[reject]` probes skip the empty drop in `SessionOpsProbe` and `SessionOpsDropProbe`, so tests see less of the always-send path — ruled in the Spec Change Log; the real path runs in `SessionOpsPrecedents` and `SessionOpsProduction` (green in the throwaway).
+    - `[low]` `[reject]` `Record` answers `not_recorded` (not `already_recorded`) for a repeat with a different Action — Approval.Answer sends nothing for a repeat, nothing is written either way, and the mismatch is pinned by `TestAnswerMustMatch`.
+    - `[low]` `[reject]` fixed `Hang 1` in the answer production tests' precedent cleanup, copied into two classes — the stray row would belong to a unique fixture session that no other test counts; reopen_if a Precedent-count test goes red after these classes.
+    - `[low]` `[patch]` `TestRepeatAndSetting` reads `row.Answer` unguarded (and waits on timers) — the read is now guarded with `$IsObject`; the waits stay, since the repeat press sends nothing and the setting case is an absence check.
+    - `[low]` `[reject]` the web tests pin source text and have no component test — the project has no component test host; its sources tests are the convention (NZ1 to NZ6 cover behaviour).
+    - `[low]` `[patch]` `noise-control.ts` imports `messageOf` from `incidents/` and binds an unused `as at` alias — the export is the spec's design (extend, do not copy); the alias is removed.
+  - Edge Case Hunter
+    - `[medium]` `[reject]` sign-out fails while PrecedentOps is unreachable, even with no rows — the Spec Change Log ruling (U-311) makes the drop unconditional; a down production fails End's other steps too; by-design.
+    - `[false]` `[reject]` `Ended()` reads a live online-demo session with no ResumeHash as signed out — an online-demo session is made by `Session.NewVisitor`, which always sets a hash, and `BridgeSink.DailyCap` uses the same rule.
+    - `[low]` `[reject]` a 200 with no `markedAt` shows an empty time — the route always answers `markedAt` with a 200 (`Test.Web.MemoryApi:TestNoise`, NZ1).
+    - `[low]` `[reject]` a reused `NoiseControl` whose `decisionRef` changes keeps the old mark — no host rebinds one instance to another Ref (the card and the phone message are keyed by their own Ref).
+    - `[low]` `[reject]` the cleanup `Hang 1` — same as the Blind Hunter row on it.
+    - `[low]` `[reject]` the per-message SQL read — same as the Blind Hunter row on it.
+    - `[low]` `[reject]` the `Record` repeat with a different Action — same as the Blind Hunter row on it.
+    - `[false]` `[reject]` `SendRequestAsync(..., 0)` passes a description — the third parameter is `pResponseRequired`; `SessionOps.SendNotice` (583) and `SettingsOps` (519) send in the same form.
+  - Verification Gap
+    - `[medium]` `[patch]` the real `OnlineDemo` seam is never run (DemoFlag is always set) — `TestEndedSession` gained a block that sets the real `onlineDemo` Setting with `DemoFlag` empty and restores it; mutation `OnlineDemo` returns 0 went red.
+    - `[medium]` `[patch]` the `State` half of DW-933 is not pinned — the pending, expired and cancelled fixtures of `TestAnswerMustMatch` now carry a matching `AnsweredAction`; mutation (State clause removed) went red.
+    - `[low]` `[reject]` AC 4, 5 and 6 mutations were observed red on source pins only; the behavioural proofs (NZ1, NZ4, NZ5) are in CI — the spec leaves `live:sign-in-3` mutations to CI; NZ1 to NZ6 passed 143 of 143 on a fresh stack; reopen_if a CI run keeps NZ1 green with the `keepFocus` call removed.
+    - `[low]` `[reject]` the negative assertions of `TestRepeatAndSetting` act on a 3 s timer — the repeat press (409) sends nothing; the setting case can only miss a write later than 3 s, and the row count is also checked by the first-press control.
+    - `[low]` `[reject]` the `Hang 1` cleanup waits — same as the Blind Hunter row on it.
+    - `[low]` `[patch]` `TestDecisionRefOnlyForTellNow` has no control that the case-variant Ref differs — an `AssertTrue` control added.
+  - Intent Alignment
+    - `[low]` `[reject]` the spec covers the Enter key, not Space, status 0, the busy rule or the phone's focus move — descriptive; the NZ1 to NZ6 list is the spec's, and the native button and `ServerButton` give Space and the busy rule.
+- patches applied: 5 (medium 2, low 3).
 
 ## Design Notes
 
@@ -310,6 +350,7 @@ No AC contradicts an AD's Rule. DESIGN.md places the control "in the notice card
   - In the chat, the control sits in the card's body directly after the decision strip, which is the card's meta line, on its own line. It does not go inside `app-decision-strip`, because the strip is also used by replies, where the control must never show, and a flag through it would touch a shared component.
   - On the phone, it sits after the message's time.
   - The lead may overturn this to a flex row with the strip; that is a CSS-only change in the card.
+- **Implement-stage choices:** the probe property is `DemoFlag` (a property and a method named `OnlineDemo` cannot share a class); `SessionOpsPrecedents:TestNoRowsSendsNothing` is renamed `TestNoRowsStillSends`; `SessionOpsDocuments:TestRealStubsEnd` and `SessionOpsDropProbe` follow the always-send drop through `SessionOpsProbe`; a comment line of `docker/tests/test-sign-in-3.sh` names the new spec file.
 - **After a reload** the button shows again, because no payload carries a mark. A press then shows the first mark's time (`already_marked`). Persisting the mark would need payload fields on two events, which is out of scope.
 - **The phone's `decisionRef`** comes from the Delivery row that `SimPhoneOut` already writes, so no storage changes. The read runs per phone message without an `ApprovalRef` (at most `PHONEMAX` 100 per `/state`). It narrows by `(OwnerRef, Channel)`, and its cost is not measured (inference).
 - **`markNoise`'s types are inline `import()` type queries,** so `api-client.ts` needs only the appended method. Epic 18 inserts import names at about 10 and 21.
@@ -397,15 +438,27 @@ Run every command from the worktree root (the lead's stated working directory), 
 
 **Mutations (Rule 19), one per AC; record each as `mutation: <change> -> <test red>`:**
 - AC 1: `markNoise` posts `{channel:'phone'}` for the web channel -> `noise-view.test.mjs`, which reads the source, and NZ1.
+  - mutation: `{ channel }` replaced by `{ channel: 'phone' }` in `ApiClient.markNoise` -> `noise-view.test.mjs` "post the noise path with the channel from the one client" red (observed); NZ1 in CI.
 - AC 2: `phoneNoiseRef` returns "" always -> `noise-view.test.mjs`, and NZ2 in CI.
+  - mutation: `phoneNoiseRef` returns "" -> `noise-view.test.mjs` "gives the decisionRef of a message with no approvalRef" red (observed); NZ2 in CI.
 - AC 3: `noticeNoiseRef` accepts kind `reminder` -> `noise-view.test.mjs`.
+  - mutation: `noticeNoiseRef` accepts kind `reminder` -> `noise-view.test.mjs` "gives \"\" for every other kind" red (observed).
 - AC 4: the `keepFocus` call removed -> NZ1 (focus on the body).
+  - mutation: the `keepFocus` call removed from `NoiseControl` -> `noise-view.test.mjs` source pin red (observed); NZ1 (focus on the body) in CI.
 - AC 5: `messageOf(error) || BUSY_NOTICE` replaced by `BUSY_NOTICE` -> NZ5.
+  - mutation: `messageOf(error) || BUSY_NOTICE` replaced by `BUSY_NOTICE` -> `noise-view.test.mjs` source pin red (observed); NZ5 in CI.
 - AC 6: `NoiseBodyIsPhone` accepts any `channel` value case-insensitively (Lane B, temporary) -> NZ4. Also covered by the existing `Test.Web.MemoryApi:TestNoise`.
+  - mutation: not applied here (`Web/Api.cls` is on this stage's never-edit list); NZ4 in CI, and `Test.Web.MemoryApi:TestNoise` passes unchanged.
 - AC 7: the `SendPrecedent` call removed from `Carry` -> `AnswerPrecedents:TestDoneSendsOne` and `AnswerPrecedentsProduction:TestApproveRecords`.
+  - mutation: the `Record` call (which sends through `SendPrecedent`) removed from `Carry` -> `AnswerPrecedents:TestDoneSendsOne` red (observed); `AnswerPrecedentsProduction:TestApproveRecords` in the throwaway.
 - AC 8: the `AnsweredAction` comparison removed -> `PrecedentOps:TestAnswerMustMatch`.
+  - mutation: the `AnsweredAction` comparison removed from `Record` -> `PrecedentOps:TestAnswerMustMatch` red (observed).
+  - mutation: the `State` `$ListFind` clause removed from `Record` -> `PrecedentOps:TestAnswerMustMatch` red (observed; its pending, expired and cancelled fixtures carry a matching `AnsweredAction`).
 - AC 9: `Ended` returns 0 -> `PrecedentOps:TestEndedSession`.
+  - mutation: `Ended` returns 0 -> `PrecedentOps:TestEndedSession` red (observed).
+  - mutation: `OnlineDemo` returns 0 instead of reading the Setting -> `PrecedentOps:TestEndedSession` red (observed; its last block sets the real `onlineDemo` Setting with `DemoFlag` empty and restores it).
 - AC 10: `Phone.FromRow` sets `DecisionRef` for a request message too -> `SimPhoneOut:TestDecisionRefOnlyForTellNow`.
+  - mutation: `Phone.FromRow` reads `PhoneDecision` whatever the `ApprovalRef` -> `SimPhoneOut:TestDecisionRefOnlyForTellNow` red (observed, after the test gained a tell-now Delivery row that names an approval message's Ref: the SQL's kind filter alone had hidden the mutation).
 
 **Shared surfaces:**
 - the phone payload's keys (`Test/Live/Payloads.cls` Contracts, `Test/Web/Api.cls:229` /state phone keys, `Test/Demo/SimPhoneOut.cls:107-111`, the generated `payloads.ts`);
@@ -421,5 +474,24 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** A "This was noise" ghost button on tell-now notices with a decision, in the web chat and on the simulated phone, posts the noise route and gives way to the status line (a refusal shows the server's message). The phone payload carries `decisionRef`. `AnswerOps` sends one asynchronous `RecordPrecedent` after a `done` answer. `PrecedentOps.Record` checks the stored answer (DW-933), and `Mark` and `Record` refuse a signed-out online-demo session (DW-934, with `SessionOps.EndPrecedents` always sending the drop, Option B). DW-923 and DW-932 are answered by NZ5 and NZ1, NZ2, NZ4 and NZ5.
+
+**Files changed**
+- Server: `Core/AnswerOps.cls` (send on done), `Core/PrecedentOps.cls` (DW-933, DW-934), `Core/SessionOps.cls` (always-send drop), `Data/Ownership.cls` (`PhoneDecision`), `Live/Payload/Phone.cls` (`DecisionRef`).
+- Server tests: `Test/Core/PrecedentOps.cls`, `AnswerPrecedents.cls` (new), `AnswerPrecedentsProduction.cls` (new), the probes `AnswerOpsProbe`, `PrecedentOpsProbe`, `SessionOpsProbe`, `SessionOpsDropProbe`, `ApprovalDouble`, `SessionOpsPrecedents`, `SessionOpsDocuments`, `AnswersInProduction`, `AnswersTelegramProduction`, `Test/Data/OwnershipPrecedents.cls`, `Test/Live/Payloads.cls`, `Test/Demo/SimPhoneOut.cls`.
+- Web: `api/memory-types.ts`, `chat/noise-view.ts`, `chat/noise-control.ts` (new); `api/api-client.ts` (`markNoise`), `chat/notice-card.ts`, `phone/simulated-phone.ts`, `incidents/incident-dismiss.ts` (export), `live/payloads.ts` (regenerated), `playwright.config.ts`, the source-pin tests (`phone-request-sources`, `playwright-projects`, `ux-strings`, `announce-focus-sources`), `scripts/noise-view.test.mjs` (new), `e2e/memory-noise.spec.ts` (new), a comment in `docker/tests/test-sign-in-3.sh`.
+
+**Review findings.** 24 findings: high 0, medium 3, low 19, false 2. Patches applied: 5 (the real `OnlineDemo` seam case, the `State` pin of DW-933, the `$IsObject` guard in `TestRepeatAndSetting`, the unused alias, the case-variant control). Deferred: none. Rejected with reasons: see the Review Triage Log (the always-send drop failing sign-out while PrecedentOps is down is the ruled Option B; the per-message phone read is the spec's decision).
+
+**Follow-up review recommended:** false. Two medium entries were patched, but both are test additions that were run and mutated red in this pass; no unverified risk remains.
+
+**Verification performed.**
+- Slot A, all green: `Test.Core.PrecedentOps` (20), `AnswerPrecedents`, `AnswersIn`, `SessionOps`, `SessionOpsDocuments`, `SessionOpsPrecedents`, `Test.Data.OwnershipPrecedents`, `Data.Precedent`, `Live.Payloads`, `Demo.SimPhoneOut` (one skip, `TestThroughNotify`, as before), `Web.MemoryApi`, `Web.Api`.
+- Lane-A throwaway: `AnswerPrecedentsProduction`, `PrecedentOpsProduction`, `AnswersInProduction`, `AnswersTelegramProduction`, `SessionOpsProduction` and `Web.SessionEndApi` passed (the implementation run); `AnswerPrecedentsProduction` passed again after the review patches. `live:sign-in-3` passed 143 of 143, NZ1 to NZ6 included (the implementation run).
+- Web: `noise-view.test.mjs`, the source-pin tests, `npm --prefix web test` (1555), lint, build; `bash ci/checks.sh` all passed.
+- Left to CI: `live:demo-path`, `live:sign-in` (`chat/notice.spec.ts`), `floor/focus.spec.ts`, `floor/announcements.spec.ts`, `shard:lane-b`, the fresh-environment check forward and reversed, and the behavioural mutations of AC 4, 5 and 6 against NZ1, NZ5 and NZ4.
+
+**Residual risks.** A write that PrecedentOps handles during End's last step still survives (accepted, U-311). A sign-out now fails while PrecedentOps is unreachable (ruled). The phone `decisionRef` read costs one SQL read per phone message (unmeasured). The `Hang`-based waits in the answer production tests could, on a very slow stack, leave a stray row of a fixture session.

@@ -104,6 +104,7 @@ describe('the page speaks only through the Announcer', () => {
       'app/banners/banner-stack.ts',
       'app/chat/chat-outbox.ts',
       'app/chat/chat-panel.ts',
+      'app/chat/noise-control.ts',
       'app/documents/documents-page.ts',
       'app/feed/break-feed-box.ts',
       'app/guide/demo-guide.ts',

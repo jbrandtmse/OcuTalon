@@ -3,6 +3,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { Icon } from '../icon/icon';
 import { CHAT_TEXTS, NOTICE_TEXTS, type NoticeView } from './chat-view';
 import { DecisionStrip } from './decision-strip';
+import { NoiseControl } from './noise-control';
+import { noticeNoiseRef } from './noise-view';
 import { pageTimeBeside } from './page-time';
 
 /**
@@ -15,6 +17,7 @@ import { pageTimeBeside } from './page-time';
  * - A reminder card has the info accent bar and the bell icon in the info ink, the text, and the caption "Due 14:12 \u00B7 arrived
  *   14:12" (left out when the reminder has no due time). Each time is in the browser's zone and hour format, followed by the
  *   zone's short name when the browser's UTC offset at that time differs from the instance's (UX-DR123).
+ * - A tell-now card whose decision has a Ref also has the ghost "This was noise" control (Story 41.5; noise-control.ts), on its own line after the strip.
  * - An allowance card (Story 16.9: the session's message allowance, and the online demo's daily-cap message) has the danger accent bar and the
  *   circle-alert icon of the danger banner in the danger ink, and the text. It has no strip and no caption.
  * - A tool call's notice (Story 31.6; kinds approval and result) has the info accent bar and the info icon, and its text keeps its
@@ -25,7 +28,7 @@ import { pageTimeBeside } from './page-time';
  */
 @Component({
   selector: 'app-notice-card',
-  imports: [DecisionStrip, Icon],
+  imports: [DecisionStrip, Icon, NoiseControl],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="notice" [class.tell-now]="notice().kind === 'tellnow'" [class.allowance]="notice().kind === 'allowance'" [class.request]="notice().kind === 'approval'" data-part="notice" [attr.data-key]="notice().key" tabindex="-1">
@@ -47,6 +50,7 @@ import { pageTimeBeside } from './page-time';
             [traceUrl]="notice().decision?.traceUrl"
           />
         }
+        <app-noise-control [decisionRef]="noiseRef()" channel="web" [instanceZone]="instanceZone()" />
       </div>
     </div>
   `,
@@ -138,4 +142,7 @@ export class NoticeCard {
     }
     return parts.join(CHAT_TEXTS.separator);
   });
+
+  /** The decision Ref the "This was noise" control acts on: the Ref of a tell-now card's decision, "" for any other card. */
+  protected readonly noiseRef = computed(() => noticeNoiseRef(this.notice()));
 }

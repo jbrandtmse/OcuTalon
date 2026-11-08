@@ -2,7 +2,8 @@
 /// nothing, and Forget answers as SettingsAnswer says. Each call is captured on the instance: Audits holds the audit event data of each WriteAudit, in order, as dynamic objects,
 /// and Notices the Notification of each SendNotice, in order. The answers are set on the instance: AuditAnswer and NoticeAnswer are ""
 /// (OK, the default), "error" (an error status for every call), or for the audit "linked" or "unlinked" (an error status only for an
-/// entry of that change). The product never refers to it.
+/// entry of that change). DropPrecedents answers 0 and sends nothing for a session with no precedent rows, so that an End without a production sends
+/// nothing to PrecedentOps; for a session with rows it is the real method. The product never refers to it.
 Class OcuTalon.Test.Core.SessionOpsProbe Extends OcuTalon.Core.SessionOps
 {
 
@@ -34,6 +35,12 @@ Method Forget(sessionRef As %String) As %Status [ Private ]
 	If ..SettingsAnswer = "error" Quit $SYSTEM.Status.Error(5001, "zz forget failed")
 	If ..SettingsAnswer = "throw" Throw ##class(%Exception.General).%New("zz forget threw")
 	Quit ##super(sessionRef)
+}
+
+Method DropPrecedents(request As OcuTalon.Msg.Command.EndSession) As %Integer [ Private ]
+{
+	If '##class(OcuTalon.Data.Precedent).Has(request.SessionRef) Quit 0
+	Quit ##super(request)
 }
 
 Method SendNotice(notification As OcuTalon.Msg.Notification) As %Status [ Private ]

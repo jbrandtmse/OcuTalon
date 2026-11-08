@@ -53,12 +53,12 @@ const SIGN_IN_2_DIRS = ['live', 'phone', 'rail', 'reminder', 'session', 'setting
 
 /**
  * The folders and the root file of e2e/ whose specs the sign-in-3 project runs and the chromium project does not: a contiguous run of the
- * chromium project's files in path order (guide/*, heartbeat/heartbeat.spec.ts and heartbeat-card.spec.ts), so that each unit runs its files in
+ * chromium project's files in path order (guide/*, heartbeat/heartbeat.spec.ts, heartbeat-card.spec.ts, and memory-noise.spec.ts, Story 41.5), so that each unit runs its files in
  * the order the one unit ran them. A spec file added to one of these folders joins sign-in-3. The root file is listed by name because a
  * folder list cannot name it.
  */
 const SIGN_IN_3_DIRS = ['guide', 'heartbeat'];
-const SIGN_IN_3_FILES = ['heartbeat-card.spec.ts'];
+const SIGN_IN_3_FILES = ['heartbeat-card.spec.ts', 'memory-noise.spec.ts'];
 
 export default defineConfig({
   testDir: './e2e',

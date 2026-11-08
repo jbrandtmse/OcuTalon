@@ -13,6 +13,10 @@
 ///   - TestForget: Forget deletes the session's own row at once (Similar and Ownership lose it); another session's row and a seeded row are not_found and stay;
 ///   - TestApprovalAnswers: the Approval answers row: a fix and a tool_call, approved and rejected, with the AnsweredAt of the request and the AnsweredChannel;
 ///   - TestApprovalRefused: a setting request, a bad Action, an unknown request and session, another session's request and a repeat record nothing new;
+///   - TestAnswerMustMatch: an Action that differs from the request's stored answer, and a request that is pending, expired or cancelled, are not_recorded with no row; an
+///     executing and a done request answered as the message says are recorded;
+///   - TestEndedSession: on the online demo a session whose ResumeHash is cleared (sign-out) is not_found for a MarkNoise and not_recorded for a RecordPrecedent, with no row; a
+///     session that holds its ResumeHash, and any session off the online demo, write as before;
 ///   - TestSenders: every message class from every other sender, and each verb with every other origin, is not_allowed with one warning and writes nothing;
 ///   - TestUnknownClass: an Item, an ItemDecision, a GotIt and a message that is not an object answer an error status and write nothing;
 ///   - TestSeed and TestSeedRefused: SeedPrecedent from EvalIn with EvalOn 1 writes an eval-owned row; every other combination writes nothing;
@@ -260,9 +264,9 @@ Method TestApprovalAnswers()
 	Set session = ..Session("approval")
 	Set diagnose = ..Fixture("Decision", session, "diagnose", , , {"Summary": "Zz order dates are in the wrong format"})
 	Set incident = ..Fixture("Incident", session, , "ZZNS", "Zz.Production", {"DecisionRef": (diagnose)})
-	Set fix = ..Fixture("Approval", session, incident, "approved", , {"AnsweredAt": "2030-01-05T10:00:00Z"})
-	Set rejected = ..Fixture("Approval", session, incident, "rejected", , {"AnsweredAt": "2030-01-06T10:00:00Z"})
-	Set tool = ..Fixture("Approval", session, , "approved", , {"Kind": "tool_call", "ToolName": "Zz.Tool"})
+	Set fix = ..Fixture("Approval", session, incident, "approved", , {"AnsweredAt": "2030-01-05T10:00:00Z", "AnsweredAction": "approve"})
+	Set rejected = ..Fixture("Approval", session, incident, "rejected", , {"AnsweredAt": "2030-01-06T10:00:00Z", "AnsweredAction": "reject"})
+	Set tool = ..Fixture("Approval", session, , "approved", , {"Kind": "tool_call", "ToolName": "Zz.Tool", "AnsweredAction": "approve"})
 	Set probe = ..Probe("AnswerOps")
 	Set result = ..Record(probe, session, fix, "approve", "web")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|recorded", "a fix approved: Ok 1, recorded")
@@ -279,7 +283,7 @@ Method TestApprovalAnswers()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|recorded", "a tool_call approved: Ok 1, recorded")
 	Do $$$AssertEquals(row.Channel_"|"_row.MatchKey_"|"_row.Summary_"|"_row.Outcome_"|"_row.Answer_"|"_row.AnsweredChannel, "|tool:Zz.Tool|Zz.Tool||approved|telegram", "no channel, the tool's key and name, approved")
 	Do $$$AssertTrue(row.AnsweredAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "a request with no AnsweredAt is answered now: "_row.AnsweredAt)
-	Set tool2 = ..Fixture("Approval", session, , "approved", , {"Kind": "tool_call", "ToolName": "Zz.Tool2"})
+	Set tool2 = ..Fixture("Approval", session, , "approved", , {"Kind": "tool_call", "ToolName": "Zz.Tool2", "AnsweredAction": "approve"})
 	Set result = ..Record(probe, session, tool2, "approve", "zz")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Precedent).SourceRefIndexOpen(tool2).AnsweredChannel, "", "a channel that is no CHANNEL value is kept as empty")
 	Do $$$AssertEquals(..Owned(session), 4, "four rows in all")
@@ -289,9 +293,9 @@ Method TestApprovalAnswers()
 Method TestApprovalRefused()
 {
 	Set session = ..Session("refused"), other = ..Session("refusedother")
-	Set setting = ..Fixture("Approval", session, , "approved", , {"Kind": "setting"})
-	Set mine = ..Fixture("Approval", session, , "approved", , {"Kind": "tool_call", "ToolName": "Zz.Tool"})
-	Set theirs = ..Fixture("Approval", other, , "approved", , {"Kind": "tool_call", "ToolName": "Zz.Tool"})
+	Set setting = ..Fixture("Approval", session, , "approved", , {"Kind": "setting", "AnsweredAction": "approve"})
+	Set mine = ..Fixture("Approval", session, , "approved", , {"Kind": "tool_call", "ToolName": "Zz.Tool", "AnsweredAction": "approve"})
+	Set theirs = ..Fixture("Approval", other, , "approved", , {"Kind": "tool_call", "ToolName": "Zz.Tool", "AnsweredAction": "approve"})
 	Set probe = ..Probe("AnswerOps")
 	Set cases = $ListBuild($ListBuild("a setting request", session, setting, "approve"), $ListBuild("a bad Action", session, mine, "zz"), $ListBuild("an empty Action", session, mine, ""), $ListBuild("an unknown request", session, "zzunknown", "approve"), $ListBuild("an empty request", session, "", "approve"), $ListBuild("an unknown session", "zzunknown", mine, "approve"), $ListBuild("an empty session", "", mine, "approve"), $ListBuild("another session's request", session, theirs, "approve"))
 	Set position = 0
@@ -302,10 +306,91 @@ Method TestApprovalRefused()
 	Do $$$AssertEquals(..Owned(session)_"|"_..Owned(other), "0|0", "nothing was written")
 	Set result = ..Record(probe, session, mine, "approve", "web")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|recorded", "the session's own tool_call is recorded")
-	Set result = ..Record(probe, session, mine, "reject", "phone")
+	Set result = ..Record(probe, session, mine, "approve", "phone")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|already_recorded", "a repeat: Ok 1, already_recorded")
 	Set row = ##class(OcuTalon.Data.Precedent).SourceRefIndexOpen(mine)
 	Do $$$AssertEquals(..Owned(session)_"|"_row.Answer_"|"_row.AnsweredChannel, "1|approved|web", "and the first answer stands")
+}
+
+/// DW-933: a RecordPrecedent writes only when the request's stored AnsweredAction equals the message's Action and its State is approved, rejected, executing, done or failed.
+Method TestAnswerMustMatch()
+{
+	Set session = ..Session("match")
+	Set probe = ..Probe("AnswerOps")
+	Set rejectedAsked = ..Fixture("Approval", session, , "rejected", , {"Kind": "tool_call", "ToolName": "Zz.A", "AnsweredAction": "reject"})
+	Set approvedAsked = ..Fixture("Approval", session, , "approved", , {"Kind": "tool_call", "ToolName": "Zz.B", "AnsweredAction": "approve"})
+	Set pending = ..Fixture("Approval", session, , "pending", , {"Kind": "tool_call", "ToolName": "Zz.C", "AnsweredAction": "approve"})
+	Set expired = ..Fixture("Approval", session, , "expired", , {"Kind": "tool_call", "ToolName": "Zz.D", "AnsweredAction": "approve"})
+	Set cancelled = ..Fixture("Approval", session, , "cancelled", , {"Kind": "tool_call", "ToolName": "Zz.E", "AnsweredAction": "approve"})
+	Set unanswered = ..Fixture("Approval", session, , "approved", , {"Kind": "tool_call", "ToolName": "Zz.F"})
+	Set cases = $ListBuild($ListBuild("approve for a request answered reject", rejectedAsked, "approve"), $ListBuild("reject for a request answered approve", approvedAsked, "reject"), $ListBuild("approve for a pending request", pending, "approve"), $ListBuild("reject for a pending request", pending, "reject"), $ListBuild("approve for an expired request", expired, "approve"), $ListBuild("approve for a cancelled request", cancelled, "approve"), $ListBuild("approve for an approved request with no stored answer", unanswered, "approve"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set result = ..Record(probe, session, $List(case, 2), $List(case, 3), "web")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_recorded", $List(case, 1)_": Ok 0, not_recorded")
+	}
+	Do $$$AssertEquals(..Owned(session), 0, "nothing was written")
+	Set executing = ..Fixture("Approval", session, , "executing", , {"Kind": "tool_call", "ToolName": "Zz.G", "AnsweredAction": "approve"})
+	Set done = ..Fixture("Approval", session, , "done", , {"Kind": "tool_call", "ToolName": "Zz.H", "AnsweredAction": "approve"})
+	Set failed = ..Fixture("Approval", session, , "failed", , {"Kind": "tool_call", "ToolName": "Zz.I", "AnsweredAction": "approve"})
+	For ref = executing, done, failed {
+		Set result = ..Record(probe, session, ref, "approve", "web")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|recorded", "a matching approve is recorded for a request in state "_##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref).State)
+	}
+	Do $$$AssertEquals(..Owned(session), 3, "three rows")
+}
+
+/// DW-934: on the online demo, a session whose ResumeHash sign-out cleared is refused by MarkNoise (not_found) and RecordPrecedent (not_recorded), with no row; a session that
+/// holds its ResumeHash, and any session off the online demo, write.
+Method TestEndedSession()
+{
+	Set session = ..Session("ended")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Set row.ResumeHash = ##class(OcuTalon.Data.Session).Hash("zzprecops"_..Number_"ended")
+	Do $$$AssertStatusOK(row.%Save(), "the session holds a resume hash")
+	Set decision = ..Decision(session, "decide", "tellnow")
+	Set approval = ..Fixture("Approval", session, , "approved", , {"Kind": "tool_call", "ToolName": "Zz.Tool", "AnsweredAction": "approve"})
+	Set probe = ..Probe("CommandsIn")
+	Set probe.Item = ..NewItem(session, "mailbox", "Zz <Zz.A@Example.com>")
+	Set probe.DemoFlag = 1
+	Set result = ..Mark(probe, session, decision, "web")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|marked", "online demo, resume hash held: marked")
+	Set recorder = ..Probe("AnswerOps")
+	Set recorder.DemoFlag = 1
+	Set result = ..Record(recorder, session, approval, "approve", "web")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|recorded", "online demo, resume hash held: recorded")
+	Do ##class(OcuTalon.Data.Precedent).DropSession(session)
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(session)
+	Set row.ResumeHash = ""
+	Do $$$AssertStatusOK(row.%Save(), "sign-out cleared the resume hash")
+	Set result = ..Mark(probe, session, decision, "web")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_found", "online demo, resume hash cleared: a MarkNoise is not_found")
+	Set result = ..Record(recorder, session, approval, "approve", "web")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_recorded", "online demo, resume hash cleared: a RecordPrecedent is not_recorded")
+	Do $$$AssertEquals(..Owned(session), 0, "no row was written")
+	Set probe.DemoFlag = 0, recorder.DemoFlag = 0
+	Set result = ..Mark(probe, session, decision, "web")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|marked", "off the online demo, resume hash empty: marked")
+	Set result = ..Record(recorder, session, approval, "approve", "web")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|recorded", "off the online demo, resume hash empty: recorded")
+	Do $$$AssertEquals(..Owned(session), 2, "two rows")
+	Do ##class(OcuTalon.Data.Precedent).DropSession(session)
+	Set probe.DemoFlag = "", recorder.DemoFlag = ""
+	Set savedDemo = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Try {
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+		Set result = ..Mark(probe, session, decision, "web")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_found", "the real online-demo setting 1, resume hash cleared: a MarkNoise is not_found")
+		Set result = ..Record(recorder, session, approval, "approve", "web")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_recorded", "the real online-demo setting 1, resume hash cleared: a RecordPrecedent is not_recorded")
+		Do $$$AssertEquals(..Owned(session), 0, "the real setting: no row was written")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+		Set result = ..Mark(probe, session, decision, "web")
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|marked", "the real online-demo setting empty, resume hash empty: marked")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the real online-demo setting cases run")
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", savedDemo)
 }
 
 /// Every message from every sender but its own, and each verb with every origin but web_user, is not_allowed with one warning that names the sender, and writes
@@ -509,7 +594,7 @@ Method TestDecisionRecordedWritesNoRow()
 }
 
 /// --- helpers ---
-/// A shadow instance of the probe whose request header comes from the sender.
+/// A shadow instance of the probe whose request header comes from the sender, and which is off the online demo (a test sets DemoFlag for the online demo).
 Method Probe(sender As %String) As OcuTalon.Test.Core.PrecedentOpsProbe [ Private ]
 {
 	Set probe = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
@@ -517,6 +602,7 @@ Method Probe(sender As %String) As OcuTalon.Test.Core.PrecedentOpsProbe [ Privat
 	Set header = ##class(Ens.MessageHeader).%New()
 	Set header.SourceConfigName = sender
 	Set probe.%RequestHeader = header
+	Set probe.DemoFlag = 0
 	Quit probe
 }
 

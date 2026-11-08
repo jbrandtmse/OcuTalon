@@ -12,8 +12,11 @@ Include Ensemble
 ///   - ForgetPrecedent {PrecedentRef}, from CommandsIn with Origin web_user. The row must be the session's own and not a seeded one
 ///     (Data.Ownership.Precedent): forgotten (Ok 1, the row is deleted) or not_found.
 ///   - RecordPrecedent {ApprovalRef, Action, Channel, SessionRef}, from AnswerOps. The request must be visible to the session (Data.Ownership.Approval),
-///     the Action approve or reject, and the request a fix or a tool_call: recorded (Ok 1, one row with the Answer approved or rejected),
-///     already_recorded (Ok 1, nothing changed) or not_recorded (Ok 0: a setting request, a bad Action, an unknown request or session).
+///     the Action approve or reject, and the request a fix or a tool_call whose stored AnsweredAction equals the Action and whose State is approved,
+///     rejected, executing, done or failed: recorded (Ok 1, one row with the Answer approved or rejected), already_recorded (Ok 1, nothing changed) or
+///     not_recorded (Ok 0: a setting request, a bad Action, an unknown request or session, a request that is not answered as the message says, an ended session).
+///   - A session that sign-out has ended is refused by MarkNoise (not_found) and RecordPrecedent (not_recorded), and nothing is written: on the online demo,
+///     a session whose row has an empty ResumeHash (SessionOps.End clears it last). A session that is not on the online demo never ends.
 ///   - EndSession {SessionRef}, from SessionOps: the session's rows are deleted (ended). Seeded rows stay.
 ///   - SeedPrecedent and RemoveSeededPrecedents, from EvalIn, and only while EvalOn() is 1 (the EvalIn item's Enabled System Default Setting, which the
 ///     production install step writes from OCUTALON_EVAL at every start). A seeded row has the owner eval, EvalRunRef set to the run and its own Ref as
@@ -104,6 +107,7 @@ Method Mark(command As OcuTalon.Msg.Command.MarkNoise) As OcuTalon.Msg.CommandRe
 	If '..FromVerb(command) Quit ..Refuse(command)
 	Set ref = command.DecisionRef, sessionRef = command.SessionRef
 	If (sessionRef = "") || '##class(OcuTalon.Bridge.Approval).IsRef(ref) Quit ..Result(0, "not_found", ..#MESSAGENOTFOUND)
+	If ..Ended(sessionRef) Quit ..Result(0, "not_found", ..#MESSAGENOTFOUND)
 	Set decision = ##class(OcuTalon.Data.Ownership).Decision(ref, sessionRef, .sc)
 	If $$$ISERR(sc) Quit ..Failed("the decision could not be read", sc)
 	If '$IsObject(decision) || (decision.Ref '= ref) || (decision.Kind '= "decide") || '$ListFind($ListBuild("tellnow", "act"), decision.Outcome) Quit ..Result(0, "not_found", ..#MESSAGENOTFOUND)
@@ -156,10 +160,11 @@ Method Record(request As OcuTalon.Core.Msg.RecordPrecedent) As OcuTalon.Msg.Comm
 	Set answer = $Case(request.Action, "approve": "approved", "reject": "rejected", : "")
 	Set ref = request.ApprovalRef, sessionRef = request.SessionRef
 	If (answer = "") || (sessionRef = "") || '##class(OcuTalon.Bridge.Approval).IsRef(ref) Quit ..Result(0, "not_recorded", ..#MESSAGENOTRECORDED)
-	If '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)) Quit ..Result(0, "not_recorded", ..#MESSAGENOTRECORDED)
+	If '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)) || ..Ended(sessionRef) Quit ..Result(0, "not_recorded", ..#MESSAGENOTRECORDED)
 	Set approval = ##class(OcuTalon.Data.Ownership).Approval(ref, sessionRef, .sc)
 	If $$$ISERR(sc) Quit ..Failed("the approval request could not be read", sc)
 	If '$IsObject(approval) || (approval.Ref '= ref) Quit ..Result(0, "not_recorded", ..#MESSAGENOTRECORDED)
+	If (approval.AnsweredAction '= request.Action) || '$ListFind($ListBuild("approved", "rejected", "executing", "done", "failed"), approval.State) Quit ..Result(0, "not_recorded", ..#MESSAGENOTRECORDED)
 	If ##class(OcuTalon.Data.Precedent).SourceRefIndexExists(ref) Quit ..Result(1, "already_recorded", ..#MESSAGEALREADYRECORDED)
 	Set key = ##class(OcuTalon.Data.Precedent).KeyForRequest(approval, .channel, .summary)
 	If key = "" Quit ..Result(0, "not_recorded", ..#MESSAGENOTRECORDED)
@@ -182,6 +187,21 @@ Method Record(request As OcuTalon.Core.Msg.RecordPrecedent) As OcuTalon.Msg.Comm
 	Set result = ..Result(1, "recorded", ..#MESSAGERECORDED)
 	Set result.Ref = row.Ref
 	Quit result
+}
+
+/// 1 when sign-out has ended the session: on the online demo (OnlineDemo), the session's row has an empty ResumeHash, which SessionOps.End clears as its
+/// last step. A session with no row is not ended here (Record refuses an unknown session itself).
+Method Ended(sessionRef As %String) As %Boolean [ Private ]
+{
+	If '..OnlineDemo() Quit 0
+	Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
+	Quit $IsObject(session) && (session.ResumeHash = "")
+}
+
+/// 1 on the online demo (the Setting onlineDemo holds 1), as BridgeSink and Web.Api read it. A seam for the tests.
+Method OnlineDemo() As %Boolean [ Private ]
+{
+	Quit (##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1)
 }
 
 /// Carries out an EndSession from SessionOps: the session's own rows are deleted.

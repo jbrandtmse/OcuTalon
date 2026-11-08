@@ -206,4 +206,9 @@ export class ApiClient {
   runHeartbeat(): Observable<unknown> {
     return this.http.post<unknown>(`${BASE}/heartbeat/run`, {});
   }
+
+  /** Marks the person's own tell-now notice as noise (Story 41.5): a POST of the channel the press came from. A refusal fails as an HttpErrorResponse whose `error` is the body `{error:{code,message}}`. */
+  markNoise(ref: string, channel: import('./memory-types').NoiseChannel): Observable<import('./memory-types').NoiseMarked> {
+    return this.http.post<import('./memory-types').NoiseMarked>(`${BASE}/decisions/${encodeURIComponent(ref)}/noise`, { channel });
+  }
 }

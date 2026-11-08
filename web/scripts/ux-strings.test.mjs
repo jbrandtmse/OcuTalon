@@ -66,6 +66,7 @@ const IMPORTED = [
   ['guide/more-to-try-view.ts', ['MORE_TO_TRY_TEXTS']],
   ['settings/settings-view.ts', ['SETTINGS_TEXTS']],
   ['documents/documents-view.ts', ['DOCUMENTS_TEXTS', 'REASON_TEXTS']],
+  ['chat/noise-view.ts', ['NOISE_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -553,6 +554,8 @@ const SOURCES = {
     '24 hours',
     'To',
     'Checklist',
+    'This was noise',
+    'Marked as noise at {time}. Similar items will take this into account.',
   ],
   design: [
     'Unread',

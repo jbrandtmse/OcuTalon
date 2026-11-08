@@ -5,6 +5,7 @@
 /// need a role that this process's user holds (HeldRole: the first of its recursed role set, %All for the container's owner), because
 /// the README account that holds OcuTalonUser is not this process. A fixture row has no hold, so each real answer waits the 5 seconds of
 /// Approval.CompleteHoldTask for a task that never appears, and logs one warning, which the tests remove.
+/// A done answer makes PrecedentOps write a Precedent row for a fix or a tool_call request (Story 41.5): OnAfterAllTests drops the fixture sessions' rows.
 ///   - TestApproveRecordsTheAnswer: 200, the row approved by this process's user on the web channel (a body that names another user
 ///     and another SessionRef changes nothing, U-113), one approval event on the session's stream, one AnswersIn to AnswerOps header
 ///     tagged with the session's TraceRef, no Turn and no chat.message event (AC4, AC13, AC14);
@@ -58,6 +59,7 @@ Method OnAfterAllTests() As %Status
 		If $Piece(..Sessions, ",", i) '= "" Do ##class(OcuTalon.Test.Bridge.Approval).TrackOwner($Piece(..Sessions, ",", i))
 	}
 	Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
+	Do ..DropPrecedents()
 	Quit ##super()
 }
 
@@ -489,6 +491,17 @@ Method FromPageAs(session As %String, ref As %String) As %String [ Private ]
 	Set %session.Data("OcuTalon.SessionRef") = session
 	Set sc = ##class(OcuTalon.Core.AnswersIn).FromPage(ref, "approve", "web", .result, .answeringRef)
 	Quit $Select($SYSTEM.Status.IsError(sc): $SYSTEM.Status.GetErrorText(sc), 1: result.Result)
+}
+
+/// Drops the Precedent rows of the fixture sessions: a done answer on a fix or a tool_call request has PrecedentOps write a row (Story 41.5). The write is asynchronous,
+/// so the drop waits a moment for one still in flight.
+Method DropPrecedents() [ Private ]
+{
+	If ..Sessions = "" Quit
+	Hang 1
+	For i = 1:1:$Length(..Sessions, ",") {
+		If $Piece(..Sessions, ",", i) '= "" Do ##class(OcuTalon.Data.Precedent).DropSession($Piece(..Sessions, ",", i))
+	}
 }
 
 /// Removes the warning that Approval.CompleteHoldTask logged for the request's missing task.
