@@ -414,3 +414,5 @@
 2026-11-08T12:40:06Z	Epic 7	epic_status_reopened	epic-7=in-progress reason=SC-5_re-open_story_7.11
 2026-11-08T12:40:06Z	Story 7.11	ledger_routed_planned	story=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr entries=1(DW-675) excess=0 by=charter
 2026-11-08T12:40:22Z	Epic 7	sprint_planning_complete	gate=PASS scope=7.11_inserted new_entries=7-11 explicit_set=epic-7=in-progress(SC-5_reopen) model=claude-opus-5-5
+2026-11-08T12:42:00Z	Epic 7	epic_context_compiled	reason=planning_artifact_newer(7.11_charter) model=claude-opus-5-5 spawn_at=2026-11-08T12:41:30Z
+2026-11-08T12:42:00Z	Story 7.11	stage_spawned	stage=plan spawn_at=2026-11-08T12:42:00Z model=opus agent_name=7-11-plan-1 cycle_iteration=1
