@@ -44,6 +44,8 @@
 ///     another session answers "", exactly as for a missing one.
 ///   - FinishedToolCalls (Story 31.2) is the session's own tool_call approval requests that finished in a window of FinishedAt, oldest
 ///     first: Conversation's code-written note to the next turn reads it (AD-30). It is a Rows kind like the others.
+///   - Precedents and Precedent (Story 41.2) are the session's own precedents (Data.Precedent), newest answer first, and one by its Ref; Rows kinds too. A row of
+///     another session or of owner eval, and a row that has an EvalRunRef, answers like a missing one.
 Class OcuTalon.Data.Ownership
 {
 
@@ -661,6 +663,24 @@ ClassMethod FinishedToolCalls(sessionRef As %String, after As %String, through A
 	Quit ..Rows("finishedToolCalls", sessionRef, .sc, $Select($Get(after) = "": "0", 1: after), through)
 }
 
+/// The session's own precedents (Data.Precedent), newest AnsweredAt first and then newest ID first, at most max. A seeded row, one with an EvalRunRef, is never
+/// one of them. sc is an error status when the read failed.
+ClassMethod Precedents(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("precedents", sessionRef, .sc, +max)
+}
+
+/// The precedent with this Ref when it is the session's own and not a seeded one, otherwise "": a row of another session or of owner eval answers like a
+/// missing one. ref may come from request input; it is only ever a bound value.
+ClassMethod Precedent(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Precedent
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ref = "" Quit ""
+	Set rows = ..Rows("precedent", sessionRef, .sc, ref)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
+}
+
 /// The IncidentRef of the approval request whose Ref is exactly ref (case-sensitive) when its owner is instance, "" for
 /// every other request, an unknown Ref and an empty one. One fixed statement narrows the rows by the collated index and
 /// the Ref is then compared exactly. It reads across owners and has no session, so it is prepared with the privilege
@@ -976,6 +996,14 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "upload" {
 		Set class = "OcuTalon.Data.Upload", binds = "ao"
 		Quit "SELECT u.ID FROM OcuTalon_Data.Upload u WHERE u.Ref = ? AND u.SessionRef = ?"
+	}
+	If kind = "precedents" {
+		Set class = "OcuTalon.Data.Precedent", binds = "ao"
+		Quit "SELECT TOP ? p.ID FROM OcuTalon_Data.Precedent p WHERE p.OwnerRef = ? AND p.EvalRunRef IS NULL ORDER BY p.AnsweredAt DESC, p.ID DESC"
+	}
+	If kind = "precedent" {
+		Set class = "OcuTalon.Data.Precedent", binds = "ao"
+		Quit "SELECT p.ID FROM OcuTalon_Data.Precedent p WHERE p.Ref = ? AND p.OwnerRef = ? AND p.EvalRunRef IS NULL"
 	}
 	Quit ""
 }

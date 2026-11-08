@@ -2,13 +2,21 @@
 title: "Story 41.2: The precedent table, its one writer, and the routes"
 type: 'feature'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2dc21d010f006e2b354402252b6cf4c0951cf6e5'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-41-context.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      The noise route's 200 success body (markedAt), its already_marked answer, the phone-versus-web body mapping and the 409 are not run over real HTTP.
+    evidence: |-
+      memory.spec.ts sends POST noise only for an unknown ref (404), as the spec's task list asks. The slot-safe tests pin the other answers through the SubmitMemory seam and the production test pins Commands.Submit. A Decision and Item fixture over HTTP would close it; Story 41.5 builds the notice-card press and can add it.
+    location: >-
+      web/e2e/api/memory.spec.ts
+    severity: low
 ---
 
 <intent-contract>
@@ -247,6 +255,34 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full.
 
 ## Review Triage Log
 
+### 2026-11-08 - Review pass
+- verdicts: 24 rows - high 0, medium 1, low 22, false 1, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind: `Test.Web.BodyLimit.POSTROUTES` lacks the new noise route - added `/v1/decisions/zzRef/noise` and the count 18 (`BodyLimit` green).
+  - `[low]` `[reject]` Blind: `PrecedentOps.Record` does not check the request State or Action - the spec's Approval answers row defines the inputs; the only sender (Story 41.5) sends after `Approval.Answer` returns `done`; a guard would add behavior the matrix does not state.
+  - `[low]` `[patch]` Blind: the notes route's line splitting and 500 path are unreached because `Build` is a stub - added the private seam `Api.NoteText`, the probe override and `TestNoteLines` (mutation: dropping the empty-line filter turns it red).
+  - `[medium]` `[patch]` Blind and Edge: `Precedent.Has` answers 0 when its SQL fails, so a failed read lets sign-out keep the person's precedents - `Has` now throws on a SQL error and `SessionOps.EndPrecedents` already counts a throw as a failed step; no test (a failing SQL is not reachable on the slot).
+  - `[low]` `[reject]` Blind and Edge: an unclosed `<` in a sender keeps the whole text as the key - the spec's rule is "the address inside the last <...>, or the whole sender"; a malformed sender is outside it.
+  - `[low]` `[reject]` Blind: no index for `RemoveRun` and `Purge` deletes - the table is small and both run at most daily or per eval run; the storage block would grow for no measured need.
+  - `[low]` `[reject]` Blind: owner literals `eval` and `instance` repeated - cosmetic; no caller diverges today.
+  - `[low]` `[reject]` Blind: test counters left in `^OcuTalonTest` - the same pattern as `InProduction`, which documents "never reset".
+  - `[low]` `[reject]` Blind: `memory.spec.ts` expects the list to equal exactly `[own]` and covers no 200 noise over HTTP - the exact empty list is the spec's own task wording; the 200 noise success needs a Decision and Item fixture over HTTP that the spec does not ask for and the production test covers through `Commands.Submit` (deferred below as a gap for Story 41.5).
+  - `[low]` `[patch]` Blind: the `CommandsIn` header comment is spliced mid-sentence - made its own clause.
+  - `[low]` `[reject]` Edge: `Ownership.Precedents` with max below 1 - the only callers pass the constant 100.
+  - `[low]` `[reject]` Edge: `Notes` with a zone that returns an empty local date - the zone read is existing code that falls back; not reachable.
+  - `[low]` `[reject]` Edge: `KeyFor` for a check with an empty Namespace or Production - both are required properties of `BackgroundCheck`.
+  - `[low]` `[reject]` Edge: `Seed` with an over-long RunRef or MatchKey answers failed instead of not_valid - the only sender is `EvalIn` (a later story) and the row is refused either way.
+  - `[low]` `[reject]` Edge: CRLF in the note text - the builder is a stub; Story 41.3 owns the format (lines separated by line feeds per the spine line).
+  - `[false]` `[reject]` Edge: `RemoveRun` could delete a person's row - a row with an `EvalRunRef` is by definition seeded; `Ownership` and `DropSession` also treat it so, and the session-owned odd row exists only in a test fixture.
+  - `[low]` `[patch]` Verification-gap: the `decision.recorded` pin has an unused `total` - removed. The pin itself stays: the fixture Decision is visible to `Ownership.Decision`, so `Recorded` runs to its end.
+  - `[low]` `[patch]` Verification-gap: the production test's absence check follows an unchecked `WaitDeliveries` - it now asserts the delivery exists first (green on a warm and a fresh stack).
+  - `[low]` `[reject]` Verification-gap: the noise success path and its phone mapping are never run over real HTTP - not in the spec's task list for `memory.spec.ts`; the slot-safe route tests pin them through the seam and the production test pins `Commands.Submit`.
+  - `[low]` `[patch]` Verification-gap: the route-test probe comment says it records the origin - comment corrected.
+  - `[low]` `[reject]` Verification-gap: `Rule 19` sub-claims without their own mutation line - one pinning mutation per AC is the rule and each AC has one.
+  - `[low]` `[reject]` Verification-gap: `TestPurge` is table-wide and the `EvalIn` setting row is flipped in place - both are the spec's own calls (`Purge(90)`, `Purge(36500)`, restore of the row), and the second only matters on a stack that runs `EvalIn`.
+  - `[low]` `[reject]` Verification-gap: `TestNotes` hides the argument `Build` receives - closed by `TestNoteLines` (see the patch above).
+  - `[low]` `[reject]` Intent audit: three readings, the diff implements the wide-code reading; its divergence notes (fixtures written through `irisScript`, senders supplied by headers) are the spec's own test design.
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -321,6 +357,16 @@ No AC contradicts an AD's Rule as amended.
 - **The guard reads the System Default Setting row** that AD-22's install step writes from `OCUTALON_EVAL` at every start. A missing row means off.
 - **No new CI unit.** The new classes are in the `lane-b` areas Core, Data and Web, and the spec joins the `chromium` project of `live:sign-in`. That adds a few seconds to `image` and `browser` (inference).
 
+- **Implement-stage decisions (small, in the spec's room).**
+  - `MarkNoise` and `RecordPrecedent` keep `AnsweredChannel` as the message's Channel when it is a Msg.Enum CHANNEL value, else empty. The route sends only `web` or `phone`.
+  - `RecordPrecedent` answers `recorded` (Ok 1, the row's Ref), `already_recorded` (Ok 1) and `not_recorded` (Ok 0). It does not check the request's State: the sender (Story 41.5) sends it only after `Approval.Answer` returns `done`.
+  - A fix row's Summary is the incident Decision's Summary, else the production key. The incident and its Decision are opened by Ref from the request the session can see (`KeyForRequest(request, .channel, .summary)`).
+  - `Precedent.RemoveRun(runRef, .count)` has an optional output `count`, which `RemoveSeededPrecedents` answers as `{"count"}`.
+  - `Similar` also leaves out a row with an `EvalRunRef` for any owner but `eval`.
+  - `SeedPrecedent` is `not_valid` for a bad Answer, Channel or Outcome and for an AnsweredAt that is not a UTC time; the guard (sender and `EvalOn()`) is checked first.
+  - `GET /notes` takes a missing `day` as `today`. `NoiseBodyIsPhone` is true only for a JSON object with exactly one member, `channel`, equal to the string `phone`.
+  - `KeyFor` gives "" for an item whose Provenance is not `untrusted`, and finds a finding's check through `Ownership.Checks`.
+
 **Ledger inbox:**
 - DW-921 is addressed: the `ForgetPrecedent` handling (Execution, the Forget row, AC 4) plus the lead's amendment text.
 - DW-922 is addressed (decided above, AC 4).
@@ -377,6 +423,19 @@ Run every command from the worktree root, one per call.
 - AC 1: `SIMILARMAX` 4.
 - AC 9: pool 2 in the oracle.
 
+**Mutations recorded (implement stage, on slot `ocutalon-slot-a`; each file was backed up in the scratchpad, mutated, loaded and compiled, observed red, restored from the backup, reloaded, and checked byte-identical):**
+- mutation: `SIMILARMAX` 3 -> 4 in `Data/Precedent.cls` -> `Test.Data.Precedent` red (`TestSimilarBounds` "limit 7: still three", `TestMessageContracts`) (AC 1)
+- mutation: `FromVerb` without the `Source()` = CommandsIn check in `Core/PrecedentOps.cls` -> `Test.Core.PrecedentOps:TestSenders` red (every MarkNoise and ForgetPrecedent from a wrong sender) (AC 2)
+- mutation: `web_user,tool` as the origins of the `MarkNoise` route in `Core/CommandsIn.cls` -> `Test.Core.CommandsPrecedent:TestNeitherIsAToolVerb` red; `TestOrigins` and `TestToolRefused` stay green, because CommandsIn also refuses origin tool for any verb outside TOOLVERBS (AC 3)
+- mutation: no `Set row.Outcome = decision.Outcome` in `Mark` -> `Test.Core.PrecedentOps:TestMarkNoise` red (AC 4)
+- mutation: `p.EvalRunRef IS NULL` removed from the `precedents` statement in `Data/Ownership.cls` -> `Test.Data.OwnershipPrecedents:TestSeededRowsAreInvisible` red (AC 5; the seeded owner eval is also refused by `Rows`, so the test pins the EvalRunRef condition with a session-owned row that has an EvalRunRef)
+- mutation: the delete route submits without its `Ownership.Precedent` check in `Web/Api.cls` -> `Test.Web.MemoryApi:TestForgetPrecedent` red (AC 6, the slot-safe side)
+- mutation: `EndPrecedents` quits 0 first in `Core/SessionOps.cls` -> `Test.Core.SessionOpsPrecedents` red (`TestEndDropsRows`, `TestFailedDropFailsEnd`) (AC 7)
+- mutation: pool 2 for `PrecedentOps` in `Test/Core/ProductionItems.cls` -> `Test.Install.Production:TestDefinition` red ("item 47 is PrecedentOps as the ownership table says") (AC 9)
+- mutation: `ItemOf` in `Core/PrecedentOps.cls` binds `decision.OwnerRef` instead of `decision.TraceSessionId` (item restarted after the reload; a running host keeps its loaded code) -> `Test.Core.PrecedentOpsProduction:TestNoiseThroughTheProduction` red on a warm throwaway ("MarkNoise is marked", the row, `Similar`, `Ownership.Precedents`, the repeat); green again after the restore (AC 8)
+- mutation: the empty-line filter dropped in `Web/Api.cls` `Notes` -> `Test.Web.MemoryApi:TestNoteLines` red ("two lines, no empty one") (AC 6, the notes route)
+- The Playwright HTTP side of AC 6 (`web/e2e/api/memory.spec.ts`) runs in CI (`live:sign-in`, over 500 s locally); its slot-safe pin is the AC 6 mutation above.
+
 **Shared surfaces:**
 - `Web.Api`'s Url map (`Test.Web.Api` `TestRoutes`)
 - the production's Lane B items (`Test.Core.ProductionItems`, `Test.Install.Production`, and the live scripts that read `Items()`)
@@ -391,7 +450,23 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan pass (2026-11-08): halted after planning, as the dispatch asked. Before implement, the lead has two items to clear: the `Ownership.cls` Clarification (recommended: allow) and the one PUBLIC TEXT line. The lead also writes the AD-21 amendment and the two spine lines above. The working tree is left uncommitted for the lead's validation gate.
+Summary: Story 41.2 adds `Data.Precedent` (table, `KeyFor`, `KeyForRequest`, `Similar`, `View`, `Has`, `DropSession`, `RemoveRun`, `Purge`), the `DailyNote.Build` stub, and `Core.PrecedentOps`, the one writer, with six accepted messages from their named senders and the eval guard `EvalOn()`. It adds the `MarkNoise` and `ForgetPrecedent` verbs and their `CommandsIn` routes, the `EndSession` precedent drop in `SessionOps.End`, two `Ownership` row kinds, the four `Web.Api` routes with `MESSAGETOOOLD`, the `Purge` hook, the `PrecedentOps` production item and the `Precedent` short-name row.
+
+Files changed:
+- New: `Data/Precedent.cls`, `Data/DailyNote.cls`, `Core/PrecedentOps.cls`, `Core/Msg/{RecordPrecedent,SeedPrecedent,RemoveSeededPrecedents}.cls`, `Msg/Command/{MarkNoise,ForgetPrecedent}.cls`, and the tests `Test/Data/{Precedent,OwnershipPrecedents}`, `Test/Core/{PrecedentOps,PrecedentOpsProbe,CommandsPrecedent,SessionOpsPrecedents,SessionOpsPrecedentsProbe,PrecedentOpsProduction}`, `Test/Web/{MemoryApi,MemoryApiProbe}`, `web/e2e/api/memory.spec.ts`.
+- Changed: `Core/CommandsIn.cls`, `Core/SessionOps.cls`, `Data/Ownership.cls` (the three allowed insertions only), `Install/Step/Core.cls`, `Production.cls` (one item, Lane B region), `Web/Api.cls`, `src/short-names.tsv` (one row), and the shared-surface tests `Test/Web/Api`, `Test/Web/BodyLimit`, `Test/Core/ProductionItems`, `Test/Data/Tables`, `Test/Msg/Contracts`, `Test/Contract/Ac` (one block).
+
+Review: 24 triage rows from four layers. Patches applied 7 (medium 1: `Precedent.Has` threw no error on a failed read; low 6: `BodyLimit` route list, the notes seam with `TestNoteLines`, the `CommandsIn` comment, the unused variable, the production test's delivery check, the probe comment). Deferred 1 (the noise success path over real HTTP, low, in the frontmatter). Rejected 17, each with its reason in the log above.
+
+Follow-up review recommended: false (one medium patched, no high).
+
+Verification performed:
+- Slot (`ocutalon-slot-a`, build 154), after the last patch, one class per call, all green: `Test.Data.Precedent` 9, `OwnershipPrecedents` 4, `Test.Core.PrecedentOps` 18, `CommandsPrecedent` 3, `SessionOpsPrecedents` 3, `Test.Web.MemoryApi` 7, `Test.Web.Api` 38, `Data.Tables` 5, `Msg.Contracts` 6, `Contract.Ac` 6, `Data.Ownership` 32, `Core.SessionOps` 30, `GotIt` 12, `SessionOpsDocuments` 4, `CommandsHeartbeat` 3, `BridgeSink` 31, `Test.Web.BodyLimit` 4.
+- Static: `test-class-rules.sh`, `test-storage.sh`, `test-ci-config.sh` and `test-boundaries.sh` pass; `npm run lint` in `web` exits 0.
+- Throwaway stacks: on a warm stack (ready in 161 s) `Test.Core.PrecedentOpsProduction` and `Test.Install.Production` pass; on a fresh stack `PrecedentOpsProduction` passes (ready in 129 s). Both stacks are torn down.
+- Mutations: one per AC 1-9 recorded in `## Verification`, plus the notes-line mutation; AC 8's mutation was run on the warm stack after restarting the item.
+
+Residual risks: `live:sign-in` (which runs `memory.spec.ts`), the full `lane-b` shard and the fresh-environment check in both orders are left to CI. The Playwright spec was type-checked, not run. `Test.Core.PrecedentOps.TestPurge` deletes any slot Precedent rows older than 90 days.

@@ -14,13 +14,14 @@ Include Ensemble
 ///     command's session, whose paired chat must be the ChatRef when one is given, with the notice pairing.unpairedFromPage. The outcomes
 ///     are unpaired and not_paired (Ok 0, nothing changed, nothing audited).
 ///   - EndSession {SessionRef} ends an online-demo session (Story 16.4; AD-4): the page's Sign out, through POST /v1/session/end. In order,
-///     and each of the first six steps is tried even when an earlier one failed: Unlink of the session's chat (reason session_end, no
+///     and each of the first seven steps is tried even when an earlier one failed: Unlink of the session's chat (reason session_end, no
 ///     notice); one CancelReminder for each pending reminder, sent to ReminderOps; one StopWatch for each production watch, sent to WatchOps;
 ///     Approval.Cancel for each pending approval request the session owns; SettingsOps.ForgetPerson for the session's per-person
-///     values (AD-19): the persona keys and the five heartbeat keys; Data.Handled.DropSession for the session's Handled rows. Only when all
+///     values (AD-19): the persona keys and the five heartbeat keys; Data.Handled.DropSession for the session's Handled rows; one EndSession
+///     to PrecedentOps for the session's precedents, sent only when the session has rows (AD-21). Only when all
 ///     of them succeeded is the row's ResumeHash cleared, so that a resume cookie that outlives the sign-out resumes nothing; after a failed
 ///     End the session stays resumable and the visitor can end
-///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first six steps were
+///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first seven steps were
 ///     tried) and no_session (Ok 0, the session has no row). The session's conversation, orders and decisions stay with the row.
 ///   - GotIt {Ref, Channel} marks one of the session's own tell-now notices as handled (AD-14; Story 12.12). In order it checks that the
 ///     Channel is a Msg.Enum CHANNEL value, that the Ref is a reference, that the session's own Decision (Data.Ownership.Decision, compared by
@@ -76,6 +77,9 @@ Parameter REMINDERITEM = "ReminderOps";
 
 /// The item that carries out the watch commands End sends.
 Parameter WATCHITEM = "WatchOps";
+
+/// The item that deletes the session's precedents at End.
+Parameter PRECEDENTITEM = "PrecedentOps";
 
 Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.Persistent) As %Status
 {
@@ -295,7 +299,7 @@ Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandRe
 		Set failed = 1
 		Do ..Warn("the chat could not be unlinked at the end of session " _ sessionRef, exception.AsStatus())
 	}
-	Set failed = ..EndReminders(command) + ..EndWatches(command) + ..EndApprovals(sessionRef, channel) + ..EndSettings(sessionRef) + ..EndHandled(sessionRef) + failed
+	Set failed = ..EndReminders(command) + ..EndWatches(command) + ..EndApprovals(sessionRef, channel) + ..EndSettings(sessionRef) + ..EndHandled(sessionRef) + ..EndPrecedents(command) + failed
 	If 'failed Set failed = ..EndResume(sessionRef)
 	Quit $Select(failed: ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED), 1: ..Result(1, "ended", ..#MESSAGEENDED))
 }
@@ -418,6 +422,31 @@ Method EndHandled(sessionRef As %String) As %Integer [ Private ]
 		Do ..Warn("the handled marks of session " _ sessionRef _ " were not deleted", exception.AsStatus())
 	}
 	Quit failed
+}
+
+/// End's precedents step: when the session has rows (Data.Precedent.Has), one EndSession goes to PrecedentOps, which deletes them; a session with no
+/// rows sends nothing. The result is 1 when the drop failed (an error status, a failed answer or an error thrown), a warning with the reason, else 0.
+Method EndPrecedents(command As OcuTalon.Msg.Command.EndSession) As %Integer [ Private ]
+{
+	Set failed = 0
+	Try {
+		If ##class(OcuTalon.Data.Precedent).Has(command.SessionRef) {
+			Set drop = ##class(OcuTalon.Msg.Command.EndSession).%New()
+			Set drop.SessionRef = command.SessionRef
+			Set drop.Origin = command.Origin
+			Set failed = ..DropPrecedents(drop)
+		}
+	} Catch exception {
+		Set failed = 1
+		Do ..Warn("the precedents of session " _ command.SessionRef _ " were not deleted", exception.AsStatus())
+	}
+	Quit failed
+}
+
+/// The one call that sends the EndSession to PrecedentOps (Lane B; a seam for the tests). The result is 0 when the precedents were deleted, else 1.
+Method DropPrecedents(request As OcuTalon.Msg.Command.EndSession) As %Integer [ Private ]
+{
+	Quit ..Carry(..#PRECEDENTITEM, request, "the precedents of session " _ request.SessionRef _ " were not deleted")
 }
 
 /// The one call that saves a Handled row {ref, sessionRef, now, channel} (a seam for the tests). The unique Ref makes the first save win.

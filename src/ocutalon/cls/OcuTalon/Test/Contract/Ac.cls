@@ -379,6 +379,9 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Bridge.Time", "method": "SetZone", "args": "name", "returns": "%Status"},
  {"class": "OcuTalon.Bridge.Time", "method": "Apply", "args": "", "returns": ""},
  {"class": "OcuTalon.Docs", "method": "DropSession", "args": "sessionRef", "returns": "%Status"},
+ {"class": "OcuTalon.Data.Precedent", "method": "KeyFor", "args": "item", "returns": "%String"},
+ {"class": "OcuTalon.Data.Precedent", "method": "Similar", "args": "ownerRef,channel,matchKey,limit", "returns": "%DynamicArray"},
+ {"class": "OcuTalon.Data.DailyNote", "method": "Build", "args": "sessionRef,day", "returns": "%String"},
  {"class": "OcuTalon.Memory", "method": "DropSession", "args": "sessionRef", "returns": "%Status"}
 ]
 }
