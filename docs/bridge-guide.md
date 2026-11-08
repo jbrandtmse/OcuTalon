@@ -150,7 +150,7 @@ The pending requests are the rows of the table `OcuTalon_Bridge_Data.ApprovalReq
 
 ### Settings
 
-The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. These settings are read each time they are used, so a change needs no update: `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD`, `GatewaySpendUSD`, `GatewaySpendDate`, `InstanceZone`, `ServiceUser`, `ApprovalRole`, `ToolClassification` and `ClassificationClass` of `Decide`, and `ReplyClass` and `RetryItem` of a runner. `Decide` reads `DecisionTokenBudget` and `RequestTokenLimit` this way only when it runs in a job of its own (a pool size of 1 or more, as in the example); in the shared actor pool, update the production after you change them. `HostSinkClass` is read each time too, except for the events that `Decide` fires itself, which follow a change only after `Decide` restarts. Every other setting takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. For `TimerSeconds`, see "Timeouts".
+The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. These settings are read each time they are used, so a change needs no update: `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD`, `GatewaySpendUSD`, `GatewaySpendDate`, `InstanceZone`, `ServiceUser`, `ApprovalRole`, `ToolClassification`, `ClassificationClass` and `TurnToolsClass` of `Decide`, and `ReplyClass` and `RetryItem` of a runner. `Decide` reads `DecisionTokenBudget` and `RequestTokenLimit` this way only when it runs in a job of its own (a pool size of 1 or more, as in the example); in the shared actor pool, update the production after you change them. `HostSinkClass` is read each time too, except for the events that `Decide` fires itself, which follow a change only after `Decide` restarts. Every other setting takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. For `TimerSeconds`, see "Timeouts".
 
 The settings of the `Decide` item:
 
@@ -169,6 +169,7 @@ The settings of the `Decide` item:
 | `HostSinkClass` | `OcuTalon.Bridge.Ext.HostSink` | The class that receives the bridge's events. See "The extension classes". |
 | `ReplyFilterClass` | `OcuTalon.Bridge.Ext.ReplyFilter` | The class that filters model-written text before a result leaves `Decide`. |
 | `ClassificationClass` | `OcuTalon.Bridge.Ext.Classification` | The class that classifies tools beyond code and settings. |
+| `TurnToolsClass` | `OcuTalon.Bridge.Ext.TurnTools` | The class that gives one request tools of its own, such as a knowledge base of the person's documents. See "The extension classes". |
 
 The settings of a runner item (the example's `TriageAgent`, which is an `OcuTalon.Bridge.Operation.AgentRunner`):
 
@@ -306,11 +307,12 @@ The result of `Answer` is `done`, `already_answered` (with the answer that won),
 
 ### The extension classes
 
-The bridge reaches your code only through three classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
+The bridge reaches your code only through four classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
 
 - `OcuTalon.Bridge.Ext.HostSink` (`HostSinkClass`): `OnEvent(type, ownerRef, payload)` receives the bridge's events: `turn.step`, `decision.recorded`, `approval.raised`, `approval.answered`, `approval.expired`, `approval.cancelled`, `approval.result` and `budget.capped`. It does nothing by default.
 - `OcuTalon.Bridge.Ext.ReplyFilter` (`ReplyFilterClass`): `Filter(text, hostData)` returns the text to use in place of model-written text. For a chat turn, `hostData` is the reply's `HostData` JSON; otherwise it is empty. It returns the text unchanged by default.
 - `OcuTalon.Bridge.Ext.Classification` (`ClassificationClass`): `Classify(source, name, arguments)` returns `safe` or `risky`, or empty for none; the gate calls it with the source and the name. It returns empty by default.
+- `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default.
 
 ### Rules for your own tools
 

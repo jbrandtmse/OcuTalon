@@ -1,17 +1,24 @@
-/// Tests of the local documents' knowledge base (Story 19.4; AD-3, AD-5, AD-6, AD-21; the Contest Planner's ruling Q2). THEY RUN IN THROWAWAY STACKS AND IN CI
+/// Tests of the knowledge-base tables of the documents (Stories 19.4 and 19.5; AD-3, AD-5, AD-6, AD-21; the Contest Planner's ruling Q2). THEY RUN IN THROWAWAY STACKS AND IN CI
 /// ONLY (Rule 21), on OcuTalon's Docker image: the passages are embedded by the Embedder worker. They skip elsewhere. Every row and every setting they write is
 /// put back, and the table is left as it was found.
 ///   - TestEnsureTable: EnsureTable is idempotent; the table and its _Config table exist with AI Hub's columns;
 ///   - TestGlobals: the DDL's DEFAULTGLOBAL is ^OcuTalonP.KBDocs and ^OcuTalonP.KBDocsConfig, every global of both classes is under those names, each resolves to
 ///     OCUTALON_PRIVATE (GetGlobalDest), no ^IRIS.KNNIndex node is written, and the installer's private-data check passes;
 ///   - TestRowsAndSearch: Write puts one row for each passage (id <Ref>:<n>, source the Ref, text the passage, metadata {source, chunk_index, document, section},
-///     a 384-value vector); a search through a bare %AI.ToolMgr and AI Hub's knowledge base, built by Attach, finds the passage that answers the question first
+///     a 384-value vector); a search through a bare %AI.ToolMgr and AI Hub's knowledge base, built by Knowledge, finds the passage that answers the question first
 ///     with a score over the floor and its metadata, and Remove makes the next search return none of its rows (AD-21);
 ///   - TestWriteTwice: the same batch written twice leaves one row for each passage (a message redelivered after a restart);
 ///   - TestEmptyTable: with no row, a search returns the empty list;
 ///   - TestOtherDocumentsStay (Q2 c): re-indexing X (Remove, then Write) leaves Y's rows, and two documents of the same name are two documents;
-///   - TestAttach: on the online demo Attach gives no holder and the agent has no documents tool; on a local install it gives the holder and the tool; a
-///     failure is one Type 3 warning, no holder and no exception.
+///   - TestKnowledge (Story 19.5): Knowledge of the table of the install gives the holder, which adds the tool documents to a bare tool manager; a table that does
+///     not exist, a name that is no knowledge-base table and a table whose build fails give no holder and an OK status, the first two with nothing made (no table,
+///     class or global) and the last with one Type 3 warning;
+///   - TestTableArgument (Story 19.5): EnsureTable, Write, Count and Remove of another table (OcuTalonKB.S<digits>) change that table and no other; a name whose
+///     suffix is not Docs, Eval or S and digits is refused before any SQL;
+///   - TestDrain (Story 19.5): while an owner is marked as being dropped (Drain), Write with that owner writes no passage and answers OK, and once the mark is
+///     cleared it writes them;
+///   - TestDrop (Story 19.5): Drop removes the table and its _Config table with their classes and their globals, and a second Drop and the drop of a table that was
+///     never made are OK; a bad name is refused and nothing is dropped; a search through a knowledge base built before the drop makes no table.
 Class OcuTalon.Test.Docs.Store Extends %UnitTest.TestCase
 {
 
@@ -58,14 +65,22 @@ Method OnAfterAllTests() As %Status
 	Quit $$$OK
 }
 
-/// Deletes the rows of the test's documents.
+/// A table that the tests make besides the install's, and another whose build fails.
+Parameter OTHER = "OcuTalonKB.S9098";
+
+Parameter BROKEN = "OcuTalonKB.S9099";
+
+/// Deletes the rows of the test's documents and the tables that the tests made.
 ClassMethod Clean() [ Private ]
 {
+	For table = ..#OTHER, ..#BROKEN {
+		Do ##class(OcuTalon.Test.Memory.Fixture).DropTable(table, $Piece(table, ".", 2))
+	}
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", $Parameter(..#STORE, "LOGATTACH"))
 	If '$SYSTEM.SQL.Schema.TableExists("OcuTalonKB.Docs") Quit
 	For ref = ..#A, ..#B, ..#A _ "-2" {
 		Do $ClassMethod(..#STORE, "Remove", ref)
 	}
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", $Parameter(..#STORE, "LOGATTACH"))
 }
 
 /// 1 on the image; otherwise records the skip.
@@ -85,11 +100,12 @@ ClassMethod Runbook() As %DynamicArray [ Private ]
 	Quit passages
 }
 
-/// Attaches the knowledge base to a bare agent and returns the agent; holder keeps the AI Hub objects alive.
-ClassMethod Agent(Output holder) As %AI.Agent [ Private ]
+/// A bare agent whose tool manager has the knowledge base of the table (Knowledge, then the holder's AddToManager); holder keeps the AI Hub objects alive.
+ClassMethod Agent(Output holder, table As %String = "OcuTalonKB.Docs") As %AI.Agent [ Private ]
 {
 	Set agent = ##class(%AI.Agent).%New()
-	Do $ClassMethod(..#STORE, "Attach", agent, .holder)
+	Do $ClassMethod(..#STORE, "Knowledge", table, .holder)
+	If $IsObject(holder) Do holder.AddToManager(agent.ToolManager)
 	Quit agent
 }
 
@@ -217,7 +233,7 @@ Method TestRowsAndSearch()
 	}
 	Do $$$AssertEquals(n, 3, "the table holds three rows of the document")
 	Set agent = ..Agent(.holder)
-	Do $$$AssertTrue($IsObject(holder), "Attach gives a holder")
+	Do $$$AssertTrue($IsObject(holder), "Knowledge gives a holder")
 	Set items = ..Search(agent, "how do I rotate the Results certificate?")
 	Set first = ..FirstOf(items, ..#A)
 	Do $$$AssertEquals($Select($IsObject(first): first.metadata.document _ "|" _ first.metadata.section _ "|" _ first.metadata."chunk_index", 1: "none"), "Runbook|Rotating the certificate|1", "the passage about the certificate is the document's first result, with its document and section")
@@ -259,22 +275,16 @@ Method TestOtherDocumentsStay()
 	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ..#A) _ "|" _ $ClassMethod(..#STORE, "Count", ..#B) _ "|" _ $ClassMethod(..#STORE, "Count", ..#A _ "-2"), "3|1|3", "Y's and Z's rows are as they were")
 }
 
-Method TestAttach()
+Method TestKnowledge()
 {
 	If '..OnImage() Quit
 	Do $$$AssertStatusOK($ClassMethod(..#STORE, "EnsureTable"), "the table exists")
-	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
 	Set agent = ##class(%AI.Agent).%New()
-	Set sc = $ClassMethod(..#STORE, "Attach", agent, .holder)
-	Do $$$AssertStatusOK(sc, "Attach answers OK on the online demo")
-	Do $$$AssertEquals($IsObject(holder), 0, "with no holder")
-	Set tools = agent.ToolManager.%Discover()
-	Do $$$AssertEquals(tools.%Size(), 0, "and the agent has no tool")
-	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
-	Set agent = ##class(%AI.Agent).%New()
-	Set sc = $ClassMethod(..#STORE, "Attach", agent, .holder)
-	Do $$$AssertStatusOK(sc, "Attach answers OK on a local install")
+	Set sc = $ClassMethod(..#STORE, "Knowledge", "OcuTalonKB.Docs", .holder)
+	Do $$$AssertStatusOK(sc, "Knowledge answers OK for the table of the install")
 	Do $$$AssertTrue($IsObject(holder), "with a holder")
+	If '$IsObject(holder) Quit
+	Do $$$AssertStatusOK(holder.AddToManager(agent.ToolManager), "which adds its knowledge base to a tool manager")
 	Set names = ""
 	Try {
 		Set result = agent.ToolManager.ExecuteTool("documents", {"query": "x"})
@@ -283,13 +293,100 @@ Method TestAttach()
 		Set names = exception.DisplayString()
 	}
 	Do $$$AssertEquals(names, "documents", "and the tool documents answers")
+
+	// A table that does not exist is never made, opened or built over.
+	Set before = $Data(^OcuTalonP.KBS9097)
+	Set sc = $ClassMethod(..#STORE, "Knowledge", "OcuTalonKB.S9097", .holder)
+	Do $$$AssertStatusOK(sc, "Knowledge answers OK for a table that does not exist")
+	Do $$$AssertEquals($IsObject(holder), 0, "with no holder")
+	Do $$$AssertEquals($SYSTEM.SQL.Schema.TableExists("OcuTalonKB.S9097") _ "|" _ ##class(%Dictionary.CompiledClass).%ExistsId("OcuTalonKB.S9097") _ "|" _ $Data(^OcuTalonP.KBS9097) _ "|" _ $Data(^OcuTalonP.KBS9097Config), "0|0|0|0", "and makes no table, no class and no global")
+	Set sc = $ClassMethod(..#STORE, "Knowledge", "OcuTalonKB.Evil", .holder)
+	Do $$$AssertEquals($$$ISOK(sc) _ "|" _ $IsObject(holder), "1|0", "a name that is no knowledge-base table gives no holder either")
+
+	// A build that fails is one warning.
+	Do ##class(OcuTalon.Test.Memory.Fixture).CreateTable(..#BROKEN, "S9099")
+	Do ##class(%SQL.Statement).%ExecDirect(, "INSERT INTO " _ ..#BROKEN _ "_Config (model_name, dimensions) VALUES ('Other', 99)")
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", $Parameter(..#STORE, "LOGATTACH"))
-	Set sc = $ClassMethod(..#STORE, "Attach", "", .holder)
-	Do $$$AssertStatusOK(sc, "an attach that fails (no agent) still answers OK")
+	Set sc = $ClassMethod(..#STORE, "Knowledge", ..#BROKEN, .holder)
+	Do $$$AssertStatusOK(sc, "a knowledge base that fails to build still answers OK")
 	Do $$$AssertEquals($IsObject(holder), 0, "with no holder")
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE Type = 3 AND Text [ ?", $Parameter(..#STORE, "LOGATTACH"))
 	Do result.%Next()
 	Do $$$AssertEquals(result.%GetData(1), 1, "and logs one warning")
+}
+
+Method TestTableArgument()
+{
+	If '..OnImage() Quit
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "EnsureTable"), "the table of the install exists")
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "EnsureTable", ..#OTHER), "the other table is made")
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "EnsureTable", ..#OTHER), "and again, with nothing to do")
+	Do $$$AssertEquals($SYSTEM.SQL.Schema.TableExists(..#OTHER) _ "|" _ $SYSTEM.SQL.Schema.TableExists(..#OTHER _ "_Config"), "1|1", "the table and its _Config table exist")
+	Do $$$AssertEquals($Parameter(..#OTHER _ "", "DEFAULTGLOBAL") _ "|" _ $Parameter(..#OTHER _ "Config", "DEFAULTGLOBAL"), "^OcuTalonP.KBS9098|^OcuTalonP.KBS9098Config", "with the DEFAULTGLOBAL of its own suffix")
+	Set passages = ..Runbook()
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Write", ..#A, "Runbook", passages, 0, 100, ..#OTHER), "passages are written to the other table")
+	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ..#A, ..#OTHER) _ "|" _ $ClassMethod(..#STORE, "Count", ..#A) _ "|" _ $ClassMethod(..#STORE, "Count", "", ..#OTHER), "3|0|3", "they are in that table only")
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Write", ..#B, "Other", passages, 0, 1), "a document is written to the table of the install")
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Remove", ..#A), "Remove of the first document on the table of the install")
+	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ..#A, ..#OTHER) _ "|" _ $ClassMethod(..#STORE, "Count", ..#B), "3|1", "leaves the other table and the other document")
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Remove", ..#A, ..#OTHER), "Remove on the other table")
+	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ..#A, ..#OTHER), 0, "takes the rows of the other table")
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Remove", ..#A, "OcuTalonKB.S9096"), "Remove on a table that does not exist is no error")
+	Do $$$AssertEquals($SYSTEM.SQL.Schema.TableExists("OcuTalonKB.S9096"), 0, "and makes none")
+	For bad = "OcuTalonKB.Docs2", "OcuTalonKB.S", "OcuTalonKB.S12x", "OcuTalonKB.Docs WHERE 1=1", "Other.Docs", "OcuTalonKB", "OcuTalonKB.Evil.Docs", "OcuTalonKB.s9098", "OcuTalonKB.eval" {
+		Set outcome = $$$ISERR($ClassMethod(..#STORE, "EnsureTable", bad)) _ $$$ISERR($ClassMethod(..#STORE, "Write", ..#A, "Runbook", passages, 0, 1, bad)) _ $$$ISERR($ClassMethod(..#STORE, "Remove", ..#A, bad)) _ $$$ISERR($ClassMethod(..#STORE, "Drop", bad)) _ ($ClassMethod(..#STORE, "Count", ..#A, bad) = -1) _ ($ClassMethod(..#STORE, "SuffixOf", bad) = "")
+		Do $$$AssertEquals(outcome, "111111", "the name '" _ bad _ "' is refused by every method, before any SQL")
+	}
+	Do $$$AssertEquals($ClassMethod(..#STORE, "SuffixOf", "OcuTalonKB.Docs") _ "|" _ $ClassMethod(..#STORE, "SuffixOf", "OcuTalonKB.Eval") _ "|" _ $ClassMethod(..#STORE, "SuffixOf", "OcuTalonKB.S42"), "Docs|Eval|S42", "Docs, Eval and S with digits are the three suffixes")
+	Do $$$AssertEquals($SYSTEM.SQL.Schema.TableExists("OcuTalonKB.Docs") _ "|" _ $ClassMethod(..#STORE, "Count", ..#B), "1|1", "and the table of the install is as it was")
+}
+
+Method TestDrain()
+{
+	If '..OnImage() Quit
+	Set owner = "zz-doc-store-owner"
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "EnsureTable", ..#OTHER), "the other table is made")
+	Try {
+		Do $ClassMethod(..#STORE, "Drain", owner, 1)
+		Do $$$AssertEquals($ClassMethod(..#STORE, "Draining", owner), 1, "the owner is marked as being dropped")
+		Do $$$AssertStatusOK($ClassMethod(..#STORE, "Write", ..#A, "Runbook", ..Runbook(), 0, 2, ..#OTHER, owner), "Write answers OK")
+		Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ..#A, ..#OTHER), 0, "and writes no passage")
+		Do $ClassMethod(..#STORE, "Drain", owner, 0)
+		Do $$$AssertEquals($ClassMethod(..#STORE, "Draining", owner), 0, "the mark is cleared")
+		Do $$$AssertStatusOK($ClassMethod(..#STORE, "Write", ..#A, "Runbook", ..Runbook(), 0, 2, ..#OTHER, owner), "Write answers OK")
+		Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ..#A, ..#OTHER), 2, "and writes the passages")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the drain test ends without an exception")
+	}
+	Do $ClassMethod(..#STORE, "Drain", owner, 0)
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Drop", ..#OTHER), "the other table is dropped")
+}
+
+Method TestDrop()
+{
+	If '..OnImage() Quit
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "EnsureTable", ..#OTHER), "the other table is made")
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Write", ..#A, "Runbook", ..Runbook(), 0, 100, ..#OTHER), "passages are written to it")
+	Set agent = ..Agent(.holder, ..#OTHER)
+	Do $$$AssertTrue($IsObject(holder), "a knowledge base is built over it")
+	Do $$$AssertEquals($Data(^OcuTalonP.KBS9098.1) > 0, 1, "its rows are in ^OcuTalonP.KBS9098.1")
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Drop", ..#OTHER), "Drop answers OK")
+	Do $$$AssertEquals($SYSTEM.SQL.Schema.TableExists(..#OTHER) _ "|" _ $SYSTEM.SQL.Schema.TableExists(..#OTHER _ "_Config"), "0|0", "the table and its _Config table are gone")
+	Do $$$AssertEquals(##class(%Dictionary.CompiledClass).%ExistsId(..#OTHER) _ "|" _ ##class(%Dictionary.CompiledClass).%ExistsId(..#OTHER _ "Config") _ "|" _ ##class(%Dictionary.CompiledClass).%ExistsId(..#OTHER _ "_Config"), "0|0|0", "with their classes")
+	Do $$$AssertEquals($Data(^OcuTalonP.KBS9098) _ "|" _ $Data(^OcuTalonP.KBS9098Config), "0|0", "and their globals")
+	Set result = ""
+	Try {
+		Set result = agent.ToolManager.ExecuteTool("documents", {"query": "how do I rotate the Results certificate?"})
+	} Catch exception {
+		Set result = ""
+	}
+	Do $$$AssertEquals($SYSTEM.SQL.Schema.TableExists(..#OTHER) _ "|" _ ##class(%Dictionary.CompiledClass).%ExistsId(..#OTHER) _ "|" _ $Data(^OcuTalonP.KBS9098), "0|0|0", "a search through the knowledge base built before the drop makes no table, class or global")
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Drop", ..#OTHER), "a second Drop is OK")
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Drop", "OcuTalonKB.S9096"), "and so is the drop of a table that was never made")
+	Do $$$AssertEquals($SYSTEM.SQL.Schema.TableExists("OcuTalonKB.S9096") _ "|" _ ##class(%Dictionary.CompiledClass).%ExistsId("OcuTalonKB.S9096"), "0|0", "which makes nothing")
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "EnsureTable"), "the table of the install exists")
+	Do $$$AssertStatusNotOK($ClassMethod(..#STORE, "Drop", "OcuTalonKB.Docs x"), "a name that is no table is refused")
+	Do $$$AssertEquals($SYSTEM.SQL.Schema.TableExists("OcuTalonKB.Docs"), 1, "and the table of the install is still there")
 }
 
 }

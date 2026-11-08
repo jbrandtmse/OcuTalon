@@ -20,6 +20,7 @@ XData ProductionDefinition
   <Item Name="Decide" ClassName="OcuTalon.Bridge.Process.Decide" PoolSize="1" Enabled="true">
     <Setting Target="Host" Name="HostSinkClass">OcuTalon.Core.BridgeSink</Setting>
     <Setting Target="Host" Name="ReplyFilterClass">OcuTalon.Checks.ReplyGuard</Setting>
+    <Setting Target="Host" Name="TurnToolsClass">OcuTalon.Docs.TurnTools</Setting>
   </Item>
   <Item Name="ApprovalHold" ClassName="OcuTalon.Bridge.Process.ApprovalHold" PoolSize="1" Enabled="true"/>
   <Item Name="ApprovalStartIn" ClassName="OcuTalon.Bridge.Service.ApprovalStart" PoolSize="0" Enabled="true"/>

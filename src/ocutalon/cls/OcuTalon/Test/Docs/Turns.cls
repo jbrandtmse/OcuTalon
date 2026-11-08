@@ -14,7 +14,11 @@
 ///   - TestNoneConflict (DW-720 b): a covered search whose reply also says the sentence leaves Decide without the sentence and with its citations;
 ///   - TestNoneOnly (DW-720 b): a covered search whose reply is only the sentence takes Decide's invalid path: no outbound text holds the sentence;
 ///   - TestRemoved (AD-21): after RemoveDocument the next documents call returns none of its passages and the reply cites none;
-///   - TestThenSave (FR-7, AD-10): documents, then save_memory in the same turn: the save is denied with the gate's sentence, and nothing is stored.
+///   - TestThenSave (FR-7, AD-10): documents, then save_memory in the same turn: the save is denied with the gate's sentence, and nothing is stored;
+///   - TestEvalDocuments (AD-22, Story 19.5): an evaluation case's documents are indexed in OcuTalonKB.Eval, not in OcuTalonKB.Docs, and taken away again;
+///   - TestEvalNotSearched (DW-901, Story 19.5): a person's document and an evaluation document with the same text are indexed at once; the person's turn gets
+///     passages, citations and tool results of the person's document only, and the evaluation turn (OwnerRef eval) of the evaluation document only. Its mutation:
+///     the person's turn searching OcuTalonKB.Eval turns it red.
 /// Every test checks the steps of its turns (RunnerFixture.StepProblems), except TestNoneOnly, whose turn ends in Decide's fallback, and TestThenSave, which reads
 /// the statuses of its two tool steps itself because the second is denied; every test removes its documents, KB rows, events, uploads, sessions and rows. A
 /// search result is judged by the items of the test's own document (their source), so another document's rows never decide it.
@@ -95,7 +99,7 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.AppendStatus(sc, ##super())
 }
 
-/// Deletes the documents of the sessions of the run with their KB rows, events and uploads, and the memories of the sessions.
+/// Deletes the documents of the sessions of the run with their KB rows (in the table each row names), events and uploads, and the memories of the sessions.
 Method DropDocuments() [ Private ]
 {
 	For i = 1:1:$Length(..Sessions, ",") {
@@ -110,8 +114,8 @@ Method DropDocuments() [ Private ]
 	}
 	Set position = 0
 	While $ListNext(..DocRefs, position, ref) {
-		Do $ClassMethod(..#STORE, "Remove", ref)
 		Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
+		Do $ClassMethod(..#STORE, "Remove", ref, $Select($IsObject(row) && (row.KnowledgeBase '= ""): row.KnowledgeBase, 1: $Parameter(..#STORE, "TABLE")))
 		If $IsObject(row) {
 			Set id = row.%Id()
 			Set row = ""
@@ -437,9 +441,10 @@ Method TestEvalDocuments()
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT State, Name, OwnerRef, AddedBy FROM OcuTalon_Data.Document WHERE Ref = ?", ref)
 		Do rs.%Next()
 		Do $$$AssertEquals(rs.%Get("State") _ "|" _ rs.%Get("Name") _ "|" _ rs.%Get("OwnerRef") _ "|" _ rs.%Get("AddedBy"), "ready|Results runbook.md|eval|eval", "it is ready, named as the case says and the owner eval's")
-		Do $$$AssertTrue($ClassMethod(..#STORE, "Count", ref) > 0, "and its passages are in the table")
+		Do $$$AssertTrue($ClassMethod(..#STORE, "Count", ref, "OcuTalonKB.Eval") > 0, "and its passages are in OcuTalonKB.Eval")
+		Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref), 0, "and none in OcuTalonKB.Docs")
 		Do $$$AssertStatusOK(service.DocumentsDown(documents), "DocumentsDown answers OK")
-		Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref), 0, "the passages are gone")
+		Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref, "OcuTalonKB.Eval"), 0, "the passages are gone")
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Document WHERE Ref = ?", ref)
 		Do rs.%Next()
 		Do $$$AssertEquals(rs.%GetData(1), 0, "and so is the document")
@@ -450,7 +455,7 @@ Method TestEvalDocuments()
 	Do $$$AssertEquals(reason, "", "a case's documents are added again")
 	Set ref = documents.refs.%Get(0)
 	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish([{"documents": (documents)}]), "Finish answers OK for a record that holds the documents")
-	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref) _ "|" _ $IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(ref)), "0|0", "and Finish took the passages and the document away")
+	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref, "OcuTalonKB.Eval") _ "|" _ $IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(ref)), "0|0", "and Finish took the passages and the document away")
 	Set bad = {"documents": [{"name": "Gone.md", "file": "nothing-here.md"}]}
 	Set reason = service.DocumentsUp(bad, ##class(%File).SubDirectoryName(folder, "documents-runbook-rotate"), .documents)
 	Do $$$AssertEquals(reason, $Replace($Parameter("OcuTalon.Eval.In", "REASONDOCUMENTS"), "{why}", "each document needs a name, and a file of the cases' folder that is Markdown or plain text"), "a file that is not there skips the case with the reason")
@@ -461,6 +466,50 @@ Method TestEvalDocuments()
 	Do $$$AssertTrue(service.DocumentsUp(bad, folder, .documents) [ "not a non-empty array", "an empty list is refused")
 	Do $$$AssertEquals(..SessionState(), sessions, "no Session row was written or deleted")
 	Do $$$AssertEquals(..Count("OcuTalon_Data.Document"), documentRows, "and nothing was left behind: the document rows are as they were")
+}
+
+/// A person's turn beside an evaluation run (DW-901, AD-22): the same runbook text is the person's document (OcuTalonKB.Docs) and an evaluation document
+/// (OcuTalonKB.Eval, added the way EvalIn adds a case's documents). The person's turn gets tool results, citations and sources of the person's document and
+/// none of the evaluation document; the evaluation turn, whose OwnerRef is eval, gets the evaluation document only.
+Method TestEvalNotSearched()
+{
+	If '..Ready() Quit
+	Set session = ..Session("evalbeside")
+	Set ref = ..AddDocument(session, "Results runbook.md", ..Runbook())
+	If ref = "" Quit
+	Set bytes = ##class(%Stream.TmpCharacter).%New()
+	Do bytes.Write(..Runbook())
+	Set reason = ##class(OcuTalon.Docs.Ops).AddEval(bytes, "Results runbook.md", "markdown", 60, .evalRef)
+	Do $$$AssertEquals(reason, "", "the evaluation document is indexed")
+	If reason '= "" Quit
+	Set ..DocRefs = ..DocRefs _ $ListBuild(evalRef)
+	Do $$$AssertTrue(ref '= evalRef, "it is another document")
+	Set sc = ..Turn("How do I rotate the Results certificate? [[mock:documents-runbook]]", session, .request, .answer, .turnSession, .requests)
+	Do $$$AssertStatusOK(sc, "Decide answers the person's turn")
+	If '$IsObject(answer) Quit
+	Set result = ..ToolResult(requests)
+	If $IsObject(result) {
+		Do $$$AssertEquals(..Holds(result, ref) > 0, 1, "the person's turn read passages of the person's document")
+		Do $$$AssertEquals(..Holds(result, evalRef), 0, "and none of the evaluation document")
+	}
+	Set citations = ..Data(answer).citations
+	Do $$$AssertTrue($IsObject(citations) && (citations.%Size() > 0), "HostData.citations holds entries")
+	If $IsObject(citations) {
+		Set other = 0
+		Set iterator = citations.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			If entry.documentRef '= ref Set other = other + 1
+		}
+		Do $$$AssertEquals(other, 0, "and every one names the person's document")
+	}
+	Set sc = ..Turn("How do I rotate the Results certificate? [[mock:documents-runbook]]", $Parameter(..#STORE, "EVALOWNER"), .request, .answer, .turnSession, .requests)
+	Do $$$AssertStatusOK(sc, "Decide answers the evaluation turn")
+	If '$IsObject(answer) Quit
+	Set result = ..ToolResult(requests)
+	If $IsObject(result) {
+		Do $$$AssertEquals(..Holds(result, evalRef) > 0, 1, "the evaluation turn read passages of the evaluation document")
+		Do $$$AssertEquals(..Holds(result, ref), 0, "and none of the person's")
+	}
 }
 
 /// The number and the highest id of the Session rows, as one text.

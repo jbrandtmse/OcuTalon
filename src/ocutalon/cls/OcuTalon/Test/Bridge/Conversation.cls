@@ -134,14 +134,29 @@ Parameter OTHERMODEL = "claude-sonnet-5-5";
 /// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark).
 Property SessionMark As %Integer;
 
+/// What RunnerFixture.UseItemSetting saved of the TurnToolsClass setting of Decide (NoTurnTools), as JSON text, to be put back; empty when the test left it.
+Property SavedTurnTools As %String(MAXLEN = "");
+
 Method OnBeforeOneTest(testname As %String) As %Status
 {
 	Set ..SessionMark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	Set ..SavedTurnTools = ""
 	Quit $$$OK
+}
+
+/// Gives the requests of the test no tool of their own (the base class of TurnToolsClass), so that the tool catalog that a request carries is the one that the agent's
+/// own tool manager holds: the test reads that catalog from the agent, outside a request. OnAfterOneTest puts the setting back.
+Method NoTurnTools()
+{
+	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).UseItemSetting("Decide", "Host", "TurnToolsClass", "OcuTalon.Bridge.Ext.TurnTools", .saved)
+	If (..SavedTurnTools = "") && $IsObject(saved) Set ..SavedTurnTools = saved.%ToJSON()
+	Do $$$AssertStatusOK(sc, "the requests of the test get no tool of their own")
 }
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	If ..SavedTurnTools '= "" Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreItemSetting("Decide", {}.%FromJSON(..SavedTurnTools))
+	Set ..SavedTurnTools = ""
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.ConversationLink WHERE Agent = ?", ..#AGENT)
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", ..#AGENT)
@@ -1108,6 +1123,7 @@ Method TestFirstStepCountsHistory()
 {
 	If ..Guard() Quit
 	Set buffer = "OcuTalon.Bridge.Adapter.StepBuffer"
+	Do ..NoTurnTools()
 	Set host = ..NewHost()
 	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set one = ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner)

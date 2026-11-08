@@ -3,8 +3,10 @@
 /// document to check in ^OcuTalonTest("Docs","live") (a document that must be there and found) or ^OcuTalonTest("Docs","gone") (one that must be gone), and the
 /// script deletes both nodes. It runs in the CI shard too, where it skips, so the class always compiles and loads.
 ///   - TestFound: the document with the Ref is listed as ready for the instance, its rows are in OcuTalonKB.Docs with their chunk_index, document and section, and
-///     a search of the table through a bare %AI.ToolMgr and AI Hub's knowledge base, built by Docs.Store.Attach, returns the passage "Rotating the certificate"
+///     a search of the table through a bare %AI.ToolMgr and AI Hub's knowledge base, built by Docs.Store.Knowledge, returns the passage "Rotating the certificate"
 ///     of the document first with a score over the floor, for a question about the certificate - after the script has restarted the iris container as well;
+///   - Found (Story 19.5): the check that the upgrade harness runs after an upgrade and a restart (release/upgrade-harness.sh): "" when the document is ready,
+///     has passages in the table its row names, and a search of that table through a bare %AI.ToolMgr returns a passage of it for the query, else the reason;
 ///   - TestGone: the Ref has no row and no KB row, and the table holds no row of any document.
 Class OcuTalon.Test.Docs.Live Extends %UnitTest.TestCase
 {
@@ -36,13 +38,60 @@ Method TestFound()
 	}
 	Do $$$AssertEquals(rotating, 1, "one passage is under Rotating the certificate")
 	Set agent = ##class(%AI.Agent).%New()
-	Do $ClassMethod(..#STORE, "Attach", agent, .holder)
-	Do $$$AssertTrue($IsObject(holder), "the documents tool attaches")
+	Do $ClassMethod(..#STORE, "Knowledge", row.KnowledgeBase, .holder)
+	Do $$$AssertTrue($IsObject(holder), "the knowledge base of the row's table builds")
 	If '$IsObject(holder) Quit
+	Do $$$AssertStatusOK(holder.AddToManager(agent.ToolManager), "and adds the documents tool to a bare tool manager")
 	Set result = agent.ToolManager.ExecuteTool("documents", {"query": "how do I rotate the Results certificate?"})
 	Set first = result.value.%Get(0)
 	Do $$$AssertEquals(first.metadata.source _ "|" _ first.metadata.section _ "|" _ first.metadata.document, ref _ "|Rotating the certificate|Results runbook", "the search finds the passage of the certificate first, with its document and section")
 	Do $$$AssertTrue(first.score '< $Parameter("OcuTalon.Bridge.Citations", "CITEFLOOR"), "with a score over the floor: " _ first.score)
+}
+
+/// "" when the document with the Ref is ready, has passages in the table its row names, and a search of that table for the query returns a passage of it
+/// (through a bare %AI.ToolMgr and the knowledge base of Docs.Store Knowledge); otherwise the reason, in a few words. It changes nothing.
+ClassMethod Found(ref As %String, query As %String) As %String
+{
+	Set reason = ""
+	Try {
+		Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
+		If '$IsObject(row) {
+			Set reason = "no row"
+			Quit
+		}
+		If row.State '= "ready" {
+			Set reason = "the state is " _ row.State
+			Quit
+		}
+		Set table = row.KnowledgeBase
+		If $ClassMethod(..#STORE, "Count", ref, table) < 1 {
+			Set reason = "no passage in " _ table
+			Quit
+		}
+		Do $ClassMethod(..#STORE, "Knowledge", table, .holder)
+		If '$IsObject(holder) {
+			Set reason = "no knowledge base over " _ table
+			Quit
+		}
+		Set agent = ##class(%AI.Agent).%New()
+		Set sc = holder.AddToManager(agent.ToolManager)
+		If $SYSTEM.Status.IsError(sc) {
+			Set reason = "the tool was not added"
+			Quit
+		}
+		Set result = agent.ToolManager.ExecuteTool("documents", {"query": (query)})
+		Set found = 0
+		If $IsObject(result.value) {
+			Set iterator = result.value.%GetIterator()
+			While iterator.%GetNext(, .item) {
+				If item.metadata.source = ref Set found = 1
+			}
+		}
+		If 'found Set reason = "the search returned no passage of the document"
+	} Catch exception {
+		Set reason = "an error: " _ $Extract(exception.DisplayString(), 1, 120)
+	}
+	Quit reason
 }
 
 Method TestGone()

@@ -20,6 +20,15 @@ Include Ensemble
 ///   - It adds the gate (OcuTalon.Bridge.Policy.Gate) as the authorization policy and the step audit policy to every agent it builds
 ///     (OnAfterAgentInit), after any policy that a setting names, and refuses the AuthPolicy and AuditPolicy settings (REFUSED), so that
 ///     the gate decides every tool call and every tool call is a step (AD-6, AD-9, AD-10).
+/// Tools of one request (AD-6, AD-10, AD-21, AD-31): the TurnToolsClass setting of the Decide item names a class (Ext.TurnTools) that Answer asks, once for
+/// each request of kind turn, decide or diagnose, for the tools of the request's OwnerRef. SessionConfigFor does that in the runner's job, outside every
+/// callback, before the AI session is created or opened. When the class gives no tool, the request keeps the agent's own tool manager, which no request ever
+/// adds a tool to. Otherwise the adapter composes a new tool manager for the request: the tools of the agent's toolsets, the tools that OnAfterAgentInit
+/// attached through Attach, the tools of the class (each answers AddToManager), the gate and the step audit policy (Govern), assigns it to the agent, and
+/// keeps the agent's own manager and the tools referenced; Answer puts the agent's own manager back and lets go of the rest on every path when the request
+/// ends. A request is composed at most once, however many session configs it makes (a compaction makes two or three). An agent that declares skills
+/// cannot take tools of its own, because UseSkill keeps its catalog on the agent and not on a manager: such a request fails with an error that names the
+/// agent. A named class that is missing, or does not extend the base, fails the request with that error. A request of kind tool composes nothing.
 /// Answer is the runner's answer to a Request: the context is set before Chat and ended on every path, and the reply holds the
 /// text, the provider's stop reason, and the host data and taint that the tools put in the context.
 /// The conversation (AD-6, AD-10): only a turn with provenance user is linked (IsLinked), under the key (OwnerRef, the name of the runner item). AnswerLinked
@@ -98,6 +107,28 @@ Property Retrying As %Boolean [ InitialExpression = 0, Internal, Private, Transi
 
 /// 1 while BuildAgent runs AI Hub's OnInit.
 Property Building As %Boolean [ InitialExpression = 0, Internal, Private, Transient ];
+
+/// The tools that OnAfterAgentInit attached to the agent (Attach), as specs, so that every composed manager adds them again. Not stored.
+Property Attached As %List [ Internal, Private, Transient ];
+
+/// 1 while Answer serves a request that may take tools of its own (every kind but tool), with its OwnerRef and kind (TurnOwner, TurnKind). Not stored.
+Property TurnOpen As %Boolean [ InitialExpression = 0, Internal, Private, Transient ];
+
+Property TurnOwner As %String(MAXLEN = "") [ Internal, Private, Transient ];
+
+Property TurnKind As %String(MAXLEN = 32) [ Internal, Private, Transient ];
+
+/// 1 once the request's tools were asked for, and the status of that (TurnStatus), which every later session config of the request returns again. Not stored.
+Property TurnComposed As %Boolean [ InitialExpression = 0, Internal, Private, Transient ];
+
+Property TurnStatus As %Status [ InitialExpression = {$$$OK}, Internal, Private, Transient ];
+
+/// The agent's own tool manager while the manager of the request is assigned, the manager of the request and the tools that were added to it. Not stored.
+Property OwnTools As %AI.ToolMgr [ Internal, Private, Transient ];
+
+Property TurnManager As %AI.ToolMgr [ Internal, Private, Transient ];
+
+Property TurnToolList As %ListOfObjects [ Internal, Private, Transient ];
 
 /// Records the key state of the item (RecordKey), checks the settings and calls nothing in AI Hub. While BuildAgent runs it, it is
 /// AI Hub's OnInit.
@@ -201,6 +232,7 @@ Method BuildAgent() As %Status
 		Set ..ProviderConfig = config.%ToJSON()
 		Set ..Model = model
 	}
+	Set ..Attached = ""
 	Set ..Building = 1
 	Try {
 		Set sc = ..OnInit()
@@ -223,9 +255,25 @@ Method OnAfterAgentInit(ByRef agent As %AI.Agent) As %Status [ Private ]
 {
 	Set sc = ##super(.agent)
 	If $$$ISERR(sc) Quit sc
-	Set sc = agent.ToolManager.SetAuthPolicy(##class(OcuTalon.Bridge.Policy.Gate).%New())
+	Quit ..Govern(agent.ToolManager)
+}
+
+/// Adds the tool of the spec (an AI Hub tool URI or JSON configuration) to the tool manager of the agent and records the spec, so that the manager of a
+/// request that takes tools of its own adds the tool again. It is the one way OnAfterAgentInit adds a tool.
+Method Attach(agent As %AI.Agent, spec As %String) As %Status
+{
+	Set sc = agent.ToolManager.AddTool(spec)
+	If $$$ISOK(sc) Set ..Attached = ..Attached _ $ListBuild(spec)
+	Quit sc
+}
+
+/// Sets the gate as the authorization policy and the step audit policy on the tool manager (AD-6, AD-9, AD-10): every manager that serves a request is
+/// governed, the agent's own and the one composed for a request alike. The status is the first error.
+Method Govern(manager As %AI.ToolMgr) As %Status [ Private ]
+{
+	Set sc = manager.SetAuthPolicy(##class(OcuTalon.Bridge.Policy.Gate).%New())
 	If $$$ISERR(sc) Quit sc
-	Quit agent.ToolManager.SetAuditPolicy(##class(OcuTalon.Bridge.Policy.StepAudit).%New())
+	Quit manager.SetAuditPolicy(##class(OcuTalon.Bridge.Policy.StepAudit).%New())
 }
 
 /// Clears the sampling parameters of an agent that AI Hub would copy into a session config: its Temperature.
@@ -287,7 +335,84 @@ ClassMethod SetPath(target As %DynamicObject, path As %String, value, type As %S
 /// bridge timer (TimeoutMs), which is that of the retry runner's timer while a request with RetryOf is served. The agent is built.
 Method SessionConfigFor(Output config As %DynamicObject) As %Status
 {
-	Quit ..Compose(..Agent.MaxIterations, ..Agent.Model, ..Effort, .config, ..TimeoutMs(..Retrying))
+	Set sc = ..Compose(..Agent.MaxIterations, ..Agent.Model, ..Effort, .config, ..TimeoutMs(..Retrying))
+	If $$$ISERR(sc) Quit sc
+	Quit ..ComposeTurnTools()
+}
+
+/// Gives the request that Answer serves the tools of its own, once (see the class description): asks the class of the TurnToolsClass setting for the
+/// tools of the OwnerRef and, when it gives any, assigns a newly composed tool manager to the agent. Nothing for a request that Answer does not serve
+/// (a replay) and for the second and later session configs of a request, which return the status of the first. The agent is built.
+Method ComposeTurnTools() As %Status [ Private ]
+{
+	If '..TurnOpen Quit $$$OK
+	If ..TurnComposed Quit ..TurnStatus
+	Set ..TurnComposed = 1
+	Try {
+		Set ..TurnStatus = ..BuildTurnManager()
+	} Catch exception {
+		Set ..TurnStatus = ##class(%AI.System).HandleError(exception, 1)
+	}
+	Quit ..TurnStatus
+}
+
+/// The work of ComposeTurnTools; an exception is its caller's to handle.
+Method BuildTurnManager() As %Status [ Private ]
+{
+	Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("TurnToolsClass", "", "Decide", .sc)
+	If $$$ISERR(sc) Quit sc
+	Set sc = $ClassMethod(class, "Tools", ..TurnOwner, ..TurnKind, .tools)
+	If $$$ISERR(sc) Quit sc
+	If '$IsObject($Get(tools)) || (tools.Count() = 0) Quit $$$OK
+	If $IsObject(..Agent.AvailableSkills) && (..Agent.AvailableSkills.%Size() > 0) {
+		Quit $$$ERROR($$$GeneralError, "The agent "_$ClassName(..Agent)_" declares skills, so a request cannot take tools of its own from "_class_": a skill keeps its tools on the agent's tool manager")
+	}
+	Set manager = ##class(%AI.ToolMgr).%New()
+	Set toolsets = ..Agent.ToolSets
+	If toolsets = "" Set toolsets = $Parameter(..Agent, "TOOLSETS")
+	For i = 1:1:$Length(toolsets, ",") {
+		Set name = $ZStrip($Piece(toolsets, ",", i), "<>W")
+		If name = "" Continue
+		Set sc = manager.RegisterToolSet(name)
+		If $$$ISERR(sc) Quit
+	}
+	If $$$ISERR(sc) Quit sc
+	Set position = 0
+	While $ListNext(..Attached, position, spec) {
+		Set sc = manager.AddTool(spec)
+		If $$$ISERR(sc) Quit
+	}
+	If $$$ISERR(sc) Quit sc
+	For i = 1:1:tools.Count() {
+		Set sc = tools.GetAt(i).AddToManager(manager)
+		If $$$ISERR(sc) Quit
+	}
+	If $$$ISERR(sc) Quit sc
+	Set sc = ..Govern(manager)
+	If $$$ISERR(sc) Quit sc
+	Set ..OwnTools = ..Agent.ToolManager
+	Set ..TurnManager = manager
+	Set ..TurnToolList = tools
+	Set ..Agent.ToolManager = manager
+	Quit $$$OK
+}
+
+/// Ends the tools of the request on every path: puts the agent's own tool manager back, lets go of the manager of the request and of its tools, and
+/// forgets the request's OwnerRef and kind.
+Method EndTurnTools() [ Private ]
+{
+	Try {
+		If $IsObject(..OwnTools) && $IsObject(..Agent) Set ..Agent.ToolManager = ..OwnTools
+	} Catch {
+	}
+	Set ..OwnTools = ""
+	Set ..TurnManager = ""
+	Set ..TurnToolList = ""
+	Set ..TurnOpen = 0
+	Set ..TurnOwner = ""
+	Set ..TurnKind = ""
+	Set ..TurnComposed = 0
+	Set ..TurnStatus = $$$OK
 }
 
 /// The timeout_ms that Timeouts.Derive gives for the TimerSeconds setting of the Decide item of the active production, as Ext.Accessor
@@ -382,6 +507,10 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 	Set ..Retrying = (request.RetryOf '= "")
 	Set sc = ##class(OcuTalon.Bridge.Context).Begin(request, superSession, ..BusinessHost.%ConfigName)
 	If $$$ISOK(sc) {
+		Set ..TurnOwner = request.OwnerRef
+		Set ..TurnKind = kind
+		Set ..TurnComposed = 0
+		Set ..TurnOpen = 1
 		Try {
 			If linked && (request.RetryOf '= "") {
 				Set sc = ..AnswerRetried(request, .reply)
@@ -399,6 +528,7 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 	Set session = ""
 	Set ..Retrying = 0
 	Do ..ReleaseSession()
+	Do ..EndTurnTools()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).End()
 	If $$$ISERR(sc) Set reply = ""

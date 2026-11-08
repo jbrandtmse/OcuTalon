@@ -97,6 +97,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	Kill ^||ZzStepsSecond, ^||ZzStepsBase
 	Do ..RemoveRows()
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", "ZzRunner")
@@ -633,7 +634,7 @@ Method TestSteps()
 {
 	If ..Guard() Quit
 	Set buffer = "OcuTalon.Bridge.Adapter.StepBuffer"
-	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent")
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent", , , , "OcuTalon.Test.Bridge.ZzStepsRunner")
 	Set request = ..NewUsageRequest("turn", "[[mock:steps-two-tools]] Read the note and the card.")
 	Set sc = host.OnMessage(request, .reply)
 	Do $$$AssertStatusOK(sc, "the request is answered")
@@ -654,7 +655,7 @@ Method TestSteps()
 		Set kinds = kinds _ $Select(i = 0: "", 1: ",") _ steps.%Get(i).kind
 	}
 	Do $$$AssertEquals(kinds, "model,tool,model,tool,model", "in the order of the calls: model, tool, model, tool, model")
-	Set base = $Length(agent.SystemPrompt) + $Length(agent.ToolManager.%Discover().%ToJSON()) + $Length(request.Input)
+	Set base = $Length(agent.SystemPrompt) + $Get(^||ZzStepsBase) + $Length(request.Input)
 	Do $$$AssertTrue(base > 0, "the base of the estimates is measured: " _ base)
 	Set model1 = steps.%Get(0)
 	Set note = steps.%Get(1)
@@ -693,9 +694,10 @@ Method TestStepsRedacted()
 {
 	If ..Guard() Quit
 	Set note = "OcuTalon.Test.Bridge.StepsNote"
-	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent")
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.StepsAgent", , , , "OcuTalon.Test.Bridge.ZzStepsRunner")
+	Set ^||ZzStepsSecond = 1
 	Do $$$AssertStatusOK(host.Adapter.BuildAgent(), "the agent builds")
-	Do $$$AssertStatusOK(host.Adapter.Agent.ToolManager.SetAuditPolicy(##class(OcuTalon.Test.Bridge.StepsSeen).%New()), "a second audit policy is chained after the step audit policy")
+	Do $$$AssertEquals(host.Adapter.Agent.ToolManager.AuditPolicy.%ClassName(1), "OcuTalon.Test.Bridge.StepsSeen", "a second audit policy is chained after the step audit policy on every manager that serves a request (the test adapter's Govern)")
 	Kill ^||ZzStepsSeen
 	Set request = ..NewUsageRequest("turn", "[[mock:steps-secrets]] Read the secret note.")
 	Set mark = ..LogMark()
@@ -741,7 +743,7 @@ Method TestStepsRedacted()
 			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LeakPlaces(value, steps, reply, mark), "", "the " _ kind _ " " _ where _ " is in no step record, not in the Reply (its Steps and its XML), in no event-log row since the test began and in nothing that the key scan names")
 		}
 	}
-	Kill ^||ZzStepsSeen
+	Kill ^||ZzStepsSeen, ^||ZzStepsSecond
 }
 
 /// The tools answer text and fail with a JSON body (the scenario steps-secrets-text). The form matters: the product's tools return a

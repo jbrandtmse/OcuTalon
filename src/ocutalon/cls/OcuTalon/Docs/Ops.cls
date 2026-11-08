@@ -1,43 +1,43 @@
 Include Ensemble
 
-/// DocumentOps (AD-1, AD-4, AD-5, AD-12, AD-21, AD-33; Lane A): the business operation that keeps the documents of a local install. An adapterless operation,
-/// like MemoryOps. It alone writes OcuTalon.Data.Document and the rows of OcuTalonKB.Docs (through OcuTalon.Docs.Store), with the one exception of the evaluation
-/// path of this class (AddEval and RemoveEval, below), which writes only documents of the owner eval in the caller's process, and it is the single publisher of the
-/// document live event (OcuTalon.Live.Payload.Document, on the instance stream). It answers AddDocument and RemoveDocument synchronously with an
+/// DocumentOps (AD-1, AD-4, AD-5, AD-12, AD-21, AD-33; Lane A): the business operation that keeps the documents of a local install and of each online-demo
+/// session. An adapterless operation, like MemoryOps. It alone writes OcuTalon.Data.Document and the rows of the knowledge-base tables (through
+/// OcuTalon.Docs.Store), with the one exception of the evaluation path of this class (AddEval and RemoveEval, below), which writes only documents of the owner
+/// eval in the caller's process, and it is the single publisher of the document live event (OcuTalon.Live.Payload.Document, on the stream of the document's owner:
+/// the instance stream for a local install, the session's own stream on the online demo). Each owner has its own table (Docs.Store TableFor): OcuTalonKB.Docs
+/// for the install, OcuTalonKB.S<id> for a session, OcuTalonKB.Eval for an evaluation run. The table of a session is made by its first AddDocument, and
+/// OcuTalon.Docs DropSession drops it at sign-out. Every operation on a document's rows uses that row's own KnowledgeBase. It answers AddDocument and RemoveDocument synchronously with an
 /// OcuTalon.Msg.CommandResult, and indexes asynchronously: a message to itself (OcuTalon.Docs.Msg.Index) indexes BATCH passages at a time, so the commands that
 /// queue meanwhile are handled between the batches.
-///   - AddDocument: an unknown session answers no_session (Ok 0) and nothing is taken. On the online demo (setting onlineDemo 1) it answers not_built (Ok 0), takes
-///     nothing and writes no row (Story 19.5). Otherwise the upload is taken once with the command's SessionRef (Upload.Take); an upload that is gone (taken, dropped
-///     or another session's, DW-747) writes a failed row (reason failed) and answers failed (Ok 0) with the row's Ref. The bytes of a markdown or text document must
+///   - AddDocument: an unknown session answers no_session (Ok 0) and nothing is taken. Otherwise the upload is taken once with the command's SessionRef
+///     (Upload.Take); an upload that is gone (taken, dropped or another session's, DW-747) writes a failed row (reason failed) and answers failed (Ok 0) with
+///     the row's Ref. The bytes of a markdown or text document must
 ///     be UTF-8 without a NUL and not blank once a BOM is stripped, else the row is failed with the reason unreadable; a pdf or docx document is failed with the
 ///     reason not_built (Story 19.7 sends them through Docs.Extract at the Text seam). Every failed row is published and the answer is added (Ok 1) with its Ref
 ///     and the message MESSAGENOTINDEXED. An unexpected failure answers failed (Ok 0) with CommandsIn's failure text and logs one redacted warning.
-///     Otherwise the row is saved with the state indexing (OwnerRef the literal instance, AddedBy the command's session, the text, KnowledgeBase OcuTalonKB.Docs),
-///     published, and Index(Ref, 0) is sent to this operation; the answer is added (Ok 1) with the Ref.
+///     Otherwise the table of the owner (Docs.Store OwnerFor and TableFor: the session itself on the online demo, instance on a local install) is made when it
+///     is missing, and the row is saved with the state indexing (OwnerRef the owner, AddedBy the command's session, the text, KnowledgeBase the owner's table),
+///     published, and Index(Ref, 0) is sent to this operation; the answer is added (Ok 1) with the Ref. A table that cannot be made is a failed row with the
+///     reason failed, as any other failure to index.
 ///   - Index: nothing when the row is gone or is not indexing. Otherwise the text is split (Docs.Passages); at ChunkFrom 0 the section of each passage is stored in the
 ///     row (Sections) and the document's old rows are removed; then the passages from ChunkFrom are embedded and written, and either Index(Ref, ChunkFrom + BATCH) is sent
 ///     or, when the last passage was written, the state becomes ready and the row is published. An error removes the document's rows, sets the state failed with
 ///     the reason failed, publishes the row and logs one redacted warning.
-///   - RemoveDocument: an unknown session answers no_session. A Ref that no document of the instance has answers not_found (Ok 0). Otherwise the rows of the
-///     document leave the knowledge base, then the row is deleted, a last event with removed true is published, and the answer is removed (Ok 1). The next search
+///   - RemoveDocument: an unknown session answers no_session. A Ref that no document of the session's owner has answers not_found (Ok 0). Otherwise the rows of
+///     the document leave its knowledge base, then the row is deleted, a last event with removed true is published, and the answer is removed (Ok 1). The next search
 ///     returns none of its passages, and a later Index finds no row and stops.
 ///   - The evaluation path (AddEval, RemoveEval; AD-22): a documents case of the evaluation set indexes its files here without a command, a session, an Upload or
-///     a message to this operation. AddEval writes a row with OwnerRef and AddedBy the literal eval (no route lists it: they list instance or a session) and runs the
-///     same IndexBatch that Index runs, batch after batch, in the caller's process; it publishes no event. RemoveEval takes the passages and the row of an eval
-///     document away, and refuses a document of any other owner.
-/// A publish that fails is one redacted warning and never changes an answer. Publish runs outside any transaction. A document is shared by every user of the
-/// install: the commands come from CommandsIn from web_user only (AD-1).
+///     a message to this operation. AddEval writes a row with OwnerRef and AddedBy the literal eval (no route lists it: they list instance or a session) and
+///     its passages go to OcuTalonKB.Eval, which no person's turn searches (DW-901). It runs the same IndexBatch that Index runs, batch after batch, in the caller's
+///     process; it publishes no event. RemoveEval takes the passages and the row of an eval document away, from the table the row names, and refuses a document of
+///     any other owner.
+/// A publish that fails is one redacted warning and never changes an answer. Publish runs outside any transaction. A document belongs to its owner: the install,
+/// one online-demo session or an evaluation run. The commands come from CommandsIn from web_user only (AD-1).
 Class OcuTalon.Docs.Ops Extends Ens.BusinessOperation
 {
 
 /// The passages one Index message writes.
 Parameter BATCH = 8;
-
-/// The owner of every document of a local install (AD-4).
-Parameter OWNER = "instance";
-
-/// The owner, and the adder, of the documents of an evaluation run (AD-22): not an instance, not a session, so that no route lists them.
-Parameter EVALOWNER = "eval";
 
 Parameter MESSAGEADDED = "The document was added and is being indexed.";
 
@@ -46,8 +46,6 @@ Parameter MESSAGEREMOVED = "The document was removed.";
 Parameter MESSAGENOTFOUND = "The install has no such document, so nothing was removed.";
 
 Parameter MESSAGENOSESSION = "The command names no session, so nothing was done.";
-
-Parameter MESSAGENOTBUILT = "Documents are not built for the online demo yet, so nothing was done.";
 
 /// The answer for a document whose row is written as failed (its Reason says why).
 Parameter MESSAGENOTINDEXED = "The document was added, but it cannot be indexed: its row holds the reason.";
@@ -76,11 +74,11 @@ XData MessageMap
 </MapItems>
 }
 
-/// Makes the knowledge-base table on a local install, so that the first search and the first batch find it. A failure is one warning: Store.Attach and
-/// Store.Write make the table again.
+/// Makes the knowledge-base table on a local install, so that the first search and the first batch find it. A failure is one warning: the next AddDocument
+/// makes the table again. The online demo makes no table here: a session's table is made by its first AddDocument.
 Method OnInit() As %Status
 {
-	If ..OnlineDemo() Quit $$$OK
+	If ##class(OcuTalon.Docs.Store).OnlineDemo() Quit $$$OK
 	Set sc = ##class(OcuTalon.Docs.Store).EnsureTable()
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGSTART_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
@@ -93,8 +91,9 @@ Method OnAdd(request As OcuTalon.Msg.Command.AddDocument, Output response As Ocu
 {
 	Set response = ""
 	If '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(request.SessionRef)) Quit ..Answer(.response, 0, "no_session", ..#MESSAGENOSESSION)
-	If ..OnlineDemo() Quit ..Answer(.response, 0, "not_built", ..#MESSAGENOTBUILT)
 	Set sc = $$$OK
+	Set locked = 0
+	Set owner = ##class(OcuTalon.Docs.Store).OwnerFor(request.SessionRef)
 	Try {
 		Set bytes = ##class(OcuTalon.Data.Upload).Take(request.UploadRef, request.SessionRef)
 		If '$IsObject(bytes) {
@@ -105,6 +104,7 @@ Method OnAdd(request As OcuTalon.Msg.Command.AddDocument, Output response As Ocu
 			Set text = ""
 			Set reason = ""
 			Do ..Text(bytes, request.ContentType, .text, .reason)
+			If reason = "" Set reason = ..Prepare(owner, .locked)
 			If reason '= "" {
 				Set row = ..Reject(request, size, reason, "")
 				Set sc = ..Answer(.response, 1, "added", ..#MESSAGENOTINDEXED, row.Ref)
@@ -121,7 +121,29 @@ Method OnAdd(request As OcuTalon.Msg.Command.AddDocument, Output response As Ocu
 	} Catch exception {
 		Set sc = ..Failed(.response, exception.AsStatus())
 	}
+	If locked Do ##class(OcuTalon.Docs.Store).UnlockOwner(owner)
 	Quit sc
+}
+
+/// Makes sure that the owner's knowledge-base table exists, holding the owner's shared lock (locked 1; the caller releases it with Store UnlockOwner) so that a
+/// drop of the owner's documents cannot run between the table and the row that names it. "" when it exists, else the reason failed (one warning).
+Method Prepare(owner As %String, Output locked As %Boolean) As %String [ Private ]
+{
+	Set locked = 0
+	Set table = ##class(OcuTalon.Docs.Store).TableFor(owner)
+	Set sc = $SYSTEM.Status.OK()
+	If table = "" {
+		Set sc = $SYSTEM.Status.Error(5001, "The owner " _ owner _ " has no knowledge-base table")
+	} Else {
+		Set sc = ##class(OcuTalon.Docs.Store).LockOwner(owner)
+		If $$$ISOK(sc) {
+			Set locked = 1
+			Set sc = ##class(OcuTalon.Docs.Store).EnsureTable(table)
+		}
+	}
+	If $$$ISOK(sc) Quit ""
+	$$$LOGWARNING(..#LOGSTART_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	Quit "failed"
 }
 
 /// Indexes one batch of the document, or stops when the document is gone or no longer indexing (see the class description).
@@ -148,8 +170,10 @@ Method OnIndex(request As OcuTalon.Docs.Msg.Index, Output response As Ens.Respon
 	Quit $$$OK
 }
 
-/// Splits the text of the document ref and writes the passages from chunk_index from, BATCH of them (the one step of the indexing that DocumentOps and the
-/// evaluation path share; it changes no state but the document's and publishes nothing). state is gone when the row is missing or is not indexing (nothing is
+/// Splits the text of the document ref and writes the passages from chunk_index from, BATCH of them, into the table the row names (the one step of the indexing
+/// that DocumentOps and the evaluation path share; it changes no state but the document's and publishes nothing). It holds the shared lock of the row's owner
+/// from before it reads the row until it has written (Docs.Store LockOwner), so that a drop of the owner's documents waits for a batch and the next batch finds
+/// no row. state is gone when the row is missing or is not indexing (nothing is
 /// done), more when passages remain after this batch, and ready when the last passage was written: the row is then saved as ready and returned in row. At
 /// from 0 the section of each passage is stored in the row and the document's old rows leave the table first. A document that is gone or no longer indexing once the
 /// last batch is written has its rows removed again (state gone). Returns the first error and leaves the cleanup to the caller.
@@ -158,12 +182,22 @@ ClassMethod IndexBatch(ref As %String, from As %Integer, Output state As %String
 	Set state = "gone"
 	Set row = ""
 	Set sc = $$$OK
+	Set owner = ""
+	Set locked = 0
 	Try {
+		Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
+		If '$IsObject(row) Quit
+		Set owner = row.OwnerRef
+		Set row = ""
+		Set sc = ##class(OcuTalon.Docs.Store).LockOwner(owner)
+		If $$$ISERR(sc) $$$ThrowStatus(sc)
+		Set locked = 1
 		Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
 		If '$IsObject(row) || (row.State '= "indexing") {
 			Set row = ""
 			Quit
 		}
+		Set table = $Select(row.KnowledgeBase '= "": row.KnowledgeBase, 1: ##class(OcuTalon.Docs.Store).#TABLE)
 		Do row.Text.Rewind()
 		Set text = row.Text.Read($$$MaxLocalLength)
 		Set name = ##class(OcuTalon.Docs.Store).DocumentName(row.Name)
@@ -179,11 +213,15 @@ ClassMethod IndexBatch(ref As %String, from As %Integer, Output state As %String
 			Set row.Sections = sections.%ToJSON()
 			Set sc = row.%Save()
 			If $$$ISERR(sc) $$$ThrowStatus(sc)
-			Set sc = ##class(OcuTalon.Docs.Store).Remove(ref)
+			Set sc = ##class(OcuTalon.Docs.Store).Remove(ref, table)
 			If $$$ISERR(sc) $$$ThrowStatus(sc)
 		}
-		Set sc = ##class(OcuTalon.Docs.Store).Write(ref, name, passages, from, ..#BATCH)
+		Set sc = ##class(OcuTalon.Docs.Store).Write(ref, name, passages, from, ..#BATCH, table, owner)
 		If $$$ISERR(sc) $$$ThrowStatus(sc)
+		If ##class(OcuTalon.Docs.Store).Draining(owner) {
+			Set row = ""
+			Quit
+		}
 		If (from + ..#BATCH) < passages.%Size() {
 			Set state = "more"
 			Set row = ""
@@ -196,30 +234,32 @@ ClassMethod IndexBatch(ref As %String, from As %Integer, Output state As %String
 				Set state = "ready"
 			} Else {
 				Set row = ""
-				Do ##class(OcuTalon.Docs.Store).Remove(ref)
+				Do ##class(OcuTalon.Docs.Store).Remove(ref, table)
 			}
 		}
 	} Catch exception {
 		Set row = ""
 		Set sc = exception.AsStatus()
 	}
+	If locked Do ##class(OcuTalon.Docs.Store).UnlockOwner(owner)
 	Quit sc
 }
 
 /// Adds the document of an evaluation case (AD-22) and indexes it to the end in the caller's process, giving up when wait seconds have passed at the start of a batch (a batch in progress is finished): the bytes are read as OnAdd reads them
-/// (Text), the row has OwnerRef and AddedBy EVALOWNER, and IndexBatch writes the passages. No command, session, upload, message or live event is involved. Returns "" with the
+/// (Text), the row has OwnerRef and AddedBy eval (Docs.Store EVALOWNER) and the table OcuTalonKB.Eval, and IndexBatch writes the passages. No command, session, upload, message or live event is involved. Returns "" with the
 /// document ready (its Ref in ref), else the reason it is not (unreadable, failed, not_built, or timeout), after the document's passages and row are taken away again.
 ClassMethod AddEval(bytes As %Stream.Object, name As %String, contentType As %String, wait As %Integer, Output ref As %String) As %String
 {
 	Set ref = ""
-	If ..OnlineDemo() Quit "not_built"
+	If ##class(OcuTalon.Docs.Store).OnlineDemo() Quit "not_built"
 	Do ..Text(bytes, contentType, .text, .reason)
 	If reason '= "" Quit reason
 	Set outcome = ""
+	Set table = ##class(OcuTalon.Docs.Store).#EVALTABLE
 	Try {
-		Set sc = ##class(OcuTalon.Docs.Store).EnsureTable()
+		Set sc = ##class(OcuTalon.Docs.Store).EnsureTable(table)
 		If $$$ISERR(sc) $$$ThrowStatus(sc)
-		Set row = ..NewRow(..#EVALOWNER, ..#EVALOWNER, name, contentType, bytes.Size, text, "indexing", "")
+		Set row = ..NewRow(##class(OcuTalon.Docs.Store).#EVALOWNER, ##class(OcuTalon.Docs.Store).#EVALOWNER, name, contentType, bytes.Size, text, "indexing", "", table)
 		Set ref = row.Ref
 		Set row = ""
 		Set deadline = $ZHorolog + wait
@@ -253,10 +293,11 @@ ClassMethod RemoveEval(ref As %String) As %Status
 	Set sc = $$$OK
 	Try {
 		Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
-		If $IsObject(row) && (row.OwnerRef '= ..#EVALOWNER) {
+		If $IsObject(row) && (row.OwnerRef '= ##class(OcuTalon.Docs.Store).#EVALOWNER) {
 			Set sc = $SYSTEM.Status.Error(5001, "The document " _ ref _ " is not an evaluation document, so it was not removed")
 		} Else {
-			Set sc = ##class(OcuTalon.Docs.Store).Remove(ref)
+			Set table = $Select($IsObject(row) && (row.KnowledgeBase '= ""): row.KnowledgeBase, 1: ##class(OcuTalon.Docs.Store).#EVALTABLE)
+			Set sc = ##class(OcuTalon.Docs.Store).Remove(ref, table)
 			If $IsObject(row) {
 				Set id = row.%Id()
 				Set row = ""
@@ -276,20 +317,28 @@ Method OnRemove(request As OcuTalon.Msg.Command.RemoveDocument, Output response 
 	Set response = ""
 	If '$IsObject(##class(OcuTalon.Data.Session).RefIndexOpen(request.SessionRef)) Quit ..Answer(.response, 0, "no_session", ..#MESSAGENOSESSION)
 	Set sc = $$$OK
+	Set locked = 0
+	Set owner = ""
 	Try {
 		Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(request.DocumentRef)
-		If '$IsObject(row) || (row.OwnerRef '= ..#OWNER) {
+		If '$IsObject(row) || (row.OwnerRef '= ##class(OcuTalon.Docs.Store).OwnerFor(request.SessionRef)) {
 			Set sc = ..Answer(.response, 0, "not_found", ..#MESSAGENOTFOUND)
 		} Else {
 			Set payload = ##class(OcuTalon.Live.Payload.Document).FromRow(row)
 			Set payload.Removed = 1
 			Set id = row.%Id()
 			Set ref = row.Ref
+			Set owner = row.OwnerRef
+			Set table = $Select(row.KnowledgeBase '= "": row.KnowledgeBase, 1: ##class(OcuTalon.Docs.Store).#TABLE)
 			Set row = ""
-			Set sc = ##class(OcuTalon.Docs.Store).Remove(ref)
-			If $$$ISOK(sc) Set sc = ##class(OcuTalon.Data.Document).%DeleteId(id)
+			Set sc = ##class(OcuTalon.Docs.Store).LockOwner(owner)
 			If $$$ISOK(sc) {
-				Do ..PublishPayload(payload, ref)
+				Set locked = 1
+				Set sc = ##class(OcuTalon.Docs.Store).Remove(ref, table)
+				If $$$ISOK(sc) Set sc = ##class(OcuTalon.Data.Document).%DeleteId(id)
+			}
+			If $$$ISOK(sc) {
+				Do ..PublishPayload(payload, ref, owner)
 				Set sc = ..Answer(.response, 1, "removed", ..#MESSAGEREMOVED)
 			} Else {
 				Set sc = ..Failed(.response, sc)
@@ -298,6 +347,7 @@ Method OnRemove(request As OcuTalon.Msg.Command.RemoveDocument, Output response 
 	} Catch exception {
 		Set sc = ..Failed(.response, exception.AsStatus())
 	}
+	If locked Do ##class(OcuTalon.Docs.Store).UnlockOwner(owner)
 	Quit sc
 }
 
@@ -337,22 +387,18 @@ ClassMethod Text(bytes As %Stream.Object, contentType As %String, Output text As
 	Quit reason = ""
 }
 
-/// 1 when the instance is the online demo.
-ClassMethod OnlineDemo() As %Boolean [ Private ]
-{
-	Quit ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1
-}
-
 /// Saves the row of the command's document with the state, and publishes it.
 Method Save(request As OcuTalon.Msg.Command.AddDocument, size As %Integer, text As %String, state As %String, reason As %String) As OcuTalon.Data.Document [ Private ]
 {
-	Set row = ..NewRow(..#OWNER, request.SessionRef, request.Name, request.ContentType, size, text, state, reason)
+	Set owner = ##class(OcuTalon.Docs.Store).OwnerFor(request.SessionRef)
+	Set row = ..NewRow(owner, request.SessionRef, request.Name, request.ContentType, size, text, state, reason, ##class(OcuTalon.Docs.Store).TableFor(owner))
 	Do ..Publish(row, 0)
 	Quit row
 }
 
-/// Saves a new document row for the owner and the adder, and throws when it cannot be saved. It publishes nothing: Save publishes, the evaluation path does not.
-ClassMethod NewRow(owner As %String, addedBy As %String, name As %String, contentType As %String, size As %Integer, text As %String, state As %String, reason As %String) As OcuTalon.Data.Document [ Private ]
+/// Saves a new document row for the owner and the adder, naming the owner's knowledge-base table, and throws when it cannot be saved. It publishes nothing:
+/// Save publishes, the evaluation path does not.
+ClassMethod NewRow(owner As %String, addedBy As %String, name As %String, contentType As %String, size As %Integer, text As %String, state As %String, reason As %String, table As %String) As OcuTalon.Data.Document [ Private ]
 {
 	Set row = ##class(OcuTalon.Data.Document).%New()
 	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -364,7 +410,7 @@ ClassMethod NewRow(owner As %String, addedBy As %String, name As %String, conten
 	Set row.AddedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Set row.State = state
 	Set row.Reason = reason
-	Set row.KnowledgeBase = ##class(OcuTalon.Docs.Store).#TABLE
+	Set row.KnowledgeBase = table
 	If text '= "" Do row.Text.Write(text)
 	Set sc = row.%Save()
 	If $$$ISERR(sc) $$$ThrowStatus(sc)
@@ -383,8 +429,8 @@ Method Fail(ref As %String, cause As %Status) [ Private ]
 {
 	$$$LOGWARNING(..#LOGFAILED_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(cause)))
 	Try {
-		Do ##class(OcuTalon.Docs.Store).Remove(ref)
 		Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
+		If $IsObject(row) && (row.KnowledgeBase '= "") Do ##class(OcuTalon.Docs.Store).Remove(ref, row.KnowledgeBase)
 		If $IsObject(row) && (row.State = "indexing") {
 			Set row.State = "failed"
 			Set row.Reason = "failed"
@@ -395,18 +441,21 @@ Method Fail(ref As %String, cause As %Status) [ Private ]
 	}
 }
 
-/// Publishes the row as a document event on the instance stream; a failure is one warning.
+/// Publishes the row as a document event on its owner's stream (the instance stream for a local install, the session's own on the online demo); a failure is
+/// one warning.
 Method Publish(row As OcuTalon.Data.Document, removed As %Boolean) [ Private ]
 {
 	Set payload = ##class(OcuTalon.Live.Payload.Document).FromRow(row)
 	Set payload.Removed = removed
-	Do ..PublishPayload(payload, row.Ref)
+	Do ..PublishPayload(payload, row.Ref, row.OwnerRef)
 }
 
-/// Publishes the payload on the instance stream; a failure is one warning and changes nothing else.
-Method PublishPayload(payload As OcuTalon.Live.Payload.Document, ref As %String) [ Private ]
+/// Publishes the payload on the stream of the owner (instance is the instance stream; a session's Ref is its own stream); a failure is one warning and changes
+/// nothing else.
+Method PublishPayload(payload As OcuTalon.Live.Payload.Document, ref As %String, owner As %String) [ Private ]
 {
-	Set sc = ##class(OcuTalon.Live.Publish).Publish(##class(OcuTalon.Live.Publish).#INSTANCE, "document", payload, .seq)
+	Set stream = $Select(owner = ##class(OcuTalon.Docs.Store).#OWNER: ##class(OcuTalon.Live.Publish).#INSTANCE, 1: owner)
+	Set sc = ##class(OcuTalon.Live.Publish).Publish(stream, "document", payload, .seq)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGPUBLISH_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 	}

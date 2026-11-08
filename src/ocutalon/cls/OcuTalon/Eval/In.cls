@@ -176,6 +176,9 @@ Parameter LOGSKIPPED = "EvalIn did not send the case ";
 /// The start of the warning for a TurnResult that could not be sent to EvalSink; the case's name and the error follow it.
 Parameter LOGNOTDELIVERED = "EvalIn could not send the TurnResult of the case ";
 
+/// The start of the warning for an evaluation document of an earlier run that the start of a run could not remove; the Ref and the error follow it.
+Parameter LOGSWEEP = "EvalIn could not remove a document that an earlier run left: ";
+
 /// The start of the warning for check rows in a Reply that Checks.Render could not take; the error follows it.
 Parameter LOGCHECKS = "EvalIn could not render the check rows of the Reply: ";
 
@@ -190,7 +193,11 @@ Property PersonaLanguage As %String(MAXLEN = 40);
 /// The setup records of the run's watches, a dynamic array of {"case", "watch"}: one for each sent case that declared a watch. Start sets it.
 Property Watches As %DynamicArray;
 
-/// Starts a run: creates EvalIn, mints the run's Ref and sends each case once.
+/// Starts a run: sweeps the evaluation documents that an earlier run left, creates EvalIn, mints the run's Ref and sends each case once.
+///   - The sweep (DW-900) removes every document of the owner eval, with its passages, through Docs.Ops RemoveEval before anything else, so before the first case is set up: a run that
+///     was killed before its Finish leaves such documents, and a case that does not name them would otherwise be answered from them. A removal that fails is one
+///     warning, and the run goes on. Evaluation runs do not overlap (one release gate or one test class at a time), which is what lets a run take every eval
+///     document for a leftover.
 ///   - folder holds the case folders. names is a comma-separated list of case folder names; "" means every subfolder that holds a
 ///     case.json, in name order.
 ///   - runRef is the run's Ref, 22 characters, "" when the run did not start. sent is the number of cases sent. skipped is a dynamic
@@ -204,6 +211,7 @@ Property Watches As %DynamicArray;
 ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output runRef As %String, Output sent As %Integer, Output skipped As %DynamicArray, Output watches As %DynamicArray, preset As %String = "", language As %String = "") As %Status
 {
 	Set runRef = "", sent = 0, skipped = [], watches = []
+	Do ..SweepDocuments()
 	Set sc = ##class(Ens.Director).CreateBusinessService("EvalIn", .service)
 	If $$$ISERR(sc) Quit sc
 	If '$IsObject(service) || 'service.%IsA("OcuTalon.Eval.In") Quit $SYSTEM.Status.Error(5001, "The item EvalIn is not an OcuTalon.Eval.In")
@@ -785,6 +793,27 @@ Method AddOne(documents As %DynamicObject, file As %DynamicObject, end As %Integ
 	If reason '= "" Quit file.name_" was not added ("_reason_")"
 	Do documents.refs.%Push(ref)
 	Quit ""
+}
+
+/// Removes every document of the owner eval with its passages (Docs.Ops RemoveEval), the leftovers of an earlier run (DW-900). A removal that fails, or a
+/// failure to list them, is one warning. It never throws.
+ClassMethod SweepDocuments() [ Private ]
+{
+	Try {
+		Set refs = []
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Document WHERE OwnerRef = ?", ##class(OcuTalon.Docs.Store).#EVALOWNER)
+		If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, rs.%Message))
+		While rs.%Next() {
+			Do refs.%Push(rs.%Get("Ref"))
+		}
+		Set iterator = refs.%GetIterator()
+		While iterator.%GetNext(, .ref) {
+			Set sc = ##class(OcuTalon.Docs.Ops).RemoveEval(ref)
+			If $$$ISERR(sc) $$$LOGWARNING(..#LOGSWEEP_ref_": "_$SYSTEM.Status.GetOneStatusText(sc))
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGSWEEP_exception.DisplayString())
+	}
 }
 
 /// Removes the documents of a setup record {"refs"} with their passages (Docs.Ops.RemoveEval, which removes only documents of the owner eval). Every ref is tried;

@@ -24,12 +24,19 @@ ClassMethod AllRunners() As %String [ Private ]
 /// 1 while the entries of the runners are pointed at the CI mock key variable.
 Property Pointed As %Boolean [ InitialExpression = 0 ];
 
+/// The tool that reaches a request through TurnToolsClass and is no tool of an agent's own tool manager.
+Parameter TURNTOOL = "documents";
+
+/// The mark of the saved AI sessions when the test began (RunnerFixture.SessionMark), for the turn that AssertTurnTool sends.
+Property SessionMark As %Integer;
+
 /// Puts the keys of the runners back when TestToolsMatchRunners pointed them at the mock, also after a failure.
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	If ..Pointed {
 		Set ..Pointed = 0
 		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(..AllRunners())
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	}
 	Quit $$$OK
 }
@@ -469,7 +476,8 @@ Method TestAscii()
 
 /// Every enabled agent runner of the production holds exactly the tools that the rows list for its agent: a ToolInventory request to each runner
 /// is compared with the rows whose agents hold the runner's AgentClass. The test names the runner and the tool of a difference. A production that
-/// does not run fails the test.
+/// does not run fails the test. The one tool that reaches a request through TurnToolsClass (Story 19.5), documents, is no tool of the agent's own tool manager,
+/// which the inventory lists: its row is checked against what a local turn of the agent offers (the first model request of a Chat turn through the runner).
 Method TestToolsMatchRunners()
 {
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
@@ -479,6 +487,7 @@ Method TestToolsMatchRunners()
 		Quit
 	}
 	Set ..Pointed = 1
+	Set ..SessionMark = $ClassMethod(fixture, "SessionMark")
 	Set sc = $ClassMethod(fixture, "PointKeys", ..AllRunners())
 	Do $$$AssertStatusOK(sc, "the entries of the runners, the retry runners included, are pointed at the CI mock key variable")
 	If $$$ISERR(sc) Quit
@@ -498,7 +507,7 @@ Method TestToolsMatchRunners()
 		While iterator.%GetNext(, .row) {
 			Set holders = row.agents.%GetIterator()
 			While holders.%GetNext(, .holder) {
-				If holder = agent Set listed = listed _ $ListBuild(row.name)
+				If (holder = agent) && (row.name '= ..#TURNTOOL) Set listed = listed _ $ListBuild(row.name)
 			}
 		}
 		Set sc = $ClassMethod(fixture, "Send", item, ##class(OcuTalon.Bridge.Msg.ToolInventory).%New(), .response)
@@ -525,6 +534,36 @@ Method TestToolsMatchRunners()
 		Do $$$AssertEquals(problems, "", item_" holds the tools that the overview lists for "_agent_": "_$ListToString(..Sorted(held)))
 	}
 	Do $$$AssertTrue(checked > 0, "at least one enabled agent runner was compared: "_checked)
+	Do ..AssertTurnTool(.runners, rows)
+}
+
+/// The tool documents reaches a request through TurnToolsClass, so the overview's row for it is checked against a local turn: for each enabled runner whose agent
+/// the row lists, a turn (the CI mock's recall-ask) offers the tool in its first model request, and at least one runner is checked.
+Method AssertTurnTool(ByRef runners, rows As %DynamicArray) [ Private ]
+{
+	Set holders = ""
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		If row.name '= ..#TURNTOOL Continue
+		Set agents = row.agents.%GetIterator()
+		While agents.%GetNext(, .agent) {
+			Set holders = holders _ $ListBuild(agent)
+		}
+	}
+	Do $$$AssertTrue($ListLength(holders) > 0, "the overview has a row for " _ ..#TURNTOOL)
+	Set checked = 0
+	For i = 1:1:runners {
+		Set item = $List(runners(i), 1)
+		If ('$List(runners(i), 3)) || (item [ "Retry") Continue
+		Set agent = $List(runners(i), 2)
+		If ($ListFind(holders, agent) = 0) Continue
+		Set checked = checked + 1
+		Set sc = $ClassMethod("OcuTalon.Test.Agent.RunnerFixture", "Ask", item, "turn", "user", "[[mock:recall-ask]] Where is the build server?", .reply, .requests, .ref)
+		Do $$$AssertStatusOK(sc, item _ " answers a local turn")
+		Set offered = $Select($IsObject(requests) && (requests.%Size() > 0): $ClassMethod("OcuTalon.Test.Agent.RunnerFixture", "ToolNames", requests.%Get(0)), 1: "")
+		Do $$$AssertTrue($ListFind($ListFromString(offered), ..#TURNTOOL) > 0, item _ " offers " _ ..#TURNTOOL _ " to a local turn, as the overview's row for " _ agent _ " says: " _ offered)
+	}
+	Do $$$AssertTrue(checked > 0, "at least one enabled runner of an agent that holds " _ ..#TURNTOOL _ " was asked: " _ checked)
 }
 
 /// The security records of the instance are the model: each listed role holds exactly its resources and permissions (the base grants, and with

@@ -1,4 +1,4 @@
-/// Tests of the documents setup of the evaluation (Story 19.4; AD-22, AD-1, AD-33). THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), on OcuTalon's Docker
+/// Tests of the documents setup of the evaluation (Stories 19.4 and 19.5; AD-22, AD-1, AD-33). THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), on OcuTalon's Docker
 /// image: the passages are embedded by the Embedder worker. They skip elsewhere. Every file, row and setting they write is removed or put back.
 /// AD-22 says an evaluation run writes no Notification, Delivery or live event; the documents kind adds documents before its turn, so these tests run its setup
 /// (the real EvalIn.DocumentsUp and DocumentsDown, and Finish) and read what it wrote:
@@ -11,7 +11,10 @@
 ///     ref and leaves no row and no passage;
 ///   - TestSecondFileFails: DocumentsUp for a case whose second file is unreadable answers the reason and takes the first file's document and passages away again;
 ///   - TestRefusals: RemoveEval refuses a document of the instance and leaves it; AddEval with no time left, a blank file and the online demo return their reasons and
-///     leave no row and no passage.
+///     leave no row and no passage;
+///   - TestSweep (DW-900, Story 19.5): the documents of an earlier run that was killed before its Finish, one in OcuTalonKB.Eval and one in OcuTalonKB.Docs (where
+///     Story 19.4's code put them), are removed with their passages when a run starts (Eval.In Start), and a document of the instance and its passages stay.
+/// The passages of the evaluation documents are in OcuTalonKB.Eval (Story 19.5, DW-901), which every count here reads unless it names another table.
 Class OcuTalon.Test.Eval.Documents Extends %UnitTest.TestCase
 {
 
@@ -19,7 +22,13 @@ Parameter STORE = "OcuTalon.Docs.Store";
 
 Parameter OPS = "OcuTalon.Docs.Ops";
 
+/// The table of the evaluation documents' passages.
+Parameter EVAL = "OcuTalonKB.Eval";
+
 Parameter GUARD = "zz-doc-evalguard";
+
+/// The Ref of the document that a killed run left in OcuTalonKB.Docs (TestSweep).
+Parameter LEFT = "zz-doc-evalleft";
 
 /// What Fixture.Prepare changed (the worker category and the embedding config), put back in OnAfterAllTests.
 Property State As %String [ MultiDimensional ];
@@ -69,8 +78,10 @@ Method Clean() [ Private ]
 		Set ..Temp = ""
 	}
 	Do ..DeleteRow(..#GUARD)
+	Do ..DeleteRow(..#LEFT)
 	If '$SYSTEM.SQL.Schema.TableExists("OcuTalonKB.Docs") Quit
 	Do $ClassMethod(..#STORE, "Remove", ..#GUARD)
+	Do $ClassMethod(..#STORE, "Remove", ..#LEFT)
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Document WHERE OwnerRef = 'eval' AND Name %STARTSWITH 'Zz eval'")
 	While rs.%Next() {
 		Do $ClassMethod(..#OPS, "RemoveEval", rs.%Get("Ref"))
@@ -165,15 +176,16 @@ Method TestIsolation()
 	Do rs.%Next()
 	Do $$$AssertEquals(rs.%Get("State") _ "|" _ rs.%Get("Name") _ "|" _ rs.%Get("OwnerRef") _ "|" _ rs.%Get("AddedBy"), "ready|Zz eval runbook.md|eval|eval", "it is ready and owned by the literal eval")
 	Set sections = {}.%FromJSON(rs.%Get("Sections"))
-	Do $$$AssertEquals(sections.%Size(), $ClassMethod(..#STORE, "Count", ref), "the section of every passage is kept, one for each row of the table")
-	Do $$$AssertTrue($ClassMethod(..#STORE, "Count", ref) >= 2, "the passages are in the table: " _ $ClassMethod(..#STORE, "Count", ref))
+	Do $$$AssertEquals(sections.%Size(), $ClassMethod(..#STORE, "Count", ref, ..#EVAL), "the section of every passage is kept, one for each row of the table")
+	Do $$$AssertTrue($ClassMethod(..#STORE, "Count", ref, ..#EVAL) >= 2, "the passages are in OcuTalonKB.Eval: " _ $ClassMethod(..#STORE, "Count", ref, ..#EVAL))
+	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref), 0, "and none in OcuTalonKB.Docs, which every person's turn searches (DW-901)")
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Document WHERE Ref = ? AND (OwnerRef = 'instance' OR OwnerRef IN (SELECT Ref FROM OcuTalon_Data.Session))", ref)
 	Do rs.%Next()
 	Do $$$AssertEquals(rs.%GetData(1), 0, "no route lists it: the documents routes list the documents of the instance and of a session")
 	Do $$$AssertEquals(..Marks(), before, "the setup wrote no Session, Upload or Delivery row and sent no Notification and no message to DocumentOps")
 	Do $$$AssertEquals(..Events(eventMark), 0, "and published no live event")
 	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish([{"case": "zz-eval-documents", "documents": (documents)}]), "Finish answers OK")
-	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref) _ "|" _ $IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(ref)), "0|0", "and takes the passages and the document away")
+	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref, ..#EVAL) _ "|" _ $IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(ref)), "0|0", "and takes the passages and the document away")
 	Do $$$AssertEquals(..Marks(), before, "the whole run left the Session, Upload and Delivery rows, the Notifications and the messages to DocumentOps as they were")
 	Do $$$AssertEquals(..Events(eventMark), 0, "with no live event at all")
 	Do $$$AssertStatusOK(##class(OcuTalon.Eval.In).Finish([{"case": "zz-eval-documents", "documents": (documents)}]), "a second Finish of the same record is no error")
@@ -209,10 +221,10 @@ Method TestLongDocument()
 	If outcome '= "" Quit
 	Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
 	Do $$$AssertEquals($Select($IsObject(row): row.State _ "|" _ row.OwnerRef, 1: "none"), "ready|eval", "it is ready and owned by eval")
-	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref), passages.%Size(), "and every passage is a row of the table")
+	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref, ..#EVAL), passages.%Size(), "and every passage is a row of OcuTalonKB.Eval")
 	Set row = ""
 	Do $$$AssertStatusOK($ClassMethod(..#OPS, "RemoveEval", ref), "RemoveEval takes it away")
-	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref) _ "|" _ $IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(ref)), "0|0", "with its passages")
+	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref, ..#EVAL) _ "|" _ $IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(ref)), "0|0", "with its passages")
 }
 
 /// A document whose passages cannot be embedded is not left behind by AddEval.
@@ -220,7 +232,7 @@ Method TestEmbedFailure()
 {
 	If '..OnImage() Quit
 	Set rows = ..Count("OcuTalon_Data.Document")
-	Set passages = $ClassMethod(..#STORE, "Count")
+	Set passages = $ClassMethod(..#STORE, "Count", "", ..#EVAL) _ "/" _ $ClassMethod(..#STORE, "Count")
 	Set variable = ##class(OcuTalon.Memory.Embedder).#FOLDERVARIABLE
 	Set previous = $SYSTEM.Util.GetEnviron(variable)
 	Set environ = ##class(%SYS.Python).Import("os").environ
@@ -229,7 +241,7 @@ Method TestEmbedFailure()
 	Do ##class(OcuTalon.Test.Memory.Fixture).PutVariable(environ, previous)
 	Do $$$AssertEquals(outcome, "failed", "a document whose passages cannot be embedded answers failed")
 	Do $$$AssertEquals(ref, "", "and gives no ref")
-	Do $$$AssertEquals(..Count("OcuTalon_Data.Document") _ "|" _ $ClassMethod(..#STORE, "Count"), rows _ "|" _ passages, "and leaves no row and no passage")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Document") _ "|" _ $ClassMethod(..#STORE, "Count", "", ..#EVAL) _ "/" _ $ClassMethod(..#STORE, "Count"), rows _ "|" _ passages, "and leaves no row and no passage")
 }
 
 /// A case whose second file cannot be read leaves the first file's document nowhere.
@@ -246,11 +258,11 @@ Method TestSecondFileFails()
 	Do $$$AssertStatusOK(sc, "a shadow instance of EvalIn is made")
 	Set case = {"name": "zz-eval-documents", "kind": "documents", "documents": [{"name": "Zz eval runbook.md", "file": "runbook.md"}, {"name": "Zz eval blank.md", "file": "blank.md"}]}
 	Set rows = ..Count("OcuTalon_Data.Document")
-	Set passages = $ClassMethod(..#STORE, "Count")
+	Set passages = $ClassMethod(..#STORE, "Count", "", ..#EVAL) _ "/" _ $ClassMethod(..#STORE, "Count")
 	Set reason = service.DocumentsUp(case, made.folder, .documents)
 	Do $$$AssertTrue(reason [ "Zz eval blank.md was not added (unreadable)", "the case is not sent, with the reason of the second file: " _ reason)
 	Do $$$AssertEquals(documents, "", "and there is no setup record")
-	Do $$$AssertEquals(..Count("OcuTalon_Data.Document") _ "|" _ $ClassMethod(..#STORE, "Count"), rows _ "|" _ passages, "the first file's document and passages are taken away again")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Document") _ "|" _ $ClassMethod(..#STORE, "Count", "", ..#EVAL) _ "/" _ $ClassMethod(..#STORE, "Count"), rows _ "|" _ passages, "the first file's document and passages are taken away again")
 }
 
 /// RemoveEval refuses a document that is not an eval document, and AddEval leaves nothing behind when it does not index.
@@ -274,23 +286,63 @@ Method TestRefusals()
 	Do $$$AssertStatusOK($ClassMethod(..#OPS, "RemoveEval", ""), "and neither is no ref")
 
 	Set rows = ..Count("OcuTalon_Data.Document")
-	Set passages = $ClassMethod(..#STORE, "Count")
+	Set passages = $ClassMethod(..#STORE, "Count", "", ..#EVAL) _ "/" _ $ClassMethod(..#STORE, "Count")
 	Set bytes = ##class(%Stream.TmpBinary).%New()
 	Do bytes.Write("# Zz eval" _ $Char(10) _ "## One" _ $Char(10) _ "Text of the first section." _ $Char(10))
 	Do bytes.Rewind()
 	Do $$$AssertEquals($ClassMethod(..#OPS, "AddEval", bytes, "Zz eval late.md", "markdown", 0, .ref), "timeout", "with no time left AddEval answers timeout")
 	Do $$$AssertEquals(ref, "", "and gives no ref")
-	Do $$$AssertEquals(..Count("OcuTalon_Data.Document") _ "|" _ $ClassMethod(..#STORE, "Count"), rows _ "|" _ passages, "and leaves no row and no passage")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Document") _ "|" _ $ClassMethod(..#STORE, "Count", "", ..#EVAL) _ "/" _ $ClassMethod(..#STORE, "Count"), rows _ "|" _ passages, "and leaves no row and no passage")
 	Set blank = ##class(%Stream.TmpBinary).%New()
 	Do blank.Write("   " _ $Char(10))
 	Do blank.Rewind()
 	Do $$$AssertEquals($ClassMethod(..#OPS, "AddEval", blank, "Zz eval blank.md", "markdown", 60, .ref), "unreadable", "a blank file is unreadable")
-	Do $$$AssertEquals(..Count("OcuTalon_Data.Document") _ "|" _ $ClassMethod(..#STORE, "Count"), rows _ "|" _ passages, "and leaves nothing")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Document") _ "|" _ $ClassMethod(..#STORE, "Count", "", ..#EVAL) _ "/" _ $ClassMethod(..#STORE, "Count"), rows _ "|" _ passages, "and leaves nothing")
 	Do bytes.Rewind()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
 	Do $$$AssertEquals($ClassMethod(..#OPS, "AddEval", bytes, "Zz eval demo.md", "markdown", 60, .ref), "not_built", "on the online demo AddEval answers not_built")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
-	Do $$$AssertEquals(..Count("OcuTalon_Data.Document") _ "|" _ $ClassMethod(..#STORE, "Count"), rows _ "|" _ passages, "and leaves nothing")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Document") _ "|" _ $ClassMethod(..#STORE, "Count", "", ..#EVAL) _ "/" _ $ClassMethod(..#STORE, "Count"), rows _ "|" _ passages, "and leaves nothing")
+}
+
+/// A run starts by sweeping what an earlier run left (DW-900): an evaluation document in OcuTalonKB.Eval and one in OcuTalonKB.Docs (as Story 19.4's code
+/// left it), both of the owner eval, go with their passages when EvalIn Start runs, and a document of the instance in OcuTalonKB.Docs stays with its passages.
+Method TestSweep()
+{
+	If '..OnImage() Quit
+	Set made = ..MakeCase()
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "EnsureTable"), "the table of the install is there")
+	Do $ClassMethod("OcuTalon.Docs.Passages", "Split", ..LongText(), "markdown", .passages)
+	Do $$$AssertEquals($ClassMethod(..#OPS, "AddEval", ..Stream(..LongText()), "Zz eval left.md", "markdown", 60, .left), "", "a run's document is indexed and left (it was killed before its Finish)")
+	If left = "" Quit
+	Set row = ##class(OcuTalon.Data.Document).%New()
+	Set row.Ref = ..#LEFT
+	Set row.OwnerRef = "eval"
+	Set row.AddedBy = "eval"
+	Set row.Name = "Zz eval left in docs.md"
+	Set row.ContentType = "markdown"
+	Set row.State = "ready"
+	Set row.KnowledgeBase = "OcuTalonKB.Docs"
+	Do $$$AssertStatusOK(row.%Save(), "and one that Story 19.4's code left in OcuTalonKB.Docs")
+	Set row = ""
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Write", ..#LEFT, "Zz eval left in docs", passages, 0, 100), "with its passages")
+	Set row = ##class(OcuTalon.Data.Document).%New()
+	Set row.Ref = ..#GUARD
+	Set row.OwnerRef = "instance"
+	Set row.AddedBy = "zz-doc-evalguard-s"
+	Set row.Name = "Zz eval guard.md"
+	Set row.ContentType = "markdown"
+	Set row.State = "ready"
+	Set row.KnowledgeBase = "OcuTalonKB.Docs"
+	Do $$$AssertStatusOK(row.%Save(), "a document of the instance is made")
+	Set row = ""
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Write", ..#GUARD, "Zz eval guard", passages, 0, 100), "with its passages")
+	Do $$$AssertEquals(($ClassMethod(..#STORE, "Count", left, ..#EVAL) > 0) _ "|" _ ($ClassMethod(..#STORE, "Count", ..#LEFT) > 0) _ "|" _ ($ClassMethod(..#STORE, "Count", ..#GUARD) > 0), "1|1|1", "control: every passage is in its table")
+	Set sc = ##class(OcuTalon.Eval.In).Start(made.cases, , .runRef, .sent)
+	Do $$$AssertEquals(sent, 0, "a run sends no case: the folder holds none, and EvalIn is disabled on a stack unless an evaluation enables it")
+	Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(left)) _ "|" _ $IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(..#LEFT)), "0|0", "both documents of the earlier run are gone")
+	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", left, ..#EVAL) _ "|" _ $ClassMethod(..#STORE, "Count", ..#LEFT), "0|0", "with their passages")
+	Do $$$AssertEquals($IsObject(##class(OcuTalon.Data.Document).RefIndexOpen(..#GUARD)) _ "|" _ ($ClassMethod(..#STORE, "Count", ..#GUARD) > 0), "1|1", "and the instance's document and its passages stay")
 }
 
 /// The number of rows of a table.

@@ -23,6 +23,8 @@
 #                bullet for a model test and the paragraph about the decision's record (the rest of the retry section is not pinned)
 #   - livetext   the two lines that DW-773 rules are, each as a whole line compared as a fixed string, in the guide: the Settings
 #                section's intro (which settings are read each time they are used) and the retry section's RetryItem bullet
+#   - turntools  the three lines that Story 19.5 rules are, each as a whole line compared as a fixed string, in the guide: the Settings table's
+#                TurnToolsClass row, the lead-in of "The extension classes" (four classes) and its TurnTools bullet
 #   - u229       the sentence of the owner's answers U-229 and U-237 (what is audited: no entry for a setting change; a tool call is a step unless
 #                the decision times out; an approval and an approved call's run each write an entry) is, on one line, in the guide and in the
 #                "Approval and audit" section of docs/security-overview.md
@@ -587,7 +589,7 @@ fi
 # live_lines: the ruled lines of the guide (DW-773), one per line.
 live_lines() {
   cat << 'EOF'
-The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. These settings are read each time they are used, so a change needs no update: `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD`, `GatewaySpendUSD`, `GatewaySpendDate`, `InstanceZone`, `ServiceUser`, `ApprovalRole`, `ToolClassification` and `ClassificationClass` of `Decide`, and `ReplyClass` and `RetryItem` of a runner. `Decide` reads `DecisionTokenBudget` and `RequestTokenLimit` this way only when it runs in a job of its own (a pool size of 1 or more, as in the example); in the shared actor pool, update the production after you change them. `HostSinkClass` is read each time too, except for the events that `Decide` fires itself, which follow a change only after `Decide` restarts. Every other setting takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. For `TimerSeconds`, see "Timeouts".
+The bridge is configured only by settings. Each is a setting of a production item, or a System Default Settings row for the item, and the default applies until you set one. These settings are read each time they are used, so a change needs no update: `DecisionTokenBudget`, `RequestTokenLimit`, `DailyCostCapUSD`, `GatewaySpendUSD`, `GatewaySpendDate`, `InstanceZone`, `ServiceUser`, `ApprovalRole`, `ToolClassification`, `ClassificationClass` and `TurnToolsClass` of `Decide`, and `ReplyClass` and `RetryItem` of a runner. `Decide` reads `DecisionTokenBudget` and `RequestTokenLimit` this way only when it runs in a job of its own (a pool size of 1 or more, as in the example); in the shared actor pool, update the production after you change them. `HostSinkClass` is read each time too, except for the events that `Decide` fires itself, which follow a change only after `Decide` restarts. Every other setting takes effect when its item restarts: after you write or change one, update the production, for example with `Do ##class(Ens.Director).UpdateProduction()`. For `TimerSeconds`, see "Timeouts".
 - `RetryItem` is a setting of a runner item, and `Decide` reads it. It names the retry runner of that runner: another enabled `OcuTalon.Bridge.Operation.AgentRunner` item of the production, whose `Model` setting is the second model. An empty value means no second model, and it is empty by default. A value that names the runner itself, a missing, disabled or non-runner item, or (for a decision or a diagnosis) an item whose `ReplyClass` is refused is not used: `Decide` logs one warning that names the setting and takes the fallback route. A retry runner's own `RetryItem` is never followed, so a retry is never retried. Write `RetryItem` as any setting in "Settings" is written. `Decide` reads it live, so it needs no update; a retry runner item that you add to the production starts when you update the production. The retry runner is set up like any runner: `AgentClass`, `AgentAllowList`, `ProviderConfig`, and `ReplyClass` for a decision or a diagnosis.
 EOF
 }
@@ -633,6 +635,62 @@ if [ "$live_ok" -eq 1 ]; then
     fails=$((fails + 1))
   else
     echo "PASS livetext: the guide's live-settings wording is the ruled text"
+  fi
+fi
+
+# --- turntools ---
+
+# turn_lines: the lines of the guide that Story 19.5 ruled for the TurnToolsClass extension (the settings table row, the lead-in of "The extension classes" with its
+# four classes, and the fourth bullet), one per line.
+turn_lines() {
+  cat << 'EOF'
+| `TurnToolsClass` | `OcuTalon.Bridge.Ext.TurnTools` | The class that gives one request tools of its own, such as a knowledge base of the person's documents. See "The extension classes". |
+The bridge reaches your code only through four classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
+- `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default.
+EOF
+}
+
+# turn_problems <guide>: one line per ruled line that the guide lacks as a whole line.
+turn_problems() {
+  local line n=0
+  while IFS= read -r line; do
+    n=$((n + 1))
+    grep -qxF -- "$line" "$1" || echo "the guide lacks ruled line $n of the TurnToolsClass wording (starting '$(printf '%s' "$line" | cut -c1-40)')"
+  done < <(turn_lines)
+}
+mkdir -p "$tmp/t"
+turn_ok=1
+turn_lines > "$tmp/t/keep.md"
+if [ "$(wc -l < "$tmp/t/keep.md" | tr -d ' ')" -ne 3 ]; then
+  echo "FAIL turntools: the ruled text is not three lines"
+  fails=$((fails + 1)); turn_ok=0
+fi
+if [ "$turn_ok" -eq 1 ] && [ -n "$(turn_problems "$tmp/t/keep.md")" ]; then
+  echo "FAIL turntools: the rule flags a guide that holds the ruled text"
+  turn_problems "$tmp/t/keep.md" | sed 's/^/  /'
+  fails=$((fails + 1)); turn_ok=0
+fi
+# One character of each ruled line changed, one line at a time: the rule must flag that line.
+if [ "$turn_ok" -eq 1 ]; then
+  for i in 1 2 3; do
+    awk -v n="$i" 'NR == n { sub(/[a-z]/, "X") } { print }' "$tmp/t/keep.md" > "$tmp/t/g.md"
+    if cmp -s "$tmp/t/keep.md" "$tmp/t/g.md"; then
+      echo "FAIL turntools: the break sample for ruled line $i changed nothing"
+      fails=$((fails + 1)); turn_ok=0
+    elif ! turn_problems "$tmp/t/g.md" | grep -qF -- "ruled line $i "; then
+      echo "FAIL turntools: the rule does not flag a changed character in ruled line $i"
+      fails=$((fails + 1)); turn_ok=0
+    fi
+  done
+fi
+if [ "$turn_ok" -eq 1 ]; then
+  hits=$(turn_problems "$GUIDE")
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | sed 's/^/  /'
+    echo "FAIL turntools: the guide's TurnToolsClass wording is the ruled text"
+    fails=$((fails + 1))
+  else
+    echo "PASS turntools: the guide's TurnToolsClass wording is the ruled text"
   fi
 fi
 

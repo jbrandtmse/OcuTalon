@@ -88,14 +88,25 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # Measured in ci run 42425571857 (a loaded queue): live:documents 315 s in shards-5. Story 32.5 puts live:sign-in-3 into shards-5, so live:documents runs in
 # shards-3, whose units no Epic 19 story changes (that run: shards-3 1,807 s, shards-2 1,803 s, image 1,840 s; clean shards-3 about 1,710 s on ci run 42384900368).
 # The Test.Docs classes run in shard:lane-a@rest.
+# Story 19.5 (2026-11-08; the orchestrator's ruling of 2026-11-08, item 6, carried out before the push) added live:session-data (the online demo's per-session
+# tables and sign-out, curl only, about 300 s in CI, inference from live:documents' 315 s with a restart; 155 s and 339 s on a lane-C throwaway) and the classes Test.Docs.{TurnTools,Sessions,
+# SessionTurns,SessionLive}, Test.Memory.Drop and Test.Bridge.TurnTools (7, 35, 18, 0, 18 and 10 s on a lane-C warm stack), with Test.Docs.{Store,Ops,Turns}
+# growing by about 25 s: about 100 s for the Docs and Memory areas and 10 s for Bridge. Measured inputs (green runs, group seconds): this branch at 881ac467 (ci run
+# 42445320545) shards-2 1,766 (READY 280; areas Fix 738, Docs 225, Memory 197, Eval 170, Tools 93, Digest 40), shards 1,763, shards-3 1,976, shards-4 about 1,940,
+# image about 1,790, shards-5 about 1,270 (Bridge and Agent only); the feature at 550bf9b8 (ci run 42425689094) shards-5 1,901 (Bridge and Agent 1,222 and Story
+# 32.5's live:sign-in-3 678), shards 1,868, image 1,895, shards-3 1,831, shards-4 1,917, browser 1,765. Projection with the larger figure of each group and the
+# feature's shards-5, which the integrate-forward brings: shards-2 would be 1,766 + 100 + 300 = 2,166 s, over the 2,100 s line, so the Eval area (170 s) moved out of
+# shard:lane-a@rest into the piece of shards (rest is computed from the pieces the groups name, so every area of lane-a stays in exactly one piece): shards-2 about
+# 1,996 s (Fix, Tools, Digest, Memory and Docs, and live:session-data) and shards about 2,038 s (1,868 + 170). shards-5 keeps about 1,911 s (1,901 + 10). No other
+# group changes, and none is added, renamed or given a longer deadline. The first measured CI run replaces these figures (inference until then).
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
     install-upgrade) echo "live:install-upgrade live:online-allowance live:online-visitors live:compose-start" ;;
     production) echo "live:production live:production-restart live:reminder-restart live:security-overview" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
-    shards) echo "shard:lane-a@Checks,Install,Watch live:online-session live:cards" ;;
-    shards-2) echo "shard:lane-a@rest" ;;
+    shards) echo "shard:lane-a@Checks,Install,Watch,Eval live:online-session live:cards" ;;
+    shards-2) echo "shard:lane-a@rest live:session-data" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
     shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit live:documents" ;;
     shards-4) echo "shard:lane-a@Channel live:sign-in-2 live:memory-offline" ;;

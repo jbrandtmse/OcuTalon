@@ -1,13 +1,13 @@
-/// The contracts of step 3's two tables and its sign-out stubs (Story 34.1; AD-3, AD-21, AD-33).
+/// The contracts of step 3's two tables and its sign-out deletions (Story 34.1; AD-3, AD-21, AD-33).
 ///   - TestContracts: OcuTalon.Data.Memory and OcuTalon.Data.Document have exactly the properties, types and indexes of XData
 ///     Contracts (the compared type parameters included), project no SQL reserved word as a table or field name, and
 ///     Memory.Embedding is a 384-dimension DOUBLE vector while a new Document starts in state indexing;
 ///   - TestRefCollation: the reference columns of both tables carry COLLATION EXACT;
 ///   - TestRegistry: each table sets the DEFAULTGLOBAL of its src/short-names.tsv row (copied into XData Registry), stores its data in that
 ///     global plus D, and has its data and index globals in the private database, and the Document stream global is private too;
-///   - TestDropSession: OcuTalon.Docs.DropSession and OcuTalon.Memory.DropSession return OK for a session reference and change no row of
-///     either table, the session's own rows and another session's alike (they are stubs until Story 19.5); the rows it seeds are deleted
-///     in the test and again in OnAfterAllTests.
+///   - TestDropSession (Story 19.5): OcuTalon.Docs.DropSession and OcuTalon.Memory.DropSession return OK for a session reference and delete the
+///     session's own memory and document rows, one of each, and no row of another session; a second call is OK and changes nothing; the rows it
+///     seeds are deleted in the test and again in OnAfterAllTests.
 Class OcuTalon.Test.Contract.Step3 Extends OcuTalon.Test.Contract
 {
 
@@ -60,8 +60,9 @@ Method TestRegistry()
 	}
 }
 
-/// Both sign-out stubs return OK for a session reference and change no row: a memory and a document of that session and of another
-/// one are seeded, and all four are still there, unchanged in number, after both calls. The rows are deleted before and after.
+/// Both sign-out deletions return OK for a session reference: a memory and a document of that session and of another one are seeded, and after both calls
+/// the session's two rows are gone and the other session's two are still there; a second pair of calls is OK and changes nothing. The rows are deleted
+/// before and after.
 Method TestDropSession()
 {
 	Set ref = "ZzStep3Fixture"
@@ -74,12 +75,15 @@ Method TestDropSession()
 	Do $$$AssertTrue(documents >= 2, "the document table is read and holds the two seeded rows ("_documents_")")
 	Do $$$AssertStatusOK(##class(OcuTalon.Docs).DropSession(ref), "OcuTalon.Docs.DropSession returns OK")
 	Do $$$AssertStatusOK(##class(OcuTalon.Memory).DropSession(ref), "OcuTalon.Memory.DropSession returns OK")
-	Do $$$AssertEquals(..Count("OcuTalon_Data.Memory", ""), memories, "no Memory row changed in number")
-	Do $$$AssertEquals(..Count("OcuTalon_Data.Document", ""), documents, "no Document row changed in number")
-	Do $$$AssertEquals(..Count("OcuTalon_Data.Memory", "SessionRef = '"_ref_"'"), 1, "the dropped session's memory is still there")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Memory", ""), memories - 1, "one Memory row went")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Document", ""), documents - 1, "and one Document row")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Memory", "SessionRef = '"_ref_"'"), 0, "the dropped session's memory is gone")
 	Do $$$AssertEquals(..Count("OcuTalon_Data.Memory", "SessionRef = '"_other_"'"), 1, "the other session's memory is still there")
-	Do $$$AssertEquals(..Count("OcuTalon_Data.Document", "OwnerRef = '"_ref_"'"), 1, "the dropped session's document is still there")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Document", "OwnerRef = '"_ref_"'"), 0, "the dropped session's document is gone")
 	Do $$$AssertEquals(..Count("OcuTalon_Data.Document", "OwnerRef = '"_other_"'"), 1, "the other session's document is still there")
+	Do $$$AssertStatusOK(##class(OcuTalon.Docs).DropSession(ref), "a second OcuTalon.Docs.DropSession returns OK")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory).DropSession(ref), "and so does a second OcuTalon.Memory.DropSession")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Memory", "") _ "|" _ ..Count("OcuTalon_Data.Document", ""), (memories - 1) _ "|" _ (documents - 1), "which change no row")
 	Do ..DeleteFixtures()
 }
 

@@ -6,8 +6,8 @@
 ///     Docs.Reply removes;
 ///   - TestStepBound: the gate's step bound repeats Tools.Result's (the bridge cannot name a host class) and its room for one search holds five results of the
 ///     largest size: the passage, the longest section (Passages MAXSECTION) and document name (Data.Document Name), and their ids, score and keys;
-///   - TestAttach: Chat's TOOLSETS name no toolset for the tool (AI Hub's knowledge base is attached in %OnInit, in the runner's own job), %OnInit is Chat's
-///     own and its holder property is transient; the knowledge base's description and TopK are the story's.
+///   - TestAttach: Chat's TOOLSETS name no toolset for the tool (AI Hub's knowledge base reaches each turn through TurnToolsClass, Story 19.5), and Chat has no
+///     %OnInit and no holder property of its own; Docs.Store has no Attach; the knowledge base's description and TopK are the story's.
 Class OcuTalon.Test.Docs.Chat Extends %UnitTest.TestCase
 {
 
@@ -72,11 +72,11 @@ Method TestStepBound()
 
 Method TestAttach()
 {
-	Do $$$AssertTrue($Parameter("OcuTalon.Agent.Chat", "TOOLSETS") '[ "Docs", "no toolset of the documents is listed: the tool is attached in %OnInit")
+	Do $$$AssertTrue($Parameter("OcuTalon.Agent.Chat", "TOOLSETS") '[ "Docs", "no toolset of the documents is listed: the tool reaches each turn through TurnToolsClass (Story 19.5)")
 	Set method = ##class(%Dictionary.CompiledMethod).%OpenId("OcuTalon.Agent.Chat||%OnInit")
-	Do $$$AssertTrue($IsObject(method) && (method.Origin = "OcuTalon.Agent.Chat"), "Chat has its own %OnInit")
-	Set property = ##class(%Dictionary.CompiledProperty).%OpenId("OcuTalon.Agent.Chat||Documents")
-	Do $$$AssertTrue($IsObject(property) && property.Transient, "and a transient property that holds the knowledge base")
+	Do $$$AssertTrue('$IsObject(method) || (method.Origin '= "OcuTalon.Agent.Chat"), "Chat has no %OnInit of its own: the agent attaches nothing, once for each job")
+	Do $$$AssertEquals($IsObject(##class(%Dictionary.CompiledProperty).%OpenId("OcuTalon.Agent.Chat||Documents")), 0, "and no property that holds a knowledge base")
+	Do $$$AssertEquals($IsObject(##class(%Dictionary.CompiledMethod).%OpenId("OcuTalon.Docs.Store||Attach")), 0, "and Docs.Store has no Attach")
 	Do $$$AssertEquals($Parameter("OcuTalon.Docs.Store", "DESCRIPTION"), "Searches the documents added to OcuTalon, such as runbooks, and returns the passages that best match the query, each with its document and section.", "the description of the knowledge base, which the model reads")
 	Do $$$AssertEquals($Parameter("OcuTalon.Docs.Store", "TABLE") _ "|" _ $Parameter("OcuTalon.Docs.Store", "SUFFIX"), "OcuTalonKB.Docs|Docs", "the table is OcuTalonKB.Docs")
 	Do $$$AssertEquals($Parameter("OcuTalon.Docs.Embedding", "DIMENSIONS") _ "|" _ $Parameter("OcuTalon.Docs.Embedding", "MODELNAME"), "384|AllMiniLML6V2", "the embedding is the 384-value AllMiniLML6V2 model")
