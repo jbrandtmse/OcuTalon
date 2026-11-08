@@ -195,3 +195,4 @@
 2026-11-08T04:40:27Z	Epic 32	deps_hash_rerecorded	reason=fix_forward story=32.6 note=for_the_orchestrator
 2026-11-08T04:40:27Z	Epic 32	ledger_routed_planned	story=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus entries=2(DW-550,DW-774) excess=0 by=charter
 2026-11-08T04:43:03Z	Epic 32	epic_context_compiled	reason=planning_artifact_newer(32.6_chartered) model=claude-opus
+2026-11-08T04:44:10Z	Story 32.6	stage_spawned	stage=plan spawn_at=2026-11-08T04:44:10Z model=opus agent_name=32-6-state-wait-plan-1 cycle_iteration=1
