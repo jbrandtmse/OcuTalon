@@ -9,7 +9,8 @@
 ///   - TestOtherTurnsUnchanged: a turn of the same day that continues, and its Busy resend, carry no context; no decide request carries one; and the Input of such a request is that of Render(item);
 ///   - TestRotationKept: the Turn keeps the reply's SessionRotated, 1 for rotated and 0 for reply;
 ///   - TestStartsSessionBoundaries: StartsSession with turns at 23:59:59 and 00:00:00, a refused earlier turn, a fresh turn and a rotated reply;
-///   - TestStartsSessionReadFailure: a turn whose session can't be read, and one whose time can't be read, start a session, each with one warning.
+///   - TestStartsSessionReadFailure: a turn whose session can't be read, one whose time can't be read, and one whose session's last replied turn can't be read (through the
+///     probe) start a session, each with one warning; a fresh turn reads nothing.
 Class OcuTalon.Test.Core.ConversationSessionStart Extends %UnitTest.TestCase
 {
 
@@ -142,12 +143,22 @@ Method TestOtherTurnsUnchanged()
 	Set item = probe.ItemFor(second)
 	Set plain = ##class(OcuTalon.Agent.Input).Render(item)
 	Set plain = ..AfterPreamble(plain)
-	Do $$$AssertEquals(..AfterPreamble(..Call($List(turns, 3), "input")), plain, "the Input of the resend is that of Render(item)")
-	If expected = "" Do $$$AssertEquals(..AfterPreamble(..Call($List(turns, 2), "input")), plain, "so is the Input of the request that carries no context")
+	If expected = "" {
+		Do $$$AssertEquals(..AfterPreamble(..Call($List(turns, 3), "input")), plain, "the Input of the resend that carries no context is that of Render(item)")
+		Do $$$AssertEquals(..AfterPreamble(..Call($List(turns, 2), "input")), plain, "so is the Input of the request that carries no context")
+	}
 	Set request = ##class(OcuTalon.Core.Intake).RequestFor(item, "turn", "", "")
 	Do $$$AssertEquals(..AfterPreamble(request.Input), plain, "and RequestFor with no context renders as Render(item)")
-	Set request = ##class(OcuTalon.Core.Intake).RequestFor(item, "decide", "", "", {"sessionStart": 1})
-	Do $$$AssertEquals(request.Kind_"|"_request.ItemId, "decide|"_second.ItemId, "RequestFor with a context builds the same request")
+	Set with = ##class(OcuTalon.Core.Intake).RequestFor(item, "decide", "zztrace", 7, {"sessionStart": 1})
+	Set without = ##class(OcuTalon.Core.Intake).RequestFor(item, "decide", "zztrace", 7)
+	Do $$$AssertEquals(..Fields(with), ..Fields(without), "RequestFor with a context sets every code-written field as it does with none")
+	Do $$$AssertEquals(..Fields(with), "decide|"_item.Provenance_"|"_second.ItemId_"|"_##class(OcuTalon.Core.Intake).SummaryOf(item)_"|"_item.SessionRef_"|zztrace|"_item.Channel_"|7", "and those are the item's")
+}
+
+/// The code-written fields of a request, the Input aside: Kind, Provenance, ItemId, Summary, OwnerRef, TraceRef, Channel and ThreadSessionId.
+ClassMethod Fields(request As OcuTalon.Bridge.Msg.Request) As %String [ Private ]
+{
+	Quit request.Kind_"|"_request.Provenance_"|"_request.ItemId_"|"_request.Summary_"|"_request.OwnerRef_"|"_request.TraceRef_"|"_request.Channel_"|"_request.ThreadSessionId
 }
 
 /// The Input without its first line, the preamble, which carries the clock to the minute.
@@ -217,9 +228,21 @@ Method TestStartsSessionReadFailure()
 	Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).StartsSession(turn, 0), 1, "a turn whose time can't be read starts a session")
 	Do $$$AssertEquals(..Warnings(mark), 2, "with one more warning")
 	Set turn.CreatedAt = "2030-06-15T09:00:00Z"
+	Set turn.SessionRef = ""
 	Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).StartsSession(turn, 1), 1, "a fresh turn starts a session, and reads nothing")
-	Do $$$AssertEquals(..Warnings(mark), 2, "so there is no warning")
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ? AND SourceMethod = ?", mark, "OcuTalon.Core.Conversation", "StartsSession")
+	Do $$$AssertEquals(..Warnings(mark), 2, "so there is no warning, though its session can't be read")
+	Set probe = "OcuTalon.Test.Core.ConversationStartProbe"
+	Set other = ..Session("lastunread")
+	Do ..Fix(other, "2030-06-15T09:00:00", "done", 0)
+	Set next = ..Fix(other, "2030-06-15T09:30:00", "running", 0)
+	Do $$$AssertEquals($ClassMethod(probe, "StartsSession", next, 0), 0, "the second turn of a day after a plain reply is not a start")
+	Do $$$AssertEquals(..Warnings(mark), 2, "and is no warning")
+	Set ^||ConversationStartProbe("failLast") = 1
+	Set starts = $ClassMethod(probe, "StartsSession", next, 0)
+	Kill ^||ConversationStartProbe
+	Do $$$AssertEquals(starts, 1, "when the last replied turn can't be read, it starts a session")
+	Do $$$AssertEquals(..Warnings(mark), 3, "with one more warning")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND SourceClass IN (?, ?) AND SourceMethod = ?", mark, "OcuTalon.Core.Conversation", probe, "StartsSession")
 }
 
 /// --- helpers ---
@@ -326,10 +349,10 @@ Method LastLog() As %Integer [ Private ]
 	Quit +result.%GetData(1)
 }
 
-/// The number of warnings of StartsSession in the event log after the mark.
+/// The number of warnings of StartsSession in the event log after the mark, run as Conversation's or as the probe's.
 Method Warnings(mark As %Integer) As %Integer [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND SourceClass = ? AND SourceMethod = ? AND Type = 3", mark, "OcuTalon.Core.Conversation", "StartsSession")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND SourceClass IN (?, ?) AND SourceMethod = ? AND Type = 3", mark, "OcuTalon.Core.Conversation", "OcuTalon.Test.Core.ConversationStartProbe", "StartsSession")
 	Do result.%Next()
 	Quit +result.%GetData(1)
 }

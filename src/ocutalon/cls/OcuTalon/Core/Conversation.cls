@@ -115,7 +115,7 @@ Parameter ERRORSWEEP = "The sweep could not read the turns: ";
 Parameter LOGCHECKS = "Conversation added no check results: ";
 
 /// The start of the warning when StartsSession could not read what it needs; the reason follows it.
-Parameter LOGSTART = "Conversation could not read the session's turns, so the turn starts a session: ";
+Parameter LOGSTART = "Conversation could not tell whether the turn starts a session, so it does: ";
 
 Parameter LOGPOSITION = "Conversation could not work out where the Item is in the trace: ";
 
@@ -442,9 +442,10 @@ Method Ask(turn As OcuTalon.Data.Turn) As %Status [ Private ]
 
 /// 1 when the turn starts a session (AD-21), so that its turn request carries the context {"sessionStart": 1}: fresh (the turn request is fresh, whether
 /// because of a taint or a broken session), or the first turn of its local day in the instance zone (no earlier turn of the session that is not refused was
-/// created on the same local date as this turn's CreatedAt), or the session's last replied turn has SessionRotated. It reads only the Turn rows, and the
-/// answer is the same each time the turn is asked, a Busy resend included. A read that fails counts as a session start, with one warning, so that a failure
-/// adds a block of the code-written notes and never loses it.
+/// created on the same local date as this turn's CreatedAt), or the session's last replied turn has SessionRotated. turn is the session's newest turn, the one
+/// that Conversation is sending: the rotation half reads the session's last replied turn, not the last one before turn. It reads only the Turn rows, and the
+/// answer is the same each time the turn is asked, a Busy resend included. A read that fails, and a CreatedAt that can't be read, count as a session start,
+/// with one warning, so that a failure adds a block of the code-written notes and never loses it.
 ClassMethod StartsSession(turn As OcuTalon.Data.Turn, fresh As %Boolean) As %Boolean
 {
 	If fresh Quit 1
@@ -464,12 +465,18 @@ ClassMethod StartsSession(turn As OcuTalon.Data.Turn, fresh As %Boolean) As %Boo
 		}
 	}
 	If first Quit 1
-	Set last = ##class(OcuTalon.Data.Ownership).LastRepliedTurn(turn.SessionRef, .sc)
+	Set last = ..LastReplied(turn.SessionRef, .sc)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(..#LOGSTART_$SYSTEM.Status.GetErrorText(sc))
 		Quit 1
 	}
 	Quit $IsObject(last) && last.SessionRotated
+}
+
+/// The session's last replied turn (Ownership.LastRepliedTurn), or ""; sc is the status of the read.
+ClassMethod LastReplied(sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Turn [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Ownership).LastRepliedTurn(sessionRef, .sc)
 }
 
 /// 1 when the session's last replied turn was Tainted: the next turn then starts a fresh AI session (AD-10). A read that

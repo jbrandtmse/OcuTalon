@@ -146,12 +146,12 @@ ClassMethod Decisions(sessionRef As %String, from As %String, to As %String, ByR
 		Set row = rows.GetAt(i)
 		Set time = ..Time(row.RecordedAt)
 		If (time = "") || (row.Outcome = "") Continue
-		Set turn = ##class(OcuTalon.Data.Ownership).TurnOfItem(row.ItemId, sessionRef, .sc)
+		Set turn = ..TurnOf(row.ItemId, sessionRef, .sc)
 		Do ..Check(sc)
 		If $IsObject(turn) {
 			Set channel = turn.Channel
 		} Else {
-			Set channel = ##class(OcuTalon.Data.Ownership).DecisionChannel(row.Ref, sessionRef, .sc)
+			Set channel = ..UsageChannel(row.Ref, sessionRef, .sc)
 			Do ..Check(sc)
 		}
 		Set names = $ListBuild("time", "channel", "outcome"), values = $ListBuild(time, channel, row.Outcome)
@@ -169,7 +169,7 @@ ClassMethod Incidents(sessionRef As %String, from As %String, to As %String, ByR
 		Set time = ..Time(row.NoticedAt)
 		If time = "" Continue
 		Set line = ..Fill(..#LINEINCIDENT, $ListBuild("time", "namespace", "production", "state", "count"), $ListBuild(time, row.Namespace, row.Production, row.State, row.Count))
-		Set requests = ##class(OcuTalon.Data.Ownership).IncidentApprovals(row.Ref, sessionRef, .sc)
+		Set requests = ..FixRequests(row.Ref, sessionRef, .sc)
 		Do ..Check(sc)
 		Set fixKind = ""
 		For j = requests.Count():-1:1 {
@@ -182,6 +182,24 @@ ClassMethod Incidents(sessionRef As %String, from As %String, to As %String, ByR
 		If fixKind '= "" Set line = line_..Fill(..#LINEINCIDENTFIX, $ListBuild("fixKind"), $ListBuild(fixKind))
 		Set entries(row.NoticedAt, 3, row.%Id()) = line
 	}
+}
+
+/// The session's turn made from the Item with the ItemId (Ownership.TurnOfItem), or ""; sc is the status of the read.
+ClassMethod TurnOf(itemId As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Turn [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Ownership).TurnOfItem(itemId, sessionRef, .sc)
+}
+
+/// The channel of the decision's own usage rows (Ownership.DecisionChannel), or ""; sc is the status of the read.
+ClassMethod UsageChannel(decisionRef As %String, sessionRef As %String, Output sc As %Status) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Ownership).DecisionChannel(decisionRef, sessionRef, .sc)
+}
+
+/// The approval requests of the incident that the session sees (Ownership.IncidentApprovals), by RaisedAt; sc is the status of the read.
+ClassMethod FixRequests(incidentRef As %String, sessionRef As %String, Output sc As %Status) As %ListOfObjects [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Ownership).IncidentApprovals(incidentRef, sessionRef, .sc)
 }
 
 /// The approval requests of the window that the session sees. The answer is approved or rejected when the request was answered with approve or reject,

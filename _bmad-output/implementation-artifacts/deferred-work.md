@@ -5536,3 +5536,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Bridge Decision has no Channel; only Usage rows (model calls) carry one; 41.3 veto U-310
 - 2026-11-08T10:38:56Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: a Lane A bridge story appends Decision.Channel (AD-5); DailyNote then prefers it (one line); inbox U-310
+
+### DW-961: The sessionStart context is unobserved past Conversation.Request: ConversationStartProbe records it before ##super, so Request -> Intake.RequestFor -> Agent.Input.Render forwarding can drop it with every 41.3 test green
+- source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Mutation: Conversation.Request calls RequestFor without context, or RequestFor calls Render(item): TestFirstOfDay/TestFresh/TestAfterRotation stay green; Render ignores context until 41.4
+- 2026-11-08T13:31:39Z status=routed owner=41-4-the-notes-and-your-answers-reach-the-model by=cr note=41.4 memory-* scenarios must pin both hops (Request->RequestFor, RequestFor->Render) end to end
+
+### DW-962: AC 6's HTTP pin (memory.spec.ts notes lines) has no observed red: the route's NoteText seam is overridden by MemoryApiProbe in every slot test, and live:sign-in runs only in CI
+- source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Slot tests use MemoryApiProbe.NoteText; throwaways publish no web port; recorded AC 6 mutation reddens Test.Data.DailyNote, not the consumer
+- 2026-11-08T13:31:39Z status=wontfix-accepted owner=41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t by=cr note=reopen_if=a CI live:sign-in run stays green with DailyNote.Build answering empty, or memory.spec.ts notes asserts change
+
+### DW-963: DailyNote.Literal repeats Ownership.Rows' owner-literal check (empty, instance, eval under collation 7); Rows is Final/Private in a contended file that takes insertions only, so the check cannot be shared now
+- source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Data/DailyNote.cls Literal vs Data/Ownership.cls Rows lines 856-857; a new owner literal in Rows would make Build throw (500) instead of answering empty; Rows still refuses, so nothing leaks
+- 2026-11-08T13:31:39Z status=wontfix-accepted owner=41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t by=cr note=reopen_if=Ownership.Rows gains an owner literal beyond instance/eval, or Ownership.cls leaves the contended list

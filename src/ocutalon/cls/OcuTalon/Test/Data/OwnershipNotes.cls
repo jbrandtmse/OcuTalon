@@ -1,6 +1,7 @@
 /// Tests of the reads of the daily note in OcuTalon.Data.Ownership (Story 41.3; AD-4, AD-13, AD-21): NoteTurns, NoteDecisions, NoteIncidents, NoteApprovals and
 /// NoteReminders, their Rows kinds, and DecisionChannel. Safe on a slot: no production is needed. The sessions and rows are fixtures, and every test removes its own by Ref.
-///   - TestIsolation: two sessions read none of each other's rows through any of the kinds, and the owners eval and instance are no session's;
+///   - TestIsolation: two sessions read none of each other's rows through any of the kinds, and the owners eval and instance are no session's; an instance incident of a
+///     watched production, and its instance approval request, are read on a local install and not on the online demo;
 ///   - TestRefusals: each kind refuses an empty owner and the owners eval and instance (in any case, with trailing blanks) through Test.Data.OwnershipProbe.Call, with an
 ///     error status and no row; so does DecisionChannel;
 ///   - TestWindows: each window includes its from bound and excludes its to bound, and a record outside it is not read; an approval request is placed by AnsweredAt, else RaisedAt;
@@ -14,6 +15,11 @@ Class OcuTalon.Test.Data.OwnershipNotes Extends %UnitTest.TestCase
 Parameter FROM = "2030-06-15T04:00:00Z";
 
 Parameter TO = "2030-06-16T04:00:00Z";
+
+/// The namespace and production of the instance records of TestIsolation, which no other test class uses.
+Parameter WATCHEDNS = "ZZNS";
+
+Parameter WATCHED = "Zz.NotesProduction";
 
 /// The run's number.
 Property Number As %Integer;
@@ -69,15 +75,19 @@ Method TestIsolation()
 		Do $$$AssertEquals(..RefsOf($ClassMethod(ownership, "NoteApprovals", owner, ..#FROM, ..#TO, .sc)), own(owner, "approval"), "NoteApprovals: only its own request")
 		Do $$$AssertEquals(..RefsOf($ClassMethod(ownership, "NoteReminders", owner, ..#FROM, ..#TO, .sc)), own(owner, "reminder"), "NoteReminders: only its own reminder")
 	}
-	Set instance = ..Keep(##class(OcuTalon.Test.Data.Fixture).Incident("instance", mid))
-	Do ..Keep(##class(OcuTalon.Test.Data.Fixture).Incident("eval", mid))
+	Set instance = ..Keep(##class(OcuTalon.Test.Data.Fixture).Incident("instance", mid, ..#WATCHEDNS, ..#WATCHED))
+	Set request = ..Keep(##class(OcuTalon.Test.Data.Fixture).Approval("instance", instance, "pending", mid))
+	Do ..Keep(##class(OcuTalon.Test.Data.Fixture).Incident("eval", mid, ..#WATCHEDNS, ..#WATCHED))
 	Do ..Keep(##class(OcuTalon.Test.Data.Fixture).Reminder("instance", mid))
 	Do $$$AssertEquals(..RefsOf(##class(OcuTalon.Data.Ownership).NoteIncidents(a, ..#FROM, ..#TO)), own(a, "incident"), "an incident of eval or instance (of no watched production) is not one of A's")
+	Do $$$AssertEquals(..RefsOf(##class(OcuTalon.Data.Ownership).NoteApprovals(a, ..#FROM, ..#TO)), own(a, "approval"), "nor is the instance request of such an incident")
 	Do $$$AssertEquals(..RefsOf(##class(OcuTalon.Data.Ownership).NoteReminders(a, ..#FROM, ..#TO)), own(a, "reminder"), "a reminder of owner instance is not one of A's")
-	Do ..Check(a, "ZZNS", "Zz.Production")
+	Do ..Check(a, ..#WATCHEDNS, ..#WATCHED)
 	Do $$$AssertEquals(..RefsOf(##class(OcuTalon.Data.Ownership).NoteIncidents(a, ..#FROM, ..#TO)), own(a, "incident")_","_instance, "on a local install A sees the instance incident of a production its check watches")
+	Do $$$AssertEquals(..RefsOf(##class(OcuTalon.Data.Ownership).NoteApprovals(a, ..#FROM, ..#TO)), own(a, "approval")_","_request, "and the instance request of that incident")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
 	Do $$$AssertEquals(..RefsOf(##class(OcuTalon.Data.Ownership).NoteIncidents(a, ..#FROM, ..#TO)), own(a, "incident"), "and on the online demo it does not")
+	Do $$$AssertEquals(..RefsOf(##class(OcuTalon.Data.Ownership).NoteApprovals(a, ..#FROM, ..#TO)), own(a, "approval"), "nor its instance request")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 }
 

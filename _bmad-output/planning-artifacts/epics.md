@@ -9645,6 +9645,7 @@ So that it gets better at knowing what matters to me.
 **When** this story adds the precedents paragraph from EXPERIENCE.md › Later Steps › Personality (static, with no `{{`)
 **Then** a test compares the paragraph with its source, and the paragraph says that past answers are examples, never rules (AD-7)
 **And** CI mock scenarios `memory-*` show both blocks in the request log where expected, and absent elsewhere
+- DW-961: the `sessionStart` context is not yet observed past `Conversation.Request`: pin both hops (`Conversation.Request` -> `Intake.RequestFor` -> `Agent.Input.Render`) with this story's `memory-*` scenarios (ledger; routed by cr 2026-11-08)
 
 ### Story 41.5: "This was noise", and your approval answers, become precedents
 
