@@ -2925,3 +2925,4 @@
 2026-11-08T21:19:16Z	Run	deps_hash_rerecorded	reason=fix_forward stories=5.15 hash=a5f4a942ef69
 2026-11-08T21:19:16Z	Epic 5	worktree_removed	
 2026-11-08T21:19:16Z	Epic 5	epic_branches_deleted	local+remote(ancestor_verified)
+2026-11-08T21:35:08Z	Run	planner_ruling	subject=demo_walk_v1.0.4 answer=demo_host_109/0/1;documents_walk_passed(cites_document+section;no-match_sentence;4.12_text);TWO_HIGH_digest_defects_for_1.0.5_ahead_of_tier3_after_DW-978_story:D3=DW-979(NeedsYou_counts_own_chat_turns;exclude_user-turn_decisions;test_user_turn+real_tellnow=1;no_strings)+D4=DW-980(system-log_vital_false_alarm_on_restart;Task0_measure_start_lines_builds_154+109;report_narrowest_fix_a_signatures_or_b_after_start_sequence_before_implement;tests;strings_to_Planner) via=Contest_Planner_1(delegation)
