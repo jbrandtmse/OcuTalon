@@ -27,7 +27,7 @@ XData ProductionDefinition
     <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Triage</Setting>
     <Setting Target="Host" Name="ReplyClass">OcuTalon.Bridge.Msg.DecisionPayload</Setting>
   </Item>
-  <Item Name="DiagnosisAgent" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
+  <Item Name="DiagnosisAgent" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="2" Enabled="true">
     <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Diagnosis</Setting>
     <Setting Target="Host" Name="ReplyClass">OcuTalon.Watch.Msg.DiagnosisPayload</Setting>
   </Item>
