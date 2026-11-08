@@ -457,3 +457,5 @@
 2026-11-08T19:18:45Z	Epic 4	epic_status_done	stories=12
 2026-11-08T19:18:45Z	Epic 4	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=0 unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=0 result=hold applied=false(gates.model_tier:record_only) scope=story_4.12
 2026-11-08T19:18:45Z	Epic 4	epic_retro_skipped	reason=policy
+2026-11-08T19:19:18Z	Epic 4	integrated_forward	feature=ce50aa62 head=merge(this_commit) conflicts_resolved=none unions=deferred-work.md(auto),cycle-log-parallel.md,epic-dependencies.yaml(feature_side,bookkeeping_only) verification=source_tree_identical_to_feature(git_diff_--cached_origin/feature_on_SRC_empty);unit_more-to-try+ux-strings_36/36;tracker_valid;ledger_load_ok
+2026-11-08T19:19:18Z	Epic 4	epic_runner_complete	stories_completed=1(4.12) code=a65aaefa(on_feature_via_a77f9a87) ci=success(cb7a2215;42507818397,42507818342;DW-973_flake_rerun)
