@@ -9,7 +9,7 @@ import { chk, cleanFixtureRows, fixtureUser, irisScript, quoted, seedDecision, s
 import { announcements, recordAnnouncements } from './support/page';
 
 /**
- * Story 41.5, the "This was noise" control (NZ1 to NZ6; FR-72, NFR-25), in a real browser against a real stack. Every case signs in as the notice fixture user
+ * Story 41.5, the "This was noise" control (NZ1 to NZ8; FR-72, NFR-25), in a real browser against a real stack. Every case signs in as the notice fixture user
  * that test-sign-in.sh created (OCUTALON_NOTICE_USER), so the README session and api.spec's counts are untouched. A tell-now comes from a real email
  * (POST /v1/mailbox/incoming with `[[mock:mail-tell-now]]`): it reaches a tell-now decide Decision whose Item is kept, from the mock's decision or from the
  * no-key fallback, and both can be marked. The card is found by the email's unique subject, its Decision's Ref is the `data-noise` of the control's
@@ -19,7 +19,9 @@ import { announcements, recordAnnouncements } from './support/page';
  *   NZ3  a mark on the phone first: one row with channel phone;
  *   NZ4  the route over HTTP: a body that is not exactly {"channel":"phone"} is web, a repeat answers the first time;
  *   NZ5  a tell-now whose Item is no longer kept: 409 too_old, the server's text beside the button, no row (DW-923);
- *   NZ6  a reminder and a tell-now with no decision show no control, in the chat or on the phone.
+ *   NZ6  a reminder and a tell-now with no decision show no control, in the chat or on the phone;
+ *   NZ7  Tab reaches the button from the card, and Space presses it (NFR-25);
+ *   NZ8  an error reply shows its message beside the button, a reply that never came shows the busy notice, the button stays, and a later press marks.
  */
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
 
@@ -230,4 +232,63 @@ test('NZ6: a reminder and a tell-now with no decision show no "This was noise" c
     await expect(note, 'the phone message arrives').toHaveCount(1, { timeout: CARD_MS });
     await expect(note.getByRole('button', { name: LABEL }), `no control on the phone message of ${marker}`).toHaveCount(0);
   }
+});
+
+/** NZ7: the keyboard path of NFR-25 from the card to the mark. */
+test('NZ7: Tab from the card reaches "This was noise", and Space presses it', async ({ page }) => {
+  await open(page);
+  const { subject, ref } = await mailed(page, 'NZ7');
+  const card = cardOf(page, subject);
+  const button = card.getByRole('button', { name: LABEL, exact: true });
+  await expect(button, 'the card has one button named "This was noise"').toHaveCount(1);
+  await card.locator('[data-part="notice"]').focus();
+  let reached = false;
+  for (let step = 0; step < 8 && !reached; step += 1) {
+    await page.keyboard.press('Tab');
+    reached = await button.evaluate((one) => one === document.activeElement);
+  }
+  expect(reached, 'Tab reaches the button within a few presses').toBe(true);
+  const { body, status } = await pressWith(page, ref, () => page.keyboard.press('Space'));
+  expect(body, 'the body names the web').toEqual({ channel: 'web' });
+  expect(status, '200').toBe(200);
+  await expect(card.locator('.marked'), 'the status line replaces the button').toHaveCount(1);
+  await expect(button, 'no button is left').toHaveCount(0);
+  expect((await rowOf(ref)).count, 'one row').toBe(1);
+});
+
+/** NZ8: the other refusals. */
+test('NZ8: an error reply shows its message beside the button, no reply shows the busy notice, the button stays, and a later press marks', async ({ page }) => {
+  await open(page);
+  const { subject, ref } = await mailed(page, 'NZ8');
+  const card = cardOf(page, subject);
+  const button = card.getByRole('button', { name: LABEL, exact: true });
+  const notice = card.locator('app-inline-notice');
+  const SAID = 'zz The server said no.';
+  const BUSY = "Couldn't reach OcuTalon. Try again. Nothing was changed.";
+  let mode: 'refuse' | 'down' | 'live' = 'refuse';
+  await page.route(
+    (url) => url.pathname === noisePath(ref),
+    (route) => {
+      if (route.request().method() !== 'POST' || mode === 'live') return route.continue();
+      if (mode === 'down') return route.abort('failed');
+      return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: SAID } }) });
+    },
+  );
+  await expect(button).toHaveCount(1);
+  await button.click();
+  await expect(notice, "the reply's message is beside the button").toHaveText(SAID);
+  await expect.poll(() => announcements(page, SAID), { message: 'announced once' }).toBe(1);
+  await expect(button, 'the button stays').toHaveCount(1);
+  mode = 'down';
+  await button.click();
+  await expect(notice, 'no reply: the busy notice replaces the message').toHaveText(BUSY);
+  await expect.poll(() => announcements(page, BUSY), { message: 'announced once' }).toBe(1);
+  await expect(button, 'the button stays').toHaveCount(1);
+  expect((await rowOf(ref)).count, 'nothing was written').toBe(0);
+  mode = 'live';
+  await button.click();
+  await expect(card.locator('.marked'), 'a later press marks').toHaveCount(1);
+  await expect(notice, 'and the notice is gone').toHaveCount(0);
+  await expect(button).toHaveCount(0);
+  expect(await rowOf(ref), 'one row, from the web').toMatchObject({ count: 1, answer: 'noise', channel: 'web' });
 });

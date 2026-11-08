@@ -12,7 +12,7 @@
 ///   - TestSaveFailure: a failed save is failed, with no row;
 ///   - TestForget: Forget deletes the session's own row at once (Similar and Ownership lose it); another session's row and a seeded row are not_found and stay;
 ///   - TestApprovalAnswers: the Approval answers row: a fix and a tool_call, approved and rejected, with the AnsweredAt of the request and the AnsweredChannel;
-///   - TestApprovalRefused: a setting request, a bad Action, an unknown request and session, another session's request and a repeat record nothing new;
+///   - TestApprovalRefused: a setting request, a bad Action, an unknown request and session, another session's request and a repeat (with the stored Action, or another) record nothing new;
 ///   - TestAnswerMustMatch: an Action that differs from the request's stored answer, and a request that is pending, expired or cancelled, are not_recorded with no row; an
 ///     executing and a done request answered as the message says are recorded;
 ///   - TestEndedSession: on the online demo a session whose ResumeHash is cleared (sign-out) is not_found for a MarkNoise and not_recorded for a RecordPrecedent, with no row; a
@@ -308,6 +308,8 @@ Method TestApprovalRefused()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|recorded", "the session's own tool_call is recorded")
 	Set result = ..Record(probe, session, mine, "approve", "phone")
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|already_recorded", "a repeat: Ok 1, already_recorded")
+	Set result = ..Record(probe, session, mine, "reject", "phone")
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_recorded", "a repeat with another Action than the stored answer: Ok 0, not_recorded")
 	Set row = ##class(OcuTalon.Data.Precedent).SourceRefIndexOpen(mine)
 	Do $$$AssertEquals(..Owned(session)_"|"_row.Answer_"|"_row.AnsweredChannel, "1|approved|web", "and the first answer stands")
 }

@@ -2,7 +2,8 @@
 /// THROWAWAY STACKS AND IN CI ONLY (InProduction). Each answer goes through Web.Api.AnswerApproval as AnswersInProduction does: a stand-in request with the body, a CSP
 /// session bound to a fixture session of this process's user, and the capture of Test.Web.Api.Written. The fixture requests need a role that this process's user holds
 /// (HeldRole). A fixture row has no hold, so each real answer waits the 5 seconds of Approval.CompleteHoldTask for a task that never appears and logs one warning, which
-/// the tests remove. The row is written by PrecedentOps after AnswerOps' asynchronous send, so the tests wait for it by its SourceRef, a bounded time.
+/// the tests remove. The row is written by PrecedentOps after AnswerOps' asynchronous send, so the tests wait for it by its SourceRef, a bounded time; InProduction's
+/// clean-up deletes the fixture sessions' rows.
 ///   - TestApproveRecords: a fix request on an incident of ZZNS/Zz.Production, approved from the web: one row, approved, key production:ZZNS/Zz.Production,
 ///     AnsweredChannel web;
 ///   - TestRejectRecords: a tool_call request rejected from the web: one row, rejected, key tool:<ToolName>;
@@ -17,14 +18,6 @@ Parameter ROWSECONDS = 20;
 
 /// How long to wait for a row that must not appear, in seconds.
 Parameter ABSENTSECONDS = 3;
-
-Method OnAfterAllTests() As %Status
-{
-	For i = 1:1:$Length(..Sessions, ",") {
-		If $Piece(..Sessions, ",", i) '= "" Do ##class(OcuTalon.Data.Precedent).DropSession($Piece(..Sessions, ",", i))
-	}
-	Quit ##super()
-}
 
 Method OnAfterOneTest(testname As %String) As %Status
 {

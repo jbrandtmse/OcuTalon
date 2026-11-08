@@ -5670,22 +5670,26 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: epics.md Story 41.2 AC (refused with too_old) and Story 41.5 AC (card shows only the success line); EXPERIENCE.md lines 940 and 1057 have no refusal line
 - 2026-11-08T07:48:48Z status=routed owner=41-5-this-was-noise-and-your-approval-answers-become-precedents by=cr note=41.5's plan escalates one catalog line as PUBLIC TEXT for the too_old refusal (and any other refusal of the noise route)
 - 2026-11-08T08:27:20Z note=PUBLIC_TEXT_approved_2026-11-08_(Contest_Planner,_owner_delegation):_This_notice_is_too_old_to_mark_as_noise._Nothing_was_changed._-_same_words_as_41.2_Web.Api_MESSAGETOOOLD;_pin_with_fixed_strings
+- 2026-11-08T21:26:51Z status=resolved-by:41-5-this-was-noise-and-your-approval-answers-become-precedents by=adjudication note=card shows the server's 409 MESSAGETOOOLD text; pinned by fixed strings (Test.Web.MemoryApi TOOOLD, memory-noise.spec.ts NZ5)
 
 ### DW-932: The noise route's 200 body (markedAt), its already_marked answer, the phone-vs-web body mapping and the 409 too_old are not run over real HTTP (memory.spec.ts covers only the unknown-ref 404)
 - source: _bmad-output/implementation-artifacts/spec-41-2-the-precedent-table-its-one-writer-and-the-routes.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: web/e2e/api/memory.spec.ts; slot tests pin them via the SubmitMemory seam, the production test pins Commands.Submit
 - 2026-11-08T09:51:19Z status=routed owner=41-5-this-was-noise-and-your-approval-answers-become-precedents by=harvest note=41.5's own AC (web/e2e/memory-noise.spec.ts covers the mark, a repeat, the phone) exercises the route over HTTP; adjudicate there as resolved-by
 - 2026-11-08T10:13:08Z occurrence=41-2-the-precedent-table-its-one-writer-and-the-routes
+- 2026-11-08T21:26:51Z status=resolved-by:41-5-this-was-noise-and-your-approval-answers-become-precedents by=adjudication note=web/e2e/memory-noise.spec.ts NZ1/NZ2/NZ4/NZ5 run the 200 markedAt, already_marked, phone-vs-web mapping and 409 too_old over real HTTP (live:sign-in-3)
 
 ### DW-933: PrecedentOps.Record trusts RecordPrecedent's Action: it never compares it with the request's AnsweredAction (or State), so a mis-sent message records an answer the person never gave
 - source: spec-41-2-the-precedent-table-its-one-writer-and-the-routes.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Core/PrecedentOps.cls Record: answer comes from request.Action only; the first save wins on SourceRef, so a later true answer is already_recorded. Unreachable until 41.5's AnswerOps sends it.
 - 2026-11-08T10:13:09Z status=routed owner=41-5-this-was-noise-and-your-approval-answers-become-precedents by=cr note=41.5 pins RecordPrecedent sent only after done with the answered action, or adds the AnsweredAction check
+- 2026-11-08T21:26:51Z status=resolved-by:41-5-this-was-noise-and-your-approval-answers-become-precedents by=adjudication note=PrecedentOps.Record writes only when AnsweredAction equals Action and State is answered; Test.Core.PrecedentOps TestAnswerMustMatch (+state half), mutations red
 
 ### DW-934: A precedent written after sign-out survives End: End's Has() is read before a queued MarkNoise/RecordPrecedent lands, and Record accepts an ended session (its Session row is kept)
 - source: spec-41-2-the-precedent-table-its-one-writer-and-the-routes.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: SessionOps.EndPrecedents sends EndSession only when Precedent.Has is 1; PrecedentOps.Record checks only that the Session row exists. 41.5's async RecordPrecedent makes the window real.
 - 2026-11-08T10:13:09Z status=routed owner=41-5-this-was-noise-and-your-approval-answers-become-precedents by=cr note=41.5 builds the async sender: refuse writes for an ended session or drop after the queue drains; pin sign-out right after an answer
+- 2026-11-08T21:26:51Z status=resolved-by:41-5-this-was-noise-and-your-approval-answers-become-precedents by=adjudication note=Mark and Record refuse an ended session; SessionOps.End always sends the drop (U-311); TestEndedSession, SessionOpsPrecedents TestNoRowsStillSends; residual (write in flight during End's last step) accepted under U-311
 
 ### DW-935: Precedent.Similar for owner eval returns seeded rows of every run, so rows left by a crashed or overlapping run reach another run's decide request
 - source: spec-41-2-the-precedent-table-its-one-writer-and-the-routes.md | severity: low | fix-risk: med | footprint: in-story

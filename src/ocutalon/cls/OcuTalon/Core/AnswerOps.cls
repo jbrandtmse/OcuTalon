@@ -85,7 +85,7 @@ Method Record(request As OcuTalon.Core.Msg.Answer) [ Private ]
 /// Sends the message to PrecedentOps, asynchronously, with no answer wanted (a seam for the tests).
 Method SendPrecedent(message As OcuTalon.Core.Msg.RecordPrecedent) As %Status [ Private ]
 {
-	Quit ..SendRequestAsync(..#PRECEDENTITEM, message, 0)
+	Quit ..SendRequestAsync(..#PRECEDENTITEM, message)
 }
 
 }

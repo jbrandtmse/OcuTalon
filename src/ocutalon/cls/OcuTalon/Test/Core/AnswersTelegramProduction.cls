@@ -24,23 +24,6 @@ Parameter SESSIONPREFIX = "zzanstgprod";
 /// The longest to wait for an event or an audit entry, in seconds.
 Parameter EVENTSECONDS = 20;
 
-Method OnAfterAllTests() As %Status
-{
-	Do ..DropPrecedents()
-	Quit ##super()
-}
-
-/// Drops the Precedent rows of the fixture sessions: a done answer on a fix request has PrecedentOps write a row (Story 41.5). The write is asynchronous, so the drop
-/// waits a moment for one still in flight.
-Method DropPrecedents() [ Private ]
-{
-	If ..Sessions = "" Quit
-	Hang 1
-	For i = 1:1:$Length(..Sessions, ",") {
-		If $Piece(..Sessions, ",", i) '= "" Do ##class(OcuTalon.Data.Precedent).DropSession($Piece(..Sessions, ",", i))
-	}
-}
-
 /// The count of chats made, for their chat ids.
 Property Chats As %Integer [ InitialExpression = 0 ];
 

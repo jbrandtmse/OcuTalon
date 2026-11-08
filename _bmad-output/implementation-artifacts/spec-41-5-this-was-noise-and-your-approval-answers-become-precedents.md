@@ -252,6 +252,41 @@ Server paths are under `src/ocutalon/cls/OcuTalon/`; web paths are under `web/`.
 9. **Ended session (DW-934).** Given an online-demo session that sign-out has ended (ResumeHash cleared), when a `MarkNoise` or `RecordPrecedent` for it arrives, then nothing is written. A local session is unaffected. Proof: `TestEndedSession`.
 10. **No regression (REL-2).** Given the change, when the suites run, then the demo-path specs pass unchanged, and `chat/notice.spec.ts`, `floor/focus.spec.ts`, `floor/announcements.spec.ts`, `Test.Web.Api`, `Test.Core.AnswersIn`, `Test.Core.PrecedentOps`, `Test.Core.SessionOpsPrecedents` and `Test.Core.PrecedentOpsProduction` pass.
 
+### Review Findings
+
+Code review 2026-11-08 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; none failed). 28 findings: high 0, medium 1, low 22, false 5. 4 patches applied, 0 deferred, 24 rejected. Rule 3: the real-runtime test is `web/e2e/memory-noise.spec.ts` (`live:sign-in-3`; 8 of 8 on QA's lane-A throwaway). Rule 6: no AD mismatch.
+
+- [x] [Review][Patch] [medium] The Precedent clean-up was copied into `AnswersInProduction`, `AnswersTelegramProduction` (an identical `DropPrecedents` with a fixed `Hang 1`) and `AnswerPrecedentsProduction` (the same loop): an unexplained near-copy (Rule 2) whose wait is a timer, not a signal (Rule 19). Fixed once in `InProduction.OnAfterAllTests`: it waits, bounded by `DRAINSECONDS`, for PrecedentOps' queue to empty, and after `Fixture.Clean` deletes the fixture sessions' Precedent rows (a write after the session row is gone is refused); the three copies are removed. Lane-A warm throwaway: `AnswerPrecedentsProduction`, `AnswersTelegramProduction`, `AnswersInProduction`, `PrecedentOpsProduction` passed, and 0 Precedent rows were left. [src/ocutalon/cls/OcuTalon/Test/Core/InProduction.cls:56]
+- [x] [Review][Patch] [low] `AnswerOps.SendPrecedent` passed `0` as the third argument of `Ens.BusinessOperation.SendRequestAsync`, which is `pDescription` (`irislib/Ens/BusinessOperation.cls:726`), so every RecordPrecedent header got the description "0". The argument is removed. [src/ocutalon/cls/OcuTalon/Core/AnswerOps.cls:88]
+- [x] [Review][Patch] [low] `TestApprovalRefused`'s repeat now sends the stored Action, so nothing pinned that a repeat with another Action leaves the first answer. A `reject` after the recorded `approve` is now asserted `not_recorded`, and the row stays approved (slot A, `Test.Core.PrecedentOps` 20 of 20). [src/ocutalon/cls/OcuTalon/Test/Core/PrecedentOps.cls:311]
+- [x] [Review][Patch] [low] The header of `memory-noise.spec.ts` said "NZ1 to NZ6" after QA added NZ7 and NZ8. [web/e2e/memory-noise.spec.ts:12]
+
+**Rejected:**
+- false: `TestRealStubsEnd` "loses the real audit and notice steps" through `SessionOpsProbe`. Its fixture session has no pairing, so End never calls `WriteAudit` or `SendNotice` (`SessionOps.Unlink` quits before them), and the probe's `Forget` calls the real method.
+- false: `Phone.FromRow`'s comment leaves out `decisionRef`. Its second sentence names it.
+- false: `live:sign-in-3`'s added runtime is unmeasured. It was measured: `SPEC memory-noise.spec.ts 8 tests 9s` (QA run), and the whole project ran 143 tests in 5.9 min on the implement throwaway.
+- false: a live online-demo session with an empty ResumeHash would be refused. On the online demo every session comes from `AttachVisitor` (`NewVisitor` or `ForResume`, both with a hash), and `Ownership.Attach`/`ForUser` runs only off it (`Web/SessionEvents.cls:75-79`).
+- false: a 200 with no `markedAt`. `Web.Api.MarkNoise` always sets `markedAt` from PrecedentOps' `answeredAt` (pinned by `Test.Web.MemoryApi:TestNoise` and NZ1).
+- low: `playwright.config.ts` and `test-sign-in-3.sh` still say "the root file" of sign-in-3. The same singular is in `ci/units.sh` (never edited here) and `playwright-projects.test.mjs`, so a partial fix makes them disagree. Cosmetic.
+- low: no end-to-end test of a precedent answered from Telegram or the phone. The channel hand-off is pinned at unit level (`AnswerPrecedents:TestDoneSendsOne` phone, `PrecedentOps:TestApprovalAnswers` telegram), and AC 7 names the web.
+- low: DW-934 is not exercised on an online-demo browser stack. AC 9's proof is `TestEndedSession`, which also runs the real `onlineDemo` Setting.
+- low: `AnswerPrecedentsProduction` relies on `onlineDemo` being off. That is the stack's default, as for every InProduction class, and a changed default fails loudly, never green.
+- low: `SessionOpsProbe` and `SessionOpsDropProbe` each carry the same two-line `DropPrecedents` override. Unifying them would re-parent a probe whose other seams differ.
+- low: `PrecedentOps.Record` opens the Session row twice. The cost is negligible, and the fix adds a parameter.
+- low (by-design, U-311): a RecordPrecedent handled between End's drop and its ResumeHash clear survives. This is the accepted residual.
+- low: `TestEndedSession` writes the real `onlineDemo` Setting. It restores it after its Try/Catch, as `AnswersInProduction` does, within milliseconds.
+- low: `Data.Precedent.Has` has no product caller now. It is 41.2's public read and the probes use it.
+- low: AC 6's body mapping was not mutated. AC 6 has its demonstrated mutation (`already_marked` time shifted: NZ2 and NZ4 red), `Test.Web.MemoryApi:TestNoise` pins the body table, and `Web/Api.cls` is contended.
+- low: AC 1's observed red is a source pin. Its `mutation:` line is present and true. NZ1's body equality is falsifiable, and the `inert` mutation turned NZ1 red.
+- low: `TestRepeatAndSetting` checks absence over a 3 s window. Both rules are pinned at unit level (`AnswerPrecedents:TestNotDoneSendsNone`, `PrecedentOps:TestApprovalRefused` setting case).
+- low: `NoiseControl`'s `shown` guard has no test. The project has no component test host, and the guard is IncidentDismiss's rule.
+- low: the `notice-card.ts` comment line sits after old line 17, not after 24 as Clarification 1 (e) ruled. It is still one line. `git merge-tree` of HEAD with `origin/OCT-epic17` (6ac45643) auto-merges `notice-card.ts`. It is flagged to the lead and not patched (contended file).
+- low: Option B also reached `SessionOpsDropProbe` and `SessionOpsDocuments:TestRealStubsEnd`. Both are Lane B tests, uncontended, and recorded under Decided in-stage.
+- low: `markedLine` takes a third `timeBeside` argument. This changes no behaviour and keeps the module framework-free.
+- low: `ApprovalDouble.End` was changed without a Code Map line. It is a hermeticity clean-up.
+- low: the spine's AD-21 names line says AnswerOps sends RecordPrecedent "for a fix or tool_call request", but it sends on every `done`. The "Story 41.5, as built" line (the contract) matches the code, and a `setting` request writes no row. The wording is the lead's to tidy (spine).
+- low (by-design, lead's question): sign-out now fails while PrecedentOps cannot answer, even for a session with no rows. This is the fail-closed consequence of the ruled always-send drop (U-311). End answers `failed`, keeps the ResumeHash and stays resumable, so the product never claims a sign-out cleared answers it could not confirm. This keeps AD-4's and AD-21's sign-out guarantee rather than weakening it. It is reachable only when the PrecedentOps item is disabled or its queue passes `CommandsIn.TIMEOUT`. No product call is needed.
+
 ## Spec Change Log
 
 - 2026-11-08 (orchestrator ruling, decide; Contest Planner informed): **Clarification 1 cleared — all three contended edits ALLOWED as plain unions**, done by whichever epic merges second (as 41.2's `Ownership.cls`): (e) `web/src/app/chat/notice-card.ts`, exactly the five listed edits; (c) `web/scripts/ux-strings.test.mjs`, the two `SOURCES.ux` appends; (d) `web/scripts/announce-focus-sources.test.mjs`, the sorted insertion. (a) the `api-client.ts` method and (b) the `IMPORTED` append are within the standing precedent and are reported. No other line of these files changes. Task 7 proceeds.
@@ -472,6 +507,20 @@ Run every command from the worktree root (the lead's stated working directory), 
 - `PrecedentOps.Record`'s fixtures (`TestApprovalAnswers`).
 
 Every test added or changed passes on a fresh environment, in either order.
+
+**QA stage (bmad-qa-generate-e2e-tests):**
+- Gap check against every AC and matrix row found two gaps in the Playwright proof, closed in `web/e2e/memory-noise.spec.ts` (QA): NZ7 (AC 4: Tab from the card reaches the button, Space presses it; NZ1 only focused the button by script and pressed Enter) and NZ8 (AC 5 and the matrix row "Other error": a 500 reply shows its `error.message` beside the button, announced once; a reply that never came shows `BUSY_NOTICE`; the button stays; no row; a later press marks and clears the notice). The other ACs and rows are pinned (the three fixed texts by `noise-view.test.mjs`, `ux-strings.test.mjs`, NZ1 and NZ5 and `Test.Web.MemoryApi:TestTooOldText`; where the control shows by `noise-view.test.mjs`, NZ6 and `SimPhoneOut:TestDecisionRefOnlyForTellNow`; DW-933 and DW-934 by `PrecedentOps:TestAnswerMustMatch` and `TestEndedSession`; the answer hand-off by `AnswerPrecedents`).
+- Run: `live:sign-in-3 --part 7/7` (memory-noise.spec.ts only, fresh lane-A throwaway, tag `e41s5qa`): 8 of 8 passed; `npm --prefix web test` 1555 passed; `npm --prefix web run lint` clean; slot A `Test.Core.PrecedentOps` 20 of 20.
+- mutation: `If result = "done"` removed from `AnswerOps.Carry` (the send on every result) -> `AnswerPrecedents:TestNotDoneSendsNone` red (observed; AC 7, the "only on done" half).
+- mutation: the `Precedent.Has` gate put back around the drop in `SessionOps.EndPrecedents` -> `SessionOpsPrecedents:TestNoRowsStillSends` red (observed; DW-934 Option B, End always sends the drop).
+- mutation: the `Ended` refusal removed from `PrecedentOps.Mark` alone -> `PrecedentOps:TestEndedSession` red (observed; AC 9); the same for `Record` alone -> `TestEndedSession` red (observed).
+- mutation: the `keepFocus` call replaced by a no-op in `NoiseControl` -> NZ1 "focus moved to the control's container" red (observed in the throwaway; AC 4, behavioural).
+- mutation: `messageOf(error) || BUSY_NOTICE` replaced by `BUSY_NOTICE` -> NZ5 and NZ8 red (observed in the throwaway; AC 5, behavioural).
+- mutation: `PrecedentOps.Mark`'s already_marked answer carries a time 60 s later than the first mark's -> NZ2 and NZ4 red (observed in the throwaway; AC 2 and AC 6, "a repeat answers the first time over HTTP").
+- mutation: the button wrapped in an `inert` element -> NZ7 red (observed in the throwaway; AC 4, Tab). NZ1, NZ2, NZ3, NZ5 and NZ8 went red too, as nothing can be pressed.
+- AC 6 body mapping (`NoiseBodyIsPhone`): not mutated, because `Web/Api.cls` is contended (Epic 18); over HTTP NZ4 pins `{"channel":"Phone"}` as web and NZ3 and NZ2 pin phone, and `Test.Web.MemoryApi:TestNoise` pins the full body table.
+- Every mutation was reverted; `git status --short` shows only the lead's cycle log, this spec and `web/e2e/memory-noise.spec.ts` (QA).
+- Files changed (QA): `web/e2e/memory-noise.spec.ts` (QA).
 
 ## Auto Run Result
 
