@@ -234,3 +234,5 @@
 2026-11-08T10:36:26Z	Epic 32	epic_retro_skipped	reason=policy
 2026-11-08T10:36:26Z	Epic 32	epic_status_done	stories=6(32.1-32.6)
 2026-11-08T10:36:26Z	Epic 32	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=7(32.6:high=1,med=6) unresolved_high_med_avg=1 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=1 review_med=6 result=hold applied=false(record_only) scope=reopen(story_32.6)
+2026-11-08T10:38:11Z	Epic 32	integrated_forward	feature=d6b8af41 head=6ba78be7 conflicts_resolved=sprint-status.yaml(last_updated_only;validate_valid;generate_dry-run_changed=0) suite=npm_web_test_1586/1586,lint,test-ci-config_40_PASS,test-boundaries_pass readme_check=about_8_minutes_present,160_seconds_absent note=feature_diff_touches_no_story_file(5.14:Production.cls,bridge_AgentRunner/Adapter,ObjectScript_tests,mock_scenarios)
+2026-11-08T10:38:11Z	Epic 32	epic_runner_complete	stories_completed=1(32.6) code=09ee6b50 note=final_head_CI_pending_at_push
