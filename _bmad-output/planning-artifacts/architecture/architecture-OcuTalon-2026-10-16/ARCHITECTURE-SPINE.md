@@ -288,7 +288,7 @@ From step 3, `OcuTalon.Tools` may call `OcuTalon.Memory.Search` and `OcuTalon.Me
     - **Nothing strips the style.** The AD-28 guard removes only the reserved and banned wording, and `Catalog.Render`'s slot cleaning only control characters and line breaks, so a persona's greetings, exclamation marks and emoji pass both unchanged. Tests in Stories 40.2 (the renderer) and 40.3 (the guard) pin it.
   - **Other context blocks** [AMENDED 2026-10-31, as above (Epic 41)]. AD-21's core memory, daily notes and precedents reach a model only through `Agent.Input`, in the same form: a code-written opening line, then quoted content.
     - **Their place:** each is data, never instructions, and is placed after the persona block and before the item.
-    - **The signature:** `Render(item, now, context)` gains an optional `context` object. Today it carries only `sessionStart`, which `Conversation` sets (AD-21). The persona and precedent blocks need no flag: `Agent.Input` decides them from the item's owner and provenance.
+    - **The signature:** `Render(item, now, context)` gains an optional `context` object. Today it carries only `sessionStart`, which `Conversation` sets (AD-21). The persona and precedent blocks need no flag: `Agent.Input` decides them from the item's owner and provenance. The precedent block also needs the context's `decide` 1, which only Intake's decide request sets (and, from 41.7, EvalIn's decide request of a case that seeds precedents); so the act turn after an act, which renders the same untrusted item, never carries it. [AMENDED 2026-11-08, Story 41.4, Contest Planner ruling]
 
 ### AD-8: The bridge alone decides when a reply is unusable
 

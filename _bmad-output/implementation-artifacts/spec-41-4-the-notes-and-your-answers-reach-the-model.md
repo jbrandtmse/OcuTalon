@@ -199,6 +199,13 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they are given in full.
 
 ## Spec Change Log
 
+- 2026-11-08 (rulings relayed by the orchestrator; Contest Planner under the owner's delegation, owner-level for the AD under U14):
+  - **PUBLIC TEXT APPROVED:** `PRECEDENTDECIDED` = "; OcuTalon decided " and `PRECEDENTANSWER` = "; your answer: ", with the precedent line shape as built (`{date} ({channel}): {summary}; OcuTalon decided {outcome}; your answer: {answer}`) and the no-outcome form for approval rows (`{date} ({channel}): {summary}; your answer: {answer}`); the notes block's date-only quoted day lines (yesterday first). **Pin them with fixed strings** (test-held copies of both parameters and of one built line of each form).
+  - **AD-7 amended, Option A (fail-closed):** written into the spine by the lead (spine line 291, marker `[AMENDED 2026-11-08, Story 41.4, Contest Planner ruling]`): "The precedent block also needs the context's `decide` 1, which only Intake's decide request sets (and, from 41.7, EvalIn's decide request of a case that seeds precedents); so the act turn after an act, which renders the same untrusted item, never carries it." Clarification 1 is cleared; task 3 proceeds.
+  - **U-177 exception GRANTED for ONE Lane B line:** `Core/Intake.cls:83` (the decide request passes `{"decide": 1}`: one argument, two comments). Nothing else in `Intake.cls` changes. **ADD a pin that the act turn's Input never carries the precedent block** (`TestActTurnHasNone` asserts its absence).
+  - **U-177 exception GRANTED for `Test/Core/ConversationTurns.cls`:** exactly the two edits at :238 (render with `{"sessionStart": 1}` for the `turn` request) and :382 (check the Input after the notes block). The new behaviour (today's note can hold the person's own queued words) is accepted. Clarification 2 is cleared.
+  - **The fallback-first-turn gap** (frontmatter `deferred:`) goes to Epic 41's burn-down (Lane B fix in `Conversation`) and onto Epic 41's retro list; the lead harvests it at dev_complete.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -266,6 +273,8 @@ The precedent block contradicts AD-7's "need no flag" when it is set against AD-
 **Spine lines for the lead** (a sub-bullet after "Story 41.3, as built"): `**Story 41.4, as built**: Agent.Input renders the notes block (NOTESOPENING, each non-empty day's local date line then its DailyNote.Build lines, quoted, yesterday first) for a user item whose context has sessionStart 1, and the precedent block (PRECEDENTSOPENING, at most 3 Similar rows of the item's own session, whole lines in at most 600 characters) for an untrusted session-owned item [with context decide 1]; both after the persona block and before the item; a Build that throws leaves the notes out with one warning.`
 
 ## Clarification Needed
+
+**Cleared 2026-11-08 (orchestrator / Contest Planner rulings): Option A with the AD-7 amendment and the one Intake line; the two ConversationTurns edits allowed. See `## Spec Change Log`.**
 
 1. **The precedent block needs to know that a request is a decide request (veto 9: amending AD-7; and a Lane B line).**
    - Intake renders the same untrusted item twice: for its decide request (`Intake.cls:83`), and for the act turn after an act (`:187`, Kind `turn`, Chat). Both calls use no context.
