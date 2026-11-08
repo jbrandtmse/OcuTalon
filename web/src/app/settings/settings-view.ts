@@ -12,6 +12,11 @@
  * - pageOf says which page an address is: the settings page, the Documents page or the chat.
  * - THRESHOLD_FIELDS is the five fields of Check thresholds with their ranges; bodyOf, textsOf and isDirty are the rules of its form.
  * - stepFailedText is the Demo step's text for the value that was written.
+ * - The Time zone section (Story 18.2): zoneOptions lists the zones to choose from, and zoneBody is the body of a save.
+ * - The Daily digest section (Story 18.2): digestChannelBoxes says which channel boxes show, digestChannelsBody builds the channels of a save from the
+ *   boxes and the stored value (a hidden channel keeps its stored state, and the order is always web, phone, telegram), digestBody is the body of a save
+ *   and isDigestDirty the rule of its form. The Telegram box shows only while Telegram is included and on or paused (telegramBoxShown).
+ * - The Channels section (Story 18.2) is read only: channelsView says which of its views shows for the Telegram block and the Telegram card's view kind.
  */
 
 /** Every fixed string of the settings page. The separator in the title is U+00B7. */
@@ -44,6 +49,25 @@ export const SETTINGS_TEXTS = {
     licenseUsePercent: 'License use above (%)',
     queueMessages: 'Queue backlog above (messages)',
     queueWaitMinutes: 'Oldest queued message waiting over (minutes)',
+  },
+  timeZone: {
+    label: 'Time zone',
+    help: "Message times, reminders, the daily digest and the current time that OcuTalon gives the model use this zone. Times on this page stay in your browser's zone.",
+    serverDefault: 'Server default',
+  },
+  dailyDigest: {
+    sendAt: 'Send at',
+    help: "In the instance's time zone. Applies from the next digest.",
+    sendTo: 'Send to',
+    web: 'The web chat',
+    phone: 'The simulated phone',
+    telegram: 'Telegram',
+    sendNow: 'Send my digest now',
+    sendNowDone: 'Sending your digest now.',
+    sendNowFailed: "Couldn't send your digest. Try again.",
+  },
+  channels: {
+    telegramOn: 'Telegram on',
   },
   on: 'On',
   off: 'Off',
@@ -163,4 +187,84 @@ export function stepFailedText(on: boolean): string {
 /** The first of the field names that is in the list, in the form's order: the field that takes focus after a refusal. */
 export function firstInError(names: readonly string[], order: readonly string[]): string | undefined {
   return order.find((name) => names.includes(name));
+}
+
+/** The zone choices of the Time zone select: the empty "Server default" first, then the stored zone when the browser's list lacks it, then the browser's zones. */
+export function zoneOptions(supported: readonly string[], stored: string): { value: string; label: string }[] {
+  const listed = supported.includes('UTC') ? [...supported] : [...supported, 'UTC'];
+  const zones = stored !== '' && !listed.includes(stored) ? [stored, ...listed] : listed;
+  return [{ value: '', label: SETTINGS_TEXTS.timeZone.serverDefault }, ...zones.map((zone) => ({ value: zone, label: zone }))];
+}
+
+/** The body of a Time zone save. */
+export function zoneBody(zone: string): { InstanceZone: string } {
+  return { InstanceZone: zone };
+}
+
+/** The digest channels in the order that a save stores them. */
+export const DIGEST_CHANNELS = ['web', 'phone', 'telegram'] as const;
+
+/** A digest channel. */
+export type DigestChannel = (typeof DIGEST_CHANNELS)[number];
+
+/** True while the Telegram box shows: Telegram is included in the release and its state is on, or it is paused (the bot is in use elsewhere). */
+export function telegramBoxShown(telegram: { included: boolean; state: string } | undefined, paused: boolean): boolean {
+  return telegram !== undefined && telegram.included && (telegram.state === 'on' || paused);
+}
+
+/** The channel boxes that show: the web chat always, the simulated phone only while demo mode is on, Telegram only when telegramShown. */
+export function digestChannelBoxes(demoMode: boolean, telegramShown: boolean): DigestChannel[] {
+  return DIGEST_CHANNELS.filter((channel) => channel === 'web' || (channel === 'phone' && demoMode) || (channel === 'telegram' && telegramShown));
+}
+
+/** The channels that a stored value names, each trimmed and lowercased; a name that is not a digest channel is dropped. */
+export function storedChannels(stored: string): DigestChannel[] {
+  const named = stored.split(',').map((name) => name.trim().toLowerCase());
+  return DIGEST_CHANNELS.filter((channel) => named.includes(channel));
+}
+
+/**
+ * The channels of a save, in the order web, phone, telegram: a shown box keeps what is checked, and a hidden channel keeps its stored state. With no shown box
+ * checked the body names no channel, which the server refuses with the field error, so that a digest is never saved for hidden channels alone.
+ */
+export function digestChannelsBody(stored: string, shown: readonly DigestChannel[], checked: readonly DigestChannel[]): string {
+  if (!shown.some((channel) => checked.includes(channel))) {
+    return '';
+  }
+  const kept = storedChannels(stored);
+  return DIGEST_CHANNELS.filter((channel) => (shown.includes(channel) ? checked.includes(channel) : kept.includes(channel))).join(',');
+}
+
+/** The body of a Daily digest save. */
+export function digestBody(time: string, channels: string): { time: string; channels: string } {
+  return { time: time.trim(), channels };
+}
+
+/** True when the form's time or channels differ from the saved ones (the channels compared as the channels they name). */
+export function isDigestDirty(current: { time: string; channels: string }, saved: { time: string; channels: string }): boolean {
+  return current.time.trim() !== saved.time.trim() || storedChannels(current.channels).join(',') !== storedChannels(saved.channels).join(',');
+}
+
+/** Which view the read-only Channels section shows. */
+export interface ChannelsView {
+  kind: 'hidden' | 'not-set-up' | 'paused' | 'on';
+  /** The paused view's "Trying again at {time}" line; empty in the other views. */
+  retry: string;
+}
+
+/**
+ * The Channels section's view of Telegram: nothing when the release does not include it, "not set up" while the Telegram card says so, "paused" while the
+ * card is paused, and otherwise on. `cardKind` and `retry` are the kind and the retry line of the Telegram card's view (telegramCardView).
+ */
+export function channelsView(included: boolean, cardKind: string, retry: string): ChannelsView {
+  if (!included) {
+    return { kind: 'hidden', retry: '' };
+  }
+  if (cardKind === 'paused') {
+    return { kind: 'paused', retry };
+  }
+  if (cardKind === 'not-set-up') {
+    return { kind: 'not-set-up', retry: '' };
+  }
+  return { kind: 'on', retry: '' };
 }

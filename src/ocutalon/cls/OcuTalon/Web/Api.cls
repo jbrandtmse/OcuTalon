@@ -38,6 +38,8 @@
 ///     the CSP session's Ref (AD-4), and answers: Ok 200 {"result":"done","sections"}; a refused value, a missing or unknown field or a body that is not an object 400
 ///     bad_settings with "fields", the names of the refused fields; not_built 501; step_failed (the demo step failed after the value was written)
 ///     409 demo_step_failed; not_audited, failed and any other outcome or status 500 server_error.
+///     POST /v1/settings/daily-digest/send never reads the body and submits one SendDigest (origin web_admin, the CSP session's Ref, a fresh
+///     IdempotencyKey): Ok 202 {"result":"sending"}; an error status, no result or any other outcome 500 server_error.
 ///     The snapshot also tells the page who is signed in, whether that user holds OcuTalonAdmin (admin), which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
 ///     and the active status conditions, then, only while demo mode is on, the simulated phone, the simulated mailbox
@@ -188,6 +190,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/settings/budgets" Method="POST" Call="SaveBudgets"/>
 <Route Url="/v1/settings/channels" Method="POST" Call="NotBuilt"/>
 <Route Url="/v1/settings/daily-digest" Method="POST" Call="SaveDailyDigest"/>
+<Route Url="/v1/settings/daily-digest/send" Method="POST" Call="SendDigest"/>
 <Route Url="/v1/settings/time-zone" Method="POST" Call="SaveTimeZone"/>
 <Route Url="/v1/settings/check-thresholds" Method="POST" Call="SaveCheckThresholds"/>
 <Route Url="/v1/settings/demo-mode" Method="POST" Call="SaveDemoMode"/>
@@ -1474,6 +1477,27 @@ ClassMethod RunHeartbeat() As %Status
 	}
 	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "Checks answered the run with '"_outcome_"'"))
+}
+
+/// POST /v1/settings/daily-digest/send (AD-1, AD-4, AD-14, AD-32; Story 18.2): sends the signed-in admin's digest now. The body is never read. The
+/// path is under /v1/settings/, so IsSettingsUrl's admin gate covers it (a non-admin is 403 not_admin). The session is Ownership.SessionRef's (a
+/// failure is 500 server_error); one SendDigest with a fresh IdempotencyKey is submitted through Commands.Submit with origin web_admin. Ok is
+/// 202 {"result":"sending"}; an error status, no result or any other outcome is 500 server_error, with the cause logged.
+ClassMethod SendDigest() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set command = ##class(OcuTalon.Msg.Command.SendDigest).%New()
+	Set command.SessionRef = sessionRef
+	Set command.IdempotencyKey = "web-digest-"_$SYSTEM.Util.CreateGUID()
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If 'result.Ok Quit ..ServerError($SYSTEM.Status.Error(5001, "Digest answered the send with '"_result.Outcome_"'"))
+	Set %response.ContentType = ..#CONTENTTYPE
+	Set %response.Status = ..#HTTP202ACCEPTED
+	Write {"result": "sending"}.%ToJSON()
+	Quit $SYSTEM.Status.OK()
 }
 
 /// The on, interval, from, to and checklist of the PUT /v1/heartbeat body, and 1 when it is a valid one: a JSON object whose on is a boolean,

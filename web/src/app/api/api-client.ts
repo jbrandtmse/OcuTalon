@@ -7,6 +7,7 @@ import type {
   AnswerBody,
   AnswerChannel,
   BreakFeedSent,
+  DigestSending,
   DismissBody,
   DocumentAdded,
   DocumentRemoved,
@@ -54,6 +55,21 @@ export class ApiClient {
    */
   saveSettings(section: string, values: object): Observable<SettingsSaved> {
     return this.http.post<SettingsSaved>(`${BASE}/settings/${encodeURIComponent(section)}`, values);
+  }
+
+  /**
+   * Sends the signed-in admin's digest now: a POST with an empty body (Story 18.2). Only the answer 202 `{result: 'sending'}` is a success; any other
+   * status fails as an error (a 403 for a user who is not an admin, a 500 `server_error`).
+   */
+  sendDigest(): Observable<DigestSending> {
+    return this.http.post<DigestSending>(`${BASE}/settings/daily-digest/send`, {}, { observe: 'response' }).pipe(
+      map((response) => {
+        if (response.status !== 202 || response.body === null) {
+          throw new HttpErrorResponse({ status: response.status, statusText: response.statusText, url: response.url ?? `${BASE}/settings/daily-digest/send` });
+        }
+        return response.body;
+      }),
+    );
   }
 
   /** Signs the user out: the server ends the CSP session and the whole sign-in group (204, no body). */

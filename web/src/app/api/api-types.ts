@@ -186,6 +186,16 @@ export interface SettingsSections {
   'demo-mode': { demoMode: boolean };
 }
 
+/** The body of a Time zone save: the IANA zone name, or "" for the server's own zone. The zone is a bridge value, so the 200 answer's sections do not hold it. */
+export interface TimeZoneBody {
+  InstanceZone: string;
+}
+
+/** The 202 answer to POST /ocutalon/api/v1/settings/daily-digest/send: the digest is being sent. */
+export interface DigestSending {
+  result: 'sending';
+}
+
 /** The 200 answer to a save: `{result: 'done', sections}`. */
 export interface SettingsSaved {
   result: 'done';

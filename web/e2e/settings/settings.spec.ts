@@ -91,7 +91,7 @@ test('S1: an admin sees Chat and Settings in the header, and Settings opens the 
     expect(new URL(page.url()).hash, `${label} has its own address`).toBe(`#/settings/${slug}`);
     await expect(link).toHaveAttribute('aria-current', 'true');
     await expect(link, `the ${label} link keeps the keyboard focus: the page is not built again`).toBeFocused();
-    await expect(page.getByText("This part of OcuTalon isn't built yet.")).toBeVisible();
+    await expect(page.getByText("This part of OcuTalon isn't built yet."), `${label} is built unless it is Budgets`).toHaveCount(slug === 'budgets' ? 1 : 0);
   }
   expect(loads, 'a section change keeps the page: GET /v1/settings was asked once').toBe(1);
   await page.evaluate(() => {
@@ -489,7 +489,7 @@ test('S7c: a Demo mode save shows and announces its own confirmation with the re
   }
 });
 
-/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on all eight settings calls. */
+/** S8: a user without OcuTalonAdmin sees no Settings link, the denied view at #/settings, and 403 not_admin on all nine settings calls. */
 test('S8: a user without OcuTalonAdmin is denied', async ({ page }) => {
   const { user, password } = fixtureUser('LIVE');
   await loadedAfter(page, () => signIn(page, user, password));
@@ -517,7 +517,156 @@ test('S8: a user without OcuTalonAdmin is denied', async ({ page }) => {
     expect(answer.status(), `POST /v1/settings/${slug} is 403`).toBe(403);
     expect(await answer.json(), `${slug}: not_admin`).toEqual(wanted);
   }
+  const sendNow = await page.request.post(`${SETTINGS}/daily-digest/send`, { headers: envelope(), data: {} });
+  expect(sendNow.status(), 'POST /v1/settings/daily-digest/send is 403').toBe(403);
+  expect(await sendNow.json(), 'send: not_admin').toEqual(wanted);
   const noEnvelope = await page.request.post(`${SETTINGS}/check-thresholds`, { data: {} });
   expect(noEnvelope.status(), 'the admin check comes before the envelope check').toBe(403);
   expect(((await noEnvelope.json()) as { error: { code: string } }).error.code).toBe('not_admin');
+});
+
+/** The state of the instance as the settings page's session sees it: the stored zone, the digest values, and whether demo mode is on. */
+async function instanceValues(page: Page): Promise<{ zone: string; time: string; channels: string; demo: boolean }> {
+  const response = await page.request.get(SETTINGS);
+  expect(response.status(), 'GET /v1/settings as an admin').toBe(200);
+  const body = (await response.json()) as {
+    sections: { 'daily-digest': { time: string; channels: string }; 'demo-mode': { demoMode: boolean } };
+    bridge: Record<string, string | number>;
+  };
+  const zone = body.bridge['InstanceZone'];
+  return { zone: typeof zone === 'string' ? zone : '', time: body.sections['daily-digest'].time, channels: body.sections['daily-digest'].channels, demo: body.sections['demo-mode'].demoMode };
+}
+
+/** Opens a section of the settings page for the README admin. */
+async function openSection(page: Page, label: string): Promise<void> {
+  await signInReadmeLoaded(page);
+  await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
+  await sectionsNav(page).getByRole('link', { name: label, exact: true }).click();
+  await expect(page.getByRole('heading', { level: 2, name: label })).toBeVisible();
+}
+
+/** S9: the Time zone section saves a zone, shows the saved text, and GET /v1/settings returns the zone; the test puts the zone back. */
+test('S9: saving a time zone shows the saved text, and GET /v1/settings returns the zone', async ({ page }) => {
+  await recordAnnouncements(page);
+  await openSection(page, 'Time zone');
+  const before = await instanceValues(page);
+  const select = page.getByLabel('Time zone', { exact: true });
+  await expect(select, 'the select is preselected from the stored zone').toHaveValue(before.zone);
+  await expect(select.locator('option').first(), 'the first choice is the Server default').toHaveText('Server default');
+  await expect(page.getByText("Message times, reminders, the daily digest and the current time that OcuTalon gives the model use this zone. Times on this page stay in your browser's zone.")).toBeVisible();
+  const zone = before.zone === 'Asia/Tokyo' ? 'Europe/Berlin' : 'Asia/Tokyo';
+  try {
+    await select.selectOption(zone);
+    await saveButton(page).click();
+    await expect(savedText(page), 'the saved text shows').toBeVisible();
+    await expect.poll(() => announcements(page, SAVED), 'and is announced').toBe(1);
+    expect((await instanceValues(page)).zone, 'GET shows the new zone at once').toBe(zone);
+    await page.reload();
+    await sectionsNav(page).getByRole('link', { name: 'Time zone', exact: true }).click();
+    await expect(page.getByLabel('Time zone', { exact: true }), 'a reload shows the saved zone').toHaveValue(zone);
+  } finally {
+    const put = await page.request.post(`${SETTINGS}/time-zone`, { headers: envelope(), data: { InstanceZone: before.zone } });
+    expect(put.status(), 'the zone is put back').toBe(200);
+  }
+  expect((await instanceValues(page)).zone, 'and GET shows it').toBe(before.zone);
+});
+
+/** S10: the Daily digest section shows the channel boxes that the stack's demo mode allows, saves the time and the channels, and keeps a hidden channel as stored. */
+test('S10: the Daily digest section saves the time and the channels, and keeps a hidden channel', async ({ page }) => {
+  await recordAnnouncements(page);
+  await openSection(page, 'Daily digest');
+  const before = await instanceValues(page);
+  const time = page.getByLabel('Send at', { exact: true });
+  const web = page.getByRole('checkbox', { name: 'The web chat', exact: true });
+  const phone = page.getByRole('checkbox', { name: 'The simulated phone', exact: true });
+  await expect(time, 'the time shows the stored value').toHaveValue(before.time);
+  await expect(page.getByText("In the instance's time zone. Applies from the next digest.")).toBeVisible();
+  await expect(web, 'the web chat box always shows').toBeVisible();
+  await expect(phone, 'the simulated phone box shows only while demo mode is on').toHaveCount(before.demo ? 1 : 0);
+  const stored = before.channels.split(',').map((name) => name.trim().toLowerCase());
+  await expect(web, 'and is checked as stored').toBeChecked({ checked: stored.includes('web') });
+  const newTime = before.time === '06:45' ? '06:46' : '06:45';
+  try {
+    await time.fill(newTime);
+    await web.check();
+    await saveButton(page).click();
+    await expect(savedText(page), 'the saved text shows').toBeVisible();
+    await expect.poll(() => announcements(page, SAVED), 'and is announced').toBe(1);
+    const after = await instanceValues(page);
+    expect(after.time, 'GET shows the new time').toBe(newTime);
+    const saved = after.channels.split(',');
+    expect(saved.includes('web'), 'web is saved').toBe(true);
+    expect(saved.includes('phone'), 'the phone channel is as it was whether or not its box shows').toBe(stored.includes('phone'));
+    expect(after.channels, 'the channels are in the order web, phone, telegram').toBe(['web', 'phone', 'telegram'].filter((name) => saved.includes(name)).join(','));
+  } finally {
+    const put = await page.request.post(`${SETTINGS}/daily-digest`, { headers: envelope(), data: { time: before.time, channels: before.channels } });
+    expect(put.status(), 'the digest values are put back').toBe(200);
+  }
+  const restored = await instanceValues(page);
+  expect(restored.time, 'the time is back').toBe(before.time);
+});
+
+/** S11: Send my digest now follows the busy pattern and then shows the confirmation (the answer is stubbed, so no digest is made); a failed send shows the failure text. */
+test('S11: Send my digest now is busy, then shows the confirmation, and a failed send shows the failure', async ({ page }) => {
+  await recordAnnouncements(page);
+  await openSection(page, 'Daily digest');
+  const send = page.getByRole('button', { name: 'Send my digest now', exact: true });
+  await expect(send).toBeVisible();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const posts: string[] = [];
+  await page.route('**/api/v1/settings/daily-digest/send', async (route) => {
+    posts.push(route.request().method());
+    await gate;
+    await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ result: 'sending' }) });
+  });
+  try {
+    await send.click();
+    await expect(send, 'the button is busy').toHaveAttribute('aria-busy', 'true');
+    await expect(send, 'and aria-disabled, never disabled').toHaveAttribute('aria-disabled', 'true');
+    await send.click();
+    release();
+    await expect(page.getByText('Sending your digest now.', { exact: true }).first(), 'the confirmation shows').toBeVisible();
+    await expect(send, 'and the button is restored').not.toHaveAttribute('aria-busy', 'true');
+    await expect.poll(() => announcements(page, 'Sending your digest now.'), 'the confirmation is announced').toBe(1);
+    expect(posts, 'one POST was made while the button was busy').toEqual(['POST']);
+  } finally {
+    release();
+    await page.unroute('**/api/v1/settings/daily-digest/send');
+  }
+  await page.route('**/api/v1/settings/daily-digest/send', (route) =>
+    route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'x' } }) }),
+  );
+  try {
+    await send.click();
+    await expect(page.locator('#digest-send-result'), 'a failed send shows the failure text').toHaveText("Couldn't send your digest. Try again.");
+    await expect(send, 'and the button is restored').not.toHaveAttribute('aria-busy', 'true');
+  } finally {
+    await page.unroute('**/api/v1/settings/daily-digest/send');
+  }
+});
+
+/** S12: the Channels section shows the Telegram state that /v1/state holds and nothing to edit: no Save button, no field, no token. */
+test('S12: the Channels section shows the state of Telegram, read only', async ({ page }) => {
+  await openSection(page, 'Channels');
+  const telegram = ((await (await page.request.get('/ocutalon/api/v1/state')).json()) as { telegram: { included: boolean; state: string; pausedUntil: string } }).telegram;
+  await expect(page.getByText("This part of OcuTalon isn't built yet."), 'the section is built').toHaveCount(0);
+  await expect(saveButton(page), 'it has no Save button').toHaveCount(0);
+  await expect(page.getByRole('textbox'), 'and no field, so no token can be entered').toHaveCount(0);
+  const notSetUp = page.getByText('Telegram not set up', { exact: true });
+  const paused = page.getByText('Telegram paused', { exact: true });
+  const on = page.getByText('Telegram on', { exact: true });
+  if (!telegram.included) {
+    await expect(notSetUp.or(paused).or(on), 'a release without Telegram shows no Telegram block').toHaveCount(0);
+  } else if (telegram.pausedUntil !== '') {
+    await expect(paused, 'a paused bot shows the paused text').toBeVisible();
+    await expect(page.getByText(/^Trying again at /), 'and when it tries again').toBeVisible();
+  } else if (telegram.state === 'off' || telegram.state === 'rejected') {
+    await expect(notSetUp, 'a bot that is not set up shows that').toBeVisible();
+    const link = page.getByRole('link', { name: 'How to set it up' });
+    await expect(link, 'with the README link').toHaveAttribute('href', /#telegram$/);
+    await expect(link, 'that opens in a new tab').toHaveAttribute('target', '_blank');
+  } else {
+    await expect(on, 'a bot that is on shows that').toBeVisible();
+  }
 });

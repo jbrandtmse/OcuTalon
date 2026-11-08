@@ -2,14 +2,32 @@
 title: 'Story 18.2: Set the time zone and the daily digest at run time'
 type: 'feature'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'd8dac27538c4ff0af7747bdbac363cc7673f2f9a'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-18-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/33-1-task0-zone-measurement.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The Playwright cases S9 to S12 (Time zone, Daily digest, Send my digest now, Channels) have no observed mutation line, because the browser tier runs only in CI.
+    evidence: |-
+      Rule 19 asks for a mutation observed red. S9 to S12 are written but were not run here (group shards-4, live:sign-in-2). Their pure-function twins in
+      web/scripts/settings-view.test.mjs have the AC 5 mutation. Settle it in the CI pass: drop the saved-text check or the InstanceZone body field and watch S9 go red.
+    location: >-
+      web/e2e/settings/settings.spec.ts:S9-S12
+    severity: low
+  - summary: >-
+      Data.Time.Zone() falling back to OsZone() is pinned only through OsZone(), because /etc/localtime cannot be redirected in a test.
+    evidence: |-
+      On a UTC host both sides of the Zone() assertion are UTC, so deleting the OsZone() step in Zone() stays green. A seam (a link parameter on Zone) would
+      settle it; the spec fixed the strategy (matrix row "TZ unset, OS zone"), so this is a spec-level limit. The spec's ledger also notes residual (a): a zone that is set
+      and then cleared converts in UTC on a TZ-unset non-UTC host (Bridge.Time.Apply, Lane A).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Data/Time.cls:Zone
+    severity: low
 ---
 
 <intent-contract>
@@ -179,6 +197,34 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-08 — Review pass
+- verdicts: 24 rows covering the 32 findings the layers reported (the same defect reported by two layers shares one row, with every source named) — high 0, medium 6, low 17, false 1, maybe-false 0; the intent-alignment layer reported readings and divergences, no defects
+- findings:
+  - `[low]` `[reject]` Zone() names the OS zone while a TZ-unset non-UTC host converts in UTC (Blind Hunter 1, Edge 1, Edge 10) — spec-decided (Decided in-stage 1, matrix row DW-34); the set-then-cleared residual is already ledgered in Design Notes for the lead (Lane A, `Bridge.Time.Apply`); a TZ-unset process otherwise converts in its inherited OS zone; fix would need a Lane A change.
+  - `[medium]` `[patch]` Midnight flake in `SettingsRunTime`: the digest time (now minus 2 h) lands on the previous local day for Kolkata or Kathmandu for about 2 h of each UTC day (Blind Hunter 2) — the test now picks, from six fixed-offset zones, one whose local day is at least 2 h old and whose offset differs from the one in force; passed twice.
+  - `[low]` `[reject]` `TestOsZone` zoneinfo assertions are unguarded (Blind Hunter 3) — the zone tests need /usr/share/zoneinfo anyway (`CheckZone`), and every CI image has it.
+  - `[low]` `[reject]` `TestReminderKeepsDueAt` DueAt and State asserts cannot fail (Blind Hunter 4, Verification Gap 4) — spec-prescribed guard; the `ForMessage` pair can fail (AC 1 mutation) and the mutation note says which part is structural.
+  - `[medium]` `[patch]` The Time zone select has no UTC (Chromium and Node list only Asia/Calcutta and no UTC) and S9 chose Asia/Kolkata, which the browser does not list (Blind Hunter 5, Edge 8, Verification Gap 10) — `zoneOptions` now adds UTC when the browser list lacks it (unit-tested), S9 uses Asia/Tokyo and Europe/Berlin. Verified with `Intl.supportedValuesOf` in Node 26.
+  - `[medium]` `[patch]` The Channels section has no browser test (Blind Hunter 6, Verification Gap 3) — S12 added (not built text gone, no Save button, no field, and the state that `/v1/state` holds: none, paused, not set up with the `#telegram` link in a new tab, or on); runs in CI.
+  - `[low]` `[patch]` Duplicate import from live-state in `settings-page.ts` (Blind Hunter 7, Edge 9) — merged into one import.
+  - `[low]` `[reject]` Unused `TimeZoneBody` type (Blind Hunter 8) — the type was asked for by the Tasks as documentation of the body; removing it is churn.
+  - `[low]` `[patch]` Garbled sentence in the `Test.Web.SettingsApi` header (Blind Hunter 9) — reworded.
+  - `[low]` `[reject]` `DigestNamed` repeats lookups across the eight whens (Blind Hunter 10, Edge 7) — correct and cheap (cached `Setting.Get`); a single target function is a larger change than a direct fix.
+  - `[low]` `[reject]` `FromLocal` costs up to two extra `ToLocal` calls, and only 30- and 60-minute folds (Blind Hunter 11, Edge 3) — the algorithm is the spec's; only Antarctica/Troll has a fold over an hour.
+  - `[low]` `[reject]` `OsZone` can return posix/ or right/ names (Edge 2) — /etc/localtime points at the plain zone file in the images; a bad name still passes `CheckZone` as a no-op.
+  - `[medium]` `[patch]` Unchecking the only shown channel box saved the hidden channels alone, so a digest went to no one (Edge 4) — `digestChannelsBody` now returns an empty body when no shown box is checked, which the server refuses with the existing field error (spec matrix row "a body with no channel gets 400"); unit-tested.
+  - `[low]` `[reject]` An empty digest `<when>` leaves no trace (Edge 5) and the `DigestNamed` catch logs nothing (Edge 6) — the spec says the digest goes to no target and any error gives 0.
+  - `[low]` `[false]` The claim that Zone() disagrees with conversions (Edge 10) — same as the first row.
+  - `[low]` `[reject]` `OsZone`/`Zone()` OS-fallback assertions restate the implementation (Verification Gap 1) — the strategy is the spec's; the strongest check available is recorded as a deferred item.
+  - `[low]` `[reject]` No test for the `CheckZone` guard on a hand-written bridge zone (Verification Gap 2) — writing an invalid row needs the bridge's row writer (Lane A); `Bridge.Time.Apply` has the same guard under `Test.Bridge.*`.
+  - `[medium]` `[patch]` AC 4 had one mutation line (Verification Gap 5) — two more observed and recorded (Apply removed, and the audit writer); the StartTime and phone-text asserts could not be mutated and are said so.
+  - `[low]` `[defer]` S9 to S12 have no observed mutation (Verification Gap 6) — Playwright runs in CI only; deferred with what would settle it.
+  - `[low]` `[patch]` The 30-minute fold (`u-1800`) was exercised by no case (Verification Gap 7) — `Australia/Lord_Howe` added to `TestFoldZero`; dropping 1800 goes red.
+  - `[medium]` `[patch]` `TestFoldZero` reused process state, so only the first iteration was "fresh" (Verification Gap, other 1) — `Forget()` before every iteration; the Lord Howe mutation went red in the fresh order too.
+  - `[low]` `[false]` Zone() does not call Apply (Verification Gap, other 3) — Zone() reads the bridge row and then the process environment, neither of which Apply changes, so it is right without a conversion first.
+  - `[low]` `[reject]` `SettingsRunTime` leaves production jobs' 60 s digest cache warm (Verification Gap, other 4) — the classes that run after it in `Core` do not read the digest rows through the production.
+  - `[false]` `[reject]` The intent-alignment layer's divergences (the run-time test saves through `Commands.Submit`, not through the HTTP route; S11 stubs the POST) — descriptive, and each is the spec's own division of pinning tests (AC 3 text).
+
 ## Design Notes
 
 **Architecture decisions (Rule 6):** AD-1 (SendDigest is a production message), AD-2 (OcuTalon may call the bridge, never the reverse), AD-4 (`web_admin` takes the CSP session's Ref), AD-12 (Telegram state from `/v1/state`), AD-13 (admin gate), AD-14 (Notify's `digest` sub-bullet), AD-17 (one audit writer), AD-18 (the instance zone at run time, fold 0, the DST comparison test), AD-19 (`SettingsOps` is the one writer), AD-22 (production tests run on throwaways), AD-29 and AD-33 (lanes, U-177), AD-32 (the digest notification).
@@ -309,6 +355,19 @@ Lane D variables (`$LANE_D` below):
 - AC 3: send origin `web_user` -> `SettingsApi` `TestSendDigest` red.
 - AC 5: show the on text when paused -> `settings-view` red.
 
+**Recorded mutations (implement stage, 2026-11-08; each applied, observed red, then reverted with the file's hash unchanged):**
+- mutation: AC 1: dropped the `Apply()` call in `Data.Time.ToLocal` -> `Test.Data.TimeSource` red (`TestZoneFollowsBridge`, `TestZoneCleared`, `TestAgreesWithBridgeAfterSetZone` first-conversion asserts, `TestPreamble`).
+- mutation: Fold 0: `FromLocal` ends `Quit utc` (the converted instant only) -> `Test.Data.TimeSource` `TestFoldZero` red (Berlin and Sydney in every order but one, New York after a winter `FromLocal`).
+- mutation: AC 2: removed the eight `digest` whens from `Core.Rule.Notify` -> `Test.Core.Routing` `TestNotifyDigestTargets` red (the generic route is taken).
+- mutation: AC 2a/4: `Functions.DigestNamed` ends `Quit 1` -> `Test.Core.SettingsRunTime` red on "its kind digest Delivery rows are on web only, with none on phone" (the digest sent to Notify reached the phone as well).
+- mutation: AC 3: `Api.SendDigest` submits with origin `web_user` -> `Test.Web.SettingsApi` `TestSendDigest` red (500 `server_error`, no Sent row).
+- mutation: AC 5: the paused Channels view returns the on view -> `web/scripts/settings-view.test.mjs` "says paused with the retry line ..." red.
+- mutation: AC 4, the zone and the scheduled digest's `DueAt`: removed the three `Bridge.Time.Apply()` calls from `Data.Time` -> `Test.Core.SettingsRunTime` red ("its ToLocal converts in it", no scheduled digest is sent within 75 s, so `DueAt`, the clock and the requested digest fail).
+- mutation: AC 4, the audit entries: `Bridge.Audit.Record` made to return OK before writing (restored byte-identical) -> `Test.Core.SettingsRunTime` red on "three Settings entries are read back from the audit log". (The same change to `SettingsOps.WriteAudit` was not seen by the running production host and stayed green, so it is not offered as evidence.)
+- mutation: Fold 0, 30-minute fold: `FromLocal`'s loop reduced to `For back = 3600` -> `Test.Data.TimeSource` `TestFoldZero` red for Australia/Lord_Howe (5 of 6 orders).
+- AC 4 `StartTime` unchanged and the phone text: no mutation could be applied from here (a restart is not buildable; the phone text is also produced by the same `ForMessage`). The phone assertion stayed green with `Apply` removed because the SimPhoneOut job already follows the bridge in this build.
+- AC 1 "pending reminders keep their `DueAt`" (`TestReminderKeepsDueAt`): the `DueAt` and `State` asserts are a structural guard (nothing in `Data.Time` or the bridge writes a reminder); the 10:00/19:30 `ForMessage` pair is the part that goes red under the AC 1 mutation.
+
 **Shared surfaces:**
 - Notify's targets for kind `digest` (`Test.Core.Routing`; `Test.Digest.Compose` `TestOwnMatchesNotify`, which must stay green unchanged).
 - `Functions`' function list (`TestFunctions`).
@@ -323,5 +382,21 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `Data.Time` follows `Bridge.Time` (Apply first, bridge zone, then TZ, then the OS zone, then UTC) and reads the first instant of a repeated hour whatever the process converted before. `Notify` has a `digest` branch that reads `digest.channels` (`Functions.DigestNamed`). `POST /v1/settings/daily-digest/send` submits one `SendDigest` (origin `web_admin`). The Settings page has the Time zone, Daily digest (with Send my digest now) and Channels sections. `Test.Core.SettingsRunTime` changes all three values on the running production without a restart.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Data/Time.cls`: Apply calls, Zone() order, OsZone, fold 0.
+- `src/ocutalon/cls/OcuTalon/Core/Rule/Functions.cls`, `Core/Rule/Notify.cls`: DigestNamed and the digest branch.
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls`: the send route.
+- `web/src/app/api/api-client.ts`, `api-types.ts`: `sendDigest()` and the time-zone body type.
+- `web/src/app/settings/{time-zone,daily-digest,channels}-section.ts` (new), `settings-page.ts`, `settings-view.ts`: the three sections and their texts.
+- Tests: `Test/Data/Time.cls`, `Test/Data/TimeSource.cls` (new), `Test/Core/Routing.cls`, `Test/Core/SettingsRunTime.cls` (new), `Test/Web/SettingsApi.cls`, `web/scripts/{settings-view,ux-strings,announce-focus-sources,demo-view-sources}.test.mjs`, `web/e2e/settings/settings.spec.ts` (S1, S8, S9 to S12).
+
+**Review.** 32 findings in 24 triage rows: 9 patches applied (6 medium: the midnight flake, the zone list with UTC and S9's zone, S12, hidden-only channels, TestFoldZero state, AC 4 mutation lines; 3 low: the Lord Howe case, the import, the header sentence), 1 deferred (S9 to S12 mutation lines; the OS-zone pin is the second deferred item), 3 refuted as false, the rest rejected with the reasons in the triage log. Follow-up review recommended: yes. Unverified risk: S9 and S12 and the changed zone list were not run in a browser here; they run in CI (group shards-4).
+
+**Verification.** Lane-D warm throwaway `e18s2iw` (started and torn down by this stage): `Test.Data.Time`, `Test.Data.TimeSource` (0.07 s), `Test.Schedule.ReminderZone`, `Test.Core.Routing`, `Test.Core.SettingsRunTime` (70 s), `Test.Web.SettingsApi` and the once-classes passed at the implement pass (`Test.Bridge.Time` 2.2 s, `Test.Agent.Render`, `Test.Tools.Reminders` 7.9 s, `Test.Digest.Compose`, `Test.Digest.Send` 12.4 s, `Test.Core.SettingsSave`, `Test.Core.SettingsAudit`, `Test.Schedule.Reminders` 82 s, `Test.Demo.SimPhoneOut`, `Test.Core.RoutingProduction`). After the review patches: TimeSource, Time, SettingsApi, ReminderZone and SettingsRunTime re-run green. `npm --prefix web test` (1560), `npm --prefix web run lint`, `npm --prefix web run build`, `bash docker/tests/test-boundaries.sh` all pass.
+
+**Residual risks.** Playwright S1, S9 to S12, the full `shard:lane-a` and `shard:lane-b` and the fresh-environment check are left to CI. DW-34 residual (a) and the 17.5 occurrence are Lane A's. Deferred items are in the frontmatter.

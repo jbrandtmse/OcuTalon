@@ -184,6 +184,9 @@ const SOURCES = {
     'Channels',
     'Daily digest',
     'Time zone',
+    'Send my digest now',
+    'The simulated phone',
+    'Telegram on',
     'Check thresholds',
     'Save changes',
     'Saved. Applies within a minute. Recorded in the audit log.',
@@ -609,6 +612,16 @@ const SOURCES = {
     ],
     'Story 33.2 ruling U-270 (T9, the Demo mode field message when the Demo step failed after the value was written: the value stands, so the text never says that nothing was changed)': [
       "Demo mode is set to {v}, but the switch didn't finish. OcuTalon tries again at its next start.",
+    ],
+    'Story 18.2 ruling planner-2026-11-08-18.2 (the Contest Planner under the owner\'s delegation, 2026-11-08, relayed by the orchestrator: the Time zone help text (reworded by the ruling) and its Server default choice, the Daily digest labels Send at and Send to, its help line, the web chat and simulated phone channel names, the send-now confirmation and failure, and the Channels section\'s Telegram on)': [
+      "Message times, reminders, the daily digest and the current time that OcuTalon gives the model use this zone. Times on this page stay in your browser's zone.",
+      'Server default',
+      'Send at',
+      "In the instance's time zone. Applies from the next digest.",
+      'Send to',
+      'The web chat',
+      'Sending your digest now.',
+      "Couldn't send your digest. Try again.",
     ],
     'Story 12.10 veto item (U-244, orchestrator veto: the hint of the Telegram row in the drawer band, which names the header\'s Status button; EXPERIENCE.md gives only the line for the other bands)': [
       'Optional: press {status} at the top of the page, then scan the QR code in the Telegram card to get the notice on your own phone.',

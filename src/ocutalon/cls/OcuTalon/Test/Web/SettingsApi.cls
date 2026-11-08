@@ -4,7 +4,8 @@
 /// OcuTalon.Production does not run those tests fail with that reason, so that a broken stack can never give a green shard. The roles of the
 /// signed-in user are set through Test.Web.ApiProbe's roles seam. The one demo mode save made through the production keeps the stack's own mode (the Demo step then
 /// changes nothing); the mapping of every outcome to its answer is tested on Answer.
-///   - TestNonAdminIs403Everywhere: with the OcuTalon user role only, or with %All, GET /v1/settings and each of the seven POST routes (also written
+///   - TestNonAdminIs403Everywhere: with the OcuTalon user role only, or with %All, GET /v1/settings, each of the seven POST routes and POST
+///     /v1/settings/daily-digest/send (each also written
 ///     with another case, a trailing slash and a query) answer 403 not_admin and stop the dispatch, before the browser envelope, whatever the
 ///     headers, while an admin passes to the envelope check and a path that is not a settings path is not asked for the role;
 ///   - TestGetShape: the body is SettingsOps.Values, its providers are asserted by their built shape, and it holds no key value (a scan that is shown to find a planted
@@ -16,6 +17,8 @@
 ///     ruled text and the fields, and change nothing;
 ///   - TestBridgeRoutesAre501 (U-177 exception, Contest Planner, 2026-11-05): budgets and time-zone reach the built bridge settings and are saved, applied and put back, a
 ///     value off the allow-list is 400 with nothing changed; models and channels are 501;
+///   - TestSendDigest (Story 18.2; AC 3): an admin's POST /v1/settings/daily-digest/send answers 202 {"result":"sending"} with no body read, and the
+///     production records one requested Sent row (empty DueAt) for the CSP session's Ref; a second press, with a fresh key, records a second;
 ///   - TestSaveDemoModeAudited: an admin's demo mode save (the stack's own mode) answers 200 and writes one entry with the call's user, the CSP session's Ref and the channel web;
 ///   - TestDemoModeBodies: a demo mode body that is not exactly {demoMode: true or false} is 400 with nothing submitted;
 ///   - TestAnswerMapping: each outcome of a save has its status, code and text;
@@ -87,7 +90,7 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// A user without OcuTalonAdmin is refused on all eight settings calls before the envelope, the body and the route.
+/// A user without OcuTalonAdmin is refused on all nine settings calls before the envelope, the body and the route.
 Method TestNonAdminIs403Everywhere()
 {
 	Set wanted = {"error": {"code": "not_admin", "message": "Only OcuTalon admins can open settings."}}.%ToJSON()
@@ -97,7 +100,8 @@ Method TestNonAdminIs403Everywhere()
 	While $ListNext(slugs, position, slug) {
 		Set urls = urls_$ListBuild("POST|/v1/settings/"_slug)
 	}
-	Do $$$AssertEquals($ListLength(urls), 8, "all eight calls are tried")
+	Set urls = urls_$ListBuild("POST|/v1/settings/daily-digest/send")
+	Do $$$AssertEquals($ListLength(urls), 9, "all nine calls are tried")
 	Set odd = $ListBuild("GET|/v1/Settings", "GET|/v1/settings/", "GET|/v1/settings?x=1", "POST|/v1/SETTINGS/check-thresholds", "POST|/v1/settings/zz-unknown", "DELETE|/v1/settings")
 	For roles = "OcuTalonUser", "%All,OcuTalonUser", "OcuTalonUser,OcuTalonAdministrator", "OcuTalonUser,XOcuTalonAdmin" {
 		Set ^OcuTalonTest("ApiProbe", "roles") = roles
@@ -230,6 +234,49 @@ Method TestSaveThresholds()
 	Set body = ..Call("SaveDailyDigest", {"time": "06:45", "channels": "phone,web"}.%ToJSON(), session, .response)
 	Do $$$AssertEquals(response.Status, "200 OK", "the digest section saves too: "_body)
 	Do $$$AssertEquals(..Row("digest.time")_"|"_..Row("digest.channels"), "06:45|web,phone", "the digest keys are written")
+}
+
+/// An admin's POST /v1/settings/daily-digest/send answers 202 {"result":"sending"}, and the production records one requested Sent row of the CSP
+/// session (the digest is composed and sent by the Digest item, whose answer the route does not wait for). Each press has a key of its own, so a
+/// second press records a second row.
+Method TestSendDigest()
+{
+	If '..Guard() Quit
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set session = ..Session()
+	Do $$$AssertEquals(..Sent(session), 0, "control: the session has no digest yet")
+	Set body = ..Call("SendDigest", "{""ignored"": true}", session, .response)
+	Do $$$AssertEquals(response.Status_"|"_response.ContentType_"|"_body, "202 Accepted|application/json|{""result"":""sending""}", "the press is 202 sending: "_body)
+	Do $$$AssertEquals(..WaitSent(session, 1), 1, "the production records one requested Sent row for the CSP session")
+	Set row = ##class(%SQL.Statement).%ExecDirect(, "SELECT Kind, DueAt, IdempotencyKey FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ?", session)
+	Do $$$AssertTrue(row.%Next(), "the row can be read")
+	Set first = row.%Get("IdempotencyKey")
+	Do $$$AssertEquals(row.%Get("Kind")_"|"_row.%Get("DueAt"), "requested|", "it is a requested digest with no due time")
+	Do $$$AssertEquals($Extract(first, 1, $Length("web-digest-")), "web-digest-", "its key is the route's own")
+	Set body = ..Call("SendDigest", "", session, .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "202 Accepted|{""result"":""sending""}", "a second press is 202 too")
+	Do $$$AssertEquals(..WaitSent(session, 2), 2, "and records a second row, so its key is a fresh one")
+	Do $ClassMethod("OcuTalon.Test.Digest.ProcessProbe", "Clean", session)
+}
+
+/// The number of Sent rows of the session.
+Method Sent(session As %String) As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ?", session)
+	Do rs.%Next()
+	Quit rs.%GetData(1)
+}
+
+/// The number of Sent rows of the session once there are count of them, or after 40 seconds.
+Method WaitSent(session As %String, count As %Integer) As %Integer [ Private ]
+{
+	Set end = $ZHorolog + 40
+	For {
+		Set found = ..Sent(session)
+		If (found >= count) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit found
 }
 
 /// An admin's demo mode save through the production, with the mode the stack already has: 200 and one Settings entry with the IRIS user of the call,

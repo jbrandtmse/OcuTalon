@@ -113,8 +113,10 @@ describe('the page speaks only through the Announcer', () => {
       'app/mailbox/simulated-mailbox.ts',
       'app/rail/telegram-card/telegram-card.ts',
       'app/settings/check-thresholds-section.ts',
+      'app/settings/daily-digest-section.ts',
       'app/settings/demo-mode-section.ts',
       'app/settings/settings-page.ts',
+      'app/settings/time-zone-section.ts',
       'app/shared/announcer.ts',
       'app/shared/narrow-note.ts',
       'app/shared/server-button.ts',
@@ -140,7 +142,9 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/shared/layout.ts': [2, 'the region that the user\'s skip link or Status press reveals, and the Status button when the user closes the drawer from inside it (Story 2.15)'],
     'app/main-page/main-page.ts': [1, 'a focused element of the rail keeps its focus when the layout moves the rail (Story 2.15)'],
     'app/settings/check-thresholds-section.ts': [1, 'the first field in error takes focus after the user\'s own Save changes (Story 33.2)'],
+    'app/settings/daily-digest-section.ts': [1, 'the first field in error takes focus after the user\'s own Save changes (Story 18.2)'],
     'app/settings/demo-mode-section.ts': [1, 'the switch takes focus when the user\'s own Save changes is refused or the Demo step fails (Story 33.2)'],
+    'app/settings/time-zone-section.ts': [1, 'the select takes focus after the user\'s own Save changes is refused for the zone (Story 18.2)'],
     'signin/splash.js': [1, 'a copy that fails on the splash gives the focus to the input whose value it selects, after the user pressed the copy button (Story 16.2)'],
   };
 
@@ -154,7 +158,7 @@ describe('focus moves only for the user or through the focus rule', () => {
   });
 
   it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) or the control an Other things to try item hands off to, that the user opened, to measure the room that the Other things to try panel and the banners leave, the first field in error of a settings form that the user saved, for the focus rule, and for the request card to read where focus is before it announces an answer from elsewhere', () => {
-    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try-room.ts', 'app/guide/more-to-try.ts', 'app/mailbox/simulated-mailbox.ts', 'app/settings/check-thresholds-section.ts', 'app/settings/demo-mode-section.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
+    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/guide/demo-guide.ts', 'app/guide/more-to-try-room.ts', 'app/guide/more-to-try.ts', 'app/mailbox/simulated-mailbox.ts', 'app/settings/check-thresholds-section.ts', 'app/settings/daily-digest-section.ts', 'app/settings/demo-mode-section.ts', 'app/settings/time-zone-section.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
   it('gives the banner stack, the rail, the chat panel, the device panel, the approval request card, the phone\'s request message, the demo guide, the main page, the header and the app (the resetting view, Story 16.8) the shared rule, and each its own rule only', () => {
