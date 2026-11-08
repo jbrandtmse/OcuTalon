@@ -2742,3 +2742,6 @@
 2026-11-08T10:03:59Z	Epic 32	ci_resolved	story=32.6 sha=57b1acec result=failure failed=ci(shards:live:online-session_leave.spec_L6_page.close_30s) note=DW-774_page.close_half_not_covered_by_32.6;runner_told_to_reopen/residual
 2026-11-08T10:03:59Z	Run	planner_ruling	subject=U-307+lane_B U-307=REVERSED(~09:30Z;drop_ci/units.sh_epics.md_claim+its_tests;static_grep_in_checks_if_<15min_else_DW-924_to_burndown) lane_B=flake_story_32.7(DW-211,DW-639;same_terms_as_32.6;report_first_if_cause_is_product) DW-826=waits via=Contest_Planner_1(delegation)
 2026-11-08T10:03:59Z	Run	ruling	question=32.7_dispatch_while_Epic_32_holds_32.6 choice=dispatch_32.7_in_the_Epic_32_worktree_after_32.6_merges(one_runner_per_epic) rejected=a_second_Epic_32_runner_now category=decide policy=5086036
+2026-11-08T10:04:43Z	Epic 5	runner_complete	agent=a7bf44d82c9187734 stories=1(5.14) head=043df8c0 ci=success decisions_for_user=DW-906 applied=DW-879_planner_ruling
+2026-11-08T10:04:43Z	Epic 5	amendments_verified	amendments=1(spine_Conventions_row_Abandoned_requests) extensions=5 ok=true
+2026-11-08T10:04:43Z	Epic 5	merge_enqueued	policy=when_green
