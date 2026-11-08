@@ -376,3 +376,5 @@
 2026-11-08T01:22:26Z	Epic 17	story_chartered	story=17.11 key=17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path reason=burndown(U-303_keep-condition,DW-898;orchestrator_ruling) after=17.10 note=17.9_is_the_done_burn-down_of_the_first_close;SC-5_reopen_charters_a_new_one(highest+1)
 2026-11-08T01:22:26Z	Epic 17	deps_hash_rerecorded	reason=burndown_inserted story=17.11 for=orchestrator
 2026-11-08T01:22:26Z	Epic 17	ledger_routed_planned	story=17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path entries=1(DW-898) excess=0 by=burndown
+2026-11-08T01:24:51Z	Epic 17	epic_context_compiled	sha=5bc491c3 reason=planning_artifact_newer(17.11_chartered) model=opus header=ok
+2026-11-08T01:25:02Z	Story 17.11	stage_spawned	stage=plan spawn_at=2026-11-08T01:25:02Z model=opus agent_name=17-11-plan-1 cycle_iteration=1
