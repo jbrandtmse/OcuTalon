@@ -5358,3 +5358,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: rework 1 review: Docs/Store.cls has no owner column; only the Documents-page reads filter by OwnerRef; same shared-table design as before the rework
 - 2026-11-08T02:48:55Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5's per-session tables and per-turn attach are the place to scope retrieval
+
+### DW-940: The upgrade harness reads an empty answer of an IRIS call as success: document_found maps no output to found, and built_class/seed_memory/seed_document read it as not built
+- source: _bmad-output/implementation-artifacts/spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 19.5 implement review: release/upgrade-harness.sh:1027 and :1042-1060 (approved hunks H5/H6); the fix edits a frozen release tool beyond the ruled hunks
+- 2026-11-08T10:22:47Z status=escalated owner=burndown by=harvest note=needs a Planner ruling (release-tool freeze until v1.0.4 is merged back)
