@@ -2,7 +2,8 @@
 /// NFR-19). THROWAWAY STACKS AND CI ONLY (Rule 21): the purges delete records that these tests did not make (every completed business-process instance
 /// older than the fixture's, every decision, usage row and closed incident past its days), and the tests run the real tasks through the Task Manager.
 /// OnBeforeAllTests seeds the fixtures of the purge rows, sets the stored DaysToKeep of the OcuTalon purge task to 60, runs the three tasks once with
-/// RunNow (the two Interoperability purges together, then the OcuTalon purge, each waited for through its history row, ceiling RUNSECONDS) and puts DaysToKeep back; the purge tests then only read the
+/// RunNow (the two Interoperability purges together, then the OcuTalon purge, each waited for in two phases: its start, ceiling RUNSECONDS with RunNow asked
+/// again every RETRYSECONDS while it has not started, then its history row, ceiling FINISHSECONDS; a timeout names the task, the phase and the seconds waited) and puts DaysToKeep back; the purge tests then only read the
 /// outcome. OnAfterAllTests removes every fixture that remains, the one in OCUORDERS included, and restores the tasks' settings. A missing OCUORDERS or a task
 /// that did not run is a failure of every purge test, with the reason.
 ///   - TestStartDate: the declared StartDate at fixed clocks;
@@ -16,7 +17,7 @@
 ///   - TestOwnNamespaceOnly (matrix 4): every run of every task was in OCUTALON (the Task Manager's history, read in OnBeforeAllTests) and the 92-day
 ///     message in OCUORDERS stays, with its body;
 ///   - TestMessagesPurge (matrix 5), TestAllPurge (matrix 6): the 7-day and the 90-day standard purges;
-///   - TestOcuTalonPurge (matrix 7): the Task Manager's run of the OcuTalon purge task reaches Bridge.Purge and the Digest and Watch areas with the task's days;
+///   - TestOcuTalonPurge (matrix 7): the Task Manager's run of the OcuTalon purge task reaches Bridge.Purge, Data.Purge (the turn created 61 days ago is gone and the one 59 days ago is kept) and the Digest and Watch areas with the task's days;
 ///   - TestAuditUntouched (matrix 8), TestHistoryReadsTables (matrix 9: a decision whose trace session and an incident whose trace header are purged
 ///     are still read through Data.Ownership).
 Class OcuTalon.Test.Install.Retention Extends %UnitTest.TestCase
@@ -28,11 +29,14 @@ Parameter AREA = "OcuTalon.Install.Step.Retention";
 /// The namespace whose old message must stay.
 Parameter ORDERS = "OCUORDERS";
 
-/// The longest to wait for a task's history row, in seconds. A ceiling: the wait polls and returns as soon as the row exists.
+/// The longest to wait for a task to start after RunNow, in seconds. A ceiling: the wait polls and returns as soon as the task has started.
 Parameter RUNSECONDS = 180;
 
-/// The seconds without a run after which RunNow is asked again for a task that has no job.
+/// The seconds without a start after which RunNow is asked again for a task that has not started.
 Parameter RETRYSECONDS = 60;
+
+/// The longest to wait, in seconds, for the history row of a task that has started. A ceiling: the wait polls and returns as soon as the row exists.
+Parameter FINISHSECONDS = 300;
 
 /// The stored DaysToKeep that the run of the OcuTalon purge task uses.
 Parameter PURGEDAYS = 60;
@@ -149,7 +153,7 @@ Method TestNoSettingRead()
 	Set pattern = "ocutalon\.data\.setting"
 	Do $$$AssertTrue($ClassMethod(source, "Matches", $Char(9)_"Set days = ##class(OcuTalon.Data.Setting).Get(""PurgeDays"")", pattern), "the scanner flags a read of a setting")
 	Do $$$AssertTrue('$ClassMethod(source, "Matches", "/// reads no OcuTalon.Data.Setting"_$Char(10)_$Char(9)_"Quit ##class(OcuTalon.Bridge.Purge).Run(days)", pattern), "and passes a comment line and a purge")
-	For class = "OcuTalon.Install.Task.Purge", "OcuTalon.Install.Step.Retention", "OcuTalon.Install.Step.Watch", "OcuTalon.Install.Step.Digest", "OcuTalon.Bridge.Purge", "OcuTalon.Bridge.Time", "OcuTalon.Install.Registry", "OcuTalon.Digest.Data.Item", "OcuTalon.Digest.Data.CheckRun", "OcuTalon.Digest.Data.Sent" {
+	For class = "OcuTalon.Install.Task.Purge", "OcuTalon.Install.Step.Retention", "OcuTalon.Install.Step.Watch", "OcuTalon.Install.Step.Digest", "OcuTalon.Bridge.Purge", "OcuTalon.Data.Purge", "OcuTalon.Bridge.Time", "OcuTalon.Install.Registry", "OcuTalon.Digest.Data.Item", "OcuTalon.Digest.Data.CheckRun", "OcuTalon.Digest.Data.Sent" {
 		Do $$$AssertStatusOK($ClassMethod(source, "Text", class, .text), class_" has source")
 		Do $$$AssertEquals($ClassMethod(source, "Matches", text, pattern), 0, class_" names OcuTalon.Data.Setting nowhere")
 	}
@@ -252,6 +256,8 @@ Method TestOcuTalonPurge()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(..Fx.dec59) _ "|" _ ##class(OcuTalon.Test.Bridge.Purge).UsageExists(..Fx.use59), "1|1", "the ones 59 days old are kept")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(..Fx.inc61), 0, "the incident closed 61 days ago is gone")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(..Fx.inc59), 1, "the one closed 59 days ago is kept")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexExists(..Fx.turn61), 0, "the turn created 61 days ago is gone")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexExists(..Fx.turn59), 1, "the one created 59 days ago is kept")
 	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.Item).%ExistsId(..Fx.item61), 0, "the digest item 61 days old is gone")
 	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.Item).%ExistsId(..Fx.item59), 1, "the one 59 days old is kept")
 	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.CheckRun).%ExistsId(..Fx.run61), 0, "the check run 61 days old is gone")
@@ -329,6 +335,10 @@ Method Seed()
 	Do ..Track("refs", ..Fx.use59)
 	Do ..Track("refs", ..Fx.inc61)
 	Do ..Track("refs", ..Fx.inc59)
+	Set ..Fx.turn61 = ##class(OcuTalon.Test.Data.Fixture).Turn(owner, ..Utc(61))
+	Set ..Fx.turn59 = ##class(OcuTalon.Test.Data.Fixture).Turn(owner, ..Utc(59))
+	Do ..Track("refs", ..Fx.turn61)
+	Do ..Track("refs", ..Fx.turn59)
 	// 9: an incident closed and noticed 30 days ago whose trace is the 9-day Checks message (a header that is its own session)
 	Set ..Fx.inc30 = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ..Utc(30), "ZZNS", "Zz.Retention30", {"State": "closed", "OpenVariant": "", "ClosedAt": (..Utc(30)), "TraceHeaderId": (..Fx.ck9)})
 	Do ..Track("refs", ..Fx.inc30)
@@ -363,7 +373,7 @@ Method Seed()
 }
 
 /// Sets the stored DaysToKeep of the OcuTalon purge task to PURGEDAYS, runs the three tasks (the two Interoperability purges together, then the OcuTalon purge),
-/// waits for each task's history row (ceiling RUNSECONDS each) and puts DaysToKeep back (RestorePurgeSettings, which the caller runs on every path).
+/// waits for each task's start and then its history row (ceilings RUNSECONDS and FINISHSECONDS each) and puts DaysToKeep back (RestorePurgeSettings, which the caller runs on every path).
 Method RunTasks()
 {
 	Set names = ..Names()
@@ -389,33 +399,62 @@ Method RunAndWait(names As %List, mark As %Integer)
 {
 	Set position = 0
 	While $ListNext(names, position, name) {
+		Set before(name) = ..LastStarted(name)
 		$$$ThrowOnError(##class(%SYS.Task).RunNow(##class(%SYS.Task).FindId(name)))
 	}
 	Set position = 0
 	While $ListNext(names, position, name) {
-		Do ..Fx.runs.%Set(name, ..WaitRun(name, mark))
+		Do ..Fx.runs.%Set(name, ..WaitRun(name, mark, before(name)))
 		Do ..Fx.errors.%Set(name, ..RunErrors(name, mark))
 		Do ..Fx.namespaces.%Set(name, ..RunNamespaces(name, mark))
-		If ..Fx.runs.%Get(name) = 0 Do ..Fx.%Set("state "_name, ..TaskState(name))
+		If ..Fx.runs.%Get(name) = 0 Do ..Fx.%Set("state "_name, ..Fx.%Get("wait "_name)_..TaskState(name))
 	}
 }
 
-/// Waits, up to RUNSECONDS, until the history holds a run of the task after the mark, and asks for the run again every RETRYSECONDS while the task
-/// has neither a run nor a job. The number of runs.
-Method WaitRun(name As %String, mark As %Integer) As %Integer
+/// Waits for one run of the task in two phases. Start: up to RUNSECONDS until the task has started, which is when it has a job, its last start is not the
+/// one it had before RunNow (lastStarted), or the history already holds a run after the mark; RunNow is asked again every RETRYSECONDS while it has not
+/// started. Finish: up to FINISHSECONDS until the history holds a run after the mark. A timeout is kept in Fx under "wait <name>" with the task, the phase
+/// and the seconds waited, which AssertRan shows. The number of runs.
+Method WaitRun(name As %String, mark As %Integer, lastStarted As %String = "") As %Integer
 {
-	Set deadline = $ZHorolog + ..#RUNSECONDS
-	Set again = $ZHorolog + ..#RETRYSECONDS
-	While (..Runs(name, mark) = 0) && ($ZHorolog < deadline) {
+	Set began = $ZHorolog
+	Set again = began + ..#RETRYSECONDS
+	While (..Runs(name, mark) = 0) && '..Started(name, lastStarted) && ($ZHorolog < (began + ..#RUNSECONDS)) {
 		If $ZHorolog > again {
 			Set again = $ZHorolog + ..#RETRYSECONDS
-			Set id = ##class(%SYS.Task).FindId(name)
-			Set task = $Select(id = "": "", 1: ##class(%SYS.Task).%OpenId(id))
-			If $IsObject(task) && (task.RunningJobNumber = "") Do ##class(%SYS.Task).RunNow(id)
+			Do ##class(%SYS.Task).RunNow(##class(%SYS.Task).FindId(name))
 		}
 		Hang 1
 	}
+	If (..Runs(name, mark) = 0) && '..Started(name, lastStarted) {
+		Do ..Fx.%Set("wait "_name, " (timeout: the task "_name_" had not started after "_$Number($ZHorolog - began, 0)_" seconds of the start phase)")
+		Quit 0
+	}
+	Set finishing = $ZHorolog
+	While (..Runs(name, mark) = 0) && ($ZHorolog < (finishing + ..#FINISHSECONDS)) {
+		Hang 1
+	}
+	If ..Runs(name, mark) = 0 {
+		Do ..Fx.%Set("wait "_name, " (timeout: the task "_name_" had started but wrote no history row after "_$Number($ZHorolog - finishing, 0)_" seconds of the finish phase)")
+	}
 	Quit ..Runs(name, mark)
+}
+
+/// The Task Manager's last start of the task, as it keeps it ("" when it never started or the task is gone).
+ClassMethod LastStarted(name As %String) As %String
+{
+	Set id = ##class(%SYS.Task).FindId(name)
+	Set task = $Select(id = "": "", 1: ##class(%SYS.Task).%OpenId(id))
+	Quit $Select($IsObject(task): task.LastStarted, 1: "")
+}
+
+/// 1 when the task has started since lastStarted was read: it has a job, or its last start has changed.
+ClassMethod Started(name As %String, lastStarted As %String) As %Boolean
+{
+	Set id = ##class(%SYS.Task).FindId(name)
+	Set task = $Select(id = "": "", 1: ##class(%SYS.Task).%OpenId(id))
+	If '$IsObject(task) Quit 0
+	Quit (task.RunningJobNumber '= "") || (task.LastStarted '= lastStarted)
 }
 
 /// The Task Manager's account of the task as text, for the message of a failed assertion.

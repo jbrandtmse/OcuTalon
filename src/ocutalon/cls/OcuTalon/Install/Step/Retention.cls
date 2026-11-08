@@ -1,10 +1,11 @@
 /// The retention area's declaration of the purge tasks (AD-27, AD-23; NFR-19): three daily tasks at 03:00 instance time in the namespace OCUTALON, and
-/// the bridge's part of the purge. The area is not in OcuTalon.Install.Registry Order(), so it runs no step; it only declares, and the registry finds
+/// the bridge's and the host's data part of the purge. The area is not in OcuTalon.Install.Registry Order(), so it runs no step; it only declares, and the registry finds
 /// it by its name. The Tasks step creates each task once and leaves an existing one alone, so a day count or a time that an admin changed in the Task
 /// Manager is kept (AD-19). No declaration names a namespace or a user: the step runs each task in the namespace it was created in, as the installing user.
 ///   - the standard Ens.Util.Tasks.Purge for the heartbeat and check messages (the items HeartbeatIn and Checks), with their bodies, 7 days;
 ///   - the standard Ens.Util.Tasks.Purge for all of OCUTALON's Interoperability data, 90 days; unfinished sessions are kept (KeepIntegrity);
 ///   - the OcuTalon purge task (OcuTalon.Install.Task.Purge), 90 days, which calls the Purge(daysToKeep) of every area through the registry.
+/// This area's own Purge covers the bridge's records and the host's Turn, Delivery and Session rows (AD-27).
 Class OcuTalon.Install.Step.Retention Extends OcuTalon.Install.Step
 {
 
@@ -61,11 +62,16 @@ ClassMethod Tasks() As %DynamicArray
 	]
 }
 
-/// Deletes the bridge's records older than daysToKeep days and the AI sessions that no conversation link has named for a day
-/// (OcuTalon.Bridge.Purge.Run). The day count comes only from the caller: the purge task's DaysToKeep.
+/// Deletes the host's old Turn, Delivery and Session rows with the rows that go with a session (OcuTalon.Data.Purge.Run), then the bridge's records older
+/// than daysToKeep days and the AI sessions that no conversation link has named for a day (OcuTalon.Bridge.Purge.Run). Both parts get the same now, so
+/// they use one cut: a turn that stays never names a decision that was purged. The host part runs first, so the conversation links it drops are found
+/// unlinked by the bridge part of the same run. Each part runs whatever the other returned, and the errors are combined.
+/// The day count comes only from the caller: the purge task's DaysToKeep.
 ClassMethod Purge(daysToKeep As %Integer) As %Status
 {
-	Quit ##class(OcuTalon.Bridge.Purge).Run(daysToKeep)
+	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Set sc = ##class(OcuTalon.Data.Purge).Run(daysToKeep, now)
+	Quit $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Bridge.Purge).Run(daysToKeep, now))
 }
 
 /// The schedule of every task: daily at 03:00 instance time (DailyStartTime 10800). The Task Manager refuses a task whose first start (StartDate and

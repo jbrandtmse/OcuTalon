@@ -259,10 +259,14 @@ ClassMethod Checked(results As %DynamicArray) As %DynamicObject
 	Quit {"ok": true, "checks": (checks)}
 }
 
-/// The answer of list_productions: {"ok": true, "list": the joined names, "productions": [{"name", "namespace"}, ...]} for the entries of the reader.
+/// The answer of list_productions: {"ok": true, "list": the joined names, "productions": [{"name", "namespace", "state"}, ...]} for the entries of the
+/// reader; state is the entry's running state (Watch.Reader Productions).
 ClassMethod Listed(entries As %DynamicArray) As %DynamicObject
 {
 	Set productions = ..Names(entries)
+	For i = 0:1:productions.%Size() - 1 {
+		Do productions.%Get(i).%Set("state", entries.%Get(i).state)
+	}
 	Quit {"ok": true, "list": (..Joined(productions)), "productions": (productions)}
 }
 
