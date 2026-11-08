@@ -2651,3 +2651,7 @@
 2026-11-08T03:46:29Z	Epic 31	decision_sheet_recorded	decided=2(DW-446,DW-485:routed_burndown_to_a_release-tool_story_after_the_v1.0.4_merge-back) to_action_items=0 to_x0=0 by=unattended category=decide
 2026-11-08T03:46:39Z	Epic 31	worktree_removed	path=.worktrees/epic-31
 2026-11-08T03:46:39Z	Epic 31	epic_branches_deleted	local+remote=OCT-epic31
+2026-11-08T04:04:56Z	Epic 9	runner_clarification	kind=PUBLIC_TEXT+contended agent=ab2b48e59bf60d65e head=ffe4c704(local;5_bookkeeping_unpushed) spec=ready-for-dev(gate_passed) string=REASONPACED(Eval/In.cls) design=pace_on_previous_CaseResult_not_sent;poll_1s_up_to_150s(INCIDENTWAIT);on_bound_skip_that_and_later_incident_cases
+2026-11-08T04:04:56Z	Epic 9	ruling	question=9.11_edits_in_Eval/In.cls,Test/Eval/ZzIn.cls,Test/Eval/In.cls_also_edited_by_19.4 choice=plain_union(no_shared_lines;whoever_merges_second) rejected=wait_for_Epic_19 category=decide policy=5086036 pending=REASONPACED_text_to_the_Planner
+2026-11-08T04:13:59Z	Epic 9	planner_ruling	subject=9.11_PUBLIC_TEXT+design text=APPROVED_as_drafted(REASONPACED) design=approved(previous-row_pacing,150s_stall_bound,turn_cases_first,no_timer_changes) condition=a_skipped_incident_case_counts_NOT_RIGHT_in_the_incident_score(SM-2)_and_stays_in_its_denominator;pin_with_a_test unions=fine via=Contest_Planner_1[d4cd5f](delegation)
+2026-11-08T04:14:11Z	Epic 9	runner_resumed	agent=ab2b48e59bf60d65e with=PUBLIC_TEXT_approved+SM-2_denominator_condition+contended_union_ruling
