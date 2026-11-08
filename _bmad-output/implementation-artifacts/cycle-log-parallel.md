@@ -2787,3 +2787,6 @@
 2026-11-08T12:32:16Z	Run	ruling	question=DW-851_home choice=SC-5_re-open_of_Epic_5_as_fix-forward_Story_5.15(Watch/incident_resolution_area) category=decide policy=5086036
 2026-11-08T12:33:13Z	Epic 5	worktree_provisioned	branch=OCT-epic5 base=ec06e275 reason=story_5.15_DW-851 ci_cancelled=42480729227,42480729309
 2026-11-08T12:33:13Z	Epic 5	runner_dispatched	runner=a791fb7a9d55ae432 effort=high lane=C slot=ocutalon-slot-c story=5.15_DW-851 merge=after_cut(1.0.5)
+2026-11-08T12:33:29Z	Epic 19	runner_clarification	kind=CI_WAIT agent=aad203ead2336b5b5 sha=f6290959 local=0b34089a(decision_sheet_bookkeeping_held) DW-950=PUBLIC_TEXT_to_Planner(routed_22-6_meanwhile)
+2026-11-08T12:36:01Z	Epic 19	planner_ruling	subject=DW-950 answer=a(keep_routed_to_22-6;nothing_added_to_part2;line_APPROVED_verbatim_for_22-6:"Classify_each_tool_it_returns_safe_(a_ToolClassification_row):_a_call_held_for_approval_runs_later_on_the_agents_own_tool_manager,_which_does_not_hold_these_tools.") via=Contest_Planner_1(delegation)
+2026-11-08T12:36:35Z	Epic 17	ci_resolved	sha=321dcad7 attempt=2 result=failure test=Test.Watch.GoodMessages_TestFewerThanTwentyGood(DW-675_again) class=inherited(failing_code_not_Epic_17s;same_flake_on_OCT-epic32_cf04f99a) note=blocks_17,32.6,maybe_part2;proposal_to_Planner:urgent_test-only_DW-675_fix(Epic_7_re-open)
