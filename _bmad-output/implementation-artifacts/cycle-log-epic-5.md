@@ -427,3 +427,17 @@
 2026-11-08T08:37:27Z	Epic 5	merged_tree_checks	head=3fc10605 feature=a315ed3f source_since_8588be01=Eval/**_only(Story_9.11) env=warm_throwaway(tag=e5s14mt,lane-a_lock_dir,port_52801;ready_276s) tests=Test.Install.Production_1.17s,Test.Bridge.Runner_21.13s,Test.Agent.Runners_34.14s,Test.Bridge.Conversation_12.67s,Test.Agent.QueuedPastTimer_27.89s,Test.Watch.DiagnoseTogether_26.32s(two_concurrent_incidents),Test.Eval.In_1.94s,Test.Eval.Report_2.90s,Test.Eval.Cases_14.07s result=pass readme=x64_8min_present,160_seconds_absent teardown=clean(0_leftovers;lane-a_locks_empty) slot=none ci_groups=shards_1953s,shards-2_1619s,shards-3_1727s,shards-4_1968s,shards-5_1925s(attempt_1)/1933s(attempt_2);all_under_2100s model=claude-opus-5-5
 2026-11-08T08:37:27Z	Epic 5	integrated_forward	feature=a315ed3f head=3fc10605 conflicts_resolved=sprint-status.yaml(last_updated_only;regenerated,in_sync,valid) note=second_integrate_forward(first:feature_71a2312e_head_8588be01)
 2026-11-08T08:37:27Z	Epic 5	epic_runner_complete	stories_completed=1(5.14) note=reopen_for_DW-879
+2026-11-08T12:34:32Z	Epic 5	epic_branch_reopened	reason=story_5.15_dw851 from=ec06e275
+2026-11-08T12:34:32Z	Epic 5	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_story_5.15 lane=C slot=ocutalon-slot-c
+2026-11-08T12:34:32Z	Epic 5	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-08T12:34:32Z	Epic 5	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-08T12:34:32Z	Epic 5	launch_env	depth=4 watchdog=default bash_max_ms=default note=harness_backgrounds_bash_at_~170s
+2026-11-08T12:34:32Z	Epic 5	epic_branch_checked_out	repos=. head=ec06e275 ci_expected=ci.yml,lane-a.yml bootstrap_check=ok
+2026-11-08T12:34:32Z	Epic 5	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-08T12:34:41Z	Epic 5	ledger_load	total=899 open=0 routed=128 escalated=2 decision_pending=5 terminal=764 owner_unknown=0 burndown=90 reowned_none=0
+2026-11-08T12:36:08Z	Epic 5	retro_review_skipped	reason=reopen_fix_forward(no_X.0_input;dispatch_ruling)
+2026-11-08T12:36:32Z	Epic 5	sprint_planning_complete	gate=PASS in_sync=true model=claude-opus-5-5
+2026-11-08T12:37:34Z	Epic 5	story_chartered	story=5.15 key=5-15-after-an-incident-resolves-the-status-answer-and-the-rail-sa marker=ADDED_2026-11-08_DW-851_fix-forward_Planner-ruled_design ledger=DW-851
+2026-11-08T12:37:34Z	Epic 5	deps_hash_rerecorded	reason=fix_forward note=story_5.15_inserted_inside_epic_5;no_boundary_or_dependency_statement_changed;for_the_orchestrator
+2026-11-08T12:37:34Z	Story 5.15	ledger_routed_planned	story=5-15-after-an-incident-resolves-the-status-answer-and-the-rail-sa entries=1 excess=0 by=charter dw=DW-851
+2026-11-08T12:37:34Z	Epic 5	epic_status_reopened	epic-5=in-progress via=SPRINT_PLAN_set reason=SC-5_reopen
