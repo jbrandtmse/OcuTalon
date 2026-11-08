@@ -2750,3 +2750,4 @@
 2026-11-08T10:04:57Z	Run	deps_hash_rerecorded	reason=fix_forward story=5.14 hash=a528d16d52bd
 2026-11-08T10:04:57Z	Epic 5	worktree_removed	path=.worktrees/epic-5
 2026-11-08T10:04:57Z	Epic 5	epic_branches_deleted	local+remote=OCT-epic5
+2026-11-08T10:05:35Z	Epic 30	runner_dispatched	runner=a8d3c06dd54fd2725 effort=high lane=B slot=ocutalon-slot-b story=30.7(burn-down;U-210,U-214,U-215) base=2e78a4f7(ff) merge=held_until_after_cut reason=Planner_lane_B_busy
