@@ -440,3 +440,12 @@
 2026-11-08T17:51:38Z	Epic 4	ruling	question=ux-strings.test.mjs_needs_EXPERIENCE.md_to_hold_its_ux_strings_verbatim choice=lead_amends_EXPERIENCE.md:251_to_the_ruled_string(tier-1,planning_artifact,not_under_web/) rejected=move_entry_to_ruled_table(not_a_one-string_swap);leave_EXPERIENCE_stale(test_red) why=same_Planner-ruled_text,no_new_public_text category=decide policy=5086036
 2026-11-08T17:53:06Z	Epic 4	epic_context_compiled	reason=planning_artifact_newer(story_4.12_chartered) model=claude-opus
 2026-11-08T17:53:06Z	Story 4.12	stage_spawned	stage=build-auto(plan+implement,compressed_ruled) spawn_at=2026-11-08T17:53:06Z model=sonnet effort=high agent_name=4-12-build-auto-1 cycle_iteration=1 story_base=5cb58db7
+2026-11-08T18:00:50Z	Story 4.12	story_created	spawn_at=2026-11-08T17:53Z model=sonnet path=_bmad-output/implementation-artifacts/spec-4-12-the-demo-guide-s-document-tip-promises-only-what-1-0-4-shows.md build_status=ready-for-dev epic_context=reused note=compressed_plan+implement_one_stage
+2026-11-08T18:00:50Z	Story 4.12	spec_validated	service_introducing=false integration_ac=n/a adr_constrained_acs= decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false
+2026-11-08T18:00:50Z	Story 4.12	dev_complete	spawn_at=2026-11-08T17:53Z model=sonnet build_sha=a65aaefa baseline_revision=6ea174e7 story_base=6ea174e7 review_loop_iteration=0 followup_review_recommended=false deferred=1(DW-976) files=4 loc_added=4 loc_removed=4 cycle_iteration=1 note=story_base_corrected_from_stage_spawned(5cb58db7_equal_on_SRC)
+2026-11-08T18:00:50Z	Story 4.12	adr_verifications_complete	result=none_required
+2026-11-08T18:00:50Z	Story 4.12	qa_skipped	reason=orchestrator_ruling(the_change_IS_the_pins) mutations_demonstrated=1(drop_comma->4_red)
+2026-11-08T18:00:50Z	Story 4.12	cr_complete	model=claude-opus-5-5 reviewer=lead(ruled) result=done files=4_under_web each_hunk=one-string_swap byte_match=ruled_text(grep_-F_1_per_file) high=0 med=0 low=0 unresolved_high_med=0 build_auto_layers=4(no_high)
+2026-11-08T18:00:50Z	Story 4.12	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0
+2026-11-08T18:00:50Z	Story 4.12	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=node_--test_more-to-try-view+ux-strings_36/36;web_unit_1587/1587(stage);grep_old_phrase_none;test-boundaries_all_pass model=claude-opus-5-5
+2026-11-08T18:00:50Z	Story 4.12	fresh_check	env=clean-checkout tests=2 result=pass order=forward note=e2e_in_CI
