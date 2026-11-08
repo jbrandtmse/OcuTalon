@@ -193,6 +193,54 @@ ClassMethod Jobs(item As %String) As %List
 	Quit jobs
 }
 
+/// Waits, up to the seconds, until the item is idle: its queue is empty, and every Ens.Job of the item is Alive, dequeuing and has no active
+/// message (a poll every 0.1 s). 0 when the item has no job or is still busy when the seconds are over. It is the wait for a runner with more than one
+/// job (DiagnosisAgent), which Drain cannot give.
+ClassMethod Idle(item As %String, seconds As %Integer) As %Boolean
+{
+	Set deadline = $ZHorolog + seconds
+	Set idle = 0
+	For {
+		Set busy = (##class(Ens.Queue).GetCount(item) > 0)
+		Set seen = 0
+		Set result = ##class(%ResultSet).%New("Ens.Job:Enumerate")
+		If $$$ISOK(result.Execute()) {
+			While result.Next() {
+				If result.Get("ConfigName") = item {
+					Set seen = 1
+					If '((result.Get("State") = "Alive") && (result.Get("Status") = "dequeuing") && (result.Get("ActiveMessage") = "")) Set busy = 1
+				}
+			}
+		}
+		Set idle = (seen && 'busy)
+		If idle || ($ZHorolog '< deadline) Quit
+		Hang 0.1
+	}
+	Quit idle
+}
+
+/// The milliseconds from the creation of the first Ens.MessageHeader to the creation of the second, or "" when either does not exist.
+ClassMethod HeaderMillis(first As %Integer, second As %Integer) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT DATEDIFF('ms', a.TimeCreated, b.TimeCreated) FROM Ens.MessageHeader a, Ens.MessageHeader b WHERE a.ID = ? AND b.ID = ?", first, second)
+	If 'result.%Next() Quit ""
+	Quit result.%GetData(1)
+}
+
+/// The UTC time at which the Ens.MessageHeader was created.
+ClassMethod HeaderStamp(header As %Integer) As %String
+{
+	Quit ##class(Ens.MessageHeader).%OpenId(header).TimeCreated
+}
+
+/// The number of Decision rows of the item, of any kind.
+ClassMethod DecisionRowCount(itemId As %String) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", itemId)
+	Do result.%Next()
+	Quit result.%GetData(1)
+}
+
 /// 1 when the key state that the job of the runner item recorded at its start (Keys.Record, ^OcuTalonBP.KeyState) names an alive job of
 /// the item, waiting up to the seconds (RECORDSECONDS when empty) for it: the job is alive a moment before its OnInit has run.
 ClassMethod WaitRecord(item As %String, seconds As %Integer = "") As %Boolean
@@ -885,11 +933,13 @@ ClassMethod SinkCalls(type As %String = "") As %DynamicArray
 
 /// Waits until the runner item has taken up every message that was sent to it and has answered one of its own (QA, Story 1.6): the queue of
 /// the item is empty (a poll, up to SENDSECONDS, because a request of Decide's that is still in the queue has not been sent to the model yet),
-/// then a ToolInventory request, which makes no model request and writes no row, is answered. A runner has a pool of 1, so its one job
-/// handles the messages one after the other: when the answer is back, the job has finished any request that it took before, and that
-/// request has reached the mock (its log) or failed. A test that asserts that nothing reached the mock calls this first; without it the
-/// read of the log can come before a request that Decide sent could have arrived. The status is that of the ToolInventory request: an
-/// error for a runner with no key, whose answer still shows that the job is free; or an error when the queue stays full.
+/// then a ToolInventory request, which makes no model request and writes no row, is answered. A runner with a pool of 1, which is every runner
+/// but DiagnosisAgent (a pool of 2, Story 5.14), handles the messages one after the other with its one job: when the answer is back, the job has
+/// finished any request that it took before, and that request has reached the mock (its log) or failed. A test that asserts that nothing reached
+/// the mock calls this first; without it the read of the log can come before a request that Decide sent could have arrived. The status is that of
+/// the ToolInventory request: an error for a runner with no key, whose answer still shows that the job is free; or an error when the queue stays
+/// full. For DiagnosisAgent the answer shows only that one of its jobs is free: a request whose answer Decide already gave from the runner's reply
+/// has finished, but one that the other job holds may not have. Idle waits until every job of an item of any pool is free.
 ClassMethod Drain(item As %String) As %Status
 {
 	Set deadline = $ZHorolog + ..#SENDSECONDS
@@ -1177,11 +1227,12 @@ ClassMethod WarningRows(mark As %Integer, item As %String = "", class As %String
 }
 
 /// The number of warnings (type 3) that the method of the class logged after the event-log mark (EventMark) whose text holds every
-/// string of needles, a $ListBuild; an empty list counts every warning of that method.
-ClassMethod Warnings(mark As %Integer, class As %String, method As %String, needles As %List = "") As %Integer
+/// string of needles, a $ListBuild; an empty list counts every warning of that method. type is the event-log type: 3 (a warning) by default, 4 for an
+/// info row.
+ClassMethod Warnings(mark As %Integer, class As %String, method As %String, needles As %List = "", type As %Integer = 3) As %Integer
 {
 	Set found = 0
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = ? AND SourceMethod = ?", mark, class, method)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = ? AND SourceClass = ? AND SourceMethod = ?", mark, type, class, method)
 	While result.%Next() {
 		Set text = result.%GetData(1)
 		Set all = 1
