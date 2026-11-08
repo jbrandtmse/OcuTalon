@@ -2623,3 +2623,8 @@
 2026-11-08T02:29:37Z	Epic 11	amendments_verified	amendments=1(epics.md:4952_AMENDED_marker_present) extensions=6(ci/iris.sh,docker/tests/test-ci-config.sh,web/playwright.config.ts,web/scripts/ci-results.test.mjs,web/scripts/e2e-part.test.mjs,web/e2e/api/state-diagnosis.spec.ts;no_overlap_with_open_epics_5,17,19,30,31) ok=true
 2026-11-08T02:29:37Z	Epic 11	ci_green_verified	runs=42436132783,42436132784 head=66d7b1c7 result=success via=none
 2026-11-08T02:29:37Z	Epic 11	merge_enqueued	policy=when_green part=11.27,11.28 with=Epic_0(85b479e0,evidence_only) push=one_feature_push vetoes_open<20 retro=skipped(policy) decision_sheet=empty
+2026-11-08T02:31:12Z	Epic 11	epic_merged_to_feature	merge=ece74afb head=66d7b1c7 part=11.27,11.28 verified_on_origin=yes(git_merge-base_--is-ancestor) conflicts=none ledger_union=lost0,dup0(888_unique=expected) sprint_valid=yes spine=untouched release_tools=untouched feature_ci=42438835787,42438835464(on_ab50e3cd)
+2026-11-08T02:31:12Z	Epic 0	epic_merged_to_feature	merge=ab50e3cd head=85b479e0 story=0.16 kind=evidence_only verified_on_origin=yes conflicts=sprint-status(deterministic:ours+generate+--set_0-16=done;action_ids_equal) ledger_union=lost0,dup0
+2026-11-08T02:31:12Z	Epic 11	decision_sheet_skipped	reason=empty(decisions_for_user=none)
+2026-11-08T02:31:12Z	Epic 0	decision_sheet_skipped	reason=empty
+2026-11-08T02:31:12Z	Run	deps_hash_rerecorded	reason=fix_forward stories=0.16(evidence),11.27(rule5_amendment) hash=e878f1941ba8
