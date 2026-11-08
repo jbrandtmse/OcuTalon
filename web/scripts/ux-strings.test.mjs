@@ -431,7 +431,7 @@ const SOURCES = {
     'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
     'Ask it to remember',
     'Ask about a document',
-    'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat and look for the citation under the answer.',
+    'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file.',
     'Open the Documents page',
     'Run a heartbeat check-in',
     "In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in's outcome and its cost in the card.",

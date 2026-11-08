@@ -346,7 +346,7 @@ describe('a tool call\'s request in the chat panel (Story 31.6)', () => {
     assert.doesNotMatch(notice.code, /pending|APPROVAL_TEXTS|approval-request-card|Approval needed/i, 'the sources hold no pending cue');
     assert.doesNotMatch(noticeStyles, /pending|--approval-request-card/, 'the styles read no pending token');
     assert.match(noticeStyles, /border-inline-start: var\(--notice-card-accent-bar\);/, 'the bar is the notice card\'s own');
-    assert.equal(rule(noticeStyles, '.request .text')?.replace(/\s+/g, ' ').trim(), 'white-space: pre-line;', 'the request class only keeps line breaks');
+    assert.match(noticeStyles, /(?:^|\n)\s*\.request \.text,\s*\.digest \.text\s*\{\s*white-space: pre-line;\s*\}/, 'the request class (shared with the digest card) only keeps line breaks');
     assert.match(notice.code, /if \(kind === 'approval' \|\| kind === 'result'\) \{\s*return 'info';\s*\}/, 'the icon is info');
   });
 });

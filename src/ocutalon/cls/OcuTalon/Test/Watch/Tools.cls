@@ -261,7 +261,7 @@ Method TestListProductions()
 	Set session = ..Session("list")
 	Do ..Begin(session, ##class(OcuTalon.Bridge.Ids).NewRef())
 	Set answer = ##class(OcuTalon.Tools.WatchTools).ListProductions()
-	Do ..AssertObject(answer, {"ok": true, "list": "Orders", "productions": [{"name": "Orders", "namespace": (..#ORDERS)}]}, "list_productions")
+	Do ..AssertObject(answer, {"ok": true, "list": "Orders", "productions": [{"name": "Orders", "namespace": (..#ORDERS), "state": "running"}]}, "list_productions")
 	Do $$$AssertEquals(..Calls().%Size(), 0, "nothing is submitted")
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set answer = ##class(OcuTalon.Tools.WatchTools).ListProductions()
@@ -270,6 +270,16 @@ Method TestListProductions()
 	Set answer = ##class(OcuTalon.Tools.WatchTools).ListProductions()
 	Do $$$AssertEquals(answer.productions.%Size(), 2, "with OCUTALON readable the list holds two productions: "_answer.%ToJSON())
 	Do $$$AssertTrue((answer.list = "Orders and OcuTalon.Production") || (answer.list [ " and "), "joined with and: "_answer.list)
+}
+
+/// The answer of list_productions carries each entry's own state, in the entry's place (Watch.Reader supplies the states; Listed copies them).
+Method TestListedCarriesEachState()
+{
+	Set entries = [{"namespace": "ZZA", "production": "Zz.A", "displayName": "Zz Alpha", "state": "running"}, {"namespace": "ZZB", "production": "Zz.B", "displayName": "Zz Beta", "state": "stopped"}]
+	Set answer = ##class(OcuTalon.Tools.WatchAnswers).Listed(entries)
+	Do $$$AssertEquals(answer.productions.%Size(), 2, "both entries are listed")
+	Do $$$AssertEquals(answer.productions.%Get(0).name _ "|" _ answer.productions.%Get(0).state, "Zz Alpha|running", "the first keeps its own state")
+	Do $$$AssertEquals(answer.productions.%Get(1).name _ "|" _ answer.productions.%Get(1).state, "Zz Beta|stopped", "and the second a different one")
 }
 
 Method TestNoSession()

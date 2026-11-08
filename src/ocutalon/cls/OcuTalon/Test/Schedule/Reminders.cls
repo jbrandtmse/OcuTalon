@@ -27,6 +27,9 @@ Include Ensemble
 ///   - TestSeveralCancelsFromOneToolCall (U-118): three cancels of one tool call, with the keys <item>:1 to :3, each cancel their own
 ///     reminder; the call run again gets each command its first result, and with the Refs in another order a key for another Ref is
 ///     reused_key;
+///   - TestToolCallKeysAfterAList (Story 30.7, U-215, DW-584): a list_reminders and then a cancel_reminder with three refs in one tool call (the list
+///     takes the key <item>:1) submit the keys <item>:2, :3 and :4, each acted on once; the same call run again gets each command its first answer
+///     and has no second effect (the owner ignores a repeat, AD-1); a key that names another Ref is reused_key and leaves that reminder pending;
 ///   - TestReconcileRearmsOnlyLostWaiters (Story 8.5, AC 1): Reminder.Reconcile starts one new waiter, in a trace session of its own under
 ///     the session's TraceRef, for a pending row that never had one and for one whose waiter ended, leaves a row with a live waiter, a
 ///     fired row and a cancelled row alone, starts nothing the second time, and the re-armed reminder then fires once, not late;
@@ -721,6 +724,87 @@ Method TestSeveralCancelsFromOneToolCall()
 		Set row = ""
 	}
 	Do $$$AssertEquals(..RequestsBetween(foreign.traceHeaderId, "ReminderTimer", "Ens.Alarm"), 1, "the other session's waiter never woke early: it set one alarm and none again")
+}
+
+/// Story 30.7, U-215 (DW-584): the keys of the cancels of one tool call that began with a list. The call is list_reminders and then cancel_reminder with
+/// three refs, through the tool methods under one context, so the list takes the key <item>:1 and the cancels take :2, :3 and :4. Each reminder is
+/// cancelled once, with its own key, one cancelled event and one trigger each. The same call again (the same item) gets each cancel its first answer and
+/// changes nothing: no new event, no new trigger. A third call whose first ref is another reminder uses the key :2 for it, which the owner refuses as
+/// reused_key, and that reminder stays pending, while the cancels with :3 and :4 get their first answers.
+Method TestToolCallKeysAfterAList()
+{
+	If '..Guard() Quit
+	Set a = ..Session("keysa")
+	For i = 1:1:4 {
+		Set found(i) = ..SetReminder(a, "zz keys " _ i _ " " _ ..Number, 300 + (10 * i))
+		Set refs(i) = found(i).ref
+	}
+	If (refs(1) = "") || (refs(2) = "") || (refs(3) = "") || (refs(4) = "") {
+		Do $$$AssertTrue(0, "the four reminders are set")
+		Quit
+	}
+	Set item = "zzkeys" _ ..Number
+	Set first = ..ListAndCancel(a, item, $ListBuild(refs(1), refs(2), refs(3)))
+	Do $$$AssertEquals(first.%Size(), 3, "the cancel_reminder call answers once for each of the three refs")
+	For i = 1:1:3 {
+		Do $$$AssertEquals(first.%Get(i - 1).ok _ "|" _ first.%Get(i - 1).ref, "1|" _ refs(i), "command " _ i _ " is cancelled, with its own Ref")
+		Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(refs(i))
+		Do $$$AssertEquals(row.State_"|"_row.CancelKey, "cancelled|" _ item _ ":" _ (i + 1), "its row holds the key " _ item _ ":" _ (i + 1) _ ": the list took :1")
+		Set traceId(i) = row.TraceHeaderId
+		Set row = ""
+	}
+	Do ##class(OcuTalon.Test.Core.Observe).Events(a, "reminder", 7, ..#WAIT)
+	Do $$$AssertEquals(..EventStates(a), "pending,pending,pending,pending,cancelled,cancelled,cancelled", "three cancelled events, one for each key")
+	For i = 1:1:3 {
+		Do $$$AssertTrue(..WaitEnded(refs(i), 10), "the waiter of " _ i _ " ends within 10 seconds")
+		Do $$$AssertEquals(..RequestsBetween(traceId(i), "ReminderOps", "Ens.Alarm"), 1, "after one trigger")
+	}
+
+	Set again = ..ListAndCancel(a, item, $ListBuild(refs(1), refs(2), refs(3)))
+	Do $$$AssertEquals(again.%Size(), 3, "the same call run again answers three times")
+	For i = 0:1:2 {
+		Do $$$AssertEquals(again.%Get(i).%ToJSON(), first.%Get(i).%ToJSON(), "its command " _ (i + 1) _ " gets its first answer")
+	}
+	Do $$$AssertEquals(..EventStates(a), "pending,pending,pending,pending,cancelled,cancelled,cancelled", "with no new event")
+	For i = 1:1:3 Do $$$AssertEquals(..RequestsBetween(traceId(i), "ReminderOps", "Ens.Alarm"), 1, "and no new trigger for " _ i)
+
+	Set other = ..ListAndCancel(a, item, $ListBuild(refs(4), refs(2), refs(3)))
+	Do $$$AssertEquals(other.%Size(), 3, "a call whose first ref is another reminder answers three times")
+	If other.%Size() = 3 {
+		Do $$$AssertEquals(other.%Get(0).ok _ "|" _ other.%Get(0).message, "0|This call reused the key of a different earlier call, so nothing was done.", "the key :2 for another reminder is reused_key")
+		Do $$$AssertEquals(other.%Get(1).%ToJSON(), first.%Get(1).%ToJSON(), "the key :3 gets its first answer")
+		Do $$$AssertEquals(other.%Get(2).%ToJSON(), first.%Get(2).%ToJSON(), "and so does :4")
+	}
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(refs(4))
+	Do $$$AssertEquals(row.State_"|"_row.CancelKey, "pending|", "the other reminder is still pending, with no key")
+	Set row = ""
+	Do $$$AssertEquals(..EventStates(a), "pending,pending,pending,pending,cancelled,cancelled,cancelled", "and nothing else changed")
+}
+
+/// One tool call of the session with the item through the tool methods, under one bridge context: list_reminders, then cancel_reminder with the refs.
+/// Returns the entries of the cancel answer (results: one per ref, in order), each as an object; an empty array when the answer is not that shape.
+Method ListAndCancel(session As %String, item As %String, refs As %List) As %DynamicArray [ Private ]
+{
+	Set entries = []
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Schedule.ReminderFixture).Begin(session, item), "the context of the call begins")
+	Set listed = ##class(OcuTalon.Tools.ReminderTools).ListReminders()
+	Set listedOk = 0
+	Try {
+		Set listedOk = ($Select($IsObject(listed): listed, 1: {}.%FromJSON(listed)).%Get("ok") = 1)
+	} Catch {
+	}
+	Do $$$AssertTrue(listedOk, "list_reminders answers ok: " _ $Extract($Select($IsObject(listed): listed.%ToJSON(), 1: listed), 1, 200))
+	Set array = []
+	For i = 1:1:$ListLength(refs) Do array.%Push($List(refs, i))
+	Set answer = ##class(OcuTalon.Tools.ReminderTools).CancelReminder(array)
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Try {
+		Set parsed = $Select($IsObject(answer): answer, 1: {}.%FromJSON(answer))
+		If $IsObject(parsed.%Get("results")) Set entries = parsed.%Get("results")
+	} Catch {
+		Do $$$AssertTrue(0, "the cancel_reminder answer is a JSON object: " _ $Extract($Select($IsObject(answer): answer.%ToJSON(), 1: answer), 1, 200))
+	}
+	Quit entries
 }
 
 /// One tool call of the session with the item: one CancelReminder per Ref of the list, submitted back to back through CommandCall.Run
