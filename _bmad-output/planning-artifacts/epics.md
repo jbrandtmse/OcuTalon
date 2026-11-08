@@ -6425,7 +6425,7 @@ So that no other visitor sees or searches what I added.
 
 **Given** the upgrade-in-place harness in `release/`
 **When** it runs from this release on
-**Then** it also creates a memory and a document before the upgrade, and both are present and searchable after it (FR-60, NFR-16, NFR-17, REL-6)
+**Then** it also creates a memory and a document before the upgrade when the previous release can save or index them (otherwise on the upgraded candidate, checked after the restart, with the row's note), and both are present and searchable after it (FR-60, NFR-16, NFR-17, REL-6) [AMENDED 2026-11-08, Story 19.5 plan, Rule 5 tier-1 (reachability: no release before this one can index a document, so the first runs create them on the candidate); it read "creates a memory and a document before the upgrade, and both are present and searchable after it"]
 
 - DW-783: `release/rehearse.sh`'s memory-offline step (Story 19.2) is proved on stub hosts only; a dry run on a real stack must show the clean host publishes its web port again after `docker network connect --alias iris` (ledger; routed by harvest 2026-11-06)
 - DW-892: `Demo.Features` lists the documents feature on the online demo, where `AddDocument` answers not_built until this story builds the per-session documents (ledger; routed by harvest 2026-11-07)
