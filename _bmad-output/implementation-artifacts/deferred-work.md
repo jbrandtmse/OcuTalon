@@ -1276,6 +1276,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-26T06:57:16Z status=routed owner=burndown by=adjudication note=code_fix_delivered_by_4.4(reveal-ring.ts_1px_margin_and_whole-pixel_scroll;local_live_floor_WebKit_G1_green);residual:_confirm_floor-webkit_G1_at_1280x600_green_on_at_least_three_Linux_CI_runs_(4.4-4.7_pushes)_at_the_burn-down
 - 2026-10-27T05:26:00Z status=resolved-by:4-4-show-the-demo-guide-and-the-break-the-feed-box by=burndown note=reveal-ring 1px margin (4.4) confirmed: floor-webkit G1 at 1280x600 green on Linux CI runs 40304315110, 40367647349, 40385075588, 40421999437 (iris shards, live:floor) and 8b858ae's 40453411766 green
 - 2026-11-08T07:09:17Z occurrence=5-14-several-incidents-at-once-are-each-diagnosed-inside-their-ti status=routed owner=burndown by=flake note=TestStartRefused AssertRefused red again in CI shards-5 (shard:lane-a@Bridge,Agent) on c5a71ed4, ci run 42454441383 job 128650353188: refusal row found but TriageAgent kept a live job past WAITSECONDS 120 ('has no alive job', 'names it as not running'); passed in 7 local runs (warm, fresh fwd/rev, merged tree); 5.14 does not touch the start/refusal path; re-opened as a flake (the 2026-10-27 resolved-by trailer was for floor-webkit G1, a different root cause); one rerun --failed requested
+- 2026-11-08T19:41:58Z status=routed owner=32-7-the-remaining-ci-flakes-either-find-their-cause-or-are-conta by=runner note=charter_Story_32.7_(test-only,90-min_timebox_per_group,Planner_terms_U-307_2026-11-08;SC-5_reopen_of_Epic_32;same_terms_as_32.6)
 
 ### DW-207: SetDemoMode(1) with an OCUORDERS that OcuTalon did not create keeps demo.mode 1 after the Demo step refuses (Plan error), so every later start stops at STEP Demo FAILED before Production and Ready; T4 says the next start runs the step again
 - source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: med | fix-risk: med | footprint: in-story
@@ -3969,6 +3970,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T06:56:42Z occurrence=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=cr note=cr2: 17.10 cannot write TelegramIn's run-time flag (static); watcher not kept; Bridge.Timeouts.Restart also updates
 - 2026-11-08T08:27:34Z status=routed owner=burndown by=burndown note=epic17_reopen_burndown_overflow:shared_flake_pool(filed_by_Epic_31;on_the_dispatch_flake_list);38ab54d4_image_green_without_a_code_change(the_17.10_rework_was_spec-only);probable_mechanism:Install.Step.Production.NotRunning()_reads_the_run-time_flag_while_the_System_Default_row_0_governs_TelegramIn;Install/Step/Production.cls_is_Epic_19's(contended);for_the_orchestrator_to_route_post-merge
 - 2026-11-08T12:38:27Z occurrence=OCT-epic18-90360113 by=orchestrator note=run 42475836390 iris(image) shard:lane-b Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved: TelegramIn row 0, runtime flag 1, jobs none (same as Epic 17's twice this morning); 18.2 changes Settings/web only; rerun of failed jobs 12:3xZ; for 32.7
+- 2026-11-08T19:41:58Z status=routed owner=32-7-the-remaining-ci-flakes-either-find-their-cause-or-are-conta by=runner note=charter_Story_32.7_(test-only,90-min_timebox_per_group,Planner_terms_U-307_2026-11-08;SC-5_reopen_of_Epic_32;same_terms_as_32.6)
 
 ### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
@@ -5159,6 +5161,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T10:36:16Z owner=burndown by=burndown note=overflow_for_the_approved_Story_32.7_flake_story_(key_not_in_the_tracker_yet;the_orchestrator_routes_it):_the_page.close_half_only;first_page-side_reading_at_57b1acec_in_the_occurrence_above
 - 2026-11-08T13:44:12Z occurrence=OCT-epic19-f6290959 by=orchestrator note=run 42480549642 iris(shards) live:online-session leave.spec L6 page.close no answer 30 s (page.close half; for 32.7); part 2 head; rerun of failed jobs 13:4xZ
 - 2026-11-08T16:12:45Z occurrence=OCT-epic17-6ac45643 by=orchestrator note=run 42495328974 iris(browser) decision.spec:139 D2 loadedAfter GET /state no answer 30 s (the /state half; 32.6's retry not on feature yet); rerun of failed jobs 16:1xZ
+- 2026-11-08T19:41:58Z status=routed owner=32-7-the-remaining-ci-flakes-either-find-their-cause-or-are-conta by=runner note=charter_Story_32.7_(test-only,90-min_timebox_per_group,Planner_terms_U-307_2026-11-08;SC-5_reopen_of_Epic_32;same_terms_as_32.6)
 
 ### DW-778: test-readme.sh measured rule does not fail on an extra Measured row, so an old 11.25 label re-added as a ninth row passes CI
 - source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
@@ -5684,6 +5687,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: cmd_live reprints only RETRY-shaped lines (matrix row 'cmd_live with retries'); ci.yml uploads web/test-results only if: failure(); retain-on-failure keeps no trace of a passing test
 - 2026-11-08T07:25:28Z status=decision-pending owner=burndown by=cr note=spec-bound design call: cmd_live prints the retry-time DIAG lines, or results upload when RETRIES>0 (ci.yml, Never list)
 - 2026-11-08T17:08:46Z status=routed owner=burndown by=unattended note=decision_sheet_32.6:keep_RETRY_lines_as_now(category=decide);printing_DIAG_or_uploading_results_when_RETRIES>0_is_planned_with_32.7_after_the_1.0.4_cut(ci.yml)
+- 2026-11-08T19:41:58Z status=routed owner=32-7-the-remaining-ci-flakes-either-find-their-cause-or-are-conta by=runner note=charter_Story_32.7_(test-only,90-min_timebox_per_group,Planner_terms_U-307_2026-11-08;SC-5_reopen_of_Epic_32;same_terms_as_32.6)
 
 ### DW-912: loadedAfter's retry: the closed-page checks inside withOneReload's retry() have no case of their own (r7 closes the page at 1 s, before the retry runs)
 - source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
@@ -5747,6 +5751,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 42495328974 job 128776327087 iris(shards-2) unit shard:lane-a@rest 1966 s; 19.7's own heads and feature c25902c3 passed it
 - 2026-11-08T16:12:45Z status=routed owner=burndown by=orchestrator note=flake candidate for 32.7; first occurrence on a non-19 branch
 - 2026-11-08T18:39:00Z occurrence=OCT-epic4-cb7a2215 by=orchestrator note=run 42507818397 iris(shards-2) lane-a@rest Test.Docs.ExtractMore TestTimeLeft 'after the wait for the lock and the second that was left (15.16)'; not 4.12 code (4 web strings); rerun of failed jobs 18:39Z
+- 2026-11-08T19:41:58Z status=routed owner=32-7-the-remaining-ci-flakes-either-find-their-cause-or-are-conta by=runner note=charter_Story_32.7_(test-only,90-min_timebox_per_group,Planner_terms_U-307_2026-11-08;SC-5_reopen_of_Epic_32;same_terms_as_32.6)
 ### DW-964: flake: OcuTalon.Test.Checks.Heartbeat TestDisabledItemIsReportedOnce 'the session's web chat got one notification' red once in CI iris (shards), unit shard:lane-a@Checks,Install,Watch, on OCT-epic17 321dcad7 (run 42470657226 attempt 3, job 128733036530); the class passed on attempts 1 and 2 of the same head and on 57a201e9 and 38ab54d4 (same Epic 17 code)
 - source: cycle-log-epic-17 (ci run 42470657226 job 128733036530) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: assert gives no count; WaitDeliveries(session,1,WAITDIAGNOSIS) returns on the first Delivery row of ANY channel, then the test counts web rows only: a row on another channel first, or no row inside WAITDIAGNOSIS under CI load, reads as not one web row; Epic 17 diff leaves the tellnow path, Data.Delivery, Test.Core.Observe and Checks unchanged, and a digest Notification wrote one web Delivery row before 17.10 too (record-only path), so its web row count is unchanged
@@ -5759,6 +5764,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 17.10 rework 2 review layer: BeatOutcomes waits WaitDeliveries(case.session,1,WAITDIAGNOSIS) then reads web rows; settle by one run of each test with a phone row forced first
 - 2026-11-08T14:58:30Z status=routed owner=burndown by=harvest note=unverified; same root cause class as DW-964; fix by waiting on the web row, as DW-964's fix in Test.Checks.Heartbeat
 - 2026-11-08T15:04:25Z status=routed owner=burndown by=cr note=narrower: both sites call Quiet (decision at OutcomeRouter + 4s) before WebNotices; other WaitDeliveries callers count all rows
+- 2026-11-08T19:41:58Z status=routed owner=32-7-the-remaining-ci-flakes-either-find-their-cause-or-are-conta by=runner note=charter_Story_32.7_(test-only,90-min_timebox_per_group,Planner_terms_U-307_2026-11-08;SC-5_reopen_of_Epic_32;same_terms_as_32.6)
 
 ### DW-974: Leaked CI throwaway stacks: a production stack on ci-b (6 days, run finished Nov 2) and a shards-2 stack on ci-c (4 days, run finished Nov 4) were still up, adding to the memory and swap overcommit on the CI hosts
 - source: 32.6 runner contract (host facts) | severity: low | fix-risk: low | footprint: out-of-footprint

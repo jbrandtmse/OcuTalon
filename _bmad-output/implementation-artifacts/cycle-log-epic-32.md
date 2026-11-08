@@ -239,3 +239,17 @@
 2026-11-08T15:34:06Z	Epic 32	ci_resolved	story=32.6 sha=cf04f99a runs=42472273728,42472273515 result=success failed=none via=none resolved_at=merge_gate note=ci_attempt_3_under_the_Planner_one-off_DW-675_deviation(orchestrator)
 2026-11-08T15:35:51Z	Epic 32	integrated_forward	feature=c25902c3 head=cf233f38 conflicts_resolved=sprint-status.yaml(last_updated_only;validate_valid;generate_dry-run_changed=0) suite=npm_web_test_1586/1586,lint,test-ci-config_40_PASS,test-boundaries_pass readme_check=about_8_minutes_present,160_seconds_absent note=feature_diff(Epic_19_part_2)_touches_no_story_file;its_release/upgrade-harness.sh_hunk_is_the_feature_side,not_32.6
 2026-11-08T15:35:51Z	Epic 32	epic_runner_complete	stories_completed=1(32.6) code=09ee6b50 note=final_head_CI_pending_at_push
+2026-11-08T19:42:09Z	Epic 32	epic_branch_reopened	reason=story_32.7_flakes from=ce50aa62
+2026-11-08T19:42:09Z	Epic 32	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_32.7_flakes lane=A(throwaways) slot=none
+2026-11-08T19:42:09Z	Epic 32	lead_model_gate	model=claude-opus-5-5 action=proceed role=runner_lane_a_throwaways
+2026-11-08T19:42:09Z	Epic 32	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-08T19:42:09Z	Epic 32	launch_env	depth=4 watchdog=0 bash_max_ms=default
+2026-11-08T19:42:09Z	Epic 32	telemetry_gate	pending=1(epic-5_record_only) action=none(gates.model_tier:record_only)
+2026-11-08T19:42:09Z	Epic 32	epic_branch_checked_out	repos=. head=ce50aa62 ci=gh(ci.yml,lane-a.yml) bootstrap_check=ok
+2026-11-08T19:42:09Z	Epic 32	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md status=final
+2026-11-08T19:42:09Z	Epic 32	ledger_load	total=942 open=0 routed=123 escalated=2 decision_pending=4 terminal=813 owner_unknown=0 burndown=90 reowned_none=0
+2026-11-08T19:42:09Z	Epic 32	retro_review_skipped	reason=skip(no_X.0_input;SC-5_reopen_for_one_test-only_story_32.7)
+2026-11-08T19:42:09Z	Epic 32	sprint_planning_complete	gate=PASS in_sync=true validate=valid scope=SC-5_reopen(one_test-only_story) model=claude-opus-5-5
+2026-11-08T19:42:09Z	Epic 32	epic_status_reopened	epic-32=in-progress reason=SC-5_reopen_story_32.7
+2026-11-08T19:42:09Z	Epic 32	deps_hash_rerecorded	reason=fix_forward story=32.7 note=for_the_orchestrator
+2026-11-08T19:42:09Z	Epic 32	ledger_routed_planned	story=32-7-the-remaining-ci-flakes-either-find-their-cause-or-are-conta entries=6(DW-211,DW-639,DW-774,DW-973,DW-966,DW-911) excess=0 by=charter
