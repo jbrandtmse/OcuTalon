@@ -196,3 +196,6 @@
 2026-11-08T04:40:27Z	Epic 32	ledger_routed_planned	story=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus entries=2(DW-550,DW-774) excess=0 by=charter
 2026-11-08T04:43:03Z	Epic 32	epic_context_compiled	reason=planning_artifact_newer(32.6_chartered) model=claude-opus
 2026-11-08T04:44:10Z	Story 32.6	stage_spawned	stage=plan spawn_at=2026-11-08T04:44:10Z model=opus agent_name=32-6-state-wait-plan-1 cycle_iteration=1
+2026-11-08T05:32:31Z	Story 32.6	story_created	spawn_at=2026-11-08T04:44:10Z model=claude-opus path=_bmad-output/implementation-artifacts/spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md build_status=ready-for-dev epic_context=reused
+2026-11-08T05:32:31Z	Story 32.6	spec_validated	service_introducing=false integration_ac=present(state-retry.spec.ts_real-stack_row;ci/iris.sh_RETRIES_consumer) adr_constrained_acs=AD-12,AD-13,AD-19,AD-22,AD-29 decision_dependency=none sections_created=none owned_ledger=DW-550,DW-774 addressed=2 declined=0 mutates_shared_runtime=false(proof_on_lane-D_throwaway) footprint_extensions_planned=web/scripts/bounded-waits.test.mjs model=claude-opus-5-5
+2026-11-08T05:32:31Z	Story 32.6	timebox_started	minutes=90 ends=2026-11-08T07:02:31Z scope=Task_0_lead_investigation
