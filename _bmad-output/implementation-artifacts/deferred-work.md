@@ -1275,6 +1275,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-27T10:44:15Z occurrence=5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals by=flake note=ci_run_40485293208_iris(shards)_live:floor:floor-webkit_G1_ring_bottom_600.86_vs_600(a_rail_decision_button);sha_e1fe73c;rerun_--failed
 - 2026-10-26T06:57:16Z status=routed owner=burndown by=adjudication note=code_fix_delivered_by_4.4(reveal-ring.ts_1px_margin_and_whole-pixel_scroll;local_live_floor_WebKit_G1_green);residual:_confirm_floor-webkit_G1_at_1280x600_green_on_at_least_three_Linux_CI_runs_(4.4-4.7_pushes)_at_the_burn-down
 - 2026-10-27T05:26:00Z status=resolved-by:4-4-show-the-demo-guide-and-the-break-the-feed-box by=burndown note=reveal-ring 1px margin (4.4) confirmed: floor-webkit G1 at 1280x600 green on Linux CI runs 40304315110, 40367647349, 40385075588, 40421999437 (iris shards, live:floor) and 8b858ae's 40453411766 green
+- 2026-11-08T08:35:50Z occurrence=41-1-fix-the-names-and-contracts-of-memory-s-first-part note=CI run 42461088729 iris (shards-5) lane-a@Bridge,Agent on 1cb64cdf: TestStartRefused 'TriageAgent has no alive job'; one rerun of the failed job
 
 ### DW-207: SetDemoMode(1) with an OCUORDERS that OcuTalon did not create keeps demo.mode 1 after the Demo step refuses (Plan error), so every later start stops at STEP Demo FAILED before Production and Ready; T4 says the next start runs the step again
 - source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: med | fix-risk: med | footprint: in-story
