@@ -4340,6 +4340,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T19:33:23Z status=routed owner=burndown by=adjudication note=flake candidate: Test.Fix.Snapshot exempts only a timer already running; a ScheduleService call is another background writer; note every occurrence
 - 2026-11-08T11:54:08Z occurrence=17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path status=routed owner=burndown by=ci note=priority:2nd_test_same_root_cause:Test.Watch.GoodMessages_TestFewerThanTwentyGood(Epic_7_dry_run)_saw_OCUTALON_headers_1504,1505_Ens.ScheduleService->Ens.ScheduleHandler_inside_the_dry-run_window;OCT-epic17_321dcad7_run_42470657226_job_128700385950_iris(shards)_unit_shard:lane-a@Checks,Install,Watch;mechanism:Ens.Alarm_fires_CallScheduleService_when_a_timer's_request_header_is_missing(irislib_Ens/Alarm.cls);fix:the_dry-run_snapshot_exempts_ScheduleService_calls,not_only_a_running_timer;one_rerun_requested
 - 2026-11-08T12:22:09Z occurrence=OCT-epic32-cf04f99a by=orchestrator note=run 42472273728 iris(shards) Test.Watch.GoodMessages TestFewerThanTwentyGood: Ens.ScheduleService headers inside the dry-run window (2nd branch in 1 h after OCT-epic17 321dcad7); 32.6 is test-only web; rerun of failed jobs 12:2xZ; for 32.7
+- 2026-11-08T12:39:56Z status=routed owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=runner note=charter:Story_7.11_test-only_Planner_ruling_2026-11-08(b);occurrences_OCT-epic17-321dcad7(x2),OCT-epic32-cf04f99a
+- 2026-11-08T13:31:15Z status=resolved-by:7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=adjudication note=Snapshot.DiffCategory_excuses_new_and_completing_headers_Ens.ScheduleService->Ens.ScheduleHandler_only(ScheduleWrite);pinned_by_SnapshotDiff.TestScheduleWritesAreNotChanges(5_mutations_red);forced-condition_harness_old_red_20/20,fix_20/20(evidence/7-11/cause.md);callers_green_warm
 - 2026-11-08T13:44:12Z occurrence=OCT-epic32-cf04f99a-attempt2 by=orchestrator note=run 42472273728 attempt 2 TestFewerThanTwentyGood ScheduleService header again; one more rerun under the Planner's (c) deviation; 7.11 fixes it
 
 ### DW-698: flake: lane-a@rest Tools.RecentActivity and RecentActivityTurn saw a leaked resolved Orders/OrdersFromPartner incident (count 50, approved on web, 50 resent); TestPoisoned hit INVALID OREF in Test.Watch.Case.SortedKeys
@@ -5761,3 +5763,17 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: 32.6 runner contract (host facts) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 32.6 diagnostics: CI hosts 2.1 to 3.3 times overcommitted on memory and swap under load. Removed by the Contest Planner about 15:45Z 2026-11-08 under the owner's approval, with their volumes and networks; swap use fell from 4 to 2 GB (ci-b) and from 5 to 3 GB (ci-c); ci-d had none
 - 2026-11-08T17:10:23Z status=resolved-by:32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus owner=burndown by=orchestrator note=removed by the Contest Planner (owner-approved) ~15:45Z; not this run's resources, so the run did not touch them; recorded at the Planner's request
+### DW-958: Snapshot.Diff excuses no queue count: a schedule call landing after Take's queue wait, before the handler takes it, gives '<ns> queues Ens.ScheduleHandler changed'
+- source: spec-7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TakeIn reads queues after headers (Test/Fix/Snapshot.cls 105-108); the Planner's ruling excuses headers of the pair and nothing else; not seen in the three CI occurrences
+- 2026-11-08T13:29:26Z status=wontfix-accepted owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=cr note=reopen_if=a nothing-changed red whose Snapshot.Diff line is '<ns> queues Ens.ScheduleHandler changed'
+
+### DW-959: Snapshot.Diff does not excuse the schedule handler's follow-on Ens.Alarm request (sent when Ens.Director.UpdateProduction fails or an item has a Schedule)
+- source: spec-7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: irislib/Ens/ScheduleHandler.cls 26-81; spec Never: don't excuse a follow-on write of the schedule call; harness measured 1 header per call, 20 of 20
+- 2026-11-08T13:29:26Z status=by-design owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=cr note=spec Never forbids excusing a follow-on write (Planner's ruling); a line for it is the intended outcome
+
+### DW-960: The schedule-write excusal has no committed real-window test, and the changed-row excusal no real-window run at all; only SnapshotDiff's hand-made rows pin it
+- source: spec-7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Decided in-stage (4): the forced-condition harness is untracked and deleted; Take drains queues, so the harness only exercised the new-header line
+- 2026-11-08T13:29:26Z status=by-design owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=cr note=Decided in-stage (4): SnapshotDiff stays stack-free; harness body kept in evidence/7-11/cause.md
