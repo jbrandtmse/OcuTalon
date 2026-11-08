@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-08-2026 23:12
+last_updated: 11-08-2026 23:27
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -437,7 +437,8 @@ development_status:
   39-8-run-now-and-a-saved-heartbeat-read-what-is-stored: done
   39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t: done
   39-10-the-heartbeat-production-test-is-stable-dw-639: done
-  39-11-the-install-s-production-check-doesn-t-name-an-item-that-is: backlog
+  39-11-the-install-s-production-check-doesn-t-name-an-item-that-is: 
+    ready-for-dev
   epic-39-retrospective: optional
 
   epic-40: done
