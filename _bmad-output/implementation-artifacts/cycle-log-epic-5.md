@@ -374,3 +374,19 @@
 2026-11-01T06:50:47Z	Epic 5	epic_retro_skipped	reason=policy(gates.retrospective:skip)
 2026-11-01T06:51:24Z	Epic 5	integrated_forward	feature=29abff63 head=a14ede8f conflicts_resolved=sprint-status.yaml(regenerated;5.13=done_re-applied) note=bookkeeping_only(planning_artifacts,cycle-log-parallel,inbox_snapshot,_bmad/custom/epic-dependencies.yaml+unattended.yaml_from_the_feature);source_files_differing_from_the_CI-green_c04c8841=0,so_its_CI(41280154377,41280154366),fresh_check_and_smoke_stand;spine_lint:8_pre-existing_low_placeholder_findings
 2026-11-01T06:51:24Z	Epic 5	epic_runner_complete	stories_completed=1(5.13) note=reopen_for_the_launch-blocking_story
+2026-11-08T02:06:53Z	Epic 5	epic_branch_reopened	reason=story_5.14_dw879 from=034cc8b5 by=orchestrator(SC-5)
+2026-11-08T02:06:53Z	Epic 5	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_5.14_dw879 lane=A slot=ocutalon-slot-a
+2026-11-08T02:06:53Z	Epic 5	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-08T02:06:53Z	Epic 5	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh bootstrap_check=pass
+2026-11-08T02:06:53Z	Epic 5	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-08T02:06:53Z	Epic 5	epic_branch_checked_out	repos=. head=034cc8b5 ci_expected=ci.yml,lane-a.yml
+2026-11-08T02:06:53Z	Epic 5	ci_resolved	story=none sha=034cc8b5 runs=42436587244,42436587240 result=cancelled failed=none via=bed23f1d resolved_at=next_plan note=base_runs_cancelled_as_duplicates;base_differs_from_bed23f1d_only_in_bookkeeping(0_source_files);bed23f1d_green(42419117439,42419117578)
+2026-11-08T02:06:53Z	Epic 5	slot_loaded	slot=ocutalon-slot-a ns=OCUTALON build=154 from=034cc8b5 classes=809(src/bridge_58,src/ocutalon_751) stale_deleted=1(Test.Agent.ErrorRowsMark,an_Epic-11_test_class_not_in_this_tree) compile=ok(all_up_to_date) identity=container_e945dcb2ebc1(ports_1990/52790)
+2026-11-08T02:06:53Z	Epic 5	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-08T02:06:53Z	Epic 5	ledger_load	total=884 open=0 routed=130 escalated=2 decision_pending=5 terminal=747 owner_unknown=0 burndown=87 reowned_none=0
+2026-11-08T02:06:53Z	Epic 5	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_re-check(headless)_for_the_reopen;in_sync=true;warnings=2_title_headings(expected)
+2026-11-08T02:06:53Z	Epic 5	retro_review_skipped	reason=no_x0_input(reopen_for_one_fix-forward_story;no_none_or_epic-5_owned_ledger_entries) by=orchestrator_dispatch
+2026-11-08T02:07:45Z	Epic 5	epic_status_reopened	from=done to=in-progress by=SC-5(epic_branch_reopened) story=5.14
+2026-11-08T02:07:45Z	Story 5.14	story_chartered	key=5-14-several-incidents-at-once-are-each-diagnosed-inside-their-ti epics_md=after_story_5.13 marker=[ADDED_2026-11-08_DW-879_fix-forward_Planner-approved] source=planner_ruling(dw=DW-879,option=B+skip_abandoned,2026-11-07T18:33:58Z)
+2026-11-08T02:07:45Z	Epic 5	deps_hash_rerecorded	reason=fix_forward note=story_5.14_inserted_inside_epic_5;no_boundary_or_dependency_statement_changed;for_the_orchestrator
+2026-11-08T02:07:45Z	Story 5.14	ledger_routed_planned	story=5-14-several-incidents-at-once-are-each-diagnosed-inside-their-ti entries=1(DW-879) excess=0 by=charter

@@ -3235,6 +3235,40 @@ So that it tells me what failed, what I approved and how the fix went.
 **Then** CI is green on every workflow, the evaluation set on the mock passes, and the story touches only the new tool class, the Watching toolset's tool list, the gate's tool classification entry, and their tests and mock scenarios
 - Optional, if it costs nothing extra: reminders fired today (trusted), in the same tool's output.
 
+### Story 5.14: Several incidents at once are each diagnosed inside their timer
+
+[ADDED 2026-11-08 for Sunday's 1.0.4, DW-879, fix-forward, Planner-approved: the Contest Planner's ruling under the owner's delegation (`planner_ruling dw=DW-879 option=B+skip_abandoned`, 2026-11-07T18:33:58Z; placement `planner_ruling subject=DW-879,DW-878_placement`, 2026-11-08). Epic 5 is re-opened for it under SC-5. Decide starts a diagnosis's timer when it sends the request (`Decide.cls` SetTimer at send), and `DiagnosisAgent` runs one job (PoolSize 1), so when several incidents arrive together (for example, several online-demo visitors breaking the feed at once) the later ones spend their timer queued behind the first and can time out before the model is ever asked: their timeout rows carry no Usage and an empty model. The Planner chose option B plus skip-abandoned: a second DiagnosisAgent job, and a runner that skips a request Decide has already concluded. Option A (starting the timer when the runner starts, an AD-8 amendment) was not chosen.]
+
+As a user whose production fails in several places at once, or one of several online-demo visitors who break the feed together,
+I want each incident diagnosed inside its own timer,
+So that an incident never falls back to a timeout only because another diagnosis was ahead of it.
+
+**Acceptance Criteria:**
+
+**Given** the production class `OcuTalon.Production`
+**When** this story merges
+**Then** the `DiagnosisAgent` item has PoolSize 2, and `IncidentManager`, `Decide`, `DiagnosisAgentRetry` and every other item keep their pool sizes; each runner's pool size is still its concurrency cap (AD-6)
+**And** the pins that hold DiagnosisAgent's pool size read 2 (`OcuTalon.Test.Agent.Runners`, its pool and alive-jobs check, and the DiagnosisAgent row of `OcuTalon.Test.Install.Production`'s oracle), the other runners' pins still read 1, and any other test the change trips is updated and named in the spec
+
+**Given** a request that reaches an agent runner after Decide has already concluded its decision, so that the request's `DecisionRef` already has a `OcuTalon.Bridge.Data.Decision` row (for example, its timer fired while it waited in the runner's queue)
+**When** the runner takes it
+**Then** the runner skips it: no model request, no tool call and no Usage row; it writes one log line that names the runner item and the DecisionRef and holds no key, message body or model text; and Decide records no new decision for it (the RetryIsLate pattern of Story 17.2's late-retry fix, DW-725: `Data.Decision` `RefIndexExists`)
+**And** a request whose DecisionRef has no row yet (a live one) runs exactly as before, and a request the bridge sends on purpose after a decision is recorded (for example, the replay of an approved tool call) is never skipped; the spec names which request kinds the skip covers
+**And** a test shows a stale request skipped and a live one not
+
+**Given** two incidents whose diagnoses Decide sends at nearly the same time, on the CI model mock with a reply delay
+**When** both run
+**Then** they run at the same time on DiagnosisAgent's two jobs, and the second diagnosis is answered well inside its timer; the spec's `## Verification` records the measured send and answer times of both and the timer (NFR-7, AD-6, AD-8)
+
+**Given** the change
+**When** this story merges
+**Then** `TimerSeconds` and every timeout are unchanged, the timer still starts when Decide sends (AD-8), and no RetryItem is wired (out of scope)
+**And** CI is green on every workflow on the CI mock only (no real model key), the evaluation set on the mock passes, and the change touches only `Production.cls`'s DiagnosisAgent item, the agent runner and its adapter (`OcuTalon.Bridge.Operation.AgentRunner`, `OcuTalon.Bridge.Adapter.Agent`), their tests, the pool-size pins and new mock scenarios (new files only)
+**And** user-facing text is at most one release-note line; any new or changed user-facing string goes to the Contest Planner before it is committed
+- DW-879: Product: the diagnosis timer counts time spent queued at DiagnosisAgent (PoolSize 1), so several simultaneous incidents can time out before the model is asked (ledger; routed by charter 2026-11-08)
+
+Not in this story: pacing the evaluation's incident cases (DW-878, Epic 9's fix-forward), and starting the timer at the runner (option A, not chosen).
+
 ## Epic 6: Incidents and approvals you can answer from the page
 
 Incident cards and approval requests appear in the chat and on the simulated phone with the dry run, Approve and Reject, Show details and Dismiss; the first answer wins and every other place shows who answered and where; a rejected, expired or fallback incident reads correctly; nothing on the page can answer another session's request.
