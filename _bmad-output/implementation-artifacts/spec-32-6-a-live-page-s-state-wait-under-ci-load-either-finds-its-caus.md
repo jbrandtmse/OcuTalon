@@ -384,7 +384,37 @@ Write the result into `### Investigation result` before the implement spawn. The
 
 ### Investigation result
 
-(Filled by the lead at Task 0, before the implement spawn, with exactly one of the two forms. `cause: <where /state or page.close waited>`, with evidence (runs, lines, trace readings: counts and times only) and the fix to build: the files, the pinning test, and, for a bound change, the quoted evidence. Or `none_in_timebox`, with what was read and what each question (a) to (e) ruled out.)
+**`none_in_timebox`** (the lead, Task 0, 2026-11-08 05:32Z to about 06:05Z; the timebox ran from 05:32Z, the spec gate, to 07:02Z). Branch B is built, with the one addition below. Counts, states and times only.
+
+What was read:
+1. **Occurrences on a head with 11.27's code: none.** `gh run list --workflow ci.yml` since 2026-11-07T16:00Z gave 51 runs (26 success, 19 cancelled, 6 failure). Three runs on heads that contain `eca467b0` had a red attempt, and none of them is this class:
+   - 42406393504 att 1 (OCT-epic11 `882b6d4b`, `browser`): `live:demo-path` failed on `page.goto ... is interrupted by another navigation to ...?signedOut=1` inside `signInReadme`, before `loadedAfter`'s wait; `live:sign-in` hit its 905 s suite timeout (the class Story 32.5 split); `TRACE kept 2 of demo-path` and `TRACE kept 1 of sign-in` under `42406393504-1-browser`, on ci-b.
+   - 42392984136 att 1 (OCT-epic11 `623b9cb0`, `shards-4`): `the first start did not end ready within 400 s` (infra).
+   - 42442077870 (OCT-epic17 `596eb1f7`): the `image` job only.
+
+   The occurrences the ledger names since then (D2 at OCT-epic0 `85b479e0`, L6 at feature `bed23f1d`, L5 at OCT-epic17 `b52d069b`) all predate 11.27's merge (`git merge-base --is-ancestor eca467b0 <head>` fails for each), so no trace and no `DIAG /state gateway` line exists for any of them. D2's job log holds no `DIAG` line (DW-756's class, fixed by 11.27).
+2. **The failure artifacts of the three newest occurrences** (`playwright-results-browser-1` of 42417271582; `playwright-results-shards-1` of 42419117439 and of 42425470320):
+   - D2 (`loadedAfter the snapshot GET ... no answer within 30 s`): `error-context.md` has no `# Page snapshot`, as in the five that 11.27 read. D2 has no clean-up that closes its page. A renderer crash is excluded: Playwright 1.64.1's `_waitForEvent` (behind `waitForResponse`) rejects at once with `Page crashed` on a crash, never at the bound. So after the miss the page did not answer Playwright's snapshot (inference: an unresponsive renderer, or a page caught between documents).
+   - L5 and L6 (`page.close: no answer within 30 s`): both files HAVE a page snapshot, taken after the bound, showing the online demo's splash ("your place was freed ... Sign in again"). The page that would not close was open and rendering. Both closes follow a CSP group sign-out in the same context (L6: `signOutGroup(context)` then `page.close()`; L5: the first page's `IRISLogout=end`, then `second.close()`).
+3. **The CI hosts' own history** (read-only over SSH: `sar` 10-minute samples for 2026-11-05 to -08, `/proc/pressure`, `/proc/vmstat`, `docker ps`; nothing changed on any host). The 11 occurrences whose job logs name a host and a unit window (runs 41983575716, 42086496017, 42102775939, 42373379335, 42417271582, 42158625231 twice, 42158693602, 42161844768, 42419117439, 42425470320) fall on all three hosts (ci-b 3, ci-c 2, ci-d 6).
+   - All three hosts swap all the time under CI load: in busy samples (1-minute load at least 4) the median swap-in is 56 to 71 pages/s and swap-out about 1,500 to 2,000 pages/s; `%commit` reaches 2.1 to 3.3 times the RAM; direct reclaim runs. Since boot (17 days): about 130 million pages swapped out per host, and about 6 hours of `io full` pressure.
+   - **But the failures do not follow the swapping.** Ranked against windows of the same length made of busy samples on the same host, the occurrence windows' highest swap-in sits at a mean of p52 (5 of 11 above the median). And C1 of 41983575716 (2026-11-05 07:05Z to 07:21Z, ci-d) failed on a quiet host: 1-minute load at most 1.9, swap-in at most 1 page/s, 9.5 GB available, `%commit` 89.
+   - Host facts for the Planner, not a cause of this story: ci-b and ci-c each still run one throwaway stack of an old run (6 and 4 days old, holding about 2 GB of swap between them; ci-d has none and 0.56 GB of swap in use). This run did not start them, so it leaves them alone.
+
+What each question ruled out:
+- (a) Did the page send `/state`? Not answerable: no trace exists. The missing page snapshot in all 6 `loadedAfter` artifacts points at a page that did not answer at the bound (inference).
+- (b) Queued in the browser? Not answerable without a trace.
+- (c) Queued at the web gateway? 11.27 ruled out the per-session cap. The gateway counts at the bound do not exist yet for any occurrence.
+- (d) Held in IRIS? Ruled out, as 11.22 and 11.27 found (CSP processes `READ`, no session lock, licence 1 of 8). Host memory pressure is ruled out as the explanation: the failures do not rank above other busy windows, and one failed on a quiet host.
+- (e) `page.close`: the browser rendered the page and answered Playwright's snapshot after the bound, but did not close it within 30 s. No request is involved.
+
+The fix to build: **Branch B, exactly as planned**, plus one line in the common page diagnostics, because the 10-minute `sar` samples cannot show what the host did during the 30 s that matter:
+- `DIAG /state host: ...` and `DIAG page.close host: ...`, after the page lines. They come from Linux's own counters, read by the Playwright worker on its own host:
+  - the 1-minute load and the CPU count (`os.loadavg()`, `os.cpus().length`);
+  - `/proc/pressure/{cpu,memory,io}` `some`/`full` `avg10`;
+  - the swap-ins (`pswpin` of `/proc/vmstat`) between the wait's start and the bound, as pages per second.
+- Numbers only. Where a file is missing (macOS, a developer machine), the line reads `... host: not measured (no /proc/pressure)`. The reads are bounded, never throw, and print no path, PID or host name.
+- The `watchRequests` start reads the first `pswpin`. A unit test of the describer takes a stand-in reading.
 
 **Governing ADs (Rule 6).**
 - **AD-22:**
