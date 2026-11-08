@@ -142,7 +142,9 @@ export function settled(page: Page): Promise<void> {
  * Both steps have a bound of their own, shorter than the test's timeout (currentWaits: the navigation wait for the sign-in, the action wait
  * for the snapshot), and a step that does not end in time fails naming itself: `loadedAfter the sign-in` or
  * `loadedAfter the snapshot GET /ocutalon/api/v1/state`, with the bound. When the snapshot GET passes its bound, diagnose.ts prints
- * `DIAG /state` lines (the licence units, the CSP processes and the session locks) before the same error is thrown (DW-550).
+ * `DIAG /state` lines (the licence units, the CSP processes and the session locks, then the web gateway's servers and connections, counts
+ * and states only) before the same error is thrown (DW-550). The same lines are appended to state-diagnosis.txt in the test's output
+ * folder, attached as `state-diagnosis`, so that the failure artifact holds them (DW-756).
  */
 export async function loadedAfter(page: Page, signInAction: () => Promise<unknown>): Promise<void> {
   const waits = currentWaits() ?? { action: waitsFor(0).actionTimeout, navigation: waitsFor(0).navigationTimeout };

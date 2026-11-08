@@ -1384,6 +1384,29 @@ So that a rare #453 no longer fails a check whose start became healthy, and ever
 **Then** `docker/tests/test-lib-live.sh` (and `docker/tests/test-upgrade-harness.sh` for the count) pin it with fixtures: one RETRY followed by OK passes; a RETRY with no OK, two RETRY lines, a RETRY followed by FAILED, and a near-miss RETRY line each fail; the harness count reads 0 and 1 in its fixtures; `docker/after-start.sh` and `docker/merge.cpf` are unchanged; CI is green on every workflow
 - DW-624: lib-live.sh's log_steps keeps every STEP line, so a live-test or upgrade-harness start that recovers through Story 0.13's retry still fails check_log on the RETRY line (ledger; routed by Story 0.13's review, 2026-11-03)
 
+### Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction
+
+[ADDED 2026-11-07, SC-5 re-open of Epic 0 for one evidence-only story, at the Contest Planner's request (about 21:10Z): the S11 spike (docs/handoff/spike-results/S11.md) found that build 154 kills the IRIS process (signal 11) when embedded Python runs both inside and outside an AI Hub tool callback in one process. Before anyone reports it, the crash is re-measured with two classes and no model. Story 0.15 (the Dockerfile move) is deferred until after v1.0.4 and is not chartered here. This story changes no product code, no test suite and no public text.]
+
+As the author deciding whether to report an AI Hub defect,
+I want the S11 crash reproduced with the smallest possible classes, on a fresh throwaway, in a throwaway namespace,
+So that any report carries exact orders, outcomes, messages.log lines and versions, and no OcuTalon code.
+
+**Acceptance Criteria:**
+
+**Given** a fresh lane-A throwaway stack from the project's throwaway tooling (build 154's image, and build 109's when it is already on the host), a throwaway namespace, and only two classes: `Repro.Py` (a `[Language = python]` class method `PyPing()` that imports `threading` and `os` and returns a string) and `Repro.Tools` (extends `%AI.Tool`, whose `PyPing` calls `##class(Repro.Py).PyPing()`)
+**When** each of five orders runs three times, each run in a fresh `iris session` process ending with `halt`: (a) Python outside only; (b) inside only (`%AI.ToolMgr.%New()`, `AddTool`, `ExecuteTool("PyPing",{})`); (c) outside, then ToolMgr, then inside; (d) ToolMgr, then inside, then outside; (e) `##class(%SYS.Python).Import("json")` outside, then inside
+**Then** the evidence folder `_bmad-output/implementation-artifacts/evidence/ep-bug-s11/` records, for every run, survived or died and the exact `messages.log` line (the "caught signal 11" line with its JobType, if any), plus `$ZV`, the Python version, the CPU architecture and the image tag
+**And** no model key is present and no model is called; if `%AI.ToolMgr` needs a provider, that is recorded and that order stops
+
+**Given** DW-792 (19.2 found that `%SYS.Python` passes no keyword argument from ObjectScript)
+**When** a Python function is called with a keyword argument in the documented form (a `%DynamicObject` as the last argument, passed with `args...`) and in the form 19.2 used
+**Then** `results.md` reports whether the keyword arrives in each form, citing the documentation relied on, and DW-792 gets a ledger trailer with the result
+
+**Given** the evidence
+**When** this story closes
+**Then** the folder holds only `Repro.Py.cls`, `Repro.Tools.cls`, a one-line `run.sh` and `results.md`; no loader or test picks up the two `.cls` files; no tracked file names an absolute local path; a new LOW ledger entry records the re-verification; the throwaway is torn down; and nothing is filed publicly (the Planner drafts any report and the owner posts it)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
@@ -4940,6 +4963,59 @@ So that no row claims more than the evaluation or log behind it.
 **Then** it goes to the Contest Planner verbatim as public text before it is committed
 
 - DW-775: README Measured row 'The demo's incident, end to end with a live model: 30 of 30 runs' claims more than its source (ledger; routed by charter 2026-11-06)
+
+### Story 11.27: Live pages get their /state answer under load
+
+As a judge or visitor with several OcuTalon pages open,
+I want every live page to get its `/state` answer promptly,
+So that no page sits waiting behind its siblings and the live tests stop failing on a loaded host.
+
+[ADDED 2026-11-07, Epic 11 fix-forward (DW-550, DW-774), timeboxed to 3 hours (the Contest Planner's ruling of 2026-11-06 about 05:02Z, logged `planner_ruling subject=CI_split_rule_and_B_order` in the main checkout's `cycle-log-parallel.md`; voting-week tier (3)(a), the Planner's ruling of 2026-11-07 about 04:19Z). Suspected cause, to confirm or rule out: several live pages share one CSP session, the web gateway's per-session connection cap (`Maximum_Session_Connections`) queues the next `/state`, and the request waits behind the others. A product change to the install's web-application or gateway settings goes to the Planner as a described change before any product code changes; a cause in the tests is fixed in the tests. No pin is deleted or weakened, and no timeout or deadline is raised as the fix.]
+
+[AMENDED 2026-11-07, the Contest Planner's ruling of about 10:55Z under the owner's delegation (logged `planner_ruling subject=11.27_option_b`), after Step 1 ruled the per-session cap out (cycle log `lead_investigation`; DW-550's trailers): option (a), closing the story, was not chosen; DW-550 and DW-774 stay open and the story becomes test-only diagnostics, so the next CI occurrence names where `/state` waits. The acceptance criteria below replace the original five, which read: the reproduction with N pages in one CSP session; the install change to `Maximum_Session_Connections` (reported to the Planner first); a test-only fix if the cause is in the tests; the old-fails and 20-of-20 proof with full CI green; and the timebox stop. Step 1's result stands as the first criterion's evidence.]
+
+**Acceptance Criteria (as amended):**
+
+**Given** a live unit's browser run on CI
+**When** a test fails
+**Then** Playwright keeps that test's trace (`retain-on-failure`; a passing test keeps none), the trace is moved, before any upload step can run, to a folder on the self-hosted runner's own disk outside the job's workspace, under the run's tag and the unit's name, and no trace stays under `web/test-results/`; on a runner that is not self-hosted no trace is written at all
+
+**Given** that trace folder
+**When** a job runs
+**Then** the job deletes every run folder in it older than 7 days, and a test pins that no `actions/upload-artifact` path in `.github/workflows/*.yml` includes the trace folder or a trace file (CI artifacts keep no traces, as 1.0.2 shipped them: the repository is public)
+
+**Given** `loadedAfter`'s snapshot GET passing its bound
+**When** the diagnosis runs
+**Then** besides 11.22's licence, CSP-process and session-lock lines it prints the web gateway's status as `DIAG /state gateway ...` lines (per server: total connections, connections in use, private connections, queued requests; per connection: its state; counts and states only, no request body, cookie, session id or token), and every DIAG line also reaches the test's own output folder, which the failure artifact uploads (DW-756)
+
+**Given** the browser group with traces on and no failures
+**When** its time is compared with the same group's time before this story
+**Then** the added time is measured and reported; more than 2 minutes is reported to the Planner before the merge
+
+- DW-756: DW-550's DIAG /state dump never reaches CI output (only the tail of the e2e log is printed) (ledger; routed by the 11.27 re-scope 2026-11-07)
+
+- DW-550: flake: live:cards I10 timed out (90 s) in loadedAfter's /state wait after sign-in; passed on an unchanged rerun (ledger; routed by charter 2026-11-07)
+- DW-774: flake: live:online-session leave.spec page.close no answer within 30 s (L5, L6) and sign-in-2 live-socket W3 GET /state no answer in 30 s under heavy CI load (ledger; routed by charter 2026-11-07)
+
+### Story 11.28: The no-key runner test ignores a late timer row of the test before it
+
+As the release's CI,
+I want `OcuTalon.Test.Agent.Runners`'s `TestStartsWithNoKey` to judge only the event-log rows its own requests could cause,
+So that a late Ens.Alarm row of an earlier test's purged messages does not turn shards-2 (lane-a@rest) red on a loaded host.
+
+[ADDED 2026-11-07, Epic 11 fix-forward (DW-688), timeboxed to 90 minutes, first on lane A (the Contest Planner's ruling of 2026-11-07 about 10:55Z, logged `planner_ruling subject=DW-688_first`). Test-only unless the cause is in the product, in which case the Planner hears of it first. No pin is deleted or weakened; no timeout or deadline is raised as the fix.]
+
+**Acceptance Criteria:**
+
+**Given** `TestStartsWithNoKey`'s check "the event log holds no error or alert row since the mark"
+**When** Ens.Alarm logs "Message '<n>' can not be found, timer event ignored" for a message that existed before the test's mark (an earlier test's message that its clean-up removed)
+**Then** that row does not fail the check, and every other Type 2 or Type 6 row since the mark still does, including an Ens.Alarm row for a message created after the mark
+
+**Given** the fix
+**When** it is proved
+**Then** the old code fails under a repeat or load run (or, if the late row cannot be timed on demand, under a run that places one), the fixed code passes 20 of 20 under the same conditions, a test pins that the narrowed check still fails on a row it must see, and full CI is green on every workflow
+
+- DW-688: flake: Test.Agent.Runners TestStartsWithNoKey 'the event log holds no error or alert row since the mark' (late Ens.Alarm timer row of TestStartRefused's purged messages) (ledger; routed by charter 2026-11-07)
 
 ## Epic 12: Approve from your own phone with Telegram
 
