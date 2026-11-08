@@ -352,3 +352,10 @@
 2026-11-07T23:29:05Z	Epic 17	hold_ordered	reason=owner_account_switch(94pct_quota) via=orchestrator stage_boundary=after_implement(17.10) next_stage=adr_verifications_then_qa
 2026-11-07T23:29:05Z	Story 17.10	hold_saved	story=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges stage=implement patch=none tree=clean(implement_finalize_committed_4be9d24b)
 2026-11-07T23:29:13Z	Epic 17	hold_complete	shas=4be9d24b(17.10_implement_finalize)+this_bookkeeping_commit patches=none throwaways=none_up(implement_tore_down_e17s10iw,e17s10i) slot=ocutalon-slot-b(loaded_from_this_worktree_20:42Z;not_reloaded_after_4be9d24b)
+2026-11-08T00:10:33Z	Epic 17	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_switch_20261108_story_17.10_after_implement lane=B slot=ocutalon-slot-b hashes_checked=main_checkout_match hold=absent inbox_verify=ok
+2026-11-08T00:10:33Z	Epic 17	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-08T00:10:33Z	Epic 17	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh bootstrap_check=ok
+2026-11-08T00:10:33Z	Epic 17	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-08T00:12:21Z	Epic 17	slot_loaded	slot=ocutalon-slot-b port=52791 identity=iris_server_info_build154U bridge=58 ocutalon=750 compiled=ok(CompilePackage_OcuTalon_ck,errors=0) stale=none(810_non-generated=808_tree+2_index-generated)
+2026-11-08T00:12:42Z	Story 17.10	adr_verifications_complete	tool=none acs=none result=none_required mutations=none(no_AD_commits_agent-time_tooling;pin_mutations_demonstrated_by_implement:13_in_spec_Verification) model=claude-opus-5-5
+2026-11-08T00:12:58Z	Story 17.10	stage_spawned	stage=qa spawn_at=2026-11-08T00:12:58Z model=sonnet agent_name=17-10-qa-1 cycle_iteration=1
