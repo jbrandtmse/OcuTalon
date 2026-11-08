@@ -5340,3 +5340,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Both pin the matrix's empty-table branch, so they need an empty table; a red elsewhere that leaves rows makes them red too (explicit message)
 - 2026-11-08T01:47:05Z status=wontfix-accepted owner=19-4-answer-from-documents-with-citations by=cr note=reopen_if=a fresh-stack or CI red of 'the table holds no row' or 'the table is empty to begin with'
+
+### DW-900: Evaluation documents (OwnerRef eval) that a crash leaves between Docs.Ops AddEval and Eval.In Finish stay in OcuTalonKB.Docs, searchable by the Chat agent and removable by no route; nothing sweeps them
+- source: _bmad-output/implementation-artifacts/spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: rework 1 edge-case and blind layers: Docs/Ops.cls AddEval/RemoveEval, Eval/In.cls DocumentsUp; a start-of-run sweep of OwnerRef eval rows (RemoveEval each) closes it
+- 2026-11-08T02:48:55Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5 touches Docs ownership and the per-session store; add the sweep there
+
+### DW-901: While an evaluation run is in flight its documents sit in the shared OcuTalonKB.Docs table, so a person's chat turn on the same instance can retrieve and cite them (the knowledge-base search has no owner filter)
+- source: _bmad-output/implementation-artifacts/spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: rework 1 review: Docs/Store.cls has no owner column; only the Documents-page reads filter by OwnerRef; same shared-table design as before the rework
+- 2026-11-08T02:48:55Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5's per-session tables and per-turn attach are the place to scope retrieval

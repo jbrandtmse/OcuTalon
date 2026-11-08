@@ -6430,6 +6430,8 @@ So that no other visitor sees or searches what I added.
 - DW-783: `release/rehearse.sh`'s memory-offline step (Story 19.2) is proved on stub hosts only; a dry run on a real stack must show the clean host publishes its web port again after `docker network connect --alias iris` (ledger; routed by harvest 2026-11-06)
 - DW-892: `Demo.Features` lists the documents feature on the online demo, where `AddDocument` answers not_built until this story builds the per-session documents (ledger; routed by harvest 2026-11-07)
 - DW-893: an agent job builds its tools once, so the Chat agent's documents tool is attached or left out for the job's life by the online-demo setting at that moment; this story's per-turn tool manager is the fix (ledger; routed by harvest 2026-11-07)
+- DW-900: evaluation documents (OwnerRef `eval`) that a crash leaves between `Docs.Ops` AddEval and `Eval.In` Finish stay searchable in `OcuTalonKB.Docs` and removable by no route; add a start-of-run sweep of the `eval` rows (ledger; routed by harvest 2026-11-08)
+- DW-901: while an evaluation run is in flight its documents sit in the shared `OcuTalonKB.Docs` table, so a person's chat turn on the same instance can retrieve and cite them; the per-session tables and the per-turn attach scope retrieval (ledger; routed by harvest 2026-11-08)
 
 ### Story 19.6: Extract text from PDF and Word files with Embedded Python
 
