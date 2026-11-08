@@ -185,9 +185,10 @@ Property PersonaLanguage As %String(MAXLEN = 40);
 /// The setup records of the run's watches, a dynamic array of {"case", "watch"}: one for each sent case that declared a watch. Start sets it.
 Property Watches As %DynamicArray;
 
-/// The IncidentRef and the case name of the last incident case this service dispatched successfully; "" before the first. The next incident case waits for its row.
+/// The IncidentRef of the last incident case this service dispatched successfully; "" before the first. The next incident case waits for its row.
 Property PaceRef As %String(MAXLEN = 22);
 
+/// The case name of that incident case, which REASONPACED names at the bound; "" before the first.
 Property PaceCase As %String(MAXLEN = 128);
 
 /// 1 once the previous incident case's row was still sent at the bound: the run then sends no more incident cases.

@@ -5405,6 +5405,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 1.0.2 set durations 56.7-58.3 s vs 1.0.3 60.1 s for the 10th case; Eval/In.cls:8-9,480-483 async sends; Decide.cls:339-342 timer at send; Production.cls:30 PoolSize 1
 - 2026-11-07T18:29:38Z status=routed owner=burndown by=orchestrator note=1.0.4 Epic 9 fix-forward after D1/D2: pace incident cases (next after the previous CaseResult, ~70 s each; turn cases first); update Test/Eval/In pins; EvalIn stays disabled in the product
 - 2026-11-08T03:25:46Z owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=runner note=charter(Story_9.11_fix-forward;SC-5_reopen;planner_ruling_2026-11-08)
+- 2026-11-08T05:45:45Z status=resolved-by:9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=adjudication note=EvalIn paces incident cases: SendIncident.Pace waits for the previous CaseResult row (INCIDENTWAIT 150 > MAXTIMER 110, REASONPACED at the bound); pins TestPacesIncidents, TestPaceBound, TestPaceLastCheck, TestSendsIncident (commit a937291e + QA/CR in the 9.11 commit); SM-2 counts a skip as not right (TestSkippedIncidentScored)
 
 ### DW-879: Product: the diagnosis timer counts time spent queued at DiagnosisAgent (PoolSize 1), so several simultaneous incidents (e.g. demo visitors breaking the feed at once) can time out before the model is asked
 - source: 1.0.3 rc1 eval triage 2026-11-07 | severity: med | fix-risk: med | footprint: cross-epic
@@ -5433,3 +5434,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Eval/Cases.cls TestUserTurnCases checks the forget (9.11) and remember (30.9) cases only through the kind count; Test/Eval/Report.cls TestShippedChipCasesScoreTheHostReasons lists the four chips; both files contended (Epic 19 19.4), ruling allowed only the count pin
 - 2026-11-08T05:13:42Z status=escalated owner=burndown by=harvest note=for the decision sheet: recommended routed to the next eval story after 1.0.4 (extend the wanted list and the Report loop with both cases' exact text); not fixable inside 9.11's ruling
+- 2026-11-08T05:43:35Z occurrence=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=forget content pinned in Test/Eval/In.cls TestForgetCaseRecorded; open: remember, Report loop; fix moves pin to Cases
+
+### DW-909: Eval: at the integrate-forward over Story 30.9, Test/Eval/Cases.cls's user-turn count pin merges cleanly as 5 (both branches changed :248 to the same text) while the merged eval/ holds 6 user-turn cases; the doc lines :16 and :236-237 conflict
+- source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: origin/OCT-epic30 Cases.cls:248 is AssertEquals(count, 5, eval/ holds exactly five user-turn cases), byte-identical to OCT-epic9's, so git takes 5 with no conflict; epic-9-context.md and the spec's [Ledger] item call the union plain
+- 2026-11-08T05:43:27Z status=escalated owner=burndown by=cr note=integrate-forward over 30.9: set Cases.cls:248 to 6/six by hand; resolve :16, :236-237 naming both cases
+
+### DW-910: Eval: the rule that a skipped incident case counts as not right in SM-2 (and the held-out incidents) is recorded only in Eval.Report and the 9.11 spec, not in the epic context's Scoring rule or the proposed AD-22 as-built bullet
+- source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Report.cls :61 and AddSkipped tally a skipped incident case (AC7, the Planner's condition); epic-9-context.md Scoring and the spec's proposed AD-22 spine bullet mention only the pacing
+- 2026-11-08T05:43:35Z status=wontfix-accepted owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=reopen_if=a later eval story's spec or review reads SM-2 as leaving skipped incident cases out of its total

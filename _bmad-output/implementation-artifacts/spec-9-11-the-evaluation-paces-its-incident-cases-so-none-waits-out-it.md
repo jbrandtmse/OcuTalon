@@ -247,6 +247,35 @@ Paths are relative to the repository root. Class paths are under `src/ocutalon/c
 - **AC8, DW-902 (the forget case).** Given `eval/user-turn-forget/case.json`, when the repository checks and `Test.Eval.Cases` run, then it is a `user-turn` case, not held out, with the turn `Forget that the Orders partner contact is Kim.` and the remember case's expectation, the user-turn count pin reads it, and Lane A's evaluation job sends it and reports it among the userTurns (report-only, no target).
 - **AC6, the product.** Given the product's production definition, when `Test.Eval.Switch.TestDefinition` lists its items, then `EvalIn` is an `OcuTalon.Eval.In` with pool 0 and Enabled 0. And `git diff --stat` of `Production.cls` and of every existing case folder under `eval/` against the story's baseline is empty (the only `eval/` change is the new `eval/user-turn-forget/`, DW-902).
 
+### Review Findings
+
+Code review 2026-11-08 (4 layers, full-opus; the whole story, `a2d67f87..` plus QA's working tree): 31 rows, 10 entries after grouping (high 0, med 2, low 8), 14 rows rejected. Rule 3: exempt (evaluation tooling the product keeps disabled). Rules 1, 5, 6: no new service, no NFR worked around, no AD mismatch (AD-5, AD-8, AD-16, AD-22, AD-26, AD-29, AD-30, AD-33 checked).
+
+- [x] [Review][Patch] AC7's "any other skip counts in no score" clause had no `mutation:` line, and its pin is `Test.Eval.Report` `TestSkipped`, not `TestSkippedIncidentScored` [src/ocutalon/cls/OcuTalon/Eval/Report.cls:969] -- low, fix-risk low (Verification line only), in-story: mutation run and recorded under `## Verification`.
+- [x] [Review][Patch] The AC7 tally-removal mutation was recorded twice under `## Verification` [spec `## Verification`] -- low, fix-risk low, in-story: the duplicate line removed.
+- [x] [Review][Patch] `PaceCase` had no doc comment of its own (Rule 14) [src/ocutalon/cls/OcuTalon/Eval/In.cls:192] -- low, fix-risk low (doc only), in-story.
+- [x] [Review][Patch] `TestSendsIncident`'s header bullet said the first row "stays in state sent" while the test pins it decided at EvalIn's check [src/ocutalon/cls/OcuTalon/Test/Eval/In.cls:38] -- low, fix-risk low (doc only), in-story.
+- [x] [Review][Patch] `TestPacesIncidents` asserted 6 checks with the message "and 3 checks" [src/ocutalon/cls/OcuTalon/Test/Eval/In.cls:908] -- low, fix-risk low (message only), in-story.
+- [x] [Review][Patch] The `IncidentAt` helper's doc listed six list positions; position 7 is what every pacing assertion reads [src/ocutalon/cls/OcuTalon/Test/Eval/In.cls:1221] -- low, fix-risk low (doc only), in-story.
+- [x] [Review][Patch] `TestSkipped`'s items message said "no skipped case is in a score", next to the pin that the skipped incident case is [src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls:1108] -- low, fix-risk low (message only), in-story (the ruled `TestSkipped` hunk).
+- [x] [Review][Defer] At the integrate-forward over Story 30.9 (feature `71a2312e`), `Test/Eval/Cases.cls:248` merges cleanly as 5 because both branches made the same edit, while the merged `eval/` holds six user-turn cases; :16 and :236-237 conflict [src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls:248] -- deferred: med, fix-risk low, out-of-footprint (the lead's merge resolution; 5 is right on this branch): DW-909 `escalated owner=burndown`.
+- [x] [Review][Defer] DW-908's text predates QA's `TestForgetCaseRecorded`, which now pins the forget case's content, and that pin partly repeats `Test.Eval.Cases` `TestUserTurnCases`'s per-case checks, a copy the ruling forces (Cases.cls is contended; Rule 2) [src/ocutalon/cls/OcuTalon/Test/Eval/In.cls:1042] -- deferred: med, fix-risk low, out-of-footprint: occurrence appended to DW-908 (still open: the remember case and the Report chip loop; its fix moves the forget pin into Cases.cls).
+- [x] [Review][Defer] The scoring rule that a skipped incident case counts as not right in SM-2 is not in the epic context's Scoring rule or the proposed AD-22 as-built bullet [src/ocutalon/cls/OcuTalon/Eval/Report.cls:61] -- deferred: low, out-of-footprint (spine and epic context belong to the lead, Rule 20): DW-910 `wontfix-accepted` with `reopen_if`.
+
+Rejected:
+- (blind) The intent block was not amended for AC7 and DW-902 ("Nothing else changes", the Never list) -- the fix edits the spec under review; the Spec Change Log rulings govern.
+- (blind, edge) `AddSkipped` tallies a skipped incident case with no `causeCategory`/`elementAtFault`, which `Score` would leave unscored -- low and theoretical: all 11 incident cases of `eval/` carry both fields, and such a case is a problem on either path; the fix adds a guard.
+- (blind) `TestForgetCaseRecorded` adds a dependency on the `eval/` mount -- false: `Snapshot()` already reads `/opt/ocutalon/eval/orders-date-format/snapshot.json`, and the test writes no folder.
+- (blind) `git diff --name-only <story_base>` in `## Verification` also lists the lead's bookkeeping files -- the fix edits a Verification command, not a `mutation:` line (for the lead).
+- (blind) Bookkeeping timeline (the change log's "04:3xZ", local dates in triage headings, the epic context's Stories line) -- the lead's bookkeeping, not code.
+- (edge, twice) A timer fallback completes the row while `DiagnosisAgent` may still run, so the next case could queue -- by design: the spec's "What the pacing reads" and its Story 5.14 note; AD-8's `Timeouts.Derive` bounds the runner at the timer minus 5 s.
+- (edge) `Pending`'s SQL error reads as "not sent" -- theoretical; the same pre-existing contract that `Wait` relies on.
+- (edge) A failed `Remove` after a failed send leaves a row that the skip also tallies -- theoretical: a delete of the row just opened; the fix adds a guard.
+- (edge) A new `Start` may begin while an earlier run's incident row is still sent -- by design (pacing is per run) and theoretical: the callers' `Wait` (`OCUTALON_EVAL_WAIT`, default 180) exceeds `MAXTIMER`.
+- (verification-gap) The `Shared surfaces:` bullet says no test asserts the skip in `Report.Build`/`Problems` -- the fix edits spec text other than a `mutation:` line (for the lead).
+- (verification-gap) Lane A's `evaluation` job passes on the mock with or without pacing -- the matrix's Integration row claims only that no case is paced out; `Start` is unchanged.
+- (acceptance) AC5 and AC8's CI halves are not yet shown -- by design: "Left to CI", resolved by the lead's CI gate.
+
 ## Spec Change Log
 
 - 2026-11-08 ~04:45Z, after implement pass 2 (done, a937291e): RULED (orchestrator, decide; the Contest Planner said yes to DW-902 under the owner's delegation): Story 9.11 takes DW-902, a new eval case `eval/user-turn-forget/case.json` with the shape and scoring of Story 30.9's remember case, and the `Test/Eval/Cases.cls` user-turn count pin (5 on this branch; 6 after the integrate-forward over 30.9, a plain union). Added as the open [Ledger] item and AC8; `epics.md` 9.11 carries the `DW-902:` bullet. The turn text and description are eval data, not product strings (no PUBLIC TEXT round). DW-902 itself is on `origin/OCT-epic30`'s ledger, not yet on this branch: the lead appends its trailer after the integrate-forward over 30.9.
@@ -449,7 +478,7 @@ OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_O
 - ZzIn's new nodes `late` and `checked`, cleared by both classes' `Kill ^OcuTalonTest("EvalIn")`.
 - ZzIn's default of answering the previous incident row at EvalIn's first check, which `Test.Eval.Cases.TestRecordedCases` relies on.
 - The CaseResult rows that the double completes, removed by run in both classes' `OnAfterOneTest`.
-- `EvalIn`'s skipped list, which can now hold `REASONPACED`. `Report.Build` lists it and `Report.Problems` counts it, and no test asserts it.
+- `EvalIn`'s skipped list, which can now hold `REASONPACED`. `Report.Build` lists it, counts a skipped incident case as not right in `scores.incidents` (AC7) and `Report.Problems` counts it: `Test.Eval.In` `TestSkippedIncidentScored` and `Test.Eval.Report` `TestSkipped`/`TestText` assert it (lead correction after review, 2026-11-08).
 - The `LOGSKIPPED` warnings, removed by `OnAfterOneTest`.
 - The timing of the incident cases in a run (the `RUN set` seconds of the `evaluation` job). Nothing asserts it.
 
@@ -497,12 +526,20 @@ A local `eval/run.sh` does not fit in one 150-s call. The lead's Rule 19 fresh c
 - mutation: AC5 -- `Pace` sets `PaceStalled` whenever `PaceRef` is set (REASONPACED for every incident case after the first) -> `Test.Eval.Cases` `TestRecordedCases` red (every incident case after the first is skipped) -- reverted, green.
 - mutation: AC7 -- `AddSkipped`'s `Tally` of the skipped incident case removed -> `TestSkippedIncidentScored` red (`total` equals the control's, not control + 2; held-out likewise), and `Test.Eval.Report` `TestSkipped` (`0 of 1 share 0 met 0` reads `0 of 0 share null met null`) and `TestText` (the `Incidents (SM-2)` row) red -- reverted, green.
 - mutation: AC7 -- one word of the `REASONPACED` text changed ("no more" to "no further") -> `TestPaceBound` red (the fixed-string pin) -- reverted, green.
-- mutation: AC7 -- the same removal of `AddSkipped`'s tally -> `Test.Eval.Report` `TestSkipped` red (the incidents line stays `0 of 0 share null met null`) and `TestText` red (the `| Incidents (SM-2) | 0 | 1 | 0.0% | 80% | not met |` row), beside `TestSkippedIncidentScored` -- reverted, green.
 - mutation: Matrix row "previous case's send failed" -- `Set ..PaceRef`/`..PaceCase` moved before the `Try` in `SendIncident` -> `Test.Eval.In` red: `TestPaceAfterNoRow` ("its check was of the first row again") -- reverted from backup, green.
 - mutation: Matrix row "previous row removed" -- `StillSent` also answers 1 when `RunCaseIndexExists(RunRef, PaceCase)` is 0 -> `TestPaceAfterNoRow` red (the fourth case is not sent, its check was of the removed row) -- reverted from backup, green.
 - mutation: AC3 -- `INCIDENTWAIT = 1500` -> `TestPaceBound` red ("and is the ruled 150 seconds") -- reverted from backup, green.
 - mutation: AC6 -- `Production.cls` sets EvalIn `Enabled="true"` (the warm stack took the reload) -> `Test.Eval.Switch` `TestDefinition` red ("EvalIn is disabled in the definition") -- reverted, `Switch` green, `Production.cls` unchanged in `git diff`.
 - mutation: AC8 -- `eval/user-turn-forget/case.json`'s `kind` changed from `user-turn` to `command` -> `Test.Eval.Cases` `TestUserTurnCases` red ("eval/ holds exactly five user-turn cases") -- reverted from backup in `<scratchpad>/e9s11impl3/sub/`, `Cases` green again, `git status --short` / `git diff --stat` as before.
+
+**QA stage (warm stack `e9s11qw`, backups in `<scratchpad>/e9s11qa/bak/`; each mutation reverted from backup, class green again, `git status --short` as before):**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Eval/In.cls` -- three tests added, no other file touched: `TestPaceLastCheck`, `TestPaceRefusedNeverWaits`, `TestForgetCaseRecorded` (closes the DW-902 deferral for the content of `eval/user-turn-forget/case.json` without editing `Cases.cls` or `Report.cls`).
+- mutation: Matrix row "late `CaseResult` before the bound (k at most 151)" -- `Pace` stalls one pause early (`pauses '< (INCIDENTWAIT \ INCIDENTPOLL) - 1`) -> `TestPaceLastCheck` red (the case is skipped, not sent after the 151st check), beside `TestPaceBound`.
+- mutation: "a refused case never waits" (Always tier) -- `Set reason = ..Pace()` moved to the top of `SendIncident`, before the snapshot checks -> `TestPaceRefusedNeverWaits` red (the refused case checks and pauses; after the bound it gets no own reason). No existing test went red (`TestIncidentRefuses` runs with no previous row).
+- mutation: AC8 -- `"no error"` removed from the absent phrases of `eval/user-turn-forget/case.json` -> `TestForgetCaseRecorded` red ("it forbids the fourteen phrases").
+
+**Review stage (warm stack `e9s11rw`, backup in `<scratchpad>/e9s11cr/bak/`; reverted from backup, class green again, `git status --short` / `git diff --stat` as before):**
+- mutation: AC7, its clause "a skip of any other kind still counts in no score" (pinned by `Test.Eval.Report` `TestSkipped`, whose skipped list holds an incident, an item, a turn and two unreadable cases, not by `TestSkippedIncidentScored`) -- `AddSkipped`'s guard widened from `If (kind = ..#INCIDENTKIND) && 'notRunYet` to `If 'notRunYet` -> `Test.Eval.Report` red: `TestSkipped` (its incidents line), `TestText` and `TestTextSections` -- reverted from backup, green.
 
 ## Auto Run Result
 
