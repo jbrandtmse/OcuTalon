@@ -5854,3 +5854,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: demo host v1.0.4 (host check 109/0/1); Watch/Reader.cls messages.log severity count (Story 17.5)
 - 2026-11-08T21:35:08Z status=routed owner=burndown by=orchestrator note=planner_ruling: HIGH for 1.0.5 after D3's slot; Task 0 measures which lines a fresh Docker install logs at start on builds 154 and 109; then report the narrowest fix before implementing: (a) ignore those exact start-up signatures or (b) count only errors after the instance start sequence ends; tests: start-up noise passes, a real later error still fails; any string change to the Planner
 - 2026-11-08T23:12:40Z status=routed owner=17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta by=runner note=charter(fix-forward_17.13,Planner_demo_walk_ruling_2026-11-08;Task_0_then_PLANNER_REPORT)
+
+### DW-988: NeedsYou.List reads the newest 1000 decide Decisions (DECISIONMAX) before the own-turn skip, so over 1000 newer own-turn Decisions in one window could hide an older real tell-now item
+- source: spec-17-12-needs-you-never-counts-the-person-s-own-chat-messages.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Digest/NeedsYou.cls:62; Ownership.Decisions newest-first capped read; reaching it needs >1000 chat messages newer than the item inside one digest window
+- 2026-11-08T23:49:29Z status=wontfix-accepted owner=17-12-needs-you-never-counts-the-person-s-own-chat-messages by=harvest note=reopen_if=a session is seen with over 1000 decide Decisions inside one digest window, or Ownership gains a read that excludes turn Decisions (a fix needs Lane B's Ownership API)
