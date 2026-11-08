@@ -2848,3 +2848,7 @@
 2026-11-08T17:07:55Z	Epic 32	amendments_verified	amendments=0 extensions=5(web/scripts/{bounded-waits,state-wait,retry-bounds}.test.mjs,web/e2e/support/host.ts,web/e2e/live/state-retry.spec.ts) ok=true
 2026-11-08T17:07:55Z	Epic 32	ci_green_verified	head=db837463 result=success runs=42495633417,42495633416
 2026-11-08T17:07:55Z	Epic 32	merge_enqueued	policy=when_green priority=3 note=planner_ruling_no_integrate_over_17(merge-tree_clean)
+2026-11-08T17:08:56Z	Epic 32	epic_merged_to_feature	merge=42e5bdd4 head=db837463 stories=32.6 verified_on_origin=yes conflicts=none ledger_union=lost0,dup0(936) sprint_valid=yes spine=untouched 1.0.4=IN(if_feature_CI_green) note=no_integrate_over_17_per_planner
+2026-11-08T17:08:56Z	Epic 32	decision_sheet_recorded	decided=1(DW-911_keep_RETRY_lines;DIAG_print_with_32.7_after_cut) to_action_items=0 to_x0=0 by=unattended
+2026-11-08T17:08:56Z	Run	deps_hash_rerecorded	reason=fix_forward stories=32.6 hash=1ba9f2582e8f
+2026-11-08T17:08:56Z	Epic 32	worktree_kept	reason=32.7_next(planner_ruling_10:03Z;after_cut_merge)
