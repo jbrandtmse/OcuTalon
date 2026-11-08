@@ -63,6 +63,7 @@ import {
   pairChat,
   pressAnswers,
   pressFromChat,
+  sentCalls,
   sentChats,
   shareContactFromChat,
   startTelegram,
@@ -470,19 +471,28 @@ async function traceHits(value: string, namespace: 'OCUTALON' | 'OCUORDERS', aft
 }
 
 /**
- * Runs a read-only wait again when one of its HTTP reads timed out (a stall of the host, which runs other stacks, and not an answer): a
- * stalled read must not end a wait that has its own budget. A wait that ran out of its own budget, any other error and a stall past the
- * budget throw. Each stall is printed.
+ * Runs a read-only wait again when one of its HTTP reads timed out (ruling R3 of Story 31.4: a stall whose cause is not isolated, an
+ * occurrence of DW-550's unanswered /state, which its owner investigates), inside the wait's own budget: the attempts together never run past budgetMs, so a stall can never
+ * stretch the wait. A wait that ran out of its own budget, any other error and a stall past the budget throw. Each stall is printed as a
+ * "MEASURED Story 31.4: a read stalled" line, which the unit counts.
  */
 async function throughStalls<T>(what: string, budgetMs: number, run: () => Promise<T>): Promise<T> {
   const until = Date.now() + budgetMs;
   for (;;) {
+    const attempt = run();
+    attempt.catch(() => undefined);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const spent = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`the wait while ${what} ran out of its ${budgetMs / 1000} s budget`)), Math.max(0, until - Date.now()));
+    });
     try {
-      return await run();
+      return await Promise.race([attempt, spent]);
     } catch (error) {
       const text = (error as Error).message ?? '';
       if (!/apiRequestContext\.\w+: Timeout \d+ms exceeded/.test(text) || Date.now() >= until) throw error;
       console.log(`MEASURED Story 31.4: a read stalled while ${what}; the wait goes on`);
+    } finally {
+      clearTimeout(timer);
     }
   }
 }
@@ -509,6 +519,8 @@ test.describe('the paired chat under load', () => {
     driveMark: 0,
     /** The drive of the three incidents, started by the first case that needs it. */
     driven: undefined as Promise<void> | undefined,
+    /** B's press and A's answer from the paired chats, started by the first case that needs them. */
+    answered: undefined as Promise<void> | undefined,
   };
   const [A, B, C, D] = [0, 1, 2, 3] as const;
   const who = (index: number): Visitor => {
@@ -651,71 +663,87 @@ test.describe('the paired chat under load', () => {
     }
     await a.page.waitForTimeout(5_000);
     expect(await buttonsOf(CHAT_A), "after the settle, A's chat still holds A's buttons as the newest keyboard (no notice of C or D came after)").toEqual([`approve:${state.keys.a}`, `reject:${state.keys.a}`]);
-    const chats = await sentChats(state.driveMark);
+    const calls = await sentCalls(state.driveMark);
+    const chats = calls.map((call) => call.chat);
     console.log(`MEASURED Story 31.4: ${chats.length} sendMessage and editMessageText calls after the mark, ${chats.filter((chat) => chat === CHAT_A).length} to CHAT_A`);
     expect(chats.length, 'at least one message went to a chat').toBeGreaterThan(0);
-    expect(chats.filter((chat) => chat !== CHAT_A), 'every message after the mark went to A\'s chat').toEqual([]);
     expect(chats.includes(CHAT_B), "B's paired chat got no message").toBe(false);
+    expect(chats.filter((chat) => chat !== CHAT_A), 'every message after the mark went to A\'s chat').toEqual([]);
+    // Every keyboard that A's chat got, and not only the newest, is A's: a notice of C or D that came before A's fails here.
+    const keyboards = calls.filter((call) => call.buttons.length > 0);
+    expect(keyboards.length, "A's chat got a keyboard").toBeGreaterThan(0);
+    expect(keyboards.flatMap((call) => call.buttons).filter((data) => data !== `approve:${state.keys.a}` && data !== `reject:${state.keys.a}`), "every button A's chat got is one of A's request").toEqual([]);
   });
+
+  /**
+   * B's paired chat presses Approve on A's request (refused, nothing changes), then A answers from its own chat (the first answer wins), with
+   * the assertions of both. The first case that needs the presses runs them; the others reuse them, so that the message search covers the
+   * presses' production messages (Core.Msg.Answer) also when it runs alone (-g).
+   */
+  const answered = (): Promise<void> =>
+    (state.answered ??= (async () => {
+      const [a, b] = [who(A), who(B)];
+      await drive();
+      const key = state.keys.a;
+      expect(key, "A's approval request was found").not.toBe('');
+      const card = a.page.locator(`app-chat-panel [data-part="approval"][data-key="${key}"]`);
+      const aRead = await readState(a.page);
+      const bRead = await readState(b.page);
+      const aCursors: Cursors = { session: aRead.snapshot.streams.session, instance: aRead.snapshot.streams.instance };
+      const bCursors: Cursors = { session: bRead.snapshot.streams.session, instance: bRead.snapshot.streams.instance };
+      const answersBefore = (await pressAnswers()).length;
+      const mark = await callMark();
+
+      await pressFromChat(CHAT_B, `approve:${key}`, state.nameB);
+      await expect.poll(async () => (await pressAnswers()).length, { message: "B's press gets its answer", timeout: MOCK_MS, intervals: [1000] }).toBe(answersBefore + 1);
+      const answers = await pressAnswers();
+      expect(answers[answers.length - 1], "the answer says that only the paired chat can answer, as an alert").toEqual({ text: 'Only the paired chat can answer this request.', show_alert: 1 });
+      await b.page.waitForTimeout(5_000);
+      expect(await sentChats(mark), 'no message and no edit follows the press: B\'s chat gets none and A\'s chat no edit').toEqual([]);
+      expect((await readApproval(key)).state, "A's row stays pending").toBe('pending');
+      await expect(card.getByRole('button', { name: /^Approve/ }), "A's card still offers Approve").toHaveCount(1);
+      await expect(card.getByRole('button', { name: /^Reject/ }), 'and Reject').toHaveCount(1);
+      expect((await eventsSince(a.page, aCursors)).events.filter((event) => event.type === 'approval'), "no approval event on A's stream since the press").toEqual([]);
+      expect((await eventsSince(b.page, bCursors)).events.filter((event) => event.type === 'approval'), "and none on B's").toEqual([]);
+
+      // A answers from its own chat; the first answer wins.
+      const edits = (await editsOf(CHAT_A)).length;
+      const answeredBefore = (await pressAnswers()).length;
+      await pressFromChat(CHAT_A, `approve:${key}`, state.nameA);
+      await expect.poll(async () => (await pressAnswers()).length, { message: "A's press gets its answer", timeout: MOCK_MS, intervals: [1000] }).toBe(answeredBefore + 1);
+      const approved = (await pressAnswers()).pop();
+      expect(approved?.text, 'the press answer says approved').toMatch(/^Approved\./);
+      expect(approved?.show_alert, 'with no alert').toBe(0);
+      await expect.poll(async () => (await readApproval(key)).state, { message: 'the row leaves pending', timeout: 30_000 }).not.toBe('pending');
+      expect((await readApproval(key)).channel, 'it was answered from Telegram').toBe('telegram');
+      await expect
+        .poll(async () => (await editsOf(CHAT_A)).slice(edits), { message: "A's chat gets one edit with the answered line", timeout: MOCK_MS, intervals: [1000] })
+        .toHaveLength(1);
+      const edit = (await editsOf(CHAT_A)).slice(edits)[0] ?? '';
+      expect(edit, 'the edit ends with the answered line').toMatch(/Approved from Telegram at \d{1,2}:\d{2}( [A-Z]{1,5})?\.$/);
+      await expect(card.locator('p.status'), "A's card says so").toHaveText(/^Approved from Telegram at /, { timeout: 30_000 });
+      let note = '';
+      await expect
+        .poll(async () => (note = ((await readState(a.page)).snapshot.phone ?? []).find((item) => item.approvalRef === key)?.ref ?? ''), { message: "A's phone has the request's notice", timeout: 30_000 })
+        .not.toBe('');
+      const message = a.page.locator(`app-simulated-phone .notification[data-key="${note}"]`);
+      await expect(message.locator('p[data-part="answer"]'), "A's phone says so").toHaveText(/^Approved from Telegram at /, { timeout: 30_000 });
+      await expect(message.getByRole('button', { name: /^Approve/ }), "A's phone offers no Approve any more").toHaveCount(0);
+      await expect
+        .poll(async () => (await readApproval(key)).state, { message: 'the fix ends (the row leaves approved and executing)', timeout: 90_000, intervals: [1_000, 2_000] })
+        .not.toMatch(/^(pending|approved|executing)$/);
+    })());
 
   test("the paired chat: a press from B's paired chat on A's request is refused and changes nothing", async () => {
     test.setTimeout(300_000);
-    const [a, b] = [who(A), who(B)];
-    await drive();
-    const key = state.keys.a;
-    expect(key, "A's approval request was found").not.toBe('');
-    const card = a.page.locator(`app-chat-panel [data-part="approval"][data-key="${key}"]`);
-    const aRead = await readState(a.page);
-    const bRead = await readState(b.page);
-    const aCursors: Cursors = { session: aRead.snapshot.streams.session, instance: aRead.snapshot.streams.instance };
-    const bCursors: Cursors = { session: bRead.snapshot.streams.session, instance: bRead.snapshot.streams.instance };
-    const answersBefore = (await pressAnswers()).length;
-    const mark = await callMark();
-
-    await pressFromChat(CHAT_B, `approve:${key}`, state.nameB);
-    await expect.poll(async () => (await pressAnswers()).length, { message: "B's press gets its answer", timeout: MOCK_MS, intervals: [1000] }).toBe(answersBefore + 1);
-    const answers = await pressAnswers();
-    expect(answers[answers.length - 1], "the answer says that only the paired chat can answer, as an alert").toEqual({ text: 'Only the paired chat can answer this request.', show_alert: 1 });
-    await b.page.waitForTimeout(5_000);
-    expect(await sentChats(mark), 'no message and no edit follows the press: B\'s chat gets none and A\'s chat no edit').toEqual([]);
-    expect((await readApproval(key)).state, "A's row stays pending").toBe('pending');
-    await expect(card.getByRole('button', { name: /^Approve/ }), "A's card still offers Approve").toHaveCount(1);
-    await expect(card.getByRole('button', { name: /^Reject/ }), 'and Reject').toHaveCount(1);
-    expect((await eventsSince(a.page, aCursors)).events.filter((event) => event.type === 'approval'), "no approval event on A's stream since the press").toEqual([]);
-    expect((await eventsSince(b.page, bCursors)).events.filter((event) => event.type === 'approval'), "and none on B's").toEqual([]);
-
-    // A answers from its own chat; the first answer wins.
-    const edits = (await editsOf(CHAT_A)).length;
-    const answeredBefore = (await pressAnswers()).length;
-    await pressFromChat(CHAT_A, `approve:${key}`, state.nameA);
-    await expect.poll(async () => (await pressAnswers()).length, { message: "A's press gets its answer", timeout: MOCK_MS, intervals: [1000] }).toBe(answeredBefore + 1);
-    const approved = (await pressAnswers()).pop();
-    expect(approved?.text, 'the press answer says approved').toMatch(/^Approved\./);
-    expect(approved?.show_alert, 'with no alert').toBe(0);
-    await expect.poll(async () => (await readApproval(key)).state, { message: 'the row leaves pending', timeout: 30_000 }).not.toBe('pending');
-    expect((await readApproval(key)).channel, 'it was answered from Telegram').toBe('telegram');
-    await expect
-      .poll(async () => (await editsOf(CHAT_A)).slice(edits), { message: "A's chat gets one edit with the answered line", timeout: MOCK_MS, intervals: [1000] })
-      .toHaveLength(1);
-    const edit = (await editsOf(CHAT_A)).slice(edits)[0] ?? '';
-    expect(edit, 'the edit ends with the answered line').toMatch(/Approved from Telegram at \d{1,2}:\d{2}( [A-Z]{1,5})?\.$/);
-    await expect(card.locator('p.status'), "A's card says so").toHaveText(/^Approved from Telegram at /, { timeout: 30_000 });
-    let note = '';
-    await expect
-      .poll(async () => (note = ((await readState(a.page)).snapshot.phone ?? []).find((item) => item.approvalRef === key)?.ref ?? ''), { message: "A's phone has the request's notice", timeout: 30_000 })
-      .not.toBe('');
-    const message = a.page.locator(`app-simulated-phone .notification[data-key="${note}"]`);
-    await expect(message.locator('p[data-part="answer"]'), "A's phone says so").toHaveText(/^Approved from Telegram at /, { timeout: 30_000 });
-    await expect(message.getByRole('button', { name: /^Approve/ }), "A's phone offers no Approve any more").toHaveCount(0);
-    await expect
-      .poll(async () => (await readApproval(key)).state, { message: 'the fix ends (the row leaves approved and executing)', timeout: 90_000, intervals: [1_000, 2_000] })
-      .not.toMatch(/^(pending|approved|executing)$/);
+    await answered();
   });
 
   test('the message search: no Telegram value or IRIS user name appears in any OCUTALON or OCUORDERS message body or header', async () => {
     test.setTimeout(900_000);
     const a = who(A);
     await drive();
+    await answered();
     const values: Array<[string, string]> = [
       ["A's display name", state.nameA],
       ["B's display name", state.nameB],

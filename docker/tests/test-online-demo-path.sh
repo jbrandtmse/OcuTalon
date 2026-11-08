@@ -21,6 +21,8 @@
 #   - the report check (with no arguments): the JSON report holds exactly ten passed cases (steps 1 to 6, the second visitor, the two paired
 #     chat cases and the message search) and no skipped one: a case that is skipped, missing or extra fails the unit. With arguments (a
 #     mutation run: -g <title>) only those cases run and the set check is skipped;
+#   - the clean-up check (with or without arguments): after the browser step the proxy address reads its start value and the paired chat's
+#     six visitor addresses keep no counter row; the stalled reads that the routing case waited out are counted on a MEASURED line;
 #   - the load phase (Story 29.8; rows L1 and L2 of its spec), which runs the author's release/demo-load.sh against this throwaway with the
 #     keys at the mock: the proxy address is set to the address that IRIS sees for this host's requests (host_address, set_proxy of
 #     lib-online.sh), each visitor sends its own X-Forwarded-For, and the address is put back to its start value after the phase. It needs
@@ -172,6 +174,22 @@ else
       fail "the report does not hold exactly the ten passed cases and no skipped one"
     fi
   fi
+  # The paired chat under load (Story 31.4) puts back what it changed, before the load phase sets the proxy again: the proxy address
+  # reads its start value and its six visitor addresses keep no counter row. The stalled reads that its routing case waited out (ruling
+  # R3, cause not isolated) are counted here, so that a run that had one shows it.
+  proxy_now=$(printf '%s\n' 'Write !,"CHK|proxy|",##class(OcuTalon.Data.Public.Settings).Get("proxyAddress")' 'Halt' | session_value OCUTALON proxy)
+  rows_left=0
+  for i in 1 2 3 4 5 6; do
+    n=$(counter_rows "198.51.100.10$i")
+    case $n in '' | *[!0-9]*) n=99 ;; esac
+    rows_left=$((rows_left + n))
+  done
+  if [ "$proxy_now" = "$proxy_start" ] && [ "$rows_left" = 0 ]; then
+    pass "after the browser step the proxy address reads its start value and the paired chat's visitor addresses keep no counter row"
+  else
+    fail "after the browser step the proxy address reads '$proxy_now' (the start: '$proxy_start') and the paired chat's visitor addresses keep $rows_left counter rows"
+  fi
+  echo "MEASURED Story 31.4: $(grep -c 'MEASURED Story 31.4: a read stalled' "$e2e_log") stalled reads were waited out in the browser step"
 fi
 
 # --- the load phase (Story 29.8) ---

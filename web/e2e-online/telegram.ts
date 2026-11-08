@@ -206,18 +206,26 @@ export async function callMark(): Promise<number> {
 }
 
 /**
- * The chat id of every sendMessage and editMessageText call after the mark (a seq above it), in order. A mark and not a reset, so that the
- * calls that came before it never count.
+ * The sendMessage and editMessageText calls after the mark (a seq above it), in order: the chat id of each and the callback data of its
+ * inline keyboard ([] when it has none). A mark and not a reset, so that the calls that came before it never count. The mock's log is never
+ * empty while Telegram runs (its getUpdates polls are in it), so an empty log is a read that failed, and it throws rather than read as
+ * "no call". The keyboard is read here because the fixture's Buttons reads only the newest one and is Lane A's (DW-888).
  */
-export async function sentChats(after: number): Promise<string[]> {
+export async function sentCalls(after: number): Promise<Array<{ chat: string; buttons: string[] }>> {
   if (!Number.isInteger(after) || after < 0) throw new Error('a call mark is a whole number');
   const lines = await irisScript(
     [
-      'Set all=##class(OcuTalon.Test.Contract.Mock).Calls().%GetIterator()',
-      `While all.%GetNext(,.call) { If (call.seq>${after})&&((call.method="sendMessage")||(call.method="editMessageText")) Write !,"CHK|chat|",call.params."chat_id" }`,
-      'Write !,"CHK|done|1"',
+      'Set calls=##class(OcuTalon.Test.Contract.Mock).Calls(),all=calls.%GetIterator()',
+      `While all.%GetNext(,.call) { If (call.seq>${after})&&((call.method="sendMessage")||(call.method="editMessageText")) { Set data=[] If call.params.%GetTypeOf("reply_markup")="object",call.params."reply_markup".%GetTypeOf("inline_keyboard")="array" { Set rows=call.params."reply_markup"."inline_keyboard".%GetIterator() While rows.%GetNext(,.row) { Set keys=row.%GetIterator() While keys.%GetNext(,.button) { Do data.%Push(button."callback_data") } } } Write !,"CHK|call|",{"chat":(call.params."chat_id"_""),"buttons":(data)}.%ToJSON() } }`,
+      'Write !,"CHK|done|",calls.%Size()',
     ].join('\n'),
   );
-  if (chk(lines, 'done') !== '1') throw new Error(`the mock's calls could not be read (${lines.join(' ')})`);
-  return lines.filter((line) => line.startsWith('CHK|chat|')).map((line) => line.slice('CHK|chat|'.length));
+  const size = Number(chk(lines, 'done') ?? '');
+  if (!Number.isInteger(size) || size < 1) throw new Error(`the mock's calls could not be read (${lines.join(' ')})`);
+  return lines.filter((line) => line.startsWith('CHK|call|')).map((line) => JSON.parse(line.slice('CHK|call|'.length)) as { chat: string; buttons: string[] });
+}
+
+/** The chat id of every sendMessage and editMessageText call after the mark, in order (sentCalls). */
+export async function sentChats(after: number): Promise<string[]> {
+  return (await sentCalls(after)).map((call) => call.chat);
 }
