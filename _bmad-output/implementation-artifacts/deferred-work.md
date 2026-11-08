@@ -5512,3 +5512,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Report.cls :61 and AddSkipped tally a skipped incident case (AC7, the Planner's condition); epic-9-context.md Scoring and the spec's proposed AD-22 spine bullet mention only the pacing
 - 2026-11-08T05:43:35Z status=wontfix-accepted owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=reopen_if=a later eval story's spec or review reads SM-2 as leaving skipped incident cases out of its total
+
+### DW-957: Dismissing or quiet-closing a noticed open incident leaves the status answer and rail Background checks on 'An open incident' for up to a minute (same lag as DW-851, outside its ruling)
+- source: spec-5-15-after-an-incident-resolves-the-status-answer-and-the-rail-sa.md | severity: low | fix-risk: low | footprint: cross-epic
+- evidence: 5.15 plan: Planner ruling covers resolve/partly/rejected only; dismiss and closeQuiet move open->closed without a CheckNow
+- 2026-11-08T12:55:33Z status=decision-pending owner=burndown by=spec_gate note=for the Planner: widen 5.15's CheckNow trigger to dismiss/closeQuiet (about +3 lines and one test) or leave it
