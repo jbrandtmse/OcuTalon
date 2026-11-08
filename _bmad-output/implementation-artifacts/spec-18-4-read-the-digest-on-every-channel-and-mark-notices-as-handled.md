@@ -192,6 +192,11 @@ deferred: []
 - `web/scripts/chat-view.test.mjs:493`, `ux-strings.test.mjs:228`, `web/e2e/chat/chat.spec.ts:152`, `web/e2e/chat/decision.spec.ts:250`, `web/e2e/demo-path/01-page.spec.ts:69` -- the new meaning text.
 - `web/e2e-online/demo-path/demo-path.spec.ts` step 7 (and the comment in `docker/tests/test-online-demo-path.sh:13-14`) -- the phone now gets exactly one digest note, its first line a greeting and its last the cost. The card assertions are unchanged.
 
+- [ ] [Ruling U-313] Pin that an OLDER row renders without error: a `Data.Delivery` digest row with `CheckRows` empty and a `Data.SimMessage` row with `DecisionRef` empty (as rows written before this story are) -- the web chat's digest card (and `RecentNotices` after a reload) and the phone render them without error (a card without the disclosure; a phone message with no Got it edit). One IRIS test and, if the web side reads the payload, one web unit case.
+- [ ] [U-177 grant (a)] Exactly ONE appended call registering `OcuTalon.Data.Handled.Purge(daysToKeep)` in `src/ocutalon/cls/OcuTalon/Install/Step/Core.cls`'s `Purge` method (append it after the existing purge calls; nothing else in that method or file, and nothing else in any Lane A file). Epic 41 also edits that method: keep the hunk to the one line so the second merge is a plain union.
+- [ ] [Doc] `Channel/DigestText.cls`'s class comment names SimPhoneOut as a third caller (doc-only, allowed by the orchestrator).
+- [ ] [Demo path, ruled] `web/e2e-online/demo-path/demo-path.spec.ts:279` and its comment in `docker/tests/test-online-demo-path.sh` change from "no digest note" to EXACTLY ONE digest note on the simulated phone. Nothing else in the demo path changes.
+
 **Acceptance Criteria:**
 - **AC 1.** Given a digest Notification with rows, when `WebChatOut` delivers it, then the web chat shows the digest card: a 4px brand-teal bar (`--digest-card-accent-bar`), the digest text, then "What I checked ({n})" over the check rows, expanded when any row failed or wasn't checked and collapsed otherwise. The card is the same after a reload. Pinned by `Test.Core.WebChatOut` `TestDigestCard`, `chat-view.test.mjs` `digestOpen`, and N16.
 - **AC 2.** Given the same notification and demo mode on, when `SimPhoneOut` renders it, then the phone gets one plain-text message:
@@ -215,6 +220,9 @@ deferred: []
 - **AC 7 (DW-695).** Given Handled rows of different ages, when `Handled.Purge(daysToKeep)` runs, then exactly the rows handled before `DaysCutoff(daysToKeep)` are deleted, and a bad day count deletes nothing. Pinned by `Test.Data.HandledPurge`. The registration is a LANE A RESIDUAL (Design Notes).
 
 ## Spec Change Log
+- 2026-11-08, rulings (Contest Planner under the owner's delegation, relayed by the orchestrator; key planner-2026-11-08-18.4): PUBLIC TEXT rows 1-6 APPROVED exactly as listed, all pinned with fixed strings; U-177 grant (a): one appended call registering `Data.Handled.Purge` in `Install/Step/Core.cls` `Purge`, nothing else in Lane A (whichever of Epics 18 and 41 merges second takes it as a plain union); the demo path's "no digest note" assertion becomes exactly one phone digest note, nothing else changes; the `DigestText` class-comment doc change is allowed; access unchanged.
+- 2026-11-08, inbox answers applied (owner via the inbox, relayed): U-312 at=2026-11-08T20:03:06Z#950 KEEP -- `Data.Handled.Purge` uses AD-27's `DaysToKeep` (90 days), no new number; U-313 at=2026-11-08T20:03:06Z#951 KEEP -- two nullable columns (`Delivery.CheckRows`, `SimMessage.DecisionRef`), older rows read empty, no migration, and ADD a pin that an older row (both columns empty) renders without error (task added).
+- 2026-11-08, spine (orchestrator ruling): at close the LEAD records AD-14's as-built Got it note, the Notice cards convention row and the REST row for `POST /api/v1/decisions/:ref/got-it`, with the orchestrator's marker; AD-27's Handled-purge bullet WAITS (in-flight 41.2, 30.7 and 32.7 cite AD-27). No stage edits the spine.
 
 ## Review Triage Log
 
@@ -310,7 +318,7 @@ No open branch changes these (checked 2026-11-08).
 
 **UX NOTE (lead):** the NOTE at EXPERIENCE.md :969 ("until Story 18.4 ... the simulated phone shows none") is stale after this story.
 
-**PUBLIC TEXT (proposed):**
+**PUBLIC TEXT (RULED 2026-11-08, key planner-2026-11-08-18.4, the Contest Planner under the owner's delegation, relayed by the orchestrator: all six rows APPROVED exactly as listed; pin every one with a fixed string):**
 
 | # | String | Source | File |
 |---|---|---|---|
