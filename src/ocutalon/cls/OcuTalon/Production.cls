@@ -20,6 +20,7 @@ XData ProductionDefinition
   <Item Name="Decide" ClassName="OcuTalon.Bridge.Process.Decide" PoolSize="1" Enabled="true">
     <Setting Target="Host" Name="HostSinkClass">OcuTalon.Core.BridgeSink</Setting>
     <Setting Target="Host" Name="ReplyFilterClass">OcuTalon.Checks.ReplyGuard</Setting>
+    <Setting Target="Host" Name="TurnToolsClass">OcuTalon.Docs.TurnTools</Setting>
   </Item>
   <Item Name="ApprovalHold" ClassName="OcuTalon.Bridge.Process.ApprovalHold" PoolSize="1" Enabled="true"/>
   <Item Name="ApprovalStartIn" ClassName="OcuTalon.Bridge.Service.ApprovalStart" PoolSize="0" Enabled="true"/>
@@ -27,7 +28,7 @@ XData ProductionDefinition
     <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Triage</Setting>
     <Setting Target="Host" Name="ReplyClass">OcuTalon.Bridge.Msg.DecisionPayload</Setting>
   </Item>
-  <Item Name="DiagnosisAgent" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
+  <Item Name="DiagnosisAgent" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="2" Enabled="true">
     <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Diagnosis</Setting>
     <Setting Target="Host" Name="ReplyClass">OcuTalon.Watch.Msg.DiagnosisPayload</Setting>
   </Item>
@@ -62,7 +63,7 @@ XData ProductionDefinition
     <Setting Target="Adapter" Name="CallInterval">5</Setting>
   </Item>
   <Item Name="MemoryOps" ClassName="OcuTalon.Memory.Ops" PoolSize="1" Enabled="true"/>
-  <Item Name="DocumentOps" ClassName="OcuTalon.Docs.Ops" PoolSize="1" Enabled="false"/>
+  <Item Name="DocumentOps" ClassName="OcuTalon.Docs.Ops" PoolSize="1" Enabled="true"/>
   <!-- lane A: end -->
   <!-- lane B: begin -->
   <Item Name="WebChatIn" ClassName="OcuTalon.Channel.WebChat.In" PoolSize="0" Enabled="true"/>

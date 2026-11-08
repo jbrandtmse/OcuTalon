@@ -473,7 +473,7 @@ From the architecture spine (`ARCHITECTURE-SPINE.md`, final, updated 2026-10-17)
 - UX-DR141 [S2] Settings (admins): Via header navigation; sections Models, Budgets, Channels, Daily digest, Time zone, Check thresholds, Demo mode, Tools and MCP servers (S4), Roles (S6). Each saves separately (**Save changes**), warning on unsaved exit; texts are as in the source (keys: saved, save failed, no key set, Test result, permission denied). A provider without a key can't be chosen, keys never show (NFR-11), and non-admins get no link. (Supports: FR-16, FR-17, FR-39, FR-40, NFR-11; Source: E › Later Steps › Step 2)
 - UX-DR142 [S2] Digest and digest card: One message, parts in PRD order: prose in Telegram and on the phone; D `digest-card` in the web chat, its "What I checked ({n})" disclosure expanded if anything failed or wasn't checked. Code-computed all-clear (UX-DR120); Telegram lines start "Passed:", "Failed:" or "Not checked:"; time-of-day greeting; two-decimal cost. "Send my digest now" works in chat and Settings. (Supports: FR-35, FR-36, FR-37, UJ-2; Source: E › Later Steps › Step 2)
 - UX-DR143 [S2] Got it: **Got it** on the web notice card, the phone notification, and inline on Telegram tell-now messages marks the notice handled; the answered line reads "Marked as handled at {time}". (Supports: FR-35; Source: E › Later Steps › Step 2)
-- UX-DR144 [S3] Memory, documents, citations: Memory answers show a "From memory" chip (popover: text, date); forgetting confirms "Forgotten." Documents: **Add documents** (picker or drag-and-drop; Markdown, plain text; PDF, Word from S6); rows show name, date, size, status; removal is confirmed. Answers end with D `citation-chip` chips (popover: passage ≤ 6 lines, document, section, "Open document"); texts per the source; online-demo data per session (PRD change 9, adopted through P23). (Supports: FR-15, FR-41, FR-42; Source: E › Later Steps › Step 3)
+- UX-DR144 [S3] Memory, documents, citations: Memory answers show a "From memory" chip (popover: text, date); forgetting confirms "Forgotten." Documents: **Add documents** (picker or drag-and-drop; Markdown, plain text, PDF and Word (.docx) files); rows show name, date, size, status; removal is confirmed. Answers end with D `citation-chip` chips (popover: passage ≤ 6 lines, document, section, "Open document"); texts per the source; online-demo data per session (PRD change 9, adopted through P23). (Supports: FR-15, FR-41, FR-42; Source: E › Later Steps › Step 3)
 - UX-DR145 [S4] MCP servers, tool classes: Settings › Tools and MCP servers: server list, **Add server** (tools arrive Unclassified), confirmed **Remove** (names tools and cancelled requests), tools table filterable to "Unclassified only". Per tool a `role="radiogroup"`: Unclassified (risky), Read-only, Risky (D `classification-*`), saved at once ("Saved"), audited (FR-48); changed tools revert to Unclassified with a notice; read-only tools can be digest source polls (FR-50). Tool-call requests: "Run {tool} on {server}" plus exact inputs, or the no-dry-run sentence (FR-8). (Supports: FR-8, FR-47 to FR-50; Source: E › Later Steps › Step 4)
 - UX-DR146 [S5] More fixes: Reroute, suspend and resume, and roll back each use the approval card with their own dry run (FR-26); a partner warning shows exact text and recipients (FR-29); a setting-change cause adds "The feed broke four minutes after this setting changed." (FR-27). (Supports: FR-26, FR-27, FR-29; Source: E › Later Steps › Step 5)
 - UX-DR147 [S6] Usage, history, files, roles: Usage: range, grouping, D `usage-chart` plus table, daily largest request vs the 100,000-token limit. History: Decisions and Incidents tabs, rows ≥ 40px, filters in the address, no infinite scroll. Files and photos: paperclip or drag-and-drop (Telegram too), 10 MB limit, **Add to documents**, "Saved to memory" chip; roles approver and viewer (read-only, no composer). Texts per the source (keys: usage empty, history empty, too large, unreadable, approver only). (Supports: FR-11, FR-52, FR-53, FR-54; Source: E › Later Steps › Step 6)
@@ -2879,6 +2879,30 @@ So that I see more of what OcuTalon does without having to work out how.
 **And** EXPERIENCE.md's "Demo guide and controls" (the finish state and the guide row) and DESIGN.md, where the guide's look changes, gain the panel, each with a marker citing the owner decision of 2026-11-06
 **And** CI is green on every workflow, and the story touches only `web/src/app/guide/**`, new files under `web/src/app/`, at most one small new read-only server class or method for availability, the web unit and e2e tests, new mock scenario files, and the UX files
 
+### Story 4.12: The demo guide's document tip promises only what 1.0.4 shows
+
+[ADDED 2026-11-08, guide citation promise, fix-forward, Planner-ruled PUBLIC TEXT (`planner_ruling subject=guide_documents_citation_promise`, 2026-11-08 ~17:45Z, under the owner's delegation). Epic 4 is re-opened for it under SC-5. Target: the v1.0.4 cut, which waits for it. The web chat shows no citations in 1.0.4 (that is Story 20.2, not built), so the tip's promise "look for the citation under the answer" sends a judge looking for something that is not there.]
+
+As a judge following the "Other things to try" panel,
+I want the document tip to tell me to look for something the page actually shows,
+So that following it never leaves me looking for a citation that 1.0.4 does not draw.
+
+**Acceptance Criteria:**
+
+**Given** the "Other things to try" panel's item 6, "Ask about a document" (Story 4.11)
+**When** its look-for line shows
+**Then** it reads, verbatim (the Planner's ruled public text): "On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file." (`web/src/app/guide/more-to-try-view.ts`, the `documents` item's `lookFor`)
+
+**Given** the string's pins
+**When** the tests run
+**Then** the three pins match the ruled string byte for byte: `web/e2e/guide/more-to-try.spec.ts`, `web/scripts/more-to-try-view.test.mjs` and `web/scripts/ux-strings.test.mjs`
+**And** EXPERIENCE.md's item 6 look-for (the string's `ux` source, which `ux-strings.test.mjs` reads) carries the same ruled string, with a marker citing this ruling (a lead-side planning amendment made at the charter)
+
+**Given** the change
+**When** this story merges
+**Then** no other file changes: exactly those four files under `web/`, each hunk a one-string swap, no label, button or other string touched; Story 20.2 restores a citation line when it ships (ledger entry owned by 20.2)
+**And** CI is green on every workflow
+
 ## Epic 5: OcuTalon watches a production and explains what broke
 
 A user asks in plain words to watch a production; new failures are picked up within 15 seconds, grouped by the settle rule into one incident with a plain-English cause, the element at fault and a proposed fix, with its evidence behind Show details; the incident moves through its states; asked whether everything is fine, OcuTalon never gives a false all-clear.
@@ -3257,6 +3281,40 @@ So that it tells me what failed, what I approved and how the fix went.
 **When** this story merges
 **Then** CI is green on every workflow, the evaluation set on the mock passes, and the story touches only the new tool class, the Watching toolset's tool list, the gate's tool classification entry, and their tests and mock scenarios
 - Optional, if it costs nothing extra: reminders fired today (trusted), in the same tool's output.
+
+### Story 5.14: Several incidents at once are each diagnosed inside their timer
+
+[ADDED 2026-11-08 for Sunday's 1.0.4, DW-879, fix-forward, Planner-approved: the Contest Planner's ruling under the owner's delegation (`planner_ruling dw=DW-879 option=B+skip_abandoned`, 2026-11-07T18:33:58Z; placement `planner_ruling subject=DW-879,DW-878_placement`, 2026-11-08). Epic 5 is re-opened for it under SC-5. Decide starts a diagnosis's timer when it sends the request (`Decide.cls` SetTimer at send), and `DiagnosisAgent` runs one job (PoolSize 1), so when several incidents arrive together (for example, several online-demo visitors breaking the feed at once) the later ones spend their timer queued behind the first and can time out before the model is ever asked: their timeout rows carry no Usage and an empty model. The Planner chose option B plus skip-abandoned: a second DiagnosisAgent job, and a runner that skips a request Decide has already concluded. Option A (starting the timer when the runner starts, an AD-8 amendment) was not chosen.]
+
+As a user whose production fails in several places at once, or one of several online-demo visitors who break the feed together,
+I want each incident diagnosed inside its own timer,
+So that an incident never falls back to a timeout only because another diagnosis was ahead of it.
+
+**Acceptance Criteria:**
+
+**Given** the production class `OcuTalon.Production`
+**When** this story merges
+**Then** the `DiagnosisAgent` item has PoolSize 2, and `IncidentManager`, `Decide`, `DiagnosisAgentRetry` and every other item keep their pool sizes; each runner's pool size is still its concurrency cap (AD-6)
+**And** the pins that hold DiagnosisAgent's pool size read 2 (`OcuTalon.Test.Agent.Runners`, its pool and alive-jobs check, and the DiagnosisAgent row of `OcuTalon.Test.Install.Production`'s oracle), the other runners' pins still read 1, and any other test the change trips is updated and named in the spec
+
+**Given** a request that reaches an agent runner after Decide has already concluded its decision, so that the request's `DecisionRef` already has a `OcuTalon.Bridge.Data.Decision` row (for example, its timer fired while it waited in the runner's queue)
+**When** the runner takes it
+**Then** the runner skips it: no model request, no tool call and no Usage row; it writes one log line that names the runner item and the DecisionRef and holds no key, message body or model text; and Decide records no new decision for it (the RetryIsLate pattern of Story 17.2's late-retry fix, DW-725: `Data.Decision` `RefIndexExists`)
+**And** a request whose DecisionRef has no row yet (a live one) runs exactly as before, and a request the bridge sends on purpose after a decision is recorded (for example, the replay of an approved tool call) is never skipped; the spec names which request kinds the skip covers
+**And** a test shows a stale request skipped and a live one not
+
+**Given** two incidents whose diagnoses Decide sends at nearly the same time, on the CI model mock with a reply delay
+**When** both run
+**Then** they run at the same time on DiagnosisAgent's two jobs, and the second diagnosis is answered well inside its timer; the spec's `## Verification` records the measured send and answer times of both and the timer (NFR-7, AD-6, AD-8)
+
+**Given** the change
+**When** this story merges
+**Then** `TimerSeconds` and every timeout are unchanged, the timer still starts when Decide sends (AD-8), and no RetryItem is wired (out of scope)
+**And** CI is green on every workflow on the CI mock only (no real model key), the evaluation set on the mock passes, and the change touches only `Production.cls`'s DiagnosisAgent item, the agent runner and its adapter (`OcuTalon.Bridge.Operation.AgentRunner`, `OcuTalon.Bridge.Adapter.Agent`), their tests, the pool-size pins and new mock scenarios (new files only)
+**And** user-facing text is at most one release-note line; any new or changed user-facing string goes to the Contest Planner before it is committed
+- DW-879: Product: the diagnosis timer counts time spent queued at DiagnosisAgent (PoolSize 1), so several simultaneous incidents can time out before the model is asked (ledger; routed by charter 2026-11-08)
+
+Not in this story: pacing the evaluation's incident cases (DW-878, Epic 9's fix-forward), and starting the timer at the runner (option A, not chosen).
 
 ## Epic 6: Incidents and approvals you can answer from the page
 
@@ -3698,6 +3756,30 @@ So that a red shard means a real defect and never a timing accident.
 **Then** it passes 20 of 20, with no pin deleted or weakened and no timeout raised as the fix (DW-840)
 
 - DW-840: flake: OcuTalon.Test.Fix.Refused TestPastExpiryCannotStart 'the incident is resolved' (WaitIncidentState) red once in CI shards-2 (ledger; routed by runner 2026-11-07)
+
+### Story 7.11: The dry-run snapshot excuses the alarm job's own schedule writes
+
+[ADDED 2026-11-08, the Contest Planner's ruling under the owner's delegation, for Sunday's 1.0.4 (DW-675, test-only, Planner ruling): an SC-5 re-open of Epic 7 for this one test-only story. `OcuTalon.Test.Fix.Snapshot` also excuses message headers whose source is `Ens.ScheduleService` and whose target is `Ens.ScheduleHandler` (the alarm job's own writes: `Ens.Alarm` jobs off `Ens.ScheduleService.CallScheduleService()` when a timer's request header is missing), and nothing else. No product file changes, and no other excusal is widened.]
+
+As the owner reading CI,
+I want the "nothing changed" tests to ignore the schedule check that IRIS's alarm job starts on its own,
+So that a red shard means the fix changed something and never that a background schedule call landed inside the dry-run window.
+
+**Acceptance Criteria:**
+
+**Given** a "before" snapshot and an "after" snapshot that differ only by a new header from `Ens.ScheduleService` to `Ens.ScheduleHandler` (as CI saw in `OcuTalon.Test.Watch.GoodMessages` `TestFewerThanTwentyGood` and `OcuTalon.Test.Fix.DryRun` `TestFiftyOrdersChangeNothing`)
+**When** `Snapshot.Diff` compares them
+**Then** it gives no line, and the old code is shown to give one (a forced-condition test that plants such a header inside the window: old code red, the fix 20 of 20) (DW-675)
+
+**Given** a new header from `Ens.ScheduleService` to any other target, from any other source to `Ens.ScheduleHandler`, or any other header that counts today
+**When** `Snapshot.Diff` compares the snapshots
+**Then** each still gives its line, so nothing but the alarm job's own schedule writes is excused, and removing the new excusal turns the pinning test red (Rule 19) (DW-675)
+
+**Given** the dry-run tests that use the snapshot (`TestFewerThanTwentyGood`, `TestFiftyOrdersChangeNothing` and their siblings in `OcuTalon.Test.Fix` and `OcuTalon.Test.Watch.GoodMessages`)
+**When** they run on a fresh environment, forward and reversed
+**Then** they stay green (DW-675)
+
+- DW-675: flake: OcuTalon.Test.Fix.DryRun TestFiftyOrdersChangeNothing saw a new OCUTALON header from Ens.ScheduleService to Ens.ScheduleHandler during the test (a schedule call that started inside the window, not a timer already running) (ledger; routed by runner 2026-11-08)
 
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
@@ -6346,6 +6428,54 @@ So that a working diagnosis model is never reported as not answering, and the di
 - DW-786: `Checks.Coverage.Live` and `Checks.Process.Run` share one live-read helper (the not_checked reason chain, the cut rule, the state text and the failure wording), so the digest's coverage rows and the checks' results cannot drift; the existing tests of both stay green (ledger; routed by cr 2026-11-06)
 - DW-728: `docs/bridge-guide.md` names `RetryItem` and `RetryOf` in its Settings and Messages reference tables as well as in the Second-model retry section, so the guide's structure stays consistent; no other wording changes (any is public text for the Contest Planner) (ledger; routed by cr 2026-11-05)
 
+### Story 17.10: The digest shows in the web chat, and the online demo's digest is visible
+
+[ADDED 2026-11-07, fix-forward inside Epic 17 under the SC-5 re-open: the Contest Planner's ruling on DW-874 under the owner's delegation (2026-11-07 about 15:50Z, D2 option (a): a web chat digest card on every install, as plain text, web only; the Simulated phone stays out; the full UX card "What I checked ({n})" stays out), for Sunday's 1.0.4, ahead of every tier (3) item]
+
+As a user, on my own install or on the online demo,
+I want the digest I asked for to appear in my web chat,
+So that "send my digest now" shows me the digest instead of promising one I never see.
+
+**Acceptance Criteria:**
+
+**Given** a `Notification` of kind `digest` that `Notify` routes to the web channel (the session's own channels: web always, `Digest.Process` `Own`)
+**When** `WebChatOut` receives it
+**Then** it renders the digest's Slots with the same shared helper `TelegramOut` uses, called with the channel "web": every part and line through `Msg.Catalog.Render` for the web, in the same order and one piece per line, with the shared `digest.*` catalog texts and no new strings; it records the web chat's copy on a Delivery row of kind `digest` with the whole text, and publishes one notification event on the session's stream, as for the other card kinds (AD-12, AD-14, AD-32, AD-33)
+**And** a reload shows the digest card again from its row (the snapshot query in `Data.Ownership`), and the web chat draws it as a notice card with the digest's own class and icon, keeping its line breaks; the payload's `text` is the whole digest (UX-DR69)
+**And** the Simulated phone shows no digest (`SimPhoneOut` unchanged), and a local user with Telegram paired gets the digest in both places (accepted)
+
+**Given** `TelegramOut`'s `DigestText`, `Pieces` and `Piece`
+**When** they move into the shared, channel-aware helper
+**Then** Telegram's digest output stays byte-identical, pinned by a golden test written before the move and passing after it, and `Test.Channel.TelegramDigest` still passes
+
+**Given** the online demo (`Data.Public.Settings` "onlineDemo" on, a session with a non-empty `ResumeHash`)
+**When** the morning digest run ticks
+**Then** it skips online-demo sessions, pinned by a test with a mutation shown going red; a visitor's "send my digest now" still composes and shows the digest card in that visitor's own chat, with the model summary only when something was saved for later, as on any install
+**And** the online demo path keeps REL-2 green, and gains one step: the visitor asks for the digest and its card appears (new CI mock scenario files only)
+
+**Given** the tests that hard-code the web chat's card kinds (`Test.Core.WebChatOut`, `Test.Data.Ownership`)
+**When** the digest joins them
+**Then** they are updated, a WebChatOut digest case is added, a Playwright case is added to `web/e2e/chat/notice.spec.ts`, and each new pin is shown red with a mutation
+
+- DW-874: Online demo: the digest is promised but invisible (web chat and Simulated phone show no digest card), and the morning run also sends to every demo session with a resume hash; ruled (a): the web chat digest card on every install, and the morning run skips online-demo sessions (ledger; ruled by the Contest Planner 2026-11-07)
+
+### Story 17.11: Epic 17 burn-down: the online-demo digest names no host path, address, user or key
+
+[ADDED 2026-11-08, chartered by Epic 17's burn-down gate under the SC-5 re-open (Rule 17), on the orchestrator's ruling: the keep-condition of inbox U-303 (the Contest Planner under the owner's delegation, 2026-11-08T01:11:22Z: "Keep. The demo digest showing the demo instance's own vital signs ... is the feature working as on any install, and none of it is secret ... Condition: the digest never names host paths, IP addresses, users or keys on the demo; pin that with a test on the online-demo digest text."); test-only unless the pin finds a real leak]
+
+As the owner of the online demo,
+I want a test that proves the digest a visitor sees never names a host path, an IP address, a user name or a key,
+So that showing the demo instance's own vital signs can never leak anything about the host.
+
+**Acceptance Criteria:**
+
+**Given** the online demo (`Data.Public.Settings` "onlineDemo" on) and the instance facts the digest reads (the vital signs of `Watch.Reader.Vitals` and the coverage rows of `Checks.Coverage.Build`), with a planted host path, an IP address, a user name and key shapes (an `sk-ant-` key and a Telegram bot token) among them
+**When** a visitor's digest is composed and its text rendered for the web chat (`Channel.DigestText`, channel "web")
+**Then** none of the planted values appears in the digest text, pinned by a test with a mutation shown going red (the composer letting a planted value through), and no product string changes
+**And** if the pin finds a real leak, the leak is fixed in this story (a HIGH)
+
+- DW-898: Online demo: pin that the digest text never names a host path, an IP address, a user name or a key (U-303 keep-condition) (ledger; routed by the owner 2026-11-08)
+
 ## Epic 18: An admin changes settings in the web app (step 2)
 
 An admin opens a settings page to change models, budgets, channels, the digest time and channels, the time zone and check thresholds; each change takes effect within a minute without a restart and is audited; non-admins can't open it.
@@ -6587,9 +6717,13 @@ So that no other visitor sees or searches what I added.
 
 **Given** the upgrade-in-place harness in `release/`
 **When** it runs from this release on
-**Then** it also creates a memory and a document before the upgrade, and both are present and searchable after it (FR-60, NFR-16, NFR-17, REL-6)
+**Then** it also creates a memory and a document before the upgrade when the previous release can save or index them (otherwise on the upgraded candidate, checked after the restart, with the row's note), and both are present and searchable after it (FR-60, NFR-16, NFR-17, REL-6) [AMENDED 2026-11-08, Story 19.5 plan, Rule 5 tier-1 (reachability: no release before this one can index a document, so the first runs create them on the candidate); it read "creates a memory and a document before the upgrade, and both are present and searchable after it"]
 
 - DW-783: `release/rehearse.sh`'s memory-offline step (Story 19.2) is proved on stub hosts only; a dry run on a real stack must show the clean host publishes its web port again after `docker network connect --alias iris` (ledger; routed by harvest 2026-11-06)
+- DW-892: `Demo.Features` lists the documents feature on the online demo, where `AddDocument` answers not_built until this story builds the per-session documents (ledger; routed by harvest 2026-11-07)
+- DW-893: an agent job builds its tools once, so the Chat agent's documents tool is attached or left out for the job's life by the online-demo setting at that moment; this story's per-turn tool manager is the fix (ledger; routed by harvest 2026-11-07)
+- DW-900: evaluation documents (OwnerRef `eval`) that a crash leaves between `Docs.Ops` AddEval and `Eval.In` Finish stay searchable in `OcuTalonKB.Docs` and removable by no route; add a start-of-run sweep of the `eval` rows (ledger; routed by harvest 2026-11-08)
+- DW-901: while an evaluation run is in flight its documents sit in the shared `OcuTalonKB.Docs` table, so a person's chat turn on the same instance can retrieve and cite them; the per-session tables and the per-turn attach scope retrieval (ledger; routed by harvest 2026-11-08)
 
 ### Story 19.6: Extract text from PDF and Word files with Embedded Python
 
@@ -6652,7 +6786,8 @@ So that I don't have to turn them into Markdown first.
 - DW-827: `OcuTalon.Docs.Extractor`'s MaxActiveWorkers 1 does not serialise reads (two concurrent reads ran on two worker jobs); serialise them or amend AD-21's "one worker" wording (ledger; routed by harvest 2026-11-06)
 - DW-828: a timed-out read cannot stop a single long C call (a decompression bomb can keep Read past its limit); bound it before the call (page or size caps) (ledger; routed by harvest 2026-11-06)
 - DW-831: Word text inside body-level content controls (w:sdt) and nested tables is not read; a file made only of content controls answers no_text (ledger; routed by harvest 2026-11-06)
-
+- DW-894: indexing costs one Embedder round trip (about 0.33 s) per passage, so large PDF and Word files take minutes to become ready: batch or parallelise the embedding (ledger; routed by harvest 2026-11-07)
+- DW-832: a line of a file's own text that starts with `## ` is indistinguishable from an extraction heading marker; Story 19.4's splitter opens sections only on a markdown document's `## ` lines and reads `\## ` as an escaped passage line, so this story's extraction must write a PDF's or Word file's own `## ` lines as `\## ` (ledger; routed by adjudication 2026-11-08)
 
 ### Story 19.8: Epic 19 burn-down
 
@@ -8435,6 +8570,43 @@ So that no unit runs over the 1,000 s line or near its 1,200 s deadline, and eve
 **Given** the change
 **When** it is pushed
 **Then** `docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow
+
+### Story 32.6: A live page's /state wait under CI load either finds its cause or retries once, logged
+
+As the release's CI,
+I want the live pages' `/state` and `page.close` waits that fail only on a loaded CI host either explained and fixed in the tests, or retried once and counted,
+So that a host-load flake no longer turns a green head red, and every retry is visible instead of silent.
+
+[ADDED 2026-11-08, Epic 32 re-open (SC-5) for DW-550 and DW-774, test-only, on the Contest Planner's terms under the owner's delegation (logged `planner_ruling subject=DW-550/774_flake_story`, about 01:2xZ, relayed by the orchestrator). Timeboxed: 90 minutes of investigation from the spec gate. No product change; no release tool (`release/*.sh`, `eval/run.sh`, the upgrade harness, demo-host-check and the IPM scripts are frozen). It builds on Story 11.27's diagnostics (retain-on-failure traces of live units kept on the self-hosted runner, the `DIAG /state gateway` lines, `state-diagnosis.txt`), which measured that under host load the request never reaches IRIS.]
+
+**Acceptance Criteria:**
+
+**Given** DW-550's and DW-774's occurrences and Story 11.27's diagnostics (its traces on the CI hosts, the DIAG lines, the failure artifacts)
+**When** the lead investigates, for at most 90 minutes from the spec gate
+**Then** the spec records either the cause, with its evidence (where the `/state` GET or the `page.close` waited: never sent by the page, queued in the browser, queued at the web gateway, or held in IRIS), fixed in test support code, specs or `ci/` test scripts; or `none_in_timebox`, with what was read and ruled out
+
+**Given** a fix that makes a wait longer
+**When** it is proposed
+**Then** its own diagnostics show that the page did send `/state` and that the answer was queued on the CI host, not lost in IRIS; without that evidence no bound changes (`web/e2e/support/bounds.ts`, `loadedAfter` in `web/e2e/support/floor.ts`, the projects' waits, the test timeouts and `OCUTALON_LIVE_DEADLINE` stay as they are)
+
+**Given** the timebox ends without a cause
+**When** the fallback lands
+**Then** the diagnostics land with a bounded retry of the page load, at most one per wait, which prints `RETRY <spec>:<line> <step>` and which the CI summary counts; a second failure fails as today, naming its step, and the retry is reported in the completion contract
+
+**Given** the change
+**When** it is proved
+**Then** the old code goes red under the load harness (four concurrent CI-like runs, or the project's load recipe if one is recorded) and the fix passes 20 of 20 under the same load, both recorded with their counts in the spec's `## Verification`
+
+**Given** the change
+**When** it is reviewed
+**Then** nothing under `src/**` and no release tool changes, no real model key is used, and no other epic's spec changes beyond the shared support files (`web/e2e/support/**`) and the wait-related lines of the specs the occurrences name
+
+**Given** the change
+**When** it is pushed
+**Then** `docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow
+
+- DW-550: flake: live:cards I10 (and others) time out in loadedAfter's /state wait after sign-in on a loaded host; passed on an unchanged rerun (ledger; routed by charter 2026-11-08)
+- DW-774: flake: live:online-session leave.spec page.close no answer within 30 s (L5, L6) and loadedAfter GET /state no answer within 30 s (decision D2, sign-in-2 W3) under heavy CI load (ledger; routed by charter 2026-11-08)
 
 ## Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
 

@@ -6,7 +6,9 @@ Include Ensemble
 /// not run, the tests fail with that reason.
 ///   - TestAppliedAtStart: with the three Model rows and the two Effort rows deleted, the Production step's Run() seeds them and
 ///     restarts the production, and the running items of the three runners then apply claude-haiku-5-5, the effort of their
-///     agent class (low, high, none) and their ProviderConfig, so the step seeds the rows before it starts the production;
+///     agent class (low, high, none) and their ProviderConfig, so the step seeds the rows before it starts the production; it also seeds Decide's
+///     ToolClassification row with the product's entry for the documents search (AD-5), which the test deletes before the step runs and
+///     puts back afterwards exactly as it found it (RunnerFixture.RememberDefault and RestoreDefaults);
 ///   - TestRunnersResolve: the three runners resolve claude-haiku-5-5, an unknown item resolves nothing, each runner has a
 ///     Model row with claude-haiku-5-5, and the step's own check, Production.UnresolvedRunners, names no runner;
 ///   - TestModelChange: one change of DiagnosisAgent's Model row to claude-sonnet-5-5 and a restart of that item make both
@@ -56,13 +58,18 @@ Method TestAppliedAtStart()
 		If 'found Quit
 	}
 	If 'found Quit
+	Set classId = ..#PRODUCTION_"||Decide||*||ToolClassification"
+	Set savedClass = ""
+	Do ##class(OcuTalon.Test.Agent.RunnerFixture).RememberDefault(.savedClass, "Decide", "ToolClassification")
 	Try {
+		If ##class(Ens.Config.DefaultSettings).%ExistsId(classId) Do $$$AssertStatusOK(##class(Ens.Config.DefaultSettings).%DeleteId(classId), "the ToolClassification row of Decide is deleted")
 		Set position = 0
 		While $ListNext(runners, position, item) {
 			Do $$$AssertStatusOK(##class(Ens.Config.DefaultSettings).%DeleteId(..#PRODUCTION_"||"_item_"||*||Model"), "the Model row of "_item_" is deleted")
 			If effort(item) '= "" Do $$$AssertStatusOK(##class(Ens.Config.DefaultSettings).%DeleteId(..#PRODUCTION_"||"_item_"||*||Effort"), "the Effort row of "_item_" is deleted")
 		}
 		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).Run(), "the Production step seeds the rows and restarts the production")
+		Do $$$AssertEquals($Select(##class(Ens.Config.DefaultSettings).%ExistsId(classId): ##class(Ens.Config.DefaultSettings).%OpenId(classId).SettingValue, 1: "none"), ##class(OcuTalon.Install.Step.Production).ClassificationEntries().%ToJSON(), "and seeds Decide's ToolClassification row with the product's entry for the documents search")
 		Set position = 0
 		While $ListNext(runners, position, item) {
 			Do $$$AssertEquals($Get($$$ConfigSetting(item, "Adapter", "Model")), ..#DEFAULTMODEL, item_" applies "_..#DEFAULTMODEL_" as the step started it")
@@ -74,6 +81,7 @@ Method TestAppliedAtStart()
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
 	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefaults(savedClass), "the ToolClassification row of Decide is put back exactly as it was found: its value and description, or no row")
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedModels(..#PRODUCTION), "the rows are seeded where a failed run left none")
 	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Production).SeedEfforts(..#PRODUCTION), "and so are the Effort rows")
 	Set position = 0

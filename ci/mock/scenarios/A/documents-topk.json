@@ -1,0 +1,22 @@
+{
+  "name": "documents-topk",
+  "match": {
+    "marker": "documents-topk"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "documents",
+        "input": {
+          "query": "Results runbook",
+          "top_k": 9
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock searched with a top_k of nine."
+    }
+  ]
+}

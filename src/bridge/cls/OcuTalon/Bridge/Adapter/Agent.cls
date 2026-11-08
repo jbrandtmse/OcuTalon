@@ -20,6 +20,23 @@ Include Ensemble
 ///   - It adds the gate (OcuTalon.Bridge.Policy.Gate) as the authorization policy and the step audit policy to every agent it builds
 ///     (OnAfterAgentInit), after any policy that a setting names, and refuses the AuthPolicy and AuditPolicy settings (REFUSED), so that
 ///     the gate decides every tool call and every tool call is a step (AD-6, AD-9, AD-10).
+/// Tools of one request (AD-6, AD-10, AD-21, AD-31): the TurnToolsClass setting of the Decide item names a class (Ext.TurnTools) that Answer asks, once for
+/// each request of kind turn, decide or diagnose, for the tools of the request's OwnerRef. SessionConfigFor does that in the runner's job, outside every
+/// callback, before the AI session is created or opened. When the class gives no tool, the request keeps the agent's own tool manager, which no request ever
+/// adds a tool to. Otherwise the adapter composes a new tool manager for the request: the tools of the agent's toolsets, the tools that OnAfterAgentInit
+/// attached through Attach, the tools of the class (each answers AddToManager), the gate and the step audit policy (Govern), assigns it to the agent, and
+/// keeps the agent's own manager and the tools referenced; Answer puts the agent's own manager back and lets go of the rest on every path when the request
+/// ends. A request is composed at most once, however many session configs it makes (a compaction makes two or three). An agent that declares skills
+/// cannot take tools of its own, because UseSkill keeps its catalog on the agent and not on a manager: such a request fails with an error that names the
+/// agent. A named class that is missing, or does not extend the base, fails the request with that error. A request of kind tool composes nothing.
+/// The skipped request (AD-6, AD-8, AD-20): a request of kind decide, diagnose or turn whose DecisionRef already has a Decision row (Concluded) is
+/// skipped, whatever its provenance and whether it is a first attempt, a rate-limit re-send or a second-model retry. Decide records that row when it
+/// concludes, and its timer starts when it sends, so a request taken once the row exists (it waited in the runner's queue past its timer, or its retry
+/// answered first) would have its answer dropped. The skip builds nothing and makes no model request, tool call, Usage row, AI session, conversation
+/// lock or link; it writes one Info row and answers status OK with no reply, which Decide's completed process discards. A request of kind tool (the
+/// replay), a request with no DecisionRef and a request whose row does not exist yet are never skipped; a first attempt taken while the second-model
+/// retry that its timer sent is still running has no row yet, so it runs. The row is read once, before the build: a request already in Chat when the
+/// timer fires runs to its end.
 /// Answer is the runner's answer to a Request: the context is set before Chat and ended on every path, and the reply holds the
 /// text, the provider's stop reason, and the host data and taint that the tools put in the context.
 /// The conversation (AD-6, AD-10): only a turn with provenance user is linked (IsLinked), under the key (OwnerRef, the name of the runner item). AnswerLinked
@@ -38,8 +55,9 @@ Include Ensemble
 /// status, with no Chat. Decide sends the retry of a linked turn as a fresh one, whose SeedText it wrote from the stored messages that the first attempt
 /// began with (DW-726). A linked turn with RetryOf takes no conversation lock (AnswerRetried): it chats in a new AI session, seeded through ChatInput with
 /// that SeedText, and after a completed, untainted Chat that is not late (RetryIsLate) it saves the session and names it in the reply (SessionId;
-/// SessionFrom is the session that the first runner's link names). A late retry (Decide has already recorded the decision of its DecisionRef, because the
-/// retry's timer fired) saves no session: its cost is counted and its reply is dropped by Decide (AD-8). The retry runner never links a conversation of its
+/// SessionFrom is the session that the first runner's link names). A retry that is already late when the runner takes it (Decide has already recorded the
+/// decision of its DecisionRef, because the retry's timer fired while it waited) is skipped, as below. A retry whose timer fires during its Chat saves no
+/// session: its cost is counted and its reply is dropped by Decide (AD-8). The retry runner never links a conversation of its
 /// own, and Decide points the first runner's link at the retry's session only when it accepts the reply. The session config of a request with RetryOf
 /// takes timeout_ms from Timeouts.RetryTimer of the bridge timer.
 /// Compaction (AD-6, AD-20): a request that Decide flags (Compact 1) and that continues a linked conversation is compacted by Compact in
@@ -98,6 +116,28 @@ Property Retrying As %Boolean [ InitialExpression = 0, Internal, Private, Transi
 
 /// 1 while BuildAgent runs AI Hub's OnInit.
 Property Building As %Boolean [ InitialExpression = 0, Internal, Private, Transient ];
+
+/// The tools that OnAfterAgentInit attached to the agent (Attach), as specs, so that every composed manager adds them again. Not stored.
+Property Attached As %List [ Internal, Private, Transient ];
+
+/// 1 while Answer serves a request that may take tools of its own (every kind but tool), with its OwnerRef and kind (TurnOwner, TurnKind). Not stored.
+Property TurnOpen As %Boolean [ InitialExpression = 0, Internal, Private, Transient ];
+
+Property TurnOwner As %String(MAXLEN = "") [ Internal, Private, Transient ];
+
+Property TurnKind As %String(MAXLEN = 32) [ Internal, Private, Transient ];
+
+/// 1 once the request's tools were asked for, and the status of that (TurnStatus), which every later session config of the request returns again. Not stored.
+Property TurnComposed As %Boolean [ InitialExpression = 0, Internal, Private, Transient ];
+
+Property TurnStatus As %Status [ InitialExpression = {$$$OK}, Internal, Private, Transient ];
+
+/// The agent's own tool manager while the manager of the request is assigned, the manager of the request and the tools that were added to it. Not stored.
+Property OwnTools As %AI.ToolMgr [ Internal, Private, Transient ];
+
+Property TurnManager As %AI.ToolMgr [ Internal, Private, Transient ];
+
+Property TurnToolList As %ListOfObjects [ Internal, Private, Transient ];
 
 /// Records the key state of the item (RecordKey), checks the settings and calls nothing in AI Hub. While BuildAgent runs it, it is
 /// AI Hub's OnInit.
@@ -201,6 +241,7 @@ Method BuildAgent() As %Status
 		Set ..ProviderConfig = config.%ToJSON()
 		Set ..Model = model
 	}
+	Set ..Attached = ""
 	Set ..Building = 1
 	Try {
 		Set sc = ..OnInit()
@@ -223,9 +264,25 @@ Method OnAfterAgentInit(ByRef agent As %AI.Agent) As %Status [ Private ]
 {
 	Set sc = ##super(.agent)
 	If $$$ISERR(sc) Quit sc
-	Set sc = agent.ToolManager.SetAuthPolicy(##class(OcuTalon.Bridge.Policy.Gate).%New())
+	Quit ..Govern(agent.ToolManager)
+}
+
+/// Adds the tool of the spec (an AI Hub tool URI or JSON configuration) to the tool manager of the agent and records the spec, so that the manager of a
+/// request that takes tools of its own adds the tool again. It is the one way OnAfterAgentInit adds a tool.
+Method Attach(agent As %AI.Agent, spec As %String) As %Status
+{
+	Set sc = agent.ToolManager.AddTool(spec)
+	If $$$ISOK(sc) Set ..Attached = ..Attached _ $ListBuild(spec)
+	Quit sc
+}
+
+/// Sets the gate as the authorization policy and the step audit policy on the tool manager (AD-6, AD-9, AD-10): every manager that serves a request is
+/// governed, the agent's own and the one composed for a request alike. The status is the first error.
+Method Govern(manager As %AI.ToolMgr) As %Status [ Private ]
+{
+	Set sc = manager.SetAuthPolicy(##class(OcuTalon.Bridge.Policy.Gate).%New())
 	If $$$ISERR(sc) Quit sc
-	Quit agent.ToolManager.SetAuditPolicy(##class(OcuTalon.Bridge.Policy.StepAudit).%New())
+	Quit manager.SetAuditPolicy(##class(OcuTalon.Bridge.Policy.StepAudit).%New())
 }
 
 /// Clears the sampling parameters of an agent that AI Hub would copy into a session config: its Temperature.
@@ -287,7 +344,84 @@ ClassMethod SetPath(target As %DynamicObject, path As %String, value, type As %S
 /// bridge timer (TimeoutMs), which is that of the retry runner's timer while a request with RetryOf is served. The agent is built.
 Method SessionConfigFor(Output config As %DynamicObject) As %Status
 {
-	Quit ..Compose(..Agent.MaxIterations, ..Agent.Model, ..Effort, .config, ..TimeoutMs(..Retrying))
+	Set sc = ..Compose(..Agent.MaxIterations, ..Agent.Model, ..Effort, .config, ..TimeoutMs(..Retrying))
+	If $$$ISERR(sc) Quit sc
+	Quit ..ComposeTurnTools()
+}
+
+/// Gives the request that Answer serves the tools of its own, once (see the class description): asks the class of the TurnToolsClass setting for the
+/// tools of the OwnerRef and, when it gives any, assigns a newly composed tool manager to the agent. Nothing for a request that Answer does not serve
+/// (a replay) and for the second and later session configs of a request, which return the status of the first. The agent is built.
+Method ComposeTurnTools() As %Status [ Private ]
+{
+	If '..TurnOpen Quit $$$OK
+	If ..TurnComposed Quit ..TurnStatus
+	Set ..TurnComposed = 1
+	Try {
+		Set ..TurnStatus = ..BuildTurnManager()
+	} Catch exception {
+		Set ..TurnStatus = ##class(%AI.System).HandleError(exception, 1)
+	}
+	Quit ..TurnStatus
+}
+
+/// The work of ComposeTurnTools; an exception is its caller's to handle.
+Method BuildTurnManager() As %Status [ Private ]
+{
+	Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("TurnToolsClass", "", "Decide", .sc)
+	If $$$ISERR(sc) Quit sc
+	Set sc = $ClassMethod(class, "Tools", ..TurnOwner, ..TurnKind, .tools)
+	If $$$ISERR(sc) Quit sc
+	If '$IsObject($Get(tools)) || (tools.Count() = 0) Quit $$$OK
+	If $IsObject(..Agent.AvailableSkills) && (..Agent.AvailableSkills.%Size() > 0) {
+		Quit $$$ERROR($$$GeneralError, "The agent "_$ClassName(..Agent)_" declares skills, so a request cannot take tools of its own from "_class_": a skill keeps its tools on the agent's tool manager")
+	}
+	Set manager = ##class(%AI.ToolMgr).%New()
+	Set toolsets = ..Agent.ToolSets
+	If toolsets = "" Set toolsets = $Parameter(..Agent, "TOOLSETS")
+	For i = 1:1:$Length(toolsets, ",") {
+		Set name = $ZStrip($Piece(toolsets, ",", i), "<>W")
+		If name = "" Continue
+		Set sc = manager.RegisterToolSet(name)
+		If $$$ISERR(sc) Quit
+	}
+	If $$$ISERR(sc) Quit sc
+	Set position = 0
+	While $ListNext(..Attached, position, spec) {
+		Set sc = manager.AddTool(spec)
+		If $$$ISERR(sc) Quit
+	}
+	If $$$ISERR(sc) Quit sc
+	For i = 1:1:tools.Count() {
+		Set sc = tools.GetAt(i).AddToManager(manager)
+		If $$$ISERR(sc) Quit
+	}
+	If $$$ISERR(sc) Quit sc
+	Set sc = ..Govern(manager)
+	If $$$ISERR(sc) Quit sc
+	Set ..OwnTools = ..Agent.ToolManager
+	Set ..TurnManager = manager
+	Set ..TurnToolList = tools
+	Set ..Agent.ToolManager = manager
+	Quit $$$OK
+}
+
+/// Ends the tools of the request on every path: puts the agent's own tool manager back, lets go of the manager of the request and of its tools, and
+/// forgets the request's OwnerRef and kind.
+Method EndTurnTools() [ Private ]
+{
+	Try {
+		If $IsObject(..OwnTools) && $IsObject(..Agent) Set ..Agent.ToolManager = ..OwnTools
+	} Catch {
+	}
+	Set ..OwnTools = ""
+	Set ..TurnManager = ""
+	Set ..TurnToolList = ""
+	Set ..TurnOpen = 0
+	Set ..TurnOwner = ""
+	Set ..TurnKind = ""
+	Set ..TurnComposed = 0
+	Set ..TurnStatus = $$$OK
 }
 
 /// The timeout_ms that Timeouts.Derive gives for the TimerSeconds setting of the Decide item of the active production, as Ext.Accessor
@@ -349,7 +483,8 @@ Method OpenSession(id As %String, Output session As %AI.Agent.Session) As %Statu
 
 /// Answers a request with a reply. A request with RetryOf that RetryAllowed refuses is an error status that names RetryOf, with no Chat and no
 /// context. A request of kind tool is the replay of an approved tool call and is answered by Replay.Run (no model request,
-/// no Chat, no conversation link; the context it sets carries the runner item and a grant). It refuses any kind that is not a request kind, an Input that is
+/// no Chat, no conversation link; the context it sets carries the runner item and a grant). Any other request whose decision Decide has already
+/// recorded (Concluded) is skipped: one Info row, status OK and no reply, before the agent is built or the context is set. It refuses any kind that is not a request kind, an Input that is
 /// empty once white space is removed, and a linked turn (IsLinked) with an empty OwnerRef, which names OwnerRef; builds the agent if
 /// needed; sets the context with the super session before Chat; and answers in one of two ways.
 ///   - A turn with provenance user is linked to its conversation (AnswerLinked): the runner holds the conversation lock, opens the AI
@@ -374,6 +509,10 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 		Quit $$$ERROR($$$GeneralError, "The RetryOf '"_request.RetryOf_"' of the request does not name an item whose RetryItem setting is "_..BusinessHost.%ConfigName_", so nothing is sent")
 	}
 	If kind = "tool" Quit ##class(OcuTalon.Bridge.Replay).Run($this, request, superSession, .reply)
+	If ..Concluded(request) {
+		$$$LOGINFO(..BusinessHost.%ConfigName_" skipped the "_kind_" request of the decision "_request.DecisionRef_": Decide has already recorded that decision, so no model request was made and no tool ran.")
+		Quit $$$OK
+	}
 	If $ZStrip(request.Input, "<>WC") = "" Quit $$$ERROR($$$GeneralError, "The request of kind "_kind_" has an empty Input, so nothing is sent")
 	Set linked = ..IsLinked(request)
 	If linked && (request.OwnerRef = "") Quit $$$ERROR($$$GeneralError, "The turn of the user has an empty OwnerRef, so it has no conversation to open or link, and nothing is sent")
@@ -382,6 +521,10 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 	Set ..Retrying = (request.RetryOf '= "")
 	Set sc = ##class(OcuTalon.Bridge.Context).Begin(request, superSession, ..BusinessHost.%ConfigName)
 	If $$$ISOK(sc) {
+		Set ..TurnOwner = request.OwnerRef
+		Set ..TurnKind = kind
+		Set ..TurnComposed = 0
+		Set ..TurnOpen = 1
 		Try {
 			If linked && (request.RetryOf '= "") {
 				Set sc = ..AnswerRetried(request, .reply)
@@ -399,6 +542,7 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 	Set session = ""
 	Set ..Retrying = 0
 	Do ..ReleaseSession()
+	Do ..EndTurnTools()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).End()
 	If $$$ISERR(sc) Set reply = ""
@@ -529,11 +673,20 @@ Method SaveRetried(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.
 	}
 }
 
-/// 1 when the retry of the request is late (AD-8, DW-725): Decide has already recorded the decision of the request's DecisionRef. Decide records
+/// 1 when the retry of the request is late (AD-8, DW-725): Decide has already recorded the decision of the request's DecisionRef (Concluded). Decide records
 /// it when it concludes, and once the retry is sent it concludes before the retry's reply only when the retry's timer fires, so the user was
 /// answered without this retry and its reply is dropped. An on-time retry saves and points before its reply reaches Decide, so no row exists yet.
 /// Lateness is read once, before the save: a timer that Decide handles after this check moves nothing back. A retry with no DecisionRef is never late.
+/// A retry that is late when the runner takes it never gets here (Answer skips it); this guards the retry whose timer fires during its Chat.
 Method RetryIsLate(request As OcuTalon.Bridge.Msg.Request) As %Boolean [ Private ]
+{
+	Quit ..Concluded(request)
+}
+
+/// 1 when Decide has already recorded the decision of the request's DecisionRef: the Decision row of that Ref exists (AD-8, AD-20). Decide allocates the
+/// Ref before it sends and writes the row only when it concludes, so a row means that the request's answer would be dropped. A request with no
+/// DecisionRef is never concluded. The one source of the skip (Answer) and of the late retry (RetryIsLate).
+Method Concluded(request As OcuTalon.Bridge.Msg.Request) As %Boolean [ Private ]
 {
 	Quit (request.DecisionRef '= "") && ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(request.DecisionRef)
 }

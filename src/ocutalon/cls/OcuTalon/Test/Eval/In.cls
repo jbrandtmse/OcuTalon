@@ -19,6 +19,8 @@
 ///     characters); its TurnResult holds the case's checks as JSON and its row is open when the request is asked; the delivered TurnResult holds the Reply's
 ///     DecisionRef, ToolsRun and text and the catalog key and rows that Checks.Render gives its HostData checks; a HostData without checks adds none;
 ///   - TestSendsCommand: a command case keeps no recorded checks, and with no HostData the key and rows stay empty;
+///   - TestSendsDocuments, TestDocumentsRefused (Story 19.4): a documents case has its documents set up before its fresh user turn is asked, its TurnResult keeps the
+///     Reply's citations, the service holds a {case, documents} record, and a case whose documents cannot be set up is skipped with the reason before anything is asked;
 ///   - TestSendsUserTurn (Story 30.5, DW-500): a user-turn case is the decide request of a user (no SessionMode), answered with a DecisionResponse whose DecisionRef and fallback the TurnResult keeps; an answer that is not a DecisionResponse is no answer;
 ///   - TestTurnBusy: a Busy reply is asked again, BUSYWAIT seconds later, with the same ItemId (the numbers are Core.Conversation's); after BUSYMAX + 1
 ///     asks the case ends as a fallback with the reason rate_limited, with no DecisionRef, and is still delivered; a fallback Reply is delivered as it is, and
@@ -530,6 +532,51 @@ Method TestSendsCommand()
 	Set delivered = ..DeliveredAt(1)
 	Do $$$AssertEquals($List(delivered, 2)_"|"_$List(delivered, 3)_"|"_$List(delivered, 4)_"|"_$List(delivered, 5)_"|"_$List(delivered, 6), "zz-command||zzDecisionRef000000002|0|I can't run commands.", "the delivered TurnResult holds the reply, ToolsRun 0 and no recorded checks")
 	Do $$$AssertEquals($List(delivered, 7)_"|"_$List(delivered, 8)_"|"_$List(delivered, 9), "||0", "and no key, no rows and no fallback")
+}
+
+/// A documents case (Story 19.4) is a turn case whose documents are set up before its turn is asked (the double records them and adds nothing): it is a fresh user turn
+/// of owner eval, the TurnResult keeps the Reply's HostData.citations as JSON (and a HostData with no citations array keeps none), the service's Watches holds {case, documents}
+/// for it, and a case whose documents cannot be set up is skipped with the reason, before anything is asked, with no row and no TurnResult and no record.
+Method TestSendsDocuments()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Do ..WriteCase("zz-documents", {"name": "zz-documents", "kind": "documents", "turn": {"text": "How do I rotate the certificate?"}, "documents": [{"name": "Runbook.md", "file": "runbook.md"}], "expectation": {"citations": [{"document": "Runbook", "section": "Rotating"}]}}.%ToJSON())
+	Set citations = [{"documentRef": "zzdoc1", "document": "Runbook", "section": "Rotating", "passage": "Stop the item.", "chunkIndex": 1}]
+	Set ^OcuTalonTest("EvalIn", "reply", 1) = {"Text": "Stop the item.", "DecisionRef": "zzDecisionRef000000003", "HostData": ({"citations": (citations)}.%ToJSON())}.%ToJSON()
+	Set ^OcuTalonTest("EvalIn", "reply", 2) = {"Text": "None of your documents cover that.", "DecisionRef": "zzDecisionRef000000004", "HostData": "{\"memories\":[]}"}.%ToJSON()
+	Do $$$AssertEquals(..Process(service, "zz-documents"), "", "a documents case is sent")
+	Set added = $Get(^OcuTalonTest("EvalIn", "documents", 1))
+	Do $$$AssertEquals($List(added, 1) _ "|" _ $List(added, 2), "Runbook.md|runbook.md", "its documents were set up first, with the names and files of the case")
+	Set asked = ..AskedAt(1)
+	Do $$$AssertEquals($List(asked, 1)_"|"_$List(asked, 2)_"|"_$List(asked, 3)_"|"_$List(asked, 10), "turn|user|eval|fresh", "its turn is a fresh user turn of owner eval")
+	Set delivered = ..DeliveredAt(1)
+	Do $$$AssertEquals($List(delivered, 6), "Stop the item.", "the delivered TurnResult holds the reply")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Citations FROM OcuTalon_Eval_Msg.TurnResult WHERE SourceItemId = 'zz-documents' ORDER BY ID DESC")
+	Do rs.%Next()
+	Do $$$AssertEquals(rs.%Get("Citations"), citations.%ToJSON(), "and the Reply's HostData.citations as JSON")
+	Do $$$AssertEquals($Select($IsObject(service.Watches): service.Watches.%Size() _ "|" _ service.Watches.%Get(0).case _ "|" _ $IsObject(service.Watches.%Get(0).documents), 1: "none"), "1|zz-documents|1", "the service holds the setup record {case, documents}")
+	Do $$$AssertEquals(service.Watches.%Get(0).documents.refs.%Size(), 1, "with the refs of what was added")
+	Do ..Reset()
+	Do ..WriteCase("zz-documents-none", {"name": "zz-documents-none", "kind": "documents", "turn": {"text": "How do I reset my password?"}, "documents": [{"name": "Runbook.md", "file": "runbook.md"}], "expectation": {"citations": "none"}}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "reply", 1) = {"Text": "None of your documents cover that.", "DecisionRef": "zzDecisionRef000000004", "HostData": "{\"memories\":[]}"}.%ToJSON()
+	Do $$$AssertEquals(..Process(service, "zz-documents-none"), "", "a documents case whose reply carries no citations is sent")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Citations FROM OcuTalon_Eval_Msg.TurnResult WHERE SourceItemId = 'zz-documents-none' ORDER BY ID DESC")
+	Do rs.%Next()
+	Do $$$AssertEquals(rs.%Get("Citations"), "", "and the TurnResult keeps none")
+}
+
+/// A documents case that cannot be set up is skipped with the reason, and nothing is asked, saved or recorded.
+Method TestDocumentsRefused()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Do ..WriteCase("zz-documents-fail", {"name": "zz-documents-fail", "kind": "documents", "turn": {"text": "How do I rotate the certificate?"}, "documents": [{"name": "Runbook.md", "file": "runbook.md"}], "expectation": {"citations": "none"}}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "documentsFail") = "its documents could not be set up: Runbook.md did not become ready (state failed)"
+	Do $$$AssertEquals(..Process(service, "zz-documents-fail"), "its documents could not be set up: Runbook.md did not become ready (state failed)", "the case is skipped with the reason")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "asked")), 0, "its turn was never asked")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Data.CaseResult).Unanswered(..Run), 0, "and it has no row")
+	Do $$$AssertEquals($Select($IsObject(service.Watches): service.Watches.%Size(), 1: 0), 0, "and no setup record")
 }
 
 /// A user-turn case (Story 30.5, DW-500) is the decide request of a user's chat turn: Kind decide, Provenance user, no SessionMode, the same Input as a turn. Decide answers it with a

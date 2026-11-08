@@ -25,7 +25,7 @@ Method TestAgents()
 	Do $$$AssertTrue(($List(keys, 1) '= $List(keys, 2)) && ($List(keys, 1) '= $List(keys, 3)) && ($List(keys, 2) '= $List(keys, 3)), "the keys are distinct")
 }
 
-/// OcuTalon.Tools.Names holds 18 distinct snake_case values (12 of release 1, propose_persona, since Story 17.6, DIGESTTOOLS, and the four memory names), and RELEASE1 lists exactly the 12 of release 1, comma-separated;
+/// OcuTalon.Tools.Names holds 19 distinct snake_case values (12 of release 1, propose_persona, since Story 17.6, DIGESTTOOLS, the four memory names, and DOCUMENTS of Story 19.4), and RELEASE1 lists exactly the 12 of release 1, comma-separated;
 /// propose_persona, send_digest and the four memory names are parameters and are not in RELEASE1, and MEMORYTOOLS lists the four memory names.
 Method TestToolNames()
 {
@@ -41,7 +41,7 @@ Method TestToolNames()
 		Do $$$AssertTrue('$ListFind(names, value), value_" is distinct")
 		Set names = names _ $ListBuild(value)
 	}
-	Do $$$AssertEquals(count, 18, "there are 18 tool names")
+	Do $$$AssertEquals(count, 19, "there are 19 tool names")
 	Set release = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1"))
 	Do $$$AssertEquals($ListLength(release), 12, "RELEASE1 lists 12 names")
 	Do $$$AssertEquals($ListFind(release, $Parameter("OcuTalon.Tools.Names", "DIGESTTOOLS")), 0, "and send_digest of step 2 is not among them")
@@ -59,6 +59,8 @@ Method TestToolNames()
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "SEARCHMEMORIES"), "search_memories", "the memory search tool is search_memories")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "LISTMEMORIES"), "list_memories", "the memory list tool is list_memories")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "FORGETMEMORY"), "forget_memory", "the memory forget tool is forget_memory")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "DOCUMENTS"), "documents", "the documents tool is documents")
+	Do $$$AssertTrue('$ListFind(release, "documents"), "RELEASE1 does not list documents")
 	Do $$$AssertTrue('$ListFind(release, "save_memory") && '$ListFind(release, "search_memories") && '$ListFind(release, "list_memories") && '$ListFind(release, "forget_memory"), "RELEASE1 does not list the memory names")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "MEMORYTOOLS"), "save_memory,search_memories,list_memories,forget_memory", "MEMORYTOOLS lists the four memory names")
 }

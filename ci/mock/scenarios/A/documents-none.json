@@ -1,0 +1,21 @@
+{
+  "name": "documents-none",
+  "match": {
+    "marker": "documents-none"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "documents",
+        "input": {
+          "query": "how do I reset my password?"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "None of your documents cover that."
+    }
+  ]
+}

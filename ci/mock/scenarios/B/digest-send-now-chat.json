@@ -1,0 +1,20 @@
+{
+  "name": "digest-send-now-chat",
+  "match": {
+    "prompt": "Send my digest now.",
+    "mockkey": "chat"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "send_digest",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock says your digest is on its way."
+    }
+  ]
+}
