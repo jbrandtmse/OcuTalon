@@ -102,3 +102,5 @@
 2026-11-08T14:31:19Z	Story 41.4	ruling	question=fallback_first_turn_hides_notes choice=burndown+epic41_retro_list by=contest_planner_owner_delegation category=decide policy=5086036
 2026-11-08T14:31:19Z	Epic 41	spine_updated	ad=AD-7(amended:precedent_block_needs_context_decide_1) reason=decision_sheet(contest_planner_ruling) by=runner story=41-4-the-notes-and-your-answers-reach-the-model numstat=1_1 lint=baseline_equal(10_placeholder_low) memlog=absent(workspace_has_no_.memlog.md;not_initialized_by_runner) marker=[AMENDED_2026-11-08,Story_41.4,Contest_Planner_ruling]
 2026-11-08T14:31:19Z	Epic 41	retro_note	item=fallback_first_turn_counts_as_session_start(notes_never_reach_model_that_day) source=41.4_plan,41.3_cr by=contest_planner_ruling
+2026-11-08T14:31:33Z	Story 41.3	ci_resolved	story=41.3 sha=6aa10fd5 runs=42485902344,42485902314 result=success failed=none via=none first_ci=success resolved_at=next_plan(41.4_implement)
+2026-11-08T14:31:33Z	Story 41.4	stage_spawned	stage=implement spawn_at=2026-11-08T14:31:33Z model=sonnet effort=high agent_name=41-4-implement-1 cycle_iteration=1 story_base=157081f2
