@@ -2888,3 +2888,6 @@
 2026-11-08T19:18:24Z	Epic 5	runner_resumed	agent=a791fb7a9d55ae432 with=ff7de7ee_DW-639_flake;close+integrate_onto_ce50aa62
 2026-11-08T19:18:24Z	Epic 18	runner_resumed	agent=ad68d74c02763d478 with=70136ffe_green;Epic_17_merged;integrate_onto_ce50aa62_then_18.4
 2026-11-08T19:18:24Z	Epic 4	runner_resumed	agent=a668895609b486146 with=cb7a2215_green_merged_a77f9a87;close+integrate(bookkeeping)
+2026-11-08T19:19:43Z	Epic 4	runner_complete	agent=a668895609b486146 stories=1(4.12) head=33816324(bookkeeping_only_over_code_on_feature) ci=success(cb7a2215:42507818397,42507818342) applied=guide_documents_citation_promise decisions_for_user=none
+2026-11-08T19:19:43Z	Epic 4	amendments_verified	amendments=EXPERIENCE.md_item6(accepted_by_Planner),epics.md_4.12 extensions=0 ok=true
+2026-11-08T19:19:43Z	Epic 4	merge_enqueued	policy=when_green note=bookkeeping-only_head_over_green_code(precedent)
