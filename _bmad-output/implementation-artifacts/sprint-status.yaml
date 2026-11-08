@@ -148,8 +148,7 @@ development_status:
   7-8-the-web-incident-card-shows-the-either-way-date-line-too: done
   7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged: done
   7-10-the-past-expiry-refusal-test-is-stable-dw-840: done
-  7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr: 
-    ready-for-dev
+  7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr: in-progress
   epic-7-retrospective: optional
 
   epic-8: done
