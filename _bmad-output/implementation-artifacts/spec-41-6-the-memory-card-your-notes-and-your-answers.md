@@ -227,6 +227,13 @@ Paths are under `web/` unless given in full. Line numbers are at `630efe7d`.
 
 ## Spec Change Log
 
+- 2026-11-08 (rulings relayed by the orchestrator; Contest Planner under the owner's delegation):
+  - **PUBLIC TEXT APPROVED as written, all nine items; pin them all with fixed strings:** `yesterdayEmpty` "Nothing recorded yesterday."; `answersEmpty` "No answers yet."; `forgetName` "Forget {summary}"; the dialog's `cancel` "Cancel" and `confirm` "Forget"; `forgetFailed` "Couldn't forget it. Nothing was changed."; the answer words "This was noise", "Approved", "Rejected"; the meta line `{when} · {channel} · {answer}`; `toolNote` "OcuTalon keeps this answer but does not use it when it decides." **The channel is shown AS THE SERVER SENDS IT** (`mailbox`, `webhook`, ..., as in the daily-note lines). `RAIL_TEXTS.memory` "Memory" is EXPERIENCE 1050.
+  - **Demo-path edit APPROVED:** `web/e2e/demo-path/01-page.spec.ts:103` count 7 -> 8, plus the Memory-before-Persona assertion, and NOTHING else in the demo-path specs.
+  - **Epic 18 test-list edits** (`announce-focus-sources.test.mjs` `FOCUS_CALLS` after line 131; `ux-strings.test.mjs` `SOURCES.ux`/`ac`/`ruled` appends) are plain unions (orchestrator, decide). The `IMPORTED` one-name append and the `ApiClient` end-of-class methods are within the standing precedent and are reported.
+  - **`shards-5` time:** approved CI-only change (one area of `shard:lane-a@Bridge,Agent` into the `production` group) is made by the lead as a separate commit in the next story push, not by this story.
+  - `## Clarification Needed` is cleared.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -306,6 +313,8 @@ No AC contradicts an AD's Rule.
 **Ledger:** this story owns no ledger entries.
 
 ## Clarification Needed
+
+**Cleared 2026-11-08 (Contest Planner / orchestrator rulings): see `## Spec Change Log`.**
 
 1. **The demo-path spec's rail count (REL-2; the 39.5 precedent, U-295).**
    - The Memory section adds the rail's eighth h3. `web/e2e/demo-path/01-page.spec.ts:103` asserts `toHaveCount(7)` ("seven sections in order, Telegram first and Persona last"), so the demo-path suite goes red with any rail card. No form of the AC's "the status rail shows the Memory card ... one slot in rail-view.ts" avoids that.
