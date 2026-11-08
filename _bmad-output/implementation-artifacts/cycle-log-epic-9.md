@@ -312,3 +312,17 @@
 2026-10-31T06:32:50Z	Epic 9	report_error	fault=runner field=integrated_forward.feature reported=145b4018 actual=1aeebc68 impact=none(unpushed;the_line_read_origin/feature_after_another_session_pushed_it;merge_5555942e_carries_1aeebc68) correction=this_line+the_next_integrated_forward
 2026-10-31T06:42:34Z	Epic 9	integrated_forward	feature=145b4018 head=2da41de6 conflicts_resolved=sprint-status.yaml(last_updated_only;later_kept;both_sides_rows_kept;regenerated_in_sync,valid) suite=carried_over(source_identical_to_b1e97721) checks=pass smoke=carried_over merged_tree_src=identical_to_b1e97721(git_diff_quiet_excluding__bmad-output,_bmad,.claude:exit_0) checks_detail=ci/checks.sh_17_scripts_pass(lane-a_vars) feature_delta=cycle-log-parallel.md,sprint-status.yaml,epics.md,epic-dependencies.yaml(Story_10.4_reopens_Epic_10;U-182,U-183;Epic_9_finish_dispatch) supersedes=the_06:32:19Z_line(it_merged_1aeebc68_as_5555942e;feature_then_moved) ruling=orchestrator(merged-tree_verification) category=decide(bookkeeping_conflict,SC-4-P_step_4) model=claude-opus-5-5
 2026-10-31T06:42:34Z	Epic 9	epic_runner_complete	stories_completed=10(9.1,9.2,9.3,9.7,9.8,9.4,9.9,9.6,9.5,9.10) this_dispatch=finish(integrate_forward_x2,push,ci) runner=A slot=ocutalon-slot-a applied=U-130,U-131,U-162,U-166,U-168 decisions_for_user=DW-386,DW-431,DW-448 overflow=DW-397->15-2
+2026-11-08T03:23:55Z	Epic 9	epic_branch_reopened	reason=story_9.11_dw878 from=19bb32c7
+2026-11-08T03:23:55Z	Epic 9	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_9.11_dw878 lane=B slot=ocutalon-slot-b hashes_checked=main_checkout_match hold=absent
+2026-11-08T03:23:55Z	Epic 9	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-08T03:23:55Z	Epic 9	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh config_paths=aligned v7_markers=none bootstrap_check=ok
+2026-11-08T03:23:55Z	Epic 9	launch_env	depth=4 watchdog=0(unset) bash_max_ms=default
+2026-11-08T03:23:55Z	Epic 9	epic_branch_checked_out	repos=. head=19bb32c7 ci_expected=ci,lane-a
+2026-11-08T03:24:12Z	Epic 9	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-08T03:24:12Z	Epic 9	ledger_load	total=888 open=0 routed=130 escalated=2 decision_pending=5 terminal=751 owner_unknown=0 burndown=87 reowned_none=0 epic9_owned=0 dw878=routed_owner_burndown
+2026-11-08T03:24:12Z	Epic 9	retro_review_skipped	reason=no_X.0_input(SC-5_reopen_for_fix-forward_9.11;dispatch)
+2026-11-08T03:24:46Z	Epic 9	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_re-check(headless)_for_the_reopen;in_sync=true;warnings=2_title_headings(expected)
+2026-11-08T03:25:46Z	Epic 9	epic_reopened_in_progress	sc5=epic-9:done->in-progress reason=story_9.11_dw878
+2026-11-08T03:25:46Z	Epic 9	story_chartered	story=9.11 key=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it reason=fix_forward(DW-878;planner_ruling_subject=DW-879,DW-878_placement_2026-11-08) after=9.10
+2026-11-08T03:25:46Z	Epic 9	deps_hash_rerecorded	reason=fix_forward story=9.11 for=orchestrator
+2026-11-08T03:25:46Z	Epic 9	ledger_routed_planned	story=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it entries=1(DW-878) excess=0 by=charter
