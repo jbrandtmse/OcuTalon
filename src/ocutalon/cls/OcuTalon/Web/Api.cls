@@ -32,7 +32,7 @@
 ///     server_error.
 ///     The settings routes (Story 33.2; AD-13, AD-19) are for OcuTalonAdmin only, and the check is the whole name of the role in $Roles, never %All: a
 ///     call to /v1/settings or below it from a user without the role is 403 not_admin, answered before the browser envelope, the body and the
-///     route. GET /v1/settings answers SettingsOps.Values: {"sections", "bridge", "providers", "instanceZone"}. Each POST /v1/settings/<section>
+///     route. GET /v1/settings answers SettingsOps.Values: {"sections", "bridge", "providers", "instanceZone", "prices"}. Each POST /v1/settings/<section>
 ///     (budgets, models, daily-digest, time-zone, check-thresholds, demo-mode; channels answers 501 not_built) takes the section's fields as a JSON
 ///     object of field to value, submits one SaveSettings command (a SetDemoMode for demo-mode) with origin web_admin, the IRIS user of the call and
 ///     the CSP session's Ref (AD-4), and answers: Ok 200 {"result":"done","sections"}; a refused value, a missing or unknown field or a body that is not an object 400

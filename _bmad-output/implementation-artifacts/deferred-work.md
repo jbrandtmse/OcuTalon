@@ -443,6 +443,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls:181-208 (EXPERIENCE Message Catalog / Conversation / Fallback reasons); Story 1.7 decisions 3 and 7 make the timer changeable and give rate_limited when a tool ran
 - 2026-10-23T05:40:25Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=spec_gate note=the timeout text needs the timer as a slot (or no number) when SettingsOps lets an admin change it; the rateLimited wording is the UX's (AI Hub's own retry ran), so 17.4 rewords only if the UX does
 - 2026-10-26T15:16:47Z status=routed owner=18-3-choose-models-and-set-budgets-in-settings by=orchestrator note=M7: Catalog.Core is Lane B's; the criterion moved to Story 18.3 (relaunch planning, the Contest Planner under the owner's delegation)
+- 2026-11-08T15:33:35Z status=resolved-by:18-3-choose-models-and-set-budgets-in-settings by=adjudication note=5ff0eb69:Msg/Catalog/Core.cls_fallbackReason.timeout='the_model_didn't_answer_within_the_time_allowed',rateLimited='the_model_was_too_busy_to_answer'(Planner_ruling_planner-2026-11-08-18.3);EXPERIENCE.md_:170,:784,:789_amended;pinned_by_Test.Msg.Catalog,catalog.test.mjs,Test.Watch.NoticeText(granted_literal);mutation_timeout_names_60_seconds->catalog.test.mjs_red
 
 ### DW-101: Timeouts.Apply is not atomic: a failed entry merge after Decide's TimerSeconds row is written leaves the timer changed for some runners, and two concurrent Apply calls are not serialized (no lock)
 - source: spec-1-7-timeouts-and-rate-limits-end-every-decision-on-time.md | severity: low | fix-risk: med | footprint: in-story
@@ -5558,3 +5559,29 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-18-3-choose-models-and-set-budgets-in-settings.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Bridge.Settings.TestRequest (17.4) makes the request; Decide writes the rows; 18.3 read no view or aggregate
 - 2026-11-08T14:53:06Z status=open owner=18-3-choose-models-and-set-budgets-in-settings by=harvest note=QA verifies on the throwaway; then close (they skip or the count is right) or route the Lane A reader fix
+- 2026-11-08T15:33:35Z status=by-design by=adjudication note=QA_measured_on_lane-D_throwaway:a_Test_press_is_absent_from_Recent_decisions_and_the_session_usage_totals(owner_instance;Ownership.Rows_refuses_instance),and_IS_counted_in_Bridge.Budget.State().spent_and_Digest.Cost.Yesterday:correct,because_a_Test_is_a_real_priced_model_request_and_the_cap_and_the_cost_line_report_real_spend(product_default_3,honest);pinned_by_Test.Core.SettingsModelTestRows
+
+### DW-968: A model Test holds the one SettingsOps job (PoolSize 1) up to TESTWAIT 45 s, so a second Test or a Save queued behind it can pass the gateway's 60 s and show a failure while the queued save still applies later
+- source: spec-18-3-choose-models-and-set-budgets-in-settings.md | severity: med | fix-risk: high | footprint: in-epic
+- evidence: SettingsOps.BridgeTest waits on Decide for TESTWAIT inside the SettingsOps job; CommandsIn waits 120 s, the gateway 60 s (Design Notes 7); ServerButton re-enables after 10 s. Two Tests then a Save during a provider stall exceed 60 s: the page says Couldn't save. Nothing was changed. and the queued save applies.
+- 2026-11-08T15:31:05Z status=escalated owner=burndown by=cr note=fix needs a separate host or async Test (Production.cls, ServerButton) against the spec's synchronous SettingsOps contract
+
+### DW-969: The 18.3 live tests delete every test.% Decision and Usage row and put the runner entries and the day's capped mark back to the install defaults, not to what they found
+- source: spec-18-3-choose-models-and-set-budgets-in-settings.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SettingsApi.DropTestRows, SettingsModelsLive.DropTestRows and SettingsModelTestRows.OnAfterOneTest delete ItemId LIKE 'test.%' unscoped; SettingsModelsLive merges anthropic/@{env:ANTHROPIC_API_KEY} and runs the Provider step (ModelChange's teardown, which the spec allows); all Kill ^OcuTalonBP.UsageCapped(today).
+- 2026-11-08T15:31:10Z status=wontfix-accepted owner=18-3-choose-models-and-set-budgets-in-settings by=cr note=reopen_if=a live unit after one of these finds its own test.% row, runner entry or capped mark changed or gone
+
+### DW-970: The models save's put-back after a late failure (Design Note 12: the Values() pair, not SetModel's old) runs only on the probe's doubles, never on the real Bridge.Settings
+- source: spec-18-3-choose-models-and-set-budgets-in-settings.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SettingsModels TestSetFailsLate and TestAuditFailsLate use doubles whose old.provider equals the Values() provider; no SettingsModelsLive case injects a late failure, so a put-back that used old.provider (empty on a real entry) would pass.
+- 2026-11-08T15:31:13Z status=wontfix-accepted owner=18-3-choose-models-and-set-budgets-in-settings by=cr note=reopen_if=a models save that fails late on a real stack leaves Values().agents different from before the save
+
+### DW-971: refusal.ts refusalOf has no executed unit test: the node harness cannot load it, the DW-948 adoption is pinned by source text, and its behaviour only by Playwright S13c and S14 in CI
+- source: spec-18-3-choose-models-and-set-budgets-in-settings.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: refusal.ts imports @angular/common/http and './settings-view' with no extension, so node --test cannot import it; settings-refusal-sources.test.mjs regex-matches the sections; refusalKind alone is unit-tested.
+- 2026-11-08T15:31:17Z status=wontfix-accepted owner=18-3-choose-models-and-set-budgets-in-settings by=cr note=reopen_if=S13c or S14 field-error steps go red, or a section shows the form error for a 400 naming its field
+
+### DW-972: The Models section's failed-Test line (the test route answers 500 or 403) and the kept values after a save (keepModels, keepBudgets) have no behavioural test
+- source: spec-18-3-choose-models-and-set-budgets-in-settings.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: S13 and S13c stub only 200 answers of /v1/settings/models/test; row 13's text is pinned as a string only. No case saves, switches section and comes back; the sibling keep updaters share the gap.
+- 2026-11-08T15:31:21Z status=wontfix-accepted owner=18-3-choose-models-and-set-budgets-in-settings by=cr note=reopen_if=a failing Test press shows other than row 13, or a section shows pre-save values after a save and section switch

@@ -1140,6 +1140,7 @@ Method SaveModels(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dyna
 			}
 		}
 	} Catch exception {
+		If $TLevel > level TROLLBACK 1
 		$$$LOGERROR(exception.DisplayString())
 		Set outcome = "failed"
 	}
@@ -1149,11 +1150,11 @@ Method SaveModels(command As OcuTalon.Msg.Command.SaveSettings, changes As %Dyna
 		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 	}
 	TCOMMIT
+	For i = 0:1:priced.%Size() - 1 Do done.%Push(priced.%Get(i))
 	Try {
 		For i = 0:1:priced.%Size() - 1 {
 			Set change = priced.%Get(i)
-			Do done.%Push(change)
-			Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "price."_change.model_"."_change.key, ..NumberText(change.from), ..NumberText(change.to)))
+			Set sc =..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "price."_change.model_"."_change.key, ..NumberText(change.from), ..NumberText(change.to)))
 			If $$$ISERR(sc) {
 				Set text = $SYSTEM.Status.GetErrorText(sc)
 				$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))

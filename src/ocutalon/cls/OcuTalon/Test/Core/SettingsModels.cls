@@ -291,6 +291,15 @@ Method TestAuditFailsLate()
 	Set result = ..Save(body)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "the second audit entry failed")
 	Do $$$AssertEquals(..Bridge("TriageAgent.model")_"|"_..Bridge("price.claude-haiku-5-5.input"), "claude-haiku-5-5|1", "the model and the price are put back")
+	Do ..Reset()
+	Do ..SeedDoubles()
+	Set ^OcuTalonTest("SettingsOpsProbe", "answer", "auditAt") = 1
+	Set body = ..Body()
+	Do body.prices.%Get("claude-haiku-5-5").%Set("input", "2")
+	Do body.prices.%Get("claude-haiku-5-5").%Set("output", "6")
+	Set result = ..Save(body)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|not_audited", "the first of two price audit entries failed")
+	Do $$$AssertEquals(..Bridge("price.claude-haiku-5-5.input")_"|"_..Bridge("price.claude-haiku-5-5.output"), "1|5", "both prices are put back, the one after the failed entry included")
 }
 
 /// A value that equals the current one is neither checked, set nor audited; a price that is the same number is the same.

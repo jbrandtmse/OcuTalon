@@ -76,6 +76,13 @@ Method OnBeforeOneTest() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
+/// Deletes the rows of the model test presses after TestModelTestRoute, also when it failed.
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	If (testname = "TestModelTestRoute") && (..Missing = "") Do ..DropTestRows()
+	Quit $SYSTEM.Status.OK()
+}
+
 Method OnAfterAllTests() As %Status
 {
 	Kill ^OcuTalonTest("ApiProbe", "roles")
@@ -441,7 +448,6 @@ Method TestModelTestRoute()
 	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser"
 	Set body = ..PreDispatch("/v1/settings/models/test", "POST", "application/json", 1, "http://h:1", "h:1", .response, .continue)
 	Do $$$AssertEquals(response.Status_"|"_continue_"|"_$Piece(body, """", 6), "403 Forbidden|0|not_admin", "a user without the admin role is 403 not_admin")
-	Do ..DropTestRows()
 }
 
 /// POST /v1/settings/models (Story 18.3): a body equal to the current values is 200 done and changes nothing; a body that is not the shape, and one that names a model that

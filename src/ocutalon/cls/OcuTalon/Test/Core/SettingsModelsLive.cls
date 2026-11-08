@@ -35,6 +35,9 @@ Parameter FAKE = "ocutalon-zz-not-a-key";
 /// The model that the tests change TriageAgent to.
 Parameter SECOND = "claude-sonnet-5-5";
 
+/// The model that the tests give TriageAgent as its second model: not the first model, so that a first and a second model swapped show.
+Parameter RETRY = "claude-haiku-5-5";
+
 /// The price rows that the tests may change, as the model names.
 Parameter MODELS = "claude-haiku-5-5,claude-sonnet-5-5";
 
@@ -173,7 +176,7 @@ Method TestSavedModelsApplyToTheNextDecide()
 	Set body = {"agents": (page.bridge.agents), "prices": (page.prices)}
 	Do body.agents.TriageAgent.%Set("model", ..#SECOND)
 	Do body.agents.TriageAgent.%Set("secondProvider", "anthropic")
-	Do body.agents.TriageAgent.%Set("secondModel", ..#SECOND)
+	Do body.agents.TriageAgent.%Set("secondModel", ..#RETRY)
 	Do body.prices.%Get(..#SECOND).%Set("input", new, "number")
 	Set before = ##class(OcuTalon.Bridge.Settings).Values().agents.TriageAgent
 	Do $$$AssertEquals(before.model_"|"_before.secondModel, "claude-haiku-5-5|", "control: TriageAgent starts on Haiku with no second model")
@@ -186,9 +189,9 @@ Method TestSavedModelsApplyToTheNextDecide()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|done", "SettingsOps saves the model, the second model and the price: "_result.Data)
 
 	Set values = ##class(OcuTalon.Bridge.Settings).Values().agents.TriageAgent
-	Do $$$AssertEquals(values.provider_"|"_values.model_"|"_values.secondProvider_"|"_values.secondModel, "anthropic|"_..#SECOND_"|anthropic|"_..#SECOND, "Bridge.Settings.Values shows the new first and second model")
+	Do $$$AssertEquals(values.provider_"|"_values.model_"|"_values.secondProvider_"|"_values.secondModel, "anthropic|"_..#SECOND_"|anthropic|"_..#RETRY, "Bridge.Settings.Values shows the new first and second model")
 	Do $$$AssertEquals(##class(OcuTalon.Core.SettingsOps).Values().prices.%Get(..#SECOND).input, new, "the page's prices show the new price")
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("TriageAgentRetry", ..#PRODUCTION), ..#SECOND, "and the retry item resolves the second model")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("TriageAgent", ..#PRODUCTION)_"|"_##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel("TriageAgentRetry", ..#PRODUCTION), ..#SECOND_"|"_..#RETRY, "the runner resolves the first model and the retry item the second")
 	Do $$$AssertStatusOK($ClassMethod(fixture, "PointKeys", "TriageAgent,TriageAgentRetry"), "the entries' keys are pointed at the CI mock key variable again, so that the runner can answer")
 
 	Set request = ..Ask("decide", "Triage this item.", .itemRef)
@@ -212,7 +215,7 @@ Method TestSavedModelsApplyToTheNextDecide()
 		Set data = entries.%Get(i).data
 		Set found = found_$ListBuild(data.setting_"|"_data.from_"|"_data.to)
 	}
-	Do $$$AssertEquals($ListToString(found, ";"), "price."_..#SECOND_".input|"_was_"|"_new_";TriageAgent.model|anthropic/claude-haiku-5-5|anthropic/"_..#SECOND_";TriageAgent.secondModel||anthropic/"_..#SECOND, "the price first, then the first model, then the second model, each with the value it replaced")
+	Do $$$AssertEquals($ListToString(found, ";"), "price."_..#SECOND_".input|"_was_"|"_new_";TriageAgent.model|anthropic/claude-haiku-5-5|anthropic/"_..#SECOND_";TriageAgent.secondModel||anthropic/"_..#RETRY, "the price first, then the first model, then the second model, each with the value it replaced")
 	Set text = entries.%ToJSON()
 	Do $$$AssertTrue(($Find(text, ..#FAKE) = 0) && ($Find(text, "@{") = 0), "and no entry holds a key or a placeholder")
 }
