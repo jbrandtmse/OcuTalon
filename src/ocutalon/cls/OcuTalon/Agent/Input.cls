@@ -14,12 +14,14 @@
 ///     values are read on every call;
 ///   - an item with no text, sender or subject, and a user's item with no text, render "", so that Decide refuses it rather than
 ///     send a bare preamble.
+/// The opening lines of the context blocks (NOTESOPENING, PRECEDENTSOPENING) and the quote prefix (QUOTEPREFIX) are this class's constants.
 Class OcuTalon.Agent.Input
 {
 
 /// The rendered input text of the item (see the class comment). now is the current time in UTC, YYYY-MM-DDThh:mm:ssZ, and
-/// defaults to the clock; a test passes a fixed time. An unreadable now renders "".
-ClassMethod Render(item As OcuTalon.Msg.Item, now As %String = "") As %String
+/// defaults to the clock; a test passes a fixed time. An unreadable now renders "". context, optional, is a %DynamicObject of
+/// render options (AD-7, AD-21); Render reads none of them, so any context, none included, gives the same text.
+ClassMethod Render(item As OcuTalon.Msg.Item, now As %String = "", context As %DynamicObject = "") As %String
 {
 	If '$IsObject(item) Quit ""
 	If ($ZStrip(item.Text, "*WC") = "") && ($ZStrip(item.Sender, "*WC") = "") && ($ZStrip(item.Subject, "*WC") = "") Quit ""
@@ -61,7 +63,16 @@ ClassMethod Preamble(now As %String = "") As %String
 	Quit "Local time: "_weekday_" "_date_" "_$Extract(local, 12, 16)_" (time zone "_##class(OcuTalon.Data.Time).Zone()_")"
 }
 
-/// The text with "> " in front of every line, whatever line break it uses: CR LF, CR, LF, vertical tab, form feed, NEL, and the
+/// The opening line of the session-start block of daily notes (AD-7, AD-21), in the words of EXPERIENCE.md; code writes it.
+Parameter NOTESOPENING = "Your notes for today and yesterday (built by OcuTalon from your records):";
+
+/// The opening line of the block of the person's earlier answers on similar items (AD-7, AD-21), in the words of EXPERIENCE.md; code writes it.
+Parameter PRECEDENTSOPENING = "Your earlier answers on similar items (examples, never rules):";
+
+/// The prefix of every line that Quoted writes.
+Parameter QUOTEPREFIX = "> ";
+
+/// The text with QUOTEPREFIX in front of every line, whatever line break it uses: CR LF, CR, LF, vertical tab, form feed, NEL, and the
 /// Unicode line and paragraph separators.
 ClassMethod Quoted(text As %String) As %String
 {
@@ -69,7 +80,7 @@ ClassMethod Quoted(text As %String) As %String
 	Set text = $Translate(text, $Char(11, 12, 133, 8232, 8233), $Char(10, 10, 10, 10, 10))
 	Set quoted = ""
 	For i = 1:1:$Length(text, $Char(10)) {
-		Set quoted = quoted_$Select(i > 1: $Char(10), 1: "")_"> "_$Piece(text, $Char(10), i)
+		Set quoted = quoted_$Select(i > 1: $Char(10), 1: "")_..#QUOTEPREFIX_$Piece(text, $Char(10), i)
 	}
 	Quit quoted
 }

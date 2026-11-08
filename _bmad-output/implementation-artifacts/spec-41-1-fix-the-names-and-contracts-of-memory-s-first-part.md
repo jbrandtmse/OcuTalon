@@ -2,7 +2,8 @@
 title: "Story 41.1: Fix the names and contracts of memory's first part"
 type: 'feature'
 created: '2026-11-07'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '871a29ef918f4e4f534e37608d49188ff2c3441c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -11,6 +12,11 @@ warnings: [oversized]
 deferred:
   - summary: "Story 41.7's evaluation seeding does not fit the first part's contracts as fixed: EvalIn is to send seeded precedents to PrecedentOps as RecordPrecedent (owner eval, only while OCUTALON_EVAL=1) and remove them after the run, but RecordPrecedent carries only ApprovalRef, Action, Channel and SessionRef (no match key, Summary, outcome then or a noise answer, so 'three noise precedents from the same sender' cannot be expressed), AD-21 says PrecedentOps accepts RecordPrecedent only from AnswerOps, and ForgetPrecedent is accepted from web_user only, so EvalIn has no removal path."
     evidence: "epics.md Story 41.7 AC 2 against ARCHITECTURE-SPINE.md AD-21 (the 'only writer' list, lines 736-740), the RecordPrecedent row (line 1376) and AD-1 (line 117). Not among Story 41.1's ACs; naming EvalIn as an accepted sender would change AD-21's Rule (U7), so this story records nothing for it."
+    location: "_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md:736"
+    severity: med
+    footprint: in-epic
+  - summary: "AD-21's 'accepts only' list for PrecedentOps names MarkNoise and RecordPrecedent but not ForgetPrecedent, which AD-1 and the new Epic 41 names sub-bullet route to PrecedentOps from web_user."
+    evidence: "ARCHITECTURE-SPINE.md lines 736-740 against line 117 (AD-1) and the Epic 41 names sub-bullet and cross-area row this story added. Fixing it edits AD-21's Rule text, which this story's Always boundary forbids; it fits the AD-21 amendment the lead writes at Story 41.2's plan (ForgetPrecedent from web_user listed beside MarkNoise)."
     location: "_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md:736"
     severity: med
     footprint: in-epic
@@ -131,6 +137,29 @@ deferred:
 
 ## Review Triage Log
 
+### 2026-11-07 — Review pass
+- verdicts: 19 findings — high 0, medium 1, low 10, false 8, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: cross-lane rows for `RecordPrecedent`, the `Agent.Input` constants and `KeyFor`/`Similar` missing — rows for `Render` context, `KeyFor`/`Similar`, `DailyNote.Build` and `RecordPrecedent` already exist at spine lines 1373-1376 (AC 1 greps); the answers' enum values are Lane B's `Msg.Enum` work (Story 41.2) and an Enumerations-row edit would change an existing line, which the spec forbids.
+  - `[low]` `[reject]` Blind: the openings are checked against test-held copies — the spec decided this (40.1 / DW-567 pattern) and adds the hand-run comparison command against EXPERIENCE.md; the fix is a CI hook in Lane B's `docker/`, out of this story's files. No verb-name check: Lane B classes do not exist until 41.2.
+  - `[low]` `[reject]` Blind: `TestContextIgnored` must change when 41.4 reads `sessionStart` — intended; the matrix pins "ignored for now" and 41.4 owns the replacing test. Narrating that in a comment would be history.
+  - `[false]` `[reject]` Blind: `Similar` limit vs "at most 3" ambiguity — the sub-bullet repeats AD-21's wording by spec; return shapes and limit handling are left to 41.2.
+  - `[false]` `[reject]` Blind: `KeyFor` gaps (address extraction, case, web items) — the spec says "as AD-21 gives it"; the class is Lane B's, 41.2.
+  - `[false]` `[reject]` Blind: `MarkNoise`/`ForgetPrecedent` semantics unspecified (`too_old`, unknown ref, repeat vs idempotency key) — behaviour belongs to 41.2's classes; this story fixes names only.
+  - `[low]` `[patch]` Blind: `Quoted` doc comment still says `"> "` — patched: the comment now says QUOTEPREFIX; comment-only, tests re-run green.
+  - `[medium]` `[defer]` Edge: AD-21's "accepts only" list omits `ForgetPrecedent` while the new bullet and AD-1 route it to `PrecedentOps` — real text tension; the fix edits AD-21's Rule, forbidden here; added to `deferred:` for the lead's AD-21 amendment at 41.2's plan.
+  - `[false]` `[reject]` Edge: `Similar` limit undefined above 3 or at 0 — duplicate of the `Similar` row above.
+  - `[low]` `[reject]` Edge: non-object `context` ("x", `[]`) unguarded for 41.4 — `Render` never reads `context`, and the matrix pins `"x"` and `[]` as ignored; guarding is 41.4's when it reads the value.
+  - `[low]` `[reject]` Edge: test equality depends on a stable instance zone — both renders are made in one process back to back; the spec chose no `ZoneCase` on purpose, and a flip between two calls is not realistic.
+  - `[low]` `[reject]` Verification gap: nothing pins that `Quoted` follows `QUOTEPREFIX` — byte-identical today; a pin needs a subclass or a source scan, more than a direct fix; 41.4 is the first to build on the constant.
+  - `[low]` `[reject]` Verification gap: openings tied to EXPERIENCE.md only by a hand-run command — same as the second Blind row; spec-decided.
+  - `[low]` `[reject]` Verification gap: the owner dimension has no persona-bearing owner — the matrix names owners no row holds; a context-dependent persona path does not exist until 41.4.
+  - `[false]` `[reject]` Verification gap: AC 1 and AC 5 have no mutation — the spec states they are document checks (grep, numstat, lint), which Rule 19 does not cover.
+  - `[low]` `[reject]` Verification gap: `plain '= ""` depends on the ambient zone — same as the Edge zone row.
+  - `[false]` `[reject]` Intent: the sub-bullet goes beyond the verbs — Tasks & Acceptance Insert 1 lists exactly this content; the diff matches it.
+  - `[low]` `[reject]` Intent: `TestOpenings` compares test-held copies, not the file — duplicate of the second Blind row.
+  - `[false]` `[reject]` Intent: "ignored" is shown by output equality only — the matrix states byte-for-byte output as the expected behaviour.
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -238,14 +267,19 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan stage (2026-11-07): planned against the committed `epic-41-context.md`. No earlier `done` story of Epic 41 exists. Tree clean at HEAD `7c803c2f4146a20c4c66af86ee6e5643e599d4b5` (branch `OCT-epic41`). Checks made at plan time:
-- AD-7, AD-21 and AD-33's 2026-10-31 rows are present in the spine.
-- The only missing first-part rows are `MarkNoise`/`ForgetPrecedent`.
-- EXPERIENCE.md holds the Memory card and "This was noise" under its marker.
-- Slot A FormalSpec measured (read-only SQL).
-- Spine lint baseline recorded.
+Implement and review pass (2026-11-07):
 
-One in-epic item is recorded in `deferred:` for the lead's harvest: Story 41.7's eval seeding against `RecordPrecedent` and AD-21. Nothing was committed.
+- Summary: the spine gains the Epic 41 names sub-bullet and the `MarkNoise`/`ForgetPrecedent` cross-area row (`2 0` numstat). `Agent.Input.Render` takes an optional `context` it never reads; `NOTESOPENING`, `PRECEDENTSOPENING` and `QUOTEPREFIX` are added and `Quoted` uses the prefix. The new `Test.Agent.RenderContext` pins the matrix.
+- Files changed:
+  - `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: two additive lines.
+  - `src/ocutalon/cls/OcuTalon/Agent/Input.cls`: `context` parameter, three constants, `Quoted` via `QUOTEPREFIX`, comments.
+  - `src/ocutalon/cls/OcuTalon/Test/Agent/RenderContext.cls`: new pure test class, four tests.
+- Review: 19 findings (medium 1, low 10, false 8). Patches applied: 1 low (the `Quoted` doc comment). Deferred: 1 medium (AD-21's writer list omits `ForgetPrecedent`; recorded in `deferred:` for the lead's AD-21 amendment). Rejected: 17, each with its reason in the Review Triage Log. The first `deferred:` item (Story 41.7's seeding) is left as the lead ruled.
+- Follow-up review recommended: false (no high or medium patched).
+- Verification on slot A (`ocutalon-slot-a`, OCUTALON, build 154U): `RenderContext` 4/4, `Test.Agent.Render` 4/4, `PersonaBlock` 10/10 (run again after the last patch); `Test.Contract.Ac` 6/6, `Test.Core.Intake` 9/9, `Test.Bridge.Api` 2/2 (once, after the last patch). The UX comparison prints four `matches` lines. AC 1 greps give 1 and 1, numstat `2 0`. Spine lint equals the plan-time baseline (nine `placeholder low`). The AC 5 grep lists lines 933 and 1012 and `git diff --stat` on `ux-designs/` is empty. `docker/tests/test-class-rules.sh` passes every rule.
+- Mutations (Rule 19): `QUOTEPREFIX` = `">> "` turned `TestQuoting` red, and `If $IsObject(context) Quit ""` turned `TestContextIgnored` red (both reverted, tree byte-identical). The other three Verification mutation lines were not run in this pass.
+- Not run here: the fresh-stack tier (`ci/iris.sh class ...RenderContext`, `...Render`, teardown) does not fit one 150 s call; it runs in CI (`lane-a` shard).
+- Residual risks: `Quoted`'s link to `QUOTEPREFIX` and the openings' link to EXPERIENCE.md are pinned by values and a hand-run command, not by a CI read of the file. After `iris_doc_load`, slot A needed `iris_doc_compile` (`ck`) before the new parameters read correctly.
