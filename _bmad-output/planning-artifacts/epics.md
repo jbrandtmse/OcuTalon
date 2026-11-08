@@ -1384,6 +1384,29 @@ So that a rare #453 no longer fails a check whose start became healthy, and ever
 **Then** `docker/tests/test-lib-live.sh` (and `docker/tests/test-upgrade-harness.sh` for the count) pin it with fixtures: one RETRY followed by OK passes; a RETRY with no OK, two RETRY lines, a RETRY followed by FAILED, and a near-miss RETRY line each fail; the harness count reads 0 and 1 in its fixtures; `docker/after-start.sh` and `docker/merge.cpf` are unchanged; CI is green on every workflow
 - DW-624: lib-live.sh's log_steps keeps every STEP line, so a live-test or upgrade-harness start that recovers through Story 0.13's retry still fails check_log on the RETRY line (ledger; routed by Story 0.13's review, 2026-11-03)
 
+### Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction
+
+[ADDED 2026-11-07, SC-5 re-open of Epic 0 for one evidence-only story, at the Contest Planner's request (about 21:10Z): the S11 spike (docs/handoff/spike-results/S11.md) found that build 154 kills the IRIS process (signal 11) when embedded Python runs both inside and outside an AI Hub tool callback in one process. Before anyone reports it, the crash is re-measured with two classes and no model. Story 0.15 (the Dockerfile move) is deferred until after v1.0.4 and is not chartered here. This story changes no product code, no test suite and no public text.]
+
+As the author deciding whether to report an AI Hub defect,
+I want the S11 crash reproduced with the smallest possible classes, on a fresh throwaway, in a throwaway namespace,
+So that any report carries exact orders, outcomes, messages.log lines and versions, and no OcuTalon code.
+
+**Acceptance Criteria:**
+
+**Given** a fresh lane-A throwaway stack from the project's throwaway tooling (build 154's image, and build 109's when it is already on the host), a throwaway namespace, and only two classes: `Repro.Py` (a `[Language = python]` class method `PyPing()` that imports `threading` and `os` and returns a string) and `Repro.Tools` (extends `%AI.Tool`, whose `PyPing` calls `##class(Repro.Py).PyPing()`)
+**When** each of five orders runs three times, each run in a fresh `iris session` process ending with `halt`: (a) Python outside only; (b) inside only (`%AI.ToolMgr.%New()`, `AddTool`, `ExecuteTool("PyPing",{})`); (c) outside, then ToolMgr, then inside; (d) ToolMgr, then inside, then outside; (e) `##class(%SYS.Python).Import("json")` outside, then inside
+**Then** the evidence folder `_bmad-output/implementation-artifacts/evidence/ep-bug-s11/` records, for every run, survived or died and the exact `messages.log` line (the "caught signal 11" line with its JobType, if any), plus `$ZV`, the Python version, the CPU architecture and the image tag
+**And** no model key is present and no model is called; if `%AI.ToolMgr` needs a provider, that is recorded and that order stops
+
+**Given** DW-792 (19.2 found that `%SYS.Python` passes no keyword argument from ObjectScript)
+**When** a Python function is called with a keyword argument in the documented form (a `%DynamicObject` as the last argument, passed with `args...`) and in the form 19.2 used
+**Then** `results.md` reports whether the keyword arrives in each form, citing the documentation relied on, and DW-792 gets a ledger trailer with the result
+
+**Given** the evidence
+**When** this story closes
+**Then** the folder holds only `Repro.Py.cls`, `Repro.Tools.cls`, a one-line `run.sh` and `results.md`; no loader or test picks up the two `.cls` files; no tracked file names an absolute local path; a new LOW ledger entry records the re-verification; the throwaway is torn down; and nothing is filed publicly (the Planner drafts any report and the owner posts it)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
@@ -4941,6 +4964,59 @@ So that no row claims more than the evaluation or log behind it.
 
 - DW-775: README Measured row 'The demo's incident, end to end with a live model: 30 of 30 runs' claims more than its source (ledger; routed by charter 2026-11-06)
 
+### Story 11.27: Live pages get their /state answer under load
+
+As a judge or visitor with several OcuTalon pages open,
+I want every live page to get its `/state` answer promptly,
+So that no page sits waiting behind its siblings and the live tests stop failing on a loaded host.
+
+[ADDED 2026-11-07, Epic 11 fix-forward (DW-550, DW-774), timeboxed to 3 hours (the Contest Planner's ruling of 2026-11-06 about 05:02Z, logged `planner_ruling subject=CI_split_rule_and_B_order` in the main checkout's `cycle-log-parallel.md`; voting-week tier (3)(a), the Planner's ruling of 2026-11-07 about 04:19Z). Suspected cause, to confirm or rule out: several live pages share one CSP session, the web gateway's per-session connection cap (`Maximum_Session_Connections`) queues the next `/state`, and the request waits behind the others. A product change to the install's web-application or gateway settings goes to the Planner as a described change before any product code changes; a cause in the tests is fixed in the tests. No pin is deleted or weakened, and no timeout or deadline is raised as the fix.]
+
+[AMENDED 2026-11-07, the Contest Planner's ruling of about 10:55Z under the owner's delegation (logged `planner_ruling subject=11.27_option_b`), after Step 1 ruled the per-session cap out (cycle log `lead_investigation`; DW-550's trailers): option (a), closing the story, was not chosen; DW-550 and DW-774 stay open and the story becomes test-only diagnostics, so the next CI occurrence names where `/state` waits. The acceptance criteria below replace the original five, which read: the reproduction with N pages in one CSP session; the install change to `Maximum_Session_Connections` (reported to the Planner first); a test-only fix if the cause is in the tests; the old-fails and 20-of-20 proof with full CI green; and the timebox stop. Step 1's result stands as the first criterion's evidence.]
+
+**Acceptance Criteria (as amended):**
+
+**Given** a live unit's browser run on CI
+**When** a test fails
+**Then** Playwright keeps that test's trace (`retain-on-failure`; a passing test keeps none), the trace is moved, before any upload step can run, to a folder on the self-hosted runner's own disk outside the job's workspace, under the run's tag and the unit's name, and no trace stays under `web/test-results/`; on a runner that is not self-hosted no trace is written at all
+
+**Given** that trace folder
+**When** a job runs
+**Then** the job deletes every run folder in it older than 7 days, and a test pins that no `actions/upload-artifact` path in `.github/workflows/*.yml` includes the trace folder or a trace file (CI artifacts keep no traces, as 1.0.2 shipped them: the repository is public)
+
+**Given** `loadedAfter`'s snapshot GET passing its bound
+**When** the diagnosis runs
+**Then** besides 11.22's licence, CSP-process and session-lock lines it prints the web gateway's status as `DIAG /state gateway ...` lines (per server: total connections, connections in use, private connections, queued requests; per connection: its state; counts and states only, no request body, cookie, session id or token), and every DIAG line also reaches the test's own output folder, which the failure artifact uploads (DW-756)
+
+**Given** the browser group with traces on and no failures
+**When** its time is compared with the same group's time before this story
+**Then** the added time is measured and reported; more than 2 minutes is reported to the Planner before the merge
+
+- DW-756: DW-550's DIAG /state dump never reaches CI output (only the tail of the e2e log is printed) (ledger; routed by the 11.27 re-scope 2026-11-07)
+
+- DW-550: flake: live:cards I10 timed out (90 s) in loadedAfter's /state wait after sign-in; passed on an unchanged rerun (ledger; routed by charter 2026-11-07)
+- DW-774: flake: live:online-session leave.spec page.close no answer within 30 s (L5, L6) and sign-in-2 live-socket W3 GET /state no answer in 30 s under heavy CI load (ledger; routed by charter 2026-11-07)
+
+### Story 11.28: The no-key runner test ignores a late timer row of the test before it
+
+As the release's CI,
+I want `OcuTalon.Test.Agent.Runners`'s `TestStartsWithNoKey` to judge only the event-log rows its own requests could cause,
+So that a late Ens.Alarm row of an earlier test's purged messages does not turn shards-2 (lane-a@rest) red on a loaded host.
+
+[ADDED 2026-11-07, Epic 11 fix-forward (DW-688), timeboxed to 90 minutes, first on lane A (the Contest Planner's ruling of 2026-11-07 about 10:55Z, logged `planner_ruling subject=DW-688_first`). Test-only unless the cause is in the product, in which case the Planner hears of it first. No pin is deleted or weakened; no timeout or deadline is raised as the fix.]
+
+**Acceptance Criteria:**
+
+**Given** `TestStartsWithNoKey`'s check "the event log holds no error or alert row since the mark"
+**When** Ens.Alarm logs "Message '<n>' can not be found, timer event ignored" for a message that existed before the test's mark (an earlier test's message that its clean-up removed)
+**Then** that row does not fail the check, and every other Type 2 or Type 6 row since the mark still does, including an Ens.Alarm row for a message created after the mark
+
+**Given** the fix
+**When** it is proved
+**Then** the old code fails under a repeat or load run (or, if the late row cannot be timed on demand, under a run that places one), the fixed code passes 20 of 20 under the same conditions, a test pins that the narrowed check still fails on a row it must see, and full CI is green on every workflow
+
+- DW-688: flake: Test.Agent.Runners TestStartsWithNoKey 'the event log holds no error or alert row since the mark' (late Ens.Alarm timer row of TestStartRefused's purged messages) (ledger; routed by charter 2026-11-07)
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
@@ -5291,6 +5367,42 @@ So that a release candidate's rehearsal is not failed by tests that refuse a rea
 **Given** the rehearsal's hermetic tests (no install)
 **When** they run
 **Then** one check lists run 1's tests (`playwright test --list` with run 1's arguments) and fails if any listed spec reads the mock Telegram base or the dummy token, with the mutation shown (an untagged mock-reading spec reds it)
+
+### Story 12.12: Got it on Telegram marks the notice handled, and needs-you counts only what still needs you
+
+[ADDED 2026-11-07, fix-forward from DW-873 (the Contest Planner under the owner's delegation, ruling D1 option (a), 2026-11-07 ~15:50Z, relayed by the orchestrator; re-opens Epic 12 under SC-5 after Epic 12 merged, for Sunday's 1.0.4): Story 17.6 sends tell-now notices to Telegram with a **Got it** button, and Telegram's press submits the GotIt command, but SessionOps still answers it with the 5003 stub, so nothing is marked handled, the message is never edited, and the digest's "needs you" count only grows (it reads up to 1,000 Decisions with no time window). This story builds the GotIt branch of SessionOps for Telegram's press and bounds the needs-you count. The web chat's and the Simulated phone's **Got it** controls stay with Story 18.4, which reads the same handled marker this story writes. DW-695 (no end-of-session delete of Data.Handled) is closed here, because this story writes Data.Handled's first rows.]
+
+As a user who gets tell-now notices in Telegram,
+I want pressing **Got it** to mark the notice handled and edit the message, and the digest's "needs you" to hold only what still needs me,
+So that the button does what it says and the digest's count stays honest.
+
+**Acceptance Criteria:**
+
+**Given** a tell-now notice in the paired chat with its **Got it** button (Story 17.6)
+**When** the paired chat presses **Got it** and `TelegramIn` submits the GotIt command (origin telegram, channel telegram, the notice's decision Ref, the session of the chat's live pairing)
+**Then** `SessionOps` carries it out instead of answering the 5003 stub: it checks that the Ref is a reference and that the Decision is the command's session's own tell-now Decision, writes one `Data.Handled` row (Ref, SessionRef, HandledAt in UTC, Channel), and sends one `Notification` of kind `handled` with that DecisionRef to Notify, so that `TelegramOut`'s existing edit in place (`EditHandled`) replaces the button with the existing catalog text `handled.marked` and its time; the outcome is a CommandResult with Ok 1 (FR-35, AD-14, AD-27, UX-DR143)
+**And** a second press of the same notice, from any channel, changes nothing and sends no second notification: the first press wins, through `Data.Handled`'s unique index on Ref, and the answer is Ok with an outcome that says it was already handled (AD-14)
+**And** a GotIt whose Ref is not a reference, names no Decision, names another session's Decision, or names a Decision that is not a tell-now Decision, changes nothing, writes no row, sends no notification and answers Ok 0 (AD-14)
+**And** no new user-facing string is added: the button, the edit and its text are the ones Story 17.6 already ships
+
+**Given** a session that ends (`EndSession`, Story 16.4)
+**When** `SessionOps.End` runs its cleanup
+**Then** it also deletes the session's `Data.Handled` rows, next to the other cleanup, tried even when an earlier step failed, and a failed delete counts as a failed step like the others (AD-4, AD-27)
+- DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27) (ledger; routed by fix-forward 12.12, 2026-11-07)
+
+**Given** the digest's "what needs you" (`OcuTalon.Digest.NeedsYou`, Story 17.6)
+**When** a digest is composed for a session
+**Then** the session's tell-now and act Decisions count only while they are not marked handled AND were recorded inside the digest's window (`WindowStart`, the session's newest digest, or a day before its first), and failed check rows and incidents awaiting approval (open approval requests) always count while they are open, whatever their age (FR-35, AD-14)
+**And** tests pin both cases: an old unhandled tell-now Decision outside the window is not counted, one inside it is, a handled one is not, and an awaiting incident older than the window still is
+- DW-873: Telegram 'Got it' button on tell-now messages does nothing: SessionOps answers NotImplemented, nothing is marked handled, and the digest's needs-you count only grows (ledger; routed by fix-forward 12.12, 2026-11-07)
+
+**Given** the change
+**When** this story merges
+**Then** `TestGotItNotBuilt` gives way to tests of the built command (a press marks it handled, a second press is a no-op, another session's Ref and a Ref that is not a tell-now Decision are refused, End deletes the session's Handled rows), a CI-mock Telegram test shows the press reaching the edit in place, each new pin is shown red with a mutation, and CI is green on every workflow
+
+**Out of this story:** the web chat's and the Simulated phone's **Got it** controls and their "Marked as handled at {time}" copies stay with Story 18.4 (voting week), which reuses this story's command and marker. The digest's own wording does not change here; if the window needs a wording change in a `digest.*` text, that is PUBLIC TEXT for the Contest Planner.
+
+**On a runner without a bot:** this story uses the CI Telegram mock only; no real bot, chat or key.
 
 ## Epic 13: Any production can use the bridge
 
@@ -8295,6 +8407,28 @@ So that each story stops paying a fresh IRIS start for every test run, while the
 
 - Implementation note: build the warm mode in `ci/iris.sh` or a new `ci/warm.sh` on `docker/tests/lib-live.sh`'s existing functions; `lib-live.sh` is on Epic 2's contended paths until Epic 2 merges.
 
+### Story 32.5: live:sign-in splits again after 4.11's tests
+
+As the release's CI,
+I want the live:sign-in unit split again, the way the 2026-11-05 split made live:sign-in-2,
+So that no unit runs over the 1,000 s line or near its 1,200 s deadline, and every group stays under the 35-minute budget.
+
+[ADDED 2026-11-07, Epic 32 fix-forward (the Contest Planner's ruling of about 17:55Z, relayed by the orchestrator): after Story 4.11's 96 more-to-try tests joined the chromium project, live:sign-in took 1,170 s on OCT-epic11 623b9cb0 (ci run 42392984136) and 1,034 s on feature 5b47f052 (ci run 42393186349), over the 1,000 s unit line and against its 1,200 s deadline. Its own commit on its own branch, so the Planner may pick it onto the release branch. No deadline is raised; every test is kept; nothing else changes.]
+
+**Acceptance Criteria:**
+
+**Given** the chromium project's spec files today
+**When** live:sign-in is split into two units, as live:sign-in-2 was split from it (`ci/units.sh` :69-74, `docker/tests/test-sign-in-2.sh`, a Playwright project of its own in `web/playwright.config.ts`)
+**Then** the two units together list exactly today's chromium test list (`npx playwright test --list` per project, diffed against today's one-unit list), no test is lost or duplicated, and every other project's list is unchanged
+
+**Given** the new unit
+**When** it is placed in a group
+**Then** that group's clean time plus the unit stays under 35 minutes, no deadline is raised, and the pins that name the sign-in units (the unit list, the group map, the changed-inputs rules, the e2e-part and playwright-projects tests) cover the new unit as they cover live:sign-in-2
+
+**Given** the change
+**When** it is pushed
+**Then** `docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow
+
 ## Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 17.1 and 18.1, moved whole and verbatim as Stories 33.1 and 33.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 2's names fixed in the spine and in code as stubs, and an admin opens a settings page that saves each section on its own, applies it within a minute and records it in the audit log, so that Epics 17 and 18 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 17 and 18) and its partner in this epic.
@@ -9125,6 +9259,28 @@ So that the card never shows a total the count does not explain.
 - DW-824: Heartbeat card: Today's cost sums more than the counted check-ins (online demo 1.0.2: Last check-in $0.0003, Today: 1 check-in, $0.0006) (ledger; routed by orchestrator 2026-11-06)
 - DW-785: docker/tests/test-heartbeat-overview.sh repeats about 25 lines of test-triage-heartbeat.sh's security-overview rule; unify both checks in one shared helper (ledger; routed by cr 2026-11-06)
 - DW-670: flake: GuideApi TestOnlyTheMarkerChanges and TestRunAgain went red on their fingerprint and passed on an unchanged rerun; print both fingerprints on failure (ledger; routed by harvest 2026-11-04)
+
+### Story 39.10: The heartbeat production test is stable (DW-639)
+
+*Home lane: B.* [AMENDED 2026-11-07, Story 39.10 code review (AD-29: `OcuTalon.Test.Schedule` is Lane B's), apply-and-report (Rule 5 tier 1): it read "*Home lane: A.*"]
+
+[ADDED 2026-11-07, SC-5 re-open of Epic 39, tier (3)(a) flake fix approved by the Contest Planner (relayed by the orchestrator); fix-forward, no boundary or dependency change: `OcuTalon.Test.Schedule.Heartbeat` `TestAfterAllTestsNothingSaved` failed "and the production runs every item" in CI's image shard lane-b on three heads in about six hours, each green on one rerun.]
+
+As a developer relying on CI,
+I want the heartbeat schedule tests to pass every time on a correct tree,
+So that a red on the image shard means a real defect.
+
+**Acceptance Criteria:**
+
+**Given** `OcuTalon.Test.Schedule.Heartbeat` in the image shard lane-b
+**When** it runs
+**Then** when the "and the production runs every item" pin fails (`Install.Step.Production.NotRunning()` not empty), its message names every missing item and the state of its job, so the next occurrence identifies the cause
+**And** the change is test-only; no pin is deleted, weakened or moved, no wait is added, and no timeout is raised
+**And** a demonstrated mutation (an item stopped before the pin's read) shows the new message naming the item
+
+[AMENDED 2026-11-07, orchestrator ruling ~12:10Z (option (a), diagnostics only, matching the Planner's 11.27 ruling on an unreproduced flake), after the plan's TIMEBOX: 0 red in 7 load runs, cause not confirmed. It read: "**Then** the cause of the "and the production runs every item" failure (`Install.Step.Production.NotRunning()` not empty) is confirmed with evidence: the old code fails under a repeat or load run / **And** the fix is test-only unless the cause is in the product (a product cause is ruled before any product code changes) / **And** the fixed test passes 20 of 20 runs under the same load; no pin is deleted or weakened, and no timeout is raised as the fix". The fix waits for the next named occurrence; DW-639 stays a flake class.]
+
+- DW-639: flake: OcuTalon.Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('and the production runs every item': Install.Step.Production.NotRunning() not empty) red in CI image shard lane-b (ledger; routed by orchestrator 2026-11-07)
 
 
 ## Epic 40: Choose how OcuTalon talks to you
