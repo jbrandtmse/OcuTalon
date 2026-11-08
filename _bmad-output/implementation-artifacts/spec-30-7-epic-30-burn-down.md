@@ -2,13 +2,14 @@
 title: 'Epic 30 burn-down'
 type: 'bugfix'
 created: '2026-11-02'
-status: 'draft'
-baseline_revision: '0e5d27304acbf24dcc1896176578ec0013d8fda1'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md'
+  - '{project-root}/_bmad-output/implementation-artifacts/set-aside/30-7-epic-30-burn-down-1.patch'
 warnings: ['oversized']
+deferred: []
 ---
 
 <intent-contract>
@@ -92,150 +93,124 @@ warnings: ['oversized']
 
 ## Code Map
 
-Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/`, `docker/`, `ci/` or `_bmad-output/`. Lane A unless marked.
+Re-derived on 2026-11-08 against `76c31e50` (OCT-epic30). Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/`, `ci/`, `docker/` or `_bmad-output/`. "Patch" is `_bmad-output/implementation-artifacts/set-aside/30-7-epic-30-burn-down-1.patch`; its line numbers are given as `patch:N`.
 
-**DW-437, purge**
-- `Install/Step/Retention.cls:66-69`: `Purge` calls `Bridge.Purge.Run(days)`. This is the hook for a shared `now`.
-- `src/bridge/cls/OcuTalon/Bridge/Purge.cls:25-49`: `Run(days, now)` and `DeleteBefore`. It is the sibling model; the bridge must not delete host tables (AD-2).
-- `Bridge/Time.cls:124-140`: `DaysCutoff(days, caller, .cutoff, now)`.
-- `Install/Registry.cls:20-36,71-90`: areas run alphabetically (Core, Digest, Retention, Watch, Web), and every area runs whatever another returned.
-- **Lane B tables:**
-  - `Data/Turn.cls:12,24-30,75-79`: `CreatedAt`, the decision refs, `ShownDecisionRef`.
-  - `Data/Delivery.cls`: `OwnerRef`, `RecordedAt`.
-  - `Data/Session.cls`: `Ref`, `CreatedAt`, `CspSessionId`, `IrisUser`. Epic 31's file: read only.
-- **Readers of a kept turn:**
-  - `Data/Ownership.cls:68-88` (`TurnCost`; its SQL is at `:728-730`).
-  - `Live/Payload/ChatMessage.cls:95` (`SetDecision`, `FromRow`).
-- **Timing:** `Decide.cls:1292` stamps the Decision when it is recorded, so a Decision is never earlier than its Turn's `CreatedAt` (`Core/Conversation.cls:184`).
-- **Current-session signals:**
-  - Signed in: `Ownership.SESSIONKEY` ("OcuTalon.SessionRef") in CSP session data. The store-read precedent is `Web/Public/Status.cls:129-142` `Visitors(store)`: `$ListGet(@store@(id), $$$sesOldTimeout) > now`, then `@store@(id, 0, key)`.
-  - Pairing: `Data/Pairing.cls` (`SessionRef`).
-  - Approvals: `src/bridge/.../Data/ApprovalRequest.cls` (`OwnerRef`, `State`).
-  - Watches: `Data/BackgroundCheck.cls` (`SessionRef`).
-  - Reminders: `Data/Reminder.cls` (`SessionRef`, `State` pending).
-  - Cross-owner SQL precedent: `Ownership.ActiveVisitors:453-459`.
-- **Tests and fixtures:**
-  - `Test/Data/Fixture.cls`: `Session :19`, `Turn :32`, `Reminder :50`, `Check :65`, `Approval :102`, `Decision :120`, `Usage :139`, `Delivery :200`, `Pairing :230`, `Clean :331`.
-  - `Test/Bridge/AuditLog.cls`: `Now`, `Wait`, `Entries`.
-- `Test/Install/Retention.cls`:
-  - `Seed :293-354` and `TestOcuTalonPurge :247` (add the turns here).
-  - `TestAuditUntouched :262`, the model for row 7.
-  - `TestNoSettingRead :146-156`, whose class list gains `OcuTalon.Data.Purge`.
-- Spine AD-27: `ARCHITECTURE-SPINE.md:906-915`. Lint baseline: `"ok": false`, 8 low `placeholder` findings (`{time}`, `{day}`, `{what happened}`, `{reason}`, `{entry}`, `{finding}`, `{time}`, `{n}`). The new text has no braces.
+**The set-aside patch on the current head** (checked with `git apply --check --include=<path>`, no tree change):
+- Applies cleanly: `Data/Purge.cls` (new, patch:231-376), `Test/Data/Purge.cls` (new, patch:962-1297), `Install/Step/Retention.cls` (patch:377-410), `src/bridge/cls/OcuTalon/Bridge/Replay.cls` (patch:120-230), `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` (patch:46-85), `Test/Bridge/Runner.cls` (patch:819-961), `Test/Bridge/Decide.cls` (patch:669-735), `Test/Bridge/Approval.cls` (patch:411-668), `Watch/Reader.cls`, `Watch/IncidentManager.cls`, `Tools/WatchAnswers.cls`, `Tools/WatchTools.cls`, `Test/Watch/Reader.cls`, `Test/Watch/Tools.cls` (patch:1434-1589).
+- Conflicts: `src/bridge/cls/OcuTalon/Bridge/Approval.cls` (patch:1-45; the file gained the `setting` kind in Story 40.5) and `Test/Install/Retention.cls` (patch:1392-1433; Story 17.5 added the Digest CheckRun and Sent rows).
+- Void: `Bridge/Redact.cls`, `Test/Bridge/Redact.cls`, `Test/Eval/KeyProof.cls` (Story 30.8). The spine hunk (patch:1590-1610) is rewritten by this story.
 
-**DW-386, redaction**
-- `src/bridge/cls/OcuTalon/Bridge/Redact.cls`:
-  - `:12-16` the doc;
-  - `:25` `REDACTED`;
-  - `:90-110,136-175` the JSON passes;
-  - `:184` `ReplaceAll`;
-  - `:193-202` `PatternList`, which today misses `dop_v1_` and PEM. Its Telegram rule `(?<![0-9])[0-9]{6,12}:…` misses a run of 13 or more digits that `key_like` still flags.
-- `docker/tests/lib-keys.sh:15-17` `KEY_LIKE_ERE` (seven alternatives). `ci/mock/mock.mjs:64-73` holds its copy.
-- `Test/Bridge/Redact.cls`: the fragment idiom is at `:71-87`, `TestPatterns :58-91`, `TestIdempotent :134` and `Check :275`.
+**DW-437 / DW-581, the purge**
+- `Install/Step/Retention.cls:64-69` `Purge` is `Quit ##class(OcuTalon.Bridge.Purge).Run(daysToKeep)` today.
+- `src/bridge/cls/OcuTalon/Bridge/Purge.cls`: `Run(daysToKeep, now)` `:27`; `Sessions` `:54-104` reads every `ConversationLink.SessionId`, marks an AI session that no link names in `^OcuTalonBP.Unlinked` and deletes it on a later run once the mark is a day old. It is the only bridge class besides Decide that names `ConversationLink`.
+- `src/bridge/cls/OcuTalon/Bridge/Data/ConversationLink.cls`: keyed `(OwnerRef, Agent)`, holds `SessionId`; its one writer is `Point` (`:54`). No API drops a session's links.
+- `src/bridge/cls/OcuTalon/Bridge/Time.cls:203` `DaysCutoff(daysToKeep, caller, Output cutoff, now = "")`; `:164` `PlusSeconds`.
+- Tables (SQL names) and columns the purge reads or deletes: `OcuTalon_Data.Turn` (`SessionRef`, `CreatedAt`; `Data/Turn.cls:12,30`), `OcuTalon_Data.Delivery` (`OwnerRef`, `RecordedAt`; `Data/Delivery.cls:12,24`; Telegram rows keep redacted `Text`, `Channel/Telegram/Out.cls:294,303`), `OcuTalon_Data.Session` (`Ref`, `CreatedAt`; `Data/Session.cls:26,35`; Epic 31's file, read only), `OcuTalon_Data.GuideState` (`SessionRef`, unique), `OcuTalon_Data.SimMessage` (`SessionRef`), `OcuTalon_Data.Reminder` (`SessionRef`, `State` pending, fired or cancelled; `Data/Reminder.cls:20-21`), `OcuTalon_Data.BreakFeedRun` (`SessionRef`), `OcuTalon_Data.Pairing` (`SessionRef`, `:27`), `OcuTalon_Data.BackgroundCheck` (`SessionRef`, `:14`), `OcuTalon_Data.Memory` (`SessionRef`; Lane A, Epic 19; never written here), `OcuTalon_Data.Document` (`OwnerRef`: the session on the online demo, `instance` on a local install), `OcuTalon_Bridge_Data.Decision` (`OwnerRef`, `RecordedAt`; `:18,69`), `OcuTalon_Bridge_Data.ApprovalRequest` (`OwnerRef`, `State`; states in `Msg/Enum.cls:24`).
+- Signed in: `Data/Ownership.cls:51` `SESSIONKEY` "OcuTalon.SessionRef"; the store read precedent `Web/Public/Status.cls:129-142` (`$ListGet(@store@(id), $$$sesOldTimeout) > now`, `$$$sesOldTimeout` = 3, `irislib/%cspBuild.inc:156`).
+- The sibling list of a session's rows: `Core/SessionOps.cls:283-301` `End` (an online-demo sign-out).
+- Readers of a kept turn: `Data/Ownership.cls` `TurnCost`; `Data/Turn.cls:75` `ShownDecisionRef`; `Live/Payload/ChatMessage.cls:66` `FromRow`.
+- The daily digest (Epic 17) records a `digest` Delivery for every session that has not ended each day (`Digest/Process.cls:205-210`, `Channel/WebChat/Out.cls:61-62`), so such a session always has a Delivery newer than the cut.
+- Fixtures: `Test/Data/Fixture.cls:22-251` (Session, Turn, Reminder, Check, Approval, Decision, Usage, Delivery, Pairing) and `Clean :369`; `Test/Bridge/AuditLog.cls` `Now`, `Entries`, `Wait`; `Test/Bridge/Source.cls` `Text`, `CodeLines`, `Matches`; `Test/Bridge/Purge.cls:331` `UsageExists`.
+- `Test/Install/Retention.cls` (831 lines): header doc `:19`; `TestNoSettingRead` list `:152`; `TestOcuTalonPurge :247-262` (`inc59` at `:254`, `item61` at `:255`, CheckRun/Sent asserts `:257-260`); `TestAuditUntouched :266`; `Seed :297` (owner fixtures end at `:331`, `// 9:` at `:332`); `RunTasks :367`, `RunAndWait :388` (`%SYS.Task.RunNow`), `WaitRun :405-419` (polls `%SYS_Task.History` up to `RUNSECONDS` 180, re-calls RunNow every `RETRYSECONDS` 60 while `RunningJobNumber` is empty), `Runs :791`. Story 30.2's AC 2 requires that the Task Manager runs all three tasks.
+- `Data/Delivery.cls:29` the `Text` doc: "The rendered text of a web notice card, exactly as it was sent; empty for any other row." (Lane B's class; see Declined DW-437 doc line.)
 
-**DW-444 and DW-470, replay**
-- `src/bridge/cls/OcuTalon/Bridge/Replay.cls`:
-  - `:30-97` `Run`: `StartExecution :42`, then `BuildAgent`, then `ExecuteTool`;
-  - `:148-162` `Record`, which writes the Action entry and calls `FinishExecution`;
-  - `:174` `ActionEntry`.
-- `src/bridge/cls/OcuTalon/Bridge/Approval.cls`:
-  - `:392-408` `StartExecution` and `FinishExecution` (`interrupted` leads to `failed`, the audit and `approval.result`);
-  - `:769-840` `Reconcile`, passes 1-3; executing rows are untouched today.
-- `Install/Step/Approvals.cls:8-11` calls `Reconcile`, run at start by `Install/Step/Reconcile.cls`.
-- `Fix/Run.cls:96,278-299` closes interrupted fix runs at start (the sibling).
-- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` (Story 30.1's file: separate hunk):
-  - `:1100-1125` `ConcludeTool`, which always records `error`;
-  - `:141` `HELDBEFOREUPDATE` (the U-170 sentence-in-Reasons precedent);
-  - `:148` `NOKEYTEXT`;
-  - `:962-990` `Classify`.
-- Catalog words reused: `fallbackReason.noKey` "no model key is set" and `conversation.turnFallback` "... Nothing was changed." (`Msg/Catalog/Core.cls:157,227`).
-- Public texts on replay: `web/src/app/approvals/approval-view.ts:37,39` (the fix card, "without asking the model again"; fixes use no provider). `README.md:43` is about decisions.
-- Tests: `Test/Bridge/Approval.cls` (Reconcile callers are listed in the row 11/12 task), `Test/Bridge/Runner.cls` (replay with `RunnerFixture.PointKeys`).
+**DW-444 / DW-582 / DW-588 / DW-462, replay and holds**
+- `src/bridge/cls/OcuTalon/Bridge/Replay.cls` (unchanged since Story 30.3): `Run :30-97`; `StartExecution` at `:42` (a refusal calls `CloseUnstarted` and answers `Failure`, ToolsRun 0); `BuildAgent` `:56`, `NewSession` `:57`, `Context.Begin`/`Grant` `:58-59` (a failure here leaves `executed` 0, so ToolsRun 0); `ExecuteTool` `:65`; `Record :148-169`; `ActionEntry`.
+- `src/bridge/cls/OcuTalon/Bridge/Approval.cls`: class doc Reconcile bullet `:28-31`; `TASKSECONDS` `:62`; `AnswerLocked` calls `CompleteHoldTask` under the row lock `:385`; `StartExecution :436-439`; `FinishExecution :446-452` (`interrupted` leaves `failed`, audits, fires `approval.result`); `HoldTask :597-602`; `CompleteHoldTask :607-629` (polls TASKSECONDS, then only warns); `Arm` (sends the `TaskRequest` with key `task`); `HoldResponse :716` (key `replay` does nothing but warn on a still-approved row; key `task` reads `%Action` of an `EnsLib.Workflow.TaskResponse`); `Replay :788-804` (`SendRequestAsync(DECIDEITEM, request, 1, "replay")`); `LiveHold :808`; `IsLive :818`; Reconcile doc `:825-834`; `Reconcile :835` (pass 1 `:838-853`, pass 2 `:854-868`, `Quit ..ReconcileDeliveries(sc)` `:869`; `:855-857` returns early when the pending rows cannot be read); `ReconcileDeliveries :873-896`; `OwnedByLiveHold :906-915`.
+- Setting rows go `executing` too (`Core/SettingsOps.cls:568-590`), so a closer must filter `Kind = 'tool_call'`.
+- Ens behaviour (code read, inference until Task 0b): a business process keeps each awaited response as an `Ens.BP.MasterPendingResponse` (`RequestHeaderId`, `CompletionKey`, `IsTimer`; `irislib/Ens/BP/MasterPendingResponse.cls:17-23`); `Ens.Host.SendDeferredResponse(headerId_"|"_productionName, response)` (`irislib/Ens/Host.cls:679-709`) enqueues a response for any request header that has a return queue; a response that is not in the pending list, or reaches a completed process, is discarded (`irislib/Ens/BusinessProcess.cls:294,322`). `EnsLib.Workflow.Engine.%CancelRequest` discards a task with no deferred response; `CompleteTask` of a real task sends its response (`irislib/EnsLib/Workflow/Engine.cls:201-245,564`).
+- After a restart Ens restores Decide's timer and re-queues a runner's in-flight request (`irislib/Ens/Alarm.cls:181-227`, `Director.cls:1993-1995`, `Job.cls:416-419,741-779`; inference), so a re-delivered replay can find its row `executing`.
+- Reconcile runs at every production start: `Install/ReconcileIn.cls:2-10,94`, `Install/Step/Reconcile.cls:5-7` -> `Install/Step/Approvals.cls:8-11`. No existing test leaves an executing `tool_call` row and then runs Reconcile (`Test/Bridge/Approval.cls:1353,1378`, `Runner.cls:1071`, `Decide.cls:421`, `Gate.cls:1830`, `Test/Data/Ownership.cls:1138` leave such rows; none reconciles).
+- `Test/Bridge/Approval.cls` (3339 lines; about 140 s of its own run time): `TestAnswerBeforeTheTaskExists :1410-1451`; ClassMethod helpers callable from another class: `HoldLockInJob :1507`, `TaskIds :2388`, `TaskCount :2406`, `WaitTask :2412`, `WaitHoldGone :2460`, `WaitNode :2470`, `Prop :3030`, `TaskFacts :3063`, `StartJob :3243`, `Clean :2684`; instance helpers: `Ready :2207`, `Answerer :2991`, `UseReplayAgent :2837`, `RunnerRequests :2940`, `AssertOneOutcome :3114`. `Test/Bridge/ApprovalRows.cls` is the shared fixture of approval rows (`NewRow`, `Save`).
+- `Test/Bridge/Runner.cls`: `UNSETVARIABLE :112`; `TestReplayThroughTheRunner :998`; `ApprovedRow :1199`; `NewRunner :1261`; `ProviderConfig :1275`; `Guard :1301`.
 
-**DW-448, key proof:** `Test/Eval/KeyProof.cls:252-302` `Walk` (the match is at `:276,283`), `TestGlobalHits :39-66`. No `%Stream` property exists in `src/`. `irislib/%AI/Agent/Session.cls:63` `ContextData` is a compressed `%Stream.GlobalCharacter`, stored in `^AI.Agent.SessionS`.
+**DW-470, the failure sentence (U-214)**
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: `HELDBEFOREUPDATE :178` (the sentence-in-Reasons precedent); `NOKEYTEXT :186` ("@{env:|has no value", unchanged); `Retryable :529-531` (kind tool is never retried); `Classify :1245` (no_key `:1256`); `Conclude :1329-1412` (Epic 19's turn-filter call at `:1355`); `ConcludeTool` doc `:1435-1441`, body `:1442-1467`; `StillApproved :1470`; `RecordFallback :1581` (`..., broken, reasons`).
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`: `BuildAgent :197-219` (cached after the first build, `:199`; AI Hub `OnInit` -> `%CreateProvider` builds the provider object from the settings, no request: `irislib/EnsLib/AI/Agent/OutboundAdapter.cls:129-152,243-261`, `irislib/%AI/Agent.cls:197-231,264-284`); `NewSession :308-319` (in memory).
+- No MCP path exists in the product: no `call_mcp_tool` or MCP client in `src/`; the gate only recognises `mcp:` toolrefs (`Policy/Gate.cls:91-92,412-414`); Epic 22 is backlog; `ci/mock` is the model mock only. Held `tool_call`s today come from developer or extension tools (fixture `Test/Bridge/ZzReplayTool.cls`).
+- Who reads a Decision's Reasons: `Live/Payload/Decision.cls:88` (verbatim, to the web's decision strip and rail); `Core/BridgeSink.cls:313-330` shows a reason in the result notice only when it is a `HeldReasons` line (`HELDBEFOREUPDATE`; Lane B's file, unchanged).
 
-**DW-462, flake:** `Test/Bridge/Approval.cls:1390-1425`. The race: `CompleteHoldTask` (`Approval.cls:551-573`) polls `TASKSECONDS` (5 s) from the save, while the test's `EnableConfigItem` (`UpdateProduction`, up to 10 s on x64) creates the task later. Nobody then completes it, and the hold waits on its 24 h timer. A test that saves a fake `EnsLib.Workflow.TaskResponse` already exists (`:2376`). Reconcile pass 1 cancels the open task of a non-pending row, which re-arms and delivers.
+**DW-584 (U-215)**
+- Keys: `Tools/CommandCall.cls:41-44` (`ItemId_":"_(CommandCount+1)`); a `list_reminders` in the same turn takes `:1`.
+- The owner's repeat check: `Schedule/ReminderOps.cls:176-182` (`Cancel` -> `KeyedRow("CancelKey", ...)` `:225-237`): the same key and Ref answers the first result with no second effect; the same key for another Ref is refused `reused_key`.
+- Tests: `Test/Schedule/Reminders.cls:664` `TestSeveralCancelsFromOneToolCall` (the model; helpers `Guard`, `Session`, `SetReminder`, `EventStates`, `RequestsBetween`, `WaitEnded`; `Test/Schedule/ReminderFixture.cls` `Begin`); `Test/Schedule/ReminderChat.cls:380` `TestCancelAllThroughChat` (keys `:2`-`:4`, no repeat).
 
-**DW-371:** `Watch/IncidentManager.cls:1274-1293` (`Purge`, with its hand-made day check and cutoff). The model to copy is `Digest/Data/Item.cls:64-75`. Tests: `Test/Watch/Lifecycle.cls:797-857,970-976`.
+**DW-495:** `Test/Bridge/Gate.cls:2014` (the row `{"reminderRef":"x"}` in `AssertSafeReadOnlyOnly :1957`; loop `:2025-2029`); `RunDenied :2465`; `Tools/ReminderTools.cls:82,87` (`reminderRefs`; BADREFS before `Run`); `READONLYCANCELREMINDER :51`. Epic 19's regions: `TestTaintFollowsTrustedOutput :1299` and `FreeIncident :2182`.
 
-**DW-541:**
-- `Watch/Reader.cls:68-90` `Productions`, which calls `Current(namespace, .description)`; `Current :255-276` already computes `state` from `GetProductionStatus`.
-- `Tools/WatchAnswers.cls:273-289` `Listed` and `Names`. `Names` is shared with the `unknown_production` refusals.
-- `Tools/WatchTools.cls:124-127` `ListProductions` (its doc is the tool description).
-- Tests: `Test/Watch/Reader.cls` `TestOrdersIsListed` (pins the keys), `TestStoppedProduction :274`; `Test/Watch/Tools.cls:256-270`.
+**DW-371:** `Watch/IncidentManager.cls:1290-1319` `Purge` (own day check and cutoff); model `Digest/Data/Item.cls:64-75`; tests `Test/Watch/Lifecycle.cls:797` `TestPurge`, `:970` `TestPurgeFarCutoff`.
+
+**DW-541:** `Watch/Reader.cls:96` `Productions` (the `Current` call `:113`; `Current :511`, `state` its 12th parameter, set at `:530` from the `$$$eProductionState*` codes only); `Tools/WatchAnswers.cls:263` `Listed` (`Names` stays `{name, namespace}` for `unknown_production` and `ambiguous`); `Tools/WatchTools.cls:121-122` `ListProductions` doc (the tool description the model reads; `TRUSTEDOUTPUT`/`READONLY` `:68-70`); `Test/Watch/Reader.cls:60-70`, `Test/Watch/Tools.cls:263`.
+
+**DW-589:** `Test/Eval/KeyProof.cls:348-427` (`Walk`, `Holds`, `HoldsSubscript`, `LISTDEPTH` `:39`); the scan runs from the frozen `eval/run.sh:503-510`.
+
+**Spine:** `ARCHITECTURE-SPINE.md` AD-27 `:950-959` (the `Bridge.Purge` bullet `:956`); frontmatter `updated: '2026-11-07'`. Lint baseline: `"ok": false`, 10 low `placeholder` findings (`{time}`, `{old}`, `{new}`, `{day}`, `{what happened}`, `{reason}`, `{entry}`, `{finding}`, `{time}`, `{n}`).
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: in AD-27's Rule, add one bullet after the `Bridge.Purge` bullet. It reads: "With the same now, `OcuTalon.Data.Purge.Run(daysToKeep, now)` (called by the Retention area after the bridge's purge) deletes Turn rows created before the cutoff and Delivery rows recorded before it. It deletes a Session row created before it only when the session has no Turn, Delivery or Decision at or after the cutoff and is not current (signed in through a live CSP session, a live Telegram pairing, an open approval request, a watch or a pending reminder): never by age alone. It touches only OcuTalon's own tables and never an IRIS audit entry (AD-17). [AMENDED 2026-11-02, Story 30.7, orchestrator ruling U-210]". If the edit is made on a later UTC day, write that day's date in the marker. Write no braces. Set the frontmatter `updated:` to the same date. Then run the lint (Verification). No other AD changes.
-- [ ] `Data/Purge.cls` (new; Lane B's Data area, a footprint extension) -- `Run(daysToKeep, now = "", store = "^%cspSession") As %Status` (rows 1-8):
-  - Get the cutoff from `Bridge.Time.DaysCutoff` (naming `OcuTalon.Data.Purge.Run`). On an error or an empty cutoff, return.
-  - Delete turns, then deliveries, then the qualifying sessions. Select the session IDs first, then check each one again and `%DeleteId` it. Append every error.
-  - `store` is the CSP session store, a seam for the tests, as in `Status.Visitors`.
-  - Rule 2: the ~10-line SQL delete is a copy of `Digest.Data.Item.Purge`'s form, because the bridge's `DeleteBefore` must not delete host tables (AD-2), and Turn uses `CreatedAt`.
-- [ ] `Install/Step/Retention.cls` -- `Purge`:
-  - Take `now = Bridge.Time.NowUtc()` once and call `Bridge.Purge.Run(days, now)`, then `Data.Purge.Run(days, now)`.
-  - Append the two statuses, so each part runs whatever the other returned.
-  - Update the doc. This is the same cut for decisions and turns (row 3).
-- [ ] `Test/Data/Purge.cls` (new, lane-b `Data`):
-  - `TestTurnsReadNoPurgedDecision` (rows 1-3; the U-210 test): call `Retention.Purge(90)` and `Data.Purge.Run` with an explicit `now`, then assert through `TurnCost`, `ShownDecisionRef` and `ChatMessage.FromRow` for every kept test turn.
-  - `TestSessionKeptWhileActiveOrCurrent` (rows 4-6; condition 1): one session per signal, with a private store global for the signed-in case.
-  - `TestOnlyOwnTablesAndAuditKept` (row 7; condition 2): the audit entries survive. A static check (`Test.Bridge.Source` `Text`) also shows that `OcuTalon.Data.Purge` names no `%SYS`, no `Audit` and no table outside `OcuTalon_Data`/`OcuTalon_Bridge_Data`, and deletes only from `OcuTalon_Data.Turn`, `Delivery` and `Session`.
-  - `TestBadArguments` (row 8).
-  - Each test creates and removes its own rows (`Fixture.Clean`), also after a failure.
-- [ ] `Test/Install/Retention.cls` -- `Seed`: add turns 61 and 59 days old on the fixture owner. `TestOcuTalonPurge` asserts row 9. Add `OcuTalon.Data.Purge` to `TestNoSettingRead`'s list.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Redact.cls` -- `PatternList` and the doc:
-  - add `dop_v1_[A-Fa-f0-9]{20,}`;
-  - add a PEM rule from `-----BEGIN [A-Z ]*PRIVATE KEY` through the first `-----END [A-Z ]*PRIVATE KEY-----`, else to the end of the text; it matches across real and `\n` line breaks;
-  - widen Telegram to `(?<![0-9])[0-9]{6,}:[A-Za-z0-9_-]{30,}`.
-  - The regex source must not itself match `key_like`. -- DW-386.
-- [ ] `Test/Bridge/Redact.cls` -- add `TestDigitalOceanToken`, `TestPrivateKey`, `TestAnthropicKey` and `TestTelegramToken`, one per shape (row 10). Each uses fragment-built values, in text and in JSON, through `Check` (idempotent). Extend the header list. -- DW-386.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Replay.cls` -- DW-444:
-  - `Run` takes `LOCK +^OcuTalon.Bridge.Replay(ref)` before `StartExecution` and releases it after `Record`/`FinishExecution`, and on every error and exception path.
-  - New `CloseInterrupted() As %Status`: for each `Kind='tool_call' AND State='executing'` row, take the lock with timeout 0. If it is taken, open the row, write `ActionEntry(row, "interrupted")` through `Audit.Record("Action", …)`, call `FinishExecution(ref, "interrupted")`, and release the lock. If it is not taken, skip the row.
-  - Rule 2: this extends `Record`'s write-then-finish. A lock replaces `Fix.Run`'s production-start comparison, because the row has no start time (that would be a new column) and a test's Reconcile must never close a live replay.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Approval.cls` -- `Reconcile`: add pass 4, `Replay.CloseInterrupted()`, after pass 3, appending its status. Update the class and Reconcile docs. -- DW-444.
-- [ ] `Test/Bridge/Approval.cls` -- rows 11-13: the dead and live cases. The live replay is a `StartJob` that holds the replay lock until signalled. Assert no `tool` request header after Reconcile. Before the change, search every test that leaves an executing `tool_call` row and then runs Reconcile (step or method), and fix any that relied on rows staying executing. -- DW-444.
-- [ ] Task 0 (DW-470, fresh throwaway, mock only; record the result in `## Design Notes` "Measured at implementation"):
-  - Replay a `tool_call` (a) with the runner's key variable unset and (b) with the provider unreachable (the mock stopped, or the runner pointed at a closed port).
-  - For each, record the failure text, where it was raised (BuildAgent or ExecuteTool), `ToolsRun`, and whether the tool's code ran.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` -- `ConcludeTool` only (a separate hunk that uses no 30.1 code; Story 30.1's file). Apply this only when the failure text is a provider failure (`NOKEYTEXT`, or the measured `UNREACHABLETEXT` with its source note, like `TIMEOUTTEXT`) and Task 0 showed that the tool did not run:
-  - a. Record the fallback with FallbackReason `no_key` for no key (AD-8's own mapping), else the reason AD-8 gives.
-  - b. Set Reasons to the new parameter `REPLAYNOKEY` = "No model key is set, so the approved call did not run. Nothing was changed." or `REPLAYUNREACHABLE` = "The model provider could not be reached, so the approved call did not run. Nothing was changed.", as `HELDBEFOREUPDATE` does.
-  - Every other failure is unchanged (row 16).
-  - Rule for (b) unreachable: if Task 0 shows that the tool ran, or that the text cannot be told from a tool's own error, write no unreachable sentence. Record the evidence instead, and report it under Auto Run Result.
-- [ ] `Test/Bridge/Runner.cls` -- rows 14-16: a no-key replay (`PointKeys` to an unset variable), the unreachable case (per Task 0), and a tool's own error. Assert on the row and on the kind-`tool` Decision row. -- DW-470.
-- [ ] `Test/Eval/KeyProof.cls` -- `Walk`: when a node's data or subscript does not hold the value, decode a `$ListValid` non-empty value with `$ListNext`, recursing into nested lists (bound 10), and count a hit. Extend `TestGlobalHits` with row 17. -- DW-448.
-- [ ] Measurement (DW-448, fresh throwaway, `e30s7i`):
-  - List the compiled message-body classes OCUTALON uses (the distinct `Ens.MessageHeader.MessageBodyClassName` after the class runs, plus every compiled subclass of `Ens.Request`, `Ens.Response` and `Ens.MessageBody` under `OcuTalon`) and their `%Stream` properties (`%Dictionary.CompiledProperty`).
-  - **If one can hold a stream:** save one with a fake key past 1,024 characters, show that `Walk` misses it, then decode compressed and split chunks in `Walk` (`$System.Util.Decompress` per chunk when the root header's third piece is greater than 0, joining chunk boundaries) and show that it now finds the key.
-  - **If none can:** record the build, the classes and what was stored in Design Notes, for the lead's wontfix-accepted close.
-- [ ] `Test/Bridge/Approval.cls` -- `TestAnswerBeforeTheTaskExists` (DW-462, row 18): keep OcuTalonApprovals disabled through the answer job's wait.
-  - (a) When the row is approved, save a fake open `TaskResponse` with the hold's subject (`TASKSUBJECT`+ref), as at `:2376`. Assert that the job completes it with `Approve|OcuTalonWorkflow|1|` and returns `done`.
-  - (b) Re-enable the item without a time limit and wait up to 60 s for the real task. Assert it is open (Answer has returned). Run `Bridge.Approval.Reconcile()`. Assert the hold ends and exactly one approved outcome is sent.
-  - (c) Clean up the fake task.
-  - Update the method doc.
-  - Two points rest on inference, so check them first:
-    - that completing the fake task errors nowhere (the `:2376` precedent);
-    - that Reconcile pass 1's cancel ends the hold with the row's outcome (`HoldResponse` re-arm at `Approval.cls:691,715-716`).
-  - If (b)'s heal does not happen, change no product code. Report it under Auto Run Result as a product residual, and keep (a) plus a (b) that asserts only the documented 5 s contract (the late task stays open).
-- [ ] `Watch/IncidentManager.cls` -- `Purge`: take its cutoff from `Bridge.Time.DaysCutoff(daysToKeep, "OcuTalon.Watch.IncidentManager.Purge", .cutoff)`. On an error or an empty cutoff, return. The rest is unchanged, and so are the error texts. -- DW-371.
-- [ ] LAST, separable -- DW-541:
-  - `Watch/Reader.cls` `Productions`: pass `.state` to `Current` and add `"state"` to each entry. Update the class doc.
-  - `Tools/WatchAnswers.cls` `Listed`: add each entry's `state` to `productions` (`Names` is unchanged).
-  - `Tools/WatchTools.cls` `ListProductions`: its doc says each production has its running state.
-  - Tests: `Test/Watch/Reader.cls` (`TestOrdersIsListed` expects the keys `displayName,namespace,production,state`; `TestStoppedProduction` asserts `state` is `stopped` while stopped and `running` after the restart) and `Test/Watch/Tools.cls:263` (the expected object gains `"state": "running"`).
+- [ ] Task 0 (measure first, on the warm throwaway `e30s7iw`, mock only, no real key; record each result under Design Notes "Measured at implementation"):
+  - 0a (U-214). With the shadow runner of `Test.Bridge.Runner` (`ZzRunner`, agent `ZzReplayAgent`), replay an approved `tool_call` (i) with the key placeholder naming an unset variable, (ii) with a `ProviderConfig` whose provider object cannot be built for another reason (an unknown provider name, then a missing Config Store entry), and (iii) with the key set and the base URL a closed port. For each record the step that failed (`BuildAgent`, `NewSession`, `Context`, `ExecuteTool` or none), FailureText, ToolsRun, whether the tool's code ran, and the row's end state. Expected from the 2026-11-02 run and the code read: (i) fails in `BuildAgent`, both `NOKEYTEXT` pieces, ToolsRun 0; (iii) does not fail.
+  - 0b (Ens). (1) A request sent to a disabled production item waits on that item's queue (the hold's replay is not answered while the runner it names is disabled). (2) `Ens.Host.SendDeferredResponse` on the `RequestHeaderId` of a live hold's pending response with key `task` (body `Ens.StringResponse`, value `Approve`) and with key `replay` (body a failure `OcuTalon.Bridge.Msg.Reply`) reaches `HoldResponse` with that key once, and a later answer to the same request is discarded. (3) Whether the Workflow operation, once enabled again, still creates the task of a `TaskRequest` whose header was answered that way (the late task), and that Reconcile pass 1 then cancels it with no response to anyone.
+  - If 0b (1) or (2) does not hold, change no product code for DW-582 or DW-588, keep the patch's DW-462 test and Task 1's tests, and end the implement stage `blocked` with the measured facts (an intent gap: rows 20 and 21 need another mechanism).
+- [ ] Task 1 -- apply the reusable hunks: `git apply --3way --include=<path> ... _bmad-output/implementation-artifacts/set-aside/30-7-epic-30-burn-down-1.patch` for exactly the 14 clean files of the Code Map (excluding the void files, the two conflicting files and the spine). Then merge by hand:
+  - `src/bridge/cls/OcuTalon/Bridge/Approval.cls` (patch:1-45): keep "or setting" in the class doc `:28-31` and append the patch's sentence about closing an executing tool_call; Reconcile doc `:825-834` says four passes and that pass 4 fires `approval.result`; replace `:869` with `Set sc = ..ReconcileDeliveries(sc)` then `Quit $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Bridge.Replay).CloseInterrupted())`. The early return at `:855-857` stays (it already skips pass 3).
+  - `Test/Install/Retention.cls` (patch:1392-1433): the header doc line `:19` as the patch; `"OcuTalon.Data.Purge", ` after `"OcuTalon.Bridge.Purge", ` in the `:152` list, keeping the Digest CheckRun and Sent entries; the patch's `turn61`/`turn59` assertions after `:254`, keeping `:257-260`; the patch's four turn lines in `Seed` after `:331`.
+  - Then compile, and run the loop classes of Verification once before any new change (green on the merged patch is the base the next tasks extend).
+- [ ] `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- AD-27: add this one bullet after the `Bridge.Purge` bullet (`:956`), verbatim: "With the same now, `OcuTalon.Data.Purge.Run(daysToKeep, now)`, which the Retention area calls just before the bridge's purge, deletes Turn rows created before the cutoff and Delivery rows recorded before it, Telegram rows with their kept text included. It deletes a Session row created before the cutoff only when the session has no Turn, Delivery or Decision at or after the cutoff, holds no memory or document, and is not current (signed in through a live CSP session, a live Telegram pairing, a pending, approved or executing approval request, a watch, or a pending reminder): never by age alone. With the session go its GuideState, SimMessage, BreakFeedRun and finished Reminder rows, and its conversation links through `OcuTalon.Bridge.Purge.DropLinks`, so that the bridge's purge frees their AI sessions; memories and documents are never deleted by it. It touches only OcuTalon's own tables and never an IRIS audit entry (AD-17). [AMENDED 2026-11-08, Story 30.7, owner decision U-210 (kept)]". Set the frontmatter `updated:` to `2026-11-08`. No other AD changes. Then the memlog append and the lint (Verification). -- DW-437, DW-581.
+- [ ] `src/bridge/cls/OcuTalon/Bridge/Purge.cls` -- new `ClassMethod DropLinks(ownerRef As %String) As %Status`: deletes every `ConversationLink` row whose `OwnerRef` is the argument (any agent), checking `%SQLCODE`; an empty argument, `instance` or `eval` is an error naming `OcuTalon.Bridge.Purge.DropLinks` and deletes nothing; it names no OcuTalon package (AD-2). Update the class doc (links are dropped only here and by `Point`'s owner). Test: `Test/Bridge/Purge.cls` new `TestDropLinks` (two agents' links of one owner go, another owner's link stays, `""`, `instance` and `eval` are refused with nothing deleted). -- DW-581.
+- [ ] `Data/Purge.cls` (from Task 1) -- extend `Run` (rows 1-8, 23):
+  - `Keeps(ref, ...)` also keeps a session that has an `OcuTalon_Data.Memory` row (`SessionRef`) or an `OcuTalon_Data.Document` row (`OwnerRef`) of it; these two reads run with the other SQL checks, before the store scan.
+  - For each session that goes, after the re-check and before `%DeleteId`: delete its `OcuTalon_Data.GuideState`, `OcuTalon_Data.SimMessage`, `OcuTalon_Data.BreakFeedRun` rows and its `OcuTalon_Data.Reminder` rows in State fired or cancelled (SQL, `%SQLCODE` checked), then call `##class(OcuTalon.Bridge.Purge).DropLinks(ref)`. When any of these fails, the Session row stays (a later run retries it) and the error is appended.
+  - Nothing reads or writes `OcuTalon.Data.Setting`, Memory or Document beyond the two existence reads; the word "audit" stays out of the class text (the static check scans it).
+  - Update the class doc to the AD-27 bullet's contract.
+- [ ] `Install/Step/Retention.cls` -- `Purge` (from Task 1): take `now = Bridge.Time.NowUtc()` once, call `Data.Purge.Run(days, now)` first, then `Bridge.Purge.Run(days, now)`, appending the two statuses so each part runs whatever the other returned; doc updated (one cut for decisions and turns; links dropped before the bridge looks for unlinked AI sessions). -- row 3.
+- [ ] `Test/Data/Purge.cls` (from Task 1) -- extend:
+  - `TestTurnsReadNoPurgedDecision` (rows 1-3): add a 91-day Telegram `Delivery` with a kept `Text` (U-218), gone after the run; the 89-day turn's readers are unchanged.
+  - `TestSessionKeptWhileActiveOrCurrent` (rows 4-6): add a kept case for a Memory row and one for a Document owned by the session; keep every existing case.
+  - New `TestSessionRowsGoWithIt` (row 23): an idle 91-day session with a GuideState, a SimMessage, a fired and a cancelled Reminder, a BreakFeedRun and a ConversationLink (inserted by the fixture), and a kept session with the same rows: after `Retention.Purge(90)` the first session's rows and link are gone, the kept session's stay, and a Memory row of a third, kept session is untouched.
+  - `TestOnlyOwnTablesAndAuditKept` (row 7): the static list of deleted tables becomes Turn, Delivery, GuideState, SimMessage, Reminder, BreakFeedRun and Session, plus the one call `OcuTalon.Bridge.Purge).DropLinks`; still no `%SYS`, no audit name, no table outside `OcuTalon_Data`/`OcuTalon_Bridge_Data`.
+  - Each test removes its own rows (`Fixture.Clean` plus the new tables' rows and links), also after a failure.
+- [ ] `Test/Install/Retention.cls` -- DW-590 (after Task 1's merge): `WaitRun` becomes start-aware for every task: it waits up to `RUNSECONDS` for the start (`LastStarted` after the mark or `RunningJobNumber` set), re-calling `RunNow` every `RETRYSECONDS` while not started, then up to a new `FINISHSECONDS` (300) for the History row; a timeout's failure text names the task, the phase (start or finish) and the seconds waited. The Task Manager still runs all three tasks (Story 30.2 AC 2). Update the header doc.
+- [ ] `src/bridge/cls/OcuTalon/Bridge/Approval.cls` -- DW-588, DW-582:
+  - New `ClassMethod AnswerHold(ref As %String, completionKey As %String, response As %Persistent) As %Boolean [ Internal ]`: for `LiveHold(ref)`, finds its one non-timer pending response with that `CompletionKey`, and sends `response` to it with `Ens.Host.SendDeferredResponse(<RequestHeaderId>_"|"_<the running production's name>, response)`; returns 1 when sent, 0 when there is no such hold or response; never raises (a failure is a warning that names the Ref).
+  - `CompleteHoldTask`: when no open task appears within TASKSECONDS, it calls `AnswerHold(ref, "task", <Ens.StringResponse whose StringValue is the action, "" for a cancel>)`; the warning becomes "OcuTalon.Bridge.Approval: no open task of <ref> appeared in <n> seconds, so the answer went to its hold directly" (or the old text when `AnswerHold` returns 0). A late task that appears afterwards stays open until Reconcile pass 1 cancels it (its hold is no longer live).
+  - `HoldResponse`, key `task`: the action is `%Action` of an `EnsLib.Workflow.TaskResponse` or `StringValue` of an `Ens.StringResponse`; everything else is unchanged (the hold still acts only on what the row shows).
+  - Docs of `CompleteHoldTask`, `HoldResponse` and `Arm` (its "delivered when the timer fires" sentence) updated.
+- [ ] `src/bridge/cls/OcuTalon/Bridge/Replay.cls` (from Task 1) -- DW-444, DW-582:
+  - `CloseInterrupted`: after `FinishExecution(ref, "interrupted")` of a row, calls `Approval.AnswerHold(ref, "replay", <a failure Reply: FailureText "the replay was interrupted", ToolsRun 0>)`, so a hold still waiting on that replay ends once.
+  - `Run` (the private `Execute` of the patch): when `StartExecution` refuses and the reloaded row is a `tool_call` in State `executing`, the job holds the replay lock, so no replay is alive: it closes the row with `Record(row, ref, "interrupted")` and answers the failure Reply (ToolsRun 0). The call never runs.
+  - Docs updated (steps 1 and 3 of the class doc; `CloseInterrupted`).
+- [ ] `Test/Bridge/Interrupted.cls` (new, `OcuTalon.Test.Bridge.Interrupted`, Lane A, area Bridge) -- rows 11-13 and 20; production-bound (warm or CI):
+  - Move here from `Test/Bridge/Approval.cls` (Task 1) the patch's `TestInterruptedReplayIsClosed`, `TestLiveReplayIsLeftAlone`, `TestExecutingFixIsLeftAlone` and their helpers (`ReplayRow`, `HoldReplayLockInJob`); `TestExecutingFixIsLeftAlone` also holds an executing `setting` row, untouched.
+  - New `TestHoldOfAnInterruptedReplayEnds` (row 20): raise and approve a `tool_call` whose `Runner` is a runner item the test disables first (0b(1)); once its hold waits on `replay`, the test calls `StartExecution(ref)` (the crashed replay) and `Bridge.Approval.Reconcile()`. Asserts: the row is `failed` with Result `interrupted`; the hold ends within 10 s of Reconcile and before Decide's timer; one `approval.result`; one Approval `finished`/`interrupted` and one Action `interrupted` entry; the tool ran 0 times. After the item is enabled again the queued request is refused by `StartExecution`: still one `approval.result`, the tool still ran 0 times.
+  - Reuse `Test.Bridge.Approval`'s ClassMethod helpers by `##class(...)` and `ApprovalRows`; an instance helper the new class needs (`UseReplayAgent`, `RunnerRequests`, `AssertOneOutcome`) may become a ClassMethod or move to `ApprovalRows` with no change of behaviour. Each test removes its rows, holds, tasks and queued requests, and re-enables every item it disabled, also after a failure.
+- [ ] `Test/Bridge/Approval.cls` -- rows 18 and 21 (DW-462, DW-588): rewrite `TestAnswerBeforeTheTaskExists`, replacing the patch's version and dropping its fake-task helpers (`FakeHoldTask`, `RemoveFakeTasks`, and `RealOpenTask`/`AssignedTo` if no longer used), in two cases:
+  - (a) late task: keep `OcuTalonApprovals` disabled until the answer job has returned `done|`; assert the hold receives the answer (one `approved` outcome, `AssertOneOutcome`; `WaitHoldGone(ref, 15)` is 1); then enable the item and, as Task 0b (3) measured, either wait up to 60 s for the late task and assert it is open, or assert that none appears; run `Bridge.Approval.Reconcile()`; assert no open task of the Ref remains and still exactly one outcome.
+  - (b) task inside the window: enable the item while the answer job waits (as today); whichever comes first, the poll completing the task (`Approve|OcuTalonWorkflow|1|`) or the direct answer, the hold ends and exactly one `approved` outcome is sent; then `Reconcile()` leaves no open task of the Ref. The test asserts no timing. Remove the moved DW-444 tests from this class. Search the class for assertions on the old "so none was completed" warning and update them. Header lines updated.
+- [ ] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` (contended; from Task 1) -- `ConcludeTool` and parameters only:
+  - Keep the patch's rule: a failure whose text holds both `NOKEYTEXT` pieces, from a Reply with ToolsRun 0 whose row is no longer approved, is recorded with FallbackReason `no_key` and Reasons `REPLAYNOKEY` = "No model key is set, so the approved call did not run. Nothing was changed." (row 14).
+  - Add, only when Task 0a (ii) shows a provider-object failure in `BuildAgent` or `NewSession` that is not a missing key: parameter `PROVIDERTEXT` (the measured piece of that error text, with its source note, like `TIMEOUTTEXT`) and `REPLAYPROVIDER` = "The model provider could not be reached, so the approved call did not run. Nothing was changed."; such a failure with ToolsRun 0 is recorded with FallbackReason `error` and Reasons `REPLAYPROVIDER` (row 15). When Task 0a finds no such failure, neither parameter is written and the evidence is recorded.
+  - No tool's-server sentence (row 15b; see Design Notes). Every other failure is unchanged: `error`, no sentence (row 16).
+- [ ] `Test/Bridge/Decide.cls` (contended; from Task 1) -- `TestToolFailureReasons` (placed after `TestToolRequest`, `:406`): add the provider-object case when `REPLAYPROVIDER` exists, and a context failure (ToolsRun 0, a bridge text) that stays `error` with no sentence. -- rows 14-16.
+- [ ] `Test/Bridge/Runner.cls` (from Task 1) -- `TestReplayWithoutAKey`: keep the unset-key and closed-port halves (the closed port runs the tool once); add the provider-object case of 0a (ii) asserting the step's FailureText and ToolsRun 0 (the test's doc names the endpoint: the AI Hub provider object that the runner's `BuildAgent` builds from its `ProviderConfig`); new `TestReplayOfADeadExecutingRow`: an executing row whose replay lock is free, replayed through the runner, ends `failed`/`interrupted` with one Action `interrupted` entry, ToolsRun 0, and the tool ran 0 times. -- rows 11, 14, 15.
+- [ ] `Test/Schedule/Reminders.cls` (Lane B test; footprint extension) -- new `TestToolCallKeysAfterAList` (row 22, U-215), modelled on `TestSeveralCancelsFromOneToolCall`: under one bridge context, `ReminderTools.ListReminders()` then `CancelReminder([r1, r2, r3])`: each row cancelled with CancelKey `<item>:2`, `:3`, `:4`, three cancelled events and one trigger each. The same turn again (same ItemId): each answer equals its first, no new event, no new trigger (the owner ignores the repeat, AD-1). A third run with `[extra, r2, r3]`: key `:2` is refused `reused_key` and `extra` stays pending. No product code change.
+- [ ] `Test/Bridge/Gate.cls` (contended) -- one row only: `:2014` becomes `$ListBuild("OcuTalon.Tools.Reminders", "cancel_reminder", "{""reminderRefs"":[""x""]}")`. -- row 24, DW-495.
+- [ ] DW-371 and DW-541: delivered by Task 1's hunks (`Watch/IncidentManager.cls`, `Watch/Reader.cls`, `Tools/WatchAnswers.cls`, `Tools/WatchTools.cls`, `Test/Watch/Reader.cls`, `Test/Watch/Tools.cls`); confirm each against the Code Map anchors, change nothing else. -- row 19.
+- [ ] DW-589 and the Delivery doc line: no code (Design Notes).
 
 **Acceptance Criteria:**
-- Given any run of the purge task, when it ends, then no kept Turn row names a Decision that is gone, and no kept Turn reads a TurnCost of 0 because its Usage was purged (DW-437, U-210).
-- Given a session that is current or has activity at or after the cutoff, when the purge runs, then its Session row is kept; and given only the age of a session, it is never purged (DW-437, condition 1).
-- Given the purge runs, when it ends, then the only rows it deleted are `OcuTalon_Data` Turn, Delivery and Session rows, and every IRIS audit entry for approvals and actions is still present (DW-437, condition 2).
-- Given the amended spine, when `lint_spine.py` runs, then the output is the 8 baseline low findings and nothing new (DW-437).
-- Given an instance start after a crash in mid-replay, when the Reconcile step runs, then the row ends `failed`/`interrupted` with `approval.result` and the audit entries, and the call never runs again (DW-444).
-- Given a replay that fails because no key is set, when the person's views read its failed Decision row, then FallbackReason is `no_key` and the Reasons sentence says that the call did not run and nothing was changed. The unreachable case follows the Task 0 rule (DW-470).
-- Given the repository, when `test-boundaries.sh` runs, then `key_like` finds nothing, and no public text claims that a replay works without a provider connection (DW-386, DW-470).
-- Given `IncidentManager.Purge(n)`, when it runs, then its cutoff is `Bridge.Time.DaysCutoff`'s, and `Test.Watch.Lifecycle`'s purge tests pass unchanged (DW-371).
-- Given the Chat agent calls `list_productions`, when Orders is stopped, then its entry's state is `stopped`, built from IRIS's status code and no other field (DW-541).
+- Given a run of the purge task, when it ends, then no kept Turn names a Decision that is gone and no kept Turn's `TurnCost` reads 0 because its Usage was purged, and every Delivery recorded before the cut, Telegram rows with kept text included, is gone (DW-437, U-210, U-218).
+- Given a session that has activity at or after the cut, is current, or holds a memory or a document, when the purge runs, then its Session row and all its rows are kept; and a session is never purged by its age alone (DW-437, condition 1).
+- Given a session that the purge deletes, when the run ends, then its GuideState, SimMessage, finished Reminder and BreakFeedRun rows and its conversation links are gone, and the same run's bridge purge no longer finds a link naming its AI sessions (DW-581).
+- Given the purge runs, when it ends, then it deleted only `OcuTalon_Data` rows of the seven named tables and conversation links through `Bridge.Purge.DropLinks`, and every IRIS audit entry for approvals and actions is still present (DW-437, condition 2).
+- Given the amended spine, when `lint_spine.py` runs, then its output is the 10 baseline low findings and nothing new.
+- Given an instance start after a crash mid-replay, when the Reconcile step runs or the replay is re-delivered, then the row ends `failed`/`interrupted` once, with one `approval.result` and the audit entries, the hold that waited on it ends, and the call never runs again (DW-444, DW-582).
+- Given an answer recorded before its approval task exists, when TASKSECONDS pass, then the hold gets the answer at once and sends exactly one outcome, and a task that appears later changes nothing (DW-588, DW-462).
+- Given a replay that fails before the tool ran because no key is set (or, per Task 0a, because the provider object cannot be built), when the person's views read its failed Decision row, then the Reasons line is the owner-ruled sentence for that endpoint; and no public text claims that a replay works without a provider connection (DW-470, U-214).
+- Given one `cancel_reminder` call with three refs after a list, when each key is sent again, then each key acted once and a repeat has no second effect, and a key reused for another reminder is refused (DW-584, U-215).
+- Given `Test.Bridge.Gate`'s untrusted-turn rows, when `cancel_reminder` is made read-only by a mutation, then the row reports that its method ran (DW-495).
+- Given `IncidentManager.Purge(n)`, when it runs, then its cutoff is `Bridge.Time.DaysCutoff`'s and `Test.Watch.Lifecycle`'s purge tests pass unchanged (DW-371).
+- Given the Chat agent calls `list_productions`, when Orders is stopped, then its entry's `state` is `stopped`, built from IRIS's status code alone (DW-541).
 
 ## Spec Change Log
 
@@ -297,211 +272,138 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
     - `[low]` `[reject]` row 11 calls Approval.Reconcile rather than the install step — the step is a one-line call of it
     - `[low]` `[reject]` the default CSP store read is untested — the store is a seam as in Status.Visitors
 
+
 ## Design Notes
 
-**Architecture decisions (Rule 6).**
-- AD-27: amended by U-210, the one approved amendment (first task).
-- AD-17: the purge touches no audit entry, and the replay closes are audited.
-- AD-2: the bridge purges only its own tables; the host purge is the host's.
-- AD-11: the reconciler moves a row only through `FinishExecution`.
-- AD-16: the `interrupted` result, as for `FixRun`.
-- AD-8: the FallbackReason mapping. `no_key` for a missing key is its own rule; the unreachable sentence lives in Reasons, never as a new reason.
-- AD-31: `Redact` is the one redactor.
-- AD-15: list_productions reads through `Watch.Reader` only.
-- AD-4: the Session row and its owned records.
-- AD-22: destructive runs happen on throwaways.
-- AD-33: see Footprint below. No AD's Rule is contradicted.
+**Architecture decisions (Rule 6).** AD-27 (the one amendment, the U-210 bullet; marker `[AMENDED 2026-11-08, Story 30.7, owner decision U-210 (kept)]`); AD-1 (U-215: the keys as built, the lead's 2026-11-08 marker; no change); AD-2 (the bridge names no OcuTalon package; the host calls `Bridge.Purge.DropLinks`, never the reverse); AD-4 (the Session row and the records it owns); AD-8 (`no_key` for a missing key, `error` for anything else; a sentence lives in Reasons, never as a new reason); AD-10 (the replay through the full policy chain; replay is for MCP and developer tools); AD-11 (rows change only through the Approval API; `interrupted` leaves `failed`; the hold acts only on what the row shows); AD-15 (`list_productions` reads through `Watch.Reader`); AD-16 (`interrupted`, as for `FixRun`); AD-17 (no audit entry is purged; every close is audited); AD-22 (destructive and purge runs on throwaways); AD-31 (the HostSink and `approval.result`); AD-33 (one owner per table; see Footprint). No AC contradicts an AD's Rule.
 
-**Decided in-stage.**
-- **Same `now`.** The host purge is called from `Retention.Purge` with the bridge's `now`, not from the Core area. The registry runs Core before Retention, so separate clocks could keep a turn whose Decision was cut a second later. `Decision.RecordedAt` is never before `Turn.CreatedAt`, so `CreatedAt < cutoff` covers every purged decision.
-- **Session age.** A Session also needs `CreatedAt < cutoff`; otherwise a new session with no rows would be "idle".
-- **"Signed in"** is a live CSP session whose data holds the row's Ref. This holds for both local and demo rows (`Ownership.SESSIONKEY`).
-- **Pairing.** A live Telegram pairing also counts as current, because it keeps a channel open to the session. This keeps more than the ruling requires, never less.
-- **Approvals.** Pending, approved and executing count as open.
-- **Watches.** Any BackgroundCheck row counts as a watch.
-- **DW-444 lock.** Reconcile may close a dead replay on any call, because the replay lock makes a live one untouchable. This meets the candidate fix's reason ("never on a test's call") without a stored start time.
-- **DW-470 surface.** The "failed row" is the replay's kind-`tool` fallback Decision row, as U-178 settled for U-170. Story 31.2 (Lane B) shows its Reasons sentence. "Catalog words" means the words of `fallbackReason.noKey` and `conversation.turnFallback`, held as a bridge sentence because the bridge names no host catalog (AD-2).
-- **DW-462.** The test fix: the product's 5 s contract is documented, and a task that appears late is healed by Reconcile pass 1.
-- **DW-541.** The preferred tool change is small (the state is already read in the same switch), so the chip text stays.
+**Decided in-stage (unattended; each small and reversible inside this story).**
+- **Activity counts every Delivery,** the daily digest's included, exactly as U-210 words condition 1. A session that still gets the digest is therefore kept; in practice the session purge removes signed-out online-demo sessions and others that receive nothing. Excluding digest rows would delete sessions U-210's wording keeps, so it is not done.
+- **A memory or a document keeps its session.** The intent forbids touching Memory, and both `Memory.DropSession` and `Docs.DropSession` are stubs, so purging such a session would strand the person's rows under a Ref nobody holds. This keeps more than the ruling requires, never less (as the pairing signal does). Two existence reads, no write.
+- **DW-581's list is the parenthetical list** (GuideState, SimMessage, finished Reminder, BreakFeedRun, ConversationLink), as DW-581 and veto U-308 name them. Other rows keyed by a session (below, "For the lead") are not deleted, because deleting them is a retention change no ruling covers.
+- **The host purge runs first** in `Retention.Purge`, with the bridge's `now`, so the links it drops are found unlinked by the same run's `Bridge.Purge` (a day sooner). The cut is the same either way: the session check reads only rows at or after the cutoff.
+- **`DropLinks` lives on `Bridge.Purge`,** the one bridge class besides Decide that already names `ConversationLink`, so the link table keeps one owner (AD-33) and the host never deletes a bridge table by SQL.
+- **DW-582 and DW-588 share one mechanism:** `Approval.AnswerHold` sends a deferred response to the live hold's pending request (`task` or `replay`), so no stored column, no new message class and no Workflow task subclass is needed. The `task` answer is an `Ens.StringResponse` rather than a hand-made `TaskResponse`, so no stray Workflow task row appears.
+- **The re-delivered replay closes its row.** After a restart Ens re-queues the runner's request; `Run` holds the replay lock, so a row it finds `executing` has no live replay and is closed `interrupted` there. Pass 4 closes the rows that no re-delivery reaches. Each row is closed once, by whichever comes first, through `FinishExecution`.
+- **DW-444 on any Reconcile call** stays safe without a start-only path: the replay lock makes a live replay untouchable (row 12), which is the reason the candidate fix asked for "never on a test's call".
+- **U-214, the endpoints.** The replay needs the model provider only as the provider object that `BuildAgent` builds from the runner's settings; it sends no request to the provider (2026-11-02, closed port: the tool ran; code read above). So the no-key sentence applies to a missing key, the provider sentence only to a provider object that cannot be built for another reason (Task 0a (ii)), and a closed or unreachable provider fails no replay, so it has no sentence. The tool's-server sentence has no case: the product has no MCP client or MCP replay path yet (Epic 22), and a developer tool's own error after it ran stays unchanged (intent). The tests name their endpoint: the AI Hub provider object of the runner's `BuildAgent`.
+- **U-215, "refused on a repeat"** is pinned as the owner ignoring a repeat (AD-1: the first result, no second effect), plus the refusal `reused_key` for a key reused for another reminder; that is the as-built rule U-215 keeps with no code change.
+- **DW-590** keeps the real Task Manager runs (Story 30.2 AC 2) and makes the wait start-aware, so a slow start and a slow run are told apart in the failure text.
+- **Test placement.** The DW-444 and DW-582 tests go to a new class, `Test.Bridge.Interrupted`, because `Test.Bridge.Approval` already takes about 140 s and must fit one command.
 
-- **Decided at implementation (small ambiguities).**
-  - **Purge, pairing.** Any Pairing row whose SessionRef is the session's keeps it. The checks use one SQL read each and a failed read keeps the session and returns its error.
-  - **Purge, deletes.** Turn and Delivery go by SQL; a Session goes through `%DeleteId`, so the static check reads both forms (`delete from` and `##class(...).%DeleteId`).
-  - **Replay lock.** `Replay.Run` takes the lock with a timeout of 0 and answers a failure Reply (ToolsRun 0) when it is held; the old refusal of a second replay by `StartExecution` is unchanged. `Run` keeps its contract and holds the lock around the new private `Execute` (the old body from `StartExecution` on). `Record` now returns its combined status, which `Run` ignores and `CloseInterrupted` appends.
-  - **DW-470 tests.** The Decision row is made by Decide, not by the shadow runner. Rows 14 and 16 are therefore pinned in `Test.Bridge.Decide.TestToolFailureReasons` (a separate method, so `TestToolRequest` is untouched), and the measured runner facts (no-key text, ToolsRun 0, the tool did not run; unreachable provider, tool ran) in `Test.Bridge.Runner.TestReplayWithoutAKey`. No test points the live runners' keys at an unset variable: a live replay would only repeat what these two show.
-  - **DW-470 reason rule.** `no_key` and REPLAYNOKEY need both pieces of NOKEYTEXT in the failure text and a Reply with ToolsRun 0; a failure with no Reply, or from a tool that ran, stays `error` with no sentence.
-  - **DW-448.** `Walk` also decodes a `$List` subscript (the whole subscript text is decoded, to a depth of 10), because a node's subscript is a string like its data.
-  - **DW-541.** The `state` of an entry is the string `Current` already computes (running, stopped, suspended, troubled, network_stopped, timeout or unknown); `Listed` copies it by position from the entries.
-  - **DW-462.** See "Measured at implementation": the spec's two inferences did not hold, so the test proves the poll by the task's assignment and (b) asserts only the 5 s contract.
+**Measured at implementation.** Empty until Task 0 runs; Task 0a and 0b record their results here.
 
-**Measured at implementation.**
-- **Task 0 (DW-470), build 154U, mock only, shadow runner ZzRunner with agent ZzReplayAgent:**
-  - **(a) key unset** (the placeholder names a variable that is not set): the runner fails in `BuildAgent`, before `ExecuteTool`. FailureText is `ERROR <%AICore>ProviderConfigError: PROVIDERCONFIG is invalid    > ERROR <%AICore>InternalError: Internal AI-Core error: @{env:<NAME>} has no value and no :-fallback was given` (it holds both pieces of NOKEYTEXT), ToolsRun 0, 0 steps, the tool ran 0 times, the row `failed`/`failed`, in 0.1 s.
-  - **(b) provider unreachable** (base URL a closed port, key set): the replay does not fail. It makes no provider request, so the tool ran once, ToolsRun 1, FailureText empty, the row `done`/`done`. The same as the control against the mock.
-  - **Consequence (the Task 0 rule):** no `REPLAYUNREACHABLE` sentence and no `UNREACHABLETEXT` were written; an unreachable provider fails no replay, so there is nothing to explain. `REPLAYNOKEY` only. For the lead's veto window: no new public text beyond the catalog words of `REPLAYNOKEY`.
-- **DW-448, build 154U (IRIS 2026.3.0AI, ARM64 container), warm throwaway after the Approval, Decide, Runner and other classes had run:** the distinct `Ens.MessageHeader.MessageBodyClassName` over 540 headers were 17 classes (Ens.AlarmRequest, Ens.AlarmResponse, Ens.Response, Ens.StringResponse, EnsLib.Workflow.TaskRequest, EnsLib.Workflow.TaskResponse, OcuTalon.Bridge.Msg.AgentStep, ApprovalOutcome, ApprovalStart, Reply, Request, ToolInventory, OcuTalon.Checks.Msg.CheckChanged, OcuTalon.Core.Msg.RunTurns, OcuTalon.Msg.Command.StopWatch, OcuTalon.Msg.CommandResult, OcuTalon.Msg.Tick). Together with every compiled OcuTalon subclass of Ens.Request, Ens.Response and Ens.MessageBody, that is 63 classes with 499 compiled properties (inherited included): none has a `%Stream` property (the control, `%AI.Agent.Session.ContextData`, a `%Stream.GlobalCharacter`, is found by the same scan). **None can hold a stream**, so the compressed and split chunk decoding is not written. For the lead's wontfix-accepted close of the stream half of DW-448; the `$List` half is fixed.
-- **DW-462, the two inferences:**
-  - Completing a fake task errors: `CompleteTask` returns `ErrProductionMismatchInDeferredResponse` because a task that no request sent has no deferred response token, and the task is not saved as complete (`CompleteHoldTask` logs a warning). Test (a) therefore proves the poll by the task's assignment to OcuTalonWorkflow, which `AssignTask` saves, and by the job returning `done`.
-  - Reconcile pass 1 does not end the hold: `EnsLib.Workflow.Engine.%CancelRequest` discards the task and sends no deferred response, so the hold never learns of it (the existing `TestReconcileCancelsOnlyOrphans` deletes the hold by hand for the same reason). No product code was changed, as the spec says; test (b) asserts only the 5 s contract (the late real task stays open, the row stays approved), and cleanup completes the task.
-  - **Product residual (for the lead):** an answer that outlives TASKSECONDS before its task exists leaves the hold waiting on the 24 hour timer; Reconcile discards the late task and does not end the hold. At the timer the hold delivers the row's outcome. File it if you see a need.
-- **Reconcile callers with an executing tool_call row (the search the DW-444 task asks for):** `Test.Bridge.Approval` (TestHeldRowIsReadUnderTheLock, TestStartExecutionAtOnce: no Reconcile follows), `Test.Bridge.Runner` (the duplicate replay) and `Test.Bridge.Decide` (an executing row that Decide must not close) leave such a row and run no Reconcile; none relied on a row staying executing. The only executing tool_call rows that Reconcile now closes are the new tests' own.
-- **Back-dated fixtures and the purge task (shared surface):** only `Test.Install.Retention` runs the task; no other test back-dates a Turn, Delivery or Session by more than 60 days through it.
-- **First fresh run of `Test.Install.Retention`:** the two stock `Ens.Util.Tasks.Purge` tasks did not start within the wait (Task Manager history empty, 6 failed methods); the same class passed on the next fresh run (109 s) and on the mutation run. A start-up flake of the stock tasks on a busy machine, not of this change; the OcuTalon purge task test passed in both.
+**PUBLIC TEXT (for the lead's gate before implement).**
+- Public (a person reads it), new:
+  - `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`, parameter `REPLAYNOKEY`: "No model key is set, so the approved call did not run. Nothing was changed." (intent row 14). It is the Reasons line of the replay's failed Decision row, shown verbatim in the web's decision strip and rail (`Live/Payload/Decision.cls:88`); the result notice shows only `HeldReasons` lines (Lane B's `BridgeSink`, unchanged), so it does not appear there.
+  - Same file, parameter `REPLAYPROVIDER`, only if Task 0a (ii) finds its case: "The model provider could not be reached, so the approved call did not run. Nothing was changed." (U-214, verbatim). Same readers.
+  - No other public text: no catalog key, web text, Telegram text, chip text or `ci/mock/scenarios/B/` change. The U-214 tool's-server sentence is not written (no case, above).
+- Model text (the model reads it; not public):
+  - `Tools/WatchTools.cls` `ListProductions` doc, the tool description. Now: "Lists the productions that can be watched: each one's name and namespace. Use it to answer which productions OcuTalon can watch. It starts nothing." New (patch): "Lists the productions that can be watched: each one's name and namespace, and its running state (running, stopped and so on). Use it to answer which productions OcuTalon can watch, and whether each is running. It starts nothing."
+  - The new `state` member of each `list_productions` entry, one of `running`, `stopped`, `suspended`, `troubled`, `network_stopped`, `timeout`, `unknown`.
+- Operator text (Event Log or Task Manager status, read by an admin): the `Data.Purge` and `DropLinks` error statuses (from `DaysCutoff`, naming the method, as `Digest.Data.Item.Purge`'s); the new warning "OcuTalon.Bridge.Approval: no open task of <ref> appeared in <n> seconds, so the answer went to its hold directly"; the `AnswerHold` failure warning naming the Ref; the internal FailureText "the replay was interrupted" (never a Reasons line).
 
-**For the lead (spec gate).**
-- **Veto window, public text.** `REPLAYNOKEY` reuses catalog words. `REPLAYUNREACHABLE`'s "could not be reached" is new text that Story 31.2 will show. Recommended wording is above; classify it.
-- **Residual (inference).** A purged session's GuideState, SimMessage, fired or cancelled Reminders, BreakFeedRun rows and ConversationLink stay. The links keep their AI sessions. This story deletes none of them (U-210 names three tables); file them if you see a need.
-- **Residual (inference).** A hold that sent a replay lost to a crash may stay waiting on key `replay`; Reconcile does not reap it.
-- **Public-text check (DW-470).** The lead's 2026-10-31 check found no claim; the implement stage re-runs it (Verification).
+**Contended hunks (Epic 19, unmerged; for the lead to clear).**
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: (1) new parameters `REPLAYNOKEY` (and, per Task 0a, `PROVIDERTEXT`, `REPLAYPROVIDER`) after `HELDBEFOREUPDATE`/`NOKEYTEXT` (`:178-186`); (2) `ConcludeTool` doc and body (`:1435-1467`). Epic 19's change is `Conclude`'s turn-filter call at `:1355`, untouched.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls`: (1) one header doc line (`:9`); (2) new method `TestToolFailureReasons` after `TestToolRequest` (`:406`, before `:412`). Nothing near `:1320-1340`.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls`: one changed row at `:2014` in `AssertSafeReadOnlyOnly`. Nothing near `TestTaintFollowsTrustedOutput` (`:1299`) or `FreeIncident` (`:2182`).
 
-**Footprint (AD-33, Rule 11).**
-- **Lane B, by the dispatch's allowance:** the new `Data/Purge.cls` and `Test/Data/Purge.cls` (new files), and reads of Turn, Delivery, Session, Pairing and Reminder.
-- **Story 30.1 files** (separate hunks; a revert of either story leaves the other compiling): `Bridge/Process/Decide.cls` (`ConcludeTool` and two parameters). If row 14 changes an assertion in `Test/Bridge/Decide.cls` `TestToolRequest`, that hunk stays separate too.
-- **Contended edits:** none.
+**Footprint (AD-33, Rule 11).** Lane A (Epic 30): the bridge files, `Install/Step/Retention.cls`, Watch, Tools and their tests. Footprint extensions to report: `Data/Purge.cls` and `Test/Data/Purge.cls` (new, Lane B's Data area, by the dispatch's allowance: SQL deletes of other tables' rows, none of their classes edited) and one method in `Test/Schedule/Reminders.cls` (Lane B's test class). Not touched: `Data/Session.cls`, `Data/Delivery.cls`, `Agent/Chat.cls`, Memory, Docs, Settings, `Core/BridgeSink.cls`, `Test/Web/SessionEvents.cls`, `web/`, `ci/mock/scenarios/B/`, `release/**`, `eval/run.sh`.
 
 **Integration ACs (Rule 1).**
-- The Task Manager's OcuTalon purge task reads the new `Data.Purge` and deletes the 61-day turn (row 9, `Test.Install.Retention`).
-- `ChatMessage.FromRow` reads a kept turn's decision and cost (row 2).
-- The Reconcile step reads `Replay.CloseInterrupted` (row 11).
+- The Task Manager's OcuTalon purge task reads `Data.Purge` through `Retention.Purge`: the 61-day turn is gone, the 59-day one stays (row 9, `Test.Install.Retention`).
+- `Data.Purge` reads `Bridge.Purge.DropLinks`: a purged session's links are gone after `Retention.Purge` and a kept session's stay (row 23, `Test.Data.Purge`).
+- `ChatMessage.FromRow` and `Ownership.TurnCost` read a kept turn's decision and cost (row 2).
+- The Reconcile step reads `Replay.CloseInterrupted`, and the hold reads `Approval.AnswerHold`'s response: the row is closed and the hold ends (rows 11, 20, `Test.Bridge.Interrupted`); the answering job's `CompleteHoldTask` reaches the hold the same way (row 21, `Test.Bridge.Approval`).
 
-**Consumed-by:**
-- `Install.Task.Purge` through `Retention`.
-- Story 31.2 (the Reasons sentence on the card and notice).
-- The Chat agent (`list_productions`'s state).
+**Consumed-by:** `Install.Task.Purge` (through `Retention.Purge`); the Reconcile step (`Install.Step.Approvals`); `ApprovalHold` (the deferred answers); Story 31.2, Lane B (the Reasons sentence on its card); the Chat agent (`list_productions`'s `state`).
 
-**Consumes:**
-- `Bridge.Time.DaysCutoff`/`NowUtc` (30.2).
-- `Bridge.Approval.FinishExecution`/`Reconcile` (30.3).
-- `Bridge.Audit.Record`.
-- `Watch.Reader.Current`.
+**Consumes:** `Bridge.Time.DaysCutoff`/`NowUtc` (30.2); `Bridge.Purge.Run` (30.2); `Bridge.Approval.StartExecution`/`FinishExecution`/`Reconcile`/`LiveHold` (30.3); `Bridge.Audit.Record`; `Ens.Host.SendDeferredResponse`; `Watch.Reader.Current`; `Tools.CommandCall` and `Schedule.ReminderOps` (U-215 test).
 
 **Extend, don't copy (Rule 2).**
-- `Data.Purge`'s delete mirrors `Digest.Data.Item.Purge` (reason above).
-- Its store read mirrors `Status.Visitors` (6 lines). Status is Lane B's public-status class, and its count is not the per-Ref test that is needed.
-- `CloseInterrupted` extends `Replay.Record`/`ActionEntry`.
-- `IncidentManager` adopts `DaysCutoff` (DW-371).
-- `Listed` extends `Names`' output.
-- The Redact tests extend `Check`.
+- `Data.Purge`'s deletes follow `Digest.Data.Item.Purge`'s form (a copy, because the bridge's `DeleteBefore` must not delete host tables, AD-2, and Turn uses `CreatedAt`); its store read follows `Web/Public/Status.cls` `Visitors` (6 lines: Status is Lane B's public-status class and counts, while the purge needs a per-Ref test); its list of a session's rows follows `SessionOps.End`.
+- `Bridge.Purge.DropLinks` extends `Bridge.Purge` (its SQL delete form).
+- `Replay.CloseInterrupted` and the re-delivery close extend `Replay.Record`/`ActionEntry`.
+- `Approval.AnswerHold` is one helper with two callers (`CompleteHoldTask`, `CloseInterrupted`).
+- `IncidentManager.Purge` adopts `DaysCutoff` (DW-371); `WatchAnswers.Listed` extends `Names`' output.
+- `TestToolFailureReasons` extends `TestToolRequest`'s helpers; `Test.Bridge.Interrupted` reuses `Test.Bridge.Approval`'s ClassMethods and `ApprovalRows`; `TestToolCallKeysAfterAList` follows `TestSeveralCancelsFromOneToolCall`.
 
 **Ledger inbox (Rule 17).**
-- DW-437: addressed (rows 1-9; spine, Purge, Retention and test tasks).
-- DW-386: addressed (row 10).
-- DW-444: addressed (rows 11-13).
-- DW-470: addressed (rows 14-16, Task 0, public-text check).
-- DW-448: addressed (row 17 and the measurement).
-- DW-462: addressed (row 18).
-- DW-371: addressed (the `IncidentManager` task). Its `Data.Pairing.Purge` half is Lane B's and declined here: Declined DW-371 (Pairing half): Lane B's file; the lead re-owns it.
-- DW-541: addressed (row 19, last task).
+- DW-437: addressed (rows 1-9; spine, `Data.Purge`, `Retention`, tests; U-218's Telegram row in row 1's test). Declined DW-437 (the `Data/Delivery.cls` Text doc line): Lane B owns the class and the dispatch allows no edit there; the line (`:29`) should say that Telegram rows keep their sent text too.
+- DW-581: addressed (row 23; `DropLinks`, the session's rows).
+- DW-444: addressed (rows 11-13; pass 4 and the re-delivery close).
+- DW-582: addressed (row 20; `AnswerHold` from `CloseInterrupted`).
+- DW-588: addressed (row 21; `AnswerHold` from `CompleteHoldTask`).
+- DW-462: addressed (row 18; the rewritten test no longer depends on when the task appears).
+- DW-470: addressed (rows 14-16; Task 0a; U-214 as decided above).
+- DW-584: addressed (row 22; `Test.Schedule.Reminders`).
+- DW-495: addressed (row 24; the one Gate row).
+- DW-590: addressed (the start-aware wait in `Test.Install.Retention`).
+- DW-371: addressed (`IncidentManager.Purge`, Task 1). Declined DW-371 (the `Data.Pairing.Purge` half): Lane B's file; it keeps its own ledger owner.
+- DW-541: addressed (row 19, Task 1; preferred fix, so the chip text stays).
+- DW-589: closed by measurement, no code. The key-proof global scan, from CI logs: before Story 30.8 8.1 s and 10.1 s (runs 41495443772 and 41495053476, about 4.24 million nodes; the whole key proof 16 s and 20 s); after it 56.8 s, 52.7 s and 56.1 s (runs 41526116657, 41540068521, 42456641444, 4.26 to 4.73 million nodes; 59 to 65 s). That is about 2 to 12 microseconds a node, about +45 s for each evaluation job. Each figure is the scan's own `PASS key proof globals: ... ; N s` line, on the throwaway stack of CI's evaluation job (intent row 25). Recommended for the lead: `wontfix-accepted`, reopen_if the evaluation job's key-proof step passes 120 s or the job nears its timeout. Declined DW-589 (code change): the cost is known and small against the job, and `eval/run.sh` is frozen.
+
+**Lead spec gate (2026-11-08, runner B).** Rulings (decide): (1) intent row 15b has no reachable case on this head (no MCP replay path; Epic 22): the U-214 tool's-server sentence is not written, and the provider sentence only for a provider object that fails to build for a reason other than a missing key (Task 0a), since U-214's condition is that the wording follows the endpoint that actually failed; (2) U-215's "refused on a repeat" is pinned as AD-1's "its owner ignores a repeat" (the first result, no second effect), plus `reused_key`; (3) U-210 condition 1 counts every Delivery, the daily digest's included (owner wording kept; reported to the orchestrator). PUBLIC TEXT: only owner-ruled sentences (U-214 verbatim; the no-key sentence is U-170's no_key wording plus "Nothing was changed.", which U-214 keeps): no `PUBLIC TEXT:` gate needed. Contended hunks: cleared with the orchestrator before the implement stage (see the cycle log).
+
+**For the lead.**
+- Rows keyed by a purged session that stay (inference from the table survey; no ruling covers them): `Handled`, `HeartbeatBeat`, `OcuTalon_Digest_Data` Item, CheckRun and the newest Sent row, the `person.<Ref>.*` Setting rows (AD-27 forbids a purge reading `Data.Setting`), the globals `^OcuTalonP.SessionM(<ref>)` and `^OcuTalonP.LiveEventC(<ref>)`, and memories and documents (which keep their session here). File them if you see a need.
+- A `setting` row left `executing` by a crash is not closed by anything (as `fix` rows are by `Fix.Run`); pass 4 leaves it alone by design (Kind filter). File it if you see a need.
+- The `REPLAYNOKEY` sentence meets DW-596's reopen_if (Lane B's `BridgeSink.HeldReasons` shows only `HELDBEFOREUPDATE` in the result notice).
+- **Row 15b has no reachable case on this head.** The product has no MCP client or MCP replay path (no `call_mcp_tool` in `src/`, the gate only recognises `mcp:` toolrefs, Epic 22 is backlog), so no test can name a tool's server and the U-214 tool's-server sentence is not written; a developer tool's error after it ran stays row 16 (unchanged, no sentence). This follows the dispatch's rule for the provider sentence (not used when the replay never needs that endpoint). If you want it built ahead of Epic 22, that is a scope call for the owner; the sentence then belongs with the first MCP replay.
+- `shards-5` (Test.Bridge) is the tightest group: about 1,950 s by the `ci/units.sh` notes (inference) plus `Test.Bridge.Interrupted` (about 40 s, inference) and the small Runner and Decide additions; the lead re-measures it on the first CI run.
 
 ## Verification
 
-`<lane>` stands for `env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=30 stage=implement'`, run from the worktree root. The fresh tag is `e30s7i` and the warm tag `e30s7iw`.
+`<lane>` stands for `env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=30 stage=implement'`, run from the epic worktree root (QA and review put their own stage name in `OCUTALON_LOCK_OWNER` and their own tag letter after `e30s7`). The fresh tag is `e30s7i`, the warm tag `e30s7iw`. Waiting on lane B's lock is normal.
 
 How to run:
-- One command per tool call, in the foreground, with `timeout: 600000`. Never two IRIS test runs in one message.
-- Use throwaways only. Slot B (`ocutalon-slot-b`, `OCUTALON`) is for load and compile only; run no purge there.
-- Use warm for in-process classes. Use fresh for production-bound classes (`Test.Bridge.Approval` and `Test.Bridge.Runner`, because Replay and the hold run in production jobs) and for `Test.Install.Retention`, which runs the real tasks.
-- Tear down only your own tags, also after a failure.
+- One command per tool call, in the foreground, `timeout: 600000`, sized to finish in about 150 s; never two IRIS test runs in one message; one `iris_execute_tests` call per message, with `server` and `namespace` on every IRIS MCP call.
+- Throwaways only for purge, replay and production-bound classes. Slot B (`ocutalon-slot-b`, `OCUTALON`) is for loading and compiling and for non-destructive in-process classes; no purge, Reconcile or item toggling there.
+- Warm for every repeated class run; a change to the image or the mock refuses the warm run (`ci/warm.sh down`, then `up`). Tear down only your own tags, also after a failure.
 
 **Commands:**
-- (loop) `bash docker/tests/test-boundaries.sh` and `bash docker/tests/test-class-rules.sh`. Expected: all pass, and `key_like` finds nothing.
-- (loop) `<lane> OCUTALON_RUN_TAG=e30s7iw ci/warm.sh up`, once. Then `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e30s7iw ci/iris.sh class <Class>`, one call per class. Expected: `CLASS … passed`. The classes:
-  - `OcuTalon.Test.Data.Purge`
-  - `OcuTalon.Test.Bridge.Redact`
-  - `OcuTalon.Test.Bridge.Purge`
-  - `OcuTalon.Test.Eval.KeyProof`
-  - `OcuTalon.Test.Watch.Lifecycle`
-  - `OcuTalon.Test.Watch.Reader`
-  - `OcuTalon.Test.Watch.Tools`
-  - `OcuTalon.Test.Data.Ownership`
-  - `OcuTalon.Test.Data.PairingRows`
-  - `OcuTalon.Test.Install.Registry`
-- (loop) `<lane> OCUTALON_RUN_TAG=e30s7i ci/iris.sh class <Class>`, fresh, one call each: `OcuTalon.Test.Bridge.Approval`, `OcuTalon.Test.Bridge.Runner`, `OcuTalon.Test.Install.Retention`, and `OcuTalon.Test.Bridge.Decide` (if `ConcludeTool` changed).
-- (once) The Task 0 and DW-448 measurements on `e30s7i` (described in the tasks), with the results recorded in Design Notes.
-- (once) `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16`. Expected: `"ok": false` with exactly the 8 baseline low `placeholder` findings (by token; the line numbers may shift).
-- (once) `git grep -n -i -E "without (asking )?the model|no model|replay|offline" -- README.md web/src src/ocutalon/cls/OcuTalon/Msg/Catalog`. Expected: no text claims a replay works without a provider connection. Record the hits.
-- (once) `bash ci/checks.sh`. Expected: every script passes.
-- (once) `<lane> OCUTALON_RUN_TAG=e30s7i ci/iris.sh shard lane-a --part k/6` for k = 1 to 6, then `shard lane-b --part k/3` for k = 1 to 3, fresh, one call each. Expected: passed.
+- (loop) `bash docker/tests/test-boundaries.sh` and `bash docker/tests/test-class-rules.sh`, one call each -- expected: pass; `key_like` finds nothing; every new SQL checks `%SQLCODE`.
+- (loop) `<lane> OCUTALON_RUN_TAG=e30s7iw ci/warm.sh up` once, then one call per class: `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e30s7iw ci/iris.sh class <Class>` -- expected: `CLASS <Class> passed`. Classes: `OcuTalon.Test.Data.Purge`, `OcuTalon.Test.Bridge.Purge`, `OcuTalon.Test.Bridge.Interrupted`, `OcuTalon.Test.Bridge.Runner`, `OcuTalon.Test.Bridge.Decide`, `OcuTalon.Test.Schedule.Reminders`, `OcuTalon.Test.Bridge.Gate`, `OcuTalon.Test.Watch.Lifecycle`, `OcuTalon.Test.Watch.Reader`, `OcuTalon.Test.Watch.Tools`, `OcuTalon.Test.Data.Ownership`, `OcuTalon.Test.Install.Registry`.
+- (loop) the same warm form for `OcuTalon.Test.Bridge.Approval` (about 140 s of its own time on 2026-11-02) and `OcuTalon.Test.Install.Retention` (about 110 s), each in its own call -- expected: passed. A call that would not return inside about 150 s is not retried in the background: the class is left to CI (`shards-5`, `shards`) and the stage says so under Auto Run Result.
+- (once) Task 0a and 0b on `e30s7iw` (tasks above), results under "Measured at implementation".
+- (once) `uv run --no-cache _bmad/scripts/memlog.py append --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16 --type decision --text "AD-27: the host purge of turns, deliveries and idle sessions with their rows (U-210 kept, DW-581), Story 30.7"`, then `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16` -- expected: `"ok": false` with exactly the 10 baseline low `placeholder` findings (by token; line numbers may shift).
+- (once) `git grep -n -i -E "without (asking )?the model|no model|replay|offline|provider" -- README.md docs web/src src/ocutalon/cls/OcuTalon/Msg/Catalog` -- expected: no text claims that a replay works without a provider connection; record the hits.
+- (once) `bash ci/checks.sh` -- expected: every script passes.
+- (once) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e30s7iw ci/iris.sh shard lane-a --part k/n` and `shard lane-b --part k/n`, one part per call, with `n` chosen so that each part finishes in about 150 s -- expected: passed. The fresh forward and reverse shards are the lead's fresh check (Rule 19) and CI's.
 - (once) `<lane> OCUTALON_RUN_TAG=e30s7iw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e30s7i ci/iris.sh teardown`, also after a failure.
 
+**CI groups of the new tests (`ci/units.sh`):** `Test.Data.Purge` (new) and the new method of `Test.Schedule.Reminders`: lane-b (`Data`, `Schedule`) in `image` (about 1,740 s); `Test.Bridge.Interrupted` (new), `Test.Bridge.Purge`, `Runner`, `Decide`, `Gate`, `Approval`: `shard:lane-a@Bridge,Agent` in `shards-5` (about 1,950 s, the tightest; see "For the lead"); `Test.Install.Retention`, `Test.Watch.*`: `shards` (about 1,830 s). Each stays under 35 minutes with this story's additions (inference until CI measures them). No new group and no `ci/units.sh` change.
+
 **Shared surfaces:**
-- The OcuTalon purge task now deletes old Turn, Delivery and Session rows: `Test.Install.Retention` (re-pinned), and any test whose fixtures are back-dated more than 60 days (search for `Utc(6`/`Utc(9` and back-dated `CreatedAt`).
-- `Reconcile` gains pass 4: every test that runs Reconcile with an executing `tool_call` row (search `Test/` for `Reconcile` and `executing`).
-- `Watch.Reader.Productions` entries (+`state`): `TestOrdersIsListed`. The `list_productions` answer: `Test.Watch.Tools.TestListProductions`.
-- `Redact` patterns: callers' tests that pin redacted text (none plant these shapes, per search).
-- `TestNoSettingRead`'s class list.
-- CI time: no new unit. `Test.Data.Purge` joins lane-b `Data` (+10 s or less, inference).
+- The OcuTalon purge task now deletes Turn, Delivery, Session, GuideState, SimMessage, finished Reminder and BreakFeedRun rows and conversation links: `Test.Install.Retention` and any test whose fixtures are back-dated past 60 days (search `Test/` for back-dated `CreatedAt`, `RecordedAt`, `Utc(6`, `Utc(9`).
+- Reconcile gains pass 4 and `CompleteHoldTask` answers the hold directly: every test that runs Reconcile with an executing `tool_call` row (none today, search `Test/` for `Reconcile` and `executing`), and every test that asserts the old "so none was completed" warning or a hold left waiting after a late task.
+- `HoldResponse`'s `task` key also takes `Ens.StringResponse`.
+- `Watch.Reader.Productions` entries (+`state`): `TestOrdersIsListed`; the `list_productions` answer: `Test.Watch.Tools`.
+- `TestNoSettingRead`'s class list; `TestOnlyOwnTablesAndAuditKept`'s list of deletes.
 - Every test added or changed passes on a fresh environment, in either order.
 
-**Pinning mutations (Rule 19).** Apply each mutation, observe red, revert byte for byte, and record it as `mutation: … → …`.
+**Pinning mutations (Rule 19), one per AC; apply, observe red, revert byte for byte (`git status --short`, `git diff --stat` unchanged), record as `mutation: ... -> ...`:**
 
-| AC or row | Mutation | Expected red |
+| AC | Mutation | Expected red |
 |---|---|---|
-| U-210, rows 1-3 | `Retention.Purge` does not call `Data.Purge` | `TestTurnsReadNoPurgedDecision`; `Retention.TestOcuTalonPurge` |
-| Row 3 | `Data.Purge` takes its own `now` (+5 s) | the boundary assertion |
-| Cond. 1, rows 4-5 | Drop one signal at a time (signed in, pairing, approval, watch, reminder, newer turn, delivery, decision) | `TestSessionKeptWhileActiveOrCurrent` for that signal |
-| Cond. 1, row 6 | Drop the `CreatedAt < cutoff` check | the new-session case |
-| Cond. 2, row 7 | Add a delete of a table outside `OcuTalon_Data` | `TestOnlyOwnTablesAndAuditKept` (static) |
-| Row 10 | Remove each new pattern | that shape's test |
-| Rows 11-12 | Pass 4 removed; or the lock check skipped | the dead case; the live case |
-| Row 14 | `ConcludeTool` keeps `error` and no sentence | the no-key Runner test |
-| Row 17 | The list decode removed | `TestGlobalHits` |
-| Row 18 | `CompleteHoldTask` does not poll | `TestAnswerBeforeTheTaskExists` (a) |
-| DW-371 | `DaysCutoff` called with `daysToKeep + 1` | `Lifecycle.TestPurge` |
-| Row 19 | `state` dropped from `Listed` | `Tools.TestListProductions`; `Reader.TestStoppedProduction` |
-
-**Pinning mutations run (Rule 19)**, each applied, observed red and reverted byte for byte:
-- mutation: `Retention.Purge` does not call `Data.Purge` -> `Test.Data.Purge.TestTurnsReadNoPurgedDecision` red (the 91-day turn, its delivery and its session stay) and `Test.Install.Retention.TestOcuTalonPurge` red (the turn created 61 days ago is not gone)
-- mutation: the turn delete of `Data.Purge` moved 5 s later (the host cut differing from the bridge's) -> `TestTurnsReadNoPurgedDecision` red (the turn created at the cutoff does not stay) and `TestSessionKeptWhileActiveOrCurrent` red (a Turn at the cutoff)
-- mutation: the signed-in check dropped -> `TestSessionKeptWhileActiveOrCurrent` red (a live CSP session); likewise one at a time for the newer Turn, Delivery, Decision, pairing, approval (all three open states), watch and pending reminder, each red for its own case only
-- mutation: the `CreatedAt < cutoff` condition of the session select dropped -> `TestSessionKeptWhileActiveOrCurrent` red (the young session with no rows)
-- mutation: the Delivery delete aimed at `OcuTalon_Bridge_Data.Usage` -> `TestOnlyOwnTablesAndAuditKept` red (the deletes list) and `TestTurnsReadNoPurgedDecision` red (the delivery stays)
-- mutation: the `dop_v1_` pattern removed -> `Test.Bridge.Redact.TestDigitalOceanToken` red; the PEM pattern removed -> `TestPrivateKey` red; the PEM header-only branch removed -> `TestPrivateKey` red (the header-only cases); the Telegram pattern back to 6 to 12 digits -> `TestTelegramToken` red (the 13-digit id); the `sk-ant-` pattern removed -> `TestAnthropicKey` red (upper case)
-- mutation: `Reconcile` pass 4 removed -> `Test.Bridge.Approval.TestInterruptedReplayIsClosed` red and `TestLiveReplayIsLeftAlone` red (the closing after release)
-- mutation: the lock check of `CloseInterrupted` removed -> `TestLiveReplayIsLeftAlone` red (the live row is closed)
-- mutation: the replay lock not released on the normal path of `Replay.Run` -> `Test.Bridge.Runner.TestReplayThroughTheRunner` red (the lock is free after each replay) and `TestReplayWithoutAKey` red
-- mutation: `ConcludeTool` keeps `error` and no sentence -> `Test.Bridge.Decide.TestToolFailureReasons` red (the no-key case); `ConcludeTool` ignoring ToolsRun -> `TestToolFailureReasons` red (the tool that ran)
-- mutation: the `$List` decoding of `KeyProof.Holds` removed -> `Test.Eval.KeyProof.TestGlobalHits` red
-- mutation: `CompleteHoldTask` polls no more -> `Test.Bridge.Approval.TestAnswerBeforeTheTaskExists` red ((a): the job has returned at once and the fake task is not assigned)
-- mutation: `DaysCutoff` called with `daysToKeep + 1` in `IncidentManager.Purge` -> `Test.Watch.Lifecycle.TestPurge` red
-- mutation: `state` dropped from `Listed` -> `Test.Watch.Tools.TestListProductions` red; `state` dropped from `Reader.Productions` -> `Test.Watch.Reader.TestOrdersIsListed` and `TestStoppedProduction` red
-
-- mutation (review pass): the delivery hold of Reconcile pass 3 also takes executing tool_call rows -> `Test.Bridge.Approval.TestInterruptedReplayIsClosed` red and `TestLiveReplayIsLeftAlone` red (Reconcile returns the hold's refusal)
-- mutation (review pass): the fixture of `TestInterruptedReplayIsClosed` made `approved` instead of `executing`, so that the call is replayed -> the same test red on the Result, the Action entry, "no tool request was sent" and "the tool ran 0 times" (the replay-tool row moves the runner's request count and the tool's counter)
-- mutation (review pass): the `Kind = 'tool_call'` filter dropped from `Replay.CloseInterrupted` (query and guard) -> `Test.Bridge.Approval.TestExecutingFixIsLeftAlone` red (the fix row is touched and an event fires)
-
-**Runs (build 154U):** fresh `Test.Data.Purge` 0.60 s (new class, lane-b Data); the rest of the loop classes passed, fresh: `Test.Install.Retention` 109 s, `Test.Bridge.Approval` 132 s, `Test.Bridge.Runner` 16 s, `Test.Bridge.Decide` 9 s; warm: `Test.Bridge.Redact`, `Test.Bridge.Purge`, `Test.Eval.KeyProof`, `Test.Watch.Lifecycle`, `Test.Watch.Reader`, `Test.Watch.Tools`, `Test.Data.Ownership`, `Test.Data.PairingRows`, `Test.Install.Registry`. `test-boundaries.sh`, `test-class-rules.sh`, `ci/checks.sh` and the spine lint (the 8 baseline findings) pass. Review pass, same tree after the patches (fresh throwaways, `e30s7i`): `Test.Bridge.Approval` 139.7 s, `Test.Bridge.Runner` 16.0 s, `Test.Bridge.Decide` 9.7 s, `Test.Install.Retention` 112.8 s; warm (`e30s7iw`): `Test.Data.Purge` 0.64 s and the nine other loop classes; `bash ci/checks.sh`, `test-boundaries.sh`, `test-class-rules.sh` and the spine lint (the 8 baseline findings) pass; shards, fresh: `lane-a` parts 1 to 6 of 6 passed (20, 19, 19, 19, 19, 19 classes; 475, 185, 187, 525, 440, 432 s) and `lane-b` parts 1 to 3 of 3 passed (29, 29, 28 classes; 257, 221, 473 s). `Test.Install.Retention` failed twice for one reason, the two stock Ens purge tasks not starting inside the test's wait (once in the implement pass, once in a run with a warm stack beside it), and passed on four other fresh runs, all with the OcuTalon purge task's own assertions green; it is the stock tasks' start under load, not a result of this change `(inference)`.
-
-**Public-text hits** of the grep (README.md lines 43, 104, 177; the catalog's `fallbackReason.noKey` and the no-key banner; `approval-view.ts` lines 37 and 39 for fixes; `catalog.ts`; `guide-view.ts`): none claims that a replay works without a provider connection.
+| Kept turns read no purged decision (rows 1-3) | `Retention.Purge` does not call `Data.Purge` | `Test.Data.Purge.TestTurnsReadNoPurgedDecision`; `Test.Install.Retention.TestOcuTalonPurge` |
+| Condition 1 (rows 4-6) | drop the Memory read from `Keeps` (then each other signal, one at a time) | `TestSessionKeptWhileActiveOrCurrent`, that signal's case |
+| DW-581 (row 23) | `Data.Purge` skips the `DropLinks` call | `TestSessionRowsGoWithIt` (the link stays) |
+| Condition 2 (row 7) | add a delete of a table outside the seven | `TestOnlyOwnTablesAndAuditKept` |
+| Spine lint | a brace in the new bullet | the lint shows an 11th finding |
+| DW-444/DW-582 (rows 11, 20) | `CloseInterrupted` skips `AnswerHold` | `Test.Bridge.Interrupted.TestHoldOfAnInterruptedReplayEnds` (the hold does not end in 10 s) |
+| DW-444 re-delivery | `Run` does not close an executing row it finds | `Test.Bridge.Runner.TestReplayOfADeadExecutingRow` |
+| DW-588/DW-462 (rows 18, 21) | `CompleteHoldTask` does not call `AnswerHold` | `Test.Bridge.Approval.TestAnswerBeforeTheTaskExists` (no outcome before the late task) |
+| DW-470 (rows 14-16) | `ConcludeTool` keeps `error` and no sentence for the no-key text | `Test.Bridge.Decide.TestToolFailureReasons` |
+| DW-584 (row 22) | delete the `KeyedRow` block of `ReminderOps.Cancel` (`:176-182`) | `Test.Schedule.Reminders.TestToolCallKeysAfterAList` |
+| DW-495 (row 24) | `Parameter READONLYCANCELREMINDER = 1` | `Test.Bridge.Gate` untrusted and tainted rows, with "its method ran" in the failure |
+| DW-371 | `DaysCutoff` called with `daysToKeep + 1` in `IncidentManager.Purge` | `Test.Watch.Lifecycle.TestPurge` |
+| DW-541 (row 19) | `state` dropped from `Listed` | `Test.Watch.Tools.TestListProductions` |
 
 ## Auto Run Result
 
-Status: done
+Status: ready-for-dev
 Blocking condition: none
 
-- **Summary.** All eight ledger entries of Epic 30 are implemented, each with its own tests:
-  - DW-437: `Data.Purge` and the same-`now` call from `Retention.Purge`, with the AD-27 amendment (U-210); the spine lint still shows the 8 baseline findings.
-  - DW-386: `Redact` gains `dop_v1_`, PEM private key blocks and Telegram ids of 6 or more digits.
-  - DW-444: the replay lock, `Replay.CloseInterrupted` and Reconcile pass 4.
-  - DW-470: `ConcludeTool` records `no_key` with `REPLAYNOKEY` when the call did not run.
-  - DW-448: `KeyProof.Walk` decodes `$List` values (data and subscripts, nested).
-  - DW-462: the test is deterministic; no product code changed.
-  - DW-371: `IncidentManager.Purge` takes its cutoff from `DaysCutoff`.
-  - DW-541: `state` on `list_productions` entries.
-- **Files changed.**
-  - Product: `Data/Purge.cls` (new), `Install/Step/Retention.cls`, `Bridge/Replay.cls`, `Bridge/Approval.cls` (Reconcile pass 4), `Bridge/Redact.cls`, `Bridge/Process/Decide.cls` (`ConcludeTool` and `REPLAYNOKEY`, a separate hunk that uses no Story 30.1 code), `Watch/IncidentManager.cls`, `Watch/Reader.cls`, `Tools/WatchAnswers.cls`, `Tools/WatchTools.cls`, and the AD-27 bullet in `ARCHITECTURE-SPINE.md`.
-  - Tests: `Test/Data/Purge.cls` (new), `Test/Install/Retention.cls`, `Test/Bridge/{Approval,Decide,Redact,Runner}.cls`, `Test/Eval/KeyProof.cls`, `Test/Watch/{Reader,Tools}.cls`.
-- **New test class and its fresh run time:** `OcuTalon.Test.Data.Purge` (lane-b `Data`), 0.60 s on a fresh throwaway, 0.64 s warm. No new shard group is needed.
-- **Review.** Four layers ran. Patches applied: 4 (session checks reordered so the store scan runs last; `TestInterruptedReplayIsClosed` moved to a replay-tool row so its "never runs again" assertions can fail; the `TestAnswerBeforeTheTaskExists` header line corrected; mutation lines written for the new pinning tests). Deferred: 3 (see `deferred:`). The rest are logged under Review Triage Log with their reasons.
-- **Task 0 and the measurements** are in Design Notes, "Measured at implementation":
-  - an unset key fails the replay in `BuildAgent` before the call (the tool did not run), so `REPLAYNOKEY` is written;
-  - an unreachable provider fails no replay (a replay makes no provider request, so the tool ran), so `REPLAYUNREACHABLE` is not written and the only new public text is `REPLAYNOKEY`, which reuses the catalog words;
-  - no message-body class can hold a `%Stream`, so the stream half of DW-448 (compressed and split chunks) is not written: for the lead's `wontfix-accepted` close, `reopen_if` a message body class gains a stream property;
-  - DW-462: both of the spec's inferences failed, so no product code changed; the product residual is in `deferred:`.
-- **Follow-up review recommended:** false (no high patched; two medium patched or fewer).
-- **Verification.** Every `(loop)` command, and the `(once)` lines (spine lint, public-text grep, `bash ci/checks.sh`, all nine shard parts), passed on the final tree; the run figures are under "Runs". The pinning mutations are listed above, each applied, observed red and reverted byte for byte.
-- **Residual risks.**
-  - A live purge needs the real CSP session store and run only on throwaways; the signed-in check is pinned against a private store with the layout of `Status.Visitors`.
-  - `Test.Install.Retention` can fail when the stock purge tasks do not start in time (see "Runs").
-  - A purged session leaves GuideState, SimMessage, fired or cancelled Reminders, BreakFeedRun rows and ConversationLink (declared in the spec; none deleted by design).
-  - A replay hold lost to a crash can still wait on key `replay` (declared in the spec).
+- Re-planned on `76c31e50` (2026-11-08). The intent contract is unchanged. Task 1 reuses the set-aside patch's 14 clean files and merges `Bridge/Approval.cls` and `Test/Install/Retention.cls` by hand; the later tasks add DW-581, DW-582, DW-584, DW-588, DW-495, DW-590, U-214's endpoints (Task 0a) and the Ens checks (Task 0b). DW-589 is closed by CI numbers with no code.
+- For the lead's gate: PUBLIC TEXT, Contended hunks, the footprint extensions and "For the lead" are under Design Notes.
