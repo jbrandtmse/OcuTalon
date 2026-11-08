@@ -14,6 +14,8 @@ import { spawnSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { shellFunction } from './repo-sources.mjs';
+
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..');
 const support = (name) => pathToFileURL(join(here, '..', 'e2e', 'support', name)).href;
@@ -419,7 +421,7 @@ describe('ci/iris.sh runs one method of a class', () => {
     );
   });
 
-  const cut = (name) => `eval "$(sed -n '/^${name}() {/,/^}/p' ${JSON.stringify(irisPath)})"`;
+  const cut = (name) => shellFunction(irisPath, name);
 
   /** cmd_class with the stack stubbed: prints what run_classes would run. */
   function cmdClass(...args) {

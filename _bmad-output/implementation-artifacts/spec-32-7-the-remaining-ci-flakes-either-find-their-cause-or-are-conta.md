@@ -2,7 +2,7 @@
 title: 'Story 32.7: The remaining CI flakes either find their cause or are contained, logged'
 type: 'chore'
 created: '2026-11-08'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '7d0a57f20076de86a25aaa68d9a9e14e1d92f950'
 baseline_commit: '7d0a57f20076de86a25aaa68d9a9e14e1d92f950'
 review_loop_iteration: 0
@@ -303,6 +303,8 @@ Write the five groups' results (G1 to G5) into `### Investigation result` before
 - Each A task gets its hermetic pinning test where one is possible without a stack and its `mutation:` line; the lead runs the stack proofs (below).
 - Lead proofs (not the implement stage), lane A throwaways, old code red and the fix 20 of 20 under load, recorded under `## Verification`: G1, a scratch injection that calls `Ens.ScheduleService.CallScheduleService()` when the poll first settles; G2, on a parked stack TelegramIn's runtime flag set to 1 before the read (old check red, `NotRunningNow` green); G3, a route that holds the splash document about 2 s after the 401 with the close inside the hold; G4, the class under the CPU-burn load with D4's split read (and `Hang 21` after `ReadSample` as the new bound's mutation). A group whose proof does not confirm its cause falls back to its B task in a further pass.
 
+- [ ] [Smoke] G3 fallback (lead proof L-G3: old 0 of 120 red under the held-splash stall, so the cause is not confirmed; `planner-2026-11-08-32.7`): build **B3 exactly as specified under "Branch B per group"** — `diagnose.ts` `closeTargetAgain(page)` and the close-lines builder; `fixtures.ts` `boundedClose` at `firstAttemptMs(waitMs())`: if the page is still open and the close has not settled, `reportRetry('page.close', <redacted close lines>)`, `closeTargetAgain`, then settle on the first close or the page's `close` event; the outer `boundedStep(..., waitMs(), 'page.close')` and `diagnosedAtBound` keep B, the message and the diagnosis; rewrite the fourth contract comment; the `bounded-waits.test.mjs` `boundedClose` pin pins the new line exactly; `helper-waits.spec.ts` describe `page.close: one more close of the page` with R1 to R3. The Build list's "build NO Branch B task" is lifted for B3 only. Keep A3's splash wait in `leave.spec.ts`. Write each pinning test's `mutation:` line.
+
 **Acceptance Criteria:**
 - **AC0.** Given the spec gate, when each group's 90 minutes end, then its `### Investigation result` holds `cause:` with its evidence and fix, `none_in_timebox` with what was read and ruled out, or `product:` with the evidence that was sent to the Planner. G5 holds the measurement. The implement stage builds only the named branches, and it stops `blocked` when a subsection holds none of these.
 - **AC1 (DW-911).** Given a unit with retries, when `ci/iris.sh` reports them, then its `RETRY` lines, its retry-time `DIAG` lines and `RETRIES <n> in <kind>:<unit>` appear in the job log, and the counts and the step summary are unchanged in shape.
@@ -315,8 +317,32 @@ Write the five groups' results (G1 to G5) into `### Investigation result` before
 - **AC8 (push, lead).** Given the change, when it is pushed, then `bash docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow.
 - Standing (Rule 19): every test added or changed passes on a fresh environment, in either order.
 
+### Review Findings
+
+_(code review, 2026-11-08, first review; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 21 rows, 16 entries after grouping: 4 patch, 0 decision-needed, 0 defer, 12 rejected. Each entry: severity, fix-risk, footprint, disposition.)_
+
+- [x] [Review][Patch] close-settled C-1/C-2 start the `/splash` wait after `goto` returns, so a splash request that comes before it (the page asks about 150 ms after its script runs) is missed and the case times out on a loaded host (edge+verification-gap; medium, fix-risk low: the promise moves before the navigation; in-story) [web/e2e/live/close-settled.spec.ts:126]
+- [x] [Review][Patch] The DIAG writer/reader agreement case compares `[]` with `[]` for every refused candidate, because the writer drops them before the file exists: the reader's refusal of tab, control, DEL and CR lines was pinned by nothing (verification-gap; medium, Rule 19 unfalsifiable assertion, fix-risk low; in-story). Added a raw-file case that writes the one-line refused candidates straight into the unit's file; mutation line under `## Verification` [web/scripts/flake-fixes-behaviour.test.mjs:184]
+- [x] [Review][Patch] Near-copied test helpers with no stated reason (Rule 2): the `.cls` method cutter and repo reader in `flake-fixes-sources.test.mjs:16-22` and `flake-fixes-behaviour.test.mjs:21-27`, and the bash function cutter in `state-wait.test.mjs:422` and `flake-fixes-behaviour.test.mjs:163,188` (acceptance-auditor; medium, fix-risk low: pure move, suite green; in-story). Moved to the new `web/scripts/repo-sources.mjs` (`readRepo`, `clsMethod`, `shellFunction`), which the three files import [web/scripts/repo-sources.mjs:1]
+- [x] [Review][Patch] The L-G3 `(lead)` proof line was B3's (helper-waits `--grep 'R1'` on the old `web/e2e/support/` files): as built it matches only 32.6's `loadedAfter` R1 and would record "old red, fix green" from C1's changed expectation, not from page.close; the Build list's held-splash proof had no runnable line (acceptance-auditor; medium, fix-risk low; in-story, tracking section). Restated for A3 through the QA stand-in, with the red criterion, the fallback to B3 and the L5/L6 `--grep` pass-through [spec `## Verification` L-G3]
+
+**Rejected** (with the Rule 15 disposition each takes):
+- low, by-design (fix-risk med): A1's `Ens.Job:Enumerate` loop near-copies `RunnerFixture.Jobs`, and its Alive half overlaps the `Jobs(item)` term (blind+acceptance). `RunnerFixture` is on the Never list, so `Jobs` cannot gain the Starting state; the sibling the spec names, `Idle`, is reused.
+- low, by-design (fix-risk med): `AssertRefused` passes without a sign when its poll reaches the deadline unsettled (blind+edge). A1 keeps "WAITSECONDS, the assertions and their messages"; a new assertion or `$$$LogMessage` is outside it. The three assertions still re-read and fail loudly on a live job, and QA's stack run settled in 11.73 s. Reopens only through a spec amendment; probe: a CI `TestStartRefused` run of 120 s or more.
+- low, wontfix-accepted (fix-risk med): close-settled cuts `closeSettled` out of leave.spec.ts and strips its types with `node:module` `stripTypeScriptTypes`, which prints an ExperimentalWarning (blind). Exporting the helper would move it outside A3's "leave.spec.ts close lines only"; CI's Node 24 has the API. reopen_if=a Node upgrade under which close-settled.spec.ts fails before its first case on `stripTypeScriptTypes`.
+- low, wontfix-accepted (fix-risk low): `closeSettled`'s empty `catch` leaves no line when the page never reaches the splash (blind). Not spec-clear: A3 names close lines only, and DIAG content is constrained. reopen_if=a CI L5/L6 failure whose log cannot tell a page that never left from a close stall.
+- low, by-design (fix-risk med): `closeSettled` can add up to 30 s plus 60 s (the action and navigation defaults), not 30 s (acceptance). A3 names the two waits with no bound, so they take the project defaults and no number changes; the test timeout still bounds the test.
+- low, wontfix-accepted (fix-risk low): Heartbeat `Restore`'s error names the missing items without `StateOf` (blind). The message is unchanged from before the story, and neither D1 nor D4 covers it. reopen_if=a CI OnAfterAllTests "does not run every item after the tests" failure that the item names alone do not explain.
+- low, wontfix-theoretical: `released` could come after `finished` (edge). That needs more than 1 s between HoldLock's `Lock -` and its next `Set`, while the reader runs its 1 s Submit and its stop. Even then, every bound is judged on true facts (`elapsed > 4` unchanged). It would become real if a D4 message showed a negative "after the release".
+- low, by-design: with two or more retries, the DIAG lines are not tied to their own RETRY (edge). Matrix row DW-911 prints the RETRY lines, then the DIAG lines, then the count.
+- false: `cmd_class` says `unknown test class` for a bad method (blind). Matrix row "One-method run" prescribes exactly that, with exit 2.
+- false: the spec says `done` while the story is in review (blind+acceptance). The frontmatter `status:` is build-auto's machine state, and the story's state is sprint-status. The fix would also edit the spec.
+- false: `Restore`'s `NotRunningNow` hides Enabled-0 items (edge). That is A2, approved by the Planner: an item whose Enabled row is 0 is not meant to run.
+- false: `src/**` lines go beyond AC7's line kinds (acceptance). The `$$$AssertTrue` wraps the new end-node wait, which is a wait line; without it A4's split would be vacuous. The comment lines document the changed waits (Rule 14).
+
 ## Spec Change Log
 
+- 2026-11-08 (lead, rework iteration 1, trigger smoke/proof): G3's cause was not confirmed by its proof; B3 (the single logged re-close) is built per the Planner's fallback, A3 kept. G1, G2, G4 confirmed.
 - planner-2026-11-08-32.7 (the Contest Planner under the owner's delegation, relayed by the orchestrator, 2026-11-08 about 20:2xZ): DW-639 option (2) APPROVED inside 32.7: `Heartbeat.cls:612`'s check reads `RunnerFixture.NotRunningNow` with the message at 613 kept, and the same at `Restore` (:180); proof on a parked stack with TelegramIn's flag set to 1 (old red, new green), then 20 of 20 under load. The product fix (option 1) is NOT in 32.7: ledgered as DW-978 (`owner=burndown`, its own story later); `Install/Step/Production.cls` is never touched. DW-211, DW-774's page.close half and DW-973: the fixes as described in `### Investigation result` APPROVED, each with its proof (old red, fix 20 of 20 under load); DW-973's post-release bound is 20 s, as `TestTimeLimit`. A group whose proof does not confirm its cause falls back to the single logged retry. DW-966: declined (no race; G5), closed terminal. DW-911: the DIAG lines go in `ci/iris.sh`; `.github/workflows/ci.yml` stays untouched (`ci_yml_hunk: none`). One push at the end, after the integrate-forward onto the newest green feature head; the release-tool freeze holds. AC7's "wait, timing, retry-log and message lines" is widened by this ruling to A2's two check lines only.
 - 2026-11-08 (lead, Task 0): `### Investigation result` filled for G1 to G5. G1 cause (AssertRefused wait), G3 cause (close during the 401 exit to the splash), G4 cause (the post-release part of TestTimeLeft's bound), G5 race not shown (DW-966 to be declined at adjudication), G2 product (`Install.Step.Production.NotRunning()` reads only the runtime flag): G2 stopped and reported to the Planner before any fix (PLANNER REPORT); its branch waits for the ruling.
 
@@ -529,6 +555,24 @@ The setup for every command:
 - mutation: C1/AD-19, `floor.ts` passing `retryLines` to `reportRetry` without `.map(redactLine)` → `flake-fixes-sources.test.mjs` red (1 of 11).
 - mutation: A4, the `AssertTrue` on `WaitNode("left", "end", 10)` put back to a bare call → `flake-fixes-sources.test.mjs` red (1 of 11).
 
+**QA stage (QA; gap-closing tests, no stack except one warm one-method run; each mutation applied in the tree, observed red, restored with `cmp` identical and `git status --short` unchanged).**
+- (QA) `web/scripts/flake-fixes-behaviour.test.mjs` (new, node `--test`, 14 cases, about 9 s, picked up by `npm --prefix web test`): A4's boundaries evaluated on the class's own Set lines and condition (15.89 s and 15.16 s pass; lock 15 s, after the release 20 s and elapsed 4 s fail; the end node absent falls back to the old bound; `Set finished` is taken before the node wait); the fixture calls of A1/A2 exist with their arity (and `Idle(item, 0)` checks once); `reportRetry`'s writer and `retries_report`'s reader agree on the DIAG shape for 22 candidate lines (lengths 0, 1, 300, 301; control, DEL and non-ASCII characters; embedded newline and CR; a forged RETRY line); `class_method_ok` against the repo's real class files; the real `ci/iris.sh class <bad spec>` exits 2 with the unknown test class line before any runtime.
+- (QA) `web/e2e/live/close-settled.spec.ts` (new, Playwright, sign-in-2 project through `e2e/live`, 3 cases, about 5 s, local Chromium only): A3's hermetic stand-in. It cuts `closeSettled` out of `leave.spec.ts` as written and runs it on a page that is answered 401 and `location.replace`s to a splash that the stand-in holds for 1.5 s. C-1: the close comes after the splash document was served and with no splash request held. C-2: the close comes after the splash page's own image was served (`load`), though its button showed before that. C-3: a page that does not leave is closed after the default wait and the helper does not throw.
+- (QA) Command: `node --test web/scripts/flake-fixes-behaviour.test.mjs`; `(cd web && env -u OCUTALON_URL npx playwright test e2e/live/close-settled.spec.ts --project sign-in-2)`, also 3 times with `--repeat-each 3` (9 of 9, three runs). Then lint, `docker/tests/test-boundaries.sh`, `docker/tests/test-ci-config.sh` and `npm --prefix web test` (1621 of 1621) pass.
+- (QA) Stack evidence for A1 (the residual risk of the Auto Run Result: an `Ens.ScheduleHandler` that never idles would run the poll to 120 s): one warm throwaway (`e32s7q1`, lane A, torn down, `docker ps -a --filter name=e32s7` empty), `ci/iris.sh class OcuTalon.Test.Agent.Runners:TestStartRefused` gave `CLASS ... passed 11.73s`, with two `AssertRefused` polls, so `Idle("Ens.ScheduleHandler", 0)` does turn true on a running production; it is also a real run of C3 (only that method ran, the `CLASS` line names the spec).
+- mutation: A4, `(afterSeconds < 20)` changed to `(afterSeconds < 30)` in `ExtractMore.cls` → `flake-fixes-behaviour.test.mjs` red (`fails the part after the release at 20 s, and passes it just below`).
+- mutation: A4, `Set finished = $ZHorolog` moved after the `WaitNode("left", "end", 10)` call → `flake-fixes-behaviour.test.mjs` red (`takes the end time right after the read, before the wait for the node`).
+- mutation: A4, `(lockSeconds < 15)` changed to `< 25` → `flake-fixes-behaviour.test.mjs` red (2 cases).
+- mutation: A3, the `Sign in and start` wait removed from `closeSettled` → `close-settled.spec.ts` red (C-1, C-2 and C-3).
+- mutation: A3, `waitForLoadState('load')` removed → `close-settled.spec.ts` red (C-2 only).
+- mutation: A3, the `try`/`catch` of `closeSettled` removed → `close-settled.spec.ts` red (C-3 only).
+- mutation: AC1/C1, `RETRY_DIAG_LINE`'s `{1,300}` changed to `{1,400}` in `bounds.ts` → `flake-fixes-behaviour.test.mjs` red (the 2 agreement cases).
+- mutation: AC1/C2, `retry_diag_lines`'s `awk 'length($0) <= 305'` changed to `<= 300` in `ci/iris.sh` → `flake-fixes-behaviour.test.mjs` red (the 2 agreement cases).
+- mutation: AC4/C3, `class_method_ok`'s `grep -q "^Method $2("` changed to `"Method $2("` in `ci/iris.sh` → `flake-fixes-behaviour.test.mjs` red (`accepts the Test methods of the three classes ...`; a ClassMethod named Test... is no test).
+- mutation: A2, `Parameter FIXTURE` of `Heartbeat.cls` pointed at a class that does not exist → `flake-fixes-behaviour.test.mjs` red (`Heartbeat's FIXTURE names the class that holds NotRunningNow and StateOf`).
+- mutation (code review): AC1/C2, `retry_diag_lines`'s reader pattern `'^DIAG [ -~]+$'` loosened to `'^DIAG [[:print:][:cntrl:]]+$'` (it then takes tab, control and DEL bytes) in `ci/iris.sh` → `flake-fixes-behaviour.test.mjs` red (`the reader on its own prints none of the refused one-line candidates that reach its file raw, and every accepted one`, 1 of 15; `state-wait.test.mjs` stays green); restored, `cmp` identical, `git status --short` unchanged.
+- (QA) Not pinned without a stack: A1's two-polls-in-a-row logic and the `Ens.Job` Starting/Alive read, and A2's `NotRunningNow` against a flag-1/row-0 item, rest on the source pins and the lead's proofs (L-G1, L-G2).
+
 **Lead-side (`(lead)`; after implement, unless stated).**
 - **Scratch and load.**
   - `SCR=<scratchpad>/e32s7proof`.
@@ -540,10 +584,10 @@ The setup for every command:
   - If that is 0: the same 20 with the group's injected stall, recorded as `stall old: <red> of 20`.
   - Then 20 calls on the fix under the same load, plus the stall: `fix: <passed> of 20, <n> RETRY`.
   - AC5's real-runtime evidence is one stall run's `RETRY`/`DIAG` lines.
-- **L-G3:**
-  - `$SCR/loaded.sh` around `(cd web && env -u OCUTALON_URL npx playwright test e2e/live/helper-waits.spec.ts --project sign-in-2 --grep 'R1' --repeat-each 5 --workers 4)` on the old `web/e2e/support/` files: `stall old`, expected 20 of 20 red at the bound.
-  - Then the same on the fix: `stall fix: 20 of 20, 20 RETRY`.
-  - A plain-load L5/L6 run (`ci/iris.sh live online-session`) runs only if one call fits in about 150 s. Measure that first with one process.
+- **L-G3** (A3, as built; restated at code review because the B3 form, helper-waits `--grep 'R1'` on the old `web/e2e/support/` files, matches only 32.6's `loadedAfter` R1 and would go red on C1's changed expectation, not on page.close). The stall injection is the Build list's held splash, through the QA stand-in `web/e2e/live/close-settled.spec.ts` (its `/splash` is held `SPLASH_HOLD_MS` after the 401):
+  - `stall old`: a scratch edit of `close-settled.spec.ts` (restored byte-identical, `cmp` and `git status --short` checked) with `SPLASH_HOLD_MS = 2_000` and C-1's `await closeSettled(page)` replaced by `await page.close()` (the old L5/L6 close, inside the hold); `$SCR/loaded.sh` around `(cd web && env -u OCUTALON_URL npx playwright test e2e/live/close-settled.spec.ts --project sign-in-2 --grep 'C-1' --repeat-each 20 --workers 4)`. Count as red only a run whose `page.close()` gave no answer (C-1's 30 s test timeout inside the close); a red from C-1's order assertions alone is not the stall. Record `stall old: <red> of 20`. If it is 0, the hold does not reproduce the stall, and G3 falls back to B3 in a further pass (Build list).
+  - `fix`: the file as it is, under the same load, `--grep 'C-1|C-2' --repeat-each 10 --workers 4`: `fix: 20 of 20`.
+  - A plain-load L5/L6 run, `<laneA> OCUTALON_RUN_TAG=e32s7pl ci/iris.sh live online-session --grep 'L5|L6'` (the arguments reach Playwright through `docker/tests/test-online-session.sh`), runs only if one call fits in about 150 s; measure that first with one process. Otherwise L-ci's runs carry L5 and L6.
 - **L-G5:** the Task 0 measurement. When A5 is built, the forced-row run is the old red (`old: <red> of 20`) and the fix must pass 20 of 20 with the forced row.
 - **L-fresh (Rule 19):**
   - on a fresh throwaway, `<laneA> OCUTALON_RUN_TAG=e32s7pf ci/iris.sh class <Class>:<Method>` for each changed method, one per call, forward and then reversed, each followed by its teardown;
@@ -563,6 +607,43 @@ The setup for every command:
 - sign-in-2's case list (helper-waits).
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
+
+**Lead proofs, results (2026-11-08 21:39Z to 23:35Z, lane A throwaways; the reviewed tree).**
+
+*L-G1, L-G2, L-G4 (ObjectScript; one warm lane-A throwaway, CPU burners beside it):*
+
+- **(lead) L-G1, L-G2, L-G4 results** (2026-11-08 21:43Z to 23:34Z; one lane A warm throwaway `e32s7pw`; `class <Class>:<Method>` per run; load `LOAD_BURN`=8: 8 host loops plus 8 `--cpus 1` containers, which an EXIT trap removed after each batch, host load 45 to 144; "old" = the file at `7d0a57f2`; scratch edits restored byte-identical; 0 `RETRY` lines in 180 runs):
+  - **G1** (`Runners:TestStartRefused`). Injection: the first time a poll sees the old three conditions, `Ens.ScheduleService.CallScheduleService()`, then a no-Hang wait of up to 10 s for an Alive job of TriageAgent (read from the job-status global). **old: 0 of 10 red (plain load); 6 of 10 red (injected)**. 12 of 20 injected calls saw the Alive job, and 8 of those went red: `TriageAgent has no alive job` (8), `names it as not running` (2). Tuning runs with looser waits (2 of 9 red) are not counted. **fix: 20 of 20** with the same injection. In all 40 calls a second refused start wrote a second refusal row after the first settle (18 seen Alive); the poll then took 2 or 3 polls. Cause confirmed: Ens.ScheduleHandler's deferred update starts the refused item again.
+  - **G2** (`Heartbeat:TestAfterAllTestsNothingSaved`). Injection at the start of the method: `$$$ConfigIsEnabled("TelegramIn")=1`, put back right after the read. The stack was parked: `TelegramIn row 0, runtime flag 0, jobs none` before, `flag 1` at the read. **old: 5 of 5 red (injected)**: `NotRunning()` named TelegramIn. **new check: green; fix: 20 of 20** under load, and `NotRunningNow` read "". Cause confirmed.
+  - **G4** (`ExtractMore:TestTimeLeft`; split printed by a scratch skipped assert at the method's end; min/median/max in s):
+    - **old: 0 of 20 red (plain load**: 8 runs at `LOAD_BURN` 4, 12 at 8). Lock 4.94/5.01/5.10, after the release 3.44/4.72/9.12, total 8.43/9.80/14.19.
+    - **fix, plain load: 20 of 20**. Lock 4.95/5.01/5.08, after 4.41/5.61/6.82, total 9.35/10.63/11.86.
+    - Injection: `Hang 8` after `ReadSample`. **old: 20 of 20 red (injected)**: after 13.59/14.48/18.07, total 18.58/19.50/23.04 (`< 15` fails). **fix: 20 of 20** with the same injection: after 12.50/12.96/13.51 (`< 20` holds), lock 4.94/4.99/5.09.
+    - (A first `Hang 10`: 5 of 5 old red, but after 15.88 to 18.04 s, too near 19; replaced.)
+    - mutation: `Hang 21` after `ReadSample`, under load: `failed`, `(31.35 s in all; lock 5.01 s, after the release 26.34 s)`.
+    - The lock part held at about 5.0 s in all 86 runs, and all the spread fell after the release: G4's inferred split is confirmed. Cause confirmed.
+- **(lead) Smoke** (fixed tree, no load of mine, no injection, warm): `Runners` passed 44.11 s, `Heartbeat` 129.20 s, `ExtractMore` 22.21 s. After the restore, reversed (`ExtractMore` 23.08 s, `Heartbeat` 84.93 s, `Runners` 42.21 s): all passed.
+- **(lead) Fresh check: not run.** The stack start alone took 176 s here (`WARM up ... ready 176s`), so a fresh `class` run does not fit 150 s; left to CI's fresh instances.
+- Restore: `cmp` identical for the four files; their `git diff --stat` was empty before and after. Teardown: `warm.sh down` removed 1 project; `docker ps -a --filter name=e32s7p` and `--filter name=e32s7burn-p1` print nothing.
+
+*L-G3 (page.close; stand-in under load) and the fresh check:*
+
+- **L-G3 result (P2, 2026-11-08 21:41Z to 22:39Z; stand-in, no IRIS):**
+  - Load: 32.6's burn block, 4 host loops + 4 `--cpus 1` mock containers (8 + 8 in one batch), 4 concurrent Playwright processes. The 1-minute load peaked at 113.
+  - `stall old` (`SPLASH_HOLD_MS = 2_000`; C-1's `closeSettled(page)` replaced by `page.close()`; `--grep 'C-1'`): 4x5 (burn 4), 4x10 (burn 4), 4x10 (burn 8) and 1x20 `--workers 4` (burn 4). **`stall old: 0 of 120 red`.** Every close answered inside the hold (each run took 0.59 s at most). All 120 failed only on the order check `the splash document was served`. No test timeout and no `no answer within`. **G3's cause is not confirmed**, so G3 falls back to B3 (the lead decides).
+  - `fix` (file as is, same load, `--grep 'C-1|C-2' --repeat-each 5`, 4 processes): **`fix: 20 of 20`** for C-1 and 20 of 20 for C-2 (40 of 40 tests).
+  - Real L5/L6: **not run, left to L-ci.** Rows 2 and 4 wait 150 s to 180 s whatever the `--grep` (the unit takes 439 to 530 s in CI), `live` has no split steps, and it never runs warm. No throwaway was started.
+  - Restore: `close-settled.spec.ts` was restored (`cmp` identical). `leave.spec.ts` was never edited (`cmp` identical). `git diff --stat` and `git status --short` are unchanged. The `e32s7g3` and `e32s7burn-p2` containers are empty.
+- **L-fresh (P2):** no stack, `env | grep ^OCUTALON_` empty, results removed first.
+  - Forward: the node tests 159 of 159; `close-settled` 3 of 3; helper-waits line 3 53 of 53; line 2 8 of 8.
+  - Reversed: line 2 8 of 8; line 3 30 + 23 of 53 (split by `loadedAfter`); `close-settled` 3 of 3; the node tests in reversed order 151 of 159. The 8 reds are all `TestTimeLeft` pins, caused by P1's old-`ExtractMore.cls` put-back. On a `git archive HEAD` copy plus the story's 5 uncommitted test files, the result was 159 of 159.
+- **`(once)` (P2):**
+  - lint exit 0.
+  - `test-ci-config.sh` exit 0 (40 PASS).
+  - `test-boundaries.sh` all rules passed (run during P1's put-back).
+  - `npm --prefix web test`: P1's put-back stayed in the tree for more than 35 min, so the test ran in 2 halves on the same copy: 915 of 915 and 701 of 702. The one red is `retired-demo-path-names` (it needs git); it passed 6 of 6 in the tree. Rerun in the tree after P1 restores.
+
+**Lead decision after the proofs:** G1, G2 and G4 confirm their causes (A1, A2, A4 stand). G3's injected stall gave 0 reds, so its cause is not confirmed: by `planner-2026-11-08-32.7` G3 falls back to its single logged retry (B3), built in rework iteration 1; A3's splash wait stays (it matches the traces and costs nothing).
 
 ## Auto Run Result
 

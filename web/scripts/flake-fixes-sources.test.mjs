@@ -6,21 +6,9 @@
 // - Test.Docs.ExtractMore TestTimeLeft takes the split from the holder's end node and bounds the part after the release at 20 s.
 // Run with: node --test web/scripts/flake-fixes-sources.test.mjs
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = join(here, '..', '..');
-const read = (path) => readFileSync(join(repoRoot, path), 'utf8');
-const method = (source, name) => {
-  const start = source.search(new RegExp(`^(?:Class)?Method ${name}\\(`, 'm'));
-  assert.notEqual(start, -1, `${name} exists`);
-  const rest = source.slice(start);
-  const end = rest.search(/^\}/m);
-  return rest.slice(0, end);
-};
+import { clsMethod as method, readRepo as read } from './repo-sources.mjs';
 
 describe('DW-211: AssertRefused waits for the second refused start to end', () => {
   const body = method(read('src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls'), 'AssertRefused');
