@@ -2815,3 +2815,6 @@
 2026-11-08T14:44:37Z	Epic 32	ci_green_verified	head=cf04f99a runs=42472273728(attempt_3_under_deviation_c),42472273515 result=success
 2026-11-08T14:44:37Z	Run	ruling	question=merge_part2_before_7.11_lands choice=merge_part2_now(green_without_7.11;Planner_top_1.0.4_item) rejected=hold_part2_for_7.11(7.11_was_first_only_to_unblock_others) cost=7.11_and_32.6_each_integrate_over_part2(one_more_CI) category=decide policy=5086036
 2026-11-08T14:44:37Z	Run	planner_ruling	subject=DW-964 answer=PRE-APPROVED_U-177_for_ONE_test(Checks/Heartbeat_TestDisabledItemIsReportedOnce_waits_for_the_web_delivery);test-only;no_loosening;proof_old_red_under_race,fix_20/20;product_effect=stop(5.14_defect) via=Contest_Planner_1(delegation)
+2026-11-08T14:45:45Z	Epic 19	runner_complete	agent=aad203ead2336b5b5 part_merge=19.4,19.5,19.7 head=0b34089a(bookkeeping_only_over_f6290959) ci=success(42480549642,42480549480)via=f6290959 applied=U-304,U-305,DW-940,decision_sheet release_tool_hunks=H1-H9+DW-940(ruled)
+2026-11-08T14:45:45Z	Epic 19	amendments_verified	amendments=epics.md:6428,476;EXPERIENCE.md:979,1139;spine_AD-21_unions ok=true
+2026-11-08T14:45:45Z	Epic 19	merge_enqueued	policy=when_green priority=1(Planner)
