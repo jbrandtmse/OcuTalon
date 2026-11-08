@@ -2,7 +2,7 @@
 title: 'Story 9.11: The evaluation paces its incident cases so none waits out its timer in a queue'
 type: 'bugfix'
 created: '2026-11-08'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'a811cf179630729616db7b3959fd9fb2b89c0951'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -70,7 +70,7 @@ deferred: []
 | The three callers | `Report.Run` (eval/run.sh's set and release-candidate attempts), `Gate.Demo` (one incident case per run), `Sweep.Pass` (no incident case) | `Start` returns after the last incident case is sent, and `Wait` then bounds the rest as before. The demo and the sweep never wait | No error expected |
 | Integration: Lane A's `evaluation` job (CI) | `eval/run.sh` unchanged, the CI mock, the 11 incident cases of `eval/` | `CHK\|problems\|0`, one `CHK\|case\|...\|incident` line for each incident case, and the demo 10 of 10 | A case paced out would be a `not sent` problem and fail the job |
 | Skipped incident case in the report (the Planner's condition) | `Report.Build` given a skip of an incident case (`REASONPACED` or any other reason), held out or not | It counts in `scores.incidents` as not right: `total` includes it and `right` does not; when the case is held out, likewise in `heldOutIncidents`. It is still listed under `skipped` and is still a problem. A skip of any other kind counts in no score, as today | No error expected |
-| The product | The judges' compose file, or an IPM install | `EvalIn` disabled (pool 0, Enabled 0), and `eval/` unchanged | No error expected |
+| The product | The judges' compose file, or an IPM install | `EvalIn` disabled (pool 0, Enabled 0), and every existing case of `eval/` unchanged (DW-902 adds one new folder) | No error expected |
 
 </intent-contract>
 
@@ -215,7 +215,10 @@ Paths are relative to the repository root. Class paths are under `src/ocutalon/c
   - the header bullet at :48-49 gains the exception: a skipped incident case counts as not right in SM-2's incidents (any other skip is still scored in nothing);
   - `TestSkipped` (:1108): the incidents expectation becomes `"0 of 1 share 0 met 0"`, with a message saying the skipped incident case counts as not right;
   - `TestText` (:1268): the `Incidents (SM-2)` row takes the exact text the run gives for 0 right of 1 (run the class, read the row, pin it verbatim).
-- No edit: `Test/Eval/Cases.cls`, `Test/Eval/Switch.cls` -- run them unchanged (AC5, AC6) -- `TestRecordedCases` relies on the double's default answer, and `Switch` pins the disabled `EvalIn`.
+- [ ] [Ledger] DW-902 (RULED 2026-11-08, orchestrator, decide; the Contest Planner said yes under the owner's delegation): add the eval case `eval/user-turn-forget/case.json` (a NEW folder; never edit another case), the forget half of Story 30.9's Triage sentence. It has the SAME shape and scoring as Story 30.9's `eval/user-turn-remember/case.json` (on `origin/OCT-epic30`; read it with `git show origin/OCT-epic30:eval/user-turn-remember/case.json`, do not check it out): `name` `user-turn-forget`, `kind` `user-turn`, `heldOut` false, `turn.text` exactly `Forget that the Orders partner contact is Kim.` (ruled by the Planner, eval data), the same `expectation` (`keyPhrases` `[["user"]]` and the same `absentPhrases` list, in the same order), a `description` that mirrors the remember case's for a forget request (right only when Triage decides tell now with no fallback, which needs a reply that gives a confidence, and its reasons only classify the turn as the user's own message; cite Story 9.11 and DW-902), and `recordedBy` `written for the evaluation set (Story 9.11, DW-902)`; plain ASCII, the remember case's key order and formatting. It is report-only like the other user-turn cases (no target).
+  - `src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` `TestUserTurnCases` (RULED: a plain union with Epic 19's and Story 30.9's non-overlapping hunks): this branch does not have 30.9's remember case yet, so the count pin becomes `5` (`eval/ holds exactly five user-turn cases`), and the two doc lines (the header bullet :16 and the method doc :236) add `and one forget case (Story 9.11, DW-902)`. At the integrate-forward over 30.9 the lead takes the union (6, both cases named). Touch nothing else in the file; check whether the test also checks the new case's fields and that it passes.
+  - Check every other pin that counts or lists eval cases or user-turn cases (for example `Test.Eval.PersonaSweep`, `Test.Eval.Report`, `docker/tests/test-eval-set.sh`) and run the ones that read `eval/`; if one trips and needs an edit outside this item's two files, HALT `blocked` with `intent gap: <file and line>` (contended or frozen) rather than editing it.
+- No edit: `Test/Eval/Cases.cls` (except the [Ledger] DW-902 pin above), `Test/Eval/Switch.cls` -- run them unchanged (AC5, AC6) -- `TestRecordedCases` relies on the double's default answer, and `Switch` pins the disabled `EvalIn`.
 
 **Acceptance Criteria:**
 - **AC1, order and pacing (DW-878).** Given a folder with a command case, an item case and three incident cases, and the double answering each previous incident row on its 3rd check with no production running, when `TestPacesIncidents` processes `SendOrder`'s list on one `EvalIn` double, then:
@@ -233,9 +236,12 @@ Paths are relative to the repository root. Class paths are under `src/ocutalon/c
   - when `Test.Eval.Cases.TestRecordedCases` hands every case to one `EvalIn` double, then every incident case is sent with its row open;
   - when Lane A's `evaluation` job runs in CI, then it reports `CHK|problems|0`, a `CHK|case` line for each incident case and 10 of 10 demo runs.
 - **AC7, a stall can only lower SM-2 (the Planner's condition).** Given incident cases skipped by the pacing (one of them held out), when `Report.Build` builds the run's report, then each skipped incident case counts as not right in `scores.incidents` (and in `heldOutIncidents` when held out) and stays in the denominator; it is still listed under `skipped` and counted by `Problems`; a skip of any other kind still counts in no score (`TestSkippedIncidentScored`). The ruled `REASONPACED` text is pinned verbatim (`TestPaceBound`).
-- **AC6, the product.** Given the product's production definition, when `Test.Eval.Switch.TestDefinition` lists its items, then `EvalIn` is an `OcuTalon.Eval.In` with pool 0 and Enabled 0. And `git diff --stat` of `eval/` and `Production.cls` against the story's baseline is empty.
+- **AC8, DW-902 (the forget case).** Given `eval/user-turn-forget/case.json`, when the repository checks and `Test.Eval.Cases` run, then it is a `user-turn` case, not held out, with the turn `Forget that the Orders partner contact is Kim.` and the remember case's expectation, the user-turn count pin reads it, and Lane A's evaluation job sends it and reports it among the userTurns (report-only, no target).
+- **AC6, the product.** Given the product's production definition, when `Test.Eval.Switch.TestDefinition` lists its items, then `EvalIn` is an `OcuTalon.Eval.In` with pool 0 and Enabled 0. And `git diff --stat` of `Production.cls` and of every existing case folder under `eval/` against the story's baseline is empty (the only `eval/` change is the new `eval/user-turn-forget/`, DW-902).
 
 ## Spec Change Log
+
+- 2026-11-08 ~04:45Z, after implement pass 2 (done, a937291e): RULED (orchestrator, decide; the Contest Planner said yes to DW-902 under the owner's delegation): Story 9.11 takes DW-902, a new eval case `eval/user-turn-forget/case.json` with the shape and scoring of Story 30.9's remember case, and the `Test/Eval/Cases.cls` user-turn count pin (5 on this branch; 6 after the integrate-forward over 30.9, a plain union). Added as the open [Ledger] item and AC8; `epics.md` 9.11 carries the `DW-902:` bullet. The turn text and description are eval data, not product strings (no PUBLIC TEXT round). DW-902 itself is on `origin/OCT-epic30`'s ledger, not yet on this branch: the lead appends its trailer after the integrate-forward over 30.9.
 
 - 2026-11-08 04:3xZ, implement pass 1 halted (intent gap): AC7 trips `Test/Eval/Report.cls` `TestSkipped` (:1108) and `TestText` (:1268), whose pins assert the old behaviour. RULED (orchestrator, decide, logged): the three edits (header :48-49, `TestSkipped`, `TestText`) are allowed, a plain union with 19.4's hunks (1516-1522, 1742-1747), the condition's own consequence and not a waiver. Added as the one open [Gate] item. Re-dispatch: status `in-progress`; the pass-1 implementation of the other four classes is kept UNCOMMITTED in the working tree as the starting tree (only bookkeeping was committed).
 
@@ -382,7 +388,7 @@ RULED 2026-11-08 (orchestrator, decide): the edits in `Eval/In.cls`, `Test/Eval/
 
 **Footprint.**
 - Edited: `Eval/In.cls`, `Test/Eval/In.cls` and `Test/Eval/ZzIn.cls`, plus this spec.
-- Footprint extensions (reported by the lead): `Eval/Report.cls` and `Test/Eval/Report.cls` (its three pins), for the Planner's condition only; both ruled plain unions with Story 19.4.
+- Footprint extensions (reported by the lead): `Eval/Report.cls` and `Test/Eval/Report.cls` (its three pins), for the Planner's condition only; both ruled plain unions with Story 19.4. For DW-902: the new folder `eval/user-turn-forget/` and `Test/Eval/Cases.cls`'s user-turn count pin and its two doc lines (ruled plain unions with 19.4 and 30.9).
 - No new mock scenario file. No frozen file is needed.
 
 **Proposed spine text (for the lead, optional), an AD-22 as-built bullet:**
@@ -430,7 +436,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.Report` -- expected: passed, with `TestSkipped` and `TestText` updated to AC7 (the [Gate] item).
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.Gate` -- expected: passed.
 - (loop) `bash docker/tests/test-class-rules.sh` -- expected: every rule PASS, `assert-concat` included.
-- (loop) `git diff --stat -- eval/ src/bridge/ ci/ release/ docker/ .github/ src/ocutalon/cls/OcuTalon/Production.cls src/ocutalon/cls/OcuTalon/Eval/Gate.cls src/ocutalon/cls/OcuTalon/Eval/Sweep.cls src/ocutalon/cls/OcuTalon/Eval/Sink.cls src/ocutalon/cls/OcuTalon/Eval/Data/ src/ocutalon/cls/OcuTalon/Watch/ src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` -- expected: empty output. `git status --short` lists only the five classes (`Eval/In.cls`, `Eval/Report.cls`, `Test/Eval/ZzIn.cls`, `Test/Eval/In.cls`, `Test/Eval/Report.cls`) and this spec; `git diff` of `Test/Eval/Report.cls` touches only :48-49, `TestSkipped` and `TestText`; `git diff` of `Eval/Report.cls` touches only :61, :197-198 and :952-966.
+- (loop) `git diff --stat -- eval/ ':(exclude)eval/user-turn-forget' src/bridge/ ci/ release/ docker/ .github/ src/ocutalon/cls/OcuTalon/Production.cls src/ocutalon/cls/OcuTalon/Eval/Gate.cls src/ocutalon/cls/OcuTalon/Eval/Sweep.cls src/ocutalon/cls/OcuTalon/Eval/Sink.cls src/ocutalon/cls/OcuTalon/Eval/Data/ src/ocutalon/cls/OcuTalon/Watch/` -- expected: empty output; `git diff` of `Test/Eval/Cases.cls` touches only the user-turn count pin and its two doc lines (DW-902). `git diff --name-only <story_base>` lists only the five classes (`Eval/In.cls`, `Eval/Report.cls`, `Test/Eval/ZzIn.cls`, `Test/Eval/In.cls`, `Test/Eval/Report.cls`), `Test/Eval/Cases.cls`, `eval/user-turn-forget/case.json` and this spec; `git diff` of `Test/Eval/Report.cls` touches only :48-49, `TestSkipped` and `TestText`; `git diff` of `Eval/Report.cls` touches only :61, :197-198 and :952-966.
 - (loop, at the stage's end, also after a failure) `<B> OCUTALON_RUN_TAG=e9s11iw ci/warm.sh down`, then `<B> OCUTALON_RUN_TAG=e9s11i ci/iris.sh teardown` -- expected: the projects are removed and no lock of this stage is left in the lane-b folder.
 
 **Left to CI**, and so omitted here while CI is available:

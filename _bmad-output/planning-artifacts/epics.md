@@ -4133,6 +4133,7 @@ So that no incident case runs out its diagnosis timer while it waits in a queue,
 **When** its items are listed
 **Then** `EvalIn` is still disabled, and no case in `eval/` has a changed expectation (AD-16, AD-22)
 - DW-878: Eval: EvalIn sends every incident case at once, so later cases spend their 60 s Decide timer queued behind a single-job DiagnosisAgent (returns-negative-weight 10th, shipments-epoch-time 11th time out) (ledger; routed by charter 2026-11-08)
+- DW-902: an eval case for the forget half of Story 30.9's Triage sentence (ledger; routed by orchestrator 2026-11-08)
 
 ## Epic 10: Install in one command, with a README that gets a judge running
 
