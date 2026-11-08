@@ -35,8 +35,9 @@ Include Ensemble
 ///     as Decide's HostSinkClass (both swaps go through ChangeSettings); SnapshotDefault, PutDefault and RestoreDefault: a System Default
 ///     Settings row of an item put in place and put back, with RememberDefault and RestoreDefaults for the list of rows a test wrote
 ///     (Test.Bridge.Budget, Test.Bridge.Decide and Test.Agent.Decide delegate to them); ErrorRows: the event-log rows of Type 2 or 6 after a mark
-///     (a start with no key writes none); SinkCalls: the calls that the shared mode of Test.Bridge.ProbeSink recorded in the production's
-///     own jobs.
+///     (a start with no key writes none), with an optional header mark (HeaderMark) that leaves out the timer-ignored row of Ens.Alarm
+///     for a message header from before the mark (Story 11.28, DW-688); SinkCalls: the calls that the shared mode of
+///     Test.Bridge.ProbeSink recorded in the production's own jobs.
 ///   - Drain and FallbackProblems (QA, Story 1.6): Drain waits until a runner has handled every message sent to it before the call, so that
 ///     a test that asserts that nothing reached the mock reads the log after a request of Decide's could have arrived; FallbackProblems
 ///     names whatever is missing from the guarantees of a fallback (the answer, its XML and the Decision row), for every live test of a fallback.
@@ -192,6 +193,54 @@ ClassMethod Jobs(item As %String) As %List
 	Quit jobs
 }
 
+/// Waits, up to the seconds, until the item is idle: its queue is empty, and every Ens.Job of the item is Alive, dequeuing and has no active
+/// message (a poll every 0.1 s). 0 when the item has no job or is still busy when the seconds are over. It is the wait for a runner with more than one
+/// job (DiagnosisAgent), which Drain cannot give.
+ClassMethod Idle(item As %String, seconds As %Integer) As %Boolean
+{
+	Set deadline = $ZHorolog + seconds
+	Set idle = 0
+	For {
+		Set busy = (##class(Ens.Queue).GetCount(item) > 0)
+		Set seen = 0
+		Set result = ##class(%ResultSet).%New("Ens.Job:Enumerate")
+		If $$$ISOK(result.Execute()) {
+			While result.Next() {
+				If result.Get("ConfigName") = item {
+					Set seen = 1
+					If '((result.Get("State") = "Alive") && (result.Get("Status") = "dequeuing") && (result.Get("ActiveMessage") = "")) Set busy = 1
+				}
+			}
+		}
+		Set idle = (seen && 'busy)
+		If idle || ($ZHorolog '< deadline) Quit
+		Hang 0.1
+	}
+	Quit idle
+}
+
+/// The milliseconds from the creation of the first Ens.MessageHeader to the creation of the second, or "" when either does not exist.
+ClassMethod HeaderMillis(first As %Integer, second As %Integer) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT DATEDIFF('ms', a.TimeCreated, b.TimeCreated) FROM Ens.MessageHeader a, Ens.MessageHeader b WHERE a.ID = ? AND b.ID = ?", first, second)
+	If 'result.%Next() Quit ""
+	Quit result.%GetData(1)
+}
+
+/// The UTC time at which the Ens.MessageHeader was created.
+ClassMethod HeaderStamp(header As %Integer) As %String
+{
+	Quit ##class(Ens.MessageHeader).%OpenId(header).TimeCreated
+}
+
+/// The number of Decision rows of the item, of any kind.
+ClassMethod DecisionRowCount(itemId As %String) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ?", itemId)
+	Do result.%Next()
+	Quit result.%GetData(1)
+}
+
 /// 1 when the key state that the job of the runner item recorded at its start (Keys.Record, ^OcuTalonBP.KeyState) names an alive job of
 /// the item, waiting up to the seconds (RECORDSECONDS when empty) for it: the job is alive a moment before its OnInit has run.
 ClassMethod WaitRecord(item As %String, seconds As %Integer = "") As %Boolean
@@ -315,14 +364,15 @@ ClassMethod EventRows(mark As %Integer, item As %String) As %List
 
 /// Sends the message to the target item through ApprovalStartIn, the adapterless service of the production, and waits for the
 /// answer. The status is the one the sender gets, the error of a runner included. response is the answer, or "". A super session, when
-/// given, is the SuperSession that the service's messages carry, as those of a channel service do (AD-26).
-ClassMethod Send(target As %String, message As %Persistent, Output response As %Persistent, superSession As %String = "") As %Status
+/// given, is the SuperSession that the service's messages carry, as those of a channel service do (AD-26). The seconds, when given, are
+/// how long the call waits for the answer (empty: SENDSECONDS).
+ClassMethod Send(target As %String, message As %Persistent, Output response As %Persistent, superSession As %String = "", seconds As %Integer = "") As %Status
 {
 	Set response = ""
 	Set sc = ##class(Ens.Director).CreateBusinessService("ApprovalStartIn", .service)
 	If $$$ISERR(sc) Quit sc
 	If superSession '= "" Set service.%SuperSession = superSession
-	Quit service.SendRequestSync(target, message, .response, ..#SENDSECONDS)
+	Quit service.SendRequestSync(target, message, .response, $Select(seconds '= "": seconds, 1: ..#SENDSECONDS))
 }
 
 /// A Request of the kind and provenance for a new item: ref is a fresh reference, which is the request's ItemId, OwnerRef is the
@@ -830,15 +880,37 @@ ClassMethod RestoreTimer(saved As %List) As %Status
 /// The rows of the event log after the mark (EventMark) of Type 2 (error) or 6 (alert), as a list of "<type>: <item>: <text>" (the text
 /// cut to 200 characters), oldest first. A start with no key writes none (FR-38). A statement that fails gives one row that says so,
 /// never an empty list.
-ClassMethod ErrorRows(mark As %Integer) As %List
+/// With a header mark (HeaderMark, taken next to the event mark), one kind of row is left out: a row of Type 2 and ConfigName Ens.Alarm
+/// whose text starts "Message '<n>' can not be found, timer event ignored" with <n> one or more digits and <n> at or below the header
+/// mark. Ens.Alarm writes it when a timer wakes and the request header of the timer is gone, as a test's clean-up leaves it for the
+/// timer of an earlier test; the header existed before the mark, so the row is not the caller's. Every other row is kept, in the same
+/// form and order: an alert (Type 6), another ConfigName, another wording, an empty or non-numeric <n>, and a timer-ignored row for a
+/// header above the mark. With the header mark empty, every row is kept.
+ClassMethod ErrorRows(mark As %Integer, headerMark As %Integer = "") As %List
 {
 	Set rows = ""
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Type, ConfigName, SUBSTRING(Text, 1, 200) FROM Ens_Util.Log WHERE ID > ? AND Type IN (2, 6) ORDER BY ID", mark)
 	If result.%SQLCODE < 0 Quit $ListBuild("SQL "_result.%SQLCODE_": "_result.%Message)
 	While result.%Next() {
-		Set rows = rows _ $ListBuild(result.%GetData(1)_": "_result.%GetData(2)_": "_result.%GetData(3))
+		Set type = result.%GetData(1)
+		Set config = result.%GetData(2)
+		Set text = result.%GetData(3)
+		If (headerMark '= "") && (type = 2) && (config = "Ens.Alarm") && ..TimerIgnoredAtOrBelow(text, headerMark) Continue
+		Set rows = rows _ $ListBuild(type_": "_config_": "_text)
 	}
 	Quit rows
+}
+
+/// 1 when the text is Ens.Alarm's "Message '<n>' can not be found, timer event ignored" with <n> one or more digits and <n> at or below
+/// the header mark (ErrorRows).
+ClassMethod TimerIgnoredAtOrBelow(text As %String, headerMark As %Integer) As %Boolean [ Private ]
+{
+	If $Extract(text, 1, 9) '= "Message '" Quit 0
+	Set number = $Piece(text, "'", 2)
+	If number '? 1.N Quit 0
+	Set wording = " can not be found, timer event ignored"
+	If $Extract($Piece(text, "'", 3, *), 1, $Length(wording)) '= wording Quit 0
+	Quit +number <= headerMark
 }
 
 /// The calls that the shared mode of OcuTalon.Test.Bridge.ProbeSink recorded in ^OcuTalonTest("ProbeSink","calls") (the mode is on while
@@ -861,11 +933,13 @@ ClassMethod SinkCalls(type As %String = "") As %DynamicArray
 
 /// Waits until the runner item has taken up every message that was sent to it and has answered one of its own (QA, Story 1.6): the queue of
 /// the item is empty (a poll, up to SENDSECONDS, because a request of Decide's that is still in the queue has not been sent to the model yet),
-/// then a ToolInventory request, which makes no model request and writes no row, is answered. A runner has a pool of 1, so its one job
-/// handles the messages one after the other: when the answer is back, the job has finished any request that it took before, and that
-/// request has reached the mock (its log) or failed. A test that asserts that nothing reached the mock calls this first; without it the
-/// read of the log can come before a request that Decide sent could have arrived. The status is that of the ToolInventory request: an
-/// error for a runner with no key, whose answer still shows that the job is free; or an error when the queue stays full.
+/// then a ToolInventory request, which makes no model request and writes no row, is answered. A runner with a pool of 1, which is every runner
+/// but DiagnosisAgent (a pool of 2, Story 5.14), handles the messages one after the other with its one job: when the answer is back, the job has
+/// finished any request that it took before, and that request has reached the mock (its log) or failed. A test that asserts that nothing reached
+/// the mock calls this first; without it the read of the log can come before a request that Decide sent could have arrived. The status is that of
+/// the ToolInventory request: an error for a runner with no key, whose answer still shows that the job is free; or an error when the queue stays
+/// full. For DiagnosisAgent the answer shows only that one of its jobs is free: a request whose answer Decide already gave from the runner's reply
+/// has finished, but one that the other job holds may not have. Idle waits until every job of an item of any pool is free.
 ClassMethod Drain(item As %String) As %Status
 {
 	Set deadline = $ZHorolog + ..#SENDSECONDS
@@ -1153,11 +1227,12 @@ ClassMethod WarningRows(mark As %Integer, item As %String = "", class As %String
 }
 
 /// The number of warnings (type 3) that the method of the class logged after the event-log mark (EventMark) whose text holds every
-/// string of needles, a $ListBuild; an empty list counts every warning of that method.
-ClassMethod Warnings(mark As %Integer, class As %String, method As %String, needles As %List = "") As %Integer
+/// string of needles, a $ListBuild; an empty list counts every warning of that method. type is the event-log type: 3 (a warning) by default, 4 for an
+/// info row.
+ClassMethod Warnings(mark As %Integer, class As %String, method As %String, needles As %List = "", type As %Integer = 3) As %Integer
 {
 	Set found = 0
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceClass = ? AND SourceMethod = ?", mark, class, method)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = ? AND SourceClass = ? AND SourceMethod = ?", mark, type, class, method)
 	While result.%Next() {
 		Set text = result.%GetData(1)
 		Set all = 1

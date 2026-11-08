@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 30 holds the Lane A parts of the demo-path stories that were moved after the demo path: compaction of long conversations, scheduled purges, exactly-once replay of an approved tool call, once-only stopped-production and disabled-item findings, and honest mixed or unfinished resend results. Every part lands before 1.0.0. Stories 30.1 to 30.6 are done. Story 30.7, the burn-down, is deferred until after the v1.0.0 tag. The remaining work for 1.0.0 is Story 30.8, a fix-forward that pulls two owner-kept conditions out of 30.7. The product redactor must replace every key shape the boundary scan flags. The release candidate's key proof must find a key stored inside a `$List`. Together these mean no key can reach a trace or log in a shape the redactor misses, and the key proof can't pass over a key stored in a list.
+Epic 30 holds the Lane A parts of the demo-path stories that were moved after the demo path (compaction, scheduled purges, exactly-once replay, once-only findings, honest resend results), plus fix-forwards found along the way. Stories 30.1 to 30.6 and 30.8 are done, and Story 30.7, the burn-down, stays deferred until after the v1.0.0 tag. The epic is re-opened for one fix-forward, Story 30.9, for the 1.0.4 release. On the 1.0.3 demo, every "Remember that ..." chat message, typed or sent by the panel's "Ask it to remember" press, gets a Fallback attention decision ("Tell now · Fallback", "The model's reply couldn't be used."), although the chat turn answers and the memory is saved. A person's own message must get a real attention decision, so the strip never reports a failure that didn't happen.
 
 ## Stories
 
@@ -14,43 +14,67 @@ Epic 30 holds the Lane A parts of the demo-path stories that were moved after th
 - Story 30.4: A stopped production or a disabled item is reported once (done)
 - Story 30.5: Mixed and unfinished resends say how far they got (done)
 - Story 30.6: The invalid-reply warning names what failed, never the reply (done)
-- Story 30.7: Epic 30 burn-down (deferred after the v1.0.0 tag, set aside as one patch)
-- Story 30.8: The redactor and the key proof catch every key shape (backlog, next)
+- Story 30.7: Epic 30 burn-down (deferred after the v1.0.0 tag; not part of this re-open)
+- Story 30.8: The redactor and the key proof catch every key shape (done)
+- Story 30.9: A 'Remember that ...' chat message gets a usable attention decision (backlog, next)
 
 ## Requirements & Constraints
 
-**Story 30.8 (fix-forward before 1.0.0, full QA and code review).** The owner-kept conditions are unchanged and must be met exactly.
+**Story 30.9 (DW-890, fix-forward for 1.0.4, placement approved by the Planner).**
 
-- **DW-386 (U-184), the redactor.**
-  - `OcuTalon.Bridge.Redact` replaces every shape that `key_like` flags. That includes DigitalOcean `dop_v1_...` tokens and PEM private-key headers (`-----BEGIN ... PRIVATE KEY`).
-  - It also replaces the Anthropic key (`sk-ant-...`) and the Telegram bot token (digits, a colon, then 35 characters), even where `key_like` lacks them.
-  - Each shape gets its own test.
-  - `key_like` is defined once, in `docker/tests/lib-keys.sh`. `test-boundaries.sh` and the eval run both read it from there. Read the definition on the current tree: Epic 11 part 1 changed `test-boundaries.sh`, and that is why the branch was integrated forward before 30.8.
-- **DW-448 (U-185), the key proof.**
-  - `Test.Eval.KeyProof`'s `Walk` decodes `$List` elements, nested lists included, so a key stored as one element is found. Today `Walk` matches only contiguous 8-bit bytes within a single node.
-  - Measure on a throwaway whether a message body can store a key in a compressed or split `%Stream.Global*` chunk. Background: `%Stream.GlobalCharacter` compresses, and a block of 1 KB or more is zstd-compressed.
-    - If it can, `Walk` decodes those chunks too.
-    - If it can't, that half closes `wontfix-accepted`, and the ledger entry records the evidence: the throwaway's build, the message class and what was stored.
-  - The release candidate's key proof is otherwise unchanged.
-  - Lane B's copy of the walk (`Test.Web.SessionEvents.ReferenceHits`, DW-474) stays with its own entry. Don't edit it here.
-
-**Story 30.7 (deferred, not in 1.0.0).** It keeps owner `30-7` for DW-437 (whole-turn purge, U-210), DW-444 (interrupted replay), DW-470 (provider-unreachable replay text, U-214), DW-462 (approval flake), DW-371, DW-541 and DW-581/582/588/589/590. DW-495 and DW-584 join it at integrate-forward. None of these is in scope for 30.8.
+- **The outcome.** Every item gets exactly one attention decision. A person's own message is always answered: tell now or act, never ignore or digest. A "Remember that ..." message, typed or sent by the panel, must get a usable decision made under the user's-own-message rule (tell now), not Fallback.
+- **Cause first, from evidence.**
+  - The demo's Story 30.6 trace warning says `Decide` refused Triage's reply because it is not one JSON object that `OcuTalon.Bridge.Msg.DecisionPayload` accepts (ERROR #5001).
+  - There is no "After the reply filter ran" line, so this is not a length, datatype or enum failure.
+  - Demo measurements: 1 agent step, about 66 output tokens, 0.9 s.
+  - Confirm the cause by reading the code and by reproducing that reply shape on the CI mock. Write the cause in the spec's Design Notes.
+  - The ledger's leads are unverified guesses: the decide agent sees or tries memory tools, or the output schema rejects the reply.
+- **The fix.** Fix the cause with the smallest change.
+  - Don't raise any timeout or `TimerSeconds`.
+  - Don't loosen the reply check for any other reply.
+  - Don't change the behaviour of any other outcome.
+  - Any change to user-visible wording goes to the Contest Planner.
+- **Regression test.** A CI-mock test drives a "Remember that ..." user message through the decision, in both forms, and pins that it decides without Fallback. A named mutation that restores the cause must turn it red.
+- **Evaluation case.** Add a new case folder, `eval/<case>/case.json`, shaped like `eval/user-turn-productions/`. It states that a "Remember that ..." item must decide without Fallback. Don't change `eval/run.sh`. Update any test that pins the evaluation set's case count or list.
 
 ## Technical Decisions
 
-- **One redactor.** `OcuTalon.Bridge.Redact` is used by agent steps, audit, logs and error details. Structural rules come first, and the redactor is the backstop. It belongs to the bridge (`src/bridge`, Lane A), and both the bridge and OcuTalon call it.
-- **The key proof.**
-  - `bash eval/key-proof.sh` builds a fake key at run time. It feeds the key into a `--release-candidate --on-mock` run whose requests reach only the CI mock.
-  - The run must prove the key appears in no global, store, trace message, log, container file, output or file under `eval/`, and that its throwaway is gone.
-  - The result pair is scanned with `lib-keys.sh`'s patterns, and a match exits 4.
-- **Throwaways only.** Do the measurement on a throwaway stack. Never touch shared runtime. Never load anything from `irislib/` or `irissys/`; read them only for reference.
-- **Stored data is append-only.** Never rename, retype or remove a stored property, and never hand-edit a `Storage` block. CI diffs storage blocks against the last release tag.
-- **Spine lint.** The baseline is `ok: false` with 8 low findings, and it must not get worse.
+- **A person's message takes two requests.** The path is `WebChatIn`/`TelegramIn` → `Conversation` → `Decide` (`decide`, provenance `user`, `TriageAgent`) → `Decide` (`turn`, `ChatAgent`).
+  - `Conversation` renders the input once, with `OcuTalon.Agent.Input`.
+  - Only Chat's turn runs tools, `save_memory` among them. Triage has no tools.
+- **Triage.**
+  - Agent: `OcuTalon.Agent.Triage`, model `claude-haiku-5-5`, effort `low`.
+  - Its `XData INSTRUCTIONS` are static, with no `{{` (a CI check).
+  - It answers with one JSON object, checked against the runner's `ReplyClass`, `DecisionPayload`: a `%JSON.Adaptor` class with plain-English reasons and a confidence between 0 and 1.
+  - A reply that fails the check is `invalid`, which means fallback: outcome tell now, `Fallback` true, and the generic reason "the model's reply couldn't be used". On a person's turn, a fallback is a reply only.
+  - An `invalid` reply is retried once on a second model only when a `RetryItem` is configured.
+  - For provenance `user`, `Decide` maps ignore or digest to tell now and says so in the reasons.
+- **Shared files.** `Agent.Input` places the persona block and the context blocks (core memory, daily notes) as quoted data before the item. Chat's and Triage's instructions are shared-by-entry files: append your own entry and never rewrite another's.
+- **Keep the 30.6 warning as it is.** It is built inside `Decide.Judge`, in `Bridge/Process/Decide.cls`, and quotes none of the reply's content.
+- **How the CI mock picks a scenario.** In order:
+  1. a `[[mock:<name>]]` marker in the newest user message;
+  2. otherwise a guide prompt, when the message contains that prompt's exact text. These scenarios live under `B/` only. One with `mockkey` answers only that agent; one without it answers every agent whose message contains the prompt;
+  3. otherwise the agent's `MOCKKEY` default script (`triage`, `chat`).
+
+  Lane A adds only files under `ci/mock/scenarios/A/`. Prompt scenarios and new mock behaviour belong to Lane B and are asked for under AD-33.
+- **Tests and CI.**
+  - Unit tests are `%UnitTest` classes under `OcuTalon.Test.<Area>`. Bridge and Agent run in `shards-5`.
+  - The evaluation set runs on the mock on every push and on Claude Haiku 5.5 for each release candidate.
+  - Evaluation runs (owner `eval`) never notify.
+- **Standing rules.** Stored data is append-only: never rename, retype or remove a stored property, and never hand-edit a `Storage` block. The spine lint must not get worse than its baseline.
+
+## UX & Interaction Patterns
+
+- **The decision strip.**
+  - Line 1: the outcome chip, the fallback flag, the confidence (left out on a fallback), the cost, and Trace.
+  - Line 2: the reasons. A fallback's reason is always the first line.
+  - A usable decision shows Tell now with its confidence and reasons, and no fallback flag.
+- **The panel's remember control.** Demo-guide item 5, "Ask it to remember something", sends its exact text ("Remember that the Results partner's contact is Lee.") as the person's own message, exactly as if typed. It gets the same strip, reply and trace link as a typed message.
 
 ## Cross-Story Dependencies
 
-- **The set-aside patch.** 30.8's implement starts from the parts of `_bmad-output/implementation-artifacts/set-aside/30-7-epic-30-burn-down-1.patch` that cover these two entries: the hunks in `Bridge/Redact.cls`, `Test/Bridge/Redact.cls` and `Test/Eval/KeyProof.cls`.
-  - That build was never QA'd or code-reviewed. Its note says no message-body class has a `%Stream` property. Treat that as a lead to re-measure, not as evidence.
-  - Take only those hunks. The rest of the patch stays with 30.7.
-- **Lane B's copy of the walk.** Changing how `Walk` matches a node reopens DW-450 (the duplicated walk) until Lane B's copy gets the same decode. That copy is DW-474, owned by Story 31.4 (Epic 31). Name the change so 31.4 can mirror it.
-- **Final steps.** The epic finishes with the final integrate-forward and the CI repack (an eighth group, `shards-3`). Then it completes as partial, with 30.7 held out. Epic 13 is the critical path to rc1.
+- **Story 30.5 (DW-500).** It set the rule that on any user turn Triage's reasons only classify the turn as the person's own message. 30.9's decision follows that rule and must not break the chip cases.
+- **Story 30.6.** Its warning is 30.9's evidence, and both stories touch the same `Decide` code.
+- **Memory (Epics 19 and 34).** `save_memory` runs in Chat's turn, and `OcuTalon.Tools` holds the fixed phrase list that marks a memory as `told`. The turn, the save and the recall ("Who do I call about Results?" → Lee) work today and must keep working.
+- **Epic 9's evaluation set.** 30.9 adds a case to it. Epic 41, which is merge-gated and lands after 1.0.0, plans its own "Remember that ..." cases for email and webhook items. Those are untrusted, so no memory is saved. Keep the case names distinct.
+- **Story 30.7.** It stays deferred and is untouched by this re-open.

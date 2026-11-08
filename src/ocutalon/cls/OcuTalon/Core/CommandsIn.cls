@@ -181,7 +181,7 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// except the persona verbs (AD-1): SetPersona from web_user only, the person's own page, and ProposePersona from tool only, and the
 /// heartbeat verbs (Epic 39): SetHeartbeat to SettingsOps and RunHeartbeat to Checks, each from web_user only.
 /// A settings verb whose origins include web_user or tool is refused with the plain not-allowed text, not the admin-only one.
-/// SendDigest goes to Digest, and GotIt to SessionOps (a stub answer until Story 18.4).
+/// SendDigest goes to Digest, and GotIt to SessionOps.
 XData Routes [ MimeType = application/json ]
 {
 [

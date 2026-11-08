@@ -1,8 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
-import { expect, test, type Page } from '../../e2e/support/fixtures';
+import { expect, test, type APIRequestContext, type Page } from '../../e2e/support/fixtures';
 
-import { notBuilt } from '../../e2e/demo-path/not-built';
 import { EVENTS, post, type LiveEvent } from '../../e2e/support/api';
 import {
   BREAK_FEED,
@@ -29,9 +28,10 @@ import {
   type Snapshot,
 } from '../../e2e/support/demo-path';
 import { loadedAfter } from '../../e2e/support/floor';
-import { fixtureUser, readApproval } from '../../e2e/support/iris';
+import { chk, fixtureUser, irisScript, quoted, readApproval } from '../../e2e/support/iris';
 import { drawnMessages, type Turn } from '../../e2e/support/trace';
 import {
+  BUSY_HEADER,
   cleanPopulated,
   epochOf,
   expectOpenedDirectly,
@@ -40,14 +40,35 @@ import {
   opensTabStrict,
   ordersOf,
   populate,
+  publicValue,
+  readStatus,
+  removeCounterRows,
   removeSession,
   seedIncomingMail,
   sessionRow,
+  setPublic,
   signInFromSplash,
   signOutGroup,
   type Populated,
   type Visitor,
 } from '../support';
+import {
+  CHAT_A,
+  CHAT_B,
+  MOCK_MS,
+  buttonsOf,
+  callMark,
+  editsOf,
+  finishTelegram,
+  pairChat,
+  pressAnswers,
+  pressFromChat,
+  sentCalls,
+  sentChats,
+  shareContactFromChat,
+  startTelegram,
+  unpairChat,
+} from '../telegram';
 
 /**
  * REL-2's online run (Story 16.2, Story 29.4): the UJ-1 path as a judge walks it on the online demo, with the model keys pointed at the CI
@@ -62,15 +83,19 @@ import {
  *   item "Break it again" presses Break the feed again in the same session, and the new incident's approval request on the simulated phone
  *   holds 7.9's line "Checked against the last {n} orders from the same source that went through: 0 would change.". It is asserted by pattern on
  *   the real notice text. It is the end of the step 5 case, because the second press needs the session whose fix just went through and the
- *   unit's report keeps exactly its seven cases (docker/tests/test-online-demo-path.sh); the project already runs this folder.
+ *   unit's report keeps exactly its cases (docker/tests/test-online-demo-path.sh); the project already runs this folder.
  * - Step 6 is real: the guide's watch prompt gets its reply, and the reply's Trace link opens Visual Trace at the turn, signed in, drawing
  *   the turn's header and its agent steps, with the steps and the cost in the decision's details.
  * - "Second visitor" is the isolation run (Story 29.4): visitors A and B each watch Orders (through the guide's Send), A presses Break the feed, and A's incident, its
  *   notice and its approval request reach only A; B's page, /state and /events get nothing, an answer of B to A's request is refused as
  *   an unknown request, and A answers on its simulated phone.
- * - The paired chat and the message search wait for Story 31.4 (a paired mock Telegram chat).
- * The unit fails when a case that must be skipped passes, or one is missing. The texts are written out here, as the independent oracle of
- * the page's own.
+ * - "The paired chat under load" (Story 31.4) is the same isolation with the demo full and Telegram on: six proxied visitors fill the visitor cap,
+ *   A and B are paired to two mock chats, and A, C and D press Break the feed at the same time. A's paired chat gets A's incident notice with its
+ *   approval request and nobody else's, a press from B's chat is refused and changes nothing, A answers from its own chat, and a search of every
+ *   OCUTALON and OCUORDERS message header and body of the run finds no Telegram value and no IRIS user name. It uses the CI model mock and the
+ *   mock Bot API only.
+ * The unit fails when a case is skipped or missing: its report holds exactly ten passed cases (docker/tests/test-online-demo-path.sh). The
+ * texts are written out here, as the independent oracle of the page's own.
  */
 
 const APPROVALS = '/ocutalon/api/v1/approvals';
@@ -198,7 +223,7 @@ test.describe('steps 2 to 5: one visitor watches Orders, sets a reminder, breaks
     // The online demo's message times carry " ET" (Msg.Catalog's time slot).
     await approveOnPhone(pageOf(), request, ' ET');
 
-    // The second press (PT-e of Story 7.9, ruled for Story 4.11's item 3), in the same case so that the unit's report keeps its seven cases.
+    // The second press (PT-e of Story 7.9, ruled for Story 4.11's item 3), in the same case so that the unit's report keeps its cases.
     const page = pageOf();
     const known = await incidentRefs(page);
     expect(known.length, 'steps 4 and 5 left the session with its approved incident').toBeGreaterThan(0);
@@ -405,6 +430,344 @@ test('second visitor: A breaks the feed and its incident, notice and approval re
   }
 });
 
-notBuilt("the paired chat: A's paired chat gets the incident and its approval request, and B's paired chat gets none", '31.4');
-notBuilt("the paired chat: a press from B's paired chat on A's request is refused and changes nothing", '31.4');
-notBuilt('the message search: no Telegram value or IRIS user name appears in any OCUTALON or OCUORDERS message body or header', '31.4');
+/** The visitor cap's load: six proxied visitors, each from its own address (TEST-NET-2 addresses, which no request of the run comes from). */
+const LOAD_ADDRESSES = ['198.51.100.101', '198.51.100.102', '198.51.100.103', '198.51.100.104', '198.51.100.105', '198.51.100.106'] as const;
+
+/** The longest one message search (KeyProof.TraceHits over one namespace) may take, in ms. */
+const SEARCH_MS = 240_000;
+
+/** Eight random lower-case letters. */
+function letters(): string {
+  return Array.from(randomBytes(8), (byte) => String.fromCharCode(97 + (byte % 26))).join('');
+}
+
+/** The header id of the newest message of a namespace (0 when it has none): a mark for the message search. */
+async function headerMark(namespace: 'OCUTALON' | 'OCUORDERS'): Promise<number> {
+  const lines = await irisScript(`Write !,"CHK|mark|",+$Order(^|${quoted(namespace)}|Ens.MessageHeaderD(""),-1)`);
+  const mark = Number(chk(lines, 'mark') ?? '');
+  if (!Number.isInteger(mark) || mark < 0) throw new Error(`the ${namespace} header mark could not be read (${lines.join(' ')})`);
+  return mark;
+}
+
+/**
+ * The message search for one value in one namespace after a mark (SessionEvents.MessageHits: KeyProof.TraceHits, with a second reader for the
+ * bodies it cannot export as XML): the hits (-1 when a message was unreadable by both readers) and, to print on a failure, its places and stats.
+ */
+async function traceHits(value: string, namespace: 'OCUTALON' | 'OCUORDERS', after: number): Promise<{ hits: number; detail: string; seconds: number; messages: number; fallback: number }> {
+  const started = Date.now();
+  const lines = await irisScript(
+    [
+      `Set hits=##class(OcuTalon.Test.Web.SessionEvents).MessageHits(${quoted(value)},${after},${quoted(namespace)},.places,.stats)`,
+      'Write !,"CHK|hits|",hits',
+      'Write !,"CHK|messages|",stats.messages',
+      'Write !,"CHK|fallback|",$Select($IsObject(stats.fallback):stats.fallback.%Size(),1:0)',
+      'Write !,"CHK|detail|",places.%ToJSON()," ",stats.%ToJSON()',
+    ].join('\n'),
+    SEARCH_MS,
+  );
+  const hits = Number(chk(lines, 'hits') ?? 'NaN');
+  if (!Number.isInteger(hits)) throw new Error(`the ${namespace} message search gave no count (${lines.join(' ')})`);
+  return { hits, detail: chk(lines, 'detail') ?? '', seconds: (Date.now() - started) / 1000, messages: Number(chk(lines, 'messages') ?? '-1'), fallback: Number(chk(lines, 'fallback') ?? '-1') };
+}
+
+/**
+ * Runs a read-only wait again when one of its HTTP reads timed out (ruling R3 of Story 31.4: a stall whose cause is not isolated, an
+ * occurrence of DW-550's unanswered /state, which its owner investigates), inside the wait's own budget: the attempts together never run past budgetMs, so a stall can never
+ * stretch the wait. A wait that ran out of its own budget, any other error and a stall past the budget throw. Each stall is printed as a
+ * "MEASURED Story 31.4: a read stalled" line, which the unit counts.
+ */
+async function throughStalls<T>(what: string, budgetMs: number, run: () => Promise<T>): Promise<T> {
+  const until = Date.now() + budgetMs;
+  for (;;) {
+    const attempt = run();
+    attempt.catch(() => undefined);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const spent = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`the wait while ${what} ran out of its ${budgetMs / 1000} s budget`)), Math.max(0, until - Date.now()));
+    });
+    try {
+      return await Promise.race([attempt, spent]);
+    } catch (error) {
+      const text = (error as Error).message ?? '';
+      if (!/apiRequestContext\.\w+: Timeout \d+ms exceeded/.test(text) || Date.now() >= until) throw error;
+      console.log(`MEASURED Story 31.4: a read stalled while ${what}; the wait goes on`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
+test.describe('the paired chat under load', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  /** One of the six visitors, named by its letter. */
+  const visitors: Visitor[] = [];
+  const state = {
+    savedProxy: '',
+    proxySet: false,
+    telegram: undefined as string | undefined,
+    pairings: [] as string[],
+    api: undefined as APIRequestContext | undefined,
+    nameA: `Zqpaired${letters()}`,
+    nameB: `Zqpaired${letters()}`,
+    phoneA: `+1555${String(randomBytes(4).readUInt32BE() % 10_000_000).padStart(7, '0')}`,
+    phoneB: `+1555${String(randomBytes(4).readUInt32BE() % 10_000_000).padStart(7, '0')}`,
+    marks: { OCUTALON: 0, OCUORDERS: 0 },
+    /** The approval request of A, C and D. */
+    keys: { a: '', c: '', d: '' },
+    /** The call mark taken just before the presses of A, C and D. */
+    driveMark: 0,
+    /** The drive of the three incidents, started by the first case that needs it. */
+    driven: undefined as Promise<void> | undefined,
+    /** B's press and A's answer from the paired chats, started by the first case that needs them. */
+    answered: undefined as Promise<void> | undefined,
+  };
+  const [A, B, C, D] = [0, 1, 2, 3] as const;
+  const who = (index: number): Visitor => {
+    const visitor = visitors[index];
+    if (visitor === undefined) throw new Error(`visitor ${'ABCDEF'[index]} was not opened`);
+    return visitor;
+  };
+
+  test.beforeAll(async ({ browser, playwright }) => {
+    test.setTimeout(420_000);
+    const host = process.env['OCUTALON_ONLINE_HOST_ADDRESS'] ?? '';
+    if (host === '') throw new Error('OCUTALON_ONLINE_HOST_ADDRESS is not set: the unit passes the address that IRIS sees for the requests of this machine');
+    state.savedProxy = await publicValue('proxyAddress');
+    state.proxySet = true;
+    await setPublic('proxyAddress', host);
+    state.telegram = await startTelegram();
+    state.api = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+
+    // The demo is full: six visitors, one after another, each from its own address.
+    for (const [index, address] of LOAD_ADDRESSES.entries()) {
+      try {
+        const visitor = await openVisitor(browser, address);
+        visitors.push(visitor);
+        // E and F only fill the demo: their sessions stay counted, and their pages (each holds a live socket) are closed.
+        if (index > D) await visitor.page.close();
+      } catch (error) {
+        throw new Error(`visitor ${'ABCDEF'[index]} (${address}) could not sign in: ${(error as Error).message}`);
+      }
+    }
+    expect(await readStatus(state.api), 'the demo is full: the plain status reads busy, with the marker header').toEqual({ busy: true, header: '1', code: 200 });
+
+    // The marks of the message search come before the pairing, so that whatever the pairing writes is searched.
+    state.marks.OCUTALON = await headerMark('OCUTALON');
+    state.marks.OCUORDERS = await headerMark('OCUORDERS');
+
+    // A and B are paired to the two mock chats, each with its own display name, then one contact update from each chat.
+    state.pairings.push(await pairChat(who(B).ref, CHAT_B, state.nameB));
+    state.pairings.push(await pairChat(who(A).ref, CHAT_A, state.nameA));
+    await shareContactFromChat(CHAT_A, state.nameA, state.phoneA);
+    await shareContactFromChat(CHAT_B, state.nameB, state.phoneB);
+  });
+
+  test.afterAll(async () => {
+    test.setTimeout(300_000);
+    const problems: string[] = [];
+    const step = async (what: string, run: () => Promise<unknown>): Promise<void> => {
+      try {
+        await run();
+      } catch (error) {
+        problems.push(`${what}: ${(error as Error).message}`);
+      }
+    };
+    // The requests of C and D (and A's, when its case did not end it) are rejected with their own web answer, so that no fix runs on.
+    const own: Array<[Visitor | undefined, string]> = [
+      [visitors[A], state.keys.a],
+      [visitors[C], state.keys.c],
+      [visitors[D], state.keys.d],
+    ];
+    for (const [visitor, key] of own) {
+      if (visitor === undefined || key === '') continue;
+      await step(`rejecting ${key}`, async () => {
+        if ((await readApproval(key)).state !== 'pending') return;
+        await post(visitor.page.request, `${APPROVALS}/${key}/answer`, { action: 'reject', channel: 'web' });
+        await expect.poll(async () => (await readApproval(key)).state, { message: `the request ${key} leaves pending`, timeout: 60_000 }).not.toBe('pending');
+      });
+    }
+    if (state.telegram !== undefined) await step('finishing Telegram', () => finishTelegram(state.telegram ?? ''));
+    for (const pairing of state.pairings) await step('unpairing a chat', () => unpairChat(pairing));
+    for (const visitor of visitors) await step('leaving a visitor', () => leaveVisitor(visitor));
+    for (const address of LOAD_ADDRESSES) await step(`removing the counter rows of ${address}`, () => removeCounterRows(address));
+    if (state.api !== undefined) await step('closing the status client', () => state.api!.dispose());
+    if (state.proxySet) {
+      await step('restoring the proxy address', async () => {
+        await setPublic('proxyAddress', state.savedProxy);
+      });
+    }
+    if (problems.length > 0) throw new Error(`the clean-up left something behind: ${problems.join('; ')}`);
+  });
+
+  /**
+   * A, B, C and D watch Orders, then A, C and D press Break the feed at the same moment while the demo is still full, and A's paired chat gets
+   * A's notice. The first case that needs the incidents runs it; the others reuse it, so that each case passes alone (-g) as well as after the rest.
+   */
+  const drive = (): Promise<void> =>
+    (state.driven ??= (async () => {
+      const [a, b, c, d] = [who(A), who(B), who(C), who(D)];
+      expect(await readStatus(state.api!), `the demo is still full: the plain status reads busy, with ${BUSY_HEADER}`).toEqual({ busy: true, header: '1', code: 200 });
+
+      // A, B, C and D watch Orders through the guide's Send, all at once.
+      await Promise.all(
+        [a, b, c, d].map(async (visitor, index) => {
+          await askToWatch(visitor.page);
+          await throughStalls(`${'ABCD'[index]} watches`, 90_000, () => doneTurn(visitor.page));
+          await expect(breakFeedButton(visitor.page), `${'ABCD'[index]}'s Break the feed is enabled`).not.toHaveAttribute('aria-disabled', 'true', { timeout: 30_000 });
+        }),
+      );
+      expect(await readStatus(state.api!), 'the demo is full when the presses come').toEqual({ busy: true, header: '1', code: 200 });
+
+      // A, C and D press Break the feed at the same moment.
+      state.driveMark = await callMark();
+      await Promise.all(
+        [a, c, d].map(async (visitor, index) => {
+          const pressed = visitor.page.waitForResponse((response) => response.url().includes(BREAK_FEED) && response.request().method() === 'POST');
+          await breakFeedButton(visitor.page).click();
+          expect((await pressed).status(), `${'ACD'[index]}'s Break the feed answers 200`).toBe(200);
+        }),
+      );
+      const slots = ['a', 'c', 'd'] as const;
+      const keys = await Promise.all(
+        [a, c, d].map(async (visitor, index) => {
+          await expect(approvalCard(visitor.page), `${'ACD'[index]} shows its own approval card`).toHaveCount(1, { timeout: 90_000 });
+          const key = (await approvalCard(visitor.page).getAttribute('data-key')) ?? '';
+          const slot = slots[index];
+          if (slot === undefined) throw new Error('a driver without a slot');
+          state.keys[slot] = key;
+          return key;
+        }),
+      );
+      for (const key of keys) expect(key, "the request's Ref").toMatch(/^[A-Za-z0-9_-]{22}$/);
+      expect(new Set(keys).size, 'three requests of their own').toBe(3);
+
+      // A's paired chat got A's notice with A's buttons.
+      await expect
+        .poll(() => buttonsOf(CHAT_A), { message: "A's chat gets the notice with the buttons approve:<Ref> and reject:<Ref> of A's request", timeout: MOCK_MS, intervals: [1000] })
+        .toEqual([`approve:${state.keys.a}`, `reject:${state.keys.a}`]);
+    })());
+
+  test("the paired chat: A's paired chat gets the incident and its approval request, and B's paired chat gets none", async () => {
+    test.setTimeout(420_000);
+    const [a, c, d] = [who(A), who(C), who(D)];
+    await drive();
+
+    // C's and D's phones show their notices, and then nothing went to any other chat.
+    for (const [visitor, key, label] of [[c, state.keys.c, 'C'], [d, state.keys.d, 'D']] as const) {
+      await throughStalls(`${label}'s phone is read`, 90_000, () =>
+        expect
+          .poll(async () => ((await readState(visitor.page)).snapshot.phone ?? []).find((item) => item.approvalRef === key)?.ref ?? '', { message: `${label}'s phone has the notice with its request`, timeout: 60_000 })
+          .not.toBe(''),
+      );
+    }
+    await a.page.waitForTimeout(5_000);
+    expect(await buttonsOf(CHAT_A), "after the settle, A's chat still holds A's buttons as the newest keyboard (no notice of C or D came after)").toEqual([`approve:${state.keys.a}`, `reject:${state.keys.a}`]);
+    const calls = await sentCalls(state.driveMark);
+    const chats = calls.map((call) => call.chat);
+    console.log(`MEASURED Story 31.4: ${chats.length} sendMessage and editMessageText calls after the mark, ${chats.filter((chat) => chat === CHAT_A).length} to CHAT_A`);
+    expect(chats.length, 'at least one message went to a chat').toBeGreaterThan(0);
+    expect(chats.includes(CHAT_B), "B's paired chat got no message").toBe(false);
+    expect(chats.filter((chat) => chat !== CHAT_A), 'every message after the mark went to A\'s chat').toEqual([]);
+    // Every keyboard that A's chat got, and not only the newest, is A's: a notice of C or D that came before A's fails here.
+    const keyboards = calls.filter((call) => call.buttons.length > 0);
+    expect(keyboards.length, "A's chat got a keyboard").toBeGreaterThan(0);
+    expect(keyboards.flatMap((call) => call.buttons).filter((data) => data !== `approve:${state.keys.a}` && data !== `reject:${state.keys.a}`), "every button A's chat got is one of A's request").toEqual([]);
+  });
+
+  /**
+   * B's paired chat presses Approve on A's request (refused, nothing changes), then A answers from its own chat (the first answer wins), with
+   * the assertions of both. The first case that needs the presses runs them; the others reuse them, so that the message search covers the
+   * presses' production messages (Core.Msg.Answer) also when it runs alone (-g).
+   */
+  const answered = (): Promise<void> =>
+    (state.answered ??= (async () => {
+      const [a, b] = [who(A), who(B)];
+      await drive();
+      const key = state.keys.a;
+      expect(key, "A's approval request was found").not.toBe('');
+      const card = a.page.locator(`app-chat-panel [data-part="approval"][data-key="${key}"]`);
+      const aRead = await readState(a.page);
+      const bRead = await readState(b.page);
+      const aCursors: Cursors = { session: aRead.snapshot.streams.session, instance: aRead.snapshot.streams.instance };
+      const bCursors: Cursors = { session: bRead.snapshot.streams.session, instance: bRead.snapshot.streams.instance };
+      const answersBefore = (await pressAnswers()).length;
+      const mark = await callMark();
+
+      await pressFromChat(CHAT_B, `approve:${key}`, state.nameB);
+      await expect.poll(async () => (await pressAnswers()).length, { message: "B's press gets its answer", timeout: MOCK_MS, intervals: [1000] }).toBe(answersBefore + 1);
+      const answers = await pressAnswers();
+      expect(answers[answers.length - 1], "the answer says that only the paired chat can answer, as an alert").toEqual({ text: 'Only the paired chat can answer this request.', show_alert: 1 });
+      await b.page.waitForTimeout(5_000);
+      expect(await sentChats(mark), 'no message and no edit follows the press: B\'s chat gets none and A\'s chat no edit').toEqual([]);
+      expect((await readApproval(key)).state, "A's row stays pending").toBe('pending');
+      await expect(card.getByRole('button', { name: /^Approve/ }), "A's card still offers Approve").toHaveCount(1);
+      await expect(card.getByRole('button', { name: /^Reject/ }), 'and Reject').toHaveCount(1);
+      expect((await eventsSince(a.page, aCursors)).events.filter((event) => event.type === 'approval'), "no approval event on A's stream since the press").toEqual([]);
+      expect((await eventsSince(b.page, bCursors)).events.filter((event) => event.type === 'approval'), "and none on B's").toEqual([]);
+
+      // A answers from its own chat; the first answer wins.
+      const edits = (await editsOf(CHAT_A)).length;
+      const answeredBefore = (await pressAnswers()).length;
+      await pressFromChat(CHAT_A, `approve:${key}`, state.nameA);
+      await expect.poll(async () => (await pressAnswers()).length, { message: "A's press gets its answer", timeout: MOCK_MS, intervals: [1000] }).toBe(answeredBefore + 1);
+      const approved = (await pressAnswers()).pop();
+      expect(approved?.text, 'the press answer says approved').toMatch(/^Approved\./);
+      expect(approved?.show_alert, 'with no alert').toBe(0);
+      await expect.poll(async () => (await readApproval(key)).state, { message: 'the row leaves pending', timeout: 30_000 }).not.toBe('pending');
+      expect((await readApproval(key)).channel, 'it was answered from Telegram').toBe('telegram');
+      await expect
+        .poll(async () => (await editsOf(CHAT_A)).slice(edits), { message: "A's chat gets one edit with the answered line", timeout: MOCK_MS, intervals: [1000] })
+        .toHaveLength(1);
+      const edit = (await editsOf(CHAT_A)).slice(edits)[0] ?? '';
+      expect(edit, 'the edit ends with the answered line').toMatch(/Approved from Telegram at \d{1,2}:\d{2}( [A-Z]{1,5})?\.$/);
+      await expect(card.locator('p.status'), "A's card says so").toHaveText(/^Approved from Telegram at /, { timeout: 30_000 });
+      let note = '';
+      await expect
+        .poll(async () => (note = ((await readState(a.page)).snapshot.phone ?? []).find((item) => item.approvalRef === key)?.ref ?? ''), { message: "A's phone has the request's notice", timeout: 30_000 })
+        .not.toBe('');
+      const message = a.page.locator(`app-simulated-phone .notification[data-key="${note}"]`);
+      await expect(message.locator('p[data-part="answer"]'), "A's phone says so").toHaveText(/^Approved from Telegram at /, { timeout: 30_000 });
+      await expect(message.getByRole('button', { name: /^Approve/ }), "A's phone offers no Approve any more").toHaveCount(0);
+      await expect
+        .poll(async () => (await readApproval(key)).state, { message: 'the fix ends (the row leaves approved and executing)', timeout: 90_000, intervals: [1_000, 2_000] })
+        .not.toMatch(/^(pending|approved|executing)$/);
+    })());
+
+  test("the paired chat: a press from B's paired chat on A's request is refused and changes nothing", async () => {
+    test.setTimeout(300_000);
+    await answered();
+  });
+
+  test('the message search: no Telegram value or IRIS user name appears in any OCUTALON or OCUORDERS message body or header', async () => {
+    test.setTimeout(900_000);
+    const a = who(A);
+    await drive();
+    await answered();
+    const values: Array<[string, string]> = [
+      ["A's display name", state.nameA],
+      ["B's display name", state.nameB],
+      ["the from object's user name", 'zqfromuser'],
+      ["A's chat id", CHAT_A],
+      ["B's chat id", CHAT_B],
+      ["A's phone digits", state.phoneA.slice(1)],
+      ["B's phone digits", state.phoneB.slice(1)],
+      ['the demo account\'s IRIS user name', fixtureUser('DEMOACCOUNT').user],
+    ];
+    const found: string[] = [];
+    for (const namespace of ['OCUTALON', 'OCUORDERS'] as const) {
+      for (const [label, value] of values) {
+        const result = await traceHits(value, namespace, state.marks[namespace]);
+        console.log(`MEASURED Story 31.4: the ${namespace} search for ${label} took ${result.seconds} s over ${result.messages} messages, ${result.fallback} read by the second reader (${result.hits} hits)`);
+        if (result.hits !== 0) found.push(`${label} in ${namespace}: ${result.hits} (${result.detail})`);
+      }
+    }
+    expect(found, 'no value is found in any header or body, and none is unreadable (-1)').toEqual([]);
+
+    // The controls: the search can see what the run wrote.
+    const sessionControl = await traceHits(a.ref, 'OCUTALON', state.marks.OCUTALON);
+    expect(sessionControl.hits, "control: A's SessionRef is in OCUTALON's messages").toBeGreaterThan(0);
+    const traceControl = await traceHits(a.trace, 'OCUORDERS', state.marks.OCUORDERS);
+    expect(traceControl.hits, "control: A's TraceRef is in OCUORDERS' messages").toBeGreaterThan(0);
+  });
+});

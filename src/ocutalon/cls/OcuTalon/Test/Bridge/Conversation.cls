@@ -472,9 +472,9 @@ Method TestLinkPointRefusals()
 }
 
 /// A retry moves the link only when it is on time and Decide accepts it (DW-725, Story 17.8; AD-6, AD-8). A retry whose DecisionRef already has a Decision row
-/// is late, because Decide records the decision when the retry's timer fires: its reply is dropped there, so it must move nothing here. It still answers and its
-/// model request is still counted (one Usage row under the DecisionRef), but it saves no AI session, leaves the link on the session it named and leaves
-/// SessionRotated 0. A retry with no Decision row yet is on time: the link moves to its session when Decide accepts the reply (Test.Bridge.Runner Accept); a
+/// is late, because Decide records the decision when the retry's timer fires: its reply is dropped there, so it must move nothing here. Since Story 5.14 a retry
+/// that is already late when the runner takes it is skipped (no model request, no Usage row, no reply, no AI session), and it moves nothing. A retry whose
+/// timer fires during its Chat saves no session (Test.Bridge.Runner TestRetryLateAfterItsChat). A retry with no Decision row yet is on time: the link moves to its session when Decide accepts the reply (Test.Bridge.Runner Accept); a
 /// later late retry then leaves the link on the on-time retry's session. The late retries are not accepted, as Decide drops them.
 Method TestRetryMovesTheLinkOnlyWhenOnTime()
 {
@@ -494,11 +494,11 @@ Method TestRetryMovesTheLinkOnlyWhenOnTime()
 	Set sessions = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
 	Set sc = ..Send(retryHost, retry, .late, .logged, 0)
 	Do $$$AssertStatusOK(sc, "the late retry runner answers")
-	Do $$$AssertEquals(logged.%Size(), 1, "with one model request")
-	Do $$$AssertEquals($Select($IsObject(late): late.Busy_"|"_(late.Text '= "")_"|"_late.SessionRotated_"|"_late.FailureText, 1: "none"), "0|1|0|", "a reply with a text and SessionRotated 0")
+	Do $$$AssertEquals(logged.%Size(), 0, "with no model request")
+	Do $$$AssertTrue('$IsObject(late), "and no reply")
 	Do $$$AssertEquals(..LinkOf(owner), s1, "the link still names S1: the late retry did not point it")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), sessions, "and the late retry saved no AI session")
-	Do $$$AssertEquals(..UsageRowsOf(ref), 1, "its model request is counted: one Usage row under the DecisionRef")
+	Do $$$AssertEquals(..UsageRowsOf(ref), 0, "and no Usage row under the DecisionRef")
 
 	// (2) an on-time retry: no decision is recorded yet
 	Set ask2 = ..NewTurn("[[mock:recall-ask]] What is my build server called, once more?", owner)
@@ -518,7 +518,7 @@ Method TestRetryMovesTheLinkOnlyWhenOnTime()
 	Set retry3 = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask3, ref3, 0, ..#AGENT)
 	Do ..RecordDecision(ref3, ask3.ItemId, owner)
 	Do $$$AssertStatusOK(..Send(retryHost, retry3, .late3, .logged3, 0), "a second late retry answers")
-	Do $$$AssertEquals($Select($IsObject(late3): late3.SessionRotated, 1: "none"), 0, "with SessionRotated 0")
+	Do $$$AssertTrue('$IsObject(late3), "with no reply")
 	Do $$$AssertEquals(..LinkOf(owner), s2, "and the link still names S2, the session of the on-time retry")
 }
 
