@@ -130,6 +130,29 @@ deferred:
 
    All of this was verified at plan time (UX-DR117).
 
+### Review Findings
+
+Code review 2026-11-08 (epic-cycle code-review stage; full mode, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 26 raw findings, 8 entries after grouping: high 0, med 4 (all in-epic, routed with owners), low 3, maybe-false 1.
+
+- [x] [Review][Patch] The class comment still wrote the quote prefix as a literal `"> "` beside the new QUOTEPREFIX line [src/ocutalon/cls/OcuTalon/Agent/Input.cls:7] — low, in-story, fix-risk low (comment only); patched to name QUOTEPREFIX. Slot A after reload and `ck`: `RenderContext` 4/4, `Test.Agent.Render` 4/4; `test-class-rules.sh` all PASS. (blind-hunter + acceptance-auditor)
+- [x] [Review][Defer] Story 41.7's eval-seeding amendment also has Lane B halves in 41.2 (eval-seeded column, `Similar` filter, PrecedentOps seed and remove), and the AD-29 Epic 41 sub-bullet will need reconciling with it [ARCHITECTURE-SPINE.md:995] — deferred: med, in-epic, fix-risk med; same root cause as DW-920 (`occurrence` appended; owner unchanged, 41-7). Spine text is spec-bound here; this story must not amend AD-21. (blind-hunter)
+- [x] [Review][Defer] AD-21's accepts-only list also omits the `SessionOps.End` drop ("through PrecedentOps") and eval-row removal [ARCHITECTURE-SPINE.md:736] — deferred: med, in-epic, fix-risk low; same root cause as DW-921 (`occurrence` appended; owner 41-2). (blind-hunter)
+- [x] [Review][Defer] A `tool_call` precedent has no match key form: AD-21 keys rows only by `KeyFor(item)`, and 41.2 keys them "by the request's production or tool", which no arriving item's key can match [ARCHITECTURE-SPINE.md:744] — deferred: med, in-epic, fix-risk med; DW-922 `routed owner=41-2-the-precedent-table-its-one-writer-and-the-routes`. (blind-hunter)
+- [x] [Review][Defer] The `too_old` refusal of "This was noise" has no user-facing text in EXPERIENCE.md or its Message Catalog [EXPERIENCE.md:940] — deferred: med, in-epic, fix-risk low; DW-923 `routed owner=41-5-this-was-noise-and-your-approval-answers-become-precedents` (41.5 escalates the line as PUBLIC TEXT). (blind-hunter)
+- [x] [Review][Defer] The sub-bullet puts the `fix`/`tool_call` filter in `AnswerOps`, while Story 41.5's AC sends a `RecordPrecedent` for every answer and 41.2's `PrecedentOps` drops `setting` [ARCHITECTURE-SPINE.md:995] — low, spec-bound text, not a two-way door: `wontfix-accepted`, reopen_if=a `setting` approval answered in 41.5's tests leaves a Precedent row. Both readings write no `setting` row, matching AD-21. (blind-hunter)
+- [x] [Review][Defer] The fresh-stack tier (`ci/iris.sh class ...RenderContext`, `...Render`) was not run locally; it is left to CI [spec Verification] — low: `wontfix-accepted`, reopen_if=the `lane-a` shard on the 41.1 head shows `Test.Agent.RenderContext` or `Test.Agent.Render` red. (acceptance-auditor)
+- [x] [Review][Defer] An async `RecordPrecedent` could land after `SessionOps.End` drops the session's precedents, leaving an orphan row [ARCHITECTURE-SPINE.md:753] — maybe-false (medium if real): `wontfix-theoretical`. AnswerOps sends inside the handler that returns `done`, before the page can request sign-out, and PrecedentOps is one FIFO queue. It becomes real if PrecedentOps runs with PoolSize above 1 or the send moves out of that handler. (edge-case-hunter)
+- [x] [Review][Defer] Rule 2: `RenderContext.MakeItem` repeats `PersonaBlock.Item` (private, no sender or subject) [src/ocutalon/cls/OcuTalon/Test/Agent/RenderContext.cls:26] — low, copy forced by the spec (PersonaBlock.cls is on the Never list): `wontfix-accepted`, reopen_if=a third `Test/Agent` class adds the same `Msg.Item` builder (then extract one shared fixture). (code-review lead check)
+
+**Rejected:**
+- `false` TestQuoting cannot show that `Quoted` uses `QUOTEPREFIX` (blind + verification-gap Gap 1): the two can only differ by value, and any value difference turns `TestQuoting`'s `Quoted` assertions red (expected built from `QUOTEPREFIX`), as `Test.Agent.Render`'s literal `"> "` also does. A literal with the same value is an equivalent mutant. AC 3 has a demonstrated mutation.
+- `false` The "Empty with context" row has no mutation (verification-gap Gap 2): Rule 19 asks for one mutation per AC, not per assertion, and AC 2 has two.
+- by-design: AC 1, AC 3's UX comparison and AC 5 have no CI host (verification-gap Gap 3): spec "Decided in-stage, The text pin" (40.1 pattern, DW-567).
+- `false` Assertions that cannot fail (count 96, context 1 = default, redundant opening checks): context `""` and the one-line/no-placeholder checks are matrix rows the spec requires, and the count fails if a list in the matrix shrinks.
+- by-design: answer values and `too_old` not tied to `OcuTalon.Msg.Enum`; `Render`'s doc comment does not name `sessionStart` (blind): both texts are dictated word for word by the spec's Execution items.
+- `false` `Similar`'s limit, `KeyFor`'s other channels, and `MarkNoise`/`ForgetPrecedent` refusals left open (edge-case-hunter x3): the sub-bullet repeats AD-21 as the spec requires. That behaviour belongs to 41.2's classes, which do not exist yet.
+- Out of review scope (lead-owned bookkeeping): DW-920 routed only to 41-7 (covered by the DW-920 occurrence above); `story_base` given two values and `cycle_iteration` missing in the cycle log; Auto Run Result stale after QA; frontmatter `status: done` vs sprint `review` (build-auto machine state).
+
 ## Spec Change Log
 
 - 2026-11-08 (spec gate, rulings by the Contest Planner under the owner's delegation, ~07:3xZ):
@@ -248,15 +271,18 @@ Run every command from the worktree root, one per call. Rules for each kind of c
 - (once) `ci/iris.sh class OcuTalon.Test.Agent.RenderContext`, then `ci/iris.sh class OcuTalon.Test.Agent.Render`, then `ci/iris.sh teardown`, one per call. Expected: `CLASS ... passed` for each class, on fresh stacks.
 - The rest runs in CI on every push: the full `lane-a` shard (`shards-2` runs the `Agent` area) and every other tier.
 
-**Mutations (Rule 19):**
+**Mutations (Rule 19):** each applied to `Agent/Input.cls` on slot A (reload, recompile `ck`, run), seen red, then reverted; after each the tree was byte-identical (`git status --short` and `git diff --stat` unchanged, file hash equal to the original) and the class ran green again.
 - AC 2:
-  - `If $IsObject(context) Quit ""` at the top of `Render` turns `TestContextIgnored` red.
-  - Dropping `= ""` from `context` turns `TestSignature` red.
+  - mutation: `If $IsObject(context) Quit ""` at the top of `Render` -> `Test.Agent.RenderContext:TestContextIgnored` red (implement stage).
+  - mutation: `= ""` dropped from `context` (`context As %DynamicObject`) -> `Test.Agent.RenderContext:TestSignature` red (QA; the other three tests stayed green).
 - AC 3:
-  - "never rules" changed to "never a rule" in `PRECEDENTSOPENING` turns `TestOpenings` red, and the UX comparison prints `DIFFERS`.
-  - `QUOTEPREFIX` set to `">> "` turns `TestQuoting` red, and `Test.Agent.Render` too.
-- AC 4: an extra blank line after the preamble in `Render` turns `Test.Agent.Render` red.
-- AC 1 and AC 5 are document checks (grep, numstat and lint), so they have no mutation.
+  - mutation: "never rules" -> "never a rule" in `PRECEDENTSOPENING` -> `Test.Agent.RenderContext:TestOpenings` red, and the UX comparison command printed `PRECEDENTSOPENING DIFFERS` (QA).
+  - mutation: `QUOTEPREFIX` = `">> "` -> `Test.Agent.RenderContext:TestQuoting` red, and `Test.Agent.Render` too (implement stage).
+- AC 4:
+  - mutation: one more `$Char(10)` after the preamble in both branches of `Render` (`preamble_$Char(10, 10, 10)_`) -> `Test.Agent.Render` red (`TestUser`, `TestUntrusted`, `TestPreambleZone`; `TestEmpty` green) (QA).
+- AC 1 and AC 5 are document checks (grep, numstat and lint), so they have no mutation. QA ran them: the AC 1 greps give 1 and 1, `git diff --numstat 871a29ef..HEAD` of the spine is `2	0`, the lint equals the plan-time baseline (nine `placeholder low`), the AC 5 grep lists lines 933 and 1012, `git diff --stat` on `ux-designs/` is empty, the UX comparison prints four `matches`, and `docker/tests/test-class-rules.sh` passes every rule.
+
+**QA gap check (2026-11-07):** every I/O row and AC 2 and AC 3 are pinned by `Test.Agent.RenderContext` (the 96 context comparisons also count the matrix's owners and provenances). No test was added or changed. `Test/Agent/RenderContext.cls` (QA: reviewed, unchanged).
 
 **Shared surfaces:**
 - `Agent.Input.Render`'s `FormalSpec`: `Test.Contract.Ac` compares the prefix `item`, which stays green.

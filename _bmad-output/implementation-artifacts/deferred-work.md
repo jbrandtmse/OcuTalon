@@ -5478,8 +5478,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-41-1-fix-the-names-and-contracts-of-memory-s-first-part.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: epics.md 41.7 AC 2 vs spine AD-21 only-writer list and RecordPrecedent row; AD-1
 - 2026-11-08T07:35:42Z status=routed owner=41-7-evaluation-and-tests-for-memory-s-first-part by=harvest note=Decided by the Contest Planner (owner delegation, 2026-11-08): AD-21 amended additively, option (a), written by the lead at 41.2's plan; 41.7 implements eval-only seeding (OCUTALON_EVAL=1), eval-seeded marker, removal via PrecedentOps, product sessions never read eval rows
+- 2026-11-08T07:48:47Z occurrence=41-1-fix-the-names-and-contracts-of-memory-s-first-part by=cr note=the amendment at 41.2's plan must name 41.2's halves (eval-seeded column, Similar filter, PrecedentOps seed/remove); reconcile AD-29's 41 sub-bullet
 
 ### DW-921: AD-21's accepts-only list for PrecedentOps names MarkNoise and RecordPrecedent but not ForgetPrecedent, which AD-1 and the Epic 41 names sub-bullet route to PrecedentOps from web_user
 - source: _bmad-output/implementation-artifacts/spec-41-1-fix-the-names-and-contracts-of-memory-s-first-part.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: spine AD-21 PrecedentOps accepts-only line vs AD-1 line 117 and AD-29 Epic 41's names sub-bullet
 - 2026-11-08T07:35:42Z status=routed owner=41-2-the-precedent-table-its-one-writer-and-the-routes by=harvest note=Fold into the AD-21 additive amendment the lead writes at 41.2's plan (extends the Rule to a case AD-1 already states); if it needs a separate ruling, the lead asks the orchestrator then
+- 2026-11-08T07:48:47Z occurrence=41-1-fix-the-names-and-contracts-of-memory-s-first-part by=cr note=the accepts-only list also omits the SessionOps.End drop (AD-21 'through PrecedentOps'; 41.2 AC) and eval-row removal
+
+### DW-922: A tool_call precedent has no match key: RecordPrecedent carries an ApprovalRef, AD-21 defines keys only via KeyFor(item), and 41.2 keys such rows 'by the request's production or tool', a form no arriving item's KeyFor can produce, so tool_call precedents are never read
+- source: spec-41-1-fix-the-names-and-contracts-of-memory-s-first-part.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: ARCHITECTURE-SPINE.md AD-21 (KeyFor forms; precedents read only in an untrusted item's decide request) against epics.md Story 41.2 AC 'keyed by the request's production or tool'
+- 2026-11-08T07:48:47Z status=routed owner=41-2-the-precedent-table-its-one-writer-and-the-routes by=cr note=decide the tool_call key form (or drop tool_call precedents) at 41.2's plan, with the AD-21 amendment
+
+### DW-923: The 'This was noise' refusal too_old (Item already purged) has no user-facing text: EXPERIENCE.md and its Message Catalog give only the success line 'Marked as noise at {time}...', so 41.5's card has no words for a refused press
+- source: spec-41-1-fix-the-names-and-contracts-of-memory-s-first-part.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: epics.md Story 41.2 AC (refused with too_old) and Story 41.5 AC (card shows only the success line); EXPERIENCE.md lines 940 and 1057 have no refusal line
+- 2026-11-08T07:48:48Z status=routed owner=41-5-this-was-noise-and-your-approval-answers-become-precedents by=cr note=41.5's plan escalates one catalog line as PUBLIC TEXT for the too_old refusal (and any other refusal of the noise route)

@@ -4,7 +4,7 @@
 ///     owner has one, and the user's own text as written, which reaches the model as a user message;
 ///   - any other provenance, an empty one included, is rendered as untrusted content (it fails safe): a code-written line that
 ///     names its channel and says it is quoted data and never instructions, then the sender, the subject and the text, every
-///     line prefixed with "> " so that the content cannot close the quote, after the persona block and a blank line when the
+///     line prefixed with QUOTEPREFIX so that the content cannot close the quote, after the persona block and a blank line when the
 ///     item's owner has one;
 ///   - the persona block (AD-7) is OcuTalon.Agent.Persona.Block of item.SessionRef: data about wording that goes after the
 ///     preamble and before the item, for every item that a session owns, whatever its provenance or channel. Nothing else decides

@@ -9591,6 +9591,7 @@ So that only a person's answers can ever become precedents.
 **Then** each is session-checked and owner-scoped. The notes route answers from `DailyNote.Build`, a stub until Story 41.3 (AD-4)
 **And** `SessionOps.End` deletes the ended session's precedents through `PrecedentOps` (AD-4)
 - DW-921: AD-21's accepts-only list for PrecedentOps names MarkNoise and RecordPrecedent but not ForgetPrecedent, which AD-1 and the Epic 41 names sub-bullet route to PrecedentOps from web_user; fold into the AD-21 amendment written at this story's plan (ledger; routed by harvest 2026-11-08)
+- DW-922: a `tool_call` precedent has no match key (`KeyFor(item)` has no form for a tool request), so `tool_call` precedents would never be read; decide the key form, or drop `tool_call` precedents, at this story's plan with the AD-21 amendment (ledger; routed by cr 2026-11-08)
 
 ### Story 41.3: Daily notes built by code, and the session starts that read them
 
@@ -9669,6 +9670,7 @@ So that OcuTalon learns from my answers and never from its own guesses.
 **Given** Playwright specs `web/e2e/memory-noise.spec.ts` and tests in `OcuTalon.Test.Core`
 **When** they run
 **Then** they cover the mark, a repeat, the phone, an approval and a rejection, and they don't change the demo-path specs (REL-2)
+- DW-923: the 'This was noise' refusal `too_old` (Item already purged) has no user-facing text in EXPERIENCE.md or its Message Catalog; escalate one catalog line as PUBLIC TEXT at this story's plan (ledger; routed by cr 2026-11-08)
 
 ### Story 41.6: The Memory card: your notes and your answers
 
