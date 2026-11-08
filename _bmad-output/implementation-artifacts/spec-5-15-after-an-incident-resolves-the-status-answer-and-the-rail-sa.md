@@ -16,14 +16,15 @@ deferred: []
 
 **Problem:** The status answer (`check_status`, Story 5.7) and the rail's Background checks read the production watch's last check, which runs only on the one-minute heartbeat. So for up to a minute after an approved fix finishes, both still say "50 new failures, a fix waiting for your approval" while the incident card already reads Resolved (DW-851).
 
-**Approach:** This is the Contest Planner's ruling under the owner's delegation (2026-11-08T12:32Z), and it is fixed for this story. When `IncidentManager` accepts a move that resolves an incident, or that reopens it after its fix request was rejected or expired, it sends `Checks` one new asynchronous request, `OcuTalon.Checks.Msg.CheckNow`. `Checks` then runs each production watch of that production whose scope includes the incident (AD-4) once, straight away, through its existing run (`Run` and `Record`). That run leaves `NextDueAt` as the schedule set it.
+**Approach:** This is the Contest Planner's ruling under the owner's delegation (2026-11-08T12:32Z), and it is fixed for this story. When `IncidentManager` accepts a move that resolves an incident, or that reopens it after its fix request was rejected or expired, or that closes a noticed open incident by `dismiss` or `closeQuiet` (the Planner's widening of 2026-11-08, DW-957: any move that changes what "An open incident" reads refreshes the check at once), it sends `Checks` one new asynchronous request, `OcuTalon.Checks.Msg.CheckNow`. `Checks` then runs each production watch of that production whose scope includes the incident (AD-4) once, straight away, through its existing run (`Run` and `Record`). That run leaves `NextDueAt` as the schedule set it.
 
 ## Boundaries & Constraints
 
 **Always:**
 - The trigger is an accepted move in `IncidentManager.Apply`. It fires for exactly these moves and no others:
   - event `finished` (final or interrupted) whose target is `resolved`;
-  - event `rejected` or `expired` whose target is `open`.
+  - event `rejected` or `expired` whose target is `open`;
+  - event `dismiss` or `closeQuiet` whose source is `open` and whose target is `closed` (a noticed open incident; DW-957, the Planner's ruling of 2026-11-08).
 - The selection uses AD-4's rule, the same one `Unclosed` applies. It takes the rows of `Kind` production (`..#KIND`) with the incident's `Namespace` and `Production` and then:
   - owner = a session: that session's row only;
   - owner `instance`: every session's row, but none on the online demo;
@@ -61,7 +62,9 @@ deferred: []
 | Interrupted | As Resolved, with Interrupted 1 and Final 0 | As Resolved | No error expected |
 | Rejected | I is `awaiting_approval` with only R1 pending; ApprovalOutcome rejected | I `open`/rejected; one CheckNow | No error expected |
 | Expired | As Rejected, with expired | I `open`/expired; one CheckNow | No error expected |
-| Not resolving | A `progress` FixResult; `finished` with another approved request waiting (stays fixing, execute earliest) or another pending (`awaiting_approval`); `rejected` with another pending (stays awaiting); `approved`; a refused event (a repeat, an unknown request); a failed save (`FailMove`); `dismiss` or `closeQuiet` | No CheckNow | No error expected |
+| Dismissed (DW-957) | I is `open` and noticed; an IncidentCommand `dismiss` | I `closed`; one CheckNow | No error expected |
+| Quiet-closed (DW-957) | I is `open` and noticed, not on the online demo; an IncidentCommand `closeQuiet` | I `closed`; one CheckNow | No error expected |
+| Not resolving | A `progress` FixResult; `finished` with another approved request waiting (stays fixing, execute earliest) or another pending (`awaiting_approval`); `rejected` with another pending (stays awaiting); `approved`; a refused event (a repeat, an unknown request); a failed save (`FailMove`); `dismiss`, `closeQuiet` or `closeForReplay` of a `resolved` incident (it was not counted as open); a refused `closeQuiet` on the online demo | No CheckNow | No error expected |
 | Instance | An `instance` incident resolves | CheckNow with OwnerRef `instance` | No error expected |
 | Send fails | The CheckNow send answers an error | One `LOGCHECKNOW` warning naming I; I stays resolved; its event and result notice went out; status OK | Logged, move kept |
 | Check now runs | CheckNow {ZZNS, P1, A}; rows A/P1 (NextDueAt N, a day ahead), A/P2 and B/P1; `Swept` canned | Only A/P1 runs: its run fields are set, NextDueAt is still N, one `check` event (FromRow) on A's stream, one LOGRAN line. A/P2 and B/P1 are unchanged. Nothing quieted, no fix result sent, no beat, no Digest send | No error expected |
@@ -130,7 +133,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated otherwise.
   - A new parameter `LOGNOW` (text under Design Notes).
   - The class doc names the fourth request and its rules (Boundaries), and Record's keep.
 - `src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls` (DW-851). Nothing between `Event` and `PurgeOne` changes.
-  - `Apply`: before `Next`, keep `from = incident.State`. After an accepted move and its Execute, call `..CheckNow(incident)` when `(event = FINISHED && to = RESOLVED) || ((event = REJECTED || event = EXPIRED) && to = OPEN)`.
+  - `Apply`: before `Next`, keep `from = incident.State`. After an accepted move and its Execute, call `..CheckNow(incident)` when `(event = FINISHED && to = RESOLVED) || ((event = REJECTED || event = EXPIRED) && to = OPEN) || ((event = DISMISS || event = CLOSEQUIET) && from = OPEN && to = CLOSED)` (the last clause: DW-957).
   - A new private `CheckNow(incident)` and its seam `SendCheckNow(request)` (`SendRequestAsync(..#CHECKS, request, 0)`), placed after `SendExecute`:
     - they build the request from the incident's Namespace, Production, OwnerRef and Ref;
     - they set `%SessionId` to `incident.TraceHeaderId` and put it back after the send, as `Execute` does;
@@ -150,7 +153,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated otherwise.
 - `src/ocutalon/cls/OcuTalon/Test/Watch/IncidentProbe.cls`:
   - a `SendCheckNow` override records `{namespace, production, ownerRef, incidentRef, sessionId}` in a new `CheckNows` and answers OK, or an error when `FailCheckNow` is set;
   - the doc says so.
-- `src/ocutalon/cls/OcuTalon/Test/Watch/Lifecycle.cls` -- the matrix rows Resolved, Interrupted, Rejected, Expired, Not resolving, Instance and Send fails:
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Lifecycle.cls` -- the matrix rows Resolved, Interrupted, Rejected, Expired, Dismissed, Quiet-closed, Not resolving, Instance and Send fails (`TestResolvingMovesCheckNow` covers Dismissed and Quiet-closed, DW-957):
   - `TestResolvingMovesCheckNow`;
   - `TestCheckNowSendFails`;
   - `RemoveLogs` also removes the `LOGCHECKNOW` lines;
@@ -171,13 +174,13 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated otherwise.
   - It logs the milliseconds from the send to the row's LastRunAt with `$$$LogMessage`.
   - Cleanup follows `Test.Fix.Execute`.
 - Shared-surface sweep (Rule 19). Before the loop, run `rg -n 'Stream\(|"check"|LastRunAt|CheckNow|Sent\.%Size|Warnings\(' src/ocutalon/cls/OcuTalon/Test/Fix src/ocutalon/cls/OcuTalon/Test/Watch src/ocutalon/cls/OcuTalon/Test/Eval web/e2e/demo-path`.
-  - Update any exact expectation that a resolved, rejected or expired incident of a session that watches Orders now breaks: one extra check event, one LOGRAN line and a CheckNow header in the incident's trace session.
+  - Update any exact expectation that a resolved, rejected, expired, dismissed or quiet-closed incident of a session that watches Orders now breaks: one extra check event, one LOGRAN line and a CheckNow header in the incident's trace session.
   - Never weaken one.
   - List what changed under `## Verification`.
 - This spec's `## Verification` -- the implement stage adds the measured milliseconds, each class's seconds and each `mutation:` line.
 
 **Acceptance Criteria:**
-- AC1 (DW-851; AD-15, AD-18, AD-33). Given an incident whose fix run finishes into `resolved`, or whose only pending request is rejected or expires, when IncidentManager applies the event, then the matrix rows Resolved, Interrupted, Rejected, Expired, Instance and Not resolving hold.
+- AC1 (DW-851; AD-15, AD-18, AD-33). Given an incident whose fix run finishes into `resolved`, or whose only pending request is rejected or expires, or a noticed open incident that is dismissed or quiet-closed (DW-957), when IncidentManager applies the event, then the matrix rows Resolved, Interrupted, Rejected, Expired, Dismissed, Quiet-closed, Instance and Not resolving hold.
 - AC2 (AD-4, AD-18, AD-26, AD-28). Given a CheckNow, when Checks handles it, then the rows Check now runs, Empty NextDueAt and Scope hold. The run's row, event and log line equal those of a Tick's run of the same read, except that NextDueAt is unchanged.
 - AC3. Given a failed send, a failed row read or no matching row, when the CheckNow is sent or handled, then the rows Send fails and Read fails / no row hold: at most one warning and no other change.
 - AC4 (Integration AC: Checks consumes IncidentManager's CheckNow, and the status answer and the rail read the result). Given the real production, when a fix finishes or is rejected, then the two Integration rows hold.
@@ -188,6 +191,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated otherwise.
   - CI is green on every workflow, on the mock only.
 
 ## Spec Change Log
+
+- 2026-11-08, lead, spec gate (the Contest Planner's rulings under the owner's delegation, relayed by the orchestrator): (1) proceed at about 2.5 h as designed: one CheckNow, the existing Run and Record, NextDueAt unchanged, no sweeps, Checks PoolSize 1, no AD change; (2) expired requests stay in the trigger; (3) DW-957: the trigger is widened to `dismiss` and `closeQuiet` of a noticed open incident (open to closed), on the principle that any move that changes what "An open incident" reads refreshes the check at once. Intent contract (Approach, Boundaries), matrix, Execution, AC1, Design Notes, spine row, mutations and shared surfaces amended to match; (4) the `Watch/IncidentManager.cls` hunks are a plain union with Epic 30's 30.7 `Purge` hunk (decide; the Planner agrees). The two spine rows were written by the lead (Rule 20 light path).
 
 ## Review Triage Log
 
@@ -208,7 +213,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated otherwise.
 **Decided in-stage:**
 - **Expired is included.** The table moves `awaiting_approval + expired` with nothing pending to `open`, exactly as a rejection does, so the story's carve-out ("unless the spec shows it moves the incident the same way") is met. The stale "a fix waiting for your approval" finding is the same defect.
 - **Excluded moves.** `finished` into `fixing` (another approved request runs) or into `awaiting_approval`, `approved` into `fixing`, and the commands are not resolutions in the ruling's sense. The incident is still in flight.
-- **Not covered: dismiss and closeQuiet.** A dismiss or a `closeQuiet` of a noticed open incident leaves the same lag of up to a minute on "An open incident". This is outside the ruling, and it is reported for the lead to route if wanted.
+- **Dismiss and closeQuiet are covered (lead, from the Planner's ruling of 2026-11-08, DW-957).** A dismiss or a `closeQuiet` of a noticed open incident (open to closed) also sends a CheckNow, because it changes what "An open incident" reads. A `closeQuiet` comes from Checks' own quiet sweep inside a Tick (SendQuiet, synchronous); the CheckNow it causes is asynchronous, so Checks (PoolSize 1) handles it after that Tick ends, and the same row may run twice within seconds. That is harmless (the second run reads the same state) and needs no guard. A move from `resolved` to `closed` changes nothing the check counts, so it sends none.
 - **The schedule is kept by omitting `NextDueAt` from the UPDATE.** Recomputing it from the old row would have the same effect but adds a read.
 - **Scope is decided in Checks, not by Recipients in IncidentManager.** Checks owns the BackgroundCheck reads, and IncidentManager would otherwise need a cross-session read. The set is the same: `Recipients(instance)` is `Watchers(ns, prod)`, the production rows of every session, and none on the online demo.
 - **The name is `CheckNow`.** "Re-check" already names Story 7.3's FixExecutor re-check (`Test.Fix.Recheck`).
@@ -231,7 +236,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated otherwise.
 
 **Spine (for the lead, Rule 20 light path; no AD changes).**
 - A new message-table row after L1372:
-  > | `OcuTalon.Checks.Msg.CheckNow` (AD-18, AD-33): `Namespace`, `Production`, `OwnerRef`, `IncidentRef`, sent by `IncidentManager`, asynchronously with no answer wanted and in the incident's trace session, after an accepted move that resolves an incident or reopens it after a rejected or expired request; handled by `Checks`, which runs each production watch of that production in the incident's scope (AD-4) once through the normal run, leaving `NextDueAt` as it was | A | Story 5.15 |
+  > | `OcuTalon.Checks.Msg.CheckNow` (AD-18, AD-33): `Namespace`, `Production`, `OwnerRef`, `IncidentRef`, sent by `IncidentManager`, asynchronously with no answer wanted and in the incident's trace session, after an accepted move that resolves an incident, reopens it after a rejected or expired request, or closes a noticed open incident by dismiss or closeQuiet; handled by `Checks`, which runs each production watch of that production in the incident's scope (AD-4) once through the normal run, leaving `NextDueAt` as it was | A | Story 5.15 |
 - In the Conventions row "Background checks" (L1158), this sentence goes after the closeQuiet sentence:
   > After such a move `Checks` runs each in-scope watch once at once (no sweep, fix sweep, beats or Digest forward); that run's trace is the incident's trace session and its `UPDATE` leaves `NextDueAt` unchanged.
 
@@ -284,6 +289,7 @@ env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-c
   - the `..CheckNow(incident)` call removed from `Apply`. `TestResolvingMovesCheckNow` goes red, and after `down` and `up` both `AfterResolve` tests go red (AC1, AC4);
   - the trigger widened to every accepted move. The Not resolving cases go red (AC1);
   - `EXPIRED` dropped from the trigger. The Expired case goes red (AC1);
+  - the `DISMISS`/`CLOSEQUIET` clause dropped from the trigger. The Dismissed and Quiet-closed cases go red (AC1, DW-957);
   - `keep` ignored, so the UPDATE sets NextDueAt. `TestCheckNow` goes red on "NextDueAt unchanged" (AC2);
   - `Now` calling `Tick`'s path (or `Sweep`). `TestCheckNow` goes red on nothing quieted, swept or beaten (AC2);
   - `InScope` returning 1. `TestCheckNowScope` goes red (AC2);
@@ -300,7 +306,7 @@ env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-c
 The lead runs the fresh-environment check, forward and reverse (Rule 19).
 
 **Shared surfaces:**
-- A resolved, rejected or expired incident now adds a CheckNow header (IncidentManager to Checks), a LOGRAN Info row and the run's warnings to the incident's trace session.
+- A resolved, rejected, expired, dismissed or quiet-closed (from open) incident now adds a CheckNow header (IncidentManager to Checks), a LOGRAN Info row and the run's warnings to the incident's trace session.
 - Each in-scope watch gets one more run: its row's run fields, one `check` event, and one `Digest.Data.CheckRun` row through the update trigger.
 - `IncidentProbe` gains a recorded seam that `ZzIncident` inherits.
 - `Checks.Probe` gains `Watching`.

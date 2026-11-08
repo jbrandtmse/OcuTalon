@@ -3315,6 +3315,7 @@ So that they never contradict the incident card I am looking at.
 **And** a test shows: an incident resolves, then the next status read shows the post-resolve check; the same for a rejected fix; a mutation that removes the re-check goes red (Rule 19); and the story's tests pass on a fresh environment, forward and reversed
 **And** the change stays in Lane A's Watch area (IncidentManager, the Checks process and its messages, their tests), its file footprint is listed in the spec, and CI is green on every workflow on the CI mock only (no real model key)
 - DW-851: Status answer and rail Background checks read the last watch run, taken before an approved fix finished, so for up to a minute they contradict the Resolved card and Approval requests (0) (ledger; routed by charter 2026-11-08)
+- DW-957: Dismissing or quiet-closing a noticed open incident leaves the status answer and rail Background checks on 'An open incident' for up to a minute; the trigger also covers dismiss and closeQuiet of a noticed open incident (ledger; routed by planner_ruling 2026-11-08)
 
 Not in this story: treating a check result older than the resolution as stale (the other option, not chosen), any change to the status answer's or the rail's text, and the expired-request path unless the spec shows it moves the incident the same way.
 

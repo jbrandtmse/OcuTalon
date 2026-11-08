@@ -5517,3 +5517,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-15-after-an-incident-resolves-the-status-answer-and-the-rail-sa.md | severity: low | fix-risk: low | footprint: cross-epic
 - evidence: 5.15 plan: Planner ruling covers resolve/partly/rejected only; dismiss and closeQuiet move open->closed without a CheckNow
 - 2026-11-08T12:55:33Z status=decision-pending owner=burndown by=spec_gate note=for the Planner: widen 5.15's CheckNow trigger to dismiss/closeQuiet (about +3 lines and one test) or leave it
+- 2026-11-08T12:59:15Z status=routed owner=5-15-after-an-incident-resolves-the-status-answer-and-the-rail-sa by=owner note=planner_ruling 2026-11-08 (orchestrator relay): widen 5.15's CheckNow trigger to dismiss and closeQuiet of a noticed open incident; any move that changes what 'An open incident' reads refreshes the check at once; close resolved-by 5.15 when delivered
