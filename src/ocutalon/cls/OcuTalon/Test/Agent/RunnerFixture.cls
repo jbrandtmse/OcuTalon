@@ -35,8 +35,9 @@ Include Ensemble
 ///     as Decide's HostSinkClass (both swaps go through ChangeSettings); SnapshotDefault, PutDefault and RestoreDefault: a System Default
 ///     Settings row of an item put in place and put back, with RememberDefault and RestoreDefaults for the list of rows a test wrote
 ///     (Test.Bridge.Budget, Test.Bridge.Decide and Test.Agent.Decide delegate to them); ErrorRows: the event-log rows of Type 2 or 6 after a mark
-///     (a start with no key writes none); SinkCalls: the calls that the shared mode of Test.Bridge.ProbeSink recorded in the production's
-///     own jobs.
+///     (a start with no key writes none), with an optional header mark (HeaderMark) that leaves out the timer-ignored row of Ens.Alarm
+///     for a message header from before the mark (Story 11.28, DW-688); SinkCalls: the calls that the shared mode of
+///     Test.Bridge.ProbeSink recorded in the production's own jobs.
 ///   - Drain and FallbackProblems (QA, Story 1.6): Drain waits until a runner has handled every message sent to it before the call, so that
 ///     a test that asserts that nothing reached the mock reads the log after a request of Decide's could have arrived; FallbackProblems
 ///     names whatever is missing from the guarantees of a fallback (the answer, its XML and the Decision row), for every live test of a fallback.
@@ -315,14 +316,15 @@ ClassMethod EventRows(mark As %Integer, item As %String) As %List
 
 /// Sends the message to the target item through ApprovalStartIn, the adapterless service of the production, and waits for the
 /// answer. The status is the one the sender gets, the error of a runner included. response is the answer, or "". A super session, when
-/// given, is the SuperSession that the service's messages carry, as those of a channel service do (AD-26).
-ClassMethod Send(target As %String, message As %Persistent, Output response As %Persistent, superSession As %String = "") As %Status
+/// given, is the SuperSession that the service's messages carry, as those of a channel service do (AD-26). The seconds, when given, are
+/// how long the call waits for the answer (empty: SENDSECONDS).
+ClassMethod Send(target As %String, message As %Persistent, Output response As %Persistent, superSession As %String = "", seconds As %Integer = "") As %Status
 {
 	Set response = ""
 	Set sc = ##class(Ens.Director).CreateBusinessService("ApprovalStartIn", .service)
 	If $$$ISERR(sc) Quit sc
 	If superSession '= "" Set service.%SuperSession = superSession
-	Quit service.SendRequestSync(target, message, .response, ..#SENDSECONDS)
+	Quit service.SendRequestSync(target, message, .response, $Select(seconds '= "": seconds, 1: ..#SENDSECONDS))
 }
 
 /// A Request of the kind and provenance for a new item: ref is a fresh reference, which is the request's ItemId, OwnerRef is the
@@ -830,15 +832,37 @@ ClassMethod RestoreTimer(saved As %List) As %Status
 /// The rows of the event log after the mark (EventMark) of Type 2 (error) or 6 (alert), as a list of "<type>: <item>: <text>" (the text
 /// cut to 200 characters), oldest first. A start with no key writes none (FR-38). A statement that fails gives one row that says so,
 /// never an empty list.
-ClassMethod ErrorRows(mark As %Integer) As %List
+/// With a header mark (HeaderMark, taken next to the event mark), one kind of row is left out: a row of Type 2 and ConfigName Ens.Alarm
+/// whose text starts "Message '<n>' can not be found, timer event ignored" with <n> one or more digits and <n> at or below the header
+/// mark. Ens.Alarm writes it when a timer wakes and the request header of the timer is gone, as a test's clean-up leaves it for the
+/// timer of an earlier test; the header existed before the mark, so the row is not the caller's. Every other row is kept, in the same
+/// form and order: an alert (Type 6), another ConfigName, another wording, an empty or non-numeric <n>, and a timer-ignored row for a
+/// header above the mark. With the header mark empty, every row is kept.
+ClassMethod ErrorRows(mark As %Integer, headerMark As %Integer = "") As %List
 {
 	Set rows = ""
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Type, ConfigName, SUBSTRING(Text, 1, 200) FROM Ens_Util.Log WHERE ID > ? AND Type IN (2, 6) ORDER BY ID", mark)
 	If result.%SQLCODE < 0 Quit $ListBuild("SQL "_result.%SQLCODE_": "_result.%Message)
 	While result.%Next() {
-		Set rows = rows _ $ListBuild(result.%GetData(1)_": "_result.%GetData(2)_": "_result.%GetData(3))
+		Set type = result.%GetData(1)
+		Set config = result.%GetData(2)
+		Set text = result.%GetData(3)
+		If (headerMark '= "") && (type = 2) && (config = "Ens.Alarm") && ..TimerIgnoredAtOrBelow(text, headerMark) Continue
+		Set rows = rows _ $ListBuild(type_": "_config_": "_text)
 	}
 	Quit rows
+}
+
+/// 1 when the text is Ens.Alarm's "Message '<n>' can not be found, timer event ignored" with <n> one or more digits and <n> at or below
+/// the header mark (ErrorRows).
+ClassMethod TimerIgnoredAtOrBelow(text As %String, headerMark As %Integer) As %Boolean [ Private ]
+{
+	If $Extract(text, 1, 9) '= "Message '" Quit 0
+	Set number = $Piece(text, "'", 2)
+	If number '? 1.N Quit 0
+	Set wording = " can not be found, timer event ignored"
+	If $Extract($Piece(text, "'", 3, *), 1, $Length(wording)) '= wording Quit 0
+	Quit +number <= headerMark
 }
 
 /// The calls that the shared mode of OcuTalon.Test.Bridge.ProbeSink recorded in ^OcuTalonTest("ProbeSink","calls") (the mode is on while
