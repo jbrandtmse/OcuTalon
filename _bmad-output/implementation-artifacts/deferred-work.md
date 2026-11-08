@@ -5363,3 +5363,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 19.5 implement review: release/upgrade-harness.sh:1027 and :1042-1060 (approved hunks H5/H6); the fix edits a frozen release tool beyond the ruled hunks
 - 2026-11-08T10:22:47Z status=escalated owner=burndown by=harvest note=needs a Planner ruling (release-tool freeze until v1.0.4 is merged back)
+- 2026-11-08T10:32:45Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=owner note=planner_ruling_option_a(owner_delegation,orchestrator_relay):minimal_H5/H6_fix,empty_answer=failure,test_pins_both;delivered_in_19.5_review;close_by=owner_when_delivered
