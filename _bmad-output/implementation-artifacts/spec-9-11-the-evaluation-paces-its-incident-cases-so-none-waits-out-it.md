@@ -2,7 +2,7 @@
 title: 'Story 9.11: The evaluation paces its incident cases so none waits out its timer in a queue'
 type: 'bugfix'
 created: '2026-11-08'
-status: 'blocked'
+status: 'in-progress'
 baseline_revision: '225042eab4d6874c706ffa5dbfa44c6cbda3c8b5'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -211,6 +211,10 @@ Paths are relative to the repository root. Class paths are under `src/ocutalon/c
   - Touch nothing else in the class: above all not `Finish` (:917-922), `Text`, `Score` or the header lines 44-49, which Story 19.4 edits.
 - `src/ocutalon/cls/OcuTalon/Test/Eval/In.cls` -- also add `TestSkippedIncidentScored` (the Planner's condition), with its header bullet: on one ZzIn double with `late` = `"never"`, process incident cases `zz-sc-a`, `zz-sc-b` and `zz-sc-c` (`zz-sc-c` with `heldOut: true` in its case.json); collect the skipped `{case, reason}` of `b` and `c` (both `REASONPACED`); `Answer` a's row; then build the report twice from the same rows: the control `Report.Build(<the run's RunRef>, ..Folder, [])` and `Report.Build(<the run's RunRef>, ..Folder, skipped)`. Assert, against the control, that `scores.incidents.total` is larger by exactly 2 and `right` is unchanged, that `scores.heldOutIncidents.total` is larger by exactly 1 and `right` unchanged (so the share can only fall), and that `b` and `c` are listed under `skipped` and counted by `Report.Problems`. Give the incident case.json files a recorded expectation (cause category and element at fault) if `WriteIncident` does not, so that a's row is scored, not unscored; record in the spec which it was. The assertion messages say a stall can only lower the score.
 - `TestPaceBound` also pins the ruled text with a fixed string: `##class(OcuTalon.Eval.In).#REASONPACED` equals `the incident case {case} had no result after {seconds} seconds, so this run sends no more incident cases` exactly.
+- [ ] [Gate] `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` -- RULED 2026-11-08 (orchestrator, decide): update the three pins that assert the old "a skip counts in no score" behaviour, which the Planner's condition (AC7) ruled out, and nothing else in the file (Story 19.4 edits its lines 1516-1522 and 1742-1747; these hunks are a plain union with them):
+  - the header bullet at :48-49 gains the exception: a skipped incident case counts as not right in SM-2's incidents (any other skip is still scored in nothing);
+  - `TestSkipped` (:1108): the incidents expectation becomes `"0 of 1 share 0 met 0"`, with a message saying the skipped incident case counts as not right;
+  - `TestText` (:1268): the `Incidents (SM-2)` row takes the exact text the run gives for 0 right of 1 (run the class, read the row, pin it verbatim).
 - No edit: `Test/Eval/Cases.cls`, `Test/Eval/Switch.cls` -- run them unchanged (AC5, AC6) -- `TestRecordedCases` relies on the double's default answer, and `Switch` pins the disabled `EvalIn`.
 
 **Acceptance Criteria:**
@@ -232,6 +236,8 @@ Paths are relative to the repository root. Class paths are under `src/ocutalon/c
 - **AC6, the product.** Given the product's production definition, when `Test.Eval.Switch.TestDefinition` lists its items, then `EvalIn` is an `OcuTalon.Eval.In` with pool 0 and Enabled 0. And `git diff --stat` of `eval/` and `Production.cls` against the story's baseline is empty.
 
 ## Spec Change Log
+
+- 2026-11-08 04:3xZ, implement pass 1 halted (intent gap): AC7 trips `Test/Eval/Report.cls` `TestSkipped` (:1108) and `TestText` (:1268), whose pins assert the old behaviour. RULED (orchestrator, decide, logged): the three edits (header :48-49, `TestSkipped`, `TestText`) are allowed, a plain union with 19.4's hunks (1516-1522, 1742-1747), the condition's own consequence and not a waiver. Added as the one open [Gate] item. Re-dispatch: status `in-progress`; the pass-1 implementation of the other four classes is kept UNCOMMITTED in the working tree as the starting tree (only bookkeeping was committed).
 
 - 2026-11-08, spec gate (lead), applying the orchestrator's resume message: (b) PUBLIC TEXT `REASONPACED` APPROVED as drafted by the Contest Planner under the owner's delegation, and the design approved (previous-row pacing, the 150 s stall bound, turn cases first, no timer changes); CONDITION (Planner): a skipped incident case counts as NOT RIGHT in SM-2 and stays in its denominator, pinned by a test with a mutation. Today `Report` counts a skipped case in no score (header :61; `AddSkipped` runs after `Finish`), so this spec now edits `Eval/Report.cls` (:61, :197-198, :952-966; no overlap with 19.4's hunks) and adds `TestSkippedIncidentScored` and AC7. (a) RULED (orchestrator, decide): the `Eval/In.cls`, `Test/Eval/ZzIn.cls` and `Test/Eval/In.cls` edits are plain unions with Story 19.4's hunks, and so is the non-overlapping `Eval/Report.cls` hunk. The intent block's Approach, Never list and matrix carry the condition.
 
@@ -350,7 +356,7 @@ RULED 2026-11-08 (orchestrator, decide): the edits in `Eval/In.cls`, `Test/Eval/
 
 **Footprint.**
 - Edited: `Eval/In.cls`, `Test/Eval/In.cls` and `Test/Eval/ZzIn.cls`, plus this spec.
-- Footprint extension (reported by the lead): `Eval/Report.cls`, for the Planner's condition only.
+- Footprint extensions (reported by the lead): `Eval/Report.cls` and `Test/Eval/Report.cls` (its three pins), for the Planner's condition only; both ruled plain unions with Story 19.4.
 - No new mock scenario file. No frozen file is needed.
 
 **Proposed spine text (for the lead, optional), an AD-22 as-built bullet:**
@@ -395,10 +401,10 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.In` -- expected: a `WARM reloaded` line, then `CLASS OcuTalon.Test.Eval.In passed`.
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.Cases` -- expected: passed, with every incident case of `eval/` sent.
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.Switch` -- expected: passed.
-- (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.Report` -- expected: passed (no existing report pin changes).
+- (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.Report` -- expected: passed, with `TestSkipped` and `TestText` updated to AC7 (the [Gate] item).
 - (loop) `<B> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e9s11iw ci/iris.sh class OcuTalon.Test.Eval.Gate` -- expected: passed.
 - (loop) `bash docker/tests/test-class-rules.sh` -- expected: every rule PASS, `assert-concat` included.
-- (loop) `git diff --stat -- eval/ src/bridge/ ci/ release/ docker/ .github/ src/ocutalon/cls/OcuTalon/Production.cls src/ocutalon/cls/OcuTalon/Eval/Gate.cls src/ocutalon/cls/OcuTalon/Eval/Sweep.cls src/ocutalon/cls/OcuTalon/Eval/Sink.cls src/ocutalon/cls/OcuTalon/Eval/Data/ src/ocutalon/cls/OcuTalon/Watch/ src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` -- expected: empty output. `git status --short` lists only the four classes (`Eval/In.cls`, `Eval/Report.cls`, `Test/Eval/ZzIn.cls`, `Test/Eval/In.cls`) and this spec; `git diff` of `Eval/Report.cls` touches only :61, :197-198 and :952-966.
+- (loop) `git diff --stat -- eval/ src/bridge/ ci/ release/ docker/ .github/ src/ocutalon/cls/OcuTalon/Production.cls src/ocutalon/cls/OcuTalon/Eval/Gate.cls src/ocutalon/cls/OcuTalon/Eval/Sweep.cls src/ocutalon/cls/OcuTalon/Eval/Sink.cls src/ocutalon/cls/OcuTalon/Eval/Data/ src/ocutalon/cls/OcuTalon/Watch/ src/ocutalon/cls/OcuTalon/Test/Eval/Cases.cls` -- expected: empty output. `git status --short` lists only the five classes (`Eval/In.cls`, `Eval/Report.cls`, `Test/Eval/ZzIn.cls`, `Test/Eval/In.cls`, `Test/Eval/Report.cls`) and this spec; `git diff` of `Test/Eval/Report.cls` touches only :48-49, `TestSkipped` and `TestText`; `git diff` of `Eval/Report.cls` touches only :61, :197-198 and :952-966.
 - (loop, at the stage's end, also after a failure) `<B> OCUTALON_RUN_TAG=e9s11iw ci/warm.sh down`, then `<B> OCUTALON_RUN_TAG=e9s11i ci/iris.sh teardown` -- expected: the projects are removed and no lock of this stage is left in the lane-b folder.
 
 **Left to CI**, and so omitted here while CI is available:
