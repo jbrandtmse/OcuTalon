@@ -2,9 +2,9 @@
 title: 'Story 17.10: The digest shows in the web chat, and the online demo''s digest is visible'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'in-progress'
+status: 'done'
 baseline_revision: 'c390d57f1326d22b445db88fcd1cfbae49395f52'
-baseline_commit: '686baec753690d78b69dd1dd616404947856dce1'
+baseline_commit: 'c390d57f1326d22b445db88fcd1cfbae49395f52'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
