@@ -2719,3 +2719,7 @@
 2026-11-08T08:24:35Z	Epic 19	runner_clarification	kind=RESPAWN agent=abf9be260045a13c8(19.7_lever) head=c48b4d6f(OCT-epic19b;unpushed) next=AD_gate,QA,CR open=DW-924(ci/units.sh_shards-3_pattern;19.5s_file),DW-925-928,AC4_weak_mutation
 2026-11-08T08:24:35Z	Epic 19	ruling	question=DW-924_ci/units.sh_shards-3_input-pattern_change_in_19.5s_file choice=allowed_as_a_plain_union(one_line;not_overlapping_19.5s_lines;runner_C_takes_it_at_the_19b_merge_after_git_merge-file) category=decide policy=5086036
 2026-11-08T08:24:54Z	Epic 19	runner_redispatched	runner=ac7afc0f1c96ef0f3 role=19.7_lever effort=high lane=B reason=owner_effort_high_respawn(prev_abf9be260045a13c8_ended_RESPAWN) next=AD_gate,QA,CR
+2026-11-08T08:25:17Z	Epic 5	ci_resolved	story=5.14 sha=c5a71ed4 result=success(after_DW-211_rerun) runs=42454441383,42454441318
+2026-11-08T08:25:17Z	Epic 17	ci_resolved	story=17.10,17.11 sha=38ab54d4 result=success runs=42456844217,42456844244 note=TelegramIn_red_did_not_recur(DW-639_class_confirmed_flaky;not_Epic_17)
+2026-11-08T08:25:54Z	Epic 5	runner_redispatched	runner=a7bf44d82c9187734 effort=high lane=A(throwaways_only) reason=owner_effort_high_respawn(prev_a67b9032db54c1667_ended_CI_WAIT) next=merge_a315ed3f,close,push,contract
+2026-11-08T08:25:54Z	Epic 17	runner_redispatched	runner=a988df2f376518b7a effort=high lane=B(throwaways_only) reason=owner_effort_high_respawn(prev_ad607fde4a29806c8_ended_CI_WAIT) next=close,integrate_onto_a315ed3f,push,contract
