@@ -47,7 +47,7 @@
 ///   - TestResolvingMovesCheckNow (Story 5.15; matrix Resolved, Interrupted, Rejected, Expired, Dismissed, Quiet-closed, Instance and Not resolving): an accepted
 ///     final or interrupted FixResult that resolves the incident, a rejected or expired outcome that reopens it, and a dismiss or closeQuiet of a noticed open
 ///     incident each record exactly one CheckNow, {namespace, production, ownerRef, incidentRef} in the incident's trace session (the owner instance too); a progress
-///     result, a finished that stays fixing or goes to awaiting approval, a rejected that stays awaiting, an approved, a refused event, a failed save, a dismiss,
+///     result, a finished that stays fixing or goes to awaiting approval, a rejected or an expired that stays awaiting, an approved, a refused event, a failed save, a dismiss,
 ///     closeQuiet or closeForReplay of a resolved incident and a closeQuiet refused by demo mode record none;
 ///   - TestCheckNowSendFails (Story 5.15): a CheckNow whose send fails logs one warning that names the incident, keeps the row resolved, publishes its event and result
 ///     notice, puts the handler's session back and answers OK;
@@ -866,63 +866,70 @@ Method TestResolvingMovesCheckNow()
 	Set r2 = ..Request(a, incident, "approved")
 	Do ..Link(incident, r1_","_r2)
 	Do ..Result(host, r1, incident, 0, 0)
-	Do ..AssertNoNew(host, count, "a progress result")
+	Do ..AssertNoNew(host, .count, "a progress result")
 	Do ..Result(host, r1, incident, 1, 0)
 	Do $$$AssertEquals(..Row(incident).state, "fixing", "a finished with another approved request waiting stays fixing")
-	Do ..AssertNoNew(host, count, "a finished that stays fixing")
+	Do ..AssertNoNew(host, .count, "a finished that stays fixing")
 	Set incident = ..Incident(a, "fixing", {"TraceHeaderId": 7102})
 	Set r1 = ..Request(a, incident, "done")
 	Set r2 = ..Request(a, incident, "pending")
 	Do ..Link(incident, r1_","_r2)
 	Do ..Result(host, r1, incident, 1, 0)
 	Do $$$AssertEquals(..Row(incident).state, "awaiting_approval", "a finished with another request pending goes to awaiting approval")
-	Do ..AssertNoNew(host, count, "a finished that goes to awaiting approval")
+	Do ..AssertNoNew(host, .count, "a finished that goes to awaiting approval")
 	Set incident = ..Incident(a, "awaiting_approval", {"TraceHeaderId": 7103})
 	Set r1 = ..Request(a, incident, "rejected")
 	Set r2 = ..Request(a, incident, "pending")
 	Do ..Link(incident, r1_","_r2)
 	Do ..Outcome(host, r1, incident, "rejected")
 	Do $$$AssertEquals(..Row(incident).state, "awaiting_approval", "a rejection with another request pending stays awaiting approval")
-	Do ..AssertNoNew(host, count, "a rejected that stays awaiting")
+	Do ..AssertNoNew(host, .count, "a rejected that stays awaiting")
+	Set incident = ..Incident(a, "awaiting_approval", {"TraceHeaderId": 7112})
+	Set r1 = ..Request(a, incident, "expired")
+	Set r2 = ..Request(a, incident, "pending")
+	Do ..Link(incident, r1_","_r2)
+	Do ..Outcome(host, r1, incident, "expired")
+	Do $$$AssertEquals(..Row(incident).state, "awaiting_approval", "an expiry with another request pending stays awaiting approval")
+	Do ..AssertNoNew(host, .count, "an expired that stays awaiting")
 	Set incident = ..Incident(a, "awaiting_approval", {"TraceHeaderId": 7104})
 	Set r1 = ..Request(a, incident, "approved")
 	Do ..Link(incident, r1)
 	Do ..Outcome(host, r1, incident, "approved")
 	Do $$$AssertEquals(..Row(incident).state, "fixing", "an approval starts the fix")
-	Do ..AssertNoNew(host, count, "an approved outcome")
+	Do ..AssertNoNew(host, .count, "an approved outcome")
 	Set incident = ..Incident(a, "resolved", {"TraceHeaderId": 7105})
 	Set r1 = ..Request(a, incident, "done")
 	Do ..Link(incident, r1)
 	Do ..Result(host, r1, incident, 1, 0)
 	Do ..Outcome(host, r1, incident, "rejected")
-	Do ..AssertNoNew(host, count, "a repeat and an event the table refuses")
+	Do ..AssertNoNew(host, .count, "a repeat and an event the table refuses")
 	Set other = ..Incident(a, "awaiting_approval", {"TraceHeaderId": 7106})
 	Do ..Outcome(host, ##class(OcuTalon.Bridge.Ids).NewRef(), other, "rejected")
-	Do ..AssertNoNew(host, count, "a request that is not the incident's")
+	Do ..AssertNoNew(host, .count, "a request that is not the incident's")
 	Set incident = ..Incident(a, "fixing", {"TraceHeaderId": 7107})
 	Set r1 = ..Request(a, incident, "done")
 	Do ..Link(incident, r1)
 	Set host.FailMove = 1
 	Do ..Result(host, r1, incident, 1, 0)
 	Set host.FailMove = 0
-	Do ..AssertNoNew(host, count, "a failed save")
+	Do ..AssertNoNew(host, .count, "a failed save")
 	Set resolved = ..Incident(a, "resolved", {"TraceHeaderId": 7108, "LastAt": (long)})
 	Do ..Command(host, "dismiss", resolved, a)
 	Do $$$AssertEquals(..Row(resolved).state, "closed", "a resolved incident is dismissed")
-	Do ..AssertNoNew(host, count, "a dismiss of a resolved incident")
+	Do ..AssertNoNew(host, .count, "a dismiss of a resolved incident")
 	Set resolved = ..Incident(a, "resolved", {"TraceHeaderId": 7109, "LastAt": (long)})
 	Do ..Command(host, "closeQuiet", resolved, "")
 	Do $$$AssertEquals(..Row(resolved).state, "closed", "a resolved incident is closed quietly")
-	Do ..AssertNoNew(host, count, "a closeQuiet of a resolved incident")
+	Do ..AssertNoNew(host, .count, "a closeQuiet of a resolved incident")
 	Set resolved = ..Incident(a, "resolved", {"TraceHeaderId": 7110})
 	Do ..Command(host, "closeForReplay", resolved, "")
 	Do $$$AssertEquals(..Row(resolved).state, "closed", "a resolved incident is closed for replay")
-	Do ..AssertNoNew(host, count, "a closeForReplay of a resolved incident")
+	Do ..AssertNoNew(host, .count, "a closeForReplay of a resolved incident")
 	Set host.DemoModeIs = 1
 	Set demo = ..Incident(a, "open", {"TraceHeaderId": 7111, "LastAt": (long), "OpenVariant": "no_fix"})
 	Do ..Command(host, "closeQuiet", demo, "")
-	Do $$$AssertEquals(..Row(demo).state, "open", "a closeQuiet on the online demo leaves the incident open")
-	Do ..AssertNoNew(host, count, "a refused closeQuiet")
+	Do $$$AssertEquals(..Row(demo).state, "open", "a closeQuiet in demo mode leaves the incident open")
+	Do ..AssertNoNew(host, .count, "a refused closeQuiet")
 }
 
 Method TestCheckNowSendFails()
@@ -1542,10 +1549,11 @@ ClassMethod Nows(host As OcuTalon.Test.Watch.IncidentProbe) As %Integer
 	Quit $Select($IsObject(host.CheckNows): host.CheckNows.%Size(), 1: 0)
 }
 
-/// Asserts that the probe recorded no CheckNow since the count.
-Method AssertNoNew(host As OcuTalon.Test.Watch.IncidentProbe, count As %Integer, label As %String)
+/// Asserts that the probe recorded no CheckNow since the count, then sets the count to the number recorded now, so that each case is judged on its own.
+Method AssertNoNew(host As OcuTalon.Test.Watch.IncidentProbe, ByRef count As %Integer, label As %String)
 {
 	Do $$$AssertEquals(..Nows(host), count, label_": no CheckNow")
+	Set count = ..Nows(host)
 }
 
 /// The orders that the probe recorded, as "ref@session,..." in order.

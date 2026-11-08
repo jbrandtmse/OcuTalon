@@ -1661,18 +1661,19 @@ Method TestCheckNowFailures()
 	Do $$$AssertEquals(..Warnings("Now", $Parameter(..#PROBE, "LOGNOW"), , ..Incidents), 1, "no matching row adds no warning")
 	Do $$$AssertEquals(..Reads(), "", "and reads nothing")
 
-	// a run that throws outside the read does not stop the next row
+	// a run that throws does not stop the next row of the same request (instance: both sessions' rows)
+	Set b = ..Owner("nowFailB")
 	Set bad = ..Watch(a, "Zz.NowFail2")
-	Set good = ..Watch(a, "Zz.NowFail3")
-	Do $ClassMethod(..#PROBE, "Feed", "Zz.NowFail2", {"outcome": "read", "state": "running", "rows": "not rows"})
-	Do ..Feed("Zz.NowFail3", "read", "running")
-	Do ..Now(host, "ZZNS", "Zz.NowFail2", a, incident)
+	Set good = ..Watch(b, "Zz.NowFail2")
+	Do ..Feed("Zz.NowFail2", "read", "running")
+	Set host.RunThrows = bad
+	Do ..Now(host, "ZZNS", "Zz.NowFail2", "instance", incident)
+	Set host.RunThrows = ""
 	Do $$$AssertEquals(..Warnings("Now", $Parameter(..#PROBE, "LOGRUN"), .text, bad), 1, "a run that throws logs one LOGRUN warning")
 	Do $$$AssertTrue(text [ bad, "which names the check: "_text)
 	Set row = ..Row(bad)
 	Do $$$AssertEquals(row.LastRunAt_"|"_row.Result, "|", "and records nothing")
-	Do ..Now(host, "ZZNS", "Zz.NowFail3", a, incident)
-	Do $$$AssertEquals(..Row(good).Result, "passed", "the next request still runs its row")
+	Do $$$AssertEquals(..Row(good).Result, "passed", "the next row of the same request still runs")
 }
 
 /// One CheckNow for the production, handled by the host over the test's rows (the probe keeps only those); the status is asserted OK and the answer empty.
@@ -1690,8 +1691,8 @@ Method Now(host As OcuTalon.Test.Checks.Probe, namespace As %String, production 
 	Do $$$AssertEquals($Get(response), "", "with no response")
 }
 
-/// A case of the scope: A's and B's rows on a new production, a row of A's in another namespace (C) and, for the owner eval or none, a row of the session eval (E, as an evaluation run's
-/// watch), a CheckNow for the namespace from the owner, and the rows that ran asserted (A, B, comma-separated; none for ""). C and E must never run.
+/// A case of the scope: A's and B's rows on a new production, a row of A's in another namespace (C) and a row of the session eval (E, as an evaluation run's watch), a
+/// CheckNow for the namespace from the owner, and the rows that ran asserted (A, B, comma-separated; none for ""). C and E must never run.
 Method ScopeCase(host As OcuTalon.Test.Checks.Probe, a As %String, b As %String, label As %String, namespace As %String, owner As %String, expected As %String)
 {
 	Set ..Cases = ..Cases + 1
@@ -1699,14 +1700,14 @@ Method ScopeCase(host As OcuTalon.Test.Checks.Probe, a As %String, b As %String,
 	Set ra = ..Watch(a, production)
 	Set rb = ..Watch(b, production)
 	Set rc = ..Watch(a, production, {"Namespace": "ZZOTHER"})
-	Set re = $Select((owner = "eval") || (owner = ""): ..Watch("eval", production), 1: "")
+	Set re = ..Watch("eval", production)
 	Do ..Feed(production, "read", "running")
 	Do ..Now(host, namespace, production, owner, "")
 	Set ran = ""
 	If ..Row(ra).LastRunAt '= "" Set ran = ran_$Select(ran = "": "", 1: ",")_"A"
 	If ..Row(rb).LastRunAt '= "" Set ran = ran_$Select(ran = "": "", 1: ",")_"B"
 	If ..Row(rc).LastRunAt '= "" Set ran = ran_$Select(ran = "": "", 1: ",")_"C"
-	If (re '= "") && (..Row(re).LastRunAt '= "") Set ran = ran_$Select(ran = "": "", 1: ",")_"E"
+	If ..Row(re).LastRunAt '= "" Set ran = ran_$Select(ran = "": "", 1: ",")_"E"
 	Do $$$AssertEquals(ran, expected, label_": the rows that ran")
 }
 

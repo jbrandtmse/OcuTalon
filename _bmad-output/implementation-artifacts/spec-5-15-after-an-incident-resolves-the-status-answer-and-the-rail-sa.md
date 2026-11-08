@@ -192,6 +192,39 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated otherwise.
   - the diff is the Execution list;
   - CI is green on every workflow, on the mock only.
 
+### Review Findings
+
+Code review of 2026-11-08 (`bmad-code-review`, layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor; 31 raw findings, 11 entries after grouping: 1 medium, 10 low, all patched; 0 decision-needed; 0 deferred; 16 rejected below).
+
+- [x] [Review][Patch] (medium; fix-risk low: one guard and a test row; in-story) An `instance` CheckNow ran an evaluation run's watch row: `Watching` dropped only an `eval` or empty *owner*, so `InScope("instance", "eval", 0)` kept the row of the session eval (never due for Checks, spine Conventions "Background checks"), overwriting its run fields and publishing on the eval stream. `Watching` now skips every row of the session eval, and `ScopeCase` always creates the E row, so the instance case pins it [src/ocutalon/cls/OcuTalon/Checks/Process.cls:511, src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls ScopeCase]
+- [x] [Review][Patch] (low; fix-risk low) "The next row still runs" was never tested inside one CheckNow (the throwing and the good row were on two productions and two requests). `Test.Checks.Probe` gains `RunThrows` (a Run that throws for listed Refs), and `TestCheckNowFailures` puts both rows on one production in one instance CheckNow [src/ocutalon/cls/OcuTalon/Test/Checks/Probe.cls, src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls TestCheckNowFailures]
+- [x] [Review][Patch] (low) `TestResolvingMovesCheckNow`'s Not resolving cases shared one running count, so a red on one case reddened every later label and the widening mutation line overstated what each case pins. `AssertNoNew` now re-baselines after each case; the mutation line is corrected under Verification [src/ocutalon/cls/OcuTalon/Test/Watch/Lifecycle.cls AssertNoNew]
+- [x] [Review][Patch] (low) The expired side of "stays awaiting" was not pinned: added "an expired that stays awaiting" [src/ocutalon/cls/OcuTalon/Test/Watch/Lifecycle.cls TestResolvingMovesCheckNow]
+- [x] [Review][Patch] (low) A Lifecycle label said "on the online demo" for `DemoModeIs = 1` (demo mode, `Transitions.Next`'s demoMode fact); now "in demo mode" [src/ocutalon/cls/OcuTalon/Test/Watch/Lifecycle.cls:931]
+- [x] [Review][Patch] (low) Matrix row Empty NextDueAt had no mutation of its own (the `keep` mutation cannot redden it, because a CheckNow's tickAt is empty): mutation recorded under Verification [Verification]
+- [x] [Review][Patch] (low) Process class doc: LastRunHeaderId named only the Tick's session; the opening sentence said "on every heartbeat" only [src/ocutalon/cls/OcuTalon/Checks/Process.cls:1, :68]
+- [x] [Review][Patch] (low) IncidentManager class doc said Checks runs "the owner's" watches; for owner instance it runs every session's row in scope (AD-4) [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:66]
+- [x] [Review][Patch] (low) `AfterResolve`'s header still said "resolves or reopens" and named only a FixResult or ApprovalOutcome after QA added the dismiss test [src/ocutalon/cls/OcuTalon/Test/Checks/AfterResolve.cls:3, :6]
+- [x] [Review][Patch] (low; Rule 2) `Watching` repeated `Due`'s nine-column SELECT list, which `RowOf` reads by position: one `ROWCOLUMNS` parameter now feeds both [src/ocutalon/cls/OcuTalon/Checks/Process.cls:118]
+
+**Rejected:**
+- `false` `SendCheckNow` throwing would leave `%SessionId` swapped (edge, acceptance): `Ens.BusinessProcess.SendRequestAsyncInternal` wraps its work in a Try and returns a status, so the restore line always runs; `Execute` is the same precedent.
+- `false` `$ZHorolog` wraps at midnight in `AfterResolve`'s poll (edge): `$ZHOROLOG` counts seconds since the instance started; it does not wrap daily.
+- `false` `Watching`'s new internal error text breaks "no new user-facing string" (acceptance, informational): it reaches only the operator's redacted LOGNOW line, as the sibling read errors do.
+- `low` An empty `TraceHeaderId` sends the CheckNow in a new session (edge x2): every incident the product raises carries its trace id; `Execute` behaves the same (earlier triage).
+- `low` The shared-surface sweep missed `Test/Web/DismissApi` (blind): `TestBreakFeedAvailableAgain` now causes one real CheckNow, which leaves a CheckRun row, a LOGRAN line and a header on the throwaway stack; no assertion of that class or any other reads them (rg over `Test/Bridge`, `Test/Contract`, `Test/Core`, `Test/Web` and `Test/Checks`); out of footprint (Epic 6's file). Noted under Verification.
+- `low` The redaction in LOGNOW, Now's LOGRUN and LOGCHECKNOW is untested (blind): the code calls `Bridge.Redact.Text` as its tested siblings do; the gap is mutation-only.
+- `low` `%SuperSession` at the send is not recorded (verification-gap): the code never touches it; mutation-only, as for `SendExecute`.
+- `low` The empty-owner half of `Watching`'s guard has no observable effect (verification-gap): no BackgroundCheck row has an empty SessionRef.
+- `low` `AfterResolve`'s "checked time" assertion is weak (verification-gap, acceptance): the answer's `checked` is minute-resolution message text, so equality would add nothing; the new run is pinned by the changed result and finding and by the row's LastRunAt.
+- `low` `AfterResolve` logs " ms" with an empty figure when the wait runs out (edge): only on a path whose assertion is already red with its own message.
+- `low` Instance failures in the read window could flake `AfterResolve` (edge): classes run one at a time on a stack, and `Unrelated` already fails with a reason on a leftover incident.
+- `low` The "no row" case does not check for LOGRUN, LOGRAN or an event (acceptance): with no row nothing can run; `Reads()` empty already shows it.
+- `low` AC5 has no pinning test (verification-gap): its clauses are no-change and merge conditions, verified by this review (PoolSize, FINDING*, REASON*, INTERVALSECONDS, DUESLACKSECONDS untouched; Tick still calls `Run(row, tickAt)`) and by CI.
+- `low` The Digest-forward and no-row assertions have no mutation line of their own (verification-gap): Rule 19 asks one mutation per AC; AC2 and AC3 have theirs.
+- `reject` The spec lists only two Integration rows and AC4 says "finishes or is rejected" (blind): the fix is an edit of the spec's intent; QA's test is recorded under Verification.
+- `low` The Lifecycle label fix's twin in the matrix row Not resolving ("on the online demo"): spec intent text, not edited.
+
 ## Spec Change Log
 
 - 2026-11-08, lead, spec gate (the Contest Planner's rulings under the owner's delegation, relayed by the orchestrator): (1) proceed at about 2.5 h as designed: one CheckNow, the existing Run and Record, NextDueAt unchanged, no sweeps, Checks PoolSize 1, no AD change; (2) expired requests stay in the trigger; (3) DW-957: the trigger is widened to `dismiss` and `closeQuiet` of a noticed open incident (open to closed), on the principle that any move that changes what "An open incident" reads refreshes the check at once. Intent contract (Approach, Boundaries), matrix, Execution, AC1, Design Notes, spine row, mutations and shared surfaces amended to match; (4) the `Watch/IncidentManager.cls` hunks are a plain union with Epic 30's 30.7 `Purge` hunk (decide; the Planner agrees). The two spine rows were written by the lead (Rule 20 light path).
@@ -351,7 +384,7 @@ The lead runs the fresh-environment check, forward and reverse (Rule 19).
 - Milliseconds from the send to the row's LastRunAt (AfterResolve, measured once by a temporary assertion that printed the figure): 251 (resolved) and 257 (rejected), against the test's 0.25 s poll step. The bound is 10 s.
 - Mutations (Rule 19), each applied, observed red, reverted; `md5` of `Checks/Process.cls` and `Watch/IncidentManager.cls`, `git status --short` and `git diff --stat` identical to before:
   - mutation: `..CheckNow(incident)` call removed from `Apply` -> `TestResolvingMovesCheckNow` and `TestCheckNowSendFails` red; after `ci/warm.sh down` and `up`, `TestResolvedFixIsCheckedAtOnce` and `TestRejectedFixIsCheckedAtOnce` red (AC1, AC4); green again on a fresh `up` after the revert.
-  - mutation: trigger widened to every accepted move (`If resolves || reopens || closesOpen` replaced by a bare call) -> `TestResolvingMovesCheckNow` red on the Not resolving cases (a progress result, a finished that stays fixing, awaiting, approved, a failed save, a dismiss/closeQuiet/closeForReplay of a resolved incident, a refused closeQuiet) (AC1).
+  - mutation: trigger widened to every accepted move (`If resolves || reopens || closesOpen` replaced by a bare call) -> `TestResolvingMovesCheckNow` red on each accepted Not resolving case, each judged on its own since review (a progress result, a finished that stays fixing, a finished that goes to awaiting approval, a rejected and an expired that stay awaiting, an approved outcome, a dismiss, closeQuiet and closeForReplay of a resolved incident); the refused event, the foreign request, the failed save and the refused closeQuiet stay green because no move is accepted, so no CheckNow can be reached (AC1). Corrected in review.
   - mutation: `EXPIRED` dropped from the trigger -> `TestResolvingMovesCheckNow` red on "expired: one CheckNow" (AC1).
   - mutation: `closesOpen` clause dropped from the trigger -> `TestResolvingMovesCheckNow` red on "dismiss: one CheckNow" and "closeQuiet: one CheckNow" (AC1, DW-957).
   - mutation: `keep` ignored in `Record` (`If keep {` replaced by `If 0 {`, so the UPDATE sets NextDueAt) -> `TestCheckNow` red on "and NextDueAt is as it was" (AC2).
@@ -371,6 +404,23 @@ The lead runs the fresh-environment check, forward and reverse (Rule 19).
 - `ci/warm.sh down` ran for tag `e5s15implw`; the lane-c lock folder holds none of this stage's locks. The implement handoff subagent sent two test-runner calls in one message twice (all passed, nothing overlapped visibly); every class was re-run here one per call.
 
 Every test added or changed passes on a fresh environment, in either order.
+
+**QA stage record** (Lane C warm stack, run tags `e5s15q`/`e5s15qw`; framework: `%UnitTest` ObjectScript classes under `src/ocutalon/cls/OcuTalon/Test/`, run through `ci/iris.sh class <Class>`):
+- Matrix map: Resolved, Interrupted, Rejected, Expired, Dismissed, Quiet-closed, Instance, Not resolving, Send fails -> `Test.Watch.Lifecycle` (`TestResolvingMovesCheckNow`, `TestCheckNowSendFails`); Check now runs, Empty NextDueAt, Scope, Read fails / no row -> `Test.Checks.Runs` (`TestCheckNow`, `TestCheckNowScope`, `TestCheckNowFailures`); Integration resolved and rejected -> `Test.Checks.AfterResolve`. The one gap: the DW-957 widening (Dismissed) had a Lifecycle probe pin only, no real-runtime pin.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Checks/AfterResolve.cls` changed: `TestDismissedIncidentIsCheckedAtOnce` added through the existing `Scenario` (an open noticed incident, no request, the row failed "An open incident"; an `OcuTalon.Msg.IncidentCommand` dismiss from S; `check_status` gives Orders passed with no finding within 10 s; same row, rail, single check event, trace session, NextDueAt and untouched-rows assertions). `Scenario` now takes an empty request state (no approval row) and an `IncidentCommand` message.
+- Class time warm: `Test.Checks.AfterResolve` 5.2 s with three tests (passed).
+- mutation: the `closesOpen` clause removed from the trigger in `IncidentManager.Apply` (stack down and up on the mutated code) -> `TestDismissedIncidentIsCheckedAtOnce` red (check_status still reads the old run, the row, the rail, the trace session and the check event), while `TestResolvedFixIsCheckedAtOnce` and `TestRejectedFixIsCheckedAtOnce` stayed green (AC1 DW-957, AC4); reverted, `md5` of `Watch/IncidentManager.cls` and `git status --short` identical to before.
+
+**Review stage record** (Lane C warm stack, run tag `e5s15rw`, started after the review patches, so its production ran them):
+- Passed warm: `Test.Checks.Runs` 2.0 to 3.0 s, `Test.Watch.Lifecycle` 0.2 to 0.3 s, `Test.Checks.AfterResolve` 4.7 s (three tests), `Test.Checks.Heartbeat` 13.8 s, `Test.Digest.Runs` 0.2 s, `Test.Eval.Watch` 0.2 s; `docker/tests/test-boundaries.sh`, `test-storage.sh` and `test-class-rules.sh` passed.
+- Mutations (Rule 19), each applied, observed red, reverted; `md5` of `Checks/Process.cls` and `Watch/IncidentManager.cls`, `git status --short` and `git diff --stat` identical to before:
+  - mutation: the eval-row skip removed from `Watching` -> `TestCheckNowScope` red on "instance: the rows that ran" (AC2).
+  - mutation: `Now` stops at the first row whose run throws (still logging LOGRUN) -> `TestCheckNowFailures` red on "the next row of the same request still runs" (AC3).
+  - mutation: `Now` runs `Run(row, NowUtc(), 0)` (a tick time and no keep) -> `TestCheckNow` red on "and NextDueAt is as it was" and "a row with no NextDueAt runs and still has none" (AC2, matrix Empty NextDueAt).
+  - mutation: the reopen clause without `to = OPEN` -> `TestResolvingMovesCheckNow` red on "a rejected that stays awaiting" and "an expired that stays awaiting" (AC1).
+  - the widening mutation, re-run on the per-case count: see its corrected line above.
+- Shared surfaces (review): `Test.Web.DismissApi` `TestBreakFeedAvailableAgain` dismisses a noticed open incident on a production its session watches, so the real Checks now runs that row once (a CheckRun row, a LOGRAN line, a CheckNow header in a session of its own, since the fixture incident has no TraceHeaderId); no assertion there or elsewhere reads them.
+- `ci/warm.sh down` ran for tag `e5s15rw`; the lane-c lock folder holds none of this stage's locks.
 
 ## Auto Run Result
 

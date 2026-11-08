@@ -16,6 +16,7 @@
 ///   - Quiet records the time it was given in SweptAt, then selects against QuietAt when that is set (a time that only the probe's tests reach), else against
 ///     the time it was given.
 ///   - Unclosed throws when FailUnclosed is set, as a failed read of the incidents does; a real failure of that read needs a database fault.
+///   - Run throws for a row whose Ref RunThrows lists (comma-separated), as a run that fails outside the read does; else it is the product's own.
 ///   - FixRunSweep (Story 7.5) gives the FixResults in Swept (none by default, so that a Tick never sweeps the fix runs of a stack) or throws the text in SweepThrows. SendFixResult cannot reach
 ///     IncidentManager from a shadow instance, so it records {approvalRef, sessionId, superSession} in Sent and answers OK, or an error for a request that FailFix names (comma-separated Refs).
 ///   - SendFinding (Story 30.4) cannot reach Intake from a shadow instance, so it keeps {itemId, sessionRef, channel, provenance, text, sender, subject,
@@ -46,6 +47,9 @@ Property OnlyIncidents As %String(MAXLEN = "") [ Transient ];
 
 /// 1 to make Watching throw, as a failed read of a CheckNow's rows does.
 Property FailWatching As %Boolean [ InitialExpression = 0, Transient ];
+
+/// The Refs of the checks whose Run throws, comma-separated.
+Property RunThrows As %String(MAXLEN = "") [ Transient ];
 
 /// The time that Quiet selects against, as a UTC stamp, or "" for the time it is given.
 Property QuietAt As %String [ Transient ];
@@ -263,6 +267,12 @@ Method Quiet(now As %String) As %DynamicArray [ Private ]
 		If $ListFind($ListFromString(..OnlyIncidents), incident.ref) Do kept.%Push(incident)
 	}
 	Quit kept
+}
+
+Method Run(row As %DynamicObject, tickAt As %String, keep As %Boolean = 0) [ Private ]
+{
+	If $ListFind($ListFromString(..RunThrows), row.ref) $$$ThrowStatus($SYSTEM.Status.Error(5001, "The run is refused"))
+	Do ##super(row, tickAt, keep)
 }
 
 Method Unclosed(row As %DynamicObject, onlineDemo As %Boolean) As %String [ Private ]

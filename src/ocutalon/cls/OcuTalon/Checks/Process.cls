@@ -1,4 +1,4 @@
-/// Checks, the business process that runs the background checks on every heartbeat (AD-18, AD-28, AD-33). Its item keeps PoolSize 1. It handles four
+/// Checks, the business process that runs the background checks on every heartbeat, and at once after a CheckNow (AD-18, AD-28, AD-33). Its item keeps PoolSize 1. It handles four
 /// requests, and answers OK to all of them (any other request class is an error 5001 that names the class):
 ///   - An OcuTalon.Msg.Tick (HeartbeatIn sends one every minute). now is Data.Time.NowUtc(), and the tick time is TickAt when that is a UTC stamp
 ///     (YYYY-MM-DDTHH:MM:SSZ), else now. First the quiet sweep: every Incident row that is not closed and whose LastAt is more than
@@ -26,7 +26,8 @@
 ///   - An OcuTalon.Checks.Msg.CheckNow (IncidentManager sends one, asynchronously with no answer wanted and in the incident's trace session, after an accepted
 ///     move that resolves an incident, reopens it after a rejected or expired fix request, or closes a noticed open incident by dismiss or closeQuiet): Checks
 ///     runs each row of Kind production with the request's Namespace and Production that its OwnerRef covers (Watching; the scope rule of Unclosed, InScope: the
-///     row's session, or every session's row for owner instance while the instance is not the online demo; none at all for eval or an empty owner) once, at once,
+///     row's session, or every session's row for owner instance while the instance is not the online demo; none at all for eval or an empty owner, and never a row
+///     of the session eval, an evaluation run's watch) once, at once,
 ///     in ID order, through Run and Record with keep (see Record). It runs no sweep, no fix sweep and no beat, and forwards nothing to Digest. A row whose
 ///     run throws logs the Tick's LOGRUN and the other rows still run; a Watching that throws logs one Type 3 warning (LOGNOW, with the request's IncidentRef)
 ///     and nothing changes; no matching row logs nothing.
@@ -65,8 +66,8 @@
 ///   - The live-read rules are public class methods, so that Checks.Coverage Live (the digest's coverage rows) applies the same ones as a run and the two
 ///     cannot drift: NotCheckedReason (the reason chain above), ScopedFailures (the failures that are the session's), IsCut (the read stopped at its
 ///     limit), StateText, FailureText and Joined (the join and the upper-case first letter), which Finding is built from.
-///   - Record: one SQL UPDATE keyed by Ref sets LastRunAt, Result, Finding, LastRunHeaderId (this process's %SessionId, the Tick's trace session
-///     (AD-26)), NextDueAt (the tick time plus INTERVALSECONDS; a CheckNow's run, with keep, leaves NextDueAt out) and Reported. Checks writes only these fields, and never re-creates a row: when no row is
+///   - Record: one SQL UPDATE keyed by Ref sets LastRunAt, Result, Finding, LastRunHeaderId (this process's %SessionId: the Tick's trace session, or
+///     for a CheckNow the incident's (AD-26)), NextDueAt (the tick time plus INTERVALSECONDS; a CheckNow's run, with keep, leaves NextDueAt out) and Reported. Checks writes only these fields, and never re-creates a row: when no row is
 ///     updated (the watch was stopped meanwhile) nothing more happens, and nothing is sent. Only then is each finding sent (SendFinding), each in a trace
 ///     session of its own, as AD-26 gives every untrusted item (%SessionId is cleared for the send), with the TraceRef of the row's session as SuperSession;
 ///     the process's own %SessionId and SuperSession are put back after each send. A send that fails or throws logs one Type 3 warning (LOGFINDING, with
@@ -112,6 +113,9 @@ Parameter HEARTBEATEVENT = "heartbeat";
 Parameter INSTANCE = "instance";
 
 Parameter EVAL = "eval";
+
+/// The columns of a BackgroundCheck row that Due and Watching select, in the order that RowOf reads them.
+Parameter ROWCOLUMNS = "Ref, SessionRef, Namespace, Production, DisplayName, CreatedAt, LastRunAt, NextDueAt, Reported";
 
 /// The parts of a finding (public text; the first letter is made upper case, {count} is the number).
 Parameter FINDINGSTOPPED = "production stopped";
@@ -482,7 +486,7 @@ Method Due(tickAt As %String) As %DynamicArray [ Private ]
 {
 	Set due = []
 	Set limit = ##class(OcuTalon.Watch.Mark).FailedAt(##class(OcuTalon.Watch.Mark).Shift(tickAt, ..#DUESLACKSECONDS))
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, SessionRef, Namespace, Production, DisplayName, CreatedAt, LastRunAt, NextDueAt, Reported FROM OcuTalon_Data.BackgroundCheck WHERE Kind = ? ORDER BY ID", ..#KIND)
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT "_..#ROWCOLUMNS_" FROM OcuTalon_Data.BackgroundCheck WHERE Kind = ? ORDER BY ID", ..#KIND)
 	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The checks could not be read: "_rs.%Message))
 	While rs.%Next() {
 		Set next = rs.%GetData(8)
@@ -494,22 +498,23 @@ Method Due(tickAt As %String) As %DynamicArray [ Private ]
 
 /// The rows of Kind production with the namespace and production whose scope includes the owner (InScope, with the online demo as it is now), as the
 /// dynamic array of Due's row objects, in the order of the rows: a session's owner gives its row only, instance every session's row (none on the online
-/// demo), eval or an empty owner none (the watch rows of an evaluation run are owned by eval, and a CheckNow must not run them).
+/// demo), eval or an empty owner none. A row of the session eval (an evaluation run's watch, never due for Checks) is never given, whatever the owner.
 Method Watching(namespace As %String, production As %String, ownerRef As %String) As %DynamicArray [ Private ]
 {
 	Set rows = []
 	If (ownerRef = "") || (ownerRef = ..#EVAL) Quit rows
 	Set onlineDemo = ##class(OcuTalon.Watch.Reader).OnlineDemo()
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, SessionRef, Namespace, Production, DisplayName, CreatedAt, LastRunAt, NextDueAt, Reported FROM OcuTalon_Data.BackgroundCheck WHERE Kind = ? AND Namespace = ? AND Production = ? ORDER BY ID", ..#KIND, namespace, production)
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT "_..#ROWCOLUMNS_" FROM OcuTalon_Data.BackgroundCheck WHERE Kind = ? AND Namespace = ? AND Production = ? ORDER BY ID", ..#KIND, namespace, production)
 	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The checks could not be read: "_rs.%Message))
 	While rs.%Next() {
 		Set row = ..RowOf(rs)
+		If row.sessionRef = ..#EVAL Continue
 		If ..InScope(ownerRef, row.sessionRef, onlineDemo) Do rows.%Push(row)
 	}
 	Quit rows
 }
 
-/// The row object of a result set positioned on a BackgroundCheck row of Due's SELECT: {"ref", "sessionRef", "namespace", "production", "displayName",
+/// The row object of a result set positioned on a BackgroundCheck row of ROWCOLUMNS: {"ref", "sessionRef", "namespace", "production", "displayName",
 /// "createdAt", "lastRunAt", "reported"}.
 Method RowOf(rs As %SQL.StatementResult) As %DynamicObject [ Private ]
 {

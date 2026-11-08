@@ -1,9 +1,9 @@
 Include Ensemble
 
-/// Tests that the status answer and the rail say so within seconds after an incident resolves or reopens (Story 5.15, DW-851; AD-4, AD-12, AD-15, AD-18, AD-26,
+/// Tests that the status answer and the rail say so within seconds after an incident resolves, reopens or is dismissed (Story 5.15, DW-851, DW-957; AD-4, AD-12, AD-15, AD-18, AD-26,
 /// AD-28, AD-33). THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), fresh (IncidentManager and Checks are code of the running production, so a warm stack's jobs keep
 /// their old code), with demo mode on, through Test.Watch.Case: the real IncidentManager and the real Checks over fixture sessions, watches, an incident and its fix request.
-/// A FixResult or an ApprovalOutcome is injected from SimMailboxIn (the producers are pinned by Test.Fix.Execute and Test.Bridge.Approval). A test waits at most 10 seconds
+/// A FixResult, an ApprovalOutcome or an IncidentCommand is injected from SimMailboxIn (the producers are pinned by Test.Fix.Execute, Test.Bridge.Approval and Test.Web.DismissApi). A test waits at most 10 seconds
 /// for the answer (a test bound, not an NFR).
 ///   - TestResolvedFixIsCheckedAtOnce (AC 4; matrix "Integration: resolved"): session S watches Orders (due a day ahead; the row says failed, "A fix running"), T watches Orders
 ///     too and S watches ZZNS/Zz.Production. S's incident on OCUORDERS/Orders is fixing with R1 approved, and a final FixResult for R1 goes to IncidentManager. Within 10 seconds
@@ -11,6 +11,9 @@ Include Ensemble
 ///     on S's stream, the run is in the incident's trace session, NextDueAt is unchanged, and T's row and S's ZZNS row are unchanged;
 ///   - TestRejectedFixIsCheckedAtOnce (AC 4; "Integration: rejected"): as above with the incident awaiting approval, R1 rejected and the row failed, "A fix waiting for your
 ///     approval"; an ApprovalOutcome rejected makes check_status give failed, "An open incident" within 10 seconds, with the same row, event and trace assertions.
+///   - TestDismissedIncidentIsCheckedAtOnce (AC 1 and AC 4, DW-957; matrix "Dismissed" at the real-runtime level): as above with S's noticed incident open (no request) and the
+///     row failed, "An open incident"; an IncidentCommand dismiss from S makes check_status give Orders passed with no finding within 10 seconds, with the same row, event and
+///     trace assertions.
 /// The milliseconds from the send to the answer that shows the new run are logged. The sessions, rows, incidents, requests and messages are removed after each test.
 Class OcuTalon.Test.Checks.AfterResolve Extends OcuTalon.Test.Watch.Case
 {
@@ -35,8 +38,15 @@ Method TestRejectedFixIsCheckedAtOnce()
 	Do ..Scenario("rejected", "awaiting_approval", "rejected", "A fix waiting for your approval", "failed", "An open incident")
 }
 
-/// One scenario: S's incident in the state with R1 in the request state, the Orders row of S saying failed with the finding, then the message of the kind (resolved:
-/// a final FixResult; rejected: an ApprovalOutcome rejected) goes to IncidentManager; the answer must give the result and the finding within WAITANSWER seconds.
+Method TestDismissedIncidentIsCheckedAtOnce()
+{
+	If '..Ready() Quit
+	Do ..Scenario("dismissed", "open", "", "An open incident", "passed", "")
+}
+
+/// One scenario: S's incident in the state with R1 in the request state (none when it is empty), the Orders row of S saying failed with the finding, then the message of
+/// the kind (resolved: a final FixResult; rejected: an ApprovalOutcome rejected; dismissed: an IncidentCommand dismiss from S) goes to IncidentManager; the answer must
+/// give the result and the finding within WAITANSWER seconds.
 Method Scenario(kind As %String, state As %String, requestState As %String, before As %String, result As %String, finding As %String) [ Private ]
 {
 	Set s = ..Session("s")
@@ -50,12 +60,16 @@ Method Scenario(kind As %String, state As %String, requestState As %String, befo
 	Set trace = 910000000 + $Increment(^OcuTalonTest("AfterResolve", "trace"))
 	Set ..ExecuteSessions = ..ExecuteSessions _ $Select(..ExecuteSessions = "": "", 1: ",") _ trace
 	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(s, started, ..#ORDERS, ..#ORDERSPRODUCTION, {"State": (state), "OpenVariant": "", "TraceHeaderId": (trace)})
-	Set approval = ##class(OcuTalon.Test.Data.Fixture).Approval(s, incident, requestState, , {"AnsweredChannel": "web", "AnsweredAt": (started)})
-	Set ..Refs = ..Refs_","_incident_","_approval
-	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
-	Set row.RequestRefs = approval
-	Do $$$AssertStatusOK(row.%Save(), "the incident lists its request")
-	Kill row
+	Set approval = ""
+	Set ..Refs = ..Refs_","_incident
+	If requestState '= "" {
+		Set approval = ##class(OcuTalon.Test.Data.Fixture).Approval(s, incident, requestState, , {"AnsweredChannel": "web", "AnsweredAt": (started)})
+		Set ..Refs = ..Refs_","_approval
+		Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+		Set row.RequestRefs = approval
+		Do $$$AssertStatusOK(row.%Save(), "the incident lists its request")
+		Kill row
+	}
 	Set unrelated = ..Unrelated(s, incident)
 	Do $$$AssertEquals(unrelated, "", "no other unclosed incident of "_..#ORDERS_"/"_..#ORDERSPRODUCTION_" is in S's scope (a leftover would change the answer): "_unrelated)
 	If unrelated '= "" Quit
@@ -67,7 +81,14 @@ Method Scenario(kind As %String, state As %String, requestState As %String, befo
 	Do $$$AssertEquals(answer.result_"|"_answer.finding, "failed|"_before, "before the message, the answer still reads the old run")
 	Set sentAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Set begun = $ZHorolog
-	If kind = "resolved" {
+	Set final = $Select(kind = "resolved": "resolved", kind = "dismissed": "closed", 1: "open")
+	If kind = "dismissed" {
+		Set message = ##class(OcuTalon.Msg.IncidentCommand).%New()
+		Set message.Verb = "dismiss"
+		Set message.IncidentRef = incident
+		Set message.SessionRef = s
+		Set message.Origin = "web_user"
+	} ElseIf kind = "resolved" {
 		Set message = ##class(OcuTalon.Fix.Msg.FixResult).%New()
 		Set message.ApprovalRef = approval
 		Set message.IncidentRef = incident
@@ -81,7 +102,7 @@ Method Scenario(kind As %String, state As %String, requestState As %String, befo
 		Set message.IncidentRef = incident
 		Set message.Outcome = "rejected"
 	}
-	Do $$$AssertStatusOK(..SendToManager(message), "the "_$Select(kind = "resolved": "FixResult", 1: "ApprovalOutcome")_" is sent to IncidentManager")
+	Do $$$AssertStatusOK(..SendToManager(message), "the "_message.%ClassName()_" is sent to IncidentManager")
 	Set end = begun + ..#WAITANSWER
 	Set elapsed = ""
 	For {
@@ -96,7 +117,7 @@ Method Scenario(kind As %String, state As %String, requestState As %String, befo
 	Do $$$AssertEquals(answer.result_"|"_answer.finding, result_"|"_finding, "within "_..#WAITANSWER_" seconds check_status gives Orders "_result_$Select(finding = "": ", with no finding", 1: ", '"_finding_"'"))
 	Do $$$LogMessage("the answer showed the new run "_elapsed_" ms after the "_kind_" message was sent")
 	Do $$$AssertTrue(answer.checked '= "", "with a checked time: "_answer.checked)
-	Do $$$AssertEquals(..WaitIncidentState(incident, $Select(kind = "resolved": "resolved", 1: "open"), ..#WAITANSWER), $Select(kind = "resolved": "resolved", 1: "open"), "the incident is "_$Select(kind = "resolved": "resolved", 1: "open"))
+	Do $$$AssertEquals(..WaitIncidentState(incident, final, ..#WAITANSWER), final, "the incident is "_final)
 	Set check = ..Check(orders)
 	Do $$$AssertEquals(check.Result_"|"_check.Finding, result_"|"_finding, "S's row holds the run")
 	Do $$$AssertTrue('(sentAt ] check.LastRunAt), "which ran after the send: "_check.LastRunAt_" against "_sentAt)

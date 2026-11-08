@@ -63,8 +63,8 @@
 ///     send logs one Type 3 warning and the row stays as saved. An accepted move that resolves the incident (finished into resolved), that reopens it after
 ///     a rejected or expired request (rejected or expired into open) or that closes a noticed open incident (dismiss or closeQuiet, open into closed) then
 ///     sends one OcuTalon.Checks.Msg.CheckNow (the incident's Namespace, Production, OwnerRef and Ref) to Checks, asynchronously with no answer wanted, in the
-///     incident's trace session with the SuperSession kept (AD-26), after the move's save (CheckNow): Checks then runs the owner's production watches of the
-///     incident's production once at once. A failed send logs one Type 3 warning (LOGCHECKNOW) and the move stands. An accepted approved, rejected or expired
+///     incident's trace session with the SuperSession kept (AD-26), after the move's save (CheckNow): Checks then runs the production watches of the incident's
+///     production that the owner's scope covers (AD-4) once at once. A failed send logs one Type 3 warning (LOGCHECKNOW) and the move stands. An accepted approved, rejected or expired
 ///     outcome also sends one Notification of kind answered
 ///     (answered.approved and answered.rejected with the channel and time of the answer, answered.expired with the request's ExpiresAt; the request's Ref and the
 ///     incident's; no DecisionRef) to each recipient, through the same Move and Tell as the event, even when the state stays awaiting_approval or fixing, and an
