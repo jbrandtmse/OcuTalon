@@ -5338,6 +5338,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: measured in 19.4's implement
 - 2026-11-07T23:30:13Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7's PDF and Word files are the large ones: batch or parallel embedding there
+- 2026-11-08T06:10:59Z status=routed owner=burndown by=spec_gate note=declined_by_19.7_plan:the_batching_seam_is_Docs.Store.Write's_per-passage_embed_loop,which_Story_19.5_rewrites;one_Embedder_work_item_per_Index_batch_after_19.5(the_Epic_19_part_2_burn-down)
 
 ### DW-895: Two Lane B comments are stale now that DocumentOps is built: Web.Documents' OWNER parameter says DocumentOps is disabled until Story 19.4, and Test.Web.DocumentsApi's comment at :537
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: low | fix-risk: low | footprint: out-of-footprint
