@@ -5359,3 +5359,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: rework 1 review: Docs/Store.cls has no owner column; only the Documents-page reads filter by OwnerRef; same shared-table design as before the rework
 - 2026-11-08T02:48:55Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5's per-session tables and per-turn attach are the place to scope retrieval
+
+### DW-924: DW-719's UX-DR144 line (epics.md:476) has no check script pinning it: test-documents.sh cannot read epics.md because test-ci-config.sh requires shards-3's input pattern in ci/units.sh (19.5's file) to claim it
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: docker/tests/test-documents.sh step 1; ci/units.sh group_input_pattern
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=implement deviation; fix needs a ci/units.sh pattern union or a hosted check
+
+### DW-925: A PDF or Word text cut at MAXTEXT (200,000 chars) shows ready with no hint its tail is not indexed (Docs.Ops.Text drops answer.cut)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Docs/Ops.cls Text; a hint needs PUBLIC TEXT
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=product call if a hint is wanted
+
+### DW-926: Word reader skips text in tracked changes (w:ins), simple fields, smart tags and custom XML in a paragraph (as python-docx Paragraph.text did before)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: ocutalon_extract.py _runs_text reads w:r, w:hyperlink, w:sdt only; a doc of only w:ins runs is no_text
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=not a regression
+
+### DW-927: Flate bound does not cover RunLength/LZW/ASCII85 filters, and a swallowed _TooLarge leaves a negative budget so the next zlib call is unbounded (left+1=0) (unverified)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: ocutalon_extract.py _BoundedZlib/_BoundedObject; fix max(left,0)+1 and budgets for other filters
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=unverified; settle with per-filter bomb samples
+
+### DW-928: No test pins that the extraction worker gets only the seconds left after the lock wait (left replaced by timeout keeps every test green)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Docs/Extract.cls Read; TestOneReadAtATime
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=needs a slow-by-design fixture
