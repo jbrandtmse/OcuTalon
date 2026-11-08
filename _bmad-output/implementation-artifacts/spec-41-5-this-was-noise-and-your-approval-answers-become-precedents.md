@@ -246,6 +246,8 @@ Server paths are under `src/ocutalon/cls/OcuTalon/`; web paths are under `web/`.
 
 ## Spec Change Log
 
+- 2026-11-08 (orchestrator ruling, decide; Contest Planner informed): **Clarification 1 cleared — all three contended edits ALLOWED as plain unions**, done by whichever epic merges second (as 41.2's `Ownership.cls`): (e) `web/src/app/chat/notice-card.ts`, exactly the five listed edits; (c) `web/scripts/ux-strings.test.mjs`, the two `SOURCES.ux` appends; (d) `web/scripts/announce-focus-sources.test.mjs`, the sorted insertion. (a) the `api-client.ts` method and (b) the `IMPORTED` append are within the standing precedent and are reported. No other line of these files changes. Task 7 proceeds.
+
 - 2026-11-08 (spec gate, lead): **DW-934 ruled (U3, veto item U-311): Option A AND Option B.** `Mark` and `Record` refuse a session whose sign-out has ended (online demo: `ResumeHash` cleared), and `EndPrecedents` always sends the drop so it queues behind every write already queued; `Test.Core.SessionOpsProbe` overrides `DropPrecedents` (answer 0 when `Has()` is 0) and `SessionOpsPrecedents:TestNoRowsSendsNothing` is updated accordingly (Lane B tests, this story's lane). The residual (a write in flight during End's last step) is accepted. Clarification 2 is cleared. Clarification 1 (contended-file edits) waits for the orchestrator.
 - 2026-11-08 (spec gate, lead): the absolute working-directory path in `## Verification` is replaced by "the worktree root" (no local path in a tracked file).
 
