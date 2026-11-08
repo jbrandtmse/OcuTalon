@@ -35,10 +35,26 @@
 ///   - TestBeforeFallback (DW-762): a before whose Reply is a fallback is no Reply: the case is skipped with REASONNOREPLY and its turn is never asked;
 ///   - TestSendsIncident (Story 9.6, AC1, DW-353): an incident case is sent once as an IncidentCase with a fresh 22-character IncidentRef (not the case's
 ///     name, and a different one for a second case), SourceItemId the case's folder name and the snapshot's JSON text; the service's SuperSession is the run's
-///     Ref; the case's row is open with that IncidentRef as its ItemId and the folder name as SourceItemId when the case is dispatched, and stays in state sent;
+///     Ref; the case's row is open with that IncidentRef as its ItemId and the folder name as SourceItemId when the case is dispatched, and stays in state sent until
+///     EvalIn checks it before the second incident case of the service, which is dispatched only once that row is no longer sent (the double answers it at that first
+///     check, with no pause);
 ///   - TestIncidentRefuses: an incident case with no snapshot, a snapshot name with a slash, a backslash or two dots, a missing snapshot file, and a file
 ///     that is not a reader snapshot (not JSON, another format) are each skipped with their reason, logged as a warning, with no row and nothing dispatched;
 ///   - TestIncidentSendFails: a dispatch that fails or throws deletes the row, returns the error text as the reason, and the case can be sent again;
+///   - TestPacesIncidents (Story 9.11, DW-878, AC1, AC2): on one service, in SendOrder's order, the command case is asked first, each incident case is
+///     dispatched with no earlier incident row still sent (the double answers the previous row on its 3rd check, so each wait is 2 pauses of INCIDENTPOLL), and the
+///     item case is sent with no wait;
+///   - TestPaceBound (AC2, AC3, AC7): a previous incident row that is never answered stops the run's incident cases after INCIDENTWAIT \ INCIDENTPOLL pauses
+///     (INCIDENTWAIT is above Decide's MAXTIMER): that case and every later one are skipped with REASONPACED (the ruled text, pinned verbatim) with no row, no
+///     dispatch and no further pause, a digest case is still sent, and a late result of the stalled row releases no incident case;
+///   - TestPaceAfterNoRow (Matrix rows: previous case refused or its send failed, previous row removed): a case whose send failed is not the previous incident case
+///     (the next one checks the row of the case sent before it), and a previous row that was removed counts as answered, with no pause;
+///   - (QA) TestPaceLastCheck: a previous row answered on the 151st check, after INCIDENTWAIT \ INCIDENTPOLL pauses, still releases the next case and does not stall the run;
+///   - (QA) TestPaceRefusedNeverWaits: a refused incident case never waits, never becomes the previous one, and keeps its own reason after the bound;
+///   - (QA) TestForgetCaseRecorded (DW-902, AC8): eval/user-turn-forget/case.json holds the ruled turn text, key phrase, fourteen absent phrases, fields and recorder, and EvalIn
+///     sends it as the decide request of a user;
+///   - TestSkippedIncidentScored (AC7, the Planner's condition): a skipped incident case counts in Report.Build as not right in the incidents (and the held-out
+///     incidents when it is held out) and stays in their totals, is listed under skipped and counted by Problems, so a stall can only lower the score;
 ///   - TestSendsDigest (Story 17.7): a digest case is sent once as a DigestCase with a fresh ItemId, the case's checks, vitals and saved summaries as JSON and
 ///     the folder name as SourceItemId; its row is open with that ItemId when it is dispatched;
 ///   - TestDigestRefuses: a digest case whose checks is missing or not an array is refused with REASONNOCHECKS, with no row and nothing dispatched;
@@ -786,6 +802,11 @@ Method TestSendsIncident()
 	Do $$$AssertEquals(..Process(service, "zz-inc-b"), "", "a second incident case is sent")
 	Do $$$AssertTrue($List(..IncidentAt(2), 1) '= $List(seen, 1), "with an IncidentRef of its own")
 	Do $$$AssertEquals(..Seen()_"|"_..Asked()_"|"_..Rows(), "0|0|2", "no Item and no turn was sent, and each case has its row")
+	Do $$$AssertEquals($List(..IncidentAt(2), 7), 0, "the second case was dispatched only after the first row was no longer sent")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "checked"))_"|"_+$Get(^OcuTalonTest("EvalIn", "paused")), "1|0", "EvalIn checked the first row once and did not pause")
+	Set first = ##class(OcuTalon.Eval.Data.CaseResult).RunCaseIndexOpen(..Run, "zz-inc-a")
+	Do $$$AssertTrue($IsObject(first), "the first row exists")
+	Do $$$AssertEquals(first.State, ##class(OcuTalon.Eval.Data.CaseResult).#DECIDED, "the first row was answered by the double at EvalIn's check")
 }
 
 /// Each way an incident case cannot be sent gives its reason, a warning, no row and no send.
@@ -847,6 +868,258 @@ Method TestIncidentSendFails()
 	Kill ^OcuTalonTest("EvalIn", "throw")
 	Do $$$AssertEquals(..Process(service, "zz-inc-fail"), "", "the case is sent when the target answers")
 	Do $$$AssertEquals(..Rows(), 1, "and has its row")
+}
+
+/// The incident cases of a run go one at a time: in SendOrder's order the command is asked first, each incident case after the first is dispatched only once
+/// the previous incident row is no longer sent (the double answers it on the 3rd check, so each wait is 2 pauses), and the item case is sent with no wait.
+Method TestPacesIncidents()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set text = ..Snapshot()
+	If text = "" Quit
+	Do ..WriteIncident("zz-pace-a", text)
+	Do ..WriteCase("zz-pace-b", {"kind": "command", "turn": {"text": "Please run df."}}.%ToJSON())
+	Do ..WriteIncident("zz-pace-c", text)
+	Do ..WriteCase("zz-pace-d", {"kind": "item", "item": {"itemId": "zz-pace-item"}}.%ToJSON())
+	Do ..WriteIncident("zz-pace-e", text)
+	Set ^OcuTalonTest("EvalIn", "late") = 3
+	Set list = ##class(OcuTalon.Eval.In).SendOrder(..Folder, $ListBuild("zz-pace-a", "zz-pace-b", "zz-pace-c", "zz-pace-d", "zz-pace-e"))
+	Set order = "", position = 0
+	While $ListNext(list, position, name) {
+		Set asked = ..Asked(), seen = ..Seen(), incidents = ..Incidents()
+		Do $$$AssertEquals(..Process(service, name), "", name_" is sent")
+		Set order = order_$Select(order = "": "", 1: "|")_$Select(..Asked() > asked: "turn", ..Seen() > seen: "item", ..Incidents() > incidents: "incident", 1: "none")_":"_name
+	}
+	Do $$$AssertEquals(order, "turn:zz-pace-b|incident:zz-pace-a|incident:zz-pace-c|item:zz-pace-d|incident:zz-pace-e", "the command is asked first, then the incident cases and the item case in the order of the list")
+	Do $$$AssertEquals(..Incidents(), 3, "three IncidentCases were dispatched")
+	Set sent = ""
+	For n = 1:1:3 {
+		Set sent = sent_$Select(sent = "": "", 1: "|")_$List(..IncidentAt(n), 7)
+	}
+	Do $$$AssertEquals(sent, "0|0|0", "each incident case was dispatched with no earlier incident row still sent")
+	Set poll = ##class(OcuTalon.Eval.In).#INCIDENTPOLL
+	Set pauses = "", expected = ""
+	For n = 1:1:+$Get(^OcuTalonTest("EvalIn", "paused")) {
+		Set pauses = pauses_$Select(pauses = "": "", 1: "|")_^OcuTalonTest("EvalIn", "paused", n)
+		Set expected = expected_$Select(expected = "": "", 1: "|")_poll
+	}
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "paused"))_"|"_pauses, "4|"_expected, "each of the two waits took 2 pauses of INCIDENTPOLL seconds")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "checked")), 6, "and 6 checks, 3 for each wait")
+	Set states = ""
+	For name = "zz-pace-a", "zz-pace-c", "zz-pace-e" {
+		Set row = ##class(OcuTalon.Eval.Data.CaseResult).RunCaseIndexOpen(..Run, name)
+		Set states = states_$Select(states = "": "", 1: "|")_$Select($IsObject(row): row.State, 1: "none")
+	}
+	Do $$$AssertEquals(states, "decided|decided|sent", "the first two rows were answered, and the last is still sent")
+}
+
+/// A previous incident row that is never answered stops the incident cases of the run: after INCIDENTWAIT \ INCIDENTPOLL pauses the case is skipped with
+/// REASONPACED, with no row and no dispatch; every later incident case is skipped at once, a digest case is still sent, and a late result of the stalled row
+/// releases no incident case.
+Method TestPaceBound()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set text = ..Snapshot()
+	If text = "" Quit
+	Set in = "OcuTalon.Eval.In"
+	For name = "zz-bound-a", "zz-bound-b", "zz-bound-c", "zz-bound-d" {
+		Do ..WriteIncident(name, text)
+	}
+	Do ..WriteCase("zz-bound-dg", {"kind": "digest", "checks": []}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "late") = "never"
+	Set wait = $Parameter(in, "INCIDENTWAIT"), poll = $Parameter(in, "INCIDENTPOLL")
+	Set reason = $Replace($Replace($Parameter(in, "REASONPACED"), "{case}", "zz-bound-a"), "{seconds}", wait)
+	Do $$$AssertEquals($Parameter(in, "REASONPACED"), "the incident case {case} had no result after {seconds} seconds, so this run sends no more incident cases", "the ruled text of REASONPACED")
+	Do $$$AssertTrue(wait > $Parameter("OcuTalon.Bridge.Process.Decide", "MAXTIMER"), "INCIDENTWAIT is above the longest timer of Decide")
+	Do $$$AssertEquals(wait, 150, "and is the ruled 150 seconds")
+	Do $$$AssertEquals(..Process(service, "zz-bound-a"), "", "the first incident case is sent")
+	Do $$$AssertEquals(..Process(service, "zz-bound-b"), reason, "the next one is skipped with REASONPACED, naming the stalled case and INCIDENTWAIT")
+	Do $$$AssertEquals(..Incidents()_"|"_..Rows(), "1|1", "it was not dispatched and has no row")
+	Set pauses = +$Get(^OcuTalonTest("EvalIn", "paused")), seconds = 0
+	For n = 1:1:pauses {
+		Set seconds = seconds + ^OcuTalonTest("EvalIn", "paused", n)
+	}
+	Do $$$AssertEquals(pauses, wait \ poll, "EvalIn paused INCIDENTWAIT divided by INCIDENTPOLL times")
+	Do $$$AssertTrue(seconds '< wait, "and for at least INCIDENTWAIT seconds")
+	Set checks = +$Get(^OcuTalonTest("EvalIn", "checked"))
+	Do $$$AssertEquals(checks, pauses + 1, "with a check before the first pause and after each")
+	Do $$$AssertEquals(..Process(service, "zz-bound-c"), reason, "the next incident case gets the same reason")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "paused")), pauses, "with no further pause")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "checked")), checks, "and no further check")
+	Do $$$AssertEquals(..Process(service, "zz-bound-dg"), "", "a digest case is still sent")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Eval.ZzIn).Answer($List(..IncidentAt(1), 1)), "the stalled row completes late")
+	Do $$$AssertEquals(..Process(service, "zz-bound-d"), reason, "the late completion releases no incident case: the next one gets the same reason")
+	Do $$$AssertEquals(..Incidents()_"|"_..Digests()_"|"_..Rows(), "1|1|2", "one incident case, one digest case and their two rows in all")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "paused"))_"|"_+$Get(^OcuTalonTest("EvalIn", "checked")), pauses_"|"_checks, "and no pause or check after the bound")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .warning, "OnProcessInput", $Parameter(in, "LOGSKIPPED")), 3, "each skipped case was logged as a warning")
+}
+
+/// A case whose send failed never becomes the previous incident case, so the next one checks the row of the case sent before it; a previous row that was
+/// removed counts as answered. Neither waits.
+Method TestPaceAfterNoRow()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set text = ..Snapshot()
+	If text = "" Quit
+	For name = "zz-nr-a", "zz-nr-b", "zz-nr-c", "zz-nr-d" {
+		Do ..WriteIncident(name, text)
+	}
+	Do $$$AssertEquals(..Process(service, "zz-nr-a"), "", "the first incident case is sent")
+	Set first = $List(..IncidentAt(1), 1)
+	Set ^OcuTalonTest("EvalIn", "fail") = "the target is not there"
+	Set reason = ..Process(service, "zz-nr-b")
+	Kill ^OcuTalonTest("EvalIn", "fail")
+	Do $$$AssertTrue(reason [ "the target is not there", "the second incident case is dispatched after the first row is answered, and its send fails: "_reason)
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "checked", first)), 1, "it checked the first row once")
+	Do $$$AssertEquals(..Process(service, "zz-nr-c"), "", "the third incident case is sent")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "checked", first)), 2, "its check was of the first row again: the case whose send failed is not the previous one")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "checked"))_"|"_+$Get(^OcuTalonTest("EvalIn", "paused")), "2|0", "two checks in all and no pause")
+	Do $$$AssertEquals($List(..IncidentAt(3), 7), 0, "with no earlier incident row still sent")
+	Set third = $List(..IncidentAt(3), 1)
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Data.CaseResult).Remove(..Run, "zz-nr-c"), "the third row is removed")
+	Do $$$AssertEquals(..Process(service, "zz-nr-d"), "", "the fourth incident case is sent")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "checked", third)), 1, "its check was of the removed row")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "paused"))_"|"_$List(..IncidentAt(4), 7), "0|0", "a removed row counts as answered: no pause and no earlier row still sent")
+	Do $$$AssertEquals(..Rows(), 2, "the rows are the first (decided) and the fourth")
+}
+
+/// (QA) A previous incident row answered on the very last check (the 151st, after INCIDENTWAIT \ INCIDENTPOLL pauses) still releases the next case, and the
+/// run is not stalled: the case after it checks its own previous row afresh, with no REASONPACED.
+Method TestPaceLastCheck()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set text = ..Snapshot()
+	If text = "" Quit
+	Set in = "OcuTalon.Eval.In"
+	For name = "zz-last-a", "zz-last-b", "zz-last-c" {
+		Do ..WriteIncident(name, text)
+	}
+	Set bound = $Parameter(in, "INCIDENTWAIT") \ $Parameter(in, "INCIDENTPOLL")
+	Set ^OcuTalonTest("EvalIn", "late") = bound + 1
+	Do $$$AssertEquals(..Process(service, "zz-last-a"), "", "the first incident case is sent")
+	Set first = $ListGet(..IncidentAt(1), 1)
+	Do $$$AssertEquals(..Process(service, "zz-last-b"), "", "the next one is sent when the previous row is answered on the last check")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "paused"))_"|"_+$Get(^OcuTalonTest("EvalIn", "checked", first)), bound_"|"_(bound + 1), "after INCIDENTWAIT \ INCIDENTPOLL pauses and one more check")
+	Do $$$AssertEquals(..Incidents()_"|"_$ListGet(..IncidentAt(2), 7, "none"), "2|0", "it was dispatched with the first row no longer sent")
+	Set ^OcuTalonTest("EvalIn", "late") = 1
+	Do $$$AssertEquals(..Process(service, "zz-last-c"), "", "the run is not stalled: the next incident case is sent too")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "paused"))_"|"_..Incidents()_"|"_$ListGet(..IncidentAt(3), 7, "none"), bound_"|3|0", "after its own check of the second row, with no further pause")
+}
+
+/// (QA) A refused incident case never waits and never becomes the previous one: with an incident row still sent, a case with no snapshot gets its own reason at
+/// once (no check, no pause), the next sent case checks the row of the case sent before the refused one, and after the bound a refused case still gets its own reason.
+Method TestPaceRefusedNeverWaits()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set text = ..Snapshot()
+	If text = "" Quit
+	Set in = "OcuTalon.Eval.In"
+	Do ..WriteIncident("zz-rf-a", text)
+	Do ..WriteCase("zz-rf-b", {"kind": "incident"}.%ToJSON())
+	Do ..WriteIncident("zz-rf-c", text)
+	Do ..WriteIncident("zz-rf-d", text)
+	Do ..WriteCase("zz-rf-e", {"kind": "incident"}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "late") = 2
+	Do $$$AssertEquals(..Process(service, "zz-rf-a"), "", "the first incident case is sent")
+	Set first = $ListGet(..IncidentAt(1), 1)
+	Do $$$AssertEquals(..Process(service, "zz-rf-b"), $Parameter(in, "REASONNOSNAPSHOT"), "a case with no snapshot is refused with its own reason while the first row is still sent")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "checked"))_"|"_+$Get(^OcuTalonTest("EvalIn", "paused")), "0|0", "it never waited: no check and no pause")
+	Do $$$AssertEquals(..Process(service, "zz-rf-c"), "", "the next incident case is sent")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "checked", first))_"|"_+$Get(^OcuTalonTest("EvalIn", "paused"))_"|"_$ListGet(..IncidentAt(2), 7, "none"), "2|1|0", "it waited for the row of the first case, not for the refused one")
+	Set ^OcuTalonTest("EvalIn", "late") = "never"
+	Set reason = $Replace($Replace($Parameter(in, "REASONPACED"), "{case}", "zz-rf-c"), "{seconds}", $Parameter(in, "INCIDENTWAIT"))
+	Do $$$AssertEquals(..Process(service, "zz-rf-d"), reason, "the case after it hits the bound and names the case sent before it")
+	Set pauses = +$Get(^OcuTalonTest("EvalIn", "paused"))
+	Do $$$AssertEquals(..Process(service, "zz-rf-e"), $Parameter(in, "REASONNOSNAPSHOT"), "after the bound a refused case still gets its own reason, not REASONPACED")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "paused")), pauses, "with no further pause")
+	Do $$$AssertEquals(..Incidents()_"|"_..Rows(), "2|2", "only the two sent cases were dispatched and have a row")
+}
+
+/// (QA) DW-902 (Story 9.11, AC8): eval/user-turn-forget/case.json is a user-turn case named for its folder, not held out, with the turn text, the key phrase
+/// "user", the fourteen absent phrases of the other user-turn cases (in their order), the fields of its kind and nothing else, and its recorder; EvalIn sends it as
+/// the decide request of a user with that text.
+Method TestForgetCaseRecorded()
+{
+	Set folder = ##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER)
+	Do $$$AssertTrue(##class(%File).DirectoryExists(folder), "the repository's eval/ is mounted at "_folder_" (a throwaway or CI stack)")
+	If '##class(%File).DirectoryExists(folder) Quit
+	Set name = "user-turn-forget"
+	Set directory = ##class(%File).SubDirectoryName(folder, name)
+	Set file = ##class(%File).NormalizeFilename("case.json", directory)
+	Do $$$AssertTrue(##class(%File).Exists(file), "eval/"_name_"/case.json exists")
+	If '##class(%File).Exists(file) Quit
+	Set case = ##class(%DynamicAbstractObject).%FromJSONFile(file)
+	Do $$$AssertEquals(case.name_"|"_case.kind_"|"_case.heldOut_"|"_case.%GetTypeOf("heldOut"), name_"|user-turn|0|boolean", "it is a user-turn case, named for its folder, and not held out")
+	Do $$$AssertEquals(case.turn.%ToJSON(), {"text": "Forget that the Orders partner contact is Kim."}.%ToJSON(), "it asks the ruled text, and nothing else")
+	Set fields = 0
+	For field = "description", "expectation", "heldOut", "kind", "name", "recordedBy", "turn" {
+		If case.%GetTypeOf(field) '= "unassigned" Set fields = fields + 1
+	}
+	Do $$$AssertEquals(fields_"|"_case.%Size(), "7|7", "it holds the fields of its kind and nothing else")
+	Do $$$AssertTrue($ZStrip(case.description, "<>W") [ "DW-902", "it says why it is expected")
+	Do $$$AssertEquals(case.recordedBy, "written for the evaluation set (Story 9.11, DW-902)", "it says it was written for Story 9.11")
+	Do $$$AssertEquals(case.expectation.%Size(), 2, "its expectation holds keyPhrases and absentPhrases only")
+	Do $$$AssertEquals(case.expectation.keyPhrases.%ToJSON(), [["user"]].%ToJSON(), "its reasons must name the user")
+	Set absent = ["tool", "access", "look up", "cannot", "can't", "unable", "needs the user", "need the user", "nothing", "healthy", "all clear", "everything is", "no failure", "no error"]
+	Do $$$AssertEquals(case.expectation.absentPhrases.%ToJSON(), absent.%ToJSON(), "it forbids the fourteen phrases of a reason that describes production state or tool limits, in the order of the other user-turn cases")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Eval.Cases).Plain(file), "its file is plain ASCII")
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Kill output
+	Do $$$AssertStatusOK(service.OnProcessInput(##class(Ens.StringContainer).%New(directory), .output), "OnProcessInput answers OK")
+	Do $$$AssertEquals(output.StringValue, "", "the case is sent")
+	Set asked = ..AskedAt(1)
+	Do $$$AssertEquals(..Asked()_"|"_$List(asked, 1)_"|"_$List(asked, 2)_"|"_$List(asked, 3), "1|decide|user|eval", "as the decide request of a user of owner eval")
+	Do $$$AssertEquals($Piece($List(asked, 5), $Char(10, 10), 2), "Forget that the Orders partner contact is Kim.", "with the case's text after the preamble")
+}
+
+/// A skipped incident case counts as not right in Report.Build's incidents (and held-out incidents when it is held out) and stays in their totals, so a stall
+/// can only lower the score; it is still listed under skipped and counted by Problems.
+Method TestSkippedIncidentScored()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set text = ..Snapshot()
+	If text = "" Quit
+	Set in = "OcuTalon.Eval.In"
+	Set expectation = {"causeCategory": "configuration", "elementAtFault": "Orders.Process.Route"}
+	For name = "zz-sc-a", "zz-sc-b", "zz-sc-c" {
+		Set case = {"kind": "incident", "snapshot": "snapshot.json", "expectation": (expectation)}
+		Do case.%Set("heldOut", (name = "zz-sc-c"), "boolean")
+		Do ..WriteCase(name, case.%ToJSON())
+		Do ..WriteSnapshot(name, text)
+	}
+	Set ^OcuTalonTest("EvalIn", "late") = "never"
+	Set skipped = []
+	Do $$$AssertEquals(..Process(service, "zz-sc-a"), "", "the first incident case is sent")
+	For name = "zz-sc-b", "zz-sc-c" {
+		Set reason = ..Process(service, name)
+		Do $$$AssertEquals(reason, $Replace($Replace($Parameter(in, "REASONPACED"), "{case}", "zz-sc-a"), "{seconds}", $Parameter(in, "INCIDENTWAIT")), name_": skipped by the pacing")
+		Do skipped.%Push({"case": (name), "reason": (reason)})
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Eval.ZzIn).Answer($List(..IncidentAt(1), 1)), "the first row is answered")
+	Set control = ##class(OcuTalon.Eval.Report).Build(..Run, ..Folder, [])
+	Set report = ##class(OcuTalon.Eval.Report).Build(..Run, ..Folder, skipped)
+	Do $$$AssertEquals(control.scores.incidents.total_"|"_control.scores.incidents.right_"|"_control.unscored.%Size(), "1|0|0", "control: the answered case is scored, not unscored, and is not right")
+	Do $$$AssertEquals(report.scores.incidents.total - control.scores.incidents.total, 2, "the two skipped incident cases stay in the denominator of the incidents score: a stall can only lower it")
+	Do $$$AssertEquals(report.scores.incidents.right, control.scores.incidents.right, "and add nothing to the right ones: a stall can only lower the score")
+	Do $$$AssertEquals(report.scores.heldOutIncidents.total - control.scores.heldOutIncidents.total, 1, "the held-out skipped case stays in the held-out denominator")
+	Do $$$AssertEquals(report.scores.heldOutIncidents.right, control.scores.heldOutIncidents.right, "and adds nothing to the right ones: the held-out share can only fall")
+	Do $$$AssertEquals(report.skipped.%Size()_"|"_report.skipped.%Get(0).case_"|"_report.skipped.%Get(1).case, "2|zz-sc-b|zz-sc-c", "both are listed under skipped")
+	Set problems = ""
+	Set iterator = ##class(OcuTalon.Eval.Report).Problems(report).%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Set problems = problems_"|"_one
+	}
+	Set reasonB = "|zz-sc-b: not sent: "_report.skipped.%Get(0).reason
+	Set reasonC = "|zz-sc-c: not sent: "_report.skipped.%Get(1).reason
+	Do $$$AssertTrue(problems [ reasonB, "Problems counts the first skipped case")
+	Do $$$AssertTrue(problems [ reasonC, "and the second")
 }
 
 /// A digest case is sent once as a DigestCase with a fresh ItemId, the case's checks, vitals and saved summaries as JSON text and its name as SourceItemId, and
@@ -945,7 +1218,7 @@ ClassMethod Incidents() As %Integer [ Private ]
 }
 
 /// The nth IncidentCase the double was given, as a list: IncidentRef, SourceItemId, the snapshot's format, its number of failures, 1 when the case's row was
-/// open and the service's SuperSession.
+/// open, the service's SuperSession and (position 7) the number of IncidentCases given before it whose rows were still sent at that moment.
 ClassMethod IncidentAt(n As %Integer) As %List [ Private ]
 {
 	Quit $Get(^OcuTalonTest("EvalIn", "incident", n))

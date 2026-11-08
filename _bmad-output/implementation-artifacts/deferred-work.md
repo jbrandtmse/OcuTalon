@@ -5427,6 +5427,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: 1.0.3 rc1 eval triage 2026-11-07 (Planner author's override) | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: 1.0.2 set durations 56.7-58.3 s vs 1.0.3 60.1 s for the 10th case; Eval/In.cls:8-9,480-483 async sends; Decide.cls:339-342 timer at send; Production.cls:30 PoolSize 1
 - 2026-11-07T18:29:38Z status=routed owner=burndown by=orchestrator note=1.0.4 Epic 9 fix-forward after D1/D2: pace incident cases (next after the previous CaseResult, ~70 s each; turn cases first); update Test/Eval/In pins; EvalIn stays disabled in the product
+- 2026-11-08T03:25:46Z owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=runner note=charter(Story_9.11_fix-forward;SC-5_reopen;planner_ruling_2026-11-08)
+- 2026-11-08T05:45:45Z status=resolved-by:9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=adjudication note=EvalIn paces incident cases: SendIncident.Pace waits for the previous CaseResult row (INCIDENTWAIT 150 > MAXTIMER 110, REASONPACED at the bound); pins TestPacesIncidents, TestPaceBound, TestPaceLastCheck, TestSendsIncident (commit a937291e + QA/CR in the 9.11 commit); SM-2 counts a skip as not right (TestSkippedIncidentScored)
 
 ### DW-879: Product: the diagnosis timer counts time spent queued at DiagnosisAgent (PoolSize 1), so several simultaneous incidents (e.g. demo visitors breaking the feed at once) can time out before the model is asked
 - source: 1.0.3 rc1 eval triage 2026-11-07 | severity: med | fix-risk: med | footprint: cross-epic
@@ -5465,11 +5467,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Story 30.9 proves only the remember form (eval/user-turn-remember); whether Haiku 5.5 gives a confidence for a forget request is unmeasured (unverified)
 - 2026-11-08T04:09:34Z status=decision-pending owner=burndown by=cr note=human=Planner's RC eval runs a 'Forget that ...' user turn on Haiku 5.5: no Fallback and a confidence (unverified med)
+- 2026-11-08T05:11:24Z status=routed owner=burndown by=merge_gate note=decision sheet Epic 30 (Planner YES): the forget eval case eval/user-turn-forget/ lands in Story 9.11 (9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it), which is not on this feature yet; 9.11's runner re-owns at its charter
+- 2026-11-08T05:55:03Z owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=runner note=forget eval case delivered in 9.11
+- 2026-11-08T05:55:03Z status=resolved-by:9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=adjudication note=eval/user-turn-forget/case.json (kind user-turn, heldOut false, turn 'Forget that the Orders partner contact is Kim.', the remember case's expectation; report-only); pinned by Test.Eval.In TestForgetCaseRecorded and Test.Eval.Cases TestUserTurnCases (count 6 after the union with 30.9); real-Haiku proof is the Planner's rc eval at the cut
 
 ### DW-903: shards-5 (shard:lane-a@Bridge,Agent) may pass REL-4's 35-minute CI budget once Epic 19's live:documents joins it
 - source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Spec 30.9 Verification: shards-5 measured 32m09s-33m37s; Epic 19 estimates +300-450 s for live:documents; Story 30.9 adds about 10 s (unverified projection)
 - 2026-11-08T04:09:34Z status=escalated owner=burndown by=cr note=unverified; settle: shards-5 job time <=35 min on the first feature CI run with Epic 19's live:documents
+- 2026-11-08T05:11:24Z status=routed owner=19-4-answer-from-documents-with-citations by=merge_gate note=decision sheet Epic 30 (Planner confirmed): Epic 19 moves live:documents off shards-5 in 19.4 (orchestrator ruling of 2026-11-08); shards-5 ran 32.9 min on e915eccb
 
 ### DW-904: Test.Watch.Case subclasses copy the Armed countdown clean-up loop instead of a shared base helper (third copy in RememberDecision)
 - source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -5485,3 +5491,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: evidence/ep-bug-s11/results.md (Story 0.16) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 9/9 crossing runs died, 6/6 one-sided runs survived per build (orders c,d,e vs a,b); messages.log caught signal 11 JobType=Interactive job; OcuTalon avoids it by AD-6 (embeddings in a WorkMgr worker)
 - 2026-11-07T21:43:35Z status=by-design owner=0-16-the-embedded-python-callback-crash-s11-is-re-verified-with-a by=evidence note=AI_Hub_platform_defect_not_ours;AD-6_rule_stands;public_report_drafted_by_the_Planner_posted_by_the_owner(no_filing_here);reopen_if=a_build_after_2027.1.0AI.109_survives_orders_c,d,e_of_ep-bug-s11/run.sh
+
+### DW-908: Eval: no test pins the content of the user-turn remember and forget cases (turn text, key phrases, absent phrases, heldOut, recordedBy); Test.Eval.Cases' user-turn count pin accepts any extra case and its wanted list holds only the four chips
+- source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Eval/Cases.cls TestUserTurnCases checks the forget (9.11) and remember (30.9) cases only through the kind count; Test/Eval/Report.cls TestShippedChipCasesScoreTheHostReasons lists the four chips; both files contended (Epic 19 19.4), ruling allowed only the count pin
+- 2026-11-08T05:13:42Z status=escalated owner=burndown by=harvest note=for the decision sheet: recommended routed to the next eval story after 1.0.4 (extend the wanted list and the Report loop with both cases' exact text); not fixable inside 9.11's ruling
+- 2026-11-08T05:43:35Z occurrence=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=forget content pinned in Test/Eval/In.cls TestForgetCaseRecorded; open: remember, Report loop; fix moves pin to Cases
+
+### DW-909: Eval: at the integrate-forward over Story 30.9, Test/Eval/Cases.cls's user-turn count pin merges cleanly as 5 (both branches changed :248 to the same text) while the merged eval/ holds 6 user-turn cases; the doc lines :16 and :236-237 conflict
+- source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: origin/OCT-epic30 Cases.cls:248 is AssertEquals(count, 5, eval/ holds exactly five user-turn cases), byte-identical to OCT-epic9's, so git takes 5 with no conflict; epic-9-context.md and the spec's [Ledger] item call the union plain
+- 2026-11-08T05:43:27Z status=escalated owner=burndown by=cr note=integrate-forward over 30.9: set Cases.cls:248 to 6/six by hand; resolve :16, :236-237 naming both cases
+
+### DW-910: Eval: the rule that a skipped incident case counts as not right in SM-2 (and the held-out incidents) is recorded only in Eval.Report and the 9.11 spec, not in the epic context's Scoring rule or the proposed AD-22 as-built bullet
+- source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Report.cls :61 and AddSkipped tally a skipped incident case (AC7, the Planner's condition); epic-9-context.md Scoring and the spec's proposed AD-22 spine bullet mention only the pacing
+- 2026-11-08T05:43:35Z status=wontfix-accepted owner=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=reopen_if=a later eval story's spec or review reads SM-2 as leaving skipped incident cases out of its total
