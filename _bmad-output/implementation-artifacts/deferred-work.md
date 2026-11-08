@@ -2930,6 +2930,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T09:02:42Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=veto_U-187:error_counts_as_degraded(alert_only,not_toward_the_reset),like_U-157's_three;with_a_probe_test
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 - 2026-11-07T17:31:07Z status=routed owner=burndown by=spec_gate note=release-tool_freeze;after_the_v1.0.4_merge-back:the_probe's_error_reason_must_land_with_release/demo-load.sh_DEGRADED_REASONS(+comments_:50,:88),which_docker/tests/test-online-load.sh_S16_pins_to_docker/probe.sh;31.4_implement_found_it(ruling_R1);veto_U-187_still_stands
+- 2026-11-08T02:32:04Z status=routed owner=burndown by=burndown note=epic-31_burn-down(31.4_scope):overflow;waits_for_the_release-tool_freeze(release/demo-load.sh_DEGRADED_REASONS+docker/probe.sh,S16_pin)_to_lift_after_the_v1.0.4_merge-back;no_open_story_owns_it;listed_under_decisions_for_user(recommended:route_to_a_post-1.0.4_release-tool_story)
 
 ### DW-447: AD-25's probe bullet lists the outcomes busy, capped, auth_failed and no_decision, but the probe also has no_splash (Story 16.6) and degraded (Story 29.6, epic29_brief), and the spine does not record them
 - source: spec-29-6-the-probe-alerts-when-every-turn-falls-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3089,6 +3090,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T12:04:51Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=orchestrator note=also_check_that_the_repo's_proxy_stand-in(Story_29.3)_admits_the_broker-path_hyperevent_fields,and_record_the_allowance_as_built_beside_AD-25's_sign-in_rule
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 - 2026-11-07T15:15:39Z status=routed owner=burndown by=spec_gate note=release-tool_freeze;after_the_v1.0.4_merge-back(31.4_declined:release/demo-host-check.sh_frozen);also_after_the_merge-back:release/demo-host-checks.md:73_and_release/demo-load.sh:88_still_name_the_probe's_three_degraded_reasons(DW-446_adds_error)
+- 2026-11-08T02:32:04Z status=routed owner=burndown by=burndown note=epic-31_burn-down(31.4_scope):overflow;release/demo-host-check.sh_allow-hyperevent_check_waits_for_the_release-tool_freeze_to_lift_after_the_v1.0.4_merge-back;no_open_story_owns_it;listed_under_decisions_for_user(recommended:route_to_the_same_post-1.0.4_release-tool_story_as_DW-446)
 
 ### DW-494: flake: OcuTalon.Test.Fix.Partial TestCopiesFailAgain ('and stores 3/3/0/3/0 with the reason the order date still wasn't accepted' and four more asserts) red in CI shards-2 (shard:lane-a@rest), green on an unchanged rerun
 - source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -5306,6 +5308,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-31-4-the-paired-chat-stays-isolated-under-load-too.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 31.4 implement pass 1: TraceHits returned -1 until Failure gained %XML.Adaptor (one line, no storage change); AD-33 keeps the class Lane A's, so 31.4 reads such bodies through a Lane B fallback instead (ruling R2); also check whether anything else that XML-exports message bodies (the key proof of 9.10 and 30.8, the Visual Trace contents) meets the same error
 - 2026-11-07T17:31:07Z status=routed owner=burndown by=harvest note=AD-33_request_to_Lane_A:add_%XML.Adaptor_to_OcuTalon.Watch.Msg.Failure(Extends_(%SerialObject,%XML.Adaptor)),then_31.4's_fallback_can_go
+- 2026-11-08T02:32:04Z status=routed owner=burndown by=burndown note=epic-31_burn-down(31.4_scope):overflow;AD-33:only_Lane_A_edits_Watch.Msg.Failure(add_%XML.Adaptor);no_open_Lane_A_story_owns_it;31.4's_Lane_B_second-reader_fallback_covers_the_search_until_then(then_the_fallback_can_go)
 
 ### DW-888: 31.4 code-review patches mirror two Lane A private helpers: Test.Eval.KeyProof.ListHas as Test.Web.SessionEvents.Names (about 7 lines) and the inline-keyboard flattening of Test.Channel.TelegramPageFixture.Buttons in web/e2e-online/telegram.ts sentCalls (about 4 lines of ObjectScript), forced by AD-33 (Lane A classes are called, never edited) and by ListHas being private
 - source: spec-31-4-the-paired-chat-stays-isolated-under-load-too.md | severity: low | fix-risk: low | footprint: in-story
