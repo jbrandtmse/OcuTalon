@@ -5777,3 +5777,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Decided in-stage (4): the forced-condition harness is untracked and deleted; Take drains queues, so the harness only exercised the new-header line
 - 2026-11-08T13:29:26Z status=by-design owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=cr note=Decided in-stage (4): SnapshotDiff stays stack-free; harness body kept in evidence/7-11/cause.md
+
+### DW-975: When web citations ship, restore a citation line to the demo guide's 'Ask about a document' look-for (Story 4.12 removed the promise because 1.0.4 draws no citation): update web/src/app/guide/more-to-try-view.ts documents.lookFor, its three pins and EXPERIENCE.md item 6 together, under the public-text rules
+- source: story-4.12 (planner_ruling guide_documents_citation_promise 2026-11-08) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 4.12 ruled text ends 'look for the answer that comes from your file.'; Story 20.2 adds the citation chips
+- 2026-11-08T17:51:46Z status=routed owner=20-2-see-citations-and-memories-in-answers by=lead note=restore_citation_line_when_20.2_ships;ruled_text_needed_at_20.2_spec_gate
