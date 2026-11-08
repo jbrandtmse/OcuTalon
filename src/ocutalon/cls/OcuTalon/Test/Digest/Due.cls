@@ -16,8 +16,11 @@
 ///     is free;
 ///   - TestLockRecheck: a job that holds the lock writes a scheduled Sent row for the due time before it lets go: the tick that waited for the lock checks
 ///     again under it and queues nothing (the probe's record of the two checks shows the first found nothing and the second found the row);
-///   - TestEndedOnlineDemo: on the online demo a session with no resume hash has ended and gets none, while one with a resume hash does; on a local install
-///     both count.
+///   - TestOnlineDemoSkipped (DW-874; AD-18 as amended 2026-11-07): on the online demo the scheduled run queues no Compose for any session, the one with a resume
+///     hash (a visitor) and the one without (ended) alike, while on a local install both get one; a visitor's SendDigest (origin tool) on the online demo still
+///     queues one requested Compose with an empty DueAt and is answered Ok and sending;
+///   - TestOnlineDemoResends: the tick on the online demo still gives a digest that missed a channel its resend: one Notification to the web chat it missed, and
+///     the Sent row counts the attempt, lists the web chat as reached and misses none; its routing row is the probe's TRACESESSION's, which Clean deletes.
 Class OcuTalon.Test.Digest.Due Extends OcuTalon.Test.Bridge.ZoneCase
 {
 
@@ -287,22 +290,57 @@ Method TestLockRecheck()
 	Do $$$AssertTrue('$ClassMethod(..#PROBE, "Held", ref), "the other job lets go")
 }
 
-Method TestEndedOnlineDemo()
+Method TestOnlineDemoSkipped()
 {
 	Set ended = ..Session("2030-06-03T07:30:00")
-	Set alive = ..Session("2030-06-03T07:30:00", ##class(OcuTalon.Bridge.Ids).NewRef())
-	Set host = ..Host(ended_","_alive)
+	Set visitor = ..Session("2030-06-03T07:30:00", ##class(OcuTalon.Bridge.Ids).NewRef())
+	Set host = ..Host(ended_","_visitor)
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Do ..Tick(host, "2030-06-03T08:01:00")
-	Set composes = $ClassMethod(..#PROBE, "Composes")
-	Do $$$AssertEquals(composes.%Size(), 1, "on the online demo one session is queued")
-	If composes.%Size() = 1 Do $$$AssertEquals(composes.%Get(0).session, alive, "the one with a resume hash; the ended session has none")
-	Do $ClassMethod(..#PROBE, "Reset")
-	Do $ClassMethod(..#PROBE, "Clean", ended_","_alive)
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "Count", "compose"), 0, "on the online demo the tick after digest.time queues no Compose, for a visitor or an ended session")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
 	Do ..Tick(host, "2030-06-03T08:01:00")
 	Set composes = $ClassMethod(..#PROBE, "Composes")
-	Do $$$AssertEquals(composes.%Size(), 2, "on a local install both count")
+	Do $$$AssertEquals(composes.%Size(), 2, "on a local install both sessions get one")
+	Do $ClassMethod(..#PROBE, "Reset")
+	Do $ClassMethod(..#PROBE, "Clean", ended_","_visitor)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Set command = ##class(OcuTalon.Msg.Command.SendDigest).%New()
+	Set command.SessionRef = visitor
+	Set command.Origin = "tool"
+	Kill response
+	Do $$$AssertStatusOK(host.OnRequest(command, .response), "a visitor's SendDigest is handled on the online demo")
+	Do $$$AssertTrue($IsObject(response), "and answered")
+	If $IsObject(response) Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Message, "1|sending|"_$Parameter(..#PROBE, "MESSAGESENDING"), "Ok at once, sending, with the fixed message")
+	Set composes = $ClassMethod(..#PROBE, "Composes")
+	Do $$$AssertEquals(composes.%Size(), 1, "one Compose is queued")
+	If composes.%Size() = 1 Do $$$AssertEquals(composes.%Get(0).session_"|"_composes.%Get(0).kind_"|"_composes.%Get(0).dueAt, visitor_"|requested|", "for the visitor, requested, with an empty DueAt")
+}
+
+Method TestOnlineDemoResends()
+{
+	Set visitor = ..Session("2030-06-03T07:30:00", ##class(OcuTalon.Bridge.Ids).NewRef())
+	Set host = ..Host(visitor)
+	Set host.%SessionId = $Parameter(..#PROBE, "TRACESESSION")
+	Set sent = ##class(OcuTalon.Digest.Data.Sent).%New()
+	Set sent.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sent.SessionRef = visitor
+	Set sent.Kind = "requested"
+	Set sent.SentAt = ..Utc("2030-06-03T07:45:00")
+	Set sent.CatalogKey = "checks.everythingElsePassed"
+	Set sent.Slots = "{""parts"":[],""lines"":[]}"
+	Set sent.Failed = "web"
+	Set sent.Attempts = 0
+	Do $$$AssertStatusOK(sent.%Save(), "a digest that missed the web channel is stored")
+	Set id = sent.%Id()
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do ..Tick(host, "2030-06-03T08:01:00")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "Count", "compose"), 0, "the tick queues no Compose")
+	Set again = ##class(OcuTalon.Digest.Data.Sent).%OpenId(id)
+	Do $$$AssertEquals(again.Attempts, 1, "but the digest that missed a channel is given its resend (the attempt is counted)")
+	Do $$$AssertEquals($ClassMethod(..#PROBE, "Count", "notice"), 1, "one Notification is sent again")
+	If $ClassMethod(..#PROBE, "Count", "notice") = 1 Do $$$AssertEquals($List($ClassMethod(..#PROBE, "Record", "notice", 1), 6), "WebChatOut", "to the web chat, the channel it missed")
+	Do $$$AssertEquals(again.Channels_"|"_again.Failed, "web|", "and the Sent row lists the web chat as reached and misses none")
 }
 
 }

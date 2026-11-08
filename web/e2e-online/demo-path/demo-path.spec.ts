@@ -23,6 +23,7 @@ import {
   phoneNotes,
   readState,
   reminderThroughGuide,
+  sendThroughComposer,
   WATCH_PROMPT,
   watchThroughGuide,
   type Snapshot,
@@ -84,6 +85,9 @@ import {
  *   holds 7.9's line "Checked against the last {n} orders from the same source that went through: 0 would change.". It is asserted by pattern on
  *   the real notice text. It is the end of the step 5 case, because the second press needs the session whose fix just went through and the
  *   unit's report keeps exactly its cases (docker/tests/test-online-demo-path.sh); the project already runs this folder.
+ * - Step 7 (Story 17.10, DW-874) is the same visitor's "Send my digest now." in the composer (the CI mock calls send_digest): one digest card, a
+ *   plain-text notice card of the class digest, appears in that visitor's own chat, with a greeting for its first line and "Yesterday's cost: $n.nn."
+ *   for its last, and the simulated phone gets no digest note. It follows step 5 in the same serial block, on the same session.
  * - Step 6 is real: the guide's watch prompt gets its reply, and the reply's Trace link opens Visual Trace at the turn, signed in, drawing
  *   the turn's header and its agent steps, with the steps and the cost in the decision's details.
  * - "Second visitor" is the isolation run (Story 29.4): visitors A and B each watch Orders (through the guide's Send), A presses Break the feed, and A's incident, its
@@ -94,7 +98,7 @@ import {
  *   approval request and nobody else's, a press from B's chat is refused and changes nothing, A answers from its own chat, and a search of every
  *   OCUTALON and OCUORDERS message header and body of the run finds no Telegram value and no IRIS user name. It uses the CI model mock and the
  *   mock Bot API only.
- * The unit fails when a case is skipped or missing: its report holds exactly ten passed cases (docker/tests/test-online-demo-path.sh). The
+ * The unit fails when a case is skipped or missing: its report holds exactly eleven passed cases (docker/tests/test-online-demo-path.sh). The
  * texts are written out here, as the independent oracle of the page's own.
  */
 
@@ -251,6 +255,29 @@ test.describe('steps 2 to 5: one visitor watches Orders, sets a reminder, breaks
     const key = (await card.locator('[data-part="approval"]').getAttribute('data-key')) ?? '';
     expect(key, "the new request's Ref").toMatch(/^[A-Za-z0-9_-]{22}$/);
     await approveOnPhone(page, key, ' ET', card);
+  });
+
+  test('step 7: "Send my digest now." in the chat shows the digest card in the visitor\'s own chat, and the simulated phone gets none', async () => {
+    test.setTimeout(240_000);
+    const page = pageOf();
+    await sendThroughComposer(page, 'Send my digest now.', false);
+
+    // The digest is composed by the Digest item and delivered to the visitor's own web chat as a plain-text notice card.
+    const card = page.locator('app-chat-panel app-notice-card .notice.digest');
+    await expect(card, "one digest card appears in the visitor's own chat").toHaveCount(1, { timeout: 90_000 });
+    const lines = (await card.locator('.text').innerText()).split('\n');
+    expect(lines[0], 'its first line is a greeting').toMatch(/^Good (morning|afternoon|evening)\.$/);
+    expect(
+      lines.some((line) => /^I checked /.test(line) || line === "I'm not watching any productions yet, so this digest covers the vital signs only. Ask me to watch one."),
+      'it says what was checked, or that nothing is watched',
+    ).toBe(true);
+    expect(lines[lines.length - 1], 'its last line is the cost').toMatch(/^Yesterday's cost: \$\d+\.\d\d\.$/);
+    // The phone's notes are drawn from the same notification routing, so a note that was going to arrive does so within moments of the card.
+    await page.waitForTimeout(3_000);
+    await expect(
+      phoneNotes(page).filter({ hasText: /Good (morning|afternoon|evening)\.|I checked |Everything else I checked passed|Yesterday's cost/ }),
+      'the simulated phone gets no digest note',
+    ).toHaveCount(0);
   });
 });
 

@@ -1,0 +1,21 @@
+{
+  "name": "documents-runbook",
+  "match": {
+    "marker": "documents-runbook"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "documents",
+        "input": {
+          "query": "how do I rotate the Results certificate?"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock answered from the Results runbook: Rotating the certificate."
+    }
+  ]
+}

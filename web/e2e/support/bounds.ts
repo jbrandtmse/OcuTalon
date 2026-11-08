@@ -1,5 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { spawn } from 'node:child_process';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { basename, dirname, isAbsolute, relative, sep } from 'node:path';
 
 import { test } from '@playwright/test';
 
@@ -8,6 +10,9 @@ import { test } from '@playwright/test';
  * online-demo-path and online-visitors). A wait that never answers fails on its bound and names its step, instead of running to the test
  * timeout of 120 to 300 s. The web/e2e projects set none: the shared test gives their pages a default wait of a share of the test's own timeout
  * (waitsFor), and their fixtures keep the 240 s they wait on purpose, within the test's deadline (capToDeadline). Every number lives here only.
+ * Story 32.6 (DW-550, DW-774) adds the one logged retry of a live page's snapshot wait: RETRY_MIN_ATTEMPT_MS and firstAttemptMs split the
+ * snapshot bound, retryLine and reportRetry print `RETRY <spec>:<line> <step>` and append it to the file that OCUTALON_E2E_RETRY_LOG names
+ * (ci/iris.sh counts those lines per unit and per group), and diagnosedAtBound runs a diagnosis when a bounded step passes its bound.
  * Erasable TypeScript only: web/scripts/bounded-waits.test.mjs imports this file as it is.
  */
 
@@ -140,6 +145,54 @@ export function capToDeadline(ownMs: number, leftMs: number | undefined = testTi
   return { ms, note: ` (capped by the test timeout: ${Math.max(0, Math.round(leftMs / 1000))} s left${cleanup ? ' for a clean-up' : ''}, ${own})` };
 }
 
+/** The `RETRY <location> <step>` line of a step that was tried a second time; the location is retryLocation()'s. */
+export function retryLine(location: string, step: string): string {
+  return `RETRY ${location} ${step}`;
+}
+
+/** The variable that names the file a retry line is appended to (ci/iris.sh sets it per live unit); unset, a retry is only printed. */
+export const RETRY_LOG_VARIABLE = 'OCUTALON_E2E_RETRY_LOG';
+
+/**
+ * Where the running test is, as `<spec>:<line>`: the test's file relative to the folder of the Playwright config (the folder of
+ * web/playwright.config.ts, not the top testDir that FullConfig.rootDir names), else to the working folder, with `/` separators. A path
+ * that is absolute or starts with `..` is cut to the file's base name; outside a test it is `unknown:0`. It never throws.
+ */
+export function retryLocation(): string {
+  try {
+    const info = test.info();
+    const from = info.config.configFile ? dirname(info.config.configFile) : process.cwd();
+    let file = relative(from, info.file).split(sep).join('/');
+    if (isAbsolute(file) || file.startsWith('..')) file = basename(info.file);
+    return `${file}:${info.line}`;
+  } catch {
+    return 'unknown:0';
+  }
+}
+
+/** Prints the `RETRY` line of a step that is tried a second time, and appends it to the file that RETRY_LOG_VARIABLE names when it is set. It never throws. */
+export function reportRetry(step: string): void {
+  const line = retryLine(retryLocation(), step);
+  console.log(line);
+  try {
+    const file = process.env[RETRY_LOG_VARIABLE];
+    if (file) {
+      mkdirSync(dirname(file), { recursive: true });
+      appendFileSync(file, `${line}\n`);
+    }
+  } catch {
+    // Best effort: the printed line stays; only the count of ci/iris.sh misses it.
+  }
+}
+
+/** The least a snapshot wait gives each of its two attempts, in ms: a bound shorter than twice this stays one wait. */
+export const RETRY_MIN_ATTEMPT_MS = 10_000;
+
+/** The first attempt of a bound split in two: half of boundMs, or undefined (no retry) when the bound is not finite or is shorter than twice RETRY_MIN_ATTEMPT_MS. */
+export function firstAttemptMs(boundMs: number): number | undefined {
+  return Number.isFinite(boundMs) && boundMs >= 2 * RETRY_MIN_ATTEMPT_MS ? Math.floor(boundMs / 2) : undefined;
+}
+
 /** The `SLOW <step> <s> s` line of a step that took elapsedMs, or undefined when it was not slow. */
 export function slowLine(step: string, elapsedMs: number): string | undefined {
   return elapsedMs >= SLOW_STEP_MS ? `SLOW ${step} ${Math.round(elapsedMs / 1000)} s` : undefined;
@@ -180,6 +233,25 @@ export function boundedStep<T>(work: Promise<T>, ms: number, step: string): Prom
       },
     );
   });
+}
+
+/**
+ * Settles like work. When work rejects with `<step>: no answer within ...` (a bound of boundedStep), it first awaits diagnose(), whose
+ * failure is swallowed, and then rejects with the same error. Any other outcome is passed through without a diagnosis.
+ */
+export async function diagnosedAtBound<T>(work: Promise<T>, step: string, diagnose: () => Promise<unknown>): Promise<T> {
+  try {
+    return await work;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith(`${step}: no answer within`)) {
+      try {
+        await diagnose();
+      } catch {
+        // A diagnosis never replaces the error that it describes.
+      }
+    }
+    throw error;
+  }
 }
 
 /** The longest an irisScript session may take in an online project, in ms: above every 60 s fixture wait that the online specs reach. */

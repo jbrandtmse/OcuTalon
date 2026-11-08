@@ -1,6 +1,8 @@
 /// One document a session or an install has added (AD-21, AD-33): the row the Documents page lists. Lane A. The only writer is
 /// OcuTalon.Docs.Ops (Story 19.4). A document belongs to a session on the online demo (OwnerRef is its SessionRef) and to the install on a
-/// local install (OwnerRef is the literal instance); AddedBy keeps the session that added it. Row ids never leave the server.
+/// local install (OwnerRef is the literal instance); AddedBy keeps the session that added it. A document of an evaluation run has OwnerRef and AddedBy the
+/// literal eval (Docs.Ops AddEval, AD-22), and no route lists it. Row ids never leave the server. Sections keeps the section of each
+/// passage by chunk_index (Story 19.4).
 Class OcuTalon.Data.Document Extends %Persistent
 {
 
@@ -10,10 +12,10 @@ Parameter DEFAULTGLOBAL = "^OcuTalonP.Document";
 /// The document's public Ref (AD-14), the source of each chunk in the knowledge base. Refs are case-sensitive.
 Property Ref As %String(COLLATION = "EXACT", MAXLEN = 22);
 
-/// The owner of the document: a session's Ref on the online demo, the literal instance on a local install (AD-4).
+/// The owner of the document: a session's Ref on the online demo, the literal instance on a local install (AD-4), the literal eval for an evaluation run's.
 Property OwnerRef As %String(COLLATION = "EXACT", MAXLEN = 22);
 
-/// The Ref of the session that added the document.
+/// The Ref of the session that added the document, or the literal eval for an evaluation run's.
 Property AddedBy As %String(COLLATION = "EXACT", MAXLEN = 22);
 
 /// The file's name as the person gave it.
@@ -39,6 +41,10 @@ Property KnowledgeBase As %String(MAXLEN = 128);
 
 /// The document's text, as read from the file.
 Property Text As %Stream.GlobalCharacter;
+
+/// The section of each passage, as a JSON array: element n is the section of chunk_index n, "" for a passage under no ## heading (Story 19.4). Empty until the
+/// document is indexed.
+Property Sections As %String(MAXLEN = "");
 
 Index RefIndex On Ref [ Unique ];
 
@@ -82,6 +88,9 @@ Storage Default
 </Value>
 <Value name="12">
 <Value>Text</Value>
+</Value>
+<Value name="13">
+<Value>Sections</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.DocumentD</DataLocation>

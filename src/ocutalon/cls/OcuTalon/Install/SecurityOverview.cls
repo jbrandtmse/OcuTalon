@@ -3,10 +3,12 @@
 /// ships and what the installer grants. It changes no security record, grant or role: it reads and lists.
 ///   - Model builds the facts as one object: the tools (read through %AI.Catalog with the pattern OcuTalon.%, kept to the agents of
 ///     OcuTalon.Agent. and the toolsets of OcuTalon.Tools., the scope of Install.Step.Tools.Toolsets; each toolset is expanded with
-///     %Discover, because the catalog cannot expand toolsets), the fix kinds, the roles as Install.Step.Roles.Compose composes them
+///     %Discover, because the catalog cannot expand toolsets, plus one row for each entry of the product's classification (Install.Step.Production ClassificationEntries) that names AI Hub's knowledge base, RagRows),
+///     the fix kinds, the roles as Install.Step.Roles.Compose composes them
 ///     from the Grants() of the areas, the grants that only demo mode adds (Install.Step.Demo WithOrdersData and WithOrders), the SQL
 ///     privileges of the trace role, the service user and the application roles of the web applications;
-///   - Sections renders the facts as the Markdown of the keys tools, fix-kinds and privileges, in a sorted and deterministic order, in ASCII;
+///   - Sections renders the facts as the Markdown of the keys tools, fix-kinds and privileges, in a sorted and deterministic order, in ASCII; the tools section ends
+///     with the sentence RAGSTATEMENT about the one tool that has no class of its own (Story 19.4);
 ///   - Splice replaces the text between the markers of each key in a document and nothing else; Regenerate does that for a file.
 /// A tool value is read only through the readers that the gate and the installer use (StepBuffer.ToolParameter and LabelFor,
 /// Gate.HookFor and Resources). A tool that classifies by its arguments (it has a Classify or Classify<NAME> method) shows the text of its
@@ -23,6 +25,17 @@ Parameter OWNERTEXT = "written by OcuTalon.Install.SecurityOverview, do not edit
 
 /// The fixed statement of the tools section (AD-10), word for word.
 Parameter STATEMENT = "No built-in tool runs operating-system commands, arbitrary ObjectScript or Python, or data-changing SQL, and AI Hub's shell, filesystem, SQL and web-search tools are never registered. The automated tool-inventory test `OcuTalon.Test.Agent.Runners` (`TestToolInventory`) checks this on every running runner.";
+
+/// The sentence after the tools table (Story 19.4, the Contest Planner's PUBLIC TEXT ruling of 2026-11-07), word for word: the one tool that has no class of
+/// its own, AI Hub's knowledge base over the added documents, which the gate classifies by the bridge's classification setting.
+Parameter RAGSTATEMENT = "One tool has no class of its own: `documents`, the search over your added documents that AI Hub's knowledge base gives the Chat agent. AI Hub sends no source class with its calls, so the gate classifies this one tool, and no other, by the bridge's classification setting: safe and read-only, but its output is never trusted, so a turn that searches your documents is treated as holding untrusted content. The gate also limits each search to 5 passages. Any other call that arrives without a source class stays unclassified and counts as risky.";
+
+/// The class of the product's classification entries that name AI Hub's knowledge base, the toolset that attaches it and the agent that holds it.
+Parameter RAGCLASS = "%AI.RAG.KnowledgeBase";
+
+Parameter RAGTOOLSET = "OcuTalon.Docs.Store";
+
+Parameter RAGAGENT = "OcuTalon.Agent.Chat";
 
 /// The pattern with which the catalog is read.
 Parameter CATALOGPATTERN = "OcuTalon.%";
@@ -67,6 +80,7 @@ ClassMethod Model() As %DynamicObject
 /// The tool rows of Model.
 ClassMethod ToolRows() As %DynamicArray
 {
+	Do ..RagRows(.ragRows)
 	Set toolsets = ..CatalogClasses("ToolSets", ##class(OcuTalon.Install.Step.Tools).#TOOLPACKAGE)
 	Set agents = ..CatalogClasses("Agents", ..#AGENTPACKAGE)
 	Set position = 0
@@ -92,6 +106,7 @@ ClassMethod ToolRows() As %DynamicArray
 			Set rows(tool.name _ $Char(1) _ toolset) = ..ToolRow(tool.provider, tool.name, toolset, holding)
 		}
 	}
+	Merge rows = ragRows
 	Set result = []
 	Set key = ""
 	For {
@@ -100,6 +115,34 @@ ClassMethod ToolRows() As %DynamicArray
 		Do result.%Push(rows(key))
 	}
 	Quit result
+}
+
+/// The rows of the tools that have no class of their own (Story 19.4): one for each entry of the product's classification (Install.Step.Production
+/// ClassificationEntries, the entries that the install step seeds into Decide's ToolClassification row) whose class is RAGCLASS, so that the document cannot
+/// drift from what ships and does not depend on a row that an administrator may have changed. The name and the source are the entry's, the toolset is the class
+/// that attaches the tool (RAGTOOLSET), the agent is RAGAGENT, the step label is the one LabelFor gives, the classification and the flags are the entry's, and
+/// there are no resources. The rows are in ragRows, under the keys of ToolRows.
+ClassMethod RagRows(Output ragRows) [ Private ]
+{
+	Kill ragRows
+	Set entries = ##class(OcuTalon.Install.Step.Production).ClassificationEntries()
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		If entry.class '= ..#RAGCLASS Continue
+		Set agents = []
+		Do agents.%Push(..#RAGAGENT)
+		Set ragRows(entry.tool _ $Char(1) _ ..#RAGTOOLSET) = {
+			"name": (entry.tool),
+			"source": (entry.class),
+			"toolset": (..#RAGTOOLSET),
+			"agents": (agents),
+			"label": ($ClassMethod("OcuTalon.Bridge.Adapter.StepBuffer", "LabelFor", entry.class, entry.tool)),
+			"classification": (entry.classification),
+			"readOnly": (+entry.readOnly),
+			"trustedOutput": (+entry.trustedOutput),
+			"resources": ([])
+		}
+	}
 }
 
 /// The row of one tool: its values are read with the readers of the gate and the installer.
@@ -328,7 +371,7 @@ ClassMethod ToolsText(model As %DynamicObject) As %String
 	While iterator.%GetNext(, .tool) {
 		Set text = text_"| "_..Code(tool.name)_" | "_..Code(tool.source)_" | "_..Code(tool.toolset)_" | "_..CodeList(tool.agents)_" | "_..Cell(tool.label)_" | "_..Cell(tool.classification)_" | "_..YesNo(tool.readOnly)_" | "_..YesNo(tool.trustedOutput)_" | "_..Pairs(tool.resources)_" |"_$Char(10)
 	}
-	Quit text_$Char(10)
+	Quit text_$Char(10)_..#RAGSTATEMENT_$Char(10)_$Char(10)
 }
 
 /// The fix kinds section.

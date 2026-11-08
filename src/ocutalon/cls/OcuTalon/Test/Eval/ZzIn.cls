@@ -23,6 +23,9 @@
 ///   - Deliver (the TurnResult to EvalSink) records the fields of the TurnResult under ^OcuTalonTest("EvalIn", "delivered", n) as a list: ItemId,
 ///     SourceItemId, RecordedChecks, DecisionRef, ToolsRun, ReplyText, CatalogKey, CheckRows, Fallback, FallbackReason and the SuperSession of the
 ///     service. It answers the error status that ^OcuTalonTest("EvalIn", "deliverFail") holds, or OK when that is empty.
+///   - DocumentsUp (a documents case's documents, Story 19.4) records the case's documents under ^OcuTalonTest("EvalIn", "documents", n) as a list: the names
+///     of the documents and their files, comma-separated, and adds nothing; it answers the reason that ^OcuTalonTest("EvalIn", "documentsFail") holds, or ""
+///     when that is empty, with a setup record of made-up refs for Finish.
 ///   - Pause (the wait before a Busy turn is asked again) records the seconds under ^OcuTalonTest("EvalIn", "paused", n) and waits for none.
 /// DeleteBodies deletes the TurnResult bodies of the ItemIds that Ask and Deliver recorded: EvalIn saves a TurnResult before it asks, and the
 /// double's Deliver sends nothing, so no purge would ever remove it. The tests call it before they clear the records.
@@ -131,6 +134,22 @@ Method Deliver(result As OcuTalon.Eval.Msg.TurnResult) As %Status [ Private ]
 	Set ^OcuTalonTest("EvalIn", "delivered", $Increment(^OcuTalonTest("EvalIn", "delivered"))) = $ListBuild(result.ItemId, result.SourceItemId, result.RecordedChecks, result.DecisionRef, result.ToolsRun, result.ReplyText, result.CatalogKey, result.CheckRows, result.Fallback, result.FallbackReason, ..%SuperSession)
 	Set fail = $Get(^OcuTalonTest("EvalIn", "deliverFail"))
 	Quit $Select(fail '= "": $SYSTEM.Status.Error(5001, fail), 1: $$$OK)
+}
+
+Method DocumentsUp(case As %DynamicObject, folder As %String, Output documents As %DynamicObject) As %String
+{
+	Set documents = ""
+	Set names = "", files = ""
+	Set iterator = case.%Get("documents").%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Set names = names _ $Select(names '= "": ",", 1: "") _ one.name
+		Set files = files _ $Select(files '= "": ",", 1: "") _ one.file
+	}
+	Set ^OcuTalonTest("EvalIn", "documents", $Increment(^OcuTalonTest("EvalIn", "documents"))) = $ListBuild(names, files)
+	Set fail = $Get(^OcuTalonTest("EvalIn", "documentsFail"))
+	If fail '= "" Quit fail
+	Set documents = {"refs": ["zzEvalDocRef0000000001"]}
+	Quit ""
 }
 
 Method Pause(seconds As %Integer) [ Private ]

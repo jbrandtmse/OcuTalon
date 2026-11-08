@@ -37,7 +37,7 @@
 ///     check, report a failed read in sc, and run only in production jobs and tests.
 ///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
 ///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. RecentTurns leaves out a refused
-///     turn, and RecentNotices includes the allowance cards.
+///     turn, and RecentNotices includes the allowance cards and the digest cards (Story 17.10).
 ///   - The Documents page's reads (Story 34.2) are Rows kinds too: Documents, the session's own documents (and on a local install those of
 ///     owner instance, which every user shares), newest first, and Document, one by its Ref; a document the session can't see answers "".
 ///   - Upload (Story 34.3) is the session's own upload by its Ref, a Rows kind too; Data.Upload's Take and Drop read through it, and an upload of
@@ -410,7 +410,8 @@ ClassMethod Heartbeat(sessionRef As %String, Output sc As %Status) As OcuTalon.D
 }
 
 /// The session's newest web notice cards: the Delivery rows of channel web and kind tellnow, reminder or allowance, and those of
-/// kind approval or result that have a ChannelMessageId (only WebChatOut's tool-call cards have one), newest
+/// kind approval, result or digest that have a ChannelMessageId (only WebChatOut's tool-call cards and digest cards have one; a digest row
+/// of the time before the digest card, which records no text, has none), newest
 /// RecordedAt first and then newest ID first, at most max. sc is an error status when the read failed.
 ClassMethod RecentNotices(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
 {
@@ -907,7 +908,7 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	}
 	If kind = "recentNotices" {
 		Set class = "OcuTalon.Data.Delivery", binds = "ao"
-		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND (Kind IN ('tellnow', 'reminder', 'allowance') OR (Kind IN ('approval', 'result') AND ChannelMessageId IS NOT NULL)) ORDER BY RecordedAt DESC, ID DESC"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND (Kind IN ('tellnow', 'reminder', 'allowance') OR (Kind IN ('approval', 'result', 'digest') AND ChannelMessageId IS NOT NULL)) ORDER BY RecordedAt DESC, ID DESC"
 	}
 	If kind = "recentPhone" {
 		Set class = "OcuTalon.Data.SimMessage", binds = "ao"

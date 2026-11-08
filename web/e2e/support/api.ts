@@ -110,12 +110,17 @@ export async function holdPoll(page: Page): Promise<() => Promise<number>> {
   };
 }
 
-/** Holds every /state request of the page until release() is called, then lets the held ones through to the server. */
-export async function holdState(page: Page): Promise<{ release: () => void; held: () => number }> {
+/**
+ * Holds every /state request of the page until release() is called, then lets the held ones through to the server. With `first`, only the
+ * first `first` requests are held (Story 32.6): later ones go straight to the server, and held() counts the ones still waiting.
+ */
+export async function holdState(page: Page, first?: number): Promise<{ release: () => void; held: () => number }> {
   const waiting: Array<() => void> = [];
   let released = false;
+  let seen = 0;
   await page.route(`**${STATE}`, async (route: Route) => {
-    if (!released) {
+    seen += 1;
+    if (!released && (first === undefined || seen <= first)) {
       await new Promise<void>((resolve) => waiting.push(resolve));
     }
     await route.continue().catch(() => undefined);

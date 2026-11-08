@@ -110,9 +110,6 @@ Parameter GOTITACTION = "gotit";
 /// The catalog key of the text that replaces the button of a handled notice.
 Parameter HANDLEDKEY = "handled.marked";
 
-/// The catalog keys of the parts of a digest that follow the coverage lines: the needs-you parts, the saved-for-later parts and the cost.
-Parameter AFTERLINES = "digest.needsYou,digest.needsYouOne,digest.needsYouMore,digest.saved,digest.savedNone,digest.savedNoSummary,digest.cost";
-
 /// The most UTF-16 units of a message with buttons: the Bot API's 4,096 less a reserve, so that the edited text always fits.
 Parameter BUTTONLIMIT = 3840;
 
@@ -174,7 +171,7 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 	Set sc = ..Target(request.ChatRef, request.SessionRef, .chatRef, .chatId)
 	If (chatId = "") || $SYSTEM.Status.IsError(sc) Quit sc
 	If request.Kind = "digest" {
-		Set text = ..DigestText(request, .sc)
+		Set text = ##class(OcuTalon.Channel.DigestText).Text(request.Slots, ..#TEXTCHANNEL, .sc)
 	} Else {
 		Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
 	}
@@ -208,54 +205,6 @@ Method GotItKeyboard(decisionRef As %String, Output sc As %Status) As %DynamicOb
 	Set label = ##class(OcuTalon.Msg.Catalog).Render(..#GOTITKEY, "", ..#TEXTCHANNEL, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit ""
 	Quit {"inline_keyboard": [[{"text": (label), "callback_data": (..#GOTITACTION_":"_decisionRef)}]]}
-}
-
-/// The text of a digest (see the class comment): the rendering of every part and line, one on each line. The coverage lines go before the first part
-/// whose key is one of AFTERLINES, or at the end when there is none. The status is an error, and the text "", when the Slots cannot be read or a
-/// piece cannot be rendered.
-Method DigestText(request As OcuTalon.Msg.Notification, Output sc As %Status) As %String [ Private ]
-{
-	Set sc = $$$OK
-	Set text = ""
-	Try {
-		Set slots = ##class(%DynamicAbstractObject).%FromJSON(request.Slots)
-		If '$IsObject(slots) || (slots.%GetTypeOf("parts") '= "array") || (slots.%GetTypeOf("lines") '= "array") {
-			$$$ThrowStatus($SYSTEM.Status.Error(5001, "the digest's Slots have no parts or no lines"))
-		}
-		Set done = 0
-		Set iterator = slots.parts.%GetIterator()
-		While iterator.%GetNext(, .part) {
-			If 'done && $ListFind($ListFromString(..#AFTERLINES), part.key) {
-				Set text = text_..Pieces(slots.lines, text)
-				Set done = 1
-			}
-			Set text = text_$Select(text = "": "", 1: $Char(10))_..Piece(part)
-		}
-		If 'done Set text = text_..Pieces(slots.lines, text)
-	} Catch exception {
-		Set sc = exception.AsStatus()
-		Set text = ""
-	}
-	Quit text
-}
-
-/// The renderings of the {key, slots} elements of an array, each on a line of its own, with a line break before the first when the text before it is not empty.
-Method Pieces(elements As %DynamicArray, before As %String) As %String [ Private ]
-{
-	Set text = ""
-	Set iterator = elements.%GetIterator()
-	While iterator.%GetNext(, .element) {
-		Set text = text_$Select((text = "") && (before = ""): "", 1: $Char(10))_..Piece(element)
-	}
-	Quit text
-}
-
-/// The catalog text of one {key, slots} element for the channel; a render error is thrown.
-Method Piece(element As %DynamicObject) As %String [ Private ]
-{
-	Set text = ##class(OcuTalon.Msg.Catalog).Render(element.key, element.slots, ..#TEXTCHANNEL, .sc)
-	If $SYSTEM.Status.IsError(sc) $$$ThrowStatus(sc)
-	Quit text
 }
 
 /// The chat of a message: the chat row of its ChatRef when it has one, else the live pairing of its SessionRef (an owner that is not a
