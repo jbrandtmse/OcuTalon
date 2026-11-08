@@ -283,6 +283,7 @@ Method TestTwoVisitors()
 		}
 		Do $$$AssertEquals(refs, mine, name _ ": HostData.memories holds only the visitor's own memory")
 		Set result = ..ToolResult(requests)
+		Do $$$AssertTrue($IsObject(result) && $IsObject(result.memories), name _ ": the search_memories result holds a list of memories")
 		If $IsObject(result) && $IsObject(result.memories) {
 			Set found = ""
 			Set iterator = result.memories.%GetIterator()

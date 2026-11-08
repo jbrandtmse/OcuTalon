@@ -11,8 +11,14 @@
 ///     DropSession is OK and changes nothing, and a Ref with no Session row, instance and eval drop nothing;
 ///   - TestDropWhileIndexing: DropSession right after AddDocument, while DocumentOps indexes a long document, leaves no table, no class, no global and no row,
 ///     and no later batch makes the table again;
+///   - TestIndexingError: a batch that fails while a session's document is indexed makes the document failed with the reason failed, takes the rows its first
+///     batch wrote out of the session's own table (not the install's), and sends one failed event to the session's stream and none to the instance's;
+///   - TestDocumentsFeature (DW-892): the documents id is in Demo.Features Present() on this build, with the online demo on;
 ///   - TestDropLockHeld: while another job holds the owner's lock, DropSession returns an error status after 5 seconds and drops nothing; once it is free it
-///     drops.
+///     drops;
+///   - TestBatchYieldsToDrop: a batch of DocumentOps (IndexBatch) for a session that is being dropped (Store Drain) writes no passage and stops as gone, a
+///     batch while another job holds the owner's lock exclusively (as a drop does) returns an error status and writes nothing, and the same batch with the lock
+///     free and no mark writes one batch.
 Class OcuTalon.Test.Docs.Sessions Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -262,6 +268,55 @@ Method TestDropWhileIndexing()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Docs.TurnTools).DataDatabase("OcuTalonP.KB"), "", "nothing of it is in OCUTALON_DATA")
 }
 
+Method TestIndexingError()
+{
+	If '..Ready() Quit
+	Set a = ..Session("a")
+	Set table = ..TableOf(a)
+	Set lf = $Char(10)
+	Set text = ""
+	For i = 1:1:10 Set text = text _ "## Step " _ i _ lf _ "The Results runbook step " _ i _ " says how to handle the certificate of lab " _ i _ "." _ lf _ lf
+	Do $$$AssertStatusOK(##class(OcuTalon.Docs.Store).EnsureTable(table), "the session's table is made")
+	Set row = ##class(OcuTalon.Data.Document).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.OwnerRef = a, row.AddedBy = a, row.Name = "Broken.md", row.ContentType = "markdown", row.Size = $Length(text)
+	Set row.AddedAt = ##class(OcuTalon.Data.Time).NowUtc(), row.State = "indexing", row.KnowledgeBase = table
+	Do row.Text.Write(text)
+	Do $$$AssertStatusOK(row.%Save(), "the row of a session's document whose first batch is written is made")
+	Set ref = row.Ref
+	Set row = ""
+	Do $ClassMethod("OcuTalon.Docs.Passages", "Split", text, "markdown", .passages)
+	Set batch = $Parameter("OcuTalon.Docs.Ops", "BATCH")
+	Do $$$AssertTrue(passages.%Size() > batch, "the document has more passages than one batch: " _ passages.%Size())
+	Do $$$AssertStatusOK(##class(OcuTalon.Docs.Store).Write(ref, "Broken", passages, 0, batch, table, a), "its first batch is written to the session's table")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Store).Count(ref, table) _ "|" _ ##class(OcuTalon.Docs.Store).Count(ref), batch _ "|0", "as " _ batch _ " rows there and none in the table of the install")
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Docs.Ops", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of DocumentOps is made")
+	If '$IsObject(host) Quit
+	Set index = ##class(OcuTalon.Docs.Msg.Index).%New()
+	Set index.Ref = ref
+	Set index.ChunkFrom = batch
+	Set variable = ##class(OcuTalon.Memory.Embedder).#FOLDERVARIABLE
+	Set previous = $SYSTEM.Util.GetEnviron(variable)
+	Set environ = ##class(%SYS.Python).Import("os").environ
+	Do environ."__setitem__"(variable, "/dev/null/zz-docs-no-model/")
+	Set sc = host.OnIndex(index, .response)
+	Do ##class(OcuTalon.Test.Memory.Fixture).PutVariable(environ, previous)
+	Do $$$AssertStatusOK(sc, "the next batch is handled although its passages cannot be embedded")
+	Do $$$AssertEquals(..State(ref), "failed", "the session's document is failed")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Store).Count(ref, table), 0, "the rows its first batch wrote are deleted from the session's table")
+	Do $$$AssertEquals(..Events(a, ref) _ "|" _ ..Events("instance", ref), "failed|", "the session's stream got the failed event and the instance's got none")
+	Do $$$AssertEquals($SYSTEM.SQL.Schema.TableExists(table), 1, "the table stays for the session's next document")
+}
+
+Method TestDocumentsFeature()
+{
+	Set present = ##class(OcuTalon.Demo.Features).Present()
+	Do $$$AssertEquals(##class(OcuTalon.Data.Public.Settings).Get("onlineDemo"), "1", "control: the online demo is on")
+	Do $$$AssertEquals($ListFind(present, "documents") > 0, 1, "the documents feature is listed on this build, so the demo offers it")
+	Do $$$AssertEquals(+$Parameter("OcuTalon.Docs.Ops", "STUB"), 0, "because DocumentOps is no stub")
+}
+
 Method TestDropLockHeld()
 {
 	If '..Ready() Quit
@@ -290,14 +345,64 @@ Method TestDropLockHeld()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Docs.SessionLive).Facts(a), "0|0|0|0|0", "and drops everything")
 }
 
-/// The job body of TestDropLockHeld: holds the owner's lock (shared, as a writer holds it) for the seconds, and notes it.
-ClassMethod Hold(owner As %String, seconds As %Integer)
+/// The job body of TestDropLockHeld and TestBatchYieldsToDrop: holds the owner's lock (shared, as a writer holds it, or exclusive, as a drop holds it) for the
+/// seconds, and notes it.
+ClassMethod Hold(owner As %String, seconds As %Integer, exclusive As %Boolean = 0)
 {
-	Set sc = ##class(OcuTalon.Docs.Store).LockOwner(owner)
+	Set sc = ##class(OcuTalon.Docs.Store).LockOwner(owner, exclusive)
 	Set ^IRIS.Temp.ZzDocSessions("held") = $$$ISOK(sc)
 	Hang seconds
-	Do ##class(OcuTalon.Docs.Store).UnlockOwner(owner)
+	Do ##class(OcuTalon.Docs.Store).UnlockOwner(owner, exclusive)
 	Set ^IRIS.Temp.ZzDocSessions("done") = 1
+}
+
+Method TestBatchYieldsToDrop()
+{
+	If '..Ready() Quit
+	Set a = ..Session("a")
+	Set table = ..TableOf(a)
+	Set lf = $Char(10)
+	Set text = ""
+	For i = 1:1:10 Set text = text _ "## Step " _ i _ lf _ "The Results runbook step " _ i _ " says how to handle the certificate of lab " _ i _ "." _ lf _ lf
+	Do $$$AssertStatusOK(##class(OcuTalon.Docs.Store).EnsureTable(table), "the session's table is made")
+	Set row = ##class(OcuTalon.Data.Document).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.OwnerRef = a, row.AddedBy = a, row.Name = "Batch.md", row.ContentType = "markdown", row.Size = $Length(text)
+	Set row.AddedAt = ##class(OcuTalon.Data.Time).NowUtc(), row.State = "indexing", row.KnowledgeBase = table
+	Do row.Text.Write(text)
+	Do $$$AssertStatusOK(row.%Save(), "the row of a session's document that is being indexed is made")
+	Set ref = row.Ref
+	Set row = ""
+	Set ops = "OcuTalon.Docs.Ops"
+
+	// The owner is marked as being dropped: the batch writes nothing and finds the document gone.
+	Do ##class(OcuTalon.Docs.Store).Drain(a, 1)
+	Set sc = $ClassMethod(ops, "IndexBatch", ref, 0, .state, .done)
+	Do ##class(OcuTalon.Docs.Store).Drain(a, 0)
+	Do $$$AssertStatusOK(sc, "a batch while the owner is being dropped is OK")
+	Do $$$AssertEquals(state _ "|" _ ##class(OcuTalon.Docs.Store).Count(ref, table) _ "|" _ ..State(ref), "gone|0|indexing", "it stops as gone, writes no passage and leaves the row to the drop")
+
+	// Another job holds the owner's lock as a drop does: the batch waits, fails and writes nothing.
+	Kill ^IRIS.Temp.ZzDocSessions
+	Job ##class(OcuTalon.Test.Docs.Sessions).Hold(a, 8, 1)
+	Set deadline = $ZHorolog + 20
+	While '$Data(^IRIS.Temp.ZzDocSessions("held")) && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Do $$$AssertEquals($Get(^IRIS.Temp.ZzDocSessions("held")), 1, "another job holds the owner's lock exclusively")
+	Set sc = $ClassMethod(ops, "IndexBatch", ref, 0, .state, .done)
+	Do $$$AssertStatusNotOK(sc, "a batch under a drop's lock returns an error status")
+	Do $$$AssertEquals(##class(OcuTalon.Docs.Store).Count(ref, table), 0, "and writes no passage")
+	Set deadline = $ZHorolog + 30
+	While '$Data(^IRIS.Temp.ZzDocSessions("done")) && ($ZHorolog < deadline) {
+		Hang 0.2
+	}
+	Do $$$AssertEquals($Get(^IRIS.Temp.ZzDocSessions("done")), 1, "the job let the lock go")
+
+	// Control: with the lock free and no mark, the batch writes.
+	Set sc = $ClassMethod(ops, "IndexBatch", ref, 0, .state, .done)
+	Do $$$AssertStatusOK(sc, "then the batch is OK")
+	Do $$$AssertEquals(state _ "|" _ ##class(OcuTalon.Docs.Store).Count(ref, table), "more|" _ $Parameter(ops, "BATCH"), "and writes one batch of passages")
 }
 
 }

@@ -12,6 +12,8 @@
 ///   - TestOtherKinds: a request of kind decide gets no manager of its own when the class gives none for the kind, and the owner and kind reach the class;
 ///   - TestComposesOnce: two session configs of one request (as a compaction composes) ask the class once and give the same composed manager, and the agent's own
 ///     manager is put back; an agent that is built again records each attached spec once;
+///   - TestFailureRestores: a request whose session config fails after its manager was composed (ZzTurnAdapter's fail node) ends in that error with no model
+///     request, the agent's own manager is put back, and the next request, which gets no turn tool, offers none of the failed request's;
 ///   - TestSkills: an agent that declares skills fails a request that gets turn tools, with an error that names the agent, and no model request is sent; the same
 ///     agent runs a request that gets none;
 ///   - TestMissingClass: a TurnToolsClass that is not a compiled class, or that does not extend the base, ends the request with that error and sends no model request.
@@ -168,6 +170,33 @@ Method TestComposesOnce()
 	Set adapter.Agent = ""
 	Do $$$AssertStatusOK(adapter.BuildAgent(), "the agent is built again")
 	Do $$$AssertEquals(adapter.AttachedCount(), 1, "and the attached spec is still recorded once")
+}
+
+Method TestFailureRestores()
+{
+	If ..Guard() Quit
+	Do ..Use(..#TURNTOOLS)
+	Set ^OcuTalonTest("TurnTools", "give") = 1
+	Set ^OcuTalonTest("TurnTools", "fail") = 1
+	Set host = ..Runner(..#AGENT)
+	Set adapter = host.Adapter
+	Do $$$AssertStatusOK(adapter.BuildAgent(), "the agent builds")
+	Set own = adapter.Agent.ToolManager
+	Set request = ..NewRequest("diagnose", "[[mock:turn-tools-probe]] Run the turn probe.", "zz-turn-owner-7")
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusNotOK(sc, "a request that fails after its manager was composed ends in an error")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "after the composition", "the fixture's error: " _ $SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals($Get(^||ZzTurn("calls")), 1, "control: the class was asked and gave the turn tool")
+	Do $$$AssertEquals(..Requests(request).%Size(), 0, "no model request was sent")
+	Do $$$AssertEquals(adapter.Agent.ToolManager = own, 1, "the agent's own manager is put back on the error path")
+	Kill ^OcuTalonTest("TurnTools", "fail")
+	Set ^OcuTalonTest("TurnTools", "give") = 0
+	Set request = ..NewRequest("diagnose", "[[mock:recall-ask]] Where is the build server?", "zz-turn-owner-8")
+	Set sc = host.OnMessage(request, .reply)
+	Do $$$AssertStatusOK(sc, "the next request, which gets none, is answered")
+	Set requests = ..Requests(request)
+	Do $$$AssertEquals(requests.%Size(), 1, "with one model request")
+	If requests.%Size() = 1 Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(0)), ..#OWN _ ",zz_turn_set", "which offers no tool of the failed request")
 }
 
 Method TestSkills()

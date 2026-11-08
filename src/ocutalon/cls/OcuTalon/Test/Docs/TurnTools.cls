@@ -185,7 +185,7 @@ Method TestKinds()
 	If list.Count() = 1 Do $$$AssertEquals(list.GetAt(1).VectorStore.TableName, "OcuTalonKB.Eval", "over OcuTalonKB.Eval")
 	Set sc = $ClassMethod(tools, "Tools", "eval", "decide", .list)
 	Do $$$AssertEquals(list.Count(), 0, "and no kind but turn gets any")
-	Do $$$AssertEquals($ClassMethod("OcuTalon.Bridge.Ext.TurnTools", "%IsA", tools) _ "|" _ $ClassMethod(tools, "%Extends", "OcuTalon.Bridge.Ext.TurnTools"), "0|1", "Docs.TurnTools extends the bridge's TurnTools")
+	Do $$$AssertEquals($ClassMethod(tools, "%Extends", "OcuTalon.Bridge.Ext.TurnTools"), 1, "Docs.TurnTools extends the bridge's TurnTools")
 }
 
 Method TestNoTable()

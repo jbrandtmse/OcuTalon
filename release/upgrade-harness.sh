@@ -1025,10 +1025,12 @@ document_make() {
 
 # document_found <ref>: "" when a search of the document's knowledge base returns one of its passages, else the reason.
 document_found() {
-  printf '%s\n' \
+  local why
+  why=$(printf '%s\n' \
     "Set r=##class(OcuTalon.Test.Docs.Live).Found(\"$1\",\"$DOC_QUERY\")" \
     'Write !,"CHK|found|",$Select(r="":"ok",1:r)' \
-    'Halt' | session_value OCUTALON found | sed 's/^ok$//'
+    'Halt' | session_value OCUTALON found)
+  if [ "$why" != ok ]; then echo "${why:-the IRIS call gave no answer}"; fi
 }
 
 document_check() { # document_check <label> <ref>
@@ -1043,6 +1045,7 @@ seed_memory() {
   row memory
   local built
   built=$(built_class OcuTalon.Memory.Ops)
+  if [ -z "$built" ]; then fail "memory: the IRIS call gave no answer whether the previous build's MemoryOps is built"; return; fi
   env_set "$state/seed.env" prev_memory "${built:-0}"
   if [ "$built" != 1 ]; then echo "INFO memory: the previous build's MemoryOps is not built, so no memory is saved in the seed"; return; fi
   if memory_make "memory: the previous build" "up-$key-7"; then
@@ -1055,6 +1058,7 @@ seed_document() {
   row document
   local built
   built=$(built_class OcuTalon.Docs.Ops)
+  if [ -z "$built" ]; then fail "document: the IRIS call gave no answer whether the previous build's DocumentOps is built"; return; fi
   env_set "$state/seed.env" prev_document "${built:-0}"
   if [ "$built" != 1 ]; then echo "INFO document: the previous build's DocumentOps is not built, so no document is added in the seed"; return; fi
   if document_make "document: the previous build"; then env_set "$state/seed.env" doc_ref "$doc_ref"; fi

@@ -2,8 +2,9 @@ Include Ensemble
 
 /// DocumentOps (AD-1, AD-4, AD-5, AD-12, AD-21, AD-33; Lane A): the business operation that keeps the documents of a local install and of each online-demo
 /// session. An adapterless operation, like MemoryOps. It alone writes OcuTalon.Data.Document and the rows of the knowledge-base tables (through
-/// OcuTalon.Docs.Store), with the one exception of the evaluation path of this class (AddEval and RemoveEval, below), which writes only documents of the owner
-/// eval in the caller's process, and it is the single publisher of the document live event (OcuTalon.Live.Payload.Document, on the stream of the document's owner:
+/// OcuTalon.Docs.Store), with two exceptions: the evaluation path of this class (AddEval and RemoveEval, below), which writes only documents of the owner
+/// eval in the caller's process, and the sign-out deletion of a session's documents and tables (OcuTalon.Docs DropSession, in SessionOps' job, under the
+/// owner's exclusive lock); and it is the single publisher of the document live event (OcuTalon.Live.Payload.Document, on the stream of the document's owner:
 /// the instance stream for a local install, the session's own stream on the online demo). Each owner has its own table (Docs.Store TableFor): OcuTalonKB.Docs
 /// for the install, OcuTalonKB.S<id> for a session, OcuTalonKB.Eval for an evaluation run. The table of a session is made by its first AddDocument, and
 /// OcuTalon.Docs DropSession drops it at sign-out. Every operation on a document's rows uses that row's own KnowledgeBase. It answers AddDocument and RemoveDocument synchronously with an
@@ -430,7 +431,7 @@ Method Fail(ref As %String, cause As %Status) [ Private ]
 	$$$LOGWARNING(..#LOGFAILED_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(cause)))
 	Try {
 		Set row = ##class(OcuTalon.Data.Document).RefIndexOpen(ref)
-		If $IsObject(row) && (row.KnowledgeBase '= "") Do ##class(OcuTalon.Docs.Store).Remove(ref, row.KnowledgeBase)
+		If $IsObject(row) Do ##class(OcuTalon.Docs.Store).Remove(ref, $Select(row.KnowledgeBase '= "": row.KnowledgeBase, 1: ##class(OcuTalon.Docs.Store).#TABLE))
 		If $IsObject(row) && (row.State = "indexing") {
 			Set row.State = "failed"
 			Set row.Reason = "failed"

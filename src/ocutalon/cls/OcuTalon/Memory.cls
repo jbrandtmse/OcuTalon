@@ -1,6 +1,6 @@
 /// The memory area's entry points that other areas call (AD-21; Lane A): the read side of the memories (Search and List), the statistics step that
 /// keeps the recall query on its index (Tune), and the sign-out deletion of a session's memories (DropSession, Story 19.5). Writes are MemoryOps' alone
-/// (OcuTalon.Memory.Ops). Every read is restricted to one owner, the SessionRef it is given, and no method here calls AI Hub or Python (AD-6): a
+/// (OcuTalon.Memory.Ops), except that deletion, which runs in SessionOps' job under MemoryOps' lock for the session. Every read is restricted to one owner, the SessionRef it is given, and no method here calls AI Hub or Python (AD-6): a
 /// query is embedded only through OcuTalon.Memory.Embedding.Embed, which queues the work to a worker.
 ///   - Search: the memories of one session that answer a query. The query is embedded, and two lists are made, each restricted to the owner: the 20
 ///     nearest memories by VECTOR_COSINE (the HNSW index EmbeddingIdx, with the owner filter applied while the index is walked) and the 20 best

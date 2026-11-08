@@ -4841,6 +4841,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: docker/tests/test-rehearsal.sh pins the step on stubs; the sign-in step after it is the real check
 - 2026-11-06T09:07:41Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5 extends the release/ upgrade harness; run the rehearsal dry run on a lane-C throwaway there
+- 2026-11-08T11:25:16Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=adjudication note=evidence/19-5-dw783-rehearse-dry-run.md:dry_run_on_lane-C_throwaway_e19s5ir:memory-offline_pass(MEMOFF-RECONNECTED),sign-in_pass_on_52803_right_after,docker_port_52773->52803_after_reconnect;no_release-tool_hunk
 
 ### DW-784: docs/install-ipm.md does not say that an IPM install fetches fastembed through requirements.txt and downloads the model (about 97 MB) into <mgr>/fastembed/, or what WARN Memory means; its sample output shows STEP Memory OK 0.1s and no WARN Memory
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -5327,12 +5328,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Demo/Features.cls Built() treats a class without STUB as built
 - 2026-11-07T23:30:12Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5 builds the per-session documents of the online demo
 - 2026-11-08T01:47:04Z occurrence=19-4-answer-from-documents-with-citations
+- 2026-11-08T11:25:16Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=adjudication note=Docs.Ops_no_STUB;Test.Docs.Sessions:TestDocumentsFeature(mutation_STUB=1_red);live:session-data_demo_add_reaches_ready
 
 ### DW-893: An agent job builds its tools once, so the Chat agent's documents tool is attached or left out for the job's life by the online-demo setting at that moment
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: adapter builds the agent on the first request
 - 2026-11-07T23:30:13Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5's per-turn tool manager (TurnToolsClass) is the fix
 - 2026-11-08T01:47:05Z occurrence=19-4-answer-from-documents-with-citations
+- 2026-11-08T11:25:16Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=adjudication note=per-turn_composition(Ext.TurnTools,Adapter.SessionConfigFor);Test.Docs.SessionTurns+Test.Bridge.TurnTools(mutation_skip_composition_red)
 
 ### DW-894: Indexing speed: each passage costs one Embedder round trip of about 0.33 s, so a 100-passage document is ready after about 35 s and a 1,000-passage one after about 5.5 minutes
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
@@ -5353,14 +5356,42 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: rework 1 edge-case and blind layers: Docs/Ops.cls AddEval/RemoveEval, Eval/In.cls DocumentsUp; a start-of-run sweep of OwnerRef eval rows (RemoveEval each) closes it
 - 2026-11-08T02:48:55Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5 touches Docs ownership and the per-session store; add the sweep there
+- 2026-11-08T11:25:17Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=adjudication note=Eval.In.Start_sweeps_eval_rows_via_RemoveEval;Test.Eval.Documents:TestSweep,TestSweepFails(mutations_red)
 
 ### DW-901: While an evaluation run is in flight its documents sit in the shared OcuTalonKB.Docs table, so a person's chat turn on the same instance can retrieve and cite them (the knowledge-base search has no owner filter)
 - source: _bmad-output/implementation-artifacts/spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: rework 1 review: Docs/Store.cls has no owner column; only the Documents-page reads filter by OwnerRef; same shared-table design as before the rework
 - 2026-11-08T02:48:55Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5's per-session tables and per-turn attach are the place to scope retrieval
+- 2026-11-08T11:25:17Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=adjudication note=eval_rows_in_OcuTalonKB.Eval,per-turn_attach_by_owner;Test.Docs.Turns:TestEvalDocuments,TestEvalNotSearched(+U-305_pin)
 
 ### DW-940: The upgrade harness reads an empty answer of an IRIS call as success: document_found maps no output to found, and built_class/seed_memory/seed_document read it as not built
 - source: _bmad-output/implementation-artifacts/spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 19.5 implement review: release/upgrade-harness.sh:1027 and :1042-1060 (approved hunks H5/H6); the fix edits a frozen release tool beyond the ruled hunks
 - 2026-11-08T10:22:47Z status=escalated owner=burndown by=harvest note=needs a Planner ruling (release-tool freeze until v1.0.4 is merged back)
 - 2026-11-08T10:32:45Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=owner note=planner_ruling_option_a(owner_delegation,orchestrator_relay):minimal_H5/H6_fix,empty_answer=failure,test_pins_both;delivered_in_19.5_review;close_by=owner_when_delivered
+- 2026-11-08T11:25:17Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=owner note=planner_ruling_option_a_delivered_in_the_19.5_review:empty_IRIS_answer=failure(document_found,seed_memory,seed_document);pin_t_memory_document(empty_fails,real_passes);release/upgrade-harness.sh:1028-1029,1032-1033,1048,1061;no_other_harness_line
+
+### DW-950: An approved call of a tool that only a TurnToolsClass manager offers cannot be replayed: Replay.Run runs ExecuteTool on the agent's own manager, which no request adds a turn tool to
+- source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Adapter/Agent.cls Answer hands kind tool to Replay.Run before any composition; Replay.cls:65 adapter.Agent.ToolManager.ExecuteTool; documents is held (and so replayed) only when Decide's ToolClassification row cannot be read (Install/Step/Production.cls:294), and a host's own risky turn tool always would be
+- 2026-11-08T11:22:28Z status=decision-pending owner=burndown by=cr note=product call: Replay composes the approval owner's turn tools, or the guide states a turn tool must be classified safe; spec matrix Other kinds composes nothing for tool
+
+### DW-951: The upgrade harness's new api_get polls GET /v1/documents with no unique probe query, unlike state_get, so a gateway-kept answer could be read
+- source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: release/upgrade-harness.sh:618-620 (frozen hunk H4); lib-online.sh:26 says the web gateway keeps the answer to a URL; the document check also needs the IRIS-side search (document_found), so a stale ready alone passes nothing
+- 2026-11-08T11:22:28Z status=wontfix-accepted owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=cr note=frozen release tool; reopen_if=a harness run's document row fails 'not ready within 120 s' or passes ready while GET /v1/documents?probe=<n> shows another state
+
+### DW-952: A request that gets turn tools rebuilds its manager from TOOLSETS and Attach only, so a tool an agent adds in its own %OnInit (UseToolSet, ToolManager.AddTool) is silently absent from that request
+- source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Adapter/Agent.cls BuildTurnManager registers ..Agent.ToolSets or #TOOLSETS, the Attach specs and the turn tools; no product agent adds a tool in %OnInit (rg UseToolSet src: none) and the bridge guide (line 189, 195) names TOOLSETS as the agent's tools
+- 2026-11-08T11:22:28Z status=wontfix-accepted owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=cr note=reopen_if=rg 'UseToolSet|ToolManager.AddTool' src finds an agent class run by a runner outside Adapter.Attach
+
+### DW-953: A sign-out whose document drop times out on the owner lock leaves a document whose batch stopped on the drop mark in state indexing until a later drop
+- source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Docs.cls DropSession sets Drain before LockOwner(...,1); Docs.Ops IndexBatch quits as gone while Draining, so no next Index is sent; on the 5 s timeout the mark is cleared and nothing re-queues the batch (Design Notes decided (g), residual risks)
+- 2026-11-08T11:22:28Z status=wontfix-accepted owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=cr note=decided (g); reopen_if=a demo visitor's document stays indexing after a POST /v1/session/end that answered failed
+
+### DW-954: docs/security-overview.md is not brought up to date with Story 19.5: the inventory statement no longer sees per-request tools, and the online-demo isolation line names no documents or memories
+- source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Install/SecurityOverview.cls STATEMENT says TestToolInventory checks every running runner, but the documents tool now lives on a per-request manager that Inventory never reads; security-overview.md:203 lists chat, decisions and approvals only; new wording is PUBLIC TEXT
+- 2026-11-08T11:22:28Z status=wontfix-accepted owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=cr note=public text; reopen_if=a TurnToolsClass tool other than the documents knowledge base ships, or the overview is regenerated for step 3

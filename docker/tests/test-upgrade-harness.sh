@@ -978,6 +978,11 @@ t_memory_document() {
   seeding=1
   STUB_BUILT=1 STUB_MEM="" seed_memory > /dev/null
   eq "a turn that saved no memory fails the seed" "$(md_lines memory fail)" 1
+  pairing_fresh
+  seeding=1
+  STUB_BUILT="" seed_memory > /dev/null
+  STUB_BUILT="" seed_document > /dev/null
+  eq "an empty answer of built_class fails both seeds and is never 'not built'" "$(md_lines memory fail)$(md_lines document fail)|$(env_get "$state/seed.env" prev_memory)$(env_get "$state/seed.env" prev_document)" "11|"
 
   # The upgrade part: the note without a seed, the checks with one.
   pairing_fresh
@@ -1007,6 +1012,13 @@ t_memory_document() {
   STUB_DFOUND="the search returned no passage of the document" check_document_upgrade > /dev/null
   eq "a search that misses the memory is a fail line" "$(md_lines memory fail)" 1
   eq "a search that misses the document is a fail line (its listing passed)" "$(md_lines document pass)$(md_lines document fail)" 11
+  for answer in "" ok; do
+    pairing_fresh
+    env_set "$state/seed.env" prev_document 1
+    env_set "$state/seed.env" doc_ref zzdoc1
+    STUB_DFOUND=$answer check_document_upgrade > /dev/null
+    eq "the search's answer '$answer': an empty one is a fail line and never found, a real one passes" "$(md_lines document pass)$(md_lines document fail)" "$([ -z "$answer" ] && echo 11 || echo 20)"
+  done
   pairing_fresh
   env_set "$state/seed.env" prev_document 1
   env_set "$state/seed.env" doc_ref zzdoc1
