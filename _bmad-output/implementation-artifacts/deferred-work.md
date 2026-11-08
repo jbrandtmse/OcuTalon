@@ -5451,3 +5451,48 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: evidence/ep-bug-s11/results.md (Story 0.16) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: 9/9 crossing runs died, 6/6 one-sided runs survived per build (orders c,d,e vs a,b); messages.log caught signal 11 JobType=Interactive job; OcuTalon avoids it by AD-6 (embeddings in a WorkMgr worker)
 - 2026-11-07T21:43:35Z status=by-design owner=0-16-the-embedded-python-callback-crash-s11-is-re-verified-with-a by=evidence note=AI_Hub_platform_defect_not_ours;AD-6_rule_stands;public_report_drafted_by_the_Planner_posted_by_the_owner(no_filing_here);reopen_if=a_build_after_2027.1.0AI.109_survives_orders_c,d,e_of_ep-bug-s11/run.sh
+
+### DW-911: A retried test that passes leaves its retry-time DIAG /state lines (requests, page probe, host) only in the runner's e2e log and test-results, which a green job neither prints nor uploads
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: cmd_live reprints only RETRY-shaped lines (matrix row 'cmd_live with retries'); ci.yml uploads web/test-results only if: failure(); retain-on-failure keeps no trace of a passing test
+- 2026-11-08T07:25:28Z status=decision-pending owner=burndown by=cr note=spec-bound design call: cmd_live prints the retry-time DIAG lines, or results upload when RETRIES>0 (ci.yml, Never list)
+
+### DW-912: loadedAfter's retry: the closed-page checks inside withOneReload's retry() have no case of their own (r7 closes the page at 1 s, before the retry runs)
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: removing both page.isClosed() checks leaves r7 green; a pin needs a case of at least 10 s (RETRY_MIN_ATTEMPT_MS); the settled flag also covers a close
+- 2026-11-08T07:25:28Z status=wontfix-accepted owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=reopen_if=a job log shows RETRY or DIAG /state reload failed for a test whose page closed during loadedAfter
+
+### DW-913: Story 32.6's hermetic reload cases add about 100 s of real waiting to live:sign-in-2 (shards-4), above the spec's 50 s estimate
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: the 'one reload of the page' grep ran 12 cases in 1.7 min locally; RETRY_MIN_ATTEMPT_MS is fixed at 10 s, so each retry case waits at least 10 s
+- 2026-11-08T07:25:28Z status=wontfix-accepted owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=reopen_if=a CI run shows shards-4 above 35 min or the live:sign-in-2 UNIT line above 1,000 s
+
+### DW-914: A reload still pending at the bound prints a late DIAG /state reload failed line (TargetClosedError at teardown) after the second-miss diagnosis
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the reload's timeout is whole + WAIT_SLACK_MS from B/2, and its catch prints after the call has ended (cancelled); a pin needs a case of at least 20 s
+- 2026-11-08T07:25:29Z status=wontfix-accepted owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=reopen_if=a failure's job log or state-diagnosis.txt shows DIAG /state reload failed after the bound's error
+
+### DW-915: The RETRY line is printed and appended without redactLine, although the Boundaries say every new line goes through it
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: bounds.ts reportRetry logs retryLine(retryLocation(), step): a config-relative spec path, a line number and a constant step
+- 2026-11-08T07:25:29Z status=wontfix-theoretical owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=real if a spec path or step could hold a secret-shaped value; redactLine's long-token rule could also eat a long spec name
+
+### DW-916: retryLocation's working-folder fallback can print a partial host path when that folder is an ancestor of the spec, and retry_lines accepts a leading /
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: relative('/Users/x', file) gives 'git/...'; the fallback runs only when test.info().config.configFile is unset, which no --project run has
+- 2026-11-08T07:25:29Z status=wontfix-theoretical owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=real if a Playwright run without a config file reached loadedAfter from a folder above the repository
+
+### DW-917: The retry's reload and second wait keep their whole + WAIT_SLACK_MS timeouts past the outer bound, so a pending reload can navigate into the test's clean-ups
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec Branch B tasks 3 and 4 set both timeouts; the outer pinned boundedStep still ends the wait at B with today's message
+- 2026-11-08T07:25:29Z status=by-design owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=spec-bound (Branch B tasks 3 and 4); the total wait still ends at B
+
+### DW-918: At the retry only the page-side lines are read; 11.27's IRIS reads run only at a second miss
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: floor.ts withOneReload prints pageSideLines only; stateDiagnosis runs in diagnosedAtBound at the bound
+- 2026-11-08T07:25:29Z status=by-design owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=spec-bound: Decided in-stage 3 (the IRIS reads could take up to 15 s of the reload's share)
+
+### DW-919: The host line prints only 'not measured (no /proc/pressure)' when a pressure file is missing, dropping the load, CPU count and swap-in it read
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: host.ts describeHost returns early when reading.pressure is undefined
+- 2026-11-08T07:25:29Z status=by-design owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=spec-bound: the Investigation result's text for a host without /proc/pressure
