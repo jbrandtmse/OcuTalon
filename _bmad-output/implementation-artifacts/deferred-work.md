@@ -5393,3 +5393,24 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T22:18:37Z status=routed owner=burndown by=orchestrator note=1.0.4, HIGH, after the hold and ahead of DW-879; find why Triage's decision on a remember request is unusable (unverified guesses: decide agent sees or attempts memory tools, or the output schema rejects the reply); add an eval regression case (a 'Remember that ...' item must decide without Fallback); any string change to the Planner
 - 2026-11-08T00:11:59Z by=orchestrator note=demo 30.6 warning (Planner, 00:11Z Sun, read-only): Decide Conclude refused the reply as not one JSON object DecisionPayload accepts (ERROR #5001); no After-the-reply-filter line; length/datatype/enum ruled out; to Story 30.9 (Epic 30 SC-5 re-open, Planner-approved)
 - 2026-11-08T01:46:51Z owner=30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio by=runner note=charter: Story 30.9 (Epic 30 SC-5 re-open, fix-forward, Planner-approved placement 2026-11-08); DW-890: bullet in its ACs
+- 2026-11-08T04:12:53Z status=resolved-by:30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio by=adjudication note=fix 8fc6db19 (Triage.cls:37); RememberDecision+TriageUserTurn+eval case; reopen_if 1.0.4 rc eval shows Fallback
+
+### DW-902: The forget half of Triage's ruled remember-or-forget sentence (Triage.cls:37) has no real-Haiku proof: no eval case sends a 'Forget ...' user turn
+- source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Story 30.9 proves only the remember form (eval/user-turn-remember); whether Haiku 5.5 gives a confidence for a forget request is unmeasured (unverified)
+- 2026-11-08T04:09:34Z status=decision-pending owner=burndown by=cr note=human=Planner's RC eval runs a 'Forget that ...' user turn on Haiku 5.5: no Fallback and a confidence (unverified med)
+
+### DW-903: shards-5 (shard:lane-a@Bridge,Agent) may pass REL-4's 35-minute CI budget once Epic 19's live:documents joins it
+- source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Spec 30.9 Verification: shards-5 measured 32m09s-33m37s; Epic 19 estimates +300-450 s for live:documents; Story 30.9 adds about 10 s (unverified projection)
+- 2026-11-08T04:09:34Z status=escalated owner=burndown by=cr note=unverified; settle: shards-5 job time <=35 min on the first feature CI run with Epic 19's live:documents
+
+### DW-904: Test.Watch.Case subclasses copy the Armed countdown clean-up loop instead of a shared base helper (third copy in RememberDecision)
+- source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Same Armed property, append and OnAfterOneTest loop in PersonaTurns.cls:43-50, BeatOutcomes.cls:27-34 and RememberDecision.cls:31-48
+- 2026-11-08T04:09:34Z status=wontfix-accepted owner=30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio by=cr note=reopen_if=a fourth test class adds the same Armed countdown clean-up loop (grep 'Mock).Arm($Piece(..Armed')
+
+### DW-905: Test.Eval.Cases: TestUserTurnCases' doc lines and :180's message still describe four chip-only user-turn cases after the remember case
+- source: spec-30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Cases.cls:16 says each user-turn case has 'the chip's exact text'; :180 says 'four user-turn'; the wanted loop covers the four chips only (the remember case is pinned by RememberDecision.TestEvalCase)
+- 2026-11-08T04:09:34Z status=by-design owner=30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio by=cr note=ruled 3-line plain union with Epic 19 (Ruling 4) fixes the wording; reopens only via a spec amendment after Epic 19 merges

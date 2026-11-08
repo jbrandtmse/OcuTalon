@@ -3,8 +3,8 @@
 /// real Conversation, the real Decide and the real Chat and Triage runners, against the CI mock. The mock's default scripts answer the two
 /// forms, so each form's own text reaches the decide as written; the reproduction adds the marker of the scenario remember-no-confidence,
 /// whose decide reply has a valid outcome, two reasons and no confidence, which is the shape of the reply that Haiku gave on the demo. Each
-/// test uses its own session and countdown key, clears its countdown and removes the warnings it caused, and the Decision rows of its turns
-/// are removed after it.
+/// test uses its own session and countdown key and clears its countdown; the reply check's refusal warnings logged after the test began are
+/// removed, and the Decision rows of its turns are removed after it.
 ///   - TestTypedForm (AC 2): "Remember that the Orders partner contact is Kim." is decided tellnow, with no fallback and a confidence from 0 to 1,
 ///     in the Decision row and in the decision that the done chat.message shows, and no refusal warning names the decision;
 ///   - TestPanelForm (AC 2): the same for the text of the guide's Ask it to remember control, as the panel sends it;
@@ -35,11 +35,11 @@ Parameter DEMOTAIL = ": The reply check failed: the reply is not one JSON object
 Property Armed As %String(MAXLEN = "");
 
 /// The number of the newest row of the event log before the test, for its warnings.
-Property Mark As %Integer;
+Property LogMark As %Integer;
 
 Method OnBeforeOneTest(testname As %String) As %Status
 {
-	Set ..Mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set ..LogMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Quit ##super(testname)
 }
 
@@ -49,8 +49,8 @@ Method OnAfterOneTest(testname As %String) As %Status
 		If $Piece(..Armed, ",", i) '= "" Do ##class(OcuTalon.Test.Contract.Mock).Arm($Piece(..Armed, ",", i), "")
 	}
 	Set ..Armed = ""
-	If ..Mark '= "" Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "Conclude", ##class(OcuTalon.Test.Bridge.ReplyCheck).#REFUSED)
-	Set ..Mark = ""
+	If ..LogMark '= "" Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Conclude", ##class(OcuTalon.Test.Bridge.ReplyCheck).#REFUSED)
+	Set ..LogMark = ""
 	Quit ##super(testname)
 }
 
@@ -179,7 +179,7 @@ Method AssertUsable(label As %String, row As OcuTalon.Data.Turn, done As %Dynami
 	}
 	Set start = ##class(OcuTalon.Test.Bridge.ReplyCheck).#REFUSED
 	Set start = start_row.TriageDecisionRef
-	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .text, "Conclude", start)
+	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "Conclude", start)
 	Do $$$AssertEquals(count, 0, label_": no refusal warning names the decision: "_text)
 }
 
@@ -204,7 +204,7 @@ Method AssertDemoFallback(label As %String, row As OcuTalon.Data.Turn, done As %
 	}
 	Set start = ##class(OcuTalon.Test.Bridge.ReplyCheck).#REFUSED
 	Set start = start_row.TriageDecisionRef
-	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .text, "Conclude", start)
+	Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "Conclude", start)
 	Do $$$AssertEquals(count, 1, label_": exactly one warning names the decision")
 	Do $$$AssertEquals(text, start_..#DEMOTAIL, label_": and its text is the demo's")
 }

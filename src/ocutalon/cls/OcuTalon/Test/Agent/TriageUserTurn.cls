@@ -36,10 +36,10 @@ Method TestNoToolsSentence()
 Method TestRememberSentence()
 {
 	Set text = ..Instructions()
-	Set before = "never about the user's own message."
+	Set before = "This holds also when the user asks OcuTalon to resend, approve or change something: the next paragraph is about items that arrived on a channel, never about the user's own message."
 	Set sentence = "A request to remember or forget something is also the user's own message: choose ""tellnow"" for it, give the one reason, and give a confidence as for any other message."
 	Do $$$AssertEquals($Length(text, sentence) - 1, 1, "the instructions hold the remember sentence exactly once")
-	Do $$$AssertTrue(text [ (before_" "_sentence_$Char(10)_$Char(10)_"An item on the channel heartbeat"), "it follows 'never about the user's own message.' and one space, and the paragraph ends after it")
+	Do $$$AssertTrue(text [ (before_" "_sentence_$Char(10)_$Char(10)_"An item on the channel heartbeat"), "it follows the paragraph's unchanged last sentence and one space, and the paragraph ends after it")
 }
 
 /// --- helpers ---
