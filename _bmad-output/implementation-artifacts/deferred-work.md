@@ -5420,11 +5420,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: gh api branches/main/protection (read 2026-11-07): checks, web, install-macos, standalone-bridge, evaluation and iris install-fresh..shards-4; no iris (shards-5); ipm-install is not required either, so ipm-install-p matches it. Branch protection is a repository setting (owner-only); precedent: shards-4 was carried to the Planner.
 - 2026-11-07T15:05:47Z status=decision-pending owner=burndown by=cr note=human=add iris (shards-5) to main's required checks (and ipm-install-p only if ipm-install is made required) before the next release PR
+- 2026-11-08T12:32:34Z status=dropped by=owner note=done_by_the_owner:iris(shards-5)_is_in_main's_required_checks(about_01:30Z_2026-11-08,Planner_relay)
 
 ### DW-871: The as-built CI texts still describe nine IRIS groups after the 19.8 CI split: AD-22's CI as built bullet (lane-a in three pieces, Bridge and Agent in shards-2) and the header comment of .github/workflows/ci.yml
 - source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ARCHITECTURE-SPINE.md AD-22 Rule, CI as built: inside nine IRIS groups ... shards-3 and shards-4, lane-a in three pieces; ci.yml line 2: a matrix of nine groups. The spine bullet is an AD Rule line (not a stage edit; precedent DW-420, as-built amendment at the merge gate); the ruling allowed no other ci.yml line.
 - 2026-11-07T15:05:54Z status=escalated owner=burndown by=cr note=for the lead at the Epic 19 merge gate: as-built amendment of AD-22 (ten groups, shards-5 = lane-a@Bridge,Agent) and ci.yml:2
+- 2026-11-08T12:32:34Z status=resolved-by:19-8-epic-19-burn-down by=owner note=done_at_part_1's_merge(5b47f052):AD-22_CI_as_built_reads_ten_IRIS_groups,ci.yml:2_reads_ten_groups;checked_on_the_merged_tree_f6290959(no_stale_side)
 
 ### DW-891: Decide now calls a turn's reply filter with two arguments (text, HostData); a host ReplyFilter subclass written with the one-argument Filter(text) raises <PARAMETER> on a chat turn, and no test runs such a subclass through Conclude
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: low | footprint: in-story
@@ -5487,6 +5489,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Adapter/Agent.cls Answer hands kind tool to Replay.Run before any composition; Replay.cls:65 adapter.Agent.ToolManager.ExecuteTool; documents is held (and so replayed) only when Decide's ToolClassification row cannot be read (Install/Step/Production.cls:294), and a host's own risky turn tool always would be
 - 2026-11-08T11:22:28Z status=decision-pending owner=burndown by=cr note=product call: Replay composes the approval owner's turn tools, or the guide states a turn tool must be classified safe; spec matrix Other kinds composes nothing for tool
+- 2026-11-08T12:32:34Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=owner note=planner_ruling(owner_delegation,orchestrator_relay):accepted_as_recommended:the_bridge_guide_says_a_turn_tool_must_be_classified_safe;the_line_is_NEW_text(PUBLIC_TEXT_proposed_in_the_part-2_contract,for_docs/bridge-guide.md:315);lands_in_22.6_unless_the_Planner_rules_it_into_1.0.4;reopen_if=a_turn_tool_call_is_ever_held_for_approval
 
 ### DW-951: The upgrade harness's new api_get polls GET /v1/documents with no unique probe query, unlike state_get, so a gateway-kept answer could be read
 - source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: low | footprint: in-story
