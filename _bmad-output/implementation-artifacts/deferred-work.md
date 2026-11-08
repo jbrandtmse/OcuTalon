@@ -5328,8 +5328,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Coverage.Build reads Watch.Reader.Vitals with no online-demo limit; step 7 makes the card visible. Cost is session+instance, and no instance usage arises on the demo (AD-4)
 - 2026-11-08T00:43:03Z status=by-design owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=cr note=by-design: AD-18 coverage rows + Planner ruling D2 (a) make the demo digest visible; reopens only by spec amendment
 - 2026-11-08T00:46:28Z status=by-design owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=unattended note=veto_window(security_posture):kept_as_built;owner_may_reverse_via_U-303_before_1.0.4
+- 2026-11-08T01:21:39Z status=by-design owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=owner note=U-303_kept(2026-11-08T01:11:22Z#926,Planner_under_owner_delegation);condition_pinned_by_burn-down_story_17.11
 
 ### DW-897: docker/tests/test-sign-in.sh still names Story 2.7's N1-N15 in its header (:26) and PASS/FAIL lines (:398, :404); notice.spec.ts now holds N16
 - source: spec-17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: notice.spec.ts gained N16 (Story 17.10); test-sign-in.sh is outside Epic 17's footprint and is edited by OCT-epic32 (Story 32.5 sign-in split)
 - 2026-11-08T00:43:03Z status=wontfix-accepted owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=cr note=reopen_if=a sign-in run's PASS/FAIL line is cited as the notice cases that ran; file contended by Epic 32 (32.5)
+
+### DW-898: Online demo: pin that the digest text never names a host path, an IP address, a user name or a key (U-303 keep-condition): a test plants a host path, an IP address, a user name and key shapes (sk-ant-, a Telegram bot token) in the instance facts the digest reads and asserts none appears in the online-demo digest text
+- source: inbox U-303 (Contest Planner under the owner's delegation, 2026-11-08T01:11:22Z#926) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Coverage.Build reads Watch.Reader.Vitals (uptime, databases and fullness, journal, licence) with no online-demo limit; Story 17.10 made the demo digest visible (DW-896); no test pins what the text may not contain
+- 2026-11-08T01:21:45Z status=routed owner=burndown by=owner note=U-303 keep-condition; test-only unless the pin finds a real leak (then a HIGH fixed in the same story); orchestrator ruling: Epic 17 burn-down story 17.11
+- 2026-11-08T01:22:26Z owner=17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path by=burndown note=chartered_as_Epic_17_burn-down_story_17.11(orchestrator_ruling_U-303_keep-condition)

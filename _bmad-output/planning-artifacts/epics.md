@@ -6235,6 +6235,23 @@ So that "send my digest now" shows me the digest instead of promising one I neve
 
 - DW-874: Online demo: the digest is promised but invisible (web chat and Simulated phone show no digest card), and the morning run also sends to every demo session with a resume hash; ruled (a): the web chat digest card on every install, and the morning run skips online-demo sessions (ledger; ruled by the Contest Planner 2026-11-07)
 
+### Story 17.11: Epic 17 burn-down: the online-demo digest names no host path, address, user or key
+
+[ADDED 2026-11-08, chartered by Epic 17's burn-down gate under the SC-5 re-open (Rule 17), on the orchestrator's ruling: the keep-condition of inbox U-303 (the Contest Planner under the owner's delegation, 2026-11-08T01:11:22Z: "Keep. The demo digest showing the demo instance's own vital signs ... is the feature working as on any install, and none of it is secret ... Condition: the digest never names host paths, IP addresses, users or keys on the demo; pin that with a test on the online-demo digest text."); test-only unless the pin finds a real leak]
+
+As the owner of the online demo,
+I want a test that proves the digest a visitor sees never names a host path, an IP address, a user name or a key,
+So that showing the demo instance's own vital signs can never leak anything about the host.
+
+**Acceptance Criteria:**
+
+**Given** the online demo (`Data.Public.Settings` "onlineDemo" on) and the instance facts the digest reads (the vital signs of `Watch.Reader.Vitals` and the coverage rows of `Checks.Coverage.Build`), with a planted host path, an IP address, a user name and key shapes (an `sk-ant-` key and a Telegram bot token) among them
+**When** a visitor's digest is composed and its text rendered for the web chat (`Channel.DigestText`, channel "web")
+**Then** none of the planted values appears in the digest text, pinned by a test with a mutation shown going red (the composer letting a planted value through), and no product string changes
+**And** if the pin finds a real leak, the leak is fixed in this story (a HIGH)
+
+- DW-898: Online demo: pin that the digest text never names a host path, an IP address, a user name or a key (U-303 keep-condition) (ledger; routed by the owner 2026-11-08)
+
 ## Epic 18: An admin changes settings in the web app (step 2)
 
 An admin opens a settings page to change models, budgets, channels, the digest time and channels, the time zone and check thresholds; each change takes effect within a minute without a restart and is audited; non-admins can't open it.
