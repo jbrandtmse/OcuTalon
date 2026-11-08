@@ -1,4 +1,5 @@
-/// Tests of the two memory blocks that OcuTalon.Agent.Input.Render writes (Story 41.4; AD-7, AD-21, AD-28, FR-71, FR-72, NFR-27). Safe on a slot: no production runs and no
+/// Tests of the two memory blocks that OcuTalon.Agent.Input.Render writes (Story 41.4; AD-7, AD-21, AD-28, FR-71, FR-72, NFR-27). It extends the zone base
+/// (Test.Bridge.ZoneCase), which saves the process zone before every test and puts it back after it, TestLocalDates' zone included. Safe on a slot: no production runs and no
 /// model is called. The fixtures sit on fixed local days of 2030 through Data.Time.FromLocal, and every test removes its rows (precedents by Ref, the rest with Fixture.Clean).
 /// The expected texts are built from the fixed strings of this class, never from the code under test.
 ///   - TestTexts: the public words and the cap are the copies held here;
@@ -12,7 +13,7 @@
 ///   - TestPrecedentCap: whole lines in at most 600 characters, and one line for each row;
 ///   - TestLocalDates: in the zone America/New_York, with a time whose local date is not its UTC date, the date lines of the notes and the date of a precedent line are local (AD-18);
 ///   - TestTriageParagraph: Triage's paragraph of the UX, once, in its place.
-Class OcuTalon.Test.Agent.RenderMemory Extends %UnitTest.TestCase
+Class OcuTalon.Test.Agent.RenderMemory Extends OcuTalon.Test.Bridge.ZoneCase
 {
 
 /// The local day of the fixed time, and the day before it.
@@ -57,9 +58,6 @@ Property Personas As %String(MAXLEN = "");
 /// The highest ID of the log before the test.
 Property LogMark As %Integer;
 
-/// The process zone before the test (-1 when TZ was undefined), put back after it.
-Property SavedZone As %String;
-
 /// The test-held paragraphs of EXPERIENCE.md for Triage.
 XData UX [ MimeType = application/json ]
 {
@@ -79,15 +77,15 @@ Method OnBeforeAllTests() As %Status
 
 Method OnBeforeOneTest(testname As %String) As %Status
 {
+	Set sc = ##super(testname)
 	Kill ^||InputProbe
 	Set ..LogMark = ..LogTop()
-	Set ..SavedZone = $SYSTEM.Process.TimeZone()
-	Quit $$$OK
+	Quit sc
 }
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
-	Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
+	Set sc = ##super(testname)
 	Kill ^||InputProbe
 	For i = 1:1:$Length(..Rows, ",") {
 		Set ref = $Piece(..Rows, ",", i)
@@ -107,7 +105,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	While result.%Next() {
 		Do ##class(Ens.Util.Log).%DeleteId(result.%Get("ID"))
 	}
-	Quit $$$OK
+	Quit sc
 }
 
 /// The public words, the cap and the openings are the copies held here.

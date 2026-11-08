@@ -2,8 +2,8 @@
 title: "Story 41.4: The notes and your answers reach the model"
 type: 'feature'
 created: '2026-11-08'
-status: 'in-progress'
-baseline_revision: 'ca18d9af331bb63f783c4356ff06ddde2793fc5a'
+status: 'done'
+baseline_revision: '07fb7ad1adea6ccf63f130a057f1a45807452ba0'
 baseline_commit: 'ca18d9af331bb63f783c4356ff06ddde2793fc5a'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -179,8 +179,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they are given in full.
      - its act turn's Chat request (tools) holds none.
    - `TestPersonTurnHasNone`: a message of A's session has no `PRECEDENTSOPENING` in its Triage request or its Chat request.
 
-- [ ] [CI] `iris (shards-5)` `OcuTalon.Test.Bridge.Time:TestZoneCase` red on e13cd097 (ci run 42496961697): "none outside the base calls the process time zone ... OcuTalon.Test.Agent.RenderMemory" — `src/ocutalon/cls/OcuTalon/Test/Agent/RenderMemory.cls` (QA's `TestLocalDates` and its zone save/restore hooks) — the fix must make `RenderMemory` extend `OcuTalon.Test.Bridge.ZoneCase` (or move `TestLocalDates` into a class that does) and drop its own zone save/restore, so `TestZoneCase` passes and `TestLocalDates` still turns red under both UTC-date mutations.
-- [ ] [CI] `iris (shards-5)` `OcuTalon.Test.Bridge.SecondModel:TestIntegrationWebChat` red on e13cd097: "none holds the refused exchange, and none holds the first message twice (DW-726)" — `src/ocutalon/cls/OcuTalon/Test/Bridge/SecondModel.cls` (the `repeated` count at the end of the test) — find why the next turn's request now holds "zz17first" more than once (lead's hypothesis: the second-model retry sets `SessionRotated`, so the next turn is a session start and the notes block quotes the first message's opening beside the seeded history — by design under AD-21). If the hypothesis holds, keep DW-726's intent (the seed never holds the refused exchange or the user's message twice) by counting only outside the notes block (the lines after `NOTESOPENING` up to the blank line), and add an assertion that the notes block, when present, quotes the first message once. If the cause is anything else (a product defect in 41.4's Render), fix the product code instead. Lane A files only; never a Lane B class or test.
+- [x] [CI] `iris (shards-5)` `OcuTalon.Test.Bridge.Time:TestZoneCase` red on e13cd097 (ci run 42496961697): "none outside the base calls the process time zone ... OcuTalon.Test.Agent.RenderMemory" — `src/ocutalon/cls/OcuTalon/Test/Agent/RenderMemory.cls` (QA's `TestLocalDates` and its zone save/restore hooks) — the fix must make `RenderMemory` extend `OcuTalon.Test.Bridge.ZoneCase` (or move `TestLocalDates` into a class that does) and drop its own zone save/restore, so `TestZoneCase` passes and `TestLocalDates` still turns red under both UTC-date mutations.
+- [x] [CI] `iris (shards-5)` `OcuTalon.Test.Bridge.SecondModel:TestIntegrationWebChat` red on e13cd097: "none holds the refused exchange, and none holds the first message twice (DW-726)" — `src/ocutalon/cls/OcuTalon/Test/Bridge/SecondModel.cls` (the `repeated` count at the end of the test) — find why the next turn's request now holds "zz17first" more than once (lead's hypothesis: the second-model retry sets `SessionRotated`, so the next turn is a session start and the notes block quotes the first message's opening beside the seeded history — by design under AD-21). If the hypothesis holds, keep DW-726's intent (the seed never holds the refused exchange or the user's message twice) by counting only outside the notes block (the lines after `NOTESOPENING` up to the blank line), and add an assertion that the notes block, when present, quotes the first message once. If the cause is anything else (a product defect in 41.4's Render), fix the product code instead. Lane A files only; never a Lane B class or test.
 
 **Acceptance Criteria:**
 1. **Notes at a session start.** Given a person's item rendered with `{"sessionStart":1}` and records on D-1 and D, when `Test.Agent.RenderMemory` runs, then every notes row of the Matrix holds. The block (`NOTESOPENING`, then each day's date line and its `Build` lines, quoted) sits after the persona block and before the text, and a day with nothing adds nothing (FR-71, AD-7, AD-21).
@@ -232,6 +232,7 @@ Code review 2026-11-08 (full mode; layers: Blind Hunter, Edge Case Hunter, Verif
 ## Spec Change Log
 
 - 2026-11-08 rework iteration 1 (trigger: CI red on e13cd097, `iris (shards-5)`): two [CI] items added under Tasks & Acceptance. Only those items are worked.
+  - Diagnosis of `SecondModel:TestIntegrationWebChat` (measured from the test and the mock request log on a fresh lane-A throwaway, not inferred): the lead's hypothesis is refuted in mechanism and holds in effect. The next turn is not a session start: its newest user message holds no `NOTESOPENING`, and there is no refused exchange. The one request with "zz17first" twice has the notes block in the seeded FIRST user message, which is the first turn's own session-start input (it was the first message of the day): `NOTESOPENING`, `> <date>`, `> 19:09 message (web): [[mock:retry-chat]] ... zz17first`, `> 19:09 decision (web): tellnow`, a blank line, then the message text. So the message appears once in the block (by design, AD-21) and once as the message. Not a product defect; the fix is in the test: DW-726's count runs outside the notes block, and a new assertion says a notes block, when a request holds one, quotes the first message once.
 
 - 2026-11-08 (rulings relayed by the orchestrator; Contest Planner under the owner's delegation, owner-level for the AD under U14):
   - **PUBLIC TEXT APPROVED:** `PRECEDENTDECIDED` = "; OcuTalon decided " and `PRECEDENTANSWER` = "; your answer: ", with the precedent line shape as built (`{date} ({channel}): {summary}; OcuTalon decided {outcome}; your answer: {answer}`) and the no-outcome form for approval rows (`{date} ({channel}): {summary}; your answer: {answer}`); the notes block's date-only quoted day lines (yesterday first). **Pin them with fixed strings** (test-held copies of both parameters and of one built line of each form).
@@ -281,6 +282,27 @@ Code review 2026-11-08 (full mode; layers: Blind Hunter, Edge Case Hunter, Verif
     - `[low]` `[patch]` Cap arithmetic excludes the trailing blank line - same as the Edge Case Hunter row, patched.
     - `[false]` `[reject]` RememberDecision side edit - same as above.
     - `[false]` `[reject]` ConversationTurns strip loosens the old check - same as above.
+
+### 2026-11-08 - Review pass (rework iteration 1, follow-up)
+- verdicts: 17 findings - high 0, medium 4, low 10, false 3, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind: the notes-block assertion of `TestIntegrationWebChat` passes with no notes block (`0|0`) -- patched: `notesBlocks > 0` is asserted, `notesWrong` is asserted 0; the `NotesPart`-ignores-`sessionStart` mutation reds it (see Verification, rework pass 1)
+  - `[low]` `[reject]` Blind: `NotesBlock` extracts only the first block, and with no blank line swallows the tail -- `Render` always writes the closing blank line and the history holds one block; no reachable failure, and the guards would add branches
+  - `[low]` `[reject]` Blind: block parsing duplicated in `Test.Core.ConversationTurns` (Lane B) and the `/// --- helpers ---` marker reads as part of the doc comment -- a shared helper would touch a Lane B test; the marker placement is the file's existing style
+  - `[low]` `[reject]` Edge: two blocks in one request leave the second's quote in `outside` -- a request holds one session-start input; unreachable here
+  - `[medium]` `[patch]` Edge: same root as the first row (vacuous assertion) -- patched with it
+  - `[low]` `[reject]` Edge: no terminator makes `finish` the end of the text -- see the second row
+  - `[low]` `[reject]` Edge: the block can run past its own message -- the block ends at its own blank line, which `Render` writes; no reachable failure
+  - `[low]` `[patch]` Edge: `RenderMemory.OnAfterOneTest` calls `##super` last, so a throwing clean-up leaks the zone -- patched: `##super` first, as the sibling `ZoneCase` classes do
+  - `[low]` `[reject]` Edge: `##super` in `OnBeforeOneTest` returning an error is ignored -- the base answers `$$$OK` always
+  - `[false]` `[reject]` Edge: the base's `ForgetZoneRow` touches an active production's row -- it is a no-op without an active production, which the class header states, and restores the row otherwise
+  - `[medium]` `[patch]` Gap: the notes-block assertion is vacuous -- same root as the first row
+  - `[low]` `[patch]` Gap: the first `[CI]` item's pinning test `TestZoneCase` has no `mutation:` line -- written (Verification, rework pass 1): applied, observed red, reverted byte-identical
+  - `[low]` `[patch]` Gap: `##super` last in `OnAfterOneTest` -- same root as the ordering row
+  - `[false]` `[reject]` Gap: the base alters the instance-zone row when a production is active -- same as the production row
+  - `[low]` `[patch]` Gap: the header of `TestZoneCase` still says "the six classes" and omits `RenderMemory` -- patched in `Test/Bridge/Time.cls`
+  - `[false]` `[reject]` Gap: an empty `NOTESOPENING` would make `NotesBlock` match at the start -- `RenderMemory:TestTexts` pins the parameter against a held copy
+  - `[medium]` `[patch]` Intent: the new assertion verifies a block only when one appears -- same root as the first row
 
 ## Design Notes
 
@@ -443,26 +465,34 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: the `IsRef` check in `PrecedentPart` narrowed to `item.SessionRef = "eval"` -> `Test.Agent.RenderMemory:TestPrecedentOwners` red ("the owner 'instance' has no block", with the review's instance-owned row) (AC 4, the `instance` item).
 - Green after the review patches: slot A `RenderMemory` (11), `RenderContext` (4), `Render` (4). `MemoryTurns` changed only in an assertion message (left to CI).
 
+**Rework pass 1 (the two [CI] items; each mutation applied, observed red, reverted byte-identical, `git status --short` unchanged):**
+- Files changed: `Test/Agent/RenderMemory.cls` (now extends `Test.Bridge.ZoneCase`, no `SavedZone` or zone save/restore of its own, hooks call `##super(testname)`) and `Test/Bridge/SecondModel.cls` (`TestIntegrationWebChat`, a private `NotesBlock` helper).
+- mutation: the precedent date taken from the UTC `answeredAt` -> `Test.Agent.RenderMemory:TestLocalDates` red (AD-18, re-observed after the base change).
+- mutation: the notes' `today` taken from the UTC `now` -> `Test.Agent.RenderMemory:TestLocalDates` red (AD-18, re-observed after the base change).
+- mutation: `NotesPart` writes each note's lines twice -> `Test.Bridge.SecondModel:TestIntegrationWebChat` red on "a notes block, when a request holds one, quotes the first message once" (fresh throwaway `e41s4rw`). The DW-726 count (refused exchange; first message twice outside the notes block) keeps its pre-existing mutations; it is unchanged except that it reads the messages without the notes block.
+- mutation: a `$SYSTEM.Process.TimeZone()` read added to `RenderMemory.OnBeforeOneTest` -> `Test.Bridge.Time:TestZoneCase` red ("none that extends it reads the zone to keep a copy: OcuTalon.Test.Agent.RenderMemory"); reverted byte-identical, green again (slot A).
+- mutation: `NotesPart` ignores `sessionStart` (`|| 1 Quit ""`) -> `Test.Bridge.SecondModel:TestIntegrationWebChat` red on "holds a notes block" (the lower bound of the review patch); reverted byte-identical, green again on the same warm stack `e41s4rww`.
+- Review patches: the lower bound `notesBlocks > 0` with `notesWrong` asserted 0; `RenderMemory.OnAfterOneTest` calls `##super` first; the `TestZoneCase` header names `RenderMemory`.
+- Green: slot A `Test.Bridge.Time:TestZoneCase` and `TestZoneHooksCallSuper`, `Test.Agent.RenderMemory` (11); `Test.Bridge.SecondModel` on a fresh throwaway; `test-boundaries.sh`. The slot's `Time` tests `TestAgreesWithDataTimeInstanceZone`, `TestApplyRule` and `TestEachConversionAppliesZone` fail on slot A only, because its production definition sets `InstanceZone` (they are production-state tests for a fresh stack).
+
 ## Auto Run Result
 
 Status: done
 Blocking condition: none
 
-Summary: `Agent.Input.Render` now renders the notes block (a user item with `sessionStart` 1; today's and yesterday's `DailyNote.Build`, each day under a quoted date line, yesterday first) and the precedent block (an untrusted item of a session with context `decide` 1; at most 3 `Similar` rows of its own session, whole lines, the block with its closing blank line at most 600 characters), both after the persona block and before the item. A `Build` that throws leaves the notes out and logs one redacted warning. Triage gains the UX precedents paragraph. Intake's decide request passes `{"decide": 1}` (the ruled Lane B line), so the act turn never carries precedents. Both hops of DW-961 are observed by `Test.Agent.MemoryTurns` over the real production and the mock's log.
+Rework pass 1 (the two `[CI]` items of run 42496961697, head e13cd097). Only this pass is described.
+
+Summary: `Test.Agent.RenderMemory` now extends `Test.Bridge.ZoneCase` (no zone copy of its own), so `Test.Bridge.Time:TestZoneCase` passes. `SecondModel:TestIntegrationWebChat` counts the first message outside the notes block (the first turn began the day, so the seeded history holds its session-start input; the diagnosis is in the Spec Change Log) and asserts that the history holds a notes block that quotes the message once. No product code changed.
 
 Files changed:
-- `src/ocutalon/cls/OcuTalon/Agent/Input.cls`: `NotesPart`, `PrecedentPart`, the `NoteOf` seam, `Flag`, `Clean` and the parameters `PRECEDENTDECIDED`, `PRECEDENTANSWER`, `PRECEDENTMAX`, `LOGNOTES`.
-- `src/ocutalon/cls/OcuTalon/Agent/Triage.cls`: the precedents paragraph.
-- `src/ocutalon/cls/OcuTalon/Core/Intake.cls`: the decide request passes `{"decide": 1}` and two comments (the one ruled Lane B line).
-- `src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls`: the two ruled edits (:238 and :382).
-- `src/ocutalon/cls/OcuTalon/Test/Agent/RenderContext.cls`: `TestNoMemoryNoChange` with the context `{"decide":1}` (112 renders).
-- `src/ocutalon/cls/OcuTalon/Test/Agent/RememberDecision.cls`: the mock marker on its own line.
-- New: `Test/Agent/RenderMemory.cls` (10 tests), `Test/Agent/InputProbe.cls`, `Test/Agent/MemoryTurns.cls` (4 tests), and `ci/mock/scenarios/A/memory-notes.json`, `memory-precedent.json`, `memory-precedent-act.json`.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/RenderMemory.cls`: extends the zone base; hooks call `##super`.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/SecondModel.cls`: `NotesBlock` helper; the DW-726 count outside the block; the notes-block assertions.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Time.cls`: the `TestZoneCase` header names `RenderMemory`.
 
-Review findings: 32 reported - high 0, medium 1, low 14, false 16, maybe-false 1. Patches applied (all in-pass, by the lead): the cap counts the closing blank line; the unreadable-answeredAt test; the redaction assertion with a secret-shaped probe message; the AC 7 mutation line; the midnight guard in `TestNotesAtSessionStart`. Items deferred this pass: none (the frontmatter item from planning, the fallback first turn, stays for the lead's harvest). Rejected with reasons: see the Review Triage Log.
+Review findings: 17 reported - high 0, medium 4, low 10, false 3. Patched: the vacuous notes assertion (4 findings, one root, medium), the `##super` order (2, low), the stale header (1, low), the missing `TestZoneCase` mutation line (1, low). Rejected: 6 lows (unreachable multi-block and no-terminator cases, the Lane B parsing duplicate, the base's status), 3 false (see the Review Triage Log).
 
-Follow-up review recommended: false (no high and one medium patched; the patches were verified by green runs and observed-red mutations).
+Follow-up review recommended: false (this pass patched no high).
 
-Verification performed (all green after the last patch): slot A (`ocutalon-slot-a`, build 154) - `RenderMemory` 10, `RenderContext`, `Render`, `PersonaBlock`, `Instructions`, `Persona`, `Data.DailyNote`, `Data.Precedent`, `Core.Intake`, `Core.ConversationSessionStart`, `Core.ConversationTurns` (48); fresh lane-A throwaways (tag `e41s4impl`, torn down) - `MemoryTurns` and `RememberDecision` (the implement subagent also ran `PersonaTurns`); `test-mock.sh`, `test-class-rules.sh`, `test-triage-heartbeat.sh`, `test-ci-config.sh`, `test-boundaries.sh`; the paragraph grep gives 1 in each file. Mutations (Rule 19) are recorded in `## Verification`; the four added in review (cap closing line, unreadable row, redaction, AC 7) were observed red and restored byte-identical.
+Verification: slot A `RenderMemory` 11 and `Time:TestZoneCase` green after the patches; `SecondModel` green on a warm lane-A throwaway before and after the mutation; `bash docker/tests/test-boundaries.sh` passes; warm stack torn down. Left to CI: `shards-5` in full.
 
-Residual risks: left to CI - `shards-5`, `image`, `browser` and the fresh-environment check of both shards in both orders. The fallback-first-turn gap (frontmatter `deferred:`) is Lane B and unchanged. Precedent summaries come from a sender's own email text and are quoted data under the "examples, never rules" opening (AD-10: Triage has no tools).
+Residual risks: the `Test.Bridge.Time` tests `TestAgreesWithDataTimeInstanceZone`, `TestApplyRule` and `TestEachConversionAppliesZone` fail on slot A only (its production fixes `InstanceZone`); they run on fresh stacks in CI.
