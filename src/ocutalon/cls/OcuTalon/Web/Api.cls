@@ -33,11 +33,14 @@
 ///     The settings routes (Story 33.2; AD-13, AD-19) are for OcuTalonAdmin only, and the check is the whole name of the role in $Roles, never %All: a
 ///     call to /v1/settings or below it from a user without the role is 403 not_admin, answered before the browser envelope, the body and the
 ///     route. GET /v1/settings answers SettingsOps.Values: {"sections", "bridge", "providers", "instanceZone"}. Each POST /v1/settings/<section>
-///     (budgets, daily-digest, time-zone, check-thresholds, demo-mode; models and channels answer 501 not_built) takes the section's fields as a JSON
+///     (budgets, models, daily-digest, time-zone, check-thresholds, demo-mode; channels answers 501 not_built) takes the section's fields as a JSON
 ///     object of field to value, submits one SaveSettings command (a SetDemoMode for demo-mode) with origin web_admin, the IRIS user of the call and
 ///     the CSP session's Ref (AD-4), and answers: Ok 200 {"result":"done","sections"}; a refused value, a missing or unknown field or a body that is not an object 400
 ///     bad_settings with "fields", the names of the refused fields; not_built 501; step_failed (the demo step failed after the value was written)
 ///     409 demo_step_failed; not_audited, failed and any other outcome or status 500 server_error.
+///     POST /v1/settings/models takes {"agents", "prices"} (SettingsOps' models section); POST /v1/settings/models/test takes exactly {"agent": string} and submits one
+///     TestModel (origin web_admin): Ok 200 {"answered", "seconds", "reason"}; a bad body or an agent that is refused 400 bad_settings with fields ["agent"]; any
+///     other outcome or status 500 server_error.
 ///     POST /v1/settings/daily-digest/send never reads the body and submits one SendDigest (origin web_admin, the CSP session's Ref, a fresh
 ///     IdempotencyKey): Ok 202 {"result":"sending"}; an error status, no result or any other outcome 500 server_error.
 ///     The snapshot also tells the page who is signed in, whether that user holds OcuTalonAdmin (admin), which mode
@@ -186,7 +189,8 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/heartbeat" Method="PUT" Call="PutHeartbeat"/>
 <Route Url="/v1/heartbeat/run" Method="POST" Call="RunHeartbeat"/>
 <Route Url="/v1/settings" Method="GET" Call="Settings"/>
-<Route Url="/v1/settings/models" Method="POST" Call="NotBuilt"/>
+<Route Url="/v1/settings/models" Method="POST" Call="SaveModels"/>
+<Route Url="/v1/settings/models/test" Method="POST" Call="TestModel"/>
 <Route Url="/v1/settings/budgets" Method="POST" Call="SaveBudgets"/>
 <Route Url="/v1/settings/channels" Method="POST" Call="NotBuilt"/>
 <Route Url="/v1/settings/daily-digest" Method="POST" Call="SaveDailyDigest"/>
@@ -865,6 +869,34 @@ ClassMethod SettingsBody(Output body As %DynamicObject) As %Boolean [ Private ]
 ClassMethod NotBuilt(arg As %String = "") As %Status
 {
 	Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+}
+
+/// POST /v1/settings/models: see SaveSection.
+ClassMethod SaveModels() As %Status
+{
+	Quit ..SaveSection("models")
+}
+
+/// POST /v1/settings/models/test (AD-1, AD-4, AD-8, AD-19; Story 18.3): tests the saved first model of one agent. The body is exactly {"agent": string}; any other
+/// body, and an agent that SettingsOps refuses, is 400 bad_settings with the field agent. One TestModel is submitted through Commands.Submit with origin web_admin
+/// (the path is under /v1/settings/, so IsSettingsUrl's admin gate covers it). Ok is 200 with the CommandResult's Data, {"answered", "seconds", "reason"}; an error
+/// status, no result or any other outcome is 500 server_error, with the cause logged.
+ClassMethod TestModel() As %Status
+{
+	If '..SettingsBody(.body) || (body.%Size() '= 1) || (body.%GetTypeOf("agent") '= "string") || ($Length(body.agent) > 32) Quit ..BadSettings(["agent"])
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set command = ##class(OcuTalon.Msg.Command.TestModel).%New()
+	Set command.Agent = body.agent
+	Set command.SessionRef = sessionRef
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Outcome = "refused" Quit ..BadSettings(["agent"])
+	If 'result.Ok || (result.Outcome '= "tested") Quit ..ServerError($SYSTEM.Status.Error(5001, "SettingsOps answered the model test with '"_result.Outcome_"'"))
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write result.Data
+	Quit $SYSTEM.Status.OK()
 }
 
 /// The snapshot's last key, traceAccount: {"user", "password"}, the read-only Visual Trace account that the online demo

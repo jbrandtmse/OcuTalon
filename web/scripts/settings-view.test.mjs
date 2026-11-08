@@ -21,11 +21,27 @@ const {
   digestBody,
   digestChannelBoxes,
   digestChannelsBody,
+  budgetsBody,
   firstInError,
+  isBudgetsDirty,
   isDigestDirty,
   isDigestFormDirty,
   isDirty,
+  isModelsDirty,
+  modelOptions,
+  modelsBody,
+  modelsFieldNames,
+  modelsFormOf,
+  modelsValuesOf,
+  modelsView,
+  noKeyReason,
   pageOf,
+  providerLabel,
+  refusalKind,
+  secondOptions,
+  secondValue,
+  splitSecond,
+  testResultText,
   sectionLabel,
   sectionPath,
   sectionSlug,
@@ -324,5 +340,154 @@ describe('the Channels section (Story 18.2)', () => {
     assert.equal(TELEGRAM_CARD_TEXTS.paused, 'Telegram paused');
     assert.equal(TELEGRAM_CARD_TEXTS.tryingAgainAt, 'Trying again at {time}');
     assert.equal(SETTINGS_TEXTS.channels.telegramOn, 'Telegram on');
+  });
+});
+
+const ROW = (provider, over = {}) => ({ provider, defaultModel: `${provider}-default`, models: [`${provider}-default`, `${provider}-big`], keyVariable: `${provider.toUpperCase()}_API_KEY`, keySet: true, supported: true, ...over });
+const AGENTS = {
+  TriageAgent: { provider: 'anthropic', model: 'claude-haiku-5-5', secondProvider: '', secondModel: '' },
+  DiagnosisAgent: { provider: 'anthropic', model: 'claude-sonnet-5-5', secondProvider: 'anthropic', secondModel: 'claude-haiku-5-5' },
+  ChatAgent: { provider: 'anthropic', model: 'claude-haiku-5-5', secondProvider: '', secondModel: '' },
+};
+const PRICES = { 'claude-haiku-5-5': { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 }, 'claude-sonnet-5-5': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 } };
+
+describe('the refusal classifier (DW-948)', () => {
+  const known = ['time', 'channels'];
+
+  it('says denied for a 403, whatever the body names', () => {
+    assert.deepEqual(refusalKind(403, ['time'], known), { kind: 'denied', fields: [] });
+    assert.deepEqual(refusalKind(403, undefined, known), { kind: 'denied', fields: [] });
+  });
+
+  it('says field for a 400 that names a known field, with the known fields it names in the order of the section', () => {
+    assert.deepEqual(refusalKind(400, ['channels', 'time', 'zz'], known), { kind: 'field', fields: ['time', 'channels'] });
+    assert.deepEqual(refusalKind(400, ['channels'], known), { kind: 'field', fields: ['channels'] });
+  });
+
+  it('says form for a 400 that names no known field, and for every other answer', () => {
+    assert.deepEqual(refusalKind(400, [], known), { kind: 'form', fields: [] });
+    assert.deepEqual(refusalKind(400, ['zz'], known), { kind: 'form', fields: [] });
+    assert.deepEqual(refusalKind(400, undefined, known), { kind: 'form', fields: [] });
+    assert.deepEqual(refusalKind(400, 'time', known), { kind: 'form', fields: [] });
+    assert.deepEqual(refusalKind(400, ['time'], []), { kind: 'form', fields: [] }, 'a section with no field to name');
+    for (const status of [0, 401, 404, 409, 500, 501, 503]) assert.deepEqual(refusalKind(status, ['time'], known), { kind: 'form', fields: [] }, String(status));
+  });
+});
+
+describe('the Models section', () => {
+  it('lists only the providers marked supported, a provider without a key not choosable and given its reason (UX-DR133)', () => {
+    const view = modelsView([ROW('anthropic'), ROW('openai', { supported: false }), ROW('gemini', { keySet: false, keyVariable: 'GEMINI_API_KEY' })]);
+    assert.deepEqual(view.map((one) => one.provider), ['anthropic', 'gemini']);
+    assert.deepEqual(view.map((one) => one.choosable), [true, false]);
+    assert.equal(view[0].reason, '');
+    assert.equal(view[1].reason, 'No key set. Add GEMINI_API_KEY to .env.');
+    assert.equal(noKeyReason('ANTHROPIC_API_KEY'), 'No key set. Add ANTHROPIC_API_KEY to .env.');
+    assert.equal(view[0].label, 'Anthropic');
+    assert.equal(providerLabel('gemini'), 'gemini', 'a provider without a ruled name shows as its id');
+  });
+
+  it('lets no model of a provider without a key be chosen, and keeps the saved model in the list', () => {
+    const view = modelsView([ROW('anthropic'), ROW('gemini', { keySet: false })]);
+    assert.deepEqual(modelOptions(view, 'anthropic', 'anthropic-default').map((one) => [one.value, one.choosable]), [['anthropic-default', true], ['anthropic-big', true]]);
+    assert.deepEqual(modelOptions(view, 'gemini', 'gemini-big').map((one) => [one.value, one.choosable]), [['gemini-default', false], ['gemini-big', false]]);
+    assert.deepEqual(modelOptions(view, 'anthropic', 'old-model').map((one) => [one.value, one.choosable]), [['old-model', false], ['anthropic-default', true], ['anthropic-big', true]]);
+    assert.deepEqual(modelOptions(view, 'zz', ''), []);
+  });
+
+  it('offers None and the models of every supported provider with a key as the second model, and keeps a saved one that is not among them', () => {
+    const view = modelsView([ROW('anthropic'), ROW('gemini', { keySet: false }), ROW('openai', { supported: false })]);
+    assert.deepEqual(secondOptions(view, '').map((one) => [one.value, one.label]), [['', 'None'], ['anthropic/anthropic-default', 'anthropic-default'], ['anthropic/anthropic-big', 'anthropic-big']]);
+    const kept = secondOptions(view, 'gemini/gemini-big');
+    assert.deepEqual(kept[0], { value: 'gemini/gemini-big', label: 'gemini-big', choosable: false });
+    assert.equal(secondValue('anthropic', 'm'), 'anthropic/m');
+    assert.equal(secondValue('', ''), '');
+    assert.deepEqual(splitSecond('anthropic/claude-sonnet-5-5'), { provider: 'anthropic', model: 'claude-sonnet-5-5' });
+    assert.deepEqual(splitSecond(''), { provider: '', model: '' });
+  });
+
+  it('builds the form from the server values, and the body of a save from the form, prices as typed and trimmed', () => {
+    const form = modelsFormOf(AGENTS, PRICES);
+    assert.deepEqual(form.agents.DiagnosisAgent, { provider: 'anthropic', model: 'claude-sonnet-5-5', second: 'anthropic/claude-haiku-5-5' });
+    assert.deepEqual(form.agents.TriageAgent, { provider: 'anthropic', model: 'claude-haiku-5-5', second: '' });
+    assert.deepEqual(form.prices['claude-haiku-5-5'], { input: '1', output: '5', cacheRead: '0.1', cacheWrite: '1.25' });
+    const edited = { ...form, prices: { ...form.prices, 'claude-haiku-5-5': { ...form.prices['claude-haiku-5-5'], input: ' 1.25 ' } } };
+    const body = modelsBody(edited);
+    assert.deepEqual(Object.keys(body), ['agents', 'prices']);
+    assert.deepEqual(Object.keys(body.agents), ['TriageAgent', 'DiagnosisAgent', 'ChatAgent']);
+    assert.deepEqual(body.agents.DiagnosisAgent, AGENTS.DiagnosisAgent);
+    assert.deepEqual(body.agents.TriageAgent, AGENTS.TriageAgent);
+    assert.equal(body.prices['claude-haiku-5-5'].input, '1.25');
+    assert.deepEqual(modelsValuesOf(edited).prices['claude-haiku-5-5'], { input: 1.25, output: 5, cacheRead: 0.1, cacheWrite: 1.25 });
+    assert.deepEqual(modelsValuesOf(edited).agents, AGENTS);
+  });
+
+  it('reads an agent the server does not list as empty', () => {
+    const form = modelsFormOf(undefined, undefined);
+    assert.deepEqual(form.agents.ChatAgent, { provider: '', model: '', second: '' });
+    assert.deepEqual(form.prices, {});
+  });
+
+  it('is dirty when an agent\'s choice or a price differs, ignoring the white space around a price', () => {
+    const saved = modelsFormOf(AGENTS, PRICES);
+    assert.equal(isModelsDirty(modelsFormOf(AGENTS, PRICES), saved), false);
+    const price = (text) => ({ ...saved, prices: { ...saved.prices, 'claude-sonnet-5-5': { ...saved.prices['claude-sonnet-5-5'], cacheWrite: text } } });
+    assert.equal(isModelsDirty(price(' 3.75 '), saved), false);
+    assert.equal(isModelsDirty(price('3.8'), saved), true);
+    for (const change of [{ model: 'claude-sonnet-5-5' }, { second: 'anthropic/claude-sonnet-5-5' }, { provider: 'other' }]) {
+      assert.equal(isModelsDirty({ ...saved, agents: { ...saved.agents, TriageAgent: { ...saved.agents.TriageAgent, ...change } } }, saved), true, JSON.stringify(change));
+    }
+  });
+
+  it('names the fields a refusal can name: each agent, each second model and each model\'s prices', () => {
+    assert.deepEqual(modelsFieldNames(['m1']), ['TriageAgent', 'TriageAgent.second', 'DiagnosisAgent', 'DiagnosisAgent.second', 'ChatAgent', 'ChatAgent.second', 'prices.m1']);
+    assert.deepEqual(refusalKind(400, ['TriageAgent.second', 'prices.m1', 'zz'], modelsFieldNames(['m1'])), { kind: 'field', fields: ['TriageAgent.second', 'prices.m1'] });
+  });
+
+  it('words a Test result: "Answered in {seconds} s" with one decimal, or "Didn\'t answer: {reason}" with the reason as the catalog words it', () => {
+    const reasons = { no_key: 'no model key is set', timeout: "the model didn't answer within the time allowed" };
+    const reasonText = (reason) => reasons[reason] ?? 'x';
+    assert.equal(testResultText({ answered: true, seconds: 1.2, reason: '' }, reasonText), 'Answered in 1.2 s');
+    assert.equal(testResultText({ answered: true, seconds: 3, reason: '' }, reasonText), 'Answered in 3.0 s');
+    assert.equal(testResultText({ answered: false, seconds: 0.1, reason: 'no_key' }, reasonText), "Didn't answer: no model key is set");
+    assert.equal(testResultText({ answered: false, seconds: 45, reason: 'timeout' }, reasonText), "Didn't answer: the model didn't answer within the time allowed");
+  });
+
+  it('pins the texts it shows, byte for byte', () => {
+    const t = SETTINGS_TEXTS.models;
+    assert.deepEqual(
+      [t.agents.TriageAgent, t.agents.DiagnosisAgent, t.agents.ChatAgent, t.provider, t.model, t.secondModel, t.none, t.providers.anthropic],
+      ['Triage agent', 'Diagnosis agent', 'Chat agent', 'Provider', 'Model', 'Second model', 'None', 'Anthropic'],
+    );
+    assert.equal(t.applies, "A change applies from the agent's next model request.");
+    assert.equal(t.secondHelp, "Used once when this agent's reply can't be used.");
+    assert.equal(t.testHelp, "Test sends one short request to the agent's saved model.");
+    assert.equal(t.test, 'Test');
+    assert.equal(t.answeredIn, 'Answered in {seconds} s');
+    assert.equal(t.didntAnswer, "Didn't answer: {reason}");
+    assert.equal(t.testFailed, "Couldn't run the test. Try again.");
+    assert.equal(t.noKey, 'No key set. Add {variable} to .env.');
+    assert.deepEqual([t.prices, t.input, t.output, t.cacheRead, t.cacheWrite], ['Prices', 'Input', 'Output', 'Cache read', 'Cache write']);
+    assert.equal(t.pricesHelp, 'US dollars per million tokens. New prices apply to later model requests; earlier costs stay as they were.');
+  });
+});
+
+describe('the Budgets section', () => {
+  it('sends the two typed values, trimmed, and is dirty when either differs', () => {
+    assert.deepEqual(budgetsBody(' 8000 ', ' 7.50'), { DecisionTokenBudget: '8000', DailyCostCapUSD: '7.50' });
+    assert.equal(isBudgetsDirty({ tokens: '0', cap: '0' }, { tokens: ' 0 ', cap: '0' }), false);
+    assert.equal(isBudgetsDirty({ tokens: '1', cap: '0' }, { tokens: '0', cap: '0' }), true);
+    assert.equal(isBudgetsDirty({ tokens: '0', cap: '5' }, { tokens: '0', cap: '0' }), true);
+  });
+
+  it('pins the texts it shows, byte for byte', () => {
+    const t = SETTINGS_TEXTS.budgets;
+    assert.equal(t.tokens, 'Token budget per decision');
+    assert.equal(t.tokensHelp, 'A decision that would use more tokens than this uses fixed rules instead. 0 is off.');
+    assert.equal(t.cap, 'Daily cost cap (US dollars)');
+    assert.equal(t.capHelp, "When today's model cost reaches the cap, decisions use fixed rules until midnight in the instance's time zone. 0 is off.");
+  });
+
+  it('has no "not built" line any more: every section is built', () => {
+    assert.equal(Object.hasOwn(SETTINGS_TEXTS, 'notBuilt'), false);
   });
 });

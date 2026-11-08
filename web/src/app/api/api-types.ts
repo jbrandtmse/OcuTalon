@@ -167,10 +167,55 @@ export interface PublicStatus {
 /** GET /ocutalon/api/v1/settings: the values of the settings page (admins only; a 403 `not_admin` for anyone else). */
 export interface SettingsBody {
   sections: SettingsSections;
-  /** The bridge values (Budgets); empty until the bridge builds them. */
-  bridge: Record<string, string | number>;
-  providers: unknown[];
+  /** The bridge values: the budgets and the zone as strings, and `agents`, the model of each of the three agents. */
+  bridge: { agents?: Record<string, AgentModels>; [name: string]: unknown };
+  /** The provider table's rows, in their fixed order. No key value is ever in it (Story 18.3). */
+  providers: ProviderRow[];
   instanceZone: string;
+  /** The prices of each model of each supported provider that has a Price row, in US dollars per million tokens. */
+  prices?: Prices;
+}
+
+/** A row of the provider table: `keySet` says that the key variable is set; `supported` says that an agent can run on it. */
+export interface ProviderRow {
+  provider: string;
+  defaultModel: string;
+  models: string[];
+  keyVariable: string;
+  keySet: boolean;
+  supported: boolean;
+}
+
+/** The model of one agent and its second model; the second pair is empty when the agent has none. */
+export interface AgentModels {
+  provider: string;
+  model: string;
+  secondProvider: string;
+  secondModel: string;
+}
+
+/** The prices of one model that the Models section edits. */
+export interface ModelPrices {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+/** The prices by model. */
+export type Prices = Record<string, ModelPrices>;
+
+/** The body of a Models save: the three agents and the prices of every listed model, the prices as typed. */
+export interface ModelsBody {
+  agents: Record<string, AgentModels>;
+  prices: Record<string, Record<keyof ModelPrices, string>>;
+}
+
+/** The 200 answer to POST /v1/settings/models/test: `answered`, the seconds with one decimal, and the fallback reason ("" when answered). */
+export interface ModelTestAnswer {
+  answered: boolean;
+  seconds: number;
+  reason: string;
 }
 
 /** The values of the sections that hold some. */

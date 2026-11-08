@@ -30,7 +30,7 @@ after(() => rmSync(work, { recursive: true, force: true }));
 
 const run = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
 
-/** The ten banner texts, the two chat-only forms (Story 12.9) and the three action texts that the page renders (Stories 2.10 and 16.5), in the generator's order. */
+/** The ten banner texts, the two chat-only forms (Story 12.9) and the four action texts that the page renders (Stories 2.10, 16.5 and 18.3), in the generator's order. */
 const BANNER_KEYS = [
   'banner.allowance',
   'banner.allowanceChat',
@@ -46,6 +46,7 @@ const BANNER_KEYS = [
   'banner.demoBusy',
   'bannerAction.installYourself',
   'bannerAction.howToSetKey',
+  'bannerAction.budgets',
   'bannerAction.setUpBot',
 ];
 
@@ -105,11 +106,11 @@ describe('the real tree', () => {
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     assert.equal(CHECK_KEYS.length, 5);
     assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 51);
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 52);
   });
 
-  it('holds the 15 banner and action keys, the nine answered keys and the nine result keys with the slot types of the catalog, and no key that waits for another story', () => {
-    assert.equal(BANNER_KEYS.length, 15);
+  it('holds the 16 banner and action keys, the nine answered keys and the nine result keys with the slot types of the catalog, and no key that waits for another story', () => {
+    assert.equal(BANNER_KEYS.length, 16);
     assert.equal(ANSWERED_KEYS.length, 9);
     assert.equal(RESULT_KEYS.length, 9);
     assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY]);
@@ -143,12 +144,12 @@ describe('the real tree', () => {
       [LINE_KEY]: { resendCount: 'count', reading: 'text', item: 'text' },
     };
     for (const key of Object.keys(real.PAGE_SLOTS)) assert.deepEqual({ ...real.PAGE_SLOTS[key] }, slots[key] ?? {}, key);
-    assert.ok(!Object.hasOwn(real.PAGE_TEXTS, 'bannerAction.budgets'), 'Budgets waits for the settings page');
+    assert.equal(real.PAGE_TEXTS['bannerAction.budgets'], 'Budgets');
     for (const key of BANNER_KEYS) assert.equal(typeof real.PAGE_TEXTS[key], 'string', key);
   });
 
   it('renders the banner texts of the catalog, with the slots as the caller formatted them', () => {
-    assert.equal(real.renderPageText('banner.noModelKey'), 'OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.');
+    assert.equal(real.renderPageText('banner.noModelKey'), 'OcuTalon has no model key, so every decision uses fixed rules. Add a key for a supported provider (for example, ANTHROPIC_API_KEY) to the .env file and restart OcuTalon.');
     assert.equal(
       real.renderPageText('banner.costCap', { cap: '$20.00', time: '17:30' }),
       "OcuTalon has reached today's cost limit of $20.00. Decisions use fixed rules until 17:30.",
@@ -363,8 +364,8 @@ describe('the fallback sentence', () => {
     daily_cap: "today's cost limit has been reached",
     budget: 'this would have gone over the token budget',
     too_large: 'this request would have been too large to send',
-    timeout: "the model didn't answer within 60 seconds",
-    rate_limited: 'the model was busy and retries ran out',
+    timeout: "the model didn't answer within the time allowed",
+    rate_limited: 'the model was too busy to answer',
     error: 'the model returned an error',
     refusal: 'the model declined to answer',
     cut_off: "the model's reply was cut off",
@@ -391,14 +392,14 @@ describe('the fallback sentence', () => {
   });
 
   it('trims a slot value and drops its control characters, as the catalog does for a string slot', () => {
-    const timeout = sentence("the model didn't answer within 60 seconds");
+    const timeout = sentence("the model didn't answer within the time allowed");
     for (const value of [' timeout', 'timeout\n', '\ttimeout ', 'time\u0000out', 'time\u200Bout', '\u202Etimeout']) {
       assert.equal(real.renderPageText('conversation.turnFallback', { fallbackReason: value }), timeout, JSON.stringify(value));
     }
   });
 
   it('renders the reasons\' own keys and refuses a key that the page does not render', () => {
-    assert.equal(real.renderPageText('fallbackReason.timeout'), "the model didn't answer within 60 seconds");
+    assert.equal(real.renderPageText('fallbackReason.timeout'), "the model didn't answer within the time allowed");
     assert.throws(() => real.renderPageText('conversation.dailyCap'), /no catalog text for 'conversation\.dailyCap'/);
     assert.throws(() => real.renderPageText('constructor'), /no catalog text/);
   });
@@ -426,6 +427,7 @@ const BANNERS = {
   'banner.demoBusy': { text: 'Busy.', slots: {}, source: 'fixture' },
   'bannerAction.installYourself': { text: 'Install.', slots: {}, source: 'fixture' },
   'bannerAction.howToSetKey': { text: 'Set a key.', slots: {}, source: 'fixture' },
+  'bannerAction.budgets': { text: 'Budgets.', slots: {}, source: 'fixture' },
   'bannerAction.setUpBot': { text: 'Set up.', slots: {}, source: 'fixture' },
 };
 

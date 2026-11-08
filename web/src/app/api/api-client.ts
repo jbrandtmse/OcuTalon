@@ -18,6 +18,7 @@ import type {
   MailboxEmail,
   MessageAccepted,
   MessagePost,
+  ModelTestAnswer,
   PairingCode,
   PublicStatus,
   SettingsBody,
@@ -55,6 +56,14 @@ export class ApiClient {
    */
   saveSettings(section: string, values: object): Observable<SettingsSaved> {
     return this.http.post<SettingsSaved>(`${BASE}/settings/${encodeURIComponent(section)}`, values);
+  }
+
+  /**
+   * Tests the saved first model of one agent: a POST of `{agent}` that answers 200 `{answered, seconds, reason}` (Story 18.3). The call can take most of
+   * 45 seconds. A 400 `bad_settings` (an agent the server refuses), a 403 and a 500 fail as an HttpErrorResponse.
+   */
+  testModel(agent: string): Observable<ModelTestAnswer> {
+    return this.http.post<ModelTestAnswer>(`${BASE}/settings/models/test`, { agent });
   }
 
   /**

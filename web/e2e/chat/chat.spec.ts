@@ -909,9 +909,9 @@ test('C12: a fallback reply names its own reason, and an unknown reason reads as
   const stamp = Date.now().toString(36);
   const sentence = (reason: string): string => `I couldn't answer that: ${reason}. Nothing was changed.`;
   const cases = [
-    { reason: 'timeout', key: 'conversation.turnFallback', words: "the model didn't answer within 60 seconds" },
+    { reason: 'timeout', key: 'conversation.turnFallback', words: "the model didn't answer within the time allowed" },
     { reason: 'no_key', key: 'conversation.turnFallback', words: 'no model key is set' },
-    { reason: 'rate_limited', key: 'conversation.dailyCap', words: 'the model was busy and retries ran out' },
+    { reason: 'rate_limited', key: 'conversation.dailyCap', words: 'the model was too busy to answer' },
     { reason: 'not_a_reason', key: 'conversation.turnFallback', words: "the model's reply couldn't be used" },
   ];
   const turns: SeedTurn[] = cases.map((entry, i) => ({

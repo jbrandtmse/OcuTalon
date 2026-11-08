@@ -15,6 +15,16 @@
 /// "not implemented" (code 5003), "error" for an error status and "error:<name>" for an error status for that name only; the answer "set" is "" for
 /// OK and "error" for an error status, "setAt" (a number n) fails the nth Set call only and "throwAt" (a number n) makes it throw. A Set stores the value in
 /// ^OcuTalonTest("SettingsOpsProbe", "bridgeValue", name) and answers the value it replaced in old. The product never refers to it.
+/// The model seams (Story 18.3) BridgeCheckModel, BridgeSetModel, BridgeSetPrice and BridgeTest log each call in order under ^||OcuTalonSettingsOpsProbe("models", n)
+/// (a process-private global, which a TROLLBACK does not undo) as "checkModel|agent|provider|model|second", "setModel|agent|provider|model|second",
+/// "setPrice|model|prices as JSON" and "test|agent". The answers: "checkModel" is "" for OK, "stub" for "not implemented", "error" for an error status and
+/// "error:<Agent>" or "error:<Agent>.second" for that model only; "setModel" is "" for OK and "error" for an error status, "setModelAt" (a number n) fails the nth
+/// SetModel call only and "setModelThrowAt" makes it throw; "setPrice" is "" for OK, "error" or "error:<model>", and "setPriceAt" fails the nth SetPrice call only;
+/// "test" is "" for an answered test, "timeout", "error" or "refused". A SetModel stores the model in ^OcuTalonTest("SettingsOpsProbe", "bridgeValue",
+/// "<Agent>.provider" and ".model", or ".secondProvider" and ".secondModel"), a SetPrice the price in "price.<model>.<key>", and BridgeCurrent reads them.
+/// The answer "pass" is a comma-separated list: with "models" the check, set and read of agents' models pass through to Bridge.Settings, and with "prices" the set
+/// and read of prices pass through to Bridge.Settings and the real Price rows (the live tests; the test of the rollback of the prices). The answer "audit"
+/// "record" writes the real audit entries.
 /// The persona seams (Story 40.6): RaiseRequest raises nothing; it records the row's Kind, OwnerRef, TraceRef, DryRun and ResultTarget under
 /// ^OcuTalonTest("SettingsOpsProbe", "raised", n, ...) and answers OK with the Ref in ^OcuTalonTest("SettingsOpsProbe", "raiseRef") (a fixed
 /// Ref when there is none), or an error status when ^OcuTalonTest("SettingsOpsProbe", "raise") is "error". SendNotice sends nothing; it
@@ -84,7 +94,81 @@ ClassMethod Apply(key As %String, value As %String) As %Status [ Private ]
 
 Method BridgeCurrent(name As %String) As %String [ Private ]
 {
+	If (name [ ".") && ..Passes($Select($Extract(name, 1, 6) = "price.": "prices", 1: "models")) Quit ##super(name)
 	Quit $Get(^OcuTalonTest("SettingsOpsProbe", "bridgeValue", name))
+}
+
+/// 1 when the answer "pass" lists the part ("models" or "prices").
+Method Passes(part As %String) As %Boolean [ Private ]
+{
+	Quit ''$ListFind($ListFromString($Get(^OcuTalonTest("SettingsOpsProbe", "answer", "pass"))), part)
+}
+
+/// Logs a call of a model seam, in order.
+ClassMethod RecordCall(text As %String) [ Private ]
+{
+	Set n = $Increment(^||OcuTalonSettingsOpsProbe("models"))
+	Set ^||OcuTalonSettingsOpsProbe("models", n) = text
+}
+
+Method BridgeCheckModel(agent As %String, provider As %String, model As %String, second As %Boolean) As %Status [ Private ]
+{
+	Do ..RecordCall("checkModel|"_agent_"|"_provider_"|"_model_"|"_+second)
+	Set answer = $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "checkModel"))
+	If answer = "stub" Quit $$$ERROR($$$NotImplemented)
+	If (answer = "error") || (answer = ("error:"_agent_$Select(second: ".second", 1: ""))) Quit $SYSTEM.Status.Error(5001, "zz "_agent_" refused")
+	If ..Passes("models") Quit ##super(agent, provider, model, second)
+	Quit $$$OK
+}
+
+Method BridgeSetModel(agent As %String, provider As %String, model As %String, second As %Boolean, Output old As %DynamicObject) As %Status [ Private ]
+{
+	Set old = {}
+	Do ..RecordCall("setModel|"_agent_"|"_provider_"|"_model_"|"_+second)
+	Set sets = $Increment(^||OcuTalonSettingsOpsProbe("n", "setModel"))
+	If sets = +$Get(^OcuTalonTest("SettingsOpsProbe", "answer", "setModelThrowAt")) Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "zz set model threw"))
+	If ($Get(^OcuTalonTest("SettingsOpsProbe", "answer", "setModel")) = "error") || (sets = +$Get(^OcuTalonTest("SettingsOpsProbe", "answer", "setModelAt"))) Quit $SYSTEM.Status.Error(5001, "zz set model failed")
+	If ..Passes("models") Quit ##super(agent, provider, model, second, .old)
+	Set prefix = agent_".", names = $Select(second: "secondProvider,secondModel", 1: "provider,model")
+	Do old.%Set("provider", $Get(^OcuTalonTest("SettingsOpsProbe", "bridgeValue", prefix_$Piece(names, ",", 1))))
+	Do old.%Set("model", $Get(^OcuTalonTest("SettingsOpsProbe", "bridgeValue", prefix_$Piece(names, ",", 2))))
+	Set ^OcuTalonTest("SettingsOpsProbe", "bridgeValue", prefix_$Piece(names, ",", 1)) = provider
+	Set ^OcuTalonTest("SettingsOpsProbe", "bridgeValue", prefix_$Piece(names, ",", 2)) = model
+	Quit $$$OK
+}
+
+Method BridgeSetPrice(model As %String, prices As %DynamicObject, Output old As %DynamicObject) As %Status [ Private ]
+{
+	Set old = {}
+	Do ..RecordCall("setPrice|"_model_"|"_prices.%ToJSON())
+	Set sets = $Increment(^||OcuTalonSettingsOpsProbe("n", "setPrice"))
+	Set answer = $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "setPrice"))
+	If (answer = "error") || (answer = ("error:"_model)) || (sets = +$Get(^OcuTalonTest("SettingsOpsProbe", "answer", "setPriceAt"))) Quit $SYSTEM.Status.Error(5001, "zz price refused")
+	If ..Passes("prices") Quit ##super(model, prices, .old)
+	Set iterator = prices.%GetIterator()
+	While iterator.%GetNext(.key, .value) {
+		Do old.%Set(key, +$Get(^OcuTalonTest("SettingsOpsProbe", "bridgeValue", "price."_model_"."_key)), "number")
+		Set ^OcuTalonTest("SettingsOpsProbe", "bridgeValue", "price."_model_"."_key) = value
+	}
+	Quit $$$OK
+}
+
+Method BridgeTest(agent As %String, Output answer As %DynamicObject, Output refused As %Boolean) As %Status [ Private ]
+{
+	Set answer = "", refused = 0
+	Do ..RecordCall("test|"_agent)
+	Set kind = $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "test"))
+	If kind = "refused" {
+		Set refused = 1
+		Quit $SYSTEM.Status.Error(5001, "zz agent refused")
+	}
+	If kind = "error" Quit $SYSTEM.Status.Error(5001, "zz test failed")
+	If kind = "timeout" {
+		Set answer = {"answered": false, "seconds": 45, "reason": "timeout"}
+	} Else {
+		Set answer = {"answered": true, "seconds": 0.5, "reason": ""}
+	}
+	Quit $$$OK
 }
 
 Method BridgeCheck(name As %String, value As %String) As %Status [ Private ]

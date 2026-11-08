@@ -12,8 +12,8 @@
 // Msg/Catalog.cls (each fallback reason value with the suffix of its fallbackReason.* key, and CHANNELNAMES, each channel code
 // with its name in message text), and keeps an allowlist of the keys the page renders: conversation.turnFallback, the check
 // sentences checks.allPassed, checks.everythingElsePassed, checks.nothingWatched, checks.notEverything and
-// checks.notEverythingRestPassed, the ten banner.* texts, the three bannerAction.* texts the page renders (installYourself,
-// howToSetKey and setUpBot), the nine answered.* texts (approved, approvedBy, rejected, rejectedBy, expired, alreadyApproved,
+// checks.notEverythingRestPassed, the ten banner.* texts, the four bannerAction.* texts the page renders (installYourself,
+// howToSetKey, budgets and setUpBot), the nine answered.* texts (approved, approvedBy, rejected, rejectedBy, expired, alreadyApproved,
 // alreadyRejected, alreadyApprovedBy and alreadyRejectedBy), the eight result.* texts (allThrough, failedAgain, skipped,
 // failedAndSkipped, stillResending, interrupted, couldNotStart and stoppedPartway), audit.recorded, incident.eitherWayLine and every
 // fallbackReason.*. An entry's web text is used, else its text.
@@ -79,6 +79,7 @@ export const LISTED_KEYS = [
   'banner.demoBusy',
   'bannerAction.installYourself',
   'bannerAction.howToSetKey',
+  'bannerAction.budgets',
   'bannerAction.setUpBot',
   'answered.approved',
   'answered.approvedBy',

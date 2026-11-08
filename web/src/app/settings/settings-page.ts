@@ -6,16 +6,18 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map, Observable } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
-import type { SettingsBody, SettingsSections } from '../api/api-types';
+import type { AgentModels, Prices, ProviderRow, SettingsBody, SettingsSections } from '../api/api-types';
 import { LiveState, LOAD_FAILED } from '../live/live-state';
 import { telegramPaused } from '../rail/telegram-card/telegram-card-view';
 import { Announcer } from '../shared/announcer';
 import { ServerButton } from '../shared/server-button';
+import { BudgetsSection, type BudgetTexts } from './budgets-section';
 import { ChannelsSection } from './channels-section';
 import { CheckThresholdsSection } from './check-thresholds-section';
 import { DailyDigestSection } from './daily-digest-section';
 import { DemoModeSection } from './demo-mode-section';
-import { sectionLabel, sectionPath, sectionSlug, SETTINGS_SECTIONS, SETTINGS_TEXTS, telegramBoxShown, type ThresholdNumbers } from './settings-view';
+import { ModelsSection } from './models-section';
+import { type ModelsForm, modelsValuesOf, sectionLabel, sectionPath, sectionSlug, SETTINGS_SECTIONS, SETTINGS_TEXTS, telegramBoxShown, type ThresholdNumbers } from './settings-view';
 import { TimeZoneSection } from './time-zone-section';
 
 /** The id of the load error's text, which Retry is described by. */
@@ -27,16 +29,16 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
  * open section on the right under its own h2. A section has its own address, #/settings/<slug>; #/settings and an unknown slug open Models (the first).
  *
  * The page asks GET /v1/settings once when it opens, and the answer decides what it shows (D10): the sections for an admin; for a 403, the denied
- * view, "Only OcuTalon admins can open settings." with a link back to the chat; for any other failure, the load error with Retry. Check thresholds,
- * Demo mode, Daily digest and Time zone have forms, and Channels shows the state of Telegram and nothing to save (Story 18.2); Models and Budgets show that they
- * are not built yet (their stories add them), with no button.
+ * view, "Only OcuTalon admins can open settings." with a link back to the chat; for any other failure, the load error with Retry. Models, Budgets, Check
+ * thresholds, Demo mode, Daily digest and Time zone have forms (Models and Budgets are Story 18.3's), and Channels shows the state of Telegram and nothing to
+ * save (Story 18.2). Every section is built; an unknown address opens Models.
  *
  * Unsaved changes: the open form tells the page whether it differs from its saved values (`dirty`). While it does, leaving by a link or the browser's
  * back asks first (unsavedGuard), and a reload or a close of the tab gets the browser's own prompt, which is armed only while the form is dirty.
  */
 @Component({
   selector: 'app-settings-page',
-  imports: [ChannelsSection, CheckThresholdsSection, DailyDigestSection, DemoModeSection, RouterLink, ServerButton, TimeZoneSection],
+  imports: [BudgetsSection, ChannelsSection, CheckThresholdsSection, DailyDigestSection, DemoModeSection, ModelsSection, RouterLink, ServerButton, TimeZoneSection],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <main class="settings" tabindex="-1" [attr.data-settings]="status()" [attr.aria-busy]="status() === 'loading' ? 'true' : null">
@@ -84,8 +86,18 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
                 @case ('demo-mode') {
                   <app-demo-mode-section [value]="demoMode()" (saved)="keepDemoMode($event)" (dirtyChange)="dirty.set($event)" (denied)="deny()" />
                 }
-                @default {
-                  <p class="not-built">{{ texts.notBuilt }}</p>
+                @case ('budgets') {
+                  <app-budgets-section [values]="budgets()" (saved)="keepBudgets($event)" (dirtyChange)="dirty.set($event)" (denied)="deny()" />
+                }
+                @case ('models') {
+                  <app-models-section
+                    [agentModels]="agentModels()"
+                    [pricesIn]="prices()"
+                    [providers]="providers()"
+                    (saved)="keepModels($event)"
+                    (dirtyChange)="dirty.set($event)"
+                    (denied)="deny()"
+                  />
                 }
               }
             </section>
@@ -177,7 +189,6 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
     .section-heading {
       margin: 0;
     }
-    .not-built,
     .denied,
     .load-error-text {
       margin: 0;
@@ -224,6 +235,14 @@ export class SettingsPage {
   protected readonly zone = computed(() => {
     const zone = this.data()?.bridge['InstanceZone'];
     return typeof zone === 'string' ? zone : '';
+  });
+  /** The model of each agent, and the prices, the provider table and the budgets, as GET /v1/settings has them (Story 18.3). */
+  protected readonly agentModels = computed<Readonly<Record<string, AgentModels>> | undefined>(() => this.data()?.bridge.agents);
+  protected readonly prices = computed<Readonly<Prices> | undefined>(() => this.data()?.prices);
+  protected readonly providers = computed<readonly ProviderRow[]>(() => this.data()?.providers ?? []);
+  protected readonly budgets = computed<BudgetTexts>(() => {
+    const bridge = this.data()?.bridge;
+    return { tokens: String(bridge?.['DecisionTokenBudget'] ?? '0'), cap: String(bridge?.['DailyCostCapUSD'] ?? '0') };
   });
   /** True while the Daily digest section shows the Telegram box: Telegram is included and on, or paused. */
   protected readonly telegramShown = computed(() => telegramBoxShown(this.live.store()?.telegram, telegramPaused(this.live.store()?.status)));
@@ -279,6 +298,15 @@ export class SettingsPage {
 
   protected keepTimeZone(zone: string): void {
     this.data.update((one) => (one === undefined ? one : { ...one, bridge: { ...one.bridge, InstanceZone: zone }, instanceZone: zone }));
+  }
+
+  protected keepModels(form: ModelsForm): void {
+    const values = modelsValuesOf(form);
+    this.data.update((one) => (one === undefined ? one : { ...one, bridge: { ...one.bridge, agents: values.agents }, prices: values.prices }));
+  }
+
+  protected keepBudgets(values: BudgetTexts): void {
+    this.data.update((one) => (one === undefined ? one : { ...one, bridge: { ...one.bridge, DecisionTokenBudget: values.tokens, DailyCostCapUSD: values.cap } }));
   }
 
   protected keepDemoMode(value: boolean): void {

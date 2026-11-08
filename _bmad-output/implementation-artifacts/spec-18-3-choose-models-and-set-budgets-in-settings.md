@@ -2,13 +2,21 @@
 title: 'Story 18.3: Choose models and set budgets in Settings'
 type: 'feature'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2537a6cc2c14e227afccccb9b6506ce9211f8f9c'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-18-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      A model test request leaves a Decision row and a Usage row with ItemId test.<ref>, and nothing outside Bridge.Settings is shown to filter such rows from the Recent decisions list, the usage totals, the daily cap or the digest cost line.
+    evidence: |-
+      Bridge.Settings.TestRequest (Lane A, Story 17.4) makes the request; the Decision and Usage rows are Decide's. No view or aggregate was read in this story, so whether they skip or count the rows is unverified. If they count them, a Test press adds a priced row to the day's cost and to the decision lists.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Settings.cls (TestRequest), Decide, the Recent decisions and cost readers
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -179,6 +187,43 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-08 - Review pass
+- verdicts: 33 findings - high 0, medium 8, low 21, false 3, maybe-false 1 (nine rows repeat an earlier row and share its route; the four rows of the intent-alignment layer are its descriptive divergences)
+- findings:
+  - `[low]` `[reject]` Blind 1, SettingsOps (PoolSize 1) is held up to 45 s by a Test, so a save queued behind it waits - the spec's contract is that SettingsOps sends the request to Decide synchronously; a Test answers in seconds on a mock or a key, and the button follows the shared busy pattern; a separate item or pool is a Production.cls change outside the story.
+  - `[low]` `[patch]` Blind 2, the 45 s wait is shorter than the bridge's timer and the request is not cancelled, and the class comment said the test "writes and audits nothing" - the comment is corrected in `Core/SettingsOps.cls` and `Msg/Command/TestModel.cls` (no setting, no audit entry; the Decision and Usage rows are Decide's). A late Decide row after an expired wait is Lane A's design (17.4).
+  - `[maybe-false]` `[defer]` Blind 3, Test rows (ItemId test.<ref>) may show in Recent decisions, the usage totals, the cap or the digest cost - needs a read of those views, which are Lane A's; recorded in `deferred:` as medium (unverified).
+  - `[medium]` `[patch]` Blind 4, the real BridgeTest has no test for the expired wait, the refused agent or the failed send - added `Test.Core.SettingsOpsNoReply` and `SettingsModels` `TestRealModelTestWait`; the mutation (the expired-wait override removed) turns it red.
+  - `[low]` `[reject]` Blind 5, a save is refused when a Price row appears or disappears between page load and save - the form error says nothing was changed and a reload shows the rows; a Price row changes only by a code change.
+  - `[low]` `[patch]` Blind 6, the Test line stays beside a model that a save changed - `models-section.ts` clears the line of each agent whose provider or model changed (pinned by S13c, not observed locally).
+  - `[low]` `[reject]` Blind 7, `keepBudgets` keeps the typed text - the same pattern as the other sections' keep updaters (they keep what was sent), and the server canonicalises on the next load.
+  - `[false]` `[reject]` Blind 8, the live specs change shared settings and could affect parallel specs - `web/playwright.config.ts` has `fullyParallel: false` and `workers: 1`, and each case restores its values in `finally`.
+  - `[low]` `[reject]` Blind 9, stale text in the `Web/Api.cls` class comment, `chat/decision-strip.ts:21` and the UX mockup `states.html` - the first is a contended file, the second is on the story's do-not-edit list and the third is the UX owner's; none is shown to a user.
+  - `[low]` `[patch]` Blind 10, TestModel is missing from the message contract tables - added to `Test.Msg.Contracts`; `Test.Contract.Ac` is the epics-AC table and lists no later verb.
+  - `[medium]` `[reject]` Edge 1, a stale Models form sends every field and can revert another admin's change - the sibling sections send all their fields the same way and the server drops what is unchanged against the current value; two admins on one instance saving within one page load is not a path the stories cover (wontfix-theoretical).
+  - `[low]` `[reject]` Edge 2, ServerButton restores the Test button after 10 s while a Test can run 45 s - the shared busy pattern is what AC 2 names, it shows its notice, and ServerButton has no timeout input (adding one is a shared-component change).
+  - `[low]` `[reject]` Edge 3, the single SettingsOps job blocks saves during a Test - same as Blind 1.
+  - `[low]` `[patch]` Edge 4, the Test line is stale after the model changes - same as Blind 6.
+  - `[false]` `[reject]` Edge 5, an OK answer with no body is reported as a timeout - Ens.Host's SendRequestSync leaves the status OK and the response empty exactly when the wait expires, and Decide always answers with a Result.
+  - `[low]` `[reject]` Edge 6, prices written in an open transaction can be read before a rollback - the spec's decision 3 (SetPrice inside a transaction is the check, as SaveProduct does); the window is the length of two writes.
+  - `[low]` `[reject]` Edge 7, a put-back can be refused when the old provider's key is gone - a key variable is read at process start, so it cannot disappear within one save (wontfix-theoretical).
+  - `[low]` `[reject]` Edge 8, `keepBudgets` keeps the typed text - same as Blind 7.
+  - `[low]` `[reject]` Edge 9, the `decision-strip.ts` comment is stale - same as Blind 9.
+  - `[low]` `[reject]` Edge 10, the busy pattern is not single-flight for 45 s - same as Edge 2.
+  - `[medium]` `[patch]` Gap 1, the real BridgeTest's expired-wait branch is covered by no test - same as Blind 4.
+  - `[medium]` `[patch]` Gap 2, the page's model, second-model and provider choices and the agent field errors have no pinning test - added e2e S13c (stubbed GET with a key, stubbed POST): the posted body, the cleared Test line and the two field errors; not observed locally (DW-938 pattern).
+  - `[medium]` `[patch]` Gap 3, the new page modules have no executed test host and some pins carry no mutation - the DW-948 adoption and the banner stack's admin wiring are now pinned by `settings-refusal-sources.test.mjs` and the `prices` mutation was observed (both recorded in Verification); the Playwright cases keep "not observed locally".
+  - `[medium]` `[patch]` Gap 4, S13's keyless branches could run no check on a stack with a key, and the SettingsApi guard reads the test process - S13 now asserts the control that a CI stack holds no key and checks unconditionally (`lib-live.sh` keeps the decoy key out of the container); the SettingsApi guard stays, since it only skips when the process holds a key.
+  - `[medium]` `[patch]` Gap 5, "the answer holds no key" in `TestModelTestAnswers` cannot fail - replaced by the assertion that the answer has exactly its three members.
+  - `[medium]` `[patch]` Gap 6, the Decision assertion in `TestModelTestAnswers` is not scoped to the test's row - it now reads rows above the highest ID before the Submit.
+  - `[low]` `[reject]` Gap other 1, the `Web.Api.TestModel` 500 branches are reached by no test - they answer only for an error status or a missing result from a SettingsOps that is up; the route's 200, 400 and 403 are pinned.
+  - `[low]` `[reject]` Gap other 2, `decision-strip.ts:21` still quotes the old text in a comment - same as Blind 9.
+  - `[low]` `[reject]` Gap other 3, `SettingsModels` expects the Price rows of exactly two models - the failure is loud, and the models are the supported provider's table.
+  - `[low]` `[reject]` Intent 1, the tests drive SettingsOps through a probe or through the bridge rather than through REST - the spec names that shape (`SettingsModels` in-process, `SettingsModelsLive` on the real bridge, `SettingsApi` for the routes).
+  - `[low]` `[reject]` Intent 2, B3b gets the admin state by rewriting the snapshot - the live fixture user holds OcuTalonUser only; the admin flag is the snapshot's (AD-12) and `banner-view.test.mjs` pins the rule.
+  - `[low]` `[reject]` Intent 3, the demo-mode section and the digest send use refusalOf for the 403 only - the spec says "demo-mode (403 only)"; their other answers keep their own text.
+  - `[false]` `[reject]` Intent 4, the `banner.noModelKey` source annotation still says "step 1" - it names the EXPERIENCE heading of the row, which is unchanged.
+
 ## Design Notes
 
 **Architecture decisions (Rule 6):**
@@ -211,9 +256,18 @@ deferred: []
 4. The page edits four prices (input, output, cacheRead, cacheWrite). The long tier keeps its values, because `SetPrice` keeps keys that are left out.
 5. Model names show as their ids (values, like zone names). Provider names: `anthropic` -> "Anthropic"; any other id shows as itself, and today no other provider is listed.
 6. The Test checks the agent's *saved* first model (`TestRequest`), and the help line says so.
-7. `TESTWAIT` is 45 s. It keeps the request under the CSP gateway's response timeout (assumed to be the default 60 s; inference, not measured) and inside `CommandsIn`'s 120 s. An expired wait reports `timeout`.
+7. `TESTWAIT` is 45 s. Task 0 measured the lane-D warm throwaway (tag `e18s3iw`): the Web Gateway configuration `/usr/irissys/csp/bin/CSP.ini` in the `iris` container, and its durable copy `/durable/iris/csp/bin/CSP.ini`, both hold `Server_Response_Timeout=60` and `Queued_Request_Timeout=60` in `[SYSTEM]`. 60 s is not under 55 s, so 45 s stays: it is 15 s below the gateway's response timeout and inside `CommandsIn`'s 120 s. An expired wait reports `timeout`.
 8. The page formats `seconds` with one decimal.
 9. The not-built branch and its text are removed, since no section is unbuilt.
+10. An expired `SendRequestSync` wait gives status OK and no response (`Ens.Host` `queueRequestSync`), so `BridgeTest` reads "OK and no response object" as the wait expiring and sets `reason` `timeout`; `TestAnswer` alone would say `error`.
+11. `BridgeCurrent` also answers `<Agent>.provider`, `.model`, `.secondProvider` and `.secondModel` (from `Bridge.Settings.Values().agents`) and `price.<model>.<key>` (from the Price row), so the four new seams are the four the spec names and no fifth seam reads the current values.
+12. The put-back of a model uses the provider and model that `Values()` showed before the save (the same pair the audit entry names as `from`), not the provider of `SetModel`'s `old`: `old.provider` is the Config Store entry's provider, which can be empty where `Values()` derives it from the model. An empty pair puts back a second model with the clear form (`SetModel(agent, "", "", 1)`).
+13. The `models` body must hold exactly the three agents and exactly the models that `Values().prices` lists (`PriceModels`), each with exactly its members, as the Matrix says ("missing or extra"). Prices are compared as numbers, a value that is not a valid number counts as a change so that `SetPrice` refuses it inside the transaction, and the audit entries of the prices are written after the transaction commits (an audit entry cannot be rolled back, and a refusal must leave none). A failed audit entry puts back the prices and models written so far.
+14. The Test button tests the saved first model, so the page does not send unsaved choices with it. `Test.Core.SettingsModelsLive` runs the real Test through `Commands.Submit` for TriageAgent only: the default mock scripts of the diagnosis and chat agents take a tool call first, and the fixed test input cannot carry a mock marker.
+15. A provider without a key keeps its radio focusable with `aria-disabled` and a click on it is ignored; the options of the Model select of such a provider are `disabled`, and the saved second model stays in the Second model list, not choosable, when its provider has no key.
+16. The README keeps its first two sentences, then the ruled paragraph, then "To give it a key:" and steps 1 to 4: the ruled paragraph sits after the first sentences and before the steps, since "To give it a key:" must lead into the steps. The dropped sentence appears nowhere.
+17. `web/scripts/announce-focus-sources.test.mjs` (footprint extension, no open branch changes it): its lists of announcing files, files that call `.focus(` and files that wait for a render now name the two new sections, which announce their saved and failed texts and focus their first field in error like the four existing ones.
+18. The banner view takes an `admin` input (the snapshot's `admin` flag, set in `banner-stack.ts`), and `BannerAction` has `sameTab` for the Budgets action; the cost-cap row carries the action with `adminAction: true`.
 
 **Ledger (Rule 17):**
 - DW-100: addressed by AC 6, once the text is accepted. The proposed wording keeps `Test.Digest.Compose:524`'s prefix ("the model didn't answer within"), so only one Lane A literal changes.
@@ -339,6 +393,21 @@ Runtime: compile on slot D (`ocutalon-slot-d`, `OCUTALON`) with `iris_doc_load`.
 - AC 7: the "never entered on the settings page" sentence is dropped -> `test-readme.sh` red.
 - DW-948: `refusalKind` treats a 400 with no known field as a field error -> `settings-view.test.mjs` red.
 
+**Observed in the implement stage (Rule 19; each mutation applied, run, reverted; the tree was byte-identical after each revert):**
+- mutation: AC 1, `modelsView` lists a keyless provider as choosable (`choosable: true`) -> `node --test web/scripts/settings-view.test.mjs` red in three tests (the supported-provider list, the model options, the second-model options).
+- mutation: AC 2, `SettingsOps.TestModel` drops the `answered` member -> `SettingsModelsLive` `TestModelAnswers` red ("the model answered", "with the types of the answer"). The running SettingsOps job was restarted after the reload, since a warm reload does not restart a job. Also: the route answers a refused agent as a success (the `refused` outcome line removed from `Web.Api` `TestModel`) -> `SettingsApi` `TestModelTestRoute` red for `NoSuchAgent` and `@{`.
+- mutation: AC 3, `SaveModels` skips `SetModel` -> `SettingsModelsLive` `TestSavedModelsApplyToTheNextDecide` red (Values shows the old model, the retry item, the Decision row's model, the mock's model). Prices written outside the transaction (the rollback replaced by a commit) -> `SettingsModels` `TestPriceRefusedRollsBack` red ("the first model keeps its price: the transaction rolled back").
+- mutation: AC 4, the cost-cap action loses its admin check (`if (spec.action) {`) -> `banner-view.test.mjs` red in two tests ("are Budgets ... for an admin, and none for anyone else", "are none for the non-admin's cost limit").
+- mutation: AC 5 and AC 6, the step 1 no-key text and the old timeout text put back in `Catalog/Core.cls` -> `Test.Msg.Catalog` red (`fallbackReason.timeout`, `banner.noModelKey`, `incident.fallback`, `digest.savedNoSummary`), and `catalog.test.mjs` red ("has a current catalog.ts").
+- mutation: AC 7, the sentence "A key is never entered on the settings page, and the page never shows one." dropped from the README -> `test-readme.sh` red (`key-account: missing '...'`).
+- mutation: DW-948, `refusalKind` treats every 400 as a field error -> `settings-view.test.mjs` red ("says form for a 400 that names no known field").
+- mutation: AC 2 (the wait cap), `SettingsOps.BridgeTest` loses its expired-wait override (the `'$IsObject(response)` block) -> `SettingsModels` `TestRealModelTestWait` red ("a wait that expires answers reason timeout": reason `error`).
+- mutation: AC 1 (the GET body), `Values()` loses its `prices` member -> `SettingsApi` `TestGetShape` and `TestModelsSaveRoute` red, `SettingsSave` `TestValues` red.
+- mutation: DW-948 (adoption) and AC 4 (the Budgets action's admin wiring), a 403 check of its own put into `budgets-section.ts` -> `settings-refusal-sources.test.mjs` red ("budgets-section.ts reads a refusal through refusalOf and keeps no 400 or 403 check of its own"); `admin: false` in `banner-stack.ts` -> the same file red ("banner-stack.ts reads it from the snapshot"). Both reverted byte-identical.
+- mutation: S1, S13, S13b, S13c, S14 and B3b (Playwright): not observed locally (DW-938 pattern); they run in CI (`live:sign-in-2`, `chromium`).
+
+**Per test class on the warm throwaway `e18s3iw` (seconds, as `CLASS ... passed` printed them):** `Test.Core.SettingsModels` 0.12, `Test.Core.SettingsModelsLive` 19.2, `Test.Web.SettingsApi` 1.6, `Test.Core.SettingsSave` 0.64, `Test.Msg.Catalog` 7.6, `Test.Core.SettingsCommands` 0.08, `Test.Web.Api` 1.2, `Test.Web.BodyLimit` 0.07, `Test.Core.ConversationTurns` 0.94, `Test.Core.SettingsAudit` 0.15, `Test.Msg.Contracts` 0.07, `Test.Bridge.ModelChange` 106.7, `Test.Bridge.SettingsApply` 23.9, `Test.Digest.Compose` 0.68, `Test.Watch.NoticeText` 0.50, and (extra) `Test.Core.CommandsRouting` 0.10, `Test.Core.CommandsInProduction` 0.21. Web: `npm --prefix web test` 1577 of 1577, `npm --prefix web run lint` exit 0, `npm --prefix web run build` exit 0 (the bundle-size warnings are the existing ones), `test-readme.sh` and `test-boundaries.sh` pass.
+
 **Shared surfaces:**
 - The GET `/v1/settings` body (`prices`): `TestGetShape`, `TestValues`.
 - The URL map and the POST route list: `TestRoutes`, `POSTROUTES`, `TestNonAdminIs403Everywhere`.
@@ -354,10 +423,25 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halted after planning, as the dispatch directed). The epic context was reused as committed, per the lead's instruction. Its mtime is older than the spine's only because Story 18.2's AD-14 edit came later, and this plan read the ADs it cites from the spine directly. Before implement, the lead has to:
-- send the PUBLIC TEXT list to the Planner;
-- obtain the U-177 grant for `Test/Watch/NoticeText.cls:270`;
-- apply the Rule 5 amendment note (UpdateProduction) and the spine and UX notes.
+Summary: Story 18.3 is implemented. The Models section (provider, model and second model per agent, a Test button per agent, four prices per listed model, one Save changes) and the Budgets section replace the not-built branch. `SettingsOps` has the `models` save kind (AD-19 order: every CheckModel, then the prices in one transaction, then each SetModel with its audit entry, put-backs audited), `Values().prices` and the `TestModel` verb (sent to Decide synchronously, `TESTWAIT` 45 s, an expired wait is reason `timeout`); the web API has `POST /v1/settings/models` and `/v1/settings/models/test`. The cost-cap banner has an admin-only "Budgets" action (same tab), the no-key banner reads the step 2 text, the DW-100 texts are the ruled ones (one Lane A literal, `Test/Watch/NoticeText.cls:270`, changed under the U-177 grant), `refusal.ts` is the one classifier for all six saving sections (DW-948), and the README has the ruled provider paragraph (last sentence dropped) with its facts in `test-readme.sh`.
+
+Task 0: `Server_Response_Timeout=60` in the throwaway's `CSP.ini` (Design Notes item 7), so `TESTWAIT` stays 45 s.
+
+Files changed (one line each):
+- `src/ocutalon/cls/OcuTalon/Msg/Command/TestModel.cls` (new), `Core/CommandsIn.cls` (one route row), `Core/SettingsOps.cls` (models kind, prices, TestModel, four seams), `Web/Api.cls` (two routes, two handlers), `Msg/Catalog/Core.cls` (three ruled texts).
+- `web/src/app/settings/{refusal,models-section,budgets-section}.ts` (new), `settings-view.ts`, `settings-page.ts` and the four existing sections (refusal helper), `banners/{banner-view,banner-stack}.ts`, `api/{api-client,api-types}.ts`, `msg/catalog.ts` (generated), `web/scripts/catalog.mjs`.
+- `README.md`, `docker/tests/test-readme.sh`.
+- Tests: `Test/Core/{SettingsModels,SettingsModelsLive,SettingsOpsNoReply}.cls` (new), `SettingsOpsProbe`, `SettingsSave`, `SettingsCommands`, `ConversationTurns`; `Test/Web/{SettingsApi,Api,BodyLimit}.cls`; `Test/Msg/{Catalog,Contracts}.cls`; `Test/Watch/NoticeText.cls:270` (granted literal); `web/scripts/*.test.mjs` (incl. the new `settings-refusal-sources.test.mjs`); `web/e2e/settings/settings.spec.ts` (S1, S13, S13b, S13c, S14), `banners/banners.spec.ts` (B3, B3b) and the specs whose old text changed.
+
+Review: 33 findings from four layers; patches applied 9 (on 11 finding rows, 7 medium and 4 low: the real BridgeTest wait test, S13c, the unconditional keyless S13, the scoped and non-vacuous `TestModelTestAnswers`, the DW-948 and admin-wiring source test, the prices mutation, the stale Test line, the TestModel contract entry, the corrected comments); deferred 1 (Test rows in the decision and cost views, Lane A, medium unverified); every rejected finding has its reason in the Review Triage Log.
+
+Follow-up review recommended: true. The unverified risk: S13, S13c, S14 and B3b are Playwright cases that have not run (the 150 s rule); a first CI run of `live:sign-in-2`, `chromium` and `banners` pins them. S13c is new in the review pass.
+
+Verification performed (warm throwaway `e18s3iw`, CI mock, one class per call, after the last patch; seconds): `Test.Core.SettingsModels` 0.20, `SettingsModelsLive` 18.9, `Test.Web.SettingsApi` 1.06, `Test.Core.SettingsSave` 0.60, `Test.Msg.Catalog` 8.75, `Test.Core.SettingsCommands` 0.03, `Test.Web.Api` 0.64, `Test.Web.BodyLimit` 0.08, `Test.Core.ConversationTurns` 0.83, `Test.Core.SettingsAudit` 0.17, `Test.Msg.Contracts` 0.04, `Test.Bridge.ModelChange` 107.2, `Test.Bridge.SettingsApply` 23.7, `Test.Digest.Compose` 0.67, `Test.Watch.NoticeText` 0.60: all passed. `npm --prefix web test` 1584 of 1584, `lint` and `build` exit 0, the catalog regenerates identically, `test-readme.sh`, `test-boundaries.sh` and `test-ci-config.sh` pass.
+
+Left to CI: Playwright S1, S13, S13b, S13c, S14 (`live:sign-in-2`, `--part 3/3` with `OCUTALON_LIVE_DEADLINE=1200`), `banners.spec.ts`, the specs whose old text changed (`chromium`, `answers`); the full `shard:lane-a` and `shard:lane-b`; the fresh-environment check.
+
+Residual risks: contended files touched as plain appends (`Core/CommandsIn.cls`, `Web/Api.cls`, `Test/Web/Api.cls`, `Test/Web/BodyLimit.cls`) need a plain-union merge with Epic 41; `web/scripts/ux-strings.test.mjs` has its own block beside Epic 19b's. Footprint extensions beyond the spec's list: `web/scripts/announce-focus-sources.test.mjs`, `web/scripts/settings-refusal-sources.test.mjs`, `Test/Msg/Contracts.cls`, `Test/Core/SettingsOpsNoReply.cls`.

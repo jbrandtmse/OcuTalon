@@ -22,8 +22,8 @@
 ///   - TestBridgeSetFails, TestBridgeSetThrows, TestBridgeAuditFails: a failure, or a Set that throws, puts the earlier values back and audits that;
 ///   - TestBridgeUnchangedValueIsSkipped: a value equal to the bridge's current one is not checked, set or audited;
 ///   - TestAllowList: every key of every section is on the allow-list;
-///   - TestValues: the page's body has the three section rows, the bridge values, the providers and the zone, no key material, and reads the rows
-///     and not the per-process cache.
+///   - TestValues: the page's body has the three section rows, the bridge values, the providers, the zone and the prices (Story 18.3: the four prices of each
+///     model of a supported provider that has a Price row, read from the row), no key material, and reads the rows and not the per-process cache.
 /// The Setting rows of the seven keys are saved before the tests and put back after them, and so is the probe's global.
 Class OcuTalon.Test.Core.SettingsSave Extends %UnitTest.TestCase
 {
@@ -420,7 +420,7 @@ Method TestValues()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "sections,bridge,providers,instanceZone", "the body's keys")
+	Do $$$AssertEquals(keys, "sections,bridge,providers,instanceZone,prices", "the body's keys")
 	Set keys = ""
 	Set iterator = body.sections.%GetIterator()
 	While iterator.%GetNext(.key) {
@@ -430,7 +430,19 @@ Method TestValues()
 	Do $$$AssertEquals(body.sections.%Get("check-thresholds").%ToJSON(), "{""diskFreePercent"":10,""journalFreePercent"":10,""licenseUsePercent"":90,""queueMessages"":100,""queueWaitMinutes"":10}", "an absent row reads as the default, as a number")
 	Do $$$AssertEquals(body.sections.%Get("daily-digest").%ToJSON(), "{""time"":""08:00"",""channels"":""web,phone,telegram""}", "the digest defaults")
 	Do $$$AssertEquals(body.sections.%Get("demo-mode").%GetTypeOf("demoMode"), "boolean", "demoMode is a boolean")
-	Do $$$AssertEquals(body.%GetTypeOf("bridge")_"|"_body.%GetTypeOf("providers")_"|"_body.%GetTypeOf("instanceZone"), "object|array|string", "the bridge parts have their types")
+	Do $$$AssertEquals(body.%GetTypeOf("bridge")_"|"_body.%GetTypeOf("providers")_"|"_body.%GetTypeOf("instanceZone")_"|"_body.%GetTypeOf("prices"), "object|array|string|object", "the bridge parts have their types")
+	Set listed = 0
+	Set iterator = body.prices.%GetIterator()
+	While iterator.%GetNext(.model, .one) {
+		Set row = ##class(OcuTalon.Bridge.Data.Price).ModelIndexOpen(model)
+		Do $$$AssertTrue($IsObject(row), "the price entry of "_model_" has a Price row")
+		If '$IsObject(row) Continue
+		Set listed = listed + 1
+		Set wanted = {"input": (+row.InputPerMTok), "output": (+row.OutputPerMTok), "cacheRead": (+row.CacheReadPerMTok), "cacheWrite": (+row.CacheWritePerMTok)}
+		Do $$$AssertEquals(one.%ToJSON(), wanted.%ToJSON(), "the four prices of "_model_" are the row's, as numbers")
+	}
+	Do $$$AssertTrue(listed > 0, "control: the stack has priced models")
+	Do $$$AssertEquals(body.prices.%IsDefined("gpt-5.4-mini")_"|"_body.prices.%IsDefined("gemini-3.1-pro-preview"), "0|0", "the models of providers that are not supported have no entry")
 	Do $$$AssertTrue($ZConvert(body.%ToJSON(), "L") '[ "secret", "the body has no secret")
 	Do $$$AssertTrue($ZConvert(body.%ToJSON(), "L") '[ "apikey", "and no API key")
 	Do ..Save("check-thresholds", {"diskFreePercent": 33, "journalFreePercent": 10, "licenseUsePercent": 90, "queueMessages": 100, "queueWaitMinutes": 10})

@@ -54,6 +54,16 @@
 ///   - bridge values: every Check first; then, for each change, Bridge.Settings.Set and its audit entry (the old value comes from Set); a failure
 ///     Sets the earlier values back and audits that.
 /// Each changed value has its own Settings audit entry. Values answers the settings page's GET body, read from the rows and never from the cache.
+/// The models section (Story 18.3; kind models) saves with the nested body {"agents": {<Agent>: {provider, model, secondProvider, secondModel}},
+/// "prices": {<model>: {input, output, cacheRead, cacheWrite}}}, with exactly the three agents and exactly the models that Values lists in prices. The
+/// order is AD-19's: the shape is validated (a failure names the offending agents and "prices.<model>"); every CheckModel runs before any write (a
+/// refusal names <Agent>, or <Agent>.second for a second model); the prices of the changed models are written by Bridge.Settings.SetPrice inside one
+/// transaction, which a refusal rolls back (the refusal names "prices.<model>", and nothing is audited or set); then each audit entry of a price, then each
+/// SetModel with its audit entry (TriageAgent.model, TriageAgent.secondModel, price.<model>.<key>). A later failure puts back what was written (SetModel
+/// and SetPrice with the old values) and audits each put-back. A value that equals the current one is dropped.
+/// TestModel (origin web_admin) sends Bridge.Settings.TestRequest's request to Decide synchronously, waits at most TESTWAIT seconds, and answers the outcome
+/// tested with Data {answered, seconds, reason} (an expired wait gives reason timeout), or refused with Data {"fields": ["agent"]} for an agent that
+/// TestRequest refuses. It writes no setting and no audit entry; the Decision and Usage rows of the test request are Decide's, as Bridge.Settings.TestRequest describes.
 Class OcuTalon.Core.SettingsOps Extends Ens.BusinessOperation
 {
 
@@ -138,6 +148,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 		Quit ""
 	}
 	If class = "OcuTalon.Msg.Command.SaveSettings" Quit ..Save(command)
+	If class = "OcuTalon.Msg.Command.TestModel" Quit ..TestModel(command)
 	If class = "OcuTalon.Msg.Command.SetDemoMode" Quit ..SwitchDemo(command)
 	If class = "OcuTalon.Msg.Command.SetPersona" Quit ..SavePersona(command)
 	If class = "OcuTalon.Msg.Command.ProposePersona" Quit ..Propose(command)
@@ -772,13 +783,25 @@ Parameter MESSAGESECTIONNOTAUDITED = "OcuTalon couldn't write the audit entry, s
 /// The longest value of a bridge field that Save passes on to Bridge.Settings.
 Parameter BRIDGEMAX = 200;
 
+/// The agents whose models the models section changes, in the order of the page (the first runner items of Decide).
+Parameter AGENTS = "TriageAgent,DiagnosisAgent,ChatAgent";
+
+/// The prices that the models section changes, in the order of the page: the keys of Bridge.Settings.SetPrice and the Price properties.
+Parameter PRICEKEYS = "input,output,cacheRead,cacheWrite";
+
+Parameter PRICEPROPERTIES = "InputPerMTok,OutputPerMTok,CacheReadPerMTok,CacheWritePerMTok";
+
+/// How long TestModel waits for Decide's answer, in seconds. It is under the Web Gateway's response timeout and CommandsIn's TIMEOUT.
+Parameter TESTWAIT = 45;
+
 /// The sections of the settings page. A section has a slug, a kind (product: its fields are Data.Setting keys that this class writes; bridge:
 /// its fields are bridge names that Bridge.Settings changes; demo: read here only, a SetDemoMode switches it) and its fields. A field has a name
 /// (the page's and the API's), a key (product) or the bridge name, a type (int, time, channels, bridge or flag), its default and, for an int, its
-/// range. A section without a row here (Models, Channels) has no save yet.
+/// range. A models section has no fields: its body is nested (SaveModels). A section without a row here (Channels) has no save yet.
 XData Sections [ MimeType = application/json ]
 {
 [
+ {"slug": "models", "kind": "models", "fields": []},
  {"slug": "budgets", "kind": "bridge", "fields": [
   {"name": "DecisionTokenBudget", "type": "bridge"},
   {"name": "DailyCostCapUSD", "type": "bridge"}]},
@@ -820,14 +843,14 @@ ClassMethod Section(slug As %String) As %DynamicObject
 
 /// The body of GET /v1/settings, read from the rows through Stored and never from the per-process cache, so that a page loaded right after
 /// a save shows the saved values: {"sections": {slug: {field: value}} for each product and demo section, "bridge": Bridge.Settings.Values(),
-/// "providers": Bridge.Settings.Providers(), "instanceZone": Bridge.Time.Zone()}. A stored int that is not a whole number reads as its default.
-/// It holds no key and no secret.
+/// "providers": Bridge.Settings.Providers(), "instanceZone": Bridge.Time.Zone(), "prices": Prices()}. A stored int that is not a whole number reads as its
+/// default. It holds no key and no secret.
 ClassMethod Values() As %DynamicObject
 {
 	Set sections = {}
 	Set iterator = ..Sections().%GetIterator()
 	While iterator.%GetNext(, .section) {
-		If section.kind = "bridge" Continue
+		If (section.kind = "bridge") || (section.kind = "models") Continue
 		Set values = {}
 		Set fields = section.fields.%GetIterator()
 		While fields.%GetNext(, .field) {
@@ -844,7 +867,47 @@ ClassMethod Values() As %DynamicObject
 		}
 		Do sections.%Set(section.slug, values)
 	}
-	Quit {"sections": (sections), "bridge": (##class(OcuTalon.Bridge.Settings).Values()), "providers": (##class(OcuTalon.Bridge.Settings).Providers()), "instanceZone": (##class(OcuTalon.Bridge.Time).Zone())}
+	Quit {"sections": (sections), "bridge": (##class(OcuTalon.Bridge.Settings).Values()), "providers": (##class(OcuTalon.Bridge.Settings).Providers()), "instanceZone": (##class(OcuTalon.Bridge.Time).Zone()), "prices": (..Prices())}
+}
+
+/// The models that the models section prices: each model of each supported provider (Bridge.Settings.Providers, in the table's order) that has a
+/// Price row of Bridge.Data.Price, in the table's order.
+ClassMethod PriceModels() As %List
+{
+	Set models = ""
+	Set providers = ##class(OcuTalon.Bridge.Settings).Providers().%GetIterator()
+	While providers.%GetNext(, .row) {
+		If 'row.supported Continue
+		Set iterator = row.models.%GetIterator()
+		While iterator.%GetNext(, .model) {
+			If ##class(OcuTalon.Bridge.Data.Price).ModelIndexExists(model) && '$ListFind(models, model) Set models = models_$ListBuild(model)
+		}
+	}
+	Quit models
+}
+
+/// The prices of PriceModels read from the Price rows, as {model: {input, output, cacheRead, cacheWrite}} with numbers, in US dollars per million tokens.
+ClassMethod Prices() As %DynamicObject
+{
+	Set prices = {}
+	Set models = ..PriceModels()
+	Set position = 0
+	While $ListNext(models, position, model) {
+		Set one = {}
+		For i = 1:1:$Length(..#PRICEKEYS, ",") {
+			Do one.%Set($Piece(..#PRICEKEYS, ",", i), ..PriceNow(model, $Piece(..#PRICEKEYS, ",", i)), "number")
+		}
+		Do prices.%Set(model, one)
+	}
+	Quit prices
+}
+
+/// The stored price of the model for one of PRICEKEYS, read from its Price row (0 when there is none).
+ClassMethod PriceNow(model As %String, key As %String) As %Numeric [ Private ]
+{
+	Set row = $Select(##class(OcuTalon.Bridge.Data.Price).ModelIndexExists(model): ##class(OcuTalon.Bridge.Data.Price).ModelIndexOpen(model), 1: "")
+	If '$IsObject(row) Quit 0
+	Quit +$Property(row, $Piece(..#PRICEPROPERTIES, ",", $ListFind($ListFromString(..#PRICEKEYS), key)))
 }
 
 /// Saves the section of a SaveSettings command: see the class description.
@@ -858,6 +921,7 @@ Method Save(command As OcuTalon.Msg.Command.SaveSettings) As OcuTalon.Msg.Comman
 		Set changes = ""
 	}
 	If '$IsObject(changes) || 'changes.%IsA("%Library.DynamicObject") Quit ..Refused([])
+	If section.kind = "models" Quit ..SaveModels(command, changes)
 	Set bad = [], refused = 0, wanted = ""
 	Set fields = section.fields.%GetIterator()
 	While fields.%GetNext(, .field) {
@@ -1038,17 +1102,283 @@ Method PutBack(command As OcuTalon.Msg.Command.SaveSettings, done As %DynamicArr
 	}
 }
 
+/// Saves the models section of a SaveSettings command (see the class description); changes is the parsed body. The shape is validated first
+/// (ModelsShape), then every changed model goes through BridgeCheckModel, then the prices are written inside one transaction (a SetPrice that is
+/// refused rolls it back), their audit entries follow, and then each SetModel with its audit entry. A later failure puts back what was written.
+Method SaveModels(command As OcuTalon.Msg.Command.SaveSettings, changes As %DynamicObject) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set bad = []
+	If '..ModelsShape(changes, bad) Quit ..Refused(bad)
+	Do ..ModelsDiff(changes, .models, .prices)
+	Set stub = 0
+	For i = 0:1:models.%Size() - 1 {
+		Set change = models.%Get(i)
+		Set sc = ..BridgeCheckModel(change.agent, change.provider, change.model, change.second)
+		If $$$ISOK(sc) Continue
+		If ..NotImplemented(sc) {
+			Set stub = 1
+		} Else {
+			Do ..AddField(bad, change.field)
+		}
+	}
+	If bad.%Size() Quit ..Refused(bad)
+	If stub Quit ..Result(0, "not_built", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTBUILT)
+	Set done = [], priced = [], outcome = "done"
+	Set level = $TLevel
+	TSTART
+	Try {
+		For i = 0:1:prices.%Size() - 1 {
+			Set change = prices.%Get(i)
+			Set sc = ..BridgeSetPrice(change.model, change.prices, .old)
+			If $$$ISERR(sc) {
+				Do ..AddField(bad, "prices."_change.model)
+				Continue
+			}
+			Set iterator = change.prices.%GetIterator()
+			While iterator.%GetNext(.key, .value) {
+				Do priced.%Push({"kind": "price", "model": (change.model), "key": (key), "from": (old.%Get(key)), "to": (+value)})
+			}
+		}
+	} Catch exception {
+		$$$LOGERROR(exception.DisplayString())
+		Set outcome = "failed"
+	}
+	If (outcome '= "done") || bad.%Size() {
+		If $TLevel > level TROLLBACK 1
+		If bad.%Size() Quit ..Refused(bad)
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	TCOMMIT
+	Try {
+		For i = 0:1:priced.%Size() - 1 {
+			Set change = priced.%Get(i)
+			Do done.%Push(change)
+			Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, "price."_change.model_"."_change.key, ..NumberText(change.from), ..NumberText(change.to)))
+			If $$$ISERR(sc) {
+				Set text = $SYSTEM.Status.GetErrorText(sc)
+				$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
+				Set outcome = "not_audited"
+				Quit
+			}
+		}
+		For i = 0:1:models.%Size() - 1 {
+			If outcome '= "done" Quit
+			Set change = models.%Get(i)
+			Set sc = ..BridgeSetModel(change.agent, change.provider, change.model, change.second, .old)
+			If $$$ISERR(sc) {
+				$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
+				Set outcome = "failed"
+				Quit
+			}
+			Do done.%Push({"kind": "model", "agent": (change.agent), "second": (change.second), "provider": (change.provider), "model": (change.model), "oldProvider": (change.oldProvider), "oldModel": (change.oldModel)})
+			Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, ..ModelSetting(change.agent, change.second), ..ModelText(change.oldProvider, change.oldModel), ..ModelText(change.provider, change.model)))
+			If $$$ISERR(sc) {
+				Set text = $SYSTEM.Status.GetErrorText(sc)
+				$$$LOGERROR("The Settings audit entry could not be written"_$Select(text = "": "", 1: ": "_text))
+				Set outcome = "not_audited"
+			}
+		}
+	} Catch exception {
+		$$$LOGERROR(exception.DisplayString())
+		Set outcome = "failed"
+	}
+	If outcome '= "done" Do ..PutBackModels(command, done)
+	If outcome = "not_audited" Quit ..Result(0, "not_audited", ..#MESSAGESECTIONNOTAUDITED)
+	If outcome = "failed" Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	Quit ..Result(1, "done", ..#MESSAGESECTIONSAVED)
+}
+
+/// Puts back what SaveModels wrote (done, oldest first, is an array of {kind: price, model, key, from, to} and {kind: model, agent, second, provider, model,
+/// oldProvider, oldModel}), newest first, with an audit entry for each. A value that cannot be put back is logged: the bridge keeps what it holds.
+Method PutBackModels(command As OcuTalon.Msg.Command.SaveSettings, done As %DynamicArray) [ Private ]
+{
+	For i = done.%Size() - 1:-1:0 {
+		Set change = done.%Get(i)
+		If change.kind = "price" {
+			Set back = {}
+			Do back.%Set(change.key, change.from, "number")
+			Set sc = ..BridgeSetPrice(change.model, back, .ignored)
+			Set setting = "price."_change.model_"."_change.key
+			Set from = ..NumberText(change.to), to = ..NumberText(change.from)
+		} Else {
+			Set sc = ..BridgeSetModel(change.agent, change.oldProvider, change.oldModel, change.second, .ignored)
+			Set setting = ..ModelSetting(change.agent, change.second)
+			Set from = ..ModelText(change.provider, change.model), to = ..ModelText(change.oldProvider, change.oldModel)
+		}
+		If $$$ISERR(sc) {
+			$$$LOGERROR("The value of "_setting_" could not be put back: "_$SYSTEM.Status.GetErrorText(sc))
+			Continue
+		}
+		Set sc = ..WriteAudit(..AuditData(command.Origin, command.ActingUser, command.SessionRef, setting, from, to))
+		If $$$ISERR(sc) $$$LOGERROR("The Settings audit entry of a value put back could not be written: "_$SYSTEM.Status.GetErrorText(sc))
+	}
+}
+
+/// 1 when the body of the models section has the shape {"agents": {<Agent>: {provider, model, secondProvider, secondModel}}, "prices": {<model>: {input, output,
+/// cacheRead, cacheWrite}}}: exactly the three AGENTS and exactly the PriceModels, each with exactly its members, as strings (prices: strings or numbers) of at
+/// most BRIDGEMAX characters without "@{". Otherwise 0, and bad (a dynamic array) gets the names of the offending agents and "prices.<model>".
+ClassMethod ModelsShape(changes As %DynamicObject, bad As %DynamicArray) As %Boolean [ Private ]
+{
+	Set ok = 1
+	Set iterator = changes.%GetIterator()
+	While iterator.%GetNext(.name) {
+		If (name '= "agents") && (name '= "prices") {
+			Do ..AddField(bad, $Extract(name, 1, 64))
+			Set ok = 0
+		}
+	}
+	For name = "agents", "prices" {
+		If changes.%GetTypeOf(name) '= "object" {
+			Do ..AddField(bad, name)
+			Set ok = 0
+		}
+	}
+	If 'ok Quit 0
+	Set agents = changes.%Get("agents")
+	Set iterator = agents.%GetIterator()
+	While iterator.%GetNext(.name) {
+		If '$ListFind($ListFromString(..#AGENTS), name) {
+			Do ..AddField(bad, $Extract(name, 1, 64))
+			Set ok = 0
+		}
+	}
+	For i = 1:1:$Length(..#AGENTS, ",") {
+		Set agent = $Piece(..#AGENTS, ",", i)
+		If '..ValuesShape(agents, agent, "provider,model,secondProvider,secondModel", 0) {
+			Do ..AddField(bad, agent)
+			Set ok = 0
+		}
+	}
+	Set prices = changes.%Get("prices")
+	Set models = ..PriceModels()
+	Set iterator = prices.%GetIterator()
+	While iterator.%GetNext(.name) {
+		If '$ListFind(models, name) {
+			Do ..AddField(bad, "prices."_$Extract(name, 1, 64))
+			Set ok = 0
+		}
+	}
+	Set position = 0
+	While $ListNext(models, position, model) {
+		If '..ValuesShape(prices, model, ..#PRICEKEYS, 1) {
+			Do ..AddField(bad, "prices."_model)
+			Set ok = 0
+		}
+	}
+	Quit ok
+}
+
+/// 1 when the member of the parent is an object with exactly the members of keys (a comma-separated list), each a string (or, when numbers is 1, a number or a
+/// string) of at most BRIDGEMAX characters that holds no "@{".
+ClassMethod ValuesShape(parent As %DynamicObject, member As %String, keys As %String, numbers As %Boolean) As %Boolean [ Private ]
+{
+	If parent.%GetTypeOf(member) '= "object" Quit 0
+	Set object = parent.%Get(member)
+	If object.%Size() '= $Length(keys, ",") Quit 0
+	Set fine = 1
+	For i = 1:1:$Length(keys, ",") {
+		Set key = $Piece(keys, ",", i)
+		Set type = object.%GetTypeOf(key)
+		Set text = object.%Get(key)
+		If ((type '= "string") && '(numbers && (type = "number"))) || ($Length(text) > ..#BRIDGEMAX) || (text [ "@{") Set fine = 0
+	}
+	Quit fine
+}
+
+/// Adds the field name to the dynamic array of refused names once.
+ClassMethod AddField(bad As %DynamicArray, name As %String) [ Private ]
+{
+	For i = 0:1:bad.%Size() - 1 {
+		If bad.%Get(i) = name Return
+	}
+	Do bad.%Push(name)
+}
+
+/// The changes of a models body against the current values: models is an array of {agent, second, provider, model, oldProvider, oldModel, field} for each
+/// first or second model that differs, agent by agent, first model first; prices is an array of {model, prices} for each model with a price that differs,
+/// prices holding only the changed keys with their values as given. A value that is not a number counts as a change (SetPrice refuses it).
+Method ModelsDiff(changes As %DynamicObject, Output models As %DynamicArray, Output prices As %DynamicArray) [ Private ]
+{
+	Set models = [], prices = []
+	Set agents = changes.%Get("agents")
+	For i = 1:1:$Length(..#AGENTS, ",") {
+		Set agent = $Piece(..#AGENTS, ",", i)
+		Set given = agents.%Get(agent)
+		Set oldProvider = ..BridgeCurrent(agent_".provider"), oldModel = ..BridgeCurrent(agent_".model")
+		If (given.%Get("provider") '= oldProvider) || (given.%Get("model") '= oldModel) {
+			Do models.%Push({"agent": (agent), "second": 0, "provider": (given.%Get("provider")), "model": (given.%Get("model")), "oldProvider": (oldProvider), "oldModel": (oldModel), "field": (agent)})
+		}
+		Set oldProvider = ..BridgeCurrent(agent_".secondProvider"), oldModel = ..BridgeCurrent(agent_".secondModel")
+		If (given.%Get("secondProvider") '= oldProvider) || (given.%Get("secondModel") '= oldModel) {
+			Do models.%Push({"agent": (agent), "second": 1, "provider": (given.%Get("secondProvider")), "model": (given.%Get("secondModel")), "oldProvider": (oldProvider), "oldModel": (oldModel), "field": (agent_".second")})
+		}
+	}
+	Set list = ..PriceModels()
+	Set position = 0
+	While $ListNext(list, position, model) {
+		Set given = changes.%Get("prices").%Get(model)
+		Set changed = {}
+		For j = 1:1:$Length(..#PRICEKEYS, ",") {
+			Set key = $Piece(..#PRICEKEYS, ",", j)
+			Set value = given.%Get(key)
+			If $IsValidNum(value) && ((+value) = (+..BridgeCurrent("price."_model_"."_key))) Continue
+			Do changed.%Set(key, value, given.%GetTypeOf(key))
+		}
+		If changed.%Size() Do prices.%Push({"model": (model), "prices": (changed)})
+	}
+}
+
+/// The audit setting of an agent's model: <Agent>.model, or <Agent>.secondModel for a second model.
+ClassMethod ModelSetting(agent As %String, second As %Boolean) As %String [ Private ]
+{
+	Quit agent_$Select(second: ".secondModel", 1: ".model")
+}
+
+/// The audit form of a model: <provider>/<model>, or "" when there is no model.
+ClassMethod ModelText(provider As %String, model As %String) As %String [ Private ]
+{
+	Quit $Select(model = "": "", 1: provider_"/"_model)
+}
+
+/// The audit form of a price: its number with a zero before the point.
+ClassMethod NumberText(number As %Numeric) As %String [ Private ]
+{
+	Set number = +number
+	Quit $Select((number > 0) && (number < 1): "0"_number, 1: number)
+}
+
+/// Carries out a TestModel and returns the CommandResult to answer (see the class description).
+Method TestModel(command As OcuTalon.Msg.Command.TestModel) As OcuTalon.Msg.CommandResult [ Private ]
+{
+	Set sc = ..BridgeTest(command.Agent, .answer, .refused)
+	If refused Quit ..Refused(["agent"])
+	If $$$ISERR(sc) {
+		$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Quit ..Result(1, "tested", "", answer.%ToJSON())
+}
+
 /// 1 when the status is the answer "not implemented" (code 5003) of a bridge stub.
 ClassMethod NotImplemented(sc As %Status) As %Boolean [ Private ]
 {
 	Quit ''$ListFind($ListFromString($SYSTEM.Status.GetErrorCodes(sc)), 5003)
 }
 
-/// The bridge's current value of the field, "" when it holds none: Bridge.Time.Zone() for InstanceZone and Bridge.Settings.Values() for the
-/// rest. A test subclass overrides it.
+/// The bridge's current value of the field, "" when it holds none: Bridge.Time.Zone() for InstanceZone, Bridge.Settings.Values() for the
+/// rest, <Agent>.provider, <Agent>.model, <Agent>.secondProvider and <Agent>.secondModel from its agents, and price.<model>.<key> from the Price row. A
+/// test subclass overrides it.
 Method BridgeCurrent(name As %String) As %String [ Private ]
 {
 	If name = "InstanceZone" Quit ##class(OcuTalon.Bridge.Time).Zone()
+	If $Extract(name, 1, 6) = "price." {
+		Set key = $Piece(name, ".", *)
+		Quit ..PriceNow($Extract(name, 7, *-$Length(key)-1), key)
+	}
+	If name [ "." {
+		Set agent = ##class(OcuTalon.Bridge.Settings).Values().agents.%Get($Piece(name, ".", 1))
+		Quit $Select($IsObject(agent): agent.%Get($Piece(name, ".", 2)), 1: "")
+	}
 	Set current = ##class(OcuTalon.Bridge.Settings).Values()
 	Quit $Select(current.%IsDefined(name): current.%Get(name), 1: "")
 }
@@ -1063,6 +1393,47 @@ Method BridgeCheck(name As %String, value As %String) As %Status [ Private ]
 Method BridgeSet(name As %String, value As %String, Output old As %String) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Bridge.Settings).Set(name, value, .old)
+}
+
+/// The one call of Bridge.Settings.CheckModel. A test subclass overrides it.
+Method BridgeCheckModel(agent As %String, provider As %String, model As %String, second As %Boolean) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Settings).CheckModel(agent, provider, model, second)
+}
+
+/// The one call of Bridge.Settings.SetModel; old is {provider, model[, retryItem]} as it was. A test subclass overrides it.
+Method BridgeSetModel(agent As %String, provider As %String, model As %String, second As %Boolean, Output old As %DynamicObject) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Settings).SetModel(agent, provider, model, second, .old)
+}
+
+/// The one call of Bridge.Settings.SetPrice; old holds all seven values as they were. A test subclass overrides it.
+Method BridgeSetPrice(model As %String, prices As %DynamicObject, Output old As %DynamicObject) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Settings).SetPrice(model, prices, .old)
+}
+
+/// The model test of the agent: Bridge.Settings.TestRequest's request sent to Decide synchronously for at most TESTWAIT seconds, timed, and read by
+/// TestAnswer into answer, {answered, seconds, reason}. refused is 1 (with the status TestRequest gave) when TestRequest refuses the agent. A wait that
+/// expires leaves no response (the status is OK): the answer is then reason timeout. A test subclass overrides it.
+Method BridgeTest(agent As %String, Output answer As %DynamicObject, Output refused As %Boolean) As %Status [ Private ]
+{
+	Set answer = "", refused = 0, response = ""
+	Set sc = ##class(OcuTalon.Bridge.Settings).TestRequest(agent, .request)
+	If $$$ISERR(sc) {
+		Set refused = 1
+		Quit sc
+	}
+	Set started = $ZHorolog
+	Set sc = ..SendRequestSync("Decide", request, .response, ..#TESTWAIT)
+	Set millis = ($ZHorolog - started * 1000) \ 1
+	If $$$ISERR(sc) Quit sc
+	Set answer = ##class(OcuTalon.Bridge.Settings).TestAnswer(response, millis)
+	If '$IsObject(response) {
+		Do answer.%Set("answered", 0, "boolean")
+		Do answer.%Set("reason", "timeout", "string")
+	}
+	Quit $$$OK
 }
 
 }

@@ -1,8 +1,10 @@
-/// Tests of how CommandsIn routes the three verbs of Story 33.2 (SendDigest, SaveSettings and GotIt; AD-1, AD-14, AD-19). Safe on a slot: no
+/// Tests of how CommandsIn routes the three verbs of Story 33.2 (SendDigest, SaveSettings and GotIt; AD-1, AD-14, AD-19) and Story 18.3's TestModel. Safe on a slot: no
 /// production runs, so the tests call OnProcessInput on a shadow instance of OcuTalon.Test.Core.CommandsInProbe, which sends to
 /// OcuTalon.Test.Core.CommandsOwner and records each call. The origin rules and every text are written out here, never read from CommandsIn.
-///   - TestRoutesAndOrigins: each of the three verbs by every origin, "zz" and "" included, reaches its owner (Digest, SettingsOps, SessionOps) or
-///     is refused with its text, and a refusal sends nothing;
+///   - TestRoutesAndOrigins: each of the four verbs by every origin, "zz" and "" included, reaches its owner (Digest, SettingsOps, SessionOps) or
+///     is refused with its text, and a refusal sends nothing (TestModel is carried out for web_admin only);
+///   - TestModelRefusedFromToolAndUser: a TestModel from a tool, from web_user and from the system sends nothing, with the texts of the refusals, also inside a bridge
+///     context while the command says web_admin;
 ///   - TestSaveSettingsFromToolRefused: a SaveSettings from a tool, also inside a bridge context while the command says web_admin, sends nothing;
 ///   - TestSendDigestFromEveryOrigin: SendDigest is sent from tool and web_admin, to Digest, and the owner's CommandResult is the answer;
 ///   - TestSendDigestTakesNoRecipient (U-268): the class's properties are exactly Msg.Command's, read from the class dictionary, and none is
@@ -35,7 +37,7 @@ Method OnAfterAllTests() As %Status
 /// Each verb by every origin against the oracle: routed to the owner, or refused with its text and nothing sent.
 Method TestRoutesAndOrigins()
 {
-	Set verbs = $ListBuild("SendDigest", "SaveSettings", "GotIt")
+	Set verbs = $ListBuild("SendDigest", "SaveSettings", "GotIt", "TestModel")
 	Set origins = $ListBuild("web_user", "web_admin", "telegram", "tool", "timer", "system", "zz", "")
 	Set tried = 0
 	For v = 1:1:$ListLength(verbs) {
@@ -60,7 +62,7 @@ Method TestRoutesAndOrigins()
 			}
 		}
 	}
-	Do $$$AssertEquals(tried, 24, "all 24 pairs were tried")
+	Do $$$AssertEquals(tried, 32, "all 32 pairs were tried")
 }
 
 /// SaveSettings from a tool sends nothing, also inside a bridge context while the command says web_admin.
@@ -84,6 +86,41 @@ Method TestSaveSettingsFromToolRefused()
 		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
 	}
 	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
+/// A TestModel from a tool, from web_user and from the system is refused with nothing sent, also inside a bridge context while the command says web_admin; from web_admin it
+/// reaches SettingsOps with its Agent unchanged.
+Method TestModelRefusedFromToolAndUser()
+{
+	Set probe = ..NewProbe()
+	Set expected = $ListBuild($ListBuild("tool", "That can't be done from the chat. Nothing was changed."), $ListBuild("web_user", "Only an OcuTalon admin can change settings. Nothing was changed."), $ListBuild("system", "Only an OcuTalon admin can change settings. Nothing was changed."))
+	For i = 1:1:$ListLength(expected) {
+		Set one = $List(expected, i)
+		Set command = ..NewCommand("TestModel", $List(one, 1), "zzsessA")
+		Set command.Agent = "TriageAgent"
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_allowed|"_$List(one, 2), "TestModel from "_$List(one, 1)_" is refused with its text")
+		Do $$$AssertEquals(..Calls(), 0, "and nothing is sent")
+	}
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.OwnerRef = "zzsessA"
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, "zzss"_..Run), "a context begins")
+	Try {
+		Set command = ..NewCommand("TestModel", "web_admin", "zzsessA")
+		Set command.Agent = "TriageAgent"
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", "TestModel that says web_admin is refused inside a context")
+		Do $$$AssertEquals(..Calls(), 0, "and nothing is sent")
+	} Catch exception {
+		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set probe = ..NewProbe()
+	Set command = ..NewCommand("TestModel", "web_admin", "zzsessA")
+	Set command.Agent = "ChatAgent"
+	Do probe.OnProcessInput(command, .output)
+	Do $$$AssertEquals(..Calls(), 1, "from web_admin it is sent once")
+	Do $$$AssertEquals(..Call(1, "target")_"|"_..Call(1, "origin")_"|"_..Call(1, "class"), "SettingsOps|web_admin|OcuTalon.Msg.Command.TestModel", "to SettingsOps, as its own class")
 }
 
 /// SendDigest from tool and from web_admin reaches Digest, and the owner's CommandResult comes back as the same object.
@@ -212,7 +249,7 @@ Method Call(n As %Integer, field As %String) As %String [ Private ]
 /// The owner item of the verb, as this test's oracle has it.
 ClassMethod OwnerOf(verb As %String) As %String [ Private ]
 {
-	Quit $Case(verb, "SendDigest": "Digest", "SaveSettings": "SettingsOps", : "SessionOps")
+	Quit $Case(verb, "SendDigest": "Digest", "SaveSettings": "SettingsOps", "TestModel": "SettingsOps", : "SessionOps")
 }
 
 /// The oracle of the origin rules: "" when the verb from the origin is routed, otherwise the text of its refusal.
@@ -221,6 +258,7 @@ ClassMethod Expected(verb As %String, origin As %String) As %String [ Private ]
 	If (origin = "tool") && (verb '= "SendDigest") Quit "That can't be done from the chat. Nothing was changed."
 	If verb = "SendDigest" Quit $Select($ListFind($ListBuild("tool", "web_admin"), origin): "", 1: "OcuTalon can't take that command from here. Nothing was changed.")
 	If verb = "SaveSettings" Quit $Select($ListFind($ListBuild("web_admin", "system"), origin): "", 1: "Only an OcuTalon admin can change settings. Nothing was changed.")
+	If verb = "TestModel" Quit $Select(origin = "web_admin": "", 1: "Only an OcuTalon admin can change settings. Nothing was changed.")
 	Quit $Select($ListFind($ListBuild("web_user", "web_admin", "telegram"), origin): "", 1: "OcuTalon can't take that command from here. Nothing was changed.")
 }
 

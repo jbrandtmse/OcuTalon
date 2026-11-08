@@ -181,9 +181,9 @@ test('D3: a fallback reply shows Tell now, the Fallback flag and its reason firs
   await expect(strip, 'no confidence on a fallback').not.toContainText('Confidence');
   await expect(strip.locator('.line1 .meta'), 'the turn\'s cost is still shown').toHaveText('$0.0008');
   const first = strip.locator('.reason').first();
-  await expect(first, 'the reason is the first line, as a sentence').toHaveText("The model didn't answer within 60 seconds.");
+  await expect(first, 'the reason is the first line, as a sentence').toHaveText("The model didn't answer within the time allowed.");
   await expect(first).toHaveCSS('color', await tokenColor(page, '--warning-ink'));
-  await expect(replyOf(page, refs[0]!).locator('.text'), 'above the catalog sentence of the fallback').toContainText("I couldn't answer that: the model didn't answer within 60 seconds.");
+  await expect(replyOf(page, refs[0]!).locator('.text'), 'above the catalog sentence of the fallback').toContainText("I couldn't answer that: the model didn't answer within the time allowed.");
   await expect(replyOf(page, refs[0]!).getByRole('group', { name: 'Tell now', exact: true }), 'the group is described by the meaning of Tell now').toHaveAccessibleDescription('Needs you now');
   await strip.getByRole('button', { name: 'Decision details' }).click();
   const message = strip.locator('dl.details dd', { hasText: decisions[0]!.turn });
@@ -411,7 +411,7 @@ test('D8: a reload shows the same strips, details and rows', async ({ page }) =>
   const before = await seen();
   expect(before[0]!.line1, 'the first strip has its chip, confidence and the cost of the turn').toBe(`Act Confidence 0.92${DOT}$0.0008`);
   expect(before[0]!.details).toContain(`Decision $0.0003${DOT}Turn $0.0008`);
-  expect(before[1]!.firstReason).toBe("The model didn't answer within 60 seconds.");
+  expect(before[1]!.firstReason).toBe("The model didn't answer within the time allowed.");
   expect(before[1]!.line1).toContain('Fallback');
   expect(before[2]!.checks).toContain('Everything I checked passed.');
   expect(before[2]!.checks).toContain('12 messages are waiting');

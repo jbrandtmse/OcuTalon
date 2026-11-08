@@ -1,12 +1,11 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { afterNextRender, ChangeDetectionStrategy, Component, ElementRef, inject, Injector, input, output, signal, computed, effect } from '@angular/core';
 import { type Observable, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
-import type { SettingsError } from '../api/api-types';
 import { Icon } from '../icon/icon';
 import { Announcer } from '../shared/announcer';
 import { ServerButton } from '../shared/server-button';
+import { refusalOf } from './refusal';
 import { SETTINGS_TEXTS, zoneBody, zoneOptions } from './settings-view';
 
 /** The id of the field's error, which the select and the button are described by. */
@@ -215,13 +214,12 @@ export class TimeZoneSection {
   }
 
   private refused(error: unknown): void {
-    if (error instanceof HttpErrorResponse && error.status === 403) {
+    const refusal = refusalOf(error, ['InstanceZone']);
+    if (refusal.kind === 'denied') {
       this.denied.emit();
       return;
     }
-    const body = (error instanceof HttpErrorResponse ? error.error : undefined) as SettingsError | undefined;
-    const named = error instanceof HttpErrorResponse && error.status === 400 && Array.isArray(body?.fields) && body.fields.includes('InstanceZone');
-    if (!named) {
+    if (refusal.kind === 'form') {
       this.formError.set(true);
       this.announcer.announce(SETTINGS_TEXTS.failed);
       return;

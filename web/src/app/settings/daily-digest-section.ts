@@ -1,12 +1,12 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { afterNextRender, ChangeDetectionStrategy, Component, ElementRef, inject, Injector, input, output, signal, computed, effect } from '@angular/core';
 import { type Observable, tap } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
-import type { SettingsError, SettingsSaved, SettingsSections } from '../api/api-types';
+import type { SettingsSaved, SettingsSections } from '../api/api-types';
 import { Icon } from '../icon/icon';
 import { Announcer } from '../shared/announcer';
 import { ServerButton } from '../shared/server-button';
+import { refusalOf } from './refusal';
 import { digestBody, digestChannelBoxes, digestChannelsBody, type DigestChannel, isDigestDirty, isDigestFormDirty, SETTINGS_TEXTS, storedChannels } from './settings-view';
 
 /** The id of the error under the Save button, which the button is described by. */
@@ -278,20 +278,18 @@ export class DailyDigestSection {
   }
 
   private refused(error: unknown): void {
-    if (error instanceof HttpErrorResponse && error.status === 403) {
+    const refusal = refusalOf(error, ['time', 'channels']);
+    if (refusal.kind === 'denied') {
       this.denied.emit();
       return;
     }
-    const body = (error instanceof HttpErrorResponse ? error.error : undefined) as SettingsError | undefined;
-    const named = error instanceof HttpErrorResponse && error.status === 400 && Array.isArray(body?.fields) ? body.fields : [];
-    const time = named.includes('time');
-    const channels = named.includes('channels');
-    if (!time && !channels) {
+    if (refusal.kind === 'form') {
       this.formError.set(true);
       this.announcer.announce(SETTINGS_TEXTS.failed);
       return;
     }
-    this.errors.set({ time, channels });
+    const time = refusal.fields.includes('time');
+    this.errors.set({ time, channels: refusal.fields.includes('channels') });
     const target = time ? '#digest-time' : '#digest-channel-web';
     afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>(target)?.focus(), { injector: this.injector });
   }
@@ -306,7 +304,7 @@ export class DailyDigestSection {
           this.announcer.announce(SETTINGS_TEXTS.dailyDigest.sendNowDone);
         },
         error: (error: unknown) => {
-          if (error instanceof HttpErrorResponse && error.status === 403) {
+          if (refusalOf(error, []).kind === 'denied') {
             this.denied.emit();
             return;
           }
