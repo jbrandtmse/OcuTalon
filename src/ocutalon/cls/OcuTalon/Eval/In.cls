@@ -40,6 +40,9 @@
 ///     EvidencePack.Load). EvalIn sends IncidentManager one OcuTalon.Eval.Msg.IncidentCase (a fresh IncidentRef from OcuTalon.Bridge.Ids.NewRef, the
 ///     case's folder name as SourceItemId, and the snapshot's JSON text) and, before the send, opens the case's row with ItemId the IncidentRef, which
 ///     is the ItemId of the ItemDecision that IncidentManager sends EvalSink. A send that fails deletes the row and skips the case with the error text.
+///     The run's incident cases are paced: each one after the first is sent only once the previous one's row is no longer in state sent, after at most
+///     INCIDENTWAIT seconds of INCIDENTPOLL-second pauses; at that bound the run sends no more incident cases (REASONPACED), so no case waits out its
+///     diagnosis timer in DiagnosisAgent's queue.
 ///   - A case of kind item or injection may declare a watch {namespace, production}: the production that the case's email talks about, with a
 ///     watch of it set up for the run. Before the case's row is opened and its Item is sent, EvalIn calls OcuTalon.Watch.Ops.EvalWatch (the
 ///     watch of owner eval, never polled, never due, no CheckChanged). A watch that is not an object with a non-blank namespace and production
@@ -115,6 +118,13 @@ Parameter BUSYWAIT = 3;
 
 Parameter BUSYMAX = 5;
 
+/// The seconds an incident case waits for the previous incident case's row to leave state sent: above the longest a diagnose decision takes under
+/// Decide's timers (MAXTIMER, 110) and the hops to and from it (a test pins it above MAXTIMER). At that bound the run sends no more incident cases.
+Parameter INCIDENTWAIT = 150;
+
+/// The seconds between two checks of the previous incident case's row.
+Parameter INCIDENTPOLL = 1;
+
 /// The name of the file that holds a case.
 Parameter CASEFILE = "case.json";
 
@@ -152,6 +162,9 @@ Parameter REASONWATCHSHAPE = "its watch is not an object with a namespace and a 
 /// {why} is the text of the status that WatchOps.EvalWatch returned.
 Parameter REASONWATCH = "its watch could not be set up: {why}";
 
+/// {case} is the incident case whose row was still sent at the bound, and {seconds} is INCIDENTWAIT.
+Parameter REASONPACED = "the incident case {case} had no result after {seconds} seconds, so this run sends no more incident cases";
+
 /// The start of the warning for a case that is not sent; the case's name and its reason follow it.
 Parameter LOGSKIPPED = "EvalIn did not send the case ";
 
@@ -171,6 +184,15 @@ Property PersonaLanguage As %String(MAXLEN = 40);
 
 /// The setup records of the run's watches, a dynamic array of {"case", "watch"}: one for each sent case that declared a watch. Start sets it.
 Property Watches As %DynamicArray;
+
+/// The IncidentRef of the last incident case this service dispatched successfully; "" before the first. The next incident case waits for its row.
+Property PaceRef As %String(MAXLEN = 22);
+
+/// The case name of that incident case, which REASONPACED names at the bound; "" before the first.
+Property PaceCase As %String(MAXLEN = 128);
+
+/// 1 once the previous incident case's row was still sent at the bound: the run then sends no more incident cases.
+Property PaceStalled As %Boolean [ InitialExpression = 0 ];
 
 /// Starts a run: creates EvalIn, mints the run's Ref and sends each case once.
 ///   - folder holds the case folders. names is a comma-separated list of case folder names; "" means every subfolder that holds a
@@ -378,7 +400,8 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 
 /// The steps for one incident case: the reason it was not sent, or "" when it was. The case's snapshot member must be a plain file name (no path
 /// separator, no ..) of a recorded reader snapshot in the case's folder that EvidencePack.Load takes; otherwise the case is refused before anything is saved.
-/// Otherwise the row is opened with the IncidentRef as ItemId, and the IncidentCase is sent; a send that fails or throws deletes the row.
+/// Otherwise, once Pace allows it (the previous incident case's row is no longer sent), the row is opened with the IncidentRef as ItemId, and the IncidentCase is
+/// sent; a send that fails or throws deletes the row. A case that Pace refuses is not sent and leaves no row. Only a case that was sent becomes the previous one.
 Method SendIncident(case As %DynamicObject, folder As %String, name As %String) As %String [ Private ]
 {
 	Set file = ..Scalar(case, "snapshot")
@@ -390,6 +413,8 @@ Method SendIncident(case As %DynamicObject, folder As %String, name As %String) 
 	Set incident.IncidentRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set incident.SourceItemId = name
 	Set incident.Snapshot = snapshot.%ToJSON()
+	Set reason = ..Pace()
+	If reason '= "" Quit reason
 	Set opened = 0
 	Try {
 		Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, name, incident.IncidentRef)
@@ -405,7 +430,35 @@ Method SendIncident(case As %DynamicObject, folder As %String, name As %String) 
 		If opened Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..RunRef, name)
 		Quit $SYSTEM.Status.GetOneStatusText(sc)
 	}
+	Set ..PaceRef = incident.IncidentRef, ..PaceCase = name
 	Quit ""
+}
+
+/// The wait before an incident case: "" when it may be sent, otherwise REASONPACED. With no previous incident case it is "". Otherwise, until the previous
+/// case's row is no longer sent, it pauses INCIDENTPOLL seconds and checks again, at most INCIDENTWAIT \ INCIDENTPOLL times. A row still sent after the last
+/// pause sets PaceStalled, and from then on every incident case of the run gets REASONPACED at once, with no check and no pause.
+Method Pace() As %String [ Private ]
+{
+	If ..PaceRef = "" Quit ""
+	If '..PaceStalled {
+		Set pauses = 0
+		While ..StillSent(..PaceRef) {
+			If pauses '< (..#INCIDENTWAIT \ ..#INCIDENTPOLL) {
+				Set ..PaceStalled = 1
+				Quit
+			}
+			Do ..Pause(..#INCIDENTPOLL)
+			Set pauses = pauses + 1
+		}
+	}
+	If '..PaceStalled Quit ""
+	Quit $Replace($Replace(..#REASONPACED, "{case}", ..PaceCase), "{seconds}", ..#INCIDENTWAIT)
+}
+
+/// 1 while the row of the ItemId is in state sent; a row that is decided or removed is not.
+Method StillSent(itemId As %String) As %Boolean [ Private ]
+{
+	Quit $IsObject(##class(OcuTalon.Eval.Data.CaseResult).Pending(itemId))
 }
 
 /// The steps for one digest case: the reason it was not sent, or "" when it was. A case whose checks is not an array is refused with REASONNOCHECKS before

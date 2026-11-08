@@ -170,6 +170,7 @@ development_status:
   9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea: done
   9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: done
   9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g: done
+  9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it: done
   epic-9-retrospective: optional
 
   epic-10: done
@@ -363,6 +364,7 @@ development_status:
   30-6-the-invalid-reply-warning-names-what-failed-never-the-reply: done
   30-7-epic-30-burn-down: backlog
   30-8-the-redactor-and-the-key-proof-catch-every-key-shape: done
+  30-9-a-remember-that-chat-message-gets-a-usable-attention-decisio: done
   epic-30-retrospective: optional
 
   epic-31: done
