@@ -2858,3 +2858,8 @@
 2026-11-08T17:26:32Z	Epic 7	amendments_verified	amendments=epics.md_7.11_charter extensions=0 ok=true
 2026-11-08T17:26:32Z	Epic 7	ci_green_verified	head=cdf4bc99 result=success runs=42496615105,42496615026
 2026-11-08T17:26:32Z	Epic 7	merge_enqueued	policy=when_green priority=4(last_1.0.4) note=planner_ruling_no_integrate_over_17/32.6;code_merge_clean;sprint-status_bookkeeping_conflict_resolved_per_SC-4-P_step4
+2026-11-08T17:27:11Z	Epic 7	epic_merged_to_feature	merge=5cb58db7 head=cdf4bc99 stories=7.11 verified_on_origin=yes conflicts=sprint-status.yaml(bookkeeping;SC-4-P_step4:ours+generate+7.11=done;validate_ok) code_conflicts=none ledger_union=lost0,dup0(940) 1.0.4=IN(LAST_1.0.4_merge;awaiting_feature_CI)
+2026-11-08T17:27:11Z	Epic 7	decision_sheet_skipped	reason=empty
+2026-11-08T17:27:11Z	Run	deps_hash_rerecorded	reason=fix_forward stories=7.11 hash=a143b66fe18e
+2026-11-08T17:27:11Z	Epic 7	worktree_removed	
+2026-11-08T17:27:11Z	Epic 7	epic_branches_deleted	local+remote(ancestor_of_feature_verified)
