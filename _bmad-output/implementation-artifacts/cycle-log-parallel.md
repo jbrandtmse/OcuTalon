@@ -2824,3 +2824,4 @@
 2026-11-08T14:46:09Z	Run	deps_hash_rerecorded	reason=fix_forward stories=19.4,19.5,19.7 hash=9fc5b2fb0ceb
 2026-11-08T14:46:09Z	Epic 19	worktree_removed	paths=.worktrees/epic-19,.worktrees/epic-19b
 2026-11-08T14:46:09Z	Epic 19	epic_branches_deleted	local+remote=OCT-epic19,OCT-epic19b
+2026-11-08T15:33:27Z	Epic 17	runner_clarification	kind=CI_WAIT agent=a988df2f376518b7a sha=6ac45643(rework_2:DW-964_test_wait_fixed_test-only_e7fc91ff;integrated_onto_c25902c3_a8f9bd01) runs=42495328974,42495328975 proof=forced_race_old_red,fix_green;20/20_unforced cause=test_wait_returned_on_phone_row(no_double_report;not_a_5.14_defect) new=DW-966(BeatOutcomes_same_wait_shape)
