@@ -239,6 +239,10 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full.
 
 ## Spec Change Log
 
+- 2026-11-08 (rulings relayed by the orchestrator; Contest Planner under the owner's delegation):
+  - **PUBLIC TEXT, APPROVED word for word:** `Web/Api.cls` `Parameter MESSAGETOOOLD = "This notice is too old to mark as noise. Nothing was changed.";`, the body of the noise route's 409 `too_old` answer. The same words are 41.5's notice-card catalog line (DW-923, one ruling). Pin it with a fixed string (a test-held copy compared with the parameter, and the route's 409 body asserted against that copy).
+  - **`Data/Ownership.cls` RULED (decide):** the three insertions (comment bullet after line 46; `Precedents`/`Precedent` after line 667; two `Statement` kinds after line 979) are allowed. They are a plain union with Epic 17's hunks (lines 40, 413-414, 910-911), done by whichever epic merges second. The `## Clarification Needed` below is cleared; the step that waited on it proceeds.
+  - **DW-921 closed `by-design`** (by owner ruling): the amendment's restated `ForgetPrecedent` and sign-out removal are consistent with AD-1. This story still builds the `ForgetPrecedent` handling its ACs require.
 - 2026-11-08 (spec gate, lead): the AD-21 amendment (Contest Planner ruling under the owner's delegation; U7 step 2, light path) is written into the spine in the same bookkeeping commit as this spec: a third bullet under AD-21's "accepts only" list, marked `[AMENDED 2026-11-08, Story 41.7 (planned at 41.2), Contest Planner ruling under the owner's delegation; DW-920, DW-921]`, naming `SeedPrecedent` / `RemoveSeededPrecedents` from `EvalIn` only while `OCUTALON_EVAL=1`, the eval-seeded mark, removal through `PrecedentOps`, no product read of eval rows, and `PrecedentOps`' removals on `ForgetPrecedent` (`web_user`) and at sign-out. The two "Spine lines for the lead" (AD-29's "Epic 41's names, as built" sub-bullet and the cross-area row) are written verbatim beside it. Spine numstat `3 0`; lint findings equal the baseline (10 `placeholder low`). The implement stage does not edit the spine. The warm-up time in `## Verification` is corrected from a measurement.
 
 ## Review Triage Log
@@ -322,6 +326,8 @@ No AC contradicts an AD's Rule as amended.
 - DW-922 is addressed (decided above, AC 4).
 
 ## Clarification Needed
+
+**Cleared 2026-11-08 (orchestrator ruling, decide; the Contest Planner agrees): allowed as a plain union. See `## Spec Change Log`.**
 
 `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` is changed by Epic 17 (`origin/OCT-epic17` changes lines 40, 413-414 and 910-911). This story must add the route reads there, because AD-4 sends REST reads through the ownership API, and AD-13 allows unchecked prepares only in `Ownership.Rows`. Its additions are:
 - one comment bullet after line 46;

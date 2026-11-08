@@ -9670,7 +9670,7 @@ So that OcuTalon learns from my answers and never from its own guesses.
 **Given** Playwright specs `web/e2e/memory-noise.spec.ts` and tests in `OcuTalon.Test.Core`
 **When** they run
 **Then** they cover the mark, a repeat, the phone, an approval and a rejection, and they don't change the demo-path specs (REL-2)
-- DW-923: the 'This was noise' refusal `too_old` (Item already purged) has no user-facing text in EXPERIENCE.md or its Message Catalog; escalate one catalog line as PUBLIC TEXT at this story's plan (ledger; routed by cr 2026-11-08)
+- DW-923: the 'This was noise' refusal `too_old` (Item already purged) has no user-facing text in EXPERIENCE.md or its Message Catalog; its words are approved (Contest Planner under the owner's delegation, 2026-11-08): "This notice is too old to mark as noise. Nothing was changed.", the same as Story 41.2's noise-route 409 body; pin both with fixed strings (ledger; routed by cr 2026-11-08)
 
 ### Story 41.6: The Memory card: your notes and your answers
 

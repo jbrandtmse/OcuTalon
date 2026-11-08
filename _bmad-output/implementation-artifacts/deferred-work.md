@@ -5485,6 +5485,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: spine AD-21 PrecedentOps accepts-only line vs AD-1 line 117 and AD-29 Epic 41's names sub-bullet
 - 2026-11-08T07:35:42Z status=routed owner=41-2-the-precedent-table-its-one-writer-and-the-routes by=harvest note=Fold into the AD-21 additive amendment the lead writes at 41.2's plan (extends the Rule to a case AD-1 already states); if it needs a separate ruling, the lead asks the orchestrator then
 - 2026-11-08T07:48:47Z occurrence=41-1-fix-the-names-and-contracts-of-memory-s-first-part by=cr note=the accepts-only list also omits the SessionOps.End drop (AD-21 'through PrecedentOps'; 41.2 AC) and eval-row removal
+- 2026-11-08T08:27:20Z status=by-design by=owner note=Contest_Planner_ruling_under_owner_delegation_relayed_by_orchestrator_2026-11-08:_restated_ForgetPrecedent_and_sign-out_removal_in_the_AD-21_bullet_is_consistent_with_AD-1
 
 ### DW-922: A tool_call precedent has no match key: RecordPrecedent carries an ApprovalRef, AD-21 defines keys only via KeyFor(item), and 41.2 keys such rows 'by the request's production or tool', a form no arriving item's KeyFor can produce, so tool_call precedents are never read
 - source: spec-41-1-fix-the-names-and-contracts-of-memory-s-first-part.md | severity: med | fix-risk: med | footprint: in-epic
@@ -5495,3 +5496,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-1-fix-the-names-and-contracts-of-memory-s-first-part.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: epics.md Story 41.2 AC (refused with too_old) and Story 41.5 AC (card shows only the success line); EXPERIENCE.md lines 940 and 1057 have no refusal line
 - 2026-11-08T07:48:48Z status=routed owner=41-5-this-was-noise-and-your-approval-answers-become-precedents by=cr note=41.5's plan escalates one catalog line as PUBLIC TEXT for the too_old refusal (and any other refusal of the noise route)
+- 2026-11-08T08:27:20Z note=PUBLIC_TEXT_approved_2026-11-08_(Contest_Planner,_owner_delegation):_This_notice_is_too_old_to_mark_as_noise._Nothing_was_changed._-_same_words_as_41.2_Web.Api_MESSAGETOOOLD;_pin_with_fixed_strings
