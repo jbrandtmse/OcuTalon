@@ -2878,3 +2878,5 @@
 2026-11-08T19:16:11Z	Epic 4	decision_sheet_recorded	decided=1(DW-976_routed_to_20.2_per_planner_(2)) to_action_items=0 to_x0=0 by=merge_gate
 2026-11-08T19:16:11Z	Run	deps_hash_rerecorded	reason=fix_forward stories=4.12 hash=4b5f4f10137c
 2026-11-08T19:16:11Z	Run	bookkeeping_merged_locally	local=49d155b9(merge_of_a77f9a87_into_local_bookkeeping) push=after_planner_confirms_cut
+2026-11-08T19:16:25Z	Run	planner_ruling	subject=1.0.4_cut answer=rc1_CUT_from_feature_a77f9a87(cut_commit_c7d8fa75_release/1.0.4-rc1);merge_freeze_LIFTED;held_merges_in_green_order(41_part1,18,30.7,5.15);dispatch_32.7;RELEASE-TOOL_FREEZE_holds_until_v1.0.4_merged_back;then_Epic_11_part2,0.15,DW-446/485_free;nothing_to_release/*_except_Planner_picks via=Contest_Planner_1(delegation)
+2026-11-08T19:16:25Z	Run	ci_green_verified	head=a77f9a87 result=success via=tree_identical_to_cb7a2215(42507818397,42507818342) note=merge_head_runs_cancelled_by_planner_ruling_a
