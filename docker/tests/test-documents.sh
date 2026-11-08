@@ -6,6 +6,9 @@
 #   2. POST /v1/documents with a Markdown runbook ({name, content} with the bytes in base64) answers 200 {"result":"done","ref"}; the list shows the document
 #      ready within 120 s; OcuTalon.Test.Docs.Live (TestFound) finds its passages, with their document and section, in OcuTalonKB.Docs, and a search through AI Hub's
 #      knowledge base returns the passage of the certificate first with a score over the floor;
+#   2b. the chat, through the real POST /v1/messages and the CI mock (the runners' keys pointed at it, then put back): a question the runbook covers is
+#      answered; a covered search whose reply also says "None of your documents cover that." leaves with the sentence taken out (citations exist, DW-720 b);
+#      an unrelated question gets the sentence as it is (no citation, DW-720 a); a reply that is only the sentence while citations exist never reaches the chat;
 #   3. the iris container restarts (AD-5): after the restart the list still shows the document ready and TestFound passes again;
 #   4. a 10,485,760-byte .pdf (made here, in the unit's temporary folder, and never kept: no PDF of that size is committed) is accepted by the real route (200, the
 #      size check D8 of the page specs used to make) and ends failed with the reason not_built; a .txt with a NUL ends failed with the reason unreadable;
@@ -116,6 +119,46 @@ table_rows() {
   printf '%s\n' 'Write !,"CHK|rows|",##class(OcuTalon.Docs.Store).Count()' 'Halt' | iris_script OCUTALON | sed -n 's/^CHK|rows|//p' | head -n 1
 }
 
+# chat_reply <clientId>: "<state>|<fallbackReason>|<replyText>" of the chat turn of /state with that clientId, or "none||" when it is not listed.
+chat_reply() {
+  api_send GET state > /dev/null
+  node -e 'let s=require("fs").readFileSync(process.argv[1],"utf8");try{const j=JSON.parse(s);const m=(j.chat||[]).find(i=>i.type==="chat.message"&&i.payload.clientId===process.argv[2]);console.log(m?`${m.payload.state}|${m.payload.fallbackReason||""}|${m.payload.replyText||""}`:"none||")}catch(e){console.log("error||")}' "$tmp/api.body" "$1"
+}
+
+# chat_done_for <clientId>: succeeds when that turn is done (for wait_until).
+chat_done_for() { [ "$(chat_reply "$1" | cut -d'|' -f1)" = done ]; }
+
+# chat_turn <clientId> <text>: posts the message and waits up to 120 s for its reply; prints "<fallbackReason>|<replyText>" (or "no reply").
+chat_turn() {
+  local code
+  printf '{"clientId":"%s","text":"%s","fromGuide":false}' "$1" "$2" > "$tmp/message.json"
+  code=$(api_send POST messages "$tmp/message.json")
+  if [ "$code" != 202 ]; then echo "POST answered $code"; return 0; fi
+  if wait_until 120 chat_done_for "$1"; then
+    chat_reply "$1" | cut -d'|' -f2-
+  else
+    echo "no reply"
+  fi
+}
+
+# drop_turns <mark>: removes the README account's turns with what the product made for them (ReminderFixture.RemoveTurns), and the AI sessions that the turns
+# saved after the mark (RunnerFixture.DropSince), so that the next turn starts a conversation of its own: the mock reads the first [[mock:...]] marker of the
+# history it is sent. Prints 1 on success.
+drop_turns() {
+  case "$1" in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+  printf '%s\n' \
+    "Set s=##class(OcuTalon.Data.Session).ForUser(\"$readme_user\",.sc)" \
+    'If $IsObject(s) Do ##class(OcuTalon.Test.Schedule.ReminderFixture).RemoveTurns(s.Ref)' \
+    "Write !,\"CHK|dropped|\",\$IsObject(s)&&\$System.Status.IsOK(##class(OcuTalon.Test.Agent.RunnerFixture).DropSince($1))" 'Halt' | iris_script OCUTALON | sed -n 's/^CHK|dropped|//p' | head -n 1
+}
+
+# runner_keys <Point|Restore>: points the runners' keys at the CI mock, or puts the placeholder back (RunnerFixture, as the page specs do); prints 1 on success.
+runner_keys() {
+  printf '%s\n' "Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).${1}Keys()" 'Write !,"CHK|keys|",$System.Status.IsOK(sc)' 'Halt' | iris_script OCUTALON | sed -n 's/^CHK|keys|//p' | head -n 1
+}
+
 # --- step 1: the texts that the rulings fix ---
 
 RAGSTATEMENT="One tool has no class of its own: \`documents\`, the search over your added documents that AI Hub's knowledge base gives the Chat agent. AI Hub sends no source class with its calls, so the gate classifies this one tool, and no other, by the bridge's classification setting: safe and read-only, but its output is never trusted, so a turn that searches your documents is treated as holding untrusted content. The gate also limits each search to 5 passages. Any other call that arrives without a source class stays unclassified and counts as risky."
@@ -130,11 +173,16 @@ if [ "$(grep -cF -- "$FILTERLINE" "$root/docs/bridge-guide.md")" = 1 ]; then
 else
   fail "docs/bridge-guide.md does not hold the Filter(text, hostData) line of the ruling exactly once"
 fi
-big=$(cd "$root" && git ls-files 2> /dev/null | grep -iE '\.(pdf|docx)$' | while read -r f; do if [ "$(wc -c < "$f")" -gt 1000000 ]; then echo "$f"; fi; done)
-if [ -z "$big" ]; then
-  pass "no PDF or Word file over 1 MB is in the repository: the 10 MB .pdf of this unit is generated at test time"
+tracked=$(cd "$root" && git ls-files 2> /dev/null)
+if [ -z "$tracked" ]; then
+  fail "git ls-files listed no file of the repository, so the size check of the tracked PDF and Word files did not run"
 else
-  fail "a large PDF or Word file is tracked: $big"
+  big=$(cd "$root" && printf '%s\n' "$tracked" | grep -iE '\.(pdf|docx)$' | while read -r f; do if [ "$(wc -c < "$f")" -gt 1000000 ]; then echo "$f"; fi; done)
+  if [ -z "$big" ]; then
+    pass "no PDF or Word file over 1 MB is in the repository: the 10 MB .pdf of this unit is generated at test time"
+  else
+    fail "a large PDF or Word file is tracked: $big"
+  fi
 fi
 
 # --- build and start ---
@@ -190,6 +238,49 @@ echo "INFO the runbook was ready $((SECONDS - begun)) s after the add"
 mark live "$ref"
 run_class OcuTalon.Test.Docs.Live "$tmp/live1.chk"
 check_live "$tmp/live1.chk" "before the restart" 1
+
+# --- step 2b: the chat, through the real message route against the CI mock ---
+
+NONE_SENTENCE='None of your documents cover that.'
+if [ "$(runner_keys Point)" = 1 ]; then
+  pass "the runners' keys point at the CI mock"
+else
+  die "the runners' keys could not be pointed at the CI mock"
+fi
+mark_sessions=$(printf '%s\n' 'Write !,"CHK|mark|",##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()' 'Halt' | iris_script OCUTALON | sed -n 's/^CHK|mark|//p' | head -n 1)
+covered=$(chat_turn zzdocs-covered 'How do I rotate the Results certificate? [[mock:documents-runbook]]')
+[ "$(drop_turns "$mark_sessions")" = 1 ] || fail "the AI sessions of the covered turn could not be dropped"
+conflict=$(chat_turn zzdocs-conflict 'How do I rotate the Results certificate? [[mock:documents-none-conflict]]')
+[ "$(drop_turns "$mark_sessions")" = 1 ] || fail "the AI sessions of the conflict turn could not be dropped"
+unrelated=$(chat_turn zzdocs-none 'How do I reset my password? [[mock:documents-none]]')
+[ "$(drop_turns "$mark_sessions")" = 1 ] || fail "the AI sessions of the unrelated turn could not be dropped"
+only=$(chat_turn zzdocs-only 'How do I rotate the Results certificate? [[mock:documents-none-only]]')
+if [ "$covered" = '|The CI mock answered from the Results runbook: Rotating the certificate.' ]; then
+  pass "a question the runbook covers is answered in the chat: '${covered#|}'"
+else
+  fail "the covered question got '$covered'"
+fi
+if [ "$conflict" = '|Stop the sender, install the new certificate and send a test result.' ]; then
+  pass "a covered search whose reply also says the sentence reaches the chat without it (citations exist)"
+else
+  fail "the covered search with the sentence got '$conflict', wanted the steps without '$NONE_SENTENCE'"
+fi
+if [ "$unrelated" = "|$NONE_SENTENCE" ]; then
+  pass "an unrelated question is answered with '$NONE_SENTENCE' as it is (no citation)"
+else
+  fail "the unrelated question got '$unrelated', wanted '$NONE_SENTENCE'"
+fi
+case "$only" in
+  invalid\|*"$NONE_SENTENCE"*) fail "a reply that is only the sentence, with citations, reached the chat: '$only'" ;;
+  invalid\|*) pass "a reply that is only the sentence, with citations, never reaches the chat: Decide's invalid path (fallback reason 'invalid')" ;;
+  *) fail "the reply that is only the sentence got '$only', wanted a fallback with the reason invalid" ;;
+esac
+[ "$(drop_turns "$mark_sessions")" = 1 ] || fail "the AI sessions of the turns could not be dropped (mark '$mark_sessions')"
+if [ "$(runner_keys Restore)" = 1 ]; then
+  pass "the runners' keys are put back"
+else
+  fail "the runners' keys could not be put back"
+fi
 
 # --- step 3: the container restarts (AD-5) ---
 

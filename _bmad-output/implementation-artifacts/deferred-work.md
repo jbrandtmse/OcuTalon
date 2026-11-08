@@ -5311,16 +5311,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Q1 AD-31 amendment; Decide.cls call site
 - 2026-11-07T23:30:12Z status=open owner=19-4-answer-from-documents-with-citations by=harvest note=code review: judge a compatibility call or a pinned contract note
+- 2026-11-08T01:47:04Z status=open owner=19-4-answer-from-documents-with-citations by=cr note=cr measured slot C 154U: a one-arg Filter override compiles; a 2-arg $ClassMethod call runs it; no <PARAMETER>
 
 ### DW-892: Demo.Features lists the documents feature on every instance now that Docs.Ops has no STUB parameter, including the online demo, where AddDocument answers not_built until Story 19.5
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Demo/Features.cls Built() treats a class without STUB as built
 - 2026-11-07T23:30:12Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5 builds the per-session documents of the online demo
+- 2026-11-08T01:47:04Z occurrence=19-4-answer-from-documents-with-citations
 
 ### DW-893: An agent job builds its tools once, so the Chat agent's documents tool is attached or left out for the job's life by the online-demo setting at that moment
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: adapter builds the agent on the first request
 - 2026-11-07T23:30:13Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5's per-turn tool manager (TurnToolsClass) is the fix
+- 2026-11-08T01:47:05Z occurrence=19-4-answer-from-documents-with-citations
 
 ### DW-894: Indexing speed: each passage costs one Embedder round trip of about 0.33 s, so a 100-passage document is ready after about 35 s and a 1,000-passage one after about 5.5 minutes
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
@@ -5331,3 +5334,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: both files are Lane B's (U-177)
 - 2026-11-07T23:30:13Z status=wontfix-accepted owner=19-4-answer-from-documents-with-citations by=harvest note=reopen_if=a_Lane_B_story_next_edits_Web/Documents.cls_or_Test/Web/DocumentsApi.cls
+
+### DW-899: Test.Docs.Store TestEmptyTable and Test.Docs.Turns TestNotCovered assert the whole OcuTalonKB.Docs table is empty before their empty-table case
+- source: spec-19-4-answer-from-documents-with-citations.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Both pin the matrix's empty-table branch, so they need an empty table; a red elsewhere that leaves rows makes them red too (explicit message)
+- 2026-11-08T01:47:05Z status=wontfix-accepted owner=19-4-answer-from-documents-with-citations by=cr note=reopen_if=a fresh-stack or CI red of 'the table holds no row' or 'the table is empty to begin with'

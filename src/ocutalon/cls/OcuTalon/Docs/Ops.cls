@@ -9,7 +9,8 @@ Include Ensemble
 ///     nothing and writes no row (Story 19.5). Otherwise the upload is taken once with the command's SessionRef (Upload.Take); an upload that is gone (taken, dropped
 ///     or another session's, DW-747) writes a failed row (reason failed) and answers failed (Ok 0) with the row's Ref. The bytes of a markdown or text document must
 ///     be UTF-8 without a NUL and not blank once a BOM is stripped, else the row is failed with the reason unreadable; a pdf or docx document is failed with the
-///     reason not_built (Story 19.7 sends them through Docs.Extract at the Text seam). Every failed row is published and the answer is added (Ok 1) with its Ref.
+///     reason not_built (Story 19.7 sends them through Docs.Extract at the Text seam). Every failed row is published and the answer is added (Ok 1) with its Ref
+///     and the message MESSAGENOTINDEXED. An unexpected failure answers failed (Ok 0) with CommandsIn's failure text and logs one redacted warning.
 ///     Otherwise the row is saved with the state indexing (OwnerRef the literal instance, AddedBy the command's session, the text, KnowledgeBase OcuTalonKB.Docs),
 ///     published, and Index(Ref, 0) is sent to this operation; the answer is added (Ok 1) with the Ref.
 ///   - Index: nothing when the row is gone or is not indexing. Otherwise the text is split (Docs.Passages); at ChunkFrom 0 the section of each passage is stored in the
@@ -40,8 +41,11 @@ Parameter MESSAGENOSESSION = "The command names no session, so nothing was done.
 
 Parameter MESSAGENOTBUILT = "Documents are not built for the online demo yet, so nothing was done.";
 
+/// The answer for a document whose row is written as failed (its Reason says why).
+Parameter MESSAGENOTINDEXED = "The document was added, but it cannot be indexed: its row holds the reason.";
+
 /// The answer when the upload is gone (taken, dropped or another session's).
-Parameter MESSAGEFAILED = "The upload is gone, so the document was not added.";
+Parameter MESSAGEFAILED = "The upload is gone, so the document was not indexed.";
 
 Parameter LOGFAILED = "DocumentOps could not index a document: ";
 
@@ -95,7 +99,7 @@ Method OnAdd(request As OcuTalon.Msg.Command.AddDocument, Output response As Ocu
 			Do ..Text(bytes, request.ContentType, .text, .reason)
 			If reason '= "" {
 				Set row = ..Reject(request, size, reason, "")
-				Set sc = ..Answer(.response, 1, "added", ..#MESSAGEADDED, row.Ref)
+				Set sc = ..Answer(.response, 1, "added", ..#MESSAGENOTINDEXED, row.Ref)
 			} Else {
 				Set row = ..Save(request, size, text, "indexing", "")
 				Set sc = ..Answer(.response, 1, "added", ..#MESSAGEADDED, row.Ref)
@@ -299,11 +303,12 @@ Method PublishPayload(payload As OcuTalon.Live.Payload.Document, ref As %String)
 	}
 }
 
-/// Builds the failed answer in response, after one Type 3 warning that holds the status text (redacted).
+/// Builds the failed answer of an unexpected failure in response (CommandsIn's own failure text, as the other owners answer), after one Type 3 warning that
+/// holds the status text (redacted).
 ClassMethod Failed(ByRef response As OcuTalon.Msg.CommandResult, cause As %Status) As %Status [ Private ]
 {
 	$$$LOGWARNING(..#LOGFAILED_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(cause)))
-	Quit ..Answer(.response, 0, "failed", ..#MESSAGEFAILED)
+	Quit ..Answer(.response, 0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
 }
 
 /// Builds the CommandResult in response and returns OK.

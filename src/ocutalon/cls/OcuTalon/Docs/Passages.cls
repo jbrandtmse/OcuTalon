@@ -1,7 +1,7 @@
 /// Splits a document's text into passages, each under the section it belongs to (AD-21, Story 19.4; Lane A). A pure function of the text and the content
 /// type: no SQL, no global, no AI Hub call and no Python, so DocumentOps, the tests and Story 19.7 (extracted text) share one splitter.
-///   - markdown: a line that starts with the two characters ## and a space opens a section. The heading (trimmed, trailing # characters removed) is the
-///     section of every passage up to the next such line, and the heading line is not passage text. Text before the first one has the section "". A line
+///   - markdown: a line that starts with the two characters ## and a space opens a section. The heading (trimmed, trailing # characters removed, and cut to
+///     at most MAXSECTION characters) is the section of every passage up to the next such line, and the heading line is not passage text. Text before the first one has the section "". A line
 ///     of one # or of three or more # is an ordinary line. A line that starts with a backslash and then ## and a space (the escape that Story 19.7's
 ///     extracted text uses for a file's own ## lines, DW-832) is the passage line without the backslash and opens nothing.
 ///   - text: one section "" and no line opens a section.
@@ -14,6 +14,10 @@ Class OcuTalon.Docs.Passages
 
 /// The most characters of a passage (about 250 word pieces, under the 256 that the embedding model reads).
 Parameter MAXPASSAGE = 1000;
+
+/// The most characters of a section's name: a longer heading is cut, so that every search result, which repeats the section in its metadata, fits the room
+/// the gate keeps for one search (Policy.Gate RAGRESULTMAX, NFR-3).
+Parameter MAXSECTION = 100;
 
 /// The content types the splitter reads; any other type is an error.
 Parameter TYPES = "markdown,text";
@@ -59,7 +63,7 @@ ClassMethod Split(text As %String, contentType As %String, Output passages As %D
 	Quit sc
 }
 
-/// The section name of a heading line's text: trimmed, trailing # characters removed, trimmed again.
+/// The section name of a heading line's text: trimmed, trailing # characters removed, trimmed again, and cut to at most MAXSECTION characters.
 ClassMethod Heading(text As %String) As %String
 {
 	Set heading = $ZStrip(text, "<>W")
@@ -67,7 +71,7 @@ ClassMethod Heading(text As %String) As %String
 		If $Extract(heading, $Length(heading)) '= "#" Quit
 		Set heading = $Extract(heading, 1, $Length(heading) - 1)
 	}
-	Quit $ZStrip(heading, "<>W")
+	Quit $ZStrip($Extract($ZStrip(heading, "<>W"), 1, ..#MAXSECTION), ">W")
 }
 
 /// Packs the paragraphs of one section's lines (block, every line ended by a line feed) into passages and adds them to passages.

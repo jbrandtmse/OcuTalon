@@ -6,7 +6,9 @@
 ///     instance, AddedBy the session, the text and KnowledgeBase OcuTalonKB.Docs, the rows of OcuTalonKB.Docs carry the Ref, chunk_index, document and
 ///     section, Sections is the section of each chunk_index, and the instance stream gets an indexing event and then a ready event;
 ///   - TestTooLong: a text of more bytes than a string holds is a failed row with the reason failed, not a document indexed in part;
-///   - TestIndexingError: an error while a batch is written makes the document failed with the reason failed, deletes the rows already written and sends a failed event;
+///   - TestIndexingError: a batch whose passages cannot be embedded (the worker's model folder made wrong in the test process, as Test.Memory.Ops TestEmbedFailure
+///     does, for a shadow DocumentOps that runs the batch after the first was written) makes the document failed with the reason failed, deletes the rows
+///     already written and sends a failed event;
 ///   - TestPlainText: 5,000 characters of text become passages of at most 1,000 characters with no section;
 ///   - TestUnreadable: bytes that are not UTF-8, hold a NUL or are blank after a BOM give a failed row with the reason unreadable, an event and Ok 1, and no KB row;
 ///   - TestNotBuilt: a pdf and a docx give a failed row with the reason not_built until Story 19.7, an event and Ok 1;
@@ -262,16 +264,38 @@ Method TestIndexingError()
 	If '..Ready() Quit
 	Set session = ..Session("broken")
 	Set lf = $Char(10)
-	Set text = "## First" _ lf _ "A short paragraph under the first section." _ lf _ lf _ "## " _ $Translate($Justify("", 33000), " ", "h") _ lf _ "A paragraph under a heading that no row can hold." _ lf
-	Set sc = ..Add(session, "Broken.md", "markdown", ..Utf8(text), .result, .seconds)
-	Do $$$AssertEquals(result.Ok _ "|" _ result.Outcome, "1|added", "the document is added")
-	Set ref = result.Ref
-	Do $$$AssertTrue(..WaitState(ref, "failed"), "an error while it is indexed makes it failed")
-	Do ..WaitEvents(ref, "indexing,failed")
+	Set text = ""
+	For i = 1:1:10 Set text = text _ "## Step " _ i _ lf _ "The Results runbook step " _ i _ " says how to handle the certificate of lab " _ i _ "." _ lf _ lf
+	Set row = ##class(OcuTalon.Data.Document).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.OwnerRef = "instance", row.AddedBy = session, row.Name = "Broken.md", row.ContentType = "markdown", row.Size = $Length(text)
+	Set row.AddedAt = ##class(OcuTalon.Data.Time).NowUtc(), row.State = "indexing", row.KnowledgeBase = $Parameter(..#STORE, "TABLE")
+	Do row.Text.Write(text)
+	Do $$$AssertStatusOK(row.%Save(), "the row of a document whose first batch is written is made")
+	Set ref = row.Ref
+	Set row = ""
+	Do $ClassMethod("OcuTalon.Docs.Passages", "Split", text, "markdown", .passages)
+	Set batch = $Parameter("OcuTalon.Docs.Ops", "BATCH")
+	Do $$$AssertTrue(passages.%Size() > batch, "the document has more passages than one batch: " _ passages.%Size())
+	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Write", ref, "Broken", passages, 0, batch), "its first batch is written")
+	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref), batch, "as " _ batch _ " rows")
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Docs.Ops", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of DocumentOps is made")
+	If '$IsObject(host) Quit
+	Set index = ##class(OcuTalon.Docs.Msg.Index).%New()
+	Set index.Ref = ref
+	Set index.ChunkFrom = batch
+	Set variable = ##class(OcuTalon.Memory.Embedder).#FOLDERVARIABLE
+	Set previous = $SYSTEM.Util.GetEnviron(variable)
+	Set environ = ##class(%SYS.Python).Import("os").environ
+	Do environ."__setitem__"(variable, "/dev/null/zz-docs-no-model/")
+	Set sc = host.OnIndex(index, .response)
+	Do ##class(OcuTalon.Test.Memory.Fixture).PutVariable(environ, previous)
+	Do $$$AssertStatusOK(sc, "the next batch is handled although its passages cannot be embedded")
 	Set row = ..Row(ref)
-	Do $$$AssertEquals(row.State _ "|" _ row.Reason, "failed|failed", "with the reason failed")
+	Do $$$AssertEquals($Select($IsObject(row): row.State _ "|" _ row.Reason, 1: "none"), "failed|failed", "an error while a batch is written makes the document failed, with the reason failed")
 	Do $$$AssertEquals($ClassMethod(..#STORE, "Count", ref), 0, "the rows that were written before the error are deleted")
-	Do $$$AssertEquals(..Events(ref), "indexing,failed", "and the instance stream got an indexing event and then a failed event")
+	Do $$$AssertEquals(..Events(ref), "failed", "and the instance stream got a failed event")
 }
 
 Method TestPlainText()

@@ -5,7 +5,7 @@
 ///   - TestCutOrder: a paragraph that is too long is cut at the last line break that fits, else at the last sentence end, else at the last space, else hard;
 ///   - TestPacking: paragraphs pack into one passage while they fit, a heading starts a new passage, and the order is kept;
 ///   - TestHeadings: only a line that starts with ## and a space opens a section (and only for markdown), trailing # characters are dropped, # and ### lines
-///     stay passage lines, and the line \## is the escaped passage line ## that opens nothing (DW-832);
+///     stay passage lines, the line \## is the escaped passage line ## that opens nothing (DW-832), and a heading longer than MAXSECTION is cut;
 ///   - TestBlanks: blank text, a heading with no body and CR LF line ends;
 ///   - TestWrongType: any other content type is an error with no passage;
 ///   - TestDocumentName: the name of a citation drops one final .md, .markdown, .txt, .pdf or .docx in any case.
@@ -123,6 +123,11 @@ Method TestHeadings()
 	Do $$$AssertEquals(..Compact(passages), "Spaced|body", "the heading is trimmed")
 	Do $ClassMethod(..#CLASS, "Split", "## A" _ lf _ "x" _ lf _ "## A" _ lf _ "y", "markdown", .passages)
 	Do $$$AssertEquals(..Compact(passages), "A|x;A|y", "the same heading twice gives two passages of the same section")
+	Set long = ""
+	For i = 1:1:30 Set long = long _ "Word" _ i _ " "
+	Do $ClassMethod(..#CLASS, "Split", "## " _ long _ lf _ "body", "markdown", .passages)
+	Set max = $Parameter(..#CLASS, "MAXSECTION")
+	Do $$$AssertEquals(passages.%Get(0).section, $ZStrip($Extract(long, 1, max), ">W"), "a heading longer than MAXSECTION is cut to its first " _ max _ " characters, with no space left at its end")
 }
 
 Method TestBlanks()

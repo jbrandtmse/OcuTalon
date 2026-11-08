@@ -199,8 +199,9 @@ test('D7: an 11 MB .pdf is refused as too large', async ({ page }) => {
   await expect(rowsOf(page, 'big.pdf').locator('.status')).toHaveText("Couldn't read it: that file is 11 MB; the limit is 10 MB.", { timeout: 30_000 });
 });
 
-/** D8 (Task 0 (c)): a PDF of exactly 10,485,760 bytes is not refused by the web layer, nor by the route as too large. The route's answer is fulfilled in the browser. */
-test('D8: a 10 MB .pdf reaches the route', async ({ page }) => {
+/** D8 (Task 0 (c)): the page posts a PDF of exactly 10,485,760 bytes (it does not refuse it as too large) and takes the done answer, which is fulfilled in the
+ * browser; the real route's size check for that PDF is the unit live:documents. */
+test('D8: a 10 MB .pdf is posted by the page', async ({ page }) => {
   await openDocuments(page);
   await page.route(`**${DOCUMENTS}`, (route) =>
     route.request().method() === 'POST' ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: 'done', ref: `zzLimit${Date.now().toString(36)}` }) }) : route.fallback(),
@@ -210,7 +211,7 @@ test('D8: a 10 MB .pdf reaches the route', async ({ page }) => {
   const response = await answer;
   const status = response.status();
   const text = await response.text();
-  expect([200, 500, 501], `the 14 MB body reaches the route, which answers done, or an error from the command (${status}: ${text.slice(0, 120)})`).toContain(status);
+  expect([200, 500, 501], `the page posts the 14 MB body and gets the fulfilled answer (${status}: ${text.slice(0, 120)})`).toContain(status);
   expect(text, 'and the route does not refuse the file as a bad document').not.toContain('bad_document');
   expect(text, 'or as a body that is too large').not.toContain('body_too_large');
 });

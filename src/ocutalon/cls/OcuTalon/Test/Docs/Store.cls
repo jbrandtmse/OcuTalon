@@ -3,7 +3,7 @@
 /// put back, and the table is left as it was found.
 ///   - TestEnsureTable: EnsureTable is idempotent; the table and its _Config table exist with AI Hub's columns;
 ///   - TestGlobals: the DDL's DEFAULTGLOBAL is ^OcuTalonP.KBDocs and ^OcuTalonP.KBDocsConfig, every global of both classes is under those names, each resolves to
-///     OCUTALON_PRIVATE (GetGlobalDest), no ^IRIS.KNNIndex node and no ^IRIS.IF.* global is written, and the installer's private-data check passes;
+///     OCUTALON_PRIVATE (GetGlobalDest), no ^IRIS.KNNIndex node is written, and the installer's private-data check passes;
 ///   - TestRowsAndSearch: Write puts one row for each passage (id <Ref>:<n>, source the Ref, text the passage, metadata {source, chunk_index, document, section},
 ///     a 384-value vector); a search through a bare %AI.ToolMgr and AI Hub's knowledge base, built by Attach, finds the passage that answers the question first
 ///     with a score over the floor and its metadata, and Remove makes the next search return none of its rows (AD-21);
@@ -111,6 +111,16 @@ ClassMethod Ids(items As %DynamicArray) As %String [ Private ]
 	Quit result
 }
 
+/// The first item of the search (the best score) whose source is the Ref, or "" when there is none; another document's rows never decide it.
+ClassMethod FirstOf(items As %DynamicArray, ref As %String) As %DynamicObject [ Private ]
+{
+	Set iterator = items.%GetIterator()
+	While iterator.%GetNext(, .item) {
+		If item.metadata.source = ref Return item
+	}
+	Quit ""
+}
+
 /// The number of items of the search whose source is the Ref.
 ClassMethod Holds(items As %DynamicArray, ref As %String) As %Integer [ Private ]
 {
@@ -209,11 +219,13 @@ Method TestRowsAndSearch()
 	Set agent = ..Agent(.holder)
 	Do $$$AssertTrue($IsObject(holder), "Attach gives a holder")
 	Set items = ..Search(agent, "how do I rotate the Results certificate?")
-	Do $$$AssertEquals(items.%Get(0).metadata.document _ "|" _ items.%Get(0).metadata.section _ "|" _ items.%Get(0).metadata."chunk_index", "Runbook|Rotating the certificate|1", "the passage about the certificate is the first result, with its document and section")
-	Do $$$AssertTrue(items.%Get(0).score '< $Parameter("OcuTalon.Bridge.Citations", "CITEFLOOR"), "and its score is over the floor: " _ items.%Get(0).score)
+	Set first = ..FirstOf(items, ..#A)
+	Do $$$AssertEquals($Select($IsObject(first): first.metadata.document _ "|" _ first.metadata.section _ "|" _ first.metadata."chunk_index", 1: "none"), "Runbook|Rotating the certificate|1", "the passage about the certificate is the document's first result, with its document and section")
+	Do $$$AssertTrue($IsObject(first) && (first.score '< $Parameter("OcuTalon.Bridge.Citations", "CITEFLOOR")), "and its score is over the floor: " _ $Select($IsObject(first): first.score, 1: "none"))
 	Set items = ..Search(agent, "what is the capital of France?")
-	Do $$$AssertTrue(items.%Size() > 0, "an unrelated question still gets passages from AI Hub")
-	Do $$$AssertTrue(items.%Get(0).score < $Parameter("OcuTalon.Bridge.Citations", "CITEFLOOR"), "all below the floor: the best is " _ items.%Get(0).score)
+	Set first = ..FirstOf(items, ..#A)
+	Do $$$AssertTrue($IsObject(first), "an unrelated question still gets passages of the document from AI Hub")
+	Do $$$AssertTrue($IsObject(first) && (first.score < $Parameter("OcuTalon.Bridge.Citations", "CITEFLOOR")), "all below the floor: the document's best is " _ $Select($IsObject(first): first.score, 1: "none"))
 	Set items = ..Search(agent, "how do I rotate the Results certificate?", 2)
 	Do $$$AssertEquals(items.%Size(), 2, "a top_k of 2 gives two")
 	Do $$$AssertStatusOK($ClassMethod(..#STORE, "Remove", ..#A), "Remove deletes the document's rows")

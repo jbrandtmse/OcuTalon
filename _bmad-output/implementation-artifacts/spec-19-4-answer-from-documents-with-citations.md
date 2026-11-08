@@ -2,7 +2,7 @@
 title: 'Answer from documents with citations'
 type: 'feature'
 created: '2026-11-06'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '08d15e82ebcab65ae7bc53ee8ee9d32e52d7abbc'
 baseline_commit: '08d15e82ebcab65ae7bc53ee8ee9d32e52d7abbc'
 review_loop_iteration: 0
@@ -209,7 +209,74 @@ Tests, mock, CI and live scripts:
 - Given the real route, when a person adds and removes a document through `/v1/documents`, then it reaches `ready` through `CommandsIn` -> `DocumentOps` and then leaves the list and the knowledge base (DW-739); after an iris container restart it is still listed and found.
 - Given the generated security overview, when `live:security-overview` compares it, then it lists `documents` (safe, read-only, not trusted output) and the fallback sentence, with no drift.
 
+### Review Findings
+
+Code review 2026-11-08 (bmad-code-review, full mode, four layers on the full-opus tier; 61 raw rows, 51 entries after grouping). Each line gives severity, fix-risk and disposition (Rule 15).
+
+- [x] [Review][Decision] (ruled 2026-11-08: comply; the work is the open `[Review]` item below) AD-5 against the Q3-ruled `ToolClassification` item setting -- `Production.cls:23` puts Decide's `ToolClassification` in the production class. AD-5's Rule says the production class holds structure only and that values an admin may change live in System Default Settings, and the bridge guide documents `ToolClassification` as "the classification of your own tools". The item setting also outranks any System Default Settings row for that setting, so a developer's own row on `OcuTalon.Production`'s `Decide` is silently ignored (their tools are held), and an edit to the item is lost at the next reinstall. The Q3 ruling named this exact entry. high (Rule 6); fix-risk high (moving it is a design change against the ruling); escalated as `## Clarification Needed` (amend AD-5 with an exception, or move the entry to an install-seeded settings row).
+- [x] [Review][Decision] (ruled 2026-11-08: comply; the work is the open `[Review]` item below) The `documents` eval kind (Q5) against AD-22, AD-1 and AD-33 -- `Eval/In.cls` `DocumentsUp`, `AddOne` and `DocumentsDown`:
+  - The kind adds its files through `Commands.Submit` as `web_user` from EvalIn's job, so `DocumentOps` publishes `document` live events (`indexing`, `ready`, `removed`) during an evaluation run. AD-22: "A test proves an evaluation run writes no Notification, Delivery or live event". `Test.Eval.Run:TestIsolation` runs no documents case.
+  - EvalIn also writes and deletes Lane B's `Session` rows (AD-33: one owner per table).
+  - It submits a `web_user` origin that no authenticated web context set (AD-1).
+  - For the length of a run, the documents are `instance`-owned, so every user lists and searches them.
+  - high (Rule 6); fix-risk high (a compliant setup needs an AD amendment or a Lane B change to `CommandsIn`); escalated as `## Clarification Needed`.
+- [ ] [Review] AD-5 (ruled by the lead 2026-11-08, U7 step 1 "comply"; veto item) -- `src/ocutalon/cls/OcuTalon/Production.cls:23` -- the fix must: remove the `ToolClassification` item setting from Decide in the production class; seed instead the System Default Settings row of `OcuTalon.Production` / `Decide` / `ToolClassification` at install, by extending the seeding that `Install/Step/Production.cls` already does for the Model, Effort and AgentAllowList rows (Rule 2: extend that sibling, never a copy; report the file as a footprint extension), MERGING with what the row holds: keep every other entry, add the product's entry for exactly `%AI.RAG.KnowledgeBase` + `documents` (safe, readOnly 1, trustedOutput 0) and replace a different entry for that exact pair, so a reinstall restores it and a developer's own entries survive; a row that is not a JSON array is left untouched with one warning (the documents call then stays unclassified and is held: the safe direction). The gate, `RAGSTATEMENT` and the bridge guide stay as they are (the classification still comes from Decide's setting). Tests: the seed creates the row, merges into an existing row without losing its entries, replaces a wrong documents entry, is idempotent on a second run, and leaves a malformed row alone; `Test.Install.Production`'s oracle no longer expects the item setting; every test that relied on the item setting reads the row (or sets it itself and removes it). One `mutation:` line per new behaviour.
+- [ ] [Review] AD-22 / AD-1 / AD-33 (ruled by the lead 2026-11-08, U7 step 1 "comply") -- `src/ocutalon/cls/OcuTalon/Eval/In.cls` `DocumentsUp`, `AddOne`, `DocumentsDown` -- the fix must: index a documents case's files without `Commands.Submit`, without a `web_user` origin, without writing or deleting `Session` rows and without any live event: the eval writes its own `Data.Document` rows with `OwnerRef` = the literal `eval` (never listed by the documents routes, which list `instance` or a session) and indexes them through the same split, embed and write code that DocumentOps uses, factored so both call it (Rule 2: extend `Docs.Ops`/`Docs.Store`, never a copy; DocumentOps keeps publishing its events, the eval path publishes none); `Finish` removes the eval's rows and their passages. AD-22's isolation test (`Test.Eval.Run:TestIsolation`, or a new Lane A test beside it) runs a documents case and proves the run wrote no Notification, Delivery or live event and no Session row; `Test.Docs.Turns:TestEvalDocuments` and the `Test.Eval.ZzIn` double follow the new path. One `mutation:` line each (the publish put back on the eval path, the Session row put back).
+- [x] [Review][Patch] NFR-3 room check: a search result repeats an unbounded `## ` heading [Docs/Passages.cls:63] -- `RAGRESULTMAX` 8,000 assumed 400 characters of metadata per result, but the section had no bound; `Heading` now cuts at `MAXSECTION` 100 (TestHeadings pins it), `Test.Docs.Chat:TestStepBound` checks 5 x (MAXPASSAGE + MAXSECTION + Name's MAXLEN + 200) against `RAGRESULTMAX`, and `Test.Docs.Ops:TestIndexingError` (whose 33,000-character heading no longer fails) now makes a batch fail through the embedder on a shadow DocumentOps. medium; fix-risk low; fixed.
+- [x] [Review][Patch] The sampling check of `Test.Agent.Runners` was narrowed for `temperature` and `top_p` too [Test/Agent/Runners.cls:551] -- both are again refused anywhere in the request; `top_k` is refused anywhere outside `tools`. medium; fix-risk low; fixed.
+- [x] [Review][Patch] Search assertions over the whole shared `OcuTalonKB.Docs` table (Rule 19) [Test/Docs/Store.cls:206, Test/Docs/Turns.cls:333,396] -- TestRowsAndSearch's first result, TestNotCovered's below-the-floor check and TestRemoved's "none of its passages" now judge the items of the test's own source. medium; fix-risk low; fixed (the two empty-table preconditions: DW-899).
+- [x] [Review][Patch] The AD-10 union said "These are the gate's only rewrites of a call", against the existing "two rewrites" line (MCP routing), and its `[AMENDED` bracket was never closed [ARCHITECTURE-SPINE.md:368] -- the sentence was removed and the bracket closed; the spine lint shows the same 10 findings as before. medium; fix-risk low; fixed.
+- [x] [Review][Patch] The Tables union sat inside Story 34.1's sentence, before its marker [ARCHITECTURE-SPINE.md:1327] -- moved after the marker as its own sentence. low; fixed.
+- [x] [Review][Patch] DocumentOps answer messages misstated the outcome [Docs/Ops.cls:306] -- every unexpected failure, a failed remove included, said "The upload is gone"; a failed row said "is being indexed". `Failed` now answers with `CommandsIn`'s failure text (as ReminderOps and SettingsOps do), a failed row with `MESSAGENOTINDEXED`, and the upload-gone answer with "was not indexed" (developer-facing texts). low; fixed.
+- [x] [Review][Patch] `Docs.Reply`'s doc promised a retry before the fallback, but `Decide.Retryable` never retries a turn that ran a tool [Docs/Reply.cls:7] -- corrected. low; fixed.
+- [x] [Review][Patch] `Test.Docs.Turns`' doc said every test checks its steps; TestRemoved did not [Test/Docs/Turns.cls:379] -- TestRemoved now checks them, and the doc names the two tests that do not, with the reason. low; fixed.
+- [x] [Review][Patch] `Test.Docs.Store:TestGlobals`' doc claimed a `^IRIS.IF.*` check it does not make [Test/Docs/Store.cls:6] -- corrected. low; fixed.
+- [x] [Review][Patch] `Docs.Store.Count` returned 0 when the table cannot be read, so every zero-row assertion passed on an SQL error [Docs/Store.cls:117] -- it returns -1. low; fixed.
+- [x] [Review][Patch] `test-documents.sh`'s check for large tracked PDFs passed when `git ls-files` listed nothing [docker/tests/test-documents.sh:176] -- that is now a failure. low; fixed.
+- [x] [Review][Patch] D8's title and message still said the 10 MB body reaches the route, which `page.route` now fulfils [web/e2e/documents/documents.spec.ts:203] -- they now say what D8 checks (the page posts it) and point to `live:documents` for the real route (Q4 grant, no page-visible assertion changed). low; fixed.
+- [x] [Review][Patch] The pinning tests of AC1 (events from `indexing` to `ready`), AC2 (read-only) and AC5 (still found after a restart) had no `mutation:` line -- each mutation was run, observed red and reverted (see `## Verification`). low; fixed.
+- [x] [Review][Defer] Demo.Features advertises documents on the online demo, where the route answers 501 [Demo/Features.cls:55] -- deferred: DW-892, occurrence appended (routed to Story 19.5).
+- [x] [Review][Defer] Test.Docs.Turns relies on the ChatAgent job having been built off the online demo [Test/Docs/Turns.cls:125] -- deferred: DW-893, occurrence appended (routed to Story 19.5, whose per-turn attach removes it).
+- [x] [Review][Defer] TestEmptyTable and TestNotCovered's first half need the whole table empty [Test/Docs/Store.cls:225] -- deferred: DW-899 `wontfix-accepted` (low), reopen_if a fresh-stack or CI red of the precondition.
+
+Rejected (verdict false, low not worth fixing, or a fix that edits the spec):
+- false: a one-argument host `ReplyFilter` fails on a chat turn (DW-891's premise), and the doc's "keeps working" is false. Measured on slot C (build 154U): a `Filter(text)` override compiles, and a two-argument `$ClassMethod` call runs it and returns its result. The note is in DW-891's trailer for the lead.
+- false: `Test.Bridge.Gate` `PutSetting` raises INVALID OREF on an empty `SavedTool`. The class passed on the warm stack (72.7 s).
+- false: `$ZHorolog` wraps at midnight in `Eval.In`. `$ZHOROLOG` counts seconds since IRIS started.
+- false: Chat's `%OnInit` breaks AD-7. The agent keeps its static XData INSTRUCTIONS, TOOLSETS and MODEL, and the AD-21 union records the attach.
+- false: TestNotCovered's empty-table half cannot fail. It pins the matrix's empty-table branch, not the floor.
+- false: `Test/Docs/Embedding.cls` is untracked. The lead commits after the smoke gate.
+- not filed: the group of `live:documents` in `ci/units.sh` (the lead's, by the orchestrator's ruling).
+- spec-bound: runner-up passages over the floor are cited, and the eval checks only that the expected citations are present (Always line, Q5 scoring).
+- spec-bound: a cited reply that is only the sentence takes Decide's fallback and carries no citation (matrix "Covered but model says none", Q1 mechanics).
+- spec-bound: Q2(c)'s "replaces" reading (accepted at the spec gate: re-indexing X replaces only X's rows).
+- spec-bound: Chat's bullets name `documents` when no tool is attached (Q6 text; the per-turn attach is Story 19.5's).
+- spec-bound: `RAGSTATEMENT` is fixed text (ruled verbatim).
+- spec-bound: `RequestSize` leaves out the knowledge-base schema (Decided in-stage, inside the precheck's tolerance).
+- low: `docs/bridge-guide.md` does not describe the fallback, clamp or NOROOM for bridge users. Only a bridge user's own knowledge base named `documents` meets it, and the fix is new public text.
+- low: a `## ` line inside a fenced code block opens a section. Uncommon in runbooks; the fix adds fence tracking.
+- low: every batch re-reads and re-splits the whole text. Measurable only for texts of several MB; the fix adds a passage cache.
+- low: `Citations.Collect` has no `mcp:` exclusion. It needs an MCP tool named exactly `documents` beside the knowledge base, and MCP arrives in step 4.
+- low: a held, approved documents replay with a `top_k` over 5 is denied. Unreachable with the shipped entry, because `documents` is safe and never held.
+- low, maybe-false: two documents calls in one response could each pass the room check before either result is counted. Unsettled because AI Hub's dispatch is native; even if true it needs a step already holding over 24,000 characters.
+- low: a Markdown file of headings only is `ready` with no passage.
+- low: a cached row could stay `indexing` after a second `%Save` failure in `Fail`. Theoretical: DocumentOps is the only writer, with pool 1.
+- low: `Remove` could succeed and `%DeleteId` then fail, leaving a `ready` row with no passages. Theoretical, and the route answers 500, so a retry completes the remove.
+- low: a stale rewrite mark. The self-review's row stands; M3 measured that AI Hub always reruns.
+- low: a fractional `top_k` reaches AI Hub. The schema declares an integer.
+- low: `DocumentsDown` ignores an Ok 0 remove answer. Only an SQL error gives one.
+- low: `Docs.Reply.Apply` returns the text when it throws. Theoretical, with a fixed pattern.
+- low: no timing check on a remove queued behind a batch. It would flake on the slower x64 runner.
+- low: no test of `EmbedBatch`'s failure path. A failed embed leaves no vector, so the search fails anyway.
+- low: no test of the eval clean-up after a failed documents turn. The documents kind is the open decision above.
+- low: TestCovered's "at most five" bounds cannot fail on a runbook of three passages. TestClamp pins the clamp.
+- low: step 2b's covered turn checks the canned text only. Its conflict case observes the citations.
+- low: comment-only edits in `Test/Core/CommandsStep3*.cls` and in the header of `documents.spec.ts` go beyond the granted lines. They keep those comments true (Rule 14) and are noted for the lead.
+- low: `RAGSOURCE` and the Production entry are written so that the `%AI` checks do not see them. Nothing calls `%AI`; an allow-list needs `test-class-rules.sh`, which is contended (Epic 31).
+
 ## Spec Change Log
+
+- 2026-11-08 (lead, rework 1 of 3, trigger high): the code review found two AD conflicts (AD-5; AD-22, AD-1, AD-33); both ruled "comply" (doctrine U7 step 1; an amendment of these ADs would be a re-architecture) and written as the two open `[Review]` items under Tasks & Acceptance; status reset to `in-progress`.
 
 - 2026-11-07 (implement stage): implemented under the rulings; the in-stage decisions, the measured results and the footprint extensions are under `## Unattended run` and `## Auto Run Result`; `Docs.Msg.Index` has the properties `Ref` and `ChunkFrom` (the task text named `Next`, an SQL reserved word that `Test.Data.Tables` refuses); the mutation results are under `## Verification`.
 
@@ -438,6 +505,17 @@ Every test added or changed passes on a fresh environment, in either order.
 - Text pins (PUBLIC TEXT and Q6): `mutation:` "and answer only from the passages" -> "and answer from the passages" -> `Test.Docs.Chat` TestBullets red. `mutation:` "reply with exactly this sentence and nothing else: None..." -> "reply with this sentence: None..." -> `Test.Docs.Chat` TestBullets red. `mutation:` "classifies this one tool, and no other," -> "classifies this tool, and no other," in `RAGSTATEMENT` -> `Test.Install.SecurityOverview` TestDocumentsRow red (the live:security-overview drift check compares the document with a fresh generation). `mutation:` "near their size limit" -> "near their limit" in `NOROOM` -> `Test.Bridge.Gate` TestRagRoom red. `mutation:` "otherwise it is empty" -> "otherwise it is blank" in `docs/bridge-guide.md` -> `live:documents` red ("does not hold the Filter(text, hostData) line of the ruling exactly once"). `mutation:` "cover that." -> "cover this." in `Docs.Reply.NONE` -> `Test.Docs.Reply` red. `mutation:` `documentRef` -> `documentref` in the citation entry -> `Test.Bridge.Citations` red.
 
 - Review pass additions (2026-11-07): `mutation:` the size check of `Docs.Ops.Text` disabled -> `Test.Docs.Ops` TestTooLong red. `mutation:` the cleanup of `Docs.Ops.Fail` removed -> `Test.Docs.Ops` TestIndexingError red. `mutation:` the delete before the insert in `Docs.Store.Write` made a no-op -> `Test.Docs.Store` TestWriteTwice red (unique-key error). `mutation:` the `DocumentsDown` call of `Eval.In.Finish` removed -> `Test.Docs.Turns` TestEvalDocuments red. `mutation:` the gate's taint test inverted (`trustedOutput '= 0`) -> `Test.Docs.Turns` TestThenSave, TestCovered, TestClamp, TestNotCovered and TestRemoved red (all read). Each file was put back byte for byte from a backup (`cmp` equal); the warm stack was cleaned of the rows a red left before the next green run.
+
+- QA additions (2026-11-08): (QA) new `src/ocutalon/cls/OcuTalon/Test/Docs/Embedding.cls` (TestShape, TestSameVectors: `Docs.Embedding.EmbedBatch` keeps one vector of 384 numbers per text, in the texts' order, equal to `Memory.Embedding.Embed`'s; the 384 and `AllMiniLML6V2` the vector store records; `Test.Docs.*` runs in `shard:lane-a@rest`). (QA) edited `docker/tests/test-documents.sh`: new step 2b drives four chat turns through the real `POST /v1/messages` and `/state` against the CI mock (runners' keys pointed, then put back; the turns and AI sessions removed after each): covered, covered with the sentence, unrelated, and only the sentence.
+  - AC2/AC3 (`EmbedBatch`): `mutation:` `EmbedBatch` embeds `texts.%Get(0)` for every text -> `Test.Docs.Embedding` TestShape (vectors 2 and 3) and TestSameVectors red; file put back from the scratch backup, `git status --short` and `git diff --stat` equal to before.
+  - AC3 (DW-720 both directions on the real route): `mutation:` `Docs.Reply.Apply` quits before the citations test (`If 1 Quit`) -> `live:documents` step 2b red ("the covered search with the sentence got '... None of your documents cover that.'" and "the reply that is only the sentence got 'None of your documents cover that.'"); put back byte for byte, `git status --short` and `git diff --stat` equal to before. Green before and after: `all checks passed`.
+
+- Code review additions (2026-11-08; warm stack `e19s4cw`, fresh `e19s4c` for the live unit; each file put back from a backup in the scratch folder, `cmp` equal, then green again). A change to `Docs.Ops` reaches the production's DocumentOps job only after the item restarts (the host object keeps its class), so every DocumentOps mutation below was run after a restart of the item.
+  - AC1 (the events go from `indexing` to `ready`): `mutation:` the `Publish` after `ready` removed from `OnIndex` -> `Test.Docs.Ops` TestAddMarkdown red ("the instance stream got an indexing event and then a ready event") and TestRemove red.
+  - AC1 (failed with `failed`, rebuilt TestIndexingError): `mutation:` `Store.Remove` removed from `Fail` -> `Test.Docs.Ops` TestIndexingError red ("the rows that were written before the error are deleted").
+  - AC2 (read-only): `mutation:` `"readOnly":1` -> `0` in the `ToolClassification` entry of `Production.cls` -> `Test.Install.SecurityOverview` TestDocumentsRow red ("safe, read-only, not trusted output, no resources").
+  - AC5 (still listed and found after a container restart): `mutation:` `DocumentOps.OnInit` deletes every row of `OcuTalonKB.Docs` -> `live:documents` red at "OcuTalon.Test.Docs.Live did not pass after the restart: the passages are still there and found" (the list still showed the runbook ready). Green after the revert: 27 PASS, `all checks passed`.
+  - NFR-3 (the room of one search; the section cap): `mutation:` `Passages.Heading` returns the heading uncut -> `Test.Docs.Passages` TestHeadings red ("a heading longer than MAXSECTION is cut to its first 100 characters").
 
 ## Unattended run
 

@@ -548,11 +548,15 @@ Method AssertRequests(requests As %DynamicArray, effort As %String, agentClass A
 		} Else {
 			Do $$$AssertEquals(logged.request.tools.%Size(), 0, here_" offers no tool, so no block of it is marked")
 		}
-		// No sampling parameter (AD-6): the request's own top-level keys, because the knowledge-base tool's input schema declares a top_k argument (Story 19.4), which
-		// the gate clamps (AD-10), and which is not a sampling parameter of the request.
-		For key = "temperature", "top_p", "top_k" {
-			Do $$$AssertTrue('logged.request.%IsDefined(key), here_" holds no top-level "_key)
+		// No sampling parameter (AD-6, AD-7): temperature and top_p nowhere in the request; top_k nowhere outside the tools, because the knowledge-base tool's input
+		// schema declares a top_k argument (Story 19.4), which the gate clamps (AD-10), and which is not a sampling parameter of the request.
+		Set json = logged.request.%ToJSON()
+		For key = "temperature", "top_p" {
+			Do $$$AssertTrue(json '[ ("""" _ key _ """"), here_" holds no "_key)
 		}
+		Set untooled = {}.%FromJSON(json)
+		Do untooled.%Remove("tools")
+		Do $$$AssertTrue(untooled.%ToJSON() '[ """top_k""", here_" holds no top_k outside its tools")
 	}
 }
 

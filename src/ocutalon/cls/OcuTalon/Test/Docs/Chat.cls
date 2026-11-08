@@ -4,8 +4,8 @@
 ///     first, then documents bullet 1, then bullet 2) and before the bullet on data from a tool, which stays the last bullet;
 ///   - TestNames: the tool's name is documents in Tools.Names, the gate's RAGTOOL, the knowledge base's name and the sentence of bullet 2 is the one that
 ///     Docs.Reply removes;
-///   - TestStepBound: the gate's step bound repeats Tools.Result's (the bridge cannot name a host class) and its room for one search holds five passages of the
-///     largest size with their metadata;
+///   - TestStepBound: the gate's step bound repeats Tools.Result's (the bridge cannot name a host class) and its room for one search holds five results of the
+///     largest size: the passage, the longest section (Passages MAXSECTION) and document name (Data.Document Name), and their ids, score and keys;
 ///   - TestAttach: Chat's TOOLSETS name no toolset for the tool (AI Hub's knowledge base is attached in %OnInit, in the runner's own job), %OnInit is Chat's
 ///     own and its holder property is transient; the knowledge base's description and TopK are the story's.
 Class OcuTalon.Test.Docs.Chat Extends %UnitTest.TestCase
@@ -63,7 +63,10 @@ Method TestStepBound()
 	Do $$$AssertEquals($Parameter(..#GATE, "STEPTOKENS"), 10000, "10,000 tokens")
 	Do $$$AssertEquals($Parameter(..#GATE, "MAXTOPK"), 5, "a search returns at most five passages")
 	Do $$$AssertEquals($Parameter("OcuTalon.Docs.Store", "TOPK"), $Parameter(..#GATE, "MAXTOPK"), "the knowledge base's TopK is the gate's maximum")
-	Do $$$AssertTrue($Parameter(..#GATE, "RAGRESULTMAX") '< (5 * ($Parameter("OcuTalon.Docs.Passages", "MAXPASSAGE") + 400)), "the room that one search needs holds five passages of the largest size and 400 characters of metadata each")
+	Set nameMax = ##class(%Dictionary.CompiledProperty).%OpenId("OcuTalon.Data.Document||Name").Parameters.GetAt("MAXLEN")
+	Do $$$AssertTrue(nameMax > 0, "Data.Document's Name has a MAXLEN: " _ nameMax)
+	Do $$$AssertTrue($Parameter("OcuTalon.Docs.Passages", "MAXSECTION") > 0, "a section's name has a maximum length")
+	Do $$$AssertTrue($Parameter(..#GATE, "RAGRESULTMAX") '< (5 * ($Parameter("OcuTalon.Docs.Passages", "MAXPASSAGE") + $Parameter("OcuTalon.Docs.Passages", "MAXSECTION") + nameMax + 200)), "the room that one search needs holds five results of the largest size: the passage, the longest section and document name, and 200 characters of ids, score and keys each")
 	Do $$$AssertTrue($Parameter(..#GATE, "RAGRESULTMAX") < ($Parameter(..#GATE, "STEPTOKENS") * ##class(OcuTalon.Bridge.Adapter.StepBuffer).#CHARSPERTOKEN), "and is less than the whole step")
 }
 

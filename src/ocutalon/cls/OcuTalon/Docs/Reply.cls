@@ -4,8 +4,8 @@
 /// occurrence of the sentence from the text, with ReplyGuard's matching rule (case ignored, no letter or digit at either edge, the run of . ! ? , ; : after
 /// it taken with the match, and the spaces of a changed line collapsed; a line that is left empty is dropped). The text is returned unchanged when HostData is
 /// empty, is not a JSON object, has no citations member or holds an empty one, so a reply with no citation may say the sentence, and the citations are never
-/// touched. A text that is only the sentence comes back empty, and Decide treats an empty filtered text as invalid (a retry, then its fallback), so the
-/// sentence never leaves Decide next to a citation. OcuTalon.Checks.ReplyGuard.Filter calls it with the HostData that Decide hands to the reply filter.
+/// touched. A text that is only the sentence comes back empty, and Decide treats an empty filtered text as invalid: a turn that ran a tool is not retried
+/// (Decide.Retryable), so a reply with citations takes Decide's fallback, and the sentence never leaves Decide next to a citation. OcuTalon.Checks.ReplyGuard.Filter calls it with the HostData that Decide hands to the reply filter.
 Class OcuTalon.Docs.Reply
 {
 

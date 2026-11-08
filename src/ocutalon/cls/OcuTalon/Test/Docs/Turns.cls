@@ -15,7 +15,9 @@
 ///   - TestNoneOnly (DW-720 b): a covered search whose reply is only the sentence takes Decide's invalid path: no outbound text holds the sentence;
 ///   - TestRemoved (AD-21): after RemoveDocument the next documents call returns none of its passages and the reply cites none;
 ///   - TestThenSave (FR-7, AD-10): documents, then save_memory in the same turn: the save is denied with the gate's sentence, and nothing is stored.
-/// Every test ends with the steps of the turn checked (RunnerFixture.StepProblems) and removes its documents, KB rows, events, uploads, sessions and rows.
+/// Every test checks the steps of its turns (RunnerFixture.StepProblems), except TestNoneOnly, whose turn ends in Decide's fallback, and TestThenSave, which reads
+/// the statuses of its two tool steps itself because the second is denied; every test removes its documents, KB rows, events, uploads, sessions and rows. A
+/// search result is judged by the items of the test's own document (their source), so another document's rows never decide it.
 Class OcuTalon.Test.Docs.Turns Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -331,11 +333,11 @@ Method TestNotCovered()
 	Do $$$AssertEquals(answer.Tainted, 1, "the turn is tainted: the search ran")
 	Set result = ..ToolResult(requests)
 	If $IsObject(result) {
-		Do $$$AssertTrue(result.%Size() > 0, "AI Hub still returned passages (no hook can hold them back): " _ result.%Size())
+		Do $$$AssertTrue(..Holds(result, ref) > 0, "AI Hub still returned passages of the document (no hook can hold them back): " _ ..Holds(result, ref))
 		Set above = 0
 		Set iterator = result.%GetIterator()
 		While iterator.%GetNext(, .item) {
-			If item.score '< $Parameter("OcuTalon.Bridge.Citations", "CITEFLOOR") Set above = above + 1
+			If (item.metadata.source = ref) && (item.score '< $Parameter("OcuTalon.Bridge.Citations", "CITEFLOOR")) Set above = above + 1
 		}
 		Do $$$AssertEquals(above, 0, "all of them score below the floor")
 	}
@@ -394,8 +396,20 @@ Method TestRemoved()
 	Do $$$AssertEquals(answer.Text, "The CI mock searched the documents.", "the next turn is answered")
 	Do $$$AssertEquals(..Data(answer).%IsDefined("citations"), 0, "and cites nothing")
 	Set result = ..ToolResult(requests)
-	If $IsObject(result) Do $$$AssertEquals(result.%Size(), 0, "the search returned none of its passages")
+	If $IsObject(result) Do $$$AssertEquals(..Holds(result, ref), 0, "the search returned none of its passages")
 	Do $$$AssertEquals(answer.Tainted, 1, "the turn is tainted: the search ran")
+	Do ..AssertSteps(answer, turnSession, $ListBuild("Running a tool"), $ListBuild("documents"))
+}
+
+/// The number of items of a documents result whose source is the Ref; another document's rows never count.
+ClassMethod Holds(result As %DynamicArray, ref As %String) As %Integer [ Private ]
+{
+	Set count = 0
+	Set iterator = result.%GetIterator()
+	While iterator.%GetNext(, .item) {
+		If $IsObject(item) && $IsObject(item.metadata) && (item.metadata.source = ref) Set count = count + 1
+	}
+	Quit count
 }
 
 /// The documents kind of the evaluation set (Story 19.4, Q5): EvalIn's DocumentsUp adds the files of a documents case as documents of a session row of its own

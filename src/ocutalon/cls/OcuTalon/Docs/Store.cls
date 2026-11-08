@@ -106,7 +106,7 @@ ClassMethod Remove(ref As %String) As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// The number of rows of the document ref (every row of the table when ref is empty).
+/// The number of rows of the document ref (every row of the table when ref is empty), or -1 when the table cannot be read (so a count of 0 always means no row).
 ClassMethod Count(ref As %String = "") As %Integer
 {
 	If ref = "" {
@@ -114,7 +114,7 @@ ClassMethod Count(ref As %String = "") As %Integer
 	} Else {
 		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM " _ ..#TABLE _ " WHERE source = ?", ref)
 	}
-	If result.%SQLCODE < 0 Quit 0
+	If result.%SQLCODE < 0 Quit -1
 	Do result.%Next()
 	Quit result.%GetData(1)
 }
