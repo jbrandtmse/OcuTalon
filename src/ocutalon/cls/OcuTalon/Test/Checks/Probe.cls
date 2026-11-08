@@ -9,8 +9,9 @@
 ///   - SendQuiet (the closeQuiet seam) cannot reach IncidentManager from a shadow instance, so it records {incidentRef, verb, origin, sessionRef,
 ///     superSession, sessionId} in Quieted and answers OK with a CommandResult, an error for an incident that FailQuiet names (comma-separated Refs, or
 ///     * for all), or OK with no answer, as a wait that ran out gives, for an incident that SilentQuiet names.
-///   - Due and Quiet keep only the Refs that the test lists in Only and OnlyIncidents (after the product's own selection, so that its rules still run),
-///     because a warm stack holds other rows that a Tick must never touch.
+///   - Due, Watching (a CheckNow's rows, Story 5.15) and Quiet keep only the Refs that the test lists in Only and OnlyIncidents (after the product's own
+///     selection, so that its rules still run), because a warm stack holds other rows that a Tick must never touch. Watching throws instead while FailWatching is set,
+///     as a failed read of the rows does.
 ///   - KIND is zzprobe, so that Due selects only the rows of that Kind and a real Checks (Kind production) never runs a row of these tests.
 ///   - Quiet records the time it was given in SweptAt, then selects against QuietAt when that is set (a time that only the probe's tests reach), else against
 ///     the time it was given.
@@ -42,6 +43,9 @@ Property Only As %String(MAXLEN = "") [ Transient ];
 
 /// The Refs of the incidents that Quiet keeps, comma-separated.
 Property OnlyIncidents As %String(MAXLEN = "") [ Transient ];
+
+/// 1 to make Watching throw, as a failed read of a CheckNow's rows does.
+Property FailWatching As %Boolean [ InitialExpression = 0, Transient ];
 
 /// The time that Quiet selects against, as a UTC stamp, or "" for the time it is given.
 Property QuietAt As %String [ Transient ];
@@ -233,6 +237,17 @@ Method Due(tickAt As %String) As %DynamicArray [ Private ]
 {
 	Set kept = []
 	Set iterator = ##super(tickAt).%GetIterator()
+	While iterator.%GetNext(, .row) {
+		If $ListFind($ListFromString(..Only), row.ref) Do kept.%Push(row)
+	}
+	Quit kept
+}
+
+Method Watching(namespace As %String, production As %String, ownerRef As %String) As %DynamicArray [ Private ]
+{
+	If ..FailWatching $$$ThrowStatus($SYSTEM.Status.Error(5001, "The checks to run now are refused"))
+	Set kept = []
+	Set iterator = ##super(namespace, production, ownerRef).%GetIterator()
 	While iterator.%GetNext(, .row) {
 		If $ListFind($ListFromString(..Only), row.ref) Do kept.%Push(row)
 	}

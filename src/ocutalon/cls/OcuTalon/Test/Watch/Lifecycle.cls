@@ -44,6 +44,13 @@
 ///     process locks), a Dismiss is failed (Data with the state as stored, one LOGMOVE warning), an outcome and a FixResult are error statuses, and no row changes, no Execute goes out and nothing is published; a
 ///     control without the failure is accepted. The failed Recipients read of Dismiss stays untested: it needs a process without %All (see Test.Watch.Tell);
 ///   - TestPurgeFarCutoff (QA): Purge of more days than the calendar has is OK and deletes nothing;
+///   - TestResolvingMovesCheckNow (Story 5.15; matrix Resolved, Interrupted, Rejected, Expired, Dismissed, Quiet-closed, Instance and Not resolving): an accepted
+///     final or interrupted FixResult that resolves the incident, a rejected or expired outcome that reopens it, and a dismiss or closeQuiet of a noticed open
+///     incident each record exactly one CheckNow, {namespace, production, ownerRef, incidentRef} in the incident's trace session (the owner instance too); a progress
+///     result, a finished that stays fixing or goes to awaiting approval, a rejected that stays awaiting, an approved, a refused event, a failed save, a dismiss,
+///     closeQuiet or closeForReplay of a resolved incident and a closeQuiet refused by demo mode record none;
+///   - TestCheckNowSendFails (Story 5.15): a CheckNow whose send fails logs one warning that names the incident, keeps the row resolved, publishes its event and result
+///     notice, puts the handler's session back and answers OK;
 ///   - TestExecuteTarget: the item that Execute is sent to is an enabled item of the production, of the class OcuTalon.Fix.Executor;
 ///   - TestUnknownRequest: a request of a class that the item does not handle is an error status (5001) that names the class, with no answer;
 ///   - TestFixMessages: the properties and types of Execute and FixResult, the table name FixExecute and that it is not a reserved word.
@@ -794,6 +801,149 @@ Method TestExecuteSendFails()
 	Do $$$AssertTrue($Find(text, r1), "and the request: "_text)
 }
 
+Method TestResolvingMovesCheckNow()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("checknow")
+	Set host.QuietNowIs = ..#QUIETNOW
+	Set host.DemoModeIs = 0
+	Set long = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#QUIETNOW, -960)
+	Set production = "Zz.Lifecycle"_..Number
+	Set trace = 7000
+
+	// a final and an interrupted run resolve the incident
+	For interrupted = 0, 1 {
+		Set trace = trace + 1
+		Set incident = ..Incident(a, "fixing", {"TraceHeaderId": (trace)})
+		Set r1 = ..Request(a, incident, "done")
+		Do ..Link(incident, r1)
+		Set before = ..CheckNows(host)
+		Do $$$AssertStatusOK(..Result(host, r1, incident, 'interrupted, interrupted), "the "_$Select(interrupted: "interrupted", 1: "final")_" result is handled")
+		Do $$$AssertEquals(..Row(incident).state, "resolved", "the incident is resolved")
+		Do $$$AssertEquals(..CheckNows(host), before_$Select(before = "": "", 1: ",")_"ZZNS|"_production_"|"_a_"|"_incident_"|"_trace, $Select(interrupted: "interrupted", 1: "final")_": one CheckNow, in the incident's trace session")
+	}
+
+	// a rejected and an expired outcome reopen it
+	For outcome = "rejected", "expired" {
+		Set trace = trace + 1
+		Set incident = ..Incident(a, "awaiting_approval", {"TraceHeaderId": (trace)})
+		Set r1 = ..Request(a, incident, outcome)
+		Do ..Link(incident, r1)
+		Set before = ..CheckNows(host)
+		Do ..Outcome(host, r1, incident, outcome)
+		Do $$$AssertEquals(..Row(incident).state_"|"_..Row(incident).variant, "open|"_outcome, outcome_": the incident is open")
+		Do $$$AssertEquals(..CheckNows(host), before_$Select(before = "": "", 1: ",")_"ZZNS|"_production_"|"_a_"|"_incident_"|"_trace, outcome_": one CheckNow")
+	}
+
+	// a dismiss and a closeQuiet of a noticed open incident
+	Set trace = trace + 1
+	Set incident = ..Incident(a, "open", {"TraceHeaderId": (trace), "LastAt": (long)})
+	Set before = ..CheckNows(host)
+	Do ..Command(host, "dismiss", incident, a)
+	Do $$$AssertEquals(..Row(incident).state, "closed", "dismiss: the incident is closed")
+	Do $$$AssertEquals(..CheckNows(host), before_$Select(before = "": "", 1: ",")_"ZZNS|"_production_"|"_a_"|"_incident_"|"_trace, "dismiss: one CheckNow")
+	Set trace = trace + 1
+	Set incident = ..Incident(a, "open", {"TraceHeaderId": (trace), "LastAt": (long)})
+	Set before = ..CheckNows(host)
+	Do ..Command(host, "closeQuiet", incident, "")
+	Do $$$AssertEquals(..Row(incident).state, "closed", "closeQuiet: the incident is closed")
+	Do $$$AssertEquals(..CheckNows(host), before_$Select(before = "": "", 1: ",")_"ZZNS|"_production_"|"_a_"|"_incident_"|"_trace, "closeQuiet: one CheckNow")
+
+	// the instance's incident
+	Set trace = trace + 1
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": (trace)})
+	Set r1 = ..Request("instance", incident, "done")
+	Do ..Link(incident, r1)
+	Set before = ..CheckNows(host)
+	Do ..Result(host, r1, incident, 1, 0)
+	Do $$$AssertEquals(..CheckNows(host), before_$Select(before = "": "", 1: ",")_"ZZNS|"_production_"|instance|"_incident_"|"_trace, "an instance incident: the CheckNow has the owner instance")
+
+	// the moves that are none of these
+	Set count = ..Nows(host)
+	Set incident = ..Incident(a, "fixing", {"TraceHeaderId": 7101})
+	Set r1 = ..Request(a, incident, "executing")
+	Set r2 = ..Request(a, incident, "approved")
+	Do ..Link(incident, r1_","_r2)
+	Do ..Result(host, r1, incident, 0, 0)
+	Do ..AssertNoNew(host, count, "a progress result")
+	Do ..Result(host, r1, incident, 1, 0)
+	Do $$$AssertEquals(..Row(incident).state, "fixing", "a finished with another approved request waiting stays fixing")
+	Do ..AssertNoNew(host, count, "a finished that stays fixing")
+	Set incident = ..Incident(a, "fixing", {"TraceHeaderId": 7102})
+	Set r1 = ..Request(a, incident, "done")
+	Set r2 = ..Request(a, incident, "pending")
+	Do ..Link(incident, r1_","_r2)
+	Do ..Result(host, r1, incident, 1, 0)
+	Do $$$AssertEquals(..Row(incident).state, "awaiting_approval", "a finished with another request pending goes to awaiting approval")
+	Do ..AssertNoNew(host, count, "a finished that goes to awaiting approval")
+	Set incident = ..Incident(a, "awaiting_approval", {"TraceHeaderId": 7103})
+	Set r1 = ..Request(a, incident, "rejected")
+	Set r2 = ..Request(a, incident, "pending")
+	Do ..Link(incident, r1_","_r2)
+	Do ..Outcome(host, r1, incident, "rejected")
+	Do $$$AssertEquals(..Row(incident).state, "awaiting_approval", "a rejection with another request pending stays awaiting approval")
+	Do ..AssertNoNew(host, count, "a rejected that stays awaiting")
+	Set incident = ..Incident(a, "awaiting_approval", {"TraceHeaderId": 7104})
+	Set r1 = ..Request(a, incident, "approved")
+	Do ..Link(incident, r1)
+	Do ..Outcome(host, r1, incident, "approved")
+	Do $$$AssertEquals(..Row(incident).state, "fixing", "an approval starts the fix")
+	Do ..AssertNoNew(host, count, "an approved outcome")
+	Set incident = ..Incident(a, "resolved", {"TraceHeaderId": 7105})
+	Set r1 = ..Request(a, incident, "done")
+	Do ..Link(incident, r1)
+	Do ..Result(host, r1, incident, 1, 0)
+	Do ..Outcome(host, r1, incident, "rejected")
+	Do ..AssertNoNew(host, count, "a repeat and an event the table refuses")
+	Set other = ..Incident(a, "awaiting_approval", {"TraceHeaderId": 7106})
+	Do ..Outcome(host, ##class(OcuTalon.Bridge.Ids).NewRef(), other, "rejected")
+	Do ..AssertNoNew(host, count, "a request that is not the incident's")
+	Set incident = ..Incident(a, "fixing", {"TraceHeaderId": 7107})
+	Set r1 = ..Request(a, incident, "done")
+	Do ..Link(incident, r1)
+	Set host.FailMove = 1
+	Do ..Result(host, r1, incident, 1, 0)
+	Set host.FailMove = 0
+	Do ..AssertNoNew(host, count, "a failed save")
+	Set resolved = ..Incident(a, "resolved", {"TraceHeaderId": 7108, "LastAt": (long)})
+	Do ..Command(host, "dismiss", resolved, a)
+	Do $$$AssertEquals(..Row(resolved).state, "closed", "a resolved incident is dismissed")
+	Do ..AssertNoNew(host, count, "a dismiss of a resolved incident")
+	Set resolved = ..Incident(a, "resolved", {"TraceHeaderId": 7109, "LastAt": (long)})
+	Do ..Command(host, "closeQuiet", resolved, "")
+	Do $$$AssertEquals(..Row(resolved).state, "closed", "a resolved incident is closed quietly")
+	Do ..AssertNoNew(host, count, "a closeQuiet of a resolved incident")
+	Set resolved = ..Incident(a, "resolved", {"TraceHeaderId": 7110})
+	Do ..Command(host, "closeForReplay", resolved, "")
+	Do $$$AssertEquals(..Row(resolved).state, "closed", "a resolved incident is closed for replay")
+	Do ..AssertNoNew(host, count, "a closeForReplay of a resolved incident")
+	Set host.DemoModeIs = 1
+	Set demo = ..Incident(a, "open", {"TraceHeaderId": 7111, "LastAt": (long), "OpenVariant": "no_fix"})
+	Do ..Command(host, "closeQuiet", demo, "")
+	Do $$$AssertEquals(..Row(demo).state, "open", "a closeQuiet on the online demo leaves the incident open")
+	Do ..AssertNoNew(host, count, "a refused closeQuiet")
+}
+
+Method TestCheckNowSendFails()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("checknowfails")
+	Set host.FailCheckNow = 1
+	Set host.%SessionId = 7
+	Set incident = ..Incident(a, "fixing", {"TraceHeaderId": 7201})
+	Set r1 = ..Request(a, incident, "done")
+	Do ..Link(incident, r1)
+	Do $$$AssertStatusOK(..Result(host, r1, incident, 1, 0), "the result is handled although the send fails")
+	Do $$$AssertEquals(..CheckNows(host), "ZZNS|Zz.Lifecycle"_..Number_"|"_a_"|"_incident_"|7201", "the send was tried once")
+	Do $$$AssertEquals(..Row(incident).state, "resolved", "the row stays resolved")
+	Do $$$AssertEquals(..Newest(a), "resolved", "and the event was published")
+	Do $$$AssertEquals(..Results(host).%Size(), 1, "and the result notice went out")
+	Do $$$AssertEquals(host.%SessionId, 7, "the handler's own session is put back")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..LogMark, .text, "CheckNow", $Parameter(..#PROBE, "LOGCHECKNOW")_incident), 1, "one warning names the incident")
+}
+
 Method TestPurge()
 {
 	Set a = ..Owner("purge")
@@ -1374,6 +1524,30 @@ ClassMethod Snapshot(incident As %String) As %String
 	Quit row.state_"|"_row.variant_"|"_row.closedAt_"|"_row.noticedAt_"|"_row.requestRefs
 }
 
+/// The CheckNows that the probe recorded, as "namespace|production|ownerRef|incidentRef|session,..." in order.
+ClassMethod CheckNows(host As OcuTalon.Test.Watch.IncidentProbe) As %String
+{
+	Set text = ""
+	If '$IsObject(host.CheckNows) Quit text
+	For i = 0:1:host.CheckNows.%Size() - 1 {
+		Set one = host.CheckNows.%Get(i)
+		Set text = text_$Select(text = "": "", 1: ",")_one.namespace_"|"_one.production_"|"_one.ownerRef_"|"_one.incidentRef_"|"_one.sessionId
+	}
+	Quit text
+}
+
+/// The number of CheckNows that the probe recorded.
+ClassMethod Nows(host As OcuTalon.Test.Watch.IncidentProbe) As %Integer
+{
+	Quit $Select($IsObject(host.CheckNows): host.CheckNows.%Size(), 1: 0)
+}
+
+/// Asserts that the probe recorded no CheckNow since the count.
+Method AssertNoNew(host As OcuTalon.Test.Watch.IncidentProbe, count As %Integer, label As %String)
+{
+	Do $$$AssertEquals(..Nows(host), count, label_": no CheckNow")
+}
+
 /// The orders that the probe recorded, as "ref@session,..." in order.
 ClassMethod Orders(host As OcuTalon.Test.Watch.IncidentProbe) As %String
 {
@@ -1420,6 +1594,7 @@ Method RefusedLine(incident As %String) As %String
 Method RemoveLogs()
 {
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Execute", $Parameter(..#PROBE, "LOGEXECUTE"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "CheckNow", $Parameter(..#PROBE, "LOGCHECKNOW"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Command", $Parameter(..#PROBE, "LOGMOVE"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "ResultNotice", $Parameter(..#PROBE, "LOGRESULT"))
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGREFUSED"))
