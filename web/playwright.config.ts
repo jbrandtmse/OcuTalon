@@ -6,12 +6,16 @@ import { ONLINE_IRIS_SCRIPT_MS, ONLINE_WAITS } from './e2e/support/bounds.ts';
  * Browser specs against a running stack. OCUTALON_URL is its origin, for example http://127.0.0.1:52800; the specs
  * open paths below it, such as /ocutalon/. One worker: the specs share one IRIS instance and its licence.
  *
- * Fourteen projects:
- *   chromium       every spec under e2e/ except e2e/demo-path/, e2e/demo-switch/, e2e/floor/, e2e/answers/, e2e/cards/ and the folders of sign-in-2 (the sign-in
- *                  unit, docker/tests/test-sign-in.sh: the sign-in, API and page specs), Desktop Chrome;
+ * Fifteen projects:
+ *   chromium       every spec under e2e/ except e2e/demo-path/, e2e/demo-switch/, e2e/floor/, e2e/answers/, e2e/cards/, the folders of sign-in-2 and the
+ *                  folders and file of sign-in-3 (the sign-in unit, docker/tests/test-sign-in.sh: the sign-in, API and page specs), Desktop Chrome;
  *   sign-in-2      the specs of the folders of SIGN_IN_2_DIRS (the sign-in-2 unit, docker/tests/test-sign-in-2.sh, which runs test-sign-in.sh's setup on
  *                  this project), Desktop Chrome. The two projects are the spec files that the sign-in unit ran alone until the Contest Planner's
  *                  ruling of 2026-11-05 split it by spec file (it took 1047 s in CI): each file is in exactly one of them;
+ *   sign-in-3      the specs of the folders of SIGN_IN_3_DIRS and the files of SIGN_IN_3_FILES (the sign-in-3 unit, docker/tests/test-sign-in-3.sh, which runs
+ *                  test-sign-in.sh's setup on this project), Desktop Chrome. The Contest Planner's ruling of 2026-11-07 split the sign-in unit again
+ *                  by spec file, because Story 4.11's more-to-try tests had grown it to 1034 s and 1170 s in CI: each file is in exactly one of
+ *                  chromium, sign-in-2 and sign-in-3;
  *   demo-path      the step specs of e2e/demo-path/ (the demo-path unit, docker/tests/test-demo-path.sh), Desktop Chrome;
  *   demo-switch    the badge, guide, phone and mailbox specs of e2e/demo-switch/ (the demo-switch unit, docker/tests/test-demo-switch.sh, which names the stack's
  *                  demo mode in OCUTALON_E2E_DEMO_MODE), Desktop Chrome;
@@ -44,6 +48,15 @@ const jsonReport = process.env['OCUTALON_E2E_JSON'];
  */
 const SIGN_IN_2_DIRS = ['live', 'phone', 'rail', 'reminder', 'session', 'settings'];
 
+/**
+ * The folders and the root file of e2e/ whose specs the sign-in-3 project runs and the chromium project does not: a contiguous run of the
+ * chromium project's files in path order (guide/*, heartbeat/heartbeat.spec.ts and heartbeat-card.spec.ts), so that each unit runs its files in
+ * the order the one unit ran them. A spec file added to one of these folders joins sign-in-3. The root file is listed by name because a
+ * folder list cannot name it.
+ */
+const SIGN_IN_3_DIRS = ['guide', 'heartbeat'];
+const SIGN_IN_3_FILES = ['heartbeat-card.spec.ts'];
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
@@ -65,13 +78,19 @@ export default defineConfig({
     {
       name: 'chromium',
       testDir: './e2e',
-      testIgnore: ['**/e2e/demo-path/**', '**/e2e/demo-switch/**', '**/e2e/floor/**', '**/e2e/answers/**', '**/e2e/cards/**', ...SIGN_IN_2_DIRS.map((dir) => `**/e2e/${dir}/**`)],
+      testIgnore: ['**/e2e/demo-path/**', '**/e2e/demo-switch/**', '**/e2e/floor/**', '**/e2e/answers/**', '**/e2e/cards/**', ...SIGN_IN_2_DIRS.map((dir) => `**/e2e/${dir}/**`), ...SIGN_IN_3_DIRS.map((dir) => `**/e2e/${dir}/**`), ...SIGN_IN_3_FILES.map((file) => `**/e2e/${file}`)],
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'sign-in-2',
       testDir: './e2e',
       testMatch: SIGN_IN_2_DIRS.map((dir) => `**/e2e/${dir}/**/*.@(spec|test).?(c|m)[jt]s?(x)`),
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'sign-in-3',
+      testDir: './e2e',
+      testMatch: [...SIGN_IN_3_DIRS.map((dir) => `**/e2e/${dir}/**/*.@(spec|test).?(c|m)[jt]s?(x)`), ...SIGN_IN_3_FILES.map((file) => `**/e2e/${file}`)],
       use: { ...devices['Desktop Chrome'] },
     },
     { name: 'demo-path', testDir: './e2e/demo-path', use: { ...devices['Desktop Chrome'] } },

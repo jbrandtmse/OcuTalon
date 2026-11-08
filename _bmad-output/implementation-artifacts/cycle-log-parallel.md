@@ -2478,3 +2478,91 @@
 2026-11-07T13:37:45Z	Epic 7	runner_dispatched	agent=ad6a8e67a47338eff lane=B slot=ocutalon-slot-b model=opus prompt=dispatch-epic-7-710.md timebox=90m duplicate_ci_cancelled=42377811450,42377811665
 2026-11-07T14:15:13Z	Run	ci_green_verified	head=4c9bed21 runs=42377742996,42377742980 result=success via=gh
 2026-11-07T14:42:42Z	Epic 39	ci_flake_rerun	head=d5b39c3d run=42379785616 job=shards-2(DW-494_class) lane-a=success
+2026-11-07T14:43:23Z	Epic 31	worktree_provisioned	branch=OCT-epic31 base=05823d01 reason=story_31.4_tier3c
+2026-11-07T14:43:23Z	Epic 31	worktree_bootstrapped	epic=31 result=ok
+2026-11-07T14:43:23Z	Epic 31	runner_dispatched	agent=a01380f4a2843c759 lane=D slot=ocutalon-slot-d model=opus prompt=dispatch-epic-31-314.md DW-485=frozen_reroute
+2026-11-07T14:43:52Z	Run	planner_ruling	subject=tier3_flakes add=DW-494_after_DW-840 DW-485=rerouted_after_v1.0.4
+2026-11-07T14:43:52Z	Run	planner_update	subject=quota_and_hold quota=77%@14:35Z(~2.1%/h) hold_expected=20:30-21Z_after_1.0.3_tag
+2026-11-07T15:11:14Z	Epic 19	runner_clarification	kind=planner_report head=a86b532c forecast=17:00-17:15Z cause=runner_queueing splits=built release_hunk=none shards-2=1604s ipm-install=1560s decisions=DW-870(owner_branch_protection),DW-871(AD-22+ci.yml_comment),DW-869
+2026-11-07T15:11:14Z	Epic 19	runner_resumed	reason=wait_a86b532c
+2026-11-07T15:19:58Z	Run	planner_ruling	subject=part1_timing ok=17:00-17:15Z cut=when_green hard_stop=23Z DW-871=yes(AD-22_U7+ci.yml_comment_in_part1_merge) DW-870=owner_raised;release_gate_requires_all_checks DW-869=ok owner_approved=merge_tag_1.0.3_and_demo hold=20:30-21:30Z quota=78%@15:35Z
+2026-11-07T15:29:02Z	Run	planner_finding_ledgered	dw=DW-873(D1_Got_it_button) dw=DW-874(D2_demo_digest_invisible) target=1.0.4 priority=ahead_of_tier3 next_free_runner sizing=read-only_explore_agent
+2026-11-07T15:33:18Z	Epic 39	merge_gate_blocked	reason=ci_red head=d5b39c3d run=42379785616 attempt1=DW-494_sibling attempt2=DW-688 decision=hold_until_after_cut;integrate_onto_part1_split_then_fresh_CI
+2026-11-07T15:33:43Z	Run	planner_update	subject=D1_D2_sizing D1a=5-7h D1b=1-1.5h window=2-3h D2a=7-10h(web) D2b=3-4h recommend=D1b+window,D2a staffing=next_free_runners_as_17.10,17.11
+2026-11-07T15:34:07Z	Run	planner_ruling	subject=D1_D2 D1=option_a_build_GotIt_Telegram+window(tellnow/act_decisions_only;failed_checks_and_awaiting_incidents_always) D2=option_a_web_card_plain_text_web_only,telegram_golden_byte_identical,demo_morning_skip,demo_SendDigest_composes,online-demo-path_step staffing=D1_first_free(B),D2_next(A) Out.cls=merge-file_proof_or_D2_first
+2026-11-07T16:17:14Z	Epic 7	runner_complete	head=c1e16cf9 stories=1(7.10) ci=success(42388162201,42388162212) cause=stale_fixture_LastAt_quiet_sweep proof=old_2/11_fix_20/20 decisions=DW-868 merge=after_cut(freeze)
+2026-11-07T16:17:14Z	Epic 7	merge_enqueued	position=after_1.0.3_cut
+2026-11-07T16:17:48Z	Epic 12	worktree_provisioned	branch=OCT-epic12 base=11928182 reason=story_12.12_D1
+2026-11-07T16:17:48Z	Epic 12	worktree_bootstrapped	epic=12 result=ok
+2026-11-07T16:17:48Z	Epic 12	runner_dispatched	agent=ab10e3481e994976a lane=B slot=ocutalon-slot-b model=opus prompt=dispatch-epic-12-1212.md
+2026-11-07T16:39:38Z	Epic 12	runner_clarification	kind=AD_conflict ad=AD-14(:478,:1346) cites_in_flight=spec-31-4(routing_only) U7=to_planner recommend=amend_extend head=13fbc59e
+2026-11-07T16:39:38Z	Run	planner_question	subject=AD-14_amendment_for_12.12
+2026-11-07T16:39:59Z	Epic 12	planner_ruling	subject=AD-14_amendment_12.12 option=a approved_as_written marker="[AMENDED 2026-11-07, Story 12.12, Planner ruling]" DW-695_purge=deferred_low
+2026-11-07T16:39:59Z	Epic 12	runner_resumed	agent=ab10e3481e994976a reason=amend_AD-14_then_implement
+2026-11-07T16:47:57Z	Epic 19	runner_complete	head=043ad103 part_merge=19.1-19.3,19.6,19.8 stories=4 ci=success(42390939929,42390939956) release_tool_hunks=U-294+19.8(upgrade-harness_empty) new_units=shards-5,ipm-install-p,live:memory-offline decisions=DW-870,DW-871
+2026-11-07T16:47:57Z	Epic 19	amendments_verified	epics.md=19.8+DW_bullets spine=AD-21,AD-23_markers
+2026-11-07T16:47:57Z	Epic 19	epic_merge_started	head=043ad103 into=feature extra=DW-871(AD-22,ci.yml_line2)
+2026-11-07T16:49:02Z	Epic 19	epic_merged_to_feature	merge=5b47f052 head=043ad103 part=1 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0 sprint_valid=yes spine_lint=baseline DW-871=AD-22+ci.yml_comment
+2026-11-07T16:49:02Z	Epic 19	spine_updated	ad=AD-22 reason=decision_sheet by=orchestrator lint=ok
+2026-11-07T16:49:02Z	Run	deps_hash_rerecorded	reason=burndown_inserted story=19.8 hash=1b9a45a78f74
+2026-11-07T16:49:45Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=part2_reopen(19.4,19.5,19.7) base=5b47f052 lever=preapproved_after_19.4
+2026-11-07T17:18:25Z	Epic 19	public_text_relayed	story=19.4 strings=RAGSTATEMENT,bridge-guide:312,Gate.NOROOM choices=Q2b_cited,live:documents_in_shards-5 forecast=08-10Z_Sun(lever)/14-16Z
+2026-11-07T17:18:44Z	Run	ci_run_cancelled	run=42392760843 branch=OCT-epic11 head=a18ddd45 reason=superseded_by_623b9cb0;free_runners_for_feature_5b47f052(cut_trigger)
+2026-11-07T17:27:54Z	Epic 19	public_text_ruled	story=19.4 RAGSTATEMENT=changed bridge-guide:312=approved NOROOM=approved Q2b=cited_reading_accepted(pin_both) Q4=live:documents_shards-5(pdf_generated,report_time)
+2026-11-07T17:27:54Z	Epic 19	runner_resumed	agent=a4ca05ac816449aef reason=19.4_implement
+2026-11-07T17:50:37Z	Epic 11	runner_clarification	kind=planner_report story=11.27 browser=+281s(traces~40s,4.11_tests) risk=live:sign-in_1170s/1200s options=a,b,c 11.28=done(DW-688) veto=U-300
+2026-11-07T17:50:37Z	Run	planner_question	subject=live:sign-in_split when=release_branch_or_after_cut
+2026-11-07T17:54:59Z	Run	ci_green_verified	head=5b47f052 runs=42393186349,42393186350 result=success via=gh note=1.0.3_cut_trigger planner_told=yes
+2026-11-07T17:54:59Z	Run	planner_ruling	subject=live:sign-in_split own_commit_own_branch_on_5b47f052 same_test_list_check pick_onto_release_if_timeout else_after_cut traces=option_a U-300=keep+no_secrets_pin
+2026-11-07T17:56:00Z	Run	planner_update	subject=1.0.3_rc1_cut source=5b47f052 cut_commit=8f142259 branch=release/1.0.3-rc1 feature_freeze=lifted release_tool_freeze=holds
+2026-11-07T17:56:00Z	Epic 32	worktree_provisioned	branch=OCT-epic32 base=97324169 reason=story_32.5_live:sign-in_split runner=a9ecc108c6b23c2ec(lane_A)
+2026-11-07T17:56:00Z	Epic 11	runner_resumed	agent=a9ecc108c6b23c2ec reason=sign-in_split_first(epic-32)_then_11.27
+2026-11-07T17:56:06Z	Epic 7	epic_merge_started	head=c1e16cf9 into=feature story=7.10
+2026-11-07T17:56:29Z	Epic 7	epic_merged_to_feature	merge=c5118d34 head=c1e16cf9 story=7.10 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0
+2026-11-07T17:56:29Z	Epic 7	decision_sheet_recorded	DW-868=test-only_story_after_1.0.4
+2026-11-07T17:56:29Z	Run	deps_hash_rerecorded	reason=fix_forward story=7.10 hash=535f27f4df74
+2026-11-07T18:05:40Z	Run	owner_decision	subject=account_switch_hold by=Contest_Planner hold=owner_call_at_quota_low_90s not_tied_to_tag full_speed_until_HOLD quota=84%@18:05Z(~2.4%/h) likely=20:30-21:30Z
+2026-11-07T18:24:50Z	Run	planner_request	subject=1.0.3_eval_regression case=returns-negative-weight action=read-only_analysis_agent real_model_repro=declined(no_real_key_in_runners;Planner_runs_it) default=override_ship,fix_in_1.0.4
+2026-11-07T18:25:06Z	Run	planner_ruling	subject=real_model_repro rule_stands=no_real_key_in_runners Planner_runs_single_case_repro send=case+hypothesis_on_analysis
+2026-11-07T18:28:10Z	Epic 32	runner_clarification	kind=planner_report story=32.5 code=bc1ff88b head=39364d5c runs=42401362858,42401362884 proof=769=769,339=202+137 group=shards-5
+2026-11-07T18:28:10Z	Run	planner_update	subject=sign-in_split_pick_candidate sha=bc1ff88b
+2026-11-07T18:28:43Z	Run	planner_update	subject=1.0.3_eval_regression_triage result=queue_position_not_code mechanism=EvalIn_async+Decide_timer_at_send+DiagnosisAgent_PoolSize1 margin_1.0.2=1.7-3.3s check=run_case_alone fix=EvalIn_pacing(1-2h,release_pick_candidate) 1.0.4=PoolSize2_or_timer_at_runner_start,RetryItem
+2026-11-07T18:29:52Z	Run	planner_ruling	subject=1.0.3_eval_regression no_release_pick author_override=recorded_queue_cause 1.0.4=(1)EvalIn_pacing(Epic9)(2)diagnosis_timer_not_counting_queue(sizing_pending) priority=after_D1_D2 sign-in_split_pick=only_if_PR6_browser_times_out
+2026-11-07T18:33:25Z	Run	planner_update	subject=DW-879_sizing A=timer_at_runner_start(~15h,AD-8,med-high) B=DiagnosisAgent_PoolSize2(~3-4h,no_AD,low-med) recommend=B(+skip_abandoned_1h) host_checks=gateway_limits,licence_connections
+2026-11-07T18:33:58Z	Run	planner_ruling	dw=DW-879 option=B+skip_abandoned conditions=pool2_DiagnosisAgent_only,pins,stale_vs_live_test,concurrency_proof,no_new_strings host=gateway_120rpm,cap_20usd,LU_1of8 priority_1.0.4=12.12,17.10,DW-879,DW-878_then_tier3
+2026-11-07T19:44:09Z	Epic 39	runner_ci_wait	head=84e2ee03 runs=42404361697,42404361658 DW-880=HC8_test_defect(fix_84e2ee03) veto=U-301 flakes=DW-688,DW-333_sibling
+2026-11-07T19:44:09Z	Run	planner_update	subject=release_PR_risk DW-880 pick_candidate=84e2ee03(heartbeat-card.spec.ts_one_line)
+2026-11-07T19:52:46Z	Epic 11	runner_ci_wait	head=882b6d4b runs=42406393504,42406393478 stories=11.27,11.28 integrated_onto=c5118d34
+2026-11-07T19:52:46Z	Epic 32	runner_ci_wait	head=39364d5c ci=42401362858_rerun lane-a=green browser=1911s shards-5=2014s(sign-in-3_761s) reds=HC8(DW-880),infra,DW-639_class,load_class
+2026-11-07T19:52:46Z	Epic 32	orchestrator_ruling	subject=32.5_close_commit push_then_orchestrator_cancels_dup_CI_and_merges(feature_CI_proof)
+2026-11-07T19:58:44Z	Run	feature_merged_locally	from=origin_84906388(Planner_release_record_1.0.3_rc1) local=e66427fa
+2026-11-07T19:58:44Z	Epic 12	runner_ci_wait	head=f7318fd8 runs=42408652621,42408652617 story=12.12 merge-file_Out.cls=0_conflicts
+2026-11-07T19:58:44Z	Epic 17	worktree_provisioned	branch=OCT-epic17 ff_to=84906388 reason=story_17.10_D2
+2026-11-07T19:58:44Z	Epic 17	runner_dispatched	lane=B slot=ocutalon-slot-b model=opus prompt=dispatch-epic-17-1710.md note=lane_B_free_while_12.12_waits_on_CI
+2026-11-07T19:58:49Z	Epic 17	runner_dispatched_id	agent=ac542a9661b40c696
+2026-11-07T20:19:18Z	Epic 39	ci_infra_rerun	head=84e2ee03 run=42404361697 job=production(first_start_not_ready_400s,no_test_ran)
+2026-11-07T20:38:30Z	Epic 17	runner_clarification	story=17.10 Q1=AD-18_online_demo_not_due Q2=AD-33_lane_exception Q3=browser_33-39min(32.5_fixes:1911s) to=planner(U7) protocol_note=pushed_before_boundaries(passed_after)
+2026-11-07T20:39:21Z	Run	planner_ruling	subject=17.10 Q1=AD-18_approved Q2=AD-33_exception_approved Q3=keep_notice.spec
+2026-11-07T20:39:21Z	Run	planner_request	subject=rc2_picks shas=bc1ff88b(32.5),84e2ee03(HC8) action=merge_both_to_feature_asap PR6_browser_failed_twice(sign-in_1168s,1193s) fallback=84e2ee03_alone;bc1ff88b_alone_if_>45min
+2026-11-07T20:49:55Z	Epic 32	ci_flake_rerun	head=39364d5c run=42401362858 attempt=3 job=shards-5 red=DW-688(TestStartsWithNoKey;fix_in_11.28_unmerged) note=32.5_changes_no_ObjectScript planner_told=yes
+2026-11-07T20:50:43Z	Epic 32	planner_ruling	subject=merge_gate_exception(one-time) story=32.5 head=39364d5c red=shards-5_only_TestStartsWithNoKey(DW-688_exact_signature,1_of_51_classes) others=green(incl_browser,live:sign-in-3_701s) reason=no_ObjectScript;fix_in_11.28;rc2_PR_runs_full_suite source=Planner_message_~20:52Z
+2026-11-07T20:50:43Z	Epic 32	epic_merge_started	head=39364d5c into=feature exception=planner_one_time third_rerun=already_started(not_cancelled)
+2026-11-07T20:51:13Z	Epic 32	epic_merged_to_feature	merge=574736a5 head=39364d5c story=32.5 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0 exception=planner_one_time(DW-688) planner_told=yes
+2026-11-07T20:51:13Z	Run	deps_hash_rerecorded	reason=fix_forward story=32.5 hash=0f6ad18d4a84
+2026-11-07T20:55:50Z	Epic 39	runner_complete	head=84e2ee03 story=39.10 ci=success(42404361697_after_infra_rerun,42404361658) DW-880_fixed veto=U-301 note=contract_fields_from_runner_CI_WAIT_report
+2026-11-07T20:55:50Z	Epic 39	epic_merge_started	head=84e2ee03 into=feature reason=rc2_pick
+2026-11-07T20:56:22Z	Epic 39	epic_merged_to_feature	merge=1011b81c head=84e2ee03 story=39.10 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0 planner_told=yes rc2_picks_on_feature=bc1ff88b,84e2ee03
+2026-11-07T20:57:38Z	Epic 32	runner_complete	head=664e98ed bookkeeping_only_over=39364d5c ci_on=39364d5c(exception) dup_ci_cancelled=42413469435,42413469393
+2026-11-07T20:57:38Z	Epic 32	epic_merge_started	head=664e98ed into=feature kind=bookkeeping_close
+2026-11-07T20:58:19Z	Run	feature_merged_locally	from=origin_50103869(Planner_rc2_record) pushed=f4deed1b
+2026-11-07T20:58:19Z	Run	ci_run_cancelled	runs=42413018315,42413018327(574736a5),42413420890,42413420906(1011b81c) reason=superseded_feature_heads;free_queue
+2026-11-07T20:58:59Z	Epic 11	ci_flake_rerun	head=882b6d4b run=42406393504 job=browser(DW-555_signedOut_navigation) lane-a=success
+2026-11-07T21:21:49Z	Run	planner_request	subject=embedded_python_bug_bonus action=read-only_explore_agent no_filing(owner_posts)
+2026-11-07T21:23:52Z	Run	planner_update	subject=embedded_python_bug_candidates strong=signal11_AIHub_callback(S11,build154U,aarch64) weaker=kwargs_ignored(DW-792,retry_first),eval_globals,WorkMgr_busy_python_worker not_EP=DW-829(IPM/pip),DW-856,FastEmbed.EmbedBatch
+2026-11-07T21:25:27Z	Run	planner_request	subject=S11_reverification story=0.16(Epic_0_evidence_only) priority=next_free_runner_ahead_of_DW-879,DW-878 timebox=60m no_key no_product_change no_filing prompt=dispatch-epic-0-016.md
+2026-11-07T21:26:24Z	Epic 12	epic_merged_to_feature	merge=d24928c0 head=f7318fd8 story=12.12 verified_on_origin=yes conflicts=sprint-status_last_updated_only ledger_union=lost0,dup0 spine_lint=baseline note=merged_over_Planner_rc3_record_643a0d9d
+2026-11-07T21:26:24Z	Run	deps_hash_rerecorded	reason=fix_forward story=12.12 hash=96c987521d09
+2026-11-07T21:26:56Z	Epic 0	worktree_provisioned	branch=OCT-epic0 base=dd908d6d reason=story_0.16_S11_reverification
+2026-11-07T21:26:56Z	Epic 0	runner_dispatched	lane=A slot=ocutalon-slot-a model=opus prompt=dispatch-epic-0-016.md timebox=60m evidence_only
+2026-11-07T21:45:59Z	Run	hold_ordered	reason=owner_account_switch_94pct via=Contest_Planner runners=A(0.16_done),B(17.10),C(19.4),D(31.4),A2(Epic_11_ci_wait) no_new_stages no_extra_reruns
+2026-11-07T21:46:40Z	Epic 0	runner_complete	head=85b479e0 story=0.16 evidence_only S11=reproduced_154U_and_109U(c,d,e_died_9/9;a,b_survived_6/6) DW-792=not_a_bug(documented_kwargs_work) new=DW-889 planner_told=yes

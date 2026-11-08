@@ -1,0 +1,21 @@
+{
+  "name": "memory-recall-keyword",
+  "match": {
+    "marker": "memory-recall-keyword"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "search_memories",
+        "input": {
+          "query": "Lee"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock found the memory."
+    }
+  ]
+}

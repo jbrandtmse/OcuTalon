@@ -101,7 +101,7 @@ Parameter NOKEY = "(none)";
 Parameter FINDINGKEYS = "watch.productionStopped,watch.itemDisabled";
 
 /// The classes whose READONLY<NAME> parameters say which tools are read-only (the classification the gate reads first), comma-separated.
-Parameter TOOLCLASSES = "OcuTalon.Tools.WatchTools,OcuTalon.Tools.ReminderTools,OcuTalon.Tools.RecentActivity";
+Parameter TOOLCLASSES = "OcuTalon.Tools.WatchTools,OcuTalon.Tools.ReminderTools,OcuTalon.Tools.RecentActivity,OcuTalon.Tools.MemoryTools";
 
 /// The kind that is scored by cause category and element at fault, and counts in SM-2's incidents.
 Parameter INCIDENTKIND = "incident";

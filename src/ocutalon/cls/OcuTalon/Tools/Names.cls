@@ -35,4 +35,16 @@ Parameter PROPOSEPERSONA = "propose_persona";
 /// The name of step 2's digest tool, Story 17.6. It is not part of RELEASE1.
 Parameter DIGESTTOOLS = "send_digest";
 
+/// The memory tools of step 3 (AD-21); not release-1 tools, so RELEASE1 does not list them.
+Parameter SAVEMEMORY = "save_memory";
+
+Parameter SEARCHMEMORIES = "search_memories";
+
+Parameter LISTMEMORIES = "list_memories";
+
+Parameter FORGETMEMORY = "forget_memory";
+
+/// The four memory tools above, comma-separated, in the order of the parameters.
+Parameter MEMORYTOOLS = {..#SAVEMEMORY_","_..#SEARCHMEMORIES_","_..#LISTMEMORIES_","_..#FORGETMEMORY};
+
 }

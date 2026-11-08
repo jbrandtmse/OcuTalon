@@ -9,7 +9,7 @@
 ///     named for a recipient, a channel or an address;
 ///   - TestSendDigestOwnSessionOnly (U-268): inside a bridge context a SessionRef that is not the context's OwnerRef is not_allowed and nothing
 ///     reaches the owner, and the context's own session is routed;
-///   - TestGotItNotBuilt: SessionOps answers a GotIt with "not implemented" (code 5003), which CommandsIn gives as not_built.
+///   - TestGotItBuilt: SessionOps carries out a GotIt, so a Ref that names no Decision is answered 0|not_found with status OK (not code 5003).
 /// The run's calls are kept under ^OcuTalonTest("CommandsRouting", "settings<n>") and deleted after the tests; the context of the test process is
 /// ended before and after the tests.
 Class OcuTalon.Test.Core.SettingsCommands Extends %UnitTest.TestCase
@@ -147,23 +147,21 @@ Method TestSendDigestOwnSessionOnly()
 	Do $$$AssertEquals(..Calls(), before + 1, "and sent")
 }
 
-/// SessionOps answers a GotIt with "not implemented" (code 5003) and no result, which CommandsIn gives as not_built (Story 18.4 builds it); the
-/// owner's three real commands are still carried out by the class.
-Method TestGotItNotBuilt()
+/// SessionOps carries out a GotIt (Story 12.12): the real operation answers a GotIt whose Ref names no Decision with status OK and
+/// the result 0|not_found (not the stub's code 5003), and writes no Handled row.
+Method TestGotItBuilt()
 {
 	Set owner = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Core.SessionOps", .sc)
 	Do $$$AssertStatusOK(sc, "SessionOps is made")
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set command = ..NewCommand("GotIt", "web_user", "zzsessA")
-	Set command.Ref = "zzdecision0123456789ab"
+	Set command.Ref = ref
 	Set command.Channel = "web"
 	Set sc = owner.OnMessage(command, .response)
-	Do $$$AssertStatusNotOK(sc, "the answer is an error status")
-	Do $$$AssertTrue($ListFind($ListFromString($SYSTEM.Status.GetErrorCodes(sc)), 5003), "with the code of a stub, 5003: "_$SYSTEM.Status.GetErrorCodes(sc))
-	Do $$$AssertEquals(response, "", "and no result")
-	Set probe = ..NewProbe("stub-op")
-	Do probe.OnProcessInput(..NewCommand("GotIt", "web_user", "zzsessA"), .output)
-	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_built", "CommandsIn gives that answer as not_built")
-	Do $$$AssertEquals(output.Message, "This part of OcuTalon isn't built yet. Nothing was changed.", "with its text")
+	Do $$$AssertStatusOK(sc, "the answer is an OK status, not the stub's 5003")
+	Do $$$AssertTrue($IsObject(response), "with a result")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|not_found", "a Ref that names no Decision is not_found")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Handled).Marked(ref), "", "and no Handled row is written")
 }
 
 /// --- helpers ---

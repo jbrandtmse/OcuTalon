@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-07-2026 21:42
+last_updated: 11-08-2026 02:00
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -145,6 +145,7 @@ development_status:
   7-7-a-date-repair-that-could-read-either-way-names-its-evidence: done
   7-8-the-web-incident-card-shows-the-either-way-date-line-too: done
   7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged: done
+  7-10-the-past-expiry-refusal-test-is-stable-dw-840: done
   epic-7-retrospective: optional
 
   epic-8: done
@@ -219,6 +220,7 @@ development_status:
   12-9-telegram-is-included: done
   12-10-in-a-narrower-window-the-telegram-step-leads-to-the-status-d: done
   12-11-the-rehearsal-s-first-run-leaves-out-the-specs-that-need-ci: done
+  12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co: done
   epic-12-retrospective: optional
 
   epic-13: done
@@ -269,13 +271,14 @@ development_status:
   18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled: backlog
   epic-18-retrospective: optional
 
-  epic-19: backlog
-  19-2-compute-embeddings-offline-in-a-worker: backlog
-  19-3-remember-recall-list-and-forget-in-the-chat: backlog
+  epic-19: in-progress
+  19-2-compute-embeddings-offline-in-a-worker: done
+  19-3-remember-recall-list-and-forget-in-the-chat: done
   19-4-answer-from-documents-with-citations: backlog
   19-5-keep-each-online-demo-session-s-documents-and-memories-to-it: backlog
-  19-6-extract-text-from-pdf-and-word-files-with-embedded-python: backlog
+  19-6-extract-text-from-pdf-and-word-files-with-embedded-python: done
   19-7-answer-from-pdf-and-word-documents: backlog
+  19-8-epic-19-burn-down: done
   epic-19-retrospective: optional
 
   epic-20: backlog
@@ -374,6 +377,7 @@ development_status:
   32-2-an-iris-group-runs-only-when-something-it-tests-changed: done
   32-3-every-iris-job-finishes-in-about-ten-minutes: done
   32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane: done
+  32-5-live-sign-in-splits-again-after-4-11-s-tests: done
   epic-32-retrospective: optional
 
   epic-33: done
@@ -420,6 +424,7 @@ development_status:
   39-7-publish-the-heartbeat-event: done
   39-8-run-now-and-a-saved-heartbeat-read-what-is-stored: done
   39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t: done
+  39-10-the-heartbeat-production-test-is-stable-dw-639: done
   epic-39-retrospective: optional
 
   epic-40: done
@@ -516,5 +521,14 @@ action_items:
       the 30.1 Spine notes for AD-20 fallback cases (AD-20/AD-8/AD-6/AD-22 text is
       silent; no code change)"
     owner: "user"
+    status: open
+    ref: ""
+  - id: "epic-19-retro-item-9-release-gate-for-the-release-that-carrie"
+    epic: 19
+    action: "Release gate for the release that carries Epic 19: run the real-model
+      release-candidate eval (the injection set and one persona) before its cut, because
+      Story 19.3 changes the Chat agent INSTRUCTIONS (memory bullets). Never run by
+      a runner (no real model key); Contest Planner ruling 2026-11-06."
+    owner: "owner"
     status: open
     ref: ""

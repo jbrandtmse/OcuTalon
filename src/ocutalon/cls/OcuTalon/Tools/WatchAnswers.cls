@@ -244,18 +244,7 @@ ClassMethod EvalCheckResults(context As OcuTalon.Bridge.Context, Output results 
 /// HostData (empty, not JSON, or not an object) becomes {"checks": results}. Returns the status of the context's Put.
 ClassMethod PutChecks(results As %DynamicArray) As %Status
 {
-	Set data = {}
-	Set context = ##class(OcuTalon.Bridge.Context).Current()
-	If $IsObject(context) && (context.HostData '= "") {
-		Try {
-			Set parsed = {}.%FromJSON(context.HostData)
-			If $IsObject(parsed) && parsed.%IsA("%Library.DynamicObject") Set data = parsed
-		} Catch exception {
-			Set data = {}
-		}
-	}
-	Do data.%Set("checks", results)
-	Quit ##class(OcuTalon.Bridge.Context).Put("HostData", data.%ToJSON())
+	Quit ##class(OcuTalon.Tools.HostData).Put("checks", results)
 }
 
 /// The answer of check_status for the model: {"ok": true, "checks": [{"result", "entry", "finding", "checked"}, ...]} for the results, where checked is

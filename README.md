@@ -206,6 +206,8 @@ zpm "install ocutalon"
 
 This second run installs OcuTalon with demo mode off. [Install OcuTalon with IPM](docs/install-ipm.md) shows the output of each command, and the install from the package folder, for developers.
 
+The second run also downloads OcuTalon's Python packages from PyPI (fastembed, pdfplumber and python-docx with their dependencies, about 250 MB once installed) and the embedding model from Hugging Face (about 90 MB), so the instance needs network access to pypi.org, files.pythonhosted.org, huggingface.co and its download hosts under hf.co (in our test installs us.aws.cdn.hf.co and cas-server.xethub.hf.co). In our test installs, the whole second run took about 1 to 1.5 minutes on an Apple silicon Mac and about 3 minutes on a shared x64 Linux build server. On the Mac, the downloads took about 20 seconds of that.
+
 ## Set a model key
 
 OcuTalon uses Anthropic's Claude models. The default model is Claude Haiku 5.5. To give it a key:
@@ -352,3 +354,4 @@ Third-party licence notices:
 - The web build writes the licence notices of its libraries to `3rdpartylicenses.txt`, beside the built page.
 - The IPM package manager in the image is under the MIT licence: [docker/ipm/LICENSE](docker/ipm/LICENSE).
 - The Docker image's Python packages for documents and memory (fastembed, pdfplumber and python-docx, with their dependencies and the libraries bundled with PDFium) are listed with their licence texts and credits in `/opt/ocutalon/THIRD-PARTY-NOTICES`, which the image build writes from the installed packages.
+- An IPM install puts the same Python packages, at the same versions, into the instance's `mgr/python` folder, each with its licence files.

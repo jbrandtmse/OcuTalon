@@ -6,6 +6,8 @@ This page installs OcuTalon into an IRIS instance you already run, with the Inte
 
 - An InterSystems IRIS for AI Hub instance, build 154, with no IPM in %SYS or with IPM 0.10.10 there. Build 109, which the Early Access portal now offers in place of build 154, works the same way: the registry install on this page was run on fresh IRIS for Health instances of both builds.
 - An instance that can reach the community package registry, which serves IPM and the `ocutalon` package.
+- Network access from the instance to PyPI (pypi.org and files.pythonhosted.org) and to Hugging Face (huggingface.co and its download hosts under hf.co, in our test installs us.aws.cdn.hf.co and cas-server.xethub.hf.co): the second command downloads OcuTalon's Python packages, about 250 MB once installed, and the embedding model, about 90 MB. In our test installs, the whole second command took about 1 to 1.5 minutes on an Apple silicon Mac and about 3 minutes on a shared x64 Linux build server. On the Mac, the downloads took about 20 seconds of that.
+- The second command puts these packages in the instance's shared Python folder, mgr/python in the IRIS install directory. Where that folder already holds other versions of certifi, charset_normalizer, idna, requests, typing_extensions or urllib3, which IPM installs for itself, the second command replaces them with the versions OcuTalon pins. IPM's own packages work with these versions.
 
 OcuTalon needs no other package: the one package `ocutalon` holds the bridge too.
 
@@ -174,13 +176,21 @@ OCUTALON>
 
 Building dependency graph...Done.
 [OCUTALON|ocutalon]	Initialize START
-Compilation started on 11/05/2026 21:02:06
+Compilation started on 11/06/2026 18:35:08
 Compiling class OcuTalon.Install.Ipm
 Compiling routine OcuTalon.Install.Ipm.1
 Compilation finished successfully in 0.004s.
 
 [OCUTALON|ocutalon]	Initialize SUCCESS
 [OCUTALON|ocutalon]	Reload START (/usr/irissys/ipm/ocutalon/1.0.1/)
+STEP Python replaced certifi 2025.1.31 with 2026.10.23
+STEP Python replaced charset_normalizer 2.1.1 with 3.5.2
+STEP Python replaced idna 3.15 with 3.20
+STEP Python replaced requests 2.32.3 with 2.34.2
+STEP Python replaced typing_extensions 4.12.2 with 4.16.0
+STEP Python replaced urllib3 2.6.3 with 2.8.0
+[OCUTALON|ocutalon]	requirements.txt START
+[OCUTALON|ocutalon]	requirements.txt SUCCESS
 [OCUTALON|ocutalon]	Reload SUCCESS
 [ocutalon]	Module object refreshed.
 [OCUTALON|ocutalon]	Validate START
@@ -201,11 +211,12 @@ STEP Digest OK 0.1s
 STEP Provider OK 0.1s
 STEP Audit OK 0.0s
 STEP Telegram OK 0.0s
-21:02:57.264:Ens.Director: Production 'OcuTalon.Production' starting...
-21:02:57.482:Ens.Director: Production 'OcuTalon.Production' started.
-STEP Production OK 0.3s
+STEP Memory OK 4.7s
+18:36:12.729:Ens.Director: Production 'OcuTalon.Production' starting...
+18:36:13.147:Ens.Director: Production 'OcuTalon.Production' started.
+STEP Production OK 1.6s
 STEP Reconcile OK 0.2s
-STEP PrivateData OK 0.1s
+STEP PrivateData OK 0.5s
 STEP Ready OK 0.0s
 [OCUTALON|ocutalon]	Configure SUCCESS
 [OCUTALON|ocutalon]	Activate SUCCESS
@@ -272,19 +283,25 @@ It runs the same installer steps as the second command of the registry install. 
 
 ```
 
-Node: be3ea7777581, Instance: IRIS
-
 OCUTALON>
 
 Building dependency graph...Done.
 [OCUTALON|ocutalon]	Initialize START
-Compilation started on 10/31/2026 00:34:34
+Compilation started on 11/06/2026 18:21:47
 Compiling class OcuTalon.Install.Ipm
 Compiling routine OcuTalon.Install.Ipm.1
-Compilation finished successfully in 0.002s.
+Compilation finished successfully in 0.003s.
 
 [OCUTALON|ocutalon]	Initialize SUCCESS
 [OCUTALON|ocutalon]	Reload START (/opt/ocutalon-ipm/src/)
+STEP Python replaced certifi 2025.1.31 with 2026.10.23
+STEP Python replaced charset_normalizer 2.1.1 with 3.5.2
+STEP Python replaced idna 3.15 with 3.20
+STEP Python replaced requests 2.32.3 with 2.34.2
+STEP Python replaced typing_extensions 4.12.2 with 4.16.0
+STEP Python replaced urllib3 2.6.3 with 2.8.0
+[OCUTALON|ocutalon]	requirements.txt START
+[OCUTALON|ocutalon]	requirements.txt SUCCESS
 [OCUTALON|ocutalon]	Reload SUCCESS
 [ocutalon]	Module object refreshed.
 [OCUTALON|ocutalon]	Validate START
@@ -305,11 +322,12 @@ STEP Digest OK 0.1s
 STEP Provider OK 0.1s
 STEP Audit OK 0.0s
 STEP Telegram OK 0.0s
-00:35:06.032:Ens.Director: Production 'OcuTalon.Production' starting...
-00:35:06.142:Ens.Director: Production 'OcuTalon.Production' started.
+STEP Memory OK 3.9s
+18:22:46.081:Ens.Director: Production 'OcuTalon.Production' starting...
+18:22:46.173:Ens.Director: Production 'OcuTalon.Production' started.
 STEP Production OK 1.1s
-STEP Reconcile OK 0.1s
-STEP PrivateData OK 0.1s
+STEP Reconcile OK 0.2s
+STEP PrivateData OK 0.2s
 STEP Ready OK 0.0s
 [OCUTALON|ocutalon]	Configure SUCCESS
 [OCUTALON|ocutalon]	Activate SUCCESS
