@@ -10,7 +10,8 @@
 #       step 1 (the splash and the sign-in), steps 2 to 5 (one visitor's journey through the step functions of web/e2e/support/demo-path.ts,
 #       which the web run's 02 to 05 call too: the guide's own Send for the watch and for the reminder, Break the feed and the incident awaiting
 #       approval, and Approve on the simulated phone to the result), step 6 (the trace link opens Visual Trace at the turn, signed in, with its
-#       agent steps and the cost), and "second visitor" (A and B each watch Orders through the guide's Send and A presses Break the feed:
+#       agent steps and the cost), step 7 (Story 17.10: the same visitor's "Send my digest now." in the composer
+#       shows one digest card in that visitor's chat, and the simulated phone gets none), and "second visitor" (A and B each watch Orders through the guide's Send and A presses Break the feed:
 #       A's incident, notice and approval request reach only A, B's page, /state and /events get nothing, B's answer to A's request is
 #       refused, and A answers on its simulated phone),
 #       and "the paired chat under load" (Story 31.4; the demo is full): six proxied visitors fill the visitor cap (the proxy address is set to
@@ -18,9 +19,9 @@
 #       chats, and A, C and D press Break the feed at the same time: A's paired chat gets A's incident notice with its approval request and
 #       no message goes to B's chat, a press from B's chat on A's request is refused and changes nothing, A answers from its own chat, and a
 #       search of every OCUTALON and OCUORDERS message header and body of the run finds no Telegram value and no IRIS user name;
-#   - the report check (with no arguments): the JSON report holds exactly ten passed cases (steps 1 to 6, the second visitor, the two paired
-#     chat cases and the message search) and no skipped one: a case that is skipped, missing or extra fails the unit. With arguments (a
-#     mutation run: -g <title>) only those cases run and the set check is skipped;
+#   - the report check (with no arguments): the JSON report holds exactly eleven passed cases (steps 1 to 7, the second visitor, the two
+#     paired chat cases and the message search) and no skipped one: a case that is skipped, missing or extra fails the unit. With arguments
+#     (a mutation run: -g <title>) only those cases run and the set check is skipped;
 #   - the clean-up check (with or without arguments): after the browser step the proxy address reads its start value and the paired chat's
 #     six visitor addresses keep no counter row; the stalled reads that the routing case waited out are counted on a MEASURED line;
 #   - the load phase (Story 29.8; rows L1 and L2 of its spec), which runs the author's release/demo-load.sh against this throwaway with the
@@ -110,7 +111,8 @@ run_e2e() {
 }
 
 # report_check <report>: the cases of the JSON report by their ends. It prints one FAIL line for each defect and nothing when the report
-# holds exactly the ten passed cases (steps 1 to 6, the second visitor, the two paired chat cases and the message search) and no skipped one.
+# holds exactly the eleven passed cases (steps 1 to 7, the second visitor, the two paired chat cases and the message search) and no
+# skipped one.
 report_check() {
   node -e '
     const fs = require("node:fs");
@@ -133,7 +135,7 @@ report_check() {
     for (const suite of report.suites ?? []) walk(suite);
     for (const error of report.errors ?? []) problems.push("Playwright reported an error: " + String(error.message ?? error).split("\n")[0]);
     const passed = cases.filter((c) => c.status === "passed").map((c) => c.title);
-    const wanted = [/^step 1:/, /^step 2:/, /^step 3:/, /^step 4:/, /^step 5:/, /^step 6:/, /^second visitor:/, /^the paired chat: A.s paired chat/, /^the paired chat: a press from B.s paired chat/, /^the message search:/];
+    const wanted = [/^step 1:/, /^step 2:/, /^step 3:/, /^step 4:/, /^step 5:/, /^step 6:/, /^step 7:/, /^second visitor:/, /^the paired chat: A.s paired chat/, /^the paired chat: a press from B.s paired chat/, /^the message search:/];
     for (const re of wanted) {
       const hits = passed.filter((t) => re.test(t));
       if (hits.length !== 1) problems.push("wanted exactly one passed case matching " + re + ", found " + hits.length);
@@ -141,7 +143,7 @@ report_check() {
     if (passed.length !== wanted.length) problems.push("wanted " + wanted.length + " passed cases, found " + passed.length + ": " + passed.join(" | "));
     for (const c of cases.filter((x) => x.status === "skipped")) problems.push("the case \"" + c.title + "\" was skipped (" + c.notes.join("; ") + ")");
     for (const c of cases.filter((x) => x.status !== "passed" && x.status !== "skipped")) problems.push("the case \"" + c.title + "\" ended " + c.status);
-    if (cases.length !== 10) problems.push("wanted 10 cases in all, found " + cases.length);
+    if (cases.length !== 11) problems.push("wanted 11 cases in all, found " + cases.length);
     for (const p of problems) console.log(p);
   ' "$1"
 }
@@ -168,10 +170,10 @@ else
   if [ "$#" -eq 0 ] && [ "$e2e_status" -eq 0 ]; then
     problems=$(report_check "$e2e_json") || problems="the report check could not run"
     if [ -z "$problems" ]; then
-      pass "the report holds the ten passed cases (steps 1 to 6, the second visitor, the two paired chat cases and the message search) and no skipped one"
+      pass "the report holds the eleven passed cases (steps 1 to 7, the second visitor, the two paired chat cases and the message search) and no skipped one"
     else
       printf '%s\n' "$problems" | redact | sed 's/^/  /'
-      fail "the report does not hold exactly the ten passed cases and no skipped one"
+      fail "the report does not hold exactly the eleven passed cases and no skipped one"
     fi
   fi
   # The paired chat under load (Story 31.4) puts back what it changed, before the load phase sets the proxy again: the proxy address

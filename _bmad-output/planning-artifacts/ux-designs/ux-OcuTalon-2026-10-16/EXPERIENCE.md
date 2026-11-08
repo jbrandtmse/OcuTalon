@@ -966,7 +966,7 @@ Lighter specs. Components with behavior of their own are under Component Pattern
   - **Layout:** section navigation on the left: Models, Budgets, Channels, Daily digest, Time zone, Check thresholds, Demo mode (FR-16).
   - **Saving:** each section saves on its own with **Save changes** and confirms with "Saved. Applies within a minute. Recorded in the audit log." Leaving with unsaved changes asks first.
   - **Models:** providers without a key are listed with the explanation "No key set. Add {variable} to .env." and can't be chosen. **Test** answers "Answered in 1.2 s" or "Didn't answer: {plain reason}". Keys never appear (NFR-11).
-- **The daily digest** (FR-35 to FR-37). One message, with its parts in the order the PRD gives. It reads as prose in Telegram and on the phone (UJ-2), and appears in the web chat as a digest card.
+- **The daily digest** (FR-35 to FR-37). One message, with its parts in the order the PRD gives. It reads as prose in Telegram and on the phone (UJ-2), and appears in the web chat as a digest card. [NOTE 2026-11-07, Story 17.10, Contest Planner ruling (DW-874, option a): until Story 18.4, the web chat shows the digest as a plain-text notice card and the simulated phone shows none.]
   - **The all-clear wording** comes from code (Voice and Tone › Reserved sentences).
   - **Plain-text lists** in Telegram lead each line with its result: "Passed:", "Failed:", "Not checked:".
   - **"Send my digest now"** works in the chat, as a request to OcuTalon, and in Settings.
