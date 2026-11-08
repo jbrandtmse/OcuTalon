@@ -79,6 +79,9 @@ const RESULT_KEYS = [
   'audit.recorded',
 ];
 
+/** The Got it button text and the handled line of a tell-now notice (Story 18.4), listed after the either-way line. */
+const GOT_IT_KEYS = ['button.gotIt', 'handled.marked'];
+
 /** The page key of the either-way line (Story 7.8): derived by the generator from the two catalog entries that hold it, listed last. */
 const LINE_KEY = 'incident.eitherWayLine';
 const LINE_PARENTS = ['incident.withFixEitherWay', 'incident.laterRequestEitherWay'];
@@ -99,21 +102,21 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the nine answered keys, the nine result keys and the either-way line', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the nine answered keys, the nine result keys, the either-way line and the two Got it keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     assert.equal(CHECK_KEYS.length, 5);
-    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 52);
+    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 54);
   });
 
   it('holds the 16 banner and action keys, the nine answered keys and the nine result keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 16);
     assert.equal(ANSWERED_KEYS.length, 9);
     assert.equal(RESULT_KEYS.length, 9);
-    assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY]);
+    assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS]);
     const slots = {
       'checks.notEverything': { whatFailed: 'text' },
       'checks.notEverythingRestPassed': { whatFailed: 'text' },
@@ -142,6 +145,7 @@ describe('the real tree', () => {
       'result.couldNotStart': { reason: 'text' },
       'result.stoppedPartway': { count: 'count', itemNoun: 'noun', resent: 'count', completed: 'count', notTried: 'count' },
       [LINE_KEY]: { resendCount: 'count', reading: 'text', item: 'text' },
+      'handled.marked': { time: 'time' },
     };
     for (const key of Object.keys(real.PAGE_SLOTS)) assert.deepEqual({ ...real.PAGE_SLOTS[key] }, slots[key] ?? {}, key);
     assert.equal(real.PAGE_TEXTS['bannerAction.budgets'], 'Budgets');
@@ -231,6 +235,11 @@ describe('the result texts', () => {
       "The resend stopped partway: I resent 2 of the 3 orders (2 went through), the next one couldn't be resent, and 0 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
     );
     assert.equal(real.renderPageText('audit.recorded'), 'Recorded in the IRIS audit log.');
+  });
+
+  it('reads the Got it button and the handled line as the catalog gives them (Story 18.4)', () => {
+    assert.equal(real.renderPageText('button.gotIt'), 'Got it');
+    assert.equal(real.renderPageText('handled.marked', { time: '14:12' }), 'Marked as handled at 14:12');
   });
 
   it('read the catalog\'s count-of-one form where the named count slot is 1, and the noun by the count slot', () => {
@@ -483,7 +492,7 @@ function eitherParent(lead, forms = {}) {
   };
 }
 
-/** The Watch catalog of the fixtures: the five check sentences the page renders, and the two entries that hold the either-way line. */
+/** The Watch catalog of the fixtures: the five check sentences the page renders, the two Got it keys, and the two entries that hold the either-way line. */
 const WATCH = {
   [LINE_PARENTS[0]]: eitherParent('{count} {itemNoun} failed.'),
   [LINE_PARENTS[1]]: eitherParent('{count} more {itemNoun} failed.'),
@@ -492,6 +501,8 @@ const WATCH = {
   'checks.nothingWatched': { text: "Nothing's watched.", slots: {}, source: 'fixture' },
   'checks.notEverything': { text: 'Not everything: {whatFailed}.', slots: { whatFailed: 'text' }, source: 'fixture' },
   'checks.notEverythingRestPassed': { text: 'Not everything: {whatFailed}. The rest was fine.', slots: { whatFailed: 'text' }, source: 'fixture' },
+  'button.gotIt': { text: 'Understood', slots: {}, source: 'fixture' },
+  'handled.marked': { text: 'Handled at {time}', slots: { time: 'time' }, source: 'fixture' },
 };
 
 /** Writes a fixture trio and returns the arguments that point the generator at it (the --watch pair is last). */
@@ -512,9 +523,11 @@ describe('the generator on a fixture', () => {
     const r = run(...args);
     assert.equal(r.status, 0, r.stderr);
     const module = await import(pathToFileURL(args[5]).href);
-    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, 'fallbackReason.timeout', 'fallbackReason.generic']);
-    assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY]);
+    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS, 'fallbackReason.timeout', 'fallbackReason.generic']);
+    assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...GOT_IT_KEYS]);
     assert.deepEqual({ ...module.PAGE_SLOTS['checks.notEverything'] }, { whatFailed: 'text' });
+    assert.deepEqual({ ...module.PAGE_SLOTS['handled.marked'] }, { time: 'time' });
+    assert.equal(module.renderPageText('handled.marked', { time: '14:12' }), 'Handled at 14:12');
     assert.equal(module.renderPageText('checks.notEverythingRestPassed', { whatFailed: 'A (x)' }), 'Not everything: A (x). The rest was fine.');
     assert.deepEqual(Object.keys(module.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted', 'result.stoppedPartway', LINE_KEY]);
     assert.deepEqual({ ...module.CHANNEL_NAMES }, { web: 'the web chat', phone: 'the simulated phone' });
@@ -584,7 +597,7 @@ describe('the generator on a fixture', () => {
   });
 
   it('fails, naming the Watch file and the key, on a listed key that the Watch catalog lacks', () => {
-    for (const key of CHECK_KEYS) {
+    for (const key of [...CHECK_KEYS, ...GOT_IT_KEYS]) {
       const watchEntries = Object.fromEntries(Object.entries(WATCH).filter(([name]) => name !== key));
       const r = run(...fixture(`no-${key}`, { watchEntries }));
       assert.equal(r.status, 1, key);

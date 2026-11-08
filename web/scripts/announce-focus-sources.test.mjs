@@ -97,13 +97,14 @@ describe('the page speaks only through the Announcer', () => {
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once), Dismiss (the message of an error reply, once, Story 6.4), the credential rows (Story 16.1) and the Telegram card (the pairing and the unpairing, once each, Stories 12.4 and 12.5) and the settings page (the saved text of a section, once, a failed save of the thresholds, and the load failure, Story 33.2; the saved and failed texts of the Models and Budgets sections and the Test result line, once, Story 18.3) and the Documents page (a refused file or a failed document of the user\'s own add, once, Story 34.2)', () => {
+  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once), Dismiss (the message of an error reply, once, Story 6.4), the credential rows (Story 16.1) and the Telegram card (the pairing and the unpairing, once each, Stories 12.4 and 12.5) and the settings page (the saved text of a section, once, a failed save of the thresholds, and the load failure, Story 33.2; the saved and failed texts of the Models and Budgets sections and the Test result line, once, Story 18.3) and the Documents page (a refused file or a failed document of the user\'s own add, once, Story 34.2) and Got it (the message of an error reply, once, Story 18.4)', () => {
     assert.deepEqual(filesWith(/\bannouncer\.announce\(|\.announce\(/).sort(), [
       'app/approvals/answer-press.ts',
       'app/approvals/approval-request-card.ts',
       'app/banners/banner-stack.ts',
       'app/chat/chat-outbox.ts',
       'app/chat/chat-panel.ts',
+      'app/chat/got-it.ts',
       'app/documents/documents-page.ts',
       'app/feed/break-feed-box.ts',
       'app/guide/demo-guide.ts',

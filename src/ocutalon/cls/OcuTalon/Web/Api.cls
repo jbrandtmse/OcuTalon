@@ -30,6 +30,10 @@
 ///     Commands.Submit (origin web_user): 200 {"result":"done"}, 409 not_dismissible (IncidentManager's not_allowed, the owner's refusal
 ///     of a dismissal that the incident's state or its approval request forbids), 501 not_built for a stub owner, 404 not_found and 500
 ///     server_error.
+///     POST /v1/decisions/:ref/got-it (Story 18.4; AD-1, AD-14) marks the session's own tell-now notice as handled: the body {"channel":"phone"}
+///     (exactly) is the Simulated phone's press, any other body is the web chat's; it submits a GotIt command through Commands.Submit (origin web_user)
+///     and answers 200 {"result":"done","handledAt"} (a second press too, with the first handledAt), 404 not_found for a Decision the session
+///     can't see or that is not tell-now (nothing is submitted), 501 not_built and 500 server_error.
 ///     The settings routes (Story 33.2; AD-13, AD-19) are for OcuTalonAdmin only, and the check is the whole name of the role in $Roles, never %All: a
 ///     call to /v1/settings or below it from a user without the role is 403 not_admin, answered before the browser envelope, the body and the
 ///     route. GET /v1/settings answers SettingsOps.Values: {"sections", "bridge", "providers", "instanceZone", "prices"}. Each POST /v1/settings/<section>
@@ -176,6 +180,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/messages" Method="POST" Call="Messages"/>
 <Route Url="/v1/approvals/:ref/answer" Method="POST" Call="AnswerApproval"/>
 <Route Url="/v1/incidents/:ref/dismiss" Method="POST" Call="DismissIncident"/>
+<Route Url="/v1/decisions/:ref/got-it" Method="POST" Call="GotIt"/>
 <Route Url="/v1/demo/break-feed" Method="POST" Call="BreakFeed"/>
 <Route Url="/v1/mailbox/incoming" Method="POST" Call="MailboxIncoming"/>
 <Route Url="/v1/mailbox/samples/:name" Method="POST" Call="MailboxSample"/>
@@ -692,6 +697,53 @@ ClassMethod DismissIncident(ref As %String) As %Status
 	}
 	If outcome = "not_allowed" Quit ..Fail(409, "not_dismissible", ..#MESSAGENOTDISMISSIBLE)
 	Quit ..Fail(409, "not_dismissible", $Select(result.Message '= "": result.Message, 1: ..#MESSAGENOTDISMISSIBLE))
+}
+
+/// POST /v1/decisions/:ref/got-it (Story 18.4; AD-1, AD-4, AD-14): the press of Got it on a tell-now notice, which the route submits and
+/// never decides (SessionOps does: the first press wins). The notice's Ref is its Decision's Ref. In order:
+///   - the session (Ownership.SessionRef) and the Decision (Ownership.Decision) of that session, which must be tell-now: a failed read is 500
+///     server_error, and any other Decision is 404 not_found, before anything is submitted;
+///   - the channel: phone for the exact body {"channel":"phone"}, else web (an unreadable body too);
+///   - Commands.Submit of an OcuTalon.Msg.Command.GotIt (the Ref, the channel) with origin web_user, for the session; an error status is 500 server_error;
+///   - the answer: handled and already_handled are 200 {"result":"done","handledAt"} with Handled.Marked of the Ref; not_found is 404; not_built is
+///     501 not_built; any other outcome is 500 server_error.
+ClassMethod GotIt(ref As %String) As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set decision = ##class(OcuTalon.Data.Ownership).Decision(ref, sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(decision) || (decision.Outcome '= "tellnow") Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Set command = ##class(OcuTalon.Msg.Command.GotIt).%New()
+	Set command.Ref = decision.Ref
+	Set command.SessionRef = sessionRef
+	Set command.Channel = ..GotItChannel()
+	Kill decision
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Ok {
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write {"result": "done", "handledAt": (##class(OcuTalon.Data.Handled).Marked(command.Ref))}.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	Set outcome = result.Outcome
+	If outcome = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Quit ..ServerError($SYSTEM.Status.Error(5001, "The Got it was answered "_outcome))
+}
+
+/// The channel of a Got it press: phone when the body is exactly the object {"channel":"phone"}, else web.
+ClassMethod GotItChannel() As %String [ Private ]
+{
+	Set channel = "web"
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
+		If $IsObject(body) && body.%IsA("%Library.DynamicObject") && (body.%Size() = 1) && (body.%GetTypeOf("channel") = "string") && (body.channel = "phone") Set channel = "phone"
+	} Catch exception {
+		Set channel = "web"
+	}
+	Quit channel
 }
 
 /// POST /v1/guide/markers: the page's UI-only marker (AD-1). With demo mode off the answer is 404 not_found before the body is

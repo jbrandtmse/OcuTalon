@@ -71,7 +71,7 @@ In demo mode, the Demo view switch in the header hides those four parts. With it
 OcuTalon is a personal assistant that runs inside InterSystems IRIS. For every item that reaches it, OcuTalon makes one attention decision. The decision has one of four outcomes:
 
 - **Ignore**: Recorded; nobody notified.
-- **Digest**: Saved for later; nobody notified now.
+- **Digest**: Saved for the daily digest.
 - **Tell now**: Needs you now.
 - **Act**: OcuTalon took or requested an action.
 

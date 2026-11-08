@@ -149,7 +149,7 @@ test('C1: the empty chat panel, the composer, no live region and the page policy
   await expect(chips).toHaveText(['Ignore', 'Digest', 'Tell now', 'Act']);
   await expect(empty.locator('.meaning')).toHaveText([
     'Recorded; nobody notified',
-    'Saved for later; nobody notified now',
+    'Saved for the daily digest',
     'Needs you now',
     'OcuTalon took or requested an action',
   ]);

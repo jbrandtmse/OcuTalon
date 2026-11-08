@@ -116,6 +116,12 @@ export interface DismissBody {
   result: 'done';
 }
 
+/** POST /ocutalon/api/v1/decisions/:ref/got-it: the body of the 200 answer. `handledAt` is when the notice was marked, UTC to the second (the first press's, also for a repeat). The request body is {} (the web chat's press) or {"channel":"phone"} (the simulated phone's) and the session is the caller's. */
+export interface GotItBody {
+  result: 'done';
+  handledAt: string;
+}
+
 /** POST /ocutalon/api/v1/pairing/code: the 200 answer. The code is 22 characters, shown once and valid until `expiresAt` (UTC); the server stores only its hash. */
 export interface PairingCode {
   code: string;

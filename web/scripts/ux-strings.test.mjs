@@ -225,7 +225,8 @@ const SOURCES = {
     'Tell now',
     'Act',
     'Recorded; nobody notified',
-    'Saved for later; nobody notified now',
+    'Saved for the daily digest',
+    'Got it',
     'Needs you now',
     'OcuTalon took or requested an action',
     'OcuTalon replied:',
@@ -595,6 +596,10 @@ const SOURCES = {
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 18.4 ruling planner-2026-11-08-18.4 (the Contest Planner under the owner\'s delegation, 2026-11-08, relayed by the orchestrator: the digest card\'s disclosure "What I checked ({n})", the line "Marked as handled at {time}", which the catalog gives (the Got it button is the UX\'s and sits under ux); "Saved for the daily digest" is the UX\'s and sits under ux)': [
+      'What I checked ({n})',
+      'Marked as handled at {time}',
+    ],
     'Story 18.3 ruling planner-2026-11-08-18.3 (the Contest Planner under the owner\'s delegation, 2026-11-08, relayed by the orchestrator: the Models and Budgets labels and help lines, the agent and provider names, the Test help and failure texts, and the price labels)': [
       'Triage agent',
       'Diagnosis agent',

@@ -7,7 +7,10 @@ Class OcuTalon.Install.Step.Core Extends OcuTalon.Install.Step
 /// only from the caller: the purge task's DaysToKeep.
 ClassMethod Purge(daysToKeep As %Integer) As %Status
 {
-	Quit ##class(OcuTalon.Data.Pairing).Purge(daysToKeep)
+	Set sc = ##class(OcuTalon.Data.Pairing).Purge(daysToKeep)
+	Set handled = ##class(OcuTalon.Data.Handled).Purge(daysToKeep)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Quit handled
 }
 
 }

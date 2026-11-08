@@ -9,6 +9,7 @@ import type {
   BreakFeedSent,
   DigestSending,
   DismissBody,
+  GotItBody,
   DocumentAdded,
   DocumentRemoved,
   DocumentsList,
@@ -132,6 +133,15 @@ export class ApiClient {
    */
   dismissIncident(ref: string): Observable<HttpResponse<DismissBody>> {
     return this.http.post<DismissBody>(`${BASE}/incidents/${encodeURIComponent(ref)}/dismiss`, {}, { observe: 'response' });
+  }
+
+  /**
+   * Marks a tell-now notice as handled: a POST of {} for the web chat's press and {"channel":"phone"} for the simulated phone's (the
+   * notice is in the path and the session is the caller's, never in the body). The whole response is observed: 200 is
+   * {result: 'done', handledAt}; a 4xx or 5xx fails as an HttpErrorResponse whose `error` is the body.
+   */
+  gotIt(ref: string, channel: 'web' | 'phone' = 'web'): Observable<HttpResponse<GotItBody>> {
+    return this.http.post<GotItBody>(`${BASE}/decisions/${encodeURIComponent(ref)}/got-it`, channel === 'phone' ? { channel } : {}, { observe: 'response' });
   }
 
   /**

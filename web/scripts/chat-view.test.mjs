@@ -10,7 +10,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { CHAT_TEXTS, NOTICE_TEXTS, chatView, indicatorOf, isFreshChat, liveRequest, newClientId, noticeOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'chat-view.ts')).href);
+const { CHAT_TEXTS, NOTICE_TEXTS, chatView, digestOpen, indicatorOf, isFreshChat, liveRequest, newClientId, noticeOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'chat-view.ts')).href);
 
 const NOW = 1_000_000;
 const NO_RUNNING = new Map();
@@ -31,6 +31,39 @@ const digest = (ref, over = {}) => notice(ref, { kind: 'digest', text: DIGEST_TE
 const local = (clientId, status, over = {}) => ({ clientId, text: `local ${clientId}`, fromGuide: false, sentAt: '2026-10-22T14:12:00Z', status, ...over });
 
 const keys = (views) => views.map((view) => view.key);
+
+describe('the digest card and Got it (Story 18.4)', () => {
+  const rows = (...results) => results.map((result, i) => ({ result, entry: `zz entry ${i}`, finding: `zz finding ${i}`, checkedAt: '2026-10-22T02:10:00Z' }));
+  const view = (item) => chatView([item], [], NO_RUNNING, NOW)[0];
+
+  it('carries a digest card\'s check rows, a tell now\'s handledAt and a card\'s decisionRef into the notice', () => {
+    const withRows = view(digest('D1', { checks: rows('passed', 'failed') }));
+    assert.equal(withRows.checks.length, 2);
+    assert.equal(withRows.checks[1].result, 'failed');
+    const handled = view(tellNow('T1', { decisionRef: 'DR1', handledAt: '2026-10-22T14:15:00Z' }));
+    assert.equal(handled.handledAt, '2026-10-22T14:15:00Z');
+    assert.equal(handled.decisionRef, 'DR1');
+    assert.equal(noticeOf(tellNow('T2', { decisionRef: 'DR2' })).handledAt, '', 'not handled yet');
+  });
+
+  it('reads a payload of an older row, with no checks, handledAt or decisionRef, as a card with none of them (U-313)', () => {
+    for (const item of [digest('D2'), tellNow('T3'), notice('R1')]) {
+      const one = view(item);
+      assert.deepEqual([...one.checks], []);
+      assert.equal(one.handledAt, '');
+      assert.equal(one.decisionRef, '');
+    }
+  });
+
+  it('opens the disclosure when any row did not pass, and keeps it closed for rows that all passed or for none', () => {
+    assert.equal(digestOpen(rows('passed', 'failed')), true);
+    assert.equal(digestOpen(rows('passed', 'not_checked')), true);
+    assert.equal(digestOpen(rows('passed', 'skipped')), true, 'a result the page does not know is shown as Not checked');
+    assert.equal(digestOpen(rows('failed')), true);
+    assert.equal(digestOpen(rows('passed', 'passed')), false);
+    assert.equal(digestOpen([]), false);
+  });
+});
 
 describe('the order of the entries', () => {
   it('lists the store\'s chat.message entries, incident cards and notice cards in store order', () => {
@@ -490,7 +523,7 @@ describe('the fixed strings', () => {
         chipTellNow: 'Tell now',
         chipAct: 'Act',
         meaningIgnore: 'Recorded; nobody notified',
-        meaningDigest: 'Saved for later; nobody notified now',
+        meaningDigest: 'Saved for the daily digest',
         meaningTellNow: 'Needs you now',
         meaningAct: 'OcuTalon took or requested an action',
         announceReplied: 'OcuTalon replied:',
@@ -501,7 +534,8 @@ describe('the fixed strings', () => {
   });
 
   it('say a notice card\'s caption as "Due 12:00 \u00B7 arrived 12:01", joined by the chat\'s separator', () => {
-    assert.deepEqual({ ...NOTICE_TEXTS }, { due: 'Due {time}', arrived: 'arrived {time}' });
+    assert.deepEqual({ ...NOTICE_TEXTS }, { due: 'Due {time}', arrived: 'arrived {time}', whatIChecked: 'What I checked ({n})' });
+    assert.equal(NOTICE_TEXTS.whatIChecked.replace('{n}', '2'), 'What I checked (2)');
     const line = [NOTICE_TEXTS.due.replace('{time}', '12:00'), NOTICE_TEXTS.arrived.replace('{time}', '12:01')].join(CHAT_TEXTS.separator);
     assert.equal(line, 'Due 12:00 \u00B7 arrived 12:01');
   });

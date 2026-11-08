@@ -1,6 +1,8 @@
 /// One row per session's copy of an outbound message: what an *Out operation sent, and where, so that an edit in place finds it (AD-14). Lane B.
 /// WebChatOut is the first writer (Story 2.7) and the web chat's copy of a notice card: its row keeps the card as it was shown
 /// (Kind, the rendered Text, DecisionRef, DueAt and FallbackReason), so that a reload shows the card as it was sent (DW-62).
+/// A web digest card's row also keeps the card's check rows (CheckRows, JSON), so that a reload shows them (Story 18.4); a row written before
+/// CheckRows existed reads it as empty and draws the card without the rows.
 /// A row is read only through Ownership (RecentNotices for the chat, DeliveryFor for an edit in place).
 Class OcuTalon.Data.Delivery Extends %Persistent
 {
@@ -38,14 +40,17 @@ Property DueAt As %String(MAXLEN = 20);
 /// The fallback reason the card shows: one of Msg.Enum FALLBACKREASON; empty when the card is not a fallback.
 Property FallbackReason As %String(MAXLEN = 32);
 
+/// The check rows of a web digest card, as the JSON array of the digest's Slots rows ({result, entry, finding, checkedAt}); empty for any other row.
+Property CheckRows As %String(MAXLEN = "");
+
 Index ApprovalRefChannelOwnerRefIndex On (ApprovalRef, Channel, OwnerRef);
 
 Index OwnerRefChannelIndex On (OwnerRef, Channel);
 
 /// Records one session's copy of an outbound message: the channel's message id, the approval request it carries, if any, and
-/// for a web card its kind, text, decision, due time and fallback reason. RecordedAt is the time now. An empty owner or a
+/// for a web card its kind, text, decision, due time, fallback reason and, for a digest card, its check rows. RecordedAt is the time now. An empty owner or a
 /// channel outside Msg.Enum CHANNEL is an error status and records nothing. row is the saved row, "" when nothing was saved.
-ClassMethod Record(ownerRef As %String, channel As %String, channelMessageId As %String, approvalRef As %String, kind As %String = "", text As %String = "", decisionRef As %String = "", dueAt As %String = "", fallbackReason As %String = "", Output row As OcuTalon.Data.Delivery) As %Status
+ClassMethod Record(ownerRef As %String, channel As %String, channelMessageId As %String, approvalRef As %String, kind As %String = "", text As %String = "", decisionRef As %String = "", dueAt As %String = "", fallbackReason As %String = "", Output row As OcuTalon.Data.Delivery, checkRows As %String = "") As %Status
 {
 	Set row = ""
 	If $Get(ownerRef) = "" Quit $SYSTEM.Status.Error(5001, "A delivery needs the Ref of its owner")
@@ -60,6 +65,7 @@ ClassMethod Record(ownerRef As %String, channel As %String, channelMessageId As 
 	Set row.DecisionRef = decisionRef
 	Set row.DueAt = dueAt
 	Set row.FallbackReason = fallbackReason
+	Set row.CheckRows = checkRows
 	Set row.RecordedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Set sc = row.%Save()
 	If $SYSTEM.Status.IsError(sc) Set row = ""
@@ -123,6 +129,9 @@ Storage Default
 </Value>
 <Value name="11">
 <Value>FallbackReason</Value>
+</Value>
+<Value name="12">
+<Value>CheckRows</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.DeliveryD</DataLocation>

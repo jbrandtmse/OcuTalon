@@ -15,6 +15,18 @@
 ///     and TestAnsweredRenderErrorChangesNothing are its edges;
 ///   - TestAnsweredNeverEditsAResult (Story 31.5): an answered notification that arrives after the result message of a tool call edits
 ///     neither the result message nor the request's: it records its Delivery row only (ChannelMessageId empty), with no new event;
+///   - TestDigestMessage (Story 18.4): a digest Notification is one plain-text message whose text is OcuTalon.Channel.DigestText.Text(Slots, "phone"): the
+///     greeting first, the coverage lines ("Passed:", "Failed:", "Not checked:"), the cost last with two decimals, no Markdown; one Delivery row of the kind
+///     digest, no ApprovalRef or DecisionRef on the message, and one phone event; a piece that cannot be rendered is an error with no row and no event;
+///   - TestTellNowKeepsDecisionRef: a tell-now message keeps the DecisionRef (the payload's decisionRef too); no other message kind does;
+///   - TestHandledEditsInPlace: a handled Notification sets the Answer of the tell-now message to the rendered handled.marked line, keeping its Ref, Text and
+///     DecisionRef, with one more phone event and a Delivery row of the kind handled that names the message;
+///   - TestHandledFirstAnswerStays: a message that has an Answer (an earlier edit, or a second press) keeps it: the Delivery row only, with no event;
+///   - TestHandledNoMessageRecordsOnly: with no message for the DecisionRef, or a notice that is not marked, the Delivery row only, with no edit and no event;
+///   - TestHandledNeverEditsAnotherSession: another session's handled Notification, even with a Delivery row of its own that names the owner's message,
+///     changes nothing of the owner's message;
+///   - TestOlderMessageRenders (U-313): a message written before DecisionRef existed (the column empty) is a phone payload with an empty decisionRef, and a
+///     handled Notification for a Delivery row that names it records its row only;
 ///   - TestTextIsTheTelegramWording: for a key that words the web differently, the phone carries the telegram wording;
 ///   - TestOnlineDemoTimesNameTheZone: a late reminder's time ends with " ET" on the online demo and has no suffix otherwise;
 ///   - TestResultIsAMessage (Story 6.4; AD-32): a result notification is one new SimMessage with the phone render of its key, no ApprovalRef
@@ -65,6 +77,7 @@ Method OnBeforeAllTests() As %Status
 Method OnAfterAllTests() As %Status
 {
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	For i = 1:1:$Length(..Refs, ",") Do ##class(OcuTalon.Data.Handled).DropSession($Piece(..Refs, ",", i))
 	Do ##class(OcuTalon.Bridge.Context).End()
 	If ..Supers.%Size() > 0 Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Supers)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
@@ -113,6 +126,200 @@ Method TestTellNow()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentPhone(other, 10).Count(), 0, "another session has no message")
 	Do $$$AssertEquals(..Phones(other).%Size(), 0, "and no event")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 0, "and the phone's Delivery row is not a card of the web chat")
+}
+
+/// A digest (Story 18.4) is one phone message of kind phone, direction out, whose text is OcuTalon.Channel.DigestText.Text(Slots, "phone"): the greeting
+/// first, then the pieces in the digest's order with the coverage lines starting "Passed:", "Failed:" and "Not checked:", the previous day's cost last
+/// with two decimals, and no Markdown. The message has no ApprovalRef and no DecisionRef; its phone Delivery row (kind digest) names it and has no text;
+/// one phone event carries the message. A piece that cannot be rendered is an error with no message, row or event.
+Method TestDigestMessage()
+{
+	Set session = ..Session("digest")
+	Set slots = {"parts": [{"key": "digest.greetingMorning", "slots": {}}, {"key": "digest.checked", "slots": {"checked": "the Orders production and the Billing source"}}, {"key": "digest.savedNone", "slots": {}}, {"key": "digest.cost", "slots": {"cost": 0.042}}], "lines": [{"key": "digest.passed", "slots": {"entry": "Orders production", "time": "2030-01-01T02:10:00Z"}}, {"key": "digest.failed", "slots": {"entry": "Billing source", "finding": "5 messages queued", "time": "2030-01-01T02:11:00Z"}}, {"key": "digest.notCheckedUnreachable", "slots": {"entry": "Mail source", "time": "2030-01-01T02:12:00Z"}}], "rows": [{"result": "passed", "entry": "Orders production", "finding": "", "checkedAt": "2030-01-01T02:10:00Z"}]}
+	Set notification = ..Notification(session, "digest", "digest.cost", slots)
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the digest is delivered")
+	Set expected = ##class(OcuTalon.Channel.DigestText).Text(slots.%ToJSON(), "phone", .sc)
+	Do $$$AssertStatusOK(sc, "the shared helper renders the digest for the phone")
+	Do $$$AssertEquals(..PhoneCount(session), 1, "one phone message")
+	Set message = ..Newest(session)
+	If '$IsObject(message) Do $$$AssertTrue(0, "the message exists") Quit
+	Set text = message.Text
+	Do $$$AssertEquals(text, expected, "its text is DigestText.Text(Slots, ""phone"")")
+	Do $$$AssertEquals($Piece(text, $Char(10), 1), "Good morning.", "the first line is the greeting")
+	Do $$$AssertEquals($Piece(text, $Char(10), $Length(text, $Char(10))), "Yesterday's cost: $0.04.", "the last line is the cost with two decimals")
+	For start = "Passed: Orders production (", "Failed: Billing source (5 messages queued, ", "Not checked: Mail source (" {
+		Set found = 0
+		For i = 1:1:$Length(text, $Char(10)) If $Extract($Piece(text, $Char(10), i), 1, $Length(start)) = start Set found = 1
+		Do $$$AssertTrue(found, "a line starts '"_start_"'")
+	}
+	Do $$$AssertTrue(text '[ "*", "no asterisk")
+	Do $$$AssertTrue(text '[ "_", "no underscore")
+	Do $$$AssertTrue(text '[ "`", "no backtick")
+	Do $$$AssertTrue(text '[ "#", "no hash")
+	Do $$$AssertEquals(message.Kind_"|"_message.Direction_"|"_message.ApprovalRef_"|"_message.DecisionRef_"|"_message.Answer, "phone|out|||", "a phone message out, with no request, no notice and no answer")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 1, "one Delivery row")
+	If deliveries.Count() = 1 Do $$$AssertEquals(deliveries.GetAt(1).Channel_"|"_deliveries.GetAt(1).ChannelMessageId_"|"_deliveries.GetAt(1).Kind_"|"_deliveries.GetAt(1).Text, "phone|"_message.Ref_"|digest|", "of the kind digest, naming the message, with no text")
+	Set events = ..Phones(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one phone event")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.ref_"|"_events.%Get(0).payload.text, message.Ref_"|"_expected, "for the message")
+	Set broken = ..Session("digestbad")
+	Set bad = {"parts": [{"key": "digest.greetingMorning", "slots": {}}, {"key": "digest.noSuchKey", "slots": {}}], "lines": [], "rows": []}
+	Do $$$AssertStatusNotOK(..Out().OnNotification(..Notification(broken, "digest", "digest.cost", bad), .response), "a digest that cannot be rendered is an error")
+	Do $$$AssertEquals(..PhoneCount(broken)_"|"_##class(OcuTalon.Test.Core.Observe).DeliveryCount(broken)_"|"_..Phones(broken).%Size(), "0|0|0", "with no message, row or event")
+}
+
+/// A tell-now message keeps the notification's DecisionRef (the notice's Ref, which the page's Got it names) and its payload carries it as decisionRef.
+/// A reminder, an incident, a result and a digest give a message none, whatever DecisionRef they carry.
+Method TestTellNowKeepsDecisionRef()
+{
+	Set session = ..Session("keepref")
+	Set decision = ..NewRef()
+	Set notification = ..Notification(session, "tellnow", "notice.tellNow", {"whatHappened": "zz notice", "reason": "zz reason."})
+	Set notification.DecisionRef = decision
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the tell-now notification is delivered")
+	Set message = ..Newest(session)
+	If '$IsObject(message) Do $$$AssertTrue(0, "the message exists") Quit
+	Do $$$AssertEquals(message.DecisionRef_"|"_message.ApprovalRef, decision_"|", "the message keeps the DecisionRef and no request")
+	Set events = ..Phones(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one phone event")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.decisionRef, decision, "its payload carries decisionRef")
+	Set quiet = ..Session("keepnone")
+	Set reminder = ..Notification(quiet, "reminder", "reminder.due", {"text": "stretch", "dueAt": "2030-01-01T12:00:00Z"})
+	Set reminder.DecisionRef = decision
+	Set digest = ..Notification(quiet, "digest", "digest.cost", {"parts": [{"key": "digest.greetingMorning", "slots": {}}], "lines": [], "rows": []})
+	Set digest.DecisionRef = decision
+	Do $$$AssertStatusOK(..Out().OnNotification(reminder, .response), "a reminder with a DecisionRef is delivered")
+	Do $$$AssertStatusOK(..Out().OnNotification(digest, .response), "and so is a digest")
+	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(quiet, 10)
+	Do $$$AssertEquals(rows.Count(), 2, "two messages")
+	For i = 1:1:rows.Count() Do $$$AssertEquals(..Message(rows.GetAt(i).Ref).DecisionRef, "", "message "_i_" has no DecisionRef")
+}
+
+/// A handled Notification for a tell-now message sets its Answer to the rendered handled.marked line (the phone render, with the time that Handled.Marked
+/// gives), in place: the Ref, Text and DecisionRef stay, one more phone event carries the answer, and the Delivery row of the kind handled names the message.
+Method TestHandledEditsInPlace()
+{
+	Set session = ..Session("handled")
+	Set decision = ..NewRef()
+	Set notification = ..Notification(session, "tellnow", "notice.tellNow", {"whatHappened": "zz notice", "reason": "zz reason."})
+	Set notification.DecisionRef = decision
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the tell-now notification is delivered")
+	Set before = ..Newest(session)
+	Set ref = before.Ref, text = before.Text
+	Kill before
+	Set marked = ..Mark(session, decision)
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(session, decision), .response), "the handled notification is delivered")
+	Set expected = ##class(OcuTalon.Msg.Catalog).Render("handled.marked", {"time": (marked)}, "phone")
+	Do $$$AssertTrue($Extract(expected, 1, 21) = "Marked as handled at ", "the line: "_expected)
+	Set message = ..Message(ref)
+	Do $$$AssertEquals(message.Answer, expected, "the Answer is the rendered line")
+	Do $$$AssertEquals(message.Text_"|"_message.DecisionRef_"|"_..PhoneCount(session), text_"|"_decision_"|1", "the Text and DecisionRef stay, and there is still one message")
+	Set events = ..Phones(session)
+	Do $$$AssertEquals(events.%Size(), 2, "two phone events")
+	If events.%Size() = 2 {
+		Do $$$AssertEquals(events.%Get(1).payload.ref_"|"_events.%Get(1).payload.answer_"|"_events.%Get(1).payload.decisionRef, ref_"|"_expected_"|"_decision, "the second is for the same message, with the answer")
+		Do $$$AssertEquals(events.%Get(0).payload.answer, "", "the first had none")
+	}
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 2, "two Delivery rows")
+	If deliveries.Count() = 2 {
+		Set delivery = deliveries.GetAt(2)
+		Do $$$AssertEquals(delivery.Channel_"|"_delivery.ChannelMessageId_"|"_delivery.Kind_"|"_delivery.DecisionRef_"|"_delivery.Text, "phone|"_ref_"|handled|"_decision_"|", "the second names the message and the handled kind")
+	}
+}
+
+/// A message that has an Answer already keeps it: a second press, or an answer that came first, records the Delivery row (the message's Ref as ChannelMessageId)
+/// only, with no edit and no event.
+Method TestHandledFirstAnswerStays()
+{
+	Set session = ..Session("first")
+	Set decision = ..NewRef()
+	Set notification = ..Notification(session, "tellnow", "notice.tellNow", {"whatHappened": "zz notice", "reason": "zz reason."})
+	Set notification.DecisionRef = decision
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the tell-now notification is delivered")
+	Set message = ..Newest(session)
+	Set ref = message.Ref
+	Set message.Answer = "zz an earlier answer"
+	Do $$$AssertStatusOK(message.%Save(), "the message already has an answer")
+	Kill message
+	Do ..Mark(session, decision)
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(session, decision), .response), "the handled notification is delivered")
+	Do $$$AssertEquals(..Message(ref).Answer, "zz an earlier answer", "the first answer stays")
+	Do $$$AssertEquals(..Phones(session).%Size(), 1, "with no new event")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 2, "and its Delivery row")
+	If deliveries.Count() = 2 Do $$$AssertEquals(deliveries.GetAt(2).ChannelMessageId_"|"_deliveries.GetAt(2).Kind, ref_"|handled", "which names the message")
+}
+
+/// With no phone message for the DecisionRef, or a notice that is not marked, a handled notification records its Delivery row only (ChannelMessageId empty):
+/// no edit, no message and no event.
+Method TestHandledNoMessageRecordsOnly()
+{
+	Set session = ..Session("nomessage")
+	Set decision = ..NewRef()
+	Do ..Mark(session, decision)
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(session, decision), .response), "a handled notification with no message is delivered")
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_..Phones(session).%Size(), "0|0", "no message and no event")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 1, "one Delivery row")
+	If deliveries.Count() = 1 Do $$$AssertEquals(deliveries.GetAt(1).Channel_"|"_deliveries.GetAt(1).Kind_"|"_deliveries.GetAt(1).DecisionRef_"|"_deliveries.GetAt(1).ChannelMessageId, "phone|handled|"_decision_"|", "of the kind handled, with the DecisionRef and no message id")
+	Set open = ..Session("unmarked")
+	Set notice = ..NewRef()
+	Set notification = ..Notification(open, "tellnow", "notice.tellNow", {"whatHappened": "zz notice", "reason": "zz reason."})
+	Set notification.DecisionRef = notice
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "a tell-now notification is delivered")
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(open, notice), .response), "and a handled one, though the notice is not marked")
+	Do $$$AssertEquals(..Newest(open).Answer, "", "the message is not edited")
+	Do $$$AssertEquals(..Phones(open).%Size(), 1, "and there is no new event")
+}
+
+/// Another session's handled notification never edits the owner's message, not even through a Delivery row of its own that names that message.
+Method TestHandledNeverEditsAnotherSession()
+{
+	Set owner = ..Session("handledowner")
+	Set other = ..Session("handledother")
+	Set decision = ..NewRef()
+	Set notification = ..Notification(owner, "tellnow", "notice.tellNow", {"whatHappened": "zz notice", "reason": "zz reason."})
+	Set notification.DecisionRef = decision
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the owner's message is delivered")
+	Set ref = ..Newest(owner).Ref
+	Do ..Mark(owner, decision)
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(other, decision), .response), "the other session's handled notification is delivered")
+	Do $$$AssertEquals(..Message(ref).Answer, "", "the owner's message is unchanged")
+	Do $$$AssertEquals(..Phones(owner).%Size()_"|"_..Phones(other).%Size(), "1|0", "with no new event")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(other, "phone", ref, "", "tellnow", "", decision), "a Delivery row of the other session names the owner's message")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Delivery).FindByRef(decision, "phone", other), ref, "the other session's lookup finds the owner's message")
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(other, decision), .response), "and the notification is delivered again")
+	Do $$$AssertEquals(..Message(ref).Answer, "", "the owner's message is still unchanged")
+	Do $$$AssertEquals(..Phones(owner).%Size()_"|"_..Phones(other).%Size(), "1|0", "with no new event")
+}
+
+/// U-313: a message written before DecisionRef existed has the column empty. Its payload reads decisionRef as empty and exports, the phone lists it, and a
+/// handled notification for a Delivery row that names it records its row only: the message is not edited.
+Method TestOlderMessageRenders()
+{
+	Set session = ..Session("older")
+	Set message = ##class(OcuTalon.Data.SimMessage).%New()
+	Set message.Ref = ..NewRef()
+	Set message.SessionRef = session
+	Set message.Kind = "phone"
+	Set message.Direction = "out"
+	Set message.Text = "zz an older notice"
+	Set message.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(message.%Save(), "a message is written without a DecisionRef")
+	Do $$$AssertEquals(message.DecisionRef, "", "its DecisionRef is empty")
+	Set listed = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10)
+	Do $$$AssertEquals(listed.Count(), 1, "the phone lists it")
+	Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(message)
+	Do $$$AssertEquals(payload.DecisionRef_"|"_payload.Text, "|zz an older notice", "its payload has no decisionRef")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "and exports")
+	Set decision = ..NewRef()
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "phone", message.Ref, "", "tellnow", "", decision), "a Delivery row names the message")
+	Do ..Mark(session, decision)
+	Do $$$AssertStatusOK(..Out().OnNotification(..HandledNotification(session, decision), .response), "a handled notification is delivered")
+	Do $$$AssertEquals(..Message(message.Ref).Answer, "", "the message is not edited")
+	Do $$$AssertEquals(..Phones(session).%Size(), 0, "and there is no event")
 }
 
 /// A reminder (reminder.due) is a phone message with the rendered text, and its phone Delivery row has no text and no due time.
@@ -276,7 +483,7 @@ Method TestResultRenderError()
 Method TestOtherKindsRecordOnly()
 {
 	Set session = ..Session("other")
-	Set kinds = $ListFromString("fallback,allowance,pairing,status,digest")
+	Set kinds = $ListFromString("fallback,allowance,pairing,status")
 	Set position = 0
 	While $ListNext(kinds, position, kind) {
 		Set notification = ..Notification(session, kind, "zz.notRendered", {"zz": "slot"})
@@ -741,6 +948,26 @@ Method Out() As OcuTalon.Channel.SimPhone.Out [ Private ]
 	Set out = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Channel.SimPhone.Out", .sc)
 	Do $$$AssertStatusOK(sc, "a shadow instance of the operation is made")
 	Quit out
+}
+
+/// The Notification that GotIt sends: kind handled for the session, with the Decision's Ref, no catalog key and no slots.
+Method HandledNotification(session As %String, decisionRef As %String) As OcuTalon.Msg.Notification [ Private ]
+{
+	Set notification = ..Notification(session, "handled", "", {})
+	Set notification.DecisionRef = decisionRef
+	Quit notification
+}
+
+/// Marks the notice as handled, as SessionOps does: one Handled row {the Ref, the session, now, phone}. Returns when.
+Method Mark(session As %String, decisionRef As %String) As %String [ Private ]
+{
+	Set handled = ##class(OcuTalon.Data.Handled).%New()
+	Set handled.Ref = decisionRef
+	Set handled.SessionRef = session
+	Set handled.Channel = "phone"
+	Set handled.HandledAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(handled.%Save(), "the notice is marked handled")
+	Quit handled.HandledAt
 }
 
 /// A new Ref for an approval request or an incident.

@@ -247,7 +247,7 @@ test('D5: the outcome chip has a pointer tooltip and takes no focus', async ({ p
   await expect(tooltip, 'Esc hides it').toHaveCount(0);
   await page.mouse.move(0, 0);
   await stripOf(page, refs[1]!).locator('app-outcome-chip .chip').hover();
-  await expect(tooltip, 'every outcome shows its own meaning').toHaveText('Saved for later; nobody notified now');
+  await expect(tooltip, 'every outcome shows its own meaning').toHaveText('Saved for the daily digest');
   await page.keyboard.press('Escape');
   await expect(tooltip).toHaveCount(0);
   await page.mouse.move(0, 0);

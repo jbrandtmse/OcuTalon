@@ -43,6 +43,8 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'result.stoppedPartway': "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
   'audit.recorded': 'Recorded in the IRIS audit log.',
   'incident.eitherWayLine': 'All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived.',
+  'button.gotIt': 'Got it',
+  'handled.marked': 'Marked as handled at {time}',
   'fallbackReason.timeout': "the model didn't answer within the time allowed",
   'fallbackReason.empty': "the model's reply was empty",
   'fallbackReason.cutOff': "the model's reply was cut off",
@@ -105,6 +107,8 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'result.stoppedPartway': { 'count': 'count', 'itemNoun': 'noun', 'resent': 'count', 'completed': 'count', 'notTried': 'count' },
   'audit.recorded': {},
   'incident.eitherWayLine': { 'resendCount': 'count', 'reading': 'text', 'item': 'text' },
+  'button.gotIt': {},
+  'handled.marked': { 'time': 'time' },
 };
 
 /** The count-of-one form of each listed key that has one: the count slot that decides it, and the text used when that slot is "1". */

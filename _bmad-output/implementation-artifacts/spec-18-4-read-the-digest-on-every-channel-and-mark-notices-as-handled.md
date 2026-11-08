@@ -2,7 +2,8 @@
 title: 'Story 18.4: Read the digest on every channel and mark notices as handled'
 type: 'feature'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '6514ea2a4c082bd9a24121109a30546a9f0b76fd'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -192,10 +193,10 @@ deferred: []
 - `web/scripts/chat-view.test.mjs:493`, `ux-strings.test.mjs:228`, `web/e2e/chat/chat.spec.ts:152`, `web/e2e/chat/decision.spec.ts:250`, `web/e2e/demo-path/01-page.spec.ts:69` -- the new meaning text.
 - `web/e2e-online/demo-path/demo-path.spec.ts` step 7 (and the comment in `docker/tests/test-online-demo-path.sh:13-14`) -- the phone now gets exactly one digest note, its first line a greeting and its last the cost. The card assertions are unchanged.
 
-- [ ] [Ruling U-313] Pin that an OLDER row renders without error: a `Data.Delivery` digest row with `CheckRows` empty and a `Data.SimMessage` row with `DecisionRef` empty (as rows written before this story are) -- the web chat's digest card (and `RecentNotices` after a reload) and the phone render them without error (a card without the disclosure; a phone message with no Got it edit). One IRIS test and, if the web side reads the payload, one web unit case.
-- [ ] [U-177 grant (a)] Exactly ONE appended call registering `OcuTalon.Data.Handled.Purge(daysToKeep)` in `src/ocutalon/cls/OcuTalon/Install/Step/Core.cls`'s `Purge` method (append it after the existing purge calls; nothing else in that method or file, and nothing else in any Lane A file). Epic 41 also edits that method: keep the hunk to the one line so the second merge is a plain union.
-- [ ] [Doc] `Channel/DigestText.cls`'s class comment names SimPhoneOut as a third caller (doc-only, allowed by the orchestrator).
-- [ ] [Demo path, ruled] `web/e2e-online/demo-path/demo-path.spec.ts:279` and its comment in `docker/tests/test-online-demo-path.sh` change from "no digest note" to EXACTLY ONE digest note on the simulated phone. Nothing else in the demo path changes.
+- [x] [Ruling U-313] Pin that an OLDER row renders without error: a `Data.Delivery` digest row with `CheckRows` empty and a `Data.SimMessage` row with `DecisionRef` empty (as rows written before this story are) -- the web chat's digest card (and `RecentNotices` after a reload) and the phone render them without error (a card without the disclosure; a phone message with no Got it edit). One IRIS test and, if the web side reads the payload, one web unit case.
+- [x] [U-177 grant (a)] Exactly ONE appended call registering `OcuTalon.Data.Handled.Purge(daysToKeep)` in `src/ocutalon/cls/OcuTalon/Install/Step/Core.cls`'s `Purge` method (append it after the existing purge calls; nothing else in that method or file, and nothing else in any Lane A file). Epic 41 also edits that method: keep the hunk to the one line so the second merge is a plain union.
+- [x] [Doc] `Channel/DigestText.cls`'s class comment names SimPhoneOut as a third caller (doc-only, allowed by the orchestrator).
+- [x] [Demo path, ruled] `web/e2e-online/demo-path/demo-path.spec.ts:279` and its comment in `docker/tests/test-online-demo-path.sh` change from "no digest note" to EXACTLY ONE digest note on the simulated phone. Nothing else in the demo path changes.
 
 **Acceptance Criteria:**
 - **AC 1.** Given a digest Notification with rows, when `WebChatOut` delivers it, then the web chat shows the digest card: a 4px brand-teal bar (`--digest-card-accent-bar`), the digest text, then "What I checked ({n})" over the check rows, expanded when any row failed or wasn't checked and collapsed otherwise. The card is the same after a reload. Pinned by `Test.Core.WebChatOut` `TestDigestCard`, `chat-view.test.mjs` `digestOpen`, and N16.
@@ -225,6 +226,29 @@ deferred: []
 - 2026-11-08, spine (orchestrator ruling): at close the LEAD records AD-14's as-built Got it note, the Notice cards convention row and the REST row for `POST /api/v1/decisions/:ref/got-it`, with the orchestrator's marker; AD-27's Handled-purge bullet WAITS (in-flight 41.2, 30.7 and 32.7 cite AD-27). No stage edits the spine.
 
 ## Review Triage Log
+
+### 2026-11-08 - Review pass
+- verdicts: 18 rows (the blind hunter's 10, the edge hunter's 8 and the gap reviewer's findings grouped by shared root cause; the intent auditor's report is descriptive) - high 0, medium 0, low 18, false 0, maybe-false 0; 3 patched, 15 rejected
+- findings:
+  - `[low]` `patch` api.spec.ts BY_REF lacks the got-it route (blind) - added the got-it line to `BY_REF` in `web/e2e/api/api.spec.ts` (row 16 checks 404 + error shape).
+  - `[low]` `patch` TestDigestCard "no check rows" assertion silently skipped when no event (gap) - added an `AssertEquals(events.%Size(), 1)` before it.
+  - `[low]` `patch` mutation lines missing for AC 4 `TestPressUpdatesEveryCopy`, Core.Purge registration, FromRow tell-now guard, OnHandled tell-now guard, Save DecisionRef guard (gap) - five mutations applied, each red, reverted byte-identical, recorded in `## Verification`; AC 6 states why it has none.
+  - `[low]` `reject` Handled rows outlive/precede their Delivery card after the 90-day purge, so an old card can show Got it again (blind, edge) - `recentNotices` is TOP N newest, so only a session that holds a card for 90+ days is affected; retention is the ruled VETO item (a), the number is AD-27's.
+  - `[low]` `reject` Core.Purge swallows a second error and its doc comment is stale (blind, edge) - same shape as Epic 41's rewrite of the method (first error returned); the doc line is left so the second merge hunk stays minimal (U-177 grant a).
+  - `[low]` `reject` Core.Purge hunk is four lines, not one (blind, edge) - the method was a single `Quit`, so one more call needs this restructure; Epic 41's version has the same shape, so the merge is a small conflict resolved by keeping both calls (reported).
+  - `[low]` `reject` WebChatOut.OnHandled does not check `Handled.Marked` (blind) - SessionOps sends `handled` only after marking; an unmarked republish would carry an empty handledAt and change nothing visible.
+  - `[low]` `reject` Newest-row lookups (`DeliveryByRef`, `FindByRef`) miss a card when a later row of the Ref exists, or with two cards for one Ref (edge x3) - the lookup is the spec's design and Telegram's own pattern; no second web/phone row for a tell-now Ref is produced by any producer.
+  - `[low]` `reject` Announce before Record in OnHandled (edge) - a Record failure after Announce leaves an event without its handled row; only one handled Notification exists per notice, so no retry republishes.
+  - `[low]` `reject` Got it gives no success feedback, loses focus, and relies on the live event (blind, edge) - Decided in-stage 5/6: the server's handled notification replaces the control; no new text is allowed (PUBLIC TEXT ruling).
+  - `[low]` `reject` route accepts a phone body with demo off (blind) - the body rule copies Epic 41's channel rule (Decided in-stage 3); SessionOps validates the channel.
+  - `[low]` `reject` negative assertions after `Hang 1`, async consumers in TestPhoneBody (blind, gap) - the `DismissApi` pattern; throwaway and CI only.
+  - `[low]` `reject` `Delivery.Record` takes `checkRows` after `Output row` (blind) - Decided in-stage 7: existing callers unchanged.
+  - `[low]` `reject` FromRow reads `Handled.Marked` per tell-now row (blind) - one index lookup per card, and the snapshot is capped at the newest N notices.
+  - `[low]` `reject` Got it error path has no running test (gap) - the source test pins `messageOf(error) || BUSY_NOTICE` and the announce; the same ServerButton press is run for Dismiss. A route-faking e2e case cannot be run here (DW-938 pattern).
+  - `[low]` `reject` route outcomes 500/501 unpinned (gap) - forcing a SessionOps failure needs a hook this story does not add; the mapping is five lines.
+  - `[low]` `reject` Playwright N16 to N19 never observed red; component templates have no node host (gap) - recorded as not observed locally (DW-938 pattern); the source-regex test is the only local pin and is described as such.
+  - `[low]` `reject` U-313 tests write the row through the new schema rather than a pre-change storage node (gap) - a missing data node reads as empty; the mutation (strict read) turns the test red.
+  - `[low]` `reject` Intent auditor: readings A/B/C; the diff implements all three and the rendered-surface pins are CI-only (descriptive) - no divergence in the code; the Playwright pins are left to CI as the spec says.
 
 ## Design Notes
 
@@ -294,6 +318,13 @@ deferred: []
 - `got-it.ts` copies `incident-dismiss.ts`'s press. This is a copy because Dismiss is incident-specific (Dismissals); the shared part is `ServerButton`.
 - `Handled.Purge` calls `DaysCutoff` (DW-371), never `Pairing.Purge`'s copy.
 - The card reuses `app-check-rows` and the `--digest-card-*` tokens.
+
+**Implementation notes (Decided in-stage):**
+- `Install/Step/Core.cls` `Purge`: the method was a single `Quit` of `Pairing.Purge`, so the one added call needed the same shape as Epic 41's rewrite (`Set sc = ...Pairing.Purge`, `Set handled = ...Handled.Purge`, first error returned). Epic 41's branch rewrites the same lines, so the second merge is a conflict in this one method to resolve by keeping both purge calls; the method's doc line was left as it is (it still names the pairing rows only).
+- `Test.Web.BodyLimit`: besides the `POSTROUTES` append, the count in "all nineteen POST routes are tried" became 20 (it counts the list); Epic 41's route changes the same number.
+- Two existing web source tests named the old shapes and were updated with their reason: `announce-focus-sources.test.mjs` (`got-it.ts` is a new announcer, the message of an error reply) and `approval-sources.test.mjs` (the plain notice has no button, apart from the digest card's disclosure); `phone-request-sources.test.mjs` pins the phone template's else branch with the Got it line in it.
+- An empty `checks` and an empty `handledAt` are left out of the payload's JSON by `%JSON.Adaptor`; the page reads both as absent (`noticeOf` gives `[]` and `""`).
+- `Test.Web.GotItApi` counts the hops CommandsIn to SessionOps in the session's trace (the `Fixture.Between` of `Test.Web.SessionEndApi`) for "no GotIt reached SessionOps", instead of `DismissApi`'s CommandList of IncidentCommand bodies, which does not apply to a SessionOps command.
 
 **Ledger (Rule 17):** DW-695 is addressed by AC 7. The registration half is LANE A RESIDUAL 1, so the entry stays open on that residual.
 
@@ -376,6 +407,32 @@ Runtime:
 - AC 7: `Purge` compares with `<=`. Then `HandledPurge` turns red at the cutoff edge.
 - The Playwright pins are not observed locally (the 150 s rule; the DW-938 pattern).
 
+**Mutations observed (Rule 19), each reverted byte-identical (cmp against a backup) before the next:**
+- mutation: `WebChatOut` drops the rows from `Record` -> `Test.Core.WebChatOut` `TestDigestCard` red ("the row keeps the Slots' rows as CheckRows").
+- mutation: `digestOpen` opens for no row -> `chat-view.test.mjs` "opens the disclosure when any row did not pass" red.
+- mutation: `SimPhoneOut` CARDKINDS without `digest` -> `Test.Demo.SimPhoneOut` `TestDigestMessage` red (and `TestTellNowKeepsDecisionRef`).
+- mutation: phone `EditHandled` skips the first-answer check (`If 0` for `message.Answer '= ""`) -> `TestHandledFirstAnswerStays` red.
+- mutation: phone `EditHandled` drops the `message.SessionRef '= request.SessionRef` test -> `TestHandledNeverEditsAnotherSession` red.
+- mutation: phone `EditHandled` writes an empty Answer -> `Test.Core.GotItChannels` `TestPhoneEditsTheMessage` and `TestSecondHandledChangesNothing` red.
+- mutation: `WebChatOut.OnHandled` stops republishing (no `Announce`) -> `TestHandledRepublishesTheCard` red.
+- mutation: `Notification.FromRow` drops `handledAt` -> `TestReloadShowsHandled` red (and `TestHandledRepublishesTheCard`).
+- mutation: `Notification.FromRow` reads `CheckRows` strictly (fails on an empty column) -> `TestOlderDigestRowRenders` red (U-313).
+- mutation: `Phone.FromRow` drops `decisionRef` -> `Test.Live.Payloads` `TestPhoneFromRow` red.
+- mutation: the route submits channel `web` for a phone body -> `Test.Web.GotItApi` `TestPhoneBody` red.
+- mutation: the route skips the `Ownership.Decision` / tell-now check (and submits the Ref as given) -> `TestOtherSessionIs404` and `TestDigestDecisionIs404` red (a GotIt reaches SessionOps).
+- mutation: `meaningDigest` put back to the release 1 text -> `chat-view.test.mjs` "the fixed strings" and `docker/tests/test-readme.sh` (`outcomes`) red.
+- mutation: `Handled.Purge` compares with `<=` -> `Test.Data.HandledPurge` `TestCutoffRowStays` red.
+- mutation: `gotItShown` ignores the answer line -> `phone-view.test.mjs` "gotItShown" red.
+- mutation: the digest card takes `--notice-card-radius` for `--digest-card-radius` -> `digest-card-sources.test.mjs` red.
+- mutation: `button.gotIt` and `handled.marked` taken out of `LISTED_KEYS` -> `catalog.test.mjs` red.
+- Playwright N16 to N19 and the changed `chat.spec.ts`, `decision.spec.ts`, `01-page.spec.ts` and online demo-path step 7: not observed locally (DW-938 pattern).
+- mutation: the route writes an empty `handledAt` in its body -> `Test.Web.GotItApi` `TestPressUpdatesEveryCopy` red (AC 4, review pass).
+- mutation: `Install.Step.Core.Purge` stops calling `Data.Handled.Purge` -> `Test.Data.HandledPurge` `TestCoreAreaPurgesHandled` red (AC 7 registration, review pass).
+- mutation: `Notification.FromRow` sets `handledAt` for every kind -> `Test.Live.Payloads` red (review pass).
+- mutation: `WebChatOut.OnHandled` drops its tell-now test on the card -> `Test.Core.WebChatOut` `TestHandledWithNoCardRecordsOnly` red (review pass).
+- mutation: `SimPhoneOut.Save` sets `DecisionRef` for every kind -> `Test.Demo.SimPhoneOut` `TestTellNowKeepsDecisionRef` red (review pass).
+- AC 6 (the demo path stays green) has no mutation of its own: its pins are the Playwright specs above and `live:demo-path` / `live:online-demo-path`, which run in CI only; not observed locally (DW-938 pattern).
+
 **Shared surfaces:**
 - the `notification` and `phone` payload shapes (`Test.Live.Payloads`, `payloads.ts`, `payloads.test.mjs`);
 - the `Delivery` and `SimMessage` schemas (`Test.Data.Tables`);
@@ -392,5 +449,24 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The web digest card now has the teal bar and the "What I checked ({n})" disclosure over `app-check-rows`, its rows kept on `Delivery.CheckRows` and carried in the `notification` payload (also after a reload). The Simulated phone renders the digest through `DigestText.Text(slots, "phone")`. Got it works on the web card and the phone message through `POST /v1/decisions/:ref/got-it`; both `*Out`s update their copy on the `handled` Notification, and the web card and phone line read "Marked as handled at {time}". The Digest chip reads "Saved for the daily digest". `Data.Handled.Purge` is added and registered. The online demo-path step 7 expects exactly one phone digest note.
+
+**Files changed.**
+- Data: `Delivery.cls` (CheckRows, `Record` last parameter), `SimMessage.cls` (DecisionRef), `Handled.cls` (Purge).
+- Payloads: `Live/Payload/Notification.cls` (checks, handledAt), `Live/Payload/Phone.cls` (decisionRef).
+- Channels: `Channel/WebChat/Out.cls` (digest rows, handled republish), `Channel/SimPhone/Out.cls` (digest kind, tell-now DecisionRef, EditHandled).
+- Route: `Web/Api.cls` (route line, `GotIt`, `GotItChannel`).
+- Lane A, as granted: `Install/Step/Core.cls` (one added purge call, method body restructured), `Channel/DigestText.cls` (class comment only).
+- Web: `chat-view.ts`, `notice-card.ts`, new `got-it.ts`, `api-client.ts`, `api-types.ts`, `phone-view.ts`, `simulated-phone.ts`, regenerated `catalog.ts` and `payloads.ts`, `catalog.mjs`; README line 74.
+- Tests: IRIS `Test/Core/{WebChatOut,GotItChannels}`, `Test/Demo/SimPhoneOut`, `Test/Live/Payloads`, `Test/Data/{Tables,HandledPurge}`, `Test/Web/{GotItApi,Api,BodyLimit}`; web unit tests as listed in the spec plus new `digest-card-sources.test.mjs`; Playwright `notice.spec.ts` N16-N19, `chat.spec.ts`, `decision.spec.ts`, `01-page.spec.ts`, `api.spec.ts` (got-it in `BY_REF`), online `demo-path.spec.ts` step 7 and the comment in `test-online-demo-path.sh`.
+
+**Review.** Patches applied: 3 (all low): got-it route added to `api.spec.ts` `BY_REF`; `TestDigestCard` asserts the event count before its "no check rows" check; five missing mutation lines recorded (each applied, red, reverted byte-identical). Deferred: 0. Rejected: 15 (all low; each with its reason in the Review Triage Log).
+
+**Follow-up review recommended:** false (no high, no medium patched).
+
+**Verification.** On a lane-D warm throwaway (tag e18s4iw, torn down): `Test.Core.WebChatOut` 0.62 s, `Test.Core.GotItChannels` 0.10 s, `Test.Demo.SimPhoneOut` 1.06 s, `Test.Live.Payloads` 0.29 s, `Test.Data.HandledPurge` 0.03 s, `Test.Web.GotItApi` 3.76 s, `Test.Web.Api` 1.47 s, `Test.Web.BodyLimit` 0.08 s all passed after the review patches; from the implement pass also `Test.Data.Tables` 1.09 s, `Test.Core.GotIt` 0.51 s, `Test.Core.GotItProduction` 0.27 s, `Test.Digest.NeedsYou` 0.14 s, `Test.Channel.TelegramDigest` 31.28 s, `Test.Contract.Ac` 0.07 s, `Test.Data.PairingRows` 0.09 s. All 75 web unit test files, `npm --prefix web run lint` and `build`, `test-readme.sh` and `test-boundaries.sh` pass. Playwright N16-N19, the changed chat/decision/api specs, `live:demo-path`, `live:online-demo-path`, the full shards and the fresh-environment check are left to CI and the lead's smoke.
+
+**Residual risks.** `Install/Step/Core.cls` `Purge` and `Test/Web/{Api,BodyLimit}.cls` route counts will conflict textually with Epic 41's edits at the second merge (keep both purge calls; add the route counts). A tell-now card held for more than 90 days could show Got it again after the Handled purge (retention is the ruled number). LANE A RESIDUAL 2 (the spine notes and the stale EXPERIENCE.md line at :969) remain the lead's.
