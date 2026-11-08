@@ -2,8 +2,8 @@
 title: 'Story 9.11: The evaluation paces its incident cases so none waits out its timer in a queue'
 type: 'bugfix'
 created: '2026-11-08'
-status: 'in-progress'
-baseline_revision: '225042eab4d6874c706ffa5dbfa44c6cbda3c8b5'
+status: 'done'
+baseline_revision: 'a811cf179630729616db7b3959fd9fb2b89c0951'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -211,7 +211,7 @@ Paths are relative to the repository root. Class paths are under `src/ocutalon/c
   - Touch nothing else in the class: above all not `Finish` (:917-922), `Text`, `Score` or the header lines 44-49, which Story 19.4 edits.
 - `src/ocutalon/cls/OcuTalon/Test/Eval/In.cls` -- also add `TestSkippedIncidentScored` (the Planner's condition), with its header bullet: on one ZzIn double with `late` = `"never"`, process incident cases `zz-sc-a`, `zz-sc-b` and `zz-sc-c` (`zz-sc-c` with `heldOut: true` in its case.json); collect the skipped `{case, reason}` of `b` and `c` (both `REASONPACED`); `Answer` a's row; then build the report twice from the same rows: the control `Report.Build(<the run's RunRef>, ..Folder, [])` and `Report.Build(<the run's RunRef>, ..Folder, skipped)`. Assert, against the control, that `scores.incidents.total` is larger by exactly 2 and `right` is unchanged, that `scores.heldOutIncidents.total` is larger by exactly 1 and `right` unchanged (so the share can only fall), and that `b` and `c` are listed under `skipped` and counted by `Report.Problems`. Give the incident case.json files a recorded expectation (cause category and element at fault) if `WriteIncident` does not, so that a's row is scored, not unscored; record in the spec which it was. The assertion messages say a stall can only lower the score.
 - `TestPaceBound` also pins the ruled text with a fixed string: `##class(OcuTalon.Eval.In).#REASONPACED` equals `the incident case {case} had no result after {seconds} seconds, so this run sends no more incident cases` exactly.
-- [ ] [Gate] `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` -- RULED 2026-11-08 (orchestrator, decide): update the three pins that assert the old "a skip counts in no score" behaviour, which the Planner's condition (AC7) ruled out, and nothing else in the file (Story 19.4 edits its lines 1516-1522 and 1742-1747; these hunks are a plain union with them):
+- [x] [Gate] `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` -- RULED 2026-11-08 (orchestrator, decide): update the three pins that assert the old "a skip counts in no score" behaviour, which the Planner's condition (AC7) ruled out, and nothing else in the file (Story 19.4 edits its lines 1516-1522 and 1742-1747; these hunks are a plain union with them):
   - the header bullet at :48-49 gains the exception: a skipped incident case counts as not right in SM-2's incidents (any other skip is still scored in nothing);
   - `TestSkipped` (:1108): the incidents expectation becomes `"0 of 1 share 0 met 0"`, with a message saying the skipped incident case counts as not right;
   - `TestText` (:1268): the `Incidents (SM-2)` row takes the exact text the run gives for 0 right of 1 (run the class, read the row, pin it verbatim).
@@ -243,6 +243,32 @@ Paths are relative to the repository root. Class paths are under `src/ocutalon/c
 
 ## Review Triage Log
 
+### 2026-11-07 -- Review pass
+- verdicts: 21 findings -- high 0, medium 2, low 17, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` (blind) Report scoring is wider than pacing: every skipped incident case is tallied, not only `REASONPACED` -- by design: the matrix row says "`REASONPACED` or any other reason"; the doc lines (Report header, `AddSkipped`) already say so.
+  - `[low]` `[reject]` (blind) The report does not mark that a skip lowered a score -- the skip is listed under "Cases skipped" with its reason and is a problem; a new flag would change the report shape the spec says is unchanged.
+  - `[low]` `[reject]` (blind) One stall ends all incident scoring of the run -- by design (Decided in-stage 3, AC3).
+  - `[low]` `[reject]` (blind) `INCIDENTWAIT` and `INCIDENTPOLL` are not tied together, and the 40-s margin is not checked -- constants; a test pins the literal 150 now (see the patch below).
+  - `[medium]` `[patch]` (blind, verification-gap) No test of a failed send followed by another incident case, nor of a removed previous row (Matrix rows 67 and 68) -- added `TestPaceAfterNoRow` in `Test/Eval/In.cls` (failed send is not the previous case; a removed row counts as answered) with two `mutation:` lines.
+  - `[low]` `[reject]` (blind) No test that a fresh `Start` begins with `PaceStalled` 0 -- `Start` creates a new instance by `%New` (`Director.CreateBusinessService`); `InitialExpression` is the language's own guarantee.
+  - `[low]` `[reject]` (blind) `AddSkipped` untested with an unreadable case.json or a held-out case skipped for another reason -- an unreadable case.json has kind "" and is not an incident skip; the held-out tally is the same code path as `TestSkippedIncidentScored`'s.
+  - `[low]` `[reject]` (blind) `StillSent`'s real `Pending` lookup runs only through the double's `##super` -- that is the real lookup; the double only counts calls.
+  - `[low]` `[patch]` (blind) The comment edits in `Eval/Report.cls` and `Test/Eval/Report.cls` run long and split a bullet mid-sentence -- the two headers were re-wrapped.
+  - `[low]` `[reject]` (blind) `Pace` runs after `NewRef` and the snapshot work -- the spec places it there ("after the IncidentCase is built"); the cost is negligible.
+  - `[low]` `[reject]` (edge) A case name listed twice in `names` is tallied twice -- needs a repeated name in the caller's list; theoretical.
+  - `[low]` `[reject]` (edge) `Pending`'s SQL error would read as "not sent" -- pre-existing `Pending` contract, used the same way by `Wait`; theoretical.
+  - `[low]` `[reject]` (edge) `INCIDENTPOLL` 0 gives `<DIVIDE>` -- a constant of the class; theoretical.
+  - `[false]` `[reject]` (edge) A pause up to 150 s inside `OnProcessInput` could hit a job timeout -- `iris_script` has no session timeout (Design Notes, The three callers); `TURNWAIT` is the same shape.
+  - `[false]` `[reject]` (edge) A skipped case with an unreadable case.json escapes the tally so a stall could raise a score -- such a case is refused by `Send` before `Pace`; no pacing skip carries it.
+  - `[low]` `[reject]` (edge, claim) The code tallies every skipped incident case, not only pacing ones -- same as the first row; by design.
+  - `[medium]` `[patch]` (verification-gap) A failed dispatch leaving the pace marker is untested -- the same fix as the patched row above (`TestPaceAfterNoRow`, with its mutation).
+  - `[low]` `[patch]` (verification-gap) `INCIDENTWAIT` is pinned only as above `MAXTIMER` -- `TestPaceBound` now asserts 150; mutation `INCIDENTWAIT = 1500` red.
+  - `[low]` `[reject]` (verification-gap) Real pacing against the real `EvalSink` is exercised only by CI -- by design (Decided in-stage 6; AC5's `evaluation` job).
+  - `[low]` `[patch]` (verification-gap) `TestSendsIncident`'s `If $IsObject(first)` guard can never fail -- replaced by an assertion that the row exists.
+  - `[low]` `[reject]` (verification-gap, other) The `$IsObject(case) &&` guard in `AddSkipped` is unreachable -- harmless, and the spec words it ("0 when the case.json cannot be read").
+  - (intent-alignment) No finding: it reports reading B (any skipped incident case is scored) as implemented, and the unit surface of the tests against CI's end-to-end surface (AC5), both as the spec states.
+
 ## Design Notes
 
 **Architecture decisions (Rule 6).**
@@ -270,7 +296,7 @@ No AC contradicts an AD's Rule, and no NFR is unmeasurable. "About 70 seconds ea
    - `Start` itself needs the enabled `EvalIn` item and a running production, so its real-surface evidence is AC5's CI job, which runs `eval/run.sh` unchanged.
    - Adding a second incident case to `Test.Eval.Run`'s run 1 would also prove it live, but that file is outside the footprint, so it is not planned.
 7. **(Implement stage.) `WriteIncident` records no expectation**, so `TestSkippedIncidentScored` writes its three case.json files itself (cause category `configuration`, element at fault `Orders.Process.Route`, with `heldOut` as a JSON boolean) beside `WriteSnapshot`. The answered case `zz-sc-a` is therefore scored (not unscored) and not right. `WriteIncident` is unchanged.
-8. **(Implement stage.) Two existing pins of `Test/Eval/Report.cls` contradict the Planner's condition.** `TestSkipped` (the incidents line `0 of 0 share null met null` after a skip of an incident case) and `TestText` (the `| Incidents (SM-2) | 0 | 0 | not measured |` line) fail on the warm stack now that a skipped incident case is tallied as not right. That file is outside the footprint, so it is not edited here; its owner must update both pins (one skipped incident case: 0 of 1) before merge. The Verification line "`Test.Eval.Report` passed (no existing report pin changes)" does not hold.
+8. **(Implement stage.) Two existing pins of `Test/Eval/Report.cls` contradicted the Planner's condition** (`TestSkipped`, `TestText`, and the header bullet). RULED 2026-11-08 (orchestrator): the three edits are allowed, a plain union with Story 19.4's hunks. `TestSkipped` now expects `0 of 1 share 0 met 0` and `TestText` the row `| Incidents (SM-2) | 0 | 1 | 0.0% | 80% | not met |`.
 
 **The three callers, with `eval/run.sh` unchanged.**
 - **`Report.Run`** (eval/run.sh's push run, its `--on-mock` rehearsals and the release-candidate attempts):
@@ -435,20 +461,21 @@ A local `eval/run.sh` does not fit in one 150-s call. The lead's Rule 19 fresh c
 - mutation: AC3 -- `Pace` never sets `PaceStalled` (a local flag decides the return, so it waits again for each later case) -> `TestPaceBound` red (the pauses and checks grow after `c`; the late result releases `d`) -- reverted, green.
 - mutation: AC3 -- `INCIDENTWAIT = 100` -> `TestPaceBound` red (not above `Decide.MAXTIMER`) -- reverted, green.
 - mutation: AC5 -- `Pace` sets `PaceStalled` whenever `PaceRef` is set (REASONPACED for every incident case after the first) -> `Test.Eval.Cases` `TestRecordedCases` red (every incident case after the first is skipped) -- reverted, green.
-- mutation: AC7 -- `AddSkipped` no longer tallies the skipped incident case -> `TestSkippedIncidentScored` red (`total` equals the control's, not control + 2; held-out likewise) -- reverted, green.
+- mutation: AC7 -- `AddSkipped`'s `Tally` of the skipped incident case removed -> `TestSkippedIncidentScored` red (`total` equals the control's, not control + 2; held-out likewise), and `Test.Eval.Report` `TestSkipped` (`0 of 1 share 0 met 0` reads `0 of 0 share null met null`) and `TestText` (the `Incidents (SM-2)` row) red -- reverted, green.
 - mutation: AC7 -- one word of the `REASONPACED` text changed ("no more" to "no further") -> `TestPaceBound` red (the fixed-string pin) -- reverted, green.
+- mutation: AC7 -- the same removal of `AddSkipped`'s tally -> `Test.Eval.Report` `TestSkipped` red (the incidents line stays `0 of 0 share null met null`) and `TestText` red (the `| Incidents (SM-2) | 0 | 1 | 0.0% | 80% | not met |` row), beside `TestSkippedIncidentScored` -- reverted, green.
+- mutation: Matrix row "previous case's send failed" -- `Set ..PaceRef`/`..PaceCase` moved before the `Try` in `SendIncident` -> `Test.Eval.In` red: `TestPaceAfterNoRow` ("its check was of the first row again") -- reverted from backup, green.
+- mutation: Matrix row "previous row removed" -- `StillSent` also answers 1 when `RunCaseIndexExists(RunRef, PaceCase)` is 0 -> `TestPaceAfterNoRow` red (the fourth case is not sent, its check was of the removed row) -- reverted from backup, green.
+- mutation: AC3 -- `INCIDENTWAIT = 1500` -> `TestPaceBound` red ("and is the ruled 150 seconds") -- reverted from backup, green.
 - mutation: AC6 -- `Production.cls` sets EvalIn `Enabled="true"` (the warm stack took the reload) -> `Test.Eval.Switch` `TestDefinition` red ("EvalIn is disabled in the definition") -- reverted, `Switch` green, `Production.cls` unchanged in `git diff`.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: needs `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` (outside the four named classes, and contended by Epic 19's Story 19.4)
+Status: done
+Blocking condition: none
 
-- Implement stage (2026-11-08): the four named classes are implemented and left uncommitted in the epic-9 worktree (Eval/In.cls, Eval/Report.cls inside :61, :197-198 and :952-971, Test/Eval/ZzIn.cls, Test/Eval/In.cls), with the nine `mutation:` lines under Verification. Warm-stack runs on lane B: `Test.Eval.In`, `Cases`, `Switch` and `Gate` pass; `docker/tests/test-class-rules.sh` passes; the out-of-footprint `git diff --stat` is empty. The review layers were not run.
-- The gap: AC7 (a skipped incident case counts as not right in SM-2) reverses two existing pins in `Test.Eval.Report`, which the spec's Verification expected to stay green. Both fail now:
-  - `TestSkipped` (`Test/Eval/Report.cls` :1108): `Do $$$AssertEquals(..Line(report.scores.incidents), "0 of 0 share null met null", "the incident case is not scored")` must read the incident case as one not-right incident, `"0 of 1 share 0 met 0"` (value to confirm by running), with the message saying a skipped incident case is scored as not right.
-  - `TestText` (:1268): `"| Incidents (SM-2) | 0 | 0 | not measured | 80% | not measured |"` must read `"| Incidents (SM-2) | 0 | 1 | 0.0% | 80% | not met |"` (by analogy with the items line at :1267), with the message adjusted.
-  - The header bullet at :48-49 of the same class ("a skipped case is listed and scored in nothing") also needs the incident exception.
-- Why it is a halt: the lead's instruction forbids editing `Test/Eval/Report.cls`, and Story 19.4 edits that file (45 lines on `origin/OCT-epic19`). Without the two pins updated, `shards-2` in CI is red.
-- Resume: amend the spec's footprint to allow these three hunks of `Test/Eval/Report.cls` (a plain union with 19.4 if they do not overlap), then re-dispatch; the implementation in the tree needs only that edit, then the Verification loop (once the Report class is green), the review layers and the finalize commit. Verification line 395 ("no existing report pin changes") should read "TestSkipped and TestText updated for AC7".
-- The warm stack `e9s11iw` was torn down; no fresh stack was started; `HEAD` is unchanged at the baseline.
+- Re-dispatch pass (2026-11-07), the open [Gate] item: `Test/Eval/Report.cls` pins updated for AC7 (header bullet, `TestSkipped` `0 of 1 share 0 met 0`, `TestText` row `| Incidents (SM-2) | 0 | 1 | 0.0% | 80% | not met |`). The pass-1 code of the four other classes is committed with it.
+- Review (4 layers): 21 findings, none high. Patched: 2 medium (one root cause, a test of the failed-send and removed-row Matrix rows: `TestPaceAfterNoRow`), 3 low (the literal 150 pin, the unconditional first-row assertion, two header re-wraps). The rest rejected as by-design, theoretical or false, each with its reason in the triage log. Nothing deferred.
+- Follow-up review recommendation: false (no high patched; 2 medium, 3 low patched).
+- Verification on the final tree (lane B warm stack, tag `e9s11iw`, torn down): `Test.Eval.In`, `Cases`, `Switch`, `Report` and `Gate` passed; `docker/tests/test-class-rules.sh` passed; the out-of-footprint `git diff --stat` is empty; `git status` lists only the five classes and this spec. Thirteen `mutation:` lines (four new or updated) were observed red and reverted from backup.
+- Residual risk: the end-to-end evidence for AC5 is Lane A's `evaluation` job in CI (not run here).

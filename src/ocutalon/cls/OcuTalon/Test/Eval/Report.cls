@@ -45,7 +45,8 @@
 ///     is a problem;
 ///   - TestSize: the largest request has its case, the cases over the number 100,000 tokens are flagged (in the text too) and an empty size
 ///     is unknown and a problem;
-///   - TestSkipped, TestUnscored, TestEmptyRun and TestOtherRun: a skipped case is listed and scored in nothing, and every skip is a
+///   - TestSkipped, TestUnscored, TestEmptyRun and TestOtherRun: a skipped case is listed and scored in nothing, except a skipped incident case, which
+///     counts as not right in SM-2's incidents (and in the held-out incidents when held out), and every skip is a
 ///     problem, the incident's included, because EvalIn sends every kind (notRunYet is 0 for each); TestEveryKindSent pins that; a row with no readable case file, no expectation or a kind that is not scored is
 ///     listed as unscored; a run with no row is a problem; the rows of another run are not in the report;
 ///   - TestIncomplete: a decided row that lacks a decision (a fallback included), a cost, a turn cost or a request size is listed once with its
@@ -1084,7 +1085,7 @@ Method TestSize()
 	Do $$$AssertEquals(report.size.%GetTypeOf("largestTokens"), "null", "with no known size the largest request is null")
 }
 
-/// Start's skipped list: every skip is a problem, the incident's too, because EvalIn sends every kind and no skip is notRunYet; none is scored.
+/// Start's skipped list: every skip is a problem, the incident's too, because EvalIn sends every kind and no skip is notRunYet; none is scored, except the incident's, which counts as not right.
 Method TestSkipped()
 {
 	Set ok = ..N("ok"), incident = ..N("incident"), noId = ..N("noid"), bad = ..N("bad"), gone = ..N("gone"), noText = ..N("notext")
@@ -1105,7 +1106,7 @@ Method TestSkipped()
 	Do $$$AssertEquals(..Booleans(report.skipped, "notRunYet"), "0,0,0,0,0", "no skip is a kind EvalIn does not send: the incident and the turn kinds are sent")
 	Do $$$AssertEquals(report.skipped.%Get(1).reason, "it has no item.itemId", "each keeps its reason")
 	Do $$$AssertEquals(..Line(report.scores.items), "1 of 1 share 1 met 1", "no skipped case is in a score")
-	Do $$$AssertEquals(..Line(report.scores.incidents), "0 of 0 share null met null", "the incident case is not scored")
+	Do $$$AssertEquals(..Line(report.scores.incidents), "0 of 1 share 0 met 0", "the skipped incident case counts as not right, so a stall can only lower SM-2")
 	Do $$$AssertEquals(..Texts(##class(OcuTalon.Eval.Report).Problems(report)), incident_": not sent: "_incidentReason_$Char(10)_noId_": not sent: it has no item.itemId"_$Char(10)_bad_": not sent: case.json is not a JSON object"_$Char(10)_gone_": not sent: the folder has no case.json"_$Char(10)_noText_": not sent: it has no turn.text", "all five are problems, the incident's too")
 	Set only = ##class(OcuTalon.Eval.Report).Build(run, ..Folder, [{"case": (incident), "reason": (incidentReason)}])
 	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(only).%Size(), 1, "a run that skipped only the incident has that one problem")
@@ -1265,7 +1266,7 @@ Method TestText()
 	Set text = ##class(OcuTalon.Eval.Report).Text(report, "Evaluation of the set")
 	Do $$$AssertEquals($Piece(text, $Char(10), 1), "# Evaluation of the set", "the text starts with the title")
 	Do $$$AssertTrue(text [ "| Items (SM-1) | 1 | 2 | 50.0% | 90% | not met |", "the items line: right, of, share, target and result")
-	Do $$$AssertTrue(text [ "| Incidents (SM-2) | 0 | 0 | not measured | 80% | not measured |", "the incidents line says not measured")
+	Do $$$AssertTrue(text [ "| Incidents (SM-2) | 0 | 1 | 0.0% | 80% | not met |", "the skipped incident case counts as not right in the incidents line")
 	Do $$$AssertTrue(text [ "| Held-out items | 0 | 0 | not measured |", "the held-out line has no target")
 	Do $$$AssertTrue(text [ ("- "_b_": decided ignore"), "the tell-now case missed is listed")
 	Do $$$AssertTrue(text [ ("Decisions at or above $0.001:"_$Char(10, 10)_"- "_b_", decide, claude-sonnet-5-5: $0.002"_$Char(10)), "the flagged decision is listed with its case, kind, model and cost")
