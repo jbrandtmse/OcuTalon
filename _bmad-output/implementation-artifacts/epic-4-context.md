@@ -4,7 +4,7 @@
 
 ## Goal
 
-Demo mode turns the signed-in page into the self-guided two-minute demo. It has a demo guide with one-click prompts and a labelled simulated phone and simulated mailbox, which are real production channels. Its Break the feed control makes the simulated partner send the session's 50 orders in a changed date format, and they fail for real. The server derives guide progress and Break the feed availability from what really happened, so nothing is claimed or canned. Stories 4.1 to 4.10 built all of this, including the step 3 cleanup, the client-only Demo view switch and the "Try it yourself" chips. Epic 4 is re-opened for Story 4.11, an "Other things to try" panel. It lets a judge see more of what OcuTalon does, each item with one button that uses an action the demo already has. Target: the Saturday release; not launch-blocking. Lane B.
+Demo mode turns the signed-in page into the self-guided two-minute demo. It has a demo guide with one-click prompts, a labelled simulated phone and simulated mailbox (real production channels), and a Break the feed control that makes the simulated partner send the session's 50 orders in a changed date format, which fail for real. The server derives guide progress and Break the feed availability from what really happened, so nothing is claimed or canned. Stories 4.1 to 4.11 built all of this, ending with the "Other things to try" panel. Epic 4 is re-opened for Story 4.12, a one-string fix-forward. The panel's document tip promises "the citation under the answer", but the web chat draws no citations in 1.0.4 (that is Story 20.2, not built). A judge who follows the tip would look for something that is not there. The fix makes the tip promise only what the page shows. Target: the v1.0.4 cut, which waits for it. Lane B.
 
 ## Stories
 
@@ -18,92 +18,45 @@ Demo mode turns the signed-in page into the self-guided two-minute demo. It has 
 - Story 4.8: Step 3 of the guide points to Break the feed without a second button (done)
 - Story 4.9: A Demo view switch shows the page as it looks on your own install (done)
 - Story 4.10: "Try it yourself" example prompts, one press each (done)
-- Story 4.11: Other things to try
+- Story 4.11: Other things to try (done)
+- Story 4.12: The demo guide's document tip promises only what 1.0.4 shows
 
 ## Requirements & Constraints
 
-- **When the panel shows.** Only in the demo view: the server's demo mode is on and the Demo view switch is on.
-  - It opens in the guide's finish state, after all five steps are done.
-  - It also opens at any time from a new "More to try" link in the guide row.
-  - With the demo view off, or on a non-demo install, neither the panel nor the link shows.
-- **Items, in order.** Each item has a short label, one look-for line and one button that does it. An item shows only when its feature is present on the instance.
-  1. **Change how OcuTalon talks.** Opens the Persona card, suggests a style such as Pirate or Spanish, then suggests asking "Is anything wrong right now?".
-  2. **Send a suspicious email.** Drops the existing suspicious sample into the Simulated mailbox. Look for the refusal and its reasons.
-  3. **Reject a fix.** Break the feed again, then reject. Look for "Nothing was changed."
-  4. **See it as on your own install.** Turns the Demo view off.
-  5. **Remember something, then ask about it later.** Needs Epic 19's memory.
-  6. **Add a document and ask about it.** Look for the citation. Needs Epic 19's documents.
-  7. **Write a heartbeat checklist and press Run now.** Needs Epic 39's heartbeat.
-- **What ships now.** Items 1 to 4. Items 5 to 7 stay hidden on this branch because their epics (19 and 39) are still in the backlog. Their labels and look-for lines may be ruled now, so later epics only flip availability.
-- **Look-for lines.** They name only what the demo shows on screen. None of the lines for items 1 to 4 mentions memory, documents or the heartbeat.
-- **Labels name the on-screen controls exactly as they appear** (the owner's video script follows them):
-  - the rail's Persona card, headed "Persona";
-  - the mailbox chip "Sample: suspicious request";
-  - the "Demo view" switch;
-  - the "Break the feed" button.
-  - The Planner wants every label and look-for line as early as the spec gate.
-- **Public text.**
-  - Every string follows the UX spec verbatim, under the public-text rules: straight ASCII quotes, styled only with DESIGN.md tokens.
-  - The finish state's existing line "More to try: simulate an incoming email ..." (4.7) stays beside the new link. It changes only if the spec-gate ruling changes it.
-- **Footprint.** The story touches only:
-  - `web/src/app/guide/**` and new files under `web/src/app/`;
-  - at most one small new read-only server class or method, for availability;
-  - the web unit and e2e tests;
-  - new `ci/mock/scenarios/B/*.json` files (never edit an existing scenario);
-  - the UX files.
-- **Tests.**
-  - The panel appears after step 5 and through the link.
-  - Each button performs its action on the demo path.
-  - Items 5 to 7 are absent while their features are unavailable, and a unit test of the catalog shows that a feature's appearance shows its item.
-  - Every control works by keyboard.
-  - Nothing appears with the Demo view off or on a non-demo instance.
-  - Fixed-strings tests pin the ruled strings.
-  - CI is green on every workflow at merge.
+- **The ruled string (public text, the Planner's ruling `guide_documents_citation_promise`).** Item 6, labelled "Ask about a document", gets this look-for line, verbatim and byte for byte:
+  `On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file.`
+  - It lives in `web/src/app/guide/more-to-try-view.ts`, as the `documents` item's `lookFor`.
+  - Item 6's label and its control "Open the Documents page" stay as they are.
+- **Exactly four files change, each hunk a one-string swap:**
+  - `web/src/app/guide/more-to-try-view.ts` (the source);
+  - `web/e2e/guide/more-to-try.spec.ts` (pin);
+  - `web/scripts/more-to-try-view.test.mjs` (pin);
+  - `web/scripts/ux-strings.test.mjs` (pin).
+  - No label, button or other string changes. No other file changes.
+- **The UX source is already amended.** EXPERIENCE.md's item 6 already carries the ruled string with a marker citing the ruling (the lead made this planning amendment at the charter). `ux-strings.test.mjs` reads EXPERIENCE.md as the string's source, so the code and all three pins must match it exactly. The developer does not edit EXPERIENCE.md.
+- **Public-text rules apply.** Straight ASCII quotes and punctuation exactly as ruled. Nothing is paraphrased or reflowed.
+- **Later work.** Story 20.2 restores a citation line when it ships, and the ledger entry for that belongs to 20.2. This story adds no ledger entry for it.
+- **CI is green on every workflow at merge.**
 
 ## Technical Decisions
 
-- **Server-built availability catalog.**
-  - The server builds the catalog of which items to show from what it already knows about its installed classes and settings. The existing pattern for that kind of check is `OcuTalon.Channel.Telegram.In.Included()`.
-  - The page reads it through a read-only read. There is no new write path, role or install step.
-  - The client never hard-codes which epics have merged, so a later feature appears without a client change.
-  - Fallback: if gating per feature can't avoid a code change, add one line per item when its epic merges. The spec must say which way was built.
-- **Buttons reuse the existing controls exactly.** Each button acts as the existing control does:
-  - the Persona card's Change disclosure (Epic 40, done). The online demo offers presets and Another language only, never Your own words;
-  - the suspicious mailbox sample (`POST /api/v1/mailbox/samples/suspicious-request`, decided live as untrusted email);
-  - Break the feed (`POST /api/v1/demo/break-feed`). Its availability still comes only from `Demo.Guide.Compute`, and it is inactive while an Orders incident is open;
-  - the Demo view switch (4.9's client-only signal, kept in `sessionStorage`).
-  - Nothing happens without a press.
-- **One demo view signal.** The panel and the link read only 4.9's demo view signal, never `demoMode` directly. A source test enforces this.
-- **Guide state stays server-derived.** `Demo.Guide.Compute` alone decides the finish state and step states. The page never decides progress. The "trace opened" and "run again" markers are the guide's only REST writes.
-- **The all-clear rule.** An all-clear comes only from code. `check_status`'s answer is code-built, so the "Is anything wrong right now?" suggestion under a persona still gets a code-built status.
-- **Focus and announcements.**
-  - Focus moves only on the user's own press, or through `shared/focus-rule.ts` when an update removes the focused element.
-  - The page speaks only through `Announcer`.
-  - Every control is a native button or link.
-- **Pinned surfaces.**
-  - A new e2e folder updates `playwright-projects.test.mjs`.
-  - Floor specs live in `web/e2e/floor/` (`live:floor` only). Floor rules apply there: no `transition`, no fixed heights, no `sticky` or `IntersectionObserver`, and width queries only through `LAYOUT_QUERIES`.
+- **How the panel works (from 4.11, unchanged here).**
+  - The panel has seven items, in a fixed order, each with a label, a look-for line and one native button or link.
+  - The server lists which features are present in the guide's payload, through a read-only read. An item whose feature is absent is left out, not shown disabled.
+  - The client never hard-codes which epics have merged.
+- **Signals and state.**
+  - The panel and the "More to try" link read only 4.9's demo view signal, never `demoMode` directly.
+  - `Demo.Guide.Compute` alone decides guide progress.
+- **Strings are pinned in three places.** The e2e spec, the view's unit test and the UX-strings test each pin the ruled strings. A changed string means all three pins change in the same commit as the source.
 
 ## UX & Interaction Patterns
 
-- **Where it lives.** The panel belongs to the demo guide, and the "More to try" link sits in the guide row.
-- **The finish state** already shows, in order: the Done line, the run total, the links, the "More to try" line, the Try it yourself chips (4.10) and Run again. The panel must coexist with these.
-- **UX documents to update.** Each change carries a marker citing the owner decision of 2026-11-06.
-  - EXPERIENCE.md's "Demo guide and controls": the finish state and the guide row.
-  - DESIGN.md, wherever the guide's look changes.
-- **Look of related controls.**
-  - The Try it yourself chips use the sample email chips' look.
-  - Persona card styling uses no attention colors.
-  - Break the feed keeps its attention and secondary style rules.
+- **Where the panel lives.** It sits in the demo guide, in the demo view only. In the finish state it opens by itself, after the links and before the Try it yourself row. The "More to try" link in the guide row opens it at any time.
+- **Item 6's control** is a link to the Documents page.
+- **Look-for lines name only what the demo shows on screen.** That rule is the reason for 4.12: the 1.0.4 chat draws no citation, so no line may promise one.
 
 ## Cross-Story Dependencies
 
-- **Builds on:**
-  - 4.7's finish state and its "More to try" line;
-  - 4.9's demo view signal and switch;
-  - 4.10's Try it yourself row;
-  - 4.6's sample chips;
-  - 4.4's Break the feed box and its availability rules;
-  - Epic 40's Persona card (done; `web/src/app/rail/persona-card/`).
-- **Later epics.** Items 5 to 7 turn on through the catalog when Epic 19 (memory, documents) and Epic 39 (heartbeat) merge. They are not built in this story.
-- **Run order.** The Planner ordered Story 11.26 (DW-775) to run before 4.11 on Lane B, for the 1.0.2 cut.
+- **Builds on 4.11.** 4.12 changes only one string from 4.11's item catalog (`more-to-try-view.ts`) and its existing pins.
+- **Story 20.2** (web chat citations, not built) will bring a citation promise back when it ships.
+- **The v1.0.4 release cut** waits for this story to merge.

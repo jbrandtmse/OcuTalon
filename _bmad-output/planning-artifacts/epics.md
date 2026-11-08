@@ -2879,6 +2879,30 @@ So that I see more of what OcuTalon does without having to work out how.
 **And** EXPERIENCE.md's "Demo guide and controls" (the finish state and the guide row) and DESIGN.md, where the guide's look changes, gain the panel, each with a marker citing the owner decision of 2026-11-06
 **And** CI is green on every workflow, and the story touches only `web/src/app/guide/**`, new files under `web/src/app/`, at most one small new read-only server class or method for availability, the web unit and e2e tests, new mock scenario files, and the UX files
 
+### Story 4.12: The demo guide's document tip promises only what 1.0.4 shows
+
+[ADDED 2026-11-08, guide citation promise, fix-forward, Planner-ruled PUBLIC TEXT (`planner_ruling subject=guide_documents_citation_promise`, 2026-11-08 ~17:45Z, under the owner's delegation). Epic 4 is re-opened for it under SC-5. Target: the v1.0.4 cut, which waits for it. The web chat shows no citations in 1.0.4 (that is Story 20.2, not built), so the tip's promise "look for the citation under the answer" sends a judge looking for something that is not there.]
+
+As a judge following the "Other things to try" panel,
+I want the document tip to tell me to look for something the page actually shows,
+So that following it never leaves me looking for a citation that 1.0.4 does not draw.
+
+**Acceptance Criteria:**
+
+**Given** the "Other things to try" panel's item 6, "Ask about a document" (Story 4.11)
+**When** its look-for line shows
+**Then** it reads, verbatim (the Planner's ruled public text): "On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file." (`web/src/app/guide/more-to-try-view.ts`, the `documents` item's `lookFor`)
+
+**Given** the string's pins
+**When** the tests run
+**Then** the three pins match the ruled string byte for byte: `web/e2e/guide/more-to-try.spec.ts`, `web/scripts/more-to-try-view.test.mjs` and `web/scripts/ux-strings.test.mjs`
+**And** EXPERIENCE.md's item 6 look-for (the string's `ux` source, which `ux-strings.test.mjs` reads) carries the same ruled string, with a marker citing this ruling (a lead-side planning amendment made at the charter)
+
+**Given** the change
+**When** this story merges
+**Then** no other file changes: exactly those four files under `web/`, each hunk a one-string swap, no label, button or other string touched; Story 20.2 restores a citation line when it ships (ledger entry owned by 20.2)
+**And** CI is green on every workflow
+
 ## Epic 5: OcuTalon watches a production and explains what broke
 
 A user asks in plain words to watch a production; new failures are picked up within 15 seconds, grouped by the settle rule into one incident with a plain-English cause, the element at fault and a proposed fix, with its evidence behind Show details; the incident moves through its states; asked whether everything is fine, OcuTalon never gives a false all-clear.
