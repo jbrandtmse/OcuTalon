@@ -2763,3 +2763,5 @@
 2026-11-08T10:35:44Z	Epic 32	ci_resolved	story=32.6 sha=57b1acec result=success(after_L6_rerun) runs=42464338633,42464338631
 2026-11-08T10:35:44Z	Run	ci_green_verified	head=d6b8af41 result=success note=feature_with_5.14
 2026-11-08T10:35:44Z	Epic 32	runner_resumed	agent=aad5a4394f85fc76a with=green;close+integrate_onto_d6b8af41(U9)
+2026-11-08T10:38:52Z	Epic 32	runner_clarification	kind=CI_WAIT agent=aad5a4394f85fc76a sha=cf04f99a(final;integrated_onto_d6b8af41) runs=42472273728,42472273515 epic_close=done(epic-32_done;DW-911_to_decision_sheet;DW-774_page.close_overflow_for_32.7)
+2026-11-08T10:45:13Z	Epic 41	runner_clarification	kind=PUBLIC_TEXT agent=a70c5c6c3ec305303 head=4bce5195(local) origin=4beea3c2(41.2_done;CI_queued_42471000486,42471000422) story=41.3_spec_gate strings=daily-note_line_formats(DailyNote.cls) vetoes=U-309(Data.Turn.SessionRotated_append),U-310(decision_line_without_channel;DW-941_escalated)
