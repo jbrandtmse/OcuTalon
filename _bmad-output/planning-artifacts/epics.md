@@ -6415,7 +6415,7 @@ So that OcuTalon runs on the models I choose and never spends more than I allow.
 
 **Given** the README
 **When** this story merges
-**Then** its provider section names the supported providers, says each key comes from its own environment variable listed in `.env.example` without a value and never from the settings page, says that with no Anthropic key but another supported provider's key OcuTalon uses that provider's default model, and claims only providers marked supported (FR-39, FR-58, NFR-11)
+**Then** its provider section names the supported providers, says each key comes from its own environment variable listed in `.env.example` without a value and never from the settings page, and claims only providers marked supported (FR-39, FR-58, NFR-11) [AMENDED 2026-11-08, Story 18.3, decided by the Contest Planner under the owner's delegation (ruling planner-2026-11-08-18.3, relayed by the orchestrator): it also read "says that with no Anthropic key but another supported provider's key OcuTalon uses that provider's default model,"; dropped because Anthropic is the only provider marked supported, so the sentence would describe no reachable case]
 
 ### Story 18.4: Read the digest on every channel and mark notices as handled
 

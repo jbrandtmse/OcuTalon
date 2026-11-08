@@ -167,7 +167,7 @@ Microcopy rules. The brand posture lives in `DESIGN.md` under Brand & Style.
 | Do | Don't |
 | --- | --- |
 | "I'll watch the Orders production and stay quiet unless something needs you." | "Got it! 👍 I'm now monitoring Orders for you!" |
-| "I couldn't work out the cause (the model didn't answer within 60 seconds), so I'm not proposing a fix." | "Error: LLM timeout (code 504)." |
+| "I couldn't work out the cause (the model didn't answer within the time allowed), so I'm not proposing a fix." [AMENDED 2026-11-08, Story 18.3, DW-100, Contest Planner ruling] | "Error: LLM timeout (code 504)." |
 | "Approved from Telegram at 14:15" | "Request #4512 status: APPROVED (telegram)" |
 | "That code didn't work. Open the OcuTalon page and scan the QR code there for a new one." | "Invalid pairing token." |
 | "Not checked: Jira (unreachable since 02:10). Everything else I checked passed." | "All systems green (Jira unavailable)." |
@@ -781,12 +781,12 @@ No reply to an unpaired chat identifies a session, names anyone, or reveals any 
 
 **Fallback reasons** (FR-4), in plain words:
 
-- "the model didn't answer within 60 seconds"
+- "the model didn't answer within the time allowed" [AMENDED 2026-11-08, Story 18.3, DW-100, Contest Planner ruling]
 - "the model's reply was empty"
 - "the model's reply was cut off" (if the platform reports it)
 - "the model declined to answer" (if the platform reports it)
 - "the model returned an error"
-- "the model was busy and retries ran out"
+- "the model was too busy to answer" [AMENDED 2026-11-08, Story 18.3, DW-100, Contest Planner ruling]
 - "this would have gone over the token budget"
 - "this request would have been too large to send"
 - "today's cost limit has been reached"

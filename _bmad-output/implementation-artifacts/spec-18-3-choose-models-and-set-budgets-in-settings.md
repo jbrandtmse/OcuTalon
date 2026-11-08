@@ -35,7 +35,7 @@ deferred: []
 - Tests restore every value they change: models, second models, prices, budgets, Config Store entries, rows and key variables. Production tests run on a lane-D throwaway.
 
 **Never:**
-- Edit Lane A files (U-177): `src/bridge/**` and the Lane A test areas. The one exception is the `Test/Watch/NoticeText.cls` literal, and only if the lead obtains the U-177 grant (Design Notes).
+- Edit Lane A files (U-177): `src/bridge/**` and the Lane A test areas. The one exception is the `Test/Watch/NoticeText.cls:270` literal, which the U-177 grant (ruled 2026-11-08, Design Notes) allows.
 - Edit `Channel/WebChat/Out.cls`, `web/src/app/chat/**` (importing `fallbackReasonText` is fine) or `web/e2e/chat/notice.spec.ts`. Edit nothing in `Core/CommandsIn.cls`, `Web/Api.cls` or `Test/Web/{Api,BodyLimit}.cls` beyond the named additions.
 - Show or accept a key on the page. List an unsupported provider on the page or in the README. Add a key variable to `.env.example`.
 - Re-implement a bridge check. Use `Ens.Director.UpdateProduction`. Restart the production.
@@ -171,9 +171,10 @@ deferred: []
 - **AC 4.** Given the Budgets section, when an admin saves the token budget or the cap, then the page shows the saved text, the values apply to the next decision, and they are audited. The server half is already met (Design Notes). The page is pinned by S14. For an admin, the cost-cap banner's "Budgets" opens this section (`banner-view.test.mjs` and `banners.spec.ts`).
 - **AC 5.** Given no model key, when the banner shows, then it reads "OcuTalon has no model key, so every decision uses fixed rules. Add a key for a supported provider (for example, ANTHROPIC_API_KEY) to the .env file and restart OcuTalon." with "How to set a key". Pinned by `Test.Msg.Catalog`, `catalog.test.mjs` and `banners.spec.ts`.
 - **AC 6 (DW-100).** Given the accepted wording, when any timeout or rate-limit fallback is rendered, then the timeout text names no number of seconds and the rate-limit text does not say retries ran out. Every test that pinned the old text pins the new one.
-- **AC 7.** Given the README, when this story merges, then "Set a model key" names Anthropic as the supported provider and says the key comes from its own variable, listed in `.env.example` without a value and never from the settings page. It also says the default-model rule for another supported provider's key, and names no other provider. Pinned by `test-readme.sh`.
+- **AC 7.** Given the README, when this story merges, then "Set a model key" names Anthropic as the supported provider and says the key comes from its own variable, listed in `.env.example` without a value and never from the settings page. It names no other provider and does NOT carry the default-model sentence for another provider's key (dropped by the Planner's ruling, planner-2026-11-08-18.3). Pinned by `test-readme.sh`.
 
 ## Spec Change Log
+- 2026-11-08, rulings (Contest Planner under the owner's delegation, relayed by the orchestrator, key planner-2026-11-08-18.3): PUBLIC TEXT rows 1-21 approved as written (1-6 verbatim); row 22 approved without its last sentence; U-177 grant for `Test/Watch/NoticeText.cls:270` only; EXPERIENCE.md :170, :784, :789 amended by the lead to rows 20 and 21 with marker `[AMENDED 2026-11-08, Story 18.3, DW-100, Contest Planner ruling]`; spine REST row :1510 rewritten and the models/test row added by the LEAD at story close (not a stage edit); AD-19's nested-body note waits for an attended Update.
 - 2026-11-08, spec gate (lead, Epic 18 runner): added Task 0 (measure the gateway response timeout behind `TESTWAIT`, product default 5); applied the AMENDMENT NOTE to epics.md (Budgets AC: `Bridge.Settings.Set`, not `Ens.Director.UpdateProduction`; tier 1, reported). PUBLIC TEXT, the U-177 grant for `Test/Watch/NoticeText.cls:270` and the SPINE/UX notes went to the orchestrator; no implement before the ruling.
 
 ## Review Triage Log
@@ -251,7 +252,7 @@ None of these is in an open branch's diff (checked 2026-11-08) except `ux-string
   - Story 18.4's Playwright test (it covers the Settings page);
   - the later Settings sections (Tools and MCP servers, Roles), which use `refusal.ts`.
 
-**PUBLIC TEXT (proposed; the lead sends it to the Planner before implement):**
+**PUBLIC TEXT (RULED 2026-11-08, ruling key planner-2026-11-08-18.3, the Contest Planner under the owner's delegation, relayed by the orchestrator: rows 1-21 approved exactly as written, 1-6 confirmed verbatim; row 22 approved WITHOUT its last sentence -- the README paragraph ends at "...and the page never shows one."):**
 
 | # | String | Source | File |
 |---|---|---|---|
@@ -276,7 +277,12 @@ None of these is in an open branch's diff (checked 2026-11-08) except `ux-string
 | 19 | When today's model cost reaches the cap, decisions use fixed rules until midnight in the instance's time zone. 0 is off. | none -- proposed | `settings-view.ts` |
 | 20 | the model didn't answer within the time allowed | none -- proposed (DW-100; was "...within 60 seconds") | `Catalog/Core.cls` |
 | 21 | the model was too busy to answer | none -- proposed (DW-100; was "...busy and retries ran out") | `Catalog/Core.cls` |
-| 22 | README, after the first line of "Set a model key": "Anthropic is the supported model provider: in Settings, an admin can choose Claude Haiku 5.5 or Claude Sonnet 5.5 for each agent. Each supported provider's key comes from its own environment variable, which `.env.example` lists without a value; Anthropic's is `ANTHROPIC_API_KEY`. A key is never entered on the settings page, and the page never shows one. When the Anthropic key is not set but another supported provider's key is, OcuTalon uses that provider's default model." | AC 7 / FR-39 | `README.md` |
+| 22 | README, after the first line of "Set a model key": "Anthropic is the supported model provider: in Settings, an admin can choose Claude Haiku 5.5 or Claude Sonnet 5.5 for each agent. Each supported provider's key comes from its own environment variable, which `.env.example` lists without a value; Anthropic's is `ANTHROPIC_API_KEY`. A key is never entered on the settings page, and the page never shows one." (RULED: the last sentence dropped) | AC 7 / FR-39 | `README.md` |
+
+
+**PUBLIC TEXT ruling for the implement stage (binding):** write every string byte for byte and pin each with a fixed-string assertion (exact comparison, not a pattern); the README sentences kept go into `docker/tests/test-readme.sh`'s KEY_FACTS (or its equivalent fixed-string list) one by one; the dropped sentence must NOT appear anywhere. New strings EXPERIENCE.md does not hold go under `ruled` in `web/scripts/ux-strings.test.mjs`, keyed `'Story 18.3 ruling planner-2026-11-08-18.3 (the Contest Planner under the owner\'s delegation, 2026-11-08, relayed by the orchestrator: the Models and Budgets labels and help lines, the agent and provider names, the Test help and failure texts, and the price labels)'`; rows 20 and 21 now sit in EXPERIENCE.md (amended by the lead) and are sourced `ux`. No other new user-facing string may ship.
+
+**U-177 GRANT (ruled):** exactly ONE Lane A literal may change: `src/ocutalon/cls/OcuTalon/Test/Watch/NoticeText.cls:270` (`TestFallback`), to row 20's text. No other Lane A file. If `Test/Digest/Compose.cls:524` or any other Lane A test turns out to need a change, HALT with an `intent gap` naming it.
 
 These are reused unchanged: "Save changes", "Saved. Applies within a minute. Recorded in the audit log.", "Couldn't save. Nothing was changed.", the busy notice, and the section names Models and Budgets.
 
