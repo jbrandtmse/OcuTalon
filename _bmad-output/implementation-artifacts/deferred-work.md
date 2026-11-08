@@ -4534,6 +4534,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: U-279 at=2026-11-05T05:37:42Z#848 (a) keep; EXPERIENCE.md is contended with Epic 40, so not edited by 34.1; checked against prd.md P23
 - 2026-11-05T07:02:58Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=spec_gate note=apply only after Epic 40 merges; exact text above; epics.md UX-DR144 line and EXPERIENCE.md Step 3 Documents bullet
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=EXPERIENCE.md:979+line_after_:1138_and_epics.md:476_in_d59505f4;pinned_by_live:documents_step1(both_files,word_for_word)
 
 ### DW-720: Owner ruling U-280 consistency: a reply that says 'None of your documents cover that.' carries no document citations, and a reply with document citations never says it; code decides both from the same turn's documents-tool results, and tests cover both directions
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4909,11 +4910,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: evidence/19-6-task0-extraction.md M3
 - 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 is the first product caller; serialise or amend AD-21's wording
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=Docs.Extract.Read_takes_^OcuTalon.Docs.Extract(d59505f4);Test.Docs.ExtractMore_TestOneReadAtATime(lock_removed_mutation_red)
 
 ### DW-828: Clear on a timed-out read waits for a work item inside one long C call (a 30 s sleep held Clear 29 s), so a PDF whose time goes into one C call (a decompression bomb) can keep Read past its limit
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: evidence/19-6-task0-extraction.md M3: the page loop stops, a single C call does not
 - 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 adds files from the Documents page; bound it there (page or size caps before the C call)
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=bounded_zlib_stand-in_in_ocutalon_extract.py(d59505f4);TestBombStops_contents_too_large_0.26s(stand-in_off_mutation_red)
 
 ### DW-829: On an IPM install, pip -t leaves older copies of six distributions that <mgr>/python already holds (certifi, charset_normalizer, idna, requests, typing_extensions, urllib3) beside the pinned dist-info, so the pinned files may not be the ones imported; U-294 condition 1 and README bullet A5 ('at the same versions') depend on it
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: high | footprint: out-of-footprint
@@ -4933,12 +4936,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: python-docx 1.1.2 behaviour; no sample covers it
 - 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 answers from Word runbooks
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=docx_block_walker(w:p,w:tbl,w:sdt)_in_d59505f4;TestContentControls(iter_inner_content_mutation_red)
 
 ### DW-832: A line of a file's own text that starts with '## ' is indistinguishable from an extraction page or heading marker, so Story 19.4's splitter would open a section there
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: inherent in the Markdown markers (19.6's decided design)
 - 2026-11-06T23:14:10Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4's splitter escapes or ignores such lines
 - 2026-11-08T03:39:48Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=adjudication note=residual:the_splitter_half_is_done(only_markdown_##_lines_open_sections;\##_is_the_escaped_passage_line);Story_19.7's_extraction_must_write_a_file's_own_##_lines_as_\##
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=_escape_writes_\##_(d59505f4);TestEscapedLines,TestWorkerEscape(escape_removed_mutation_red)
 
 ### DW-833: Test.Docs.Extract:TestNothingStored compares an empty knowledge-base half (no KB table before Story 19.4) and only the $Data flag of the Document globals, so a stray write elsewhere is not caught
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-epic
@@ -5341,6 +5346,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: measured in 19.4's implement
 - 2026-11-07T23:30:13Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7's PDF and Word files are the large ones: batch or parallel embedding there
+- 2026-11-08T06:10:59Z status=routed owner=burndown by=spec_gate note=declined_by_19.7_plan:the_batching_seam_is_Docs.Store.Write's_per-passage_embed_loop,which_Story_19.5_rewrites;one_Embedder_work_item_per_Index_batch_after_19.5(the_Epic_19_part_2_burn-down)
 
 ### DW-895: Two Lane B comments are stale now that DocumentOps is built: Web.Documents' OWNER parameter says DocumentOps is disabled until Story 19.4, and Test.Web.DocumentsApi's comment at :537
 - source: spec-19-4-answer-from-documents-with-citations.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -5395,3 +5401,49 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Install/SecurityOverview.cls STATEMENT says TestToolInventory checks every running runner, but the documents tool now lives on a per-request manager that Inventory never reads; security-overview.md:203 lists chat, decisions and approvals only; new wording is PUBLIC TEXT
 - 2026-11-08T11:22:28Z status=wontfix-accepted owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=cr note=public text; reopen_if=a TurnToolsClass tool other than the documents knowledge base ships, or the overview is regenerated for step 3
+
+### DW-924: DW-719's UX-DR144 line (epics.md:476) has no check script pinning it: test-documents.sh cannot read epics.md because test-ci-config.sh requires shards-3's input pattern in ci/units.sh (19.5's file) to claim it
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: docker/tests/test-documents.sh step 1; ci/units.sh group_input_pattern
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=implement deviation; fix needs a ci/units.sh pattern union or a hosted check
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=QA:ci/units.sh_live:documents)_claim_of_epics.md_for_shards-3+test-documents.sh_step1_UX-DR144_check+test-ci-changes.sh_cases(orchestrator_ruling;veto_U-307);AC7_mutations_red
+- 2026-11-08T10:04:54Z status=routed owner=burndown by=owner note=U-307_reversed(2026-11-08T09:26:56Z#935):no_shards-3_claim_of_epics.md;residual:pin_the_UX-DR144_line_(epics.md:476)_with_a_static_grep_in_the_hosted_checks_job,which_needs_a_CHECK_SCRIPTS_entry_in_ci/units.sh
+
+### DW-925: A PDF or Word text cut at MAXTEXT (200,000 chars) shows ready with no hint its tail is not indexed (Docs.Ops.Text drops answer.cut)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Docs/Ops.cls Text; a hint needs PUBLIC TEXT
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=product call if a hint is wanted
+- 2026-11-08T09:45:29Z status=wontfix-accepted by=adjudication note=the_cut_note_(CUTNOTE)_is_indexed_as_the_cut_file's_last_passage;a_page_hint_is_new_PUBLIC_TEXT;reopen_if=a_ready_PDF_or_Word_file_over_200000_characters_is_answered_without_its_tail_and_a_user_or_eval_case_reports_it,or_a_document_detail_view_is_planned
+
+### DW-926: Word reader skips text in tracked changes (w:ins), simple fields, smart tags and custom XML in a paragraph (as python-docx Paragraph.text did before)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: ocutalon_extract.py _runs_text reads w:r, w:hyperlink, w:sdt only; a doc of only w:ins runs is no_text
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=not a regression
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=CR_patch:_runs_text_reads_w:ins,w:fldSimple,w:smartTag,w:customXml(deleted_text_skipped);Samples.DocxTracked+TestContentControls(branch_removed_mutation_red)
+
+### DW-927: Flate bound does not cover RunLength/LZW/ASCII85 filters, and a swallowed _TooLarge leaves a negative budget so the next zlib call is unbounded (left+1=0) (unverified)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: ocutalon_extract.py _BoundedZlib/_BoundedObject; fix max(left,0)+1 and budgets for other filters
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=unverified; settle with per-filter bomb samples
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=CR_patch:budget_spent_refuses_every_later_decode(pdfplumber/pdf.py:61_swallow_confirmed);LZW,RunLength,CCITT_counted;TestBombStops,TestBoundedDecoders(4_mutations_red)
+
+### DW-928: No test pins that the extraction worker gets only the seconds left after the lock wait (left replaced by timeout keeps every test green)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Docs/Extract.cls Read; TestOneReadAtATime
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=needs a slow-by-design fixture
+- 2026-11-08T09:45:30Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=CR_patch:TestTimeLeft_pins_the_seconds_left_after_the_lock_wait(left->timeout_mutation_red)
+
+### DW-929: Test.Docs.Files copies Test.Docs.Turns' private turn helpers (DropDocuments, Ready, Turn, Data, ToolResult, AssertSteps, SameJob, Holds) instead of sharing one fixture
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Rule 2: Files.cls:107-307 repeats Turns.cls:99-215,405; the spec forces the copy (Turns.cls is Story 19.5's file, the helpers are Private) and names the Epic 19 burn-down to lift them
+- 2026-11-08T09:42:33Z status=routed owner=burndown by=cr note=spec-forced copy; unify after 19.5 merges: lift the helpers into one Test.Docs fixture both classes extend
+
+### DW-930: _BoundedObject passes flush() and copy() through to the real zlib object unbounded
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: ocutalon_extract.py _BoundedObject.__getattr__; pdfminer.six 20260107 (pinned by the image) calls only decompress on the object (decompress_corrupted)
+- 2026-11-08T09:42:33Z status=wontfix-theoretical owner=19-7-answer-from-pdf-and-word-documents by=cr note=real only if a pdfminer upgrade calls flush or copy on the decompress object
+
+### DW-931: The extraction lock ^OcuTalon.Docs.Extract serialises the readers of one namespace, while the Extractor category is instance-wide
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Docs.Extract.Read locks a global of the caller's namespace; the class doc and AD-21 say one read at a time on the instance
+- 2026-11-08T09:42:33Z status=wontfix-theoretical owner=19-7-answer-from-pdf-and-word-documents by=cr note=real only if OcuTalon is installed in two namespaces of one instance

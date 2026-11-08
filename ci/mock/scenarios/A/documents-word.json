@@ -1,0 +1,21 @@
+{
+  "name": "documents-word",
+  "match": {
+    "marker": "documents-word"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "documents",
+        "input": {
+          "query": "how do I restart the lab feed?"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock answered from the Word runbook."
+    }
+  ]
+}

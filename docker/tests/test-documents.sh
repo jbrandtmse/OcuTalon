@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Live unit of the documents (Story 19.4; AD-1, AD-5, AD-21, AD-23, DW-739): builds the image and starts it in one throwaway compose project, signs the README
+# Live unit of the documents (Stories 19.4 and 19.7; AD-1, AD-5, AD-21, AD-23, DW-739): builds the image and starts it in one throwaway compose project, signs the README
 # account in, and drives the REAL routes /v1/documents over HTTP, the way the page does, so that CommandsIn, DocumentOps, the Embedder worker and OcuTalonKB.Docs
 # are all real (no double, no page.route):
-#   1. the texts that Story 19.4's rulings fix are in the files that ship them (docs/bridge-guide.md, docs/security-overview.md), word for word;
+#   1. the texts that Story 19.4's rulings fix are in the files that ship them (docs/bridge-guide.md, docs/security-overview.md), and the texts that DW-719's
+#      owner ruling fixes (Story 19.7: two lines of EXPERIENCE.md), word for word;
 #   2. POST /v1/documents with a Markdown runbook ({name, content} with the bytes in base64) answers 200 {"result":"done","ref"}; the list shows the document
 #      ready within 120 s; OcuTalon.Test.Docs.Live (TestFound) finds its passages, with their document and section, in OcuTalonKB.Docs, and a search through AI Hub's
 #      knowledge base returns the passage of the certificate first with a score over the floor;
@@ -11,8 +12,11 @@
 #      an unrelated question gets the sentence as it is (no citation, DW-720 a); a reply that is only the sentence while citations exist never reaches the chat;
 #   3. the iris container restarts (AD-5): after the restart the list still shows the document ready and TestFound passes again;
 #   4. a 10,485,760-byte .pdf (made here, in the unit's temporary folder, and never kept: no PDF of that size is committed) is accepted by the real route (200, the
-#      size check D8 of the page specs used to make) and ends failed with the reason not_built; a .txt with a NUL ends failed with the reason unreadable;
-#   5. DELETE of all three answers 200, the list is empty, and OcuTalon.Test.Docs.Live (TestGone) finds no row and no knowledge-base row of any document.
+#      size check D8 of the page specs used to make) and ends failed with the reason wrong_type (it has no PDF signature); a .txt with a NUL ends failed with the
+#      reason unreadable;
+#   4b. (Story 19.7) the PDF runbook, the Word runbook and an encrypted PDF of OcuTalon.Test.Docs.Samples (printed as base64 by the stack, nothing written to
+#      disk) are posted as {name, content}: each answers 200 {result: done, ref}, and the list shows ready, ready and failed with the reason encrypted;
+#   5. DELETE of all six answers 200, the list is empty, and OcuTalon.Test.Docs.Live (TestGone) finds no row and no knowledge-base row of any document.
 # Prints one PASS or FAIL line per check and INFO lines for the measured seconds; exits 0 only when all pass. The project is unique, publishes its web port only on
 # 127.0.0.1 (first free port of 52800-52819, or OCUTALON_TEST_WEB_PORT) and receives no keys. An EXIT trap removes the project with its volume and images. Every
 # wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, 1200 s by default here and in CI).
@@ -56,6 +60,16 @@ api_send() {
 # upload_body <name> <file>: writes $tmp/upload.json, {"name": <name>, "content": <the file's bytes in base64>}.
 upload_body() {
   { printf '{"name":"%s","content":"' "$1"; base64 < "$2" | tr -d '\n'; printf '"}'; } > "$tmp/upload.json"
+}
+
+# upload_b64 <name> <base64>: writes $tmp/upload.json, {"name": <name>, "content": <the base64 text>}.
+upload_b64() {
+  printf '{"name":"%s","content":"%s"}' "$1" "$2" > "$tmp/upload.json"
+}
+
+# sample_b64 <method>: the base64 of the bytes of OcuTalon.Test.Docs.Samples:<method>(), printed by the stack (nothing is written to disk).
+sample_b64() {
+  printf '%s\n' "Set s=##class(OcuTalon.Test.Docs.Samples).$1() Do s.Rewind() Write !,\"CHK|b64|\",\$System.Encryption.Base64Encode(s.Read(s.Size),1)" 'Halt' | iris_script OCUTALON | sed -n 's/^CHK|b64|//p' | head -n 1 | tr -d '\r'
 }
 
 # body_field <field>: the field of $tmp/api.body, as text ("" when there is none).
@@ -172,6 +186,19 @@ if [ "$(grep -cF -- "$FILTERLINE" "$root/docs/bridge-guide.md")" = 1 ]; then
   pass "docs/bridge-guide.md holds the Filter(text, hostData) line of the ruling once, word for word"
 else
   fail "docs/bridge-guide.md does not hold the Filter(text, hostData) line of the ruling exactly once"
+fi
+EXPERIENCE="$root/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md"
+ADDING='- **Adding:** an **Add documents** button (a file picker, with drag-and-drop as a second way), accepting Markdown, plain text, PDF and Word (.docx) files.'
+OWNERSHIP='- On a local install, memories belong to each user and documents are shared by every user of the install (P23).'
+if [ "$(grep -cF -- "$ADDING" "$EXPERIENCE")" = 1 ]; then
+  pass "EXPERIENCE.md holds DW-719's Adding line once, word for word"
+else
+  fail "EXPERIENCE.md does not hold DW-719's Adding line exactly once"
+fi
+if [ "$(grep -cF -- "$OWNERSHIP" "$EXPERIENCE")" = 1 ]; then
+  pass "EXPERIENCE.md holds DW-719's local-install ownership line once, word for word"
+else
+  fail "EXPERIENCE.md does not hold DW-719's local-install ownership line exactly once"
 fi
 tracked=$(cd "$root" && git ls-files 2> /dev/null)
 if [ -z "$tracked" ]; then
@@ -325,10 +352,10 @@ if [ "$code" = 200 ] && [ -n "$nul" ]; then
 else
   fail "POST /v1/documents answered '$code' for the .txt with a NUL"
 fi
-if [ -n "$pdf" ] && wait_until 120 doc_is "$pdf" 'failed|not_built'; then
-  pass "the .pdf ends failed with the reason not_built (Story 19.7 reads it)"
+if [ -n "$pdf" ] && wait_until 120 doc_is "$pdf" 'failed|wrong_type'; then
+  pass "the .pdf of zeros ends failed with the reason wrong_type (no PDF signature)"
 else
-  fail "the .pdf is '$(doc_state "$pdf")', not failed|not_built"
+  fail "the .pdf is '$(doc_state "$pdf")', not failed|wrong_type"
 fi
 if [ -n "$nul" ] && wait_until 120 doc_is "$nul" 'failed|unreadable'; then
   pass "the .txt with a NUL ends failed with the reason unreadable"
@@ -341,9 +368,67 @@ else
   fail "the list holds $(doc_count) documents, wanted 3"
 fi
 
-# --- step 5: DELETE all three ---
+# --- step 4b: a PDF, a Word file and an encrypted PDF through the real route (Story 19.7) ---
 
-for r in "$ref" "$pdf" "$nul"; do
+b64_pdf=$(sample_b64 PdfRunbook)
+b64_docx=$(sample_b64 DocxRunbook)
+b64_enc=$(sample_b64 PdfEncrypted)
+if [ -n "$b64_pdf" ] && [ -n "$b64_docx" ] && [ -n "$b64_enc" ]; then
+  pass "the stack printed the three sample files as base64"
+else
+  die "the stack printed no base64 for a sample file (pdf ${#b64_pdf}, docx ${#b64_docx}, encrypted ${#b64_enc} characters)"
+fi
+upload_b64 "Results runbook.pdf" "$b64_pdf"
+code=$(api_send POST documents "$tmp/upload.json")
+pdfok=$(body_field ref)
+if [ "$code" = 200 ] && [ "$(body_field result)" = done ] && [ -n "$pdfok" ]; then
+  pass "POST /v1/documents answers 200 {result: done, ref} for the PDF runbook"
+else
+  fail "POST /v1/documents answered '$code' for the PDF runbook"
+fi
+upload_b64 "Lab feed runbook.docx" "$b64_docx"
+code=$(api_send POST documents "$tmp/upload.json")
+docxok=$(body_field ref)
+if [ "$code" = 200 ] && [ "$(body_field result)" = done ] && [ -n "$docxok" ]; then
+  pass "POST /v1/documents answers 200 {result: done, ref} for the Word runbook"
+else
+  fail "POST /v1/documents answered '$code' for the Word runbook"
+fi
+upload_b64 "locked.pdf" "$b64_enc"
+code=$(api_send POST documents "$tmp/upload.json")
+encok=$(body_field ref)
+if [ "$code" = 200 ] && [ "$(body_field result)" = done ] && [ -n "$encok" ]; then
+  pass "POST /v1/documents answers 200 {result: done, ref} for the encrypted PDF"
+else
+  fail "POST /v1/documents answered '$code' for the encrypted PDF"
+fi
+rm -f "$tmp/upload.json"
+begun=$SECONDS
+if [ -n "$pdfok" ] && wait_until 120 doc_is "$pdfok" 'ready|'; then
+  pass "the list shows the PDF runbook ready (extracted in the worker, indexed by page)"
+else
+  fail "the PDF runbook is '$(doc_state "$pdfok")', not ready"
+fi
+if [ -n "$docxok" ] && wait_until 120 doc_is "$docxok" 'ready|'; then
+  pass "the list shows the Word runbook ready (indexed by Heading 1 section)"
+else
+  fail "the Word runbook is '$(doc_state "$docxok")', not ready"
+fi
+if [ -n "$encok" ] && wait_until 120 doc_is "$encok" 'failed|encrypted'; then
+  pass "the encrypted PDF ends failed with the reason encrypted"
+else
+  fail "the encrypted PDF is '$(doc_state "$encok")', not failed|encrypted"
+fi
+echo "INFO the PDF, Word and encrypted files were settled $((SECONDS - begun)) s after their adds"
+if [ "$(doc_count)" = 6 ]; then
+  pass "the list holds the six documents"
+else
+  fail "the list holds $(doc_count) documents, wanted 6"
+fi
+
+# --- step 5: DELETE all six ---
+
+for r in "$ref" "$pdf" "$nul" "$pdfok" "$docxok" "$encok"; do
   [ -n "$r" ] || continue
   code=$(api_send DELETE "documents/$r")
   if [ "$code" = 200 ] && [ "$(body_field result)" = done ]; then
