@@ -5547,3 +5547,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md | severity: low | fix-risk: med | footprint: in-epic
 - evidence: time-zone-section.ts refused(), daily-digest-section.ts refused() vs check-thresholds-section.ts refused(); about 10 lines each
 - 2026-11-08T10:49:15Z status=wontfix-accepted owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=reopen_if=Story 18.3 adds the Models or Budgets section with a fifth copy of the refusal block
+
+### DW-949: Cycle-log lines record model=claude-sonnet-5 for Sonnet 5.5 stages (48 lines) while 424 lines use claude-sonnet-5-5, so a per-model telemetry count splits one model in two
+- source: spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md (cr rework 1) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: cycle-log-epic-18.md dev_complete lines 20 and 30 say model=claude-sonnet-5; build commit 58085308 is signed Claude Sonnet 5.5; grep of cycle-log-*.md: 48 claude-sonnet-5 vs 424 claude-sonnet-5-5. The cycle log is the lead's file, which review stages may not write.
+- 2026-11-08T11:15:58Z status=wontfix-accepted owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=cr note=lead-owned file; reopen_if=a retro or telemetry count by model shows a claude-sonnet-5 row apart from claude-sonnet-5-5

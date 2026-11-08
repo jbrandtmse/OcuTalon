@@ -234,6 +234,16 @@ Rejected:
 - low: DW-939 still reads open (acceptance-auditor) -- the lead's `ledger_adjudicated` gate closes it; the frontmatter is build-auto state.
 - false: the added `UTC` choice is unruled text (acceptance-auditor) -- an IANA zone identifier shown as a value, like the browser's list.
 
+Code review 2026-11-08, rework iteration 1 re-review (diff `8e5e9f18..HEAD`; four layers, review tier full-opus; 7 raw rows, 5 entries, 1 rejected). Checklist item (1), the [Smoke] S9 locator: confirmed fixed. `<select id="time-zone-select">` has no `multiple` or `size`, so its role is combobox, named "Time zone" by its `<label for>`; the panel `<section aria-labelledby="settings-section-heading">` is a region, so `getByRole('combobox', { name: 'Time zone', exact: true })` matches the select alone, and no other select or combobox renders on the settings route. S10-S12: `Send at` labels only `#digest-time`, the rest are role locators whose names no region shares; no ambiguity. No product change. No HIGH, no MED.
+
+- [x] [Review][Patch] LOW S9's `mutation:` line named test edits (revert a locator, drop an assertion), not product mutations, and "drop the saved-text check" cannot turn a test red (blind-hunter, verification-gap) [_bmad-output/implementation-artifacts/spec-18-2-set-the-time-zone-and-the-daily-digest-at-run-time.md:## Verification] -- rewritten as pending (DW-938) with two product mutations in `time-zone-section.ts` and the S9 assertions they turn red (Rule 19 tracking edit).
+- [x] [Review][Patch] LOW `## Verification` contradicted itself: the new S9 line beside "So no S9 mutation line" in the DW-938 paragraph (blind-hunter) [same file, ## Verification] -- the paragraph now says the S9 line is pending, not observed.
+- [x] [Review][Patch] LOW The review passes wrote 33 U+2014 dashes into this spec, against the project block's ASCII-only rule for specs (blind-hunter) [same file, ## Review Triage Log] -- replaced with `--`; the spec is now ASCII only.
+- [x] [Review][Defer] LOW Cycle-log `dev_complete` lines record `model=claude-sonnet-5` for Sonnet 5.5 (48 such lines across cycle logs, 424 use `claude-sonnet-5-5`) (blind-hunter) [_bmad-output/implementation-artifacts/cycle-log-epic-18.md:30] -- deferred: DW-949 wontfix-accepted (the lead's file; review stages do not write it).
+
+Rejected:
+- false: the [Smoke] item is ticked and the spec says `done` before the browser re-smoke (blind-hunter, verification-gap) -- the checkbox and the frontmatter `done` are bmad-build-auto's implement contract; the smoke gate runs after this review and records its own `smoke_complete`, and the Auto Run Result names the residual risk. A failed re-smoke re-opens the story.
+
 ## Spec Change Log
 - 2026-11-08, rework iteration 1 (lead, trigger=smoke): the per-story smoke ran settings.spec.ts on a fresh lane-D stack; S9 failed on an ambiguous label locator (one [Smoke] item under Tasks & Acceptance). Scope: that item only.
 - 2026-11-08, rework iteration 1 implement pass: S9's two `getByLabel('Time zone')` sites now use `getByRole('combobox', { name: 'Time zone', exact: true })`; S10-S12 checked, no other label meets a same-named region (`Send at` labels only the time input). No product change; the implement handoff subagent was not used (a two-line test edit, the rest of the story left as committed).
@@ -244,43 +254,53 @@ Rejected:
 
 ## Review Triage Log
 
-### 2026-11-08 — Review pass (rework 1, S9 locator)
-- verdicts: 5 findings — high 0, medium 0, low 5, false 0, maybe-false 0
+### 2026-11-08 -- Code review (rework 1 re-review, S9 locator)
+- verdicts: 5 entries from 7 layer rows -- high 0, medium 0, low 4, false 1, maybe-false 0
 - findings:
-  - `low` `reject` The same role locator appears twice in S9 — two sites on purpose (before and after a reload); a shared helper adds structure for no named harm.
-  - `low` `patch` No comment says why the role is needed — added a one-line contract comment at the first site in `web/e2e/settings/settings.spec.ts`.
-  - `low` `patch` (verification-gap) S9 has no `mutation:` line — written in `## Verification` as "not observed locally (DW-938)", per the pre-answered override; the existing frontmatter `deferred:` item for S9 to S12 stands.
-  - `low` `reject` (verification-gap) S9's preselect assertion can pass on a stack with an empty stored zone — pre-existing assertion, not changed by this diff; the post-reload check is non-vacuous; a fix needs a new precondition (more than a direct correction).
-  - `low` `reject` (verification-gap) S9's restore sits in `finally` and could leak a zone if it fails — one worker, no race; the reviewer itself found it acceptable.
+  - `low` `patch` S9's mutation line names test edits, not product mutations (blind-hunter, verification-gap) -- rewritten as pending with two product mutations.
+  - `low` `patch` `## Verification` says both "mutation: ... S9" and "no S9 mutation line" (blind-hunter) -- reconciled.
+  - `low` `patch` Non-ASCII dashes in the spec (blind-hunter) -- replaced with `--`.
+  - `low` `defer` Cycle-log model id `claude-sonnet-5` (blind-hunter) -- DW-949 wontfix-accepted, lead-owned file.
+  - `false` `reject` [Smoke] ticked before the re-smoke (blind-hunter, verification-gap) -- implement contract; the smoke gate decides.
+  - Edge-case hunter: no findings. Acceptance auditor: no findings; (a) one-element match, (b) S10-S12 clear, (c) no product change, all confirmed.
+
+### 2026-11-08 -- Review pass (rework 1, S9 locator)
+- verdicts: 5 findings -- high 0, medium 0, low 5, false 0, maybe-false 0
+- findings:
+  - `low` `reject` The same role locator appears twice in S9 -- two sites on purpose (before and after a reload); a shared helper adds structure for no named harm.
+  - `low` `patch` No comment says why the role is needed -- added a one-line contract comment at the first site in `web/e2e/settings/settings.spec.ts`.
+  - `low` `patch` (verification-gap) S9 has no `mutation:` line -- written in `## Verification` as "not observed locally (DW-938)", per the pre-answered override; the existing frontmatter `deferred:` item for S9 to S12 stands.
+  - `low` `reject` (verification-gap) S9's preselect assertion can pass on a stack with an empty stored zone -- pre-existing assertion, not changed by this diff; the post-reload check is non-vacuous; a fix needs a new precondition (more than a direct correction).
+  - `low` `reject` (verification-gap) S9's restore sits in `finally` and could leak a zone if it fails -- one worker, no race; the reviewer itself found it acceptable.
   - Edge-case hunter: no findings. Intent-alignment auditor: no divergence (the diff implements the narrow selector fix, page-wide form A1; S10-S12 need no edit).
 
-### 2026-11-08 — Review pass
-- verdicts: 24 rows covering the 32 findings the layers reported (the same defect reported by two layers shares one row, with every source named) — high 0, medium 6, low 17, false 1, maybe-false 0; the intent-alignment layer reported readings and divergences, no defects
+### 2026-11-08 -- Review pass
+- verdicts: 24 rows covering the 32 findings the layers reported (the same defect reported by two layers shares one row, with every source named) -- high 0, medium 6, low 17, false 1, maybe-false 0; the intent-alignment layer reported readings and divergences, no defects
 - findings:
-  - `[low]` `[reject]` Zone() names the OS zone while a TZ-unset non-UTC host converts in UTC (Blind Hunter 1, Edge 1, Edge 10) — spec-decided (Decided in-stage 1, matrix row DW-34); the set-then-cleared residual is already ledgered in Design Notes for the lead (Lane A, `Bridge.Time.Apply`); a TZ-unset process otherwise converts in its inherited OS zone; fix would need a Lane A change.
-  - `[medium]` `[patch]` Midnight flake in `SettingsRunTime`: the digest time (now minus 2 h) lands on the previous local day for Kolkata or Kathmandu for about 2 h of each UTC day (Blind Hunter 2) — the test now picks, from six fixed-offset zones, one whose local day is at least 2 h old and whose offset differs from the one in force; passed twice.
-  - `[low]` `[reject]` `TestOsZone` zoneinfo assertions are unguarded (Blind Hunter 3) — the zone tests need /usr/share/zoneinfo anyway (`CheckZone`), and every CI image has it.
-  - `[low]` `[reject]` `TestReminderKeepsDueAt` DueAt and State asserts cannot fail (Blind Hunter 4, Verification Gap 4) — spec-prescribed guard; the `ForMessage` pair can fail (AC 1 mutation) and the mutation note says which part is structural.
-  - `[medium]` `[patch]` The Time zone select has no UTC (Chromium and Node list only Asia/Calcutta and no UTC) and S9 chose Asia/Kolkata, which the browser does not list (Blind Hunter 5, Edge 8, Verification Gap 10) — `zoneOptions` now adds UTC when the browser list lacks it (unit-tested), S9 uses Asia/Tokyo and Europe/Berlin. Verified with `Intl.supportedValuesOf` in Node 26.
-  - `[medium]` `[patch]` The Channels section has no browser test (Blind Hunter 6, Verification Gap 3) — S12 added (not built text gone, no Save button, no field, and the state that `/v1/state` holds: none, paused, not set up with the `#telegram` link in a new tab, or on); runs in CI.
-  - `[low]` `[patch]` Duplicate import from live-state in `settings-page.ts` (Blind Hunter 7, Edge 9) — merged into one import.
-  - `[low]` `[reject]` Unused `TimeZoneBody` type (Blind Hunter 8) — the type was asked for by the Tasks as documentation of the body; removing it is churn.
-  - `[low]` `[patch]` Garbled sentence in the `Test.Web.SettingsApi` header (Blind Hunter 9) — reworded.
-  - `[low]` `[reject]` `DigestNamed` repeats lookups across the eight whens (Blind Hunter 10, Edge 7) — correct and cheap (cached `Setting.Get`); a single target function is a larger change than a direct fix.
-  - `[low]` `[reject]` `FromLocal` costs up to two extra `ToLocal` calls, and only 30- and 60-minute folds (Blind Hunter 11, Edge 3) — the algorithm is the spec's; only Antarctica/Troll has a fold over an hour.
-  - `[low]` `[reject]` `OsZone` can return posix/ or right/ names (Edge 2) — /etc/localtime points at the plain zone file in the images; a bad name still passes `CheckZone` as a no-op.
-  - `[medium]` `[patch]` Unchecking the only shown channel box saved the hidden channels alone, so a digest went to no one (Edge 4) — `digestChannelsBody` now returns an empty body when no shown box is checked, which the server refuses with the existing field error (spec matrix row "a body with no channel gets 400"); unit-tested.
-  - `[low]` `[reject]` An empty digest `<when>` leaves no trace (Edge 5) and the `DigestNamed` catch logs nothing (Edge 6) — the spec says the digest goes to no target and any error gives 0.
-  - `[low]` `[false]` The claim that Zone() disagrees with conversions (Edge 10) — same as the first row.
-  - `[low]` `[reject]` `OsZone`/`Zone()` OS-fallback assertions restate the implementation (Verification Gap 1) — the strategy is the spec's; the strongest check available is recorded as a deferred item.
-  - `[low]` `[reject]` No test for the `CheckZone` guard on a hand-written bridge zone (Verification Gap 2) — writing an invalid row needs the bridge's row writer (Lane A); `Bridge.Time.Apply` has the same guard under `Test.Bridge.*`.
-  - `[medium]` `[patch]` AC 4 had one mutation line (Verification Gap 5) — two more observed and recorded (Apply removed, and the audit writer); the StartTime and phone-text asserts could not be mutated and are said so.
-  - `[low]` `[defer]` S9 to S12 have no observed mutation (Verification Gap 6) — Playwright runs in CI only; deferred with what would settle it.
-  - `[low]` `[patch]` The 30-minute fold (`u-1800`) was exercised by no case (Verification Gap 7) — `Australia/Lord_Howe` added to `TestFoldZero`; dropping 1800 goes red.
-  - `[medium]` `[patch]` `TestFoldZero` reused process state, so only the first iteration was "fresh" (Verification Gap, other 1) — `Forget()` before every iteration; the Lord Howe mutation went red in the fresh order too.
-  - `[low]` `[false]` Zone() does not call Apply (Verification Gap, other 3) — Zone() reads the bridge row and then the process environment, neither of which Apply changes, so it is right without a conversion first.
-  - `[low]` `[reject]` `SettingsRunTime` leaves production jobs' 60 s digest cache warm (Verification Gap, other 4) — the classes that run after it in `Core` do not read the digest rows through the production.
-  - `[false]` `[reject]` The intent-alignment layer's divergences (the run-time test saves through `Commands.Submit`, not through the HTTP route; S11 stubs the POST) — descriptive, and each is the spec's own division of pinning tests (AC 3 text).
+  - `[low]` `[reject]` Zone() names the OS zone while a TZ-unset non-UTC host converts in UTC (Blind Hunter 1, Edge 1, Edge 10) -- spec-decided (Decided in-stage 1, matrix row DW-34); the set-then-cleared residual is already ledgered in Design Notes for the lead (Lane A, `Bridge.Time.Apply`); a TZ-unset process otherwise converts in its inherited OS zone; fix would need a Lane A change.
+  - `[medium]` `[patch]` Midnight flake in `SettingsRunTime`: the digest time (now minus 2 h) lands on the previous local day for Kolkata or Kathmandu for about 2 h of each UTC day (Blind Hunter 2) -- the test now picks, from six fixed-offset zones, one whose local day is at least 2 h old and whose offset differs from the one in force; passed twice.
+  - `[low]` `[reject]` `TestOsZone` zoneinfo assertions are unguarded (Blind Hunter 3) -- the zone tests need /usr/share/zoneinfo anyway (`CheckZone`), and every CI image has it.
+  - `[low]` `[reject]` `TestReminderKeepsDueAt` DueAt and State asserts cannot fail (Blind Hunter 4, Verification Gap 4) -- spec-prescribed guard; the `ForMessage` pair can fail (AC 1 mutation) and the mutation note says which part is structural.
+  - `[medium]` `[patch]` The Time zone select has no UTC (Chromium and Node list only Asia/Calcutta and no UTC) and S9 chose Asia/Kolkata, which the browser does not list (Blind Hunter 5, Edge 8, Verification Gap 10) -- `zoneOptions` now adds UTC when the browser list lacks it (unit-tested), S9 uses Asia/Tokyo and Europe/Berlin. Verified with `Intl.supportedValuesOf` in Node 26.
+  - `[medium]` `[patch]` The Channels section has no browser test (Blind Hunter 6, Verification Gap 3) -- S12 added (not built text gone, no Save button, no field, and the state that `/v1/state` holds: none, paused, not set up with the `#telegram` link in a new tab, or on); runs in CI.
+  - `[low]` `[patch]` Duplicate import from live-state in `settings-page.ts` (Blind Hunter 7, Edge 9) -- merged into one import.
+  - `[low]` `[reject]` Unused `TimeZoneBody` type (Blind Hunter 8) -- the type was asked for by the Tasks as documentation of the body; removing it is churn.
+  - `[low]` `[patch]` Garbled sentence in the `Test.Web.SettingsApi` header (Blind Hunter 9) -- reworded.
+  - `[low]` `[reject]` `DigestNamed` repeats lookups across the eight whens (Blind Hunter 10, Edge 7) -- correct and cheap (cached `Setting.Get`); a single target function is a larger change than a direct fix.
+  - `[low]` `[reject]` `FromLocal` costs up to two extra `ToLocal` calls, and only 30- and 60-minute folds (Blind Hunter 11, Edge 3) -- the algorithm is the spec's; only Antarctica/Troll has a fold over an hour.
+  - `[low]` `[reject]` `OsZone` can return posix/ or right/ names (Edge 2) -- /etc/localtime points at the plain zone file in the images; a bad name still passes `CheckZone` as a no-op.
+  - `[medium]` `[patch]` Unchecking the only shown channel box saved the hidden channels alone, so a digest went to no one (Edge 4) -- `digestChannelsBody` now returns an empty body when no shown box is checked, which the server refuses with the existing field error (spec matrix row "a body with no channel gets 400"); unit-tested.
+  - `[low]` `[reject]` An empty digest `<when>` leaves no trace (Edge 5) and the `DigestNamed` catch logs nothing (Edge 6) -- the spec says the digest goes to no target and any error gives 0.
+  - `[low]` `[false]` The claim that Zone() disagrees with conversions (Edge 10) -- same as the first row.
+  - `[low]` `[reject]` `OsZone`/`Zone()` OS-fallback assertions restate the implementation (Verification Gap 1) -- the strategy is the spec's; the strongest check available is recorded as a deferred item.
+  - `[low]` `[reject]` No test for the `CheckZone` guard on a hand-written bridge zone (Verification Gap 2) -- writing an invalid row needs the bridge's row writer (Lane A); `Bridge.Time.Apply` has the same guard under `Test.Bridge.*`.
+  - `[medium]` `[patch]` AC 4 had one mutation line (Verification Gap 5) -- two more observed and recorded (Apply removed, and the audit writer); the StartTime and phone-text asserts could not be mutated and are said so.
+  - `[low]` `[defer]` S9 to S12 have no observed mutation (Verification Gap 6) -- Playwright runs in CI only; deferred with what would settle it.
+  - `[low]` `[patch]` The 30-minute fold (`u-1800`) was exercised by no case (Verification Gap 7) -- `Australia/Lord_Howe` added to `TestFoldZero`; dropping 1800 goes red.
+  - `[medium]` `[patch]` `TestFoldZero` reused process state, so only the first iteration was "fresh" (Verification Gap, other 1) -- `Forget()` before every iteration; the Lord Howe mutation went red in the fresh order too.
+  - `[low]` `[false]` Zone() does not call Apply (Verification Gap, other 3) -- Zone() reads the bridge row and then the process environment, neither of which Apply changes, so it is right without a conversion first.
+  - `[low]` `[reject]` `SettingsRunTime` leaves production jobs' 60 s digest cache warm (Verification Gap, other 4) -- the classes that run after it in `Core` do not read the digest rows through the production.
+  - `[false]` `[reject]` The intent-alignment layer's divergences (the run-time test saves through `Commands.Submit`, not through the HTTP route; S11 stubs the POST) -- descriptive, and each is the spec's own division of pinning tests (AC 3 text).
 
 ## Design Notes
 
@@ -431,9 +451,9 @@ Lane D variables (`$LANE_D` below):
 - mutation: AC 3 (re-observed): `Api.SendDigest` submits with origin `web_user` -> `Test.Web.SettingsApi` `TestSendDigest` red (no requested Sent row).
 - mutation: AC 2 (re-observed, different edit): removed the empty `Kind=digest` fall-through `<when>` from `Core.Rule.Notify` -> `Test.Core.Routing` `TestNotifyDigestTargets` red (a digest with no channel takes the generic route).
 - mutation: AC 5 (re-observed): `channelsView` ignores the paused card kind -> `web/scripts/settings-view.test.mjs` "says \"paused\" with the retry line while the pause condition holds, whatever the state is" red.
-- mutation: AC 1, S9 (browser tier, locator fix): `web/e2e/settings/settings.spec.ts` S9 now targets the select with `getByRole('combobox', { name: 'Time zone', exact: true })` at both sites; mutation (revert either site to `getByLabel('Time zone', { exact: true })`, or drop the saved-text check) -> S9 red -- not observed locally (DW-938). The spec parses (`playwright test --list --project=sign-in-2`, 21 tests) and `npm --prefix web run lint` passes; the browser run is the lead's re-smoke.
+- mutation (pending, not observed: DW-938): AC 1, S9 (browser tier): `web/e2e/settings/settings.spec.ts` S9 targets the select with `getByRole('combobox', { name: 'Time zone', exact: true })` at both sites (the locator fix). The product mutations S9 must turn red, to observe in CI or the lead's re-smoke: `TimeZoneSection.succeeded()` in `web/src/app/settings/time-zone-section.ts` sets `done` to false -> S9 "the saved text shows" red; `save` posts `zoneBody(this.baseline())` instead of the chosen zone -> S9 "GET shows the new zone at once" red. Not a red record until observed. The spec parses (`playwright test --list --project=sign-in-2`, 21 tests) and `npm --prefix web run lint` passes; the browser run is the lead's re-smoke.
 - Baseline on `e18s2qw` after the seam: `Test.Data.TimeSource`, `Test.Data.Time`, `Test.Core.Routing`, `Test.Core.SettingsRunTime` (70 s), `Test.Web.SettingsApi`, `Test.Schedule.ReminderZone`, `Test.Agent.Render`, `Test.Bridge.Time` passed; `node --test web/scripts/settings-view.test.mjs web/scripts/ux-strings.test.mjs` 42 pass; `bash docker/tests/test-boundaries.sh` passed.
-- DW-938 not settled: Playwright S9 to S12 cannot run inside the 150 s rule. The warm stack publishes no port and holds no fixture users, and its web bundle is part of the image (a changed web file refuses a warm run). The only runner is the `live:sign-in-2` unit (`docker/tests/test-sign-in-2.sh`), which builds its own image and throwaway, waits up to 400 s for the first start, creates the fixture users, then runs the whole project; it is one script with no split point (`--part k/n` cuts only the browser step). So no S9 mutation line; S9 to S12 stay in CI (group `shards-4`), with their pure-function twins in `settings-view.test.mjs` (AC 5 mutation above).
+- DW-938 not settled: Playwright S9 to S12 cannot run inside the 150 s rule. The warm stack publishes no port and holds no fixture users, and its web bundle is part of the image (a changed web file refuses a warm run). The only runner is the `live:sign-in-2` unit (`docker/tests/test-sign-in-2.sh`), which builds its own image and throwaway, waits up to 400 s for the first start, creates the fixture users, then runs the whole project; it is one script with no split point (`--part k/n` cuts only the browser step). So S9's mutation line above is pending, not observed; S9 to S12 stay in CI (group `shards-4`), with their pure-function twins in `settings-view.test.mjs` (AC 5 mutation above).
 
 **Code review (2026-11-08; slot D for `Test.Web.Api` `TestRoutes`, `Test.Web.BodyLimit`, `Test.Data.Time`; lane-D warm throwaway `e18s2cw`, started and torn down by the review, for `Test.Data.TimeSource`, `Test.Core.SettingsRunTime` (70 s), `Test.Web.Api`, `Test.Agent.Render`, `Test.Tools.Reminders`; all passed after the patches; `node --test web/scripts/settings-view.test.mjs` 30 pass, `ux-strings` 13 pass, `npm --prefix web run lint` and `build` exit 0, `test-boundaries.sh` passed):**
 - mutation: AC 1, `Zone()` after a clear: removed the `Bridge.Time.Apply()` line from `Data.Time.Zone` -> `Test.Data.TimeSource` `TestZoneCleared` red ("Zone() reports the inherited TZ, before any conversion follows the change"); restored byte-identical, green again.
