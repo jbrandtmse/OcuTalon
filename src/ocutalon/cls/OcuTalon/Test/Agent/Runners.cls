@@ -591,11 +591,14 @@ ClassMethod OfferedTools(agentClass As %String) As %String [ Private ]
 }
 
 /// Asserts that the item does not run and that its event log, after the mark, holds an error row with the text. The wait is a poll
-/// up to WAITSECONDS for all three at once: the row, no alive job, and the item named by the Production step's check. The event
-/// log row is written while the job ends, so the jobs are read only once the row has shown.
+/// up to WAITSECONDS for all of these at once: the row, no alive job, the item named by the Production step's check, no Ens.Job row of the
+/// item in State Starting or Alive, and Ens.ScheduleHandler idle (a refused item is started once more by the production update that
+/// the handler runs after the first one, and that start is refused too). The event log row is written while the job ends, so the jobs are
+/// read only once the row has shown. The poll ends when all of them held on two polls in a row.
 Method AssertRefused(item As %String, mark As %Integer, text As %String) [ Private ]
 {
 	Set deadline = $ZHorolog + ..#WAITSECONDS
+	Set steady = 0
 	For {
 		Set found = 0
 		Set rows = ##class(OcuTalon.Test.Agent.RunnerFixture).EventRows(mark, item)
@@ -603,13 +606,21 @@ Method AssertRefused(item As %String, mark As %Integer, text As %String) [ Priva
 		While $ListNext(rows, position, row) {
 			If row [ text Set found = 1
 		}
-		Set settled = found && '$ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(item)) && (##class(OcuTalon.Install.Step.Production).NotRunning() [ item)
-		If settled || ($ZHorolog > deadline) Quit
+		Set starting = 0
+		Set result = ##class(%ResultSet).%New("Ens.Job:Enumerate")
+		If $$$ISOK(result.Execute()) {
+			While result.Next() {
+				If (result.Get("ConfigName") = item) && ((result.Get("State") = "Starting") || (result.Get("State") = "Alive")) Set starting = 1
+			}
+		}
+		Set settled = found && 'starting && '$ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(item)) && (##class(OcuTalon.Install.Step.Production).NotRunning() [ item) && ##class(OcuTalon.Test.Agent.RunnerFixture).Idle("Ens.ScheduleHandler", 0)
+		Set steady = $Select(settled: steady + 1, 1: 0)
+		If (steady > 1) || ($ZHorolog > deadline) Quit
 		Hang 1
 	}
 	Do $$$AssertTrue(found, "the event log of "_item_" says '"_text_"': "_$ListToString(rows, " | "))
-	Do $$$AssertEquals($ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(item)), 0, item_" has no alive job")
-	Do $$$AssertTrue(##class(OcuTalon.Install.Step.Production).NotRunning() [ item, "and the Production step's check names it as not running")
+	Do $$$AssertEquals($ListLength(##class(OcuTalon.Test.Agent.RunnerFixture).Jobs(item)), 0, item_" has no alive job: "_##class(OcuTalon.Test.Agent.RunnerFixture).StateOf(item))
+	Do $$$AssertTrue(##class(OcuTalon.Install.Step.Production).NotRunning() [ item, "and the Production step's check names it as not running: "_##class(OcuTalon.Test.Agent.RunnerFixture).StateOf(item))
 }
 
 /// Asserts that the other runners keep the jobs they had.

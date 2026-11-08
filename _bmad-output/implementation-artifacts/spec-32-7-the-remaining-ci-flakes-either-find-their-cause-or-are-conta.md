@@ -2,7 +2,8 @@
 title: 'Story 32.7: The remaining CI flakes either find their cause or are contained, logged'
 type: 'chore'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '7d0a57f20076de86a25aaa68d9a9e14e1d92f950'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -320,6 +321,29 @@ Write the five groups' results (G1 to G5) into `### Investigation result` before
 
 ## Review Triage Log
 
+### 2026-11-08 - Review pass
+- verdicts: 19 findings - high 0, medium 1, low 15, false 3, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1: TestTimeLeft no longer bounds `elapsed` from above (total up to 35 s) - A4 states exactly this split (`elapsed > 4`, lock `< 15`, after the release `< 20`), approved by the Planner ruling; altering it alters specified behaviour.
+  - `[low]` `[patch]` Blind 2: the result of `WaitNode("left", "end", 10)` is ignored, so the post-release bound is vacuous when the end node never comes - the call is now an AssertTrue ("the holder set its end node when it released the lock"); pin and `mutation:` line updated.
+  - `[low]` `[reject]` Blind 3: `reportRetry` drops DIAG lines over 300 characters or non-ASCII - the shape is the spec's (`^DIAG [ -~]{1,300}$`); the page-side lines R1 and R2 write are in shape (checked on the stack-free cases).
+  - `[low]` `[reject]` Blind 4: DIAG lines print after all RETRY lines and are not in the step summary - the order and the unchanged summary are matrix row DW-911 and Design Note 1.
+  - `[false]` `[reject]` Blind 5: the one-method run is covered only by stubbed shell tests - the three warm one-method runs on the lane A throwaway ran `RunTest(":Class:Method")` through `%UnitTest.Manager` and printed `CLASS <spec> passed`; an inherited method is outside the spec (a `Method <name>(` line of the class's file).
+  - `[low]` `[reject]` Blind 6: A1-A4 pinned by regexes over source text - falsifiable (each has a mutation line that goes red); the behavioural proof is the lead's AC6 stack proof, which the spec assigns to the lead; no stack-free test of an ObjectScript wait exists.
+  - `[low]` `[reject]` Blind 7: `closeSettled` swallows every error - the wait is bounded by the online projects' 30 s `actionTimeout` and the close below it stays the bounded, diagnosed step; best effort is the A3 text ("or close before the sign-out").
+  - `[low]` `[patch]` Edge 1: `WaitNode` result ignored in TestTimeLeft - same root cause as Blind 2; patched together.
+  - `[low]` `[reject]` Edge 2: a failed `Ens.Job:Enumerate` Execute counts as no starting job, and a missing ScheduleHandler row spins to the deadline - the same pattern as `RunnerFixture.Jobs` and `Idle`, which the spec names; the handler row is present on the production, and the quiet runs settled in about 10 s.
+  - `[low]` `[reject]` Edge 3: over-long or non-ASCII DIAG line dropped - same as Blind 3.
+  - `[false]` `[reject]` Edge 4: `closeSettled`'s waitFor uses the default timeout - the online projects set `actionTimeout: 30_000` (`ONLINE_WAITS`), so it is bounded.
+  - `[low]` `[reject]` Edge 5: `class_method_ok` rejects an inherited Test method - the spec defines the method as a `Method <name>(` line of the class's file; the error line names the shape.
+  - `[low]` `[reject]` Edge 6: nothing bounds `elapsed` from above - same as Blind 1.
+  - `[low]` `[reject]` Verification-gap 1: A1-A4 pinned only by source-text assertions - same as Blind 6.
+  - `[medium]` `[patch]` Verification-gap 2: the redaction at `floor.ts`'s `reportRetry` call is pinned by no test (AD-19) - `flake-fixes-sources.test.mjs` pins `retryLines.map(redactLine)` at the call and the unchanged `printDiagnosis`; mutation line added (removing the map goes red).
+  - `[low]` `[patch]` Verification-gap 3: TestTimeLeft's `< 20` term acts without the end node - same as Blind 2.
+  - `[low]` `[reject]` Verification-gap 4: nothing checks that real page-side lines stay within 300 characters - R1 and R2 write the real four page-side lines to the file and compare them; a longer line would fail them on the stack.
+  - `[low]` `[patch]` Intent 1: `class_method_ok` sits before `cmd_class`, outside the "between `traces_prune` and `cmd_live`" zone the Boundaries name - moved to just before `cmd_live`; `bash -n`, the node tests and `test-ci-config.sh` pass.
+  - `[false]` `[reject]` Intent 2: no Branch B, no ObjectScript RETRY plumbing, no G5 change, no Investigation text in the diff - the Build list excludes B0-B4 and A5 by the Planner's ruling; the Investigation result is in the spec, not the diff.
+
 ## Design Notes
 
 **Ruling (the Planner, `planner-2026-11-08-32.7`).** G2's product cause stays out of this story (DW-978); the test-side check-line change A2 is approved. `Declined DW-966: race not shown (G5's measurement); closed terminal at the ruling.`
@@ -493,6 +517,17 @@ The setup for every command:
 - AC4: `class_script` ignores the method → the one-method case goes red.
 - A1 to A5: the mutation that the result's pinning test names.
 
+**Mutation results (implement stage; each applied in the tree, observed red, restored with `cmp` identical and `git status --short` unchanged).**
+- mutation: AC1, `retries_report` without its `retry_diag_lines` call → `state-wait.test.mjs` red (`cmd_live prints the RETRY lines, then the DIAG lines, then the count`, 1 of 39).
+- mutation: AC1, `reportRetry` with its `diag` filter replaced by an empty list → `state-wait.test.mjs` red (the 2 append cases) and `helper-waits.spec.ts` R1 red (`the RETRY line, then the retry-time page lines`).
+- mutation: AC4, `class_script`'s `RunTest` given the class part of the spec only → `state-wait.test.mjs` red (`checks the class part for compilation, runs the method, and names the spec on the CLASS line`, 1 of 39).
+- mutation: A1, `'starting` removed from `settled`, or the `Idle("Ens.ScheduleHandler", 0)` term removed, or `steady > 1` changed to `steady > 0` → `flake-fixes-sources.test.mjs` red (1 of 10 each).
+- mutation: A2, `Restore`'s check put back to the product `NotRunning()` → `flake-fixes-sources.test.mjs` red (1 of 10).
+- mutation: A3, `closeSettled(page)` put back to `page.close()` at L6 → `flake-fixes-sources.test.mjs` red (1 of 10).
+- mutation: A4, `afterSeconds < 20` changed to `< 30` → `flake-fixes-sources.test.mjs` red (1 of 10); and `Hang 21` after `ReadSample` on a warm throwaway (`ci/iris.sh class OcuTalon.Test.Docs.ExtractMore:TestTimeLeft`) → `failed`, `FAIL TestTimeLeft: ... (29.54 s in all; lock 5.01 s, after the release 24.53 s)`; restored, the next run passed.
+- mutation: C1/AD-19, `floor.ts` passing `retryLines` to `reportRetry` without `.map(redactLine)` → `flake-fixes-sources.test.mjs` red (1 of 11).
+- mutation: A4, the `AssertTrue` on `WaitNode("left", "end", 10)` put back to a bare call → `flake-fixes-sources.test.mjs` red (1 of 11).
+
 **Lead-side (`(lead)`; after implement, unless stated).**
 - **Scratch and load.**
   - `SCR=<scratchpad>/e32s7proof`.
@@ -530,8 +565,31 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Implement and review (build-auto, 2026-11-08).**
+- Summary: the Build list is built (C1-C4, D1, D4, A1-A4); no Branch B task and no A5.
+  - DW-911: `reportRetry(step, lines)` appends the redacted retry-time page lines after the RETRY line, and `ci/iris.sh` prints them (`retry_diag_lines`) between the RETRY lines and the RETRIES line. Counts and the step summary are unchanged.
+  - C3: `ci/iris.sh class <Class>:<Method>` runs one `Test...` method.
+  - A1 (G1, DW-211): `AssertRefused` settles only with no Starting or Alive Ens.Job row of the item and an idle Ens.ScheduleHandler, on 2 polls in a row; D1 appends `StateOf(item)` to its two messages.
+  - A2 (G2, DW-639): Heartbeat's check and `Restore` read `RunnerFixture.NotRunningNow`.
+  - A3 (G3, DW-774): leave.spec L5 and L6 wait for the splash button and `load` before closing.
+  - A4 and D4 (G4, DW-973): `TestTimeLeft` splits at the holder's end node: elapsed `> 4`, lock `< 15`, after the release `< 20`, split in the message.
+- Files changed:
+  - `ci/iris.sh`: the DIAG print, the one-method run, `class_method_ok`.
+  - `web/e2e/support/bounds.ts`, `web/e2e/support/floor.ts`: C1.
+  - `web/e2e-online/session/leave.spec.ts`: A3.
+  - `src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls`, `Test/Schedule/Heartbeat.cls`, `Test/Docs/ExtractMore.cls`: A1/D1, A2, A4/D4.
+  - `web/scripts/state-wait.test.mjs`: C4 cases.
+  - Footprint extensions: `web/e2e/live/helper-waits.spec.ts` (two retries.txt expectations now hold the RETRY line plus the page lines) and the new `web/scripts/flake-fixes-sources.test.mjs` (source pins for A1-A4 and floor.ts's redaction).
+- Review: 19 findings (medium 1, low 15, false 3). Patched: TestTimeLeft asserts the end node (3 findings), floor.ts redaction pin (1), `class_method_ok` moved into the helper zone (1). Deferred: none. Rejected with reasons: see the Review Triage Log.
+- Follow-up review recommended: false (one medium patched, no high).
+- Verification:
+  - `(loop)`: the node tests (156 of 156), `test-ci-config.sh`, `helper-waits.spec.ts` (61 of 61, in three runs), and the three warm one-method runs (Runners, Heartbeat, ExtractMore; no RETRY printed).
+  - `(once)`: `npm --prefix web run lint` (exit 0), `bash docker/tests/test-boundaries.sh` (first red on a literal test-global name in the new test file, fixed; all rules passed), `npm --prefix web test` (1607 of 1607), the line 3 and 2 reruns, the line 5 runs in reverse order, `git diff --stat`.
+  - Mutations: recorded under `## Verification`.
+- Residual risks: the lead's stack proofs (old red, fix 20 of 20 under load) are not run; A1-A4 rest on source pins plus those proofs. `closeSettled` is best effort and was not run against a stack. A scheduler that never idles would run A1's poll to the 120 s deadline.
 
 **Plan stage (HALT after planning).**
 - What the plan holds:

@@ -786,7 +786,7 @@ test.describe('loadedAfter: one reload of the page', () => {
     expect(logged[0]).toBe(retryLine());
     expectPageLines(logged.slice(1, 5));
     expect(logged[5]).toMatch(/^SLOW loadedAfter the snapshot GET \/ocutalon\/api\/v1\/state \d+ s$/);
-    expect(readFileSync(test.info().outputPath('retries.txt'), 'utf8')).toBe(`${logged[0]}\n`);
+    expect(readFileSync(test.info().outputPath('retries.txt'), 'utf8'), 'the RETRY line, then the retry-time page lines').toBe(`${logged.slice(0, 5).join('\n')}\n`);
     expect(stateSeen.get(id), 'the server saw two GETs of /state').toBe(2);
   });
 
@@ -813,7 +813,8 @@ test.describe('loadedAfter: one reload of the page', () => {
     expect(requests.some((line) => line.startsWith('DIAG /state request 1 of 1: '))).toBe(true);
     expect(requests.some((line) => /^DIAG \/state request 1 of 2: /.test(line))).toBe(true);
     expect(requests.some((line) => /^DIAG \/state request 2 of 2: issued .* no answer yet$/.test(line))).toBe(true);
-    expect(readFileSync(test.info().outputPath('retries.txt'), 'utf8')).toBe(`${retryLine()}\n`);
+    expectPageLines(logged.slice(1, 5));
+    expect(readFileSync(test.info().outputPath('retries.txt'), 'utf8'), 'the RETRY line, then the retry-time page lines').toBe(`${logged.slice(0, 5).join('\n')}\n`);
     expect(stateSeen.get(id), 'the server saw two GETs of /state').toBe(2);
   });
 

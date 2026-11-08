@@ -260,9 +260,14 @@ Method TestTimeLeft()
 	Do $$$AssertTrue(..WaitNode("left", "held") && $Get(^OcuTalonTest("ExtractMore", "left", "held")), "a job holds the extraction lock for 5 seconds")
 	Set began = $ZHorolog
 	Set answer = ..ReadSample(stream, "pdf", 6)
-	Set elapsed = $ZHorolog - began
+	Set finished = $ZHorolog
+	Set elapsed = finished - began
+	Do $$$AssertTrue(..WaitNode("left", "end", 10), "the holder set its end node when it released the lock")
+	Set released = $Get(^OcuTalonTest("ExtractMore", "left", "end"), finished)
+	Set lockSeconds = released - began
+	Set afterSeconds = finished - released
 	Do $$$AssertEquals(answer.ok _ "|" _ answer.reason, "0|timed_out", "a read of 40 pages (about 3 seconds) with a timeout of 6 seconds, about 5 of them spent waiting for the lock, is timed_out")
-	Do $$$AssertTrue((elapsed > 4) && (elapsed < 15), "after the wait for the lock and the second that was left (" _ $FNumber(elapsed, "", 2) _ ")")
+	Do $$$AssertTrue((elapsed > 4) && (lockSeconds < 15) && (afterSeconds < 20), "after the wait for the lock and the second that was left (" _ $FNumber(elapsed, "", 2) _ " s in all; lock " _ $FNumber(lockSeconds, "", 2) _ " s, after the release " _ $FNumber(afterSeconds, "", 2) _ " s)")
 	Do $$$AssertTrue(..WaitEnd(holder), "the holding job ended")
 	Do $$$AssertEquals($Data(^$LOCK("^OcuTalon.Docs.Extract")), 0, "and the lock is free")
 	Set answer = ..ReadSample($ClassMethod(..#SAMPLES, "Pdf3"), "pdf")

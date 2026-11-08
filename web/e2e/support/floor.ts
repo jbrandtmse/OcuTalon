@@ -3,7 +3,7 @@ import { expect, type Locator, type Page, type Request, type Response } from '@p
 import { signIn, signInReadme } from '../sign-in/helpers';
 import { STATE } from './api';
 import { WAIT_SLACK_MS, asCleanup, boundedStep, capToDeadline, diagnosedAtBound, firstAttemptMs, reportRetry, waitsFor } from './bounds';
-import { PROBE_BOUND_MS, errorClass, pageSideLines, printDiagnosis, probePage, stateDiagnosis, watchRequests, type RequestWatch } from './diagnose';
+import { PROBE_BOUND_MS, errorClass, pageSideLines, printDiagnosis, probePage, redactLine, stateDiagnosis, watchRequests, type RequestWatch } from './diagnose';
 import {
   cleanFixtureRows,
   fixtureUser,
@@ -172,8 +172,9 @@ function withOneReload(
         // While the page was probed, the first GET may have been answered or have failed, the call may have ended, or the page closed.
         if (settled || cancelled || page.isClosed()) return asked;
         retried = true;
-        reportRetry(`loadedAfter the snapshot GET ${STATE}`);
-        printDiagnosis(pageSideLines(watch, began, probe), 'state-diagnosis');
+        const retryLines = pageSideLines(watch, began, probe);
+        reportRetry(`loadedAfter the snapshot GET ${STATE}`, retryLines.map(redactLine));
+        printDiagnosis(retryLines, 'state-diagnosis');
         // Only a GET that the reloaded page issues counts: the first document's GET can still be answered before the reload commits.
         const issued = new WeakSet<Request>();
         const mark = (request: Request): void => void issued.add(request);

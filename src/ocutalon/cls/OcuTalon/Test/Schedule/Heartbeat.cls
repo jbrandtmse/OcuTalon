@@ -177,7 +177,7 @@ Method Restore() As %Status
 	Kill ^OcuTalonTest("Heartbeat")
 	Do ..ResumeTask()
 	If $ClassMethod(..#FIXTURE, "Running") Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Schedule.HeartbeatTask).%New().OnTask())
-	Set missing = ##class(OcuTalon.Install.Step.Production).NotRunning()
+	Set missing = $ClassMethod(..#FIXTURE, "NotRunningNow")
 	If missing '= "" Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The production does not run every item after the tests: "_missing))
 	Set task = ##class(%SYS.Task).%OpenId(##class(%SYS.Task).FindId(..#TASK))
 	If '$IsObject(task) Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The task "_..#TASK_" is gone after the tests"))
@@ -592,7 +592,8 @@ Method TestOtherProduction()
 /// (QA) OnAfterAllTests of a class that saved nothing leaves everything alone. A failed OnBeforeAllTests leaves the instance as a new one (it quits before it
 /// assigns anything, and before Saved is set), and the manager still calls OnAfterAllTests. A new instance runs it here, with the production running:
 /// it returns OK, kills no record of the double, leaves the task's Suspended value and the production as they are. Without the guard, Restore would put
-/// back what was never saved (and start a production that the class never stopped). The production is read once, after the call and its other checks, with no wait;
+/// back what was never saved (and start a production that the class never stopped). The production is read once, after the call and its other checks, with no wait, through RunnerFixture.NotRunningNow (an item whose Enabled row is 0 is not meant to run,
+/// whatever its runtime flag says);
 /// when an item is missing, the failure message names the items from that read and the state of their jobs, which StateOf reads again (DW-639).
 Method TestAfterAllTestsNothingSaved()
 {
@@ -609,7 +610,7 @@ Method TestAfterAllTestsNothingSaved()
 	Do $$$AssertEquals($Get(^OcuTalonTest("Heartbeat", "sentinel")), 1, "or the record of the tests")
 	Set task = ##class(%SYS.Task).%OpenId(##class(%SYS.Task).FindId(..#TASK))
 	Do $$$AssertEquals($Select($IsObject(task): task.Suspended, 1: ""), suspended, "the task has the Suspended value that it had")
-	Set missing = ##class(OcuTalon.Install.Step.Production).NotRunning()
+	Set missing = $ClassMethod(..#FIXTURE, "NotRunningNow")
 	Do $$$AssertEquals(missing, "", "and the production runs every item"_$Select(missing = "": "", 1: ": "_missing_" ("_$ClassMethod(..#FIXTURE, "StateOf", missing)_")"))
 }
 
