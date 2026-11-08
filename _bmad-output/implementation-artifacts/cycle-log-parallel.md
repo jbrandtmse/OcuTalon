@@ -2773,3 +2773,4 @@
 2026-11-08T10:52:34Z	Epic 30	planner_ruling	subject=30.7_digest_delivery_counts answer=keep_as_worded(a_session_still_receiving_the_daily_digest_is_active,never_purged;local_install=durable_session;online_demo:17.10_morning_run_skips_demo_sessions_so_they_age_out) U-308=keep_with_conditions(inbox) via=Contest_Planner_1(delegation)
 2026-11-08T11:25:19Z	Epic 19	ci_green_verified	head=2a9561a2(OCT-epic19b;19.7) runs=42470273464,42470273352 result=success
 2026-11-08T11:25:19Z	Epic 19	runner_resumed	agent=ac7afc0f1c96ef0f3 with=green;finish+contract
+2026-11-08T11:29:54Z	Epic 19	runner_complete	agent=ac7afc0f1c96ef0f3 scope=19.7_on_OCT-epic19b head=2320f4a2 ci=success(42470273464,42470273352)via=2a9561a2(bookkeeping_only_over;dup_runs_42475746252,42475746266_cancelled) shared_hunks_merge-file=clean decisions_for_user=none ci_groups=shards-3_2254s_once(over_35min;watch) merge_target=OCT-epic19(runner_C)
