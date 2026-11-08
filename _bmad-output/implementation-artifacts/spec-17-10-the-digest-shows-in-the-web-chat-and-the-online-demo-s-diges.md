@@ -2,15 +2,22 @@
 title: 'Story 17.10: The digest shows in the web chat, and the online demo''s digest is visible'
 type: 'bugfix'
 created: '2026-11-07'
-status: 'in-progress'
-baseline_revision: 'c390d57f1326d22b445db88fcd1cfbae49395f52'
-baseline_commit: 'c390d57f1326d22b445db88fcd1cfbae49395f52'
+status: 'done'
+baseline_revision: '22fc1a020b27114f636c6e882b02cdd40b238960'
+baseline_commit: '22fc1a020b27114f636c6e882b02cdd40b238960'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Other tests wait on WaitDeliveries(session, 1, ...) and then read per-channel rows, the same shape as the DW-964 race.
+    evidence: |-
+      BeatOutcomes.cls (about :106 and :254) calls Observe.WaitDeliveries(case.session, 1, ..#WAITDIAGNOSIS) and then reads the web rows only; if another channel's row lands first the read can come early. Unmeasured: whether those sessions record a second channel's row. Settled by one run of each test with a phone row forced first.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Checks/BeatOutcomes.cls
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -164,7 +171,7 @@ deferred: []
 - Given the tests that pin the card kinds and the online-demo scheduled rule, when the suite runs on a fresh stack in either order, then every one passes, and each new pin has a `mutation:` line shown red.
 
 - [x] [CI] iris (image) / shard:lane-b: `OcuTalon.Test.Schedule.Heartbeat` `TestAfterAllTestsNothingSaved` red twice on 596eb1f7 (ci run 42442077870, job iris (image), attempts 1 and 2): "and the production runs every item: TelegramIn (TelegramIn row 0, runtime flag 1, jobs none)" -- https://github.com/jbrandtmse/OcuTalon/actions/runs/42442077870 -- the same shard is green on 7ccdd0bf (31.4's head, without Epic 17). Find and fix (Rule 19, hermeticity) the test that leaves TelegramIn enabled at run time with no job before Heartbeat's check: `Install.Step.Production.NotRunning()` reads the run-time flag, so a production update or restart that stops TelegramIn's job and does not put it back gives exactly that message. Prime suspects are this story's lane-b tests (`Test.Core.WebChatOut`, `Test.Data.Ownership`) and anything they start, swap or update. Reproduce on a fresh lane-B throwaway, fix with a demonstrated mutation, and show the shard green; if the run logs prove this story's tests cannot affect TelegramIn, record that evidence under Design Notes instead of changing code. Resolved without a code change: the evidence that this story's tests and code cannot affect TelegramIn is under Design Notes, "CI red of 2026-11-08"; the cause of the stuck runtime flag itself is not found (DW-639 stays open).
-- [ ] [CI] iris (shards) / shard:lane-a@Checks,Install,Watch: `OcuTalon.Test.Checks.Heartbeat` `TestDisabledItemIsReportedOnce` red twice on 321dcad7 (ci run 42470657226, attempts 3 and 4, jobs 128733036530 and 128749625178): "the session's web chat got one notification" (DW-964) -- src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls, the Integration AC block of TestDisabledItemIsReportedOnce (the `WaitDeliveries(session, 1, ..#WAITDIAGNOSIS)` line and the web-row count after it) -- the test waits for the WEB Delivery row it counts, not for the session's first row of any channel: poll `Test.Core.Observe.DeliveryRows(session)` until at least one row with Channel = `WebChat.Out.#CHANNEL` exists or WAITDIAGNOSIS seconds have passed, then keep the existing assertions unchanged (exactly one web row, its text the catalog's rendering, the Why now line, the disabled wording). Cause, reproduced on a fresh lane-B throwaway: the simulated phone's tellnow row (id 17) was recorded first, the wait returned, the web count read 0; ten seconds later the web row (id 20) was there, and each channel had its row once. Scope (Planner's pre-approved U-177 exception for DW-964, under the owner's delegation): test-only, this one test method, no product file and no other test changes; the "reported once" assertion is not loosened. Proof the lead runs after review: the old wait red under the race (the repro above), the fixed test 20 of 20 on a lane-B throwaway; write its `mutation:` line under ## Verification (for example: wait on any row again -> red).
+- [x] [CI] iris (shards) / shard:lane-a@Checks,Install,Watch: `OcuTalon.Test.Checks.Heartbeat` `TestDisabledItemIsReportedOnce` red twice on 321dcad7 (ci run 42470657226, attempts 3 and 4, jobs 128733036530 and 128749625178): "the session's web chat got one notification" (DW-964) -- src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls, the Integration AC block of TestDisabledItemIsReportedOnce (the `WaitDeliveries(session, 1, ..#WAITDIAGNOSIS)` line and the web-row count after it) -- the test waits for the WEB Delivery row it counts, not for the session's first row of any channel: poll `Test.Core.Observe.DeliveryRows(session)` until at least one row with Channel = `WebChat.Out.#CHANNEL` exists or WAITDIAGNOSIS seconds have passed, then keep the existing assertions unchanged (exactly one web row, its text the catalog's rendering, the Why now line, the disabled wording). Cause, reproduced on a fresh lane-B throwaway: the simulated phone's tellnow row (id 17) was recorded first, the wait returned, the web count read 0; ten seconds later the web row (id 20) was there, and each channel had its row once. Scope (Planner's pre-approved U-177 exception for DW-964, under the owner's delegation): test-only, this one test method, no product file and no other test changes; the "reported once" assertion is not loosened. Proof the lead runs after review: the old wait red under the race (the repro above), the fixed test 20 of 20 on a lane-B throwaway; write its `mutation:` line under ## Verification (for example: wait on any row again -> red). Resolved: the Integration AC block of `TestDisabledItemIsReportedOnce` now polls `Test.Core.Observe.DeliveryRows(session)` (Hang 0.25) until a row of the web channel exists or WAITDIAGNOSIS seconds have passed, and builds `texts` from that last read; every assertion after it is unchanged. The inline loop, not an `Observe` method, because the scope forbids touching `Observe.cls`.
 
 ### Review Findings
 
@@ -270,6 +277,18 @@ Checklist, the `[CI]` item: confirmed closed. This story's tests and code cannot
   - `[low]` `[reject]` Intent audit: the golden fixtures were reconciled against the unchanged class — see Blind 7.
   - `[false]` `[reject]` Intent audit: the Act-chip assertion lives in `sendThroughComposer` — step 7 calls it with the mock expectation, as the spec says.
   - `[low]` `[reject]` Intent audit: the data-level and DOM-level line-break checks are split between `TestDigestCard` and N16/step 7 — matches the matrix rows.
+
+### 2026-11-08 — Review pass (rework 2, DW-964)
+- verdicts: 12 findings (Blind 4, Edge 6, Gap 1 main and 1 other; the Intent Alignment auditor reported no divergence) — high 0, medium 0, low 10, false 1, maybe-false 1
+- findings:
+  - `[low]` `[reject]` Blind 1 / Edge 5: the inline wait copies `Observe.WaitDeliveries`' loop; a channel-aware `Observe` wait would be better — the item's hard scope (one method, no change to `Observe.cls`) forces the inline loop (Rule 2: the reason is the scope); reopen_if the scope is lifted.
+  - `[maybe-false]` `[defer]` Blind 2: `BeatOutcomes.cls` (about :106 and :254) and other `*InProduction` tests wait on `WaitDeliveries(session, 1, ...)` and then read per-channel rows — the same shape, pre-existing and outside this item's scope; whether those sessions get a second channel's row first is unmeasured. Deferred as medium (unverified).
+  - `[low]` `[reject]` Blind 3 / Edge 1 / Edge 6 / Gap 1: the wait ends at the first web row, so a second web row landing later is not seen by the "exactly one" assertion — pre-existing (the old wait had the same property) and the item says the assertion is not widened; a settle step (`WaitProcessed` plus a `Routes` assertion) is more than a direct correction; reopen_if a duplicate web notice is seen in a green run.
+  - `[low]` `[reject]` Blind 4 / Edge 4: no timeout-specific assertion — on timeout `texts` is empty and "the session's web chat got one notification" fails with the count; the failure is loud and the cause readable.
+  - `[low]` `[reject]` Edge 2: the wait ends on any web-channel row whatever its kind — the count that follows is over the same rows (every web row), so an extra row of another kind fails the "one notification" assertion as before.
+  - `[low]` `[reject]` Edge 3: an unopenable row would raise in the loop — `DeliveryRows` opens rows by ids it just selected and nothing deletes a Delivery in this test; theoretical.
+  - `[false]` `[reject]` Gap other: the item stays disabled after the test — `OnAfterOneTest` (Case.SetItemEnabled) enables it again, also after a failure, as the class header says.
+- patches: none. followup_review_recommended: false (nothing patched).
 
 ## Design Notes
 
@@ -423,10 +442,15 @@ Every test added or changed passes on a fresh environment, in either order.
 - `bash ci/checks.sh` all scripts passed (before the review patches; `test-boundaries.sh`, `test-class-rules.sh` and `test-ci-config.sh` ran again after them); `bash docker/tests/test-mock.sh` 133 passed; `npm --prefix web test` 1537 passed; `npm --prefix web run build` and `run lint` passed; `test-boundaries.sh`, `test-class-rules.sh` and `test-ci-config.sh` passed.
 - Code review (after its patches, on `ocutalon-slot-b`): `Test.Digest.Due` 11 of 11 (run 712), `Test.Core.WebChatOut` 14 of 14 (run 713), `Test.Digest.TelegramText` 7 of 7 (run 714); `docker/tests/test-class-rules.sh` and `test-boundaries.sh` passed; `web/scripts/chat-view.test.mjs` 62 of 62.
 
+- mutation (DW-964): the wait put back on any channel's row (the loop replaced by `Do ##class(OcuTalon.Test.Core.Observe).WaitDeliveries(session, 1, ..#WAITDIAGNOSIS)`) -> red when the simulated phone's tellnow row lands before the web row, as the lead reproduced it (phone row id 17 first, web count 0, the web row id 20 ten seconds later). The race did not reproduce on demand here, so the red is `(lead to demonstrate in the 20-of-20 proof)`.
+- Fixed test, fresh lane-B throwaway of tag `e17r2i1` (`ci/iris.sh class OcuTalon.Test.Checks.Heartbeat`): the class passed, then the tag was torn down.
+
 ## Auto Run Result
 
 Status: done
 Blocking condition: none
+
+**Rework 2 (DW-964, this pass only).** `OcuTalon.Test.Checks.Heartbeat` `TestDisabledItemIsReportedOnce` now waits for the web Delivery row it counts instead of the session's first row of any channel; all later assertions are unchanged. Files changed: `src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls` (that one method) and this spec (baseline_revision moved to 22fc1a02, the `[CI]` item checked, a `mutation:` line, the triage entry). Review: four layers, 12 findings, high 0, medium 0, low 10, false 1, maybe-false 1; no patch; one deferred (sibling tests with the same wait shape, medium unverified); the rest rejected with reasons in the triage log. Follow-up review recommended: false (no high patched). Verification: one fresh lane-B throwaway (tag `e17r2i1`) ran the class green and was torn down. Residual risk: the mutation red depends on the race and is left for the lead's 20-of-20 proof; a second web row landing after the first is still not waited for (as before).
 
 **Rework 1 (CI red of 2026-11-08, this pass only).** The one `[CI]` item is checked with evidence and no code change: the Design Notes paragraph "CI red of 2026-11-08" holds the log comparison, the full-run watcher of TelegramIn and the probes. The red is DW-639 (a stuck runtime flag of TelegramIn after its Enabled row went to 0), whose cause is not found; Epic 17's diff cannot reach TelegramIn. Files changed: this spec only (baseline_revision moved to c390d57f). Review: the pass changes no code or test, so the four layers had nothing to read and were not launched; follow-up review recommended: false. Verification: runs of tag `e17s10r` on fresh lane-B throwaways (two shards through Heartbeat and four class probes), all torn down; the temporary test classes were deleted before the commit. Residual risk: CI may be red again on the same flake until DW-639's cause is fixed.
 
