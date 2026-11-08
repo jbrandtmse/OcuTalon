@@ -9,9 +9,9 @@
 ///   - TestContextOwnSessionOnly: inside a bridge context a SaveMemory or ForgetMemory for a SessionRef that is not the context's OwnerRef is
 ///     not_allowed and nothing is sent, as for SendDigest (AD-1); the context's own session is routed, and a document verb that says web_user is
 ///     refused inside a context (the origin is tool there);
-///   - TestRealStubOwners: the real OcuTalon.Docs.Ops answers its two verbs with "not implemented", which CommandsIn gives as not_built, and the
-///     real OcuTalon.Memory.Ops (built in Story 19.3) answers its two as built, no_session for the session of the test, which has no row; each
-///     received the very object CommandsIn was given, with its origin and SessionRef unchanged.
+///   - TestRealStubOwners: the real OcuTalon.Docs.Ops (built in Story 19.4) and the real OcuTalon.Memory.Ops (built in Story 19.3) answer their two verbs
+///     as built, no_session for the session of the test, which has no row; each received the very object CommandsIn was given, with its origin and
+///     SessionRef unchanged.
 /// The run's calls are kept under ^OcuTalonTest("CommandsRouting", "step3<n>") and deleted after the tests; the context of the test process is
 /// ended before and after the tests.
 Class OcuTalon.Test.Core.CommandsStep3 Extends OcuTalon.Test.Contract
@@ -119,7 +119,7 @@ Method TestContextOwnSessionOnly()
 	Do $$$AssertEquals(..Calls(), before + 1, "and sent")
 }
 
-/// The real stubs of Lane A answer the four verbs with code 5003, which CommandsIn gives as not_built, and receive the request unchanged.
+/// The real owners of Lane A (MemoryOps and DocumentOps) answer the four verbs as built, no_session for a session with no row, and receive the request unchanged.
 Method TestRealStubOwners()
 {
 	Set verbs = $ListBuild("SaveMemory", "ForgetMemory", "AddDocument", "RemoveDocument")
@@ -131,14 +131,14 @@ Method TestRealStubOwners()
 		Set command = ..NewCommand(verb, origin, "zzsessA")
 		Set sc = probe.OnProcessInput(command, .output)
 		Do $$$AssertStatusOK(sc, verb_" is answered with a status that is OK")
-		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, $Select(verb [ "Memory": "0|no_session", 1: "0|not_built"), verb_": the real owner is a stub, so not_built, and MemoryOps is built, so no_session")
-		Do $$$AssertEquals(output.Message, $Select(verb [ "Memory": $Parameter("OcuTalon.Memory.Ops", "MESSAGENOSESSION"), 1: "This part of OcuTalon isn't built yet. Nothing was changed."), verb_" says so")
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|no_session", verb_": the real owner is built, so no_session for a session with no row")
+		Do $$$AssertEquals(output.Message, $Select(verb [ "Memory": $Parameter("OcuTalon.Memory.Ops", "MESSAGENOSESSION"), 1: $Parameter("OcuTalon.Docs.Ops", "MESSAGENOSESSION")), verb_" says so")
 		Do $$$AssertEquals(probe.SeenTarget, ..OwnerOf(verb), verb_" was sent to "_..OwnerOf(verb))
 		Set same = (probe.LastRequest = command)
 		Do $$$AssertEquals(same, 1, verb_": the owner got the very object CommandsIn was given")
 		Do $$$AssertEquals(probe.LastRequest.Origin_"|"_probe.LastRequest.SessionRef, origin_"|zzsessA", verb_": with its origin and SessionRef unchanged")
 	}
-	Do $$$AssertEquals($Parameter("OcuTalon.Docs.Ops", "STUB"), 1, "DocumentOps is still a stub")
+	Do $$$AssertEquals($Parameter("OcuTalon.Docs.Ops", "STUB"), "", "DocumentOps is built: it has no STUB")
 	Do $$$AssertEquals($Parameter("OcuTalon.Memory.Ops", "STUB"), "", "MemoryOps is built: it has no STUB")
 }
 

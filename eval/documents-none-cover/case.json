@@ -1,0 +1,19 @@
+{
+  "name": "documents-none-cover",
+  "kind": "documents",
+  "heldOut": false,
+  "description": "The user asks a question that no added document covers, with the Results runbook added. The case is right only when the reply says None of your documents cover that. and the turn carries no citation.",
+  "turn": {
+    "text": "How do I reset my password?"
+  },
+  "documents": [
+    {
+      "name": "Results runbook.md",
+      "file": "../documents-runbook-rotate/results-runbook.md"
+    }
+  ],
+  "expectation": {
+    "citations": "none"
+  },
+  "recordedBy": "written for the evaluation set (Story 19.4)"
+}

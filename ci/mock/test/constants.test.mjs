@@ -148,3 +148,12 @@ test('Story 19.3: the mock reads the four memory tool names from OcuTalon.Tools.
     assert.ok(scenarios.all.some((s) => toolUseNames(s).includes(name)), `a scenario calls ${name}`);
   }
 });
+
+test('Story 19.4: the mock reads the documents tool name from OcuTalon.Tools.Names', () => {
+  const { toolNames, scenarios } = readAll();
+  assert.ok(toolNames.includes('documents'), 'documents is among the tool names that the mock reads');
+  assert.ok(scenarios.all.some((s) => toolUseNames(s).includes('documents')), 'a scenario calls documents');
+  for (const name of ['documents-runbook', 'documents-none', 'documents-topk', 'documents-none-conflict', 'documents-none-only', 'documents-removed', 'documents-then-save']) {
+    assert.ok(scenarios.all.some((s) => s.name === name), `the scenario ${name} is there`);
+  }
+});
