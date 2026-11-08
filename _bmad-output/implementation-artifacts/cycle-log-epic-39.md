@@ -395,3 +395,4 @@
 2026-11-08T23:13:05Z	Epic 39	deps_hash_rerecorded	reason=fix_forward story=39.11 note=for_the_orchestrator(epics.md_story_insert_only)
 2026-11-08T23:13:05Z	Epic 39	ledger_routed_planned	story=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is entries=1 excess=0 by=runner(charter) dw=DW-978
 2026-11-08T23:14:42Z	Epic 39	epic_context_compiled	reason=planning_artifact_newer(39.11_charter) model=opus lines=52
+2026-11-08T23:14:54Z	Story 39.11	stage_spawned	stage=plan spawn_at=2026-11-08T23:14:54Z model=opus agent_name=39-11-plan-1 cycle_iteration=1
