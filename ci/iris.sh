@@ -21,7 +21,7 @@
 #   ci/iris.sh live <name>                docker/tests/test-<name>.sh with the run tag; it first prints "PORT ..." with the web port
 #                                         and, for a browser unit (a name in BROWSER_UNITS of ci/units.sh), first installs Chromium,
 #                                         and Firefox and WebKit as well for a name in FIREFOX_WEBKIT_UNITS (the floor unit)
-#                                         The arguments after <name> go to the script; only test-sign-in.sh and test-sign-in-2.sh read any: --part k/n
+#                                         The arguments after <name> go to the script; only test-sign-in.sh, test-sign-in-2.sh and test-sign-in-3.sh read any: --part k/n, --project sign-in-3
 #                                         (and test-sign-in.sh's --project chromium|sign-in-2)
 #                                         On a self-hosted CI runner (GITHUB_ACTIONS=true and RUNNER_ENVIRONMENT=self-hosted) the unit's
 #                                         Playwright run keeps the trace of a failing test only (OCUTALON_E2E_TRACE=retain-on-failure) and

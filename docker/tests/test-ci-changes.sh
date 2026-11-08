@@ -174,20 +174,24 @@ unclassified_case() {
   if [ -z "$unnamed" ]; then pass "classifier: $label: the reason of each group names the unclassified path"; else fail "classifier: $label: the reason of$unnamed does not name $first"; fi
 }
 
-# The script of each live unit runs exactly the group that holds the unit, and no other group. The two sign-in scripts also run the
-# web job, because the web job's e2e-part tests read and run them, and test-sign-in.sh, which test-sign-in-2.sh runs, also runs the
-# group of live:sign-in-2 (the split of 2026-11-05).
+# The script of each live unit runs exactly the group that holds the unit, and no other group. The three sign-in scripts also run the
+# web job, because the web job's e2e-part tests read and run them, and test-sign-in.sh, which test-sign-in-2.sh and test-sign-in-3.sh run,
+# also runs the groups of live:sign-in-2 and live:sign-in-3 (the splits of 2026-11-05 and 2026-11-07).
 sign_in_2_group=""
+sign_in_3_group=""
 for grp in $IRIS_GROUPS; do
   case " $(group_units "$grp") " in
     *" live:sign-in-2 "*) sign_in_2_group=$grp ;;
+  esac
+  case " $(group_units "$grp") " in
+    *" live:sign-in-3 "*) sign_in_3_group=$grp ;;
   esac
 done
 for grp in $IRIS_GROUPS; do
   for unit in $(group_units "$grp"); do
     case $unit in
-      live:sign-in) paths_case "the script of $unit runs web, $grp and $sign_in_2_group, the group of live:sign-in-2" true "$grp $sign_in_2_group" "docker/tests/test-${unit#live:}.sh" ;;
-      live:sign-in-2) paths_case "the script of $unit runs web and only $grp" true "$grp" "docker/tests/test-${unit#live:}.sh" ;;
+      live:sign-in) paths_case "the script of $unit runs web, $grp, $sign_in_2_group (the group of live:sign-in-2) and $sign_in_3_group (the group of live:sign-in-3)" true "$grp $sign_in_2_group $sign_in_3_group" "docker/tests/test-${unit#live:}.sh" ;;
+      live:sign-in-2 | live:sign-in-3) paths_case "the script of $unit runs web and only $grp" true "$grp" "docker/tests/test-${unit#live:}.sh" ;;
       live:*) paths_case "the script of $unit runs only $grp" false "$grp" "docker/tests/test-${unit#live:}.sh" ;;
     esac
   done

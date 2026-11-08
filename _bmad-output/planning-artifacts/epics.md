@@ -5345,6 +5345,42 @@ So that a release candidate's rehearsal is not failed by tests that refuse a rea
 **When** they run
 **Then** one check lists run 1's tests (`playwright test --list` with run 1's arguments) and fails if any listed spec reads the mock Telegram base or the dummy token, with the mutation shown (an untagged mock-reading spec reds it)
 
+### Story 12.12: Got it on Telegram marks the notice handled, and needs-you counts only what still needs you
+
+[ADDED 2026-11-07, fix-forward from DW-873 (the Contest Planner under the owner's delegation, ruling D1 option (a), 2026-11-07 ~15:50Z, relayed by the orchestrator; re-opens Epic 12 under SC-5 after Epic 12 merged, for Sunday's 1.0.4): Story 17.6 sends tell-now notices to Telegram with a **Got it** button, and Telegram's press submits the GotIt command, but SessionOps still answers it with the 5003 stub, so nothing is marked handled, the message is never edited, and the digest's "needs you" count only grows (it reads up to 1,000 Decisions with no time window). This story builds the GotIt branch of SessionOps for Telegram's press and bounds the needs-you count. The web chat's and the Simulated phone's **Got it** controls stay with Story 18.4, which reads the same handled marker this story writes. DW-695 (no end-of-session delete of Data.Handled) is closed here, because this story writes Data.Handled's first rows.]
+
+As a user who gets tell-now notices in Telegram,
+I want pressing **Got it** to mark the notice handled and edit the message, and the digest's "needs you" to hold only what still needs me,
+So that the button does what it says and the digest's count stays honest.
+
+**Acceptance Criteria:**
+
+**Given** a tell-now notice in the paired chat with its **Got it** button (Story 17.6)
+**When** the paired chat presses **Got it** and `TelegramIn` submits the GotIt command (origin telegram, channel telegram, the notice's decision Ref, the session of the chat's live pairing)
+**Then** `SessionOps` carries it out instead of answering the 5003 stub: it checks that the Ref is a reference and that the Decision is the command's session's own tell-now Decision, writes one `Data.Handled` row (Ref, SessionRef, HandledAt in UTC, Channel), and sends one `Notification` of kind `handled` with that DecisionRef to Notify, so that `TelegramOut`'s existing edit in place (`EditHandled`) replaces the button with the existing catalog text `handled.marked` and its time; the outcome is a CommandResult with Ok 1 (FR-35, AD-14, AD-27, UX-DR143)
+**And** a second press of the same notice, from any channel, changes nothing and sends no second notification: the first press wins, through `Data.Handled`'s unique index on Ref, and the answer is Ok with an outcome that says it was already handled (AD-14)
+**And** a GotIt whose Ref is not a reference, names no Decision, names another session's Decision, or names a Decision that is not a tell-now Decision, changes nothing, writes no row, sends no notification and answers Ok 0 (AD-14)
+**And** no new user-facing string is added: the button, the edit and its text are the ones Story 17.6 already ships
+
+**Given** a session that ends (`EndSession`, Story 16.4)
+**When** `SessionOps.End` runs its cleanup
+**Then** it also deletes the session's `Data.Handled` rows, next to the other cleanup, tried even when an earlier step failed, and a failed delete counts as a failed step like the others (AD-4, AD-27)
+- DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27) (ledger; routed by fix-forward 12.12, 2026-11-07)
+
+**Given** the digest's "what needs you" (`OcuTalon.Digest.NeedsYou`, Story 17.6)
+**When** a digest is composed for a session
+**Then** the session's tell-now and act Decisions count only while they are not marked handled AND were recorded inside the digest's window (`WindowStart`, the session's newest digest, or a day before its first), and failed check rows and incidents awaiting approval (open approval requests) always count while they are open, whatever their age (FR-35, AD-14)
+**And** tests pin both cases: an old unhandled tell-now Decision outside the window is not counted, one inside it is, a handled one is not, and an awaiting incident older than the window still is
+- DW-873: Telegram 'Got it' button on tell-now messages does nothing: SessionOps answers NotImplemented, nothing is marked handled, and the digest's needs-you count only grows (ledger; routed by fix-forward 12.12, 2026-11-07)
+
+**Given** the change
+**When** this story merges
+**Then** `TestGotItNotBuilt` gives way to tests of the built command (a press marks it handled, a second press is a no-op, another session's Ref and a Ref that is not a tell-now Decision are refused, End deletes the session's Handled rows), a CI-mock Telegram test shows the press reaching the edit in place, each new pin is shown red with a mutation, and CI is green on every workflow
+
+**Out of this story:** the web chat's and the Simulated phone's **Got it** controls and their "Marked as handled at {time}" copies stay with Story 18.4 (voting week), which reuses this story's command and marker. The digest's own wording does not change here; if the window needs a wording change in a `digest.*` text, that is PUBLIC TEXT for the Contest Planner.
+
+**On a runner without a bot:** this story uses the CI Telegram mock only; no real bot, chat or key.
+
 ## Epic 13: Any production can use the bridge
 
 A production developer follows the bridge developer guide to install the bridge into another production without OcuTalon (its classes load without IPM), configure it entirely through production settings, and run the example production, whose decisions, agent steps and approvals appear in Visual Trace.
@@ -8300,6 +8336,28 @@ So that each story stops paying a fresh IRIS start for every test run, while the
 
 - Implementation note: build the warm mode in `ci/iris.sh` or a new `ci/warm.sh` on `docker/tests/lib-live.sh`'s existing functions; `lib-live.sh` is on Epic 2's contended paths until Epic 2 merges.
 
+### Story 32.5: live:sign-in splits again after 4.11's tests
+
+As the release's CI,
+I want the live:sign-in unit split again, the way the 2026-11-05 split made live:sign-in-2,
+So that no unit runs over the 1,000 s line or near its 1,200 s deadline, and every group stays under the 35-minute budget.
+
+[ADDED 2026-11-07, Epic 32 fix-forward (the Contest Planner's ruling of about 17:55Z, relayed by the orchestrator): after Story 4.11's 96 more-to-try tests joined the chromium project, live:sign-in took 1,170 s on OCT-epic11 623b9cb0 (ci run 42392984136) and 1,034 s on feature 5b47f052 (ci run 42393186349), over the 1,000 s unit line and against its 1,200 s deadline. Its own commit on its own branch, so the Planner may pick it onto the release branch. No deadline is raised; every test is kept; nothing else changes.]
+
+**Acceptance Criteria:**
+
+**Given** the chromium project's spec files today
+**When** live:sign-in is split into two units, as live:sign-in-2 was split from it (`ci/units.sh` :69-74, `docker/tests/test-sign-in-2.sh`, a Playwright project of its own in `web/playwright.config.ts`)
+**Then** the two units together list exactly today's chromium test list (`npx playwright test --list` per project, diffed against today's one-unit list), no test is lost or duplicated, and every other project's list is unchanged
+
+**Given** the new unit
+**When** it is placed in a group
+**Then** that group's clean time plus the unit stays under 35 minutes, no deadline is raised, and the pins that name the sign-in units (the unit list, the group map, the changed-inputs rules, the e2e-part and playwright-projects tests) cover the new unit as they cover live:sign-in-2
+
+**Given** the change
+**When** it is pushed
+**Then** `docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow
+
 ## Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 17.1 and 18.1, moved whole and verbatim as Stories 33.1 and 33.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 2's names fixed in the spine and in code as stubs, and an admin opens a settings page that saves each section on its own, applies it within a minute and records it in the audit log, so that Epics 17 and 18 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 17 and 18) and its partner in this epic.
@@ -9130,6 +9188,28 @@ So that the card never shows a total the count does not explain.
 - DW-824: Heartbeat card: Today's cost sums more than the counted check-ins (online demo 1.0.2: Last check-in $0.0003, Today: 1 check-in, $0.0006) (ledger; routed by orchestrator 2026-11-06)
 - DW-785: docker/tests/test-heartbeat-overview.sh repeats about 25 lines of test-triage-heartbeat.sh's security-overview rule; unify both checks in one shared helper (ledger; routed by cr 2026-11-06)
 - DW-670: flake: GuideApi TestOnlyTheMarkerChanges and TestRunAgain went red on their fingerprint and passed on an unchanged rerun; print both fingerprints on failure (ledger; routed by harvest 2026-11-04)
+
+### Story 39.10: The heartbeat production test is stable (DW-639)
+
+*Home lane: B.* [AMENDED 2026-11-07, Story 39.10 code review (AD-29: `OcuTalon.Test.Schedule` is Lane B's), apply-and-report (Rule 5 tier 1): it read "*Home lane: A.*"]
+
+[ADDED 2026-11-07, SC-5 re-open of Epic 39, tier (3)(a) flake fix approved by the Contest Planner (relayed by the orchestrator); fix-forward, no boundary or dependency change: `OcuTalon.Test.Schedule.Heartbeat` `TestAfterAllTestsNothingSaved` failed "and the production runs every item" in CI's image shard lane-b on three heads in about six hours, each green on one rerun.]
+
+As a developer relying on CI,
+I want the heartbeat schedule tests to pass every time on a correct tree,
+So that a red on the image shard means a real defect.
+
+**Acceptance Criteria:**
+
+**Given** `OcuTalon.Test.Schedule.Heartbeat` in the image shard lane-b
+**When** it runs
+**Then** when the "and the production runs every item" pin fails (`Install.Step.Production.NotRunning()` not empty), its message names every missing item and the state of its job, so the next occurrence identifies the cause
+**And** the change is test-only; no pin is deleted, weakened or moved, no wait is added, and no timeout is raised
+**And** a demonstrated mutation (an item stopped before the pin's read) shows the new message naming the item
+
+[AMENDED 2026-11-07, orchestrator ruling ~12:10Z (option (a), diagnostics only, matching the Planner's 11.27 ruling on an unreproduced flake), after the plan's TIMEBOX: 0 red in 7 load runs, cause not confirmed. It read: "**Then** the cause of the "and the production runs every item" failure (`Install.Step.Production.NotRunning()` not empty) is confirmed with evidence: the old code fails under a repeat or load run / **And** the fix is test-only unless the cause is in the product (a product cause is ruled before any product code changes) / **And** the fixed test passes 20 of 20 runs under the same load; no pin is deleted or weakened, and no timeout is raised as the fix". The fix waits for the next named occurrence; DW-639 stays a flake class.]
+
+- DW-639: flake: OcuTalon.Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('and the production runs every item': Install.Step.Production.NotRunning() not empty) red in CI image shard lane-b (ledger; routed by orchestrator 2026-11-07)
 
 
 ## Epic 40: Choose how OcuTalon talks to you

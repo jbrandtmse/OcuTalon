@@ -2029,6 +2029,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T03:39:09Z owner=29-9-epic-29-burn-down by=burndown note=chartered into Story 29.9 (Epic 29 burn-down) at the burn-down gate
 - 2026-10-31T06:01:21Z status=resolved-by:29-9-epic-29-burn-down by=adjudication note=every sign-in followed by a 10 s snapshot-derived wait is wrapped in loadedAfter or signInReadmeLoaded: the Code Map's 38 sites in 24 files plus ten frame.spec.ts sites (F3 badge loop, F5, four F6, F7, three F8) found at review; AC1 mutation zz C7 old red with /state held 12 s, C7 green
 - 2026-11-01T19:13:12Z occurrence=4-10-try-it-yourself-example-prompts-one-press-each note=ci_run_41337078843_attempt1_iris(browser)_live:sign-in_trace/links.spec.ts:163_V1_open()->loadedAfter_GET_/state_not_seen_in_90s_after_signIn;same_readiness_class;233_others_passed;rerun_--failed
+- 2026-11-07T19:03:07Z occurrence=39-10-the-heartbeat-production-test-is-stable-dw-639 note=OCT-epic39_05f78577_run_42400798775_iris(shards-4)_live:sign-in-2_rail.spec.ts_R2_open():waitForResponse_GET_/state_30s_timeout(the_16.4_fix's_wait);sibling_signature;rerun_by_the_fix-forward_push
 ### DW-291: U-65 and U-107: Story 16.4's sign-out test must exercise the real ReminderOps cancel path that Story 8.4 delivers, not only the recording double
 - source: orchestrator (inbox U-107, Epic 8 readiness CONCERNS; U-65) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 16.4 AC 'until Lane B's Story 8.4 merges, the tests cancel reminders through a ReminderOps test double'; Story 8.4 AC 'turns on the real ReminderOps cancel path in Story 16.4's sign-out test'; 16.4 is backlog on OCT-epic16 (waits on Epic 10)
@@ -3350,6 +3351,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T08:19:00Z occurrence=34-1-settle-step-3-ownership-and-fix-its-contracts by=ci note=CI_run_41989403902_(de02fc38)_iris_(shards-3)_live:demo-switch_badge.spec.ts:19_goto_interrupted_by_chrome-error;one_rerun_of_the_failed_job
 - 2026-11-05T12:41:04Z occurrence=feature-merge-back by=orchestrator note=feature 8345cfca (v1.0.1 merge-back) run 42021667697 iris (browser) job 127225676199 live:sign-in page.goto interrupted by chrome-error://chromewebdata/; second sighting today (34.1 de02fc38 shards-3); failed job rerun once
 - 2026-11-07T01:02:46Z occurrence=7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged note=local_live:demo-path_on_the_integrated_tree(e03ca809,lane-D,e7s9if):07_sign-in_page.goto_interrupted_by_navigation_to_?signedOut=1(not_chrome-error);08_cascaded(07's_replay_request_missing);unchanged_rerun_8_of_8_steps_floor_15_of_15
+- 2026-11-07T20:58:59Z status=routed owner=burndown by=ci note=occurrence OCT-epic11 882b6d4b run 42406393504 browser live:demo-path 07-failure-paths:60 page.goto interrupted by navigation to ?signedOut=1, then 08 'replay request is pending'; one rerun requested by the orchestrator
 
 ### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
@@ -3944,6 +3946,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T05:48:01Z status=open owner=burndown by=ci note=occurrence OCT-epic34 b6b75a34 run 42341818725 image shard lane-b TestAfterAllTestsNothingSaved 'and the production runs every item' (2nd consecutive Epic 34 head; 34.4 is a browser-spec-only change); one rerun of the failed job requested by the orchestrator; frequency rising, candidate for tier (3) flakes
 - 2026-11-07T05:12:32Z occurrence=34-4-the-keyboard-add-documents-test-is-stable-dw-825 by=ci note=OCT-epic34_f4b38c9e_run_42339077292_iris(image)_shard_lane-b_TestAfterAllTestsNothingSaved;no_rerun:the_fix-forward_push_reruns_it(orchestrator)
 - 2026-11-07T09:14:48Z status=open owner=burndown by=ci note=occurrence OCT-epic17 17989a90 run 42353010024 image TestAfterAllTestsNothingSaved; green on one rerun (runner A); 3rd occurrence on 3 heads since 04Z, candidate for the tier (3) flake list
+- 2026-11-07T10:54:18Z status=routed owner=39-10-the-heartbeat-production-test-is-stable-dw-639 by=load note=re-owned_to_Story_39.10_(tier_3a,Planner_approved,orchestrator_2026-11-07);acceptance_bullet_in_epics.md;not_a_flake_class_for_39.10:a_red_on_its_head_is_real
+- 2026-11-07T13:02:05Z status=routed owner=burndown by=adjudication note=residual:diagnostics_landed(Test.Schedule.Heartbeat_TestAfterAllTestsNothingSaved_names_the_missing_items_and_their_job_state);fix_on_next_named_occurrence;not_reproduced_in_7_load_runs(39.10_plan);orchestrator_ruling_option_a;stays_a_flake_class;closed_at_Epic_39's_burn-down
+- 2026-11-07T13:49:16Z status=wontfix-accepted by=burndown note=residual:diagnostics_landed;fix_on_next_named_occurrence(Story_39.10,7e96e0a9;orchestrator_ruling_option_a);stays_a_flake_class(one_rerun+occurrence) reopen_if=the_next_CI_occurrence's_message_names_the_missing_item_and_its_job_state(Alive:_transient;jobs_none/Starting:_still_missing;Dead:_job_died->PRODUCT_CAUSE_check)
 
 ### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
@@ -4181,10 +4186,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T10:53:40Z status=routed owner=11-28-the-no-key-runner-test-ignores-a-late-timer-row-of-the-test by=runner note=chartered_Story_11.28_(Planner_ruling_2026-11-07T10:55Z_DW-688_first;90-min_timebox;test-only_unless_product)
 - 2026-11-07T12:20:50Z status=resolved-by:11-28-the-no-key-runner-test-ignores-a-late-timer-row-of-the-test by=adjudication note=8f63b716+review_patch: RunnerFixture.ErrorRows(mark,headerMark) leaves out only the Type 2 Ens.Alarm timer-ignored row of a header at or below the mark; TestStartsWithNoKey passes HeaderMark taken with errorMark; pinned by Test.Agent.ErrorRowsMark (real dangling timers before and after the mark, synthetic edge rows); proof: unchanged class red 2 of 3 twice under planted dangling timers, fixed class green 20 of 20 under the same planting
 - 2026-11-07T15:33:18Z status=routed owner=burndown by=ci note=occurrence OCT-epic39 d5b39c3d run 42379785616 attempt 2 shards-2 TestStartsWithNoKey; 4th occurrence; Story 11.28 is on it
+- 2026-11-07T20:50:43Z status=routed owner=burndown by=orchestrator note=occurrence OCT-epic32 39364d5c run 42401362858 attempt 2 shards-5 (lane-a@Bridge,Agent) TestStartsWithNoKey; the Planner granted a one-time merge-gate exception for 32.5 on this red (~20:52Z, rc2 picks); fix waits in 11.28
+- 2026-11-07T19:03:07Z occurrence=39-10-the-heartbeat-production-test-is-stable-dw-639 note=OCT-epic39_05f78577_run_42400798775_iris(shards-5)_lane-a@Bridge,Agent_TestStartsWithNoKey_same_signature;Story_11.28_fix_not_merged;rerun_by_the_fix-forward_push
 ### DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27)
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data/Handled.cls keyed by SessionRef; SessionOps.End and the spine purge list do not cover it; first writer is Story 18.4
 - 2026-11-04T23:50:45Z status=routed owner=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=harvest note=the writer story adds the purge with its first row (unverified: whether the purge list already covers every ^OcuTalonP table)
+- 2026-11-07T16:21:26Z status=routed owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=load note=12.12_writes_Data.Handled's_first_rows_(GotIt_branch);End_deletes_the_session's_rows;was_owned_by_18.4
+- 2026-11-07T18:39:59Z occurrence=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=harvest note=deferred_low_from_12.12_spec:Data.Handled_has_no_Purge(daysToKeep)_and_Install.Task.Purge(Lane_A)_calls_none;local-install_rows_grow_one_per_press;End_delete_delivered_in_be48cc97
+- 2026-11-07T19:16:03Z status=routed owner=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=adjudication note=end-of-session_delete_delivered_by_12.12(be48cc97:Handled.DropSession,SessionOps.EndHandled;pins_Test.Core.GotIt.TestEndDeletesHandled/TestEndHandledFailureCounts/TestEndHandledAfterEarlierFailure);RESIDUAL(deferred_LOW_per_Planner):Data.Handled_has_no_Purge(daysToKeep)_and_Lane_A's_Install.Task.Purge_calls_none,so_on_a_local_install_rows_grow_one_per_Got_it_press;18.4_(the_web/phone_Got_it_story,which_already_carries_the_DW-695_bullet)_adds_the_purge_with_its_controls
 
 ### DW-696: SendDigest sent to the disabled Digest item answers failed, not not_built
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
@@ -5317,11 +5327,48 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Planner review of 1.0.3 notes 2026-11-07 ~15:35Z | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: Channel/Telegram/Out.cls:32-35 adds the button; Core/SessionOps.cls:71 NotImplemented; Digest/NeedsYou.cls DECISIONMAX 1000, no window
 - 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) build the command that marks the decision handled, (b) hide the button; plus bound the needs-you count (time window or handled); PUBLIC TEXT at the spec gate
+- 2026-11-07T16:21:26Z status=routed owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=load note=fix-forward_12.12_(Planner_D1_option_a);acceptance_bullet_in_epics.md_12.12
+- 2026-11-07T19:16:02Z status=resolved-by:12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=adjudication note=be48cc97:SessionOps_GotIt_branch(Ownership.Decision,tellnow,Handled_row,handled_Notification)+NeedsYou_windowStart_threaded_from_Digest.Process;pins:Test.Core.GotIt,Test.Core.GotItProduction,Test.Channel.TelegramDigest.TestGotItEdits,Test.Digest.NeedsYou.TestWindow/TestProcessWindow,Test.Core.SettingsCommands.TestGotItBuilt
 
 ### DW-874: Online demo: the digest is promised but invisible; visitors are told 'send my digest now' is on its way, but web chat and Simulated phone show no digest card; the morning run also sends to every demo session with a resume hash (model call when something was saved for later)
 - source: Planner review of 1.0.3 notes 2026-11-07 ~15:35Z | severity: med | fix-risk: med | footprint: cross-epic
 - evidence: Channel/WebChat/Out.cls:31 and SimPhone/Out.cls:31 CARDKINDS lack the digest; Digest/Process.cls:204-209 morning send to demo sessions
 - 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) show the digest as a web chat card on every install, (b) demo reply says it goes to Telegram (not set up on the demo) and the morning run skips demo sessions; Planner prefers (a) if it fits Sun 19Z; PUBLIC TEXT at the spec gate
+
+### DW-881: A tell-now or act Decision recorded between Digest.Process.Finish's Verdict read and its Sent.SentAt is in neither that digest's needs-you nor the next one's window
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Finish reads NeedsYou in Verdict, then Cost and the async Deliver run before SentAt=NowUtc(); the next WindowStart is that SentAt; a miss needs a Decision inside that gap of milliseconds and a second boundary before SentAt
+- 2026-11-07T19:13:54Z status=wontfix-theoretical owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=real if Finish does slow synchronous work (a sync send or model call) between Verdict and the Sent save
+
+### DW-882: A partly failed End deletes the session's Handled rows although the session stays resumable, so its handled tell-now notices count in needs-you again
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SessionOps.End sums EndHandled with the other steps; a failure elsewhere keeps the resume hash while Handled.DropSession has already run
+- 2026-11-07T19:13:54Z status=by-design owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=spec Always: the Handled step is tried whatever the earlier steps did; the effect is an over-count, never a false all-clear
+
+### DW-883: When the handled Notification cannot be sent, the marker stands and the Telegram message keeps its Got it button; later presses answer already_handled and never re-send
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SessionOps.GotIt warns on a failed SendNotice and answers handled; the already_handled branch sends nothing
+- 2026-11-07T19:13:54Z status=by-design owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=spec matrix row Notice send fails: the row stands, one warning (the Unlink precedent); SendNotice is an async enqueue
+
+### DW-884: A Got it from a channel other than Telegram, for a notice Telegram never carried, makes TelegramOut log its no-message warning
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Notify routes kind handled to TelegramOut when paired; EditHandled logs LOGNOHANDLED when no telegram Delivery row exists
+- 2026-11-07T19:13:54Z status=wontfix-theoretical owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=real once Story 18.4 adds the web chat or phone Got it control; only TelegramIn submits GotIt today
+
+### DW-885: Data.Handled.DropSession ignores the status of result.%Next, so a read error partway through the SELECT returns OK with rows left
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the While result.%Next() loop has no status argument; Data.Upload.DropSession has the same shape
+- 2026-11-07T19:13:55Z status=wontfix-theoretical owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=real if an SQL read of OcuTalon_Data.Handled can fail mid-scan (e.g. a lock timeout); then End would clear the resume hash
+
+### DW-886: AD-4's sign-out bullet does not list the Handled rows that SessionOps.End now deletes (AD-14 as amended does)
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-4 'Ending an online-demo session' lists pairing, reminders, watches, approvals, documents, memories, uploads and the cookie
+- 2026-11-07T19:13:55Z status=wontfix-accepted owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=reopen_if=a test or story treats AD-4's sign-out list as complete (enumerates End's drops from it); spine edits are the lead's
+
+### DW-887: Data.Handled.DropSession is a near-copy of Data.Upload.DropSession and its DeleteAll (select the IDs, %DeleteId each, NOTFOUND is not an error)
+- source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Handled.cls DropSession and Upload.cls DropSession/DeleteAll differ only in the table; the spec's stated reason is 'mirrors the sibling, in the table's own class'
+- 2026-11-07T19:13:55Z status=wontfix-accepted owner=12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co by=cr note=reopen_if=a third Data class adds the same SELECT-ID then %DeleteId DropSession loop (then extract one shared helper)
 ### DW-869: release/release.sh:940 says the CI job ipm-install runs the same command as the release's ipm step; after the CI split, ipm-install runs modes a and r and ipm-install-p runs b and p
 - source: spec-19-8-epic-19-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: rework 2 review finding; release.sh is under the release-tool freeze
@@ -5348,3 +5395,25 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rail text diverges at char 982 only in the HEARTBEAT CHECKLIST card; Epic 7's diff touches no web file; a time-of-day race with the heartbeat's half-hour schedule
 - 2026-11-07T15:06:23Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second red on the same head is real
 - 2026-11-07T15:47:24Z occurrence=7-10 note=rerun_of_iris(shards-4)_green_on_37856843_(attempt_2);flake_confirmed;stays_routed_burndown
+
+### DW-878: Eval: EvalIn sends every incident case at once, so later cases spend their 60 s Decide timer queued behind a single-job DiagnosisAgent (returns-negative-weight 10th, shipments-epoch-time 11th time out)
+- source: 1.0.3 rc1 eval triage 2026-11-07 (Planner author's override) | severity: med | fix-risk: low | footprint: cross-epic
+- evidence: 1.0.2 set durations 56.7-58.3 s vs 1.0.3 60.1 s for the 10th case; Eval/In.cls:8-9,480-483 async sends; Decide.cls:339-342 timer at send; Production.cls:30 PoolSize 1
+- 2026-11-07T18:29:38Z status=routed owner=burndown by=orchestrator note=1.0.4 Epic 9 fix-forward after D1/D2: pace incident cases (next after the previous CaseResult, ~70 s each; turn cases first); update Test/Eval/In pins; EvalIn stays disabled in the product
+
+### DW-879: Product: the diagnosis timer counts time spent queued at DiagnosisAgent (PoolSize 1), so several simultaneous incidents (e.g. demo visitors breaking the feed at once) can time out before the model is asked
+- source: 1.0.3 rc1 eval triage 2026-11-07 | severity: med | fix-risk: med | footprint: cross-epic
+- evidence: Decide.cls:339-342 SetTimer at send; DiagnosisAgent PoolSize 1 (Production.cls:30); timeout rows have no Usage and model ''
+- 2026-11-07T18:29:39Z status=routed owner=burndown by=orchestrator note=1.0.4 after D1/D2: options timer-at-runner-start (AD-8 amendment) or DiagnosisAgent PoolSize 2 (rate limits, no single-session state); never raise TimerSeconds; RetryItem wiring out of scope; sizing to the Planner
+- 2026-11-07T18:33:58Z status=routed owner=burndown by=owner note=Planner 2026-11-07 ~19:00Z: Option B + skip-abandoned for 1.0.4 (not A). PoolSize 2 for DiagnosisAgent only (IncidentManager and Decide stay 1); update pins Test/Agent/Runners.cls:417 and Test/Install/Production.cls:658; runner skips a request whose Decision row already exists (RetryIsLate pattern), logs one line, records no new decision, test stale-skipped vs live-not; proof two diagnoses run concurrently with the second well inside its timer; release-note line at most, any new string to the Planner. Host checks done: gateway 120 req/min, daily cap 20 USD, LUConsumed 1/8 idle (watch it in the demo-path smoke after the update). Priority: after D1 (12.12) and D2 (17.10), before eval pacing (DW-878)
+### DW-880: heartbeat-card.spec.ts HC8 DW-824 step (Story 39.9 QA) did not clear lastSkipAt/lastSkipReason, so a real tick's skip merged by rewriteGet showed 'Skipped at …: your checklist is empty.' instead of the Act check-in
+- source: ci-run-42400798775 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: run 42400798775 iris(browser) live:sign-in HC8 line 429: expected Last check-in 18:40 · Offered an action · $0.0006, received Skipped at 18:46: your checklist is empty.; the sibling loop cases spread lastSkipAt:null,lastSkipReason:'' and the QA step did not
+- 2026-11-07T19:03:07Z status=routed owner=39-10-the-heartbeat-production-test-is-stable-dw-639 by=ci note=fix-forward on OCT-epic39 (veto): the step clears the skip fields like its siblings
+- 2026-11-07T19:03:07Z status=resolved-by:39-10-the-heartbeat-production-test-is-stable-dw-639 by=adjudication note=heartbeat-card.spec.ts_HC8_step_now_spreads_lastSkipAt:null,lastSkipReason:''_before_checkIn('act');tsc,lint_0;CI_on_the_fix-forward_head_is_the_proof(no_throwaway:lane_D_slot_with_31.4)
+- 2026-11-07T20:56:22Z status=resolved-by:39-10-the-heartbeat-production-test-is-stable-dw-639 owner=burndown by=orchestrator note=occurrence also on OCT-epic32 39364d5c run 42401362858 attempt 1 shards-5 live:sign-in-3 HC8 'Skipped at 19:02' (recorded in Epic 32's cycle log); fix 84e2ee03 merged to feature in 1011b81c; rc2 pick
+
+### DW-890: On the 1.0.3 demo every 'Remember that ...' chat message's attention decision falls back: strip 'Tell now · Fallback', 'The model's reply couldn't be used.' (1 agent step, 66 output tokens, 0.9 s); the chat turn itself works and the memory is saved
+- source: Planner live walk of the 1.0.3 demo 2026-11-07 ~21:50Z | severity: high | fix-risk: med | footprint: cross-epic
+- evidence: panel 'Ask it to remember' press and a typed 'Remember that the Orders partner contact is Kim.' both show Fallback; recall 'Who do I call about Results?' answers 'You should call Lee.' (0.95); Decision <$0.0001, Turn $0.0004
+- 2026-11-07T22:18:37Z status=routed owner=burndown by=orchestrator note=1.0.4, HIGH, after the hold and ahead of DW-879; find why Triage's decision on a remember request is unusable (unverified guesses: decide agent sees or attempts memory tools, or the output schema rejects the reply); add an eval regression case (a 'Remember that ...' item must decide without Fallback); any string change to the Planner

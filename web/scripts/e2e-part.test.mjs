@@ -234,6 +234,8 @@ describe('docker/tests/test-sign-in.sh, given a bad argument', () => {
     [['--project', 'nope'], "'nope'"],
     [['--project='], "''"],
     [['--project=chromium', '--project', 'sign-in-2'], "'sign-in-2'"],
+    [['--project=chromium', '--project', 'sign-in-3'], "'sign-in-3'"],
+    [['--project', 'sign-in-4'], "'sign-in-4'"],
   ];
 
   for (const [args, named] of bad) {
@@ -247,15 +249,23 @@ describe('docker/tests/test-sign-in.sh, given a bad argument', () => {
     });
   }
 
-  it('docker/tests/test-sign-in-2.sh passes --project sign-in-2 first, so a second --project exits 2 with one line and no LOCK line', () => {
-    const second = join(here, '..', '..', 'docker', 'tests', 'test-sign-in-2.sh');
-    const run = spawnSync('bash', [second, '--project', 'chromium'], { env: bareEnv(), encoding: 'utf8' });
+  it('a project that is not chromium, sign-in-2 or sign-in-3 exits 2 with the usage line that lists the three', () => {
+    const run = spawnSync('bash', [unit, '--project', 'sign-in-4'], { env: bareEnv(), encoding: 'utf8' });
     assert.equal(run.status, 2, run.stdout + run.stderr);
-    const lines = (run.stdout + run.stderr).split('\n').filter((line) => line !== '');
-    assert.equal(lines.length, 1, `one line: ${lines.join(' | ')}`);
-    assert.match(lines[0], /--project is given once, and again as 'chromium'/);
-    assert.ok(!/LOCK/.test(run.stdout + run.stderr));
+    assert.match(run.stdout + run.stderr, /use chromium, sign-in-2 or sign-in-3 \(usage: test-sign-in\.sh \[--project chromium\|sign-in-2\|sign-in-3\]/);
   });
+
+  for (const project of ['sign-in-2', 'sign-in-3']) {
+    it(`docker/tests/test-${project}.sh passes --project ${project} first, so a second --project exits 2 with one line and no LOCK line`, () => {
+      const second = join(here, '..', '..', 'docker', 'tests', `test-${project}.sh`);
+      const run = spawnSync('bash', [second, '--project', 'chromium'], { env: bareEnv(), encoding: 'utf8' });
+      assert.equal(run.status, 2, run.stdout + run.stderr);
+      const lines = (run.stdout + run.stderr).split('\n').filter((line) => line !== '');
+      assert.equal(lines.length, 1, `one line: ${lines.join(' | ')}`);
+      assert.match(lines[0], /--project is given once, and again as 'chromium'/);
+      assert.ok(!/LOCK/.test(run.stdout + run.stderr));
+    });
+  }
 });
 
 // --- the real listing, as test-sign-in.sh makes it ---
@@ -332,21 +342,23 @@ describe('docker/tests/test-sign-in.sh, its listing step, with a stub npm', () =
     }
   });
 
-  it('lists the project sign-in-2 with its own npm script for --project sign-in-2, and so does docker/tests/test-sign-in-2.sh', () => {
-    const out = listingFile('stub-two.json', listing(TODAY));
-    const second = join(here, '..', '..', 'docker', 'tests', 'test-sign-in-2.sh');
-    for (const [label, path, args] of [['flag', unitPath, ['--project', 'sign-in-2', '--part=19/19']], ['flag-eq', unitPath, ['--part', '19/19', '--project=sign-in-2']], ['wrapper', second, ['--part=19/19']]]) {
-      const argsFile = join(work, `two-${label}.args`);
-      const env = { ...bareEnv(), PATH: `${stubs}:${process.env.PATH}`, TMPDIR: scratch, STUB_ARGS: argsFile, STUB_RC: '0', STUB_OUT: out };
-      const run = spawnSync('bash', [path, ...args], { env, encoding: 'utf8' });
-      assert.equal(run.status, 2, run.stdout + run.stderr);
-      assert.equal(readFileSync(argsFile, 'utf8').trim(), '--silent --prefix web run e2e:sign-in-2 -- --list --reporter=json', label);
-      assert.deepEqual(leftovers(), [], 'the listing files are removed');
-    }
-    const failing = unit('failing-two', ['--project', 'sign-in-2', '--part', '1/2'], { out: listingFile('stub-text-two.json', 'Error: a spec failed to load'), rc: 1 });
-    assert.equal(failing.run.status, 1, failing.text);
-    assert.match(failing.text, /FAIL the sign-in-2 project's spec files could not be listed/);
-  });
+  for (const project of ['sign-in-2', 'sign-in-3']) {
+    it(`lists the project ${project} with its own npm script for --project ${project}, and so does docker/tests/test-${project}.sh`, () => {
+      const out = listingFile(`stub-${project}.json`, listing(TODAY));
+      const wrapper = join(here, '..', '..', 'docker', 'tests', `test-${project}.sh`);
+      for (const [label, path, args] of [['flag', unitPath, ['--project', project, '--part=19/19']], ['flag-eq', unitPath, ['--part', '19/19', `--project=${project}`]], ['wrapper', wrapper, ['--part=19/19']]]) {
+        const argsFile = join(work, `${project}-${label}.args`);
+        const env = { ...bareEnv(), PATH: `${stubs}:${process.env.PATH}`, TMPDIR: scratch, STUB_ARGS: argsFile, STUB_RC: '0', STUB_OUT: out };
+        const run = spawnSync('bash', [path, ...args], { env, encoding: 'utf8' });
+        assert.equal(run.status, 2, run.stdout + run.stderr);
+        assert.equal(readFileSync(argsFile, 'utf8').trim(), `--silent --prefix web run e2e:${project} -- --list --reporter=json`, label);
+        assert.deepEqual(leftovers(), [], 'the listing files are removed');
+      }
+      const failing = unit(`failing-${project}`, ['--project', project, '--part', '1/2'], { out: listingFile(`stub-text-${project}.json`, 'Error: a spec failed to load'), rc: 1 });
+      assert.equal(failing.run.status, 1, failing.text);
+      assert.match(failing.text, new RegExp(`FAIL the ${project} project's spec files could not be listed`));
+    });
+  }
 
   it('exits 1, before any lock, when the listing cannot be made or holds errors', () => {
     const failing = unit('failing', ['--part', '1/2'], { out: listingFile('stub-text.json', 'Error: a spec failed to load'), rc: 1 });
@@ -379,15 +391,17 @@ describe('docker/tests/test-sign-in.sh, its listing step, with a stub npm', () =
     const whole = run(0, '');
     assert.equal(whole.status, 0, whole.stderr);
     assert.equal(whole.stdout, 'specs=the specs of the chromium project\nsummary=test-sign-in\n');
-    const secondPart = run(1, '1/2', 'sign-in-2');
-    assert.equal(secondPart.status, 0, secondPart.stderr);
-    assert.deepEqual(secondPart.stdout.trimEnd().split('\n'), [
-      describePart(listing(TODAY), 1, 2).split('\n')[0],
-      'specs=of these rows, those in the spec files of part 1/2 of the sign-in-2 project',
-      'summary=test-sign-in-2 part 1/2',
-    ]);
-    const secondWhole = run(0, '', 'sign-in-2');
-    assert.equal(secondWhole.stdout, 'specs=the specs of the sign-in-2 project\nsummary=test-sign-in-2\n');
+    for (const project of ['sign-in-2', 'sign-in-3']) {
+      const otherPart = run(1, '1/2', project);
+      assert.equal(otherPart.status, 0, otherPart.stderr);
+      assert.deepEqual(otherPart.stdout.trimEnd().split('\n'), [
+        describePart(listing(TODAY), 1, 2).split('\n')[0],
+        `specs=of these rows, those in the spec files of part 1/2 of the ${project} project`,
+        `summary=test-${project} part 1/2`,
+      ]);
+      const otherWhole = run(0, '', project);
+      assert.equal(otherWhole.stdout, `specs=the specs of the ${project} project\nsummary=test-${project}\n`);
+    }
     assert.deepEqual(leftovers(), []);
   });
 });
@@ -531,9 +545,11 @@ describe('WEB_INPUT_PATTERN of ci/units.sh, applied the way ci/changes.sh applie
     assert.equal(matches(fromRoot), true, fromRoot);
   });
 
-  it('matches docker/tests/test-sign-in-2.sh, the sign-in-2 unit\'s script, which this file also runs', () => {
-    assert.equal(matches('docker/tests/test-sign-in-2.sh'), true);
-  });
+  for (const project of ['sign-in-2', 'sign-in-3']) {
+    it(`matches docker/tests/test-${project}.sh, the ${project} unit's script, which this file also runs`, () => {
+      assert.equal(matches(`docker/tests/test-${project}.sh`), true);
+    });
+  }
 
   it('does not match a near miss of that path', () => {
     for (const path of ['docker/tests/test-sign-in.sh.bak', 'docker/tests/test-signXin.sh', 'docker/tests/test-sign-inXsh', 'docker/tests/test-sign-in-x.sh', 'docker/tests/sub/test-sign-in.sh', 'old/docker/tests/test-sign-in.sh']) {

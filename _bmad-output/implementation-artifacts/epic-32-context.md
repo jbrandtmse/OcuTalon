@@ -4,67 +4,62 @@
 
 ## Goal
 
-Stories 32.1 to 32.3 are done. They split `install` into two jobs, let each IRIS group skip its steps when nothing it tests changed, and made the six jobs balanced, with every job's time on record. The epic is re-opened for Story 32.4, which targets the wait on the developer machine. On Stories 1.7 and 2.7, about half of each 5.7-hour story went to throwaway IRIS runs, because every `ci/iris.sh class` or `shard` call starts a fresh IRIS. There were 66 `class` calls averaging 1.7 minutes, more than half of each spent starting IRIS, and 261 `ci/iris.sh` calls in 10 hours. Story 32.4 lets a stage's repeated class and shard runs reuse one warm throwaway per lane. The fresh checks stay exactly as strict.
+Epic 32 keeps CI's verdict fast and inside REL-4's 35-minute budget by splitting long jobs, skipping groups a push can't affect, and keeping the groups balanced. Stories 32.1 to 32.4 are done. The epic is re-opened as a fix-forward for Story 32.5. Story 4.11 added 96 more-to-try tests to the chromium Playwright project, and `live:sign-in` grew back over the 1,000 s unit line: 1,170 s on OCT-epic11 623b9cb0 (ci run 42392984136) and 1,034 s on feature 5b47f052 (ci run 42393186349), close to its 1,200 s deadline. Story 32.5 splits it again, the way the 2026-11-05 split made `live:sign-in-2`. It raises no deadline and drops no test.
 
 ## Stories
 
 - Story 32.1: The install group runs as two jobs (done)
 - Story 32.2: An IRIS group runs only when something it tests changed (done)
 - Story 32.3: Every IRIS job finishes in about ten minutes (done)
-- Story 32.4: The developer loop reuses one warm throwaway per lane
+- Story 32.4: The developer loop reuses one warm throwaway per lane (done)
+- Story 32.5: live:sign-in splits again after 4.11's tests
 
 ## Requirements & Constraints
 
-- **Developer loop only.** Story 32.4 changes no product code and no CI behaviour. CI never sets `OCUTALON_WARM`, and the six groups, skips and workflow stay as they are.
-- **Fresh checks stay fresh.** None of these use a warm stack: `live` units (they refuse `OCUTALON_WARM`), destructive tests, the fresh-environment check (Rule 19: `shard lane-a` and `shard lane-b` forward, then both with `--reverse`, one per call) and CI. Hermeticity is still proven on a fresh stack before every commit.
-- **No stale code.** Before each warm `class` or `shard` run:
-  - load and compile every class changed in the tree since the stack's last load;
-  - delete every class removed or renamed since then;
-  - print `WARM reloaded <n>, deleted <m>`.
-
-  A compile error fails the run, as it would on a fresh stack.
-- **Lifecycle.**
-  - There is one warm stack per lane. It holds its own lock, `warm-iris.lock` in the lane's lock folder, until `warm down`; fresh stacks keep `throwaway-iris.lock`, so a lane holds at most one warm and one fresh stack at a time (AC 2 as amended 2026-10-23, Rule 5 tier 1, pre-ruled with the Contest Planner).
-  - When a stage ends, fails or is killed, `warm down` and the cleanup trap remove the stack and release the lock.
-  - `ci/iris.sh teardown` with the stack's tag removes an orphaned warm stack, like any other throwaway.
-  - So a stage's own fresh runs (`live` units, destructive tests, the fresh check) take `throwaway-iris.lock` as before and never wait on the lane's warm stack.
-  - Memory: Task 0 measures it first. The estimate is about 2.4 GB per stack, three lanes x (warm + fresh) plus about 17 GB of other containers, about 32 of 62.7 GiB (inference until measured).
-- **Measure, don't guess.** Label anything not measured `(inference)`.
-  - **Task 0** records, as a Rule 21 measured fact:
-    - the Docker VM's memory and CPUs;
-    - the memory of a slot, of a fresh throwaway, and of a warm throwaway after a shard run;
-    - the headroom for three lanes that each hold one warm stack, beside the three slots and the other long-running containers.
-  - **Known figures.** On 2026-10-23 the owner raised the Docker VM to 64 GB (62.7 GiB usable, 16 CPUs). Before that, it had 31 GB with 17 GB in use, and one throwaway took about 2.4 GB.
-  - **Warm against fresh.** The story runs the same classes warm and fresh in one stage and records both times.
-- **Where records go.** You may append measured facts and recipes to Rule 21's sections of `_bmad/custom/skill-rules.md`. That includes the new "when stages use warm mode" recipe, and it is the run's own write. Escalate any other edit under `_bmad/`.
-- **Secrets and images.** Never run `docker compose config` without `--quiet`, or `docker inspect` without `--format`, because both print `env_file` secrets. The base image `ocutalon-iris-base:2026.3.0AI.154.0` must already be on the machine and is never pulled or pushed.
+- **Limits that hold.**
+  - A unit stays under the 1,000 s line and well clear of its 1,200 s deadline.
+  - Every group stays under REL-4's 35-minute budget. The Planner's packing rule is each group at or under about 33 minutes, against the 40-minute job timeout.
+  - No deadline or timeout is raised, and no test is skipped, removed or weakened.
+- **Exact test coverage.**
+  - The two sign-in units together list exactly today's chromium tests. Check this with `npx playwright test --list` per project, diffed against today's one-unit list.
+  - No test is lost or duplicated, and every other project's list stays the same.
+- **Placement.** The new unit goes into a group whose clean time plus the unit stays under 35 minutes, based on CI's own per-unit seconds, not guesses. Label anything not measured `(inference)`.
+- **Pins.** Everything that names the sign-in units must cover the new unit the way it covers `live:sign-in-2`:
+  - the unit list and the group map in `ci/units.sh`;
+  - the changed-inputs rules (`ci/changes.sh`, `docker/tests/test-ci-changes.sh`);
+  - the e2e-part and playwright-projects tests;
+  - `docker/tests/test-ci-config.sh`, which proves the workflow matrix matches `ci/units.sh`.
+- **Done means.** `docker/tests/test-boundaries.sh` passes before the push, and full CI is green on every workflow.
+- **One commit.** The fix is its own commit on its own branch, so the Planner can cherry-pick it onto the release branch (1.0.3 rc1 is cut). Nothing else changes.
+- **Secrets and images.** Never run `docker compose config` without `--quiet`, or `docker inspect` without `--format`. The base image `ocutalon-iris-base:2026.3.0AI.154.0` is never pulled or pushed.
 
 ## Technical Decisions
 
-- **One recipe.** `ci/iris.sh` runs every IRIS unit, on the CI runner and on the developer machine.
-  - It always uses throwaway compose projects through `docker/tests/lib-live.sh` with `ci/compose.ci.yml`, never a slot or any other instance.
-  - Set `OCUTALON_RUN_TAG` (lower-case letters, digits and hyphens, at least 3 characters, no `slot`), then run one piece per call: `build`, `shard <lane-a|lane-b>`, `class <Class>` or `live <name>`.
-  - Finish with `teardown` and the same tag. It removes only that tag's projects (`ocutalon-<label>-<tag>-<epoch>-<pid>`), containers, volumes, networks and images, so pick a tag that does not end another run's tag.
-  - Build the warm mode on `lib-live.sh`'s existing functions, either in `ci/iris.sh` (`warm up` and `warm down`) or in a new `ci/warm.sh`.
-- **Per-lane variables (from 2026-10-23).** Under `/epic-cycle`, every call sets:
-  - `OCUTALON_LOCK_DIR` to `<main checkout>/.worktrees/.coordination/locks/lane-a`, `lane-b` or `lane-c`. `lib-live.sh` holds `throwaway-iris.lock` there while a stack runs, so a lane waits only on its own stacks.
-  - `OCUTALON_TEST_WEB_PORT`: 52801 for lane A, 52802 for lane B and 52803 for lane C.
-  - `OCUTALON_LOCK_OWNER='epic=<N> stage=<stage>'`, and logs the `LOCK` lines.
+- **How the 2026-11-05 split works.** The sign-in spec files are split into Playwright projects, and each unit runs on its own fresh stack with the full setup of `docker/tests/test-sign-in.sh`.
+  - `live:sign-in` keeps the project `chromium` in the `browser` group.
+  - `live:sign-in-2` (`docker/tests/test-sign-in-2.sh`) runs the project `sign-in-2` in `shards-4`. That project holds the folders listed in `SIGN_IN_2_DIRS` in `web/playwright.config.ts`.
+  - Each unit prints one `SPEC` line per spec file with its seconds, so files can be moved between projects using CI's own numbers.
+  - About 260 s of each unit is its own build, start and setup. The rest is the browser run.
+  - The new split moves whole spec files or folders and follows the same pattern: a new project, a new `test-sign-in-N.sh`, a new unit and a group entry.
+- **CI as built.** There are ten IRIS groups, each its own job of the `iris` matrix: `install-fresh`, `install-upgrade`, `production`, `browser`, `shards`, `shards-2`, `image`, `shards-3`, `shards-4` and `shards-5`.
+  - `ci/units.sh` is the one list of units and groups, and records each split's measured basis in comments.
+  - A group skips its own steps only when nothing it checks changed since the last green push run. Pull requests, a missing base and errors run everything.
+  - Every live script runs on the Health image in CI.
+- **One recipe.** `ci/iris.sh` runs every IRIS unit, on the runner and on the developer machine, always on throwaway compose projects through `docker/tests/lib-live.sh` and `ci/compose.ci.yml`.
+  - Set `OCUTALON_RUN_TAG` (at least 3 lower-case letters, digits and hyphens, no `slot`) and run one piece per call (`build`, `shard`, `class`, `live <name>`).
+  - Finish with `teardown` and the same tag.
+  - `live` units refuse `OCUTALON_WARM`, so the sign-in units always run on fresh stacks. The warm stack only helps repeated `class` and `shard` runs.
+- **Per-lane variables.** This run is runner A's side task on lane A, slot `ocutalon-slot-a`. Every call sets:
+  - `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-a`;
+  - `OCUTALON_TEST_WEB_PORT=52801`;
+  - `OCUTALON_LOCK_OWNER='epic=32 stage=<stage>'`, and logs the `LOCK` lines.
 
-  CI and sequential runs have no lock folder and take no lock. Each lane still runs at most one throwaway at a time.
-- **How a class runs.**
-  - It runs through `%UnitTest.Manager` with `/noload/nodelete/norecursive` from the installed package, after `^UnitTestRoot` is set to an existing folder in the stack.
-  - Each class prints one `CLASS <name> passed|failed <s>s` line, with any `FAIL` or `SKIP` under it.
-  - The call exits 1 when a class fails, runs no test or is not compiled.
-  - `lane-a` holds 9 classes (Agent, Bridge, Install) and `lane-b` holds 24.
-- **Baseline on the developer machine (ARM).** A ready stack takes 52 to 57 s. Almost every class takes under 0.4 s, the slowest about 2 s. A shard call takes 61 to 64 s, almost all of it the stack start.
-- **Targets.** Lane C's slot is `ocutalon-slot-c` (1992 / 52792). A warm stack is a throwaway, never a slot, and destructive work never runs on a slot. Name the target on every call. Tear down only what your own session started (Rule 13).
-- **CI as built (unchanged by Story 32.4).** There are six IRIS groups, and `ci/units.sh` is the one list of units and groups. `docker/tests/test-ci-config.sh` proves that `ci.yml` agrees with it.
-- **Ownership.** Story 32.4 is built by runner C, which owns no packages, in Lane B's files. Lane B owns `ci/` (except `ci/mock/scenarios/A/`), `docker/` (except `docker/merge.cpf`) and `.github/workflows/ci.yml`.
+  Name the target on every call, never run destructive work on a slot, and tear down only what this session started.
+- **Ownership.** The files are Lane B's: `ci/`, `docker/` (except `docker/merge.cpf`), `.github/workflows/ci.yml` and `web/` (except the Telegram card and the `telegram-*.spec.ts` files).
+- **Where records go.** Measured facts may be appended to Rule 21's sections of `_bmad/custom/skill-rules.md`. Escalate any other edit under `_bmad/`.
 
 ## Cross-Story Dependencies
 
-- Story 32.4 builds on the recipe from Stories 32.1 to 32.3 and on the per-lane lock folders and ports. It does not change their CI behaviour.
-- `docker/tests/lib-live.sh` is on Epic 2's contended paths until Epic 2 merges. The new mode builds on its existing functions, and any change to `lib-live.sh` itself contends with Epic 2.
-- All three lanes' stages will follow the appended Rule 21 recipe. The warm mode must work with each lane's lock folder and web port.
-- Epic 32 depends on Epic 0. Runner C builds Story 32.4 while it waits for Epic 1.
+- Story 32.5 builds on the 2026-11-05 `live:sign-in-2` split and on Story 4.11's tests in the chromium project. Its unit times come from the two CI runs above.
+- Other lanes' merges move unit and group seconds (for example, Story 19.8's `shards-5` split on 2026-11-07). Pick the group from the newest measured runs, and keep the comments in `ci/units.sh` consistent.
+- The `browser` group holds the demo path (REL-2). `live:demo-path` stays first in `browser` on its own fresh throwaway.
