@@ -2854,3 +2854,7 @@
 2026-11-08T17:08:56Z	Epic 32	worktree_kept	reason=32.7_next(planner_ruling_10:03Z;after_cut_merge)
 2026-11-08T17:09:32Z	Run	ruling	question=feature_CI_f58b3dbb_after_32.6_merged choice=cancel_f58b3dbb_runs(42503179217,42503179208);42e5bdd4_contains_it_and_is_the_fallback_cut_head_if_7.11_slips rejected=keep_both(saturated_runners_slow_the_final_head) category=decide policy=5086036
 2026-11-08T17:10:28Z	Run	ledger_recorded	id=DW-974 subject=leaked_ci_throwaway_stacks(ci-b_production_6d,ci-c_shards-2_4d) status=resolved removed_by=Contest_Planner_1(owner-approved)~15:45Z note=not_this_run's_resources;planner_request
+2026-11-08T17:26:32Z	Epic 7	runner_complete	agent=adc7a70fe743ed3a5 stories=1(7.11) head=cdf4bc99 ci=success(42496615105,42496615026) applied=DW-675_planner_ruling(b) decisions_for_user=none ci_resolved_at=merge_gate
+2026-11-08T17:26:32Z	Epic 7	amendments_verified	amendments=epics.md_7.11_charter extensions=0 ok=true
+2026-11-08T17:26:32Z	Epic 7	ci_green_verified	head=cdf4bc99 result=success runs=42496615105,42496615026
+2026-11-08T17:26:32Z	Epic 7	merge_enqueued	policy=when_green priority=4(last_1.0.4) note=planner_ruling_no_integrate_over_17/32.6;code_merge_clean;sprint-status_bookkeeping_conflict_resolved_per_SC-4-P_step4
