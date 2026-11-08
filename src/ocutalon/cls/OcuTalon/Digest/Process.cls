@@ -4,7 +4,7 @@ Include Ensemble
 /// message and ends (AD-5) and keeps no private text in its properties (AD-3). It takes four requests:
 ///   - OcuTalon.Msg.Tick, forwarded by Checks after each tick's checks. The tick's time, tickAt, decides which sessions are due, by AD-18's rule:
 ///     due is the latest instant at or before tickAt whose clock in the instance zone reads digest.time (Data.Setting, "08:00" when the value cannot be
-///     read), computed only through OcuTalon.Data.Time. A session that has not ended (on the online demo, one with a resume hash; on a local install every
+///     read), computed only through OcuTalon.Data.Time. On the online demo no session is due (AD-18, amended 2026-11-07: a visitor gets a digest only by asking); on a local install a session (every
 ///     Session row) is due when due is later than its CreatedAt, it has no Sent row of Kind scheduled whose DueAt is at least due, and no Compose body of Kind
 ///     scheduled whose DueAt is at least due (a digest already queued). The check is made again under Lock +^OcuTalon.Digest.Due(sessionRef), and the
 ///     Compose is queued inside that lock, so a digest missed while IRIS was down goes once and never twice. After the sessions, the tick sends the
@@ -194,7 +194,9 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 	Quit sc
 }
 
-/// A Tick: the sessions that are due get one Compose each (see the class description). A session that fails is one warning and the rest go on.
+/// A Tick: on a local install the sessions that are due get one Compose each (see the class description); on the online demo (Data.Public.Settings
+/// onlineDemo on) no session is due, so none gets a scheduled Compose, and only the resends below run (AD-18, amended 2026-11-07). A session that fails is one
+/// warning and the rest go on.
 Method Ticked(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 {
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
@@ -202,11 +204,11 @@ Method Ticked(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 	Set due = ..DueFor(tickAt)
 	If due = "" Quit $SYSTEM.Status.Error(5001, "Digest cannot work out the due time of the tick '"_$Extract(tick.TickAt, 1, 40)_"'")
 	Set online = +##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
-	Set sessions = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, CreatedAt, ResumeHash FROM OcuTalon_Data.Session")
+	If online Quit ..Resends()
+	Set sessions = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, CreatedAt FROM OcuTalon_Data.Session")
 	If sessions.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "Digest could not read the sessions: "_sessions.%Message)
 	While sessions.%Next() {
 		Set ref = sessions.%Get("Ref")
-		If online && (sessions.%Get("ResumeHash") = "") Continue
 		If '(due ] sessions.%Get("CreatedAt")) Continue
 		Try {
 			Set sc = ..Schedule(ref, due, now)

@@ -12,6 +12,7 @@ No built-in tool runs operating-system commands, arbitrary ObjectScript or Pytho
 | `cancel_reminder` | `OcuTalon.Tools.ReminderTools` | `OcuTalon.Tools.Reminders` | `OcuTalon.Agent.Chat` | Cancelling a reminder | safe | no | yes | none |
 | `check_status` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Reading the check results | safe | yes | yes | none |
 | `dismiss_incident` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Dismissing an incident | safe | no | yes | none |
+| `documents` | `%AI.RAG.KnowledgeBase` | `OcuTalon.Docs.Store` | `OcuTalon.Agent.Chat` | Running a tool | safe | yes | no | none |
 | `forget_memory` | `OcuTalon.Tools.MemoryTools` | `OcuTalon.Tools.Memory` | `OcuTalon.Agent.Chat` | Forgetting a memory | safe | no | yes | none |
 | `list_memories` | `OcuTalon.Tools.MemoryTools` | `OcuTalon.Tools.Memory` | `OcuTalon.Agent.Chat` | Listing your memories | safe | yes | yes | none |
 | `list_productions` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Listing the productions | safe | yes | yes | none |
@@ -27,6 +28,8 @@ No built-in tool runs operating-system commands, arbitrary ObjectScript or Pytho
 | `set_reminder` | `OcuTalon.Tools.ReminderTools` | `OcuTalon.Tools.Reminders` | `OcuTalon.Agent.Chat` | Setting a reminder | safe | no | yes | none |
 | `start_watch` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Starting a watch | safe | no | yes | none |
 | `stop_watch` | `OcuTalon.Tools.WatchTools` | `OcuTalon.Tools.Watching` | `OcuTalon.Agent.Chat` | Stopping a watch | safe | no | yes | none |
+
+One tool has no class of its own: `documents`, the search over your added documents that AI Hub's knowledge base gives the Chat agent. AI Hub sends no source class with its calls, so the gate classifies this one tool, and no other, by the bridge's classification setting: safe and read-only, but its output is never trusted, so a turn that searches your documents is treated as holding untrusted content. The gate also limits each search to 5 passages. Any other call that arrives without a source class stays unclassified and counts as risky.
 
 <!-- END GENERATED tools -->
 

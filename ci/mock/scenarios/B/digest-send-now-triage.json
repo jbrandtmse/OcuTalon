@@ -1,0 +1,13 @@
+{
+  "name": "digest-send-now-triage",
+  "match": {
+    "prompt": "Send my digest now.",
+    "mockkey": "triage"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"reasons\":[\"The CI mock acts on the request to send the digest.\"],\"confidence\":0.9}"
+    }
+  ]
+}

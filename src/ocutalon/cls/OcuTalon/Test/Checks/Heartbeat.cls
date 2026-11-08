@@ -198,8 +198,17 @@ Method TestDisabledItemIsReportedOnce()
 
 	// Integration AC: the tell-now decision reaches the session's web chat once, as the catalog renders it
 	Set channel = ##class(OcuTalon.Channel.WebChat.Out).#CHANNEL
-	Do ##class(OcuTalon.Test.Core.Observe).WaitDeliveries(session, 1, ..#WAITDIAGNOSIS)
-	Set rows = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	// the wait is for the web row this test counts: the session's other channels record their own rows, in no fixed order
+	Set end = $ZHorolog + ..#WAITDIAGNOSIS
+	For {
+		Set rows = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+		Set seen = 0
+		For i = 1:1:rows.Count() {
+			If rows.GetAt(i).Channel = channel Set seen = 1
+		}
+		If seen || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
 	Set texts = ""
 	For i = 1:1:rows.Count() {
 		If rows.GetAt(i).Channel = channel Set texts = texts_$ListBuild(rows.GetAt(i).Text)

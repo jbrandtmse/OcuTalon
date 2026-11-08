@@ -3,7 +3,8 @@
 /// adapter redacts and cuts after Chat.
 ///   - %LogExecution records the tool's name (call.name), its class (metadata.origin_class), its arguments (call.arguments: the JSON
 ///     string, or an object turned into JSON), its result (result.result_json, or "" when result is null), the duration in
-///     milliseconds, and the status ok or error with the error's own text, without its code, as the detail.
+///     milliseconds, and the status ok or error with the error's own text, without its code, as the detail. Before it records the step it calls
+///     OcuTalon.Bridge.Citations.Collect, which does nothing unless the call is the documents search (Story 19.4); its failure is ignored.
 ///   - %LogDenial records the status denied with the text of the denial.
 /// Both return OK always and catch every exception, and record the step with "" for what they cannot read. They make no call into
 /// AI Hub beyond the base class and run no Python: a session call from inside a callback deadlocks the job (AD-6). Only the Class
@@ -24,6 +25,7 @@ Method %LogExecution(call As %DynamicObject, metadata As %DynamicObject, result 
 			Set outcome = "error"
 			Set detail = ..StatusText(status)
 		}
+		Do ##class(OcuTalon.Bridge.Citations).Collect(call, metadata, result)
 		Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tool(..Field(call, "name"), ..Field(metadata, "origin_class"), ..Field(call, "arguments"), ..Field(result, "result_json"), +duration, outcome, detail)
 	} Catch {
 	}

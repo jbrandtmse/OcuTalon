@@ -24,12 +24,15 @@ Parameter BANNED = "all good,everything's fine,everything is fine,no issues,no p
 /// The punctuation that is deleted with the phrase it directly follows.
 Parameter PUNCTUATION = ".!?,;:";
 
-/// The text with the reserved sentences and the banned phrases removed (see the class description), or "" when the filter fails.
-ClassMethod Filter(text As %String) As %String
+/// The text with the reserved sentences and the banned phrases removed (see the class description), or "" when the filter fails. Then, when hostData (the
+/// turn reply's HostData JSON; Story 19.4, spine AD-31) holds citations, the sentence "None of your documents cover that." is removed too
+/// (OcuTalon.Docs.Reply.Apply), because a reply that cites a document never says that no document covers the question (DW-720).
+ClassMethod Filter(text As %String, hostData As %String = "") As %String
 {
 	Set result = ""
 	Try {
 		Set result = ..Apply($Get(text))
+		Set result = ##class(OcuTalon.Docs.Reply).Apply(result, $Get(hostData))
 	} Catch exception {
 		Set result = ""
 	}
@@ -39,7 +42,12 @@ ClassMethod Filter(text As %String) As %String
 /// The filtered text.
 ClassMethod Apply(text As %String) As %String [ Private ]
 {
-	Set regex = ..Pattern()
+	Quit ..Strip(text, ..Pattern())
+}
+
+/// The text with every match of the regular expression (a Pattern or PatternOf value) deleted, line by line, as the class description says.
+ClassMethod Strip(text As %String, regex As %String) As %String
+{
 	If '$Locate(text, regex) Quit text
 	Set lf = $Char(10), cr = $Char(13)
 	Set count = $Length(text, lf)
@@ -68,7 +76,12 @@ ClassMethod Apply(text As %String) As %String [ Private ]
 /// The regular expression of every phrase of RESERVED and BANNED: case-insensitive, no letter or digit before or after, and the punctuation after.
 ClassMethod Pattern() As %String [ Private ]
 {
-	Set phrases = ..#RESERVED_","_..#BANNED
+	Quit ..PatternOf(..#RESERVED_","_..#BANNED)
+}
+
+/// The regular expression of the comma-separated phrases, with the matching rule of the class description.
+ClassMethod PatternOf(phrases As %String) As %String
+{
 	Set alternatives = ""
 	For i = 1:1:$Length(phrases, ",") {
 		Set phrase = $Piece(phrases, ",", i)

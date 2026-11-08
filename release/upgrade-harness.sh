@@ -36,6 +36,12 @@
 # notification sent through Notify reaches it as a mock sendMessage within 10 s. When the previous build reports Included() 1, the seed pairs
 # a chat on it as well and the upgrade phase checks that one the same way; otherwise the row carries the note that its upgrade part joins from
 # the release after 1.0.0.
+# The memory and document families (Story 19.5; FR-60, NFR-16, NFR-17, REL-6): the records project saves a memory through a chat turn and
+# the CI mock (scenario memory-save) and adds the Results runbook through POST /v1/documents. A record passes when, after the upgrade or
+# the restart, OcuTalon.Memory.Search for its session still returns the memory, and the document is still listed ready and found by a
+# search of its knowledge base (OcuTalon.Test.Docs.Live Found). The seed makes them on the previous build only when its MemoryOps or
+# DocumentOps is built (no STUB); otherwise the upgrade phase makes them on the candidate, the restart phase checks them, and the row
+# carries the note that its upgrade part joins later.
 # Merge retries (Story 0.14): a start whose CPF merge hit ERROR #453 retries once (STEP merge RETRY 1 after #453 in the start's log). The
 # harness counts those lines in the log of each of its five starts (settings previous and candidate, records previous, candidate and
 # restart), ready or not, as MERGE-RETRIES <n> <start> lines of the phase's results; the record section gets "Merge retries: <total>"
@@ -61,12 +67,15 @@ cd "$harness_root" || exit 1
 UPGRADE_PRE_RELEASE_COMMIT=c9f1288c7a735f1ee3aa14a4f5289de794ce5257
 
 # The record families the harness runs, and the ones it holds back (none since Story 12.9 turned the pairing family on).
-HARNESS_ON="conversation reminder approval watch settings pairing"
+HARNESS_ON="conversation reminder approval watch settings pairing memory document"
 HARNESS_OFF=""
 # The rows of the record, in order. A row id has no space.
-HARNESS_ROWS="previous-build upgrade conversation reminder approval watch settings restart storage private-globals pairing"
+HARNESS_ROWS="previous-build upgrade conversation reminder approval watch settings restart storage private-globals pairing memory document"
 # The pairing row's note while the previous build does not include Telegram: its upgrade part has nothing to start from.
 PAIRING_UPGRADE_NOTE="the upgrade part joins from the release after 1.0.0"
+# The memory and document rows' notes while the previous build cannot save a memory or index a document.
+MEMORY_UPGRADE_NOTE="the upgrade part joins from the release after the first one that saves memories"
+DOCUMENT_UPGRADE_NOTE="the upgrade part joins from the release after the first one that indexes documents"
 
 # The seed's texts, as the CI mock scenarios answer them.
 REPLY_WATCH="I'll watch the Orders production and stay quiet unless something needs you."
@@ -78,6 +87,11 @@ TEXT_R1="check the upgrade"
 TEXT_R2="review the upgrade notes"
 TEXT_RESULT="All 50 orders went through."
 MOCK_LOG=/opt/ocutalon/mock-log/requests.jsonl
+REPLY_MEMORY="The CI mock will remember that."
+TEXT_MEMORY="the Results partner's contact is Lee"
+DOC_FILE=eval/documents-runbook-rotate/results-runbook.md
+DOC_NAME="Zz upgrade runbook.md"
+DOC_QUERY="how do I rotate the Results certificate?"
 
 # --- pure functions: each takes its inputs as arguments ---
 
@@ -601,6 +615,9 @@ api_post() { # api_post <path> <json>: prints the status; the body is in $tmp/po
   curl -s --max-time 30 -b "$jar" -c "$jar" -o "$tmp/post.body" -w '%{http_code}' \
     -H 'Content-Type: application/json' -H 'X-OcuTalon-Request: 1' -H "Origin: $base" -d "$2" "$base/ocutalon/api/v1/$1"
 }
+api_get() { # api_get <path>: prints the status; the body is in $tmp/get.body
+  curl -s --max-time 30 -b "$jar" -c "$jar" -o "$tmp/get.body" -w '%{http_code}' "$base/ocutalon/api/v1/$1"
+}
 
 # state_get [<file>]: GET /v1/state into the file (default $tmp/state.json); 0 when it is a state answer.
 state_get() {
@@ -956,6 +973,145 @@ check_pairing_restart() {
   pairing_check "pairing after the restart" "$chat" "$session"
 }
 
+# The memory and document families (Story 19.5). See the header.
+
+# built_class <class>: 1 when the running build has the class compiled and without STUB, 0 when not, "" when it cannot say.
+built_class() {
+  printf '%s\n' \
+    "Try { Write !,\"CHK|built|\",(##class(%Dictionary.CompiledClass).%ExistsId(\"$1\")&&'+\$Parameter(\"$1\",\"STUB\")) } Catch e { Write !,\"CHK|built|\" }" \
+    'Halt' | session_value OCUTALON built
+}
+
+# memory_make <label> <clientId>: saves the memory through a chat turn and sets mem_ref and mem_session from the newest row with its text.
+memory_make() {
+  local line
+  mem_ref="" mem_session=""
+  run_turn "$2" memory-save "Remember that $TEXT_MEMORY." "$REPLY_MEMORY" "$1" || return 1
+  line=$(printf '%s\n' \
+    "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT TOP 1 Ref,SessionRef FROM OcuTalon_Data.Memory WHERE Text = ? ORDER BY ID DESC\",\"$TEXT_MEMORY\")" \
+    'Write !,"CHK|mem|",$Select(rs.%Next():rs.%GetData(1)_"|"_rs.%GetData(2),1:"")' \
+    'Halt' | session_value OCUTALON mem)
+  mem_ref=${line%%|*} mem_session=${line#*|}
+  if [ -z "$mem_ref" ]; then fail "$1: the turn saved no memory with the scenario's text"; return 1; fi
+  pass "$1: the memory $mem_ref is saved for session $mem_session"
+}
+
+# memory_found <ref> <session>: 1 when OcuTalon.Memory.Search for the session returns the memory, else 0.
+memory_found() {
+  printf '%s\n' \
+    "Set f=0,sc=##class(OcuTalon.Memory).Search(\"$2\",\"Results partner contact\",5,.rows) If \$System.Status.IsOK(sc) { For i=0:1:rows.%Size()-1 { If rows.%Get(i).memoryRef=\"$1\" Set f=1 } }" \
+    'Write !,"CHK|found|",f' \
+    'Halt' | session_value OCUTALON found
+}
+
+memory_check() { # memory_check <label> <ref> <session>
+  if [ "$(memory_found "$2" "$3")" = 1 ]; then pass "$1: the memory is still there and found by a search of its session"; else fail "$1: a search of session $3 does not find the memory $2"; fi
+}
+
+# document_ready <ref>: the document is listed ready in GET /v1/documents.
+document_ready() { [ "$(api_get documents)" = 200 ] && [ "$(jq -r --arg r "$1" '[.documents[]? | select(.ref == $r) | .state][0] // ""' "$tmp/get.body")" = ready ]; }
+
+# document_make <label>: adds the runbook through POST /v1/documents, waits up to 120 s for it to be ready and sets doc_ref.
+document_make() {
+  local code
+  doc_ref=""
+  { printf '{"name":"%s","content":"' "$DOC_NAME"; base64 < "$harness_root/$DOC_FILE" | tr -d '\n'; printf '"}'; } > "$tmp/doc.json"
+  code=$(api_post documents "@$tmp/doc.json")
+  if [ "$code" != 200 ]; then fail "$1: POST /v1/documents answered $code"; return 1; fi
+  doc_ref=$(jq -r '.ref // ""' "$tmp/post.body")
+  if [ -z "$doc_ref" ] || ! wait_until 120 document_ready "$doc_ref"; then fail "$1: the document '$doc_ref' was not ready within 120 s"; return 1; fi
+  pass "$1: the document $doc_ref is added and ready"
+}
+
+# document_found <ref>: "" when a search of the document's knowledge base returns one of its passages, else the reason.
+document_found() {
+  local why
+  why=$(printf '%s\n' \
+    "Set r=##class(OcuTalon.Test.Docs.Live).Found(\"$1\",\"$DOC_QUERY\")" \
+    'Write !,"CHK|found|",$Select(r="":"ok",1:r)' \
+    'Halt' | session_value OCUTALON found)
+  if [ "$why" != ok ]; then echo "${why:-the IRIS call gave no answer}"; fi
+}
+
+document_check() { # document_check <label> <ref>
+  local why
+  if ! document_ready "$2"; then fail "$1: the document $2 is not listed ready"; return; fi
+  pass "$1: the document is still listed ready"
+  why=$(document_found "$2")
+  if [ -z "$why" ]; then pass "$1: a search of its knowledge base finds the document"; else fail "$1: a search does not find the document ($why)"; fi
+}
+
+seed_memory() {
+  row memory
+  local built
+  built=$(built_class OcuTalon.Memory.Ops)
+  if [ -z "$built" ]; then fail "memory: the IRIS call gave no answer whether the previous build's MemoryOps is built"; return; fi
+  env_set "$state/seed.env" prev_memory "${built:-0}"
+  if [ "$built" != 1 ]; then echo "INFO memory: the previous build's MemoryOps is not built, so no memory is saved in the seed"; return; fi
+  if memory_make "memory: the previous build" "up-$key-7"; then
+    env_set "$state/seed.env" mem_ref "$mem_ref"
+    env_set "$state/seed.env" mem_session "$mem_session"
+  fi
+}
+
+seed_document() {
+  row document
+  local built
+  built=$(built_class OcuTalon.Docs.Ops)
+  if [ -z "$built" ]; then fail "document: the IRIS call gave no answer whether the previous build's DocumentOps is built"; return; fi
+  env_set "$state/seed.env" prev_document "${built:-0}"
+  if [ "$built" != 1 ]; then echo "INFO document: the previous build's DocumentOps is not built, so no document is added in the seed"; return; fi
+  if document_make "document: the previous build"; then env_set "$state/seed.env" doc_ref "$doc_ref"; fi
+}
+
+check_memory_upgrade() {
+  row memory
+  if [ "$(env_get "$state/seed.env" prev_memory)" != 1 ]; then note_row "$MEMORY_UPGRADE_NOTE"; return; fi
+  if [ -z "$(env_get "$state/seed.env" mem_ref)" ]; then fail "memory: the previous build saves memories, but the seed saved none"; return; fi
+  memory_check "memory after the upgrade" "$(env_get "$state/seed.env" mem_ref)" "$(env_get "$state/seed.env" mem_session)"
+}
+
+check_document_upgrade() {
+  row document
+  if [ "$(env_get "$state/seed.env" prev_document)" != 1 ]; then note_row "$DOCUMENT_UPGRADE_NOTE"; return; fi
+  if [ -z "$(env_get "$state/seed.env" doc_ref)" ]; then fail "document: the previous build indexes documents, but the seed added none"; return; fi
+  document_check "document after the upgrade" "$(env_get "$state/seed.env" doc_ref)"
+}
+
+# memory_candidate, document_candidate: when the seed could not make the record, make it on the candidate for the restart.
+memory_candidate() {
+  row memory
+  if [ "$(env_get "$state/seed.env" prev_memory)" = 1 ]; then return; fi
+  if memory_make "memory: the candidate" "up-$key-8"; then
+    env_set "$state/upgrade.env" mem_ref "$mem_ref"
+    env_set "$state/upgrade.env" mem_session "$mem_session"
+  fi
+}
+
+document_candidate() {
+  row document
+  if [ "$(env_get "$state/seed.env" prev_document)" = 1 ]; then return; fi
+  if document_make "document: the candidate"; then env_set "$state/upgrade.env" doc_ref "$doc_ref"; fi
+}
+
+check_memory_restart() {
+  row memory
+  local ref session
+  ref=$(env_get "$state/upgrade.env" mem_ref) session=$(env_get "$state/upgrade.env" mem_session)
+  if [ -z "$ref" ]; then ref=$(env_get "$state/seed.env" mem_ref) session=$(env_get "$state/seed.env" mem_session); fi
+  if [ -z "$ref" ]; then fail "memory: no memory was saved to check after the restart"; return; fi
+  memory_check "memory after the restart" "$ref" "$session"
+}
+
+check_document_restart() {
+  row document
+  local ref
+  ref=$(env_get "$state/upgrade.env" doc_ref)
+  if [ -z "$ref" ]; then ref=$(env_get "$state/seed.env" doc_ref); fi
+  if [ -z "$ref" ]; then fail "document: no document was added to check after the restart"; return; fi
+  document_check "document after the restart" "$ref"
+}
+
 seed_watch() {
   row watch
   if run_turn "$c_watch" watch-start-orders "Please watch the Orders production." "$REPLY_WATCH" "watch: the Orders watch is started"; then
@@ -1209,6 +1365,8 @@ phase_seed() {
   if family_on reminder; then seed_reminder; fi
   if family_on conversation; then seed_conversation; fi
   if family_on pairing; then seed_pairing; fi
+  if family_on memory; then seed_memory; fi
+  if family_on document; then seed_document; fi
   row previous-build
   if storage_snapshot "$state/storage.prev"; then
     pass "previous build: the storage snapshot is taken ($(wc -l < "$state/storage.prev" | tr -d ' ') slot lines)"
@@ -1532,6 +1690,14 @@ phase_upgrade() {
     check_pairing_upgrade
     pair_candidate
   fi
+  if family_on memory; then
+    check_memory_upgrade
+    memory_candidate
+  fi
+  if family_on document; then
+    check_document_upgrade
+    document_candidate
+  fi
   logout_all "$jar" /ocutalon/api/
 }
 
@@ -1619,6 +1785,8 @@ phase_restart() {
     fi
   fi
   if family_on pairing; then check_pairing_restart; fi
+  if family_on memory; then check_memory_restart; fi
+  if family_on document; then check_document_restart; fi
   logout_all "$jar" /ocutalon/api/
 }
 

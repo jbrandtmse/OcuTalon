@@ -99,7 +99,7 @@ development_status:
   3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a: done
   epic-3-retrospective: optional
 
-  epic-4: done
+  epic-4: in-progress
   4-1-switch-demo-mode-from-the-terminal: done
   4-2-derive-the-guide-state-and-break-the-feed-availability-on-th: done
   4-3-break-the-feed-with-a-real-batch-of-50-orders: done
@@ -111,6 +111,7 @@ development_status:
   4-9-a-demo-view-switch-shows-the-page-as-it-looks-on-your-own-in: done
   4-10-try-it-yourself-example-prompts-one-press-each: done
   4-11-other-things-to-try: done
+  4-12-the-demo-guide-s-document-tip-promises-only-what-1-0-4-shows: done
   epic-4-retrospective: optional
 
   epic-5: done
@@ -149,6 +150,7 @@ development_status:
   7-8-the-web-incident-card-shows-the-either-way-date-line-too: done
   7-9-the-dry-run-shows-the-fix-leaves-good-messages-unchanged: done
   7-10-the-past-expiry-refusal-test-is-stable-dw-840: done
+  7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr: done
   epic-7-retrospective: optional
 
   epic-8: done
@@ -269,6 +271,8 @@ development_status:
   17-7-give-an-all-clear-only-when-every-check-passed: done
   17-8-only-decide-moves-a-conversation-s-link: done
   17-9-epic-17-burn-down: done
+  17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges: done
+  17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path: done
   epic-17-retrospective: optional
 
   epic-18: backlog
@@ -277,13 +281,13 @@ development_status:
   18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled: backlog
   epic-18-retrospective: optional
 
-  epic-19: in-progress
+  epic-19: done
   19-2-compute-embeddings-offline-in-a-worker: done
   19-3-remember-recall-list-and-forget-in-the-chat: done
-  19-4-answer-from-documents-with-citations: backlog
-  19-5-keep-each-online-demo-session-s-documents-and-memories-to-it: backlog
+  19-4-answer-from-documents-with-citations: done
+  19-5-keep-each-online-demo-session-s-documents-and-memories-to-it: done
   19-6-extract-text-from-pdf-and-word-files-with-embedded-python: done
-  19-7-answer-from-pdf-and-word-documents: backlog
+  19-7-answer-from-pdf-and-word-documents: done
   19-8-epic-19-burn-down: done
   epic-19-retrospective: optional
 
@@ -385,6 +389,7 @@ development_status:
   32-3-every-iris-job-finishes-in-about-ten-minutes: done
   32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane: done
   32-5-live-sign-in-splits-again-after-4-11-s-tests: done
+  32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus: done
   epic-32-retrospective: optional
 
   epic-33: done

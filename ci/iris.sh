@@ -48,6 +48,12 @@
 # <unit>/), and every .playwright-artifacts-* folder is deleted; a trace that cannot be moved, or that is found while traces are off, is
 # deleted, so that the failure artifact upload (ci.yml) never holds one. The sweep runs in CI only. `group` first deletes the root's run
 # folders (names that pass the run-tag rule) older than 7 days. Log lines name only <tag>/<unit>, never the host path.
+# Retries (Story 32.6, DW-550, DW-774): a live page whose snapshot GET of /state has no answer by half of its bound reloads once, inside the
+# same bound, and prints `RETRY <spec>:<line> <step>` (web/e2e/support/bounds.ts reportRetry). `live` points OCUTALON_E2E_RETRY_LOG at
+# web/test-results/<unit>-retries.txt (removed before the unit starts), where each retry also appends its line, because a passing test's
+# stdout does not reach the job log. After the unit it prints those lines and `RETRIES <n> in live:<unit>` when n is above 0 (the exit code
+# is the unit's). `group` prints `RETRIES <total> in group <name>[ (<unit> <n>, ...)]` before its GROUP line on every run, 0 included, and when
+# GITHUB_STEP_SUMMARY is set and the total is above 0 it appends that line and every RETRY line with its unit to the step summary.
 # Needs bash 3.2 or later, docker compose, and the base image IRIS_IMAGE (default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
 
@@ -575,12 +581,64 @@ traces_prune() {
   return 0
 }
 
+# --- Retries of a live page's snapshot wait (Story 32.6): counted from the file that the unit's Playwright run appends to ---
+
+# retry_log_of <unit>: the file that the unit's retries are appended to (OCUTALON_E2E_RETRY_LOG).
+retry_log_of() {
+  printf '%s\n' "$root/web/test-results/$1-retries.txt"
+}
+
+# retry_lines <unit>: the RETRY lines of the unit's file (the shape that web/e2e/support/bounds.ts retryLine prints); nothing when there is no file.
+retry_lines() {
+  LC_ALL=C grep -E '^RETRY [A-Za-z0-9._/-]+:[0-9]+ [A-Za-z0-9 ./:_-]+$' "$(retry_log_of "$1")" 2>/dev/null
+  return 0
+}
+
+# retry_count <unit>: the number of RETRY lines of the unit's file (0 without one).
+retry_count() {
+  retry_lines "$1" | wc -l | tr -d ' '
+}
+
+# retries_report <unit>: prints the unit's RETRY lines and `RETRIES <n> in live:<unit>` when n is above 0; nothing otherwise.
+retries_report() {
+  local n
+  n=$(retry_count "$1")
+  [ "$n" -gt 0 ] || return 0
+  retry_lines "$1"
+  echo "RETRIES $n in live:$1"
+}
+
+# retries_summary <group> <total> <detail>: prints `RETRIES <total> in group <group>` (with ` (<detail>)` when the detail is not empty). When
+# GITHUB_STEP_SUMMARY is set and the total is above 0 it appends that line and each RETRY line with its unit; the detail is a list of
+# `live:<unit> <n>` entries separated by `, `. A summary file that cannot be written is ignored.
+retries_summary() {
+  local group=$1 total=$2 detail=${3:-} line entries
+  line="RETRIES $total in group $group"
+  if [ -n "$detail" ]; then line="$line ($detail)"; fi
+  echo "$line"
+  [ "$total" -gt 0 ] || return 0
+  [ -n "${GITHUB_STEP_SUMMARY:-}" ] || return 0
+  entries=${detail//, /$'\n'}
+  {
+    echo "$line"
+    printf '%s\n' "$entries" | while IFS= read -r entry; do
+      unit=${entry%% *}
+      unit=${unit#live:}
+      [ -n "$unit" ] || continue
+      retry_lines "$unit" | while IFS= read -r l; do echo "- live:$unit: $l"; done
+    done
+  } 2>/dev/null >> "$GITHUB_STEP_SUMMARY"
+  return 0
+}
+
 cmd_live() {
   local name=${1:-} mode rc
   if [ -z "$name" ] || ! live_known "$name" || [ ! -f "docker/tests/test-$name.sh" ]; then
     echo "unknown live unit '$name'; see: ci/iris.sh list"
     exit 2
   fi
+  # A file from an earlier run is never counted for this one.
+  rm -f "$(retry_log_of "$name")"
   warm_check
   if [ "$WARM_MODE" = warm ]; then
     echo "FAIL live units never run warm: unset OCUTALON_WARM"
@@ -604,10 +662,14 @@ cmd_live() {
   else
     echo "TRACE off: $(traces_on)"
   fi
+  # The retries of the unit's tests are appended to this file (web/e2e/support/bounds.ts reportRetry).
+  export OCUTALON_E2E_RETRY_LOG
+  OCUTALON_E2E_RETRY_LOG=$(retry_log_of "$name")
   # Each unit keeps its Playwright results in its own folder (web/playwright.config.ts outputDir), so that a later unit of the job does not clear them.
   OCUTALON_E2E_OUTPUT="test-results/$name" bash "docker/tests/test-$name.sh" "$@"
   rc=$?
   traces_keep "$root/web/test-results" "$name"
+  retries_report "$name"
   exit "$rc"
 }
 
@@ -619,7 +681,7 @@ fresh_only() {
 }
 
 cmd_group() {
-  local name=${1:-} units unit kind arg started rc failed="" total=$SECONDS
+  local name=${1:-} units unit kind arg started rc failed="" total=$SECONDS retried=0 retries_detail="" n
   if ! units=$(group_units "$name"); then
     echo "unknown group '$name'; groups: $IRIS_GROUPS"
     exit 2
@@ -642,7 +704,15 @@ cmd_group() {
       echo "UNIT $unit failed $((SECONDS - started))s"
       failed="$failed $unit"
     fi
+    if [ "$kind" = live ]; then
+      n=$(retry_count "$arg")
+      if [ "$n" -gt 0 ]; then
+        retried=$((retried + n))
+        retries_detail="${retries_detail:+$retries_detail, }$unit $n"
+      fi
+    fi
   done
+  retries_summary "$name" "$retried" "$retries_detail"
   if [ -n "$failed" ]; then
     echo "GROUP $name failed:$failed ($((SECONDS - total))s)"
     exit 1

@@ -430,7 +430,7 @@ const SOURCES = {
     'This sends "Remember that the Results partner\'s contact is Lee." Later, ask "Who do I call about Results?" and look for the answer it remembered.',
     'Ask it to remember',
     'Ask about a document',
-    'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat and look for the citation under the answer.',
+    'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file.',
     'Open the Documents page',
     'Run a heartbeat check-in',
     "In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in's outcome and its cost in the card.",
@@ -679,6 +679,14 @@ const SOURCES = {
       'OcuTalon found no text in it.',
       "this part of OcuTalon isn't built yet.",
       'something went wrong inside OcuTalon.',
+    ],
+    'Story 19.7 ruling at the spec gate 2026-11-08 (Q1 (a), U-177 grant: the Planner\'s A1 reasons of Story 19.6 for the extraction codes, with the catalog\'s final period, each shown in "Couldn\'t read it: {reason}")': [
+      'its text is too long to read.',
+      "it's protected with a password.",
+      "it's damaged or incomplete.",
+      'it has no text to read, for example a scanned PDF without a text layer.',
+      "it's an old Word file (.doc); save it as .docx and try again.",
+      'reading it took too long.',
     ],
   },
   calendar: [

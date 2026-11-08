@@ -1,6 +1,7 @@
 import { expect as baseExpect, test as base, type APIRequest, type BrowserContext, type Page } from '@playwright/test';
 
-import { boundedStep, capToDeadline, effectiveWaits, markTestStart, waitsFor } from './bounds';
+import { boundedStep, capToDeadline, diagnosedAtBound, effectiveWaits, markTestStart, waitsFor } from './bounds';
+import { closeDiagnosis, watchRequests } from './diagnose';
 
 export * from '@playwright/test';
 
@@ -22,7 +23,9 @@ export * from '@playwright/test';
  * timeout of its own polls no longer than that cap either, so a poll cannot use up the reserve that the spec's `finally` needs.
  *
  * Its fourth contract: page.close() on a page of the test's context takes no timeout in Playwright, so it is bounded here by the action
- * wait in force (and by the time the test has left, bounds.ts boundedStep) and fails naming `page.close`.
+ * wait in force (and by the time the test has left, bounds.ts boundedStep) and fails naming `page.close`. When the bound passes, the
+ * close diagnosis (diagnose.ts closeDiagnosis, DW-774) prints whether the page, its renderer and the browser still answer, what the page has in
+ * flight and the host's load, to close-diagnosis.txt and stdout, before the same error is thrown. A close is never retried.
  *
  * Its fifth contract (DW-706): an APIRequestContext made without a timeout of its own (the built-in `request` fixture, a
  * `playwright.request.newContext()` in a spec or a helper) waits no longer than the action wait in force, bounds.ts effectiveWaits: in a
@@ -35,7 +38,8 @@ export * from '@playwright/test';
 /** Makes the page's close() reject with `page.close: no answer within <s> s` when the page has not closed within waitMs() (at the time of the call). */
 export function boundedClose(page: Page, waitMs: () => number): void {
   const close = page.close.bind(page);
-  page.close = (options) => boundedStep(close(options), waitMs(), 'page.close');
+  const watch = watchRequests(page);
+  page.close = (options) => diagnosedAtBound(boundedStep(close(options), waitMs(), 'page.close'), 'page.close', () => closeDiagnosis(page, watch));
 }
 
 type PollOptions = { timeout?: number } | string | undefined;

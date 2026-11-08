@@ -6,7 +6,7 @@ import { fixtureUser, seedDecision, seedTurns, sendItem, sendItemDecision, sendN
 import { countFocusins, fromBottom, plain, scrollListTo, tokenColor } from '../support/page';
 
 /**
- * Story 2.7, the notice cards (N1 to N15; N11, the simulated phone's half of N10, is Story 4.5's), in a real browser against a real stack. Every case signs in as the notice fixture user
+ * Story 2.7, the notice cards (N1 to N16; N16 is Story 17.10's digest card; N11, the simulated phone's half of N10, is Story 4.5's), in a real browser against a real stack. Every case signs in as the notice fixture user
  * that test-sign-in.sh created (OCUTALON_NOTICE_USER) and sends items, item decisions and notifications to its own session through
  * the real production (SimMailboxIn and NoticesIn hosts, OutcomeRouter, Notify, WebChatOut), so that nothing here publishes on the
  * README session or the instance stream (api.spec pins their counts) or touches another spec's chat. Each case asserts only on the
@@ -457,6 +457,56 @@ test('N15: markup and an unbroken word in a card stay text inside the card', asy
     return { notice: notice.scrollWidth <= notice.clientWidth, list: list.scrollWidth <= list.clientWidth, page: document.documentElement.scrollWidth <= document.documentElement.clientWidth };
   });
   expect(fits, 'the unbroken words wrap: the card, the list and the page have no sideways scroll').toEqual({ notice: true, list: true, page: true });
+});
+
+/** The strokes that only the inbox icon draws. */
+const INBOX = 'polyline[points="22 12 16 12 14 15 10 15 8 12 2 12"]';
+
+/**
+ * N16 (DW-874, Story 17.10): a digest Notification through Notify is one plain-text notice card of the class digest: the inbox icon in the info ink, the
+ * 4px bar, and the catalog's pieces one on each line, with no heading, title, strip, caption or Why now line. After a reload the snapshot shows the same card.
+ */
+test('N16: a digest shows as a plain-text notice card with one piece on each line, also after a reload', async ({ page }) => {
+  const { user } = fixtureUser('NOTICE');
+  await open(page);
+  const marker = unique('N16');
+  const parts = [
+    { key: 'digest.greetingEvening', slots: {} },
+    { key: 'digest.checkedQuiet', slots: { checked: 'the Chat agent' } },
+    { key: 'checks.allPassed', slots: {} },
+    { key: 'digest.saved', slots: { count: 1, summary: marker } },
+    { key: 'digest.cost', slots: { cost: 0.042 } },
+  ];
+  const lines = [{ key: 'digest.notCheckedSizeLimit', slots: { entry: 'the Billing database' } }];
+  const expected = [
+    'Good evening.',
+    'I checked the Chat agent (all running, no errors, no backlog).',
+    'Everything I checked passed.',
+    "Not checked: the Billing database (OcuTalon can't read this database's size limit).",
+    `Saved for later (1): ${marker}`,
+    "Yesterday's cost: $0.04.",
+  ];
+  await sendNotification(user, { kind: 'digest', catalogKey: 'checks.allPassed', slots: { parts, lines, rows: [] } });
+  const card = cardOf(page, marker);
+
+  /** Every leg of the card, before and after the reload. */
+  const assertCard = async (when: string): Promise<void> => {
+    await expect(card, `${when}: one card`).toHaveCount(1);
+    await expect(card.locator('.notice.digest'), `${when}: of the class digest`).toHaveCount(1);
+    await expect(card.locator(`.notice > app-icon ${INBOX}`), `${when}: the icon is the inbox`).toHaveCount(1);
+    await expect(card.locator('.notice > app-icon'), `${when}: in the info ink`).toHaveCSS('color', await tokenColor(page, '--info-ink'));
+    await expect(card.locator('.notice'), `${when}: the accent bar is 4px`).toHaveCSS('border-left-width', '4px');
+    const shown = (await card.locator('.text').innerText()).split('\n');
+    expect(shown, `${when}: the text keeps its line breaks, one piece on each line`).toEqual(expected);
+    await expect(card.locator('h1, h2, h3, h4, h5, h6, [role="heading"], .title'), `${when}: no heading or title`).toHaveCount(0);
+    await expect(card.locator('app-decision-strip, .caption, .why'), `${when}: no strip, caption or Why now line`).toHaveCount(0);
+  };
+
+  await expect(card).toHaveCount(1, { timeout: CARD_MS });
+  await assertCard('live');
+  await page.reload();
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await assertCard('after the reload');
 });
 
 /**

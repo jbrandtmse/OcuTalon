@@ -16,6 +16,9 @@ Include Ensemble
 ///          the tool's name in upper case with _ and - removed (StepBuffer.ToolParameter). What code declares is final, so a setting or an
 ///          extension never changes it, and a declared value other than safe or risky leaves the tool unclassified. Then the entry of Decide's
 ///          ToolClassification setting for exactly that class and tool; then the ClassificationClass extension;
+///        - the one knowledge-base call (RagCall: AI Hub sends no source class with it) takes the source RAGSOURCE, so Decide's ToolClassification entry for
+///          RAGSOURCE and RAGTOOL classifies it, and with no entry it is unclassified as before (Story 19.4, spine AD-10). A call with another name, with an
+///          origin_class or with an mcp: toolref is not a RagCall;
 ///        - anything else is unclassified, which counts as risky.
 ///      Nothing in the call, its metadata, its arguments (except as the input of a code Classify method) or the context classifies it.
 ///   3. The permissions: for each resource:permission pair of the tool's RESOURCES parameter (Resources, the one bridge parser), one
@@ -38,7 +41,7 @@ Include Ensemble
 ///        - Kind tool_call, ToolName the call's name, ToolSource the source of the call (the class or the MCP toolref the call was classified by),
 ///          Runner the runner item of the context (DW-194: the runner that replays the call once it is approved), and ToolArguments the call's arguments as given: an object as its %ToJSON(), a JSON text that
 ///          is not blank verbatim, and no arguments (or null) as {}. Arguments of any other type (an array, a number, a boolean) are not held: the
-///          call is denied with FAILED. The call is never modified;
+///          call is denied with FAILED. The call is never modified, except for the one rewrite of the knowledge-base call (below);
 ///        - OwnerRef and TraceRef of the context, and no ResultTarget, IncidentRef or DryRun, so the hold sends no outcome;
 ///        - the host sink of the gate (sinkClass, empty: the HostSinkClass setting of Decide) receives approval.raised from Raise, after the row is
 ///          saved and unlocked. Raise takes the trace session and the SuperSession from the context (AD-26), so the call's request is held in the
@@ -46,6 +49,9 @@ Include Ensemble
 ///      A held call fires no turn.step and does not taint the turn, and its only event is approval.raised. A Raise that fails (a lock it cannot
 ///      take, an open transaction, a hold that does not start, a row it refuses) is denied with FAILED, never HELD, because nothing is held: Check
 ///      logs its one warning with Raise's error, and no row, hold or event is left.
+///      A RagCall that passed the checks above is denied with NOROOM when the results of the step so far (Context.ToolResultChars) leave less than
+///      RAGRESULTMAX characters of the step's STEPTOKENS tokens (NFR-3), and otherwise its top_k is rewritten (ClampTopK: above MAXTOPK it becomes MAXTOPK;
+///      below 1 or not a number it is removed) before the step is reported. This is the gate's only rewrite of a call.
 ///      Right before it allows a call, after turn.step is reported, the gate sets the Tainted of the context to 1 (Context.Put) unless the
 ///      trustedOutput of the classification is 1, because the tool's result reaches the model. So the next call, even in the same model
 ///      response, sees the taint. A denied call never taints, and an error status from Put denies the call with FAILED.
@@ -53,7 +59,7 @@ Include Ensemble
 /// gate reads no flag from MCP: FromExtension keeps readOnly and trustedOutput at 0.
 /// An allowed call fires turn.step through Decide.FireEvent to the HostSinkClass setting of Decide, owned by the session of the context, with
 /// the payload HostSink.TurnStepPayload(DecisionRef, label) and the tool's step label. A denied call fires nothing. A sink that fails is logged
-/// and never changes the decision. The gate never modifies the call. It takes no lock itself: only Raise's lock on the new request's Ref, for a
+/// and never changes the decision. The gate never modifies the call, except for the top_k of the knowledge-base call (RagCall). It takes no lock itself: only Raise's lock on the new request's Ref, for a
 /// held call, and Raise refuses to run inside an open transaction.
 /// The class has no instance property (AI Hub infers a policy's statefulness from its properties), makes no call into AI Hub beyond its base
 /// class and runs no Python: it runs inside a callback (AD-6). Only the Class line names the AI Hub package.
@@ -97,6 +103,26 @@ Parameter MAXWARNING = 300;
 /// The keys of an entry of the ToolClassification setting.
 Parameter ENTRYKEYS = "class,tool,classification,readOnly,trustedOutput";
 
+/// The fallback source of AI Hub's knowledge-base tool (Story 19.4, spine AD-10): AI Hub sends no source class with the calls of a knowledge base, so
+/// the one call that RagCall recognises takes this source (%AI.RAG.KnowledgeBase; written in two pieces because no code line of a callback class may name %AI, Test.Bridge.CodeRules), and Decide's ToolClassification setting classifies it by the pair RAGSOURCE and RAGTOOL.
+Parameter RAGSOURCE = {"%" _ "AI.RAG.KnowledgeBase"};
+
+/// The name of the one knowledge-base tool the fallback covers (OcuTalon.Tools.Names DOCUMENTS; a test pins them equal, because the bridge cannot name a host class).
+Parameter RAGTOOL = "documents";
+
+/// The most results of one search: a numeric top_k above it becomes MAXTOPK (AD-10).
+Parameter MAXTOPK = 5;
+
+/// The tokens that the results of one model step may hold (NFR-3), the twin of OcuTalon.Tools.Result's STEPTOKENS, which the bridge cannot name; a test pins them equal.
+Parameter STEPTOKENS = 10000;
+
+/// The characters that one search may add to the step: a search runs only when the results of the step so far leave this much room (MAXTOPK passages of
+/// 1,000 characters, their metadata and their JSON).
+Parameter RAGRESULTMAX = 8000;
+
+/// The sentence for a search that has no room in the step (model-facing; shown in the trace). The tool did not run.
+Parameter NOROOM = "This step's tool results are near their size limit, so the documents search was not run. Answer from the results you already have.";
+
 /// Decides one tool call. Any exception is caught in Check, and the denial is FAILED.
 Method %CanExecute(toolref As %String, call As %DynamicObject, metadata As %DynamicObject) As %Status
 {
@@ -118,8 +144,9 @@ ClassMethod Check(toolref As %String, call As %DynamicObject, metadata As %Dynam
 	Set sc = ""
 	Try {
 		Set name = ..NameOf(call)
-		Set source = ..Source(toolref, metadata)
-		Set sc = ..Decision(name, source, call, sinkClass)
+		Set rag = ..RagCall(name, metadata, toolref)
+		Set source = ..Source(toolref, metadata, name)
+		Set sc = ..Decision(name, source, call, sinkClass, rag)
 	} Catch exception {
 		Set sc = ..Denial(..#FAILED)
 		Do ..Warn(name, source, exception.DisplayString())
@@ -128,7 +155,7 @@ ClassMethod Check(toolref As %String, call As %DynamicObject, metadata As %Dynam
 }
 
 /// The decision of Check, which throws for any failure.
-ClassMethod Decision(name As %String, source As %String, call As %DynamicObject, sinkClass As %String) As %Status [ Private ]
+ClassMethod Decision(name As %String, source As %String, call As %DynamicObject, sinkClass As %String, rag As %Boolean = 0) As %Status [ Private ]
 {
 	If '##class(OcuTalon.Bridge.Context).Active() $$$ThrowStatus($SYSTEM.Status.Error(5001, "There is no context for the call"))
 	If name = "" $$$ThrowStatus($SYSTEM.Status.Error(5001, "The call is not an object with a name"))
@@ -145,7 +172,17 @@ ClassMethod Decision(name As %String, source As %String, call As %DynamicObject,
 	} ElseIf classification.classification '= ..#SAFE {
 		Quit ..Hold(context, name, source, call, sinkClass)
 	}
-	Do ..ReportStep(context, source, name, sinkClass)
+	If rag {
+		If (+context.ToolResultChars + ..#RAGRESULTMAX) > (..#STEPTOKENS * ##class(OcuTalon.Bridge.Adapter.StepBuffer).#CHARSPERTOKEN) Quit ..Denial(..#NOROOM)
+		If ..RewrittenBefore(context, call) {
+			Kill ^||OcuTalonBP.RagRewrite
+		} Else {
+			If ..ClampTopK(call) Set ^||OcuTalonBP.RagRewrite = context.ItemId_"|"_..ArgumentsText(call)
+			Do ..ReportStep(context, source, name, sinkClass)
+		}
+	} Else {
+		Do ..ReportStep(context, source, name, sinkClass)
+	}
 	If classification.trustedOutput '= 1 {
 		Set sc = ##class(OcuTalon.Bridge.Context).Put("Tainted", 1)
 		If $$$ISERR(sc) $$$ThrowStatus(sc)
@@ -183,11 +220,88 @@ ClassMethod Hold(context As OcuTalon.Bridge.Context, name As %String, source As 
 }
 
 /// The source of the call: its toolref when that starts mcp:, else metadata.origin_class, else "".
-ClassMethod Source(toolref As %String, metadata As %DynamicObject) As %String
+ClassMethod Source(toolref As %String, metadata As %DynamicObject, name As %String = "") As %String
 {
 	If ..IsMcp(toolref) Quit toolref
+	If (name '= "") && ..RagCall(name, metadata, toolref) Quit ..#RAGSOURCE
 	If ..IsObject(metadata) && (metadata.%GetTypeOf("origin_class") = "string") Quit metadata."origin_class"
 	Quit ""
+}
+
+/// 1 only for the call of AI Hub's knowledge-base tool of the documents: a toolref that does not start with mcp:, metadata with no origin_class (AI Hub
+/// sends none for a knowledge base) and the name exactly RAGTOOL. Anything else, such as the same name with an origin_class, another name without one
+/// or an MCP tool named documents, is 0 and is classified as before (Story 19.4, AD-10).
+ClassMethod RagCall(name As %String, metadata As %DynamicObject, toolref As %String = "") As %Boolean
+{
+	If name '= ..#RAGTOOL Quit 0
+	If ..IsMcp(toolref) Quit 0
+	If ..IsObject(metadata) && (metadata.%GetTypeOf("origin_class") '= "unassigned") Quit 0
+	Quit 1
+}
+
+/// The one rewrite of a call (AD-10): for the knowledge-base call, a numeric top_k above MAXTOPK becomes MAXTOPK, and a top_k below 1 or not a number is
+/// removed. AI Hub (build 154, measured in Story 19.4's Task 0) runs the call with the arguments that the call holds after %CanExecute only when the
+/// call's arguments member is SET again: a change inside the arguments object has no effect. So the rewrite sets the member to a changed copy of the
+/// object, or to the changed JSON text when the arguments are a JSON text, and AI Hub then runs the policy again on the changed call. 1 when the call
+/// was rewritten; a call whose arguments are neither an object nor JSON text, or that needs no change, is left as it is.
+ClassMethod ClampTopK(call As %DynamicObject) As %Boolean [ Private ]
+{
+	Set type = call.%GetTypeOf("arguments")
+	If type = "object" {
+		Set copy = {}.%FromJSON(call.arguments.%ToJSON())
+		If '..ClampIn(copy) Quit 0
+		Do call.%Set("arguments", copy)
+		Quit 1
+	}
+	If type = "string" {
+		Try {
+			Set arguments = {}.%FromJSON(call.arguments)
+		} Catch {
+			Return 0
+		}
+		If '..IsObject(arguments) Quit 0
+		If '..ClampIn(arguments) Quit 0
+		Do call.%Set("arguments", arguments.%ToJSON())
+		Quit 1
+	}
+	Quit 0
+}
+
+/// 1 when this call is the second run of the policy on a call that the gate rewrote just before in this process (AI Hub runs the policy again on a changed
+/// call): the turn and the arguments are those the rewrite left, so the step was reported by the first run and is not reported again.
+ClassMethod RewrittenBefore(context As OcuTalon.Bridge.Context, call As %DynamicObject) As %Boolean [ Private ]
+{
+	Quit $Get(^||OcuTalonBP.RagRewrite) = (context.ItemId_"|"_..ArgumentsText(call))
+}
+
+/// The call's arguments as text: the JSON of an object, the text of a JSON text, else "".
+ClassMethod ArgumentsText(call As %DynamicObject) As %String [ Private ]
+{
+	Set type = call.%GetTypeOf("arguments")
+	If type = "object" Quit call.arguments.%ToJSON()
+	If type = "string" Quit call.arguments
+	Quit ""
+}
+
+/// Clamps the top_k member of the arguments object; 1 when it changed anything.
+ClassMethod ClampIn(arguments As %DynamicObject) As %Boolean [ Private ]
+{
+	Set type = arguments.%GetTypeOf("top_k")
+	If type = "unassigned" Quit 0
+	If type '= "number" {
+		Do arguments.%Remove("top_k")
+		Quit 1
+	}
+	Set value = arguments.%Get("top_k")
+	If value > ..#MAXTOPK {
+		Do arguments.%Set("top_k", ..#MAXTOPK, "number")
+		Quit 1
+	}
+	If value < 1 {
+		Do arguments.%Remove("top_k")
+		Quit 1
+	}
+	Quit 0
 }
 
 /// The classification of the tool name of the source: {"classification","readOnly","trustedOutput","by"}, where classification is safe, risky or

@@ -3329,6 +3329,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T10:53:40Z status=routed owner=11-27-live-pages-get-their-state-answer-under-load by=runner note=Planner_ruling_2026-11-07T10:55Z_option_(b):_stays_open;_11.27_becomes_test-only_diagnostics_(CI-host-only_retain-on-failure_traces_for_live_units,_no_upload,_7-day_job-side_deletion,_a_pin_that_no_upload_path_includes_the_folder;_gateway-status_dump_in_loadedAfter);_(c)_is_the_Planner's
 - 2026-11-07T13:17:53Z occurrence=11-28-the-no-key-runner-test-ignores-a-late-timer-row-of-the-test by=runner note=OCT-epic11@1e16e44a run 42373379335 att 1 iris(browser) live:sign-in chromium decision.spec.ts:195 D4 'loadedAfter the snapshot GET /ocutalon/api/v1/state: no answer within 30 s' (sign-in unit 1053 s); no DIAG line in the job log (DW-756, which 11.27 fixes); the head changes only Test/Agent ObjectScript test classes, which no browser path loads; one rerun of the failed job
 - 2026-11-07T16:40:13Z status=routed owner=burndown by=adjudication note=diagnostics attached by Story 11.27 (Planner ruling 2026-11-07T10:55Z: stays open): on the next CI occurrence the failing live test's retain-on-failure trace is kept on the self-hosted runner under $HOME/ocutalon-traces/<run tag>/<unit>/ for 7 days (never uploaded), loadedAfter prints DIAG /state gateway lines (per-server total/in-use/private/queued, per-state connection counts) beside 11.22's lines, and state-diagnosis.txt reaches the uploaded artifact; next: read the trace's network entry for /state (sent, stalled or never sent) and the gateway counts at the bound
+- 2026-11-08T04:40:27Z status=routed owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=runner note=charter_Story_32.6_(test-only,90-min_timebox,Planner_terms_2026-11-08;SC-5_reopen_of_Epic_32;builds_on_11.27_diagnostics)
+- 2026-11-08T07:31:06Z status=wontfix-accepted by=adjudication note=Story_32.6_Branch_B_(Planner_terms_2026-11-08:_no_cause_in_the_90-min_timebox_->_diagnostics_plus_at_most_one_logged_retry_is_acceptable_for_a_host-load_flake):_ddbabfca_+_story_commit_land_page-side_DIAG_/state_lines_(requests_issued/in_flight,renderer_probe,host_load/pressure/swap-in)_and_one_reload_inside_the_same_bound,_logged_RETRY_<spec>:<line>,_counted_RETRIES_per_unit/group_in_ci/iris.sh_and_the_step_summary;_root_cause_not_found(IRIS,memory_pressure,renderer_crash_ruled_out) reopen_if=a_CI_red_of_'loadedAfter_the_snapshot_GET_/ocutalon/api/v1/state:_no_answer_within'_AFTER_its_RETRY_line_(the_retry_did_not_contain_it),_or_RETRIES>0_in_3+_CI_runs_in_one_day;_read_that_run's_DIAG_/state_request/page/host_lines_for_the_cause
 
 ### DW-551: The release checklist does not check the draft notes for the inspiration's name outside the not-affiliated note (only the tracked tree's name-only-in-note row); the draft's own rules are Story 11.13's
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3963,6 +3965,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T10:54:18Z status=routed owner=39-10-the-heartbeat-production-test-is-stable-dw-639 by=load note=re-owned_to_Story_39.10_(tier_3a,Planner_approved,orchestrator_2026-11-07);acceptance_bullet_in_epics.md;not_a_flake_class_for_39.10:a_red_on_its_head_is_real
 - 2026-11-07T13:02:05Z status=routed owner=burndown by=adjudication note=residual:diagnostics_landed(Test.Schedule.Heartbeat_TestAfterAllTestsNothingSaved_names_the_missing_items_and_their_job_state);fix_on_next_named_occurrence;not_reproduced_in_7_load_runs(39.10_plan);orchestrator_ruling_option_a;stays_a_flake_class;closed_at_Epic_39's_burn-down
 - 2026-11-07T13:49:16Z status=wontfix-accepted by=burndown note=residual:diagnostics_landed;fix_on_next_named_occurrence(Story_39.10,7e96e0a9;orchestrator_ruling_option_a);stays_a_flake_class(one_rerun+occurrence) reopen_if=the_next_CI_occurrence's_message_names_the_missing_item_and_its_job_state(Alive:_transient;jobs_none/Starting:_still_missing;Dead:_job_died->PRODUCT_CAUSE_check)
+- 2026-11-08T04:15:49Z occurrence=17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path status=routed owner=burndown by=ci note=reopen_if_fired:OCT-epic17_596eb1f7_run_42442077870_iris(image)_shard:lane-b(1_of_111)_names_TelegramIn(row_0,runtime_flag_1,jobs_none)_2026-11-08T03:56Z;one_rerun_of_the_failed_job;not_in_Epic_17's_diff;for_the_orchestrator_to_route
+- 2026-11-08T06:56:42Z occurrence=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=cr note=cr2: 17.10 cannot write TelegramIn's run-time flag (static); watcher not kept; Bridge.Timeouts.Restart also updates
+- 2026-11-08T08:27:34Z status=routed owner=burndown by=burndown note=epic17_reopen_burndown_overflow:shared_flake_pool(filed_by_Epic_31;on_the_dispatch_flake_list);38ab54d4_image_green_without_a_code_change(the_17.10_rework_was_spec-only);probable_mechanism:Install.Step.Production.NotRunning()_reads_the_run-time_flag_while_the_System_Default_row_0_governs_TelegramIn;Install/Step/Production.cls_is_Epic_19's(contended);for_the_orchestrator_to_route_post-merge
+- 2026-11-08T12:38:27Z occurrence=OCT-epic18-90360113 by=orchestrator note=run 42475836390 iris(image) shard:lane-b Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved: TelegramIn row 0, runtime flag 1, jobs none (same as Epic 17's twice this morning); 18.2 changes Settings/web only; rerun of failed jobs 12:3xZ; for 32.7
 
 ### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
@@ -4200,6 +4206,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T10:53:40Z status=routed owner=11-28-the-no-key-runner-test-ignores-a-late-timer-row-of-the-test by=runner note=chartered_Story_11.28_(Planner_ruling_2026-11-07T10:55Z_DW-688_first;90-min_timebox;test-only_unless_product)
 - 2026-11-07T12:20:50Z status=resolved-by:11-28-the-no-key-runner-test-ignores-a-late-timer-row-of-the-test by=adjudication note=8f63b716+review_patch: RunnerFixture.ErrorRows(mark,headerMark) leaves out only the Type 2 Ens.Alarm timer-ignored row of a header at or below the mark; TestStartsWithNoKey passes HeaderMark taken with errorMark; pinned by Test.Agent.ErrorRowsMark (real dangling timers before and after the mark, synthetic edge rows); proof: unchanged class red 2 of 3 twice under planted dangling timers, fixed class green 20 of 20 under the same planting
 - 2026-11-07T15:33:18Z status=routed owner=burndown by=ci note=occurrence OCT-epic39 d5b39c3d run 42379785616 attempt 2 shards-2 TestStartsWithNoKey; 4th occurrence; Story 11.28 is on it
+- 2026-11-08T01:58:33Z occurrence=19-4-answer-from-documents-with-citations by=runner note=ci_run_42425571857_shards-5_Test.Agent.Runners:TestStartsWithNoKey_red_on_0cb88c2b;no_rerun(head_superseded_by_the_19.4_rework_push)
 - 2026-11-07T20:50:43Z status=routed owner=burndown by=orchestrator note=occurrence OCT-epic32 39364d5c run 42401362858 attempt 2 shards-5 (lane-a@Bridge,Agent) TestStartsWithNoKey; the Planner granted a one-time merge-gate exception for 32.5 on this red (~20:52Z, rc2 picks); fix waits in 11.28
 - 2026-11-07T19:03:07Z occurrence=39-10-the-heartbeat-production-test-is-stable-dw-639 note=OCT-epic39_05f78577_run_42400798775_iris(shards-5)_lane-a@Bridge,Agent_TestStartsWithNoKey_same_signature;Story_11.28_fix_not_merged;rerun_by_the_fix-forward_push
 ### DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27)
@@ -4331,7 +4338,11 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 7.8 fresh check: lane-a@Fix reversed part 2/2 on a fresh lane-B throwaway, red once (header 564), green on the unchanged rerun; Story 7.8 changed no Fix code
 - 2026-11-04T19:33:23Z status=routed owner=burndown by=adjudication note=flake candidate: Test.Fix.Snapshot exempts only a timer already running; a ScheduleService call is another background writer; note every occurrence
+- 2026-11-08T11:54:08Z occurrence=17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path status=routed owner=burndown by=ci note=priority:2nd_test_same_root_cause:Test.Watch.GoodMessages_TestFewerThanTwentyGood(Epic_7_dry_run)_saw_OCUTALON_headers_1504,1505_Ens.ScheduleService->Ens.ScheduleHandler_inside_the_dry-run_window;OCT-epic17_321dcad7_run_42470657226_job_128700385950_iris(shards)_unit_shard:lane-a@Checks,Install,Watch;mechanism:Ens.Alarm_fires_CallScheduleService_when_a_timer's_request_header_is_missing(irislib_Ens/Alarm.cls);fix:the_dry-run_snapshot_exempts_ScheduleService_calls,not_only_a_running_timer;one_rerun_requested
 - 2026-11-08T12:22:09Z occurrence=OCT-epic32-cf04f99a by=orchestrator note=run 42472273728 iris(shards) Test.Watch.GoodMessages TestFewerThanTwentyGood: Ens.ScheduleService headers inside the dry-run window (2nd branch in 1 h after OCT-epic17 321dcad7); 32.6 is test-only web; rerun of failed jobs 12:2xZ; for 32.7
+- 2026-11-08T12:39:56Z status=routed owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=runner note=charter:Story_7.11_test-only_Planner_ruling_2026-11-08(b);occurrences_OCT-epic17-321dcad7(x2),OCT-epic32-cf04f99a
+- 2026-11-08T13:31:15Z status=resolved-by:7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=adjudication note=Snapshot.DiffCategory_excuses_new_and_completing_headers_Ens.ScheduleService->Ens.ScheduleHandler_only(ScheduleWrite);pinned_by_SnapshotDiff.TestScheduleWritesAreNotChanges(5_mutations_red);forced-condition_harness_old_red_20/20,fix_20/20(evidence/7-11/cause.md);callers_green_warm
+- 2026-11-08T13:44:12Z occurrence=OCT-epic32-cf04f99a-attempt2 by=orchestrator note=run 42472273728 attempt 2 TestFewerThanTwentyGood ScheduleService header again; one more rerun under the Planner's (c) deviation; 7.11 fixes it
 
 ### DW-698: flake: lane-a@rest Tools.RecentActivity and RecentActivityTurn saw a leaked resolved Orders/OrdersFromPartner incident (count 50, approved on web, 50 resent); TestPoisoned hit INVALID OREF in Test.Watch.Case.SortedKeys
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4566,11 +4577,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: U-279 at=2026-11-05T05:37:42Z#848 (a) keep; EXPERIENCE.md is contended with Epic 40, so not edited by 34.1; checked against prd.md P23
 - 2026-11-05T07:02:58Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=spec_gate note=apply only after Epic 40 merges; exact text above; epics.md UX-DR144 line and EXPERIENCE.md Step 3 Documents bullet
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=EXPERIENCE.md:979+line_after_:1138_and_epics.md:476_in_d59505f4;pinned_by_live:documents_step1(both_files,word_for_word)
 
 ### DW-720: Owner ruling U-280 consistency: a reply that says 'None of your documents cover that.' carries no document citations, and a reply with document citations never says it; code decides both from the same turn's documents-tool results, and tests cover both directions
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: U-280 at=2026-11-05T05:37:42Z#849 condition 1; spine Conventions row 'Citations and memories'
 - 2026-11-05T07:02:58Z status=routed owner=19-4-answer-from-documents-with-citations by=spec_gate note=19.7 inherits it for PDF and Word answers
+- 2026-11-08T03:39:47Z status=resolved-by:19-4-answer-from-documents-with-citations by=adjudication note=Test.Docs.Turns(TestNotCovered,TestNoneConflict,TestNoneOnly)+Test.Docs.Reply+Test.Bridge.Decide:TestFilterGetsHostData+live:documents_step_2b(four_chat_turns_on_POST_/v1/messages);both_directions_mutation-pinned
 
 ### DW-721: Owner ruling U-280 chips: citation and memory chips are built by code from the turn's tool results (at most 5 each); labels state provenance, never 'used', 'relied on' or 'based on' ('Sources' and 'From memory' are fine); the UI shows 'None of your documents cover that.' and document citations never together, with tests in both directions; FR-41 is met by the 'From memory' chip
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4613,6 +4626,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: D10 failure-notice step and D8 accepted statuses rely on the stub era
 - 2026-11-05T12:23:42Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 changes them when it builds DocumentOps
+- 2026-11-08T03:39:47Z status=resolved-by:19-4-answer-from-documents-with-citations by=adjudication note=D8_and_D10_network_setup_through_page.route(Q4_grant);live:documents_covers_the_real_route
 
 ### DW-738: The image's transitive Python packages are not pinned (only fastembed, pdfplumber and python-docx are), so a judge's local image build resolves newer dependencies than CI measured; a new dependency or an upstream licence change fails the licence gate and the build, and the model download relies on huggingface_hub's cache layout
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: high | footprint: out-of-footprint
@@ -4625,6 +4639,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test.Web.DocumentsApi TestRealSubmitOrigin is a source-text match; e2e D8/D10 stop at the guard's 501 (34.2 review, verification-gap and acceptance auditor)
 - 2026-11-05T13:03:31Z status=routed owner=19-4-answer-from-documents-with-citations by=cr note=when 19.4 enables DocumentOps add an executed test that CommandsIn receives AddDocument and RemoveDocument from the route as web_user
+- 2026-11-08T03:39:48Z status=resolved-by:19-4-answer-from-documents-with-citations by=adjudication note=Test.Docs.Ops_runs_Commands.Submit->CommandsIn->DocumentOps_for_real;live:documents_drives_the_Web.Documents_route_over_HTTP(27_PASS_fresh);stale_Lane_B_comment_is_DW-895
 
 ### DW-740: ForgetMemory carries a MemoryRef but nothing in Lane B checks that the memory belongs to the command's SessionRef: CommandsIn's context check compares SessionRef with the context's OwnerRef only, so MemoryOps must refuse another session's memory
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4639,6 +4654,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T17:39:16Z occurrence=34-2-add-and-remove-documents-on-a-documents-page
 - 2026-11-05T19:14:52Z occurrence=34-3-epic-34-burn-down by=burndown note=its_sweep_part_(orphaned_rows)_is_DW-752,built_in_34.3;the_timeout_case_and_Take's_session_check_stay_with_19.4
 - 2026-11-05T22:44:46Z status=routed owner=19-4-answer-from-documents-with-citations by=cr note=34.3 delivered Take's session check (Take(ref,sessionRef) via Ownership.Upload) and the sweep; 19.4 keeps the timeout case
+- 2026-11-08T03:39:48Z status=resolved-by:19-4-answer-from-documents-with-citations by=adjudication note=OnAdd_takes_the_upload_once_with_the_command's_SessionRef;an_empty_take_is_a_failed_row_answered_Ok_0(matrix_Upload_gone,Test.Docs.Ops);34.3_delivered_the_sweep
 
 ### DW-741: Epic 34 merge: Web.Api's OnPreDispatch refuses a POST /v1/documents body over 256 KB with 413 before OcuTalon.Web.Documents (Map-forwarded) runs; 34.2 must declare XData BodyBounds in Api.cls (url /v1/documents) and in Documents.cls (url "")
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4871,6 +4887,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: docker/tests/test-rehearsal.sh pins the step on stubs; the sign-in step after it is the real check
 - 2026-11-06T09:07:41Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5 extends the release/ upgrade harness; run the rehearsal dry run on a lane-C throwaway there
+- 2026-11-08T11:25:16Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=adjudication note=evidence/19-5-dw783-rehearse-dry-run.md:dry_run_on_lane-C_throwaway_e19s5ir:memory-offline_pass(MEMOFF-RECONNECTED),sign-in_pass_on_52803_right_after,docker_port_52773->52803_after_reconnect;no_release-tool_hunk
 
 ### DW-784: docs/install-ipm.md does not say that an IPM install fetches fastembed through requirements.txt and downloads the model (about 97 MB) into <mgr>/fastembed/, or what WARN Memory means; its sample output shows STEP Memory OK 0.1s and no WARN Memory
 - source: spec-19-2-compute-embeddings-offline-in-a-worker.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4939,11 +4956,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: evidence/19-6-task0-extraction.md M3
 - 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 is the first product caller; serialise or amend AD-21's wording
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=Docs.Extract.Read_takes_^OcuTalon.Docs.Extract(d59505f4);Test.Docs.ExtractMore_TestOneReadAtATime(lock_removed_mutation_red)
 
 ### DW-828: Clear on a timed-out read waits for a work item inside one long C call (a 30 s sleep held Clear 29 s), so a PDF whose time goes into one C call (a decompression bomb) can keep Read past its limit
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: evidence/19-6-task0-extraction.md M3: the page loop stops, a single C call does not
 - 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 adds files from the Documents page; bound it there (page or size caps before the C call)
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=bounded_zlib_stand-in_in_ocutalon_extract.py(d59505f4);TestBombStops_contents_too_large_0.26s(stand-in_off_mutation_red)
 
 ### DW-829: On an IPM install, pip -t leaves older copies of six distributions that <mgr>/python already holds (certifi, charset_normalizer, idna, requests, typing_extensions, urllib3) beside the pinned dist-info, so the pinned files may not be the ones imported; U-294 condition 1 and README bullet A5 ('at the same versions') depend on it
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: high | footprint: out-of-footprint
@@ -4963,16 +4982,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: python-docx 1.1.2 behaviour; no sample covers it
 - 2026-11-06T23:14:10Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7 answers from Word runbooks
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=docx_block_walker(w:p,w:tbl,w:sdt)_in_d59505f4;TestContentControls(iter_inner_content_mutation_red)
 
 ### DW-832: A line of a file's own text that starts with '## ' is indistinguishable from an extraction page or heading marker, so Story 19.4's splitter would open a section there
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: inherent in the Markdown markers (19.6's decided design)
 - 2026-11-06T23:14:10Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4's splitter escapes or ignores such lines
+- 2026-11-08T03:39:48Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=adjudication note=residual:the_splitter_half_is_done(only_markdown_##_lines_open_sections;\##_is_the_escaped_passage_line);Story_19.7's_extraction_must_write_a_file's_own_##_lines_as_\##
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=_escape_writes_\##_(d59505f4);TestEscapedLines,TestWorkerEscape(escape_removed_mutation_red)
 
 ### DW-833: Test.Docs.Extract:TestNothingStored compares an empty knowledge-base half (no KB table before Story 19.4) and only the $Data flag of the Document globals, so a stray write elsewhere is not caught
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: verification-gap finding
 - 2026-11-06T23:14:10Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 adds the KB half to the signature
+- 2026-11-08T03:39:48Z status=resolved-by:19-4-answer-from-documents-with-citations by=adjudication note=Test.Docs.Extract_Signature()_asserts_the_KB_half_non-empty_and_real_row_counts_in_place_of_the_$Data_flags
 
 ### DW-834: A .dotx/.docm (python-docx ValueError), a .docx with an encrypted zip entry (RuntimeError) or an unsupported zip compression (NotImplementedError) is reported as failed, not as wrong_type, encrypted or damaged
 - source: spec-19-6-extract-text-from-pdf-and-word-files-with-embedded-python.md | severity: low | fix-risk: low | footprint: in-story
@@ -5121,12 +5144,21 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-06T04:40:46Z status=routed owner=burndown by=orchestrator note=first occurrence pair; next burn-down with DW-550 (CSP session cap) and DW-685; a red on a quiet host makes it real
 - 2026-11-06T04:52:15Z occurrence=feature-61f32de8 by=orchestrator note=run 42161844768: live:answers close-loop C3 GET /state no answer 60s (127709120576); shard:lane-b Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved 'production runs every item' (127709120793); groups 1786-1828s; 4 concurrent ci.yml runs on 18 services; rerun --failed at low load
 - 2026-11-06T05:21:27Z occurrence=feature-61f32de8-rerun-green by=orchestrator note=attempt 2 of 42161844768 green at low load: flake class confirmed
+- 2026-11-08T00:56:22Z occurrence=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges note=OCT-epic17_b52d069b_run_42425470320_iris(shards)_live:online-session_L5_page.close_30s(2026-11-08T00:42Z);one_rerun_of_the_failed_job
+- 2026-11-08T04:45:30Z occurrence=19-4-answer-from-documents-with-citations by=runner note=ci_run_42445320545_on_881ac467:browser_live:sign-in_K22(more-to-try.spec.ts:1267)_loadedAfter_/state_no_answer_30s;shards_live:cards_A11(approval-card.spec.ts:528)_/state_no_answer_60s;one_rerun_of_the_failed_jobs
 - 2026-11-08T00:03:27Z occurrence=OCT-epic0-85b479e0 by=orchestrator note=run 42417271582 iris(browser) decision.spec.ts:139 D2 loadedAfter GET /state no answer 30s; evidence-only story; rerun of failed jobs at 00:04Z
 - 2026-11-08T00:50:39Z occurrence=feature-bed23f1d by=orchestrator note=run 42419117439 job 128543515301 iris(shards) live:online-session leave.spec.ts:354 L6 page.close no answer within 30 s (454 s unit, group 1907 s); v1.0.3 merge-back head; 18/18 hosts busy; rerun of failed jobs 00:51Z
 - 2026-11-07T10:13:34Z status=routed owner=11-27-live-pages-get-their-state-answer-under-load by=runner note=chartered_Story_11.27_(timeboxed_DW-550/774_fix-forward)
 - 2026-11-07T10:36:14Z status=routed owner=11-27-live-pages-get-their-state-answer-under-load by=runner note=Story 11.27 Step 1: see DW-550's trailer of this time. leave.spec L5/L6 fail in page.close (fixtures.ts boundedClose, 30 s) after a sign-out on the online demo, where the page opens no WebSocket and page.close sends no request: a CSP-session or gateway cap cannot hold it. The sign-in-2 W3 /state wait is DW-550's root cause class. Not reproduced at the measured loads; no change made.
 - 2026-11-07T10:53:41Z status=routed owner=11-27-live-pages-get-their-state-answer-under-load by=runner note=Planner_ruling_2026-11-07T10:55Z_option_(b):_stays_open;_11.27_becomes_test-only_diagnostics_(CI-host-only_retain-on-failure_traces_for_live_units,_no_upload,_7-day_job-side_deletion,_a_pin_that_no_upload_path_includes_the_folder;_gateway-status_dump_in_loadedAfter);_(c)_is_the_Planner's
 - 2026-11-07T16:40:13Z status=routed owner=burndown by=adjudication note=diagnostics attached by Story 11.27 (Planner ruling 2026-11-07T10:55Z: stays open): on the next CI occurrence the failing live test's retain-on-failure trace is kept on the self-hosted runner under $HOME/ocutalon-traces/<run tag>/<unit>/ for 7 days (never uploaded), loadedAfter prints DIAG /state gateway lines (per-server total/in-use/private/queued, per-state connection counts) beside 11.22's lines, and state-diagnosis.txt reaches the uploaded artifact; next: read the trace's network entry for /state (sent, stalled or never sent) and the gateway counts at the bound
+- 2026-11-08T04:40:27Z status=routed owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=runner note=charter_Story_32.6_(test-only,90-min_timebox,Planner_terms_2026-11-08;SC-5_reopen_of_Epic_32;builds_on_11.27_diagnostics)
+- 2026-11-08T07:31:06Z status=wontfix-accepted by=adjudication note=Story_32.6_(Planner_terms:_no_retry_of_page.close,_no_bound_raised):_boundedClose_now_writes_DIAG_page.close_lines_(page_open/closed,pages_in_context,browser_connected,requests_in_flight,renderer_and_browser_probes,host_line)_to_stdout_and_close-diagnosis.txt_(attachment_close-diagnosis)_before_the_unchanged_'page.close:_no_answer_within'_error;_root_cause_not_found;_stays_a_one-rerun_flake_class reopen_if=the_next_CI_occurrence's_close-diagnosis_names_the_stall_(renderer_or_browser_no_answer,_requests_in_flight,_or_host_swap-in)_->_reopen_with_that_reading_as_the_cause,_or_2+_occurrences_in_one_day
+- 2026-11-08T10:04:32Z occurrence=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=runner note=OCT-epic32@57b1acec_run_42464338633_att_1_iris(shards)_job_128680241418_live:online-session_leave.spec.ts:354_L6_'page.close:_no_answer_within_30_s'(unit_457_s;group_1858_s);32.6's_close_diagnosis_printed:_page_open,1_page_in_context,browser_connected;no_request_in_flight;renderer_answered_in_23_ms(readyState_complete);browser_answered_in_8_ms;host_1-min_load_4.1_on_8_CPUs,pressure_avg10_cpu_some_6.6,io_some_11.0_full_9.6,swap-in_27.3_pages/s;so_the_close_hangs_while_renderer_and_browser_both_answer_and_nothing_is_in_flight;RETRIES_0_in_group_shards;one_rerun_of_the_failed_job
+- 2026-11-08T10:04:32Z status=routed owner=burndown by=adjudication note=reopened(orchestrator_2026-11-08):_32.6_does_NOT_cover_the_page.close_half_(its_retry_is_loadedAfter's_/state_wait_only;_the_spec's_Never_list_forbids_a_page.close_retry_and_any_bound_raise);_32.6_delivered_only_the_close_diagnosis;_residual_for_the_approved_32.7_flake_story:_page.close_of_an_online-session_fixture_page_(L5/L6)_hangs_30_s_while_the_page_is_open,_its_renderer_and_browser_answer_in_ms_and_no_request_is_in_flight_(first_reading_at_57b1acec);_next:_find_what_close_waits_on_(beforeunload,_a_CDP_Target.closeTarget_lost_under_io_pressure/swap-in)_and_decide_a_test-only_containment_with_the_Planner
+- 2026-11-08T10:36:16Z owner=burndown by=burndown note=overflow_for_the_approved_Story_32.7_flake_story_(key_not_in_the_tracker_yet;the_orchestrator_routes_it):_the_page.close_half_only;first_page-side_reading_at_57b1acec_in_the_occurrence_above
+- 2026-11-08T13:44:12Z occurrence=OCT-epic19-f6290959 by=orchestrator note=run 42480549642 iris(shards) live:online-session leave.spec L6 page.close no answer 30 s (page.close half; for 32.7); part 2 head; rerun of failed jobs 13:4xZ
+- 2026-11-08T16:12:45Z occurrence=OCT-epic17-6ac45643 by=orchestrator note=run 42495328974 iris(browser) decision.spec:139 D2 loadedAfter GET /state no answer 30 s (the /state half; 32.6's retry not on feature yet); rerun of failed jobs 16:1xZ
 
 ### DW-778: test-readme.sh measured rule does not fail on an extra Measured row, so an old 11.25 label re-added as a ninth row passes CI
 - source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
@@ -5364,6 +5396,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Planner review of 1.0.3 notes 2026-11-07 ~15:35Z | severity: med | fix-risk: med | footprint: cross-epic
 - evidence: Channel/WebChat/Out.cls:31 and SimPhone/Out.cls:31 CARDKINDS lack the digest; Digest/Process.cls:204-209 morning send to demo sessions
 - 2026-11-07T15:28:46Z status=routed owner=burndown by=orchestrator note=1.0.4, ahead of every tier (3) item; options (a) show the digest as a web chat card on every install, (b) demo reply says it goes to Telegram (not set up on the demo) and the morning run skips demo sessions; Planner prefers (a) if it fits Sun 19Z; PUBLIC TEXT at the spec gate
+- 2026-11-07T20:01:47Z owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=load note=chartered_as_story_17.10(SC-5_reopen,Planner_D2_option_a_2026-11-07T15:50Z)
+- 2026-11-08T00:46:46Z status=resolved-by:17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=adjudication note=delivered_4be9d24b+cr_patches:WebChatOut_digest_branch(CARDKINDS+DigestText,TestDigestCard),Ownership_recentNotices(TestRecentNotices),web_notice_card(N16_live+reload),Ticked_skips_onlineDemo(TestOnlineDemoSkipped,TestOnlineDemoResends),online_step_7(live_online-demo-path);SimPhone_half_out_by_Planner_D2_option_a
 
 ### DW-881: A tell-now or act Decision recorded between Digest.Process.Finish's Verdict read and its Sent.SentAt is in neither that digest's needs-you nor the next one's window
 - source: spec-12-12-got-it-on-telegram-marks-the-notice-handled-and-needs-you-co.md | severity: low | fix-risk: med | footprint: in-story
@@ -5409,11 +5443,144 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: gh api branches/main/protection (read 2026-11-07): checks, web, install-macos, standalone-bridge, evaluation and iris install-fresh..shards-4; no iris (shards-5); ipm-install is not required either, so ipm-install-p matches it. Branch protection is a repository setting (owner-only); precedent: shards-4 was carried to the Planner.
 - 2026-11-07T15:05:47Z status=decision-pending owner=burndown by=cr note=human=add iris (shards-5) to main's required checks (and ipm-install-p only if ipm-install is made required) before the next release PR
+- 2026-11-08T12:32:34Z status=dropped by=owner note=done_by_the_owner:iris(shards-5)_is_in_main's_required_checks(about_01:30Z_2026-11-08,Planner_relay)
 
 ### DW-871: The as-built CI texts still describe nine IRIS groups after the 19.8 CI split: AD-22's CI as built bullet (lane-a in three pieces, Bridge and Agent in shards-2) and the header comment of .github/workflows/ci.yml
 - source: spec-19-8-epic-19-burn-down.md (code-review, rework iteration 2) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ARCHITECTURE-SPINE.md AD-22 Rule, CI as built: inside nine IRIS groups ... shards-3 and shards-4, lane-a in three pieces; ci.yml line 2: a matrix of nine groups. The spine bullet is an AD Rule line (not a stage edit; precedent DW-420, as-built amendment at the merge gate); the ruling allowed no other ci.yml line.
 - 2026-11-07T15:05:54Z status=escalated owner=burndown by=cr note=for the lead at the Epic 19 merge gate: as-built amendment of AD-22 (ten groups, shards-5 = lane-a@Bridge,Agent) and ci.yml:2
+- 2026-11-08T12:32:34Z status=resolved-by:19-8-epic-19-burn-down by=owner note=done_at_part_1's_merge(5b47f052):AD-22_CI_as_built_reads_ten_IRIS_groups,ci.yml:2_reads_ten_groups;checked_on_the_merged_tree_f6290959(no_stale_side)
+
+### DW-891: Decide now calls a turn's reply filter with two arguments (text, HostData); a host ReplyFilter subclass written with the one-argument Filter(text) raises <PARAMETER> on a chat turn, and no test runs such a subclass through Conclude
+- source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Q1 AD-31 amendment; Decide.cls call site
+- 2026-11-07T23:30:12Z status=open owner=19-4-answer-from-documents-with-citations by=harvest note=code review: judge a compatibility call or a pinned contract note
+- 2026-11-08T01:47:04Z status=open owner=19-4-answer-from-documents-with-citations by=cr note=cr measured slot C 154U: a one-arg Filter override compiles; a 2-arg $ClassMethod call runs it; no <PARAMETER>
+- 2026-11-08T03:39:48Z status=dropped by=adjudication note=premise_measured_false_by_the_19.4_review_on_slot_C(build_154U):a_one-argument_Filter(text)_override_compiles_and_runs_under_Decide's_two-argument_call
+
+### DW-892: Demo.Features lists the documents feature on every instance now that Docs.Ops has no STUB parameter, including the online demo, where AddDocument answers not_built until Story 19.5
+- source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Demo/Features.cls Built() treats a class without STUB as built
+- 2026-11-07T23:30:12Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5 builds the per-session documents of the online demo
+- 2026-11-08T01:47:04Z occurrence=19-4-answer-from-documents-with-citations
+- 2026-11-08T11:25:16Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=adjudication note=Docs.Ops_no_STUB;Test.Docs.Sessions:TestDocumentsFeature(mutation_STUB=1_red);live:session-data_demo_add_reaches_ready
+
+### DW-893: An agent job builds its tools once, so the Chat agent's documents tool is attached or left out for the job's life by the online-demo setting at that moment
+- source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: adapter builds the agent on the first request
+- 2026-11-07T23:30:13Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5's per-turn tool manager (TurnToolsClass) is the fix
+- 2026-11-08T01:47:05Z occurrence=19-4-answer-from-documents-with-citations
+- 2026-11-08T11:25:16Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=adjudication note=per-turn_composition(Ext.TurnTools,Adapter.SessionConfigFor);Test.Docs.SessionTurns+Test.Bridge.TurnTools(mutation_skip_composition_red)
+
+### DW-894: Indexing speed: each passage costs one Embedder round trip of about 0.33 s, so a 100-passage document is ready after about 35 s and a 1,000-passage one after about 5.5 minutes
+- source: spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: measured in 19.4's implement
+- 2026-11-07T23:30:13Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=harvest note=19.7's PDF and Word files are the large ones: batch or parallel embedding there
+- 2026-11-08T06:10:59Z status=routed owner=burndown by=spec_gate note=declined_by_19.7_plan:the_batching_seam_is_Docs.Store.Write's_per-passage_embed_loop,which_Story_19.5_rewrites;one_Embedder_work_item_per_Index_batch_after_19.5(the_Epic_19_part_2_burn-down)
+- 2026-11-08T12:12:34Z owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=burndown note=overflow(part_2_remainder_3_under_cap_8,no_repeat_occurrences,no_charter):the_batching_seam_is_Docs.Store.Write's_per-passage_embed_loop(one_Embedder_work_item_per_Index_batch);26.2_brings_files_sent_from_the_chat_into_the_documents_path,where_large_PDF/Word_files_make_the_wait_visible
+
+### DW-895: Two Lane B comments are stale now that DocumentOps is built: Web.Documents' OWNER parameter says DocumentOps is disabled until Story 19.4, and Test.Web.DocumentsApi's comment at :537
+- source: spec-19-4-answer-from-documents-with-citations.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: both files are Lane B's (U-177)
+- 2026-11-07T23:30:13Z status=wontfix-accepted owner=19-4-answer-from-documents-with-citations by=harvest note=reopen_if=a_Lane_B_story_next_edits_Web/Documents.cls_or_Test/Web/DocumentsApi.cls
+
+### DW-899: Test.Docs.Store TestEmptyTable and Test.Docs.Turns TestNotCovered assert the whole OcuTalonKB.Docs table is empty before their empty-table case
+- source: spec-19-4-answer-from-documents-with-citations.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Both pin the matrix's empty-table branch, so they need an empty table; a red elsewhere that leaves rows makes them red too (explicit message)
+- 2026-11-08T01:47:05Z status=wontfix-accepted owner=19-4-answer-from-documents-with-citations by=cr note=reopen_if=a fresh-stack or CI red of 'the table holds no row' or 'the table is empty to begin with'
+
+### DW-900: Evaluation documents (OwnerRef eval) that a crash leaves between Docs.Ops AddEval and Eval.In Finish stay in OcuTalonKB.Docs, searchable by the Chat agent and removable by no route; nothing sweeps them
+- source: _bmad-output/implementation-artifacts/spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: rework 1 edge-case and blind layers: Docs/Ops.cls AddEval/RemoveEval, Eval/In.cls DocumentsUp; a start-of-run sweep of OwnerRef eval rows (RemoveEval each) closes it
+- 2026-11-08T02:48:55Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5 touches Docs ownership and the per-session store; add the sweep there
+- 2026-11-08T11:25:17Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=adjudication note=Eval.In.Start_sweeps_eval_rows_via_RemoveEval;Test.Eval.Documents:TestSweep,TestSweepFails(mutations_red)
+
+### DW-901: While an evaluation run is in flight its documents sit in the shared OcuTalonKB.Docs table, so a person's chat turn on the same instance can retrieve and cite them (the knowledge-base search has no owner filter)
+- source: _bmad-output/implementation-artifacts/spec-19-4-answer-from-documents-with-citations.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: rework 1 review: Docs/Store.cls has no owner column; only the Documents-page reads filter by OwnerRef; same shared-table design as before the rework
+- 2026-11-08T02:48:55Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=19.5's per-session tables and per-turn attach are the place to scope retrieval
+- 2026-11-08T11:25:17Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=adjudication note=eval_rows_in_OcuTalonKB.Eval,per-turn_attach_by_owner;Test.Docs.Turns:TestEvalDocuments,TestEvalNotSearched(+U-305_pin)
+
+### DW-940: The upgrade harness reads an empty answer of an IRIS call as success: document_found maps no output to found, and built_class/seed_memory/seed_document read it as not built
+- source: _bmad-output/implementation-artifacts/spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 19.5 implement review: release/upgrade-harness.sh:1027 and :1042-1060 (approved hunks H5/H6); the fix edits a frozen release tool beyond the ruled hunks
+- 2026-11-08T10:22:47Z status=escalated owner=burndown by=harvest note=needs a Planner ruling (release-tool freeze until v1.0.4 is merged back)
+- 2026-11-08T10:32:45Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=owner note=planner_ruling_option_a(owner_delegation,orchestrator_relay):minimal_H5/H6_fix,empty_answer=failure,test_pins_both;delivered_in_19.5_review;close_by=owner_when_delivered
+- 2026-11-08T11:25:17Z status=resolved-by:19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=owner note=planner_ruling_option_a_delivered_in_the_19.5_review:empty_IRIS_answer=failure(document_found,seed_memory,seed_document);pin_t_memory_document(empty_fails,real_passes);release/upgrade-harness.sh:1028-1029,1032-1033,1048,1061;no_other_harness_line
+
+### DW-950: An approved call of a tool that only a TurnToolsClass manager offers cannot be replayed: Replay.Run runs ExecuteTool on the agent's own manager, which no request adds a turn tool to
+- source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Adapter/Agent.cls Answer hands kind tool to Replay.Run before any composition; Replay.cls:65 adapter.Agent.ToolManager.ExecuteTool; documents is held (and so replayed) only when Decide's ToolClassification row cannot be read (Install/Step/Production.cls:294), and a host's own risky turn tool always would be
+- 2026-11-08T11:22:28Z status=decision-pending owner=burndown by=cr note=product call: Replay composes the approval owner's turn tools, or the guide states a turn tool must be classified safe; spec matrix Other kinds composes nothing for tool
+- 2026-11-08T12:32:34Z status=routed owner=22-6-document-a-worked-jira-example-and-mcp-governance by=owner note=planner_ruling(owner_delegation,orchestrator_relay):accepted_as_recommended:the_bridge_guide_says_a_turn_tool_must_be_classified_safe;the_line_is_NEW_text(PUBLIC_TEXT_proposed_in_the_part-2_contract,for_docs/bridge-guide.md:315);lands_in_22.6_unless_the_Planner_rules_it_into_1.0.4;reopen_if=a_turn_tool_call_is_ever_held_for_approval
+
+### DW-951: The upgrade harness's new api_get polls GET /v1/documents with no unique probe query, unlike state_get, so a gateway-kept answer could be read
+- source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: release/upgrade-harness.sh:618-620 (frozen hunk H4); lib-online.sh:26 says the web gateway keeps the answer to a URL; the document check also needs the IRIS-side search (document_found), so a stale ready alone passes nothing
+- 2026-11-08T11:22:28Z status=wontfix-accepted owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=cr note=frozen release tool; reopen_if=a harness run's document row fails 'not ready within 120 s' or passes ready while GET /v1/documents?probe=<n> shows another state
+
+### DW-952: A request that gets turn tools rebuilds its manager from TOOLSETS and Attach only, so a tool an agent adds in its own %OnInit (UseToolSet, ToolManager.AddTool) is silently absent from that request
+- source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Adapter/Agent.cls BuildTurnManager registers ..Agent.ToolSets or #TOOLSETS, the Attach specs and the turn tools; no product agent adds a tool in %OnInit (rg UseToolSet src: none) and the bridge guide (line 189, 195) names TOOLSETS as the agent's tools
+- 2026-11-08T11:22:28Z status=wontfix-accepted owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=cr note=reopen_if=rg 'UseToolSet|ToolManager.AddTool' src finds an agent class run by a runner outside Adapter.Attach
+
+### DW-953: A sign-out whose document drop times out on the owner lock leaves a document whose batch stopped on the drop mark in state indexing until a later drop
+- source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Docs.cls DropSession sets Drain before LockOwner(...,1); Docs.Ops IndexBatch quits as gone while Draining, so no next Index is sent; on the 5 s timeout the mark is cleared and nothing re-queues the batch (Design Notes decided (g), residual risks)
+- 2026-11-08T11:22:28Z status=wontfix-accepted owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=cr note=decided (g); reopen_if=a demo visitor's document stays indexing after a POST /v1/session/end that answered failed
+
+### DW-954: docs/security-overview.md is not brought up to date with Story 19.5: the inventory statement no longer sees per-request tools, and the online-demo isolation line names no documents or memories
+- source: spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Install/SecurityOverview.cls STATEMENT says TestToolInventory checks every running runner, but the documents tool now lives on a per-request manager that Inventory never reads; security-overview.md:203 lists chat, decisions and approvals only; new wording is PUBLIC TEXT
+- 2026-11-08T11:22:28Z status=wontfix-accepted owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=cr note=public text; reopen_if=a TurnToolsClass tool other than the documents knowledge base ships, or the overview is regenerated for step 3
+
+### DW-924: DW-719's UX-DR144 line (epics.md:476) has no check script pinning it: test-documents.sh cannot read epics.md because test-ci-config.sh requires shards-3's input pattern in ci/units.sh (19.5's file) to claim it
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: docker/tests/test-documents.sh step 1; ci/units.sh group_input_pattern
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=implement deviation; fix needs a ci/units.sh pattern union or a hosted check
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=QA:ci/units.sh_live:documents)_claim_of_epics.md_for_shards-3+test-documents.sh_step1_UX-DR144_check+test-ci-changes.sh_cases(orchestrator_ruling;veto_U-307);AC7_mutations_red
+- 2026-11-08T10:04:54Z status=routed owner=burndown by=owner note=U-307_reversed(2026-11-08T09:26:56Z#935):no_shards-3_claim_of_epics.md;residual:pin_the_UX-DR144_line_(epics.md:476)_with_a_static_grep_in_the_hosted_checks_job,which_needs_a_CHECK_SCRIPTS_entry_in_ci/units.sh
+- 2026-11-08T12:12:34Z status=wontfix-accepted by=burndown note=a_LOW_the_gate_cannot_fix_without_a_charter(U-307_reversed:no_shards-3_claim_of_epics.md);reopen_if=the_UX-DR144_line(epics.md:476,DW-719)_changes_and_no_check_fails,or_a_CHECK_SCRIPTS_static_grep_is_added_for_planning_lines
+
+### DW-925: A PDF or Word text cut at MAXTEXT (200,000 chars) shows ready with no hint its tail is not indexed (Docs.Ops.Text drops answer.cut)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Docs/Ops.cls Text; a hint needs PUBLIC TEXT
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=product call if a hint is wanted
+- 2026-11-08T09:45:29Z status=wontfix-accepted by=adjudication note=the_cut_note_(CUTNOTE)_is_indexed_as_the_cut_file's_last_passage;a_page_hint_is_new_PUBLIC_TEXT;reopen_if=a_ready_PDF_or_Word_file_over_200000_characters_is_answered_without_its_tail_and_a_user_or_eval_case_reports_it,or_a_document_detail_view_is_planned
+
+### DW-926: Word reader skips text in tracked changes (w:ins), simple fields, smart tags and custom XML in a paragraph (as python-docx Paragraph.text did before)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: ocutalon_extract.py _runs_text reads w:r, w:hyperlink, w:sdt only; a doc of only w:ins runs is no_text
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=not a regression
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=CR_patch:_runs_text_reads_w:ins,w:fldSimple,w:smartTag,w:customXml(deleted_text_skipped);Samples.DocxTracked+TestContentControls(branch_removed_mutation_red)
+
+### DW-927: Flate bound does not cover RunLength/LZW/ASCII85 filters, and a swallowed _TooLarge leaves a negative budget so the next zlib call is unbounded (left+1=0) (unverified)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: ocutalon_extract.py _BoundedZlib/_BoundedObject; fix max(left,0)+1 and budgets for other filters
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=unverified; settle with per-filter bomb samples
+- 2026-11-08T09:45:29Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=CR_patch:budget_spent_refuses_every_later_decode(pdfplumber/pdf.py:61_swallow_confirmed);LZW,RunLength,CCITT_counted;TestBombStops,TestBoundedDecoders(4_mutations_red)
+
+### DW-928: No test pins that the extraction worker gets only the seconds left after the lock wait (left replaced by timeout keeps every test green)
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Docs/Extract.cls Read; TestOneReadAtATime
+- 2026-11-08T08:23:18Z status=open owner=19-7-answer-from-pdf-and-word-documents by=harvest note=needs a slow-by-design fixture
+- 2026-11-08T09:45:30Z status=resolved-by:19-7-answer-from-pdf-and-word-documents by=adjudication note=CR_patch:TestTimeLeft_pins_the_seconds_left_after_the_lock_wait(left->timeout_mutation_red)
+
+### DW-929: Test.Docs.Files copies Test.Docs.Turns' private turn helpers (DropDocuments, Ready, Turn, Data, ToolResult, AssertSteps, SameJob, Holds) instead of sharing one fixture
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Rule 2: Files.cls:107-307 repeats Turns.cls:99-215,405; the spec forces the copy (Turns.cls is Story 19.5's file, the helpers are Private) and names the Epic 19 burn-down to lift them
+- 2026-11-08T09:42:33Z status=routed owner=burndown by=cr note=spec-forced copy; unify after 19.5 merges: lift the helpers into one Test.Docs fixture both classes extend
+- 2026-11-08T12:12:34Z owner=26-2-files-sent-from-the-chat-or-telegram-become-items by=burndown note=overflow:lift_Test.Docs.Turns'_private_turn_helpers(DropDocuments,Ready,Turn,Data,ToolResult,AssertSteps,SameJob,Holds)_into_one_Test.Docs_fixture_that_Turns_and_Files_extend;26.2_adds_the_next_documents_turn_tests
+
+### DW-930: _BoundedObject passes flush() and copy() through to the real zlib object unbounded
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: ocutalon_extract.py _BoundedObject.__getattr__; pdfminer.six 20260107 (pinned by the image) calls only decompress on the object (decompress_corrupted)
+- 2026-11-08T09:42:33Z status=wontfix-theoretical owner=19-7-answer-from-pdf-and-word-documents by=cr note=real only if a pdfminer upgrade calls flush or copy on the decompress object
+
+### DW-931: The extraction lock ^OcuTalon.Docs.Extract serialises the readers of one namespace, while the Extractor category is instance-wide
+- source: spec-19-7-answer-from-pdf-and-word-documents.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Docs.Extract.Read locks a global of the caller's namespace; the class doc and AD-21 say one read at a time on the instance
+- 2026-11-08T09:42:33Z status=wontfix-theoretical owner=19-7-answer-from-pdf-and-word-documents by=cr note=real only if OcuTalon is installed in two namespaces of one instance
 - 2026-11-07T16:49:10Z status=resolved-by:19-8-epic-19-burn-down owner=burndown by=orchestrator note=resolved at the Epic 19 part 1 merge 5b47f052: AD-22 amended in place (ten groups, shards-5, ipm-install split) and ci.yml line-2 comment, per the Planner's ruling
 ### DW-868: Test.Watch.Case Fixture defaults LastAt to 2026-10-25, so any fixture that reaches a closeQuiet-able state (resolved, or open and noticed with demo mode off) is swept by the next heartbeat; three tests override it inline (DryRun:95, GoodMessages:371/529, Refused:80) and a revert or a new caller re-opens DW-840's race with no deterministic test failing
 - source: spec-7-10-the-past-expiry-refusal-test-is-stable-dw-840.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -5426,6 +5593,24 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-07T15:06:23Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second red on the same head is real
 - 2026-11-07T15:47:24Z occurrence=7-10 note=rerun_of_iris(shards-4)_green_on_37856843_(attempt_2);flake_confirmed;stays_routed_burndown
 
+### DW-896: The online-demo visitor's digest card shows the demo instance's own vital signs (uptime, databases full and their names, journal, licence use)
+- source: spec-17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: Coverage.Build reads Watch.Reader.Vitals with no online-demo limit; step 7 makes the card visible. Cost is session+instance, and no instance usage arises on the demo (AD-4)
+- 2026-11-08T00:43:03Z status=by-design owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=cr note=by-design: AD-18 coverage rows + Planner ruling D2 (a) make the demo digest visible; reopens only by spec amendment
+- 2026-11-08T00:46:28Z status=by-design owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=unattended note=veto_window(security_posture):kept_as_built;owner_may_reverse_via_U-303_before_1.0.4
+- 2026-11-08T01:21:39Z status=by-design owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=owner note=U-303_kept(2026-11-08T01:11:22Z#926,Planner_under_owner_delegation);condition_pinned_by_burn-down_story_17.11
+
+### DW-897: docker/tests/test-sign-in.sh still names Story 2.7's N1-N15 in its header (:26) and PASS/FAIL lines (:398, :404); notice.spec.ts now holds N16
+- source: spec-17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: notice.spec.ts gained N16 (Story 17.10); test-sign-in.sh is outside Epic 17's footprint and is edited by OCT-epic32 (Story 32.5 sign-in split)
+- 2026-11-08T00:43:03Z status=wontfix-accepted owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=cr note=reopen_if=a sign-in run's PASS/FAIL line is cited as the notice cases that ran; file contended by Epic 32 (32.5)
+
+### DW-898: Online demo: pin that the digest text never names a host path, an IP address, a user name or a key (U-303 keep-condition): a test plants a host path, an IP address, a user name and key shapes (sk-ant-, a Telegram bot token) in the instance facts the digest reads and asserts none appears in the online-demo digest text
+- source: inbox U-303 (Contest Planner under the owner's delegation, 2026-11-08T01:11:22Z#926) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Coverage.Build reads Watch.Reader.Vitals (uptime, databases and fullness, journal, licence) with no online-demo limit; Story 17.10 made the demo digest visible (DW-896); no test pins what the text may not contain
+- 2026-11-08T01:21:45Z status=routed owner=burndown by=owner note=U-303 keep-condition; test-only unless the pin finds a real leak (then a HIGH fixed in the same story); orchestrator ruling: Epic 17 burn-down story 17.11
+- 2026-11-08T01:22:26Z owner=17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path by=burndown note=chartered_as_Epic_17_burn-down_story_17.11(orchestrator_ruling_U-303_keep-condition)
+- 2026-11-08T03:01:28Z status=resolved-by:17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path by=adjudication note=c5d70c50+qa/cr_patches:Test.Digest.OnlineDemoFacts(TestFailingDigest,TestPassingDigest)_plants_a_host_path,an_IP,a_user_and_both_key_shapes(+every_KEYLIKE_alternative,IPv4)_in_session,watch,vitals_dirs,live_read;asserts_none_in_text_or_Slots;mutations_Coverage:253_directory,Live_errorText,:355_online_scope,Build_row_field,onlineDemo_restore;no_leak_on_unchanged_code
 ### DW-878: Eval: EvalIn sends every incident case at once, so later cases spend their 60 s Decide timer queued behind a single-job DiagnosisAgent (returns-negative-weight 10th, shipments-epoch-time 11th time out)
 - source: 1.0.3 rc1 eval triage 2026-11-07 (Planner author's override) | severity: med | fix-risk: low | footprint: cross-epic
 - evidence: 1.0.2 set durations 56.7-58.3 s vs 1.0.3 60.1 s for the 10th case; Eval/In.cls:8-9,480-483 async sends; Decide.cls:339-342 timer at send; Production.cls:30 PoolSize 1
@@ -5496,6 +5681,51 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 9/9 crossing runs died, 6/6 one-sided runs survived per build (orders c,d,e vs a,b); messages.log caught signal 11 JobType=Interactive job; OcuTalon avoids it by AD-6 (embeddings in a WorkMgr worker)
 - 2026-11-07T21:43:35Z status=by-design owner=0-16-the-embedded-python-callback-crash-s11-is-re-verified-with-a by=evidence note=AI_Hub_platform_defect_not_ours;AD-6_rule_stands;public_report_drafted_by_the_Planner_posted_by_the_owner(no_filing_here);reopen_if=a_build_after_2027.1.0AI.109_survives_orders_c,d,e_of_ep-bug-s11/run.sh
 
+### DW-911: A retried test that passes leaves its retry-time DIAG /state lines (requests, page probe, host) only in the runner's e2e log and test-results, which a green job neither prints nor uploads
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: cmd_live reprints only RETRY-shaped lines (matrix row 'cmd_live with retries'); ci.yml uploads web/test-results only if: failure(); retain-on-failure keeps no trace of a passing test
+- 2026-11-08T07:25:28Z status=decision-pending owner=burndown by=cr note=spec-bound design call: cmd_live prints the retry-time DIAG lines, or results upload when RETRIES>0 (ci.yml, Never list)
+- 2026-11-08T17:08:46Z status=routed owner=burndown by=unattended note=decision_sheet_32.6:keep_RETRY_lines_as_now(category=decide);printing_DIAG_or_uploading_results_when_RETRIES>0_is_planned_with_32.7_after_the_1.0.4_cut(ci.yml)
+
+### DW-912: loadedAfter's retry: the closed-page checks inside withOneReload's retry() have no case of their own (r7 closes the page at 1 s, before the retry runs)
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: removing both page.isClosed() checks leaves r7 green; a pin needs a case of at least 10 s (RETRY_MIN_ATTEMPT_MS); the settled flag also covers a close
+- 2026-11-08T07:25:28Z status=wontfix-accepted owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=reopen_if=a job log shows RETRY or DIAG /state reload failed for a test whose page closed during loadedAfter
+
+### DW-913: Story 32.6's hermetic reload cases add about 100 s of real waiting to live:sign-in-2 (shards-4), above the spec's 50 s estimate
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: the 'one reload of the page' grep ran 12 cases in 1.7 min locally; RETRY_MIN_ATTEMPT_MS is fixed at 10 s, so each retry case waits at least 10 s
+- 2026-11-08T07:25:28Z status=wontfix-accepted owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=reopen_if=a CI run shows shards-4 above 35 min or the live:sign-in-2 UNIT line above 1,000 s
+
+### DW-914: A reload still pending at the bound prints a late DIAG /state reload failed line (TargetClosedError at teardown) after the second-miss diagnosis
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the reload's timeout is whole + WAIT_SLACK_MS from B/2, and its catch prints after the call has ended (cancelled); a pin needs a case of at least 20 s
+- 2026-11-08T07:25:29Z status=wontfix-accepted owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=reopen_if=a failure's job log or state-diagnosis.txt shows DIAG /state reload failed after the bound's error
+
+### DW-915: The RETRY line is printed and appended without redactLine, although the Boundaries say every new line goes through it
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: bounds.ts reportRetry logs retryLine(retryLocation(), step): a config-relative spec path, a line number and a constant step
+- 2026-11-08T07:25:29Z status=wontfix-theoretical owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=real if a spec path or step could hold a secret-shaped value; redactLine's long-token rule could also eat a long spec name
+
+### DW-916: retryLocation's working-folder fallback can print a partial host path when that folder is an ancestor of the spec, and retry_lines accepts a leading /
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: relative('<home>/x', file) gives 'git/...'; the fallback runs only when test.info().config.configFile is unset, which no --project run has
+- 2026-11-08T07:25:29Z status=wontfix-theoretical owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=real if a Playwright run without a config file reached loadedAfter from a folder above the repository
+
+### DW-917: The retry's reload and second wait keep their whole + WAIT_SLACK_MS timeouts past the outer bound, so a pending reload can navigate into the test's clean-ups
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: spec Branch B tasks 3 and 4 set both timeouts; the outer pinned boundedStep still ends the wait at B with today's message
+- 2026-11-08T07:25:29Z status=by-design owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=spec-bound (Branch B tasks 3 and 4); the total wait still ends at B
+
+### DW-918: At the retry only the page-side lines are read; 11.27's IRIS reads run only at a second miss
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: floor.ts withOneReload prints pageSideLines only; stateDiagnosis runs in diagnosedAtBound at the bound
+- 2026-11-08T07:25:29Z status=by-design owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=spec-bound: Decided in-stage 3 (the IRIS reads could take up to 15 s of the reload's share)
+
+### DW-919: The host line prints only 'not measured (no /proc/pressure)' when a pressure file is missing, dropping the load, CPU count and swap-in it read
+- source: spec-32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: host.ts describeHost returns early when reading.pressure is undefined
+- 2026-11-08T07:25:29Z status=by-design owner=32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus by=cr note=spec-bound: the Investigation result's text for a host without /proc/pressure
 ### DW-908: Eval: no test pins the content of the user-turn remember and forget cases (turn text, key phrases, absent phrases, heldOut, recordedBy); Test.Eval.Cases' user-turn count pin accepts any extra case and its wanted list holds only the four chips
 - source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Eval/Cases.cls TestUserTurnCases checks the forget (9.11) and remember (30.9) cases only through the kind count; Test/Eval/Report.cls TestShippedChipCasesScoreTheHostReasons lists the four chips; both files contended (Epic 19 19.4), ruling allowed only the count pin
@@ -5520,3 +5750,50 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T12:55:33Z status=decision-pending owner=burndown by=spec_gate note=for the Planner: widen 5.15's CheckNow trigger to dismiss/closeQuiet (about +3 lines and one test) or leave it
 - 2026-11-08T12:59:15Z status=routed owner=5-15-after-an-incident-resolves-the-status-answer-and-the-rail-sa by=owner note=planner_ruling 2026-11-08 (orchestrator relay): widen 5.15's CheckNow trigger to dismiss and closeQuiet of a noticed open incident; any move that changes what 'An open incident' reads refreshes the check at once; close resolved-by 5.15 when delivered
 - 2026-11-08T14:36:23Z status=resolved-by:5-15-after-an-incident-resolves-the-status-answer-and-the-rail-sa by=owner note=planner_ruling 2026-11-08 (owner delegation, orchestrator relay): trigger widened to dismiss/closeQuiet of a noticed open incident (open->closed); delivered in 91a0ad4a + review patches; pinned by Test.Checks.AfterResolve TestDismissedIncidentIsCheckedAtOnce and Lifecycle Dismissed/Quiet-closed rows; mutation: '|| closesOpen' removed -> TestDismissedIncidentIsCheckedAtOnce red
+### DW-973: flake: Test.Docs TestTimeLeft (Story 19.7) red under CI load: 'after the wait for the lock and the second that was left (15.89)'; a timing bound on a loaded host
+- source: cycle-log-parallel.md OCT-epic17 6ac45643 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: run 42495328974 job 128776327087 iris(shards-2) unit shard:lane-a@rest 1966 s; 19.7's own heads and feature c25902c3 passed it
+- 2026-11-08T16:12:45Z status=routed owner=burndown by=orchestrator note=flake candidate for 32.7; first occurrence on a non-19 branch
+- 2026-11-08T18:39:00Z occurrence=OCT-epic4-cb7a2215 by=orchestrator note=run 42507818397 iris(shards-2) lane-a@rest Test.Docs.ExtractMore TestTimeLeft 'after the wait for the lock and the second that was left (15.16)'; not 4.12 code (4 web strings); rerun of failed jobs 18:39Z
+### DW-964: flake: OcuTalon.Test.Checks.Heartbeat TestDisabledItemIsReportedOnce 'the session's web chat got one notification' red once in CI iris (shards), unit shard:lane-a@Checks,Install,Watch, on OCT-epic17 321dcad7 (run 42470657226 attempt 3, job 128733036530); the class passed on attempts 1 and 2 of the same head and on 57a201e9 and 38ab54d4 (same Epic 17 code)
+- source: cycle-log-epic-17 (ci run 42470657226 job 128733036530) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: assert gives no count; WaitDeliveries(session,1,WAITDIAGNOSIS) returns on the first Delivery row of ANY channel, then the test counts web rows only: a row on another channel first, or no row inside WAITDIAGNOSIS under CI load, reads as not one web row; Epic 17 diff leaves the tellnow path, Data.Delivery, Test.Core.Observe and Checks unchanged, and a digest Notification wrote one web Delivery row before 17.10 too (record-only path), so its web row count is unchanged
+- 2026-11-08T13:46:28Z status=routed owner=burndown by=ci note=flake: first occurrence; one rerun of the failed job requested; fix candidate: wait for the web row itself (DeliveryRows by channel) instead of any row; note every occurrence
+- 2026-11-08T14:48:25Z occurrence=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges status=open owner=17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=ci note=same_test_red_twice_on_321dcad7(attempts_3,4)=story_red(rework_2);cause_found_by_repro:the_wait_returns_on_the_simulated_phone's_tellnow_row_before_the_web_row(rows_17_phone,20_web,same_second);product_reports_once_per_channel;fix_in_the_test_by_the_Planner's_pre-approved_exception
+- 2026-11-08T15:22:11Z status=resolved-by:17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges by=adjudication note=e7fc91ff:TestDisabledItemIsReportedOnce_waits_for_the_web_row_it_counts(test-only,Planner's_U-177_exception);mutation:old_wait+forced_non-web_row_first->red,fixed_wait+same_row->green;fixed_test_20_of_20_on_a_lane-B_warm_throwaway;shard_lane-a@Checks_fresh_forward_and_reverse_pass
+
+### DW-966: Other tests wait on Observe.WaitDeliveries(session, 1, ...) for any channel's row and then read the web rows only (Test.Checks.BeatOutcomes about :106 and :254), the shape of the DW-964 race; unmeasured whether those sessions record a second channel's row first
+- source: spec-17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 17.10 rework 2 review layer: BeatOutcomes waits WaitDeliveries(case.session,1,WAITDIAGNOSIS) then reads web rows; settle by one run of each test with a phone row forced first
+- 2026-11-08T14:58:30Z status=routed owner=burndown by=harvest note=unverified; same root cause class as DW-964; fix by waiting on the web row, as DW-964's fix in Test.Checks.Heartbeat
+- 2026-11-08T15:04:25Z status=routed owner=burndown by=cr note=narrower: both sites call Quiet (decision at OutcomeRouter + 4s) before WebNotices; other WaitDeliveries callers count all rows
+
+### DW-974: Leaked CI throwaway stacks: a production stack on ci-b (6 days, run finished Nov 2) and a shards-2 stack on ci-c (4 days, run finished Nov 4) were still up, adding to the memory and swap overcommit on the CI hosts
+- source: 32.6 runner contract (host facts) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 32.6 diagnostics: CI hosts 2.1 to 3.3 times overcommitted on memory and swap under load. Removed by the Contest Planner about 15:45Z 2026-11-08 under the owner's approval, with their volumes and networks; swap use fell from 4 to 2 GB (ci-b) and from 5 to 3 GB (ci-c); ci-d had none
+- 2026-11-08T17:10:23Z status=resolved-by:32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus owner=burndown by=orchestrator note=removed by the Contest Planner (owner-approved) ~15:45Z; not this run's resources, so the run did not touch them; recorded at the Planner's request
+### DW-958: Snapshot.Diff excuses no queue count: a schedule call landing after Take's queue wait, before the handler takes it, gives '<ns> queues Ens.ScheduleHandler changed'
+- source: spec-7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TakeIn reads queues after headers (Test/Fix/Snapshot.cls 105-108); the Planner's ruling excuses headers of the pair and nothing else; not seen in the three CI occurrences
+- 2026-11-08T13:29:26Z status=wontfix-accepted owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=cr note=reopen_if=a nothing-changed red whose Snapshot.Diff line is '<ns> queues Ens.ScheduleHandler changed'
+
+### DW-959: Snapshot.Diff does not excuse the schedule handler's follow-on Ens.Alarm request (sent when Ens.Director.UpdateProduction fails or an item has a Schedule)
+- source: spec-7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: irislib/Ens/ScheduleHandler.cls 26-81; spec Never: don't excuse a follow-on write of the schedule call; harness measured 1 header per call, 20 of 20
+- 2026-11-08T13:29:26Z status=by-design owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=cr note=spec Never forbids excusing a follow-on write (Planner's ruling); a line for it is the intended outcome
+
+### DW-960: The schedule-write excusal has no committed real-window test, and the changed-row excusal no real-window run at all; only SnapshotDiff's hand-made rows pin it
+- source: spec-7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Decided in-stage (4): the forced-condition harness is untracked and deleted; Take drains queues, so the harness only exercised the new-header line
+- 2026-11-08T13:29:26Z status=by-design owner=7-11-the-dry-run-snapshot-excuses-the-alarm-job-s-own-schedule-wr by=cr note=Decided in-stage (4): SnapshotDiff stays stack-free; harness body kept in evidence/7-11/cause.md
+
+### DW-975: When web citations ship, restore a citation line to the demo guide's 'Ask about a document' look-for (Story 4.12 removed the promise because 1.0.4 draws no citation): update web/src/app/guide/more-to-try-view.ts documents.lookFor, its three pins and EXPERIENCE.md item 6 together, under the public-text rules
+- source: story-4.12 (planner_ruling guide_documents_citation_promise 2026-11-08) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 4.12 ruled text ends 'look for the answer that comes from your file.'; Story 20.2 adds the citation chips
+- 2026-11-08T17:51:46Z status=routed owner=20-2-see-citations-and-memories-in-answers by=lead note=restore_citation_line_when_20.2_ships;ruled_text_needed_at_20.2_spec_gate
+
+### DW-976: Documents page empty state still promises citations ('No documents yet. Add a runbook to get cited answers.'), the same unbuilt Story 20.2 promise, on the page the 4.12 tip opens; a public string change needs a Planner ruling
+- source: spec-4-12-the-demo-guide-s-document-tip-promises-only-what-1-0-4-shows.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: web/src/app/documents/documents-view.ts:21; pinned in documents-view.test.mjs, documents.spec.ts, ux-strings.test.mjs; EXPERIENCE.md source
+- 2026-11-08T18:00:37Z status=escalated owner=burndown by=harvest note=public_text_ruling_needed;for_the_Planner_at_the_decision_sheet;recommended:_rule_text_now_or_route_to_20-2
+- 2026-11-08T19:16:11Z status=routed owner=20-2-see-citations-and-memories-in-answers by=merge_gate note=planner_ruling_2026-11-08~18:10Z(2):keep_'cited answers'_in_1.0.4(the answer names document+section);Planner_checks_on_the_1.0.4_demo_walk,else_new_text_for_1.0.5;otherwise_rides_with_20.2

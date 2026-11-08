@@ -428,6 +428,7 @@ Method TestNothingStored()
 {
 	If '..OnImage() Quit
 	Set before = ..Signature()
+	Do $$$AssertTrue(before [ "|Docs=", "the signature has the knowledge-base half: the table OcuTalonKB.Docs exists (Story 19.4, DW-833)")
 	Do ..ReadSample(##class(OcuTalon.Test.Docs.Samples).Pdf3(), "pdf")
 	Do ..ReadSample(##class(OcuTalon.Test.Docs.Samples).DocxHeadings(), "docx")
 	Do ..ReadSample(##class(OcuTalon.Test.Docs.Samples).PdfJunk(), "pdf")
@@ -456,7 +457,8 @@ Method TestNothingStored()
 	Do ##class(%File).Delete(recent)
 }
 
-/// What the documents and the knowledge bases hold: the number of document rows and the row count of each knowledge-base table, as one text.
+/// What the documents and the knowledge bases hold: the number of document rows, the row count of each knowledge-base table, the document extent's id counter and the
+/// row count of OcuTalonKB.Docs, as one text.
 ClassMethod Signature() As %String
 {
 	Set signature = ""
@@ -468,7 +470,7 @@ ClassMethod Signature() As %String
 		Set count = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalonKB." _ name)
 		Set signature = signature _ "|" _ name _ "=" _ $Select(count.%Next(): count.%GetData(1), 1: "?")
 	}
-	Quit signature _ "|" _ $Data(^OcuTalonP.DocumentD) _ "|" _ $Data(^OcuTalonP.DocumentI)
+	Quit signature _ "|counter=" _ $Get(^OcuTalonP.DocumentD) _ "|kb=" _ ##class(OcuTalon.Docs.Store).Count()
 }
 
 Method TestWorkerFailure()
