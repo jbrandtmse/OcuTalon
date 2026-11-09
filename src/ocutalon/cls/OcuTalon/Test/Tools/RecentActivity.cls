@@ -548,6 +548,8 @@ Method TestIncidentSummary()
 	Do $$$AssertEquals(answer.closedAt, ##class(OcuTalon.Tools.CommandCall).TimeLabel(##class(OcuTalon.Data.Incident).RefIndexOpen(newest).ClosedAt, 0), "closedAt is the close time in the instance's time")
 	Do $$$AssertEquals(..Keys(answer), "closedAt,outcome,production,text", "and the answer has exactly these keys")
 	Do $$$AssertEquals(##class(OcuTalon.Watch.Summary).Text(older, "web"), "No fix ran, so nothing was changed.", "the older incident has its own summary")
+	Do ..Plain(s, 4000, {"State": "closed", "ClosedAt": (##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -100)), "Summary": ("{""parts"":[{""key"":""summary.costUnknown"",""slots"":{}}],""lines"":[]}")})
+	Do $$$AssertEquals(..CallSummary(s).text, "Model cost of this incident: not known.", "an incident noticed first but closed last is the newest: the close time decides, not the notice time")
 }
 
 /// AC 7: another session's closed incident with a summary, and an instance incident on the online demo, are not S's: the answer is none; on a local install S sees the

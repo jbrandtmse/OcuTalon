@@ -9,6 +9,9 @@
 ///   - TestIncidentSummaryInTheChat (Story 23.6; AC 6): the scenario incident-summary, armed at 1: S's closed incident (its summary built by IncidentManager's close path) is asked
 ///     for with "Show me the incident summary"; the Turn is done and tainted, its one tool step is "Reading the incident summary", the second Chat request carries the rendered summary
 ///     as outcome summary, and the reply is the scenario's.
+///   - TestIncidentSummaryAnotherSessionInTheChat (QA; AC 7): session A's closed incident has a summary (built by IncidentManager's close path); session B, who watches the same
+///     production, asks "Show me the incident summary" through the same turn: the tool result of B's turn is {"outcome": "none"} and holds nothing of A's summary, while A's own turn
+///     (control) gets it.
 /// After the test the countdown is cleared, and the turns of the run's sessions are removed with their decisions.
 Class OcuTalon.Test.Tools.RecentActivityTurn Extends OcuTalon.Test.Watch.Case
 {
@@ -140,6 +143,66 @@ Method TestIncidentSummaryInTheChat()
 	Do $$$AssertTrue($Piece(answer.text, $Char(10), 1) [ "Incident summary: 50 ", "which starts with the title line: "_$Piece(answer.text, $Char(10), 1))
 	Do $$$AssertTrue(answer.text [ "ZZPOISON", "and holds the cause as data, which is why the turn is tainted")
 	Do $$$AssertTrue(answer.text [ "Messages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped.", "with the messages line")
+}
+
+/// Story 23.6 (AC 7, QA): the second-session isolation through the real turn, not only through the tool method. Session A has a closed incident with its summary (a Dismiss over
+/// the demo path's records, whose free text is poisoned). Session B, who watches the same production and has no incident, asks "Show me the incident summary": the Turn is
+/// done, the tool result in the Chat agent's second request is {"outcome": "none"}, and neither it nor anything B's turn sent holds A's title line or the poisoned text. A's own
+/// turn (the control) gets outcome summary, so that the silence of B's is not a broken path.
+Method TestIncidentSummaryAnotherSessionInTheChat()
+{
+	If '..Ready() Quit
+	If '..PointKeys() Quit
+	Set a = ..Session("sumowner")
+	Set b = ..Session("sumother")
+	Do ..Watch(a)
+	Do ..Watch(b)
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Tools.RecentActivity).Demo(a, 1, 120, .incident, .request, .times)
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Watch.IncidentProbe", .sc)
+	Do $$$AssertTrue($IsObject(host), "a shadow instance of the incident manager is made")
+	If '$IsObject(host) Quit
+	Set command = ##class(OcuTalon.Msg.IncidentCommand).%New()
+	Set command.Verb = "dismiss"
+	Set command.IncidentRef = incident
+	Set command.SessionRef = a
+	Set command.Origin = "web_user"
+	Set response = ""
+	Do $$$AssertStatusOK(host.OnRequest(command, .response), "A's Dismiss is handled")
+	Do $$$AssertEquals($IsObject(response) && (response.Ok_"|"_response.Outcome = "1|closed"), 1, "A's incident is closed")
+	Set title = $Piece(##class(OcuTalon.Watch.Summary).Text(incident, "web"), $Char(10), 1)
+	Do $$$AssertTrue(title [ "Incident summary: 50 ", "and has a summary: "_title)
+	For turn = "b", "a" {
+		Set session = $Select(turn = "b": b, 1: a)
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).Arm(..#SUMMARYMARKER, 1), "the countdown of "_..#SUMMARYMARKER_" is armed at 1 for "_turn)
+		Set clientId = "zzr"_..Number_"sumiso"_turn
+		Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+		Do $$$AssertStatusOK(..Send(session, clientId, ..#SUMMARYASK, .output), turn_": the message is accepted by WebChatIn")
+		Set row = ..WaitDone(session, clientId)
+		If '$IsObject(row) || (row.State '= "done") {
+			Do $$$AssertTrue(0, turn_": the Turn is done within "_..#WAIT_" seconds")
+			Continue
+		}
+		Set ..ItemIds = ..ItemIds_$ListBuild(row.ItemId)
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries), turn_": the mock's log is read")
+		Set chat = []
+		Set iterator = entries.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			If (entry.path = "/v1/messages") && ((","_##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(entry)_",") [ ",incident_summary,") Do chat.%Push(entry)
+		}
+		Do $$$AssertEquals(chat.%Size(), 2, turn_": the Chat agent made two requests")
+		If chat.%Size() '= 2 Continue
+		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(chat.%Get(1))
+		Do $$$AssertEquals($ListLength(results), 1, turn_": the second request carries one tool result")
+		If $ListLength(results) '= 1 Continue
+		Set raw = $List(results, 1)
+		If turn = "b" {
+			Do $$$AssertEquals({}.%FromJSON(raw).%ToJSON(), {"outcome": "none"}.%ToJSON(), "B's tool result is none: "_$Extract(raw, 1, 200))
+			Do $$$AssertNotTrue((raw [ "Incident summary") || (raw [ "ZZPOISON") || (raw [ title), "and holds nothing of A's summary")
+			Do $$$AssertNotTrue(chat.%Get(0).%ToJSON() [ "ZZPOISON", "nor does B's first request")
+		} Else {
+			Do $$$AssertEquals({}.%FromJSON(raw).outcome, "summary", "A's own turn gets its summary (the control)")
+		}
+	}
 }
 
 /// Asserts that the text holds no phrase of the guard's two lists, ignoring case.

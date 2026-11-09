@@ -30,6 +30,8 @@
 ///     records the bare Delivery row; a second one (the newest row is then the handled row) records the row only;
 ///   - TestSummaryCard (Story 23.6; AC 5, AC 14): a summary Notification is a card of kind summary whose text is the stored summary's lines, with the markup of the
 ///     cause, the evidence and the sample error left as it is; one event; another session gets no row; a missing summary records nothing;
+///   - TestSummaryBuilt (QA; AC 14): the summary that Watch.Summary.Build makes of an incident whose cause, fix and sample error hold markup (the sample error longer than a notice's error summary)
+///     is a web card whose text shows the markup as it came and the sample error cut to the notice's length;
 ///   - TestHandledWithNoCardRecordsOnly: with no tell-now card for the DecisionRef (none at all, or a digest) it records the bare row and no event;
 ///   - TestReloadShowsHandled: Notification.FromRow of the card's row carries handledAt once the notice is marked (tell-now only), and the checks;
 ///   - TestOlderDigestRowRenders (U-313): a digest row written without CheckRows reads as a card with no check rows, in RecentNotices and in the payload;
@@ -671,6 +673,30 @@ Method TestSummaryCard()
 	Do $$$AssertStatusNotOK(..Out().OnNotification(unknown, .response), "and so is a notification with no incident")
 	Do $$$AssertEquals(..Rows(session), 1, "neither records a row")
 	Do $$$AssertEquals(..Notifications(session).%Size(), 1, "or an event")
+}
+
+/// AC 14 (QA), the web chat: an incident whose rows hold markup is summarized by Watch.Summary.Build (Test.Watch.Summary.Built), and the card that WebChatOut records
+/// shows the cause and the sample error as they came: the markup literally, the sample error cut to an incident notice's length, one line each. The page binds the text
+/// as text (N20 and page-safety.test.mjs), so that it is shown, not taken as markup.
+Method TestSummaryBuilt()
+{
+	Set session = ..Session("built")
+	Set incident = ##class(OcuTalon.Test.Watch.Summary).Built(session)
+	Set ..Refs = ..Refs_","_incident
+	Set notification = ..Notification(session, "summary", "summary.title", {})
+	Set notification.IncidentRef = incident
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the built summary is delivered")
+	Set row = ..Newest(session)
+	Do $$$AssertTrue($IsObject(row), "it is a card")
+	If '$IsObject(row) Quit
+	Set cut = ##class(OcuTalon.Test.Watch.Summary).CutLine()
+	Do $$$AssertTrue($Length(cut) '> $Parameter("OcuTalon.Watch.ErrorText", "SUMMARYMAX"), "the cut is no longer than a notice's error summary")
+	Do $$$AssertTrue(row.Text [ ($Char(10)_"Cause: The partner sent <b>x</b> and *y*."_$Char(10)), "the cause shows its markup literally")
+	Do $$$AssertTrue(row.Text [ ($Char(10)_"Sample error: "_cut_$Char(10)), "and the sample error is the cut, with its markup: "_cut)
+	Do $$$AssertTrue(row.Text '[ ##class(OcuTalon.Test.Watch.Summary).#LONGMARKUP, "the whole sample error is not in the card")
+	Set events = ..Notifications(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one notification event")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.text, row.Text, "which carries the same text")
 }
 
 /// A fixture session; its Ref is kept for the clean-up.

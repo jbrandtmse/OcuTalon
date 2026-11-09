@@ -3,20 +3,23 @@
 /// incident_summary tool. Build renders nothing, writes nothing and sends nothing (producers never render, AD-32).
 ///   - The summary is {"parts": [{"key", "slots"}], "lines": []}, the shape of OcuTalon.Channel.DigestText, so that it is rendered there, one catalog key (prefix
 ///     summary.) per line, through Msg.Catalog.Render. The parts, in this order:
-///       summary.title                                     the failed count, the item noun and the production
+///       summary.title                                     the failed count, the item noun and the production (its display name, as the watch cards name it;
+///                                                         else its class name)
 ///       the timeline, sorted by time (ties keep the order below): summary.firstFailure (FirstAt), summary.noticed (NoticedAt); for each request of the incident
 ///         (RequestRefs, rows that name the incident): summary.requested (RaisedAt, the dry run's resend count; left out when the dry run holds no count), its answer (summary.approved or summary.rejected at
 ///         AnsweredAt, with ...By and the user when the install is local and AnsweredBy is known; summary.expired at ExpiresAt; none for a pending or cancelled
 ///         request) and, for its FixRun, summary.fixStarted (StartedAt) and summary.fixEnded (EndedAt, with the counts) or summary.fixInterrupted (EndedAt, with
 ///         the resent count); the closing, summary.closedDismiss, summary.closedReplay or summary.closedQuiet at the close time
-///       summary.noCause (a fallback incident; the reason) or summary.cause and summary.element (omitted when empty)
+///       summary.noCause (a fallback incident; the reason) or summary.cause and summary.element (omitted when empty; the element also when it is only a period,
+///         which the catalog would drop before its own period and then refuse as empty)
 ///       summary.evidence (the first evidence line of the diagnosis payload; omitted when there is none), summary.sampleError (the first sentence of the sample
 ///         error, at most the length of an incident notice's error summary; omitted when empty)
 ///       summary.fix (the fix summary) when a fix ran, else summary.noFixRan
-///       summary.groups (every failure group; left out when the incident has none) for a fallback incident or an incident whose fix did not run
+///       summary.groups (every failure group, with its count at the close; left out when the incident has none) for a fallback incident or an incident whose fix
+///         did not run
 ///       summary.messages (failed = the incident's Count; resent, completed, failed again and skipped summed over the incident's FixRuns)
 ///       summary.cost, or summary.costUnknown when a usage row of the incident's diagnosis decision has no cost (Usage.Totals; an incident without usage rows costs 0)
-///   - The channel of an answer is the name the README gives it ("the web chat", "the Simulated phone", "Telegram"), never an internal id; an answer from a channel
+///   - The channel of an answer is the name the README gives it ("the web chat", "the Simulated phone", "Telegram", "the Simulated mailbox"), never an internal id; an answer from a channel
 ///     that has no name here gets no answer line, because the summary cannot say where it came from. The answerer is named only on a local install (onlineDemo 0).
 ///   - Slots hold the model's cause, evidence and fix and the sample error as plain strings; the catalog adds no markup and the channels show them literally.
 /// Build gives "" with an error status in sc when the summary cannot be built (an event that does not close, a row that cannot be read, a slot that cannot be made);
@@ -28,7 +31,7 @@ Class OcuTalon.Watch.Summary [ Abstract ]
 Parameter CLOSINGKEYS = "dismiss=summary.closedDismiss,closeForReplay=summary.closedReplay,closeQuiet=summary.closedQuiet";
 
 /// How each channel reads in a summary line.
-Parameter CHANNELNAMES = "web=the web chat,phone=the Simulated phone,telegram=Telegram,mailbox=the Simulated mailbox,email=email";
+Parameter CHANNELNAMES = "web=the web chat,phone=the Simulated phone,telegram=Telegram,mailbox=the Simulated mailbox";
 
 /// The request states whose answer is approved.
 Parameter APPROVEDSTATES = "approved,executing,done,failed";
@@ -47,7 +50,7 @@ ClassMethod Build(incident As OcuTalon.Data.Incident, event As %String, closedAt
 		Set common = ##class(OcuTalon.Watch.Notice).Common(incident, .sc)
 		$$$ThrowOnError(sc)
 		Set parts = []
-		Do parts.%Push(..Part("summary.title", {"count": (+incident.Count), "itemNoun": (common.itemNoun), "production": (incident.Production)}))
+		Do parts.%Push(..Part("summary.title", {"count": (+incident.Count), "itemNoun": (common.itemNoun), "production": (..ProductionName(incident))}))
 		Set seq = 0
 		Do ..Event(.timeline, .seq, incident.FirstAt, "summary.firstFailure", {"time": (incident.FirstAt)})
 		Do ..Event(.timeline, .seq, incident.NoticedAt, "summary.noticed", {"time": (incident.NoticedAt)})
@@ -80,11 +83,12 @@ ClassMethod Build(incident As OcuTalon.Data.Incident, event As %String, closedAt
 			Do parts.%Push(..Part("summary.noCause", {"fallbackReason": (##class(OcuTalon.Watch.Notice).Reason(incident))}))
 		} Else {
 			If ..Clean(incident.Cause) '= "" Do parts.%Push(..Part("summary.cause", {"cause": (..Clean(incident.Cause))}))
-			If ..Clean(incident.Element) '= "" Do parts.%Push(..Part("summary.element", {"element": (..Clean(incident.Element))}))
+			Set element = ..Clean(incident.Element)
+			If (element '= "") && (..Shown(element) '= ".") Do parts.%Push(..Part("summary.element", {"element": (element)}))
 		}
 		Set evidence = ..Evidence(incident.DecisionRef)
 		If evidence '= "" Do parts.%Push(..Part("summary.evidence", {"evidence": (evidence)}))
-		Set sample = ##class(OcuTalon.Watch.ErrorText).Summary(incident.SampleError)
+		Set sample = ..Clean(##class(OcuTalon.Watch.ErrorText).Summary(incident.SampleError))
 		If sample '= "" Do parts.%Push(..Part("summary.sampleError", {"error": (sample)}))
 		If ran && 'incident.Fallback {
 			If ..Clean(incident.FixSummary) '= "" Do parts.%Push(..Part("summary.fix", {"fix": (..Clean(incident.FixSummary))}))
@@ -231,6 +235,19 @@ ClassMethod Evidence(decisionRef As %String) As %String [ Private ]
 	Quit line
 }
 
+/// The production as the title names it: the display name that Watch.Reader gives it (the Description of the production, as in the watch cards and the
+/// incident_summary tool), else its class name when the production is not listed or the list cannot be read.
+ClassMethod ProductionName(incident As OcuTalon.Data.Incident) As %String [ Private ]
+{
+	Set display = ""
+	Try {
+		If '##class(OcuTalon.Watch.Reader).Admits(incident.Namespace, incident.Production, .display) Set display = ""
+	} Catch {
+		Set display = ""
+	}
+	Quit $Select(..Shown(display) '= "": display, 1: incident.Production)
+}
+
 /// The value of a name in a map written "name=value,name=value"; "" when the name is not in it.
 ClassMethod Lookup(map As %String, name As %String) As %String [ Private ]
 {
@@ -250,10 +267,18 @@ ClassMethod IsTime(text As %String) As %Boolean [ Private ]
 	Quit $Get(text) ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z"
 }
 
-/// A row's text as the slot takes it: trimmed; "" when there is none.
+/// A row's text as the slot takes it: trimmed; "" when there is none, or when nothing of it would show (the renderer drops invisible and control characters and
+/// refuses a slot left empty, which would make the whole summary unreadable).
 ClassMethod Clean(value As %String) As %String [ Private ]
 {
-	Quit $ZStrip($Get(value), "<>W")
+	Set value = $ZStrip($Get(value), "<>W")
+	Quit $Select(..Shown(value) = "": "", 1: value)
+}
+
+/// What of the text would show: the text without its whitespace and without the characters the renderer drops (invisible and control characters).
+ClassMethod Shown(value As %String) As %String [ Private ]
+{
+	Quit $ZStrip($Translate($Get(value), $Char(133, 160, 1564, 5760, 6158, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8203, 8206, 8207, 8232, 8233, 8234, 8235, 8236, 8237, 8238, 8239, 8287, 8288, 8289, 8290, 8291, 8292, 8294, 8295, 8296, 8297, 12288, 65279, 65529, 65530, 65531)), "*CW")
 }
 
 }

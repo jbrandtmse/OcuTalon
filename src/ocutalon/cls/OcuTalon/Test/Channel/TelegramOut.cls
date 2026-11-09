@@ -25,6 +25,8 @@
 ///     checks.notEverything with a failed row names it with nothing after, and checks.everythingElsePassed gives its catalog text;
 ///   - TestSummary (Story 23.6; AC 14): a summary Notification is one plain-text message to the paired chat with the stored summary's lines and the markup of the
 ///     cause, the evidence and the sample error as it is, no parse_mode and no buttons; a missing summary sends nothing;
+///   - TestSummaryBuilt (QA; AC 14): the summary that Watch.Summary.Build makes of an incident whose cause, fix and sample error hold markup (the sample error longer than a notice's
+///     error summary) is one plain-text message, with no parse mode, whose text shows the markup as it came and the sample error cut to the notice's length;
 ///   - TestOtherKinds: a Notification of kind status or fallback sends nothing and records no row, where one of kind tellnow does;
 ///   - TestButtons (Story 12.7; AC1): an incident notice and a later approval request with an ApprovalRef go as one sendMessage whose
 ///     reply_markup holds the Approve and Reject buttons with callback data approve:<Ref> and reject:<Ref>; a 5,000-character request notice
@@ -634,6 +636,44 @@ Method TestSummary()
 		Do ##class(OcuTalon.Test.Data.Fixture).Clean(bare)
 	} Catch ex {
 		Do $$$AssertTrue(0, "the summary test failed: "_..Safe(ex))
+	}
+	If incident '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(incident)
+	Do ..Cleanup()
+}
+
+/// AC 14 (QA), Telegram: an incident whose rows hold markup is summarized by Watch.Summary.Build (Test.Watch.Summary.Built), and the message that TelegramOut sends is
+/// plain text (no parse_mode, no entities, no buttons) that shows the cause and the sample error as they came: the markup literally, the sample error cut to an incident
+/// notice's length, one line each.
+Method TestSummaryBuilt()
+{
+	If '..ReadyLive() Quit
+	Set incident = ""
+	Try {
+		Set chatId = 8632
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Set incident = ##class(OcuTalon.Test.Watch.Summary).Built(session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set notice = ##class(OcuTalon.Msg.Notification).%New()
+		Set notice.SessionRef = session
+		Set notice.Kind = "summary"
+		Set notice.CatalogKey = "summary.title"
+		Set notice.Slots = "{}"
+		Set notice.IncidentRef = incident
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Send("TelegramOut", notice, .response), "the built summary is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 1, "one sendMessage")
+		If calls.%Size() = 1 {
+			Set params = calls.%Get(0).params
+			Set cut = ##class(OcuTalon.Test.Watch.Summary).CutLine()
+			Do $$$AssertTrue($Length(cut) '> $Parameter("OcuTalon.Watch.ErrorText", "SUMMARYMAX"), "the cut is no longer than a notice's error summary")
+			Do $$$AssertTrue(params.text [ ($Char(10)_"Cause: The partner sent <b>x</b> and *y*."_$Char(10)), "the cause shows its markup literally")
+			Do $$$AssertTrue(params.text [ ($Char(10)_"Sample error: "_cut_$Char(10)), "and the sample error is the cut, with its markup: "_cut)
+			Do $$$AssertTrue(params.text '[ ##class(OcuTalon.Test.Watch.Summary).#LONGMARKUP, "the whole sample error is not in the message")
+			Do $$$AssertEquals(params.%IsDefined("parse_mode")_"|"_params.%IsDefined("entities")_"|"_params.%IsDefined("reply_markup"), "0|0|0", "with no parse_mode, no entities and no buttons")
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the built summary test failed: "_..Safe(ex))
 	}
 	If incident '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(incident)
 	Do ..Cleanup()

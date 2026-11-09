@@ -84,7 +84,7 @@ const RULED = {
 
 const IDS = ['incidentSummary', 'persona', 'suspiciousEmail', 'rejectFix', 'demoView', 'memory', 'documents', 'heartbeat'];
 /** The items that name no memory, document or heartbeat: every item before memory (the registry puts the incident summary item first, Story 23.6). */
-const FOUR = IDS.slice(0, 5);
+const BEFORE_MEMORY = IDS.slice(0, IDS.indexOf('memory'));
 const idsOf = (items) => items.map((item) => item.id);
 
 describe('(a) the fixed strings', () => {
@@ -118,18 +118,18 @@ describe('(b) itemsFor', () => {
   });
 
   it('gives the items before memory for their ids', () => {
-    assert.deepEqual(idsOf(itemsFor(FOUR)), FOUR);
+    assert.deepEqual(idsOf(itemsFor(BEFORE_MEMORY)), BEFORE_MEMORY);
   });
 
   it('shows exactly its item, in its place, when memory, documents or heartbeat is added', () => {
     for (const id of ['memory', 'documents', 'heartbeat']) {
-      assert.deepEqual(idsOf(itemsFor([...FOUR, id])), IDS.filter((one) => FOUR.includes(one) || one === id), id);
+      assert.deepEqual(idsOf(itemsFor([...BEFORE_MEMORY, id])), IDS.filter((one) => BEFORE_MEMORY.includes(one) || one === id), id);
     }
     assert.deepEqual(idsOf(itemsFor(IDS)), IDS);
   });
 
   it('ignores an id it does not know', () => {
-    assert.deepEqual(idsOf(itemsFor([...FOUR, 'somethingNew'])), FOUR);
+    assert.deepEqual(idsOf(itemsFor([...BEFORE_MEMORY, 'somethingNew'])), BEFORE_MEMORY);
     assert.deepEqual(itemsFor(['somethingNew']), []);
   });
 
@@ -228,7 +228,7 @@ describe('(d) the look-for lines of the items before memory', () => {
   const folded = (text) => text.toLowerCase().replace(/\u2019/g, "'").replace(/\s+/g, ' ');
 
   it('name no memory, document or heartbeat', () => {
-    for (const id of FOUR) {
+    for (const id of BEFORE_MEMORY) {
       assert.doesNotMatch(RULED.items[id].lookFor, /memor|document|heartbeat/i, id);
       assert.doesNotMatch(MORE_TO_TRY_ITEMS.find((item) => item.id === id).lookFor, /memor|document|heartbeat/i, id);
     }

@@ -1471,7 +1471,9 @@ async function openAs(page: Page, view: Record<string, unknown>): Promise<void> 
 test('K25: Close the incident at the finish dismisses the resolved incident, and its summary reaches the chat and the Simulated phone', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   const { user } = fixtureUser('NOTICE');
-  const incident = await seedIncident(user, { state: 'resolved', production: 'Zz.K25' });
+  const production = `Zz.K25.${Date.now().toString(36)}`;
+  const named = new RegExp(`^Incident summary: \\d+ .* failed in ${production.replace(/\./g, '\\.')}\\.$`);
+  const incident = await seedIncident(user, { state: 'resolved', production });
   try {
     await openAs(page, finished([SUMMARY, ...FOUR]));
     const card = page.locator(`article[data-part="incident"][data-key="incident:${incident}"]`);
@@ -1480,14 +1482,13 @@ test('K25: Close the incident at the finish dismisses the resolved incident, and
     await expect(guideRegion(page).locator('.finish-done'), 'and the finish').toBeVisible();
     await controlOf(page, SUMMARY).click();
     await expect(card.locator('.chip'), 'the card says Closed').toHaveText('Closed', { timeout: 20_000 });
-    const title = 'Incident summary: ';
-    const noticeCard = page.locator('app-chat-panel app-notice-card .notice.summary').filter({ hasText: 'Zz.K25' });
+    const noticeCard = page.locator('app-chat-panel app-notice-card .notice.summary').filter({ hasText: production });
     await expect(noticeCard, 'the chat holds the summary card').toHaveCount(1, { timeout: 20_000 });
-    expect((await noticeCard.locator('.text').innerText()).split('\n')[0], 'whose first line is the title line').toMatch(new RegExp(`^${title}\\d+ .* failed in Zz\\.K25\\.$`));
+    expect((await noticeCard.locator('.text').innerText()).split('\n')[0], 'whose first line is the title line').toMatch(named);
     const phone = page.getByRole('region', { name: 'Simulated devices' }).locator('app-simulated-phone');
-    const message = phone.locator('.notification').filter({ hasText: 'Zz.K25' });
+    const message = phone.locator('.notification').filter({ hasText: production });
     await expect(message, 'the Simulated phone holds the summary message').toHaveCount(1, { timeout: 20_000 });
-    expect((await message.locator('.text').innerText()).split('\n')[0], 'with the same title line').toMatch(new RegExp(`^${title}\\d+ .* failed in Zz\\.K25\\.$`));
+    expect((await message.locator('.text').innerText()).split('\n')[0], 'with the same title line').toMatch(named);
     await expect(message.getByRole('button'), 'and no button').toHaveCount(0);
     await expect(panelOf(page), 'the panel is still shown').toBeVisible();
     await expect(guideRegion(page).locator('.finish-done'), 'and the finish still holds').toBeVisible();

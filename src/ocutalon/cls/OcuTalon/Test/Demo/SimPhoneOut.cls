@@ -12,6 +12,8 @@
 ///     and an approval message have none, and another session's tell-now Delivery row is never read;
 ///   - TestSummaryMessage (Story 23.6; AC 14): a summary Notification is one plain-text phone message with the stored summary's lines, the markup of the cause, the
 ///     evidence and the sample error as it is, no ApprovalRef (no buttons) and no DecisionRef, with its Delivery row and one event; a missing summary is an error;
+///   - TestSummaryBuiltMessage (QA; AC 14): the summary that Watch.Summary.Build makes of an incident whose cause, fix and sample error hold markup (the sample error longer than a
+///     notice's error summary) is one phone message whose text shows the markup as it came and the sample error cut to the notice's length;
 ///   - TestOnlyRequestKindsCarryARequest: tellnow, reminder, answered and an incident with no request give no message with an
 ///     ApprovalRef;
 ///   - TestAnsweredEditsInPlace: an answered notification sets the Answer of the delivered message, keeping its Ref and Text,
@@ -212,6 +214,27 @@ Method TestSummaryMessage()
 	Set missing.IncidentRef = bare
 	Do $$$AssertStatusNotOK(..Out().OnNotification(missing, .response), "an incident with no summary is an error")
 	Do $$$AssertEquals(..PhoneCount(session)_"|"_##class(OcuTalon.Test.Core.Observe).DeliveryCount(session)_"|"_..Phones(session).%Size(), "1|1|1", "with no more message, row or event")
+}
+
+/// AC 14 (QA), the Simulated phone: an incident whose rows hold markup is summarized by Watch.Summary.Build (Test.Watch.Summary.Built), and the message that SimPhoneOut
+/// records shows the cause and the sample error as they came: the markup literally, the sample error cut to an incident notice's length, one line each, with no button.
+Method TestSummaryBuiltMessage()
+{
+	Set session = ..Session("built")
+	Set incident = ##class(OcuTalon.Test.Watch.Summary).Built(session)
+	Set ..Refs = ..Refs_","_incident
+	Set notification = ..Notification(session, "summary", "summary.title", {})
+	Set notification.IncidentRef = incident
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the built summary is delivered")
+	Set message = ..Newest(session)
+	Do $$$AssertTrue($IsObject(message), "it is a phone message")
+	If '$IsObject(message) Quit
+	Set cut = ##class(OcuTalon.Test.Watch.Summary).CutLine()
+	Do $$$AssertTrue($Length(cut) '> $Parameter("OcuTalon.Watch.ErrorText", "SUMMARYMAX"), "the cut is no longer than a notice's error summary")
+	Do $$$AssertTrue(message.Text [ ($Char(10)_"Cause: The partner sent <b>x</b> and *y*."_$Char(10)), "the cause shows its markup literally")
+	Do $$$AssertTrue(message.Text [ ($Char(10)_"Sample error: "_cut_$Char(10)), "and the sample error is the cut, with its markup: "_cut)
+	Do $$$AssertTrue(message.Text '[ ##class(OcuTalon.Test.Watch.Summary).#LONGMARKUP, "the whole sample error is not in the message")
+	Do $$$AssertEquals(message.ApprovalRef, "", "and the message has no request, so no button")
 }
 
 /// A tell-now message keeps the notification's DecisionRef (the notice's Ref, which the page's Got it names) and its payload carries it as decisionRef.

@@ -386,7 +386,8 @@ ClassMethod Reason(incident As OcuTalon.Data.Incident) As %String
 }
 
 /// The groups slot: one {itemName, count, errorSummary, firstAt} per group that has a NoticeCount, in the order of the list. "" with an error in sc when
-/// no group is left. With every 1 (the summary of a closed incident, Story 23.6), a group that has no NoticeCount is listed too, with its Count.
+/// no group is left. With every 1 (the summary of a closed incident, Story 23.6), every group is listed with its Count, its count at the close, whether or not
+/// it has a NoticeCount.
 ClassMethod Groups(incident As OcuTalon.Data.Incident, groups As %ListOfObjects = "", Output sc As %Status, every As %Boolean = 0) As %DynamicArray
 {
 	Set sc = $$$OK
@@ -395,7 +396,7 @@ ClassMethod Groups(incident As OcuTalon.Data.Incident, groups As %ListOfObjects 
 	For i = 1:1:groups.Count() {
 		Set group = groups.GetAt(i)
 		If (group.NoticeCount = "") && 'every Continue
-		Do lines.%Push({"itemName": (group.ItemName), "count": (+$Select(group.NoticeCount '= "": group.NoticeCount, 1: group.Count)), "errorSummary": ($Select(group.ErrorSummary '= "": group.ErrorSummary, 1: ..#NOERRORTEXT)), "firstAt": ($Select(group.FirstAt '= "": group.FirstAt, 1: incident.FirstAt))})
+		Do lines.%Push({"itemName": (group.ItemName), "count": (+$Select(every || (group.NoticeCount = ""): group.Count, 1: group.NoticeCount)), "errorSummary": ($Select(group.ErrorSummary '= "": group.ErrorSummary, 1: ..#NOERRORTEXT)), "firstAt": ($Select(group.FirstAt '= "": group.FirstAt, 1: incident.FirstAt))})
 	}
 	If lines.%Size() = 0 {
 		Set sc = $SYSTEM.Status.Error(5001, "The incident "_incident.Ref_" has no failure group that settled")

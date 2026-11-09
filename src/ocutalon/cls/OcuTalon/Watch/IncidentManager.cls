@@ -102,7 +102,7 @@
 ///   - The summary (Story 23.6; AD-15, AD-32): every accepted move into closed (dismiss, closeForReplay, closeQuiet) first builds the incident's summary in code
 ///     (OcuTalon.Watch.Summary, from the incident's rows; no model request), stores it in Summary and sets ClosedAt, in the one save of Move, and then sends one
 ///     Notification of kind summary (catalog key summary.title, Slots {}, the incident's DecisionRef, no ApprovalRef) to each recipient through Tell, before the incident
-///     event. Each *Out operation renders the stored summary (Summary.Text). A summary that cannot be built leaves Summary empty, logs one Type 3 warning (LOGSUMMARY)
+///     event; a move into closed that already carries a notification of its own sends that one instead (Closing). Each *Out operation renders the stored summary (Summary.Text). A summary that cannot be built leaves Summary empty, logs one Type 3 warning (LOGSUMMARY)
 ///     and sends no summary notification; the close stands. A refused move builds nothing.
 ///   - Purge deletes the incidents closed before a cutoff, with their groups, their fix runs and their summaries (AD-27).
 ///   - An evaluation incident (Story 9.6; AD-22, AD-30): an OcuTalon.Eval.Msg.IncidentCase from EvalIn, with a Ref that EvalIn minted and the text of a recorded

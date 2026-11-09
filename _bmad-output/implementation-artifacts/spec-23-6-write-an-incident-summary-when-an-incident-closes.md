@@ -131,6 +131,42 @@ deferred: []
 - AC17: Given an install upgraded from v1.0.5 with existing closed incidents and no `Summary` values, when the upgrade harness runs (`live:install-upgrade`, CI), then it passes and those incidents read with an empty summary; the purge test proves the summary goes with its row (AC8).
 - AC18: Given the More to try registry, when the count pins run, then README line 30, EXPERIENCE.md's count, the `more-to-try-view.ts` header comment and every count test match the registry's item count (tests read the registry).
 
+### Review Findings
+
+Code review 2026-11-09 (full mode; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 36 rows, 14 entries after grouping: high 0, medium 8, low 6; 15 rejected). Every patch was applied in this pass and its classes re-run green on the warm stack.
+
+- [x] [Review][Patch] (med, fix-risk low, in-story; the Planner's Part A ruling) `email=email` was still in `CHANNELNAMES`, so an email answer read "approved from email." Removed; `TestAnswerEdges` pins that an email answer gets no answer line, `TestChannelNames` adds the Simulated mailbox [src/ocutalon/cls/OcuTalon/Watch/Summary.cls:34]
+- [x] [Review][Patch] (med, fix-risk med: a cross-namespace read at close, with a fallback) The title named the production by its class name ("failed in OcuTalon.Demo.Orders.Production." on the demo), while the watch cards and the tool use its display name (DW-519). `Build` now names it through `Watch.Reader.Admits` (else the class name); `TestProductionName` [src/ocutalon/cls/OcuTalon/Watch/Summary.cls:53]
+- [x] [Review][Patch] (med, fix-risk low, in-story; QA's open note) An `Element` that is only a period made the stored summary unrenderable on every channel (the catalog drops the value's period before the text's, then refuses the empty slot), so no card, phone message or tool text. The element line is now left out when only a period would show; `TestPeriodElement` [src/ocutalon/cls/OcuTalon/Watch/Summary.cls:87]
+- [x] [Review][Patch] (med, fix-risk low) AC3's "every FailureGroup" branch (`Notice.Groups` with `every`, a group with no NoticeCount) had no test; `TestGroupsAtClose` [src/ocutalon/cls/OcuTalon/Test/Watch/Summary.cls]
+- [x] [Review][Patch] (med, fix-risk low) `incident_summary` chooses by `ClosedAt`, but the test's close order matched the notice order, so a first-row choice passed; `TestIncidentSummary` adds an incident noticed first and closed last [src/ocutalon/cls/OcuTalon/Test/Tools/RecentActivity.cls]
+- [x] [Review][Patch] (med, fix-risk low, Rule 19 hermeticity) K25 filtered the summary card and phone message by the fixed text `Zz.K25`, which a re-run on the same stack finds twice (Delivery and SimMessage rows outlive the incident); the production name is now unique per run [web/e2e/guide/more-to-try.spec.ts:1474]
+- [x] [Review][Patch] (med, fix-risk low, Rule 19 hermeticity; found by this review's mutation run) `TestFixedDismissed` compared stored times with `T(-n)` recomputed at assertion time, so it went red when a second passed between the fixture and the assertion; it now compares with the fixture rows' own times [src/ocutalon/cls/OcuTalon/Test/Watch/Summary.cls:107]
+- [x] [Review][Patch] (low) AC11 had no `mutation:` line; demonstrated and written under Verification [web/scripts/more-to-try-view.test.mjs:209]
+- [x] [Review][Patch] (low) `TestInvisibleText` named the sample-error line in its header but did not assert it; added [src/ocutalon/cls/OcuTalon/Test/Watch/Summary.cls]
+- [x] [Review][Patch] (low) The constant `FOUR` held five ids; renamed `BEFORE_MEMORY` and derived from the registry order [web/scripts/more-to-try-view.test.mjs:87]
+- [x] [Review][Patch] (low) `IncidentManager`'s class header said every close sends the summary Notification; it now says a close that carries its own notification sends that one, as `Closing` does [src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls:105]
+- [x] [Review][Patch] (low) The groups line showed each group's notice-time count beside the final failed count, so a fallback incident's groups could add up to less; with `every` (the summary) `Notice.Groups` now gives each group's count at the close [src/ocutalon/cls/OcuTalon/Watch/Notice.cls:398]
+- [x] [Review][Defer] (med, fix-risk low, out-of-footprint; Rule 2) `Watch.Summary` copies `Msg.Catalog`'s private Clean character list and Lookup [src/ocutalon/cls/OcuTalon/Watch/Summary.cls:279] — deferred: DW-1050, routed owner=burndown (the unifying change is a public predicate in Msg/Catalog.cls, outside the AD-33 exception; the builder may not render)
+- [x] [Review][Defer] (low) AC10, AC16 and AC17 mutation lines were never observed red (CI-only units, over the stage's call budget) [web/e2e/guide/more-to-try.spec.ts] — deferred: DW-1051, wontfix-accepted with reopen_if
+
+**Rejected**
+- `false` Cost "$0" for an incident with no decision: an incident with no DecisionRef made no model request (`Refused` stores no decision), so $0 is true; a fallback with a decision has its DecisionRef (`Answered`).
+- `false` An ItemNoun without both forms breaks the title: `ItemNoun` is written by code or only "when the payload gives both forms" (IncidentManager), and the notice reads the same noun.
+- `false` The class doc's "a slot that cannot be made" overclaims: Groups and Common errors are exactly that; the doc does not claim render validation.
+- `false` The 08-quiet-outcomes edit exceeds "the moved JSDoc": the Planner's Part A item (1) allows implement's edit to that file, and the spec's Shared surfaces line requires its phone-note count to skip the summary.
+- `false` README is Lane B outside the exception: ruling 3 approves both README edits by text.
+- `false` `Test.Demo.Features:TestIds` pins ids by a literal: it pins the order (item first), which a registry read could not falsify; it is not a count pin.
+- `false` AC6's "reply goes to the channel asked on and the web chat" is asserted only on the Turn: the story changes no reply routing, which every chat turn shares.
+- `low` A FixRun that could not start counts as "ran": the timeline still says the fix started and ended with 0 resent; the spec's "no fix run" means no FixRun row; rare.
+- `low` A fix that ran with a FixSummary that shows nothing gets neither a fix line nor "No fix ran": the diagnosis check requires a non-blank fixSummary for the only fixable category; the fix and message lines remain.
+- `low` The tool answers "could not be read" when the newest summary does not render: the one known cause (the period element) is fixed above.
+- `low` The More to try control finds the newest resolved card without Dismiss: a resolved card offers Dismiss unless it is compact; rare and harmless (it then sends the prompt).
+- `low` `closedAt` on the online demo is not asserted for the tool: it reuses `TimeLabel`, pinned by recent_activity's cases.
+- `low` WebChatOut's "another session gets none" and the channel tests' cut-length check cannot fail: neither is the pinning assertion (Test.Watch.Closing and the "Sample error: "_cut lines are).
+- `reject` Spec bookkeeping (footprint_extensions, review_loop_iteration) and the triage log's FixRun.Mark premise: their fix is an edit of the spec under review.
+- `reject` (merged into the first patch) the same `email=email` finding from all four layers.
+
 ## Spec Change Log
 
 - 2026-11-09 (runner, after QA): Contest Planner Part A rulings recorded (Lane B extras allowed; mailbox name approved; email dropped, patched at code review).
@@ -324,6 +360,13 @@ mutation: AC18 README line 30 says "seven more things" -> `web/scripts/more-to-t
 mutation: AC14 (QA) the sample error part is not cut (`Build` uses `Clean(incident.SampleError)` in place of the notice's `ErrorText.Summary`) -> `Test.Watch.Summary:TestMarkupCut`, `Test.Core.WebChatOut:TestSummaryBuilt`, `Test.Demo.SimPhoneOut:TestSummaryBuiltMessage` and `Test.Channel.TelegramOut:TestSummaryBuilt` red; reverted, tree byte-identical.
 mutation: AC14 (QA) the old `Clean` (no test for text that shows nothing) -> `Test.Watch.Summary:TestInvisibleText` red (`summary.cause` slot empty) before the fix; green with it.
 mutation: AC7 (QA) `Data.Ownership` `INCIDENTVISIBLE` gains `OR 1 = 1` (every session sees every incident) -> `Test.Tools.RecentActivityTurn:TestIncidentSummaryAnotherSessionInTheChat` red (B's tool result carried A's summary) and `Test.Tools.RecentActivity:TestIncidentSummaryAnotherSession` red; reverted, tree byte-identical.
+
+mutation: AC13 (CR, the Planner's Part A ruling) `email=email` back in `Watch.Summary` `CHANNELNAMES` -> `Test.Watch.Summary:TestAnswerEdges` red ("email: and the answer has no line"); reverted, tree byte-identical.
+mutation: AC1 (CR, the title's production) `Build` names `incident.Production` in place of `ProductionName` -> `Test.Watch.Summary:TestProductionName` red ("the title names the production by its display name"); reverted, tree byte-identical.
+mutation: AC14 (CR, an element that is only a period) drop the `Shown(element) '= "."` guard in `Build` -> `Test.Watch.Summary:TestPeriodElement` red (ERROR #5001 "the slot 'element' is empty" on web, phone and Telegram); reverted, tree byte-identical.
+mutation: AC3 (CR, every group at the close) `Notice.Groups` gives the NoticeCount with `every` -> `Test.Watch.Summary:TestGroupsAtClose` red ("each with its count at the close"); reverted, tree byte-identical.
+mutation: AC6 (CR, the newest closed incident) `IncidentSummary` keeps the first closed row with a summary, not the latest ClosedAt -> `Test.Tools.RecentActivity:TestIncidentSummary` red ("the close time decides"); reverted, tree byte-identical.
+mutation: AC11 (CR) remove the README's New since 1.0.0 bullet -> `web/scripts/more-to-try-view.test.mjs` "counts the items by the registry in the README" red ("and holds the incident summary bullet"); line 30's count is AC18's line; reverted, tree byte-identical.
 
 ## Auto Run Result
 

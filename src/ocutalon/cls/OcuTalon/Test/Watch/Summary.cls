@@ -13,15 +13,24 @@
 ///   - TestInstanceIncident (AC4): an instance incident watched by two sessions sends one summary Notification to each;
 ///   - TestBuilderFails (AC4): a row that cannot be summarized closes with no Summary, one warning and no summary Notification;
 ///   - TestRefusedClose (AC4): a Dismiss while fixing, and any close of a closed incident, build and send nothing;
-///   - TestChannelNames (AC13): the channel of an answer reads as the README names it;
+///   - TestChannelNames (AC13): the channel of an answer reads as the README names it, the Simulated mailbox included;
 ///   - TestUserName (AC15): the answerer is named on a local install and never on the online demo;
 ///   - TestSampleErrorLength (AC14): the sample error is no longer than an incident notice's error summary;
 ///   - TestTimelineOrder (AC1): the timeline is sorted by time whatever the order of the requests;
 ///   - TestRunEdges (AC1): an interrupted fix run reads summary.fixInterrupted and a run that has not ended only summary.fixStarted;
 ///   - TestGroupsOnlyWithoutFix (AC3): a fixed incident does not list its failure groups;
 ///   - TestAnswerEdges (AC13): an answer from a channel with no name, a cancelled or a pending request give no answer line, the approved states that follow the approval
-///     give one, and a dry run without a count leaves the request line out (the affected count stands in for the resend count);
+///     give one, and a dry run without a count leaves the request line out (the affected count stands in for the resend count); an answer from email has no line
+///     (email has no channel name until real email exists, the Contest Planner's ruling);
 ///   - TestMarkup (AC14): cause, evidence, fix and sample error with markup are stored and rendered literally on every channel;
+///   - TestMarkupCut (AC14, QA): a sample error that starts with markup and is longer than a notice's error summary is cut to that length through Build and shows the
+///     markup literally on the web, the phone and Telegram; Built is the fixture the channel tests (WebChatOut, SimPhoneOut, TelegramOut) deliver;
+///   - TestInvisibleText (AC14, QA): a cause, element, evidence, fix or sample error that shows nothing (a zero-width space) leaves its line out, so that the stored summary
+///     still renders on every channel;
+///   - TestPlaceholderText (AC14, QA): a cause, evidence and sample error that look like catalog placeholders ({production}, {count}) render as they are, once, on every channel;
+///   - TestPeriodElement: an element that is only a period leaves its line out, so that the stored summary still renders on every channel;
+///   - TestGroupsAtClose (AC3): the groups line lists every group with its count at the close, a group that formed after the notice (no NoticeCount) included;
+///   - TestProductionName: the title names the demo production by its display name (Orders), and a production that is not listed by its class name;
 ///   - TestText: the stored summary is read back through Watch.Summary.Text, and an incident without one gives an error status.
 /// The fixture rows are removed after each test.
 Class OcuTalon.Test.Watch.Summary Extends %UnitTest.TestCase
@@ -95,12 +104,14 @@ Method TestFixedDismissed()
 	Do $$$AssertEquals(..Slots(row, "summary.requested").count, 3, "the request line has the dry run's resend count")
 	Set approved = ..Slots(row, "summary.approved")
 	Do $$$AssertEquals(approved.channel, "the Simulated phone", "the approval names its channel as the README does")
-	Do $$$AssertEquals(approved.time, ..T(-5400), "at the time of the answer")
+	Set answered = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request)
+	Set run = ##class(OcuTalon.Data.FixRun).OfRequest(request)
+	Do $$$AssertEquals(approved.time, answered.AnsweredAt, "at the time of the answer")
 	Set ended = ..Slots(row, "summary.fixEnded")
-	Do $$$AssertEquals(ended.resent_"|"_ended.completed_"|"_ended.failedAgain_"|"_ended.skipped_"|"_ended.time, "50|50|0|0|"_..T(-3600), "the fix line has the counts and the end time")
-	Do $$$AssertEquals(..Slots(row, "summary.fixStarted").time, ..T(-5000), "the fix start line has the start time")
-	Do $$$AssertEquals(..Slots(row, "summary.noticed").time, ..T(-6600), "the notice line has NoticedAt")
-	Do $$$AssertEquals(..Slots(row, "summary.firstFailure").time, ..T(-7200), "the first failure line has FirstAt")
+	Do $$$AssertEquals(ended.resent_"|"_ended.completed_"|"_ended.failedAgain_"|"_ended.skipped_"|"_ended.time, "50|50|0|0|"_run.EndedAt, "the fix line has the counts and the end time")
+	Do $$$AssertEquals(..Slots(row, "summary.fixStarted").time, run.StartedAt, "the fix start line has the start time")
+	Do $$$AssertEquals(..Slots(row, "summary.noticed").time, row.NoticedAt, "the notice line has NoticedAt")
+	Do $$$AssertEquals(..Slots(row, "summary.firstFailure").time, row.FirstAt, "the first failure line has FirstAt")
 	Set closing = ..Slots(row, "summary.closedDismiss")
 	Do $$$AssertEquals(closing.time, row.ClosedAt, "the closing line has the time the row was closed")
 	Do $$$AssertEquals(..Slots(row, "summary.cause").cause, "The partner changed the date format.", "the cause is the row's")
@@ -275,8 +286,8 @@ Method TestChannelNames()
 	Set host = ..Host()
 	If '$IsObject(host) Quit
 	Set owner = ..Owner("channels")
-	Set expected = "web=the web chat,phone=the Simulated phone,telegram=Telegram"
-	For i = 1:1:3 {
+	Set expected = "web=the web chat,phone=the Simulated phone,telegram=Telegram,mailbox=the Simulated mailbox"
+	For i = 1:1:$Length(expected, ",") {
 		Set channel = $Piece($Piece(expected, ",", i), "=", 1)
 		Set name = $Piece($Piece(expected, ",", i), "=", 2)
 		Do ..Resolved(owner, .incident, , , , channel)
@@ -405,6 +416,14 @@ Method TestAnswerEdges()
 	Set keys = ..Keys(##class(OcuTalon.Data.Incident).RefIndexOpen(unnamed))
 	Do $$$AssertTrue(keys [ "summary.requested", "its request line stays")
 	Do $$$AssertNotTrue((keys [ "summary.approved") || (keys [ "summary.rejected"), "and the answer has no line, because the channel cannot be named")
+	Do ..Resolved(owner, .emailed, , , , "email")
+	Do $$$AssertEquals(..Command(host, "dismiss", emailed, owner).Ok, 1, "an incident answered from email is dismissed")
+	Set keys = ..Keys(##class(OcuTalon.Data.Incident).RefIndexOpen(emailed))
+	Do $$$AssertTrue(keys [ "summary.requested", "email: its request line stays")
+	Do $$$AssertNotTrue((keys [ "summary.approved") || (keys [ "summary.rejected"), "email: and the answer has no line, because email has no channel name yet")
+	Set text = ##class(OcuTalon.Watch.Summary).Text(emailed, "web", .sc)
+	Do $$$AssertStatusOK(sc, "email: the summary renders")
+	Do $$$AssertNotTrue($ZConvert(text, "L") [ "email", "email: and no line names email")
 	For state = "cancelled", "pending" {
 		Do ..Resolved(owner, .open, , , , "phone", "", state)
 		Do $$$AssertEquals(..Command(host, "dismiss", open, owner).Ok, 1, "an incident with a "_state_" request is dismissed")
@@ -458,6 +477,172 @@ Method TestMarkup()
 	}
 }
 
+/// The sample error of Built: markup first, then more than an incident notice's error summary allows, with no sentence end.
+Parameter LONGMARKUP = "<b>x</b> *y* Field OrderDate was not a date because the partner now sends the day before the month in every message it writes to the queue";
+
+/// A closed incident of the owner whose summary was built by Build (the dismiss event, a local install) from rows that hold markup: the cause, the fix and the sample
+/// error (LONGMARKUP); its Ref. The summary is stored on the row as IncidentManager stores it, with no notification. The caller removes the incident.
+ClassMethod Built(owner As %String) As %String
+{
+	Set all = {"State": "closed", "OpenVariant": "", "FirstAt": (..T(-7200)), "LastAt": (..T(-3600)), "ClosedAt": (..T(0)), "Count": 50, "NoticeCount": 50, "ItemNoun": (..#NOUN), "Cause": "The partner sent <b>x</b> and *y*.", "Element": "OrderDate", "FixSummary": "repair <i>the</i> date", "SampleError": (..#LONGMARKUP)}
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ..T(-6600), "ZZNS", "Zz.Built", all)
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	Set summary = ##class(OcuTalon.Watch.Summary).Build(row, "dismiss", ..T(0), 0, .sc)
+	$$$ThrowOnError(sc)
+	Set row.Summary = summary.%ToJSON()
+	$$$ThrowOnError(row.%Save())
+	Quit ref
+}
+
+/// The lines that the built summary of LONGMARKUP's incident must have on every channel, as the test names them: the cause and the cut sample error. The sample error
+/// is the notice's own cut of the text, at most SUMMARYMAX characters, and it keeps the markup that begins it.
+ClassMethod CutLine() As %String
+{
+	Quit ##class(OcuTalon.Watch.ErrorText).Summary(..#LONGMARKUP)
+}
+
+/// AC14 (QA): a sample error that holds markup and is longer than an incident notice's error summary reaches every channel's text cut to that length and with its markup
+/// as it came: "Sample error: " and the cut, no longer than the notice's, starting with the literal "<b>x</b> *y*"; the cause shows its markup too. The cut is less than
+/// the whole text, so a build that forgot the cut fails here.
+Method TestMarkupCut()
+{
+	Set owner = ##class(OcuTalon.Test.Data.Fixture).Session("zzsum"_..Number_"cut")
+	Set ..Refs = owner
+	Set incident = ..Built(owner)
+	Set ..Refs = ..Refs_","_incident
+	Set cut = ..CutLine()
+	Do $$$AssertTrue($Length(cut) '> $Parameter("OcuTalon.Watch.ErrorText", "SUMMARYMAX"), "the cut is no longer than a notice's error summary: "_$Length(cut))
+	Do $$$AssertTrue($Length(cut) < $Length(..#LONGMARKUP), "and shorter than the sample error")
+	Do $$$AssertTrue($Extract(cut, 1, 13) = "<b>x</b> *y* ", "and starts with the markup as it came")
+	For render = "web", "phone", "telegram" {
+		Set text = ##class(OcuTalon.Watch.Summary).Text(incident, render, .sc)
+		Do $$$AssertStatusOK(sc, render_": the summary renders")
+		Set lines = $ListFromString(text, $Char(10))
+		Set found = ""
+		Set position = 0
+		While $ListNext(lines, position, line) {
+			If $Extract(line, 1, 14) = "Sample error: " Set found = $Extract(line, 15, $Length(line))
+		}
+		Do $$$AssertEquals(found, cut, render_": the sample error line is the cut, with its markup")
+		Do $$$AssertTrue(text [ "Cause: The partner sent <b>x</b> and *y*.", render_": and the cause shows its markup literally")
+	}
+}
+
+/// AC14 (QA): text that looks like a catalog placeholder, or like another slot's value, is data: the cause, the evidence and the sample error render as they are, once, on every channel
+/// (the renderer fills the text in one pass).
+Method TestPlaceholderText()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("holders")
+	Set holders = "{production} {count} {itemNoun}"
+	Do ..Resolved(owner, .incident, , .decision, , , , , holders)
+	Set payload = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(decision)
+	Set payload.Payload = {"evidence": [(holders)]}.%ToJSON()
+	$$$ThrowOnError(payload.%Save())
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.Cause = holders
+	$$$ThrowOnError(row.%Save())
+	Do $$$AssertEquals(..Command(host, "dismiss", incident, owner).Ok, 1, "the incident is dismissed")
+	For render = "web", "phone", "telegram" {
+		Set text = ##class(OcuTalon.Watch.Summary).Text(incident, render, .sc)
+		Do $$$AssertStatusOK(sc, render_": the summary renders")
+		Do $$$AssertTrue((text [ ("Cause: "_holders)) && (text [ ("Evidence: "_holders)) && (text [ ("Sample error: "_holders)), render_": the placeholders stay as written")
+		Do $$$AssertEquals($Length(text, holders) - 1, 3, render_": three times (cause, evidence, sample error), and nothing is filled in anywhere else")
+	}
+}
+
+/// AC14 (QA): a cause, fix or element made only of characters that the renderer drops (a zero-width space) must not make the whole summary unreadable: the incident is
+/// dismissed, and its stored summary still renders on every channel (the renderer refuses an empty slot, so the builder must leave such a line out).
+Method TestInvisibleText()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("invisible")
+	Set invisible = $Char(8203)
+	Do ..Resolved(owner, .incident, , .decision, , , , , invisible)
+	Set payload = ##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(decision)
+	Set payload.Payload = {"evidence": [(invisible)]}.%ToJSON()
+	$$$ThrowOnError(payload.%Save())
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.Cause = invisible
+	Set row.Element = invisible
+	Set row.FixSummary = invisible
+	$$$ThrowOnError(row.%Save())
+	Do $$$AssertEquals(..Command(host, "dismiss", incident, owner).Ok, 1, "the incident is dismissed")
+	For render = "web", "phone", "telegram" {
+		Set text = ##class(OcuTalon.Watch.Summary).Text(incident, render, .sc)
+		Do $$$AssertStatusOK(sc, render_": the summary still renders")
+		Do $$$AssertTrue(text [ "Incident summary: 50 ", render_": with its title line")
+		Do $$$AssertNotTrue((text [ "Cause:") || (text [ "Evidence:") || (text [ "Where it failed:") || (text [ "Fix:") || (text [ "Sample error:"), render_": and no line for the text that shows nothing")
+	}
+}
+
+Method TestPeriodElement()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("period")
+	Do ..Resolved(owner, .incident)
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.Element = " ."_$Char(8203)
+	$$$ThrowOnError(row.%Save())
+	Do $$$AssertEquals(..Command(host, "dismiss", incident, owner).Ok, 1, "the incident is dismissed")
+	Set keys = ..Keys(##class(OcuTalon.Data.Incident).RefIndexOpen(incident))
+	Do $$$AssertTrue(keys [ "summary.cause", "the cause line stays")
+	Do $$$AssertNotTrue(keys [ "summary.element", "and the element that is only a period has no line")
+	For render = "web", "phone", "telegram" {
+		Set text = ##class(OcuTalon.Watch.Summary).Text(incident, render, .sc)
+		Do $$$AssertStatusOK(sc, render_": the summary still renders")
+		Do $$$AssertTrue(text [ "Incident summary: 50 ", render_": with its title line")
+		Do $$$AssertNotTrue(text [ "Where it failed:", render_": and no element line")
+	}
+	Do ..Resolved(owner, .dotted)
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(dotted)
+	Set row.Element = "Order.Date."
+	$$$ThrowOnError(row.%Save())
+	Do $$$AssertEquals(..Command(host, "dismiss", dotted, owner).Ok, 1, "an incident whose element ends with a period is dismissed")
+	Do $$$AssertTrue(##class(OcuTalon.Watch.Summary).Text(dotted, "web", .sc) [ "Where it failed: Order.Date.", "and an element with more than a period keeps its line")
+	Do $$$AssertStatusOK(sc, "which renders")
+}
+
+Method TestGroupsAtClose()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("groupsclose")
+	Set incident = ..Incident(owner, "open", {"Fallback": 1, "FallbackReason": "timeout", "Cause": "", "Element": "", "FixSummary": "", "OpenVariant": "fallback", "SampleError": "", "Count": 9, "NoticeCount": 3})
+	Do ..Group(incident, 1, "OrdersFromPartner", 7, "The order date was not valid", 3)
+	Do ..Group(incident, 2, "OrdersToWarehouse", 2, "The warehouse refused the order", "")
+	Do $$$AssertEquals(..Command(host, "dismiss", incident, owner).Ok, 1, "the fallback incident is dismissed")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set groups = ..Slots(row, "summary.groups").groups
+	Do $$$AssertEquals(groups.%Size(), 2, "every group is listed, the one that formed after the notice included")
+	Do $$$AssertEquals(groups.%Get(0).itemName_"|"_groups.%Get(0).count_"|"_groups.%Get(1).itemName_"|"_groups.%Get(1).count, "OrdersFromPartner|7|OrdersToWarehouse|2", "each with its count at the close, which add up to the failed count")
+	Do $$$AssertEquals(..Slots(row, "summary.messages").failed, 9, "the failed count is the incident's")
+	Set text = ##class(OcuTalon.Watch.Summary).Text(incident, "web", .sc)
+	Do $$$AssertStatusOK(sc, "the summary renders")
+	Do $$$AssertTrue(text [ ($Char(10)_"OrdersFromPartner: 7, "), "with the group's count at the close")
+}
+
+Method TestProductionName()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set owner = ..Owner("production")
+	Set namespace = ##class(OcuTalon.Install.Step.Demo).#NAMESPACE
+	Set production = ##class(OcuTalon.Install.Step.Demo).#PRODUCTION
+	Do $$$AssertTrue(##class(OcuTalon.Watch.Reader).Admits(namespace, production, .display) && (display = "Orders"), "the demo production is listed with its display name Orders")
+	Set demo = ..Incident(owner, "resolved", , production, namespace)
+	Do $$$AssertEquals(..Command(host, "dismiss", demo, owner).Ok, 1, "the demo incident is dismissed")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(demo)
+	Do $$$AssertEquals(..Slots(row, "summary.title").production, "Orders", "the title names the production by its display name, as the watch cards do")
+	Do $$$AssertEquals($Piece(##class(OcuTalon.Watch.Summary).Text(demo, "web", .sc), $Char(10), 1), "Incident summary: 50 orders failed in Orders.", "the title line reads Orders, not the class name")
+	Set other = ..Incident(owner, "resolved")
+	Do $$$AssertEquals(..Command(host, "dismiss", other, owner).Ok, 1, "an incident of a production that is not listed is dismissed")
+	Do $$$AssertEquals(..Slots(##class(OcuTalon.Data.Incident).RefIndexOpen(other), "summary.title").production, "Zz.Summary"_..Number, "and its title names the class name")
+}
+
 Method TestText()
 {
 	Set owner = ..Owner("text")
@@ -497,8 +682,9 @@ ClassMethod T(seconds As %Integer) As %String
 	Quit ##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), seconds)
 }
 
-/// A fixture incident of the owner in the state, noticed 6600 seconds ago, whose first failure is 7200 seconds ago, with the fields after the defaults; its Ref.
-Method Incident(owner As %String, state As %String, fields As %DynamicObject = "", production As %String = "") As %String
+/// A fixture incident of the owner in the state, noticed 6600 seconds ago, whose first failure is 7200 seconds ago, with the fields after the defaults, in the
+/// production and namespace (Zz.Summary<n> in ZZNS by default); its Ref.
+Method Incident(owner As %String, state As %String, fields As %DynamicObject = "", production As %String = "", namespace As %String = "ZZNS") As %String
 {
 	If production = "" Set production = "Zz.Summary"_..Number
 	Set all = {"State": (state), "OpenVariant": "", "FirstAt": (..T(-7200)), "LastAt": (..T(-3600)), "Count": 50, "NoticeCount": 50, "ItemNoun": (..#NOUN), "Cause": "The partner changed the date format.", "Element": "OrderDate", "FixSummary": "repair the date and resend the orders", "SampleError": "Field OrderDate was not a date."}
@@ -508,7 +694,7 @@ Method Incident(owner As %String, state As %String, fields As %DynamicObject = "
 			Do all.%Set(name, value)
 		}
 	}
-	Set ref = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ..T(-6600), "ZZNS", production, all)
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ..T(-6600), namespace, production, all)
 	Set ..Refs = ..Refs_","_ref
 	Set ..Incidents = ..Incidents_","_ref
 	Quit ref
@@ -539,8 +725,9 @@ ClassMethod DropGroups(incident As %String)
 	}
 }
 
-/// A failure group of the incident with its name, count and error summary.
-Method Group(incident As %String, seq As %Integer, item As %String, count As %Integer, error As %String)
+/// A failure group of the incident with its name, count and error summary, and its NoticeCount (the count unless another is given; "" for a group that formed
+/// after the notice).
+Method Group(incident As %String, seq As %Integer, item As %String, count As %Integer, error As %String, noticeCount As %String = "*")
 {
 	Set group = ##class(OcuTalon.Data.FailureGroup).%New()
 	Set group.IncidentRef = incident
@@ -549,7 +736,7 @@ Method Group(incident As %String, seq As %Integer, item As %String, count As %In
 	Set group.ErrorPattern = error
 	Set group.ErrorSummary = error
 	Set group.Count = count
-	Set group.NoticeCount = count
+	Set group.NoticeCount = $Select(noticeCount = "*": count, 1: noticeCount)
 	Set group.FirstAt = ..T(-7200)
 	Set group.LastAt = ..T(-3600)
 	$$$ThrowOnError(group.%Save())
