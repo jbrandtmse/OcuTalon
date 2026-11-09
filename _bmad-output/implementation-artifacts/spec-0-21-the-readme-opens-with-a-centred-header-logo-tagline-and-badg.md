@@ -2,12 +2,21 @@
 title: 'Story 0.21: The README opens with a centred header: logo, tagline and badges'
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '3a9a1fd473ae7caca9f910b6878d1e58f54e80a3'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The README header is an HTML h1, with no Markdown H1, so the Open Exchange listing might not show the title and logo as GitHub does.
+    evidence: |-
+      GitHub's markdown API renders the header correctly (measured). Whether the Open Exchange page renders the README's HTML header cannot be seen from the repository.
+      Settles by opening the Open Exchange listing once it shows the README.
+    location: >-
+      README.md:1
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -96,6 +105,26 @@ deferred: []
 - 2026-11-09 [AMENDED 2026-11-09, Contest Planner ruling] (spec gate, owner delegation, verbatim in the orchestrator's rulings file): header approved except the online-demo badge, now shields' live website check (`https://img.shields.io/website?url=https%3A%2F%2Fdemo.ocutalon.com&label=online%20demo&up_message=live&down_message=down`, alt "Online demo status"); link bar stays where 0.18 put it; rule messages, PASS lines and self-test labels approved, plus self-test `top`: `a header logo with a different src`.
 
 ## Review Triage Log
+
+### 2026-11-09 — Review pass
+- verdicts: 16 findings — high 0, medium 0, low 10, false 5, maybe-false 1
+- findings:
+  - `[maybe-false]` `[defer]` Blind: the README has no Markdown H1, so a consumer that takes the title from a first `# ` line (the Open Exchange listing renders the README) might show stray text — the HTML `<h1>` is the approved header (Decided in-stage), and GitHub renders it (measured with the markdown API); whether the Open Exchange page renders it cannot be seen from the repo. Deferred as medium (unverified); settles by viewing the Open Exchange listing once it shows the README.
+  - `[low]` `[reject]` Blind: the logo `alt="OcuTalon logo"` beside the visible "OcuTalon" is read twice by a screen reader — the intent forbids rewording the alt texts (approved PUBLIC TEXT), so no fix is in scope.
+  - `[false]` `[reject]` Blind: the header logo size check is tested only at its upper edge — a check that flagged every header image would flag the real 41,442-byte logo in the passing run; the 299,999-byte case of the shared size loop is pinned by the existing self-test.
+  - `[low]` `[reject]` Blind: `readme-links` extracts only double-quoted lowercase `href`/`src` (no single quotes, unquoted, `srcset`, `poster`) — the spec names `href="..."` and `src="..."`; absolute URLs are still caught by `URL_RE`; a wider extractor adds parsing complexity for forms the README does not use. Same root cause as the Edge rows 1 and 4.
+  - `[false]` `[reject]` Blind: the badge row repeats the link bar and some labels are weak — the header block is approved PUBLIC TEXT and the link bar placement was ruled; not a defect of the diff.
+  - `[low]` `[reject]` Blind: the live-status badges add outside dependencies and show "down" when the demo is down — the website badge is the Contest Planner's ruling (a static "live" badge would stay green while the demo is down); the allow-list change is bounded to the header lines.
+  - `[low]` `[reject]` Blind: the header lives in two places (README and the `HDR` heredoc) and the `top` message names neither — the message text is approved verbatim; the pin is deliberate and fails closed.
+  - `[low]` `[reject]` Edge: single-quoted, unquoted or uppercase `href`/`src` values are never checked — same root cause as the Blind row above; not worth the extra parsing.
+  - `[low]` `[reject]` Edge: `chk_images` does not report a header logo that is missing or not in the tree listing — the spec limits the `images` change to the size loop (item 6), the existing loop also skips a missing Markdown-image file silently (the listing check covers those), and `readme-links` flags a missing header logo (AC1 mutation observed red).
+  - `[low]` `[reject]` Edge: `chk_images` does not check the alt text of the header `<img>` tags — `top` pins the header line by line, so a blanked alt text is flagged there.
+  - `[low]` `[reject]` Edge: the spec's "whole file" claim for HTML targets holds only for the double-quoted lowercase form — the same root cause as above; the claim is true of the form the README uses.
+  - `[low]` `[reject]` Verification gap: no `teaser`, `readme-links` or `images` self-test runs on an altered header, so `header_end` could be loosened with every self-test staying green — `top` still fails closed on any altered header, so the suite would stay red; a fix adds self-test labels beyond the approved list (PUBLIC TEXT lists the labels, plus one added `top` test), so it needs approval and is recorded under residual risks.
+  - `[low]` `[reject]` Verification gap: the logo's PNG signature and 200x200 size are pinned only by the one-time `sips` command — a static asset; the five existing `docs/images/*.png` have the same gap, and the size, tracking and link are pinned by rules and mutations.
+  - `[false]` `[reject]` Verification gap: AC4 (GitHub render, badges load) has no automated test or mutation — the spec makes it a manual check after the push (Rule 7), and a network check would break the hermetic script.
+  - `[false]` `[reject]` Verification gap (other finding): the `images` size self-test passes on any output, like its siblings — the test resets every other image to 10 bytes, and the `mutation:` line shows `not flagged` when the check is removed.
+  - `[false]` `[reject]` Intent alignment: the descriptive audit finds the diff implements the text-level pin with a narrow allowance, with rendering left to the manual check, and the spec file as a fourth changed file — no defect: the spec is the process artifact committed with the diff, and the audit names no unmet requirement.
 
 ## Design Notes
 
@@ -192,10 +221,34 @@ Shared surfaces: README.md's top block (lines 1 to 13). In `docker/tests/test-re
   - AC2: in README.md, change `every decision` to `each decision` in the tagline, so `top` goes red.
   - AC3: let `chk_readme_links` give `HEADER_IMAGE_HOSTS` to every line, so `FAIL readme-links: a broken copy was not flagged` (`a shields.io badge below the header: not flagged`). Separately, drop the `header_end` bound in `chk_teaser`, so the teaser self-test `a header badge line below the header` is not flagged.
 
+mutation: AC1 (the logo tracked): `git rm --cached -q docs/images/ocutalon-logo.png`, run `bash docker/tests/test-readme.sh`, observed `readme-links: the link (docs/images/ocutalon-logo.png) reaches no file or folder of the repository` and `FAIL readme-links`; re-staged with `git add -f`; `git status --short` and `git diff --stat` identical to before.
+mutation: AC2 (the approved header): README.md line 2 `every decision` changed to `each decision`, observed `README.md:2: the line is not line 2 of the approved header block` and `FAIL top` (the teaser rule also flags the header's `<img>` lines, since `header_end` is 0); restored from the scratch copy; README.md byte-identical (`cmp`), status and diff stat identical.
+mutation: AC3 (readme-links, header_end bound): in `chk_readme_links` the test `[ "$n" -le "$he" ]` made true for every line (`-le 99999`), observed `self-test: a shields.io badge below the header: not flagged` and `FAIL readme-links: a broken copy was not flagged`; restored from the scratch copy, byte-identical (`cmp`), status and diff stat identical.
+mutation: AC3 (teaser, header_end bound): the `<img` filter in `chk_teaser` set to `$1 > 99999` (every `<img` line exempt), observed `self-test: a header badge line below the header: not flagged` (with `an image tag` and `an image tag in capitals`) and `FAIL teaser: a broken copy was not flagged`; restored, byte-identical, status and diff stat identical. With the bound dropped instead (`$1 > 0`), the real header is flagged and `FAIL teaser` prints.
+mutation: images self-test `the header logo of exactly 300,000 bytes`: `header_images` removed from the size loop of `chk_images`, observed `self-test: the header logo of exactly 300,000 bytes is not flagged` and `FAIL images: a broken copy was not flagged`; restored, byte-identical, status and diff stat identical.
+mutation: ruling's `top` self-test `a header logo with a different src`: the src values ignored in the line-by-line comparison of `chk_top` and the header dropped from its `chk_block`, observed `self-test: a header logo with a different src: not flagged` (and `a header badge from another host: not flagged`) and `FAIL top: a broken copy was not flagged`; restored, byte-identical, status and diff stat identical.
+
 **Manual checks (if no CLI):**
 - On the lead, after the push (Rule 7): open the pushed branch's README page on github.com in the light theme and the dark theme. Check that the logo shows at about 160 px with its navy tile intact, and that the title, the tagline and one centred row of seven badges follow. Check that each badge image has loaded (`naturalWidth > 0`) and that each link goes to its target: the ci.yml runs on main, Releases, https://demo.ocutalon.com, `#start-it-with-the-install-script`, `#install-it-with-ipm`, `#whats-interesting` and LICENSE. Check that the opening paragraph follows the header.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary:** the README opens with the approved centred header (logo and title, tagline, seven badges; the online-demo badge is the ruled website check). `test-readme.sh` pins that block by position and text (`header_end`) and gives it a narrow allowance: `<img>` tags in `teaser`, img.shields.io in `readme-links`, and the logo's size in `images`. `top`, `teaser`, `images` and `readme-links` are extended in place, `readme-links` now also checks HTML `href`/`src` values, and no rule was added to `RULES`.
+
+**Files changed:**
+- `docs/images/ocutalon-logo.png` -- new 200x200 PNG (41,442 bytes) from `logo/OcuTalon-Icon.jpeg`, force-added to the index.
+- `README.md` -- line 1 replaced by the 11-line header block; nothing else changed.
+- `docker/tests/test-readme.sh` -- `HEADER`, `header_end`, `header_images`, the four extended rules, the new self-tests (including `a header logo with a different src`) and the comments. The `public-text` self-test `OpenClaw outside the note` now selects `NR == 1` because the old `# OcuTalon` line is gone.
+- This spec -- six `mutation:` lines, the triage log, the deferred item and this result.
+
+**Review findings:** 16 reported, 0 patches applied, 1 deferred (Open Exchange rendering of the HTML header, medium unverified), 15 rejected with reasons in the Review Triage Log (10 low, 5 false). Follow-up review recommended: false (no patches).
+
+**Verification:** `bash docker/tests/test-readme.sh` printed the approved PASS lines for `top`, `teaser`, `images` and `readme-links` and `test-readme: all rules passed`. `bash docker/tests/test-boundaries.sh` printed `test-boundaries: all rules passed`. The logo is 200x200 and 41,442 bytes, and it is listed by `git ls-files`. `head -n 1 README.md | grep -c OcuTalon` gives 1. The GitHub markdown API keeps the centred `<h1>` with the logo (width 160), two `<p align="center">` and seven badges with the approved alt texts. The mutation checks in the Verification section were observed red and reverted. The `test-readme.sh` source has no non-ASCII byte.
+
+**Residual risks:**
+- AC4 (github.com render in light and dark theme, badges load) is the lead's manual check after the push. GitHub's markdown API also wraps the `<h1>` logo in a link to the image file.
+- No `teaser`, `readme-links` or `images` self-test runs on an altered header, so `header_end` is pinned through `top` and the observed mutation only. Adding one needs new self-test labels, which the approved list does not include.
+- HTML `href`/`src` extraction covers the double-quoted lowercase form only.
