@@ -216,3 +216,14 @@
 2026-11-09T06:23:05Z	Epic 41	epic_runner_complete	stories_completed=7 part_merge=41.1-41.7 epic_status=in-progress(part2) retro=skipped(policy)
 2026-11-09T07:20:33Z	Epic 41	ci_resolved	story=41.7(final_head) sha=0fb1d182 runs=42572723309,42572723202 result=failure class=story(fa0a5f87) failed=checks(overviewdoc_pin:production/NO_WEB_BUNDLE_UNITS_hold_live:security-overview),iris(shards-2)_cancelled_at_~41min(job_limit),iris(production)_row21_WatchOps(DW-306_flake,orchestrator_occurrence) lane-a=green resolved_at=final_integrate
 2026-11-09T07:20:33Z	Epic 41	ci_groups_changed	sha=ca53b4e8 change=revert_fa0a5f87(live:security-overview_back_in_production) by=orchestrator_ruling(decide) measured_on_0fb1d182=production_34min(without_the_unit),shards-2_over_40min(with_the_unit,cancelled) note=split_re-decided_after_the_hold;checks=overviewdoc,test-ci-config,test-boundaries,web_lint
+2026-11-09T08:09:41Z	Epic 41	epic_branch_reopened	reason=epic_41_part2 from=2a45f8bc
+2026-11-09T08:09:41Z	Epic 41	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=epic_41_part2 lane=A slot=ocutalon-slot-a
+2026-11-09T08:09:41Z	Epic 41	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-09T08:09:41Z	Epic 41	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-09T08:09:41Z	Epic 41	launch_env	depth=4 watchdog=default bash_max_ms=default note=harness_backgrounds_bash_at_~170s(switch-20261108-common)
+2026-11-09T08:09:41Z	Epic 41	epic_branch_checked_out	repos=. head=2a45f8bc ci=gh workflows=ci,lane-a bootstrap_check=pass scope=part2(41.8,41.9,41.12-41.14;41.10,41.11_out_of_scope) origin_epic41=ce5f0cc3(ff) hold_at=2026-11-09T11:00Z
+2026-11-09T08:10:50Z	Epic 41	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-09T08:10:50Z	Epic 41	ledger_load	total=1004 open=0 routed=111 escalated=4 decision_pending=4 terminal=885 owner_unknown=0 burndown=94 reowned_none=0 owned_epic41=3(DW-967,DW-977->41-12;DW-996->41-13) pending_on_feature_local=DW-997->41-13(decision_sheet_1932e870_not_yet_on_origin)
+2026-11-09T08:10:50Z	Epic 41	ledger_routed_planned	story=41-14-evaluation-and-tests-for-memory-s-second-part entries=1(DW-908) excess=0 by=x0
+2026-11-09T08:10:50Z	Epic 41	retro_review_complete	source_retro=none(gates.retrospective=skip;part1_retro_list=DW-967,DW-977_already_routed_to_41-12) resolved=0 owned=1(DW-908->41-14:Epic_9_merge_gate_named_the_next_eval_story_after_v1.0.4) terminal=0 dropped=0 load_before=3 load_after=4 cap=8 x0=not_chartered(remaining_burndown_entries_belong_to_other_epics;DW-890->30.9;DW-941->Lane_A_bridge_story;open_action_items=7_user_owned_other_epics)
+2026-11-09T08:11:41Z	Epic 41	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true scope=part2 warnings=standard_unparsed_headings,41.8_told_learned_suffix_public_text,41.13_per_session_rule_public_text

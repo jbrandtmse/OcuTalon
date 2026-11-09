@@ -10287,5 +10287,6 @@ So that memory that learns can't be fed from outside and really forgets.
 **Then** the row, its vector and its `%iFind` entry are gone, recall returns nothing for its text, and the next session start's block doesn't hold it (FR-41, FR-74)
 **And** pins up to the cap succeed, the next one is refused, and the block is never over 4,000 characters (FR-74, NFR-27)
 **And** a `turn` case on the real model asks about a forgotten fact and gets an answer that cites no memory
+- DW-908: no test pins the content of the user-turn remember and forget cases; pin the remember case's text, key phrases, absent phrases, heldOut and recordedBy in `Test.Eval.Cases`, and add both user-turn cases to `Test.Eval.Report`'s chip loop (ledger; routed by x0 2026-11-09)
 
 **Release check:** at the first daily release after the re-open, the Contest Planner's hands-on pass with real keys mentions a fact, sees it learned, pins it, and starts a new day's conversation to see it read (REL-7, as amended 2026-10-31).

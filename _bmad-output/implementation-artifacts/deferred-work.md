@@ -5877,6 +5877,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T05:13:42Z status=escalated owner=burndown by=harvest note=for the decision sheet: recommended routed to the next eval story after 1.0.4 (extend the wanted list and the Report loop with both cases' exact text); not fixable inside 9.11's ruling
 - 2026-11-08T05:43:35Z occurrence=9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it by=cr note=forget content pinned in Test/Eval/In.cls TestForgetCaseRecorded; open: remember, Report loop; fix moves pin to Cases
 - 2026-11-08T06:54:47Z status=routed owner=burndown by=merge_gate note=decision sheet Epic 9: the next eval story after the v1.0.4 merge-back (pin the remember case's content; add both user-turn cases to Test/Eval/Report.cls chip loop; contended files)
+- 2026-11-09T08:10:30Z status=routed owner=41-14-evaluation-and-tests-for-memory-s-second-part by=x0 note=epic_41_part2_retro_review:Epic_9_merge_gate_sent_it_to_the_next_eval_story_after_the_v1.0.4_merge-back;41.14_is_it(pin_the_remember_case_content_in_Test.Eval.Cases;add_both_user-turn_cases_to_Test.Eval.Report_chip_loop)
 
 ### DW-909: Eval: at the integrate-forward over Story 30.9, Test/Eval/Cases.cls's user-turn count pin merges cleanly as 5 (both branches changed :248 to the same text) while the merged eval/ holds 6 user-turn cases; the doc lines :16 and :236-237 conflict
 - source: spec-9-11-the-evaluation-paces-its-incident-cases-so-none-waits-out-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
