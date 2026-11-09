@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so both build lanes can work in parallel. Stories 0.1 to 0.18 are done. Epic 0 is re-opened again for one CI-only story, 0.20. On Story 0.15's head, IRIS CI groups were cancelled at the 40-minute job limit with no failing test, and other groups ran 38 to 39 minutes. Story 0.20 repacks the IRIS groups so that every group finishes well under the 35-minute budget and every head can go green without reruns.
+Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so both build lanes can work in parallel. Stories 0.1 to 0.18 and 0.20 are done. Epic 0 is re-opened again for release 1.0.6 with two README stories, both owner-approved through the Contest Planner. Story 0.19 names the contest in the README's contest checklist (DW-1020). Story 0.21 then opens the README with a centred header (logo, title, tagline and status badges), so a judge sees what OcuTalon is and whether it is healthy before reading the body.
 
 ## Stories
 
@@ -22,50 +22,57 @@ Epic 0 is the walking skeleton: one image build and `docker compose up` give Ocu
 - Story 0.12: Epic 0 burn-down (done)
 - Story 0.13: A start retries the CPF merge when IRIS cannot quiesce (done)
 - Story 0.14: A start that recovers through the merge retry passes the live checks and the upgrade harness (done)
-- Story 0.15: The Dockerfile sits at the repository root (done; CI not yet green, merges together with 0.20)
+- Story 0.15: The Dockerfile sits at the repository root (done)
 - Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction (done)
 - Story 0.17: The README's evaluation table shows release 1.0.4's numbers (done)
 - Story 0.18: The README shows judges where to look (done)
-- Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget (backlog)
+- Story 0.19: The README names the contest (backlog)
+- Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget (done)
+- Story 0.21: The README opens with a centred header: logo, tagline and badges (backlog)
 
 ## Requirements & Constraints
 
-**The CI budget.** A full CI run takes at most 35 minutes of wall-clock time. Live-IRIS tests run on the dedicated self-hosted runner. Everything else runs on hosted runners.
+**Approved public text is committed verbatim.** The 0.19 checklist line and the 0.21 tagline are approved word for word. If a README check rule refuses approved text, the text is not reworded; the conflict goes back to the Contest Planner.
 
-**The standing CI split rules:**
-- A unit takes about 1,000 s at most. A unit too long for that is split into pieces, never given a longer deadline.
-- Every group's planned sum, including the job's own setup time, stays well under 35 minutes.
-- Add a new IRIS group only when packing the existing groups cannot meet the budget.
-- No group gets a longer deadline, and no test is dropped.
+**The spec gate for 0.21.** The exact header markup (alt texts, badge labels, link targets) and any new or changed README-check rule message go to the Contest Planner as PUBLIC TEXT before the implement stage. The `test-readme.sh` change is not a release tool, so it needs no release-tool review.
 
-**Story 0.20:**
-- Pack the groups from measured unit times, taken from recent CI runs, not from estimates. The spec records each group's planned sum.
-- When this story is done, two clean CI runs (the second may be the merge head's) show every IRIS group under 35 minutes, and each group's time from both runs is reported. This resolves DW-1025.
+**Scope of change.**
+- 0.19 changes README.md only, and only the one checklist line. Nothing else in the README changes.
+- 0.21 changes only README.md, `docker/tests/test-readme.sh` and the new `docs/images/ocutalon-logo.png`.
 
-**Test pins:**
-- `docker/tests/test-ci-config.sh` and `test-ci-changes.sh` pin the group layout. Every pin of the old layout moves to the new one, and no pin is deleted or weakened.
-- Both scripts must pass together with `docker/tests/test-boundaries.sh`.
-- Every `docker/tests/test-*.sh` belongs to exactly one of `CHECK_SCRIPTS`, `WEB_SCRIPTS` or an IRIS group in `ci/units.sh`.
+**README rules that stay in force:**
+- "Try it in two minutes" stays at the top of the body, with the online demo link. The existing link bar follows the new header unchanged.
+- The README keeps the not-affiliated note, the credits, and plain language.
+- Public text holds no keys, local machine paths, private infrastructure details or other entrants' names.
 
-**Consistency:**
-- `IRIS_GROUPS`, the `iris` matrix in `.github/workflows/ci.yml` and `ci/iris.sh groups` must agree.
-- Every new job reports as `iris (<group>)`.
-- A unit that moves with a pin attached (for example, the overview-doc check's `NO_WEB_BUNDLE_UNITS` membership) has the unit and its pin change in the same commit.
+**The README check (0.21).**
+- The new allowance covers only the one header block: badge images from img.shields.io and from the repository's own CI `badge.svg` path, images inside links within the block, a centred HTML wrapper if needed, and the logo PNG.
+- Every existing rule stays as strict outside the block. The top rule (opening paragraph, teaser, hero image) applies from the first line after the header.
+- New self-tests prove that each of these is flagged: a badge outside the header, a badge from another host, and an image inside a link outside the header.
+- No pin is deleted or weakened.
 
-**Approvals:**
-- The `.github/workflows/ci.yml` matrix hunk goes to the Contest Planner (`RELEASE TOOL:`) before it merges.
-- Once the story merges, the Planner adds every new job name to main's required checks.
+**Done means:**
+- `bash docker/tests/test-readme.sh` passes every rule and self-test.
+- `docker/tests/test-boundaries.sh` passes.
+- Lane-a CI is green.
+- For 0.21, the header renders correctly on the pushed branch's GitHub README page.
 
 ## Technical Decisions
 
-- **How CI runs IRIS tests:** `ci/iris.sh` is the one recipe for IRIS units, on the runner and on a developer machine, always in throwaway compose projects layered with `ci/compose.ci.yml`. `ci/units.sh` maps groups to units.
-- **Shard pieces:** `%UnitTest` classes run in whole-area shards aligned with the lanes (`lane-a`, `lane-b`). A shard too long for one job runs as `shard:<name>@<piece>`. The `rest` piece is computed from the pieces the groups name, so every area stays in exactly one piece and every test class runs once. Split `shard:lane-a@rest` with this existing mechanism, not a new one.
-- **Image safety:** the AI Hub image, and any image built on it, is never pushed to a registry or kept in CI caches or artifacts. Never run `docker compose config` without `--quiet`, or `docker inspect` without `--format`, because both print `env_file` values.
-- **Portability:** scripts also run under macOS's bash 3.2 in hermetic tests, so shell changes must be portable.
-- **Lane ownership:** `docker/` belongs to Lane B, except Lane A's `merge.cpf`. `release/` is Lane A's. Only Epic 0 may edit files from both lanes in one story.
+- **Badge anchors must resolve.** The badges link to in-page anchors (`#start-it-with-the-install-script`, `#install-it-with-ipm`, `#whats-interesting`). Each must match a heading's GitHub slug in the current README. The license badge links to `LICENSE`, the online-demo badge to https://demo.ocutalon.com, CI to the ci.yml runs page and the version badge to Releases. Static shields use plain colours. The docker logo on its badge is optional.
+- **Link allow-list.** `community.intersystems.com` is already on `test-readme.sh`'s allow-list, so 0.19's contest-post link needs no rule change. No AI Hub bug-report repository may be allowed.
+- **Portability.** `test-readme.sh` also runs under macOS's bash 3.2 in hermetic tests, so shell changes must be portable.
+- **Lane ownership.** `docker/` belongs to Lane B, but Epic 0 may edit files from both lanes in one story.
+
+## UX & Interaction Patterns
+
+- **Choosing the logo.** `docs/images/ocutalon-logo.png` is about 200 px, made from `logo/OcuTalon-Icon.jpeg` or the light logo, whichever reads better at about 160 px on both of GitHub's themes.
+- **Brand rules.** The light logo has a white background box that shows on dark or tinted surfaces. The icon mark carries a navy tile, which must stay intact. Never recolour, crop, outline or animate the logo.
+- **Header order.** The logo, the title OcuTalon, the one-line tagline, the badge row, then the existing link bar.
 
 ## Cross-Story Dependencies
 
-- **Built on 0.15:** 0.20 is built on Story 0.15 (Dockerfile at the repository root) and merges with it on one head. 0.15's merge is held until after the 1.0.5 cut, and that combined head's CI is the gate.
-- **Contended files:** other epics change `ci/units.sh` and the CI pin tests too (Epic 41 changed `ci/units.sh` recently). Integrate forward and expect conflicts in those files. Base the repacking on the merged unit list, so units added by other epics are packed too.
-- **Known flakes:** inherited flakes such as DW-973, DW-774, DW-689 and DW-1026 can turn a run red without a 0.20 cause. Classify them; do not repack around them.
+- **0.21 follows 0.19.** Both are on the same lane and both edit README.md, so build 0.21 on 0.19's merged README.
+- **Built on earlier stories.** Both build on the 0.17 and 0.18 README (link bar, judges' table, contest checklist) and on 0.15's root Dockerfile, all already merged.
+- **Release target.** Both target release 1.0.6.
+- **Known flakes.** Inherited CI flakes (for example DW-973, DW-774, DW-689 and DW-1026) can turn a run red without a cause in these stories. Classify them; do not change the stories to work around them.

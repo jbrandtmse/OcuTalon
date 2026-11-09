@@ -611,3 +611,5 @@
 2026-11-09T22:47:15Z	Epic 0	retro_review_skipped	reason=skip(no_X.0_input) note=reopen_for_two_stories;X.0_and_retro_review_recorded_earlier(dispatch)
 2026-11-09T22:47:15Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) stories=0.19,0.21
 2026-11-09T22:47:15Z	Story 0.19	ledger_routed_planned	story=0-19-the-readme-names-the-contest entries=1(DW-1020) excess=0 by=dispatch
+2026-11-09T22:48:29Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(stories_0.19_0.21_added) model=claude-opus-5-5 effort=high
+2026-11-09T22:48:30Z	Story 0.19	stage_spawned	stage=plan+implement spawn_at=2026-11-09T22:48:30Z model=sonnet effort=high agent_name=0-19-build-1 cycle_iteration=1 story_base=ec94259d pipeline=one_build_auto_stage(dispatch:light_pipeline)
