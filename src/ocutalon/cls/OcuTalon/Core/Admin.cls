@@ -67,6 +67,14 @@ ClassMethod Allowed(roles As %String) As %Boolean
 	Quit ''($ListFind(list, ..#ROLE) || $ListFind(list, ..#ALLROLE))
 }
 
+/// 1 when the comma-separated roles include OcuTalonAdmin by its whole name. %All does not count, because a holder of %All could grant itself
+/// the role: this is the check of the web endpoints and of the sign-in's AdminAtSignIn flag (AD-19, AD-21). Allowed is the other rule, the
+/// one that accepts %All.
+ClassMethod Held(roles As %String) As %Boolean
+{
+	Quit ''$ListFind($ListFromString($Get(roles)), ..#ROLE)
+}
+
 /// The text of an error status for a plain-English line: without its code prefix (ERROR #n: or, for an Interoperability error,
 /// ERROR <Ens>Err...:) and without a closing full stop.
 ClassMethod ErrorText(sc As %Status) As %String

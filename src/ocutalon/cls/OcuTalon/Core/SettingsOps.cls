@@ -1360,6 +1360,44 @@ Method TestModel(command As OcuTalon.Msg.Command.TestModel) As OcuTalon.Msg.Comm
 	Quit ..Result(1, "tested", "", answer.%ToJSON())
 }
 
+/// Restarts every agent runner item that has a job in the running OcuTalon.Production, so that each rebuilds its agent with the MCP servers
+/// registered at that moment (AD-21). The production keeps running. The item list is the installer's (Install.Step.Production.Runners) and the
+/// restart is Bridge.Timeouts.Restart's; an item that does not restart is the error. With no OcuTalon production running it answers OK and
+/// restarts nothing: the next start builds every agent with the servers registered then.
+ClassMethod RestartRunners() As %Status
+{
+	If '##class(Ens.Director).IsProductionRunning(.name) Set name = ""
+	Quit ..RestartIn(name)
+}
+
+/// RestartRunners' work for the running production name ("" when none runs): only OcuTalon.Production's runner items restart, and any
+/// other name answers OK and restarts nothing.
+ClassMethod RestartIn(name As %String) As %Status [ Internal ]
+{
+	If name '= "OcuTalon.Production" Quit $$$OK
+	Set sc = ##class(OcuTalon.Install.Step.Production).Runners(name, .runners)
+	If $$$ISERR(sc) Quit sc
+	Set list = ""
+	For i = 1:1:runners {
+		Set list = list _ $ListBuild($ListBuild($List(runners(i), 1), ""))
+	}
+	Quit ##class(OcuTalon.Bridge.Timeouts).Restart(name, list, 0)
+}
+
+/// Writes an MCP server's wallet secret and its Config Store entry AI.MCP.OcuTalon_<server> (AD-19, AD-21). Not built: Story 21.4 builds it.
+/// Answers the error code 5003 and writes nothing, so that no caller believes a secret was stored.
+ClassMethod SaveMcpEntry(server As %String, url As %String, secret As %String) As %Status
+{
+	Quit $SYSTEM.Status.Error(5003)
+}
+
+/// Removes an MCP server's wallet secret and its Config Store entry (AD-19, AD-21). Not built: Story 21.4 builds it. Answers the error code 5003
+/// and removes nothing.
+ClassMethod RemoveMcpEntry(server As %String) As %Status
+{
+	Quit $SYSTEM.Status.Error(5003)
+}
+
 /// 1 when the status is the answer "not implemented" (code 5003) of a bridge stub.
 ClassMethod NotImplemented(sc As %Status) As %Boolean [ Private ]
 {
