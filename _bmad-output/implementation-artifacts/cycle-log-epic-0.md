@@ -464,3 +464,16 @@
 2026-11-07T21:44:00Z	Epic 0	epic_retro_skipped	reason=policy
 2026-11-07T21:44:00Z	Epic 0	epic_status_done	stories=15 note=reopen_story_0.16_done
 2026-11-07T21:44:00Z	Epic 0	model_tier_checkpoint	armed=false result=hold applied=false scope=reopen_story_0.16_only(no_implement_or_review_stage)
+2026-11-09T04:05:30Z	Epic 0	epic_branch_reopened	reason=stories_0.17_0.15 from=360306f4
+2026-11-09T04:05:30Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_0.17_0.15 lane=C slot=ocutalon-slot-c
+2026-11-09T04:05:30Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-09T04:05:30Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-09T04:05:30Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-09T04:05:30Z	Epic 0	epic_branch_checked_out	repos=. head=360306f4 ci=gh port=52803 bootstrap_check=pass note=ff_from_origin_85b479e0;first_push_carries_360306f4
+2026-11-09T04:05:30Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-09T04:05:30Z	Epic 0	ledger_load	total=975 open=0 routed=114 escalated=2 decision_pending=4 terminal=855 owner_unknown=0 burndown=98 reowned_none=0 epic0_owned=0
+2026-11-09T04:05:30Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen(sprint_plan.py_validate+generate);tracker_valid;0.15_0.17_added_backlog;dropped_orphans=none
+2026-11-09T04:05:30Z	Epic 0	retro_review_skipped	reason=skip(no_X.0_input) note=reopen_for_two_stories;epic0_owned_ledger=0
+2026-11-09T04:05:30Z	Epic 0	story_chartered	stories=0.15(after_0.14),0.17(after_0.16) markers=ADDED_2026-11-09
+2026-11-09T04:05:30Z	Epic 0	deps_hash_rerecorded	reason=fix_forward note=stories_0.15_0.17_inserted_in_epic_0;no_boundary_or_dependency_change
+2026-11-09T04:05:30Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) stories=0.17,0.15

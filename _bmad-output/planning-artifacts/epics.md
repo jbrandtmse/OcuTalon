@@ -1384,6 +1384,31 @@ So that a rare #453 no longer fails a check whose start became healthy, and ever
 **Then** `docker/tests/test-lib-live.sh` (and `docker/tests/test-upgrade-harness.sh` for the count) pin it with fixtures: one RETRY followed by OK passes; a RETRY with no OK, two RETRY lines, a RETRY followed by FAILED, and a near-miss RETRY line each fail; the harness count reads 0 and 1 in its fixtures; `docker/after-start.sh` and `docker/merge.cpf` are unchanged; CI is green on every workflow
 - DW-624: lib-live.sh's log_steps keeps every STEP line, so a live-test or upgrade-harness start that recovers through Story 0.13's retry still fails check_log on the RETRY line (ledger; routed by Story 0.13's review, 2026-11-03)
 
+### Story 0.15: The Dockerfile sits at the repository root
+
+[ADDED 2026-11-09, SC-5 re-open of Epic 0, the owner decision of 2026-11-06 (Contest Planner under the owner's delegation, logged `owner_decision subject=move_dockerfile_to_root` in cycle-log-parallel.md), unblocked now that v1.0.4 is released and merged back; target 1.0.5 or later. Open Exchange's listing flag reads Docker False for OcuTalon: across the field, 17 of the 18 entries with a root Dockerfile read True, and all 5 without one read False. The release-tool freeze is lifted for this story as option (a); any change to `release/*.sh` goes to the Contest Planner before it merges.]
+
+As the owner of the Open Exchange listing,
+I want the image's Dockerfile at the repository root,
+So that the listing reads Docker True, with no change to how the image builds or installs.
+
+**Acceptance Criteria:**
+
+**Given** the repository
+**When** this story merges
+**Then** `Dockerfile` sits at the repository root (moved with `git mv` from `docker/Dockerfile`), `docker/Dockerfile` no longer exists, and every reference to the old path (the compose files' `dockerfile:`, `ci/warm.sh`, `release/release.sh`, `release/upgrade-harness.sh`, `docker/tests/*`, workflow files and any other grep hit) names the new path
+**And** the build context stays `.`, the COPY paths are unchanged, and `.dockerignore` still keeps the image small: the image size measured before and after (`docker image inspect … --format '{{.Size}}'`) is unchanged beyond layer metadata
+**And** `install.sh` and the README's install steps are unchanged for the user, and no test pin is deleted or weakened (a pin of the old path moves to the new path)
+
+**Given** `release/release.sh` and `release/upgrade-harness.sh`
+**When** a release is built and the upgrade harness builds the previous release's tree
+**Then** `release.sh` builds the current tree from the root `Dockerfile`, and the upgrade harness accepts either location for the previous release's tree (v1.0.4 and earlier have `docker/Dockerfile`), each case pinned by a test
+**And** `ci/warm.sh`'s manifest list names the new path
+
+**Given** the change
+**When** this story merges
+**Then** CI is green on every workflow, and a planning artifact or spine row that names the old path as the current location is amended in place with an `[AMENDED …, Story 0.15, owner decision via the Contest Planner]` marker
+
 ### Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction
 
 [ADDED 2026-11-07, SC-5 re-open of Epic 0 for one evidence-only story, at the Contest Planner's request (about 21:10Z): the S11 spike (docs/handoff/spike-results/S11.md) found that build 154 kills the IRIS process (signal 11) when embedded Python runs both inside and outside an AI Hub tool callback in one process. Before anyone reports it, the crash is re-measured with two classes and no model. Story 0.15 (the Dockerfile move) is deferred until after v1.0.4 and is not chartered here. This story changes no product code, no test suite and no public text.]
@@ -1406,6 +1431,26 @@ So that any report carries exact orders, outcomes, messages.log lines and versio
 **Given** the evidence
 **When** this story closes
 **Then** the folder holds only `Repro.Py.cls`, `Repro.Tools.cls`, a one-line `run.sh` and `results.md`; no loader or test picks up the two `.cls` files; no tracked file names an absolute local path; a new LOW ledger entry records the re-verification; the throwaway is torn down; and nothing is filed publicly (the Planner drafts any report and the owner posts it)
+
+### Story 0.17: The README's evaluation table shows release 1.0.4's numbers
+
+[ADDED 2026-11-09, SC-5 re-open of Epic 0, at the Contest Planner's request (the owner asked, 2026-11-09 about 04:00Z), for release 1.0.5: a one-file docs change whose public text the Contest Planner has already approved; it is committed exactly as written. Pipeline (orchestrator ruling under the Planner's "one-file change, text approved"): one `bmad-build-auto` stage that plans and implements, then the runner's own diff review in place of separate QA and code-review stages.]
+
+As a judge or visitor reading the README,
+I want the Measured table to show the real-model evaluation of release 1.0.4 and the demo's latest usage log,
+So that every number on the page is the current one, with a link to where the money goes.
+
+**Acceptance Criteria:**
+
+**Given** README.md's "Measured" section
+**When** this story merges
+**Then** its intro line reads exactly "From the real-model evaluation of release 1.0.4 (Claude Haiku 5.5, November 8), the persona sweep and the online demo's usage log for November 1 to 7:"
+**And** the rows read exactly: incidents "11 of 11 (target: 9)", routine attention decisions "21 of 24 (target: 22)", cost of one attention decision "about $0.0001 on average, $0.0003 at most", cost of diagnosing 50 failed orders "$0.0007 to $0.0012", model cost of the online demo "about 9 to 11 cents a day"; the other rows are unchanged
+**And** directly after the table, before "Two things to look at in the demo:", one paragraph reads exactly "Where the money goes and how to cap it, with the numbers: [What an always-on AI assistant costs to run](https://community.intersystems.com/post/what-always-ai-assistant-costs-run-real-numbers-iris)."
+
+**Given** the change
+**When** this story merges
+**Then** README.md is the only product file changed, apart from any README pin in `docker/tests/test-readme.sh` that pinned an old number or intro line, which moves to the new one; `git grep` finds none of "9 of 10 (target", "19 of 22", "0.0005 to", "9 to 10 cents" in README.md; `docker/tests/test-boundaries.sh` and `docker/tests/test-readme.sh` pass; and CI is green
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
