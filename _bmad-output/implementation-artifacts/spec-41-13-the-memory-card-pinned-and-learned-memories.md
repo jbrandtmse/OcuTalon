@@ -271,6 +271,22 @@ Paths are under `src/ocutalon/cls/OcuTalon/` (server) or `web/` (client) unless 
 
 ## Spec Change Log
 
+- 2026-11-09 (planner-2026-11-09-41.13, Contest Planner under the owner's delegation, relayed by the orchestrator): the spec-gate items are ruled as below (verbatim). Where a text below differs from the Design Notes' drafts, the ruling wins; implement uses these exact strings.
+
+  1. PUBLIC TEXT: everything APPROVED as drafted EXCEPT:
+  - Empty states (findability):
+    - "Nothing pinned yet. Pin a memory from All memories."
+    - "No memories yet. Say "Remember that ..." in the chat."  (straight ASCII quotes, as in the other look-for lines)
+  - More to try look-for: "First do "Ask it to remember something". Then open All memories in the Memory card and press Pin on the memory marked Told. Open Pinned to see it: pinned facts are read at the start of each conversation, up to 1,000 tokens."
+  - README bullet: "- **The Memory card.** In the Memory card, All memories lists what OcuTalon remembers, each marked Told or Learned, with Pin, Unpin and Forget on each and a search box. Pinned shows the facts read at the start of each conversation and how much of their 1,000-token limit they use. Try it: More to try, *Pin a memory*."
+  - The Memory bullet's added sentence at L36: APPROVED as drafted.
+  - The online-demo note is APPROVED ONLY AS A VERIFIED CLAIM: review checks both halves against the code (deleted on sign-out; deleted at the demo reset). If either half is not true, DROP that half rather than change the code to match, and report it (PLANNER REPORT).
+  - Placement: right after `memory`. The count follows the registry; up to ten items in all is fine.
+  2. ListPinnedMemories + GET /api/v1/memory/pinned: APPROVED (41.9 precedent). `used` comes from Memory.CoreBlock, the same computation as 41.12's cap, so the card's figure and the refusal never disagree; a test pins that. Owner from the session. Corrected route rule: LIVE gets 200 for its own pins; the second session sees none.
+  3. SPINE: the additive lines under AD-1, AD-20, AD-21, AD-33, the REST table and AD-25: APPROVED as worded.
+  4. SEARCH ALLOWANCE: APPROVED. Allowance.TryConsumeRead, no refused turn, no notice window; a refused search answers 429 with the messages route's body, and the card shows the existing allowance message. 41.9's read-verb condition still holds (a search counts as no command or Act in the eval or the gates).
+  DW-1030's paging is declined (newest 20 + search).
+
 ## Review Triage Log
 
 ## Design Notes
@@ -343,7 +359,7 @@ No AC contradicts an AD's Rule except AD-25's "whose 503 the page itself shows a
 - DW-1040: `Retry-After`, the one-place exemption, the e2e proof and AD-25's line; 429 is taken (`POST /api/v1/messages`, `Web/Api.cls:433`); AC 5.
 - DW-998 (terminal; its `reopen_if` is met by this story's ux-strings edit): `ANSWER_WORDS` joins `IMPORTED`.
 
-**Spec-gate items (for the Planner):**
+**Spec-gate items (RULED 2026-11-09, see the Spec Change Log entry planner-2026-11-09-41.13: approved with four text edits — the two empty states, the More to try look-for and the README bullet; the online-demo note only as a verified claim, dropping any half the code does not do):**
 1. **Public text.** EXPERIENCE.md is cited as `E` with its line.
    - **Tabs** "Pinned", "All memories" (E:1050).
    - **Pinned intro** "Pinned facts are read at the start of each conversation." with "{used} of 1,000 tokens (estimated)." (E:1054, shown as two parts).
