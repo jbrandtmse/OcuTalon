@@ -2,7 +2,7 @@
 title: 'Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget'
 type: 'chore'
 created: '2026-11-09'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -67,6 +67,7 @@ Pending the ruling below: the membership, piece names and release-tool hunk depe
 
 ## Spec Change Log
 
+- [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025] Re-plan after the Planner's rulings on the intent gap: option A (the 900 s cap applies to units of two or more areas; single-area units run whole), 16 groups with `shards-6` to `shards-11`, the three `test-release-sequence.sh` pins as a plain union, and DW-1032/DW-1033 ledgered for after voting (Design Notes). Status reset from blocked to draft for the re-plan.
 - [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025] Plan stage. The Planner's binding CI capacity rulings 1-7 are recorded under Design Notes. Planning stopped at an intent gap on ruling 2's per-shard-unit cap (Auto Run Result).
 
 ## Design Notes
@@ -171,6 +172,16 @@ Pending the ruling below: the membership, piece names and release-tool hunk depe
 - Live: 11 s
 
 A shard unit also pays its stack start (`READY`) and teardown: 278 to 423 s per unit (`READY` 259 to 404 s).
+
+**Planner rulings on the intent gap [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025] (binding; they settle the gap below):**
+
+1. **Option A.** The 900 s cap applies only to `shard:` units of two or more areas. A single-area unit (Bridge, Fix, Docs) runs whole. There is no AD-22 amendment and no change to `ci/iris.sh`. Condition: each single-area unit sits in a group that meets the 32-minute rule in BOTH clean runs, paired only with units small enough to keep it there.
+2. **Capacity confirmed.** There are 16 IRIS groups. The six new ones are exactly `shards-6` to `shards-11`, reporting as `iris (shards-6)` to `iris (shards-11)`, each packed to about 29 minutes by measured times, with no fuller groups. The `ci.yml` hunk lists all six names exactly as they will report. The 17 existing required check names stay unchanged.
+3. **Pins.** The three layout-only lines in `docker/tests/test-release-sequence.sh` (about L2272, L2340 and L2935) are updated as a plain union (orchestrator ruling, Planner agreed). The lead lists them under `footprint_extensions`.
+4. **After voting, ledgered** (by=owner, routed owner=burndown):
+   - DW-1032: option B, contiguous class parts per area. It is triggered early only if a single area's measured unit time passes 1,400 s; before voting that is a PLANNER REPORT, never a split.
+   - DW-1033: whether units can share a stack without losing isolation (the 278-423 s stack start and teardown per unit).
+5. **Release-tool hunk.** The `ci.yml` matrix hunk goes to the Planner at the spec gate, with each suite's test totals before and after.
 
 **The intent gap (why planning stopped).** Ruling 2 says that every `shard:` unit runs in 900 s or less. AD-22's Rule ("sharded by area") and the dispatch's Rule 2 instruction ("every area in exactly one piece") make the smallest piece a whole area. Three lane-a areas exceed 900 s on their own:
 
