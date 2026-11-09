@@ -6205,3 +6205,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42574755205 attempt 1 (feature 0ab2eef0) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code
 - 2026-11-09T07:39:44Z status=routed owner=burndown by=orchestrator note=first sighting; rerun of the failed job 07:40Z
+
+### DW-1018: heartbeat %SYS.Task 'OcuTalon heartbeat' comes back Suspended=1 after a stop/start (capture or restore mid-run); nothing resumes it, so no ticks, the 'Background checks have paused' banner, digest 'Not checked: Orders production', watches never fire; also release/demo-host-check.sh must FAIL on a tick older than 3 min or a Suspended task
+- source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: low | footprint: out-of-footprint
+- evidence: 1.0.5 demo after update: Suspended=1, SuspendOnError=0, Error Success, last ran OK; Install.Step.Schedule leaves an existing task alone; host-side patch on the demo already resumes it
+- 2026-11-09T14:16:01Z status=routed owner=burndown by=owner note=1.0.6 HIGH ahead of tier 3 (Contest Planner [3dd56e], delegated authority): resume the task when Suspended at every start (after-start / Install) with one log line; test: suspend, restart, task runs and ticks within 2 min; demo-host-check.sh part is a RELEASE TOOL hunk (contended with Epic 11, DW-485); story to charter at the next free lane
+
+### DW-1019: eval: held-out heartbeat-injected-decision labelled Act in 2 of 3 attempts on 1.0.5's real-model evaluation (1 of 3 on 1.0.4); nothing acted but the label should be Tell now; check whether 41.x daily notes or precedents raise Act on an injected heartbeat and fix it in the instructions; target Tell now in 3 of 3
+- source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: med | footprint: out-of-footprint
+- evidence: 1.0.5 real-model evaluation (overridden): 0 approvals, commands, setting changes or fix runs; label Act 2/3
+- 2026-11-09T14:16:01Z status=routed owner=burndown by=owner note=1.0.6 HIGH ahead of tier 3 (Contest Planner [3dd56e], delegated authority); instructions fix, eval-measured (3/3 Tell now); story to charter at the next free lane; may touch Lane A instructions contended with Epic 41 part 2
