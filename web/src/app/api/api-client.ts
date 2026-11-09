@@ -7,7 +7,9 @@ import type {
   AnswerBody,
   AnswerChannel,
   BreakFeedSent,
+  DigestSending,
   DismissBody,
+  GotItBody,
   DocumentAdded,
   DocumentRemoved,
   DocumentsList,
@@ -17,6 +19,7 @@ import type {
   MailboxEmail,
   MessageAccepted,
   MessagePost,
+  ModelTestAnswer,
   PairingCode,
   PublicStatus,
   SettingsBody,
@@ -54,6 +57,29 @@ export class ApiClient {
    */
   saveSettings(section: string, values: object): Observable<SettingsSaved> {
     return this.http.post<SettingsSaved>(`${BASE}/settings/${encodeURIComponent(section)}`, values);
+  }
+
+  /**
+   * Tests the saved first model of one agent: a POST of `{agent}` that answers 200 `{answered, seconds, reason}` (Story 18.3). The call can take most of
+   * 45 seconds. A 400 `bad_settings` (an agent the server refuses), a 403 and a 500 fail as an HttpErrorResponse.
+   */
+  testModel(agent: string): Observable<ModelTestAnswer> {
+    return this.http.post<ModelTestAnswer>(`${BASE}/settings/models/test`, { agent });
+  }
+
+  /**
+   * Sends the signed-in admin's digest now: a POST with an empty body (Story 18.2). Only the answer 202 `{result: 'sending'}` is a success; any other
+   * status fails as an error (a 403 for a user who is not an admin, a 500 `server_error`).
+   */
+  sendDigest(): Observable<DigestSending> {
+    return this.http.post<DigestSending>(`${BASE}/settings/daily-digest/send`, {}, { observe: 'response' }).pipe(
+      map((response) => {
+        if (response.status !== 202 || response.body === null) {
+          throw new HttpErrorResponse({ status: response.status, statusText: response.statusText, url: response.url ?? `${BASE}/settings/daily-digest/send` });
+        }
+        return response.body;
+      }),
+    );
   }
 
   /** Signs the user out: the server ends the CSP session and the whole sign-in group (204, no body). */
@@ -107,6 +133,15 @@ export class ApiClient {
    */
   dismissIncident(ref: string): Observable<HttpResponse<DismissBody>> {
     return this.http.post<DismissBody>(`${BASE}/incidents/${encodeURIComponent(ref)}/dismiss`, {}, { observe: 'response' });
+  }
+
+  /**
+   * Marks a tell-now notice as handled: a POST of {} for the web chat's press and {"channel":"phone"} for the simulated phone's (the
+   * notice is in the path and the session is the caller's, never in the body). The whole response is observed: 200 is
+   * {result: 'done', handledAt}; a 4xx or 5xx fails as an HttpErrorResponse whose `error` is the body.
+   */
+  gotIt(ref: string, channel: 'web' | 'phone' = 'web'): Observable<HttpResponse<GotItBody>> {
+    return this.http.post<GotItBody>(`${BASE}/decisions/${encodeURIComponent(ref)}/got-it`, channel === 'phone' ? { channel } : {}, { observe: 'response' });
   }
 
   /**

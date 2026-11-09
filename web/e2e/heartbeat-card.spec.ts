@@ -392,7 +392,7 @@ test('HC8: each outcome and each skip reads in the UX texts, and the Today line 
     [
       'fallback',
       checkIn('tellnow', { lastFallback: true, lastFallbackReason: 'timeout' }),
-      `Last check-in ${time} \u00b7 Couldn't decide: the model didn't answer within 60 seconds \u00b7 $0.0012 \u00b7 Trace`,
+      `Last check-in ${time} \u00b7 Couldn't decide: the model didn't answer within the time allowed \u00b7 $0.0012 \u00b7 Trace`,
     ],
     ['pending', { lastBeatAt: beat }, `Last check-in ${time}`],
     ['unknown outcome', checkIn('zz_unknown'), `Last check-in ${time}`],

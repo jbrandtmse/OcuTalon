@@ -30,14 +30,23 @@
 ///     Commands.Submit (origin web_user): 200 {"result":"done"}, 409 not_dismissible (IncidentManager's not_allowed, the owner's refusal
 ///     of a dismissal that the incident's state or its approval request forbids), 501 not_built for a stub owner, 404 not_found and 500
 ///     server_error.
+///     POST /v1/decisions/:ref/got-it (Story 18.4; AD-1, AD-14) marks the session's own tell-now notice as handled: the body {"channel":"phone"}
+///     (exactly) is the Simulated phone's press, any other body is the web chat's; it submits a GotIt command through Commands.Submit (origin web_user)
+///     and answers 200 {"result":"done","handledAt"} (a second press too, with the first handledAt), 404 not_found for a Decision the session
+///     can't see or that is not tell-now (nothing is submitted), 501 not_built and 500 server_error.
 ///     The settings routes (Story 33.2; AD-13, AD-19) are for OcuTalonAdmin only, and the check is the whole name of the role in $Roles, never %All: a
 ///     call to /v1/settings or below it from a user without the role is 403 not_admin, answered before the browser envelope, the body and the
-///     route. GET /v1/settings answers SettingsOps.Values: {"sections", "bridge", "providers", "instanceZone"}. Each POST /v1/settings/<section>
-///     (budgets, daily-digest, time-zone, check-thresholds, demo-mode; models and channels answer 501 not_built) takes the section's fields as a JSON
+///     route. GET /v1/settings answers SettingsOps.Values: {"sections", "bridge", "providers", "instanceZone", "prices"}. Each POST /v1/settings/<section>
+///     (budgets, models, daily-digest, time-zone, check-thresholds, demo-mode; channels answers 501 not_built) takes the section's fields as a JSON
 ///     object of field to value, submits one SaveSettings command (a SetDemoMode for demo-mode) with origin web_admin, the IRIS user of the call and
 ///     the CSP session's Ref (AD-4), and answers: Ok 200 {"result":"done","sections"}; a refused value, a missing or unknown field or a body that is not an object 400
 ///     bad_settings with "fields", the names of the refused fields; not_built 501; step_failed (the demo step failed after the value was written)
 ///     409 demo_step_failed; not_audited, failed and any other outcome or status 500 server_error.
+///     POST /v1/settings/models takes {"agents", "prices"} (SettingsOps' models section); POST /v1/settings/models/test takes exactly {"agent": string} and submits one
+///     TestModel (origin web_admin): Ok 200 {"answered", "seconds", "reason"}; a bad body or an agent that is refused 400 bad_settings with fields ["agent"]; any
+///     other outcome or status 500 server_error.
+///     POST /v1/settings/daily-digest/send never reads the body and submits one SendDigest (origin web_admin, the CSP session's Ref, a fresh
+///     IdempotencyKey): Ok 202 {"result":"sending"}; an error status, no result or any other outcome 500 server_error.
 ///     The snapshot also tells the page who is signed in, whether that user holds OcuTalonAdmin (admin), which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
 ///     and the active status conditions, then, only while demo mode is on, the simulated phone, the simulated mailbox
@@ -186,6 +195,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/messages" Method="POST" Call="Messages"/>
 <Route Url="/v1/approvals/:ref/answer" Method="POST" Call="AnswerApproval"/>
 <Route Url="/v1/incidents/:ref/dismiss" Method="POST" Call="DismissIncident"/>
+<Route Url="/v1/decisions/:ref/got-it" Method="POST" Call="GotIt"/>
 <Route Url="/v1/demo/break-feed" Method="POST" Call="BreakFeed"/>
 <Route Url="/v1/mailbox/incoming" Method="POST" Call="MailboxIncoming"/>
 <Route Url="/v1/mailbox/samples/:name" Method="POST" Call="MailboxSample"/>
@@ -203,10 +213,12 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/memory/precedents/:ref" Method="DELETE" Call="ForgetPrecedent"/>
 <Route Url="/v1/memory/notes" Method="GET" Call="Notes"/>
 <Route Url="/v1/settings" Method="GET" Call="Settings"/>
-<Route Url="/v1/settings/models" Method="POST" Call="NotBuilt"/>
+<Route Url="/v1/settings/models" Method="POST" Call="SaveModels"/>
+<Route Url="/v1/settings/models/test" Method="POST" Call="TestModel"/>
 <Route Url="/v1/settings/budgets" Method="POST" Call="SaveBudgets"/>
 <Route Url="/v1/settings/channels" Method="POST" Call="NotBuilt"/>
 <Route Url="/v1/settings/daily-digest" Method="POST" Call="SaveDailyDigest"/>
+<Route Url="/v1/settings/daily-digest/send" Method="POST" Call="SendDigest"/>
 <Route Url="/v1/settings/time-zone" Method="POST" Call="SaveTimeZone"/>
 <Route Url="/v1/settings/check-thresholds" Method="POST" Call="SaveCheckThresholds"/>
 <Route Url="/v1/settings/demo-mode" Method="POST" Call="SaveDemoMode"/>
@@ -706,6 +718,53 @@ ClassMethod DismissIncident(ref As %String) As %Status
 	Quit ..Fail(409, "not_dismissible", $Select(result.Message '= "": result.Message, 1: ..#MESSAGENOTDISMISSIBLE))
 }
 
+/// POST /v1/decisions/:ref/got-it (Story 18.4; AD-1, AD-4, AD-14): the press of Got it on a tell-now notice, which the route submits and
+/// never decides (SessionOps does: the first press wins). The notice's Ref is its Decision's Ref. In order:
+///   - the session (Ownership.SessionRef) and the Decision (Ownership.Decision) of that session, which must be tell-now: a failed read is 500
+///     server_error, and any other Decision is 404 not_found, before anything is submitted;
+///   - the channel: phone for the exact body {"channel":"phone"}, else web (an unreadable body too);
+///   - Commands.Submit of an OcuTalon.Msg.Command.GotIt (the Ref, the channel) with origin web_user, for the session; an error status is 500 server_error;
+///   - the answer: handled and already_handled are 200 {"result":"done","handledAt"} with Handled.Marked of the Ref; not_found is 404; not_built is
+///     501 not_built; any other outcome is 500 server_error.
+ClassMethod GotIt(ref As %String) As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set decision = ##class(OcuTalon.Data.Ownership).Decision(ref, sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(decision) || (decision.Outcome '= "tellnow") Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Set command = ##class(OcuTalon.Msg.Command.GotIt).%New()
+	Set command.Ref = decision.Ref
+	Set command.SessionRef = sessionRef
+	Set command.Channel = ..GotItChannel()
+	Kill decision
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Ok {
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write {"result": "done", "handledAt": (##class(OcuTalon.Data.Handled).Marked(command.Ref))}.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	Set outcome = result.Outcome
+	If outcome = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Quit ..ServerError($SYSTEM.Status.Error(5001, "The Got it was answered "_outcome))
+}
+
+/// The channel of a Got it press: phone when the body is exactly the object {"channel":"phone"}, else web.
+ClassMethod GotItChannel() As %String [ Private ]
+{
+	Set channel = "web"
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
+		If $IsObject(body) && body.%IsA("%Library.DynamicObject") && (body.%Size() = 1) && (body.%GetTypeOf("channel") = "string") && (body.channel = "phone") Set channel = "phone"
+	} Catch exception {
+		Set channel = "web"
+	}
+	Quit channel
+}
+
 /// POST /v1/guide/markers: the page's UI-only marker (AD-1). With demo mode off the answer is 404 not_found before the body is
 /// read. The body is a JSON object whose marker is the string trace_opened or run_again; anything else is 400 bad_marker and
 /// nothing is written. A valid marker is written to the signed-in session's GuideState (trace_opened sets the flag, run_again
@@ -881,6 +940,34 @@ ClassMethod SettingsBody(Output body As %DynamicObject) As %Boolean [ Private ]
 ClassMethod NotBuilt(arg As %String = "") As %Status
 {
 	Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+}
+
+/// POST /v1/settings/models: see SaveSection.
+ClassMethod SaveModels() As %Status
+{
+	Quit ..SaveSection("models")
+}
+
+/// POST /v1/settings/models/test (AD-1, AD-4, AD-8, AD-19; Story 18.3): tests the saved first model of one agent. The body is exactly {"agent": string}; any other
+/// body, and an agent that SettingsOps refuses, is 400 bad_settings with the field agent. One TestModel is submitted through Commands.Submit with origin web_admin
+/// (the path is under /v1/settings/, so IsSettingsUrl's admin gate covers it). Ok is 200 with the CommandResult's Data, {"answered", "seconds", "reason"}; an error
+/// status, no result or any other outcome is 500 server_error, with the cause logged.
+ClassMethod TestModel() As %Status
+{
+	If '..SettingsBody(.body) || (body.%Size() '= 1) || (body.%GetTypeOf("agent") '= "string") || ($Length(body.agent) > 32) Quit ..BadSettings(["agent"])
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set command = ##class(OcuTalon.Msg.Command.TestModel).%New()
+	Set command.Agent = body.agent
+	Set command.SessionRef = sessionRef
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Outcome = "refused" Quit ..BadSettings(["agent"])
+	If 'result.Ok || (result.Outcome '= "tested") Quit ..ServerError($SYSTEM.Status.Error(5001, "SettingsOps answered the model test with '"_result.Outcome_"'"))
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write result.Data
+	Quit $SYSTEM.Status.OK()
 }
 
 /// The snapshot's last key, traceAccount: {"user", "password"}, the read-only Visual Trace account that the online demo
@@ -1493,6 +1580,27 @@ ClassMethod RunHeartbeat() As %Status
 	}
 	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "Checks answered the run with '"_outcome_"'"))
+}
+
+/// POST /v1/settings/daily-digest/send (AD-1, AD-4, AD-14, AD-32; Story 18.2): sends the signed-in admin's digest now. The body is never read. The
+/// path is under /v1/settings/, so IsSettingsUrl's admin gate covers it (a non-admin is 403 not_admin). The session is Ownership.SessionRef's (a
+/// failure is 500 server_error); one SendDigest with a fresh IdempotencyKey is submitted through Commands.Submit with origin web_admin. Ok is
+/// 202 {"result":"sending"}; an error status, no result or any other outcome is 500 server_error, with the cause logged.
+ClassMethod SendDigest() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set command = ##class(OcuTalon.Msg.Command.SendDigest).%New()
+	Set command.SessionRef = sessionRef
+	Set command.IdempotencyKey = "web-digest-"_$SYSTEM.Util.CreateGUID()
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If 'result.Ok Quit ..ServerError($SYSTEM.Status.Error(5001, "Digest answered the send with '"_result.Outcome_"'"))
+	Set %response.ContentType = ..#CONTENTTYPE
+	Set %response.Status = ..#HTTP202ACCEPTED
+	Write {"result": "sending"}.%ToJSON()
+	Quit $SYSTEM.Status.OK()
 }
 
 /// The on, interval, from, to and checklist of the PUT /v1/heartbeat body, and 1 when it is a valid one: a JSON object whose on is a boolean,

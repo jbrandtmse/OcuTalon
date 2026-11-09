@@ -66,7 +66,7 @@ test('shows the empty chat panel and the composer', { tag: '@floor' }, async ({ 
   await expect(empty.locator('app-outcome-chip')).toHaveText(['Ignore', 'Digest', 'Tell now', 'Act']);
   await expect(empty.locator('.meaning')).toHaveText([
     'Recorded; nobody notified',
-    'Saved for later; nobody notified now',
+    'Saved for the daily digest',
     'Needs you now',
     'OcuTalon took or requested an action',
   ]);

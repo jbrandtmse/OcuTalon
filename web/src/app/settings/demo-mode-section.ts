@@ -7,6 +7,7 @@ import type { SettingsError, SettingsSaved, SettingsSections } from '../api/api-
 import { Icon } from '../icon/icon';
 import { Announcer } from '../shared/announcer';
 import { ServerButton } from '../shared/server-button';
+import { refusalOf } from './refusal';
 import { SETTINGS_TEXTS, stepFailedText } from './settings-view';
 
 /** The ids of the help line and of the error, which the switch and the button are described by. */
@@ -227,7 +228,7 @@ export class DemoModeSection {
   }
 
   private refused(sent: boolean, error: unknown): void {
-    if (error instanceof HttpErrorResponse && error.status === 403) {
+    if (refusalOf(error, []).kind === 'denied') {
       this.denied.emit();
       return;
     }

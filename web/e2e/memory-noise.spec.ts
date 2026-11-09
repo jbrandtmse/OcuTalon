@@ -250,12 +250,16 @@ test('NZ7: Tab from the card reaches "This was noise", and Space presses it', as
   const button = card.getByRole('button', { name: LABEL, exact: true });
   await expect(button, 'the card has one button named "This was noise"').toHaveCount(1);
   await card.locator('[data-part="notice"]').focus();
+  const gotIt = card.getByRole('button', { name: 'Got it', exact: true });
   let reached = false;
+  let gotItFirst = false;
   for (let step = 0; step < 8 && !reached; step += 1) {
     await page.keyboard.press('Tab');
+    if ((await gotIt.count()) === 1 && (await gotIt.evaluate((one) => one === document.activeElement))) gotItFirst = true;
     reached = await button.evaluate((one) => one === document.activeElement);
   }
   expect(reached, 'Tab reaches the button within a few presses').toBe(true);
+  expect(gotItFirst, 'Got it (Story 18.4) comes one Tab before "This was noise" on the same card (integrate-forward ruling)').toBe(true);
   const { body, status } = await pressWith(page, ref, () => page.keyboard.press('Space'));
   expect(body, 'the body names the web').toEqual({ channel: 'web' });
   expect(status, '200').toBe(200);

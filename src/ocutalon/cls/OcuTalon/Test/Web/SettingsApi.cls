@@ -4,10 +4,12 @@
 /// OcuTalon.Production does not run those tests fail with that reason, so that a broken stack can never give a green shard. The roles of the
 /// signed-in user are set through Test.Web.ApiProbe's roles seam. The one demo mode save made through the production keeps the stack's own mode (the Demo step then
 /// changes nothing); the mapping of every outcome to its answer is tested on Answer.
-///   - TestNonAdminIs403Everywhere: with the OcuTalon user role only, or with %All, GET /v1/settings and each of the seven POST routes (also written
+///   - TestNonAdminIs403Everywhere: with the OcuTalon user role only, or with %All, GET /v1/settings, each of the seven POST routes, POST
+///     /v1/settings/daily-digest/send and POST /v1/settings/models/test (each also written
 ///     with another case, a trailing slash and a query) answer 403 not_admin and stop the dispatch, before the browser envelope, whatever the
 ///     headers, while an admin passes to the envelope check and a path that is not a settings path is not asked for the role;
-///   - TestGetShape: the body is SettingsOps.Values, its providers are asserted by their built shape, and it holds no key value (a scan that is shown to find a planted
+///   - TestGetShape: the body is SettingsOps.Values, its providers and its prices (Story 18.3: one entry of input, output, cacheRead and cacheWrite for each model
+///     of a supported provider that has a Price row, and for no other) are asserted by their built shape, and it holds no key value (a scan that is shown to find a planted
 ///     Anthropic-shaped, OpenAI-shaped and Google-shaped key and a configured key value; the names of the key variables are allowed);
 ///   - TestSaveThresholds: an admin's save through the production answers 200, writes the rows with the audit entries, and the page's GET and
 ///     Setting.Get in a process whose cache entry has expired show the saved values, and the production is not restarted (its start time stays);
@@ -15,7 +17,14 @@
 ///   - TestRefusedSaves: a refused value, a field that is not the section's, "@{" and a body that is not an object answer 400 bad_settings with the
 ///     ruled text and the fields, and change nothing;
 ///   - TestBridgeRoutesAre501 (U-177 exception, Contest Planner, 2026-11-05): budgets and time-zone reach the built bridge settings and are saved, applied and put back, a
-///     value off the allow-list is 400 with nothing changed; models and channels are 501;
+///     value off the allow-list is 400 with nothing changed; channels are 501 (the models route is built, Story 18.3);
+///   - TestModelsSaveRoute (Story 18.3): POST /v1/settings/models answers 200 done for a body equal to the current values (nothing changes), and 400 bad_settings with
+///     the offending names for a body that is not the shape or names a model that no provider lists;
+///   - TestModelTestRoute (Story 18.3; AC 2): an admin's POST /v1/settings/models/test for each agent answers 200 with {"answered", "seconds", "reason"} through
+///     the production (on a stack with no model key the test answers false with the reason no_key), a body that is not exactly {"agent": string} and an agent that
+///     TestRequest refuses are 400 bad_settings with the field agent, and a user who is not an admin is 403 not_admin;
+///   - TestSendDigest (Story 18.2; AC 3): an admin's POST /v1/settings/daily-digest/send answers 202 {"result":"sending"} with no body read, and the
+///     production records one requested Sent row (empty DueAt) for the CSP session's Ref; a second press, with a fresh key, records a second;
 ///   - TestSaveDemoModeAudited: an admin's demo mode save (the stack's own mode) answers 200 and writes one entry with the call's user, the CSP session's Ref and the channel web;
 ///   - TestDemoModeBodies: a demo mode body that is not exactly {demoMode: true or false} is 400 with nothing submitted;
 ///   - TestAnswerMapping: each outcome of a save has its status, code and text;
@@ -67,6 +76,13 @@ Method OnBeforeOneTest() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
+/// Deletes the rows of the model test presses after TestModelTestRoute, also when it failed.
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	If (testname = "TestModelTestRoute") && (..Missing = "") Do ..DropTestRows()
+	Quit $SYSTEM.Status.OK()
+}
+
 Method OnAfterAllTests() As %Status
 {
 	Kill ^OcuTalonTest("ApiProbe", "roles")
@@ -87,7 +103,7 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// A user without OcuTalonAdmin is refused on all eight settings calls before the envelope, the body and the route.
+/// A user without OcuTalonAdmin is refused on all ten settings calls before the envelope, the body and the route.
 Method TestNonAdminIs403Everywhere()
 {
 	Set wanted = {"error": {"code": "not_admin", "message": "Only OcuTalon admins can open settings."}}.%ToJSON()
@@ -97,7 +113,8 @@ Method TestNonAdminIs403Everywhere()
 	While $ListNext(slugs, position, slug) {
 		Set urls = urls_$ListBuild("POST|/v1/settings/"_slug)
 	}
-	Do $$$AssertEquals($ListLength(urls), 8, "all eight calls are tried")
+	Set urls = urls_$ListBuild("POST|/v1/settings/daily-digest/send", "POST|/v1/settings/models/test")
+	Do $$$AssertEquals($ListLength(urls), 10, "all ten calls are tried")
 	Set odd = $ListBuild("GET|/v1/Settings", "GET|/v1/settings/", "GET|/v1/settings?x=1", "POST|/v1/SETTINGS/check-thresholds", "POST|/v1/settings/zz-unknown", "DELETE|/v1/settings")
 	For roles = "OcuTalonUser", "%All,OcuTalonUser", "OcuTalonUser,OcuTalonAdministrator", "OcuTalonUser,XOcuTalonAdmin" {
 		Set ^OcuTalonTest("ApiProbe", "roles") = roles
@@ -141,13 +158,14 @@ Method TestGetShape()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "sections,bridge,providers,instanceZone", "the keys")
+	Do $$$AssertEquals(keys, "sections,bridge,providers,instanceZone,prices", "the keys")
 	Do $$$AssertEquals(json.sections.%Get("check-thresholds").%ToJSON(), "{""diskFreePercent"":10,""journalFreePercent"":10,""licenseUsePercent"":90,""queueMessages"":100,""queueWaitMinutes"":10}", "the thresholds")
 	Do $$$AssertEquals(json.sections.%Get("daily-digest").channels, "web,phone,telegram", "the digest channels")
 	Do $$$AssertEquals(json.sections.%Get("demo-mode").%GetTypeOf("demoMode"), "boolean", "demoMode is a boolean")
 	// U-177 exception: this Lane B test is edited by Lane A's Story 17.3 once, as ruled by the Contest Planner (2026-11-05). The providers are asserted by their built shape only.
 	Do $$$AssertEquals(json.providers.%GetTypeOf(0), "object", "the providers are built: the first row is an object")
 	Do $$$AssertTrue(json.providers.%Size() > 0, "and the list is not empty")
+	Do ..AssertPrices(json)
 	Set configuredValues = ""
 	Set iterator = json.providers.%GetIterator()
 	While iterator.%GetNext(, .row) {
@@ -178,6 +196,37 @@ Method TestGetShape()
 	While $ListNext(planted, position, one) {
 		Do $$$AssertEquals(..KeyShape(body_" "_$List(one, 2)_" ", $ListBuild(configuredFake)), $List(one, 1), "a planted "_$List(one, 1)_" key is found in the body")
 	}
+}
+
+/// The body's prices (Story 18.3): one entry for each model of a supported provider that has a Price row, and for no other model; each entry has input, output,
+/// cacheRead and cacheWrite, as numbers equal to the row's prices.
+Method AssertPrices(json As %DynamicObject) [ Private ]
+{
+	Do $$$AssertEquals(json.%GetTypeOf("prices"), "object", "prices is an object")
+	Set expected = ""
+	Set providers = ##class(OcuTalon.Bridge.Providers).Rows().%GetIterator()
+	While providers.%GetNext(, .row) {
+		If '+row.%Get("supported") Continue
+		Set models = row.%Get("models").%GetIterator()
+		While models.%GetNext(, .model) {
+			If ##class(OcuTalon.Bridge.Data.Price).ModelIndexExists(model) Set expected = expected_$ListBuild(model)
+		}
+	}
+	Set found = ""
+	Set iterator = json.prices.%GetIterator()
+	While iterator.%GetNext(.model, .one) {
+		Set found = found_$ListBuild(model)
+		Set names = ""
+		Set members = one.%GetIterator()
+		While members.%GetNext(.name, , .type) {
+			Set names = names_$Select(names = "": "", 1: ",")_name_":"_type
+		}
+		Do $$$AssertEquals(names, "input:number,output:number,cacheRead:number,cacheWrite:number", "the price entry of "_model_" has these members, as numbers")
+		Set row = ##class(OcuTalon.Bridge.Data.Price).ModelIndexOpen(model)
+		If $IsObject(row) Do $$$AssertEquals(one.input_"|"_one.output_"|"_one.cacheRead_"|"_one.cacheWrite, +row.InputPerMTok_"|"_+row.OutputPerMTok_"|"_+row.CacheReadPerMTok_"|"_+row.CacheWritePerMTok, "and the prices of its row: "_model)
+	}
+	Do $$$AssertEquals($ListToString(found), $ListToString(expected), "one entry for each model of a supported provider that has a Price row, and no other")
+	Do $$$AssertTrue($ListLength(expected) > 0, "control: the stack has Price rows for the supported provider's models")
 }
 
 /// The shape of key value that the text holds, or "": anthropic (sk-ant- prefix), openai (sk- prefix), google (AIza prefix) or configured (one of the values in the list).
@@ -230,6 +279,49 @@ Method TestSaveThresholds()
 	Set body = ..Call("SaveDailyDigest", {"time": "06:45", "channels": "phone,web"}.%ToJSON(), session, .response)
 	Do $$$AssertEquals(response.Status, "200 OK", "the digest section saves too: "_body)
 	Do $$$AssertEquals(..Row("digest.time")_"|"_..Row("digest.channels"), "06:45|web,phone", "the digest keys are written")
+}
+
+/// An admin's POST /v1/settings/daily-digest/send answers 202 {"result":"sending"}, and the production records one requested Sent row of the CSP
+/// session (the digest is composed and sent by the Digest item, whose answer the route does not wait for). Each press has a key of its own, so a
+/// second press records a second row.
+Method TestSendDigest()
+{
+	If '..Guard() Quit
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set session = ..Session()
+	Do $$$AssertEquals(..Sent(session), 0, "control: the session has no digest yet")
+	Set body = ..Call("SendDigest", "{""ignored"": true}", session, .response)
+	Do $$$AssertEquals(response.Status_"|"_response.ContentType_"|"_body, "202 Accepted|application/json|{""result"":""sending""}", "the press is 202 sending: "_body)
+	Do $$$AssertEquals(..WaitSent(session, 1), 1, "the production records one requested Sent row for the CSP session")
+	Set row = ##class(%SQL.Statement).%ExecDirect(, "SELECT Kind, DueAt, IdempotencyKey FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ?", session)
+	Do $$$AssertTrue(row.%Next(), "the row can be read")
+	Set first = row.%Get("IdempotencyKey")
+	Do $$$AssertEquals(row.%Get("Kind")_"|"_row.%Get("DueAt"), "requested|", "it is a requested digest with no due time")
+	Do $$$AssertEquals($Extract(first, 1, $Length("web-digest-")), "web-digest-", "its key is the route's own")
+	Set body = ..Call("SendDigest", "", session, .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "202 Accepted|{""result"":""sending""}", "a second press is 202 too")
+	Do $$$AssertEquals(..WaitSent(session, 2), 2, "and records a second row, so its key is a fresh one")
+	Do $ClassMethod("OcuTalon.Test.Digest.ProcessProbe", "Clean", session)
+}
+
+/// The number of Sent rows of the session.
+Method Sent(session As %String) As %Integer [ Private ]
+{
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Digest_Data.Sent WHERE SessionRef = ?", session)
+	Do rs.%Next()
+	Quit rs.%GetData(1)
+}
+
+/// The number of Sent rows of the session once there are count of them, or after 40 seconds.
+Method WaitSent(session As %String, count As %Integer) As %Integer [ Private ]
+{
+	Set end = $ZHorolog + 40
+	For {
+		Set found = ..Sent(session)
+		If (found >= count) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit found
 }
 
 /// An admin's demo mode save through the production, with the mode the stack already has: 200 and one Settings entry with the IRIS user of the call,
@@ -306,7 +398,7 @@ Method TestBridgeRoutesAre501()
 		Do $$$AssertEquals(..BridgeValues(), applied, "nothing changed after the refusals")
 		Set wanted = {"error": {"code": "not_built", "message": "This part of OcuTalon isn't built yet."}}.%ToJSON()
 		Set body = ..Call("NotBuilt", "{}", session, .response)
-		Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "models and channels: 501 not_built")
+		Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "channels: 501 not_built")
 		Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": "@{env:KEY}", "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
 		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DecisionTokenBudget""]}", "a value with @{ is refused before the bridge is asked")
 	} Catch exception {
@@ -317,6 +409,92 @@ Method TestBridgeRoutesAre501()
 	Do $ClassMethod(bridge, "Set", "InstanceZone", $Piece(originals, "|", 3))
 	Do ##class(OcuTalon.Bridge.Time).Apply()
 	Do $$$AssertEquals(..BridgeValues(), originals, "the token budget, the daily cap and the zone are the originals again")
+}
+
+/// POST /v1/settings/models/test (Story 18.3; AC 2). An admin's test of each agent goes through the production (Commands.Submit, CommandsIn, SettingsOps, Decide) and
+/// answers 200 with {"answered", "seconds", "reason"}: answered is a boolean, seconds a number and reason a string, and when the stack has no model key (a throwaway) the
+/// answer is "answered":false with the reason no_key. A body that is not exactly {"agent": string}, an agent name that is too long and an agent that TestRequest refuses are
+/// 400 bad_settings with the field agent and nothing sent to Decide, and a user without the admin role is 403 not_admin before the route.
+Method TestModelTestRoute()
+{
+	If '..Guard() Quit
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set session = ..Session()
+	Set keyed = ..ModelKeySet()
+	Set agents = $ListBuild("TriageAgent", "DiagnosisAgent", "ChatAgent")
+	Set position = 0
+	While $ListNext(agents, position, agent) {
+		Set body = ..Call("TestModel", {"agent": (agent)}.%ToJSON(), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_response.ContentType, "200 OK|application/json", agent_": 200 JSON: "_body)
+		Set answer = {}.%FromJSON(body)
+		Set names = ""
+		Set iterator = answer.%GetIterator()
+		While iterator.%GetNext(.name, , .type) {
+			Set names = names_$Select(names = "": "", 1: ",")_name_":"_type
+		}
+		Do $$$AssertEquals(names, "answered:boolean,seconds:number,reason:string", agent_": the three members of the answer")
+		If 'keyed Do $$$AssertEquals(answer.answered_"|"_answer.reason, "0|no_key", agent_": a stack with no model key answers false with the reason no_key")
+		Do $$$AssertTrue($ZConvert(body, "L") '[ "api_key", agent_": and the answer holds no key")
+	}
+	Set cases = $ListBuild("{}", "[""TriageAgent""]", "{""agent"": 5}", "{""agent"": null}", "{""agent"": ""TriageAgent"", ""x"": 1}", "{""Agent"": ""TriageAgent""}", "{""agent"": ""NoSuchAgent""}", "{""agent"": ""@{env:X}""}", "{""agent"": """_$Translate($J("", 33), " ", "a")_"""}", "not json", "")
+	Set position = 0
+	While $ListNext(cases, position, text) {
+		Set before = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+		Set body = ..Call("TestModel", text, session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""agent""]}", "'"_text_"': 400 bad_settings naming agent")
+		Do $$$AssertEquals($Piece(body, """", 6), "bad_settings", "'"_text_"': with the code")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionSince(before, "Decide"), "", "'"_text_"': nothing was sent to Decide")
+	}
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser"
+	Set body = ..PreDispatch("/v1/settings/models/test", "POST", "application/json", 1, "http://h:1", "h:1", .response, .continue)
+	Do $$$AssertEquals(response.Status_"|"_continue_"|"_$Piece(body, """", 6), "403 Forbidden|0|not_admin", "a user without the admin role is 403 not_admin")
+}
+
+/// POST /v1/settings/models (Story 18.3): a body equal to the current values is 200 done and changes nothing; a body that is not the shape, and one that names a model that
+/// no supported provider lists, are 400 bad_settings with the offending names.
+Method TestModelsSaveRoute()
+{
+	If '..Guard() Quit
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set session = ..Session()
+	Set values = ##class(OcuTalon.Core.SettingsOps).Values()
+	Set same = {"agents": (values.bridge.agents), "prices": (values.prices)}
+	Set before = same.%ToJSON()
+	Set body = ..Call("SaveModels", before, session, .response)
+	Do $$$AssertEquals(response.Status_"|"_{}.%FromJSON(body).result, "200 OK|done", "the current values are saved as they are: 200 done")
+	Do $$$AssertEquals({"agents": (##class(OcuTalon.Core.SettingsOps).Values().bridge.agents), "prices": (##class(OcuTalon.Core.SettingsOps).Values().prices)}.%ToJSON(), before, "and nothing changed")
+	Set body = ..Call("SaveModels", "{}", session, .response)
+	Do $$$AssertEquals(response.Status_"|"_$Piece(body, """", 6), "400 Bad Request|bad_settings", "{} is 400 bad_settings")
+	Set body = ..Call("SaveModels", "[1]", session, .response)
+	Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[]}", "an array is 400 with no field")
+	Set extra = {}.%FromJSON(before)
+	Do extra.prices.%Set("zz-not-a-model", {"input": 1, "output": 1, "cacheRead": 1, "cacheWrite": 1})
+	Set body = ..Call("SaveModels", extra.%ToJSON(), session, .response)
+	Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""prices.zz-not-a-model""]}", "a model that no supported provider lists is named")
+	Do $$$AssertEquals({"agents": (##class(OcuTalon.Core.SettingsOps).Values().bridge.agents), "prices": (##class(OcuTalon.Core.SettingsOps).Values().prices)}.%ToJSON(), before, "and nothing changed")
+}
+
+/// 1 when a supported provider has its key variable set in this process (a throwaway has none).
+Method ModelKeySet() As %Boolean [ Private ]
+{
+	Set set = 0
+	Set providers = ##class(OcuTalon.Bridge.Settings).Providers().%GetIterator()
+	While providers.%GetNext(, .row) {
+		If row.supported && row.keySet Set set = 1
+	}
+	Quit set
+}
+
+/// Deletes the Decision rows of model test requests (ItemId test.%) with their Usage and agent steps.
+Method DropTestRows() [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT DISTINCT ItemId FROM OcuTalon_Bridge_Data.Decision WHERE ItemId LIKE 'test.%'")
+	While result.%Next() {
+		Set itemId = result.%GetData(1)
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).DeleteSteps(itemId)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ItemId = ?", itemId)
+	}
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE ItemId LIKE 'test.%'")
 }
 
 /// A demo mode body that is not exactly {demoMode: true or false} is 400 with the field named when it is the field's value, and nothing is submitted.

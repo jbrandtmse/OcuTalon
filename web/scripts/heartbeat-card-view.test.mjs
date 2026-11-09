@@ -48,7 +48,7 @@ const when = (iso) => (/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(iso) ? iso.slice
 const format = {
   when,
   cost: (amount) => `$${amount}`,
-  reason: (reason) => (reason === 'timeout' ? "the model didn't answer within 60 seconds" : "the model's reply couldn't be used"),
+  reason: (reason) => (reason === 'timeout' ? "the model didn't answer within the time allowed" : "the model's reply couldn't be used"),
 };
 
 describe('the texts', () => {
@@ -214,7 +214,7 @@ describe('the last line', () => {
   it('reads "Couldn\'t decide: {plain reason}" for a fallback, whatever its outcome', () => {
     assert.deepEqual(line({ ...beat, lastOutcome: 'tellnow', lastFallback: true, lastFallbackReason: 'timeout' }).parts, [
       'Last check-in 10:00',
-      "Couldn't decide: the model didn't answer within 60 seconds",
+      "Couldn't decide: the model didn't answer within the time allowed",
       '$0.0012',
     ]);
     assert.deepEqual(line({ ...beat, lastFallback: true }).parts[1], "Couldn't decide: the model's reply couldn't be used", 'a fallback with no reason gets the generic one');

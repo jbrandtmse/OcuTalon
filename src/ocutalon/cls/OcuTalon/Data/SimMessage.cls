@@ -2,7 +2,8 @@
 /// text as the device shows it; the mailbox's rows (Kind mailbox) carry the email's Sender and Subject. An incoming email (by
 /// SimMailboxIn) carries an ItemId; sent mail (by SimMailboxOut) has none. A phone message of kind incident or approval carries
 /// the ApprovalRef of the request it asks for, and the Answer line that replaced its Approve and Reject once the request was
-/// answered. A row written before Sender, Subject, ApprovalRef and Answer existed reads them as empty.
+/// answered. A phone message of kind tellnow carries the DecisionRef of its notice, and the Answer line that replaced its Got it once the notice
+/// was marked handled (Story 18.4). A row written before Sender, Subject, ApprovalRef, Answer and DecisionRef existed reads them as empty.
 Class OcuTalon.Data.SimMessage Extends %Persistent
 {
 
@@ -41,6 +42,9 @@ Property ApprovalRef As %String(MAXLEN = 22);
 
 /// The answered line, in message form, that replaced the phone message's Approve and Reject; empty while it has them.
 Property Answer As %String(MAXLEN = 1000);
+
+/// The Ref of the Decision behind a tell-now phone message (the notice's Ref); empty for any other message.
+Property DecisionRef As %String(MAXLEN = 22);
 
 Index RefIndex On Ref [ Unique ];
 
@@ -86,6 +90,9 @@ Storage Default
 </Value>
 <Value name="12">
 <Value>Answer</Value>
+</Value>
+<Value name="13">
+<Value>DecisionRef</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.SimMsgD</DataLocation>

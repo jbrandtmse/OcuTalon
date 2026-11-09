@@ -4,14 +4,16 @@ Class OcuTalon.Install.Step.Core Extends OcuTalon.Install.Step
 {
 
 /// Removes the pairing rows that no writer touched for daysToKeep days and that hold no session (Data.Pairing.Purge), and the precedents answered
-/// more than daysToKeep days ago (Data.Precedent.Purge; AD-21, AD-27). The day count comes only from the caller: the purge task's DaysToKeep. Both
-/// purges run, and the result is the first error.
+/// more than daysToKeep days ago (Data.Precedent.Purge; AD-21, AD-27), and the handled marks (Data.Handled.Purge). The day count comes only from the
+/// caller: the purge task's DaysToKeep. All three purges run, and the result is the first error.
 ClassMethod Purge(daysToKeep As %Integer) As %Status
 {
 	Set sc = ##class(OcuTalon.Data.Pairing).Purge(daysToKeep)
 	Set precedents = ##class(OcuTalon.Data.Precedent).Purge(daysToKeep)
+	Set handled = ##class(OcuTalon.Data.Handled).Purge(daysToKeep)
 	If $SYSTEM.Status.IsError(sc) Quit sc
-	Quit precedents
+	If $SYSTEM.Status.IsError(precedents) Quit precedents
+	Quit handled
 }
 
 }

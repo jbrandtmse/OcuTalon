@@ -29,6 +29,7 @@ describe('the server\'s demo mode is read in one place', () => {
       'header/header.ts',
       'mailbox/mailbox-view.ts',
       'phone/phone-view.ts',
+      'settings/daily-digest-section.ts',
       'settings/demo-mode-section.ts',
       'settings/settings-page.ts',
       'settings/settings-view.ts',

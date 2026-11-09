@@ -340,7 +340,9 @@ describe('a tool call\'s request in the chat panel (Story 31.6)', () => {
   });
 
   it('gives the plain notice no pending cue: no button, no label text, no request-card token, no pending class, and only the info bar', () => {
-    const bare = noticeTemplate.replace(`[class.request]="notice().kind === 'approval'"`, '');
+    // The digest card's "What I checked" disclosure (Story 18.4) is a button of the digest; it is taken out, as the request class is.
+    const bare = noticeTemplate.replace(`[class.request]="notice().kind === 'approval'"`, '').replace(/@if \(notice\(\)\.kind === 'digest' && notice\(\)\.checks\.length > 0\) \{[\s\S]*?\n        \}\n/, '');
+    assert.doesNotMatch(bare, /What I checked|what-i-checked|app-check-rows/, 'the digest disclosure was taken out whole');
     assert.match(noticeTemplate, /\[class\.request\]="notice\(\)\.kind === 'approval'"/, 'the request class is the only mention of the kind');
     assert.doesNotMatch(bare, /<button|pending|Approval needed|approval/i, 'the template holds no button, label or pending class');
     assert.doesNotMatch(notice.code, /pending|APPROVAL_TEXTS|approval-request-card|Approval needed/i, 'the sources hold no pending cue');

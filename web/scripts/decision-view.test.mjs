@@ -225,7 +225,7 @@ describe('tokensLine', () => {
 
 describe('sentenceOf', () => {
   it('starts with a capital letter and ends with a full stop', () => {
-    assert.equal(sentenceOf("the model didn't answer within 60 seconds"), "The model didn't answer within 60 seconds.");
+    assert.equal(sentenceOf("the model didn't answer within the time allowed"), "The model didn't answer within the time allowed.");
     assert.equal(sentenceOf("today's cost limit has been reached"), "Today's cost limit has been reached.");
   });
 
