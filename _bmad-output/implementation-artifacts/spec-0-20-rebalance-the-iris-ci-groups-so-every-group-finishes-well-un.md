@@ -2,8 +2,8 @@
 title: 'Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget'
 type: 'chore'
 created: '2026-11-09'
-status: 'in-progress'
-baseline_revision: 'cccbd78eec0497bdc08103ba82421fd3bb055dbc'
+status: 'done'
+baseline_revision: 'e30aa25dd1e6210ce557f4ba5a457d2ee9e8c91b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -105,7 +105,7 @@ Multi-area shard units: `lane-a@Install,Digest,Eval` 157+44+266 = 467 + 423 = 89
 - Epic 35 adds no group unit. After its merge: 38 units; lane-a 13 areas, 222 classes (Mcp 4), in `rest`.
 - The new checks compute these from the tree: scripts, area folders and class files. A unit dropped, or an area or class left out, fails them. An added script, area or class is counted, not pinned.
 
-- [ ] [CI] checks: `docker/tests/test-demo-path-gate.sh` (in CHECK_SCRIPTS) still pins the old browser group (`live:demo-path live:sign-in live:answers`, its stubs, the Chromium call sequence and the "red unit other than the demo path" case) — ci run 42672671071 on de6909e4, checks job, 5 checks failed ("group: browser passes when its three units pass", "the units ran in the order 'live:demo-path live:online-demo '", ...). Move every one of its browser-group pins to the new group (`live:demo-path live:online-demo`, demo-path first): stub `online-demo` like the other browser stubs, expect Chromium before demo-path and online-demo, and use online-demo as the "red unit other than the demo path". Moves only: keep every check (same count), weaken none; update its header comment (L27-31) to the new group. Then run EVERY script of `CHECK_SCRIPTS` (ci/units.sh) once, one per call, and fix any other pin of the old layout the same way.
+- [x] [CI] checks: `docker/tests/test-demo-path-gate.sh` (in CHECK_SCRIPTS) still pins the old browser group (`live:demo-path live:sign-in live:answers`, its stubs, the Chromium call sequence and the "red unit other than the demo path" case) — ci run 42672671071 on de6909e4, checks job, 5 checks failed ("group: browser passes when its three units pass", "the units ran in the order 'live:demo-path live:online-demo '", ...). Move every one of its browser-group pins to the new group (`live:demo-path live:online-demo`, demo-path first): stub `online-demo` like the other browser stubs, expect Chromium before demo-path and online-demo, and use online-demo as the "red unit other than the demo path". Moves only: keep every check (same count), weaken none; update its header comment (L27-31) to the new group. Then run EVERY script of `CHECK_SCRIPTS` (ci/units.sh) once, one per call, and fix any other pin of the old layout the same way.
 
 **Acceptance Criteria:**
 - AC1. Given the new `ci/units.sh`, when `bash ci/iris.sh list` and `bash ci/iris.sh groups` run, then `IRIS_GROUPS` is the 16 names in the order above, each group prints exactly its row of the table, and `test-ci-config.sh`'s `groups` and `recipe` rules pass.
@@ -271,6 +271,7 @@ The exact change to `.github/workflows/ci.yml` (blob `80afa70` to `0acfe6e`); im
   - mutation: `live:security-overview` moved from shards-5 to shards-10 in `group_units` -> `test-release-sequence.sh overviewdoc` red (the expected line "shards-5 holds live:security-overview" fails).
 - AC6 mutation: name `shard:lane-a@Checks,Tools,Memory` in place of `shard:lane-a@rest` → the AC6 command prints `Mcp` alone, not `Checks Tools Memory Mcp`. Once Epic 35's area exists, `units` would also report "1 area(s) of the shard lane-a are in no piece, and no piece is rest".
   - mutation: `shard:lane-a@Checks,Tools,Memory` named in place of `shard:lane-a@rest` -> the AC6 command prints `Mcp` alone, not `Checks Tools Memory Mcp` (not a test: the AC6 command itself goes red).
+- [CI] mutation: the `browser` row of `group_units` in `ci/units.sh` reordered to `live:online-demo live:demo-path` -> `test-demo-path-gate.sh` red ("group: the units ran in the order 'live:online-demo live:demo-path '" and "group: the calls ran as ..."), the demo-path-first pin of AD-22. Reverted; `ci/units.sh` byte-identical (`git diff` before and after compared equal).
 - AC7: none in-stage. CI's two clean runs are the lead's done-criterion.
 
 Shared surfaces: `IRIS_GROUPS`; the `ci.yml` matrix and the `iris (<group>)` check names; `group_units` and the output of `ci/iris.sh list` and `groups`; the `groups`, `recipe`, `inputs` (L1299), `units` and `shard pieces` pins in `docker/tests/test-ci-config.sh`; `web_groups` and "all ten" in `docker/tests/test-ci-changes.sh`; the overview placement pin in `docker/tests/test-release-sequence.sh`. `NO_WEB_BUNDLE_UNITS` is unchanged.
@@ -317,23 +318,26 @@ Standing criterion: every test added or changed passes on a fresh environment, i
   - `[low]` `[reject]` Intent: check names pinned only through the matrix; skipped groups still report - pre-existing behaviour of `ci/changes.sh`, untouched; the matrix equals `ci/iris.sh groups` (AC3).
   - `[low]` `[reject]` Intent: the spec title says 35 minutes, the intent 32, the comment about 29 - 35 is REL-4's budget, 32 the done-criterion, 29 the planning target (rulings 2); descriptive only.
 
+### 2026-11-09 - Review pass (rework iteration 1, follow-up pass)
+- verdicts: 4 findings - high 0, medium 0, low 4, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: nothing asserts that `live:sign-in` and `live:answers` are absent from the browser group - the exact order string and the exact call-sequence checks already fail if either is re-added; extra `absent` lines would add checks, and the item says keep the same count.
+  - `[low]` `[reject]` Blind: the test hard-codes the browser group's membership - pre-existing pattern of this file (it pins the group by design, which is why the item exists); deriving it from `group_units` would weaken the pin.
+  - `[low]` `[reject]` Blind: the multi-name `GROUP browser failed:` line is no longer exercised, because the group now holds two units and a single unit is red in that case - a consequence of the approved two-unit layout; the line's format is unchanged and `GROUP browser failed: live:demo-path (` is still pinned; a new multi-failure case is an added check, outside "moves only".
+  - `[low]` `[reject]` Intent (descriptive): the diff touches only the one test file and the sweep of the other CHECK_SCRIPTS is not in the diff - the sweep was run (31 scripts, results in Auto Run Result) and found no other pin of the old layout, so there is nothing further to change.
+- Edge-case and verification-gap layers: no findings.
+
 ## Auto Run Result
 
 Status: done
 Blocking condition: none
 
-**Summary.** Rebalanced the IRIS CI groups by moves and splits only: 16 groups (`shards-6` to `shards-11` added), lane-a in 8 pieces and lane-b in 2, 38 group units (28 live, 10 shard), 12 + 8 areas and 218 + 132 classes each run once. `ci.yml` carries exactly the Release-tool hunk.
+**Summary (rework iteration 1 only).** Moved the browser-group pins of `docker/tests/test-demo-path-gate.sh` to the new group `live:demo-path live:online-demo`: stub `online-demo` (replacing the `sign-in` and `answers` stubs), Chromium expected before demo-path and online-demo, online-demo as the red unit other than the demo path, header comment updated. Same number of checks (53 before, 53 after), all PASS.
 
-**Files changed.**
-- `ci/units.sh`: `IRIS_GROUPS`, `group_units` table, contract comment and the Story 0.20 history entry.
-- `.github/workflows/ci.yml`: the Release-tool hunk only (header count, matrix).
-- `docker/tests/test-ci-config.sh`: `groups`, `inputs`, `recipe` pins to 16 groups; `units` tally; `shard pieces` area-once check (`piece_shard_rows`) and tally.
-- `docker/tests/test-ci-changes.sh`: `web_groups` (15 groups) and "all sixteen".
-- `docker/tests/test-release-sequence.sh`: the four named lines (L37, L2272, L2336, L2340) now name shards-5.
-- This spec: the `mutation:` lines under `## Verification`.
+**Files changed.** `docker/tests/test-demo-path-gate.sh` (the pins above); this spec (the `[CI]` item checked, a `mutation:` line, the triage log).
 
-**Review.** 19 findings from four layers: 0 patches, 0 deferred, 19 rejected with the reasons in the Review Triage Log (spec-ordered pins, tallies informational by spec, AC7 is the CI done-criterion, Planner ruling 1 for single-area units). Follow-up review recommended: false (no patch).
+**Review.** 4 findings, all low, all rejected with reasons in the Review Triage Log; 0 patches, 0 deferred. Follow-up review recommended: false (this follow-up pass patched no high).
 
-**Verification.** `test-ci-config.sh` 40 PASS (units: 38 units, 28 live, 10 shard; shard pieces: 350 classes, lane-a 12 areas in 8 units 218 classes, lane-b 8 areas in 2 units 132 classes); `test-ci-changes.sh` 274 PASS; groups vs matrix no diff, 16; class and unit counts 218 / 132 / 38; AC6 prints `Checks Tools Memory Mcp`; `test-boundaries.sh` passed; no non-ASCII bytes and no local paths in the touched sources; `git diff` of `ci.yml` is the hunk (blob 80afa70 to 0acfe6e); no change under `release/**`, to `ci/iris.sh` or to any `timeout-minutes`. `test-release-sequence.sh` ran once in its three batches (implement stage), all PASS all rules. Mutations for AC1-AC5 observed red and reverted (lines in `## Verification`); AC6's is the command itself.
+**Verification.** Mutation: the `browser` row of `group_units` reordered to `live:online-demo live:demo-path` -> `test-demo-path-gate.sh` red on the order and call-sequence checks; reverted, `ci/units.sh` byte-identical. All 31 scripts of `CHECK_SCRIPTS` run once, each green: boundaries, storage, class-rules, ci-config (40 PASS), ci-changes (274 PASS), compose-file, pinned-sources, after-start, healthcheck, lib-live, bootstrap, demo-path-gate (53 PASS), ci-warm, probe, install-script, readme, eval-set, online-host, online-load, upgrade-harness, rehearsal, release-checklist, release-notes, release-sequence (the three batches of the Verification section, which skip only `recut`, a rule that reads no layout), redact-shapes, cpf, bridge-example, bridge-guide, triage-heartbeat, eval-personas, heartbeat-overview. No other script held a pin of the old layout, so none needed a change.
 
-**Residual risks.** Group times are planning figures (inference) until AC7's two clean CI runs; Epic 35's `Mcp` area is checked only by the AC6 command until it merges; whether the six new check names become required is the Planner's call.
+**Residual risks.** Every `CHECK_SCRIPTS` script ran locally and passed; none was skipped for needing Docker or a network. CI's checks job is the confirming run. Group times remain planning figures until AC7's two clean runs.
