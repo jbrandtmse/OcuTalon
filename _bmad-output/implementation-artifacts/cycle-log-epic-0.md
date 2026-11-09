@@ -554,3 +554,4 @@
 2026-11-09T16:28:47Z	Epic 0	deps_hash_rerecorded	reason=fix_forward note=story_0.20_inserted_in_epic_0;no_boundary_or_dependency_change
 2026-11-09T16:29:55Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.20_added) model=claude-opus-5-5 effort=high
 2026-11-09T16:30:06Z	Story 0.20	stage_spawned	stage=plan spawn_at=2026-11-09T16:30:06Z model=opus effort=high agent_name=0-20-plan-1 cycle_iteration=1
+2026-11-09T16:40:18Z	Story 0.20	plan_clarification_requested	spawn_at=2026-11-09T16:30:06Z model=opus effort=high blocking=intent_gap(ruling2_900s_shard_cap_vs_AD-22_whole-area_pieces:Bridge_981-1167s,Fix_1012-1123s,Docs_814-1006s_alone) options=A(cap_multi-area_pieces_only),B(class_parts_via_ci/iris.sh_shard_--part_k/n;amends_AD-22;veto) capacity=min_16_groups(shards-6..shards-11) to=planner(PLANNER_REPORT) note=measurements_in_spec;release-sequence.sh_pins_layout(L2272,L2340,L2935;contended_epic11)
