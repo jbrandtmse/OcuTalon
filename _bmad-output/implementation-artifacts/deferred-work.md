@@ -6231,3 +6231,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 42633085173 attempts 2 and 3: shards-2/3/4 cancelled at 15:39Z and 16:22:05Z (job timeout), lane-a@rest 2017s and 2147s; attempt 1 shards-2/3 at 41.5 min; ci.yml timeout-minutes 40
 - 2026-11-09T16:25:24Z status=escalated owner=burndown by=runner note=needs a ci/units.sh group split (contended: Epic 0, Epic 11) or more capacity; reported to the orchestrator at once
 - 2026-11-09T16:26:19Z status=routed owner=burndown by=orchestrator note=resolves_by_Epic_0_Story_0.20(group_split_widened:split_unit_shard:lane-a@rest,rebalance_shards-2,-3,-4);orchestrator_ruling_2026-11-09;not_for_decisions_for_user
+
+### DW-1034: settings.refusedExpansion is stored in Catalog.Core with a {marker} slot for the two characters that open a setting reference, because Msg.Catalog.Fill rejects an unbalanced brace; producers must pass '@{' as the slot value
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Core.cls settings.refusedExpansion; Test.Msg.Catalog fixture renders the accepted wording verbatim
+- 2026-11-09T17:09:30Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=harvest note=reopen_if=a producer (Stories 21.2, 21.3, 21.4, 35.3) renders the key without the marker slot, or the author wants a literal key (a Msg.Catalog escape)
+
+### DW-1035: EXPERIENCE.md's step 4 source-interval row does not name its key settings.sourceInterval, because ux-strings.test.mjs rules the word 'Interval' out of EXPERIENCE.md as a substring
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: EXPERIENCE.md Settings and requests (step 4) interval row reads 'key in Msg.Catalog.Core'; web/scripts/ux-strings.test.mjs SOURCES
+- 2026-11-09T17:09:30Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=harvest note=reopen_if=a reader or a check needs every step 4 row to name its key (move 'Interval' from ruled to ux in ux-strings.test.mjs)
+
+### DW-1036: Nothing tests that SessionEvents.OnLogin passes Admin.Held($Roles) to AttachFor, the only production path that sets Session.AdminAtSignIn
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: OnLogin is one line; slot tests reach AttachFor(1,1) only; a slot has no OcuTalon roles to put in $Roles
+- 2026-11-09T17:09:30Z status=open owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=harvest note=QA: a live sign-in check as an admin and as the README user on a throwaway
+
+### DW-1037: Session.AdminAtSignIn stays 1 after a user loses OcuTalonAdmin until their next sign-in, and a sign-in without the OcuTalon user role does not clear it
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: flag written only at sign-in (ruling planner-2026-11-09-35.1 Q1); AttachFor does nothing when hasRole is 0
+- 2026-11-09T17:09:30Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=harvest note=reopen_if=Story 22.2's admin notices reach a user who no longer holds OcuTalonAdmin (22.2 decides whether to re-check the role)
+
+### DW-1038: flake: OcuTalon.Test.Mcp.Attach TestShadow 'and then the server' (a bare %AI.ToolMgr AddTool of the mock MCP spec returned an error) red once in CI shards-2 (shard:lane-a@rest) under load; the same head passed it in attempts 2 and 3
+- source: CI run 42633085173 attempt 4 (OCT-epic35 cd13b1ae) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: run 42633085173 attempt 4 job shards-2 17:00Z, lane-a@rest 2065s, 1 of 79 classes; attempts 2 and 3 lane-a@rest passed on the same sha
+- 2026-11-09T17:10:28Z status=routed owner=burndown by=runner note=Story 35.1's test (Lane A file); burn-down priority; a red on a quiet host makes it real
