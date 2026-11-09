@@ -13,6 +13,9 @@
 ///   - TestProductionName, TestGroupsAndFixKind and TestWindowEdge (QA): the display name or the row's Production, the first group's item and the first known fix
 ///     kind, and the 24-hour window just inside and just outside;
 ///   - TestSharedRulesAreNotCopied (DW-519): the tool has no WatchNames or Shown of its own; its display names are WatchAnswers WatchNames's and its times CommandCall TimeLabel's;
+///   - TestIncidentSummary, TestIncidentSummaryAnotherSession, TestIncidentSummaryNoSession and TestIncidentSummaryClassification (Story 23.6; AC 6, AC 7, AC 9): the
+///     incident_summary tool, the second method of the class: the newest closed visible incident's rendered summary or none, another session's and the online demo's instance
+///     incident are none, the refusals of a call that is not a session's turn, and the gate's flags (safe, read-only, NOT trusted output);
 ///   - TestClassification (AC1): the gate classifies the tool safe, read-only and trusted output by code, the Watching toolset offers it once from its class, and
 ///     Eval.Report scores it read-only;
 ///   - TestDescription (AC1): the description names earlier failures, incidents, approvals, fixes and what happened.
@@ -503,6 +506,133 @@ Method TestUnreadableRuns()
 		}
 	}
 	Kill ^||RecentActivityUnread
+}
+
+/// The stored summary of a test incident: one part, the no-fix line, so that the text is one line that is the same on every channel.
+Parameter SUMMARY = "{""parts"":[{""key"":""summary.noFixRan"",""slots"":{}}],""lines"":[]}";
+
+/// Begins the context of a turn of the owner, calls incident_summary and gives the answer.
+Method CallSummary(owner As %String) As %DynamicObject [ Private ]
+{
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do ..Begin(owner, ##class(OcuTalon.Bridge.Ids).NewRef())
+	Quit ##class(OcuTalon.Tools.RecentActivity).IncidentSummary()
+}
+
+/// A closed incident of the owner, closed ago seconds ago, with the summary given.
+Method Closed(owner As %String, ago As %Integer, summary As %String = {..#SUMMARY}) As %String [ Private ]
+{
+	Quit ..Plain(owner, ago + 60, {"State": "closed", "ClosedAt": (##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -ago)), "Summary": (summary)})
+}
+
+/// incident_summary (Story 23.6; AC 6, AC 7): the answer is the rendered summary of the session's newest closed incident that has one; an incident with no
+/// summary, an incident that is not closed and the older summary are not chosen; with none the answer is {"outcome": "none"}.
+Method TestIncidentSummary()
+{
+	If '..Ready() Quit
+	Do ..SetOnlineDemo(0)
+	Set s = ..Session("summary")
+	Do ..Watch(s)
+	Do $$$AssertEquals(..CallSummary(s).%ToJSON(), {"outcome": "none"}.%ToJSON(), "with no incident the answer is none")
+	Do ..Plain(s, 120, {"State": "resolved"})
+	Do ..Closed(s, 3000, "")
+	Do $$$AssertEquals(..CallSummary(s).%ToJSON(), {"outcome": "none"}.%ToJSON(), "a resolved incident and a closed one with no summary give none")
+	Set older = ..Closed(s, 2000)
+	Set newest = ..Closed(s, 1000, "{""parts"":[{""key"":""summary.noFixRan"",""slots"":{}},{""key"":""summary.costUnknown"",""slots"":{}}],""lines"":[]}")
+	Set noSummary = ..Closed(s, 500, "")
+	Set answer = ..CallSummary(s)
+	Do $$$AssertEquals(answer.outcome, "summary", "the outcome is summary")
+	Do $$$AssertEquals(answer.text, ##class(OcuTalon.Watch.Summary).Text(newest, "web"), "the text is the newest summary, as Watch.Summary.Text renders it")
+	Do $$$AssertEquals(answer.text, "No fix ran, so nothing was changed."_$Char(10)_"Model cost of this incident: not known.", "which is the catalog's text, one line per part")
+	Do $$$AssertEquals(answer.production, "Orders", "the production is the display name of the watch, else the row's")
+	Do $$$AssertEquals(answer.closedAt, ##class(OcuTalon.Tools.CommandCall).TimeLabel(##class(OcuTalon.Data.Incident).RefIndexOpen(newest).ClosedAt, 0), "closedAt is the close time in the instance's time")
+	Do $$$AssertEquals(..Keys(answer), "closedAt,outcome,production,text", "and the answer has exactly these keys")
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Summary).Text(older, "web"), "No fix ran, so nothing was changed.", "the older incident has its own summary")
+}
+
+/// AC 7: another session's closed incident with a summary, and an instance incident on the online demo, are not S's: the answer is none; on a local install S sees the
+/// instance incident of the production it watches (AD-4).
+Method TestIncidentSummaryAnotherSession()
+{
+	If '..Ready() Quit
+	Set s = ..Session("sumown")
+	Set b = ..Session("sumother")
+	Do ..Watch(s)
+	Set others = ..Closed(b, 100, "{""parts"":[{""key"":""summary.costUnknown"",""slots"":{}}],""lines"":[]}")
+	Set shared = ..Closed("instance", 200)
+	Do ..SetOnlineDemo(1)
+	Do $$$AssertEquals(..CallSummary(s).%ToJSON(), {"outcome": "none"}.%ToJSON(), "on the online demo S sees neither B's summary nor the instance incident's")
+	Do $$$AssertEquals(..CallSummary(b).outcome, "summary", "B sees its own")
+	Do ..SetOnlineDemo(0)
+	Do $$$AssertEquals(..CallSummary(s).outcome, "summary", "on a local install S sees the instance incident of the production it watches")
+	Do $$$AssertEquals(..CallSummary(s).text, ##class(OcuTalon.Watch.Summary).Text(shared, "web"), "and not B's, which is newer and reads differently")
+	Do $$$AssertNotEquals(##class(OcuTalon.Watch.Summary).Text(others, "web"), ##class(OcuTalon.Watch.Summary).Text(shared, "web"), "B's summary is another text")
+	Set t = ..Session("sumunwatching")
+	Do $$$AssertEquals(..CallSummary(t).%ToJSON(), {"outcome": "none"}.%ToJSON(), "a session that watches nothing sees none")
+}
+
+/// No session: no context, the owner eval or instance, an empty owner and an empty ItemId answer NOSESSION, and nothing is read.
+Method TestIncidentSummaryNoSession()
+{
+	If '..Ready() Quit
+	Do ..SetOnlineDemo(0)
+	Set owner = ..Session("sumnosession")
+	Do ..Closed(owner, 60)
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set cases = $ListBuild(
+		$ListBuild("no context", 0, "", ""),
+		$ListBuild("the owner eval", 1, "eval", itemId),
+		$ListBuild("the owner instance", 1, "instance", itemId),
+		$ListBuild("an empty owner", 1, "", itemId),
+		$ListBuild("an empty ItemId", 1, owner, ""))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Do ##class(OcuTalon.Bridge.Context).End()
+		If $List(case, 2) Do ..Begin($List(case, 3), $List(case, 4))
+		Set answer = ##class(OcuTalon.Tools.RecentActivity).IncidentSummary()
+		Do ..AssertObject(answer, {"ok": false, "message": ($Parameter(..#CALL, "NOSESSION"))}, $List(case, 1))
+	}
+}
+
+/// AC 6, AC 9: the gate classifies incident_summary safe and read-only by code and NOT as trusted output (its text holds model-written and arriving text), the
+/// Watching toolset offers it once from this class, and the description names the summary and the none outcome.
+Method TestIncidentSummaryClassification()
+{
+	Set result = ##class(OcuTalon.Bridge.Policy.Gate).ClassificationOf(..#TOOL, "incident_summary")
+	Do $$$AssertEquals(result.%ToJSON(), {"classification": "safe", "readOnly": 1, "trustedOutput": 0, "by": "code"}.%ToJSON(), "incident_summary is safe, read-only and not trusted output, by code")
+	Set offered = 0
+	Set description = ""
+	Set tools = $ClassMethod(..#TOOLSET, "%New").%Discover().tools
+	Set iterator = tools.%GetIterator()
+	While iterator.%GetNext(, .tool) {
+		If tool.name '= "incident_summary" Continue
+		Set offered = offered + 1
+		Set description = $Replace($Replace(tool.description, $Char(13), ""), $Char(10), " ")
+		Do $$$AssertEquals(tool.provider, ..#TOOL, "incident_summary comes from "_..#TOOL)
+		Do $$$AssertEquals(tool.parameters.properties.%Size(), 0, "and takes no argument")
+	}
+	Do $$$AssertEquals(offered, 1, "and the Watching toolset offers it once")
+	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "INCIDENTSUMMARY"), "incident_summary", "under the name of Tools.Names")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).ReadOnly("incident_summary"), 1, "and the eval report scores it read-only")
+	Do $$$AssertTrue(description [ "incident summary", "the description names the incident summary")
+	Do $$$AssertTrue(description [ "outcome none", "and the none outcome")
+}
+
+/// The sorted, comma-separated member names of the object.
+ClassMethod Keys(object As %DynamicObject) As %String [ Private ]
+{
+	Set iterator = object.%GetIterator()
+	While iterator.%GetNext(.name) {
+		Set sorted(name) = ""
+	}
+	Set keys = ""
+	Set name = ""
+	For {
+		Set name = $Order(sorted(name))
+		Quit:name=""
+		Set keys = keys_$Select(keys = "": "", 1: ",")_name
+	}
+	Quit keys
 }
 
 /// AC1: the gate classifies recent_activity safe, read-only and trusted output by code, and the Watching toolset offers it once, from RecentActivity.

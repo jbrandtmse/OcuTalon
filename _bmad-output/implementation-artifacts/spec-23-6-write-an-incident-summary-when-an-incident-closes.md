@@ -2,9 +2,10 @@
 title: 'Story 23.6: Write an incident summary when an incident closes'
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '3071cd87f35e941fd5b824da26b2734c187fe771'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-23-context.md'
 warnings: [oversized]
@@ -118,10 +119,10 @@ deferred: []
 - AC12 (DW-877): Given a `FailureBatch` holding failures, when it is exported as XML, then the export succeeds and holds each failure; `Failure`'s storage block is unchanged.
 
 **Added at the spec gate from the Contest Planner's rulings (2026-11-09):**
-- [ ] Rendering: `{channel}` slots render "the web chat", "the Simulated phone", "Telegram" (the README's names), never an internal id; cause, evidence, fix and sample error render as plain text on every channel (escaped in the web chat; no parse mode or markup in Telegram); the sample error is cut to the incident notice's length; `summary.closedQuiet`'s 15 becomes a slot if the quiet period is a setting.
-- [ ] More to try fallback: with no resolved incident to close, the button sends "Show me the incident summary" to the chat (an e2e case in `web/e2e/guide/more-to-try.spec.ts`); if the lookFor text must change, HALT with an intent gap naming the new text (public text) instead of committing it.
-- [ ] README: the New since 1.0.0 bullet is appended LAST in that list; line 30's count, EXPERIENCE.md's item count and the `more-to-try-view.ts` header comment equal the registry's item count; every count pin this story adds or changes reads the registry, not a literal.
-- [ ] `EXPERIENCE.md`: this story writes its marked additive lines with the ruled texts (the item count, the new item bullet, the control clause with the fallback).
+- [x] Rendering: `{channel}` slots render "the web chat", "the Simulated phone", "Telegram" (the README's names), never an internal id; cause, evidence, fix and sample error render as plain text on every channel (escaped in the web chat; no parse mode or markup in Telegram); the sample error is cut to the incident notice's length; `summary.closedQuiet`'s 15 becomes a slot if the quiet period is a setting.
+- [x] More to try fallback: with no resolved incident to close, the button sends "Show me the incident summary" to the chat (an e2e case in `web/e2e/guide/more-to-try.spec.ts`); if the lookFor text must change, HALT with an intent gap naming the new text (public text) instead of committing it.
+- [x] README: the New since 1.0.0 bullet is appended LAST in that list; line 30's count, EXPERIENCE.md's item count and the `more-to-try-view.ts` header comment equal the registry's item count; every count pin this story adds or changes reads the registry, not a literal.
+- [x] `EXPERIENCE.md`: this story writes its marked additive lines with the ruled texts (the item count, the new item bullet, the control clause with the fallback).
 - AC13: Given a summary with an approval answered from each channel, when it renders, then `{channel}` reads "the web chat", "the Simulated phone" or "Telegram", never an internal id.
 - AC14: Given an incident whose evidence line, cause and sample error contain markup (for example `<b>x</b>` and `*y*`), when the summary is delivered to the web chat, the Simulated phone and Telegram, then each shows the text literally (escaped in the web chat; Telegram sent with no parse mode), and the sample error is no longer than in the incident notice; one test per channel.
 - AC15: Given the online demo, when a summary renders an answered request, then no line carries an IRIS user name (`summary.approved`/`summary.rejected` only); on a local install with `AnsweredBy` known, `summary.approvedBy`/`summary.rejectedBy` name the user; one test.
@@ -137,6 +138,46 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-09 — Review pass
+- verdicts: 36 findings — high 0, medium 6, low 23, false 7, maybe-false 0
+- findings:
+  - `[low]` `reject` Blind: CHANNELNAMES also maps mailbox and email, untested — "the Simulated mailbox" is the README's name; the unnamed-channel path is now pinned by TestAnswerEdges; a line for an unrulled channel would need a ruled text.
+  - `[low]` `reject` Blind: Close the incident can do nothing while a turn is in flight; lookFor says it closes — the lookFor text is ruled verbatim; the fallback is the Planner's ruling; no realistic harm.
+  - `[low]` `reject` Blind: only the sample error is length-capped — cause, evidence and fix come from the stored diagnosis, which is bounded by its own producer; the ruling asks the cut for the sample error only.
+  - `[false]` `reject` Blind: non-fallback incident with empty cause gets no cause statement — the matrix and Design Notes give summary.noCause to the fallback only; the cause line is omitted when empty by design.
+  - `[low]` `reject` Blind: closedQuiet's 15 is a literal while QUIETSECONDS is 900 — QUIETSECONDS is a Parameter (a constant), so the ruling's literal stands; no setting can change it.
+  - `[medium]` `patch` Blind: several Build branches untested — fixed with TestTimelineOrder, TestRunEdges, TestGroupsOnlyWithoutFix, TestAnswerEdges and TestMarkup in Test.Watch.Summary (mutations demonstrated, see Verification).
+  - `[false]` `reject` Blind: cost may understate when more decisions exist — the spec fixes the cost basis as Incident.DecisionRef (AC2, "today only DecisionRef"); no other decision is recorded for an incident today.
+  - `[false]` `reject` Blind: the model regenerates the tool text — by design (AD-10: the tool returns values, the Chat instruction says to give the text as it is); the code-built card path is the other channel.
+  - `[low]` `patch` Blind: JSDoc of 08-quiet-outcomes.spec.ts misplaced — moved the quietNotes block above the suite's doc block.
+  - `[low]` `reject` Blind: Auto Run Result still read ready-for-dev and the AC5/AC6/AC10 mutation notes are thin — the result is written at finalize; AC5/AC6 are demonstrated on their pinning classes, AC10 is CI.
+  - `[low]` `reject` Edge: Usage.Totals read failure shows a cost of 0 — Totals is a Lane B file outside the footprint and answers rows 0 on an SQL error; an SQL error on a plain SELECT has no realistic path.
+  - `[false]` `reject` Edge: re-diagnosis overwrites DecisionRef, lowering the cost — the spec ties the cost to Incident.DecisionRef; same as above.
+  - `[false]` `reject` Edge: Interrupted above 0 with EndedAt empty skips fixInterrupted — FixRun.Mark sets Interrupted and ends the run in the same save (FixRun doc comment), so the combination is transient and never closed over.
+  - `[low]` `reject` Edge: a row time that is not a UTC time drops its line silently — every time is written by Data.Time in that format; no user-reachable path.
+  - `[low]` `reject` Edge: an answer from an unnamed channel is missing from the timeline — the answer channels of a fix approval are web, phone and Telegram; the line needs a ruled text for any other channel, so it stays left out and TestAnswerEdges pins it.
+  - `[low]` `reject` Edge: incident_summary scans only the 100 newest incidents — the spec fixes the read as Ownership.RecentIncidents(owner, READMAX); a user with over 100 newer incidents is not a realistic case.
+  - `[low]` `reject` Edge: Closing sets ClosedAt and Summary before a Move whose save may fail — a failed save leaves the in-memory row unused; the next command reopens the row from disk.
+  - `[false]` `reject` Edge: an unnoticed incident gets a summary but no notification — Transitions allows no close of an unnoticed incident (Dismiss is not_allowed while unnoticed; the replay and quiet rules read resolved or noticed rows).
+  - `[low]` `reject` Edge: AC5 mutation lands in WebChatOut, not Closing — Closing reads the same CARDKINDS in the running production and passes on a fresh stack; the line says so.
+  - `[low]` `reject` Edge: AC2 claims "decisions" but sums one — the spec's own note ("today only Incident.DecisionRef").
+  - `[medium]` `patch` Gap: the timeline sort is not pinned — added TestTimelineOrder (two requests out of time order); mutation recorded.
+  - `[medium]` `patch` Gap: interrupted and not-ended fix runs untested — added TestRunEdges; mutation recorded.
+  - `[medium]` `patch` Gap: groups-only-without-a-fix has no ran-side test — added TestGroupsOnlyWithoutFix; mutation recorded.
+  - `[medium]` `patch` Gap: answer-line and request-line branches untested — added TestAnswerEdges (unnamed channel, cancelled, pending, executing, done, failed, affected count, no count).
+  - `[medium]` `patch` Gap: AC14 markup never passes through Build — added TestMarkup (cause, evidence, fix and sample error on three channels); mutation recorded.
+  - `[low]` `reject` Gap: More to try blocked case and newest-of-several untested — an e2e case would only run in CI; the blocked case is a no-send by design and a wrong card is cosmetic; no realistic harm.
+  - `[low]` `patch` Gap: "and not B's" cannot fail (same text, B older) — B's incident now has another text and is newer (TestIncidentSummaryAnotherSession).
+  - `[low]` `reject` Gap: TestIncidentSummary's older-incident assertion cannot fail from a tool defect — a harmless sanity check; the newest-wins check is the answer.text comparison above it.
+  - `[low]` `reject` Gap: TestPurge repeats the Exists assertion for the summary — harmless duplicate, the column lives on the row.
+  - `[low]` `reject` Gap: classification test checks the doc comment wording — the comment is the tool description the model reads; pinning it is intended.
+  - `[low]` `reject` Gap: whole-table Decision and Usage counts could flake under a concurrent writer — the class runs alone in a namespace with no production; no concurrent writer exists in the unit tests.
+  - `[low]` `reject` Gap: K26 relies on K25's cleanup and a fixed sleep — Playwright runs one worker, K25 cleans in finally; the sleep follows a settled UI.
+  - `[low]` `patch` Gap: no mutation lines for AC13-AC18 — written in Verification after demonstrating each (AC16 CI, AC17 harness).
+  - `[low]` `reject` Gap: AC5, AC6 and AC10 mutation demonstrations are thin — each is demonstrated on its pinning class; AC10 is the CI e2e.
+  - `[false]` `reject` Gap: docs/security-overview.md edited by hand — Test.Install.SecurityOverview compares it to the generated table and passes.
+  - `[low]` `reject` Intent: the judge-visible path is covered by a seeded e2e and the online spec is not updated — descriptive; AC10 names more-to-try.spec.ts K25/K26 and the online filters were checked; nothing to patch.
+
 ## Design Notes
 
 **Architecture decisions:** AD-4 (ownership, no user name in production messages), AD-10 (read-only, untrusted tool through the gate), AD-11 (approval rows are the answer source), AD-15 (IncidentManager is the one writer; the close rows of the transition table), AD-16 (FixRun counts), AD-20 (cost from usage rows, per incident), AD-22 (tool name in the CI mock), AD-27 (purge with the incident), AD-29/AD-33 (lane ownership; see Veto-window items), AD-32 (notification contract, catalog, renderer).
@@ -147,7 +188,7 @@ deferred: []
 
 **Part order.** title; one line per timeline event sorted by time (first failure `FirstAt`; notice `NoticedAt`; each request `RaisedAt`; its answer `AnsweredAt`, or `ExpiresAt` for an expired one; each FixRun `StartedAt` and `EndedAt`, interrupted or ended; closing `closedAt`); cause and element, or no cause; evidence (the first evidence line of the diagnosis payload, omitted when none); sample error (omitted when empty); fix (`FixSummary`) or no fix ran; groups (fallback and no fix ran only); messages (failed = `Count`; resent, completed, failed again and skipped summed over FixRuns); cost. A cancelled request shows only its raised line. Page and acknowledgement lines do not exist until Story 23.4 adds rows; the timeline sort leaves room for them.
 
-**Decided in-stage.** (1) The summary is a column on `Incident`, not a table: "stored with the incident", purged by the existing row delete. (2) Cost when the decision has no usage rows is `$0` through `summary.cost`; an empty `CostUSD` row gives `summary.costUnknown`. (3) The answerer is named on a local install whenever `AnsweredBy` is known (a summary is a record to share), never on the online demo. (4) The tool takes no arguments and answers the newest closed visible incident with a summary (the CI mock sends static input). (5) The tool renders with channel `web`; no summary key has a `web` variant, so the text is the same on every channel. (6) The More to try item is first, because it continues the incident the visitor has just finished; the Planner may rule it last, and the tests follow the ruled order. (7) The panel is not at capacity: there is no item cap, and the panel scrolls in its own window (`more-to-try-room.ts`); no grouping is proposed. (8) No Task 0: every uncertain path was settled by reading code (above).
+**Decided in-stage.** (1) The summary is a column on `Incident`, not a table: "stored with the incident", purged by the existing row delete. (2) Cost when the decision has no usage rows is `$0` through `summary.cost`; an empty `CostUSD` row gives `summary.costUnknown`. (3) The answerer is named on a local install whenever `AnsweredBy` is known (a summary is a record to share), never on the online demo. (4) The tool takes no arguments and answers the newest closed visible incident with a summary (the CI mock sends static input). (5) The tool renders with channel `web`; no summary key has a `web` variant, so the text is the same on every channel. (6) The More to try item is first, because it continues the incident the visitor has just finished; the Planner may rule it last, and the tests follow the ruled order. (7) The panel is not at capacity: there is no item cap, and the panel scrolls in its own window (`more-to-try-room.ts`); no grouping is proposed. (8) No Task 0: every uncertain path was settled by reading code (above). (9) Implement-stage decisions: the `{channel}` slots of the summary are `text` slots holding the README's names ("the web chat", "the Simulated phone", "Telegram"), made by `Watch.Summary`, because the catalog's `channel` type renders the phone as "the simulated phone" (lower case) and changing it would touch the shared renderer; an answer from a channel with no name gets no answer line rather than an internal id. (10) `summary.groups` is left out when the incident has no failure group (the catalog refuses an empty list), and `summary.requested` is left out when the request's dry run holds no resend or affected count; neither fails the build. (11) `Data.Ownership` `RecentNotices` lists the web Delivery rows of kind `summary` (with a message id) so that a reload shows the card, as it does for a digest; `Notice.Common`/`Groups` gained the small public surface the builder reuses (`Common` public, `Groups` with `every`, new `Notice.Noun` shared with `IncidentManager.Noun`). (12) With no resolved incident card the More to try control sends "Show me the incident summary" (the Planner's ruling 2) instead of focusing the newest summary notice card (the Task line, superseded); the control is not `aria-disabled` in that fallback, it sends nothing while a turn is in flight or the allowance is used up. (13) The approved lookFor text is unchanged: it does not mention the fallback.
 
 **Extend, don't copy.** The builder `Watch.Summary` is a sibling of `Watch.Notice` and reuses its groups slot building and result counts instead of copying them; rendering reuses `Channel.DigestText.Text` unchanged (summary slots carry an empty `lines`); the tool is a method of `Tools.RecentActivity`, reusing its session and ownership reads; tests reuse `Test.Data.Fixture` and `IncidentProbe`.
 
@@ -234,7 +275,7 @@ README, `README.md`:
 
 ## Verification
 
-Run from `/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/epic-23`, one command per call with `timeout: 600000`, each finishing in about 150 s; never two test runs in one message. Prefix every `ci/` call with `OCUTALON_LOCK_DIR=/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/.coordination/locks/lane-d OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=23 stage=implement'`. Fresh tag `e23s6i`, warm tag `e23s6iw`; at the end `ci/warm.sh down`, then `ci/iris.sh teardown` with `e23s6i`. Every IRIS MCP call names `server` `ocutalon-slot-d` and `namespace` `OCUTALON`.
+Run from the epic-23 worktree root, one command per call with `timeout: 600000`, each finishing in about 150 s; never two test runs in one message. Prefix every `ci/` call with `OCUTALON_LOCK_DIR=<the lane-d lock folder of the dispatch> OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=23 stage=implement'`. Fresh tag `e23s6i`, warm tag `e23s6iw`; at the end `ci/warm.sh down`, then `ci/iris.sh teardown` with `e23s6i`. Every IRIS MCP call names `server` `ocutalon-slot-d` and `namespace` `OCUTALON`.
 
 **Shared surfaces:** `Incident`'s storage block; `Msg.Enum` `NOTIFICATIONKIND`; the catalog key count and `Test.Msg.Catalog` Fixtures ("163 keys"); the tool lists and counts in `Test.Agent.Constants` (19), `Test.Agent.Instructions` `TestToolsets` (15), `Test.Agent.Runners` `REMINDERTOOLS`/`TestToolInventory`, `Test.Watch.Tools` ("seven tools"), `Test.Bridge.Gate` `READONLYTOOLS`, `Test.Install.SecurityOverview` (and `docs/security-overview.md`, regenerated when a check compares its tool list); the notifications `IncidentProbe` records on a close in `Test.Watch.Lifecycle` and the double in `Test.Demo.BreakFeedIn`; the WebChatOut/SimPhoneOut/TelegramOut kind lists and their tests; the More to try registry (seven-item pins in `web/scripts/more-to-try-view.test.mjs`, `more-to-try-sources.test.mjs`, `web/e2e/guide/more-to-try.spec.ts`, `Test.Demo.Features` "the seven in order"); the phone-note counts of `web/e2e/demo-path/05`, `07`, `08` and `web/e2e-online/demo-path/demo-path.spec.ts` step 7 (the summary's wording avoids their filters; spec 07's Break the feed press now also delivers a summary).
 
@@ -251,7 +292,40 @@ Every test added or changed passes on a fresh environment, in either order.
 
 **Mutations (Rule 19), one per AC, recorded as `mutation: <change> -> <test red>`:** AC1 drop the closing line -> `Test.Watch.Summary`; AC2 add 0.01 to the cost slot -> the cost assertion; AC3 omit `summary.groups` for a fallback -> `Test.Watch.Summary`; AC4 send the notice only when `OwnerRef` is a session -> the instance case in `Test.Watch.Lifecycle`; AC5 leave `summary` out of `CARDKINDS` -> `Test.Watch.Closing`; AC6 set `TRUSTEDOUTPUTINCIDENTSUMMARY` 1 -> `Test.Bridge.Gate`; AC7 read `RecentIncidents` without the owner -> the second-session case; AC8 skip the purge cutoff check -> `Test.Watch.Lifecycle:TestPurge`; AC9 remove the Names line -> `Test.Agent.Constants`; AC10 the item presses nothing -> `more-to-try.spec.ts` (CI); AC11 n/a (text); AC12 remove `%XML.Adaptor` -> the DW-877 case.
 
+mutation: AC1 drop the closing line (the `Event` call for `closedAt` in `Watch.Summary.Build`) -> `Test.Watch.Summary` red (TestClosingLines, TestFixedDismissed, TestFallback, TestNoFixVariants); reverted, tree byte-identical.
+mutation: AC2 add 0.01 to the cost slot (`Summary.Cost`) -> `Test.Watch.Summary:TestFixedDismissed` red ("the cost is the sum of the two usage rows"); reverted, tree byte-identical.
+mutation: AC3 omit `summary.groups` for a fallback incident (groups only when `'ran && 'Fallback`) -> `Test.Watch.Summary:TestFallback` red; reverted, tree byte-identical.
+mutation: AC4 send no summary Notification for an `instance` incident (`IncidentManager.Closing`) -> `Test.Watch.Lifecycle:TestInstanceDismiss` red ("one summary Notification per watcher"); reverted, tree byte-identical.
+mutation: AC5 leave `summary` out of `WebChat.Out` `CARDKINDS` -> `Test.Core.WebChatOut:TestSummaryCard` red (six assertions); `Test.Watch.Closing` reads the same code in the running production and is pinned by the fresh-stack run; reverted, tree byte-identical.
+mutation: AC6 set `TRUSTEDOUTPUTINCIDENTSUMMARY` 1 -> `Test.Bridge.Gate:TestFlagsAreListed` red; reverted, tree byte-identical.
+mutation: AC7 read `RecentIncidents` for another owner (`"instance"`) in `IncidentSummary` -> `Test.Tools.RecentActivity:TestIncidentSummaryAnotherSession` red; reverted, tree byte-identical.
+mutation: AC8 ignore the purge cutoff (`IncidentManager.Purge` sets a cutoff in the year 9999) -> `Test.Watch.Lifecycle:TestPurge` red ("the one closed 89 days ago stays"); reverted, tree byte-identical.
+mutation: AC9 remove the `INCIDENTSUMMARY` line of `Tools.Names` -> `Test.Agent.Constants:TestToolNames` red ("there are 20 tool names"); reverted, tree byte-identical.
+mutation: AC10 the item presses nothing -> `web/e2e/guide/more-to-try.spec.ts` K25 (CI, not run here).
+mutation: AC12 remove `%XML.Adaptor` from `Watch.Msg.Failure` -> `Test.Watch.Poller:TestBatchExportsAsXml` red (ERROR #6249); reverted, tree byte-identical.
+mutation: AC1 (timeline order) key the timeline by sequence alone in `Watch.Summary.Event` -> `Test.Watch.Summary:TestTimelineOrder` red (two assertions); reverted, tree byte-identical.
+mutation: AC1 (interrupted fix) never read `Interrupted` in `Watch.Summary.RunEvents` -> `Test.Watch.Summary:TestRunEdges` red; reverted, tree byte-identical.
+mutation: AC3 (groups only without a fix) list the groups whenever the incident has any -> `Test.Watch.Summary:TestGroupsOnlyWithoutFix` red; reverted, tree byte-identical.
+mutation: AC13 the phone's name is "phone" in `Watch.Summary` `CHANNELNAMES` -> `Test.Watch.Summary:TestChannelNames` red; an unnamed channel falls back to its internal id -> `TestAnswerEdges` red; reverted, tree byte-identical.
+mutation: AC14 `Watch.Summary.Clean` removes `<`, `>` and `*` -> `Test.Watch.Summary:TestMarkup` red (stored slots and the rendered lines of the three channels); the per-channel delivery cases (`Test.Core.WebChatOut:TestSummaryCard`, `Test.Demo.SimPhoneOut:TestSummaryMessage`, `Test.Channel.TelegramOut:TestSummary`) pin each channel's text and, for Telegram, the absence of a parse mode; reverted, tree byte-identical.
+mutation: AC15 name the answerer on the online demo too (drop the `'onlineDemo` test) -> `Test.Watch.Summary:TestUserName` red; reverted, tree byte-identical.
+mutation: AC16 the item presses nothing when no card is resolved -> `web/e2e/guide/more-to-try.spec.ts` K26 (CI, not run here).
+mutation: AC17 n/a here: `live:install-upgrade` (CI) runs the upgrade harness; the empty-summary read is pinned by `Test.Watch.Summary:TestText` and `Test.Tools.RecentActivity:TestIncidentSummary` (a closed incident with no summary gives none).
+mutation: AC18 README line 30 says "seven more things" -> `web/scripts/more-to-try-view.test.mjs` "counts the items by the registry" red; reverted, tree byte-identical.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** On every accepted move into `closed`, `IncidentManager.Closing` builds the incident's summary in code (`Watch.Summary.Build`, no model request), stores it in `Incident.Summary` (storage slot 29) in `Move`'s one save with `ClosedAt`, and sends one `summary` Notification (`summary.title`, no slots) per recipient. WebChat, SimPhone and Telegram `Out` render the stored summary through `Watch.Summary.Text` and `DigestText`; Telegram sends it as plain text. The read-only, untrusted `incident_summary` tool returns it for the session's newest closed visible incident. More to try gains the first item "Read the incident summary" (closes the guide's resolved incident, else sends "Show me the incident summary"). DW-877: `Watch.Msg.Failure` extends `%XML.Adaptor`.
+
+**Files changed.** Core: `Watch/Summary.cls` (new builder and reader), `Watch/IncidentManager.cls` (`Closing`), `Watch/Notice.cls` (`Common`, `Noun`, `Groups` extended), `Data/Incident.cls` (`Summary`), `Data/Ownership.cls` (web summary cards survive a reload), `Msg/Enum.cls`, `Msg/Catalog/Watch.cls` (26 keys), `Watch/Msg/Failure.cls`; channels `Channel/{WebChat,SimPhone,Telegram}/Out.cls`; tool `Tools/{Names,RecentActivity,Watching}.cls`, `Agent/Chat.cls`, `ci/mock/scenarios/A/incident-summary.json`, `docs/security-overview.md`; demo `Demo/Features.cls`; web `chat/*`, `guide/*`; README line 30 and bullet; EXPERIENCE.md marked lines; tests in `Test/**`, `web/scripts`, `web/e2e`.
+
+**Review.** 36 findings: patches applied 9 (medium 6, low 3: the JSDoc move, the "not B's" assertion and the AC13-AC18 mutation lines), items deferred 0, rejected the rest with the reasons in the Review Triage Log.
+
+**Follow-up review recommended: true.** Unverified risk: the browser units (`web/e2e/guide/more-to-try.spec.ts` K25 and K26, `web/e2e/chat/notice.spec.ts` N20, the demo-path specs) and `live:install-upgrade`, the shards and the fresh-environment check are CI-only and not run here.
+
+**Verification performed.** Warm: `Test.Watch.Summary`, `Lifecycle`, `Poller`, `Msg.Catalog`, `Tools.RecentActivity`, `Agent.Constants`, `Agent.Instructions`, `Watch.Tools`, `Bridge.Gate`, `Install.SecurityOverview`, `Channel.TelegramOut`, `Core.WebChatOut`, `Demo.SimPhoneOut`, `Demo.Features`, `Demo.Guide`, `Demo.BreakFeedIn` all passed; fresh: `Watch.Closing`, `Tools.RecentActivityTurn`, `Agent.Runners` passed. `node --test` of the five web scripts (191 tests), `docker/tests/test-mock.sh` (134), `test-storage.sh`, `test-boundaries.sh` and `npm --prefix web run lint` passed. After the patches: `Test.Watch.Summary` and `Test.Tools.RecentActivity` green again on the warm stack; warm and fresh throwaways torn down.
+
+**Residual risks.** A summary cost counts the diagnosis decision only (the spec's basis); an answer from a channel other than web, phone, Telegram, mailbox or email gets no answer line; the More to try fallback button sends nothing while a turn is in flight.

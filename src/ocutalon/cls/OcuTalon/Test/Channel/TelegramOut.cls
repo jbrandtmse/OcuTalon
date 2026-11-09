@@ -23,6 +23,8 @@
 ///     name and an unknown key are as the Boundaries say; with the online demo on the time is followed by " ET"; a row with an entry only,
 ///     one with a time and no finding, one with no entry, and CheckRows that are not a JSON array give the literal forms of the Boundaries;
 ///     checks.notEverything with a failed row names it with nothing after, and checks.everythingElsePassed gives its catalog text;
+///   - TestSummary (Story 23.6; AC 14): a summary Notification is one plain-text message to the paired chat with the stored summary's lines and the markup of the
+///     cause, the evidence and the sample error as it is, no parse_mode and no buttons; a missing summary sends nothing;
 ///   - TestOtherKinds: a Notification of kind status or fallback sends nothing and records no row, where one of kind tellnow does;
 ///   - TestButtons (Story 12.7; AC1): an incident notice and a later approval request with an ApprovalRef go as one sendMessage whose
 ///     reply_markup holds the Approve and Reject buttons with callback data approve:<Ref> and reject:<Ref>; a 5,000-character request notice
@@ -578,6 +580,62 @@ Method TestCheckSentence()
 		Do $$$AssertTrue(0, "the check-sentence test failed: "_..Safe(ex))
 	}
 	Do $ClassMethod(settings, "Set", "onlineDemo", savedDemo)
+	Do ..Cleanup()
+}
+
+/// An incident summary (Story 23.6; AC 14): a Notification of kind summary goes to the session's paired chat as one plain-text message, whose text is
+/// OcuTalon.Watch.Summary.Text(IncidentRef, "telegram"): the stored summary's lines with the markup of the cause, the evidence and the sample error left as it is,
+/// with no parse_mode, no entities and no reply_markup (no Approve or Reject), and a Delivery row of the kind summary with no text. A summary that is missing sends
+/// nothing and is an error.
+Method TestSummary()
+{
+	If '..ReadyLive() Quit
+	Set incident = ""
+	Try {
+		Set chatId = 8631
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Set parts = [{"key": "summary.title", "slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders"}}, {"key": "summary.cause", "slots": {"cause": "The partner sent <b>x</b> and *y* in the date."}}, {"key": "summary.evidence", "slots": {"evidence": "OrderDate was <i>16/10/2026</i> and _z_ [a](b)"}}, {"key": "summary.sampleError", "slots": {"error": "Field `OrderDate` was not a date."}}, {"key": "summary.messages", "slots": {"failed": 50, "resent": 50, "completed": 50, "failedAgain": 0, "skipped": 0}}]
+		Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(session, , , , {"State": "closed", "ClosedAt": (##class(OcuTalon.Data.Time).NowUtc()), "Summary": ({"parts": (parts), "lines": []}.%ToJSON())})
+		Set expected = "Incident summary: 50 orders failed in Orders."
+			_$Char(10)_"Cause: The partner sent <b>x</b> and *y* in the date."
+			_$Char(10)_"Evidence: OrderDate was <i>16/10/2026</i> and _z_ [a](b)"
+			_$Char(10)_"Sample error: Field `OrderDate` was not a date."
+			_$Char(10)_"Messages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped."
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set notice = ##class(OcuTalon.Msg.Notification).%New()
+		Set notice.SessionRef = session
+		Set notice.Kind = "summary"
+		Set notice.CatalogKey = "summary.title"
+		Set notice.Slots = "{}"
+		Set notice.IncidentRef = incident
+		Set notice.DecisionRef = ..NewRef()
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Send("TelegramOut", notice, .response), "the summary is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 1, "one sendMessage")
+		If calls.%Size() = 1 {
+			Set params = calls.%Get(0).params
+			Do $$$AssertEquals(params.text, expected, "the text is the stored summary's lines, exactly as written")
+			Do $$$AssertEquals(params.text, ##class(OcuTalon.Watch.Summary).Text(incident, "telegram"), "and Watch.Summary.Text for Telegram")
+			Do $$$AssertEquals(params.%IsDefined("parse_mode")_"|"_params.%IsDefined("entities")_"|"_params.%IsDefined("reply_markup"), "0|0|0", "with no parse_mode, no entities and no buttons")
+		}
+		Do $$$AssertEquals(..Rows(session), "summary||"_ref_":"_..LastId(chatId), "the Delivery row is of the kind summary, with no approval Ref")
+		Set rows = ..TelegramRows(session)
+		Do $$$AssertEquals(rows.Count()_"|"_rows.GetAt(1).Text, "1|", "and keeps no text")
+		Set bare = ##class(OcuTalon.Test.Data.Fixture).Incident(session, , , , {"State": "closed"})
+		Set missing = ##class(OcuTalon.Msg.Notification).%New()
+		Set missing.SessionRef = session
+		Set missing.Kind = "summary"
+		Set missing.CatalogKey = "summary.title"
+		Set missing.Slots = "{}"
+		Set missing.IncidentRef = bare
+		Do $$$AssertStatusNotOK(##class(OcuTalon.Test.Agent.RunnerFixture).Send("TelegramOut", missing, .response), "an incident with no summary is an error")
+		Do $$$AssertEquals(..SentTo(chatId).%Size(), 1, "and nothing more is sent")
+		Do ##class(OcuTalon.Test.Data.Fixture).Clean(bare)
+	} Catch ex {
+		Do $$$AssertTrue(0, "the summary test failed: "_..Safe(ex))
+	}
+	If incident '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(incident)
 	Do ..Cleanup()
 }
 

@@ -2,6 +2,7 @@
 /// the features this instance has, from what the server already knows, and it runs no SQL and writes nothing (no row, no global, no lock, no
 /// setting). Demo.Guide.View puts the list into GuideState.Features, so it rides /v1/state and the guide.state event.
 /// The ids, in this order, each listed only when its condition holds:
+///   - incidentSummary (Story 23.6): always, first, because it closes the guide's incident and shows its summary, a control of this demo shipped in the same package;
 ///   - persona: the class of the Set persona command is compiled (Epic 40);
 ///   - suspiciousEmail, rejectFix, demoView: always, because they are this demo's own controls, shipped in the same package as this class;
 ///   - memory: the memory operation is compiled and is not a stub (its STUB parameter, AD-29, is not 1);
@@ -37,7 +38,7 @@ ClassMethod Present() As %List
 /// that is absent or false leaves its id out.
 ClassMethod Ids(has As %DynamicObject) As %List
 {
-	Set ids = ""
+	Set ids = $ListBuild("incidentSummary")
 	If has.%Get("persona") Set ids = ids _ $ListBuild("persona")
 	Set ids = ids _ $ListBuild("suspiciousEmail", "rejectFix", "demoView")
 	If has.%Get("memory") Set ids = ids _ $ListBuild("memory")

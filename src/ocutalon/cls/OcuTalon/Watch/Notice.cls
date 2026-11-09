@@ -335,8 +335,8 @@ ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, no
 	Quit slots
 }
 
-/// The slots every notice has: count, time and itemNoun.
-ClassMethod Common(incident As OcuTalon.Data.Incident, Output sc As %Status) As %DynamicObject [ Private ]
+/// The slots every notice has: count, time and itemNoun. The summary of a closed incident (Watch.Summary) reads its itemNoun.
+ClassMethod Common(incident As OcuTalon.Data.Incident, Output sc As %Status) As %DynamicObject
 {
 	Set sc = $$$OK
 	If incident.FirstAt = "" {
@@ -355,6 +355,28 @@ ClassMethod Common(incident As OcuTalon.Data.Incident, Output sc As %Status) As 
 	Quit {"count": (+$Select(incident.NoticeCount '= "": incident.NoticeCount, 1: incident.Count)), "time": (incident.FirstAt), "itemNoun": (noun)}
 }
 
+/// The item noun {"one", "other"} of a request: the itemNoun of the request's stored dry run (JSON text), else the incident's ItemNoun, else the code noun of an
+/// empty body class (the first that is an object with both forms).
+ClassMethod Noun(incident As OcuTalon.Data.Incident, dryRun As %String = "") As %DynamicObject
+{
+	For source = 1, 2 {
+		Set noun = ""
+		Try {
+			If source = 1 {
+				If dryRun '= "" Set noun = {}.%FromJSON(dryRun).itemNoun
+			} ElseIf incident.ItemNoun '= "" {
+				Set noun = {}.%FromJSON(incident.ItemNoun)
+			}
+		} Catch {
+			Set noun = ""
+		}
+		If $IsObject(noun) && noun.%IsA("%Library.DynamicObject") && (noun.one '= "") && (noun.other '= "") Quit
+		Set noun = ""
+	}
+	If '$IsObject(noun) Set noun = {}.%FromJSON(##class(OcuTalon.Watch.ItemNoun).For(""))
+	Quit noun
+}
+
 /// The fallback reason of the incident as the catalog takes it: its own when it is one of Msg.Enum FALLBACKREASON, else unusable.
 ClassMethod Reason(incident As OcuTalon.Data.Incident) As %String
 {
@@ -364,16 +386,16 @@ ClassMethod Reason(incident As OcuTalon.Data.Incident) As %String
 }
 
 /// The groups slot: one {itemName, count, errorSummary, firstAt} per group that has a NoticeCount, in the order of the list. "" with an error in sc when
-/// no group is left.
-ClassMethod Groups(incident As OcuTalon.Data.Incident, groups As %ListOfObjects = "", Output sc As %Status) As %DynamicArray
+/// no group is left. With every 1 (the summary of a closed incident, Story 23.6), a group that has no NoticeCount is listed too, with its Count.
+ClassMethod Groups(incident As OcuTalon.Data.Incident, groups As %ListOfObjects = "", Output sc As %Status, every As %Boolean = 0) As %DynamicArray
 {
 	Set sc = $$$OK
 	If '$IsObject(groups) Set groups = ##class(OcuTalon.Data.FailureGroup).OfIncident(incident.Ref)
 	Set lines = []
 	For i = 1:1:groups.Count() {
 		Set group = groups.GetAt(i)
-		If group.NoticeCount = "" Continue
-		Do lines.%Push({"itemName": (group.ItemName), "count": (+group.NoticeCount), "errorSummary": ($Select(group.ErrorSummary '= "": group.ErrorSummary, 1: ..#NOERRORTEXT)), "firstAt": ($Select(group.FirstAt '= "": group.FirstAt, 1: incident.FirstAt))})
+		If (group.NoticeCount = "") && 'every Continue
+		Do lines.%Push({"itemName": (group.ItemName), "count": (+$Select(group.NoticeCount '= "": group.NoticeCount, 1: group.Count)), "errorSummary": ($Select(group.ErrorSummary '= "": group.ErrorSummary, 1: ..#NOERRORTEXT)), "firstAt": ($Select(group.FirstAt '= "": group.FirstAt, 1: incident.FirstAt))})
 	}
 	If lines.%Size() = 0 {
 		Set sc = $SYSTEM.Status.Error(5001, "The incident "_incident.Ref_" has no failure group that settled")

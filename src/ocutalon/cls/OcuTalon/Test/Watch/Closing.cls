@@ -6,6 +6,8 @@
 ///     changes nothing; the Dismiss of A, submitted through Commands.Submit with origin web_user, is answered by CommandsIn and IncidentManager at once: Ok 1,
 ///     closed, and the row is closed. The newest incident event on A's stream is closed. A same-cause batch then makes a second incident with a new Ref, and one
 ///     Notification carries that Ref.
+///     Since Story 23.6 (AC 5) the close also stores the incident's summary and WebChatOut records A's Delivery row of kind summary (text: the rendered summary with its
+///     line breaks); B has none.
 ///   - TestRejectThroughTheHold: A's fixture incident is noticed and awaiting approval, and a real fix request (Approval.Raise, with the probe sink and
 ///     ResultTarget IncidentManager) is raised for it and listed in the incident's RequestRefs. The ANSWERER account's Answer (reject) ends the real hold, which
 ///     sends the ApprovalOutcome to IncidentManager: the incident is open with the variant rejected, and an incident event for it reaches A's stream.
@@ -76,6 +78,20 @@ Method TestDismissThroughCommandsIn()
 	Do $$$AssertEquals(events.%Size(), 2, "A's stream holds a second incident event")
 	If events.%Size() = 2 Do $$$AssertEquals(events.%Get(1).payload.ref_"|"_events.%Get(1).payload.state_"|"_events.%Get(1).payload.openVariant, ref_"|closed|", "the newest is the incident, closed, with no variant")
 
+	#; Story 23.6 (AC 5): the close stored the summary and sent one summary Notification to A, which WebChatOut records as A's card, with its line breaks.
+	Set card = ..SummaryCard(a, ..#WAITINCIDENT)
+	Do $$$AssertTrue($IsObject(card), "WebChatOut records A's summary card")
+	If $IsObject(card) {
+		Set stored = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref).Summary
+		Do $$$AssertTrue(stored [ "summary.closedDismiss", "the incident's row holds its summary, closed with Dismiss")
+		Do $$$AssertEquals(card.Text, ##class(OcuTalon.Watch.Summary).Text(ref, "web"), "the card's text is the rendered summary: "_card.Kind_"|"_card.ChannelMessageId_"|"_$Extract(card.Text, 1, 200))
+		Do $$$AssertTrue(($Length(card.Text, $Char(10)) > 4) && (card.Text [ "Incident summary: "), "with its title and its line breaks")
+		Do $$$AssertTrue(card.Text [ ": closed with Dismiss.", "and the closing line")
+		Do $$$AssertTrue(card.Text [ "No fix ran, so nothing was changed.", "and, for this no-fix incident, that no fix ran")
+	}
+	Do $$$AssertEquals(..SummaryCards(a), 1, "A has exactly one summary card")
+	Do $$$AssertEquals(..SummaryCards(b), 0, "and B, who is not a recipient, has none")
+
 	Set second = {"item": (item), "text": "[[mock:diagnosis-nofix]] Field 'Qty' was empty", "at": (##class(OcuTalon.Test.Watch.Incidents).Stamp(0))}
 	Do $$$AssertStatusOK(..SendBatch(..#SYNTHNS, ..#SYNTH, a, [(second)]), "a failure of the same cause is sent")
 	Set rows = ..WaitIncident(a, ..#SYNTH, 2)
@@ -89,7 +105,7 @@ Method TestDismissThroughCommandsIn()
 	Do $$$AssertTrue(..WaitRow(again, "NoticedAt", "", ..#WAITINCIDENT) '= "", "and is noticed")
 	Do ..WaitNotices(again, 1)
 	Do $$$AssertEquals(..Notifications(again), 1, "one Notification carries the new Ref")
-	Do $$$AssertEquals(..Notifications(ref), 1, "and the first incident still has its one")
+	Do $$$AssertEquals(..Notifications(ref), 2, "and the first incident still has its notice and its summary")
 }
 
 Method TestRejectThroughTheHold()
@@ -247,6 +263,34 @@ Method WaitHoldEnds(approval As %String) [ Private ]
 		Hang 0.2
 	}
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).LiveHold(approval), "", "the hold ends")
+}
+
+/// The session's web Delivery row of kind summary, waiting at most the seconds for it; "" when there is none.
+Method SummaryCard(session As %String, seconds As %Integer) As OcuTalon.Data.Delivery [ Private ]
+{
+	Set end = $ZHorolog + seconds
+	Set card = ""
+	For {
+		Set rows = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+		For i = 1:1:rows.Count() {
+			Set row = rows.GetAt(i)
+			If (row.Channel = "web") && (row.Kind = "summary") Set card = row
+		}
+		If $IsObject(card) || ($ZHorolog > end) Quit
+		Hang 0.2
+	}
+	Quit card
+}
+
+/// The number of the session's web Delivery rows of kind summary.
+Method SummaryCards(session As %String) As %Integer [ Private ]
+{
+	Set count = 0
+	Set rows = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	For i = 1:1:rows.Count() {
+		If (rows.GetAt(i).Channel = "web") && (rows.GetAt(i).Kind = "summary") Set count = count + 1
+	}
+	Quit count
 }
 
 /// A Dismiss of the incident for the session.

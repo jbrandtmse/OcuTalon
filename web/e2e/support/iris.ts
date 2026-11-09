@@ -986,6 +986,8 @@ export interface IncidentFields {
   openVariant?: string;
   /** The Refs of the incident's approval requests, comma-separated: the closed view lists the requests whose rows name the incident. */
   requestRefs?: string;
+  /** The incident's stored summary (Story 23.6): the JSON {"parts": [{"key", "slots"}], "lines": []} that Watch.Summary builds; none by default. */
+  summary?: string;
 }
 
 /**
@@ -998,6 +1000,7 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
     State: fields.state,
     OpenVariant: fields.openVariant,
     RequestRefs: fields.requestRefs,
+    Summary: fields.summary,
   });
   const lines = await irisScript(
     [

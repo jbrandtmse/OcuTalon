@@ -10,6 +10,8 @@
 ///     message that keeps its ApprovalRef, with its Delivery row and event; a later request is a message of its own;
 ///   - TestDecisionRefOnlyForTellNow (Story 41.5): the payload's decisionRef is the DecisionRef of the session's own phone tell-now Delivery row; a reminder, an incident
 ///     and an approval message have none, and another session's tell-now Delivery row is never read;
+///   - TestSummaryMessage (Story 23.6; AC 14): a summary Notification is one plain-text phone message with the stored summary's lines, the markup of the cause, the
+///     evidence and the sample error as it is, no ApprovalRef (no buttons) and no DecisionRef, with its Delivery row and one event; a missing summary is an error;
 ///   - TestOnlyRequestKindsCarryARequest: tellnow, reminder, answered and an incident with no request give no message with an
 ///     ApprovalRef;
 ///   - TestAnsweredEditsInPlace: an answered notification sets the Answer of the delivered message, keeping its Ref and Text,
@@ -171,6 +173,45 @@ Method TestDigestMessage()
 	Set bad = {"parts": [{"key": "digest.greetingMorning", "slots": {}}, {"key": "digest.noSuchKey", "slots": {}}], "lines": [], "rows": []}
 	Do $$$AssertStatusNotOK(..Out().OnNotification(..Notification(broken, "digest", "digest.cost", bad), .response), "a digest that cannot be rendered is an error")
 	Do $$$AssertEquals(..PhoneCount(broken)_"|"_##class(OcuTalon.Test.Core.Observe).DeliveryCount(broken)_"|"_..Phones(broken).%Size(), "0|0|0", "with no message, row or event")
+}
+
+/// An incident summary (Story 23.6; AC 14) is one phone message of kind phone, direction out, whose text is OcuTalon.Watch.Summary.Text(IncidentRef, "phone"): the
+/// stored summary's lines, with the markup of the cause, the evidence and the sample error left as it is (the page shows plain text). The message keeps no
+/// ApprovalRef (no Approve or Reject) and no DecisionRef; its phone Delivery row (kind summary) names it and has no text; one phone event follows. A summary that is
+/// missing is an error with no message, row or event.
+Method TestSummaryMessage()
+{
+	Set session = ..Session("summary")
+	Set parts = [{"key": "summary.title", "slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "production": "Orders"}}, {"key": "summary.cause", "slots": {"cause": "The partner sent <b>x</b> and *y* in the date."}}, {"key": "summary.evidence", "slots": {"evidence": "OrderDate was <i>16/10/2026</i> and _z_"}}, {"key": "summary.sampleError", "slots": {"error": "Field <script>alert(1)</script> was not a date."}}, {"key": "summary.messages", "slots": {"failed": 50, "resent": 50, "completed": 50, "failedAgain": 0, "skipped": 0}}]
+	Set incident = ##class(OcuTalon.Test.Data.Fixture).Incident(session, , , , {"State": "closed", "ClosedAt": (##class(OcuTalon.Data.Time).NowUtc()), "Summary": ({"parts": (parts), "lines": []}.%ToJSON())})
+	Set ..Refs = ..Refs_","_incident
+	Set expected = "Incident summary: 50 orders failed in Orders."
+		_$Char(10)_"Cause: The partner sent <b>x</b> and *y* in the date."
+		_$Char(10)_"Evidence: OrderDate was <i>16/10/2026</i> and _z_"
+		_$Char(10)_"Sample error: Field <script>alert(1)</script> was not a date."
+		_$Char(10)_"Messages: 50 failed, 50 resent, 50 completed, 0 failed again, 0 skipped."
+	Set notification = ..Notification(session, "summary", "summary.title", {})
+	Set notification.IncidentRef = incident
+	Set notification.DecisionRef = "ZzSummaryDecision"
+	Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), "the summary is delivered")
+	Do $$$AssertEquals(..PhoneCount(session), 1, "one phone message")
+	Set message = ..Newest(session)
+	If '$IsObject(message) Do $$$AssertTrue(0, "the message exists") Quit
+	Do $$$AssertEquals(message.Text, expected, "its text is the stored summary's lines, with the markup characters as they are")
+	Do $$$AssertEquals(message.Text, ##class(OcuTalon.Watch.Summary).Text(incident, "phone"), "and Watch.Summary.Text for the phone")
+	Do $$$AssertEquals(message.Kind_"|"_message.Direction_"|"_message.ApprovalRef_"|"_message.DecisionRef_"|"_message.Answer, "phone|out|||", "a phone message out, with no request, no notice and no answer")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 1, "one Delivery row")
+	If deliveries.Count() = 1 Do $$$AssertEquals(deliveries.GetAt(1).Channel_"|"_deliveries.GetAt(1).ChannelMessageId_"|"_deliveries.GetAt(1).Kind_"|"_deliveries.GetAt(1).ApprovalRef_"|"_deliveries.GetAt(1).Text, "phone|"_message.Ref_"|summary||", "of the kind summary, naming the message, with no approval and no text")
+	Set events = ..Phones(session)
+	Do $$$AssertEquals(events.%Size(), 1, "one phone event")
+	If events.%Size() = 1 Do $$$AssertEquals(events.%Get(0).payload.ref_"|"_events.%Get(0).payload.text_"|"_events.%Get(0).payload.approvalRef, message.Ref_"|"_expected_"|", "for the message, with no approval Ref")
+	Set bare = ##class(OcuTalon.Test.Data.Fixture).Incident(session, , , , {"State": "closed"})
+	Set ..Refs = ..Refs_","_bare
+	Set missing = ..Notification(session, "summary", "summary.title", {})
+	Set missing.IncidentRef = bare
+	Do $$$AssertStatusNotOK(..Out().OnNotification(missing, .response), "an incident with no summary is an error")
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_##class(OcuTalon.Test.Core.Observe).DeliveryCount(session)_"|"_..Phones(session).%Size(), "1|1|1", "with no more message, row or event")
 }
 
 /// A tell-now message keeps the notification's DecisionRef (the notice's Ref, which the page's Got it names) and its payload carries it as decisionRef.

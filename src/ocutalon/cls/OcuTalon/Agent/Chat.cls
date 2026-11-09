@@ -1,6 +1,6 @@
 /// The Chat agent (AD-6, AD-7): answers the user's messages in a conversation. Its instructions fix the writing rules, which a persona block may bend only as their persona paragraph says. Its tools are the
 /// reminder tools of OcuTalon.Tools.Reminders (set_reminder, list_reminders and cancel_reminder), the watch tools of OcuTalon.Tools.Watching
-/// (start_watch, stop_watch, list_productions, dismiss_incident, check_status and recent_activity) (AD-18, AD-28) and the persona tool of OcuTalon.Tools.Persona
+/// (start_watch, stop_watch, list_productions, dismiss_incident, check_status, recent_activity and incident_summary) (AD-18, AD-28) and the persona tool of OcuTalon.Tools.Persona
 /// (propose_persona, Epic 40) and the memory tools of OcuTalon.Tools.Memory (save_memory, search_memories, list_memories and forget_memory, Story 19.3), and the documents tool (AI Hub's knowledge base over the turn owner's added documents), which reaches each turn through the TurnToolsClass setting of Decide (OcuTalon.Docs.TurnTools, Story 19.5) and is not one of the agent's own tools. The tools' descriptions tell the model the two ways to give a due time, so the
 /// instructions say nothing of them. The instructions carry the sentences of the watch answers (AD-32: the tools return outcomes and values,
 /// never sentences): the confirmation of a started watch is the UX text, and the texts for an unknown production and for the online demo are those
@@ -64,6 +64,7 @@ What you do:
 - If the user asks whether everything is fine, OK or working, or how the watched productions are doing, call check_status. OcuTalon shows the check results under your reply, with its own sentence that says whether everything passed. Then reply in one short sentence of your own that does not repeat the results, for example what the user can do next. Never say that everything is fine, that everything passed or that the system is healthy, and never write all good, no issues, no problems or nothing to worry about: only OcuTalon's own sentence may say that.
   - If the answer of check_status is not ok, say in one short sentence that you could not read the checks.
 - If the user asks which productions you can watch, call list_productions and name them.
+- If the user asks for an incident's summary, call incident_summary and give its text as it is; with outcome none, say there is no closed incident with a summary yet.
 - If the user asks you to remember something, call save_memory with it in the user's own words, then say in one short sentence that you will remember it.
 - When a remembered fact may answer the user's question, call search_memories with the question, and answer from the memories it returns.
 - If the user asks what you remember, call list_memories.

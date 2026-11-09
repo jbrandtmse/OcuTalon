@@ -99,7 +99,12 @@
 ///     kind approval with the key incident.laterRequest (incident.laterRequestEitherWay or a ...Checked variant when Notice.WithFixKey gives it), the request's Ref as ApprovalRef and the slots of the round (Notice.WithFixSlots with the number of keys
 ///     of the windows and the round's time), then publishes the incident event. A save that fails cancels the request. Execute goes out for one approved request
 ///     at a time (the table's rows, Apply).
-///   - Purge deletes the incidents closed before a cutoff, with their groups and their fix runs (AD-27).
+///   - The summary (Story 23.6; AD-15, AD-32): every accepted move into closed (dismiss, closeForReplay, closeQuiet) first builds the incident's summary in code
+///     (OcuTalon.Watch.Summary, from the incident's rows; no model request), stores it in Summary and sets ClosedAt, in the one save of Move, and then sends one
+///     Notification of kind summary (catalog key summary.title, Slots {}, the incident's DecisionRef, no ApprovalRef) to each recipient through Tell, before the incident
+///     event. Each *Out operation renders the stored summary (Summary.Text). A summary that cannot be built leaves Summary empty, logs one Type 3 warning (LOGSUMMARY)
+///     and sends no summary notification; the close stands. A refused move builds nothing.
+///   - Purge deletes the incidents closed before a cutoff, with their groups, their fix runs and their summaries (AD-27).
 ///   - An evaluation incident (Story 9.6; AD-22, AD-30): an OcuTalon.Eval.Msg.IncidentCase from EvalIn, with a Ref that EvalIn minted and the text of a recorded
 ///     reader snapshot, goes to EvalCase and nowhere else in this class. It builds the pack with EvidencePack.Build, sends Decide the request that Diagnose
 ///     sends (DiagnoseRequest), with owner eval and the case's Ref as ItemId, and, when Decide answers, sends EvalSink one OcuTalon.Msg.ItemDecision (ItemId the
@@ -193,6 +198,14 @@ Parameter KEYEXPIRED = "answered.expired";
 
 /// The kind of the notification that carries the result of a fix run (Msg.Enum NOTIFICATIONKIND; Story 7.3).
 Parameter RESULTKIND = "result";
+
+/// The kind of the notification that tells a closed incident's summary, and its catalog key (Msg.Enum NOTIFICATIONKIND; Story 23.6). It carries no slots: each
+/// *Out operation renders the stored summary (Watch.Summary Text).
+Parameter SUMMARYKIND = "summary";
+
+Parameter KEYSUMMARY = "summary.title";
+
+Parameter LOGSUMMARY = "IncidentManager could not build the summary of incident ";
 
 /// The live event type of an incident's public view.
 Parameter INCIDENTEVENT = "incident";
@@ -1074,6 +1087,7 @@ Method Apply(incident As OcuTalon.Data.Incident, event As %String, own As %Strin
 	Set facts = ..Facts(incident, event, own, .earliest)
 	Set from = incident.State
 	If '##class(OcuTalon.Watch.Transitions).Next(incident.State, incident.NoticedAt '= "", event, facts, .to, .variant, .execute) Quit $$$OK
+	If (to = ..#CLOSED) && (from '= ..#CLOSED) Set notification = ..Closing(incident, event, notification)
 	Set sc = ..Move(incident, to, variant, notification)
 	If $$$ISERR(sc) Quit sc
 	Set accepted = 1
@@ -1083,6 +1097,30 @@ Method Apply(incident As OcuTalon.Data.Incident, event As %String, own As %Strin
 	Set closesOpen = ((event = ##class(OcuTalon.Watch.Transitions).#DISMISS) || (event = ##class(OcuTalon.Watch.Transitions).#CLOSEQUIET)) && (from = ..#OPEN) && (to = ..#CLOSED)
 	If resolves || reopens || closesOpen Do ..CheckNow(incident)
 	Quit $$$OK
+}
+
+/// What a move into closed adds to the row, before Move saves it (Story 23.6; AD-15): ClosedAt, and the summary that Watch.Summary builds from the incident's rows
+/// (stored in the same save as the state). The notification to send is the one given, else the summary notification (kind summary, key summary.title, no slots,
+/// the incident's DecisionRef, no approval). A summary that cannot be built leaves Summary empty, logs one Type 3 warning and gives the notification as it was
+/// given, so that nothing is sent about a summary that does not exist and the close stands.
+Method Closing(incident As OcuTalon.Data.Incident, event As %String, notification As OcuTalon.Msg.Notification = "") As OcuTalon.Msg.Notification [ Private ]
+{
+	Set incident.ClosedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set summary = ##class(OcuTalon.Watch.Summary).Build(incident, event, incident.ClosedAt, ##class(OcuTalon.Watch.Reader).OnlineDemo(), .sc)
+	If $$$ISOK(sc) {
+		Try {
+			Set incident.Summary = summary.%ToJSON()
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+	}
+	If $$$ISERR(sc) {
+		Set incident.Summary = ""
+		$$$LOGWARNING(..#LOGSUMMARY_incident.Ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Quit notification
+	}
+	If $IsObject(notification) Quit notification
+	Quit ..Notification(incident, ..#SUMMARYKIND, ..#KEYSUMMARY, {})
 }
 
 /// The facts that the table needs, read from the incident's rows (AD-11) as {pending, waiting, demoMode}. The incident's requests are the entries of RequestRefs
@@ -1291,22 +1329,7 @@ Method ResultNotice(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.D
 /// empty body class (the first that is an object with both forms).
 Method Noun(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.Data.ApprovalRequest) As %DynamicObject [ Private ]
 {
-	For source = 1, 2 {
-		Set noun = ""
-		Try {
-			If source = 1 {
-				If row.DryRun '= "" Set noun = {}.%FromJSON(row.DryRun).itemNoun
-			} ElseIf incident.ItemNoun '= "" {
-				Set noun = {}.%FromJSON(incident.ItemNoun)
-			}
-		} Catch {
-			Set noun = ""
-		}
-		If $IsObject(noun) && noun.%IsA("%Library.DynamicObject") && (noun.one '= "") && (noun.other '= "") Quit
-		Set noun = ""
-	}
-	If '$IsObject(noun) Set noun = {}.%FromJSON(##class(OcuTalon.Watch.ItemNoun).For(""))
-	Quit noun
+	Quit ##class(OcuTalon.Watch.Notice).Noun(incident, row.DryRun)
 }
 
 /// An event of a request of the incident: made when the table accepts it, else refused (Drop). A move that cannot be saved is the error status. The

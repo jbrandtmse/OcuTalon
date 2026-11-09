@@ -605,6 +605,203 @@ XData Entries [ MimeType = application/json ]
    "cost": "dailyCost"
   },
   "source": "EXPERIENCE Message Catalog / Daily digest / Every digest (the cost)"
+ },
+ "summary.title": {
+  "text": "Incident summary: {count} {itemNoun} failed in {production}.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "production": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.firstFailure": {
+  "text": "{time}: first failure.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.noticed": {
+  "text": "{time}: OcuTalon told you.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.requested": {
+  "text": "{time}: OcuTalon asked for approval to repair and resend {count} {itemNoun}.",
+  "slots": {
+   "time": "time",
+   "count": "count",
+   "itemNoun": "noun"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.approved": {
+  "text": "{time}: approved from {channel}.",
+  "slots": {
+   "time": "time",
+   "channel": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.approvedBy": {
+  "text": "{time}: approved by {user} from {channel}.",
+  "slots": {
+   "time": "time",
+   "user": "text",
+   "channel": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.rejected": {
+  "text": "{time}: rejected from {channel}.",
+  "slots": {
+   "time": "time",
+   "channel": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.rejectedBy": {
+  "text": "{time}: rejected by {user} from {channel}.",
+  "slots": {
+   "time": "time",
+   "user": "text",
+   "channel": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.expired": {
+  "text": "{time}: the approval request expired.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.fixStarted": {
+  "text": "{time}: the fix started.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.fixEnded": {
+  "text": "{time}: the fix ended: {resent} resent, {completed} completed, {failedAgain} failed again, {skipped} skipped.",
+  "slots": {
+   "time": "time",
+   "resent": "count",
+   "completed": "count",
+   "failedAgain": "count",
+   "skipped": "count"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.fixInterrupted": {
+  "text": "{time}: the fix was interrupted after resending {resent}.",
+  "slots": {
+   "time": "time",
+   "resent": "count"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.closedDismiss": {
+  "text": "{time}: closed with Dismiss.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.closedReplay": {
+  "text": "{time}: closed when Break the feed was pressed again.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.closedQuiet": {
+  "text": "{time}: closed after 15 minutes with no new failures.",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.cause": {
+  "text": "Cause: {cause}",
+  "slots": {
+   "cause": "sentence"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.element": {
+  "text": "Where it failed: {element}.",
+  "slots": {
+   "element": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.noCause": {
+  "text": "No cause was found: {fallbackReason}.",
+  "slots": {
+   "fallbackReason": "fallbackReason"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text as ruled by the Contest Planner 2026-11-09"
+ },
+ "summary.evidence": {
+  "text": "Evidence: {evidence}",
+  "slots": {
+   "evidence": "sentence"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.sampleError": {
+  "text": "Sample error: {error}",
+  "slots": {
+   "error": "text"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.fix": {
+  "text": "Fix: {fix}",
+  "slots": {
+   "fix": "sentence"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.noFixRan": {
+  "text": "No fix ran, so nothing was changed.",
+  "slots": {},
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.groups": {
+  "text": "Failure groups:\n{groups}",
+  "slots": {
+   "groups": "groups"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.messages": {
+  "text": "Messages: {failed} failed, {resent} resent, {completed} completed, {failedAgain} failed again, {skipped} skipped.",
+  "slots": {
+   "failed": "count",
+   "resent": "count",
+   "completed": "count",
+   "failedAgain": "count",
+   "skipped": "count"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.cost": {
+  "text": "Model cost of this incident: {cost}.",
+  "slots": {
+   "cost": "cost"
+  },
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
+ },
+ "summary.costUnknown": {
+  "text": "Model cost of this incident: not known.",
+  "slots": {},
+  "source": "Story 23.6 Write an incident summary when an incident closes, Public Text approved by the Contest Planner 2026-11-09"
  }
 }
 }
