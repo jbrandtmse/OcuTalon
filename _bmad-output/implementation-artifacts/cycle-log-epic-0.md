@@ -494,3 +494,5 @@
 2026-11-09T04:33:22Z	Story 0.15	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-5,AD-22,AD-23,AD-29 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false note=throwaway_tag_e0s15i_lane-c;image_tags_ocutalon-e0s15:before,after;release_hunks_to_planner_before_merge;orchestrator_edits=epic-dependencies.yaml:296,176
 2026-11-09T04:53:31Z	Epic 0	story_chartered	stories=0.18(after_0.17,before_0.15_in_run_order) marker=ADDED_2026-11-09 via=orchestrator_message source=collateral/readme-judges-1.0.5-FINAL.md
 2026-11-09T04:53:31Z	Epic 0	deps_hash_rerecorded	reason=fix_forward note=story_0.18_inserted_in_epic_0;no_boundary_or_dependency_change
+2026-11-09T04:54:51Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.18_added) model=claude-opus-5-5 effort=high
+2026-11-09T04:54:51Z	Story 0.18	stage_spawned	stage=plan+implement spawn_at=2026-11-09T04:54:51Z model=sonnet effort=high agent_name=0-18-build-1 cycle_iteration=1 story_base=a487bc68 pipeline=one_build_auto_stage(orchestrator_ruling)
