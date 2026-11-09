@@ -8985,6 +8985,8 @@ So that I can extend OcuTalon with tools I already run.
 
 [AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1 on Story 35.1, relayed by the orchestrator: this story also adds a read API that returns the sessions whose user held `OcuTalonAdmin` at their latest sign-in, recorded as a new `Session` property (a stored-data change, flagged at this story's spec gate), which Story 22.2's admin notices use; and `OcuTalon.Core.SettingsOps` writes an MCP server's Config Store entry `AI.MCP.OcuTalon_<server>` and its IRIS Wallet secret, called from the MCP settings route, while `McpOps` writes only the `OcuTalon.Mcp.Server` row and calls `RestartRunners()`; no command, log, test output or record ever carries a secret value, only a `secret://` reference]
 
+[AMENDED 2026-11-09, Story 35.2 plan, split decided by the Epic 35 runner under doctrine U5 (a split into a sibling planned next in the same epic; nothing dropped): the webhook criteria (create a webhook in Settings > Channels; a `POST` answered 202 and sent by `WebhookIn` to `Intake`; the 401, the body cap and the test of every unauthenticated path) and this story's release check moved, verbatim, to Story 35.3, which follows this story; this story keeps the spine update and command verbs, `RestartRunners()`, the step 4 texts (including the webhook settings texts Story 35.3 ships) and the ruling's admin-session read API and `SettingsOps` MCP entry contract; its title is kept so its tracker key stays the same]
+
 As an admin,
 I want to create webhooks, each with its own secret, that turn any JSON event into an item,
 So that other systems can tell OcuTalon what happened and it decides what needs me.
@@ -9003,6 +9005,17 @@ So that other systems can tell OcuTalon what happened and it decides what needs 
 **Given** the step 4 texts the UX doesn't give yet: the email and webhook settings, the changed-tool banner in Settings, the source-poll form and the cancelled status of an approval request
 **When** this story starts
 **Then** it proposes their wording to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps › Step 4), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, following the voice and plain-English rules, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR145)
+
+
+### Story 35.3: Send events to OcuTalon through a webhook
+
+[AMENDED 2026-11-09, Story 35.2 plan, split decided by the Epic 35 runner under doctrine U5: a new sibling of Story 35.2 (Lane B, it follows Story 35.2), holding Story 35.2's webhook criteria and release check, moved verbatim; nothing dropped; it uses the names and texts Story 35.2 fixes]
+
+As an admin,
+I want to create webhooks, each with its own secret, that turn any JSON event into an item,
+So that other systems can tell OcuTalon what happened and it decides what needs me.
+
+**Acceptance Criteria:**
 
 **Given** an admin in Settings › Channels
 **When** they create a webhook with a name and a secret
