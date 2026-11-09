@@ -50,6 +50,13 @@ recommendation: resume after the Planner's commit (expected policy blob 50860367
 blocks: every runner until the resume
 answer: (none yet -- answer with the script or --review)
 
+### U-317 | hold | Run | 2026-11-09T11:02:33Z
+question: Owner's overnight hold at 11:00Z (via the Contest Planner). v1.0.5 released. All four runners held cleanly. Morning note: .worktrees/.coordination/morning-note-20261109.md (also committed as _bmad-output/implementation-artifacts/morning-note-20261109.md).
+options: resume: re-invoke /epic-cycle 1-37 --unattended after the account switch
+recommendation: resume after the account switch (~13:00Z)
+blocks: every lane until resumed
+answer: (none yet -- answer with the script or --review)
+
 ## Run reports
 
 ### U-30 | report | Run 20261021T1347Z-1-16,29-32 | 2026-10-23T02:36:43Z
@@ -400,4 +407,4 @@ answer: (none yet -- answer with the script or --review)
 - U-313 | veto | Story 18.4: Stored data shape: two new nullable columns, Data.Delivery.CheckRows (the web digest card's check rows as JSON, so 'What I checked' survives a reload) and Data.SimMessage.DecisionRef (lets the phone edit a tell-now message in place when handled); older rows read empty, no migration. Ruled KEEP by the orchestrator (category=veto). -> Keep: two nullable columns (Delivery.CheckRows, SimMessage.DecisionRef); older rows read empty; no migration. Pin that an older row renders without error. (by Contest Planner, 2026-11-08T20:03:06Z#951; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-08T20:10:49Z -- Epic 18: applied in 18.4 spec e8213bd6 (older-row pin task)
 - U-314 | veto | Story 41.7: Stored data (veto window 3): the eval-only table Eval.Data.CaseResult gains one nullable column, Precedents (lives only on throwaways and CI; same kind as Story 40.7's Preset), so Agent.Input asks Similar("eval", ...) only for an eval item whose case seeded precedents. -> Keep: Eval.Data.CaseResult gains a nullable Precedents column (like 40.7's Preset); older rows read empty. (by Contest Planner, 2026-11-08T21:53:08Z#957; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-08T22:00:19Z -- Epic 41: applied in 41.7 spec 900b4bfa
 
-<!-- journal: 966 lines -->
+<!-- journal: 967 lines -->

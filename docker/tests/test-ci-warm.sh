@@ -608,12 +608,20 @@ STUB_RUNNING=1 warm_cli cw-other class OcuTalon.Test.Agent.Constants
 check "a warm run on a stack built from another checkout fails with exit 1" "$cli_out" "$cli_rc" 1 \
   '^FAIL WARM the warm stack of tag cw-other was built from another checkout$' '!^STACK' '!^CLASS'
 fixture_state cw-stale ocutalon-warm-cw-stale-1700000000-1
-sed 's#^[0-9a-f]* docker/Dockerfile$#0000000000000000000000000000000000000000 docker/Dockerfile#' "$(state_of cw-stale)/manifest" > "$work/manifest.stale"
+sed 's#^[0-9a-f]* Dockerfile$#0000000000000000000000000000000000000000 Dockerfile#' "$(state_of cw-stale)/manifest" > "$work/manifest.stale"
 cp "$work/manifest.stale" "$(state_of cw-stale)/manifest"
 STUB_RUNNING=1 warm_cli cw-stale class OcuTalon.Test.Agent.Constants
 check "a warm run after a change of the Dockerfile is refused, and nothing runs" "$cli_out" "$cli_rc" 1 \
-  '^FAIL WARM stale: docker/Dockerfile changed since warm up, and only classes reload: run ci/warm.sh down, then ci/warm.sh up$' '!^CLASS' '!^READY'
+  '^FAIL WARM stale: Dockerfile changed since warm up, and only classes reload: run ci/warm.sh down, then ci/warm.sh up$' '!^CLASS' '!^READY'
 if ! grep -q 'exec' "$work/cli.calls"; then pass "a stale warm run opens no IRIS session"; else fail "a stale warm run opened an IRIS session"; fi
+# A stack made before the Dockerfile moved to the root stores the old path: its manifest has no root entry and still names the old one.
+old_df=docker/"Dockerfile" # assembled, so that no file but the upgrade harness and its test names the old path
+fixture_state cw-premove ocutalon-warm-cw-premove-1700000000-1
+sed "s#^\([0-9a-f]*\) Dockerfile\$#\1 $old_df#" "$(state_of cw-premove)/manifest" > "$work/manifest.premove"
+cp "$work/manifest.premove" "$(state_of cw-premove)/manifest"
+STUB_RUNNING=1 warm_cli cw-premove class OcuTalon.Test.Agent.Constants
+check "a warm run on a stack whose manifest names the Dockerfile at its old path is refused as stale" "$cli_out" "$cli_rc" 1 \
+  "^FAIL WARM stale: (Dockerfile|$old_df) changed since warm up, and only classes reload: run ci/warm.sh down, then ci/warm.sh up$" '!^CLASS' '!^READY'
 
 # Nothing changed: no start of any kind, and the verdict of the class comes from the session.
 calls=$work/nothing.calls
@@ -678,8 +686,8 @@ fi
 mk_tree() { # mk_tree <dir>: a tree with the layout of the repository (the COPY lines of the real Dockerfile), small enough to read
   local d=$1 c
   mkdir -p "$d/docker/tests" "$d/docker/ipm" "$d/ci/mock/test" "$d/src/ocutalon/cls/OcuTalon/Data/Public" "$d/src/bridge/cls/OcuTalon/Bridge" "$d/src/ocutalon/csp"
-  printf 'FROM scratch\nCOPY src/ /opt/ocutalon/src/\nCOPY docker/ipm/ /opt/ocutalon/ipm/\n' > "$d/docker/Dockerfile"
-  printf 'COPY docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos /opt/ocutalon/\n' >> "$d/docker/Dockerfile"
+  printf 'FROM scratch\nCOPY src/ /opt/ocutalon/src/\nCOPY docker/ipm/ /opt/ocutalon/ipm/\n' > "$d/Dockerfile"
+  printf 'COPY docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos /opt/ocutalon/\n' >> "$d/Dockerfile"
   printf 'merge\n' > "$d/docker/merge.cpf"
   printf 'health\n' > "$d/docker/healthcheck.sh"
   printf 'start\n' > "$d/docker/after-start.sh"
@@ -948,7 +956,7 @@ for p in $(cut -d' ' -f2 "$(state_of cw-q5)/manifest"); do
   cp "$work/input.bak" "$qt/$p"
 done
 q5_missing=""
-for p in docker/Dockerfile .dockerignore docker-compose.yml docker/tests/compose.throwaway.yml ci/compose.ci.yml ci/mock/server.mjs docker/ipm/zpm.xml \
+for p in Dockerfile .dockerignore docker-compose.yml docker/tests/compose.throwaway.yml ci/compose.ci.yml ci/mock/server.mjs docker/ipm/zpm.xml \
   docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos src/module.xml src/short-names.tsv src/ocutalon/csp/index.html; do
   case $q5_tried in *" $p "*) ;; *) q5_missing="$q5_missing $p" ;; esac
 done
@@ -965,7 +973,7 @@ fi
 # The manifest of the real tree names every file of the matrix's list, and every class of the tree, and not the mock's node tests.
 real_paths=$(warm_manifest | cut -d' ' -f2)
 real_missing=""
-for p in docker/Dockerfile .dockerignore docker-compose.yml docker/tests/compose.throwaway.yml ci/compose.ci.yml docker/merge.cpf docker/healthcheck.sh \
+for p in Dockerfile .dockerignore docker-compose.yml docker/tests/compose.throwaway.yml ci/compose.ci.yml docker/merge.cpf docker/healthcheck.sh \
   docker/after-start.sh docker/after-start.cos src/module.xml src/short-names.tsv; do
   printf '%s\n' "$real_paths" | grep -qxF -- "$p" || real_missing="$real_missing $p"
 done

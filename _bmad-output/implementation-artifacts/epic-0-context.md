@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock. Stories 0.1 to 0.14, 0.16 and 0.17 are done. Epic 0 is re-opened after the v1.0.4 release for release 1.0.5, with small stories that leave the build and install unchanged. Story 0.17 (done) updated the README's Measured table to 1.0.4's real-model numbers. Story 0.18 adds Planner-approved judge-facing README sections on top of 0.17, and must merge before the 10:00Z hold. Story 0.15 moves the Dockerfile to the repository root so the Open Exchange listing reads Docker True.
+Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock, so both build lanes can work in parallel. Stories 0.1 to 0.18 are done. Epic 0 is re-opened again for one CI-only story, 0.20. On Story 0.15's head, IRIS CI groups were cancelled at the 40-minute job limit with no failing test, and other groups ran 38 to 39 minutes. Story 0.20 repacks the IRIS groups so that every group finishes well under the 35-minute budget and every head can go green without reruns.
 
 ## Stories
 
@@ -22,43 +22,50 @@ Epic 0 is the walking skeleton: one image build and `docker compose up` give Ocu
 - Story 0.12: Epic 0 burn-down (done)
 - Story 0.13: A start retries the CPF merge when IRIS cannot quiesce (done)
 - Story 0.14: A start that recovers through the merge retry passes the live checks and the upgrade harness (done)
-- Story 0.15: The Dockerfile sits at the repository root (ready-for-dev)
+- Story 0.15: The Dockerfile sits at the repository root (done; CI not yet green, merges together with 0.20)
 - Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction (done)
 - Story 0.17: The README's evaluation table shows release 1.0.4's numbers (done)
-- Story 0.18: The README shows judges where to look (backlog)
+- Story 0.18: The README shows judges where to look (done)
+- Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget (backlog)
 
 ## Requirements & Constraints
 
-**Approved public text (0.17, 0.18):** README text the Contest Planner approved under the owner's delegation goes in byte for byte. Do not reword, re-punctuate or "improve" it. If a test rule fails on the verbatim text, the text still stays as written; report the failure.
+**The CI budget.** A full CI run takes at most 35 minutes of wall-clock time. Live-IRIS tests run on the dedicated self-hosted runner. Everything else runs on hosted runners.
 
-**Story 0.18 (README for judges):**
-- Source is the Planner's final edit file (`readme-judges-1.0.5-FINAL.md`, section (b), Edits 1 to 6). Edits 1 to 5 go into README.md at their anchors: the link bar becomes the first paragraph of "Try it in two minutes"; the H3 sections "For judges: where to look" and "New since 1.0.0" go after step 4 of the local path; the "What changes without the agent?" paragraph goes above "With a model, and without one."; the H2 "Contest checklist" goes directly before "Credits and licences".
-- Nothing else in README.md changes, and no line is removed.
-- Edit 6 replaces `docker/tests/test-readme.sh`'s link allow-list with exactly the Planner's line: `community.intersystems.com` and `openexchange.intersystems.com` appear once each, nothing else is added, and no AI Hub bug-report repository is allowed. 0.17's narrower post-path entry, and its two self-tests that only that narrower entry could pass, give way to the host entry.
-- Done when `bash docker/tests/test-readme.sh` passes every rule, `docker/tests/test-boundaries.sh` passes, and CI is green.
-- Pipeline (also used for 0.17): one `bmad-build-auto` stage plans and implements. The runner's own byte-for-byte diff review takes the place of separate QA and code-review stages.
-- The README's standing rules still hold: "Try it in two minutes" stays at the top with the online demo link; claim only what the release ships; plain English, with no class names or error codes outside the developer sections; keep the BMAD/Claude Code credits and the not-affiliated note.
+**The standing CI split rules:**
+- A unit takes about 1,000 s at most. A unit too long for that is split into pieces, never given a longer deadline.
+- Every group's planned sum, including the job's own setup time, stays well under 35 minutes.
+- Add a new IRIS group only when packing the existing groups cannot meet the budget.
+- No group gets a longer deadline, and no test is dropped.
 
-**Story 0.15 (Dockerfile at the root):**
-- Use `git mv docker/Dockerfile Dockerfile`. Afterwards `docker/Dockerfile` must not exist, and every reference to the old path names the new one: both compose files' `dockerfile:`, `ci/warm.sh`'s manifest list, `release/release.sh`, `release/upgrade-harness.sh`, `docker/tests/*`, workflow files, and every other grep hit.
-- Behaviour stays the same: the build context stays `.`, the COPY paths are unchanged, and `.dockerignore` still keeps the image small. Compare `docker image inspect … --format '{{.Size}}'` before and after; the only allowed difference is layer metadata.
-- `install.sh` and the README's install steps stay the same for the user. No test pin is deleted or weakened; a pin of the old path moves to the new path.
-- `release.sh` builds the current tree from the root `Dockerfile`. The upgrade harness accepts either location for the previous release's tree (v1.0.4 and earlier use `docker/Dockerfile`), with a test pinning each case.
-- Any change to `release/*.sh` goes to the Contest Planner before it merges; the release-tool freeze is lifted for this story only.
-- Any planning artifact or spine row that names `docker/Dockerfile` as the current location (including the architecture's repository-layout line) is amended in place with an `[AMENDED …, Story 0.15, owner decision via the Contest Planner]` marker. A public doc sentence that names the path counts as public text.
-- Gates: CI green on every workflow, and the Planner's clean install.
+**Story 0.20:**
+- Pack the groups from measured unit times, taken from recent CI runs, not from estimates. The spec records each group's planned sum.
+- When this story is done, two clean CI runs (the second may be the merge head's) show every IRIS group under 35 minutes, and each group's time from both runs is reported. This resolves DW-1025.
+
+**Test pins:**
+- `docker/tests/test-ci-config.sh` and `test-ci-changes.sh` pin the group layout. Every pin of the old layout moves to the new one, and no pin is deleted or weakened.
+- Both scripts must pass together with `docker/tests/test-boundaries.sh`.
+- Every `docker/tests/test-*.sh` belongs to exactly one of `CHECK_SCRIPTS`, `WEB_SCRIPTS` or an IRIS group in `ci/units.sh`.
+
+**Consistency:**
+- `IRIS_GROUPS`, the `iris` matrix in `.github/workflows/ci.yml` and `ci/iris.sh groups` must agree.
+- Every new job reports as `iris (<group>)`.
+- A unit that moves with a pin attached (for example, the overview-doc check's `NO_WEB_BUNDLE_UNITS` membership) has the unit and its pin change in the same commit.
+
+**Approvals:**
+- The `.github/workflows/ci.yml` matrix hunk goes to the Contest Planner (`RELEASE TOOL:`) before it merges.
+- Once the story merges, the Planner adds every new job name to main's required checks.
 
 ## Technical Decisions
 
-- **One image recipe:** a single Dockerfile builds `FROM` the retagged build 154 image (`ocutalon-iris-base:2026.3.0AI.154.0`), and the `IRIS_IMAGE` build argument selects the non-Health image. IPM and the `ocutalon` package install at container start, version-gated, because the code database lives on the durable volume.
-- **Never push the image:** the AI Hub image, and any image built on it, is never pushed to a registry or kept in CI caches or artifacts. A CI step fails on any `docker push` or registry sign-in.
-- **CI rules:** never run `docker compose config` without `--quiet`, or `docker inspect` without `--format`, because both print `env_file` values. Every `docker/tests/test-*.sh` belongs to exactly one of `CHECK_SCRIPTS`, `WEB_SCRIPTS` or an IRIS group in `ci/units.sh`; otherwise `test-ci-config.sh` fails.
-- **Portability:** scripts also run under macOS's bash 3.2 in hermetic tests, so any new path-fallback logic must be portable shell.
-- **Ownership:** `docker/` belongs to Lane B, except Lane A's `merge.cpf`. `release/` is Lane A's release work. Only Epic 0 may edit files from both lanes in one story.
+- **How CI runs IRIS tests:** `ci/iris.sh` is the one recipe for IRIS units, on the runner and on a developer machine, always in throwaway compose projects layered with `ci/compose.ci.yml`. `ci/units.sh` maps groups to units.
+- **Shard pieces:** `%UnitTest` classes run in whole-area shards aligned with the lanes (`lane-a`, `lane-b`). A shard too long for one job runs as `shard:<name>@<piece>`. The `rest` piece is computed from the pieces the groups name, so every area stays in exactly one piece and every test class runs once. Split `shard:lane-a@rest` with this existing mechanism, not a new one.
+- **Image safety:** the AI Hub image, and any image built on it, is never pushed to a registry or kept in CI caches or artifacts. Never run `docker compose config` without `--quiet`, or `docker inspect` without `--format`, because both print `env_file` values.
+- **Portability:** scripts also run under macOS's bash 3.2 in hermetic tests, so shell changes must be portable.
+- **Lane ownership:** `docker/` belongs to Lane B, except Lane A's `merge.cpf`. `release/` is Lane A's. Only Epic 0 may edit files from both lanes in one story.
 
 ## Cross-Story Dependencies
 
-- 0.18 is built on 0.17's README text and its `test-readme.sh` pins. 0.18 must merge before the 10:00Z hold for release 1.0.5.
-- 0.15 and 0.18 both touch `docker/tests/` README pins. Whichever merges second rebases onto the other's pins. If 0.15 changes any README text, the 0.18 anchors must still hold.
-- 0.15 contends with other epics on `docker/tests/lib-live.sh`, `docker/tests/test-install-upgrade.sh` (Epics 17 and 19), `docker/tests/test-release-sequence.sh` and `release/release.sh` (Epic 19). Integrate forward and expect conflicts there.
-- The upgrade harness's previous-release build depends on v1.0.4's tree layout (the old path). Releases ship at most one a day.
+- **Built on 0.15:** 0.20 is built on Story 0.15 (Dockerfile at the repository root) and merges with it on one head. 0.15's merge is held until after the 1.0.5 cut, and that combined head's CI is the gate.
+- **Contended files:** other epics change `ci/units.sh` and the CI pin tests too (Epic 41 changed `ci/units.sh` recently). Integrate forward and expect conflicts in those files. Base the repacking on the merged unit list, so units added by other epics are packed too.
+- **Known flakes:** inherited flakes such as DW-973, DW-774, DW-689 and DW-1026 can turn a run red without a 0.20 cause. Classify them; do not repack around them.

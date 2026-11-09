@@ -43,7 +43,7 @@
 #                  jbrandtmse", and
 #                  "Credits and licences" holds the README's LICENSE line and, as the fourth bullet under "Third-party licence
 #                  notices:", the ruled sentence about the Docker image's Python packages (Story 34.2), whose path in backticks is
-#                  the file that docker/Dockerfile's notices step writes (the same path on both sides)
+#                  the file that the Dockerfile's notices step writes (the same path on both sides)
 #   docs           the sentences this story added to other public files, word for word: the build 109 sentence at the end of the
 #                  bridge guide's build 154 bullet and of the IPM page's build 154 bullet (U-241 item 7), and the two ruled lines of
 #                  the security overview (U-242): what an approval request shows for a tool call, in the approval section and in the
@@ -137,7 +137,7 @@ LICENSE_FILE=LICENSE
 IPM_DOC=docs/install-ipm.md
 BRIDGE_DOC=docs/bridge-guide.md
 SECOV_DOC=docs/security-overview.md
-DOCKERFILE=docker/Dockerfile
+DOCKERFILE=Dockerfile
 
 listing=$(scan_files)
 if [ -z "$listing" ]; then
