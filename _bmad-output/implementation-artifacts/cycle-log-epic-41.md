@@ -243,3 +243,5 @@
 2026-11-09T10:11:30Z	Story 41.12	ledger_routed_planned	story=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star entries=1(DW-1014) excess=0 by=harvest
 2026-11-09T10:11:39Z	Story 41.8	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none note=AD-21/AD-5/AD-29_pinned_by_%UnitTest_and_lint_spine(no_AD-committed_agent-time_tool)
 2026-11-09T10:11:39Z	Story 41.8	stage_spawned	stage=qa spawn_at=2026-11-09T10:11:39Z model=sonnet effort=high agent_name=41-8-qa-1 cycle_iteration=1 head=95d036f8
+2026-11-09T10:22:00Z	Story 41.8	qa_complete	spawn_at=2026-11-09T10:11:39Z model=sonnet effort=high tests=Test/Memory/Ops.cls(TestSourceIgnoresSavedText,TestSourceReadFailsLogged),Test/Memory/Search.cls(TestLegacyRow) tests_added=3 mutations_demonstrated=3(+impl_lines) first_run_failures=0 clarifications=0 closing_sections_present=true torn_down=e41s8qw
+2026-11-09T10:22:00Z	Story 41.8	stage_spawned	stage=code-review spawn_at=2026-11-09T10:22:00Z model=opus effort=high agent_name=41-8-code-review-1 cycle_iteration=1
