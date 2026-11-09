@@ -489,3 +489,4 @@
 2026-11-09T04:16:31Z	Story 0.17	fresh_check	env=clean-checkout(git_archive_HEAD) tests=1(docker/tests/test-readme.sh) result=pass order=forward,reverse(single_script) note=first_attempt_recipe_skipped_4_force-tracked_images,rerun_with_add_-f_passed
 2026-11-09T04:17:35Z	Story 0.17	committed	sha=7e4a668d submodules= ci=pending runs=42560945591,42560945643 amendments=none note=pushed_alone;first_push_carried_360306f4;code_commit=6eb54a00
 2026-11-09T04:17:35Z	Story 0.17	story_cycle	plan_to_commit_min=10 implement_passes=1 reviews=1(runner_diff_review) rework=0 first_ci=pending models=plan:sonnet,implement:sonnet,qa:none,cr:runner(opus)
+2026-11-09T04:18:01Z	Story 0.15	stage_spawned	stage=plan spawn_at=2026-11-09T04:18:01Z model=opus effort=high agent_name=0-15-plan-1 cycle_iteration=1
