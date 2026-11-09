@@ -117,7 +117,21 @@ deferred: []
 - AC11: Given the README, when a judge reads New since 1.0.0 and the Usability row, then the incident-summary bullet of `## Public Text` is there and line 30 says eight.
 - AC12 (DW-877): Given a `FailureBatch` holding failures, when it is exported as XML, then the export succeeds and holds each failure; `Failure`'s storage block is unchanged.
 
+**Added at the spec gate from the Contest Planner's rulings (2026-11-09):**
+- [ ] Rendering: `{channel}` slots render "the web chat", "the Simulated phone", "Telegram" (the README's names), never an internal id; cause, evidence, fix and sample error render as plain text on every channel (escaped in the web chat; no parse mode or markup in Telegram); the sample error is cut to the incident notice's length; `summary.closedQuiet`'s 15 becomes a slot if the quiet period is a setting.
+- [ ] More to try fallback: with no resolved incident to close, the button sends "Show me the incident summary" to the chat (an e2e case in `web/e2e/guide/more-to-try.spec.ts`); if the lookFor text must change, HALT with an intent gap naming the new text (public text) instead of committing it.
+- [ ] README: the New since 1.0.0 bullet is appended LAST in that list; line 30's count, EXPERIENCE.md's item count and the `more-to-try-view.ts` header comment equal the registry's item count; every count pin this story adds or changes reads the registry, not a literal.
+- [ ] `EXPERIENCE.md`: this story writes its marked additive lines with the ruled texts (the item count, the new item bullet, the control clause with the fallback).
+- AC13: Given a summary with an approval answered from each channel, when it renders, then `{channel}` reads "the web chat", "the Simulated phone" or "Telegram", never an internal id.
+- AC14: Given an incident whose evidence line, cause and sample error contain markup (for example `<b>x</b>` and `*y*`), when the summary is delivered to the web chat, the Simulated phone and Telegram, then each shows the text literally (escaped in the web chat; Telegram sent with no parse mode), and the sample error is no longer than in the incident notice; one test per channel.
+- AC15: Given the online demo, when a summary renders an answered request, then no line carries an IRIS user name (`summary.approved`/`summary.rejected` only); on a local install with `AnsweredBy` known, `summary.approvedBy`/`summary.rejectedBy` name the user; one test.
+- AC16: Given the guide has no resolved incident to close (closed by the quiet rule or Break the feed again, or the guide not run), when the visitor presses More to try's "Close the incident", then "Show me the incident summary" is sent to the chat (e2e case).
+- AC17: Given an install upgraded from v1.0.5 with existing closed incidents and no `Summary` values, when the upgrade harness runs (`live:install-upgrade`, CI), then it passes and those incidents read with an empty summary; the purge test proves the summary goes with its row (AC8).
+- AC18: Given the More to try registry, when the count pins run, then README line 30, EXPERIENCE.md's count, the `more-to-try-view.ts` header comment and every count test match the registry's item count (tests read the registry).
+
 ## Spec Change Log
+
+- 2026-11-09 (runner, spec gate): Contest Planner rulings applied: six keys reworded, rendering conditions (a)-(c), More to try fallback, README order, veto conditions, spine additions written (AD-32, AD-15), AD-33 exception scope, registry-driven count; AC13-AC18 added.
 
 - 2026-11-09 (runner, spec gate): orchestrator rulings on the contended paths recorded under Design Notes; Planner rulings pending.
 
@@ -151,6 +165,17 @@ deferred: []
 - `EXPERIENCE.md`: this story writes its marked additive lines itself (the item count, the new More to try item bullet, the control clause) once the Planner has ruled the Public Text; a plain union at merge, the count line reconciled at integrate-forward. This supersedes "No edit of `EXPERIENCE.md` in this story" under Boundaries and the `Contended:` note above.
 - Pending with the Contest Planner: the Public Text, the veto-window items (the `Incident.Summary` column, the `incident_summary` tool), the AD-32 and AD-15 amendments (AD-32 is cited by merged Story 41.5's spec, so it is the Planner's call under U7) and the AD-33/U-177 cross-lane exception. No implement spawn before those rulings are recorded here.
 
+**Contest Planner rulings (2026-11-09, relayed by the orchestrator; binding for implement, QA and review):**
+1. Public Text: the 26 `summary.*` keys are approved as drafted except six, now worded as ruled under `## Public Text` (`summary.requested`, `summary.fixInterrupted`, `summary.closedDismiss`, `summary.closedQuiet`, `summary.element`, `summary.noCause`). Conditions: (a) `{channel}` renders as the README's names, "the web chat", "the Simulated phone", "Telegram", never an internal id; (b) the untrusted parts (cause, evidence, fix, sample error) render as plain text on every channel: escaped in the web chat, no parse mode or markup in Telegram; the sample error is cut to the incident notice's length; one test per channel covers an evidence line containing markup; (c) on the online demo no line ever carries an IRIS user name (`summary.approvedBy`/`summary.rejectedBy` are local-only), with one test.
+2. More to try: label, lookFor and button approved as drafted, placed FIRST. Condition: when there is no resolved incident to close (already closed by the quiet rule or by Break the feed again, or the guide not run yet), the button sends "Show me the incident summary" to the chat instead of doing nothing; an e2e case covers it. If that changes the lookFor text, the new text goes to the Contest Planner as public text before it is committed (the implement stage HALTs with an intent gap naming the new text rather than commit it).
+3. README: the line 30 count change and the New since 1.0.0 bullet are approved as drafted; the bullet is appended LAST in that list.
+4. Veto items kept: (a) the `Incident.Summary` column (slot 29), on condition that the purge test proves the summary goes with its row and the upgrade harness from v1.0.5 (`live:install-upgrade`) passes with existing closed incidents that have no summary; (b) the `incident_summary` tool as specified (read-only, untrusted, owner sessions only, second-session test required).
+5. Spine: the AD-32 and AD-15 additions are approved as worded, as additive lines, written by the runner with the marker [ADDED 2026-11-09, Story 23.6, Contest Planner ruling] (done at the spec gate).
+6. AD-33 cross-lane exception: allowed, limited to additive `summary` kind branches (`Channel/WebChat/Out.cls`, `Channel/SimPhone/Out.cls`, `web/src/app/chat/*`), the one More to try item (`Demo/Features.cls`, `web/src/app/guide/*`) and the `NOTIFICATIONKIND` append in `Msg/Enum.cls`, with their tests. If another branch touches those files first it is a plain union.
+7. The orchestrator's plain-union rulings stand; `EXPERIENCE.md` gets the ruled texts above (this story writes its marked additive lines).
+8. The More to try count (Planner, standing): README line 30 ("N more things to try"), EXPERIENCE.md's item count and the `more-to-try-view.ts` header comment must match the number of items in the registry after merges (Story 20.2, lane B, also adds an item; whichever merges second sets the count, nine if both). Any test that pins the count reads the registry, never a literal: every count pin this story adds or changes is registry-driven now.
+9. Route rule (corrected, standing): no new `/api/v1` route in this story, so the real-HTTP route rule does not bite; the tool's second-session test is required (AC7).
+
 ## Public Text
 
 All drafts (EXPERIENCE.md and the PRD fix none of them; FR-30 fixes only the contents). Slot types in brackets.
@@ -159,7 +184,7 @@ Catalog keys, `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`, appended after 
 - `summary.title`: "Incident summary: {count} {itemNoun} failed in {production}." [count count, itemNoun noun, production text]
 - `summary.firstFailure`: "{time}: first failure." [time]
 - `summary.noticed`: "{time}: OcuTalon told you." [time]
-- `summary.requested`: "{time}: approval requested to repair and resend {count} {itemNoun}." [time, count, itemNoun noun]
+- `summary.requested`: "{time}: OcuTalon asked for approval to repair and resend {count} {itemNoun}." [RULED 2026-11-09, Contest Planner]
 - `summary.approved`: "{time}: approved from {channel}." [time, channel]
 - `summary.approvedBy`: "{time}: approved by {user} from {channel}." [time, user text, channel]
 - `summary.rejected`: "{time}: rejected from {channel}." [time, channel]
@@ -167,13 +192,13 @@ Catalog keys, `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`, appended after 
 - `summary.expired`: "{time}: the approval request expired." [time]
 - `summary.fixStarted`: "{time}: the fix started." [time]
 - `summary.fixEnded`: "{time}: the fix ended: {resent} resent, {completed} completed, {failedAgain} failed again, {skipped} skipped." [time, four count]
-- `summary.fixInterrupted`: "{time}: the fix was interrupted after {resent} resent." [time, resent count]
-- `summary.closedDismiss`: "{time}: closed by Dismiss." [time]
+- `summary.fixInterrupted`: "{time}: the fix was interrupted after resending {resent}." [RULED 2026-11-09, Contest Planner]
+- `summary.closedDismiss`: "{time}: closed with Dismiss." [RULED 2026-11-09, Contest Planner]
 - `summary.closedReplay`: "{time}: closed when Break the feed was pressed again." [time]
-- `summary.closedQuiet`: "{time}: closed after 15 quiet minutes." [time]
+- `summary.closedQuiet`: "{time}: closed after 15 minutes with no new failures." (if the 15 is a setting rather than a constant, it becomes a slot) [RULED 2026-11-09, Contest Planner]
 - `summary.cause`: "Cause: {cause}" [cause sentence]
-- `summary.element`: "Element at fault: {element}." [element text]
-- `summary.noCause`: "No cause was claimed: {fallbackReason}." [fallbackReason]
+- `summary.element`: "Where it failed: {element}." [RULED 2026-11-09, Contest Planner]
+- `summary.noCause`: "No cause was found: {fallbackReason}." [RULED 2026-11-09, Contest Planner]
 - `summary.evidence`: "Evidence: {evidence}" [evidence sentence]
 - `summary.sampleError`: "Sample error: {error}" [error text]
 - `summary.fix`: "Fix: {fix}" [fix sentence]
