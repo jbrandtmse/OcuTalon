@@ -619,7 +619,33 @@ A judge or developer runs one image build and `docker compose up`, gets OcuTalon
 **FRs covered:** FR-11 (admin and user roles created), FR-14 (local sign-in, first cut), FR-55 (image, retag, compose and health check core), FR-56.
 **Also covers:** CON-1, CON-3, REL-1, REL-2 (first demo-path test), REL-4; AD-2, AD-3, AD-5, AD-19, AD-22, AD-23, AD-29, AD-33; UX-DR1 to UX-DR16 (token stylesheet).
 
-### Epic 1: Every item gets an attention decision you can audit and afford
+#### Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget
+
+[ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025. A CI-only story built on Story 0.15 and merged with it on one head. On a3086148 (ci run 42634825529) iris (install-upgrade) and iris (shards-2) were cancelled at the 40-minute job limit with no test red, and shards, shards-3, shards-4 and install-fresh took 38 to 39 minutes; on Epic 35's cd13b1ae shards-2, shards-3, shards-4 and install-upgrade were cancelled at the limit. The standing CI split rules apply (REL-4's 35-minute budget; a unit of about 1,000 s at most; a new group only when packing cannot get there). The `.github/workflows/ci.yml` matrix hunk goes to the Contest Planner (`RELEASE TOOL:`) before it merges; every new job reports as `iris (<group>)`, and the Planner adds each new name to main's required checks once this story merges.]
+
+As the owner of the CI budget,
+I want the IRIS groups packed so that each one finishes well under 35 minutes,
+So that no job is cancelled at the 40-minute limit and every head can go green without reruns.
+
+**Acceptance Criteria:**
+
+**Given** `ci/units.sh` and the `iris` matrix of `.github/workflows/ci.yml`
+**When** this story merges
+**Then** a new group `shards-6` holds `live:documents` (moved from shards-3) and `live:memory-offline` (moved from shards-4)
+**And** `live:security-overview` moves from production to shards-5, and the checks/overviewdoc pin (production plus `NO_WEB_BUNDLE_UNITS`) changes in the same commit
+**And** the unit `shard:lane-a@rest` (2,017 to 2,147 s on recent runs) is split, with the existing class-shard pieces mechanism, into two or more units of about 1,000 s at most, every lane-a area still in exactly one piece
+**And** shards, shards-2, shards-3, shards-4, install-upgrade, install-fresh and image are repacked from measured unit times (ci runs 42634825529, 42633085173, 42603815732 and 42583599821) so that every group's planned sum stays well under 35 minutes with the job's own setup, adding `shards-7` or more groups only if packing cannot get there; the spec records each group's planned sum
+**And** `IRIS_GROUPS`, the matrix and `ci/iris.sh groups` agree, every new job is named `iris (<group>)`, and no group is given a longer deadline
+
+**Given** `docker/tests/test-ci-config.sh` and `docker/tests/test-ci-changes.sh`
+**When** this story merges
+**Then** every pin of the old layout moves to the new one, no pin is deleted or weakened, and both pass with `docker/tests/test-boundaries.sh`
+
+**Given** CI on this story's head
+**When** two clean runs finish (the second may be the merge head's)
+**Then** every iris group finishes under 35 minutes in both, each group's time from both runs is reported, and DW-1025 is resolved by this story
+
+## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
 **Lane:** A. **Depends on:** Epic 0.
