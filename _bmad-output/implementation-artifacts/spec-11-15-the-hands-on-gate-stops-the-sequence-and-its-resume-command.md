@@ -178,6 +178,38 @@ The REFUSED, NOTE, PASS and FAIL texts are under Design Notes, Public text, tagg
 - **IA1 (the record push carries the Planner's section).** Given the fresh-pass resume of AC3 with the record question answered `yes`, when the record is pushed, then the bare remote's integration branch holds `## Hands-on pass` byte for byte, and every commit the push adds changes only the record.
 - **Standing.** Every test added or changed passes on a fresh environment, in either order.
 
+### Review Findings
+
+Code review 2026-11-09 (full mode; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 25 raw findings; 6 entries after triage (0 high, 2 medium, 4 low); 19 rejected.
+
+- [x] [Review][Patch] The "nothing written" pin of the re-cut refusals (R8, R9) never read the source record rc1.md, so a refusal that rewrote it stayed green (AC6) [docker/tests/test-release-sequence.sh:hsnap, t_carryover (c)] — medium, fix-risk low (test only). `hsnap` also checksums the file `HSNAP_EXTRA` names; case (c) sets it to rc1's record for its refusals.
+- [x] [Review][Patch] Case (c)'s AC8 pin accepted a band (`[3-5] s`) because rc2's start and first stop ran on the real clock (Rule 19 hermeticity) [docker/tests/test-release-sequence.sh:t_carryover (c)] — medium, fix-risk low (test only). The seam clock now runs from rc2's start; the pin is exactly `3 s`, and a new check asserts the seam never ran out before the resume.
+- [x] [Review][Patch] `hsnap` missed a new local branch or tag at an existing commit (`git log --all` lists commits only) [docker/tests/test-release-sequence.sh:hsnap] — low, fix-risk low; mechanical: `git for-each-ref` of the checkout added.
+- [x] [Review][Defer] The waiting record's push is also lost when the author answers no, input ends, or git push fails at the first stop; resume refuses (R1) until the section exists [release/release.sh:stop_routine] — deferred: same root cause as DW-1022 (occurrence appended); new wording needs the Planner.
+- [x] [Review][Defer] `start` accepts `1.0.00` beside a tagged `v1.0.0` (string compare) [release/release.sh:cmd_start] — deferred: pre-existing (Story 11.5); DW-1023 `wontfix-accepted`, reopen_if a leading-zero version reaches cut outside the self-test.
+- [x] [Review][Defer] The re-cut source record is `rc<m>.md` in this record's folder, so a `--record <other file>` re-cut always gets R8 [release/release.sh:handson_verdict] — deferred: spec-bound (Boundaries fix the folder convention); DW-1024 `by-design`.
+
+Rejected:
+- `low` F1 says "fixes that are not in this candidate" without an ancestry check: the Matrix and Decided 5 specify F1 for any recorded fix, the Planner records fixes made after the pass, and a check needs new public text.
+- `low` R2 for a missing `Candidate:` line or a heading-only section: the Matrix row "Another commit" names the missing line; approved text.
+- `false` the spec's frontmatter `status: done` while in review: it is build-auto's machine state; the review verdict goes to sprint-status.yaml.
+- `low` the Auto Run Result's counts differ from the triage log rows: it counts grouped entries; the fix edits the spec.
+- `low` parked stories 11.16, 11.18 and 11.29 still read `ready-for-dev` in sprint-status.yaml: not this story's defect; the lead's re-plan bookkeeping.
+- `low` the DW-1009 test covers only the `OCUTALON_LOCK_DIR` branch of `live_lock_dir`: `candidate_lock_dir` is 11.14's unchanged helper; the RUN line's two forms are pinned.
+- `low` `Fixes:  none` (two spaces) or `None` gives R5: a safe refusal naming the token; the form is `Fixes: none`.
+- `low` an ambiguous 7-character short in F1's re-cut command: the approved text is 7 characters; improbable in this repository.
+- `false` a later resume passes after the Planner edits `Fixes:` to `none` following F1: AC4 specifies "a later resume reads the section again", and the section is the Planner's (REL-7).
+- `low` a relative or spaced `OCUTALON_LOCK_DIR` in the RUN line: approved text verbatim (DW-1009); lanes set an absolute path.
+- `low` a result `commit` field over 230 characters truncates the FAIL line: theoretical; eval/run.sh writes a sha.
+- `low` F1 also re-offers the record push, which Decided 12 does not mention: the behaviour is right; the fix edits the spec.
+- `low` `t_record` pins DW-1022's behaviour: a deliberate change will update it; DW-1022 is adjudicated at this story's gate.
+- `false` the source-text greps in `t_handson` are not evidence: IA1's checksums and the stdin-driven exit codes are the behavioural pins.
+- `low` the spec names four `release.sh` hunks and the diff has seven: the extra hunks are the five approved `[Review]` items, listed in the Auto Run Result; the fix edits the spec.
+- `false` `handson_fixes` as an unnamed copy (Rule 2): it is not a copy of `gate_verdict` or `step_cut`'s pick loop (one shared `git rev-parse` line); it is called twice, for the candidate's and the source's `Fixes:`.
+- `low` the DW-1009 RUN line prints `OCUTALON_LOCK_DIR`'s value: the approved text requires it; AD-19 covers keys and tokens, and this is a folder path.
+- `false` the feature test differs from the Tasks' wording: Decided 17 records the arithmetic test.
+- `false` (informational) REL-7 / AD-29: nothing in `release.sh` writes the section, and no option, variable or answer records a pass.
+
 ## Spec Change Log
 
 - **planner-2026-11-09-11.15** (the Contest Planner's ruling, relayed by the orchestrator, 2026-11-09): APPROVED as written:
@@ -379,6 +411,17 @@ Run each command in its own foreground call with `timeout: 600000`, from the wor
   - Decision 13: mutation: the source record's `handson_fixes` failure ignored -> `carryover` red ("rc1 names a fix that is no commit": R9 where R8 is expected).
   - F1 order: mutation: `HANDS_SHORTS` built in reverse -> `carryover` red (F1 with two fixes, and with one the trailing space).
   - DW-1008 eval commit: mutation: `$cand` back to `$short` in the text -> `eval` red. DW-1009: mutation: `lockdir=` forced empty -> `eval` red ("not run: the lines (a lane lock folder resolves)"). DW-1008 build: mutation: the build-failed test on exit 9 instead of 1 -> `upgrade` red. DW-1008 tags: mutation: the unreadable-tags branch disabled (`&& false`) -> `upgrade` red ("(QA) unreadable remote tags").
+- (QA) Added pins and mutations (Rule 19; each applied on `release/release.sh`, red observed, reverted byte-identical, `git status --short` unchanged apart from the self-test):
+  - AC8 on the fresh-pass branch (the P1 branch had no clock pin): `docker/tests/test-release-sequence.sh` `t_carryover` case (e) now runs the seam clock `1000 1010 9000 9005` across the 1.0.00 stop and a `Fixes: none` pass. mutation: `hands_add $(($(clock) - 1010))` added before the P1 `STEP_ROW=pass` -> `carryover` red ("(QA) 1.0.00: a fresh pass: hands-on time is the two windows only").
+  - AC8 on the re-cut branch (the P3 branch had no clock pin): case (c) sets `clockfile 5000 5003` before the P3 resume and expects "Hands-on time: [3-5] s for this candidate" and both seam values read. mutation: `hands_add $(($(clock) - 1010))` added before P3's `k=$(...)` -> `carryover` red ("(QA) the re-cut carry-over: hands-on time is the resume's window only").
+  - AC2 ("nothing written" held apart from the exit code and the line; the snapshot `hsnap` covers the state files, the commits and the remote refs): mutation: `echo stray >> "$sfile"` before R2's `refuse` -> `carryover` red on "nothing written" in each R2 case only (exit and line stay green). mutation: `git commit -q --allow-empty -m stray` before R6's `refuse` -> `carryover` red ("a carry-over with no note: nothing written", and the 1.0.1 time and seam pins after it). mutation: `git push -q "$remote" HEAD:refs/heads/stray` before R6's `refuse` -> `carryover` red ("a carry-over with no note: nothing written").
+  - Audit: every I/O Matrix row and AC1 to AC8 and IA1 has a pinning assertion and a recorded mutation; the rule is in the header list and the rule-call block, so the default run and CI's `release-sequence` unit execute it.
+- (QA) Test file changed: `docker/tests/test-release-sequence.sh` (`t_carryover`: the AC8 pins on the P1 and P3 branches, 12 lines).
+- (Code review) Pins tightened (Rule 19; each mutation applied on `release/release.sh`, red observed, reverted byte-identical, `git status --short` unchanged):
+  - AC6 "nothing written" on the source record: `hsnap` checksums `HSNAP_EXTRA` (rc1's record in case (c)). mutation: `echo stray >> "$src"` on the R8 path -> `carryover` red ("rc1 names a fix that is no commit" through "rc1's record is missing": nothing written).
+  - AC8 on the P3 branch, exact: the seam clock runs from rc2's start, and the pin is `Hands-on time: 3 s`. mutation: `hands_add 1` before P3's `k=$(...)` -> `carryover` red ("(QA) the re-cut carry-over: hands-on time is the resume's window only"); the earlier `[3-5]` band stayed green under it.
+  - AC2 "nothing written" covers local refs: `hsnap` checksums `git for-each-ref`. mutation: `git branch -f stray HEAD` before R2's `refuse` -> `carryover` red ("no Candidate line: nothing written").
+  - Measured: `carryover` 17 s; `carryover handson` 26 s; `resume gate` passed.
 
 **Shared surfaces:**
 - `step_hands_on`'s behaviour on a later `next` or `resume` (`t_handson`, `t_resume`);

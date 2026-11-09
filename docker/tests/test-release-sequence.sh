@@ -3943,10 +3943,13 @@ hands_drop() {
   awk '/^## Hands-on pass[ \t]*$/ { skip = 1; next } skip && /^#/ { skip = 0 } !skip { print }' "$1" > "$1.new" && mv "$1.new" "$1"
 }
 
-# hsnap <record file>: what a refusal must not change: the state files, the record, the checkout's commits and status, and the remote's refs.
+# hsnap <record file>: what a refusal must not change: the state files, the record, the file HSNAP_EXTRA names (when set), the checkout's commits,
+# refs and status, and the remote's refs.
+HSNAP_EXTRA=""
 hsnap() {
-  printf '%s|%s|%s|%s|%s\n' "$(cd "$OCUTALON_RELEASE_STATE" && find . -type f | sort | xargs cat | cksum)" "$(cat "$1" 2> /dev/null | cksum)" \
-    "$(git -C "$W" log --all --format='%H %s' | cksum)" "$(git -C "$W" status --porcelain | cksum)" "$(remote_refs | cksum)"
+  printf '%s|%s|%s|%s|%s|%s|%s\n' "$(cd "$OCUTALON_RELEASE_STATE" && find . -type f | sort | xargs cat | cksum)" "$(cat "$1" 2> /dev/null | cksum)" \
+    "$(cat "${HSNAP_EXTRA:-/dev/null}" 2> /dev/null | cksum)" "$(git -C "$W" log --all --format='%H %s' | cksum)" \
+    "$(git -C "$W" for-each-ref --format='%(objectname) %(refname)' | cksum)" "$(git -C "$W" status --porcelain | cksum)" "$(remote_refs | cksum)"
 }
 
 # hands_refused <label> <expected line> <record file> <resume argument>...: resume refuses with that line (exit 2) and writes nothing.
@@ -4131,7 +4134,8 @@ t_carryover() {
   eq "a later resume reads the section again: exit" "$rc" 1
   has "a later resume reads the section again" "$out" "$line1"
   eq "the record was pushed: the checkout is level" "$(git -C "$W" rev-parse HEAD)" "$(rhead)"
-  # (c) the re-cut from the passed candidate plus its recorded fixes carries the pass over
+  # (c) the re-cut from the passed candidate plus its recorded fixes carries the pass over; every rc2 window runs on the seam clock
+  clockfile 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000
   rs "$Y" start --version 1.0.0 --from release/1.0.0-rc1 --pick "$FIX1"
   eq "rc2 start: exit" "$rc" 0
   rs '' next --version 1.0.0 --rc 2
@@ -4149,6 +4153,7 @@ t_carryover() {
   RC1S=${RC1:0:7}
   ref2="REFUSED hands-on release/1.0.0-rc1, which this candidate was cut from, has no hands-on pass on $RC1S in a release record"
   cp "$rf1" "$C/rc1.record"
+  HSNAP_EXTRA=$rf1
   hands_put "$rf1" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $RC1" "Fixes: $FIX1 $FIX2"
   hands_refused "rc1 recorded more fixes" "REFUSED hands-on the picks of this re-cut are not the fixes that the pass on release/1.0.0-rc1 recorded" "$rf" --version 1.0.0 --rc 2
   hands_put "$rf1" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $RC1" "Fixes: $FIX2"
@@ -4170,13 +4175,19 @@ t_carryover() {
   mv "$rf1" "$C/rc1.away"
   hands_refused "rc1's record is missing" "$ref2" "$rf" --version 1.0.0 --rc 2
   mv "$C/rc1.away" "$rf1"
+  HSNAP_EXTRA=""
   git -C "$W" checkout -q -- release/records/1.0.0/rc1.md
   eq "rc1's record is restored" "$(cat "$rf1" | cksum)" "$(cat "$C/rc1.record" | cksum)"
+  eq "rc2's start, cut and stop never fell back to the real clock" "$([ -s "$C/now" ] && echo seam)" seam
+  clockfile 5000 5003
   rs "$N" resume --version 1.0.0 --rc 2
   eq "the re-cut carry-over: exit" "$rc" 0
   has "the re-cut carry-over: the line" "$out" "PASS hands-on the author's hands-on pass (REL-7) on release/1.0.0-rc1 ($RC1S) is carried over to release/1.0.0-rc2 (${sha2:0:7}) with the fixes it recorded (1): the pass of rc1 plus its fix"
   has "the re-cut carry-over: the row" "$(cat "$rf")" "| hands-on | carried over | the author's hands-on pass (REL-7) on release/1.0.0-rc1 ($RC1S) is carried over to release/1.0.0-rc2 (${sha2:0:7}) with the fixes it recorded (1): the pass of rc1 plus its fix |"
   has "the re-cut carry-over: the end result" "$(cat "$rf")" "Result: stopped after hands-on: no step after the gates has run (not a release)"
+  # (QA) AC8 on the re-cut branch: the resume's one ASK window (3 s on the seam clock) is all it adds to rc2's 0 s windows before it
+  eq "(QA) the re-cut carry-over: hands-on time is the resume's window only" "$(grep -c 'Hands-on time: 3 s for this candidate' "$rf")" 1
+  eq "(QA) the re-cut carry-over: both seam values were read" "$(wc -c < "$C/now" | tr -d ' ')" 0
   # (d) a fixes-only re-cut carries a pass over on the note alone: rc1's record holds no pass, and the picks are not compared
   newcase
   git -C "$W" tag v1.0.0
@@ -4219,10 +4230,18 @@ t_carryover() {
     . "$root/release/lib-release.sh"
     env_set "$OCUTALON_RELEASE_STATE/1.0.00-rc1/state.env" next hands-on
   )
+  clockfile 1000 1010 9000 9005
   rs "$N" next
   eq "1.0.00: the first stop: exit" "$rc" 4
   hands_put "$rf" "Result: carry-over" "Candidate: 1.0.00 rc1, release/1.0.00-rc1 at $sha" "Note: fixes only"
   hands_refused "1.0.00 is a feature release" "REFUSED hands-on 1.0.00 is a feature release, so it needs a fresh pass on this candidate; a pass carries over only to a re-cut from the passed candidate plus the fixes it recorded" "$rf"
+  # (QA) AC8 on the fresh-pass branch: a 7,990 s jump between the stop and the pass is no hands-on time (the seam clock is read by the two ASK windows only)
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.00 rc1, release/1.0.00-rc1 at $sha" "Fixes: none"
+  rs "$N" resume
+  eq "(QA) 1.0.00: a fresh pass: exit" "$rc" 0
+  has "(QA) 1.0.00: a fresh pass: the line" "$out" "PASS hands-on the author's hands-on pass (REL-7) on release/1.0.00-rc1 ($short) is recorded, with no fix outstanding"
+  has "(QA) 1.0.00: a fresh pass: hands-on time is the two windows only" "$(cat "$rf")" "Hands-on time: 15 s for this candidate"
+  eq "(QA) 1.0.00: a fresh pass: the four seam values were all read" "$(wc -c < "$C/now" | tr -d ' ')" 0
 }
 
 # gate_ran <gate>: whether a gate's script or reader ran in the case (notes: the draft exists).

@@ -6202,12 +6202,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: candidate_clone CLONE_WHY texts and 'the result could not be kept for the notes' reach console and record rows unapproved; a near-miss eval sha prints two equal shorts; build exit 1 says refused
 - 2026-11-09T07:59:46Z status=decision-pending owner=burndown by=cr note=Planner rules on the texts; proposed exact text is in the spec's Review Findings (11.14 code review)
 - 2026-11-09T08:47:35Z status=routed owner=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=spec_gate note=Planner_approved_the_texts(planner-2026-11-09-11.15);worked_as_[Review]_items_in_11.15's_implement
+- 2026-11-09T15:24:04Z status=resolved-by:11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=adjudication note=the_five_approved_texts_worked_as_[Review]_items(step_eval_commit_text,step_upgrade_unreadable-tags+build-failed_texts,candidate_clone_texts)_in_497a1928;pinned_by_t_eval,t_upgrade
 
 ### DW-1009: The eval gate's RUN line omits the lane's throwaway lock folder, so the author's evaluation in the state-folder clone runs without throwaway-iris.lock
 - source: spec-11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: gate_script exports OCUTALON_LOCK_DIR for the other gates; the eval clone sits outside the repository, so live_lock_dir finds no .coordination/locks
 - 2026-11-09T07:59:51Z status=decision-pending owner=burndown by=cr note=new public text; proposed RUN line is in the spec's Review Findings (11.14 code review)
 - 2026-11-09T08:47:36Z status=routed owner=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=spec_gate note=Planner_approved_the_texts(planner-2026-11-09-11.15);worked_as_[Review]_items_in_11.15's_implement
+- 2026-11-09T15:24:04Z status=decision-pending owner=burndown by=adjudication note=public_text:residual_only;the_--release-candidate_RUN_line_now_carries_OCUTALON_LOCK_DIR(497a1928,pinned_by_t_eval);the_--override_RUN_line(release/release.sh_step_eval)_still_omits_it;proposed:RUN_cd_<clone>_&&_OCUTALON_LOCK_DIR=<lock_folder>_bash_eval/run.sh_--override_"<reason>"(Planner_rules_on_the_text)
 ### DW-999: flake candidate (host load): live:storage-roundtrip 'the first start did not end ready within 400 s' (test aborted) in CI image under a saturated queue
 - source: CI run 42558521402 attempt 1 (OCT-epic17 87eb681a) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(image) 04:17:13Z; a stack-start bound, no product line involved
@@ -6222,3 +6224,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: release/release.sh stop_routine record-push FAIL text; reachable only when the integration branch moved during the first hands-on stop (spec Decided 4, 12)
 - 2026-11-09T15:01:53Z status=open owner=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=harvest note=fix needs wording the Planner has not approved
+- 2026-11-09T15:22:28Z occurrence=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command
+- 2026-11-09T15:24:04Z status=decision-pending owner=burndown by=adjudication note=public_text:the_first-stop_record-push_FAIL_hint_says_run_resume,which_refuses_(R1)_until_the_pass_exists;proposed:append_'once_the_Contest_Planner_has_recorded_the_hands-on_pass'_to_that_hint_at_hands-on(Planner_rules_on_the_text);occurrences_include_answer_no,input_end,push_failure(cr)
+
+### DW-1023: release.sh start accepts a version part with leading zeros (1.0.00) and its already-tagged check compares strings, so 1.0.00 starts beside a tagged v1.0.0 and would cut v1.0.00
+- source: spec-11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: cmd_start's version test is ^[0-9]+.[0-9]+.[0-9]+$ and the tag check is a string compare; t_carryover case (e) starts 1.0.00 after tagging v1.0.0 (pre-existing, Story 11.5)
+- 2026-11-09T15:22:28Z status=wontfix-accepted owner=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=cr note=reopen_if=a start --version with a leading-zero part reaches cut outside the self-test
+
+### DW-1024: The re-cut carry-over reads its source record as rc<m>.md in this record's folder, so a re-cut or source started with --record <other file> always gets R8
+- source: spec-11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: handson_verdict: src=$(dirname $rec)/rc${from##*-rc}.md; the spec's Boundaries fix this folder convention (as earlier_hands); --record is an author override
+- 2026-11-09T15:22:28Z status=by-design owner=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=cr note=spec Boundaries: the source record is rc<m>.md in the folder of this record; a custom --record re-cut is not specified
