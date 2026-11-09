@@ -54,3 +54,8 @@
 2026-11-09T14:16:13Z	Epic 35	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=morning_redispatch_20261109 lane=B slot=ocutalon-slot-b
 2026-11-09T14:16:13Z	Epic 35	epic_branch_checked_out	repos=. head=4eef96eb ci=gh workflows=ci,lane-a note=redispatch_assert origin=cca91ec2
 2026-11-09T14:16:13Z	Story 35.1	ci_resolved	story=35.1 sha=cca91ec2 runs=42596131997,42596131881 failed=none via=none result=success resolved_at=resume note=first_ci_backfill(first_ci=success)
+2026-11-09T14:17:37Z	Story 35.2	ruling	question=split_35.2_35.3 choice=agreed category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.2_10:30Z policy=5086036
+2026-11-09T14:17:37Z	Story 35.2	ruling	question=SECURITY_veto_items choice=approved_no_veto category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.2_10:30Z policy=5086036
+2026-11-09T14:17:37Z	Story 35.2	ruling	question=STORED_DATA_Session.AdminAtSignIn choice=approved category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.2_10:30Z policy=5086036
+2026-11-09T14:17:37Z	Story 35.2	ruling	question=PUBLIC_TEXT_30_keys choice=accepted_verbatim_with_2_edits(emailAddressHelp_one_sentence;refusedExpansion_names_IRIS_setting_reference) category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.2-text policy=5086036
+2026-11-09T14:17:37Z	Epic 35	integrated_forward_pushed	head=cd13b1ae feature=09a47f3b runs=42633085173,42633085022 missing=none ci=pending
