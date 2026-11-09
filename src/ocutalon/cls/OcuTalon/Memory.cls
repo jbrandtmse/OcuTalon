@@ -12,6 +12,11 @@
 ///     failed embedding is an error status. A keyword query that iFind refuses leaves the nearest list alone, and writes one Type 3 warning (redacted).
 ///   - Fuse: the fusion of the two lists, on their own, so that the order, the ties and the cut are tested without a model.
 ///   - List: the owner's newest 20 memories (by SavedAt, then row id), newest first, in the same form, and the owner's count.
+///   - Pinned (Story 41.12): the owner's pinned memories (COALESCE(Pinned, 0) = 1, so a row saved before Story 41.8 is not pinned), newest pin first (PinnedAt, then row id), in the
+///     same form; an empty session is an error status.
+///   - CoreBlock (Story 41.12): the core-memory block of the session as the model reads it, built from Pinned by OcuTalon.Agent.Input.CoreBlock (the only formatter), with an optional
+///     candidate text counted first. The pin cap (PINCAPTOKENS * CHARSPERTOKEN = COREMAX characters, the heading and the quotes included) is checked on this block, and Agent.Input
+///     renders this very block, so a pinned fact is never left out of the input.
 ///   - Tune: gathers the SQL statistics of the memory table when a saved row's id is a multiple of STATSEVERY. The planner reads HNSW's plan from the
 ///     table's statistics, and statistics taken while the table was small (or none) keep it on a scan of the owner's rows: measured in Story 19.3
 ///     (evidence/19-3-task0-memory-indexes.md). A gather on a table of a few hundred rows or more keeps the index plan up to 10,000 rows and beyond.
@@ -36,6 +41,15 @@ Parameter LISTLIMIT = 20;
 
 /// Tune gathers the table's statistics at every id that is a multiple of this.
 Parameter STATSEVERY = 1000;
+
+/// The most tokens the core-memory block holds (FR-74, NFR-27).
+Parameter PINCAPTOKENS = 1000;
+
+/// How many characters one token is estimated to be.
+Parameter CHARSPERTOKEN = 4;
+
+/// The most characters the rendered core-memory block holds, the heading, the quotes and the closing blank line included.
+Parameter COREMAX = {..#PINCAPTOKENS * ..#CHARSPERTOKEN};
 
 /// The SQL name of the table.
 Parameter TABLE = "OcuTalon_Data.Memory";
@@ -147,6 +161,43 @@ ClassMethod List(sessionRef As %String, Output rows As %DynamicArray, Output tot
 		Set sc = exception.AsStatus()
 	}
 	Quit sc
+}
+
+/// The owner's pinned memories, newest pin first (PinnedAt, then row id), as {memoryRef, text, savedAt, origin, source, pinned} in the %DynamicArray rows. A row whose stored
+/// Pinned is empty (saved before Story 41.8) is not pinned. An empty session is an error status; rows is then an empty array.
+ClassMethod Pinned(sessionRef As %String, Output rows As %DynamicArray) As %Status
+{
+	Set rows = []
+	If $Get(sessionRef) = "" Quit $SYSTEM.Status.Error(5001, "A read of the pinned memories needs a session")
+	Set sc = $$$OK
+	Try {
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref, Text, SavedAt, Origin, Source, Pinned FROM "_..#TABLE_" WHERE SessionRef = ? AND COALESCE(Pinned, 0) = 1 ORDER BY PinnedAt DESC, ID DESC", sessionRef)
+		If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The pinned memories could not be read: "_rs.%Message))
+		While rs.%Next() {
+			Do rows.%Push(..Row(rs.%Get("Ref"), rs.%Get("Text"), rs.%Get("SavedAt"), rs.%Get("Origin"), rs.%Get("Source"), rs.%Get("Pinned")))
+		}
+	} Catch exception {
+		Set rows = []
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// The core-memory block of the session in block (Agent.Input.CoreBlock of the pinned texts, newest pin first), with the text candidate, when it is not "", counted first
+/// as the newest pin. The pin cap and Agent.Input.CorePart both call this method, so they cannot disagree. An empty session is an error status, with block "".
+ClassMethod CoreBlock(sessionRef As %String, candidate As %String = "", Output block As %String) As %Status
+{
+	Set block = ""
+	Set sc = ..Pinned(sessionRef, .rows)
+	If $$$ISERR(sc) Quit sc
+	Set texts = []
+	If candidate '= "" Do texts.%Push(candidate)
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		Do texts.%Push(row.text)
+	}
+	Set block = ##class(OcuTalon.Agent.Input).CoreBlock(texts)
+	Quit $$$OK
 }
 
 /// Gathers the SQL statistics of the memory table when id is a multiple of STATSEVERY, and returns 1 when it did, else 0. Throws what the gather

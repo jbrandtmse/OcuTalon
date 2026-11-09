@@ -11,7 +11,7 @@
 ///     web_user is refused inside a context (the origin is tool there, and none of the three is a tool verb);
 ///   - TestSearchMemoryWaits (Story 41.9): a SearchMemory waits SEARCHTIMEOUT (20) seconds, and a send that gets no answer in time is answered Ok 0 Outcome busy; any other verb waits TIMEOUT (120)
 ///     and the same silence is failed; a SearchMemory that is answered in time gets the owner's answer as it is;
-///   - TestRealStubOwners: the real OcuTalon.Docs.Ops (built in Story 19.4) and the real OcuTalon.Memory.Ops (built in Story 19.3) answer their two verbs
+///   - TestRealStubOwners: the real OcuTalon.Docs.Ops (built in Story 19.4) and the real OcuTalon.Memory.Ops (built in Story 19.3; its pin handlers in Story 41.12) answer their verbs
 ///     as built, no_session for the session of the test, which has no row; each received the very object CommandsIn was given, with its origin and
 ///     SessionRef unchanged.
 /// The run's calls are kept under ^OcuTalonTest("CommandsRouting", "step3<n>") and deleted after the tests; the context of the test process is
@@ -130,13 +130,13 @@ Method TestContextOwnSessionOnly()
 	Do $$$AssertEquals(..Calls(), before + 1, "and sent")
 }
 
-/// The real owners of Lane A (MemoryOps and DocumentOps) answer the four verbs as built, no_session for a session with no row, and receive the request unchanged.
+/// The real owners of Lane A (MemoryOps and DocumentOps) answer the verbs they handle (the memory verbs SaveMemory, ForgetMemory, PinMemory and UnpinMemory, and the two document verbs) as built, no_session for a session with no row, and receive the request unchanged.
 Method TestRealStubOwners()
 {
-	Set verbs = $ListBuild("SaveMemory", "ForgetMemory", "AddDocument", "RemoveDocument")
+	Set verbs = $ListBuild("SaveMemory", "ForgetMemory", "PinMemory", "UnpinMemory", "AddDocument", "RemoveDocument")
 	For v = 1:1:$ListLength(verbs) {
 		Set verb = $List(verbs, v)
-		Set origin = $Select(verb [ "Memory": "tool", 1: "web_user")
+		Set origin = $Select((verb = "SaveMemory") || (verb = "ForgetMemory"): "tool", 1: "web_user")
 		Set probe = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.CommandsStep3Probe", .sc)
 		Do $$$AssertStatusOK(sc, "a shadow instance of the stub probe is made")
 		Set command = ..NewCommand(verb, origin, "zzsessA")

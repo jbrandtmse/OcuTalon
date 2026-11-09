@@ -2,7 +2,8 @@
 title: "Story 41.12: Core memory: pins under a hard cap, read at every session start"
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'b9bbcd53a7ed2bfd23c4fbf3b5d3c889e45001f6'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -171,6 +172,36 @@ Files:
 
 ## Review Triage Log
 
+### 2026-11-09 — Review pass
+- verdicts: 25 findings — high 1, medium 0, low 12, false 12, maybe-false 0 (Intent Alignment reported no findings; its description is in the note below)
+- findings:
+  - `[high]` `[patch]` (Blind Hunter 1, Edge Case 1+2, Verification Gap 1; one root cause) `Test/Memory/OpsProbe.cls` was overwritten with a Lock-only probe, removing `Tunes`, `SourceFails`, `SourceFailText`, `TurnOf` and `Tuned` that `Test.Memory.Ops` uses (made in this stage's review pass) — restored the file from git (byte-identical to HEAD) and moved the lock switch to a new `Test/Memory/PinsProbe.cls` that `Pins:TestLockBusy` uses; `Test.Memory.Ops` run green on the warm stack.
+  - `[false]` `[reject]` (Blind Hunter 2, Edge Case 5) a failed core-memory read drops the block, so a pinned fact is left out — the intent block says a failing read leaves the block out with one warning; "never cut" is about the cap, and the log line is the signal.
+  - `[low]` `[reject]` (Blind Hunter 3) `StartsSession` reads one Usage query per earlier fallback turn — only fallback turns pay it, the loop stops at the first turn that reached a model, and a fix adds a cache.
+  - `[low]` `[reject]` (Blind Hunter 4) no cap test with CR, VT, FF or U+2028 separators — the cap and the render call the same `CoreBlock`, so they cannot disagree; `TestCoreForm` pins CRLF.
+  - `[low]` `[reject]` (Blind Hunter 5) no tests for an empty-text pin, a pin while the block is already over the cap, or a failed `%Save` — an empty-text row cannot be saved by `SaveMemory`; the already-over case is refused by the same comparison; the save-failure branch is the shared `Failed`.
+  - `[low]` `[reject]` (Blind Hunter 6) a `RetryItemId` decision maps to no turn so `Skipped` keeps it — its line holds an outcome and no message text, so the current message is not quoted.
+  - `[low]` `[patch]` (Blind Hunter 7a, 7b) two garbled comments (`Agent.Input` class comment, `StartsSession` header) — both rewritten; the `MemoryTurns` assertion is looser than its header but a session start there holds one message, so the check is exact.
+  - `[low]` `[reject]` (Blind Hunter 8) no handler-level same-second tie test for `PinnedAt` — `TestPinnedOrder` pins the row-id tiebreak with a hand-made tie.
+  - `[false]` `[reject]` (Edge Case 3) `Served` reads only `TurnDecisionRef` — the spec's signal is the reply decision's Usage row.
+  - `[false]` `[reject]` (Edge Case 4) an already-pinned memory is answered without a cap check — the matrix row says so (no cap re-check).
+  - `[false]` `[reject]` (Verification Gap 2 and Intent Alignment 2, same root as the OpsProbe row, counted there) AC 2 stays green: `Test.Memory.Ops` passes.
+  - `[low]` `[patch]` (Verification Gap 2b) AC 2 had no `mutation:` line — recorded: `OnSave` setting `Pinned` 1 turns `Test.Memory.Ops` red; the gate's own mutations are 41.9's.
+  - `[low]` `[patch]` (Verification Gap 3) no mutation lines for `TestOtherSession`, `TestUnpin`, `TestNoSession` — three mutations applied, each red, reverted, lines recorded.
+  - `[low]` `[reject]` (Verification Gap 4) `TestMessageMap` is a text match, not a dispatch — the real dispatch is the LIVE e2e spec, left to CI by the spec.
+  - `[low]` `[reject]` (Verification Gap 5) `TestCoreMemoryAtStart` asserts nothing if the two turns straddle local midnight — the existing `StartIfNewDay` pattern; a fix adds a branch for a one-minute window.
+  - `[low]` `[patch]` (Verification Gap 6) a fixture session in `TestStartsSessionBoundaries` was not tracked for cleanup — now made through the class's `Session` helper.
+  - `[low]` `[reject]` (Verification Gap 7) the `SecondModel` day-change branch can no longer fail if the yesterday block is absent — it only runs across midnight, and the same-day branch has its mutation.
+  - `[false]` `[reject]` (Verification Gap other 1) `OpsProbe.cls` listed twice in the diff — an artifact of the staged diff; the working tree held one version (now the HEAD one).
+  - `[false]` `[reject]` (Verification Gap other 2, Blind Hunter 5) empty candidate text not counted by `CoreBlock` — an empty-text row cannot exist.
+  - `[false]` `[reject]` (Verification Gap other 3) `PinnedAt` window assertion — the reviewer found it sound.
+  - `[false]` `[reject]` (Verification Gap other 4) the e2e cap test's precondition is state it did not create — it fails loudly, and the spec asks for the precondition.
+  - `[false]` `[reject]` (Verification Gap other 5) `pinnedCountOf` and the cap test have no local executed host — the spec leaves `live:sign-in` to CI.
+  - `[false]` `[reject]` (Edge Case: `CorePart` unbounded) the spec says "no bound, no cut"; the cap is enforced at pin time.
+  - `[false]` `[reject]` (Intent Alignment 1) route and production-dispatch expectations are exercised by handler tests and the LIVE e2e spec — the e2e run is CI's by the spec.
+  - `[false]` `[reject]` (Intent Alignment 5, 6) fallback with an empty decision, and the shared LIVE session — the first is tested and consistent; the second as above.
+- note: the Intent Alignment auditor reported readings and surfaces only (handler-level and function-level tests, with the route and dispatch layer carried by the LIVE e2e spec); its one concrete divergence, the replaced `OpsProbe`, is the high row above.
+
 ## Design Notes
 
 **ADs:**
@@ -203,6 +234,15 @@ No AC contradicts an AD's Rule. AD-21's "at most 1,000 tokens, estimated at 4 ch
 - Already pinned answers `pinned` and keeps `PinnedAt`, so re-pinning never moves a pin to the front. Unpinning an unpinned own row answers `unpinned`. Pin answers carry an empty Message, as `OnSearch` does.
 - **The DW-967 signal** is a Usage row of the turn's `TurnDecisionRef`. The runner writes one after every Chat that returns, and after a thrown Chat only when it spent; a precheck writes none (`Decide.cls:1147-1161`, `Agent.cls:724`). A reason list would miss a thrown Chat ("error"). Only fallback turns are checked, so ordinary replies cost no read. (inference) A timeout whose Usage row lands after the next turn is sent counts as "not reached"; the next turn then repeats the session start, which adds a block and never loses one.
 - **DW-977** passes the item's ItemId (always the turn's own; `RetryItemId` is set after rendering, `Conversation.cls:430`). Build looks the turn up, so a Busy resend gives the same result. Only messages and their decide decisions are cut; incidents, approvals and reminders are no person's words.
+
+**Decided in-stage (implement):**
+- `Conversation` gets a private seam `Served(decisionRef, sessionRef, Output sc)` over `Ownership.DecisionServed`, so `ConversationStartProbe` can fail it (`^||ConversationStartProbe("failServed")`) and the matrix row "a failed read counts as a start, with one warning" is tested.
+- `DailyNote.Build` reads the turn only when `itemId` is not empty (two arguments and `""` make no extra read, so the Notes route and `DailyNoteProbe`'s failing `TurnOf` are unchanged).
+- `Pins:TestMessageMap` was added: the probe of the real gate dispatches by class name, so only the compiled map pins the production's delivery of the two verbs.
+- `CommandsStep3:TestRealStubOwners` now also sends `PinMemory` and `UnpinMemory` (origin `web_user`) to the real handlers (no_session for a session with no row).
+- `Agent.MemoryTurns:TestNotesAtSessionStart` asserted the old behaviour (the notes hold the current message's own line); it now asserts there is none (DW-977).
+- The unpin answer carries the memory's Ref, as the pin answer does; both carry an empty Message.
+- `Memory.CoreBlock` reads `Agent.Input.CoreBlock` (the Memory area calls Agent, as it already calls Bridge); `test-class-rules.sh` and `test-boundaries.sh` pass.
 
 **Extend, don't copy:**
 - `OnPin`/`OnUnpin` follow `OnForget`.
@@ -280,7 +320,47 @@ Every test added or changed passes on a fresh environment, in either order, and 
 - AC 6: `Build` ignores `itemId` → `DailyNote:TestLeavesOutCurrentTurn` red, and `SecondModel:TestIntegrationWebChat` red (on the fresh stack, once).
 - DW-1039: CI only; not demonstrable locally, as in 41.9.
 
+**Recorded (implement stage, warm stack `e41s12iw`; each applied, observed red, reverted, files byte-identical with `cmp`):**
+- mutation: `OnPin` cap comparison `>` -> `>=` (Memory/Ops.cls) -> `Pins:TestCap` red (the exactly-4,000 pin refused), `TestOldRow` and `TestForgetPinned` red too.
+- mutation: `OnPin` measures `Memory.CoreBlock(session, "", .block)` without the candidate (Memory/Ops.cls) -> `Pins:TestCap` red (the one-over pin accepted), `TestCapRendered` and `TestForgetPinned` red.
+- mutation: `MemoryOps` without the `PinMemory` MapItem -> `MemoryApi:TestPin` stayed GREEN (its real mode reaches the handlers through `CommandsStep3Probe`, which dispatches by class name, as the delivered probe always did), so the pin of the map is `Pins:TestMessageMap` (added in-stage): red ("PinMemory goes to OnPin"). The predicted `MemoryApi:TestPin` red is not available.
+- mutation: `Agent.Input.CoreBlock` quotes nothing (`block_$Char(10)_text`) -> `Pins:TestCapRendered` red (4,004 not reached, the candidate accepted), `TestPinnedOrder` and `TestOldRow` red.
+- mutation: `OnPin` ignores a lock it could not take (`If 'lock Quit ..Failed` -> `If 0 Quit ..Failed`, Memory/Ops.cls) -> `Pins:TestLockBusy` red (the pin is written with the lock busy); reverted, files byte-identical.
+- mutation: `OnPin` without the owner check (`'$IsObject(row) || (row.SessionRef '= request.SessionRef)` -> `'$IsObject(row)`) -> `Pins:TestOtherSession` red (another session's ref pinned instead of not_found).
+- mutation: `OnUnpin` without `Set row.PinnedAt = ""` -> `Pins:TestUnpin` red.
+- mutation: `OnPin` without the no_session check (`If '$IsObject(...Session...RefIndexOpen...) Quit` -> `If 0 Quit`) -> `Pins:TestNoSession` red.
+- AC 2 mutation: `OnSave` sets `Pinned` 1 on the new row (Memory/Ops.cls) -> `Test.Memory.Ops` red (`TestSourceIgnoresSavedText`, `TestSourceReadFails` and the other source tests); the origin gate's own mutations are 41.9's (`CommandsStep3:TestOrigins`). All reverted, files byte-identical.
+- mutation: `OnPin` already-pinned check `+row.Pinned = 1` -> `row.Pinned '= 0` -> `Pins:TestOldRow` red (the empty-Pinned row is answered pinned and never written).
+- mutation: `CorePart` placed after `NotesPart` (Render order) -> `RenderMemory:TestCoreBlock` and `TestCoreAgrees` red.
+- mutation: `CorePart` appends one more `LF` to `CoreOf`'s non-empty answer -> `RenderMemory:TestCoreAgrees`, `TestCoreBlock` and `TestCoreNeverCut` red.
+- mutation: `CorePart` cuts the block at 4,000 characters (`$Extract(..CoreOf(...), 1, 4000)`) -> `RenderMemory:TestCoreNeverCut` red.
+- mutation: `CorePart` ignores `sessionStart` -> `ConversationSessionStart:TestCoreMemoryAtStart` red (the second turn holds the block and the pin).
+- mutation: `StartsSession` without the reached-model condition (`If reached {` -> `If 1 {`) -> `ConversationSessionStart:TestStartsSessionBoundaries` red (no_key fallback, no-decision fallback, foreign usage row).
+- mutation: `DecisionServed` answers 1 for any decision (`Quit rows.Count() > 0` -> `Quit 1`) -> `OwnershipNotes:TestDecisionServed` red.
+- mutation: `DailyNote.Build` ignores `itemId` (`If $Get(itemId) '= "" {` -> `If 0 {`) -> `DailyNote:TestLeavesOutCurrentTurn` red, and on a fresh stack (tag `e41s12i`, torn down afterwards) `SecondModel:TestIntegrationWebChat` red ("on one local day no request holds a notes block that quotes the first message").
+- Unmutated: `SecondModel:TestIntegrationWebChat` passed on the fresh stack (READY 278 s, test 17.6 s, run 296 s: over the 150 s guide because of the stack build). `web/e2e/api/memory.spec.ts` (tsc exit 0, 5 tests listed) is left to `live:sign-in` in CI.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `MemoryOps` handles `PinMemory` and `UnpinMemory` under the session's lock: a pin is refused with `over_cap` when the rendered core-memory block (`Memory.CoreBlock`, formatted only by `Agent.Input.CoreBlock`) would pass `COREMAX` (4,000 characters = `PINCAPTOKENS` 1,000 x `CHARSPERTOKEN` 4). `Agent.Input.Render` puts the same block after the persona block and before the notes at a user item's session start, never cut. `StartsSession` counts only earlier turns that reached a model (DW-967). `DailyNote.Build` takes the turn's ItemId and leaves out that turn and later ones (DW-977). The tests that stopped at a probe now assert the real outcomes (DW-1029, DW-1039). Two additive spine lines and a memlog decision record the rule.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Memory.cls`: cap constants, `Pinned`, `CoreBlock`.
+- `src/ocutalon/cls/OcuTalon/Memory/Ops.cls`: `OnPin`, `OnUnpin`, message map, class comment.
+- `src/ocutalon/cls/OcuTalon/Agent/Input.cls`: `COREOPENING`, `LOGCORE`, `CoreBlock`, `CorePart`, `CoreOf`, Render order, ItemId to `NoteOf`.
+- `src/ocutalon/cls/OcuTalon/Data/DailyNote.cls`: `Build(sessionRef, day, itemId)`.
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`: `DecisionServed`.
+- `src/ocutalon/cls/OcuTalon/Core/Conversation.cls`: `StartsSession` and the `Served` seam.
+- Tests: new `Test/Memory/Pins.cls` and `Test/Memory/PinsProbe.cls`; changed `RenderMemory`, `InputProbe`, `MemoryTurns`, `DailyNote`, `OwnershipNotes`, `ConversationSessionStart`, `ConversationStartProbe`, `CommandsStep3`, `CommandsStep3Probe`, `MemoryApi`, `SecondModel`, `web/e2e/api/memory.spec.ts`, `web/e2e/support/memory.ts`.
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` (+ `.memlog.md`): two `[ADDED 2026-11-09, Story 41.12]` lines and the decision.
+
+**Review.** 25 findings: 1 high (patched, caused by this stage's own overwrite of `OpsProbe`), 5 low patched (comments, fixture cleanup, mutation lines, a lock-busy test for the matrix's lock row), the rest rejected with reasons in the log. Deferred: none.
+
+**Follow-up review recommended: false** (one high patched, but it was a self-inflicted test-double overwrite, restored byte-identical and re-verified by running `Test.Memory.Ops`).
+
+**Verification.** Warm stack `e41s12iw` (torn down, 0 leftovers): `Pins`, `RenderMemory`, `DailyNote`, `OwnershipNotes`, `ConversationSessionStart`, `CommandsStep3`, `MemoryApi`, `ConversationTurns`, `MemoryTurns` and `Memory.Ops` passed; `Pins` and `ConversationSessionStart` re-run after the patches. `SecondModel:TestIntegrationWebChat` passed once on a fresh stack in the handoff (about 296 s, torn down); only comments changed in `Input` and `Conversation` since. `test-class-rules.sh` and `test-boundaries.sh` pass; `tsc -p tsconfig.e2e.json` exit 0; `playwright --list` shows 5 tests; the spine lint equals the 41.9 baseline (10 low placeholder findings). Mutations recorded in `## Verification` for AC 1 to 6 (the MapItem one did not go red in `MemoryApi:TestPin`; `Pins:TestMessageMap` pins it).
+
+**Residual risks.** `live:sign-in` (the `memory.spec.ts` pin and cap tests, real HTTP as LIVE with PANEL) was not run locally: left to CI. `SecondModel` fresh-stack run also in CI's `shard lane-a@rest`. The handoff ran one `ci/iris.sh class` call from the main checkout by mistake (a failed `cd` chain): it started and cleaned up its own throwaway, left no containers, and changed nothing in that checkout.

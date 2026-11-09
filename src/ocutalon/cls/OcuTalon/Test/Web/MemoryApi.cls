@@ -23,7 +23,9 @@
 ///   - TestSearchBusy: a search whose owner gives no answer in time (the real gate, with a send that times out) is 503 search_busy with the busy sentence, after a wait of 20 seconds, and logs no error;
 ///   - TestSearchHandler: the real MemoryOps.OnSearch answers failed for an empty query, and searches only the command's own SessionRef (on OcuTalon's image; a named skip elsewhere);
 ///   - TestPin: POST and DELETE /v1/memory/:ref/pin submit PinMemory and UnpinMemory for the session with origin web_user; the owner's answers are mapped (done 200,
-///     not_found 404, over_cap 409, not_built 501, the rest 500), and a ref that names no memory is 404 before anything is submitted;
+///     not_found 404, over_cap 409, not_built 501, the rest 500), and a ref that names no memory is 404 before anything is submitted; in real mode (the real gate and the real
+///     MemoryOps, Story 41.12) an own memory is pinned (200) and unpinned (200), a pin over the cap is 409 over_cap and changes nothing, and another session's ref and an
+///     unknown ref are 404 not_found and change nothing;
 ///   - TestOverCapText: the approved sentence of the 409, pinned by a copy held here;
 ///   - TestForgetMemory: DELETE /v1/memory/items/:ref submits a ForgetMemory for the session; the owner's answers are mapped (an over_cap is not a 409 here); the real gate
 ///     and the real MemoryOps answer 404 for an unknown ref;
@@ -431,7 +433,8 @@ Method TestSearchHandler()
 
 /// POST and DELETE /v1/memory/:ref/pin submit a PinMemory and an UnpinMemory with the ref and the session's own Ref (origin web_user); Ok is 200 {"result":"done"}, and
 /// the owner's other answers are mapped. A ref that is empty or too long names no memory: 404 before anything is submitted. In real mode the real gate lets web_user
-/// through and the probe of the real gate answers a MemoryOps with no handler for a pin as an error: 500.
+/// through and the real MemoryOps (a shadow instance, as the production runs it) handles the pin: an own memory is pinned (200, Pinned 1) and unpinned (200, Pinned 0); with a pinned
+/// 2,000-character memory, the pin of a 1,957-character one is 409 over_cap and the row is unchanged; another session's ref and an unknown ref are 404 and nothing changes.
 Method TestPin()
 {
 	Set session = ..Session()
@@ -459,9 +462,35 @@ Method TestPin()
 	}
 	Kill ^OcuTalonTest("MemoryApiProbe")
 	Set ^OcuTalonTest("MemoryApiProbe", "submit") = "real"
-	Set body = ..Call("PinMemory", .response, "zzmemref")
-	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_serverError, "the real gate and a MemoryOps with no pin handler: 500 server_error")
-	Do $$$AssertTrue($Get(^OcuTalonTest("MemoryApiProbe", "logged")) [ "was answered failed", "and the outcome is logged")
+	Set other = ..OtherSession()
+	Set own = ..Memory(session, "zz own memory", "2030-01-01T10:00:00Z")
+	Set theirs = ..Memory(other, "zz another session's memory", "2030-01-02T10:00:00Z")
+	Set body = ..Call("PinMemory", .response, own)
+	Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""result"":""done""}", "real: the session's own memory is pinned, 200 done")
+	Do $$$AssertEquals(..PinnedOf(own), 1, "and its Pinned is 1")
+	Set body = ..Call("UnpinMemory", .response, own)
+	Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""result"":""done""}", "real: and unpinned, 200 done")
+	Do $$$AssertEquals(..PinnedOf(own), 0, "its Pinned is 0")
+	Set big = ..Memory(session, $Translate($Justify("", 2000), " ", "a"), "2030-01-03T10:00:00Z", "", 1)
+	Set over = ..Memory(session, $Translate($Justify("", 1957), " ", "b"), "2030-01-04T10:00:00Z")
+	Set body = ..Call("PinMemory", .response, over)
+	Do $$$AssertEquals(response.Status_"|"_body, "409 Conflict|"_overCap, "real: with a pinned 2,000-character memory, the pin of a 1,957-character one is 409 over_cap")
+	Do $$$AssertEquals(..PinnedOf(over)_"|"_..PinnedOf(big), "0|1", "and nothing changed")
+	For verb = "PinMemory", "UnpinMemory" {
+		Set body = ..Call(verb, .response, theirs)
+		Do $$$AssertEquals(response.Status_"|"_body, "404 Not Found|"_..ErrorBody("not_found", "OcuTalon has nothing at this address."), "real: "_verb_" of another session's ref is 404 not_found")
+		Set body = ..Call(verb, .response, "zzMemoryPin0000000001")
+		Do $$$AssertEquals(response.Status_"|"_body, "404 Not Found|"_..ErrorBody("not_found", "OcuTalon has nothing at this address."), "real: "_verb_" of an unknown ref is 404 not_found")
+	}
+	Do $$$AssertEquals(..PinnedOf(theirs), 0, "and the other session's memory is unchanged")
+}
+
+/// The stored Pinned of the memory with the Ref (0 for an empty one), read fresh.
+ClassMethod PinnedOf(ref As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Pinned FROM OcuTalon_Data.Memory WHERE Ref = ?", ref)
+	If result.%Next() Quit +result.%GetData(1)
+	Quit "none"
 }
 
 /// The approved sentence of the 409 over_cap: the parameter equals the copy held here, and the route's 409 body carries it word for word.

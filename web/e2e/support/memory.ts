@@ -96,6 +96,14 @@ export async function memoryExists(ref: string): Promise<number> {
   return Number(chk(lines, 'exists') ?? Number.NaN);
 }
 
+/** The number of memories of the session that are pinned, read through the memory area's own pinned read (a row saved before Story 41.8 is not pinned). */
+export async function pinnedCountOf(session: string): Promise<number> {
+  const lines = await irisScript(
+    [`Set sc=##class(OcuTalon.Memory).Pinned(${quoted(session)},.rows)`, 'Write !,"CHK|pinned|",$Select($SYSTEM.Status.IsOK(sc):rows.%Size(),1:"error")'].join('\n'),
+  );
+  return Number(chk(lines, 'pinned') ?? Number.NaN);
+}
+
 /**
  * Saves a done turn of the session (channel web) with the text and answers its Ref. `createdAtUtc` is a UTC time to the second; it is now
  * when left out. `localTimeUtc` gives the UTC time of a local time of the instance zone.

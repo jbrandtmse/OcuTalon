@@ -8,9 +8,12 @@
 ///   - TestAfterRotation: the turn after a reply with SessionRotated starts a session, and the turn after that does not;
 ///   - TestOtherTurnsUnchanged: a turn of the same day that continues, and its Busy resend, carry no context; no decide request carries one; and the Input of such a request is that of Render(item);
 ///   - TestRotationKept: the Turn keeps the reply's SessionRotated, 1 for rotated and 0 for reply;
-///   - TestStartsSessionBoundaries: StartsSession with turns at 23:59:59 and 00:00:00, a refused earlier turn, a fresh turn and a rotated reply;
+///   - TestStartsSessionBoundaries: StartsSession with turns at 23:59:59 and 00:00:00, a refused earlier turn, a fresh turn and a rotated reply, and (DW-967) an earlier turn of the
+///     day that fell back before any model call (no usage row of its decision) does not count while one that fell back after a model call (a usage row) does;
+///   - TestCoreMemoryAtStart (Story 41.12, Rule 1): a session with a pinned memory, through the real Conversation and Agent.Input: the first turn's request holds the core-memory block and
+///     the pin, quoted; a second turn of the day holds neither; after an unpin the next session start holds no core block;
 ///   - TestStartsSessionReadFailure: a turn whose session can't be read, one whose time can't be read, and one whose session's last replied turn can't be read (through the
-///     probe) start a session, each with one warning; a fresh turn reads nothing.
+///     probe) start a session, each with one warning; a fresh turn reads nothing; so does an earlier fallback turn whose usage can't be read (through the probe).
 Class OcuTalon.Test.Core.ConversationSessionStart Extends %UnitTest.TestCase
 {
 
@@ -46,6 +49,9 @@ Method OnBeforeOneTest() As %Status
 
 Method OnAfterOneTest() As %Status
 {
+	For i = 1:1:$Length(..Sessions, ",") {
+		If $Piece(..Sessions, ",", i) '= "" Do ##class(OcuTalon.Test.Memory.Fixture).Purge($Piece(..Sessions, ",", i))
+	}
 	Set ..Refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(..Sessions, ..Refs)
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
@@ -206,10 +212,76 @@ Method TestStartsSessionBoundaries()
 	Do ..Reply(two, 0)
 	Set three = ..Fix(rotated, "2030-06-15T10:00:00", "running", 0)
 	Do $$$AssertEquals($ClassMethod(conversation, "StartsSession", three, 0), 0, "and the turn after a plain reply is not")
+	Set noKey = ..Session("fallbacknokey")
+	Do ..Fallback(noKey, "2030-06-15T09:00:00", "no_key", 0)
+	Set afterNoKey = ..Fix(noKey, "2030-06-15T09:30:00", "running", 0)
+	Do $$$AssertEquals($ClassMethod(conversation, "StartsSession", afterNoKey, 0), 1, "DW-967: an earlier turn of the day that fell back with no usage row of its decision never reached a model, so the next turn is a start")
+	Set bare = ..Session("fallbacknodecision")
+	Do ..Fallback(bare, "2030-06-15T09:00:00", "unusable", 0, 0)
+	Set afterBare = ..Fix(bare, "2030-06-15T09:30:00", "running", 0)
+	Do $$$AssertEquals($ClassMethod(conversation, "StartsSession", afterBare, 0), 1, "and so is the next turn after a fallback turn that has no decision at all")
+	Set refusal = ..Session("fallbackrefusal")
+	Do ..Fallback(refusal, "2030-06-15T09:00:00", "refusal", 1)
+	Set afterRefusal = ..Fix(refusal, "2030-06-15T09:30:00", "running", 0)
+	Do $$$AssertEquals($ClassMethod(conversation, "StartsSession", afterRefusal, 0), 0, "DW-967: an earlier fallback turn whose decision has a usage row reached a model, so the next turn is not a start")
+	Set mixed = ..Session("fallbackmixed")
+	Do ..Fallback(mixed, "2030-06-15T09:00:00", "daily_cap", 0)
+	Do ..Fix(mixed, "2030-06-15T09:10:00", "done", 0)
+	Set afterMixed = ..Fix(mixed, "2030-06-15T09:30:00", "running", 0)
+	Do $$$AssertEquals($ClassMethod(conversation, "StartsSession", afterMixed, 0), 0, "a fallback turn that never reached a model does not hide a later turn that did")
+	Set otherUsage = ..Session("fallbackforeign")
+	Set foreign = ..Fallback(otherUsage, "2030-06-15T09:00:00", "no_key", 0)
+	Do ##class(OcuTalon.Test.Data.Fixture).Usage(foreign, ..Session("foreignowner"))
+	Set ..Refs = ..Refs _ "," _ foreign
+	Set afterForeign = ..Fix(otherUsage, "2030-06-15T09:30:00", "running", 0)
+	Do $$$AssertEquals($ClassMethod(conversation, "StartsSession", afterForeign, 0), 1, "a usage row of another owner does not count")
 	Set plainSession = ..Session("plainlast")
 	Do ..Fix(plainSession, "2030-06-15T09:00:00", "done", 0)
 	Set next = ..Fix(plainSession, "2030-06-15T09:30:00", "running", 0)
 	Do $$$AssertEquals($ClassMethod(conversation, "StartsSession", next, 0), 0, "a second turn of the day after a plain reply is not a start")
+}
+
+/// Rule 1: a session with a pinned memory (pinned through the real MemoryOps handler), through the real Conversation and Agent.Input. The first turn of the day sends a request whose Input holds
+/// the core-memory block with the pin, quoted; a second turn the same day holds neither; after the memory is unpinned, the next session start (a turn after a tainted reply) holds no core block.
+Method TestCoreMemoryAtStart()
+{
+	Set session = ..Session("coremem")
+	Set ref = ..Memory(session, "zz pinned memory")
+	Set host = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Memory.Ops", .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of MemoryOps is made")
+	Set command = ##class(OcuTalon.Msg.Command.PinMemory).%New()
+	Set command.SessionRef = session
+	Set command.MemoryRef = ref
+	Set command.Origin = "web_user"
+	Do $$$AssertStatusOK(host.OnPin(command, .response), "the memory is pinned")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "1|pinned", "pinned")
+	Set opening = "Your core memory (facts you pinned):"
+	Set block = opening_$Char(10)_"> zz pinned memory"_$Char(10, 10)
+	Do ##class(OcuTalon.Test.Core.DecideDouble).Script(session, "turn", $ListBuild("reply", "tainted", "reply"))
+	Set first = ..Say(session, "zz first", "coremem1")
+	Set second = ..Say(session, "zz second", "coremem2")
+	Set turns = ..TurnCalls()
+	Do $$$AssertEquals($ListLength(turns), 2, "two turn requests so far")
+	Set input = ..Call($List(turns, 1), "input")
+	Do $$$AssertTrue(input [ block, "the first turn's Input holds the core-memory block with the pin, quoted")
+	Do $$$AssertEquals($Find(input, opening) - $Length(opening), $Length(..Preamble(input)) + 3, "right after the preamble (the session has no persona)")
+	Set input = ..Call($List(turns, 2), "input")
+	If ..StartIfNewDay(first, second) = "" {
+		Do $$$AssertTrue(input '[ opening, "a second turn the same day holds no core-memory block")
+		Do $$$AssertTrue(input '[ "zz pinned memory", "and not the pin")
+	}
+	Set command = ##class(OcuTalon.Msg.Command.UnpinMemory).%New()
+	Set command.SessionRef = session
+	Set command.MemoryRef = ref
+	Set command.Origin = "web_user"
+	Do $$$AssertStatusOK(host.OnUnpin(command, .response), "the memory is unpinned")
+	Do ..Say(session, "zz third", "coremem3")
+	Set turns = ..TurnCalls()
+	Do $$$AssertEquals($ListLength(turns), 3, "three turn requests")
+	Do $$$AssertEquals(..Call($List(turns, 3), "sessionMode"), "fresh", "the turn after a tainted reply is a session start")
+	Set input = ..Call($List(turns, 3), "input")
+	Do $$$AssertTrue(input '[ opening, "after the unpin the session start holds no core-memory block")
+	Do $$$AssertTrue(input '[ "zz pinned memory", "and not the memory")
 }
 
 /// A session that can't be read, and a time that can't be read, start a session, each with one warning.
@@ -242,6 +314,16 @@ Method TestStartsSessionReadFailure()
 	Kill ^||ConversationStartProbe
 	Do $$$AssertEquals(starts, 1, "when the last replied turn can't be read, it starts a session")
 	Do $$$AssertEquals(..Warnings(mark), 3, "with one more warning")
+	Set fell = ..Session("servedunread")
+	Do ..Fallback(fell, "2030-06-15T09:00:00", "refusal", 1)
+	Set afterFell = ..Fix(fell, "2030-06-15T09:30:00", "running", 0)
+	Do $$$AssertEquals($ClassMethod(probe, "StartsSession", afterFell, 0), 0, "an earlier refusal turn with a usage row: not a start")
+	Do $$$AssertEquals(..Warnings(mark), 3, "and no warning")
+	Set ^||ConversationStartProbe("failServed") = 1
+	Set starts = $ClassMethod(probe, "StartsSession", afterFell, 0)
+	Kill ^||ConversationStartProbe
+	Do $$$AssertEquals(starts, 1, "when the usage of an earlier fallback turn can't be read, it starts a session")
+	Do $$$AssertEquals(..Warnings(mark), 4, "with one more warning")
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND SourceClass IN (?, ?) AND SourceMethod = ?", mark, "OcuTalon.Core.Conversation", probe, "StartsSession")
 }
 
@@ -330,6 +412,48 @@ Method Fix(session As %String, local As %String, state As %String, rotated As %B
 	Set turn.SessionRotated = rotated
 	Do $$$AssertStatusOK(turn.%Save(), "a fixture turn is saved")
 	Quit turn
+}
+
+/// A fixture turn of the session at a local date-time that fell back with the reason: done, with a decision (unless withDecision is 0). usage 1 gives that decision a usage row of
+/// the session, as a turn does whose request reached a model. Returns the decision's Ref ("" for none).
+Method Fallback(session As %String, local As %String, reason As %String, usage As %Boolean, withDecision As %Boolean = 1) As %String [ Private ]
+{
+	Set turn = ..Fix(session, local, "done", 0)
+	Set turn.FallbackReason = reason
+	Set ref = $Select(withDecision: turn.TurnDecisionRef, 1: "")
+	Set turn.TurnDecisionRef = ref
+	Do $$$AssertStatusOK(turn.%Save(), "the fallback is kept")
+	If usage {
+		Do ##class(OcuTalon.Test.Data.Fixture).Usage(ref, session)
+		Set ..Refs = ..Refs _ "," _ ref
+	}
+	Quit ref
+}
+
+/// A memory of the session, saved directly with a vector that has no meaning (no embedder); it is removed with the session's Ref. Returns its Ref.
+Method Memory(session As %String, text As %String) As %String [ Private ]
+{
+	Set ones = ""
+	For i = 1:1:384 {
+		Set ones = ones _ $Select(i > 1: ",", 1: "") _ "1"
+	}
+	Set row = ##class(OcuTalon.Data.Memory).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.SessionRef = session
+	Set row.Text = text
+	Set row.SavedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set row.ItemId = "zzsessionstart"
+	Set row.Origin = "tool"
+	Set row.Source = "told"
+	Set row.Embedding = ##class(OcuTalon.Test.Memory.Fixture).ToVector(ones)
+	Do $$$AssertStatusOK(row.%Save(), "a fixture memory is saved")
+	Quit row.Ref
+}
+
+/// The first line of an Input, the preamble.
+ClassMethod Preamble(input As %String) As %String [ Private ]
+{
+	Quit $Piece(input, $Char(10), 1)
 }
 
 /// Makes the turn a replied one: done, with a reply decision and the reply's SessionRotated.

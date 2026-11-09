@@ -53,7 +53,7 @@
 ///   - The daily note's reads (Story 41.3) are Rows kinds too, each owner-scoped and each in a window [from, to) of UTC times: NoteTurns (the session's turns that are not
 ///     refused, by CreatedAt), NoteDecisions (its decide decisions, by RecordedAt), NoteIncidents (the incidents it sees, as Incidents does, by NoticedAt), NoteApprovals (the
 ///     requests it sees, as Approvals does, placed by AnsweredAt, else RaisedAt) and NoteReminders (its reminders of every state, by DueAt). DecisionChannel is the Channel of a
-///     decision's own usage rows. A window with an empty bound gives an empty list and an error status in sc.
+///     decision's own usage rows, and DecisionServed is whether it has any (Story 41.12). A window with an empty bound gives an empty list and an error status in sc.
 Class OcuTalon.Data.Ownership
 {
 
@@ -779,6 +779,18 @@ ClassMethod DecisionChannel(decisionRef As %String, sessionRef As %String, Outpu
 		If channel '= "" Quit
 	}
 	Quit $Get(channel)
+}
+
+/// 1 when the decision has at least one usage row of the session (a model call served it), else 0: the sign that a turn's request reached a model (Story 41.12, DW-967). A decision that a
+/// precheck refused, or whose call threw without spending, has none. decisionRef comes from a row read through this class, never from request input. sc is an error status when the read failed;
+/// the answer is then 0.
+ClassMethod DecisionServed(decisionRef As %String, sessionRef As %String, Output sc As %Status) As %Boolean
+{
+	Set sc = $SYSTEM.Status.OK()
+	If $Get(decisionRef) = "" Quit 0
+	Set rows = ..Rows("turnUsage", sessionRef, .sc, decisionRef, decisionRef)
+	If $SYSTEM.Status.IsError(sc) Quit 0
+	Quit rows.Count() > 0
 }
 
 /// The rows of a note kind in the window [from, to): an empty bound gives an empty list and an error status in sc, as FinishedToolCalls does for an empty end; extra is the bound

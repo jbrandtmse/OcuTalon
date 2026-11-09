@@ -725,6 +725,7 @@ From step 3, `OcuTalon.Tools` may call `OcuTalon.Memory.Search` and `OcuTalon.Me
     - **Core memory.** A person's pinned memories, newest pin first. Only the person pins: OcuTalon never pins a memory on its own (U-195).
       - **Cap:** at most 1,000 tokens, estimated at 4 characters a token. The memory operation enforces this hard cap when a pin is added: a pin past the cap is refused, and nothing is unpinned to make room.
       - **Forgetting** a pinned memory unpins it and deletes it at once.
+      - **Pinning** is `MemoryOps`' (`PinMemory` and `UnpinMemory`, from origin `web_user` only), under the session's lock. The cap is measured on the rendered core-memory block, heading and quotes included: `Memory.CoreBlock(sessionRef, candidate)` builds it from the session's pinned rows (`Memory.Pinned`; a row saved before Story 41.8 is not pinned) and `Agent.Input.CoreBlock` is the only place it is formatted. A pin that would make the block longer than `Memory` `COREMAX` (`PINCAPTOKENS` 1,000 × `CHARSPERTOKEN` 4 = 4,000 characters) is refused with `over_cap`. `Agent.Input` renders the same block after the persona block and before the notes, and never cuts it, so a pinned fact is never left out. [ADDED 2026-11-09, Story 41.12]
     - **Daily notes.** `OcuTalon.Data.DailyNote.Build(sessionRef, day)` (Lane B, no storage) builds a person's note for one instance-zone day, on read, by code, with no model call.
       - **What it holds:**
         - the times, channels and outcomes of the day's decisions;
@@ -754,6 +755,7 @@ From step 3, `OcuTalon.Tools` may call `OcuTalon.Memory.Search` and `OcuTalon.Me
       There are no vectors in this version. The rows are purged after 90 days through the area's `Purge(daysToKeep)` (AD-27).
     - **Where they reach a model.** Only `OcuTalon.Agent.Input` renders them, as AD-7's context blocks.
       - **At a session start, in a person's turn:** the core memory, and today's and yesterday's daily notes. A session start is the session's first turn of the day, a turn sent `fresh`, or the turn after a reply with `SessionRotated`; `Conversation` sets the `sessionStart` flag.
+      - A turn counts toward "the first turn of the day" only when its request reached a model: an earlier turn that fell back counts only if its reply decision has a Usage row of the session (so a first turn that fell back before any model call leaves the next turn a session start), and today's note is built for the turn being answered, leaving out that turn and every later one, so the input never quotes the current message back. [ADDED 2026-11-09, Story 41.12]
       - **In the `decide` request of an untrusted item the session owns:** precedents, at most 3 with the same match key. Never in a person's turn.
       - **How Triage treats precedents:** as examples of the person's past answers, never as rules. They can't change a classification, an approval, or what an item may lead to (AD-10).
     - **On the online demo** all four are per session and gone at the reset. Sign-out drops them through `SessionOps.End`, which calls `Memory.DropSession`, and through `PrecedentOps`.

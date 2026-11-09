@@ -2,7 +2,7 @@ import { expect, test, type APIRequestContext, type APIResponse } from '../suppo
 
 import { README_ACCOUNT, envelope, expectError, signInOverHttp } from '../sign-in/helpers';
 import { fixtureUser } from '../support/iris';
-import { memoryExists, precedentExists, removeMemory, removeNoteRows, removePrecedent, seedMemory, seedNoteDecision, seedNoteTurn, seedPrecedent, sessionRefOfUser } from '../support/memory';
+import { memoryExists, pinnedCountOf, precedentExists, removeMemory, removeNoteRows, removePrecedent, seedMemory, seedNoteDecision, seedNoteTurn, seedPrecedent, sessionRefOfUser } from '../support/memory';
 import { sessionRef } from '../support/persona';
 
 /**
@@ -27,13 +27,18 @@ import { sessionRef } from '../support/persona';
  * Story 41.9, the read path (planner-2026-11-09-41.9-readpath) and the standing rule for /api/v1 routes: the unprivileged LIVE fixture user (role OcuTalonUser only, the demo visitors' role; the README account holds OcuTalonAdmin and is not the
  * unprivileged account) signs in over HTTP and a second session (the PANEL fixture user, also OcuTalonUser only, so another durable session) does too. The first session's seeded memory is listed (200, the five-member item, `pinned` a boolean), found by a search
  * (200), not found by the second session's list or search, kept when the second session forgets its Ref (404 not_found), and forgotten by the first (200 {"result":"done"}, then
- * gone from the row, the list and the search). The memory is seeded through the memory area's fixture (support/memory.ts), never through a route. The pin routes have no success
- * status to assert until Story 41.12 handles PinMemory and UnpinMemory: they are asserted at the answer the matrix gives today (500 server_error).
+ * gone from the row, the list and the search). The memory is seeded through the memory area's fixture (support/memory.ts), never through a route.
+ *
+ * Story 41.12 (DW-1039): the pin routes are handled by MemoryOps. In the list/search/forget test the first session pins its row (200 {"result":"done"}, and the list shows `pinned: true`), the second
+ * session's POST and DELETE of the pin on the first session's ref are 404 not_found and the row stays pinned, the unpin is 200 (`pinned: false`), a second pin is 200, and the forget of the pinned row is 200 and
+ * the row is gone. A further test pins under the cap as the LIVE user: memories of 2,000 and 1,956 characters pin (the core-memory block is then exactly 4,000 characters), a third of 2 characters is 409 over_cap
+ * with the approved sentence and stays unpinned, and after the 1,956-character memory is unpinned the short one pins. The rows are removed in `finally`.
  */
 const MEMORY = '/ocutalon/api/v1/memory';
 const NOISE = (ref: string): string => `/ocutalon/api/v1/decisions/${ref}/noise`;
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
+const OVER_CAP = 'That would go over the 1,000-token limit. Unpin something first.';
 const NO_REQUEST_HEADER = "OcuTalon refused this request because it didn't come from the OcuTalon page.";
 
 /** Saves a done turn of the session (channel web, created now) with the text, and a decide decision of the session (recorded now) with the summary, and answers their Refs. */
@@ -158,7 +163,7 @@ test('the memory item routes: signed out, the list, an unknown forget, and the e
 
 /*
  * Story 41.9 (QA): the other two write routes are behind the envelope as well, and a ref longer than the 22 characters of a memory Ref names no memory on any of the three,
- * whatever MemoryOps does with a pin (so the test holds after Story 41.12).
+ * before anything reaches MemoryOps, which handles the pins since Story 41.12.
  */
 test('the memory item writes: the envelope on the pin routes, and an over-long ref', async ({ request }) => {
   const live = fixtureUser('LIVE');
@@ -182,6 +187,21 @@ test('the memory item writes: the envelope on the pin routes, and an over-long r
     await expectError(await request.fetch(write.url(tooLong), { method: write.method, headers: envelope() }), 404, 'not_found', NOT_FOUND);
   }
 });
+
+/** The answer is 200 {"result":"done"}. */
+async function expectDone(response: APIResponse): Promise<void> {
+  expect(response.status(), await response.text()).toBe(200);
+  expect(await response.json()).toEqual({ result: 'done' });
+}
+
+/** Whether the list of the context shows the memory with the ref as pinned. */
+async function pinnedOf(context: APIRequestContext, ref: string): Promise<boolean> {
+  const response = await context.get(`${MEMORY}/items`);
+  expect(response.status(), await response.text()).toBe(200);
+  const item = ((await response.json()) as { items: Array<{ ref: string; pinned: boolean }> }).items.find((one) => one.ref === ref);
+  expect(item, 'the memory is listed').toBeDefined();
+  return item?.pinned === true;
+}
 
 /** GET with the query; a search that finds the owner busy (503 search_busy: a cold embedder) is asked again, at most twice more. */
 async function items(context: APIRequestContext, query?: string): Promise<APIResponse> {
@@ -242,12 +262,22 @@ test('the memory items: list, search and forget as the LIVE user, and a second s
     expect(await memoryExists(ref), 'the first session\'s row is kept').toBe(1);
     expect(await refsOf(await items(request)), 'and the first session still lists it').toContain(ref);
 
-    // A pin has no handler until Story 41.12: the matrix gives 500 server_error today, and the row is untouched.
-    const pinned = await request.fetch(`${MEMORY}/${ref}/pin`, { method: 'POST', headers: envelope() });
-    await expectError(pinned, 500, 'server_error', 'Something went wrong inside OcuTalon. Try again.');
-    expect(await memoryExists(ref), 'the row is kept').toBe(1);
+    // The first session pins it: 200 {"result":"done"}, and the list shows it pinned.
+    await expectDone(await request.fetch(`${MEMORY}/${ref}/pin`, { method: 'POST', headers: envelope() }));
+    expect(await pinnedOf(request, ref), 'the list shows the memory pinned').toBe(true);
 
-    // The first session forgets it: 200 {"result":"done"}, then it is gone from the row, the list and the search.
+    // The second session cannot pin or unpin it (404 not_found), and it stays pinned.
+    await expectError(await second.fetch(`${MEMORY}/${ref}/pin`, { method: 'POST', headers: envelope() }), 404, 'not_found', NOT_FOUND);
+    await expectError(await second.fetch(`${MEMORY}/${ref}/pin`, { method: 'DELETE', headers: envelope() }), 404, 'not_found', NOT_FOUND);
+    expect(await pinnedOf(request, ref), 'the first session\'s row stays pinned').toBe(true);
+
+    // The first session unpins it (200, pinned false) and pins it again (200).
+    await expectDone(await request.fetch(`${MEMORY}/${ref}/pin`, { method: 'DELETE', headers: envelope() }));
+    expect(await pinnedOf(request, ref), 'the list shows the memory unpinned').toBe(false);
+    await expectDone(await request.fetch(`${MEMORY}/${ref}/pin`, { method: 'POST', headers: envelope() }));
+    expect(await pinnedOf(request, ref), 'and pinned again').toBe(true);
+
+    // The first session forgets the pinned row: 200 {"result":"done"}, then it is gone from the row, the list and the search.
     const forgotten = await request.fetch(`${MEMORY}/items/${ref}`, { method: 'DELETE', headers: envelope() });
     expect(forgotten.status(), await forgotten.text()).toBe(200);
     expect(await forgotten.json()).toEqual({ result: 'done' });
@@ -257,6 +287,39 @@ test('the memory items: list, search and forget as the LIVE user, and a second s
     await expectError(await request.fetch(`${MEMORY}/items/${ref}`, { method: 'DELETE', headers: envelope() }), 404, 'not_found', NOT_FOUND);
   } finally {
     await second.dispose();
+    for (const one of seeded) await removeMemory(one);
+  }
+});
+
+/**
+ * Story 41.12 (FR-74, NFR-27): the pin cap over real HTTP as the LIVE user. The core-memory block, heading and quotes included, is capped at 4,000 characters: the opening is 36 characters, a single-line pin adds
+ * 3 and its length, and the closing blank line adds 2, so pins of 2,000 and 1,956 characters make exactly 4,000 and fit, and a third memory of 2 characters (5 more) is 409 over_cap with the approved sentence and
+ * stays unpinned. Unpinning the 1,956-character memory makes room, and the short one then pins. The test needs the LIVE session to hold no pin; the rows it seeds are removed in `finally`.
+ */
+test('the pin cap as the LIVE user', async ({ request }) => {
+  test.setTimeout(150_000);
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
+  const session = await sessionRefOfUser(live.user);
+  expect(await pinnedCountOf(session), 'the LIVE session holds no pinned memory before the test').toBe(0);
+  const seeded: string[] = [];
+  try {
+    const big = await seedMemory(session, 'a'.repeat(2000));
+    seeded.push(big);
+    const mid = await seedMemory(session, 'b'.repeat(1956));
+    seeded.push(mid);
+    const short = await seedMemory(session, 'cc');
+    seeded.push(short);
+    await expectDone(await request.fetch(`${MEMORY}/${big}/pin`, { method: 'POST', headers: envelope() }));
+    await expectDone(await request.fetch(`${MEMORY}/${mid}/pin`, { method: 'POST', headers: envelope() }));
+    expect(await pinnedCountOf(session), 'two memories are pinned: the block is exactly 4,000 characters').toBe(2);
+    await expectError(await request.fetch(`${MEMORY}/${short}/pin`, { method: 'POST', headers: envelope() }), 409, 'over_cap', OVER_CAP);
+    expect(await pinnedOf(request, short), 'the short memory is not pinned').toBe(false);
+    expect(await pinnedCountOf(session), 'and nothing was unpinned to make room').toBe(2);
+    await expectDone(await request.fetch(`${MEMORY}/${mid}/pin`, { method: 'DELETE', headers: envelope() }));
+    await expectDone(await request.fetch(`${MEMORY}/${short}/pin`, { method: 'POST', headers: envelope() }));
+    expect(await pinnedOf(request, short), 'the short memory is pinned once there is room').toBe(true);
+  } finally {
     for (const one of seeded) await removeMemory(one);
   }
 });
