@@ -10187,7 +10187,7 @@ So that pins come only from the person, and learned saves only from code.
 **Given** Story 41.8's names
 **When** this story adds Lane B's part
 **Then** `PinMemory` and `UnpinMemory` exist, and `CommandsIn` routes them to the memory operation from origin `web_user` only. The governance test refuses each from `tool` (AD-1)
-**And** `CommandsIn` accepts the save-memory verb from origin `system` too, only when it carries `Source` `learned` (for Story 41.11, if it is built) (AD-21)
+[AMENDED 2026-11-09, Story 41.9 spec gate, ruled by the Contest Planner under the owner's delegation (planner-2026-11-09-41.9 item (d)): the criterion "`CommandsIn` accepts the save-memory verb from origin `system` too, only when it carries `Source` `learned` (for Story 41.11, if it is built) (AD-21)" moved to Story 41.11, with its AD-31 amendment there; this story keeps Story 41.8's rule that code decides the source.]
 **And** `GET /api/v1/memory/items` (list and search, with source and pinned) and the pin routes exist, session-checked and owner-scoped (AD-4)
 **And** a web forget route exists for the Memory card's Forget (Story 41.13): it submits `ForgetMemory` from origin `web_user`, session-checked and owner-scoped through `Memory.Ops` as save and list are; another session's ref answers `not_found`, with a test; it has the same CSRF and same-origin protection as the existing `web_user` write routes; and AD-1 gains the note that `ForgetMemory` is accepted from origin `web_user` as well as `tool` (AD-1, AD-4) [ADDED 2026-11-09, Story 41.8 spec gate, veto-recorded amendment approved by the Contest Planner under the owner's delegation (planner-2026-11-09-41.8): `CommandsIn` accepted `ForgetMemory` from origin `tool` only, and this story's routes had no forget route for 41.13's Forget]
 
@@ -10221,6 +10221,7 @@ So that I can see and forget them like any other memory.
 **When** `BridgeSink` handles it
 **Then** for each entry not already among the owner's memories (exact text, case-folded), it submits the save verb with origin `system`, `Source` `learned` and an idempotency key of the event's id plus the entry's position (FR-73, AD-1, AD-21)
 **And** it waits on no lock longer than one second, and a failure is logged without failing the bridge (AD-31)
+**And** `CommandsIn` accepts the save-memory verb from origin `system` too, only when it carries `Source` `learned`; this needs a message-carried source, decided here with AD-31's amendment, against Story 41.8's rule that code decides the source, and Epic 19's trust rule for a non-`tool` row (AD-21) [MOVED 2026-11-09 from Story 41.9, ruled by the Contest Planner under the owner's delegation (planner-2026-11-09-41.9 item (d))]
 
 ### Story 41.12: Core memory: pins under a hard cap, read at every session start
 
@@ -10291,5 +10292,6 @@ So that memory that learns can't be fed from outside and really forgets.
 **And** a `turn` case on the real model asks about a forgotten fact and gets an answer that cites no memory
 - DW-908: no test pins the content of the user-turn remember and forget cases; pin the remember case's text, key phrases, absent phrases, heldOut and recordedBy in `Test.Eval.Cases`, and add both user-turn cases to `Test.Eval.Report`'s chip loop (ledger; routed by x0 2026-11-09)
 - DW-1016: no test or eval checks that Chat's reply after a refused or failed learned save does not say "I'll remember that"; add a case for a denied learned save whose reply must not claim the save (ledger; routed by cr 2026-11-09)
+- DW-1015: the learned-save eval case (`eval/memory-learned-save`) covers no real save (an eval turn's owner `eval` is not a session, so `save_memory` is refused); give the case a real session, and score it right only when the save happened AND the reply carries the sentence; until then it stays report-only, labelled wording-only, never a gate (ledger; routed by owner 2026-11-09, Contest Planner ruling under the owner's delegation)
 
 **Release check:** at the first daily release after the re-open, the Contest Planner's hands-on pass with real keys mentions a fact, sees it learned, pins it, and starts a new day's conversation to see it read (REL-7, as amended 2026-10-31).

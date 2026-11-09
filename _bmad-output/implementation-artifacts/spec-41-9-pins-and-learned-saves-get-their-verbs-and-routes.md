@@ -98,11 +98,13 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
 
 **Acceptance Criteria:**
 - AC 1 (AD-1): Given the gate, when `PinMemory` or `UnpinMemory` arrives from each origin of `Msg.Enum ORIGIN`, then only web_user reaches `MemoryOps`. Origin tool, including web_user inside a bridge context, is not_allowed with the chat sentence and nothing is sent. Neither verb is in `TOOLVERBS` (`CommandsStep3:TestOrigins`, `TestContextOwnSessionOnly`).
-- AC 2 (AD-21, held): Given the save-memory AC for origin `system`, when this story is implemented, then this story leaves `SaveMemory` and its origins unchanged. The AC stays on 41.9 as waiting for 41.11, under Design Notes, for the lead.
+- AC 2 (AD-21, moved): Given the save-memory AC for origin `system`, when this story is implemented, then this story leaves `SaveMemory` and its origins unchanged: the Planner moved that AC to Story 41.11 (planner-2026-11-09-41.9 item (d); epics.md Story 41.11, `[MOVED 2026-11-09 from Story 41.9]`), and 41.8's rule that code decides the source stands.
 - AC 3 (AD-4): Given a CSP session, when `GET /v1/memory/items` is called with and without `q`, then it answers only that session's rows with `source` and `pinned`, and never another session's. When the pin routes are called, they submit `PinMemory`/`UnpinMemory` with the session's `SessionRef` and map every outcome (`MemoryApi:TestItems`, `TestPin`, and the e2e spec).
 - AC 4 (AD-1, AD-4, AD-13): Given `DELETE /v1/memory/items/:ref`, then it submits `ForgetMemory` with origin web_user for the session, and maps forgotten 200, not_found 404, not_built 501 and the rest 500. Another session's real row answers 404 not_found through the real `MemoryOps` and is still stored. Without the envelope, it is refused before anything is submitted (`MemoryApi:TestForgetMemory`, `TestForgetOtherSessionReal`, and the e2e spec). The spine holds the AD-1 note, and `lint_spine.py` stays at its baseline (`"ok": false`, exactly 10 low `placeholder` findings, nothing new).
 
 ## Spec Change Log
+
+- 2026-11-09 (planner-2026-11-09-41.9, Contest Planner under the owner's delegation, relayed by the orchestrator): the spec-gate items ruled. (a) PUBLIC TEXT approved verbatim: 409 `over_cap` "That would go over the 1,000-token limit. Unpin something first." (EXPERIENCE.md:1054). (b) Security as listed under Design Notes (AD-13 envelope in `OnPreDispatch`, server-side `Ownership.SessionRef`, `MemoryOps`' row-owner check, no new role): approved, no veto. (c) The three additive spine lines (AD-1 note, AD-33 cross-area row, REST row, marker `[ADDED 2026-11-09, Story 41.9]`): approved. (d) AC 2 (save-memory from origin `system` with `Source` `learned`) MOVES to Story 41.11 with its AD-31 amendment; 41.9 keeps 41.8's rule that code decides the source. Recorded in epics.md (Rule 5, Story 41.9 `[AMENDED 2026-11-09]`, Story 41.11 `[MOVED 2026-11-09 from Story 41.9]`). The pin-before-41.12 500 (item 5) stands as written; Task 0 measures it.
 
 ## Review Triage Log
 
@@ -125,11 +127,11 @@ No AC contradicts an AD's Rule.
 
 **Before 41.12 (inference, Task 0 measures):** `MemoryOps`' MessageMap has no `PinMemory`, so Ens's default `OnMessage` answers `$$$EnsError($$$EnsErrRequestNotHandled)` (`irislib/Ens/BusinessOperation.cls:707-710`). That is not code 5003, so `CommandsIn.IsStub` is 0, and the gate answers `failed`. The pin routes then give 500 server_error "Something went wrong inside OcuTalon. Try again.", and Ens logs the unhandled request. Nothing calls them before 41.12 lands in this epic (the card is 41.13). Turning this into not_built would widen `IsStub`, which is left out to keep the story small.
 
-**AC 2, for the lead (escalate, not a halt):** accepting `SaveMemory` from origin `system` with `Source` `learned` would need:
+**AC 2 (ruled 2026-11-09, moved to 41.11):** accepting `SaveMemory` from origin `system` with `Source` `learned` would need:
 - a message-carried `Source`, which contradicts 41.8's rule (spec Always 1, and Decided in-stage: "a message-carried source for origin `system` is 41.11's, if it is ever built");
 - a decision on Epic 19's trust rule, under which a non-`tool` row makes recall untrusted. That is Lane A.
 
-41.11 is out of scope, and AD-31's amendment is undecided. The AC is kept as waiting for 41.11, not dropped. Dropping it or moving it is the owner's call.
+The Contest Planner, under the owner's delegation, moved the AC to Story 41.11 with its AD-31 amendment (planner-2026-11-09-41.9 item (d)). This story keeps 41.8's rule: no `Source` on `SaveMemory`, no `system` origin.
 
 **Decided in-stage:**
 - The forget path is `DELETE /v1/memory/items/:ref`. `/v1/memory/:ref` would also catch `precedents` and `items`.
@@ -157,13 +159,13 @@ No AC contradicts an AD's Rule.
 
 **Integration AC:** `TestForgetOtherSessionReal` runs the real gate and the real `MemoryOps.OnForget`. The consumer for the pins is 41.12, the first consumer that handles them.
 
-**Security:**
+**Security** (approved, no veto, planner-2026-11-09-41.9 (b)):
 - CSRF and same origin: the AD-13 envelope in `OnPreDispatch`, which all write routes use.
 - Session check: `Ownership.SessionRef`, where no session gives 500, and 401 signed_out comes from `ApiBase`.
 - Owner scope: list and search pass the session to `Memory.List`/`Search` (`WHERE SessionRef = ?`). Pin and forget carry only the server-side `SessionRef`, and `MemoryOps` matches the row's `SessionRef`.
 - No new role or grant.
 
-**Public text:**
+**Public text** (approved verbatim, planner-2026-11-09-41.9 (a)):
 - New: 409 `over_cap` "That would go over the 1,000-token limit. Unpin something first." (EXPERIENCE.md:1054).
 - Reused, unchanged:
   - "OcuTalon has nothing at this address."
@@ -172,7 +174,7 @@ No AC contradicts an AD's Rule.
   - the envelope refusals
   - CommandsIn's "That can't be done from the chat. Nothing was changed." and "OcuTalon can't take that command from here. Nothing was changed."
 
-**Spine lines** (inserted bottom up, each marked `[ADDED 2026-11-09, Story 41.9]`; no Binds, Prevents or Rule wording changes):
+**Spine lines** (approved, planner-2026-11-09-41.9 (c); inserted bottom up, each marked `[ADDED 2026-11-09, Story 41.9]`; no Binds, Prevents or Rule wording changes):
 1. The REST table, after line 1541:
    > `| `GET /api/v1/memory/items` (`q` blank: `Memory.List`, the newest 20 and `total`; else `Memory.Search`, the best 5), each `{ref, text, savedAt, source, pinned}`; `POST` and `DELETE /api/v1/memory/:ref/pin` submit `PinMemory` and `UnpinMemory`, and `DELETE /api/v1/memory/items/:ref` submits `ForgetMemory`, each with origin `web_user` through `CommandsIn` to `MemoryOps`, which scopes the ref to the CSP session's `SessionRef`; behind the AD-13 envelope [ADDED 2026-11-09, Story 41.9] | the memory operation (AD-21) |`
 2. AD-33's cross-area table, after line 1395:
@@ -207,7 +209,7 @@ Run from the worktree root, one command per call, with `timeout: 600000`, each s
 
 **Mutations (Rule 19), one per AC:**
 - AC 1: `PinMemory` origins `"web_user,tool"` makes `CommandsStep3:TestOrigins` go red.
-- AC 2: none (held).
+- AC 2: none (moved to 41.11).
 - AC 3: `MemoryItems` passes `""` as the session makes `MemoryApi:TestItems` go red.
 - AC 4: drop `web_user` from ForgetMemory's origins, which makes `TestForgetOtherSessionReal` go red: the own row is refused not_allowed instead of forgotten. Also, `MemoryOps`' check is reached only through the real mode, so a route that answers 200 without submitting makes the same test go red, because the other session's row is expected to be kept and the route to give 404.
 
