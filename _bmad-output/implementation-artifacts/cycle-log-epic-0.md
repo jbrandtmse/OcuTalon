@@ -566,3 +566,5 @@
 2026-11-09T17:38:00Z	Story 0.20	adr_verifications_complete	result=none_required mutations=none note=no_AD_commits_a_tool_stack_for_these_ACs;AD-22_as-built_paragraph_amended(ten->sixteen_groups,pieces) model=claude-opus-5-5
 2026-11-09T17:38:00Z	Story 0.20	spine_updated	ad=AD-22 reason=rule5 by=runner story=0-20 lint=ok(10_low_preexisting) note=as-built_only;no_rule_change
 2026-11-09T17:38:05Z	Story 0.20	stage_spawned	stage=qa spawn_at=2026-11-09T17:38:05Z model=sonnet effort=high agent_name=0-20-qa-1 cycle_iteration=1
+2026-11-09T17:45:53Z	Story 0.20	qa_complete	spawn_at=2026-11-09T17:38:05Z model=sonnet effort=high tests_added=1(AC6_pin_in_shard_pieces_rule) mutations_demonstrated=6 first_run_failures=0 clarifications=0 closing_sections_present=true
+2026-11-09T17:45:53Z	Story 0.20	stage_spawned	stage=code-review spawn_at=2026-11-09T17:45:53Z model=opus effort=high agent_name=0-20-code-review-1 cycle_iteration=1
