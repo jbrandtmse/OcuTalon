@@ -3084,3 +3084,6 @@
 2026-11-09T08:47:21Z	Epic 41	runner_resumed	agent=a87143c317128b91c with=41.8_approved+fifth_bullet+41.9_forget_route
 2026-11-09T08:47:21Z	Epic 11	runner_resumed	agent=a7b14a4e288e9b748 with=11.15_approved
 2026-11-09T08:47:28Z	Run	ci_green_verified	head=2a45f8bc(feature;Epic_41_part1_merge) result=success runs=42583599821,42583599730 note=fully_green_newest_1.0.5_cut_head
+2026-11-09T09:26:00Z	Epic 11	ci_observed	sha=94391c83(11.14) result=success runs=42584413449,42584413223 note=runner_sends_RELEASE_TOOL_report;merge_held_after_1.0.5_cut
+2026-11-09T09:35:05Z	Epic 11	runner_clarification	kind=RELEASE_TOOL(11.14)+PUBLIC_TEXT(11.16) agent=a7b14a4e288e9b748 11.14=94391c83_green hunks=scratchpad/e11lead/11.14-release-tool-hunks.patch(942_lines) 11.16_spec=ea3a9471 decisions=AD-29_vs_U-216(re-architecture->Planner),Decided_3,protection_lacks_ipm-install+ipm-install-p(owner_setting),DW-27_residual checks_job=17min_vs_20min_limit origin=ca1d891e
+2026-11-09T09:35:29Z	Epic 11	runner_resumed	agent=a7b14a4e288e9b748 with=plan_11.18_before_hold;no_AD-29_edit
