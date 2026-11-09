@@ -236,6 +236,14 @@ Texts are under Design Notes, Public text. `<c>` is the cut sha and `<m>` is the
 
 ## Spec Change Log
 
+- **planner-2026-11-09-11.16** (the Contest Planner's rulings, relayed by the orchestrator, 2026-11-09):
+  - The 11.14 hunks and this story's `### Public text` are reviewed after 1.0.5 is merged and on the demo, later on 2026-11-09. **Do not implement this story before that text is approved.** The merges stay held.
+  1. **AD-29: amended.** The Rule now reads "so the version bump is on it, with the built web bundle untracked there (U-216, DW-532)", marked `[AMENDED 2026-11-09, Story 11.16, Contest Planner ruling]`; the epics.md merge-back clause of this story's criterion is amended to match (same marker). Written by the lead; spine lint at baseline (10 low placeholder findings, unchanged). On the owner's architecture-Update list. This resolves the plan's Clarification 1 and the Design Notes' conflict note: the `mergeback` step's untrack is the AD's rule now.
+  2. **Dropping the private-repository HTTP 403 fallback: confirmed** (Decided 3). A 403 FAILs the merge.
+  3. **`ipm-install` and `ipm-install-p` as required checks:** the owner is asked to add them. Until then the `merge` step refuses, which is correct. The sequence and its tests never touch repository settings.
+  4. **DW-27:** report only (the residual stays a PLANNER REPORT item).
+  - **CI:** the `release-sequence` self-test moves out of the hosted `checks` job into its own hosted job before this story lands, in its own CI-only commit, with its first clean timings reported.
+
 ## Review Triage Log
 
 ## Design Notes
