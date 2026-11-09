@@ -3034,3 +3034,8 @@
 2026-11-09T05:45:57Z	Epic 17	ci_green_verified	head=87eb681a result=success runs=42558521402(attempt2:shards_timeout,shards-2_DW-973,image_DW-999_reruns),42558521274
 2026-11-09T05:45:57Z	Epic 17	runner_complete	agent=ac394a16089ac2b79 stories=2(17.12,17.13) head=87eb681a(integrated_onto_360306f4;demo-path_plain_union) contract=as_reported(applied=DW-979,DW-980,planner-2026-11-08-17.13;release_tool_hunks=none;decisions_for_user=none)
 2026-11-09T05:45:57Z	Epic 17	merge_enqueued	policy=when_green+planner_rule_a(since_360306f4)
+2026-11-09T05:46:34Z	Epic 17	epic_merged_to_feature	merge=19a4bae6 head=87eb681a stories=17.12,17.13 verified_on_origin=yes conflicts=sprint-status.yaml(bookkeeping) code_conflicts=none method=planner_rule_a ledger_union=lost0,dup0(979) feature_ci=lane-a:42569197273,ci:42569197208, release=1.0.5
+2026-11-09T05:46:34Z	Epic 17	decision_sheet_skipped	reason=empty
+2026-11-09T05:46:34Z	Run	deps_hash_rerecorded	reason=fix_forward stories=17.12,17.13 hash=1292fe10a3e7
+2026-11-09T05:46:34Z	Epic 17	worktree_removed	
+2026-11-09T05:46:34Z	Epic 17	epic_branches_deleted	local+remote(ancestor_verified)
