@@ -63,3 +63,4 @@
 2026-11-09T14:20:13Z	Epic 35	stage_spawned	stage=epic-context spawn_at=2026-11-09T14:20:13Z model=opus effort=high agent_name=35-context-2 reason=planning_artifact_newer(epics.md_35.3_insertion;feature_merge)
 2026-11-09T14:21:59Z	Epic 35	epic_context_compiled	spawn_at=2026-11-09T14:20:13Z sha=pending_commit reason=planning_artifact_newer model=opus lines=88
 2026-11-09T14:22:08Z	Story 35.2	contended_clarification_requested	paths=Core/CommandsIn.cls(Routes_append+TOOLVERBS+Carry+doc),Web/Api.cls(IsAdmin_body:276-279),ARCHITECTURE-SPINE.md(AD-1_after_L120;REST_surface_rows;cross-area_rows) overlaps=Epic_41_Story_41.9(spec_ready,held) proposal=plain_union to=orchestrator
+2026-11-09T14:23:17Z	Story 35.2	ruling	question=contended_paths_with_41.9(CommandsIn_Routes,Web/Api.cls_IsAdmin,spine_AD-1+REST+cross-area) choice=plain_union_proceed_as_planned_incl_IsAdmin rejected=skip_Web/Api.cls(leaves_overlap_and_a_duplicate) category=decide by=orchestrator policy=5086036
