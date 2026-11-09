@@ -565,3 +565,4 @@
 2026-11-09T17:38:00Z	Story 0.20	planner_approval	subject=ci.yml_hunk+memory-offline_deviation via=orchestrator merge_conditions=two_line_ci.yml_diff,two_clean_runs(<=32min_group,<=900s_multi-area),required-check_scan scan=none_found(release/,ci/;ci/changes.sh,ci/iris.sh_derive_from_IRIS_GROUPS)
 2026-11-09T17:38:00Z	Story 0.20	adr_verifications_complete	result=none_required mutations=none note=no_AD_commits_a_tool_stack_for_these_ACs;AD-22_as-built_paragraph_amended(ten->sixteen_groups,pieces) model=claude-opus-5-5
 2026-11-09T17:38:00Z	Story 0.20	spine_updated	ad=AD-22 reason=rule5 by=runner story=0-20 lint=ok(10_low_preexisting) note=as-built_only;no_rule_change
+2026-11-09T17:38:05Z	Story 0.20	stage_spawned	stage=qa spawn_at=2026-11-09T17:38:05Z model=sonnet effort=high agent_name=0-20-qa-1 cycle_iteration=1
