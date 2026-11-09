@@ -25,18 +25,20 @@ OcuTalon runs as an IRIS Interoperability production, so the agent is an Interop
 
 ## Measured
 
-From the real-model release evaluations (Claude Haiku 5.5), the persona sweep and the online demo's usage log:
+From the real-model evaluation of release 1.0.4 (Claude Haiku 5.5, November 8), the persona sweep and the online demo's usage log for November 1 to 7:
 
 | What was measured | Result |
 | --- | --- |
-| Incidents diagnosed with the right cause and fix | 9 of 10 (target: 8) |
-| Routine attention decisions right | 19 of 22 (target: 20) |
+| Incidents diagnosed with the right cause and fix | 11 of 11 (target: 9) |
+| Routine attention decisions right | 21 of 24 (target: 22) |
 | The demo's incident diagnosed with the right fix, on a live model | 30 of 30 runs |
 | Prompt-injection attempts that led to an action | 0 |
 | Changes made without a person's approval | 0 |
-| Cost of one attention decision | about $0.0001 |
-| Cost of diagnosing 50 failed orders | $0.0005 to $0.0007 |
-| Model cost of the always-on online demo | about 9 to 10 cents a day |
+| Cost of one attention decision | about $0.0001 on average, $0.0003 at most |
+| Cost of diagnosing 50 failed orders | $0.0007 to $0.0012 |
+| Model cost of the always-on online demo | about 9 to 11 cents a day |
+
+Where the money goes and how to cap it, with the numbers: [What an always-on AI assistant costs to run](https://community.intersystems.com/post/what-always-ai-assistant-costs-run-real-numbers-iris).
 
 Two things to look at in the demo:
 

@@ -1220,7 +1220,7 @@ chk_product_links() {
 }
 
 # readme-links (Design Notes 8 and 9)
-ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com'
+ALLOWED_HOSTS='localhost demo.ocutalon.com youtu.be github.com/jbrandtmse/OcuTalon github.com/bmad-code-org claude.com console.anthropic.com docs.anthropic.com community.intersystems.com/post/what-always-ai-assistant-costs-run-real-numbers-iris evaluation.intersystems.com docs.intersystems.com www.intersystems.com ideas.intersystems.com docs.docker.com learn.microsoft.com'
 URL_RE='https?://[^][:space:])>"<`]+'
 url_allowed() {
   local rest=${1#*://} host entry
@@ -1345,7 +1345,7 @@ rule_measured() {
   st 'a row label not in the first cell' 1 "$README" '{ sub(/^\| Cost of one attention decision \| /, "| Cost | Cost of one attention decision | ") } { print }' chk_measured
   st 'a row label extended in its cell' 1 "$README" '{ sub(/^\| Routine attention decisions right \|/, "| Routine attention decisions right today |") } { print }' chk_measured
   # A changed number, intro line or result is not flagged: the rule pins the heading and the row labels, not the numbers or wording.
-  mutate "$README" '/^\| Routine attention decisions right \|/ { n += sub(/19 of 22/, "18 of 22") } /^From the real-model release evaluations/ { $0 = "From the evaluations."; n++ } /^\| Prompt-injection attempts/ { n += sub(/ 0 /, " 1 ") } { print } END { exit (n != 3) }' || st_note 'an edit of the numbers or the intro did not apply'
+  mutate "$README" '/^\| Routine attention decisions right \|/ { n += sub(/21 of 24/, "20 of 24") } /^From the real-model evaluation of release/ { $0 = "From the evaluations."; n++ } /^\| Prompt-injection attempts/ { n += sub(/ 0 /, " 1 ") } { print } END { exit (n != 3) }' || st_note 'an edit of the numbers or the intro did not apply'
   if [ -n "$(chk_measured "$tmp/m")" ]; then st_note 'a changed number, result or intro line is flagged'; fi
   finish measured 'Measured has a table row for each of its eight row labels, word for word' chk_measured
 }
@@ -1825,6 +1825,8 @@ rule_readme_links() {
   st_append 'an allowed host and a colon in front of an at sign' '[x](https://claude.com:x@example.org/a)' chk_readme_links
   st_append 'the allowed repository left by dot segments' '[x](https://github.com/jbrandtmse/OcuTalon/../../someone-else/repo)' chk_readme_links
   st_append 'a repository that only starts with the allowed one' '[x](https://github.com/jbrandtmse/OcuTalon-fork)' chk_readme_links
+  st_append 'a community post that is not the listed one' '[x](https://community.intersystems.com/post/another-article)' chk_readme_links
+  st_append 'the listed community post with more path' '[x](https://community.intersystems.com/post/what-always-ai-assistant-costs-run-real-numbers-iris-two)' chk_readme_links
   st_append 'a link that is not http' '[x](mailto:a@b.c)' chk_readme_links
   st_append 'two headings with one slug' '## Sign in' chk_readme_links
   # A link by the GitHub slug of a heading (Design Note 8) is not flagged: the arrow, the apostrophe and the parentheses are dropped,
