@@ -2,7 +2,7 @@
 title: 'Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget'
 type: 'chore'
 created: '2026-11-09'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -28,42 +28,124 @@ deferred: []
 
 ## Code Map
 
-- `ci/units.sh`:
-  - L26-27 `IRIS_GROUPS` (ten groups).
-  - L29-116: the header history in the house style.
-  - L117-131 `group_units`.
-  - L137-177 `shard_unit_areas`: pieces are whole areas, `rest` is computed from the named pieces, and an area named twice returns 1.
-  - L218 `NO_WEB_BUNDLE_UNITS`.
-  - L20-21 `shard_areas`: lane-a has 12 areas and lane-b has 8.
-- `ci/iris.sh`:
-  - L712-748 `cmd_group` runs each unit as `bash ci/iris.sh <kind> <arg>` and passes no `--part`.
-  - L14-19 and L353-429: `shard --part k/n` (contiguous class parts by count) exists for manual runs only.
-  - L832 `groups`.
-- `.github/workflows/ci.yml`:
-  - L111 is the matrix `group:` list.
-  - L1-2 is the "matrix of ten groups" comment.
-  - L104 is `timeout-minutes: 40`, which stays.
-- `docker/tests/test-ci-config.sh`:
-  - L50-65 header.
-  - L788-826: the shard-pieces rule (whole areas, each area once).
-  - L1034-1148: the `groups` rule pins the ten names in order, with samples `g-seven`, `g-eight` and `g-nine`.
-  - L1577-1617: `recipe` pins `groups` output and the `unknown group` list.
-  - L1827-1849: piece-unit samples.
-- `docker/tests/test-ci-changes.sh`:
-  - L9-10 "all ten".
-  - L146 `web_groups`: every group but production.
-  - L177-198: each live script runs exactly its own group, and the sign-in trio runs three distinct groups.
-- `docker/tests/test-release-sequence.sh`:
-  - L2262-2274 `ovw_ci_claims` and L2336-2341: the overviewdoc pin "production holds live:security-overview" plus `NO_WEB_BUNDLE_UNITS`.
-  - L2935: "live:memory-offline is a unit of shards-4".
-  - This is a `docker/tests` check, not under `release/**`.
-- `docker/tests/test-ci-warm.sh` L410 and `web/scripts/state-wait.test.mjs` L284 iterate `IRIS_GROUPS` generically. No layout pin.
-- No hit in `release/**`.
-- Contended: Epic 35 (`cd13b1ae`) adds the lane-a area `Mcp` (4 classes, 28-30 s) and the check `mcp-notices` to `ci/units.sh`. Whatever piece is `rest` takes `Mcp` at merge.
+- `ci/units.sh`: L26 `IRIS_GROUPS` and its comment; L29-33 the `group_units` contract comment ("lane-a runs in two pieces (DW-337) ..." is now wrong); L34-116 the header history (house style); L117-131 `group_units`; L137-177 `shard_unit_areas` (generic for every shard: `shard:lane-b@<areas>` and `shard:lane-b@rest` work today, verified with `ci/iris.sh classes lane-b@rest`); L218 `NO_WEB_BUNDLE_UNITS` (unchanged).
+- `ci/iris.sh`: `cmd_group` L712-748 runs each unit in its own project, torn down on exit (two pieces of one shard in one group is safe). Read-only for this story.
+- `.github/workflows/ci.yml`: L1-2 group-count comment, L111 matrix, L104 `timeout-minutes: 40` (stays).
+- `docker/tests/test-ci-config.sh`: header L42-53 and L65; `units` rule L754-937 (PASS L934); `groups` rule L1034-1149; `inputs` sample pair L1299 (names the group of `live:install-script-live`; `mkinputs` copies the real `ci/units.sh`); `recipe` L1577-1617; `shard pieces` rule L1812-1863.
+- `docker/tests/test-ci-changes.sh`: header L9-10 "all ten"; L146 `web_groups`. Everything else iterates `IRIS_GROUPS` or `group_units`.
+- `docker/tests/test-release-sequence.sh`: L37 (header) and L2336 (comment) say production holds the overview unit; L2272 and L2340 pin it. L2935 (`live:memory-offline` in shards-4) stays true. Not under `release/**`.
+- Generic, no edit: `docker/tests/test-ci-warm.sh` L410, `web/scripts/state-wait.test.mjs` L284, `ci/changes.sh`. No hit in `release/**` or `docs/`.
+- Contended: Epic 35 (`cd13b1ae`) changes only `CHECK_SCRIPTS` (L12, `mcp-notices`) and `shard_areas lane-a` (L20, adds `Mcp`). No textual overlap with this story; `shard:lane-a@rest` absorbs `Mcp`.
 
 ## Tasks & Acceptance
 
-Pending the ruling below: the membership, piece names and release-tool hunk depend on it. No task is planned around the gap.
+**Execution:**
+- `ci/units.sh` -- (1) L26: `IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5 shards-6 shards-7 shards-8 shards-9 shards-10 shards-11"`; the comment ends "..., ten since Story 19.8's CI split, sixteen since Story 0.20's rebalance)". (2) L32-33: replace "lane-a runs in two pieces (DW-337): Checks, Install and Watch in shards, and the rest of its areas in shards-2, which also takes any area added to lane-a later." with "lane-a runs in eight pieces and lane-b in two (Story 0.20); shard:lane-a@rest in shards-2 takes any area added to lane-a later, and shard:lane-b@rest in shards-6 any area added to lane-b." (3) Append the history entry below after L116, wrapped at the file's width. (4) Replace the `group_units` cases with the table below. `NO_WEB_BUNDLE_UNITS` unchanged -- every unit still in it keeps reading no bundle, production holds only listed units, and no other group becomes all-listed.
+- `.github/workflows/ci.yml` -- apply exactly the hunk under "Release-tool hunk" -- the matrix is the check names.
+- `docker/tests/test-ci-config.sh` -- (a) `groups`: the wanted list (L1043-1044, L1072, PASS L1146) becomes the 16 names in order; add `mkgroups` cases `shards-6` to `shards-11`, one unit each (`live:documents`, `shard:lane-a@Docs`, `shard:lane-a@Watch`, `shard:lane-b@rest`, `live:sign-in-3`, `shard:lane-a@Fix`); add sample `g-ten` (the ten old names) with its pair `"g-ten|IRIS_GROUPS is '<the ten>', wanted"`; "ten" becomes "sixteen" at L1034, L1148 and header L50/L65. (b) `inputs` L1299: `group install-fresh` becomes `group shards-2`. (c) `recipe`: L1584 and L1592 take the 16 names; "ten groups" becomes "sixteen groups" at L1577, L1614 and L1617. (d) Extend `units` (Rule 2: extend, no new rule): its PASS line also states, computed from the tree, "the groups hold N units, L of them live scripts and S shard units" (today 38, 28, 10). (e) Extend `shard pieces`: for each shard of `SHARDS`, concatenate `shard_unit_areas` over that shard's units in the groups. Fail `[the shard units of <s> run the areas '<got>', wanted each of '<shard_areas>' once]` unless the sorted list equals the sorted `shard_areas`. The PASS line adds, computed, "(lane-a: 12 areas in 8 units, 218 classes; lane-b: 8 areas in 2 units, 132 classes)". Header bullets L42-46 name the new tallies.
+- `docker/tests/test-ci-changes.sh` -- L146: `web_groups` holds the 15 groups other than production, in `IRIS_GROUPS` order; L9-10 "all ten" becomes "all sixteen" (twice).
+- `docker/tests/test-release-sequence.sh` -- L2272: `group_units shards-5`, with lines "shards-5 holds live:security-overview" or "shards-5 LACKS live:security-overview"; L2340: the expected line "shards-5 holds live:security-overview". The comments at L37 and L2336 say "shards-5" in place of "production". L2935 is unchanged.
+
+**History entry for `ci/units.sh`** (append after L116, verbatim words; no local path):
+> Story 0.20 (2026-11-09; the Contest Planner's rulings on DW-1025, relayed by the orchestrator: 16 groups, each planned to about 29 minutes; every shard: unit of two or more areas at 900 s or less, a single-area unit whole; no longer timeout) added shards-6 to shards-11 and cut lane-a into eight pieces and lane-b into two. On ci runs 42634825529, 42633085173, 42603815732 and 42583599821 every iris job took 31 to 41 minutes, and install-upgrade, shards-2, image, shards-3 and shards-4 met the 40-minute timeout with no failing test. Planned from the largest unit seconds of those runs; a new piece is its areas' largest class seconds plus 423 s, the largest stack start and teardown measured; a job adds 53 s. Pieces: Agent 633, Bridge 1,167, Channel 841, Docs 1,056, Fix 1,192 and Watch 937 s, one area each; Install, Digest and Eval 890 s; lane-a's rest (Checks, Tools and Memory) 866 s, 896 s with Epic 35's Mcp area; lane-b's Contract, Core, Data and Live 899 s and its rest (Demo, Msg, Schedule and Web) 898 s. Groups, in seconds of units: install-fresh 1,659, install-upgrade 1,657, production 1,620, browser 1,632, shards 1,464, shards-2 1,636, image 1,615, shards-3 1,559, shards-4 1,644, shards-5 1,641, shards-6 1,660, shards-7 1,643, shards-8 1,570, shards-9 1,665, shards-10 1,544 and shards-11 1,673, so at most 1,726 s (28.8 minutes) a job (inference until a run measures them). live:memory-offline stays in shards-4: with live:documents beside it in shards-6, no packing keeps every group at or under 1,687 s of units (the best is 1,749 s, 30.0 minutes).
+
+**The `group_units` table** (units in this order; `live:demo-path` first in browser):
+
+| group | units |
+|---|---|
+| install-fresh | `live:install-start live:online-demo-path` |
+| install-upgrade | `live:install-upgrade live:online-visitors` |
+| production | `live:production live:production-restart shard:lane-a@Channel` |
+| browser | `live:demo-path live:online-demo` |
+| shards | `shard:lane-a@Install,Digest,Eval live:online-allowance` |
+| shards-2 | `shard:lane-a@rest live:session-data live:install-script-live` |
+| image | `live:storage-roundtrip live:build-inputs shard:lane-b@Contract,Core,Data,Live live:compose-start` |
+| shards-3 | `live:floor live:demo-switch` |
+| shards-4 | `live:sign-in-2 live:memory-offline` |
+| shards-5 | `live:sign-in-3 live:security-overview live:audit` |
+| shards-6 | `live:documents shard:lane-b@rest live:bundle-folder` |
+| shards-7 | `shard:lane-a@Docs live:answers` |
+| shards-8 | `shard:lane-a@Watch shard:lane-a@Agent` |
+| shards-9 | `shard:lane-a@Bridge live:online-session` |
+| shards-10 | `live:sign-in live:reminder-restart` |
+| shards-11 | `shard:lane-a@Fix live:cards` |
+
+Pieces: lane-a `rest` = Checks, Tools, Memory (+ Mcp at Epic 35's merge); lane-b `rest` = Demo, Msg, Schedule, Web. The `sign-in` trio is in three distinct groups (shards-10, shards-4, shards-5).
+
+**Planned sums** (unit = largest measured seconds; a new piece = its areas' largest class seconds + 423 s; job = units + 53 s):
+
+| group | units (s) | units | job s | min |
+|---|---|---|---|---|
+| install-fresh | install-start 1,086, online-demo-path 573 | 1,659 | 1,712 | 28.5 |
+| install-upgrade | install-upgrade 1,112, online-visitors 545 | 1,657 | 1,710 | 28.5 |
+| production | production 380, production-restart 399, lane-a@Channel 841 | 1,620 | 1,673 | 27.9 |
+| browser | demo-path 773, online-demo 859 | 1,632 | 1,685 | 28.1 |
+| shards | lane-a@Install,Digest,Eval 890, online-allowance 574 | 1,464 | 1,517 | 25.3 |
+| shards-2 | lane-a@rest 866, session-data 366, install-script-live 404 | 1,636 (1,666 with Mcp) | 1,689 (1,719) | 28.1 (28.6) |
+| image | storage-roundtrip 487, build-inputs 21, lane-b@Contract,Core,Data,Live 899, compose-start 208 | 1,615 | 1,668 | 27.8 |
+| shards-3 | floor 909, demo-switch 650 | 1,559 | 1,612 | 26.9 |
+| shards-4 | sign-in-2 1,094, memory-offline 550 | 1,644 | 1,697 | 28.3 |
+| shards-5 | sign-in-3 953, security-overview 296, audit 392 | 1,641 | 1,694 | 28.2 |
+| shards-6 | documents 389, lane-b@rest 898, bundle-folder 373 | 1,660 | 1,713 | 28.6 |
+| shards-7 | lane-a@Docs 1,056, answers 587 | 1,643 | 1,696 | 28.3 |
+| shards-8 | lane-a@Watch 937, lane-a@Agent 633 | 1,570 | 1,623 | 27.1 |
+| shards-9 | lane-a@Bridge 1,167, online-session 498 | 1,665 | 1,718 | 28.6 |
+| shards-10 | sign-in 915, reminder-restart 629 | 1,544 | 1,597 | 26.6 |
+| shards-11 | lane-a@Fix 1,192, cards 481 | 1,673 | 1,726 | 28.8 |
+
+Multi-area shard units: `lane-a@Install,Digest,Eval` 157+44+266 = 467 + 423 = 890; `lane-a@rest` 85+103+255 = 443 + 423 = 866 (896 with Mcp 30); `lane-b@Contract,Core,Data,Live` 17+414+34+11 = 476 + 423 = 899 (854 with lane-b's own largest overhead, 378); `lane-b@rest` 97+34+274+70 = 475 + 423 = 898 (853). Single-area units run whole (option A): Agent 633 (measured), Bridge 1,167 (measured), Channel 841 (measured), Fix 769+423 = 1,192, Docs 633+423 = 1,056, Watch 514+423 = 937. Sum of all units 25,882 s (25,912 with Mcp).
+
+**Totals before / after** (base `85c06b56`):
+- Group units: 34 / 38. Live: 28 / 28. Shard: 6 / 10.
+- lane-a: 12 areas / 12 in 8 pieces; 218 classes / 218.
+- lane-b: 8 areas / 8 in 2 pieces; 132 classes / 132.
+- All: 350 classes / 350, each run once.
+- Epic 35 adds no group unit. After its merge: 38 units; lane-a 13 areas, 222 classes (Mcp 4), in `rest`.
+- The new checks compute these from the tree: scripts, area folders and class files. A unit dropped, or an area or class left out, fails them. An added script, area or class is counted, not pinned.
+
+**Acceptance Criteria:**
+- AC1. Given the new `ci/units.sh`, when `bash ci/iris.sh list` and `bash ci/iris.sh groups` run, then `IRIS_GROUPS` is the 16 names in the order above, each group prints exactly its row of the table, and `test-ci-config.sh`'s `groups` and `recipe` rules pass.
+- AC2 (no weakening). Given the new layout, when `bash docker/tests/test-ci-config.sh` runs, then `units` and `shard pieces` pass. Each live script is in exactly one group, and each lane-a and lane-b area in exactly one piece, through the real `shard_unit_areas`. The 350 classes run once each. The PASS lines state 38 units (28 live, 10 shard), "lane-a: 12 areas in 8 units, 218 classes" and "lane-b: 8 areas in 2 units, 132 classes".
+- AC3. Given `.github/workflows/ci.yml`, when `test-ci-config.sh`'s `matrix` rule runs, then the matrix list equals `ci/iris.sh groups`, and the file differs from base only by the hunk below.
+- AC4. Given the new layout, when `bash docker/tests/test-ci-changes.sh` runs, then it passes 274 checks (268 before): each live script runs only its own group; `test-sign-in.sh` runs web, shards-10, shards-4 and shards-5; a web-only change runs the 15 groups other than production.
+- AC5. Given `live:security-overview` in shards-5, when `test-release-sequence.sh overviewdoc` runs, then every group claims `docs/security-overview.md` and the pin "shards-5 holds live:security-overview" passes; `NO_WEB_BUNDLE_UNITS` still holds it.
+- AC6. Given Epic 35's `shard_areas lane-a` with `Mcp`, when `shard_unit_areas lane-a@rest` is evaluated against the new `group_units`, then it answers `Checks Tools Memory Mcp`.
+- AC7 (lead's done-criterion, not implement's). Given two clean `ci` runs of the same head, when the lead reads them, then every `iris (<group>)` job is at most 32 minutes, and every multi-area `shard:` unit (`lane-a@Install,Digest,Eval`, `lane-a@rest`, `lane-b@Contract,Core,Data,Live`, `lane-b@rest`) is at most 900 s.
+
+## Release-tool hunk (for the Planner)
+
+The exact change to `.github/workflows/ci.yml` (blob `80afa70` to `0acfe6e`); implement produces it byte for byte:
+
+```diff
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1,5 +1,5 @@
+ # CI of Lane B (AD-22, AD-29; Story 0.7). Four jobs: `checks`, `install-macos` and `web` run on hosted runners; `iris` is a matrix of
+-# ten groups that run the %UnitTest shards and the live scripts in throwaway compose projects on the self-hosted IRIS runner.
++# sixteen groups that run the %UnitTest shards and the live scripts in throwaway compose projects on the self-hosted IRIS runner.
+ # The `checks` job lints install.sh and its hermetic test with ShellCheck (Story 10.1) before it runs the checks. The `install-macos` job runs
+ # that hermetic test under macOS's own /bin/bash, which is bash 3.2 (Story 10.1).
+ # Each `iris` job runs its group only when ci/changes.sh finds a change to that group's inputs (ci/units.sh); otherwise it skips
+@@ -108,7 +108,7 @@ jobs:
+     strategy:
+       fail-fast: false
+       matrix:
+-        group: [install-fresh, install-upgrade, production, browser, shards, shards-2, image, shards-3, shards-4, shards-5]
++        group: [install-fresh, install-upgrade, production, browser, shards, shards-2, image, shards-3, shards-4, shards-5, shards-6, shards-7, shards-8, shards-9, shards-10, shards-11]
+     env:
+       IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
+       OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.group }}
+```
+
+- New check names, exactly six: `iris (shards-6)`, `iris (shards-7)`, `iris (shards-8)`, `iris (shards-9)`, `iris (shards-10)`, `iris (shards-11)`.
+- The 17 existing required check names are unchanged. No name changes or disappears. Whether the six become required is the Planner's call (a repository setting, outward).
+- Test totals before and after:
+  - `test-ci-config.sh`: 40 / 40 rules. Two rules are extended.
+  - `test-ci-changes.sh`: 268 / 274 checks. Each new group adds one "outputs: --group" check.
+  - `test-release-sequence.sh`: 26 / 26 rules. The 25 in the three batches pass, and `recut` reads no layout.
+  - `test-boundaries.sh`: 10 / 10.
+  - `%UnitTest`: 350 / 350 classes.
+  - Live scripts: 28 / 28.
 
 ## Spec Change Log
 
@@ -84,147 +166,87 @@ Pending the ruling below: the membership, piece names and release-tool hunk depe
 6. **Reruns.** There are no reruns beyond the two done runs.
 7. **Deadline.** Merged green on feature by 2026-11-10T13:00Z, as a minimal, mechanical change.
 
+**Planner rulings on the intent gap [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025] (binding):**
+
+1. **Option A.** The 900 s cap applies only to `shard:` units of two or more areas. A single-area unit runs whole (here Agent, Bridge, Channel, Docs, Fix, Watch). There is no AD-22 amendment and no change to `ci/iris.sh`. Each single-area unit sits in a group that meets the 32-minute rule on the slower run, beside units small enough to keep it there.
+2. **Capacity confirmed.** 16 IRIS groups; the six new ones are exactly `shards-6` to `shards-11`, each packed to about 29 minutes, with no fuller groups. The 17 existing required check names stay.
+3. **Pins.** The layout-only lines in `docker/tests/test-release-sequence.sh` are updated as a plain union. The lead lists them under `footprint_extensions`.
+4. **After voting, ledgered** (not planned here): DW-1032 (option B, class parts per area; a single area over 1,400 s is a PLANNER REPORT before voting, never a split) and DW-1033 (shared stacks).
+5. **Release-tool hunk** goes to the Planner at the spec gate with each suite's totals (section above).
+
 **Architecture and links:**
-- Governing ADs: AD-22 (its Rule says IRIS tests run "sharded by area", and the as-built CI runs pieces of whole areas) and AD-29 (lanes). `docs/` and `ci/` are Epic 0's to edit.
-- Consumed-by: the `iris` CI jobs and `ci/changes.sh` (`group_input_pattern`).
-- Consumes: the unit, area and class times that `ci/iris.sh` prints (`UNIT`, `CLASS` and `READY` lines).
-- Rule 2: lane-a is split with the existing `shard:<name>@<areas>` pieces and the computed `rest`.
-- DW-1025 is the problem this story resolves; the lead records its resolution.
+- Governing ADs: AD-22 (IRIS tests "sharded by area", each shard unit in its own project; `live:demo-path` first in `browser`; `image` is the IRIS checks job, so `storage-roundtrip` and `build-inputs` stay there) and AD-29 (lanes; `ci/` and `.github/workflows/ci.yml` are Epic 0's). No AD changes. AD-22's "CI as built" paragraph lists the ten groups. The lead refreshes it at the merge gate as an as-built record with no rule change, as for every earlier rebalance. That is not an implement task.
+- Consumed-by: the `iris` CI jobs (`ci/iris.sh group`), `ci/changes.sh` (`group_input_pattern`), and the release-sequence overview claims.
+- Consumes: the `UNIT`, `CLASS` and `READY` lines of the four measured runs.
+- Rule 2: lane-a and lane-b are cut with the existing `shard:<name>@<areas>` pieces and the computed `rest`. `shard_unit_areas` is shard-generic, so lane-b needs no `ci/iris.sh` change (verified: `ci/iris.sh classes lane-b@rest` gives 132 with no named lane-b piece; with the plan, 84 + 48). The no-weakening proof extends the `units` and `shard pieces` rules; there is no new rule.
+- Integration ACs: no new service; AC4 (classifier) and AC5 (release-sequence claims) are the consumers' own checks.
+- Ledger inbox for this key: none. DW-1025 is resolved by this story (the lead records it). DW-1032 and DW-1033 are cited only.
 
-**Measured: job wall time per group** (attempt in brackets; "red" is a flake per the dispatch, "cancelled" is the 40-minute limit):
+**Measured inputs** (four runs: 42634825529 `a3086148`, 42633085173 `cd13b1ae`, 42603815732 `4cb52a8d`, 42583599821 `2a45f8bc`; raw extracts under `<scratchpad>/e0s20plan/`):
+- Job wall time: every group took 31-41 minutes. Cancelled at 40 minutes: install-upgrade, shards-2, image, shards-3 and shards-4. Per-job overhead (job minus units): 27-53 s; plan 53.
+- Largest unit seconds:
+  - shard units: lane-a@rest 2,177; lane-a@Checks,Install,Watch,Eval 1,333; lane-b 1,321; lane-a@Bridge 1,167; lane-a@Channel 841; lane-a@Agent 633.
+  - live units, 909 s or more: install-upgrade 1,112, sign-in-2 1,094, install-start 1,086, sign-in-3 953, sign-in 915, floor 909.
+  - live units, 773 s or less: online-demo 859, demo-path 773, demo-switch 650, reminder-restart 629, answers 587, online-allowance 574, online-demo-path 573, memory-offline 550, online-visitors 545, online-session 498, storage-roundtrip 487, cards 481.
+  - live units, under 410 s: install-script-live 404, production-restart 399, audit 392, documents 389, production 380, bundle-folder 373, session-data 366, security-overview 296, compose-start 208, build-inputs 21.
+- Area class seconds, largest:
+  - Fix 769, Bridge 744, Docs 633, Watch 514, Channel 471, Core 414, Agent 337, Schedule 274, Eval 266, Memory 255.
+  - Install 157, Tools 103, Demo 97, Checks 85, Web 70, Digest 44, Data 34, Msg 34, Mcp 30 (Epic 35), Contract 17, Live 11.
+- Stack start and teardown per shard unit: 278-423 s (lane-b 313-378).
+- Class counts at HEAD (`ci/iris.sh classes`):
+  - lane-a: Agent 21, Bridge 39, Channel 14, Checks 9, Digest 22, Docs 17, Eval 22, Fix 19, Install 16, Memory 9, Tools 8, Watch 22.
+  - lane-b: Contract 4, Core 56, Data 20, Demo 12, Live 4, Msg 3, Schedule 7, Web 26.
 
-| group | 42634825529 a3086148 | 42633085173 cd13b1ae | 42603815732 4cb52a8d | 42583599821 2a45f8bc |
-|---|---|---|---|---|
-| install-fresh | 38:11 (a1) | 39:23 red (a1)<br>39:37 (a2) | 34:16 (a1) | 31:44 (a1) |
-| install-upgrade | 40:41 cancelled (a1) | 40:23 cancelled (a1)<br>40:30 cancelled (a2)<br>39:07 (a3) | 32:28 (a1) | 33:41 (a1) |
-| production | 37:59 red (a1) | 38:01 (a1) | 39:18 (a1) | 36:38 (a1) |
-| browser | 33:28 red (a1)<br>36:22 (a2) | 37:59 (a1) | 33:58 (a1) | 34:02 (a1) |
-| shards | 39:09 (a1) | 36:58 (a1) | 37:35 (a1) | 38:08 (a1) |
-| shards-2 | 41:20 cancelled (a1) | 41:28 cancelled (a1)<br>40:30 cancelled (a2)<br>41:11 cancelled (a3) | 38:32 red (a1)<br>38:59 (a2) | 39:20 (a1) |
-| image | 35:03 (a1) | 40:28 cancelled (a1)<br>39:17 (a2) | 38:18 (a1) | 35:04 (a1) |
-| shards-3 | 38:55 (a1) | 41:28 cancelled (a1)<br>41:21 cancelled (a2)<br>41:19 cancelled (a3) | 41:23 cancelled (a1)<br>41:21 cancelled (a2)<br>41:20 cancelled (a3) | 39:25 (a1) |
-| shards-4 | 38:56 (a1) | 39:23 red (a1)<br>40:33 cancelled (a2)<br>40:21 cancelled (a3) | 40:26 cancelled (a1)<br>40:28 cancelled (a2)<br>40:28 cancelled (a3) | 39:06 (a1) |
-| shards-5 | 34:05 (a1) | 36:11 (a1) | 30:38 (a1) | 31:54 (a1) |
-
-**Measured: per-group overhead.** The overhead is the job time minus the sum of its units: checkout, `What changed`, the web bundle build, preflight and teardown. On every finished job it was 27-53 s; plan 53 s per group.
-
-**Measured: unit seconds** (the maximum of the units that finished; "cut" means the unit was cancelled mid-run):
-
-| unit (group today) | max s | run of max | a3086148 | cd13b1ae | 4cb52a8d | 2a45f8bc |
-|---|---|---|---|---|---|---|
-| shard:lane-a@rest (shards-2) | 2177 | cd13b1ae | 2110 | 2177 | 1950 | 1955 |
-| shard:lane-a@Checks,Install,Watch,Eval (shards) | 1333 | a3086148 | 1333 | 1248 | 1297 | 1312 |
-| shard:lane-b (image) | 1321 | cd13b1ae | 1225 | 1321 | 1262 | 1203 |
-| shard:lane-a@Bridge (shards-5) | 1167 | cd13b1ae | 1088 | 1167 | 981 | 1032 |
-| live:install-upgrade (install-upgrade) | 1112 | cd13b1ae | 1076 | 1112 | 826 | 893 |
-| live:sign-in-2 (shards-4) | 1094 | cd13b1ae | 997 | 1094 | 1088 | 991 |
-| live:install-start (install-fresh) | 1086 | cd13b1ae | 1024 | 1086 | 910 | 872 |
-| live:sign-in-3 (shards-5) | 953 | cd13b1ae | 917 | 953 | 820 | 846 |
-| live:sign-in (browser) | 915 | a3086148 | 915 | 868 | 791 | 810 |
-| live:floor (shards-3) | 909 | cd13b1ae | 745 | 909 | 836 | 739 |
-| live:online-demo (install-fresh) | 859 | cd13b1ae | 850 | 859 | 768 | 685 |
-| shard:lane-a@Channel (shards-4) | 841 | cd13b1ae | 753 | 841 | 808 | 774 |
-| live:demo-path (browser) | 773 | cd13b1ae | 677 | 773 | 697 | 658 |
-| live:demo-switch (shards-3) | 650 | cd13b1ae | 559 | 650 | 637 | 572 |
-| shard:lane-a@Agent (production) | 633 | cd13b1ae | 621 | 633 | 633 | 617 |
-| live:reminder-restart (production) | 629 | 4cb52a8d | 575 | 582 | 629 | 560 |
-| live:answers (browser) | 587 | cd13b1ae | 552 | 587 | 512 | 542 |
-| live:online-allowance (install-upgrade) | 574 | a3086148 | 574 | 557 | 462 | 457 |
-| live:online-demo-path (image) | 573 | cd13b1ae | 490 | 573 | 567 | 489 |
-| live:memory-offline (shards-4) | 550 | a3086148 | 550 | 549 | cut | 545 |
-| live:online-visitors (install-upgrade) | 545 | cd13b1ae | 503 | 545 | 444 | 438 |
-| live:online-session (shards) | 498 | cd13b1ae | 496 | 498 | 497 | 495 |
-| live:storage-roundtrip (image) | 487 | cd13b1ae | 340 | 487 | 407 | 361 |
-| live:cards (shards) | 481 | a3086148 | 481 | 436 | 420 | 448 |
-| live:install-script-live (install-fresh) | 404 | cd13b1ae | 376 | 404 | 337 | 308 |
-| live:production-restart (production) | 399 | a3086148 | 399 | 386 | 379 | 372 |
-| live:audit (shards-3) | 392 | 4cb52a8d | 314 | 374 | 392 | 307 |
-| live:documents (shards-3) | 389 | 2a45f8bc | 356 | cut | cut | 389 |
-| live:production (production) | 380 | 4cb52a8d | 359 | 352 | 380 | 353 |
-| live:bundle-folder (shards-3) | 373 | cd13b1ae | 325 | 373 | 351 | 321 |
-| live:session-data (shards-2) | 366 | 2a45f8bc | cut | cut | 362 | 366 |
-| live:security-overview (production) | 296 | 4cb52a8d | 291 | 291 | 296 | 258 |
-| live:compose-start (install-upgrade) | 208 | cd13b1ae | cut | 208 | 178 | 194 |
-| live:build-inputs (image) | 21 | cd13b1ae | 17 | 21 | 18 | 15 |
-
-**Measured: area class seconds** (the sum of each area's `CLASS` lines per job: min and max):
-
-- Fix: 727 to 769 s
-- Bridge: 703 to 744 s
-- Docs: 532 to 633 s
-- Watch: 505 to 514 s
-- Channel: 457 to 471 s
-- Core: 405 to 414 s
-- Agent: 331 to 337 s
-- Schedule: 233 to 274 s
-- Eval: 241 to 266 s
-- Memory: 229 to 255 s
-- Install: 112 to 157 s
-- Tools: 83 to 103 s
-- Demo: 96 to 97 s
-- Checks: 79 to 85 s
-- Web: 61 to 70 s
-- Digest: 39 to 44 s
-- Data: 33 to 34 s
-- Msg: 22 to 34 s
-- Mcp (Epic 35 only): 28 to 30 s
-- Contract: 14 to 17 s
-- Live: 11 s
-
-A shard unit also pays its stack start (`READY`) and teardown: 278 to 423 s per unit (`READY` 259 to 404 s).
-
-**Planner rulings on the intent gap [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025] (binding; they settle the gap below):**
-
-1. **Option A.** The 900 s cap applies only to `shard:` units of two or more areas. A single-area unit (Bridge, Fix, Docs) runs whole. There is no AD-22 amendment and no change to `ci/iris.sh`. Condition: each single-area unit sits in a group that meets the 32-minute rule in BOTH clean runs, paired only with units small enough to keep it there.
-2. **Capacity confirmed.** There are 16 IRIS groups. The six new ones are exactly `shards-6` to `shards-11`, reporting as `iris (shards-6)` to `iris (shards-11)`, each packed to about 29 minutes by measured times, with no fuller groups. The `ci.yml` hunk lists all six names exactly as they will report. The 17 existing required check names stay unchanged.
-3. **Pins.** The three layout-only lines in `docker/tests/test-release-sequence.sh` (about L2272, L2340 and L2935) are updated as a plain union (orchestrator ruling, Planner agreed). The lead lists them under `footprint_extensions`.
-4. **After voting, ledgered** (by=owner, routed owner=burndown):
-   - DW-1032: option B, contiguous class parts per area. It is triggered early only if a single area's measured unit time passes 1,400 s; before voting that is a PLANNER REPORT, never a split.
-   - DW-1033: whether units can share a stack without losing isolation (the 278-423 s stack start and teardown per unit).
-5. **Release-tool hunk.** The `ci.yml` matrix hunk goes to the Planner at the spec gate, with each suite's test totals before and after.
-
-**The intent gap (why planning stopped).** Ruling 2 says that every `shard:` unit runs in 900 s or less. AD-22's Rule ("sharded by area") and the dispatch's Rule 2 instruction ("every area in exactly one piece") make the smallest piece a whole area. Three lane-a areas exceed 900 s on their own:
-
-| area as its own piece | class time | stack start and teardown | unit time |
-|---|---|---|---|
-| Bridge (already the piece `shard:lane-a@Bridge`) | 703-744 s | 278-423 s | 981-1,167 s, measured |
-| Fix | 727-769 s | 282-379 s | 1,012-1,123 s, computed per run |
-| Docs | 532-633 s | 282-379 s | 814-1,006 s, computed per run |
-
-The cap therefore cannot be met with whole-area pieces. Two amendments would make it reachable:
-
-- **A (recommended; minimal, no AD change).** The cap applies to every `shard:` unit of two or more areas. A single-area piece runs whole: today Bridge, Fix and Docs, at about 1,000 to 1,170 s each. The 32-minute group criterion stays unchanged.
-- **B (a veto item: it amends AD-22).** An area may run in contiguous class parts:
-  - Write a part as `shard:<name>@<piece>#k/n` and run it through the existing `ci/iris.sh shard --part k/n`.
-  - This widens the footprint to `ci/iris.sh` `cmd_group` and `shard_unit_areas`.
-  - It needs a new "every class in exactly one part" rule in `test-ci-config.sh`, with samples.
-
-**Capacity, for information.** Under either option, the measured units come to about 25,700 s at the slowest times, counting the extra stack start each split pays. At about 1,690 s of units per group (29 minutes less 53 s), that needs at least 16 IRIS groups: the ten existing ones and at least six new ones, `shards-6` to `shards-11`. That is 16 or more IRIS jobs per run on 18 runner services. A trial packing with whole-area pieces put 17 groups at or under 29.0 minutes each.
-
-**Noted, not blocking.** Three live units exceed the standing "about 1,000 s a unit" line on the slow run: `live:install-upgrade` 1,112 s, `live:sign-in-2` 1,094 s and `live:install-start` 1,086 s. Splitting live scripts is outside this footprint, and ruling 2 caps only `shard:` units. Each fits alone in a group under 29 minutes.
+**Noted, not blocking.** On the slow run, three live units exceed the "about 1,000 s a unit" line: `live:install-upgrade` 1,112 s, `live:sign-in-2` 1,094 s and `live:install-start` 1,086 s. Ruling 2 caps only `shard:` units, and each fits in a group under 29 minutes. The multi-area pieces are planned at 866-899 s from worst-case figures (each area's largest class time plus the largest overhead). On one run the same pieces come to about 840-855 s (`cd13b1ae` attempt 1: lane-a rest with Mcp 465 + 379; lane-b 468 + 378 and 475 + 378). A done run that shows a multi-area unit over 900 s is a red done-criterion for the lead and the Planner. It is not a cue to split further in-stage (DW-1032).
 
 **Decided in-stage:**
-- Measurement rules:
-  - Unit times are the maximum over every finished attempt of the four runs.
-  - The job overhead is the per-job maximum, 53 s.
-  - Raw extracts are under `<scratchpad>/e0s20plan/`.
-- Base for the plan: the group layout is identical on all four measured heads and on this branch's head `85c06b56`. That head is a descendant of `a3086148` and `2a45f8bc`.
-- Totals pinned for the coverage check: 34 units, 218 lane-a and 132 lane-b classes.
+- **The `shards-6` fixed pair was not kept whole (the ruling's exception).** With both `live:documents` and `live:memory-offline` in shards-6 (939 s), that group can hold no other unit over 748 s. Fifteen units are over 843 s, and none of them may go to production (none is in `NO_WEB_BUNDLE_UNITS`). So 15 such units would share 14 groups, and two of them together are at least 1,700 s. An exact packing (MILP, every constraint below) gives at best 1,749 s of units, 30.0 minutes with overhead, over the 29-minute target. Alternative taken: `live:documents` moves to shards-6, and `live:memory-offline` stays in shards-4 (1,644 s, beside sign-in-2 once Channel leaves). That also leaves the L2935 pin true. `live:security-overview` moves to shards-5 as ruled.
+- **Packing method.** An exact MILP over the 38 units minimised the number of units that change group (21), then the largest group (1,673 s). Constraints:
+  - each group at or under 1,687 s of units (29 minutes less 53 s);
+  - production only `NO_WEB_BUNDLE_UNITS` units;
+  - install-fresh holds install-start, install-upgrade holds install-upgrade, and demo-path is first in browser;
+  - image keeps storage-roundtrip and build-inputs (AD-22, the IRIS checks job);
+  - security-overview is in shards-5;
+  - the sign-in trio is in three groups;
+  - every group has at least one unit.
+- **What the constraints forced.** `shard:lane-a@Channel` (841 s) moves to production: it is the only `NO_WEB_BUNDLE_UNITS` unit large enough to keep the other 15 groups under the line. `shard:lane-a@Agent` leaves production but stays in `NO_WEB_BUNDLE_UNITS` (it still reads no bundle). Bridge cannot stay in shards-5 beside security-overview (no packing fits), so it moves to shards-9. `live:install-script-live` cannot stay in install-fresh (the best packing would then be 1,700 s), so the `inputs` sample at L1299 follows it to shards-2.
+- **Piece cuts.** lane-a's small areas (Checks 85, Eval 266, Install 157, Digest 44, Memory 255, Tools 103; Mcp 30 later) fit two pieces of at most 477 s of classes each (900 less 423) in only one way: {Install, Digest, Eval} and {Checks, Tools, Memory} + Mcp. Watch (514) cannot pair with any area under the cap, so it runs alone. lane-b fits two pieces only as {Contract, Core, Data, Live} and the rest. Piece names list areas in `shard_areas` order.
+- `test-release-sequence.sh`: besides the two pinning lines (L2272, L2340), the two comments that state the same fact (L37, L2336) are corrected (Rule 14). L2935 needs no change. The dispatch's "three lines" become four comment-or-pin lines, all layout-only.
+- **"34 units" in the intent.** Base has 34 group units: 28 live units and 6 shard units. The approach and ruling 1 require splits, so the shard-unit count must change (6 to 10). The only reading that fits is that the tests still match: the same 28 live scripts, 12 + 8 areas and 218 + 132 classes, each run once. So the checks pin those derived totals, and the unit count goes from 34 to 38.
+- `NO_WEB_BUNDLE_UNITS` is unchanged. Production holds only listed units, and no other group becomes all-listed, so `web_groups` is every group but production.
+- **Dry run (planning only, scratch clone, not the worktree).** Applied: the table, the hunk and the pin edits above, without the (d)/(e) PASS-line tallies. `test-ci-config.sh` passed 40/40 in 65 s. `test-ci-changes.sh` passed 274 in 32 s. `test-release-sequence.sh overviewdoc static` passed. With `shard:lane-b@rest` dropped from shards-6, `units` and `shard pieces` went red.
 
 ## Verification
 
-Not yet planned (blocked). Shared surfaces this story will change:
-- `IRIS_GROUPS`
-- the `ci.yml` matrix
-- `group_units`
-- `NO_WEB_BUNDLE_UNITS`, if a unit's membership demands it
-- the checks/overviewdoc pin and the `live:memory-offline` pin in `docker/tests/test-release-sequence.sh`
-- the `groups` and `recipe` pins in `docker/tests/test-ci-config.sh`
-- the `web_groups` and "all ten" pins in `docker/tests/test-ci-changes.sh`
+**Commands** (from the worktree root; each one call, at most about 150 s; local times measured on base):
+- (loop) `bash docker/tests/test-ci-config.sh` -- expected: `test-ci-config: all rules passed`, 40 PASS lines (about 65 s).
+  - The `units` PASS line names 38 units, 28 live and 10 shard.
+  - The `shard pieces` PASS line names 350 classes, 10 pieces, "lane-a: 12 areas in 8 units, 218 classes" and "lane-b: 8 areas in 2 units, 132 classes".
+- (loop) `bash docker/tests/test-ci-changes.sh` -- expected: `test-ci-changes: all checks passed`, 274 PASS (about 32 s).
+- (loop) `bash -c 'diff <(bash ci/iris.sh groups) <(sed -n "s/^ *group: \[\(.*\)\]\$/\1/p" .github/workflows/ci.yml | tr -d " " | tr "," "\n") && bash ci/iris.sh groups | wc -l'` -- expected: no diff, `16`.
+- (once) `bash docker/tests/test-release-sequence.sh libs refusals cut image overview overviewunit overviewdrift` -- expected: `PASS all rules` (about 49 s).
+- (once) `bash docker/tests/test-release-sequence.sh overviewdoc ipmcheck push record hands resume notes gate` -- expected: `PASS all rules` (about 124 s).
+- (once) `bash docker/tests/test-release-sequence.sh secret first word pushes ipm ipmfail ipmwait ipmnet ipmlib static` -- expected: `PASS all rules` (about 75 s).
+- (once) `bash docker/tests/test-boundaries.sh` -- expected: `test-boundaries: all rules passed` (about 7 s).
+- (once) `bash -c 'for s in lane-a lane-b; do echo "$s $(bash ci/iris.sh classes $s | wc -l)"; done; . ci/units.sh; for g in $IRIS_GROUPS; do group_units $g; done | tr " " "\n" | grep -c .'` -- expected: `lane-a 218`, `lane-b 132`, `38`.
+- (once) `bash -c '. ci/units.sh; shard_areas() { case $1 in lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel Memory Docs Mcp" ;; lane-b) echo "Contract Core Data Demo Live Msg Schedule Web" ;; *) return 1 ;; esac; }; shard_unit_areas lane-a@rest'` -- expected: `Checks Tools Memory Mcp` (AC6).
+- (once) `git diff --stat -- .github/workflows/ci.yml` and `git diff -- .github/workflows/ci.yml` -- expected: exactly the Release-tool hunk (AC3).
+- (once) `LC_ALL=C grep -n '[^[:print:][:space:]]' ci/units.sh docker/tests/test-ci-config.sh docker/tests/test-ci-changes.sh; grep -nE '/Users/|/private/|/home/' ci/units.sh .github/workflows/ci.yml` -- expected: no output.
+
+**Mutations** (apply, observe red, revert, confirm `git status --short` and `git diff --stat` unchanged):
+- AC1 mutation: drop `shards-11` from `IRIS_GROUPS` → `test-ci-config.sh` `groups` red ("IRIS_GROUPS is '...', wanted") and `matrix` red.
+- AC2 mutation: drop `live:documents` from `shards-6` in `group_units` → `units` red ("docker/tests/test-documents.sh: the script is in 0 of ..."); and drop `shard:lane-b@rest` → `units` and `shard pieces` red (observed in the dry run).
+- AC3 mutation: drop `shards-11` from the `ci.yml` matrix only → `test-ci-config.sh` `matrix` red.
+- AC4 mutation: add `shard:lane-a@Watch` to `NO_WEB_BUNDLE_UNITS` (shards-8 becomes all-listed) → `test-ci-changes.sh` red on "web/** runs web and every group but production".
+- AC5 mutation: move `live:security-overview` from shards-5 to shards-10 → `test-release-sequence.sh overviewdoc` red.
+- AC6 mutation: name `shard:lane-a@Checks,Tools,Memory` in place of `shard:lane-a@rest` → the AC6 command prints `Mcp` alone, not `Checks Tools Memory Mcp`. Once Epic 35's area exists, `units` would also report "1 area(s) of the shard lane-a are in no piece, and no piece is rest".
+- AC7: none in-stage. CI's two clean runs are the lead's done-criterion.
+
+Shared surfaces: `IRIS_GROUPS`; the `ci.yml` matrix and the `iris (<group>)` check names; `group_units` and the output of `ci/iris.sh list` and `groups`; the `groups`, `recipe`, `inputs` (L1299), `units` and `shard pieces` pins in `docker/tests/test-ci-config.sh`; `web_groups` and "all ten" in `docker/tests/test-ci-changes.sh`; the overview placement pin in `docker/tests/test-release-sequence.sh`. `NO_WEB_BUNDLE_UNITS` is unchanged.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: ruling 2's done criterion "EVERY unit shard (each shard: unit) is <= 900 s" cannot be met with whole-area pieces, which AD-22's Rule ("sharded by area") and the dispatch's Rule 2 instruction ("every area in exactly one piece") require. Three lane-a areas exceed 900 s alone on the measured runs: Bridge, already its own piece `shard:lane-a@Bridge`, at 981-1,167 s; Fix alone at 1,012-1,123 s; and Docs alone at 814-1,006 s. Each is 532-769 s of class time plus a 278-423 s stack start and teardown. Recommended amendment, one of: (A, recommended: minimal, no AD change) the cap reads "every shard: unit of two or more areas is <= 900 s; a single-area piece runs whole" (today Bridge, Fix and Docs, about 1,000-1,170 s), and the <= 32-minute group criterion stays unchanged; or (B, a veto item because it amends AD-22) an area may run in contiguous class parts, `shard:<name>@<piece>#k/n`, through the existing `ci/iris.sh shard --part k/n`, which widens the footprint to `ci/iris.sh` `cmd_group` and needs a new every-class-exactly-once rule in `test-ci-config.sh`. Either way the measured packing needs at least 16 IRIS groups (six new, `shards-6` to `shards-11`) to keep each group at or under about 29 minutes.
+Status: ready-for-dev
+Blocking condition: none
