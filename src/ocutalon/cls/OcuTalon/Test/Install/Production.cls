@@ -1,7 +1,11 @@
+Include Ensemble
+
 /// Tests of OcuTalon.Production and of the Production installer step (Story 0.6, matrix rows 1 and 3 to 5; Story 1.1; Story 1.2;
-/// Story 1.3; Story 1.5; Story 1.12). Nothing
+/// Story 1.3; Story 1.5; Story 1.12; Story 39.11). Nothing
 /// here starts, stops or updates a production: the tests read the definition of OcuTalon.Production, call the stub handlers of
-/// shadow instances, write the System Default Setting row of the EvalIn switch (restored as it was found), and compile a
+/// shadow instances, write the System Default Setting row of the EvalIn switch (restored as it was found), write the Enabled row
+/// and the runtime flag of TelegramIn (both put back as found) and an Enabled row for the production and every item of
+/// TelegramIn's class (deleted after the test), compile a shadow subclass of the step (deleted by its test), and compile a
 /// fixture production of their own with System Default Setting rows of its own, both deleted afterwards.
 /// The oracle is a copy of the ownership table, split by lane so that each lane edits only its own rows (AD-29, AD-33):
 /// lane A's rows are XData Items below, lane B's are in OcuTalon.Test.Core.ProductionItems, and Items() returns both in
@@ -26,6 +30,17 @@
 ///     included; a production that cannot be opened is an error that writes nothing;
 ///   - TestStepHelpers: EvalEnabled is 1 only for "1", SetEval and WriteDefault write their rows, and NotRunning names the
 ///     production when it does not run;
+///   - TestNotRunningFollowsTheRow: on a running OcuTalon.Production, NotRunning leaves out TelegramIn (pool 1, no job) when its
+///     Enabled row is 0 or its runtime flag is off, and names it when the flag is on and its row is 1 or missing (skipped when the
+///     production does not run or TelegramIn has a job);
+///   - TestNotRunningFollowsABroaderRow: the Enabled row that applies to an item may be of any specificity, as Ens reads it: a row for
+///     the production and every item of TelegramIn's class (written and deleted by the test) of 0 leaves TelegramIn out, and of 1
+///     names it (the same skip conditions);
+///   - TestNotRunningLeavesOutAnItemWithAJob: on a running OcuTalon.Production, NotRunning names none of the enabled items (flag on, pool,
+///     no row of 0) that have an alive job that is not in error (reads only);
+///   - TestNotRunningNamesTheProduction: a step class whose PRODUCTION is not the running one answers "<production> is not running"
+///     (a shadow subclass of the step that the test compiles and deletes; it runs also where OcuTalon.Production runs, which
+///     TestStepHelpers cannot check);
 ///   - TestAutoStart: AutoStart marks ^Ens.AutoStart for the caller "ipm" only, and leaves it as it was for any other caller
 ///     (^Ens.AutoStart is put back after the test);
 ///   - TestExampleInstalledNotStarted: the bridge example production is compiled and registered, and neither running nor the
@@ -54,6 +69,19 @@ Property RowDeployable As %Boolean;
 /// namespace (in ^||OcuTalonTestLastProduction); OnAfterOneTest puts both back exactly as they were, defined or not.
 Property AutoStartSaved As %Boolean [ InitialExpression = 0 ];
 
+/// The Enabled row of TelegramIn as found (RunnerFixture.SnapshotDefault), "" when TestNotRunningFollowsTheRow has saved none;
+/// OnAfterOneTest puts it back.
+Property TelegramRow As %List;
+
+/// The runtime flag of TelegramIn as found, $Data and the value, when TelegramRow is saved.
+Property TelegramFlagData As %Integer;
+
+Property TelegramFlagValue As %String;
+
+/// The id of the Enabled row for the production and every item of one class that TestNotRunningFollowsABroaderRow has written, ""
+/// when it has written none; OnAfterOneTest deletes it.
+Property BroadRowId As %String;
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ..Clean()
@@ -71,6 +99,19 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	If ..TelegramRow '= "" {
+		If ..TelegramFlagData {
+			Set $$$ConfigIsEnabled("TelegramIn") = ..TelegramFlagValue
+		} Else {
+			Kill $$$ConfigIsEnabled("TelegramIn")
+		}
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault(..TelegramRow)
+		Set ..TelegramRow = ""
+	}
+	If ..BroadRowId '= "" {
+		Do ##class(Ens.Config.DefaultSettings).%DeleteId(..BroadRowId)
+		Set ..BroadRowId = ""
+	}
 	If ..AutoStartSaved {
 		Kill ^Ens.AutoStart, ^Ens.Configuration("csp", "LastProduction")
 		Merge ^Ens.AutoStart = ^||OcuTalonTestAutoStart
@@ -522,6 +563,139 @@ Method TestStepHelpers()
 	}
 }
 
+/// NotRunning reads the Enabled row of the System Default Settings as Ens does: TelegramIn (pool 1, no job) is left out when the row
+/// is 0 or the runtime flag is off, whatever the row, and named when the flag is on and the row is 1 or missing. The row and the flag
+/// are written for each case and put back after the test.
+Method TestNotRunningFollowsTheRow()
+{
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set item = "TelegramIn"
+	If '##class(Ens.Director).IsProductionRunning(.running) || (running '= ..#PRODUCTION) {
+		Do $$$AssertSkipped(..#PRODUCTION_" does not run in this namespace, so NotRunning cannot be read per item")
+		Quit
+	}
+	If $ListLength($ClassMethod(fixture, "Jobs", item)) {
+		Do $$$AssertSkipped(item_" has a job here, and this test cannot stop it")
+		Quit
+	}
+	Set ..TelegramRow = $ClassMethod(fixture, "SnapshotDefault", item, "Enabled")
+	Set ..TelegramFlagData = $Data($$$ConfigIsEnabled(item), value)
+	Set ..TelegramFlagValue = $Get(value)
+	Do $$$AssertTrue($Get($$$ConfigPoolSize(item)) > 0, item_" has a pool")
+	For case = 1:1:6 {
+		Set row = $Case(case, 1: 0, 2: 0, 3: 1, 4: 1, : "")
+		Set flag = $Select(case # 2: 1, 1: 0)
+		Set named = $Case(case, 3: 1, 5: 1, : 0)
+		If row = "" {
+			Do ##class(Ens.Config.DefaultSettings).%DeleteId($ClassMethod(fixture, "DefaultId", item, "Enabled"))
+			Do $$$AssertNotTrue(##class(Ens.Config.DefaultSettings).%GetSetting(..#PRODUCTION, item, $Get($$$ConfigClassName(item)), "", "Enabled"), "no Enabled row of any specificity applies to "_item)
+		} Else {
+			Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", item, "Enabled", row), "the Enabled row of "_item_" is set to "_row)
+		}
+		Set $$$ConfigIsEnabled(item) = flag
+		Set label = item_" with "_$Select(row = "": "no Enabled row", 1: "Enabled row "_row)_" and runtime flag "_flag
+		Set actual = $ListFind($ListFromString(##class(OcuTalon.Install.Step.Production).NotRunning()), item) > 0
+		Do $$$AssertEquals(actual, named, label_$Select(named: " is named", 1: " is not named")_" by NotRunning")
+	}
+}
+
+/// Ens takes the Enabled row that applies to an item from the System Default Settings at any specificity, and so does NotRunning:
+/// a row of the production for every item of TelegramIn's class (item "*", the class of TelegramIn) of 0 leaves TelegramIn (pool 1,
+/// no job, runtime flag 1) out, and of 1 names it. TelegramIn's own row is deleted for the test and put back after it, as is the
+/// runtime flag; the broad row is deleted after the test, and the test writes none where one with that id already exists.
+Method TestNotRunningFollowsABroaderRow()
+{
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set item = "TelegramIn"
+	If '##class(Ens.Director).IsProductionRunning(.running) || (running '= ..#PRODUCTION) {
+		Do $$$AssertSkipped(..#PRODUCTION_" does not run in this namespace, so NotRunning cannot be read per item")
+		Quit
+	}
+	If $ListLength($ClassMethod(fixture, "Jobs", item)) {
+		Do $$$AssertSkipped(item_" has a job here, and this test cannot stop it")
+		Quit
+	}
+	Set class = $Get($$$ConfigClassName(item))
+	Do $$$AssertTrue(class '= "", item_" has a class at runtime")
+	Set id = ..#PRODUCTION_"||*||"_class_"||Enabled"
+	If ##class(Ens.Config.DefaultSettings).%ExistsId(id) {
+		Do $$$AssertSkipped("a row "_id_" exists here, and this test does not touch rows it did not write")
+		Quit
+	}
+	Set ..TelegramRow = $ClassMethod(fixture, "SnapshotDefault", item, "Enabled")
+	Set ..TelegramFlagData = $Data($$$ConfigIsEnabled(item), value)
+	Set ..TelegramFlagValue = $Get(value)
+	Do ##class(Ens.Config.DefaultSettings).%DeleteId($ClassMethod(fixture, "DefaultId", item, "Enabled"))
+	Set ..BroadRowId = id
+	Set $$$ConfigIsEnabled(item) = 1
+	Do $$$AssertTrue($Get($$$ConfigPoolSize(item)) > 0, item_" has a pool")
+	For row = 0, 1 {
+		Kill value
+		If row = 0 {
+			Set result = ##class(%SQL.Statement).%ExecDirect(, "INSERT INTO Ens_Config.DefaultSettings (ProductionName, ItemName, HostClassName, SettingName, SettingValue, Description) VALUES (?, '*', ?, 'Enabled', 0, 'Written by a test; the test deletes it.')", ..#PRODUCTION, class)
+		} Else {
+			Set result = ##class(%SQL.Statement).%ExecDirect(, "UPDATE Ens_Config.DefaultSettings SET SettingValue = 1 WHERE ID = ?", id)
+		}
+		Do $$$AssertTrue(result.%SQLCODE >= 0, "the broad Enabled row is written with "_row)
+		Do $$$AssertTrue(##class(Ens.Config.DefaultSettings).%GetSetting(..#PRODUCTION, item, class, "", "Enabled", .value) && (value = row), "the row that applies to "_item_" is that broad row, "_row)
+		Set named = $ListFind($ListFromString(##class(OcuTalon.Install.Step.Production).NotRunning()), item) > 0
+		Do $$$AssertEquals(named, row, item_" with a broad Enabled row "_row_" and runtime flag 1 is "_$Select(row: "", 1: "not ")_"named by NotRunning")
+	}
+}
+
+/// An enabled item (runtime flag on, a pool, no Enabled row of 0) that has an alive job which is not in error is not named by
+/// NotRunning: the production runs those items, and NotRunning reads only what is there.
+Method TestNotRunningLeavesOutAnItemWithAJob()
+{
+	If '##class(Ens.Director).IsProductionRunning(.running) || (running '= ..#PRODUCTION) {
+		Do $$$AssertSkipped(..#PRODUCTION_" does not run in this namespace, so NotRunning cannot be read per item")
+		Quit
+	}
+	Set result = ##class(%ResultSet).%New("Ens.Job:Enumerate")
+	Do $$$AssertStatusOK(result.Execute(), "the jobs are listed")
+	Kill candidates
+	While result.Next() {
+		If result.Get("State") '= "Alive" Continue
+		If $ListFind($ListFromString($Parameter("OcuTalon.Install.Step.Production", "DEADSTATUSES")), result.Get("Status")) Continue
+		Set item = result.Get("ConfigName")
+		If item = "" Continue
+		If '$Get($$$ConfigIsEnabled(item)) || '$Get($$$ConfigPoolSize(item)) Continue
+		If ##class(Ens.Config.DefaultSettings).%GetSetting(..#PRODUCTION, item, $Get($$$ConfigClassName(item)), "", "Enabled", .row), 'row Continue
+		Set candidates(item) = ""
+	}
+	Set count = 0
+	Set wrong = ""
+	Set named = $ListFromString(##class(OcuTalon.Install.Step.Production).NotRunning())
+	Set item = ""
+	For {
+		Set item = $Order(candidates(item))
+		Quit:item=""
+		Set count = count + 1
+		If $ListFind(named, item) Set wrong = wrong _ $Select(wrong = "": "", 1: ",") _ item
+	}
+	Do $$$AssertTrue(count > 0, "the running production has at least one enabled item with an alive job")
+	Do $$$AssertEquals(wrong, "", "NotRunning names none of the "_count_" enabled items that have an alive job")
+}
+
+/// The sentence for a production that does not run: a step class whose PRODUCTION parameter names a production that is not the
+/// running one answers with that name and "is not running", whether or not OcuTalon.Production runs here (TestStepHelpers can read this
+/// only where it does not run). The step class is a subclass that the test compiles, with a name that Clean sweeps, and deletes.
+Method TestNotRunningNamesTheProduction()
+{
+	Set shadow = "OcuTalon.Test.Install.ZzProdStep"_..Number
+	Set sc = ..Create("StepShadow", shadow)
+	Do $$$AssertStatusOK(sc, "the shadow step compiles")
+	If $$$ISERR(sc) Quit
+	Try {
+		Do $$$AssertEquals($Parameter(shadow, "PRODUCTION"), shadow, "its PRODUCTION is not a production that runs")
+		Do $$$AssertEquals($ClassMethod(shadow, "NotRunning"), shadow_" is not running", "NotRunning names the production and says that it does not run")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the shadow step answers")
+	}
+	Do $SYSTEM.OBJ.Delete(shadow, "-d")
+	Do $$$AssertEquals(##class(%Dictionary.ClassDefinition).%ExistsId(shadow), 0, "and is deleted")
+}
+
 /// AutoStart marks the production autostart for the caller "ipm" and changes nothing for any other caller, the Docker path's
 /// "after-start" and the empty caller included.
 Method TestAutoStart()
@@ -699,7 +873,8 @@ Method Create(block As %String, className As %String) As %Status [ Private ]
 	Quit sc
 }
 
-/// Deletes every fixture production class that an earlier run may have left, with its System Default Settings.
+/// Deletes every class named OcuTalon.Test.Install.ZzProd... that an earlier run may have left (the fixture productions and the
+/// shadow step classes), with the System Default Settings of the fixture productions.
 ClassMethod Clean() [ Private ]
 {
 	Set statement = ##class(%SQL.Statement).%New()
@@ -750,6 +925,17 @@ XData Items [ MimeType = application/json ]
  {"lane": "A", "name": "MemoryOps", "class": "OcuTalon.Memory.Ops", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "DocumentOps", "class": "OcuTalon.Docs.Ops", "pool": 1, "enabled": 1, "stub": 0, "settings": []}
 ]
+}
+
+/// A step whose PRODUCTION is not a production that runs, for TestNotRunningNamesTheProduction.
+XData StepShadow [ MimeType = text/plain ]
+{
+Class @CLASS@ Extends OcuTalon.Install.Step.Production
+{
+
+Parameter PRODUCTION = "@CLASS@";
+
+}
 }
 
 /// A production with five runners and an item that is not a runner, for UnresolvedRunners.

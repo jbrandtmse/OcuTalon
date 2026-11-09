@@ -6605,7 +6605,7 @@ So that OcuTalon runs on the models I choose and never spends more than I allow.
 
 **Given** the Budgets section
 **When** an admin sets the token budget per decision or the daily cost cap (off by default on a local install) and saves
-**Then** `SettingsOps` writes them as bridge host settings through `Ens.Director.UpdateProduction` within a minute, after the bridge's allow-list (Lane A's Story 17.4) accepts them, and audits them (FR-40, AD-19)
+**Then** `SettingsOps` writes them as bridge host settings through `OcuTalon.Bridge.Settings.Set` (System Default Settings rows that `Decide` reads on each decision) within a minute, after the bridge's allow-list (Lane A's Story 17.4) accepts them, and audits them (FR-40, AD-19) [AMENDED 2026-11-08, Story 18.3 spec gate, Rule 5 apply-and-report (tier 1, intent unchanged): it read "through `Ens.Director.UpdateProduction`", the API Story 17.4 did not use; as built the values are rows that `Bridge.Settings.Set` writes and `Decide` reads per decision, with no production update]
 **And** for admins, the local daily-cost-cap banner's "Budgets" action opens this section (UX-DR97, UX-DR116)
 
 **Given** no model key is set on a local install
@@ -6618,7 +6618,7 @@ So that OcuTalon runs on the models I choose and never spends more than I allow.
 
 **Given** the README
 **When** this story merges
-**Then** its provider section names the supported providers, says each key comes from its own environment variable listed in `.env.example` without a value and never from the settings page, says that with no Anthropic key but another supported provider's key OcuTalon uses that provider's default model, and claims only providers marked supported (FR-39, FR-58, NFR-11)
+**Then** its provider section names the supported providers, says each key comes from its own environment variable listed in `.env.example` without a value and never from the settings page, and claims only providers marked supported (FR-39, FR-58, NFR-11) [AMENDED 2026-11-08, Story 18.3, decided by the Contest Planner under the owner's delegation (ruling planner-2026-11-08-18.3, relayed by the orchestrator): it also read "says that with no Anthropic key but another supported provider's key OcuTalon uses that provider's default model,"; dropped because Anthropic is the only provider marked supported, so the sentence would describe no reachable case]
 
 ### Story 18.4: Read the digest on every channel and mark notices as handled
 
@@ -9536,6 +9536,31 @@ So that a red on the image shard means a real defect.
 [AMENDED 2026-11-07, orchestrator ruling ~12:10Z (option (a), diagnostics only, matching the Planner's 11.27 ruling on an unreproduced flake), after the plan's TIMEBOX: 0 red in 7 load runs, cause not confirmed. It read: "**Then** the cause of the "and the production runs every item" failure (`Install.Step.Production.NotRunning()` not empty) is confirmed with evidence: the old code fails under a repeat or load run / **And** the fix is test-only unless the cause is in the product (a product cause is ruled before any product code changes) / **And** the fixed test passes 20 of 20 runs under the same load; no pin is deleted or weakened, and no timeout is raised as the fix". The fix waits for the next named occurrence; DW-639 stays a flake class.]
 
 - DW-639: flake: OcuTalon.Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('and the production runs every item': Install.Step.Production.NotRunning() not empty) red in CI image shard lane-b (ledger; routed by orchestrator 2026-11-07)
+
+### Story 39.11: The install's production check doesn't name an item that is turned off by default
+
+*Home lane: A.*
+
+[ADDED 2026-11-08, SC-5 re-open of Epic 39 for DW-978, fix-forward, Planner-ruled scope (`planner_ruling subject=32.7`, 2026-11-08 ~21:00Z: "its OWN small story on the next free lane after 32.7, ahead of tier 3"); no boundary or dependency change. Story 32.7's Task 0 (G2) found that every DW-639 red names TelegramIn with its System Default Settings row of Enabled at 0, the production's runtime flag at 1 and no job: `Install.Step.Production.NotRunning()` reads only the runtime flag, while `Runners()` in the same class honours the row.]
+
+As an administrator installing or updating OcuTalon,
+I want the install's production check to name only the items that are meant to run and do not,
+So that an item turned off by default (TelegramIn without a bot) never shows as "not running" and never fails a start or a check.
+
+**Acceptance Criteria:**
+
+**Given** how Ens comes to hold an item's runtime flag at 1 while its System Default Settings row of Enabled is 0 (TelegramIn)
+**When** Task 0 measures it, before the fix, on lane C's slot or a throwaway
+**Then** the spec's Design Notes record what Ens does, with evidence; a cause in OcuTalon's own install or update code is reported, and fixed only if it lies inside `Install/Step/Production.cls` and this story's intent (anything wider goes to the Planner first)
+
+**Given** an item of the running production whose System Default Settings row of Enabled is 0
+**When** `Install.Step.Production.NotRunning()` is read
+**Then** it does not name the item, even while the production's runtime flag for it is 1, matching how `Runners()` already honours that row
+**And** an enabled item (no row, or a row of 1) that has a pool and no live job is still named
+**And** each of the two has a pinning test with a demonstrated mutation (Rule 19)
+**And** no user-facing string changes
+
+- DW-978: Install/Step/Production.cls NotRunning() names an item whose System Default Enabled row is 0 as not running (checks only the runtime flag); Runners() in the same file honours the row (ledger; routed by orchestrator 2026-11-08)
 
 
 ## Epic 40: Choose how OcuTalon talks to you

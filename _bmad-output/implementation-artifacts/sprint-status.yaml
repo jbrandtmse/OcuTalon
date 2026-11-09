@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-09-2026 03:37
+last_updated: 11-09-2026 03:44
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -277,10 +277,10 @@ development_status:
   17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta: done
   epic-17-retrospective: optional
 
-  epic-18: backlog
-  18-2-set-the-time-zone-and-the-daily-digest-at-run-time: backlog
-  18-3-choose-models-and-set-budgets-in-settings: backlog
-  18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled: backlog
+  epic-18: done
+  18-2-set-the-time-zone-and-the-daily-digest-at-run-time: done
+  18-3-choose-models-and-set-budgets-in-settings: done
+  18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled: done
   epic-18-retrospective: optional
 
   epic-19: done
@@ -439,6 +439,7 @@ development_status:
   39-8-run-now-and-a-saved-heartbeat-read-what-is-stored: done
   39-9-heartbeat-follow-up-today-s-cost-matches-its-check-ins-and-t: done
   39-10-the-heartbeat-production-test-is-stable-dw-639: done
+  39-11-the-install-s-production-check-doesn-t-name-an-item-that-is: done
   epic-39-retrospective: optional
 
   epic-40: done
@@ -543,6 +544,20 @@ action_items:
       release-candidate eval (the injection set and one persona) before its cut, because
       Story 19.3 changes the Chat agent INSTRUCTIONS (memory bullets). Never run by
       a runner (no real model key); Contest Planner ruling 2026-11-06."
+    owner: "owner"
+    status: open
+    ref: ""
+  - id: "ep18-ai-ad18"
+    epic: 18
+    action: "Attended bmad-architecture Update: add the AD-18 clarifying sentence
+      (with InstanceZone empty and TZ unset, Data.Time.Zone() reports the OS zone)"
+    owner: "owner"
+    status: open
+    ref: ""
+  - id: "ep18-ai-ad19"
+    epic: 18
+    action: "Attended bmad-architecture Update: AD-19 note that the models section
+      nested body is not field-to-value"
     owner: "owner"
     status: open
     ref: ""

@@ -15,6 +15,8 @@
  *   format with no suffix (DW-29), {cap} a cost, {limit} digits. A slot that is missing or unreadable is empty, and the banner
  *   still shows: a warning is never dropped. bannerText renders it, and the allowance reason of the composer and the guide is
  *   that same text (Story 16.9).
+ * - The cost-cap banner's Budgets action (Story 18.3) is for an admin only (the input's admin flag): it opens the page's own Budgets section in the same
+ *   tab. For anyone else the banner has no action.
  * - Closing (only Reset soon and Reconnecting can be closed): closeBanner remembers the banner's signature, its id and slots;
  *   the banner stays away while its condition holds with that signature. retainClosed drops the records of a condition that
  *   has cleared or whose slots changed, so it shows again when the condition starts again or gets worse.
@@ -46,8 +48,14 @@ export type BannerVariant = 'danger' | 'warning' | 'info';
 /** The icon of a banner, one of the page's own. */
 export type BannerIcon = 'circle-alert' | 'triangle-alert' | 'info';
 
-/** Where an action of a banner leads: the README's install section, its model-key section, or its Telegram section (DW-361). */
-type ActionTarget = 'install' | 'setKey' | 'telegram';
+/**
+ * Where an action of a banner leads: the README's install section, its model-key section, its Telegram section (DW-361), or the page's own
+ * Budgets section of Settings (Story 18.3), which opens in the same tab.
+ */
+type ActionTarget = 'install' | 'setKey' | 'telegram' | 'budgets';
+
+/** The address of the Budgets section of the settings page. */
+export const BUDGETS_HREF = '#/settings/budgets';
 
 /** A row of the table of banners. */
 interface BannerSpec {
@@ -63,6 +71,8 @@ interface BannerSpec {
   icon: BannerIcon;
   /** The catalog key of the action's text, and where it opens. */
   action?: { key: string; target: ActionTarget };
+  /** True when only an admin gets the action (the settings API refuses anyone else). */
+  adminAction?: boolean;
   closable: boolean;
 }
 
@@ -73,7 +83,7 @@ export const BANNERS: readonly BannerSpec[] = [
   { id: 'unreachable', condition: 'unreachable', key: 'banner.unreachable', variant: 'danger', icon: 'circle-alert', closable: false },
   { id: 'demoBusy', condition: 'demoBusy', onlineDemo: true, key: 'banner.demoBusy', variant: 'warning', icon: 'triangle-alert', action: { key: 'bannerAction.installYourself', target: 'install' }, closable: false },
   { id: 'noModelKey', condition: 'noModelKey', key: 'banner.noModelKey', variant: 'warning', icon: 'triangle-alert', action: { key: 'bannerAction.howToSetKey', target: 'setKey' }, closable: false },
-  { id: 'costCap', condition: 'dailyCap', onlineDemo: false, key: 'banner.costCap', variant: 'warning', icon: 'triangle-alert', closable: false },
+  { id: 'costCap', condition: 'dailyCap', onlineDemo: false, key: 'banner.costCap', variant: 'warning', icon: 'triangle-alert', action: { key: 'bannerAction.budgets', target: 'budgets' }, adminAction: true, closable: false },
   { id: 'heartbeatStalled', condition: 'heartbeatStalled', key: 'banner.heartbeatStalled', variant: 'warning', icon: 'triangle-alert', closable: false },
   { id: 'telegramPaused', condition: 'telegramPaused', key: 'banner.telegramPaused', variant: 'warning', icon: 'triangle-alert', action: { key: 'bannerAction.setUpBot', target: 'telegram' }, closable: false },
   { id: 'resetSoon', condition: 'resetSoon', key: 'banner.resetSoon', chatKey: 'banner.resetSoonChat', variant: 'warning', icon: 'triangle-alert', closable: true },
@@ -124,14 +134,17 @@ export interface BannerInput {
   onlineDemo: boolean;
   /** True while Telegram is on for this OcuTalon (telegramOn): the allowance and reset-soon banners name Telegram only then. */
   telegram: boolean;
+  /** True when the signed-in user is an admin (the snapshot's admin flag): only then does the cost-cap banner carry its Budgets action. */
+  admin: boolean;
   /** The signature of each banner the user closed, by id. */
   closed: Readonly<Partial<Record<BannerId, string>>>;
 }
 
-/** The action of a banner: a link that opens a new tab. */
+/** The action of a banner: a link that opens a new tab, or, when sameTab is true, in the same tab (the page's own Budgets section). */
 export interface BannerAction {
   text: string;
   href: string;
+  sameTab?: true;
 }
 
 /** One banner to show. */
@@ -188,7 +201,7 @@ export function bannerText(key: string, slots: StatusSlots, format: BannerFormat
 
 /** The address an action opens, from its target. */
 function hrefOf(target: ActionTarget, format: BannerFormat): string {
-  return target === 'telegram' ? format.telegramUrl : target === 'setKey' ? format.setKeyUrl : format.installUrl;
+  return target === 'telegram' ? format.telegramUrl : target === 'setKey' ? format.setKeyUrl : target === 'budgets' ? BUDGETS_HREF : format.installUrl;
 }
 
 /** The id of the banner and its condition's slots as the store holds them. */
@@ -197,7 +210,7 @@ function signatureOf(spec: BannerSpec, slots: StatusSlots): string {
 }
 
 /** The banners whose condition holds, in table order, whether the user closed them or not. */
-export function activeBanners(input: Pick<BannerInput, 'status' | 'own' | 'onlineDemo' | 'telegram'>, format: BannerFormat): BannerView[] {
+export function activeBanners(input: Pick<BannerInput, 'status' | 'own' | 'onlineDemo' | 'telegram' | 'admin'>, format: BannerFormat): BannerView[] {
   const views: BannerView[] = [];
   for (const spec of BANNERS) {
     if (spec.onlineDemo !== undefined && spec.onlineDemo !== input.onlineDemo) {
@@ -216,8 +229,11 @@ export function activeBanners(input: Pick<BannerInput, 'status' | 'own' | 'onlin
       closable: spec.closable,
       signature: signatureOf(spec, slots),
     };
-    if (spec.action) {
+    if (spec.action && (spec.adminAction !== true || input.admin)) {
       view.action = { text: format.text(spec.action.key), href: hrefOf(spec.action.target, format) };
+      if (spec.action.target === 'budgets') {
+        view.action.sameTab = true;
+      }
     }
     views.push(view);
   }

@@ -42,7 +42,7 @@ const on = (condition, slots) => (slots === undefined ? { condition, active: tru
 const off = (condition) => ({ condition, active: false });
 
 /** The input of the view with the conditions given: a local install with Telegram on by default (the texts below are the Telegram forms). */
-const input = (payloads = [], over = {}) => ({ status: status(...payloads), own: [], onlineDemo: false, telegram: true, closed: {}, ...over });
+const input = (payloads = [], over = {}) => ({ status: status(...payloads), own: [], onlineDemo: false, telegram: true, admin: false, closed: {}, ...over });
 const view = (payloads = [], over = {}, fmt = format) => bannersView(input(payloads, over), fmt);
 const ids = (banners) => banners.map((banner) => banner.id);
 
@@ -77,7 +77,7 @@ describe('the table of banners', () => {
     assert.deepEqual(row('unreachable'), ['banner.unreachable', 'danger', 'circle-alert', null, null, false]);
     assert.deepEqual(row('demoBusy'), ['banner.demoBusy', 'warning', 'triangle-alert', 'bannerAction.installYourself', 'install', false]);
     assert.deepEqual(row('noModelKey'), ['banner.noModelKey', 'warning', 'triangle-alert', 'bannerAction.howToSetKey', 'setKey', false]);
-    assert.deepEqual(row('costCap'), ['banner.costCap', 'warning', 'triangle-alert', null, null, false]);
+    assert.deepEqual(row('costCap'), ['banner.costCap', 'warning', 'triangle-alert', 'bannerAction.budgets', 'budgets', false]);
     assert.deepEqual(row('heartbeatStalled'), ['banner.heartbeatStalled', 'warning', 'triangle-alert', null, null, false]);
     assert.deepEqual(row('telegramPaused'), ['banner.telegramPaused', 'warning', 'triangle-alert', 'bannerAction.setUpBot', 'telegram', false]);
     assert.deepEqual(row('resetSoon'), ['banner.resetSoon', 'warning', 'triangle-alert', null, null, true]);
@@ -120,7 +120,7 @@ describe('the texts', () => {
   const only = (payload, over = {}, fmt = format) => view([payload], over, fmt)[0];
 
   it('read as the catalog words them, with the slots filled', () => {
-    assert.equal(only(on('noModelKey')).text, 'OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.');
+    assert.equal(only(on('noModelKey')).text, 'OcuTalon has no model key, so every decision uses fixed rules. Add a key for a supported provider (for example, ANTHROPIC_API_KEY) to the .env file and restart OcuTalon.');
     assert.equal(only(on('dailyCap', { cap: 20, time: T })).text, "OcuTalon has reached today's cost limit of $20.00. Decisions use fixed rules until 12:00.");
     assert.equal(only(on('dailyCap', { cap: 20, time: T }), { onlineDemo: true }).text, "The online demo has used today's model allowance. Decisions use fixed rules until 12:00.");
     assert.equal(
@@ -232,17 +232,17 @@ describe('the actions', () => {
   });
 
   it('open the section that the row\'s target names, for every row with an action, and never the top of the README', () => {
-    const hrefs = { install: INSTALL_URL, setKey: SET_KEY_URL, telegram: `${README_URL.slice(0, README_URL.indexOf('#'))}#telegram` };
+    const hrefs = { install: INSTALL_URL, setKey: SET_KEY_URL, telegram: `${README_URL.slice(0, README_URL.indexOf('#'))}#telegram`, budgets: '#/settings/budgets' };
     const rows = BANNERS.filter((banner) => banner.action !== undefined);
     assert.deepEqual(
       rows.map((banner) => banner.id),
-      ['allowance', 'dailyCap', 'demoBusy', 'noModelKey', 'telegramPaused'],
-      'the five banners with an action',
+      ['allowance', 'dailyCap', 'demoBusy', 'noModelKey', 'costCap', 'telegramPaused'],
+      'the six banners with an action',
     );
     for (const banner of rows) {
       const own = banner.id === 'demoBusy' ? { own: ['demoBusy'] } : {};
       const online = banner.onlineDemo === true ? { onlineDemo: true } : {};
-      const shown = view(banner.id === 'demoBusy' ? [] : [on(banner.condition, { limit: 20, cap: 20, time: T })], { ...own, ...online }).find((one) => one.id === banner.id);
+      const shown = view(banner.id === 'demoBusy' ? [] : [on(banner.condition, { limit: 20, cap: 20, time: T })], { ...own, ...online, admin: true }).find((one) => one.id === banner.id);
       assert.equal(shown?.action?.href, hrefs[banner.action.target], `${banner.id}: its action opens its own section`);
       assert.notEqual(shown?.action?.href, README_URL, `${banner.id}: and not the README's top`);
     }
@@ -252,7 +252,18 @@ describe('the actions', () => {
     assert.deepEqual(action(on('telegramPaused', { time: T })), { text: 'Set up a bot', href: `${README_URL.slice(0, README_URL.indexOf('#'))}#telegram` });
   });
 
-  it('are none for the cost limit (Budgets waits for the settings page), the heartbeat, Reset soon and the page\'s own', () => {
+  it('are "Budgets" to the page\'s own Budgets section, in the same tab, for an admin on the local cost limit, and none for anyone else (Story 18.3)', () => {
+    assert.deepEqual(action(on('dailyCap', { cap: 20, time: T }), { admin: true }), { text: 'Budgets', href: '#/settings/budgets', sameTab: true });
+    assert.equal(action(on('dailyCap', { cap: 20, time: T }), { admin: false }), undefined, 'a non-admin gets no action');
+    assert.equal(action(on('dailyCap', { cap: 20, time: T })), undefined, 'and neither does an input that does not say');
+    assert.equal(action(on('dailyCap', { cap: 20, time: T }), { admin: true, onlineDemo: true })?.text, 'Install it yourself', 'the online demo\'s cap keeps its own action');
+    for (const other of ['allowance', 'noModelKey', 'telegramPaused']) {
+      const shown = view([on(other, { limit: 20, time: T })], { admin: true })[0];
+      assert.equal(shown.action?.sameTab, undefined, `${other}: its action opens a new tab`);
+    }
+  });
+
+  it('are none for the non-admin\'s cost limit, the heartbeat, Reset soon and the page\'s own', () => {
     assert.equal(action(on('dailyCap', { cap: 20, time: T })), undefined);
     assert.equal(action(on('heartbeatStalled', { time: T })), undefined);
     assert.equal(action(on('resetSoon')), undefined);

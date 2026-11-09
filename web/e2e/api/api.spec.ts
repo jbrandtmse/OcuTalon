@@ -73,6 +73,7 @@ const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
 const BY_REF: ReadonlyArray<readonly [method: 'POST', path: (ref: string) => string]> = [
   ['POST', (ref) => `/ocutalon/api/v1/approvals/${ref}/answer`],
   ['POST', (ref) => `/ocutalon/api/v1/incidents/${ref}/dismiss`],
+  ['POST', (ref) => `/ocutalon/api/v1/decisions/${ref}/got-it`],
 ];
 
 /** The error object of an answer, after checking its status and that it is the API's error shape. */

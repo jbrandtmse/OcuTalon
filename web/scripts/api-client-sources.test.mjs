@@ -61,6 +61,21 @@ describe('the three methods', () => {
   });
 });
 
+describe('gotIt (Story 18.4)', () => {
+  it('gotIt() is a POST to /decisions/:ref/got-it, {} for the web chat and {channel} for the phone, with the whole response observed', () => {
+    assert.equal(
+      method(client, 'gotIt'),
+      "return this.http.post<GotItBody>(`${BASE}/decisions/${encodeURIComponent(ref)}/got-it`, channel === 'phone' ? { channel } : {}, { observe: 'response' });",
+    );
+    assert.doesNotMatch(method(client, 'gotIt'), /sessionRef|headers|X-OcuTalon|Content-Type/i);
+  });
+
+  it('GotItBody holds the result done and the handledAt, and the client imports it', () => {
+    assert.match(types.code, /export interface GotItBody \{\s*result: 'done';\s*handledAt: string;\s*\}/);
+    assert.match(client.code, /import type \{[^}]*\bGotItBody\b[^}]*\} from '\.\/api-types';/);
+  });
+});
+
 describe('the answer types', () => {
   it('PairingCode holds the code and its expiry, UnpairDone the result done, BreakFeedSent the state sent and its start', () => {
     assert.match(types.code, /export interface PairingCode \{\s*code: string;\s*expiresAt: string;\s*\}/);

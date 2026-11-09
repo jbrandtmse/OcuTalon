@@ -68,7 +68,7 @@ export const CHAT_TEXTS = {
   chipTellNow: 'Tell now',
   chipAct: 'Act',
   meaningIgnore: 'Recorded; nobody notified',
-  meaningDigest: 'Saved for later; nobody notified now',
+  meaningDigest: 'Saved for the daily digest',
   meaningTellNow: 'Needs you now',
   meaningAct: 'OcuTalon took or requested an action',
   announceReplied: 'OcuTalon replied:',
@@ -80,6 +80,7 @@ export const CHAT_TEXTS = {
 export const NOTICE_TEXTS = {
   due: 'Due {time}',
   arrived: 'arrived {time}',
+  whatIChecked: 'What I checked ({n})',
 } as const;
 
 /** How long the page must have seen a turn running before the indicator adds the elapsed seconds. */
@@ -140,7 +141,7 @@ export type NoticeKind = 'tellnow' | 'reminder' | 'allowance' | 'digest' | 'appr
 
 /**
  * One notice card of the chat: a notification of the kind tellnow, reminder, allowance (the session allowance and the daily-cap
- * message, Story 16.9) or digest (the digest's plain text, Story 17.10), or a tool call's request (kind approval) or result (kind result) with the approvalRef it carries (Story 31.6).
+ * message, Story 16.9) or digest (the digest's text with its check rows, Stories 17.10 and 18.4), or a tool call's request (kind approval) or result (kind result) with the approvalRef it carries (Story 31.6).
  */
 export interface NoticeView {
   entry: 'notice';
@@ -163,6 +164,12 @@ export interface NoticeView {
   strip: boolean;
   /** The Ref of the tool call's approval request, on a notice of kind approval or result. */
   approvalRef?: string;
+  /** The check rows of a digest card, one each; empty for any other card and for a digest that has none. */
+  checks: readonly CheckRow[];
+  /** An ISO time: when the user marked a tell-now notice as handled, "" while it is not handled. */
+  handledAt: string;
+  /** The Ref of the notice: the Decision behind it, "" when it has none or that Decision is an act one (Got it marks tell-now Decisions only, AD-14). Got it names it. */
+  decisionRef: string;
 }
 
 /** One incident card of the chat: the incident payload, the full view of one incident. */
@@ -229,6 +236,9 @@ export function noticeOf(item: LiveItem): NoticeView | undefined {
     time: payload.createdAt ?? '',
     dueAt: payload.dueAt ?? '',
     strip: false,
+    checks: payload.checks ?? [],
+    handledAt: payload.handledAt ?? '',
+    decisionRef: payload.decision?.outcome === 'act' ? '' : (payload.decisionRef ?? ''),
   };
   const decision = payload.decision;
   if (decision !== undefined) {
@@ -245,6 +255,14 @@ export function noticeOf(item: LiveItem): NoticeView | undefined {
     view.strip = false;
   }
   return view;
+}
+
+/**
+ * True when a digest card's "What I checked ({n})" disclosure starts open: any row whose result is not `passed` (a failed row, and a
+ * result that the page shows as Not checked). With no rows it is false, and the card has no disclosure.
+ */
+export function digestOpen(checks: readonly CheckRow[]): boolean {
+  return checks.some((row) => row.result !== 'passed');
 }
 
 /**

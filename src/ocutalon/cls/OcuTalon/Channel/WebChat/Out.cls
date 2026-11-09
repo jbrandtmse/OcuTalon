@@ -11,8 +11,14 @@
 ///     catalog's, rendered for the web with the time in instance time and "ET", and its row keeps no FallbackReason;
 ///   - Notification of the kind digest (Story 17.10): it takes the same card path, with the text of OcuTalon.Channel.DigestText.Text(Slots,
 ///     "web", .sc) in place of the rendering of the CatalogKey: the shared digest.* and checks.* texts, one piece per line, with no title. The
-///     row's DueAt and FallbackReason are "" and its DecisionRef is the one sent. A Slots or a piece that cannot be rendered is an error with
-///     no row and no event. The full digest card, with its check rows, is Story 18.4's;
+///     row's DueAt and FallbackReason are "" and its DecisionRef is the one sent. The row also keeps the Slots' rows (the check rows, as JSON; "[]" when
+///     there are none) as CheckRows, and the event's payload carries them as checks, so a reload shows the same card (Story 18.4). A Slots or a
+///     piece that cannot be rendered is an error with no row and no event;
+///   - Notification of the kind handled (Story 18.4; Core.SessionOps sends it once, when the user marks a tell-now notice as handled):
+///     Ownership.DeliveryByRef(DecisionRef, "web", SessionRef) gives the notice's newest web row. When that row is a tell-now card with a
+///     ChannelMessageId, it publishes one more notification event with Live.Payload.Notification.FromRow of THAT row, so the card keeps
+///     its Ref and now carries handledAt, and then records the Delivery row of kind handled (no text, no ChannelMessageId). A row of kind
+///     handled (a second press), or no card, records the Delivery row only, with no event;
 ///   - Notification of a tool-call card (Story 31.6; ToolCallCard: kind approval or result, an ApprovalRef, and a CatalogKey that is
 ///     one of Core.BridgeSink's five tool-call keys): it takes the same card path, so the chat shows the request with Approve and
 ///     Reject, the result and DW-454's held-call reason from the one Notification that the bridge sink built (DW-601). The persona
@@ -62,6 +68,7 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 {
 	Set response = ""
 	If '..IsSession(request.SessionRef) Quit $$$OK
+	If request.Kind = "handled" Quit ..OnHandled(request)
 	If '$ListFind($ListFromString(..#CARDKINDS), request.Kind) && '..ToolCallCard(request) {
 		Quit ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, "", request.ApprovalRef, request.Kind, "", request.DecisionRef)
 	}
@@ -71,10 +78,21 @@ Method OnNotification(request As OcuTalon.Msg.Notification, Output response As E
 		Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
 	}
 	If $$$ISERR(sc) Quit sc
-	Set sc = ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), request.ApprovalRef, request.Kind, text, request.DecisionRef, $Select(request.Kind = "reminder": ..SlotOf(request, "dueAt"), 1: ""), ..FallbackReasonOf(request), .row)
+	Set sc = ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), request.ApprovalRef, request.Kind, text, request.DecisionRef, $Select(request.Kind = "reminder": ..SlotOf(request, "dueAt"), 1: ""), ..FallbackReasonOf(request), .row, $Select(request.Kind = "digest": ..RowsOf(request), 1: ""))
 	If $$$ISERR(sc) Quit sc
 	Do ..Announce(row.OwnerRef, "notification", "OcuTalon.Live.Payload.Notification", row)
 	Quit $$$OK
+}
+
+/// A handled notification: the notice's card is published again with its handled marker, then the bare Delivery row is recorded (see the class comment).
+Method OnHandled(request As OcuTalon.Msg.Notification) As %Status [ Private ]
+{
+	Set card = ##class(OcuTalon.Data.Ownership).DeliveryByRef(request.DecisionRef, ..#CHANNEL, request.SessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	If $IsObject(card) && (card.Kind = "tellnow") && (card.ChannelMessageId '= "") {
+		Do ..Announce(card.OwnerRef, "notification", "OcuTalon.Live.Payload.Notification", card)
+	}
+	Quit ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, "", request.ApprovalRef, request.Kind, "", request.DecisionRef)
 }
 
 /// 1 when the notification is a tool-call card or a persona card: kind approval or result, an ApprovalRef, and one of the bridge sink's
@@ -106,6 +124,19 @@ Method SlotOf(request As OcuTalon.Msg.Notification, name As %String) As %String 
 		Set value = ""
 	}
 	Quit value
+}
+
+/// The rows member of the notification's Slots as JSON; "[]" when the Slots have none or cannot be read.
+Method RowsOf(request As OcuTalon.Msg.Notification) As %String [ Private ]
+{
+	Set json = "[]"
+	Try {
+		Set slots = ##class(%DynamicAbstractObject).%FromJSON(request.Slots)
+		If $IsObject(slots) && (slots.%GetTypeOf("rows") = "array") Set json = slots.rows.%ToJSON()
+	} Catch exception {
+		Set json = "[]"
+	}
+	Quit json
 }
 
 /// The value of the slot that the key's catalog entry declares as type fallbackReason, "" when it declares none.

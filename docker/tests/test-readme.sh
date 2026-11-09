@@ -739,6 +739,9 @@ chk_commands() {
 KEY_FACTS='ANTHROPIC_API_KEY=<your key>
 .env.example
 Claude Haiku 5.5
+Anthropic is the supported model provider: in Settings, an admin can choose Claude Haiku 5.5 or Claude Sonnet 5.5 for each agent.
+Each supported provider'"'"'s key comes from its own environment variable, which `.env.example` lists without a value; Anthropic'"'"'s is `ANTHROPIC_API_KEY`.
+A key is never entered on the settings page, and the page never shows one.
 Sign in to Visual Trace'
 ACCOUNT_FACTS='User name: `ocutalon`
 Password: `ocutalon`'

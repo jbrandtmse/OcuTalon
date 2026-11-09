@@ -12,11 +12,11 @@
 // Msg/Catalog.cls (each fallback reason value with the suffix of its fallbackReason.* key, and CHANNELNAMES, each channel code
 // with its name in message text), and keeps an allowlist of the keys the page renders: conversation.turnFallback, the check
 // sentences checks.allPassed, checks.everythingElsePassed, checks.nothingWatched, checks.notEverything and
-// checks.notEverythingRestPassed, the ten banner.* texts, the three bannerAction.* texts the page renders (installYourself,
-// howToSetKey and setUpBot), the nine answered.* texts (approved, approvedBy, rejected, rejectedBy, expired, alreadyApproved,
+// checks.notEverythingRestPassed, the ten banner.* texts, the four bannerAction.* texts the page renders (installYourself,
+// howToSetKey, budgets and setUpBot), the nine answered.* texts (approved, approvedBy, rejected, rejectedBy, expired, alreadyApproved,
 // alreadyRejected, alreadyApprovedBy and alreadyRejectedBy), the eight result.* texts (allThrough, failedAgain, skipped,
-// failedAndSkipped, stillResending, interrupted, couldNotStart and stoppedPartway), audit.recorded, incident.eitherWayLine and every
-// fallbackReason.*. An entry's web text is used, else its text.
+// failedAndSkipped, stillResending, interrupted, couldNotStart and stoppedPartway), audit.recorded, incident.eitherWayLine, the Got it
+// button text button.gotIt, the line handled.marked (slot time) that a handled tell-now notice ends with, and every fallbackReason.*. An entry's web text is used, else its text.
 //
 // incident.eitherWayLine is a page key only: no catalog class holds it. It is the either-way sentence of the dry run that the
 // notice carries (Story 7.7, U-249), cut out of the two entries that hold it, incident.withFixEitherWay and
@@ -79,6 +79,7 @@ export const LISTED_KEYS = [
   'banner.demoBusy',
   'bannerAction.installYourself',
   'bannerAction.howToSetKey',
+  'bannerAction.budgets',
   'bannerAction.setUpBot',
   'answered.approved',
   'answered.approvedBy',
@@ -99,6 +100,8 @@ export const LISTED_KEYS = [
   'result.stoppedPartway',
   'audit.recorded',
   'incident.eitherWayLine',
+  'button.gotIt',
+  'handled.marked',
 ];
 /** The page key of the either-way line, the two entries it is cut from, and the words that bound it in each of their texts. */
 const LINE_KEY = 'incident.eitherWayLine';

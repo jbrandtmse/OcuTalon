@@ -6,7 +6,7 @@ import { fixtureUser, seedDecision, seedTurns, sendItem, sendItemDecision, sendN
 import { countFocusins, fromBottom, plain, scrollListTo, tokenColor } from '../support/page';
 
 /**
- * Story 2.7, the notice cards (N1 to N16; N16 is Story 17.10's digest card; N11, the simulated phone's half of N10, is Story 4.5's), in a real browser against a real stack. Every case signs in as the notice fixture user
+ * Story 2.7, the notice cards (N1 to N19; N16 is Story 17.10's digest card, completed by Story 18.4, which adds N17 to N19: Got it and the phone's digest; N11, the simulated phone's half of N10, is Story 4.5's), in a real browser against a real stack. Every case signs in as the notice fixture user
  * that test-sign-in.sh created (OCUTALON_NOTICE_USER) and sends items, item decisions and notifications to its own session through
  * the real production (SimMailboxIn and NoticesIn hosts, OutcomeRouter, Notify, WebChatOut), so that nothing here publishes on the
  * README session or the instance stream (api.spec pins their counts) or touches another spec's chat. Each case asserts only on the
@@ -104,7 +104,7 @@ test('N2: a code-written notice keeps its own two lines', async ({ page }) => {
   expect(plain(await card.locator('.body').innerText()).split('Why now:').length - 1, 'the card says why now once').toBe(1);
 });
 
-/** N3: only Tell now and Act notify: an ignore and a digest show nothing, an act shows its card with the chip Act, also after a reload. */
+/** N3: only Tell now and Act notify: an ignore and a digest show nothing, an act shows its card with the chip Act and no Got it (on the phone too), also after a reload. */
 test('N3: only Tell now and Act notify', async ({ page }) => {
   const { user } = fixtureUser('NOTICE');
   await open(page);
@@ -122,6 +122,10 @@ test('N3: only Tell now and Act notify', async ({ page }) => {
   await expect(card, 'the act shows its card').toHaveCount(1, { timeout: CARD_MS });
   await expect(card.locator('app-decision-strip app-outcome-chip .chip'), 'with the chip Act').toHaveText('Act');
   await expect(card.locator('.why'), 'and the first reason as its Why now line').toHaveText('Why now: zz reason.');
+  await expect(card.getByRole('button', { name: 'Got it', exact: true }), 'and no Got it: it marks tell-now decisions only (AD-14)').toHaveCount(0);
+  const actMessage = messageOf(page, acted);
+  await expect(actMessage, 'the act reaches the phone').toHaveCount(1, { timeout: CARD_MS });
+  await expect(actMessage.getByRole('button', { name: 'Got it', exact: true }), 'with no Got it either').toHaveCount(0);
   await expect(cardOf(page, ignored), 'the ignore shows nothing').toHaveCount(0);
   await expect(cardOf(page, digested), 'nor does the digest').toHaveCount(0);
   // The status rail lists every attention decision of the session, an ignored one too, so these absence checks look in the chat.
@@ -462,51 +466,210 @@ test('N15: markup and an unbroken word in a card stay text inside the card', asy
 /** The strokes that only the inbox icon draws. */
 const INBOX = 'polyline[points="22 12 16 12 14 15 10 15 8 12 2 12"]';
 
+/** The width and colour that a border token such as --digest-card-accent-bar ("4px #399897") gives a left border, as the browser computes them. */
+function barOf(page: Page, token: string): Promise<{ width: string; color: string }> {
+  return page.evaluate((name) => {
+    const probe = document.createElement('span');
+    probe.style.borderLeft = `var(${name})`;
+    probe.style.borderLeftStyle = 'solid';
+    document.body.append(probe);
+    const style = getComputedStyle(probe);
+    const bar = { width: style.borderLeftWidth, color: style.borderLeftColor };
+    probe.remove();
+    return bar;
+  }, token);
+}
+
+/** The simulated phone of the page (the stack is in demo mode). */
+const phoneOf = (page: Page): Locator => page.getByRole('region', { name: 'Simulated devices' }).locator('app-simulated-phone');
+
+/** The phone message whose text holds the marker. */
+const messageOf = (page: Page, marker: string): Locator => phoneOf(page).locator('.notification').filter({ hasText: marker });
+
+/** The line that a handled notice ends with, in the browser's zone (UTC here): "Marked as handled at 14:12". */
+const HANDLED = /^Marked as handled at \d{1,2}:\d{2}/;
+
 /**
- * N16 (DW-874, Story 17.10): a digest Notification through Notify is one plain-text notice card of the class digest: the inbox icon in the info ink, the
- * 4px bar, and the catalog's pieces one on each line, with no heading, title, strip, caption or Why now line. After a reload the snapshot shows the same card.
+ * N16 (DW-874, Story 17.10; the full card is Story 18.4's): a digest Notification through Notify is a digest card: the digest card's surface, the 4px
+ * brand-teal accent bar (--digest-card-accent-bar), the inbox icon in the info ink and the catalog's pieces one on each line, with no heading, title, strip,
+ * caption or Why now line; then "What I checked (n)" with aria-expanded over the check rows, expanded when a row failed or was not checked and collapsed when
+ * all passed, and a press opens and closes it. After a reload the snapshot shows the same cards.
  */
-test('N16: a digest shows as a plain-text notice card with one piece on each line, also after a reload', async ({ page }) => {
+test('N16: a digest shows as a digest card with its text and a What I checked disclosure, also after a reload', async ({ page }) => {
   const { user } = fixtureUser('NOTICE');
   await open(page);
   const marker = unique('N16');
-  const parts = [
+  const calm = unique('N16calm');
+  const failedEntry = `${marker} Orders service`;
+  const parts = (summary: string): unknown[] => [
     { key: 'digest.greetingEvening', slots: {} },
     { key: 'digest.checkedQuiet', slots: { checked: 'the Chat agent' } },
     { key: 'checks.allPassed', slots: {} },
-    { key: 'digest.saved', slots: { count: 1, summary: marker } },
+    { key: 'digest.saved', slots: { count: 1, summary } },
     { key: 'digest.cost', slots: { cost: 0.042 } },
   ];
   const lines = [{ key: 'digest.notCheckedSizeLimit', slots: { entry: 'the Billing database' } }];
-  const expected = [
+  const expected = (summary: string): string[] => [
     'Good evening.',
     'I checked the Chat agent (all running, no errors, no backlog).',
     'Everything I checked passed.',
     "Not checked: the Billing database (OcuTalon can't read this database's size limit).",
-    `Saved for later (1): ${marker}`,
+    `Saved for later (1): ${summary}`,
     "Yesterday's cost: $0.04.",
   ];
-  await sendNotification(user, { kind: 'digest', catalogKey: 'checks.allPassed', slots: { parts, lines, rows: [] } });
+  const rows = [
+    { result: 'failed', entry: failedEntry, finding: 'It has not answered since 02:10.', checkedAt: today('02:10:00') },
+    { result: 'passed', entry: 'the Chat agent', finding: '', checkedAt: today('02:11:00') },
+  ];
+  const calmRows = [
+    { result: 'passed', entry: 'the Chat agent', finding: '', checkedAt: today('02:10:00') },
+    { result: 'passed', entry: 'the Billing database', finding: '', checkedAt: today('02:11:00') },
+  ];
+  await sendNotification(user, { kind: 'digest', catalogKey: 'checks.allPassed', slots: { parts: parts(marker), lines, rows } });
+  await sendNotification(user, { kind: 'digest', catalogKey: 'checks.allPassed', slots: { parts: parts(calm), lines, rows: calmRows } });
   const card = cardOf(page, marker);
+  const calmCard = cardOf(page, calm);
 
-  /** Every leg of the card, before and after the reload. */
-  const assertCard = async (when: string): Promise<void> => {
+  /** Every leg of the cards, before and after the reload. */
+  const assertCards = async (when: string): Promise<void> => {
     await expect(card, `${when}: one card`).toHaveCount(1);
     await expect(card.locator('.notice.digest'), `${when}: of the class digest`).toHaveCount(1);
     await expect(card.locator(`.notice > app-icon ${INBOX}`), `${when}: the icon is the inbox`).toHaveCount(1);
     await expect(card.locator('.notice > app-icon'), `${when}: in the info ink`).toHaveCSS('color', await tokenColor(page, '--info-ink'));
+    const bar = await barOf(page, '--digest-card-accent-bar');
     await expect(card.locator('.notice'), `${when}: the accent bar is 4px`).toHaveCSS('border-left-width', '4px');
+    expect(bar.width, `${when}: the token's width is 4px`).toBe('4px');
+    await expect(card.locator('.notice'), `${when}: in the digest card's brand-teal`).toHaveCSS('border-left-color', bar.color);
+    await expect(card.locator('.notice'), `${when}: on the digest card's surface`).toHaveCSS('background-color', await tokenColor(page, '--digest-card-background'));
     const shown = (await card.locator('.text').innerText()).split('\n');
-    expect(shown, `${when}: the text keeps its line breaks, one piece on each line`).toEqual(expected);
+    expect(shown, `${when}: the text keeps its line breaks, one piece on each line`).toEqual(expected(marker));
     await expect(card.locator('h1, h2, h3, h4, h5, h6, [role="heading"], .title'), `${when}: no heading or title`).toHaveCount(0);
     await expect(card.locator('app-decision-strip, .caption, .why'), `${when}: no strip, caption or Why now line`).toHaveCount(0);
+
+    const checked = card.getByRole('button', { name: 'What I checked (2)', exact: true });
+    await expect(checked, `${when}: the disclosure names the count`).toHaveCount(1);
+    await expect(checked, `${when}: a failed row expands it`).toHaveAttribute('aria-expanded', 'true');
+    const checkRows = card.locator('app-check-rows .row');
+    await expect(checkRows, `${when}: two check rows`).toHaveCount(2);
+    await expect(checkRows.nth(0).locator('.word'), `${when}: the failed row first`).toHaveText('Failed');
+    await expect(checkRows.nth(0).locator('.entry'), `${when}: with its entry`).toHaveText(failedEntry);
+    await expect(checkRows.nth(0).locator('.finding'), `${when}: and its finding`).toHaveText('It has not answered since 02:10.');
+    await expect(checkRows.nth(1).locator('.word'), `${when}: the passed row second`).toHaveText('Passed');
+    await expect(checkRows.nth(0), `${when}: the rows show`).toBeVisible();
+
+    await expect(calmCard, `${when}: one calm card`).toHaveCount(1);
+    const calmButton = calmCard.getByRole('button', { name: 'What I checked (2)', exact: true });
+    await expect(calmButton, `${when}: all passed collapses it`).toHaveAttribute('aria-expanded', 'false');
+    await expect(calmCard.locator('app-check-rows .row').first(), `${when}: the rows are hidden`).toBeHidden();
   };
 
   await expect(card).toHaveCount(1, { timeout: CARD_MS });
-  await assertCard('live');
+  await expect(calmCard).toHaveCount(1, { timeout: CARD_MS });
+  await assertCards('live');
+
+  const calmButton = calmCard.getByRole('button', { name: 'What I checked (2)', exact: true });
+  await calmButton.click();
+  await expect(calmButton, 'a press opens the collapsed disclosure').toHaveAttribute('aria-expanded', 'true');
+  await expect(calmCard.locator('app-check-rows .row'), 'and shows both rows inline').toHaveCount(2);
+  await expect(calmCard.locator('app-check-rows .row').first(), 'visible').toBeVisible();
+  await expect(calmCard.locator('app-check-rows .row .word').first(), 'a passed row').toHaveText('Passed');
+  await calmButton.click();
+  await expect(calmButton, 'and a second press closes it').toHaveAttribute('aria-expanded', 'false');
+
   await page.reload();
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
-  await assertCard('after the reload');
+  await assertCards('after the reload');
+});
+
+/**
+ * N17 (Story 18.4): a tell-now notice on the web chat and on the simulated phone, both with Got it. Pressing it on the web card gives "Marked as handled at
+ * {time}" on the card and on the phone message, with no Got it on either, also after a reload.
+ */
+test('N17: Got it on the web card marks the notice handled on the card and on the phone, also after a reload', async ({ page }) => {
+  const { user } = fixtureUser('NOTICE');
+  await open(page);
+  const marker = unique('N17');
+  const decisionRef = await seedDecision(user, { outcome: 'tellnow', summary: marker, reasons: 'zz first.', confidence: 0.9, costUSD: 0.0003 });
+  await sendItemDecision(user, { outcome: 'tellnow', summary: marker, decisionRef });
+  const card = cardOf(page, marker);
+  const message = messageOf(page, marker);
+  await expect(card).toHaveCount(1, { timeout: CARD_MS });
+  await expect(message).toHaveCount(1, { timeout: CARD_MS });
+  const cardGotIt = card.getByRole('button', { name: 'Got it', exact: true });
+  const phoneGotIt = message.getByRole('button', { name: 'Got it', exact: true });
+  await expect(cardGotIt, 'the web card has Got it').toHaveCount(1);
+  await expect(phoneGotIt, 'and so has the phone message').toHaveCount(1);
+
+  const sent = page.waitForRequest((request) => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/got-it'));
+  await cardGotIt.click();
+  expect((await sent).postDataJSON(), 'the web press sends no channel').toEqual({});
+  const assertHandled = async (when: string): Promise<void> => {
+    await expect(card.locator('[data-part="handled"]'), `${when}: the web card says it was handled`).toHaveText(HANDLED);
+    await expect(cardGotIt, `${when}: the web card has no Got it`).toHaveCount(0);
+    await expect(message.locator('.answer'), `${when}: the phone message says it was handled`).toHaveText(HANDLED);
+    await expect(phoneGotIt, `${when}: the phone message has no Got it`).toHaveCount(0);
+  };
+  await assertHandled('after the press');
+  await page.reload();
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await expect(card).toHaveCount(1);
+  await assertHandled('after the reload');
+});
+
+/** N18 (Story 18.4): the same on the simulated phone: Got it on the phone message updates the phone message and the web card. */
+test('N18: Got it on the phone message marks the notice handled on the phone and on the web card', async ({ page }) => {
+  const { user } = fixtureUser('NOTICE');
+  await open(page);
+  const marker = unique('N18');
+  const decisionRef = await seedDecision(user, { outcome: 'tellnow', summary: marker, reasons: 'zz first.', confidence: 0.9, costUSD: 0.0003 });
+  await sendItemDecision(user, { outcome: 'tellnow', summary: marker, decisionRef });
+  const card = cardOf(page, marker);
+  const message = messageOf(page, marker);
+  await expect(card).toHaveCount(1, { timeout: CARD_MS });
+  await expect(message).toHaveCount(1, { timeout: CARD_MS });
+  const phoneGotIt = message.getByRole('button', { name: 'Got it', exact: true });
+  await expect(phoneGotIt).toHaveCount(1);
+
+  const sent = page.waitForRequest((request) => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/got-it'));
+  await phoneGotIt.click();
+  expect((await sent).postDataJSON(), 'the phone press sends the phone channel').toEqual({ channel: 'phone' });
+  await expect(message.locator('.answer'), 'the phone message says it was handled').toHaveText(HANDLED);
+  await expect(phoneGotIt, 'with no Got it').toHaveCount(0);
+  await expect(card.locator('[data-part="handled"]'), 'and so does the web card').toHaveText(HANDLED);
+  await expect(card.getByRole('button', { name: 'Got it', exact: true }), 'with no Got it').toHaveCount(0);
+});
+
+/**
+ * N19 (Story 18.4): a digest reaches the simulated phone as one plain-text message that starts with the time-of-day greeting and ends with the previous
+ * day's cost, the coverage lines in between and no Markdown.
+ */
+test('N19: a digest is one plain-text message on the simulated phone, from the greeting to the cost', async ({ page }) => {
+  const { user } = fixtureUser('NOTICE');
+  await open(page);
+  const marker = unique('N19');
+  const parts = [
+    { key: 'digest.greetingMorning', slots: {} },
+    { key: 'digest.checked', slots: { checked: `the ${marker} service` } },
+    { key: 'digest.savedNone', slots: {} },
+    { key: 'digest.cost', slots: { cost: 0.042 } },
+  ];
+  const lines = [
+    { key: 'digest.passed', slots: { entry: `${marker} Orders`, time: today('02:10:00') } },
+    { key: 'digest.failed', slots: { entry: `${marker} Billing`, finding: '5 messages queued', time: today('02:11:00') } },
+  ];
+  await sendNotification(user, { kind: 'digest', catalogKey: 'checks.allPassed', slots: { parts, lines, rows: [] } });
+  const message = messageOf(page, marker);
+  await expect(message, 'one message').toHaveCount(1, { timeout: CARD_MS });
+  const shown = (await message.locator('.text').innerText()).split('\n');
+  expect(shown[0], 'it starts with the greeting').toBe('Good morning.');
+  expect(shown[1], 'then what was checked').toBe(`I checked the ${marker} service.`);
+  expect(shown.some((line) => line.startsWith(`Passed: ${marker} Orders (`)), 'a Passed: line').toBe(true);
+  expect(shown.some((line) => line.startsWith(`Failed: ${marker} Billing (5 messages queued, `)), 'a Failed: line').toBe(true);
+  expect(shown.at(-2), 'nothing saved').toBe('Nothing was saved for later.');
+  expect(shown.at(-1), 'it ends with the previous day\'s cost').toBe("Yesterday's cost: $0.04.");
+  expect(shown.join('\n'), 'no Markdown').not.toMatch(/[*_`#]/);
+  await expect(message.getByRole('button'), 'a digest has no buttons').toHaveCount(0);
+  await expect(messageOf(page, marker), 'still one message').toHaveCount(1);
 });
 
 /**

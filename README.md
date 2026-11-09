@@ -71,7 +71,7 @@ In demo mode, the Demo view switch in the header hides those four parts. With it
 OcuTalon is a personal assistant that runs inside InterSystems IRIS. For every item that reaches it, OcuTalon makes one attention decision. The decision has one of four outcomes:
 
 - **Ignore**: Recorded; nobody notified.
-- **Digest**: Saved for later; nobody notified now.
+- **Digest**: Saved for the daily digest.
 - **Tell now**: Needs you now.
 - **Act**: OcuTalon took or requested an action.
 
@@ -210,7 +210,11 @@ The second run also downloads OcuTalon's Python packages from PyPI (fastembed, p
 
 ## Set a model key
 
-OcuTalon uses Anthropic's Claude models. The default model is Claude Haiku 5.5. To give it a key:
+OcuTalon uses Anthropic's Claude models. The default model is Claude Haiku 5.5.
+
+Anthropic is the supported model provider: in Settings, an admin can choose Claude Haiku 5.5 or Claude Sonnet 5.5 for each agent. Each supported provider's key comes from its own environment variable, which `.env.example` lists without a value; Anthropic's is `ANTHROPIC_API_KEY`. A key is never entered on the settings page, and the page never shows one.
+
+To give it a key:
 
 1. Create an API key at https://console.anthropic.com.
 2. Copy `.env.example` to `.env` (`./install.sh` already did). Git ignores `.env`, so the key is never committed.

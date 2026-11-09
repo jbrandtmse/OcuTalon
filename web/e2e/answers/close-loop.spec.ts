@@ -511,7 +511,7 @@ test('C7: a fallback incident shows its notice and failure groups with Show deta
     await expect(card.locator('.chip-row .chip')).toHaveText('Open', { timeout: CARD_MS });
     await expect(card.locator('app-fallback-flag'), 'with the Fallback flag').toHaveCount(1);
     await expect(card.getByRole('heading', { level: 3 })).toHaveText(HEADLINE);
-    await expect(card.locator('p.notice')).toHaveText("I couldn't work out the cause (the model didn't answer within 60 seconds), so I'm not proposing a fix. Nothing was changed.");
+    await expect(card.locator('p.notice')).toHaveText("I couldn't work out the cause (the model didn't answer within the time allowed), so I'm not proposing a fix. Nothing was changed.");
     await expect(card.locator('p.failures')).toHaveText('Failures:');
     await expect(card.locator('ul.groups li')).toHaveText([GROUP_LINE]);
     await expect(card.locator('p.fix'), 'no fix').toHaveCount(0);
@@ -529,7 +529,7 @@ test('C7: a fallback incident shows its notice and failure groups with Show deta
     const message = phoneOf(page).locator('.notification').filter({ hasText: 'Order transform' });
     await expect(message, 'the phone shows the notice').toHaveCount(1, { timeout: CARD_MS });
     expect(plain(await message.locator('p.text').textContent())).toBe(
-      `${HEADLINE}. I couldn't work out the cause (the model didn't answer within 60 seconds), so I'm not proposing a fix. Nothing was changed. Failures: ${GROUP_LINE} Details and trace: on your OcuTalon page.`,
+      `${HEADLINE}. I couldn't work out the cause (the model didn't answer within the time allowed), so I'm not proposing a fix. Nothing was changed. Failures: ${GROUP_LINE} Details and trace: on your OcuTalon page.`,
     );
     await expect(message.getByRole('button'), 'with no buttons').toHaveCount(0);
   } finally {
