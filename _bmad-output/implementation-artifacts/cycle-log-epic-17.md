@@ -487,3 +487,4 @@
 2026-11-09T00:16:45Z	Story 17.12	fresh_check	env=recipe(fresh_lane-b_throwaways_e17s12fc,e17s12fr;shard_lane-a@Digest) tests=22_classes(incl_NeedsYou,AllClear) result=pass order=forward,reverse(166s,~150s)
 2026-11-09T00:17:45Z	Story 17.12	committed	sha=215bbfee submodules= ci=pending runs=42539359811,42539359845 amendments=none footprint_extensions=web/e2e-online/demo-path/demo-path.spec.ts pushed=first_push_carries_2992191c
 2026-11-09T00:17:45Z	Story 17.12	story_cycle	plan_to_commit_min=55 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-09T00:18:26Z	Story 17.13	stage_spawned	stage=plan spawn_at=2026-11-09T00:18:26Z model=opus effort=high agent_name=17-13-plan-1 cycle_iteration=1 note=includes_task0
