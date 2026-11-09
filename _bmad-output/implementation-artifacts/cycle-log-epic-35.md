@@ -31,3 +31,5 @@
 2026-11-09T08:54:29Z	Story 35.1	ruling	question=DW-1012_guide_backticks choice=formatting_not_wording(decide;code_review_may_wrap_AI.MCP.<name>_in_backticks_and_move_the_pin) category=decide policy=5086036
 2026-11-09T08:54:29Z	Story 35.1	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none note=no_AD_commits_agent-time_tooling;AD-22_loopback_pinned_by_Test.Mcp.Loopback model=claude-opus-5-5
 2026-11-09T08:54:35Z	Story 35.1	stage_spawned	stage=qa spawn_at=2026-11-09T08:54:35Z model=sonnet agent_name=35-1-qa-1 cycle_iteration=1
+2026-11-09T09:04:41Z	Story 35.1	qa_complete	spawn_at=2026-11-09T08:54:35Z model=sonnet tests=src/ocutalon/cls/OcuTalon/Test/Mcp/Server.cls,docker/tests/test-mcp-notices.sh tests_added=2 mutations_demonstrated=4 first_run_failures=1(own_cleanup_leak_fixed) clarifications=0 closing_sections_present=true contended=ci/units.sh(CHECK_SCRIPTS_one-name_append)
+2026-11-09T09:04:41Z	Story 35.1	stage_spawned	stage=code-review spawn_at=2026-11-09T09:04:41Z model=opus agent_name=35-1-code-review-1 cycle_iteration=1
