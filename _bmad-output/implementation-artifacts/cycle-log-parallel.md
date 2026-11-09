@@ -3039,3 +3039,6 @@
 2026-11-09T05:46:34Z	Run	deps_hash_rerecorded	reason=fix_forward stories=17.12,17.13 hash=1292fe10a3e7
 2026-11-09T05:46:34Z	Epic 17	worktree_removed	
 2026-11-09T05:46:34Z	Epic 17	epic_branches_deleted	local+remote(ancestor_verified)
+2026-11-09T05:48:13Z	Epic 35	worktree_provisioned	branch=OCT-epic35 base=4bf9dffe(bookkeeping_over_19a4bae6) reason=lane_plan(35.1_waits_17,19_merged) ci_runs_on_bookkeeping_head_cancelled=42569251633,42569251732
+2026-11-09T05:48:13Z	Epic 35	worktree_bootstrapped	epic=35 result=ok
+2026-11-09T05:48:13Z	Epic 35	runner_dispatched	runner=a91262ba8d8041b73 model=opus effort=high lane=B slot=ocutalon-slot-b stories=35.1,35.2 hold_at=10:00Z prompt=prompts/dispatch-epic-35.md
