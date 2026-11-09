@@ -10,3 +10,6 @@
 2026-11-09T17:55:17Z	Epic 20	ruling	question=x0_input_with_nonempty_sources choice=skip_x0 rejected=charter_20.0 why=97_burndown_entries_are_run-wide_residue_outside_epic20_authority(flakes,CI,eval,release/**,Bridge,watch);open_action_items_are_owner-held;no_epic19_retro_in_this_order;dispatch_says_never_delay_20.2;precedent_epics_19_41_17 category=decide policy=5086036
 2026-11-09T17:55:17Z	Epic 20	retro_review_skipped	reason=no_x0_input_in_authority sources=ledger_burndown:97,action_items:8,retro:none dispatch=replan_20.2_only
 2026-11-09T17:55:17Z	Epic 20	ledger_routed_planned	story=20-2-see-citations-and-memories-in-answers entries=4 excess=0 by=load note=DW-721,DW-733,DW-975,DW-976_bullets_added(DW-383_already_present)
+2026-11-09T17:56:53Z	Epic 20	epic_context_compiled	sha=7ec18bf1 reason=initial model=opus words=1015
+2026-11-09T17:59:39Z	Epic 20	slot_loaded	slot=ocutalon-slot-b ns=OCUTALON bridge=61 ocutalon=840 preload=1 compile=ok stale_deleted=19(epic35_mcp_classes) identity=e1eb699cd4fc
+2026-11-09T17:59:47Z	Story 20.2	stage_spawned	stage=plan spawn_at=2026-11-09T17:59:47Z model=opus agent_name=20-2-see-citations-and-memories-in-answers-plan-1 cycle_iteration=1
