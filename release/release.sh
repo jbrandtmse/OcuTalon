@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # release/release.sh start --version <x.y.z> [--from release/<v>-rc<m> --pick <sha>...] [--integration <branch>] [--remote <name>] [--record <file>] [--rc <n>]
 # release/release.sh next|resume|status [--version <v> --rc <n>]   (required when more than one state has steps left)
-# Steps, in order: cut, image, overview, ipm, ipmcheck, push, notes  (Stories 11.14-11.16 and 11.18 insert their steps into STEPS)
-# Exit: 0 step done / end of steps, 1 a step failed, 2 refused (nothing written), 4 stopped for the author's word,
-#       5 waited: the lane's throwaway lock is busy (nothing recorded; the next call runs the step again)
+# Steps, in order: cut, stubs, image, overview, ipm, ipmcheck, push, ci, eval, upgrade, rehearsal, notes, checklist, hands-on  (Stories 11.15, 11.16 and 11.18 extend STEPS)
+# Exit: 0 step done, a gate phase done (NEXT <step>: the step stays current) or end of steps, 1 a step failed, 2 refused (nothing written),
+#       4 stopped for the author's word, 5 waited: the lane's throwaway lock is busy, CI has not finished or the evaluation has not run
+#       (nothing recorded; the next call runs the step again)
 # State: ${OCUTALON_RELEASE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/ocutalon/release}/<v>-rc<n>/
 # Test seam: OCUTALON_RELEASE_NOW names a file of epoch seconds read one per clock read (unset: date -u +%s)
 #
@@ -36,6 +37,8 @@
 # result is recorded in "## FR-57 job" (a WARN line and a Size: note when the artifact is over 5000000 bytes). push asks, then pushes the candidate branch. notes runs release/notes.sh for the draft,
 # which stays uncommitted.
 #
+# The gates (Story 11.14; REL-1, REL-5, REL-6, REL-7, AD-29). stubs refuses an enabled production item whose class carries Parameter STUB = 1. ci reads, with gh run list, the push runs of ci and lane-a on the cut commit; each must succeed. eval judges the author's eval/run.sh --release-candidate result in <state>/eval; REL-5's override (eval/run.sh --override) is the only override. upgrade and rehearsal run release/upgrade-harness.sh and release/rehearse.sh of the candidate, one phase per call. checklist runs release/checklist.sh. A gate passes only when its script exits 0 and its own section reads Result: pass for this commit. hands-on stops: the Contest Planner's pass is not recorded by this sequence.
+#
 # The author's word. Each outward step prints "ASK <id> <question> [yes/no]" and reads one line of standard input; only "yes" goes on.
 # End of input is no answer: STOPPED <id> waiting for the author's word, exit 4. No option or variable answers a question.
 # Hands-on time is the sum of the windows from printing an ASK to reading its answer on one clock; it is kept in the state, written into
@@ -57,7 +60,7 @@ rel_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 . "$rel_root/docker/tests/lib-upgrade.sh"
 
 # The ordered steps; step_<name> is the function of a step. A sibling story adds its name and its function.
-STEPS="cut image overview ipm ipmcheck push notes"
+STEPS="cut stubs image overview ipm ipmcheck push ci eval upgrade rehearsal notes checklist hands-on"
 HANDS_TARGET=900
 TAB=$(printf '\t')
 KIT_VERSION=1.0.0
@@ -332,15 +335,19 @@ record_push() {
   return 2
 }
 
-# stop_routine <end|stopped|failed> <step> <detail>: writes the record, commits it, asks to push it, and sets STOP_CODE.
+# stop_routine <end|stopped|hands|failed> <step> <detail>: writes the record, commits it, asks to push it, and sets STOP_CODE.
 STOP_CODE=0
 stop_routine() {
   local kind=$1 step=$2 detail=$3 result last rec_detail code
   case $kind in
     end)
       last=$(printf '%s\n' $STEPS | tail -n 1)
-      result="stopped after $last: no gate has run (not a release)"
+      result="stopped after $last: no step after the gates has run (not a release)"
       STOP_CODE=0
+      ;;
+    hands)
+      result="stopped at hands-on: every automated gate passed; no hands-on pass is recorded (not a release)"
+      STOP_CODE=4
       ;;
     stopped)
       result="stopped at $step: waiting for the author's word"
@@ -1061,7 +1068,7 @@ step_push() {
 step_notes() {
   local out code res file notes
   notes=$(notes_path "$version" "$rc")
-  out=$(bash "$rel_root/release/notes.sh" --version "$version" --rc "$rc" --candidate "$branch" --record "$record" < /dev/null 2>&1)
+  out=$(bash "$rel_root/release/notes.sh" --version "$version" --rc "$rc" --candidate "$branch" --record "$record" --eval "$sdir/release-candidate.json" < /dev/null 2>&1)
   code=$?
   case $code in
     0 | 1 | 3)
@@ -1092,10 +1099,526 @@ step_notes() {
   esac
 }
 
+# --- the gates (Story 11.14) ---
+
+CI_WORKFLOWS="ci lane-a"
+CI_WINDOW=900
+UPGRADE_PHASES="build settings seed upgrade restart storage report"
+REHEARSAL_RUNS=20
+
+# short_sha <sha>: the first seven characters.
+short_sha() { printf '%s\n' "${1%"${1#???????}"}"; }
+
+# abs_path <path>: the path as an absolute one.
+abs_path() {
+  case $1 in
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s/%s\n' "$PWD" "$1" ;;
+  esac
+}
+
+# gate_fail <gate> <detail>: step_fail, then the LOG line when the gate kept a log.
+gate_fail() {
+  step_fail "$1" "$2"
+  if [ -f "$sdir/$1.log" ]; then echo "LOG $1 $(abs_path "$sdir/$1.log")"; fi
+  return 1
+}
+
+# gate_script <gate> <dir> <tag|-> <args>...: runs bash <args> in the clone <dir> with the gate's run tag and the lane's throwaway lock folder,
+# and no standard input. The output is appended to <state>/<gate>.log and kept in <state>/<gate>.call (GATE_CALL); GATE_CODE is the exit code.
+GATE_CALL=""
+GATE_CODE=0
+gate_script() {
+  local gate=$1 dir=$2 tag=$3 lockdir
+  shift 3
+  lockdir=$(candidate_lock_dir)
+  GATE_CALL="$sdir/$gate.call"
+  (
+    cd "$dir" || exit 1
+    if [ -n "$lockdir" ]; then export OCUTALON_LOCK_DIR="$lockdir"; fi
+    if [ "$tag" != - ]; then export OCUTALON_RUN_TAG="$tag"; fi
+    bash "$@"
+  ) < /dev/null > "$GATE_CALL" 2>&1
+  GATE_CODE=$?
+  cat "$GATE_CALL" >> "$sdir/$gate.log"
+}
+
+# gate_line <pattern>: the last line of the last gate call that matches the pattern, else its last non-blank line.
+gate_line() {
+  local line
+  line=$(grep -E "$1" "$GATE_CALL" 2> /dev/null | tail -n 1)
+  [ -n "$line" ] || line=$(grep -v '^[[:space:]]*$' "$GATE_CALL" 2> /dev/null | tail -n 1)
+  printf '%s\n' "$line"
+}
+
+# gate_verdict <section heading> <mode|->: judges the section that a gate wrote into the record. Sets GATE_RESULT, GATE_MODE and GATE_CAND.
+# Returns 0 when the section reads Result: pass, the Candidate line ends with " at <the cut's full sha>" and, with a mode, Mode: reads it;
+# 1 when the result or the mode is another; 2 when the section names another commit.
+GATE_RESULT=""
+GATE_MODE=""
+GATE_CAND=""
+gate_verdict() {
+  local rec cand
+  rec=$(record_abs)
+  cand=$(sget cand_sha)
+  GATE_RESULT=$(record_field "$rec" "$1" Result)
+  GATE_MODE=$(record_field "$rec" "$1" Mode)
+  GATE_CAND=$(record_field "$rec" "$1" Candidate)
+  [ "$GATE_RESULT" = pass ] || return 1
+  if [ "$2" != - ] && [ "$GATE_MODE" != "$2" ]; then return 1; fi
+  [ -n "$cand" ] || return 2
+  case $GATE_CAND in
+    *" at $cand") return 0 ;;
+  esac
+  return 2
+}
+
+# dash <text>: the text, or - when it is empty.
+dash() { printf '%s\n' "${1:--}"; }
+
+# step_stubs: refuses a candidate with an enabled production item whose class carries Parameter STUB = 1 (AD-29), on an export of the candidate's
+# tree. It asks nothing and runs before push.
+step_stubs() {
+  local ctx="$sdir/stubs" out code counts found
+  candidate_export stubs "$ctx" || return 1
+  out=$(production_stubs "$ctx")
+  code=$?
+  rm -rf "$ctx"
+  counts=$(printf '%s\n' "$out" | grep '^COUNTS|' | tail -n 1)
+  if [ "$code" -eq 3 ] || [ -z "$counts" ]; then
+    step_fail stubs "the production classes could not be read"
+    return 1
+  fi
+  if [ "$code" -eq 1 ]; then
+    found=$(printf '%s\n' "$out" | awk -F'|' '$1 == "FOUND" { printf "%s:%s (%s) answers \"not implemented\"; disable it in its production, or build it, and cut the next candidate\n", $2, $3, $4 }')
+    step_fail stubs "$(printf '%s\n' "$found" | head -n 1)" > /dev/null
+    printf '%s\n' "$found" | sed 's/^/FAIL stubs /'
+    return 1
+  fi
+  STEP_ROW=pass
+  STEP_DETAIL="no enabled item answers \"not implemented\" ($(printf '%s' "$counts" | cut -d'|' -f2) enabled items in $(printf '%s' "$counts" | cut -d'|' -f3) productions)"
+  echo "PASS stubs $STEP_DETAIL"
+  return 0
+}
+
+# step_ci: reads, with gh run list, the push runs on the cut commit. The newest run of each workflow (the highest id) must be completed and
+# successful, and every workflow of CI_WORKFLOWS must have one. A completed run that is not a success fails first; a run that has not finished
+# waits (exit 5, nothing recorded); a required workflow with no run waits for CI_WINDOW seconds after the step's first check (ci_first of the
+# state, on the clock seam) and then fails. gh is called with run list only.
+step_ci() {
+  local cand short repo runs code now first elapsed newest verdict w red pend detail missing="" late="" found
+  cand=$(sget cand_sha)
+  if [ -z "$cand" ]; then
+    step_fail ci "the candidate is not cut"
+    return 1
+  fi
+  short=$(short_sha "$cand")
+  if ! command -v gh > /dev/null 2>&1; then
+    step_fail ci "gh is not installed"
+    return 1
+  fi
+  if ! repo=$(gh_repo "$remote"); then
+    step_fail ci "the remote $remote is not a GitHub repository, so its runs cannot be read"
+    return 1
+  fi
+  now=$(clock)
+  first=$(sget ci_first)
+  if [ -z "$first" ]; then
+    first=$now
+    sset ci_first "$first"
+  fi
+  elapsed=$((now - first))
+  [ "$elapsed" -ge 0 ] || elapsed=0
+  runs=$(ci_runs "$repo" "$cand" push "$branch")
+  code=$?
+  if [ "$code" -eq 127 ]; then
+    step_fail ci "gh is not installed"
+    return 1
+  fi
+  if [ "$code" -ne 0 ]; then
+    echo "WAIT ci gh could not read the runs (exit $code); the next call reads them again"
+    return 5
+  fi
+  newest=$(printf '%s\n' "$runs" | awk -F'\t' 'NF >= 3 { if (!($2 in id) || $1 + 0 > id[$2] + 0) { id[$2] = $1; st[$2] = $3; cc[$2] = $4 } }
+    END { for (w in id) printf "%s\t%s\t%s\t%s\n", id[w], w, st[w], cc[w] }' | LC_ALL=C sort -t "$TAB" -k2,2)
+  verdict=$(printf '%s\n' "$newest" | awk -F'\t' '
+    NF >= 3 {
+      if ($3 == "completed") { if ($4 != "success" && red == "") red = $2 " run " $1 " concluded " $4 }
+      else if (pend == "") pend = $2 " run " $1 " is " $3
+      detail = detail (detail == "" ? "" : ", ") $2 " run " $1
+    }
+    END { print "red=" red; print "pend=" pend; print "detail=" detail }')
+  red=$(printf '%s\n' "$verdict" | sed -n 's/^red=//p')
+  pend=$(printf '%s\n' "$verdict" | sed -n 's/^pend=//p')
+  detail=$(printf '%s\n' "$verdict" | sed -n 's/^detail=//p')
+  for w in $CI_WORKFLOWS; do
+    found=$(printf '%s\n' "$newest" | awk -F'\t' -v w="$w" '$2 == w { print "yes"; exit }')
+    [ -n "$found" ] && continue
+    if [ "$elapsed" -ge "$CI_WINDOW" ]; then
+      late="${late:-$w}"
+    else
+      missing="${missing:-$w}"
+    fi
+  done
+  if [ -n "$red" ]; then
+    step_fail ci "$red"
+    return 1
+  fi
+  if [ -n "$late" ]; then
+    step_fail ci "no $late push run on $cand 15 minutes after the first check"
+    return 1
+  fi
+  if [ -n "$pend" ]; then
+    echo "WAIT ci $pend"
+    return 5
+  fi
+  if [ -n "$missing" ]; then
+    echo "WAIT ci no $missing push run on $short yet ($elapsed s of $CI_WINDOW s)"
+    return 5
+  fi
+  STEP_ROW=pass
+  STEP_DETAIL=$(printf '%s' "every push run on $short succeeded: $detail" | detail_clean)
+  echo "PASS ci $STEP_DETAIL"
+  return 0
+}
+
+# step_eval: judges the author's evaluation result of the candidate, <state>/eval/eval/release-candidate.json (eval/run.sh --release-candidate in
+# a clone that this step makes once). The sequence never reads or holds a model key. Only a pass, or REL-5's override with a reason (written
+# by eval/run.sh --override), passes. A pass is copied to <state>/release-candidate.json for notes. Exit 5 while the result is not there.
+step_eval() {
+  local dir="$sdir/eval" file="$sdir/eval/eval/release-candidate.json" cand short info fmt commit mock clean verdict by reason
+  cand=$(sget cand_sha)
+  if [ -z "$cand" ]; then
+    step_fail eval "the candidate is not cut"
+    return 1
+  fi
+  short=$(short_sha "$cand")
+  if [ ! -f "$file" ]; then
+    if [ ! -d "$dir/.git" ] && ! candidate_clone "$dir" "$branch" "$cand"; then
+      step_fail eval "$CLONE_WHY"
+      return 1
+    fi
+    echo "WAIT eval no evaluation result for $short yet; the author runs the evaluation"
+    echo "RUN cd $(abs_path "$dir") && bash eval/run.sh --release-candidate"
+    return 5
+  fi
+  info=$(node -e '
+    const fs = require("fs");
+    let r;
+    try { r = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch (e) { process.exit(3); }
+    if (!r || typeof r !== "object" || Array.isArray(r)) process.exit(3);
+    const f = (v) => String(v == null ? "" : v).replace(/[\r\n\t]+/g, " ");
+    const b = (v) => (v === true ? "true" : v === false ? "false" : "?");
+    const o = r.override && typeof r.override === "object" ? r.override : null;
+    console.log("format=" + f(r.format));
+    console.log("commit=" + f(r.commit));
+    console.log("onMock=" + b(r.onMock));
+    console.log("treeClean=" + b(r.treeClean));
+    console.log("verdict=" + f(r.verdict));
+    console.log("decidedBy=" + f(r.decidedBy));
+    console.log("reason=" + f(o && typeof o.reason === "string" ? o.reason.trim() : ""));' "$file" < /dev/null 2> /dev/null)
+  fmt=$(printf '%s\n' "$info" | sed -n 's/^format=//p')
+  commit=$(printf '%s\n' "$info" | sed -n 's/^commit=//p')
+  mock=$(printf '%s\n' "$info" | sed -n 's/^onMock=//p')
+  clean=$(printf '%s\n' "$info" | sed -n 's/^treeClean=//p')
+  verdict=$(printf '%s\n' "$info" | sed -n 's/^verdict=//p')
+  by=$(printf '%s\n' "$info" | sed -n 's/^decidedBy=//p')
+  reason=$(printf '%s\n' "$info" | sed -n 's/^reason=//p')
+  if [ "$fmt" != ocutalon.evalResult/1 ]; then
+    step_fail eval "the result is not an ocutalon.evalResult/1 file"
+    return 1
+  fi
+  if [ "$commit" != "$cand" ]; then
+    step_fail eval "the result is of commit $(short_sha "$commit"), not of the candidate $short"
+    return 1
+  fi
+  if [ "$mock" != false ]; then
+    step_fail eval "the result was made on the CI mock, not on the model"
+    return 1
+  fi
+  if [ "$clean" != true ]; then
+    step_fail eval "the result was made on a tree with uncommitted changes"
+    return 1
+  fi
+  case $verdict in
+    pass) STEP_DETAIL="pass: $by" ;;
+    overridden)
+      if [ -z "$reason" ]; then
+        step_fail eval "overridden with no reason"
+        return 1
+      fi
+      STEP_DETAIL="overridden (REL-5): $reason"
+      ;;
+    blocked)
+      step_fail eval "blocked: $by; REL-5's override is the author's: eval/run.sh --override \"<reason>\" in the evaluation clone"
+      echo "RUN cd $(abs_path "$dir") && bash eval/run.sh --override \"<reason>\""
+      return 1
+      ;;
+    incomplete)
+      step_fail eval "incomplete: $by"
+      return 1
+      ;;
+    *)
+      step_fail eval "the result is not an ocutalon.evalResult/1 file"
+      return 1
+      ;;
+  esac
+  if ! cp "$file" "$sdir/release-candidate.json"; then
+    step_fail eval "the result could not be kept for the notes"
+    return 1
+  fi
+  rm -rf "$dir"
+  STEP_DETAIL=$(printf '%s' "$STEP_DETAIL" | detail_clean)
+  STEP_ROW=pass
+  echo "PASS eval $STEP_DETAIL"
+  return 0
+}
+
+# upgrade_down <tag> <clone>: the harness's down phase; WARN when it exits non-zero.
+upgrade_down() {
+  gate_script upgrade "$2" "$1" release/upgrade-harness.sh down
+  echo "PHASE upgrade down exit $GATE_CODE"
+  if [ "$GATE_CODE" -ne 0 ]; then
+    echo "WARN upgrade the down phase exited $GATE_CODE; containers or volumes of run tag $1 may remain"
+  fi
+}
+
+# upgrade_end: removes the clone and forgets the phase, so that the next call starts again.
+upgrade_end() {
+  rm -rf "$sdir/gate-upgrade"
+  sset upg_phase ""
+}
+
+# step_upgrade: drives release/upgrade-harness.sh of the candidate, one phase per call, in a clone of the author's repository under one run tag:
+# build (it alone gets the options), then settings, seed, upgrade, restart and storage whatever an earlier phase gave, then report and down in
+# one call. A phase that is done gives NEXT upgrade (exit 0 of this script); 75 waits on the same phase; a failed build runs down and fails,
+# and exit 2 from a later phase runs report, then down, and fails. The gate passes only when report exits 0 and the harness's section reads Result: pass and Mode: release for
+# the cut commit. The remote's v* tags must all be in this repository first, because the harness picks the previous build from them.
+step_upgrade() {
+  local dir="$sdir/gate-upgrade" cand tag phase next t all_tags local_tags missing="" code ra line r m
+  cand=$(sget cand_sha)
+  if [ -z "$cand" ]; then
+    step_fail upgrade "the candidate is not cut"
+    return 1
+  fi
+  tag="rel-$(printf '%s' "$version" | tr . -)-rc$rc-upg"
+  phase=$(sget upg_phase)
+  if [ -z "$phase" ]; then
+    all_tags=$(release_tags "$remote")
+    code=$?
+    local_tags=$(git tag --list 'v*' < /dev/null 2> /dev/null)
+    for t in $all_tags; do
+      printf '%s\n' "$local_tags" | grep -qxF -- "$t" || missing="${missing:+$missing }$t"
+    done
+    [ "$code" -eq 0 ] || missing="${missing:-unreadable}"
+    if [ -n "$missing" ]; then
+      step_fail upgrade "the tags of $remote are not all in this repository (missing: $missing); run git fetch --tags $remote, then release.sh next"
+      return 1
+    fi
+    : > "$sdir/upgrade.log"
+    phase=build
+    sset upg_phase build
+  fi
+  if [ ! -d "$dir/.git" ] && ! candidate_clone "$dir" "$branch" "$cand" web; then
+    upgrade_end
+    gate_fail upgrade "$CLONE_WHY"
+    return 1
+  fi
+  if [ "$phase" = build ]; then
+    gate_script upgrade "$dir" "$tag" release/upgrade-harness.sh build --version "$version" --rc "$rc" --record "$(record_abs)"
+  elif [ "$phase" = report ]; then
+    gate_script upgrade "$dir" "$tag" release/upgrade-harness.sh report
+  else
+    gate_script upgrade "$dir" "$tag" release/upgrade-harness.sh "$phase"
+  fi
+  code=$GATE_CODE
+  if [ "$code" -eq 75 ]; then
+    echo "WAIT upgrade the lane's throwaway lock is busy"
+    return 5
+  fi
+  echo "PHASE upgrade $phase exit $code"
+  if [ "$code" -eq 2 ] || { [ "$phase" = build ] && [ "$code" -ne 0 ]; }; then
+    line=$(gate_line '^(REFUSED|FAIL) ')
+    if [ "$phase" != build ]; then
+      gate_script upgrade "$dir" "$tag" release/upgrade-harness.sh report
+      echo "PHASE upgrade report exit $GATE_CODE"
+    fi
+    upgrade_down "$tag" "$dir"
+    upgrade_end
+    gate_fail upgrade "the harness refused $phase: $line"
+    return 1
+  fi
+  if [ "$phase" != report ]; then
+    next=$(printf '%s\n' $UPGRADE_PHASES | awk -v p="$phase" 'found { print; exit } $0 == p { found = 1 }')
+    sset upg_phase "$next"
+    [ "$phase" != seed ] || echo "NOTE upgrade run the next call now: the reminder that the seed set must still be pending when the upgrade begins"
+    return 3
+  fi
+  ra=$code
+  upgrade_down "$tag" "$dir"
+  upgrade_end
+  gate_verdict "## Upgrade harness" release
+  code=$?
+  r=$(dash "$GATE_RESULT")
+  m=$(dash "$GATE_MODE")
+  if [ "$ra" -eq 0 ] && [ "$code" -eq 0 ]; then
+    STEP_ROW=pass
+    STEP_DETAIL="Result: pass, Mode: release, Previous: $(record_field "$(record_abs)" "## Upgrade harness" Previous)"
+    STEP_DETAIL=$(printf '%s' "$STEP_DETAIL" | detail_clean)
+    echo "PASS upgrade $STEP_DETAIL"
+    return 0
+  fi
+  if [ "$ra" -ne 0 ] && [ "$r" = pass ]; then r=fail; fi
+  if [ "$ra" -eq 0 ] && [ "$code" -eq 2 ]; then
+    gate_fail upgrade "the section names another commit than the candidate"
+  else
+    gate_fail upgrade "the harness's section reads Result: $r, Mode: $m"
+  fi
+  return 1
+}
+
+# rehearsal_end: removes the clone and forgets that the rehearsal began.
+rehearsal_end() {
+  rm -rf "$sdir/gate-rehearsal"
+  sset reh_started ""
+}
+
+# step_rehearsal: drives release/rehearse.sh run of the candidate (DW-548), one phase per call, in a clone of the author's repository under one
+# run tag and with the same options on every call. Exit 4 of the script is a phase done (PHASE rehearsal, NEXT rehearsal); 75 waits; exit 2
+# fails with its REFUSED text and runs down; exit 3 (a dry run) and every other code fail. Only exit 0 with a section that reads Result: pass
+# and Mode: rehearsal for the cut commit passes.
+step_rehearsal() {
+  local dir="$sdir/gate-rehearsal" cand tag code line r m verdict
+  cand=$(sget cand_sha)
+  if [ -z "$cand" ]; then
+    step_fail rehearsal "the candidate is not cut"
+    return 1
+  fi
+  tag="rel-$(printf '%s' "$version" | tr . -)-rc$rc-reh"
+  if [ "$(sget reh_started)" != 1 ] || [ ! -d "$dir/.git" ]; then
+    : > "$sdir/rehearsal.log"
+    if ! candidate_clone "$dir" "$branch" "$cand" web; then
+      rehearsal_end
+      gate_fail rehearsal "$CLONE_WHY"
+      return 1
+    fi
+    sset reh_started 1
+  fi
+  gate_script rehearsal "$dir" "$tag" release/rehearse.sh run --version "$version" --rc "$rc" --candidate "$branch" --record "$(record_abs)" --runs "$REHEARSAL_RUNS"
+  code=$GATE_CODE
+  case $code in
+    75)
+      echo "WAIT rehearsal the lane's throwaway lock is busy"
+      return 5
+      ;;
+    4)
+      line=$(sed -n 's/^NEXT run: *//p' "$GATE_CALL" | tail -n 1)
+      echo "PHASE rehearsal $line"
+      return 3
+      ;;
+    2)
+      line=$(gate_line '^REFUSED ')
+      line=${line#REFUSED }
+      gate_script rehearsal "$dir" "$tag" release/rehearse.sh down
+      rehearsal_end
+      gate_fail rehearsal "release/rehearse.sh refused: $line"
+      return 1
+      ;;
+    3)
+      rehearsal_end
+      gate_fail rehearsal "a dry run is never a pass"
+      return 1
+      ;;
+  esac
+  rehearsal_end
+  gate_verdict "## Clean-machine rehearsal" rehearsal
+  verdict=$?
+  r=$(dash "$GATE_RESULT")
+  m=$(dash "$GATE_MODE")
+  if [ "$code" -eq 0 ] && [ "$verdict" -eq 0 ]; then
+    line=$(record_section "$(record_abs)" "## Clean-machine rehearsal" | awk '/^\| demo path runs \|/ { split($0, f, "|"); v = f[4]; gsub(/^ +| +$/, "", v); print v; exit }')
+    STEP_ROW=pass
+    STEP_DETAIL=$(printf '%s' "Result: pass, Mode: rehearsal, $(dash "$line")" | detail_clean)
+    echo "PASS rehearsal $STEP_DETAIL"
+    return 0
+  fi
+  if [ "$code" -eq 0 ] && [ "$verdict" -eq 2 ]; then
+    gate_fail rehearsal "the section names another commit than the candidate"
+    return 1
+  fi
+  if [ "$code" -ne 0 ] && [ "$r" = pass ]; then r=fail; fi
+  line=$(grep '^FAIL ' "$GATE_CALL" | head -n 1)
+  gate_fail rehearsal "the section reads Result: $r, Mode: $m: $(dash "$line")"
+  return 1
+}
+
+# step_checklist: runs release/checklist.sh of the candidate in a fresh clone of the author's repository, with the absolute record and the notes
+# draft. Its CONFIRM and LATER lines are printed as they are. Only exit 0 with a section that reads Result: pass for the cut commit passes.
+step_checklist() {
+  local dir="$sdir/gate-checklist" cand notes code line r k verdict
+  cand=$(sget cand_sha)
+  if [ -z "$cand" ]; then
+    step_fail checklist "the candidate is not cut"
+    return 1
+  fi
+  notes=$(notes_path "$version" "$rc")
+  case $notes in
+    /*) ;;
+    *) notes="$rel_root/$notes" ;;
+  esac
+  : > "$sdir/checklist.log"
+  if ! candidate_clone "$dir" "$branch" "$cand"; then
+    gate_fail checklist "$CLONE_WHY"
+    return 1
+  fi
+  gate_script checklist "$dir" - release/checklist.sh --version "$version" --rc "$rc" --candidate "$branch" --record "$(record_abs)" --notes "$notes"
+  code=$GATE_CODE
+  rm -rf "$dir"
+  grep -E '^(CONFIRM|LATER) ' "$GATE_CALL"
+  if [ "$code" -eq 2 ]; then
+    gate_fail checklist "release/checklist.sh refused: $(gate_line '^(REFUSED|FAIL) ')"
+    return 1
+  fi
+  gate_verdict "## Release checklist" -
+  verdict=$?
+  if [ "$code" -eq 0 ] && [ "$verdict" -eq 0 ]; then
+    STEP_ROW=pass
+    STEP_DETAIL="Result: pass"
+    echo "PASS checklist $STEP_DETAIL"
+    return 0
+  fi
+  if [ "$code" -eq 0 ] && [ "$verdict" -eq 2 ]; then
+    gate_fail checklist "the section names another commit than the candidate"
+    return 1
+  fi
+  r=$(sed -n 's/^RESULT //p' "$GATE_CALL" | tail -n 1)
+  [ -n "$r" ] || r=$GATE_RESULT
+  if [ "$r" = pass ]; then r=fail; fi
+  line=$(grep '^FAIL ' "$GATE_CALL" | head -n 1)
+  line=${line#FAIL }
+  if [ "$r" = "not confirmed" ]; then
+    k=$(grep -c '^CONFIRM ' "$GATE_CALL")
+    line="$k author rows not confirmed"
+  fi
+  gate_fail checklist "Result: $(dash "$r"): $(dash "$line")"
+  return 1
+}
+
+# step_hands_on: the stop that never passes (Story 11.15 makes it resumable). It prints the candidate to install and returns 6, which stops
+# the sequence with the hands-on result; no pass is recorded here (REL-7).
+step_hands_on() {
+  local cand
+  cand=$(sget cand_sha)
+  STEP_ROW=waiting
+  STEP_DETAIL="the author's hands-on pass (REL-7) on $branch is not recorded"
+  echo "STOPPED hands-on every automated gate passed; install $branch ($(short_sha "$cand")) for the author's hands-on pass (REL-7); this sequence does not record that pass"
+  return 6
+}
+
 # --- commands ---
 
 cli_usage() {
-  sed -n '2,6p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,7p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
 }
 
 # need_value <option> <argument count>: refuses an option with no value.
@@ -1181,10 +1704,10 @@ cmd_next() {
     echo "DONE every step of $version rc$rc has run"
     exit 0
   fi
-  if ! type "step_$step" > /dev/null 2>&1; then
+  if ! type "step_${step//-/_}" > /dev/null 2>&1; then
     refuse "the state names an unknown step '$step'"
   fi
-  "step_$step"
+  "step_${step//-/_}"
   code=$?
   case $code in
     0)
@@ -1202,7 +1725,16 @@ cmd_next() {
       stop_routine stopped "$step" ""
       exit "$STOP_CODE"
       ;;
+    3)
+      echo "NEXT $step"
+      exit 0
+      ;;
     5) exit 5 ;;
+    6)
+      row_set "$step" "$STEP_ROW" "$STEP_DETAIL"
+      stop_routine hands "$step" ""
+      exit "$STOP_CODE"
+      ;;
     *)
       row_set "$step" "$STEP_ROW" "$STEP_DETAIL"
       stop_routine failed "$step" "$STEP_DETAIL"

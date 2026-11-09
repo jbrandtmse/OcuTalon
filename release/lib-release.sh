@@ -58,6 +58,23 @@
 #                              every packaging of one tree, whatever the archive's own bytes
 # ipm_unpack <tgz> <folder>    extracts the artifact into the folder; status 1 when it cannot be read as a gzip tar archive
 # last_prompt_free_line <file> prints the last line of a session's plain output that is not blank and not a terminal prompt (NS>)
+# record_section <file> <heading>
+#                              prints one "## " section of a record or notes file, its heading line included, up to the next "## " or "# " line
+# record_field <file> <heading> <field>
+#                              prints the text after "<field>: " on the first such line of that section (Story 11.14)
+# production_stubs <tree>      scans <tree>/src for the production classes (an XData ProductionDefinition; a path with a /Test/ folder is not
+#                              scanned) and prints "FOUND|<production>|<item>|<class>" for each enabled item whose class, or an in-tree
+#                              superclass, carries Parameter STUB = 1, then "COUNTS|<enabled items>|<productions>|<stub items>|<enabled stubs>".
+#                              Superclasses go left to right, depth first, and a class's own STUB value wins. An item is enabled unless its
+#                              Enabled is false or 0. Status 1 when an enabled stub is found, 3 when the scan printed no COUNTS line (Story 11.14)
+# candidate_clone <dir> <branch> <sha> [web]
+#                              clones this repository's <branch> into <dir> (no network), copies in every local tag, and checks that HEAD is
+#                              <sha>; with web it also runs ensure_web_bundle in the clone. Status 1 and CLONE_WHY when it fails (Story 11.14)
+# gh_repo <remote>             prints owner/repo of the remote's github.com https or ssh URL; for a local-path URL, OCUTALON_RELEASE_GH_REPO
+#                              (owner/repo); otherwise status 1 (Story 11.14)
+# ci_runs <repo> <sha> <event> <branch>
+#                              runs gh run list for the branch and commit and prints "<id><TAB><workflow><TAB><status><TAB><conclusion>" for
+#                              each run whose headSha is <sha>. Status 127 when gh is not installed, else gh's own non-zero status (Story 11.14)
 umask 077
 
 release_lib_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
@@ -416,6 +433,236 @@ record_write() {
     END {
       if (!done) { if (NR > 0 && last != "") print ""; put() }
     }' "$file" > "$file.new" && mv "$file.new" "$file"
+}
+
+# record_section <file> <heading>: see the header.
+record_section() {
+  awk -v h="$2" '
+    { t = $0; sub(/[ \t\r]+$/, "", t) }
+    !inside && t == h { inside = 1; print; next }
+    inside && (/^## / || /^# /) { exit }
+    inside { print }' "$1" 2> /dev/null
+}
+
+# record_field <file> <heading> <field>: see the header.
+record_field() {
+  record_section "$1" "$2" | awk -v f="$3" '
+    { t = $0; sub(/[ \t\r]+$/, "", t) }
+    NR > 1 && index(t, f ": ") == 1 { print substr(t, length(f) + 3); exit }'
+}
+
+# production_stubs <tree>: see the header.
+production_stubs() {
+  local tree=${1%/} files found
+  files=$(find "$tree/src" -name '*.cls' -type f 2> /dev/null | LC_ALL=C sort)
+  if [ -z "$files" ]; then
+    echo "COUNTS|0|0|0|0"
+    return 3
+  fi
+  # one file per line, so that a path with a space is still one file
+  found=$(
+    IFS='
+'
+    set -f
+    # shellcheck disable=SC2086
+    LC_ALL=C awk -v tree="$tree/" '
+      function uncomment(s,   out, i, j) {
+        out = ""
+        while (s != "") {
+          if (incomment) {
+            j = index(s, "-->")
+            if (j == 0) return out
+            s = substr(s, j + 3)
+            incomment = 0
+          } else {
+            i = index(s, "<!--")
+            if (i == 0) { out = out s; s = "" }
+            else { out = out substr(s, 1, i - 1); s = substr(s, i + 4); incomment = 1 }
+          }
+        }
+        return out
+      }
+      function attr(tag, name,   v) {
+        if (match(tag, "[ \t]" name "=\"[^\"]*\"")) {
+          v = substr(tag, RSTART, RLENGTH)
+          sub(/^[^=]*="/, "", v)
+          sub(/"$/, "", v)
+          return v
+        }
+        if (match(tag, "[ \t]" name "=\047[^\047]*\047")) {
+          v = substr(tag, RSTART, RLENGTH)
+          sub("^[^=]*=\047", "", v)
+          sub("\047$", "", v)
+          return v
+        }
+        return ""
+      }
+      function resolve(c,   n, parts, i, r) {
+        if (c in seen) return -1
+        seen[c] = 1
+        if (c in stubv) return (stubv[c] == 1) ? 1 : 0
+        n = split(sup[c], parts, ",")
+        for (i = 1; i <= n; i++) {
+          if (parts[i] == "") continue
+          r = resolve(parts[i])
+          if (r != -1) return r
+        }
+        return -1
+      }
+      FNR == 1 {
+        rel = substr(FILENAME, length(tree) + 1)
+        skip = (index("/" rel, "/Test/") > 0)
+        cls = ""; inx = 0; incomment = 0; buf = ""; prod = ""
+      }
+      /^[ \t]*\/\// { next }
+      /^Class[ \t]+/ && cls == "" {
+        line = $0
+        cls = $2
+        while (line ~ /Extends[ \t]*\(/ && line !~ /\)/) {
+          if ((getline nxt) <= 0) break
+          line = line " " nxt
+        }
+        if (match(line, /Extends[ \t]*/)) {
+          rest = substr(line, RSTART + RLENGTH)
+          sub(/[\[{].*$/, "", rest)
+          gsub(/[()]/, "", rest)
+          gsub(/[ \t\r]/, "", rest)
+          sup[cls] = rest
+        }
+        next
+      }
+      /^[ \t]*Parameter[ \t]+STUB[ \t]*(\([^)]*\))?[ \t]*(As[ \t]+[^ \t=\[]+[ \t]*)?(\[[^\]]*\][ \t]*)?=/ && cls != "" {
+        v = $0
+        sub(/^[^=]*=/, "", v)
+        sub(/[;\/].*$/, "", v)
+        gsub(/[ \t\r"]/, "", v)
+        stubv[cls] = v
+        next
+      }
+      /^XData[ \t]+ProductionDefinition/ { inx = 1; buf = ""; prod = cls; next }
+      inx && /^}/ { inx = 0; next }
+      inx && !skip {
+        buf = buf " " uncomment($0) " "
+        while (match(buf, /<(Production|Item)[ \t\r]/)) {
+          rest = substr(buf, RSTART)
+          e = index(rest, ">")
+          if (e == 0) { buf = rest; break }
+          tag = substr(rest, 1, e)
+          buf = substr(rest, e + 1)
+          if (tag ~ /^<Production/) {
+            prod = attr(tag, "Name"); if (prod == "") prod = cls
+            nprod++
+          } else {
+            n++
+            iprod[n] = prod; iname[n] = attr(tag, "Name"); icls[n] = attr(tag, "ClassName")
+            en = tolower(attr(tag, "Enabled"))
+            ien[n] = (en == "false" || en == "0") ? 0 : 1
+          }
+        }
+        if (!match(buf, /<(Production|Item)/)) buf = ""
+      }
+      END {
+        for (k = 1; k <= n; k++) {
+          delete seen
+          if (ien[k]) nen++
+          if (resolve(icls[k]) == 1) {
+            nstub++
+            if (ien[k]) { printf "FOUND|%s|%s|%s\n", iprod[k], iname[k], icls[k]; enabled++ }
+          }
+        }
+        if (nprod > 0) printf "COUNTS|%d|%d|%d|%d\n", nen, nprod, nstub, enabled
+      }' $files
+  )
+  case $found in
+    *COUNTS\|*) ;;
+    *)
+      echo "COUNTS|0|0|0|0"
+      return 3
+      ;;
+  esac
+  printf '%s\n' "$found"
+  case $found in
+    *FOUND\|*) return 1 ;;
+  esac
+  return 0
+}
+
+# candidate_clone <dir> <branch> <sha> [web]: see the header.
+CLONE_WHY=""
+candidate_clone() {
+  local dir=$1 br=$2 sha=$3 web=${4:-} head out
+  CLONE_WHY=""
+  rm -rf "$dir"
+  if ! git clone -q --branch "$br" "$release_lib_root" "$dir" < /dev/null > /dev/null 2>&1; then
+    rm -rf "$dir"
+    CLONE_WHY="the clone of $br failed"
+    return 1
+  fi
+  if ! git -C "$dir" fetch -q "$release_lib_root" 'refs/tags/*:refs/tags/*' < /dev/null > /dev/null 2>&1; then
+    rm -rf "$dir"
+    CLONE_WHY="the tags could not be copied into the clone"
+    return 1
+  fi
+  head=$(git -C "$dir" rev-parse --verify --quiet HEAD < /dev/null 2> /dev/null)
+  if [ "$head" != "$sha" ]; then
+    rm -rf "$dir"
+    CLONE_WHY="the clone's HEAD is not the cut commit"
+    return 1
+  fi
+  if [ -n "$web" ]; then
+    if ! type ensure_web_bundle > /dev/null 2>&1; then
+      rm -rf "$dir"
+      CLONE_WHY="the web dependencies cannot be installed here"
+      return 1
+    fi
+    out=$(cd "$dir" && ensure_web_bundle < /dev/null 2>&1)
+    if [ $? -ne 0 ]; then
+      rm -rf "$dir"
+      out=$(printf '%s\n' "$out" | tail -n 1)
+      CLONE_WHY=${out#FAIL }
+      return 1
+    fi
+  fi
+  return 0
+}
+
+# gh_repo <remote>: see the header.
+gh_repo() {
+  local url slug seam=${OCUTALON_RELEASE_GH_REPO:-}
+  url=$(git remote get-url "$1" < /dev/null 2> /dev/null) || url=""
+  url=${url%/}
+  url=${url%.git}
+  slug=$(printf '%s\n' "$url" | sed -n -E 's#^(https?://([^/@]*@)?|ssh://git@|git@)github\.com[:/]([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$#\3#p')
+  if [ -z "$slug" ]; then
+    case $url in
+      /* | ./* | ../* | file://*)
+        slug=$(printf '%s\n' "$seam" | sed -n -E 's#^([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)$#\1#p')
+        ;;
+    esac
+  fi
+  [ -n "$slug" ] || return 1
+  printf '%s\n' "$slug"
+}
+
+# ci_runs <repo> <sha> <event> <branch>: see the header.
+ci_runs() {
+  local json
+  command -v gh > /dev/null 2>&1 || return 127
+  json=$(gh run list --repo "$1" --branch "$4" --commit "$2" --event "$3" --limit 50 \
+    --json databaseId,workflowName,status,conclusion,headSha < /dev/null 2> /dev/null) || return $?
+  printf '%s' "$json" | node -e '
+    let s = "";
+    process.stdin.on("data", (d) => { s += d; });
+    process.stdin.on("end", () => {
+      let runs;
+      try { runs = JSON.parse(s); } catch (e) { process.exit(65); }
+      if (!Array.isArray(runs)) process.exit(65);
+      for (const r of runs) {
+        if (r.headSha !== process.argv[1]) continue;
+        const f = (v) => String(v == null ? "" : v).replace(/[\t\r\n]/g, " ");
+        console.log([f(r.databaseId), f(r.workflowName), f(r.status), f(r.conclusion)].join("\t"));
+      }
+    });' "$2" || return $?
 }
 
 # Sourced, it defines the functions and runs nothing.

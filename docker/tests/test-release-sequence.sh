@@ -61,6 +61,20 @@
 #   ipmnet    the step sends nothing out (no pull, push or login; a throwaway run has no network), and the scan of the scripts finds no
 #             IPM publish form, repository URL or pull
 #   ipmlib    the shared helpers: state folder, SHA-256, content digest (one value for two packagings), the artifact check
+#   stubs     (Story 11.14, AC2) the stubs step refuses an enabled production item whose class carries Parameter STUB = 1 (Enabled true, 1 or
+#             absent; inherited, continued Extends, quotes, a path with a space, the leftmost superclass) before the push question, and passes
+#             the real tree; a class under /Test/ is not scanned
+#   ci        (AC3) the ci step reads the push runs of the cut commit with gh run list (a shim): newest run of each workflow, green, pending,
+#             red, missing for 900 s, gh failing, gh missing, a remote that is not GitHub
+#   eval      (AC4) the evaluation result of the candidate: not run (the clone, once), pass, REL-5's override with a reason, and every fixture
+#             that fails
+#   upgrade   (AC6) the upgrade harness of the candidate (a stub), one phase per call under one tag; down always runs; 75 waits; tags
+#   rehearsal (AC7, DW-548) the rehearsal (a stub run that exits 4 three times, then 0): the same argv on every call; exits 2, 3, 1, other and 75
+#   checklist (AC8) the checklist after notes, in a fresh clone, with absolute paths; fail, not confirmed, refused
+#   handson   (AC8) the stop at the hands-on gate: the line, the row, the record; it never passes
+#   gates     (AC1, AC5) each gate that fails stops the sequence at it and no later gate runs; the options, variables and planted sections that
+#             do not override; the only override is REL-5's
+#   realgates (IA1 to IA4) the steps against the real checklist.sh, eval/run.sh --override with notes.sh, rehearse.sh and upgrade-harness.sh
 #   static    mode, ASCII, the main guard, the forbidden commands and push forms
 # Prints one PASS or FAIL line per rule; exits 0 only when all pass.
 set -u
@@ -94,6 +108,8 @@ export HOME=$tmp/home
 export XDG_STATE_HOME=$tmp/xdg-state XDG_CONFIG_HOME=$tmp/xdg-config
 export GIT_CONFIG_GLOBAL=$tmp/gitconfig GIT_CONFIG_NOSYSTEM=1
 export OCUTALON_TEST_SECRET=zz-planted-value
+export SHIM_REAL_NODE
+SHIM_REAL_NODE=$(command -v node)
 unset ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN OCUTALON_RELEASE_NOW IRIS_IMAGE
 mkdir -p "$HOME" "$tmp/bin"
 git config -f "$GIT_CONFIG_GLOBAL" user.name "Release Test"
@@ -170,6 +186,9 @@ exit 0
 EOF
   cat > "$tmp/bin/node" << 'EOF'
 #!/bin/sh
+case "$1" in
+  -e) exec "$SHIM_REAL_NODE" "$@" ;;
+esac
 echo "node $*" >> "$SHIMLOG/node.log"
 case "$1" in
   --version) echo v24.15.0; exit 0 ;;
@@ -394,10 +413,17 @@ exit 1
 EOF
   chmod 755 "$tmp/bin/npm" "$tmp/bin/node" "$tmp/bin/docker"
   mkdir -p "$tmp/netmarks"
-  for n in curl wget gh ssh nc; do
+  for n in curl wget ssh nc; do
     printf '#!/bin/sh\n: > "%s/netmarks/%s"\nexit 1\n' "$tmp" "$n" > "$tmp/bin/$n"
     chmod 755 "$tmp/bin/$n"
   done
+  # gh answers run list from a fixture file and logs its arguments; any other form reaches for the network and marks it
+  printf '%s\n' '#!/bin/sh' 'echo "$*" >> "$SHIMLOG/gh.log"' \
+    'if [ "$1" = run ] && [ "$2" = list ]; then' \
+    '  [ ! -f "$SHIMFLAGS/gh-fail" ] || exit "$(cat "$SHIMFLAGS/gh-fail")"' \
+    '  cat "$SHIMSTATE/gh-runs.json" 2> /dev/null || echo "[]"' '  exit 0' 'fi' \
+    ": > \"$tmp/netmarks/gh\"" 'exit 1' > "$tmp/bin/gh"
+  chmod 755 "$tmp/bin/gh"
 }
 
 # leanpath <tool>: a PATH of the essential commands and the shims, without the named tool.
@@ -501,6 +527,193 @@ set_stub() {
   EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
 }
 
+# gate_stub_text <upgrade|rehearse|checklist>: the text of a stub release/upgrade-harness.sh, release/rehearse.sh or release/checklist.sh of the candidate. It logs its
+# argv, run tag, folder, HEAD and lock folder in $SHIMLOG/<gate>.calls and writes its section into the record that it was given, from the files of
+# $SHIMFLAGS: upg-result, upg-mode, upg-required, upg-sha, upg-nosection, upg-exit-<phase>, upg-busy-<phase>, upg-line-<phase>; reh-phases (the calls
+# that exit 4, default 3), reh-result, reh-mode, reh-sha, reh-exit, reh-refuse, reh-busy, reh-nosection; ck-result, ck-sha, ck-exit, ck-refuse, ck-k, ck-later.
+gate_stub_text() {
+  case $1 in
+    upgrade)
+      cat << 'STUBEOF'
+#!/usr/bin/env bash
+set -u
+phase=${1:-}
+[ $# -eq 0 ] || shift
+f=${SHIMFLAGS:-/nonexistent}
+[ -z "${SHIMLOG:-}" ] || echo "$phase tag=${OCUTALON_RUN_TAG:-} dir=$(basename "$PWD") head=$(git rev-parse HEAD) lock=${OCUTALON_LOCK_DIR:-} args=$*" >> "$SHIMLOG/upgrade.calls"
+[ -n "${OCUTALON_RUN_TAG:-}" ] || { echo "REFUSED the phase needs OCUTALON_RUN_TAG"; exit 2; }
+[ ! -f "$f/upg-busy-$phase" ] || { echo "LOCK busy: stub"; exit 75; }
+case $phase in
+  build)
+    rec=""
+    while [ $# -gt 0 ]; do
+      case $1 in
+        --record) rec=$2; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    echo "$rec" > "$SHIMSTATE/upg.record"
+    ;;
+  report)
+    rec=$(cat "$SHIMSTATE/upg.record" 2> /dev/null)
+    if [ ! -f "$f/upg-nosection" ]; then
+      sec=$(mktemp)
+      {
+        echo "## Upgrade harness"
+        echo
+        echo "Result: $(cat "$f/upg-result" 2> /dev/null || echo pass)"
+        echo "Mode: $(cat "$f/upg-mode" 2> /dev/null || echo release)"
+        echo "Required: $(cat "$f/upg-required" 2> /dev/null || echo yes)"
+        echo "Candidate: 1.0.0 at $(cat "$f/upg-sha" 2> /dev/null || git rev-parse HEAD)"
+        echo "Previous: tag v0.9.0 at 0123456, version 0.9.0, built as 0.9.0"
+        echo
+      } > "$sec"
+      . ./release/lib-release.sh
+      record_write "$rec" "$sec"
+      rm -f "$sec"
+    fi
+    ;;
+esac
+echo "PHASE $phase done 0s (0 failed)"
+[ ! -f "$f/upg-line-$phase" ] || cat "$f/upg-line-$phase"
+code=0
+[ ! -f "$f/upg-exit-$phase" ] || code=$(cat "$f/upg-exit-$phase")
+exit "$code"
+STUBEOF
+      ;;
+    rehearse)
+      cat << 'STUBEOF'
+#!/usr/bin/env bash
+set -u
+cmd=${1:-}
+[ $# -eq 0 ] || shift
+f=${SHIMFLAGS:-/nonexistent}
+[ -z "${SHIMLOG:-}" ] || echo "$cmd tag=${OCUTALON_RUN_TAG:-} dir=$(basename "$PWD") head=$(git rev-parse HEAD) lock=${OCUTALON_LOCK_DIR:-} args=$*" >> "$SHIMLOG/rehearse.calls"
+case $cmd in
+  down)
+    rm -f "$SHIMSTATE/reh.n"
+    exit 0
+    ;;
+  run) ;;
+  *) echo "REFUSED unknown command"; exit 2 ;;
+esac
+[ -n "${OCUTALON_RUN_TAG:-}" ] || { echo "REFUSED run needs OCUTALON_RUN_TAG"; exit 2; }
+[ ! -f "$f/reh-busy" ] || { echo "LOCK busy: stub"; exit 75; }
+[ ! -f "$f/reh-refuse" ] || { echo "REFUSED $(cat "$f/reh-refuse")"; exit 2; }
+n=$(cat "$SHIMSTATE/reh.n" 2> /dev/null || echo 0)
+n=$((n + 1))
+echo "$n" > "$SHIMSTATE/reh.n"
+phases=$(cat "$f/reh-phases" 2> /dev/null || echo 3)
+if [ "$n" -le "$phases" ]; then
+  echo "PHASE step $n done"
+  echo "NEXT run: call $n of $phases is done, call again"
+  exit 4
+fi
+rm -f "$SHIMSTATE/reh.n"
+rec=""
+while [ $# -gt 0 ]; do
+  case $1 in
+    --record) rec=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+res=$(cat "$f/reh-result" 2> /dev/null || echo pass)
+if [ ! -f "$f/reh-nosection" ]; then
+  sec=$(mktemp)
+  {
+    echo "## Clean-machine rehearsal"
+    echo
+    echo "Result: $res"
+    echo "Mode: $(cat "$f/reh-mode" 2> /dev/null || echo rehearsal)"
+    echo "Candidate: 1.0.0 rc1, branch release/1.0.0-rc1 at $(cat "$f/reh-sha" 2> /dev/null || git rev-parse HEAD)"
+    echo
+    echo "| Step | Result | Detail |"
+    echo "| --- | --- | --- |"
+    echo "| demo path runs | $res | 20 of 20 runs passed |"
+    echo
+  } > "$sec"
+  . ./release/lib-release.sh
+  record_write "$rec" "$sec"
+  rm -f "$sec"
+fi
+if [ "$res" != pass ]; then echo "FAIL run 3 step incident bound notice: stub"; fi
+echo "RESULT $res"
+code=0
+[ ! -f "$f/reh-exit" ] || code=$(cat "$f/reh-exit")
+exit "$code"
+STUBEOF
+      ;;
+    checklist)
+      cat << 'STUBEOF'
+#!/usr/bin/env bash
+set -u
+f=${SHIMFLAGS:-/nonexistent}
+[ -z "${SHIMLOG:-}" ] || echo "run tag=${OCUTALON_RUN_TAG:-} dir=$(basename "$PWD") head=$(git rev-parse HEAD) lock=${OCUTALON_LOCK_DIR:-} args=$*" >> "$SHIMLOG/checklist.calls"
+[ ! -f "$f/ck-refuse" ] || { echo "REFUSED $(cat "$f/ck-refuse")"; exit 2; }
+rec=""
+notes=""
+while [ $# -gt 0 ]; do
+  case $1 in
+    --record) rec=$2; shift 2 ;;
+    --notes) notes=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+res=$(cat "$f/ck-result" 2> /dev/null || echo pass)
+sec=$(mktemp)
+{
+  echo "## Release checklist"
+  echo
+  echo "Result: $res"
+  echo "Candidate: 1.0.0 rc1 at $(cat "$f/ck-sha" 2> /dev/null || git rev-parse HEAD)"
+  echo "Notes: $notes"
+  echo
+} > "$sec"
+. ./release/lib-release.sh
+record_write "$rec" "$sec"
+rm -f "$sec"
+code=0
+case $res in
+  pass) [ ! -f "$f/ck-later" ] || echo "LATER registry-install add the line - registry-install: confirmed <date> after the version is published" ;;
+  fail)
+    echo "FAIL readme README.md:1 stub problem"
+    code=1
+    ;;
+  *)
+    k=$(cat "$f/ck-k" 2> /dev/null || echo 2)
+    i=0
+    while [ "$i" -lt "$k" ]; do
+      i=$((i + 1))
+      echo "CONFIRM row$i add the line - row$i: confirmed <date>"
+    done
+    code=1
+    ;;
+esac
+echo "RESULT $res"
+[ ! -f "$f/ck-exit" ] || code=$(cat "$f/ck-exit")
+exit "$code"
+STUBEOF
+      ;;
+  esac
+}
+
+# fixture_class <name> <stub 0|1|none> [<extends>]: the text of a class of the throwaway's src/fixture/cls/Fixture/.
+fixture_class() {
+  local cls="Fixture.$1"
+  if [ -n "${3:-}" ]; then printf 'Class %s Extends %s\n{\n' "$cls" "$3"; else printf 'Class %s Extends Ens.BusinessService\n{\n' "$cls"; fi
+  if [ "$2" != none ]; then printf '\nParameter STUB = %s;\n' "$2"; fi
+  printf '\n}\n'
+}
+
+# fixture_production <production name> <item line>...: the text of a production class with these items.
+fixture_production() {
+  local name=$1
+  shift
+  printf 'Class %s Extends Ens.Production\n{\n\nXData ProductionDefinition\n{\n<Production Name="%s" LogGeneralTraceEvents="false">\n' "$name" "$name"
+  printf '  %s\n' "$@"
+  printf '</Production>\n}\n\n}\n'
+}
+
 mkseed() {
   local s=$tmp/seed m
   mkdir -p "$s"
@@ -532,6 +745,25 @@ mkseed() {
       'if [ "${BASH_SOURCE[0]}" != "$0" ]; then . "$(dirname "${BASH_SOURCE[0]}")/iris-real.sh"; return 0; fi' \
       '[ -z "${SHIMLOG:-}" ] || echo "$* tag=${OCUTALON_RUN_TAG:-}" >> "$SHIMLOG/iris-calls.txt"' 'exit 0' > "$s/ci/iris.sh"
     chmod 755 "$s/ci/iris.sh"
+  fi
+  # The notes script of the working tree. The gate steps run release/upgrade-harness.sh, release/rehearse.sh and release/checklist.sh of the
+  # candidate: the seed holds stub scripts (the rules of the real ones copy them over, set_real), and eval/run.sh of the working tree for the
+  # override. The fixture productions are what the stubs step scans: an enabled item of a built class, a disabled item of a stub class, and a
+  # test production with an enabled stub, which is not scanned.
+  cp -p "$root/release/notes.sh" "$s/release/"
+  if [ "$live" -eq 0 ]; then
+    for m in upgrade-harness:upgrade rehearse:rehearse checklist:checklist; do
+      gate_stub_text "${m#*:}" > "$s/release/${m%%:*}.sh"
+      chmod 755 "$s/release/${m%%:*}.sh"
+    done
+    mkdir -p "$s/eval" "$s/src/fixture/cls/Fixture/Test"
+    cp -p "$root/eval/run.sh" "$s/eval/run.sh"
+    fixture_class Real none > "$s/src/fixture/cls/Fixture/Real.cls"
+    fixture_class Unbuilt 1 > "$s/src/fixture/cls/Fixture/Unbuilt.cls"
+    fixture_production Fixture.Production '<Item Name="Real" ClassName="Fixture.Real" PoolSize="1" Enabled="true"/>' \
+      '<Item Name="Later" ClassName="Fixture.Unbuilt" PoolSize="1" Enabled="false"/>' > "$s/src/fixture/cls/Fixture/Production.cls"
+    fixture_production Fixture.Test.Production '<Item Name="TestStub" ClassName="Fixture.Unbuilt" PoolSize="1" Enabled="true"/>' \
+      > "$s/src/fixture/cls/Fixture/Test/Production.cls"
   fi
   git init -q -b "$INTEG" "$s" || exit 1
   git -C "$s" add -A
@@ -566,12 +798,14 @@ newcase() {
   export OCUTALON_RELEASE_STATE=$C/state
   export SHIMLOG=$C/shim SHIMFLAGS=$C/flags SHIMSTATE=$C/shimstate
   unset OCUTALON_RELEASE_NOW OCUTALON_LOCK_WAIT OCUTALON_RELEASE_IPM_WAIT
+  export OCUTALON_RELEASE_GH_REPO=owner/repo
   if [ "$live" -eq 0 ]; then export OCUTALON_LOCK_DIR=$C/locks; fi
   RS_PATH=""
   EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
 }
 
 flag() { : > "$C/flags/$1"; }
+flagv() { printf '%s\n' "$2" > "$C/flags/$1"; }
 unflag() { rm -f "$C/flags/$1"; }
 
 clockfile() { # clockfile <seconds>...: the seam clock for the next runs
@@ -605,21 +839,101 @@ rec_file() { printf '%s\n' "$W/release/records/1.0.0/rc${1:-1}.md"; }
 cand() { git -C "$W" rev-parse --verify --quiet "refs/heads/release/1.0.0-rc${1:-1}" 2> /dev/null; }
 rhead() { git --git-dir="$R" rev-parse "refs/heads/$INTEG"; }
 
-# to_step <step>: runs the successful steps up to it (the kit and the push answered yes, the record question answered no).
+# --- the gates' fixtures ---
+
+# gh_runs <sha> <id:workflow:status:conclusion[:headSha]>...: the answer of the gh shim's run list (the sha of a run defaults to <sha>).
+gh_runs() {
+  local sha=$1 spec id wf st cc sh sep=""
+  shift
+  {
+    printf '['
+    for spec in "$@"; do
+      IFS=: read -r id wf st cc sh <<EOT
+$spec
+EOT
+      printf '%s{"databaseId":%s,"workflowName":"%s","status":"%s","conclusion":"%s","headSha":"%s"}' "$sep" "$id" "$wf" "$st" "$cc" "${sh:-$sha}"
+      sep=","
+    done
+    printf ']\n'
+  } > "$SHIMSTATE/gh-runs.json"
+}
+
+# gh_green: a successful ci run and a successful lane-a run on the candidate.
+gh_green() { gh_runs "$(cand "$(rc_under)")" 101:ci:completed:success 102:lane-a:completed:success; }
+
+# rc_under: the candidate number that run_steps works on: the last word of NEXT_ARGS, else 1.
+rc_under() {
+  local n=${NEXT_ARGS##* }
+  echo "${n:-1}"
+}
+
+# eval_fixture <verdict>: the evaluation result of the candidate in the evaluation clone's place, <state>/eval/eval/release-candidate.json. The
+# variables EV_FORMAT, EV_COMMIT, EV_MOCK, EV_CLEAN, EV_BY and EV_OVERRIDE (JSON) change one field.
+eval_fixture() {
+  local d=$OCUTALON_RELEASE_STATE/1.0.0-rc$(rc_under)/eval/eval
+  mkdir -p "$d"
+  printf '{"format":"%s","commit":"%s","branch":"release/1.0.0-rc1","treeClean":%s,"onMock":%s,"verdict":"%s","decidedBy":"%s","override":%s}\n' \
+    "${EV_FORMAT:-ocutalon.evalResult/1}" "${EV_COMMIT:-$(cand "$(rc_under)")}" "${EV_CLEAN:-true}" "${EV_MOCK:-false}" "$1" "${EV_BY:-attempt 1 met every target}" \
+    "${EV_OVERRIDE:-null}" > "$d/release-candidate.json"
+}
+
+# set_real <script>...: replaces the stub gate scripts (release/upgrade-harness.sh, release/rehearse.sh, release/checklist.sh, eval/run.sh) of the
+# case with the real ones of the working tree, commits them on the integration branch and pushes, before start.
+set_real() {
+  local f
+  for f in "$@"; do
+    mkdir -p "$W/$(dirname "$f")"
+    cp -p "$root/$f" "$W/$f"
+    git -C "$W" add "$f"
+  done
+  git -C "$W" commit -q -m "real gate scripts"
+  git -C "$W" push -q origin "$INTEG"
+  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+}
+
+# set_fixture <path> <text file>: puts the text at the path of the case, commits it on the integration branch and pushes, before start.
+set_fixture() {
+  mkdir -p "$W/$(dirname "$1")"
+  cp "$2" "$W/$1"
+  git -C "$W" add -f "$1"
+  git -C "$W" commit -q -m "fixture $1"
+  git -C "$W" push -q origin "$INTEG"
+  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+}
+
+NEXT_ARGS=""
+GATE_ORDER="cut stubs image overview ipm ipmcheck push ci eval upgrade rehearsal notes checklist hands-on"
+
+# prep_gate <step>: the green fixture that the step reads (the gate stubs pass without one).
+prep_gate() {
+  case $1 in
+    ci) gh_green ;;
+    eval) eval_fixture pass ;;
+  esac
+}
+
+# run_steps <from> <until>: runs the steps from <from> up to <until>, which is then the next step (the push answered yes, the record question
+# answered no, the gates green). A gate phase that is done names the same step again, and the step is called again.
+run_steps() {
+  local s n on=0
+  for s in $GATE_ORDER; do
+    [ "$s" != "$1" ] || on=1
+    [ "$on" -eq 1 ] || continue
+    [ "$s" != "$2" ] || return 0
+    prep_gate "$s"
+    n=0
+    while [ "$n" -lt 40 ]; do
+      n=$((n + 1))
+      if [ "$s" = push ]; then rs "$Y" next $NEXT_ARGS; else rs '' next $NEXT_ARGS; fi
+      printf '%s\n' "$out" | grep -qx "NEXT $s" || break
+    done
+  done
+}
+
+# to_step <step>: starts, and runs the successful steps up to it (the gates included).
 to_step() {
   rs "$Y" start --version 1.0.0
-  case $1 in cut) return 0 ;; esac
-  rs '' next
-  case $1 in image) return 0 ;; esac
-  rs '' next
-  case $1 in overview) return 0 ;; esac
-  rs '' next
-  case $1 in ipm) return 0 ;; esac
-  rs '' next
-  case $1 in ipmcheck) return 0 ;; esac
-  rs '' next
-  case $1 in push) return 0 ;; esac
-  rs "$Y" next
+  run_steps cut "$1"
 }
 
 # --- libs ---
@@ -650,6 +964,14 @@ t_libs() {
   eq "release_tags of the local repository alone" "$(release_tags | tr '\n' ' ')" "v0.9.0 v1.0.0 "
   release_tags "$tmp/does-not-exist" > /dev/null
   eq "release_tags with an unreachable remote returns 1" "$?" "1"
+  printf '# T\n\n## One\nResult: pass\nCandidate: 1.0.0 at abc\nNote: a: b\n\n## Two\nResult: fail\n# Three\nResult: x\n' > "$C/f.md"
+  eq "record_section reads one section to the next heading" "$(record_section "$C/f.md" "## One" | tr '\n' '|')" "## One|Result: pass|Candidate: 1.0.0 at abc|Note: a: b||"
+  eq "record_section stops at a heading of level one" "$(record_section "$C/f.md" "## Two" | tr '\n' '|')" "## Two|Result: fail|"
+  eq "record_field reads the first such line" "$(record_field "$C/f.md" "## One" Result)" "pass"
+  eq "record_field keeps the colons of the value" "$(record_field "$C/f.md" "## One" Note)" "a: b"
+  eq "record_field stays in its section" "$(record_field "$C/f.md" "## Two" Candidate)" ""
+  eq "record_field of a missing section" "$(record_field "$C/f.md" "## Four" Result)" ""
+  eq "record_field of a missing file" "$(record_field "$C/none.md" "## One" Result)" ""
   cd "$root" || return
 }
 
@@ -788,7 +1110,7 @@ t_cut() {
   rs '' next
   eq "cut: exit" "$rc" 0
   has "cut: the line" "$out" "PASS cut "
-  has "cut: the next step" "$out" "NEXT image"
+  has "cut: the next step" "$out" "NEXT stubs"
   c=$(cand)
   [ -n "$c" ] || {
     echo "  cut: no candidate branch"
@@ -954,6 +1276,7 @@ t_recut() {
   rs "$N" next --version 1.0.0 --rc 2
   rs "$N" next --version 1.0.0 --rc 2
   rs "$N" next --version 1.0.0 --rc 2
+  rs "$N" next --version 1.0.0 --rc 2
   has "rc2: the record's Candidate" "$(cat "$(rec_file 2)")" "Candidate: 1.0.0 rc2, release/1.0.0-rc2 at $c2"
   has "rc2: the record's Cut from" "$(cat "$(rec_file 2)")" "Cut from: release/1.0.0-rc1 at $RC1, then $FIX1 $FIX2 cherry-picked from $INTEG"
   # a pick that is not on the integration branch
@@ -1092,18 +1415,12 @@ t_push() {
   # a full run that answers yes to every question
   newcase
   before=$(git --git-dir="$R" for-each-ref --format='%(objectname) %(refname)')
-  rs "$Y" start --version 1.0.0
   # the author's own tag and branch, which no push may carry along
   git -C "$W" tag note-to-self
   git -C "$W" branch scratch-branch
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
+  to_step hands-on
   rs "$Y" next
-  rs "$Y" next
-  eq "full run: the last exit" "$rc" 0
+  eq "full run: the last exit" "$rc" 4
   has "full run: the record was pushed" "$out" "PASS record pushed"
   has "full run: the result" "$out" "RESULT stopped"
   after=$(git --git-dir="$R" for-each-ref --format='%(objectname) %(refname)')
@@ -1122,6 +1439,7 @@ t_record() {
   newcase
   rs "$Y" start --version 1.0.0
   rs '' next
+  rs '' next
   git -C "$W" checkout -q -b elsewhere
   flag lie
   rs "$N" next
@@ -1133,6 +1451,7 @@ t_record() {
   # the author's own commit on the integration branch is never offered for a push
   newcase
   rs "$Y" start --version 1.0.0
+  rs '' next
   rs '' next
   echo "own work" > "$W/own.txt"
   git -C "$W" add own.txt
@@ -1146,6 +1465,7 @@ t_record() {
   for c in draft empty merge; do
     newcase
     rs "$Y" start --version 1.0.0
+    rs '' next
     rs '' next
     if [ "$c" = draft ]; then
       mkdir -p "$W/release/records/1.0.0"
@@ -1171,6 +1491,7 @@ t_record() {
   done
   newcase
   rs "$Y" start --version 1.0.0
+  rs '' next
   rs '' next
   c=$(cand)
   # work in progress of the author's: an unstaged change, a staged file, and a draft
@@ -1229,6 +1550,7 @@ t_record() {
   # the record push: yes pushes the record commit only
   rs "$Y" next
   has "push yes" "$out" "PASS push release/1.0.0-rc1"
+  run_steps ci hands-on
   rs "$Y" next
   has "record yes: pushed" "$out" "PASS record pushed"
   has "pushed record row" "$(cat "$(rec_file)")" "| record | pushed | committed to $INTEG and pushed on the author's word |"
@@ -1244,22 +1566,24 @@ t_record() {
   git -C "$C/o" add theirs.txt
   git -C "$C/o" commit -q -m "someone else"
   git -C "$C/o" push -q origin "$INTEG"
+  run_steps ci hands-on
   rs "$Y" next
-  eq "a moved branch: exit" "$rc" 1
+  eq "a moved branch: exit" "$rc" 4
   has "a moved branch: the line" "$out" "FAIL record not pushed: $INTEG moved on origin; bring the checkout up to date and run release.sh resume"
   has "a moved branch: the row" "$(cat "$(rec_file)")" "| record | not pushed | not pushed: $INTEG moved on origin |"
   eq "a moved branch: the remote is as the other clone left it" "$(rhead)" "$(git -C "$C/o" rev-parse HEAD)"
   git -C "$W" pull -q --rebase origin "$INTEG" > /dev/null 2>&1
   rs "$Y" resume
-  eq "resume after the update: exit" "$rc" 0
+  eq "resume after the update: exit" "$rc" 4
   has "resume after the update: pushed" "$out" "PASS record pushed"
   eq "resume after the update: the remote holds the local head" "$(rhead)" "$(git -C "$W" rev-parse HEAD)"
   rs '' next --version 1.0.0 --rc 1
-  has "nothing is left" "$out" "DONE every step of 1.0.0 rc1 has run"
-  eq "nothing is left: exit" "$rc" 0
+  has "the hands-on stop is not left behind" "$out" "STOPPED hands-on every automated gate passed"
+  eq "the hands-on stop is not left behind: exit" "$rc" 4
   # a record outside the checkout is written and not committed
   newcase
   rs "$Y" start --version 1.0.0 --record "$C/outside.md"
+  rs '' next
   rs '' next
   flag lie
   rs '' next
@@ -1276,30 +1600,23 @@ t_record() {
 
 t_hands() {
   newcase
-  clockfile 1000 1100 2000 2060 3000 3041
+  # the questions read the clock (kit, push, record) and so does the ci step's first check, which the third value pair skips
+  clockfile 1000 1100 2000 2060 2070 3000 3041
   rs "$Y" start --version 1.0.0
   eq "kit window: the state" "$(sed -n 's/^handson=//p' "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env")" 100
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs "$Y" next
+  run_steps cut hands-on
   rs "$Y" next
   has "the sum of the windows" "$(cat "$(rec_file)")" "Hands-on time: 3 min 21 s for this candidate; 3 min 21 s for 1.0.0 so far (target at most 15 min; CI and the hands-on pass not counted)"
   lacks "no warning" "$out" "WARN hands-on"
   eq "the status" "$(cd "$W" && PATH="$PATH" "$BASH" release/release.sh status --version 1.0.0 --rc 1 | grep '^Hands-on')" "Hands-on time: 3 min 21 s for this candidate; 3 min 21 s for 1.0.0 so far (target at most 15 min; CI and the hands-on pass not counted)"
   # a second candidate adds to the version's sum
-  clockfile 4000 4030 5000 5020 6000 6010
+  clockfile 4000 4030 5000 5020 5030 6000 6010
   rs "$Y" start --version 1.0.0
   has "rc2" "$out" "START 1.0.0 rc2 "
-  rs '' next --version 1.0.0 --rc 2
-  rs '' next --version 1.0.0 --rc 2
-  rs '' next --version 1.0.0 --rc 2
-  rs '' next --version 1.0.0 --rc 2
-  rs '' next --version 1.0.0 --rc 2
+  NEXT_ARGS="--version 1.0.0 --rc 2"
+  run_steps cut hands-on
   rs "$Y" next --version 1.0.0 --rc 2
-  rs "$Y" next --version 1.0.0 --rc 2
+  NEXT_ARGS=""
   has "this candidate and the version" "$(cat "$(rec_file 2)")" "Hands-on time: 1 min 0 s for this candidate; 4 min 21 s for 1.0.0 so far (target"
   # 900 s is the target; 901 s is over it
   newcase
@@ -1336,15 +1653,10 @@ t_hands() {
   newcase
   clockfile 10 20 30 40 50 60 70 80 90
   rs "$Y" start --version 1.0.0
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs "$Y" next
+  run_steps cut hands-on
   rs "$Y" next
   has "only the question windows count" "$(cat "$(rec_file)")" "Hands-on time: 30 s for this candidate; 30 s for 1.0.0 so far"
-  eq "the seam file has lines left" "$(wc -l < "$C/now" | tr -d ' ')" 3
+  eq "the seam file has lines left" "$(wc -l < "$C/now" | tr -d ' ')" 2
 }
 
 # --- resume ---
@@ -1352,12 +1664,7 @@ t_hands() {
 t_resume() {
   local before after
   newcase
-  rs "$Y" start --version 1.0.0
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
+  to_step push
   rs "$N" next
   eq "stopped at push" "$rc" 4
   rs '' status
@@ -1376,13 +1683,16 @@ t_resume() {
   eq "a finished step is not repeated: one build" "$(grep -c '^build' "$SHIMLOG/docker.log")" 1
   eq "a finished step is not repeated: one npm ci" "$(grep -c ' ci' "$SHIMLOG/npm.log")" 1
   eq "a finished step is not repeated: one candidate" "$(git -C "$W" for-each-ref 'refs/heads/release/*' | wc -l | tr -d ' ')" 1
+  run_steps ci hands-on
   rs "$Y" next
-  has "notes ran" "$out" "PASS notes RESULT "
-  eq "the end: exit" "$rc" 0
+  has "the hands-on gate stops" "$out" "STOPPED hands-on every automated gate passed"
+  eq "the hands-on gate stops: exit" "$rc" 4
+  has "notes ran" "$(cat "$(rec_file)")" "| notes | "
   rs '' status
-  has "status at the end" "$out" "STATE 1.0.0 rc1 next done"
+  has "status at the hands-on gate" "$out" "STATE 1.0.0 rc1 next hands-on"
   rs '' next
-  has "nothing is run again" "$out" "DONE every step of 1.0.0 rc1 has run"
+  has "the hands-on gate stops again" "$out" "STOPPED hands-on every automated gate passed"
+  eq "the hands-on gate stops again: exit" "$rc" 4
   eq "still one build" "$(grep -c '^build' "$SHIMLOG/docker.log")" 1
   # two waiting sequences need a name
   newcase
@@ -1412,17 +1722,29 @@ t_resume() {
 
 # --- notes ---
 
-# notes_stub <exit> <result>: a throwaway whose notes.sh prints <result> (nothing when empty) and exits <exit>; runs the push and notes steps.
+# notes_stub <exit> <result>: a throwaway whose notes.sh prints <result> (nothing when empty) and exits <exit>; runs the steps up to notes and the notes step.
 notes_stub() {
   newcase
-  to_step push
+  to_step notes
   printf '#!/bin/sh\n' > "$W/release/notes.sh"
   if [ -n "$2" ]; then
     printf 'echo "NOTES release/records/1.0.0/rc1-notes.md"\necho "RESULT %s"\n' "$2" >> "$W/release/notes.sh"
   fi
   printf 'exit %s\n' "$1" >> "$W/release/notes.sh"
-  rs "$Y" next
   rs "$N" next
+  notes_to_stop
+}
+
+# notes_to_stop: after a notes step that passed, runs the later steps to the hands-on stop, so that the record is written; out and rc stay the notes step's.
+notes_to_stop() {
+  local n_out n_rc
+  [ "$rc" -eq 0 ] || return 0
+  n_out=$out
+  n_rc=$rc
+  run_steps checklist hands-on
+  rs "$N" next
+  out=$n_out
+  rc=$n_rc
 }
 
 t_notes() {
@@ -1440,9 +1762,9 @@ t_notes() {
   eq "no result: exit" "$rc" 1
   has "no result: the line" "$out" "FAIL notes release/notes.sh printed no RESULT"
   newcase
-  to_step push
-  rs "$Y" next
+  to_step notes
   rs "$N" next
+  notes_to_stop
   n=release/records/1.0.0/rc1-notes.md
   res=$(printf '%s\n' "$out" | sed -n 's/^PASS notes RESULT \([a-z ]*\) NOTES .*/\1/p')
   case $res in
@@ -1453,7 +1775,7 @@ t_notes() {
       ;;
   esac
   has "the notes line carries the draft's path" "$out" "NOTES $n"
-  alone=$(cd "$W" && "$BASH" release/notes.sh --version 1.0.0 --rc 1 --candidate release/1.0.0-rc1 --record release/records/1.0.0/rc1.md --notes "$C/alone.md" | sed -n 's/^RESULT //p')
+  alone=$(cd "$W" && "$BASH" release/notes.sh --version 1.0.0 --rc 1 --candidate release/1.0.0-rc1 --record release/records/1.0.0/rc1.md --eval "$OCUTALON_RELEASE_STATE/1.0.0-rc1/release-candidate.json" --notes "$C/alone.md" | sed -n 's/^RESULT //p')
   eq "the same result as the script alone" "$res" "$alone"
   has "the row carries the result and the path" "$(cat "$(rec_file)")" "| notes | $res | release/notes.sh: RESULT $res; draft $n (not committed) |"
   eq "the draft exists" "$([ -f "$W/$n" ] && echo yes)" yes
@@ -1462,10 +1784,9 @@ t_notes() {
   eq "the draft is not on the remote" "$(git --git-dir="$R" log --all --format=%H -- "$n")" ""
   # a draft that exists is a refusal: the step fails, the draft is kept
   newcase
-  to_step push
+  to_step notes
   mkdir -p "$W/release/records/1.0.0"
   echo "keep me" > "$W/$n"
-  rs "$Y" next
   rs "$N" next
   eq "an existing draft: exit" "$rc" 1
   has "an existing draft: the line" "$out" "FAIL notes release/notes.sh refused: "
@@ -1478,13 +1799,7 @@ t_notes() {
 t_gate() {
   local before after cl
   newcase
-  rs "$Y" start --version 1.0.0
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs "$Y" next
+  to_step hands-on
   # another gate's section is already in the record when the sequence writes its own
   mkdir -p "$W/release/records/1.0.0"
   printf '# OcuTalon 1.0.0 rc1\n\n## Clean-machine rehearsal\nResult: not run\nMode: dry run\n' > "$(rec_file)"
@@ -1495,6 +1810,7 @@ Mode: dry run"
   before=$(awk '/^## Release sequence/ { f = 1; print; next } f && /^## / { exit } f { print }' "$(rec_file)")
   git clone -q "$R" "$C/h" || exit 1
   git -C "$C/h" checkout -q release/1.0.0-rc1
+  cp -p "$root/release/upgrade-harness.sh" "$C/h/release/upgrade-harness.sh"
   cl=$(cd "$C/h" && PATH="$PATH" "$BASH" release/upgrade-harness.sh plan --version 1.0.0 --rc 1 --previous "$EXPECT_BASE" --record "$(rec_file)" 2>&1)
   eq "the harness accepts the candidate: exit" "$?" 0
   has "the harness read the stamped version" "$cl" "PLAN candidate 1.0.0 at $(cand)"
@@ -1503,7 +1819,16 @@ Mode: dry run"
   eq "the release sequence section is byte for byte" "$after" "$before"
   rs '' status --version 1.0.0 --rc 1
   eq "status still reads the record: exit" "$rc" 0
-  has "status still reads the record" "$out" "Result: stopped after notes: no gate has run (not a release)"
+  has "status still reads the record" "$out" "Result: stopped at hands-on: every automated gate passed; no hands-on pass is recorded (not a release)"
+  # the end of the steps (unreachable while hands-on stops every run): the state's next is done
+  (
+    . "$root/release/lib-release.sh"
+    env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" next done
+    env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" rec_pushed 0
+  )
+  rs "$N" next --version 1.0.0 --rc 1
+  eq "the end: exit" "$rc" 0
+  has "the end: the record's result" "$(cat "$(rec_file)")" "Result: stopped after hands-on: no step after the gates has run (not a release)"
 }
 
 # --- secret ---
@@ -1531,13 +1856,7 @@ t_secret() {
   local d f hits plant p
   newcase
   printf '' > "$tmp/alloutput"
-  rs "$Y" start --version 1.0.0
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs "$Y" next
+  to_step hands-on
   rs "$Y" next
   rs '' status
   eq "the full run ended well" "$rc" 0
@@ -1646,7 +1965,7 @@ t_word() {
   has "environment answers, push: the line" "$out" "STOPPED push waiting for the author's word"
   eq "environment answers, push: the remote is unchanged" "$(git --git-dir="$R" for-each-ref --format='%(objectname) %(refname)')" "$before"
   # the script reads one line from standard input, and from nothing else
-  eq "one read command, from standard input" "$(grep -v '^[[:space:]]*#' "$root/release/release.sh" | grep -E '(^|[^[:alnum:]_])read[[:space:]]' | sed 's/^[[:space:]]*//')" 'if ! IFS= read -r line && [ -z "$line" ]; then'
+  eq "one read command, from standard input" "$(grep -v '^[[:space:]]*#' "$root/release/release.sh" | grep -E '(^[[:space:]]*|[;&|(][[:space:]]*|(if|then|do|while)[[:space:]]+(![[:space:]]+)?|IFS=[[:space:]]*)read[[:space:]]' | sed 's/^[[:space:]]*//')" 'if ! IFS= read -r line && [ -z "$line" ]; then'
   eq "no terminal device and no pre-answer file" "$(grep -v '^[[:space:]]*#' "$root/release/release.sh" | grep -cE '/dev/tty|/dev/fd|--yes|assume|ANSWER')" 0
 }
 
@@ -1662,15 +1981,9 @@ t_pushes() {
   chmod 755 "$shimdir/git"
   RS_PATH="$shimdir:$PATH"
   git -C "$W" tag note-to-self
-  rs "$Y" start --version 1.0.0
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
+  to_step hands-on
   rs "$Y" next
-  rs "$Y" next
-  eq "two pushes: the last exit" "$rc" 0
+  eq "two pushes: the last exit" "$rc" 4
   log=$(cat "$SHIMLOG/git.log")
   pushes=$(printf '%s\n' "$log" | grep -E '(^| )push( |$)')
   head=$(git -C "$W" rev-parse HEAD)
@@ -1700,12 +2013,7 @@ t_pushes() {
   mkdir -p "$C/gitshim"
   cp "$shimdir/git" "$C/gitshim/git"
   RS_PATH="$C/gitshim:$PATH"
-  rs "$Y" start --version 1.0.0
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
+  to_step push
   rs "$N" next
   rs '' next
   eq "declined and unanswered words: no push" "$(grep -cE '(^| )push( |$)' "$SHIMLOG/git.log")" 0
@@ -2468,8 +2776,9 @@ t_ipm() {
   eq "ipm: the step does not run again" "$(count_runs)" 1
   rs "$Y" next
   has "ipm: push" "$out" "PASS push release/1.0.0-rc1"
+  run_steps ci hands-on
   rs "$Y" next
-  has "ipm: the real notes step ran" "$out" "PASS notes RESULT "
+  has "ipm: the real notes step ran" "$(cat "$(rec_file)")" "| notes | "
   has "ipm: the record was pushed" "$out" "PASS record pushed"
   eq "ipm: the section is byte for byte after the notes step and the stop routine" "$(sect "$(rec_file)" "## IPM artifact")" "$(ipm_expect "$c" "$bytes" "$sha" "$cdig" 3 USER)"
   eq "ipm: the committed record holds the section" "$(git -C "$W" show "HEAD:release/records/1.0.0/rc1.md" | awk '$0 == "## IPM artifact" { f = 1; print; next } f && /^## / { exit } f { print }')" "$(sect "$(rec_file)" "## IPM artifact")"
@@ -2693,12 +3002,7 @@ t_ipmnet() {
   . "$root/release/lib-release.sh"
   newcase
   printf '' > "$tmp/alloutput"
-  rs "$Y" start --version 1.0.0
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
-  rs '' next
+  to_step push
   rs "$N" next
   eq "net: the full run stops at the push question" "$rc" 4
   has "net: the throwaway ran" "$(cat "$SHIMLOG/docker.log")" "run -d --pull never --network none --name "
@@ -2883,7 +3187,14 @@ t_static() {
   }
   eq "the overview step makes no ASK" "$(awk '/^step_overview\(\)/ { f = 1 } /^# --- the ipm step/ { f = 0 } f' "$root/release/release.sh" | grep -c 'ask ')" 0
   eq "lib-release.sh: bash -n" "$(bash -n "$root/release/lib-release.sh" 2>&1)" ""
-  eq "the steps, in order" "$(sed -n 's/^STEPS="\(.*\)"$/\1/p' "$root/release/release.sh")" "cut image overview ipm ipmcheck push notes"
+  eq "the steps, in order" "$(sed -n 's/^STEPS="\(.*\)"$/\1/p' "$root/release/release.sh")" "cut stubs image overview ipm ipmcheck push ci eval upgrade rehearsal notes checklist hands-on"
+  eq "the gate steps make no ASK" "$(awk '/^# --- the gates \(Story 11.14\) ---/ { f = 1 } /^# --- commands ---/ { f = 0 } f' "$root/release/release.sh" | grep -v '^[[:space:]]*#' | grep -c 'ask ')" 0
+  eq "step_upgrade's phase list is cmd_run's, then report" "$(sed -n 's/^UPGRADE_PHASES="\(.*\)"$/\1/p' "$root/release/release.sh")" "build $(awk '/^cmd_run\(\)/ { f = 1 } f && /^  for ph in / { sub(/^  for ph in /, ""); sub(/; do$/, ""); print; exit }' "$root/release/upgrade-harness.sh") report"
+  eq "CI_WORKFLOWS are the names of the workflows ci and lane-a" "$(sed -n 's/^CI_WORKFLOWS="\(.*\)"$/\1/p' "$root/release/release.sh")" "$(sed -n 's/^name: *//p' "$root/.github/workflows/ci.yml" "$root/.github/workflows/lane-a.yml" | tr '\n' ' ' | sed 's/ $//')"
+  eq "gh is called as gh run list only" "$(grep -hv '^[[:space:]]*#' "$root/release/release.sh" "$root/release/lib-release.sh" | grep -E '(^|[;&|(]|[$][(])[[:space:]]*gh[[:space:]]' | grep -vc 'gh run list')" 0
+  eq "gh run list is called once" "$(grep -hv '^[[:space:]]*#' "$root/release/release.sh" "$root/release/lib-release.sh" | grep -cE '(^|[;&|(]|[$][(])[[:space:]]*gh[[:space:]]+run list')" 1
+  eq "the release scripts do not depend on _bmad" "$(grep -c '_bmad' "$root/release/release.sh" "$root/release/lib-release.sh" | tr '\n' ' ')" "$root/release/release.sh:0 $root/release/lib-release.sh:0 "
+  eq "no gate step names the model key" "$(grep -c 'ANTHROPIC_API_KEY' "$root/release/release.sh")" 0
   eq "the ipm step makes no ASK" "$(awk '/^step_ipm\(\)/ { f = 1 } /^step_ipmcheck\(\)/ { f = 0 } f' "$root/release/release.sh" | grep -c 'ask ')" 0
   eq "the ipmcheck step makes no ASK" "$(awk '/^step_ipmcheck\(\)/ { f = 1 } /^step_push\(\)/ { f = 0 } f' "$root/release/release.sh" | grep -c 'ask ')" 0
   eq "lib-release.sh: ASCII only" "$(LC_ALL=C grep -n '[^[:print:][:space:]]' "$root/release/lib-release.sh" | cut -d: -f1 | tr '\n' ' ')" ""
@@ -2936,6 +3247,860 @@ t_static() {
   eq "(QA) the Memory area is in lane-a" "$("$BASH" -c ". '$root/ci/units.sh'; shard_areas lane-a" | tr ' ' '\n' | grep -cx 'Memory')" 1
   eq "the notes step never replaces a draft" "$(grep -c -e '--replace' "$root/release/release.sh")" 0
   eq "no outward form in the script" "$(grep -nE 'gh[ ]release|gh[ ]repo[ ]edit|--visib[i]lity' "$root/release/release.sh" | wc -l | tr -d ' ')" 0
+}
+
+# --- the gates (Story 11.14) ---
+
+calls() { cat "$SHIMLOG/$1.calls" 2> /dev/null; }
+# seq_written: whether the record holds the sequence's section, which only a stop writes (the gates' own sections may be there).
+seq_written() { if [ -f "$(rec_file)" ] && grep -q '^## Release sequence' "$(rec_file)"; then echo yes; else echo no; fi; }
+ncalls() { calls "$1" | grep -c .; }
+sdir1() { printf '%s\n' "$OCUTALON_RELEASE_STATE/1.0.0-rc${1:-1}"; }
+row_of() { awk -F'\t' -v s="$1" '$1 == s { print $2 ": " $3 }' "$(sdir1)/rows.tsv"; }
+remote_refs() { git --git-dir="$R" for-each-ref --format='%(objectname) %(refname)'; }
+
+# t_stubs: AC2. The stubs step refuses an enabled production item whose class carries Parameter STUB = 1, before the push question.
+t_stubs() {
+  local form st before pr
+  # the real tree passes (no product class has STUB = 1), and the scan reads the counts
+  pr=$(. "$root/release/lib-release.sh"; production_stubs "$root")
+  st=$?
+  eq "the real tree: status" "$st" 0
+  has "the real tree: the counts" "$pr" "COUNTS|"
+  lacks "the real tree: no stub is found" "$pr" "FOUND|"
+  eq "the real tree: no stub item" "$(printf '%s\n' "$pr" | sed -n 's/^COUNTS|[0-9]*|[0-9]*|\([0-9]*\)|\([0-9]*\)$/\1 \2/p')" "0 0"
+  # a tree with no production class cannot be read
+  mkdir -p "$tmp/emptytree/src"
+  pr=$(. "$root/release/lib-release.sh"; production_stubs "$tmp/emptytree")
+  st=$?
+  eq "no class at all: status 3" "$st" 3
+  eq "no class at all: the counts line" "$pr" "COUNTS|0|0|0|0"
+  # the seed: an enabled item of a built class, a disabled item of a stub class, and a test production with an enabled stub (not scanned)
+  newcase
+  to_step stubs
+  rs '' next
+  eq "pass: exit" "$rc" 0
+  has "pass: the line" "$out" 'PASS stubs no enabled item answers "not implemented" (1 enabled items in 1 productions)'
+  has "pass: the next step" "$out" "NEXT image"
+  eq "pass: the row" "$(row_of stubs)" 'pass: no enabled item answers "not implemented" (1 enabled items in 1 productions)'
+  # the three forms of an enabled item: Enabled true, Enabled 1, no Enabled
+  for form in 'Enabled="true"' 'Enabled="1"' ''; do
+    newcase
+    fixture_production Fixture.Production '<Item Name="Real" ClassName="Fixture.Real" PoolSize="1" Enabled="true"/>' \
+      "<Item Name=\"Later\" ClassName=\"Fixture.Unbuilt\" PoolSize=\"1\" $form/>" > "$C/p.cls"
+    set_fixture src/fixture/cls/Fixture/Production.cls "$C/p.cls"
+    before=$(remote_refs)
+    to_step stubs
+    rs "$N" next
+    eq "form '$form': exit" "$rc" 1
+    has "form '$form': the line" "$out" 'FAIL stubs Fixture.Production:Later (Fixture.Unbuilt) answers "not implemented"; disable it in its production, or build it, and cut the next candidate'
+    lacks "form '$form': no push question" "$out" "ASK push"
+    eq "form '$form': the remote is unchanged" "$(remote_refs)" "$before"
+    has "form '$form': the record" "$(cat "$(rec_file)")" 'Result: failed at stubs: Fixture.Production:Later (Fixture.Unbuilt) answers "not implemented"'
+    has "form '$form': the row" "$(cat "$(rec_file)")" "| stubs | fail | Fixture.Production:Later (Fixture.Unbuilt)"
+    lacks "form '$form': no step after it" "$(cat "$(rec_file)")" "| image |"
+    rs "$N" next
+    has "form '$form': the next call runs stubs again" "$out" "FAIL stubs Fixture.Production:Later"
+  done
+  # the reviewed forms: an inherited stub, a class's own STUB = 0, a continued Extends, quotes, a path with a space, the leftmost superclass
+  newcase
+  fixture_class Child none Fixture.Unbuilt > "$C/c1.cls"
+  set_fixture src/fixture/cls/Fixture/Child.cls "$C/c1.cls"
+  fixture_class Own0 0 Fixture.Unbuilt > "$C/c2.cls"
+  set_fixture src/fixture/cls/Fixture/Own0.cls "$C/c2.cls"
+  printf 'Class Fixture.Multi Extends (Ens.BusinessService,\n    Fixture.Unbuilt) [ ProcedureBlock ]\n{\n}\n' > "$C/c3.cls"
+  set_fixture src/fixture/cls/Fixture/Multi.cls "$C/c3.cls"
+  fixture_class Spaced 1 > "$C/c4.cls"
+  set_fixture "src/fixture/cls/Fixture/With Space.cls" "$C/c4.cls"
+  fixture_class Zero 0 > "$C/c5.cls"
+  set_fixture src/fixture/cls/Fixture/Zero.cls "$C/c5.cls"
+  fixture_class Left0 none "(Fixture.Zero, Fixture.Unbuilt)" > "$C/c6.cls"
+  set_fixture src/fixture/cls/Fixture/Left0.cls "$C/c6.cls"
+  fixture_class Both none "(Fixture.Real, Fixture.Unbuilt)" > "$C/c7.cls"
+  set_fixture src/fixture/cls/Fixture/Both.cls "$C/c7.cls"
+  printf 'Class Fixture.Tail Extends Ens.BusinessService\n{\n\nParameter STUB = 1; // not built\n\n}\n' > "$C/c8.cls"
+  set_fixture src/fixture/cls/Fixture/Tail.cls "$C/c8.cls"
+  printf 'Class Fixture.Keyed Extends Ens.BusinessService\n{\n\nParameter STUB As %%Boolean [ Internal ] = 1;\n\n}\n' > "$C/c9.cls"
+  set_fixture src/fixture/cls/Fixture/Keyed.cls "$C/c9.cls"
+  printf 'Class Fixture.Indented Extends Ens.BusinessService\n{\n\n    Parameter STUB = 1;\n\n}\n' > "$C/c10.cls"
+  set_fixture src/fixture/cls/Fixture/Indented.cls "$C/c10.cls"
+  fixture_production Fixture.Production '<Item Name="Real" ClassName="Fixture.Real" PoolSize="1" Enabled="true"/>' \
+    '<Item Name="TailComment" ClassName="Fixture.Tail" Enabled="true"/>' \
+    '<Item Name="Keyworded" ClassName="Fixture.Keyed" Enabled="true"/>' \
+    '<Item Name="IndentedLine" ClassName="Fixture.Indented" Enabled="true"/>' \
+    '<Item Name="Inherited" ClassName="Fixture.Child" Enabled="true"/>' \
+    '<Item Name="OwnZero" ClassName="Fixture.Own0" Enabled="true"/>' \
+    '<Item Name="Continued" ClassName="Fixture.Multi" Enabled="true"/>' \
+    "<Item Name='Quoted' ClassName='Fixture.Unbuilt' Enabled='true'/>" \
+    '<Item Name="Spaced" ClassName="Fixture.Spaced"/>' \
+    '<Item Name="Leftmost" ClassName="Fixture.Left0" Enabled="true"/>' \
+    '<Item Name="Second" ClassName="Fixture.Both" Enabled="true"/>' \
+    '<Item Name="Off" ClassName="Fixture.Unbuilt" Enabled="false"/>' \
+    '<Item Name="Zero" ClassName="Fixture.Unbuilt" Enabled="0"/>' \
+    '<!-- <Item Name="Commented" ClassName="Fixture.Unbuilt"/> -->' > "$C/p.cls"
+  set_fixture src/fixture/cls/Fixture/Production.cls "$C/p.cls"
+  to_step stubs
+  rs "$N" next
+  eq "forms: exit" "$rc" 1
+  has "forms: an inherited stub" "$out" "FAIL stubs Fixture.Production:Inherited (Fixture.Child) answers"
+  has "forms: a trailing comment on the Parameter line" "$out" "FAIL stubs Fixture.Production:TailComment (Fixture.Tail) answers"
+  has "forms: a Parameter line with keywords" "$out" "FAIL stubs Fixture.Production:Keyworded (Fixture.Keyed) answers"
+  has "forms: an indented Parameter line" "$out" "FAIL stubs Fixture.Production:IndentedLine (Fixture.Indented) answers"
+  has "forms: a continued Extends" "$out" "FAIL stubs Fixture.Production:Continued (Fixture.Multi) answers"
+  has "forms: single quotes" "$out" "FAIL stubs Fixture.Production:Quoted (Fixture.Unbuilt) answers"
+  has "forms: a path with a space" "$out" "FAIL stubs Fixture.Production:Spaced (Fixture.Spaced) answers"
+  has "forms: the second superclass when the first sets none" "$out" "FAIL stubs Fixture.Production:Second (Fixture.Both) answers"
+  lacks "forms: a class's own STUB = 0 wins" "$out" "OwnZero"
+  lacks "forms: the leftmost superclass's STUB = 0 wins" "$out" "Leftmost"
+  lacks "forms: a disabled item" "$out" "Production:Off"
+  lacks "forms: Enabled 0" "$out" "Production:Zero"
+  lacks "forms: a commented item" "$out" "Commented"
+  lacks "forms: a class under /Test/ is not scanned" "$out" "TestStub"
+  # no class file in the candidate's src: the scan prints no counts line
+  newcase
+  git -C "$W" rm -q -r src/fixture
+  git -C "$W" commit -q -m "no class"
+  git -C "$W" push -q origin "$INTEG"
+  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+  to_step stubs
+  rs "$N" next
+  eq "unreadable: exit" "$rc" 1
+  has "unreadable: the line" "$out" "FAIL stubs the production classes could not be read"
+  # class files but no production definition in the candidate's src: the scan found nothing to judge
+  newcase
+  git -C "$W" rm -q src/fixture/cls/Fixture/Production.cls src/fixture/cls/Fixture/Test/Production.cls
+  git -C "$W" commit -q -m "no production"
+  git -C "$W" push -q origin "$INTEG"
+  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+  to_step stubs
+  rs "$N" next
+  eq "no production: exit" "$rc" 1
+  has "no production: the line" "$out" "FAIL stubs the production classes could not be read"
+}
+
+# t_ci: AC3. The ci step reads the push runs of the cut commit with gh run list and judges the newest run of each workflow.
+t_ci() {
+  local sha short lines o
+  newcase
+  to_step ci
+  sha=$(cand)
+  short=${sha%"${sha#???????}"}
+  # green: the newest run of each workflow, ci and lane-a among them; a run of another commit is ignored
+  gh_runs "$sha" 90:ci:completed:failure 101:ci:completed:success 102:lane-a:completed:success 300:docs:completed:success \
+    500:lane-a:completed:failure:0000000000000000000000000000000000000000
+  rs '' next
+  eq "green: exit" "$rc" 0
+  eq "green: the line" "$(printf '%s\n' "$out" | sed -n 1p)" "PASS ci every push run on $short succeeded: ci run 101, docs run 300, lane-a run 102"
+  has "green: the next step" "$out" "NEXT eval"
+  eq "green: the row" "$(row_of ci)" "pass: every push run on $short succeeded: ci run 101, docs run 300, lane-a run 102"
+  eq "green: gh was asked once, for run list of this branch and commit" "$(cat "$SHIMLOG/gh.log")" "run list --repo owner/repo --branch release/1.0.0-rc1 --commit $sha --event push --limit 50 --json databaseId,workflowName,status,conclusion,headSha"
+  eq "green: no network marker" "$(ls "$tmp/netmarks" | tr '\n' ' ')" ""
+  # pending: nothing recorded, exit 5, no question
+  newcase
+  to_step ci
+  sha=$(cand)
+  short=${sha%"${sha#???????}"}
+  gh_runs "$sha" 101:ci:in_progress: 102:lane-a:completed:success
+  rs '' next
+  eq "pending: exit" "$rc" 5
+  eq "pending: the line" "$out" "WAIT ci ci run 101 is in_progress"
+  eq "pending: no record" "$(seq_written)" no
+  eq "pending: no row" "$(row_of ci)" ""
+  gh_runs "$sha" 101:ci:queued: 102:lane-a:in_progress:
+  rs '' next
+  eq "queued: the first pending run is named" "$out" "WAIT ci ci run 101 is queued"
+  # a completed run that is not a success is judged first, a pending one does not hide it
+  gh_runs "$sha" 101:ci:completed:failure 102:lane-a:in_progress:
+  rs "$N" next
+  eq "red: exit" "$rc" 1
+  has "red: the line" "$out" "FAIL ci ci run 101 concluded failure"
+  has "red: the record" "$(cat "$(rec_file)")" "Result: failed at ci: ci run 101 concluded failure"
+  gh_runs "$sha" 101:ci:completed:success 102:lane-a:completed:cancelled
+  rs "$N" next
+  has "cancelled: the line" "$out" "FAIL ci lane-a run 102 concluded cancelled"
+  gh_runs "$sha" 101:ci:completed:success 102:lane-a:completed:skipped
+  rs "$N" next
+  has "skipped is not a success" "$out" "FAIL ci lane-a run 102 concluded skipped"
+  # gh could not read the runs: wait
+  gh_runs "$sha" 101:ci:completed:success 102:lane-a:completed:success
+  flagv gh-fail 7
+  rs '' next
+  eq "gh fails: exit" "$rc" 5
+  eq "gh fails: the line" "$out" "WAIT ci gh could not read the runs (exit 7); the next call reads them again"
+  unflag gh-fail
+  rs '' next
+  eq "gh answers again: exit" "$rc" 0
+  # a run of another commit is no run of this one
+  newcase
+  to_step ci
+  sha=$(cand)
+  short=${sha%"${sha#???????}"}
+  gh_runs "0123456789012345678901234567890123456789" 101:ci:completed:success 102:lane-a:completed:success
+  clockfile 1000 1500 1899 1900
+  rs '' next
+  eq "no run of this commit: exit" "$rc" 5
+  eq "no run of this commit: the line" "$out" "WAIT ci no ci push run on $short yet (0 s of 900 s)"
+  rs '' next
+  eq "500 s later" "$out" "WAIT ci no ci push run on $short yet (500 s of 900 s)"
+  rs '' next
+  eq "899 s later" "$out" "WAIT ci no ci push run on $short yet (899 s of 900 s)"
+  eq "the first check is kept" "$(sed -n 's/^ci_first=//p' "$(sdir1)/state.env")" 1000
+  rs "$N" next
+  eq "900 s later: exit" "$rc" 1
+  has "900 s later: the line" "$out" "FAIL ci no ci push run on $sha 15 minutes after the first check"
+  has "900 s later: the record" "$(cat "$(rec_file)")" "Result: failed at ci: no ci push run on $sha 15 minutes after the first check"
+  # one workflow of the two is missing
+  newcase
+  to_step ci
+  sha=$(cand)
+  short=${sha%"${sha#???????}"}
+  gh_runs "$sha" 101:ci:completed:success
+  clockfile 2000 2899 2900
+  rs '' next
+  eq "lane-a missing: the line" "$out" "WAIT ci no lane-a push run on $short yet (0 s of 900 s)"
+  rs "$N" next
+  eq "lane-a missing 899 s: still waiting" "$rc" 5
+  rs "$N" next
+  has "lane-a missing 900 s: the line" "$out" "FAIL ci no lane-a push run on $sha 15 minutes after the first check"
+  # no gh, and a remote that is not a GitHub one
+  newcase
+  to_step ci
+  RS_PATH=$(leanpath gh)
+  rs "$N" next
+  RS_PATH=""
+  eq "gh not installed: exit" "$rc" 1
+  has "gh not installed: the line" "$out" "FAIL ci gh is not installed"
+  eq "gh not installed: no call" "$(cat "$SHIMLOG/gh.log" 2> /dev/null)" ""
+  newcase
+  to_step ci
+  unset OCUTALON_RELEASE_GH_REPO
+  rs "$N" next
+  export OCUTALON_RELEASE_GH_REPO=owner/repo
+  eq "a local remote with no seam: exit" "$rc" 1
+  has "a local remote with no seam: the line" "$out" "FAIL ci the remote origin is not a GitHub repository, so its runs cannot be read"
+  eq "a local remote with no seam: gh was not called" "$(cat "$SHIMLOG/gh.log" 2> /dev/null)" ""
+  # the helpers: gh_repo reads github.com URLs, and the seam only stands in for a local path
+  newcase
+  o=$(
+    cd "$W" || exit 1
+    . "$root/release/lib-release.sh"
+    git remote add h1 https://github.com/own-er/re.po.git
+    git remote add h2 git@github.com:own-er/re.po.git
+    git remote add h3 ssh://git@github.com/own-er/re.po
+    git remote add h4 https://example.invalid/own-er/re.po.git
+    git remote add h5 https://github.com.evil.invalid/own-er/re.po.git
+    OCUTALON_RELEASE_GH_REPO=seam/repo
+    for r in h1 h2 h3 h4 h5 origin; do echo "$r=$(gh_repo $r)"; done
+    unset OCUTALON_RELEASE_GH_REPO
+    echo "origin-without-seam=$(gh_repo origin; echo "status $?")"
+  )
+  eq "gh_repo" "$o" "h1=own-er/re.po
+h2=own-er/re.po
+h3=own-er/re.po
+h4=
+h5=
+origin=seam/repo
+origin-without-seam=status 1"
+  lines=$(
+    cd "$W" || exit 1
+    . "$root/release/lib-release.sh"
+    gh_runs "$(cand)" 7:ci:completed:success 8:lane-a:in_progress:
+    ci_runs owner/repo "$(cand)" push release/1.0.0-rc1 | tr '\t' '|'
+  )
+  eq "ci_runs prints id, workflow, status and conclusion" "$lines" "7|ci|completed|success
+8|lane-a|in_progress|"
+}
+
+# t_eval: AC4. The evaluation result of the candidate, judged as the Matrix says; the sequence never holds a key.
+t_eval() {
+  local sha short d f
+  newcase
+  to_step eval
+  sha=$(cand)
+  short=${sha%"${sha#???????}"}
+  d=$(sdir1)/eval
+  rs '' next
+  eq "not run: exit" "$rc" 5
+  eq "not run: the lines" "$out" "WAIT eval no evaluation result for $short yet; the author runs the evaluation
+RUN cd $d && bash eval/run.sh --release-candidate"
+  eq "not run: the clone is the candidate" "$(git -C "$d" rev-parse HEAD)" "$sha"
+  eq "not run: nothing recorded" "$(seq_written)" no
+  : > "$d/marker"
+  rs '' next
+  eq "not run again: the clone is kept" "$([ -e "$d/marker" ] && echo yes || echo no)" yes
+  eq "not run again: exit" "$rc" 5
+  # not acceptable: each fixture fails the step, and the next call reads the file again
+  EV_BY="2 of 3 attempts met every target" eval_fixture blocked
+  rs "$N" next
+  eq "blocked: exit" "$rc" 1
+  has "blocked: the line" "$out" "FAIL eval blocked: 2 of 3 attempts met every target; REL-5's override is the author's: eval/run.sh --override \"<reason>\" in the evaluation clone"
+  has "blocked: the override command" "$out" "RUN cd $d && bash eval/run.sh --override \"<reason>\""
+  has "blocked: the record" "$(cat "$(rec_file)")" "Result: failed at eval: blocked: "
+  eq "blocked: the clone is kept" "$([ -e "$d/marker" ] && echo yes || echo no)" yes
+  eq "blocked: nothing is kept for the notes" "$([ -e "$(sdir1)/release-candidate.json" ] && echo yes || echo no)" no
+  EV_BY="attempt 1 was below a target" eval_fixture incomplete
+  rs "$N" next
+  has "incomplete: the line" "$out" "FAIL eval incomplete: attempt 1 was below a target"
+  lacks "incomplete: no override command" "$out" "RUN "
+  EV_MOCK=true eval_fixture pass
+  rs "$N" next
+  has "on the mock" "$out" "FAIL eval the result was made on the CI mock, not on the model"
+  EV_COMMIT="0123456789012345678901234567890123456789" eval_fixture pass
+  rs "$N" next
+  has "another commit" "$out" "FAIL eval the result is of commit 0123456, not of the candidate $short"
+  EV_CLEAN=false eval_fixture pass
+  rs "$N" next
+  has "a dirty tree" "$out" "FAIL eval the result was made on a tree with uncommitted changes"
+  EV_FORMAT="ocutalon.evalResult/2" eval_fixture pass
+  rs "$N" next
+  has "another format" "$out" "FAIL eval the result is not an ocutalon.evalResult/1 file"
+  printf 'this is not json\n' > "$d/eval/release-candidate.json"
+  rs "$N" next
+  has "unreadable" "$out" "FAIL eval the result is not an ocutalon.evalResult/1 file"
+  eval_fixture overridden
+  rs "$N" next
+  has "overridden with no override object" "$out" "FAIL eval overridden with no reason"
+  EV_OVERRIDE='{"reason":"   ","at":"x"}' eval_fixture overridden
+  rs "$N" next
+  has "overridden with a blank reason" "$out" "FAIL eval overridden with no reason"
+  eval_fixture bogus
+  rs "$N" next
+  has "an unknown verdict" "$out" "FAIL eval the result is not an ocutalon.evalResult/1 file"
+  eq "none of them passed" "$(row_of eval | cut -c1-4)" "fail"
+  eq "the state still names eval" "$(sed -n 's/^next=//p' "$(sdir1)/state.env")" eval
+  # acceptable: pass, and overridden with a reason (REL-5)
+  eval_fixture pass
+  cp "$d/eval/release-candidate.json" "$C/ev.json"
+  rs '' next
+  eq "pass: exit" "$rc" 0
+  eq "pass: the line" "$(printf '%s\n' "$out" | sed -n 1p)" "PASS eval pass: attempt 1 met every target"
+  eq "pass: the row" "$(row_of eval)" "pass: pass: attempt 1 met every target"
+  eq "pass: the result is kept for the notes" "$(cat "$(sdir1)/release-candidate.json")" "$(cat "$C/ev.json")"
+  eq "pass: the evaluation clone is removed" "$([ -e "$d" ] && echo yes || echo no)" no
+  newcase
+  to_step eval
+  EV_OVERRIDE='{"reason":"the model was down for an hour","at":"2026-11-08T10:00:00Z"}' eval_fixture overridden
+  rs '' next
+  eq "overridden: exit" "$rc" 0
+  eq "overridden: the line" "$(printf '%s\n' "$out" | sed -n 1p)" "PASS eval overridden (REL-5): the model was down for an hour"
+  eq "overridden: the row" "$(row_of eval)" "pass: overridden (REL-5): the model was down for an hour"
+  # the sequence holds no key: a key in its environment is not read, printed or recorded
+  f=$(grep -c 'ANTHROPIC_API_KEY' "$root/release/release.sh")
+  eq "release.sh never names the model key" "$f" 0
+}
+
+# drive <step> [answer]: calls next until the step no longer names itself (a gate phase that is done); ALL holds every output, out and rc the last.
+ALL=""
+drive() {
+  local n=0
+  ALL=""
+  while [ "$n" -lt 40 ]; do
+    n=$((n + 1))
+    rs "${2:-}" next
+    ALL="$ALL$out"$'\n'
+    printf '%s\n' "$out" | grep -qx "NEXT $1" || break
+  done
+}
+
+UPG_TAG=rel-1-0-0-rc1-upg
+UPG_ALL="build settings seed upgrade restart storage report down"
+
+# t_upgrade: AC6. The upgrade harness of the candidate, one phase per call under one tag, in a clone of the author's repository.
+t_upgrade() {
+  local sha ph
+  newcase
+  to_step upgrade
+  sha=$(cand)
+  rs '' next
+  eq "build: exit" "$rc" 0
+  eq "build: the lines" "$out" "PHASE upgrade build exit 0
+NEXT upgrade"
+  eq "build: the call" "$(calls upgrade)" "build tag=$UPG_TAG dir=gate-upgrade head=$sha lock=$C/locks args=--version 1.0.0 --rc 1 --record $W/release/records/1.0.0/rc1.md"
+  eq "build: no record yet" "$(seq_written)" no
+  eq "build: the row is not set" "$(row_of upgrade)" ""
+  for ph in settings seed upgrade restart storage; do
+    rs '' next
+    eq "$ph: exit" "$rc" 0
+    has "$ph: the line" "$out" "PHASE upgrade $ph exit 0"
+    has "$ph: the next call" "$out" "NEXT upgrade"
+    case $ph in
+      seed) has "seed: the note" "$out" "NOTE upgrade run the next call now: the reminder that the seed set must still be pending when the upgrade begins" ;;
+      *) lacks "$ph: no note" "$out" "NOTE" ;;
+    esac
+  done
+  rs '' next
+  eq "report: exit" "$rc" 0
+  eq "report: the lines" "$out" "PHASE upgrade report exit 0
+PHASE upgrade down exit 0
+PASS upgrade Result: pass, Mode: release, Previous: tag v0.9.0 at 0123456, version 0.9.0, built as 0.9.0
+NEXT rehearsal"
+  eq "the phases, in order" "$(calls upgrade | awk '{ print $1 }' | tr '\n' ' ')" "$UPG_ALL "
+  eq "one tag for all" "$(calls upgrade | sed 's/^[a-z]* tag=\([^ ]*\) .*/\1/' | sort -u)" "$UPG_TAG"
+  eq "only build gets the options" "$(calls upgrade | grep -c 'args=--')" 1
+  eq "every call runs in the clone at the cut commit" "$(calls upgrade | sed 's/^[a-z]* tag=[^ ]* \(dir=[^ ]* head=[^ ]*\) .*/\1/' | sort -u)" "dir=gate-upgrade head=$sha"
+  eq "the clone is removed" "$([ -e "$(sdir1)/gate-upgrade" ] && echo yes || echo no)" no
+  eq "the row" "$(row_of upgrade)" "pass: Result: pass, Mode: release, Previous: tag v0.9.0 at 0123456, version 0.9.0, built as 0.9.0"
+  eq "the author's checkout was not switched" "$(git -C "$W" symbolic-ref --short HEAD)" "$INTEG"
+  # the remote's tags must all be here before build
+  newcase
+  to_step upgrade
+  git --git-dir="$R" tag v0.8.0 "$EXPECT_BASE"
+  rs "$N" next
+  eq "missing tags: exit" "$rc" 1
+  has "missing tags: the line" "$out" "FAIL upgrade the tags of origin are not all in this repository (missing: v0.8.0); run git fetch --tags origin, then release.sh next"
+  eq "missing tags: no call" "$(ncalls upgrade)" 0
+  git -C "$W" fetch -q --tags origin
+  drive upgrade "$N"
+  has "after the fetch: it runs" "$ALL" "PASS upgrade Result: pass"
+  # a failed build runs down and fails; the next call starts again
+  newcase
+  to_step upgrade
+  flagv upg-exit-build 1
+  rs "$N" next
+  eq "build fails: exit" "$rc" 1
+  has "build fails: the lines" "$out" "PHASE upgrade build exit 1
+PHASE upgrade down exit 0
+FAIL upgrade the harness refused build: "
+  eq "build fails: build, then down" "$(calls upgrade | awk '{ print $1 }' | tr '\n' ' ')" "build down "
+  has "build fails: the log is named" "$out" "LOG upgrade $(sdir1)/upgrade.log"
+  has "build fails: the record" "$(cat "$(rec_file)")" "Result: failed at upgrade: the harness refused build: "
+  eq "build fails: the clone is removed" "$([ -e "$(sdir1)/gate-upgrade" ] && echo yes || echo no)" no
+  unflag upg-exit-build
+  drive upgrade "$N"
+  has "the next call starts at build and passes" "$ALL" "PASS upgrade Result: pass"
+  # exit 2 from a phase after build: report, then down, then fail
+  newcase
+  to_step upgrade
+  flagv upg-exit-seed 2
+  drive upgrade "$N"
+  eq "exit 2 from seed: exit" "$rc" 1
+  has "exit 2 from seed: the line" "$out" "FAIL upgrade the harness refused seed: "
+  eq "exit 2 from seed: report, then down" "$(calls upgrade | awk '{ print $1 }' | tr '\n' ' ')" "build settings seed report down "
+  # 75 waits on the same phase
+  newcase
+  to_step upgrade
+  rs '' next
+  flag upg-busy-settings
+  rs '' next
+  eq "busy: exit" "$rc" 5
+  eq "busy: the line" "$out" "WAIT upgrade the lane's throwaway lock is busy"
+  eq "busy: nothing recorded" "$(seq_written)" no
+  unflag upg-busy-settings
+  rs '' next
+  has "after the wait: the same phase" "$out" "PHASE upgrade settings exit 0"
+  eq "after the wait: settings ran twice" "$(calls upgrade | awk '{ print $1 }' | tr '\n' ' ')" "build settings settings "
+  # a failed phase does not stop the phases after it; the verdict is the section's
+  newcase
+  to_step upgrade
+  flagv upg-exit-seed 1
+  flagv upg-result fail
+  flagv upg-exit-report 1
+  drive upgrade "$N"
+  eq "a failed seed: exit" "$rc" 1
+  eq "a failed seed: every phase ran, then down" "$(calls upgrade | awk '{ print $1 }' | tr '\n' ' ')" "$UPG_ALL "
+  has "a failed seed: the line" "$ALL" "FAIL upgrade the harness's section reads Result: fail, Mode: release"
+  has "a failed seed: down ran" "$ALL" "PHASE upgrade down exit 0"
+  has "a failed seed: the record" "$(cat "$(rec_file)")" "Result: failed at upgrade: the harness's section reads Result: fail, Mode: release"
+  eq "a failed seed: the section is the harness's own" "$(sect "$(rec_file)" "## Upgrade harness" | sed -n 3p)" "Result: fail"
+  # Required: no relaxes nothing
+  flagv upg-required no
+  unflag upg-exit-seed
+  unflag upg-exit-report
+  drive upgrade "$N"
+  has "Required: no: still a failure" "$ALL" "FAIL upgrade the harness's section reads Result: fail, Mode: release"
+  eq "Required: no: the section says so" "$(sect "$(rec_file)" "## Upgrade harness" | sed -n 5p)" "Required: no"
+  # down that exits non-zero warns and passes the gate
+  unflag upg-required
+  unflag upg-result
+  flagv upg-exit-down 3
+  drive upgrade "$N"
+  has "down fails: the warning" "$ALL" "WARN upgrade the down phase exited 3; containers or volumes of run tag $UPG_TAG may remain"
+  has "down fails: the gate passes" "$ALL" "PASS upgrade Result: pass"
+}
+
+# t_rehearsal: AC7 (DW-548). The clean-machine rehearsal of the candidate, one phase per call, the same options on every call.
+t_rehearsal() {
+  local sha
+  newcase
+  to_step rehearsal
+  sha=$(cand)
+  rs '' next
+  eq "call 1: exit" "$rc" 0
+  eq "call 1: the lines" "$out" "PHASE rehearsal call 1 of 3 is done, call again
+NEXT rehearsal"
+  rs '' next
+  eq "call 2: the lines" "$out" "PHASE rehearsal call 2 of 3 is done, call again
+NEXT rehearsal"
+  rs '' next
+  eq "call 3: the lines" "$out" "PHASE rehearsal call 3 of 3 is done, call again
+NEXT rehearsal"
+  eq "no row while it runs" "$(row_of rehearsal)" ""
+  rs '' next
+  eq "call 4: exit" "$rc" 0
+  eq "call 4: the lines" "$out" "PASS rehearsal Result: pass, Mode: rehearsal, 20 of 20 runs passed
+NEXT notes"
+  eq "the same argv and tag on every call" "$(calls rehearse | sort -u)" "run tag=rel-1-0-0-rc1-reh dir=gate-rehearsal head=$sha lock=$C/locks args=--version 1.0.0 --rc 1 --candidate release/1.0.0-rc1 --record $W/release/records/1.0.0/rc1.md --runs 20"
+  eq "four calls" "$(ncalls rehearse)" 4
+  eq "never plant or dry-run" "$(calls rehearse | grep -c -e '--plant' -e '--dry-run')" 0
+  eq "the clone is removed" "$([ -e "$(sdir1)/gate-rehearsal" ] && echo yes || echo no)" no
+  eq "the row" "$(row_of rehearsal)" "pass: Result: pass, Mode: rehearsal, 20 of 20 runs passed"
+  # exit 2: refused, then down
+  newcase
+  to_step rehearsal
+  flagv reh-refuse "real mode needs the configuration file"
+  rs "$N" next
+  eq "exit 2: exit" "$rc" 1
+  has "exit 2: the line" "$out" "FAIL rehearsal release/rehearse.sh refused: real mode needs the configuration file"
+  eq "exit 2: run, then down" "$(calls rehearse | awk '{ print $1 }' | tr '\n' ' ')" "run down "
+  has "exit 2: the log is named" "$out" "LOG rehearsal $(sdir1)/rehearsal.log"
+  # exit 3: a dry run is never a pass
+  newcase
+  to_step rehearsal
+  flagv reh-phases 0
+  flagv reh-exit 3
+  flagv reh-result "dry run"
+  flagv reh-mode "dry run"
+  rs "$N" next
+  eq "exit 3: exit" "$rc" 1
+  has "exit 3: the line" "$out" "FAIL rehearsal a dry run is never a pass"
+  # exit 1, and a section that reads pass with exit 1
+  newcase
+  to_step rehearsal
+  flagv reh-phases 0
+  flagv reh-exit 1
+  flagv reh-result fail
+  rs "$N" next
+  eq "exit 1: exit" "$rc" 1
+  has "exit 1: the line" "$out" "FAIL rehearsal the section reads Result: fail, Mode: rehearsal: FAIL run 3 step incident bound notice: stub"
+  flagv reh-result pass
+  rs "$N" next
+  has "exit 1 with a planted pass" "$out" "FAIL rehearsal the section reads Result: fail, Mode: rehearsal"
+  flagv reh-exit 9
+  rs "$N" next
+  has "another exit code" "$out" "FAIL rehearsal the section reads Result: fail, Mode: rehearsal"
+  # exit 75 waits on the same phase
+  newcase
+  to_step rehearsal
+  rs '' next
+  flag reh-busy
+  rs '' next
+  eq "busy: exit" "$rc" 5
+  eq "busy: the line" "$out" "WAIT rehearsal the lane's throwaway lock is busy"
+  eq "busy: nothing recorded" "$(seq_written)" no
+  unflag reh-busy
+  rs '' next
+  has "after the wait: the next phase" "$out" "PHASE rehearsal call 2 of 3 is done, call again"
+}
+
+# t_checklist: AC8. The checklist runs after notes, in a fresh clone, with the absolute record and draft.
+t_checklist() {
+  local sha
+  newcase
+  to_step checklist
+  sha=$(cand)
+  flag ck-later
+  rs '' next
+  eq "pass: exit" "$rc" 0
+  eq "pass: the lines" "$out" "LATER registry-install add the line - registry-install: confirmed <date> after the version is published
+PASS checklist Result: pass
+NEXT hands-on"
+  eq "the call" "$(calls checklist)" "run tag= dir=gate-checklist head=$sha lock=$C/locks args=--version 1.0.0 --rc 1 --candidate release/1.0.0-rc1 --record $W/release/records/1.0.0/rc1.md --notes $W/release/records/1.0.0/rc1-notes.md"
+  eq "the draft exists when it runs" "$([ -f "$W/release/records/1.0.0/rc1-notes.md" ] && echo yes || echo no)" yes
+  eq "the clone is removed" "$([ -e "$(sdir1)/gate-checklist" ] && echo yes || echo no)" no
+  eq "the row" "$(row_of checklist)" "pass: Result: pass"
+  eq "the author's checkout was not switched" "$(git -C "$W" symbolic-ref --short HEAD)" "$INTEG"
+  # fail, not confirmed, refused
+  newcase
+  to_step checklist
+  flagv ck-result fail
+  rs "$N" next
+  eq "fail: exit" "$rc" 1
+  has "fail: the line" "$out" "FAIL checklist Result: fail: readme README.md:1 stub problem"
+  has "fail: the log is named" "$out" "LOG checklist $(sdir1)/checklist.log"
+  has "fail: the record" "$(cat "$(rec_file)")" "Result: failed at checklist: Result: fail: readme README.md:1 stub problem"
+  has "fail: the row" "$(cat "$(rec_file)")" "| checklist | fail | Result: fail: readme README.md:1 stub problem |"
+  flagv ck-result "not confirmed"
+  flagv ck-k 3
+  rs "$N" next
+  eq "not confirmed: the lines" "$(printf '%s\n' "$out" | sed -n '1,4p')" "CONFIRM row1 add the line - row1: confirmed <date>
+CONFIRM row2 add the line - row2: confirmed <date>
+CONFIRM row3 add the line - row3: confirmed <date>
+FAIL checklist Result: not confirmed: 3 author rows not confirmed"
+  flagv ck-refuse "the notes file is missing"
+  rs "$N" next
+  has "refused" "$out" "FAIL checklist release/checklist.sh refused: REFUSED the notes file is missing"
+  eq "each failure leaves the state at checklist" "$(sed -n 's/^next=//p' "$(sdir1)/state.env")" checklist
+  # the candidate branch moved after the cut: the clone's HEAD is not the cut commit, and the gate script does not run
+  newcase
+  to_step checklist
+  git -C "$W" update-ref "refs/heads/release/1.0.0-rc1" "$(git -C "$W" commit-tree -p "release/1.0.0-rc1" -m moved "release/1.0.0-rc1^{tree}")"
+  rs "$N" next
+  eq "moved branch: exit" "$rc" 1
+  has "moved branch: the line" "$out" "FAIL checklist the clone's HEAD is not the cut commit"
+  eq "moved branch: the gate script did not run" "$(ncalls checklist)" 0
+  eq "moved branch: no clone is left" "$([ -e "$(sdir1)/gate-checklist" ] && echo yes || echo no)" no
+}
+
+# t_handson: AC8. After the automated gates the sequence stops for the author's hands-on pass and never passes it.
+t_handson() {
+  local sha short rec
+  newcase
+  to_step hands-on
+  sha=$(cand)
+  short=${sha%"${sha#???????}"}
+  rs '' next
+  eq "hands-on: exit" "$rc" 4
+  has "hands-on: the line" "$out" "STOPPED hands-on every automated gate passed; install release/1.0.0-rc1 ($short) for the author's hands-on pass (REL-7); this sequence does not record that pass"
+  has "hands-on: the record question" "$out" "ASK record Push the record commit of 1.0.0 rc1 to $INTEG on origin? [yes/no]"
+  has "hands-on: the result" "$out" "RESULT stopped"
+  lacks "hands-on: no pass line" "$out" "PASS hands-on"
+  rec=$(cat "$(rec_file)")
+  has "hands-on: the row" "$rec" "| hands-on | waiting | the author's hands-on pass (REL-7) on release/1.0.0-rc1 is not recorded |"
+  has "hands-on: the result in the record" "$rec" "Result: stopped at hands-on: every automated gate passed; no hands-on pass is recorded (not a release)"
+  eq "hands-on: the record is committed" "$(git -C "$W" show --name-only --format= HEAD)" "release/records/1.0.0/rc1.md"
+  eq "hands-on: nothing in the sequence section says pass for it" "$(sect "$(rec_file)" "## Release sequence" | grep -e 'hands-on' -e 'released' | sed -e 's/every automated gate passed//' -e 's/no hands-on pass is recorded//' -e 's/CI and the hands-on pass not counted//' -e "s/the author's hands-on pass (REL-7)//" | grep -ci -e 'pass' -e 'released')" 0
+  rs "$Y" next
+  eq "each later next stops the same way: exit" "$rc" 4
+  has "each later next stops the same way" "$out" "STOPPED hands-on every automated gate passed"
+  has "the record push is offered" "$out" "PASS record pushed"
+  rs '' status
+  has "status: the state" "$out" "STATE 1.0.0 rc1 next hands-on"
+  rs '' next
+  eq "again: exit" "$rc" 4
+  # the step makes no ASK and the script offers no way to record a hands-on pass
+  eq "the hands-on step asks nothing" "$(awk '/^step_hands_on\(\)/ { f = 1 } f { print } /^}/ { f = 0 }' "$root/release/release.sh" | grep -c 'ask ')" 0
+}
+
+# gate_ran <gate>: whether a gate's script or reader ran in the case (notes: the draft exists).
+gate_ran() {
+  case $1 in
+    stubs) return 1 ;;
+    ci) [ -s "$SHIMLOG/gh.log" ] ;;
+    eval) [ -e "$(sdir1)/eval" ] || [ -f "$(sdir1)/release-candidate.json" ] ;;
+    upgrade) [ "$(ncalls upgrade)" -gt 0 ] ;;
+    rehearsal) [ "$(ncalls rehearse)" -gt 0 ] ;;
+    notes) [ -f "$W/release/records/1.0.0/rc1-notes.md" ] ;;
+    checklist) [ "$(ncalls checklist)" -gt 0 ] ;;
+  esac
+}
+
+# t_gates: AC1 and AC5. The first gate that does not pass stops the sequence and names it; the only override is REL-5's.
+t_gates() {
+  local g seen n rows v before nm
+  # a gate that fails: its FAIL line, the record, no later gate, and the next call runs it again
+  for g in stubs ci eval upgrade rehearsal checklist; do
+    newcase
+    if [ "$g" = stubs ]; then
+      fixture_production Fixture.Production '<Item Name="Later" ClassName="Fixture.Unbuilt" PoolSize="1"/>' > "$C/p.cls"
+      set_fixture src/fixture/cls/Fixture/Production.cls "$C/p.cls"
+    fi
+    to_step "$g"
+    case $g in
+      ci) gh_runs "$(cand)" 101:ci:completed:failure 102:lane-a:completed:success ;;
+      eval) EV_BY="1 of 3 attempts met every target" eval_fixture blocked ;;
+      upgrade) flagv upg-result fail ;;
+      rehearsal)
+        flagv reh-result fail
+        flagv reh-exit 1
+        flagv reh-phases 0
+        ;;
+      checklist) flagv ck-result fail ;;
+    esac
+    drive "$g" "$N"
+    eq "$g fails: exit" "$rc" 1
+    has "$g fails: the line" "$ALL" "FAIL $g "
+    has "$g fails: the record" "$(cat "$(rec_file)")" "Result: failed at $g: "
+    has "$g fails: its row" "$(cat "$(rec_file)")" "| $g | fail | "
+    lacks "$g fails: no hands-on row" "$(cat "$(rec_file)")" "| hands-on |"
+    seen=0
+    for n in stubs ci eval upgrade rehearsal notes checklist; do
+      if [ "$n" = "$g" ]; then
+        seen=1
+        continue
+      fi
+      [ "$seen" -eq 1 ] || continue
+      if gate_ran "$n"; then
+        echo "  $g fails: the later gate $n ran"
+        bad=1
+      fi
+    done
+    eq "$g fails: the state still names it" "$(sed -n 's/^next=//p' "$(sdir1)/state.env")" "$g"
+    rs "$N" next
+    case $g in
+      upgrade) has "$g fails: the next call runs it again, from build" "$out" "PHASE upgrade build exit 0" ;;
+      *) has "$g fails: the next call runs it again" "$out" "FAIL $g " ;;
+    esac
+  done
+  # every gate green: the rows from stubs to checklist read pass, in order
+  newcase
+  to_step hands-on
+  rs "$N" next
+  rows=$(sect "$(rec_file)" "## Release sequence" | awk -F' [|] ' '/^\| (stubs|ci|eval|upgrade|rehearsal|checklist) \|/ { gsub(/^\| /, "", $1); print $1 ":" $2 }' | tr '\n' ' ')
+  eq "green: the rows, in the order of the steps" "$rows" "stubs:pass ci:pass eval:pass upgrade:pass rehearsal:pass checklist:pass "
+  # the options that skip, force or override are refused, at start and at next
+  newcase
+  before=$(snap)
+  for v in --skip --force "--override x" --override --no-gate --gate-skip; do
+    # shellcheck disable=SC2086
+    rs "$Y" start --version 1.0.0 $v
+    eq "start $v: exit" "$rc" 2
+    has "start $v: refused" "$out" "REFUSED"
+    eq "start $v: nothing written" "$(snap)" "$before"
+  done
+  to_step ci
+  for v in --skip --force "--override x" --override --no-gate; do
+    # shellcheck disable=SC2086
+    rs '' next $v
+    eq "next $v: exit" "$rc" 2
+    has "next $v: refused" "$out" "REFUSED unknown option"
+    # shellcheck disable=SC2086
+    rs '' resume $v
+    eq "resume $v: exit" "$rc" 2
+  done
+  eq "refused options ran no gate" "$(ncalls upgrade)/$([ -s "$SHIMLOG/gh.log" ] && echo gh || echo nogh)" "0/nogh"
+  # no variable of the environment skips, forces or passes a gate
+  nm="OCUTALON_RELEASE_SKIP OCUTALON_RELEASE_FORCE OCUTALON_RELEASE_OVERRIDE OCUTALON_RELEASE_SKIP_GATES OCUTALON_SKIP_CI OCUTALON_FORCE SKIP_CI FORCE CI OCUTALON_RELEASE_CI_GREEN"
+  gh_runs "$(cand)" 101:ci:completed:failure 102:lane-a:completed:success
+  for v in $nm; do
+    eval "sv_$v=\${$v-}; st_$v=\${$v+set}"
+    export "$v=1"
+  done
+  rs "$N" next
+  for v in $nm; do
+    if eval "[ -n \"\$st_$v\" ]"; then eval "export $v=\"\$sv_$v\""; else unset "$v"; fi
+  done
+  eq "the environment does not pass ci: exit" "$rc" 1
+  has "the environment does not pass ci" "$out" "FAIL ci ci run 101 concluded failure"
+  # a planted section, a wrong commit and a wrong mode do not pass a gate
+  newcase
+  to_step upgrade
+  for v in "upg-exit-report 1" "upg-result fail" "upg-sha 0123456789012345678901234567890123456789" "upg-mode dry-run" "upg-nosection x"; do
+    # shellcheck disable=SC2086
+    flagv ${v% *} "${v#* }"
+    drive upgrade "$N"
+    eq "upgrade '$v': exit" "$rc" 1
+    has "upgrade '$v': a FAIL" "$ALL" "FAIL upgrade "
+    case $v in
+      upg-sha*) has "upgrade '$v': the commit is named" "$ALL" "FAIL upgrade the section names another commit than the candidate" ;;
+      upg-exit-report*) has "upgrade '$v': the planted pass is a fail" "$ALL" "FAIL upgrade the harness's section reads Result: fail, Mode: release" ;;
+      upg-mode*) has "upgrade '$v': the mode is named" "$ALL" "FAIL upgrade the harness's section reads Result: pass, Mode: dry-run" ;;
+    esac
+    unflag "${v% *}"
+  done
+  drive upgrade "$N"
+  has "upgrade: the control passes" "$ALL" "PASS upgrade Result: pass, Mode: release"
+  newcase
+  to_step rehearsal
+  flagv reh-phases 0
+  for v in "reh-exit 1" "reh-result fail" "reh-sha 0123456789012345678901234567890123456789" "reh-mode dry-run" "reh-nosection x"; do
+    # shellcheck disable=SC2086
+    flagv ${v% *} "${v#* }"
+    drive rehearsal "$N"
+    eq "rehearsal '$v': exit" "$rc" 1
+    has "rehearsal '$v': a FAIL" "$ALL" "FAIL rehearsal "
+    case $v in
+      reh-sha*) has "rehearsal '$v': the commit is named" "$ALL" "FAIL rehearsal the section names another commit than the candidate" ;;
+      reh-mode*) has "rehearsal '$v': the mode is named" "$ALL" "FAIL rehearsal the section reads Result: pass, Mode: dry-run" ;;
+    esac
+    unflag "${v% *}"
+  done
+  drive rehearsal "$N"
+  has "rehearsal: the control passes" "$ALL" "PASS rehearsal Result: pass, Mode: rehearsal"
+  newcase
+  to_step checklist
+  for v in "ck-exit 1" "ck-result fail" "ck-sha 0123456789012345678901234567890123456789"; do
+    # shellcheck disable=SC2086
+    flagv ${v% *} "${v#* }"
+    if [ "${v% *}" = ck-result ]; then flagv ck-exit 0; fi
+    drive checklist "$N"
+    eq "checklist '$v': exit" "$rc" 1
+    has "checklist '$v': a FAIL" "$ALL" "FAIL checklist "
+    case $v in
+      ck-sha*) has "checklist '$v': the commit is named" "$ALL" "FAIL checklist the section names another commit than the candidate" ;;
+    esac
+    unflag "${v% *}"
+    unflag ck-exit
+  done
+  drive checklist "$N"
+  has "checklist: the control passes" "$ALL" "PASS checklist Result: pass"
+  # the script keeps no skip: no gate step can be bypassed from the record or the environment
+  eq "no gate step names a skip or a force" "$(awk '/^# --- the gates \(Story 11.14\) ---/ { f = 1 } /^# --- commands ---/ { f = 0 } f' "$root/release/release.sh" | grep -v '^[[:space:]]*#' | grep -ciE 'skip|force|OCUTALON_RELEASE_[A-Z_]*(YES|OVERRIDE)')" 0
+}
+
+# t_realgates: IA1 to IA4. The steps against the real checklist.sh, eval/run.sh --override with notes.sh, rehearse.sh and upgrade-harness.sh.
+t_realgates() {
+  local before after d rec dlines
+  # IA1: the real checklist, a record with no author confirmations
+  newcase
+  set_real release/checklist.sh
+  to_step checklist
+  before=$(awk -F'\t' '$1 != "checklist" && $1 != "record" { print $1 ":" $2 }' "$(sdir1)/rows.tsv")
+  rs "$N" next
+  eq "IA1: exit" "$rc" 1
+  has "IA1: the row is the script's own" "$out" "FAIL checklist Result: "
+  case $out in
+    *"Result: fail: "* | *"Result: not confirmed: "*) ;;
+    *)
+      echo "  IA1: neither fail nor not confirmed: $out"
+      bad=1
+      ;;
+  esac
+  rec=$(cat "$(rec_file)")
+  has "IA1: the checklist row is the script's own result" "$rec" "| checklist | fail | Result: "
+  has "IA1: the checklist section is in the record" "$rec" "## Release checklist"
+  has "IA1: its Candidate line ends with the cut commit" "$rec" "Candidate: 1.0.0 rc1 at $(cand)"
+  after=$(sect "$(rec_file)" "## Release sequence" | awk -F' [|] ' '/^\| / && $1 != "| Step" && $1 != "| ---" { gsub(/^\| /, "", $1); if ($1 != "checklist" && $1 != "record") print $1 ":" $2 }')
+  eq "IA1: the other rows are unchanged" "$after" "$before"
+  # IA2: the real eval/run.sh --override and the real notes.sh
+  newcase
+  to_step eval
+  d=$(sdir1)/eval
+  rs '' next
+  eq "IA2: the evaluation clone" "$rc" 5
+  EV_BY="2 of 3 attempts met every target" eval_fixture blocked
+  printf '# Evaluation\n\nVerdict: blocked\n' > "$d/eval/release-candidate.md"
+  (cd "$d" && "$BASH" eval/run.sh --override "fixture reason" > "$C/override.out" 2>&1)
+  eq "IA2: the real override" "$?" 0
+  has "IA2: the real override printed" "$(cat "$C/override.out")" "OVERRIDE recorded in eval/release-candidate.json"
+  rs '' next
+  eq "IA2: eval exit" "$rc" 0
+  eq "IA2: the row" "$(row_of eval)" "pass: overridden (REL-5): fixture reason"
+  run_steps upgrade notes
+  rs '' next
+  has "IA2: the real notes step" "$out" "PASS notes RESULT "
+  has "IA2: the real draft carries the reason" "$(cat "$W/release/records/1.0.0/rc1-notes.md")" "fixture reason"
+  # IA3: the real rehearse.sh with no release.conf, and no container
+  newcase
+  set_real release/rehearse.sh
+  to_step rehearsal
+  dlines=$(wc -l < "$SHIMLOG/docker.log" | tr -d ' ')
+  rs "$N" next
+  eq "IA3: exit" "$rc" 1
+  has "IA3: the script's own refusal" "$out" "FAIL rehearsal release/rehearse.sh refused: "
+  has "IA3: the refusal names the configuration" "$out" "refused: config: "
+  eq "IA3: no container was started" "$(wc -l < "$SHIMLOG/docker.log" | tr -d ' ')" "$dlines"
+  eq "IA3: the clone is removed" "$([ -e "$(sdir1)/gate-rehearsal" ] && echo yes || echo no)" no
+  # IA4: the real harness phases with the shims
+  newcase
+  # the previous release carries a built page, so that the harness's build has nothing to build (the npm shim builds in its own folder)
+  echo '<html>previous page</html>' > "$C/index.html"
+  set_fixture src/ocutalon/csp/index.html "$C/index.html"
+  git -C "$W" tag v0.9.0
+  set_real release/upgrade-harness.sh
+  to_step upgrade
+  drive upgrade "$N"
+  eq "IA4: exit" "$rc" 1
+  has "IA4: build passes" "$ALL" "PHASE upgrade build exit 0"
+  has "IA4: the other phases fail on the shims, as the harness itself says" "$ALL" "PHASE upgrade settings exit 1"
+  has "IA4: the harness's own refusal fails the gate" "$ALL" "FAIL upgrade the harness refused upgrade: REFUSED upgrade: seed is not done for this tag"
+  has "IA4: the report ran after the refusal" "$ALL" "PHASE upgrade report exit "
+  has "IA4: down ran" "$ALL" "PHASE upgrade down exit 0"
+  rec=$(cat "$(rec_file)")
+  has "IA4: the harness section is in the record" "$rec" "## Upgrade harness"
+  has "IA4: the section reads Result: fail" "$(sect "$(rec_file)" "## Upgrade harness")" "Result: fail"
+  has "IA4: the section names the cut commit" "$(sect "$(rec_file)" "## Upgrade harness")" " at $(cand)"
+  lacks "IA4: no pass" "$ALL" "PASS upgrade"
+  eq "IA4: the clone is removed" "$([ -e "$(sdir1)/gate-upgrade" ] && echo yes || echo no)" no
 }
 
 # --- the real build (IA3) ---
@@ -3050,6 +4215,15 @@ rule ipmlib t_ipmlib
 rule first t_first
 rule word t_word
 rule pushes t_pushes
+rule stubs t_stubs
+rule ci t_ci
+rule eval t_eval
+rule upgrade t_upgrade
+rule rehearsal t_rehearsal
+rule checklist t_checklist
+rule handson t_handson
+rule gates t_gates
+rule realgates t_realgates
 rule static t_static
 
 if [ "$fails_total" -eq 0 ]; then

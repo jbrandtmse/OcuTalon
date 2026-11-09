@@ -277,13 +277,7 @@ notes_areas() {
 # --- the record's sections ---
 
 # notes_section <record> <heading>: see the header.
-notes_section() {
-  awk -v h="$2" '
-    { t = $0; sub(/[ \t\r]+$/, "", t) }
-    !inside && t == h { inside = 1; print; next }
-    inside && (/^## / || /^# /) { exit }
-    inside { print }' "$1" 2> /dev/null
-}
+notes_section() { record_section "$@"; }
 
 # notes_table <first|runs>: reads a section on stdin; prints its first table (before any ### heading) or the table under ### Runs.
 notes_table() {

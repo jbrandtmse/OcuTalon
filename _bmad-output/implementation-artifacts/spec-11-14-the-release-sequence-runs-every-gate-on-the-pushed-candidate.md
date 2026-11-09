@@ -2,9 +2,10 @@
 title: 'Story 11.14: The release sequence runs every gate on the pushed candidate'
 type: 'feature'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '99871262b4641bce095097efd3727fdb8ab2805f'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
 warnings: ['oversized']
@@ -209,6 +210,35 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-08 — Review pass
+- verdicts: 39 findings (grouped by root cause in the rows below; layers: blind 10, edge 15, gap 11, intent 3) — high 0, medium 4, low 35, false 0, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind 1, Edge 1, Gap "other": an empty scan (class files, no production definition) passed `stubs` with "0 enabled items in 0 productions" — verified: `COUNTS|0|0|0|0`, status 0. Fixed: no `COUNTS` line when no production is read (status 3); new `stubs` case "no production"; mutation line added.
+  - `[medium]` `[patch]` Edge 2, Gap 1: a `Parameter STUB = 1;` line with a trailing `//` comment, with `[ ... ]` keywords or indented was missed — verified by the gap layer's scratch run (3 of 4 forms unreported). Fixed in `production_stubs`; three forms added to the `stubs` rule; mutation line added.
+  - `[medium]` `[patch]` Gap 4 (IA4 text unobservable; its mutation not caught by its own test): the Matrix ("down, then FAIL") and IA4 (`## Upgrade harness` reads `Result: fail`) are both met when `report` runs before `down` on exit 2 of a phase after `build`. Fixed in `step_upgrade`; the stub test now expects `build settings seed report down`; IA4 asserts the section; the IA4 mutation line points at the skipped `report`.
+  - `[medium]` `[patch]` Gap 2: `candidate_clone`'s "HEAD must equal the cut's sha" was pinned by no test. Added a moved-branch case to `checklist` (FAIL before the gate script runs); mutation line added.
+  - `[low]` `[patch]` Gap hermeticity: `t_gates` unset ambient `CI` and other names. Fixed: the values are saved and restored.
+  - `[low]` `[patch]` Gap weak assertions, Blind 9: `gate_ran eval` could not see the eval clone; unused `later` and `to_gate`. Fixed (clone or result file counts as "ran"; the unused variable and alias removed).
+  - `[low]` `[patch]` Gap IA3: `has "config"` matched any line. Tightened to `refused: config: `.
+  - `[low]` `[patch]` Blind 6, Edge 13, Gap "other": the "one read command" pin lost its bite. Now matches `read` in command position.
+  - `[low]` `[patch]` Edge 14 (claim): the PASS ci detail from `gh` data skipped `detail_clean`. Fixed in `step_ci`.
+  - `[low]` `[reject]` Blind 2, Edge 4: a missing `node` in `ci_runs` reads as a missing gh, a bad JSON answer waits — node is a precondition of the whole sequence (`step_eval` needs it too); a wrong word in a message that fails closed.
+  - `[low]` `[reject]` Blind 3, Edge 8, Gap "other": `rehearse.sh down` only after exit 2 — the Matrix lists exit 3, 1 and other as FAIL without `down` (spec-bound, by-design); the script tears down its own run at its last phase.
+  - `[low]` `[reject]` Blind 3 (exit 4 without a bound or without a `NEXT run:` line), Edge 9: no realistic path; `rehearse.sh` exits 4 only with a `NEXT run:` line and ends after its fixed phases.
+  - `[low]` `[reject]` Blind 4, Edge 6, Gap "other": `ci_first` is never cleared and is set before the first gh read — the Matrix counts the 900 s from the step's first check (spec-bound); a push that starts no run is re-cut, as the Planner's notes say.
+  - `[low]` `[reject]` Edge 5: gh failing for good waits forever — the Matrix says `WAIT ci gh could not read the runs` (spec-bound).
+  - `[low]` `[reject]` Blind 5: malformed eval fields give a misleading message — the gate fails closed either way; the fix adds branches for a message.
+  - `[low]` `[reject]` Blind 7: `gh_repo` rejects ssh host aliases and Enterprise hosts — the spec names github.com https and ssh forms; a failing gate says the remote is not a GitHub repository.
+  - `[low]` `[reject]` Blind 8, Edge 11: only the first stub item reaches the record row — the Matrix prints a FAIL line for each item on the console; the record keeps the first and the author fixes all from the console.
+  - `[low]` `[reject]` Blind 9 (`stop_routine end` unreachable until Story 11.15) — by design, Design Notes 11; Blind 10 (candidate_clone and checklist 75 untested) covered for the clone by the new case; checklist.sh takes no lock (exit 75 not reachable).
+  - `[low]` `[reject]` Edge 3 (`Inheritance = right`, an unclosed `Extends (` on a file's last line): no production class uses either (Code Map); theoretical.
+  - `[low]` `[reject]` Edge 7 (a gate script that hangs), Edge 10 (local and remote tags with one name on other commits): the harness bounds its phases at 540 s; the tag case is theoretical.
+  - `[low]` `[reject]` Edge 12 (an unusual checklist exit): the LOG line points at the kept output; the row is `Result: -`, a FAIL either way.
+  - `[low]` `[reject]` Edge 15 (claim): stubs, ci and eval write no script log; `LOG` is printed where a gate script ran (`gate_fail`).
+  - `[low]` `[reject]` Gap 3: the gate readers are tested against hand-made sections, not the real `report` output — acknowledged in PLANNER REPORT; a drift fails closed; cannot run without the real phases.
+  - `[low]` `[reject]` Gap AC5 mutation scope, `run_steps` silent after 40 passes, model key pinned by a source grep: the option refusals are "already met" (the main script); the other assertions after a stuck gate fail; the key has no read path in `release.sh`.
+  - `[low]` `[reject]` Intent 1 to 3 (descriptive): extra lines beside the one `PASS|FAIL|WAIT` line, `report` plus `down` in one call and the read-the-verdict gates are Design Notes 6 and 7 and the Matrix; the second push on a `release/*` branch is read by sha, so it adds no confusion.
+
 ## Design Notes
 
 **Already met (not rebuilt):**
@@ -245,6 +275,20 @@ deferred: []
 10. **Fixed run tags with hyphens** (`rel-1-0-5-rc1-upg`), so that 1.10.5 and 11.0.5 never collide. The tag is stored in the state.
 11. **The end text** becomes `stopped after <last>: no step after the gates has run (not a release)`, the text Story 11.16 expects. It is unreachable until 11.15, so a test reaches it by setting the state's `next=done`.
 12. **`--runs 20`**, the bound's denominator.
+
+**Decided in the implement pass (small ambiguities; none changes the intent contract):**
+1. `COUNTS|<items>|...` counts the enabled items only, so the PASS text "(<n> enabled items in <m> productions)" is exact. `<stub items>` includes disabled ones.
+2. An `Enabled` value other than `false` or `0` counts as enabled (the conservative side of "true, 1 or absent").
+3. STUB resolution: the first class in the order (own value, then each superclass left to right, depth first) that sets `Parameter STUB` decides. A leftmost superclass with `STUB = 0` therefore wins over a later one with `STUB = 1`, as IRIS parameter inheritance does.
+4. A value that is empty in a FAIL detail shows as `-` (a section that is missing reads `Result: -, Mode: -`). Remote tags that cannot be read show as `missing: unreadable` in the tags FAIL. These two placeholders are the only text beyond `### Public text`; they replace a value, not a message.
+5. The NOTE after `seed` is printed exactly as written in `### Public text`.
+6. `PHASE rehearsal <text>` prints the text after `NEXT run: ` of the script's line.
+7. With the real harness, a failed `seed` makes `upgrade` exit 2 ("seed is not done for this tag"). The gate then runs `report` (so the harness writes its `## Upgrade harness` section, `Result: fail` with the cut sha), then `down`, and fails with `the harness refused upgrade: ...`. The Matrix's "down, then FAIL" order of `down` and FAIL holds, and `report` after a refused phase is the only addition; a failed `build` runs `down` alone. This is what IA4 asks for.
+8. A record push that fails at the hands-on stop keeps exit 4 (a stopped kind keeps its code, as `stopped` does today); the FAIL record line is printed.
+9. Usage text: `cli_usage` prints header lines 2 to 7 (the exit lines are now three).
+10. Self-test pins that moved with the public text: the "one read command" pin matches `read -<flag>` commands (the mandated text "could not read the runs" contains the word), and `t_hands` counts one clock read for the `ci` step's first check.
+11. The seed gets stub gate scripts, fixture productions under `src/fixture/` (a `Test` one is not scanned) and the working tree's `release/notes.sh` and `eval/run.sh`; the rules of the real scripts copy the real ones over (`set_real`).
+12. A scan that finds class files but no production definition prints no `COUNTS` line (status 3, `FAIL stubs the production classes could not be read`): there was nothing to judge. A `Parameter STUB` line may be indented, carry `[ ... ]` keywords or `As <type>`, and end in `;` or a `//` comment.
 
 **Harvested from the set-aside pass:** the reviewed robustness of `production_stubs`:
 - single and double quotes;
@@ -366,20 +410,54 @@ Run each command in its own foreground call with `timeout: 600000`, from the wor
 - `(once)` `bash docker/tests/test-ci-config.sh`, then `bash docker/tests/test-ci-changes.sh`, then `bash ci/changes.sh ci.yml` -- expected: exit 0.
 - `(once)` `bash docker/tests/test-boundaries.sh` -- expected: exit 0.
 
-**Mutations (Rule 19; one per AC, then revert and confirm the tree is unchanged):**
+**Task 0 figures (implement pass, 2026-11-08):**
+- `production_stubs` on the real tree: `COUNTS|58|3|0|0`, status 0 (58 enabled items in 3 productions, 0 stub items), under 1 s. The first field counts enabled items only.
+- On a scratch copy of `src/` where `Channel/Telegram/In.cls` has `Parameter STUB = 1;`:
+  - TelegramIn as it is (`Enabled="false"`): `COUNTS|58|3|1|0`, status 0 (a disabled stub is not refused).
+  - `Enabled="true"`: `FOUND|OcuTalon.Production|TelegramIn|OcuTalon.Channel.Telegram.In` and `COUNTS|59|3|1|1`, status 1.
+  - the attribute removed: the same `FOUND` and `COUNTS|59|3|1|1`, status 1.
+  - `Enabled="1"`: the same, status 1.
+- The real `rehearse.sh run` with no `release.conf` (in a throwaway of the self-test, with `--version 1.0.0 --rc 1 --candidate release/1.0.0-rc1 --record <file> --runs 20`): exit 2, the line `REFUSED config: the configuration file is missing or not readable`, and the docker shim log gains no line (24 lines before and after). `rehearse.sh down` after it prints `TEARDOWN nothing to remove for tag <tag> (no state)`.
+- The real `upgrade-harness.sh build` with the shims (previous release a tag whose tree has a built page): the call (clone with `web/node_modules` through the npm shim, then `build`) took 1 s, exit 0, so IA4 uses the real harness.
+
+**Measured, one batch per call, on the dev Mac under load from other agents (wall time):**
+- `stubs ci eval` 88 s; `upgrade rehearsal` 110 s (split to one rule per call when the host is busy); `checklist handson static` 39 s; `gates` 100 s; `realgates` 62 s.
+- Existing rules: `libs refusals cut` 29 s; `recut image overview` 49 s; `ipmcheck push record` 116 s; `hands resume notes` 110 s; `gate secret first` 35 s; `word pushes` 46 s; `ipm ipmfail` 74 s; `ipmwait ipmnet ipmlib` 12 s; `overviewunit overviewdrift overviewdoc` 9 s. Every batch printed `PASS all rules`.
+- `test-release-notes.sh` 39 s, `test-release-checklist.sh` 47 s, `test-upgrade-harness.sh` 52 s, `test-rehearsal.sh` about 2.5 min (moved to the background by the harness and waited for; exit 0; it needs no lane variables), `test-ci-config.sh` 79 to 89 s, `test-ci-changes.sh` 36 s, `ci/changes.sh ci.yml` under 1 s, `test-boundaries.sh` 11 s: all exit 0.
+
+**Mutations (Rule 19; one per AC, applied, observed red, reverted; the four edited files hashed equal before and after):**
 - AC1: advance the state on a failed gate.
+  - mutation: `sset next "$(next_step "$step")"` added to the failure branch of `cmd_next`; red in `gates` ("the state still names it" and every check after it).
 - AC2: a missing `Enabled` counts as disabled.
+  - mutation: `en == ""` added to the disabled test in `production_stubs`; red in `stubs` (form with no `Enabled`).
+  - mutation: `nprod > 0` guard of the `COUNTS` line removed in `production_stubs`; red in `stubs` ("no production: exit", "no production: the line").
+  - mutation: the `Parameter STUB` match anchored at column 0 again; red in `stubs` ("forms: an indented Parameter line"). The trailing-comment and keyword forms are red when their parts of the match are removed.
+- Matrix, clone guard (Always: HEAD must equal the cut's sha): the check skipped in `candidate_clone`.
+  - mutation: `if [ "$head" != "$sha" ]` replaced by `if false` in `candidate_clone`; red in `checklist` ("moved branch: the line", "moved branch: the gate script did not run").
 - AC3: accept `failure`.
+  - mutation: `$4 != "failure"` added to the red test of `step_ci`; red in `ci` ("red: exit", "red: the line").
 - AC4: accept `onMock` true.
+  - mutation: `onMock` true accepted in `step_eval`; red in `eval` ("pass: the line" and the kept result).
 - AC5: `gate_verdict` trusts the exit code alone.
+  - mutation: `return 0` in place of the `Result: pass` test in `gate_verdict`; red in `gates` (upgrade, rehearsal and checklist variants).
 - AC6: skip the phases after a failed `seed`.
+  - mutation: `next=report` after a failed `seed` in `step_upgrade`; red in `upgrade` ("a failed seed: every phase ran, then down").
 - AC7: map exit 3 to pass.
+  - mutation: the exit 3 branch of `step_rehearsal` returns a PASS; red in `rehearsal` ("exit 3: exit", "exit 3: the line").
 - AC8: `hands-on` returns 0.
+  - mutation: `return 0` in place of `return 6` in `step_hands_on`; red in `handson` (the state no longer names hands-on, the exit is 0).
 - AC9: drop `release/*` from `lane-a.yml`.
+  - mutation: the line removed; red in `test-ci-config.sh` (`triggers` fails).
 - IA1: write `pass` for the checklist row.
+  - mutation: `STEP_ROW=pass` before the failing return of `step_checklist`; red in `realgates` ("IA1: the checklist row is the script's own result").
 - IA2: replace `override.reason` with a fixed text.
+  - mutation: `fixed text` in the overridden detail of `step_eval`; red in `realgates` ("IA2: the row").
 - IA3: map exit 2 to WAIT.
-- IA4: judge the harness on its exit code only.
+  - mutation: the exit 2 branch of `step_rehearsal` prints a WAIT and returns 5; red in `realgates` (IA3).
+- IA4: do not write the harness's section when it refuses a phase.
+  - mutation: the `report` call before `down` on exit 2 of a phase after `build` skipped in `step_upgrade`; red in `realgates` (IA4: "the report ran after the refusal", "the harness section is in the record", "the section reads Result: fail", "the section names the cut commit").
+- IA4 (verdict half): judge the harness on its exit code only.
+  - mutation: `[ "$ra" -eq 0 ]` alone decides the pass in `step_upgrade`; red in `gates` (the upgrade variants and the control).
 
 **Shared surfaces:**
 - the `STEPS` list (the `t_static` pin; the specs of 11.15, 11.16 and 11.18);
@@ -393,5 +471,24 @@ Run each command in its own foreground call with `timeout: 600000`, from the wor
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The release sequence now runs `cut stubs image overview ipm ipmcheck push ci eval upgrade rehearsal notes checklist hands-on`: the stub refusal, the full-CI read, the evaluation verdict (REL-5), the upgrade and rehearsal drives one phase per call, the checklist, and a `hands-on` stop that never passes. `release/*` joins the push branches of `ci.yml` and `lane-a.yml`.
+
+**Files changed.**
+- `release/release.sh`: header, `STEPS`, the gate functions after `step_notes`, `cmd_next` cases 3 and 6, the `hands` stop kind and end text, `--eval` in `step_notes`, usage lines 2 to 7.
+- `release/lib-release.sh`: `record_section`, `record_field`, `production_stubs`, `candidate_clone`, `gh_repo`, `ci_runs` (additions only).
+- `release/notes.sh`: `notes_section` calls `record_section`.
+- `.github/workflows/ci.yml`, `.github/workflows/lane-a.yml`: the `"release/*"` push branch.
+- `docker/tests/test-ci-config.sh`: the required set, good sample, `trigger-no-release` bad sample, descriptions.
+- `docker/tests/test-release-sequence.sh`: shims, seed, drivers, the rules `stubs ci eval upgrade rehearsal checklist handson gates realgates`, static pins, updated existing rules.
+- this spec: Task 0 figures, batch times, mutation lines, decisions, triage log.
+
+**Review.** 39 findings from four layers: 4 medium and 5 low rows patched (grouping 9 patch rows), 0 deferred, the remaining low findings rejected with reasons (see the triage log). Patched medium entries: empty scan passing `stubs`; `Parameter STUB` line forms; `report` before `down` after a refused phase (IA4); the clone's HEAD guard test.
+
+**Follow-up review recommended: true.** Two or more medium entries were patched, and these patched paths had only the self-test behind them: the `production_stubs` awk match (the layout of real production classes beyond the fixtures) and the `report` call after exit 2 in `step_upgrade` against the real harness.
+
+**Verification (final tree).** Each of these passed: `stubs ci eval` (74 s), `upgrade rehearsal` (75 s), `checklist handson static` (32 s), `gates` (78 s), `realgates` (50 s); the existing batches `libs refusals cut` (25 s), `recut image overview` (41 s), `ipmcheck push record` (95 s), `hands resume notes` (81 s), `gate secret first` (21 s), `word pushes` (33 s), `ipm ipmfail` (54 s), `ipmwait ipmnet ipmlib overviewunit overviewdrift overviewdoc` (21 s); `test-release-notes.sh` 36 s, `test-release-checklist.sh` 43 s, `test-upgrade-harness.sh` 38 s, `test-rehearsal.sh` 133 s, `test-ci-config.sh` 87 s, `test-ci-changes.sh` 30 s, `ci/changes.sh ci.yml` under 1 s, `test-boundaries.sh` 9 s. Hosted-checks estimate for the whole `release-sequence` self-test: the rule batches sum to about 11 minutes on the loaded dev Mac, so about 8 to 11 minutes on the runner (inference), inside the job's 20 minutes.
+
+**Residual risks.** The `release/*` trigger firing, the `ci` gate reading real runs, and the real gates passing on a real candidate are not provable offline (PLANNER REPORT). The gate readers are tested against hand-made sections plus the real checklist, so a format drift in the real `report` output fails closed at the next real release. Rows of the Matrix that the Planner may rule on: the two placeholders (`-` for an empty value, `missing: unreadable`) from Design Notes 4.
