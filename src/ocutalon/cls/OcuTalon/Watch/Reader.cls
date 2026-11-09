@@ -36,7 +36,8 @@ Include (Ensemble, EnsConstants, EnsErrors)
 ///     caller never takes an unread queue for an empty one; every other outcome gives [] for both.
 ///   - Vitals reads the instance's vital signs (Story 17.5) and switches no namespace: the uptime, the volume's free share and the size limit of each
 ///     of OcuTalon's databases and of the databases of the watched namespaces (Database), the free share of the journal's volume, the license use and
-///     the count of the severe lines (severity 2 and 3) of messages.log, and of the files IRIS keeps when it switches it, in a window. It reads no privileged API: only counts and percentages leave
+///     the count of the severe lines (severity 2 and 3) of messages.log, and of the files IRIS keeps when it switches it, in a window, without
+///     IRIS's own two start-up lines (StartNoise; Story 17.13). It reads no privileged API: only counts and percentages leave
 ///     it, never the text of a log line. Each sign has its own outcome, read or error, so one sign that cannot be read never hides the others.
 ///   - Evidence reads the evidence of the failures with the given keys (Story 5.4), inside the same switching method and under the same two
 ///     checks as Failures (readable before any switch, outcome unreadable or not_current). It gives the snapshot as the reader snapshot of
@@ -76,6 +77,14 @@ Parameter SWITCHEDLOGS = "messages.old_*";
 /// The longest line of messages.log that Vitals reads whole, in characters. The rest of a longer line is read as the next line, which no
 /// timestamp starts.
 Parameter LINEMAX = 4000;
+
+/// IRIS's own start-up line at severity 2, the whole text after the severity, as builds 154 and 109 write it at every start (Story 17.13, Task 0).
+/// SevereLines does not count a line of exactly this text.
+Parameter NOISESHARDING = "[Utility.Event] Error: ERROR #5002: ObjectScript error: <METHOD DOES NOT EXIST>Sharding+2^STU *Sharding,SYS.ICM";
+
+/// The start of IRIS's own start-up line at severity 2 that a start in a new container writes (builds 154 and 109; Story 17.13, Task 0), with its
+/// closing space. The container id follows it (12 to 64 lower-case hex digits) and nothing else. SevereLines does not count such a line.
+Parameter NOISEFAILOVER = "[Utility.Event] System appears to have failed over from node ";
 
 /// The most headers in the trace of an evidence snapshot.
 Parameter TRACEMAX = 20;
@@ -232,7 +241,8 @@ ClassMethod Failures(namespace As %String, production As %String, from As %Strin
 ///   - journal: {"outcome", "directory", "freePercent"}, the free share of the volume of the primary journal directory;
 ///   - license: {"outcome", "units", "consumed", "usePercent"}; a license of no units is an error;
 ///   - systemLog: {"outcome", "count"}, the lines of severity 2 or 3 in messages.log and the files IRIS kept when it switched it (in the manager directory) whose time lies in [fromUtc, toUtc]
-///     (UTC, YYYY-MM-DDThh:mm:ssZ; an empty end leaves that side open). The file's times are local, read in the instance zone (Data.Time.FromLocal).
+///     (UTC, YYYY-MM-DDThh:mm:ssZ; an empty end leaves that side open), except IRIS's own two start-up lines at severity 2 (StartNoise), which are never counted.
+///     The file's times are local, read in the instance zone (Data.Time.FromLocal).
 ClassMethod Vitals(namespaces As %List = "", fromUtc As %String = "", toUtc As %String = "") As %DynamicObject
 {
 	Set vitals = {"instance": {"outcome": "error", "upSeconds": ""}, "databases": [], "journal": {"outcome": "error", "directory": "", "freePercent": ""}, "license": {"outcome": "error", "units": "", "consumed": "", "usePercent": ""}, "systemLog": {"outcome": "error", "count": ""}}
@@ -358,7 +368,8 @@ ClassMethod Add(databases As %DynamicArray, ByRef seen, directory As %String, na
 
 /// The number of lines of severity 2 or 3 in messages.log whose time is in [fromUtc, toUtc], or "" when a file cannot be read. IRIS switches the log
 /// when it passes its size limit and keeps the previous file as messages.old_YYYYMMDD, then messages.old_YYYYMMDD_1 and so on, so the count reads the
-/// current file, then the switched files newest first, and stops after the first file whose first timed line is before fromUtc (an older file holds nothing newer). A line starts MM/DD/YY-hh:mm:ss:mmm (pid) severity; the time is local. The text of a line is never kept.
+/// current file, then the switched files newest first, and stops after the first file whose first timed line is before fromUtc (an older file holds nothing newer). A line starts MM/DD/YY-hh:mm:ss:mmm (pid) severity; the time is local. IRIS's own two start-up lines (StartNoise) are not counted, in any file; every
+/// other line of severity 2 or 3 is. The text of a line is never kept.
 ClassMethod SevereLines(fromUtc As %String, toUtc As %String) As %String [ Private ]
 {
 	Set directory = $SYSTEM.Util.ManagerDirectory()
@@ -416,9 +427,23 @@ ClassMethod SevereLinesIn(path As %String, fromUtc As %String, toUtc As %String,
 		If (severity '= 2) && (severity '= 3) Continue
 		If (fromUtc '= "") && (fromUtc ] utc) Continue
 		If (toUtc '= "") && (utc ] toUtc) Continue
+		If ..StartNoise(line) Continue
 		Set count = count + 1
 	}
 	Quit $$$ISOK(sc)
+}
+
+/// 1 when the line is one of IRIS's own two start-up lines (Story 17.13): its severity is 2 and the text after the severity is exactly NOISESHARDING, or
+/// NOISEFAILOVER followed by 12 to 64 lower-case hex digits (a container id) and nothing else. Any other line, a near miss or the same text at another
+/// severity, is 0, so it counts. The line is compared in memory only.
+ClassMethod StartNoise(line As %String) As %Boolean [ Private ]
+{
+	If $Piece(line, " ", 3) '= 2 Quit 0
+	Set text = $Piece(line, " ", 4, *)
+	If text = ..#NOISESHARDING Quit 1
+	Set length = $Length(..#NOISEFAILOVER)
+	If $Extract(text, 1, length) '= ..#NOISEFAILOVER Quit 0
+	Quit ($Extract(text, length + 1, *) ? 12.64(1N,1"a",1"b",1"c",1"d",1"e",1"f"))
 }
 
 /// The evidence of the failures with the keys (comma-separated, h<header id> or l<log id>, as OcuTalon.Watch.Mark.KeyOf gives them) of the

@@ -6568,6 +6568,52 @@ So that showing the demo instance's own vital signs can never leak anything abou
 
 - DW-898: Online demo: pin that the digest text never names a host path, an IP address, a user name or a key (U-303 keep-condition) (ledger; routed by the owner 2026-11-08)
 
+### Story 17.12: "Needs you" never counts the person's own chat messages
+
+[ADDED 2026-11-08, fix-forward inside Epic 17 under the SC-5 re-open: DW-979, HIGH, demo walk, Planner-ruled scope (`planner_ruling subject=demo_walk_v1.0.4`, the Contest Planner under the owner's delegation, 2026-11-08 about 21:30Z: "the demo is what judges see this week, so these two come first in 1.0.5"); for 1.0.5, ahead of Story 17.13]
+
+As a user who chats with OcuTalon,
+I want the digest's "needs you" to leave out my own chat messages,
+So that a question I asked, and already got an answer to, is never listed as something that needs me.
+
+**Acceptance Criteria:**
+
+**Given** a session whose own chat or user turns each recorded a decide Decision with the outcome tellnow (for example "A request from the user; the user is answered directly"), on any channel
+**When** its digest is composed through `OcuTalon.Digest.NeedsYou` (the morning digest or "send my digest now")
+**Then** those Decisions never count and are never named in "needs you", whatever their window or handled marker, while real tell-now and act items (items that arrived on a channel), incidents awaiting approval and failed check rows still count exactly as Story 12.12 fixes, with 12.12's window and **Got it** handling unchanged (FR-35, AD-14)
+**And** a test with a user turn plus one real tell-now item gives a count of exactly 1, naming only the real item, pinned with a mutation shown going red (Rule 19)
+
+**Given** the other channels' copies of the digest (the Telegram digest and the web chat's digest card)
+**When** they show "needs you"
+**Then** they render the same composed parts from the one `NeedsYou` list, so the same rule holds on every channel; the spec records that no channel reads "needs you" another way
+
+**Given** the change
+**When** it merges
+**Then** no user-facing string is added or changed; if one is needed, it goes to the Contest Planner as public text before it is committed
+
+- DW-979: D3: 'Needs you' counts the person's own chat messages ('3 things need you: Send my digest now; What is the capital of France according to my documents?; ...'); NeedsYou excludes decisions on the person's own chat or user turns; a user turn plus a real tell-now item gives exactly 1 (ledger; routed by the Contest Planner's demo walk ruling 2026-11-08)
+
+### Story 17.13: The system-log vital sign is not a false alarm after a restart
+
+[ADDED 2026-11-08, fix-forward inside Epic 17 under the SC-5 re-open: DW-980, HIGH, demo walk, Planner-ruled scope (`planner_ruling subject=demo_walk_v1.0.4`, the Contest Planner under the owner's delegation, 2026-11-08 about 21:30Z); for 1.0.5, after Story 17.12; a Task 0 measurement and a report to the Planner come before any fix]
+
+As a user who restarts OcuTalon's container,
+I want the system-log vital sign to fail only on real errors,
+So that a restart never makes the digest report "Failed: system log" for the instance's own start-up lines.
+
+**Acceptance Criteria:**
+
+**Given** fresh Docker installs of builds 154 and 109, each started in a throwaway stack (never the demo host)
+**When** Task 0 reads the lines their `messages.log` holds at severity 2 or above once start-up is over
+**Then** the spec records those lines, with host names and container ids redacted, and the narrowest fix is reported with that evidence to the Contest Planner before anything is implemented: (a) ignore those exact start-up signatures, or (b) count only errors logged after the instance's start sequence ends
+
+**Given** the fix the Planner rules
+**When** the system-log vital sign (`OcuTalon.Watch.Reader`'s `messages.log` severity count, Story 17.5, and the "system log" entry of `OcuTalon.Checks.Coverage`) reads an instance's log after a restart
+**Then** start-up noise alone passes, and a real error logged later still fails with its count and time, each pinned by a test with a mutation shown going red (FR-36, Rule 19)
+**And** any change to a user-facing string goes to the Contest Planner first
+
+- DW-980: D4: the system-log vital sign is a false alarm on every container restart ('Failed: system log (6 errors, at 16:24 ET)'; messages.log severity 2 holds only start-up noise: 'System appears to have failed over from node <old container id>' and 'ERROR #5002 ... <METHOD DOES NOT EXIST>Sharding+2^STU *Sharding,SYS.ICM'); Task 0, then the Planner's ruling on the narrowest fix (ledger; routed by the Contest Planner's demo walk ruling 2026-11-08)
+
 ## Epic 18: An admin changes settings in the web app (step 2)
 
 An admin opens a settings page to change models, budgets, channels, the digest time and channels, the time zone and check thresholds; each change takes effect within a minute without a restart and is audited; non-admins can't open it.
@@ -8703,6 +8749,55 @@ So that a host-load flake no longer turns a green head red, and every retry is v
 - DW-550: flake: live:cards I10 (and others) time out in loadedAfter's /state wait after sign-in on a loaded host; passed on an unchanged rerun (ledger; routed by charter 2026-11-08)
 - DW-774: flake: live:online-session leave.spec page.close no answer within 30 s (L5, L6) and loadedAfter GET /state no answer within 30 s (decision D2, sign-in-2 W3) under heavy CI load (ledger; routed by charter 2026-11-08)
 
+### Story 32.7: The remaining CI flakes either find their cause or are contained, logged
+
+As the release's CI,
+I want the remaining tests that fail only on a loaded CI host and pass on an unchanged rerun either explained and fixed in the tests, or contained by at most one logged retry,
+So that a host-load flake no longer turns a green head red, a retry is visible instead of silent, and a product cause reaches the Planner before anyone fixes it.
+
+[ADDED 2026-11-08, Epic 32 re-open (SC-5) for DW-211, DW-639, DW-774 page.close, DW-973, DW-966, DW-911, test-only, on the Contest Planner's terms under the owner's delegation (logged `planner_ruling subject=U-307+lane_B`, about 10:03Z: "flake story 32.7 (DW-211, DW-639; same terms as 32.6; report first if the cause is product)", relayed by the orchestrator, which added 32.6's overflow and the later flakes to this story, `ruling question=32.7_scope`). Same terms as Story 32.6. Timeboxed: 90 minutes of investigation per entry group from the spec gate. No product change; no release tool (`release/*.sh`, `eval/run.sh`, the upgrade harness, demo-host-check and the IPM scripts are frozen). It builds on Story 32.6's load harness, page-side diagnostics and `RETRIES` counts, and on Story 39.10's Heartbeat diagnostics.]
+
+**Acceptance Criteria:**
+
+**Given** each entry group below and its occurrences (the CI job logs, the failure artifacts, the diagnostics that Stories 11.27, 32.6 and 39.10 landed)
+**When** the lead investigates it, for at most 90 minutes per group from the spec gate
+**Then** the spec records, per group, either the cause with its evidence, fixed in the test classes the entries name (their wait and timing lines only), `web/e2e/support/**`, the leave spec's close lines or `ci/` test scripts; or `none_in_timebox`, with what was read and ruled out
+
+**Given** a cause that lies in product code
+**When** the investigation finds it
+**Then** investigation of that group stops and the evidence goes to the Planner before any fix; no product file changes in this story
+
+**Given** a fix that makes a wait longer
+**When** it is proposed
+**Then** its own evidence shows what the test waited on and that the wait ended late on the loaded host, not that the product failed; without that evidence no bound or timeout changes
+
+**Given** a group whose timebox ends without a cause
+**When** its fallback lands
+**Then** it is at most one retry per wait, logged as `RETRY <spec-or-class>:<line> <step>` and counted in the `RETRIES` line of its CI group; a second failure fails as today, naming its step
+
+**Given** DW-966's waits
+**When** they are examined
+**Then** the race is measured first (one run of each test with a second channel's row recorded first), and only a race the measurement shows is fixed
+
+**Given** a CI group whose `RETRIES` count is above 0
+**When** the job ends green
+**Then** the retry-time `DIAG` lines are printed, or the results uploaded, by the one changed step of `.github/workflows/ci.yml`; the `RETRY` lines stay as they are, and `ci/units.sh` gains no new IRIS group for bookkeeping-only pushes (the Planner's U-307 terms)
+
+**Given** the change
+**When** it is proved
+**Then** for each fixed entry the old code goes red under the load harness (or an injected stall where the plain load does not reproduce it) and the fix passes 20 of 20 under the same load, both recorded with their counts in the spec's `## Verification`
+
+**Given** the change
+**When** it is reviewed and pushed
+**Then** nothing under `src/**` changes beyond the named test classes' wait and timing lines, no release tool changes, no real model key is used, no other epic's spec changes beyond the shared support files, `docker/tests/test-boundaries.sh` passed first, and full CI is green on every workflow
+
+- DW-211: flake: Test.Agent.Runners TestStartRefused ('the Production step's check names it as not running') red in CI shard lane-a on the Linux host (ledger; routed by charter 2026-11-08)
+- DW-639: flake: Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('the production runs every item': NotRunning() names TelegramIn, jobs none) red in image lane-b (ledger; routed by charter 2026-11-08)
+- DW-774: flake: live:online-session leave.spec page.close no answer within 30 s while renderer and browser answer, under host io pressure (the page.close half; ledger; routed by charter 2026-11-08)
+- DW-973: flake: Test.Docs TestTimeLeft (Story 19.7) red under CI load, a timing bound on a loaded host (ledger; routed by charter 2026-11-08)
+- DW-966: tests that wait on Observe.WaitDeliveries(session, 1, ...) for any channel's row, then read the web rows only (Test.Checks.BeatOutcomes about :106 and :254): measure, fix only what is shown (ledger; routed by charter 2026-11-08)
+- DW-911: a retried test that passes leaves its retry-time DIAG lines unprinted and unuploaded; print them or upload the results when RETRIES is above 0 (ledger; routed by charter 2026-11-08)
+
 ## Epic 33: Step 2's contracts, and the settings page opens for admins (step 2)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 17.1 and 18.1, moved whole and verbatim as Stories 33.1 and 33.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 2's names fixed in the spine and in code as stubs, and an admin opens a settings page that saves each section on its own, applies it within a minute and records it in the audit log, so that Epics 17 and 18 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 17 and 18) and its partner in this epic.
@@ -9912,6 +10007,8 @@ So that only a person's answers can ever become precedents.
 **When** they are called
 **Then** each is session-checked and owner-scoped. The notes route answers from `DailyNote.Build`, a stub until Story 41.3 (AD-4)
 **And** `SessionOps.End` deletes the ended session's precedents through `PrecedentOps` (AD-4)
+- DW-921: AD-21's accepts-only list for PrecedentOps names MarkNoise and RecordPrecedent but not ForgetPrecedent, which AD-1 and the Epic 41 names sub-bullet route to PrecedentOps from web_user; fold into the AD-21 amendment written at this story's plan (ledger; routed by harvest 2026-11-08)
+- DW-922: a `tool_call` precedent has no match key (`KeyFor(item)` has no form for a tool request), so `tool_call` precedents would never be read; decide the key form, or drop `tool_call` precedents, at this story's plan with the AD-21 amendment (ledger; routed by cr 2026-11-08)
 
 ### Story 41.3: Daily notes built by code, and the session starts that read them
 
@@ -9965,6 +10062,7 @@ So that it gets better at knowing what matters to me.
 **When** this story adds the precedents paragraph from EXPERIENCE.md › Later Steps › Personality (static, with no `{{`)
 **Then** a test compares the paragraph with its source, and the paragraph says that past answers are examples, never rules (AD-7)
 **And** CI mock scenarios `memory-*` show both blocks in the request log where expected, and absent elsewhere
+- DW-961: the `sessionStart` context is not yet observed past `Conversation.Request`: pin both hops (`Conversation.Request` -> `Intake.RequestFor` -> `Agent.Input.Render`) with this story's `memory-*` scenarios (ledger; routed by cr 2026-11-08)
 
 ### Story 41.5: "This was noise", and your approval answers, become precedents
 
@@ -9990,6 +10088,10 @@ So that OcuTalon learns from my answers and never from its own guesses.
 **Given** Playwright specs `web/e2e/memory-noise.spec.ts` and tests in `OcuTalon.Test.Core`
 **When** they run
 **Then** they cover the mark, a repeat, the phone, an approval and a rejection, and they don't change the demo-path specs (REL-2)
+- DW-923: the 'This was noise' refusal `too_old` (Item already purged) has no user-facing text in EXPERIENCE.md or its Message Catalog; its words are approved (Contest Planner under the owner's delegation, 2026-11-08): "This notice is too old to mark as noise. Nothing was changed.", the same as Story 41.2's noise-route 409 body; pin both with fixed strings (ledger; routed by cr 2026-11-08)
+- DW-932: the noise route's 200 body (`markedAt`), its `already_marked` answer, the phone-versus-web body mapping and the 409 `too_old` are not yet run over real HTTP; this story's `web/e2e/memory-noise.spec.ts` covers them (ledger; routed by harvest 2026-11-08)
+- DW-933: `PrecedentOps.Record` must compare `RecordPrecedent`'s `Action` with the request's stored answer (`AnsweredAction`/`State`) before writing, so a mis-sent message cannot record an answer the person never gave (ledger; routed by cr 2026-11-08)
+- DW-934: a precedent written just after sign-out can survive `SessionOps.End` (End's `Has()` is read before a queued `MarkNoise`/`RecordPrecedent` lands, and `Record` accepts an ended session); `Record` refuses an ended session, or End's drop is ordered after queued writes (ledger; routed by cr 2026-11-08)
 
 ### Story 41.6: The Memory card: your notes and your answers
 
@@ -10031,7 +10133,7 @@ So that memory can't be poisoned through the notes or the precedents.
 **Then** neither `DailyNote.Build`'s text nor the session-start block contains any part of it, its sender or its body (FR-71, NFR-14)
 
 **Given** the evaluation harness
-**When** a case seeds precedents for owner `eval` (`EvalIn` sends them to `PrecedentOps` as `RecordPrecedent`, owner `eval` only, only while `OCUTALON_EVAL=1`, and removes them after the run)
+**When** a case seeds precedents for owner `eval` (`EvalIn` sends them to `PrecedentOps` as `SeedPrecedent`, owner `eval` only, only while `OCUTALON_EVAL=1`, and removes them after the run with `RemoveSeededPrecedents`) [AMENDED 2026-11-08, Story 41.7 plan, Rule 5 apply-and-report: it read "as `RecordPrecedent`"; DW-920 and AD-21 as amended name `SeedPrecedent`]
 **Then** the set gains a pair of cases on one recorded email:
 - without precedents, it is expected as tellnow;
 - with three "noise" precedents from the same sender, it is expected as digest or ignore.
@@ -10041,6 +10143,7 @@ So that memory can't be poisoned through the notes or the precedents.
 **Given** the security overview
 **When** this story updates its section on what data leaves the instance
 **Then** that section says that daily notes and precedents are sent to the configured model provider inside requests (FR-61, NFR-18)
+- DW-920: Story 41.7's eval seeding does not fit the first part's contracts as fixed (RecordPrecedent's fields, AD-21's one sender, ForgetPrecedent's origin); decided by the Contest Planner under the owner's delegation: AD-21 is amended additively at 41.2's plan, and this story seeds precedent rows only while OCUTALON_EVAL=1, marks each row eval-seeded, removes them through PrecedentOps after the run, and pins that a person's turn beside an eval run reads none (ledger; routed by harvest 2026-11-08)
 
 **Release check:** at the first daily release that ships this part, the Contest Planner's hands-on pass with real keys marks a notice as noise on the web app, then sends a similar sample email, and reads a day's notes (REL-7, as amended 2026-10-31).
 
@@ -10137,6 +10240,8 @@ So that it never forgets the few things that matter most.
 **Given** a user item rendered with `sessionStart`
 **When** `Agent.Input.Render` runs
 **Then** before the daily notes it adds the core-memory block: "Your core memory (facts you pinned):", then the pinned memories newest pin first, quoted, never over the cap (FR-74, AD-7, NFR-27)
+- DW-967: a first turn of the day that ends in a fallback (`no_key`, `daily_cap`, `budget`, `too_large`, failed Chat) still counts as the session start, so that day's notes never reach a model; count only turns whose request reached a model (ledger; routed by burndown 2026-11-09)
+- DW-977: today's note at a session start quotes the current message's own opening, so the model sees the person's words twice; leave the current and later turns out of the note (and update `Test.Bridge.SecondModel:TestIntegrationWebChat`) (ledger; routed by burndown 2026-11-09)
 
 ### Story 41.13: The Memory card: pinned and learned memories
 
@@ -10158,6 +10263,7 @@ So that I decide what OcuTalon keeps.
 **Given** the README's memory section
 **When** this story updates it
 **Then** it says what forgetting removes (the memory, its search entries, any pin, and every later session start) and that the current conversation's earlier messages aren't rewritten (FR-73)
+- DW-996: unify the Memory card's `ForgetDialog` (`web/src/app/rail/memory-card/forget-dialog.ts`) with `documents/remove-dialog.ts` into one shared confirm dialog (ledger; routed by burndown 2026-11-09)
 
 ### Story 41.14: Evaluation and tests for memory's second part
 

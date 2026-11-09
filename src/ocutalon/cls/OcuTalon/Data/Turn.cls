@@ -60,6 +60,10 @@ Property TraceItemIndexNoEvents As %Integer;
 /// True when the reply let untrusted content into the conversation (AD-10): the next turn then starts a fresh session.
 Property Tainted As %Boolean [ InitialExpression = 0 ];
 
+/// True when the reply moved the session's link to a new AI session (the reply's SessionRotated): the next turn then starts a session (Core.Conversation StartsSession).
+/// Rows saved before this property hold no value, which counts as false.
+Property SessionRotated As %Boolean [ InitialExpression = 0 ];
+
 /// How many times the turn has started; a Conversation instance whose count differs from the row's is stale (AD-30).
 Property Attempt As %Integer [ InitialExpression = 0 ];
 
@@ -154,6 +158,9 @@ Storage Default
 </Value>
 <Value name="22">
 <Value>TraceItemIndexNoEvents</Value>
+</Value>
+<Value name="23">
+<Value>SessionRotated</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.TurnD</DataLocation>

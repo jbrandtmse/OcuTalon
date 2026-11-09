@@ -500,16 +500,20 @@ test('G4: at 1000x800 the page is one column with the rail after main, and only 
 
 /**
  * G4, an empty chat: the list is as tall as its content (the empty chat's own box, which a stretched list would centre in more space),
- * and shorter than 70% of the window. The case empties the chat and the rail of its snapshot and opens a tall window, so that main has
- * room below the chat whatever rows the floor user holds, and checks that room first. (At 200% the empty chat's content is taller than
- * 70% of the window, and the list scrolls.)
+ * and shorter than 70% of the window. The case empties the chat and the rail of its snapshot, and the Memory card's notes, and opens a
+ * tall window, so that main has room below the chat whatever rows the floor user holds, and checks that room first. (At 200% the empty
+ * chat's content is taller than 70% of the window, and the list scrolls.)
  */
 test('G4: below 1024px an empty chat list is as tall as its content', async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 2100 });
+  await page.setViewportSize({ width: 1000, height: 2400 });
   await changeSnapshot(page, (snapshot) => {
     snapshot['chat'] = [];
     const rail = snapshot['rail'] as Record<string, unknown>;
     for (const section of ['approvals', 'checks', 'reminders', 'decisions']) rail[section] = [];
+  });
+  await page.route(/\/api\/v1\/memory\/notes(\?|$)/, async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...((await response.json()) as Record<string, unknown>), lines: [] } });
   });
   await openFloor(page);
   await expect(page.locator('main.main + app-device-panel + section.rail'), 'the column').toHaveCount(1);

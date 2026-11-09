@@ -2,6 +2,8 @@
 
 Answer an item with `bash _bmad/scripts/unattended-inbox.sh <this directory> answer U-<n> "<answer>" --by owner`, or run `/epic-cycle --review`. This file is generated: a hand edit is saved aside and never applied.
 
+**Hold requested 2026-11-09T11:00:18Z: owner: overnight hold 11:00Z (via Contest Planner; account switch ~13:00Z)**
+
 ## Veto window
 
 ### U-301 | veto | Story 39.10 | 2026-11-07T19:03:31Z
@@ -25,6 +27,20 @@ recommendation: keep (ruled by runner A under U3; fail-safe, smallest residual)
 blocks: nothing (ruled; 41.5 proceeds)
 answer: Keep: Mark and Record refuse a signed-out session, and SessionOps.End always queues the precedents drop behind queued writes. The millisecond in-flight residual is accepted; record it as a DW with its reopen condition (a precedent row found for an ended session), and pin both refusals. (by Contest Planner, 2026-11-08T16:31:17Z#945; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
 
+### U-315 | veto | Epic 11 | 2026-11-09T04:06:36Z
+question: Epic 11 part 2 readiness re-check (headless sprint planning) gave CONCERNS: (1) Stories 11.14-11.16 and 11.18 were written for the first 1.0.0 cut, but 1.0.0 to 1.0.4 have since been cut by hand (release/records/1.0.0..1.0.4) and the sequence's steps cut..notes exist; (2) the repository is public since 2026-10-31, so 11.16's private-repo branch-protection fallback (HTTP 403 path) is now the minor path; (3) the four specs of 2026-11-01 are stale against the delivered release.sh (DW-548) and are re-planned. The run continues; each plan records ACs already met with evidence under Design Notes rather than rebuilding them.
+options: keep going (re-plan each story against the delivered code and the Planner's runs) / stop Epic 11 part 2 for an attended correct-course
+recommendation: keep going: the gaps are drift between the recorded ACs and later delivery, which the re-plans resolve per story without changing intent; anything that would change an AC's intent comes back as a clarification
+blocks: nothing now (veto window)
+answer: keep going: re-plan each part-2 story against the delivered code and the hand-cut records 1.0.0-1.0.4; anything that changes an AC's intent comes back as a clarification. Part 2 targets 1.0.6; no part-2 merge before the 1.0.5 cut. (by Contest Planner, 2026-11-09T04:32:07Z#964; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
+
+### U-316 | veto | Epic 41 | 2026-11-09T05:57:18Z
+question: Integrate-forward over Epic 18: where 18.4's Got it and 41.5's This was noise meet on tell-now notice cards. Ruled (orchestrator): web card order = decision strip, then Got it or the handled line, then This was noise (Got it is the primary FR-35 action; the ghost button second; each control's pressed state replaces only itself); phone message order = text, Got it, time, This was noise; Live/Payload/Phone.cls keeps ONE DecisionRef, Epic 18's stored SimMessage.DecisionRef, falling back to Ownership.PhoneDecision only when it is empty and the message has no ApprovalRef (rows before 18.4's column).
+options: keep | reverse (another order, or drop 41.5's fallback and rely on Epic 18's column only)
+recommendation: keep
+blocks: nothing until the next release
+answer: (none yet -- answer with the script or --review)
+
 ## Holds
 
 ### U-220 | hold | Run 20261026T1518Z-1-37 | 2026-11-02T16:32:46Z
@@ -32,6 +48,13 @@ question: Hold #2 (account switch, the owner via the Contest Planner, ordered 14
 options: resume: interactive /epic-cycle 1-37 --unattended in a fresh session
 recommendation: resume after the Planner's commit (expected policy blob 508603671b9598f59d04750db6b6cdad2d396167)
 blocks: every runner until the resume
+answer: (none yet -- answer with the script or --review)
+
+### U-317 | hold | Run | 2026-11-09T11:02:33Z
+question: Owner's overnight hold at 11:00Z (via the Contest Planner). v1.0.5 released. All four runners held cleanly. Morning note: .worktrees/.coordination/morning-note-20261109.md (also committed as _bmad-output/implementation-artifacts/morning-note-20261109.md).
+options: resume: re-invoke /epic-cycle 1-37 --unattended after the account switch
+recommendation: resume after the account switch (~13:00Z)
+blocks: every lane until resumed
 answer: (none yet -- answer with the script or --review)
 
 ## Run reports
@@ -384,4 +407,4 @@ answer: (none yet -- answer with the script or --review)
 - U-313 | veto | Story 18.4: Stored data shape: two new nullable columns, Data.Delivery.CheckRows (the web digest card's check rows as JSON, so 'What I checked' survives a reload) and Data.SimMessage.DecisionRef (lets the phone edit a tell-now message in place when handled); older rows read empty, no migration. Ruled KEEP by the orchestrator (category=veto). -> Keep: two nullable columns (Delivery.CheckRows, SimMessage.DecisionRef); older rows read empty; no migration. Pin that an older row renders without error. (by Contest Planner, 2026-11-08T20:03:06Z#951; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-08T20:10:49Z -- Epic 18: applied in 18.4 spec e8213bd6 (older-row pin task)
 - U-314 | veto | Story 41.7: Stored data (veto window 3): the eval-only table Eval.Data.CaseResult gains one nullable column, Precedents (lives only on throwaways and CI; same kind as Story 40.7's Preset), so Agent.Input asks Similar("eval", ...) only for an eval item whose case seeded precedents. -> Keep: Eval.Data.CaseResult gains a nullable Precedents column (like 40.7's Preset); older rows read empty. (by Contest Planner, 2026-11-08T21:53:08Z#957; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-08T22:00:19Z -- Epic 41: applied in 41.7 spec 900b4bfa
 
-<!-- journal: 962 lines -->
+<!-- journal: 967 lines -->

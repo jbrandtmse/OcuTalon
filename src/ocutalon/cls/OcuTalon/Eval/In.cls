@@ -2,7 +2,7 @@
 /// The product keeps it disabled; the Production install step enables it only when OCUTALON_EVAL is 1, and Start reaches it only through
 /// Ens.Director.CreateBusinessService, so a disabled EvalIn sends nothing. It uses neither EnsLib.Testing.Service nor the production's
 /// testing switch. An item case goes to Intake; a turn case goes to Decide and its result to EvalSink; an incident case goes to IncidentManager; a digest
-/// case goes to Digest; and nothing else is ever a target.
+/// case goes to Digest; a case that declares precedents has them seeded and removed through PrecedentOps; and nothing else is ever a target.
 ///   - Start is the run entry: it creates the service, mints the run's Ref and sends each named case, or each case folder under the
 ///     folder, once. It returns the run's Ref, how many cases were sent, and the cases that were not, each with its reason.
 ///   - Start sends the turn cases first (SendOrder), then the others, each group in the order of the case list. ChatAgent has one job,
@@ -67,6 +67,17 @@
 ///     added or does not become ready skips the case with REASONDOCUMENTS and removes what was added. The TurnResult keeps the Reply's HostData.citations
 ///     (Citations). A sent case's record {case, documents{refs}} joins the Watches of the service, and Finish removes the documents of the records it is given
 ///     (DocumentsDown) with their passages.
+///   - A case of kind item or injection may declare precedents (Story 41.7; AD-21, AD-33): an array of 1 to PRECEDENTSMAX entries {summary, answer, outcome,
+///     daysAgo}: summary a line of 1 to 80 characters, answer one of Data.Precedent ANSWERS, outcome (optional) one of Msg.Enum OUTCOME, and daysAgo
+///     (optional) a whole number of 0 to PRECEDENTDAYS, which puts the answer's time that many days before now (without it, now). The shape is checked
+///     before anything is saved, and so is the Item's Data.Precedent.KeyFor, which must not be "": a case that fails either is skipped with REASONPRECEDENTS
+///     and leaves no row, no watch and nothing seeded. Otherwise EvalIn opens the case's row with Precedents 1, sends PrecedentOps one
+///     Core.Msg.SeedPrecedent for each entry (RunRef the run's, Channel the Item's, MatchKey its KeyFor; PrecedentOps writes the rows with owner eval and
+///     EvalRunRef), and only then sends the Item. Agent.Input reads those rows only for an item whose row is marked so. A seed that is not answered
+///     seeded skips the case with REASONPRECEDENTS and removes its row and its watch. From the first seed on, the case's setup record
+///     {case, precedents{runRef}} is in the Watches of the service, and Finish sends PrecedentOps one RemoveSeededPrecedents for each distinct run of the
+///     records it is given (Unseed). Start removes, before its first case, the seeded rows of every earlier run that left a marked row, and clears that
+///     run's marks; its case rows stay (SweepPrecedents). A failed removal is one warning, and the run goes on.
 ///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26), the old turn
 ///     of a before included.
 /// Wait polls the rows of a run until none is still sent, or the seconds have passed.
@@ -105,6 +116,18 @@ Parameter DOCUMENTSKIND = "documents";
 
 /// The seconds to wait for the documents of a case to be ready, all of them together.
 Parameter DOCUMENTSWAIT = 120;
+
+/// The item that seeds and removes the precedent rows of a case that declares precedents.
+Parameter PRECEDENTTARGET = "PrecedentOps";
+
+/// The most precedents a case seeds: the most rows that Data.Precedent.Similar returns (a test pins them equal).
+Parameter PRECEDENTSMAX = 3;
+
+/// The most days ago a precedent of a case may be answered.
+Parameter PRECEDENTDAYS = 30;
+
+/// The seconds to wait for PrecedentOps to answer a seed or a removal.
+Parameter PRECEDENTWAIT = 30;
 
 /// The kind of case that holds a recorded reader snapshot, and goes to IncidentManager.
 Parameter INCIDENTKIND = "incident";
@@ -170,6 +193,9 @@ Parameter REASONBEFORE = "its before is not valid: {why}";
 /// {why} says what is wrong with the documents the case declares or what went wrong adding them (Story 19.4).
 Parameter REASONDOCUMENTS = "its documents could not be set up: {why}";
 
+/// {why} says what is wrong with the precedents the case declares or what went wrong seeding them (Story 41.7).
+Parameter REASONPRECEDENTS = "its precedents could not be seeded: {why}";
+
 Parameter REASONNOSNAPSHOT = "it has no snapshot file name";
 
 /// {why} is the text of the status that EvidencePack.Load returned, or says that the name is not a plain file name.
@@ -191,6 +217,9 @@ Parameter LOGNOTDELIVERED = "EvalIn could not send the TurnResult of the case ";
 
 /// The start of the warning for an evaluation document of an earlier run that the start of a run could not remove; the Ref and the error follow it.
 Parameter LOGSWEEP = "EvalIn could not remove a document that an earlier run left: ";
+
+/// The start of the warning for the seeded precedents of an earlier run that the start of a run could not remove; the run's Ref and the error follow it.
+Parameter LOGUNSEED = "EvalIn could not remove the precedents that an earlier run seeded: ";
 
 /// The start of the warning for check rows in a Reply that Checks.Render could not take; the error follows it.
 Parameter LOGCHECKS = "EvalIn could not render the check rows of the Reply: ";
@@ -215,7 +244,8 @@ Property PaceCase As %String(MAXLEN = 128);
 /// 1 once the previous incident case's row was still sent at the bound: the run then sends no more incident cases.
 Property PaceStalled As %Boolean [ InitialExpression = 0 ];
 
-/// Starts a run: sweeps the evaluation documents that an earlier run left, creates EvalIn, mints the run's Ref and sends each case once.
+/// Starts a run: sweeps the evaluation documents that an earlier run left, creates EvalIn, mints the run's Ref, sweeps the seeded precedents that an
+/// earlier run left (SweepPrecedents) and sends each case once.
 ///   - The sweep (DW-900) removes every document of the owner eval, with its passages, through Docs.Ops RemoveEval before anything else, so before the first case is set up: a run that
 ///     was killed before its Finish leaves such documents, and a case that does not name them would otherwise be answered from them. A removal that fails is one
 ///     warning, and the run goes on. Evaluation runs do not overlap (one release gate or one test class at a time), which is what lets a run take every eval
@@ -243,6 +273,7 @@ ClassMethod Start(folder As %String = {..#FOLDER}, names As %String = "", Output
 	Set service.Watches = watches
 	Set service.Preset = preset, service.PersonaLanguage = language
 	Set runRef = service.RunRef
+	Do service.SweepPrecedents()
 	Set position = 0
 	While $ListNext(list, position, name) {
 		Set input = ##class(Ens.StringContainer).%New(##class(%File).SubDirectoryName(folder, name))
@@ -271,7 +302,7 @@ ClassMethod Wait(runRef As %String, seconds As %Integer) As %Integer
 }
 
 /// Removes the watch rows of the records that Start returned in watches, each through OcuTalon.Watch.Ops.RemoveEvalWatch, and the documents of the
-/// records of a documents case (DocumentsDown), and nothing else. A row that is already gone is no error. Every record is tried; the status is the first error, and Finish never throws.
+/// records of a documents case (DocumentsDown), and the precedents of the records of a case that seeded some (Unseed, once for each distinct run), and nothing else. A row that is already gone is no error. Every record is tried; the status is the first error, and Finish never throws.
 ClassMethod Finish(watches As %DynamicArray) As %Status
 {
 	Set result = $$$OK
@@ -283,6 +314,12 @@ ClassMethod Finish(watches As %DynamicArray) As %Status
 				If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
 				If $IsObject(record) && record.%IsA("%Library.DynamicObject") && $IsObject(record.%Get("documents")) {
 					Set sc = ..DocumentsDown(record.%Get("documents"))
+					If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
+				}
+				Set run = $Select($IsObject(record) && record.%IsA("%Library.DynamicObject") && $IsObject(record.%Get("precedents")): record.%Get("precedents").%Get("runRef"), 1: "")
+				If (run '= "") && '$Data(runs(run)) {
+					Set runs(run) = ""
+					Set sc = ..Unseed(run)
 					If $$$ISERR(sc) && $$$ISOK(result) Set result = sc
 				}
 			}
@@ -412,26 +449,32 @@ Method Send(folder As %String, name As %String) As %String [ Private ]
 	Set item.Text = ..Scalar(record, "text")
 	Set item.CatalogKey = ..Scalar(record, "catalogKey")
 	Set item.Slots = $Select($IsObject(record.slots): record.slots.%ToJSON(), 1: ..Scalar(record, "slots"))
+	Set entries = ""
+	If case.%IsDefined("precedents") {
+		Set reason = ..PrecedentsShape(case.%Get("precedents"), item, .entries)
+		If reason '= "" Quit $Replace(..#REASONPRECEDENTS, "{why}", reason)
+	}
 	Set watch = ""
 	If case.%IsDefined("watch") {
 		Set reason = ..WatchUp(case.%Get("watch"), .watch)
 		If reason '= "" Quit reason
 	}
-	Set opened = 0
+	Set opened = 0, why = "", sc = $$$OK
 	Try {
-		Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, item.SourceItemId, item.ItemId, preset, language)
+		Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Open(..RunRef, name, item.SourceItemId, item.ItemId, preset, language, $IsObject(entries))
 		If $$$ISOK(sc) {
 			Set opened = 1
 			Set ..%SuperSession = ..RunRef
-			Set sc = ..Dispatch(item)
+			If $IsObject(entries) Set why = ..SeedAll(entries, item, name)
+			If why = "" Set sc = ..Dispatch(item)
 		}
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
-	If $$$ISERR(sc) {
+	If (why '= "") || $$$ISERR(sc) {
 		If opened Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..RunRef, name)
 		Do ..Unwatch(watch)
-		Quit $SYSTEM.Status.GetOneStatusText(sc)
+		Quit $Select(why '= "": $Replace(..#REASONPRECEDENTS, "{why}", why), 1: $SYSTEM.Status.GetOneStatusText(sc))
 	}
 	If $IsObject(watch) {
 		If '$IsObject(..Watches) Set ..Watches = []
@@ -533,6 +576,119 @@ Method SendDigest(case As %DynamicObject, name As %String) As %String [ Private 
 		Quit $SYSTEM.Status.GetOneStatusText(sc)
 	}
 	Quit ""
+}
+
+/// Checks the precedents member of an item or injection case: the reason it is not usable, or "" with entries set to the array (1 to PRECEDENTSMAX valid
+/// entries). The Item's Data.Precedent.KeyFor must not be "" either, for there would be nothing to match. Nothing is saved or sent.
+Method PrecedentsShape(declared As %DynamicObject, item As OcuTalon.Msg.Item, Output entries As %DynamicArray) As %String [ Private ]
+{
+	Set entries = ""
+	If '$IsObject(declared) || 'declared.%IsA("%Library.DynamicArray") Quit "precedents is not an array"
+	If (declared.%Size() < 1) || (declared.%Size() > ..#PRECEDENTSMAX) Quit "precedents holds "_declared.%Size()_" entries, and it takes 1 to "_..#PRECEDENTSMAX
+	Set iterator = declared.%GetIterator()
+	Set bad = ""
+	While iterator.%GetNext(.index, .entry) && (bad = "") {
+		If '..EntryOk(entry) Set bad = index + 1
+	}
+	If bad '= "" Quit "precedent "_bad_" is not {summary, answer, outcome, daysAgo} with a summary of 1 to 80 characters, an answer of "_##class(OcuTalon.Data.Precedent).#ANSWERS_", an outcome (optional) of "_##class(OcuTalon.Msg.Enum).#OUTCOME_" and a daysAgo (optional) of a whole number 0 to "_..#PRECEDENTDAYS
+	If ##class(OcuTalon.Data.Precedent).KeyFor(item) = "" Quit "the item has no match key"
+	Set entries = declared
+	Quit ""
+}
+
+/// 1 when the precedent entry is valid (see PrecedentsShape).
+ClassMethod EntryOk(entry As %DynamicObject) As %Boolean [ Private ]
+{
+	If '$IsObject(entry) || 'entry.%IsA("%Library.DynamicObject") Quit 0
+	If (entry.%GetTypeOf("summary") '= "string") || ($ZStrip(entry.summary, "<>WC") = "") || ($Length(entry.summary) > 80) Quit 0
+	If (entry.%GetTypeOf("answer") '= "string") || '$ListFind($ListFromString(##class(OcuTalon.Data.Precedent).#ANSWERS), entry.answer) Quit 0
+	If entry.%IsDefined("outcome") && ((entry.%GetTypeOf("outcome") '= "string") || '$ListFind($ListFromString(##class(OcuTalon.Msg.Enum).#OUTCOME), entry.outcome)) Quit 0
+	If entry.%IsDefined("daysAgo") {
+		If entry.%GetTypeOf("daysAgo") '= "number" Quit 0
+		Set days = entry.daysAgo
+		If (days '= (days \ 1)) || (days < 0) || (days > ..#PRECEDENTDAYS) Quit 0
+	}
+	Quit 1
+}
+
+/// Seeds the entries of a case, in order. The case's setup record {case, precedents{runRef}} joins the Watches of the service before the first seed, so that
+/// Finish removes what was seeded even when a later seed fails. Returns the reason a seed failed, or "" when every one was answered seeded.
+Method SeedAll(entries As %DynamicArray, item As OcuTalon.Msg.Item, name As %String) As %String [ Private ]
+{
+	If '$IsObject(..Watches) Set ..Watches = []
+	Do ..Watches.%Push({"case": (name), "precedents": {"runRef": (..RunRef)}})
+	Set key = ##class(OcuTalon.Data.Precedent).KeyFor(item)
+	Set sc = $$$OK
+	Set iterator = entries.%GetIterator()
+	While iterator.%GetNext(.index, .entry) {
+		Set message = ##class(OcuTalon.Core.Msg.SeedPrecedent).%New()
+		Set message.RunRef = ..RunRef
+		Set message.Channel = item.Channel
+		Set message.MatchKey = key
+		Set message.Summary = entry.summary
+		Set message.Outcome = ..Scalar(entry, "outcome")
+		Set message.Answer = entry.answer
+		Set message.AnsweredAt = $Select(entry.%IsDefined("daysAgo"): ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -(entry.daysAgo * 86400)), 1: "")
+		Kill result
+		Set sc = ..Seed(message, .result)
+		If $$$ISERR(sc) Quit
+		If '$IsObject($Get(result)) || 'result.%IsA("OcuTalon.Msg.CommandResult") {
+			Set sc = $SYSTEM.Status.Error(5001, "precedent "_(index + 1)_" was answered with no CommandResult")
+			Quit
+		}
+		If result.Outcome '= "seeded" {
+			Set sc = $SYSTEM.Status.Error(5001, "precedent "_(index + 1)_" was answered "_result.Outcome_", not seeded")
+			Quit
+		}
+	}
+	Quit $Select($$$ISERR(sc): $SYSTEM.Status.GetOneStatusText(sc), 1: "")
+}
+
+/// The one send of a seed: the SeedPrecedent to PrecedentOps, synchronously, for at most PRECEDENTWAIT seconds. Private; a test subclass overrides it.
+Method Seed(message As OcuTalon.Core.Msg.SeedPrecedent, Output result As %Library.Persistent) As %Status [ Private ]
+{
+	Set result = ""
+	Quit ..SendRequestSync(..#PRECEDENTTARGET, message, .result, ..#PRECEDENTWAIT)
+}
+
+/// Removes every precedent row of the run through PrecedentOps (RemoveRun), from a new EvalIn service. The status is the director's error, the send's, or
+/// an error when PrecedentOps does not answer removed. A test subclass overrides it.
+ClassMethod Unseed(runRef As %String) As %Status
+{
+	Set sc = ##class(Ens.Director).CreateBusinessService("EvalIn", .service)
+	If $$$ISERR(sc) Quit sc
+	If '$IsObject(service) || 'service.%IsA("OcuTalon.Eval.In") Quit $SYSTEM.Status.Error(5001, "The item EvalIn is not an OcuTalon.Eval.In")
+	Quit service.RemoveRun(runRef)
+}
+
+/// Sends PrecedentOps one RemoveSeededPrecedents for the run: OK when it answers removed, otherwise an error status.
+Method RemoveRun(runRef As %String) As %Status
+{
+	If runRef = "" Quit $SYSTEM.Status.Error(5001, "The precedents of a run need the run")
+	Set message = ##class(OcuTalon.Core.Msg.RemoveSeededPrecedents).%New()
+	Set message.RunRef = runRef
+	Set sc = ..SendRequestSync(..#PRECEDENTTARGET, message, .result, ..#PRECEDENTWAIT)
+	If $$$ISERR(sc) Quit sc
+	If '$IsObject($Get(result)) || 'result.%IsA("OcuTalon.Msg.CommandResult") || (result.Outcome '= "removed") Quit $SYSTEM.Status.Error(5001, "PrecedentOps did not answer removed for the run "_runRef)
+	Quit $$$OK
+}
+
+/// The sweep at the start of a run: for each earlier run that left a marked row (CaseResult.PrecedentRuns), removes its seeded precedents (RemoveRun) and,
+/// when that worked, clears its marks (CaseResult.Unmark); its case rows stay, so a report or a persona sweep that reads them after this start still finds
+/// them. A removal that fails is one warning (LOGUNSEED), its marks stay for the next sweep, and the run goes on. It never throws.
+Method SweepPrecedents()
+{
+	Try {
+		Set runs = ##class(OcuTalon.Eval.Data.CaseResult).PrecedentRuns(..RunRef)
+		Set position = 0
+		While $ListNext(runs, position, run) {
+			Set sc = ..RemoveRun(run)
+			If $$$ISOK(sc) Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Unmark(run)
+			If $$$ISERR(sc) $$$LOGWARNING(..#LOGUNSEED_run_": "_$SYSTEM.Status.GetOneStatusText(sc))
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGUNSEED_exception.DisplayString())
+	}
 }
 
 /// Sets up the watch that a case declares: the reason it was not set up, or "" when it was, with the watch's stored fields in fields. A watch

@@ -1,0 +1,48 @@
+/// A subclass of OcuTalon.Web.Api for the tests of the memory routes (Story 41.2), which overrides the private seam SubmitMemory so that a test can reach every
+/// answer of the owner without a running production, and records the cause of each 500. The reads (Ownership) are the real ones. It has no Test methods and the
+/// product never refers to it.
+///   - SubmitMemory records each command under ^OcuTalonTest("MemoryApiProbe", "submitted", n) as "class", "session", "ref" (the DecisionRef or the
+///     PrecedentRef) and "channel" (a MarkNoise's), and answers from ^OcuTalonTest("MemoryApiProbe", "submit"): "fail" is an error status, "none" is an OK
+///     status with no result, and any other text is the JSON {"ok", "outcome", "message", "data"} of the CommandResult to answer;
+///   - NoteText records its arguments under ^OcuTalonTest("MemoryApiProbe", "note", "session") and ("date"), throws when ^OcuTalonTest("MemoryApiProbe", "noteText") is
+///     "throw", and otherwise answers that text;
+///   - ServerError records the text of the status it is given under ^OcuTalonTest("MemoryApiProbe", "logged") and answers as the route's own.
+Class OcuTalon.Test.Web.MemoryApiProbe Extends OcuTalon.Web.Api
+{
+
+ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Set result = ""
+	Set n = $Increment(^OcuTalonTest("MemoryApiProbe", "submitted"))
+	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "class") = $ClassName(command)
+	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "session") = command.SessionRef
+	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "ref") = $Select(command.%IsA("OcuTalon.Msg.Command.MarkNoise"): command.DecisionRef, 1: command.PrecedentRef)
+	Set ^OcuTalonTest("MemoryApiProbe", "submitted", n, "channel") = $Select(command.%IsA("OcuTalon.Msg.Command.MarkNoise"): command.Channel, 1: "")
+	Set answer = $Get(^OcuTalonTest("MemoryApiProbe", "submit"))
+	If answer = "fail" Quit $SYSTEM.Status.Error(5001, "zz CommandsIn is not running")
+	If answer = "none" Quit $SYSTEM.Status.OK()
+	Set spec = {}.%FromJSON(answer)
+	Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+	Set result.Ok = spec.ok
+	Set result.Outcome = spec.outcome
+	Set result.Message = spec.message
+	Set result.Data = spec.data
+	Quit $SYSTEM.Status.OK()
+}
+
+ClassMethod NoteText(sessionRef As %String, date As %String) As %String [ Private ]
+{
+	Set ^OcuTalonTest("MemoryApiProbe", "note", "session") = sessionRef
+	Set ^OcuTalonTest("MemoryApiProbe", "note", "date") = date
+	Set text = $Get(^OcuTalonTest("MemoryApiProbe", "noteText"))
+	If text = "throw" Throw ##class(%Exception.General).%New("NoteText", 5001, , "zz the note could not be built")
+	Quit text
+}
+
+ClassMethod ServerError(sc As %Status = {$SYSTEM.Status.OK()}) As %Status [ Private ]
+{
+	Set ^OcuTalonTest("MemoryApiProbe", "logged") = $SYSTEM.Status.GetErrorText(sc)
+	Quit ##super(sc)
+}
+
+}

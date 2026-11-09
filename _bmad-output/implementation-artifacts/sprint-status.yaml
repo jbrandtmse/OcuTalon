@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-09-2026 06:39
+last_updated: 11-09-2026 14:16
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -276,6 +276,8 @@ development_status:
   17-9-epic-17-burn-down: done
   17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges: done
   17-11-epic-17-burn-down-the-online-demo-digest-names-no-host-path: done
+  17-12-needs-you-never-counts-the-person-s-own-chat-messages: done
+  17-13-the-system-log-vital-sign-is-not-a-false-alarm-after-a-resta: done
   epic-17-retrospective: optional
 
   epic-18: done
@@ -393,6 +395,7 @@ development_status:
   32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane: done
   32-5-live-sign-in-splits-again-after-4-11-s-tests: done
   32-6-a-live-page-s-state-wait-under-ci-load-either-finds-its-caus: done
+  32-7-the-remaining-ci-flakes-either-find-their-cause-or-are-conta: done
   epic-32-retrospective: optional
 
   epic-33: done
@@ -454,14 +457,14 @@ development_status:
   40-8-the-persona-s-web-routes: done
   epic-40-retrospective: optional
 
-  epic-41: backlog
-  41-1-fix-the-names-and-contracts-of-memory-s-first-part: backlog
-  41-2-the-precedent-table-its-one-writer-and-the-routes: backlog
-  41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t: backlog
-  41-4-the-notes-and-your-answers-reach-the-model: backlog
-  41-5-this-was-noise-and-your-approval-answers-become-precedents: backlog
-  41-6-the-memory-card-your-notes-and-your-answers: backlog
-  41-7-evaluation-and-tests-for-memory-s-first-part: backlog
+  epic-41: in-progress
+  41-1-fix-the-names-and-contracts-of-memory-s-first-part: done
+  41-2-the-precedent-table-its-one-writer-and-the-routes: done
+  41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t: done
+  41-4-the-notes-and-your-answers-reach-the-model: done
+  41-5-this-was-noise-and-your-approval-answers-become-precedents: done
+  41-6-the-memory-card-your-notes-and-your-answers: done
+  41-7-evaluation-and-tests-for-memory-s-first-part: done
   41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns: backlog
   41-9-pins-and-learned-saves-get-their-verbs-and-routes: backlog
   41-10-facts-learned-at-compaction-optional-needs-ad-31-s-amendment: backlog

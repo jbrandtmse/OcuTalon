@@ -2,7 +2,8 @@
 ///   1. the failed rows of the checks that the digest covers, each "<entry>: <finding>" (the entry alone when the finding is empty);
 ///   2. the session's decide Decisions (Ownership.Decisions) whose Outcome is tellnow or act, whose Ref is not marked handled (Data.Handled Marked) and
 ///      that were recorded at or after the window's start (windowStart; a Decision with no RecordedAt counts, and with no windowStart every Decision
-///      counts), newest first, each named by its Summary;
+///      counts), newest first, each named by its Summary. A Decision of the person's own chat or user turn, on any channel, is never counted or named,
+///      whatever its outcome, time or handled marker: its ItemId is the ItemId of one of the session's turns (Ownership.TurnOfItem);
 ///   3. the session's incidents (Ownership.Incidents) that are awaiting approval, each named by the Summary of its diagnose Decision (the Decision
 ///      that Incident.DecisionRef points at), or by its Production when that is empty.
 /// Items 1 and 3 count whatever their age, so nothing that waits for approval and no failed check can be windowed out (AD-28).
@@ -65,9 +66,13 @@ ClassMethod List(sessionRef As %String, failedRows As %DynamicArray, Output sc A
 			If '$ListFind($ListFromString(..#OUTCOMES), decision.Outcome) Continue
 			If (windowStart '= "") && (decision.RecordedAt '= "") && (windowStart ] decision.RecordedAt) Continue
 			If $Data(owned("decision", decision.Ref)) || ((decision.ItemId '= "") && $Data(owned("item", decision.ItemId))) Continue
+			Set turn = ##class(OcuTalon.Data.Ownership).TurnOfItem(decision.ItemId, sessionRef, .sc)
+			If $$$ISERR(sc) Quit
+			If $IsObject(turn) Continue
 			If ##class(OcuTalon.Data.Handled).Marked(decision.Ref) '= "" Continue
 			Do ..Add(.entries, .count, decision.Summary, decision.RecordedAt)
 		}
+		If $$$ISERR(sc) Quit
 		Set i = ""
 		For {
 			Set i = $Order(incidentNames(i))
