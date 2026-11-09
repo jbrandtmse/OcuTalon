@@ -2992,3 +2992,8 @@
 2026-11-09T03:19:19Z	Epic 32	amendments_verified	amendments=0 extensions=8(web/scripts+web/e2e/live) ok=true
 2026-11-09T03:19:19Z	Epic 32	merge_enqueued	policy=when_green+planner_rule_a waits_for=Epic_39_merge_head_lane-a(one_at_a_time)
 2026-11-09T03:36:34Z	Run	orchestrator_error	fault=orchestrator note=polled_run_42550818274(ci)_as_lane-a;the_real_lane-a_42550818343_was_already_green;Epic_39_merge_delayed_~30min;corrected_now
+2026-11-09T03:37:01Z	Epic 39	epic_merged_to_feature	merge=360306f4 head=dbff4abe(code_c7c6e5fb_green) stories=39.11 verified_on_origin=yes conflicts=sprint-status.yaml(bookkeeping;SC-4-P_step4) code_conflicts=none shared_code_with_Epic_18=none method=planner_rule_a(no_re-integrate) ledger_union=lost0,dup0(975) feature_ci=ci:42557360171,lane-a:42557360258, release=1.0.5
+2026-11-09T03:37:01Z	Epic 39	decision_sheet_skipped	reason=empty
+2026-11-09T03:37:01Z	Run	deps_hash_rerecorded	reason=fix_forward stories=39.11 hash=8003e3626658
+2026-11-09T03:37:01Z	Epic 39	worktree_removed	
+2026-11-09T03:37:01Z	Epic 39	epic_branches_deleted	local+remote(ancestor_verified)
