@@ -14,7 +14,9 @@
 ///   - TestNothingWatched: the vital signs are reported, the digest says nothing is watched, the key is checks.nothingWatched, AllClear is 0 and no rendering
 ///     says that everything passed;
 ///   - TestMorningDigest (UJ-2): with every row passing and the vital figures 3 days, 60% and 20%, at 08:00, the rendering holds the greeting, the healthy
-///     sentence with the figures, the production summary and the reserved sentence, which come from code parts; other figures give other sentences.
+///     sentence with the figures, the production summary and the reserved sentence, which come from code parts; other figures give other sentences;
+///   - TestOwnTurnAllClear (Story 17.12, DW-979): with every check passing, the decide Decision of the person's own chat message inside the window leaves the
+///     all-clear alone (AllClear 1, no needs-you part, the message not named), and a real tell-now Decision in the same window still blocks it.
 Class OcuTalon.Test.Digest.AllClear Extends OcuTalon.Test.Digest.ProbeCase
 {
 
@@ -26,13 +28,22 @@ Parameter HEALTHY = "Your IRIS system is healthy";
 
 /// Composes the digest of a session in one of the three situations of step 2 ("error", "paused" or "passing"), with the watches Results then Orders ("error") or Orders
 /// then Results and the vital readings of reading (healthy by default), and gives {notice, sent, text, rows}: the Notification, the Sent row, the rendering and the watched rows of the Notification.
-Method Situation(which As %String, endLocal As %String = "2030-06-03T09:00:00", reading As %DynamicObject = "") As %DynamicObject
+/// decisions may hold "own" (a tell-now decide Decision of a turn of the session, "Send my digest now.", one minute into the window) and "real" (a tell-now
+/// decide Decision "Disk alert mail" with a fresh ItemId, two minutes into the window); "" plants none.
+Method Situation(which As %String, endLocal As %String = "2030-06-03T09:00:00", reading As %DynamicObject = "", decisions As %String = "") As %DynamicObject
 {
 	Do $ClassMethod(..#PROBE, "Reset")
 	Do $ClassMethod(..#COVERAGE, "Reset")
 	If $IsObject(reading) Do $ClassMethod(..#COVERAGE, "Feed", reading)
 	Set session = ..Session()
 	Set compose = ..Compose(session, endLocal, session_":"_which)
+	If decisions [ "own" {
+		Set turnRef = ##class(OcuTalon.Test.Data.Fixture).Turn(session)
+		Do ..Keep(turnRef)
+		Set turn = ##class(OcuTalon.Data.Turn).RefIndexOpen(turnRef)
+		Do ..Keep(##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", ##class(OcuTalon.Data.Time).AddSeconds(compose.WindowStart, 60), {"Summary": "Send my digest now.", "Outcome": "tellnow", "ItemId": (turn.ItemId), "Reasons": "A request from the user; the user is answered directly"}))
+	}
+	If decisions [ "real" Do ..Keep(##class(OcuTalon.Test.Data.Fixture).Decision(session, "decide", ##class(OcuTalon.Data.Time).AddSeconds(compose.WindowStart, 120), {"Summary": "Disk alert mail", "Outcome": "tellnow"}))
 	Set names = $Select(which = "error": $ListBuild("Results", "Orders"), 1: $ListBuild("Orders", "Results"))
 	Set position = 0
 	While $ListNext(names, position, name) {
@@ -219,6 +230,22 @@ Method TestNothingWatched()
 	Do $$$AssertTrue(text [ "I'm not watching any productions yet, so this digest covers the vital signs only. Ask me to watch one.", "the digest says that nothing is watched")
 	Do $$$AssertTrue(text [ ..#HEALTHY, "and reports the vital signs")
 	Do $$$AssertTrue('(text [ ..#RESERVED) && '(text [ ..#RESTPASSED), "no rendering gives an all-clear")
+}
+
+/// DW-979: the person's own answered chat message does not block the all-clear, and a real tell-now item still does.
+Method TestOwnTurnAllClear()
+{
+	Set own = ..Situation("passing", "2030-06-03T09:00:00", "", "own")
+	Do $$$AssertEquals(own.notice.catalogKey, "checks.allPassed", "own message: the key is the all-clear")
+	Do $$$AssertEquals(own.sent.AllClear, 1, "own message: AllClear is 1")
+	Do $$$AssertEquals(..Part(own.notice.slots, "digest.needsYouOne"), "", "own message: there is no needs-you part")
+	Do $$$AssertTrue('(own.text [ "Send my digest now"), "own message: the digest does not name it")
+	Do $$$AssertTrue(own.text [ ..#RESERVED, "own message: and gives the all-clear: "_..#RESERVED)
+	Set real = ..Situation("passing", "2030-06-03T09:00:00", "", "own,real")
+	Set one = ..Part(real.notice.slots, "digest.needsYouOne")
+	Do $$$AssertTrue($IsObject(one) && (one.slots.what = "Disk alert mail"), "real item: it is the one thing that needs the user")
+	Do $$$AssertEquals(real.sent.AllClear, 0, "real item: AllClear is 0")
+	Do $$$AssertTrue('(real.text [ "Send my digest now"), "real item: the own message is not named")
 }
 
 /// UJ-2: the morning digest with every check passing; the figures, the production summary, the healthy sentence and the all-clear come from code parts.

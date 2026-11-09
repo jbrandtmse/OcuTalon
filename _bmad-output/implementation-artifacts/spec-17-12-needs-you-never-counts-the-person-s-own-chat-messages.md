@@ -123,6 +123,24 @@ deferred:
 - Given the Telegram digest and the web digest card, when they show "needs you", then both render the same composed Slots from the one `NeedsYou` list (`TestDigestOwnTurnChannels`). The spec records that no channel reads "needs you" another way (Design Notes).
 - Given the change, when it merges, then no user-facing string is added or changed (`git diff` touches no `Msg/Catalog/*` and no `docs/`).
 
+### Review Findings
+
+Code review, 2026-11-08 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 15 raw findings, 3 entries after grouping: high 0, medium 0, low 3).
+
+- [x] [Review][Patch] Step 7's absence assertion checked one own message while its comment and the header say "none of the visitor's own chat messages"; steps 2 and 3's own turns (the watch prompt and the reminder prompt, each triaged act by the CI mock) were unchecked [web/e2e-online/demo-path/demo-path.spec.ts:276] — low, fix-risk low (absence assertions only; tsc clean). Patched: the step asserts each of "Send my digest now", `WATCH_PROMPT` and "Remind me in 1 minute to stretch." is absent. (blind-hunter+acceptance-auditor)
+- [x] [Review][Patch] `AllClear.Situation`'s doc did not describe its new `decisions` argument [src/ocutalon/cls/OcuTalon/Test/Digest/AllClear.cls:29] — low, fix-risk low (comment only; compiled on the slot). Patched: the doc names "own" and "real" and what each plants. (blind-hunter)
+- [x] [Review][Defer] The 1000-Decision read (DECISIONMAX) runs before the own-turn skip, so over 1000 newer non-counting decide Decisions in one window can hide an older real tell-now item and give count 0 and AllClear 1 (AD-28) [src/ocutalon/cls/OcuTalon/Digest/NeedsYou.cls:62] — deferred: low, fix-risk med; the cap and its ignore/digest-outcome filler are pre-existing, own turns only join the filler, and the 50-an-hour allowance binds the online demo only; occurrence appended to DW-988 (wontfix-accepted, reopen_if unchanged), with the reachability corrected. (blind-hunter+edge-case-hunter+acceptance-auditor)
+
+Rejected:
+- `low` The spec's Auto Run Result leaves out QA's `Test/Digest/AllClear.cls` (blind-hunter, acceptance-auditor): the fix edits the spec under review; the review's Files Modified names it.
+- `low` The implement and QA records of the pinning mutation list different red tests (`TestDigestOnlyOwnTurns` only in the first) (blind-hunter, verification-gap, acceptance-auditor): the fix edits the spec under review; the test has its demonstrated `mutation:` line in the implementation evidence.
+- `false` The spec's frontmatter `done` disagrees with sprint-status `review` (acceptance-auditor): the frontmatter is build-auto's machine state and the sprint status is set by this review.
+- `false` DW-988's `footprint: in-epic` should be out-of-footprint (blind-hunter): a fail-closed guard in `Digest/NeedsYou.cls` is in the story's footprint (acceptance-auditor), so in-epic is accurate; the occurrence note records it.
+- `low` Purge deletes a Turn (CreatedAt < cutoff) while its Decision (RecordedAt >= cutoff) survives, so the orphan is counted again (edge-case-hunter): wontfix-accepted; it needs a digest window that reaches back to the retention cutoff (no digest for daysToKeep days) and a Decision within the triage latency of the cutoff; it gives a false "needs you", never a false all-clear; the fix is in `Data/Purge` or `Bridge/Purge` (other lanes). reopen_if: a digest is seen naming an own message whose Turn row is gone.
+- `low` The `TurnOfItem` error path has no test (acceptance-auditor): wontfix-accepted; it fails only when the SQL read fails, which no fixture can provoke without a seam in `Data/Ownership` (other lane); the two lines follow the existing `If $$$ISERR(sc) Quit` pattern. reopen_if: Ownership or NeedsYou gains a failing-read seam.
+- `low` Step 7 depends on the serial chain of steps 2 to 5 (verification-gap): by-design; matrix row 7 places the step after the guide's watch and reminder turns, and Playwright's serial mode skips step 7 when an earlier step fails.
+- `false` The skip near-copies `Checks.Beat` :312 (Rule 2) (acceptance-auditor): both are one call to the shared `Ownership.TurnOfItem` API with no copied logic, and the spec states why no wrapper is added.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -220,6 +238,13 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: (scope) replaced the `TurnOfItem` call with the unscoped `OcuTalon.Data.Turn` `ItemIdIndexOpen(decision.ItemId)` -> red: `TestOtherSessionTurn` alone failed; restored byte for byte (`cmp`), class green.
 - mutation: (CI only, not demonstrated locally: `live:online-demo-path` is over the per-call cap) deleting the `TurnOfItem` skip in `Digest/NeedsYou.cls` -> step 7's `not.toContain('Send my digest now')` goes red, because the CI mock triages that message act and the card would name it (inference). The unit tests above pin ACs 1 to 3; the step 7 assertion is Rule 3's real-runtime evidence.
 - `OcuTalon.Test.Digest.NeedsYou`, `Compose` and `AllClear` pass on the warm stack; `cd web && npx tsc -p tsconfig.e2e.json` has no error.
+
+**QA evidence (Rule 19), stage qa, warm stack `e17s12qw`, fresh `e17s12q`:**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Digest/AllClear.cls`: `TestOwnTurnAllClear` (the all-clear consequence in the Problem: with every check passing, the person's own answered message leaves AllClear 1 and the key `checks.allPassed` with no needs-you part, and a real tell-now item in the same window still gives AllClear 0). `Situation` gains an optional `decisions` argument ("own", "real"); every existing call is unchanged.
+- mutation: (QA, pinning) deleted the `TurnOfItem` skip in `Digest/NeedsYou.cls` -> `Test.Digest.NeedsYou` red (`TestOwnTurnNotCounted`, `TestOwnTurnsEveryKind`, `TestOnlyOwnTurns`, `TestDigestOwnTurnChannels`) and `Test.Digest.AllClear` red (`TestOwnTurnAllClear`: AllClear 0, needs-you part present); restored (`cmp` identical, `git diff --stat` unchanged).
+- mutation: (QA, over-exclusion, no false all-clear) replaced the skip with `If decision.ItemId '= "" Continue` -> `TestOwnTurnAllClear` red (the real item is lost and AllClear becomes 1); restored (`cmp` identical, `git diff --stat` unchanged).
+- mutation: (code review, CI only, not demonstrated locally: `live:online-demo-path` is over the per-call cap) deleting the `TurnOfItem` skip in `Digest/NeedsYou.cls` -> step 7's loop of `not.toContain` goes red on "Send my digest now" (the newest entry, always named), and also on `WATCH_PROMPT` (step 2) and "Remind me in 1 minute to stretch." (step 3) while they are among the NEEDSYOUMAX (5) newest names; each is triaged act by the CI mock, inside the first digest's 24 h window (inference).
+- Green after restore: `Test.Digest.AllClear`, `NeedsYou`, `EvalCase` (warm); `ci/iris.sh shard lane-a@Digest --part 1/6` fresh: 4 of 4 classes passed (AllClear, Compose, Contracts, Coverage); `test-class-rules.sh` passed. `ci/iris.sh classes lane-a@Digest` lists `Test.Digest.AllClear` and `Test.Digest.NeedsYou` (Rule 8).
 
 ## Auto Run Result
 

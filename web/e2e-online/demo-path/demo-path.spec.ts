@@ -273,7 +273,10 @@ test.describe('steps 2 to 5: one visitor watches Orders, sets a reminder, breaks
       'it says what was checked, or that nothing is watched',
     ).toBe(true);
     expect(lines[lines.length - 1], 'its last line is the cost').toMatch(/^Yesterday's cost: \$\d+\.\d\d\.$/);
-    expect(lines.join('\n'), "the digest names none of the visitor's own chat messages").not.toContain('Send my digest now');
+    // The visitor's own messages so far: step 7's, step 2's watch prompt and step 3's reminder prompt (reminderThroughGuide). The CI mock triages each act.
+    for (const own of ['Send my digest now', WATCH_PROMPT, 'Remind me in 1 minute to stretch.']) {
+      expect(lines.join('\n'), `the digest names none of the visitor's own chat messages: ${own}`).not.toContain(own);
+    }
     // The phone's notes are drawn from the same notification routing, so a note that was going to arrive does so within moments of the card.
     await page.waitForTimeout(3_000);
     await expect(
