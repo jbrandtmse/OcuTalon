@@ -24,7 +24,7 @@ deferred: []
 **Always:**
 - A line is start-up noise only when its severity is `2` and the text after the severity matches one signature exactly:
   - `[Utility.Event] Error: ERROR #5002: ObjectScript error: <METHOD DOES NOT EXIST>Sharding+2^STU *Sharding,SYS.ICM` (whole text, nothing before or after);
-  - `[Utility.Event] System appears to have failed over from node ` followed by one non-empty host name with no space, and nothing after it.
+  - `[Utility.Event] System appears to have failed over from node ` followed by a container id of 12 to 64 lower-case hex digits (Docker's default host name), and nothing after it (Planner ruling planner-2026-11-08-17.13: only the id part varies).
 - Every other line of severity 2 or 3 counts as it does today: a near miss (extra words, another routine or label, another error number) and a signature text at severity 3 all count.
 - The noise check runs after the window checks and changes neither the file's `first` time nor the order or stop rule of the file reads. The signatures apply in every file read (`messages.log` and `messages.old_*`).
 - The text of a line is still never kept or returned: only the count leaves `Vitals` (the class rule). The read stays a file read in the manager directory, with no privileged API and no namespace switch (AD-3).
@@ -43,11 +43,11 @@ All rows except the last read a kept file `messages.old_zzvitals17_<n>` that the
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Start-up noise alone (pin, DW-980) | One recreate's lines as Task 0 measured them: `Instance 'IRIS' starting on node zzhostnew ...` (0), the failover line from node `zzhostold` (2), `Enabling logons` (0), `Interoperability System Startup Complete` (0), the Sharding line (2) | `Vitals("", from, to).systemLog` = {"outcome": "read", "count": 0} | none |
+| Start-up noise alone (pin, DW-980) | One recreate's lines as Task 0 measured them: `Instance 'IRIS' starting on node zzhostnew ...` (0), the failover line from node `0a1b2c3d4e5f` (2; a 12-hex-digit container id), `Enabling logons` (0), `Interoperability System Startup Complete` (0), the Sharding line (2) | `Vitals("", from, to).systemLog` = {"outcome": "read", "count": 0} | none |
 | Two recreates | The same five lines twice, 600 s apart | count 0 | none |
-| Real later error (pin) | The noise lines, then a later `[Utility.Event] Error: ERROR #5002: ObjectScript error: <UNDEFINED>zzvitals+1^ZZVITALS17 *zz` (2), a `[Generic.Event]` line (3), a near-miss failover line `... from node zzhostold to zzhostnew` (2) and the Sharding text at severity 3 | count 4: the four non-noise lines | none |
+| Real later error (pin) | The noise lines, then a later `[Utility.Event] Error: ERROR #5002: ObjectScript error: <UNDEFINED>zzvitals+1^ZZVITALS17 *zz` (2), a `[Generic.Event]` line (3), two near-miss failover lines `... from node 0a1b2c3d4e5f to 5f4e3d2c1b0a` (2) and `... from node zzhostold` (2; not hex) and the Sharding text at severity 3 | count 5: the five non-noise lines | none |
 | Coverage row, noise only (Integration) | A fixture session that watches nothing; `Checks.Coverage.Build(session, from, to, ...)` over the real reader and the noise-only file | The "system log" row (rows[4]) is `passed` with no finding; lines[4] is `digest.passed` | Build's sc is OK |
-| Coverage row, real later error (Integration) | The same, over the real-later-error file | rows[4] is `failed` with finding "4 errors" and a `checkedAt` of the Build time; lines[4] is `digest.failed` with slots finding "4 errors" and time = rows[4].checkedAt | Build's sc is OK |
+| Coverage row, real later error (Integration) | The same, over the real-later-error file | rows[4] is `failed` with finding "5 errors" and a `checkedAt` of the Build time; lines[4] is `digest.failed` with slots finding "5 errors" and time = rows[4].checkedAt | Build's sc is OK |
 | Real start of this stack (Rule 3) | The real `messages.log` of the throwaway: the window from the last `Instance 'IRIS' starting on node` line to 1 s after the next Sharding line | count 0 (before the fix: 1). The test asserts that both lines are found | none |
 
 </intent-contract>
@@ -81,7 +81,7 @@ All rows except the last read a kept file `messages.old_zzvitals17_<n>` that the
 **Execution (after the Planner's ruling; for (b) see the Alternative):**
 - [ ] `src/ocutalon/cls/OcuTalon/Watch/Reader.cls`:
   - Add `Parameter NOISESHARDING` (the whole Sharding text) and `Parameter NOISEFAILOVER` (the failover prefix, with its closing space), each with a doc line: IRIS's own start-up lines of builds 154 and 109, Story 17.13's Task 0.
-  - Add a private `StartNoise(line) As %Boolean`. It is 1 only when the severity piece is `2` and `$Piece(line, " ", 4, *)` equals `NOISESHARDING`, or begins with `NOISEFAILOVER` with a non-empty rest that holds no space.
+  - Add a private `StartNoise(line) As %Boolean`. It is 1 only when the severity piece is `2` and `$Piece(line, " ", 4, *)` equals `NOISESHARDING`, or begins with `NOISEFAILOVER` with a rest of 12 to 64 characters, every one a lower-case hex digit (`0-9`, `a-f`), and nothing else.
   - In `SevereLinesIn`, after the window checks :417-418, `If ..StartNoise(line) Continue`.
   - Update the docs (class :37-40, Vitals :234, SevereLines :359-361). ASCII only; comments state the contract (Rule 14) -- DW-980.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Watch/Vitals.cls`:
@@ -91,8 +91,8 @@ All rows except the last read a kept file `messages.old_zzvitals17_<n>` that the
   - Every existing test stays unchanged and green -- DW-980.
 - [ ] Mutations (Rule 19), one per call on the warm stack: observe red, restore byte for byte (`cmp` against a backup in `<scratchpad>/e17s13impl/`), and see the class green again. Record each one under Verification:
   - (pinning, noise) Delete the `StartNoise` skip. `TestStartNoise` (count 2/4), `TestStartNoiseRow` (row failed) and `TestRealStartNoise` (count 1) go red.
-  - (over-breadth) Make `StartNoise` return `$Piece(line, " ", 3) = 2 && ($Piece(line, " ", 4) = "[Utility.Event]")`. `TestLaterRealError` goes red (the later error and the near miss are lost: count 2), and so does the failed row in `TestStartNoiseRow`.
-  - (prefix) Drop the "no space after the host" rule. `TestLaterRealError` goes red (count 3).
+  - (over-breadth) Make `StartNoise` return `$Piece(line, " ", 3) = 2 && ($Piece(line, " ", 4) = "[Utility.Event]")`. `TestLaterRealError` goes red (the later error and the near misses are lost: count 2), and so does the failed row in `TestStartNoiseRow`.
+  - (prefix) Drop the "only hex digits after the prefix" rule (any rest without a space). `TestLaterRealError` goes red (count 4: the non-hex near miss is lost).
 
 **Acceptance Criteria:**
 - Given an instance whose `messages.log` in the window holds only the measured start-up lines of one or more starts or recreates, when the digest's coverage is built, then the "system log" entry passes (FR-36, AD-28). The pin goes red under the pinning mutation.
@@ -100,6 +100,8 @@ All rows except the last read a kept file `messages.old_zzvitals17_<n>` that the
 - Given the change, when it merges, then no user-facing string, catalog entry or `docs/` text changes (`git diff` touches no `Msg/Catalog/*`, no `Checks/Coverage.cls` and no `docs/`), and `Vitals`'s systemLog keeps the members `count,outcome` only (`TestFiveSigns`).
 
 ## Spec Change Log
+
+- planner-2026-11-08-17.13 (2026-11-09, the Contest Planner under the owner's delegation, relayed by the orchestrator): **option (a).** Ignore exactly two start-up lines, at severity 2 only: (1) the `ERROR #5002` `<METHOD DOES NOT EXIST>Sharding+2^STU *Sharding,SYS.ICM` line, matched on the WHOLE line text after the severity; (2) `System appears to have failed over from node <id>`, where only the id part varies (a hex container id). Every other severe line counts, at any time. If a later build changes either text, that line counts again: a false alarm, never a false all-clear (AD-28). The comparison is in memory only; nothing is stored, and no string changes. Tests: both lines ignored; a near-miss variant still counts; a real later error still fails with its count and time; each with a demonstrated mutation. The licence line stays counted (Design Notes). Applied by the lead: the failover rule tightened from "one host name with no space" to "12 to 64 lower-case hex digits"; option (b)'s Alternative note stands for the record only.
 
 ## Review Triage Log
 
@@ -167,7 +169,9 @@ The demo host's "6 errors" fits about three container changes in one window (inf
 
 ## Design Notes
 
-**Pending Planner ruling: (a) or (b); the lead holds implement until it arrives.**
+**Planner ruling (planner-2026-11-08-17.13): option (a).** See the Spec Change Log.
+
+**Known and accepted:** the licence line `License limit exceeded 1 times since instance start.` (severity 2, from build 154's OCUORDERS install step) stays COUNTED: it is real. A first digest on a fresh build 154 install may therefore show "Failed: system log (1 error)" until the installer-side ledger entry (tier 3, after 1.0.5, not this story's scope) is fixed. The Planner accepts that.
 
 **Recommended option (a), and why it is the narrowest:** see Task 0 findings, "Evaluation".
 - It removes exactly the two lines that Task 0 measured on both builds, at severity 2, and nothing else, so every other severe line, before, during or after a start, still fails the entry.
@@ -205,7 +209,7 @@ Expected size: about 3 times the code and the tests of (a) (inference).
 
 **Decided in-stage:**
 1. The signatures are two `Parameter`s of `Watch.Reader`, word for word from Task 0, and severity 2 is part of each.
-2. For the failover line, the host name is one token with nothing after it, so a longer line counts. A host name can contain no space (inference: Docker's are 12 hex digits).
+2. For the failover line, only the container id varies: 12 to 64 lower-case hex digits and nothing after it, so a longer line, a named host or any other text counts (the Planner's ruling; Docker's default host name is the 12-digit short id; a user-set host name makes the line count again, a false alarm, never a false all-clear).
 3. The check is not tied to the start process's pid. That would add state across files for a case the evidence does not show (Task 0, "Evaluation").
 4. "Fails with its count and time" is the row's finding and its `checkedAt`, as Story 17.5 built it. No error-time slot is added, which would be a string change.
 5. The licence line of 154's first start keeps counting (Task 0, "Also seen").
