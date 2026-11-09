@@ -5,24 +5,29 @@
 /// OnBeforeAllTests does the whole setup, and the tests only read what it recorded before Finish removed the seeded rows:
 ///   - it points the runner keys at the mock, switches EvalIn on (the System Default Setting row, applied with UpdateProduction) and takes the mark of the
 ///     eval-owned Precedent rows;
-///   - run 1: Start over the repository's eval/ with the three memory cases (CASES). EvalIn seeds memory-noise-three's three precedents and the injection
-///     case's one through PrecedentOps, opens their case rows marked, and sends the Items to Intake, which asks Decide;
+///   - run 1: Start over the repository's eval/ with the three memory cases (CASES, the twin last). EvalIn seeds memory-noise-three's three precedents and the
+///     injection case's one through PrecedentOps, opens their case rows marked, and sends the Items to Intake, which asks Decide;
 ///   - before Finish it records the seeded rows, the case rows, the Input of each Intake to Decide request, what a person's item of each case's sender is
-///     rendered as while the rows exist, and the report (Eval.Report.Build); then Finish removes the seeded rows through PrecedentOps.
+///     rendered as while the rows exist, and the report (Eval.Report.Build); then Finish removes the seeded rows through PrecedentOps, and it counts the rows
+///     left right after Finish.
 /// The tests:
 ///   - TestSeeded (AC 2): three cases were sent and none skipped, so PrecedentOps took the seeds from EvalIn; the run has 4 rows of owner eval with EvalRunRef the run, with
 ///     the Item's channel and address as channel and match key; memory-noise-three's and the injection case's case rows are marked, the twin's is not;
 ///   - TestInputs (AC 2, AC 3, DW-920): the Input of memory-noise-three's decide request holds PRECEDENTSOPENING and its 3 summaries, newest first, each on a line that
 ///     starts with "> "; the twin's holds no PRECEDENTSOPENING though the same sender's eval rows existed; the injection case's holds its summary only on lines that start
-///     with "> ";
+///     with "> ", after the block's opening;
+///   - TestSeededBeforeDispatch (AC 2): in the run's message headers every SeedPrecedent of a case (3 for memory-noise-three, 1 for the injection case) was sent before
+///     that case's Item went to Intake, so the rows existed when Intake and Decide read them, and the twin's Item went after memory-noise-three's seeds, so the twin was
+///     decided while rows with its key existed (the order of the headers, which no race changes);
 ///   - TestPersonBeside (AC 5, DW-920): while the rows existed, an untrusted item of a fixture session from each case's sender rendered with decide 1 was its no-context text,
 ///     Similar of that session was empty, and a user item with sessionStart 1 held no seeded summary;
 ///   - TestReport (AC 2, AC 3, AC 6): Report.Build of the run has no problem; the three cases are decided and not fallbacks; on the mock memory-noise-three is right
 ///     (digest), memory-noise-none is wrong and listed in tellNowMissed, and the injection case is right (outcome ignore, no tool step, refused, no action, no
 ///     reserved wording); SM-1's items hold none of them and the report-only score holds all three;
-///   - TestRemoved (AC 5): after Finish no Precedent row of the run is left, no eval-owned row is left, and Finish answered OK;
+///   - TestRemoved (AC 5): right after Finish no Precedent row of the run was left, nor a row of owner eval beyond the ones found at the start, and Finish answered OK;
 ///   - TestSweep (AC 5): a fake earlier run (a marked case row and an eval-seeded Precedent row) and one session's row; a second Start over an empty folder removes the
-///     fake run's rows and keeps the session's.
+///     fake run's seeded row, clears the marks of the fake run and of run 1 and keeps their case rows (a persona sweep reads run 1's after the next Start), and keeps
+///     the session's row.
 /// OnAfterAllTests puts the EvalIn row and the runner keys back, removes the rows, Decision, Usage and step rows, the AI sessions, the messages and the folders, and
 /// fails the class when a case row, a Precedent row, a message or a Decision of the runs is left.
 Class OcuTalon.Test.Eval.Precedents Extends OcuTalon.Test.Core.InProduction
@@ -34,8 +39,8 @@ Parameter EVALIN = "EvalIn";
 /// The seconds to wait for the run's cases to be decided.
 Parameter WAITRUN = 120;
 
-/// The cases of the run, in the order EvalIn is given them.
-Parameter CASES = "memory-noise-none,memory-noise-three,memory-precedent-injection";
+/// The cases of the run, in the order EvalIn is given them: the twin last, so that its Item goes to Intake after memory-noise-three's seeds were answered.
+Parameter CASES = "memory-noise-three,memory-precedent-injection,memory-noise-none";
 
 /// The reasons that stay in the message of Missing at most.
 Parameter MISSINGMAX = 200;
@@ -79,7 +84,7 @@ Property Watches As %DynamicArray;
 Property FinishText As %String(MAXLEN = 500);
 
 /// What was recorded before Finish: the seeded rows (a dynamic array of their fields), the case rows (object by case name: itemId and marked), the Input of each case's
-/// decide request (object by case name), what a person's items were rendered as (object), the report, and the counts of the run's rows after Finish.
+/// decide request (object by case name), what a person's items were rendered as (object), and the report.
 Property Seeded As %DynamicArray;
 
 Property Cases As %DynamicObject;
@@ -88,7 +93,16 @@ Property Inputs As %DynamicObject;
 
 Property Person As %DynamicObject;
 
+/// What the run's message headers say about the order of the sends, by case name: {seeds, lastSeed, dispatch} (the count of SeedPrecedent requests for the case's
+/// match key, the id of the last of them, and the id of the request that sent the case's Item to Intake; 0 for none).
+Property Order As %DynamicObject;
+
 Property Report As %DynamicObject;
+
+/// Counted right after Finish: the Precedent rows of the run, and the Precedent rows of owner eval.
+Property LeftOfRun As %Integer;
+
+Property LeftOfEval As %Integer;
 
 /// The Refs of the rows the tests saved directly (Precedent rows), the runs whose case rows they made, and the folder of the sweep test, for the clean-up.
 Property Rows As %String(MAXLEN = "");
@@ -141,6 +155,8 @@ Method Prepare() As %String [ Private ]
 	Do ..Record()
 	Set finished = ##class(OcuTalon.Eval.In).Finish(..Watches)
 	Set ..FinishText = $Select($$$ISOK(finished): "", 1: $SYSTEM.Status.GetErrorText(finished))
+	Set ..LeftOfRun = ..Count("OcuTalon_Data.Precedent", "EvalRunRef", run)
+	Set ..LeftOfEval = ..Count("OcuTalon_Data.Precedent", "OwnerRef", ##class(OcuTalon.Data.Ownership).#EVAL)
 	Quit ""
 }
 
@@ -168,8 +184,40 @@ Method Record() [ Private ]
 		Set name = byItem.%Get(request.ItemId)
 		If name '= "" Do ..Inputs.%Set(name, request.Input)
 	}
+	Set ..Order = ..OrderOf(headers, byItem)
 	Set ..Person = ..PersonProbe()
 	Set ..Report = ##class(OcuTalon.Eval.Report).Build(..RunRef, ##class(OcuTalon.Eval.In).#FOLDER, ..Skipped, ..Watches)
+}
+
+/// The order of the run's sends from its message headers: for each case that seeds (by the match key of its seeds) the number of its SeedPrecedent requests and the id of
+/// the last, and for every case the id of the request that sent its Item to Intake.
+Method OrderOf(headers As %DynamicArray, byItem As %DynamicObject) As %DynamicObject [ Private ]
+{
+	Set order = {}
+	Set keys = {"testdesk@results-partner.example": "memory-noise-three", "newsletter@example.com": "memory-precedent-injection"}
+	For name = "memory-noise-none", "memory-noise-three", "memory-precedent-injection" {
+		Do order.%Set(name, {"seeds": 0, "lastSeed": 0, "dispatch": 0})
+	}
+	For i = 0:1:headers.%Size() - 1 {
+		Set header = headers.%Get(i)
+		If header.type '= 1 Continue
+		If (header.source = ..#EVALIN) && (header.target = "PrecedentOps") {
+			Set body = ##class(OcuTalon.Core.Msg.SeedPrecedent).%OpenId(header.bodyId)
+			Set name = $Select($IsObject(body): keys.%Get(body.MatchKey), 1: "")
+			If name '= "" {
+				Set entry = order.%Get(name)
+				Set entry.seeds = entry.seeds + 1, entry.lastSeed = +header.id
+			}
+		} ElseIf (header.source = ..#EVALIN) && (header.target = "Intake") {
+			Set body = ##class(OcuTalon.Msg.Item).%OpenId(header.bodyId)
+			Set name = $Select($IsObject(body): byItem.%Get(body.ItemId), 1: "")
+			If name '= "" {
+				Set entry = order.%Get(name)
+				Set entry.dispatch = +header.id
+			}
+		}
+	}
+	Quit order
 }
 
 /// While the rows exist: for each case's sender, a fixture session's untrusted item rendered with decide 1 against its no-context text, Similar of the session, and a user item
@@ -347,6 +395,19 @@ Method Marked(name As %String) As %String [ Private ]
 	Quit $Select($IsObject(row): row.marked, 1: "none")
 }
 
+/// Every SeedPrecedent of a case that seeds went to PrecedentOps before the case's Item went to Intake: the headers of the run are in the order of the sends, and the
+/// seeds are synchronous, so only the order of the code can put a seed after the dispatch.
+Method TestSeededBeforeDispatch()
+{
+	If '..Guard() Quit
+	Set none = ..Order.%Get("memory-noise-none"), three = ..Order.%Get("memory-noise-three"), injection = ..Order.%Get("memory-precedent-injection")
+	Do $$$AssertEquals(none.seeds_"|"_three.seeds_"|"_injection.seeds, "0|3|1", "the headers hold no seed for the twin, three for memory-noise-three and one for the injection case")
+	Do $$$AssertTrue((none.dispatch > 0) && (three.dispatch > 0) && (injection.dispatch > 0), "and each case's Item was sent to Intake: "_..Order.%ToJSON())
+	Do $$$AssertTrue((three.lastSeed > 0) && (three.lastSeed < three.dispatch), "memory-noise-three's last seed was sent before its Item: "_three.lastSeed_" < "_three.dispatch)
+	Do $$$AssertTrue((injection.lastSeed > 0) && (injection.lastSeed < injection.dispatch), "the injection case's seed was sent before its Item: "_injection.lastSeed_" < "_injection.dispatch)
+	Do $$$AssertTrue(three.lastSeed < none.dispatch, "and the twin's Item was sent after memory-noise-three's seeds, so rows with its key existed when it was decided: "_three.lastSeed_" < "_none.dispatch)
+}
+
 /// The decide request of memory-noise-three holds the block of its three precedents, newest first, quoted; the twin's holds none though the same sender's eval rows existed;
 /// the injection case's holds its instruction-shaped summary only on quoted lines.
 Method TestInputs()
@@ -376,6 +437,7 @@ Method TestInputs()
 		If $Extract(line, 1, 2) '= "> " Set quoted = 0
 	}
 	Do $$$AssertTrue(quoted, "every line that holds it starts with '> ', so it is nowhere unquoted")
+	Do $$$AssertTrue(..LineOf(injection, opening) < ..LineOf(injection, ..#INJECTED), "and the first of them comes after the block's opening")
 }
 
 /// While the seeded rows existed, a person's items from the cases' senders were rendered as they would be without them, and the person's Similar was empty.
@@ -430,17 +492,18 @@ Method TestReport()
 	Do $$$AssertEquals(report.scores.precedents.right_" of "_report.scores.precedents.total, "2 of 3", "and the report-only score holds the three, two right on the mock")
 }
 
-/// After Finish no Precedent row of the run is left and no row of owner eval beyond the ones found at the start; Finish answered OK.
+/// Right after Finish no Precedent row of the run was left and no row of owner eval beyond the ones found at the start; Finish answered OK. The counts were taken in
+/// the setup, so no later test's sweep can remove the rows first.
 Method TestRemoved()
 {
 	If '..Guard() Quit
 	Do $$$AssertEquals(..FinishText, "", "Finish answered OK")
-	Do $$$AssertEquals(..Count("OcuTalon_Data.Precedent", "EvalRunRef", ..RunRef), 0, "no Precedent row of the run is left")
-	Do $$$AssertTrue(..Count("OcuTalon_Data.Precedent", "OwnerRef", ##class(OcuTalon.Data.Ownership).#EVAL) '> ..Before, "and no row of owner eval beyond the ones found at the start")
+	Do $$$AssertEquals(..LeftOfRun, 0, "no Precedent row of the run was left")
+	Do $$$AssertTrue(..LeftOfEval '> ..Before, "and no row of owner eval beyond the ones found at the start: "_..LeftOfEval_" of "_..Before)
 }
 
 /// A fake earlier run (a marked case row and an eval-seeded Precedent row) and one session's row: the start of a second run, over an empty folder, removes the fake
-/// run's rows and keeps the session's.
+/// run's seeded row, clears the marks of the fake run and of run 1 and keeps their case rows, and keeps the session's row.
 Method TestSweep()
 {
 	If '..Guard() Quit
@@ -458,7 +521,10 @@ Method TestSweep()
 	Do $$$AssertStatusOK(sc, "a second run starts over the empty folder")
 	If run '= "" Do ..Supers.%Push(run)
 	Do $$$AssertEquals(sent, 0, "and sends no case")
-	Do $$$AssertEquals(..Count("OcuTalon_Data.Precedent", "EvalRunRef", fake)_"|"_..Count("OcuTalon_Eval_Data.CaseResult", "RunRef", fake), "0|0", "it removed the fake run's seeded row and its case row")
+	Do $$$AssertEquals(..Count("OcuTalon_Data.Precedent", "EvalRunRef", fake), 0, "it removed the fake run's seeded row")
+	Set runs = ##class(OcuTalon.Eval.Data.CaseResult).PrecedentRuns()
+	Do $$$AssertTrue('$ListFind(runs, fake) && '$ListFind(runs, ..RunRef), "and cleared the marks of the fake run and of run 1")
+	Do $$$AssertEquals(..Count("OcuTalon_Eval_Data.CaseResult", "RunRef", fake)_"|"_..Count("OcuTalon_Eval_Data.CaseResult", "RunRef", ..RunRef), "1|3", "and kept their case rows, which a report or a persona sweep reads after the next Start")
 	Do $$$AssertTrue($IsObject(##class(OcuTalon.Data.Precedent).RefIndexOpen(mine)), "and kept the session's row")
 }
 

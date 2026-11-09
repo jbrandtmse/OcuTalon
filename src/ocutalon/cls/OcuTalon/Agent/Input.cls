@@ -21,7 +21,7 @@
 ///   - the precedent block (AD-7, AD-21) is only for an item that is not a user's, whose owner is a session, or is eval and has a case
 ///     row that seeds precedents (OcuTalon.Eval.Data.CaseResult.SeedsPrecedents of item.ItemId), whose context has
 ///     decide 1 and whose OcuTalon.Data.Precedent.KeyFor is not "": PRECEDENTSOPENING on its own line, then one quoted line for each of
-///     the newest at most 3 rows of Precedent.Similar of the item's own owner and channel (for an eval item, the eval-seeded rows), newest first: the local date of the
+///     the newest at most 3 rows of Precedent.Similar of the item's own owner and channel (for an eval item, the eval-seeded rows of every run with that key), newest first: the local date of the
 ///     answer, the channel, the summary, what OcuTalon decided (when the row has an outcome) and the answer. A line is whole or left
 ///     out, with every older line, and the block, its closing blank line included, is at most PRECEDENTMAX characters. Intake's
 ///     decide request is the only caller that sets decide;

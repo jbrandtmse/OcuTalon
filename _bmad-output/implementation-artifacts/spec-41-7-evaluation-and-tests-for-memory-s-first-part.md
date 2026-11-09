@@ -157,6 +157,35 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they are given in full. All 
 - AC 5 (DW-920): Given an evaluation run with seeded rows, when a person's item from the same sender is rendered for a decide, then it carries no eval row. After the run, `Finish` has removed every row through `PrecedentOps`, and a later run's start removes what a killed run left (`TestPersonBeside`, `TestRemoved`, `TestSweep`, `RenderMemory:TestPrecedentEval`).
 - AC 6 (SM-1 gate, report-only): Given the evaluation report, when the set includes `memory-noise-none`, `memory-noise-three` and `memory-precedent-injection`, then these three precedent cases are scored in their OWN report-only score line and are OUT of SM-1's numerator and denominator, so they cannot move the SM-1 gate on the mock or on a release-candidate run until a release-candidate run has measured them on Claude Haiku 5.5; a test (in `Test.Eval.Report`) pins that SM-1's share and count are unchanged with these cases present (scored right or wrong) and that their own line lists them. [AMENDED 2026-11-08, Story 41.7 spec gate, Contest Planner ruling (planner-2026-11-08-41.7, item 3): added before implement]
 
+
+### Review Findings
+
+Code review 2026-11-09 (first review, full scope; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; none failed, none changed the tree). 21 findings: high 1, medium 2, low 18. 5 patches applied (high 1, medium 2, low 2), 0 deferred, 16 closed (4 ledgered `wontfix-accepted`: DW-1000 to DW-1003; DW-763 got an occurrence). Rule 3: no user-facing surface; the real-runtime evidence is `Test.Eval.Precedents` against the running production and the CI mock (lane-A warm throwaway `e41s7crw`, green after the patches; CI's `evaluation` job has not run on this head). Rule 6: no AD mismatch (seeding and removal only through `PrecedentOps`, `Similar("eval", ...)` only for a marked non-user eval item with `decide` 1, the three cases outside SM-1). Lane A footprint held.
+
+- [x] [Review][Patch] [high] The start-of-run sweep deleted every case row of an earlier marked run (`CaseResult.Remove(run)`), so `Eval.Sweep.RunPreset` (`eval/run.sh --personas`), whose persona pass starts after the set pass and only then reads the set run's rows (`Blocks`, `AddCases`/`Row`), lost the whole set pass's rows once the set held the memory cases: empty decision refs, reasons and summaries, and vacuous facts and frames checks (the earlier triage's `reopen_if` "a caller reads a finished run's rows after the next Start" is met). Fixed: `SweepPrecedents` now clears the run's marks (`CaseResult.Unmark`, new) once its seeded rows are removed, and the case rows stay; `Test.Eval.Precedents:TestSweep` pins that run 1's 3 case rows and the fake run's row stay, unmarked, after the next Start; `Test.Eval.In:TestSweepPrecedents` and `Test.Eval.Table:TestPrecedentsColumn` updated. [src/ocutalon/cls/OcuTalon/Eval/In.cls:679]
+- [x] [Review][Patch] [medium] `Precedents:TestInputs`' twin assertion depended on timing: `CASES` sent the twin first, asynchronously, before `memory-noise-three`'s row was opened and seeded, so the twin could be rendered before any eval row existed and the AC 5 mutation could stay green. Fixed: the twin is last in `CASES`, and `TestSeededBeforeDispatch` asserts by header ids that the twin's Item went after `memory-noise-three`'s last seed. [src/ocutalon/cls/OcuTalon/Test/Eval/Precedents.cls:43]
+- [x] [Review][Patch] [medium] `Precedents:TestRemoved` counted the run's rows at test time, and `TestSweep`'s second Start also removes run 1's rows, so the "Finish skips Unseed" pin held only because the methods sort by name; the `Seeded` comment named counts that did not exist and the class comment overstated the check. Fixed: `Prepare` records `LeftOfRun` and `LeftOfEval` right after `Finish`, `TestRemoved` reads them, and both comments say what is checked. [src/ocutalon/cls/OcuTalon/Test/Eval/Precedents.cls:497]
+- [x] [Review][Patch] [low] `TestInputs` checked that the injection summary is only on "> " lines but not that it is inside the block. It now also asserts the first such line comes after `PRECEDENTSOPENING`. [src/ocutalon/cls/OcuTalon/Test/Eval/Precedents.cls:440]
+- [x] [Review][Patch] [low] `Agent.Input`'s class comment said an eval item reads "the eval-seeded rows"; it reads those of every run with the key (AD-21 as amended). The comment now says so. [src/ocutalon/cls/OcuTalon/Agent/Input.cls:24]
+
+**Closed at review:**
+- [low] `wontfix-accepted` (DW-1000): `RemoveRun`'s "did not answer removed" branch has no test, because the double overrides `RemoveRun` and `Unseed` whole; Finish's error path is pinned at the `Unseed` level (`TestFinishUnseeds`). A seam below `RemoveRun` would rework the double for a defensive branch. reopen_if in the ledger.
+- [low] `wontfix-accepted` (DW-1001): `Test.Eval.Precedents`' real Start sweeps every marked run on the stack, another class's leftovers included. That is the product's leftover sweep; classes run serially and clean their own rows.
+- [low] `wontfix-accepted` (DW-1002): the `precedents` member has no hosted rule in `test-eval-set.sh`, and `EntryOk` accepts unknown entry keys. A bad entry shows as a `REASONPRECEDENTS` skip on a stack; the three set cases are pinned by `Test.Eval.Cases:TestPrecedentCases`.
+- [low] `wontfix-accepted` (DW-1003): the report-only `precedents` score is not in the release-candidate summary (`Gate.SCORES`); AC 6's Haiku measurement is in `set-k.json`/`.md`.
+- [low] `by-design`: an eval item's read is not scoped to its run or case. AD-21 as amended returns eval rows of every run for owner `eval`; the sweep leaves one run's rows at a time and the set's two seeding cases have different senders.
+- [low] `by-design`: a run killed between a failed seed and `Finish` leaves rows no sweep finds (Design Notes: "dies with the throwaway").
+- [low] `by-design`: an array `expectation.outcome` is allowed for any item case (Code Map, `Score`).
+- [low] `by-design`: `Report.PRECEDENTCASES` names the three cases (AC 6 names them).
+- [low] `by-design`: the push run itself does not assert that no eval row is left; `eval/run.sh` must not change, and `Precedents:TestRemoved` pins it on the integration path.
+- [low] `by-design`: the overview sentence's place and wording (approved verbatim, ruling 1).
+- [low] `by-design`: `precedents` on a turn, documents, incident or digest case is ignored (the spec scopes the member to item and injection cases).
+- [low] `reject`: `PersonProbe`'s `noSummary` check is weak (a session-start render of a fresh session); it is a supplementary check, and AC 5's pin is the `equal` row (mutation recorded).
+- [low] `wontfix-theoretical`: `Finish` with a record whose `precedents` is an array throws inside its Try and stops; the records are EvalIn's own objects. Real only if another caller built records.
+- [low] `wontfix-theoretical`: with PrecedentOps stuck, each stale marked run costs the 30 s wait at Start. Real only with a stuck PrecedentOps and several stale runs together.
+- [low] `wontfix-theoretical`: `test-eval-set.sh`'s mock-wrong rule compares an array outcome with `===`; no case under `eval/mock-wrong/` has an array outcome.
+- [low] `reject` (fix edits the spec): Design Notes' "Decided in-stage: The expectation form" still says the choice case stays in SM-1's items, which AC 6 (binding) superseded; for the lead.
+
 ## Spec Change Log
 
 - planner-2026-11-08-41.7 (Contest Planner rulings relayed by the orchestrator, 2026-11-08):
@@ -260,7 +289,7 @@ No AC contradicts an AD's Rule. Two readings are recorded:
   - expectation `{"outcome": "ignore"}`.
 
 **Decided in-stage:**
-- **The expectation form:** `expectation.outcome` may be an array. This is the smallest change: it is the same member, the report has no new kind, and the case stays in SM-1's items, as the AC's "expected as" says. A miss on the real model lowers SM-1, which the release candidate shows.
+- **The expectation form:** `expectation.outcome` may be an array. This is the smallest change: it is the same member, the report has no new kind, and the report has no new expectation kind. [Superseded 2026-11-08 by AC 6 (planner-2026-11-08-41.7): the three precedent cases are scored in their own report-only line and are OUT of SM-1 until a release-candidate run has measured them on Haiku, so a miss on the real model cannot lower SM-1.]
 - **A new recorded email for the pair.** No tell-now email of the set is both not held out and mild enough for three noise answers to plausibly turn it, so the pair uses a fresh email. The injection case reuses the newsletter: its classification without the precedent is the set's own `mail-newsletter`, and the B/ scenario answers it on the mock.
 - **Seeding comes after the row is opened.** Otherwise a twin decided concurrently could see the rows. The marked row is also what the sweep finds. The theoretical leftover of a run killed between a failing seed and its row's removal dies with the throwaway.
 - **Removal is per run** (`RemoveSeededPrecedents` takes only `RunRef`), in `Finish`, which `Report.Run` and `Sweep.RunPreset` already call on every path.
@@ -329,6 +358,18 @@ mutation: Eval.In.Finish skips Unseed -> Precedents:TestRemoved red
 mutation: Eval.Report.IsPrecedentCase answers 0 (the three cases count in SM-1's items) -> Test.Eval.Report:TestPrecedentCasesReportOnly red
 mutation: Eval.In.Start skips the SweepPrecedents call -> Precedents:TestSweep red (the fake run's seeded row and case row stay)
 mutation: Agent.Input.PrecedentPart passes "eval" to Similar for a session item -> Precedents:TestPersonBeside red (the session item no longer equals its no-context text)
+mutation (QA): Eval.In.Send dispatches the Item before it seeds (the order swapped) -> Precedents:TestSeededBeforeDispatch red (memory-noise-three's last seed header 148 after its Item header 140; the injection case 153 after 152); TestInputs red on the same run; this is the real-path pin of the seed-before-dispatch order, which holds by header ids and not by a race
+mutation (QA): Eval.In.SweepPrecedents removes the case rows although RemoveRun failed -> Test.Eval.In:TestSweepPrecedents red (the failing run's rows gone, no warning)
+mutation (QA): Eval.Report.PRECEDENTCASES drops memory-noise-three (it counts in SM-1 and is missing from the report-only line) -> Test.Eval.Report:TestPrecedentCasesReportOnly red (SM-1 unchanged, 3 of 3, the three names, the Markdown line)
+mutation (QA): Eval.Report.ScoreInjection leaves the injection case out of the precedents tally (the line omits one) -> Test.Eval.Report:TestPrecedentCasesReportOnly red (3 of 3, 0 of 3, the names, the Markdown line)
+mutation (QA): test-eval-set.sh rejects an array expectation.outcome again -> test-eval-set.sh FAIL cases (good-item-outcome-choice and eval/memory-noise-three)
+mutation (QA): AC 4 re-run: the sentence removed from docs/security-overview.md -> test-heartbeat-overview.sh FAIL memory
+
+mutation (code review): Eval.In.SweepPrecedents calls CaseResult.Remove(run) instead of Unmark -> Precedents:TestSweep red (run 1's and the fake run's case rows gone) and Test.Eval.In:TestSweepPrecedents red
+mutation (code review, AC 5 re-run with the twin last): Agent.Input.PrecedentPart reads Similar("eval", ...) for any eval item, without SeedsPrecedents -> Precedents:TestInputs red (the twin holds the block and its summaries)
+mutation (code review, AC 5 re-run): Eval.In.Finish skips Unseed -> Precedents:TestRemoved red (rows of the run left; owner-eval rows 4 against 0 at the start), counted in Prepare and independent of TestSweep; the three were applied together on the warm stack e41s7crw, each red observed, reverted byte-identically, then Precedents and Test.Eval.In green again on the same stack
+
+QA files (Story 41.7 qa stage): `src/ocutalon/cls/OcuTalon/Test/Eval/Precedents.cls` (QA: `Order`, `OrderOf`, `TestSeededBeforeDispatch`), `src/ocutalon/cls/OcuTalon/Test/Eval/In.cls` (QA: `Fakes`, `TestSweepPrecedents`, `CaseRows`), `src/ocutalon/cls/OcuTalon/Test/Eval/ZzIn.cls` (QA: `RemoveRun` seam). Run green on a warm stack (tag e41s7qaw, torn down): `Test.Eval.In`, `Report`, `Precedents` (also after each revert), `Cases`, `RenderMemory`, `Table`; `test-heartbeat-overview.sh`, `test-eval-set.sh`. Each mutation reverted byte-identically (`git status --short` and `git diff --stat` unchanged).
 
 ## Auto Run Result
 

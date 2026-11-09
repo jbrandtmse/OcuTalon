@@ -32,6 +32,8 @@
 ///     and an error status for its nth call when ^OcuTalonTest("EvalIn", "seedError") holds n.
 ///   - Unseed (Finish's removal of a run's seeded precedents) records each run under ^OcuTalonTest("EvalIn", "unseed", n) and sends nothing; it answers the
 ///     error status that ^OcuTalonTest("EvalIn", "unseedFail") holds, or OK when that is empty.
+///   - RemoveRun (the removal of one run's seeded precedents, which Unseed and the start-of-run sweep share) records each run under ^OcuTalonTest("EvalIn", "remove", n)
+///     and sends nothing; it answers OK for a run that ^OcuTalonTest("EvalIn", "removeOk", run) names and an error status for every other.
 ///   - Pause (the wait before a Busy turn is asked again) records the seconds under ^OcuTalonTest("EvalIn", "paused", n) and waits for none.
 /// DeleteBodies deletes the TurnResult bodies of the ItemIds that Ask and Deliver recorded: EvalIn saves a TurnResult before it asks, and the
 /// double's Deliver sends nothing, so no purge would ever remove it. The tests call it before they clear the records.
@@ -185,6 +187,12 @@ ClassMethod Unseed(runRef As %String) As %Status
 	Set ^OcuTalonTest("EvalIn", "unseed", $Increment(^OcuTalonTest("EvalIn", "unseed"))) = runRef
 	Set fail = $Get(^OcuTalonTest("EvalIn", "unseedFail"))
 	Quit $Select(fail '= "": $SYSTEM.Status.Error(5001, fail), 1: $$$OK)
+}
+
+Method RemoveRun(runRef As %String) As %Status
+{
+	Set ^OcuTalonTest("EvalIn", "remove", $Increment(^OcuTalonTest("EvalIn", "remove"))) = runRef
+	Quit $Select($Data(^OcuTalonTest("EvalIn", "removeOk", runRef)): $$$OK, 1: $SYSTEM.Status.Error(5001, "the removal of the run "_runRef_" failed"))
 }
 
 Method Pause(seconds As %Integer) [ Private ]

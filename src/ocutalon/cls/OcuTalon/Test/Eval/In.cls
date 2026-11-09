@@ -79,6 +79,9 @@
 ///     an Item whose KeyFor is "", skip the case with REASONPRECEDENTS with nothing seeded, dispatched or saved, and no watch;
 ///   - TestSeedFails (Matrix: seed refused): a seed answered other than seeded, or failing, skips the case with REASONPRECEDENTS; its row and its watch are removed, the
 ///     later entries are not seeded, and the setup record is kept;
+///   - TestSweepPrecedents (Matrix: leftover): the start-of-run sweep asks for the removal of each other run that has a marked case row (not the run itself, and not a
+///     run whose rows are unmarked), clears the marks of a run whose removal worked and keeps its case rows, and for one whose removal failed logs one warning, keeps
+///     its marked rows and goes on;
 ///   - TestFinishUnseeds (Matrix: end of run): Finish sends one removal for each distinct run of the records, none for a record without precedents, and gives the
 ///     first error while it still tries the others.
 /// OnAfterOneTest removes, through RemoveEvalWatch, every eval watch row created since the test began.
@@ -100,6 +103,9 @@ Property Mark As %Integer;
 /// The time the test began (UTC, YYYY-MM-DDThh:mm:ssZ): the eval watch rows created since are the test's own.
 Property Begun As %String;
 
+/// The Refs of the runs of other tests' making whose case rows a test opened, comma-separated; removed after the test.
+Property Fakes As %String(MAXLEN = "");
+
 /// The IDs of the synthetic watch rows of other owners that a test saved, comma-separated.
 Property SessionRows As %String(MAXLEN = "");
 
@@ -119,6 +125,7 @@ Method OnAfterAllTests() As %Status
 
 Method OnBeforeOneTest(testname As %String) As %Status
 {
+	Set ..Fakes = ""
 	Kill ^OcuTalonTest("EvalIn")
 	Set ..Run = "zz"_$Extract(##class(OcuTalon.Bridge.Ids).NewRef(), 1, 20)
 	Set ..Mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
@@ -132,7 +139,11 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ##class(OcuTalon.Test.Eval.ZzIn).DeleteBodies()
 	Kill ^OcuTalonTest("EvalIn")
 	Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(..Run)
+	For i = 1:1:$Length(..Fakes, ",") {
+		If $Piece(..Fakes, ",", i) '= "" Do ##class(OcuTalon.Eval.Data.CaseResult).Remove($Piece(..Fakes, ",", i))
+	}
 	Do ..RemoveWatches()
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "SweepPrecedents", ##class(OcuTalon.Eval.In).#LOGUNSEED)
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "OnProcessInput", ##class(OcuTalon.Eval.In).#LOGSKIPPED)
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "Converse", ##class(OcuTalon.Eval.In).#LOGNOTDELIVERED)
 	Quit $$$OK
@@ -1508,6 +1519,47 @@ ClassMethod Seen() As %Integer [ Private ]
 ClassMethod SeenAt(n As %Integer) As %List [ Private ]
 {
 	Quit $Get(^OcuTalonTest("EvalIn", "seen", n))
+}
+
+/// The sweep of a run's start removes the seeded precedents of every other run that left a marked case row, and clears the marks of those it removed while their
+/// case rows stay; a removal that fails is one warning, its marked rows stay for the next sweep, and the sweep goes on to the next run.
+Method TestSweepPrecedents()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set removed = "zz"_$Extract(##class(OcuTalon.Bridge.Ids).NewRef(), 1, 20)
+	Set failing = "zz"_$Extract(##class(OcuTalon.Bridge.Ids).NewRef(), 1, 20)
+	Set plain = "zz"_$Extract(##class(OcuTalon.Bridge.Ids).NewRef(), 1, 20)
+	Set ..Fakes = removed_","_failing_","_plain
+	Set open = "OcuTalon.Eval.Data.CaseResult"
+	Do $$$AssertStatusOK($ClassMethod(open, "Open", removed, "zz-sweep", "zz-sweep", ##class(OcuTalon.Bridge.Ids).NewRef(), "", "", 1), "an earlier run has a marked case row")
+	Do $$$AssertStatusOK($ClassMethod(open, "Open", failing, "zz-sweep", "zz-sweep", ##class(OcuTalon.Bridge.Ids).NewRef(), "", "", 1), "so has another whose removal will fail")
+	Do $$$AssertStatusOK($ClassMethod(open, "Open", plain, "zz-sweep", "zz-sweep", ##class(OcuTalon.Bridge.Ids).NewRef(), "", "", 0), "one run has only an unmarked row")
+	Do $$$AssertStatusOK($ClassMethod(open, "Open", ..Run, "zz-sweep", "zz-sweep", ##class(OcuTalon.Bridge.Ids).NewRef(), "", "", 1), "and the run itself has a marked row")
+	Set ^OcuTalonTest("EvalIn", "removeOk", removed) = ""
+	Do service.SweepPrecedents()
+	Kill asked
+	For i = 1:1:+$Get(^OcuTalonTest("EvalIn", "remove")) {
+		Set asked($Get(^OcuTalonTest("EvalIn", "remove", i))) = ""
+	}
+	Do $$$AssertTrue($Data(asked(removed)) && $Data(asked(failing)), "the sweep asked for the removal of both earlier runs that have a marked row")
+	Do $$$AssertTrue('$Data(asked(plain)) && '$Data(asked(..Run)), "and not for a run with no marked row, nor for the run itself")
+	Do $$$AssertEquals(..CaseRows(removed)_"|"_..CaseRows(failing), "1|1", "the case rows of the run whose removal worked stay, and so do those of the one whose removal failed")
+	Set runs = ##class(OcuTalon.Eval.Data.CaseResult).PrecedentRuns()
+	Do $$$AssertTrue('$ListFind(runs, removed) && $ListFind(runs, failing), "the marks of the run whose removal worked are cleared, and those of the one whose removal failed stay")
+	Do $$$AssertEquals(..CaseRows(plain)_"|"_..CaseRows(..Run), "1|1", "the rows of the unmarked run and of the run itself stay")
+	Set prefix = $Parameter("OcuTalon.Eval.In", "LOGUNSEED")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .text, "SweepPrecedents", prefix_failing), 1, "the failed removal is one warning")
+	Do $$$AssertTrue(text [ "failed", "which says why: "_text)
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .text, "SweepPrecedents", prefix_removed), 0, "and the removal that worked is none")
+}
+
+/// The number of case rows of the run.
+Method CaseRows(run As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Eval_Data.CaseResult WHERE RunRef = ?", run)
+	Do result.%Next()
+	Quit +result.%GetData(1)
 }
 
 /// How many precedents the double was asked to seed.

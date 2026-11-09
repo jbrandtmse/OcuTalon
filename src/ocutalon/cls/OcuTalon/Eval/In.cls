@@ -76,8 +76,8 @@
 ///     EvalRunRef), and only then sends the Item. Agent.Input reads those rows only for an item whose row is marked so. A seed that is not answered
 ///     seeded skips the case with REASONPRECEDENTS and removes its row and its watch. From the first seed on, the case's setup record
 ///     {case, precedents{runRef}} is in the Watches of the service, and Finish sends PrecedentOps one RemoveSeededPrecedents for each distinct run of the
-///     records it is given (Unseed). Start removes, before its first case, the seeded rows of every earlier run that left a marked row, and those rows
-///     (SweepPrecedents); a failed removal is one warning, and the run goes on.
+///     records it is given (Unseed). Start removes, before its first case, the seeded rows of every earlier run that left a marked row, and clears that
+///     run's marks; its case rows stay (SweepPrecedents). A failed removal is one warning, and the run goes on.
 ///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26), the old turn
 ///     of a before included.
 /// Wait polls the rows of a run until none is still sent, or the seconds have passed.
@@ -674,7 +674,8 @@ Method RemoveRun(runRef As %String) As %Status
 }
 
 /// The sweep at the start of a run: for each earlier run that left a marked row (CaseResult.PrecedentRuns), removes its seeded precedents (RemoveRun) and,
-/// when that worked, its rows. A removal that fails is one warning (LOGUNSEED), its rows stay for the next sweep, and the run goes on. It never throws.
+/// when that worked, clears its marks (CaseResult.Unmark); its case rows stay, so a report or a persona sweep that reads them after this start still finds
+/// them. A removal that fails is one warning (LOGUNSEED), its marks stay for the next sweep, and the run goes on. It never throws.
 Method SweepPrecedents()
 {
 	Try {
@@ -682,7 +683,7 @@ Method SweepPrecedents()
 		Set position = 0
 		While $ListNext(runs, position, run) {
 			Set sc = ..RemoveRun(run)
-			If $$$ISOK(sc) Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Remove(run)
+			If $$$ISOK(sc) Set sc = ##class(OcuTalon.Eval.Data.CaseResult).Unmark(run)
 			If $$$ISERR(sc) $$$LOGWARNING(..#LOGUNSEED_run_": "_$SYSTEM.Status.GetOneStatusText(sc))
 		}
 	} Catch exception {

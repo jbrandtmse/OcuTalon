@@ -12,7 +12,8 @@
 /// carry no initial value, so a row written without them reads as no persona.
 /// A row may be marked as a case that seeds precedents (Precedents 1, nullable with no initial value, so a row written without it reads as
 /// not marked): Agent.Input reads the eval-seeded precedent rows for the eval item with that ItemId only when it is marked
-/// (SeedsPrecedents, AD-7), and EvalIn finds the runs that left seeded rows behind by the marked rows (PrecedentRuns).
+/// (SeedsPrecedents, AD-7), and EvalIn finds the runs that left seeded rows behind by the marked rows (PrecedentRuns) and clears a run's marks
+/// once its seeded rows are removed (Unmark), so the run's results stay readable.
 /// The run is RunRef, the Ref that is also the SuperSession of every message of the run. The case is CaseName, the name of its
 /// folder in eval/, and SourceItemId is the case's recorded item id (for a turn case or an incident case, which record no Item, the case's name). Times are UTC to the second. A cost that is not known is empty,
 /// never 0. Rows exist only where EvalIn ran, which is throwaway stacks and CI, so the class has no purge.
@@ -167,6 +168,16 @@ ClassMethod Unanswered(runRef As %String) As %Integer
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Eval_Data.CaseResult WHERE RunRef = ? AND State = ?", runRef, ..#SENT)
 	If (result.%SQLCODE < 0) || 'result.%Next() Quit 0
 	Quit +result.%GetData(1)
+}
+
+/// Clears the mark of the run's marked rows (Precedents 0), so PrecedentRuns no longer lists the run; the rows themselves stay. An empty run is an
+/// error status.
+ClassMethod Unmark(runRef As %String) As %Status
+{
+	If runRef = "" Quit $SYSTEM.Status.Error(5001, "OcuTalon.Eval.Data.CaseResult.Unmark needs a run")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Eval_Data.CaseResult SET Precedents = 0 WHERE RunRef = ? AND Precedents = 1", runRef)
+	If result.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "Clearing the marks of the run failed: "_result.%Message)
+	Quit $SYSTEM.Status.OK()
 }
 
 /// Deletes the rows of the run, or, with a case name, the row of that case only. An empty run is an error status.

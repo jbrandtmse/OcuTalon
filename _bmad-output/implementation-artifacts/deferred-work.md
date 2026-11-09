@@ -4587,6 +4587,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: lane-a.yml runs only the plain eval/run.sh; a --personas step needs an edit to .github/workflows/lane-a.yml (out of Epic 40's footprint; CI budget REL-4)
 - 2026-11-05T22:05:02Z status=escalated owner=burndown by=harvest note=for_the_decision_sheet:add_a_lane-a.yml_step(about_4_min_on_the_mock)_or_leave_it_to_the_release_runs
 - 2026-11-05T22:52:20Z occurrence=40-7-evaluation-cases-for-the-persona
+- 2026-11-09T04:56:07Z occurrence=41-7-evaluation-and-tests-for-memory-s-first-part
 
 ### DW-766: The Planner's real-model persona sweep (eval/run.sh --release-candidate --personas) cannot run inside one 10-minute call and has no per-preset form
 - source: spec-40-7-evaluation-cases-for-the-persona.md | severity: low | fix-risk: low | footprint: in-story
@@ -5714,6 +5715,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: epics.md 41.7 AC 2 vs spine AD-21 only-writer list and RecordPrecedent row; AD-1
 - 2026-11-08T07:35:42Z status=routed owner=41-7-evaluation-and-tests-for-memory-s-first-part by=harvest note=Decided by the Contest Planner (owner delegation, 2026-11-08): AD-21 amended additively, option (a), written by the lead at 41.2's plan; 41.7 implements eval-only seeding (OCUTALON_EVAL=1), eval-seeded marker, removal via PrecedentOps, product sessions never read eval rows
 - 2026-11-08T07:48:47Z occurrence=41-1-fix-the-names-and-contracts-of-memory-s-first-part by=cr note=the amendment at 41.2's plan must name 41.2's halves (eval-seeded column, Similar filter, PrecedentOps seed/remove); reconcile AD-29's 41 sub-bullet
+- 2026-11-09T05:10:51Z status=resolved-by:41-7-evaluation-and-tests-for-memory-s-first-part by=adjudication note=EvalIn seeds case precedents through PrecedentOps (SeedPrecedent) only while EvalOn, marks CaseResult.Precedents, removes the run's rows in Finish and sweeps an earlier run's at Start (RemoveSeededPrecedents); a person's item beside a run reads none (Test.Eval.Precedents TestPersonBeside, Test.Core.PrecedentOps TestPersonBesideRun)
 
 ### DW-921: AD-21's accepts-only list for PrecedentOps names MarkNoise and RecordPrecedent but not ForgetPrecedent, which AD-1 and the Epic 41 names sub-bullet route to PrecedentOps from web_user
 - source: _bmad-output/implementation-artifacts/spec-41-1-fix-the-names-and-contracts-of-memory-s-first-part.md | severity: med | fix-risk: low | footprint: in-epic
@@ -5969,3 +5971,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-6-the-memory-card-your-notes-and-your-answers.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: IMPORTED line 70 imports MEMORY_TEXTS only; the words are pinned word for word by memory-card-view.test.mjs and ruled 2026-11-08; widening the contended IMPORTED append is not allowed in this story
 - 2026-11-09T02:25:29Z status=wontfix-accepted owner=41-6-the-memory-card-your-notes-and-your-answers by=cr note=reopen_if=ANSWER_WORDS changes or gains a word, or ux-strings.test.mjs is next edited for the Memory card (41.13)
+
+### DW-1000: Eval.In.RemoveRun's 'did not answer removed' branch has no test: ZzIn overrides RemoveRun and Unseed whole
+- source: spec-41-7-evaluation-and-tests-for-memory-s-first-part.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: Test.Eval.In TestFinishUnseeds and TestSweepPrecedents use the double's RemoveRun; Precedents reaches the success path only; dropping the Outcome check turns no test red
+- 2026-11-09T04:56:07Z status=wontfix-accepted owner=41-7-evaluation-and-tests-for-memory-s-first-part by=cr note=reopen_if=a run's Finish answers OK while Precedents:TestRemoved or a CI eval run finds eval rows of that run left
+
+### DW-1001: Test.Eval.Precedents' real Start sweeps every marked run on the stack, including another class's leftovers
+- source: spec-41-7-evaluation-and-tests-for-memory-s-first-part.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: Prepare and TestSweep call the product Start, whose SweepPrecedents removes the seeded rows and clears the marks of every earlier marked run; classes run serially and clean up their own rows
+- 2026-11-09T04:56:07Z status=wontfix-accepted owner=41-7-evaluation-and-tests-for-memory-s-first-part by=cr note=reopen_if=a lane-a shard or warm-stack red names a missing marked CaseResult or eval Precedent row of a class that ran before Test.Eval.Precedents
+
+### DW-1002: A case's precedents member is checked only at run time (no hosted rule) and accepts unknown entry keys (a typo like daysago seeds 'now')
+- source: spec-41-7-evaluation-and-tests-for-memory-s-first-part.md (code review) | severity: low | fix-risk: med | footprint: in-story
+- evidence: test-eval-set.sh has no precedents rule; Eval.In EntryOk never rejects an extra key; a bad entry shows only as a REASONPRECEDENTS skip on a stack
+- 2026-11-09T04:56:07Z status=wontfix-accepted owner=41-7-evaluation-and-tests-for-memory-s-first-part by=cr note=reopen_if=a case under eval/ carries a precedents entry with a key other than summary, answer, outcome, daysAgo, or a precedents skip in a CI eval run
+
+### DW-1003: The report-only precedents score is not in the release-candidate summary (Gate.SCORES, eight scores), only in the set's json and md
+- source: spec-41-7-evaluation-and-tests-for-memory-s-first-part.md (code review) | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Eval/Gate.cls SCORES and eval/run.sh's CHK lines carry eight scores; AC 6's Haiku measurement of the three cases is in set-k.json/md only
+- 2026-11-09T04:56:07Z status=wontfix-accepted owner=41-7-evaluation-and-tests-for-memory-s-first-part by=cr note=reopen_if=the decision to take the three cases into SM-1 needs the score from release-candidate.json rather than set-k.json
