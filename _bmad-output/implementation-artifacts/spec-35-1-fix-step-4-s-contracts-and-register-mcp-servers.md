@@ -5,6 +5,7 @@ created: '2026-11-09'
 status: 'done'
 review_loop_iteration: 0
 baseline_revision: 'fd2ea0f0af0ca6b41f656f016a61bca6d6034635'
+baseline_commit: 'fd2ea0f0af0ca6b41f656f016a61bca6d6034635'
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-35-context.md'

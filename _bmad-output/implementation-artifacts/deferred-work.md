@@ -6054,3 +6054,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42558521402 attempt 1 (OCT-epic17 87eb681a) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(image) 04:17:13Z; a stack-start bound, no product line involved
 - 2026-11-09T04:52:37Z status=routed owner=burndown by=orchestrator note=first sighting; infra class (stack start under load); next flake story
+
+### DW-1010: Test.Mcp.Attach TestShadow proves the agent's tool runs and the mock's shadowing copy never does on a bare tool manager, not on the agent's own manager
+- source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestShadow builds a separate %AI.ToolMgr; the agent's own manager is checked for listing and RefusedTools only; Task 0 measured AI Hub marks the MCP copy unavailable
+- 2026-11-09T08:54:17Z status=open owner=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=harvest note=deferred by implement pass 1
+
+### DW-1011: No test compares the six accepted step-4 texts in EXPERIENCE.md's new block with Catalog.Watch, so a later edit of one side is not flagged
+- source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: checked once by script in review; Test.Msg.Catalog pins Catalog.Watch to its own fixtures; ux-strings.test.mjs reads page strings only
+- 2026-11-09T08:54:17Z status=open owner=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=harvest note=deferred by implement pass 1
+
+### DW-1012: Bridge guide McpServers bullet writes AI.MCP.<name> outside backticks, so a Markdown renderer can drop <name>
+- source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: docs/bridge-guide.md fifth bullet of The extension classes, pinned whole-line by test-bridge-guide.sh turn_lines; other placeholders are in backticks
+- 2026-11-09T08:54:17Z status=open owner=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=harvest note=deferred by implement pass 2; lead ruling: backticks are formatting, not wording (decide), so the code review may wrap it and move the pin
