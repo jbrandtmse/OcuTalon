@@ -2,12 +2,20 @@
 title: "Story 39.11: The install's production check doesn't name an item that is turned off by default"
 type: 'bugfix'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0408ba7b21c7748f25615ff2dc93867417654e11'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Two other hand-written copies of NotRunning()'s flag-only enabled loop (Install/Step/Demo.cls start wait, Test/Eval/Feed/Fixture.cls wait) still ignore an Enabled row of 0.
+    evidence: |-
+      Demo.cls (the Demo step's own start wait, about L555-583) and Test/Eval/Feed/Fixture.cls (about L515-545) repeat `If '$Get($$$ConfigIsEnabled(item)) Continue` with the pool and alive tests. Neither is OcuTalon.Production's check; the Demo production has no row-0 item by default, so no failing path is shown today. Pre-existing and outside this story's footprint.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls, src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls
+    severity: low
 ---
 
 <intent-contract>
@@ -80,6 +88,32 @@ The item is TelegramIn (pool 1) with no alive job, on a running OcuTalon.Product
 
 ## Review Triage Log
 
+### 2026-11-08 -- Review pass
+- verdicts: 22 findings -- high 0, medium 3, low 11, false 8, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1: `RunnerFixture.NotRunningNow` keeps a now-redundant, narrower (exact-id) row filter -- the spec forbids touching the fixture and rules it "redundant but harmless"; no wrong result follows.
+  - `[medium]` `[patch]` Blind 2: any-specificity rows untested and the "no row" cases delete only the exact-id row -- patched: the no-row case now asserts `%GetSetting` finds no Enabled row for TelegramIn after the delete.
+  - `[false]` `[reject]` Blind 3: empty runtime ClassName makes `%GetSetting` ignore a row -- Ens registration writes `$$$ConfigClassName` together with the flag and the pool (Director L1340-1347), so a flagged item with a pool always has its class.
+  - `[low]` `[reject]` Blind 4: the class header should say which lane covers the skipped case -- CI stacks are parked, so the test runs there; the header already states the skip condition.
+  - `[false]` `[reject]` Edge 1: empty ClassName ignores row 0 -- same as Blind 3.
+  - `[false]` `[reject]` Edge 2: flag passed as constant 1, Runners and NotRunning disagree on row 1 / flag 0 -- the lead's binding ruling at the spec gate (row-0 skip only); matrix row 4 pins it.
+  - `[false]` `[reject]` Edge 3: Runners normalises a non-boolean row value -- the old expression fed `$Select(enabled: 1, 1: 0)` the same raw value, and that line is unchanged; "", "2" and "true" give the same 0/1.
+  - `[medium]` `[patch]` Edge 4: no-row case may still find a broader row -- same root cause as Blind 2; same patch.
+  - `[low]` `[reject]` Edge 5: `RestoreDefault` status ignored in `OnAfterOneTest` -- the fixture's other callers do the same; a failed restore needs a write failure on a throwaway; a guard adds branches for no shown path.
+  - `[false]` `[reject]` Edge 6: writing the runtime flag races a concurrent poll -- one class runs per call on a stack, and nothing else reads the flag while the test runs; `OnAfterOneTest` puts it back.
+  - `[low]` `[reject]` Edge 7: fixture filter duplicates NotRunning's -- same as Blind 1.
+  - `[low]` `[defer]` Verification-gap 1: `Install/Step/Demo.cls` keeps a copy of the flag-only loop -- pre-existing, other production, outside the footprint; deferred (frontmatter).
+  - `[low]` `[patch]` Verification-gap 2: AC 4 has no mutation line -- patched: mutation (AC 4) demonstrated on TelegramParked and recorded.
+  - `[low]` `[patch]` Verification-gap 3: AC 2 mutations partial -- patched: no-row exit and retained flag line mutations demonstrated (red at cases 5 and 4) and recorded.
+  - `[medium]` `[patch]` Verification-gap 4: case 5 never checks the row is gone -- same root cause as Blind 2; same patch.
+  - `[low]` `[reject]` Verification-gap 5: AC 5 has no test or mutation -- AC 5 is read from the diff; recorded as such under Verification.
+  - `[low]` `[reject]` Verification-gap 6: skip could pass green without exercising the fix -- same as Blind 4; the (loop) command expects no SKIP and the run showed none.
+  - `[low]` `[defer]` Verification-gap 7: `Test/Eval/Feed/Fixture.cls` third copy of the flag-only loop -- grouped with Verification-gap 1.
+  - `[false]` `[reject]` Intent 1: tests pin row 1 / flag 0 as not named while Ens's rule would call it enabled -- the lead ruling at the spec gate chose exactly that; the Design Notes record it.
+  - `[false]` `[reject]` Intent 2: class source differs (runtime copy vs definition) -- both are the item's ClassName written at registration; the value is the same.
+  - `[low]` `[reject]` Intent 3: no consumer-level test of the start wait, ReconcileIn or the shell checks -- the spec forbids starting the production in these tests; AC 4 is the consumer pin, and the consumers call `NotRunning()` unchanged.
+  - `[false]` `[reject]` Intent 4: the synthetic state may not be what Ens produces -- Task 0 measured this state (row 0, flag 1, matching checksum survives a completed update); see Design Notes.
+
 ## Design Notes
 
 ### Task 0
@@ -139,6 +173,20 @@ Result: (lead, Task 0, 2026-11-08 23:28Z to 23:37Z, lane-C warm throwaway `e39s1
 
 **Shared surfaces:** `NotRunning()`'s result for an item with an Enabled row of 0 (the TelegramParked pin at L118, inverted) and the meaning of "enabled" for the check's consumers (Code Map list). The implement stage records its search here.
 
+**Shared surfaces (implement stage record):** searched every `NotRunning()` consumer in `src/` (Conversation, Models, Runners, ReconcileIn, AnswersInWebRoles, WebStatus, Install.Production, TelegramParked). The only assertion that pinned the old shape was TelegramParked `TestReadinessFollowsTheRow` (inverted, plus one added assertion for row 1). The rest assert `NotRunning()` empty with every row on, or the not-running sentence; `Runners.AssertRefused` names refused runners, which have no row of 0. Nothing else changed.
+
+**Mutations (Rule 19, warm stack, each reverted; `git status --short` and `git diff --stat` identical afterwards, class green again):**
+- mutation: delete the `ItemEnabled` call line in `NotRunning()` -> `Test.Install.Production` `TestNotRunningFollowsTheRow` red: TelegramIn with Enabled row 0 and runtime flag 1 is not named by NotRunning
+- mutation: delete the `ItemEnabled` call line in `NotRunning()` -> `Test.Channel.TelegramParked` `TestReadinessFollowsTheRow` red: the production's own check leaves out TelegramIn while its Enabled row is 0, even with its runtime flag set
+- mutation: the helper returns 0 whenever a row exists -> `Test.Install.Production` `TestNotRunningFollowsTheRow` red: TelegramIn with Enabled row 1 and runtime flag 1 is named by NotRunning (and `TestRunnerModels` red: a runner enabled by a System Default Setting counts)
+- mutation: the helper ignores the row (`Quit flag`) -> `Test.Install.Production` `TestRunnerModels` red: a runner enabled by a System Default Setting counts (and `TestNotRunningFollowsTheRow` red at row 0 / flag 1)
+- mutation (AC 2, review pass): the helper's no-row exit returns 0 instead of the flag -> `Test.Install.Production` `TestNotRunningFollowsTheRow` red: TelegramIn with no Enabled row and runtime flag 1 is named by NotRunning (and `TestRunnerModels`, `TestSeedModels` red)
+- mutation (AC 2, review pass): delete the retained `If '$Get($$$ConfigIsEnabled(item)) Continue` line in `NotRunning()` -> `Test.Install.Production` `TestNotRunningFollowsTheRow` red: TelegramIn with Enabled row 1 and runtime flag 0 is not named by NotRunning (and the same with no row)
+- mutation (AC 4, review pass): `NotRunning()` returns the made-up item name "Nope" once TelegramIn's runtime flag is 1 -> `Test.Channel.TelegramParked` `TestReadinessFollowsTheRow` red: RunnerFixture.NotRunningNow leaves it out, as its Enabled row is 0 (and: the wait of the restarts ends at once)
+- AC 5 is judged by reading the diff (no string of `NotRunning()`, `StartLocked` or `ReconcileIn` changed); it has no test to mutate.
+- Review pass: the no-row case of `TestNotRunningFollowsTheRow` now asserts that no Enabled row of any specificity applies to TelegramIn after the delete. All mutations were reverted (tree byte-identical) and both classes were green again on the same warm stack.
+- Run (loop and once lines, final tree): warm `Test.Install.Production` and `Test.Channel.TelegramParked` passed in both orders; fresh `lane-a@Install` forward passed (16 classes), reversed in two parts passed (8 + 8), fresh `Test.Channel.TelegramParked` passed; `test-class-rules.sh` and `test-boundaries.sh` exit 0; both stacks torn down.
+
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 
 **ci_groups:** `shards` (`shard:lane-a@Checks,Install,Watch,Eval`) and `shards-4` (`shard:lane-a@Channel`). No group or bound changes.
@@ -158,5 +206,21 @@ Result: (lead, Task 0, 2026-11-08 23:28Z to 23:37Z, lane-C warm throwaway `e39s1
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: `Install.Step.Production.NotRunning()` now also leaves out an item whose applicable System Default Settings Enabled row is 0 (DW-978); a row of 1 or no row leaves the runtime flag deciding, as today (lead ruling). The row rule lives in one private helper, `ItemEnabled`, which `Runners()` now calls too with unchanged behaviour. No user-facing string changed.
+
+Files changed:
+- `src/ocutalon/cls/OcuTalon/Install/Step/Production.cls` -- `ItemEnabled` helper; row-0 skip in `NotRunning()`; `Runners()` calls the helper; doc comment states the new contract.
+- `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` -- `TestNotRunningFollowsTheRow` (six row/flag cases, row and flag put back in `OnAfterOneTest`), header updated.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramParked.cls` -- inverted pin, one added assertion, header updated.
+- This spec (Verification records, triage log, result).
+
+Review findings: 22 reported (high 0, medium 3, low 11, false 8). Patches applied: 3 medium (one root cause: the no-row case could pass vacuously; now asserts no row applies), 3 low (AC 2 and AC 4 mutation lines; the same pass). Deferred: 1 entry (two other flag-only copies of the loop in `Demo.cls` and `Eval/Feed/Fixture.cls`, low, pre-existing). Rejected: the rest, each with its reason in the Review Triage Log.
+
+Follow-up review recommended: false (one medium entry patched, no high).
+
+Verification: warm and fresh runs as listed under Verification (all passed, both orders); five mutations demonstrated red and reverted; `test-class-rules.sh` and `test-boundaries.sh` exit 0; the two stacks (tags `e39s11iw`, `e39s11i`) were torn down.
+
+Residual risks: `NotRunningNow` in the test fixture keeps its narrower exact-id filter (redundant, harmless); the two deferred copies still read the flag only.

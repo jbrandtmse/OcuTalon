@@ -1,7 +1,10 @@
+Include Ensemble
+
 /// Tests of OcuTalon.Production and of the Production installer step (Story 0.6, matrix rows 1 and 3 to 5; Story 1.1; Story 1.2;
-/// Story 1.3; Story 1.5; Story 1.12). Nothing
+/// Story 1.3; Story 1.5; Story 1.12; Story 39.11). Nothing
 /// here starts, stops or updates a production: the tests read the definition of OcuTalon.Production, call the stub handlers of
-/// shadow instances, write the System Default Setting row of the EvalIn switch (restored as it was found), and compile a
+/// shadow instances, write the System Default Setting row of the EvalIn switch (restored as it was found), write the Enabled row
+/// and the runtime flag of TelegramIn (both put back as found), and compile a
 /// fixture production of their own with System Default Setting rows of its own, both deleted afterwards.
 /// The oracle is a copy of the ownership table, split by lane so that each lane edits only its own rows (AD-29, AD-33):
 /// lane A's rows are XData Items below, lane B's are in OcuTalon.Test.Core.ProductionItems, and Items() returns both in
@@ -26,6 +29,9 @@
 ///     included; a production that cannot be opened is an error that writes nothing;
 ///   - TestStepHelpers: EvalEnabled is 1 only for "1", SetEval and WriteDefault write their rows, and NotRunning names the
 ///     production when it does not run;
+///   - TestNotRunningFollowsTheRow: on a running OcuTalon.Production, NotRunning leaves out TelegramIn (pool 1, no job) when its
+///     Enabled row is 0 or its runtime flag is off, and names it when the flag is on and its row is 1 or missing (skipped when the
+///     production does not run or TelegramIn has a job);
 ///   - TestAutoStart: AutoStart marks ^Ens.AutoStart for the caller "ipm" only, and leaves it as it was for any other caller
 ///     (^Ens.AutoStart is put back after the test);
 ///   - TestExampleInstalledNotStarted: the bridge example production is compiled and registered, and neither running nor the
@@ -54,6 +60,15 @@ Property RowDeployable As %Boolean;
 /// namespace (in ^||OcuTalonTestLastProduction); OnAfterOneTest puts both back exactly as they were, defined or not.
 Property AutoStartSaved As %Boolean [ InitialExpression = 0 ];
 
+/// The Enabled row of TelegramIn as found (RunnerFixture.SnapshotDefault), "" when TestNotRunningFollowsTheRow has saved none;
+/// OnAfterOneTest puts it back.
+Property TelegramRow As %List;
+
+/// The runtime flag of TelegramIn as found, $Data and the value, when TelegramRow is saved.
+Property TelegramFlagData As %Integer;
+
+Property TelegramFlagValue As %String;
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ..Clean()
@@ -71,6 +86,15 @@ Method OnBeforeAllTests() As %Status
 
 Method OnAfterOneTest(testname As %String) As %Status
 {
+	If ..TelegramRow '= "" {
+		If ..TelegramFlagData {
+			Set $$$ConfigIsEnabled("TelegramIn") = ..TelegramFlagValue
+		} Else {
+			Kill $$$ConfigIsEnabled("TelegramIn")
+		}
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreDefault(..TelegramRow)
+		Set ..TelegramRow = ""
+	}
 	If ..AutoStartSaved {
 		Kill ^Ens.AutoStart, ^Ens.Configuration("csp", "LastProduction")
 		Merge ^Ens.AutoStart = ^||OcuTalonTestAutoStart
@@ -519,6 +543,42 @@ Method TestStepHelpers()
 		Do $$$AssertSkipped("OcuTalon.Production runs in this namespace, so NotRunning cannot say that it does not")
 	} Else {
 		Do $$$AssertEquals(##class(OcuTalon.Install.Step.Production).NotRunning(), "OcuTalon.Production is not running", "NotRunning names the production")
+	}
+}
+
+/// NotRunning reads the Enabled row of the System Default Settings as Ens does: TelegramIn (pool 1, no job) is left out when the row
+/// is 0 or the runtime flag is off, whatever the row, and named when the flag is on and the row is 1 or missing. The row and the flag
+/// are written for each case and put back after the test.
+Method TestNotRunningFollowsTheRow()
+{
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set item = "TelegramIn"
+	If '##class(Ens.Director).IsProductionRunning(.running) || (running '= ..#PRODUCTION) {
+		Do $$$AssertSkipped(..#PRODUCTION_" does not run in this namespace, so NotRunning cannot be read per item")
+		Quit
+	}
+	If $ListLength($ClassMethod(fixture, "Jobs", item)) {
+		Do $$$AssertSkipped(item_" has a job here, and this test cannot stop it")
+		Quit
+	}
+	Set ..TelegramRow = $ClassMethod(fixture, "SnapshotDefault", item, "Enabled")
+	Set ..TelegramFlagData = $Data($$$ConfigIsEnabled(item), value)
+	Set ..TelegramFlagValue = $Get(value)
+	Do $$$AssertTrue($Get($$$ConfigPoolSize(item)) > 0, item_" has a pool")
+	For case = 1:1:6 {
+		Set row = $Case(case, 1: 0, 2: 0, 3: 1, 4: 1, : "")
+		Set flag = $Select(case # 2: 1, 1: 0)
+		Set named = $Case(case, 3: 1, 5: 1, : 0)
+		If row = "" {
+			Do ##class(Ens.Config.DefaultSettings).%DeleteId($ClassMethod(fixture, "DefaultId", item, "Enabled"))
+			Do $$$AssertNotTrue(##class(Ens.Config.DefaultSettings).%GetSetting(..#PRODUCTION, item, $Get($$$ConfigClassName(item)), "", "Enabled"), "no Enabled row of any specificity applies to "_item)
+		} Else {
+			Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", item, "Enabled", row), "the Enabled row of "_item_" is set to "_row)
+		}
+		Set $$$ConfigIsEnabled(item) = flag
+		Set label = item_" with "_$Select(row = "": "no Enabled row", 1: "Enabled row "_row)_" and runtime flag "_flag
+		Set actual = $ListFind($ListFromString(##class(OcuTalon.Install.Step.Production).NotRunning()), item) > 0
+		Do $$$AssertEquals(actual, named, label_$Select(named: " is named", 1: " is not named")_" by NotRunning")
 	}
 }
 
