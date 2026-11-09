@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 105 keys of OcuTalon.Msg.Catalog.Core and the 84 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 135 keys of OcuTalon.Msg.Catalog.Core and the 90 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 15 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -77,13 +77,13 @@ Method TestEntries()
 	Set keys = ..Read("Keys")
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
-	Do $$$AssertEquals(keys.core.%Size(), 105, "the expected Core list has 105 keys")
+	Do $$$AssertEquals(keys.core.%Size(), 135, "the expected Core list has 135 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
-	// Story 23.6 (Contest Planner ruling 2026-11-09, AD-33 exception): the 26 summary.* keys take the count to 84 here.
-	Do $$$AssertEquals(keys.watch.%Size(), 84, "the expected Watch list has 84 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 105 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 84 keys")
+	// Story 23.6 (Contest Planner ruling 2026-11-09, AD-33 exception): the 26 summary.* keys, with Epic 35's mcp.* keys (plain union at the integrate-forward), take the count to 90 here.
+	Do $$$AssertEquals(keys.watch.%Size(), 90, "the expected Watch list has 90 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 135 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 90 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -1074,7 +1074,37 @@ XData Keys [ MimeType = application/json ]
   "toolCall.requestOnServer",
   "toolCall.done",
   "toolCall.failed",
-  "toolCall.failedWithReason"
+  "toolCall.failedWithReason",
+  "settings.emailHeading",
+  "settings.emailHelp",
+  "settings.emailAddress",
+  "settings.emailAddressHelp",
+  "settings.emailIncoming",
+  "settings.emailOutgoing",
+  "settings.emailUser",
+  "settings.emailPassword",
+  "settings.emailSignIn",
+  "settings.emailClientId",
+  "settings.emailClientSecret",
+  "settings.webhooksHeading",
+  "settings.webhooksHelp",
+  "settings.webhookName",
+  "settings.webhookSecret",
+  "settings.webhookCreate",
+  "settings.webhookAddress",
+  "settings.webhookNameTaken",
+  "settings.secretSet",
+  "settings.secretNotSet",
+  "settings.refusedExpansion",
+  "settings.toolChangedBanner",
+  "settings.sourceHeading",
+  "settings.sourceHelp",
+  "settings.sourceName",
+  "settings.sourceArguments",
+  "settings.sourceInterval",
+  "settings.sourceNotReadOnly",
+  "settings.sourceBadArguments",
+  "answered.canceled"
  ],
  "watch": [
   "watch.productionStopped",
@@ -1128,6 +1158,7 @@ XData Keys [ MimeType = application/json ]
   "digest.notCheckedPaused",
   "digest.notCheckedStale",
   "digest.notCheckedSizeLimit",
+  "digest.notCheckedStopped",
   "digest.needsYouOne",
   "digest.needsYou",
   "digest.needsYouMore",
@@ -1160,7 +1191,12 @@ XData Keys [ MimeType = application/json ]
   "summary.groups",
   "summary.messages",
   "summary.cost",
-  "summary.costUnknown"
+  "summary.costUnknown",
+  "mcp.serverUnavailable",
+  "mcp.toolShadowsBuiltIn",
+  "mcp.toolChanged",
+  "mcp.replayToolChanged",
+  "mcp.sourceStopped"
  ]
 }
 }
@@ -1488,6 +1524,7 @@ XData Fixtures [ MimeType = application/json ]
  "digest.notCheckedPaused": {"slots": {"entry": "the Orders production", "from": "2026-10-16T18:00:00Z", "to": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (background checks were paused between 14:00 ET and 14:12 ET)."},
  "digest.notCheckedStale": {"slots": {"entry": "the Orders production", "time": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (its last check was at 14:12 ET, too long ago to count)."},
  "digest.notCheckedSizeLimit": {"slots": {"entry": "database space"}, "text": "Not checked: database space (OcuTalon can't read this database's size limit)."},
+ "digest.notCheckedStopped": {"slots": {"entry": "the Open tickets source", "time": "2026-10-16T18:15:00Z"}, "text": "Not checked: the Open tickets source (stopped polling at 14:15 ET: its tool is no longer Read-only)."},
  "digest.needsYouOne": {"slots": {"what": "the Orders production has 50 failed orders"}, "text": "One thing needs you: the Orders production has 50 failed orders."},
  "digest.needsYou": {"slots": {"count": 2, "what": "the Orders production has 50 failed orders; the Billing source is unreachable"}, "text": "2 things need you: the Orders production has 50 failed orders; the Billing source is unreachable."},
  "digest.needsYouMore": {"slots": {"n": 195}, "text": "And 195 more on the OcuTalon page."},
@@ -1520,7 +1557,42 @@ XData Fixtures [ MimeType = application/json ]
  "summary.groups": {"slots": {"groups": [{"itemName": "OrdersFromPartner", "count": 50, "errorSummary": "The order date was not in the expected format", "firstAt": "2026-10-16T18:12:00Z"}]}, "text": "Failure groups:\nOrdersFromPartner: 50, 'The order date was not in the expected format', first at 14:12 ET"},
  "summary.messages": {"slots": {"failed": 50, "resent": 48, "completed": 48, "failedAgain": 2, "skipped": 0}, "text": "Messages: 50 failed, 48 resent, 48 completed, 2 failed again, 0 skipped."},
  "summary.cost": {"slots": {"cost": 0.042}, "text": "Model cost of this incident: $0.042."},
- "summary.costUnknown": {"slots": {}, "text": "Model cost of this incident: not known."}
+ "summary.costUnknown": {"slots": {}, "text": "Model cost of this incident: not known."},
+ "mcp.serverUnavailable": {"slots": {"server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "I couldn't connect to the MCP server Tickets at 14:15 ET, so I can't use its tools."},
+ "mcp.toolShadowsBuiltIn": {"slots": {"server": "Tickets", "tool": "lookup"}, "text": "The MCP server Tickets offers a tool called 'lookup', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed."},
+ "mcp.toolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval."},
+ "mcp.replayToolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed."},
+ "mcp.sourceStopped": {"slots": {"source": "Open tickets", "tool": "lookup", "server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "The source Open tickets stopped polling at 14:15 ET, because its tool lookup on Tickets is no longer Read-only. Your digest lists it as not checked."},
+ "settings.emailHeading": {"slots": {}, "text": "Email"},
+ "settings.emailHelp": {"slots": {}, "text": "Connect your mailbox. OcuTalon decides on each email that arrives after you connect it, and leaves your mail on the server."},
+ "settings.emailAddress": {"slots": {}, "text": "Your email address"},
+ "settings.emailAddressHelp": {"slots": {}, "text": "OcuTalon emails this address without asking."},
+ "settings.emailIncoming": {"slots": {}, "text": "Incoming mail server (POP3)"},
+ "settings.emailOutgoing": {"slots": {}, "text": "Outgoing mail server (SMTP)"},
+ "settings.emailUser": {"slots": {}, "text": "User name"},
+ "settings.emailPassword": {"slots": {}, "text": "Password"},
+ "settings.emailSignIn": {"slots": {"provider": "Google"}, "text": "Sign in with Google"},
+ "settings.emailClientId": {"slots": {}, "text": "Client ID"},
+ "settings.emailClientSecret": {"slots": {}, "text": "Client secret"},
+ "settings.webhooksHeading": {"slots": {}, "text": "Webhooks"},
+ "settings.webhooksHelp": {"slots": {}, "text": "Other systems can send OcuTalon any JSON event. Each webhook has its own secret, which the sender puts in the X-OcuTalon-Webhook-Secret header."},
+ "settings.webhookName": {"slots": {}, "text": "Name"},
+ "settings.webhookSecret": {"slots": {}, "text": "Secret"},
+ "settings.webhookCreate": {"slots": {}, "text": "Create webhook"},
+ "settings.webhookAddress": {"slots": {"address": "https://example.com/ocutalon/hook/zzref"}, "text": "Send events with POST to https://example.com/ocutalon/hook/zzref."},
+ "settings.webhookNameTaken": {"slots": {"name": "Billing"}, "text": "A webhook called 'Billing' already exists. Nothing was changed."},
+ "settings.secretSet": {"slots": {}, "text": "Saved, and never shown again. Type a new value to replace it."},
+ "settings.secretNotSet": {"slots": {}, "text": "Not set."},
+ "settings.refusedExpansion": {"slots": {"marker": "@{"}, "text": "This can't contain @{, which IRIS would read as a reference to a setting. Nothing was changed."},
+ "settings.toolChangedBanner": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets changed its description or inputs, so it is Unclassified again. It counts as risky until it is classified below."},
+ "settings.sourceHeading": {"slots": {}, "text": "Use as a source"},
+ "settings.sourceHelp": {"slots": {}, "text": "OcuTalon calls this tool on a schedule and decides on each new result. The source joins your digest's coverage list."},
+ "settings.sourceName": {"slots": {}, "text": "Source name"},
+ "settings.sourceArguments": {"slots": {}, "text": "Arguments (JSON)"},
+ "settings.sourceInterval": {"slots": {}, "text": "Check every"},
+ "settings.sourceNotReadOnly": {"slots": {}, "text": "Only a Read-only tool can be a source."},
+ "settings.sourceBadArguments": {"slots": {}, "text": "Enter the arguments as a JSON object. Nothing was changed."},
+ "answered.canceled": {"slots": {"time": "2026-10-16T18:15:00Z", "server": "Tickets"}, "text": "Canceled at 14:15 ET: the MCP server Tickets was removed. Nothing was changed."}
 }
 }
 

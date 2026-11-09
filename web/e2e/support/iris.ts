@@ -1099,6 +1099,35 @@ export async function setTelegramIncluded(value: 0 | 1): Promise<0 | 1> {
   return was === '1' ? 1 : 0;
 }
 
+/** What adminAtSignIn reads: the session row's Ref, its AdminAtSignIn flag, and whether the Ref is in Ownership.AdminSessions(). */
+export interface AdminAtSignIn {
+  ref: string;
+  flag: string;
+  listed: boolean;
+}
+
+/**
+ * Reads Session.AdminAtSignIn of a user's session row, and whether its Ref is in Ownership.AdminSessions() (AD-21). With `set` given,
+ * the flag is first written to that value, so that a later sign-in is the only thing that can move it (OnLogin's `Held($Roles)`
+ * argument; an attach that leaves the flag alone is then seen). The row is created when the user has none.
+ */
+export async function adminAtSignIn(user: string, set?: 0 | 1): Promise<AdminAtSignIn> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${literal(user)},.sc)`,
+      ...(set === undefined ? [] : [`Set s.AdminAtSignIn=${set} Set sc=s.%Save() Write !,"CHK|saved|",$SYSTEM.Status.IsOK(sc)`]),
+      'Set l=##class(OcuTalon.Data.Ownership).AdminSessions(.sc2)',
+      'Write !,"CHK|ref|",s.Ref',
+      'Write !,"CHK|flag|",s.AdminAtSignIn',
+      'Write !,"CHK|read|",$SYSTEM.Status.IsOK(sc2)',
+      'Write !,"CHK|listed|",$Select(l="":0,1:$ListFind(l,s.Ref)>0)',
+    ].join('\n'),
+  );
+  if (set !== undefined && chk(lines, 'saved') !== '1') throw new Error(`the flag of ${user} could not be set (${lines.join(' ')})`);
+  if (chk(lines, 'read') !== '1') throw new Error(`Ownership.AdminSessions() could not be read (${lines.join(' ')})`);
+  return { ref: chk(lines, 'ref') ?? '', flag: chk(lines, 'flag') ?? '', listed: chk(lines, 'listed') === '1' };
+}
+
 /** The Visual Trace settings of a user that setTraceSettings reads and writes (^EnsPortal.Settings(user, "VisualTrace", ...)): the page size and "Show events". */
 export interface TraceSettings {
   itemsPerPage?: string | number | null;

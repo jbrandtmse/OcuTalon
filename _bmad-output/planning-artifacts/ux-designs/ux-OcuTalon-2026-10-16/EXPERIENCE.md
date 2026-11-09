@@ -706,6 +706,7 @@ The single source for the incident lifecycle, approval request states, answered 
 | Expired | "Expired at {time}. Nothing was changed." It can no longer be answered (FR-8). |
 | Already answered | The press that lost the race. Web and phone: "Already answered: approved from Telegram at 14:15." Telegram: see the Message Catalog. |
 | Can't answer (step 6) | The buttons are absent: "Only an approver for resends can answer this request." On the phone and in Telegram, a press gets the same sentence (FR-11). |
+| Canceled (step 4) | "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." The request can no longer be answered; the status holds two sentences, so the page keeps the period. |
 
 On the page an answered status is a status line without a final period unless it holds two sentences. In message text (the phone and Telegram), it ends with a period.
 
@@ -941,6 +942,56 @@ Banners stack in this table's order.
 | Persona stale (`persona.stale`) | "Your persona changed after this was suggested. Nothing was changed." |
 | Marked as noise (the notice card's status line) | "Marked as noise at {time}. Similar items will take this into account." |
 
+### MCP servers and tools (step 4)
+
+[ADDED 2026-11-09, Story 35.1, Contest Planner ruling planner-2026-11-09-35.1 (PUBLIC TEXT)] Telegram and the simulated phone share each text exactly.
+
+| Case | Text |
+| --- | --- |
+| Server unavailable (`mcp.serverUnavailable`, admins' chat notice) | "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools." |
+| Tool shadows a built-in (`mcp.toolShadowsBuiltIn`, admins' chat notice) | "The MCP server {server} offers a tool called '{tool}', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed." |
+| Tool changed (`mcp.toolChanged`, admins' chat notice) | "{tool} on {server} changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval." |
+| Approved call, tool changed (`mcp.replayToolChanged`, result of the approved tool-call request, every channel) | "{tool} on {server} didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed." |
+| Source stopped (`mcp.sourceStopped`, admins' chat notice) | "The source {source} stopped polling at {time}, because its tool {tool} on {server} is no longer Read-only. Your digest lists it as not checked." |
+| Digest, not checked: stopped (`digest.notCheckedStopped`, digest coverage line) | "Not checked: {entry} (stopped polling at {time}: its tool is no longer Read-only)." |
+
+### Settings and requests (step 4)
+
+[ADDED 2026-11-09, Story 35.2 (PUBLIC TEXT)] The settings texts show on the settings page, and the canceled status shows on every channel; Telegram and the simulated phone share the status text exactly. The page's own wording is these texts.
+
+| Case | Text |
+| --- | --- |
+| Email heading (`settings.emailHeading`, Settings > Channels, group heading) | "Email" |
+| Email help (`settings.emailHelp`, Settings > Channels, email help) | "Connect your mailbox. OcuTalon decides on each email that arrives after you connect it, and leaves your mail on the server." |
+| Email address label (`settings.emailAddress`, Settings > Channels, field label) | "Your email address" |
+| Email address help (`settings.emailAddressHelp`, Settings > Channels, help under the address) | "OcuTalon emails this address without asking." |
+| Incoming mail server label (`settings.emailIncoming`, Settings > Channels, field label) | "Incoming mail server (POP3)" |
+| Outgoing mail server label (`settings.emailOutgoing`, Settings > Channels, field label) | "Outgoing mail server (SMTP)" |
+| Mail user name label (`settings.emailUser`, Settings > Channels, field label) | "User name" |
+| Mail password label (`settings.emailPassword`, Settings > Channels, write-only field label) | "Password" |
+| Sign in with a provider (`settings.emailSignIn`, Settings > Channels, OAuth2 button; the provider is Google or Microsoft 365) | "Sign in with {provider}" |
+| Client ID label (`settings.emailClientId`, Settings > Channels, field label) | "Client ID" |
+| Client secret label (`settings.emailClientSecret`, Settings > Channels, write-only field label) | "Client secret" |
+| Webhooks heading (`settings.webhooksHeading`, Settings > Channels, group heading) | "Webhooks" |
+| Webhooks help (`settings.webhooksHelp`, Settings > Channels, webhooks help) | "Other systems can send OcuTalon any JSON event. Each webhook has its own secret, which the sender puts in the X-OcuTalon-Webhook-Secret header." |
+| Webhook name label (`settings.webhookName`, Settings > Channels, field label) | "Name" |
+| Webhook secret label (`settings.webhookSecret`, Settings > Channels, write-only field label) | "Secret" |
+| Create webhook button (`settings.webhookCreate`, Settings > Channels, button) | "Create webhook" |
+| Webhook address (`settings.webhookAddress`, Settings > Channels, under each webhook) | "Send events with POST to {address}." |
+| Webhook name taken (`settings.webhookNameTaken`, Settings > Channels, field error) | "A webhook called '{name}' already exists. Nothing was changed." |
+| Write-only field holding a value (`settings.secretSet`, Settings, any write-only field that holds a value) | "Saved, and never shown again. Type a new value to replace it." |
+| Write-only field without a value (`settings.secretNotSet`, Settings, any write-only field without a value) | "Not set." |
+| Value holding a setting reference (`settings.refusedExpansion`, Settings, field error for a value that holds a setting reference) | "This can't contain @{, which IRIS would read as a reference to a setting. Nothing was changed." |
+| Changed tool banner (`settings.toolChangedBanner`, Settings > Tools and MCP servers, banner) | "{tool} on {server} changed its description or inputs, so it is Unclassified again. It counts as risky until it is classified below." |
+| Source form heading (`settings.sourceHeading`, Settings > Tools and MCP servers, source-poll form heading) | "Use as a source" |
+| Source form help (`settings.sourceHelp`, Settings > Tools and MCP servers, source-poll form help) | "OcuTalon calls this tool on a schedule and decides on each new result. The source joins your digest's coverage list." |
+| Source name label (`settings.sourceName`, Settings > Tools and MCP servers, field label) | "Source name" |
+| Source arguments label (`settings.sourceArguments`, Settings > Tools and MCP servers, field label) | "Arguments (JSON)" |
+| Source interval label (key in `Msg.Catalog.Core`, Settings > Tools and MCP servers, interval label) | "Check every" |
+| Tool that can't be a source (`settings.sourceNotReadOnly`, Settings > Tools and MCP servers, reason beside a tool that can't be chosen) | "Only a Read-only tool can be a source." |
+| Source arguments not JSON (`settings.sourceBadArguments`, Settings > Tools and MCP servers, field error) | "Enter the arguments as a JSON object. Nothing was changed." |
+| Canceled (`answered.canceled`, the canceled status of an approval request, every channel) | "Canceled at {time}: the MCP server {server} was removed. Nothing was changed." |
+
 ## Visual Trace Links
 
 | Link | Opens |
@@ -992,6 +1043,7 @@ Lighter specs. Components with behavior of their own are under Component Pattern
   - **The tools table:** each tool has a classification control, and the list can be filtered with "Unclassified only".
   - **A changed tool** returns to Unclassified (FR-48). Admins are told by a banner in Settings and by a notice card in the chat.
 - **Sources:** a read-only tool can be set as a source poll (FR-50), and it then joins the digest's coverage list.
+- [ADDED 2026-11-09, Story 35.2] **Settings › Channels** (email, webhooks), the changed-tool banner and the source-poll form take their texts from the Message Catalog block "Settings and requests (step 4)".
 - **The approval request for a tool call** shows "Run {tool} on {server}" and the exact inputs as labeled lines. Where a tool can't preview its effect, the card says "No dry run is available for this tool. Approving runs exactly this call once." (PRD FR-8, adopted October 17).
 
 ### Step 5: more fixes (brief)

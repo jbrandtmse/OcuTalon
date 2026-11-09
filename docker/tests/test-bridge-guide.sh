@@ -23,8 +23,8 @@
 #                bullet for a model test and the paragraph about the decision's record (the rest of the retry section is not pinned)
 #   - livetext   the two lines that DW-773 rules are, each as a whole line compared as a fixed string, in the guide: the Settings
 #                section's intro (which settings are read each time they are used) and the retry section's RetryItem bullet
-#   - turntools  the three lines that Story 19.5 rules are, each as a whole line compared as a fixed string, in the guide: the Settings table's
-#                TurnToolsClass row, the lead-in of "The extension classes" (four classes) and its TurnTools bullet
+#   - turntools  the four lines that Story 19.5 and Story 35.1 rule are, each as a whole line compared as a fixed string, in the guide: the Settings table's
+#                TurnToolsClass row, the lead-in of "The extension classes" (five classes), its TurnTools bullet and its McpServers bullet
 #   - u229       the sentence of the owner's answers U-229 and U-237 (what is audited: no entry for a setting change; a tool call is a step unless
 #                the decision times out; an approval and an approved call's run each write an entry) is, on one line, in the guide and in the
 #                "Approval and audit" section of docs/security-overview.md
@@ -641,12 +641,13 @@ fi
 # --- turntools ---
 
 # turn_lines: the lines of the guide that Story 19.5 ruled for the TurnToolsClass extension (the settings table row, the lead-in of "The extension classes" with its
-# four classes, and the fourth bullet), one per line.
+# five classes, and the fourth and fifth bullets), one per line.
 turn_lines() {
   cat << 'EOF'
 | `TurnToolsClass` | `OcuTalon.Bridge.Ext.TurnTools` | The class that gives one request tools of its own, such as a knowledge base of the person's documents. See "The extension classes". |
-The bridge reaches your code only through four classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
+The bridge reaches your code only through five classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
 - `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default.
+- `OcuTalon.Bridge.Ext.McpServers` (`McpServersClass`): `Servers(servers)` returns the MCP servers to attach, each an object with `server` and `config` (the name of a Config Store entry `AI.MCP.<name>`); `OnAttach(server, report)` receives the report of each attach: `status` (`attached` or `unavailable`), `reason`, the `tools` attached and the `refused` ones. After the agent's own tools are on the manager the runner attaches each server, and an unavailable server never fails the build. It attaches nothing by default.
 EOF
 }
 
@@ -661,8 +662,8 @@ turn_problems() {
 mkdir -p "$tmp/t"
 turn_ok=1
 turn_lines > "$tmp/t/keep.md"
-if [ "$(wc -l < "$tmp/t/keep.md" | tr -d ' ')" -ne 3 ]; then
-  echo "FAIL turntools: the ruled text is not three lines"
+if [ "$(wc -l < "$tmp/t/keep.md" | tr -d ' ')" -ne 4 ]; then
+  echo "FAIL turntools: the ruled text is not four lines"
   fails=$((fails + 1)); turn_ok=0
 fi
 if [ "$turn_ok" -eq 1 ] && [ -n "$(turn_problems "$tmp/t/keep.md")" ]; then
@@ -672,7 +673,7 @@ if [ "$turn_ok" -eq 1 ] && [ -n "$(turn_problems "$tmp/t/keep.md")" ]; then
 fi
 # One character of each ruled line changed, one line at a time: the rule must flag that line.
 if [ "$turn_ok" -eq 1 ]; then
-  for i in 1 2 3; do
+  for i in 1 2 3 4; do
     awk -v n="$i" 'NR == n { sub(/[a-z]/, "X") } { print }' "$tmp/t/keep.md" > "$tmp/t/g.md"
     if cmp -s "$tmp/t/keep.md" "$tmp/t/g.md"; then
       echo "FAIL turntools: the break sample for ruled line $i changed nothing"

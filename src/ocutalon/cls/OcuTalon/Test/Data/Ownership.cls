@@ -11,7 +11,8 @@
 /// Turn is in Turns and in no other read), TestRecentNoticesIncludeAllowanceCards, TestActiveVisitors and TestAllowanceHeld (the two
 /// cross-owner reads of the allowances) and TestIncomingMail (the session's count of incoming simulated emails). Story 31.2 adds
 /// TestFinishedToolCalls (the session's tool calls that finished in a window of FinishedAt) and the row kind finishedToolCalls to
-/// the refusal list of TestRowsRefuses.
+/// the refusal list of TestRowsRefuses. Story 35.2 adds TestSessionRefAttachLeavesTheAdminFlag (the lazy attach of a first API call keeps
+/// Session.AdminAtSignIn).
 Class OcuTalon.Test.Data.Ownership Extends %UnitTest.TestCase
 {
 
@@ -104,6 +105,32 @@ Method TestSessionRefFromTheCspSession()
 	Set ref = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	Do $$$AssertEquals(ref, "", "with no CSP session the result is empty")
 	Do $$$AssertStatusNotOK(sc, "and the status an error")
+}
+
+/// SessionRef's lazy attach on a first API call (no sign-in) leaves Session.AdminAtSignIn as the latest sign-in set it, 1 or 0 (Story 35.2,
+/// AD-21). The user's row is put back as found.
+Method TestSessionRefAttachLeavesTheAdminFlag()
+{
+	New %session
+	Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	Set row = ##class(OcuTalon.Data.Session).ForUser($Username, .sc)
+	Do $$$AssertStatusOK(sc, "the user's durable session is there")
+	If before = 0 Do ##class(OcuTalon.Test.Data.Fixture).Adopt(row)
+	Set ref = row.Ref
+	Set was = row.AdminAtSignIn
+	Set %session = ##class(%CSP.Session).%New("ZzOwnFlag", 0)
+	For flag = 1, 0 {
+		Set row.AdminAtSignIn = flag
+		Do $$$AssertStatusOK(row.%Save(), "the flag is set to "_flag)
+		Kill %session.Data("OcuTalon.SessionRef")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).SessionRef(.sc), ref, "a first API call attaches the user's session ("_flag_")")
+		Do $$$AssertStatusOK(sc, "with an OK status ("_flag_")")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).AdminAtSignIn, flag, "and leaves the flag as the latest sign-in set it ("_flag_")")
+		Do $$$AssertEquals($ListFind(##class(OcuTalon.Data.Ownership).AdminSessions(.sc), ref) > 0, flag, "and the stored row says so too: AdminSessions ("_flag_")")
+		Do $$$AssertStatusOK(sc, "with an OK read of AdminSessions ("_flag_")")
+	}
+	Set row.AdminAtSignIn = was
+	Do $$$AssertStatusOK(row.%Save(), "the flag is put back")
 }
 
 /// On the online demo (Story 16.3, matrix row 8) SessionRef never resolves by user name: with no Ref in the CSP session the result is

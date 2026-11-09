@@ -3617,6 +3617,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T12:09:17Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow:Lane_B_web/e2e-online/resume.spec.ts(contended:Epic_11_changes_it;AD-33);fix:compare_within_one_second_or_derive_both_from_one_clock_read
 - 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(fix_in_web/e2e-online/resume.spec.ts:84,not_AC-named,standing_ruling_forbids_the_edit)
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
+- 2026-11-09T14:59:00Z occurrence=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=runner note=OCT-epic35_cd13b1ae_run_42633085173_iris(install-fresh)_live:online-demo_resume.spec.ts:84_R1_expected_1794242100_received_1794242101;one_rerun_of_the_failed_job
 
 ### DW-559: The reminders list answer (CommandCall.Listed) shows each due time without the zone label on the online demo, while the set reply (Answer) now carries ' ET'
 - source: _bmad-output/implementation-artifacts/spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md | severity: low | fix-risk: low | footprint: in-story
@@ -4196,6 +4197,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T22:35:23Z occurrence=39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built note=attempt_3_of_run_41909512271_green_on_unchanged_rerun_flake_confirmed
 - 2026-11-08T22:41:17Z occurrence=OCT-epic41-ef38622e by=orchestrator note=run 42525785483: iris(production) live:reminder-restart restart 2 took 176 s under load, R_future already due; 4 checks
 - 2026-11-09T17:17:58Z occurrence=0-15-the-dockerfile-sits-at-the-repository-root by=lead note=OCT-epic0 a3086148 run 42634825529: iris(production) live:reminder-restart restart 2 R_future already due (186 s restart); rerun attempt 3 job 129284507449 green 16:16:51-16:56:23Z (39m32s, near the 40-min limit)
+- 2026-11-09T22:27:16Z occurrence=OCT-epic41-34d3a373 by=orchestrator note=run attempts 1+2 shards-10 restart1 18s window 168s restart2 188/191s; ruled fix-forward on OCT-epic41 (300 s floor on R_future lead, test-reminder-restart.sh:264), footprint extension
 ### DW-664: Under Another language or a custom persona, a model-worded all-clear can pass ReplyGuard's English closed lists (AD-7 vs AD-28 Prevents)
 - source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: RESERVED and BANNED in Checks.ReplyGuard are English; AD-7 keeps the guard to that list; under Spanish only Chat's instruction stands between the model and a false all-clear (FR-37, AD-28 Prevents). The catalog all-clear itself stays code-only.
@@ -5215,6 +5217,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T16:12:45Z occurrence=OCT-epic17-6ac45643 by=orchestrator note=run 42495328974 iris(browser) decision.spec:139 D2 loadedAfter GET /state no answer 30 s (the /state half; 32.6's retry not on feature yet); rerun of failed jobs 16:1xZ
 - 2026-11-08T19:41:58Z status=routed owner=32-7-the-remaining-ci-flakes-either-find-their-cause-or-are-conta by=runner note=charter_Story_32.7_(test-only,90-min_timebox_per_group,Planner_terms_U-307_2026-11-08;SC-5_reopen_of_Epic_32;same_terms_as_32.6)
 - 2026-11-09T00:33:25Z status=wontfix-accepted by=adjudication note=page.close_half:_A3_(leave.spec_L5/L6_wait_for_the_splash_before_the_close;2_ci-d_traces_show_the_close_sent_mid-exit)_plus_B3_(one_logged_re-close_via_Target.closeTarget_at_half_the_bound,_counted_in_RETRIES);held-splash_stall_gave_0/120_so_the_cause_is_unconfirmed;B3_proof_old_8/8_red,fix_20/20 reopen_if=a_CI_job_prints_a_RETRY_..._page.close_line_followed_by_page.close:_no_answer_within,_or_2+_page.close_RETRY_lines_in_one_day
+- 2026-11-09T14:58:09Z occurrence=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=runner note=OCT-epic35_cd13b1ae(integrate-forward)_run_42633085173_iris(shards-4)_live:sign-in-2_rail.spec.ts:713_R19_open()_waitForResponse_GET_/state_30s;one_rerun_of_the_failed_job
 - 2026-11-09T09:35:59Z occurrence=OCT-epic0-729ec359 by=orchestrator note=run 42583740643 iris(shards) live:online-session leave.spec.ts:354 L6 (38.4 s); head based before 32.7's close fix reached feature: inherited; not rerun
 
 ### DW-778: test-readme.sh measured rule does not fail on an extra Measured row, so an old 11.25 label re-added as a ninth row passes CI
@@ -6220,11 +6223,95 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris(image) 04:17:13Z; a stack-start bound, no product line involved
 - 2026-11-09T04:52:37Z status=routed owner=burndown by=orchestrator note=first sighting; infra class (stack start under load); next flake story
 
+### DW-1010: Test.Mcp.Attach TestShadow proves the agent's tool runs and the mock's shadowing copy never does on a bare tool manager, not on the agent's own manager
+- source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestShadow builds a separate %AI.ToolMgr; the agent's own manager is checked for listing and RefusedTools only; Task 0 measured AI Hub marks the MCP copy unavailable
+- 2026-11-09T08:54:17Z status=open owner=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=harvest note=deferred by implement pass 1
+- 2026-11-09T09:37:05Z status=wontfix-accepted by=adjudication note=Task_0_measured_AI_Hub_marks_the_MCP_copy_unavailable_and_never_runs_it;_the_agent_manager_listing_and_RefusedTools_are_pinned;_code_review_added_TestTurnShadow_for_the_request_manager;reopen_if=a_run_shows_the_MCP_copy_of_a_shadowing_tool_executing_on_an_agent's_own_tool_manager
+
+### DW-1011: No test compares the six accepted step-4 texts in EXPERIENCE.md's new block with Catalog.Watch, so a later edit of one side is not flagged
+- source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: checked once by script in review; Test.Msg.Catalog pins Catalog.Watch to its own fixtures; ux-strings.test.mjs reads page strings only
+- 2026-11-09T08:54:17Z status=open owner=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=harvest note=deferred by implement pass 1
+- 2026-11-09T09:37:05Z status=resolved-by:35-1-fix-step-4-s-contracts-and-register-mcp-servers by=adjudication note=QA_added_docker/tests/test-mcp-notices.sh_(CHECK_SCRIPTS):_the_EXPERIENCE.md_block_holds_exactly_the_six_keys_in_order_and_each_text_equals_Catalog.Watch;_mutations_one-word_text_edit_and_key_rename_went_red
+
+### DW-1012: Bridge guide McpServers bullet writes AI.MCP.<name> outside backticks, so a Markdown renderer can drop <name>
+- source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: docs/bridge-guide.md fifth bullet of The extension classes, pinned whole-line by test-bridge-guide.sh turn_lines; other placeholders are in backticks
+- 2026-11-09T08:54:17Z status=open owner=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=harvest note=deferred by implement pass 2; lead ruling: backticks are formatting, not wording (decide), so the code review may wrap it and move the pin
+- 2026-11-09T09:37:05Z status=resolved-by:35-1-fix-step-4-s-contracts-and-register-mcp-servers by=adjudication note=code_review_wrapped_AI.MCP.<name>_in_backticks_(lead_ruling:_formatting_not_wording)_and_moved_the_turn_lines_pin;_test-bridge-guide.sh_passes_and_goes_red_without_them
+
+### DW-1013: An attached MCP server that accepts the connection and never answers may block AddTool and the manager's listing with no deadline, at the build and in every request
+- source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Task 0 (3) did not measure a server that accepts and never answers; AttachOne, BuildTurnManager and AI Hub's per-call tools/list run with no bound and the MCP Config Store entry takes no timeout key, so one hung server could hold a runner past Decide's timer (unmeasured)
+- 2026-11-09T09:34:17Z status=escalated owner=burndown by=cr note=needs a measurement on a throwaway (rmcp's own timeout) before a fix; fix-risk high: platform behaviour
+- 2026-11-09T22:43:24Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=merge_gate note=Contest Planner decision 2026-11-09 (owner delegation): Story 22.2 adds a bounded MCP attach timeout with a clear error; Epic 35 part merge
 ### DW-1007: flake candidate: live:online-demo row 4 'the HTTP view of the connections was 0 and is 1 after five status GETs and five splash GETs' in CI install-fresh on feature 0ab2eef0 under a saturated queue (a lingering connection; same family as DW-987's visitor count)
 - source: CI run 42574755205 attempt 1 (feature 0ab2eef0) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code
 - 2026-11-09T07:39:44Z status=routed owner=burndown by=orchestrator note=first sighting; rerun of the failed job 07:40Z
 
+### DW-1025: CI groups shards-2, shards-3 and shards-4 run 37.5-39.5 min on green heads (cca91ec2, 2a45f8bc) against the 40-min job timeout-minutes and the 35-min REL-4 budget; under load shard:lane-a@rest alone takes 2017-2147 s (over the 1,000 s unit split rule), so whole attempts are cancelled at 40 min with every unit that ran green
+- source: orchestrator CI / OCT-epic35 run 42633085173 | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: run 42633085173 attempts 2 and 3: shards-2/3/4 cancelled at 15:39Z and 16:22:05Z (job timeout), lane-a@rest 2017s and 2147s; attempt 1 shards-2/3 at 41.5 min; ci.yml timeout-minutes 40
+- 2026-11-09T16:25:24Z status=escalated owner=burndown by=runner note=needs a ci/units.sh group split (contended: Epic 0, Epic 11) or more capacity; reported to the orchestrator at once
+- 2026-11-09T16:26:19Z status=routed owner=burndown by=orchestrator note=resolves_by_Epic_0_Story_0.20(group_split_widened:split_unit_shard:lane-a@rest,rebalance_shards-2,-3,-4);orchestrator_ruling_2026-11-09;not_for_decisions_for_user
+- 2026-11-09T17:51:03Z note=Epic_35_burn-down:kept_owner=burndown_by_orchestrator_ruling(Story_0.20_key_not_yet_in_the_tracker);not_for_decisions_for_user by=burndown
+- 2026-11-09T21:23:49Z status=resolved-by:0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un by=adjudication note=merged 52cf70f6
+
+### DW-1034: settings.refusedExpansion is stored in Catalog.Core with a {marker} slot for the two characters that open a setting reference, because Msg.Catalog.Fill rejects an unbalanced brace; producers must pass '@{' as the slot value
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Core.cls settings.refusedExpansion; Test.Msg.Catalog fixture renders the accepted wording verbatim
+- 2026-11-09T17:09:30Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=harvest note=reopen_if=a producer (Stories 21.2, 21.3, 21.4, 35.3) renders the key without the marker slot, or the author wants a literal key (a Msg.Catalog escape)
+
+### DW-1035: EXPERIENCE.md's step 4 source-interval row does not name its key settings.sourceInterval, because ux-strings.test.mjs rules the word 'Interval' out of EXPERIENCE.md as a substring
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: EXPERIENCE.md Settings and requests (step 4) interval row reads 'key in Msg.Catalog.Core'; web/scripts/ux-strings.test.mjs SOURCES
+- 2026-11-09T17:09:30Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=harvest note=reopen_if=a reader or a check needs every step 4 row to name its key (move 'Interval' from ruled to ux in ux-strings.test.mjs)
+
+### DW-1036: Nothing tests that SessionEvents.OnLogin passes Admin.Held($Roles) to AttachFor, the only production path that sets Session.AdminAtSignIn
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: OnLogin is one line; slot tests reach AttachFor(1,1) only; a slot has no OcuTalon roles to put in $Roles
+- 2026-11-09T17:09:30Z status=open owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=harvest note=QA: a live sign-in check as an admin and as the README user on a throwaway
+- 2026-11-09T17:38:55Z occurrence=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th
+- 2026-11-09T17:41:04Z status=resolved-by:35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=adjudication note=web/e2e/settings/settings.spec.ts_S15_real_HTTP_sign-in(README_flag_1_and_listed;LIVE_0_and_absent;flags_pre-seeded_opposite);mutation_OnLogin_passes_""->S15_red(QA);residual_Held_vs_%All_pinned_by_Test.Core.Admin_TestHeldByWholeName
+
+### DW-1037: Session.AdminAtSignIn stays 1 after a user loses OcuTalonAdmin until their next sign-in, and a sign-in without the OcuTalon user role does not clear it
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: flag written only at sign-in (ruling planner-2026-11-09-35.1 Q1); AttachFor does nothing when hasRole is 0
+- 2026-11-09T17:09:30Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=harvest note=reopen_if=Story 22.2's admin notices reach a user who no longer holds OcuTalonAdmin (22.2 decides whether to re-check the role)
+
+### DW-1038: flake: OcuTalon.Test.Mcp.Attach TestShadow 'and then the server' (a bare %AI.ToolMgr AddTool of the mock MCP spec returned an error) red once in CI shards-2 (shard:lane-a@rest) under load; the same head passed it in attempts 2 and 3
+- source: CI run 42633085173 attempt 4 (OCT-epic35 cd13b1ae) | severity: med | fix-risk: low | footprint: in-epic
+- evidence: run 42633085173 attempt 4 job shards-2 17:00Z, lane-a@rest 2065s, 1 of 79 classes; attempts 2 and 3 lane-a@rest passed on the same sha
+- 2026-11-09T17:10:28Z status=routed owner=burndown by=runner note=Story 35.1's test (Lane A file); burn-down priority; a red on a quiet host makes it real
+- 2026-11-09T17:51:03Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=burndown note=Epic_35_part_merge_burn-down_overflow:Test.Mcp.Attach_(Lane_A)_is_extended_by_22.2's_McpOps_work;make_TestShadow's_bare-manager_AddTool_wait_for_the_mock_or_retry_once_under_load;a_red_on_a_quiet_host_makes_it_real
+
+### DW-1041: AD-1 lets REST code write only the Session row, counters, pairing hashes and UI markers, but the step 4 contract has the MCP settings routes call SettingsOps.SaveMcpEntry/RemoveMcpEntry in the REST process to write the wallet secret and Config Store entry (ruling Q4), with no AD-1 exception recorded
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: Spine AD-1 REST write list (line ~122) vs AD-21 Names (Story 35.1, ruling Q4) and Story 35.2's B4/B8 rows (POST/DELETE /api/v1/settings/mcp/servers); code today is stubs that write nothing
+- 2026-11-09T17:38:55Z status=escalated owner=burndown by=cr note=decide: amend AD-1's REST write list for the admin-checked MCP routes (keeps secrets out of messages), or move the write into an operation
+- 2026-11-09T22:43:24Z status=routed owner=21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings by=merge_gate note=Contest Planner decision 2026-11-09 (owner delegation): Story 21.4 moves the wallet and Config Store write into McpOps (an operation); AD-1 unchanged; the MCP settings routes stay stubs until then (TestMcpEntryStubs, TestNoMcpSettingsRoute); recorded in AD-19 and Story 21.4
+
+### DW-1042: CommandsIn.OwnAddressOnly reads email.owner and email.address through Data.Setting.Get's per-key 60 s process cache, so for up to a minute after the mailbox moves to another session a tool SendEmail can pair a stale owner with a fresh address
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Core/CommandsIn.cls OwnAddressOnly: two Data.Setting.Get calls, each cached per process with its own timestamp (Data/Setting.cls Get)
+- 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=Story 21.2 lets an install reconnect the mailbox to a different session, or a test shows a tool email reaching another session's address
+
+### DW-1043: RestartRunners passes Bridge.Timeouts.Restart's error status through untested: matrix row 9's error cell (an item that does not restart) has no test
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Core/SettingsOps.cls RestartIn ends Quit Timeouts.Restart(...); Test.Core.RestartRunners covers only the success path; inducing a failed restart needs a live failing runner
+- 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=RestartRunners gains logic between Restart's status and its answer, or McpOps (Story 22.2) reports success after a failed restart
+
+### DW-1044: Ownership.Attach's failed AdminAtSignIn save (the Ref stays attached, the failed save is the answer, AttachFor logs it as a failed attach) has no test: matrix row 11's error cell
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Data/Ownership.cls Attach sets %session.Data before row.%Save(); no test makes that save fail; the log line says 'could not be attached' though the user is attached
+- 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=a sign-in log shows 'could not be attached' for a user whose CSP session holds the Ref, or Attach gains more writes after the Ref
+
+### DW-1045: No automated check ties EXPERIENCE.md's 'Settings and requests (step 4)' block to Catalog.Core's 30 settings/answered.canceled texts (Story 35.1's block has docker/tests/test-mcp-notices.sh for Catalog.Watch)
+- source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Code review compared all 30 texts by hand on 2026-11-09: identical; Test.Msg.Catalog pins Core to its own fixtures only; test-mcp-notices.sh is Lane A's (Story 35.1)
+- 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=a later story edits a step 4 text in EXPERIENCE.md or Catalog.Core without the other
 ### DW-1026: flake: demo-path web/e2e/demo-path/06-trace.spec.ts:36 (Story 11.1 step 5, Open the trace): the guide's .finish-done line was not found within 10 s because the page had navigated to /ocutalon/?signedOut=1 after the trace opened; green on the unchanged rerun
 - source: cycle-log-epic-0.md (OCT-epic0 a3086148, ci.yml run 42634825529) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (browser) job 129220092453 attempt 1 red (DEMO-PATH step 6 trace failed, 27 passed); attempt 2 job 129260909530 green 15:39-16:15Z; same code as green feature 2a45f8bc plus the Dockerfile move
