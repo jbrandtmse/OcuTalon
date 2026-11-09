@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
@@ -6,10 +6,12 @@ import { STATE, holdState } from '../support/api';
 import {
   PROBE_BOUND_MS,
   closeDiagnosis,
+  closeTargetAgain,
   describeDiagnosis,
   describeGateway,
   describeInFlight,
   describeProbe,
+  describeReclose,
   describeStateRequests,
   gatewayScript,
   printDiagnosis,
@@ -46,6 +48,11 @@ import { epochOf, landedOn, signInFromSplash, signOutGroup } from '../../e2e-onl
  * asked for, which follows 300 ms later, and the reloaded page's GET 2.5 s after it is issued), and `delay` how long the page waits after
  * the answer before it shows its snapshot. Every page-side line of the diagnosis cases below is matched by pattern, because it holds seconds
  * and milliseconds.
+ *
+ * DW-774 adds `page.close: one more close of the page`: a close of a Chromium page that is open and unsettled at half of a bound of 20 s or
+ * more is logged as one `RETRY` line with the close-diagnosis lines, and the browser is asked to close the page's target again (R1: the real
+ * Target.closeTarget closes the page; R2: it is stubbed and the bound fails the close as before; R3: a bound under 20 s, or a close that ends in
+ * time, or a browser that is not Chromium, is not retried; R4: closeTargetAgain on stand-in pages; R5: a first close that rejects keeps its error).
  */
 
 let server: Server;
@@ -730,6 +737,282 @@ test.describe('page.close: the close diagnosis', () => {
 });
 
 /**
+ * DW-774 (the page.close half): a close of a Chromium page that is still open and unsettled at half of a bound of 20 s or more gets one logged
+ * re-close inside the same bound (fixtures.ts closeWithOneMore): the `RETRY` line and the close-diagnosis lines go to the retries file, and the
+ * browser is asked to close the page's target again. R1 and R2 use pages of their own browser.newContext() whose close is replaced by a promise
+ * that never settles, with boundedClose(page, () => 20_000): R1 lets the real Target.closeTarget close the page; R2 stubs it, so that the page
+ * stays open to the bound. R3 gives no retry (a real quick close, a bound of 19 s, a close that ends at 11 s in a browser that is not
+ * Chromium); R4 reads closeTargetAgain on stand-in pages with no context; R5 lets the first close reject.
+ */
+test.describe('page.close: one more close of the page', () => {
+  let retryFileBefore: string | undefined;
+  let sent: string[] = [];
+  let restoreBrowser: () => void = () => undefined;
+  const logged: string[] = [];
+  let log = console.log;
+
+  /** The browser's CDP sessions, with every Target.closeTarget counted and, when `swallow` is set, not sent. */
+  const watchCloseTarget = (page: Page, swallow: boolean): void => {
+    const browser = page.context().browser();
+    if (browser === null) throw new Error('a launched browser is needed');
+    const open = browser.newBrowserCDPSession.bind(browser);
+    browser.newBrowserCDPSession = async () => {
+      const session = await open();
+      const send = session.send.bind(session) as (method: string, params?: object) => Promise<unknown>;
+      session.send = ((method: string, params?: object) => {
+        if (method !== 'Target.closeTarget') return send(method, params);
+        sent.push(method);
+        return swallow ? Promise.resolve({ success: true }) : send(method, params);
+      }) as typeof session.send;
+      return session;
+    };
+    restoreBrowser = () => void (browser.newBrowserCDPSession = open);
+  };
+
+  test.beforeEach(() => {
+    retryFileBefore = process.env['OCUTALON_E2E_RETRY_LOG'];
+    process.env['OCUTALON_E2E_RETRY_LOG'] = test.info().outputPath('close-retries.txt');
+    sent = [];
+    logged.length = 0;
+    log = console.log;
+    console.log = (...args: unknown[]) => void logged.push(args.join(' '));
+  });
+
+  test.afterEach(() => {
+    console.log = log;
+    restoreBrowser();
+    restoreBrowser = () => undefined;
+    if (retryFileBefore === undefined) delete process.env['OCUTALON_E2E_RETRY_LOG'];
+    else process.env['OCUTALON_E2E_RETRY_LOG'] = retryFileBefore;
+  });
+
+  const retryLine = (): string => `RETRY e2e/live/helper-waits.spec.ts:${test.info().line} page.close`;
+  const retryFile = (): string[] => readFileSync(test.info().outputPath('close-retries.txt'), 'utf8').split('\n').slice(0, -1);
+  const noRetries = (): boolean => !existsSync(test.info().outputPath('close-retries.txt'));
+  const expectCloseLines = (lines: string[]): void => {
+    expect(lines, 'the five close-diagnosis lines').toHaveLength(5);
+    expect(lines[0]).toBe('DIAG page.close: the page is open, 1 page in its context, the browser is connected');
+    expect(lines[1]).toMatch(/^DIAG page\.close requests: /);
+    expect(lines[2]).toMatch(/^DIAG page\.close renderer: answered in \d+ ms \(readyState complete\)$/);
+    expect(lines[3]).toMatch(/^DIAG page\.close browser: answered in \d+ ms$/);
+    expect(lines[4]).toMatch(/^DIAG page\.close host: /);
+  };
+
+  test('R1: the real Target.closeTarget closes the page: one RETRY line, the close-diagnosis lines in the file, the page closed within the bound', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const context = await browser.newContext();
+    let elapsed = 0;
+    let closed = false;
+    try {
+      const page = await context.newPage();
+      await page.goto(`${origin}/`);
+      page.close = () => new Promise<void>(() => undefined);
+      boundedClose(page, () => 20_000);
+      watchCloseTarget(page, false);
+      const began = Date.now();
+      await page.close();
+      elapsed = Date.now() - began;
+      closed = page.isClosed();
+    } finally {
+      await context.close();
+    }
+    expect(closed, 'the page is closed').toBe(true);
+    expect(elapsed, 'the first attempt waited half of the bound').toBeGreaterThanOrEqual(10_000);
+    expect(elapsed, 'the close ended within the bound').toBeLessThan(20_000);
+    expect(logged.filter((line) => line.startsWith('RETRY ')), 'one RETRY line').toEqual([retryLine()]);
+    expect(logged.filter((line) => line.startsWith('DIAG ')), 'the retry-time lines are not printed').toEqual([]);
+    expect(sent, 'one Target.closeTarget').toEqual(['Target.closeTarget']);
+    const file = retryFile();
+    expect(file[0], 'the RETRY line first').toBe(retryLine());
+    expectCloseLines(file.slice(1));
+  });
+
+  test('R2: both closes stubbed, so the page stays open: one RETRY line, the same error at the bound, the close diagnosis once', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const context = await browser.newContext();
+    let failure: unknown;
+    let elapsed = 0;
+    try {
+      const page = await context.newPage();
+      await page.goto(`${origin}/`);
+      page.close = () => new Promise<void>(() => undefined);
+      boundedClose(page, () => 20_000);
+      watchCloseTarget(page, true);
+      const began = Date.now();
+      failure = await page.close().then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      elapsed = Date.now() - began;
+      expect(page.isClosed(), 'the page is still open').toBe(false);
+    } finally {
+      restoreBrowser();
+      await context.close();
+    }
+    expect(failure instanceof Error ? failure.message : String(failure)).toMatch(/^page\.close: no answer within 20 s$/);
+    expect(elapsed, 'the bound is not lengthened by the retry').toBeGreaterThanOrEqual(20_000);
+    expect(elapsed, 'the bound is not lengthened by the retry').toBeLessThan(26_000);
+    expect(logged.filter((line) => line.startsWith('RETRY ')), 'one RETRY line').toEqual([retryLine()]);
+    expect(sent, 'one Target.closeTarget').toEqual(['Target.closeTarget']);
+    expect(logged.filter((line) => line.startsWith('DIAG page.close: ')), 'the close diagnosis appears once').toHaveLength(1);
+    expect(logged.filter((line) => line.startsWith('DIAG page.close re-close')), 'the re-close was sent').toEqual([]);
+    expectCloseLines(logged.filter((line) => line.startsWith('DIAG ')));
+    expect(retryFile().filter((line) => line.startsWith('RETRY ')), 'one RETRY line in the file').toEqual([retryLine()]);
+  });
+
+  test('R3: a bound under 20 s, or a close that ends before half of the bound, gives no RETRY and no second close', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const quick = await browser.newContext();
+    try {
+      const page = await quick.newPage();
+      await page.goto(`${origin}/`);
+      boundedClose(page, () => 20_000);
+      watchCloseTarget(page, false);
+      await page.close();
+      expect(page.isClosed()).toBe(true);
+    } finally {
+      restoreBrowser();
+      await quick.close();
+    }
+    expect(logged, 'a close that ends in time prints nothing').toEqual([]);
+    expect(sent).toEqual([]);
+    expect(noRetries(), 'no retries file').toBe(true);
+    const context = await browser.newContext();
+    let failure: unknown;
+    try {
+      const page = await context.newPage();
+      await page.goto(`${origin}/`);
+      page.close = () => new Promise<void>(() => undefined);
+      boundedClose(page, () => 19_000);
+      watchCloseTarget(page, true);
+      failure = await page.close().then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    } finally {
+      restoreBrowser();
+      await context.close();
+    }
+    expect(failure instanceof Error ? failure.message : String(failure)).toMatch(/^page\.close: no answer within 19 s$/);
+    expect(logged.filter((line) => line.startsWith('RETRY ')), 'no RETRY line').toEqual([]);
+    expect(sent, 'no second close').toEqual([]);
+    expect(noRetries(), 'no retries file').toBe(true);
+    expect(logged.filter((line) => line.startsWith('DIAG page.close: ')), 'the close diagnosis appears once').toHaveLength(1);
+  });
+
+  test('R3: a page of a browser that is not Chromium is not retried: a close that ends after half of the bound gives no RETRY and no second close', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const context = await browser.newContext();
+    const real = context.browser()?.browserType();
+    const owner = context.browser();
+    if (real === undefined || owner === null) throw new Error('a launched browser is needed');
+    try {
+      const page = await context.newPage();
+      await page.goto(`${origin}/`);
+      page.close = () => new Promise<void>((done) => setTimeout(done, 11_000));
+      owner.browserType = () => new Proxy(real, { get: (target, key) => (key === 'name' ? () => 'firefox' : Reflect.get(target, key) as unknown) });
+      boundedClose(page, () => 20_000);
+      watchCloseTarget(page, false);
+      await page.close();
+    } finally {
+      owner.browserType = () => real;
+      restoreBrowser();
+      await context.close();
+    }
+    expect(logged.filter((line) => /^(RETRY|DIAG) /.test(line)), 'no RETRY and no DIAG line').toEqual([]);
+    expect(sent, 'no second close').toEqual([]);
+    expect(noRetries(), 'no retries file').toBe(true);
+  });
+
+  test('R5: a first close that rejects rejects with its own error: no RETRY, no second close', async ({ browser }) => {
+    test.setTimeout(60_000);
+    const context = await browser.newContext();
+    let failure: unknown;
+    try {
+      const page = await context.newPage();
+      await page.goto(`${origin}/`);
+      page.close = () => Promise.reject(new Error('Target page, context or browser has been closed'));
+      boundedClose(page, () => 20_000);
+      watchCloseTarget(page, false);
+      failure = await page.close().then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+    } finally {
+      restoreBrowser();
+      await context.close();
+    }
+    expect(failure instanceof Error ? failure.message : String(failure)).toBe('Target page, context or browser has been closed');
+    expect(logged.filter((line) => line.startsWith('RETRY ')), 'no RETRY line').toEqual([]);
+    expect(sent, 'no second close').toEqual([]);
+    expect(noRetries(), 'no retries file').toBe(true);
+  });
+
+  /** A page whose context gives the page's own CDP session and a browser of the given kind, with every send and detach recorded. */
+  const targetPage = (options: { browserName?: string; ownFails?: Error; closeFails?: Error; hang?: boolean; noBrowser?: boolean; late?: 'session' | 'info' }): { page: Page; calls: string[] } => {
+    const calls: string[] = [];
+    const session = (name: string, fails?: Error) => ({
+      send: (method: string, params?: { targetId?: string }) => {
+        calls.push(`${name} ${method}${params?.targetId === undefined ? '' : ` ${params.targetId}`}`);
+        if (options.hang === true && name === 'browser') return never();
+        if (options.late === 'info' && name === 'page') return after(300).then(() => ({ targetInfo: { targetId: 'T1' } }));
+        return fails === undefined ? Promise.resolve({ targetInfo: { targetId: 'T1' } }) : Promise.reject(fails);
+      },
+      detach: () => (calls.push(`${name} detach`), Promise.resolve()),
+    });
+    const browser = {
+      browserType: () => ({ name: () => options.browserName ?? 'chromium' }),
+      newBrowserCDPSession: () => Promise.resolve(session('browser', options.closeFails)),
+    };
+    const page = {
+      context: () => ({ browser: () => (options.noBrowser === true ? null : browser), newCDPSession: () => (options.late === 'session' ? after(300) : Promise.resolve()).then(() => session('page', options.ownFails)) }),
+    } as unknown as Page;
+    return { page, calls };
+  };
+
+  test('R4: closeTargetAgain sends Target.closeTarget through the browser session for the page\'s own target, detaches both, and never throws', async () => {
+    const sentOk = targetPage({});
+    expect(await closeTargetAgain(sentOk.page)).toEqual({ kind: 'sent' });
+    expect(sentOk.calls).toEqual(['page Target.getTargetInfo', 'browser Target.closeTarget T1', 'page detach', 'browser detach']);
+    expect(describeReclose({ kind: 'sent' })).toBeUndefined();
+    const refused = targetPage({ closeFails: named('TargetClosedError') });
+    const refusedResult = await closeTargetAgain(refused.page);
+    expect(describeReclose(refusedResult)).toBe('DIAG page.close re-close failed: TargetClosedError');
+    expect(refused.calls.slice(-2).sort(), 'both sessions are detached after a failure').toEqual(['browser detach', 'page detach']);
+    const odd = targetPage({ ownFails: named('Cookie: x=1') });
+    expect(describeReclose(await closeTargetAgain(odd.page))).toBe('DIAG page.close re-close failed: another error');
+    expect(odd.calls.some((call) => call.startsWith('browser Target.closeTarget')), 'no close without the target').toBe(false);
+    for (const unmeasured of [targetPage({ browserName: 'firefox' }), targetPage({ noBrowser: true })]) {
+      expect(await closeTargetAgain(unmeasured.page)).toEqual({ kind: 'unmeasured' });
+      expect(describeReclose({ kind: 'unmeasured' })).toBe('DIAG page.close re-close not measured (not Chromium)');
+      expect(unmeasured.calls, 'nothing is asked').toEqual([]);
+    }
+    const broken = { context: () => { throw new Error('gone'); } } as unknown as Page;
+    expect(describeReclose(await closeTargetAgain(broken))).toBe('DIAG page.close re-close failed: another error');
+  });
+
+  test('R4: a browser that gives no answer ends closeTargetAgain at its bound, as a timeout', async () => {
+    const hung = targetPage({ hang: true });
+    const began = Date.now();
+    const result = await closeTargetAgain(hung.page, 150);
+    expect(describeReclose(result)).toBe('DIAG page.close re-close failed: TimeoutError');
+    expect(Date.now() - began, 'the bound, not the test timeout').toBeLessThan(2_000);
+    expect(hung.calls.slice(-2).sort(), 'both sessions are detached when the bound ends the call').toEqual(['browser detach', 'page detach']);
+  });
+
+  test('R4: a session or a target that answers after the bound is not used: the late session is detached and no Target.closeTarget is sent', async () => {
+    const lateSession = targetPage({ late: 'session' });
+    expect(describeReclose(await closeTargetAgain(lateSession.page, 100))).toBe('DIAG page.close re-close failed: TimeoutError');
+    await after(500);
+    expect(lateSession.calls, 'the late page session is detached at once, and nothing is asked').toEqual(['page detach']);
+    const lateInfo = targetPage({ late: 'info' });
+    expect(describeReclose(await closeTargetAgain(lateInfo.page, 100))).toBe('DIAG page.close re-close failed: TimeoutError');
+    await after(500);
+    expect(lateInfo.calls, 'no browser session and no Target.closeTarget after the bound').toEqual(['page Target.getTargetInfo', 'page detach']);
+  });
+});
+
+/**
  * DW-550 (Story 32.6): a snapshot GET with no answer by half of its bound (20 s here, so 10 s) gets one logged retry inside the same bound: the
  * page reloads once and its own GET gets the rest. The stand-in's /retry page fetches /state with its own query; mode=once holds the first
  * GET of an id and answers the later ones, mode=hold holds them all. The project's waits are 20 s and 10 s, as an online project sets its own.
@@ -786,7 +1069,7 @@ test.describe('loadedAfter: one reload of the page', () => {
     expect(logged[0]).toBe(retryLine());
     expectPageLines(logged.slice(1, 5));
     expect(logged[5]).toMatch(/^SLOW loadedAfter the snapshot GET \/ocutalon\/api\/v1\/state \d+ s$/);
-    expect(readFileSync(test.info().outputPath('retries.txt'), 'utf8')).toBe(`${logged[0]}\n`);
+    expect(readFileSync(test.info().outputPath('retries.txt'), 'utf8'), 'the RETRY line, then the retry-time page lines').toBe(`${logged.slice(0, 5).join('\n')}\n`);
     expect(stateSeen.get(id), 'the server saw two GETs of /state').toBe(2);
   });
 
@@ -813,7 +1096,8 @@ test.describe('loadedAfter: one reload of the page', () => {
     expect(requests.some((line) => line.startsWith('DIAG /state request 1 of 1: '))).toBe(true);
     expect(requests.some((line) => /^DIAG \/state request 1 of 2: /.test(line))).toBe(true);
     expect(requests.some((line) => /^DIAG \/state request 2 of 2: issued .* no answer yet$/.test(line))).toBe(true);
-    expect(readFileSync(test.info().outputPath('retries.txt'), 'utf8')).toBe(`${retryLine()}\n`);
+    expectPageLines(logged.slice(1, 5));
+    expect(readFileSync(test.info().outputPath('retries.txt'), 'utf8'), 'the RETRY line, then the retry-time page lines').toBe(`${logged.slice(0, 5).join('\n')}\n`);
     expect(stateSeen.get(id), 'the server saw two GETs of /state').toBe(2);
   });
 
@@ -1032,6 +1316,7 @@ function stubBrowser(session?: { send: () => Promise<unknown> }, connected = tru
 
 const quietWatch = { records: () => [], host: () => ({ load1: 0.5, cpus: 4 }), stop: () => undefined } as RequestWatch;
 const never = (): Promise<never> => new Promise<never>(() => undefined);
+const after = (ms: number): Promise<void> => new Promise<void>((done) => setTimeout(done, ms));
 const named = (name: string): Error => Object.assign(new Error('refused'), { name });
 
 /** Runs the step with console.log captured, and returns what it printed. */

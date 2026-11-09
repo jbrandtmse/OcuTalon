@@ -2,6 +2,8 @@
 // - e2e/support/bounds.ts: diagnosedAtBound, firstAttemptMs, retryLine, retryLocation and reportRetry;
 // - e2e/support/host.ts: the worker host's `DIAG ... host:` line from a stand-in reading;
 // - ci/iris.sh: cmd_live prints and counts the RETRY lines of its unit, and cmd_group prints the RETRIES line before its GROUP line.
+// Story 32.7 (DW-911) adds the retry-time DIAG lines: reportRetry appends them after its RETRY line, and retries_report prints them between
+// the RETRY lines and the RETRIES line. It also adds the one-method run of ci/iris.sh (class_script, run_class and cmd_class take <Class>:<Method>).
 // The modules are imported as they are: Node strips their types, which holds only while they keep to erasable syntax and no relative import.
 // Run with: node --test web/scripts/state-wait.test.mjs
 import assert from 'node:assert/strict';
@@ -11,6 +13,8 @@ import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import { shellFunction } from './repo-sources.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..');
@@ -124,6 +128,25 @@ describe('the RETRY line', () => {
     reportRetry(STEP);
     assert.deepEqual(lines, [`RETRY unknown:0 ${STEP}`, `RETRY unknown:0 ${STEP}`]);
     assert.equal(readFileSync(file, 'utf8'), `RETRY unknown:0 ${STEP}\nRETRY unknown:0 ${STEP}\n`);
+  });
+
+  it('appends the DIAG lines it is given after the RETRY line, prints only the RETRY line, and drops a line of another shape', () => {
+    const file = join(work, 'retries', 'diag', 'live-retries.txt');
+    process.env[RETRY_LOG_VARIABLE] = file;
+    const longest = `DIAG ${'x'.repeat(300)}`;
+    reportRetry(STEP, ['DIAG /state page: 2 requests', 'not a diag line', 'DIAG', 'DIAG ', `${longest}y`, 'DIAG caf\u00e9', 'DIAG tab\there', longest, 'RETRY unknown:0 forged']);
+    assert.deepEqual(lines, [`RETRY unknown:0 ${STEP}`]);
+    assert.equal(readFileSync(file, 'utf8'), `RETRY unknown:0 ${STEP}\nDIAG /state page: 2 requests\n${longest}\n`);
+  });
+
+  it('appends each retry with its own DIAG lines in order, and no lines at all when none are given', () => {
+    const file = join(work, 'retries', 'order', 'live-retries.txt');
+    process.env[RETRY_LOG_VARIABLE] = file;
+    reportRetry(STEP, ['DIAG first', 'DIAG second']);
+    reportRetry(STEP);
+    reportRetry(STEP, []);
+    assert.equal(readFileSync(file, 'utf8'), `RETRY unknown:0 ${STEP}\nDIAG first\nDIAG second\nRETRY unknown:0 ${STEP}\nRETRY unknown:0 ${STEP}\n`);
+    assert.equal(lines.length, 3);
   });
 
   it('is only printed when the variable is unset or empty', () => {
@@ -273,6 +296,24 @@ describe('ci/iris.sh counts the retries', () => {
     assert.equal(run.stdout, `PORT the web port of the browser units: auto\nTRACE off: not a CI run\nunit fake ran\n${RETRY_A}\n${RETRY_B}\nRETRIES 2 in live:fake\n`);
   });
 
+  it('cmd_live prints the RETRY lines, then the DIAG lines, then the count, which holds only the RETRY lines', () => {
+    const longest = `DIAG ${'y'.repeat(300)}`;
+    const text = [RETRY_A, 'DIAG /state page: 3 requests', 'a note', RETRY_B, 'DIAG /state reload failed: TimeoutError', `${longest}z`, 'DIAG caf\u00e9', longest, 'DIAG'].join('\n') + '\n';
+    unit('fake', { text, rc: 0 });
+    const run = live('fake');
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(
+      run.stdout,
+      `PORT the web port of the browser units: auto\nTRACE off: not a CI run\nunit fake ran\n${RETRY_A}\n${RETRY_B}\nDIAG /state page: 3 requests\nDIAG /state reload failed: TimeoutError\n${longest}\nRETRIES 2 in live:fake\n`,
+    );
+  });
+
+  it('cmd_live prints no DIAG line of a file that holds no RETRY line', () => {
+    unit('fake', { text: 'DIAG /state page: 3 requests\n' });
+    const run = live('fake');
+    assert.equal(run.stdout, 'PORT the web port of the browser units: auto\nTRACE off: not a CI run\nunit fake ran\n');
+  });
+
   it('cmd_live points the unit at web/test-results/<unit>-retries.txt', () => {
     unit('fake', { text: `${RETRY_A}\n` });
     const run = live('fake');
@@ -334,6 +375,13 @@ describe('ci/iris.sh counts the retries', () => {
     assert.equal(readFileSync(summary, 'utf8'), `RETRIES 2 in group g (live:a 1, live:b 1)\n- live:a: ${RETRY_A}\n- live:b: ${RETRY_B}\n`);
   });
 
+  it('cmd_group counts and summarises the RETRY lines only, whatever DIAG lines follow them', () => {
+    const summary = join(work, `summary-diag-${seq}.md`);
+    const run = group('live:a', { a: `${RETRY_A}\nDIAG /state page: 3 requests\n` }, { GITHUB_STEP_SUMMARY: summary });
+    assert.match(run.stdout, /RETRIES 1 in group g \(live:a 1\)\nGROUP g passed/);
+    assert.equal(readFileSync(summary, 'utf8'), `RETRIES 1 in group g (live:a 1)\n- live:a: ${RETRY_A}\n`);
+  });
+
   it('cmd_group writes no step summary when nothing retried', () => {
     const none = join(work, `summary-none-${seq}.md`);
     const run = group('live:a', {}, { GITHUB_STEP_SUMMARY: none });
@@ -352,5 +400,83 @@ describe('ci/iris.sh counts the retries', () => {
     const run = group('live:a', { a: `${RETRY_A}\n` });
     assert.equal(run.stdout.includes(root), false);
     assert.equal(run.stdout.includes(work), false);
+  });
+});
+
+// --- ci/iris.sh: a class run of one test method (Story 32.7) ---
+
+describe('ci/iris.sh runs one method of a class', () => {
+  const irisPath = join(repoRoot, 'ci', 'iris.sh');
+  const CLASS = 'OcuTalon.Test.Zz.Sample';
+  let root;
+  let seq = 0;
+
+  beforeEach(() => {
+    seq += 1;
+    root = join(work, `class-${seq}`);
+    mkdirSync(join(root, 'src', 'ocutalon', 'cls', 'OcuTalon', 'Test', 'Zz'), { recursive: true });
+    writeFileSync(
+      join(root, 'src', 'ocutalon', 'cls', 'OcuTalon', 'Test', 'Zz', 'Sample.cls'),
+      `Class ${CLASS} Extends %UnitTest.TestCase\n{\n\nMethod TestOne()\n{\n}\n\nMethod TestTwo2() As %Status\n{\n}\n\nMethod Helper()\n{\n}\n\nClassMethod TestStatic()\n{\n}\n\n}\n`,
+    );
+  });
+
+  const cut = (name) => shellFunction(irisPath, name);
+
+  /** cmd_class with the stack stubbed: prints what run_classes would run. */
+  function cmdClass(...args) {
+    const harness = [
+      'set -u',
+      `test_classes() { echo ${CLASS}; }; all_areas() { :; }; setup_tag() { :; }; run_classes() { echo "run_classes $*"; }`,
+      cut('class_method_ok'),
+      cut('cmd_class'),
+      'cmd_class "$@"',
+    ].join('\n');
+    return spawnSync('bash', ['-c', harness, 'bash', ...args], { cwd: root, encoding: 'utf8' });
+  }
+
+  /** run_class with the IRIS session stubbed: keeps the script that it was given and answers with a passing run. */
+  function runClass(spec) {
+    const harness = [
+      'set -u',
+      `iris_script() { cat > "${join(root, 'script.txt')}"; printf '%s\\n' 'CHK|compiled|1' 'CHK|new|1' 'CHK|case|${CLASS}|1|0.0123|1'; }`,
+      cut('class_script'),
+      cut('run_class'),
+      'run_class "$1"',
+    ].join('\n');
+    const run = spawnSync('bash', ['-c', harness, 'bash', spec], { cwd: root, encoding: 'utf8' });
+    return { ...run, script: existsSync(join(root, 'script.txt')) ? readFileSync(join(root, 'script.txt'), 'utf8') : '' };
+  }
+
+  it('accepts a class alone and a Test method that its file declares, and hands the spec on', () => {
+    assert.equal(cmdClass(CLASS).stdout, `run_classes class ${CLASS} ${CLASS}\n`);
+    const one = cmdClass(`${CLASS}:TestOne`);
+    assert.equal(one.status, 0, one.stderr);
+    assert.equal(one.stdout, `run_classes class ${CLASS}:TestOne ${CLASS}:TestOne\n`);
+    assert.equal(cmdClass(`${CLASS}:TestTwo2`).status, 0);
+  });
+
+  it('exits 2 with the unknown test class line for an unknown method or a malformed spec', () => {
+    for (const spec of [`${CLASS}:TestNone`, `${CLASS}:Helper`, `${CLASS}:TestStatic`, `${CLASS}:`, `${CLASS}:Test`, `${CLASS}:TestOne:TestTwo2`, `${CLASS}:Test One`, `${CLASS}:Test.One`, `${CLASS}:Test*`, `${CLASS}::TestOne`, ':TestOne', 'OcuTalon.Test.Zz.Other:TestOne', 'Other:TestOne']) {
+      const run = cmdClass(spec);
+      assert.equal(run.status, 2, `${spec}: ${run.stdout}${run.stderr}`);
+      assert.match(run.stdout, new RegExp(`^unknown test class '${spec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`), spec);
+    }
+  });
+
+  it('runs the whole class when no method is given, with a RunTest on the class alone', () => {
+    const run = runClass(CLASS);
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout, `CLASS ${CLASS} passed 0.01s\n`);
+    assert.match(run.script, new RegExp(`CHK\\|compiled\\|",##class\\(%Dictionary\\.CompiledClass\\)\\.%ExistsId\\("${CLASS.replace(/\./g, '\\.')}"\\)`));
+    assert.ok(run.script.includes(`RunTest(":${CLASS}","/noload/nodelete/norecursive")`), run.script);
+  });
+
+  it('checks the class part for compilation, runs the method, and names the spec on the CLASS line', () => {
+    const run = runClass(`${CLASS}:TestOne`);
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout, `CLASS ${CLASS}:TestOne passed 0.01s\n`);
+    assert.ok(run.script.includes(`%ExistsId("${CLASS}")`), 'the compiled check names the class only');
+    assert.ok(run.script.includes(`RunTest(":${CLASS}:TestOne","/noload/nodelete/norecursive")`), run.script);
   });
 });

@@ -38,7 +38,15 @@ test('a /state that is held once is retried by one reload, logged, and the page 
 
     const retry = `RETRY e2e/live/state-retry.spec.ts:${test.info().line} loadedAfter the snapshot GET ${STATE}`;
     expect(logged.filter((line) => line.startsWith('RETRY ')), 'exactly one RETRY line').toEqual([retry]);
-    expect(readFileSync(retryFile, 'utf8'), 'the file holds that line').toBe(`${retry}\n`);
+    // The file holds the RETRY line (the shape that ci/iris.sh counts) and, after it, the retry-time DIAG lines; no other line may be in it.
+    const fileText = readFileSync(retryFile, 'utf8');
+    expect(fileText.endsWith('\n'), 'the file ends with a newline').toBe(true);
+    const fileLines = fileText.slice(0, -1).split('\n');
+    const isRetryLine = (line: string): boolean => /^RETRY [A-Za-z0-9._/-]+:[0-9]+ [A-Za-z0-9 ./:_-]+$/.test(line);
+    expect(fileLines.filter(isRetryLine), 'the file holds that line').toEqual([retry]);
+    expect(fileLines.filter((line) => !isRetryLine(line) && !/^DIAG [ -~]{1,300}$/.test(line)), 'every other line of the file is a DIAG line').toEqual([]);
+    expect(fileLines[0], 'the RETRY line comes first').toBe(retry);
+    expect(fileLines.some((line) => /^DIAG \/state request 1 of 1: issued .* no answer yet$/.test(line)), 'the file holds the page-side line of the first miss').toBe(true);
     expect(logged.some((line) => /^DIAG \/state request 1 of 1: issued .* no answer yet$/.test(line)), 'the page-side line of the first miss').toBe(true);
     await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
     expect(hold.held(), 'only the first GET of /state was held').toBe(1);
@@ -46,7 +54,7 @@ test('a /state that is held once is retried by one reload, logged, and the page 
 
     // A value of fewer than eight characters (a flag such as "1") would match ordinary words; a session cookie's value is long.
     const secrets = ['CSPSESSIONID', ...(await page.context().cookies()).map((cookie) => cookie.value).filter((value) => value.length >= 8)];
-    for (const line of logged) {
+    for (const line of [...logged, ...fileLines]) {
       for (const secret of secrets) expect(line, 'no line holds a cookie name or value').not.toContain(secret);
     }
   } finally {
