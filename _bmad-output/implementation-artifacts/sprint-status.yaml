@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-09-2026 22:28
+last_updated: 11-09-2026 23:26
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -470,8 +470,7 @@ development_status:
   41-9-pins-and-learned-saves-get-their-verbs-and-routes: done
   41-10-facts-learned-at-compaction-optional-needs-ad-31-s-amendment: backlog
   41-11-bridgesink-saves-compaction-facts-as-learned-memories-option: backlog
-  41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star: 
-    in-progress
+  41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star: review
   41-13-the-memory-card-pinned-and-learned-memories: ready-for-dev
   41-14-evaluation-and-tests-for-memory-s-second-part: backlog
   epic-41-retrospective: optional
