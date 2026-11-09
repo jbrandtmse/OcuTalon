@@ -2,6 +2,8 @@
 
 Answer an item with `bash _bmad/scripts/unattended-inbox.sh <this directory> answer U-<n> "<answer>" --by owner`, or run `/epic-cycle --review`. This file is generated: a hand edit is saved aside and never applied.
 
+**Hold requested 2026-11-09T11:00:18Z: owner: overnight hold 11:00Z (via Contest Planner; account switch ~13:00Z)**
+
 ## Veto window
 
 ### U-301 | veto | Story 39.10 | 2026-11-07T19:03:31Z
@@ -398,4 +400,4 @@ answer: (none yet -- answer with the script or --review)
 - U-313 | veto | Story 18.4: Stored data shape: two new nullable columns, Data.Delivery.CheckRows (the web digest card's check rows as JSON, so 'What I checked' survives a reload) and Data.SimMessage.DecisionRef (lets the phone edit a tell-now message in place when handled); older rows read empty, no migration. Ruled KEEP by the orchestrator (category=veto). -> Keep: two nullable columns (Delivery.CheckRows, SimMessage.DecisionRef); older rows read empty; no migration. Pin that an older row renders without error. (by Contest Planner, 2026-11-08T20:03:06Z#951; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-08T20:10:49Z -- Epic 18: applied in 18.4 spec e8213bd6 (older-row pin task)
 - U-314 | veto | Story 41.7: Stored data (veto window 3): the eval-only table Eval.Data.CaseResult gains one nullable column, Precedents (lives only on throwaways and CI; same kind as Story 40.7's Preset), so Agent.Input asks Similar("eval", ...) only for an eval item whose case seeded precedents. -> Keep: Eval.Data.CaseResult gains a nullable Precedents column (like 40.7's Preset); older rows read empty. (by Contest Planner, 2026-11-08T21:53:08Z#957; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-08T22:00:19Z -- Epic 41: applied in 41.7 spec 900b4bfa
 
-<!-- journal: 965 lines -->
+<!-- journal: 966 lines -->
