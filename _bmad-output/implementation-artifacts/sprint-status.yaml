@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-09-2026 18:16
+last_updated: 11-09-2026 18:35
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -54,7 +54,7 @@ development_status:
   0-16-the-embedded-python-callback-crash-s11-is-re-verified-with-a: done
   0-17-the-readme-s-evaluation-table-shows-release-1-0-4-s-numbers: done
   0-18-the-readme-shows-judges-where-to-look: done
-  0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un: done
+  0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un: in-progress
   epic-0-retrospective: optional
 
   epic-1: done

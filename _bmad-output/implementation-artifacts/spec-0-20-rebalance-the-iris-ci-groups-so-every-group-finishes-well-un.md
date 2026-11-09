@@ -2,7 +2,7 @@
 title: 'Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget'
 type: 'chore'
 created: '2026-11-09'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'cccbd78eec0497bdc08103ba82421fd3bb055dbc'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -105,6 +105,8 @@ Multi-area shard units: `lane-a@Install,Digest,Eval` 157+44+266 = 467 + 423 = 89
 - Epic 35 adds no group unit. After its merge: 38 units; lane-a 13 areas, 222 classes (Mcp 4), in `rest`.
 - The new checks compute these from the tree: scripts, area folders and class files. A unit dropped, or an area or class left out, fails them. An added script, area or class is counted, not pinned.
 
+- [ ] [CI] checks: `docker/tests/test-demo-path-gate.sh` (in CHECK_SCRIPTS) still pins the old browser group (`live:demo-path live:sign-in live:answers`, its stubs, the Chromium call sequence and the "red unit other than the demo path" case) — ci run 42672671071 on de6909e4, checks job, 5 checks failed ("group: browser passes when its three units pass", "the units ran in the order 'live:demo-path live:online-demo '", ...). Move every one of its browser-group pins to the new group (`live:demo-path live:online-demo`, demo-path first): stub `online-demo` like the other browser stubs, expect Chromium before demo-path and online-demo, and use online-demo as the "red unit other than the demo path". Moves only: keep every check (same count), weaken none; update its header comment (L27-31) to the new group. Then run EVERY script of `CHECK_SCRIPTS` (ci/units.sh) once, one per call, and fix any other pin of the old layout the same way.
+
 **Acceptance Criteria:**
 - AC1. Given the new `ci/units.sh`, when `bash ci/iris.sh list` and `bash ci/iris.sh groups` run, then `IRIS_GROUPS` is the 16 names in the order above, each group prints exactly its row of the table, and `test-ci-config.sh`'s `groups` and `recipe` rules pass.
 - AC2 (no weakening). Given the new layout, when `bash docker/tests/test-ci-config.sh` runs, then `units` and `shard pieces` pass. Each live script is in exactly one group, and each lane-a and lane-b area in exactly one piece, through the real `shard_unit_areas`. The 350 classes run once each. The PASS lines state 38 units (28 live, 10 shard), "lane-a: 12 areas in 8 units, 218 classes" and "lane-b: 8 areas in 2 units, 132 classes".
@@ -169,6 +171,7 @@ The exact change to `.github/workflows/ci.yml` (blob `80afa70` to `0acfe6e`); im
 
 ## Spec Change Log
 
+- Rework iteration 1 (trigger: CI story red, ci run 42672671071 on de6909e4): the checks job failed on `test-demo-path-gate.sh`, a CHECK_SCRIPTS pin of the old browser group that the plan's grep missed (it calls `ci/iris.sh group browser`). One [CI] item added under Tasks & Acceptance; the `ci.yml` hunk is unaffected.
 - [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025] Planner APPROVED the `ci.yml` hunk ("sixteen groups" header, the 16-group matrix line, `timeout-minutes` unchanged) and the deviation (`live:memory-offline` stays in shards-4, L2935 unchanged, plus the listed moves). Merge conditions: the pushed `ci.yml` diff against feature is exactly those two lines; two clean runs on one head with every iris group at or under 32 minutes measured and every multi-area unit at or under 900 s, each group's measured maximum reported; a scan of `release/` and `ci/` for hard-coded required-check names or the group count (result: none found; `ci/changes.sh` and `ci/iris.sh` derive from `IRIS_GROUPS`). AD-22's as-built paragraph amended by the lead (ten to sixteen groups, the pieces).
 - [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025] Re-plan after the Planner's rulings on the intent gap: option A (the 900 s cap applies to units of two or more areas; single-area units run whole), 16 groups with `shards-6` to `shards-11`, the three `test-release-sequence.sh` pins as a plain union, and DW-1032/DW-1033 ledgered for after voting (Design Notes). Status reset from blocked to draft for the re-plan.
 - [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025] Plan stage. The Planner's binding CI capacity rulings 1-7 are recorded under Design Notes. Planning stopped at an intent gap on ruling 2's per-shard-unit cap (Auto Run Result).
