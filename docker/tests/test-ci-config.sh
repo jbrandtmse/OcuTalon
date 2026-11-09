@@ -43,11 +43,12 @@
 #     folder of either source tree is in exactly one shard; every class with a Method Test... sits directly in an area folder;
 #     every shard runs in the groups either whole, as exactly one unit shard:<name>, or in pieces shard:<name>@<piece> (DW-337) whose
 #     area lists name only areas of the shard, each once, with at most one piece rest, which must keep an area, and without rest
-#     cover every area of the shard;
+#     cover every area of the shard; the PASS line states the units the groups hold (live scripts and shard units, counted from the
+#     tree);
 #   - demo-path (Story 0.8): live:demo-path is a unit of exactly one IRIS group and docker/tests/test-demo-path.sh exists, every name
 #     of BROWSER_UNITS (the live units that need Playwright's Chromium) is a live unit of a group, and every docker/tests/test-*.sh
 #     with a code line, not a comment, that runs the Playwright npm script is in BROWSER_UNITS;
-#   - groups: IRIS_GROUPS is exactly install-fresh, install-upgrade, production, browser, shards, shards-2, image, shards-3, shards-4 and shards-5 in this order, each with a
+#   - groups: IRIS_GROUPS is exactly install-fresh, install-upgrade, production, browser, shards, shards-2, image, shards-3, shards-4, shards-5, shards-6, shards-7, shards-8, shards-9, shards-10 and shards-11 in this order, each with a
 #     unit, and group_units has no case for the retired group install; install-fresh holds live:install-start, install-upgrade holds
 #     live:install-upgrade, and live:demo-path is the first unit of browser (AD-22);
 #   - inputs (Story 32.2): every unit of NO_WEB_BUNDLE_UNITS is a unit of a group and no live script of it has a code line that names the
@@ -62,7 +63,7 @@
 #     the number, none) and no runner leave `auto` (DW-49, Story 32.3), and the ports of runners 1 to 19 are distinct, within
 #     52800-52819 and none in LIVE_FORBIDDEN_PORTS; the real live_web_port (port_in_use stubbed, nothing listens) accepts the fixed
 #     port of each runner 0 to 19, which setup_tag exports to a child process, refuses it as in use when it is held without taking
-#     another, and gives a probing runner 52800, which no runner 1 to 18 owns; `groups` prints the ten groups in order, `list` shows the two install groups with their anchors,
+#     another, and gives a probing runner 52800, which no runner 1 to 18 owns; `groups` prints the sixteen groups in order, `list` shows the two install groups with their anchors,
 #     the retired group install is refused with exit 2, and each group's CI tag (<run id>-<attempt>-<group>) is a valid run tag under
 #     which `group <name>` knows the group;
 #   - preflight (Story 0.11): the mock's image, read from ci/compose.ci.yml, is pulled up to 3 times when it is missing (a stub docker
@@ -73,7 +74,9 @@
 #   - checks.sh, class verdict, shard order, teardown: ci/checks.sh runs every script and names the failed ones; ci/iris.sh
 #     run_class tells a pass, a skip, a failure, an error, a class not compiled, no result and no test apart, shard runs its
 #     classes in name order and reversed with --reverse, the shard units of the groups run every test class of every shard once (a
-#     piece keeps only its areas, a bad piece is refused with exit 2), and teardown removes what carries its tag and nothing else, the lane's
+#     piece keeps only its areas, a bad piece is refused with exit 2) and every area of each shard once, through shard_unit_areas (the
+#     PASS line states the areas, units and classes of each shard, counted from the tree), a new area of lane-a (a stub shard_areas names
+#     one more) is run by lane-a@rest and by no other piece (Story 0.20, AC6), and teardown removes what carries its tag and nothing else, the lane's
 #     warm-iris.lock and the warm state folder included: the warm stack of the tag (an orphan of a killed stage) goes and its lock
 #     and folder are released, and the stack, lock or folder of another tag, of a tag that extends this one, and of the tag with a
 #     w after it (the warm tag of a stage whose fresh tag this is) are kept (ci/iris.sh is sourced with a stub for dc, docker and
@@ -930,8 +933,13 @@ if [ -n "$hits" ]; then
   printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
   ok=0
 fi
+# The units the groups hold, counted from the tree: a unit dropped from a group, or one added, changes the tally.
+unit_list=$(cd "$root" && . ./ci/units.sh && for g in $IRIS_GROUPS; do group_units "$g"; done | tr ' ' '\n' | grep .)
+unit_total=$(printf '%s\n' "$unit_list" | grep -c .)
+unit_live=$(printf '%s\n' "$unit_list" | grep -c '^live:')
+unit_shard=$(printf '%s\n' "$unit_list" | grep -c '^shard:')
 if [ "$ok" -eq 1 ]; then
-  echo "PASS units: every test script is in exactly one place, every Test area is in exactly one shard, every shard runs whole once or in pieces that run each of its areas once, and every test class sits in an area"
+  echo "PASS units: every test script is in exactly one place, every Test area is in exactly one shard, every shard runs whole once or in pieces that run each of its areas once, and every test class sits in an area; the groups hold $unit_total units, $unit_live of them live scripts and $unit_shard shard units"
 else
   echo "FAIL units: the test scripts, the shards and the areas"
   fails=$((fails + 1))
@@ -1031,7 +1039,7 @@ else
   fails=$((fails + 1))
 fi
 
-# --- groups: the ten IRIS groups, the two install anchors and the demo-path first rule ---
+# --- groups: the sixteen IRIS groups, the two install anchors and the demo-path first rule ---
 
 # groups_violations <repository directory>: one line per violation of the groups rule in that tree. The names and their order are
 # pinned; where a unit sits in a group other than the two anchors is not, so a rebalance of whole units needs no edit here.
@@ -1040,8 +1048,8 @@ groups_violations() {
     cd "$1" || exit 1
     . ./ci/units.sh
     set -- $IRIS_GROUPS
-    if [ "$*" != "install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5" ]; then
-      echo "ci/units.sh: IRIS_GROUPS is '$IRIS_GROUPS', wanted install-fresh, install-upgrade, production, browser, shards, shards-2, image, shards-3, shards-4 and shards-5, in this order"
+    if [ "$*" != "install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5 shards-6 shards-7 shards-8 shards-9 shards-10 shards-11" ]; then
+      echo "ci/units.sh: IRIS_GROUPS is '$IRIS_GROUPS', wanted install-fresh, install-upgrade, production, browser, shards, shards-2, image, shards-3, shards-4, shards-5, shards-6, shards-7, shards-8, shards-9, shards-10 and shards-11, in this order"
     fi
     if group_units install > /dev/null 2>&1; then
       echo "ci/units.sh: group_units still has a case for the retired group install"
@@ -1069,7 +1077,7 @@ mkgroups() { # mkgroups <dir> <IRIS_GROUPS> <install-fresh units> <install-upgra
   local d=$1
   mkdir -p "$d/ci"
   cat > "$d/ci/units.sh" <<EOU
-IRIS_GROUPS="${2:-install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5}"
+IRIS_GROUPS="${2:-install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5 shards-6 shards-7 shards-8 shards-9 shards-10 shards-11}"
 group_units() {
   case \$1 in
     install-fresh) echo "${3-live:install-start}" ;;
@@ -1082,6 +1090,12 @@ group_units() {
     shards-3) echo "live:demo-switch" ;;
     shards-4) echo "shard:lane-a@Channel" ;;
     shards-5) echo "shard:lane-a@Bridge,Agent" ;;
+    shards-6) echo "live:documents" ;;
+    shards-7) echo "shard:lane-a@Docs" ;;
+    shards-8) echo "shard:lane-a@Watch" ;;
+    shards-9) echo "shard:lane-b@rest" ;;
+    shards-10) echo "live:sign-in-3" ;;
+    shards-11) echo "shard:lane-a@Fix" ;;
     ${7-}
     *) return 1 ;;
   esac
@@ -1090,11 +1104,12 @@ EOU
 }
 mkgroups "$tmp/g-good"
 mkgroups "$tmp/g-old" "install production browser shards image"
-mkgroups "$tmp/g-dup" "install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5 shards-4 image"
+mkgroups "$tmp/g-dup" "install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5 shards-6 shards-7 shards-8 shards-9 shards-10 shards-11 shards-4 image"
 mkgroups "$tmp/g-order" "install-upgrade install-fresh production browser shards shards-2 image"
 mkgroups "$tmp/g-seven" "install-fresh install-upgrade production browser shards shards-2 image"
 mkgroups "$tmp/g-eight" "install-fresh install-upgrade production browser shards shards-2 image shards-3"
 mkgroups "$tmp/g-nine" "install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4"
+mkgroups "$tmp/g-ten" "install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5"
 mkgroups "$tmp/g-stale" "" "live:install-start" "live:install-upgrade live:audit" "live:production live:production-restart" "live:demo-path live:sign-in" 'install) echo "live:install-start live:install-upgrade" ;;'
 mkgroups "$tmp/g-empty" "" "live:install-start" "live:install-upgrade live:audit" ""
 mkgroups "$tmp/g-blank" "" "live:install-start" "live:install-upgrade live:audit" " "
@@ -1120,6 +1135,7 @@ for pair in "g-old|IRIS_GROUPS is 'install production browser shards image', wan
   "g-seven|IRIS_GROUPS is 'install-fresh install-upgrade production browser shards shards-2 image', wanted" \
   "g-eight|IRIS_GROUPS is 'install-fresh install-upgrade production browser shards shards-2 image shards-3', wanted" \
   "g-nine|IRIS_GROUPS is 'install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4', wanted" \
+  "g-ten|IRIS_GROUPS is 'install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5', wanted" \
   "g-stale|group_units still has a case for the retired group install" \
   "g-empty|the group production has no unit" "g-blank|the group production has no unit" \
   "g-no-fresh|install-fresh does not hold live:install-start" \
@@ -1143,9 +1159,9 @@ if [ -n "$hits" ]; then
   ok=0
 fi
 if [ "$ok" -eq 1 ]; then
-  echo "PASS groups: IRIS_GROUPS is install-fresh, install-upgrade, production, browser, shards, shards-2, image, shards-3, shards-4 and shards-5 in this order, group_units has no case for install, every group has a unit, the two install groups hold their anchors, and live:demo-path is the first unit of browser"
+  echo "PASS groups: IRIS_GROUPS is install-fresh, install-upgrade, production, browser, shards, shards-2, image, shards-3, shards-4, shards-5, shards-6, shards-7, shards-8, shards-9, shards-10 and shards-11 in this order, group_units has no case for install, every group has a unit, the two install groups hold their anchors, and live:demo-path is the first unit of browser"
 else
-  echo "FAIL groups: the ten IRIS groups"
+  echo "FAIL groups: the sixteen IRIS groups"
   fails=$((fails + 1))
 fi
 
@@ -1296,7 +1312,7 @@ for pair in "i-listed-install-start|docker/tests/test-install-start.sh: it names
   "i-reads-other-group|docker/tests/test-production.sh: it reads web/src/app/app.ts, which the input pattern of group production does not claim" \
   "i-reads-declared-test|docker/tests/test-demo-path.sh: it reads docker/tests/test-x.sh, which the input pattern of group browser does not claim" \
   "i-reads-declared-md|docker/tests/test-production.sh: it reads README.md, which the input pattern of group production does not claim" \
-  "i-reads-declared-example|docker/tests/test-install-script-live.sh: it reads .env.example, which the input pattern of group install-fresh does not claim" \
+  "i-reads-declared-example|docker/tests/test-install-script-live.sh: it reads .env.example, which the input pattern of group shards-2 does not claim" \
   "i-reads-bookkeeping|docker/tests/test-production.sh: it reads _bmad-output/x.md, which the input pattern of group production does not claim"; do
   s=${pair%%|*}
   want=${pair#*|}
@@ -1574,14 +1590,14 @@ case $live_port_out in
   *'[live-port-done]') recipe_fail="$recipe_fail${live_port_out%' [live-port-done]'}" ;;
   *) recipe_fail="$recipe_fail [the checks through live_web_port did not run to their end: $(printf '%s' "$live_port_out" | tr -d '[]' | head -c 300)]" ;;
 esac
-# The ten groups through the command line (Story 32.1; shards-2 since DW-337, shards-3 since Epic 30's CI step, shards-4 since Epic 12's close, shards-5 since Story 19.8's CI split). `groups` prints the names in order. `list` shows the install groups with their
+# The sixteen groups through the command line (Story 32.1; shards-2 since DW-337, shards-3 since Epic 30's CI step, shards-4 since Epic 12's close, shards-5 since Story 19.8's CI split, shards-6 to shards-11 since Story 0.20). `groups` prints the names in order. `list` shows the install groups with their
 # anchor units, and no more than that is pinned (a rebalance of whole units needs no edit). The retired name install is refused with
 # exit 2 and the new list; it runs with a base image that does not exist, so that a stale `install` case of group_units would end at
 # the preflight (exit 1, red) and never start a stack. For every group, the tag of its CI job (<run id>-<attempt>-<group>, as in
 # ci.yml) is a valid run tag, and `group <name>` knows the name: with that tag and the missing base image it ends at the preflight
 # with exit 1, where an unknown group or a refused tag would give exit 2.
 cli_groups=$(bash ci/iris.sh groups 2>&1 | tr '\n' ' ')
-if [ "$cli_groups" != "install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5 " ]; then
+if [ "$cli_groups" != "install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5 shards-6 shards-7 shards-8 shards-9 shards-10 shards-11 " ]; then
   recipe_fail="$recipe_fail [ci/iris.sh groups printed '$cli_groups']"
 fi
 cli_list=$(bash ci/iris.sh list 2>&1)
@@ -1589,7 +1605,7 @@ printf '%s\n' "$cli_list" | grep -Eq -- '^group install-fresh: (.* )?live:instal
   || recipe_fail="$recipe_fail [ci/iris.sh list has no group install-fresh line with live:install-start]"
 printf '%s\n' "$cli_list" | grep -Eq -- '^group install-upgrade: (.* )?live:install-upgrade( |$)' \
   || recipe_fail="$recipe_fail [ci/iris.sh list has no group install-upgrade line with live:install-upgrade]"
-recipe 2 "^unknown group 'install'; groups: install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5$" \
+recipe 2 "^unknown group 'install'; groups: install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4 shards-5 shards-6 shards-7 shards-8 shards-9 shards-10 shards-11$" \
   IRIS_IMAGE=ocutalon-no-such-image:0 OCUTALON_RUN_TAG=abc-1 -- group install
 for cli_group in $(bash ci/iris.sh groups); do
   recipe 0 "auto" OCUTALON_RUN_TAG="39594299887-1-$cli_group" -- port
@@ -1611,10 +1627,10 @@ for browser_unit in $(. ./ci/units.sh && printf '%s' "$BROWSER_UNITS"); do
   fi
 done
 if [ -z "$recipe_fail" ]; then
-  echo "PASS recipe: bad tags, units and a missing base image are refused, the web port follows the runner's number (the ports of runners 1 to 19 are distinct and exported, and live_web_port takes each one), and the ten groups answer groups, list and group (the retired install is refused) under their CI tags"
+  echo "PASS recipe: bad tags, units and a missing base image are refused, the web port follows the runner's number (the ports of runners 1 to 19 are distinct and exported, and live_web_port takes each one), and the sixteen groups answer groups, list and group (the retired install is refused) under their CI tags"
 else
   printf '%s\n' "$recipe_fail" | tr ']' '\n' | sed 's/^ *\[/  /' | grep . | head -n 10
-  echo "FAIL recipe: ci/iris.sh does not refuse, does not choose the port, or does not answer for the ten groups, as designed"
+  echo "FAIL recipe: ci/iris.sh does not refuse, does not choose the port, or does not answer for the sixteen groups, as designed"
   fails=$((fails + 1))
 fi
 
@@ -1846,6 +1862,70 @@ if [ "$(printf '%s\n' "$piece_ran" | uniq)" != "$piece_all" ]; then
   piece_fail="$piece_fail [the shard units do not run exactly the classes of every shard]"
 fi
 if [ "$piece_count" -lt 1 ]; then piece_fail="$piece_fail [no group runs a shard in pieces]"; fi
+# Every area of each shard is run once, through shard_unit_areas: the areas of the shard units of a shard in the groups, sorted, are the
+# areas of the shard (a piece left out, or an area in two pieces, changes the list).
+piece_shard_rows() { # the shard, its units in the groups, the sorted areas those units run and the sorted areas of the shard, one line per shard
+  . ./ci/units.sh
+  local s g u n got
+  for s in $SHARDS; do
+    n=0
+    got=""
+    for g in $IRIS_GROUPS; do
+      for u in $(group_units "$g"); do
+        case $u in
+          "shard:$s" | "shard:$s@"*)
+            n=$((n + 1))
+            got="$got $(shard_unit_areas "${u#shard:}")"
+            ;;
+        esac
+      done
+    done
+    printf '%s|%s|%s|%s\n' "$s" "$n" "$(printf '%s\n' $got | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')" \
+      "$(shard_areas "$s" | tr ' ' '\n' | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')"
+  done
+}
+piece_rows=$(piece_shard_rows)
+piece_tally=""
+while IFS='|' read -r piece_shard piece_units piece_got piece_want; do
+  [ -n "$piece_shard" ] || continue
+  if [ "$piece_got" != "$piece_want" ]; then
+    piece_fail="$piece_fail [the shard units of $piece_shard run the areas '$piece_got', wanted each of '$piece_want' once]"
+  fi
+  piece_tally="$piece_tally${piece_tally:+; }$piece_shard: $(printf '%s\n' $piece_want | grep -c .) areas in $piece_units units, $(bash ci/iris.sh classes "$piece_shard" | grep -c .) classes"
+done <<EOROWS
+$piece_rows
+EOROWS
+if [ -z "$piece_tally" ]; then piece_fail="$piece_fail [no shard unit was read from ci/units.sh]"; fi
+# A new area of lane-a (Epic 35's Mcp is the first) lands in the piece rest and in no other piece: with a stub shard_areas that names
+# one more area, shard:lane-a@rest answers its areas now plus the new one, and every other lane-a piece answers what it answered before.
+piece_absorb() { # the answers of every lane-a shard unit of the groups, one line each: first with the real shard_areas, then with one more area
+  . ./ci/units.sh
+  local g u real_areas
+  real_areas=$(shard_areas lane-a)
+  for pass in real extra; do
+    if [ "$pass" = extra ]; then
+      shard_areas() { case $1 in lane-a) echo "$real_areas Zz0NewArea" ;; *) return 1 ;; esac; }
+    fi
+    for g in $IRIS_GROUPS; do
+      for u in $(group_units "$g"); do
+        case $u in "shard:lane-a@"*) printf '%s|%s|%s\n' "$pass" "$u" "$(shard_unit_areas "${u#shard:}")" ;; esac
+      done
+    done
+  done
+}
+piece_absorbed=$(piece_absorb)
+piece_rest_real=$(printf '%s\n' "$piece_absorbed" | sed -n 's/^real|shard:lane-a@rest|//p')
+piece_rest_extra=$(printf '%s\n' "$piece_absorbed" | sed -n 's/^extra|shard:lane-a@rest|//p')
+if [ -z "$piece_rest_real" ]; then
+  piece_fail="$piece_fail [no group holds shard:lane-a@rest (or it answers no area), so a new area of lane-a runs in no piece]"
+elif [ "$piece_rest_extra" != "$piece_rest_real Zz0NewArea" ]; then
+  piece_fail="$piece_fail [shard:lane-a@rest answers '$piece_rest_extra' with a new area, wanted '$piece_rest_real Zz0NewArea']"
+fi
+piece_others_real=$(printf '%s\n' "$piece_absorbed" | grep -v '|shard:lane-a@rest|' | sed -n 's/^real|//p')
+piece_others_extra=$(printf '%s\n' "$piece_absorbed" | grep -v '|shard:lane-a@rest|' | sed -n 's/^extra|//p')
+if [ -z "$piece_others_real" ] || [ "$piece_others_real" != "$piece_others_extra" ]; then
+  piece_fail="$piece_fail [a new area of lane-a changes a piece other than rest]"
+fi
 for piece_bad in 'lane-a@Nope' 'lane-a@' 'lane-a@Checks,Checks' 'lane-a@Contract' 'nope@rest'; do
   piece_status=0
   piece_msg=$(shard_piece_run "$piece_bad" 2>&1) || piece_status=$?
@@ -1855,7 +1935,7 @@ for piece_bad in 'lane-a@Nope' 'lane-a@' 'lane-a@Checks,Checks' 'lane-a@Contract
   esac
 done
 if [ -z "$piece_fail" ]; then
-  echo "PASS shard pieces: the $(printf '%s\n' "$piece_ran" | grep -c .) test classes of the shards run once each across the shard units of the groups ($piece_count of them pieces), and a bad piece is refused with exit 2"
+  echo "PASS shard pieces: the $(printf '%s\n' "$piece_ran" | grep -c .) test classes of the shards run once each across the shard units of the groups ($piece_count of them pieces; $piece_tally), and a bad piece is refused with exit 2"
 else
   printf '%s\n' "$piece_fail" | tr ']' '\n' | sed 's/^ *\[/  /' | grep . | head -n 10
   echo "FAIL shard pieces: the shard units of the groups do not run every test class exactly once"

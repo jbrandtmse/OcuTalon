@@ -37,6 +37,10 @@
 #     (phase_upgrade, phase_restart and ready_or_die run over stubs, ready or not); the record section reads
 #     "Merge retries: 0" with no such line and the sum otherwise, right after Run:, with Result: and the table unchanged; report prints
 #     MERGE-RETRIES <total> before RECORD and RESULT;
+#   - previous-dockerfile (Story 0.15): previous_dockerfile names the previous tree's root Dockerfile, else its docker/Dockerfile (v1.0.4 and
+#     earlier), and fails for neither, the root one winning when both exist; add_previous_context writes that path into context.yml and dies
+#     for neither; phase_build, run from a synthetic repository over stubs that stop it after the export check, accepts the root layout and
+#     the old layout and dies for a tree with neither Dockerfile or with no src/module.xml;
 #   - report: report and upgrade over a fabricated state folder: every phase's results joined, the row of a phase that started and did
 #     not end failed, exit 1 on any failure, and upgrade refused while seed is not done.
 # Each rule first runs on a synthetic break (the rule pattern of test-storage.sh): a check that can no longer fail makes its rule fail.
@@ -1329,6 +1333,100 @@ status"
 }
 b_merge_retries() { count_merge_retries() { printf 'MERGE-RETRIES 0 %s\n' "$1" >> "${results:-/dev/null}"; }; }
 
+# --- previous-dockerfile ---
+
+t_previous_dockerfile() {
+  local bad=0 d out line
+
+  # mk_prev <dir> <file>...: a tree holding the files
+  mk_prev() {
+    local dir=$1 f
+    shift
+    rm -rf "$dir"
+    mkdir -p "$dir"
+    for f in "$@"; do
+      mkdir -p "$dir/$(dirname "$f")"
+      echo x > "$dir/$f"
+    done
+  }
+
+  # The helper: the root Dockerfile, else docker/Dockerfile; 1 for neither.
+  mk_prev "$tmp/pd-root" Dockerfile src/module.xml
+  eq "root only" "$(previous_dockerfile "$tmp/pd-root")" "Dockerfile"
+  mk_prev "$tmp/pd-old" docker/Dockerfile src/module.xml
+  eq "the v1.0.4 layout" "$(previous_dockerfile "$tmp/pd-old")" "docker/Dockerfile"
+  mk_prev "$tmp/pd-both" Dockerfile docker/Dockerfile src/module.xml
+  eq "both: the root one" "$(previous_dockerfile "$tmp/pd-both")" "Dockerfile"
+  mk_prev "$tmp/pd-none" src/module.xml
+  status_is "neither" 1 previous_dockerfile "$tmp/pd-none"
+  eq "neither prints nothing" "$(previous_dockerfile "$tmp/pd-none")" ""
+
+  # add_previous_context: the dockerfile: line of context.yml names the previous tree's Dockerfile.
+  for d in root old both; do
+    case $d in
+      root) mk_prev "$tmp/pd-state-$d/previous" Dockerfile src/module.xml ;;
+      old) mk_prev "$tmp/pd-state-$d/previous" docker/Dockerfile src/module.xml ;;
+      both) mk_prev "$tmp/pd-state-$d/previous" Dockerfile docker/Dockerfile src/module.xml ;;
+    esac
+    mkdir -p "$tmp/pd-ctx-$d"
+    out=$(
+      state=$tmp/pd-state-$d tmp=$tmp/pd-ctx-$d
+      live_add_file() { :; }
+      add_previous_context
+      sed -n 's/^ *dockerfile: //p' "$tmp/context.yml"
+    )
+    case $d in
+      old) line=docker/Dockerfile ;;
+      *) line=Dockerfile ;;
+    esac
+    eq "context.yml of the $d layout" "$out" "$line"
+  done
+  mk_prev "$tmp/pd-state-none/previous" src/module.xml
+  mkdir -p "$tmp/pd-ctx-none"
+  out=$(
+    state=$tmp/pd-state-none tmp=$tmp/pd-ctx-none pl_prev_sha=abc123
+    live_add_file() { echo "added"; }
+    die() { echo "die: $1"; exit 3; }
+    add_previous_context
+  )
+  eq "add_previous_context dies for neither" "$out" "die: previous build: the exported tree of abc123 has no src/module.xml, or neither Dockerfile nor docker/Dockerfile"
+
+  # phase_build, run from a synthetic repository; the stubs stop it right after the export check.
+  pd_phase() { # pd_phase <name> <file>...: a repository committed with the files; the phase's one line on stdout
+    local name=$1 repo=$tmp/pd-repo-$name f
+    shift
+    ginit "$repo"
+    for f in "$@"; do
+      mkdir -p "$repo/$(dirname "$f")"
+      echo x > "$repo/$f"
+    done
+    echo y > "$repo/f.txt"
+    git -C "$repo" add -A
+    git -C "$repo" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -m one
+    (
+      cd "$repo" || exit 1
+      state=$tmp/pd-phase-$name pl_prev_sha=$(git rev-parse HEAD) pl_prev_kind=pre-release pl_prev_version=0.0.1 pl_stamp=
+      rm -rf "$state"
+      row() { :; }
+      pass() { echo "pass: $1"; exit 0; }
+      die() { echo "die: $1"; exit 3; }
+      phase_build
+    )
+  }
+  out=$(pd_phase root Dockerfile src/module.xml)
+  has "phase_build, root layout" "$out" "pass: previous build: the tree of the pre-release build"
+  out=$(pd_phase old docker/Dockerfile src/module.xml)
+  has "phase_build, old layout" "$out" "pass: previous build: the tree of the pre-release build"
+  out=$(pd_phase none src/module.xml)
+  has "phase_build, neither Dockerfile" "$out" "has no src/module.xml, or neither Dockerfile nor docker/Dockerfile"
+  lacks "phase_build, neither Dockerfile: no pass line" "$out" "pass:"
+  out=$(pd_phase nomanifest Dockerfile)
+  has "phase_build, a Dockerfile and no src/module.xml" "$out" "has no src/module.xml, or neither Dockerfile nor docker/Dockerfile"
+  lacks "phase_build, no manifest: no pass line" "$out" "pass:"
+  [ "$bad" -eq 0 ]
+}
+b_previous_dockerfile() { previous_dockerfile() { echo docker/Dockerfile; }; }
+
 rule resolve-previous t_resolve b_resolve
 rule stamp-mode t_stamp_mode b_stamp_mode
 rule phase-ready t_phase_ready b_phase_ready
@@ -1347,6 +1445,7 @@ rule memory-document t_memory_document b_memory_document
 rule run t_run b_run
 rule report t_report b_report
 rule merge-retries t_merge_retries b_merge_retries
+rule previous-dockerfile t_previous_dockerfile b_previous_dockerfile
 
 if [ "$fails_total" -ne 0 ]; then
   echo "test-upgrade-harness: $fails_total rule(s) failed"

@@ -75,7 +75,7 @@ warm_lock_install() {
 warm_manifest() {
   local paths f
   paths=$(
-    { copied_files; printf '%s\n' docker/Dockerfile .dockerignore docker-compose.yml docker/tests/compose.throwaway.yml ci/compose.ci.yml
+    { copied_files; printf '%s\n' Dockerfile .dockerignore docker-compose.yml docker/tests/compose.throwaway.yml ci/compose.ci.yml
       find ci/mock -type f ! -path 'ci/mock/test/*' 2> /dev/null; } \
       | grep -v '/\.DS_Store$' | LC_ALL=C sort -u | while IFS= read -r f; do
       if [ -f "$f" ]; then printf '%s\n' "$f"; fi

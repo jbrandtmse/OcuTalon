@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Static inspection of docker-compose.yml, docker-compose.dev.yml, ci/compose.ci.yml, docker/Dockerfile, .dockerignore and
+# Static inspection of docker-compose.yml, docker-compose.dev.yml, ci/compose.ci.yml, the root Dockerfile, .dockerignore and
 # .env.example. Starts no container. Prints one PASS or FAIL line per check; exits 0 only when every check passes.
 set -u
 
@@ -7,7 +7,7 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root" || exit 1
 
 compose=docker-compose.yml
-dockerfile=docker/Dockerfile
+dockerfile=Dockerfile
 fails=0
 
 check() { # check <label> <command...>: passes when the command succeeds
@@ -94,7 +94,7 @@ check "compose: optional .env file" \
 check "compose: web port from OCUTALON_WEB_PORT" has_line "$compose" '"\${OCUTALON_WEB_PORT:-52773}:52773"'
 check "compose: config parses (--quiet)" docker compose -f "$compose" config --quiet
 
-# --- docker/Dockerfile ---
+# --- Dockerfile ---
 
 last_user_is_51773() {
   [ "$(code "$dockerfile" | awk '$1 == "USER" { u = $2 } END { print u }')" = 51773 ]
@@ -122,7 +122,7 @@ bundle_guard_before_chmod() {
     && [ "$(code "$dockerfile" | awk -v g="$guard" 'NR < g && /^USER / { n++ } END { print n + 0 }')" -eq 1 ]
 }
 check "dockerfile: a tree without src/ocutalon/csp/index.html fails the build, before the modes are set and the last USER" bundle_guard_before_chmod
-# --- docker/Dockerfile: step 3's Python packages, the baked model and the licence gate (Story 34.2; AD-21, AD-23) ---
+# --- Dockerfile: step 3's Python packages, the baked model and the licence gate (Story 34.2; AD-21, AD-23) ---
 
 # runs: each RUN instruction of the Dockerfile as one line (continuation lines joined), in order; copies: each COPY, in order.
 runs() { code "$dockerfile" | awk '/^RUN / { cur = $0; while (cur ~ /\\$/) { sub(/[[:space:]]*\\$/, "", cur); getline nxt; sub(/^[[:space:]]+/, "", nxt); cur = cur " " nxt } print cur }'; }
@@ -413,7 +413,7 @@ merge_directories_relative() {
 # Files that the image copies, or that a script runs, keep LF in every checkout.
 files_keep_lf() {
   local f
-  for f in docker/Dockerfile docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos \
+  for f in Dockerfile docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos \
     docker/ipm/zpm-0.10.10.xml docker/ipm/LICENSE docker/tests/test-compose-file.sh docker/tests/lib-live.sh \
     src/module.xml src/bridge/cls/OcuTalon/Bridge/Installer.cls src/ocutalon/cls/OcuTalon/Install/Registry.cls \
     .dockerignore .env.example; do
@@ -662,6 +662,36 @@ web_attributes() {
   done
 }
 check "gitattributes: web/ is text only when git detects text, with LF" web_attributes
+
+# --- the Dockerfile sits at the repository root (Story 0.15) ---
+
+# The path that the Dockerfile left, assembled so that this file does not name it.
+old_dockerfile=docker/"Dockerfile"
+
+dockerfile_at_root() { [ -f Dockerfile ] && [ ! -e "$old_dockerfile" ]; }
+
+compose_builds_root_dockerfile() {
+  has_line "$compose" '^[[:space:]]*context:[[:space:]]*\.[[:space:]]*$' \
+    && has_line "$compose" '^[[:space:]]*dockerfile:[[:space:]]*Dockerfile[[:space:]]*$'
+}
+
+release_builds_root_dockerfile() { code release/release.sh | grep -qF -- '-f "$ctx/Dockerfile"'; }
+
+# No tracked or unignored file outside the pipeline's own folders names the old path, but the upgrade harness, which reads
+# the previous release's tree (v1.0.4 and earlier kept the Dockerfile there), and its test.
+no_old_dockerfile_reference() {
+  local hits rc
+  hits=$(git grep -l --untracked --exclude-standard -F "$old_dockerfile" -- . ':(exclude)_bmad' ':(exclude)_bmad-output' \
+    ':(exclude)release/upgrade-harness.sh' ':(exclude)docker/tests/test-upgrade-harness.sh')
+  rc=$?
+  [ "$rc" -le 1 ] || return 1
+  [ -z "$hits" ] || { echo "$hits"; return 1; }
+}
+
+check "dockerfile: Dockerfile is a file at the repository root and the old path is gone" dockerfile_at_root
+check "compose: builds the root Dockerfile from the context ." compose_builds_root_dockerfile
+check "release.sh: the image step builds from the root Dockerfile of the context" release_builds_root_dockerfile
+check "dockerfile: no file names the old path, except the upgrade harness and its test" no_old_dockerfile_reference
 
 if [ "$fails" -ne 0 ]; then
   echo "test-compose-file: $fails check(s) failed"
