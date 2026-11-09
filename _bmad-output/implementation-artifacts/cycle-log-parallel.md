@@ -2979,3 +2979,4 @@
 2026-11-09T02:25:38Z	Run	deps_hash_rerecorded	reason=fix_forward stories=18.2-18.4 hash=0f9da64300e9
 2026-11-09T02:25:38Z	Epic 18	worktree_removed	
 2026-11-09T02:25:38Z	Epic 18	epic_branches_deleted	local+remote(ancestor_verified)
+2026-11-09T02:33:35Z	Run	planner_ruling	subject=no_re-integrate_until_1.0.5_cut answer=(a):green_or_DW-973-yes_epic_head_may_merge_without_re-integrating_if_merge-tree_no_code_conflict+no_shared_changed_code_file_since_base_or_verified_disjoint_hunks+feature_CI_on_merge_head_is_the_combined_check+red_charged_to_newest_merge;ADDITION:one_merge_at_a_time;next_merge_only_after_previous_merge_head_feature_CI_has_at_least_lane-a_green;1.0.5_cut_only_from_fully_green_feature_head AD-18/AD-19_action_items=to_owner_after_voting via=Contest_Planner_1(delegation)
