@@ -865,3 +865,8 @@
 2026-11-09T10:14:05Z	Epic 11	hold_ordered	reason=owner_overnight_hold_11:00Z(via_orchestrator) at=story_boundary(no_stage_in_flight) note=no_further_stage_fits_before_11:00Z(11.15_implement_~2h;11.16_implement_waits_for_its_text_approval;CI-split_needs_an_implement_stage)
 2026-11-09T10:14:05Z	Epic 11	hold_saved	story=none stage=none patch=none tree=clean(all_work_committed)
 2026-11-09T10:14:05Z	Epic 11	hold_complete	shas=9ec1a963+this_bookkeeping_commit unpushed=none_after_push throwaways=none_started_by_this_runner
+2026-11-09T14:17:14Z	Epic 11	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-09T14:17:14Z	Epic 11	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=morning_redispatch_20261109 lane=D slot=ocutalon-slot-d port=52804
+2026-11-09T14:17:14Z	Story 11.14	ci_resolved	story=11.14 sha=7a2cc0d5 runs=42599405932,42599406013 result=success failed=none via=none resolved_at=resume
+2026-11-09T14:17:14Z	Epic 11	contended_check	story=11.15 epics=0,35,41 overlap=epic0(release/release.sh:45,:575;test-release-sequence.sh:192-200,:508,:1029,:2905_path-only_Dockerfile_move;disjoint_from_11.15_hunks:4,:40,:1607-1617,:74,:1696,:1826,:3909-3938,:4271) epic35=none epic41=none result=plain_union_no_clarification
+2026-11-09T14:17:14Z	Epic 11	ruling	question=integrate_forward_before_11.15_implement choice=yes(feature_03f65af2,green_by_identity_per_morning_note;merge-tree:only_sprint-status.yaml_conflicts) rejected=defer_to_contract why=one_push_carries_both;11.15_builds_on_1.0.5_records_and_current_ci/units.sh category=decide policy=5086036
