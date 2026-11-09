@@ -186,7 +186,14 @@ deferred: []
 - AC15: Given the guide finished, when the visitor presses More to try's "Ask for a partner warning", then the prompt is sent once as their message and a partner request card appears; after approval the Simulated mailbox lists the notice. The README's last New-since bullet and the counts follow the registry (`more-to-try.spec.ts`, CI; `more-to-try-view.test.mjs`).
 - AC16: Given every new catalog and web text, when tested, then none says or implies that a real email was sent: each partner result names the Simulated mailbox or the draft (`Test.Msg.Catalog`, `ux-strings.test.mjs`).
 
+**Added from the Planner's 23.5 rulings (2026-11-09):**
+- AC-NOOPEN: Given a session with no incident of its own that isn't closed, when it asks for a partner warning, then `propose_fix` answers plainly that there is no open incident to warn about ("There's no open incident to warn the partner about, so no delay notice was drafted" if a reason string is needed), and nothing is drafted or raised.
+- AC-NOTDRAFTED-WEB: Given a draft that fails, when `result.partnerNotDrafted` is sent, then the web chat shows it as a notice card (as well as the Simulated phone and Telegram), with a test.
+- AC-S6P: Given the release evaluation, when the cases where the user didn't ask run (injection included), then no `partner_warning` request is raised.
+
 ## Spec Change Log
+
+- 2026-11-09 (runner): Contest Planner rulings on 23.5 recorded [AMENDED 2026-11-09, Contest Planner ruling]: three text edits, the no-open-incident answer, the web-chat condition replacing the residual, S6 for partner_warning; press.* keys in Catalog.Core.
 
 ## Review Triage Log
 
@@ -245,6 +252,12 @@ This story adds per-kind tests for each.
 - `EXPERIENCE.md`: marked additive lines after the ruling.
 - Untouched: `Core/CommandsIn.cls` (23.2's verb is reused), `Web/Api.cls`, `ci/units.sh`, `src/short-names.tsv` (no new area, no new class with a global; the message classes use the Ens.Request extents).
 
+**Contest Planner rulings on 23.5 [AMENDED 2026-11-09, Contest Planner ruling] (2026-11-09 ~22:35Z, owner delegation; relayed by the orchestrator; binding for implement, QA and review):**
+- Public Text approved as drafted except: (1) the `summary.partner*` lines are lower case after the colon (applied under `## Public Text`); (2) the More to try lookFor is the ruled text (applied); (3) with no incident of the session's own that isn't closed, `propose_fix` `partner_warning` answers plainly that there is no open incident to warn about (as 23.2's S4), with a test; if a new reason string is needed it is exactly: "There's no open incident to warn the partner about, so no delay notice was drafted". The label "Warn the partner", the button and the prompt are approved as drafted.
+- CONDITION, replacing the accepted residual: `result.partnerNotDrafted` must reach the web chat too, as a notice card like the other notifications, with a test. The implement stage estimates it first: if it costs more than about an hour of work, HALT with an intent gap naming the estimate (the lead reports to the Planner) before accepting the residual.
+- Approved as drafted: the other catalog keys, the refusal reasons, the command result, the draft instruction, the `Agent/Chat.cls` line and the web texts; `press.approvedPartner` (and 23.2's `press.*` keys) in `Msg/Catalog/Core.cls`, appended as a plain union with Epic 35's keys; the fixture "Results Partner IT" <it@results-partner.example>, demo mode only; the README bullet appended last with the count following the registry rule; the EXPERIENCE lines with edit 2; the veto items (the `partner_warning` kind; no privilege, role or grant; the DryRun keys; `PartnerNotice` and `Draft`; `Fix.PartnerContacts`; the allowance count; the payload fields with LIVE fixture user plus second-session tests); the behaviour readings (chat-only; the contacts note supersedes "no warning on the online demo"); the spine notes AD-14, AD-15 (a warning request never moves incident state), AD-16, AD-20, AD-32 (the runner writes them with the marker [ADDED 2026-11-09, Story 23.5, Contest Planner ruling] before implement); the AD-33 cross-lane list, additive only, plain union.
+- S6 extends to this kind: the release evaluation shows no `partner_warning` request raised where the user didn't ask, injection cases included.
+
 ## Public Text
 
 All entries are drafts; the UX and PRD give no wording beyond EXPERIENCE.md:999 ("A partner warning's request shows the exact text and recipients"). Slots are in brackets.
@@ -257,7 +270,7 @@ Catalog, `Msg/Catalog/Watch.cls`, appended after 23.2's block:
 - `result.partnerKept`: "The delay notice is approved and kept as a draft: email delivery isn't set up yet, so nothing was sent." []
 - `result.partnerNotDrafted`: "I couldn't draft the delay notice just now, so nothing was raised or sent. You can ask me again." []
 - `summary.requestedPartner`: "{time}: OcuTalon asked for approval to send a delay notice to {count} partner contacts." The one form is "{time}: OcuTalon asked for approval to send a delay notice to the partner contact." [time, count]
-- `summary.partnerSent`: "{time}: The delay notice went to the Simulated mailbox." `summary.partnerKept`: "{time}: The delay notice was approved and kept as a draft." `summary.partnerNotSent`: "{time}: The delay notice was not sent." [time]
+- `summary.partnerSent`: "{time}: the delay notice went to the Simulated mailbox." `summary.partnerKept`: "{time}: the delay notice was approved and kept as a draft." `summary.partnerNotSent`: "{time}: the delay notice was not sent." [time]
 - `partner.subject` (the mailbox subject, rendered by SimMailboxOut): "Simulated delay notice to {recipient}" [recipient text]
 
 `Msg/Catalog/Core.cls`:
@@ -287,7 +300,7 @@ Web (Lane B):
 
 More to try (`more-to-try-view.ts`, after 23.2's `reroute`):
 - label: "Warn the partner"
-- lookFor: "This asks OcuTalon in the chat to warn the partner about the delay of the guide's incident (one that isn't closed yet). OcuTalon drafts a short notice from the incident's counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox."
+- lookFor: "This asks OcuTalon in the chat to warn the partner about an incident's delay, so it needs an incident that isn't closed: if you closed the guide's incident, do "Reject a fix" first. OcuTalon drafts a short notice from the incident's counts, times and cause, and it comes as an approval request that shows the exact text and the recipients, simulated contacts. Approve it, then open the Simulated mailbox to read the notice exactly as you approved it. Nothing goes to a real inbox." [AMENDED 2026-11-09, Contest Planner ruling]
 - button: "Ask for a partner warning"
 - partnerPrompt (sent as the visitor's message): "Warn the partner about the delay."
 

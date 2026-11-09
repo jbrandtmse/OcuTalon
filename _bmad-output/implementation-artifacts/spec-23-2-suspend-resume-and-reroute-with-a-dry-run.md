@@ -149,6 +149,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-09 (runner): press.* keys moved to Msg/Catalog/Core.cls (Planner ruling on 23.5).
+
 - 2026-11-09 (runner): Contest Planner Part B rulings applied: public text edits, S1-S6 and the goodChanged full stop as tasks/ACs, spine and AD-33 scope recorded.
 
 - 2026-11-09 (runner, spec gate): corrected route-test rule applied (lead note under Design Notes); Planner rulings pending.
@@ -189,6 +191,8 @@ deferred: []
   - S4: with no open incident of the session's own, `propose_fix` answers plainly that there are no failed messages to reroute (a test); no new text unless needed (then it is public text: HALT with an intent gap naming it).
   - S5: Task 0 as planned: if `EnableConfigItem` fails from the executor's job, HALT with a clarification; never widen privileges to make it work.
   - S6: `propose_fix` joins the chat toolset, so the release evaluation must still show 0 approvals and 0 commands in every case where the user didn't ask, injection cases included; the eval report counts a raised fix request in that tally.
+
+**Press keys placement [AMENDED 2026-11-09, Contest Planner ruling] (Planner rulings on 23.5, which apply to 23.2):** `press.approvedSuspend`, `press.approvedResume` and `press.approvedReroute` go in `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls` (AD-32 keeps every `press.` key there), appended as one block after the last key, a plain union with Epic 35's keys (now on feature), not in `Msg/Catalog/Watch.cls`; `Test/Msg/Catalog.cls`'s Core key list, count and fixtures move with them. Every other 23.2 key stays in the `Catalog.Watch` block.
 
 ## Public Text
 
