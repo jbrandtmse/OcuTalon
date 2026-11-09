@@ -4,96 +4,85 @@
 
 ## Goal
 
-Step 4's contract epic. It sets step 4's names in the spine, and in code as stubs, so that the feature epics, Epic 21 (Lane B: email, webhook, the MCP settings) and Epic 22 (Lane A: MCP and source polls), can be built in parallel. It also ships two working features. The MCP servers an admin registers are attached to OcuTalon's agents, and every new tool starts unclassified. Webhooks, each with its own secret, turn JSON events into untrusted items. In stories, "this epic" means Epics 21 and 22 plus the partner story here. Each story keeps its home lane's files.
+Step 4's contract epic. It fixes step 4's names in the spine, and in code as stubs, so that the feature epics can build in parallel: Epic 21 (Lane B: email, webhook, MCP settings) and Epic 22 (Lane A: MCP and source polls). It also ships two working features. The MCP servers an admin registers attach to OcuTalon's agents, and every new tool starts unclassified (done in 35.1). Webhooks, each with its own secret, turn any JSON event into an untrusted item. Each story keeps its home lane's files. Where a story says "this epic", it means Epics 21 and 22 plus its partner story here.
 
 ## Stories
 
-- Story 35.1: Fix step 4's contracts and register MCP servers (Lane A)
-- Story 35.2: Fix Lane B's step 4 contracts and send events to OcuTalon through a webhook (Lane B; follows 35.1)
+- Story 35.1: Fix step 4's contracts and register MCP servers (Lane A; done)
+- Story 35.2: Fix Lane B's step 4 contracts (Lane B; the title still says "and send events to OcuTalon through a webhook" to keep its tracker key, but the webhook moved to 35.3)
+- Story 35.3: Send events to OcuTalon through a webhook (Lane B; new, split from 35.2, follows it)
 
 ## Requirements & Constraints
 
-- **35.1 spine update** (one change, with the ownership tables): `McpOps` (`OcuTalon.Mcp.Ops`, Lane A) owns `OcuTalon.Mcp.Server` and `OcuTalon.Mcp.ToolClassification`. It takes these commands: add or remove a server, classify a tool, set or remove a source poll. Add the source-poll row type in `OcuTalon.Data.BackgroundCheck`. `Tools(server)` returns name, classification and status for every discovered tool, and each one has a row, unclassified included. It ships as a stub that Story 21.4 calls until Story 22.2 builds it. Also add the email fix kind, with its approval path to `FixExecutor` and its send through `EmailOut`. Record in AD-31 that a fix request with no incident gets its `approval`, `answered` and `result` notifications from `OcuTalon.Core.BridgeSink`, as tool calls do; `IncidentManager` sends them only for a kind `fix` request of an incident.
-- **35.1 attach:** in `OnAfterAgentInit`, after the agent's own toolsets, attach each server as `mcp:remote:@{config:AI.MCP.OcuTalon_<server>}`. Check the attach status and the tool statuses. Report a server that is unavailable. Refuse a tool whose name shadows a built-in, and tell the admins. The tests use a fixture `Mcp.Server` row and a Config Store entry. A loopback mock MCP server in `OcuTalon.Test.Mcp` offers one read-only tool and one risky tool, and Epic 22 reuses it.
-- **35.2 spine update:** the webhook table holds each webhook's ref, name, owning session and salted secret hash. Add `/ocutalon/hook`, created by `OcuTalon.Install.Step.Web`: a dispatch class only, no session, and a minimal webhook role declared through `Grants()`. Also add the secret header name, the body-size cap, the email and MCP settings routes, and the record where `EmailIn` keeps each poll's outcome (Story 22.5 reads it).
-- **35.2 verbs** go in `OcuTalon.Msg.Command`, routed by `CommandsIn`. The MCP verbs go to `McpOps` under 35.1's names and are refused from origin `tool`. `SendEmail` goes to `EmailOut`. It is accepted from `tool` only when every recipient is the session user's own address, so add it to AD-1's list of verbs taken from `tool`.
+- **35.2 spine update** (one change, ownership tables included):
+  - a Lane B webhook table: ref, name, owning session, salted secret hash;
+  - `/ocutalon/hook`, created by `OcuTalon.Install.Step.Web`: a dispatch class only, no session, and a minimal webhook role whose grants come from `Grants()`;
+  - the secret header name and the body-size cap;
+  - the email and MCP settings routes;
+  - the record where `EmailIn` keeps each poll's outcome (Story 22.5 reads it).
+- **35.2 verbs** go in `OcuTalon.Msg.Command`, routed by `CommandsIn`:
+  - The five MCP verbs `AddMcpServer`, `RemoveMcpServer`, `ClassifyTool`, `SetSourcePoll` and `RemoveSourcePoll` go to `McpOps`. They come from `web_admin` only and are refused from `tool`.
+  - `SendEmail` goes to `EmailOut`. From `tool`, it is accepted only when every recipient is the session user's own address; add it to AD-1's list of verbs taken from `tool`. From `system`, it carries `FixExecutor`'s approved email fix.
 - **35.2 `SettingsOps.RestartRunners()`:** restarts the runner items through `Ens.Director` while the production keeps running, so each runner rebuilds its agent with the servers registered at that moment. A test checks it.
-- **Webhook behaviour:**
-  - Created in Settings › Channels.
-  - The secret is stored only as a salted hash, in a write-only field. A value containing `@{` is refused. The change is audited without the secret.
-  - A valid `POST` gets 202 within 1 s, before any decision. `WebhookIn` then sends an untrusted Item to `Intake`, in the event's own trace session.
-  - An unknown webhook and a wrong or missing secret get the same 401. The secret is compared in constant time, and rejections are audited at a capped rate.
-  - A body over the cap, or one that isn't JSON, is refused.
-  - A test calls every OcuTalon path without signing in and finds that only the webhook `POST` with its secret is accepted.
-- **Texts:** both stories propose their new wording for `EXPERIENCE.md` (35.1: keys in `OcuTalon.Msg.Catalog.Watch`; 35.2: keys in `Catalog.Core`). Nothing ships until the author accepts it (UX-DR117, UX-DR145).
-- Release checks (demo-host MCP allow-list, proxy blocks the webhook path) belong to the Contest Planner, not these stories.
+- **35.2 ruling additions (Planner, approved):**
+  - A read API returns the sessions whose user held `OcuTalonAdmin` at their latest sign-in. This needs a new `Session` property (`AdminAtSignIn`); the stored-data change is approved. Story 22.2's admin notices use the API.
+  - `SettingsOps` writes an MCP server's Config Store entry `AI.MCP.OcuTalon_<server>` and its IRIS Wallet secret, and the MCP settings route calls it. `McpOps` writes only the `Mcp.Server` row and calls `RestartRunners()`.
+  - No command, log, test output or record ever carries a secret value, only a `secret://` reference.
+- **35.3 webhook behaviour:**
+  - An admin creates a webhook in Settings > Channels. The secret is stored only as a salted hash, in a write-only field that never shows it again. A value containing `@{` is refused. The webhook's events belong to the admin's session, and the change is audited without the secret.
+  - A valid `POST` under the cap gets 202 within 1 s, before any decision. `WebhookIn` then sends an untrusted Item to `Intake`, which makes the attention decision. The event and its decision show in Visual Trace in the event's own trace session.
+  - An unknown webhook and a missing or wrong secret get the same 401. The secret is compared as a salted hash in constant time, nothing becomes an item, and rejections are audited at a capped rate.
+  - A body over the cap, or one that isn't JSON, is refused and never becomes an item.
+  - A test calls `/ocutalon/hook` and every other OcuTalon path without signing in, and finds that only a webhook `POST` with its secret is accepted.
+- **Texts:** 35.2 proposes the step 4 texts in `EXPERIENCE.md`, with keys in `OcuTalon.Msg.Catalog.Core`: email and webhook settings, the changed-tool banner, the source-poll form, and an approval's cancelled status. The Planner accepted its 30 keys with two edits (ruling planner-2026-11-09-35.2-text). 35.3 ships the webhook texts that 35.2 adds. No story ships a text the author hasn't accepted (UX-DR117, UX-DR145).
+- Release checks (demo-host MCP allow-list; the proxy blocking the webhook path) belong to the Contest Planner, not these stories.
 
 ## Technical Decisions
 
-- **Spine:** `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`. ADs the stories name: AD-1, AD-6, AD-13, AD-14, AD-16, AD-17, AD-19, AD-21, AD-22, AD-23, AD-25, AD-26, AD-29, AD-30, AD-31, AD-32, AD-33.
-- **Already in the spine** (extend these, don't add them twice):
-  - `OcuTalon.Mcp.Ops.Tools(server)`, as a dependency-graph node and a cross-area row: Lane A, stub in 35.1, built in 22.2.
-  - `OcuTalon.Core.SettingsOps.RestartRunners()`, also as a graph node and a row: Lane B, Story 35.2.
-  - `McpOps (Lane A)`, named only in AD-21's Changes bullet.
-  - `OcuTalon.Mcp.Server`, named in AD-10 and AD-21.
-  - `Mcp.Server` and `Mcp.ToolClassification` in Lane A's table list, and an ERD edge `McpServer ||--o{ ToolClassification`.
-  - `/ocutalon/hook`, in AD-13.
+- **Spine:** `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`. ADs the stories name: AD-1, AD-13, AD-14, AD-17, AD-19, AD-21, AD-23, AD-25, AD-26, AD-29, AD-30, AD-33.
+- **Already in the spine (35.1 added it; extend it, don't duplicate it):**
+  - AD-21's MCP **Names** bullet: the five verbs, the `SettingsOps` and `McpOps` split for config and secret writes, and the `Mcp.Server` columns.
+  - `Tools(server)`, `McpServersClass` (`Servers`, `OnAttach`), the source-poll row type and the email fix kind (`OcuTalon.Fix.Kind.Email`).
+  - Cross-area rows for `RestartRunners()` and for "Lane B contracts fixed by Story 35.2".
+  - AD-13 already has the `/ocutalon/hook` bullet: dispatch class, minimal role, no session, header secret, constant-time salted hash, body cap, the same 401. AD-19 stores webhook secrets as salted hashes and refuses `@{`. AD-17 has the capped-rate audit of rejected webhook requests.
   - Production items `EmailIn`, `EmailOut` and `WebhookIn` (`OcuTalon.Channel.Email.In`, `.Out`, `OcuTalon.Channel.Webhook.In`, Lane B).
-  - Webhook secrets as salted hashes, and MCP secrets as `secret://` wallet references (AD-19).
-  - Capped-rate audit of rejected webhook requests, and an audit of every MCP call (AD-17).
-  - Source polls as a `tool` request to `Decide` through `call_mcp_tool` (AD-6, AD-21).
-- **Not yet in the spine:**
-  - the `SendEmail` verb and the MCP command verbs;
-  - the webhook table (in the Lane B table list and the ERD);
-  - a production-item row for `McpOps`;
-  - the source-poll row type;
-  - the email fix kind;
-  - the header name and the cap value;
-  - the email and MCP settings routes in the REST surface;
-  - `EmailIn`'s poll-outcome record;
-  - the AD-31 note on `BridgeSink` (AD-32 already gives kind `approval` to a fix request with no incident).
-- **MCP rules (S9, partial pass):** AI Hub lists a server's tools and OcuTalon calls them. The gate rewrites every allowed MCP call into the governed proxy `call_mcp_tool(server, tool, arguments)`, which cuts results through `OcuTalon.Tools.Result`. The gate classifies an MCP tool by (toolref, name) only through `ClassificationClass`, and ignores MCP annotations. A tool with a changed fingerprint (description plus input schema) is unclassified. Each server has an IRIS resource `OcuTalon_MCP_<server>`. URLs must be `https://` with a trusted certificate, or loopback.
+  - The REST surface already lists `POST /api/v1/settings/channels`.
+- **Not yet in the spine (35.2 adds it):** the webhook table (in the Lane B table list and the ERD), the header name and cap value, the email and MCP settings routes, `EmailIn`'s poll-outcome record, `SendEmail` in AD-1's tool list, and the admin-session read API with its `Session` property.
+- **Webhook payloads:** each source's payload mapping is deferred; every payload becomes an untrusted Item first.
 
-### Already delivered (Epics 17, 18, 19, 33): build on it, don't duplicate it
+### Already delivered: build on it
 
-- **Adapter** `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls` (Story 19.5):
-  - `OnAfterAgentInit` currently calls `##super` and then `Govern`.
-  - `Attach(agent, spec)` is the one way to add a tool, and it records the spec in `Attached` so that every per-turn manager adds it again. MCP attach goes through it.
-  - Also there: `Govern`, `SessionConfigFor`, `ComposeTurnTools`, `BuildTurnManager` and `EndTurnTools`.
-  - Specs: `spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md`, `evidence/19-5-task0-turn-tools.md`.
-- **Per-turn tools:** `OcuTalon.Bridge.Ext.TurnTools`, `OcuTalon.Docs.TurnTools`, and the `TurnToolsClass` setting in `OcuTalon.Production`.
-- **Gate** `OcuTalon.Bridge.Policy.Gate`:
-  - `MCPPREFIX "mcp:"`; for an MCP call the source is the toolref.
-  - It reads no read-only or trusted-output flag from MCP.
-  - The base `OcuTalon.Bridge.Ext.Classification.Classify(source, name, arguments)` exists, but OcuTalon has no subclass yet: `ClassificationClass` is unset in `OcuTalon.Production`.
-  - Name clash: Decide's `ToolClassification` *setting* (a JSON array for developer tools, seeded by `Install.Step.Production.SeedClassification`) is not the `OcuTalon.Mcp.ToolClassification` *table*.
-- **CommandsIn** (`Core/CommandsIn.cls`): routes live in `XData Routes` (verb, owner, origins), the tool verbs in `Parameter TOOLVERBS`, and the refusal texts in `MESSAGE*` parameters.
-- **SettingsOps** (`Core/SettingsOps.cls`, Stories 33.2, 18.2 and 18.3):
-  - `XData Sections` has no `channels` row ("no save yet").
-  - Also there: `ALLOWLIST`, `Values()`, `Save`, `Field` (refuses `@{`), `WriteAudit` and `AuditData`.
-  - No `RestartRunners` yet. For `Ens.Director` restart patterns, see `Install.Step.Production` and the tests' `TempStopConfigItem` and `EnableConfigItem` calls.
-- **Web.Api** (Story 33.2):
-  - `POST /v1/settings/channels` is routed to `NotBuilt` (501).
-  - The admin check `IsAdmin()` in `OnPreDispatch` looks for `OcuTalonAdmin` by its whole name in `$Roles`.
-  - The test `Test/Web/SettingsApi.cls` `TestBridgeRoutesAre501` now covers only channels.
-  - Specs: `spec-33-1-fix-the-step-2-contracts-in-the-spine.md`, `spec-33-2-open-the-settings-page-as-an-admin.md`, `spec-18-2-*`, `spec-18-3-*`, `spec-18-4-*`.
-- **Web page:** `web/src/app/settings/` holds `channels-section.ts` (the read-only Telegram state, Story 18.2), `settings-page.ts`, `settings-view.ts` (`SETTINGS_TEXTS`) and `refusal.ts` (meant for the later sections).
+- **Story 35.1:**
+  - `OcuTalon.Mcp.Ops`: the `Tools` stub, and `RecordAttach`.
+  - `OcuTalon.Mcp.Server` (the row with its attach report).
+  - `OcuTalon.Mcp.Attach`.
+  - `OcuTalon.Bridge.Ext.McpServers`, with the attach in `Bridge/Adapter/Agent.cls`.
+  - `OcuTalon.Msg.Catalog.Watch`'s `mcp.*` keys.
+  - The loopback mock MCP server in `OcuTalon.Test.Mcp`.
+  - `McpOps` is not in the production yet (Story 22.2 adds it).
+- **CommandsIn** (`Core/CommandsIn.cls`): routes in `XData Routes` (verb, owner, origins), the tool verbs in `Parameter TOOLVERBS`, refusal texts in `MESSAGE*` parameters. None of the step 4 verbs is there yet.
+- **SettingsOps** (`Core/SettingsOps.cls`): `XData Sections`, `ALLOWLIST`, `Save`, `Field` (it refuses `@{`), `WriteAudit` and `AuditData`. There is no `RestartRunners` yet. For `Ens.Director` restart patterns, see `Install.Step.Production` and the tests' `TempStopConfigItem` and `EnableConfigItem` calls.
+- **Web.Api:**
+  - `POST /v1/settings/channels` still answers 501 (`NotBuilt`), and `Test/Web/SettingsApi.cls` `TestBridgeRoutesAre501` covers it.
+  - `OnPreDispatch` checks admins through `IsAdmin()` (`OcuTalonAdmin` by its whole name in `$Roles`).
+- **Web page:** `web/src/app/settings/` holds `channels-section.ts` (Telegram, read-only), `settings-view.ts` (`SETTINGS_TEXTS`) and `refusal.ts`.
 - **Install.Step.Web:** `Definitions`, `Apply`, `Common` and `Grants()`. `/ocutalon/hook` is added here.
-- **`OcuTalon.Data.Pairing.HashCode`:** SHA-256 and base64url, unsalted. The webhook needs a salted hash.
-- **`Data.BackgroundCheck.Kind`:** today only `production`.
-- **Not in code yet:** packages `OcuTalon.Mcp` and `OcuTalon.Test.Mcp`, `OcuTalon.Channel.Email` and `.Webhook`, `SendEmail`, `RestartRunners`, and the catalog key `digest.notChecked.unreachable`.
+- **`OcuTalon.Data.Pairing.HashCode`** is SHA-256 and base64url, unsalted. The webhook needs a salted hash.
+- **`OcuTalon.Data.Session`** has no admin flag yet.
+- **Not in code yet:** `OcuTalon.Channel.Email` and `.Webhook`, `SendEmail`, the MCP verbs, `RestartRunners`.
 
 ## UX & Interaction Patterns
 
-- **Settings › Tools and MCP servers** (built in Epic 21):
-  - a server list with status, a tool count and an unclassified count;
-  - removing a server asks first and cancels its pending requests;
-  - a tool table with one radio group per tool that saves at once, shows "Saved" and is audited, plus an "Unclassified only" filter;
-  - a changed tool shows a banner in Settings and a notice card in the chat.
-- A tool-call approval card shows "Run {tool} on {server}" and the exact inputs, with the UX's "no dry run" sentence.
-- All texts follow Voice and Tone: plain English, no class names or codes.
+- Settings > Channels holds the webhook form: a name and a write-only secret that never shows its value again.
+- All texts follow Voice and Tone: plain English, short sentences, no class names or codes. Telegram and the simulated phone share each text exactly.
 
 ## Cross-Story Dependencies
 
-- Story 35.2 follows 35.1: its verbs route to `McpOps` under 35.1's names. Story 22.2 (`McpOps`) calls 35.2's `RestartRunners()`, and Story 21.4 calls 35.1's `Tools(server)` stub.
-- Epics 17, 18, 19 and 33 have merged. Epics 21 and 22 wait for this epic, and Epic 36 extends 35.1's `BackgroundCheck` row types.
+- Story 35.1 is done and merged into the epic branch: its names, verbs and `Mcp.Server` columns are fixed.
+- Story 35.2 must land before 35.3. 35.3 uses 35.2's spine entries (webhook table, header, cap, `/ocutalon/hook` application and role) and the webhook settings texts 35.2 adds.
+- Outside this epic:
+  - Story 22.2 (`McpOps`) calls 35.2's `RestartRunners()`, its admin-session read API, and `SettingsOps`' MCP entry writer.
+  - Story 21.4 calls 35.1's `Tools(server)` stub.
+  - Story 22.5 reads `EmailIn`'s poll-outcome record.
+  - Story 22.7 sends through `SendEmail` from `system`.
+- Epics 21 and 22 wait for this epic. Epic 36 extends the `BackgroundCheck` row types.
