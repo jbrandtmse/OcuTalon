@@ -34,7 +34,7 @@
 #             heading; EXPERIENCE.md's kept-OCUORDERS sentence word for word; while src has no call_mcp_tool, the MCP section opening with the
 #             can't-connect sentence; the numbers and the audit types of the code in their sections; the five headings once each and in order, the
 #             no-scheduled-purge sentence, the MCP rules sentence and the demo section's closing sentence (QA); and the CI claims of the file and of the live
-#             unit in ci/units.sh (every group runs on the file, production holds the unit)
+#             unit in ci/units.sh (every group runs on the file, shards-5 holds the unit)
 #   ipmcheck  (Story 15.4) the ipmcheck step runs release/ipm-install.sh of the candidate (a stub in the seed repository, so no container is needed)
 #             on an export of the candidate's tree with the ipm step's artifact, the lane lock folder, a run tag and the job's deadline, and
 #             tears down after it: a pass records "## FR-57 job" and names push; a failure (exit 1 or any code but 0 and 75) stops the release before
@@ -197,7 +197,7 @@ case "$1" in
         *) ctx=$1; shift ;;
       esac
     done
-    [ -f "$SHIMFLAGS/build-fail" ] && { echo "planted build failure in $ctx/docker/Dockerfile" >&2; exit 1; }
+    [ -f "$SHIMFLAGS/build-fail" ] && { echo "planted build failure in $ctx/Dockerfile" >&2; exit 1; }
     if [ ! -f "$ctx/src/ocutalon/csp/index.html" ]; then
       echo "web bundle missing: run npm --prefix web run build" >&2
       exit 1
@@ -508,7 +508,7 @@ mkseed() {
     git -C "$root" archive HEAD | tar -x -C "$s" || exit 1
   else
     # Only what the sequence, the notes script and the harness read: the whole tree adds time and no case.
-    git -C "$root" archive HEAD release ci docker/tests docker/Dockerfile docker/ipm .gitignore .dockerignore module.xml src/module.xml README.md \
+    git -C "$root" archive HEAD release ci docker/tests Dockerfile docker/ipm .gitignore .dockerignore module.xml src/module.xml README.md \
       web/package.json web/package-lock.json _bmad-output/implementation-artifacts/sprint-status.yaml \
       _bmad-output/planning-artifacts/epics.md | tar -x -C "$s" || exit 1
   fi
@@ -1029,7 +1029,7 @@ t_image() {
   unflag no-base
   flag build-fail
   rs "$N" next
-  has "a failed build" "$out" "FAIL image docker build failed: planted build failure in <state>/context/docker/Dockerfile"
+  has "a failed build" "$out" "FAIL image docker build failed: planted build failure in <state>/context/Dockerfile"
   lacks "a failed build: no local path in the record" "$(cat "$(rec_file)")" "$tmp"
   unflag build-fail
   flag no-bundle
@@ -2269,7 +2269,7 @@ ovw_ci_claims() {
       if printf '%s\n' docs/security-overview.md | grep -qE "$pattern"; then printf 'claimed'; else printf 'NOT-claimed'; fi
       if printf '%s\n' docs/security-overview.md.bak docs/other.md | grep -qE "$pattern"; then printf ' and-lookalike\n'; else printf ' lookalike-free\n'; fi
     done
-    if group_units production | grep -qw 'live:security-overview'; then echo "production holds live:security-overview"; else echo "production LACKS live:security-overview"; fi
+    if group_units shards-5 | grep -qw 'live:security-overview'; then echo "shards-5 holds live:security-overview"; else echo "shards-5 LACKS live:security-overview"; fi
     if printf '%s\n' $NO_WEB_BUNDLE_UNITS | grep -qx 'live:security-overview'; then echo "NO_WEB_BUNDLE_UNITS holds live:security-overview"; else echo "NO_WEB_BUNDLE_UNITS LACKS live:security-overview"; fi
   )
 }
@@ -2333,11 +2333,11 @@ t_overviewdoc() {
   eq "control: a link" "$(ovw_doc_problems "$d/url.md")" "1 line(s) with a URL or address"
   { cat "$doc"; printf 'Host %s\n' '10.20.30.''40'; } > "$d/ip.md"
   eq "control: an address" "$(ovw_doc_problems "$d/ip.md")" "1 line(s) with a URL or address"
-  # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in production
+  # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in shards-5
   # (the expected lines follow IRIS_GROUPS, so a group added to the matrix is checked too)
   want=$(ovw_ci_claims)
   expect=$( (. "$root/ci/units.sh"; for grp in $IRIS_GROUPS; do echo "$grp:claimed lookalike-free"; done)
-    echo "production holds live:security-overview"; echo "NO_WEB_BUNDLE_UNITS holds live:security-overview")
+    echo "shards-5 holds live:security-overview"; echo "NO_WEB_BUNDLE_UNITS holds live:security-overview")
   eq "ci/units.sh: every group claims the overview, and the unit is placed" "$want" "$expect"
   rm -rf "$d"
 }
@@ -2905,7 +2905,7 @@ t_static() {
   eq "(U-294) requirements.txt has 36 pin lines and no line that is not a pin or a comment" "$(grep -v '^#' "$root/requirements.txt" | grep -c '^[A-Za-z0-9_.-]*==[A-Za-z0-9_.-]*$')/$(grep -v '^#' "$root/requirements.txt" | grep -c .)" "36/36"
   eq "(U-294) the root requirements.txt opens with a comment that names its source" "$(sed -n 1p "$root/requirements.txt" | cut -c1-2)" "# "
   eq "(QA) requirements.txt is tracked" "$(git -C "$root" ls-files requirements.txt)" "requirements.txt"
-  pip_pins=$(grep -F 'pip install' "$root/docker/Dockerfile" | tr ' ' '\n' | grep '==')
+  pip_pins=$(grep -F 'pip install' "$root/Dockerfile" | tr ' ' '\n' | grep '==')
   eq "(U-294) the image's pip line has three pins" "$(printf '%s\n' "$pip_pins" | grep -c .)" 3
   for pin in $pip_pins; do
     eq "(U-294) requirements.txt has the image's pin $pin" "$(grep -cx -e "$pin" "$root/requirements.txt")" 1
