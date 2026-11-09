@@ -31,3 +31,4 @@
 2026-11-09T22:39:05Z	Epic 20	integrated_forward	feature=52cf70f6 head=f16010a6 conflicts_resolved=sprint-status.yaml(regenerated;feature_statuses_reapplied) note=pre_first_push_merge_of_post-0.20_feature
 2026-11-09T22:40:02Z	Story 20.2	committed	sha=6c6f00a7 submodules= ci=pending runs=42713809099,42713808884 amendments=_bmad-output/planning-artifacts/epics.md:Story_20.2_DW_bullets,EXPERIENCE.md:More_to_try_count_item6_item8(Planner-ruled) note=first_push_after_merging_post-0.20_feature_52cf70f6
 2026-11-09T22:40:02Z	Story 20.2	story_cycle	plan_to_commit_min=298 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-09T22:40:22Z	Epic 20	ruling	question=insert_story_20.3_sample_runbook choice=inserted_as_20.3_rule5_tier1 marker=[ADDED_2026-11-09,owner_re-plan,Contest_Planner_ruling] category=decide by=planner_via_orchestrator policy=5086036
