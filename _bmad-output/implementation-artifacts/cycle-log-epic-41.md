@@ -229,3 +229,4 @@
 2026-11-09T08:11:41Z	Epic 41	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true scope=part2 warnings=standard_unparsed_headings,41.8_told_learned_suffix_public_text,41.13_per_session_rule_public_text
 2026-11-09T08:11:53Z	Epic 41	stage_spawned	stage=epic_context spawn_at=2026-11-09T08:11:53Z model=opus effort=high agent_name=41-context-prewarm-part2 cycle_iteration=1 reason=planning_artifact_newer,part2_weighting
 2026-11-09T08:16:29Z	Epic 41	epic_context_compiled	spawn_at=2026-11-09T08:12Z reason=planning_artifact_newer,part2_weighting model=opus effort=high words=1225 gaps=41.13_Forget_has_no_web_route(ForgetMemory_origin_tool_only;AC+AD-1_veto_at_41.9/41.13_plan),DW-967/977_on_41.12(Lane_A)_touch_Lane_B_Conversation,DailyNote.Build(U-177_check_at_41.12_plan)
+2026-11-09T08:16:45Z	Story 41.8	stage_spawned	stage=plan spawn_at=2026-11-09T08:16:45Z model=opus effort=high agent_name=41-8-plan-1 cycle_iteration=1
