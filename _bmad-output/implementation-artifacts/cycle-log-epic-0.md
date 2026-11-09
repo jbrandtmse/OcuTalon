@@ -598,3 +598,16 @@
 2026-11-09T20:28:52Z	Story 0.20	ci_clean_run	run=42683385126 attempt=2(whole-run_rerun) sha=4493272e result=success iris_max=shards-4_29m00 groups=browser:26m19,image:23m21,install-fresh:26m40,install-upgrade:24m11,production:28m18,shards:24m22,shards-10:24m35,shards-11:25m07,shards-2:27m21,shards-3:25m29,shards-4:29m00,shards-5:28m46,shards-6:28m09,shards-7:24m12,shards-8:27m21,shards-9:28m31 multi_area_units=lane-a@Install,Digest,Eval:841s,lane-a@rest:834s,lane-b@Contract,Core,Data,Live:778s,lane-b@rest:823s single_area=Bridge:1121s,Fix:1062s,Docs:902s,Watch:886s,Channel:805s,Agent:712s
 2026-11-09T20:28:52Z	Story 0.20	ci_resolved	story=0.20 sha=4493272e runs=42683385126,42683386164 result=success failed=none via=none resolved_at=burndown note=done_criterion_met(two_clean_runs:attempts_1,2;every_group<=29m43;every_multi-area_unit<=873s);covers_0.15
 2026-11-09T20:28:52Z	Story 0.15	ci_resolved	story=0.15 sha=4493272e runs=42683385126,42683386164 result=success failed=none via=none resolved_at=burndown note=merged_with_0.20_on_one_head
+2026-11-09T22:46:28Z	Epic 0	epic_branch_reopened	reason=stories_0.19_0.21(README_contest_line+centred_header;1.0.6) from=eceea067 note=branch_kept(eceea067_already_in_feature_via_52cf70f6)
+2026-11-09T22:46:28Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_0_19_0_21 lane=C slot=ocutalon-slot-c
+2026-11-09T22:46:28Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-09T22:46:28Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-09T22:46:28Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-09T22:46:28Z	Epic 0	epic_branch_checked_out	repos=. head=eceea067 bootstrap_check=ok
+2026-11-09T22:46:28Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-09T22:47:15Z	Epic 0	ledger_load	total=1017 open=0 routed=119 escalated=2 decision_pending=5 terminal=891 owner_unknown=0 burndown=100 reowned_none=0 epic0_owned=0
+2026-11-09T22:47:15Z	Epic 0	stories_inserted	stories=0.19,0.21 marker=[ADDED_2026-11-09,owner_via_Contest_Planner] rule5=tier1 new_entries=0-19-the-readme-names-the-contest,0-21-the-readme-opens-with-a-centred-header-logo-tagline-and-badg
+2026-11-09T22:47:15Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen(sprint_plan.py_generate+validate);tracker_valid;0.19_0.21_added_backlog;dropped_orphans=none
+2026-11-09T22:47:15Z	Epic 0	retro_review_skipped	reason=skip(no_X.0_input) note=reopen_for_two_stories;X.0_and_retro_review_recorded_earlier(dispatch)
+2026-11-09T22:47:15Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) stories=0.19,0.21
+2026-11-09T22:47:15Z	Story 0.19	ledger_routed_planned	story=0-19-the-readme-names-the-contest entries=1(DW-1020) excess=0 by=dispatch
