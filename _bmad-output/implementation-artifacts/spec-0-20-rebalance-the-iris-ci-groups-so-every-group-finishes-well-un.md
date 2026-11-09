@@ -9,6 +9,7 @@ followup_review_recommended: false
 context: []
 warnings: ['oversized']
 deferred: []
+baseline_commit: 'cccbd78eec0497bdc08103ba82421fd3bb055dbc'
 ---
 
 <intent-contract>
@@ -150,6 +151,7 @@ The exact change to `.github/workflows/ci.yml` (blob `80afa70` to `0acfe6e`); im
 
 ## Spec Change Log
 
+- [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025] Planner APPROVED the `ci.yml` hunk ("sixteen groups" header, the 16-group matrix line, `timeout-minutes` unchanged) and the deviation (`live:memory-offline` stays in shards-4, L2935 unchanged, plus the listed moves). Merge conditions: the pushed `ci.yml` diff against feature is exactly those two lines; two clean runs on one head with every iris group at or under 32 minutes measured and every multi-area unit at or under 900 s, each group's measured maximum reported; a scan of `release/` and `ci/` for hard-coded required-check names or the group count (result: none found; `ci/changes.sh` and `ci/iris.sh` derive from `IRIS_GROUPS`). AD-22's as-built paragraph amended by the lead (ten to sixteen groups, the pieces).
 - [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025] Re-plan after the Planner's rulings on the intent gap: option A (the 900 s cap applies to units of two or more areas; single-area units run whole), 16 groups with `shards-6` to `shards-11`, the three `test-release-sequence.sh` pins as a plain union, and DW-1032/DW-1033 ledgered for after voting (Design Notes). Status reset from blocked to draft for the re-plan.
 - [ADDED 2026-11-09, Contest Planner ruling + orchestrator ruling, DW-1025] Plan stage. The Planner's binding CI capacity rulings 1-7 are recorded under Design Notes. Planning stopped at an intent gap on ruling 2's per-shard-unit cap (Auto Run Result).
 
