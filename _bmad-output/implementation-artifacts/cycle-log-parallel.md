@@ -3072,3 +3072,5 @@
 2026-11-09T08:06:56Z	Epic 41	epic_merged_to_feature	merge=2a45f8bc head=ce5f0cc3 part_merge=41.1-41.7 verified_on_origin=yes conflicts=sprint-status.yaml(bookkeeping) code_conflicts=none method=planner_rule_a readme=unchanged ledger_union=lost0,dup0(1004) spine_lint=baseline feature_ci=ci:42583599821,lane-a:42583599730, release=1.0.5 worktree=kept(part_2)
 2026-11-09T08:06:56Z	Epic 41	decision_sheet_recorded	decided=2(DW-941_routed_Lane_A_bridge_story;DW-997_to_41-13-the-memory-card-pinned-and-learned-memories) to_action_items=0 to_x0=0 by=merge_gate
 2026-11-09T08:06:56Z	Run	deps_hash_rerecorded	reason=fix_forward stories=41.1-41.7 hash=e5ccaa5e4d11
+2026-11-09T08:08:05Z	Epic 41	worktree_bootstrapped	epic=41 result=ok base=2a45f8bc(ff_kept_worktree)
+2026-11-09T08:08:05Z	Epic 41	runner_dispatched	runner=a87143c317128b91c model=opus effort=high lane=A slot=ocutalon-slot-a part=2(41.8,41.9,41.12-41.14;41.10/41.11_out) hold_at=11:00Z prompt=prompts/dispatch-epic-41-part2.md
