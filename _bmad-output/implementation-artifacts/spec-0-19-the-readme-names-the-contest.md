@@ -48,6 +48,24 @@ deferred: []
 - Given README.md's `## Contest checklist` section, when this story merges, then the line `What OcuTalon uses, and where to check each one:` is replaced by exactly the approved line and nothing else in README.md changes (DW-1020).
 - Given the change, when this story merges, then README.md is the only file changed, `bash docker/tests/test-readme.sh` passes every rule, `docker/tests/test-boundaries.sh` passes, and lane-a is green.
 
+### Review Findings
+
+Code review 2026-11-09 (four layers; 0 decision-needed, 3 patch, 0 defer, 8 rejected). The README line is byte-exact to the Always rule and to epics.md, README.md has one hunk (1+/1-), and both checks pass.
+
+- [x] [Review][Patch] AC1's pinning check had no `mutation:` line under `## Verification` (Rule 19 LOW) [spec `## Verification`] -- mutation applied in review, red observed, reverted byte-identical; line written.
+- [x] [Review][Patch] AC2's pinning check had no `mutation:` line (Rule 19 LOW) [spec `## Verification`] -- mutation applied in review (`readme-links` red), reverted byte-identical; line written.
+- [x] [Review][Patch] The `git diff --stat` pin read the working tree, so it printed nothing once the build was committed (not reproducible) [spec `## Verification`] -- replaced by a baseline-pinned `git diff --numstat 0875e90a -- . ':(exclude)_bmad-output'`.
+
+Rejected:
+- `low` AC2's "README.md is the only file changed" is literally false for the commit (the spec and bookkeeping also change) -- the Always rule scopes it to product files, which holds; the fix is a spec edit.
+- `low` The earlier triage row sent "contest named only in the checklist" to Story 0.21, whose header does not name the contest -- the owner approved the text and its place (DW-1020); moving or adding public text is the owner's call; by-design.
+- `low` Nothing in CI pins the approved sentence after merge -- the spec forbids changing `docker/tests/test-readme.sh`; by-design (reopen via a spec amendment if a later README story rewrites the checklist).
+- `low` The `dev_complete` row records `story_base=0875e90a` while `stage_spawned` recorded `ec94259d` -- lead-owned cycle log, which this stage may not write; the two bases differ by bookkeeping only; handed to the lead.
+- `low` The `dev_complete` row's `files=2` and `loc_added=1 loc_removed=1` disagree, and it omits `nfr_tripwires=` and `adr_violations_surfaced=` -- lead-owned cycle log; handed to the lead.
+- `false` The spec status `done` contradicts sprint-status `review` -- `done` is bmad-build-auto's contract status (Rule 4); review state lives in sprint-status.
+- `false` "lane-a is green" is unverified -- CI on the pushed head is the lead's gate; the residual risk is already stated.
+- `false` The post URL was never checked -- a read-only fetch in review returned HTTP 200 with the contest's title.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -81,7 +99,9 @@ deferred: []
 - `bash docker/tests/test-readme.sh` (loop) -- expected: passes ALL rules, prints `test-readme: all rules passed`
 - `bash docker/tests/test-boundaries.sh` (loop) -- expected: passes
 - `grep -c -F 'OcuTalon is an entry in the [InterSystems Programming Contest: AI Agents in Interoperability Workflows](https://community.intersystems.com/post/intersystems-programming-contest-ai-agents-interoperability-workflows). What it uses, and where to check each one:' README.md` (loop) -- expected: 1, and `grep -c -F 'What OcuTalon uses, and where to check each one:' README.md` expected: 0
-- `git diff --stat` (loop) -- expected: README.md only, 1 insertion and 1 deletion
+- `git diff --numstat 0875e90a -- . ':(exclude)_bmad-output'` -- expected: exactly one row, `1`, `1`, `README.md` (tab-separated) (the only product file, one line in and one out), before or after the build commit
+- mutation (AC1): README.md's approved line reverted to `What OcuTalon uses, and where to check each one:` → the approved-line grep went 1 to 0 and the old-line grep 0 to 1 (red), and the baseline numstat printed nothing; restored, README.md's shasum and `git status --short`/`git diff --stat` matched the pre-mutation state (code review 2026-11-09)
+- mutation (AC2): the link's host changed from `community.intersystems.com` to `community.example.org` → `bash docker/tests/test-readme.sh` exited 1 with `FAIL readme-links` (not on the allow-list); restored byte-identical as above (code review 2026-11-09)
 
 ## Auto Run Result
 

@@ -619,3 +619,8 @@
 2026-11-09T22:54:45Z	Story 0.19	adr_verifications_complete	result=none_required mutations=none model=claude-opus-5-5
 2026-11-09T22:55:01Z	Story 0.19	qa_skipped	reason=dispatch_light_pipeline(one_line_docs;README_check_is_its_test;mutation_demonstrated_in_build)
 2026-11-09T22:55:01Z	Story 0.19	stage_spawned	stage=code-review spawn_at=2026-11-09T22:55:01Z model=opus effort=high agent_name=0-19-code-review-1 cycle_iteration=1
+2026-11-09T23:04:46Z	Story 0.19	cr_complete	spawn_at=2026-11-09T22:55:01Z model=opus effort=high resolved=3 fixed_at_source=3 by_design=2 wontfix_theoretical=0 routed=0 escalated=0 decision_pending=0 deferred=0 dismissed=8 high=0 med=0 low=8 rows=11 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus cycle_iteration=1 note=3_LOW_patched_in_spec_Verification(mutation_lines);contest_post_HTTP200
+2026-11-09T23:04:46Z	Story 0.19	report_error	fault=lead field=story_base reported=ec94259d(stage_spawned) actual=0875e90a impact=none(differ_by_bookkeeping_only;canonical=0875e90a=baseline_revision)
+2026-11-09T23:04:52Z	Story 0.19	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0 note=DW-1020_resolved-by_0.19
+2026-11-09T23:07:29Z	Story 0.19	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=test-readme.sh_all_rules_passed;test-boundaries.sh_all_rules_passed;README.md:376_grep_-c=1 model=claude-opus-5-5
+2026-11-09T23:07:29Z	Story 0.19	fresh_check	env=clean-checkout(git_archive_HEAD,add_-f) tests=1(docker/tests/test-readme.sh) result=pass order=forward,reverse(single_script,run_twice)
