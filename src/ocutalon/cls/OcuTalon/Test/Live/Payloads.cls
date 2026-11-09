@@ -930,33 +930,37 @@ Method TestPhoneFromRow()
 	Do $$$AssertEquals(##class(%DynamicObject).%FromJSON(json).decisionRef, "ZzDecisionRef"_..Number, "and the JSON names it decisionRef")
 }
 
-/// The phone payload's fallback (Story 41.5 with Story 18.4, the orchestrator's integrate-forward ruling): an older row whose DecisionRef column is empty
-/// and that asks for no approval takes its decisionRef from the session's own phone tell-now Delivery row (Ownership.PhoneDecision); a stored
-/// DecisionRef wins over the Delivery row; a message with an ApprovalRef gets none from the fallback. The SimMessage row is not saved; the session
-/// and the Delivery row are removed by Ref.
-Method TestPhoneFromRowFallback()
+/// The phone payload's noiseRef (Story 41.5 with Story 18.4, the orchestrator's integrate-forward ruling, two members): a message that asks for no
+/// approval takes its noiseRef from the session's own phone tell-now Delivery row (Ownership.PhoneDecision), whatever its DecisionRef column holds, so an
+/// act notice (DecisionRef left empty by Story 18.4, so no Got it) and a row written before DecisionRef existed both get it; decisionRef is the column
+/// alone, never the Delivery row; a message with an ApprovalRef gets no noiseRef. The SimMessage row is not saved; the session and the Delivery row are
+/// removed by Ref.
+Method TestPhoneFromRowNoiseRef()
 {
 	Set fixture = "OcuTalon.Test.Data.Fixture"
-	Set session = $ClassMethod(fixture, "Session", "zzphonefb"_..Number)
+	Set session = $ClassMethod(fixture, "Session", "zzphonenr"_..Number)
 	Set row = ##class(OcuTalon.Data.SimMessage).%New()
 	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set row.SessionRef = session
 	Set row.Direction = "out"
 	Set row.Text = "zz notice"
 	Set row.CreatedAt = "2026-10-22T09:00:00Z"
-	Set delivery = $ClassMethod(fixture, "Delivery", session, {"ChannelMessageId": (row.Ref), "Channel": "phone", "Kind": "tellnow", "DecisionRef": ("ZzFallback"_..Number)})
+	Set delivery = $ClassMethod(fixture, "Delivery", session, {"ChannelMessageId": (row.Ref), "Channel": "phone", "Kind": "tellnow", "DecisionRef": ("ZzNoise"_..Number)})
 	Try {
 		Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(row)
-		Do $$$AssertEquals(payload.DecisionRef, "ZzFallback"_..Number, "an older row with no stored DecisionRef still gets its Ref from the phone Delivery row")
+		Do $$$AssertEquals(payload.NoiseRef_"|"_payload.DecisionRef, "ZzNoise"_..Number_"|", "an act notice or an older row (no DecisionRef) gets its noiseRef from the phone Delivery row, and decisionRef stays empty")
+		Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "and exports")
+		Set object = ##class(%DynamicObject).%FromJSON(json)
+		Do $$$AssertEquals(object.noiseRef_"|"_object.decisionRef, "ZzNoise"_..Number_"|", "the JSON names noiseRef, and decisionRef is empty")
 		Set row.DecisionRef = "ZzStored"_..Number
 		Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(row)
-		Do $$$AssertEquals(payload.DecisionRef, "ZzStored"_..Number, "a stored DecisionRef wins over the Delivery row")
+		Do $$$AssertEquals(payload.DecisionRef_"|"_payload.NoiseRef, "ZzStored"_..Number_"|ZzNoise"_..Number, "a tell-now message keeps its stored decisionRef for Got it, and its noiseRef from the Delivery row")
 		Set row.DecisionRef = ""
 		Set row.ApprovalRef = "ZzApproval"_..Number
 		Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(row)
-		Do $$$AssertEquals(payload.DecisionRef, "", "a message that asks for an approval gets no decisionRef from the fallback")
+		Do $$$AssertEquals(payload.NoiseRef_"|"_payload.DecisionRef, "|", "a message that asks for an approval gets neither")
 	} Catch ex {
-		Do $$$AssertTrue(0, "the fallback cases run: "_ex.DisplayString())
+		Do $$$AssertTrue(0, "the noiseRef cases run: "_ex.DisplayString())
 	}
 	Do $ClassMethod(fixture, "Clean", session_","_delivery)
 }
@@ -1271,10 +1275,10 @@ XData Contracts [ MimeType = application/json ]
    "Direction": "%String(%JSONFIELDNAME=direction,MAXLEN=32)",
    "Text": "%String(%JSONFIELDNAME=text,MAXLEN=)",
    "ApprovalRef": "%String(%JSONFIELDNAME=approvalRef,MAXLEN=22)",
-   "DecisionRef": "%String(%JSONFIELDNAME=decisionRef,MAXLEN=22)",
    "Answer": "%String(%JSONFIELDNAME=answer,MAXLEN=1000)",
    "DecisionRef": "%String(%JSONFIELDNAME=decisionRef,MAXLEN=22)",
-   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)"
+   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)",
+   "NoiseRef": "%String(%JSONFIELDNAME=noiseRef,MAXLEN=22)"
   }
  },
  "OcuTalon.Live.Payload.Document": {

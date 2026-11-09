@@ -18,9 +18,9 @@ export function noticeNoiseRef(notice: NoticeView): string {
   return notice.kind === 'tellnow' ? (notice.decision?.ref ?? '') : '';
 }
 
-/** The decision Ref the control acts on for a phone message: its `decisionRef`, "" when it names an approval request or has none. */
+/** The decision Ref the control acts on for a phone message: its `noiseRef` (Story 41.5; tell-now and act notices), "" when it names an approval request or has none. Got it reads `decisionRef`. */
 export function phoneNoiseRef(message: PhonePayload): string {
-  return message.approvalRef ? '' : (message.decisionRef ?? '');
+  return message.approvalRef ? '' : (message.noiseRef ?? '');
 }
 
 /** The status line that replaces the button: the first mark's time, as `timeBeside` writes it for the zone, in the text. */

@@ -1,5 +1,5 @@
 // Tests the "This was noise" control's view (src/app/chat/noise-view.ts; Story 41.5, FR-72): its fixed texts, the status line, and where the control shows (a
-// tell-now notice with a decision in the chat, a phone message with a decisionRef and no approvalRef, nothing else). It also pins the sources: the control
+// tell-now notice with a decision in the chat, a phone message with a noiseRef and no approvalRef, nothing else). It also pins the sources: the control
 // is drawn by the notice card (channel web) and the simulated phone (channel phone) only, and the client posts the noise path with { channel }. The view is
 // imported as it is: Node strips its types.
 // Run with: node --test web/scripts/
@@ -58,15 +58,17 @@ describe('noticeNoiseRef', () => {
 });
 
 describe('phoneNoiseRef', () => {
-  it('gives the decisionRef of a message with no approvalRef', () => {
-    assert.equal(phoneNoiseRef({ ref: 'm', decisionRef: 'ZzDecision000000000001' }), 'ZzDecision000000000001');
-    assert.equal(phoneNoiseRef({ ref: 'm', decisionRef: 'ZzDecision000000000001', approvalRef: '' }), 'ZzDecision000000000001');
+  it('gives the noiseRef of a message with no approvalRef, never its decisionRef (Got it reads that)', () => {
+    assert.equal(phoneNoiseRef({ ref: 'm', noiseRef: 'ZzDecision000000000001' }), 'ZzDecision000000000001');
+    assert.equal(phoneNoiseRef({ ref: 'm', noiseRef: 'ZzDecision000000000001', approvalRef: '' }), 'ZzDecision000000000001');
+    assert.equal(phoneNoiseRef({ ref: 'm', noiseRef: 'ZzDecision000000000001', decisionRef: '' }), 'ZzDecision000000000001');
+    assert.equal(phoneNoiseRef({ ref: 'm', decisionRef: 'ZzDecision000000000002' }), '');
   });
 
-  it('gives "" for a message that names an approval request, or has no decisionRef', () => {
-    assert.equal(phoneNoiseRef({ ref: 'm', decisionRef: 'ZzDecision000000000001', approvalRef: 'ZzApproval00000000001' }), '');
+  it('gives "" for a message that names an approval request, or has no noiseRef', () => {
+    assert.equal(phoneNoiseRef({ ref: 'm', noiseRef: 'ZzDecision000000000001', approvalRef: 'ZzApproval00000000001' }), '');
     assert.equal(phoneNoiseRef({ ref: 'm', text: 'x' }), '');
-    assert.equal(phoneNoiseRef({ ref: 'm', decisionRef: '' }), '');
+    assert.equal(phoneNoiseRef({ ref: 'm', noiseRef: '' }), '');
   });
 });
 
