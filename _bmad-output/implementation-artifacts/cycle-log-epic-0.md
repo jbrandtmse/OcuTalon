@@ -496,3 +496,11 @@
 2026-11-09T04:53:31Z	Epic 0	deps_hash_rerecorded	reason=fix_forward note=story_0.18_inserted_in_epic_0;no_boundary_or_dependency_change
 2026-11-09T04:54:51Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.18_added) model=claude-opus-5-5 effort=high
 2026-11-09T04:54:51Z	Story 0.18	stage_spawned	stage=plan+implement spawn_at=2026-11-09T04:54:51Z model=sonnet effort=high agent_name=0-18-build-1 cycle_iteration=1 story_base=a487bc68 pipeline=one_build_auto_stage(orchestrator_ruling)
+2026-11-09T05:06:09Z	Story 0.18	story_created	spawn_at=2026-11-09T04:54:51Z model=sonnet path=_bmad-output/implementation-artifacts/spec-0-18-the-readme-shows-judges-where-to-look.md build_status=ready-for-dev epic_context=reused note=plan_and_implement_in_one_stage(orchestrator_ruling)
+2026-11-09T05:06:09Z	Story 0.18	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs= decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false note=validated_post_build(one_stage_ruling)
+2026-11-09T05:06:09Z	Story 0.18	dev_complete	spawn_at=2026-11-09T04:54:51Z model=sonnet effort=high build_sha=6118b053 baseline_revision=4aeaff92 story_base=a487bc68 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=3 cycle_iteration=1 note=review_layers=4,findings=18_all_rejected
+2026-11-09T05:06:09Z	Story 0.18	adr_verifications_complete	result=none_required mutations=none model=claude-opus-5-5
+2026-11-09T05:06:09Z	Story 0.18	diff_review_complete	by=runner replaces=qa,code-review(orchestrator_ruling) result=pass readme=byte_exact_vs_FINAL_edits_1-5(independent_rebuild;42_added_0_removed;9_U+00B7) edit6=allowlist_line_byte_exact;kept_host_form_community.intersystems.com(dropped_0.17_post_path_entry_and_its_2_narrowing_self-tests) bug_report_links=none model=claude-opus-5-5
+2026-11-09T05:06:09Z	Story 0.18	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0
+2026-11-09T05:06:09Z	Story 0.18	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=test-readme.sh_all_32_rules_passed;test-boundaries.sh_all_rules_passed model=claude-opus-5-5
+2026-11-09T05:06:09Z	Story 0.18	fresh_check	env=clean-checkout(git_archive_HEAD,add_-f) tests=1(docker/tests/test-readme.sh) result=pass order=forward,reverse(single_script)
