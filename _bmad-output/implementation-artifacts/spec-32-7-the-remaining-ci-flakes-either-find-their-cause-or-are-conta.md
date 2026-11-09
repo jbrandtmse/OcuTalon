@@ -2,9 +2,9 @@
 title: 'Story 32.7: The remaining CI flakes either find their cause or are contained, logged'
 type: 'chore'
 created: '2026-11-08'
-status: 'in-progress'
-baseline_revision: 'e1b344b860ea89c6b866feb6572582536de27339'
-baseline_commit: 'e1b344b8'
+status: 'done'
+baseline_revision: '7a11682032eec394ad6d4356a8a95921a6355b1f'
+baseline_commit: '7a116820'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -305,7 +305,7 @@ Write the five groups' results (G1 to G5) into `### Investigation result` before
 
 - [x] [Smoke] G3 fallback (lead proof L-G3: old 0 of 120 red under the held-splash stall, so the cause is not confirmed; `planner-2026-11-08-32.7`): build **B3 exactly as specified under "Branch B per group"** — `diagnose.ts` `closeTargetAgain(page)` and the close-lines builder; `fixtures.ts` `boundedClose` at `firstAttemptMs(waitMs())`: if the page is still open and the close has not settled, `reportRetry('page.close', <redacted close lines>)`, `closeTargetAgain`, then settle on the first close or the page's `close` event; the outer `boundedStep(..., waitMs(), 'page.close')` and `diagnosedAtBound` keep B, the message and the diagnosis; rewrite the fourth contract comment; the `bounded-waits.test.mjs` `boundedClose` pin pins the new line exactly; `helper-waits.spec.ts` describe `page.close: one more close of the page` with R1 to R3. The Build list's "build NO Branch B task" is lifted for B3 only. Keep A3's splash wait in `leave.spec.ts`. Write each pinning test's `mutation:` line.
 
-- [ ] [CI] iris(shards-4) live:sign-in-2: `web/e2e/live/state-retry.spec.ts:41` "the file holds that line" red on `c21f64fd` (ci run 42541161624): since C1 (DW-911) the retry file holds the `RETRY` line followed by its retry-time `DIAG` lines, while the pin still expects the `RETRY` line alone — https://github.com/jbrandtmse/OcuTalon/actions/runs/42541161624 — fix by option (ii), the narrower one (orchestrator, 2026-11-09): the pin reads the file's `RETRY` lines only and expects exactly `[retry]`, and every other line of the file must match `^DIAG [ -~]{1,300}$` (as tight as before: no other shape allowed); C1's writer and `ci/iris.sh` stay as built. Check that `RETRIES` per unit and per group counts `RETRY` lines only when the unit's file also holds `DIAG` lines (a `state-wait.test.mjs` case if none pins it yet), with a demonstrated mutation for each changed pin. Search `web/e2e/**` and `web/scripts/**` for any other reader that pins a retry file's exact content and treat it the same way.
+- [x] [CI] iris(shards-4) live:sign-in-2: `web/e2e/live/state-retry.spec.ts:41` "the file holds that line" red on `c21f64fd` (ci run 42541161624): since C1 (DW-911) the retry file holds the `RETRY` line followed by its retry-time `DIAG` lines, while the pin still expects the `RETRY` line alone — https://github.com/jbrandtmse/OcuTalon/actions/runs/42541161624 — fix by option (ii), the narrower one (orchestrator, 2026-11-09): the pin reads the file's `RETRY` lines only and expects exactly `[retry]`, and every other line of the file must match `^DIAG [ -~]{1,300}$` (as tight as before: no other shape allowed); C1's writer and `ci/iris.sh` stay as built. Check that `RETRIES` per unit and per group counts `RETRY` lines only when the unit's file also holds `DIAG` lines (a `state-wait.test.mjs` case if none pins it yet), with a demonstrated mutation for each changed pin. Search `web/e2e/**` and `web/scripts/**` for any other reader that pins a retry file's exact content and treat it the same way.
 
 **Acceptance Criteria:**
 - **AC0.** Given the spec gate, when each group's 90 minutes end, then its `### Investigation result` holds `cause:` with its evidence and fix, `none_in_timebox` with what was read and ruled out, or `product:` with the evidence that was sent to the Planner. G5 holds the measurement. The implement stage builds only the named branches, and it stops `blocked` when a subsection holds none of these.
@@ -428,6 +428,19 @@ Checklist `[Smoke] G3 fallback`: confirmed fixed. B3 is built as "Branch B per g
   - `[false]` `[reject]` Intent 4 (R2 swallows the re-close instead of a browser that ignores it): that is the spec's R2 ("both closes are stubbed").
   - `[low]` `[reject]` Intent 5 (the retry decision uses `capToDeadline(boundMs)`, the matrix says `waitMs()`): the cap is `firstAttemptMs`'s own input, shared with 32.6's retries, and the outer bound stays `waitMs()`.
   - `[low]` `[reject]` Intent 6 (a close that ends during the probes logs no RETRY, a case the matrix does not list): the matrix row "close before `floor(B/2)`" implies it, and the guard keeps the count honest.
+
+### 2026-11-09 - Review pass (rework 2, state-retry pin; follow-up pass)
+- verdicts: 14 findings (blind 4, edge 4, verification-gap 2, intent 4) - high 0, medium 0, low 12, false 2, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind 1 / Edge 1: the cookie-name and cookie-value check scanned `logged` only, so a secret in a DIAG line of the retries file (the file `ci/iris.sh` prints into the job log) would pass the shape check - the loop now scans `[...logged, ...fileLines]`; hermetic mutation line added under `## Verification`.
+  - `[low]` `[reject]` Blind 2 / Edge 2 / Edge 3 / Edge 4: the pin requires neither a DIAG line nor the RETRY line first - the ruling is "RETRY lines only, exactly `[retry]`, every other line DIAG-shaped, no other shape allowed", which the pin states; the writer's append and order are pinned by `helper-waits.spec.ts` R1 and the `state-wait.test.mjs` writer cases, and the page-side line is asserted in `logged`; the ruling defines "as tight as before" as "no other shape allowed" (the old exact-bytes pin could not hold the DIAG lines C1 writes); an extra order/presence assert would be unrun on a stack in this pass and beyond the ruling. reopen_if=a CI log where `reportRetry` stops appending DIAG lines while R1 and `state-wait.test.mjs` stay green.
+  - `[low]` `[reject]` Blind 3 / VG 2 / Intent 2 (shape duplication): the spec holds its own copies of `retry_lines`'s RETRY shape and `RETRY_DIAG_LINE` - exporting the latter edits `bounds.ts`, which the ruling keeps as built; a drifted copy fails closed (a conforming line goes red, noisily). reopen_if=a change of either source shape that leaves this spec green on a line the source refuses.
+  - `[false]` `[reject]` Blind 4: the header still says the RETRY line is appended - the header already says "appended to the file ... with the first miss's page-side lines", and the new inline comment states the file's contents.
+  - `[low]` `[reject]` VG 1: the live pin stays green when no DIAG line is written - same as Blind 2; the stand-in cases carry it.
+  - `[low]` `[reject]` Intent (file shape versus the printed shape): the pin reads the file, not `retries_report`'s output - the printed order and count are pinned by `state-wait.test.mjs` (`cmd_live prints the RETRY lines, then the DIAG lines, then the count ...`, `cmd_group counts ... RETRY lines only`) and `flake-fixes-behaviour.test.mjs`; the open item names the file pin.
+  - `[low]` `[reject]` Intent (the label "the file holds that line" now checks the RETRY-shaped lines): the label stays true of the one RETRY line and the next assertion names the DIAG rule; no harm named.
+  - `[false]` `[reject]` Intent (live versus hermetic): the live project runs the case in CI; the item asks for a pin fix, not new coverage.
+  - Mutation wording from VG (the three file expressions were shown on a scratch copy, not on the live spec): taken into the `mutation:` lines; no finding.
 
 ## Design Notes
 
@@ -644,6 +657,12 @@ The setup for every command:
   - mutation (code review): B3, the `finally` that detaches the sessions in `closeTargetAgain` removed → `helper-waits.spec.ts` R4 red (both R4 cases: the detaches are missing, on the answered and on the timed-out path).
   - mutation (code review, rework 1): B3, `closeTargetAgain`'s late-answer guards removed (`if (!kept(own)) return late;` and `if (!kept(session)) return late;` put back to `sessions.push(...)`, `if (over) return late;` deleted) → `helper-waits.spec.ts` R4 red (`a session or a target that answers after the bound is not used`: the late page session is not detached, and the late target gets a browser session and a `Target.closeTarget`); restored, `cmp` identical, `git status --short` and `git diff --stat` unchanged.
   - mutation (code review, rework 1): B3, matrix row "Close, no retry" (a page that closes before `floor(B/2)`): `clearTimeout(timer);` removed from `end` and the guard `if (ended || page.isClosed()) return;` removed in `closeWithOneMore` → `helper-waits.spec.ts` R3 (`a bound under 20 s, or a close that ends before half of the bound`) red (`no RETRY line`: the quick close's timer logs `RETRY e2e/live/helper-waits.spec.ts:863 page.close` at 10 s); either one alone stays green, because the other (and the page's `close` event) still stops the retry; restored, `cmp` identical, `git status --short` and `git diff --stat` unchanged.
+- mutation (rework 2, state-retry pin; `web/e2e/live/state-retry.spec.ts` needs a stack, so each is shown hermetically on a scratch node copy of the pin's expressions fed with candidate file texts built from the real writer's output; scratch under the e32s7impl3 folder; the live spec was not run):
+  - mutation: a writer that appends a non-DIAG, non-RETRY line (`a note`) -> RED on `every other line of the file is a DIAG line`.
+  - mutation: a file with two RETRY lines (an `appendFileSync`-level duplicate; a second `reportRetry` call is caught earlier by `exactly one RETRY line`) -> RED on `the file holds that line`.
+  - mutation: no RETRY line, a 301-character DIAG line, a missing trailing newline, a blank line -> each RED; a 300-character DIAG line stays GREEN (the boundary); the unmutated writer output (RETRY, then a DIAG line) -> GREEN.
+  - mutation: the cookie loop put back to `logged` only (the pre-patch loop) with a file line holding `CSPSESSIONID` -> GREEN (the leak is missed); with `[...logged, ...fileLines]` -> RED.
+  - mutation: `ci/iris.sh` `retry_lines` changed to a `cat` of the whole file (counting every line) -> `state-wait.test.mjs` and `flake-fixes-behaviour.test.mjs` RED, 7 cases (`cmd_live prints the unit's RETRY lines after its output, then the count, and keeps the unit's exit code`; `cmd_live prints the RETRY lines, then the DIAG lines, then the count, which holds only the RETRY lines`; `cmd_live prints no DIAG line of a file that holds no RETRY line`; `cmd_group counts and summarises the RETRY lines only, whatever DIAG lines follow them`; three writer/reader round-trip cases); restored, `cmp` identical, `git diff --stat` unchanged.
 - (QA) Not pinned without a stack: A1's two-polls-in-a-row logic and the `Ens.Job` Starting/Alive read, and A2's `NotRunningNow` against a flag-1/row-0 item, rest on the source pins and the lead's proofs (L-G1, L-G2).
 
 **Lead-side (`(lead)`; after implement, unless stated).**
@@ -728,6 +747,16 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 Status: done
 Blocking condition: none
+
+**Rework 2 (build-auto, 2026-11-09; this pass only).**
+- Summary: the `[CI]` item (state-retry pin vs C1's DIAG lines, CI run 42541161624) is fixed by option (ii). `web/e2e/live/state-retry.spec.ts` now requires the file to end with a newline, its RETRY-shaped lines (the shape `ci/iris.sh` `retry_lines` counts) to equal exactly `[retry]`, and every other line to match `^DIAG [ -~]{1,300}$`; the cookie-name and cookie-value check also scans the file's lines. `bounds.ts` and `ci/iris.sh` are as built.
+- Files changed: `web/e2e/live/state-retry.spec.ts` (the pin and the secrets scan). The RETRIES-per-unit and per-group case already exists (`state-wait.test.mjs`: `cmd_live prints the RETRY lines, then the DIAG lines, then the count, which holds only the RETRY lines`; `cmd_group counts and summarises the RETRY lines only, whatever DIAG lines follow them`), so no case was added; no other reader of a retry file pins its exact content (`helper-waits.spec.ts` R1/R2 already expect RETRY plus the page lines).
+- Review: 14 findings (low 12, false 2), no high or medium. Patched: 1 (the secrets scan covers the file's lines, low). Deferred: none. Rejections and reasons: see the Review Triage Log.
+- Follow-up review recommended: false (this follow-up pass patched no high).
+- Verification: the node tests (`state-wait`, `retry-bounds`, `bounded-waits`, `e2e-part`, `ci-results`, `flake-fixes-sources`, `flake-fixes-behaviour`: 172 of 172), `npm --prefix web run lint`, `bash docker/tests/test-ci-config.sh` and `bash docker/tests/test-boundaries.sh` pass; `playwright test e2e/live/state-retry.spec.ts --list` parses. Mutations: under `## Verification` (rework 2).
+- Residual risks: the live case needs a stack and was not run; the first real check of the pin is CI on the next head (the lead's push). The RETRY shape in the spec is a copy of `ci/iris.sh` `retry_lines`'s and fails closed if the shell shape changes.
+
+(Earlier passes follow.)
 
 **Rework 1 (B3, build-auto, 2026-11-08).**
 - Built the G3 fallback: `closeTargetAgain` and `closeLines` in `diagnose.ts`; `boundedClose` retries once at half of a bound of 20 s or more (`closeWithOneMore`, Chromium only), inside the same bound; the fourth contract comment is rewritten; the `bounded-waits.test.mjs` pin pins the new line; `helper-waits.spec.ts` has R1 to R5. A3 is kept.
