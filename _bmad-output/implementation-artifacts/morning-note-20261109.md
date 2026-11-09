@@ -25,7 +25,7 @@
 
 ## Owner's list
 - Attended architecture Update to ratify: AD-18 sentence, AD-19 note (action items ep18-ai-ad18/ad19), AD-16 S6 and AD-31 S8 (Story 35.1), AD-29 merge-back amendment (Story 11.16).
-- Repository setting: add lane-a `ipm-install` and `ipm-install-p` as required checks on main (11.16's merge step refuses until then).
+- DONE (Planner, 10:05Z, owner's word): `ipm-install` and `ipm-install-p` are required checks on main (17 required checks now).
 
 ## Queue after these
 DW-446/DW-485 release-tool story (Epic 31 re-open; DW-485 touches release/demo-host-check.sh); the CI split redo (live:security-overview production -> shards-5 with the overviewdoc pin, two clean runs, after the 1.0.5 cut); tier 3 per the lane plan.
@@ -34,3 +34,7 @@ DW-446/DW-485 release-tool story (Epic 31 re-open; DW-485 touches release/demo-h
 - Planner rule (a) (merge without re-integrating) ENDED at the 1.0.5 cut: merges integrate forward again.
 - DW-973 standing yes ENDED when 32.7 merged.
 - Cancel CI on the Planner's record-only pushes and version-only merge-backs.
+
+## Planner rulings after the hold (~11:1xZ)
+- Epic 41: Planner rulings 2026-11-09 ~11:1xZ (apply on resume): (1) DW-1015 AGREED: give the 41.8 learned-save eval case a real session; score it right only when the save happened AND the reply has the sentence; until then report-only, wording-only, never a gate. DW-1016 (a reply after a refused save never claims it) goes to 41.14. (2) 41.9: (a) PUBLIC TEXT approved verbatim: "That would go over the 1,000-token limit. Unpin something first." (b) security as listed, no veto; (c) the three additive spine lines approved; (d) the origin-system save with Source=learned MOVES to 41.11 (with its AD-31 amendment there); 41.9 keeps 41.8's rule that code decides the source.
+- Owner list: the required-checks item is DONE (main requires 17 checks). The attended architecture Update (AD-18, AD-19, AD-16 S6, AD-31 S8, AD-29) stays.
