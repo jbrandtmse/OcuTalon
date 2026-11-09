@@ -7068,6 +7068,8 @@ So that OcuTalon reads and sends mail without storing my mail password.
 
 ### Story 21.4: Add, remove and classify MCP servers and tools in Settings
 
+> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1041] The MCP settings write (IRIS Wallet secret and Config Store entry) moves into `McpOps`, an operation, never the REST process; AD-1 stays unchanged. Story 35.2 left the routes as stubs that change nothing; this story replaces them and adds the `/v1/settings/mcp` route with the standing real-HTTP route tests.
+
 As an admin,
 I want to add and remove MCP servers and classify each of their tools in Settings,
 So that I decide which added tools OcuTalon may use, and how.
@@ -7134,6 +7136,10 @@ Tools from an added MCP server become OcuTalon's tools under the same gate, clas
 **Story 22.1 moved to Story 35.1** (step 4 contracts) [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." whole and verbatim, into Epic 35, so that neither of step 4's feature epics waits on the other's merge (the whole-epic pairing deadlock); the other stories keep their numbers]
 
 ### Story 22.2: Classify MCP tools by server and name
+
+> [AMENDED 2026-11-09, Epic 35 merge gate, Contest Planner ruling on DW-1013] Attaching an MCP server gets a bounded timeout with a clear error, so a server that accepts the connection and never answers cannot block `AddTool` or the manager's listing (measure rmcp's own timeout on a throwaway first).
+
+[AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1 on Story 35.1, relayed by the orchestrator: (1) the admin chat notices for an unavailable MCP server and for a refused tool whose name shadows a built-in move here from Story 35.1's attach criterion, beside the changed-tool notice this story already sends; they use the accepted texts `mcp.serverUnavailable` and `mcp.toolShadowsBuiltIn` in `OcuTalon.Msg.Catalog.Watch`, read the attach report Story 35.1 records on the `OcuTalon.Mcp.Server` row, and reach the sessions whose user held `OcuTalonAdmin` at their latest sign-in through Story 35.2's read API (no run-time `%SYS` read, no AD-3 exception); (2) `OcuTalon.Core.SettingsOps` writes the server's Config Store entry `AI.MCP.OcuTalon_<server>` and its IRIS Wallet secret, called from Lane B's MCP settings route (Story 35.2), and `McpOps` writes only the `OcuTalon.Mcp.Server` row and calls `RestartRunners()`, so where the criteria below have `McpOps` write the Config Store entry, `SettingsOps` writes it; no command, log, test output or record ever carries a secret value, only a `secret://` reference]
 
 As an admin,
 I want to add and remove MCP servers, and each of their tools classified by me as read-only or risky, keyed by its server and name,
@@ -9044,6 +9050,8 @@ So that a red browser job means a real defect and not a timing accident.
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 22.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 21 waited for Story 22.1 while Epic 22's Story 22.2 waited for Story 21.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
 
+[AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1, relayed by the orchestrator: in the third criterion, "and tells admins" moves to Story 22.2, which sends the admin chat notices for an unavailable server and a refused shadowing tool with its changed-tool notice; this story records each attach report (status, reason, refused tools) on the `OcuTalon.Mcp.Server` row, which Settings shows, and Story 35.2 adds the read API for admins' sessions; no run-time `%SYS` read and no AD-3 exception]
+
 As an admin,
 I want the MCP servers I register attached to OcuTalon's agents so that their tools are listed for OcuTalon,
 So that I can extend OcuTalon with tools I already run.
@@ -9072,6 +9080,10 @@ So that I can extend OcuTalon with tools I already run.
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 21.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 21 waited for Story 22.1 while Epic 22's Story 22.2 waited for Story 21.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
 
+[AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1 on Story 35.1, relayed by the orchestrator: this story also adds a read API that returns the sessions whose user held `OcuTalonAdmin` at their latest sign-in, recorded as a new `Session` property (a stored-data change, flagged at this story's spec gate), which Story 22.2's admin notices use; and `OcuTalon.Core.SettingsOps` writes an MCP server's Config Store entry `AI.MCP.OcuTalon_<server>` and its IRIS Wallet secret, called from the MCP settings route, while `McpOps` writes only the `OcuTalon.Mcp.Server` row and calls `RestartRunners()`; no command, log, test output or record ever carries a secret value, only a `secret://` reference]
+
+[AMENDED 2026-11-09, Story 35.2 plan, split decided by the Epic 35 runner under doctrine U5 (a split into a sibling planned next in the same epic; nothing dropped): the webhook criteria (create a webhook in Settings > Channels; a `POST` answered 202 and sent by `WebhookIn` to `Intake`; the 401, the body cap and the test of every unauthenticated path) and this story's release check moved, verbatim, to Story 35.3, which follows this story; this story keeps the spine update and command verbs, `RestartRunners()`, the step 4 texts (including the webhook settings texts Story 35.3 ships) and the ruling's admin-session read API and `SettingsOps` MCP entry contract; its title is kept so its tracker key stays the same]
+
 As an admin,
 I want to create webhooks, each with its own secret, that turn any JSON event into an item,
 So that other systems can tell OcuTalon what happened and it decides what needs me.
@@ -9090,6 +9102,19 @@ So that other systems can tell OcuTalon what happened and it decides what needs 
 **Given** the step 4 texts the UX doesn't give yet: the email and webhook settings, the changed-tool banner in Settings, the source-poll form and the cancelled status of an approval request
 **When** this story starts
 **Then** it proposes their wording to the author as additions to `EXPERIENCE.md` (Message Catalog, and Later Steps › Step 4), with their catalog keys in `OcuTalon.Msg.Catalog.Core`, following the voice and plain-English rules, and no story of this epic ships a text the author hasn't accepted (UX-DR117, UX-DR145)
+
+
+### Story 35.3: Send events to OcuTalon through a webhook
+
+[AMENDED 2026-11-09, Story 35.2 plan, split decided by the Epic 35 runner under doctrine U5: a new sibling of Story 35.2 (Lane B, it follows Story 35.2), holding Story 35.2's webhook criteria and release check, moved verbatim; nothing dropped; it uses the names and texts Story 35.2 fixes]
+
+[AMENDED 2026-11-09, parked: owner re-plan 2026-11-09 (voting week), relayed by the Contest Planner and the orchestrator: no plan or implement until after voting; Epic 35 merges Stories 35.1 and 35.2 as a part merge and stays in progress; the story's criteria, and the roles-heading and public-path test items Story 35.2's plan found for it, are unchanged]
+
+As an admin,
+I want to create webhooks, each with its own secret, that turn any JSON event into an item,
+So that other systems can tell OcuTalon what happened and it decides what needs me.
+
+**Acceptance Criteria:**
 
 **Given** an admin in Settings › Channels
 **When** they create a webhook with a name and a secret

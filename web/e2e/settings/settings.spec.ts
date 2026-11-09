@@ -1,14 +1,15 @@
 import { expect, test, type Locator, type Page, type Route } from '../support/fixtures';
 
-import { envelope, signIn } from '../sign-in/helpers';
+import { README_ACCOUNT, envelope, signIn, signInOverHttp } from '../sign-in/helpers';
 import { loadedAfter, signInReadmeLoaded } from '../support/floor';
 import { announcements, recordAnnouncements } from '../support/page';
-import { fixtureUser } from '../support/iris';
+import { adminAtSignIn, fixtureUser } from '../support/iris';
 
 /**
  * Story 33.2, the settings page for an admin (S1 to S8, with S1t, S1f, S3b, S4b, S5b, S6b, S6c, S7b and S7c), in a real browser against a real stack: the README account holds OcuTalonAdmin, and the live
  * fixture user (OCUTALON_LIVE_USER, test-sign-in.sh) holds OcuTalonUser only. The cases that save restore the five thresholds they change. Story 18.3 adds S13 (Models)
- * and S14 (Budgets): every case puts back the prices, budgets or models it changes.
+ * and S14 (Budgets): every case puts back the prices, budgets or models it changes. Story 35.2 adds S15 (the admin flag of a real sign-in), which
+ * leaves the README account's Session.AdminAtSignIn at 1 and the live fixture user's at 0, the values their own sign-ins write.
  */
 const SETTINGS = '/ocutalon/api/v1/settings';
 const SECTIONS = ['check-thresholds', 'budgets', 'models', 'channels', 'daily-digest', 'time-zone', 'demo-mode'] as const;
@@ -524,6 +525,37 @@ test('S8: a user without OcuTalonAdmin is denied', async ({ page }) => {
   const noEnvelope = await page.request.post(`${SETTINGS}/check-thresholds`, { data: {} });
   expect(noEnvelope.status(), 'the admin check comes before the envelope check').toBe(403);
   expect(((await noEnvelope.json()) as { error: { code: string } }).error.code).toBe('not_admin');
+});
+
+/**
+ * S15 (Story 35.2): a real sign-in over HTTP through the product's own sign-in page records whether the user held OcuTalonAdmin
+ * (OnLogin passes Admin.Held($Roles) to AttachFor): the README account (an admin) leaves AdminAtSignIn 1 and its Ref in
+ * Ownership.AdminSessions(); the live fixture user (OcuTalonUser only) leaves 0 and its Ref out. Each flag is first written to the
+ * opposite value, and an attach that leaves the flag alone would keep it, so only OnLogin's argument can make the test pass. The
+ * settings route answers the same two accounts through the same whole-name check: 200 and 403 not_admin.
+ */
+test('S15: a sign-in records OcuTalonAdmin held at sign-in, and only for an admin', async ({ playwright }) => {
+  const live = fixtureUser('LIVE');
+  const accounts = [
+    { who: 'the README account (OcuTalonAdmin)', ...README_ACCOUNT, before: 0 as const, flag: '1', listed: true, status: 200 },
+    { who: 'the live fixture user (OcuTalonUser only)', user: live.user, password: live.password, before: 1 as const, flag: '0', listed: false, status: 403 },
+  ];
+  for (const account of accounts) {
+    const seeded = await adminAtSignIn(account.user, account.before);
+    const api = await playwright.request.newContext({ baseURL: process.env['OCUTALON_URL'] });
+    try {
+      await signInOverHttp(api, account.user, account.password);
+      const settings = await api.get(SETTINGS);
+      expect(settings.status(), `${account.who}: GET /v1/settings after the sign-in`).toBe(account.status);
+      if (account.status === 403) expect(await settings.json(), 'not_admin').toEqual({ error: { code: 'not_admin', message: DENIED } });
+    } finally {
+      await api.dispose();
+    }
+    const read = await adminAtSignIn(account.user);
+    expect(read.ref, `${account.who}: the same session row`).toBe(seeded.ref);
+    expect(read.flag, `${account.who}: AdminAtSignIn after the sign-in`).toBe(account.flag);
+    expect(read.listed, `${account.who}: its Ref ${account.listed ? 'is' : 'is not'} in Ownership.AdminSessions()`).toBe(account.listed);
+  }
 });
 
 /** The state of the instance as the settings page's session sees it: the stored zone, the digest values, and whether demo mode is on. */

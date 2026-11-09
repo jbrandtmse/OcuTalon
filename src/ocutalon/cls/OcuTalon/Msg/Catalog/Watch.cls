@@ -6,6 +6,8 @@
 /// for later, and the cost (digest.cost, whose slot is of the type dailyCost); digest.needsYouMore ends a needs-you list that is cut. button.gotIt and
 /// handled.marked are the Telegram Got it button and the line that a handled message ends with (UX-DR143). The slot named itemNoun of digest.healthy is the
 /// noun of the days, as the catalog test allows a noun under that name only.
+/// The step 4 texts (Story 35.1; EXPERIENCE, MCP servers and tools (step 4)) are the five keys under mcp. and digest.notCheckedStopped, the coverage line of a
+/// source that stopped polling; the story that produces each one sends it.
 /// The XData block Entries has the shape that OcuTalon.Msg.Catalog.Core describes, and OcuTalon.Msg.Catalog is the only
 /// renderer. Each key prefix lives in one catalog class.
 Class OcuTalon.Msg.Catalog.Watch
@@ -556,6 +558,14 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "Contest Planner ruling 2026-11-06 (owner delegation): Daily digest / Coverage line, not checked: capped database"
  },
+ "digest.notCheckedStopped": {
+  "text": "Not checked: {entry} (stopped polling at {time}: its tool is no longer Read-only).",
+  "slots": {
+   "entry": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Digest, not checked: stopped"
+ },
  "digest.needsYouOne": {
   "text": "One thing needs you: {what}.",
   "slots": {
@@ -605,6 +615,48 @@ XData Entries [ MimeType = application/json ]
    "cost": "dailyCost"
   },
   "source": "EXPERIENCE Message Catalog / Daily digest / Every digest (the cost)"
+ },
+ "mcp.serverUnavailable": {
+  "text": "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools.",
+  "slots": {
+   "server": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Server unavailable"
+ },
+ "mcp.toolShadowsBuiltIn": {
+  "text": "The MCP server {server} offers a tool called '{tool}', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed.",
+  "slots": {
+   "server": "text",
+   "tool": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Tool shadows a built-in"
+ },
+ "mcp.toolChanged": {
+  "text": "{tool} on {server} changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval.",
+  "slots": {
+   "tool": "text",
+   "server": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Tool changed"
+ },
+ "mcp.replayToolChanged": {
+  "text": "{tool} on {server} didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed.",
+  "slots": {
+   "tool": "text",
+   "server": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Approved call, tool changed"
+ },
+ "mcp.sourceStopped": {
+  "text": "The source {source} stopped polling at {time}, because its tool {tool} on {server} is no longer Read-only. Your digest lists it as not checked.",
+  "slots": {
+   "source": "text",
+   "tool": "text",
+   "server": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / MCP servers and tools (step 4) / Source stopped"
  }
 }
 }
