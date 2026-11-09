@@ -6559,7 +6559,7 @@ So that OcuTalon runs on the models I choose and never spends more than I allow.
 
 **Given** the Budgets section
 **When** an admin sets the token budget per decision or the daily cost cap (off by default on a local install) and saves
-**Then** `SettingsOps` writes them as bridge host settings through `Ens.Director.UpdateProduction` within a minute, after the bridge's allow-list (Lane A's Story 17.4) accepts them, and audits them (FR-40, AD-19)
+**Then** `SettingsOps` writes them as bridge host settings through `OcuTalon.Bridge.Settings.Set` (System Default Settings rows that `Decide` reads on each decision) within a minute, after the bridge's allow-list (Lane A's Story 17.4) accepts them, and audits them (FR-40, AD-19) [AMENDED 2026-11-08, Story 18.3 spec gate, Rule 5 apply-and-report (tier 1, intent unchanged): it read "through `Ens.Director.UpdateProduction`", the API Story 17.4 did not use; as built the values are rows that `Bridge.Settings.Set` writes and `Decide` reads per decision, with no production update]
 **And** for admins, the local daily-cost-cap banner's "Budgets" action opens this section (UX-DR97, UX-DR116)
 
 **Given** no model key is set on a local install
@@ -6572,7 +6572,7 @@ So that OcuTalon runs on the models I choose and never spends more than I allow.
 
 **Given** the README
 **When** this story merges
-**Then** its provider section names the supported providers, says each key comes from its own environment variable listed in `.env.example` without a value and never from the settings page, says that with no Anthropic key but another supported provider's key OcuTalon uses that provider's default model, and claims only providers marked supported (FR-39, FR-58, NFR-11)
+**Then** its provider section names the supported providers, says each key comes from its own environment variable listed in `.env.example` without a value and never from the settings page, and claims only providers marked supported (FR-39, FR-58, NFR-11) [AMENDED 2026-11-08, Story 18.3, decided by the Contest Planner under the owner's delegation (ruling planner-2026-11-08-18.3, relayed by the orchestrator): it also read "says that with no Anthropic key but another supported provider's key OcuTalon uses that provider's default model,"; dropped because Anthropic is the only provider marked supported, so the sentence would describe no reachable case]
 
 ### Story 18.4: Read the digest on every channel and mark notices as handled
 

@@ -169,6 +169,10 @@ for (const [name, text] of [...imported, ...fromSource, ...fromTemplates]) {
  */
 const SOURCES = {
   ux: [
+    'No key set. Add {variable} to .env.',
+    'Test',
+    'None',
+    'Output',
     'Documents',
     'Add documents',
     'Remove',
@@ -184,6 +188,9 @@ const SOURCES = {
     'Channels',
     'Daily digest',
     'Time zone',
+    'Send my digest now',
+    'The simulated phone',
+    'Telegram on',
     'Check thresholds',
     'Save changes',
     'Saved. Applies within a minute. Recorded in the audit log.',
@@ -218,7 +225,8 @@ const SOURCES = {
     'Tell now',
     'Act',
     'Recorded; nobody notified',
-    'Saved for later; nobody notified now',
+    'Saved for the daily digest',
+    'Got it',
     'Needs you now',
     'OcuTalon took or requested an action',
     'OcuTalon replied:',
@@ -301,7 +309,6 @@ const SOURCES = {
     'You\'ve simulated 20 emails this hour. You can send more at {time}.',
     'The online demo has used today\'s model allowance. Decisions use fixed rules until {time}.',
     'Can\'t reach OcuTalon. Retrying every 10 seconds.',
-    'OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.',
     'OcuTalon has reached today\'s cost limit of {cap}. Decisions use fixed rules until {time}.',
     'Background checks have paused: the heartbeat last ran at {time}. Watches and reminders may be late until it recovers.',
     'Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot.',
@@ -311,12 +318,12 @@ const SOURCES = {
     'Install it yourself',
     'How to set a key',
     'Set up a bot',
-    'the model didn\'t answer within 60 seconds',
+    'the model didn\'t answer within the time allowed',
     'the model\'s reply was empty',
     'the model\'s reply was cut off',
     'the model declined to answer',
     'the model returned an error',
-    'the model was busy and retries ran out',
+    'the model was too busy to answer',
     'this would have gone over the token budget',
     'this request would have been too large to send',
     'today\'s cost limit has been reached',
@@ -564,6 +571,10 @@ const SOURCES = {
     '{count} {noun} affected',
   ],
   ac: {
+    'Story 18.3 AC 2 (the two lines under the Test button, from "Answered in 1.2 s" (the fixture) and "Didn\'t answer: {plain reason}")': ['Answered in {seconds} s', "Didn't answer: {reason}"],
+    'Story 18.3 AC 5 (the step 2 text of the no-model-key banner, ruled planner-2026-11-08-18.3; EXPERIENCE.md holds its tail after "From step 2:", so the full text sits here and not under ux)': [
+      'OcuTalon has no model key, so every decision uses fixed rules. Add a key for a supported provider (for example, ANTHROPIC_API_KEY) to the .env file and restart OcuTalon.',
+    ],
     'Story 40.4 (U-278: the two help sentences of the Language and Your own words fields)': [
       "OcuTalon deletes common English phrases that say all is well from the model's replies, so its own checks give the verdict. In another language, the model is only told not to say so.",
       "OcuTalon deletes common English phrases that say all is well from the model's replies, so its own checks give the verdict. If this persona writes in another language, the model is only told not to say so.",
@@ -585,6 +596,28 @@ const SOURCES = {
     'Story 39.9: Heartbeat follow-up (the 60-minute schedule line "Every hour, \u2026" and "Every hour" all day; PUBLIC TEXT ruled by the Contest Planner 2026-11-06, relayed by the orchestrator)': ['Every hour', 'Every hour, {from} to {to}'],
   },
   ruled: {
+    'Story 18.4 ruling planner-2026-11-08-18.4 (the Contest Planner under the owner\'s delegation, 2026-11-08, relayed by the orchestrator: the digest card\'s disclosure "What I checked ({n})", the line "Marked as handled at {time}", which the catalog gives (the Got it button is the UX\'s and sits under ux); "Saved for the daily digest" is the UX\'s and sits under ux)': [
+      'What I checked ({n})',
+      'Marked as handled at {time}',
+    ],
+    'Story 18.3 ruling planner-2026-11-08-18.3 (the Contest Planner under the owner\'s delegation, 2026-11-08, relayed by the orchestrator: the Models and Budgets labels and help lines, the agent and provider names, the Test help and failure texts, and the price labels)': [
+      'Triage agent',
+      'Diagnosis agent',
+      'Chat agent',
+      'Provider',
+      'Second model',
+      'Anthropic',
+      "A change applies from the agent's next model request.",
+      "Used once when this agent's reply can't be used.",
+      "Test sends one short request to the agent's saved model.",
+      "Couldn't run the test. Try again.",
+      'Prices',
+      'US dollars per million tokens. New prices apply to later model requests; earlier costs stay as they were.',
+      'Token budget per decision',
+      'A decision that would use more tokens than this uses fixed rules instead. 0 is off.',
+      'Daily cost cap (US dollars)',
+      "When today's model cost reaches the cap, decisions use fixed rules until midnight in the instance's time zone. 0 is off.",
+    ],
     'Story 39.5 ruling planner-2026-11-06-39.5 (the Contest Planner under the owner\'s delegation, 2026-11-06, relayed by the orchestrator: the Heartbeat card\'s Today singular, the labels of its Edit form, the interval names, and 39.2\'s two ruled unavailable reasons of DW-634; the skip line\'s cap fragment is the UX\'s since the same ruling amended EXPERIENCE.md; the labels To and Checklist and the names 4 hours and 8 hours of the same ruling sit under ux, because EXPERIENCE.md holds those words incidentally and this test names the UX first)': [
       'Today: 1 check-in, {cost}',
       'Interval',
@@ -594,9 +627,8 @@ const SOURCES = {
       "Today's cost limit has been reached.",
       'No model key is set.',
     ],
-    'Story 33.2 ruling U-269 (T1 to T8: the unsaved prompt and its Leave button, the denied view\'s link back to the chat, the line of a section that is not built yet, the five threshold labels, T7 the UX\'s Demo mode sentence without its FR reference, and the name of the settings navigation; T2\'s Stay, T6\'s On and Off, T8\'s Pages and T10\'s two API messages are sentences or words that the UX holds, and sit under ux)': [
+    'Story 33.2 ruling U-269 (T1 to T8: the unsaved prompt and its Leave button, the denied view\'s link back to the chat, the five threshold labels, T7 the UX\'s Demo mode sentence without its FR reference, and the name of the settings navigation; T2\'s Stay, T6\'s On and Off, T8\'s Pages and T10\'s two API messages are sentences or words that the UX holds, and sit under ux)': [
       'Settings sections',
-      "This part of OcuTalon isn't built yet.",
       'Back to the chat',
       'You have unsaved changes in this section. Leave without saving?',
       'Leave without saving',
@@ -609,6 +641,16 @@ const SOURCES = {
     ],
     'Story 33.2 ruling U-270 (T9, the Demo mode field message when the Demo step failed after the value was written: the value stands, so the text never says that nothing was changed)': [
       "Demo mode is set to {v}, but the switch didn't finish. OcuTalon tries again at its next start.",
+    ],
+    'Story 18.2 ruling planner-2026-11-08-18.2 (the Contest Planner under the owner\'s delegation, 2026-11-08, relayed by the orchestrator: the Time zone help text (reworded by the ruling) and its Server default choice, the Daily digest labels Send at and Send to, its help line, the web chat and simulated phone channel names, the send-now confirmation and failure, and the Channels section\'s Telegram on)': [
+      "Message times, reminders, the daily digest and the current time that OcuTalon gives the model use this zone. Times on this page stay in your browser's zone.",
+      'Server default',
+      'Send at',
+      "In the instance's time zone. Applies from the next digest.",
+      'Send to',
+      'The web chat',
+      'Sending your digest now.',
+      "Couldn't send your digest. Try again.",
     ],
     'Story 12.10 veto item (U-244, orchestrator veto: the hint of the Telegram row in the drawer band, which names the header\'s Status button; EXPERIENCE.md gives only the line for the other bands)': [
       'Optional: press {status} at the top of the page, then scan the QR code in the Telegram card to get the notice on your own phone.',

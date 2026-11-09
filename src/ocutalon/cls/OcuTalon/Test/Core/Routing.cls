@@ -9,11 +9,12 @@
 ///   - TestNoticeTransform: the three cases of the Notification's key and slots, the first reason line, and each error;
 ///   - TestNotifyTargets: each kind of Notification with demo mode on and off, with and without a pairing and with Telegram
 ///     included or not, a reply that came from the web and from Telegram, and a pairing notice with and without a ChatRef;
-///   - TestFunctions: the four functions of the rules, and that the rules resolve them from OcuTalon.Core.Rule.Functions alone;
+///     the kind digest on top of that for no digest.channels row and for each value the setting can hold;
+///   - TestFunctions: the five functions of the rules, and that the rules resolve them from OcuTalon.Core.Rule.Functions alone;
 ///   - TestRuleTargetsAreProductionItems: the two router items use these rules, and every target and transform that a rule
 ///     names exists in the production.
-/// The fixture sessions come from Test.Data.Fixture. The test restores the demo.mode setting (as Test.Demo.Step saves and puts it
-/// back) and the test-only switch ^OcuTalonTest("TelegramIncluded") as it found them. The run's number is n from
+/// The fixture sessions come from Test.Data.Fixture. The test restores the demo.mode and digest.channels settings (as Test.Demo.Step
+/// saves and puts demo.mode back) and the test-only switch ^OcuTalonTest("TelegramIncluded") as it found them. The run's number is n from
 /// ^OcuTalonTest("Routing","n") (never reset).
 Class OcuTalon.Test.Core.Routing Extends %UnitTest.TestCase
 {
@@ -23,6 +24,9 @@ Parameter OUTCOMERULE = "OcuTalon.Core.Rule.Outcome";
 
 /// The rule of the Notify item.
 Parameter NOTIFYRULE = "OcuTalon.Core.Rule.Notify";
+
+/// The setting that a digest follows.
+Parameter CHANNELSKEY = "digest.channels";
 
 /// The run's number.
 Property Number As %Integer;
@@ -40,6 +44,9 @@ Property SavedUpdatedAt As %String;
 /// The value of ^OcuTalonTest("TelegramIncluded") before the run, "" when it was absent.
 Property SavedIncluded As %String;
 
+/// The digest.channels row before the run: $ListBuild(existed, value, updatedAt).
+Property SavedChannels As %List;
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
@@ -48,12 +55,15 @@ Method OnBeforeAllTests() As %Status
 	Do ##class(OcuTalon.Test.Demo.Step).Saved(.found, .value, .updatedAt)
 	Set ..SavedFound = found, ..SavedValue = value, ..SavedUpdatedAt = updatedAt
 	Set ..SavedIncluded = $Get(^OcuTalonTest("TelegramIncluded"))
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(..#CHANNELSKEY)
+	Set ..SavedChannels = $Select($IsObject(row): $ListBuild(1, row.Value, row.UpdatedAt), 1: $ListBuild(0, "", ""))
 	Quit $SYSTEM.Status.OK()
 }
 
 Method OnAfterAllTests() As %Status
 {
 	Do ##class(OcuTalon.Test.Demo.Step).PutBack(..SavedFound, ..SavedValue, ..SavedUpdatedAt)
+	Do ..PutChannels($Select($List(..SavedChannels, 1): $List(..SavedChannels, 2), 1: ""), $List(..SavedChannels, 1), $List(..SavedChannels, 3))
 	If ..SavedIncluded = "" {
 		Kill ^OcuTalonTest("TelegramIncluded")
 	} Else {
@@ -182,18 +192,39 @@ Method TestNoticeTransform()
 	}
 }
 
+/// Writes the digest.channels row with the value (exists = 1; the updatedAt of a restore is kept), or deletes it (exists = 0), and drops this
+/// process's cache entry, so that the next read sees it.
+ClassMethod PutChannels(value As %String, exists As %Boolean = 1, updatedAt As %String = "")
+{
+	Set key = ..#CHANNELSKEY
+	Kill ^||OcuTalon.Setting(key)
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+	If 'exists {
+		If $IsObject(row) Do ##class(OcuTalon.Data.Setting).%DeleteId(row.%Id())
+		Quit
+	}
+	Do ##class(OcuTalon.Data.Setting).Set(key, value)
+	If updatedAt '= "" {
+		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+		Set row.UpdatedAt = updatedAt
+		Do row.%Save()
+	}
+	Kill ^||OcuTalon.Setting(key)
+}
+
 /// Notify's rule for every kind of Notification, with demo mode on and off, with and without a pairing, and with Telegram
 /// included or not; a reply that came from the web and one from Telegram; a pairing notice with and without a ChatRef.
 ///   - kind pairing: TelegramOut alone when ChatRef is set and Telegram is included, otherwise none;
 ///   - kind allowance: WebChatOut, and TelegramOut when Telegram is included and the session is paired;
 ///   - any other kind: WebChatOut, SimPhoneOut when demo mode is on, TelegramOut when Telegram is included and the session is paired;
+///   - digest: the same three, each only when digest.channels names it (no row: web, phone and telegram), and nothing when none holds;
 ///   - a reply: WebChatOut, and TelegramOut when it came from Telegram, Telegram is included and the session is paired.
 Method TestNotifyTargets()
 {
 	Set unpaired = ..Session("notify")
 	Set paired = ..Session("notifypaired")
 	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Pairing(paired)
-	Set kinds = $ListFromString("tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status,digest")
+	Set kinds = $ListFromString("tellnow,incident,approval,answered,result,reminder,fallback,allowance,pairing,status")
 	For demo = 0, 1 {
 		Do ##class(OcuTalon.Test.Demo.Step).Put(demo, "2026-01-02T03:04:05Z")
 		For included = 0, 1 {
@@ -229,6 +260,7 @@ Method TestNotifyTargets()
 			}
 		}
 	}
+	Do ..PutChannels("", 0)
 	Do ##class(OcuTalon.Test.Demo.Step).Put(1, "2026-01-02T03:04:05Z")
 	Set ^OcuTalonTest("TelegramIncluded") = 0
 	Set notification = ##class(OcuTalon.Msg.Notification).%New()
@@ -239,9 +271,48 @@ Method TestNotifyTargets()
 	Do $$$AssertEquals(..Route(..#NOTIFYRULE, outbound), "", "a message of another class routes nowhere")
 }
 
-/// The four functions: IsSession is 1 only for the Ref of a session with a Session row; DemoOn follows the demo.mode setting
+/// The kind digest goes to the session's own channels that digest.channels also names: web always, phone while demo mode is on, Telegram
+/// while it is included and the session is paired. The expected targets are written out per setting value: web, phone, telegram (1 when named).
+/// No row names all three. A name that is not one of the three, an empty name, and a value of only such names add no target, and a digest
+/// with no target goes nowhere: it never takes the generic route.
+Method TestNotifyDigestTargets()
+{
+	Set unpaired = ..Session("digestunpaired")
+	Set paired = ..Session("digestpaired")
+	Set ..Refs = ..Refs_","_##class(OcuTalon.Test.Data.Fixture).Pairing(paired)
+	Set settings = $ListBuild($ListBuild("no row", "", 1, 1, 1), $ListBuild("web", "web", 1, 0, 0), $ListBuild("phone", "phone", 0, 1, 0), $ListBuild("telegram", "telegram", 0, 0, 1))
+	Set settings = settings_$ListBuild($ListBuild("web,phone", "web,phone", 1, 1, 0), $ListBuild("web,phone,telegram", "web,phone,telegram", 1, 1, 1), $ListBuild("phone,telegram", "phone,telegram", 0, 1, 1), $ListBuild("web,telegram", "web,telegram", 1, 0, 1))
+	Set settings = settings_$ListBuild($ListBuild("spaces and case", " Telegram , WEB ", 1, 0, 1), $ListBuild("only unknown names", "fax,sms", 0, 0, 0), $ListBuild("an unknown name beside web", "fax,web", 1, 0, 0), $ListBuild("empty names", ",,web,", 1, 0, 0))
+	For demo = 0, 1 {
+		Do ##class(OcuTalon.Test.Demo.Step).Put(demo, "2026-01-02T03:04:05Z")
+		For included = 0, 1 {
+			Set ^OcuTalonTest("TelegramIncluded") = included
+			For isPaired = 0, 1 {
+				Set session = $Select(isPaired: paired, 1: unpaired)
+				Set position = 0
+				While $ListNext(settings, position, setting) {
+					Do ..PutChannels($List(setting, 2), $List(setting, 2) '= "")
+					Set notification = ##class(OcuTalon.Msg.Notification).%New()
+					Set notification.SessionRef = session
+					Set notification.Kind = "digest"
+					Set targets = ""
+					If $List(setting, 3) Set targets = targets_",WebChatOut"
+					If $List(setting, 4) && demo Set targets = targets_",SimPhoneOut"
+					If $List(setting, 5) && included && isPaired Set targets = targets_",TelegramOut"
+					Set expected = $Select(targets = "": "", 1: "send:"_$Extract(targets, 2, *)_":")
+					Set label = "a digest, digest.channels "_$List(setting, 1)_", demo "_$Select(demo: "on", 1: "off")_", Telegram "_$Select(included: "included", 1: "not included")_", "_$Select(isPaired: "paired", 1: "not paired")
+					Do $$$AssertEquals(..Route(..#NOTIFYRULE, notification), expected, label_": ["_expected_"]")
+				}
+			}
+		}
+	}
+	Do ..PutChannels("", 0)
+}
+
+/// The five functions: IsSession is 1 only for the Ref of a session with a Session row; DemoOn follows the demo.mode setting
 /// ("1" is on, anything else and an absent row are off); TelegramOn follows Telegram.In.Included; TelegramPaired needs Telegram
-/// included and a Pairing row of the session. The rules find each function in OcuTalon.Core.Rule.Functions, and in no other
+/// included and a Pairing row of the session; DigestNamed is 1 for a channel that digest.channels names, compared trimmed and
+/// lowercased, with all three channels named when the setting has no row, and 0 for any other name. The rules find each function in OcuTalon.Core.Rule.Functions, and in no other
 /// function set.
 Method TestFunctions()
 {
@@ -267,7 +338,20 @@ Method TestFunctions()
 		Do $$$AssertEquals($ClassMethod(functions, "TelegramPaired", ""), 0, "TelegramPaired: an empty Ref")
 		Do $$$AssertEquals($ClassMethod(functions, "TelegramPaired", "instance"), 0, "TelegramPaired: the owner instance")
 	}
-	For name = "IsSession", "DemoOn", "TelegramOn", "TelegramPaired" {
+	Do ..PutChannels("", 0)
+	For channel = "web", "phone", "telegram" {
+		Do $$$AssertEquals($ClassMethod(functions, "DigestNamed", channel), 1, "DigestNamed: "_channel_" is named when the setting has no row")
+	}
+	Do ..PutChannels("web, Phone")
+	Do $$$AssertEquals($ClassMethod(functions, "DigestNamed", "web")_$ClassMethod(functions, "DigestNamed", "phone")_$ClassMethod(functions, "DigestNamed", "telegram"), "110", "DigestNamed: 'web, Phone' names web and phone, not telegram")
+	Do $$$AssertEquals($ClassMethod(functions, "DigestNamed", " PHONE ")_$ClassMethod(functions, "DigestNamed", "Web"), "11", "DigestNamed: the argument is trimmed and lowercased too")
+	For channel = "", "fax", "web,phone", "all" {
+		Do $$$AssertEquals($ClassMethod(functions, "DigestNamed", channel), 0, "DigestNamed: '"_channel_"' is never a channel")
+	}
+	Do ..PutChannels("web,phone,telegram")
+	Do $$$AssertEquals($ClassMethod(functions, "DigestNamed", "fax"), 0, "DigestNamed: a name that the setting lists but that is not a channel is 0")
+	Do ..PutChannels("", 0)
+	For name = "IsSession", "DemoOn", "TelegramOn", "TelegramPaired", "DigestNamed" {
 		Kill class
 		Set sc = ##class(Ens.Rule.Utilities).ResolveFunction(name, .class, .method)
 		Do $$$AssertStatusOK(sc, name_" resolves as a rule function")

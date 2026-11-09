@@ -929,7 +929,7 @@ Method NoteOf(lines As %List) As %String [ Private ]
 /// sentence for the web chat. A reason that is not in the enumeration is unusable.
 Method TestEveryFallbackReason()
 {
-	Set oracle = $ListBuild("timeout|the model didn't answer within 60 seconds", "empty|the model's reply was empty", "cut_off|the model's reply was cut off", "refusal|the model declined to answer", "error|the model returned an error", "rate_limited|the model was busy and retries ran out", "budget|this would have gone over the token budget", "too_large|this request would have been too large to send", "daily_cap|today's cost limit has been reached", "no_key|no model key is set", "invalid|the model's reply couldn't be used", "unusable|the model's reply couldn't be used")
+	Set oracle = $ListBuild("timeout|the model didn't answer within the time allowed", "empty|the model's reply was empty", "cut_off|the model's reply was cut off", "refusal|the model declined to answer", "error|the model returned an error", "rate_limited|the model was too busy to answer", "budget|this would have gone over the token budget", "too_large|this request would have been too large to send", "daily_cap|today's cost limit has been reached", "no_key|no model key is set", "invalid|the model's reply couldn't be used", "unusable|the model's reply couldn't be used")
 	Do $$$AssertEquals($ListLength(oracle), 12, "all 12 reasons are tried")
 	Set cases = ""
 	Set position = 0

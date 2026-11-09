@@ -1,7 +1,7 @@
 /// One row per tell-now notice that its session has marked as handled (AD-14, Got it; Lane B). The notice's Ref is its Decision's Ref
 /// (a notice has none of its own, and each channel's Delivery row records it as DecisionRef). A row says that the session handled the
 /// notice, when, and from which channel. The class is created by Story 33.2; its writer is the GotIt branch of SessionOps (Story 12.12;
-/// Story 18.4 adds the web chat's and the Simulated phone's controls), SessionOps.End deletes a session's rows through DropSession, and
+/// Story 18.4 adds the web chat's and the Simulated phone's controls), SessionOps.End deletes a session's rows through DropSession, Purge deletes the old ones (Story 18.4; AD-27), and
 /// Digest reads it through Marked.
 Class OcuTalon.Data.Handled Extends %Persistent
 {
@@ -40,6 +40,29 @@ ClassMethod DropSession(sessionRef As %String) As %Status
 {
 	If $Get(sessionRef) = "" Quit $$$OK
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.Handled WHERE SessionRef = ?", sessionRef)
+	If result.%SQLCODE < 0 Quit $$$ERROR($$$SQLError, result.%SQLCODE, result.%Message)
+	Set count = 0
+	While result.%Next() {
+		Set ids($Increment(count)) = result.%GetData(1)
+	}
+	Set sc = $$$OK
+	Set n = ""
+	For {
+		Set n = $Order(ids(n), 1, id)
+		Quit:n=""
+		Set one = ..%DeleteId(id)
+		If $$$ISERR(one) && '$SYSTEM.Status.Equals(one, ..#NOTFOUND) && $$$ISOK(sc) Set sc = one
+	}
+	Quit sc
+}
+
+/// Deletes the rows that were handled before the purge cutoff, Bridge.Time.DaysCutoff(daysToKeep): rows handled at or after it stay.
+/// daysToKeep must be a whole number of at least 1: anything else is an error status and nothing is deleted, and an empty cutoff (nothing is old enough) deletes nothing. A row that is already gone is not an error. Returns OK when no old row is left, else the first error.
+ClassMethod Purge(daysToKeep As %Integer) As %Status
+{
+	Set sc = ##class(OcuTalon.Bridge.Time).DaysCutoff($Get(daysToKeep), "OcuTalon.Data.Handled.Purge", .cutoff)
+	If $$$ISERR(sc) || (cutoff = "") Quit sc
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.Handled WHERE HandledAt < ?", cutoff)
 	If result.%SQLCODE < 0 Quit $$$ERROR($$$SQLError, result.%SQLCODE, result.%Message)
 	Set count = 0
 	While result.%Next() {

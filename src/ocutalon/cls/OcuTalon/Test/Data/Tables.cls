@@ -422,7 +422,8 @@ XData Contracts [ MimeType = application/json ]
    "Sender": "%String(MAXLEN=1000)",
    "Subject": "%String(MAXLEN=1000)",
    "ApprovalRef": "%String(MAXLEN=22)",
-   "Answer": "%String(MAXLEN=1000)"
+   "Answer": "%String(MAXLEN=1000)",
+   "DecisionRef": "%String(MAXLEN=22)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -442,7 +443,8 @@ XData Contracts [ MimeType = application/json ]
    "Text": "%String(MAXLEN=)",
    "DecisionRef": "%String(MAXLEN=22)",
    "DueAt": "%String(MAXLEN=20)",
-   "FallbackReason": "%String(MAXLEN=32)"
+   "FallbackReason": "%String(MAXLEN=32)",
+   "CheckRows": "%String(MAXLEN=)"
   },
   "indexes": {
    "ApprovalRefChannelOwnerRefIndex": "ApprovalRef,Channel,OwnerRef",

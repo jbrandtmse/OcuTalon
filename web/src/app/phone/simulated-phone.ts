@@ -10,8 +10,9 @@ import type { ApprovalPayload, PhonePayload } from '../live/payloads';
 import { DemoView } from '../shared/demo-view';
 import { atBottom, BOTTOM_SLACK_PX } from '../shared/follow-bottom';
 import { revealRing } from '../shared/reveal-ring';
+import { GotIt } from '../chat/got-it';
 import { PhoneRequest } from './phone-request';
-import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './phone-view';
+import { gotItShown, PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './phone-view';
 
 /**
  * The simulated phone (Story 4.5; FR-13, UX-DR132): a generic phone silhouette on the device panel. A frame in the phone-frame colour
@@ -22,7 +23,8 @@ import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './pho
  * The phone decides nothing and renders no text (AD-12, AD-32): its list is the snapshot's `phone` and the store's phone events
  * (phone-view.ts), and each message's text is the server's. A message that names an approval request (`approvalRef`, which the server
  * sets for the kinds incident and approval only) is drawn by app-phone-request, with Approve and Reject until it has an answer
- * (Story 6.3); every other message keeps the plain markup. The phone is not a live region: it announces only the notices of its own
+ * (Story 6.3); a tell-now message (`decisionRef`) shows Got it (app-got-it, channel phone) until the server's edit puts the handled line in its `answer`,
+ * which then stands in its place (Story 18.4); every other message keeps the plain markup. The phone is not a live region: it announces only the notices of its own
  * press (phone-request.ts), and the chat's request card announces an answer once.
  *
  * The feed is a tab stop and the scroller (a region named by its tab). It follows like the chat list: it is at the bottom when within
@@ -33,7 +35,7 @@ import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './pho
  */
 @Component({
   selector: 'app-simulated-phone',
-  imports: [Icon, PhoneRequest, SimulatedLabel],
+  imports: [GotIt, Icon, PhoneRequest, SimulatedLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="frame">
@@ -61,6 +63,11 @@ import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './pho
                       />
                     } @else {
                       <p class="text">{{ one.text }}</p>
+                      @if (gotItShown(one)) {
+                        <app-got-it [ref]="one.decisionRef ?? ''" channel="phone" />
+                      } @else if (one.decisionRef && one.answer) {
+                        <p class="answer" data-part="answer" [attr.data-key]="one.ref">{{ one.answer }}</p>
+                      }
                       <span class="time">{{ timeOf(one) }}</span>
                     }
                   </div>
@@ -163,6 +170,11 @@ import { PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf } from './pho
       white-space: pre-line;
       overflow-wrap: anywhere;
     }
+    .answer {
+      margin: 0;
+      color: var(--ink-muted);
+      overflow-wrap: anywhere;
+    }
     .time {
       align-self: flex-end;
       color: var(--ink-muted);
@@ -217,6 +229,7 @@ export class SimulatedPhone implements AfterViewInit {
   private readonly content = viewChild.required<ElementRef<HTMLElement>>('content');
 
   protected readonly texts = PHONE_TEXTS;
+  protected readonly gotItShown = gotItShown;
   protected readonly newMessages = CHAT_TEXTS.newMessages;
 
   /** The refs the phone has shown, as of its last look; undefined until the first look, which records the messages and counts none as new. */

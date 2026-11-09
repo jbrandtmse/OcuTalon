@@ -46,4 +46,36 @@ ClassMethod TelegramPaired(sessionRef As %String) As %Boolean
 	Quit paired
 }
 
+/// 1 when digest.channels names the channel (web, phone or telegram): the setting's comma-separated names, each trimmed and lowercased,
+/// or SettingsOps' declared default when the setting has no row. A name that is not one of the three never counts, and neither does an
+/// empty channel. Any error gives 0.
+ClassMethod DigestNamed(channel As %String) As %Boolean
+{
+	Try {
+		Set wanted = $ZConvert($ZStrip($Get(channel), "<>W"), "L")
+		Set named = 0
+		If $ListFind($ListBuild("web", "phone", "telegram"), wanted) {
+			Set default = ##class(OcuTalon.Core.SettingsOps).Section("daily-digest")
+			Set value = ##class(OcuTalon.Data.Setting).Get("digest.channels", $Select($IsObject(default): ..ChannelsDefault(default), 1: ""))
+			For i = 1:1:$Length(value, ",") {
+				If $ZConvert($ZStrip($Piece(value, ",", i), "<>W"), "L") = wanted Set named = 1
+			}
+		}
+	} Catch exception {
+		Set named = 0
+	}
+	Quit named
+}
+
+/// The declared default of the channels field of the daily-digest section.
+ClassMethod ChannelsDefault(section As %DynamicObject) As %String [ Private ]
+{
+	Set default = ""
+	Set fields = section.fields.%GetIterator()
+	While fields.%GetNext(, .field) {
+		If field.name = "channels" Set default = field.default
+	}
+	Quit default
+}
+
 }

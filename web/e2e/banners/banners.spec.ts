@@ -109,7 +109,7 @@ async function clear(user: string, conditions: string[]): Promise<void> {
 }
 
 /** The text of the no-key banner. */
-const NO_KEY = 'OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.';
+const NO_KEY = 'OcuTalon has no model key, so every decision uses fixed rules. Add a key for a supported provider (for example, ANTHROPIC_API_KEY) to the .env file and restart OcuTalon.';
 
 /**
  * The text of the Reset soon banner. The stack is parked (Telegram included, state off), so the page reads the chat-only form
@@ -249,8 +249,11 @@ test('B2: a stalled heartbeat shows its banner and the late marks, announced onc
   }
 });
 
-/** B3: the local cost cap shows the warning with the cap and no action, the composer stays usable, and a daily_cap decision reads its sentence. */
-test('B3: the local cost limit shows the warning with the cap and no action, and the composer stays usable', async ({ page }) => {
+/**
+ * B3: the local cost cap shows the warning with the cap, and no action for a user who is not an admin (the banners fixture user holds OcuTalonUser only; Story 18.3), the
+ * composer stays usable, and a daily_cap decision reads its sentence.
+ */
+test('B3: the local cost limit shows the warning with the cap and no action for a non-admin, and the composer stays usable', async ({ page }) => {
   const { user } = fixtureUser('BANNERS');
   const refs: string[] = [];
   try {
@@ -267,7 +270,7 @@ test('B3: the local cost limit shows the warning with the cap and no action, and
     await expect(one.locator('.text')).toHaveText("OcuTalon has reached today's cost limit of $20.00. Decisions use fixed rules until 17:30.");
     await expectLook(page, one, 'warning', 'the cost-limit banner');
     await expect(one.locator(TRIANGLE)).toHaveCount(1);
-    await expect(one.getByRole('link'), 'it has no action').toHaveCount(0);
+    await expect(one.getByRole('link'), 'a non-admin has no action').toHaveCount(0);
     await expect(one, 'and no Budgets').not.toContainText('Budgets');
     await expect(one.getByRole('button'), 'and cannot be closed').toHaveCount(0);
     await expect(banner(page, 'noModelKey'), 'the no-key banner is still there, after it').toHaveCount(1);
@@ -292,6 +295,33 @@ test('B3: the local cost limit shows the warning with the cap and no action, and
     await clear(user, ['dailyCap', 'noModelKey']);
     await cleanFixtureRows(refs);
   }
+});
+
+/**
+ * B3b (Story 18.3): for an admin (the snapshot's admin flag) the local cost-limit banner has the action "Budgets", which opens the Budgets section of Settings in the same tab:
+ * no new-tab link, no external-link icon and no new-tab words. The snapshot is the page's own /state with the flag set, so the case needs no second account.
+ */
+test('B3b: the local cost limit gives an admin the Budgets action, which opens Settings Budgets in the same tab', async ({ page }) => {
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['admin'] = true;
+    snapshot['status'] = [{ condition: 'dailyCap', active: true, slots: { cap: 20, time: T } }];
+  });
+  await open(page);
+
+  const one = banner(page, 'costCap');
+  await expect(one, 'the cost-limit banner shows on load').toHaveCount(1);
+  const link = one.getByRole('link', { name: 'Budgets', exact: true });
+  await expect(link, 'an admin has the Budgets action').toHaveCount(1);
+  await expect(link, 'to the Budgets section of Settings').toHaveAttribute('href', '#/settings/budgets');
+  await expect(link, 'in the same tab').not.toHaveAttribute('target', /.+/);
+  await expect(link.locator('svg'), 'with no external-link icon').toHaveCount(0);
+  await expect(one.locator('.visually-hidden'), 'and no new-tab words').toHaveCount(0);
+  await expect(one.getByRole('link'), 'and it is the only action').toHaveCount(1);
+  const tabs = page.context().pages().length;
+  await link.click();
+  expect(new URL(page.url()).hash, 'the press opens Budgets').toBe('#/settings/budgets');
+  expect(page.context().pages().length, 'in the same tab').toBe(tabs);
+  await expect(page.getByRole('heading', { level: 1 }), 'the settings page opens').toHaveText('Settings');
 });
 
 /** B4: the online demo's cap, from the snapshot, is the danger banner with "Install it yourself" and a page time without a zone name (DW-29). */

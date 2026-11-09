@@ -15,6 +15,9 @@
  *   it names a request (`approvalRef`, which the server stores for the kinds incident and approval only) and has no answer, from
  *   the server or from the phone's own press: the buttons never come from the approvals store, and the phone never follows the
  *   store's `approval` event, only the server's edit of its message and its own press.
+ * - gotItShown(message) is true when a tell-now message shows Got it (Story 18.4): it names a notice (`decisionRef`, which the server stores
+ *   for the kind tellnow only), asks for no request, and has no answer line. Once the server marks the notice it edits the message's `answer`
+ *   to the handled line, and the control is gone.
  */
 import type { StateSnapshot } from '../api/api-types';
 import type { ApprovalView } from '../approvals/approval-view';
@@ -48,6 +51,11 @@ export function phoneOf(snapshot: PhoneSnapshot | undefined, store: { phones?: R
 
 /** True when the message has an answer line of the server's: the buttons are gone. */
 const answered = (one: PhonePayload): boolean => (one.answer ?? '') !== '';
+
+/** True when a tell-now message shows Got it: it names a notice, asks for no approval request and has no answer line of the server's. */
+export function gotItShown(message: PhonePayload): boolean {
+  return (message.decisionRef ?? '') !== '' && (message.approvalRef ?? '') === '' && !answered(message);
+}
 
 /** The ref of the newest message of the list that names an approval request the store holds as pending and that has no answer line; undefined with none. */
 export function pendingRef(list: readonly PhonePayload[], approvals: Readonly<Record<string, { state?: string }>> | undefined): string | undefined {

@@ -36,8 +36,15 @@ Property Decision As OcuTalon.Live.Payload.Decision(%JSONFIELDNAME = "decision")
 /// The reason of a fallback notice: one of Msg.Enum FALLBACKREASON; empty when the notice is not a fallback.
 Property FallbackReason As %String(%JSONFIELDNAME = "fallbackReason", MAXLEN = 32);
 
+/// The check rows of a digest card, one each (AD-28); empty for any other card and for a digest row written without them.
+Property Checks As list Of OcuTalon.Live.Payload.Part.CheckRow(%JSONFIELDNAME = "checks");
+
+/// When the user marked a tell-now notice as handled, UTC to the second; empty while it is not handled and for any other kind.
+Property HandledAt As %String(%JSONFIELDNAME = "handledAt", MAXLEN = 20);
+
 /// The payload for a web notice card's Delivery row, with every field set from the row: ref (the row's ChannelMessageId),
-/// kind, decisionRef, approvalRef, dueAt, fallbackReason and createdAt (the row's RecordedAt). For a tell-now card whose text
+/// kind, decisionRef, approvalRef, dueAt, fallbackReason, checks (the rows of the row's CheckRows, empty when it has none) and
+/// createdAt (the row's RecordedAt); for a tell-now card handledAt is Data.Handled.Marked of its DecisionRef. For a tell-now card whose text
 /// has two or more lines, text is every line but the last and whyNow is the last line; any other text is whole, with an
 /// empty whyNow. decision is Decision.FromRow of the row the owner sees under DecisionRef; a read that fails or finds nothing
 /// leaves it empty and never fails the payload.
@@ -51,6 +58,9 @@ ClassMethod FromRow(row As OcuTalon.Data.Delivery) As OcuTalon.Live.Payload.Noti
 	Set payload.DueAt = row.DueAt
 	Set payload.FallbackReason = row.FallbackReason
 	Set payload.CreatedAt = row.RecordedAt
+	Set list = ##class(OcuTalon.Live.Payload.Part.CheckRow).ListFromJSON(row.CheckRows)
+	For i = 1:1:list.Count() Do payload.Checks.Insert(list.GetAt(i))
+	If row.Kind = "tellnow" Set payload.HandledAt = ##class(OcuTalon.Data.Handled).Marked(row.DecisionRef)
 	Set lines = $Length(row.Text, $Char(10))
 	If (row.Kind = "tellnow") && (lines >= 2) {
 		Set payload.Text = $Piece(row.Text, $Char(10), 1, lines - 1)
