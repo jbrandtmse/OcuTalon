@@ -5861,3 +5861,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42525785483 attempt 1 (OCT-epic41 ef38622e) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(image) shard:lane-b 22:16:04Z; Epic 41 touches no Pairing code
 - 2026-11-08T22:41:16Z status=routed owner=burndown by=orchestrator note=first sighting; candidate for the next flake story
+
+### DW-992: Our own installer's OCUORDERS step exceeds the licence once on a fresh build-154 install ('License limit exceeded 1 times since instance start.' at severity 2), so the first digest within 24 h shows 'Failed: system log (1 error)'
+- source: Story 17.13 Task 0 (DW-980), builds 154 and 109 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: lane-B throwaway e17s13t154 first install only; a real licence event after start-up, kept counted by the Planner's ruling
+- 2026-11-09T00:38:57Z status=routed owner=burndown by=orchestrator note=planner_ruling 2026-11-08 ~01Z: find which part of the OCUORDERS install step exceeds the licence and stop it; tier 3, after 1.0.5; the 1-error first digest is accepted until then
