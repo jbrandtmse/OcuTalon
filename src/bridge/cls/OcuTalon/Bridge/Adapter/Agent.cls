@@ -264,7 +264,118 @@ Method OnAfterAgentInit(ByRef agent As %AI.Agent) As %Status [ Private ]
 {
 	Set sc = ##super(.agent)
 	If $$$ISERR(sc) Quit sc
-	Quit ..Govern(agent.ToolManager)
+	Set sc = ..Govern(agent.ToolManager)
+	If $$$ISERR(sc) Quit sc
+	Quit ..AttachServers(agent)
+}
+
+/// Attaches the MCP servers of the McpServersClass setting of Decide (AD-6, AD-21, AD-31) to the agent's tool manager, after the gate is set and the
+/// agent's own tools are on it, and reports each attach to the class. A class that is missing or does not extend OcuTalon.Bridge.Ext.McpServers fails
+/// the build with that error. Each server then goes through Attach as mcp:remote:@{config:<config>}, in the order Servers gave, and gets one report
+/// (Report, OnAttach); a server that cannot be attached, and an error from Servers or OnAttach, are logged or reported and never fail the build.
+/// A config name that is not AI.MCP. followed by letters, digits and underscores is reported invalid and never attached. A tool of a server that has
+/// the name of a tool already on the manager (the agent's own tools) is shadowed by AI Hub, so it never runs: it is listed as refused and not as attached.
+/// AI Hub's status text for an unreachable server names the URL and, for an entry with a credential, can hold the credential's value, so the text is
+/// read only to choose the reason word and is never logged, stored or put in a report.
+Method AttachServers(agent As %AI.Agent) As %Status [ Private ]
+{
+	Set class = ##class(OcuTalon.Bridge.Ext.Accessor).ClassFor("McpServersClass", "", "Decide", .sc)
+	If $$$ISERR(sc) Quit sc
+	Try {
+		Set sc = $ClassMethod(class, "Servers", .servers)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) || '$IsObject($Get(servers)) || ('servers.%IsA("%Library.DynamicArray")) {
+		$$$LOGWARNING("The MCP servers class "_class_" gave no list of servers, so none is attached: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		Quit $$$OK
+	}
+	If servers.%Size() = 0 Quit $$$OK
+	Set builtin = ..ToolNames(agent.ToolManager)
+	Set iterator = servers.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Set server = $Select($IsObject(entry): entry.%Get("server"), 1: "")
+		Set config = $Select($IsObject(entry): entry.%Get("config"), 1: "")
+		Try {
+			Set report = ..AttachOne(agent, config, builtin)
+		} Catch exception {
+			Set report = {"status": "unavailable", "reason": "failed", "tools": [], "refused": []}
+		}
+		Do ..ReportAttach(class, server, report)
+	}
+	Quit $$$OK
+}
+
+/// The report of attaching one server: {"status", "reason", "tools", "refused"} (OcuTalon.Bridge.Ext.McpServers). builtin is the list of the names of
+/// the tools on the manager before the first server was attached.
+Method AttachOne(agent As %AI.Agent, config As %String, builtin As %List) As %DynamicObject [ Private ]
+{
+	Set report = {"status": "unavailable", "reason": "", "tools": [], "refused": []}
+	If '$Match(config, "^AI\.MCP\.[A-Za-z0-9_]+$") {
+		Set report.reason = "invalid"
+		Quit report
+	}
+	Set spec = "mcp:remote:@{config:"_config_"}"
+	Set sc = ..Attach(agent, spec)
+	If $$$ISERR(sc) {
+		Set report.reason = ..ReasonOf(sc, config)
+		Quit report
+	}
+	Try {
+		Set iterator = agent.ToolManager.GetToolStatuses().%GetIterator()
+		While iterator.%GetNext(, .tool) {
+			If tool.%Get("tool_ref") '= spec Continue
+			Set name = tool.%Get("name")
+			Set state = tool.%Get("status")
+			If (state = "") || (state = "available") {
+				Do report.tools.%Push(name)
+			} ElseIf $ListFind(builtin, name) {
+				Do report.refused.%Push(name)
+			}
+		}
+		Set report.status = "attached"
+	} Catch {
+		Set report.reason = "failed"
+	}
+	Quit report
+}
+
+/// The reason word for the failed attach of status sc: unreachable when AI Hub could not connect or complete the handshake, failed for anything else
+/// (an entry that does not exist, a refusal). The status text is read here and goes nowhere else; the config name in it is ignored, so a name that holds a
+/// word of the test below does not change the reason.
+ClassMethod ReasonOf(sc As %Status, config As %String) As %String [ Private ]
+{
+	Set text = $Replace($SYSTEM.Status.GetErrorText(sc), config, "")
+	If (text [ "handshake failed") || (text [ "error sending request") || (text [ "onnect") || (text [ "timed out") Quit "unreachable"
+	Quit "failed"
+}
+
+/// The names of the tools that the manager lists, as a list.
+ClassMethod ToolNames(manager As %AI.ToolMgr) As %List [ Private ]
+{
+	Set names = ""
+	Try {
+		Set iterator = manager.%Discover().%GetIterator()
+		While iterator.%GetNext(, .tool) {
+			Set names = names _ $ListBuild(tool.%Get("name"))
+		}
+	} Catch {
+		Set names = ""
+	}
+	Quit names
+}
+
+/// Gives the report of one server to OnAttach of the class. An error status or an exception from the class is one warning, never a failed build.
+Method ReportAttach(class As %String, server As %String, report As %DynamicObject) [ Private ]
+{
+	Try {
+		Set sc = $ClassMethod(class, "OnAttach", server, report)
+		If $$$ISERR(sc) {
+			$$$LOGWARNING("The MCP servers class "_class_" did not take the report for the server "_server_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		}
+	} Catch exception {
+		$$$LOGWARNING("The MCP servers class "_class_" threw on the report for the server "_server_": "_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
 }
 
 /// Adds the tool of the spec (an AI Hub tool URI or JSON configuration) to the tool manager of the agent and records the spec, so that the manager of a
@@ -388,6 +499,7 @@ Method BuildTurnManager() As %Status [ Private ]
 	If $$$ISERR(sc) Quit sc
 	Set position = 0
 	While $ListNext(..Attached, position, spec) {
+		If $Extract(spec, 1, 4) = "mcp:" Continue
 		Set sc = manager.AddTool(spec)
 		If $$$ISERR(sc) Quit
 	}
@@ -397,6 +509,13 @@ Method BuildTurnManager() As %Status [ Private ]
 		If $$$ISERR(sc) Quit
 	}
 	If $$$ISERR(sc) Quit sc
+	Set position = 0
+	While $ListNext(..Attached, position, spec) {
+		If $Extract(spec, 1, 4) '= "mcp:" Continue
+		If $$$ISERR(manager.AddTool(spec)) {
+			$$$LOGWARNING("An attached MCP server did not answer, so its tools are not offered to this request")
+		}
+	}
 	Set sc = ..Govern(manager)
 	If $$$ISERR(sc) Quit sc
 	Set ..OwnTools = ..Agent.ToolManager

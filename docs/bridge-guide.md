@@ -170,6 +170,7 @@ The settings of the `Decide` item:
 | `ReplyFilterClass` | `OcuTalon.Bridge.Ext.ReplyFilter` | The class that filters model-written text before a result leaves `Decide`. |
 | `ClassificationClass` | `OcuTalon.Bridge.Ext.Classification` | The class that classifies tools beyond code and settings. |
 | `TurnToolsClass` | `OcuTalon.Bridge.Ext.TurnTools` | The class that gives one request tools of its own, such as a knowledge base of the person's documents. See "The extension classes". |
+| `McpServersClass` | `OcuTalon.Bridge.Ext.McpServers` | The class that names the MCP servers an agent attaches and receives the report of each attach. See "The extension classes". |
 
 The settings of a runner item (the example's `TriageAgent`, which is an `OcuTalon.Bridge.Operation.AgentRunner`):
 
@@ -307,12 +308,13 @@ The result of `Answer` is `done`, `already_answered` (with the answer that won),
 
 ### The extension classes
 
-The bridge reaches your code only through four classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
+The bridge reaches your code only through five classes, each with a do-nothing default, so that the bridge runs alone. You extend a class and name the subclass in its `Decide` setting:
 
 - `OcuTalon.Bridge.Ext.HostSink` (`HostSinkClass`): `OnEvent(type, ownerRef, payload)` receives the bridge's events: `turn.step`, `decision.recorded`, `approval.raised`, `approval.answered`, `approval.expired`, `approval.cancelled`, `approval.result` and `budget.capped`. It does nothing by default.
 - `OcuTalon.Bridge.Ext.ReplyFilter` (`ReplyFilterClass`): `Filter(text, hostData)` returns the text to use in place of model-written text. For a chat turn, `hostData` is the reply's `HostData` JSON; otherwise it is empty. It returns the text unchanged by default.
 - `OcuTalon.Bridge.Ext.Classification` (`ClassificationClass`): `Classify(source, name, arguments)` returns `safe` or `risky`, or empty for none; the gate calls it with the source and the name. It returns empty by default.
 - `OcuTalon.Bridge.Ext.TurnTools` (`TurnToolsClass`): `Tools(ownerRef, kind, tools)` returns the tools to add to one request, each an object with `AddToManager(manager)`, such as an AI Hub knowledge base. When it returns any, the runner gives that request a new tool manager with the agent's own tools, the tools attached when the agent was built, these tools, the gate and the step audit, and puts the agent's own manager back afterwards; an agent that declares skills cannot take tools of its own this way. It returns none by default.
+- `OcuTalon.Bridge.Ext.McpServers` (`McpServersClass`): `Servers(servers)` returns the MCP servers to attach, each an object with `server` and `config` (the name of a Config Store entry AI.MCP.<name>); `OnAttach(server, report)` receives the report of each attach: `status` (`attached` or `unavailable`), `reason`, the `tools` attached and the `refused` ones. After the agent's own tools are on the manager the runner attaches each server, and an unavailable server never fails the build. It attaches nothing by default.
 
 ### Rules for your own tools
 

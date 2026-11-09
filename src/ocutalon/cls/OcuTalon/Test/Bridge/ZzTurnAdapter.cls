@@ -1,7 +1,7 @@
 /// The runner's adapter of the per-request tool tests (Story 19.5; AD-6, AD-31): it attaches the toolset OcuTalon.Test.Bridge.ZzTurnToolset in
 /// OnAfterAgentInit, through Attach, and notes in ^||ZzTurn("config", n) what each session config it composes finds: the class of the authorization and of
 /// the audit policy of the agent's tool manager, whether that manager is not the one the agent was built with (the manager of the request), and the names of
-/// the tools it discovers. AttachedCount gives the number of specs that Attach has recorded, and TwoConfigs composes the session config twice for one request.
+/// the tools it discovers. AttachedCount gives the number of specs that Attach has recorded (AttachedSpecs, the specs), and TwoConfigs composes the session config twice for one request (ComposeTwice, for an agent that is built already).
 /// While the node ^OcuTalonTest("TurnTools", "fail") is 1, SessionConfigFor fails after the adapter's composition has run, so that the request ends in an error
 /// with the request's manager assigned. Nothing else differs from the adapter.
 Class OcuTalon.Test.Bridge.ZzTurnAdapter Extends OcuTalon.Bridge.Adapter.Agent
@@ -21,12 +21,24 @@ Method AttachedCount() As %Integer
 	Quit $ListLength(..Attached)
 }
 
+/// The specs that Attach has recorded for the agent, as a list.
+Method AttachedSpecs() As %List
+{
+	Quit ..Attached
+}
+
 /// Composes the session config twice for one request of the kind turn of the owner, as a request that compacts its history does, and ends the request's
 /// tools. The status is the first error.
 Method TwoConfigs(owner As %String) As %Status
 {
 	Set sc = ..BuildAgent()
 	If $$$ISERR(sc) Quit sc
+	Quit ..ComposeTwice(owner)
+}
+
+/// TwoConfigs for the agent that is already built: the tools attached when it was built are not attached again.
+Method ComposeTwice(owner As %String) As %Status
+{
 	Set ..TurnOwner = owner
 	Set ..TurnKind = "turn"
 	Set ..TurnComposed = 0

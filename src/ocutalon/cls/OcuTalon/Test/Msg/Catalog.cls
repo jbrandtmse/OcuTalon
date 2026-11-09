@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 105 keys of OcuTalon.Msg.Catalog.Core and the 58 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 105 keys of OcuTalon.Msg.Catalog.Core and the 64 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 15 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -80,9 +80,9 @@ Method TestEntries()
 	Do $$$AssertEquals(keys.core.%Size(), 105, "the expected Core list has 105 keys")
 	// U-177 exception (Contest Planner ruling 2026-11-06, owner delegation, Story 17.5): digest.notCheckedSizeLimit takes the count to 50 here.
 	// U-177 exception (Contest Planner ruling, 2026-11-06, one-time U-177 exception, Story 17.6): button.gotIt, handled.marked, digest.needsYouMore and digest.cost take the count to 54 here.
-	Do $$$AssertEquals(keys.watch.%Size(), 58, "the expected Watch list has 58 keys")
+	Do $$$AssertEquals(keys.watch.%Size(), 64, "the expected Watch list has 64 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 105 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 58 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 64 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -1127,13 +1127,19 @@ XData Keys [ MimeType = application/json ]
   "digest.notCheckedPaused",
   "digest.notCheckedStale",
   "digest.notCheckedSizeLimit",
+  "digest.notCheckedStopped",
   "digest.needsYouOne",
   "digest.needsYou",
   "digest.needsYouMore",
   "digest.saved",
   "digest.savedNoSummary",
   "digest.savedNone",
-  "digest.cost"
+  "digest.cost",
+  "mcp.serverUnavailable",
+  "mcp.toolShadowsBuiltIn",
+  "mcp.toolChanged",
+  "mcp.replayToolChanged",
+  "mcp.sourceStopped"
  ]
 }
 }
@@ -1461,13 +1467,19 @@ XData Fixtures [ MimeType = application/json ]
  "digest.notCheckedPaused": {"slots": {"entry": "the Orders production", "from": "2026-10-16T18:00:00Z", "to": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (background checks were paused between 14:00 ET and 14:12 ET)."},
  "digest.notCheckedStale": {"slots": {"entry": "the Orders production", "time": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (its last check was at 14:12 ET, too long ago to count)."},
  "digest.notCheckedSizeLimit": {"slots": {"entry": "database space"}, "text": "Not checked: database space (OcuTalon can't read this database's size limit)."},
+ "digest.notCheckedStopped": {"slots": {"entry": "the Open tickets source", "time": "2026-10-16T18:15:00Z"}, "text": "Not checked: the Open tickets source (stopped polling at 14:15 ET: its tool is no longer Read-only)."},
  "digest.needsYouOne": {"slots": {"what": "the Orders production has 50 failed orders"}, "text": "One thing needs you: the Orders production has 50 failed orders."},
  "digest.needsYou": {"slots": {"count": 2, "what": "the Orders production has 50 failed orders; the Billing source is unreachable"}, "text": "2 things need you: the Orders production has 50 failed orders; the Billing source is unreachable."},
  "digest.needsYouMore": {"slots": {"n": 195}, "text": "And 195 more on the OcuTalon page."},
  "digest.saved": {"slots": {"count": 3, "summary": "Two newsletters and a shipping notice."}, "text": "Saved for later (3): Two newsletters and a shipping notice."},
  "digest.savedNoSummary": {"slots": {"count": 3, "fallbackReason": "timeout"}, "text": "Saved for later (3): I couldn't summarize them this time (the model didn't answer within the time allowed). The most recent are under Recent decisions on your OcuTalon page."},
  "digest.savedNone": {"slots": {}, "text": "Nothing was saved for later."},
- "digest.cost": {"slots": {"cost": 0.042}, "text": "Yesterday's cost: $0.04."}
+ "digest.cost": {"slots": {"cost": 0.042}, "text": "Yesterday's cost: $0.04."},
+ "mcp.serverUnavailable": {"slots": {"server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "I couldn't connect to the MCP server Tickets at 14:15 ET, so I can't use its tools."},
+ "mcp.toolShadowsBuiltIn": {"slots": {"server": "Tickets", "tool": "lookup"}, "text": "The MCP server Tickets offers a tool called 'lookup', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed."},
+ "mcp.toolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval."},
+ "mcp.replayToolChanged": {"slots": {"tool": "lookup", "server": "Tickets"}, "text": "lookup on Tickets didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed."},
+ "mcp.sourceStopped": {"slots": {"source": "Open tickets", "tool": "lookup", "server": "Tickets", "time": "2026-10-16T18:15:00Z"}, "text": "The source Open tickets stopped polling at 14:15 ET, because its tool lookup on Tickets is no longer Read-only. Your digest lists it as not checked."}
 }
 }
 

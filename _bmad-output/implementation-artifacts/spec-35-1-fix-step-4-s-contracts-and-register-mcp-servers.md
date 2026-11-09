@@ -2,7 +2,7 @@
 title: 'Story 35.1: Fix step 4 contracts and register MCP servers'
 type: 'feature'
 created: '2026-11-09'
-status: 'in-progress'
+status: 'done'
 review_loop_iteration: 0
 baseline_revision: 'fd2ea0f0af0ca6b41f656f016a61bca6d6034635'
 followup_review_recommended: false
@@ -24,6 +24,13 @@ deferred:
       Checked once by script in the review pass (all six equal in the spec table, EXPERIENCE.md and Catalog.Watch). Test.Msg.Catalog pins Catalog.Watch to its own fixtures, and web/scripts/ux-strings.test.mjs reads page strings only, so a later edit of one side would not be flagged.
     location: >-
       _bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md, src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls
+    severity: low
+  - summary: >-
+      The new McpServers bullet of the bridge guide writes AI.MCP.<name> outside backticks, so a Markdown renderer can drop <name>.
+    evidence: |-
+      The bullet is the Contest Planner's accepted text (ruling planner-2026-11-09-35.1-q5), pinned whole-line by test-bridge-guide.sh; changing it is public text that needs the author's acceptance. The guide's other placeholders (for example the @{config:<name>} row) are in backticks.
+    location: >-
+      docs/bridge-guide.md (fifth bullet of The extension classes), docker/tests/test-bridge-guide.sh:turn_lines
     severity: low
 ---
 
@@ -115,7 +122,7 @@ deferred:
 - Given a test run of `Test.Mcp.Attach`, when it ends (pass or fail), then its fixture row, Config Store entry and wallet secret are gone, and no assertion message or output line held the secret value.
 - Given the accepted PUBLIC TEXT table, when the implement stage ships text, then EXPERIENCE.md's new block and `Catalog.Watch` hold exactly the six accepted texts and keys, verbatim, `Test.Msg.Catalog` passes with 64 Watch keys and their fixtures, and no code in this story sends them.
 - Given `ci/units.sh`, when `docker/tests/test-ci-config.sh` runs, then `Test/Mcp` is in exactly one shard (`lane-a`) and the check passes.
-- [ ] [Clarification] Q5 accepted (ruling planner-2026-11-09-35.1-q5, Design Notes): apply EXACTLY the three accepted edits from `## Clarification Needed (implement stage)` Q5 -- `docs/bridge-guide.md`: the `McpServersClass` Settings-table row after the `TurnToolsClass` row (verbatim), the "The extension classes" lead-in "four classes" -> "five classes" and the fifth bullet (verbatim); `docker/tests/test-bridge-guide.sh`: `turn_lines` and the `turntools` rule's comment (line 27) pin "five classes" and the new bullet -- then `bash docker/tests/test-bridge-guide.sh` passes (and its `turntools` rule goes red if the new bullet is removed: record that `mutation:` line). Nothing else in either file. Both files are footprint extensions (reported by the lead). Then finalize; the rest of the story is implemented and reviewed in the working tree.
+- [x] [Clarification] Q5 accepted (ruling planner-2026-11-09-35.1-q5, Design Notes): apply EXACTLY the three accepted edits from `## Clarification Needed (implement stage)` Q5 -- `docs/bridge-guide.md`: the `McpServersClass` Settings-table row after the `TurnToolsClass` row (verbatim), the "The extension classes" lead-in "four classes" -> "five classes" and the fifth bullet (verbatim); `docker/tests/test-bridge-guide.sh`: `turn_lines` and the `turntools` rule's comment (line 27) pin "five classes" and the new bullet -- then `bash docker/tests/test-bridge-guide.sh` passes (and its `turntools` rule goes red if the new bullet is removed: record that `mutation:` line). Nothing else in either file. Both files are footprint extensions (reported by the lead). Then finalize; the rest of the story is implemented and reviewed in the working tree.
 
 ## Spec Change Log
 
@@ -184,6 +191,24 @@ deferred:
     - `[low]` `reject` spine edits beyond the Lane A names (S4, S6, S7) - listed in the spec's Design Notes as S1-S9 and approved by the ruling (Q3).
     - `[low]` `reject` texts shipped before "author acceptance" - accepted by planner-2026-11-09-35.1.
     - `[false]` `reject` `Msg/Catalog/Watch.cls` is a Lane B file - it is Lane A's (project block); only `Test/Msg/Catalog.cls` is the exception.
+
+### 2026-11-09 - Review pass (follow-up, Q5 pass: guide and script only)
+- verdicts: 13 findings - high 0, medium 0, low 11, false 2, maybe-false 0
+- findings:
+  - `[low]` `defer` Blind Hunter 1: `AI.MCP.<name>` bare in the new bullet, a renderer can drop `<name>` - real but cosmetic, and the bullet is the Planner's accepted text pinned whole-line; a fix is new public text for the author. Deferred (frontmatter).
+  - `[low]` `reject` Blind Hunter 2: the bullet omits the reason values, the meaning of `refused`, the error handling and the missing-class failure - additional public text beyond the accepted wording; the accepted bullet matches the class (signatures, report fields, statuses, default); not this story's to add unaccepted text.
+  - `[low]` `reject` Blind Hunter 3: the `McpServersClass` row is not pinned; stale "TurnToolsClass wording" messages; "rule" vs "rules" - the ruling pins the lead-in and the bullet only; the row is guarded by the `tables` and `reference` rules (both went red before the row existed); "Story 19.5 and Story 35.1 rule" is grammatical for a plural subject; the message wording is cosmetic.
+  - `[low]` `defer` Edge Case Hunter 1: `<name>` outside backticks (same root cause as Blind Hunter 1) - carried to the same deferred item.
+  - `[low]` `reject` Edge Case Hunter 2: the Settings-table row is not in `turn_lines` - the ruling scopes the pins to the lead-in and the bullet; the row is guarded by `tables`.
+  - `[low]` `reject` Edge Case Hunter 3: the bullet does not say when the setting takes effect or that a missing class fails the build - the accepted text and the Settings intro (which the ruling leaves unchanged) cover it; more text would be unaccepted public wording.
+  - `[low]` `reject` Edge Case Hunter 4: the bullet does not say what puts a tool in `refused` or the `reason` words - same as Blind Hunter 2.
+  - `[false]` `reject` Edge Case Hunter 5: "an unavailable server never fails the build" is unqualified - the sentence says unavailable server, which is what `AttachServers` does; a missing or wrong class failing the build is a different case the bullet does not claim.
+  - `[low]` `reject` Edge Case Hunter 6: `docker/tests/test-production.sh` comment says "three extension classes" - not in this pass's diff, pre-existing since Story 19.5, a comment on a check of three of the classes; nothing fails.
+  - `[low]` `reject` Intent Alignment 1: the row's wording is not pinned - same as Edge Case Hunter 2.
+  - `[low]` `reject` Intent Alignment 2: the Settings-table row is backticked, which departs from the proposal's quoting - the proposal sat inside a code span that could not nest backticks; the `reference` and `tables` rules failed without them (observed) and every other row has them; recorded under Decided in-stage and reported.
+  - `[low]` `defer` Intent Alignment 3: bare `<name>` in the bullet - same root cause as Blind Hunter 1.
+  - `[false]` `reject` Intent Alignment 4: the guide is not checked against the code - the Verification Gap layer compared the signatures, report fields, statuses and default with `Ext/McpServers.cls`, `Decide.cls` and `Accessor.cls` and found no disagreement.
+- Verification Gap Reviewer: no findings (it ran the script, all rules passed; the `mutation:` line for this pass is under Verification).
 
 ## Design Notes
 
@@ -322,6 +347,9 @@ Lane variables for every `ci/` call below (`LANE`): `OCUTALON_LOCK_DIR="$(dirnam
 - mutation (review pass): rename the key `digest.notCheckedStopped` in `Catalog.Watch` -> `Test.Msg.Catalog` red (the fixtures no longer match the keys, AC7).
 - mutation (review pass): remove `Mcp` from the lane-a areas of `ci/units.sh` -> `docker/tests/test-ci-config.sh` red (`Test/Mcp` is in no shard, AC8).
 - mutation (review pass): add a `{x}` token to the new `McpServersClass` spine text -> the spine lint reports eleven findings instead of ten (AC1).
+- mutation (Q5 pass): remove the new McpServers bullet from `docs/bridge-guide.md` -> `bash docker/tests/test-bridge-guide.sh` `turntools` red ("the guide lacks ruled line 4 of the TurnToolsClass wording"); reverted, the guide byte-identical by a saved copy and `cmp`.
+
+**Decided in-stage (Q5 pass):** the Settings-table row is written with backticks around the setting and the class, as every other row of that table (the proposal's quoting dropped them, and the `reference` and `tables` rules need the backticked first cell); the `turntools` rule's ruled text grows from three lines to four (the new bullet is pinned whole-line), so its line-count check and its one-character break loop run over four lines.
 
 ## Auto Run Result
 
@@ -339,5 +367,13 @@ Verification (warm throwaway e35s1iw, after the patches): `Test.Mcp.Attach` (36 
 
 Residual risks: (1) Q5; (2) the attach report is one row per server written by every runner kind, last writer wins, so `RefusedTools` can show the names of one runner kind (Story 22.2 defines which report counts when it reads the row); (3) a server that goes down after a build still shows on the agent's own manager until the runners restart (AI Hub behaviour, Task 0 section 3); the request's manager skips it; (4) the user-turn hold of an unclassified MCP tool rests on `Test.Bridge.Gate`'s existing rows.
 
-Status: blocked
-Blocking condition: intent gap: Q5, public text and a ruled line in docs/bridge-guide.md and its script docker/tests/test-bridge-guide.sh must follow the new McpServersClass setting (proposed wording in Clarification Needed); everything else is done, reviewed and uncommitted in the working tree
+Q5 pass (2026-11-09, runner B, implement re-dispatch): the Contest Planner's ruling `planner-2026-11-09-35.1-q5` was applied and nothing else. `docs/bridge-guide.md`: the `McpServersClass` Settings-table row after the `TurnToolsClass` row, the lead-in "five classes", the fifth bullet (verbatim; the row is backticked as every other row, see Decided in-stage). `docker/tests/test-bridge-guide.sh`: the `turntools` rule's comment and `turn_lines` pin "five classes" and the new bullet, so the ruled text is four lines (count check and break loop follow). The `[Clarification]` item is checked. `bash docker/tests/test-bridge-guide.sh`: all rules passed; its mutation (remove the new bullet) is in Verification.
+
+Review (follow-up pass, scoped to the guide and the script): 13 findings - low 11, false 2; patches 0, deferred 1 (the bare `AI.MCP.<name>` in accepted text; frontmatter), rejected 12 with reasons in the triage log. Follow-up review recommended: false (no `high` patched; no patch).
+
+Verification (this pass): `bash docker/tests/test-bridge-guide.sh` all rules passed (also after the revert of the mutation); `bash docker/tests/test-boundaries.sh` run before the commit (result below). Pass 1's IRIS classes and `(once)` lines were not re-run: this pass touches no IRIS class and pass 1 ran them after its last patch; no throwaway was started.
+
+Residual risks: pass 1's four above; (5) the bare `AI.MCP.<name>` in the accepted bullet may render without `<name>` (deferred).
+
+Status: done
+Blocking condition: none

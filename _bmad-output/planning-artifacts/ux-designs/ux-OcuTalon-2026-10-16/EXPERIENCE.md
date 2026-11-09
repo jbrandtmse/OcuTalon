@@ -939,6 +939,19 @@ Banners stack in this table's order.
 | Persona stale (`persona.stale`) | "Your persona changed after this was suggested. Nothing was changed." |
 | Marked as noise (the notice card's status line) | "Marked as noise at {time}. Similar items will take this into account." |
 
+### MCP servers and tools (step 4)
+
+[ADDED 2026-11-09, Story 35.1, Contest Planner ruling planner-2026-11-09-35.1 (PUBLIC TEXT)] Telegram and the simulated phone share each text exactly.
+
+| Case | Text |
+| --- | --- |
+| Server unavailable (`mcp.serverUnavailable`, admins' chat notice) | "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools." |
+| Tool shadows a built-in (`mcp.toolShadowsBuiltIn`, admins' chat notice) | "The MCP server {server} offers a tool called '{tool}', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed." |
+| Tool changed (`mcp.toolChanged`, admins' chat notice) | "{tool} on {server} changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval." |
+| Approved call, tool changed (`mcp.replayToolChanged`, result of the approved tool-call request, every channel) | "{tool} on {server} didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed." |
+| Source stopped (`mcp.sourceStopped`, admins' chat notice) | "The source {source} stopped polling at {time}, because its tool {tool} on {server} is no longer Read-only. Your digest lists it as not checked." |
+| Digest, not checked: stopped (`digest.notCheckedStopped`, digest coverage line) | "Not checked: {entry} (stopped polling at {time}: its tool is no longer Read-only)." |
+
 ## Visual Trace Links
 
 | Link | Opens |
