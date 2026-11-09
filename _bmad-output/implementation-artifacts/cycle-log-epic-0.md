@@ -553,3 +553,4 @@
 2026-11-09T16:28:47Z	Epic 0	story_chartered	stories=0.20(after_0.18) marker=ADDED_2026-11-09_Contest_Planner_ruling+orchestrator_ruling,DW-1025 key=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un
 2026-11-09T16:28:47Z	Epic 0	deps_hash_rerecorded	reason=fix_forward note=story_0.20_inserted_in_epic_0;no_boundary_or_dependency_change
 2026-11-09T16:29:55Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.20_added) model=claude-opus-5-5 effort=high
+2026-11-09T16:30:06Z	Story 0.20	stage_spawned	stage=plan spawn_at=2026-11-09T16:30:06Z model=opus effort=high agent_name=0-20-plan-1 cycle_iteration=1
