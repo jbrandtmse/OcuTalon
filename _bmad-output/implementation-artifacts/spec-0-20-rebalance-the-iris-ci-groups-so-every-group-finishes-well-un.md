@@ -134,6 +134,24 @@ Rejected:
 - low: mutations are recorded two or three times per AC (planned, dev, QA). These are layered stage records, and the fix would edit the spec under review.
 - false: AC7 has no pinning test. By design it is the lead's done-criterion on two CI runs.
 
+#### Re-review 2026-11-09 (rework iteration 1, diff `e30aa25d..3d85cd51`)
+
+Layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; tier full-opus. All four ran from this worktree, and the tree and HEAD were unchanged after them. The checklist holds:
+- Every browser-group pin matches `group_units browser` (`live:demo-path live:online-demo`, demo-path first), and the count is still 53.
+- Each old assertion has its moved counterpart, and the Chromium-before-each-browser-unit sequence is still asserted.
+- No other `CHECK_SCRIPTS` script pins the old layout. The only `sign-in` / `answers` hits are the made-up trees in `test-ci-config.sh`'s `groups` rule, which don't read the real layout.
+- `ci.yml`, `ci/units.sh`, `ci/iris.sh` and `release/**` are untouched by the rework.
+
+- [x] [Review][Patch] Moving the pins dropped the only test of a `GROUP <name> failed:` line naming several red units. The old "red unit other than the demo path" case expected `live:sign-in live:answers`; with a two-unit group, every case had one red unit, so a `cmd_group` that kept only the last or first failed unit (`ci/iris.sh` L734) went green [docker/tests/test-demo-path-gate.sh:565]. Medium, in-story, fix-risk low. Fixed with no new check: the group's `floor-skipped` case now also sets `GATE_UNIT_RC=1` and expects `UNIT live:online-demo failed` and `GROUP browser failed: live:demo-path live:online-demo (`. The `floor-failed` case keeps its "online-demo passed" pin, and the header comment states the contract. 53 PASS. Mutation observed (see Verification).
+
+Rejected:
+- false: `baseline_commit` / `baseline_revision` moved to `e30aa25d` (edge-case-hunter). The epic cycle sets the rework's baseline on purpose so the re-review sees only the rework. The story base `cccbd78e` stays recorded in the first review above and in the cycle log.
+- false: `## Auto Run Result` was rewritten to cover only the rework, dropping the earlier summary and two residual risks (blind-hunter, edge-case-hunter, acceptance-auditor). Rule 14 says a rework pass's Auto Run Result covers only that pass. The earlier text is in git at `e30aa25d`. The Epic 35 `Mcp` risk is pinned by the AC6 command and the `units` rule, and the required-check names are the Planner's call, outside this story.
+- low: Residual risks says "none was skipped", while the Verification line beside it says `test-release-sequence.sh` skipped `recut` (blind-hunter, edge-case-hunter, acceptance-auditor). The Verification line states it accurately, `recut` reads no layout, and the fix would edit the spec under review.
+- low: the `[CI]` mutation line is a single undated line that cites `git diff` rather than `git status --short` / `git diff --stat` (blind-hunter). It names the mutation, the red checks and a byte-identical revert, so it is neither missing nor stale (Rule 19), and the fix would edit the spec under review.
+- false: the spec says `done` while the tracker says `review` (acceptance-auditor). That is the workflow's normal order: dev-complete sets the spec, and this review sets the tracker.
+- low: the cycle log's `ci_observation` for run 42672671071 (jobs `iris (production)`, `iris (shards-7)` and lane-a `ipm-install` never created) is not in the spec (blind-hunter). It is outside the rework's diff and not a code defect. AC7's two clean runs are the lead's done-criterion, and that gate reads those runs.
+
 ## Release-tool hunk (for the Planner)
 
 The exact change to `.github/workflows/ci.yml` (blob `80afa70` to `0acfe6e`); implement produces it byte for byte:
@@ -272,6 +290,7 @@ The exact change to `.github/workflows/ci.yml` (blob `80afa70` to `0acfe6e`); im
 - AC6 mutation: name `shard:lane-a@Checks,Tools,Memory` in place of `shard:lane-a@rest` → the AC6 command prints `Mcp` alone, not `Checks Tools Memory Mcp`. Once Epic 35's area exists, `units` would also report "1 area(s) of the shard lane-a are in no piece, and no piece is rest".
   - mutation: `shard:lane-a@Checks,Tools,Memory` named in place of `shard:lane-a@rest` -> the AC6 command prints `Mcp` alone, not `Checks Tools Memory Mcp` (not a test: the AC6 command itself goes red).
 - [CI] mutation: the `browser` row of `group_units` in `ci/units.sh` reordered to `live:online-demo live:demo-path` -> `test-demo-path-gate.sh` red ("group: the units ran in the order 'live:online-demo live:demo-path '" and "group: the calls ran as ..."), the demo-path-first pin of AD-22. Reverted; `ci/units.sh` byte-identical (`git diff` before and after compared equal).
+  - mutation (re-review 2026-11-09, the multi-unit failed list): `failed="$failed $unit"` in `cmd_group` (`ci/iris.sh` L734) replaced by `failed=" $unit"` -> `test-demo-path-gate.sh` red on "group: a skipped floor test fails the demo path although Playwright exits 0, and the group names every red unit" (missing `GROUP browser failed: live:demo-path live:online-demo (`), and no other check red. Reverted; `ci/iris.sh` byte-identical (cmp), `git status --short` and `git diff --stat` unchanged.
 - AC7: none in-stage. CI's two clean runs are the lead's done-criterion.
 
 Shared surfaces: `IRIS_GROUPS`; the `ci.yml` matrix and the `iris (<group>)` check names; `group_units` and the output of `ci/iris.sh list` and `groups`; the `groups`, `recipe`, `inputs` (L1299), `units` and `shard pieces` pins in `docker/tests/test-ci-config.sh`; `web_groups` and "all ten" in `docker/tests/test-ci-changes.sh`; the overview placement pin in `docker/tests/test-release-sequence.sh`. `NO_WEB_BUNDLE_UNITS` is unchanged.

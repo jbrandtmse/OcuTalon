@@ -28,7 +28,7 @@
 #   - `ci/iris.sh group browser` runs live:demo-path and live:online-demo in that order, installs Chromium before
 #     the script of each browser unit (BROWSER_UNITS) and before no other, exits 0 when both pass, and exits 1 with
 #     `UNIT live:demo-path failed` and `GROUP browser failed: live:demo-path` when the demo path is red, whether Playwright failed
-#     or only skipped the floor test;
+#     or only skipped the floor test; its `GROUP browser failed:` line names every red unit, in run order;
 #   - `ci/iris.sh live bundle-folder` installs no browser, and `ci/iris.sh live floor` installs Chromium, then Firefox and WebKit,
 #     before its script (the names of FIREFOX_WEBKIT_UNITS, which are all in BROWSER_UNITS).
 # Prints one PASS or FAIL line per check; exits 0 only when all pass. Needs bash and Node; starts no container and no browser.
@@ -562,9 +562,9 @@ expect "group: a failed demo path makes the browser group exit 1 and names the u
   "UNIT live:demo-path failed" "UNIT live:online-demo passed" "GROUP browser failed: live:demo-path ("
 absent "group: a red demo path draws no GROUP passed line" "GROUP browser passed"
 
-run_group floor-skipped 0
-expect "group: a skipped floor test makes the browser group exit 1 although Playwright exits 0" 1 \
-  "UNIT live:demo-path failed" "GROUP browser failed: live:demo-path"
+run_group floor-skipped 0 GATE_UNIT_RC=1
+expect "group: a skipped floor test fails the demo path although Playwright exits 0, and the group names every red unit" 1 \
+  "UNIT live:demo-path failed" "UNIT live:online-demo failed" "GROUP browser failed: live:demo-path live:online-demo ("
 
 run_group green 0 GATE_UNIT_RC=1
 expect "group: a red unit other than the demo path makes the group exit 1 and names it" 1 \
