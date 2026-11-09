@@ -217,6 +217,8 @@ Rejected:
   2. the `## Hands-on pass` record form, which only the Contest Planner writes;
   3. Decided 2: `x.y.0` needs a fresh pass, or a carry-over only to a `--from` re-cut whose picks equal the recorded fixes; `x.y.z` with z above 0 accepts a carry-over with the Planner's note; a rehearsal record never carries a pass;
   4. Story 11.14's DW-1008 and DW-1009 texts ride in this story's implement as `[Review]` items (below, under Tasks & Acceptance).
+- **planner-2026-11-09-11.15-hunks** (the Contest Planner [3dd56e], relayed by the orchestrator): the RELEASE TOOL hunks (`git diff 1f41365e a5c7d245 -- release .github/workflows`, `release/release.sh` only) are APPROVED. DW-1009's residual (the `--override` RUN line) and DW-1022 got approved texts and are routed to Story 11.16 (by=owner).
+- **part merge held: owner re-plan 2026-11-09** (the Contest Planner [3dd56e], relayed by the orchestrator): the 11.14+11.15 part merge is HELD until after voting week (after Nov 15). With 11.14's steps on feature every cut would run the rehearsal gate, which voting week's daily patch releases skip. After voting, a follow-up encodes the lean gate list before the merge; a re-integrate then is fine.
 
 ## Review Triage Log
 

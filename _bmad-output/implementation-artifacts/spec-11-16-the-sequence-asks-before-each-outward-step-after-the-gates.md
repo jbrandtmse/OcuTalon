@@ -245,6 +245,7 @@ Texts are under Design Notes, Public text. `<c>` is the cut sha and `<m>` is the
   - **CI:** the `release-sequence` self-test moves out of the hosted `checks` job into its own hosted job before this story lands, in its own CI-only commit, with its first clean timings reported.
 - **planner-2026-11-09-11.16-text** (the Contest Planner [3dd56e], relayed by the orchestrator, 2026-11-09): the `### Public text` is APPROVED as written (ASK/PASS/SKIP/WAIT/FAIL lines, PR title and body, merge commit, tag message, merge-back commit, end Result texts, header contract, self-test rule list).
 - **parked: owner re-plan 2026-11-09** (the owner, via the Contest Planner and the orchestrator): parked until after voting week. Do not implement; the approved text stays on file here.
+- **planner-2026-11-09-DW-1009-DW-1022** (the Contest Planner [3dd56e], relayed by the orchestrator): two approved texts ride with this story after voting (routed by=owner; `DW-n:` bullets in epics.md): DW-1009, the `--override` RUN line reads exactly `RUN cd <clone> && OCUTALON_LOCK_DIR=<lock folder> bash eval/run.sh --override "<reason>"`; DW-1022, append "once the author has recorded the hands-on pass" (the author, not the Contest Planner) to the first hands-on stop's record-push hint to run `release.sh resume`.
 
 ## Review Triage Log
 

@@ -4893,6 +4893,8 @@ So that nothing goes out without my word.
 
 - DW-27: Before the repository goes public, a fork pull request cannot merge without a demo-path run: 0.7's fork guard keeps the IRIS jobs off fork pull requests, so branch protection or a maintainer-run path from a same-repository branch must require it (REL-2; owner-only settings) (ledger; routed by adjudication 2026-10-20)
 - DW-532: After 1.0.0's merge back, the built web bundle in src/ocutalon/csp/ (gitignored today) is tracked on the integration branch, as Story 11.5's merge-back criterion and AD-29 require; from then on every local web build (ci/iris.sh build) rewrites tracked files and leaves the tree dirty, which trips release.sh's clean-tree check at start and bmad-build-auto's clean-tree checks in every epic worktree (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
+- DW-1009: The eval gate's `--override` RUN line omits the lane's throwaway lock folder; it reads exactly `RUN cd <clone> && OCUTALON_LOCK_DIR=<lock folder> bash eval/run.sh --override "<reason>"` (Contest Planner's text; the `--release-candidate` form was fixed by 11.15) (ledger; routed by owner 2026-11-09)
+- DW-1022: At the first hands-on stop, the failed record push's hint to run `release.sh resume` gets "once the author has recorded the hands-on pass" appended (Contest Planner's text), because resume refuses until that pass exists (ledger; routed by owner 2026-11-09)
 
 ### Story 11.17: The release's IPM artifact carries the built page
 

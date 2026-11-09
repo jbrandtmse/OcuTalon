@@ -4196,6 +4196,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T22:12:29Z status=routed owner=burndown by=lead note=attempt 3 rerun decides; DW-321 reopen_if not met (578 s)
 - 2026-11-04T22:35:23Z occurrence=39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built note=attempt_3_of_run_41909512271_green_on_unchanged_rerun_flake_confirmed
 - 2026-11-08T22:41:17Z occurrence=OCT-epic41-ef38622e by=orchestrator note=run 42525785483: iris(production) live:reminder-restart restart 2 took 176 s under load, R_future already due; 4 checks
+- 2026-11-09T16:12:51Z occurrence=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=lead note=run_42645213637(a5c7d245):iris(production)_live:reminder-restart_restart_2_took_161s_under_load,R_future(162s_window)_already_due;4_checks;code_untouched_by_11.15(release.sh_only);one_rerun
 ### DW-664: Under Another language or a custom persona, a model-worded all-clear can pass ReplyGuard's English closed lists (AD-7 vs AD-28 Prevents)
 - source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: RESERVED and BANNED in Checks.ReplyGuard are English; AD-7 keeps the guard to that list; under Spanish only Chat's instruction stands between the model and a false all-clear (FR-37, AD-28 Prevents). The catalog all-clear itself stays code-only.
@@ -6210,6 +6211,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T07:59:51Z status=decision-pending owner=burndown by=cr note=new public text; proposed RUN line is in the spec's Review Findings (11.14 code review)
 - 2026-11-09T08:47:36Z status=routed owner=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=spec_gate note=Planner_approved_the_texts(planner-2026-11-09-11.15);worked_as_[Review]_items_in_11.15's_implement
 - 2026-11-09T15:24:04Z status=decision-pending owner=burndown by=adjudication note=public_text:residual_only;the_--release-candidate_RUN_line_now_carries_OCUTALON_LOCK_DIR(497a1928,pinned_by_t_eval);the_--override_RUN_line(release/release.sh_step_eval)_still_omits_it;proposed:RUN_cd_<clone>_&&_OCUTALON_LOCK_DIR=<lock_folder>_bash_eval/run.sh_--override_"<reason>"(Planner_rules_on_the_text)
+- 2026-11-09T15:38:26Z status=routed owner=11-16-the-sequence-asks-before-each-outward-step-after-the-gates by=owner note=Planner_approved_(relayed_by_orchestrator_2026-11-09):the_override_RUN_line_reads_exactly:RUN_cd_<clone>_&&_OCUTALON_LOCK_DIR=<lock_folder>_bash_eval/run.sh_--override_"<reason>";rides_with_11.16_after_voting
 ### DW-999: flake candidate (host load): live:storage-roundtrip 'the first start did not end ready within 400 s' (test aborted) in CI image under a saturated queue
 - source: CI run 42558521402 attempt 1 (OCT-epic17 87eb681a) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(image) 04:17:13Z; a stack-start bound, no product line involved
@@ -6226,6 +6228,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T15:01:53Z status=open owner=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=harvest note=fix needs wording the Planner has not approved
 - 2026-11-09T15:22:28Z occurrence=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command
 - 2026-11-09T15:24:04Z status=decision-pending owner=burndown by=adjudication note=public_text:the_first-stop_record-push_FAIL_hint_says_run_resume,which_refuses_(R1)_until_the_pass_exists;proposed:append_'once_the_Contest_Planner_has_recorded_the_hands-on_pass'_to_that_hint_at_hands-on(Planner_rules_on_the_text);occurrences_include_answer_no,input_end,push_failure(cr)
+- 2026-11-09T15:38:26Z status=routed owner=11-16-the-sequence-asks-before-each-outward-step-after-the-gates by=owner note=Planner_approved_with_one_change_(relayed_by_orchestrator_2026-11-09):append_'once_the_author_has_recorded_the_hands-on_pass'_(the_author,not_the_Contest_Planner)_to_the_first-stop_record-push_resume_hint;rides_with_11.16_after_voting
 
 ### DW-1023: release.sh start accepts a version part with leading zeros (1.0.00) and its already-tagged check compares strings, so 1.0.00 starts beside a tagged v1.0.0 and would cut v1.0.00
 - source: spec-11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command.md | severity: low | fix-risk: low | footprint: in-epic

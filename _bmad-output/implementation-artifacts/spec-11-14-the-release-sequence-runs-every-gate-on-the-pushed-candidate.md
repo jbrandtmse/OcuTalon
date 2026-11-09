@@ -248,6 +248,7 @@ Rejected:
   3. Timing: Epic 11 part 2 targets 1.0.6. This story's merge is held until after the 1.0.5 cut; every release/** hunk and the two workflow hunks go to the Planner verbatim once the head is green.
   4. Contended: Epic 0's Story 0.15 edits `release/release.sh` around line 575, `release/upgrade-harness.sh` and `ci/warm.sh`; the gate functions stay off those lines (as planned).
 - **planner-2026-11-09-11.14-hunks** (the Contest Planner [3dd56e], under the owner's delegation, relayed by the orchestrator, 2026-11-09): the RELEASE TOOL hunks (`git diff 360306f4..94391c83 -- release .github/workflows`) are APPROVED; 11.14 may merge (release tooling for 1.0.6 onward). Merge order: a part merge of 11.14 and 11.15 once 11.15 is green.
+- **part merge held: owner re-plan 2026-11-09** (the Contest Planner [3dd56e], relayed by the orchestrator): the 11.14+11.15 part merge is HELD until after voting week (after Nov 15). With 11.14's steps on feature every cut would run the rehearsal gate, which voting week's daily patch releases skip. After voting, a follow-up encodes the lean gate list before the merge; a re-integrate then is fine.
 
 ## Review Triage Log
 
