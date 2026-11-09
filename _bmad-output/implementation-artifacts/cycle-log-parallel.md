@@ -3016,3 +3016,5 @@
 2026-11-09T04:23:02Z	Run	deps_hash_rerecorded	reason=fix_forward stories=32.7 hash=dcfc4157646b
 2026-11-09T04:23:02Z	Epic 32	worktree_removed	
 2026-11-09T04:23:02Z	Epic 32	epic_branches_deleted	local+remote(ancestor_verified)
+2026-11-09T04:31:11Z	Run	planner_ruling	subject=Story_0.18_reserved answer=owner-approved_judge-facing_README_update(link_bar+badges,New_in_1.0.3_and_1.0.4,For_judges_table,contest-bonuses_table,fixed-rules_baseline_line);Epic_0_lane_C_after_0.17_AHEAD_of_0.15;README.md_only_verbatim(+README-check_fixture_if_needed);must_merge_before_1.0.5_cut;edit_spec_in_1-2h FYI=GitHub_Releases_v1.0.0-v1.0.4_created_by_owner/Planner(no_workflow_on_release_events) via=Contest_Planner_1(delegation)
+2026-11-09T04:31:20Z	Epic 11	runner_clarification	kind=PUBLIC_TEXT agent=a7b14a4e288e9b748 story=11.14 spec=.worktrees/epic-11/_bmad-output/implementation-artifacts/spec-11-14-...md:291-346 head=c4ae87e7(local) veto=U-315(readiness_CONCERNS) advance_RELEASE_TOOL=release.sh,lib-release.sh,notes.sh;ci.yml+lane-a.yml_push_trigger_release/* forecast=11.14_green_4-5h_after_answer;part2_18-24h
