@@ -3046,3 +3046,6 @@
 2026-11-09T05:57:18Z	Epic 41	runner_clarification	kind=merge_behaviour_choice agent=a70c5c6c3ec305303 files=notice-card.ts,simulated-phone.ts,Live/Payload/Phone.cls local=5726179d ci_split=fa0a5f87
 2026-11-09T05:57:18Z	Epic 41	ruling	question=Got_it_vs_This_was_noise_order_and_DecisionRef_source category=veto choice=as_runner_proposed(strip>Got_it/handled>This_was_noise;phone_text>Got_it>time>noise;one_DecisionRef_Epic_18_column_with_PhoneDecision_fallback) reversal=reorder_controls_or_drop_fallback inbox=U-316 policy=5086036
 2026-11-09T05:57:29Z	Epic 41	runner_resumed	agent=a70c5c6c3ec305303 with=veto_ruling(as_proposed);redo_merge;hold_11:00Z
+2026-11-09T05:58:02Z	Epic 0	ci_green_verified	head=fdd191e8 result=success runs=42565378346,42565378445 covers=0.17+0.18
+2026-11-09T05:58:02Z	Epic 0	runner_complete	part_merge=0.17+0.18 agent=ac22014504312b3ec head=fdd191e8 note=epic_continues_with_0.15(local);contract_fields_from_its_CI_WAIT_reports
+2026-11-09T05:58:02Z	Epic 0	merge_enqueued	policy=when_green+planner_rule_a waits_for=19a4bae6_lane-a
