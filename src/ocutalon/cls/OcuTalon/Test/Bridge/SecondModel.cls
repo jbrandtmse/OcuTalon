@@ -23,7 +23,8 @@
 ///   - TestRetryOfFromTheWebIsIgnored (DW-650 c): a RetryOf in the body of POST /v1/messages is dropped, and a request with a RetryOf sent to Decide waits for the
 ///     conversation lock, so the request that reaches ChatAgent has none;
 ///   - TestIntegrationWebChat (Rule 1): a message through WebChatIn to the real Conversation and Decide, with a second model on ChatAgent and a refused first
-///     attempt, is answered by the second model with no fallback, and the next message is answered with that exchange in its history and none of the refused one.
+///     attempt, is answered by the second model with no fallback, and the next message is answered with that exchange in its history and none of the refused one. The first
+///     message is counted outside every notes block: the session-start input of the first turn carries one, and each block quotes the message once.
 Class OcuTalon.Test.Bridge.SecondModel Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -566,18 +567,46 @@ Method TestIntegrationWebChat()
 	Set held = 0
 	Set refused = 0
 	Set repeated = 0
+	Set notesBlocks = 0
+	Set notesWrong = 0
+	Set opening = $Parameter("OcuTalon.Agent.Input", "NOTESOPENING")
 	Set iterator = logged.%GetIterator()
 	While iterator.%GetNext(, .entry) {
 		Set messages = $ClassMethod(..#FIXTURE, "Messages", entry)
 		If (messages [ "zz17first") && (messages [ ("assistant:"_..#SECONDTEXT)) && (messages [ "zz17next") Set held = held + 1
 		If messages [ "The CI mock refuses this request." Set refused = refused + 1
-		If $Length(messages, "zz17first") > 2 Set repeated = repeated + 1
+		// the first turn began the day, so the history it seeded holds its session-start input, whose notes block quotes the message once beside the message
+		// itself (today's note holds the turn's own line, DW-977); a next turn on a new local day carries a block of its own, which quotes it once as yesterday's
+		Set outside = messages
+		For {
+			Set notes = ..NotesBlock(outside, opening, .outside)
+			If notes = "" Quit
+			Set notesBlocks = notesBlocks + 1
+			If $Length(notes, "zz17first") '= 2 Set notesWrong = notesWrong + 1
+		}
+		If $Length(outside, "zz17first") > 2 Set repeated = repeated + 1
 	}
 	Do $$$AssertEquals(held, 1, "one model request of the next turn holds the first message, the second model's reply and the new message in its history ("_logged.%Size()_" requests carry the new message)")
-	Do $$$AssertEquals(refused_"|"_repeated, "0|0", "none holds the refused exchange, and none holds the first message twice (DW-726)")
+	Do $$$AssertEquals(refused_"|"_repeated, "0|0", "none holds the refused exchange, and none holds the first message twice outside the notes blocks (DW-726)")
+	Do $$$AssertTrue(notesBlocks > 0, "the session-start input of the first turn, seeded into the next turn's history, holds a notes block")
+	Do $$$AssertEquals(notesWrong, 0, "and every notes block a request holds quotes the first message once")
 }
 
 /// --- helpers ---
+/// The notes block of a request's messages: the opening, then the lines up to the blank line that ends the block ("" when there is none). outside is the messages
+/// without the block.
+ClassMethod NotesBlock(messages As %String, opening As %String, ByRef outside As %String) As %String [ Private ]
+{
+	Set outside = messages
+	Set start = $Find(messages, opening)
+	If 'start Quit ""
+	Set start = start - $Length(opening)
+	Set finish = $Find(messages, $Char(10, 10), start)
+	If 'finish Set finish = $Length(messages) + 1
+	Set outside = $Extract(messages, 1, start - 1)_$Extract(messages, finish, *)
+	Quit $Extract(messages, start, finish - 1)
+}
+
 /// A fixture session for the user of the test run, the one that the REST handler resolves (as Test.Web.Api does); its Ref and TraceRef are kept for the clean-up.
 Method SessionOfUser() As %String [ Private ]
 {

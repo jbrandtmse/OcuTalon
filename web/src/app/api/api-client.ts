@@ -241,4 +241,27 @@ export class ApiClient {
   runHeartbeat(): Observable<unknown> {
     return this.http.post<unknown>(`${BASE}/heartbeat/run`, {});
   }
+
+  /** Marks the person's own tell-now notice as noise (Story 41.5): a POST of the channel the press came from. A refusal fails as an HttpErrorResponse whose `error` is the body `{error:{code,message}}`. */
+  markNoise(ref: string, channel: import('./memory-types').NoiseChannel): Observable<import('./memory-types').NoiseMarked> {
+    return this.http.post<import('./memory-types').NoiseMarked>(`${BASE}/decisions/${encodeURIComponent(ref)}/noise`, { channel });
+  }
+
+  /** The session's daily note for a day (Story 41.6): a GET of /memory/notes?day=today|yesterday; the lines are the server's own. */
+  memoryNotes(day: import('./memory-card-types').MemoryDay): Observable<import('./memory-card-types').MemoryNotes> {
+    return this.http.get<import('./memory-card-types').MemoryNotes>(`${BASE}/memory/notes`, { params: { day } });
+  }
+
+  /** The session's own precedents, newest first (Story 41.6): a GET of /memory/precedents; the server never lists another session's or a seeded row. */
+  precedents(): Observable<import('./memory-card-types').PrecedentList> {
+    return this.http.get<import('./memory-card-types').PrecedentList>(`${BASE}/memory/precedents`);
+  }
+
+  /**
+   * Forgets one precedent (Story 41.6): a DELETE with the body {}, which the envelope interceptor completes with its headers. The answer is
+   * {result: 'done'}; a 404 for a row that the session cannot see, a 501 and a 500 fail as an HttpErrorResponse.
+   */
+  forgetPrecedent(ref: string): Observable<import('./memory-card-types').PrecedentForgotten> {
+    return this.http.delete<import('./memory-card-types').PrecedentForgotten>(`${BASE}/memory/precedents/${encodeURIComponent(ref)}`, { body: {} });
+  }
 }

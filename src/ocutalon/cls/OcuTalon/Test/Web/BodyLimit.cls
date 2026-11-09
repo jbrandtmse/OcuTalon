@@ -11,7 +11,7 @@ Class OcuTalon.Test.Web.BodyLimit Extends %UnitTest.TestCase
 {
 
 /// Every POST route of the REST surface, with a value in each :name segment.
-Parameter POSTROUTES = "/v1/messages,/v1/approvals/zzRef/answer,/v1/incidents/zzRef/dismiss,/v1/demo/break-feed,/v1/mailbox/incoming,/v1/mailbox/samples/zzSample,/v1/guide/markers,/v1/session/end,/v1/pairing/code,/v1/settings/models,/v1/settings/budgets,/v1/settings/channels,/v1/settings/daily-digest,/v1/settings/time-zone,/v1/settings/check-thresholds,/v1/settings/demo-mode,/v1/heartbeat/run,/v1/settings/daily-digest/send,/v1/settings/models/test,/v1/decisions/zzRef/got-it";
+Parameter POSTROUTES = "/v1/messages,/v1/approvals/zzRef/answer,/v1/incidents/zzRef/dismiss,/v1/demo/break-feed,/v1/mailbox/incoming,/v1/mailbox/samples/zzSample,/v1/guide/markers,/v1/session/end,/v1/pairing/code,/v1/settings/models,/v1/settings/budgets,/v1/settings/channels,/v1/settings/daily-digest,/v1/settings/time-zone,/v1/settings/check-thresholds,/v1/settings/demo-mode,/v1/heartbeat/run,/v1/settings/daily-digest/send,/v1/settings/models/test,/v1/decisions/zzRef/got-it,/v1/decisions/zzRef/noise";
 
 /// The probe with no declaration.
 Parameter PROBE = "OcuTalon.Test.Web.ApiProbe";
@@ -46,7 +46,7 @@ Method TestAtTheLimitContinues()
 	Set limit = 262144
 	Do $$$AssertEquals(##class(OcuTalon.Web.BodyLimit).#MAXBYTES, limit, "the limit is 256 KB")
 	Set urls = $ListFromString(..#POSTROUTES)
-	Do $$$AssertEquals($ListLength(urls), 20, "all twenty POST routes are tried")
+	Do $$$AssertEquals($ListLength(urls), 21, "all twenty-one POST routes are tried")
 	Set position = 0
 	While $ListNext(urls, position, url) {
 		Set body = ..Dispatch(..#PROBE, url, "POST", limit, "http://h:1", .response, .continue)

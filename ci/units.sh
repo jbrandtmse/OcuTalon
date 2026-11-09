@@ -108,18 +108,24 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # shard:lane-a@rest into the piece of shards (rest is computed from the pieces the groups name, so every area of lane-a stays in exactly one piece): shards-2 about
 # 1,996 s (Fix, Tools, Digest, Memory and Docs, and live:session-data) and shards about 2,038 s (1,868 + 170). shards-5 keeps about 1,911 s (1,901 + 10). No other
 # group changes, and none is added, renamed or given a longer deadline. The first measured CI run replaces these figures (inference until then).
+# Epic 41 (2026-11-08; the Contest Planner's ruling under the owner's delegation, for REL-4's 35 minutes) moved lane-a's Agent area out of
+# shard:lane-a@Bridge,Agent into production as the piece shard:lane-a@Agent (no Agent test reads the web bundle, so it joins NO_WEB_BUNDLE_UNITS,
+# as shard:lane-a@Channel did). Measured before the move (ci run 42485902344, 6aa10fd5): shards-5 job 35 min (shard:lane-a@Bridge,Agent 1,294 s,
+# class time Bridge 673 s and Agent 309 s; live:sign-in-3 776 s) and production job 26 min (its four units 1,546 s). Projection: production about
+# 1,546 + 309 + a stack start (about 250) = 2,105 s, shards-5 about 2,070 - 309 = 1,761 s plus Epic 41's specs in live:sign-in-3 (inference until a run
+# measures them). No group is added, renamed or given a longer deadline.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
     install-upgrade) echo "live:install-upgrade live:online-allowance live:online-visitors live:compose-start" ;;
-    production) echo "live:production live:production-restart live:reminder-restart live:security-overview" ;;
+    production) echo "live:production live:production-restart live:reminder-restart live:security-overview shard:lane-a@Agent" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
     shards) echo "shard:lane-a@Checks,Install,Watch,Eval live:online-session live:cards" ;;
     shards-2) echo "shard:lane-a@rest live:session-data" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
     shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit live:documents" ;;
     shards-4) echo "shard:lane-a@Channel live:sign-in-2 live:memory-offline" ;;
-    shards-5) echo "shard:lane-a@Bridge,Agent live:sign-in-3" ;;
+    shards-5) echo "shard:lane-a@Bridge live:sign-in-3" ;;
     *) return 1 ;;
   esac
 }
@@ -209,7 +215,7 @@ WEB_BUNDLE_INPUT='web/|logo/|_bmad-output/planning-artifacts/ux-designs/'
 # The units whose checks never read, compare or serve the built web bundle. A group whose units are all listed here does not run on a
 # web-only change; a unit that is not listed counts as checking the bundle. A unit or test class that starts to check the bundle
 # leaves this list (docker/tests/test-ci-config.sh, rule inputs, flags a live script that names the bundle).
-NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:storage-roundtrip live:reminder-restart live:security-overview shard:lane-a@Channel"
+NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:storage-roundtrip live:reminder-restart live:security-overview shard:lane-a@Channel shard:lane-a@Agent"
 
 # The paths that no IRIS unit reads: documentation and release files, the agent settings, Lane A's workflow, the example environment,
 # the manual recording tool, and the check and web scripts. A changed path that no group pattern claims, that is not here and that is

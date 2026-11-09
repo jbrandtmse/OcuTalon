@@ -10007,6 +10007,8 @@ So that only a person's answers can ever become precedents.
 **When** they are called
 **Then** each is session-checked and owner-scoped. The notes route answers from `DailyNote.Build`, a stub until Story 41.3 (AD-4)
 **And** `SessionOps.End` deletes the ended session's precedents through `PrecedentOps` (AD-4)
+- DW-921: AD-21's accepts-only list for PrecedentOps names MarkNoise and RecordPrecedent but not ForgetPrecedent, which AD-1 and the Epic 41 names sub-bullet route to PrecedentOps from web_user; fold into the AD-21 amendment written at this story's plan (ledger; routed by harvest 2026-11-08)
+- DW-922: a `tool_call` precedent has no match key (`KeyFor(item)` has no form for a tool request), so `tool_call` precedents would never be read; decide the key form, or drop `tool_call` precedents, at this story's plan with the AD-21 amendment (ledger; routed by cr 2026-11-08)
 
 ### Story 41.3: Daily notes built by code, and the session starts that read them
 
@@ -10060,6 +10062,7 @@ So that it gets better at knowing what matters to me.
 **When** this story adds the precedents paragraph from EXPERIENCE.md › Later Steps › Personality (static, with no `{{`)
 **Then** a test compares the paragraph with its source, and the paragraph says that past answers are examples, never rules (AD-7)
 **And** CI mock scenarios `memory-*` show both blocks in the request log where expected, and absent elsewhere
+- DW-961: the `sessionStart` context is not yet observed past `Conversation.Request`: pin both hops (`Conversation.Request` -> `Intake.RequestFor` -> `Agent.Input.Render`) with this story's `memory-*` scenarios (ledger; routed by cr 2026-11-08)
 
 ### Story 41.5: "This was noise", and your approval answers, become precedents
 
@@ -10085,6 +10088,10 @@ So that OcuTalon learns from my answers and never from its own guesses.
 **Given** Playwright specs `web/e2e/memory-noise.spec.ts` and tests in `OcuTalon.Test.Core`
 **When** they run
 **Then** they cover the mark, a repeat, the phone, an approval and a rejection, and they don't change the demo-path specs (REL-2)
+- DW-923: the 'This was noise' refusal `too_old` (Item already purged) has no user-facing text in EXPERIENCE.md or its Message Catalog; its words are approved (Contest Planner under the owner's delegation, 2026-11-08): "This notice is too old to mark as noise. Nothing was changed.", the same as Story 41.2's noise-route 409 body; pin both with fixed strings (ledger; routed by cr 2026-11-08)
+- DW-932: the noise route's 200 body (`markedAt`), its `already_marked` answer, the phone-versus-web body mapping and the 409 `too_old` are not yet run over real HTTP; this story's `web/e2e/memory-noise.spec.ts` covers them (ledger; routed by harvest 2026-11-08)
+- DW-933: `PrecedentOps.Record` must compare `RecordPrecedent`'s `Action` with the request's stored answer (`AnsweredAction`/`State`) before writing, so a mis-sent message cannot record an answer the person never gave (ledger; routed by cr 2026-11-08)
+- DW-934: a precedent written just after sign-out can survive `SessionOps.End` (End's `Has()` is read before a queued `MarkNoise`/`RecordPrecedent` lands, and `Record` accepts an ended session); `Record` refuses an ended session, or End's drop is ordered after queued writes (ledger; routed by cr 2026-11-08)
 
 ### Story 41.6: The Memory card: your notes and your answers
 
@@ -10126,7 +10133,7 @@ So that memory can't be poisoned through the notes or the precedents.
 **Then** neither `DailyNote.Build`'s text nor the session-start block contains any part of it, its sender or its body (FR-71, NFR-14)
 
 **Given** the evaluation harness
-**When** a case seeds precedents for owner `eval` (`EvalIn` sends them to `PrecedentOps` as `RecordPrecedent`, owner `eval` only, only while `OCUTALON_EVAL=1`, and removes them after the run)
+**When** a case seeds precedents for owner `eval` (`EvalIn` sends them to `PrecedentOps` as `SeedPrecedent`, owner `eval` only, only while `OCUTALON_EVAL=1`, and removes them after the run with `RemoveSeededPrecedents`) [AMENDED 2026-11-08, Story 41.7 plan, Rule 5 apply-and-report: it read "as `RecordPrecedent`"; DW-920 and AD-21 as amended name `SeedPrecedent`]
 **Then** the set gains a pair of cases on one recorded email:
 - without precedents, it is expected as tellnow;
 - with three "noise" precedents from the same sender, it is expected as digest or ignore.
@@ -10136,6 +10143,7 @@ So that memory can't be poisoned through the notes or the precedents.
 **Given** the security overview
 **When** this story updates its section on what data leaves the instance
 **Then** that section says that daily notes and precedents are sent to the configured model provider inside requests (FR-61, NFR-18)
+- DW-920: Story 41.7's eval seeding does not fit the first part's contracts as fixed (RecordPrecedent's fields, AD-21's one sender, ForgetPrecedent's origin); decided by the Contest Planner under the owner's delegation: AD-21 is amended additively at 41.2's plan, and this story seeds precedent rows only while OCUTALON_EVAL=1, marks each row eval-seeded, removes them through PrecedentOps after the run, and pins that a person's turn beside an eval run reads none (ledger; routed by harvest 2026-11-08)
 
 **Release check:** at the first daily release that ships this part, the Contest Planner's hands-on pass with real keys marks a notice as noise on the web app, then sends a similar sample email, and reads a day's notes (REL-7, as amended 2026-10-31).
 
@@ -10232,6 +10240,8 @@ So that it never forgets the few things that matter most.
 **Given** a user item rendered with `sessionStart`
 **When** `Agent.Input.Render` runs
 **Then** before the daily notes it adds the core-memory block: "Your core memory (facts you pinned):", then the pinned memories newest pin first, quoted, never over the cap (FR-74, AD-7, NFR-27)
+- DW-967: a first turn of the day that ends in a fallback (`no_key`, `daily_cap`, `budget`, `too_large`, failed Chat) still counts as the session start, so that day's notes never reach a model; count only turns whose request reached a model (ledger; routed by burndown 2026-11-09)
+- DW-977: today's note at a session start quotes the current message's own opening, so the model sees the person's words twice; leave the current and later turns out of the note (and update `Test.Bridge.SecondModel:TestIntegrationWebChat`) (ledger; routed by burndown 2026-11-09)
 
 ### Story 41.13: The Memory card: pinned and learned memories
 
@@ -10253,6 +10263,7 @@ So that I decide what OcuTalon keeps.
 **Given** the README's memory section
 **When** this story updates it
 **Then** it says what forgetting removes (the memory, its search entries, any pin, and every later session start) and that the current conversation's earlier messages aren't rewritten (FR-73)
+- DW-996: unify the Memory card's `ForgetDialog` (`web/src/app/rail/memory-card/forget-dialog.ts`) with `documents/remove-dialog.ts` into one shared confirm dialog (ledger; routed by burndown 2026-11-09)
 
 ### Story 41.14: Evaluation and tests for memory's second part
 

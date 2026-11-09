@@ -23,8 +23,14 @@ Property DecisionRef As %String(%JSONFIELDNAME = "decisionRef", MAXLEN = 22);
 /// When the message was created, UTC to the second.
 Property CreatedAt As %String(%JSONFIELDNAME = "createdAt", MAXLEN = 20);
 
-/// The payload for a phone message: ref, direction, text, approvalRef, answer, decisionRef and createdAt from the row. A row written before
-/// ApprovalRef, Answer and DecisionRef existed gives them empty.
+/// The Ref of the decision the "This was noise" control of the message acts on (Story 41.5): from the session's own phone tell-now Delivery row of
+/// the message, for a tell-now or act notice and for a row written before DecisionRef existed; empty for a message that asks for an approval and for
+/// any other message. Got it reads decisionRef, never this.
+Property NoiseRef As %String(%JSONFIELDNAME = "noiseRef", MAXLEN = 22);
+
+/// The payload for a phone message: ref, direction, text, approvalRef, answer, decisionRef and createdAt from the row (a row written before
+/// ApprovalRef, Answer and DecisionRef existed gives them empty), and noiseRef: for a message with no ApprovalRef, the decision Ref of the session's
+/// own phone tell-now Delivery row of the message (Ownership.PhoneDecision; a failed read leaves it empty), which covers act notices and older rows.
 ClassMethod FromRow(row As OcuTalon.Data.SimMessage) As OcuTalon.Live.Payload.Phone
 {
 	Set payload = ..%New()
@@ -35,6 +41,10 @@ ClassMethod FromRow(row As OcuTalon.Data.SimMessage) As OcuTalon.Live.Payload.Ph
 	Set payload.Answer = row.Answer
 	Set payload.DecisionRef = row.DecisionRef
 	Set payload.CreatedAt = row.CreatedAt
+	If row.ApprovalRef = "" {
+		Set noiseRef = ##class(OcuTalon.Data.Ownership).PhoneDecision(row.Ref, row.SessionRef, .sc)
+		If $SYSTEM.Status.IsOK(sc) Set payload.NoiseRef = noiseRef
+	}
 	Quit payload
 }
 

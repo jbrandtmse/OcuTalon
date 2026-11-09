@@ -66,6 +66,8 @@ const IMPORTED = [
   ['guide/more-to-try-view.ts', ['MORE_TO_TRY_TEXTS']],
   ['settings/settings-view.ts', ['SETTINGS_TEXTS']],
   ['documents/documents-view.ts', ['DOCUMENTS_TEXTS', 'REASON_TEXTS']],
+  ['chat/noise-view.ts', ['NOISE_TEXTS']],
+  ['rail/memory-card/memory-card-view.ts', ['MEMORY_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -560,6 +562,18 @@ const SOURCES = {
     '24 hours',
     'To',
     'Checklist',
+    'Memory',
+    'Notes',
+    'Your answers',
+    "Built by OcuTalon from today's decisions, incidents, approvals and reminders. No model writes these notes.",
+    'Nothing recorded yet today.',
+    'OcuTalon looks at these when it decides on similar items. Only your own answers are kept here.',
+    'Forget',
+    'Forget this answer? OcuTalon will stop using it.',
+    'Today',
+    'Yesterday',
+    'This was noise',
+    'Marked as noise at {time}. Similar items will take this into account.',
   ],
   design: [
     'Unread',
@@ -729,6 +743,13 @@ const SOURCES = {
       'it has no text to read, for example a scanned PDF without a text layer.',
       "it's an old Word file (.doc); save it as .docx and try again.",
       'reading it took too long.',
+    ],
+    'Story 41.6 ruling at the spec gate 2026-11-08 (the Contest Planner under the owner\'s delegation, relayed by the orchestrator: the PUBLIC TEXT list of the Memory card, all approved as written)': [
+      'Nothing recorded yesterday.',
+      'No answers yet.',
+      'Forget {summary}',
+      "Couldn't forget it. Nothing was changed.",
+      'OcuTalon keeps this answer but does not use it when it decides.',
     ],
   },
   calendar: [

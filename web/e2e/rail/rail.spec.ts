@@ -67,10 +67,10 @@ const iso = (instant: number, offsetMs = 0): string => new Date(instant + offset
 
 const rail = (page: Page): Locator => page.getByRole('region', { name: 'Status', exact: true });
 const rowOf = (page: Page, marker: string): Locator => rail(page).locator('li.row').filter({ hasText: marker });
-/** Every section heading of the rail: the Telegram section first, then the four lists, then Heartbeat checklist and Persona. */
+/** Every section heading of the rail: the Telegram section first, then the four lists, then Heartbeat checklist, Memory and Persona. */
 const sections = (page: Page): Locator => rail(page).getByRole('heading', { level: 3 });
-/** The headings of the four lists, in order: the Telegram, Heartbeat checklist and Persona headings are left out, so the positions do not move. */
-const headings = (page: Page): Locator => sections(page).filter({ hasNotText: /^(Telegram|Heartbeat checklist|Persona)$/ });
+/** The headings of the four lists, in order: the Telegram, Heartbeat checklist, Memory and Persona headings are left out, so the positions do not move. */
+const headings = (page: Page): Locator => sections(page).filter({ hasNotText: /^(Telegram|Heartbeat checklist|Memory|Persona)$/ });
 /** The heading of the approval requests, selected by its name. */
 const approvals = (page: Page, count: number): Locator => rail(page).getByRole('heading', { level: 3, name: `Approval requests, ${count}`, exact: true });
 const mainOf = (page: Page): Locator => page.locator('main.main');
@@ -100,9 +100,9 @@ test('R1: the rail is the region Status with its sections in order, live counts,
   await open(page);
   const status = rail(page);
   await expect(status, 'the rail is the region Status').toHaveCount(1);
-  await expect(sections(page), 'seven sections, Telegram first and Persona last').toHaveCount(7);
+  await expect(sections(page), 'eight sections, Telegram first and Persona last').toHaveCount(8);
   await expect(headings(page), 'and the four lists after it').toHaveCount(4);
-  const spoken = ['Telegram', 'Approval requests, 0', 'Background checks, 0', 'Reminders, 0', 'Recent decisions, 0', 'Heartbeat checklist', 'Persona'];
+  const spoken = ['Telegram', 'Approval requests, 0', 'Background checks, 0', 'Reminders, 0', 'Recent decisions, 0', 'Heartbeat checklist', 'Memory', 'Persona'];
   for (const [i, name] of spoken.entries()) {
     await expect(sections(page).nth(i), `heading ${i + 1} is named "${name}"`).toHaveAccessibleName(name);
   }
@@ -127,7 +127,7 @@ test('R1: the rail is the region Status with its sections in order, live counts,
     'To cancel, ask: "Cancel my reminder to stretch."',
   ]);
   await expect(status.locator(LIVE_REGIONS), 'the rail has no live region').toHaveCount(0);
-  await expect(status.locator('h3[tabindex="-1"]'), 'each heading can take focus').toHaveCount(7);
+  await expect(status.locator('h3[tabindex="-1"]'), 'each heading can take focus').toHaveCount(8);
 
   await page.setViewportSize({ width: 1280, height: 720 });
   expect((await page.locator('section.rail').boundingBox())!.width, 'the rail is 288px wide at 1280px').toBe(288);
@@ -420,6 +420,14 @@ test('R9: a decision event puts the new decision first, the oldest leaves, and f
   }
 });
 
+/**
+ * The text of the rail's sections but the Memory card's: the card reads when it is made and when a tab is selected, never on a live event
+ * (Story 41.6), so its notes are the ones of its last read, not of the store.
+ */
+async function railText(page: Page): Promise<string> {
+  return plain((await rail(page).locator('.section:not([data-section="memory"])').allInnerTexts()).join(' '));
+}
+
 /** R10: after live events the rail holds what a reload shows. */
 test('R10: after live events the rail holds what a reload shows', async ({ page }) => {
   const { user } = fixtureUser('RAIL');
@@ -450,7 +458,7 @@ test('R10: after live events the rail holds what a reload shows', async ({ page 
     await expect(approvals(page, 2), 'the live rail holds two requests').toBeVisible({ timeout: ONE_UPDATE_MS });
     await expect(headings(page).nth(3), 'and four decisions').toHaveAccessibleName('Recent decisions, 4', { timeout: ONE_UPDATE_MS });
     await expect(rail(page).locator('app-persona-card'), 'the Persona card has read its own answer').toContainText('Professional (default)');
-    const live = plain(await rail(page).innerText());
+    const live = await railText(page);
     expect(live, 'the departed request is gone').not.toContain(tools.leaving);
     expect(live, 'and the others are there').toContain(tools.staying);
     expect(live).toContain(tools.added);
@@ -459,7 +467,7 @@ test('R10: after live events the rail holds what a reload shows', async ({ page 
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     await expect(headings(page).nth(3)).toHaveAccessibleName('Recent decisions, 4');
     await expect(rail(page).locator('app-persona-card'), 'the Persona card has read its own answer').toContainText('Professional (default)');
-    expect(plain(await rail(page).innerText()), 'a reload shows the same rail').toBe(live);
+    expect(await railText(page), 'a reload shows the same rail').toBe(live);
   } finally {
     await cleanFixtureRows(refs);
   }
@@ -474,7 +482,7 @@ test('R11: with Telegram included, the first section is the Telegram card with i
     const status = rail(page);
     await expect(sections(page).first(), 'the first section is Telegram, with no count').toHaveText('Telegram');
     await expect(sections(page).first().locator('[aria-hidden="true"]'), 'the Telegram heading has no count').toHaveCount(0);
-    await expect(sections(page), 'then the four lists, Heartbeat checklist and Persona').toHaveCount(7);
+    await expect(sections(page), 'then the four lists, Heartbeat checklist, Memory and Persona').toHaveCount(8);
     await expect(status.locator('app-telegram-card'), 'the card says it is not set up').toContainText('Telegram not set up');
     const link = status.getByRole('link', { name: 'How to set it up (opens in a new tab)', exact: true });
     await expect(link, 'with a link to set it up').toHaveCount(1);
@@ -659,8 +667,11 @@ test('R17: with more rows than fit, the rail scrolls on its own and the page doe
     await expect(decisions.last(), 'the oldest is below the fold').not.toBeInViewport();
 
     await panel.hover();
-    await page.mouse.wheel(0, 4000);
-    await expect(decisions.last(), 'the wheel over the rail brings the oldest into view').toBeInViewport();
+    // The sections after Recent decisions (Heartbeat checklist, Memory, Persona) are taller than the window, so the end of the rail is past the oldest row: wheel by steps until it shows.
+    await expect(async () => {
+      await page.mouse.wheel(0, 300);
+      await expect(decisions.last()).toBeInViewport({ timeout: 300 });
+    }, 'the wheel over the rail brings the oldest into view').toPass({ timeout: 15_000 });
     expect(await panel.evaluate((node) => node.scrollTop), 'the rail scrolled').toBeGreaterThan(0);
     expect(await page.evaluate(() => document.scrollingElement?.scrollTop ?? 0), 'and the page did not').toBe(0);
     expect((await panel.boundingBox())!.width, 'the rail kept its width').toBe(288);

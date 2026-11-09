@@ -930,6 +930,41 @@ Method TestPhoneFromRow()
 	Do $$$AssertEquals(##class(%DynamicObject).%FromJSON(json).decisionRef, "ZzDecisionRef"_..Number, "and the JSON names it decisionRef")
 }
 
+/// The phone payload's noiseRef (Story 41.5 with Story 18.4, the orchestrator's integrate-forward ruling, two members): a message that asks for no
+/// approval takes its noiseRef from the session's own phone tell-now Delivery row (Ownership.PhoneDecision), whatever its DecisionRef column holds, so an
+/// act notice (DecisionRef left empty by Story 18.4, so no Got it) and a row written before DecisionRef existed both get it; decisionRef is the column
+/// alone, never the Delivery row; a message with an ApprovalRef gets no noiseRef. The SimMessage row is not saved; the session and the Delivery row are
+/// removed by Ref.
+Method TestPhoneFromRowNoiseRef()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set session = $ClassMethod(fixture, "Session", "zzphonenr"_..Number)
+	Set row = ##class(OcuTalon.Data.SimMessage).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.SessionRef = session
+	Set row.Direction = "out"
+	Set row.Text = "zz notice"
+	Set row.CreatedAt = "2026-10-22T09:00:00Z"
+	Set delivery = $ClassMethod(fixture, "Delivery", session, {"ChannelMessageId": (row.Ref), "Channel": "phone", "Kind": "tellnow", "DecisionRef": ("ZzNoise"_..Number)})
+	Try {
+		Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(row)
+		Do $$$AssertEquals(payload.NoiseRef_"|"_payload.DecisionRef, "ZzNoise"_..Number_"|", "an act notice or an older row (no DecisionRef) gets its noiseRef from the phone Delivery row, and decisionRef stays empty")
+		Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "and exports")
+		Set object = ##class(%DynamicObject).%FromJSON(json)
+		Do $$$AssertEquals(object.noiseRef_"|"_object.decisionRef, "ZzNoise"_..Number_"|", "the JSON names noiseRef, and decisionRef is empty")
+		Set row.DecisionRef = "ZzStored"_..Number
+		Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(row)
+		Do $$$AssertEquals(payload.DecisionRef_"|"_payload.NoiseRef, "ZzStored"_..Number_"|ZzNoise"_..Number, "a tell-now message keeps its stored decisionRef for Got it, and its noiseRef from the Delivery row")
+		Set row.DecisionRef = ""
+		Set row.ApprovalRef = "ZzApproval"_..Number
+		Set payload = ##class(OcuTalon.Live.Payload.Phone).FromRow(row)
+		Do $$$AssertEquals(payload.NoiseRef_"|"_payload.DecisionRef, "|", "a message that asks for an approval gets neither")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the noiseRef cases run: "_ex.DisplayString())
+	}
+	Do $ClassMethod(fixture, "Clean", session_","_delivery)
+}
+
 /// The approval payload's either-way fields (Story 7.8; DW-645; U-249, U-250): FromRow asks the notice's rule, Watch.Notice Reading, over the row's stored dry run and
 /// FixParameters, so eitherWay is 1 with the reading exactly when the notice carries the either-way line, and 0 with no reading otherwise: a day above 12 in the example,
 /// the same date both ways, a source format that is not an order format, empty or unreadable parameters. The dry run's other fields stay in each case, the exported
@@ -1242,7 +1277,8 @@ XData Contracts [ MimeType = application/json ]
    "ApprovalRef": "%String(%JSONFIELDNAME=approvalRef,MAXLEN=22)",
    "Answer": "%String(%JSONFIELDNAME=answer,MAXLEN=1000)",
    "DecisionRef": "%String(%JSONFIELDNAME=decisionRef,MAXLEN=22)",
-   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)"
+   "CreatedAt": "%String(%JSONFIELDNAME=createdAt,MAXLEN=20)",
+   "NoiseRef": "%String(%JSONFIELDNAME=noiseRef,MAXLEN=22)"
   }
  },
  "OcuTalon.Live.Payload.Document": {

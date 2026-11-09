@@ -1,9 +1,11 @@
 /// The base of the test classes that run over the running production. THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21):
 /// they need the running OcuTalon.Production, which a slot never has. Where it does not run, every test fails with that reason
 /// (Guard), so that a broken start can never give a green shard. Each fixture session comes from Session: its Ref is kept for
-/// the clean-up and its TraceRef is a SuperSession of the run. OnAfterAllTests ends the context of the test process, removes
-/// the headers of the sessions of the run's messages with their bodies and log rows (Fixture.RemoveMessages) and removes the
-/// fixture rows (Fixture.Clean). Send puts a message through WebChatIn, created in the test process as the REST surface creates
+/// the clean-up and its TraceRef is a SuperSession of the run. OnAfterAllTests ends the context of the test process, waits (at most
+/// DRAINSECONDS) until PrecedentOps' queue is empty, removes the headers of the sessions of the run's messages with their bodies and
+/// log rows (Fixture.RemoveMessages), removes the fixture rows (Fixture.Clean) and then deletes the Precedent rows of the fixture
+/// sessions: a done answer or a noise mark has PrecedentOps write one asynchronously, and once a session's row is gone PrecedentOps
+/// records nothing more for it. Send puts a message through WebChatIn, created in the test process as the REST surface creates
 /// it, and WaitDone waits for its turn. The run's number is n from ^OcuTalonTest(<the last piece of the class name>, "n") (never
 /// reset). It has no Test methods.
 Class OcuTalon.Test.Core.InProduction Extends %UnitTest.TestCase [ Abstract ]
@@ -17,6 +19,9 @@ Parameter SESSIONPREFIX = "zzprod";
 
 /// Seconds to wait for a turn to be done.
 Parameter WAIT = 20;
+
+/// The longest to wait for PrecedentOps' queue to empty at the clean-up, in seconds.
+Parameter DRAINSECONDS = 10;
 
 /// The run's number.
 Property Number As %Integer;
@@ -52,8 +57,17 @@ Method OnBeforeAllTests() As %Status
 Method OnAfterAllTests() As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
-	If ..Missing = "" Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Supers)
+	If ..Missing = "" {
+		Set end = $ZHorolog + ..#DRAINSECONDS
+		While (##class(Ens.Queue).GetCount("PrecedentOps") > 0) && ($ZHorolog < end) {
+			Hang 0.1
+		}
+		Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Supers)
+	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+	For i = 1:1:$Length(..Sessions, ",") {
+		If $Piece(..Sessions, ",", i) '= "" Do ##class(OcuTalon.Data.Precedent).DropSession($Piece(..Sessions, ",", i))
+	}
 	Quit $SYSTEM.Status.OK()
 }
 
