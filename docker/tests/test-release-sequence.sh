@@ -34,7 +34,7 @@
 #             heading; EXPERIENCE.md's kept-OCUORDERS sentence word for word; while src has no call_mcp_tool, the MCP section opening with the
 #             can't-connect sentence; the numbers and the audit types of the code in their sections; the five headings once each and in order, the
 #             no-scheduled-purge sentence, the MCP rules sentence and the demo section's closing sentence (QA); and the CI claims of the file and of the live
-#             unit in ci/units.sh (every group runs on the file, production holds the unit)
+#             unit in ci/units.sh (every group runs on the file, shards-5 holds the unit)
 #   ipmcheck  (Story 15.4) the ipmcheck step runs release/ipm-install.sh of the candidate (a stub in the seed repository, so no container is needed)
 #             on an export of the candidate's tree with the ipm step's artifact, the lane lock folder, a run tag and the job's deadline, and
 #             tears down after it: a pass records "## FR-57 job" and names push; a failure (exit 1 or any code but 0 and 75) stops the release before
@@ -2269,7 +2269,7 @@ ovw_ci_claims() {
       if printf '%s\n' docs/security-overview.md | grep -qE "$pattern"; then printf 'claimed'; else printf 'NOT-claimed'; fi
       if printf '%s\n' docs/security-overview.md.bak docs/other.md | grep -qE "$pattern"; then printf ' and-lookalike\n'; else printf ' lookalike-free\n'; fi
     done
-    if group_units production | grep -qw 'live:security-overview'; then echo "production holds live:security-overview"; else echo "production LACKS live:security-overview"; fi
+    if group_units shards-5 | grep -qw 'live:security-overview'; then echo "shards-5 holds live:security-overview"; else echo "shards-5 LACKS live:security-overview"; fi
     if printf '%s\n' $NO_WEB_BUNDLE_UNITS | grep -qx 'live:security-overview'; then echo "NO_WEB_BUNDLE_UNITS holds live:security-overview"; else echo "NO_WEB_BUNDLE_UNITS LACKS live:security-overview"; fi
   )
 }
@@ -2333,11 +2333,11 @@ t_overviewdoc() {
   eq "control: a link" "$(ovw_doc_problems "$d/url.md")" "1 line(s) with a URL or address"
   { cat "$doc"; printf 'Host %s\n' '10.20.30.''40'; } > "$d/ip.md"
   eq "control: an address" "$(ovw_doc_problems "$d/ip.md")" "1 line(s) with a URL or address"
-  # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in production
+  # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in shards-5
   # (the expected lines follow IRIS_GROUPS, so a group added to the matrix is checked too)
   want=$(ovw_ci_claims)
   expect=$( (. "$root/ci/units.sh"; for grp in $IRIS_GROUPS; do echo "$grp:claimed lookalike-free"; done)
-    echo "production holds live:security-overview"; echo "NO_WEB_BUNDLE_UNITS holds live:security-overview")
+    echo "shards-5 holds live:security-overview"; echo "NO_WEB_BUNDLE_UNITS holds live:security-overview")
   eq "ci/units.sh: every group claims the overview, and the unit is placed" "$want" "$expect"
   rm -rf "$d"
 }

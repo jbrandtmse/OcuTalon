@@ -2,7 +2,8 @@
 title: 'Story 0.20: Rebalance the IRIS CI groups so every group finishes well under the 35-minute budget'
 type: 'chore'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'cccbd78eec0497bdc08103ba82421fd3bb055dbc'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -235,18 +236,66 @@ The exact change to `.github/workflows/ci.yml` (blob `80afa70` to `0acfe6e`); im
 
 **Mutations** (apply, observe red, revert, confirm `git status --short` and `git diff --stat` unchanged):
 - AC1 mutation: drop `shards-11` from `IRIS_GROUPS` → `test-ci-config.sh` `groups` red ("IRIS_GROUPS is '...', wanted") and `matrix` red.
+  - mutation: `shards-11` dropped from `IRIS_GROUPS` in `ci/units.sh` -> `test-ci-config.sh` `groups`, `matrix`, `units`, `demo-path` and `recipe` red (observed 2026-11-09; reverted, `ci/units.sh` byte-identical).
 - AC2 mutation: drop `live:documents` from `shards-6` in `group_units` → `units` red ("docker/tests/test-documents.sh: the script is in 0 of ..."); and drop `shard:lane-b@rest` → `units` and `shard pieces` red (observed in the dry run).
+  - mutation: `live:documents` dropped from `shards-6` in `group_units` -> `test-ci-config.sh` `units` red ("docker/tests/test-documents.sh: the script is in 0 of ...").
+  - mutation: `shard:lane-b@rest` dropped from `shards-6` in `group_units` -> `test-ci-config.sh` `units` red ("4 area(s) of the shard lane-b are in no piece, and no piece is rest") and `shard pieces` red ("the shard units of lane-b run the areas 'Contract Core Data Live', wanted each of 'Contract Core Data Demo Live Msg Schedule Web' once").
 - AC3 mutation: drop `shards-11` from the `ci.yml` matrix only → `test-ci-config.sh` `matrix` red.
+  - mutation: `shards-11` dropped from the `ci.yml` matrix only -> `test-ci-config.sh` `matrix` red (reverted, `ci.yml` byte-identical).
 - AC4 mutation: add `shard:lane-a@Watch` to `NO_WEB_BUNDLE_UNITS` (shards-8 becomes all-listed) → `test-ci-changes.sh` red on "web/** runs web and every group but production".
+  - mutation: `shard:lane-a@Watch` added to `NO_WEB_BUNDLE_UNITS` -> `test-ci-changes.sh` red on "classifier: web/** runs web and every group but production" (shards-8 left out of the web groups) and on "outputs: --group shards-8".
 - AC5 mutation: move `live:security-overview` from shards-5 to shards-10 → `test-release-sequence.sh overviewdoc` red.
+  - mutation: `live:security-overview` moved from shards-5 to shards-10 in `group_units` -> `test-release-sequence.sh overviewdoc` red (the expected line "shards-5 holds live:security-overview" fails).
 - AC6 mutation: name `shard:lane-a@Checks,Tools,Memory` in place of `shard:lane-a@rest` → the AC6 command prints `Mcp` alone, not `Checks Tools Memory Mcp`. Once Epic 35's area exists, `units` would also report "1 area(s) of the shard lane-a are in no piece, and no piece is rest".
+  - mutation: `shard:lane-a@Checks,Tools,Memory` named in place of `shard:lane-a@rest` -> the AC6 command prints `Mcp` alone, not `Checks Tools Memory Mcp` (not a test: the AC6 command itself goes red).
 - AC7: none in-stage. CI's two clean runs are the lead's done-criterion.
 
 Shared surfaces: `IRIS_GROUPS`; the `ci.yml` matrix and the `iris (<group>)` check names; `group_units` and the output of `ci/iris.sh list` and `groups`; the `groups`, `recipe`, `inputs` (L1299), `units` and `shard pieces` pins in `docker/tests/test-ci-config.sh`; `web_groups` and "all ten" in `docker/tests/test-ci-changes.sh`; the overview placement pin in `docker/tests/test-release-sequence.sh`. `NO_WEB_BUNDLE_UNITS` is unchanged.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
+## Review Triage Log
+
+### 2026-11-09 - Review pass
+- verdicts: 19 findings - high 0, medium 0, low 13, false 6, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: tests pin where `live:security-overview` (shards-5) and `live:install-script-live` (shards-2) sit, against the `groups` rule's "no placement pin" stance - the spec orders both pins (Tasks: test-release-sequence L2272/L2340; test-ci-config `inputs` L1299); a future rebalance edits them in its own commit, as this one does.
+  - `[low]` `[reject]` Blind: the unit tally on `PASS units` and `PASS shard pieces` is printed, not compared - spec task (d)/(e) says the PASS line "states, computed from the tree"; a dropped unit, area or class already fails the script-in-one-group, area-once and class-once checks, and "an added script, area or class is counted, not pinned" (Tasks). Pinning the numbers would contradict the spec.
+  - `[false]` `[reject]` Blind: no runner-capacity note for 16 jobs - Planner ruling 2 confirmed the capacity; a capacity note in `ci/units.sh` is not part of the story and runner capacity is an owner action (REL-4).
+  - `[false]` `[reject]` Blind: group timings exist only as prose, no re-check - AC7 is the lead's done-criterion on two CI runs, labelled inference in the spec's words; no in-stage check can measure them.
+  - `[low]` `[reject]` Blind: the 1,687 s threshold has no stated source - the history entry is the spec's verbatim text (Tasks); 1,687 = 29 minutes less the 53 s job overhead is in the spec's Packing method. Cosmetic.
+  - `[low]` `[reject]` Blind: `shards-N` names no longer say what a group holds - the intent fixes new names to `shards-N` (Approach, Ruling 4). Cosmetic.
+  - `[false]` `[reject]` Edge: the `ci.yml` line-2 comment edit is a second hunk beyond the matrix - the Release-tool hunk contains both hunks; `git diff` matches it byte for byte (blob 80afa70 to 0acfe6e).
+  - `[low]` `[reject]` Edge: `bash ci/iris.sh classes` failure swallowed inside `piece_tally` and shown as 0 classes - the same call per shard is made earlier in the rule (`piece_all`) and fails the rule there; a guard here adds code for a state the rule already fails on.
+  - `[low]` `[reject]` Edge: `i-reads-declared-example` names `shards-2` - same as the first row, spec-ordered.
+  - `[low]` `[reject]` Verification-gap: the `PASS units` / `piece_tally` tallies cannot fail - same as the second row; the failing paths (`units` "in 0 of", `shard pieces` area mismatch) have recorded mutations.
+  - `[low]` `[reject]` Verification-gap: AC6 has no in-suite pinning test - the spec defines AC6's check as the stubbed-`shard_areas` command in `## Verification`, with its mutation line; once Epic 35's area exists the `units` rule ("without rest cover every area", "no piece is rest") fails on a non-`rest` cut. An in-suite fixture is more than a direct correction.
+  - `[low]` `[reject]` Verification-gap: the sign-in trio's three distinct groups is not pinned by any test - the spec leaves placement of whole units unpinned for rebalances (`groups` rule note); `test-ci-changes.sh` derives its expectation from the layout by design.
+  - `[false]` `[reject]` Verification-gap: nothing locally verifies timing - AC7 is the CI done-criterion by design; AC1-AC6 are structural.
+  - `[false]` `[reject]` Verification-gap (Other): `test-ci-warm.sh` patterns may not match the new `shards` row - the patterns (`^UNIT-PROCESS shard lane-a@[A-Za-z,]+`, `^UNIT-PROCESS live [a-z-]+`) match `shard:lane-a@Install,Digest,Eval live:online-allowance`, as the finding itself concludes.
+  - `[false]` `[reject]` Intent: reading C ("34 units" must stay 34) - Design Notes "34 units in the intent" decided the base count is 34 (28 live, 6 shard) and the totals that must match are scripts, areas and classes: 28 / 12 + 8 / 350 hold.
+  - `[low]` `[reject]` Intent: single-area units (Fix 1,192, Bridge 1,167, Docs 1,056, Watch 937 s) exceed 900 s - Planner ruling 1 (option A) caps only units of two or more areas; recorded in the Spec Change Log; DW-1032 ledgered. Not an intent gap.
+  - `[low]` `[reject]` Intent: the 32-minute target is met only on paper - AC7 is the lead's done-criterion on two CI runs, outside implement.
+  - `[low]` `[reject]` Intent: check names pinned only through the matrix; skipped groups still report - pre-existing behaviour of `ci/changes.sh`, untouched; the matrix equals `ci/iris.sh groups` (AC3).
+  - `[low]` `[reject]` Intent: the spec title says 35 minutes, the intent 32, the comment about 29 - 35 is REL-4's budget, 32 the done-criterion, 29 the planning target (rulings 2); descriptive only.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Rebalanced the IRIS CI groups by moves and splits only: 16 groups (`shards-6` to `shards-11` added), lane-a in 8 pieces and lane-b in 2, 38 group units (28 live, 10 shard), 12 + 8 areas and 218 + 132 classes each run once. `ci.yml` carries exactly the Release-tool hunk.
+
+**Files changed.**
+- `ci/units.sh`: `IRIS_GROUPS`, `group_units` table, contract comment and the Story 0.20 history entry.
+- `.github/workflows/ci.yml`: the Release-tool hunk only (header count, matrix).
+- `docker/tests/test-ci-config.sh`: `groups`, `inputs`, `recipe` pins to 16 groups; `units` tally; `shard pieces` area-once check (`piece_shard_rows`) and tally.
+- `docker/tests/test-ci-changes.sh`: `web_groups` (15 groups) and "all sixteen".
+- `docker/tests/test-release-sequence.sh`: the four named lines (L37, L2272, L2336, L2340) now name shards-5.
+- This spec: the `mutation:` lines under `## Verification`.
+
+**Review.** 19 findings from four layers: 0 patches, 0 deferred, 19 rejected with the reasons in the Review Triage Log (spec-ordered pins, tallies informational by spec, AC7 is the CI done-criterion, Planner ruling 1 for single-area units). Follow-up review recommended: false (no patch).
+
+**Verification.** `test-ci-config.sh` 40 PASS (units: 38 units, 28 live, 10 shard; shard pieces: 350 classes, lane-a 12 areas in 8 units 218 classes, lane-b 8 areas in 2 units 132 classes); `test-ci-changes.sh` 274 PASS; groups vs matrix no diff, 16; class and unit counts 218 / 132 / 38; AC6 prints `Checks Tools Memory Mcp`; `test-boundaries.sh` passed; no non-ASCII bytes and no local paths in the touched sources; `git diff` of `ci.yml` is the hunk (blob 80afa70 to 0acfe6e); no change under `release/**`, to `ci/iris.sh` or to any `timeout-minutes`. `test-release-sequence.sh` ran once in its three batches (implement stage), all PASS all rules. Mutations for AC1-AC5 observed red and reverted (lines in `## Verification`); AC6's is the command itself.
+
+**Residual risks.** Group times are planning figures (inference) until AC7's two clean CI runs; Epic 35's `Mcp` area is checked only by the AC6 command until it merges; whether the six new check names become required is the Planner's call.
