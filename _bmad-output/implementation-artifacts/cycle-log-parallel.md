@@ -3075,3 +3075,4 @@
 2026-11-09T08:08:05Z	Epic 41	worktree_bootstrapped	epic=41 result=ok base=2a45f8bc(ff_kept_worktree)
 2026-11-09T08:08:05Z	Epic 41	runner_dispatched	runner=a87143c317128b91c model=opus effort=high lane=A slot=ocutalon-slot-a part=2(41.8,41.9,41.12-41.14;41.10/41.11_out) hold_at=11:00Z prompt=prompts/dispatch-epic-41-part2.md
 2026-11-09T08:08:48Z	Epic 0	runner_clarification	kind=CI_WAIT agent=ac22014504312b3ec sha=729ec359(0.15;pushed_08:07Z) runs=42583740643,42583740709 local=c7737163 merge=HELD_until_after_1.0.5_cut
+2026-11-09T08:11:04Z	Run	ci_green_verified	head=0ab2eef0(feature;0.17+0.18_merge) result=success runs=42574755205(attempt2:install-fresh_DW-1007_rerun),42574755208 note=fully_green_cuttable_1.0.5_head(without_Epic_41_part1)
