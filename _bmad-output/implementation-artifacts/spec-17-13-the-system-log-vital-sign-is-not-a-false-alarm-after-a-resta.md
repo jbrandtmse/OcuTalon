@@ -2,7 +2,8 @@
 title: 'Story 17.13: The system-log vital sign is not a false alarm after a restart'
 type: 'bugfix'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'd352c2093deaf28b4dcecafd082ebe326aa125df'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -79,17 +80,17 @@ All rows except the last read a kept file `messages.old_zzvitals17_<n>` that the
 ## Tasks & Acceptance
 
 **Execution (after the Planner's ruling; for (b) see the Alternative):**
-- [ ] `src/ocutalon/cls/OcuTalon/Watch/Reader.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Watch/Reader.cls`:
   - Add `Parameter NOISESHARDING` (the whole Sharding text) and `Parameter NOISEFAILOVER` (the failover prefix, with its closing space), each with a doc line: IRIS's own start-up lines of builds 154 and 109, Story 17.13's Task 0.
   - Add a private `StartNoise(line) As %Boolean`. It is 1 only when the severity piece is `2` and `$Piece(line, " ", 4, *)` equals `NOISESHARDING`, or begins with `NOISEFAILOVER` with a rest of 12 to 64 characters, every one a lower-case hex digit (`0-9`, `a-f`), and nothing else.
   - In `SevereLinesIn`, after the window checks :417-418, `If ..StartNoise(line) Continue`.
   - Update the docs (class :37-40, Vitals :234, SevereLines :359-361). ASCII only; comments state the contract (Rule 14) -- DW-980.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Watch/Vitals.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Watch/Vitals.cls`:
   - `WriteKept` takes an optional third list element, the text after the severity (default: today's text, so every existing call is unchanged).
   - Add the tests, one per matrix row, and list them in the header: `TestStartNoise` (rows 1-2), `TestLaterRealError`, `TestStartNoiseRow` (both Coverage rows, with a `Fixture.Session` dropped by `DropBuildFixtures`) and `TestRealStartNoise`.
   - Add `StartNoise` to `TestNoSwitch`'s list :338.
   - Every existing test stays unchanged and green -- DW-980.
-- [ ] Mutations (Rule 19), one per call on the warm stack: observe red, restore byte for byte (`cmp` against a backup in `<scratchpad>/e17s13impl/`), and see the class green again. Record each one under Verification:
+- [x] Mutations (Rule 19), one per call on the warm stack: observe red, restore byte for byte (`cmp` against a backup in `<scratchpad>/e17s13impl/`), and see the class green again. Record each one under Verification:
   - (pinning, noise) Delete the `StartNoise` skip. `TestStartNoise` (count 2/4), `TestStartNoiseRow` (row failed) and `TestRealStartNoise` (count 1) go red.
   - (over-breadth) Make `StartNoise` return `$Piece(line, " ", 3) = 2 && ($Piece(line, " ", 4) = "[Utility.Event]")`. `TestLaterRealError` goes red (the later error and the near misses are lost: count 2), and so does the failed row in `TestStartNoiseRow`.
   - (prefix) Drop the "only hex digits after the prefix" rule (any rest without a space). `TestLaterRealError` goes red (count 4: the non-hex near miss is lost).
@@ -104,6 +105,30 @@ All rows except the last read a kept file `messages.old_zzvitals17_<n>` that the
 - planner-2026-11-08-17.13 (2026-11-09, the Contest Planner under the owner's delegation, relayed by the orchestrator): **option (a).** Ignore exactly two start-up lines, at severity 2 only: (1) the `ERROR #5002` `<METHOD DOES NOT EXIST>Sharding+2^STU *Sharding,SYS.ICM` line, matched on the WHOLE line text after the severity; (2) `System appears to have failed over from node <id>`, where only the id part varies (a hex container id). Every other severe line counts, at any time. If a later build changes either text, that line counts again: a false alarm, never a false all-clear (AD-28). The comparison is in memory only; nothing is stored, and no string changes. Tests: both lines ignored; a near-miss variant still counts; a real later error still fails with its count and time; each with a demonstrated mutation. The licence line stays counted (Design Notes). Applied by the lead: the failover rule tightened from "one host name with no space" to "12 to 64 lower-case hex digits"; option (b)'s Alternative note stands for the record only.
 
 ## Review Triage Log
+
+### 2026-11-08 — Review pass
+- verdicts: 20 findings — high 0, medium 3, low 14, false 3, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: no test puts a noise line first in a file to pin that the skip comes after `first` — the order is written in the code and the spec's Always rule; a pin needs an elaborate two-file fixture, not a direct correction.
+  - `[medium]` `[reject]` Blind/Edge/Gap: `TestRealStartNoise`/`LastStart` hard-code `'IRIS'`, fail if the log was switched after the start or the Sharding text changes, and count any other severe line in the window — the matrix's last row and Decided in-stage 6 specify exactly this test ("asserts that both lines are found"); on a throwaway stack the measured window holds only the Sharding line (the licence line is 63 s later). By design (spec-bound).
+  - `[low]` `[patch]` Blind: `UtcOf` repeats the conversion of `FirstTimeOfCurrent` (Rule 2) — `FirstTimeOfCurrent` now returns `..UtcOf(line)`.
+  - `[low]` `[reject]` Blind: `TestStartNoiseRow` selects rows/lines by position and asserts only `line.key` in the passing case — the Coverage row order is fixed by Story 17.5 and its own tests; the row's entry, result and empty finding are asserted.
+  - `[low]` `[reject]` Blind: the failover rule leaves a user-set host name counting (a false alarm), and `merge_errors` in `lib-live.sh` is unchanged — the Planner's ruling (Decided in-stage 2): never a false all-clear; the merge check is read-only evidence in the spec.
+  - `[false]` `[reject]` Blind/Edge: the signature text is duplicated in Reader and test, so a mistyped Reader text leaves the tests green — the tests write the text from their own copy; a different Reader text makes the noise tests red (count 2 or 4), as the pinning mutation shows.
+  - `[low]` `[reject]` Blind: `NoiseLines` hard-codes a date in the start line — the line's text is not read by the code; invented fixture data.
+  - `[low]` `[reject]` Edge: a trailing space, tab or CR after the text defeats the exact match — the spec says "nothing after it" and `TestNoiseIdBounds` pins the trailing space as counted; the failure is a false alarm, never a false all-clear.
+  - `[medium]` `[reject]` Edge: `TestRealStartNoise` brittle (instance name, switched log) — same finding as the row above, spec-bound.
+  - `[low]` `[reject]` Edge: an unrelated severe line inside the real-start window makes `TestRealStartNoise` flaky — the window is the start process's own lines (Task 0); no other process logs there.
+  - `[false]` `[reject]` Edge: duplicated signature parameters let one copy drift — same as above; drift turns the pins red.
+  - `[low]` `[reject]` Edge: a build that writes `Sharding+3^STU` or another label keeps the false alarm — the Planner's ruling is the exact whole-line text; a changed text counts again (AD-28, spec Always rule).
+  - `[medium]` `[patch]` Gap: no test writes a failover line at severity 3, so a check of the severity on the Sharding branch only would pass — a counted failover line at severity 3 was added to `TestNoiseIdBounds` (count 8); the mutation is recorded and was observed red.
+  - `[low]` `[patch]` Gap: AC 3 (`systemLog` keeps `count,outcome`) has no `mutation:` line — the `"noise": 0` mutation was run, `TestFiveSigns` red, line recorded.
+  - `[low]` `[patch]` Gap: the time half of AC 2 is asserted through one concatenated string — the finding and the time slot are now asserted separately.
+  - `[low]` `[reject]` Gap: no mutation on `checkedAt` — it is Story 17.5's code in a file this story may not edit; the over-breadth mutation turns the whole row red and the bound check can fail. Noted under Verification.
+  - `[low]` `[reject]` Gap: the trailing-text, upper-bound and prefix-match boundaries have no mutation of their own — each is pinned by an assertion that goes red under the recorded hex-rule mutation (11, 65, upper case) and the `again` and `Sharding+3` cases; the Planner's required three are demonstrated.
+  - `[false]` `[reject]` Gap: the footer reads `Status: ready-for-dev` — the Finalize step rewrites it.
+  - `[low]` `[reject]` Intent: the highest surface reached is `Checks.Coverage.Build`, not `Digest.Process`, and no real failover line is matched — the matrix names the Coverage Build rows as the consumer check, and "no live restart in a test" forbids a real recreate; Task 0 measured both lines on real starts.
+  - `[low]` `[patch]` Own check: the `TestRealStartNoise` doc narrated the pre-fix count (Rule 14) — the parenthetical was removed.
 
 ## Task 0 findings
 
@@ -241,9 +266,36 @@ Every `ci/*.sh` call sets `OCUTALON_LOCK_DIR=<lock-dir>/lane-b OCUTALON_TEST_WEB
 
 **Shared surfaces:** the system-log count of `Watch.Reader.Vitals` and the "system log" row of a digest's coverage (and with it the all-clear). The other tests that assert them are `Test.Watch.Vitals` (`TestFiveSigns`, `TestSystemLog`, `TestSwitchedLog`, `TestUnreadableSwitchedLog`), whose lines use other texts and still count, and `Test.Digest.Coverage`, `CoverageProbe`, `OnlineDemoFacts` and `ProcessProbe`, which feed fixture vitals through the seam. None changes shape.
 
+**Mutations (Rule 19), implement stage.** Each ran once on the warm stack `e17s13iw` (`ci/iris.sh class OcuTalon.Test.Watch.Vitals`), after the class had passed green on the unmutated tree. After each, `Reader.cls` was restored from a backup and `cmp` said identical; the class was green again on the restored tree.
+- mutation: (pinning, noise; AC 1, both start-up lines ignored) delete the `If ..StartNoise(line) Continue` line of `SevereLinesIn`. Red: `TestStartNoise` (both asserts: count 2 and 4), `TestStartNoiseRow` (the passed row and its line, and the failed row's count 7 instead of 5), `TestRealStartNoise` (count 1), `TestLaterRealError` (7), `TestNoiseIdBounds` (both asserts).
+- mutation: (over-breadth; AC 2, a real later error and a near-miss still fail with count and time) `StartNoise` returns `($Piece(line, " ", 3) = 2) && ($Piece(line, " ", 4) = "[Utility.Event]")` at its first line. Red: `TestLaterRealError` (the count is 2, not 5), `TestStartNoiseRow` (the failed row, "5 errors", and its line's finding and time), `TestNoiseIdBounds` (the counted near misses), and the existing `TestSystemLog` (3 asserts).
+- mutation: (prefix; a near-miss variant still counts) the hex rule dropped: the rest after the failover prefix is any non-empty text without a space. Red: `TestLaterRealError` (count 4: the non-hex host name is lost), `TestNoiseIdBounds` (the upper-case id and the 11- and 65-digit ids), `TestStartNoiseRow` (the failed row and its line).
+- mutation: (one line only; the failover line is pinned too) `StartNoise` gets a `Quit 0` before the failover check, so only the Sharding line is ignored. Red: `TestStartNoise` (both asserts), `TestStartNoiseRow` (the passed row), `TestNoiseIdBounds`, `TestLaterRealError`.
+- mutation: (severity) the `If $Piece(line, " ", 3) '= 2 Quit 0` line of `StartNoise` removed, so the Sharding text at severity 3 is ignored too. Red: `TestLaterRealError` (count 4) and `TestStartNoiseRow` (the failed row's count).
+- mutation: (severity, failover branch; review pass) the severity check applied to the Sharding comparison only, so a failover line at severity 3 is ignored. Red: `TestNoiseIdBounds` (the counted set, 7 instead of 8). Restored from the backup, `cmp` identical, class green.
+- mutation: (AC 3, `systemLog` keeps `count,outcome` only; review pass) `"noise": 0` added to the read `systemLog` object in `Vitals`. Red: `TestFiveSigns` ("and nothing else of the log"). Restored from the backup, `cmp` identical, class green.
+- Not mutated: the `checkedAt` clock of `Checks.Coverage` (Story 17.5's code, outside this story's footprint). The over-breadth mutation turns the whole failed row red, count, finding and time slot, and `TestStartNoiseRow` asserts the time as a bound between the moments just before and just after the Build call.
+
+Evidence of the final tree (warm stack `e17s13iw`, build 154, after the review patches): `CLASS OcuTalon.Test.Watch.Vitals passed`; `CLASS OcuTalon.Test.Digest.Coverage passed`; `docker/tests/test-boundaries.sh` all rules passed; `docker/tests/test-class-rules.sh` all rules passed (ascii, assert-concat); `Watch/Reader.cls` and `Test/Watch/Vitals.cls` compile on `ocutalon-slot-b` (implement pass). Fresh stack `e17s13if` built from the final tree (`WARM reloaded 0`): `CLASS OcuTalon.Test.Watch.Vitals passed`, `CLASS OcuTalon.Test.Digest.Coverage passed`; both stacks torn down with 0 leftovers.
+
 Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Option (a) of the Planner's ruling: `OcuTalon.Watch.Reader` no longer counts IRIS's two start-up lines at severity 2 (the whole-text Sharding error, and the failover line with a 12 to 64 digit lower-case hex container id and nothing after it). Every other line of severity 2 or 3 counts as before. No string, catalog, `Coverage.cls` or `docs/` change.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Watch/Reader.cls`: parameters `NOISESHARDING` and `NOISEFAILOVER`, private `StartNoise`, the skip in `SevereLinesIn`, and the three docs.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Vitals.cls`: `WriteKept` takes an optional text; tests `TestStartNoise`, `TestLaterRealError`, `TestNoiseIdBounds`, `TestStartNoiseRow`, `TestRealStartNoise`; `StartNoise` in `TestNoSwitch`.
+- This spec: ticks, mutation lines, triage log.
+
+**Review.** Four layers, 20 rows: 5 patches applied (a counted failover line at severity 3 in `TestNoiseIdBounds`, with its mutation; the AC 3 mutation line; the finding and time asserted separately; `FirstTimeOfCurrent` reuses `UtcOf`; a Rule 14 comment fix), 0 deferred, 15 rejected with the reasons in the log.
+
+**Verification.** Warm stack `e17s13iw`: Vitals class passed (before and after the patches), Coverage class passed, `test-boundaries.sh` and `test-class-rules.sh` all rules passed; seven mutations observed red and restored byte for byte. Fresh stack `e17s13if` from the final tree: both classes passed. Both stacks down, 0 leftovers.
+
+**Residual risks.** A stack with a user-set host name still counts the failover line (a false alarm, by the ruling). `TestRealStartNoise` assumes the last start is in the current `messages.log` of the throwaway. The first digest on a fresh build 154 install may still show the licence line (accepted, Design Notes).
+
+**Follow-up review recommended:** false (one medium and four low patches, all test-side).
