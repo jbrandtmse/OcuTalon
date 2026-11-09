@@ -20,7 +20,7 @@
 ///   - TestItemsSearch: a search is a SearchMemory that the real MemoryOps answers with the session's own best memories only (on OcuTalon's image; a named skip elsewhere);
 ///   - TestSearchSubmitsTheVerb: a search submits one SearchMemory for the session and the trimmed q, relays the owner's items with their count, and maps the other answers: failed, not
 ///     allowed, an error status, no result and an answer whose Data is not an array of items are 500 server_error (the failed-search row); busy is 503 search_busy;
-///   - TestSearchBusy: a search whose owner gives no answer in time (the real gate, with a send that times out) is 503 search_busy with the approved sentence, after a wait of 20 seconds, and logs no error;
+///   - TestSearchBusy: a search whose owner gives no answer in time (the real gate, with a send that times out) is 503 search_busy with the busy sentence, after a wait of 20 seconds, and logs no error;
 ///   - TestSearchHandler: the real MemoryOps.OnSearch answers failed for an empty query, and searches only the command's own SessionRef (on OcuTalon's image; a named skip elsewhere);
 ///   - TestPin: POST and DELETE /v1/memory/:ref/pin submit PinMemory and UnpinMemory for the session with origin web_user; the owner's answers are mapped (done 200,
 ///     not_found 404, over_cap 409, not_built 501, the rest 500), and a ref that names no memory is 404 before anything is submitted;
@@ -45,7 +45,7 @@ Parameter TOOOLD = "This notice is too old to mark as noise. Nothing was changed
 /// The approved text of the pin route's 409 over_cap (public text), held here word for word.
 Parameter OVERCAP = "That would go over the 1,000-token limit. Unpin something first.";
 
-/// The approved text of the search's 503 search_busy (public text), held here word for word.
+/// The text of the search's 503 search_busy (public text, pending the Planner's approval), held here word for word.
 Parameter SEARCHBUSY = "Search is busy right now. Try again in a moment.";
 
 /// The run's number.
@@ -334,7 +334,7 @@ Method TestItemsSearch()
 
 /// A search submits one SearchMemory with the session's own Ref and the trimmed q (origin web_user, through the SubmitMemory seam), relays the items of the owner's answer with total
 /// their number, and maps every other answer: not Ok (failed, not_allowed, any outcome), an error status, no result and Data that is not an array of items are 500 server_error
-/// with the cause logged; Outcome busy is 503 search_busy with the approved sentence. This is the real search branch of the route (the probe's ReadMemories seam is not used).
+/// with the cause logged; Outcome busy is 503 search_busy with the busy sentence. This is the real search branch of the route (the probe's ReadMemories seam is not used).
 Method TestSearchSubmitsTheVerb()
 {
 	Set session = ..Session()
@@ -360,15 +360,15 @@ Method TestSearchSubmitsTheVerb()
 	}
 	Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(0, "busy")
 	Set body = ..Items(.response, "vpn")
-	Do $$$AssertEquals(response.Status_"|"_response.ContentType_"|"_body, "503 Service Unavailable|application/json|"_..ErrorBody("search_busy", ..#SEARCHBUSY), "Outcome busy is 503 search_busy with the approved sentence")
+	Do $$$AssertEquals(response.Status_"|"_response.ContentType_"|"_body, "503 Service Unavailable|application/json|"_..ErrorBody("search_busy", ..#SEARCHBUSY), "Outcome busy is 503 search_busy with the busy sentence")
 }
 
 /// A search whose owner gives no answer in time: the real gate (CommandsIn on a send that times out, as the framework does) answers Outcome busy after the 20-second wait for a SearchMemory,
-/// and the route answers 503 search_busy with the approved sentence, never a hang or a 500, and logs no error. The approved sentence is held here word for word.
+/// and the route answers 503 search_busy with the busy sentence, never a hang or a 500, and logs no error. The busy sentence is held here word for word.
 Method TestSearchBusy()
 {
 	Set session = ..Session()
-	Do $$$AssertEquals($Parameter(..#PROBE, "MESSAGESEARCHBUSY"), "Search is busy right now. Try again in a moment.", "the parameter is the approved sentence")
+	Do $$$AssertEquals($Parameter(..#PROBE, "MESSAGESEARCHBUSY"), "Search is busy right now. Try again in a moment.", "the parameter is the busy sentence")
 	Do $$$AssertEquals($Parameter(..#PROBE, "MESSAGESEARCHBUSY"), ..#SEARCHBUSY, "and equals the test's copy")
 	Set ^OcuTalonTest("MemoryApiProbe", "submit") = "timeout"
 	Set body = ..Items(.response, "vpn gateway")

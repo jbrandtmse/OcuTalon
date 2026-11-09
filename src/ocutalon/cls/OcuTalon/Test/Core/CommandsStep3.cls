@@ -10,7 +10,7 @@
 ///     not_allowed and nothing is sent, as for SendDigest (AD-1); the context's own session is routed, and a document verb, PinMemory, UnpinMemory or SearchMemory that says
 ///     web_user is refused inside a context (the origin is tool there, and none of the three is a tool verb);
 ///   - TestSearchMemoryWaits (Story 41.9): a SearchMemory waits SEARCHTIMEOUT (20) seconds, and a send that gets no answer in time is answered Ok 0 Outcome busy; any other verb waits TIMEOUT (120)
-///     and the same silence is failed;
+///     and the same silence is failed; a SearchMemory that is answered in time gets the owner's answer as it is;
 ///   - TestRealStubOwners: the real OcuTalon.Docs.Ops (built in Story 19.4) and the real OcuTalon.Memory.Ops (built in Story 19.3) answer their two verbs
 ///     as built, no_session for the session of the test, which has no row; each received the very object CommandsIn was given, with its origin and
 ///     SessionRef unchanged.
@@ -175,6 +175,14 @@ Method TestSearchMemoryWaits()
 	Set sc = other.OnProcessInput(..NewCommand("ForgetMemory", "web_user", "zzsessA"), .output)
 	Do $$$AssertEquals(other.SeenTimeout, 120, "a forget waits 120 seconds")
 	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|failed", "and no answer from it is failed, not busy")
+	Set answered = ##class(Ens.Host).GetShadowInstance("class||OcuTalon.Test.Core.CommandsTimeoutProbe", .sc)
+	Set reply = ##class(OcuTalon.Msg.CommandResult).%New()
+	Set reply.Ok = 1, reply.Outcome = "done", reply.Data = "[]"
+	Set answered.Answer = reply
+	Set sc = answered.OnProcessInput(command, .output)
+	Do $$$AssertEquals(answered.SeenTimeout, 20, "a search that is answered in time waited 20 seconds too")
+	Do $$$AssertEquals($IsObject(output) && (output = reply), 1, "and its answer is the owner's, as it is")
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Data, "1|done|[]", "Ok 1, done, with the items, never busy")
 }
 
 /// --- helpers ---

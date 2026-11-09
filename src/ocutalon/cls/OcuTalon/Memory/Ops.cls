@@ -164,19 +164,24 @@ Method OnForget(request As OcuTalon.Msg.Command.ForgetMemory, Output response As
 Method OnSearch(request As OcuTalon.Msg.Command.SearchMemory, Output response As OcuTalon.Msg.CommandResult) As %Status
 {
 	Set response = ""
-	Set sc = ##class(OcuTalon.Memory).Search(request.SessionRef, request.Query, ##class(OcuTalon.Memory).#MAXLIMIT, .rows)
-	If $$$ISERR(sc) Quit ..Failed(.response, sc)
-	Set items = []
-	Set iterator = rows.%GetIterator()
-	While iterator.%GetNext(, .row) {
-		Set item = {}
-		Set item.ref = row.memoryRef
-		Set item.text = row.text
-		Set item.savedAt = row.savedAt
-		Set item.source = row.source
-		Do item.%Set("pinned", (row.pinned = 1), "boolean")
-		Do items.%Push(item)
+	Try {
+		Set sc = ##class(OcuTalon.Memory).Search(request.SessionRef, request.Query, ##class(OcuTalon.Memory).#MAXLIMIT, .rows)
+		If $$$ISERR(sc) Quit
+		Set items = []
+		Set iterator = rows.%GetIterator()
+		While iterator.%GetNext(, .row) {
+			Set item = {}
+			Set item.ref = row.memoryRef
+			Set item.text = row.text
+			Set item.savedAt = row.savedAt
+			Set item.source = row.source
+			Do item.%Set("pinned", (row.pinned = 1), "boolean")
+			Do items.%Push(item)
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
 	}
+	If $$$ISERR(sc) Quit ..Failed(.response, sc)
 	Set sc = ..Answer(.response, 1, "done", "")
 	Set response.Data = items.%ToJSON()
 	Quit sc

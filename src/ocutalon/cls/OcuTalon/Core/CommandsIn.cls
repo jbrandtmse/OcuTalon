@@ -26,8 +26,8 @@
 ///     IdempotencyKey, SessionRef and Origin arrive unchanged;
 ///   - the owner's CommandResult is the answer, as it is. An owner that is still a stub (code 5003, or a process stub's
 ///     <Ens>ErrBPTerminated that carries it) gives Outcome not_built; any other error, a timeout, no answer or an answer that
-///     is not a CommandResult gives Outcome failed. Both have Ok 0. A SearchMemory that has no answer within SEARCHTIMEOUT seconds gives Outcome busy
-///     (Ok 0) instead, which the web layer answers with its own busy text.
+///     is not a CommandResult gives Outcome failed. Both have Ok 0.
+///     A SearchMemory that has no answer within SEARCHTIMEOUT seconds gives Outcome busy (Ok 0) instead, which the web layer answers with its own busy text.
 /// OnProcessInput never answers an error status and never throws: an error thrown inside it is logged once and answers failed.
 /// So Submit's status is OK whenever this service answered. Role checks are not made here: they stay with the admin-checked
 /// entry points.

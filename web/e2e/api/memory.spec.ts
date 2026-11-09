@@ -201,6 +201,8 @@ async function refsOf(response: APIResponse): Promise<string[]> {
  * Story 41.9 (standing rule): the memory item routes over real HTTP as the unprivileged README account, with a second session. Rows are seeded through support/memory.ts and removed in `finally`.
  */
 test('the memory items: list, search and forget as the README account, and a second session sees none of it', async ({ request, playwright, baseURL }) => {
+  // A search that finds the embedder busy waits 20 s and is asked up to three times, which does not fit the default 45 s.
+  test.setTimeout(150_000);
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
   const first = await sessionRefOfUser(README_ACCOUNT.user);
   const other = fixtureUser('LINKS');

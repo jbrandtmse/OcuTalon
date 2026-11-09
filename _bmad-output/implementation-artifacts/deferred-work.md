@@ -6251,6 +6251,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Web/Api.cls ReadMemories -> Memory.Search -> Embedding.Embed (WorkMgr category, MAXACTIVEWORKERS 2, TIMEOUT 120 s); no 429 on the route; unreachable today because the route fails before embedding (41.9 review HIGH)
 - 2026-11-09T16:35:22Z status=decision-pending owner=burndown by=cr note=decide with the 41.9 search-path ruling: an allowance on item search, or search on submit only in 41.13
 - 2026-11-09T16:41:26Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=owner note=planner-2026-11-09-41.9-readpath_DW-1031:_the_Memory_card_searches_only_on_submit,never_per_keystroke;on_the_demo_each_search_counts_against_the_existing_message_allowance;no_new_number
+- 2026-11-09T17:46:42Z occurrence=41-9-pins-and-learned-saves-get-their-verbs-and-routes
+- 2026-11-09T17:46:42Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=cr note=reachable since 41.9 rework: GET ?q= -> SearchMemory -> MemoryOps (PoolSize 1, shared with saves); enforce allowance in the route
 
 ### DW-1039: The real-HTTP test of the pin routes (web/e2e/api/memory.spec.ts) asserts today's 500 server_error because MemoryOps has no pin handler before 41.12; replace it with 200 {result:done}, 409 over_cap and a second-session 404 when 41.12 handles PinMemory/UnpinMemory (standing real-HTTP rule)
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
@@ -6261,3 +6263,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: web/src/app/live/demo-busy.ts holds the API cause from any 503 until the next 2xx; chat-outbox.ts offers the message back on a 503; no client calls the route before 41.13
 - 2026-11-09T17:30:18Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=harvest note=41.13: the client treats a 503 whose code is search_busy as a local message (or the status changes; a Planner call if so)
+- 2026-11-09T17:46:42Z occurrence=41-9-pins-and-learned-saves-get-their-verbs-and-routes
+- 2026-11-09T17:46:42Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=cr note=the fix also amends AD-25 (client shows demo-busy for any API 503) or changes the status; spine line with it
+
+### DW-1046: A memory search copies up to five memory texts into CommandResult.Data and its query into the SearchMemory body; both stay in the messages (data database) for 90 days and survive a later Forget
+- source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Memory/Ops.cls OnSearch sets response.Data to the items; AD-27 keeps messages 90 days; SaveMemory bodies already carry the text, and FR-15's shared trace shows bodies
+- 2026-11-09T17:46:42Z status=wontfix-accepted owner=41-9-pins-and-learned-saves-get-their-verbs-and-routes by=cr note=reopen_if=a requirement that Forget removes memory text from message bodies, or that trace viewers must not see it
