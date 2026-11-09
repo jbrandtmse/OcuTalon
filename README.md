@@ -8,6 +8,8 @@ Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU
 
 ## Try it in two minutes
 
+[Online demo](https://demo.ocutalon.com) · [Video: the 35-second teaser](https://youtu.be/wycbyfnXFMU) · [Article: built the IRIS way, step by step](https://community.intersystems.com/post/ocutalon-personal-assistant-built-iris-way-step-step-visual-trace) · [Article: what it costs to run](https://community.intersystems.com/post/what-always-ai-assistant-costs-run-real-numbers-iris) · [Open Exchange](https://openexchange.intersystems.com/package/OcuTalon) · [Releases](https://github.com/jbrandtmse/OcuTalon/releases) · [CI](https://github.com/jbrandtmse/OcuTalon/actions/workflows/ci.yml?query=branch%3Amain) · [MIT License](LICENSE) · [For judges](#for-judges-where-to-look) · [Contest checklist](#contest-checklist)
+
 Start with the online demo, at https://demo.ocutalon.com (nothing to install, and no Early Access image needed). Its sign-in details are on the splash screen. The splash screen also shows a read-only Visual Trace account, for opening Visual Trace in the portal yourself; on the demo, the trace links on the page open Visual Trace without a second sign-in.
 
 To run OcuTalon on your own machine instead:
@@ -16,6 +18,27 @@ To run OcuTalon on your own machine instead:
 2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)).
 3. Sign in at http://localhost:52773/ocutalon/ with user name `ocutalon` and password `ocutalon` ([more on signing in](#sign-in)).
 4. Follow the demo guide at the top of the page.
+
+### For judges: where to look
+
+| Criterion | Where to look |
+| --- | --- |
+| Complexity | One Interoperability production of over 40 items runs three AI Hub agents: attention decisions, diagnosis and chat ([Production.cls](src/ocutalon/cls/OcuTalon/Production.cls)). OcuTalon's own outbound adapter extends AI Hub's agent adapter and adds a gate that checks every tool call before it runs ([Agent.cls](src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls)). Approvals are Workflow tasks, memory search merges IRIS vector search with a keyword index, and Embedded Python computes the vectors and reads PDF and Word files. |
+| Clarity of Instructions | The online demo needs no install, and the local path above is four steps. `./install.sh` checks Docker, Docker Compose and the image first, and a failed check prints the exact fix ([Troubleshooting](#troubleshooting)). [Install it with IPM](#install-it-with-ipm) gives both commands. Over 30 rules in [docker/tests/test-readme.sh](docker/tests/test-readme.sh) check this README in CI. |
+| Developer Experience | [The bridge guide](docs/bridge-guide.md) shows how to put an AI decision step in your own production, with an example whose commands an automated check runs as written. Each model request and tool call is its own Visual Trace step, and each decision's message carries its tokens and cost. Over 300 test classes with over 3,000 tests, and over 70 browser test files, run in [CI](.github/workflows/ci.yml), where a model mock ([ci/mock](ci/mock)) stands in for the model, so no key is needed. |
+| Applicability | [What you can use it for](#what-you-can-use-it-for): a partner feed that breaks, a production watched quietly, and an AI step in your own production. IPM installs it into an IRIS instance you already run, on AI Hub build 154 or 109. It implements the community idea [DPI-I-689](https://ideas.intersystems.com/ideas/DPI-I-689). |
+| Usability | The demo guide walks one incident in about two minutes, and its More to try panel has seven more things to try ([New since 1.0.0](#new-since-100)). A dry run with counts comes first, and nothing risky runs without your yes. [Measured](#measured): 0 changes made without a person's approval, and 0 prompt-injection attempts that led to an action. A recorded evaluation set of over 50 cases ([eval](eval)) scores the real model. |
+
+### New since 1.0.0
+
+Each item says where to try it on the online demo. Visual Trace there is shared, so save and add nothing personal.
+
+- **Memory.** Say "Remember that ..." in the chat, and it answers later questions from what it remembered. "What do you remember?" lists your memories, and you can tell it to forget one. The vectors are computed on your instance by FastEmbed in Embedded Python, and a search combines IRIS vector search with a keyword index. Try it: More to try, *Ask it to remember something*.
+- **Answers from your own documents.** Add Markdown, plain-text, PDF or Word (.docx) files on the Documents page, then ask about them in the chat. The answer names the document and section it used, or says "None of your documents cover that." Try it: More to try, *Ask about a document*.
+- **A daily digest.** On your own install, OcuTalon sends a digest each morning, by default at 08:00 to the web chat, and to Telegram when it is paired: how IRIS is doing, a Passed, Failed or Not checked line for each watched production, what needs you, and yesterday's cost. The checks and the verdict come from OcuTalon's code, not the model. Try it on the online demo: ask "Send my digest now".
+- **Personas.** In the Persona card, choose how OcuTalon talks: Professional, Starship computer, Pirate, Kind friend, Another language, or Your own words (on your own install). A persona changes the wording, never what OcuTalon may do. Try it: More to try, *Change how OcuTalon talks*.
+- **A heartbeat checklist.** Write what to check in the Heartbeat checklist card, and OcuTalon looks at it on your schedule, from every 30 minutes to every 24 hours. Each check-in makes one attention decision, and the card shows its cost. Try it: More to try, *Run a heartbeat check-in*.
+- **A dry run that checks good messages.** Before it offers to repair and resend, OcuTalon tries the repair on up to 20 of the newest messages from the same source that went through, and offers no fix if any of them would change. Try it: after the guide's incident, More to try, *Reject a fix*, then read the approval request on the Simulated phone.
 
 ## What's interesting
 
@@ -89,6 +112,8 @@ Each decision shows its reasons, its confidence and its cost.
 
 - **Watching a production.** Ask in plain words, for example "Watch the Orders production and only tell me if something needs me." To stop, say "Stop watching Orders."
 - **Reminders.** Ask in plain words, for example "Remind me in 1 minute to stretch." A reminder arrives on time, survives a restart, and can be listed and cancelled in the chat.
+
+**What changes without the agent?** Worked out from the expected answers of the recorded evaluation set ([eval](eval)), not from a run: fixed rules decide Tell now for every item, which is the expected answer for only 6 of the 24 routine items, and they give none of the 11 incidents a cause or a fix. With Claude Haiku 5.5, release 1.0.4's evaluation got 21 of 24 and 11 of 11 right ([Measured](#measured)).
 
 **With a model, and without one.** OcuTalon uses Claude Haiku 5.5 by default. With no model key, or when the model can't give a usable answer, it falls back to fixed rules and says so on the page and in Visual Trace.
 
@@ -345,6 +370,23 @@ Leave `CSPSystem`, the web gateway's account, and the accounts marked for intern
 ### Tests and CI
 
 `bash ci/checks.sh` runs the checks that need no container, among them the check of this README. The GitHub Actions workflow in `.github/workflows/ci.yml` runs them and the web build on pushes and pull requests, and the browser tests and the IRIS tests on pushes and on pull requests from this repository's own branches.
+
+## Contest checklist
+
+What OcuTalon uses, and where to check each one:
+
+| Item | Where to check it |
+| --- | --- |
+| AI agents in Interoperability workflows | Three AI Hub agents run in an Interoperability production ([Production.cls](src/ocutalon/cls/OcuTalon/Production.cls)), and each decision is in Visual Trace ([What's interesting](#whats-interesting)). |
+| Workflow Engine | Each approval request is a Workflow task for the OcuTalonApprovals role ([Approval.cls](src/bridge/cls/OcuTalon/Bridge/Approval.cls)), and the production has a Workflow operation of that name. |
+| Custom adapter | OcuTalon's own outbound adapter, on AI Hub's agent adapter, used by every agent runner: [Agent.cls](src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls). |
+| Embedded Python | FastEmbed computes the memory and document vectors, and pdfplumber and python-docx read PDF and Word files: [src/ocutalon/python](src/ocutalon/python). |
+| IRIS Vector Search | Memories have a 384-dimension vector with an HNSW index ([Data/Memory.cls](src/ocutalon/cls/OcuTalon/Data/Memory.cls)). Documents go into AI Hub's IRIS vector store ([Docs/Store.cls](src/ocutalon/cls/OcuTalon/Docs/Store.cls)). |
+| Docker | IRIS runs in a Docker container: [Start it with the install script](#start-it-with-the-install-script), [docker-compose.yml](docker-compose.yml). |
+| IPM (ZPM) package | `zpm "install ocutalon"` from the community registry: [Install it with IPM](#install-it-with-ipm), [src/module.xml](src/module.xml). |
+| Online demo | [demo.ocutalon.com](https://demo.ocutalon.com) |
+| Community idea | [DPI-I-689](https://ideas.intersystems.com/ideas/DPI-I-689): every decision, model request and tool call is in Visual Trace. |
+| Articles | [OcuTalon: a personal assistant built the IRIS way, step by step in Visual Trace](https://community.intersystems.com/post/ocutalon-personal-assistant-built-iris-way-step-step-visual-trace) and [What an always-on AI assistant costs to run (with real numbers from IRIS)](https://community.intersystems.com/post/what-always-ai-assistant-costs-run-real-numbers-iris). |
 
 ## Credits and licences
 
