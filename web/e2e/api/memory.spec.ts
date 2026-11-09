@@ -20,12 +20,12 @@ import { sessionRef } from '../support/persona';
  * decision's instruction text.
  *
  * Story 41.9 adds the memory item routes: GET /api/v1/memory/items, POST and DELETE /api/v1/memory/:ref/pin and DELETE /api/v1/memory/items/:ref.
- * Signed out each is 401 signed_out with no challenge. Signed in, the list is 200 {items, total} with an array of items and a count; deleting an unknown
+ * Signed out each is 401 signed_out with no challenge. Signed in as the LIVE fixture user, the list is 200 {items, total} with an array of items and a count; deleting an unknown
  * ref with the envelope is 404 not_found (the real gate and MemoryOps answer), and the same call without the X-OcuTalon-Request header is refused as
  * every other write route is.
  *
- * Story 41.9, the read path (planner-2026-11-09-41.9-readpath) and the standing rule for /api/v1 routes: the unprivileged README account signs in over HTTP and a second session
- * (another fixture user, so another durable session) does too. The first session's seeded memory is listed (200, the five-member item, `pinned` a boolean), found by a search
+ * Story 41.9, the read path (planner-2026-11-09-41.9-readpath) and the standing rule for /api/v1 routes: the unprivileged LIVE fixture user (role OcuTalonUser only, the demo visitors' role; the README account holds OcuTalonAdmin and is not the
+ * unprivileged account) signs in over HTTP and a second session (the PANEL fixture user, also OcuTalonUser only, so another durable session) does too. The first session's seeded memory is listed (200, the five-member item, `pinned` a boolean), found by a search
  * (200), not found by the second session's list or search, kept when the second session forgets its Ref (404 not_found), and forgotten by the first (200 {"result":"done"}, then
  * gone from the row, the list and the search). The memory is seeded through the memory area's fixture (support/memory.ts), never through a route. The pin routes have no success
  * status to assert until Story 41.12 handles PinMemory and UnpinMemory: they are asserted at the answer the matrix gives today (500 server_error).
@@ -125,7 +125,8 @@ test('the memory routes: signed out, the list, a delete, unknown refs, and the n
 });
 
 test('the memory item routes: signed out, the list, an unknown forget, and the envelope', async ({ request, playwright, baseURL }) => {
-  await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
   const anonymous = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
   try {
     const calls = [
@@ -160,7 +161,8 @@ test('the memory item routes: signed out, the list, an unknown forget, and the e
  * whatever MemoryOps does with a pin (so the test holds after Story 41.12).
  */
 test('the memory item writes: the envelope on the pin routes, and an over-long ref', async ({ request }) => {
-  await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
   const writes = [
     { method: 'POST', url: (ref: string): string => `${MEMORY}/${ref}/pin` },
     { method: 'DELETE', url: (ref: string): string => `${MEMORY}/${ref}/pin` },
@@ -198,14 +200,15 @@ async function refsOf(response: APIResponse): Promise<string[]> {
 }
 
 /**
- * Story 41.9 (standing rule): the memory item routes over real HTTP as the unprivileged README account, with a second session. Rows are seeded through support/memory.ts and removed in `finally`.
+ * Story 41.9 (standing rule): the memory item routes over real HTTP as the unprivileged LIVE fixture user, with a second OcuTalonUser-only session (PANEL). Rows are seeded through support/memory.ts and removed in `finally`.
  */
-test('the memory items: list, search and forget as the README account, and a second session sees none of it', async ({ request, playwright, baseURL }) => {
+test('the memory items: list, search and forget as the LIVE user, and a second session sees none of it', async ({ request, playwright, baseURL }) => {
   // A search that finds the embedder busy waits 20 s and is asked up to three times, which does not fit the default 45 s.
   test.setTimeout(150_000);
-  await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
-  const first = await sessionRefOfUser(README_ACCOUNT.user);
-  const other = fixtureUser('LINKS');
+  const live = fixtureUser('LIVE');
+  await signInOverHttp(request, live.user, live.password);
+  const first = await sessionRefOfUser(live.user);
+  const other = fixtureUser('PANEL');
   const second = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
   const unique = `zzquokka${Date.now()}`;
   const text = `The ${unique} gateway is quokka.example.test`;
