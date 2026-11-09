@@ -8,7 +8,7 @@
 ///     digits (at most 32), each in quotes (the word or with a backslash instead, because iFind on build 154 refuses a quoted or), so that the operators and
 ///     the punctuation of a question mean nothing. The two lists are merged by
 ///     reciprocal-rank fusion: a memory scores the sum of 1 / (RRFK + its rank) over the lists that hold it, ties go to the newer SavedAt and then
-///     to the higher row id, and the best limit memories (1 to 5) come back in order as {memoryRef, text, savedAt, origin}. An empty query or a
+///     to the higher row id, and the best limit memories (1 to 5) come back in order as {memoryRef, text, savedAt, origin, source, pinned} (source is told or learned, and a row with no Source is told; pinned is 1 or 0). An empty query or a
 ///     failed embedding is an error status. A keyword query that iFind refuses leaves the nearest list alone, and writes one Type 3 warning (redacted).
 ///   - Fuse: the fusion of the two lists, on their own, so that the order, the ties and the cut are tested without a model.
 ///   - List: the owner's newest 20 memories (by SavedAt, then row id), newest first, in the same form, and the owner's count.
@@ -42,12 +42,12 @@ Parameter TABLE = "OcuTalon_Data.Memory";
 
 /// The query of the nearest memories of one owner: parameters are the SessionRef and the query's vector as text. With the table's statistics gathered (Tune)
 /// the planner reads EmbeddingIdx and applies the owner while it walks the index (Story 19.3, Task 0); Test.Memory.Volume explains this very text.
-Parameter NEARESTSQL = {"SELECT TOP "_..#CANDIDATES_" ID, Ref, Text, SavedAt, Origin FROM "_..#TABLE_" WHERE SessionRef = ? ORDER BY VECTOR_COSINE(Embedding, TO_VECTOR(?, DOUBLE, 384)) DESC"};
+Parameter NEARESTSQL = {"SELECT TOP "_..#CANDIDATES_" ID, Ref, Text, SavedAt, Origin, Source, Pinned FROM "_..#TABLE_" WHERE SessionRef = ? ORDER BY VECTOR_COSINE(Embedding, TO_VECTOR(?, DOUBLE, 384)) DESC"};
 
 /// The query of the best keyword hits of one owner: parameters are the rank argument (the keyword query), the SessionRef and the keyword query.
-Parameter KEYWORDSQL = {"SELECT TOP "_..#CANDIDATES_" ID, Ref, Text, SavedAt, Origin, "_..#TABLE_"_TextIdxRank(%ID, ?) AS Hit FROM "_..#TABLE_" WHERE SessionRef = ? AND %ID %FIND search_index(TextIdx, ?, 0) ORDER BY Hit DESC"};
+Parameter KEYWORDSQL = {"SELECT TOP "_..#CANDIDATES_" ID, Ref, Text, SavedAt, Origin, Source, Pinned, "_..#TABLE_"_TextIdxRank(%ID, ?) AS Hit FROM "_..#TABLE_" WHERE SessionRef = ? AND %ID %FIND search_index(TextIdx, ?, 0) ORDER BY Hit DESC"};
 
-/// The memories of the session that answer the query, best first: rows(n) is {"memoryRef", "text", "savedAt", "origin"} and rows is a %DynamicArray
+/// The memories of the session that answer the query, best first: rows(n) is {"memoryRef", "text", "savedAt", "origin", "source", "pinned"} and rows is a %DynamicArray
 /// of at most limit of them (limit is clamped to 1 to MAXLIMIT). See the class description for the ranking. An error status for an empty query, an
 /// empty session or a query that cannot be embedded; rows is then an empty array.
 ClassMethod Search(sessionRef As %String, query As %String, limit As %Integer = 5, Output rows As %DynamicArray) As %Status
@@ -78,9 +78,9 @@ ClassMethod Search(sessionRef As %String, query As %String, limit As %Integer = 
 	Quit sc
 }
 
-/// The reciprocal-rank fusion of two ranked lists of hits, best first: each hit is {"id", "memoryRef", "text", "savedAt", "origin"} with the row id.
+/// The reciprocal-rank fusion of two ranked lists of hits, best first: each hit is {"id", "memoryRef", "text", "savedAt", "origin", "source", "pinned"} with the row id.
 /// A memory scores the sum of 1 / (RRFK + its rank, from 1) over the lists that hold it (a memory is the same in both lists when it has the same id).
-/// The result is the best limit (clamped to 1 to MAXLIMIT) as {"memoryRef", "text", "savedAt", "origin"}, by score, then newer savedAt, then higher id.
+/// The result is the best limit (clamped to 1 to MAXLIMIT) as {"memoryRef", "text", "savedAt", "origin", "source", "pinned"}, by score, then newer savedAt, then higher id.
 ClassMethod Fuse(nearest As %DynamicArray, keyword As %DynamicArray, limit As %Integer = 5) As %DynamicArray
 {
 	Set limit = $Select(+limit < 1: 1, +limit > ..#MAXLIMIT: ..#MAXLIMIT, 1: +limit \ 1)
@@ -116,7 +116,7 @@ ClassMethod Fuse(nearest As %DynamicArray, keyword As %DynamicArray, limit As %I
 				Quit:id=""
 				If rows.%Size() < limit {
 					Set hit = info(id)
-					Do rows.%Push({"memoryRef": (hit.memoryRef), "text": (hit.text), "savedAt": (hit.savedAt), "origin": (hit.origin)})
+					Do rows.%Push(..Row(hit.memoryRef, hit.text, hit.savedAt, hit.origin, hit.source, hit.pinned))
 				}
 			}
 		}
@@ -124,7 +124,7 @@ ClassMethod Fuse(nearest As %DynamicArray, keyword As %DynamicArray, limit As %I
 	Quit rows
 }
 
-/// The owner's newest memories (at most LISTLIMIT), newest first, as {memoryRef, text, savedAt, origin} in the %DynamicArray rows, and the number of
+/// The owner's newest memories (at most LISTLIMIT), newest first, as {memoryRef, text, savedAt, origin, source, pinned} in the %DynamicArray rows, and the number of
 /// memories the owner has in total.
 ClassMethod List(sessionRef As %String, Output rows As %DynamicArray, Output total As %Integer) As %Status
 {
@@ -136,10 +136,10 @@ ClassMethod List(sessionRef As %String, Output rows As %DynamicArray, Output tot
 		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM "_..#TABLE_" WHERE SessionRef = ?", sessionRef)
 		If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The memories could not be counted: "_rs.%Message))
 		If rs.%Next() Set total = rs.%GetData(1)
-		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP "_..#LISTLIMIT_" Ref, Text, SavedAt, Origin FROM "_..#TABLE_" WHERE SessionRef = ? ORDER BY SavedAt DESC, ID DESC", sessionRef)
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP "_..#LISTLIMIT_" Ref, Text, SavedAt, Origin, Source, Pinned FROM "_..#TABLE_" WHERE SessionRef = ? ORDER BY SavedAt DESC, ID DESC", sessionRef)
 		If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The memories could not be listed: "_rs.%Message))
 		While rs.%Next() {
-			Do rows.%Push({"memoryRef": (rs.%Get("Ref")), "text": (rs.%Get("Text")), "savedAt": (rs.%Get("SavedAt")), "origin": (rs.%Get("Origin"))})
+			Do rows.%Push(..Row(rs.%Get("Ref"), rs.%Get("Text"), rs.%Get("SavedAt"), rs.%Get("Origin"), rs.%Get("Source"), rs.%Get("Pinned")))
 		}
 	} Catch exception {
 		Set rows = []
@@ -179,17 +179,32 @@ ClassMethod DropSession(sessionRef As %String) As %Status
 	Quit sc
 }
 
-/// The rows of the SELECT as an array of {"id", "memoryRef", "text", "savedAt", "origin"} in the order of the result (its columns are ID, Ref, Text, SavedAt
-/// and Origin first); throws when the statement fails.
+/// The rows of the SELECT as an array of {"id", "memoryRef", "text", "savedAt", "origin", "source", "pinned"} in the order of the result (its columns are ID, Ref, Text,
+/// SavedAt, Origin, Source and Pinned first); throws when the statement fails.
 ClassMethod Hits(sql As %String, args... As %String) As %DynamicArray [ Private ]
 {
 	Set hits = []
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, sql, args...)
 	If rs.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "The memories could not be read: "_rs.%Message))
 	While rs.%Next() {
-		Do hits.%Push({"id": (rs.%Get("ID")), "memoryRef": (rs.%Get("Ref")), "text": (rs.%Get("Text")), "savedAt": (rs.%Get("SavedAt")), "origin": (rs.%Get("Origin"))})
+		Do hits.%Push(..Row(rs.%Get("Ref"), rs.%Get("Text"), rs.%Get("SavedAt"), rs.%Get("Origin"), rs.%Get("Source"), rs.%Get("Pinned"), rs.%Get("ID")))
 	}
 	Quit hits
+}
+
+/// One memory as the callers read it: {"memoryRef", "text", "savedAt", "origin", "source", "pinned"}, preceded by {"id"} when id is given. source is learned
+/// when the row says so and told otherwise, so a row saved before Story 41.8 (empty Source) is told; pinned is 1 or 0 (empty is 0).
+ClassMethod Row(memoryRef As %String, text As %String, savedAt As %String, origin As %String, source As %String, pinned As %String, id As %String = "") As %DynamicObject [ Private ]
+{
+	Set row = {}
+	If id '= "" Set row.id = id
+	Set row.memoryRef = memoryRef
+	Set row.text = text
+	Set row.savedAt = savedAt
+	Set row.origin = origin
+	Set row.source = $Select(source = "learned": "learned", 1: "told")
+	Set row.pinned = +pinned
+	Quit row
 }
 
 /// The keyword query for the text: the OR of its distinct runs of letters and digits (distinct ignoring case), at most MAXWORDS, each in quotes, except

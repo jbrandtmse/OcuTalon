@@ -4,9 +4,11 @@
 ///   - SaveMemory: the command's session must have a Data.Session row (otherwise no_session), and its text, trimmed, must not be empty (otherwise
 ///     empty_text, Ok 0). Under the session's lock a memory of the same session, ItemId and text (the natural key; ItemId is the part of the
 ///     idempotency key before its last colon, the turn's item) is not saved a second time: the answer is saved with the first row's Ref, so a
-///     re-sent turn adds nothing. Otherwise the text is embedded through OcuTalon.Memory.Embedding, and a failure answers failed and stores nothing;
-///     else one row is written with a new Ref, SavedAt (UTC to the second), ItemId, the command's Origin and the 384-value embedding, and the answer is
-///     saved (Ok 1) with the Ref. A text over 2,000 characters cannot be saved and answers failed.
+///     re-sent turn adds nothing and keeps the first row's Source. Otherwise Source is decided from the person's own text of the saving turn (the Source
+///     method: told when it holds a phrase of OcuTalon.Tools.MemorySource PHRASES, else learned; learned when the session has no such turn), and a turn
+///     that cannot be read answers failed and stores nothing. The text is then embedded through OcuTalon.Memory.Embedding, and a failure answers failed and
+///     stores nothing; else one row is written with a new Ref, SavedAt (UTC to the second), ItemId, the command's Origin, Source, Pinned 0, PinnedAt empty
+///     and the 384-value embedding, and the answer is saved (Ok 1) with the Ref. A text over 2,000 characters cannot be saved and answers failed.
 ///   - ForgetMemory: the row is found by its Ref, and it is the command's session's own row or nothing: a Ref that no row has and a Ref of another
 ///     session's memory answer the same not_found (Ok 0) and delete nothing (DW-740). Otherwise the row is deleted, with its vector and keyword
 ///     entries, and the answer is forgotten (Ok 1).
@@ -64,7 +66,8 @@ Method OnSave(request As OcuTalon.Msg.Command.SaveMemory, Output response As Ocu
 		If ref '= "" {
 			Set sc = ..Answer(.response, 1, "saved", ..#MESSAGESAVED, ref)
 		} Else {
-			Set sc = ##class(OcuTalon.Memory.Embedding).Embed(text, .vector)
+			Set sc = ..Source(request.SessionRef, itemId, .source)
+			If $$$ISOK(sc) Set sc = ##class(OcuTalon.Memory.Embedding).Embed(text, .vector)
 			If $$$ISOK(sc) {
 				Set row = ##class(OcuTalon.Data.Memory).%New()
 				Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
@@ -73,6 +76,7 @@ Method OnSave(request As OcuTalon.Msg.Command.SaveMemory, Output response As Ocu
 				Set row.SavedAt = ##class(OcuTalon.Data.Time).NowUtc()
 				Set row.ItemId = itemId
 				Set row.Origin = request.Origin
+				Set row.Source = source
 				Set row.Embedding = vector
 				Set sc = row.%Save()
 			}
@@ -88,6 +92,18 @@ Method OnSave(request As OcuTalon.Msg.Command.SaveMemory, Output response As Ocu
 	}
 	Lock -^OcuTalon.Memory(request.SessionRef)
 	Quit sc
+}
+
+/// Decides the source of a memory that the session's turn with this ItemId is saving: in source, OcuTalon.Tools.MemorySource TOLD when the person's own text of
+/// that turn (Data.Turn.Text, read through Data.Ownership.TurnOfItem for the session) holds a phrase of PHRASES, else LEARNED; LEARNED also when the
+/// session has no turn with the ItemId. An error status when the turn cannot be read, with source empty. A seam for the tests.
+Method Source(sessionRef As %String, itemId As %String, Output source As %String) As %Status
+{
+	Set source = ""
+	Set turn = ##class(OcuTalon.Data.Ownership).TurnOfItem(itemId, sessionRef, .sc)
+	If $$$ISERR(sc) Quit sc
+	Set source = $Select($IsObject(turn): ##class(OcuTalon.Tools.MemorySource).Of(turn.Text), 1: ##class(OcuTalon.Tools.MemorySource).#LEARNED)
+	Quit $$$OK
 }
 
 /// Forgets the command's memory if it is the command's session's own, or answers that there is none.

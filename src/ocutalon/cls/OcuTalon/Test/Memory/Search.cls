@@ -6,7 +6,7 @@
 ///     beats one that is first in one list only; equal scores go to the newer SavedAt and then to the higher row id; a list may be empty (keyword hits alone,
 ///     meaning hits alone); at most 5 come back (limit 0 is 1, 9 is 5), a memory in both lists once, and a hit's row id never leaves;
 ///   - TestSearchByMeaning: a question that shares no wording with the memory finds it first, ahead of two memories about other things, and the answer is at most
-///     5 rows of {memoryRef, text, savedAt, origin};
+///     5 rows of {memoryRef, text, savedAt, origin, source, pinned}, an old row (no Source) told and not pinned;
 ///   - TestSearchByKeyword: the word "Lee" finds the memories that hold it, and text that holds iFind operators, quotes, brackets or question marks finds the
 ///     same memory and is no error (the keyword query is the OR of the quoted runs of letters and digits);
 ///   - TestKeywordPromotes: a memory that holds the keyword is first although another memory is nearer to the query by meaning (the control reads the cosine
@@ -15,7 +15,7 @@
 ///     memories gets none;
 ///   - TestLimit: 8 memories, a search with limit 5, 2, 0 and 99 gives 5, 2, 1 and 5;
 ///   - TestEmptyQuery: an empty query, a blank one and an empty session are errors with no rows;
-///   - TestList: an owner with 25 memories gets the newest 20, newest first, and total 25; another owner's list and an unknown owner's are their own;
+///   - TestList: an owner with 25 memories gets the newest 20, newest first, and total 25; each row has its source and pin (a learned row, a pinned row, old rows told and not pinned); another owner's list and an unknown owner's are their own;
 ///   - TestListTies (QA): 22 memories saved in the same second are listed newest first by row id, the total is 22, and the cut at 20 drops the two saved first;
 ///   - TestSearchAccentedKeyword (QA): a word with a letter outside ASCII (an u with a diaeresis) finds its memory first although another is nearer by meaning;
 ///   - TestIndexGlobals: every global that EmbeddingIdx and TextIdx write is in the private database (GetGlobalDest), ^IRIS.KNNIndex stays empty, OCUTALON_DATA
@@ -69,7 +69,7 @@ Method OnImage() As %Boolean [ Private ]
 /// A hit of the fusion's input.
 ClassMethod Hit(id As %Integer, ref As %String, savedAt As %String = "2026-11-05T10:00:00Z") As %DynamicObject [ Private ]
 {
-	Quit {"id": (id), "memoryRef": (ref), "text": ("text of "_ref), "savedAt": (savedAt), "origin": "tool"}
+	Quit {"id": (id), "memoryRef": (ref), "text": ("text of "_ref), "savedAt": (savedAt), "origin": "tool", "source": "learned", "pinned": 1}
 }
 
 /// The memoryRef of each row, comma-separated.
@@ -97,7 +97,10 @@ Method TestFuseOrder()
 	While iterator.%GetNext(.name) {
 		Set keys = keys _ $Select(keys '= "": ",", 1: "") _ name
 	}
-	Do $$$AssertEquals(keys, "memoryRef,text,savedAt,origin", "and they are memoryRef, text, savedAt and origin: the row id never leaves")
+	Do $$$AssertEquals(keys, "memoryRef,text,savedAt,origin,source,pinned", "and they are memoryRef, text, savedAt, origin, source and pinned: the row id never leaves")
+	Do $$$AssertEquals(first.source_"|"_first.pinned, "learned|1", "the source and the pin of a hit are carried through")
+	Set plain = ##class(OcuTalon.Memory).Fuse([{"id": 1, "memoryRef": "a", "text": "x", "savedAt": "2026-11-05T10:00:00Z", "origin": "tool"}], [], 5).%Get(0)
+	Do $$$AssertEquals(plain.source_"|"_plain.pinned, "told|0", "a hit with no source and no pin is told and not pinned")
 	Set nearest = [(..Hit(1, "a")), (..Hit(2, "b"))]
 	Do $$$AssertEquals(..Refs(##class(OcuTalon.Memory).Fuse(nearest, [(..Hit(2, "b"))], 5)), "b,a", "a keyword hit lifts the second nearest above the first")
 	Do $$$AssertEquals(##class(OcuTalon.Memory).#RRFK, 60, "the constant of the fusion is 60 (AD-21)")
@@ -145,18 +148,32 @@ Method TestFuseLimit()
 	Do $$$AssertEquals(both.%Size(), 2, "a memory in both lists is one row")
 }
 
+/// Pins the stored memory with the Ref (a fixture row saved with Pinned 1).
+Method Pin(ref As %String) [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Memory).RefIndexOpen(ref)
+	Set row.Pinned = 1
+	Do $$$AssertStatusOK(row.%Save(), "the memory "_ref_" is pinned")
+}
+
 /// A question that shares no wording with a memory finds it first.
 Method TestSearchByMeaning()
 {
 	If '..OnImage() Quit
 	Set when = "2026-11-05T10:00:0"
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa1", "the warehouse closes at six on Fridays", when_"1Z"), "a memory about the warehouse is stored")
-	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa2", "invoices are paid by bank transfer within thirty days", when_"2Z"), "one about invoices")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa2", "invoices are paid by bank transfer within thirty days", when_"2Z", , , "learned"), "one about invoices")
+	Do ..Pin("zzmsa2")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa3", "the Results partner's contact is Lee", when_"3Z"), "and the one about the contact")
 	Set sc = ##class(OcuTalon.Memory).Search(..#A, "who do I call about Results?", 5, .rows)
 	Do $$$AssertStatusOK(sc, "the search answers")
 	Do $$$AssertEquals(rows.%Get(0).memoryRef, "zzmsa3", "the memory about the contact is first")
-	Do $$$AssertEquals(rows.%Get(0).text_"|"_rows.%Get(0).savedAt_"|"_rows.%Get(0).origin, "the Results partner's contact is Lee|"_when_"3Z|tool", "with its text, the stored SavedAt and its origin")
+	Do $$$AssertEquals(rows.%Get(0).text_"|"_rows.%Get(0).savedAt_"|"_rows.%Get(0).origin_"|"_rows.%Get(0).source_"|"_rows.%Get(0).pinned, "the Results partner's contact is Lee|"_when_"3Z|tool|told|0", "with its text, the stored SavedAt, its origin, and (as an old row) the source told and no pin")
+	Set learnedPin = ""
+	For i = 0:1:rows.%Size() - 1 {
+		If rows.%Get(i).memoryRef = "zzmsa2" Set learnedPin = rows.%Get(i).source_"|"_rows.%Get(i).pinned
+	}
+	Do $$$AssertEquals(learnedPin, "learned|1", "a stored learned memory that is pinned comes back from the search as learned and pinned 1")
 	Set sc = ##class(OcuTalon.Memory).Search(..#A, "name of the person to phone regarding our external collaborator", 5, .rows)
 	Do $$$AssertStatusOK(sc, "a question with other words answers")
 	Do $$$AssertEquals(rows.%Get(0).memoryRef, "zzmsa3", "and finds the memory first by meaning")
@@ -166,11 +183,13 @@ Method TestSearchByMeaning()
 Method TestSearchByKeyword()
 {
 	If '..OnImage() Quit
-	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa1", "the Results partner's contact is Lee", "2026-11-05T10:00:01Z"), "a memory that holds Lee is stored")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa1", "the Results partner's contact is Lee", "2026-11-05T10:00:01Z", , , "learned"), "a memory that holds Lee is stored")
+	Do ..Pin("zzmsa1")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa2", "the warehouse closes at six on Fridays", "2026-11-05T10:00:02Z"), "and one that does not")
 	Set sc = ##class(OcuTalon.Memory).Search(..#A, "Lee", 5, .rows)
 	Do $$$AssertStatusOK(sc, "the search answers")
 	Do $$$AssertEquals(rows.%Get(0).memoryRef, "zzmsa1", "the memory with Lee is first")
+	Do $$$AssertEquals(rows.%Get(0).source_"|"_rows.%Get(0).pinned, "learned|1", "and it is learned and pinned 1 (the keyword rows carry both)")
 	For text = "Lee) OR (NOT lee", "lee* AND ""Lee", "Lee? NOT tea", "[Lee, x, 3] OR NOT", "tea or Lee", "OR or Or Lee", "lee" {
 		Set sc = ##class(OcuTalon.Memory).Search(..#A, text, 5, .rows)
 		Do $$$AssertStatusOK(sc, "the text '"_text_"' is no error")
@@ -261,16 +280,22 @@ Method TestList()
 {
 	If '..OnImage() Quit
 	For i = 1:1:25 {
-		Do ##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa"_i, "list memory "_i, "2026-11-05T10:00:"_$Extract(100 + i, 2, 3)_"Z")
+		Do ##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa"_i, "list memory "_i, "2026-11-05T10:00:"_$Extract(100 + i, 2, 3)_"Z", , , $Select(i = 24: "learned", i = 23: "told", 1: ""))
 	}
+	Set pinned = ##class(OcuTalon.Data.Memory).RefIndexOpen("zzmsa23")
+	Set pinned.Pinned = 1
+	Do $$$AssertStatusOK(pinned.%Save(), "one memory is pinned")
+	Set pinned = ""
 	Do ##class(OcuTalon.Test.Memory.Fixture).Store(..#B, "zzmsb1", "list memory of B", "2026-11-05T10:01:00Z", "system")
 	Do $$$AssertStatusOK(##class(OcuTalon.Memory).List(..#A, .rows, .total), "A lists")
 	Do $$$AssertEquals(total, 25, "the total is 25")
 	Do $$$AssertEquals(rows.%Size(), 20, "and 20 rows come back")
 	Do $$$AssertEquals(rows.%Get(0).memoryRef_"|"_rows.%Get(19).memoryRef, "zzmsa25|zzmsa6", "the newest first and the 20th newest last")
-	Do $$$AssertEquals(rows.%Get(0).text_"|"_rows.%Get(0).savedAt_"|"_rows.%Get(0).origin, "list memory 25|2026-11-05T10:00:25Z|tool", "a row holds text, savedAt and origin")
+	Do $$$AssertEquals(rows.%Get(0).text_"|"_rows.%Get(0).savedAt_"|"_rows.%Get(0).origin_"|"_rows.%Get(0).source_"|"_rows.%Get(0).pinned, "list memory 25|2026-11-05T10:00:25Z|tool|told|0", "a row holds text, savedAt, origin, source and pinned, and an old row (no Source) is told and not pinned")
+	Do $$$AssertEquals(rows.%Get(1).memoryRef_"|"_rows.%Get(1).source_"|"_rows.%Get(1).pinned, "zzmsa24|learned|0", "a learned row is learned and not pinned")
+	Do $$$AssertEquals(rows.%Get(2).memoryRef_"|"_rows.%Get(2).source_"|"_rows.%Get(2).pinned, "zzmsa23|told|1", "a told row that is pinned is told and pinned 1")
 	Do $$$AssertStatusOK(##class(OcuTalon.Memory).List(..#B, .rows, .total), "B lists")
-	Do $$$AssertEquals(rows.%Size()_"|"_total_"|"_rows.%Get(0).memoryRef_"|"_rows.%Get(0).origin, "1|1|zzmsb1|system", "B has its one, with the origin it was stored with")
+	Do $$$AssertEquals(rows.%Size()_"|"_total_"|"_rows.%Get(0).memoryRef_"|"_rows.%Get(0).origin_"|"_rows.%Get(0).source, "1|1|zzmsb1|system|told", "B has its one, with the origin it was stored with")
 }
 
 /// Memories saved in the same second are listed newest first by row id, and the cut at 20 keeps the last saved (QA; matrix "List").

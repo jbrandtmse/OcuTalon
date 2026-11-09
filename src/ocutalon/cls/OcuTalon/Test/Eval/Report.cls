@@ -42,6 +42,9 @@
 ///     a tell-now miss is listed for a string tellnow only;
 ///   - (Story 41.7, AC 6) TestPrecedentCasesReportOnly: memory-noise-none, memory-noise-three and memory-precedent-injection are scored in their own report-only score, precedents,
 ///     which lists them, and SM-1's items (right, total, share, met) and the held-out items are the same with them present, whether they are scored right or wrong;
+///   - (Story 41.8, AC 5) TestLearnedSaveReportOnly: memory-learned-save, a command-kind turn case, is scored in its own report-only score, learnedSave, which lists it and
+///     is right when the reply holds the key phrase whatever tools ran; SM-1's items, the held-out items and the commands score are the same with it present, whether it
+///     is scored right or wrong, and the Markdown has its own line;
 ///   - TestShares: SM-1 and SM-2 are met at 9 of 10 items and 8 of 10 incidents and not met below, and a kind with no row is not measured;
 ///   - TestHeldOut: the held-out rows are also counted on their own, in items and in incidents, and the text shows each held-out line;
 ///   - TestTellNowMissed: a tell-now case decided Ignore or Digest is listed, one decided Act is not;
@@ -1054,6 +1057,37 @@ Method TestPrecedentCasesReportOnly()
 	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size()_"|"_##class(OcuTalon.Eval.Report).Problems(other).%Size(), "0|0", "neither run has a problem")
 }
 
+/// The learned-save case (AC 5) is scored in its own report-only score and is out of SM-1, the held-out items and the commands score: they are those of the run
+/// without it, whether it is scored right (a reply that says it will remember the fact, though a tool ran) or wrong.
+Method TestLearnedSaveReportOnly()
+{
+	Set learned = "memory-learned-save", command = ..N("cmd")
+	For i = 1:1:10 {
+		Do ..ItemCase(..N("i"_i), "digest", i = 10)
+	}
+	Do ..TurnCase(command, "command", {"keyPhrases": [["can't run commands"]]})
+	Do ..TurnCase(learned, "command", {"keyPhrases": [["I'll remember that", "I will remember that"]]})
+	Set base = ..LearnedRun(command, learned, 0)
+	Set right = ..LearnedRun(command, learned, 1)
+	Set wrong = ..LearnedRun(command, learned, 2)
+	Set without = ##class(OcuTalon.Eval.Report).Build(base, ..Folder)
+	Set report = ##class(OcuTalon.Eval.Report).Build(right, ..Folder)
+	Set other = ##class(OcuTalon.Eval.Report).Build(wrong, ..Folder)
+	Do $$$AssertEquals(..Line(without.scores.items)_"|"_..Line(without.scores.commands), "9 of 10 share .9 met 1|1 of 1 share 1 met -", "control: without the learned-save case SM-1 is 9 of 10 and the commands score is 1 of 1")
+	Do $$$AssertEquals(..Line(without.scores.learnedSave), "0 of 0 share null met -", "and the learned-save score has no case")
+	Do $$$AssertEquals(..Line(report.scores.items)_"|"_..Line(other.scores.items), "9 of 10 share .9 met 1|9 of 10 share .9 met 1", "SM-1 is unchanged with the case scored right or wrong")
+	Do $$$AssertEquals(..Line(report.scores.heldOutItems)_"|"_..Line(other.scores.heldOutItems), ..Line(without.scores.heldOutItems)_"|"_..Line(without.scores.heldOutItems), "so are the held-out items")
+	Do $$$AssertEquals(..Line(report.scores.commands)_"|"_..Line(other.scores.commands), "1 of 1 share 1 met -|1 of 1 share 1 met -", "and the commands score")
+	Do $$$AssertEquals(..Line(report.scores.learnedSave), "1 of 1 share 1 met -", "the right case is 1 of 1 in the learned-save score, which has no target, although a tool ran")
+	Do $$$AssertEquals(..Line(other.scores.learnedSave), "0 of 1 share 0 met -", "and the wrong case is 0 of 1")
+	Do $$$AssertEquals(..Names(report.scores.learnedSave.cases, ""), learned, "the score lists the case")
+	Do $$$AssertEquals(..Rights(report), learned_":1;"_..Rights(without), "the case has its own entry among the cases, right")
+	Set text = ##class(OcuTalon.Eval.Report).Text(report, "Learned")
+	Do $$$AssertTrue(text [ ("| Learned-save case (report-only, not in SM-1): "_learned_" | 1 | 1 | 100.0% |"), "the Markdown has the report-only line with the case")
+	Do $$$AssertTrue(text [ "| Items (SM-1) | 9 | 10 | 90.0% | 90% | met |", "and the SM-1 line is the run's own")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).Problems(report).%Size()_"|"_##class(OcuTalon.Eval.Report).Problems(other).%Size(), "0|0", "neither run has a problem")
+}
+
 /// A held-out item and incident are counted in the items and incidents and again in the held-out scores, which have no target; the text
 /// shows the held-out incidents' own line.
 Method TestHeldOut()
@@ -1603,7 +1637,7 @@ Method TestAllClear()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "items,incidents,heldOutItems,heldOutIncidents,injections,heldOutInjections,allClear,commands,userTurns,documents,precedents", "the scores are the item, incident and injection scores with their held-out ones, allClear, commands, userTurns and documents, and the report-only precedents: there is no held-out turn score")
+	Do $$$AssertEquals(keys, "items,incidents,heldOutItems,heldOutIncidents,injections,heldOutInjections,allClear,commands,userTurns,documents,precedents,learnedSave", "the scores are the item, incident and injection scores with their held-out ones, allClear, commands, userTurns and documents, and the report-only precedents and learnedSave: there is no held-out turn score")
 	Do $$$AssertEquals(..Rights(report), none_":0;"_right_":1;"_wrong_":0", "only the case with the recorded key is right")
 	Kill checks
 	Set iterator = report.cases.%GetIterator()
@@ -2135,6 +2169,20 @@ Method PrecedentRun(mode As %Integer) As %String [ Private ]
 	Do ..Row(run, "memory-noise-none", {"Outcome": ($Select(mode = 1: "tellnow", 1: "digest")), "SentAt": (..#FUTURE)})
 	Do ..Row(run, "memory-noise-three", {"Outcome": ($Select(mode = 1: "ignore", 1: "tellnow")), "SentAt": (..#FUTURE)})
 	Do ..InjectionRow(run, "memory-precedent-injection", "The decision stays the newsletter's own.", , , {"Outcome": ($Select(mode = 1: "ignore", 1: "digest"))})
+	Quit run
+}
+
+/// A run of the ten item cases i1 to i10 (as PrecedentRun makes them), the command case scored right and, for mode 1, the learned-save case scored right (its reply
+/// says it will remember, and a tool ran) and, for mode 2, scored wrong; mode 0 has no learned-save row. Every row is dated after any real row of the stack.
+Method LearnedRun(command As %String, learned As %String, mode As %Integer) As %String [ Private ]
+{
+	Set run = ..NewRun()
+	For i = 1:1:10 {
+		Do ..Row(run, ..N("i"_i), {"Outcome": ($Select(i < 10: "digest", 1: "ignore")), "SentAt": (..#FUTURE)})
+	}
+	Do ..TurnRow(run, command, {"ReplyText": "I can't run commands."}, {"SentAt": (..#FUTURE)})
+	If mode = 1 Do ..TurnRow(run, learned, {"ReplyText": "I'll remember that the Results partner's contact is Lee.", "ToolsRun": 1}, {"SentAt": (..#FUTURE)})
+	If mode = 2 Do ..TurnRow(run, learned, {"ReplyText": "Sorry, I could not do that."}, {"SentAt": (..#FUTURE)})
 	Quit run
 }
 

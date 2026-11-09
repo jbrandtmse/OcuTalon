@@ -4,6 +4,7 @@
 /// EmbeddingIdx (an HNSW index, cosine) finds the nearest memories of an owner and TextIdx (an %iFind index, exact words) finds its keyword hits;
 /// both keep all of their globals under ^OcuTalonP.MemoryI (TextIdx with IFINDSHAREDDATALOCATION INDEX, so that its word dictionary is not in ^IRIS.IF.*), so
 /// every index global is in OCUTALON_PRIVATE, and deleting a row removes its entries.
+/// Source, Pinned and PinnedAt are appended columns (AD-5, AD-21): a row saved before them holds them empty, which readers take as told, 0 and unpinned.
 Class OcuTalon.Data.Memory Extends %Persistent
 {
 
@@ -30,6 +31,16 @@ Property Origin As %String(MAXLEN = 16);
 
 /// The text's vector from the AllMiniLM-L6-v2 model (AD-21).
 Property Embedding As %Library.Vector(DATATYPE = "DOUBLE", LEN = 384);
+
+/// Whether the person asked for the memory: told (the person's own text in the saving turn holds a phrase of OcuTalon.Tools.MemorySource) or learned.
+/// Written by OcuTalon.Memory.Ops on every new row, never from the model's arguments. Empty on a row saved before it existed, which readers take as told.
+Property Source As %String(MAXLEN = 16);
+
+/// Whether the person pinned the memory: 0 by default.
+Property Pinned As %Boolean [ InitialExpression = 0 ];
+
+/// When the memory was pinned, UTC to the second; empty while it is not pinned.
+Property PinnedAt As %String(MAXLEN = 20);
 
 Index RefIndex On Ref [ Unique ];
 
@@ -67,6 +78,15 @@ Storage Default
 </Value>
 <Value name="8">
 <Value>Embedding</Value>
+</Value>
+<Value name="9">
+<Value>Source</Value>
+</Value>
+<Value name="10">
+<Value>Pinned</Value>
+</Value>
+<Value name="11">
+<Value>PinnedAt</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.MemoryD</DataLocation>

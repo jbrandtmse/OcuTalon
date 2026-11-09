@@ -2,12 +2,20 @@
 title: "Story 41.8: Told or learned, and facts OcuTalon learns in your own turns"
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0cfe4bb37982153b6011a9658fb80135f073dc3b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Rows saved before Story 41.8 hold no stored Pinned value, so SQL such as Pinned = 0 skips them; Memory.Search and .List read an empty Pinned as 0 only through Row().
+    evidence: |-
+      Pinned has InitialExpression 0, which applies to new objects only, and no back-fill is allowed (AD-5, spec Never). Story 41.12's pinned read must use COALESCE(Pinned, 0) or read through Memory.Row.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Data/Memory.cls (Pinned), for Story 41.12
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -145,6 +153,26 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
 
 ## Review Triage Log
 
+### 2026-11-09 - Review pass
+- verdicts: 16 findings - high 0, medium 2, low 14, false 0, maybe-false 0 (3 patched, 1 deferred, 12 rejected; the intent-alignment layer returned a description, not findings)
+- findings:
+  - `[low]` `reject` Blind: the learned-save eval case cannot observe a real save, because an eval turn's owner is not a session - spec-bound and recorded under "What is learned" ("Eval turns can't save"); the case measures the reply sentence, report-only, as the Planner ruling asks.
+  - `[low]` `reject` Blind: the learned-save case is scored on the reply wording alone, whatever tools ran - spec-bound (Task 11: the line "reports whether the reply carries" the statement); a save cannot happen in an eval turn, so a save_memory step cannot be required.
+  - `[low]` `reject` Blind: Of reads "remember" anywhere in the turn, and the phrase list is English only - by design; the fixed list and the whole-word rule are the approved contract (Design Notes, Decided in-stage).
+  - `[low]` `patch` Blind (same as Edge's first): the words of a multi-word phrase match only with a single space, and TestSourceOf pinned two spaces as learned - Of now joins the words with a white-space pattern and TestSourceOf pins two spaces, a line feed and a tab as told.
+  - `[low]` `reject` Blind: the learning paragraph and the save_memory description let the agent keep secrets or personal data unasked - by design: both texts are approved public text (EXPERIENCE.md:1062 and the Planner ruling); a new exclusion would be a new user-facing string and an escalation.
+  - `[low]` `reject` Blind: "preferences" in the learning paragraph overlaps the persona paragraph - by design: the paragraph is used word for word (AC 3).
+  - `[low]` `reject` Blind: the (told)/(learned) labels are English text the model writes, and no test pins them in a reply - spec-bound (AC 4 words the instruction; the real-model wording is REL-5's and 41.14's to measure).
+  - `[low]` `patch` Blind: the Eval.Report header lists the scores only up to commands, userTurns - the header now lists documents, precedents and learnedSave.
+  - `[low]` `reject` Blind: no test runs an upgrade of a populated table, and Pinned may read NULL - the appended storage slots are checked by test-storage.sh and live:storage-roundtrip in CI, and Row() reads an empty Pinned as 0; the SQL-side risk for a later story is in the deferred item.
+  - `[low]` `reject` Edge: the learned-save right rule ignores tool steps - same claim as Blind's second; spec-bound.
+  - `[medium]` `defer` Edge: rows saved before 41.8 hold no Pinned value, so later SQL on Pinned = 0 skips them - Row() covers every reader this story changes; the risk is Story 41.12's pinned read, deferred with the COALESCE note (unverified).
+  - `[low]` `reject` Edge: Report.Text on a report built before this change has no scores.learnedSave - Text renders reports that Run has just built by the same code, as the precedents score of Story 41.7 does; no stored older report is rendered.
+  - `[low]` `reject` Edge: the learned-save case has kind command, not user-turn - the user-turn kind is decided by Triage and has no reply to score, so it cannot measure the reply sentence the Planner ruling asks for; the case is a Chat turn of kind command and is recorded under Decided in-stage.
+  - `[medium]` `patch` Verification gap: no test asserts pinned 1 or a learned source from a real stored row through Memory.Search's nearest and keyword SQL - TestSearchByMeaning and TestSearchByKeyword now store a learned, pinned row (a Pin helper method) and assert learned|1; the mutation is recorded.
+  - `[low]` `reject` Verification gap, other: the Data.Turn fixtures are in state running, which Conversation.Sweep requeues - the sweep runs only when the production starts, which the tests do not trigger; a requeued fixture keeps its Text and TurnOfItem has no state filter, so the told and learned assertions cannot race with it (theoretical).
+  - Intent alignment: no finding rows. It names bare "remember" as a phrase and the extra bullet, the tool-description change and the eval case as beyond the approach text; all are inside the spec's approved scope (Planner ruling planner-2026-11-09-41.8).
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -202,6 +230,7 @@ No AC contradicts an AD's Rule.
 - **All three columns come in 41.8.** The spine names 41.8 as the story that appends them, and 41.9's route (before 41.12) needs `pinned`. Search and List also return `pinned`, so that 41.9, which is Lane B, needs no Lane A edit.
 - **Forgetting shows labels only on the which-one question.** UX line 977 fixes the confirmation as exactly "Forgotten.". `forget_memory`'s answer is unchanged.
 - **`PinMemory` and `UnpinMemory` carry `MemoryRef`, as `ForgetMemory` does.**
+- **The learned-save eval case is a Chat turn of kind `command`, not kind `user-turn`.** A user-turn case is decided by Triage and has no reply, so it cannot score the reply sentence that Task 11 and AC 5 require. `eval/memory-learned-save/case.json` has `keyPhrases` for the reply, `Eval.Report` `LEARNEDCASES` takes it out of the `commands` score and every gated score, and the new report-only `learnedSave` line scores it. (Implement stage, 2026-11-09.)
 
 **Stored data:**
 - `OcuTalon.Data.Memory` gains these columns:
@@ -293,13 +322,28 @@ Run from the worktree root, one command per call, with `timeout: 600000`, each s
 **Mutations (Rule 19), one per AC. Record each as `mutation: <change> -> <test red>`:**
 - AC 1: none. It is a documentation AC, checked by `lint_spine.py` and by grepping the three quoted lines.
 - AC 2: `MemorySource.Of` always gives `learned` -> `Ops:TestSource` and `Turns:TestToldAndLearnedThroughTheAgent` (the told row). A second mutation: `READONLYSAVEMEMORY` 1 -> `Turns:TestUntrustedSave`.
+  - mutation: `MemorySource.Of` ends `Quit ..#LEARNED` -> red: `Ops:TestSource` (every told row, "the first row keeps its Source"), `Ops:TestSourceReadFails` ("as told") and, on a fresh stack, `Turns:TestToldAndLearnedThroughTheAgent` ("the turn that says Remember that saved a told memory, not pinned"). Reverted, tree identical.
+  - mutation: `READONLYSAVEMEMORY` 0 -> 1 in `MemoryTools` -> red: `Turns:TestUntrustedSave`, and `TestTaintedSave` and `TestTaintedSaveInOneResponse` with it (fresh stack). Reverted, tree identical.
 - AC 3: one word of the learning paragraph changed in `Chat.cls` -> `PersonaBlock:TestParagraphs`.
+  - mutation: "may save it" -> "can save it" in Chat's learning paragraph -> red: `PersonaBlock:TestParagraphs` (exactly once, last text, follows the proposals paragraph). Reverted, tree identical.
 - AC 4: `Shown` omits `source` -> `Tools.Memory:TestListAnswer` and `Turns:TestToldAndLearnedThroughTheAgent`.
+  - mutation: `MemoryTools.Shown` pushes no `"source"` -> red: `Tools.Memory:TestListAnswer` and `TestSearchAnswer`, and on a fresh stack `Turns:TestToldAndLearnedThroughTheAgent` ("each with its source"). Reverted, tree identical.
 - AC 5: one word of the learned-save bullet changed in `Chat.cls` -> `Tools.Memory:TestInstructions`; the learned-save case moved into a gated score -> `Test.Eval.Report` (the gated share/count pin).
+  - mutation: `Memory.Hits` passes "" for Pinned (review pass) -> red: `Memory.Search:TestSearchByMeaning` and `TestSearchByKeyword` (a stored learned, pinned row must come back `learned|1` through the nearest and the keyword paths). Reverted, tree identical.
+  - mutation: `MemorySource.Of` joins the words of a phrase with a single space again (review pass) -> red: `Tools.Memory:TestSourceOf` ("keep in  mind", a line feed or a tab between the words of a phrase is told). Not run as a mutation; the patched regex is covered by the passing `TestSourceOf` run.
+  - mutation: "one short sentence" -> "one brief sentence" in the learned-save bullet of `Chat.cls` -> red: `Tools.Memory:TestInstructions` (the six bullets once, in order, contiguous). Reverted, tree identical.
+  - mutation: `Report.IsLearnedCase` always 0 (the case counts in the commands score) -> red: `Eval.Report:TestLearnedSaveReportOnly` (the commands score, the learned-save score and its line). Reverted, tree identical.
+  - mutation: "Remember that" added to the turn of `eval/memory-learned-save/case.json` (a told phrase) -> red: `Eval.Cases:TestLearnedSaveCase`. Reverted, tree identical.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-- Planned only (Halt after planning). Spec verified against the READY-FOR-DEVELOPMENT standard. The veto-window items for the spec gate are under Design Notes: Stored data, What is learned, Public text, Spine lines, plus the footprint extensions `Test/Tools/Memory.cls` and `Test/Contract/Step3.cls`. No Lane B edit. The AD-31 event is not in scope.
+- Summary: `Data.Memory` gains `Source`, `Pinned` and `PinnedAt` (storage values 9 to 11). `MemoryOps` decides `Source` from the save's own turn through `Ownership.TurnOfItem` and the new `Tools.MemorySource` (told for a fixed phrase as whole words, else learned; a failed turn read fails the save). `Memory.Search` and `.List` return `source` and `pinned`, and the list and search tools hand `source` to the model. Chat's instructions gain the learning paragraph as the last text, the (told)/(learned) wording on the search, list and forget bullets, and the learned-save bullet. The spine records the second-part names. The learned-save eval case has its own report-only `learnedSave` line.
+- Files changed: `Data/Memory.cls` (columns, storage), `Tools/MemorySource.cls` (new), `Memory/Ops.cls` (the Source seam), `Memory.cls` (row members), `Tools/MemoryTools.cls` (source, descriptions), `Agent/Chat.cls` (bullets, paragraph), `Eval/Report.cls` (report-only line), `eval/memory-learned-save/case.json` (new), the spine (additive lines), and the tests `Test/Tools/Memory.cls`, `Test/Memory/{Ops,OpsProbe,Fixture,Search,Turns}.cls`, `Test/Agent/PersonaBlock.cls`, `Test/Contract/Step3.cls`, `Test/Eval/{Cases,Report}.cls`.
+- Review: 16 findings; patches applied 3 (1 medium: Search pin pins on real rows; 2 low: white space between the words of a phrase, the Report header), deferred 1 (medium, unverified: Story 41.12's pinned read of pre-41.8 rows), rejected 12 with their reasons in the Review Triage Log. The intent-alignment layer gave a description and no findings.
+- Follow-up review recommended: false (one medium patched, no high).
+- Verification: warm `Test.Tools.Memory` 25 s, `Test.Memory.Search` 40 s, `Test.Eval.Report` 1 s, `Test.Memory.Ops` 16 s; fresh `Test.Memory.Turns` 17 s and `Test.Memory.Ops` 16 s; at the implement pass also `PersonaBlock`, `Instructions`, `Step3`, `Eval.Cases`, `Docs.Chat` and `test-eval-set.sh`; `test-storage.sh`, `test-class-rules.sh`, `test-boundaries.sh` and `test-ci-config.sh` all pass; `lint_spine.py` is at its baseline (`ok` false, exactly 10 low placeholder findings). Mutations are recorded under Verification. Left to CI: `shards-2`, `production`, `image`, `live:storage-roundtrip`, `ci/checks.sh`, the fresh-environment check, and the real model's reply wording.
+- Residual risks: an eval turn cannot save (its owner `eval` is not a session), so the learned-save line measures the reply sentence only and stays report-only; the phrase list is English only.
+- Throwaway locks: `LOCK acquired` and `released` for `warm-iris` (tag `e41s8iw`) and `throwaway-iris` (tag `e41s8i`), no `LOCK waiting`; both tags torn down, no leftover container.
