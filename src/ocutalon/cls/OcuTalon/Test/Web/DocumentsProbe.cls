@@ -6,7 +6,7 @@
 /// ^OcuTalonTest("DocumentsProbe", "answer"): "" is a done command (Ok 1, Ref zzDocRef0123456789abcd; a done AddDocument takes its Upload row,
 /// as DocumentOps does, unless ^OcuTalonTest("DocumentsProbe", "keep") is set), "not_built", "not_found", "failed" and
 /// any other word are a CommandResult with Ok 0 and that Outcome, "status" is an error status, "throw" throws an error, "okerror" is an Ok result with an error status and "none" is OK with no result. The route's sweep measures its hour from ^OcuTalonTest("DocumentsProbe", "now") when it is set, else from SLOTNOW (2000-01-01, so it deletes no real row), and "throw" there makes the sweep throw (SweepNow). The owner item is running
-/// unless ^OcuTalonTest("DocumentsProbe", "owner") is "off". The roles of the
+/// unless ^OcuTalonTest("DocumentsProbe", "owner") is "off". The text route's body fails to build when ^OcuTalonTest("DocumentsProbe", "textfail") is set. The roles of the
 /// signed-in user are the text in ^OcuTalonTest("DocumentsProbe", "roles") when it is set (comma-separated, as $Roles is), which the OcuTalon
 /// user role check and the admin check of OnPreDispatch read, and the process's own $Roles otherwise.
 Class OcuTalon.Test.Web.DocumentsProbe Extends OcuTalon.Web.Documents
@@ -53,6 +53,13 @@ ClassMethod Submit(command As OcuTalon.Msg.Command, Output result As OcuTalon.Ms
 		Set result.Outcome = answer
 	}
 	Quit $SYSTEM.Status.OK()
+}
+
+/// The JSON body of the text route; fails when the test set ^OcuTalonTest("DocumentsProbe", "textfail").
+ClassMethod TextBody(row As OcuTalon.Data.Document, Output body As %Stream.TmpCharacter) As %Status [ Private ]
+{
+	If $Get(^OcuTalonTest("DocumentsProbe", "textfail")) Quit $SYSTEM.Status.Error(5001, "zz the text could not be read")
+	Quit ##super(row, .body)
 }
 
 /// The time the route's sweep measures from: ^OcuTalonTest("DocumentsProbe", "now") when the test set it, else SLOTNOW, so that a test that

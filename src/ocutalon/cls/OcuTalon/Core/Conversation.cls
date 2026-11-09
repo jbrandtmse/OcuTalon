@@ -27,6 +27,10 @@
 ///     Checks.Render makes the catalog key and the rows (AD-28), which the Turn keeps as CheckKey and CheckRows (JSON). Bad JSON,
 ///     no checks or a failing Render add nothing. The guard has already run in Decide; a fallback, a busy and a broken reply
 ///     are never read;
+///   - the same HostData's arrays citations and memories (at most 5 each, built by code from tool results, after the guard) are
+///     kept on the Turn as Citations and Memories (JSON) when they hold an entry of the documented shape; a malformed entry is
+///     dropped, and bad JSON or a wrong shape adds nothing. They are read only from a usable reply, like the checks, and go with
+///     the turn on chat.message and on the Outbound to Notify;
 ///   - finishing: the Turn is done and saved, then chat.message is published (it carries the turn's shown decision, cost and
 ///     check rows), an Outbound goes to Notify with the shown decision's Ref (Turn.ShownDecisionRef) and the check key and
 ///     rows, and RunTurns goes to Conversation itself when the session has a queued turn. A failed publish or send is logged
@@ -113,6 +117,11 @@ Parameter ERRORBUSY = "The turn queue of the session is busy: its lock wasn't fr
 Parameter ERRORSWEEP = "The sweep could not read the turns: ";
 
 Parameter LOGCHECKS = "Conversation added no check results: ";
+
+Parameter LOGSOURCES = "Conversation added no citations or memories: ";
+
+/// The most citations and the most memories a reply carries.
+Parameter MAXSOURCES = 5;
 
 /// The start of the warning when StartsSession could not read what it needs; the reason follows it.
 Parameter LOGSTART = "Conversation could not tell whether the turn starts a session, so it does: ";
@@ -504,6 +513,7 @@ Method Replied(answer As %RegisteredObject) As %Status [ Private ]
 	If answer.SessionBroken Quit ..Rebuild(turn, answer)
 	If answer.Fallback Quit ..Conclude(turn, "", ..Reason(answer.FallbackReason))
 	Do ..Checked(turn, answer.HostData)
+	Do ..Sourced(turn, answer.HostData)
 	Quit ..Conclude(turn, answer.Text, "")
 }
 
@@ -530,6 +540,51 @@ Method Checked(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
 Method RenderChecks(results As %DynamicArray, Output rows As %DynamicArray) As %String [ Private ]
 {
 	Quit ##class(OcuTalon.Checks.Render).Render(results, .rows)
+}
+
+/// The citations and memories of a usable reply: the arrays citations and memories of HostData, when it is a JSON object, are kept
+/// on the turn as Citations and Memories (JSON arrays) with the entries of the documented shape only, at most MAXSOURCES each. A
+/// field is set only when an entry is kept. Bad JSON, a wrong shape or an error add nothing; the turn ends normally in every case.
+Method Sourced(turn As OcuTalon.Data.Turn, hostData As %String) [ Private ]
+{
+	If hostData = "" Quit
+	Try {
+		Set data = ##class(%DynamicAbstractObject).%FromJSON(hostData)
+		If $ClassName(data) '= "%Library.DynamicObject" Quit
+		Set citations = ..Kept(data, "citations", $ListBuild("documentRef", "document", "section", "passage"), "chunkIndex")
+		Set memories = ..Kept(data, "memories", $ListBuild("memoryRef", "text", "savedAt"), "")
+		If citations '= "" Set turn.Citations = citations
+		If memories '= "" Set turn.Memories = memories
+	} Catch exception {
+		$$$LOGWARNING(..#LOGSOURCES_exception.DisplayString())
+	}
+}
+
+/// The entries of the array member of data as a JSON array: an entry is kept when it is an object whose strings (a list of
+/// names) are strings and whose number (a name, or "" for none) is a number; it is cut down to those members, in that order.
+/// At most MAXSOURCES entries are kept. "" when the member is not an array or no entry is kept.
+Method Kept(data As %DynamicObject, member As %String, strings As %List, number As %String) As %String [ Private ]
+{
+	If data.%GetTypeOf(member) '= "array" Quit ""
+	Set array = data.%Get(member)
+	Set kept = []
+	For i = 0:1:array.%Size() - 1 {
+		If kept.%Size() >= ..#MAXSOURCES Quit
+		If array.%GetTypeOf(i) '= "object" Continue
+		Set element = array.%Get(i)
+		Set entry = {}, valid = 1
+		For j = 1:1:$ListLength(strings) {
+			Set name = $List(strings, j)
+			If element.%GetTypeOf(name) '= "string" Set valid = 0 Quit
+			Do entry.%Set(name, element.%Get(name))
+		}
+		If valid && (number '= "") {
+			If element.%GetTypeOf(number) '= "number" Continue
+			Do entry.%Set(number, element.%Get(number), "number")
+		}
+		If valid Do kept.%Push(entry)
+	}
+	Quit $Select(kept.%Size(): kept.%ToJSON(), 1: "")
 }
 
 /// Decide was busy: waits BUSYWAIT seconds and sends the request again, BUSYMAX times at most; then the fallback rate_limited.
@@ -639,6 +694,8 @@ Method Tell(turn As OcuTalon.Data.Turn) [ Private ]
 		Set outbound.DecisionRef = turn.ShownDecisionRef()
 		Set outbound.CheckKey = turn.CheckKey
 		Set outbound.CheckRows = turn.CheckRows
+		Set outbound.Citations = turn.Citations
+		Set outbound.Memories = turn.Memories
 		If turn.ReplyCatalogKey '= "" {
 			Set outbound.CatalogKey = turn.ReplyCatalogKey
 			Set outbound.Slots = {"fallbackReason": (turn.FallbackReason)}.%ToJSON()

@@ -267,12 +267,29 @@ export interface SeedCheck {
   checkedAt?: string;
 }
 
+/** One citation of a seeded reply, as Lane A's HostData carries it (Turn.Citations). */
+export interface SeedCitation {
+  documentRef: string;
+  document: string;
+  section: string;
+  passage: string;
+  chunkIndex: number;
+}
+
+/** One memory of a seeded reply, as Lane A's HostData carries it (Turn.Memories). */
+export interface SeedMemory {
+  memoryRef: string;
+  text: string;
+  savedAt: string;
+}
+
 /**
  * A turn for seedTurns: when it was created (UTC, to the second), its text and reply, and where it came from. A fallback
  * reply carries the catalog key the server answered with and its reason (Turn.ReplyCatalogKey and Turn.FallbackReason); both
  * are empty for a reply of the model's own words. state is done unless it is running (a running turn has no reply). triage and
  * turn are the turn's decisions (the Decision rows are made and their Refs kept on the turn), usage its usage rows, and
- * checkKey and checks the key and rows that Checks.Render made for the reply.
+ * checkKey and checks the key and rows that Checks.Render made for the reply, and citations and memories the sources that the reply's
+ * HostData carried (Story 20.2).
  */
 export interface SeedTurn {
   createdAt: string;
@@ -290,6 +307,8 @@ export interface SeedTurn {
   usage?: SeedUsage[];
   checkKey?: string;
   checks?: SeedCheck[];
+  citations?: SeedCitation[];
+  memories?: SeedMemory[];
 }
 
 /**
@@ -424,6 +443,8 @@ export async function seedTurns(user: string, turns: SeedTurn[], publish = false
     }
     if (turn.checkKey) lines.push(`Set t.CheckKey=${quoted(turn.checkKey)}`);
     if (turn.checks) lines.push(`Set t.CheckRows=${quoted(JSON.stringify(turn.checks))}`);
+    if (turn.citations) lines.push(`Set t.Citations=${quoted(JSON.stringify(turn.citations))}`);
+    if (turn.memories) lines.push(`Set t.Memories=${quoted(JSON.stringify(turn.memories))}`);
     lines.push('Set sc=t.%Save()', 'If $System.Status.IsError(sc) Set bad=1', 'If $System.Status.IsOK(sc) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(t)', `Write !,"CHK|ref|${i}|",t.Ref,"|",'bad`, `Write !,"CHK|dec|${i}|",dt,"|",dr`);
     if (publish) {
       lines.push(

@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Route } from '../support/fixtures';
 
-import { itemsFor } from '../../src/app/guide/more-to-try-view.ts';
+import { MORE_TO_TRY_ITEMS, itemsFor } from '../../src/app/guide/more-to-try-view.ts';
 import { changeSnapshot, MESSAGES, STATE } from '../support/api';
 import { sampleChipOf } from '../support/devices';
 import { loadedAfter, signInReadmeLoaded } from '../support/floor';
@@ -13,7 +13,7 @@ import { blockLiveSocket } from '../support/socket';
  * features it names) and keeps it by dropping guide.state from the page's polls; the POSTs of items 2, 3 and 5 are routed and counted,
  * because their downstream flows are pinned by the demo-path specs. K5 uses the real Persona card, and collapses it again.
  *   - K2 (matrix 1): the routed finish: the panel is open after the links and before Try it yourself, items 1 to 4 in order;
- *   - K3 (matrix 3, 10): seven ids: seven items in order, a link to the Documents page, and the Heartbeat checklist heading focused by item 7;
+ *   - K3 (matrix 3, 10): every id of the registry: its items in order, links to the Documents page for items 6 and 8, and the Heartbeat checklist heading focused by item 7;
  *   - K4 (matrix 2): step 1: no panel, the link in the Tab order, Enter opens and Space closes it, focus stays on the link;
  *   - K5 (matrix 5): item 1 opens the Persona card's Change and focuses it, also in the drawer band, where the drawer opens first;
  *   - K6 (matrix 6): item 2 selects the Simulated mailbox tab, sends the chip's own POST once and focuses the chip;
@@ -59,9 +59,10 @@ const SAMPLE = '**/ocutalon/api/v1/mailbox/samples/suspicious-request';
 const DEMO_VIEW_KEY = 'ocutalon.demoView.off';
 
 const FOUR = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView'];
-const SEVEN = [...FOUR, 'memory', 'documents', 'heartbeat'];
+// Every id of the registry, in its order, so that an item another story adds joins the K3 and K9 cases; ITEMS below is the independent text oracle.
+const ALL = MORE_TO_TRY_ITEMS.map((item) => item.id);
 
-/** The ruled texts of the seven items, written out here as the independent oracle of the page's own. */
+/** The ruled texts of the items, written out here as the independent oracle of the page's own. */
 const ITEMS: Record<string, { label: string; lookFor: string; button: string }> = {
   persona: {
     label: 'Change how OcuTalon talks',
@@ -94,13 +95,19 @@ const ITEMS: Record<string, { label: string; lookFor: string; button: string }> 
   documents: {
     label: 'Ask about a document',
     lookFor:
-      'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file.',
+      'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the chip under the answer that names your file and its section.',
     button: 'Open the Documents page',
   },
   heartbeat: {
     label: 'Run a heartbeat check-in',
     lookFor: 'In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in\'s outcome and its cost in the card.',
     button: 'Go to the Heartbeat checklist card',
+  },
+  sources: {
+    label: 'See where an answer came from',
+    lookFor:
+      'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
+    button: 'Open the Documents page',
   },
 };
 const REMEMBER = "Remember that the Results partner's contact is Lee.";
@@ -109,7 +116,7 @@ const guideRegion = (page: Page): Locator => page.getByRole('region', { name: 'D
 const linkOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'More to try', exact: true });
 const panelOf = (page: Page): Locator => guideRegion(page).getByRole('group', { name: 'Other things to try', exact: true });
 const itemOf = (page: Page, id: string): Locator => panelOf(page).getByRole('listitem').filter({ has: page.getByText(ITEMS[id]!.label, { exact: true }) });
-const controlOf = (page: Page, id: string): Locator => panelOf(page).getByRole(id === 'documents' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
+const controlOf = (page: Page, id: string): Locator => itemOf(page, id).getByRole(id === 'documents' || id === 'sources' ? 'link' : 'button', { name: ITEMS[id]!.button, exact: true });
 const switchOf = (page: Page): Locator => page.getByRole('switch', { name: 'Demo view', exact: true });
 const breakButton = (page: Page): Locator => page.locator('app-break-feed-box app-server-button button');
 const hideOf = (page: Page): Locator => guideRegion(page).getByRole('button', { name: 'Hide guide', exact: true });
@@ -257,22 +264,24 @@ test('K2: in the finish the panel is open after the links and before Try it your
     await expect(control).not.toHaveAttribute('aria-label', /.*/);
     await expect(item.getByRole('button'), `${id}: only that control`).toHaveCount(1);
   }
-  for (const id of SEVEN.slice(4)) {
+  for (const id of ALL.slice(4)) {
     await expect(panel.getByText(ITEMS[id]!.label, { exact: true }), `item ${id} is absent`).toHaveCount(0);
   }
   await page.waitForTimeout(500);
   expect(posts.map((one) => one.length), 'nothing was sent').toEqual([0, 0, 0]);
 });
 
-/** K3 (routed finish, seven ids): seven items in order, the Documents link and the Heartbeat checklist heading focused by item 7. */
-test('K3: seven ids show seven items in order, item 6 is a link to the Documents page and item 7 focuses the Heartbeat checklist heading', async ({ page }) => {
+/** K3 (routed finish, every id): the items in order, the Documents links of items 6 and 8 and the Heartbeat checklist heading focused by item 7. */
+test('K3: every id shows its item in order, items 6 and 8 are links to the Documents page and item 7 focuses the Heartbeat checklist heading', async ({ page }) => {
   // These cases are about the panel's items, not its room: a tall viewport leaves the finish its panel whatever the page's fonts.
   await page.setViewportSize({ width: 1280, height: 900 });
-  await openWith(page, finished(SEVEN));
+  await openWith(page, finished(ALL));
   const panel = panelOf(page);
-  await expect(panel.locator('.item-label')).toHaveText(SEVEN.map((id) => ITEMS[id]!.label));
+  await expect(panel.locator('.item-label')).toHaveText(ALL.map((id) => ITEMS[id]!.label));
+  for (const id of ALL) await expect(itemOf(page, id).locator('.look-for'), `${id}: its look-for line`).toHaveText(ITEMS[id]!.lookFor);
   const documents = controlOf(page, 'documents');
   await expect(documents, 'item 6 is a link').toHaveAttribute('href', /#\/documents$/);
+  await expect(controlOf(page, 'sources'), 'item 8 is a link to the same page').toHaveAttribute('href', /#\/documents$/);
   await expect(controlOf(page, 'heartbeat')).toHaveAttribute('type', 'button');
   await controlOf(page, 'heartbeat').click();
   await expect(page.locator('#rail-heading-heartbeat'), 'item 7 puts focus on the Heartbeat checklist heading').toBeFocused();
@@ -467,7 +476,7 @@ test('K9: item 5 sends its prompt once as the user\'s own message, and sends not
     await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ clientId: body.clientId }) });
   };
   await page.route(`**${MESSAGES}`, accept);
-  await openWith(page, finished(SEVEN));
+  await openWith(page, finished(ALL));
   const control = controlOf(page, 'memory');
   await expect(control).not.toHaveAttribute('aria-disabled', 'true');
   await control.click();
@@ -491,7 +500,7 @@ test('K9: item 5 sends its prompt once as the user\'s own message, and sends not
   });
   await openWith(
     used,
-    finished(SEVEN),
+    finished(ALL),
     (snapshot) => {
       snapshot['status'] = [...(snapshot['status'] as unknown[]), { condition: 'allowance', active: true, slots: { limit: 20, time: '2037-07-01T12:00:00Z' } }];
     },

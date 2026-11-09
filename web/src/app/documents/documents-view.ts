@@ -5,12 +5,15 @@
  * live event and the route's 400 `bad_document`); the page only shows them.
  *
  * - DOCUMENTS_TEXTS is every fixed string of the page. The UX writes the title, the empty text, the three statuses, the Add button and the removal
- *   question; the reason texts, the Remove button's name and the failure notice of the dialog are ruled (DW-722, the lead's rulings of Story 34.2).
+ *   question; the reason texts, the Remove button's name and the failure notice of the dialog are ruled (DW-722, the lead's rulings of Story 34.2),
+ *   and so are Close and the line for a document that cannot be opened (Story 20.2).
  * - REASON_TEXTS says why a document could not be read, by the reason's code; any code it does not know reads as `failed`.
  * - formatSize writes a size in bytes: whole KB under 1 MB, and from 1 MB MB with one decimal, both rounded up.
  * - rows(server, live, local) is the list: the server's rows overlaid by the live payloads by ref (a payload with `removed` drops its row), the page's
  *   own pending and refused rows first, and the rows of documents the user removed hidden.
  * - ACCEPT is the file picker's accept list.
+ * - docRef reads the `doc` query parameter (DOCUMENT_PARAM) of #/documents, which an answer's "Open document" sets (Story 20.2): the page then shows
+ *   that document's text, as plain text, from GET /v1/documents/:ref.
  */
 
 /** Every fixed string of the Documents page. The separator in the title is U+00B7 and the ellipsis is U+2026. */
@@ -27,7 +30,17 @@ export const DOCUMENTS_TEXTS = {
   question: "Remove '{name}'? Answers will stop citing it.",
   cancel: 'Cancel',
   removeFailed: "Couldn't remove it. Nothing was changed.",
+  close: 'Close',
+  openFailed: "Couldn't open that document. It may have been removed.",
 } as const;
+
+/** The query parameter of #/documents that names the document whose text the page shows. */
+export const DOCUMENT_PARAM = 'doc';
+
+/** The ref of the document to open from the query parameter's value: a non-empty value, else "" (nothing to open). */
+export function docRef(value: string | null | undefined): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
 /** Why a file could not be read, by the code of the reason (the route's, and DocumentOps' failed rows, the extraction's codes included). {size} is the file's size, as formatSize writes it. */
 export const REASON_TEXTS = {

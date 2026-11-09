@@ -21,6 +21,7 @@ const { SAMPLES } = await import(app('mailbox', 'mailbox-view.ts'));
 const { DEVICE_TEXTS } = await import(app('devices', 'device-view.ts'));
 const { FEED_TEXTS } = await import(app('feed', 'break-feed-view.ts'));
 const { MESSAGE_TEXTS, PAGE_TEXTS } = await import(app('msg', 'catalog.ts'));
+const { ANSWER_SOURCES_TEXTS } = await import(app('chat', 'answer-sources-view.ts'));
 const { REQUEST_NAMES } = await import(app('phone', 'phone-view.ts'));
 const { DEMO_VIEW_TEXTS } = await import(app('header', 'demo-view-texts.ts'));
 
@@ -63,7 +64,7 @@ const RULED = {
     documents: {
       label: 'Ask about a document',
       lookFor:
-        'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the answer that comes from your file.',
+        'On the Documents page, add a short file, such as a runbook (nothing personal: Visual Trace on the demo is shared). Then ask about it in the chat, and look for the chip under the answer that names your file and its section.',
       button: 'Open the Documents page',
     },
     heartbeat: {
@@ -71,11 +72,22 @@ const RULED = {
       lookFor: 'In the Heartbeat checklist card, write what to check and press Run the heartbeat now. Look for the check-in\'s outcome and its cost in the card.',
       button: 'Go to the Heartbeat checklist card',
     },
+    sources: {
+      label: 'See where an answer came from',
+      lookFor:
+        'Under an answer from your documents, press the chip that names the document and section to read the passage, then Open document to see the whole file. Under an answer that recalls something you asked it to remember, press From memory to see what it remembered and when.',
+      button: 'Open the Documents page',
+    },
   },
 };
 
-const IDS = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView', 'memory', 'documents', 'heartbeat'];
-const FOUR = IDS.slice(0, 4);
+// The registry's own ids, so that an item another story adds joins the count and the order pins; RULED is the independent text oracle, and
+// a registry entry with no RULED text (or a RULED text with no entry) fails the tests below.
+const IDS = MORE_TO_TRY_ITEMS.map((item) => item.id);
+// The demo's own controls: always listed.
+const FOUR = ['persona', 'suspiciousEmail', 'rejectFix', 'demoView'];
+// The item whose control hands off to another item's control (Story 20.2: See where an answer came from opens the Documents page).
+const ACTION_OF = { sources: 'documents' };
 const idsOf = (items) => items.map((item) => item.id);
 
 describe('(a) the fixed strings', () => {
@@ -84,7 +96,9 @@ describe('(a) the fixed strings', () => {
   });
 
   it('are in the registry in order: ids, labels, look-fors and button texts', () => {
-    assert.deepEqual(idsOf(MORE_TO_TRY_ITEMS), IDS);
+    assert.deepEqual([...IDS].sort(), Object.keys(RULED.items).sort(), 'each registry entry has its ruled text, and each ruled text its entry');
+    assert.equal(new Set(IDS).size, IDS.length, 'the ids are unique');
+    assert.ok(IDS.indexOf('heartbeat') < IDS.indexOf('sources'), 'See where an answer came from comes after the heartbeat item');
     assert.deepEqual(
       MORE_TO_TRY_ITEMS.map(({ id, label, lookFor, button }) => ({ id, label, lookFor, button })),
       IDS.map((id) => ({ id, ...RULED.items[id] })),
@@ -92,7 +106,7 @@ describe('(a) the fixed strings', () => {
   });
 
   it('give each entry a hand-off named by its id', () => {
-    assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS);
+    assert.deepEqual(MORE_TO_TRY_ITEMS.map((item) => item.action), IDS.map((id) => ACTION_OF[id] ?? id));
   });
 
   it('use straight ASCII quotes and no other non-ASCII character', () => {
@@ -113,7 +127,7 @@ describe('(b) itemsFor', () => {
   });
 
   it('shows exactly its item, in its place, when memory, documents or heartbeat is added', () => {
-    for (const id of ['memory', 'documents', 'heartbeat']) {
+    for (const id of ['memory', 'documents', 'heartbeat', 'sources']) {
       assert.deepEqual(idsOf(itemsFor([...FOUR, id])), IDS.filter((one) => FOUR.includes(one) || one === id), id);
     }
     assert.deepEqual(idsOf(itemsFor(IDS)), IDS);
@@ -178,9 +192,25 @@ describe('(c) every quoted on-screen name equals its source', () => {
 
   it('names the Documents page as the header does', () => {
     has(items.documents.lookFor, 'On the Documents page');
+    has(items.documents.lookFor, 'look for the chip under the answer that names your file and its section');
     has(items.documents.button, 'the Documents page');
+    has(items.sources.button, 'the Documents page');
+    assert.equal(items.sources.button, items.documents.button, 'the last item uses the existing control text');
     const header = readFileSync(join(here, '..', 'src', 'app', 'header', 'header-nav.ts'), 'utf8');
     assert.match(header, />Documents<\/a>/);
+  });
+});
+
+describe('(c2) the sources item names the chips as the page does (Story 20.2)', () => {
+  it('names Open document and From memory as the sources row does', () => {
+    const lookFor = RULED.items.sources.lookFor;
+    assert.ok(lookFor.includes(`then ${ANSWER_SOURCES_TEXTS.openDocument} to see the whole file`));
+    assert.ok(lookFor.includes(`press ${ANSWER_SOURCES_TEXTS.fromMemory} to see what it remembered and when`));
+  });
+
+  it('says provenance only: no "used", "relied on" or "based on" in the text of the item or of the chips (U-280)', () => {
+    const texts = [RULED.items.sources.label, RULED.items.sources.lookFor, RULED.items.documents.lookFor, ...Object.values(ANSWER_SOURCES_TEXTS)];
+    for (const text of texts) assert.doesNotMatch(text, /\bused\b|relied on|based on/i, text);
   });
 });
 
