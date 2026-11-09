@@ -1,14 +1,14 @@
-/// Tests of the four verbs of step 3 and how CommandsIn routes them (Story 34.2; AD-1, AD-21, AD-29). Safe on a slot: no production runs, so
+/// Tests of the verbs of step 3 and how CommandsIn routes them (Story 34.2, and PinMemory and UnpinMemory from Story 41.9; AD-1, AD-21, AD-29). Safe on a slot: no production runs, so
 /// the tests call OnProcessInput on a shadow instance of OcuTalon.Test.Core.CommandsInProbe, which sends to OcuTalon.Test.Core.CommandsOwner and
 /// records each call, or of OcuTalon.Test.Core.CommandsStep3Probe, which sends to the real stub owners. The origin rules and every text are
 /// written out here, never read from CommandsIn.
-///   - TestContracts: the four verb classes have exactly the properties of XData Contracts and share the Ens.MessageBody extent;
+///   - TestContracts: the six verb classes have exactly the properties of XData Contracts and share the Ens.MessageBody extent;
 ///   - TestOrigins: each verb by every origin of Msg.Enum ORIGIN, "zz" and "" included, reaches its owner (MemoryOps for the memory verbs,
-///     DocumentOps for the document verbs) from its listed origin only, or is refused with its text, and a refusal sends nothing: SaveMemory and
-///     ForgetMemory from tool, AddDocument and RemoveDocument from web_user;
+///     DocumentOps for the document verbs) from its listed origins only, or is refused with its text, and a refusal sends nothing: SaveMemory from tool,
+///     ForgetMemory from tool and web_user, PinMemory, UnpinMemory, AddDocument and RemoveDocument from web_user;
 ///   - TestContextOwnSessionOnly: inside a bridge context a SaveMemory or ForgetMemory for a SessionRef that is not the context's OwnerRef is
-///     not_allowed and nothing is sent, as for SendDigest (AD-1); the context's own session is routed, and a document verb that says web_user is
-///     refused inside a context (the origin is tool there);
+///     not_allowed and nothing is sent, as for SendDigest (AD-1); the context's own session is routed, and a document verb, PinMemory or UnpinMemory that says
+///     web_user is refused inside a context (the origin is tool there, and neither pin verb is a tool verb);
 ///   - TestRealStubOwners: the real OcuTalon.Docs.Ops (built in Story 19.4) and the real OcuTalon.Memory.Ops (built in Story 19.3) answer their two verbs
 ///     as built, no_session for the session of the test, which has no row; each received the very object CommandsIn was given, with its origin and
 ///     SessionRef unchanged.
@@ -34,14 +34,14 @@ Method OnAfterAllTests() As %Status
 	Quit $$$OK
 }
 
-/// The four verb classes have exactly their contract and keep the Ens.MessageBody extent.
+/// The six verb classes have exactly their contract and keep the Ens.MessageBody extent.
 Method TestContracts()
 {
 	Do ..AssertContract("Contracts")
 	Do ..AssertMessageExtent("Contracts")
 	Set content = ##class(%Dictionary.CompiledProperty).%OpenId("OcuTalon.Msg.Command.AddDocument||ContentType")
 	Do $$$AssertEquals($Select($IsObject(content): content.Parameters.GetAt("VALUELIST"), 1: "(missing)"), ",markdown,text,pdf,docx", "ContentType is one of the four kinds")
-	For verb = "SaveMemory", "ForgetMemory", "AddDocument", "RemoveDocument" {
+	For verb = "SaveMemory", "ForgetMemory", "PinMemory", "UnpinMemory", "AddDocument", "RemoveDocument" {
 		Do $$$AssertEquals($Parameter("OcuTalon.Msg.Command."_verb, "RESPONSECLASSNAME"), "OcuTalon.Msg.CommandResult", verb_" is answered with a CommandResult")
 	}
 }
@@ -49,7 +49,7 @@ Method TestContracts()
 /// Each verb by every origin against the oracle: routed to the owner, or refused with its text and nothing sent.
 Method TestOrigins()
 {
-	Set verbs = $ListBuild("SaveMemory", "ForgetMemory", "AddDocument", "RemoveDocument")
+	Set verbs = $ListBuild("SaveMemory", "ForgetMemory", "PinMemory", "UnpinMemory", "AddDocument", "RemoveDocument")
 	Set origins = $ListFromString($Parameter("OcuTalon.Msg.Enum", "ORIGIN")) _ $ListBuild("zz", "")
 	Do $$$AssertEquals($ListLength(origins), 8, "the six origins of Msg.Enum, 'zz' and ''")
 	Set tried = 0
@@ -76,7 +76,7 @@ Method TestOrigins()
 			}
 		}
 	}
-	Do $$$AssertEquals(tried, 32, "all 32 pairs were tried")
+	Do $$$AssertEquals(tried, 48, "all 48 pairs were tried")
 }
 
 /// Inside a bridge context a tool may save or forget a memory only for the context's own session (AD-1): a SessionRef that is not the
@@ -109,6 +109,14 @@ Method TestContextOwnSessionOnly()
 			Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", verb_" that says web_user is a tool's inside a context, and refused")
 		}
 		Do $$$AssertEquals(..Calls(), before, "and nothing is sent")
+		Set before = ..Calls()
+		For verb = "PinMemory", "UnpinMemory" {
+			For origin = "tool", "web_user" {
+				Do probe.OnProcessInput(..NewCommand(verb, origin, "zzsessA"), .output)
+				Do $$$AssertEquals(output.Ok_"|"_output.Outcome_"|"_output.Message, "0|not_allowed|That can't be done from the chat. Nothing was changed.", verb_" saying "_origin_" for A's own session is refused inside A's context")
+			}
+		}
+		Do $$$AssertEquals(..Calls(), before, "and no pin is sent")
 	} Catch exception {
 		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
 	}
@@ -185,8 +193,8 @@ ClassMethod OwnerOf(verb As %String) As %String [ Private ]
 /// The oracle of the origin rules: "" when the verb from the origin is routed, otherwise the text of its refusal.
 ClassMethod Expected(verb As %String, origin As %String) As %String [ Private ]
 {
-	Set listed = $Select(verb [ "Memory": "tool", 1: "web_user")
-	If origin = listed Quit ""
+	Set listed = $Case(verb, "SaveMemory": "tool", "ForgetMemory": "tool,web_user", : "web_user")
+	If $ListFind($ListFromString(listed), origin) Quit ""
 	If origin = "tool" Quit "That can't be done from the chat. Nothing was changed."
 	Quit "OcuTalon can't take that command from here. Nothing was changed."
 }
@@ -204,6 +212,24 @@ XData Contracts [ MimeType = application/json ]
   }
  },
  "OcuTalon.Msg.Command.ForgetMemory": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "MemoryRef": "%String(MAXLEN=22)"
+  }
+ },
+ "OcuTalon.Msg.Command.PinMemory": {
+  "super": "OcuTalon.Msg.Command",
+  "props": {
+   "Origin": "%String(MAXLEN=32)",
+   "IdempotencyKey": "%String(MAXLEN=128)",
+   "SessionRef": "%String(MAXLEN=22)",
+   "MemoryRef": "%String(MAXLEN=22)"
+  }
+ },
+ "OcuTalon.Msg.Command.UnpinMemory": {
   "super": "OcuTalon.Msg.Command",
   "props": {
    "Origin": "%String(MAXLEN=32)",

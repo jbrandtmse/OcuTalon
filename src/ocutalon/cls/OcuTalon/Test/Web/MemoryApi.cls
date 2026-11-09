@@ -12,7 +12,16 @@
 ///   - TestTooOldText: the approved sentence of the 409, pinned by a copy held here;
 ///   - TestNotes: today, yesterday and no day are 200 {"day","date","lines":[]} for a session that has no records, with the instance-zone date, and any other day is 404;
 ///   - TestNoteLines: the note text is split on line feeds into non-empty strings, the builder gets the session and the local date, and a throw is 500 server_error;
-///   - TestNoSessionIs500: with no CSP session every route is 500 server_error and nothing is submitted.
+///   - TestNoSessionIs500: with no CSP session every route is 500 server_error and nothing is submitted;
+///   - TestItems (Story 41.9): GET /v1/memory/items lists the session's own memories newest first as {ref, text, savedAt, source, pinned} with the session's total, never
+///     another session's, at most 20; q is trimmed and cut at 2,000 characters, a blank q lists, and a failed read is 500 server_error;
+///   - TestItemsSearch: a search answers the session's own best memories only (on OcuTalon's image; a named skip elsewhere);
+///   - TestPin: POST and DELETE /v1/memory/:ref/pin submit PinMemory and UnpinMemory for the session with origin web_user; the owner's answers are mapped (done 200,
+///     not_found 404, over_cap 409, not_built 501, the rest 500), and a ref that names no memory is 404 before anything is submitted;
+///   - TestOverCapText: the approved sentence of the 409, pinned by a copy held here;
+///   - TestForgetMemory: DELETE /v1/memory/items/:ref submits a ForgetMemory for the session; the owner's answers are mapped (an over_cap is not a 409 here); the real gate
+///     and the real MemoryOps answer 404 for an unknown ref;
+///   - TestForgetOtherSessionReal: through the real gate and the real MemoryOps, another session's real memory is 404 not_found and is kept, and the session's own is forgotten.
 Class OcuTalon.Test.Web.MemoryApi Extends %UnitTest.TestCase
 {
 
@@ -21,6 +30,9 @@ Parameter PROBE = "OcuTalon.Test.Web.MemoryApiProbe";
 
 /// The approved text of the noise route's 409 too_old (public text), held here word for word.
 Parameter TOOOLD = "This notice is too old to mark as noise. Nothing was changed.";
+
+/// The approved text of the pin route's 409 over_cap (public text), held here word for word.
+Parameter OVERCAP = "That would go over the 1,000-token limit. Unpin something first.";
 
 /// The run's number.
 Property Number As %Integer;
@@ -57,6 +69,9 @@ Method OnAfterOneTest() As %Status
 		}
 	}
 	Set ..Rows = ""
+	For i = 1:1:$Length(..Refs, ",") {
+		If $Piece(..Refs, ",", i) '= "" Do ##class(OcuTalon.Test.Memory.Fixture).Purge($Piece(..Refs, ",", i))
+	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
 	Kill ^OcuTalonTest("MemoryApiProbe")
@@ -217,6 +232,189 @@ Method TestNoteLines()
 	Do $$$AssertTrue($Get(^OcuTalonTest("MemoryApiProbe", "logged")) [ "zz the note could not be built", "and the cause is logged")
 }
 
+/// GET /v1/memory/items: the session's own memories newest first, each as the five members of the item (no origin), pinned a boolean, total the session's count, at
+/// most 20 items, and never another session's. q is trimmed and cut at 2,000 characters before the read, a blank q is a list, and a failed read is 500 server_error.
+Method TestItems()
+{
+	Set session = ..Session(), other = ..OtherSession()
+	Set body = ..Items(.response, , 0)
+	Do $$$AssertEquals(response.Status_"|"_response.ContentType_"|"_body, "200 OK|application/json|{""items"":[],""total"":0}", "no memories: an empty list")
+	Set a = ..Memory(session, "zz first", "2030-01-01T10:00:00Z", "learned", 1)
+	Set b = ..Memory(session, "zz second", "2030-01-03T10:00:00Z")
+	Set c = ..Memory(session, "zz third", "2030-01-02T10:00:00Z", "told")
+	Do ..Memory(other, "zz other", "2030-01-04T10:00:00Z", "told", 1)
+	Set none = ..Items(.response, , 0)
+	Set blank = ..Items(.response, "   ")
+	Do $$$AssertEquals(blank, none, "a blank q is the same list")
+	Set answer = {}.%FromJSON(none)
+	Set refs = ""
+	For i = 0:1:answer.items.%Size() - 1 {
+		Set refs = refs_$Select(refs = "": "", 1: ",")_answer.items.%Get(i).ref
+	}
+	Do $$$AssertEquals(refs, b_","_c_","_a, "the session's own memories, newest first, and nobody else's")
+	Do $$$AssertEquals(answer.total, 3, "total is the session's count")
+	Do $$$AssertEquals(answer.items.%Get(0).%ToJSON(), "{""ref"":"""_b_""",""text"":""zz second"",""savedAt"":""2030-01-03T10:00:00Z"",""source"":""told"",""pinned"":false}", "a row with no Source is told, unpinned, with the five members in order")
+	Do $$$AssertEquals(answer.items.%Get(2).%ToJSON(), "{""ref"":"""_a_""",""text"":""zz first"",""savedAt"":""2030-01-01T10:00:00Z"",""source"":""learned"",""pinned"":true}", "a learned, pinned row says so")
+	For i = 1:1:18 {
+		Do ..Memory(session, "zz more "_i, "2031-01-01T10:00:"_$Extract(100 + i, 2, 3)_"Z")
+	}
+	Set answer = {}.%FromJSON(..Items(.response, , 0))
+	Do $$$AssertEquals(answer.items.%Size()_"|"_answer.total, "20|21", "at most 20 items, and total is the whole count")
+	Kill ^OcuTalonTest("MemoryApiProbe", "read")
+	Set ^OcuTalonTest("MemoryApiProbe", "readMode") = "record"
+	Set body = ..Items(.response, "  vpn gateway  ")
+	Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""items"":[],""total"":0}", "a search with no hit is an empty list")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "read", "session")_"|"_^OcuTalonTest("MemoryApiProbe", "read", "query"), session_"|vpn gateway", "the read got the session's own Ref and the trimmed q")
+	Do ..Items(.response, "   ")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "read", "query"), "", "a blank q reaches the read as empty")
+	Do ..Items(.response, $Translate($Justify("", 2100), " ", "x"))
+	Do $$$AssertEquals($Length(^OcuTalonTest("MemoryApiProbe", "read", "query")), 2000, "q is cut at 2,000 characters")
+	Set ^OcuTalonTest("MemoryApiProbe", "readMode") = "fail"
+	Set body = ..Items(.response, , 0)
+	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_..ErrorBody("server_error", "Something went wrong inside OcuTalon. Try again."), "a failed read is 500 server_error")
+	Do $$$AssertTrue($Get(^OcuTalonTest("MemoryApiProbe", "logged")) [ "zz the memories could not be read", "and the cause is logged")
+}
+
+/// With q the route searches (Memory.Search, the best 5) and answers only the session's own memories, total their number. Needs the embedder of OcuTalon's image.
+Method TestItemsSearch()
+{
+	If '##class(OcuTalon.Test.Memory.Fixture).OnImage() {
+		Do $$$AssertSkipped("Not OcuTalon's image: "_##class(OcuTalon.Test.Memory.Fixture).#VERSIONFILE_" does not exist on this instance (a slot or a developer instance)")
+		Quit
+	}
+	Set session = ..Session(), other = ..OtherSession()
+	Do ##class(OcuTalon.Test.Memory.Fixture).Prepare(.state)
+	Try {
+		Set mine = ##class(OcuTalon.Bridge.Ids).NewRef(), theirs = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(session, mine, "the VPN gateway is vpn.example.test", "2030-01-01T10:00:00Z"), "the session's memory is stored")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(other, theirs, "the VPN gateway of the other team is vpn.other.test", "2030-01-02T10:00:00Z"), "another session's memory is stored")
+		Set body = ..Items(.response, "vpn gateway")
+		Set answer = {}.%FromJSON(body)
+		Do $$$AssertEquals(response.Status, "200 OK", "200")
+		Do $$$AssertEquals(answer.items.%Size()_"|"_answer.total, "1|1", "one item, and total is the item count")
+		Do $$$AssertEquals(answer.items.%Get(0).%ToJSON(), "{""ref"":"""_mine_""",""text"":""the VPN gateway is vpn.example.test"",""savedAt"":""2030-01-01T10:00:00Z"",""source"":""told"",""pinned"":false}", "it is the session's own memory, and not the other session's")
+		Set mineRefs = mine
+		For i = 1:1:6 {
+			Set more = ##class(OcuTalon.Bridge.Ids).NewRef(), mineRefs = mineRefs_","_more
+			Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(session, more, "the VPN gateway number "_i_" is vpn"_i_".example.test", "2030-01-0"_(i + 1)_"T10:00:00Z"), "another of the session's memories is stored")
+		}
+		Set answer = {}.%FromJSON(..Items(.response, "vpn gateway"))
+		Set found = 1
+		For i = 0:1:answer.items.%Size() - 1 {
+			If (","_mineRefs_",") '[ (","_answer.items.%Get(i).ref_",") Set found = 0
+		}
+		Do $$$AssertEquals(answer.items.%Size()_"|"_answer.total, "5|5", "seven memories of the session match: the best 5 come back, and total is the item count")
+		Do $$$AssertTrue(found, "and every one of them is the session's own, never the other session's")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the search threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Test.Memory.Fixture).Restore(.state)
+}
+
+/// POST and DELETE /v1/memory/:ref/pin submit a PinMemory and an UnpinMemory with the ref and the session's own Ref (origin web_user); Ok is 200 {"result":"done"}, and
+/// the owner's other answers are mapped. A ref that is empty or too long names no memory: 404 before anything is submitted. In real mode the real gate lets web_user
+/// through and the probe of the real gate answers a MemoryOps with no handler for a pin as an error: 500.
+Method TestPin()
+{
+	Set session = ..Session()
+	Set serverError = ..ErrorBody("server_error", "Something went wrong inside OcuTalon. Try again.")
+	Set overCap = "{""error"":{""code"":""over_cap"",""message"":"""_..#OVERCAP_"""}}"
+	For verb = "PinMemory", "UnpinMemory" {
+		Kill ^OcuTalonTest("MemoryApiProbe")
+		Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(1, "pinned")
+		Set body = ..Call(verb, .response, "zzmemref")
+		Do $$$AssertEquals(response.Status_"|"_response.ContentType_"|"_body, "200 OK|application/json|{""result"":""done""}", verb_": 200 done")
+		Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted"), 1, verb_": one command was submitted")
+		Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted", 1, "class")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "session")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "ref"), "OcuTalon.Msg.Command."_verb_"|"_session_"|zzmemref", verb_" for the session and the ref")
+		For ref = "", $Translate($Justify("", 23), " ", "x") {
+			Set body = ..Call(verb, .response, ref)
+			Do $$$AssertEquals(response.Status_"|"_body, "404 Not Found|"_..ErrorBody("not_found", "OcuTalon has nothing at this address."), verb_": '"_ref_"' names no memory: 404")
+		}
+		Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted"), 1, verb_": and nothing more was submitted")
+		Set cases = $ListBuild($ListBuild("not_found", ..Spec(0, "not_found"), "404 Not Found", ..ErrorBody("not_found", "OcuTalon has nothing at this address.")), $ListBuild("over_cap", ..Spec(0, "over_cap"), "409 Conflict", overCap), $ListBuild("not_built", ..Spec(0, "not_built"), "501 Not Implemented", ..ErrorBody("not_built", "This part of OcuTalon isn't built yet.")), $ListBuild("failed", ..Spec(0, "failed"), "500 Internal Server Error", serverError), $ListBuild("not_allowed", ..Spec(0, "not_allowed"), "500 Internal Server Error", serverError), $ListBuild("an error status", "fail", "500 Internal Server Error", serverError), $ListBuild("no result", "none", "500 Internal Server Error", serverError))
+		Set position = 0
+		While $ListNext(cases, position, case) {
+			Set ^OcuTalonTest("MemoryApiProbe", "submit") = $List(case, 2)
+			Set body = ..Call(verb, .response, "zzmemref")
+			Do $$$AssertEquals(response.Status_"|"_body, $List(case, 3)_"|"_$List(case, 4), verb_": "_$List(case, 1)_" is mapped")
+		}
+	}
+	Kill ^OcuTalonTest("MemoryApiProbe")
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = "real"
+	Set body = ..Call("PinMemory", .response, "zzmemref")
+	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_serverError, "the real gate and a MemoryOps with no pin handler: 500 server_error")
+	Do $$$AssertTrue($Get(^OcuTalonTest("MemoryApiProbe", "logged")) [ "was answered failed", "and the outcome is logged")
+}
+
+/// The approved sentence of the 409 over_cap: the parameter equals the copy held here, and the route's 409 body carries it word for word.
+Method TestOverCapText()
+{
+	Do $$$AssertEquals($Parameter(..#PROBE, "MESSAGEOVERCAP"), "That would go over the 1,000-token limit. Unpin something first.", "the parameter is the approved sentence")
+	Do $$$AssertEquals($Parameter(..#PROBE, "MESSAGEOVERCAP"), ..#OVERCAP, "and equals the test's copy")
+	Set session = ..Session()
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(0, "over_cap")
+	Set body = ..Call("PinMemory", .response, "zzmemref")
+	Do $$$AssertEquals(response.Status, "409 Conflict", "the status is 409")
+	Set error = {}.%FromJSON(body).error
+	Do $$$AssertEquals(error.code_"|"_error.message, "over_cap|"_..#OVERCAP, "the code and the sentence")
+}
+
+/// DELETE /v1/memory/items/:ref submits a ForgetMemory for the session and the ref (origin web_user), with no pre-check of the row: Ok is 200 {"result":"done"}; not_found 404;
+/// not_built 501; anything else, an over_cap included, 500. A ref that names no memory is 404 before anything is submitted. In real mode the real gate and the real MemoryOps
+/// answer 404 for a ref that is not a memory.
+Method TestForgetMemory()
+{
+	Set session = ..Session()
+	Set serverError = ..ErrorBody("server_error", "Something went wrong inside OcuTalon. Try again.")
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = ..Spec(1, "forgotten")
+	Set body = ..Call("ForgetMemory", .response, "zzmemref")
+	Do $$$AssertEquals(response.Status_"|"_response.ContentType_"|"_body, "200 OK|application/json|{""result"":""done""}", "200 done")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted"), 1, "one command was submitted")
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted", 1, "class")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "session")_"|"_^OcuTalonTest("MemoryApiProbe", "submitted", 1, "ref"), "OcuTalon.Msg.Command.ForgetMemory|"_session_"|zzmemref", "a ForgetMemory for the session and the ref")
+	For ref = "", $Translate($Justify("", 23), " ", "x") {
+		Set body = ..Call("ForgetMemory", .response, ref)
+		Do $$$AssertEquals(response.Status_"|"_body, "404 Not Found|"_..ErrorBody("not_found", "OcuTalon has nothing at this address."), "'"_ref_"' names no memory: 404")
+	}
+	Do $$$AssertEquals(^OcuTalonTest("MemoryApiProbe", "submitted"), 1, "and nothing more was submitted")
+	Set cases = $ListBuild($ListBuild("not_found", ..Spec(0, "not_found"), "404 Not Found", ..ErrorBody("not_found", "OcuTalon has nothing at this address.")), $ListBuild("not_built", ..Spec(0, "not_built"), "501 Not Implemented", ..ErrorBody("not_built", "This part of OcuTalon isn't built yet.")), $ListBuild("failed", ..Spec(0, "failed"), "500 Internal Server Error", serverError), $ListBuild("over_cap", ..Spec(0, "over_cap"), "500 Internal Server Error", serverError), $ListBuild("an error status", "fail", "500 Internal Server Error", serverError), $ListBuild("no result", "none", "500 Internal Server Error", serverError))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set ^OcuTalonTest("MemoryApiProbe", "submit") = $List(case, 2)
+		Set body = ..Call("ForgetMemory", .response, "zzmemref")
+		Do $$$AssertEquals(response.Status_"|"_body, $List(case, 3)_"|"_$List(case, 4), $List(case, 1)_" is mapped")
+	}
+	Set ^OcuTalonTest("MemoryApiProbe", "submit") = "real"
+	Set body = ..Call("ForgetMemory", .response, "zzunknownref")
+	Do $$$AssertEquals(response.Status_"|"_body, "404 Not Found|"_..ErrorBody("not_found", "OcuTalon has nothing at this address."), "the real gate and the real MemoryOps: a ref that is no memory is 404 not_found")
+}
+
+/// Through the real gate and the real MemoryOps.OnForget, another session's real memory is 404 not_found and is still stored, and the session's own memory is forgotten
+/// (200 done) and gone. Needs the embedder of OcuTalon's image to store the rows.
+Method TestForgetOtherSessionReal()
+{
+	If '##class(OcuTalon.Test.Memory.Fixture).OnImage() {
+		Do $$$AssertSkipped("Not OcuTalon's image: "_##class(OcuTalon.Test.Memory.Fixture).#VERSIONFILE_" does not exist on this instance (a slot or a developer instance)")
+		Quit
+	}
+	Set session = ..Session(), other = ..OtherSession()
+	Do ##class(OcuTalon.Test.Memory.Fixture).Prepare(.state)
+	Try {
+		Set mine = ##class(OcuTalon.Bridge.Ids).NewRef(), theirs = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(session, mine, "zz the session's own memory", "2030-01-01T10:00:00Z"), "the session's memory is stored")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(other, theirs, "zz another session's memory", "2030-01-02T10:00:00Z"), "another session's memory is stored")
+		Set ^OcuTalonTest("MemoryApiProbe", "submit") = "real"
+		Set body = ..Call("ForgetMemory", .response, theirs)
+		Do $$$AssertEquals(response.Status_"|"_body, "404 Not Found|"_..ErrorBody("not_found", "OcuTalon has nothing at this address."), "another session's memory: 404 not_found")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Memory).RefIndexExists(theirs), 1, "and it is still stored")
+		Set body = ..Call("ForgetMemory", .response, mine)
+		Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""result"":""done""}", "the session's own memory: 200 done")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Memory).RefIndexExists(mine), 0, "and it is gone")
+	} Catch exception {
+		Do $$$AssertTrue(0, "the real forget threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Test.Memory.Fixture).Restore(.state)
+}
+
 /// With no CSP session every route is 500 server_error, nothing is submitted, and the cause is logged.
 Method TestNoSessionIs500()
 {
@@ -229,6 +427,12 @@ Method TestNoSessionIs500()
 	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, "the noise mark is 500")
 	Set body = ..Notes("today", .response, 1, 1)
 	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, "the notes are 500")
+	Set body = ..Items(.response, , 0, 1)
+	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, "the memory items are 500")
+	For method = "PinMemory", "UnpinMemory", "ForgetMemory" {
+		Set body = ..Call(method, .response, "zzref", 1)
+		Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, method_" is 500")
+	}
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("MemoryApiProbe", "submitted")), 0, "nothing was submitted")
 	Do $$$AssertTrue($Get(^OcuTalonTest("MemoryApiProbe", "logged")) '= "", "the cause is logged")
 }
@@ -257,6 +461,29 @@ Method Decision(owner As %String) As %String [ Private ]
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Decision(owner, "decide")
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
 	Quit ref
+}
+
+/// Saves a memory of the owner (a fixture session's Ref) with a vector that has no meaning, so that no embedder is needed; it is removed with the owner's Ref.
+/// Returns its Ref. Source is empty for a row as saved before Story 41.8.
+Method Memory(owner As %String, text As %String, savedAt As %String, source As %String = "", pinned As %Boolean = 0) As %String [ Private ]
+{
+	Set ones = ""
+	For i = 1:1:384 {
+		Set ones = ones_$Select(i > 1: ",", 1: "")_"1"
+	}
+	Set row = ##class(OcuTalon.Data.Memory).%New()
+	Set row.Ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set row.SessionRef = owner
+	Set row.Text = text
+	Set row.SavedAt = savedAt
+	Set row.ItemId = "zzmemoryapi"
+	Set row.Origin = "tool"
+	Set row.Source = source
+	Set row.Pinned = pinned
+	If pinned Set row.PinnedAt = savedAt
+	Set row.Embedding = ##class(OcuTalon.Test.Memory.Fixture).ToVector(ones)
+	Do $$$AssertStatusOK(row.%Save(), "a fixture memory is saved")
+	Quit row.Ref
 }
 
 /// Saves a Precedent row of the owner, recorded for the clean-up. Returns its Ref. A run Ref makes it a seeded row.
@@ -289,8 +516,17 @@ Method Spec(ok As %Boolean, outcome As %String, data As %String = "") As %String
 Method Call(method As %String, Output response, ref As %String = "", noSession As %Boolean = 0) As %String [ Private ]
 {
 	New %request, %response, %session
-	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeCall("/ocutalon/api/", $Select(method = "ForgetPrecedent": "DELETE", 1: "GET"))
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeCall("/ocutalon/api/", $Case(method, "ForgetPrecedent": "DELETE", "UnpinMemory": "DELETE", "ForgetMemory": "DELETE", "PinMemory": "POST", : "GET"))
 	Quit ..Run(method, .response, noSession, ref)
+}
+
+/// Calls MemoryItems with the query value q (no query value when hasQ is 0 or q is empty).
+Method Items(Output response, q As %String = "", hasQ As %Boolean = 1, noSession As %Boolean = 0) As %String [ Private ]
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeCall("/ocutalon/api/", "GET")
+	If hasQ && (q '= "") Do %request.Set("q", q)
+	Quit ..Run("MemoryItems", .response, noSession)
 }
 
 /// Calls MarkNoise with a request whose body is json (no body at all with hasBody 0).
@@ -323,7 +559,7 @@ Method Run(method As %String, Output response, noSession As %Boolean, ref As %St
 		Set %session = ##class(%CSP.Session).%New("ZzMemoryApi"_..Number, 0)
 		Set %session.Data("OcuTalon.SessionRef") = ..Current
 	}
-	If method = "Notes" || (method = "Precedents") {
+	If method = "Notes" || (method = "Precedents") || (method = "MemoryItems") {
 		Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, ..#PROBE, method)
 	} Else {
 		Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, ..#PROBE, method, ref)

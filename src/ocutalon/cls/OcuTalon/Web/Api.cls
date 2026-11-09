@@ -74,6 +74,12 @@
 ///     answer}, and never a seeded row. DELETE /v1/memory/precedents/:ref forgets one of them (ForgetPrecedent, origin web_user): 200 {"result":"done"},
 ///     404 not_found first for a row the session can't see, 501 and 500 as above. GET /v1/memory/notes?day=today|yesterday (today when the day is
 ///     missing) answers 200 {"day","date","lines"}, with date the instance-zone date YYYY-MM-DD and lines the daily note's lines; any other day is 404 not_found.
+///   - The memory item routes (Epic 41, second part; AD-1, AD-4, AD-13, AD-21), for the CSP session's session only: GET /v1/memory/items answers 200
+///     {"items":[{ref, text, savedAt, source, pinned}],"total"}, from Memory.List (the newest 20, total the session's count) when q is blank, else from
+///     Memory.Search(session, q, 5) (q trimmed and cut at 2,000 characters, total the number of items); a failed read or search is 500 server_error.
+///     POST and DELETE /v1/memory/:ref/pin submit PinMemory and UnpinMemory, and DELETE /v1/memory/items/:ref submits ForgetMemory, each with
+///     origin web_user through SubmitMemory: Ok is 200 {"result":"done"}; not_found 404; over_cap 409 (a pin only); not_built 501; anything else 500
+///     server_error. MemoryOps matches the ref to the session's own rows, so another session's ref is 404 not_found and the row is kept.
 ///   - The documents routes (Story 34.2; GET and POST /v1/documents, DELETE /v1/documents/:ref) are OcuTalon.Web.Documents', forwarded by
 ///     the map at the end of the URL map.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
@@ -166,6 +172,18 @@ Parameter MESSAGENOTDISMISSIBLE = "OcuTalon can't dismiss this incident now. Not
 /// The message of the 409 too_old of the noise route.
 Parameter MESSAGETOOOLD = "This notice is too old to mark as noise. Nothing was changed.";
 
+/// The message of the 409 over_cap of the pin route.
+Parameter MESSAGEOVERCAP = "That would go over the 1,000-token limit. Unpin something first.";
+
+/// The most characters of the search text of GET /v1/memory/items: the length of Data.Memory's Text.
+Parameter MEMORYQUERYMAX = 2000;
+
+/// The most memories that a search of GET /v1/memory/items returns.
+Parameter MEMORYSEARCHMAX = 5;
+
+/// The longest Ref of a memory (Data.Memory); a longer one names no memory.
+Parameter MEMORYREFMAX = 22;
+
 /// The message of the 409 not_available of the code route while Telegram is not on.
 Parameter MESSAGETELEGRAMOFF = "Telegram isn't on in this OcuTalon, so no pairing code was made.";
 
@@ -212,6 +230,10 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/memory/precedents" Method="GET" Call="Precedents"/>
 <Route Url="/v1/memory/precedents/:ref" Method="DELETE" Call="ForgetPrecedent"/>
 <Route Url="/v1/memory/notes" Method="GET" Call="Notes"/>
+<Route Url="/v1/memory/items" Method="GET" Call="MemoryItems"/>
+<Route Url="/v1/memory/:ref/pin" Method="POST" Call="PinMemory"/>
+<Route Url="/v1/memory/:ref/pin" Method="DELETE" Call="UnpinMemory"/>
+<Route Url="/v1/memory/items/:ref" Method="DELETE" Call="ForgetMemory"/>
 <Route Url="/v1/settings" Method="GET" Call="Settings"/>
 <Route Url="/v1/settings/models" Method="POST" Call="SaveModels"/>
 <Route Url="/v1/settings/models/test" Method="POST" Call="TestModel"/>
@@ -1774,7 +1796,89 @@ ClassMethod NoteText(sessionRef As %String, date As %String) As %String [ Privat
 	Quit ##class(OcuTalon.Data.DailyNote).Build(sessionRef, date)
 }
 
-/// Submits the MarkNoise or ForgetPrecedent with origin web_user; result is the CommandResult. An error status means the command never reached CommandsIn.
+/// GET /v1/memory/items?q= (AD-4, AD-21; Epic 41, second part): the session's memories as 200 {"items":[{ref, text, savedAt, source, pinned}],"total"}, each
+/// item a Memory row without its origin, pinned a boolean. A blank q lists the newest 20 and total is the session's count; otherwise q (trimmed, at most
+/// MEMORYQUERYMAX characters) is searched, the best MEMORYSEARCHMAX come back, and total is their number. A session that can't be read, a failed read and
+/// a failed search or embedding are 500 server_error.
+ClassMethod MemoryItems() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set query = $ZStrip($Extract($ZStrip(%request.Get("q"), "<>WC"), 1, ..#MEMORYQUERYMAX), "<>WC")
+	Set sc = ..ReadMemories(sessionRef, query, .rows, .total)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set items = []
+	For i = 0:1:rows.%Size() - 1 {
+		Set row = rows.%Get(i)
+		Set item = {}
+		Set item.ref = row.memoryRef
+		Set item.text = row.text
+		Set item.savedAt = row.savedAt
+		Set item.source = row.source
+		Do item.%Set("pinned", (row.pinned = 1), "boolean")
+		Do items.%Push(item)
+	}
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write {"items": (items), "total": (+total)}.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The rows of the session for the query, and their total: Memory.List when the query is empty, else Memory.Search with MEMORYSEARCHMAX; a seam for the tests.
+ClassMethod ReadMemories(sessionRef As %String, query As %String, Output rows As %DynamicArray, Output total As %Integer) As %Status [ Private ]
+{
+	If query = "" Quit ##class(OcuTalon.Memory).List(sessionRef, .rows, .total)
+	Set sc = ##class(OcuTalon.Memory).Search(sessionRef, query, ..#MEMORYSEARCHMAX, .rows)
+	Set total = $Select($IsObject($Get(rows)): rows.%Size(), 1: 0)
+	Quit sc
+}
+
+/// POST /v1/memory/:ref/pin (AD-1, AD-4, AD-13, AD-21): submits a PinMemory for the session's memory with origin web_user. See MemoryItemCommand for the answers.
+ClassMethod PinMemory(ref As %String) As %Status
+{
+	Quit ..MemoryItemCommand("PinMemory", ref)
+}
+
+/// DELETE /v1/memory/:ref/pin: submits an UnpinMemory in the same way.
+ClassMethod UnpinMemory(ref As %String) As %Status
+{
+	Quit ..MemoryItemCommand("UnpinMemory", ref)
+}
+
+/// DELETE /v1/memory/items/:ref: submits a ForgetMemory in the same way.
+ClassMethod ForgetMemory(ref As %String) As %Status
+{
+	Quit ..MemoryItemCommand("ForgetMemory", ref)
+}
+
+/// The one body of the three memory item writes: submits the command of the verb (PinMemory, UnpinMemory or ForgetMemory) for the ref and the session
+/// (Ownership.SessionRef, never the client's) with origin web_user through SubmitMemory. A ref that is empty or longer than MEMORYREFMAX names no memory
+/// and is 404 not_found before anything is submitted; whether the ref is the session's own is MemoryOps' check. A session that can't be read, an error
+/// status or no result is 500 server_error. The answer: Ok 200 {"result":"done"}; not_found 404; over_cap 409 with MESSAGEOVERCAP (a pin or unpin only);
+/// not_built 501; anything else 500 server_error.
+ClassMethod MemoryItemCommand(verb As %String, ref As %String) As %Status [ Private ]
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If (ref = "") || ($Length(ref) > ..#MEMORYREFMAX) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Set command = $ClassMethod("OcuTalon.Msg.Command."_verb, "%New")
+	Set command.MemoryRef = ref
+	Set command.SessionRef = sessionRef
+	Set sc = ..SubmitMemory(command, .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Ok {
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write {"result": "done"}.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	Set outcome = result.Outcome
+	If outcome = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If (outcome = "over_cap") && (verb '= "ForgetMemory") Quit ..Fail(409, "over_cap", ..#MESSAGEOVERCAP)
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Quit ..ServerError($SYSTEM.Status.Error(5001, "The "_verb_" was answered "_outcome))
+}
+
+/// Submits the MarkNoise, ForgetPrecedent, PinMemory, UnpinMemory or ForgetMemory with origin web_user; result is the CommandResult. An error status means the command never reached CommandsIn.
 ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)

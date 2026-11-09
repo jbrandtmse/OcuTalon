@@ -17,11 +17,17 @@ import { sessionRef } from '../support/persona';
  * and a decide decision whose Summary is an instruction, and GET /api/v1/memory/notes?day=today is 200 with a line `hh:mm message (web): <text>` for
  * the turn and one more line `hh:mm decision: digest` than before the seeding for the decision, every line a string, and no line that holds the
  * decision's instruction text.
+ *
+ * Story 41.9 adds the memory item routes: GET /api/v1/memory/items, POST and DELETE /api/v1/memory/:ref/pin and DELETE /api/v1/memory/items/:ref.
+ * Signed out each is 401 signed_out with no challenge. Signed in, the list is 200 {items, total} with an array of items and a count; deleting an unknown
+ * ref with the envelope is 404 not_found (the real gate and MemoryOps answer), and the same call without the X-OcuTalon-Request header is refused as
+ * every other write route is.
  */
 const MEMORY = '/ocutalon/api/v1/memory';
 const NOISE = (ref: string): string => `/ocutalon/api/v1/decisions/${ref}/noise`;
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
+const NO_REQUEST_HEADER = "OcuTalon refused this request because it didn't come from the OcuTalon page.";
 
 /** Saves a done turn of the session (channel web, created now) with the text, and a decide decision of the session (recorded now) with the summary, and answers their Refs. */
 async function seedNote(session: string, text: string, summary: string): Promise<{ turn: string; decision: string }> {
@@ -109,4 +115,35 @@ test('the memory routes: signed out, the list, a delete, unknown refs, and the n
     for (const one of seeded) await removePrecedent(one);
     if (noteRows) await removeNoteRows(noteRows);
   }
+});
+
+test('the memory item routes: signed out, the list, an unknown forget, and the envelope', async ({ request, playwright, baseURL }) => {
+  await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
+  const anonymous = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
+  try {
+    const calls = [
+      { method: 'GET', url: `${MEMORY}/items` },
+      { method: 'POST', url: `${MEMORY}/zzunknownref/pin` },
+      { method: 'DELETE', url: `${MEMORY}/zzunknownref/pin` },
+      { method: 'DELETE', url: `${MEMORY}/items/zzunknownref` },
+    ] as const;
+    for (const call of calls) {
+      const response = await anonymous.fetch(call.url, { method: call.method, headers: envelope() });
+      await expectError(response, 401, 'signed_out', SIGNED_OUT);
+      expect(response.headers()['www-authenticate'], `${call.method} ${call.url} sends no challenge`).toBeUndefined();
+    }
+  } finally {
+    await anonymous.dispose();
+  }
+
+  const listed = await request.get(`${MEMORY}/items`);
+  expect(listed.status(), await listed.text()).toBe(200);
+  expect(listed.headers()['content-type']).toContain('application/json');
+  const list = (await listed.json()) as { items: unknown[]; total: number };
+  expect(Object.keys(list)).toEqual(['items', 'total']);
+  expect(Array.isArray(list.items)).toBe(true);
+  expect(Number.isInteger(list.total) && list.total >= list.items.length).toBe(true);
+
+  await expectError(await request.fetch(`${MEMORY}/items/zzunknownref`, { method: 'DELETE', headers: envelope() }), 404, 'not_found', NOT_FOUND);
+  await expectError(await request.fetch(`${MEMORY}/items/zzunknownref`, { method: 'DELETE', headers: envelope({ 'x-ocutalon-request': undefined }) }), 403, 'no_request_header', NO_REQUEST_HEADER);
 });

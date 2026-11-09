@@ -13,6 +13,8 @@
 ///     OwnerRef, so a tool cannot name another session. ProposePersona, the one settings verb a tool may send, is held to the same rule:
 ///     inside a bridge context its SessionRef must be the context's OwnerRef (DW-570), so a tool proposes only the persona of the
 ///     session whose turn it is in, and the refusal is not_allowed and nothing reaches SettingsOps;
+///   - the memory verbs PinMemory and UnpinMemory are web_user only and no tool verb, so inside a bridge context they are not_allowed; ForgetMemory
+///     is accepted from tool (with the context check below) and from web_user;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
 ///     not_found or unknown_command) and a plain-English Message;
 ///   - an accepted command is sent synchronously to its owner in the right trace session (AD-26): inside a turn the session
@@ -181,6 +183,8 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// except the persona verbs (AD-1): SetPersona from web_user only, the person's own page, and ProposePersona from tool only, and the
 /// heartbeat verbs (Epic 39): SetHeartbeat to SettingsOps and RunHeartbeat to Checks, each from web_user only, and the precedent verbs (Epic 41,
 /// AD-21): MarkNoise and ForgetPrecedent to PrecedentOps, each from web_user only; neither is a tool verb.
+/// The memory verbs (Epic 41, AD-21): PinMemory and UnpinMemory to MemoryOps from web_user only, neither a tool verb, and ForgetMemory
+/// to MemoryOps from tool and from web_user (the Memory card's Forget; MemoryOps forgets only the command's own session's row).
 /// A settings verb whose origins include web_user or tool is refused with the plain not-allowed text, not the admin-only one.
 /// SendDigest goes to Digest, and GotIt to SessionOps. TestModel (Story 18.3) goes to SettingsOps from web_admin only.
 XData Routes [ MimeType = application/json ]
@@ -203,13 +207,15 @@ XData Routes [ MimeType = application/json ]
  {"verb": "TestModel", "owner": "SettingsOps", "origins": "web_admin"},
  {"verb": "GotIt", "owner": "SessionOps", "origins": "web_user,web_admin,telegram"},
  {"verb": "SaveMemory", "owner": "MemoryOps", "origins": "tool"},
- {"verb": "ForgetMemory", "owner": "MemoryOps", "origins": "tool"},
+ {"verb": "ForgetMemory", "owner": "MemoryOps", "origins": "tool,web_user"},
  {"verb": "AddDocument", "owner": "DocumentOps", "origins": "web_user"},
  {"verb": "RemoveDocument", "owner": "DocumentOps", "origins": "web_user"},
  {"verb": "SetHeartbeat", "owner": "SettingsOps", "origins": "web_user"},
  {"verb": "RunHeartbeat", "owner": "Checks", "origins": "web_user"},
  {"verb": "MarkNoise", "owner": "PrecedentOps", "origins": "web_user"},
- {"verb": "ForgetPrecedent", "owner": "PrecedentOps", "origins": "web_user"}
+ {"verb": "ForgetPrecedent", "owner": "PrecedentOps", "origins": "web_user"},
+ {"verb": "PinMemory", "owner": "MemoryOps", "origins": "web_user"},
+ {"verb": "UnpinMemory", "owner": "MemoryOps", "origins": "web_user"}
 ]
 }
 

@@ -2,8 +2,8 @@
 title: "Story 41.9: Pins and learned saves get their verbs and routes"
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
-baseline_revision: '95ab8336c1830227f42b51a9b24e150765478e84'
+status: 'done'
+baseline_revision: 'adb697c77de7cd479f63d237e4a0586c4851562f'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -108,6 +108,30 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
 
 ## Review Triage Log
 
+### 2026-11-09 — Review pass
+- verdicts: 20 findings — high 0, medium 1, low 11, false 5, maybe-false 3
+- findings:
+  - `[low]` `[reject]` Blind: REST table keeps the placeholder row beside the new Story 41.9 row — the spec names this insertion ("after line 1541"), approved by the Planner; contended spine, plain union.
+  - `[low]` `[reject]` Blind: step-3 bullet and the 34.2 contracts row still say tool only — the AD-1 sub-bullet and the AD-33 row added right beside them carry the amendment; the spec forbids rewording existing lines (Epic 35 contention).
+  - `[false]` `[reject]` Blind: `total` differs between list and search — the matrix fixes it ("`total` is the item count"); spec-bound.
+  - `[false]` `[reject]` Blind: pin routes always 500 until 41.12 — ruled by the Planner (matrix row, Task 0 measured `failed`); spec-bound.
+  - `[low]` `[patch]` Blind: e2e header says "with the row untouched" but no row is seeded — comment corrected.
+  - `[false]` `[reject]` Blind: stale "four verbs" in `TestRealStubOwners` — that test still covers the four verbs of the two real stub owners; unchanged and accurate.
+  - `[low]` `[reject]` Blind: `ReadMemories` probe override has no doc comment — the class header documents it, as for `SubmitMemory` and `NoteText`; cosmetic.
+  - `[low]` `[reject]` Edge: `DELETE /v1/memory/items/pin` matches `:ref/pin` with ref `items` — refs are generated 22-character ids, a ref named `pin` cannot exist, and the answer for the stray path is 404 not_found; wontfix-theoretical, reopen_if a ref can be user-chosen.
+  - `[maybe-false]` `[reject]` Edge: `Memory.Search` might throw outside its Try — an unhandled exception in a route is answered by the REST framework's error handling as a 500, as for the sibling routes; a guard adds a branch for a case not shown reachable.
+  - `[false]` `[reject]` Edge: unpin over_cap shows the pin sentence — the matrix gives one row for pin and unpin with over_cap 409; spec-bound, and `MemoryOps` has no unpin over_cap case.
+  - `[false]` `[reject]` Edge: search `total` is the hit count — same as above, the matrix fixes it.
+  - `[low]` `[reject]` Edge: `Memory/Ops.cls:19` comment says tool origin only — Lane A file the spec forbids editing; Story 41.12 edits `MemoryOps` and updates it. reopen_if: 41.12 leaves the class comment unchanged.
+  - `[medium]` `[patch]` Verification gap: `TestItemsSearch` had one matching memory, so "total is the item count" and the best-5 cut could not fail — now seven session memories and one other session's: 5 items, total 5, all the session's own; mutation line recorded (red when the search branch is dropped).
+  - `[low]` `[reject]` Verification gap: no mutation for the pin mapper or the e2e envelope — Rule 19 asks one demonstrated mutation per AC and AC 3 and AC 4 have them; the e2e spec runs in CI (`live:sign-in`).
+  - `[low]` `[patch]` Verification gap: `TestPin` real mode pins the probe's answer, not `MemoryOps` — the comment now says so; the real `MemoryOps` is Task 0's measurement, and 41.12 replaces the probe branch with its handler.
+  - `[low]` `[reject]` Verification gap (other): `TestItemsSearch` and `TestForgetOtherSessionReal` skip off the image — by design, and both ran on the image stack.
+  - `[low]` `[reject]` Verification gap (other): the e2e `total >= items.length` is weak — a shape check of the list; the counts are pinned by `TestItems`.
+  - `[maybe-false]` `[reject]` Intent: tests sit at the method surface while the envelope and dispatch live at HTTP — the e2e spec covers the envelope refusal and the 401s over HTTP (CI); the descriptive divergence is the spec's own test plan.
+  - `[low]` `[reject]` Intent: `over_cap` text not tied to EXPERIENCE.md — approved verbatim by the Planner (Spec Change Log (a)); the test holds the approved copy.
+  - `[maybe-false]` `[reject]` Intent: the 404 pre-check on an empty or over-long ref is beyond the matrix — recorded under Decided in-stage; without it a 23-character ref fails message validation as 500.
+
 ## Design Notes
 
 **ADs:**
@@ -141,6 +165,9 @@ The Contest Planner, under the owner's delegation, moved the AC to Story 41.11 w
 - Search returns 5 items and List 20.
 - The governance test extends `CommandsStep3`, which owns the memory verbs, rather than starting a new class.
 - No `short-names.tsv` or `Msg/Catalog` line is needed: the precedent verbs have none.
+- (implement) `pinned` in an item is a JSON boolean; `Memory.List`/`Search` return 1 or 0. Story 41.13's card reads a boolean.
+- (implement) A ref that is empty or longer than 22 characters (`MEMORYREFMAX`, the length of `Data.Memory.Ref`) is 404 not_found before anything is submitted; otherwise message validation would fail it as 500.
+- (implement) `over_cap` is 409 for both pin and unpin (the matrix row), and 500 for forget.
 
 **Extend, don't copy:**
 - The verb classes follow `ForgetMemory`.
@@ -210,12 +237,39 @@ Run from the worktree root, one command per call, with `timeout: 600000`, each s
 - **Left to CI:** `live:sign-in` (the e2e spec; over 150 s locally), the shards, `bash ci/checks.sh`, and the lead's fresh-environment check.
 
 **Mutations (Rule 19), one per AC:**
-- AC 1: `PinMemory` origins `"web_user,tool"` makes `CommandsStep3:TestOrigins` go red.
+- AC 1: `PinMemory` origins `"web_user,telegram"` makes `CommandsStep3:TestOrigins` go red.
+  - mutation: PinMemory origins "web_user,telegram" -> CommandsStep3:TestOrigins red ("PinMemory from 'telegram' sends nothing / is not_allowed / says why").
+  - mutation: PinMemory origins "web_user,tool" alone -> stays green: the gate refuses a tool for any verb outside TOOLVERBS before it reads the origins, so the table entry alone is not a way in. With `PinMemory` also added to TOOLVERBS -> CommandsStep3:TestOrigins red (PinMemory from 'tool') and TestContextOwnSessionOnly red (a pin for the context's own session is routed instead of refused).
 - AC 2: none (moved to 41.11).
 - AC 3: `MemoryItems` passes `""` as the session makes `MemoryApi:TestItems` go red.
+  - mutation: MemoryItems reads with session "" -> MemoryApi:TestItems red (the empty list answers 500 instead of 200; `Memory.List` refuses an empty session).
+  - mutation: ReadMemories always lists (the search branch dropped) -> MemoryApi:TestItemsSearch red (seven memories match: 7 items and total 7 instead of 5 and 5). `MEMORYSEARCHMAX` 5 -> 50 stays green: `Memory.MAXLIMIT` (5) clamps the search, so the route's constant is not the limit.
 - AC 4: drop `web_user` from ForgetMemory's origins, which makes `TestForgetOtherSessionReal` go red: the own row is refused not_allowed instead of forgotten. Also, `MemoryOps`' check is reached only through the real mode, so a route that answers 200 without submitting makes the same test go red, because the other session's row is expected to be kept and the route to give 404.
+  - mutation: ForgetMemory origins "tool,web_user" -> "tool" -> MemoryApi:TestForgetOtherSessionReal red (another session's row is not answered 404 by MemoryOps, the own row is not forgotten and still stored) and TestForgetMemory red (the real-mode unknown ref is not 404).
+  - mutation: the route answers 200 done for ForgetMemory without submitting -> MemoryApi:TestForgetOtherSessionReal red (another session's row is expected 404 and the own row gone, and the route answers 200 for both) and TestForgetMemory red (no command was submitted).
+  - Each mutation was applied in the warm throwaway, observed red, and reverted; the files are byte-identical to the pre-mutation copies (cmp).
+
+**Task 0 (measured on the warm stack e41s9iw, 2026-11-09):** a `PinMemory` (origin web_user, a fixture session, MemoryRef `zzunknownref`) through `Commands.Submit` to the running production gave status OK and a CommandResult with Ok 0, Outcome `failed` and Message "Something went wrong inside OcuTalon, so the command may not have finished." That is the predicted outcome, so the matrix row and Design Notes stand. The same session's `ForgetMemory` from web_user gave Ok 0, Outcome `not_found` (the real gate and the real `MemoryOps`).
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: Story 41.9 adds `PinMemory` and `UnpinMemory` (sibling `ForgetMemory`), routes them to `MemoryOps` from `web_user` only, accepts `ForgetMemory` from `web_user` as well, and adds the four memory item routes to `Web.Api` (`GET /v1/memory/items`, `POST`/`DELETE /v1/memory/:ref/pin`, `DELETE /v1/memory/items/:ref`) behind the AD-13 envelope, with one shared outcome mapper and the approved 409 `over_cap` text. `SaveMemory` and its origins are unchanged (AC 2 moved to 41.11).
+
+Files changed:
+- `src/ocutalon/cls/OcuTalon/Msg/Command/PinMemory.cls`, `UnpinMemory.cls` (new): the verbs; `ForgetMemory.cls`: comment.
+- `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls`: Routes rows and comments.
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls`: UrlMap, `MESSAGEOVERCAP`, `MemoryItems`, `ReadMemories`, `PinMemory`, `UnpinMemory`, `ForgetMemory`, `MemoryItemCommand`.
+- `src/ocutalon/cls/OcuTalon/Test/Core/CommandsStep3.cls`, `CommandsStep3Probe.cls`; `Test/Web/MemoryApi.cls`, `MemoryApiProbe.cls`, `Api.cls` (`TestRoutes` 36): tests.
+- `web/e2e/api/memory.spec.ts`: signed-out 401s, list shape, unknown forget 404, envelope refusal.
+- Spine: AD-1 note, AD-33 cross-area row, REST row; memlog entry.
+
+Review findings: 20 reported. Patches applied: 3 (medium 1: `TestItemsSearch` now has seven matching memories and pins the best-5 cut and the item-count total, mutation line recorded; low 2: the e2e header comment and the `TestPin` comment). Deferred: none. Rejected: 17, each with its reason in the Review Triage Log (spec-bound rulings, Lane A file, theoretical, cosmetic).
+
+Follow-up review recommended: false (no high patched, one medium patched).
+
+Verification (warm throwaway `e41s9iw`): `CommandsStep3`, `CommandsPrecedent`, `MemoryApi` and `Web.Api` passed (`Web.Api` skips `TestMessagesNoProductionIs500`, as before); after the patch `MemoryApi` passed, red under the search-branch mutation and green again after the revert; `test-class-rules.sh` and `test-boundaries.sh` passed; `lint_spine.py` at its baseline (`ok` false, 10 low `placeholder` findings). Task 0 measured `failed` for a pin (see Verification). The e2e spec and `ci/checks.sh` are left to CI. Warm stack torn down; no fresh stack started.
+
+Residual risks: the pin routes answer 500 until Story 41.12 handles them; the e2e spec was only type-checked locally; the AC 1 mutation as first written (`"web_user,tool"`) stays green because the gate refuses tool for any verb outside `TOOLVERBS`, so the spec records `"web_user,telegram"` instead.
