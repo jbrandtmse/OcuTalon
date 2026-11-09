@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub in place, and CI with the model mock. Stories 0.1 to 0.13 are done and merged; Story 0.13 made a start retry the CPF merge when IRIS answers ERROR #453 ("cannot quiesce"). Epic 0 is re-opened again for one fix-forward, Story 0.14: the live-test library's log check still keeps every STEP line, so a start that recovered through that retry and became healthy is still read as a failure by the live tests, the clean-machine rehearsal and the release upgrade harness. Story 0.14 makes exactly that one sanctioned recovery count as a pass, and makes the upgrade harness report how many retries its starts carried, so a rare #453 stops failing healthy starts while every retry stays visible.
+Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub, and CI with the model mock. Stories 0.1 to 0.14 and 0.16 are done and merged. Epic 0 is re-opened after the v1.0.4 release, targeting 1.0.5 or later, for two small stories. Story 0.17 updates the README's Measured table to release 1.0.4's real-model evaluation and the demo's latest usage log, using text the Contest Planner has already approved. Story 0.15 moves the Dockerfile to the repository root so the Open Exchange listing reads Docker True. Neither story changes how the image builds or installs.
 
 ## Stories
 
@@ -21,29 +21,38 @@ Epic 0 is the walking skeleton: one image build and `docker compose up` give Ocu
 - Story 0.11: The CI model mock answers every scenario the stories need (done)
 - Story 0.12: Epic 0 burn-down (done)
 - Story 0.13: A start retries the CPF merge when IRIS cannot quiesce (done)
-- Story 0.14: A start that recovers through the merge retry passes the live checks and the upgrade harness (backlog; the only open story)
+- Story 0.14: A start that recovers through the merge retry passes the live checks and the upgrade harness (done)
+- Story 0.15: The Dockerfile sits at the repository root (backlog)
+- Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction (done)
+- Story 0.17: The README's evaluation table shows release 1.0.4's numbers (backlog)
 
 ## Requirements & Constraints
 
-- **The one sanctioned recovery passes.** When a start log carries exactly one `STEP merge RETRY 1 after #453` line and a `STEP merge OK` line follows it in the same start log, `check_log` treats the start as matching its expected STEP and RESULT lines, as if the merge had succeeded first time.
-- **Everything else fails exactly as today:** any `STEP merge FAILED` line; a second `RETRY` line (any number); a `RETRY` line with no `STEP merge OK` after it; a `RETRY` line in any other form (a near-miss of the exact text). No other STEP or RESULT line is ignored or loosened.
-- **Retries stay visible.** The upgrade harness's result names how many `STEP merge RETRY` lines its starts carried, 0 when none.
-- **Tests:** the live-library test pins one RETRY then OK (pass), and RETRY with no OK, two RETRY lines, RETRY then FAILED and a near-miss RETRY line (each fails); the harness test's fixtures read a count of 0 and of 1.
-- **Scope lock:** `docker/after-start.sh` and `docker/merge.cpf` stay unchanged. Done when the fixtures pass and CI is green on every workflow (`ci` and `lane-a`).
-- **Release placement:** the 1.0.0 release candidate takes this story only if it has merged by the time Story 31.3 merges; otherwise it ships in the first daily release after 1.0.0. It must never become rc1's last item.
+**Story 0.17 (README numbers):**
+- The text is already approved and goes in exactly as written: the intro line, the five changed rows, and one new paragraph with the cost-article link placed right after the table and before "Two things to look at in the demo:". Do not reword, re-punctuate or "improve" it. The other rows stay as they are.
+- README.md is the only product file that changes. A pin in `docker/tests/test-readme.sh` that holds an old number or the old intro line moves to the new text; no pin is dropped.
+- Done when none of the old figures ("9 of 10 (target", "19 of 22", "0.0005 to", "9 to 10 cents") remain in README.md, `test-boundaries.sh` and `test-readme.sh` pass, and CI is green.
+- Pipeline: one `bmad-build-auto` stage plans and implements, then the runner's own diff review stands in for the separate QA and code-review stages.
+
+**Story 0.15 (Dockerfile at the root):**
+- Use `git mv docker/Dockerfile Dockerfile`. Afterwards `docker/Dockerfile` must not exist, and every reference to the old path (about 42) names the new one: both compose files' `dockerfile:`, `ci/warm.sh`'s manifest list, `release/release.sh`, `release/upgrade-harness.sh`, `docker/tests/*`, workflow files, the dependency file's `paths_hint`, and any other grep hit.
+- No change in behaviour: the build context stays `.`, the COPY paths stay the same, and `.dockerignore` still keeps the image small. Measure the image size before and after with `docker image inspect … --format '{{.Size}}'`; it must not change beyond layer metadata.
+- `install.sh` and the README's install steps stay the same for the user. No test pin is deleted or weakened; a pin of the old path moves to the new path.
+- `release.sh` builds the current tree from the root `Dockerfile`. The upgrade harness must accept either location for the previous release's tree, because v1.0.4 and earlier have `docker/Dockerfile`. A test pins each case.
+- Any change to `release/*.sh` goes to the Contest Planner before it merges. The release-tool freeze is lifted for this story only on that condition.
+- A planning artifact or spine row that names `docker/Dockerfile` as the current location is amended in place with an `[AMENDED …, Story 0.15, owner decision via the Contest Planner]` marker. The architecture's repository-layout line, which lists the Dockerfile under `docker/`, is one of these. A public doc sentence that names the path counts as public text.
+- Gates: full CI green on every workflow, plus the Planner's clean install.
 
 ## Technical Decisions
 
-- **Start log format (fixed by the start sequence):** the after-start script writes `STEP <name> OK|FAILED` per step and a final `RESULT OK <version>` to `/durable/ocutalon-after-start.log`, rewritten every start; a non-fatal condition is a `WARN <step> <text>` line that never changes the result. Story 0.13 added exactly one line per merge retry, `STEP merge RETRY <n> after #453`, before the merge's final OK or FAILED line. That text is fixed: the Contest Planner's rehearsal counts it across 20 starts.
-- **Where the check lives:** `docker/tests/lib-live.sh`'s `log_steps` extracts the STEP lines and `check_log` compares them with the expected list. Both the live install tests and `release/upgrade-harness.sh` use them, so one change covers both.
-- **Readiness is unchanged:** a start is ready only when the ready marker equals the image's version; the health check opens no IRIS session. Story 0.14 changes only how test tooling reads the log, not what makes a start ready.
-- **Platform:** the scripts also run under the host's bash in hermetic tests (3.2 on macOS), so keep the matching logic in portable shell.
-- **CI rules:** every `docker/tests/test-*.sh` belongs to exactly one of `CHECK_SCRIPTS`, `WEB_SCRIPTS` or an IRIS group in `ci/units.sh`, or `test-ci-config.sh` fails. A full CI run stays within 35 minutes. Scripts never run `docker compose config` without `--quiet` or `docker inspect` without `--format`.
-- **Ownership:** `docker/` is Lane B's apart from Lane A's `merge.cpf`, and `release/` is Lane A's release work. Only Epic 0 edits both lanes' files together.
+- **One image recipe (AD-23):** a single Dockerfile builds `FROM` the retagged build 154 image (`ocutalon-iris-base:2026.3.0AI.154.0`). The `IRIS_IMAGE` build argument selects the non-Health image. IPM and the `ocutalon` package install at container start, version-gated, because the code database lives on the durable volume. Moving the file must keep all of this.
+- **CON-1:** the AI Hub image, and any image built on it, is never pushed to a registry or kept in CI caches or artifacts. The repository ships the Dockerfile and compose files, and images are built where they run. A CI step fails on any `docker push` or registry sign-in.
+- **CI rules:** scripts never run `docker compose config` without `--quiet`, or `docker inspect` without `--format`, because both print `env_file` values. Every `docker/tests/test-*.sh` belongs to exactly one of `CHECK_SCRIPTS`, `WEB_SCRIPTS` or an IRIS group in `ci/units.sh`, or `test-ci-config.sh` fails.
+- **Portability:** the scripts also run under the host's bash 3.2 (macOS) in hermetic tests, so keep any new path-fallback logic in portable shell.
+- **Ownership:** `docker/` belongs to Lane B, apart from Lane A's `merge.cpf`. `release/` is Lane A's release work. Only Epic 0 may edit both lanes' files together.
 
 ## Cross-Story Dependencies
 
-- **Builds on Story 0.13's retry and its log line.** The exact form `STEP merge RETRY <n> after #453` and the bound of one retry that leads to OK are what `check_log` must recognise; nothing else should match.
-- **Existing tests to extend:** `docker/tests/test-lib-live.sh` and `docker/tests/test-upgrade-harness.sh`, both already in `CHECK_SCRIPTS` (the hosted checks job). The live install tests (`test-install-start.sh`, `test-install-upgrade.sh`) inherit the change through `lib-live.sh`.
-- **Downstream consumers:** the release upgrade harness (one check at 1.0.0, run on a new Linux droplet), the Planner's clean-machine rehearsal (Story 38.2), which counts retry lines across 20 starts, and the 1.0.0 candidate's gates. Story 31.3's merge decides whether this story is in rc1.
-- **Out of scope:** the larger rework that stops re-merging on an unchanged start belongs to the first daily release after 1.0.0.
+- Story 0.17 was chartered after 0.16 and Story 0.15 after 0.14. They touch separate files apart from shared README pins in `docker/tests/`. If 0.15 changes any README text, rebase onto 0.17's pins.
+- 0.15 contends with other epics' work on `docker/tests/lib-live.sh`, `docker/tests/test-install-upgrade.sh` (Epics 17 and 19), `docker/tests/test-release-sequence.sh` and `release/release.sh` (Epic 19). Integrate forward and expect merge conflicts there.
+- The upgrade harness's previous-release build depends on v1.0.4's tree layout (old path). Both 0.15 and 0.17 are aimed at release 1.0.5 (at most one release a day).

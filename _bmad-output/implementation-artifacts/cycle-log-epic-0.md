@@ -477,3 +477,5 @@
 2026-11-09T04:05:30Z	Epic 0	story_chartered	stories=0.15(after_0.14),0.17(after_0.16) markers=ADDED_2026-11-09
 2026-11-09T04:05:30Z	Epic 0	deps_hash_rerecorded	reason=fix_forward note=stories_0.15_0.17_inserted_in_epic_0;no_boundary_or_dependency_change
 2026-11-09T04:05:30Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) stories=0.17,0.15
+2026-11-09T04:07:19Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(stories_0.15_0.17_added) model=claude-opus-5-5 effort=high
+2026-11-09T04:07:19Z	Story 0.17	stage_spawned	stage=plan+implement spawn_at=2026-11-09T04:07:19Z model=sonnet agent_name=0-17-build-1 cycle_iteration=1 story_base=c8efcc5a pipeline=one_build_auto_stage(orchestrator_ruling)
