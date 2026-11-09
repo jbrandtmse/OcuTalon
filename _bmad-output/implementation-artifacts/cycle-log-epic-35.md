@@ -19,3 +19,4 @@
 2026-11-09T06:44:03Z	Story 35.1	ruling	question=Q4_secret_writer choice=SettingsOps_writes_wallet_and_Config_Store;McpOps_row_and_RestartRunners_only category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.1 policy=5086036
 2026-11-09T06:44:03Z	Story 35.1	ruling	question=PUBLIC_TEXT_and_SECURITY choice=six_rows_accepted(row2_edited);security_accepted+loopback_bind_pin_test category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.1 policy=5086036
 2026-11-09T06:44:03Z	Epic 35	deps_hash_note	amendments=epics.md:Story_22.2,Story_35.1,Story_35.2(AMENDED_notes,ruling_planner-2026-11-09-35.1) reason=rule5_amendment note=orchestrator_rerecords_hash
+2026-11-09T06:44:03Z	Story 35.1	stage_spawned	stage=plan spawn_at=2026-11-09T06:44:03Z model=opus agent_name=35-1-plan-2 cycle_iteration=2
