@@ -5619,6 +5619,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rail text diverges at char 982 only in the HEARTBEAT CHECKLIST card; Epic 7's diff touches no web file; a time-of-day race with the heartbeat's half-hour schedule
 - 2026-11-07T15:06:23Z status=routed owner=burndown by=ci note=one rerun of the failed job; a second red on the same head is real
 - 2026-11-07T15:47:24Z occurrence=7-10 note=rerun_of_iris(shards-4)_green_on_37856843_(attempt_2);flake_confirmed;stays_routed_burndown
+- 2026-11-09T01:25:15Z occurrence=41-5-this-was-noise-and-your-approval-answers-become-precedents note=ci 42532425828 iris(shards-4) live:sign-in-2 R10 on c1a63cd8: heartbeat check-in 23:19 between live read and reload; one rerun of the failed job
 
 ### DW-896: The online-demo visitor's digest card shows the demo instance's own vital signs (uptime, databases full and their names, journal, licence use)
 - source: spec-17-10-the-digest-shows-in-the-web-chat-and-the-online-demo-s-diges.md | severity: low | fix-risk: med | footprint: in-epic
@@ -5887,6 +5888,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T21:18:08Z occurrence=OCT-epic30-17406fd7 by=orchestrator note=run 42515884139 attempt 1: iris(shards-2) lane-a@rest Test.Docs.ExtractMore TestTimeLeft (16.25); rerun of failed jobs 21:2xZ
 - 2026-11-08T21:58:35Z occurrence=OCT-epic30-17406fd7-attempt2 by=orchestrator note=run 42515884139 attempt 2 iris(shards-2) lane-a@rest TestTimeLeft (16.73); second red on the same head; fix in flight in 32.7 (post-release bound to 20 s)
 - 2026-11-08T21:59:33Z occurrence=exception_used by=orchestrator note=planner_ruling 2026-11-08 ~22:00Z: Epic 30 (30.7, 17406fd7) merged with DW-973 as its only remaining red (one-off exception; then the standing yes until 32.7 merges)
+- 2026-11-09T01:25:15Z occurrence=41-5-this-was-noise-and-your-approval-answers-become-precedents note=ci 42532425828 iris(shards-2) on c1a63cd8 (integrated head), TestTimeLeft (15.01); Epic 41 touches nothing under Docs/Extract; one rerun of the failed job
 ### DW-964: flake: OcuTalon.Test.Checks.Heartbeat TestDisabledItemIsReportedOnce 'the session's web chat got one notification' red once in CI iris (shards), unit shard:lane-a@Checks,Install,Watch, on OCT-epic17 321dcad7 (run 42470657226 attempt 3, job 128733036530); the class passed on attempts 1 and 2 of the same head and on 57a201e9 and 38ab54d4 (same Epic 17 code)
 - source: cycle-log-epic-17 (ci run 42470657226 job 128733036530) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: assert gives no count; WaitDeliveries(session,1,WAITDIAGNOSIS) returns on the first Delivery row of ANY channel, then the test counts web rows only: a row on another channel first, or no row inside WAITDIAGNOSIS under CI load, reads as not one web row; Epic 17 diff leaves the tellnow path, Data.Delivery, Test.Core.Observe and Checks unchanged, and a digest Notification wrote one web Delivery row before 17.10 too (record-only path), so its web row count is unchanged
@@ -5944,3 +5946,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner live demo walk of v1.0.4, 2026-11-08 ~21:30Z | severity: high | fix-risk: low | footprint: in-epic
 - evidence: demo host v1.0.4 (host check 109/0/1); Watch/Reader.cls messages.log severity count (Story 17.5)
 - 2026-11-08T21:35:08Z status=routed owner=burndown by=orchestrator note=planner_ruling: HIGH for 1.0.5 after D3's slot; Task 0 measures which lines a fresh Docker install logs at start on builds 154 and 109; then report the narrowest fix before implementing: (a) ignore those exact start-up signatures or (b) count only errors after the instance start sequence ends; tests: start-up noise passes, a real later error still fails; any string change to the Planner
+
+### DW-993: Story 41.5's NZ1 and NZ2 (web/e2e/memory-noise.spec.ts:116,:147) expect a zero-padded mark time ('01:10') but the page renders '1:10' when the instance's UTC hour is below 10, so live:sign-in-3 (shards-5) is red for those hours
+- source: spec-41-6-the-memory-card-your-notes-and-your-answers.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: 41.6 implement runs of ci/iris.sh live sign-in-3 --part 6/6: red after 00:00Z, green before
+- 2026-11-09T01:25:37Z status=routed owner=41-6-the-memory-card-your-notes-and-your-answers by=harvest note=fix in 41.6's QA (same live unit); the expectation must follow the page's own time format, as pageWhen renders it
