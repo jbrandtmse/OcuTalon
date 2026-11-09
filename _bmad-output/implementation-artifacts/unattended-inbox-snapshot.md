@@ -25,6 +25,13 @@ recommendation: keep (ruled by runner A under U3; fail-safe, smallest residual)
 blocks: nothing (ruled; 41.5 proceeds)
 answer: Keep: Mark and Record refuse a signed-out session, and SessionOps.End always queues the precedents drop behind queued writes. The millisecond in-flight residual is accepted; record it as a DW with its reopen condition (a precedent row found for an ended session), and pin both refusals. (by Contest Planner, 2026-11-08T16:31:17Z#945; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
 
+### U-315 | veto | Epic 11 | 2026-11-09T04:06:36Z
+question: Epic 11 part 2 readiness re-check (headless sprint planning) gave CONCERNS: (1) Stories 11.14-11.16 and 11.18 were written for the first 1.0.0 cut, but 1.0.0 to 1.0.4 have since been cut by hand (release/records/1.0.0..1.0.4) and the sequence's steps cut..notes exist; (2) the repository is public since 2026-10-31, so 11.16's private-repo branch-protection fallback (HTTP 403 path) is now the minor path; (3) the four specs of 2026-11-01 are stale against the delivered release.sh (DW-548) and are re-planned. The run continues; each plan records ACs already met with evidence under Design Notes rather than rebuilding them.
+options: keep going (re-plan each story against the delivered code and the Planner's runs) / stop Epic 11 part 2 for an attended correct-course
+recommendation: keep going: the gaps are drift between the recorded ACs and later delivery, which the re-plans resolve per story without changing intent; anything that would change an AC's intent comes back as a clarification
+blocks: nothing now (veto window)
+answer: (none yet -- answer with the script or --review)
+
 ## Holds
 
 ### U-220 | hold | Run 20261026T1518Z-1-37 | 2026-11-02T16:32:46Z
@@ -384,4 +391,4 @@ answer: (none yet -- answer with the script or --review)
 - U-313 | veto | Story 18.4: Stored data shape: two new nullable columns, Data.Delivery.CheckRows (the web digest card's check rows as JSON, so 'What I checked' survives a reload) and Data.SimMessage.DecisionRef (lets the phone edit a tell-now message in place when handled); older rows read empty, no migration. Ruled KEEP by the orchestrator (category=veto). -> Keep: two nullable columns (Delivery.CheckRows, SimMessage.DecisionRef); older rows read empty; no migration. Pin that an older row renders without error. (by Contest Planner, 2026-11-08T20:03:06Z#951; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-08T20:10:49Z -- Epic 18: applied in 18.4 spec e8213bd6 (older-row pin task)
 - U-314 | veto | Story 41.7: Stored data (veto window 3): the eval-only table Eval.Data.CaseResult gains one nullable column, Precedents (lives only on throwaways and CI; same kind as Story 40.7's Preset), so Agent.Input asks Similar("eval", ...) only for an eval item whose case seeded precedents. -> Keep: Eval.Data.CaseResult gains a nullable Precedents column (like 40.7's Preset); older rows read empty. (by Contest Planner, 2026-11-08T21:53:08Z#957; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-08T22:00:19Z -- Epic 41: applied in 41.7 spec 900b4bfa
 
-<!-- journal: 962 lines -->
+<!-- journal: 963 lines -->

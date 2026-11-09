@@ -3010,3 +3010,9 @@
 2026-11-09T04:03:23Z	Epic 11	worktree_bootstrapped	epic=11 result=ok base=360306f4(ff_kept_worktree)
 2026-11-09T04:03:23Z	Epic 11	runner_dispatched	runner=a7b14a4e288e9b748 model=opus effort=high lane=D slot=ocutalon-slot-d stories=11.14,11.15,11.16,11.18(part_2) prompt=prompts/dispatch-epic-11-part2.md
 2026-11-09T04:22:32Z	Run	ci_observed	head=360306f4(feature) lane-a=success(42557360258) ci=in_progress(42557360171)
+2026-11-09T04:23:02Z	Epic 32	epic_merged_to_feature	merge=2e7791d5 head=4a9db21d stories=32.7 verified_on_origin=yes conflicts=sprint-status.yaml(bookkeeping;SC-4-P_step4) code_conflicts=none method=planner_rule_a ledger_union=lost0,dup0(975) feature_ci=ci:42561496451,lane-a:42561496461, release=1.0.5
+2026-11-09T04:23:02Z	Epic 32	decision_sheet_skipped	reason=empty
+2026-11-09T04:23:02Z	Run	planner_standing_yes_ended	subject=DW-973 reason=32.7_merged(post-release_bound_20s_on_feature) note=DW-973_reds_now_follow_the_normal_flake_rules
+2026-11-09T04:23:02Z	Run	deps_hash_rerecorded	reason=fix_forward stories=32.7 hash=dcfc4157646b
+2026-11-09T04:23:02Z	Epic 32	worktree_removed	
+2026-11-09T04:23:02Z	Epic 32	epic_branches_deleted	local+remote(ancestor_verified)
