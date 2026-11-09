@@ -53,6 +53,9 @@ import { irisScript } from './iris';
  * `gave no answer within 2 s` or `not measured (not Chromium)`) and `DIAG page.close host:`. Every value that these lines print is checked: an
  * error class outside `^[A-Za-z][A-Za-z0-9_:.]{0,39}$` prints as `another error`, a resource type outside `^[a-z]{1,20}$` as `other`, and no
  * URL, query, body, header, cookie, session id, PID, address or host name is read into a line.
+ * The same five lines (closeLines) are the retry-time diagnosis of a close that has not ended by half of its bound (fixtures.ts, one logged
+ * re-close): they follow the `RETRY` line in the retries file and are not printed. closeTargetAgain then sends `Target.closeTarget` for the
+ * page's own target through a browser CDP session; a refusal prints `DIAG page.close re-close failed: <class>` (the class checked as above).
  */
 
 /** The longest the read may take, in ms (the test's own deadline may shorten it, bounds.ts capToDeadline). */
@@ -477,28 +480,76 @@ export function pageSideLines(watch: RequestWatch, began: number, probe: Probe, 
   ];
 }
 
+/** What closeTargetAgain did: the close was sent, the browser is not one that can be asked, or it failed with a checked error class. */
+export type Reclose = { kind: 'sent' } | { kind: 'unmeasured' } | { kind: 'failed'; error: string };
+
 /**
- * Prints the close diagnosis of a page whose close passed its bound (DW-774) to stdout and close-diagnosis.txt: whether the page, its context
- * and the browser are there, what is in flight, whether the renderer and the browser answer, and the host. It runs as a clean-up and never throws.
+ * Asks the browser to close the page's target once more: the page's own CDP session gives its Target.getTargetInfo, and Target.closeTarget goes
+ * through a browser CDP session (the page's session is not used for it, so that a page that does not answer cannot hold the request). Both sessions
+ * that were opened are detached when the call ends, answered or not. It waits no longer than ms for the send to be answered and never throws; a
+ * browser that is not Chromium is unmeasured.
+ */
+export async function closeTargetAgain(page: Page, ms: number = PROBE_BOUND_MS): Promise<Reclose> {
+  const sessions: Array<{ detach: () => Promise<void> }> = [];
+  try {
+    const context = page.context();
+    const browser = context.browser();
+    if (browser === null || browser.browserType().name() !== 'chromium') return { kind: 'unmeasured' };
+    const asked = (async (): Promise<Reclose> => {
+      try {
+        const own = await context.newCDPSession(page);
+        sessions.push(own);
+        const info = await own.send('Target.getTargetInfo');
+        const session = await browser.newBrowserCDPSession();
+        sessions.push(session);
+        await session.send('Target.closeTarget', { targetId: info.targetInfo.targetId });
+        return { kind: 'sent' };
+      } catch (error) {
+        return { kind: 'failed', error: errorClass(error instanceof Error ? error.name : undefined) };
+      }
+    })();
+    return await within<Reclose>(asked, ms, { kind: 'failed', error: 'TimeoutError' });
+  } catch {
+    return { kind: 'failed', error: 'another error' };
+  } finally {
+    for (const session of sessions) session.detach().catch(() => undefined);
+  }
+}
+
+/** The `DIAG page.close re-close ...` line for a re-close that was not sent, or undefined for one that was. */
+export function describeReclose(result: Reclose): string | undefined {
+  if (result.kind === 'sent') return undefined;
+  if (result.kind === 'unmeasured') return 'DIAG page.close re-close not measured (not Chromium)';
+  return `DIAG page.close re-close failed: ${errorClass(result.error)}`;
+}
+
+/**
+ * The close diagnosis of a page (DW-774) as lines, unprinted: whether the page, its context and the browser are there, what is in flight, whether
+ * the renderer and the browser answer, and the host. The probes run at once, so it takes PROBE_BOUND_MS at most. It throws only when the page does.
+ */
+export async function closeLines(page: Page, watch: RequestWatch): Promise<string[]> {
+  const [renderer, browser] = await Promise.all([probePage(page, PROBE_BOUND_MS), probeBrowser(page, PROBE_BOUND_MS)]);
+  const context = page.context();
+  const pages = context.pages().length;
+  const connected = context.browser()?.isConnected() === true;
+  const records = watch.records();
+  return [
+    `DIAG page.close: the page is ${page.isClosed() ? 'closed' : 'open'}, ${plural(pages, 'page')} in its context, the browser is ${connected ? 'connected' : 'not connected'}`,
+    describeInFlight('DIAG page.close requests', records, Date.now()),
+    describeProbe('DIAG page.close renderer:', renderer),
+    describeProbe('DIAG page.close browser:', browser),
+    describeHost('DIAG page.close host', watch.host()),
+  ];
+}
+
+/**
+ * Prints the close diagnosis of a page whose close passed its bound (DW-774) to stdout and close-diagnosis.txt (closeLines). It runs as a clean-up
+ * and never throws.
  */
 export async function closeDiagnosis(page: Page, watch: RequestWatch): Promise<void> {
   try {
     await asCleanup(async () => {
-      const [renderer, browser] = await Promise.all([probePage(page, PROBE_BOUND_MS), probeBrowser(page, PROBE_BOUND_MS)]);
-      const context = page.context();
-      const pages = context.pages().length;
-      const connected = context.browser()?.isConnected() === true;
-      const records = watch.records();
-      printDiagnosis(
-        [
-          `DIAG page.close: the page is ${page.isClosed() ? 'closed' : 'open'}, ${plural(pages, 'page')} in its context, the browser is ${connected ? 'connected' : 'not connected'}`,
-          describeInFlight('DIAG page.close requests', records, Date.now()),
-          describeProbe('DIAG page.close renderer:', renderer),
-          describeProbe('DIAG page.close browser:', browser),
-          describeHost('DIAG page.close host', watch.host()),
-        ],
-        'close-diagnosis',
-      );
+      printDiagnosis(await closeLines(page, watch), 'close-diagnosis');
     });
   } catch {
     // A diagnosis never replaces the error that it describes.

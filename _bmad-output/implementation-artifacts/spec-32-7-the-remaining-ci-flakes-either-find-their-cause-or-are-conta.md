@@ -2,8 +2,8 @@
 title: 'Story 32.7: The remaining CI flakes either find their cause or are contained, logged'
 type: 'chore'
 created: '2026-11-08'
-status: 'in-progress'
-baseline_revision: '7d0a57f20076de86a25aaa68d9a9e14e1d92f950'
+status: 'done'
+baseline_revision: 'e1b344b860ea89c6b866feb6572582536de27339'
 baseline_commit: '7d0a57f20076de86a25aaa68d9a9e14e1d92f950'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -303,7 +303,7 @@ Write the five groups' results (G1 to G5) into `### Investigation result` before
 - Each A task gets its hermetic pinning test where one is possible without a stack and its `mutation:` line; the lead runs the stack proofs (below).
 - Lead proofs (not the implement stage), lane A throwaways, old code red and the fix 20 of 20 under load, recorded under `## Verification`: G1, a scratch injection that calls `Ens.ScheduleService.CallScheduleService()` when the poll first settles; G2, on a parked stack TelegramIn's runtime flag set to 1 before the read (old check red, `NotRunningNow` green); G3, a route that holds the splash document about 2 s after the 401 with the close inside the hold; G4, the class under the CPU-burn load with D4's split read (and `Hang 21` after `ReadSample` as the new bound's mutation). A group whose proof does not confirm its cause falls back to its B task in a further pass.
 
-- [ ] [Smoke] G3 fallback (lead proof L-G3: old 0 of 120 red under the held-splash stall, so the cause is not confirmed; `planner-2026-11-08-32.7`): build **B3 exactly as specified under "Branch B per group"** — `diagnose.ts` `closeTargetAgain(page)` and the close-lines builder; `fixtures.ts` `boundedClose` at `firstAttemptMs(waitMs())`: if the page is still open and the close has not settled, `reportRetry('page.close', <redacted close lines>)`, `closeTargetAgain`, then settle on the first close or the page's `close` event; the outer `boundedStep(..., waitMs(), 'page.close')` and `diagnosedAtBound` keep B, the message and the diagnosis; rewrite the fourth contract comment; the `bounded-waits.test.mjs` `boundedClose` pin pins the new line exactly; `helper-waits.spec.ts` describe `page.close: one more close of the page` with R1 to R3. The Build list's "build NO Branch B task" is lifted for B3 only. Keep A3's splash wait in `leave.spec.ts`. Write each pinning test's `mutation:` line.
+- [x] [Smoke] G3 fallback (lead proof L-G3: old 0 of 120 red under the held-splash stall, so the cause is not confirmed; `planner-2026-11-08-32.7`): build **B3 exactly as specified under "Branch B per group"** — `diagnose.ts` `closeTargetAgain(page)` and the close-lines builder; `fixtures.ts` `boundedClose` at `firstAttemptMs(waitMs())`: if the page is still open and the close has not settled, `reportRetry('page.close', <redacted close lines>)`, `closeTargetAgain`, then settle on the first close or the page's `close` event; the outer `boundedStep(..., waitMs(), 'page.close')` and `diagnosedAtBound` keep B, the message and the diagnosis; rewrite the fourth contract comment; the `bounded-waits.test.mjs` `boundedClose` pin pins the new line exactly; `helper-waits.spec.ts` describe `page.close: one more close of the page` with R1 to R3. The Build list's "build NO Branch B task" is lifted for B3 only. Keep A3's splash wait in `leave.spec.ts`. Write each pinning test's `mutation:` line.
 
 **Acceptance Criteria:**
 - **AC0.** Given the spec gate, when each group's 90 minutes end, then its `### Investigation result` holds `cause:` with its evidence and fix, `none_in_timebox` with what was read and ruled out, or `product:` with the evidence that was sent to the Planner. G5 holds the measurement. The implement stage builds only the named branches, and it stops `blocked` when a subsection holds none of these.
@@ -370,6 +370,35 @@ _(code review, 2026-11-08, first review; layers blind-hunter, edge-case-hunter, 
   - `[low]` `[reject]` Verification-gap 4: nothing checks that real page-side lines stay within 300 characters - R1 and R2 write the real four page-side lines to the file and compare them; a longer line would fail them on the stack.
   - `[low]` `[patch]` Intent 1: `class_method_ok` sits before `cmd_class`, outside the "between `traces_prune` and `cmd_live`" zone the Boundaries name - moved to just before `cmd_live`; `bash -n`, the node tests and `test-ci-config.sh` pass.
   - `[false]` `[reject]` Intent 2: no Branch B, no ObjectScript RETRY plumbing, no G5 change, no Investigation text in the diff - the Build list excludes B0-B4 and A5 by the Planner's ruling; the Investigation result is in the spec, not the diff.
+
+### 2026-11-08 - Review pass (rework 1, B3; follow-up pass)
+- verdicts: 25 findings - high 0, medium 1, low 17, false 5, maybe-false 2
+- findings:
+  - `[low]` `[patch]` Blind 1: the fixtures comment says the retry-time lines are not printed, but a refused or unmeasured re-close prints one `DIAG page.close re-close ...` line (matrix row "Close retry") - the fourth contract comment now says so.
+  - `[low]` `[patch]` Edge 6: the same root cause as Blind 1 (a lone re-close line in stdout) - patched with it.
+  - `[low]` `[patch]` Edge 8: the same root cause as Blind 1 (the comment's claim) - patched with it.
+  - `[low]` `[reject]` Blind 2: the fixture's turning of a failed re-close into a printed line is pinned by a source regex only - the line is in the matrix, R4 runs `describeReclose` and `closeTargetAgain` on stand-ins, and the regex has a mutation line.
+  - `[low]` `[reject]` Blind 3: the retry can outlive the bound - the timer fires at B/2 (10 s at the least) and its probes and the re-close are bounded at 2 s each, so it ends before B.
+  - `[low]` `[reject]` Edge 2: the retry can report after the bound error - the same timing as Blind 3.
+  - `[low]` `[reject]` Edge 3: the `close` listener stays on a hung page - released with the page when the failed test closes its context.
+  - `[low]` `[reject]` Blind 4: a failed `closeLines` logs a bare RETRY - `closeLines` throws only when a page read does; the RETRY line is the count and the second miss prints the full diagnosis.
+  - `[false]` `[reject]` Blind 5: `waitMs()` is read twice and `unmeasured` is dead - both reads sit in one synchronous expression, and `unmeasured` is `closeTargetAgain`'s own contract for any caller (R4 runs it).
+  - `[false]` `[reject]` Blind 6: no lead proof for B3 - the spec assigns the stack proofs (AC5, AC6) to the lead, not to the implement stage; R1's 10 s to 20 s margin is the bound itself.
+  - `[maybe-false]` `[reject]` Edge 1: `Target.closeTarget` can answer `{success:false}` and be reported as sent - not shown for Chromium, and the fix adds a branch for an unshown state (low if true).
+  - `[low]` `[reject]` Edge 4: `close({runBeforeUnload: true})` is re-closed without beforeunload - the re-close fires only after a hang of 10 s or more of a close that has not settled, and the one caller (`deadline-cap.spec.ts`) has a 1 s bound.
+  - `[false]` `[reject]` Edge 5: a close line over 300 characters is dropped by `reportRetry` - by design, the spec's `^DIAG [ -~]{1,300}$` shape.
+  - `[low]` `[reject]` Edge 7: `restoreBrowser` leaves a bound copy of `newBrowserCDPSession` on the worker's browser - the next test wraps that copy, so wrappers do not stack, and it is replaced again after each test.
+  - `[medium]` `[patch]` Gap 1: no test makes the first close reject, so `reject(error)` could become `resolve()` unseen and a real close failure would be swallowed - R5 added, with a mutation line.
+  - `[low]` `[reject]` Gap 2: the `ended || page.isClosed()` guard after the probes has no test - the effect of its absence is one spurious RETRY line in a window of at most 2 s, and a test needs a close inside the probe window.
+  - `[low]` `[patch]` Gap 3: the non-Chromium gate of `closeWithOneMore` (matrix row "Close, no retry") is pinned only by source text - R3 (not Chromium) added, with a mutation line.
+  - `[low]` `[patch]` Gap 4: `closeTargetAgain` does not detach its sessions on the timeout path although its comment says it does - the detach moved out of the inner async, R4 asserts it on the timed-out path.
+  - `[low]` `[reject]` Gap 5: R1 and R2's wall-clock margins are 4 s to 6 s on a loaded host - the bounds are the retry's contract (10 s to 20 s, 20 s to 26 s) and the run has no stack.
+  - `[false]` `[reject]` Intent 1 (no stack proof): AC5 and AC6 are the lead's proofs, outside this pass.
+  - `[low]` `[reject]` Intent 2: the re-close is sent after the retry-time probes, up to 2 s after B/2 - the order is the spec's (reportRetry, then closeTargetAgain), and the send is still inside B.
+  - `[maybe-false]` `[reject]` Intent 3 (the re-close travels the path that Playwright's own close uses): not decidable without the real stall (L-G3 did not reproduce it); the spec records B3 as a containment and the lead's runs decide.
+  - `[false]` `[reject]` Intent 4 (R2 swallows the re-close instead of a browser that ignores it): that is the spec's R2 ("both closes are stubbed").
+  - `[low]` `[reject]` Intent 5 (the retry decision uses `capToDeadline(boundMs)`, the matrix says `waitMs()`): the cap is `firstAttemptMs`'s own input, shared with 32.6's retries, and the outer bound stays `waitMs()`.
+  - `[low]` `[reject]` Intent 6 (a close that ends during the probes logs no RETRY, a case the matrix does not list): the matrix row "close before `floor(B/2)`" implies it, and the guard keeps the count honest.
 
 ## Design Notes
 
@@ -571,6 +600,19 @@ The setup for every command:
 - mutation: AC4/C3, `class_method_ok`'s `grep -q "^Method $2("` changed to `"Method $2("` in `ci/iris.sh` → `flake-fixes-behaviour.test.mjs` red (`accepts the Test methods of the three classes ...`; a ClassMethod named Test... is no test).
 - mutation: A2, `Parameter FIXTURE` of `Heartbeat.cls` pointed at a class that does not exist → `flake-fixes-behaviour.test.mjs` red (`Heartbeat's FIXTURE names the class that holds NotRunningNow and StateOf`).
 - mutation (code review): AC1/C2, `retry_diag_lines`'s reader pattern `'^DIAG [ -~]+$'` loosened to `'^DIAG [[:print:][:cntrl:]]+$'` (it then takes tab, control and DEL bytes) in `ci/iris.sh` → `flake-fixes-behaviour.test.mjs` red (`the reader on its own prints none of the refused one-line candidates that reach its file raw, and every accepted one`, 1 of 15; `state-wait.test.mjs` stays green); restored, `cmp` identical, `git status --short` unchanged.
+- mutation (rework 1, B3; each applied in the tree, observed red, restored with `cmp` against a scratch backup identical, `git status --short` and `git diff --stat` unchanged):
+  - mutation: B3, `describeReclose(await closeTargetAgain(page))` in `fixtures.ts` replaced by `describeReclose({ kind: 'sent' })` (the re-close skipped) → `helper-waits.spec.ts` R1 red (`page.close: no answer within 20 s`, 20.1 s).
+  - mutation: B3, the outer `boundedStep(..., waitMs(), 'page.close')` given `waitMs() * 3 / 2` (the retry's wait gets a fresh bound) → R2 red (`no answer within 30 s` against `20 s`).
+  - mutation: B3, `firstAttemptMs(capToDeadline(boundMs).ms)` replaced by `Math.floor(capToDeadline(boundMs).ms / 2)` (a bound of 19 s retries too) → R3 red (a `RETRY` line printed).
+  - mutation: B3, `reportRetry('page.close', lines.map(redactLine))` changed to `reportRetry('page.close', [])` → R1 red (the file holds no close-diagnosis lines).
+  - mutation: B3/AD-19, `lines.map(redactLine)` changed to `lines` → `bounded-waits.test.mjs` red (`retries a close once at half of the bound, logs the redacted close lines (AD-19) and re-closes the target`).
+  - mutation: B3, `boundedClose`'s line put back to `close(options)` in place of `closeWithOneMore(page, close(options), waitMs(), watch)` → `bounded-waits.test.mjs` red (`goes through boundedClose for every page of the context`).
+  - mutation: B3, the `if (line !== undefined) printDiagnosis([line], 'close-diagnosis');` line removed → `bounded-waits.test.mjs` red (the same retry case).
+  - mutation: B3, `closeTargetAgain` sending `Target.closeTarget` through the page's own session (`own.send`) in place of the browser session → R4 red (both R4 cases; the call list reads `page Target.closeTarget T1`).
+  - mutation: B3, `closeTargetAgain`'s `browserType().name() !== 'chromium'` term removed → R4 red (the Firefox stand-in is asked).
+  - mutation (code review): B3, `reject(error)` of the first close's rejection in `closeWithOneMore` changed to `resolve()` → `helper-waits.spec.ts` R5 red (the failure is `undefined`, not the close's own error).
+  - mutation (code review): B3, the gate `browserType().name() === 'chromium'` in `closeWithOneMore` changed to `!== 'nothing'` → `helper-waits.spec.ts` R3 (not Chromium) red (a `RETRY` line is logged).
+  - mutation (code review): B3, the `finally` that detaches the sessions in `closeTargetAgain` removed → `helper-waits.spec.ts` R4 red (both R4 cases: the detaches are missing, on the answered and on the timed-out path).
 - (QA) Not pinned without a stack: A1's two-polls-in-a-row logic and the `Ens.Job` Starting/Alive read, and A2's `NotRunningNow` against a flag-1/row-0 item, rest on the source pins and the lead's proofs (L-G1, L-G2).
 
 **Lead-side (`(lead)`; after implement, unless stated).**
@@ -649,6 +691,13 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 Status: done
 Blocking condition: none
+
+**Rework 1 (B3, build-auto, 2026-11-08).**
+- Built the G3 fallback: `closeTargetAgain` and `closeLines` in `diagnose.ts`; `boundedClose` retries once at half of a bound of 20 s or more (`closeWithOneMore`, Chromium only), inside the same bound; the fourth contract comment is rewritten; the `bounded-waits.test.mjs` pin pins the new line; `helper-waits.spec.ts` has R1 to R5. A3 is kept.
+- Review: 25 findings (medium 1, low 17, false 5, maybe-false 2), no high. Patched: R5 (a first close that rejects keeps its error), R3 for a browser that is not Chromium, `closeTargetAgain` detaches its sessions on the timeout path, and the comment on the printed re-close line. Deferred: none. Rejections: see the Review Triage Log.
+- Follow-up review recommended: false (this pass patched no high).
+- Verification: the node tests (146 of 146), `npm --prefix web test` (1623 of 1623), `npm --prefix web run lint`, `bash docker/tests/test-boundaries.sh` and `test-ci-config.sh` pass; `helper-waits.spec.ts` passes in full (the B3 and diagnosis cases 15 of 15, the rest 53 of 53). Mutations: under `## Verification`.
+- Residual risks: the real stall was never reproduced, so B3 is a containment shown against a stand-in; the lead's runs carry AC5 and AC6. B3's cases add about 70 s to `live:sign-in-2`.
 
 **Implement and review (build-auto, 2026-11-08).**
 - Summary: the Build list is built (C1-C4, D1, D4, A1-A4); no Branch B task and no A5.
