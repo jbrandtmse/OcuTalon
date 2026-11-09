@@ -456,7 +456,6 @@ production_stubs() {
   local tree=${1%/} files found
   files=$(find "$tree/src" -name '*.cls' -type f 2> /dev/null | LC_ALL=C sort)
   if [ -z "$files" ]; then
-    echo "COUNTS|0|0|0|0"
     return 3
   fi
   # one file per line, so that a path with a space is still one file
@@ -576,7 +575,6 @@ production_stubs() {
   case $found in
     *COUNTS\|*) ;;
     *)
-      echo "COUNTS|0|0|0|0"
       return 3
       ;;
   esac

@@ -16,7 +16,7 @@
 #          integration branch at the remote's head, an --rc that is not the next number and a missing node, npm, docker or git; for
 #          1.0.0 it asks the author to confirm the kit; it then creates the state and prints NEXT cut. It writes no branch and no record.
 # next     runs the step that the state names (resume is the same command). A step that passes names the next one (NEXT <step>);
-#          the last one ends the sequence. A stop (a step that fails, an ASK that is not answered yes, or the end of the steps) writes
+#          the last one ends the sequence. A stop (a step that fails, an ASK that is not answered yes, the hands-on stop, or the end of the steps) writes
 #          the record, commits only that file on the integration branch, and asks to push that commit.
 # status   prints STATE <v> rc<n> next <step>, RECORD <file>, the hands-on time and the record's result, and after a passed ipm step
 #          ARTIFACT <absolute path> <bytes> <sha256>; it changes nothing.
@@ -1120,7 +1120,7 @@ abs_path() {
 # gate_fail <gate> <detail>: step_fail, then the LOG line when the gate kept a log.
 gate_fail() {
   step_fail "$1" "$2"
-  if [ -f "$sdir/$1.log" ]; then echo "LOG $1 $(abs_path "$sdir/$1.log")"; fi
+  if [ -s "$sdir/$1.log" ]; then echo "LOG $1 $(abs_path "$sdir/$1.log")"; fi
   return 1
 }
 
@@ -1439,7 +1439,7 @@ step_upgrade() {
   echo "PHASE upgrade $phase exit $code"
   if [ "$code" -eq 2 ] || { [ "$phase" = build ] && [ "$code" -ne 0 ]; }; then
     line=$(gate_line '^(REFUSED|FAIL) ')
-    if [ "$phase" != build ]; then
+    if [ "$phase" != build ] && [ "$phase" != report ]; then
       gate_script upgrade "$dir" "$tag" release/upgrade-harness.sh report
       echo "PHASE upgrade report exit $GATE_CODE"
     fi
@@ -1553,7 +1553,7 @@ step_rehearsal() {
 }
 
 # step_checklist: runs release/checklist.sh of the candidate in a fresh clone of the author's repository, with the absolute record and the notes
-# draft. Its CONFIRM and LATER lines are printed as they are. Only exit 0 with a section that reads Result: pass for the cut commit passes.
+# draft (copied into the clone). Its CONFIRM and LATER lines are printed as they are. Only exit 0 with a section that reads Result: pass for the cut commit passes.
 step_checklist() {
   local dir="$sdir/gate-checklist" cand notes code line r k verdict
   cand=$(sget cand_sha)
@@ -1562,15 +1562,16 @@ step_checklist() {
     return 1
   fi
   notes=$(notes_path "$version" "$rc")
-  case $notes in
-    /*) ;;
-    *) notes="$rel_root/$notes" ;;
-  esac
   : > "$sdir/checklist.log"
   if ! candidate_clone "$dir" "$branch" "$cand"; then
     gate_fail checklist "$CLONE_WHY"
     return 1
   fi
+  # The draft goes into the clone and is named by the clone's own path, so that checklist.sh records it relative to the repository.
+  if [ -f "$rel_root/$notes" ]; then
+    mkdir -p "$dir/$(dirname "$notes")" && cp "$rel_root/$notes" "$dir/$notes"
+  fi
+  notes="$(cd "$dir" && pwd -P)/$notes"
   gate_script checklist "$dir" - release/checklist.sh --version "$version" --rc "$rc" --candidate "$branch" --record "$(record_abs)" --notes "$notes"
   code=$GATE_CODE
   rm -rf "$dir"

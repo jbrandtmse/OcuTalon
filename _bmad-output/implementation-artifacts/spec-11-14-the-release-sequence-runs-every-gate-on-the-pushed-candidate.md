@@ -201,6 +201,45 @@ deferred: []
 - **IA4 (consumes the real harness phases, per Task 0).** Given the real `upgrade-harness.sh` with the shims, when `upgrade` runs, then `build` passes, the other phases' failures are the harness's own, `## Upgrade harness` reads `Result: fail` with the cut sha, the gate FAILs, and `down` ran. If Task 0 rules out the real harness: the stub with the pinned phase list.
 - **Standing.** Every test added or changed passes on a fresh environment, in either order.
 
+### Review Findings
+
+Code review, 2026-11-09 (first review; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, full-opus tier). 34 raw findings; after grouping: 1 high, 1 medium, 9 low; 0 decision-needed, 9 patch (all applied), 2 defer (ledgered decision-pending), 15 rejected.
+
+- [x] [Review][Patch] HIGH: the real checklist records the author's absolute draft path in the committed record [release/release.sh:1564] -- `step_checklist` passed `--notes <author's checkout>/release/records/<v>/rc<n>-notes.md`; `checklist.sh`'s `ck_rel` strips only its own clone's root, so `## Release checklist` read `Notes: /Users/<name>/...` (and any draft hit lines carried the same path). `stop_routine` commits that record and offers it for the push to the public integration branch, where `test-boundaries.sh`'s `paths` rule scans every tracked file: red `checks` and the author's home path published on every release. Fixed: the draft is copied into the clone and passed by the clone's physical path, so the section reads `Notes: release/records/<v>/rc<n>-notes.md`, as the hand-run 1.0.0 record does. IA1 now pins the relative `Notes:` line and no local path in the section; the stub logs whether the draft exists at call time. Severity source: Always ("No value of the environment is printed"; step_fail's no-local-path contract), product default 2. fix-risk med (a release/** hunk; the argument's path changes, the content is the same file). Footprint in-story.
+- [x] [Review][Patch] MED (Rule 19 hermeticity): `t_stubs` asserted the real tree has 0 stub items, disabled ones included [docker/tests/test-release-sequence.sh:3274] -- a correct future commit that adds a disabled `STUB = 1` item (AD-29's own workflow) would turn it red. Now asserts only the enabled-stub field. fix-risk low.
+- [x] [Review][Patch] LOW: exit 2 from the upgrade `report` phase ran `report` a second time [release/release.sh:1442] -- guard excludes `report`; new case in `upgrade` ("exit 2 from report: report once, then down"). fix-risk low.
+- [x] [Review][Patch] LOW: `production_stubs` printed `COUNTS|0|0|0|0` on status 3, against its header and Design Note 12 ("no COUNTS line") [release/lib-release.sh:459,579] -- the two lines removed; `t_stubs` expects no line. fix-risk low.
+- [x] [Review][Patch] LOW (Rule 19): "the draft exists when it runs" was checked after the run [docker/tests/test-release-sequence.sh:3870] -- the checklist stub logs `notes=yes|no` at call time and the test reads it.
+- [x] [Review][Patch] LOW (Rule 19): "gh not installed: no call" could never fail (no gh on the lean PATH) [docker/tests/test-release-sequence.sh:3486] -- removed.
+- [x] [Review][Patch] LOW: IA1's "other rows unchanged" could not see damage to other gates' sections by the real `checklist.sh` [docker/tests/test-release-sequence.sh:4129] -- IA1 compares `## Upgrade harness` and `## Clean-machine rehearsal` byte for byte.
+- [x] [Review][Patch] LOW: `LOG <gate>` named an empty log when the clone failed before the script ran [release/release.sh:1123] -- `gate_fail` prints LOG only for a non-empty log; the moved-branch case asserts no LOG line.
+- [x] [Review][Patch] LOW: the header's `next` paragraph listed no hands-on stop [release/release.sh:19] -- comment only (not printed by `cli_usage`).
+- [x] [Review][Defer] LOW: release.sh prints texts beyond the approved `### Public text` [release/release.sh, release/lib-release.sh candidate_clone] -- deferred: DW-1008, decision-pending owner=burndown (the Contest Planner's text ruling). Texts and proposals:
+  - as written, proposed for approval: `FAIL <gate> the clone of release/<v>-rc<n> failed`, `FAIL <gate> the tags could not be copied into the clone`, `FAIL <gate> the clone's HEAD is not the cut commit`, `FAIL <gate> the web dependencies cannot be installed here` (and `ensure_web_bundle`'s own last line), `FAIL eval the result could not be kept for the notes`, and the `-` placeholder for an empty value (`Result: -, Mode: -`: honest, it claims nothing).
+  - `missing: unreadable` (the remote's tags could not be read, not missing): proposed `FAIL upgrade the tags of <remote> could not be read; run git fetch --tags <remote>, then release.sh next`.
+  - the eval commit line prints two equal shorts for a near-miss sha (`of commit abc1234, not of the candidate abc1234`) and an empty one for no commit: proposed `FAIL eval the result is of commit <the result's commit as written, or ->, not of the candidate <full sha>`.
+  - a `build` that exits 1 prints `the harness refused build`: proposed `FAIL upgrade the harness's build failed: <its line>`.
+- [x] [Review][Defer] LOW: the eval `RUN` line omits the lane's throwaway lock folder [release/release.sh:1302] -- deferred: DW-1009, decision-pending owner=burndown (new public text). The eval clone sits in the state folder, so `live_lock_dir` finds no `.coordination/locks` and the author's evaluation throwaway skips `throwaway-iris.lock` (the other gates get it through `gate_script`). Proposed: `RUN cd <absolute clone path> && OCUTALON_LOCK_DIR=<lock folder> bash eval/run.sh --release-candidate`, only when the author's repository has a lock folder.
+
+Rule checks: Rule 3 met (`realgates` and every rule run the real `release.sh` against throwaway repositories; IA1 to IA4 consume the real gate scripts). Rule 6: AD-29 (stubs before push), AD-22 (`onMock` refused; tests on the shims and mock only), AD-19 (no key read, printed or recorded; the recorded local path above was the one environment-derived value reaching a commit, now fixed), AD-5/AD-23 (the harness's own phases) hold. Rule 1: IA1 to IA4 present. Rule 2: no unexplained near-copy (`candidate_clone` vs `step_cut` and `ci_runs` vs `ci-gate.py` carry their reasons). Rule 5: no NFR. REL-7: `hands-on` never passes; no line records a pass.
+
+Rejected:
+- `ci` is not "full CI" because `ci/changes.sh` skips unchanged groups on a `release/*` push (blind) -- by-design: Design Notes 2 (skipped groups conclude success by Story 32.2's design); `ci/changes.sh` is outside the footprint.
+- A clone re-made mid upgrade drive that fails skips `down` (blind, acceptance) -- wontfix-theoretical: no clone means no harness script to run `down`; real only if the clone folder is removed between calls and the re-clone fails.
+- `rehearse.sh down` after a refusal is unchecked (blind, edge) -- spec-bound Matrix (no WARN listed; a WARN is new text); a refusal comes before any container.
+- `down` exit 75 still clears the upgrade phase (edge) -- by-design: Matrix "`down` non-zero: WARN line", which is printed.
+- `upgrade-harness.sh` defines its own `record_section` after sourcing the lib (edge) -- wontfix-theoretical: no lib function the harness calls uses it; the name is the spec's; real when a lib function used by the harness calls `record_section`/`record_field`.
+- A state started under the old STEPS resumes with the new list (edge) -- unlikely; `notes` fails closed; a guard needs a new refusal text.
+- The node shim with no node installed (edge) -- node is a precondition of `release.sh` and of the suite.
+- `candidate_clone`'s "(no network)" claim (edge) -- false: the parenthetical qualifies the git clone; the web install is stated separately.
+- "refused options ran no gate": the upgrade half cannot fail (gap) -- the gh half can; the layer itself filed it as defer.
+- "Standing": no reverse-order run (gap) -- the script fixes the rule order; every new rule passed alone or in small batches in fresh runs in this review (Verification); the lead's fresh_check runs it.
+- A FAIL line reads "Result: fail" when the section planted `pass` (gap) -- reachable only when a gate script contradicts its own section; a rewording is new text.
+- Console lines that skip `detail_clean` (acceptance) -- console only; record rows go through `step_fail`.
+- Gate scripts inherit an exported model key (acceptance) -- wontfix-theoretical: `rehearse.sh` unsets it, the harness's throwaway uses lib-live's decoy env_file, the existing steps share the pattern; real if a candidate gate script writes its environment out.
+- Spec frontmatter `status` vs sprint status (acceptance) -- build-auto's machine state, not this review's.
+- The header paragraph's "the Contest Planner's pass" (acceptance) -- approved verbatim in `### Public text` (spec-bound).
+
 ## Spec Change Log
 
 - **planner-2026-11-09-11.14** (the Contest Planner's rulings, relayed by the orchestrator, 2026-11-09):
@@ -459,6 +498,44 @@ Run each command in its own foreground call with `timeout: 600000`, from the wor
   - mutation: the `report` call before `down` on exit 2 of a phase after `build` skipped in `step_upgrade`; red in `realgates` (IA4: "the report ran after the refusal", "the harness section is in the record", "the section reads Result: fail", "the section names the cut commit").
 - IA4 (verdict half): judge the harness on its exit code only.
   - mutation: `[ "$ra" -eq 0 ]` alone decides the pass in `step_upgrade`; red in `gates` (the upgrade variants and the control).
+
+**QA additions (QA stage; test file only, `docker/tests/test-release-sequence.sh`; no `release/**` or workflow change):**
+- Files changed (QA): `docker/tests/test-release-sequence.sh` (cases added to the existing rules `ci`, `eval`, `upgrade`, `rehearsal`, `checklist`, `handson`, `gates`; the upgrade and rehearsal stubs log `web=` and `marker=` per call to `$SHIMLOG/<gate>.clone`). No new rule; the default rule list is unchanged.
+- Gaps found by the audit and now pinned:
+  - AC1: the committed record (HEAD holds only the record, with `Result: failed at <gate>:`) was asserted on the file only.
+  - AC3: a non-required workflow (`docs`) that is pending or failed; every `gh` call of a long case names `--repo`, `--branch`, `--commit` and `--event push`.
+  - AC4: the commit must be the full sha (a prefix or a longer string fails); an override on the mock or a dirty tree, and a `blocked` result that carries a reason, do not pass.
+  - AC5: near-miss shas in the `Candidate:` line (the sha with its last character cut, the sha with one added) for `upgrade`, `rehearsal` and `checklist`. The "no section" variant ran second and read the section left by the variant before it, so it could not fail on its own; it now runs first in its fresh case and asserts the `Result: -, Mode: -` text.
+  - AC6: the clone is made once for all phases (a marker survives), holds `web/node_modules`; remote tags that cannot be read fail as `missing: unreadable`.
+  - AC7: same clone and `web/node_modules` across calls; the clone is removed after exit 2, 3 and 1.
+  - AC8: the clone is removed after a failed checklist; the hands-on console output holds no `RESULT pass` and no `released`.
+  - Not pinned and left: a stale `<state>/gate-checklist` from a killed run (the clone is `rm -rf`-ed first; reaching it needs a signal), `docs` workflow naming (static pin exists).
+- Mutations (QA; each applied, observed red, reverted; `release/release.sh` compared byte-identical to its backup after every one, `git status --short` showed only the test file and this spec):
+  - AC1 (re-confirmed, final tree): `sset next "$(next_step "$step")"` before `stop_routine failed` in `cmd_next`; red in `gates` (every gate variant, "the control passes").
+  - AC1 (QA): `record_commit` returns at once; red in `gates` ("the commit holds only the record", "the committed record names the gate"). A mutation of only the first `record_commit fresh` call is not caught (the later `amend` call commits): equivalent, not a gap.
+  - AC3 (QA): the verdict reads only `ci` and `lane-a`; red in `ci` ("another workflow pending", "another workflow failed").
+  - AC3 (re-confirmed): `$4 != "failure"` added to the red test of `step_ci`; red in `ci` ("red: exit", "another workflow failed").
+  - AC4 (QA): the commit test turned into a prefix test (`${cand#"$commit"}`); red in `eval` ("the short sha", "a sha with its last character cut off", "a sha with a character added").
+  - AC5 (re-confirmed): `[ "$GATE_RESULT" = pass ] || true` in `gate_verdict`; red in `gates` (upgrade, rehearsal and checklist variants).
+  - AC5 (QA): `*" at "${cand%?}*` in place of `*" at $cand"` in `gate_verdict`; red in `gates` (the near-miss sha variants of all three gates).
+  - AC6 (QA): the clone is made again on every phase; red in `upgrade` ("every phase after build runs in the same clone").
+  - AC6 (QA): `web` dropped from `step_upgrade`'s `candidate_clone`; red in `upgrade` ("the clone holds the web dependencies").
+  - AC6 (QA): the `unreadable` placeholder removed from the tags check; red in `upgrade` ("unreadable remote tags").
+  - AC7 (QA): `rehearsal_end` removed from the exit 3 branch; red in `rehearsal` ("exit 3: the clone is removed").
+  - AC7 (QA): `web` dropped from `step_rehearsal`'s `candidate_clone`; red in `rehearsal`. And the "started" test forced true (a new clone on every call); red in `rehearsal` ("every later call runs in the same clone").
+  - AC8 (re-confirmed): `return 0` in place of `return 6` in `step_hands_on`; red in `handson`.
+  - AC8 (QA): "the release is released" added to the STOPPED line; red in `handson` ("nothing says it was released").
+  - AC2, AC9, IA1 to IA4: no addition (already pinned by the implement stage's mutations).
+- Run after the additions (loaded dev Mac): `ci upgrade` 82 s, `rehearsal checklist handson` 75 s, `gates` 99 s, `eval static` 27 s, `ci eval` 74 s. Run-time cost of the additions: about 5 to 10 s in all (one new case, in `upgrade`, for the unreadable tags).
+
+**Code review (2026-11-09; each mutation applied, observed red, reverted; `release/release.sh` and `release/lib-release.sh` hashed equal to the reviewer's patched copies after each):**
+- IA1 (record holds no local path): mutation: `notes="$rel_root/$notes"` in place of the clone path in `step_checklist`; red in `realgates` ("IA1: its Notes line names the draft relative to the repository", "IA1: the checklist section names no local path").
+- AC8 (the draft exists when checklist runs): mutation: the copy of the draft into the clone skipped (`if false`) in `step_checklist`; red in `checklist` ("the draft exists when it runs": `notes=no`).
+- AC6 (report once after its own exit 2): mutation: the `[ "$phase" != report ]` guard removed in `step_upgrade`; red in `upgrade` ("exit 2 from report: report once, then down").
+- AC2 (no COUNTS line on a failed scan): mutation: `echo "COUNTS|0|0|0|0"` restored in `production_stubs`; red in `stubs` ("no class at all: no counts line").
+- LOG on an empty log: mutation: `-f` in place of `-s` in `gate_fail`; red in `checklist` ("moved branch: no log is named").
+- IA1 "the other gates' sections are unchanged": not mutated (it would need an edit of `release/checklist.sh`, which this story never touches).
+- Runs on the final tree (one call each, dev Mac): `realgates checklist` 89 s; `upgrade` 43 s; `eval ci stubs` 87 s; `gates` 117 s; `rehearsal handson static` 53 s; `hands resume notes` 86 s; `gate secret first word pushes` 54 s; `libs refusals cut ipmcheck push record` 146 s (near the limit: split it next time); `recut image overview ipmwait ipmnet ipmlib overviewunit overviewdrift overviewdoc` 73 s; `ipm ipmfail` 53 s; `test-boundaries.sh` 10 s. Every one `PASS all rules` / exit 0. The other suites that source `lib-release.sh` were not rerun: the only lib change is inside `production_stubs`, which none of them calls.
 
 **Shared surfaces:**
 - the `STEPS` list (the `t_static` pin; the specs of 11.15, 11.16 and 11.18);

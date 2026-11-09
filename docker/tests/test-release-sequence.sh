@@ -541,6 +541,7 @@ phase=${1:-}
 [ $# -eq 0 ] || shift
 f=${SHIMFLAGS:-/nonexistent}
 [ -z "${SHIMLOG:-}" ] || echo "$phase tag=${OCUTALON_RUN_TAG:-} dir=$(basename "$PWD") head=$(git rev-parse HEAD) lock=${OCUTALON_LOCK_DIR:-} args=$*" >> "$SHIMLOG/upgrade.calls"
+[ -z "${SHIMLOG:-}" ] || echo "web=$([ -d web/node_modules ] && echo yes || echo no) marker=$([ -e .gate-marker ] && echo yes || echo no)" >> "$SHIMLOG/upgrade.clone"
 [ -n "${OCUTALON_RUN_TAG:-}" ] || { echo "REFUSED the phase needs OCUTALON_RUN_TAG"; exit 2; }
 [ ! -f "$f/upg-busy-$phase" ] || { echo "LOCK busy: stub"; exit 75; }
 case $phase in
@@ -589,6 +590,7 @@ cmd=${1:-}
 [ $# -eq 0 ] || shift
 f=${SHIMFLAGS:-/nonexistent}
 [ -z "${SHIMLOG:-}" ] || echo "$cmd tag=${OCUTALON_RUN_TAG:-} dir=$(basename "$PWD") head=$(git rev-parse HEAD) lock=${OCUTALON_LOCK_DIR:-} args=$*" >> "$SHIMLOG/rehearse.calls"
+[ -z "${SHIMLOG:-}" ] || echo "web=$([ -d web/node_modules ] && echo yes || echo no) marker=$([ -e .gate-marker ] && echo yes || echo no)" >> "$SHIMLOG/rehearse.clone"
 case $cmd in
   down)
     rm -f "$SHIMSTATE/reh.n"
@@ -659,6 +661,7 @@ while [ $# -gt 0 ]; do
     *) shift ;;
   esac
 done
+[ -z "${SHIMLOG:-}" ] || echo "notes=$([ -f "$notes" ] && echo yes || echo no)" >> "$SHIMLOG/checklist.notes"
 res=$(cat "$f/ck-result" 2> /dev/null || echo pass)
 sec=$(mktemp)
 {
@@ -3268,13 +3271,13 @@ t_stubs() {
   eq "the real tree: status" "$st" 0
   has "the real tree: the counts" "$pr" "COUNTS|"
   lacks "the real tree: no stub is found" "$pr" "FOUND|"
-  eq "the real tree: no stub item" "$(printf '%s\n' "$pr" | sed -n 's/^COUNTS|[0-9]*|[0-9]*|\([0-9]*\)|\([0-9]*\)$/\1 \2/p')" "0 0"
+  eq "the real tree: no enabled stub" "$(printf '%s\n' "$pr" | sed -n 's/^COUNTS|[0-9]*|[0-9]*|[0-9]*|\([0-9]*\)$/\1/p')" "0"
   # a tree with no production class cannot be read
   mkdir -p "$tmp/emptytree/src"
   pr=$(. "$root/release/lib-release.sh"; production_stubs "$tmp/emptytree")
   st=$?
   eq "no class at all: status 3" "$st" 3
-  eq "no class at all: the counts line" "$pr" "COUNTS|0|0|0|0"
+  eq "no class at all: no counts line" "$pr" ""
   # the seed: an enabled item of a built class, a disabled item of a stub class, and a test production with an enabled stub (not scanned)
   newcase
   to_step stubs
@@ -3409,6 +3412,12 @@ t_ci() {
   gh_runs "$sha" 101:ci:queued: 102:lane-a:in_progress:
   rs '' next
   eq "queued: the first pending run is named" "$out" "WAIT ci ci run 101 is queued"
+  # (QA) every workflow that ran on the commit counts, not only the two required ones: a pending one waits, a failed one fails
+  gh_runs "$sha" 101:ci:completed:success 102:lane-a:completed:success 103:docs:in_progress:
+  rs '' next
+  eq "(QA) another workflow pending: exit" "$rc" 5
+  eq "(QA) another workflow pending: the line" "$out" "WAIT ci docs run 103 is in_progress"
+  eq "(QA) another workflow pending: no record" "$(seq_written)" no
   # a completed run that is not a success is judged first, a pending one does not hide it
   gh_runs "$sha" 101:ci:completed:failure 102:lane-a:in_progress:
   rs "$N" next
@@ -3421,6 +3430,11 @@ t_ci() {
   gh_runs "$sha" 101:ci:completed:success 102:lane-a:completed:skipped
   rs "$N" next
   has "skipped is not a success" "$out" "FAIL ci lane-a run 102 concluded skipped"
+  gh_runs "$sha" 101:ci:completed:success 102:lane-a:completed:success 103:docs:completed:failure
+  rs "$N" next
+  eq "(QA) another workflow failed: exit" "$rc" 1
+  has "(QA) another workflow failed: the line" "$out" "FAIL ci docs run 103 concluded failure"
+  eq "(QA) every gh call so far named the repository, the branch, the commit and the push event" "$(grep -vc "^run list --repo owner/repo --branch release/1.0.0-rc1 --commit $sha --event push --limit 50 " "$SHIMLOG/gh.log")/$(grep -c . "$SHIMLOG/gh.log")" "0/7"
   # gh could not read the runs: wait
   gh_runs "$sha" 101:ci:completed:success 102:lane-a:completed:success
   flagv gh-fail 7
@@ -3470,7 +3484,6 @@ t_ci() {
   RS_PATH=""
   eq "gh not installed: exit" "$rc" 1
   has "gh not installed: the line" "$out" "FAIL ci gh is not installed"
-  eq "gh not installed: no call" "$(cat "$SHIMLOG/gh.log" 2> /dev/null)" ""
   newcase
   to_step ci
   unset OCUTALON_RELEASE_GH_REPO
@@ -3566,6 +3579,29 @@ RUN cd $d && bash eval/run.sh --release-candidate"
   eval_fixture bogus
   rs "$N" next
   has "an unknown verdict" "$out" "FAIL eval the result is not an ocutalon.evalResult/1 file"
+  # (QA) the commit must be the full cut sha: a prefix or a longer string is another commit
+  EV_COMMIT="$short" eval_fixture pass
+  rs "$N" next
+  eq "(QA) the short sha: exit" "$rc" 1
+  has "(QA) the short sha" "$out" "FAIL eval the result is of commit "
+  EV_COMMIT="${sha%?}" eval_fixture pass
+  rs "$N" next
+  has "(QA) a sha with its last character cut off" "$out" "FAIL eval the result is of commit "
+  EV_COMMIT="${sha}0" eval_fixture pass
+  rs "$N" next
+  has "(QA) a sha with a character added" "$out" "FAIL eval the result is of commit "
+  # (QA) only a pass, or an override with a reason, passes: an override on the mock or a blocked result with a reason does not
+  EV_MOCK=true EV_OVERRIDE='{"reason":"the model was down","at":"x"}' eval_fixture overridden
+  rs "$N" next
+  has "(QA) overridden on the mock" "$out" "FAIL eval the result was made on the CI mock, not on the model"
+  EV_CLEAN=false EV_OVERRIDE='{"reason":"the model was down","at":"x"}' eval_fixture overridden
+  rs "$N" next
+  has "(QA) overridden on a dirty tree" "$out" "FAIL eval the result was made on a tree with uncommitted changes"
+  EV_BY="1 of 3 attempts met every target" EV_OVERRIDE='{"reason":"a reason on a blocked result","at":"x"}' eval_fixture blocked
+  rs "$N" next
+  eq "(QA) blocked with an override object: exit" "$rc" 1
+  has "(QA) blocked with an override object" "$out" "FAIL eval blocked: 1 of 3 attempts met every target"
+  lacks "(QA) blocked with an override object: no pass" "$out" "PASS eval"
   eq "none of them passed" "$(row_of eval | cut -c1-4)" "fail"
   eq "the state still names eval" "$(sed -n 's/^next=//p' "$(sdir1)/state.env")" eval
   # acceptable: pass, and overridden with a reason (REL-5)
@@ -3618,6 +3654,9 @@ NEXT upgrade"
   eq "build: the call" "$(calls upgrade)" "build tag=$UPG_TAG dir=gate-upgrade head=$sha lock=$C/locks args=--version 1.0.0 --rc 1 --record $W/release/records/1.0.0/rc1.md"
   eq "build: no record yet" "$(seq_written)" no
   eq "build: the row is not set" "$(row_of upgrade)" ""
+  # (QA) the clone is made once for all the phases (a marker left in it after build is still there), and it holds the web dependencies
+  eq "build: the clone holds the web dependencies and no marker" "$(sed -n 1p "$SHIMLOG/upgrade.clone")" "web=yes marker=no"
+  : > "$(sdir1)/gate-upgrade/.gate-marker"
   for ph in settings seed upgrade restart storage; do
     rs '' next
     eq "$ph: exit" "$rc" 0
@@ -3635,6 +3674,7 @@ PHASE upgrade down exit 0
 PASS upgrade Result: pass, Mode: release, Previous: tag v0.9.0 at 0123456, version 0.9.0, built as 0.9.0
 NEXT rehearsal"
   eq "the phases, in order" "$(calls upgrade | awk '{ print $1 }' | tr '\n' ' ')" "$UPG_ALL "
+  eq "(QA) every phase after build runs in the same clone, with the web dependencies" "$(sed 1d "$SHIMLOG/upgrade.clone" | sort | uniq -c | tr -s ' ')" " 7 web=yes marker=yes"
   eq "one tag for all" "$(calls upgrade | sed 's/^[a-z]* tag=\([^ ]*\) .*/\1/' | sort -u)" "$UPG_TAG"
   eq "only build gets the options" "$(calls upgrade | grep -c 'args=--')" 1
   eq "every call runs in the clone at the cut commit" "$(calls upgrade | sed 's/^[a-z]* tag=[^ ]* \(dir=[^ ]* head=[^ ]*\) .*/\1/' | sort -u)" "dir=gate-upgrade head=$sha"
@@ -3652,6 +3692,14 @@ NEXT rehearsal"
   git -C "$W" fetch -q --tags origin
   drive upgrade "$N"
   has "after the fetch: it runs" "$ALL" "PASS upgrade Result: pass"
+  # (QA) remote tags that cannot be read: FAIL before build (Design Notes, decided in the implement pass 4)
+  newcase
+  to_step upgrade
+  git -C "$W" remote set-url origin "$tmp/no-such-remote.git"
+  rs "$N" next
+  eq "(QA) unreadable remote tags: exit" "$rc" 1
+  has "(QA) unreadable remote tags: the line" "$out" "FAIL upgrade the tags of origin are not all in this repository (missing: unreadable); run git fetch --tags origin, then release.sh next"
+  eq "(QA) unreadable remote tags: no call" "$(ncalls upgrade)" 0
   # a failed build runs down and fails; the next call starts again
   newcase
   to_step upgrade
@@ -3676,6 +3724,13 @@ FAIL upgrade the harness refused build: "
   eq "exit 2 from seed: exit" "$rc" 1
   has "exit 2 from seed: the line" "$out" "FAIL upgrade the harness refused seed: "
   eq "exit 2 from seed: report, then down" "$(calls upgrade | awk '{ print $1 }' | tr '\n' ' ')" "build settings seed report down "
+  # exit 2 from report itself: report is not called a second time, then down
+  newcase
+  to_step upgrade
+  flagv upg-exit-report 2
+  drive upgrade "$N"
+  eq "exit 2 from report: exit" "$rc" 1
+  eq "exit 2 from report: report once, then down" "$(calls upgrade | awk '{ print $1 }' | tr '\n' ' ')" "$UPG_ALL "
   # 75 waits on the same phase
   newcase
   to_step upgrade
@@ -3728,6 +3783,9 @@ t_rehearsal() {
   eq "call 1: exit" "$rc" 0
   eq "call 1: the lines" "$out" "PHASE rehearsal call 1 of 3 is done, call again
 NEXT rehearsal"
+  # (QA) the clone is made once for all the calls (a marker left in it after call 1 is still there), and it holds the web dependencies
+  eq "call 1: the clone holds the web dependencies and no marker" "$(sed -n 1p "$SHIMLOG/rehearse.clone")" "web=yes marker=no"
+  : > "$(sdir1)/gate-rehearsal/.gate-marker"
   rs '' next
   eq "call 2: the lines" "$out" "PHASE rehearsal call 2 of 3 is done, call again
 NEXT rehearsal"
@@ -3741,6 +3799,7 @@ NEXT rehearsal"
 NEXT notes"
   eq "the same argv and tag on every call" "$(calls rehearse | sort -u)" "run tag=rel-1-0-0-rc1-reh dir=gate-rehearsal head=$sha lock=$C/locks args=--version 1.0.0 --rc 1 --candidate release/1.0.0-rc1 --record $W/release/records/1.0.0/rc1.md --runs 20"
   eq "four calls" "$(ncalls rehearse)" 4
+  eq "(QA) every later call runs in the same clone, with the web dependencies" "$(sed 1d "$SHIMLOG/rehearse.clone" | sort | uniq -c | tr -s ' ')" " 3 web=yes marker=yes"
   eq "never plant or dry-run" "$(calls rehearse | grep -c -e '--plant' -e '--dry-run')" 0
   eq "the clone is removed" "$([ -e "$(sdir1)/gate-rehearsal" ] && echo yes || echo no)" no
   eq "the row" "$(row_of rehearsal)" "pass: Result: pass, Mode: rehearsal, 20 of 20 runs passed"
@@ -3752,6 +3811,7 @@ NEXT notes"
   eq "exit 2: exit" "$rc" 1
   has "exit 2: the line" "$out" "FAIL rehearsal release/rehearse.sh refused: real mode needs the configuration file"
   eq "exit 2: run, then down" "$(calls rehearse | awk '{ print $1 }' | tr '\n' ' ')" "run down "
+  eq "(QA) exit 2: the clone is removed" "$([ -e "$(sdir1)/gate-rehearsal" ] && echo yes || echo no)" no
   has "exit 2: the log is named" "$out" "LOG rehearsal $(sdir1)/rehearsal.log"
   # exit 3: a dry run is never a pass
   newcase
@@ -3763,6 +3823,7 @@ NEXT notes"
   rs "$N" next
   eq "exit 3: exit" "$rc" 1
   has "exit 3: the line" "$out" "FAIL rehearsal a dry run is never a pass"
+  eq "(QA) exit 3: the clone is removed" "$([ -e "$(sdir1)/gate-rehearsal" ] && echo yes || echo no)" no
   # exit 1, and a section that reads pass with exit 1
   newcase
   to_step rehearsal
@@ -3772,6 +3833,7 @@ NEXT notes"
   rs "$N" next
   eq "exit 1: exit" "$rc" 1
   has "exit 1: the line" "$out" "FAIL rehearsal the section reads Result: fail, Mode: rehearsal: FAIL run 3 step incident bound notice: stub"
+  eq "(QA) exit 1: the clone is removed" "$([ -e "$(sdir1)/gate-rehearsal" ] && echo yes || echo no)" no
   flagv reh-result pass
   rs "$N" next
   has "exit 1 with a planted pass" "$out" "FAIL rehearsal the section reads Result: fail, Mode: rehearsal"
@@ -3804,8 +3866,8 @@ t_checklist() {
   eq "pass: the lines" "$out" "LATER registry-install add the line - registry-install: confirmed <date> after the version is published
 PASS checklist Result: pass
 NEXT hands-on"
-  eq "the call" "$(calls checklist)" "run tag= dir=gate-checklist head=$sha lock=$C/locks args=--version 1.0.0 --rc 1 --candidate release/1.0.0-rc1 --record $W/release/records/1.0.0/rc1.md --notes $W/release/records/1.0.0/rc1-notes.md"
-  eq "the draft exists when it runs" "$([ -f "$W/release/records/1.0.0/rc1-notes.md" ] && echo yes || echo no)" yes
+  eq "the call" "$(calls checklist)" "run tag= dir=gate-checklist head=$sha lock=$C/locks args=--version 1.0.0 --rc 1 --candidate release/1.0.0-rc1 --record $W/release/records/1.0.0/rc1.md --notes $(cd "$(sdir1)" && pwd -P)/gate-checklist/release/records/1.0.0/rc1-notes.md"
+  eq "the draft exists when it runs" "$(cat "$SHIMLOG/checklist.notes" 2> /dev/null)" "notes=yes"
   eq "the clone is removed" "$([ -e "$(sdir1)/gate-checklist" ] && echo yes || echo no)" no
   eq "the row" "$(row_of checklist)" "pass: Result: pass"
   eq "the author's checkout was not switched" "$(git -C "$W" symbolic-ref --short HEAD)" "$INTEG"
@@ -3817,6 +3879,7 @@ NEXT hands-on"
   eq "fail: exit" "$rc" 1
   has "fail: the line" "$out" "FAIL checklist Result: fail: readme README.md:1 stub problem"
   has "fail: the log is named" "$out" "LOG checklist $(sdir1)/checklist.log"
+  eq "(QA) fail: the clone is removed" "$([ -e "$(sdir1)/gate-checklist" ] && echo yes || echo no)" no
   has "fail: the record" "$(cat "$(rec_file)")" "Result: failed at checklist: Result: fail: readme README.md:1 stub problem"
   has "fail: the row" "$(cat "$(rec_file)")" "| checklist | fail | Result: fail: readme README.md:1 stub problem |"
   flagv ck-result "not confirmed"
@@ -3838,6 +3901,7 @@ FAIL checklist Result: not confirmed: 3 author rows not confirmed"
   eq "moved branch: exit" "$rc" 1
   has "moved branch: the line" "$out" "FAIL checklist the clone's HEAD is not the cut commit"
   eq "moved branch: the gate script did not run" "$(ncalls checklist)" 0
+  lacks "moved branch: no log is named (the script wrote none)" "$out" "LOG checklist"
   eq "moved branch: no clone is left" "$([ -e "$(sdir1)/gate-checklist" ] && echo yes || echo no)" no
 }
 
@@ -3854,6 +3918,8 @@ t_handson() {
   has "hands-on: the record question" "$out" "ASK record Push the record commit of 1.0.0 rc1 to $INTEG on origin? [yes/no]"
   has "hands-on: the result" "$out" "RESULT stopped"
   lacks "hands-on: no pass line" "$out" "PASS hands-on"
+  lacks "(QA) hands-on: no pass result" "$out" "RESULT pass"
+  lacks "(QA) hands-on: nothing says it was released" "$out" "released"
   rec=$(cat "$(rec_file)")
   has "hands-on: the row" "$rec" "| hands-on | waiting | the author's hands-on pass (REL-7) on release/1.0.0-rc1 is not recorded |"
   has "hands-on: the result in the record" "$rec" "Result: stopped at hands-on: every automated gate passed; no hands-on pass is recorded (not a release)"
@@ -3886,7 +3952,7 @@ gate_ran() {
 
 # t_gates: AC1 and AC5. The first gate that does not pass stops the sequence and names it; the only override is REL-5's.
 t_gates() {
-  local g seen n rows v before nm
+  local g seen n rows v before nm c
   # a gate that fails: its FAIL line, the record, no later gate, and the next call runs it again
   for g in stubs ci eval upgrade rehearsal checklist; do
     newcase
@@ -3911,6 +3977,8 @@ t_gates() {
     has "$g fails: the line" "$ALL" "FAIL $g "
     has "$g fails: the record" "$(cat "$(rec_file)")" "Result: failed at $g: "
     has "$g fails: its row" "$(cat "$(rec_file)")" "| $g | fail | "
+    eq "(QA) $g fails: the commit holds only the record" "$(git -C "$W" show --name-only --format= HEAD)" "release/records/1.0.0/rc1.md"
+    has "(QA) $g fails: the committed record names the gate" "$(git -C "$W" show HEAD:release/records/1.0.0/rc1.md)" "Result: failed at $g: "
     lacks "$g fails: no hands-on row" "$(cat "$(rec_file)")" "| hands-on |"
     seen=0
     for n in stubs ci eval upgrade rehearsal notes checklist; do
@@ -3974,7 +4042,9 @@ t_gates() {
   # a planted section, a wrong commit and a wrong mode do not pass a gate
   newcase
   to_step upgrade
-  for v in "upg-exit-report 1" "upg-result fail" "upg-sha 0123456789012345678901234567890123456789" "upg-mode dry-run" "upg-nosection x"; do
+  c=$(cand)
+  # (QA) the case with no section comes first: a later one would read the section that an earlier variant left in the record
+  for v in "upg-nosection x" "upg-exit-report 1" "upg-result fail" "upg-sha 0123456789012345678901234567890123456789" "upg-sha ${c%?}" "upg-sha ${c}0" "upg-mode dry-run"; do
     # shellcheck disable=SC2086
     flagv ${v% *} "${v#* }"
     drive upgrade "$N"
@@ -3984,6 +4054,7 @@ t_gates() {
       upg-sha*) has "upgrade '$v': the commit is named" "$ALL" "FAIL upgrade the section names another commit than the candidate" ;;
       upg-exit-report*) has "upgrade '$v': the planted pass is a fail" "$ALL" "FAIL upgrade the harness's section reads Result: fail, Mode: release" ;;
       upg-mode*) has "upgrade '$v': the mode is named" "$ALL" "FAIL upgrade the harness's section reads Result: pass, Mode: dry-run" ;;
+      upg-nosection*) has "(QA) upgrade '$v': a missing section reads as dashes" "$ALL" "FAIL upgrade the harness's section reads Result: -, Mode: -" ;;
     esac
     unflag "${v% *}"
   done
@@ -3992,7 +4063,8 @@ t_gates() {
   newcase
   to_step rehearsal
   flagv reh-phases 0
-  for v in "reh-exit 1" "reh-result fail" "reh-sha 0123456789012345678901234567890123456789" "reh-mode dry-run" "reh-nosection x"; do
+  c=$(cand)
+  for v in "reh-nosection x" "reh-exit 1" "reh-result fail" "reh-sha 0123456789012345678901234567890123456789" "reh-sha ${c%?}" "reh-sha ${c}0" "reh-mode dry-run"; do
     # shellcheck disable=SC2086
     flagv ${v% *} "${v#* }"
     drive rehearsal "$N"
@@ -4001,6 +4073,7 @@ t_gates() {
     case $v in
       reh-sha*) has "rehearsal '$v': the commit is named" "$ALL" "FAIL rehearsal the section names another commit than the candidate" ;;
       reh-mode*) has "rehearsal '$v': the mode is named" "$ALL" "FAIL rehearsal the section reads Result: pass, Mode: dry-run" ;;
+      reh-nosection*) has "(QA) rehearsal '$v': a missing section reads as dashes" "$ALL" "FAIL rehearsal the section reads Result: -, Mode: -" ;;
     esac
     unflag "${v% *}"
   done
@@ -4008,7 +4081,8 @@ t_gates() {
   has "rehearsal: the control passes" "$ALL" "PASS rehearsal Result: pass, Mode: rehearsal"
   newcase
   to_step checklist
-  for v in "ck-exit 1" "ck-result fail" "ck-sha 0123456789012345678901234567890123456789"; do
+  c=$(cand)
+  for v in "ck-exit 1" "ck-result fail" "ck-sha 0123456789012345678901234567890123456789" "ck-sha ${c%?}" "ck-sha ${c}0"; do
     # shellcheck disable=SC2086
     flagv ${v% *} "${v#* }"
     if [ "${v% *}" = ck-result ]; then flagv ck-exit 0; fi
@@ -4029,12 +4103,13 @@ t_gates() {
 
 # t_realgates: IA1 to IA4. The steps against the real checklist.sh, eval/run.sh --override with notes.sh, rehearse.sh and upgrade-harness.sh.
 t_realgates() {
-  local before after d rec dlines
+  local before after d rec dlines others
   # IA1: the real checklist, a record with no author confirmations
   newcase
   set_real release/checklist.sh
   to_step checklist
   before=$(awk -F'\t' '$1 != "checklist" && $1 != "record" { print $1 ":" $2 }' "$(sdir1)/rows.tsv")
+  others=$(sect "$(rec_file)" "## Upgrade harness"; sect "$(rec_file)" "## Clean-machine rehearsal")
   rs "$N" next
   eq "IA1: exit" "$rc" 1
   has "IA1: the row is the script's own" "$out" "FAIL checklist Result: "
@@ -4049,6 +4124,9 @@ t_realgates() {
   has "IA1: the checklist row is the script's own result" "$rec" "| checklist | fail | Result: "
   has "IA1: the checklist section is in the record" "$rec" "## Release checklist"
   has "IA1: its Candidate line ends with the cut commit" "$rec" "Candidate: 1.0.0 rc1 at $(cand)"
+  has "IA1: its Notes line names the draft relative to the repository" "$(sect "$(rec_file)" "## Release checklist")" "Notes: release/records/1.0.0/rc1-notes.md"
+  lacks "IA1: the checklist section names no local path" "$(sect "$(rec_file)" "## Release checklist")" "$tmp"
+  eq "IA1: the other gates' sections are unchanged" "$(sect "$(rec_file)" "## Upgrade harness"; sect "$(rec_file)" "## Clean-machine rehearsal")" "$others"
   after=$(sect "$(rec_file)" "## Release sequence" | awk -F' [|] ' '/^\| / && $1 != "| Step" && $1 != "| ---" { gsub(/^\| /, "", $1); if ($1 != "checklist" && $1 != "record") print $1 ":" $2 }')
   eq "IA1: the other rows are unchanged" "$after" "$before"
   # IA2: the real eval/run.sh --override and the real notes.sh

@@ -3316,6 +3316,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: spec-11-14 :103 and :124-128 (exits 0,1,2,3,75; no exit 4, no --plant <id>@<run>); epic-11-context.md Release sequence line; release/rehearse.sh header and cmd_run now differ
 - 2026-11-01T20:58:12Z status=routed owner=11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate by=cr note=11.14's plan re-reads rehearse.sh's header (runs k, refusal beyond N, run exit 4, OCUTALON_RUN_TAG) before implementing its gate
+- 2026-11-09T08:02:00Z status=resolved-by:11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate by=adjudication note=step_rehearsal(release.sh:1486-1507)_calls_rehearse.sh_run_once_per_call_with_OCUTALON_RUN_TAG,exit_4=phase_done(NEXT_rehearsal);pinned_by_self-test_rule_rehearsal(AC7)_and_realgates_IA3;fresh_spec_and_epic-11-context_state_the_current_contract
 
 ### DW-550: flake: live:cards web/e2e/cards/incident-card.spec.ts:454 I10 timed out (90 s) in loadedAfter's /state wait after sign-in (support/floor.ts:141); passed on an unchanged rerun
 - source: cycle-log-epic-11.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -6013,3 +6014,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-11-the-install-s-production-check-doesn-t-name-an-item-that-is.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: TestNotRunningFollowsTheRow and TestNotRunningFollowsABroaderRow share about 10 setup lines; TelegramParked OnBeforeOneTest/OnAfterOneTest L56-78 hold the same flag save/restore; RunnerFixture (the shared home) is off-limits to this story
 - 2026-11-09T00:31:48Z status=wontfix-accepted owner=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=cr note=reopen_if=a_third_test_writes_TelegramIn's_row_and_runtime_flag_with_the_same_preamble_or_RunnerFixture_gains_a_flag_snapshot_helper
+
+### DW-1008: Story 11.14's release.sh prints texts beyond its approved Public text: clone failures, kept result, the - and unreadable placeholders, eval commit shorts, refused build
+- source: spec-11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: candidate_clone CLONE_WHY texts and 'the result could not be kept for the notes' reach console and record rows unapproved; a near-miss eval sha prints two equal shorts; build exit 1 says refused
+- 2026-11-09T07:59:46Z status=decision-pending owner=burndown by=cr note=Planner rules on the texts; proposed exact text is in the spec's Review Findings (11.14 code review)
+
+### DW-1009: The eval gate's RUN line omits the lane's throwaway lock folder, so the author's evaluation in the state-folder clone runs without throwaway-iris.lock
+- source: spec-11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: gate_script exports OCUTALON_LOCK_DIR for the other gates; the eval clone sits outside the repository, so live_lock_dir finds no .coordination/locks
+- 2026-11-09T07:59:51Z status=decision-pending owner=burndown by=cr note=new public text; proposed RUN line is in the spec's Review Findings (11.14 code review)
