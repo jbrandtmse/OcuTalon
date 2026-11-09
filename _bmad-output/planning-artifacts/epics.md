@@ -10269,6 +10269,7 @@ So that I decide what OcuTalon keeps.
 **Then** it says what forgetting removes (the memory, its search entries, any pin, and every later session start) and that the current conversation's earlier messages aren't rewritten (FR-73)
 - DW-996: unify the Memory card's `ForgetDialog` (`web/src/app/rail/memory-card/forget-dialog.ts`) with `documents/remove-dialog.ts` into one shared confirm dialog (ledger; routed by burndown 2026-11-09)
 - DW-1030: `GET /v1/memory/items` lists only the newest 20 (or a search's best 5), with no pinned filter, paging or used-token figure, so it cannot back the Pinned tab; the card needs the pinned rows and the {used} of 1,000 tokens (ledger; routed by cr 2026-11-09)
+- DW-1031: the card's memory search runs only on submit, never per keystroke, and on the online demo each search counts against the existing message allowance (no new number), so searches cannot fill the shared embedder queue (ledger; routed by owner 2026-11-09, Contest Planner ruling under the owner's delegation)
 
 ### Story 41.14: Evaluation and tests for memory's second part
 

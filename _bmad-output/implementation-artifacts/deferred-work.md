@@ -6250,3 +6250,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-9-pins-and-learned-saves-get-their-verbs-and-routes.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Web/Api.cls ReadMemories -> Memory.Search -> Embedding.Embed (WorkMgr category, MAXACTIVEWORKERS 2, TIMEOUT 120 s); no 429 on the route; unreachable today because the route fails before embedding (41.9 review HIGH)
 - 2026-11-09T16:35:22Z status=decision-pending owner=burndown by=cr note=decide with the 41.9 search-path ruling: an allowance on item search, or search on submit only in 41.13
+- 2026-11-09T16:41:26Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=owner note=planner-2026-11-09-41.9-readpath_DW-1031:_the_Memory_card_searches_only_on_submit,never_per_keystroke;on_the_demo_each_search_counts_against_the_existing_message_allowance;no_new_number
