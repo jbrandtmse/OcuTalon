@@ -6361,3 +6361,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: planner-2026-11-09-replan | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: owner-approved voting-week re-plan relayed by the Contest Planner [3dd56e] 2026-11-09 ~15Z
 - 2026-11-09T14:58:00Z status=decision-pending owner=burndown by=owner note=parked:owner_re-plan_2026-11-09; revisit after voting (Nov 15); sprint-status action item mirrors it
+
+### DW-1052: README header is an HTML h1 (no Markdown H1): the Open Exchange listing may not show the title and logo as GitHub does
+- source: _bmad-output/implementation-artifacts/spec-0-21-the-readme-opens-with-a-centred-header-logo-tagline-and-badg.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: GitHub markdown API renders it (measured); Open Exchange rendering of the README's HTML cannot be seen from the repository
+- 2026-11-09T23:43:20Z status=decision-pending owner=burndown by=harvest note=human=open the Open Exchange listing once it shows the 1.0.6 README and confirm title+logo render; outward listing, owner/Planner only
