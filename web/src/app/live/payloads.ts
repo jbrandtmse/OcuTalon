@@ -149,7 +149,6 @@ export interface PhonePayload {
   direction?: string;
   text?: string;
   approvalRef?: string;
-  decisionRef?: string;
   answer?: string;
   decisionRef?: string;
   createdAt?: string;
