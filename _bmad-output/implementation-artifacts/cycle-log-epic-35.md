@@ -48,3 +48,9 @@
 2026-11-09T10:21:53Z	Epic 35	hold_ordered	reason=orchestrator_hold_now(35.2_rulings_with_Planner_mid-release_1.0.5;overnight_hold_11:00Z)
 2026-11-09T10:21:53Z	Story 35.2	hold_saved	story=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th stage=spec_validated patch=none tree=clean
 2026-11-09T10:21:53Z	Epic 35	hold_complete	shas=origin:cca91ec2(35.1_code_head;CI_42596131997,42596131881_in_progress);local_only:everything_after_cca91ec2_incl_merge_87de75f1_(feature_09a47f3b)_and_this_commit throwaways=none locks=none note=unpushed_on_purpose_per_orchestrator
+2026-11-09T14:16:13Z	Epic 35	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-09T14:16:13Z	Epic 35	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-09T14:16:13Z	Epic 35	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-09T14:16:13Z	Epic 35	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=morning_redispatch_20261109 lane=B slot=ocutalon-slot-b
+2026-11-09T14:16:13Z	Epic 35	epic_branch_checked_out	repos=. head=4eef96eb ci=gh workflows=ci,lane-a note=redispatch_assert origin=cca91ec2
+2026-11-09T14:16:13Z	Story 35.1	ci_resolved	story=35.1 sha=cca91ec2 runs=42596131997,42596131881 failed=none via=none result=success resolved_at=resume note=first_ci_backfill(first_ci=success)
