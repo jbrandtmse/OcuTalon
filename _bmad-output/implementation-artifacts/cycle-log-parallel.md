@@ -3049,3 +3049,5 @@
 2026-11-09T05:58:02Z	Epic 0	ci_green_verified	head=fdd191e8 result=success runs=42565378346,42565378445 covers=0.17+0.18
 2026-11-09T05:58:02Z	Epic 0	runner_complete	part_merge=0.17+0.18 agent=ac22014504312b3ec head=fdd191e8 note=epic_continues_with_0.15(local);contract_fields_from_its_CI_WAIT_reports
 2026-11-09T05:58:02Z	Epic 0	merge_enqueued	policy=when_green+planner_rule_a waits_for=19a4bae6_lane-a
+2026-11-09T06:07:23Z	Epic 41	ruling	question=U-316_item3_refinement(one_DecisionRef_shows_Got_it_on_act_notices;Test.Demo.SimPhoneOut:TestActMessageHasNoGotIt_red) category=veto choice=(a)two_members:decisionRef_stays_Epic_18_exactly(no_fallback;Got_it_tell-now_only)+new_appended_noiseRef_from_Ownership.PhoneDecision_when_no_ApprovalRef(41.5_source;act_notices+older_rows) rejected=(b)tell-now-only_fallback,(c)drop_fallback(both_lose_This_was_noise_on_act_notices_against_41.5_AC_and_EXPERIENCE.md:1057) reversal=collapse_to_one_field inbox=U-316(refined) note=orchestrator_error_in_first_ruling_caught_by_Epic_18_pin policy=5086036
+2026-11-09T06:07:33Z	Epic 41	runner_resumed	agent=a70c5c6c3ec305303 with=U-316_refined_(a)_two_members
