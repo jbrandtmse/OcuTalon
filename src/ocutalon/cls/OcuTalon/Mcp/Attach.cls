@@ -18,10 +18,10 @@ ClassMethod Servers(Output servers As %DynamicArray) As %Status
 	If $$$ISERR(sc) Quit sc
 	Set result = statement.%Execute()
 	If result.%SQLCODE < 0 Quit $$$ERROR($$$SQLError, result.%SQLCODE, result.%Message)
-	While result.%Next() {
+	While result.%Next(.sc) {
 		Do servers.%Push({"server": (result.%Get("Name")), "config": ("AI.MCP."_..#ENTRYPREFIX_result.%Get("Name"))})
 	}
-	Quit $$$OK
+	Quit sc
 }
 
 ClassMethod OnAttach(server As %String, report As %DynamicObject) As %Status

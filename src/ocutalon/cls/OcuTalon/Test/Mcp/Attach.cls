@@ -3,18 +3,23 @@
 /// running production (RunnerFixture GuardReason, RunningReason), and they put the McpServersClass setting of the Decide item to the class a test needs and back.
 /// Each test makes its own fixtures and removes them in OnAfterOneTest, whether it passed or failed: the row zzmcp<n> of OcuTalon.Mcp.Server, the Config Store entry
 /// AI.MCP.OcuTalon_zzmcp<n> (url = the loopback mock, auth = a header whose value is a secret:// reference), the wallet collection and secret that the reference names
-/// (a random value of this run, written by the test and deleted by it), and the mock of OcuTalon.Test.Mcp.Mock. Afterwards the test asserts that none is left. No
-/// assertion message, Write or log line holds the secret: a check of where the value shows names places only.
+/// (a random value of this run, written by the test and deleted by it), and the mock of OcuTalon.Test.Mcp.Mock. Afterwards the test asserts that none is left, and
+/// that no result the test manager logged for the test holds the secret. No assertion message, Write or log line holds the secret: a check of where the value
+/// shows names places only.
 ///   - TestAttach (matrix rows 1 and 3): the manager of the agent lists the agent's own tools, the tool of the fixture toolset and the mock's zz_lookup and
 ///     zz_delete_ticket; Attached holds mcp:remote:@{config:AI.MCP.OcuTalon_<server>}; the row says attached, with no reason, the time and no refused tool; every request
 ///     of the mock carried the header; the gate classifies both tools as unclassified by their toolref and denies them in an untrusted turn; the secret shows nowhere;
 ///   - TestTurnManager (row 2): the manager that a request with turn tools composes lists the mock's tools too;
 ///   - TestTurnServerDown: the server is down when a request composes its manager: the request still gets it, without the server's tools;
+///   - TestRequestServerDown: a request with no tools of its own gets a manager of its own while a server is attached, with the server's tools while it is up and
+///     without them once it is down (AI Hub's listing of the agent's own manager throws while that manager holds a server that does not answer);
+///   - TestTurnShadow: a tool of the mock with the name of a tool of the request: the request's tool keeps the name and the mock's copy is not listed;
 ///   - TestUnavailable (row 4): the mock is down, the build is OK, the manager has no mock tool and no mcp spec is recorded, the row says unavailable (unreachable),
 ///     and the secret, which AI Hub's error text holds, shows nowhere;
 ///   - TestShadow (row 5): a tool of the mock with the name of one of the agent's own tools is refused: the row holds its name, the manager lists the name once, and a bare
 ///     manager of the same shape runs the agent's tool and not the mock's;
-///   - TestBridgeAlone (row 6): the base class attaches nothing and the mock sees no request; TestFreshInstall: with no Mcp.Server row the build attaches nothing;
+///   - TestBridgeAlone (row 6): the base class attaches nothing and the mock sees no request; TestFreshInstall: with no Mcp.Server row the build attaches nothing
+///     (the rows are removed in a transaction that is rolled back, so rows the test did not make are kept);
 ///   - TestWrongClass (row 7): a McpServersClass that is missing or does not extend the base fails the build with an error that names the setting;
 ///   - TestBadConfig (row 8) and TestReports: a config name that does not match is reported invalid and never attached; a report has the status, the reason, the tools
 ///     and the refused tools; an error or an exception from OnAttach, and an error from Servers, never fail the build, and the next server is still tried.
@@ -84,6 +89,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ..Remove()
 	Set leftovers = ..Leftovers()
 	Do $$$AssertEquals(leftovers, "", "the test leaves no fixture behind")
+	Do $$$AssertEquals(..LoggedSecret(), 0, "no result that the test manager logged for the test holds the secret")
 	Set ..Secret = ""
 	Kill ^||ZzTurn, ^||ZzMcp, ^OcuTalonTest("TurnTools")
 	If ..Saved '= "" {
@@ -213,16 +219,27 @@ Method TestFreshInstall()
 {
 	If ..Guard() Quit
 	Do ..Use("McpServersClass", ..#ATTACH)
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.Server WHERE Name %STARTSWITH 'zzmcp'")
-	Do $$$AssertEquals(..RowCount(), 0, "no Mcp.Server row exists")
-	If ..RowCount() '= 0 Quit
-	Do ..Ok(##class(OcuTalon.Mcp.Attach).Servers(.servers), "Servers answers")
-	Do $$$AssertEquals(servers.%Size(), 0, "with no server")
 	Set host = ..Runner()
 	Set adapter = host.Adapter
-	Do ..Ok(adapter.BuildAgent(), "the agent builds")
-	If '$IsObject(adapter.Agent) Quit
-	Do $$$AssertEquals(..Names(adapter.Agent.ToolManager) _ "|" _ adapter.AttachedCount(), ..#OWN _ ",zz_turn_set|1", "and has only its own tools and the fixture toolset")
+	Set before = ..RowCount(), count = -1, listed = $$$OK, size = -1, built = $$$OK, names = ""
+	TSTART
+	Try {
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Mcp.Server")
+		Set count = ..RowCount()
+		Set listed = ##class(OcuTalon.Mcp.Attach).Servers(.servers)
+		Set size = $Select($IsObject($Get(servers)): servers.%Size(), 1: -1)
+		Set built = adapter.BuildAgent()
+		If $IsObject(adapter.Agent) Set names = ..Names(adapter.Agent.ToolManager) _ "|" _ adapter.AttachedCount()
+	} Catch exception {
+		Set built = exception.AsStatus()
+	}
+	TROLLBACK 1
+	Do $$$AssertEquals(count, 0, "no Mcp.Server row exists in the transaction")
+	Do ..Ok(listed, "Servers answers")
+	Do $$$AssertEquals(size, 0, "with no server")
+	Do ..Ok(built, "the agent builds")
+	Do $$$AssertEquals(names, ..#OWN _ ",zz_turn_set|1", "and has only its own tools and the fixture toolset")
+	Do $$$AssertEquals(..RowCount(), before, "the rows that were there before the test are there again")
 }
 
 Method TestWrongClass()
@@ -322,6 +339,50 @@ Method TestTurnServerDown()
 	Set names = $Piece($Get(^||ZzTurn("config", 1)), "|", 4)
 	Do $$$AssertEquals(names, ..#OWN _ ",zz_turn_probe,zz_turn_set", "and lists the agent's tools and the fixture tools, none of the server's: " _ names)
 	Do $$$AssertEquals(..Leaks(adapter, 0), "", "the secret shows in none of the places that are checked, except the agent's own manager, which lists the server that is down")
+}
+
+/// A server that was up when the agent was built and is down when a request with no tools of its own runs: the request still gets a manager of its own, with
+/// the agent's tools and none of the server's, because AI Hub's listing of the agent's own manager throws while that manager holds a server that does not answer.
+/// While the server is up the request's manager lists its tools too.
+Method TestRequestServerDown()
+{
+	If ..Guard() Quit
+	Do ..Use("McpServersClass", ..#ATTACH)
+	Do ..Use("TurnToolsClass", ..#TURNTOOLS)
+	Do ..Register(, 1)
+	Set ^OcuTalonTest("TurnTools", "give") = 0
+	Set host = ..Runner()
+	Set adapter = host.Adapter
+	Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "a request with no tools of its own is composed while the server is up")
+	Set config = $Piece($Get(^||ZzTurn("config", 1)), "|", 3, 5)
+	Do $$$AssertEquals(config, "1|zz_delete_ticket,zz_lookup," _ ..#OWN _ ",zz_turn_set|zz_delete_ticket,zz_lookup", "on a manager of its own that lists the server's tools: " _ config)
+	Kill ^||ZzTurn("config")
+	Do ##class(OcuTalon.Test.Mcp.Mock).Stop(..Port)
+	Try {
+		Set sc = adapter.ComposeTwice("zz-mcp-owner")
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Do ..Ok(sc, "a request with no tools of its own is composed although the server is down now")
+	Set config = $Piece($Get(^||ZzTurn("config", 1)), "|", 3, 5)
+	Do $$$AssertEquals(config, "1|" _ ..#OWN _ ",zz_turn_set|", "on a manager of its own that lists the agent's tools and none of the server's: " _ config)
+	Do $$$AssertEquals(..Leaks(adapter, 0), "", "the secret shows in none of the places that are checked, except the agent's own manager, which lists the server that is down")
+}
+
+/// A tool of the server with the name of the tool of a request: the request's tool keeps the name, and the server's copy is not listed on the request's manager.
+Method TestTurnShadow()
+{
+	If ..Guard() Quit
+	Do ..Use("McpServersClass", ..#ATTACH)
+	Do ..Use("TurnToolsClass", ..#TURNTOOLS)
+	Do ..Register($ListBuild("zz_turn_probe"), 1)
+	Set ^OcuTalonTest("TurnTools", "give") = 1
+	Set host = ..Runner()
+	Set adapter = host.Adapter
+	Do ..Ok(adapter.TwoConfigs("zz-mcp-owner"), "a request with turn tools composes its manager")
+	Set config = $Piece($Get(^||ZzTurn("config", 1)), "|", 4, 5)
+	Do $$$AssertEquals(config, "zz_delete_ticket,zz_lookup," _ ..#OWN _ ",zz_turn_probe,zz_turn_set|zz_delete_ticket,zz_lookup", "the request's zz_turn_probe is listed once, and the server's copy is not: " _ config)
+	Do $$$AssertEquals(..Leaks(adapter), "", "the secret shows in none of the places that are checked")
 }
 
 /// Asserts that the status is OK. A failure names the label only: the text of a status from AI Hub can hold the URL and the value of a header, so it is never
@@ -479,6 +540,26 @@ ClassMethod UntrustedSentence(toolref As %String, name As %String) As %String [ 
 	Set text = $SYSTEM.Status.GetOneStatusText(sc)
 	Set prefix = "Tool access denied: "
 	Quit $Select($Extract(text, 1, $Length(prefix)) = prefix: $Extract(text, $Length(prefix) + 1, *), 1: text)
+}
+
+/// 1 when a result that the test manager logged in this run holds the secret, by containment (the value is never part of a message).
+Method LoggedSecret() As %Boolean [ Private ]
+{
+	Set secret = ..Secret
+	Set id = ..Manager.ResultId
+	If (secret = "") || (id = "") Quit 0
+	Set ns = ..Manager.OriginNS
+	If ns = "" Set ns = $Namespace
+	Set root = $Name(^|ns|UnitTest.Result(id))
+	Set prefix = $Extract(root, 1, *-1) _ ","
+	Set node = root
+	Set found = 0
+	For {
+		Set node = $Query(@node)
+		If (node = "") || ($Extract(node, 1, $Length(prefix)) '= prefix) Quit
+		If $Get(@node) [ secret Set found = 1 Quit
+	}
+	Quit found
 }
 
 /// Where the secret shows, as a text of the places ("" when nowhere). The value is looked for by containment and is never part of the text: the event log after the

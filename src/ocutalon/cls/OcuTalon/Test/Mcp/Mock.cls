@@ -1,9 +1,9 @@
 /// The loopback mock MCP server of the tests (Story 35.1; AD-21, AD-22): a minimal MCP server over streamable HTTP that a test starts, points an
 /// MCP Config Store entry at, and stops. It is a test fixture and never part of a production; Epic 22 reuses it. It is not a test case.
 ///   - Start(port, extra, header, expected) opens a listener in a job of its own on 127.0.0.1 only and on a free port (port, a port of 53200 to 53999
-///     that is not in use) and answers once the listener is open. The listener is the %IO.ServerSocket one, which binds to the interface it is given
-///     only when its ConnectionQueueSize is 0 and its KeepAliveInterval is -1 (Task 0, evidence 35-1-task0-mcp-attach.md): the bind is pinned by
-///     OcuTalon.Test.Mcp.Loopback.
+///     that is not in use) and answers once the listener is open. The listener is the %IO.ServerSocket one, whose Open with a timeout ignores the
+///     interface it is given when its ConnectionQueueSize is above 0 and its KeepAliveInterval is not -1 (the defaults); the mock sets both (Task 0,
+///     evidence 35-1-task0-mcp-attach.md), and the bind is pinned by OcuTalon.Test.Mcp.Loopback.
 ///   - The tools it lists are zz_lookup (readOnlyHint true) and zz_delete_ticket (destructiveHint true), and one more tool of the same shape for each
 ///     name in the list extra, so that a test can offer a tool with the name of a tool the agent already has. Calling a tool answers a text.
 ///   - It answers initialize, notifications (202 with no body), tools/list and tools/call with plain application/json replies, which AI Hub's client
@@ -49,6 +49,7 @@ ClassMethod Start(Output port As %Integer, extra As %List = "", header As %Strin
 			Quit
 		}
 		Do ..End(candidate, job)
+		Kill ^IRIS.Temp.OcuTalonMcpMock(candidate)
 	}
 	If port = 0 Quit $$$ERROR($$$GeneralError, "The mock MCP server found no free port to listen on")
 	Quit $$$OK
@@ -103,8 +104,8 @@ ClassMethod Running(port As %Integer) As %Boolean
 ClassMethod End(port As %Integer, job As %String) [ Private ]
 {
 	Set ^IRIS.Temp.OcuTalonMcpMock(port, "stop") = 1
-	Set state = ..WaitFor(port, "stopped", ..#STOPWAIT)
-	If (state '= "stopped") && (job '= "") && ##class(%SYS.ProcessQuery).%ExistsId(job) Do $SYSTEM.Process.Terminate(job)
+	Set state = ..WaitFor(port, "stopped,failed", ..#STOPWAIT)
+	If (state = "") && (job '= "") && ##class(%SYS.ProcessQuery).%ExistsId(job) Do $SYSTEM.Process.Terminate(job)
 	Kill ^IRIS.Temp.OcuTalonMcpMock(port, "job"), ^IRIS.Temp.OcuTalonMcpMock(port, "stop")
 }
 

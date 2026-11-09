@@ -22,13 +22,15 @@ Include Ensemble
 ///     the gate decides every tool call and every tool call is a step (AD-6, AD-9, AD-10).
 /// Tools of one request (AD-6, AD-10, AD-21, AD-31): the TurnToolsClass setting of the Decide item names a class (Ext.TurnTools) that Answer asks, once for
 /// each request of kind turn, decide or diagnose, for the tools of the request's OwnerRef. SessionConfigFor does that in the runner's job, outside every
-/// callback, before the AI session is created or opened. When the class gives no tool, the request keeps the agent's own tool manager, which no request ever
-/// adds a tool to. Otherwise the adapter composes a new tool manager for the request: the tools of the agent's toolsets, the tools that OnAfterAgentInit
-/// attached through Attach, the tools of the class (each answers AddToManager), the gate and the step audit policy (Govern), assigns it to the agent, and
+/// callback, before the AI session is created or opened. When the class gives no tool and no MCP server is attached, the request keeps the agent's own tool
+/// manager, which no request ever adds a tool to. Otherwise the adapter composes a new tool manager for the request: the tools of the agent's toolsets, the
+/// tools that OnAfterAgentInit attached through Attach (an MCP server's last, and only when it answers, so that a server that went down after the build
+/// never fails the request: AI Hub's listing of a manager that holds it throws), the tools of the class (each answers AddToManager), the gate and the step
+/// audit policy (Govern), assigns it to the agent, and
 /// keeps the agent's own manager and the tools referenced; Answer puts the agent's own manager back and lets go of the rest on every path when the request
 /// ends. A request is composed at most once, however many session configs it makes (a compaction makes two or three). An agent that declares skills
 /// cannot take tools of its own, because UseSkill keeps its catalog on the agent and not on a manager: such a request fails with an error that names the
-/// agent. A named class that is missing, or does not extend the base, fails the request with that error. A request of kind tool composes nothing.
+/// agent, and keeps the agent's own manager when the class gives it none. A named class that is missing, or does not extend the base, fails the request with that error. A request of kind tool composes nothing.
 /// The skipped request (AD-6, AD-8, AD-20): a request of kind decide, diagnose or turn whose DecisionRef already has a Decision row (Concluded) is
 /// skipped, whatever its provenance and whether it is a first attempt, a rate-limit re-send or a second-model retry. Decide records that row when it
 /// concludes, and its timer starts when it sends, so a request taken once the row exists (it waited in the runner's queue past its timer, or its retry
@@ -461,7 +463,7 @@ Method SessionConfigFor(Output config As %DynamicObject) As %Status
 }
 
 /// Gives the request that Answer serves the tools of its own, once (see the class description): asks the class of the TurnToolsClass setting for the
-/// tools of the OwnerRef and, when it gives any, assigns a newly composed tool manager to the agent. Nothing for a request that Answer does not serve
+/// tools of the OwnerRef and, when it gives any or an MCP server is attached, assigns a newly composed tool manager to the agent. Nothing for a request that Answer does not serve
 /// (a replay) and for the second and later session configs of a request, which return the status of the first. The agent is built.
 Method ComposeTurnTools() As %Status [ Private ]
 {
@@ -483,8 +485,15 @@ Method BuildTurnManager() As %Status [ Private ]
 	If $$$ISERR(sc) Quit sc
 	Set sc = $ClassMethod(class, "Tools", ..TurnOwner, ..TurnKind, .tools)
 	If $$$ISERR(sc) Quit sc
-	If '$IsObject($Get(tools)) || (tools.Count() = 0) Quit $$$OK
+	Set count = $Select($IsObject($Get(tools)): tools.Count(), 1: 0)
+	Set mcp = 0
+	Set position = 0
+	While 'mcp && $ListNext(..Attached, position, spec) {
+		If $Extract(spec, 1, 4) = "mcp:" Set mcp = 1
+	}
+	If (count = 0) && 'mcp Quit $$$OK
 	If $IsObject(..Agent.AvailableSkills) && (..Agent.AvailableSkills.%Size() > 0) {
+		If count = 0 Quit $$$OK
 		Quit $$$ERROR($$$GeneralError, "The agent "_$ClassName(..Agent)_" declares skills, so a request cannot take tools of its own from "_class_": a skill keeps its tools on the agent's tool manager")
 	}
 	Set manager = ##class(%AI.ToolMgr).%New()
@@ -504,7 +513,7 @@ Method BuildTurnManager() As %Status [ Private ]
 		If $$$ISERR(sc) Quit
 	}
 	If $$$ISERR(sc) Quit sc
-	For i = 1:1:tools.Count() {
+	For i = 1:1:count {
 		Set sc = tools.GetAt(i).AddToManager(manager)
 		If $$$ISERR(sc) Quit
 	}
@@ -520,7 +529,7 @@ Method BuildTurnManager() As %Status [ Private ]
 	If $$$ISERR(sc) Quit sc
 	Set ..OwnTools = ..Agent.ToolManager
 	Set ..TurnManager = manager
-	Set ..TurnToolList = tools
+	Set ..TurnToolList = $Select(count: tools, 1: "")
 	Set ..Agent.ToolManager = manager
 	Quit $$$OK
 }

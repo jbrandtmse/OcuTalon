@@ -6059,13 +6059,21 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: TestShadow builds a separate %AI.ToolMgr; the agent's own manager is checked for listing and RefusedTools only; Task 0 measured AI Hub marks the MCP copy unavailable
 - 2026-11-09T08:54:17Z status=open owner=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=harvest note=deferred by implement pass 1
+- 2026-11-09T09:37:05Z status=wontfix-accepted by=adjudication note=Task_0_measured_AI_Hub_marks_the_MCP_copy_unavailable_and_never_runs_it;_the_agent_manager_listing_and_RefusedTools_are_pinned;_code_review_added_TestTurnShadow_for_the_request_manager;reopen_if=a_run_shows_the_MCP_copy_of_a_shadowing_tool_executing_on_an_agent's_own_tool_manager
 
 ### DW-1011: No test compares the six accepted step-4 texts in EXPERIENCE.md's new block with Catalog.Watch, so a later edit of one side is not flagged
 - source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: checked once by script in review; Test.Msg.Catalog pins Catalog.Watch to its own fixtures; ux-strings.test.mjs reads page strings only
 - 2026-11-09T08:54:17Z status=open owner=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=harvest note=deferred by implement pass 1
+- 2026-11-09T09:37:05Z status=resolved-by:35-1-fix-step-4-s-contracts-and-register-mcp-servers by=adjudication note=QA_added_docker/tests/test-mcp-notices.sh_(CHECK_SCRIPTS):_the_EXPERIENCE.md_block_holds_exactly_the_six_keys_in_order_and_each_text_equals_Catalog.Watch;_mutations_one-word_text_edit_and_key_rename_went_red
 
 ### DW-1012: Bridge guide McpServers bullet writes AI.MCP.<name> outside backticks, so a Markdown renderer can drop <name>
 - source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: docs/bridge-guide.md fifth bullet of The extension classes, pinned whole-line by test-bridge-guide.sh turn_lines; other placeholders are in backticks
 - 2026-11-09T08:54:17Z status=open owner=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=harvest note=deferred by implement pass 2; lead ruling: backticks are formatting, not wording (decide), so the code review may wrap it and move the pin
+- 2026-11-09T09:37:05Z status=resolved-by:35-1-fix-step-4-s-contracts-and-register-mcp-servers by=adjudication note=code_review_wrapped_AI.MCP.<name>_in_backticks_(lead_ruling:_formatting_not_wording)_and_moved_the_turn_lines_pin;_test-bridge-guide.sh_passes_and_goes_red_without_them
+
+### DW-1013: An attached MCP server that accepts the connection and never answers may block AddTool and the manager's listing with no deadline, at the build and in every request
+- source: spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: Task 0 (3) did not measure a server that accepts and never answers; AttachOne, BuildTurnManager and AI Hub's per-call tools/list run with no bound and the MCP Config Store entry takes no timeout key, so one hung server could hold a runner past Decide's timer (unmeasured)
+- 2026-11-09T09:34:17Z status=escalated owner=burndown by=cr note=needs a measurement on a throwaway (rmcp's own timeout) before a fix; fix-risk high: platform behaviour
