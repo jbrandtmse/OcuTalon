@@ -5847,6 +5847,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-18-3-choose-models-and-set-budgets-in-settings.md | severity: med | fix-risk: high | footprint: in-epic
 - evidence: SettingsOps.BridgeTest waits on Decide for TESTWAIT inside the SettingsOps job; CommandsIn waits 120 s, the gateway 60 s (Design Notes 7); ServerButton re-enables after 10 s. Two Tests then a Save during a provider stall exceed 60 s: the page says Couldn't save. Nothing was changed. and the queued save applies.
 - 2026-11-08T15:31:05Z status=escalated owner=burndown by=cr note=fix needs a separate host or async Test (Production.cls, ServerButton) against the spec's synchronous SettingsOps contract
+- 2026-11-09T02:25:20Z status=routed owner=burndown by=merge_gate note=decision_sheet_Epic_18(category=decide):a_follow-up_story_makes_the_model_Test_asynchronous_or_moves_it_off_the_single_SettingsOps_job;tier_3
 
 ### DW-969: The 18.3 live tests delete every test.% Decision and Usage row and put the runner entries and the day's capped mark back to the install defaults, not to what they found
 - source: spec-18-3-choose-models-and-set-budgets-in-settings.md | severity: low | fix-risk: med | footprint: in-story
@@ -5942,6 +5943,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Core/Rule/Outcome.cls:25 routes tellnow and act to Rule.Notice (Kind tellnow); SessionOps.cls:259 refuses Outcome'=tellnow; NeedsYou OUTCOMES=tellnow,act. 18.4 review hid Got it for act on web and phone (chat-view noticeOf, SimPhoneOut.IsAct); Telegram is Lane A
 - 2026-11-08T22:54:33Z status=decision-pending owner=burndown by=cr note=product: may an Act notice be marked handled? no -> Telegram hides Got it for act (Lane A); yes -> SessionOps + AD-14 amend, web/phone unhide
+- 2026-11-09T02:25:20Z status=wontfix-accepted by=merge_gate note=planner_ruling_2026-11-08:NO_for_1.0.5;an_Act_notice_is_closed_by_its_fix_flow,so_no_Got_it_shows_there;Telegram's_Got_it_on_Act_notices_and_needs-you_counting_them_reopen_with_a_later_story_if_the_owner_wants
 
 ### DW-983: Install.Step.Core.Purge returns only the first error when both Pairing.Purge and Handled.Purge fail, and no test reaches a Handled-only failure through it
 - source: spec-18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled.md | severity: low | fix-risk: low | footprint: out-of-footprint

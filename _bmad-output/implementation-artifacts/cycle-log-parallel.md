@@ -2974,3 +2974,8 @@
 2026-11-09T02:24:38Z	Epic 18	runner_complete	agent=ad68d74c02763d478 stories=3(18.2,18.3,18.4) head=28537778 ci=success-by-exception(DW-973_only) applied=U-312,U-313 decisions_for_user=DW-968,DW-982,AD-18_sentence,AD-19_note
 2026-11-09T02:24:38Z	Epic 18	amendments_verified	amendments=epics.md:6405,6418;EXPERIENCE.md:170,784,789;spine_AD-14(18.2_interim,18.4_as-built),REST_rows,Notice_cards_row extensions=as_contract(Lane_A_by_grant_only) ok=true
 2026-11-09T02:24:38Z	Epic 18	merge_enqueued	policy=when_green+planner_standing_yes(DW-973)
+2026-11-09T02:25:38Z	Epic 18	epic_merged_to_feature	merge=cee6c109 head=28537778 stories=18.2,18.3,18.4 verified_on_origin=yes conflicts=none code_tree_equals_epic_head=yes ledger_union=lost0,dup0(972) sprint_valid=yes spine_lint=baseline feature_ci=42550818343,42550818274, exception=DW-973_standing_yes release=1.0.5
+2026-11-09T02:25:38Z	Epic 18	decision_sheet_recorded	decided=2(DW-968_routed_follow-up;DW-982_wontfix-accepted_per_Planner) to_action_items=2(ep18-ai-ad18,ep18-ai-ad19_attended_architecture_Update) to_x0=0 by=merge_gate
+2026-11-09T02:25:38Z	Run	deps_hash_rerecorded	reason=fix_forward stories=18.2-18.4 hash=0f9da64300e9
+2026-11-09T02:25:38Z	Epic 18	worktree_removed	
+2026-11-09T02:25:38Z	Epic 18	epic_branches_deleted	local+remote(ancestor_verified)
