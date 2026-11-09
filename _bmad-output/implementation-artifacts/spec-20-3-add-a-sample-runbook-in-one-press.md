@@ -76,6 +76,7 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
+- [ ] Planner conditions (2026-11-09): (a) add a test (web unit test reading the class sources, or an IRIS test) that pins the runbook's facts: the runbook text's quoted error equals the demo's actual order-date error text in `src/ocutalon/cls/OcuTalon/Demo/Orders/**`, and PartnerOrdersIn, OrdersFromPartner and OrdersToWarehouse are item names in `Demo/Orders/Production.cls`; record its mutation. (b) README.md: change ONLY the last sentence of the existing "Answers from your own documents" bullet to exactly `Try it: More to try, *Ask about a document*, which adds a sample runbook if you have no file to hand.`; no new bullet; `docker/tests/test-readme.sh` passes.
 - [ ] Task 0 (measure, record as "Task 0 results (implement)" under Design Notes). (a) On the fresh sign-in stack, the e2e's real turn shows the citation on the target section, and the popover passage starts with "OrdersFromPartner accepts". (b) The fixture user the new e2e uses holds exactly `OcuTalonUser` (`Security.Users`, like sources.spec S0). (c) The time from the press to "Ready" on the developer machine.
 - [ ] `web/src/app/documents/sample-runbook-view.ts` (new, framework-free, imports nothing) -- `SAMPLE_RUNBOOK_TEXTS = {name, text, question}`, verbatim from `## Public Text`. The bundled runbook.
 - [ ] `web/src/app/documents/documents-view.ts` -- add `DOCUMENTS_TEXTS.sample`. Add `hasDocuments(server, live)` (`rows(server, live, []).length > 0`). Add `sampleListed(rows, name)`: true when a row has that name and is not the page's own refused row. Both extend `rows`. Update the header comment.
@@ -103,6 +104,8 @@ deferred: []
 - Given the fixed-strings test, when it runs, then every new string is in `SOURCES` with its ruling, the runbook module is in `IMPORTED`, item 6's look-for in EXPERIENCE.md equals the registry's, and the count stays eight (UX-DR117).
 
 ## Spec Change Log
+
+- 2026-11-09 (lead): Planner rulings applied [AMENDED 2026-11-09, Contest Planner ruling]: Public Text 1-8 approved; 9 replaced by the README sentence change (see Design Notes); new task: the runbook-facts test (condition a).
 
 ## Review Triage Log
 
@@ -144,6 +147,8 @@ This story adds only the bundled text, the button, the guide control, the look-f
 - One small copy: `SampleRunbook`'s GET-on-snapshot effect repeats `DocumentsPage`'s five-line fetch. It is kept because the page owns its list (it refetches after each add, and has local rows) while the service is a read-only presence probe that lives outside the page. Unifying them would move the page's list into a service, which is a refactor outside this story.
 
 **Spec gate (lead, 2026-11-09):** passed (Integration ACs G1/G2 and E1; AD ids mapped; ledger inbox empty; no route, privilege or stored-data change; lane-B throwaways only). Sent to the Planner before any implement: the 9 rows of `## Public Text` (PUBLIC TEXT). Implement waits for the ruling and for Story 20.2's CI on 6c6f00a7; each ruling is recorded here when it arrives.
+
+**Planner rulings (2026-11-09 ~23:10Z, owner delegation, recorded verbatim in `.worktrees/.coordination/prompts/epic-20-rulings-203.md`) [AMENDED 2026-11-09, Contest Planner ruling]:** strings 1-8 of `## Public Text` APPROVED as drafted. Conditions: (a) a test pins the runbook's facts to the demo: the quoted error "The order date was not in the expected format." equals the demo's actual error text, and the item names PartnerOrdersIn, OrdersFromPartner and OrdersToWarehouse exist in Demo/Orders; a rename that breaks the runbook turns the test red. (b) If 23.2's OrdersForReview lands first, the runbook need not mention it. String 9 (README bullet) REJECTED: no new bullet; instead the existing "Answers from your own documents" bullet's last sentence becomes exactly `Try it: More to try, *Ask about a document*, which adds a sample runbook if you have no file to hand.` The README count does not change, and test-readme must pass.
 
 **Decided in-stage:**
 1. The guide control hands off: navigate, then press the page's button. This keeps "A control does what the control it names does", and refusals show where they always do.
@@ -199,6 +204,8 @@ Not touched: any `.cls`, `Web/Api.cls`, `Core/**`, `Data/**`, `Msg/**`, `chat/ch
 **Ledger inbox (Rule 17):** none.
 
 ## Public Text
+
+RULED 2026-11-09 by the Planner: rows 1-8 approved as drafted; row 9 replaced by the README sentence in Design Notes "Planner rulings" (verbatim there). [AMENDED 2026-11-09, Contest Planner ruling]
 
 All rows are new and need a Planner ruling. Use them verbatim once ruled. Each one passes the U-280 check: provenance only, never "used", "relied on" or "based on".
 
