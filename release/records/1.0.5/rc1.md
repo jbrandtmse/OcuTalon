@@ -20,12 +20,12 @@ Size: 6178083 bytes, over 5000000
 Checks: the exact artifact installed from a local IPM repository on a fresh build 154 instance with no Node.js, in USER and then in OCUTALON; OCUTALON served the sign-in page and the README account signed in; the uninstall left USER's repository definitions unchanged
 
 ## Release sequence
-Result: stopped at push: waiting for the author's word
+Result: stopped after notes: no gate has run (not a release)
 Mode: release
 Candidate: 1.0.5 rc1, release/1.0.5-rc1 at 7353750b250b0e84696efed6cc39ea7466839239
 Cut from: feature/OCT_OcuTalon_MVP at 2a45f8bca14fb3a8f9f7ad6b19f50d5d120c6e4b
 Hands-on time: 0 s for this candidate; 0 s for 1.0.5 so far (target at most 15 min; CI and the hands-on pass not counted)
-Run: 2026-11-09T09:06:12Z to 2026-11-09T09:35:50Z
+Run: 2026-11-09T09:06:12Z to 2026-11-09T09:36:04Z
 
 | Step | Result | Detail |
 | --- | --- | --- |
@@ -34,5 +34,6 @@ Run: 2026-11-09T09:06:12Z to 2026-11-09T09:35:50Z
 | overview | pass | the generated sections equal a fresh generation from the candidate, and the overview tests pass |
 | ipm | pass | ocutalon-1.0.5.tgz, 6178083 bytes, SHA-256 4c1c60ddbdac; carries the candidate's web bundle; not published |
 | ipmcheck | pass | ocutalon-1.0.5.tgz (6178083 bytes) installs from a local IPM repository on a fresh instance with no Node.js and uninstalls leaving the repository definitions unchanged |
-| push | stopped | the author's word was not given |
-| record | committed, not pushed | waiting for the author's word |
+| push | pass | release/1.0.5-rc1 pushed to origin on the author's word |
+| notes | fail | release/notes.sh: RESULT fail; draft release/records/1.0.5/rc1-notes.md (not committed) |
+| record | committed, not pushed | the author's word was not given |
