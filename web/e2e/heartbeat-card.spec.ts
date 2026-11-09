@@ -7,6 +7,7 @@ import { applied, railOf, signInReadmeLoaded } from './support/floor';
 import { chk, irisScript, publishStatus, quoted } from './support/iris';
 import { clock } from './support/page';
 import { sessionRef } from './support/persona';
+import { instanceSeq, monitorSettled, runnersReady, runnersRecorded } from './support/runners';
 
 /**
  * Story 39.5 (HC1 to HC12, and HC3b and HC9b), the Heartbeat checklist card in the status rail, in a real browser against the stack that test-sign-in.sh seeds,
@@ -157,8 +158,9 @@ const exactly = (text: string): RegExp => new RegExp(`^${text.replace(/[.*+?^${}
 test('HC1: the Heartbeat checklist section comes before Persona with the default state line, and shows the empty-checklist skip', async ({ page }) => {
   await withCard(page, async (ref) => {
     const headings = railOf(page).getByRole('heading', { level: 3 });
-    const heartbeat = headings.nth((await headings.count()) - 2);
-    await expect(heartbeat, 'the second to last section is Heartbeat checklist').toHaveAccessibleName('Heartbeat checklist');
+    const heartbeat = headings.nth((await headings.count()) - 3);
+    await expect(heartbeat, 'the third to last section is Heartbeat checklist, then Memory').toHaveAccessibleName('Heartbeat checklist');
+    await expect(headings.nth((await headings.count()) - 2), 'and Memory follows it').toHaveAccessibleName('Memory');
     await expect(headings.last(), 'and Persona is last').toHaveAccessibleName('Persona');
     await expect(heartbeat.locator('[aria-hidden="true"]'), 'the heading has no count').toHaveCount(0);
     await expect(card(page), 'the card is the body of the section').toHaveCount(1);
@@ -647,29 +649,6 @@ test('HC12: when a failed save reads again and that read fails, the card leaves 
   });
 });
 
-/** The last Seq of the instance stream, where the status monitor publishes its conditions. */
-async function instanceSeq(): Promise<number> {
-  const seq = Number(chk(await irisScript('Write !,"CHK|seq|",##class(OcuTalon.Live.Publish).LastSeq("instance")'), 'seq'));
-  if (!Number.isInteger(seq) || seq < 0) throw new Error('the last Seq of the instance stream could not be read');
-  return seq;
-}
-
-/** Waits up to 30 seconds (two runs of the status monitor) for its noModelKey event after the mark; none comes when the reading did not change. */
-async function monitorSettled(mark: number): Promise<void> {
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    const lines = await irisScript(
-      [
-        `Set r=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) AS n FROM OcuTalon_Live.Event WHERE Stream = 'instance' AND Seq > ? AND Type = 'status' AND Payload [ 'noModelKey'",${mark})`,
-        'Do r.%Next()',
-        'Write !,"CHK|events|",+r.%Get("n")',
-      ].join('\n'),
-    );
-    if (Number(chk(lines, 'events')) > 0) return;
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
-  }
-}
-
 /**
  * HC4: Integration. The real routes and the real tick, with the CI mock as the model. Its afterAll waits for the status monitor's noModelKey
  * event of the restored keys, so that the event lands before the next case or file and not in it.
@@ -678,16 +657,9 @@ test.describe('HC4 (Integration)', () => {
   test.beforeAll(async () => {
     test.setTimeout(240_000);
     await pointKeys();
-    const lines = await irisScript(
-      [
-        'Set reason=##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()',
-        'Kill ^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))',
-        'Write !,"CHK|ready|",reason',
-        'Write !,"CHK|keyed|",##class(OcuTalon.Bridge.Keys).Status(##class(OcuTalon.Checks.Beat).#AGENT)',
-      ].join('\n'),
-    );
-    expect(chk(lines, 'ready'), `the production is ready (${lines.join(' ')})`).toBe('');
-    expect(chk(lines, 'keyed'), 'and the TriageAgent has its key').toBe('1');
+    const ready = await runnersReady();
+    expect(ready.reason, 'the production is ready').toBe('');
+    expect(ready.keyed, 'and the TriageAgent has its key').toBe('1');
   });
 
   test.afterAll(async () => {
@@ -696,8 +668,7 @@ test.describe('HC4 (Integration)', () => {
     try {
       await restoreKeys();
     } finally {
-      const lines = await irisScript('Write !,"CHK|records|",##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords()');
-      expect(chk(lines, 'records'), `the runners recorded the restored keys (${lines.join(' ')})`).toBe('1');
+      expect(await runnersRecorded(), 'the runners recorded the restored keys').toBe('1');
       await monitorSettled(mark);
     }
   });

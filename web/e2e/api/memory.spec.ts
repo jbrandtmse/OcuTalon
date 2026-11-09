@@ -1,7 +1,7 @@
 import { expect, test } from '../support/fixtures';
 
 import { README_ACCOUNT, envelope, expectError, signInOverHttp } from '../sign-in/helpers';
-import { chk, irisScript, quoted } from '../support/iris';
+import { precedentExists, removeNoteRows, removePrecedent, seedNoteDecision, seedNoteTurn, seedPrecedent } from '../support/memory';
 import { sessionRef } from '../support/persona';
 
 /**
@@ -22,92 +22,18 @@ const MEMORY = '/ocutalon/api/v1/memory';
 const NOISE = (ref: string): string => `/ocutalon/api/v1/decisions/${ref}/noise`;
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
-const KEY = 'zz.memoryspec@example.com';
-
-/** Saves a precedent row of the owner (a session's Ref, or eval with a run) and answers its Ref. */
-async function seedRow(owner: string, answeredAt: string, run: string): Promise<string> {
-  const lines = await irisScript(
-    [
-      'Set r=##class(OcuTalon.Data.Precedent).%New()',
-      'Set r.Ref=##class(OcuTalon.Bridge.Ids).NewRef()',
-      `Set r.OwnerRef=${quoted(owner)}`,
-      'Set r.Channel="mailbox"',
-      `Set r.MatchKey=${quoted(KEY)}`,
-      'Set r.Summary="zz memory spec"',
-      'Set r.Outcome="tellnow"',
-      'Set r.Answer="noise"',
-      `Set r.AnsweredAt=${quoted(answeredAt)}`,
-      'Set r.AnsweredChannel="phone"',
-      'Set r.SourceRef=r.Ref',
-      `Set r.EvalRunRef=${quoted(run)}`,
-      'Set sc=r.%Save()',
-      'Write !,"CHK|ref|",$Select($SYSTEM.Status.IsOK(sc):r.Ref,1:"")',
-    ].join('\n'),
-  );
-  const ref = chk(lines, 'ref');
-  if (!ref) throw new Error(`a precedent row could not be seeded (${lines.join(' ')})`);
-  return ref;
-}
-
-/** Deletes the row with the Ref, if it is there. */
-async function removeRow(ref: string): Promise<void> {
-  await irisScript(
-    [`Set r=##class(OcuTalon.Data.Precedent).RefIndexOpen(${quoted(ref)})`, 'If $IsObject(r) Do ##class(OcuTalon.Data.Precedent).%DeleteId(r.%Id())', 'Write !,"CHK|removed|1"'].join('\n'),
-  );
-}
 
 /** Saves a done turn of the session (channel web, created now) with the text, and a decide decision of the session (recorded now) with the summary, and answers their Refs. */
 async function seedNote(session: string, text: string, summary: string): Promise<{ turn: string; decision: string }> {
-  const lines = await irisScript(
-    [
-      'Set t=##class(OcuTalon.Data.Turn).%New()',
-      'Set t.Ref=##class(OcuTalon.Bridge.Ids).NewRef()',
-      `Set t.SessionRef=${quoted(session)}`,
-      'Set t.State="done"',
-      'Set t.Channel="web"',
-      'Set t.CreatedAt=##class(OcuTalon.Data.Time).NowUtc()',
-      'Set t.ItemId=##class(OcuTalon.Bridge.Ids).NewRef()',
-      `Set t.Text=${quoted(text)}`,
-      'Set tsc=t.%Save()',
-      'Set d=##class(OcuTalon.Bridge.Data.Decision).%New()',
-      'Set d.Ref=##class(OcuTalon.Bridge.Ids).NewRef()',
-      'Set d.Kind="decide"',
-      'Set d.ItemId=##class(OcuTalon.Bridge.Ids).NewRef()',
-      `Set d.OwnerRef=${quoted(session)}`,
-      `Set d.Summary=${quoted(summary)}`,
-      'Set d.Outcome="digest"',
-      'Set d.RecordedAt=##class(OcuTalon.Data.Time).NowUtc()',
-      'Set dsc=d.%Save()',
-      'Write !,"CHK|turn|",$Select($SYSTEM.Status.IsOK(tsc):t.Ref,1:"")',
-      'Write !,"CHK|decision|",$Select($SYSTEM.Status.IsOK(dsc):d.Ref,1:"")',
-    ].join('\n'),
-  );
-  const turn = chk(lines, 'turn');
-  const decision = chk(lines, 'decision');
-  if (!turn || !decision) {
-    await removeNote({ turn: turn ?? '', decision: decision ?? '' });
-    throw new Error(`the note rows could not be seeded (${lines.join(' ')})`);
+  const rows: { turn?: string; decision?: string } = {};
+  try {
+    rows.turn = await seedNoteTurn(session, text);
+    rows.decision = await seedNoteDecision(session, summary);
+  } catch (error) {
+    await removeNoteRows(rows);
+    throw error;
   }
-  return { turn, decision };
-}
-
-/** Deletes the turn and the decision with the Refs, if they are there; an empty Ref stands for a row that was not saved. */
-async function removeNote(rows: { turn: string; decision: string }): Promise<void> {
-  await irisScript(
-    [
-      `Set t=##class(OcuTalon.Data.Turn).RefIndexOpen(${quoted(rows.turn)})`,
-      'If $IsObject(t) Do ##class(OcuTalon.Data.Turn).%DeleteId(t.%Id())',
-      `Set d=##class(OcuTalon.Bridge.Data.Decision).RefIndexOpen(${quoted(rows.decision)})`,
-      'If $IsObject(d) Do ##class(OcuTalon.Bridge.Data.Decision).%DeleteId(d.%Id())',
-      'Write !,"CHK|removed|1"',
-    ].join('\n'),
-  );
-}
-
-/** 1 when the row with the Ref is there, else 0. */
-async function rowExists(ref: string): Promise<number> {
-  const lines = await irisScript([`Write !,"CHK|exists|",##class(OcuTalon.Data.Precedent).RefIndexExists(${quoted(ref)})`].join('\n'));
-  return Number(chk(lines, 'exists') ?? Number.NaN);
+  return { turn: rows.turn, decision: rows.decision };
 }
 
 test('the memory routes: signed out, the list, a delete, unknown refs, and the notes', async ({ request, playwright, baseURL }) => {
@@ -133,10 +59,10 @@ test('the memory routes: signed out, the list, a delete, unknown refs, and the n
       await anonymous.dispose();
     }
 
-    const own = await seedRow(ref, '2030-01-01T10:00:00Z', '');
+    const own = await seedPrecedent(ref, { answeredAt: '2030-01-01T10:00:00Z' });
     seeded.push(own);
     const run = `zzmemoryrun${Date.now()}`.slice(0, 22);
-    const eval_ = await seedRow('eval', '2030-01-02T10:00:00Z', run);
+    const eval_ = await seedPrecedent('eval', { answeredAt: '2030-01-02T10:00:00Z', run });
     seeded.push(eval_);
 
     const listed = await request.get(`${MEMORY}/precedents`);
@@ -148,12 +74,12 @@ test('the memory routes: signed out, the list, a delete, unknown refs, and the n
     expect(rows[0]).toEqual({ ref: own, answeredAt: '2030-01-01T10:00:00Z', channel: 'mailbox', answeredChannel: 'phone', summary: 'zz memory spec', outcome: 'tellnow', answer: 'noise' });
 
     await expectError(await request.fetch(`${MEMORY}/precedents/${eval_}`, { method: 'DELETE', headers: envelope() }), 404, 'not_found', NOT_FOUND);
-    expect(await rowExists(eval_), 'the seeded row is still there').toBe(1);
+    expect(await precedentExists(eval_), 'the seeded row is still there').toBe(1);
 
     const deleted = await request.fetch(`${MEMORY}/precedents/${own}`, { method: 'DELETE', headers: envelope() });
     expect(deleted.status(), await deleted.text()).toBe(200);
     expect(await deleted.json()).toEqual({ result: 'done' });
-    expect(await rowExists(own), 'the row is gone').toBe(0);
+    expect(await precedentExists(own), 'the row is gone').toBe(0);
     const after = await request.get(`${MEMORY}/precedents`);
     const left = ((await after.json()) as { precedents: Array<Record<string, string>> }).precedents.filter((row) => seeded.includes(row['ref'] ?? ''));
     expect(left, 'the list then holds none of the test\'s rows').toEqual([]);
@@ -180,7 +106,7 @@ test('the memory routes: signed out, the list, a delete, unknown refs, and the n
     const missing = await request.get(`${MEMORY}/notes?day=zz`);
     await expectError(missing, 404, 'not_found', NOT_FOUND);
   } finally {
-    for (const one of seeded) await removeRow(one);
-    if (noteRows) await removeNote(noteRows);
+    for (const one of seeded) await removePrecedent(one);
+    if (noteRows) await removeNoteRows(noteRows);
   }
 });

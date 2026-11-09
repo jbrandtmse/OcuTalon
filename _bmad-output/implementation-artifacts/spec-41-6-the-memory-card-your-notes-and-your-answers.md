@@ -2,12 +2,20 @@
 title: 'Story 41.6: The Memory card: your notes and your answers'
 type: 'feature'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'c0e3b6d01d7ec443f23d6c6ba56115d1444bcc17'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Story 41.5's NZ1 and NZ2 (web/e2e/memory-noise.spec.ts) fail when the instance's UTC hour is below 10.
+    evidence: |-
+      The page renders the mark time as "1:10" and the cases expect "01:10". They went red in this story's runs of `ci/iris.sh live sign-in-3 --part 6/6` after 00:00 UTC and green before it. Not caused by this story; the part holding memory-card.spec.ts shares the unit, so CI's shards-5 group is red in those hours.
+    location: >-
+      web/e2e/memory-noise.spec.ts:116 and :147
+    severity: medium
 ---
 
 <intent-contract>
@@ -236,6 +244,49 @@ Paths are under `web/` unless given in full. Line numbers are at `630efe7d`.
 
 ## Review Triage Log
 
+### 2026-11-09 - Review pass
+- verdicts: 38 findings - high 0, medium 1, low 22, false 15, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: MC8's header says "demo variant" but runs as the README account - Design Notes "Decided in-stage" rules MC8 on the local sign-in-3 stack, and the header says so.
+  - `[low]` `[reject]` Blind: MC3/MC8 route gates are not released if an assertion fails first - the page closes at test end; no later case shares the page.
+  - `[low]` `[reject]` Blind: `monitorSettled` returns silently on timeout - its doc says none comes when the reading did not change (HC4's documented behaviour).
+  - `[false]` `[reject]` Blind: a forgotten row can reappear after a re-read - every read sets its signal to undefined before sending, so no Forget button exists while a read is in flight, and the next read starts after the DELETE.
+  - `[low]` `[reject]` Blind: failed and pending reads look alike - the Boundaries rule ("intro only", tried again at the next selection); a failure line would be new text.
+  - `[low]` `[reject]` Blind: no case for 501/network on Forget - `ForgetDialog.confirm` has one non-404 branch, which MC5's 500 case drives.
+  - `[false]` `[reject]` Blind: a seeded "today" turn at noon may be in the future - MC2 passed in a run at 01:10 UTC with turns at noon today.
+  - `[low]` `[reject]` Blind: mutation record leaves behaviours unchecked - Rule 19 asks one mutation per AC; all six are recorded.
+  - `[low]` `[reject]` Blind: layout G4 not re-run - the spec leaves `live:floor` to CI; R17's loop is task 8's shared-surface edit.
+  - `[low]` `[reject]` Blind: inconsistent EXPERIENCE citations in the allow-lists - the strings are the spec's own (L321 for the key map).
+  - `[low]` `[reject]` Blind: relative times freeze at the last read - the rail's rows read `now` at render too; a long-open page re-reads on tab selection.
+  - `[low]` `[reject]` Edge: Esc during an in-flight DELETE then 200 leaves the row listed - same shape as documents/remove-dialog.ts; a second Forget answers 404 and removes the row; the fix adds state.
+  - `[false]` `[reject]` Edge: a click on the selected tab does not retry - the spec says a tab is read again when it is next selected (Matrix: Tried again when Notes is next selected).
+  - `[low]` `[reject]` Edge: Alt/Cmd+Arrow is swallowed - the same handler shape as devices/device-panel.ts, which the spec says to follow.
+  - `[false]` `[reject]` Edge: row removal when the list is undefined (re-read pending) - no Forget exists while a read is pending (same root as the Blind re-read claim).
+  - `[false]` `[reject]` Edge: heading() may be null after Forget - the card sits inside the section whose h3 carries the id; MC4/MC5/MC6 assert focus on it.
+  - `[low]` `[reject]` Edge: dialog `closed` subscription outlives a destroyed card - the dialog is modal and completes on close.
+  - `[low]` `[reject]` Edge: Today/Yesterday labels stale across midnight - re-read at the next tab selection or load.
+  - `[false]` `[reject]` Edge: `entry.request.tools.%Size()` may throw - MC9's control request is counted (count > 0), so the field exists in the mock log.
+  - `[low]` `[reject]` Edge: `monitorSettled` timeout is silent - same as the Blind row.
+  - `[low]` `[reject]` Edge: seedThree cleanup error masks the seed error - fixture-only, cleanup helper does not throw on a missing row.
+  - `[low]` `[reject]` Edge: MC8 seed step may lose a Ref - fixture-only; `cleanFixtureRows` removes the other session.
+  - `[low]` `[reject]` Edge: the doc claim "a click reads it again" - a click on the selected tab does not; wording only, no behaviour.
+  - `[medium]` `[patch]` VG: MC2's served-order assertion cannot fail with one line a day - patched: MC2 seeds two turns per day latest first, asserts time order, and the mutation (reversed Today list) went red.
+  - `[low]` `[reject]` VG: MC9's Triage-request assertions have no mutation that reaches them - the control (count > 0, opening present before Forget) shows they are not vacuous; every realistic fault deletes no row, so `precedentExists` fires first.
+  - `[low]` `[reject]` VG: Rule 19 attribution of combined mutation runs - each AC has its own recorded line.
+  - `[low]` `[reject]` VG: MC6 relies on no newer row for the session - workers 1, and the other cases remove their rows in `finally`.
+  - `[false]` `[reject]` VG: MC3 depends on `signInReadmeLoaded` not waiting on notes - it does not (MC3 passes).
+  - `[low]` `[patch]` VG: memory-card-view.test.mjs greps a doc comment of Precedent.cls - patched: the case is deleted (the channel contract is pinned by Test.Data.Precedent).
+  - `[low]` `[reject]` VG: confirmed Forget not exercised in the drawer band - MC7 requires Cancel and Esc there.
+  - `[false]` `[reject]` VG: browser coverage only in sign-in-3 - the repo's convention (Rule 3 evidence is that project).
+  - `[false]` `[reject]` Intent: re-read on every selection versus a lazier reading - the Code Map says "Selecting a tab reads that tab again".
+  - `[false]` `[reject]` Intent: both tabs read at construction - the spec's "Decided in-stage: Reading".
+  - `[false]` `[reject]` Intent: Notes failure is all-or-nothing - the Matrix: intro only, no day label.
+  - `[false]` `[reject]` Intent: h4 day labels and `p` empties - Design Notes "Today/Yesterday are h4 labels".
+  - `[false]` `[reject]` Intent: edit to the 41.2 spec api/memory.spec.ts - the Code Map lists it (helpers moved, assertions unchanged).
+  - `[low]` `[reject]` Intent: R10 and R17 rewritten beyond counts - task 8; the card reads on creation and tab select, and the taller rail needs a stepped wheel.
+  - `[false]` `[reject]` Intent: root-scoped `ForgetTarget` carries the ref - holds a precedent Ref (not a SessionRef), set before each open; Dialogs.open takes no data.
+- triage-added (not counted above): `[medium]` `[patch]` Rule 2: `instanceSeq`, `monitorSettled` and HC4's ready/records steps were copied from heartbeat-card.spec.ts into support/memory.ts with no stated reason - patched: moved to the new support/runners.ts, imported by both specs; HC4 and MC9 passed after.
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -365,6 +416,16 @@ Run every command from the worktree root, one per call, with `timeout: 600000`, 
 - AC 5: the `(keydown)` handler removed -> MC6.
 - AC 6: `RAIL_TEXTS.memory` put after `persona` -> `rail-view.test.mjs` and `rail.spec.ts` R1.
 
+Recorded by the implement stage (browser cases on a fresh `ci/iris.sh live sign-in-3 --part 6/6` stack, each mutation reverted byte-identically; the other reds in a run are the same fault reaching other cases):
+- mutation: AC 1, the Notes panel shows `notesEmpty` while its read is pending (an `@else` on the days) -> MC3 red (also MC6 and MC8 in that run, which carried AC 5's and AC 3's mutations).
+- mutation: AC 2, `forgetPrecedent` sends `DELETE .../precedents/` with no ref -> MC4 red (the DELETE address; MC5, MC6 and MC9 red too).
+- mutation: AC 2, the row removed only after a re-read (`gone` calls `readAnswers`) -> MC4 red (the "one DELETE and no re-read" request list; MC5 red too).
+- mutation: AC 3, the last list kept in `sessionStorage` and shown before the read answers -> MC8 red (the held-read check after the reload).
+- mutation: AC 4, the dialog's confirm closes it without calling the route -> MC9 red (the row stays in the table; MC4, MC5 and MC6 red too).
+- mutation: AC 5, the `(keydown)` binding removed -> MC6 red, and `floor-sources.test.mjs` red (the key-binding and key-handler inventories).
+- mutation: AC 6, the Memory section pushed after Persona in `railView` -> `rail-view.test.mjs` red (five cases). `rail.spec.ts` R1 not run against it.
+- mutation: AC 1 (served order), the Today list rendered reversed (`shown.today.slice().reverse()`) -> MC2 red (review pass; MC2 seeds two turns a day, latest first; the tree was restored byte-identically and MC1 to MC9 passed again on a fresh `ci/iris.sh live sign-in-3 --part 6/6`, with Story 41.5's NZ1 and NZ2 red as deferred).
+
 **Shared surfaces:**
 - the rail's sections and heading counts: `rail-view.test.mjs`, `rail/rail.spec.ts` R1 and R11, `frame/frame.spec.ts` F1, `demo-path/01-page.spec.ts:103`;
 - the rail's height: `floor/layout.spec.ts` G4;
@@ -372,18 +433,27 @@ Run every command from the worktree root, one per call, with `timeout: 600000`, 
 - the UX inventory: `ux-strings.test.mjs`;
 - the sign-in projects' file lists: `playwright.config.ts`, `playwright-projects.test.mjs`;
 - the README session's Precedent, Turn and Decision rows: `api/memory.spec.ts`, which shares the moved helpers;
-- the runners' keys: MC9's `pointKeys`, restored in `afterAll` as HC4 does.
+- the runners' keys: MC9's `pointKeys`, restored in `afterAll` as HC4 does; the shared steps are in `web/e2e/support/runners.ts`, which `heartbeat-card.spec.ts` HC4 imports too (`ci/iris.sh live sign-in-3 --part 5/6` passed, 23 tests).
 
 Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-- Plan stage only (Halt after planning). The spec was written from the committed `epic-41-context.md`, 41.4's continuity, the routes as built (`Web/Api.cls:1588-1661`) and the sibling cards. No IRIS call and no throwaway were needed: the story changes no class, and every platform behaviour it uses is already measured by an existing spec.
-- Before implement, the lead needs to rule:
-  - Clarification 1: the one `demo-path/01-page.spec.ts:103` edit (the U-295 shape).
-  - Clarification 2: the contended `announce-focus-sources` and `ux-strings` inventory edits, as plain unions.
-  - Clarification 3: `shards-5` is at 2,070 s of units (job 35 min 8 s) on `ci` run 42485902344, before 41.4, 41.5 and 41.6 add time.
-  - The PUBLIC TEXT list under Design Notes (11 items; item 9 is the honesty note for `tool:` rows), which goes to the Contest Planner.
+- **Summary:** the Memory card is in the status rail between the Heartbeat checklist and Persona. It has two ARIA tabs: Notes (today and yesterday from `GET /api/v1/memory/notes`, as served) and Your answers (`GET /api/v1/memory/precedents`, each row with Forget, which asks in a modal dialog, then sends only `DELETE /api/v1/memory/precedents/:ref` and removes the row with no re-read). It reads only through `ApiClient`, shows the intro line alone while a read is pending or failed, and holds nothing across loads. All nine ruled strings are pinned with fixed strings.
+- **Files changed:**
+  - New: `web/src/app/rail/memory-card/{memory-card-view,memory-card,forget-dialog}.ts`, `web/src/app/api/memory-card-types.ts`, `web/scripts/memory-card-view.test.mjs`, `web/e2e/memory-card.spec.ts` (MC1-MC9), `web/e2e/support/memory.ts` (moved fixtures), `web/e2e/support/runners.ts` (shared runner/monitor steps).
+  - Changed: `rail-view.ts`, `status-rail.ts` (the slot), `api-client.ts` (three methods at the class end), `playwright.config.ts` and `playwright-projects.test.mjs` (`sign-in-3` list), `rail-view.test.mjs`, `floor-sources.test.mjs`, `announce-focus-sources.test.mjs`, `ux-strings.test.mjs` (plain unions and the one-name `IMPORTED` append), `e2e/api/memory.spec.ts` (helpers moved), `e2e/rail/rail.spec.ts`, `e2e/frame/frame.spec.ts`, `e2e/heartbeat-card.spec.ts`, `e2e/demo-path/01-page.spec.ts` (count 8 plus the Memory-before-Persona assertion only).
+- **Review:** 38 findings, 1 patched medium (MC2 order pin) and 1 patched low (a doc-comment grep), 1 triage-added medium patched (copied runner helpers moved to `support/runners.ts`), 1 item deferred (Story 41.5's NZ1/NZ2 under UTC hour 10), 35 rejected with their reasons in the Review Triage Log. Follow-up review recommended: false (one medium patched).
+- **Verification performed:**
+  - `node --test` memory-card-view, rail-view, floor-sources, announce-focus-sources, ux-strings, api-client-sources, playwright-projects: pass. `npm --prefix web test` 1610 pass. `npm --prefix web run lint` exit 0. `npm --prefix web run build` passes. `bash ci/checks.sh` all scripts passed (before the review patches, which touch only e2e files). `bash docker/tests/test-boundaries.sh` passes.
+  - `ci/iris.sh live sign-in-3 --part 6/6`: MC1-MC9 pass (NZ1 and NZ2 of Story 41.5 red, deferred); `--part 5/6`: 23 pass (HC4 included); sign-in parts 3/19, 12/19, 14/19 and sign-in-2 part 11/15 passed in the implement pass. Mutations are recorded under `## Verification`.
+  - Throwaways torn down; no lock left.
+- **Residual risks:**
+  - `floor/layout.spec.ts` G4 (viewport 1000x2100) and the demo-path unit were not run locally (over 150 s); G4 may need a taller viewport, as Story 40.4 did. Left to CI.
+  - Story 41.5's NZ1/NZ2 are red in sign-in-3 part 6/6 while the UTC hour is below 10 (deferred above).
+  - The group time of `shards-5` is the lead's rebalance (Clarification 3).
+- **footprint_extensions:** `web/src/app/rail/status-rail.ts`, `web/playwright.config.ts`, `web/scripts/{playwright-projects,rail-view,floor-sources,memory-card-view}.test.mjs`, `web/e2e/support/{memory,runners}.ts`, `web/e2e/{api/memory,rail/rail,frame/frame,heartbeat-card}.spec.ts`.
+- **Contended edits made (standing precedent):** the `ApiClient` end-of-class block, the `IMPORTED` one-name append, and the Clarification 2 test-list unions (`announce-focus-sources.test.mjs`, `ux-strings.test.mjs`).

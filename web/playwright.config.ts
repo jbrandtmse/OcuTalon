@@ -8,7 +8,7 @@ import { ONLINE_IRIS_SCRIPT_MS, ONLINE_WAITS } from './e2e/support/bounds.ts';
  *
  * Fifteen projects:
  *   chromium       every spec under e2e/ except e2e/demo-path/, e2e/demo-switch/, e2e/floor/, e2e/answers/, e2e/cards/, the folders of sign-in-2 and the
- *                  folders and file of sign-in-3 (the sign-in unit, docker/tests/test-sign-in.sh: the sign-in, API and page specs), Desktop Chrome;
+ *                  folders and files of sign-in-3 (the sign-in unit, docker/tests/test-sign-in.sh: the sign-in, API and page specs), Desktop Chrome;
  *   sign-in-2      the specs of the folders of SIGN_IN_2_DIRS (the sign-in-2 unit, docker/tests/test-sign-in-2.sh, which runs test-sign-in.sh's setup on
  *                  this project), Desktop Chrome. The two projects are the spec files that the sign-in unit ran alone until the Contest Planner's
  *                  ruling of 2026-11-05 split it by spec file (it took 1047 s in CI): each file is in exactly one of them;
@@ -52,13 +52,13 @@ const keepTraces = process.env['OCUTALON_E2E_TRACE'] === 'retain-on-failure' && 
 const SIGN_IN_2_DIRS = ['live', 'phone', 'rail', 'reminder', 'session', 'settings'];
 
 /**
- * The folders and the root file of e2e/ whose specs the sign-in-3 project runs and the chromium project does not: a contiguous run of the
- * chromium project's files in path order (guide/*, heartbeat/heartbeat.spec.ts, heartbeat-card.spec.ts, and memory-noise.spec.ts, Story 41.5), so that each unit runs its files in
- * the order the one unit ran them. A spec file added to one of these folders joins sign-in-3. The root file is listed by name because a
+ * The folders and the root files of e2e/ whose specs the sign-in-3 project runs and the chromium project does not: a contiguous run of the
+ * chromium project's files in path order (guide/*, heartbeat/heartbeat.spec.ts, heartbeat-card.spec.ts, memory-noise.spec.ts (Story 41.5) and memory-card.spec.ts (Story 41.6)), so that each unit runs its files in
+ * the order the one unit ran them. A spec file added to one of these folders joins sign-in-3. The root files are listed by name because a
  * folder list cannot name it.
  */
 const SIGN_IN_3_DIRS = ['guide', 'heartbeat'];
-const SIGN_IN_3_FILES = ['heartbeat-card.spec.ts', 'memory-noise.spec.ts'];
+const SIGN_IN_3_FILES = ['heartbeat-card.spec.ts', 'memory-noise.spec.ts', 'memory-card.spec.ts'];
 
 export default defineConfig({
   testDir: './e2e',
