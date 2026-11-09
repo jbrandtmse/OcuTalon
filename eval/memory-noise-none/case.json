@@ -1,0 +1,18 @@
+{
+  "name": "memory-noise-none",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A partner test desk's notice that its test environment restarts today, with no earlier answers of the person on mail from that sender: it asks the user to hold test traffic, so it is told now. It is the twin of memory-noise-three.",
+  "expectation": {
+    "outcome": "tellnow"
+  },
+  "recordedBy": "written for the evaluation set (Story 41.7)",
+  "item": {
+    "itemId": "memory-noise-none",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Test Desk <testdesk@results-partner.example>",
+    "subject": "Test environment restarts today at 15:00 UTC",
+    "text": "Hello, our test environment restarts today at 15:00 UTC for about 20 minutes. Test results you send in that window will be lost, so please hold your test traffic until we confirm it is back. Thanks, Results Partner Test Desk"
+  }
+}

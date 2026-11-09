@@ -320,9 +320,17 @@ describe('the close of a page', () => {
     const fixtures = read('e2e/support/fixtures.ts');
     assert.match(
       fixtures,
-      /page\.close = \(options\) => diagnosedAtBound\(boundedStep\(close\(options\), waitMs\(\), 'page\.close'\), 'page\.close', \(\) => closeDiagnosis\(page, watch\)\);/,
+      /page\.close = \(options\) => diagnosedAtBound\(boundedStep\(closeWithOneMore\(page, close\(options\), waitMs\(\), watch\), waitMs\(\), 'page\.close'\), 'page\.close', \(\) => closeDiagnosis\(page, watch\)\);/,
     );
     assert.match(fixtures, /context\.on\('page', \(page\) => boundedClose\(page, closeWait\)\);/);
+  });
+
+  it('retries a close once at half of the bound, logs the redacted close lines (AD-19) and re-closes the target', () => {
+    const fixtures = read('e2e/support/fixtures.ts');
+    assert.match(fixtures, /firstMs = page\.context\(\)\.browser\(\)\?\.browserType\(\)\.name\(\) === 'chromium' \? firstAttemptMs\(capToDeadline\(boundMs\)\.ms\) : undefined;/);
+    assert.match(fixtures, /reportRetry\('page\.close', lines\.map\(redactLine\)\);/);
+    assert.match(fixtures, /const line = describeReclose\(await closeTargetAgain\(page\)\);\n\s+if \(line !== undefined\) printDiagnosis\(\[line\], 'close-diagnosis'\);/);
+    assert.match(fixtures, /setTimeout\(\(\) => void again\(\)\.catch\(\(\) => undefined\), firstMs\)/);
   });
 });
 

@@ -120,6 +120,7 @@ describe('the fixed strings', () => {
         telegramNotSetUp: 'Telegram not set up',
         telegramHowTo: 'How to set it up',
         heartbeat: 'Heartbeat checklist',
+        memory: 'Memory',
         persona: 'Persona',
       },
     );
@@ -141,16 +142,16 @@ describe('the fixed strings', () => {
 });
 
 describe('the sections', () => {
-  it('come in order without Telegram: Approval requests, Background checks, Reminders, Recent decisions, Heartbeat checklist, Persona', () => {
+  it('come in order without Telegram: Approval requests, Background checks, Reminders, Recent decisions, Heartbeat checklist, Memory, Persona', () => {
     const view = viewOf();
-    assert.deepEqual(view.sections.map((one) => one.id), ['approvals', 'checks', 'reminders', 'decisions', 'heartbeat', 'persona']);
-    assert.deepEqual(view.sections.map((one) => one.label), ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions', 'Heartbeat checklist', 'Persona']);
+    assert.deepEqual(view.sections.map((one) => one.id), ['approvals', 'checks', 'reminders', 'decisions', 'heartbeat', 'memory', 'persona']);
+    assert.deepEqual(view.sections.map((one) => one.label), ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions', 'Heartbeat checklist', 'Memory', 'Persona']);
     assert.equal(view.telegramShown, false);
   });
 
   it('start with Telegram, with no count, when the release includes it', () => {
     const view = viewOf({}, { ...TELEGRAM_OFF, included: true });
-    assert.deepEqual(view.sections.map((one) => one.id), ['telegram', 'approvals', 'checks', 'reminders', 'decisions', 'heartbeat', 'persona']);
+    assert.deepEqual(view.sections.map((one) => one.id), ['telegram', 'approvals', 'checks', 'reminders', 'decisions', 'heartbeat', 'memory', 'persona']);
     assert.equal(view.telegramShown, true);
     const telegram = section(view, 'telegram');
     assert.equal(telegram.count, undefined);
@@ -169,15 +170,28 @@ describe('the sections', () => {
     }
   });
 
-  it('put the Heartbeat checklist right before Persona, with no count and no rows, whatever the store holds (Story 39.5)', () => {
+  it('put the Heartbeat checklist right before Memory, with no count and no rows, whatever the store holds (Story 39.5)', () => {
     for (const view of [viewOf(), viewOf({ approvals: [approval('a1')], checks: [check('c1')] }, { ...TELEGRAM_OFF, included: true })]) {
       const at = view.sections.findIndex((one) => one.id === 'heartbeat');
-      assert.equal(at, view.sections.length - 2, 'second to last');
-      assert.equal(view.sections[at + 1].id, 'persona');
+      assert.equal(at, view.sections.length - 3, 'third to last');
+      assert.equal(view.sections[at + 1].id, 'memory');
       const heartbeat = view.sections[at];
       assert.equal(heartbeat.count, undefined);
       assert.deepEqual([heartbeat.label, heartbeat.heading, heartbeat.spoken], ['Heartbeat checklist', 'Heartbeat checklist', 'Heartbeat checklist']);
       assert.deepEqual([heartbeat.rows, heartbeat.empty, heartbeat.hint], [[], '', '']);
+    }
+  });
+
+  it('put Memory between the Heartbeat checklist and Persona, with no count and no rows, whatever the store holds (Story 41.6)', () => {
+    for (const view of [viewOf(), viewOf({ approvals: [approval('a1')], checks: [check('c1')] }, { ...TELEGRAM_OFF, included: true })]) {
+      const at = view.sections.findIndex((one) => one.id === 'memory');
+      assert.equal(at, view.sections.length - 2, 'second to last');
+      assert.equal(view.sections[at - 1].id, 'heartbeat');
+      assert.equal(view.sections[at + 1].id, 'persona');
+      const memory = view.sections[at];
+      assert.equal(memory.count, undefined);
+      assert.deepEqual([memory.label, memory.heading, memory.spoken], ['Memory', 'Memory', 'Memory']);
+      assert.deepEqual([memory.rows, memory.empty, memory.hint], [[], '', '']);
     }
   });
 

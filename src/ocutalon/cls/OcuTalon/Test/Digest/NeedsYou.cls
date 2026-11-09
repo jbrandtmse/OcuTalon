@@ -19,7 +19,16 @@
 ///   - TestNoWindow: with no window start the same fixtures count every unhandled tell-now and act Decision;
 ///   - TestWindowUndated: a Decision with no RecordedAt counts whatever the window start;
 ///   - TestProcessWindow: a digest Compose passes its WindowStart on, so the digest names only the Decision recorded inside the window;
-///   - TestProcessNoUpperBound: a Decision recorded after the Compose's WindowEnd is still counted.
+///   - TestProcessNoUpperBound: a Decision recorded after the Compose's WindowEnd is still counted;
+///   - TestOwnTurnNotCounted (Story 17.12, DW-979): a tell-now Decision whose ItemId is the ItemId of a turn of the session (the person's own chat
+///     message, answered directly) is not counted or named, and a real tell-now Decision beside it is: count 1;
+///   - TestOwnTurnsEveryKind: own-turn Decisions of a telegram turn, a guide turn (act), a fallback, one recorded before the window, one with no
+///     RecordedAt and one marked handled are never counted or named, and the real tell-now Decision and the incident awaiting approval are;
+///   - TestOnlyOwnTurns: three own-turn Decisions (tell-now, tell-now, act) inside the window and nothing else give a count of 0;
+///   - TestOtherSessionTurn: a Decision whose ItemId is the ItemId of a turn of another session still counts;
+///   - TestDigestOwnTurnChannels: a digest Compose names the real item alone, and the Telegram and the web text of its Slots both hold "One thing needs
+///     you: Disk alert mail." and neither holds the own turn's words;
+///   - TestDigestOnlyOwnTurns: with only an own-turn Decision the digest has no needs-you part.
 Class OcuTalon.Test.Digest.NeedsYou Extends %UnitTest.TestCase
 {
 
@@ -80,6 +89,28 @@ Method Incident(owner As %String, minute As %Integer, state As %String, decision
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ..At(minute), "ZZNS", production, {"State": (state), "DecisionRef": (decisionRef)})
 	Do ..Keep(ref)
 	Quit ref
+}
+
+/// A decide Decision of the owner at the minute that belongs to a turn of the owner: the turn is made first and the Decision has its ItemId. fields may
+/// hold the turn's Channel and FromGuide; the rest is added to the Decision's members. Returns the Decision's Ref.
+Method OwnTurn(owner As %String, minute As %Integer, summary As %String, outcome As %String = "tellnow", fields As %DynamicObject = "") As %String
+{
+	Set turnRef = ##class(OcuTalon.Test.Data.Fixture).Turn(owner)
+	Do ..Keep(turnRef)
+	Set turn = ##class(OcuTalon.Data.Turn).RefIndexOpen(turnRef)
+	Set all = {"ItemId": (turn.ItemId), "Reasons": "A request from the user; the user is answered directly"}
+	If $IsObject(fields) {
+		Set iterator = fields.%GetIterator()
+		While iterator.%GetNext(.name, .value) {
+			If (name = "Channel") || (name = "FromGuide") {
+				Set $Property(turn, name) = value
+			} Else {
+				Do all.%Set(name, value)
+			}
+		}
+	}
+	Do $$$AssertStatusOK(turn.%Save(), "the own turn is saved")
+	Quit ..Decision(owner, minute, summary, outcome, all)
 }
 
 Method Handle(ref As %String)
@@ -290,14 +321,15 @@ Method TestProcessNoUpperBound()
 }
 
 /// Handles a digest Compose of the session (WindowStart At(100), WindowEnd At(200)) in a ProcessProbe and returns the key and the "what" slot of the digest's
-/// needs-you part, joined with "|" ("" when the digest has none).
-Method DigestNeeds(session As %String) As %String [ Private ]
+/// needs-you part, joined with "|" ("" when the digest has none). slotsJson is the Slots of the digest that was sent, as JSON.
+Method DigestNeeds(session As %String, Output slotsJson As %String) As %String [ Private ]
 {
 	Set probe = "OcuTalon.Test.Digest.ProcessProbe"
 	Do $ClassMethod(probe, "Reset")
 	Do $ClassMethod(probe, "Feed", [])
 	Set was = $ClassMethod(probe, "ForgetChannels")
 	Set found = ""
+	Set slotsJson = ""
 	Try {
 		Set host = ##class(Ens.Host).GetShadowInstance("class||"_probe, .sc)
 		Do $$$AssertTrue($IsObject(host), "a shadow instance of the probe is made")
@@ -312,7 +344,8 @@ Method DigestNeeds(session As %String) As %String [ Private ]
 		Do $$$AssertStatusOK(host.OnRequest(compose, .response), "the Compose is handled")
 		Set record = $ClassMethod(probe, "Record", "notice", 1)
 		Do $$$AssertTrue(record '= "", "a digest is sent")
-		Set slots = {}.%FromJSON($List(record, 5))
+		Set slotsJson = $List(record, 5)
+		Set slots = {}.%FromJSON(slotsJson)
 		Set iterator = slots.parts.%GetIterator()
 		While iterator.%GetNext(, .part) {
 			If (part.key = "digest.needsYouOne") || (part.key = "digest.needsYou") Set found = part.key_"|"_part.slots.what
@@ -324,6 +357,76 @@ Method DigestNeeds(session As %String) As %String [ Private ]
 	Do $ClassMethod(probe, "Clean", session)
 	Do $ClassMethod(probe, "Reset")
 	Quit found
+}
+
+Method TestOwnTurnNotCounted()
+{
+	Set session = ..Session()
+	Do ..OwnTurn(session, 150, "Send my digest now.")
+	Do ..Decision(session, 160, "Disk alert mail")
+	Set result = ..List(session)
+	Do $$$AssertEquals(..Names(result), "Disk alert mail", "the person's own message is not named; the real tell-now item is")
+	Do $$$AssertEquals(result.count_"|"_result.more, "1|0", "count is 1 and there is no overflow")
+}
+
+Method TestOwnTurnsEveryKind()
+{
+	Set session = ..Session()
+	Do ..OwnTurn(session, 150, "Own telegram message", "tellnow", {"Channel": "telegram"})
+	Do ..OwnTurn(session, 160, "Own guide message", "act", {"FromGuide": 1})
+	Do ..OwnTurn(session, 170, "Own fallback message", "tellnow", {"Fallback": 1})
+	Do ..OwnTurn(session, 50, "Own message before the window")
+	Do ..OwnTurn(session, 0, "Own message with no time", "tellnow", {"RecordedAt": ""})
+	Do ..Handle(..OwnTurn(session, 180, "Own handled message"))
+	Do ..Decision(session, 190, "Disk alert mail")
+	Do ..Incident(session, 10, "awaiting_approval")
+	Set result = ..List(session, "", ..At(100))
+	Do $$$AssertEquals(..Names(result), "Disk alert mail|Orders.Production", "the real item and the incident are named and no own message")
+	Do $$$AssertEquals(result.count_"|"_result.more, "2|0", "count is 2 and there is no overflow")
+}
+
+Method TestOnlyOwnTurns()
+{
+	Set session = ..Session()
+	Do ..OwnTurn(session, 150, "Own message one")
+	Do ..OwnTurn(session, 160, "Own message two")
+	Do ..OwnTurn(session, 170, "Own message three", "act")
+	Set result = ..List(session, "", ..At(100))
+	Do $$$AssertEquals(result.%ToJSON(), "{""count"":0,""names"":[],""more"":0}", "own messages alone leave nothing that needs the user")
+}
+
+Method TestOtherSessionTurn()
+{
+	Set session = ..Session()
+	Set other = ..Session()
+	Set turnRef = ##class(OcuTalon.Test.Data.Fixture).Turn(other)
+	Do ..Keep(turnRef)
+	Set turn = ##class(OcuTalon.Data.Turn).RefIndexOpen(turnRef)
+	Do ..Decision(session, 150, "Mail with another session's item", "tellnow", {"ItemId": (turn.ItemId)})
+	Set result = ..List(session)
+	Do $$$AssertEquals(..Names(result)_"|"_result.count, "Mail with another session's item|1", "a turn of another session is not this person's own")
+}
+
+Method TestDigestOwnTurnChannels()
+{
+	Set session = ..Session()
+	Do ..OwnTurn(session, 150, "Send my digest now.")
+	Do ..Decision(session, 160, "Disk alert mail")
+	Set found = ..DigestNeeds(session, .slotsJson)
+	Do $$$AssertEquals(found, "digest.needsYouOne|Disk alert mail", "the needs-you part holds the real item alone")
+	For channel = "telegram", "web" {
+		Set text = ##class(OcuTalon.Channel.DigestText).Text(slotsJson, channel, .sc)
+		Do $$$AssertStatusOK(sc, "the "_channel_" text is rendered")
+		Do $$$AssertTrue($Find($Char(10)_text_$Char(10), $Char(10)_"One thing needs you: Disk alert mail."_$Char(10)) > 0, "the "_channel_" text holds the needs-you line")
+		Do $$$AssertEquals($Find(text, "Send my digest now"), 0, "the "_channel_" text holds no own message")
+	}
+}
+
+Method TestDigestOnlyOwnTurns()
+{
+	Set session = ..Session()
+	Do ..OwnTurn(session, 150, "Send my digest now.")
+	Do $$$AssertEquals(..DigestNeeds(session), "", "the digest has no needs-you part")
 }
 
 Method TestNothing()

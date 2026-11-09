@@ -60,6 +60,21 @@ const SIGN_OUT_BOUND_MS = 5000;
 
 const mainOf = (page: Page) => page.locator('main.main');
 
+/**
+ * Closes a page that has settled. A page whose CSP session a group sign-out has just ended leaves for the splash on its next poll (a 401,
+ * then location.replace), and a close sent while that navigation is in flight can go unanswered. So the close waits for the exit to finish
+ * (the splash's sign-in button shows and the document has loaded). A page that has not left within the action wait is closed as it is.
+ */
+async function closeSettled(page: Page): Promise<void> {
+  try {
+    await page.getByRole('button', { name: 'Sign in and start', exact: true }).waitFor({ state: 'visible' });
+    await page.waitForLoadState('load');
+  } catch {
+    // The page stays where it is: the close below is the one that is bounded and diagnosed.
+  }
+  await page.close();
+}
+
 /** The splash after a return: the notice reads the place-freed text above both cards, and the address has the page's load time. */
 async function expectPlaceFreed(page: Page, loadedAt: number): Promise<void> {
   const url = new URL(page.url());
@@ -339,7 +354,7 @@ test('L5: when another page ends the session and starts a new one, the first pag
     expect(log.since(mark).some((one) => one.includes('IRISLogout=end')), 'it sent the group sign-out').toBe(true);
     expect(seen.seen(), "it never showed the new session's turn").toBe(false);
     await expect(page.locator('#ocu-notice'), 'and the splash has no notice').toHaveCount(0);
-    await second.close();
+    await closeSettled(second);
     await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     expect(await epochOf(page), "a sign-in from the first page gives an epoch other than its first one").not.toBe(first);
@@ -364,7 +379,7 @@ test('L6: a paired Telegram chat keeps working while no CSP session is open', as
     expect(await repliesOf(CHAT_A), 'the chat has had no message yet').toEqual([]);
 
     await signOutGroup(context);
-    await page.close();
+    await closeSettled(page);
     await expect.poll(() => cspSessionExists(row!.cspSessionId), { message: 'no CSP session of the session is open', timeout: 30_000, intervals: [1000] }).toBe(false);
 
     const question = 'zz L6 a question from the paired chat';

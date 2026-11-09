@@ -8,6 +8,9 @@
 ///   - TestUnanswered: it counts the sent rows of the run only, and falls when a row is decided;
 ///   - TestRemove: Remove deletes the row of one case, or every row of the run, and never another run's; an empty run is refused and
 ///     deletes nothing;
+///   - TestPrecedentsColumn (Story 41.7): Open marks a row that seeds precedents (Precedents 1) and a row opened without the argument reads 0; SeedsPrecedents is 1 for a
+///     marked row only (an unmarked row, a row saved without the column, an unknown ItemId and "" give 0); PrecedentRuns lists the runs that have a marked row, not
+///     the run that is excepted, and not a run whose rows are all unmarked; Unmark clears a run's marks and keeps its rows, and needs a run;
 ///   - TestWait: EvalIn's Wait returns how many rows of the run are still sent, waits for the seconds while one is, and returns at once
 ///     when none is.
 Class OcuTalon.Test.Eval.Table Extends %UnitTest.TestCase
@@ -162,6 +165,36 @@ Method TestWait()
 	Set start = $ZHorolog
 	Do $$$AssertEquals(##class(OcuTalon.Eval.In).Wait("", 30), 0, "a run with no Ref has none")
 	Do $$$AssertTrue($ZHorolog - start < 1, "and Wait does not wait for it either: "_($ZHorolog - start)_" s")
+}
+
+/// Open marks a case that seeds precedents; SeedsPrecedents reads the mark by ItemId; PrecedentRuns lists the runs that have a marked row.
+Method TestPrecedentsColumn()
+{
+	Set marked = ..NewRun(), plain = ..NewRun(), another = ..NewRun(), bare = ..NewRun()
+	Set one = ##class(OcuTalon.Bridge.Ids).NewRef(), two = ##class(OcuTalon.Bridge.Ids).NewRef(), three = ##class(OcuTalon.Bridge.Ids).NewRef(), four = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Data.CaseResult).Open(marked, ..#CASEPREFIX_"a", "source-a", one, "", "", 1), "Open saves a row that seeds precedents")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Data.CaseResult).Open(plain, ..#CASEPREFIX_"b", "source-b", two), "Open saves a row without the argument")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Data.CaseResult).Open(another, ..#CASEPREFIX_"c", "source-c", three, "", "", 1), "and another that seeds precedents")
+	Set row = ##class(OcuTalon.Eval.Data.CaseResult).%New()
+	Set row.RunRef = bare, row.CaseName = ..#CASEPREFIX_"d", row.SourceItemId = "source-d", row.ItemId = four, row.State = "sent"
+	Do $$$AssertStatusOK(row.%Save(), "and a row is saved without the column")
+	Set first = ..RowOf(marked, "a"), second = ..RowOf(plain, "b")
+	If $IsObject(first) && $IsObject(second) Do $$$AssertEquals(first.Precedents_"|"_second.Precedents, "1|0", "the first row reads 1, and the one opened without the argument reads 0")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Data.CaseResult).SeedsPrecedents(one)_"|"_##class(OcuTalon.Eval.Data.CaseResult).SeedsPrecedents(three), "1|1", "SeedsPrecedents is 1 for the marked rows")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Data.CaseResult).SeedsPrecedents(two)_"|"_##class(OcuTalon.Eval.Data.CaseResult).SeedsPrecedents(four), "0|0", "and 0 for an unmarked row and for a row saved without the column")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Data.CaseResult).SeedsPrecedents(##class(OcuTalon.Bridge.Ids).NewRef())_"|"_##class(OcuTalon.Eval.Data.CaseResult).SeedsPrecedents(""), "0|0", "and for an ItemId nobody opened and for no ItemId")
+	Set runs = ##class(OcuTalon.Eval.Data.CaseResult).PrecedentRuns()
+	Do $$$AssertTrue($ListFind(runs, marked) && $ListFind(runs, another), "PrecedentRuns lists the runs that have a marked row")
+	Do $$$AssertTrue('$ListFind(runs, plain) && '$ListFind(runs, bare), "and not a run whose rows are unmarked")
+	Set runs = ##class(OcuTalon.Eval.Data.CaseResult).PrecedentRuns(marked)
+	Do $$$AssertTrue('$ListFind(runs, marked) && $ListFind(runs, another), "and not the run that is excepted")
+	Do $$$AssertEquals($ListFind(##class(OcuTalon.Eval.Data.CaseResult).PrecedentRuns(), marked), $ListFind(##class(OcuTalon.Eval.Data.CaseResult).PrecedentRuns(plain), marked), "an exception that has no marked row changes nothing")
+	Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(marked)
+	Do $$$AssertTrue('$ListFind(##class(OcuTalon.Eval.Data.CaseResult).PrecedentRuns(), marked), "a run whose rows are removed is no longer listed")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Data.CaseResult).Unmark(another), "Unmark clears a run's marks")
+	Set third = ..RowOf(another, "c")
+	Do $$$AssertTrue('$ListFind(##class(OcuTalon.Eval.Data.CaseResult).PrecedentRuns(), another) && $IsObject(third) && (third.Precedents = 0), "so the run is no longer listed, and its row stays, unmarked")
+	Do $$$AssertTrue($$$ISERR(##class(OcuTalon.Eval.Data.CaseResult).Unmark("")), "and Unmark of no run is an error status")
 }
 
 /// --- helpers ---

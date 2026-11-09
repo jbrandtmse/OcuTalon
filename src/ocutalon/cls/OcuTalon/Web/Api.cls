@@ -65,6 +65,15 @@
 ///     400 with SettingsOps' message; not_built 501; any other outcome 500 not_saved with the owner's message. POST /v1/heartbeat/run never reads the
 ///     body and submits a RunHeartbeat (CommandsIn sends it to Checks as a BeatNow): Ok 202 {"result":"sent"}; cooldown, cap, nokey, empty and backoff
 ///     409 {"error":{"code","message"}} with availableAt beside it when Checks gave one; not_built 501; anything else 500 server_error.
+///   - The memory routes (Epic 41; AD-1, AD-4, AD-13, AD-21), for the CSP session's session only, every record read through Ownership: POST /v1/decisions/:ref/noise
+///     marks one of the session's own notices as noise. The body is read only for the channel: the exact body {"channel":"phone"} means phone, and any other
+///     body or none means web. A decision the session can't see is 404 not_found before anything is submitted; MarkNoise (origin web_user, through
+///     Commands.Submit) answers 200 {"result":"done","markedAt"} (a repeat included), 409 too_old when the notice's item is no longer kept, 404 not_found
+///     for a decision that cannot be marked, 501 not_built for a stub owner and 500 server_error. GET /v1/memory/precedents answers 200
+///     {"precedents":[...]}, the session's own answers newest first, at most 100, each {ref, answeredAt, channel, answeredChannel, summary, outcome,
+///     answer}, and never a seeded row. DELETE /v1/memory/precedents/:ref forgets one of them (ForgetPrecedent, origin web_user): 200 {"result":"done"},
+///     404 not_found first for a row the session can't see, 501 and 500 as above. GET /v1/memory/notes?day=today|yesterday (today when the day is
+///     missing) answers 200 {"day","date","lines"}, with date the instance-zone date YYYY-MM-DD and lines the daily note's lines; any other day is 404 not_found.
 ///   - The documents routes (Story 34.2; GET and POST /v1/documents, DELETE /v1/documents/:ref) are OcuTalon.Web.Documents', forwarded by
 ///     the map at the end of the URL map.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
@@ -97,6 +106,9 @@ Parameter PHONEMAX = 100;
 
 /// The most simulated-mailbox emails the snapshot's mailbox holds: the newest, oldest first.
 Parameter MAILMAX = 100;
+
+/// The most precedents that GET /v1/memory/precedents lists: the newest.
+Parameter PRECEDENTSMAX = 100;
 
 Parameter MESSAGEBADCURSOR = "The after and afterInstance values must be whole numbers of zero or more.";
 
@@ -151,6 +163,9 @@ Parameter MESSAGEDEMOSTEPFAILED = "Demo mode is set to {v}, but the switch didn'
 
 Parameter MESSAGENOTDISMISSIBLE = "OcuTalon can't dismiss this incident now. Nothing was changed.";
 
+/// The message of the 409 too_old of the noise route.
+Parameter MESSAGETOOOLD = "This notice is too old to mark as noise. Nothing was changed.";
+
 /// The message of the 409 not_available of the code route while Telegram is not on.
 Parameter MESSAGETELEGRAMOFF = "Telegram isn't on in this OcuTalon, so no pairing code was made.";
 
@@ -193,6 +208,10 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/heartbeat" Method="GET" Call="GetHeartbeat"/>
 <Route Url="/v1/heartbeat" Method="PUT" Call="PutHeartbeat"/>
 <Route Url="/v1/heartbeat/run" Method="POST" Call="RunHeartbeat"/>
+<Route Url="/v1/decisions/:ref/noise" Method="POST" Call="MarkNoise"/>
+<Route Url="/v1/memory/precedents" Method="GET" Call="Precedents"/>
+<Route Url="/v1/memory/precedents/:ref" Method="DELETE" Call="ForgetPrecedent"/>
+<Route Url="/v1/memory/notes" Method="GET" Call="Notes"/>
 <Route Url="/v1/settings" Method="GET" Call="Settings"/>
 <Route Url="/v1/settings/models" Method="POST" Call="SaveModels"/>
 <Route Url="/v1/settings/models/test" Method="POST" Call="TestModel"/>
@@ -1615,6 +1634,148 @@ ClassMethod ReadHeartbeat(sessionRef As %String, Output sc As %Status) As %Dynam
 /// Submits the SetHeartbeat or RunHeartbeat with origin web_user; result is the CommandResult. An error status means the command never reached
 /// CommandsIn.
 ClassMethod SubmitHeartbeat(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+}
+
+/// POST /v1/decisions/:ref/noise (AD-1, AD-4, AD-21; Epic 41): marks one of the session's own notices as noise, which PrecedentOps records as a precedent. The session is
+/// the CSP session's. In order: the session and the decision's visibility (Ownership.Decision; a failed read is 500 server_error and a decision the session
+/// can't see is 404 not_found, before anything is submitted); the channel (phone only for the exact body {"channel":"phone"}, else web); a MarkNoise
+/// submitted with origin web_user through SubmitMemory (an error status or no result is 500 server_error). The answer follows the owner's result:
+///   - Ok (marked and already_marked): 200 {"result":"done","markedAt"}, the time of the first mark;
+///   - too_old: 409 too_old with MESSAGETOOOLD; not_found: 404 not_found; not_built: 501 not_built;
+///   - anything else: 500 server_error, with the cause logged.
+ClassMethod MarkNoise(ref As %String) As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set row = ##class(OcuTalon.Data.Ownership).Decision(ref, sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(row) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Set command = ##class(OcuTalon.Msg.Command.MarkNoise).%New()
+	Set command.DecisionRef = row.Ref
+	Set command.SessionRef = sessionRef
+	Set command.Channel = $Select(..NoiseBodyIsPhone(): "phone", 1: "web")
+	Kill row
+	Set sc = ..SubmitMemory(command, .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Ok {
+		Set sc = $SYSTEM.Status.OK()
+		Try {
+			Set answer = {}
+			Do answer.%Set("result", "done", "string")
+			Do answer.%Set("markedAt", ##class(%DynamicAbstractObject).%FromJSON(result.Data).%Get("answeredAt"), "string")
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+		If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write answer.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	Set outcome = result.Outcome
+	If outcome = "too_old" Quit ..Fail(409, "too_old", ..#MESSAGETOOOLD)
+	If outcome = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Quit ..ServerError($SYSTEM.Status.Error(5001, "The noise mark was answered "_outcome))
+}
+
+/// 1 only when the request body is exactly the JSON object {"channel":"phone"}: one member, named channel, the string phone.
+ClassMethod NoiseBodyIsPhone() As %Boolean [ Private ]
+{
+	Try {
+		Set body = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
+	} Catch {
+		Set body = ""
+	}
+	If '$IsObject(body) || 'body.%IsA("%Library.DynamicObject") Quit 0
+	Quit (body.%Size() = 1) && (body.%GetTypeOf("channel") = "string") && (body.channel = "phone")
+}
+
+/// GET /v1/memory/precedents (AD-4, AD-21; Epic 41): the session's own precedents, newest first, at most PRECEDENTSMAX, as 200 {"precedents":[...]}. A seeded row is never
+/// one of them. A session that can't be read and a read that fails are 500 server_error, with the cause logged.
+ClassMethod Precedents() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set rows = ##class(OcuTalon.Data.Ownership).Precedents(sessionRef, ..#PRECEDENTSMAX, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set list = []
+	For i = 1:1:rows.Count() {
+		Do list.%Push(##class(OcuTalon.Data.Precedent).View(rows.GetAt(i)))
+	}
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write {"precedents": (list)}.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// DELETE /v1/memory/precedents/:ref (AD-1, AD-4, AD-21; Epic 41): forgets one of the session's own precedents. In order: the session and the row's visibility
+/// (Ownership.Precedent; a failed read is 500 server_error and a row the session can't see, a seeded one included, is 404 not_found before anything is
+/// submitted); a ForgetPrecedent submitted with origin web_user through SubmitMemory (an error status or no result is 500 server_error). The answer: Ok
+/// 200 {"result":"done"}; not_found 404; not_built 501; anything else 500 server_error.
+ClassMethod ForgetPrecedent(ref As %String) As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set row = ##class(OcuTalon.Data.Ownership).Precedent(ref, sessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(row) Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Set command = ##class(OcuTalon.Msg.Command.ForgetPrecedent).%New()
+	Set command.PrecedentRef = row.Ref
+	Set command.SessionRef = sessionRef
+	Kill row
+	Set sc = ..SubmitMemory(command, .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Ok {
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write {"result": "done"}.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	Set outcome = result.Outcome
+	If outcome = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	Quit ..ServerError($SYSTEM.Status.Error(5001, "The forget was answered "_outcome))
+}
+
+/// GET /v1/memory/notes?day=today|yesterday (AD-4; Epic 41): the session's daily note for a day of the instance zone, as 200 {"day","date","lines"}: date is the
+/// local date YYYY-MM-DD, and lines are the lines of DailyNote.Build, as strings. A missing day means today; any other day is 404 not_found. A session
+/// that can't be read is 500 server_error.
+ClassMethod Notes() As %Status
+{
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set day = %request.Get("day")
+	If day = "" Set day = "today"
+	If (day '= "today") && (day '= "yesterday") Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
+	Set date = $Piece(##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).NowUtc()), "T", 1)
+	If day = "yesterday" Set date = $ZDate($ZDateH(date, 3) - 1, 3)
+	Set lines = []
+	Set sc = $SYSTEM.Status.OK()
+	Try {
+		Set text = ..NoteText(sessionRef, date)
+		For i = 1:1:$Length(text, $Char(10)) {
+			Set line = $Piece(text, $Char(10), i)
+			If line '= "" Do lines.%Push(line, "string")
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write {"day": (day), "date": (date), "lines": (lines)}.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The note of the session for the local day (Data.DailyNote.Build); a seam for the tests.
+ClassMethod NoteText(sessionRef As %String, date As %String) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Data.DailyNote).Build(sessionRef, date)
+}
+
+/// Submits the MarkNoise or ForgetPrecedent with origin web_user; result is the CommandResult. An error status means the command never reached CommandsIn.
+ClassMethod SubmitMemory(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
 }

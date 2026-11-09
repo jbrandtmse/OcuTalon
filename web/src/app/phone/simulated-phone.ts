@@ -2,6 +2,8 @@ import { AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, ElementR
 
 import { pageTimeBeside } from '../chat/page-time';
 import { CHAT_TEXTS } from '../chat/chat-view';
+import { NoiseControl } from '../chat/noise-control';
+import { phoneNoiseRef } from '../chat/noise-view';
 import { SimulatedLabel } from '../devices/simulated-label';
 import { newRefs } from '../devices/device-view';
 import { Icon } from '../icon/icon';
@@ -24,7 +26,8 @@ import { gotItShown, PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf }
  * (phone-view.ts), and each message's text is the server's. A message that names an approval request (`approvalRef`, which the server
  * sets for the kinds incident and approval only) is drawn by app-phone-request, with Approve and Reject until it has an answer
  * (Story 6.3); a tell-now message (`decisionRef`) shows Got it (app-got-it, channel phone) until the server's edit puts the handled line in its `answer`,
- * which then stands in its place (Story 18.4); every other message keeps the plain markup. The phone is not a live region: it announces only the notices of its own
+ * which then stands in its place (Story 18.4); a tell-now message that names its decision (`decisionRef`, with no `approvalRef`) also has the ghost
+ * "This was noise" control after its time (Story 41.5; noise-control.ts), independent of Got it; every other message keeps the plain markup. The phone is not a live region: it announces only the notices of its own
  * press (phone-request.ts), and the chat's request card announces an answer once.
  *
  * The feed is a tab stop and the scroller (a region named by its tab). It follows like the chat list: it is at the bottom when within
@@ -35,7 +38,7 @@ import { gotItShown, PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf }
  */
 @Component({
   selector: 'app-simulated-phone',
-  imports: [GotIt, Icon, PhoneRequest, SimulatedLabel],
+  imports: [GotIt, Icon, NoiseControl, PhoneRequest, SimulatedLabel],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="frame">
@@ -69,6 +72,9 @@ import { gotItShown, PHONE_TEXTS, type PhoneSnapshot, pendingApproval, phoneOf }
                         <p class="answer" data-part="answer" [attr.data-key]="one.ref">{{ one.answer }}</p>
                       }
                       <span class="time">{{ timeOf(one) }}</span>
+                      @if (phoneNoiseRef(one); as ref) {
+                        <app-noise-control [decisionRef]="ref" channel="phone" [instanceZone]="instanceZone()" />
+                      }
                     }
                   </div>
                 }
@@ -229,6 +235,9 @@ export class SimulatedPhone implements AfterViewInit {
   private readonly content = viewChild.required<ElementRef<HTMLElement>>('content');
 
   protected readonly texts = PHONE_TEXTS;
+  /** The decision Ref the "This was noise" control of a message acts on; "" for a message that gets none. */
+  protected readonly phoneNoiseRef = phoneNoiseRef;
+  /** Whether a message shows Got it (Story 18.4). */
   protected readonly gotItShown = gotItShown;
   protected readonly newMessages = CHAT_TEXTS.newMessages;
 

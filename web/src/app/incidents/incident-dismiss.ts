@@ -19,7 +19,7 @@ export interface DismissTarget {
 }
 
 /** The message of an error reply (`error.message` of the body), else "". */
-function messageOf(error: unknown): string {
+export function messageOf(error: unknown): string {
   if (!(error instanceof HttpErrorResponse) || error.status === 0) {
     return '';
   }

@@ -17,7 +17,7 @@
 #                                         --part k/n runs only the k-th of n contiguous parts of that ordered list (sizes differ
 #                                         by at most one, the first count-mod-n parts are the larger) and titles the run
 #                                         "<name> part k/n"; k from 1 to n, n at most the shard's class count, else exit 2
-#   ci/iris.sh class <Class>              the same for one test class
+#   ci/iris.sh class <Class>[:<Method>]   the same for one test class, or for one Test... method of it (the CLASS line names the spec)
 #   ci/iris.sh live <name>                docker/tests/test-<name>.sh with the run tag; it first prints "PORT ..." with the web port
 #                                         and, for a browser unit (a name in BROWSER_UNITS of ci/units.sh), first installs Chromium,
 #                                         and Firefox and WebKit as well for a name in FIREFOX_WEBKIT_UNITS (the floor unit)
@@ -51,8 +51,9 @@
 # Retries (Story 32.6, DW-550, DW-774): a live page whose snapshot GET of /state has no answer by half of its bound reloads once, inside the
 # same bound, and prints `RETRY <spec>:<line> <step>` (web/e2e/support/bounds.ts reportRetry). `live` points OCUTALON_E2E_RETRY_LOG at
 # web/test-results/<unit>-retries.txt (removed before the unit starts), where each retry also appends its line, because a passing test's
-# stdout does not reach the job log. After the unit it prints those lines and `RETRIES <n> in live:<unit>` when n is above 0 (the exit code
-# is the unit's). `group` prints `RETRIES <total> in group <name>[ (<unit> <n>, ...)]` before its GROUP line on every run, 0 included, and when
+# stdout does not reach the job log. After the unit it prints those lines, then the retry-time `DIAG <text>` lines that a retry appended after
+# its RETRY line (printable ASCII, at most 300 characters; DW-911, Story 32.7), then `RETRIES <n> in live:<unit>` when n is above 0 (n counts
+# only the RETRY lines; the exit code is the unit's). `group` prints `RETRIES <total> in group <name>[ (<unit> <n>, ...)]` before its GROUP line on every run, 0 included, and when
 # GITHUB_STEP_SUMMARY is set and the total is above 0 it appends that line and every RETRY line with its unit to the step summary.
 # Needs bash 3.2 or later, docker compose, and the base image IRIS_IMAGE (default ocutalon-iris-base:2026.3.0AI.154.0).
 set -u
@@ -172,7 +173,7 @@ all_areas() {
 
 # --- one test class in the running throwaway ---
 
-# class_script <class>: the IRIS session that runs one test class from the installed package and prints its result as CHK lines:
+# class_script <class>[:<Method>]: the IRIS session that runs one test class (or one method of it) from the installed package and prints its result as CHK lines:
 # one case line per class, an error line for a failed case or method that has an error text, and an assert line for every assertion
 # that did not pass (failed or skipped) in every method. Each Write carries its own postcondition, so a condition gates only that
 # Write and never the loops after it. ^UnitTestRoot must name an existing folder, because the manager checks the root even for a run
@@ -180,7 +181,7 @@ all_areas() {
 class_script() {
   printf '%s\n' \
     'Set ^UnitTestRoot="/tmp/"' \
-    "Write !,\"CHK|compiled|\",##class(%Dictionary.CompiledClass).%ExistsId(\"$1\")" \
+    "Write !,\"CHK|compiled|\",##class(%Dictionary.CompiledClass).%ExistsId(\"${1%%:*}\")" \
     'Set before=$Order(^UnitTest.Result(""),-1)' \
     "Do ##class(%UnitTest.Manager).RunTest(\":$1\",\"/noload/nodelete/norecursive\")" \
     'Set id=$Order(^UnitTest.Result(""),-1) Set inst="" If id>before Set inst=##class(%UnitTest.Result.TestInstance).%OpenId(id)' \
@@ -189,7 +190,7 @@ class_script() {
     'Halt'
 }
 
-# run_class <class>: prints "CLASS <class> passed|failed <s>s" and, indented, each failed or skipped assertion and each error.
+# run_class <class>[:<Method>]: prints "CLASS <spec> passed|failed <s>s" and, indented, each failed or skipped assertion and each error.
 # Returns 1 when the class is not compiled, left no result, ran no test or failed.
 run_class() {
   local class=$1 out started=$SECONDS
@@ -432,13 +433,21 @@ cmd_shard() {
 }
 
 cmd_class() {
-  local class=${1:-}
-  if [ -z "$class" ] || ! test_classes $(all_areas) | grep -qxF -- "$class"; then
-    echo "unknown test class '$class': it must be a non-abstract class with a Method Test... in a Test/<Area>/ folder"
+  local spec=${1:-} class method="" bad=0
+  class=${spec%%:*}
+  if [ -z "$class" ] || ! test_classes $(all_areas) | grep -qxF -- "$class"; then bad=1; fi
+  case $spec in
+    *:*)
+      method=${spec#*:}
+      class_method_ok "$class" "$method" || bad=1
+      ;;
+  esac
+  if [ "$bad" -eq 1 ]; then
+    echo "unknown test class '$spec': it must be a non-abstract class with a Method Test... in a Test/<Area>/ folder, optionally followed by :<Test method of it>"
     exit 2
   fi
   setup_tag
-  run_classes "class" "$class" "$class"
+  run_classes "class" "$spec" "$spec"
 }
 
 live_known() { # live_known <name>: the name is a live unit of some group
@@ -599,12 +608,21 @@ retry_count() {
   retry_lines "$1" | wc -l | tr -d ' '
 }
 
-# retries_report <unit>: prints the unit's RETRY lines and `RETRIES <n> in live:<unit>` when n is above 0; nothing otherwise.
+# retry_diag_lines <unit>: the DIAG lines of the unit's file (printable ASCII, 1 to 300 characters after `DIAG `; the length is cut with awk because
+# BSD grep refuses a repeat count above 255): the diagnosis that a retry appends after its RETRY line (DW-911); nothing when there is no file.
+retry_diag_lines() {
+  LC_ALL=C grep -E '^DIAG [ -~]+$' "$(retry_log_of "$1")" 2>/dev/null | LC_ALL=C awk 'length($0) <= 305'
+  return 0
+}
+
+# retries_report <unit>: when n, the number of RETRY lines, is above 0 prints the unit's RETRY lines, then its DIAG lines, then
+# `RETRIES <n> in live:<unit>`; nothing otherwise. Only RETRY lines are counted.
 retries_report() {
   local n
   n=$(retry_count "$1")
   [ "$n" -gt 0 ] || return 0
   retry_lines "$1"
+  retry_diag_lines "$1"
   echo "RETRIES $n in live:$1"
 }
 
@@ -629,6 +647,17 @@ retries_summary() {
     done
   } 2>/dev/null >> "$GITHUB_STEP_SUMMARY"
   return 0
+}
+
+# class_method_ok <class> <method>: the method is named Test<letters and digits> and the class's file declares it as `Method <name>(`.
+class_method_ok() {
+  local f
+  case $2 in Test[A-Za-z0-9]*) ;; *) return 1 ;; esac
+  case $2 in *[!A-Za-z0-9]*) return 1 ;; esac
+  for f in src/*/cls/"$(printf '%s' "$1" | tr . /)".cls; do
+    [ -f "$f" ] && grep -q "^Method $2(" "$f" && return 0
+  done
+  return 1
 }
 
 cmd_live() {

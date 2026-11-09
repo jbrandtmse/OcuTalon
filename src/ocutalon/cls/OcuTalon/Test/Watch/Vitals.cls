@@ -12,6 +12,15 @@
 ///     messages.old_*) are counted, the read goes back only as far as the first file that starts before the window, and the lines outside the window
 ///     are not counted;
 ///   - TestUnreadableSwitchedLog: a kept file that cannot be read makes the sign an error;
+///   - TestStartNoise: IRIS's own two start-up lines at severity 2 (the Sharding error, and the failover line of a start in a new container) are not
+///     counted, for one start and for two (Story 17.13, DW-980);
+///   - TestLaterRealError: a real later error of severity 2 or 3, near misses of the two lines and the Sharding text at severity 3 are still counted;
+///   - TestNoiseIdBounds: the container id of the failover line is 12 to 64 lower-case hex digits and nothing else; the Sharding text is matched whole (a word
+///     after it or another label counts); the failover line counts at severity 3;
+///   - TestNoiseTextBounds: the whole text after the severity is matched: both lines under another category, or after a space or a word, are counted;
+///   - TestStartNoiseRow: Checks.Coverage Build over the real reader and the kept files: the "system log" row passes over start-up noise alone, and
+///     fails with its count and the check time over a real later error;
+///   - TestRealStartNoise: the real messages.log of the stack holds the lines of its own last start, and they are not counted;
 ///   - TestErroredItems and TestQueues: Failures names an item whose host status is Error and gives each item's queue with its count and its oldest message;
 ///   - TestBuildOnRealSeams: Checks.Coverage Build over the real readers (Vitals, Failures, Heartbeat Gaps): the five vital rows are read, and an item in
 ///     error makes the production watch's row failed;
@@ -30,6 +39,12 @@ Property Fixtures As %String(MAXLEN = "");
 
 /// The process's time zone before the test, as $SYSTEM.Process.TimeZone gives it.
 Property Zone As %String;
+
+/// IRIS's start-up line at severity 2 of the Sharding error, the whole text after the severity (builds 154 and 109), as the tests write it.
+Parameter SHARDINGTEXT = "[Utility.Event] Error: ERROR #5002: ObjectScript error: <METHOD DOES NOT EXIST>Sharding+2^STU *Sharding,SYS.ICM";
+
+/// The start of IRIS's failover line at severity 2, with its closing space, as the tests write it; the container id follows.
+Parameter FAILOVERTEXT = "[Utility.Event] System appears to have failed over from node ";
 
 Method OnBeforeOneTest(testname As %String) As %Status
 {
@@ -201,6 +216,181 @@ Method TestSwitchedLog()
 	Do $$$AssertTrue(across.systemLog.count > 4, "a window across the switch counts the four lines of the kept files from its start and the current file's severe line too, the current file first: "_across.systemLog.count)
 }
 
+/// IRIS's own start-up lines are not counted: the five lines of one start in a new container (the failover line and the Sharding error at severity 2)
+/// give 0, and so do two such starts 600 s apart. The window is that of TestSwitchedLog: only the kept file contributes.
+Method TestStartNoise()
+{
+	If '..Ready() Quit
+	Set c = ..FirstTimeOfCurrent()
+	Do $$$AssertTrue(c '= "", "the current messages.log has a timed line: "_c)
+	If c = "" Quit
+	Set b = ##class(OcuTalon.Data.Time).AddSeconds(c, -2 * 86400)
+	Set from = ##class(OcuTalon.Data.Time).AddSeconds(b, -3600)
+	Set to = ##class(OcuTalon.Data.Time).AddSeconds(b, -60)
+	Do ..WriteKept("5", b, ..Lead()_..NoiseLines(-3000))
+	Set one = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
+	Do $$$AssertEquals(one.systemLog.outcome, "read", "the log is read")
+	Do $$$AssertEquals(one.systemLog.count, 0, "the failover line and the Sharding line of one start are not counted")
+	Do ..DropSwitchedLogs()
+	Do ..WriteKept("5", b, ..Lead()_..NoiseLines(-3000)_..NoiseLines(-2400, "5f4e3d2c1b0a"))
+	Set two = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
+	Do $$$AssertEquals(two.systemLog.outcome_"|"_two.systemLog.count, "read|0", "nor are those of two starts 600 s apart")
+}
+
+/// A real error after a start still counts, with the lines that only look like the start-up lines: a failover line that names a longer id change
+/// ("from node X to Y") or a host name that is not hex, and the Sharding text at severity 3. The five lines of the noise are not counted, the five others are.
+Method TestLaterRealError()
+{
+	If '..Ready() Quit
+	Set c = ..FirstTimeOfCurrent()
+	Do $$$AssertTrue(c '= "", "the current messages.log has a timed line: "_c)
+	If c = "" Quit
+	Set b = ##class(OcuTalon.Data.Time).AddSeconds(c, -2 * 86400)
+	Set from = ##class(OcuTalon.Data.Time).AddSeconds(b, -3600)
+	Set to = ##class(OcuTalon.Data.Time).AddSeconds(b, -60)
+	Do ..WriteKept("6", b, ..Lead()_..NoiseLines(-3000)_..LaterLines())
+	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
+	Do $$$AssertEquals(vitals.systemLog.outcome, "read", "the log is read")
+	Do $$$AssertEquals(vitals.systemLog.count, 5, "the later error, the severity 3 line, the two near-miss failover lines and the Sharding text at severity 3 are counted; the noise is not")
+}
+
+/// The container id of the failover line is 12 to 64 lower-case hex digits and nothing after them; the Sharding text is matched whole (a word after
+/// it or another label counts); the failover line with a valid id counts at severity 3.
+Method TestNoiseIdBounds()
+{
+	If '..Ready() Quit
+	Set c = ..FirstTimeOfCurrent()
+	Do $$$AssertTrue(c '= "", "the current messages.log has a timed line: "_c)
+	If c = "" Quit
+	Set b = ##class(OcuTalon.Data.Time).AddSeconds(c, -2 * 86400)
+	Set from = ##class(OcuTalon.Data.Time).AddSeconds(b, -3600)
+	Set to = ##class(OcuTalon.Data.Time).AddSeconds(b, -60)
+	Set h16 = "0123456789abcdef"
+	Set ignored = $ListBuild($ListBuild(-3000, 2, ..#FAILOVERTEXT_h16_h16_h16_h16), $ListBuild(-2900, 2, ..#FAILOVERTEXT_"0a1b2c3d4e5f"))
+	Do ..WriteKept("7", b, ..Lead()_ignored)
+	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
+	Do $$$AssertEquals(vitals.systemLog.outcome_"|"_vitals.systemLog.count, "read|0", "an id of 64 and one of 12 hex digits are not counted")
+	Set counted = $ListBuild($ListBuild(-2800, 2, ..#FAILOVERTEXT_"0a1b2c3d4e5"), $ListBuild(-2700, 2, ..#FAILOVERTEXT_h16_h16_h16_h16_"a"), $ListBuild(-2600, 2, ..#FAILOVERTEXT_"0A1B2C3D4E5F"), $ListBuild(-2500, 2, ..#FAILOVERTEXT_"0a1b2c3d4e5f x"), $ListBuild(-2400, 2, ..#FAILOVERTEXT_"0a1b2c3d4e5f "), $ListBuild(-2300, 2, ..#SHARDINGTEXT_" again"), $ListBuild(-2200, 2, "[Utility.Event] Error: ERROR #5002: ObjectScript error: <METHOD DOES NOT EXIST>Sharding+3^STU *Sharding,SYS.ICM"), $ListBuild(-2100, 3, ..#FAILOVERTEXT_"0a1b2c3d4e5f"))
+	Do ..DropSwitchedLogs()
+	Do ..WriteKept("7", b, ..Lead()_ignored_counted)
+	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
+	Do $$$AssertEquals(vitals.systemLog.outcome_"|"_vitals.systemLog.count, "read|8", "an id of 11 or 65 digits, one in upper case, one with text or a space after it, two near-miss Sharding lines and a failover line at severity 3 are counted")
+}
+
+/// The whole text after the severity is matched, nothing before it either: both start-up lines under another category, with a space or a word before
+/// them, are counted (the lines at severity 2 are otherwise exactly the start-up lines).
+Method TestNoiseTextBounds()
+{
+	If '..Ready() Quit
+	Set c = ..FirstTimeOfCurrent()
+	Do $$$AssertTrue(c '= "", "the current messages.log has a timed line: "_c)
+	If c = "" Quit
+	Set b = ##class(OcuTalon.Data.Time).AddSeconds(c, -2 * 86400)
+	Set from = ##class(OcuTalon.Data.Time).AddSeconds(b, -3600)
+	Set to = ##class(OcuTalon.Data.Time).AddSeconds(b, -60)
+	Set id = "0a1b2c3d4e5f"
+	Set ignored = $ListBuild($ListBuild(-3000, 2, ..#FAILOVERTEXT_id), $ListBuild(-2900, 2, ..#SHARDINGTEXT))
+	Do ..WriteKept("9", b, ..Lead()_ignored)
+	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
+	Do $$$AssertEquals(vitals.systemLog.outcome_"|"_vitals.systemLog.count, "read|0", "the two lines as they are, at severity 2, are not counted")
+	Set counted = $ListBuild($ListBuild(-2800, 2, $Replace(..#FAILOVERTEXT, "[Utility.Event]", "[Generic.Event]")_id), $ListBuild(-2700, 2, $Replace(..#SHARDINGTEXT, "[Utility.Event]", "[Generic.Event]")), $ListBuild(-2600, 2, " "_..#SHARDINGTEXT), $ListBuild(-2500, 2, "zz "_..#FAILOVERTEXT_id))
+	Do ..DropSwitchedLogs()
+	Do ..WriteKept("9", b, ..Lead()_ignored_counted)
+	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
+	Do $$$AssertEquals(vitals.systemLog.outcome_"|"_vitals.systemLog.count, "read|4", "both lines under another category, the Sharding line after a space and the failover line after a word are counted")
+}
+
+/// The "system log" row of the coverage, over the real reader and the kept files of the window: it passes over start-up noise alone, and over a real
+/// later error it fails with its count and the time of the check, as the row and as the digest line.
+Method TestStartNoiseRow()
+{
+	If '..Ready() Quit
+	Set c = ..FirstTimeOfCurrent()
+	Do $$$AssertTrue(c '= "", "the current messages.log has a timed line: "_c)
+	If c = "" Quit
+	Set b = ##class(OcuTalon.Data.Time).AddSeconds(c, -2 * 86400)
+	Set from = ##class(OcuTalon.Data.Time).AddSeconds(b, -3600)
+	Set to = ##class(OcuTalon.Data.Time).AddSeconds(b, -60)
+	Set session = ##class(OcuTalon.Test.Data.Fixture).Session("zzvitalsnoise")
+	Set ..Fixtures = session
+	Do ..WriteKept("8", b, ..Lead()_..NoiseLines(-3000)_..NoiseLines(-2400))
+	Set sc = ##class(OcuTalon.Checks.Coverage).Build(session, from, to, .rows, .lines, .vitals)
+	Do $$$AssertStatusOK(sc, "Build is OK over start-up noise")
+	Do $$$AssertEquals(rows.%Get(4).entry_"|"_rows.%Get(4).result_"|"_rows.%Get(4).finding, "system log|passed|", "the system log row passes over start-up noise alone, with no finding")
+	Do $$$AssertEquals(lines.%Get(4).key, "digest.passed", "and so does its line")
+	Do ..DropSwitchedLogs()
+	Do ..WriteKept("8", b, ..Lead()_..NoiseLines(-3000)_..LaterLines())
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
+	Set sc = ##class(OcuTalon.Checks.Coverage).Build(session, from, to, .rows, .lines, .vitals)
+	Set after = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(sc, "Build is OK over a real later error")
+	Set row = rows.%Get(4)
+	Do $$$AssertEquals(row.entry_"|"_row.result_"|"_row.finding, "system log|failed|5 errors", "the system log row fails with its count")
+	Do $$$AssertTrue('(before ] row.checkedAt) && '(row.checkedAt ] after), "with the time of the check: "_row.checkedAt)
+	Set line = lines.%Get(4)
+	Do $$$AssertEquals(line.key, "digest.failed", "its line is a failed line")
+	Do $$$AssertEquals(line.slots.finding, "5 errors", "with the finding of the row")
+	Do $$$AssertEquals(line.slots.time, row.checkedAt, "and the time of the row")
+}
+
+/// The real messages.log of this stack holds the lines of its own last start. The window from the last "Instance 'IRIS' starting on node" line to a
+/// second after the Sharding line that follows it holds no counted line.
+Method TestRealStartNoise()
+{
+	If '..Ready() Quit
+	Do ..LastStart(.started, .sharding)
+	Do $$$AssertTrue(started '= "", "the start line of the last start is found: "_started)
+	Do $$$AssertTrue(sharding '= "", "and the Sharding line that follows it: "_sharding)
+	If (started = "") || (sharding = "") Quit
+	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", started, ##class(OcuTalon.Data.Time).AddSeconds(sharding, 1))
+	Do $$$AssertEquals(vitals.systemLog.outcome_"|"_vitals.systemLog.count, "read|0", "the start's own lines are not counted")
+}
+
+/// The UTC times of the last "Instance 'IRIS' starting on node" line of the current messages.log (started) and of the first Sharding line after it
+/// (sharding, "" when none). It is a class method, so that its stream is closed before the reader opens the same file.
+ClassMethod LastStart(Output started As %String, Output sharding As %String)
+{
+	Set started = "", sharding = ""
+	Set stream = ##class(%Stream.FileCharacter).%New()
+	Do stream.LinkToFile(##class(%File).NormalizeFilename($SYSTEM.Util.ManagerDirectory()_"messages.log"))
+	While 'stream.AtEnd {
+		Set line = stream.ReadLine(4000)
+		If line '? 2N1"/"2N1"/"2N1"-"2N1":"2N1":"2N1":"3N1" ".E Continue
+		If ($Piece(line, " ", 4, 5) = "[Utility.Event] Instance") && ($Piece(line, " ", 6, 8) = "'IRIS' starting on") {
+			Set started = ..UtcOf(line)
+			Set sharding = ""
+		} ElseIf (started '= "") && (sharding = "") && ($Piece(line, " ", 3) = 2) && ($Piece(line, " ", 4, *) = ..#SHARDINGTEXT) {
+			Set sharding = ..UtcOf(line)
+		}
+	}
+}
+
+/// The UTC time of a timed line of messages.log.
+ClassMethod UtcOf(line As %String) As %String
+{
+	Quit ##class(OcuTalon.Data.Time).FromLocal("20"_$Extract(line, 7, 8)_"-"_$Extract(line, 1, 2)_"-"_$Extract(line, 4, 5)_"T"_$Extract(line, 10, 17))
+}
+
+/// The lines of one start in a new container, from the second at seconds from the base (see WriteKept): the start line, the failover line from the
+/// node id, "Enabling logons", "Interoperability System Startup Complete" and the Sharding error.
+ClassMethod NoiseLines(at As %Integer, id As %String = "0a1b2c3d4e5f") As %List
+{
+	Quit $ListBuild($ListBuild(at, 0, "[Utility.Event] Instance 'IRIS' starting on node zzhostnew by user 'irisowner' on 11/09/2026 UTC"), $ListBuild(at + 1, 2, ..#FAILOVERTEXT_id), $ListBuild(at + 2, 0, "[Utility.Event] Enabling logons"), $ListBuild(at + 3, 0, "[Utility.Event] Interoperability System Startup Complete"), $ListBuild(at + 3, 2, ..#SHARDINGTEXT))
+}
+
+/// The five counted lines after a start (see WriteKept): a real error at severity 2 and one at severity 3, the failover line naming an id change
+/// ("from node X to Y") and a host name that is not hex, and the Sharding text at severity 3.
+ClassMethod LaterLines() As %List
+{
+	Quit $ListBuild($ListBuild(-2000, 2, "[Utility.Event] Error: ERROR #5002: ObjectScript error: <UNDEFINED>zzvitals+1^ZZVITALS17 *zz"), $ListBuild(-1900, 3, "[Generic.Event] zz a real error of severity 3, ignore"), $ListBuild(-1800, 2, ..#FAILOVERTEXT_"0a1b2c3d4e5f to 5f4e3d2c1b0a"), $ListBuild(-1700, 2, ..#FAILOVERTEXT_"zzhostold"), $ListBuild(-1600, 3, ..#SHARDINGTEXT))
+}
+
+/// A line before the window of the tests above, so that the read stops after the kept file (the older files of the instance are not read).
+ClassMethod Lead() As %List
+{
+	Quit $ListBuild($ListBuild(-4000, 0, "[Utility.Event] zz an earlier line of a kept log, ignore"))
+}
+
 /// A switched file that cannot be read makes the sign an error, never a count that leaves its lines out.
 Method TestUnreadableSwitchedLog()
 {
@@ -225,10 +415,11 @@ ClassMethod FirstTimeOfCurrent() As %String
 		If line ? 2N1"/"2N1"/"2N1"-"2N1":"2N1":"2N1":"3N1" ".E Quit
 	}
 	If $Get(line) '? 2N1"/"2N1"/"2N1"-"2N1":"2N1":"2N1":"3N1" ".E Quit ""
-	Quit ##class(OcuTalon.Data.Time).FromLocal("20"_$Extract(line, 7, 8)_"-"_$Extract(line, 1, 2)_"-"_$Extract(line, 4, 5)_"T"_$Extract(line, 10, 17))
+	Quit ..UtcOf(line)
 }
 
-/// Writes a kept log, messages.old_zzvitals17_<name>, with one line for each {seconds from base (UTC), severity} of lines.
+/// Writes a kept log, messages.old_zzvitals17_<name>, with one line for each {seconds from base (UTC), severity, text} of lines; the text after the
+/// severity is optional (default: "[Zz.Event] a line of a kept log, ignore").
 Method WriteKept(name As %String, base As %String, lines As %List)
 {
 	Set file = ##class(%Stream.FileCharacter).%New()
@@ -236,7 +427,7 @@ Method WriteKept(name As %String, base As %String, lines As %List)
 	Set position = 0
 	While $ListNext(lines, position, item) {
 		Set local = ##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).AddSeconds(base, $List(item, 1)))
-		Do file.WriteLine($Extract(local, 6, 7)_"/"_$Extract(local, 9, 10)_"/"_$Extract(local, 3, 4)_"-"_$Extract(local, 12, 19)_":000 (1) "_$List(item, 2)_" [Zz.Event] a line of a kept log, ignore")
+		Do file.WriteLine($Extract(local, 6, 7)_"/"_$Extract(local, 9, 10)_"/"_$Extract(local, 3, 4)_"-"_$Extract(local, 12, 19)_":000 (1) "_$List(item, 2)_" "_$Select($ListLength(item) > 2: $List(item, 3), 1: "[Zz.Event] a line of a kept log, ignore"))
 	}
 	Do $$$AssertStatusOK(file.%Save(), "the kept log "_name_" is written")
 }
@@ -335,7 +526,7 @@ Method TestNoSwitch()
 	Set here = $Namespace
 	Do ##class(OcuTalon.Watch.Reader).Vitals($ListBuild(..#ORDERS), "", "")
 	Do $$$AssertEquals($Namespace, here, "the namespace is as it was")
-	For name = "Vitals", "Database", "DatabaseName", "VolumeFree", "Databases", "Add", "SevereLines", "SevereLinesIn" {
+	For name = "Vitals", "Database", "DatabaseName", "VolumeFree", "Databases", "Add", "SevereLines", "SevereLinesIn", "StartNoise" {
 		Set method = ##class(%Dictionary.CompiledMethod).%OpenId("OcuTalon.Watch.Reader||"_name)
 		Do $$$AssertTrue($IsObject(method), name_" exists")
 		If '$IsObject(method) Continue

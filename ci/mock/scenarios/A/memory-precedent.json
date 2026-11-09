@@ -1,0 +1,12 @@
+{
+  "name": "memory-precedent",
+  "match": {
+    "marker": "memory-precedent"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock tells the user now.\"],\"confidence\":0.9}"
+    }
+  ]
+}

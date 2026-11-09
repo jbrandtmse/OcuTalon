@@ -29,8 +29,8 @@
 ///     (at least 600 ms less, whatever pause there is between the two reads);
 ///   - TestZoneCase (Story 1.10, DW-32): the zone base of the test classes that change the process zone (Test.Bridge.ZoneCase) puts back what it
 ///     read, a named zone and "no zone" (-1, which it takes as an empty zone) alike, also through its hooks (OnBeforeOneTest saves the zone and
-///     OnAfterOneTest puts it back); the six classes that extend it (this one, Test.Agent.Render, Test.Bridge.Usage, Test.Bridge.Budget,
-///     Test.Bridge.Decide and Test.Tools.Reminders) keep no zone copy of their own (no SavedZone, and no read of the process zone), and no other test class
+///     OnAfterOneTest puts it back); the classes that extend it (this one, Test.Agent.Render, Test.Agent.RenderMemory, Test.Bridge.Usage,
+///     Test.Bridge.Budget, Test.Bridge.Decide and Test.Tools.Reminders) keep no zone copy of their own (no SavedZone, and no read of the process zone), and no other test class
 ///     of Lane A's packages (Agent, Bridge, Tools, Install, Digest) calls the process time zone without extending the base: each scanner is first shown to
 ///     flag a sample. The base saves and restores
 ///     the zone around every test of this class too;
@@ -385,7 +385,7 @@ Method TestZoneCase()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2025-07-01T12:00:00Z"), "2025-07-01T12:00:00", "and no zone")
 	Set ..SavedZone = own
 
-	Set classes = $ListBuild("OcuTalon.Test.Bridge.Time", "OcuTalon.Test.Agent.Render", "OcuTalon.Test.Bridge.Usage", "OcuTalon.Test.Bridge.Budget", "OcuTalon.Test.Bridge.Decide", "OcuTalon.Test.Tools.Reminders")
+	Set classes = $ListBuild("OcuTalon.Test.Bridge.Time", "OcuTalon.Test.Agent.Render", "OcuTalon.Test.Agent.RenderMemory", "OcuTalon.Test.Bridge.Usage", "OcuTalon.Test.Bridge.Budget", "OcuTalon.Test.Bridge.Decide", "OcuTalon.Test.Tools.Reminders")
 	Set position = 0
 	While $ListNext(classes, position, class) {
 		Do $$$AssertTrue($ClassMethod(class, "%Extends", base), class_" extends the zone base")

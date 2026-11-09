@@ -464,3 +464,43 @@
 2026-11-07T21:44:00Z	Epic 0	epic_retro_skipped	reason=policy
 2026-11-07T21:44:00Z	Epic 0	epic_status_done	stories=15 note=reopen_story_0.16_done
 2026-11-07T21:44:00Z	Epic 0	model_tier_checkpoint	armed=false result=hold applied=false scope=reopen_story_0.16_only(no_implement_or_review_stage)
+2026-11-09T04:05:30Z	Epic 0	epic_branch_reopened	reason=stories_0.17_0.15 from=360306f4
+2026-11-09T04:05:30Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_0.17_0.15 lane=C slot=ocutalon-slot-c
+2026-11-09T04:05:30Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-09T04:05:30Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-09T04:05:30Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-09T04:05:30Z	Epic 0	epic_branch_checked_out	repos=. head=360306f4 ci=gh port=52803 bootstrap_check=pass note=ff_from_origin_85b479e0;first_push_carries_360306f4
+2026-11-09T04:05:30Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-09T04:05:30Z	Epic 0	ledger_load	total=975 open=0 routed=114 escalated=2 decision_pending=4 terminal=855 owner_unknown=0 burndown=98 reowned_none=0 epic0_owned=0
+2026-11-09T04:05:30Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen(sprint_plan.py_validate+generate);tracker_valid;0.15_0.17_added_backlog;dropped_orphans=none
+2026-11-09T04:05:30Z	Epic 0	retro_review_skipped	reason=skip(no_X.0_input) note=reopen_for_two_stories;epic0_owned_ledger=0
+2026-11-09T04:05:30Z	Epic 0	story_chartered	stories=0.15(after_0.14),0.17(after_0.16) markers=ADDED_2026-11-09
+2026-11-09T04:05:30Z	Epic 0	deps_hash_rerecorded	reason=fix_forward note=stories_0.15_0.17_inserted_in_epic_0;no_boundary_or_dependency_change
+2026-11-09T04:05:30Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) stories=0.17,0.15
+2026-11-09T04:07:19Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(stories_0.15_0.17_added) model=claude-opus-5-5 effort=high
+2026-11-09T04:07:19Z	Story 0.17	stage_spawned	stage=plan+implement spawn_at=2026-11-09T04:07:19Z model=sonnet agent_name=0-17-build-1 cycle_iteration=1 story_base=c8efcc5a pipeline=one_build_auto_stage(orchestrator_ruling)
+2026-11-09T04:16:31Z	Story 0.17	story_created	spawn_at=2026-11-09T04:07:19Z model=sonnet path=_bmad-output/implementation-artifacts/spec-0-17-the-readme-s-evaluation-table-shows-release-1-0-4-s-numbers.md build_status=ready-for-dev epic_context=reused note=plan_and_implement_in_one_stage(orchestrator_ruling)
+2026-11-09T04:16:31Z	Story 0.17	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs= decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false note=validated_post_build(one_stage_ruling);spec_change_log_records_ruling
+2026-11-09T04:16:31Z	Story 0.17	dev_complete	spawn_at=2026-11-09T04:07:19Z model=sonnet effort=high build_sha=6eb54a00 baseline_revision=f9f8d891 story_base=c8efcc5a review_loop_iteration=0 followup_review_recommended=false deferred=0 files=3 cycle_iteration=1 note=review_layers=4,findings=12_all_rejected
+2026-11-09T04:16:31Z	Story 0.17	adr_verifications_complete	result=none_required mutations=none model=claude-opus-5-5
+2026-11-09T04:16:31Z	Story 0.17	diff_review_complete	by=runner replaces=qa,code-review(orchestrator_ruling) result=pass readme=byte_exact_vs_approved(3_changes:intro,5_rows,1_paragraph) test_readme_pins=measured_mutate_moved(19_of_22->21_of_24;intro_regex),readme-links_allowlist_exact_post_path+2_negative_rows grep_old_numbers=none model=claude-opus-5-5
+2026-11-09T04:16:31Z	Story 0.17	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0
+2026-11-09T04:16:31Z	Story 0.17	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=test-readme.sh_all_rules_passed(measured,readme-links);test-boundaries.sh_all_rules_passed;article_link_HEAD_200(stage) model=claude-opus-5-5
+2026-11-09T04:16:31Z	Story 0.17	fresh_check	env=clean-checkout(git_archive_HEAD) tests=1(docker/tests/test-readme.sh) result=pass order=forward,reverse(single_script) note=first_attempt_recipe_skipped_4_force-tracked_images,rerun_with_add_-f_passed
+2026-11-09T04:17:35Z	Story 0.17	committed	sha=7e4a668d submodules= ci=pending runs=42560945591,42560945643 amendments=none note=pushed_alone;first_push_carried_360306f4;code_commit=6eb54a00
+2026-11-09T04:17:35Z	Story 0.17	story_cycle	plan_to_commit_min=10 implement_passes=1 reviews=1(runner_diff_review) rework=0 first_ci=pending models=plan:sonnet,implement:sonnet,qa:none,cr:runner(opus)
+2026-11-09T04:18:01Z	Story 0.15	stage_spawned	stage=plan spawn_at=2026-11-09T04:18:01Z model=opus effort=high agent_name=0-15-plan-1 cycle_iteration=1
+2026-11-09T04:33:22Z	Story 0.15	story_created	spawn_at=2026-11-09T04:18:01Z model=opus effort=high path=_bmad-output/implementation-artifacts/spec-0-15-the-dockerfile-sits-at-the-repository-root.md build_status=ready-for-dev epic_context=reused note=oversized_warning;20_files_planned
+2026-11-09T04:33:22Z	Story 0.15	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-5,AD-22,AD-23,AD-29 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false note=throwaway_tag_e0s15i_lane-c;image_tags_ocutalon-e0s15:before,after;release_hunks_to_planner_before_merge;orchestrator_edits=epic-dependencies.yaml:296,176
+2026-11-09T04:53:31Z	Epic 0	story_chartered	stories=0.18(after_0.17,before_0.15_in_run_order) marker=ADDED_2026-11-09 via=orchestrator_message source=collateral/readme-judges-1.0.5-FINAL.md
+2026-11-09T04:53:31Z	Epic 0	deps_hash_rerecorded	reason=fix_forward note=story_0.18_inserted_in_epic_0;no_boundary_or_dependency_change
+2026-11-09T04:54:51Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.18_added) model=claude-opus-5-5 effort=high
+2026-11-09T04:54:51Z	Story 0.18	stage_spawned	stage=plan+implement spawn_at=2026-11-09T04:54:51Z model=sonnet effort=high agent_name=0-18-build-1 cycle_iteration=1 story_base=a487bc68 pipeline=one_build_auto_stage(orchestrator_ruling)
+2026-11-09T05:06:09Z	Story 0.18	story_created	spawn_at=2026-11-09T04:54:51Z model=sonnet path=_bmad-output/implementation-artifacts/spec-0-18-the-readme-shows-judges-where-to-look.md build_status=ready-for-dev epic_context=reused note=plan_and_implement_in_one_stage(orchestrator_ruling)
+2026-11-09T05:06:09Z	Story 0.18	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs= decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false note=validated_post_build(one_stage_ruling)
+2026-11-09T05:06:09Z	Story 0.18	dev_complete	spawn_at=2026-11-09T04:54:51Z model=sonnet effort=high build_sha=6118b053 baseline_revision=4aeaff92 story_base=a487bc68 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=3 cycle_iteration=1 note=review_layers=4,findings=18_all_rejected
+2026-11-09T05:06:09Z	Story 0.18	adr_verifications_complete	result=none_required mutations=none model=claude-opus-5-5
+2026-11-09T05:06:09Z	Story 0.18	diff_review_complete	by=runner replaces=qa,code-review(orchestrator_ruling) result=pass readme=byte_exact_vs_FINAL_edits_1-5(independent_rebuild;42_added_0_removed;9_U+00B7) edit6=allowlist_line_byte_exact;kept_host_form_community.intersystems.com(dropped_0.17_post_path_entry_and_its_2_narrowing_self-tests) bug_report_links=none model=claude-opus-5-5
+2026-11-09T05:06:09Z	Story 0.18	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0
+2026-11-09T05:06:09Z	Story 0.18	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=test-readme.sh_all_32_rules_passed;test-boundaries.sh_all_rules_passed model=claude-opus-5-5
+2026-11-09T05:06:09Z	Story 0.18	fresh_check	env=clean-checkout(git_archive_HEAD,add_-f) tests=1(docker/tests/test-readme.sh) result=pass order=forward,reverse(single_script)

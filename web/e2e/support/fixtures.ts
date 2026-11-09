@@ -1,7 +1,7 @@
 import { expect as baseExpect, test as base, type APIRequest, type BrowserContext, type Page } from '@playwright/test';
 
-import { boundedStep, capToDeadline, diagnosedAtBound, effectiveWaits, markTestStart, waitsFor } from './bounds';
-import { closeDiagnosis, watchRequests } from './diagnose';
+import { boundedStep, capToDeadline, diagnosedAtBound, effectiveWaits, firstAttemptMs, markTestStart, reportRetry, waitsFor } from './bounds';
+import { closeDiagnosis, closeLines, closeTargetAgain, describeReclose, printDiagnosis, redactLine, watchRequests, type RequestWatch } from './diagnose';
 
 export * from '@playwright/test';
 
@@ -25,7 +25,13 @@ export * from '@playwright/test';
  * Its fourth contract: page.close() on a page of the test's context takes no timeout in Playwright, so it is bounded here by the action
  * wait in force (and by the time the test has left, bounds.ts boundedStep) and fails naming `page.close`. When the bound passes, the
  * close diagnosis (diagnose.ts closeDiagnosis, DW-774) prints whether the page, its renderer and the browser still answer, what the page has in
- * flight and the host's load, to close-diagnosis.txt and stdout, before the same error is thrown. A close is never retried.
+ * flight and the host's load, to close-diagnosis.txt and stdout, before the same error is thrown. A close is retried at most once, and only
+ * in Chromium with a bound of 20 s or more (bounds.ts firstAttemptMs): when the page is still open and the close has not settled by half of the
+ * bound, the `RETRY <spec>:<line> page.close` line and the redacted lines of the close diagnosis are logged (bounds.ts reportRetry, not
+ * printed), and the browser is asked to close the page's target again (diagnose.ts closeTargetAgain); only a refused or unmeasured re-close
+ * prints one `DIAG page.close re-close ...` line. The close then ends when the first close settles or the page's `close` event fires, and no
+ * later than the bound, which the retry does not change: a second miss fails with the same error and the same diagnosis as a close that was
+ * never retried, and a first close that rejects rejects with its own error.
  *
  * Its fifth contract (DW-706): an APIRequestContext made without a timeout of its own (the built-in `request` fixture, a
  * `playwright.request.newContext()` in a spec or a helper) waits no longer than the action wait in force, bounds.ts effectiveWaits: in a
@@ -35,11 +41,63 @@ export * from '@playwright/test';
  * timeout later keeps the earlier wait for a context made before.
  */
 
-/** Makes the page's close() reject with `page.close: no answer within <s> s` when the page has not closed within waitMs() (at the time of the call). */
+/**
+ * The first close of a page, with one more close of its target when it is still open and unsettled by half of boundMs (see the fourth contract
+ * above). Settles with the first close, or when the page closes; it settles at once, with no retry, for a bound under 20 s, a page that is not
+ * Chromium, or a first close that ends first. The bound itself is the caller's.
+ */
+function closeWithOneMore(page: Page, first: Promise<void>, boundMs: number, watch: RequestWatch): Promise<void> {
+  let firstMs: number | undefined;
+  try {
+    firstMs = page.context().browser()?.browserType().name() === 'chromium' ? firstAttemptMs(capToDeadline(boundMs).ms) : undefined;
+  } catch {
+    firstMs = undefined;
+  }
+  if (firstMs === undefined) return first;
+  return new Promise<void>((resolve, reject) => {
+    let ended = false;
+    const end = (): void => {
+      ended = true;
+      clearTimeout(timer);
+      page.off('close', onClose);
+    };
+    const onClose = (): void => {
+      end();
+      resolve();
+    };
+    const again = async (): Promise<void> => {
+      let lines: string[] = [];
+      try {
+        lines = await closeLines(page, watch);
+      } catch {
+        // The retry goes on without its diagnosis.
+      }
+      // While the page was probed, the first close may have settled or the page may have closed.
+      if (ended || page.isClosed()) return;
+      reportRetry('page.close', lines.map(redactLine));
+      const line = describeReclose(await closeTargetAgain(page));
+      if (line !== undefined) printDiagnosis([line], 'close-diagnosis');
+    };
+    const timer = setTimeout(() => void again().catch(() => undefined), firstMs);
+    page.on('close', onClose);
+    first.then(
+      () => {
+        end();
+        resolve();
+      },
+      (error: unknown) => {
+        end();
+        reject(error);
+      },
+    );
+  });
+}
+
+/** Makes the page's close() reject with `page.close: no answer within <s> s` when the page has not closed within waitMs() (at the time of the call); see closeWithOneMore for the one re-close. */
 export function boundedClose(page: Page, waitMs: () => number): void {
   const close = page.close.bind(page);
   const watch = watchRequests(page);
-  page.close = (options) => diagnosedAtBound(boundedStep(close(options), waitMs(), 'page.close'), 'page.close', () => closeDiagnosis(page, watch));
+  page.close = (options) => diagnosedAtBound(boundedStep(closeWithOneMore(page, close(options), waitMs(), watch), waitMs(), 'page.close'), 'page.close', () => closeDiagnosis(page, watch));
 }
 
 type PollOptions = { timeout?: number } | string | undefined;
