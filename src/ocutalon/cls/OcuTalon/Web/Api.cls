@@ -305,7 +305,7 @@ ClassMethod Roles() As %String [ Private ]
 /// 1 when the signed-in user holds OcuTalonAdmin, by its whole name; %All does not count (AD-19), because a holder of %All could grant itself the role.
 ClassMethod IsAdmin() As %Boolean [ Private ]
 {
-	Quit (","_..Roles()_",") [ (","_##class(OcuTalon.Core.Admin).#ROLE_",")
+	Quit ##class(OcuTalon.Core.Admin).Held(..Roles())
 }
 
 /// 1 when the URL (below the application) is /v1/settings or below it.

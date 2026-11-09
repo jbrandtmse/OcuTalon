@@ -128,15 +128,15 @@ Include Ensemble
 ///     after the timer is discarded by the business process framework.
 /// The state of a decision that outlasts one message is stored with the process (AD-5): DecisionRef, Resends, StepCount, StepsSent, RetryRunner and
 /// FirstSeconds.
-/// None is a setting. The four extension settings name the classes through which the bridge reaches its host (AD-31); the production
-/// definition sets the first two and the fourth, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
+/// None is a setting. The five extension settings name the classes through which the bridge reaches its host (AD-31); the production
+/// definition sets the first two, the fourth and the fifth, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
 /// System Default Settings that OcuTalon.Bridge.Budget reads through the same accessor; DecisionTokenBudget and RequestTokenLimit are
 /// settings of Decide itself, which Decide reads as they are written now when it runs as its own job (SettingText), so that a change applies to the
 /// next decision with no restart. InstanceZone is the instance zone's single source (AD-18): OcuTalon.Bridge.Time reads and writes it. ServiceUser and ToolClassification are read by the gate (OcuTalon.Bridge.Policy.Gate, AD-10) in the runner's job, and ApprovalRole by OcuTalon.Bridge.Approval.Raise (AD-11) in the caller's job. FireEvent delivers every event of the bridge to the host sink. This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Process.Decide Extends Ens.BusinessProcess
 {
 
-Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TurnToolsClass:Extensions,TimerSeconds:Bridge,DecisionTokenBudget:Bridge,RequestTokenLimit:Bridge,DailyCostCapUSD:Bridge,GatewaySpendUSD:Bridge,GatewaySpendDate:Bridge,InstanceZone:Bridge,ServiceUser:Bridge,ToolClassification:Bridge,ApprovalRole:Bridge";
+Parameter SETTINGS = "HostSinkClass:Extensions,ReplyFilterClass:Extensions,ClassificationClass:Extensions,TurnToolsClass:Extensions,McpServersClass:Extensions,TimerSeconds:Bridge,DecisionTokenBudget:Bridge,RequestTokenLimit:Bridge,DailyCostCapUSD:Bridge,GatewaySpendUSD:Bridge,GatewaySpendDate:Bridge,InstanceZone:Bridge,ServiceUser:Bridge,ToolClassification:Bridge,ApprovalRole:Bridge";
 
 /// The runner item of each request kind, as kind:item pairs (AD-6).
 Parameter RUNNERS = "decide:TriageAgent,diagnose:DiagnosisAgent,turn:ChatAgent";
@@ -230,6 +230,9 @@ Property ClassificationClass As %String(MAXLEN = 128) [ InitialExpression = "Ocu
 
 /// The class that gives one request tools of its own; it extends OcuTalon.Bridge.Ext.TurnTools.
 Property TurnToolsClass As %String(MAXLEN = 128) [ InitialExpression = "OcuTalon.Bridge.Ext.TurnTools" ];
+
+/// The class that names the MCP servers a runner attaches and receives the report of each attach; it extends OcuTalon.Bridge.Ext.McpServers.
+Property McpServersClass As %String(MAXLEN = 128) [ InitialExpression = "OcuTalon.Bridge.Ext.McpServers" ];
 
 /// How long Decide waits for the runner's reply, in whole seconds from MINTIMER to MAXTIMER (AD-5, AD-8). Timeouts.Apply changes it
 /// together with the Config Store entries of the runners.
@@ -1829,6 +1832,9 @@ Storage Default
 </Value>
 <Value name="20">
 <Value>TurnToolsClass</Value>
+</Value>
+<Value name="21">
+<Value>McpServersClass</Value>
 </Value>
 </Data>
 <DefaultData>DecideDefaultData</DefaultData>

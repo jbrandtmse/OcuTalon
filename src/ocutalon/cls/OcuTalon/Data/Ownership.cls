@@ -33,7 +33,7 @@
 ///     of a production (noticed since a time, or open), the visible approval requests of an incident, the newest Break the
 ///     feed run and the newest live event of a type on the session's stream. ResolvedIncidents, which Break the feed's press
 ///     reads, is the session's own noticed resolved incidents of a production, oldest first, and never an instance incident.
-///   - Watchers, ActiveVisitors, AllowanceHeld and ApprovalIncident read across owners, so they prepare with the privilege
+///   - Watchers, ActiveVisitors, AllowanceHeld, AdminSessions and ApprovalIncident read across owners, so they prepare with the privilege
 ///     check, report a failed read in sc, and run only in production jobs and tests.
 ///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
 ///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. RecentTurns leaves out a refused
@@ -264,13 +264,20 @@ ClassMethod StartVisitor(Output reference As %String, Output sc As %Status) As %
 	Quit row.Ref
 }
 
-/// Finds or creates the IRIS user's one durable session (Session.ForUser) and records its Ref in the CSP session.
-ClassMethod Attach(irisUser As %String = {$Username}) As %Status
+/// Finds or creates the IRIS user's one durable session (Session.ForUser) and records its Ref in the CSP session. admin is the sign-in's
+/// answer to "does the user hold OcuTalonAdmin" (0 or 1, AD-21): when it is 0 or 1 and differs from the row's AdminAtSignIn, the row takes it
+/// and is saved. The attach holds even when that save fails, and the failed save is the answer. "" (an attach on a first API call) leaves the
+/// flag as the latest sign-in set it.
+ClassMethod Attach(irisUser As %String = {$Username}, admin As %String = "") As %Status
 {
 	If '$IsObject($Get(%session)) Quit $SYSTEM.Status.Error(5001, "There is no CSP session to attach the OcuTalon session to")
 	Set row = ##class(OcuTalon.Data.Session).ForUser(irisUser, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit sc
 	Set %session.Data(..#SESSIONKEY) = row.Ref
+	If ((admin = 0) || (admin = 1)) && (admin '= row.AdminAtSignIn) {
+		Set row.AdminAtSignIn = admin
+		Quit row.%Save()
+	}
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -637,6 +644,34 @@ ClassMethod AllowanceHeld(now As %String, Output sc As %Status) As %List
 			Set result = statement.%Execute($Get(now))
 			If result.%SQLCODE < 0 {
 				Set sc = $SYSTEM.Status.Error(5001, "The read of the sessions with an allowance window failed: "_result.%Message)
+			} Else {
+				While result.%Next() {
+					Set ref = result.%Get("Ref")
+					If ref '= "" Set found(ref) = ""
+				}
+			}
+		}
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Quit ..RefList(.found)
+}
+
+/// The Refs of the sessions whose user held OcuTalonAdmin, by its whole name and never %All, at the session's latest sign-in
+/// (Session.AdminAtSignIn, AD-21), in Ref order, as a list. It reads across owners, so it prepares with the privilege check and runs only in
+/// production jobs and tests (Story 22.2's McpOps reads it). sc is OK unless the read failed; the result is then "" and means nothing.
+ClassMethod AdminSessions(Output sc As %Status) As %List
+{
+	Set sc = $SYSTEM.Status.OK()
+	Kill found
+	Try {
+		Set statement = ##class(%SQL.Statement).%New()
+		Set sc = statement.%Prepare("SELECT %EXACT(Ref) AS Ref FROM OcuTalon_Data.Session WHERE AdminAtSignIn = 1")
+		If $SYSTEM.Status.IsOK(sc) {
+			Set result = statement.%Execute()
+			If result.%SQLCODE < 0 {
+				Set sc = $SYSTEM.Status.Error(5001, "The read of the admins' sessions failed: "_result.%Message)
 			} Else {
 				While result.%Next() {
 					Set ref = result.%Get("Ref")
