@@ -91,7 +91,7 @@ describe('the scan', () => {
   });
 });
 
-describe('keys: only Enter and Escape, and the arrows of the device tabs', () => {
+describe('keys: only Enter and Escape, and the arrows of the device tabs and the Memory card\'s tabs', () => {
   const KEY_LITERAL = /\.key(?:\.\w+\(\))?\s*[!=]==?\s*(['"`])([^'"`]*)\1/g;
   const KEY_LITERAL_FIRST = /(['"`])([^'"`]*)\1\s*[!=]==?\s*[\w$.]*\.key\b/g;
   const KEY_CODE = /\b(?:keyCode|charCode|which)\s*[!=]==?\s*(\d+)/g;
@@ -106,6 +106,7 @@ describe('keys: only Enter and Escape, and the arrows of the device tabs', () =>
     'app/devices/device-panel.ts': 'ArrowLeft and ArrowRight move between the two device tabs, as the ARIA tabs pattern asks (EXPERIENCE L296)',
     'app/main-page/main-page.ts': 'Escape closes the status drawer when focus is inside the rail, after any layer inside it that used the Escape',
     'app/rail/decision-row.ts': 'Escape collapses the row when focus is inside it',
+    'app/rail/memory-card/memory-card.ts': 'ArrowLeft and ArrowRight move between the Memory card\'s two tabs, as the ARIA tabs pattern asks (EXPERIENCE L321)',
     'app/rail/heartbeat-card/heartbeat-card.ts': 'Escape collapses the Edit disclosure when focus is inside it, and focus returns to Edit',
     'app/rail/persona-card/persona-card.ts': 'Escape collapses the Change disclosure when focus is inside it, and focus returns to Change',
     'app/session/session-gate.ts': 'a capture-phase keydown listener on the document that only touches the idle cap (Story 16.4): it compares no key and acts on none',
@@ -143,7 +144,7 @@ describe('keys: only Enter and Escape, and the arrows of the device tabs', () =>
       for (const match of one.code.matchAll(KEY_CODE)) codes.add(match[1]);
     }
     assert.deepEqual([...literals].sort(), ['ArrowLeft', 'ArrowRight', 'Enter', 'Escape']);
-    assert.deepEqual(filesWith(/\.key\s*[!=]==?\s*['"`]Arrow/), ['app/devices/device-panel.ts']);
+    assert.deepEqual(filesWith(/\.key\s*[!=]==?\s*['"`]Arrow/), ['app/devices/device-panel.ts', 'app/rail/memory-card/memory-card.ts']);
     assert.deepEqual([...codes], ['229']);
     assert.deepEqual(filesWith(new RegExp(KEY_CODE.source)), ['app/chat/composer.ts']);
     assert.deepEqual(filesWith(KEY_LOOKUP), [], 'no key is looked up in a table, a list or a switch');
@@ -154,7 +155,7 @@ describe('keys: only Enter and Escape, and the arrows of the device tabs', () =>
     for (const one of files) {
       for (const match of one.code.matchAll(KEY_BINDING)) bindings.push(`${one.name} ${match[1]} ${match[2] ?? ''}`.trim());
     }
-    assert.deepEqual(bindings.sort(), ['app/chat/composer.ts down', 'app/chat/decision-strip.ts down escape', 'app/devices/device-panel.ts down', 'app/main-page/main-page.ts down escape', 'app/rail/decision-row.ts down escape', 'app/rail/heartbeat-card/heartbeat-card.ts down escape', 'app/rail/persona-card/persona-card.ts down escape']);
+    assert.deepEqual(bindings.sort(), ['app/chat/composer.ts down', 'app/chat/decision-strip.ts down escape', 'app/devices/device-panel.ts down', 'app/main-page/main-page.ts down escape', 'app/rail/decision-row.ts down escape', 'app/rail/heartbeat-card/heartbeat-card.ts down escape', 'app/rail/memory-card/memory-card.ts down', 'app/rail/persona-card/persona-card.ts down escape']);
   });
 
   it('has no keyup or keypress handler and no accesskey', () => {
@@ -370,7 +371,10 @@ describe('the banned patterns (UX-DR129)', () => {
       what: 'tabs',
       pattern: /role\s*=\s*["']tab(?:list|panel)?["']|tablist|tabpanel/i,
       sample: '<div role="tablist">',
-      allowed: { 'app/devices/device-panel.ts': 'ARIA tabs of the simulated device panel; content never switches them (EXPERIENCE L296)' },
+      allowed: {
+        'app/devices/device-panel.ts': 'ARIA tabs of the simulated device panel; content never switches them (EXPERIENCE L296)',
+        'app/rail/memory-card/memory-card.ts': 'ARIA tabs of the Memory card (Story 41.6, EXPERIENCE 1050): Notes and Your answers; content never switches them',
+      },
     },
     { what: 'a native alert, confirm, prompt or modal dialog', pattern: /(?:^|[^\w$.])(?:window\.)?(?:alert|confirm|prompt)\s*\(|\bshowModal\b/, sample: "if (confirm('Sure?')) go();", allowed: {} },
     { what: 'a celebration', pattern: /confetti|celebrat/i, sample: 'launchConfetti()', allowed: {} },
@@ -381,6 +385,7 @@ describe('the banned patterns (UX-DR129)', () => {
       allowed: {
         'app/documents/documents-page.ts': 'the Documents page\'s Remove dialog (Story 34.2): opened when the user presses a row\'s Remove button',
         'app/header/header.ts': 'the user\'s About and, on the online demo, Sign out: the only dialogs, opened by the user from the account menu',
+        'app/rail/memory-card/memory-card.ts': 'the Memory card\'s Forget dialog (Story 41.6): opened when the user presses a row\'s Forget button',
         'app/settings/unsaved-guard.ts': 'the settings page\'s unsaved-changes prompt (Story 33.2): opened by the guard when the user leaves a section with unsaved changes',
         'app/shared/dialogs.ts': 'the one place that opens a dialog, over the CDK dialog',
       },
@@ -395,9 +400,9 @@ describe('the banned patterns (UX-DR129)', () => {
     });
   }
 
-  it('opens a dialog (Dialogs.open) only from the header, for the user\'s About and the online demo\'s Sign out, from the settings guard, for the unsaved-changes prompt, and from the Documents page, for Remove', () => {
-    assert.deepEqual(filesWith(/\bdialogs\.open\(/).sort(), ['app/documents/documents-page.ts', 'app/header/header.ts']);
-    assert.deepEqual(filesWith(/inject\(Dialogs\)/).sort(), ['app/documents/documents-page.ts', 'app/header/header.ts', 'app/settings/unsaved-guard.ts']);
+  it('opens a dialog (Dialogs.open) only from the header, for the user\'s About and the online demo\'s Sign out, from the settings guard, for the unsaved-changes prompt, from the Documents page, for Remove, and from the Memory card, for Forget', () => {
+    assert.deepEqual(filesWith(/\bdialogs\.open\(/).sort(), ['app/documents/documents-page.ts', 'app/header/header.ts', 'app/rail/memory-card/memory-card.ts']);
+    assert.deepEqual(filesWith(/inject\(Dialogs\)/).sort(), ['app/documents/documents-page.ts', 'app/header/header.ts', 'app/rail/memory-card/memory-card.ts', 'app/settings/unsaved-guard.ts']);
   });
 
   it('lets no :hover rule set display, visibility or opacity, so that no control exists only on hover', () => {

@@ -19,11 +19,11 @@ ClassMethod Begin(result As %String = "done", winner As %String = "") As %String
 	Quit run
 }
 
-/// Removes the run and the pointer to it.
+/// Removes the run, the RecordPrecedent record that AnswerOpsProbe kept for it, and the pointer to it.
 ClassMethod End()
 {
 	Set run = $Get(^OcuTalonTest("ApprovalDouble", "run"))
-	If run '= "" Kill ^OcuTalonTest("ApprovalDouble", run)
+	If run '= "" Kill ^OcuTalonTest("ApprovalDouble", run), ^OcuTalonTest("AnswerOpsPrecedent", run)
 	Kill ^OcuTalonTest("ApprovalDouble", "run")
 }
 

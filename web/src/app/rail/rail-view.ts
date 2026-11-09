@@ -5,7 +5,7 @@
  * through RailFormat, which the component builds from the real modules; the components render what it returns by interpolation only.
  *
  * - railView(store, format) gives the sections in order: Telegram (only when the release includes it), Approval requests,
- *   Background checks, Reminders, Recent decisions, Heartbeat checklist (Story 39.5) and Persona (Story 40.4); the last two are each a heading and no rows,
+ *   Background checks, Reminders, Recent decisions, Heartbeat checklist (Story 39.5), Memory (Story 41.6) and Persona (Story 40.4); the last three are each a heading and no rows,
  *   for their card, and Persona stays last. It shows the store as a reload of the page would (the views filter and
  *   sort the store, and the store keeps everything): approvals and reminders that are pending, by raised and due time and then
  *   in store order; every check in store order; the 20 newest attention decisions, newest first.
@@ -55,6 +55,7 @@ export const RAIL_TEXTS = {
   telegramNotSetUp: 'Telegram not set up',
   telegramHowTo: 'How to set it up',
   heartbeat: 'Heartbeat checklist',
+  memory: 'Memory',
   persona: 'Persona',
 } as const;
 
@@ -83,7 +84,7 @@ export interface RailFormat {
 }
 
 /** The sections of the rail. */
-export type SectionId = 'telegram' | 'approvals' | 'checks' | 'reminders' | 'decisions' | 'heartbeat' | 'persona';
+export type SectionId = 'telegram' | 'approvals' | 'checks' | 'reminders' | 'decisions' | 'heartbeat' | 'memory' | 'persona';
 
 /** The kinds of row. */
 export type RowKind = 'approval' | 'check' | 'reminder' | 'decision';
@@ -122,7 +123,7 @@ export interface RailRow {
   jumpName?: string;
 }
 
-/** One section of the rail. A list section has a count and a spoken heading; Telegram, Heartbeat checklist and Persona have neither. */
+/** One section of the rail. A list section has a count and a spoken heading; Telegram, Heartbeat checklist, Memory and Persona have neither. */
 export interface RailSection {
   id: SectionId;
   label: string;
@@ -364,6 +365,7 @@ export function railView(store: LiveStore, format: RailFormat, demo = false): Ra
     listSection('decisions', RAIL_TEXTS.decisions, decisions.map((decision) => decisionRow(decision, format)), RAIL_TEXTS.emptyDecisions, ''),
   );
   sections.push({ id: 'heartbeat', label: RAIL_TEXTS.heartbeat, heading: RAIL_TEXTS.heartbeat, spoken: RAIL_TEXTS.heartbeat, rows: [], empty: '', hint: '' });
+  sections.push({ id: 'memory', label: RAIL_TEXTS.memory, heading: RAIL_TEXTS.memory, spoken: RAIL_TEXTS.memory, rows: [], empty: '', hint: '' });
   sections.push({ id: 'persona', label: RAIL_TEXTS.persona, heading: RAIL_TEXTS.persona, spoken: RAIL_TEXTS.persona, rows: [], empty: '', hint: '' });
   return { sections, telegramShown };
 }

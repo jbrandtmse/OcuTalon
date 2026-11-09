@@ -32,3 +32,4 @@ Memory	^OcuTalonP.Memory	OcuTalon.Data.Memory	A
 Document	^OcuTalonP.Document	OcuTalon.Data.Document	A
 Upload	^OcuTalonP.Upload	OcuTalon.Data.Upload	B
 McpServer	^OcuTalonP.McpServer	OcuTalon.Mcp.Server	A
+Precedent	^OcuTalonP.Precedent	OcuTalon.Data.Precedent	B

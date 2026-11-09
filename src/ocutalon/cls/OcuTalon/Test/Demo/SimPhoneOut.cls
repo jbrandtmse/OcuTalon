@@ -8,6 +8,8 @@
 ///     the Refs, no text) and one phone event whose payload is the message's;
 ///   - TestIncidentNoticeAsksForItsRequest, TestLaterRequestHasItsOwnButtons: a notification of kind incident or approval is a
 ///     message that keeps its ApprovalRef, with its Delivery row and event; a later request is a message of its own;
+///   - TestDecisionRefOnlyForTellNow (Story 41.5): the payload's decisionRef is the DecisionRef of the session's own phone tell-now Delivery row; a reminder, an incident
+///     and an approval message have none, and another session's tell-now Delivery row is never read;
 ///   - TestOnlyRequestKindsCarryARequest: tellnow, reminder, answered and an incident with no request give no message with an
 ///     ApprovalRef;
 ///   - TestAnsweredEditsInPlace: an answered notification sets the Answer of the delivered message, keeping its Ref and Text,
@@ -121,6 +123,7 @@ Method TestTellNow()
 	If events.%Size() = 1 {
 		Set payload = events.%Get(0).payload
 		Do $$$AssertEquals(payload.ref_"|"_payload.direction_"|"_payload.text_"|"_payload.createdAt, row.Ref_"|out|"_expected_"|"_row.CreatedAt, "its ref, direction, text and time")
+		Do $$$AssertEquals(payload.decisionRef, notification.DecisionRef, "its decisionRef is the notification's DecisionRef")
 		Set expectedPayload = ##class(%DynamicObject).%FromJSON(..Json(##class(OcuTalon.Live.Payload.Phone).FromRow(row)))
 		Do $$$AssertEquals(payload.%ToJSON(), expectedPayload.%ToJSON(), "its payload is the one that FromRow makes of the message")
 	}
@@ -618,6 +621,53 @@ Method TestOnlyRequestKindsCarryARequest()
 	Do $$$AssertEquals(..Phones(session).%Size(), 3, "three events")
 	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
 	Do $$$AssertEquals(deliveries.Count(), 4, "and four Delivery rows")
+}
+
+/// The phone payload's decisionRef is set for a tell-now message only, from the session's own Delivery row; a reminder, an incident with a request and an approval
+/// request give none, and a message Ref read for another session gives none.
+Method TestDecisionRefOnlyForTellNow()
+{
+	Set session = ..Session("decref"), other = ..Session("decrefother")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set tell = ..Notification(session, "tellnow", "notice.tellNow", {"whatHappened": "zz summary", "reason": "zz reason."})
+	Set tell.DecisionRef = ..NewRef()
+	Set reminder = ..Notification(session, "reminder", "reminder.due", {"text": "stretch", "dueAt": (now)})
+	Set reminder.DecisionRef = ..NewRef()
+	Set incident = ..Notification(session, "incident", "incident.withFix", ..IncidentSlots(now))
+	Set incident.ApprovalRef = ..NewRef()
+	Set incident.IncidentRef = ..NewRef()
+	Set incident.DecisionRef = ..NewRef()
+	Set approval = ..Notification(session, "approval", "toolCall.request", {"tool": "zz_send", "inputs": "{}"})
+	Set approval.ApprovalRef = ..NewRef()
+	Set approval.DecisionRef = ..NewRef()
+	Do $$$AssertStatusOK(..Out().OnNotification(tell, .response), "the tell-now is delivered")
+	Set tellRow = ..Newest(session)
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Phone).FromRow(tellRow).DecisionRef, tell.DecisionRef, "the tell-now message has the decisionRef")
+	Set copy = ##class(OcuTalon.Data.SimMessage).%New()
+	Set copy.Ref = tellRow.Ref
+	Set copy.SessionRef = other
+	Set copy.Text = tellRow.Text
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Phone).FromRow(copy).DecisionRef, "", "another session's tell-now Delivery row is never read")
+	Set copy.SessionRef = session
+	Set copy.Ref = $ZConvert(tellRow.Ref, "L")
+	If copy.Ref = tellRow.Ref Set copy.Ref = $ZConvert(tellRow.Ref, "U")
+	Do $$$AssertTrue(copy.Ref '= tellRow.Ref, "control: the Ref variant differs from the message's Ref")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Phone).FromRow(copy).DecisionRef, "", "a Ref that differs only in case is not read")
+	Do $$$AssertStatusOK(..Out().OnNotification(reminder, .response), "the reminder is delivered")
+	Set reminderRow = ..Newest(session)
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Phone).FromRow(reminderRow).DecisionRef, "", "a reminder message has none")
+	Do $$$AssertStatusOK(..Out().OnNotification(incident, .response), "the incident notice is delivered")
+	Set incidentRow = ..Newest(session)
+	Do $$$AssertTrue(incidentRow.ApprovalRef '= "", "control: the incident message keeps its request")
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Phone).FromRow(incidentRow).DecisionRef, "", "an incident message has none")
+	Do $$$AssertStatusOK(..Out().OnNotification(approval, .response), "the approval request is delivered")
+	Set approvalRow = ..Newest(session)
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Phone).FromRow(approvalRow).DecisionRef, "", "an approval message has none")
+	Set stray = ##class(OcuTalon.Test.Data.Fixture).Delivery(session, {"ChannelMessageId": (approvalRow.Ref), "Channel": "phone", "Kind": "tellnow", "DecisionRef": (..NewRef())})
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_stray
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Phone).FromRow(approvalRow).DecisionRef, "", "and none even when a tell-now Delivery row names its Ref: the message names a request")
+	Set json = ..Json(##class(OcuTalon.Live.Payload.Phone).FromRow(reminderRow))
+	Do $$$AssertTrue(json '[ "decisionRef", "and an empty decisionRef is left out of the JSON")
 }
 
 /// An answered notification edits the delivered message in place: its Ref and Text stay (compared with the values read before the

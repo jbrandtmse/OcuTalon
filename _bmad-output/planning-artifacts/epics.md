@@ -1384,6 +1384,31 @@ So that a rare #453 no longer fails a check whose start became healthy, and ever
 **Then** `docker/tests/test-lib-live.sh` (and `docker/tests/test-upgrade-harness.sh` for the count) pin it with fixtures: one RETRY followed by OK passes; a RETRY with no OK, two RETRY lines, a RETRY followed by FAILED, and a near-miss RETRY line each fail; the harness count reads 0 and 1 in its fixtures; `docker/after-start.sh` and `docker/merge.cpf` are unchanged; CI is green on every workflow
 - DW-624: lib-live.sh's log_steps keeps every STEP line, so a live-test or upgrade-harness start that recovers through Story 0.13's retry still fails check_log on the RETRY line (ledger; routed by Story 0.13's review, 2026-11-03)
 
+### Story 0.15: The Dockerfile sits at the repository root
+
+[ADDED 2026-11-09, SC-5 re-open of Epic 0, the owner decision of 2026-11-06 (Contest Planner under the owner's delegation, logged `owner_decision subject=move_dockerfile_to_root` in cycle-log-parallel.md), unblocked now that v1.0.4 is released and merged back; target 1.0.5 or later. Open Exchange's listing flag reads Docker False for OcuTalon: across the field, 17 of the 18 entries with a root Dockerfile read True, and all 5 without one read False. The release-tool freeze is lifted for this story as option (a); any change to `release/*.sh` goes to the Contest Planner before it merges.]
+
+As the owner of the Open Exchange listing,
+I want the image's Dockerfile at the repository root,
+So that the listing reads Docker True, with no change to how the image builds or installs.
+
+**Acceptance Criteria:**
+
+**Given** the repository
+**When** this story merges
+**Then** `Dockerfile` sits at the repository root (moved with `git mv` from `docker/Dockerfile`), `docker/Dockerfile` no longer exists, and every reference to the old path (the compose files' `dockerfile:`, `ci/warm.sh`, `release/release.sh`, `release/upgrade-harness.sh`, `docker/tests/*`, workflow files and any other grep hit) names the new path
+**And** the build context stays `.`, the COPY paths are unchanged, and `.dockerignore` still keeps the image small: the image size measured before and after (`docker image inspect … --format '{{.Size}}'`) is unchanged beyond layer metadata
+**And** `install.sh` and the README's install steps are unchanged for the user, and no test pin is deleted or weakened (a pin of the old path moves to the new path)
+
+**Given** `release/release.sh` and `release/upgrade-harness.sh`
+**When** a release is built and the upgrade harness builds the previous release's tree
+**Then** `release.sh` builds the current tree from the root `Dockerfile`, and the upgrade harness accepts either location for the previous release's tree (v1.0.4 and earlier have `docker/Dockerfile`), each case pinned by a test
+**And** `ci/warm.sh`'s manifest list names the new path
+
+**Given** the change
+**When** this story merges
+**Then** CI is green on every workflow, and a planning artifact or spine row that names the old path as the current location is amended in place with an `[AMENDED …, Story 0.15, owner decision via the Contest Planner]` marker
+
 ### Story 0.16: The Embedded Python callback crash (S11) is re-verified with a minimal reproduction
 
 [ADDED 2026-11-07, SC-5 re-open of Epic 0 for one evidence-only story, at the Contest Planner's request (about 21:10Z): the S11 spike (docs/handoff/spike-results/S11.md) found that build 154 kills the IRIS process (signal 11) when embedded Python runs both inside and outside an AI Hub tool callback in one process. Before anyone reports it, the crash is re-measured with two classes and no model. Story 0.15 (the Dockerfile move) is deferred until after v1.0.4 and is not chartered here. This story changes no product code, no test suite and no public text.]
@@ -1406,6 +1431,46 @@ So that any report carries exact orders, outcomes, messages.log lines and versio
 **Given** the evidence
 **When** this story closes
 **Then** the folder holds only `Repro.Py.cls`, `Repro.Tools.cls`, a one-line `run.sh` and `results.md`; no loader or test picks up the two `.cls` files; no tracked file names an absolute local path; a new LOW ledger entry records the re-verification; the throwaway is torn down; and nothing is filed publicly (the Planner drafts any report and the owner posts it)
+
+### Story 0.17: The README's evaluation table shows release 1.0.4's numbers
+
+[ADDED 2026-11-09, SC-5 re-open of Epic 0, at the Contest Planner's request (the owner asked, 2026-11-09 about 04:00Z), for release 1.0.5: a one-file docs change whose public text the Contest Planner has already approved; it is committed exactly as written. Pipeline (orchestrator ruling under the Planner's "one-file change, text approved"): one `bmad-build-auto` stage that plans and implements, then the runner's own diff review in place of separate QA and code-review stages.]
+
+As a judge or visitor reading the README,
+I want the Measured table to show the real-model evaluation of release 1.0.4 and the demo's latest usage log,
+So that every number on the page is the current one, with a link to where the money goes.
+
+**Acceptance Criteria:**
+
+**Given** README.md's "Measured" section
+**When** this story merges
+**Then** its intro line reads exactly "From the real-model evaluation of release 1.0.4 (Claude Haiku 5.5, November 8), the persona sweep and the online demo's usage log for November 1 to 7:"
+**And** the rows read exactly: incidents "11 of 11 (target: 9)", routine attention decisions "21 of 24 (target: 22)", cost of one attention decision "about $0.0001 on average, $0.0003 at most", cost of diagnosing 50 failed orders "$0.0007 to $0.0012", model cost of the online demo "about 9 to 11 cents a day"; the other rows are unchanged
+**And** directly after the table, before "Two things to look at in the demo:", one paragraph reads exactly "Where the money goes and how to cap it, with the numbers: [What an always-on AI assistant costs to run](https://community.intersystems.com/post/what-always-ai-assistant-costs-run-real-numbers-iris)."
+
+**Given** the change
+**When** this story merges
+**Then** README.md is the only product file changed, apart from any README pin in `docker/tests/test-readme.sh` that pinned an old number or intro line, which moves to the new one; `git grep` finds none of "9 of 10 (target", "19 of 22", "0.0005 to", "9 to 10 cents" in README.md; `docker/tests/test-boundaries.sh` and `docker/tests/test-readme.sh` pass; and CI is green
+
+### Story 0.18: The README shows judges where to look
+
+[ADDED 2026-11-09, SC-5 re-open of Epic 0, at the orchestrator's dispatch for release 1.0.5 (it must merge before the 10:00Z hold); public text the Contest Planner has already approved under the owner's delegation ("go ahead and approve whatever README.md you draft after reviewing it"), committed verbatim from the Planner's final edit file (readme-judges-1.0.5-FINAL.md, section (b), Edits 1 to 6). Built on Story 0.17. Pipeline (orchestrator ruling, as for 0.17): one `bmad-build-auto` stage that plans and implements, then the runner's own byte-for-byte diff review in place of separate QA and code-review stages.]
+
+As a judge scoring the entry,
+I want a link bar, a "where to look" table per criterion, what is new since 1.0.0, what changes without the agent, and a contest checklist with proof,
+So that I find every claim and its evidence from the top of the README.
+
+**Acceptance Criteria:**
+
+**Given** README.md
+**When** this story merges
+**Then** the Planner's Edits 1 to 5 are in it verbatim at their anchors: the link bar as the first paragraph of "Try it in two minutes"; the H3 sections "For judges: where to look" and "New since 1.0.0" after step 4 of the local path; the "What changes without the agent?" paragraph above the "With a model, and without one." paragraph; and the H2 "Contest checklist" directly before "Credits and licences"
+**And** nothing else in README.md changes, and no line is removed
+
+**Given** `docker/tests/test-readme.sh`'s link allow-list
+**When** this story merges
+**Then** it is exactly the Planner's Edit 6 line: `community.intersystems.com` and `openexchange.intersystems.com` appear exactly once each, nothing else is added, and no AI Hub bug-report repository is allowed; Story 0.17's narrower post-path entry and its two self-tests that only that narrower entry could pass give way to the host entry
+**And** `bash docker/tests/test-readme.sh` passes every rule, `docker/tests/test-boundaries.sh` passes, and CI is green; if a rule fails on the verbatim text, the text is not reworded
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
@@ -9961,6 +10026,8 @@ So that only a person's answers can ever become precedents.
 **When** they are called
 **Then** each is session-checked and owner-scoped. The notes route answers from `DailyNote.Build`, a stub until Story 41.3 (AD-4)
 **And** `SessionOps.End` deletes the ended session's precedents through `PrecedentOps` (AD-4)
+- DW-921: AD-21's accepts-only list for PrecedentOps names MarkNoise and RecordPrecedent but not ForgetPrecedent, which AD-1 and the Epic 41 names sub-bullet route to PrecedentOps from web_user; fold into the AD-21 amendment written at this story's plan (ledger; routed by harvest 2026-11-08)
+- DW-922: a `tool_call` precedent has no match key (`KeyFor(item)` has no form for a tool request), so `tool_call` precedents would never be read; decide the key form, or drop `tool_call` precedents, at this story's plan with the AD-21 amendment (ledger; routed by cr 2026-11-08)
 
 ### Story 41.3: Daily notes built by code, and the session starts that read them
 
@@ -10014,6 +10081,7 @@ So that it gets better at knowing what matters to me.
 **When** this story adds the precedents paragraph from EXPERIENCE.md › Later Steps › Personality (static, with no `{{`)
 **Then** a test compares the paragraph with its source, and the paragraph says that past answers are examples, never rules (AD-7)
 **And** CI mock scenarios `memory-*` show both blocks in the request log where expected, and absent elsewhere
+- DW-961: the `sessionStart` context is not yet observed past `Conversation.Request`: pin both hops (`Conversation.Request` -> `Intake.RequestFor` -> `Agent.Input.Render`) with this story's `memory-*` scenarios (ledger; routed by cr 2026-11-08)
 
 ### Story 41.5: "This was noise", and your approval answers, become precedents
 
@@ -10039,6 +10107,10 @@ So that OcuTalon learns from my answers and never from its own guesses.
 **Given** Playwright specs `web/e2e/memory-noise.spec.ts` and tests in `OcuTalon.Test.Core`
 **When** they run
 **Then** they cover the mark, a repeat, the phone, an approval and a rejection, and they don't change the demo-path specs (REL-2)
+- DW-923: the 'This was noise' refusal `too_old` (Item already purged) has no user-facing text in EXPERIENCE.md or its Message Catalog; its words are approved (Contest Planner under the owner's delegation, 2026-11-08): "This notice is too old to mark as noise. Nothing was changed.", the same as Story 41.2's noise-route 409 body; pin both with fixed strings (ledger; routed by cr 2026-11-08)
+- DW-932: the noise route's 200 body (`markedAt`), its `already_marked` answer, the phone-versus-web body mapping and the 409 `too_old` are not yet run over real HTTP; this story's `web/e2e/memory-noise.spec.ts` covers them (ledger; routed by harvest 2026-11-08)
+- DW-933: `PrecedentOps.Record` must compare `RecordPrecedent`'s `Action` with the request's stored answer (`AnsweredAction`/`State`) before writing, so a mis-sent message cannot record an answer the person never gave (ledger; routed by cr 2026-11-08)
+- DW-934: a precedent written just after sign-out can survive `SessionOps.End` (End's `Has()` is read before a queued `MarkNoise`/`RecordPrecedent` lands, and `Record` accepts an ended session); `Record` refuses an ended session, or End's drop is ordered after queued writes (ledger; routed by cr 2026-11-08)
 
 ### Story 41.6: The Memory card: your notes and your answers
 
@@ -10080,7 +10152,7 @@ So that memory can't be poisoned through the notes or the precedents.
 **Then** neither `DailyNote.Build`'s text nor the session-start block contains any part of it, its sender or its body (FR-71, NFR-14)
 
 **Given** the evaluation harness
-**When** a case seeds precedents for owner `eval` (`EvalIn` sends them to `PrecedentOps` as `RecordPrecedent`, owner `eval` only, only while `OCUTALON_EVAL=1`, and removes them after the run)
+**When** a case seeds precedents for owner `eval` (`EvalIn` sends them to `PrecedentOps` as `SeedPrecedent`, owner `eval` only, only while `OCUTALON_EVAL=1`, and removes them after the run with `RemoveSeededPrecedents`) [AMENDED 2026-11-08, Story 41.7 plan, Rule 5 apply-and-report: it read "as `RecordPrecedent`"; DW-920 and AD-21 as amended name `SeedPrecedent`]
 **Then** the set gains a pair of cases on one recorded email:
 - without precedents, it is expected as tellnow;
 - with three "noise" precedents from the same sender, it is expected as digest or ignore.
@@ -10090,6 +10162,7 @@ So that memory can't be poisoned through the notes or the precedents.
 **Given** the security overview
 **When** this story updates its section on what data leaves the instance
 **Then** that section says that daily notes and precedents are sent to the configured model provider inside requests (FR-61, NFR-18)
+- DW-920: Story 41.7's eval seeding does not fit the first part's contracts as fixed (RecordPrecedent's fields, AD-21's one sender, ForgetPrecedent's origin); decided by the Contest Planner under the owner's delegation: AD-21 is amended additively at 41.2's plan, and this story seeds precedent rows only while OCUTALON_EVAL=1, marks each row eval-seeded, removes them through PrecedentOps after the run, and pins that a person's turn beside an eval run reads none (ledger; routed by harvest 2026-11-08)
 
 **Release check:** at the first daily release that ships this part, the Contest Planner's hands-on pass with real keys marks a notice as noise on the web app, then sends a similar sample email, and reads a day's notes (REL-7, as amended 2026-10-31).
 
@@ -10186,6 +10259,8 @@ So that it never forgets the few things that matter most.
 **Given** a user item rendered with `sessionStart`
 **When** `Agent.Input.Render` runs
 **Then** before the daily notes it adds the core-memory block: "Your core memory (facts you pinned):", then the pinned memories newest pin first, quoted, never over the cap (FR-74, AD-7, NFR-27)
+- DW-967: a first turn of the day that ends in a fallback (`no_key`, `daily_cap`, `budget`, `too_large`, failed Chat) still counts as the session start, so that day's notes never reach a model; count only turns whose request reached a model (ledger; routed by burndown 2026-11-09)
+- DW-977: today's note at a session start quotes the current message's own opening, so the model sees the person's words twice; leave the current and later turns out of the note (and update `Test.Bridge.SecondModel:TestIntegrationWebChat`) (ledger; routed by burndown 2026-11-09)
 
 ### Story 41.13: The Memory card: pinned and learned memories
 
@@ -10207,6 +10282,7 @@ So that I decide what OcuTalon keeps.
 **Given** the README's memory section
 **When** this story updates it
 **Then** it says what forgetting removes (the memory, its search entries, any pin, and every later session start) and that the current conversation's earlier messages aren't rewritten (FR-73)
+- DW-996: unify the Memory card's `ForgetDialog` (`web/src/app/rail/memory-card/forget-dialog.ts`) with `documents/remove-dialog.ts` into one shared confirm dialog (ledger; routed by burndown 2026-11-09)
 
 ### Story 41.14: Evaluation and tests for memory's second part
 

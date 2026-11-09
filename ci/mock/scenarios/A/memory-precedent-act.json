@@ -1,0 +1,16 @@
+{
+  "name": "memory-precedent-act",
+  "match": {
+    "marker": "memory-precedent-act"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"reasons\":[\"The CI mock looks into this item.\"],\"confidence\":0.9}"
+    },
+    {
+      "status": 200,
+      "text": "I looked into it."
+    }
+  ]
+}

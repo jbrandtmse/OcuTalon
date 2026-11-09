@@ -94,6 +94,7 @@ XData ProductionDefinition
   <Item Name="ReminderTimer" ClassName="OcuTalon.Schedule.ReminderTimer" PoolSize="1" Enabled="true"/>
   <Item Name="BreakFeedIn" ClassName="OcuTalon.Demo.BreakFeedIn" PoolSize="0" Enabled="true"/>
   <Item Name="PartnerTrigger" ClassName="OcuTalon.Demo.PartnerTrigger" PoolSize="1" Enabled="true"/>
+  <Item Name="PrecedentOps" ClassName="OcuTalon.Core.PrecedentOps" PoolSize="1" Enabled="true"/>
   <!-- lane B: end -->
 </Production>
 }

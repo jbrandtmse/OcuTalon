@@ -152,6 +152,7 @@ export interface PhonePayload {
   answer?: string;
   decisionRef?: string;
   createdAt?: string;
+  noiseRef?: string;
 }
 
 export interface MailboxPayload {

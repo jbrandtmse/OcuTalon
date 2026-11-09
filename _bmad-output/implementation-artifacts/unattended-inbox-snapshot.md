@@ -32,6 +32,13 @@ recommendation: keep going: the gaps are drift between the recorded ACs and late
 blocks: nothing now (veto window)
 answer: keep going: re-plan each part-2 story against the delivered code and the hand-cut records 1.0.0-1.0.4; anything that changes an AC's intent comes back as a clarification. Part 2 targets 1.0.6; no part-2 merge before the 1.0.5 cut. (by Contest Planner, 2026-11-09T04:32:07Z#964; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
 
+### U-316 | veto | Epic 41 | 2026-11-09T05:57:18Z
+question: Integrate-forward over Epic 18: where 18.4's Got it and 41.5's This was noise meet on tell-now notice cards. Ruled (orchestrator): web card order = decision strip, then Got it or the handled line, then This was noise (Got it is the primary FR-35 action; the ghost button second; each control's pressed state replaces only itself); phone message order = text, Got it, time, This was noise; Live/Payload/Phone.cls keeps ONE DecisionRef, Epic 18's stored SimMessage.DecisionRef, falling back to Ownership.PhoneDecision only when it is empty and the message has no ApprovalRef (rows before 18.4's column).
+options: keep | reverse (another order, or drop 41.5's fallback and rely on Epic 18's column only)
+recommendation: keep
+blocks: nothing until the next release
+answer: (none yet -- answer with the script or --review)
+
 ## Holds
 
 ### U-220 | hold | Run 20261026T1518Z-1-37 | 2026-11-02T16:32:46Z
@@ -391,4 +398,4 @@ answer: (none yet -- answer with the script or --review)
 - U-313 | veto | Story 18.4: Stored data shape: two new nullable columns, Data.Delivery.CheckRows (the web digest card's check rows as JSON, so 'What I checked' survives a reload) and Data.SimMessage.DecisionRef (lets the phone edit a tell-now message in place when handled); older rows read empty, no migration. Ruled KEEP by the orchestrator (category=veto). -> Keep: two nullable columns (Delivery.CheckRows, SimMessage.DecisionRef); older rows read empty; no migration. Pin that an older row renders without error. (by Contest Planner, 2026-11-08T20:03:06Z#951; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-08T20:10:49Z -- Epic 18: applied in 18.4 spec e8213bd6 (older-row pin task)
 - U-314 | veto | Story 41.7: Stored data (veto window 3): the eval-only table Eval.Data.CaseResult gains one nullable column, Precedents (lives only on throwaways and CI; same kind as Story 40.7's Preset), so Agent.Input asks Similar("eval", ...) only for an eval item whose case seeded precedents. -> Keep: Eval.Data.CaseResult gains a nullable Precedents column (like 40.7's Preset); older rows read empty. (by Contest Planner, 2026-11-08T21:53:08Z#957; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-08T22:00:19Z -- Epic 41: applied in 41.7 spec 900b4bfa
 
-<!-- journal: 964 lines -->
+<!-- journal: 965 lines -->

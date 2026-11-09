@@ -13,6 +13,7 @@ import { Popovers } from '../shared/popover';
 import { TraceLink } from '../shared/trace-link';
 import { DecisionRow } from './decision-row';
 import { HeartbeatCard } from './heartbeat-card/heartbeat-card';
+import { MemoryCard } from './memory-card/memory-card';
 import { PersonaCard } from './persona-card/persona-card';
 import { type RailFormat, railView, type RailView } from './rail-view';
 import { TelegramCard } from './telegram-card/telegram-card';
@@ -67,7 +68,8 @@ function formatAt(now: number): RailFormat {
  * has an h3 with a live count (the visible "Background checks (1)" is hidden from assistive technology beside the spoken "Background
  * checks, 1"), its rows and, under an empty list, its empty text; the hints sit under the check and reminder lists. The Telegram
  * section comes first, only when the release includes it, with the Telegram card and no count. The Heartbeat checklist section comes before
- * Persona, with the Heartbeat card (heartbeat-card/heartbeat-card.ts) and no count; the Persona section comes last, with the Persona card
+ * Memory, with the Heartbeat card (heartbeat-card/heartbeat-card.ts) and no count; the Memory section (Story 41.6) comes before Persona,
+ * with the Memory card (memory-card/memory-card.ts) and no count; the Persona section comes last, with the Persona card
  * (persona-card/persona-card.ts) and no count.
  * - Rows are read-only, but for the approval row of an incident's request: an approval row with a 3px attention bar, a check row, a
  *   reminder row with a ticking countdown in tabular figures, and a decision row as a disclosure. A row whose payload has a traceUrl
@@ -82,7 +84,7 @@ function formatAt(now: number): RailFormat {
  */
 @Component({
   selector: 'app-status-rail',
-  imports: [DecisionRow, HeartbeatCard, PersonaCard, TelegramCard, TraceLink],
+  imports: [DecisionRow, HeartbeatCard, MemoryCard, PersonaCard, TelegramCard, TraceLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @for (section of view().sections; track section.id) {
@@ -99,6 +101,8 @@ function formatAt(now: number): RailFormat {
           <app-telegram-card [telegram]="telegram()" />
         } @else if (section.id === 'heartbeat') {
           <app-heartbeat-card />
+        } @else if (section.id === 'memory') {
+          <app-memory-card />
         } @else if (section.id === 'persona') {
           <app-persona-card />
         } @else {
