@@ -29,7 +29,15 @@ const INCOMING = '/ocutalon/api/v1/mailbox/incoming';
 const noisePath = (ref: string): string => `/ocutalon/api/v1/decisions/${ref}/noise`;
 const LABEL = 'This was noise';
 const TOO_OLD = 'This notice is too old to mark as noise. Nothing was changed.';
-const markedText = (markedAt: string): string => `Marked as noise at ${markedAt.slice(11, 16)}. Similar items will take this into account.`;
+/**
+ * The status line as the page writes it: the fixed words around the mark's time, which the page shows as the browser formats an hour and a minute
+ * (page-time.ts pageTime: the locale and zone of the page, here en-GB in UTC, so "1:10" before ten o'clock and "13:10" after). The time is
+ * formatted by the page's own engine from the markedAt that the route answered, never copied from the page's text.
+ */
+async function markedText(page: Page, markedAt: string): Promise<string> {
+  const time = await page.evaluate((iso) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(iso)), markedAt);
+  return `Marked as noise at ${time}. Similar items will take this into account.`;
+}
 
 /** How long a mailed item may take to be decided and to reach the page. */
 const MAIL_MS = 60_000;
@@ -130,7 +138,7 @@ test('NZ1: Enter on "This was noise" marks the notice, shows the status line in 
   expect(markedAt, 'markedAt is an ISO time').toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
   expect(Date.parse(markedAt), 'within the case').toBeGreaterThanOrEqual(before - 1000);
   expect(Date.parse(markedAt)).toBeLessThanOrEqual(after);
-  await expect(card.locator('.marked'), 'the status line replaces the button').toHaveText(markedText(markedAt));
+  await expect(card.locator('.marked'), 'the status line replaces the button').toHaveText(await markedText(page, markedAt));
   await expect(card.getByRole('button', { name: LABEL }), 'no button is left').toHaveCount(0);
   await expect(card.locator('[data-noise]'), 'focus moved to the control\'s container, inside the card').toBeFocused();
   expect(await page.evaluate(() => document.activeElement === document.body), 'not to the body').toBe(false);
@@ -158,7 +166,7 @@ test('NZ2: a repeat on the simulated phone shows the first mark\'s time and keep
   expect(body, 'the body names the phone').toEqual({ channel: 'phone' });
   expect(status, '200').toBe(200);
   expect(answer['markedAt'], "the first mark's time").toBe(markedAt);
-  await expect(note.locator('.marked'), 'the phone shows that time').toHaveText(markedText(markedAt));
+  await expect(note.locator('.marked'), 'the phone shows that time').toHaveText(await markedText(page, markedAt));
   await expect(button, 'in place of the button').toHaveCount(0);
   expect(await rowOf(ref), 'still one row, from the web').toEqual({ count: 1, answer: 'noise', channel: 'web', owner: await ownerOf() });
 });

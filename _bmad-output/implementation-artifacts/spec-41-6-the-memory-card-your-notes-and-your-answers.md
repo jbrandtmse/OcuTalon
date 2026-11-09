@@ -234,6 +234,39 @@ Paths are under `web/` unless given in full. Line numbers are at `630efe7d`.
 5. **Labels and keyboard.** Given the card, when it is used by keyboard alone, then the tabs, Forget and the dialog work as Boundaries says, and every control has a label (NFR-25; MC6, MC7).
 6. **No regression.** Given the changes, when the rail, frame, floor, demo-path and source tests run, then each passes, with only the edits listed in the Code Map and the ruled Clarification edits. The demo-path suite stays green (REL-2).
 
+### Review Findings
+
+Code review 2026-11-09 (epic-cycle code-review stage; four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 28 raw findings, 26 rows after grouping). No HIGH. Rule 3: `memory-card.spec.ts` in `live:sign-in-3` is the real-runtime test. Rule 6: AD-1, AD-4, AD-13, AD-21 (as amended) and AD-28 checked against the diff, no mismatch.
+
+- [x] [Review][Patch] (med) MC3 checked the failed-read state before the 500 had arrived, so a failure drawn as "nothing" (AD-28) could pass [web/e2e/memory-card.spec.ts:211] — fixed: `answerOf` + `handled` wait for the 500 and two frames before the absence checks, for Notes and Your answers.
+- [x] [Review][Patch] (med) MC8 checked that the removed rows stay gone after the reload before the re-read had answered [web/e2e/memory-card.spec.ts:513] — fixed: waits for the held read and the new read (200) before the checks.
+- [x] [Review][Patch] (med) MC2 and MC8 depended on the README note's cut (DailyNote MAXCHARS 2000) and on the hour: turns seeded at local noon (MC2) and now (MC8) fall past the cut when the account's earlier lines of the day fill the note, as in the whole sign-in-3 unit before noon [web/e2e/memory-card.spec.ts:155] — fixed: the turns are seeded just after the local midnight (`localTimeUtc`, which replaces `localNoonUtc` in support/memory.ts), the earliest lines of their day.
+- [x] [Review][Patch] (med) `floor/layout.spec.ts` G4 (1000x2100, empty chat) went red with the Memory section: room below the chat 0.16 px, main 573 px (measured, `ci/iris.sh live floor`) [web/e2e/floor/layout.spec.ts:508] — fixed as the Code Map allows: height 2400, and the case also empties the Memory card's notes (as it empties the rail sections), so the card's height does not follow the floor user's lines; `live:floor` 107 passed.
+- [x] [Review][Patch] (low) AC 4's recorded mutation turned MC9 red at `precedentExists`, never at the Triage assertion after Forget [web/e2e/memory-card.spec.ts:598] — closed: mutation demonstrated and recorded under Verification.
+- [x] [Review][Patch] (low) `runnersReady`/`runnersRecorded` dropped the IRIS output from HC4's and MC9's failure messages, and the ready check's usage-cap clear was undocumented [web/e2e/support/runners.ts:36] — fixed: both answer `output`, the specs print it, the doc names the clear.
+- [x] [Review][Patch] (low) MC9's `finally` removed the seeded precedent last, so a failing cleanup step before it left the row for later specs [web/e2e/memory-card.spec.ts:601] — fixed: the precedent is removed first.
+- [x] [Review][Patch] (low) `seedNoteTurn`'s doc said `localNoonUtc` converts a local time [web/e2e/support/memory.ts:64] — fixed.
+- [x] [Review][Patch] (low) The sign-in-3 comment in `playwright.config.ts` said "cannot name it" for two files and listed them out of path order [web/playwright.config.ts:58] — fixed.
+- [x] [Review][Patch] (low) `showAnswers`' comment said a click reads the tab again, which a click on the selected tab does not [web/e2e/memory-card.spec.ts:79] — fixed.
+- [x] [Review][Defer] (med) `ForgetDialog` is a near-copy of `documents/remove-dialog.ts` (Rule 2; the copy the spec forces, Design Notes) [web/src/app/rail/memory-card/forget-dialog.ts:1] — deferred: DW-996, routed owner=burndown (the unification touches Story 34.2's dialog, out of footprint).
+- [x] [Review][Defer] (med) The Forget dialog's failure notice is neither announced nor described, as in `remove-dialog.ts` (noise-control.ts and incident-dismiss.ts do both) [web/src/app/rail/memory-card/forget-dialog.ts:35] — deferred: DW-997, escalated owner=burndown (needs the Announcer and the contended `announce-focus-sources.test.mjs` speakers list; fix with DW-996).
+- [x] [Review][Defer] (low) `ux-strings.test.mjs` imports `MEMORY_TEXTS` only, so `ANSWER_WORDS` ("Approved", "Rejected") has no inventory entry [web/scripts/ux-strings.test.mjs:70] — deferred: DW-998 wontfix-accepted (widening the contended `IMPORTED` append is not allowed here; the words are pinned word for word in `memory-card-view.test.mjs`).
+
+Rejected:
+- (false) The `memory-noise.spec.ts` edit is not recorded as this story's footprint and the frontmatter deferral is stale: the lead routed DW-993 here; that bookkeeping is the lead's.
+- (low) Esc or the backdrop while the DELETE is out leaves a forgotten row listed: same shape as `remove-dialog.ts`; a second Forget answers 404 and removes the row; the fix adds state.
+- (false) A click on the already selected tab does not retry a failed read: the spec retries "the next time its tab is selected".
+- (low) Today/Yesterday and relative times go stale on a page left open past midnight: re-read at the next selection or load (Decided in-stage).
+- (false) A 200 notes answer without `lines` would throw: the route always writes `lines` (typed `MemoryNotes`, `Web/Api.cls` Notes).
+- (low) Alt/Ctrl/Meta+Arrow is swallowed on a tab: the handler follows `device-panel.ts`, as the spec says.
+- (low) A local midnight between seeding and the page's read moves MC2's turns to Yesterday: a window of seconds a day; a guard adds a day re-check.
+- (low) MC2's full-list equality can differ if the README note gains a line between the page's read and `servedLines`: workers 1, no writer of the README note runs in between; the case's own lines pin the order.
+- (false) MC1 and MC7 have no `mutation:` line: Rule 19 asks one per AC; AC 1 (MC2, MC3, MC10) and AC 5 (MC6) have theirs.
+- (low) DW-993's oracle uses `pageTime`'s own formatter options, so it pins the mark time and not the format: the format is `pageTime`'s contract; NZ1/NZ2 pin the time and the fixed words, and NZ1/NZ2 passed at 01:5x UTC.
+- (false) HC4's move to `support/runners.ts` is wider than the new section needs: it is the Rule 2 remedy for a copy; its diagnostics loss is patched above.
+- (low) A row renders title, detail, meta, Forget, not Task 4's order: the rail's row pattern, which the Code Map says to follow; the fix would edit the spec.
+- (false) `support/memory.ts` holds more helpers than the Code Map lists: new support files are allowed; the extras are MC2's and MC9's fixtures.
+
 ## Spec Change Log
 
 - 2026-11-08 (rulings relayed by the orchestrator; Contest Planner under the owner's delegation):
@@ -435,6 +468,31 @@ Recorded by the implement stage (browser cases on a fresh `ci/iris.sh live sign-
 - the sign-in projects' file lists: `playwright.config.ts`, `playwright-projects.test.mjs`;
 - the README session's Precedent, Turn and Decision rows: `api/memory.spec.ts`, which shares the moved helpers;
 - the runners' keys: MC9's `pointKeys`, restored in `afterAll` as HC4 does; the shared steps are in `web/e2e/support/runners.ts`, which `heartbeat-card.spec.ts` HC4 imports too (`ci/iris.sh live sign-in-3 --part 5/6` passed, 23 tests).
+
+Recorded by the QA stage (2026-11-09, UTC hour 1, `ci/iris.sh live sign-in-3 --part 6/6` on fresh throwaways of tag `e41s6qa`; every mutation reverted by restoring the saved file, `git status --short` and `git diff --stat -- web/src` unchanged, torn down):
+- (QA, DW-993) `web/e2e/memory-noise.spec.ts` (changed): NZ1 and NZ2 expected the mark time as `markedAt.slice(11, 16)` ("01:10"), and the page writes the hour unpadded ("1:10") below 10:00 UTC. `markedText(page, markedAt)` now formats the answered `markedAt` with the page's own engine (`Intl.DateTimeFormat` with hour numeric and minute 2-digit, the options of `pageTime`, in the page's en-GB/UTC context); the words "Marked as noise at {time}. Similar items will take this into account." stay a fixed string, and no product code changed. Result: `--part 6/6` 18 passed (MC1 to MC10 and NZ1 to NZ8), NZ1 and NZ2 green at 01:xx UTC.
+- mutation: DW-993, `markedLine` in `chat/noise-view.ts` shows the mark time one minute late -> NZ1 and NZ2 red ("Expected 1:36, Received 1:37").
+- (QA) `web/e2e/memory-card.spec.ts` (extended, gaps of the Matrix):
+  - MC4: the meta separator is the rail's middle dot (U+00B7) between the parts (3 parts, 2 separators; tool row, 1), and a press on the backdrop closes the dialog with nothing sent, focus on Forget and the row in the table.
+  - MC5: a 501 and a network error keep the dialog, the notice and the row (each attempt sends one DELETE), as the 500 does; the 404 still removes the row.
+  - MC6: the roving tabindex follows the selection after ArrowRight.
+  - MC3: the empty texts are no `.empty`, `.hint` or live region; a list whose read failed shows its rows when its tab is next selected.
+  - MC10 (new): a served line `(more not shown)` is one list item as served, with an empty Yesterday keeping its own text.
+- mutation: AC 2 (separator), `separator` of the card set to " | " plus a number -> MC4 red (the separator pin).
+- mutation: AC 2 (Forget fails), the dialog treats a 501 like a 404 -> MC5 red (the second confirm finds no dialog).
+- mutation: AC 5, the roving tabindex fixed to the Notes tab (`tab === 'notes' ? 0 : -1`) -> MC6 red (the tabindex of Your answers after ArrowRight; MC1 stays green).
+- mutation: AC 1 (failure rule), a failed Your answers read is not tried again (`readTab` re-reads only when the list is set) -> MC3 red (the retried row).
+- mutation: AC 1 (as served), the Notes list drops a line that begins with "(" -> MC10 red.
+- mutation: AC 6, the Memory section pushed after Persona (`rail-view.ts`) -> `rail-view.test.mjs` red (5 cases); AC 5, the `(keydown)` binding removed -> `floor-sources.test.mjs` red (2 cases). The Playwright rail and frame specs are not in `live:sign-in-3` and were not run.
+- AC 4: MC9's control (opening and summary present before Forget) shows its Triage assertions are not vacuous; no fault inside this story's code reaches them (the card only calls the route, and a fault there fails `precedentExists` first), so the recorded implement-stage mutation (confirm closes without the route -> MC9 red) stands as AC 4's line.
+- Gap check, no change needed: the nine ruled strings are fixed strings in `memory-card-view.test.mjs` (the whole `MEMORY_TEXTS`) and in `memory-card.spec.ts` (empty texts MC3, Forget name and buttons MC4/MC5, notice MC5, answer words and tool note MC4); the channel is checked as served (`mailbox`, `system`, none for the tool row); the tabs' pattern is MC1/MC6 (roles, `aria-selected`, tabindex, wrap both ways, panel naming); Forget's dialog is MC4 to MC7 (focus on the question, Esc, Cancel, backdrop, 200, 404, 500, 501, no answer; the row stays on failure); the demo variant is MC8 (another session's and an eval-seeded row never listed, nothing kept across a reload); the demo-path diff is `01-page.spec.ts` line 103 and the one Memory-before-Persona assertion only.
+- Checks: `npm --prefix web run lint` exit 0; `npm --prefix web test` 1610 pass.
+
+Recorded by the code-review stage (2026-11-09, UTC hour 2, fresh throwaways of tag `e41s6cr`; the three mutations in one `ci/iris.sh live sign-in-3 --part 6/6` run on a bundle built with them, each red at its own assertion; restored from saved copies, `shasum` and `git status --short`/`git diff --stat` identical, bundle rebuilt):
+- mutation: AC 1 (failure rule, AD-28), the error branches draw the empty state (`notes.set({ today: [], yesterday: [] })`, `answers.set([])`) -> MC3 red ("with no day label", after the 500 was handled).
+- mutation: AC 3, the card merges the list it kept in `sessionStorage` into each answer -> MC8 red ("the removed row does not show", after the re-read answered; MC4 red too, its reload check).
+- mutation: AC 4, the dialog's confirm closes with FORGOTTEN without calling the route, with MC9's DELETE-status and `precedentExists` checks taken out for the run -> MC9 red ("it carries no precedents opening" on the second email's Triage request; MC4, MC5 and MC6 red too).
+- After the patches: `--part 6/6` 18 passed (MC1 to MC10, NZ1 to NZ8), `--part 5/6` 23 passed (HC4 included), `live:floor` 107 passed (G4 red before its patch: room 0.16 px), `npm --prefix web test` 1610 pass, lint exit 0.
 
 Every test added or changed passes on a fresh environment, in either order.
 

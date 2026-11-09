@@ -29,8 +29,11 @@ export async function monitorSettled(mark: number): Promise<void> {
   }
 }
 
-/** The ready check of the runners after pointKeys: the production's reason (empty when ready) and whether the TriageAgent has its key. */
-export async function runnersReady(): Promise<{ reason: string; keyed: string }> {
+/**
+ * The ready check of the runners after pointKeys: the production's reason (empty when ready), whether the TriageAgent has its key, and
+ * what IRIS printed. It also clears today's usage cap, so that a cap that an earlier spec reached does not stop the runners' calls.
+ */
+export async function runnersReady(): Promise<{ reason: string; keyed: string; output: string }> {
   const lines = await irisScript(
     [
       'Set reason=##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()',
@@ -39,11 +42,11 @@ export async function runnersReady(): Promise<{ reason: string; keyed: string }>
       'Write !,"CHK|keyed|",##class(OcuTalon.Bridge.Keys).Status(##class(OcuTalon.Checks.Beat).#AGENT)',
     ].join('\n'),
   );
-  return { reason: chk(lines, 'ready') ?? 'unread', keyed: chk(lines, 'keyed') ?? 'unread' };
+  return { reason: chk(lines, 'ready') ?? 'unread', keyed: chk(lines, 'keyed') ?? 'unread', output: lines.join(' ') };
 }
 
-/** Waits for the runners to record the restored keys (RunnerFixture.WaitRecords) and answers whether they did. */
-export async function runnersRecorded(): Promise<string> {
+/** Waits for the runners to record the restored keys (RunnerFixture.WaitRecords) and answers whether they did, with what IRIS printed. */
+export async function runnersRecorded(): Promise<{ records: string; output: string }> {
   const lines = await irisScript('Write !,"CHK|records|",##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords()');
-  return `${chk(lines, 'records') ?? 'unread'}`;
+  return { records: chk(lines, 'records') ?? 'unread', output: lines.join(' ') };
 }

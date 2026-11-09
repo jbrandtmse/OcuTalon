@@ -59,7 +59,7 @@ export async function precedentExists(ref: string): Promise<number> {
 
 /**
  * Saves a done turn of the session (channel web) with the text and answers its Ref. `createdAtUtc` is a UTC time to the second; it is now
- * when left out. A local time of the instance zone is converted with `localNoonUtc`.
+ * when left out. `localTimeUtc` gives the UTC time of a local time of the instance zone.
  */
 export async function seedNoteTurn(session: string, text: string, createdAtUtc?: string): Promise<string> {
   const lines = await irisScript(
@@ -116,20 +116,21 @@ export async function removeNoteRows(rows: { turn?: string; decision?: string })
 }
 
 /**
- * The instance-zone noon of the day as a UTC time (Data.Time.FromLocal): `daysAgo` 0 is today and 1 is yesterday in the instance zone.
- * Noon keeps the line's hh:mm clear of a daylight-saving change.
+ * A local time of the instance zone on a day, as a UTC time (Data.Time.FromLocal): `daysAgo` 0 is today and 1 is yesterday in the instance
+ * zone, and `time` is HH:MM:SS.
  */
-export async function localNoonUtc(daysAgo: 0 | 1): Promise<string> {
+export async function localTimeUtc(daysAgo: 0 | 1, time: string): Promise<string> {
+  if (!/^\d{2}:\d{2}:\d{2}$/.test(time)) throw new Error(`${time} is not HH:MM:SS`);
   const lines = await irisScript(
     [
       'Set local=##class(OcuTalon.Data.Time).ToLocal(##class(OcuTalon.Data.Time).NowUtc())',
       `Set date=$ZDate($ZDateH($Piece(local,"T",1),3)-${daysAgo},3)`,
-      'Write !,"CHK|noon|",##class(OcuTalon.Data.Time).FromLocal(date_"T12:00:00")',
+      `Write !,"CHK|utc|",##class(OcuTalon.Data.Time).FromLocal(date_"T${time}")`,
     ].join('\n'),
   );
-  const noon = chk(lines, 'noon');
-  if (!noon) throw new Error(`the local noon could not be read (${lines.join(' ')})`);
-  return noon;
+  const utc = chk(lines, 'utc');
+  if (!utc) throw new Error(`the local time ${time} could not be read (${lines.join(' ')})`);
+  return utc;
 }
 
 /** The mock's log mark before a send (Test.Contract.Mock.LogMark). */

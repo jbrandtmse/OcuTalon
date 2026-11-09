@@ -1,11 +1,11 @@
-import { expect, test, type Locator, type Page, type Request } from './support/fixtures';
+import { expect, test, type Locator, type Page, type Request, type Response } from './support/fixtures';
 
 import { README_ACCOUNT } from './sign-in/helpers';
 import { dropPhone, pointKeys, restoreKeys } from './support/devices';
 import { railOf, signInReadmeLoaded, unique } from './support/floor';
 import { cleanFixtureRows, sendItem, seedOtherSession } from './support/iris';
 import {
-  localNoonUtc,
+  localTimeUtc,
   logMark,
   precedentExists,
   removeDecisionsOf,
@@ -20,7 +20,7 @@ import { sessionRef } from './support/persona';
 import { instanceSeq, monitorSettled, runnersReady, runnersRecorded } from './support/runners';
 
 /**
- * Story 41.6 (MC1 to MC9; FR-71, FR-72, AD-4, AD-28, NFR-25), the Memory card in the status rail, in a real browser against the stack that test-sign-in.sh
+ * Story 41.6 (MC1 to MC10; FR-71, FR-72, AD-4, AD-28, NFR-25), the Memory card in the status rail, in a real browser against the stack that test-sign-in.sh
  * seeds, signed in as the README account. The card reads `GET /api/v1/memory/notes` for today and yesterday and `GET /api/v1/memory/precedents`, and
  * Forget sends `DELETE /api/v1/memory/precedents/:ref`. Every case seeds its own rows (support/memory.ts), asserts only on them and on marked lines,
  * and removes them by Ref in `finally`, because other specs expect the account's defaults. The card's texts are written out here as the oracle:
@@ -33,7 +33,8 @@ import { instanceSeq, monitorSettled, runnersReady, runnersRecorded } from './su
  *   MC6  by keyboard alone: the tabs, Forget, the dialog;
  *   MC7  in the drawer band, Forget's dialog opens and Cancel and Esc give focus back to Forget with the drawer open;
  *   MC8  the demo variant: another session's and a seeded row never show, and the card keeps nothing across loads;
- *   MC9  Integration: after Forget the next decide request for the same sender carries no precedent (the CI mock's log).
+ *   MC9  Integration: after Forget the next decide request for the same sender carries no precedent (the CI mock's log);
+ *   MC10 a served line, the cut mark "(more not shown)" included, is one list item as served.
  */
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
 
@@ -74,10 +75,24 @@ async function open(page: Page): Promise<void> {
   await expect(tabOf(page, 'Notes'), 'the card is drawn').toBeVisible();
 }
 
-/** Opens Your answers (a click reads it again) and waits for the rows. */
+/** Selects Your answers, which reads it again when another tab was selected, and waits for the selection. */
 async function showAnswers(page: Page): Promise<void> {
   await tabOf(page, 'Your answers').click();
   await expect(tabOf(page, 'Your answers')).toHaveAttribute('aria-selected', 'true');
+}
+
+/** The next answer of a memory route that the page receives, with the method and status given. */
+function answerOf(page: Page, route: RegExp, status: number, method = 'GET'): Promise<Response> {
+  return page.waitForResponse((response) => route.test(response.url()) && response.request().method() === method && response.status() === status);
+}
+
+/**
+ * Waits until the page has read the whole answer and has drawn what follows it (two frames), so that a check that something is absent runs
+ * after the card handled the answer, not while the read was still out (a pending read and a failed one draw the same panel).
+ */
+async function handled(page: Page, answer: Promise<Response>): Promise<void> {
+  await (await answer).finished();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0)))));
 }
 
 /** The requests of the memory routes that the page sends, as "METHOD path". */
@@ -122,12 +137,11 @@ test('MC1: the rail has eight headings with Memory between Heartbeat checklist a
   await expect(card(page).getByRole('heading', { level: 3 }), 'and no h3 of its own').toHaveCount(0);
 });
 
-/** The UTC time one hour after the given UTC time to the second (YYYY-MM-DDTHH:MM:SSZ). */
-function hourAfter(utc: string): string {
-  return new Date(Date.parse(utc) + 3_600_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-}
-
-/** MC2: two turns of today and two of yesterday, seeded latest first, show under their day in time order, which is the order the route serves. */
+/**
+ * MC2: two turns of today and two of yesterday, seeded latest first, show under their day in time order, which is the order the route serves.
+ * They are seeded just after the local midnight, as the earliest lines of their day, which the note's cut (DailyNote MAXCHARS) never leaves
+ * out, whatever the account recorded earlier in the run and whatever the hour.
+ */
 test('MC2: done turns of today and of yesterday show under Today and Yesterday, each day in served order', async ({ page }) => {
   const session = await sessionRef();
   const texts = {
@@ -137,10 +151,9 @@ test('MC2: done turns of today and of yesterday show under Today and Yesterday, 
   const turns: string[] = [];
   try {
     for (const [day, ago] of [['today', 0], ['yesterday', 1]] as const) {
-      const early = await localNoonUtc(ago);
       const [first, second] = texts[day] as [string, string];
-      turns.push(await seedNoteTurn(session, second, hourAfter(early)));
-      turns.push(await seedNoteTurn(session, first, early));
+      turns.push(await seedNoteTurn(session, second, await localTimeUtc(ago, '00:01:30')));
+      turns.push(await seedNoteTurn(session, first, await localTimeUtc(ago, '00:00:30')));
     }
     await open(page);
     await expect(dayLabels(page), 'the labels Today and Yesterday').toHaveText(['Today', 'Yesterday']);
@@ -190,22 +203,47 @@ test('MC3: the empty texts show after an answered read only, and a pending or fa
   await showAnswers(page);
   await expect(answersPanel(page).getByText(ANSWERS_INTRO, { exact: true })).toBeVisible();
   await expect(answersPanel(page).getByText(ANSWERS_EMPTY, { exact: true }), 'no rows after an answered read').toBeVisible();
+  await expect(card(page).locator(REGION), 'the empty texts are no .empty, .hint or live region of the rail').toHaveCount(0);
 
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   await page.route(NOTES, (route) => route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The read failed.' } } }));
   await page.route(PRECEDENTS, (route) => route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The read failed.' } } }));
+  const notesFailed = answerOf(page, NOTES, 500);
   await tabOf(page, 'Notes').click();
+  await handled(page, notesFailed);
   await expect(notesPanel(page).getByText(NOTES_INTRO, { exact: true }), 'after a failed read, the intro shows').toBeVisible();
   await expect(dayLabels(page), 'with no day label').toHaveCount(0);
   await expect(notesPanel(page).getByText(NOTES_EMPTY), 'and no empty text').toHaveCount(0);
   await expect(notesPanel(page).getByText(YESTERDAY_EMPTY), 'nor the yesterday text').toHaveCount(0);
+  const answersFailed = answerOf(page, PRECEDENTS, 500);
   await showAnswers(page);
+  await handled(page, answersFailed);
   await expect(answersPanel(page).getByText(ANSWERS_INTRO, { exact: true }), 'a failed list shows the intro').toBeVisible();
   await expect(answersPanel(page).getByText(ANSWERS_EMPTY), 'and no empty text').toHaveCount(0);
 
+  const retried = unique('mc3 retried');
+  const row = { ref: 'zz-mc3-retried', answeredAt: '2031-04-01T10:00:00Z', channel: 'mailbox', answeredChannel: 'web', summary: retried, outcome: 'tellnow', answer: 'noise' };
   await page.unrouteAll({ behavior: 'ignoreErrors' });
+  await page.route(PRECEDENTS, (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { precedents: [row] } }) : route.continue()));
   await tabOf(page, 'Notes').click();
   await expect(dayLabels(page), 'selecting the tab again reads it again').toHaveText(['Today', 'Yesterday']);
+  await showAnswers(page);
+  await expect(rowOf(page, retried), 'a list whose read failed is read again when its tab is next selected').toHaveCount(1);
+  await expect(answersPanel(page).getByText(ANSWERS_EMPTY), 'and shows no empty text').toHaveCount(0);
+});
+
+/** MC10: a line that the notes route serves is one list item, as served, the cut mark "(more not shown)" included. */
+test('MC10: the Notes panel shows each served line as it was served, including the cut mark', async ({ page }) => {
+  const lines = ['09:15 message (web): Zz mc10 first', '09:20 message (web): Zz mc10 second', '(more not shown)'];
+  await page.route(NOTES, async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as Record<string, unknown>;
+    const yesterday = new URL(route.request().url()).searchParams.get('day') === 'yesterday';
+    await route.fulfill({ response, json: { ...body, lines: yesterday ? [] : lines } });
+  });
+  await open(page);
+  await expect(linesOf(page, 'Today'), "Today's list items are the served lines, the cut mark last").toHaveText(lines);
+  await expect(notesPanel(page).getByText(YESTERDAY_EMPTY, { exact: true }), "and an empty Yesterday keeps its own text").toBeVisible();
 });
 
 /** The three rows that MC4 to MC6 and MC8 seed: a noise row, an approval row and a tool row of the session. */
@@ -252,6 +290,8 @@ test('MC4: Your answers lists the rows with their meta lines and the tool note, 
     await expect(metaOf(rowOf(page, rows.noise.summary)), 'the noise row: when, channel as served, answer word').toHaveText(['Jan 3, 2031 at 10:00', 'mailbox', 'This was noise']);
     await expect(metaOf(rowOf(page, rows.approval.summary)), 'the approval row').toHaveText(['Jan 2, 2031 at 11:30', 'system', 'Approved']);
     await expect(metaOf(rowOf(page, rows.tool.summary)), 'the tool row has no channel').toHaveText(['Jan 1, 2031 at 14:15', 'Rejected']);
+    await expect(rowOf(page, rows.noise.summary).locator('.meta > span[aria-hidden="true"]'), 'three parts are joined by two rail separators (a middle dot)').toHaveText(['\u00b7', '\u00b7']);
+    await expect(rowOf(page, rows.tool.summary).locator('.meta > span[aria-hidden="true"]'), 'and two parts by one').toHaveText(['\u00b7']);
     await expect(rowOf(page, rows.noise.summary).locator('.title'), 'the title is the summary').toHaveText(rows.noise.summary);
     await expect(rowOf(page, rows.tool.summary).getByText(TOOL_NOTE, { exact: true }), 'the tool row carries the tool note').toBeVisible();
     await expect(rowOf(page, rows.noise.summary).locator('.detail'), 'and a row of a channel has none').toHaveCount(0);
@@ -281,6 +321,14 @@ test('MC4: Your answers lists the rows with their meta lines and the tool note, 
     expect(memory().filter((one) => one.startsWith('DELETE')), 'nothing was sent').toEqual([]);
 
     await forgetOf(page, rows.noise.summary).click();
+    await expect(dialogOf(page)).toBeVisible();
+    await page.locator('.cdk-overlay-backdrop').click({ position: { x: 4, y: 4 } });
+    await expect(dialogOf(page), 'a press on the backdrop closes it').toHaveCount(0);
+    await expect(forgetOf(page, rows.noise.summary), 'and focus returns to Forget').toBeFocused();
+    expect(memory().filter((one) => one.startsWith('DELETE')), 'nothing was sent').toEqual([]);
+    expect(await precedentExists(rows.noise.ref), 'and the row is still in the table').toBe(1);
+
+    await forgetOf(page, rows.noise.summary).click();
     const before = memory().length;
     const deleted = page.waitForResponse((response) => response.request().method() === 'DELETE' && FORGET_ONE.test(new URL(response.url()).pathname));
     await confirmOf(page).click();
@@ -301,28 +349,42 @@ test('MC4: Your answers lists the rows with their meta lines and the tool note, 
   }
 });
 
-/** MC5: a failed confirm and a 404. */
+/** MC5: a failed confirm (500, 501, no answer at all) and a 404. */
 test('MC5: a failed confirm keeps the dialog open with the notice and the row, and a 404 removes the row', async ({ page }) => {
   const session = await sessionRef();
   const summary = unique('mc5');
   const ref = await seedPrecedent(session, { summary, answeredAt: '2031-02-01T10:00:00Z', matchKey: 'zz.mc5@example.com' });
   try {
-    let answer: 'fail' | 'gone' = 'fail';
-    await page.route(FORGET_ONE, (route) =>
-      route.request().method() !== 'DELETE'
-        ? route.continue()
-        : answer === 'fail'
-          ? route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The forget failed.' } } })
-          : route.fulfill({ status: 404, json: { error: { code: 'not_found', message: 'OcuTalon has nothing at this address.' } } }),
-    );
+    let answer: 'fail' | 'unimplemented' | 'offline' | 'gone' = 'fail';
+    let sent = 0;
+    await page.route(FORGET_ONE, (route) => {
+      if (route.request().method() !== 'DELETE') return route.continue();
+      sent += 1;
+      switch (answer) {
+        case 'fail':
+          return route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The forget failed.' } } });
+        case 'unimplemented':
+          return route.fulfill({ status: 501, json: { error: { code: 'not_implemented', message: 'zz Not available.' } } });
+        case 'offline':
+          return route.abort('connectionreset');
+        case 'gone':
+          return route.fulfill({ status: 404, json: { error: { code: 'not_found', message: 'OcuTalon has nothing at this address.' } } });
+      }
+    });
     await open(page);
     await showAnswers(page);
     await forgetOf(page, summary).click();
-    await confirmOf(page).click();
-    await expect(dialogOf(page).getByText(FAILED, { exact: true }), 'a 500 shows the failure notice in the dialog').toBeVisible();
-    await expect(dialogOf(page), 'and the dialog stays open').toBeVisible();
-    await expect(rowBehind(page, summary), 'and the row stays').toHaveCount(1);
-    expect(await precedentExists(ref)).toBe(1);
+    let attempts = 0;
+    for (const [how, kind] of [['fail', 'a 500'], ['unimplemented', 'a 501'], ['offline', 'a network error']] as const) {
+      answer = how;
+      await confirmOf(page).click();
+      attempts += 1;
+      await expect.poll(() => sent, `${kind}: the confirm sent its delete`).toBe(attempts);
+      await expect(dialogOf(page).getByText(FAILED, { exact: true }), `${kind} shows the failure notice in the dialog`).toBeVisible();
+      await expect(dialogOf(page), 'and the dialog stays open').toBeVisible();
+      await expect(rowBehind(page, summary), 'and the row stays').toHaveCount(1);
+      expect(await precedentExists(ref), 'and so does the table row').toBe(1);
+    }
     answer = 'gone';
     await confirmOf(page).click();
     await expect(dialogOf(page), 'a 404 closes the dialog').toHaveCount(0);
@@ -346,6 +408,9 @@ test('MC6: the tabs, Forget and the dialog work by keyboard alone', async ({ pag
     await page.keyboard.press('ArrowRight');
     await expect(tabOf(page, 'Your answers'), 'ArrowRight focuses the other tab').toBeFocused();
     await expect(tabOf(page, 'Your answers'), 'and selects it').toHaveAttribute('aria-selected', 'true');
+    await expect(tabOf(page, 'Your answers'), 'the roving tabindex follows the selection').toHaveAttribute('tabindex', '0');
+    await expect(tabOf(page, 'Notes')).toHaveAttribute('aria-selected', 'false');
+    await expect(tabOf(page, 'Notes')).toHaveAttribute('tabindex', '-1');
     await expect(answersPanel(page).getByText(ANSWERS_INTRO, { exact: true }), 'the panel changes').toBeVisible();
     await expect(notesPanel(page), 'and the Notes panel is hidden').toHaveCount(0);
     await page.keyboard.press('ArrowRight');
@@ -420,7 +485,7 @@ test("MC8: the card lists only the session's own rows and notes, and keeps nothi
     rows.push(await seedPrecedent(session, { summary: own, matchKey: key, answeredAt: '2032-03-01T10:00:00Z' }));
     rows.push(await seedPrecedent(other, { summary: foreign, matchKey: key, answeredAt: '2032-03-02T10:00:00Z' }));
     rows.push(await seedPrecedent('eval', { summary: evaluated, matchKey: key, answeredAt: '2032-03-03T10:00:00Z', run: `zzmc8${Date.now()}`.slice(0, 22) }));
-    turns.push(await seedNoteTurn(session, ownText));
+    turns.push(await seedNoteTurn(session, ownText, await localTimeUtc(0, '00:02:30')));
     turns.push(await seedNoteTurn(other, foreignText));
     await open(page);
     await expect(linesOf(page, 'Today').filter({ hasText: ownText }), 'the session\'s own line shows').toHaveCount(1);
@@ -445,11 +510,15 @@ test("MC8: the card lists only the session's own rows and notes, and keeps nothi
     await showAnswers(page);
     await expect(answersPanel(page).getByText(ANSWERS_INTRO, { exact: true }), 'while the read is out, the panel shows the intro').toBeVisible();
     await expect(answersPanel(page).locator('li.row'), 'and no row: nothing is kept from the page before the reload').toHaveCount(0);
+    const held = answerOf(page, PRECEDENTS, 200);
     release();
+    await handled(page, held);
     await tabOf(page, 'Notes').click();
     await expect(dayLabels(page), 'after the reload the notes are read again').toHaveText(['Today', 'Yesterday']);
     await expect(notesPanel(page).getByText(ownText), 'the removed turn does not show').toHaveCount(0);
+    const listed = answerOf(page, PRECEDENTS, 200);
     await showAnswers(page);
+    await handled(page, listed);
     await expect(answersPanel(page).getByText(ANSWERS_INTRO, { exact: true })).toBeVisible();
     await expect(answersPanel(page).getByText(own), 'the removed row does not show').toHaveCount(0);
     await expect(answersPanel(page).getByText(foreign)).toHaveCount(0);
@@ -470,7 +539,7 @@ test.describe('MC9 (Integration)', () => {
     test.setTimeout(240_000);
     await pointKeys();
     const ready = await runnersReady();
-    expect(ready.reason, 'the production is ready').toBe('');
+    expect(ready.reason, `the production is ready (${ready.output})`).toBe('');
     expect(ready.keyed, 'and the TriageAgent has its key').toBe('1');
   });
 
@@ -480,7 +549,8 @@ test.describe('MC9 (Integration)', () => {
     try {
       await restoreKeys();
     } finally {
-      expect(await runnersRecorded(), 'the runners recorded the restored keys').toBe('1');
+      const recorded = await runnersRecorded();
+      expect(recorded.records, `the runners recorded the restored keys (${recorded.output})`).toBe('1');
       await monitorSettled(mark);
     }
   });
@@ -528,9 +598,9 @@ test.describe('MC9 (Integration)', () => {
       expect(after.withOpening, 'it carries no precedents opening').toBe(0);
       expect(after.withText, "and not the row's summary").toBe(0);
     } finally {
+      if (ref) await removePrecedent(ref);
       await removeDecisionsOf(items);
       await dropPhone(README_ACCOUNT.user, since);
-      if (ref) await removePrecedent(ref);
     }
   });
 });

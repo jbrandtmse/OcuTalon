@@ -658,7 +658,7 @@ test.describe('HC4 (Integration)', () => {
     test.setTimeout(240_000);
     await pointKeys();
     const ready = await runnersReady();
-    expect(ready.reason, 'the production is ready').toBe('');
+    expect(ready.reason, `the production is ready (${ready.output})`).toBe('');
     expect(ready.keyed, 'and the TriageAgent has its key').toBe('1');
   });
 
@@ -668,7 +668,8 @@ test.describe('HC4 (Integration)', () => {
     try {
       await restoreKeys();
     } finally {
-      expect(await runnersRecorded(), 'the runners recorded the restored keys').toBe('1');
+      const recorded = await runnersRecorded();
+      expect(recorded.records, `the runners recorded the restored keys (${recorded.output})`).toBe('1');
       await monitorSettled(mark);
     }
   });

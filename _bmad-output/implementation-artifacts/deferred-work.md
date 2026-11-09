@@ -5889,6 +5889,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T21:58:35Z occurrence=OCT-epic30-17406fd7-attempt2 by=orchestrator note=run 42515884139 attempt 2 iris(shards-2) lane-a@rest TestTimeLeft (16.73); second red on the same head; fix in flight in 32.7 (post-release bound to 20 s)
 - 2026-11-08T21:59:33Z occurrence=exception_used by=orchestrator note=planner_ruling 2026-11-08 ~22:00Z: Epic 30 (30.7, 17406fd7) merged with DW-973 as its only remaining red (one-off exception; then the standing yes until 32.7 merges)
 - 2026-11-09T01:25:15Z occurrence=41-5-this-was-noise-and-your-approval-answers-become-precedents note=ci 42532425828 iris(shards-2) on c1a63cd8 (integrated head), TestTimeLeft (15.01); Epic 41 touches nothing under Docs/Extract; one rerun of the failed job
+- 2026-11-09T02:33:13Z occurrence=41-5-this-was-noise-and-your-approval-answers-become-precedents note=Planner standing exception USED on c1a63cd8 (ci 42532425828 attempt 2): the only red is iris(shards-2) Test.Docs.ExtractMore TestTimeLeft (15.45); every other job of ci and lane-a green; Epic 41 touches nothing under Docs, Extract or the extraction lock
 ### DW-964: flake: OcuTalon.Test.Checks.Heartbeat TestDisabledItemIsReportedOnce 'the session's web chat got one notification' red once in CI iris (shards), unit shard:lane-a@Checks,Install,Watch, on OCT-epic17 321dcad7 (run 42470657226 attempt 3, job 128733036530); the class passed on attempts 1 and 2 of the same head and on 57a201e9 and 38ab54d4 (same Epic 17 code)
 - source: cycle-log-epic-17 (ci run 42470657226 job 128733036530) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: assert gives no count; WaitDeliveries(session,1,WAITDIAGNOSIS) returns on the first Delivery row of ANY channel, then the test counts web rows only: a row on another channel first, or no row inside WAITDIAGNOSIS under CI load, reads as not one web row; Epic 17 diff leaves the tellnow path, Data.Delivery, Test.Core.Observe and Checks unchanged, and a digest Notification wrote one web Delivery row before 17.10 too (record-only path), so its web row count is unchanged
@@ -5951,3 +5952,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-6-the-memory-card-your-notes-and-your-answers.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 41.6 implement runs of ci/iris.sh live sign-in-3 --part 6/6: red after 00:00Z, green before
 - 2026-11-09T01:25:37Z status=routed owner=41-6-the-memory-card-your-notes-and-your-answers by=harvest note=fix in 41.6's QA (same live unit); the expectation must follow the page's own time format, as pageWhen renders it
+- 2026-11-09T02:32:48Z status=resolved-by:41-6-the-memory-card-your-notes-and-your-answers by=adjudication note=memory-noise.spec.ts NZ1/NZ2 build the expected mark time with the page's own Intl formatter; green at 01:30Z and 01:50Z (UTC hour < 10); mutation (one minute late) red
+
+### DW-996: ForgetDialog (web/src/app/rail/memory-card/forget-dialog.ts) is a near-copy of RemoveDocumentDialog (web/src/app/documents/remove-dialog.ts): same template, styles, 200/404 close and failure notice; unify into one confirm dialog for both
+- source: spec-41-6-the-memory-card-your-notes-and-your-answers.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 99 of 100 lines match in shape; the spec's stated reason (a shared dialog would change Story 34.2's component and tests) forces the copy and names Epic 41's burn-down for the unification (Rule 2)
+- 2026-11-09T02:25:29Z status=routed owner=burndown by=cr note=Rule 2 spec-forced copy; unify with remove-dialog.ts and fix DW (dialog notice a11y) in the same change
+- 2026-11-09T02:25:34Z status=routed owner=burndown by=cr note=the dialog notice a11y fix is DW-997; do both in one change
+
+### DW-997: The Forget and Remove dialogs' failure notice is neither announced nor described: confirm catches every error so ServerButton sees success, and app-inline-notice has no id in the button's describedBy and no Announcer call (noise-control.ts and incident-dismiss.ts do both)
+- source: spec-41-6-the-memory-card-your-notes-and-your-answers.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: forget-dialog.ts:35-37,85-98 and documents/remove-dialog.ts: after a 500/501/network error focus stays on the confirm and a screen reader hears nothing; the fix needs the Announcer (announce-focus-sources.test.mjs speakers list, Epic 18 contended) and Story 34.2's dialog
+- 2026-11-09T02:25:29Z status=escalated owner=burndown by=cr note=NFR-25/WCAG 4.1.3; fix with the confirm-dialog unification: describedBy the notice id and announce it once
+
+### DW-998: ux-strings.test.mjs does not inventory memory-card-view.ts ANSWER_WORDS, so the ruled answer words 'Approved' and 'Rejected' have no source entry (only MEMORY_TEXTS is imported)
+- source: spec-41-6-the-memory-card-your-notes-and-your-answers.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: IMPORTED line 70 imports MEMORY_TEXTS only; the words are pinned word for word by memory-card-view.test.mjs and ruled 2026-11-08; widening the contended IMPORTED append is not allowed in this story
+- 2026-11-09T02:25:29Z status=wontfix-accepted owner=41-6-the-memory-card-your-notes-and-your-answers by=cr note=reopen_if=ANSWER_WORDS changes or gains a word, or ux-strings.test.mjs is next edited for the Memory card (41.13)
