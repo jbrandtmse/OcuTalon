@@ -879,3 +879,4 @@
 2026-11-09T15:02:09Z	Story 11.18	story_parked	reason=owner_re-plan_2026-11-09(after_voting_week) stage=ready-for-dev(no_code) via=orchestrator inbox=none(owner's_own_decision,relayed)
 2026-11-09T15:02:09Z	Story 11.29	story_parked	reason=owner_re-plan_2026-11-09(after_voting_week) stage=ready-for-dev(no_code) via=orchestrator inbox=none(owner's_own_decision,relayed)
 2026-11-09T15:02:09Z	Story 11.15	adr_verifications_complete	tool=none acs=none result=none_required evidence=no_AD_commits_a_tool_stack_for_this_story(AD-29_REL-7_read-only_and_AD-22_gate_rows_pinned_by_the_hermetic_self-test;mutations_at_implement,QA,CR) mutations=none model=claude-opus-5-5
+2026-11-09T15:02:16Z	Story 11.15	stage_spawned	stage=qa spawn_at=2026-11-09T15:02:16Z model=sonnet agent_name=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command-qa-1 cycle_iteration=1 effort=high
