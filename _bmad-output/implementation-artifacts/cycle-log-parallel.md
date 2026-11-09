@@ -3069,3 +3069,6 @@
 2026-11-09T08:06:21Z	Epic 41	runner_complete	agent=a70c5c6c3ec305303 part_merge=41.1-41.7 stories=7 head=ce5f0cc3 ci=success(42578728952,42578728893) applied=U-309,U-310,U-314 decisions_for_user=DW-941,DW-997(agreed)
 2026-11-09T08:06:21Z	Epic 41	amendments_verified	amendments=AD-21,AD-7,AD-29_names,epics.md:9788+DW_bullets extensions=as_contract(Lane_B_by_exception:Core/Intake.cls:83,Test/Core/ConversationTurns.cls) ok=true
 2026-11-09T08:06:21Z	Epic 41	merge_enqueued	policy=when_green+planner_rule_a(since_2e7791d5;no_shared_code) prev_merge_head_lane-a=0ab2eef0_success
+2026-11-09T08:06:56Z	Epic 41	epic_merged_to_feature	merge=2a45f8bc head=ce5f0cc3 part_merge=41.1-41.7 verified_on_origin=yes conflicts=sprint-status.yaml(bookkeeping) code_conflicts=none method=planner_rule_a readme=unchanged ledger_union=lost0,dup0(1004) spine_lint=baseline feature_ci=ci:42583599821,lane-a:42583599730, release=1.0.5 worktree=kept(part_2)
+2026-11-09T08:06:56Z	Epic 41	decision_sheet_recorded	decided=2(DW-941_routed_Lane_A_bridge_story;DW-997_to_41-13-the-memory-card-pinned-and-learned-memories) to_action_items=0 to_x0=0 by=merge_gate
+2026-11-09T08:06:56Z	Run	deps_hash_rerecorded	reason=fix_forward stories=41.1-41.7 hash=e5ccaa5e4d11
