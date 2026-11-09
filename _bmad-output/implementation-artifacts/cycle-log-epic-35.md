@@ -95,3 +95,6 @@
 2026-11-09T20:59:53Z	Story 35.2	rework_opened	cycle_iteration=2 iteration=1 trigger=fix_pack items=Planner_condition_DW-1041(wallet+Config_Store_no-write_pin;no_MCP_settings_route_pin) scope_baseline=pending
 2026-11-09T21:01:06Z	Epic 35	slot_loaded	server=ocutalon-slot-c ns=OCUTALON head=c5195e79 bridge=62 ocutalon=858 preload=1 compiled=clean server_classes=921 files=921 stale=0 identity=container_96362ba1e3f4
 2026-11-09T21:01:06Z	Story 35.2	stage_spawned	stage=implement spawn_at=2026-11-09T21:01:06Z model=sonnet effort=high agent_name=35-2-implement-2 cycle_iteration=2 rework=1
+2026-11-09T21:13:27Z	Story 35.2	dev_complete	spawn_at=2026-11-09T21:01:06Z model=sonnet effort=high build_sha=afe2d8d9 baseline_revision=5485b803 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=2 cycle_iteration=2 rework=1 note=wallet_read_measured(SELECT_%ID_FROM_%Wallet.Secret/Collection);TestNoMcpSettingsRoute;4_mutations
+2026-11-09T21:13:27Z	Story 35.2	adr_verifications_complete	result=none_required note=rework_touched_no_AD-tooled_AC(test-only)
+2026-11-09T21:13:27Z	Story 35.2	stage_spawned	stage=code-review spawn_at=2026-11-09T21:13:27Z model=opus effort=high agent_name=35-2-code-review-2 cycle_iteration=2 scope=5485b803..HEAD
