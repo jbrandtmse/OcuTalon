@@ -114,14 +114,17 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # class time Bridge 673 s and Agent 309 s; live:sign-in-3 776 s) and production job 26 min (its four units 1,546 s). Projection: production about
 # 1,546 + 309 + a stack start (about 250) = 2,105 s, shards-5 about 2,070 - 309 = 1,761 s plus Epic 41's specs in live:sign-in-3 (inference until a run
 # measures them). No group is added, renamed or given a longer deadline.
+# Measured after the move: production 36 min on two clean runs (ci 42532425828 on c1a63cd8, ci 42551945165 on dc57bfe4), over REL-4's 35 minutes,
+# so (the Contest Planner's ruling of 2026-11-09) live:security-overview (262-303 s) moved from production to shards-2 (27 min on ef38622e):
+# production about 31 min, shards-2 about 32 min (inference until a run measures them). No group is added, renamed or given a longer deadline.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
     install-upgrade) echo "live:install-upgrade live:online-allowance live:online-visitors live:compose-start" ;;
-    production) echo "live:production live:production-restart live:reminder-restart live:security-overview shard:lane-a@Agent" ;;
+    production) echo "live:production live:production-restart live:reminder-restart shard:lane-a@Agent" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
     shards) echo "shard:lane-a@Checks,Install,Watch,Eval live:online-session live:cards" ;;
-    shards-2) echo "shard:lane-a@rest live:session-data" ;;
+    shards-2) echo "shard:lane-a@rest live:session-data live:security-overview" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
     shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit live:documents" ;;
     shards-4) echo "shard:lane-a@Channel live:sign-in-2 live:memory-offline" ;;
