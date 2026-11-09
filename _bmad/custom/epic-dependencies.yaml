@@ -131,7 +131,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "3ff93a7ae218d36f71df6713645b0cc73a90e276adcc82c8a5dbeb262b3a9556"
+epics_md_hash: "9d3bc89ce9c167c2a9b494bc4f3085c739c167c50dbb532a74320d8e6c222077"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
@@ -177,6 +177,7 @@ footprints:
     - ci/**                                            # except ci/mock/scenarios/A/
     - docker-compose.yml
     - docker-compose.dev.yml
+    - Dockerfile                                       # Story 0.15 (2026-11-09): the image file moved to the repository root
     - README.md
     - .github/workflows/ci.yml
     - src/ocutalon/cls/OcuTalon/Channel/{Webhook,Email,Slack}*/**   # relaunch 2026-10-26: 35.2, 21.2, 27.1
@@ -293,7 +294,7 @@ epics:
             paths_hint: ["src/bridge/cls/OcuTalon/Bridge/{Operation,Process,Data}/**", "src/bridge/cls/OcuTalon/Bridge/{Budget,Keys,Time,ConfigStore}.cls", "src/ocutalon/cls/OcuTalon/Digest/**", "src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls", "src/ocutalon/cls/OcuTalon/Msg/Command/{SendDigest,GotIt}*.cls", "src/ocutalon/cls/OcuTalon/Core/{CommandsIn,SettingsOps}.cls", "src/ocutalon/cls/OcuTalon/Core/Rule/Notify*.cls", "src/ocutalon/cls/OcuTalon/Data/{Setting,Handled}*.cls", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "web/src/app/{settings,header}/**", "web/src/app/api/**", "src/ocutalon/cls/OcuTalon/Test/{Contract,Bridge,Digest,Core,Web}/**"],
             story_waits: {"33.1": epic-30}}               # footprint (v2): the bridge stubs and Msg/Catalog/Watch.cls keys, beside epic-30's bridge, Checks and Catalog.Watch changes
   epic-34: {lane: pool, depends_on: [epic-12], submodules: [], merge_gate: {branch: release/1.0.0-rc1},   # step 3: Stories 34.1 (was 19.1) then 34.2 (was 20.1); gate: no step work before 0.1.1 (spine:777)
-            paths_hint: ["src/ocutalon/cls/OcuTalon/{Memory,Docs}/**", "src/ocutalon/cls/OcuTalon/Data/{Memory,Document}.cls", "src/bridge/cls/OcuTalon/Bridge/Ext/**", "src/ocutalon/cls/OcuTalon/Install/Step/PrivateData.cls", "src/ocutalon/cls/OcuTalon/Msg/Command/{SaveMemory,ForgetMemory,AddDocument,RemoveDocument}*.cls", "src/ocutalon/cls/OcuTalon/Core/{CommandsIn,SessionOps}.cls", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "web/src/app/{documents,header}/**", "docker/Dockerfile", "src/ocutalon/cls/OcuTalon/Test/{Contract,Memory,Docs,Core,Web}/**"],
+            paths_hint: ["src/ocutalon/cls/OcuTalon/{Memory,Docs}/**", "src/ocutalon/cls/OcuTalon/Data/{Memory,Document}.cls", "src/bridge/cls/OcuTalon/Bridge/Ext/**", "src/ocutalon/cls/OcuTalon/Install/Step/PrivateData.cls", "src/ocutalon/cls/OcuTalon/Msg/Command/{SaveMemory,ForgetMemory,AddDocument,RemoveDocument}*.cls", "src/ocutalon/cls/OcuTalon/Core/{CommandsIn,SessionOps}.cls", "src/ocutalon/cls/OcuTalon/Web/Api.cls", "web/src/app/{documents,header}/**", "Dockerfile", "src/ocutalon/cls/OcuTalon/Test/{Contract,Memory,Docs,Core,Web}/**"],
             story_waits: {"34.1": epic-15,                  # real: the FastEmbed path check on an IPM install
                           "34.2": [epic-33, epic-16]}}      # real: 33.2's header navigation; SessionOps.End, Story 16.4
   epic-35: {lane: pool, depends_on: [epic-33], submodules: [],                        # step 4: Stories 35.1 (was 22.1) then 35.2 (was 21.1), which routes to McpOps under 35.1's names; real: 33.2's settings page and routes, which 35.2 extends

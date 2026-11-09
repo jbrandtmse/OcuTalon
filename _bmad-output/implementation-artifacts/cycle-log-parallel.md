@@ -3214,3 +3214,6 @@
 2026-11-09T20:57:12Z	Epic 0	merge_enqueued	head=eceea067
 2026-11-09T20:57:25Z	Epic 0	ci_green_verified	runs=42693382391,42693382468 head=eceea067 code_head=4493272e(42683385126,42683386164) via=orchestrator
 2026-11-09T20:57:25Z	Epic 0	amendments_verified	amendments=3 extensions=15 ok=true ci.yml_diff=exactly_2_approved_lines contended=ruled_plain_unions
+2026-11-09T20:57:47Z	Epic 0	epic_merged_to_feature	repos=. merge_sha=52cf70f6 feature_sha=52cf70f6 part=0.15,0.20 submodules=
+2026-11-09T20:57:47Z	Run	deps_hash_rerecorded	reason=fix_forward(Story_0.20_inserted_in_Epic_0) hash=9d3bc89c orchestrator_edits=epic-19_paths_hint_docker/Dockerfile->Dockerfile,footprints.lane_b_+Dockerfile
+2026-11-09T20:57:47Z	Run	decision_sheet_skipped	epic=0 reason=empty note=DW-1025_resolved-by_0-20_recorded_at_Epic_35_merge(entry_on_OCT-epic35)
