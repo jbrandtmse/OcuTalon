@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-09-2026 02:31
+last_updated: 11-09-2026 02:38
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -457,7 +457,7 @@ development_status:
   41-4-the-notes-and-your-answers-reach-the-model: done
   41-5-this-was-noise-and-your-approval-answers-become-precedents: done
   41-6-the-memory-card-your-notes-and-your-answers: done
-  41-7-evaluation-and-tests-for-memory-s-first-part: ready-for-dev
+  41-7-evaluation-and-tests-for-memory-s-first-part: in-progress
   41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns: backlog
   41-9-pins-and-learned-saves-get-their-verbs-and-routes: backlog
   41-10-facts-learned-at-compaction-optional-needs-ad-31-s-amendment: backlog
