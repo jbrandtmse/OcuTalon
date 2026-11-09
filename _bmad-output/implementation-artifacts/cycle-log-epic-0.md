@@ -504,3 +504,6 @@
 2026-11-09T05:06:09Z	Story 0.18	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0
 2026-11-09T05:06:09Z	Story 0.18	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=test-readme.sh_all_32_rules_passed;test-boundaries.sh_all_rules_passed model=claude-opus-5-5
 2026-11-09T05:06:09Z	Story 0.18	fresh_check	env=clean-checkout(git_archive_HEAD,add_-f) tests=1(docker/tests/test-readme.sh) result=pass order=forward,reverse(single_script)
+2026-11-09T05:07:14Z	Story 0.18	committed	sha=fdd191e8 submodules= ci=pending runs=42565378346,42565378445 amendments=none note=code_commit=6118b053;head_carries_0.17(7e4a668d)+0.15_spec_bookkeeping;pushed_without_waiting_on_0.17_ci(orchestrator,queue_over_60min)
+2026-11-09T05:07:14Z	Story 0.18	story_cycle	plan_to_commit_min=13 implement_passes=1 reviews=1(runner_diff_review) rework=0 first_ci=pending models=plan:sonnet,implement:sonnet,qa:none,cr:runner(opus)
+2026-11-09T05:07:14Z	Story 0.17	ci_progress	sha=7e4a668d lane-a=42560945643:success ci=42560945591:in_progress note=not_cancelled_by_0.18_push
