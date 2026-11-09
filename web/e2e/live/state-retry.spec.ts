@@ -45,6 +45,8 @@ test('a /state that is held once is retried by one reload, logged, and the page 
     const isRetryLine = (line: string): boolean => /^RETRY [A-Za-z0-9._/-]+:[0-9]+ [A-Za-z0-9 ./:_-]+$/.test(line);
     expect(fileLines.filter(isRetryLine), 'the file holds that line').toEqual([retry]);
     expect(fileLines.filter((line) => !isRetryLine(line) && !/^DIAG [ -~]{1,300}$/.test(line)), 'every other line of the file is a DIAG line').toEqual([]);
+    expect(fileLines[0], 'the RETRY line comes first').toBe(retry);
+    expect(fileLines.some((line) => /^DIAG \/state request 1 of 1: issued .* no answer yet$/.test(line)), 'the file holds the page-side line of the first miss').toBe(true);
     expect(logged.some((line) => /^DIAG \/state request 1 of 1: issued .* no answer yet$/.test(line)), 'the page-side line of the first miss').toBe(true);
     await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
     expect(hold.held(), 'only the first GET of /state was held').toBe(1);
