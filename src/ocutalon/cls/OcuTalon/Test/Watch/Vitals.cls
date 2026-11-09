@@ -15,8 +15,9 @@
 ///   - TestStartNoise: IRIS's own two start-up lines at severity 2 (the Sharding error, and the failover line of a start in a new container) are not
 ///     counted, for one start and for two (Story 17.13, DW-980);
 ///   - TestLaterRealError: a real later error of severity 2 or 3, near misses of the two lines and the Sharding text at severity 3 are still counted;
-///   - TestNoiseIdBounds: the container id of the failover line is 12 to 64 lower-case hex digits and nothing else; the Sharding text is matched whole; both
-///     lines count at severity 3;
+///   - TestNoiseIdBounds: the container id of the failover line is 12 to 64 lower-case hex digits and nothing else; the Sharding text is matched whole (a word
+///     after it or another label counts); the failover line counts at severity 3;
+///   - TestNoiseTextBounds: the whole text after the severity is matched: both lines under another category, or after a space or a word, are counted;
 ///   - TestStartNoiseRow: Checks.Coverage Build over the real reader and the kept files: the "system log" row passes over start-up noise alone, and
 ///     fails with its count and the check time over a real later error;
 ///   - TestRealStartNoise: the real messages.log of the stack holds the lines of its own last start, and they are not counted;
@@ -247,15 +248,14 @@ Method TestLaterRealError()
 	Set b = ##class(OcuTalon.Data.Time).AddSeconds(c, -2 * 86400)
 	Set from = ##class(OcuTalon.Data.Time).AddSeconds(b, -3600)
 	Set to = ##class(OcuTalon.Data.Time).AddSeconds(b, -60)
-	Set later = $ListBuild($ListBuild(-2000, 2, "[Utility.Event] Error: ERROR #5002: ObjectScript error: <UNDEFINED>zzvitals+1^ZZVITALS17 *zz"), $ListBuild(-1900, 3, "[Generic.Event] zz a real error of severity 3, ignore"))
-	Set near = $ListBuild($ListBuild(-1800, 2, ..#FAILOVERTEXT_"0a1b2c3d4e5f to 5f4e3d2c1b0a"), $ListBuild(-1700, 2, ..#FAILOVERTEXT_"zzhostold"), $ListBuild(-1600, 3, ..#SHARDINGTEXT))
-	Do ..WriteKept("6", b, ..Lead()_..NoiseLines(-3000)_later_near)
+	Do ..WriteKept("6", b, ..Lead()_..NoiseLines(-3000)_..LaterLines())
 	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
 	Do $$$AssertEquals(vitals.systemLog.outcome, "read", "the log is read")
 	Do $$$AssertEquals(vitals.systemLog.count, 5, "the later error, the severity 3 line, the two near-miss failover lines and the Sharding text at severity 3 are counted; the noise is not")
 }
 
-/// The container id of the failover line is 12 to 64 lower-case hex digits and nothing after them; the Sharding text is matched whole.
+/// The container id of the failover line is 12 to 64 lower-case hex digits and nothing after them; the Sharding text is matched whole (a word after
+/// it or another label counts); the failover line with a valid id counts at severity 3.
 Method TestNoiseIdBounds()
 {
 	If '..Ready() Quit
@@ -277,6 +277,29 @@ Method TestNoiseIdBounds()
 	Do $$$AssertEquals(vitals.systemLog.outcome_"|"_vitals.systemLog.count, "read|8", "an id of 11 or 65 digits, one in upper case, one with text or a space after it, two near-miss Sharding lines and a failover line at severity 3 are counted")
 }
 
+/// The whole text after the severity is matched, nothing before it either: both start-up lines under another category, with a space or a word before
+/// them, are counted (the lines at severity 2 are otherwise exactly the start-up lines).
+Method TestNoiseTextBounds()
+{
+	If '..Ready() Quit
+	Set c = ..FirstTimeOfCurrent()
+	Do $$$AssertTrue(c '= "", "the current messages.log has a timed line: "_c)
+	If c = "" Quit
+	Set b = ##class(OcuTalon.Data.Time).AddSeconds(c, -2 * 86400)
+	Set from = ##class(OcuTalon.Data.Time).AddSeconds(b, -3600)
+	Set to = ##class(OcuTalon.Data.Time).AddSeconds(b, -60)
+	Set id = "0a1b2c3d4e5f"
+	Set ignored = $ListBuild($ListBuild(-3000, 2, ..#FAILOVERTEXT_id), $ListBuild(-2900, 2, ..#SHARDINGTEXT))
+	Do ..WriteKept("9", b, ..Lead()_ignored)
+	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
+	Do $$$AssertEquals(vitals.systemLog.outcome_"|"_vitals.systemLog.count, "read|0", "the two lines as they are, at severity 2, are not counted")
+	Set counted = $ListBuild($ListBuild(-2800, 2, $Replace(..#FAILOVERTEXT, "[Utility.Event]", "[Generic.Event]")_id), $ListBuild(-2700, 2, $Replace(..#SHARDINGTEXT, "[Utility.Event]", "[Generic.Event]")), $ListBuild(-2600, 2, " "_..#SHARDINGTEXT), $ListBuild(-2500, 2, "zz "_..#FAILOVERTEXT_id))
+	Do ..DropSwitchedLogs()
+	Do ..WriteKept("9", b, ..Lead()_ignored_counted)
+	Set vitals = ##class(OcuTalon.Watch.Reader).Vitals("", from, to)
+	Do $$$AssertEquals(vitals.systemLog.outcome_"|"_vitals.systemLog.count, "read|4", "both lines under another category, the Sharding line after a space and the failover line after a word are counted")
+}
+
 /// The "system log" row of the coverage, over the real reader and the kept files of the window: it passes over start-up noise alone, and over a real
 /// later error it fails with its count and the time of the check, as the row and as the digest line.
 Method TestStartNoiseRow()
@@ -296,9 +319,7 @@ Method TestStartNoiseRow()
 	Do $$$AssertEquals(rows.%Get(4).entry_"|"_rows.%Get(4).result_"|"_rows.%Get(4).finding, "system log|passed|", "the system log row passes over start-up noise alone, with no finding")
 	Do $$$AssertEquals(lines.%Get(4).key, "digest.passed", "and so does its line")
 	Do ..DropSwitchedLogs()
-	Set later = $ListBuild($ListBuild(-2000, 2, "[Utility.Event] Error: ERROR #5002: ObjectScript error: <UNDEFINED>zzvitals+1^ZZVITALS17 *zz"), $ListBuild(-1900, 3, "[Generic.Event] zz a real error of severity 3, ignore"))
-	Set near = $ListBuild($ListBuild(-1800, 2, ..#FAILOVERTEXT_"0a1b2c3d4e5f to 5f4e3d2c1b0a"), $ListBuild(-1700, 2, ..#FAILOVERTEXT_"zzhostold"), $ListBuild(-1600, 3, ..#SHARDINGTEXT))
-	Do ..WriteKept("8", b, ..Lead()_..NoiseLines(-3000)_later_near)
+	Do ..WriteKept("8", b, ..Lead()_..NoiseLines(-3000)_..LaterLines())
 	Set before = ##class(OcuTalon.Data.Time).NowUtc()
 	Set sc = ##class(OcuTalon.Checks.Coverage).Build(session, from, to, .rows, .lines, .vitals)
 	Set after = ##class(OcuTalon.Data.Time).NowUtc()
@@ -355,6 +376,13 @@ ClassMethod UtcOf(line As %String) As %String
 ClassMethod NoiseLines(at As %Integer, id As %String = "0a1b2c3d4e5f") As %List
 {
 	Quit $ListBuild($ListBuild(at, 0, "[Utility.Event] Instance 'IRIS' starting on node zzhostnew by user 'irisowner' on 11/09/2026 UTC"), $ListBuild(at + 1, 2, ..#FAILOVERTEXT_id), $ListBuild(at + 2, 0, "[Utility.Event] Enabling logons"), $ListBuild(at + 3, 0, "[Utility.Event] Interoperability System Startup Complete"), $ListBuild(at + 3, 2, ..#SHARDINGTEXT))
+}
+
+/// The five counted lines after a start (see WriteKept): a real error at severity 2 and one at severity 3, the failover line naming an id change
+/// ("from node X to Y") and a host name that is not hex, and the Sharding text at severity 3.
+ClassMethod LaterLines() As %List
+{
+	Quit $ListBuild($ListBuild(-2000, 2, "[Utility.Event] Error: ERROR #5002: ObjectScript error: <UNDEFINED>zzvitals+1^ZZVITALS17 *zz"), $ListBuild(-1900, 3, "[Generic.Event] zz a real error of severity 3, ignore"), $ListBuild(-1800, 2, ..#FAILOVERTEXT_"0a1b2c3d4e5f to 5f4e3d2c1b0a"), $ListBuild(-1700, 2, ..#FAILOVERTEXT_"zzhostold"), $ListBuild(-1600, 3, ..#SHARDINGTEXT))
 }
 
 /// A line before the window of the tests above, so that the read stops after the kept file (the older files of the instance are not read).
