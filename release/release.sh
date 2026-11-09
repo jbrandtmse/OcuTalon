@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # release/release.sh start --version <x.y.z> [--from release/<v>-rc<m> --pick <sha>...] [--integration <branch>] [--remote <name>] [--record <file>] [--rc <n>]
 # release/release.sh next|resume|status [--version <v> --rc <n>]   (required when more than one state has steps left)
-# Steps, in order: cut, stubs, image, overview, ipm, ipmcheck, push, ci, eval, upgrade, rehearsal, notes, checklist, hands-on  (Stories 11.15, 11.16 and 11.18 extend STEPS)
+# Steps, in order: cut, stubs, image, overview, ipm, ipmcheck, push, ci, eval, upgrade, rehearsal, notes, checklist, hands-on  (Stories 11.16 and 11.18 extend STEPS)
 # Exit: 0 step done, a gate phase done (NEXT <step>: the step stays current) or end of steps, 1 a step failed, 2 refused (nothing written),
 #       4 stopped for the author's word, 5 waited: the lane's throwaway lock is busy, CI has not finished or the evaluation has not run
 #       (nothing recorded; the next call runs the step again)
@@ -37,7 +37,7 @@
 # result is recorded in "## FR-57 job" (a WARN line and a Size: note when the artifact is over 5000000 bytes). push asks, then pushes the candidate branch. notes runs release/notes.sh for the draft,
 # which stays uncommitted.
 #
-# The gates (Story 11.14; REL-1, REL-5, REL-6, REL-7, AD-29). stubs refuses an enabled production item whose class carries Parameter STUB = 1. ci reads, with gh run list, the push runs of ci and lane-a on the cut commit; each must succeed. eval judges the author's eval/run.sh --release-candidate result in <state>/eval; REL-5's override (eval/run.sh --override) is the only override. upgrade and rehearsal run release/upgrade-harness.sh and release/rehearse.sh of the candidate, one phase per call. checklist runs release/checklist.sh. A gate passes only when its script exits 0 and its own section reads Result: pass for this commit. hands-on stops: the Contest Planner's pass is not recorded by this sequence.
+# The gates (Story 11.14; REL-1, REL-5, REL-6, REL-7, AD-29). stubs refuses an enabled production item whose class carries Parameter STUB = 1. ci reads, with gh run list, the push runs of ci and lane-a on the cut commit; each must succeed. eval judges the author's eval/run.sh --release-candidate result in <state>/eval; REL-5's override (eval/run.sh --override) is the only override. upgrade and rehearsal run release/upgrade-harness.sh and release/rehearse.sh of the candidate, one phase per call. checklist runs release/checklist.sh. A gate passes only when its script exits 0 and its own section reads Result: pass for this commit. hands-on stops and names the candidate to install; the Contest Planner records the author's hands-on pass (REL-7), or a carry-over, in the record's "## Hands-on pass" section, which this sequence only reads, and release.sh resume refuses (exit 2) until that section holds one for this commit (Story 11.15).
 #
 # The author's word. Each outward step prints "ASK <id> <question> [yes/no]" and reads one line of standard input; only "yes" goes on.
 # End of input is no answer: STOPPED <id> waiting for the author's word, exit 4. No option or variable answers a question.
@@ -1286,7 +1286,7 @@ step_ci() {
 # a clone that this step makes once). The sequence never reads or holds a model key. Only a pass, or REL-5's override with a reason (written
 # by eval/run.sh --override), passes. A pass is copied to <state>/release-candidate.json for notes. Exit 5 while the result is not there.
 step_eval() {
-  local dir="$sdir/eval" file="$sdir/eval/eval/release-candidate.json" cand short info fmt commit mock clean verdict by reason
+  local dir="$sdir/eval" file="$sdir/eval/eval/release-candidate.json" cand short info fmt commit mock clean verdict by reason lockdir
   cand=$(sget cand_sha)
   if [ -z "$cand" ]; then
     step_fail eval "the candidate is not cut"
@@ -1299,7 +1299,12 @@ step_eval() {
       return 1
     fi
     echo "WAIT eval no evaluation result for $short yet; the author runs the evaluation"
-    echo "RUN cd $(abs_path "$dir") && bash eval/run.sh --release-candidate"
+    lockdir=$(candidate_lock_dir)
+    if [ -n "$lockdir" ]; then
+      echo "RUN cd $(abs_path "$dir") && OCUTALON_LOCK_DIR=$lockdir bash eval/run.sh --release-candidate"
+    else
+      echo "RUN cd $(abs_path "$dir") && bash eval/run.sh --release-candidate"
+    fi
     return 5
   fi
   info=$(node -e '
@@ -1329,7 +1334,7 @@ step_eval() {
     return 1
   fi
   if [ "$commit" != "$cand" ]; then
-    step_fail eval "the result is of commit $(short_sha "$commit"), not of the candidate $short"
+    step_fail eval "the result is of commit $(dash "$commit"), not of the candidate $cand"
     return 1
   fi
   if [ "$mock" != false ]; then
@@ -1410,7 +1415,10 @@ step_upgrade() {
     for t in $all_tags; do
       printf '%s\n' "$local_tags" | grep -qxF -- "$t" || missing="${missing:+$missing }$t"
     done
-    [ "$code" -eq 0 ] || missing="${missing:-unreadable}"
+    if [ "$code" -ne 0 ]; then
+      step_fail upgrade "the tags of $remote could not be read; run git fetch --tags $remote, then release.sh next"
+      return 1
+    fi
     if [ -n "$missing" ]; then
       step_fail upgrade "the tags of $remote are not all in this repository (missing: $missing); run git fetch --tags $remote, then release.sh next"
       return 1
@@ -1445,7 +1453,11 @@ step_upgrade() {
     fi
     upgrade_down "$tag" "$dir"
     upgrade_end
-    gate_fail upgrade "the harness refused $phase: $line"
+    if [ "$phase" = build ] && [ "$code" -eq 1 ]; then
+      gate_fail upgrade "the harness's build failed: $line"
+    else
+      gate_fail upgrade "the harness refused $phase: $line"
+    fi
     return 1
   fi
   if [ "$phase" != report ]; then
@@ -1605,15 +1617,120 @@ step_checklist() {
   return 1
 }
 
-# step_hands_on: the stop that never passes (Story 11.15 makes it resumable). It prints the candidate to install and returns 6, which stops
-# the sequence with the hands-on result; no pass is recorded here (REL-7).
+# handson_fixes <Fixes: value>: the commits that the value names, resolved to full ids, one per line, in HANDS_FIXES and as short ids in HANDS_SHORTS
+# (the value none names no commit). Returns 1 when a token is not a commit of this repository, and sets HANDS_BAD to it.
+HANDS_FIXES=""
+HANDS_SHORTS=""
+HANDS_BAD=""
+handson_fixes() {
+  local t full
+  HANDS_FIXES=""
+  HANDS_SHORTS=""
+  HANDS_BAD=""
+  [ "$1" != none ] || return 0
+  set -f
+  for t in $1; do
+    full=$(git rev-parse --verify --quiet "$t^{commit}" < /dev/null 2> /dev/null)
+    if [ -z "$full" ]; then
+      HANDS_BAD=$(printf '%s' "$t" | detail_clean)
+      set +f
+      return 1
+    fi
+    HANDS_FIXES="$HANDS_FIXES$full
+"
+    HANDS_SHORTS="$HANDS_SHORTS $(short_sha "$full")"
+  done
+  set +f
+  return 0
+}
+
+# handson_verdict: judges the record's "## Hands-on pass" section for the cut's commit (Story 11.15; REL-7). Only the Contest Planner writes the
+# section; this function reads it and writes nothing. The form (lines in any order, prose may follow):
+#   ## Hands-on pass
+#   Result: pass | carry-over
+#   Candidate: <v> rc<n>, release/<v>-rc<n> at <the cut's full sha>
+#   Fixes: none | <commit>...            (a pass)
+#   Note: <the Contest Planner's note>   (a carry-over)
+# Refuses (exit 2, nothing written) in this order: no section, another commit, a result that is neither, a pass without a usable Fixes: line, a
+# carry-over without a note. A pass with no fix outstanding passes (row pass); a pass with fixes fails the candidate (return 1, through step_fail).
+# A carry-over passes (row carried over) in a fixes-only release (the version's last number is above 0), and in a feature release only in a re-cut
+# (state from) whose source record, rc<m>.md of this record's folder, reads Mode: release and a pass at from_sha, with Fixes: equal to the picks.
+handson_verdict() {
+  local rec cand h="## Hands-on pass" t note from src bad=0 want got k fshort
+  rec=$(record_abs)
+  cand=$(sget cand_sha)
+  [ -n "$(record_section "$rec" "$h")" ] ||
+    refuse "hands-on the record holds no \"## Hands-on pass\" section for $branch ($(short_sha "$cand")); the Contest Planner records the pass or the carry-over there first"
+  gate_verdict "$h" -
+  case $GATE_CAND in
+    *" at $cand") ;;
+    *) refuse "hands-on the \"## Hands-on pass\" section names another commit; its Candidate: line must end with \" at $cand\"" ;;
+  esac
+  case $GATE_RESULT in
+    pass | carry-over) ;;
+    *) refuse "hands-on the \"## Hands-on pass\" section reads Result: $(dash "$(printf '%s' "$GATE_RESULT" | detail_clean)"); only pass or carry-over goes on" ;;
+  esac
+  if [ "$GATE_RESULT" = pass ]; then
+    t=$(record_field "$rec" "$h" Fixes)
+    [ -n "$t" ] || refuse "hands-on a pass needs a Fixes: line: none, or the commits that fix its findings"
+    handson_fixes "$t" || refuse "hands-on the Fixes: line names $HANDS_BAD, which is not a commit of this repository"
+    if [ -n "$HANDS_SHORTS" ]; then
+      step_fail hands-on "the pass on $branch recorded fixes that are not in this candidate; cut the next one with release.sh start --version $version --from $branch --pick$HANDS_SHORTS"
+      return 1
+    fi
+    STEP_ROW=pass
+    STEP_DETAIL=$(printf '%s' "the author's hands-on pass (REL-7) on $branch ($(short_sha "$cand")) is recorded, with no fix outstanding" | detail_clean)
+    echo "PASS hands-on $STEP_DETAIL"
+    return 0
+  fi
+  note=$(record_field "$rec" "$h" Note)
+  [ -n "$note" ] || refuse "hands-on a carry-over needs the Contest Planner's note on a Note: line"
+  note=$(printf '%s' "$note" | detail_clean)
+  STEP_ROW="carried over"
+  if [ "$((10#${version##*.}))" -ne 0 ]; then
+    STEP_DETAIL=$(printf '%s' "the author's hands-on pass (REL-7) is carried over to $branch ($(short_sha "$cand")), a fixes-only release: $note" | detail_clean)
+    echo "PASS hands-on $STEP_DETAIL"
+    return 0
+  fi
+  from=$(sget from)
+  [ -n "$from" ] ||
+    refuse "hands-on $version is a feature release, so it needs a fresh pass on this candidate; a pass carries over only to a re-cut from the passed candidate plus the fixes it recorded"
+  src="$(dirname "$rec")/rc${from##*-rc}.md"
+  [ "$(record_field "$src" "## Release sequence" Mode)" = release ] || bad=1
+  [ "$(record_field "$src" "$h" Result)" = pass ] || bad=1
+  case $(record_field "$src" "$h" Candidate) in
+    *" at $(sget from_sha)") ;;
+    *) bad=1 ;;
+  esac
+  t=$(record_field "$src" "$h" Fixes)
+  [ -n "$t" ] || bad=1
+  if [ "$bad" -eq 0 ]; then handson_fixes "$t" || bad=1; fi
+  [ "$bad" -eq 0 ] ||
+    refuse "hands-on $from, which this candidate was cut from, has no hands-on pass on $(short_sha "$(sget from_sha)") in a release record"
+  want=$(printf '%s' "$HANDS_FIXES" | sed '/^$/d' | sort -u)
+  # shellcheck disable=SC2046
+  got=$(printf '%s\n' $(sget picks_full) | sed '/^$/d' | sort -u)
+  [ "$want" = "$got" ] || refuse "hands-on the picks of this re-cut are not the fixes that the pass on $from recorded"
+  k=$(printf '%s\n' "$got" | sed '/^$/d' | wc -l | tr -d ' ')
+  fshort=$(short_sha "$(sget from_sha)")
+  STEP_DETAIL=$(printf '%s' "the author's hands-on pass (REL-7) on $from ($fshort) is carried over to $branch ($(short_sha "$cand")) with the fixes it recorded ($k): $note" | detail_clean)
+  echo "PASS hands-on $STEP_DETAIL"
+  return 0
+}
+
+# step_hands_on: the first arrival stops (row waiting; return 6 maps to the hands-on stop) and names the candidate to install and the form of the
+# Contest Planner's section; no pass is recorded here (REL-7). Every later call returns what handson_verdict returns. It asks nothing.
 step_hands_on() {
   local cand
-  cand=$(sget cand_sha)
-  STEP_ROW=waiting
-  STEP_DETAIL="the author's hands-on pass (REL-7) on $branch is not recorded"
-  echo "STOPPED hands-on every automated gate passed; install $branch ($(short_sha "$cand")) for the author's hands-on pass (REL-7); this sequence does not record that pass"
-  return 6
+  if ! grep -q "^hands-on$TAB" "$rows" 2> /dev/null; then
+    cand=$(sget cand_sha)
+    STEP_ROW=waiting
+    STEP_DETAIL="the author's hands-on pass (REL-7) on $branch is not recorded"
+    echo "STOPPED hands-on every automated gate passed; install $branch ($(short_sha "$cand")) for the author's hands-on pass (REL-7); this sequence does not record that pass"
+    echo "NOTE hands-on the Contest Planner records it in $(record_relpath_or_abs) under \"## Hands-on pass\" with Result: pass and Fixes: none (or the fix commits), or Result: carry-over and Note: <why>, and Candidate: $version rc$rc, $branch at $cand; release.sh resume then reads it"
+    return 6
+  fi
+  handson_verdict
 }
 
 # --- commands ---

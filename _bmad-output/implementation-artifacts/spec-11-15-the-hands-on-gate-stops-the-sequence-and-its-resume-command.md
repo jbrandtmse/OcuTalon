@@ -2,13 +2,21 @@
 title: 'Story 11.15: The hands-on gate stops the sequence, and its resume command waits for a pass or a carry-over'
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '1f41365ed0f22e661fec5df63c2cfa36d050db6d'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The record-push FAIL line printed at the first hands-on stop tells the author to run release.sh resume, but resume now refuses (R1) until the Planner's section exists, so a failed push of the waiting record is offered again only when the sequence ends.
+    evidence: |-
+      stop_routine's FAIL text for a moved integration branch says "bring the checkout up to date and run release.sh resume"; at hands-on, resume returns REFUSED until a pass or carry-over is recorded (spec Decided 4 and 12). Reachable only when the integration branch moved during the first stop.
+    location: >-
+      release/release.sh stop_routine (record push FAIL text)
+    severity: low
 ---
 
 <intent-contract>
@@ -151,11 +159,11 @@ The REFUSED, NOTE, PASS and FAIL texts are under Design Notes, Public text, tagg
 - After the edits, run the Verification commands, then `bash docker/tests/test-boundaries.sh` once.
 
 **Approved 11.14 text items (DW-1008, DW-1009; the Planner's ruling `planner-2026-11-09-11.15` item 4), worked in this implement:**
-- [ ] [Review] DW-1008: keep as written (now approved): `FAIL <gate> the clone of release/<v>-rc<n> failed`, `FAIL <gate> the tags could not be copied into the clone`, `FAIL <gate> the clone's HEAD is not the cut commit`, `FAIL <gate> the web dependencies cannot be installed here`, `FAIL eval the result could not be kept for the notes`, and the `-` placeholder for an empty value (`Result: -, Mode: -`). No code change; no test change beyond what pins them today.
-- [ ] [Review] DW-1008 — `release/release.sh` `step_upgrade` (the remote-tags read) — when the remote's tags cannot be read, print exactly `FAIL upgrade the tags of <remote> could not be read; run git fetch --tags <remote>, then release.sh next` instead of the `missing: unreadable` value; update the self-test case that pins `missing: unreadable`.
-- [ ] [Review] DW-1008 — `release/release.sh` `step_eval` (the commit check) — print exactly `FAIL eval the result is of commit <the result's commit as written, or ->, not of the candidate <full sha>` (the full 40-character cut sha), so a near-miss never prints two equal shorts; update the `eval` rule's assertion.
-- [ ] [Review] DW-1008 — `release/release.sh` `step_upgrade` — when the harness's `build` phase exits 1, print exactly `FAIL upgrade the harness's build failed: <its line>` (exit 2 from a phase keeps `the harness refused <phase>: <its line>`); pin it in the `upgrade` rule.
-- [ ] [Review] DW-1009 — `release/release.sh` `step_eval` (the RUN line) — when the author's repository has a lane lock folder (`live_lock_dir` of the author's checkout resolves), print exactly `RUN cd <absolute clone path> && OCUTALON_LOCK_DIR=<lock folder> bash eval/run.sh --release-candidate`; otherwise keep today's line; pin both forms in the `eval` rule.
+- [x] [Review] DW-1008: keep as written (now approved): `FAIL <gate> the clone of release/<v>-rc<n> failed`, `FAIL <gate> the tags could not be copied into the clone`, `FAIL <gate> the clone's HEAD is not the cut commit`, `FAIL <gate> the web dependencies cannot be installed here`, `FAIL eval the result could not be kept for the notes`, and the `-` placeholder for an empty value (`Result: -, Mode: -`). No code change; no test change beyond what pins them today.
+- [x] [Review] DW-1008 — `release/release.sh` `step_upgrade` (the remote-tags read) — when the remote's tags cannot be read, print exactly `FAIL upgrade the tags of <remote> could not be read; run git fetch --tags <remote>, then release.sh next` instead of the `missing: unreadable` value; update the self-test case that pins `missing: unreadable`.
+- [x] [Review] DW-1008 — `release/release.sh` `step_eval` (the commit check) — print exactly `FAIL eval the result is of commit <the result's commit as written, or ->, not of the candidate <full sha>` (the full 40-character cut sha), so a near-miss never prints two equal shorts; update the `eval` rule's assertion.
+- [x] [Review] DW-1008 — `release/release.sh` `step_upgrade` — when the harness's `build` phase exits 1, print exactly `FAIL upgrade the harness's build failed: <its line>` (exit 2 from a phase keeps `the harness refused <phase>: <its line>`); pin it in the `upgrade` rule.
+- [x] [Review] DW-1009 — `release/release.sh` `step_eval` (the RUN line) — when the author's repository has a lane lock folder (`live_lock_dir` of the author's checkout resolves), print exactly `RUN cd <absolute clone path> && OCUTALON_LOCK_DIR=<lock folder> bash eval/run.sh --release-candidate`; otherwise keep today's line; pin both forms in the `eval` rule.
 
 **Acceptance Criteria:**
 - **AC1 (stop and name the candidate; REL-7).** Given every automated gate passed, when `next` first reaches `hands-on`, then it prints the STOPPED line and the NOTE line naming `release/1.0.0-rc1` and its full sha, exits 4, and commits the record with the `waiting` row. No `## Hands-on pass` is written, even when the record question is answered `pass`. With a valid section already written, the first arrival still stops.
@@ -178,6 +186,36 @@ The REFUSED, NOTE, PASS and FAIL texts are under Design Notes, Public text, tagg
   4. Story 11.14's DW-1008 and DW-1009 texts ride in this story's implement as `[Review]` items (below, under Tasks & Acceptance).
 
 ## Review Triage Log
+
+### 2026-11-09 - Review pass
+- verdicts: 26 findings - high 0, medium 4, low 17, false 5, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind: spec decisions 13 and 14 (bad source Fixes gives R8; Fixes tokens read with set -f) had no test - tests added (a glob, an option-like token, a bad and a missing source Fixes), mutations recorded.
+  - `[low]` `[reject]` Blind: handson_fixes accepts any revision expression - the spec states R5 for a token that git rev-parse cannot resolve; HEAD or a branch name resolving is the specified reading.
+  - `[low]` `[reject]` Blind: the candidate's own record Mode is not checked - the spec checks only the source record's Mode; rehearsal mode is Story 11.18's.
+  - `[low]` `[reject]` Blind: a fixes-only carry-over is checked only for a note - AC7 specifies exactly that.
+  - `[low]` `[reject]` Blind: the NOTE prints only at first arrival and shows a basename for an outside record - the spec fixes the NOTE at the stop and record_relpath_or_abs is existing 11.14 behaviour.
+  - `[low]` `[reject]` Blind: the new RUN line is not shell-quoted - the approved text is exact and matches the existing unquoted `cd` form.
+  - `[low]` `[reject]` Blind: only build exit 1 reads "build failed" - the approved item names exit 1 and keeps exit 2; other codes keep today's text, and new wording would be unapproved public text.
+  - `[low]` `[patch]` Blind: the "never writes the section" pin is a weak grep - a non-empty guard added; the behavioural pin is IA1.
+  - `[low]` `[defer]` Edge: the record-push FAIL hint says run resume, which now refuses at hands-on until a pass exists - real, only when the branch moved during the stop; changing the text needs new approved wording; deferred.
+  - `[medium]` `[patch]` Edge: a patch number with leading zeros (1.0.00, accepted by start) read as fixes-only - the feature test is now arithmetic (10#); a 1.0.00 case and a mutation line added.
+  - `[low]` `[reject]` Edge: duplicate Fixes tokens or fixes already in the candidate - a recorded fix means fail by the spec (F1); a duplicate pick is the Planner's text.
+  - `[low]` `[reject]` Edge: other build exit codes read "refused" - duplicate of the build exit row above.
+  - `[low]` `[reject]` Edge: a relative or spaced lock folder in the RUN line - candidate_lock_dir is the existing 11.14 helper; the text is approved verbatim.
+  - `[low]` `[reject]` Edge: a fixes-only carry-over has no earlier-pass check - duplicate of the AC7 row above.
+  - `[low]` `[patch]` Edge: the source-text pin is weak - same fix as the Blind row above (non-empty guard).
+  - `[false]` `[reject]` Edge: extra helper handson_fixes and the eval and upgrade hunks go beyond four hunks - the Tasks list the five [Review] items, and the spec asks for new code in new functions; the helper is one more function.
+  - `[medium]` `[patch]` Gap: a fixes-only re-cut (with `from`) has no test - case (d) added: 1.0.1 rc2 from rc1 with a pick passes P2 on the note alone; mutation recorded.
+  - `[medium]` `[patch]` Gap: the Fixes token guards are unpinned - same fix as the first row. The `-*` arm of the guard was dead code (git refuses `<token>^{commit}` with a leading dash anyway), so it was removed and decision 14 corrected.
+  - `[low]` `[patch]` Gap: IA1 compares command-substituted text, blind to blank lines - the section is now compared as a checksum of its raw lines.
+  - `[low]` `[patch]` Gap: the source-text pins pass vacuously if the functions are renamed - the extraction is asserted non-empty.
+  - `[low]` `[patch]` Gap: the DW-1008 and DW-1009 changes have no mutation line - the four mutations were applied, red observed, reverted, and the lines written.
+  - `[false]` `[reject]` Intent: a pass with fixes exits 1, not 2 - the Matrix row "Pass with fixes" specifies FAIL F1 and exit 1.
+  - `[false]` `[reject]` Intent: ride-along edits to step_eval and step_upgrade - they are the five [Review] items approved in Tasks & Acceptance.
+  - `[false]` `[reject]` Intent: the form is documented only in the NOTE, the header and a comment, and old records are not converted - the spec forbids writing the real records and lists the Planner's playbook as a PLANNER REPORT item.
+  - `[false]` `[reject]` Intent: the tests reach hands-on by a state jump - the Tasks prescribe `env_set ... next hands-on`.
+  - `[low]` `[reject]` Intent: a patch release's carry-over ignores `from` and picks - duplicate of the AC7 row above.
 
 ## Design Notes
 
@@ -217,6 +255,14 @@ The REFUSED, NOTE, PASS and FAIL texts are under Design Notes, Public text, tagg
 9. **"Arrived before" is the `hands-on` row in `rows.tsv`.** There is no new state key, and states left by 11.14 resume.
 10. **The NOTE line at the stop** gives the Planner the exact `Candidate:` value (product default 3: keep it safe, make it convenient).
 11. **The header's steps line drops 11.15**, which adds no step (text claims only what the code does).
+
+**Decided in the implement pass (small, reversible, within intent):**
+12. **Resume at `hands-on` no longer re-offers an unpushed record.** A refusal writes nothing, so a record push that failed at the first stop (a moved integration branch) is offered again only when the sequence ends after a pass. The `record` rule's "resume after the update" case now refuses (R1), has the Planner's pass written, and pins the push at the end.
+13. **A source record whose `Fixes:` is missing or names a token that is no commit gives R8**, not R9: the pass on the source is unusable. R9 means only that the sets differ (`none` against one pick included).
+14. **The `Fixes:` tokens are read with pathname expansion off** (`set -f` in `handson_fixes`), so `Fixes: *` names `*` and not a file.
+15. **The DW-1009 `RUN` form is applied to the evaluation `RUN` line of the WAIT only.** The `--override` `RUN` line keeps its text, since the approved item names only the `--release-candidate` form.
+16. **The `eval` rule's other-commit case** pins the full 40-character cut sha and, through an emptied `commit` field, the `-` form.
+17. **The feature test is arithmetic** (`$((10#${version##*.}))` against 0), so a patch number written with leading zeros (`1.0.00`, which `start` accepts) is still a feature release.
 
 **Extend, don't copy (Rule 2):**
 - `handson_verdict` extends `gate_verdict`, called as it is, and `record_field`.
@@ -300,19 +346,38 @@ Run each command in its own foreground call with `timeout: 600000`, from the wor
 - `(loop)` `bash docker/tests/test-release-sequence.sh handson carryover` -- expected: `PASS all rules` (about 40 s, inference).
 - `(loop)` `bash docker/tests/test-release-sequence.sh resume gate` -- expected: `PASS all rules`.
 - `(once)` the other rules that reach `hands-on`, one batch per call: `hands notes`, `secret first word pushes`, `gates`, `push record`, `static recut`, `ipm` -- expected: `PASS all rules` each.
+  Implement-pass measures (dev Mac, 2026-11-09): `handson carryover` 19 s; `resume gate` 16 s; `resume gate eval` 36 s; `upgrade` 37 s; `hands notes` 50 s; `secret first word pushes` 30 s; `gates` 72 s; `push record` 42 s; `ipm recut static` 22 s; `libs refusals cut stubs ci rehearsal checklist` 113 s; `realgates` 43 s.
 - `(once)` `bash docker/tests/test-boundaries.sh` -- expected: exit 0.
 
 **Mutations to apply (Rule 19; one per AC; record each as `mutation: ... → ...` here):**
 - AC1: `step_hands_on` calls `handson_verdict` on first arrival. Expect red in `carryover` ("a valid section written before the first arrival still stops").
+  mutation: the first-arrival test `if ! grep -q "^hands-on$TAB" "$rows"` replaced by `if false` -> `handson` red ("hands-on: exit", the STOPPED line, the NOTE) and `carryover` red ("1.0.1: the first stop"; (b)'s "a valid section written before the first arrival still stops" follows it); reverted, release.sh byte-identical.
 - AC2: return 6 in place of `refuse` for "no section". Expect red in `handson` ("resume with no pass: exit 2", "nothing written").
+  mutation: R1's `refuse` replaced by `return 6` -> `handson` red ("resume with no pass: exit", "the line", "nothing written", and the variables case); reverted.
 - AC2: the ` at <sha>` suffix test removed. Expect red in `carryover` (the near-miss shas).
+  mutation: R2's `*) refuse ...` branch replaced by `*) ;;` -> `carryover` red ("no Candidate line", "a short sha", "one character cut", "one character added", "another commit"); `handson` stays green; reverted.
 - AC3: the P1 branch refuses with R4 instead of passing. Expect red in `handson` ("a fresh pass: exit 0", P1).
+  mutation: `refuse` of R4 added before the P1 row -> `handson` red ("a fresh pass: exit", the line, the row, the end result, status); reverted.
 - AC4: F1 returns 0. Expect red in `carryover` ("a pass with fixes: exit 1").
+  mutation: F1's `return 1` replaced by `return 0` -> `carryover` red ("a pass with fixes: exit", the record, "a later resume reads the section again"); reverted.
 - AC5: the feature test forced false. Expect red in `carryover` (R7).
+  mutation: `if [ "${version##*.}" != 0 ]` replaced by `if true` -> `carryover` red ("a carry-over in a feature release cut from the head": exit, line, nothing written, and the R4 cases after it); reverted.
 - AC6: the picks-versus-fixes comparison skipped. Expect red in `carryover` (R9). The `Mode: release` test skipped: red in `carryover` (R8, rehearsal).
+  mutation: `[ "$want" = "$got" ] || refuse` replaced by `true || refuse` -> `carryover` red ("rc1 recorded more fixes", "rc1 recorded another fix"); reverted.
+  mutation: the source record's `Mode` test replaced by `:` -> `carryover` red ("rc1 is a rehearsal record"); reverted.
 - AC7: the patch-release branch requires `from`. Expect red in `carryover` (P2).
+  mutation: the patch branch's condition made `[ "${version##*.}" != 0 ] && [ -n "$(sget from)" ]` -> `carryover` red ("1.0.1: the carry-over" exit 2, line, row, end result, time); reverted.
 - AC8: `hands_add $(( $(clock) - <stop time> ))` added in `handson_verdict`. Expect red in `carryover` ("Hands-on time: 15 s").
+  mutation: `hands_add $(($(clock) - 1010))` added before the carry-over row -> `carryover` red ("1.0.1: hands-on time is the two windows only"); reverted.
 - IA1: `handson_verdict` rewrites the section (`record_write` of a changed copy). Expect red in `handson` ("byte for byte on the remote").
+  mutation: the P1 branch rewrites the section with an extra line through `record_write` -> `handson` red ("IA1: the section is on the remote byte for byte", "IA1: the section in the checkout is the Planner's byte for byte", "the hands-on code never writes the section"); reverted.
+- Review-pass pins (Rule 19; each applied on `release/release.sh`, red observed, reverted byte-identical):
+  - AC5 (leading zeros): mutation: the feature test back to the string compare `[ "${version##*.}" != 0 ]` -> `carryover` red ("1.0.00 is a feature release").
+  - AC7 (a fixes-only re-cut): mutation: the patch branch made to require no `from` (`&& [ -z "$(sget from)" ]`) -> `carryover` red ("1.0.1 re-cut: the carry-over").
+  - Decision 14: mutation: `set -f` removed from `handson_fixes` -> `carryover` red ("a glob is no commit", it names a file of the checkout).
+  - Decision 13: mutation: the source record's `handson_fixes` failure ignored -> `carryover` red ("rc1 names a fix that is no commit": R9 where R8 is expected).
+  - F1 order: mutation: `HANDS_SHORTS` built in reverse -> `carryover` red (F1 with two fixes, and with one the trailing space).
+  - DW-1008 eval commit: mutation: `$cand` back to `$short` in the text -> `eval` red. DW-1009: mutation: `lockdir=` forced empty -> `eval` red ("not run: the lines (a lane lock folder resolves)"). DW-1008 build: mutation: the build-failed test on exit 9 instead of 1 -> `upgrade` red. DW-1008 tags: mutation: the unreadable-tags branch disabled (`&& false`) -> `upgrade` red ("(QA) unreadable remote tags").
 
 **Shared surfaces:**
 - `step_hands_on`'s behaviour on a later `next` or `resume` (`t_handson`, `t_resume`);
@@ -326,7 +391,18 @@ Run each command in its own foreground call with `timeout: 600000`, from the wor
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned fresh against the delivered 11.14 code (`b0bbd2d7`). Halted after planning, as the dispatch asked. Nothing was implemented, committed or pushed.
+**Summary.** `step_hands_on` stops on first arrival (the `hands-on` row is missing from `rows.tsv`) and adds the NOTE line with the section's form. Every later `next` or `resume` calls the new `handson_verdict`, which reads the record's `## Hands-on pass` section for the cut's full sha: R1 to R9 refuse (exit 2, nothing written), P1 to P3 pass (rows `pass`, `carried over`), F1 fails a pass that records fixes. The sequence ends with 11.14's end text. The script never writes the section (REL-7). The five approved DW-1008 and DW-1009 text items were worked as written.
+
+**Files changed.**
+- `release/release.sh`: header lines 4 and 40; new `handson_fixes` and `handson_verdict`; `step_hands_on`; `step_eval` (the commit text, the lane-lock RUN form); `step_upgrade` (the unreadable-tags text, the build-failed text).
+- `docker/tests/test-release-sequence.sh`: helpers `hands_put`, `hands_drop`, `hsnap`, `hands_refused`; `t_handson` rewritten; new rule `carryover` (cases a to e); `t_resume`, `t_gate`, `t_record`, `t_eval`, `t_upgrade` pins updated; header rule list.
+- This spec: decided-in-stage 12 to 17, mutation lines, triage log.
+
+**Review.** 26 findings: patches applied 7 entries (4 medium: the untested Fixes guards and source-Fixes R8, the leading-zero patch number, the untested fixes-only re-cut, and the group of weak source-text pins; plus 3 low), deferred 1 (the record-push hint after a moved branch, low), rejected 14 low or false with the reasons in the log above. Follow-up review recommended: true, because three medium entries were patched; the unverified risk is the new `10#` arithmetic and the added cases (d) and (e), which were proved only by this pass's self-test runs and mutations.
+
+**Verification performed.** All with `ANTHROPIC_API_KEY` unset and a scratch `TMPDIR`: `handson carryover`, `resume gate`, `hands notes`, `secret first word pushes`, `gates`, `push record`, `static recut ipm eval upgrade`, `libs refusals cut stubs ci rehearsal checklist realgates` each `PASS all rules`; `docker/tests/test-boundaries.sh` passed. Every AC and the review pins have a recorded mutation (red observed, reverted byte-identical). Not run: `image`, `overview*`, `ipmcheck`, `ipmfail`, `ipmwait`, `ipmnet`, `ipmlib` (they do not reach hands-on and release.sh changed nowhere near them).
+
+**Residual risks.** A real pass and resume on a real candidate cannot be proved without acting outward; the Contest Planner proves it at the first daily release. One behaviour change for the Planner: at hands-on, a record push that failed at the stop is offered again only when the sequence ends (deferred item). `release/release.sh` also carries a helper `handson_fixes` beyond the one function the spec names, for the Planner's hunk review.

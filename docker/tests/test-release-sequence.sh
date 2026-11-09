@@ -71,7 +71,10 @@
 #   upgrade   (AC6) the upgrade harness of the candidate (a stub), one phase per call under one tag; down always runs; 75 waits; tags
 #   rehearsal (AC7, DW-548) the rehearsal (a stub run that exits 4 three times, then 0): the same argv on every call; exits 2, 3, 1, other and 75
 #   checklist (AC8) the checklist after notes, in a fresh clone, with absolute paths; fail, not confirmed, refused
-#   handson   (AC8) the stop at the hands-on gate: the line, the row, the record; it never passes
+#   handson   (AC8; Story 11.15 AC1, AC3, IA1) the stop at the hands-on gate: the line, the NOTE, the row, the record; a resume with no pass
+#             refuses; a fresh pass ends the steps and the record push carries the Planner's section
+#   carryover (Story 11.15, AC2, AC4 to AC8) the resume's refusals, a pass with fixes, a feature release that needs a fresh pass, a re-cut
+#             that carries a pass over, a fixes-only release's carry-over, and the pass outside the hands-on time
 #   gates     (AC1, AC5) each gate that fails stops the sequence at it and no later gate runs; the options, variables and planted sections that
 #             do not override; the only override is REL-5's
 #   realgates (IA1 to IA4) the steps against the real checklist.sh, eval/run.sh --override with notes.sh, rehearse.sh and upgrade-harness.sh
@@ -1576,13 +1579,15 @@ t_record() {
   has "a moved branch: the row" "$(cat "$(rec_file)")" "| record | not pushed | not pushed: $INTEG moved on origin |"
   eq "a moved branch: the remote is as the other clone left it" "$(rhead)" "$(git -C "$C/o" rev-parse HEAD)"
   git -C "$W" pull -q --rebase origin "$INTEG" > /dev/null 2>&1
+  rs '' resume
+  eq "resume after the update: the hands-on gate waits for the pass: exit" "$rc" 2
+  has "resume after the update: the hands-on gate waits for the pass" "$out" "REFUSED hands-on the record holds no \"## Hands-on pass\" section for release/1.0.0-rc1 ("
+  eq "resume after the update: nothing is pushed yet" "$(rhead)" "$(git -C "$C/o" rev-parse HEAD)"
+  hands_put "$(rec_file)" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $(cand)" "Fixes: none"
   rs "$Y" resume
-  eq "resume after the update: exit" "$rc" 4
-  has "resume after the update: pushed" "$out" "PASS record pushed"
-  eq "resume after the update: the remote holds the local head" "$(rhead)" "$(git -C "$W" rev-parse HEAD)"
-  rs '' next --version 1.0.0 --rc 1
-  has "the hands-on stop is not left behind" "$out" "STOPPED hands-on every automated gate passed"
-  eq "the hands-on stop is not left behind: exit" "$rc" 4
+  eq "resume after the pass: exit" "$rc" 0
+  has "resume after the pass: pushed" "$out" "PASS record pushed"
+  eq "resume after the pass: the remote holds the local head" "$(rhead)" "$(git -C "$W" rev-parse HEAD)"
   # a record outside the checkout is written and not committed
   newcase
   rs "$Y" start --version 1.0.0 --record "$C/outside.md"
@@ -1694,8 +1699,8 @@ t_resume() {
   rs '' status
   has "status at the hands-on gate" "$out" "STATE 1.0.0 rc1 next hands-on"
   rs '' next
-  has "the hands-on gate stops again" "$out" "STOPPED hands-on every automated gate passed"
-  eq "the hands-on gate stops again: exit" "$rc" 4
+  has "the second hands-on call is refused" "$out" "REFUSED hands-on the record holds no \"## Hands-on pass\" section for release/1.0.0-rc1 ("
+  eq "the second hands-on call is refused: exit" "$rc" 2
   eq "still one build" "$(grep -c '^build' "$SHIMLOG/docker.log")" 1
   # two waiting sequences need a name
   newcase
@@ -1823,7 +1828,7 @@ Mode: dry run"
   rs '' status --version 1.0.0 --rc 1
   eq "status still reads the record: exit" "$rc" 0
   has "status still reads the record" "$out" "Result: stopped at hands-on: every automated gate passed; no hands-on pass is recorded (not a release)"
-  # the end of the steps (unreachable while hands-on stops every run): the state's next is done
+  # the end of the steps, reached through the state: next is done
   (
     . "$root/release/lib-release.sh"
     env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" next done
@@ -3534,7 +3539,10 @@ t_eval() {
   d=$(sdir1)/eval
   rs '' next
   eq "not run: exit" "$rc" 5
-  eq "not run: the lines" "$out" "WAIT eval no evaluation result for $short yet; the author runs the evaluation
+  eq "not run: the lines (a lane lock folder resolves)" "$out" "WAIT eval no evaluation result for $short yet; the author runs the evaluation
+RUN cd $d && OCUTALON_LOCK_DIR=$C/locks bash eval/run.sh --release-candidate"
+  OCUTALON_LOCK_DIR=$C/no-such-locks rs '' next
+  eq "not run: the lines (no lane lock folder)" "$out" "WAIT eval no evaluation result for $short yet; the author runs the evaluation
 RUN cd $d && bash eval/run.sh --release-candidate"
   eq "not run: the clone is the candidate" "$(git -C "$d" rev-parse HEAD)" "$sha"
   eq "not run: nothing recorded" "$(seq_written)" no
@@ -3560,7 +3568,12 @@ RUN cd $d && bash eval/run.sh --release-candidate"
   has "on the mock" "$out" "FAIL eval the result was made on the CI mock, not on the model"
   EV_COMMIT="0123456789012345678901234567890123456789" eval_fixture pass
   rs "$N" next
-  has "another commit" "$out" "FAIL eval the result is of commit 0123456, not of the candidate $short"
+  has "another commit" "$out" "FAIL eval the result is of commit 0123456789012345678901234567890123456789, not of the candidate $sha"
+  eval_fixture pass
+  sed 's/"commit":"[^"]*"/"commit":""/' "$d/eval/release-candidate.json" > "$d/eval/release-candidate.json.new"
+  mv "$d/eval/release-candidate.json.new" "$d/eval/release-candidate.json"
+  rs "$N" next
+  has "no commit written" "$out" "FAIL eval the result is of commit -, not of the candidate $sha"
   EV_CLEAN=false eval_fixture pass
   rs "$N" next
   has "a dirty tree" "$out" "FAIL eval the result was made on a tree with uncommitted changes"
@@ -3698,7 +3711,7 @@ NEXT rehearsal"
   git -C "$W" remote set-url origin "$tmp/no-such-remote.git"
   rs "$N" next
   eq "(QA) unreadable remote tags: exit" "$rc" 1
-  has "(QA) unreadable remote tags: the line" "$out" "FAIL upgrade the tags of origin are not all in this repository (missing: unreadable); run git fetch --tags origin, then release.sh next"
+  has "(QA) unreadable remote tags: the line" "$out" "FAIL upgrade the tags of origin could not be read; run git fetch --tags origin, then release.sh next"
   eq "(QA) unreadable remote tags: no call" "$(ncalls upgrade)" 0
   # a failed build runs down and fails; the next call starts again
   newcase
@@ -3708,11 +3721,16 @@ NEXT rehearsal"
   eq "build fails: exit" "$rc" 1
   has "build fails: the lines" "$out" "PHASE upgrade build exit 1
 PHASE upgrade down exit 0
-FAIL upgrade the harness refused build: "
+FAIL upgrade the harness's build failed: "
   eq "build fails: build, then down" "$(calls upgrade | awk '{ print $1 }' | tr '\n' ' ')" "build down "
   has "build fails: the log is named" "$out" "LOG upgrade $(sdir1)/upgrade.log"
-  has "build fails: the record" "$(cat "$(rec_file)")" "Result: failed at upgrade: the harness refused build: "
+  has "build fails: the record" "$(cat "$(rec_file)")" "Result: failed at upgrade: the harness's build failed: "
   eq "build fails: the clone is removed" "$([ -e "$(sdir1)/gate-upgrade" ] && echo yes || echo no)" no
+  flagv upg-exit-build 2
+  rs "$N" next
+  eq "build refused (exit 2): exit" "$rc" 1
+  has "build refused (exit 2): the line" "$out" "FAIL upgrade the harness refused build: "
+  lacks "build refused (exit 2): not the failed text" "$out" "build failed"
   unflag upg-exit-build
   drive upgrade "$N"
   has "the next call starts at build and passes" "$ALL" "PASS upgrade Result: pass"
@@ -3905,16 +3923,57 @@ FAIL checklist Result: not confirmed: 3 author rows not confirmed"
   eq "moved branch: no clone is left" "$([ -e "$(sdir1)/gate-checklist" ] && echo yes || echo no)" no
 }
 
-# t_handson: AC8. After the automated gates the sequence stops for the author's hands-on pass and never passes it.
+# hands_put <record file> <line>...: the Contest Planner's "## Hands-on pass" section, written through record_write (the fixture of the Planner's
+# record; the sequence itself never writes it).
+hands_put() {
+  local f=$1 sec="$tmp/hands-section"
+  shift
+  {
+    echo "## Hands-on pass"
+    printf '%s\n' "$@"
+  } > "$sec"
+  (
+    . "$root/release/lib-release.sh"
+    record_write "$f" "$sec"
+  )
+}
+
+# hands_drop <record file>: the record without the "## Hands-on pass" section.
+hands_drop() {
+  awk '/^## Hands-on pass[ \t]*$/ { skip = 1; next } skip && /^#/ { skip = 0 } !skip { print }' "$1" > "$1.new" && mv "$1.new" "$1"
+}
+
+# hsnap <record file>: what a refusal must not change: the state files, the record, the checkout's commits and status, and the remote's refs.
+hsnap() {
+  printf '%s|%s|%s|%s|%s\n' "$(cd "$OCUTALON_RELEASE_STATE" && find . -type f | sort | xargs cat | cksum)" "$(cat "$1" 2> /dev/null | cksum)" \
+    "$(git -C "$W" log --all --format='%H %s' | cksum)" "$(git -C "$W" status --porcelain | cksum)" "$(remote_refs | cksum)"
+}
+
+# hands_refused <label> <expected line> <record file> <resume argument>...: resume refuses with that line (exit 2) and writes nothing.
+hands_refused() {
+  local label=$1 line=$2 recf=$3 b a
+  shift 3
+  b=$(hsnap "$recf")
+  rs '' resume "$@"
+  a=$(hsnap "$recf")
+  eq "$label: exit" "$rc" 2
+  eq "$label: the line" "$out" "$line"
+  eq "$label: nothing written" "$a" "$b"
+}
+
+# t_handson: AC8, Story 11.15 AC1, AC3, IA1. After the automated gates the sequence stops for the author's hands-on pass; resume refuses until the
+# Contest Planner's section holds a pass for this commit, and the record push carries that section byte for byte.
 t_handson() {
-  local sha short rec
+  local sha short rec c n refused_line psec hcode
   newcase
   to_step hands-on
   sha=$(cand)
   short=${sha%"${sha#???????}"}
-  rs '' next
+  rs "pass"$'\n' next
   eq "hands-on: exit" "$rc" 4
   has "hands-on: the line" "$out" "STOPPED hands-on every automated gate passed; install release/1.0.0-rc1 ($short) for the author's hands-on pass (REL-7); this sequence does not record that pass"
+  has "hands-on: the NOTE" "$out" "NOTE hands-on the Contest Planner records it in release/records/1.0.0/rc1.md under \"## Hands-on pass\" with Result: pass and Fixes: none (or the fix commits), or Result: carry-over and Note: <why>, and Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha; release.sh resume then reads it"
+  eq "hands-on: the NOTE follows the STOPPED line" "$(printf '%s\n' "$out" | grep -A1 '^STOPPED hands-on' | tail -n 1 | cut -c1-17)" "NOTE hands-on the"
   has "hands-on: the record question" "$out" "ASK record Push the record commit of 1.0.0 rc1 to $INTEG on origin? [yes/no]"
   has "hands-on: the result" "$out" "RESULT stopped"
   lacks "hands-on: no pass line" "$out" "PASS hands-on"
@@ -3923,18 +3982,247 @@ t_handson() {
   rec=$(cat "$(rec_file)")
   has "hands-on: the row" "$rec" "| hands-on | waiting | the author's hands-on pass (REL-7) on release/1.0.0-rc1 is not recorded |"
   has "hands-on: the result in the record" "$rec" "Result: stopped at hands-on: every automated gate passed; no hands-on pass is recorded (not a release)"
+  lacks "hands-on: the sequence writes no pass section (the answer pass included)" "$rec" "## Hands-on pass"
   eq "hands-on: the record is committed" "$(git -C "$W" show --name-only --format= HEAD)" "release/records/1.0.0/rc1.md"
   eq "hands-on: nothing in the sequence section says pass for it" "$(sect "$(rec_file)" "## Release sequence" | grep -e 'hands-on' -e 'released' | sed -e 's/every automated gate passed//' -e 's/no hands-on pass is recorded//' -e 's/CI and the hands-on pass not counted//' -e "s/the author's hands-on pass (REL-7)//" | grep -ci -e 'pass' -e 'released')" 0
-  rs "$Y" next
-  eq "each later next stops the same way: exit" "$rc" 4
-  has "each later next stops the same way" "$out" "STOPPED hands-on every automated gate passed"
-  has "the record push is offered" "$out" "PASS record pushed"
   rs '' status
   has "status: the state" "$out" "STATE 1.0.0 rc1 next hands-on"
+  # a resume with no pass in the record is refused, and writes nothing
+  refused_line="REFUSED hands-on the record holds no \"## Hands-on pass\" section for release/1.0.0-rc1 ($short); the Contest Planner records the pass or the carry-over there first"
+  hands_refused "resume with no pass" "$refused_line" "$(rec_file)"
+  hands_refused "resume --pass" "REFUSED unknown option '--pass'" "$(rec_file)" --pass
+  OCUTALON_RELEASE_HANDS_ON=pass OCUTALON_HANDS_ON_PASS=1 hands_refused "the variables do not pass it" "$refused_line" "$(rec_file)"
+  # a fresh pass for this commit goes on
+  hands_put "$(rec_file)" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha" "Fixes: none" "Routes walked on the phone; no finding."
+  psec=$(sect "$(rec_file)" "## Hands-on pass" | cksum)
+  rs "$Y" resume
+  eq "a fresh pass: exit" "$rc" 0
+  has "a fresh pass: the line" "$out" "PASS hands-on the author's hands-on pass (REL-7) on release/1.0.0-rc1 ($short) is recorded, with no fix outstanding"
+  has "a fresh pass: the sequence ends" "$out" "RESULT stopped"
+  lacks "(QA) a fresh pass: no pass result" "$out" "RESULT pass"
+  lacks "(QA) a fresh pass: nothing says it was released" "$out" "released"
+  rec=$(cat "$(rec_file)")
+  has "a fresh pass: the row" "$rec" "| hands-on | pass | the author's hands-on pass (REL-7) on release/1.0.0-rc1 ($short) is recorded, with no fix outstanding |"
+  has "a fresh pass: the end result" "$rec" "Result: stopped after hands-on: no step after the gates has run (not a release)"
+  rs '' status
+  has "a fresh pass: status" "$out" "STATE 1.0.0 rc1 next done"
+  # IA1: the record push carries the Planner's section byte for byte, in commits that change only the record
+  git --git-dir="$R" show "refs/heads/$INTEG:release/records/1.0.0/rc1.md" > "$tmp/remote-record.md"
+  eq "IA1: the section is on the remote byte for byte" "$(sect "$tmp/remote-record.md" "## Hands-on pass" | cksum)" "$psec"
+  eq "IA1: the section in the checkout is the Planner's byte for byte" "$(sect "$(rec_file)" "## Hands-on pass" | cksum)" "$psec"
+  has "IA1: the section is not empty" "$(sect "$tmp/remote-record.md" "## Hands-on pass")" "Fixes: none"
+  n=0
+  for c in $(git --git-dir="$R" rev-list "$EXPECT_BASE..refs/heads/$INTEG"); do
+    n=$((n + 1))
+    eq "IA1: a pushed commit changes only the record" "$(git --git-dir="$R" diff-tree --no-commit-id --name-only -r "$c")" "release/records/1.0.0/rc1.md"
+  done
+  eq "IA1: the push added commits" "$([ "$n" -gt 0 ] && echo yes || echo no)" yes
+  # the steps make no ASK and the script offers no way to record a hands-on pass
+  hcode=$(awk '/^(step_hands_on|handson_verdict|handson_fixes)\(\)/ { f = 1 } f { print } /^}/ { f = 0 }' "$root/release/release.sh")
+  has "the hands-on code is found" "$hcode" "handson_verdict()"
+  has "the hands-on code is found: the step" "$hcode" "step_hands_on()"
+  eq "the hands-on step asks nothing" "$(printf '%s\n' "$hcode" | grep -c 'ask ')" 0
+  eq "the hands-on code never writes the section" "$(printf '%s\n' "$hcode" | grep -c -e 'record_write' -e 'record_put' -e 'sset ' -e '> "\$rec')" 0
+}
+
+# t_carryover: Story 11.15 AC2, AC4 to AC8. The resume's refusals, a pass with fixes, a feature release that needs a fresh pass, a re-cut that carries a
+# pass over, a fixes-only release's carry-over, and the pass outside the hands-on time. Each case reaches hands-on by a cut and a state jump.
+t_carryover() {
+  local sha short rf sd1 st ref2 sha2 RC1S line1 rf1
+  # (a) a fixes-only release, 1.0.1: the refusals, then a carry-over with a note
+  newcase
+  git -C "$W" tag v1.0.0
+  git -C "$W" push -q origin v1.0.0
+  rs '' start --version 1.0.1
+  eq "1.0.1: start" "$rc" 0
   rs '' next
-  eq "again: exit" "$rc" 4
-  # the step makes no ASK and the script offers no way to record a hands-on pass
-  eq "the hands-on step asks nothing" "$(awk '/^step_hands_on\(\)/ { f = 1 } f { print } /^}/ { f = 0 }' "$root/release/release.sh" | grep -c 'ask ')" 0
+  eq "1.0.1: cut" "$rc" 0
+  sha=$(git -C "$W" rev-parse --verify --quiet refs/heads/release/1.0.1-rc1)
+  short=${sha%"${sha#???????}"}
+  rf=$W/release/records/1.0.1/rc1.md
+  sd1=$OCUTALON_RELEASE_STATE/1.0.1-rc1
+  (
+    . "$root/release/lib-release.sh"
+    env_set "$sd1/state.env" next hands-on
+  )
+  clockfile 1000 1010 9000 9005
+  rs "$N" next
+  eq "1.0.1: the first stop: exit" "$rc" 4
+  has "1.0.1: the first stop: the line" "$out" "STOPPED hands-on every automated gate passed; install release/1.0.1-rc1 ($short)"
+  has "1.0.1: the first stop: the NOTE" "$out" "NOTE hands-on the Contest Planner records it in release/records/1.0.1/rc1.md under \"## Hands-on pass\" with Result: pass and Fixes: none (or the fix commits), or Result: carry-over and Note: <why>, and Candidate: 1.0.1 rc1, release/1.0.1-rc1 at $sha; release.sh resume then reads it"
+  lacks "1.0.1: the first stop writes no section" "$(cat "$rf")" "## Hands-on pass"
+  hands_refused "no section" "REFUSED hands-on the record holds no \"## Hands-on pass\" section for release/1.0.1-rc1 ($short); the Contest Planner records the pass or the carry-over there first" "$rf"
+  mv "$rf" "$C/record.away"
+  hands_refused "no record file" "REFUSED hands-on the record holds no \"## Hands-on pass\" section for release/1.0.1-rc1 ($short); the Contest Planner records the pass or the carry-over there first" "$rf"
+  mv "$C/record.away" "$rf"
+  st="REFUSED hands-on the \"## Hands-on pass\" section names another commit; its Candidate: line must end with \" at $sha\""
+  hands_put "$rf" "Result: pass" "Fixes: none"
+  hands_refused "no Candidate line" "$st" "$rf"
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.1 rc1, release/1.0.1-rc1 at $short" "Fixes: none"
+  hands_refused "a short sha" "$st" "$rf"
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.1 rc1, release/1.0.1-rc1 at ${sha%?}" "Fixes: none"
+  hands_refused "one character cut" "$st" "$rf"
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.1 rc1, release/1.0.1-rc1 at ${sha}0" "Fixes: none"
+  hands_refused "one character added" "$st" "$rf"
+  hands_put "$rf" "Result: carry-over" "Candidate: 1.0.1 rc1, release/1.0.1-rc1 at 0123456789012345678901234567890123456789" "Note: fixes only"
+  hands_refused "another commit" "$st" "$rf"
+  hands_put "$rf" "Result: maybe" "Candidate: 1.0.1 rc1, release/1.0.1-rc1 at $sha" "Fixes: none"
+  hands_refused "an unknown result" "REFUSED hands-on the \"## Hands-on pass\" section reads Result: maybe; only pass or carry-over goes on" "$rf"
+  hands_put "$rf" "Candidate: 1.0.1 rc1, release/1.0.1-rc1 at $sha" "Fixes: none"
+  hands_refused "no result" "REFUSED hands-on the \"## Hands-on pass\" section reads Result: -; only pass or carry-over goes on" "$rf"
+  hands_put "$rf" "Result: carry-over" "Candidate: 1.0.1 rc1, release/1.0.1-rc1 at $sha"
+  hands_refused "a carry-over with no note" "REFUSED hands-on a carry-over needs the Contest Planner's note on a Note: line" "$rf"
+  hands_put "$rf" "Result: carry-over" "Candidate: 1.0.1 rc1, release/1.0.1-rc1 at $sha" "Note:"
+  hands_refused "a carry-over with an empty note" "REFUSED hands-on a carry-over needs the Contest Planner's note on a Note: line" "$rf"
+  hands_drop "$rf"
+  OCUTALON_RELEASE_HANDS_ON=pass OCUTALON_HANDS_ON_PASS=1 hands_refused "the variables do not pass it" "REFUSED hands-on the record holds no \"## Hands-on pass\" section for release/1.0.1-rc1 ($short); the Contest Planner records the pass or the carry-over there first" "$rf"
+  hands_put "$rf" "Result: carry-over" "Candidate: 1.0.1 rc1, release/1.0.1-rc1 at $sha" "Note: fixes only; the pass of 1.0.0 stands"
+  hands_refused "resume --pass" "REFUSED unknown option '--pass'" "$rf" --pass
+  hands_refused "resume --carry-over" "REFUSED unknown option '--carry-over'" "$rf" --carry-over
+  # AC7 and AC8: the carry-over goes on; the pass is not hands-on time
+  rs "$N" resume
+  eq "1.0.1: the carry-over: exit" "$rc" 0
+  has "1.0.1: the carry-over: the line" "$out" "PASS hands-on the author's hands-on pass (REL-7) is carried over to release/1.0.1-rc1 ($short), a fixes-only release: fixes only; the pass of 1.0.0 stands"
+  has "1.0.1: the record's row" "$(cat "$rf")" "| hands-on | carried over | the author's hands-on pass (REL-7) is carried over to release/1.0.1-rc1 ($short), a fixes-only release: fixes only; the pass of 1.0.0 stands |"
+  has "1.0.1: the end result" "$(cat "$rf")" "Result: stopped after hands-on: no step after the gates has run (not a release)"
+  has "1.0.1: hands-on time is the two windows only" "$(cat "$rf")" "Hands-on time: 15 s for this candidate"
+  eq "1.0.1: the four seam values were all read" "$(wc -c < "$C/now" | tr -d ' ')" 0
+  # (b) 1.0.0 rc1 cut from the head: a pass written before the first arrival still stops; the feature release needs a fresh pass; fixes fail the candidate
+  fixes_case
+  sha=$RC1
+  short=${sha%"${sha#???????}"}
+  rf=$(rec_file)
+  (
+    . "$root/release/lib-release.sh"
+    env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" next hands-on
+  )
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha" "Fixes: none"
+  rs "$N" next
+  eq "a valid section written before the first arrival still stops: exit" "$rc" 4
+  has "a valid section written before the first arrival still stops: the line" "$out" "STOPPED hands-on every automated gate passed; install release/1.0.0-rc1 ($short)"
+  lacks "a valid section written before the first arrival still stops: no pass line" "$out" "PASS hands-on"
+  has "the first stop keeps the Planner's section" "$(cat "$rf")" "Fixes: none"
+  hands_put "$rf" "Result: carry-over" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha" "Note: a feature release carries nothing over"
+  hands_refused "a carry-over in a feature release cut from the head" "REFUSED hands-on 1.0.0 is a feature release, so it needs a fresh pass on this candidate; a pass carries over only to a re-cut from the passed candidate plus the fixes it recorded" "$rf"
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha"
+  hands_refused "a pass with no Fixes line" "REFUSED hands-on a pass needs a Fixes: line: none, or the commits that fix its findings" "$rf"
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha" "Fixes:"
+  hands_refused "a pass with an empty Fixes line" "REFUSED hands-on a pass needs a Fixes: line: none, or the commits that fix its findings" "$rf"
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha" "Fixes: deadbeef"
+  hands_refused "a Fixes token that is no commit" "REFUSED hands-on the Fixes: line names deadbeef, which is not a commit of this repository" "$rf"
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha" "Fixes: none $FIX1"
+  hands_refused "none among commits" "REFUSED hands-on the Fixes: line names none, which is not a commit of this repository" "$rf"
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha" "Fixes: *"
+  hands_refused "a glob is no commit" "REFUSED hands-on the Fixes: line names *, which is not a commit of this repository" "$rf"
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha" "Fixes: -x"
+  hands_refused "an option is no commit" "REFUSED hands-on the Fixes: line names -x, which is not a commit of this repository" "$rf"
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha" "Fixes: $FIX2 $FIX1"
+  rs '' resume
+  eq "two fixes: exit" "$rc" 1
+  has "two fixes: the re-cut command names both, in the order written" "$out" "release.sh start --version 1.0.0 --from release/1.0.0-rc1 --pick ${FIX2:0:7} ${FIX1:0:7}"
+  hands_put "$rf" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $sha" "Fixes: $FIX1"
+  line1="FAIL hands-on the pass on release/1.0.0-rc1 recorded fixes that are not in this candidate; cut the next one with release.sh start --version 1.0.0 --from release/1.0.0-rc1 --pick ${FIX1:0:7}"
+  rs '' resume
+  eq "a pass with fixes: exit" "$rc" 1
+  has "a pass with fixes: the line" "$out" "$line1"
+  has "a pass with fixes: the record" "$(cat "$rf")" "Result: failed at hands-on: the pass on release/1.0.0-rc1 recorded fixes that are not in this candidate; cut the next one with release.sh start --version 1.0.0 --from release/1.0.0-rc1 --pick ${FIX1:0:7}"
+  has "a pass with fixes: the row" "$(cat "$rf")" "| hands-on | fail | "
+  rs "$Y" resume
+  eq "a later resume reads the section again: exit" "$rc" 1
+  has "a later resume reads the section again" "$out" "$line1"
+  eq "the record was pushed: the checkout is level" "$(git -C "$W" rev-parse HEAD)" "$(rhead)"
+  # (c) the re-cut from the passed candidate plus its recorded fixes carries the pass over
+  rs "$Y" start --version 1.0.0 --from release/1.0.0-rc1 --pick "$FIX1"
+  eq "rc2 start: exit" "$rc" 0
+  rs '' next --version 1.0.0 --rc 2
+  eq "rc2 cut: exit" "$rc" 0
+  sha2=$(cand 2)
+  (
+    . "$root/release/lib-release.sh"
+    env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc2/state.env" next hands-on
+  )
+  rs "$N" next --version 1.0.0 --rc 2
+  eq "rc2: the first stop: exit" "$rc" 4
+  rf1=$rf
+  rf=$(rec_file 2)
+  hands_put "$rf" "Result: carry-over" "Candidate: 1.0.0 rc2, release/1.0.0-rc2 at $sha2" "Note: the pass of rc1 plus its fix"
+  RC1S=${RC1:0:7}
+  ref2="REFUSED hands-on release/1.0.0-rc1, which this candidate was cut from, has no hands-on pass on $RC1S in a release record"
+  cp "$rf1" "$C/rc1.record"
+  hands_put "$rf1" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $RC1" "Fixes: $FIX1 $FIX2"
+  hands_refused "rc1 recorded more fixes" "REFUSED hands-on the picks of this re-cut are not the fixes that the pass on release/1.0.0-rc1 recorded" "$rf" --version 1.0.0 --rc 2
+  hands_put "$rf1" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $RC1" "Fixes: $FIX2"
+  hands_refused "rc1 recorded another fix" "REFUSED hands-on the picks of this re-cut are not the fixes that the pass on release/1.0.0-rc1 recorded" "$rf" --version 1.0.0 --rc 2
+  hands_put "$rf1" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $RC1" "Fixes: none"
+  hands_refused "rc1 recorded no fix" "REFUSED hands-on the picks of this re-cut are not the fixes that the pass on release/1.0.0-rc1 recorded" "$rf" --version 1.0.0 --rc 2
+  hands_put "$rf1" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $RC1" "Fixes: deadbeef"
+  hands_refused "rc1 names a fix that is no commit" "$ref2" "$rf" --version 1.0.0 --rc 2
+  hands_put "$rf1" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $RC1"
+  hands_refused "rc1 has no Fixes line" "$ref2" "$rf" --version 1.0.0 --rc 2
+  sed 's/^Mode: release$/Mode: rehearsal/' "$C/rc1.record" > "$rf1"
+  hands_refused "rc1 is a rehearsal record" "$ref2" "$rf" --version 1.0.0 --rc 2
+  hands_put "$rf1" "Result: carry-over" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $RC1" "Note: fixes only"
+  hands_refused "rc1 holds a carry-over" "$ref2" "$rf" --version 1.0.0 --rc 2
+  hands_put "$rf1" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at 0123456789012345678901234567890123456789" "Fixes: $FIX1"
+  hands_refused "rc1 names another commit" "$ref2" "$rf" --version 1.0.0 --rc 2
+  hands_drop "$rf1"
+  hands_refused "rc1 holds no pass" "$ref2" "$rf" --version 1.0.0 --rc 2
+  mv "$rf1" "$C/rc1.away"
+  hands_refused "rc1's record is missing" "$ref2" "$rf" --version 1.0.0 --rc 2
+  mv "$C/rc1.away" "$rf1"
+  git -C "$W" checkout -q -- release/records/1.0.0/rc1.md
+  eq "rc1's record is restored" "$(cat "$rf1" | cksum)" "$(cat "$C/rc1.record" | cksum)"
+  rs "$N" resume --version 1.0.0 --rc 2
+  eq "the re-cut carry-over: exit" "$rc" 0
+  has "the re-cut carry-over: the line" "$out" "PASS hands-on the author's hands-on pass (REL-7) on release/1.0.0-rc1 ($RC1S) is carried over to release/1.0.0-rc2 (${sha2:0:7}) with the fixes it recorded (1): the pass of rc1 plus its fix"
+  has "the re-cut carry-over: the row" "$(cat "$rf")" "| hands-on | carried over | the author's hands-on pass (REL-7) on release/1.0.0-rc1 ($RC1S) is carried over to release/1.0.0-rc2 (${sha2:0:7}) with the fixes it recorded (1): the pass of rc1 plus its fix |"
+  has "the re-cut carry-over: the end result" "$(cat "$rf")" "Result: stopped after hands-on: no step after the gates has run (not a release)"
+  # (d) a fixes-only re-cut carries a pass over on the note alone: rc1's record holds no pass, and the picks are not compared
+  newcase
+  git -C "$W" tag v1.0.0
+  git -C "$W" push -q origin v1.0.0
+  rs '' start --version 1.0.1
+  rs '' next
+  eq "1.0.1 rc1 cut: exit" "$rc" 0
+  echo "fix three" > "$W/fix-three.txt"
+  git -C "$W" add fix-three.txt
+  git -C "$W" commit -q -m "fix three"
+  git -C "$W" push -q origin "$INTEG"
+  rs "$Y" start --version 1.0.1 --from release/1.0.1-rc1 --pick "$(git -C "$W" rev-parse HEAD)"
+  eq "1.0.1 rc2 start: exit" "$rc" 0
+  rs '' next --version 1.0.1 --rc 2
+  eq "1.0.1 rc2 cut: exit" "$rc" 0
+  sha2=$(git -C "$W" rev-parse --verify --quiet refs/heads/release/1.0.1-rc2)
+  (
+    . "$root/release/lib-release.sh"
+    env_set "$OCUTALON_RELEASE_STATE/1.0.1-rc2/state.env" next hands-on
+  )
+  rs "$N" next --version 1.0.1 --rc 2
+  eq "1.0.1 rc2: the first stop: exit" "$rc" 4
+  rf=$W/release/records/1.0.1/rc2.md
+  hands_put "$rf" "Result: carry-over" "Candidate: 1.0.1 rc2, release/1.0.1-rc2 at $sha2" "Note: fixes only"
+  rs "$N" resume --version 1.0.1 --rc 2
+  eq "1.0.1 re-cut: the carry-over: exit" "$rc" 0
+  has "1.0.1 re-cut: the carry-over: the line" "$out" "PASS hands-on the author's hands-on pass (REL-7) is carried over to release/1.0.1-rc2 (${sha2:0:7}), a fixes-only release: fixes only"
+  # (e) a patch number written with a leading zero is still a feature release when it is 0
+  newcase
+  git -C "$W" tag v1.0.0
+  git -C "$W" push -q origin v1.0.0
+  rs '' start --version 1.0.00
+  eq "1.0.00: start" "$rc" 0
+  rs '' next
+  eq "1.0.00: cut" "$rc" 0
+  sha=$(git -C "$W" rev-parse --verify --quiet refs/heads/release/1.0.00-rc1)
+  short=${sha%"${sha#???????}"}
+  rf=$W/release/records/1.0.00/rc1.md
+  (
+    . "$root/release/lib-release.sh"
+    env_set "$OCUTALON_RELEASE_STATE/1.0.00-rc1/state.env" next hands-on
+  )
+  rs "$N" next
+  eq "1.0.00: the first stop: exit" "$rc" 4
+  hands_put "$rf" "Result: carry-over" "Candidate: 1.0.00 rc1, release/1.0.00-rc1 at $sha" "Note: fixes only"
+  hands_refused "1.0.00 is a feature release" "REFUSED hands-on 1.0.00 is a feature release, so it needs a fresh pass on this candidate; a pass carries over only to a re-cut from the passed candidate plus the fixes it recorded" "$rf"
 }
 
 # gate_ran <gate>: whether a gate's script or reader ran in the case (notes: the draft exists).
@@ -4300,6 +4588,7 @@ rule upgrade t_upgrade
 rule rehearsal t_rehearsal
 rule checklist t_checklist
 rule handson t_handson
+rule carryover t_carryover
 rule gates t_gates
 rule realgates t_realgates
 rule static t_static
