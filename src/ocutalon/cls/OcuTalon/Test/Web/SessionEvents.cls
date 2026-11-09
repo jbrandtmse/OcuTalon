@@ -12,6 +12,8 @@
 /// Story 31.1's TestSignOutMark covers OnLogout: it raises the session's sign-out mark by one off the online demo, changes no field
 /// of the session row (every stored property of Data.Session, derived from its definition) and always answers OK; on the online
 /// demo it sets no mark node at all.
+/// Story 35.2's TestAdminAtSignIn covers the admin flag of the sign-in: AttachFor(1, 1) sets Session.AdminAtSignIn and lists the Ref in
+/// Ownership.AdminSessions, an attach with no flag keeps it, AttachFor(1, 0) clears it, and no other stored property changes.
 Class OcuTalon.Test.Web.SessionEvents Extends %UnitTest.TestCase
 {
 
@@ -31,7 +33,7 @@ Method OnAfterAllTests() As %Status
 /// Saves the settings that the tests change and starts each test with the flag off, no proxy and a four-hour reset.
 Method OnBeforeOneTest(testname As %String) As %Status
 {
-	Kill ^||SessionEventsSaved, ^||SessionEventsAddresses
+	Kill ^||SessionEventsSaved, ^||SessionEventsAddresses, ^||SessionEventsAdminWas
 	Set settings = "OcuTalon.Data.Public.Settings"
 	For key = "onlineDemo", "proxyAddress", "resetAnchor", "resetIntervalHours", "connectionCap", "connectionReserve" {
 		Set ^||SessionEventsSaved(key) = $ClassMethod(settings, "Get", key)
@@ -64,8 +66,9 @@ Method OnAfterOneTest(testname As %String) As %Status
 		Quit:address=""
 		Do ..DropCounter(address)
 	}
+	If $Data(^||SessionEventsAdminWas) Do ..SignIn("", "ZzAdminRestore", "", "", , , 1, ^||SessionEventsAdminWas)
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
-	Kill ^||SessionEventsSaved, ^||SessionEventsAddresses
+	Kill ^||SessionEventsSaved, ^||SessionEventsAddresses, ^||SessionEventsAdminWas
 	Quit $SYSTEM.Status.OK()
 }
 
@@ -493,6 +496,43 @@ Method TestClientAddress()
 	Do $$$AssertEquals(proxied, 0, "not proxied")
 	Do $$$AssertEquals($ClassMethod(class, "ClientAddress", "192.0.2.100", "a", "192.0.2.10", .proxied), "", "the proxy's address is matched exactly")
 	Do $$$AssertEquals(proxied, 0, "not proxied")
+}
+
+/// The admin flag of the sign-in (Story 35.2): a sign-in with admin 1 sets the row's AdminAtSignIn and the Ref is in AdminSessions; an
+/// attach with no flag (a first API call) keeps it; a sign-in with admin 0 clears it and the Ref leaves AdminSessions; the flag write
+/// changes no other stored property.
+Method TestAdminAtSignIn()
+{
+	Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	If before > 0 {
+		Set found = ##class(%SQL.Statement).%ExecDirect(, "SELECT AdminAtSignIn FROM OcuTalon_Data.Session WHERE IrisUser = ?", $Username)
+		If found.%Next() Set ^||SessionEventsAdminWas = +found.%GetData(1)
+	}
+	Do $$$AssertStatusOK(..SignIn("", "ZzAdminZero", "", "", .zero, , 1, 0), "a sign-in without the admin role answers OK")
+	Set ref = $Get(zero.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY))
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Do $$$AssertTrue($IsObject(row), "the user's durable session is attached")
+	If $IsObject(row), before = 0 Do ##class(OcuTalon.Test.Data.Fixture).Adopt(row)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).AdminAtSignIn, 0, "a non-admin's row holds 0")
+	Do $$$AssertEquals($ListFind(##class(OcuTalon.Data.Ownership).AdminSessions(.sc), ref), 0, "and its Ref is not in AdminSessions")
+	Do $$$AssertStatusOK(sc, "the read of AdminSessions answers OK")
+	Set plain = ..RowText(ref)
+	Do $$$AssertStatusOK(..SignIn("", "ZzAdminOne", "", "", .one, , 1, 1), "a sign-in with the admin role answers OK")
+	Do $$$AssertEquals($Get(one.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)), ref, "it gets the same session")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).AdminAtSignIn, 1, "an admin's row holds 1")
+	Do $$$AssertTrue($ListFind(##class(OcuTalon.Data.Ownership).AdminSessions(.sc), ref) > 0, "and its Ref is in AdminSessions")
+	Do $$$AssertEquals(..RowText(ref), $Replace(plain, "|AdminAtSignIn=0", "|AdminAtSignIn=1"), "no other stored property changed")
+	Do $$$AssertStatusOK(..SignIn("", "ZzAdminKeep", "", "", .keep), "an attach with no flag answers OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).AdminAtSignIn, 1, "and keeps the flag the latest sign-in set")
+	New %session
+	Set %session = ##class(%CSP.Session).%New("ZzAdminDirect", 0)
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Ownership).Attach($Username), "Ownership.Attach with no flag answers OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).AdminAtSignIn, 1, "and leaves the flag as it was")
+	Do $$$AssertStatusOK(..SignIn("", "ZzAdminDown", "", "", .down, , 1, 0), "a later sign-in without the role answers OK")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).AdminAtSignIn, 0, "clears the flag")
+	Do $$$AssertEquals($ListFind(##class(OcuTalon.Data.Ownership).AdminSessions(.sc), ref), 0, "and the Ref leaves AdminSessions")
+	Do $$$AssertStatusOK(sc, "that read of AdminSessions answers OK")
+	Do $$$AssertEquals(..RowText(ref), plain, "the row is as it was before the admin sign-in")
 }
 
 /// The flag off (matrix row 9): the sign-in attaches the user's one durable session as before, sets no cookie, writes no counter
@@ -938,7 +978,7 @@ ClassMethod KeyHolder(node As %String, flag As %String)
 /// The OnLogin work for a sign-in in process: a CSP session with the id, a stand-in request with the cookie, the remote address,
 /// the forwarded list and a response; the CSP session and the response come back in session and response. hasRole is AttachFor's
 /// argument (the user holds the OcuTalon user role by default). The status is AttachFor's.
-Method SignIn(cookie As %String, sessionId As %String, remote As %String = "", forwarded As %String = "", Output session, Output response, hasRole As %Boolean = 1) As %Status [ Private ]
+Method SignIn(cookie As %String, sessionId As %String, remote As %String = "", forwarded As %String = "", Output session, Output response, hasRole As %Boolean = 1, admin As %String = "") As %Status [ Private ]
 {
 	New %request, %response, %session
 	Set %request = ##class(OcuTalon.Test.Web.StubRequest).Make("/ocutalon/")
@@ -947,7 +987,7 @@ Method SignIn(cookie As %String, sessionId As %String, remote As %String = "", f
 	If forwarded '= "" Set %request.CgiEnvs("HTTP_X_FORWARDED_FOR") = forwarded
 	Set %response = ##class(%CSP.Response).%New()
 	Set %session = ##class(%CSP.Session).%New(sessionId, 0)
-	Set sc = ##class(OcuTalon.Web.SessionEvents).AttachFor(hasRole)
+	Set sc = ##class(OcuTalon.Web.SessionEvents).AttachFor(hasRole, admin)
 	Set session = %session
 	Set response = %response
 	Quit sc

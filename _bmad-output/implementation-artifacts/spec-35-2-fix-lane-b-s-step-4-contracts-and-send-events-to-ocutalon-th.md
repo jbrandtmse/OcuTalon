@@ -2,14 +2,43 @@
 title: 'Story 35.2: Fix Lane B step 4 contracts'
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2959ffbc2b1e02c99787eae343a119826ef04e15'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-35-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md'
 warnings: ['oversized', 'multiple-goals']
-deferred: []
+deferred:
+  - summary: >-
+      The key settings.refusedExpansion is stored with a slot marker for the two characters that open a setting reference, because the catalog renderer fails a text that holds a brace without a closing one.
+    evidence: |-
+      Msg.Catalog.Fill fails "the text has a '{' without a '}'", so the accepted wording cannot be stored literally. Core holds "This can't contain {marker}, which IRIS would read as a reference to a setting. Nothing was changed." with slot marker (text); a producer passes the two characters as the slot value, and the rendered text on every channel is the accepted wording verbatim (Test.Msg.Catalog fixture). Needs the author's view only if a literal key is wanted (a renderer escape would be a Msg.Catalog change).
+    location: >-
+      src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls:settings.refusedExpansion
+    severity: low
+  - summary: >-
+      The EXPERIENCE.md case cell of the source interval label does not name its key.
+    evidence: |-
+      web/scripts/ux-strings.test.mjs holds the ruled string "Interval" (Story 39.5 ruling) and fails when EXPERIENCE.md holds it anywhere, as a substring; the key name settings.sourceInterval contains it. The cell reads "key in Msg.Catalog.Core". Moving "Interval" from ruled to ux in that test's SOURCES (the precedent for words EXPERIENCE.md holds incidentally) would let the cell name the key; that is a web file, outside this story.
+    location: >-
+      _bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md (Settings and requests (step 4), source interval label row)
+    severity: low
+  - summary: >-
+      Nothing tests that OnLogin passes Admin.Held($Roles) to AttachFor, the only production path that sets Session.AdminAtSignIn.
+    evidence: |-
+      The matrix names AttachFor(1, 1) as the tested surface. A test of OnLogin needs a sign-in whose $Roles holds OcuTalonUser and OcuTalonAdmin; a slot has neither role (a Set of $Roles to them fails), and OnLogin is one line. A wrong argument there would leave AdminSessions() empty for real admins and no test here would show it. Settled by a sign-in-level check: Story 22.2's first integration with real sign-ins, or a live sign-in unit with the admin role.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls:OnLogin
+    severity: medium
+  - summary: >-
+      Session.AdminAtSignIn stays 1 after the user loses OcuTalonAdmin until their next sign-in, and a sign-in without the OcuTalon user role does not clear it.
+    evidence: |-
+      The flag is written only at sign-in (ruling planner-2026-11-09-35.1 Q1: "at the latest sign-in"). AttachFor does nothing when hasRole is 0, so a demoted admin who no longer holds the user role keeps the flag and stays in Ownership.AdminSessions(), which Story 22.2's admin notices read. Story 22.2 should decide whether its notices re-check the role or whether AttachFor clears the flag for a row it finds.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls:AttachFor
+    severity: low
 ---
 
 <intent-contract>
@@ -104,6 +133,35 @@ Line numbers marked (F) are from `origin/feature/OCT_OcuTalon_MVP` (Epic 41 merg
 
 ## Review Triage Log
 
+### 2026-11-09 -- Review pass
+- verdicts: 25 findings -- high 0, medium 2, low 22, false 1, maybe-false 0
+- findings:
+  - `[low]` `reject` Blind: no remove, rotate or list route for webhooks -- the webhook build, its routes and verbs are Story 35.3's (Never list); this story fixes names only.
+  - `[low]` `patch` Blind + Edge: a failed `AdminAtSignIn` save in `Ownership.Attach` returns before the CSP session holds the Ref -- real (the matrix says the sign-in does not fail on this write); the Ref is now set first and the failed save is still the answer.
+  - `[low]` `defer` Blind + Edge: the flag goes stale for a demoted admin, and a sign-in without the user role does not clear it -- "latest sign-in" is the ruling's semantics; the fix (clear on a role-less sign-in) adds a branch and a lookup, so it is deferred to Story 22.2 (deferred item 4).
+  - `[low]` `patch` Blind: `Admin.Held` and `Admin.Allowed` differ on `%All` with no pointer between them -- one clause added to `Held`'s doc.
+  - `[low]` `reject` Blind: `settings.refusedExpansion` slot and the `settings.sourceInterval` row without its key -- already deferred items 1 and 2 (carried), no new claim.
+  - `[low]` `patch` Blind: the AD-1 sentence on refusal texts reads as if it covered `SendEmail` -- the spine sentence now says which origin gets which text.
+  - `[medium]` `patch` Blind + Verification: `RestartRunners` has no test for the no-production row (the only test needs the production) -- `TestRestartRunnersWithoutProduction` added (slot-safe) with a recorded mutation. The `OcuTalon.Production` literal and the lack of serialization of concurrent restarts: `reject` low, `Timeouts.Restart` is Lane A's and the literal is the installer's own name.
+  - `[low]` `patch` Blind + Verification: the test's `Jobs` skips fewer statuses than `Bridge.Timeouts.Jobs` -- the same three statuses are skipped now.
+  - `[low]` `reject` Blind: `PutBack` kills `Data.Setting`'s private cache node, and the `^OcuTalonTest("CommandsStep4", ...)` counters stay -- the counters are monotonic run numbers like the other test classes keep; the cache kill mirrors `Setting.Set`'s own drop and has no failure path.
+  - `[low]` `reject` Edge: `Data.Setting.Get` caches for 60 s per process, so a changed mailbox is honoured late -- bounded to 60 s, and the destination is the user's own previous address; a cache bypass changes `Data.Setting`, outside this story.
+  - `[low]` `reject` Edge: `Timeouts.Restart` stops at the first failed item, so later runners keep the old server list -- Lane A's behaviour as delivered; the spec says an item that does not restart is the error.
+  - `[low]` `reject` Edge: a whole-row `%Save` in `Attach` can overwrite a property another process wrote in the same instant -- sign-in time only and only when the flag changes; the window is milliseconds and the fix (a locked or SQL write) adds more than it protects.
+  - `[low]` `defer` Edge: stale flag for a role-less sign-in (see above, same root cause) -- deferred item 4.
+  - `[low]` `patch` Edge: the matrix claim "sign-in never fails on this write" against the code -- the same root cause as the failed-save finding; fixed by it.
+  - `[low]` `patch` Edge: the spine says the restart waits 60 seconds "for each item", but `Timeouts.Restart` has one deadline -- the spine now says 60 seconds in all.
+  - `[medium]` `defer` Verification: `OnLogin` is not tested; `TestAdminAtSignIn` passes the flag by hand -- the spec drew the tested surface at `AttachFor`; a slot has no OcuTalon roles to set in `$Roles` (measured on slot B), so no in-process test reaches `OnLogin`. Deferred item 3, settled by a sign-in-level check.
+  - `[low]` `patch` Verification: pinning tests without a `mutation:` line (AC3, AC4, AC5, the admin-only text, the stubs, `AdminSessions`, no production) -- each mutation applied, observed red and reverted byte-identical; lines written under Verification. The slot-14 storage rule judges committed `HEAD` blocks, so its line says so.
+  - `[low]` `patch` Verification: `TestMcpEntryStubs` header claims "no wallet secret", which nothing checks -- the header now claims only the Config Store entry.
+  - `[low]` `reject` Verification: `Exists` on a hand-built name might not be able to return 1 -- the name `AI.MCP.OcuTalon_<server>` has three parts, so `Bridge.ConfigStore.FullName` leaves it as is, the same name Lane A writes.
+  - `[low]` `patch` Verification: the last `AdminSessions` read of `TestAdminAtSignIn` does not check its status (an error also gives 0) -- the status is asserted.
+  - `[low]` `reject` Verification: `TestToolVerbs` counts five `McpOps` routes, which a double route would fool -- `TestOrigins` checks each verb's route one by one.
+  - `[low]` `patch` Verification: `TestAdminAtSignIn` flips a pre-existing session row's flag and does not restore it -- `OnAfterOneTest` signs in again with the value found.
+  - `[low]` `patch` Verification: `TestEveryRunnerRestarts`' job filter (same root cause as the `Jobs` finding) -- fixed with it.
+  - `[low]` `reject` Edge: the 60-second-per-item sentence as a claim (same root cause as above) -- fixed with it.
+  - `[false]` `reject` Intent alignment: no divergence between the intent and the diff beyond what the spec fixed -- descriptive report; the surfaces it names (the real `McpOps` and `EmailOut` items, the running-production restart on a slot, the real login) are the Never list's or the deferred items'.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):** AD-1 (verbs, origins, the tool list, Submit), AD-13 (the hook application, admin check, settings routes), AD-14 (channels, Items, EmailIn), AD-17 (one audit writer, capped webhook rejections), AD-19 (secret homes, `@{`, SettingsOps the only settings writer, Config Store restart), AD-21 (MCP names, `RestartRunners`, admin notices' input), AD-24 (roles), AD-25 (unauthenticated paths), AD-26 (trace sessions), AD-29 (lanes, stubs, contracts epics), AD-30 (Intake), AD-33 (one owner per item and table). Rule 6: no AC contradicts an AD Rule.
@@ -187,7 +245,7 @@ The implement stage takes each text from this table only after the lead records 
 
 **CI:** all new test classes are in existing areas (`Test/Core`, `Test/Web`); no `ci/units.sh` change, no new unit. `RestartRunners` runs in the area's shard on the CI production (inference: a few seconds per runner item, under the 60 s wait).
 
-**Decided in-stage:** (1) split (below); (2) the own address is the session's connected mailbox (`email.address` with owner `email.owner`, product keys), not a per-person key (AD-19's per-person values are set with origin `web_user`, while the mailbox is set in admin Settings) and not the IRIS user's email (a `%SYS` read, barred); (3) recipients are a comma list, compared trimmed and lower-cased, all must match, an empty list is refused; (4) the tool refusal of `SendEmail` reuses `MESSAGENOTFROMTOOL` (no new public text; Story 22.7 offers the approval path); (5) MCP verbs from a non-tool origin other than `web_admin` get the existing admin-only text, as settings verbs do; (6) no production item is added for `McpOps` or `EmailOut`: an accepted verb before Stories 22.2 and 21.2 answers `failed` (as `SendRequestSync` to an unregistered item does), and the tests use the `CommandsInProbe` stand-in as Stories 33.2 and 34.2 did; (7) `SaveMcpEntry`/`RemoveMcpEntry` are stubs (contract + stub, as the lead prefers; the AC asks for the routes in the spine only) failing with code 5003 so that no caller can believe a secret was stored; (8) the MCP and email settings routes are spine rows only (Stories 21.2 and 21.4 build them, no 501 placeholders, so no route pin changes here); (9) `AdminAtSignIn` is written only from `OnLogin` (admin argument ""), so an attach on a first API call keeps the latest sign-in's value; (10) `RestartRunners` uses the installer's runner listing, so a new runner item needs no change here; (11) `emailPoll` is one mark holding the latest outcome and `lastOkAt` (a mark per poll would grow without a purge, Conventions "Status marks"); (12) the hook's refusals carry no body, so they need no public text; (13) `webhook_rejected` uses the existing `Action` audit type (no Lane A bridge change); (14) every proposed text gets a Core key (the AC), though the page's own texts are literals today; the producer stories decide how the page reads them.
+**Decided in-stage:** (0) implement stage: (g) review patches: `Ownership.Attach` sets the CSP session's Ref before it saves the flag, so a failed flag save still leaves the user attached and the failed save is the answer (AttachFor logs it); `TestRestartRunnersWithoutProduction` is slot-safe and covers matrix row 8; `TestAdminAtSignIn` restores a pre-existing flag in `OnAfterOneTest`; the test's `Jobs` skips the same statuses as `Bridge.Timeouts.Jobs`; the spine's B1 sentence names which refusal text each origin gets and B5 says the restart's wait is 60 seconds in all; (a) `settings.refusedExpansion` is stored with a text slot `marker` for the characters that open a setting reference, because the renderer cannot hold an unbalanced brace; the rendered wording is the accepted one (deferred item 1); (b) the source interval label's case cell does not name its key, because `web/scripts/ux-strings.test.mjs` holds the ruled string "Interval" (deferred item 2); (c) `Ownership.Attach(irisUser, admin)` writes the flag only for admin 0 or 1 that differs from the row, `AttachFor(hasRole, admin)` leaves the online-demo branch alone; (d) `Test.Contract.Ac`'s signature floor is raised from 81 to 85 for the four new signatures; (e) `RestartRunners` calls `Timeouts.Restart(name, list, 0)` with `$LB($LB(item, ""))` per runner; items with no job are skipped by Restart, as built; (f) `TestAdminAtSignIn` leaves the running user's session row with the flag of its last sign-in (0), as a first API call would find it; (1) split (below); (2) the own address is the session's connected mailbox (`email.address` with owner `email.owner`, product keys), not a per-person key (AD-19's per-person values are set with origin `web_user`, while the mailbox is set in admin Settings) and not the IRIS user's email (a `%SYS` read, barred); (3) recipients are a comma list, compared trimmed and lower-cased, all must match, an empty list is refused; (4) the tool refusal of `SendEmail` reuses `MESSAGENOTFROMTOOL` (no new public text; Story 22.7 offers the approval path); (5) MCP verbs from a non-tool origin other than `web_admin` get the existing admin-only text, as settings verbs do; (6) no production item is added for `McpOps` or `EmailOut`: an accepted verb before Stories 22.2 and 21.2 answers `failed` (as `SendRequestSync` to an unregistered item does), and the tests use the `CommandsInProbe` stand-in as Stories 33.2 and 34.2 did; (7) `SaveMcpEntry`/`RemoveMcpEntry` are stubs (contract + stub, as the lead prefers; the AC asks for the routes in the spine only) failing with code 5003 so that no caller can believe a secret was stored; (8) the MCP and email settings routes are spine rows only (Stories 21.2 and 21.4 build them, no 501 placeholders, so no route pin changes here); (9) `AdminAtSignIn` is written only from `OnLogin` (admin argument ""), so an attach on a first API call keeps the latest sign-in's value; (10) `RestartRunners` uses the installer's runner listing, so a new runner item needs no change here; (11) `emailPoll` is one mark holding the latest outcome and `lastOkAt` (a mark per poll would grow without a purge, Conventions "Status marks"); (12) the hook's refusals carry no body, so they need no public text; (13) `webhook_rejected` uses the existing `Action` audit type (no Lane A bridge change); (14) every proposed text gets a Core key (the AC), though the page's own texts are literals today; the producer stories decide how the page reads them.
 
 **Proposed split (Decided in-stage, U5; HALT `intent gap` so the lead inserts the sibling):** the epics block is too large for one implement pass (Story 35.1, smaller, took about 95 minutes): besides the contracts, the webhook needs a new unauthenticated web application and role (composed by Lane A's `Install.Step.Roles` from `Install.Step.Web.Grants()`), a Task 0 on a throwaway for the unauthenticated request's privileges, the audit write and the 202 timing, the security overview's regeneration (`docs/security-overview.md`, `live:security-overview`), a Channels form on the page and updates to several fixed pins. Split:
 - **35.2 (this spec): Fix Lane B's step 4 contracts.** Epics criteria, verbatim: the first (spine update, "**Given** Lane B's step 4 contracts, including the webhook details the spine leaves to step 4 ... (FR-44, FR-45, FR-47, AD-13, AD-23, AD-33)") with its **And** (command verbs, "(FR-44, FR-47, AD-1, AD-29)"); the second (`RestartRunners()`, "(FR-47, AD-19, AD-21, AD-29)"); the third (step 4 texts, "(UX-DR117, UX-DR145)"); plus the `[AMENDED 2026-11-09 ...]` note's admin-session read API and `SettingsOps` MCP entry contract.
@@ -200,10 +258,11 @@ Lane B variables on every `ci/` call (from the worktree root): `OCUTALON_LOCK_DI
 
 **Commands:**
 - `<vars> OCUTALON_RUN_TAG=e35s2iw ci/warm.sh up` (once) -- expected: warm stack up, `WARM` lines, lock held.
-- `<vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s2iw ci/iris.sh class OcuTalon.Test.Core.CommandsStep4` (loop) -- expected: all pass. mutation: drop the own-address check for `tool` -> `TestSendEmailOwnAddress` red.
-- `... ci/iris.sh class OcuTalon.Test.Core.RestartRunners` (loop) -- expected: pass. mutation: `RestartRunners` returns `$$$OK` without calling `Timeouts.Restart` -> `TestEveryRunnerRestarts` red.
-- `... ci/iris.sh class OcuTalon.Test.Web.SessionEvents` (loop) -- expected: pass. mutation: `OnLogin`/`AttachFor` ignores admin -> `TestAdminAtSignIn` red.
-- `... ci/iris.sh class OcuTalon.Test.Core.Admin` (loop) -- mutation: `Held` matches by substring -> `TestHeldByWholeName` red.
+- `<vars> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e35s2iw ci/iris.sh class OcuTalon.Test.Core.CommandsStep4` (loop) -- expected: all pass. mutation: drop the own-address check for `tool` -> `TestSendEmailOwnAddress` red. mutation: In `CommandsIn.Carry` the condition `(origin = "tool") && (verb = "SendEmail") && '..OwnAddressOnly(command)` made `... && 0` -> observed red on `TestSendEmailOwnAddress` (the foreign, empty and look-alike recipients were routed) and on `TestOrigins` (SendEmail from tool), reverted byte-identical.
+- `... ci/iris.sh class OcuTalon.Test.Core.RestartRunners` (loop) -- expected: pass. mutation: `RestartRunners` returns `$$$OK` without calling `Timeouts.Restart` -> `TestEveryRunnerRestarts` red. mutation: `RestartRunners` ends `Quit $$$OK` instead of calling `Timeouts.Restart` -> observed red, six runner items without a new job; reverted byte-identical.
+- `... ci/iris.sh class OcuTalon.Test.Web.SessionEvents` (loop) -- expected: pass. mutation: `OnLogin`/`AttachFor` ignores admin -> `TestAdminAtSignIn` red. mutation: `AttachFor` calls `Ownership.Attach($Username)` without admin -> observed red ("an admin's row holds 1", "its Ref is in AdminSessions"); reverted byte-identical.
+- `... ci/iris.sh class OcuTalon.Test.Core.Admin` (loop) -- mutation: `Held` matches by substring -> `TestHeldByWholeName` red. mutation: `Held` returns `$Get(roles) [ ..#ROLE` -> observed red (`OcuTalonAdminX`, `XOcuTalonAdmin` held); reverted byte-identical.
+- Further mutations (Rule 19, each applied, observed red, reverted byte-identical): AC3: `AddMcpServer` added to `TOOLVERBS` -> `TestMcpVerbsFromATool`, `TestOrigins`, `TestToolVerbs` red (class `CommandsStep4`). Matrix rows 2-3 (admin-only text): the `(owner = "McpOps")` term dropped from the refusal-text choice in `CommandsIn.Carry` -> `TestOrigins` red. Row 14 (stubs): `RemoveMcpEntry` returns `$$$OK` -> `TestMcpEntryStubs` red. Rows 11-12 (`AdminSessions`): the query's `AdminAtSignIn = 1` made `= 0` -> `TestAdminAtSignIn` red (class `Test.Web.SessionEvents`). Row 8 (no production): the early `Quit $$$OK` of `RestartRunners` made an error status -> `TestRestartRunnersWithoutProduction` red (run on slot B, where no OcuTalon production runs; on a stack with the production the test logs that the running case is `Test.Core.RestartRunners` and passes without calling it). AC4: `Session.AdminAtSignIn` retyped `%String(MAXLEN = 1)` -> `Test.Data.Tables` `TestContracts` red; the slot-14 and 1-13 storage rules are `docker/tests/test-storage.sh`'s release-diff, which reads the committed `HEAD` blocks, so it judges the finalize commit and not the working tree (a working-tree storage mutation was not red, as designed). AC5: one stored text of `Catalog.Core` (`settings.emailHelp`, one word) changed -> `Test.Msg.Catalog` red. AC1 (spine text) and AC6 (file names) are static: the spine lint and the diff's file list are their checks.
 - `... ci/iris.sh class OcuTalon.Test.Core.CommandsRouting`, `OcuTalon.Test.Core.CommandsPrecedent`, `OcuTalon.Test.Core.CommandsStep3`, `OcuTalon.Test.Web.SettingsApi`, `OcuTalon.Test.Msg.Contracts`, `OcuTalon.Test.Data.Tables`, `OcuTalon.Test.Contract.Ac`, `OcuTalon.Test.Msg.Catalog` (once each, one per call) -- expected: pass (shared surfaces).
 - `<vars> OCUTALON_RUN_TAG=e35s2iw ci/warm.sh down` (once, also after a failure).
 - `bash docker/tests/test-storage.sh` (once) -- expected: PASS (slot 14 appended).
@@ -215,7 +274,17 @@ Lane B variables on every `ci/` call (from the worktree root): `OCUTALON_LOCK_DI
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-(Plan-stage record, superseded by the lead's gate and the rulings above:) Status: blocked; Blocking condition: intent gap: proposed split (Design Notes, "Proposed split"): this spec plans Story 35.2 = the epics criteria 1 to 3 plus the ruling's admin-session read API and SettingsOps MCP entry stub; the lead inserts sibling Story 35.3 "Send events to OcuTalon through a webhook" (Lane B, follows 35.2) into epics.md with the webhook criteria 4 to 6 verbatim (create in Settings > Channels; POST 202 and WebhookIn; 401, cap, unauthenticated-paths test). With the split recorded, this spec is ready for development once the PUBLIC TEXT table is accepted and the SECURITY and STORED DATA veto items pass; set status ready-for-dev and re-dispatch.
+**Summary.** Lane B's step 4 contracts are fixed and built. The spine holds B1-B10 as plain unions with Story 35.2 markers (lint: the baseline's ten `placeholder` findings, none new). Six verb classes (`AddMcpServer`, `RemoveMcpServer`, `ClassifyTool`, `SetSourcePoll`, `RemoveSourcePoll`, `SendEmail`) and their `CommandsIn` routes: the MCP verbs from `web_admin` only (admin-only text from other origins, chat text from `tool`), `SendEmail` from `tool` only for the session's own mailbox (`email.owner`, `email.address`, case and spaces ignored, empty list refused, bridge-context session check) and from `system`. `SettingsOps.RestartRunners()` on `Install.Step.Production.Runners` and `Bridge.Timeouts.Restart`; `SaveMcpEntry`/`RemoveMcpEntry` stubs (code 5003, nothing written). `Session.AdminAtSignIn` (slot 14), `Ownership.Attach(irisUser, admin)`, `Ownership.AdminSessions(Output sc)`, `Admin.Held`, `OnLogin`/`AttachFor` wiring, `Api.IsAdmin` on `Held`. The 30 accepted texts are in `Catalog.Core` (135 keys) and EXPERIENCE.md (block, approval-states row, Step 4 bullet).
+
+**Files changed.** Spine and EXPERIENCE.md (additions); `Core/{Admin,CommandsIn,SettingsOps}.cls`; `Data/{Ownership,Session}.cls`; `Msg/Catalog/Core.cls`; six `Msg/Command/*.cls`; `Web/{Api,SessionEvents}.cls`; tests `Test/Core/{CommandsStep4,RestartRunners,Admin}.cls`, `Test/Web/SessionEvents.cls`, and the pins `Test/{Contract/Ac,Data/Tables,Msg/Catalog,Msg/Contracts}.cls`. No Lane A file and no webhook-build file.
+
+**Review.** 25 findings (high 0, medium 2, low 22, false 1). Patches applied: the attach holds when the flag save fails; the AD-1 and restart-wait spine wording; `Held`'s doc; a slot-safe no-production test; the test `Jobs` filter; `TestAdminAtSignIn` restore and status check; the stub test's header; the `mutation:` lines. Deferred (frontmatter): the two implement-stage items, the untested `OnLogin` argument (medium), the stale flag for a role-less sign-in (low). Rejected with reasons in the Review Triage Log: webhook management routes (Story 35.3), cache and concurrency edge cases, Lane A's stop-at-first-failure, test counters.
+
+**Follow-up review recommended:** false (one medium patched; no high).
+
+**Verification.** Warm stack `e35s2iw` (brought down; lock released): `CommandsStep4`, `RestartRunners`, `Web.SessionEvents`, `Core.Admin`, `CommandsRouting`, `CommandsPrecedent`, `CommandsStep3`, `Web.SettingsApi`, `Msg.Contracts`, `Data.Tables`, `Contract.Ac`, `Msg.Catalog` all passed on the final tree (the classes touched by the review patches re-run after them); `TestRestartRunnersWithoutProduction` passed on slot B (the stack's production runs, so it skips there). Mutations recorded under Verification, each red and reverted byte-identical. `test-storage.sh`, `test-class-rules.sh`, `test-boundaries.sh` pass; `node --test web/scripts/ux-strings.test.mjs` 13 of 13; spine lint ten baseline findings.
+
+**Residual risks.** `settings.refusedExpansion` is stored with a slot (the renderer cannot hold an unbalanced brace); the rendered text is the accepted one. `OnLogin`'s `Held($Roles)` argument has no test. The slot-14 storage rule is judged on the committed block at the finalize commit.
