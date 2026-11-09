@@ -552,3 +552,4 @@
 2026-11-09T16:28:47Z	Epic 0	epic_reopened	reason=story_0.20_ci_rebalance(orchestrator_dispatch_decide;Planner_ruling;DW-1025) note=epic-0_done->in-progress(SC-5_reopen);0.15+0.20_merge_together
 2026-11-09T16:28:47Z	Epic 0	story_chartered	stories=0.20(after_0.18) marker=ADDED_2026-11-09_Contest_Planner_ruling+orchestrator_ruling,DW-1025 key=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un
 2026-11-09T16:28:47Z	Epic 0	deps_hash_rerecorded	reason=fix_forward note=story_0.20_inserted_in_epic_0;no_boundary_or_dependency_change
+2026-11-09T16:29:55Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.20_added) model=claude-opus-5-5 effort=high
