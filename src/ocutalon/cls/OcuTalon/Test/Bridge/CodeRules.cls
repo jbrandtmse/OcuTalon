@@ -41,8 +41,9 @@
 ///     Decide and Bridge.Purge, names the link class (as a class, as the table, or by the globals that hold its rows and its lock); Decide, the only caller of
 ///     Point, calls Lock, Unlock, SessionOf and Point of it and nothing else, a system method such as %New or %DeleteId included, and Point in one place
 ///     (PointLink); the adapter only reads and locks: it calls SessionOf, Lock and Unlock and never Point; no line of either names the link class more often than it calls one of its methods, and none names its
-///     table or its globals; Bridge.Purge (Story 30.2) calls no method of the link class, names its table on one line only, a SELECT that writes nothing,
-///     and names neither its globals nor its lock; and Point is the only writer of the link class, which runs no SQL and touches no global directly;
+///     table or its globals; Bridge.Purge (Story 30.2, Story 30.7) calls no method of the link class, names its table on two lines only, a SELECT that
+///     writes nothing and the one DELETE by OwnerRef of DropLinks, and names neither its globals nor its lock; and Point is the only writer of the link
+///     class, which runs no SQL and touches no global directly;
 ///   - TestToolsReturnThroughResult (Story 1.9; AD-10, Consistency Conventions: Tool results): every product tool provider (a class of OcuTalon.Tools that
 ///     extends %AI.Tool, is not a toolset and is not Result) extends OcuTalon.Tools.Result, and none of its code lines quits or returns a value other than
 ///     the call ..Return(, or passes that call, on the same line, a JSON text built beforehand (%ToJSON, a conversion to JSON, a JSON literal), so no tool returns a literal or
@@ -494,7 +495,7 @@ ClassMethod ThrowawayOrder(text As %String) As %String [ Private ]
 }
 
 /// Only Decide writes conversation links (AD-6, AD-8, AD-33). No class outside the Test package, except ConversationLink, the adapter, Decide and Bridge.Purge
-/// (which only reads the SessionId of every link), names the
+/// (which reads the SessionId of every link and, in DropLinks, deletes the links of one owner), names the
 /// link class, its table or the globals of its rows and its lock. Decide calls Lock, Unlock, SessionOf and Point of the class and nothing else, and Point in one
 /// place; the adapter calls SessionOf, Lock and Unlock and nothing else, never Point; and Point is the only method of
 /// ConversationLink that saves or deletes a row. The scanners are first shown to flag samples and to pass look-alikes and comment lines.
@@ -555,10 +556,20 @@ Method TestOnlyDecideWritesLinks()
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Purge", .purge), "the bridge purge has source")
 	Do $$$AssertEquals($ListToString(..LinkCalls(purge, calls), ","), "", "Purge calls no method of the link class")
 	Set lines = $ClassMethod(source, "Lines", purge, "conversationlink")
-	Do $$$AssertEquals($ListLength(lines), 1, "and names the link's table on one line")
-	Do $$$AssertTrue($Locate($ListGet(lines, 1), "(?i)\bselect\b"), "which is a SELECT")
-	Do $$$AssertEquals($ClassMethod(source, "Matches", $ListGet(lines, 1), writes), 0, "and writes nothing")
-	Do $$$AssertEquals($ClassMethod(source, "Matches", $ListGet(lines, 1), "\b("_..#SQLVERBS_")\b"), 0, "and holds no SQL verb that changes data")
+	Do $$$AssertEquals($ListLength(lines), 2, "and names the link's table on two lines")
+	Set selects = 0, drops = 0
+	For i = 1:1:$ListLength(lines) {
+		Set line = $ListGet(lines, i)
+		If $Locate(line, "(?i)\bselect\b") {
+			Set selects = selects + 1
+			Do $$$AssertEquals($ClassMethod(source, "Matches", line, writes), 0, "the SELECT writes nothing")
+			Do $$$AssertEquals($ClassMethod(source, "Matches", line, "\b("_..#SQLVERBS_")\b"), 0, "and holds no SQL verb that changes data")
+		} ElseIf $Locate(line, "(?i)^\s*Set result = ##class\(%SQL\.Statement\)\.%ExecDirect\(, ""DELETE FROM OcuTalon_Bridge_Data\.ConversationLink WHERE OwnerRef = \?"", ownerRef\)\s*$") {
+			Set drops = drops + 1
+		}
+	}
+	Do $$$AssertEquals(selects, 1, "one of them is a SELECT")
+	Do $$$AssertEquals(drops, 1, "and the other is DropLinks's DELETE of the links of one OwnerRef, with no other condition")
 	Do $$$AssertEquals($ClassMethod(source, "Matches", purge, "ocutalonbp\.conv"), 0, "Purge names neither the globals of the link's rows nor its lock")
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Data.ConversationLink", .link), "the link class has source")
 	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", link, "\.%save\(")), 1, "the link class saves a row in one place")

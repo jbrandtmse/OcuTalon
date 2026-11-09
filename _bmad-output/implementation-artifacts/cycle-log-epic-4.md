@@ -449,3 +449,13 @@
 2026-11-08T18:00:50Z	Story 4.12	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0
 2026-11-08T18:00:50Z	Story 4.12	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=node_--test_more-to-try-view+ux-strings_36/36;web_unit_1587/1587(stage);grep_old_phrase_none;test-boundaries_all_pass model=claude-opus-5-5
 2026-11-08T18:00:50Z	Story 4.12	fresh_check	env=clean-checkout tests=2 result=pass order=forward note=e2e_in_CI
+2026-11-08T18:01:21Z	Story 4.12	committed	sha=cb7a2215 build_sha=a65aaefa submodules= ci=pending runs=42507818397,42507818342 amendments=_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md:251
+2026-11-08T18:01:21Z	Story 4.12	story_cycle	plan_to_commit_min=12 implement_passes=1 reviews=1(lead) rework=0 first_ci=pending models=plan:sonnet,implement:sonnet,qa:none,cr:lead-opus
+2026-11-08T19:18:45Z	Story 4.12	ci_resolved	story=4.12 sha=cb7a2215 runs=42507818397,42507818342 result=success failed=none via=none resolved_at=burndown note=ci.yml_iris(shards-2)_DW-973_TestTimeLeft_red_attempt1_green_on_one_rerun(attempt2);class=flake;occurrence_appended
+2026-11-08T19:18:45Z	Story 4.12	ci_red_classified	run=42507818397 workflow=.github/workflows/ci.yml class=flake test=Test.Docs.TestTimeLeft(DW-973)
+2026-11-08T19:18:45Z	Epic 4	ledger_burndown_complete	open_before=1 resolved=0 terminal=0 chartered=0 chartered_size=0 overflow=0 reowned=0 to_decision_sheet=1(DW-976;ruled_by_Planner_option2_routed_to_20.2_recorded_by_orchestrator_at_merge_gate) open_after=0 cap=8 story_max=12 filed_this_epic=2(DW-975,DW-976) closed_this_epic=0 drain_ratio=0.00 scope=story_4.12 note=DW-975_routed_to_20.2_by_brief
+2026-11-08T19:18:45Z	Epic 4	epic_status_done	stories=12
+2026-11-08T19:18:45Z	Epic 4	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=0 unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=0 result=hold applied=false(gates.model_tier:record_only) scope=story_4.12
+2026-11-08T19:18:45Z	Epic 4	epic_retro_skipped	reason=policy
+2026-11-08T19:19:18Z	Epic 4	integrated_forward	feature=ce50aa62 head=merge(this_commit) conflicts_resolved=none unions=deferred-work.md(auto),cycle-log-parallel.md,epic-dependencies.yaml(feature_side,bookkeeping_only) verification=source_tree_identical_to_feature(git_diff_--cached_origin/feature_on_SRC_empty);unit_more-to-try+ux-strings_36/36;tracker_valid;ledger_load_ok
+2026-11-08T19:19:18Z	Epic 4	epic_runner_complete	stories_completed=1(4.12) code=a65aaefa(on_feature_via_a77f9a87) ci=success(cb7a2215;42507818397,42507818342;DW-973_flake_rerun)

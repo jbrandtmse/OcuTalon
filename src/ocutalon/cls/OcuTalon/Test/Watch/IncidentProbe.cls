@@ -6,7 +6,8 @@
 /// fields the tests check, and answers OK, or an error for a SessionRef that FailFor names. It overrides SendExecute for the same reason (Story 5.5): it records each
 /// order in Executed, as {approvalRef, sessionId} (the session that the order would go in), and answers OK, or an error when FailExecute is set, and DemoMode, so that a test sets the
 /// mode without writing the setting: it gives DemoModeIs when that is set (0 or 1), else the product's own reading; QuietNow gives QuietNowIs when that is set, else the clock, so that a test fixes the time that closeQuiet's quiet check reads. Move sets the state on the object and gives an error when FailMove is set (QA). The handlers of Story 5.5 are reached through
-/// OnRequest, as the framework calls them. Since Story 7.2 it also overrides the three seams of the with-fix notice, for the same reason (a shadow instance cannot
+/// OnRequest, as the framework calls them. Since Story 5.15 it overrides SendCheckNow the same way: it records each CheckNow in CheckNows, as {namespace, production, ownerRef, incidentRef, sessionId}
+/// (the session that the request would go in), and answers OK, or an error when FailCheckNow is set. Since Story 7.2 it also overrides the three seams of the with-fix notice, for the same reason (a shadow instance cannot
 /// SendRequestAsync, and Raise would really run): SendDryRun records each ask in DryRuns as {incidentRef, fixKind, parameters} and answers OK, or an error when
 /// FailDryRun is set; RaiseRequest records each row in Raised as {kind, incidentRef, ownerRef, resultTarget, traceRef, dryRun, fixKind, fixParameters, fixTargets,
 /// sessionId, superSession} and answers OK with RaiseRef (a fixed fixture Ref unless a test sets one), or an error when FailRaise is set; CancelRequest records
@@ -33,6 +34,12 @@ Property Executed As %DynamicArray [ Transient ];
 
 /// 1 to make SendExecute answer an error.
 Property FailExecute As %Boolean [ InitialExpression = 0, Transient ];
+
+/// The requests that SendCheckNow recorded, in order, each {namespace, production, ownerRef, incidentRef, sessionId}: the session that the request would go in.
+Property CheckNows As %DynamicArray [ Transient ];
+
+/// 1 to make SendCheckNow answer an error (after it recorded the request).
+Property FailCheckNow As %Boolean [ InitialExpression = 0, Transient ];
 
 /// 0 or 1 to fix the demo mode that DemoMode gives; empty for the product's own reading.
 Property DemoModeIs As %String [ Transient ];
@@ -91,6 +98,15 @@ Method SendExecute(order As OcuTalon.Fix.Msg.Execute) As %Status [ Private ]
 	If '$IsObject(..Executed) Set ..Executed = []
 	Do ..Executed.%Push({"approvalRef": (order.ApprovalRef), "sessionId": (..%SessionId)})
 	If ..FailExecute Quit $SYSTEM.Status.Error(5001, "The execute order of "_order.ApprovalRef_" is refused")
+	Quit $$$OK
+}
+
+/// Records the CheckNow instead of sending it, with the session that the request would go in.
+Method SendCheckNow(request As OcuTalon.Checks.Msg.CheckNow) As %Status [ Private ]
+{
+	If '$IsObject(..CheckNows) Set ..CheckNows = []
+	Do ..CheckNows.%Push({"namespace": (request.Namespace), "production": (request.Production), "ownerRef": (request.OwnerRef), "incidentRef": (request.IncidentRef), "sessionId": (..%SessionId)})
+	If ..FailCheckNow Quit $SYSTEM.Status.Error(5001, "The CheckNow of "_request.IncidentRef_" is refused")
 	Quit $$$OK
 }
 
