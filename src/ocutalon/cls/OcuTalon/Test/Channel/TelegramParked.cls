@@ -5,9 +5,10 @@ Include Ensemble
 /// (docker/tests/lib-live.sh live_park_telegram, ci/warm.sh up). No bot is called and no token is read or written.
 ///   - TestPark: from a TelegramIn that runs against the mock, BotApi.Park leaves the stack as a start with no token does: both Enabled
 ///     rows 0, no job of either item, the Telegram mark off, no kept offset, and an empty list of Bot API calls at the mock;
-///   - TestReadinessFollowsTheRow: RunnerFixture.NotRunningNow, which WaitAllRun, Restart and ReadyReason wait on, leaves out an item whose
-///     Enabled row is 0 even when the production's runtime flag of the item still says enabled (the state that kept the restarts of the
-///     runners waiting for TelegramIn in CI's lane-a Channel shard), and still reports an item whose row is 1 and which has no job;
+///   - TestReadinessFollowsTheRow: the production's own check (Install.Step.Production.NotRunning) and RunnerFixture.NotRunningNow, which
+///     WaitAllRun, Restart and ReadyReason wait on, leave out an item whose Enabled row is 0 even when the production's runtime flag of
+///     the item still says enabled (the state that kept the restarts of the runners waiting for TelegramIn in CI's lane-a Channel shard),
+///     and both still report an item whose row is 1 and which has no job;
 ///   - TestStopAsksAgain, TestStopWithoutAskingStays, TestStopThatNeverEnds, TestNoAskWhenGone and TestParkWaitsLonger: the wait of the
 ///     park (LiveCase.AwaitStop) against a stub that stands for the production: a job that the first stop lost goes when the update is
 ///     asked for again (red without the retry, as the old single wait of 30 s had none), a wait without a retry asks for no update, a job
@@ -115,7 +116,7 @@ Method TestReadinessFollowsTheRow()
 	Do $$$AssertStatusOK($ClassMethod(..#BOTAPI, "Park"), "the stack is parked first")
 	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "NotRunningNow"), "", "a parked stack has every item that should run")
 	Set $$$ConfigIsEnabled(..#ITEM) = 1
-	Do $$$AssertTrue($ListFind($ListFromString(##class(OcuTalon.Install.Step.Production).NotRunning()), ..#ITEM) > 0, "the production's own check names "_..#ITEM_" while its runtime flag says enabled and it has no job")
+	Do $$$AssertNotTrue($ListFind($ListFromString(##class(OcuTalon.Install.Step.Production).NotRunning()), ..#ITEM) > 0, "the production's own check leaves out "_..#ITEM_" while its Enabled row is 0, even with its runtime flag set")
 	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "NotRunningNow"), "", "RunnerFixture.NotRunningNow leaves it out, as its Enabled row is 0")
 	Do $$$AssertTrue($ClassMethod(..#FIXTURE, "WaitAllRun"), "and the wait of the restarts ends at once")
 
@@ -123,6 +124,7 @@ Method TestReadinessFollowsTheRow()
 	Do $ClassMethod(..#FIXTURE, "RememberDefault", .saved, ..#ITEM, "Enabled")
 	Do $$$AssertStatusOK($ClassMethod(..#FIXTURE, "PutDefault", ..#ITEM, "Enabled", 1), "the item's Enabled row is set to 1")
 	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "NotRunningNow"), ..#ITEM, "an item whose row is 1 and which has no job is still reported")
+	Do $$$AssertTrue($ListFind($ListFromString(##class(OcuTalon.Install.Step.Production).NotRunning()), ..#ITEM) > 0, "the production's own check names "_..#ITEM_" when its row is 1, its runtime flag is set and it has no job")
 	Do $$$AssertTrue($ClassMethod(..#FIXTURE, "StateOf", ..#ITEM) [ (..#ITEM_" row 1, runtime flag 1, jobs none"), "and the failure text says its row, its runtime flag and its jobs")
 	Do $$$AssertStatusOK($ClassMethod(..#FIXTURE, "RestoreDefaults", saved), "the row is put back")
 }

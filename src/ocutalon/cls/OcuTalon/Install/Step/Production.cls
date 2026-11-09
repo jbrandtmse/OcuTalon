@@ -149,7 +149,9 @@ ClassMethod StartLocked(wait As %Integer) As %Status [ Private ]
 	Quit $SYSTEM.Status.OK()
 }
 
-/// The enabled items of the running production that have a pool and no alive job that is not in error, as a comma list.
+/// The items of the running production that are enabled by the production's runtime flag and not turned off by an Enabled row
+/// of the System Default Settings that applies to them (a row of 0, as Ens and Runners read that row), that have a pool and
+/// no alive job that is not in error, as a comma list. With a row of 1 or no row, the runtime flag decides.
 /// "OcuTalon.Production is not running" when the production does not run under that name. Empty when every item runs.
 ClassMethod NotRunning() As %String
 {
@@ -170,10 +172,19 @@ ClassMethod NotRunning() As %String
 		Quit:item=""
 		If item = "%Production" Continue
 		If '$Get($$$ConfigIsEnabled(item)) Continue
+		If '..ItemEnabled(..#PRODUCTION, item, $Get($$$ConfigClassName(item)), 1) Continue
 		If '$Get($$$ConfigPoolSize(item)) Continue
 		If '$Data(alive(item)) Set missing = missing _ $Select(missing = "": "", 1: ",") _ item
 	}
 	Quit missing
+}
+
+/// Whether the item is enabled: the System Default Settings row of Enabled that applies to the item (any specificity, as Ens reads it)
+/// when there is one, else the flag. 1 or 0.
+ClassMethod ItemEnabled(production As %String, item As %String, class As %String, flag As %Boolean) As %Boolean [ Private ]
+{
+	If ##class(Ens.Config.DefaultSettings).%GetSetting(production, item, class, "", "Enabled", .value) Quit $Select(value: 1, 1: 0)
+	Quit $Select(flag: 1, 1: 0)
 }
 
 /// The agent runner items of the production (AD-6): every item of class RUNNERCLASS, in the order of the definition.
@@ -189,7 +200,7 @@ ClassMethod Runners(production As %String, Output runners) As %Status
 	For i = 1:1:config.Items.Count() {
 		Set item = config.Items.GetAt(i)
 		If item.ClassName '= ..#RUNNERCLASS Continue
-		Set enabled = $Select(##class(Ens.Config.DefaultSettings).%GetSetting(production, item.Name, item.ClassName, "", "Enabled", .override): override, 1: item.Enabled)
+		Set enabled = ..ItemEnabled(production, item.Name, item.ClassName, item.Enabled)
 		Set agentClass = ##class(Ens.Director).GetAdapterSettingValue(production_"||"_item.Name, "AgentClass", .status)
 		If $$$ISERR(status) Set agentClass = ""
 		Set runners = runners + 1
