@@ -16,6 +16,7 @@
 ///   - TestLimit: 8 memories, a search with limit 5, 2, 0 and 99 gives 5, 2, 1 and 5;
 ///   - TestEmptyQuery: an empty query, a blank one and an empty session are errors with no rows;
 ///   - TestList: an owner with 25 memories gets the newest 20, newest first, and total 25; each row has its source and pin (a learned row, a pinned row, old rows told and not pinned); another owner's list and an unknown owner's are their own;
+///   - TestLegacyRow (QA): a row with Source, Pinned and PinnedAt blanked in SQL (as saved before Story 41.8) is told and 0 in the list, the keyword search and the search by meaning;
 ///   - TestListTies (QA): 22 memories saved in the same second are listed newest first by row id, the total is 22, and the cut at 20 drops the two saved first;
 ///   - TestSearchAccentedKeyword (QA): a word with a letter outside ASCII (an u with a diaeresis) finds its memory first although another is nearer by meaning;
 ///   - TestIndexGlobals: every global that EmbeddingIdx and TextIdx write is in the private database (GetGlobalDest), ^IRIS.KNNIndex stays empty, OCUTALON_DATA
@@ -308,6 +309,28 @@ Method TestListTies()
 	Do $$$AssertStatusOK(##class(OcuTalon.Memory).List(..#A, .rows, .total), "A lists")
 	Do $$$AssertEquals(total_"|"_rows.%Size(), "22|20", "the total is 22 and 20 rows come back")
 	Do $$$AssertEquals(rows.%Get(0).memoryRef_"|"_rows.%Get(1).memoryRef_"|"_rows.%Get(19).memoryRef, "zzmsa22|zzmsa21|zzmsa03", "with the same SavedAt the higher row id is first, and the two saved first are the ones cut")
+}
+
+/// A row as saved before Story 41.8, with Source and Pinned both empty (QA; matrix "Old row"): the fixture stores Pinned as 0, so the row is blanked in SQL, and
+/// the list, the nearest search and the keyword search all read it as told and not pinned.
+Method TestLegacyRow()
+{
+	If '..OnImage() Quit
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa1", "the Results partner's contact is Lee", "2026-11-05T10:00:01Z", , , "learned"), "a memory is stored")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Memory.Fixture).Store(..#A, "zzmsa2", "the warehouse closes at six on Fridays", "2026-11-05T10:00:02Z", , , "learned"), "and a second")
+	Set update = ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.Memory SET Source = NULL, Pinned = NULL, PinnedAt = NULL WHERE Ref = ?", "zzmsa1")
+	Do $$$AssertEquals(update.%SQLCODE, 0, "the first is blanked as a row of Story 41.7 and before (Source, Pinned and PinnedAt empty)")
+	Set stored = ##class(OcuTalon.Data.Memory).RefIndexOpen("zzmsa1")
+	Do $$$AssertEquals(stored.Source_"|"_stored.Pinned_"|"_stored.PinnedAt, "||", "control: the stored row holds no Source, Pinned or PinnedAt")
+	Set stored = ""
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory).List(..#A, .rows, .total), "the list answers")
+	Do $$$AssertEquals(rows.%Get(1).memoryRef_"|"_rows.%Get(1).source_"|"_rows.%Get(1).pinned, "zzmsa1|told|0", "the list gives the old row as told and 0 (a number, not empty)")
+	Do $$$AssertEquals(rows.%Get(0).memoryRef_"|"_rows.%Get(0).source_"|"_rows.%Get(0).pinned, "zzmsa2|learned|0", "and the learned row beside it as learned")
+	Do $$$AssertTrue($IsObject(rows.%Get(1)) && (rows.%Get(1).%GetTypeOf("pinned") = "number"), "pinned is a JSON number")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory).Search(..#A, "Lee", 5, .hits), "a keyword search answers")
+	Do $$$AssertEquals(hits.%Get(0).memoryRef_"|"_hits.%Get(0).source_"|"_hits.%Get(0).pinned, "zzmsa1|told|0", "and gives the old row as told and 0")
+	Do $$$AssertStatusOK(##class(OcuTalon.Memory).Search(..#A, "who do I call about Results?", 5, .near), "a search by meaning answers")
+	Do $$$AssertEquals(near.%Get(0).memoryRef_"|"_near.%Get(0).source_"|"_near.%Get(0).pinned, "zzmsa1|told|0", "and gives it as told and 0 too")
 }
 
 /// A keyword with a letter outside ASCII finds its memory first, although another is nearer by meaning (QA): the words of the keyword query are runs of letters, not of ASCII letters.

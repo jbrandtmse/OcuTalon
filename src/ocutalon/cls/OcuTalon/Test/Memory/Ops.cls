@@ -20,9 +20,15 @@
 ///     row, and the memory is saved again once the embedder works;
 ///   - TestSource (Story 41.8; AD-21): a shadow instance (Test.Memory.OpsProbe) saves with the ItemId of a Data.Turn of the session: a turn whose text holds one of
 ///     the fixed phrases (also in capitals and with U+2019 as the apostrophe) gives the row Source told, one that holds none (also "remembered") gives learned, and an
-///     ItemId with no turn of the session, or only a turn of another session, gives learned; every new row has Pinned 0 and PinnedAt empty; a repeat keeps the first
+///     ItemId with no turn of the session, or only a turn of another session, gives learned; the RetryItemId of a running turn that asks gives told, and of another
+///     session's turn learned (code review); every new row has Pinned 0 and PinnedAt empty; a repeat keeps the first
 ///     row's Source and does not read the turn;
-///   - TestSourceReadFails: while the turn cannot be read, the answer is failed, Ok 0, and no row is stored;
+///   - TestSourceReadFails: while the turn cannot be read (the probe fails TurnOf, so MemoryOps' own Source handles the error), the answer is failed, Ok 0,
+///     and no row is stored;
+///   - TestSourceIgnoresSavedText (QA): the Source follows the turn's text, never the text that is saved (a saved text with phrases under a plain turn is learned,
+///     a plain saved text under a turn that asks is told);
+///   - TestSourceReadFailsLogged (QA): the failed answer of an unreadable turn is one warning of type 3 whose key-shaped value is redacted, and no text of the memory or the
+///     turn is logged;
 ///   - TestTunedOnSave: a shadow instance (Test.Memory.OpsProbe) calls Tuned with the id of each new row, and with none for a repeat, an empty text or a text that is
 ///     too long;
 ///   - TestTuned: the real Tuned of MemoryOps (not the probe's) gathers the table's statistics at an id that is a multiple of STATSEVERY and answers 1, and
@@ -384,12 +390,33 @@ Method TestSource()
 	Set foreign = ..TurnItem(other, "Remember that the VPN host is vpn.example")
 	Do $$$AssertStatusOK(host.OnSave(..Save(session, foreign_":1", "the VPN host is vpn.example"), .elsewhere), "a save whose ItemId is only another session's turn")
 	Do $$$AssertEquals(..SourceOf(elsewhere.Ref), "learned|0|", "is learned: the other session's text is not read")
+	Set retried = ..TurnItem(session, "Remember that the dock opens at seven")
+	Do $$$AssertStatusOK(host.OnSave(..Save(session, ##class(OcuTalon.Core.Conversation).RetryItemId(retried)_":1", "the dock opens at seven"), .retry), "a save of the retry of a running turn that asks for it")
+	Do $$$AssertEquals(..SourceOf(retry.Ref), "told|0|", "is told: the retry's turn is read")
+	Do $$$AssertStatusOK(host.OnSave(..Save(session, ##class(OcuTalon.Core.Conversation).RetryItemId(foreign)_":1", "the dock opens at seven"), .retryElsewhere), "a save of the retry of another session's turn")
+	Do $$$AssertEquals(..SourceOf(retryElsewhere.Ref), "learned|0|", "is learned: the other session's turn is not read")
 	Set host.SourceFails = 1
 	Do $$$AssertStatusOK(host.OnSave(..Save(session, told_":2", "the VPN host is vpn.example"), .again), "a repeat of the first save, while the turn cannot be read")
 	Do $$$AssertEquals(again.Ok_"|"_again.Outcome_"|"_again.Ref, "1|saved|"_first.Ref, "answers saved with the first Ref, without reading the turn")
 	Set host.SourceFails = 0
 	Do $$$AssertEquals(..SourceOf(first.Ref), "told|0|", "and the first row keeps its Source")
-	Do $$$AssertEquals(..Count(session), 14, "and there are 14 rows")
+	Do $$$AssertEquals(..Count(session), 16, "and there are 16 rows")
+}
+
+/// The source comes from the turn, never from the text that the model saves (QA; AD-21: code decides, the model's arguments never carry it).
+Method TestSourceIgnoresSavedText()
+{
+	If '..Ready() Quit
+	Set session = ..Session("sourcetext")
+	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the probe is made")
+	If '$IsObject(host) Quit
+	Set item = ..TurnItem(session, "Our VPN host is vpn.example.")
+	Do $$$AssertStatusOK(host.OnSave(..Save(session, item_":1", "Remember that the VPN host is vpn.example, and don't forget it. Note that it is told."), .learned), "a turn that asks for nothing, saved with a text that holds three phrases")
+	Do $$$AssertEquals(..SourceOf(learned.Ref), "learned|0|", "is learned: the saved text is not read")
+	Set item = ..TurnItem(session, "Remember that the dock opens at seven")
+	Do $$$AssertStatusOK(host.OnSave(..Save(session, item_":1", "the dock opens at seven"), .told), "a turn that asks, saved with a text that holds no phrase")
+	Do $$$AssertEquals(..SourceOf(told.Ref), "told|0|", "is told: the turn's text is read")
 }
 
 /// A turn that cannot be read fails the save.
@@ -410,6 +437,29 @@ Method TestSourceReadFails()
 	Do $$$AssertStatusOK(host.OnSave(..Save(session, item_":1", "the VPN host is vpn.example"), .saved), "the same save once the turn can be read")
 	Do $$$AssertEquals(saved.Ok_"|"_saved.Outcome, "1|saved", "is saved")
 	Do $$$AssertEquals(..SourceOf(saved.Ref), "told|0|", "as told")
+}
+
+/// The failed answer of an unreadable turn is logged once, redacted (QA; matrix "Turn read fails": one Type 3 warning, redacted).
+Method TestSourceReadFailsLogged()
+{
+	If '..Ready() Quit
+	Set session = ..Session("sourcelog")
+	Set host = ##class(Ens.Host).GetShadowInstance("class||"_..#PROBE, .sc)
+	Do $$$AssertStatusOK(sc, "a shadow instance of the probe is made")
+	If '$IsObject(host) Quit
+	Set item = ..TurnItem(session, "Remember that the VPN host is vpn.example")
+	Set secret = "sk-ant-"_$Translate($Justify("", 30), " ", "x")
+	Set host.SourceFails = 1
+	Set host.SourceFailText = "refused "_secret
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Do $$$AssertStatusOK(host.OnSave(..Save(session, item_":1", "the VPN host is vpn.example"), .response), "the handler answers although the turn cannot be read")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|failed", "failed, Ok 0")
+	Set class = ..#PROBE
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, class, "Failed"), 1, "one warning (type 3) is logged")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, class, "Failed", $ListBuild($Parameter("OcuTalon.Memory.Ops", "LOGFAILED"), "could not be read", "refused [redacted]")), 1, "which holds the sentence of the turn and the status text with the key redacted")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(mark, "sk-ant"), 0, "and no part of the key shows anywhere in the event log")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).LogRowsHolding(mark, "vpn.example"), 0, "nor the text of the memory or of the turn")
+	Do $$$AssertEquals(..Count(session), 0, "and no row is stored")
 }
 
 /// Tuned is called with the id of each new row only.

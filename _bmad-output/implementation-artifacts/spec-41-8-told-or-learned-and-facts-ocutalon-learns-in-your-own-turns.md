@@ -143,6 +143,23 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
 - AC 4: Given a session with told, learned and pre-41.8 memories, when `list_memories` or `search_memories` runs in a person's turn, then every memory in the tool result the model reads carries `source` `told` or `learned`, with an empty `Source` read as told. Chat's list, search and forget bullets tell the model to write "(told)" or "(learned)" after each memory it names, and the forget confirmation is still exactly "Forgotten." (`Turns:TestToldAndLearnedThroughTheAgent`, `Tools.Memory:TestListAnswer`, `TestSearchAnswer` and `TestInstructions`).
 - AC 5 (planner-2026-11-09-41.8, a learned save is never silent): Given Chat's compiled INSTRUCTIONS, when they are read, then they hold, exactly once and beside the other memory bullets, "- When you save a memory the user did not ask you to save, say so in your reply in one short sentence, for example: I'll remember that <the fact>." (`Tools.Memory:TestInstructions`). And given the evaluation set, then it holds one user-turn learned-save case scored in its own report-only line, out of every gated score's numerator and denominator, which on a release-candidate run reports whether the real model's reply states the save in one sentence (`Test.Eval.Cases`, `Test.Eval.Report`).
 
+### Review Findings
+
+Code review, 2026-11-09 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; tier full-opus; 19 raw rows, 10 entries).
+
+- [x] [Review][Patch] A told save on a retried turn was stored as learned: after the provider rejects the history, `Conversation.Ask` sends `RetryItemId(turn.ItemId)`, which no `Data.Turn` holds, so `TurnOfItem` found nothing [src/ocutalon/cls/OcuTalon/Memory/Ops.cls:Source] — medium, fix-risk low (a lookup in the session's own queued/running turns, owner-scoped through `Ownership.TurnQueue`). Fixed: the new seam `TurnOf` falls back to the session's queued or running turn whose `RetryItemId` is the save's ItemId; `Ops:TestSource` pins told for a retried asking turn and learned for another session's retried turn. (blind-hunter + edge-case-hunter + verification-gap)
+- [x] [Review][Patch] The real `Source` error branch never ran: `OpsProbe` replaced the whole `Source`, so deleting `If $$$ISERR(sc) Quit sc` stayed green [src/ocutalon/cls/OcuTalon/Test/Memory/OpsProbe.cls] — medium (Rule 19), fix-risk low. Fixed: the probe now fails `TurnOf`, and MemoryOps' own `Source` handles the error; mutation recorded under Verification. (verification-gap)
+- [x] [Review][Patch] `Test.Docs.Chat`'s header still said "the five memory bullets (memory bullet 5 first" after the sixth bullet [src/ocutalon/cls/OcuTalon/Test/Docs/Chat.cls:3] — low, comment only. Fixed. (verification-gap)
+- [x] [Review][Defer] The learned-save eval case covers no real save and rewards a reply that claims a refused one [src/ocutalon/cls/OcuTalon/Eval/Report.cls:ScoreTurn, eval/memory-learned-save/case.json] — deferred: DW-1015 decision-pending (owner burndown); medium, confined to the report-only eval line; the Planner ruling's "one learned save whose reply carries such a sentence" is not met in substance. Recommendation in the entry. (blind-hunter + edge-case-hunter + verification-gap + acceptance-auditor)
+- [x] [Review][Defer] Nothing measures that a reply after a refused or failed learned save does not say "I'll remember that" [src/ocutalon/cls/OcuTalon/Agent/Chat.cls:68] — deferred: DW-1016 routed to 41-14 (medium, model behaviour unmeasured; the approved bullet's wording needs a ruling to change). (acceptance-auditor)
+- [x] [Review][Defer] Pre-41.8 rows also hold an empty `Source`, and 41.13's card reads through Ownership, not `Memory.Row` [src/ocutalon/cls/OcuTalon/Data/Memory.cls] — deferred: occurrence appended to DW-1014 (owner 41-12). (blind-hunter)
+- [x] [Review][Defer] The spine's 41.8 names line gives less of the phrase rule and the turn lookup than is built [ARCHITECTURE-SPINE.md, AD-29 names line] — deferred: DW-1017 wontfix-accepted (low; the line is approved text under U7). (blind-hunter + edge-case-hunter)
+
+Rejected:
+- low, by-design: "remember" anywhere in the turn, "Do you remember ...?", and missing phrases such as "save this" or "make a note" — the fixed list and whole-word rule are the approved contract (Design Notes, Decided in-stage). (blind-hunter + edge-case-hunter + acceptance-auditor)
+- low, spec-bound: AC 1 has no pinning test or `mutation:` line — the spec makes it a documentation AC checked by `lint_spine.py` (at baseline, re-run by the auditor) and the quoted lines. (verification-gap)
+- false: the learned-save report label says only "not in SM-1" — it also says "report-only", which states it is out of every gated score. (acceptance-auditor)
+
 ## Spec Change Log
 
 - **planner-2026-11-09-41.8** (spec gate, 2026-11-09; the Contest Planner under the owner's delegation, relayed by the orchestrator):
@@ -335,6 +352,22 @@ Run from the worktree root, one command per call, with `timeout: 600000`, each s
   - mutation: "one short sentence" -> "one brief sentence" in the learned-save bullet of `Chat.cls` -> red: `Tools.Memory:TestInstructions` (the six bullets once, in order, contiguous). Reverted, tree identical.
   - mutation: `Report.IsLearnedCase` always 0 (the case counts in the commands score) -> red: `Eval.Report:TestLearnedSaveReportOnly` (the commands score, the learned-save score and its line). Reverted, tree identical.
   - mutation: "Remember that" added to the turn of `eval/memory-learned-save/case.json` (a told phrase) -> red: `Eval.Cases:TestLearnedSaveCase`. Reverted, tree identical.
+
+**QA stage (2026-11-09; tag `e41s8qw`, warm, lane A):**
+- Test files added or changed (QA):
+  - `src/ocutalon/cls/OcuTalon/Test/Memory/Ops.cls` (QA): `TestSourceIgnoresSavedText`, `TestSourceReadFailsLogged`.
+  - `src/ocutalon/cls/OcuTalon/Test/Memory/OpsProbe.cls` (QA): the `SourceFailText` property, which the unreadable-turn status carries.
+  - `src/ocutalon/cls/OcuTalon/Test/Memory/Search.cls` (QA): `TestLegacyRow`.
+- Gaps closed: the model's saved text never decides `Source` (AC 2); the unreadable turn logs one redacted Type 3 warning and nothing of the memory or turn text (matrix "Turn read fails"); a row with `Source`, `Pinned` and `PinnedAt` truly empty (fixtures store Pinned 0) reads told and 0 through List, keyword search and search by meaning (AC 4, matrix "Old row").
+- mutation: `MemoryOps.OnSave` also sets `source` told when the saved text holds a phrase -> red: `Ops:TestSourceIgnoresSavedText` ("is learned: the saved text is not read"). Reverted, tree identical.
+- mutation: `MemoryOps.Failed` logs the status text without `Redact.Text` -> red: `Ops:TestSourceReadFailsLogged` (the redacted status text and "no part of the key"). Reverted, tree identical.
+- mutation: `Memory.Row` sets `source` from the row without the told default (`Set row.source = source`) -> red: `Search:TestLegacyRow`, with `TestList` and `TestSearchByMeaning`. Reverted, tree identical.
+- Runs (warm): `Test.Memory.Search` and `Test.Memory.Ops` passed after the reverts. Everything torn down.
+
+**Code review (2026-11-09; tag `e41s8cw`, warm, lane A):**
+- mutation: `Memory.Ops.Source` without `If $$$ISERR(sc) Quit sc` after `TurnOf` -> red: `Ops:TestSourceReadFails` ("failed, Ok 0, with no Ref", "no row is stored") and `Ops:TestSourceReadFailsLogged`. Reverted, tree identical (cmp with the scratch backup).
+- mutation: `Memory.Ops.TurnOf` returns after `TurnOfItem` (no retry lookup) -> red: `Ops:TestSource` ("is told: the retry's turn is read"). Reverted, tree identical.
+- Runs (warm): `Test.Memory.Ops` passed 18.7 s with the patch and again 17.3 s after the reverts; `Test.Docs.Chat` passed; `test-class-rules.sh` and `test-boundaries.sh` pass. Fresh (tag `e41s8c`): `Test.Memory.Turns` passed 17.5 s (stack ready 126 s). Both stacks torn down, no leftover container.
 
 ## Auto Run Result
 

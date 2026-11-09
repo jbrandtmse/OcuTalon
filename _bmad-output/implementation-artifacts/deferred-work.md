@@ -6207,3 +6207,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data/Memory.cls Pinned InitialExpression 0 applies to new objects only and AD-5 forbids a back-fill; 41.12's pinned read must use COALESCE(Pinned,0) or read through Memory.Row
 - 2026-11-09T10:11:19Z status=routed owner=41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star by=harvest note=for 41.12's pinned read and the cap sum
+- 2026-11-09T10:35:54Z occurrence=41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns by=cr note=code review: the same empty-on-old-rows gap holds for Source (read as told only through Memory.Row); 41.13's Memory card (Lane B, reads through Ownership, not Memory.Row) must also read COALESCE(Source,'told') and COALESCE(Pinned,0) for its tabs, labels and token sum
+
+### DW-1015: The learned-save eval case (eval/memory-learned-save, kind command) covers no real save: an eval turn's owner eval is not a session, so save_memory is refused NOSESSION, yet Eval.Report scores the case right when the reply says I'll remember that, whatever the tool answered; the line rewards a reply that claims a refused save and marks the honest reply wrong
+- source: spec-41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Eval/Report.cls ScoreTurn: right = decided && 'missing && (learned || ...) ignores steps; case.json keyPhrases only; Tools/CommandCall.cls Session() NOSESSION; Test/Eval/Report.cls LearnedRun mode 1 pins a tool-ran reply as right
+- 2026-11-09T10:35:54Z status=decision-pending owner=burndown by=cr note=Planner ruling planner-2026-11-09-41.8 not met in substance (no learned save is covered); recommendation: give the case a real session owner in the eval harness so save_memory saves, and score right only for a save_memory step with outcome saved plus the sentence; until then keep the line report-only and labelled wording-only, never promoted to a gate
+
+### DW-1016: No test or eval checks that Chat's reply after a refused or failed learned save does not say I'll remember that: the learned-save bullet (approved verbatim) and the older told bullet do not name the save's outcome, and only save_memory's description (tell the user when it was not saved) guards a false claim
+- source: spec-41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Agent/Chat.cls lines 67-68; memory-tainted-save.json mock reply; no eval case for a denied learned save (inference: model behaviour unmeasured)
+- 2026-11-09T10:35:54Z status=routed owner=41-14-evaluation-and-tests-for-memory-s-second-part by=cr note=41.14 adds an eval case: a trusted turn whose learned save is denied or fails, with absentPhrases I'll remember that; a wording change to the approved bullet needs a Planner ruling
+
+### DW-1017: The spine's 41.8 names line gives the phrase rule as whole words, case-folded and the turn as read by the save's ItemId; as built, U+2019 reads as an apostrophe, any white space joins a phrase's words, and a retried turn (Conversation.RetryItemId) is found through Ownership.TurnQueue
+- source: spec-41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: ARCHITECTURE-SPINE.md AD-29 Epic 41 second-part names line; Tools/MemorySource.cls Of; Memory/Ops.cls TurnOf (code review patch)
+- 2026-11-09T10:35:54Z status=wontfix-accepted owner=41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns by=cr note=reopen_if=a later story derives Source from the spine line alone (then amend the line under U7 with the Planner)

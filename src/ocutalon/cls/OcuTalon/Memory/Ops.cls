@@ -5,7 +5,8 @@
 ///     empty_text, Ok 0). Under the session's lock a memory of the same session, ItemId and text (the natural key; ItemId is the part of the
 ///     idempotency key before its last colon, the turn's item) is not saved a second time: the answer is saved with the first row's Ref, so a
 ///     re-sent turn adds nothing and keeps the first row's Source. Otherwise Source is decided from the person's own text of the saving turn (the Source
-///     method: told when it holds a phrase of OcuTalon.Tools.MemorySource PHRASES, else learned; learned when the session has no such turn), and a turn
+///     method: told when it holds a phrase of OcuTalon.Tools.MemorySource PHRASES, else learned; learned when the session has no such turn; the saving turn is the turn with the ItemId, or the running turn whose retry
+///     after a rejected history has it), and a turn
 ///     that cannot be read answers failed and stores nothing. The text is then embedded through OcuTalon.Memory.Embedding, and a failure answers failed and
 ///     stores nothing; else one row is written with a new Ref, SavedAt (UTC to the second), ItemId, the command's Origin, Source, Pinned 0, PinnedAt empty
 ///     and the 384-value embedding, and the answer is saved (Ok 1) with the Ref. A text over 2,000 characters cannot be saved and answers failed.
@@ -95,15 +96,33 @@ Method OnSave(request As OcuTalon.Msg.Command.SaveMemory, Output response As Ocu
 }
 
 /// Decides the source of a memory that the session's turn with this ItemId is saving: in source, OcuTalon.Tools.MemorySource TOLD when the person's own text of
-/// that turn (Data.Turn.Text, read through Data.Ownership.TurnOfItem for the session) holds a phrase of PHRASES, else LEARNED; LEARNED also when the
-/// session has no turn with the ItemId. An error status when the turn cannot be read, with source empty. A seam for the tests.
+/// that turn (Data.Turn.Text, of the turn that TurnOf finds) holds a phrase of PHRASES, else LEARNED; LEARNED also when the session has no such turn. An
+/// error status when the turn cannot be read, with source empty.
 Method Source(sessionRef As %String, itemId As %String, Output source As %String) As %Status
 {
 	Set source = ""
-	Set turn = ##class(OcuTalon.Data.Ownership).TurnOfItem(itemId, sessionRef, .sc)
+	Set turn = ..TurnOf(sessionRef, itemId, .sc)
 	If $$$ISERR(sc) Quit sc
 	Set source = $Select($IsObject(turn): ##class(OcuTalon.Tools.MemorySource).Of(turn.Text), 1: ##class(OcuTalon.Tools.MemorySource).#LEARNED)
 	Quit $$$OK
+}
+
+/// The session's turn that a save with this ItemId belongs to, or "": the turn with the ItemId (Data.Ownership.TurnOfItem), else the session's queued or
+/// running turn whose retry has it (a turn that Conversation sends again after the provider rejected the session's history carries
+/// OcuTalon.Core.Conversation RetryItemId of its ItemId). sc is an error status when the turns cannot be read. A seam for the tests.
+Method TurnOf(sessionRef As %String, itemId As %String, Output sc As %Status) As OcuTalon.Data.Turn
+{
+	Set turn = ##class(OcuTalon.Data.Ownership).TurnOfItem(itemId, sessionRef, .sc)
+	If $$$ISERR(sc) || $IsObject(turn) || (itemId = "") Quit turn
+	Set queue = ##class(OcuTalon.Data.Ownership).TurnQueue(sessionRef, .sc)
+	If $$$ISERR(sc) Quit ""
+	For i = 1:1:queue.Count() {
+		If ##class(OcuTalon.Core.Conversation).RetryItemId(queue.GetAt(i).ItemId) = itemId {
+			Set turn = queue.GetAt(i)
+			Quit
+		}
+	}
+	Quit turn
 }
 
 /// Forgets the command's memory if it is the command's session's own, or answers that there is none.
