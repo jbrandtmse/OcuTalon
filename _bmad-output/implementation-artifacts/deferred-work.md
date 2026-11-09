@@ -6230,3 +6230,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator CI / OCT-epic35 run 42633085173 | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: run 42633085173 attempts 2 and 3: shards-2/3/4 cancelled at 15:39Z and 16:22:05Z (job timeout), lane-a@rest 2017s and 2147s; attempt 1 shards-2/3 at 41.5 min; ci.yml timeout-minutes 40
 - 2026-11-09T16:25:24Z status=escalated owner=burndown by=runner note=needs a ci/units.sh group split (contended: Epic 0, Epic 11) or more capacity; reported to the orchestrator at once
+- 2026-11-09T16:26:19Z status=routed owner=burndown by=orchestrator note=resolves_by_Epic_0_Story_0.20(group_split_widened:split_unit_shard:lane-a@rest,rebalance_shards-2,-3,-4);orchestrator_ruling_2026-11-09;not_for_decisions_for_user
