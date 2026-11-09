@@ -5843,6 +5843,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 32.7 PLANNER REPORT: every DW-639 red is 'TelegramIn row 0, runtime flag 1, jobs none'; Ens takes effective Enabled from the System Default row (Ens.Director getProductionItems ~1084, EnableConfigItem 1572-1580); NotRunning() lines 154-177
 - 2026-11-08T20:16:31Z status=routed owner=burndown by=orchestrator note=planner_ruling 2026-11-08: OWN small story on the next free lane after 32.7, ahead of tier 3; Task 0 measures how Ens holds flag 1 against row 0; tests: a disabled-by-default item is not named, an enabled stopped item still is; no strings (else to the Planner)
 - 2026-11-08T23:13:05Z status=routed owner=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=runner note=charter(Story_39.11;SC-5_re-open;planner_ruling_2026-11-08)
+- 2026-11-09T00:33:15Z status=resolved-by:39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=adjudication note=build_34404bcd:NotRunning()_skips_an_item_whose_applicable_Enabled_row_is_0(ItemEnabled_helper_shared_with_Runners);pins:Test.Install.Production_TestNotRunningFollowsTheRow/FollowsABroaderRow,TelegramParked_inverted_pin;mutations_observed;Task0:Ens_keeps_a_stale_flag_while_checksum_matches(H3)
 
 ### DW-979: D3: 'Needs you' counts the person's own chat messages: after three chat questions, 'Send my digest now' printed '3 things need you: Send my digest now; What is the capital of France according to my documents?; How do I rotate the Results certificate?'. User-turn decisions ('A request from the user; the user is answered directly', outcome tellnow) were already answered and must never count
 - source: Contest Planner live demo walk of v1.0.4, 2026-11-08 ~21:30Z | severity: high | fix-risk: low | footprint: in-epic
@@ -5858,3 +5859,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-39-11-the-install-s-production-check-doesn-t-name-an-item-that-is.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 39.11 implement self-review: both repeat If '$Get($$$ConfigIsEnabled(item)) Continue; the Demo production has no row-0 item by default, so no failing path is shown
 - 2026-11-09T00:10:03Z status=wontfix-accepted owner=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=harvest note=reopen_if=a_Demo-production_item_gets_an_Enabled_row_of_0_or_the_Demo_start_wait/Eval_feed_wait_names_an_item_whose_row_is_0
+
+### DW-990: Test.Install.Production's NotRunning pins for row 1/flag 0, no row, the broader row and the live-job row skip when the production does not run or TelegramIn has a job, and ci/iris.sh run_class counts a SKIP as passed
+- source: spec-39-11-the-install-s-production-check-doesn-t-name-an-item-that-is.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: ci/iris.sh run_class fails a class only on status 0 (a SKIP is status 2); skips at Test/Install/Production.cls TestNotRunningFollowsTheRow, TestNotRunningFollowsABroaderRow, TestNotRunningLeavesOutAnItemWithAJob
+- 2026-11-09T00:31:38Z status=by-design owner=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=cr note=spec_Tasks_step1_mandates_the_skip;CI_stacks_are_parked;TelegramParked_fails_not_skips_unparked,pinning_AC1_and_row1/flag1
+
+### DW-991: Test.Install.Production repeats its TelegramIn row/flag setup (skip guards, SnapshotDefault, runtime-flag save) in two NotRunning tests, and the flag save/restore copies TelegramParked's FlagData/FlagValue
+- source: spec-39-11-the-install-s-production-check-doesn-t-name-an-item-that-is.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestNotRunningFollowsTheRow and TestNotRunningFollowsABroaderRow share about 10 setup lines; TelegramParked OnBeforeOneTest/OnAfterOneTest L56-78 hold the same flag save/restore; RunnerFixture (the shared home) is off-limits to this story
+- 2026-11-09T00:31:48Z status=wontfix-accepted owner=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=cr note=reopen_if=a_third_test_writes_TelegramIn's_row_and_runtime_flag_with_the_same_preamble_or_RunnerFixture_gains_a_flag_snapshot_helper
