@@ -183,6 +183,8 @@ Code review (2026-11-09, review tier full-opus; layers blind-hunter, edge-case-h
 
 ## Spec Change Log
 
+- planner-2026-11-09-0.15: the Contest Planner (via the orchestrator, 2026-11-09 ~08:05Z) APPROVED the release-tool hunks as shown: `release/release.sh` is path-only (header comment :48, `step_image` build line :575); `release/upgrade-harness.sh` gets the `previous_dockerfile` helper, the `phase_build` precheck and the new `previous-dockerfile` test rule; the wording nit in `add_previous_context`'s die message stays. Merge held until after the 1.0.5 cut (0.15 leads 1.0.6); after it integrates, every lane runs `ci/warm.sh down` then `up`.
+
 ## Review Triage Log
 
 ### 2026-11-08 - Review pass

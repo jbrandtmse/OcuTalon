@@ -523,3 +523,4 @@
 2026-11-09T06:57:20Z	Story 0.15	committed_local	sha=41e9e653 pushed=no reason=orchestrator(push_nothing_of_0.15_until_told) code_commit=9c32e85c note=release_hunks_to_Planner_before_merge;orchestrator_edits_pending
 2026-11-09T06:57:42Z	Story 0.18	ci_resolved	story=0.18 sha=fdd191e8 runs=42565378346,42565378445 result=success failed=none via=none resolved_at=next_plan note=covers_0.17(7e4a668d)
 2026-11-09T06:57:42Z	Story 0.17	ci_resolved	story=0.17 sha=fdd191e8 runs=42565378346,42565378445 result=success failed=none via=none resolved_at=next_plan note=0.17_head_7e4a668d_lane-a_success;merged_with_0.18_on_fdd191e8_green
+2026-11-09T08:07:42Z	Story 0.15	planner_approval	id=planner-2026-11-09-0.15 subject=release_tool_hunks(release.sh_path-only;upgrade-harness.sh_previous_dockerfile+phase_build_precheck+test_rule;wording_nit_stays) via=orchestrator merge=held_until_after_1.0.5_cut(leads_1.0.6) push=now(trigger:epic41_merged) integrate_forward=none(rule_a)
