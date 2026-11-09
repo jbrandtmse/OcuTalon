@@ -262,6 +262,9 @@ Story 11.29 (the rehearsal candidate, U-203) is planned separately. It builds on
 
 ## Spec Change Log
 
+- **planner-2026-11-09-11.18A-text** (the Contest Planner [3dd56e], relayed by the orchestrator, 2026-11-09): the `### Public text` (demo-update.sh lines, record section, draft-notes line) is APPROVED as written, with ONE condition: the hook's success line comes only after the host's status reads running and golden at `<v>`. The hook needs no heartbeat logic of its own (the demo host's tool resumes the heartbeat task after every start, and DW-1018 makes the product do it). Pin that ordering in a test. Precondition unchanged: Epic 0's 0.15 on feature first.
+- **parked: owner re-plan 2026-11-09** (the owner, via the Contest Planner and the orchestrator): parked until after voting week. Do not implement; the approved text and its condition stay on file here.
+
 ## Review Triage Log
 
 ## Design Notes

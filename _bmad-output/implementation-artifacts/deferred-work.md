@@ -6217,3 +6217,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42574755205 attempt 1 (feature 0ab2eef0) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code
 - 2026-11-09T07:39:44Z status=routed owner=burndown by=orchestrator note=first sighting; rerun of the failed job 07:40Z
+
+### DW-1022: At the first hands-on stop, a failed record push's FAIL text says to run release.sh resume, but resume refuses (R1) until the Planner's pass section exists; the push is re-offered only when the sequence ends
+- source: spec-11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: release/release.sh stop_routine record-push FAIL text; reachable only when the integration branch moved during the first hands-on stop (spec Decided 4, 12)
+- 2026-11-09T15:01:53Z status=open owner=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command by=harvest note=fix needs wording the Planner has not approved

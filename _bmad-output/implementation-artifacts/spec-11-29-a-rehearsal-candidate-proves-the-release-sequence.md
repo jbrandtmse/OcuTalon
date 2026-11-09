@@ -221,6 +221,9 @@ deferred: []
 
 ## Spec Change Log
 
+- **planner-2026-11-09-11.29-text** (the Contest Planner [3dd56e], relayed by the orchestrator, 2026-11-09): the `### Public text` is APPROVED as written; its non-blocking clarifications follow the plan's recommended answers.
+- **parked: owner re-plan 2026-11-09** (the owner, via the Contest Planner and the orchestrator): parked until after voting week. Do not implement; the approved text stays on file here.
+
 ## Review Triage Log
 
 ## Design Notes

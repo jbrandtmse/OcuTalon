@@ -243,6 +243,8 @@ Texts are under Design Notes, Public text. `<c>` is the cut sha and `<m>` is the
   3. **`ipm-install` and `ipm-install-p` as required checks:** the owner is asked to add them. Until then the `merge` step refuses, which is correct. The sequence and its tests never touch repository settings.
   4. **DW-27:** report only (the residual stays a PLANNER REPORT item).
   - **CI:** the `release-sequence` self-test moves out of the hosted `checks` job into its own hosted job before this story lands, in its own CI-only commit, with its first clean timings reported.
+- **planner-2026-11-09-11.16-text** (the Contest Planner [3dd56e], relayed by the orchestrator, 2026-11-09): the `### Public text` is APPROVED as written (ASK/PASS/SKIP/WAIT/FAIL lines, PR title and body, merge commit, tag message, merge-back commit, end Result texts, header contract, self-test rule list).
+- **parked: owner re-plan 2026-11-09** (the owner, via the Contest Planner and the orchestrator): parked until after voting week. Do not implement; the approved text stays on file here.
 
 ## Review Triage Log
 
