@@ -13,3 +13,9 @@
 2026-11-09T05:59:55Z	Epic 35	epic_context_compiled	sha=e6ef0e3f reason=initial model=opus lines=99
 2026-11-09T06:00:06Z	Story 35.1	stage_spawned	stage=plan spawn_at=2026-11-09T06:00:06Z model=opus agent_name=35-1-plan-1 cycle_iteration=1
 2026-11-09T06:28:31Z	Story 35.1	plan_clarification_requested	spawn_at=2026-11-09T06:00:06Z model=opus path=_bmad-output/implementation-artifacts/spec-35-1-fix-step-4-s-contracts-and-register-mcp-servers.md build_status=blocked questions=Q1,Q2,Q3,Q4 public_text_rows=6 security_items=4 to=orchestrator round=1
+2026-11-09T06:44:03Z	Story 35.1	ruling	question=Q1_admin_notices choice=a(attach_report_on_Mcp.Server;admin_session_API_in_35.2;notices_to_22.2) category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.1 policy=5086036
+2026-11-09T06:44:03Z	Story 35.1	ruling	question=Q2_U-177_Test.Msg.Catalog choice=a(one-time_exception) category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.1 policy=5086036
+2026-11-09T06:44:03Z	Story 35.1	ruling	question=Q3_AD-16_S6_AD-31_S8 choice=both_extensions_approved(marker=[AMENDED_2026-11-09,Story_35.1,Contest_Planner_ruling];owner_ratifies_at_attended_Update) category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.1 policy=5086036
+2026-11-09T06:44:03Z	Story 35.1	ruling	question=Q4_secret_writer choice=SettingsOps_writes_wallet_and_Config_Store;McpOps_row_and_RestartRunners_only category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.1 policy=5086036
+2026-11-09T06:44:03Z	Story 35.1	ruling	question=PUBLIC_TEXT_and_SECURITY choice=six_rows_accepted(row2_edited);security_accepted+loopback_bind_pin_test category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.1 policy=5086036
+2026-11-09T06:44:03Z	Epic 35	deps_hash_note	amendments=epics.md:Story_22.2,Story_35.1,Story_35.2(AMENDED_notes,ruling_planner-2026-11-09-35.1) reason=rule5_amendment note=orchestrator_rerecords_hash

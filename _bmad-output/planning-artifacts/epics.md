@@ -7044,6 +7044,8 @@ Tools from an added MCP server become OcuTalon's tools under the same gate, clas
 
 ### Story 22.2: Classify MCP tools by server and name
 
+[AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1 on Story 35.1, relayed by the orchestrator: (1) the admin chat notices for an unavailable MCP server and for a refused tool whose name shadows a built-in move here from Story 35.1's attach criterion, beside the changed-tool notice this story already sends; they use the accepted texts `mcp.serverUnavailable` and `mcp.toolShadowsBuiltIn` in `OcuTalon.Msg.Catalog.Watch`, read the attach report Story 35.1 records on the `OcuTalon.Mcp.Server` row, and reach the sessions whose user held `OcuTalonAdmin` at their latest sign-in through Story 35.2's read API (no run-time `%SYS` read, no AD-3 exception); (2) `OcuTalon.Core.SettingsOps` writes the server's Config Store entry `AI.MCP.OcuTalon_<server>` and its IRIS Wallet secret, called from Lane B's MCP settings route (Story 35.2), and `McpOps` writes only the `OcuTalon.Mcp.Server` row and calls `RestartRunners()`, so where the criteria below have `McpOps` write the Config Store entry, `SettingsOps` writes it; no command, log, test output or record ever carries a secret value, only a `secret://` reference]
+
 As an admin,
 I want to add and remove MCP servers, and each of their tools classified by me as read-only or risky, keyed by its server and name,
 So that a new or changed tool can never act without my say.
@@ -8951,6 +8953,8 @@ So that a red browser job means a real defect and not a timing accident.
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 22.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 21 waited for Story 22.1 while Epic 22's Story 22.2 waited for Story 21.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
 
+[AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1, relayed by the orchestrator: in the third criterion, "and tells admins" moves to Story 22.2, which sends the admin chat notices for an unavailable server and a refused shadowing tool with its changed-tool notice; this story records each attach report (status, reason, refused tools) on the `OcuTalon.Mcp.Server` row, which Settings shows, and Story 35.2 adds the read API for admins' sessions; no run-time `%SYS` read and no AD-3 exception]
+
 As an admin,
 I want the MCP servers I register attached to OcuTalon's agents so that their tools are listed for OcuTalon,
 So that I can extend OcuTalon with tools I already run.
@@ -8978,6 +8982,8 @@ So that I can extend OcuTalon with tools I already run.
 ### Story 35.2: Fix Lane B's step 4 contracts and send events to OcuTalon through a webhook
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." moved from Story 21.1, whole and verbatim with its criteria, because of the whole-epic pairing deadlock: Epic 21 waited for Story 22.1 while Epic 22's Story 22.2 waited for Story 21.1, and an epic merges only whole, so neither could merge; only its cross-references name the new numbers]
+
+[AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1 on Story 35.1, relayed by the orchestrator: this story also adds a read API that returns the sessions whose user held `OcuTalonAdmin` at their latest sign-in, recorded as a new `Session` property (a stored-data change, flagged at this story's spec gate), which Story 22.2's admin notices use; and `OcuTalon.Core.SettingsOps` writes an MCP server's Config Store entry `AI.MCP.OcuTalon_<server>` and its IRIS Wallet secret, called from the MCP settings route, while `McpOps` writes only the `OcuTalon.Mcp.Server` row and calls `RestartRunners()`; no command, log, test output or record ever carries a secret value, only a `secret://` reference]
 
 As an admin,
 I want to create webhooks, each with its own secret, that turn any JSON event into an item,

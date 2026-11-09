@@ -2,7 +2,7 @@
 title: 'Story 35.1: Fix step 4 contracts and register MCP servers'
 type: 'feature'
 created: '2026-11-09'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -18,13 +18,13 @@ deferred: []
 
 **Problem:** Step 4's feature epics (21, Lane B; 22, Lane A) need names fixed in the spine and in code before they can run in parallel, and no registered MCP server reaches OcuTalon's agents today: the adapter attaches nothing, and the bridge has no way to learn the host's servers or to report an attach back.
 
-**Approach:** Add Lane A's step 4 names to the spine as plain unions (Story 35.2 adds Lane B's). In code: a fifth bridge extension class (`McpServersClass`) through which the runner learns the registered servers and reports each attach; the `OcuTalon.Mcp.Server` table and `OcuTalon.Mcp.Ops` with the `Tools(server)` stub; the attach in `OnAfterAgentInit` through `Attach`; and a loopback mock MCP server in `OcuTalon.Test.Mcp` that Epic 22 reuses. Propose the step 4 notice wording for the author.
+**Approach:** Add Lane A's step 4 names to the spine as plain unions (Story 35.2 adds Lane B's). In code: a fifth bridge extension class (`McpServersClass`) through which the runner learns the registered servers and reports each attach; the `OcuTalon.Mcp.Server` table and `OcuTalon.Mcp.Ops` with the `Tools(server)` stub; the attach in `OnAfterAgentInit` through `Attach`; and a loopback mock MCP server in `OcuTalon.Test.Mcp` that Epic 22 reuses. Propose the step 4 notice wording for the author. Per the Contest Planner's ruling `planner-2026-11-09-35.1` (Design Notes): the attach records each report (status, reason, refused tools) on the `OcuTalon.Mcp.Server` row, which Settings shows; the admin chat notices ("tells admins" in AC3) are Story 22.2's, not this story's.
 
 ## Boundaries & Constraints
 
-**Always:** Lane A files only (U-177): `src/bridge/**`, `Mcp/**`, `Test/Mcp/**`, `Test/Bridge/**`, `Production.cls` Lane A region, the spine, EXPERIENCE.md additions; one-name appends to `ci/units.sh` and `src/short-names.tsv` (contended with Epic 41: report them). The bridge names no other OcuTalon package (AD-2, rule `bridge-refs`). Attach order in `OnAfterAgentInit`: `##super`, then `Govern`, then each server through `Attach` (AD-6, AD-21, Story 19.5). A failed or unavailable server never fails the runner's build; a missing or wrong extension class does (AD-31, no silent fallback). No secret value in a log, the trace, an audit entry, a toolref, `Attached`, a stored reason or a committed file; the test secret is random per run and removed after. The mock listens on 127.0.0.1 only, only while its test runs. Spine edits: own rows and blocks, each marked `[ADDED 2026-11-09, Story 35.1]` or `[AMENDED 2026-11-09, Story 35.1, ...]`; no new `AD-n`; no `{...}` tokens in new spine text (lint `placeholder`). Ship only author-accepted wording (UX-DR117, UX-DR145). ASCII only in source and this spec (Rule 14).
+**Always:** Lane A files only (U-177): `src/bridge/**`, `Mcp/**`, `Test/Mcp/**`, `Test/Bridge/**`, `Production.cls` Lane A region, the spine, EXPERIENCE.md additions; one-name appends to `ci/units.sh` and `src/short-names.tsv` (contended with Epic 41: report them). The bridge names no other OcuTalon package (AD-2, rule `bridge-refs`). Attach order in `OnAfterAgentInit`: `##super`, then `Govern`, then each server through `Attach` (AD-6, AD-21, Story 19.5). A failed or unavailable server never fails the runner's build; a missing or wrong extension class does (AD-31, no silent fallback). No secret value in a log, the trace, an audit entry, a toolref, `Attached`, a stored reason or a committed file; the test secret is random per run and removed after. The mock listens on 127.0.0.1 only, only while its test runs. Spine edits: own rows and blocks, each marked `[ADDED 2026-11-09, Story 35.1]` or `[AMENDED 2026-11-09, Story 35.1, ...]`; no new `AD-n`; no `{...}` tokens in new spine text (lint `placeholder`). Ship only author-accepted wording (UX-DR117, UX-DR145). ASCII only in source and this spec (Rule 14). One-time U-177 exception (ruling Q2): Lane B's `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` may be edited for the `Catalog.Watch` key count and the new keys' fixtures only. A test pins that the mock MCP server binds 127.0.0.1 only (ruling SECURITY). No command, log, test output or record ever carries a secret value, only a `secret://` reference (ruling Q4).
 
-**Never:** a Lane B file (`Core/**`, `Web/**`, `Msg/Command/**`, `Test/{Core,Web,Data,Msg,Contract}/**`; any need is an intent gap); add/remove/classify commands, `ToolClassification` rows, the fingerprint map, `call_mcp_tool`, the per-server IRIS resource, source-poll code, `BackgroundCheck` columns, the email fix kind's code (Stories 22.2 to 22.7, 21.x); a web application, role, resource, privilege grant or route; a real MCP server or network host; editing `release/**`; changing an existing AD Rule, Binds or Prevents sentence or an existing convention row.
+**Never:** a Lane B file other than the Q2 exception (`Core/**`, `Web/**`, `Msg/Command/**`, `Test/{Core,Web,Data,Msg,Contract}/**`; any need is an intent gap); the admin chat notices for an unavailable server or a refused tool, any lookup of `OcuTalonAdmin` holders, a run-time `%SYS` read (Story 22.2 and Story 35.2, ruling Q1); writing a Config Store entry or a wallet secret at run time (`SettingsOps`, Story 35.2, ruling Q4); add/remove/classify commands, `ToolClassification` rows, the fingerprint map, `call_mcp_tool`, the per-server IRIS resource, source-poll code, `BackgroundCheck` columns, the email fix kind's code (Stories 22.2 to 22.7, 21.x); a web application, role, resource, privilege grant or route; a real MCP server or network host; editing `release/**`; changing an existing AD Rule, Binds or Prevents sentence or an existing convention row.
 
 ## I/O & Edge-Case Matrix
 
@@ -95,6 +95,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-09 (lead, before plan round 2): plan round 1 halted `blocked` on Q1 to Q4; the Contest Planner's rulings `planner-2026-11-09-35.1` (Design Notes) applied: Intent Approach and Boundaries updated (attach report on `Mcp.Server`, admin notices to 22.2, Q2 exception, Q4 secret rule, 127.0.0.1 pin test), PUBLIC TEXT row 2 edited and all six rows accepted; status reset to `draft` for re-plan.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -133,14 +135,16 @@ deferred: []
 
 | Catalog key (slots) | Verbatim wording | Where it shows | Producer story |
 | --- | --- | --- | --- |
-| `mcp.serverUnavailable` (server text, time time) | "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools." | admins' chat notice | 35.1 or 22.2 (Q1) |
-| `mcp.toolShadowsBuiltIn` (server text, tool text) | "The MCP server {server} offers a tool called '{tool}', the same name as one of my built-in tools, so I won't use it. Nothing was changed." | admins' chat notice | 35.1 or 22.2 (Q1) |
+| `mcp.serverUnavailable` (server text, time time) | "I couldn't connect to the MCP server {server} at {time}, so I can't use its tools." | admins' chat notice | 22.2 (Q1) |
+| `mcp.toolShadowsBuiltIn` (server text, tool text) | "The MCP server {server} offers a tool called '{tool}', which has the same name as one of my built-in tools, so I won't use it. Nothing was changed." | admins' chat notice | 22.2 (Q1) |
 | `mcp.toolChanged` (tool text, server text) | "{tool} on {server} changed its description or inputs, so it is Unclassified again. Until an admin classifies it in Settings, it counts as risky and runs only after an approval." | admins' chat notice (beside 35.2's Settings banner) | 22.2 |
 | `mcp.replayToolChanged` (tool text, server text) | "{tool} on {server} didn't run: the tool changed after this request was made, so it needs a new approval. Nothing was changed." | result of the approved tool-call request, every channel | 22.4 |
 | `mcp.sourceStopped` (source text, tool text, server text, time time) | "The source {source} stopped polling at {time}, because its tool {tool} on {server} is no longer Read-only. Your digest lists it as not checked." | admins' chat notice | 22.5 |
 | `digest.notCheckedStopped` (entry text, time time) | "Not checked: {entry} (stopped polling at {time}: its tool is no longer Read-only)." | digest coverage line (22.5's "not checked with that reason"); proposed now so step 4's texts are accepted together | 22.5 |
 
 The implement stage takes each text from this table only after the lead records the author's acceptance here; a rejected or reworded row ships as accepted, never as proposed.
+
+**ACCEPTED (planner-2026-11-09-35.1, PUBLIC TEXT):** all six rows are accepted as they now read: rows 1 and 3 to 6 verbatim as proposed, and row 2 (`mcp.toolShadowsBuiltIn`) with the author's one edit, already applied above ("..., which has the same name as one of my built-in tools, ..."). This story adds the six to EXPERIENCE.md and the six keys to `Catalog.Watch` (with `Test/Msg/Catalog.cls` under the Q2 exception); no producer code in this story sends them.
 
 **Integration ACs (Rule 1):** consumer `BuildTurnManager` (Story 19.5) reads `Attached` and the composed turn manager lists the mock's tools (matrix row 2). `Tools(server)`: no consumer in this story; the first consumer is Story 21.4.
 
@@ -155,7 +159,15 @@ The implement stage takes each text from this table only after the lead records 
 
 **For Story 22.7 (not this story):** AD-10 L356 calls email to others risky and L361 sends risky built-ins through a fix kind; Story 22.7's AC has the gate raise kind `fix` for it, which extends AD-10 item 4 (kind `tool_call`). S6 records the path after approval only.
 
-## Clarification Needed
+**planner-2026-11-09-35.1 (rulings of the Contest Planner, relayed by the orchestrator on 2026-11-09; they settle Q1 to Q4 below, which stay for the record):**
+- **Q1: option (a).** 35.1 records each attach report on the `OcuTalon.Mcp.Server` row and Settings shows it. Story 35.2 adds the read API for the sessions whose user held `OcuTalonAdmin` at their latest sign-in, as a new `Session` property (a stored-data change, flagged at 35.2's spec gate). The admin chat notices (unavailable server, refused shadowing tool) move to Story 22.2. No run-time `%SYS` read, no AD-3 exception. The AC3 move is recorded here, in Story 22.2's block and in Story 35.1's and 35.2's blocks in `epics.md` (`[AMENDED 2026-11-09, Contest Planner ruling planner-2026-11-09-35.1 ...]` notes).
+- **Q2: option (a).** One-time U-177 exception: Lane A's 35.1 may edit Lane B's `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` for the `Catalog.Watch` key count and the new keys' fixtures (as Stories 17.5 and 17.6 had). Nothing else in that file.
+- **Q3: both extensions APPROVED,** each marked `[AMENDED 2026-11-09, Story 35.1, Contest Planner ruling]` in the spine: S6 on AD-16 (the email fix kind: the target is the fixed `EmailOut` operation; the recipients are validated parameters the approval covers exactly) and S8 on AD-31 (the fifth extension class, `McpServersClass`). Spine lint stays at its baseline. The owner ratifies both at an attended architecture Update (the Planner's list).
+- **Q4:** `OcuTalon.Core.SettingsOps` writes the wallet secret and the `AI.MCP.OcuTalon_<server>` Config Store entry, called from Story 35.2's settings route; `McpOps` writes only the `Mcp.Server` row and calls `RestartRunners()`. No command, log, test output or record ever carries a secret value, only a `secret://` reference. (S3's spine text says so.)
+- **SECURITY:** accepted as listed, no veto. ADDED: a test pins that the mock MCP server binds 127.0.0.1 only (it refuses, or is unreachable on, any non-loopback address).
+- **PUBLIC TEXT:** approved; row 2 edited (see ACCEPTED above).
+
+## Clarification Needed (resolved: planner-2026-11-09-35.1)
 
 - **Q1 (blocking; veto 7, cross-lane): how are "admins" told?** AC3 says the attach "reports an unavailable server, refuses a tool whose name shadows a built-in and tells admins". Notices are `Msg.Notification`s to a `SessionRef`, and nothing maps the holders of `OcuTalonAdmin` to sessions: `Data.Session.Recipients` is owner and watchers; `Session.ForUser(irisUser)` exists, but listing the role's holders needs `%SYS` (AD-3 lets only `Install.*` switch; a run-time privilege is a veto item); the spine names no sink or kind for admin notices (AD-21 L763, L766; AD-32 L1070). Options: (a, recommended) Story 35.2 (Lane B) adds a read API returning the sessions whose user held `OcuTalonAdmin` (by whole name, never `%All`) at their latest sign-in (an appended `Session` property: a stored-data veto item), and the admin notices for an unavailable server and a refused tool move to Story 22.2, which also needs them for a changed tool; 35.1 records the report on the `Mcp.Server` row (Settings shows it, UX L987) -- this moves part of AC3 to a not-yet-planned story; (b) keep the notices in 35.1 with Lane A reading the role's holders in `%SYS` (a new run-time privilege for the service user and an AD-3 exception); (c) another recipient rule the owner names.
 - **Q2 (blocking; U-177): may 35.1 edit Lane B's `Test/Msg/Catalog.cls`?** Adding any `Catalog.Watch` key breaks its exact count (58) and needs a fixture per key, as Stories 17.5 and 17.6 needed one-time exceptions. Options: (a, recommended) a one-time exception for 35.1 to add the accepted `mcp.*` keys and `digest.notCheckedStopped` with fixtures (one change instead of three in Epic 22); (b) 35.1 ships the EXPERIENCE.md rows only, and each producer story adds its keys with its own exception.
