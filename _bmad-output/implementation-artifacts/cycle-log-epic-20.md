@@ -13,3 +13,5 @@
 2026-11-09T17:56:53Z	Epic 20	epic_context_compiled	sha=7ec18bf1 reason=initial model=opus words=1015
 2026-11-09T17:59:39Z	Epic 20	slot_loaded	slot=ocutalon-slot-b ns=OCUTALON bridge=61 ocutalon=840 preload=1 compile=ok stale_deleted=19(epic35_mcp_classes) identity=e1eb699cd4fc
 2026-11-09T17:59:47Z	Story 20.2	stage_spawned	stage=plan spawn_at=2026-11-09T17:59:47Z model=opus agent_name=20-2-see-citations-and-memories-in-answers-plan-1 cycle_iteration=1
+2026-11-09T18:17:00Z	Story 20.2	story_created	spawn_at=2026-11-09T17:59:47Z model=opus path=_bmad-output/implementation-artifacts/spec-20-2-see-citations-and-memories-in-answers.md build_status=ready-for-dev epic_context=reused
+2026-11-09T18:17:00Z	Story 20.2	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-6,AD-12,AD-13,AD-14,AD-21,AD-25,AD-28,AD-29,AD-30,AD-33 decision_dependency=none sections_created=none owned_ledger=DW-383,DW-721,DW-733,DW-975,DW-976 addressed=3 declined=2(reowned_burndown_by_spec_gate) mutates_shared_runtime=false pending=public_text(15),veto(stored_data_turn_outbound_columns,new_user_route),spine_rows,demo_path_report model=claude-opus-5-5
