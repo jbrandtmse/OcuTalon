@@ -119,6 +119,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-09 (runner, spec gate): orchestrator rulings on the contended paths recorded under Design Notes; Planner rulings pending.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -142,6 +144,12 @@ deferred: []
 **Ledger.** DW-877 is addressed by the first Execution task and AC12; removing Story 31.4's Lane B fallback is Lane B's, not this story's.
 
 **Contended:** `EXPERIENCE.md` (Epics 35/41 in flight) should gain, after the Planner rules the Public Text: line 245 "There are seven items" -> "eight items", a new Item bullet with the More to try texts, and in the control bullet (~line 251) "item 8 presses the newest resolved incident card's Dismiss, or puts focus on the newest incident summary when there is none". This story does not edit it; `ux-strings.test.mjs` takes `ruled` entries instead. `Msg/Catalog/Watch.cls` changes only by the appended block, and `Tools/Names.cls` only by the one-name append. No other contended path is touched.
+
+**Orchestrator rulings (2026-11-09, U14, category decide; recorded by the runner):**
+- `Agent/Chat.cls` (Epic 41 in flight): plain union. This story adds its one INSTRUCTIONS line by the watch-tool rules and `incident_summary` in the doc comment's tool list, in hunks separate from Epic 41's.
+- `Msg/Catalog/Watch.cls` and `Test/Msg/Catalog.cls` (Epic 35 in flight): one append-only `summary.*` block; the key-count pin is the union of both sides' keys (reconciled at integrate-forward).
+- `EXPERIENCE.md`: this story writes its marked additive lines itself (the item count, the new More to try item bullet, the control clause) once the Planner has ruled the Public Text; a plain union at merge, the count line reconciled at integrate-forward. This supersedes "No edit of `EXPERIENCE.md` in this story" under Boundaries and the `Contended:` note above.
+- Pending with the Contest Planner: the Public Text, the veto-window items (the `Incident.Summary` column, the `incident_summary` tool), the AD-32 and AD-15 amendments (AD-32 is cited by merged Story 41.5's spec, so it is the Planner's call under U7) and the AD-33/U-177 cross-lane exception. No implement spawn before those rulings are recorded here.
 
 ## Public Text
 
