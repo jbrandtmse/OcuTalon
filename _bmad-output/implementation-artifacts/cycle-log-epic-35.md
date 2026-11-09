@@ -25,3 +25,5 @@
 2026-11-09T06:53:44Z	Story 35.1	ci_resolved	story=none sha=none runs=none result=none resolved_at=next_plan note=first_story_no_previous_push
 2026-11-09T06:53:44Z	Story 35.1	stage_spawned	stage=implement spawn_at=2026-11-09T06:53:44Z model=sonnet agent_name=35-1-implement-1 cycle_iteration=1 story_base=3b3ae39a
 2026-11-09T08:29:57Z	Story 35.1	dev_clarification_requested	spawn_at=2026-11-09T06:53:44Z model=sonnet build_status=blocked question=Q5_bridge_guide_public_text tree=dirty_reviewed_uncommitted(18_paths;safety_copy_in_scratchpad_e35s1lead) baseline_revision=fd2ea0f0 to=orchestrator round=1
+2026-11-09T08:47:33Z	Story 35.1	ruling	question=Q5_bridge_guide_public_text choice=approved_verbatim(Settings_row,five_classes+fifth_bullet,script_pins) category=veto by=orchestrator(Contest_Planner) ref=planner-2026-11-09-35.1-q5 footprint_extensions=docs/bridge-guide.md,docker/tests/test-bridge-guide.sh policy=5086036
+2026-11-09T08:47:33Z	Story 35.1	stage_spawned	stage=implement spawn_at=2026-11-09T08:47:33Z model=sonnet agent_name=35-1-implement-2 cycle_iteration=2 note=clarification_redispatch_reviewed_tree_kept

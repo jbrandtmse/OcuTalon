@@ -2,14 +2,29 @@
 title: 'Story 35.1: Fix step 4 contracts and register MCP servers'
 type: 'feature'
 created: '2026-11-09'
-status: 'ready-for-dev'
+status: 'in-progress'
 review_loop_iteration: 0
+baseline_revision: 'fd2ea0f0af0ca6b41f656f016a61bca6d6034635'
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-35-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-19-5-keep-each-online-demo-session-s-documents-and-memories-to-it.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The shadow test shows "the agent's tool runs and the mock's copy never does" on a bare tool manager, not on the agent's own manager.
+    evidence: |-
+      Test.Mcp.Attach:TestShadow builds a separate %AI.ToolMgr with the same toolset and the server and runs zz_steps_note with an allow-all policy; the agent's own manager is checked for its listing and the row's RefusedTools only (a dropped refusal turns the test red). Task 0 measured that AI Hub marks the MCP copy unavailable and never runs it.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Mcp/Attach.cls:TestShadow
+    severity: low
+  - summary: >-
+      No test compares the six accepted texts of EXPERIENCE.md's new block with Catalog.Watch.
+    evidence: |-
+      Checked once by script in the review pass (all six equal in the spec table, EXPERIENCE.md and Catalog.Watch). Test.Msg.Catalog pins Catalog.Watch to its own fixtures, and web/scripts/ux-strings.test.mjs reads page strings only, so a later edit of one side would not be flagged.
+    location: >-
+      _bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md, src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls
+    severity: low
 ---
 
 <intent-contract>
@@ -100,12 +115,75 @@ deferred: []
 - Given a test run of `Test.Mcp.Attach`, when it ends (pass or fail), then its fixture row, Config Store entry and wallet secret are gone, and no assertion message or output line held the secret value.
 - Given the accepted PUBLIC TEXT table, when the implement stage ships text, then EXPERIENCE.md's new block and `Catalog.Watch` hold exactly the six accepted texts and keys, verbatim, `Test.Msg.Catalog` passes with 64 Watch keys and their fixtures, and no code in this story sends them.
 - Given `ci/units.sh`, when `docker/tests/test-ci-config.sh` runs, then `Test/Mcp` is in exactly one shard (`lane-a`) and the check passes.
+- [ ] [Clarification] Q5 accepted (ruling planner-2026-11-09-35.1-q5, Design Notes): apply EXACTLY the three accepted edits from `## Clarification Needed (implement stage)` Q5 -- `docs/bridge-guide.md`: the `McpServersClass` Settings-table row after the `TurnToolsClass` row (verbatim), the "The extension classes" lead-in "four classes" -> "five classes" and the fifth bullet (verbatim); `docker/tests/test-bridge-guide.sh`: `turn_lines` and the `turntools` rule's comment (line 27) pin "five classes" and the new bullet -- then `bash docker/tests/test-bridge-guide.sh` passes (and its `turntools` rule goes red if the new bullet is removed: record that `mutation:` line). Nothing else in either file. Both files are footprint extensions (reported by the lead). Then finalize; the rest of the story is implemented and reviewed in the working tree.
 
 ## Spec Change Log
+
+- 2026-11-09 (lead, after implement pass 1 halted on Q5): ruling `planner-2026-11-09-35.1-q5` recorded (Design Notes); the accepted guide and script edits added as the one open `[Clarification]` item under Tasks & Acceptance; status set to `in-progress` for the re-dispatch; the reviewed work of pass 1 stays in the working tree (baseline fd2ea0f0).
 
 - 2026-11-09 (lead, before plan round 2): plan round 1 halted `blocked` on Q1 to Q4; the Contest Planner's rulings `planner-2026-11-09-35.1` (Design Notes) applied: Intent Approach and Boundaries updated (attach report on `Mcp.Server`, admin notices to 22.2, Q2 exception, Q4 secret rule, 127.0.0.1 pin test), PUBLIC TEXT row 2 edited and all six rows accepted; status reset to `draft` for re-plan.
 
 ## Review Triage Log
+
+### 2026-11-09 - Review pass
+- verdicts: 52 findings - high 1, medium 14, low 29, false 7, maybe-false 1 (14 rows are patches, several of them the same root cause under different reviewers; 1 is the intent gap; 37 are rejected)
+- findings:
+  - Blind Hunter
+    - `[medium]` `patch` ReasonOf labels a failed Config Store lookup "unreachable" when the config name holds "onnect" - the status text echoes the config name. Fixed: `ReasonOf(sc, config)` strips the config name before it tests the text; `TestReports` now uses the entry `zznoconnect`.
+    - `[medium]` `patch` refusals missed: a turn tool of a request can be shadowed by an MCP tool (the attached specs were added before the turn tools). Fixed: `BuildTurnManager` adds the MCP specs after the turn tools, so the first registered (the agent's, then the request's) tool wins. The other parts (a clash between two MCP servers, `ToolNames` throwing) are `low`, rejected: the first is left to AI Hub by Decided in-stage (4), the second needs `%Discover()` of the agent's own manager to throw right after the agent was built.
+    - `[low]` `reject` three runner kinds overwrite one row (`RecordAttach` last-runner-wins, so `RefusedTools` can differ by runner) - real, but needs a shadow name that is a built-in of one runner kind only; the per-runner summary is Story 22.2's to define when it reads the row (residual risk named in the Auto Run Result).
+    - `[medium]` `patch` an exception from `Servers` fails every build - fixed: `Servers` is called in a Try, a non-array result is treated as no list, and each server's attach is in a Try (an exception gives a `failed` report); `TestReports` and `ZzServers` pin it.
+    - `[false]` `reject` empty server name makes `RecordAttach` throw `<SUBSCRIPT>` - disproved by a run: with the guard removed `RecordAttach("")` returns the "no MCP server" error and `Test.Mcp.Tools` passes (a lock with a null subscript is legal); a guard I had added was removed again; the test line for the empty name stays.
+    - `[false]` `reject` `$` in `$Match` accepts a trailing newline - disproved by a run: `$Match("AI.MCP.x"_$Char(10), "^AI\.MCP\.[A-Za-z0-9_]+$")` is 0 (`$Match` is a full match).
+    - `[low]` `reject` `Mock.Start` waits 8 s per failed port - only when ports in 53200-53999 are busy; the fix is a new branch in a test helper.
+    - `[low]` `reject` the probe port of `TestProbeSeesAnOpenListener` can collide - one random port of 800; a retry loop is more than a direct correction.
+    - `[false]` `reject` a Lane B test edit without a U-177 comment - Decided in-stage (14) rules out a narrating comment (Rule 14); the exception is recorded in this spec and in `epics.md`.
+    - `[low]` `reject` the Task 0 evidence says "no secret" too strongly - the committed file was scanned for the run's values by the implement stage (none found) and the capture that held one is not in the tree.
+  - Edge Case Hunter
+    - `[medium]` `patch` a down server fails the request's manager at turn time and the status text (URL, credential) travels with it - same as the Verification Gap finding below; fixed in `BuildTurnManager` (an MCP spec that fails is skipped, one warning with no status text); `TestTurnServerDown`.
+    - `[low]` `reject` a subclass that attaches its own toolset after `##super` is not in the built-in set - no OcuTalon adapter overrides `OnAfterAgentInit` (grep of `src`); only the test fixture does. A host that does so can attach MCP last; the guide line is part of the open question below.
+    - `[medium]` `patch` MCP tool shadows a turn tool - same as the Blind Hunter row 2; fixed by the order.
+    - `[low]` `reject` a non-available own entry not in the built-in set is dropped silently (a clash between two servers) - Decided in-stage (4).
+    - `[low]` `reject` duplicate config twice from `Servers` - `Attach.Servers` reads unique names.
+    - `[low]` `reject` `ToolNames` swallows an exception - see row 2 of the Blind Hunter.
+    - `[low]` `reject` `GetToolStatuses` iteration throws after pushes - the entry is then reported `failed` with the spec attached; needs an AI Hub fault between two reads of the same manager.
+    - `[medium]` `patch` `Attach` could throw and abort the loop - fixed with the per-server Try.
+    - `[medium]` `patch` `Servers` throws or returns a non-array - fixed (same as the Blind Hunter row 4).
+    - `[false]` `reject` `$` accepts a trailing newline in `Server.NAMEPATTERN` - same disproof as above (`$Match`).
+    - `[medium]` `patch` `ReasonOf` matches "onnect" in the config name - same as the Blind Hunter row 1.
+    - `[low]` `reject` attached with no tool is reported attached - an empty server is a server.
+    - `[false]` `reject` `RecordAttach` lock with an empty subscript throws - same disproof.
+    - `[low]` `reject` empty or null names in `refused` - the bridge pushes names of the manager only.
+    - `[low]` `reject` `AttachedAt` is the last success, not the last attempt - that is the spec's column ("AttachedAt set" for an attached server; Story 22.2 uses the time of its own notice).
+    - `[low]` `reject` probe port collision - same as the Blind Hunter row 8.
+    - `[low]` `reject` `Mock.Reply` with no `params` - the mock serves only the clients of its test.
+    - `[low]` `reject` mock body with non-ASCII - the same.
+    - `[false]` `reject` no bad-config case with a newline - the case would pass (see the disproof above), so it pins nothing.
+    - `[maybe-false]` `reject` `Leaks` does not scan the message bodies of the trace - `KeyScan.Find` scans the agent steps and the message stores it lists; whether Ens message bodies are among them was not checked; if not, a leak there would pass (if true, low: no code path writes the secret to a message).
+    - `[medium]` `patch` claim "never logs, stores or reports AI Hub's attach error text" is false for the turn path - same as the first row; fixed.
+    - `[low]` `reject` claim "own tools win" for a subclass - same as the second row.
+    - `[medium]` `patch` claim "an error from Servers never fails the build" is false for an exception - same as the fourth row.
+  - Verification Gap
+    - `[medium]` `patch` an MCP server that is down when a turn manager is composed has no test - added `Test.Mcp.Attach:TestTurnServerDown` (mutation recorded).
+    - `[medium]` `patch` `TestFreshInstall` asserts on state it did not create - it now removes leftover `zzmcp` rows first.
+    - `[medium]` `patch` `TestShadow` "lists the name once" cannot fail on a duplicate - fixed: `Listed()` counts the manager's raw listing. The execution on the agent's own manager (not a bare one) is `low`, deferred below.
+    - `[medium]` `patch` ACs and matrix rows with no `mutation:` line - closed in this pass: eleven mutations applied, red observed, reverted byte-identical (`cmp`), lines written. The EXPERIENCE-to-catalog verbatim parity of AC7 has no test; checked here by script (all six texts equal in the spec table, EXPERIENCE.md and `Catalog.Watch`); a pinning test is `low`, deferred below.
+    - `[low]` `reject` `Leaks` checks the mock's request log, which cannot hold the value unless the mock changes - it pins the mock's rule that the log keeps matched/not matched only.
+    - `[low]` `reject` `TestReports` guards one assert with `If $IsObject(adapter.Agent)` - the preceding `Ok(BuildAgent())` fails first.
+    - `[low]` `reject` shared port range and `UseItemSetting` after a killed run - the same fixture pattern as `Test.Bridge.*`.
+    - `[high]` `intent_gap` `docs/bridge-guide.md` does not name `McpServersClass`, so `docker/tests/test-bridge-guide.sh` fails two rules (`reference`, `tables`) and CI would go red; the guide's "four classes" lead-in is a line Story 19.5 ruled (the `turntools` rule), so the fix is public text plus a ruled line plus that script's pin - not decided in-stage. Routed to `## Clarification Needed` below.
+    - `[low]` `reject` `AttachOne` can report unavailable while the spec is attached (the status loop throws) - needs an AI Hub fault between two reads.
+    - `[low]` `reject` `ToolNames` swallows - see above.
+    - `[low]` `reject` a shadowed tool from two MCP servers is dropped silently - Decided in-stage (4).
+  - Intent Alignment (descriptive; no defect claimed)
+    - `[low]` `reject` tests build the agent of a shadow runner of the test adapter, not the production's runner items - the same surface as Stories 19.5 and 17.x; the production setting is pinned by `Test.Install.Production`.
+    - `[low]` `reject` "held for approval in a user turn" is not asserted in `Test.Mcp.Attach` - the user-turn hold of an unclassified tool is `Test.Bridge.Gate`'s existing rows; the new test asserts the classification and the untrusted denial.
+    - `[low]` `reject` "never runs" is shown on a bare manager - the agent's own manager would run the real MCP client; deferred as the `low` item below.
+    - `[low]` `reject` the unreachable report is asserted through the row - the row is the surface the ruling names.
+    - `[low]` `reject` bad config reaches the bridge only through the fixture class - `Attach.Servers` builds valid names by construction.
+    - `[low]` `reject` spine edits beyond the Lane A names (S4, S6, S7) - listed in the spec's Design Notes as S1-S9 and approved by the ruling (Q3).
+    - `[low]` `reject` texts shipped before "author acceptance" - accepted by planner-2026-11-09-35.1.
+    - `[false]` `reject` `Msg/Catalog/Watch.cls` is a Lane B file - it is Lane A's (project block); only `Test/Msg/Catalog.cls` is the exception.
 
 ## Design Notes
 
@@ -166,6 +244,8 @@ The implement stage takes each text from this table only after the lead records 
 
 **CI (`ci/units.sh`):** `Test/Mcp` is a new Lane A area: append `Mcp` to `shard_areas lane-a`; `shard:lane-a@rest` in group `shards-2` takes it with no other change (about 1,996 s of 2,100 s now; Epic 41, still open, moves `live:security-overview` into `shards-2` with a projected 32 minutes; the area adds well under a minute, (inference)). No group or job changes. New unit names: none (classes only). The implement stage records the three `Test.Mcp` classes' warm times in its evidence; if `shards-2`'s first CI run with this story passes 35 minutes, moving a piece is a change to Epic 41's contended lines and goes to the lead as an intent gap.
 
+**Decided in-stage (review pass additions):** (17) an MCP spec that fails in `BuildTurnManager` is skipped with one warning that holds no status text (AI Hub's text can hold the resolved credential), and the MCP specs are added after the turn tools, so a tool of the agent or of the request always wins a name; (18) `Servers`, each attach and `OnAttach` are in a Try: only a missing or wrong class fails the build; (19) `ReasonOf` ignores the config name in AI Hub's text.
+
 **Decided in-stage:** (1) the attach channel is a fifth extension class, `McpServersClass` (the bridge cannot name `OcuTalon.Mcp`, AD-2; reading Config Store names directly would ignore the `Mcp.Server` row the AC names and gives no report path); (2) the host returns `{server, config}` and the bridge builds the `mcp:remote:@{config:...}` spec and validates the config name; (3) `AttachReason` is a code-written word, never AI Hub's reason text (no URL or header in storage); (4) built-in set = the manager's tool names before the first MCP attach; a clash between two MCP servers is left to AI Hub and recorded by Task 0; (5) no event-log line for an unavailable server (the report goes to the host; the system-log vital sign stays quiet); (6) `Tools(server)` vocabulary per S5; (7) `Mcp.Ops` extends `Ens.BusinessOperation` but joins the production only in Story 22.2; (8) source-poll rows go through `Watch.Ops` row methods (S4) so AD-33's Prevents "three writers of one table" holds; (9) every runner attaches (AD-21 "the runner"), as the spine says; (10) the email kind's send uses origin `system` (AD-1's enumeration; no bridge context in `FixExecutor`). Round 2 (after ruling planner-2026-11-09-35.1): (11) the story stays whole: its parts share one fixture chain (mock, row, entry, runner build) and the spine and text edits are small, so a split would add a full story cycle without unblocking anything earlier (the epic merges whole); (12) `RecordAttach` stores only the bridge's code words in `AttachReason`, so the row Settings and 22.2 read holds no URL, header or AI Hub text; (13) the bind pin test fails rather than skips when no non-loopback address exists, so it can never pass vacuously; (14) no narrating comment goes into `Test/Msg/Catalog.cls` for the exception (Rule 14): this spec and `epics.md` record it; (15) the EXPERIENCE block's Case labels are design-doc labels (not shipped), built from the table's "Where it shows" column; (16) the mock records the auth header as matched or not, never its value, so its request log cannot leak the secret.
 
 **For Story 22.7 (not this story):** AD-10 L356 calls email to others risky and L361 sends risky built-ins through a fix kind; Story 22.7's AC has the gate raise kind `fix` for it, which extends AD-10 item 4 (kind `tool_call`). S6 records the path after approval only.
@@ -178,12 +258,23 @@ The implement stage takes each text from this table only after the lead records 
 - **SECURITY:** accepted as listed, no veto. ADDED: a test pins that the mock MCP server binds 127.0.0.1 only (it refuses, or is unreachable on, any non-loopback address).
 - **PUBLIC TEXT:** approved; row 2 edited (see ACCEPTED above).
 
+**planner-2026-11-09-35.1-q5 (Contest Planner ruling, relayed by the orchestrator, 2026-11-09):** Q5 APPROVED verbatim: the Settings-table row for `McpServersClass`, "five classes" plus the fifth bullet in "The extension classes", and the `test-bridge-guide.sh` pins (`turn_lines`, the `turntools` rule's comment) moved to them. `docs/bridge-guide.md` and `docker/tests/test-bridge-guide.sh` are footprint extensions of Epic 35.
+
 ## Clarification Needed (resolved: planner-2026-11-09-35.1)
 
 - **Q1 (blocking; veto 7, cross-lane): how are "admins" told?** AC3 says the attach "reports an unavailable server, refuses a tool whose name shadows a built-in and tells admins". Notices are `Msg.Notification`s to a `SessionRef`, and nothing maps the holders of `OcuTalonAdmin` to sessions: `Data.Session.Recipients` is owner and watchers; `Session.ForUser(irisUser)` exists, but listing the role's holders needs `%SYS` (AD-3 lets only `Install.*` switch; a run-time privilege is a veto item); the spine names no sink or kind for admin notices (AD-21 L763, L766; AD-32 L1070). Options: (a, recommended) Story 35.2 (Lane B) adds a read API returning the sessions whose user held `OcuTalonAdmin` (by whole name, never `%All`) at their latest sign-in (an appended `Session` property: a stored-data veto item), and the admin notices for an unavailable server and a refused tool move to Story 22.2, which also needs them for a changed tool; 35.1 records the report on the `Mcp.Server` row (Settings shows it, UX L987) -- this moves part of AC3 to a not-yet-planned story; (b) keep the notices in 35.1 with Lane A reading the role's holders in `%SYS` (a new run-time privilege for the service user and an AD-3 exception); (c) another recipient rule the owner names.
 - **Q2 (blocking; U-177): may 35.1 edit Lane B's `Test/Msg/Catalog.cls`?** Adding any `Catalog.Watch` key breaks its exact count (58) and needs a fixture per key, as Stories 17.5 and 17.6 needed one-time exceptions. Options: (a, recommended) a one-time exception for 35.1 to add the accepted `mcp.*` keys and `digest.notCheckedStopped` with fixtures (one change instead of three in Epic 22); (b) 35.1 ships the EXPERIENCE.md rows only, and each producer story adds its keys with its own exception.
 - **Q3 (confirm; AD-16): is S6 an extension?** AD-16 Prevents "a fix sent to a target the model chose" and its Rule says "The target operation and the message list come from the failure group". S6 reads the target as the operation (`EmailOut`, fixed) and the recipients as validated parameters the approval covers exactly; a standalone fix has no failure group, so the sentence does not cover it. If the lead reads recipients as targets, S6 conflicts with AD-16 and needs an AD amendment.
 - **Q4 (not blocking 35.1; security, for Stories 35.2 and 22.2):** who writes the wallet secret and the `AI.MCP.OcuTalon_<server>` entry at run time is unsettled: AD-19 L657 makes `SettingsOps` the only settings writer, while McpOps owns the server; S3 only fixes that no command carries a secret value.
+
+## Clarification Needed (implement stage, 2026-11-09; resolved: planner-2026-11-09-35.1-q5)
+
+- **Q5 (blocking the finalize commit; veto 5, public text; a line ruled by Story 19.5): `docs/bridge-guide.md` and the guide's script `docker/tests/test-bridge-guide.sh` must follow the new `McpServersClass` setting.** Adding the setting to `Decide` makes two rules of `bash docker/tests/test-bridge-guide.sh` fail (`reference`: the guide names every setting of `Decide`; `tables`: every setting is the first cell of a row of the Settings table), and the hosted `checks` job and the release checklist (row bridge-guide) run that script, so CI would go red. The guide is public text, the spec lists no guide edit, and its "four classes" lead-in and the TurnTools bullet are lines Story 19.5 ruled, which `turn_lines` in that script pins whole-line (the `turntools` rule). Proposed, for the Contest Planner's acceptance (nothing is applied; the tree holds the story's other work, reviewed and green, uncommitted):
+  - Settings table, after the `TurnToolsClass` row (guide line 172): `| McpServersClass | OcuTalon.Bridge.Ext.McpServers | The class that names the MCP servers an agent attaches and receives the report of each attach. See "The extension classes". |`
+  - "The extension classes": the lead-in "four classes" becomes "five classes", and a fifth bullet: "- `OcuTalon.Bridge.Ext.McpServers` (`McpServersClass`): `Servers(servers)` returns the MCP servers to attach, each an object with `server` and `config` (the name of a Config Store entry AI.MCP.<name>); `OnAttach(server, report)` receives the report of each attach: `status` (`attached` or `unavailable`), `reason`, the `tools` attached and the `refused` ones. After the agent's own tools are on the manager the runner attaches each server, and an unavailable server never fails the build. It attaches nothing by default."
+  - The Settings intro (guide line 153) needs no change: the setting is read when an agent is built, so it takes effect when the item restarts, as the intro says of every other setting.
+  - `docker/tests/test-bridge-guide.sh`: the `turn_lines` function (and the `turntools` rule's comment, line 27) pin the lead-in as "four classes"; they move to "five classes" and the new bullet.
+  - After the acceptance: apply the guide edits and the script pins, run `bash docker/tests/test-bridge-guide.sh`, then the finalize commit (nothing else is open).
 
 ## Verification
 
@@ -208,9 +299,45 @@ Lane variables for every `ci/` call below (`LANE`): `OCUTALON_LOCK_DIR="$(dirnam
 
 **Pinning mutations (to record as `mutation:` lines when the tests exist):** remove the attach loop from `OnAfterAgentInit` -> `Test.Mcp.Attach` attach test red; skip `Attach` and call `AddTool` directly -> per-turn test red; let an `OnAttach` error return from the build -> unavailable test red; drop the shadow refusal -> shadow test red; store AI Hub's reason text -> secret-leak test red; return a fixture tool from the stub -> `Test.Mcp.Tools` red; make `RecordAttach` write nothing -> the row assertions of the unavailable and shadow tests red; open the mock's listener without `/BINDTO` -> `Test.Mcp.Loopback.TestBindsLoopbackOnly` red; change one word of `mcp.toolShadowsBuiltIn` in `Catalog.Watch` -> `Test.Msg.Catalog` fixture test red.
 
+**Mutations run (implement stage, warm throwaway e35s1iw; each applied, observed red, reverted with the file byte-identical by a saved copy and `cmp`):**
+- mutation: remove the attach loop (`OnAfterAgentInit` ends at `Govern`) -> `Test.Mcp.Attach:TestAttach` red (the manager lacks the mock's tools, `Attached` holds no mcp spec, the row is empty, the mock got no request).
+- mutation: call `AddTool` directly instead of `Attach` -> `Test.Mcp.Attach:TestTurnManager` red (the composed manager lacks the mock's tools, since `BuildTurnManager` re-adds only recorded specs).
+- mutation: let the `OnAttach` status end the build (return it from the attach loop) -> `Test.Mcp.Attach:TestReports` red (not every server gets its report, and the build fails).
+- mutation: drop the shadow refusal (no refused name is listed) -> `Test.Mcp.Attach:TestShadow` red (the row's `RefusedTools` is empty).
+- mutation: store AI Hub's reason text in the report and in the row -> `Test.Mcp.Attach:TestUnavailable` red (the row's reason is not the code word and the secret check names the row).
+- mutation: return a fixture tool from `Mcp.Ops.Tools` -> `Test.Mcp.Tools:TestToolsStub` red.
+- mutation: make `RecordAttach` write nothing (`Set sc = $$$OK` for `%Save`) -> `Test.Mcp.Attach:TestUnavailable` and `TestShadow` red (the row assertions).
+- mutation: open the mock's listener without a bind (`LocalInterface` empty) -> `Test.Mcp.Loopback:TestBindsLoopbackOnly` red (the non-loopback address accepts).
+- mutation: change one word of `mcp.toolShadowsBuiltIn` in `Catalog.Watch` ("so I won't use it" to "so I will not use it") -> `Test.Msg.Catalog` red (the fixture test on every channel).
+
+- mutation (review pass): make `BuildTurnManager` return the status of an MCP spec's `AddTool` -> `Test.Mcp.Attach:TestTurnServerDown` red (the request's manager is not composed).
+- mutation (review pass): rethrow the exception of `Servers` in `AttachServers` -> `Test.Mcp.Attach:TestReports` red (the build fails when `Servers` throws).
+- mutation (review pass): do not strip the config name from the status text in `ReasonOf` -> `Test.Mcp.Attach:TestReports` red (an entry named `..._zznoconnect` is reported unreachable).
+- mutation (review pass): read the class `OcuTalon.Mcp.Attach` whatever the setting says -> `Test.Mcp.Attach:TestBridgeAlone` red (the mock gets requests, its tools are on the manager).
+- mutation (review pass): return OK instead of the accessor's error when the class is missing or wrong -> `Test.Mcp.Attach:TestWrongClass` red.
+- mutation (review pass): skip the config-name check in `AttachOne` -> `Test.Mcp.Attach:TestBadConfig` red (the reports are not `invalid`).
+- mutation (review pass): make `OcuTalon.Mcp.Attach.Servers` return a server with no row -> `Test.Mcp.Attach:TestFreshInstall` red (AC4: a fresh install attaches nothing).
+- mutation (review pass): skip the removal of the wallet collection in the test's `Remove` -> `Test.Mcp.Attach` red in every test ("the test leaves no fixture behind", AC6).
+- mutation (review pass): let the gate's extension path classify an `mcp:` toolref as safe -> `Test.Mcp.Attach:TestAttach` red (the tools are not unclassified and not denied in an untrusted turn).
+- mutation (review pass): rename the key `digest.notCheckedStopped` in `Catalog.Watch` -> `Test.Msg.Catalog` red (the fixtures no longer match the keys, AC7).
+- mutation (review pass): remove `Mcp` from the lane-a areas of `ci/units.sh` -> `docker/tests/test-ci-config.sh` red (`Test/Mcp` is in no shard, AC8).
+- mutation (review pass): add a `{x}` token to the new `McpServersClass` spine text -> the spine lint reports eleven findings instead of ten (AC1).
+
 ## Auto Run Result
 
 Plan round 2 (after ruling planner-2026-11-09-35.1): Q1 to Q4, SECURITY and PUBLIC TEXT applied to the tasks, acceptance criteria, Code Map, spine edits (S3, S5, S6, S8), Consumed-by and Verification; the rest of round 1's plan re-verified where a ruling touched it and kept. The story stays whole (Design Notes, Decided in-stage 11). Nothing new blocks.
 
-Status: ready-for-dev
-Blocking condition: none
+Implement and review (2026-11-09, runner B, warm throwaway e35s1iw): Task 0 found no intent gap (evidence file `evidence/35-1-task0-mcp-attach.md`); the story is implemented and reviewed. One item stops the finalize commit: Q5 above (the bridge guide and its script). Every other part is done, verified and left in the working tree, uncommitted (baseline fd2ea0f0af0ca6b41f656f016a61bca6d6034635).
+
+Summary: the fifth bridge extension `McpServersClass` (`Ext/McpServers`, `Accessor.BASES`, `Decide` setting); the attach in `OnAfterAgentInit` after `Govern` (`AttachServers`, `AttachOne`, `ReasonOf`, `ReportAttach`) with the shadow refusal; the MCP specs re-added after the turn tools and skipped when a server is down at turn time; `OcuTalon.Mcp.Server`, `Mcp.Ops` (`Tools` stub, `RecordAttach`), `Mcp.Attach`, the `Production.cls` Decide setting; the loopback mock `Test.Mcp.Mock` and the tests `Test.Mcp.{Attach,Tools,Loopback}`; spine S1-S9 with markers; the six accepted texts in EXPERIENCE.md and `Catalog.Watch` (64 keys) with `Test.Msg.Catalog` (the Q2 exception).
+
+Files changed: `src/bridge/cls/OcuTalon/Bridge/{Ext/McpServers,Ext/Accessor,Process/Decide,Adapter/Agent}.cls`; `src/ocutalon/cls/OcuTalon/Mcp/{Server,Ops,Attach}.cls`; `src/ocutalon/cls/OcuTalon/Production.cls`; `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`; `src/ocutalon/cls/OcuTalon/Test/Mcp/{Mock,Attach,Tools,Loopback,ZzServers,ZzAllow}.cls`; `Test/Bridge/{Ext,ZzTurnAdapter}.cls`; `Test/Install/Production.cls`; `Test/Msg/Catalog.cls` (Q2); `ci/units.sh` (one name); `src/short-names.tsv` (one row); the spine; EXPERIENCE.md; the evidence file; this spec. Contended files touched, each as allowed: `ci/units.sh`, `src/short-names.tsv`, `Production.cls`, the spine.
+
+Review: 52 findings (high 1, medium 14, low 29, false 7, maybe-false 1); 14 patched (several the same root cause), 37 rejected with reasons in the triage log, 1 intent gap (Q5), 2 deferred (low). The patches: a down MCP server no longer fails a request's manager nor puts AI Hub's status text on its path; the MCP specs come after the turn tools; `Servers`, each attach and `OnAttach` are in a Try; `ReasonOf` ignores the config name; the tests `TestTurnServerDown`, a hermetic `TestFreshInstall`, a real once-count in `TestShadow`, and an empty-name case in `Test.Mcp.Tools`. Twelve mutation lines were added to Verification (each applied, red observed, reverted byte-identical).
+
+Verification (warm throwaway e35s1iw, after the patches): `Test.Mcp.Attach` (36 s), `Tools`, `Loopback`, `Test.Msg.Catalog` (64 Watch keys), `Test.Bridge.Ext`, `TurnTools`, `Gate`, `Decide`, `Contracts`, `Conversation`, `Runner`, `Test.Channel.TelegramChat` and `Test.Install.Production` all passed; `node --test web/scripts/catalog.test.mjs` 66 of 66; `test-class-rules.sh`, `test-storage.sh`, `test-ci-config.sh`, `test-boundaries.sh` exit 0; the spine lint reports the ten baseline findings only. FAILS: `bash docker/tests/test-bridge-guide.sh` (Q5). Not run here (left to CI and the lead): the full `lane-a` shard and the fresh-environment check.
+
+Residual risks: (1) Q5; (2) the attach report is one row per server written by every runner kind, last writer wins, so `RefusedTools` can show the names of one runner kind (Story 22.2 defines which report counts when it reads the row); (3) a server that goes down after a build still shows on the agent's own manager until the runners restart (AI Hub behaviour, Task 0 section 3); the request's manager skips it; (4) the user-turn hold of an unclassified MCP tool rests on `Test.Bridge.Gate`'s existing rows.
+
+Status: blocked
+Blocking condition: intent gap: Q5, public text and a ruled line in docs/bridge-guide.md and its script docker/tests/test-bridge-guide.sh must follow the new McpServersClass setting (proposed wording in Clarification Needed); everything else is done, reviewed and uncommitted in the working tree
