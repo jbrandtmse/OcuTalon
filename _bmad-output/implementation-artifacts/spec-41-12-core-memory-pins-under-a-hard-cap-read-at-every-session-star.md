@@ -2,7 +2,7 @@
 title: "Story 41.12: Core memory: pins under a hard cap, read at every session start"
 type: 'feature'
 created: '2026-11-09'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -67,133 +67,107 @@ deferred: []
 
 ## Code Map
 
-Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers are as of `0183ce4f`.
+Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers are as of `0183ce4f`; nothing under `src/`, `web/`, `docker/` or `ci/` has changed since (checked at `65d8f389`).
 
-- `Memory/Ops.cls`:
-  - MessageMap (44-57): add `PinMemory`→`OnPin` and `UnpinMemory`→`OnUnpin`.
-  - Model both handlers on `OnForget` (135-161): the no_session check, `Lock`, `RefIndexOpen` with the owner check, Try/Catch, release.
-  - Reuse `Answer` and `Failed` (204-235). The pin answers carry an empty Message, as `OnSearch` does (186), because the web layer never relays it.
-  - Class comment:
-    - add the two handlers;
-    - fix line 22 for DW-1029: SaveMemory comes from origin tool; ForgetMemory from tool or web_user; PinMemory, UnpinMemory and SearchMemory from web_user only.
+**The one block computation (the cap ruling).** Two methods, one formatter:
+- `Agent.Input.CoreBlock(texts As %DynamicArray) As %String` (new, public, pure): the exact text Render inserts for the core memory. `""` for no texts; otherwise `COREOPENING`, then for each text `LF_..Quoted(text)`, then `LF LF`. It is the only place the block is formatted (AD-7: `Agent.Input` is the one renderer). No SQL, no reads.
+- `Memory.CoreBlock(sessionRef, candidate As %String = "", Output block As %String) As %Status` (new, public): reads `Pinned` for the session, puts `candidate` (a text) first when it is not `""`, and answers `Agent.Input.CoreBlock` of the texts. The cap check (with the candidate) and `Agent.Input.CorePart` (without) both call it. An empty session is an error status, with `block` `""`.
+- The cap: `$Length(block) > ##class(OcuTalon.Memory).#COREMAX` refuses.
+
+Files:
 - `Memory.cls`:
-  - Add `Parameter PINCAPTOKENS = 1000` and `CHARSPERTOKEN = 4`.
-  - Add `ClassMethod Pinned(sessionRef, Output rows As %DynamicArray) As %Status`, a sibling of `List` (129-150):
-    - `SELECT Ref, Text, SavedAt, Origin, Source, Pinned FROM ... WHERE SessionRef = ? AND COALESCE(Pinned, 0) = 1 ORDER BY PinnedAt DESC, ID DESC`;
-    - rows are shaped by `Row` (197);
-    - an empty session is an error status.
-  - Add it to the class comment. List and Search are unchanged.
+  - Add `Parameter PINCAPTOKENS = 1000;`, `Parameter CHARSPERTOKEN = 4;` and `Parameter COREMAX = {..#PINCAPTOKENS * ..#CHARSPERTOKEN};` (the brace form as `NEARESTSQL` at 45).
+  - Add `ClassMethod Pinned(sessionRef, Output rows As %DynamicArray) As %Status`, a sibling of `List` (129-150): `SELECT Ref, Text, SavedAt, Origin, Source, Pinned FROM ... WHERE SessionRef = ? AND COALESCE(Pinned, 0) = 1 ORDER BY PinnedAt DESC, ID DESC`; rows shaped by `Row` (197); an empty session is an error status.
+  - Add `CoreBlock` (above).
+  - Class comment (1-18): add `Pinned`, `CoreBlock` and the cap constants. `List` and `Search` are unchanged.
+- `Memory/Ops.cls`:
+  - MessageMap (44-57): add `PinMemory`→`OnPin`, `UnpinMemory`→`OnUnpin`.
+  - Both handlers follow `OnForget` (135-161): the no_session check, `Lock`, `RefIndexOpen` with the owner check, Try/Catch, release.
+  - `OnPin`: an own row already pinned (`+row.Pinned = 1`) answers `pinned` with no write. Otherwise `Memory.CoreBlock(request.SessionRef, row.Text, .block)`; an error status is `Failed`; over `COREMAX` answers `Answer(.response, 0, "over_cap", "")` and writes nothing; else `Pinned` 1, `PinnedAt` `Data.Time.NowUtc()`, `%Save`, `Answer(.response, 1, "pinned", "", row.Ref)`.
+  - `OnUnpin`: own row → `Pinned` 0, `PinnedAt` "", `%Save`, `unpinned`.
+  - Reuse `Answer` and `Failed` (204-235). The pin answers carry an empty Message, as `OnSearch` does (185).
+  - Class comment: the two handlers, and line 22 for DW-1029 (SaveMemory from origin tool; ForgetMemory from tool or web_user; PinMemory, UnpinMemory and SearchMemory from web_user only).
 - `Agent/Input.cls`:
   - `Render` (48): a user item becomes `preamble_LF LF_PersonaPart_CorePart_NotesPart_text`.
-  - New private `CorePart(item, context)`, modelled on `PrecedentPart`'s whole-line bound (113-126) and `NotesPart`'s Try/Catch and warning (76-90).
-  - New private seam `PinsOf(sessionRef)` that calls `Memory.Pinned` and throws on an error status.
-  - Add `Parameter COREOPENING = "Your core memory (facts you pinned):"`, `COREMAX = 4000` (equal to `PINCAPTOKENS * CHARSPERTOKEN`; a test pins the equality) and `LOGCORE`.
-  - `NotesPart`/`NoteOf` (72-98): pass `item.ItemId` as Build's new third argument.
-  - Update the class comment (1-31).
-- `Data/DailyNote.cls`:
-  - `Build(sessionRef, day, itemId As %String = "")` (58).
-  - When `itemId` names a turn of the session (`Ownership.TurnOfItem`, through the existing `TurnOf` seam at 188), `Messages` (127-137) skips that turn and every turn after it by (CreatedAt, ID), and `Decisions` (141-160) skips decisions whose `TurnOf(row.ItemId)` is a skipped turn.
-  - Update the header (1-16).
-- `Core/Conversation.cls` `StartsSession` (443-474):
-  - The loop condition (462) also requires the earlier turn to have reached a model: `FallbackReason = ""`, or its `TurnDecisionRef` has a Usage row of the session.
-  - A read error returns 1 with one `LOGSTART` warning.
-  - Update the doc comment and the header lines 15-17.
-- `Data/Ownership.cls`: add `DecisionServed(decisionRef, sessionRef, Output sc) As %Boolean`, which is 1 when the decision has at least one Usage row of the session. It is a sibling of `DecisionChannel` (769-781) and reads the same `turnUsage` kind (996). Added lines only.
-- `Test/Agent/InputProbe.cls:7`: the `NoteOf` override takes and passes the new argument. Add a `PinsOf` override that throws while `^||InputProbe("failCore")` is set.
+  - New private `CorePart(item, context)`: `""` unless provenance `user`, `..Flag(context, "sessionStart")` and `##class(OcuTalon.Bridge.Approval).IsRef(item.SessionRef)` (as `PrecedentPart` at 107; `src/bridge/cls/OcuTalon/Bridge/Approval.cls:288`). Then `..CoreOf(item.SessionRef)` in a Try/Catch modelled on `NotesPart` (76-90): a throw gives `""` and one `LOGCORE` warning (redacted). It inserts what `CoreOf` answers unchanged: no bound, no cut.
+  - New private seam `CoreOf(sessionRef)`: `Memory.CoreBlock(sessionRef, "", .block)`, throws on an error status, answers `block`.
+  - New public `CoreBlock(texts)` (above).
+  - Add `Parameter COREOPENING = "Your core memory (facts you pinned):";` and `Parameter LOGCORE = "The core memory of the session could not be read, so it was left out of the input: ";` beside `NOTESOPENING` and `LOGNOTES` (154, 169).
+  - `NotesPart`/`NoteOf` (72-98): pass `item.ItemId` as `Build`'s new third argument.
+  - Class comment (1-31): the core block's place, its form, `CoreBlock`, and that it is never cut.
+- `Data/DailyNote.cls`: `Build(sessionRef, day, itemId As %String = "")` (58). When `itemId` names a turn of the session (`Ownership.TurnOfItem` through the `TurnOf` seam at 188), `Messages` (127-137) skips that turn and every later turn by (CreatedAt, ID), and `Decisions` (141-160) skips decisions whose `TurnOf(row.ItemId)` is a skipped turn. Update the header (1-16).
+- `Core/Conversation.cls` `StartsSession` (443-474): the loop condition (462) also requires the earlier turn to have reached a model, either `FallbackReason = ""` or its `TurnDecisionRef` has a Usage row of the session (`Ownership.DecisionServed`). A read error returns 1 with one `LOGSTART` warning. Update the doc comment and header 15-17.
+- `Data/Ownership.cls`: add `DecisionServed(decisionRef, sessionRef, Output sc) As %Boolean`, 1 when the decision has a Usage row of the session. Sibling of `DecisionChannel` (769-781), reading the `turnUsage` kind (996). Added lines only.
+- `Test/Agent/InputProbe.cls`: the `NoteOf` override (7) takes and passes the third argument. Add a `CoreOf` override that throws while `^||InputProbe("failCore")` is set, else `##super`.
 - Read only:
-  - `Core/CommandsIn.cls:235-236` (the routes);
+  - `Core/CommandsIn.cls:235-236`;
   - `Web/Api.cls:1908-1929` `MemoryItemCommand` (Ok→200, not_found 404, over_cap 409, else 500);
   - `Msg/Command/PinMemory.cls`;
-  - `bridge/.../Process/Decide.cls:1147-1161, 1271-1281, 1595-1638` (a precheck or a thrown Chat with no spend writes no Usage row);
-  - `Test/Data/Fixture.cls:22, 35, 160` (`Session`, `Turn`, `Usage`).
+  - `src/bridge/.../Process/Decide.cls:1147-1161, 1271-1281, 1595-1638` (a precheck or a thrown Chat with no spend writes no Usage row);
+  - `Test/Data/Fixture.cls:22, 35, 160` (`Session`, `Turn`, `Usage`);
+  - `Test/Web/MemoryApi.cls:674-693` (`Memory`: a fixture row with a vector of ones, `pinned` optional);
+  - `web/e2e/support/memory.ts:72` (`seedMemory`).
 - Tests:
-  - `Test/Memory/Pins.cls` (new, area Memory, shard lane-a). Safe on a slot. It calls the handlers on a shadow instance of `OcuTalon.Memory.Ops`, with a fixture session and memory rows saved directly with a vector of ones (`Test.Memory.Fixture.ToVector`, as `Test.Web.MemoryApi.Memory` at 674-693), so it needs no embedder and no production.
-  - `Test/Agent/RenderMemory.cls`: core-block tests.
+  - `Test/Memory/Pins.cls` (new, area Memory, shard lane-a). Safe on a slot: it calls the handlers on a shadow instance of `OcuTalon.Memory.Ops`, with a fixture session and rows saved directly with a vector of ones (`Test.Memory.Fixture.ToVector`, as `MemoryApi.Memory`). No embedder, no production.
+  - `Test/Agent/RenderMemory.cls`: the core-block tests.
   - `Test/Data/DailyNote.cls`: the DW-977 cut.
   - `Test/Data/OwnershipNotes.cls`: `DecisionServed`.
-  - `Test/Core/ConversationSessionStart.cls`: DW-967 cases in `TestStartsSessionBoundaries` (183-213, after the refused case at 198-201), and the integration test.
-  - `Test/Core/CommandsStep3Probe.cls:21-22`: dispatch `PinMemory`→`OnPin` and `UnpinMemory`→`OnUnpin`.
-  - `Test/Core/CommandsStep3.cls`: wherever a pin's outcome is now the handler's.
-  - `Test/Web/MemoryApi.cls` `TestPin` (432-465): the real-mode tail and its doc comment.
+  - `Test/Core/ConversationSessionStart.cls`: DW-967 cases in `TestStartsSessionBoundaries` (183-213, after the refused case at 198-201), and the integration test. Shadow instances, no production.
+  - `Test/Core/CommandsStep3Probe.cls:21-22`: dispatch `PinMemory`→`OnPin`, `UnpinMemory`→`OnUnpin`.
+  - `Test/Core/CommandsStep3.cls`: any pin outcome that is now the handler's.
+  - `Test/Web/MemoryApi.cls` `TestPin` (432-465): the real-mode tail and its doc comment (shadow instances, no production).
   - `Test/Bridge/SecondModel.cls` `TestIntegrationWebChat` (534-593) and class doc 25-27.
   - `web/e2e/api/memory.spec.ts`: the pin step (245-248), the header (22-31) and the comment at 161.
-  - `web/e2e/support/memory.ts`: a `pinnedCountOf(session)` read through `irisScript`.
+  - `web/e2e/support/memory.ts`: `pinnedCountOf(session)` through `irisScript`, beside `memoryExists` (94).
 
 ## Tasks & Acceptance
 
 **Execution:**
-1. `Memory.cls`: the constants and `Pinned`, and the class comment.
-2. `Memory/Ops.cls`: the MessageMap entries, `OnPin` and `OnUnpin` per the matrix, and the class comment (DW-1029).
-3. `Agent/Input.cls`: `COREOPENING`, `COREMAX`, `LOGCORE`, `CorePart`, `PinsOf`, the Render order and the ItemId passed to `NoteOf`. Then update `Test/Agent/InputProbe.cls`.
+1. `Memory.cls`: the three constants, `Pinned`, `CoreBlock`, the class comment.
+2. `Agent/Input.cls`: `COREOPENING`, `LOGCORE`, `CoreBlock`, `CorePart`, `CoreOf`, the Render order, the ItemId passed to `NoteOf`, the class comment. Then `Test/Agent/InputProbe.cls`.
+3. `Memory/Ops.cls`: the MessageMap entries, `OnPin` and `OnUnpin` per the matrix, the class comment (DW-1029).
 4. `Data/DailyNote.cls`: Build's third argument (DW-977).
 5. `Data/Ownership.cls` `DecisionServed`, then `Core/Conversation.cls` `StartsSession` (DW-967).
-6. Tests:
+6. Tests. Expected lengths are held arithmetic in the test, never read from the code under test: the opening is 36 characters, each single-line pin adds `3 + its length` (LF and `"> "`), the close adds 2. Two single-line pins of 2,000 and 1,956 characters make exactly 4,000.
    - `Test/Memory/Pins.cls` (new):
      - TestPin;
-     - TestCap: pins summing exactly 4,000 succeed, the next is over_cap, and every row is unchanged;
-     - TestAlreadyPinned;
-     - TestOldRow (DW-1014: a row with stored `Pinned` empty is not in `Memory.Pinned`, and it can be pinned);
-     - TestUnpin;
-     - TestOtherSession;
-     - TestNoSession;
-     - TestForgetPinned;
-     - TestPinnedOrder (`Memory.Pinned` gives newest pin first and only the session's rows).
+     - TestCap: pin A (2,000) → pinned. Candidate B1 (1,957, one over) → `over_cap`, Ok 0, and A and B1 unchanged (`Pinned`, `PinnedAt`); `$Length` of `Memory.CoreBlock(session, B1's text)` is 4,001. Candidate B2 (1,956) → pinned, and `Memory.CoreBlock(session)` is 4,000. A third pin of 1 character → `over_cap`;
+     - TestCapRendered: pin A (2,000); a candidate of 1,950 characters holding 5 line feeds (text sum 3,950, block 4,004) → `over_cap`;
+     - TestAlreadyPinned; TestOldRow (DW-1014: stored `Pinned` empty is not in `Pinned`, and can be pinned); TestUnpin; TestOtherSession; TestNoSession; TestForgetPinned;
+     - TestPinnedOrder (`Memory.Pinned`: newest pin first, then ID DESC, and only the session's rows).
    - `RenderMemory`:
-     - TestCoreTexts (the opening and `COREMAX` = `PINCAPTOKENS*CHARSPERTOKEN` = 4000 against held copies);
-     - TestCoreBlock (the place between persona and notes, newest first, a multi-line pin quoted line by line);
-     - TestCoreOnlyAtAStart;
-     - TestCoreCap (whole pins; the block at most 4,000 characters, closing blank line included; an older pin is left out);
-     - TestCoreReadFailure (through `InputProbe`).
+     - TestCoreTexts: `COREOPENING` against a held copy; `Memory` `PINCAPTOKENS` 1000, `CHARSPERTOKEN` 4, `COREMAX` 4000;
+     - TestCoreForm: `Agent.Input.CoreBlock(["zz new", "zz old"_CR LF_"zz line"])` equals a held string, and `CoreBlock([])` is "";
+     - TestCoreBlock: the place between persona and notes, newest pin first, a multi-line pin quoted line by line;
+     - TestCoreAgrees (byte for byte): pins whose block is exactly 4,000; the core block in Render's output (between the persona part and the notes opening) equals `Memory.CoreBlock(session)`, has every pin whole, and its length (4,000) equals the length `Memory.CoreBlock(session, text)` gave for the last pin just before it was pinned;
+     - TestCoreNeverCut: pins written directly whose block is about 4,100 (only a direct write can make one) → Render holds every pin whole;
+     - TestCoreOnlyAtAStart; TestCoreReadFailure (through `InputProbe` `failCore`: no core block, one `LOGCORE` warning, redacted, the rest rendered).
    - `DailyNote`: TestLeavesOutCurrentTurn (an earlier turn kept; the current and a later turn and the current turn's decide decision left out; two arguments, and an unknown ItemId, give the whole note).
-   - `OwnershipNotes`: TestDecisionServed (a Usage row of the session is 1, none is 0, and another owner's Usage is 0).
+   - `OwnershipNotes`: TestDecisionServed (a Usage row of the session is 1, none is 0, another owner's Usage is 0).
 7. `Test/Core/ConversationSessionStart.cls`:
-   - In `TestStartsSessionBoundaries`: a no_key fallback turn earlier the same day, with no Usage row, leaves the next turn a start (DW-967); a refusal fallback with a Usage row (`Test.Data.Fixture.Usage`) makes it not a start.
+   - In `TestStartsSessionBoundaries`: a no_key fallback turn earlier the same day with no Usage row leaves the next turn a start (DW-967); a refusal fallback with a Usage row (`Test.Data.Fixture.Usage`) makes it not a start.
    - New `TestCoreMemoryAtStart` (Rule 1 integration).
-   - Search the Test tree for other tests whose first turn falls back and that expect the next turn's context. Update each one.
-8. DW-1029:
-   - In `CommandsStep3Probe`, dispatch pins to the real handlers.
-   - In `MemoryApi:TestPin` real mode, use real rows (the `Memory` helper):
-     - own pin 200 and `Pinned` 1;
-     - unpin 200 and `Pinned` 0;
-     - a pin over the cap 409 over_cap and the row unchanged;
-     - another session's ref 404 and its row unchanged;
-     - an unknown ref 404.
-   - Remove the 500 assertion and fix the doc comments.
-   - Re-run `CommandsStep3` and update any pin expectation there.
-9. DW-977: update `Test/Bridge/SecondModel.cls:TestIntegrationWebChat`:
-   - When both turns are on one local day, no request holds a notes block that quotes `zz17first`, and the first message appears exactly once in the held request.
-   - A block on a day crossing still quotes it once (yesterday's).
-   - Drop the `notesBlocks > 0` assertion.
-   - Update the class doc.
-10. DW-1039, in `web/e2e/api/memory.spec.ts`, as LIVE:
-    - In the list/search/forget test, replace the 500 step with:
-      - pin 200 `{"result":"done"}`, and the list shows `pinned: true`;
-      - PANEL's POST and DELETE of the pin on LIVE's ref are 404 `not_found`, and LIVE's row stays pinned;
-      - unpin 200 and `pinned: false`;
-      - pin again 200;
-      - then the existing forget, now of a pinned row: 200, then gone.
-    - New test `the pin cap as the LIVE user`:
-      - precondition: `pinnedCountOf(LIVE session)` is 0;
-      - seed two 2,000-character memories and one short one;
-      - pin both long ones: 200 each (exactly 1,000 tokens);
-      - pin the short one: 409 `over_cap` with the approved text, and it is not pinned;
-      - unpin one long one: 200;
-      - pin the short one: 200;
-      - remove the rows in `finally`.
-    - Update the header and the 161 comment.
-11. Spine (bottom up), then `memlog.py append --type decision --text "Story 41.12: MemoryOps handles PinMemory/UnpinMemory under the 1,000-token cap via Memory.Pinned; Agent.Input core-memory block at session start (whole pins, at most 4,000 characters); session start counts only turns that reached a model (DW-967); the session-start note leaves out the current and later turns (DW-977)"`, then `lint_spine.py`.
+   - Search the Test tree for tests whose first turn falls back and expect the next turn's context, and for tests comparing a rendered session-start input with a fixed text; update each.
+8. DW-1029: `CommandsStep3Probe` dispatches pins to the real handlers. `MemoryApi:TestPin` real mode, with real rows (`Memory` helper): own pin 200 and `Pinned` 1; unpin 200 and `Pinned` 0; with a pinned 2,000-character row, a 1,957-character row's pin 409 `over_cap` and the row unchanged; another session's ref 404 and its row unchanged; an unknown ref 404. Remove the 500 assertion, fix the doc comments, re-run `CommandsStep3` and update any pin expectation.
+9. DW-977: `Test/Bridge/SecondModel.cls:TestIntegrationWebChat`: on one local day, no request holds a notes block quoting `zz17first`, and the first message appears exactly once in the held request; across a day change a block still quotes it once (yesterday's). Drop the `notesBlocks > 0` assertion; update the class doc.
+10. DW-1039, `web/e2e/api/memory.spec.ts`, as LIVE:
+    - In the list/search/forget test, replace the 500 step: pin 200 `{"result":"done"}` and the list shows `pinned: true`; PANEL's POST and DELETE of the pin on LIVE's ref are 404 `not_found` and LIVE's row stays pinned; unpin 200 and `pinned: false`; pin again 200; then the existing forget of the now pinned row: 200, then gone.
+    - New test `the pin cap as the LIVE user`: precondition `pinnedCountOf(LIVE session)` is 0; seed single-line memories of 2,000, 1,956 and 2 characters; pin the first two: 200 each (block exactly 4,000); pin the short one: 409 `over_cap` with the approved text, and it is not pinned; unpin the 1,956 one: 200; pin the short one: 200; remove the rows in `finally`.
+    - Update the header and the comment at 161.
+11. `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`, bottom up (the approved lines, `[ADDED 2026-11-09, Story 41.12]`): (b) after AD-21 line 756 (session start): DW-967's "reached a model" and DW-977's cut; (a) after line 727 (core memory): `MemoryOps` handles the pin verbs; the cap is the rendered block's length (`Memory.CoreBlock`, formatted only by `Agent.Input.CoreBlock`) against `COREMAX` 4,000; the block's place; it is never cut. Then `uv run --no-cache _bmad/scripts/memlog.py append --workspace <that folder> --type decision --text "Story 41.12: MemoryOps pins under the cap measured on the rendered core-memory block (Memory.CoreBlock / Agent.Input.CoreBlock, at most 4,000 characters, never cut); the block goes after the persona block at session start; session start counts only turns that reached a model (DW-967); the session-start note leaves out the current and later turns (DW-977)"`, then `lint_spine.py` (Verification).
 
 **Acceptance Criteria:**
-- AC 1 (FR-74, AD-21, AD-4): Given a `PinMemory` from web_user for one of the session's memories, when `MemoryOps` handles it, then the pin and the refusal follow the matrix: up to 4,000 characters of pinned text it pins, above that it answers `over_cap` and changes nothing. `UnpinMemory` clears the pin, and forgetting a pinned memory deletes it. Over real HTTP as LIVE, the pin routes answer 200, 409 and 404 as the matrix says (`Test.Memory.Pins`, `MemoryApi:TestPin`, `memory.spec.ts`).
-- AC 2 (FR-74): Given the delivered gate, when any origin other than web_user, or a save, or a tool asks, then no pin is set. Only `OnPin` writes `Pinned` 1. This is met by delivered code (see Design Notes) and stays green (`CommandsStep3:TestOrigins`, `Test.Memory.Ops:TestSource`).
-- AC 3 (FR-74, AD-7, NFR-27): Given a user item rendered with `sessionStart` 1 for a session with pins, when `Agent.Input.Render` runs, then the core block is placed and bounded as the Always rules say, before the notes (`RenderMemory` core tests).
-- AC 4 (Rule 1 integration; AD-21, AD-30): Given a session with a pinned memory, when `Conversation` sends its first turn of the day through the real `Conversation` and `Agent.Input` (`ConversationSessionStart:TestCoreMemoryAtStart`), then that turn request's Input holds the opening and the pin, quoted. A second turn the same day holds neither, and after an unpin, the next session start's Input holds no core block.
-- AC 5 (DW-967, AD-21, AD-20): Given an earlier turn of the same local day whose reply decision has no Usage row, when the next turn is sent, then it is a session start. With a Usage row, it is not.
-- AC 6 (DW-977): Given a session start, when today's note is built for the turn's item, then the note holds neither the current message's opening nor any later turn's. The Memory card's Notes route still lists the whole day.
+- AC 1 (FR-74, AD-21, AD-4): Given a `PinMemory` from web_user for one of the session's memories, when `MemoryOps` handles it, then it pins while the rendered block with the pin is at most 4,000 characters and answers `over_cap` and changes nothing at 4,001, as the matrix says; `UnpinMemory` clears the pin and forgetting a pinned memory deletes it. Over real HTTP as LIVE, the pin routes answer 200, 409 and 404 as the matrix says, and PANEL's write on LIVE's ref is 404 (`Test.Memory.Pins`, `MemoryApi:TestPin`, `memory.spec.ts`).
+- AC 2 (FR-74): Given the delivered gate, when any origin other than web_user, a save, or a tool asks, then no pin is set; only `OnPin` writes `Pinned` 1. Met by delivered code (Design Notes) and stays green (`CommandsStep3:TestOrigins`, `Test.Memory.Ops:TestSource`).
+- AC 3 (FR-74, AD-7, NFR-27): Given a user item rendered with `sessionStart` 1 for a session with pins, when `Agent.Input.Render` runs, then the core block sits after the persona block and before the notes, holds every pin whole newest first, and is byte for byte the `Memory.CoreBlock` the cap check measures (`RenderMemory` core tests).
+- AC 4 (Rule 1 integration; AD-21, AD-30): Given a session with a pinned memory, when `Conversation` sends its first turn of the day through the real `Conversation` and `Agent.Input` (`ConversationSessionStart:TestCoreMemoryAtStart`), then that turn request's Input holds the opening and the pin, quoted; a second turn the same day holds neither; after an unpin, the next session start holds no core block.
+- AC 5 (DW-967, AD-21, AD-20): Given an earlier turn of the same local day whose reply decision has no Usage row, when the next turn is sent, then it is a session start; with a Usage row, it is not.
+- AC 6 (DW-977): Given a session start, when today's note is built for the turn's item, then it holds neither the current message's opening nor any later turn's, and the Notes route still lists the whole day.
 
 ## Spec Change Log
 
 - 2026-11-09 (Contest Planner rulings on the spec-gate items, relayed by the orchestrator): (1) CAP: the alternative is ruled. The core-memory block, heading and quotes included, is capped at 4,000 characters (1,000 tokens at 4 characters a token); a pin is refused with the existing `over_cap` answer when the rendered block would pass 4,000; a pinned fact is never left out of the input while it shows as pinned; 41.14's "never over 4,000 characters" holds exactly; 41.13's remaining-space figure uses the same computation; a test pins the pin that crosses the line by one character. Applied to the intent block (Always: the cap; the core-memory block; the matrix rows) and to epics.md Story 41.12 as a Rule 5 amendment `[AMENDED 2026-11-09, Contest Planner ruling]`. Re-planned (status draft). (2) The operator log line "The core memory of the session could not be read, so it was left out of the input: " is APPROVED. The heading stays "Your core memory (facts you pinned):" (EXPERIENCE.md:1070). (3) The two additive AD-21 spine lines, marked `[ADDED 2026-11-09, Story 41.12]`, are APPROVED.
+- 2026-11-09 (re-plan after the ruling): Code Map, Tasks, ACs, Design Notes and Verification brought in line. The renderer's bound and its cut are gone; the cap check measures `Memory.CoreBlock` with the candidate; `COREMAX` moves to `OcuTalon.Memory`, derived from the two constants; the `PinsOf` seam becomes `CoreOf`; TestCap, TestCapRendered, TestCoreAgrees and TestCoreNeverCut replace the text-sum tests; the e2e cap test seeds 2,000 + 1,956 characters (two 2,000-character pins no longer fit). The intent block is unchanged. KEEP: DW-967, DW-977, DW-1014, DW-1029, DW-1039 and the LIVE/PANEL route tests as planned.
 
 ## Review Triage Log
 
@@ -203,95 +177,84 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless given in full. Line numbers 
 - AD-1: the gate is unchanged; pins come from web_user only.
 - AD-4: the session is set server-side; `MemoryOps` scopes the ref.
 - AD-5: no schema change; appended columns may be empty.
-- AD-7: the context blocks are rendered only by `Agent.Input`.
-- AD-13: the web layer reads nothing new.
+- AD-7: `Agent.Input` is the one renderer, so the block's form lives only in `Agent.Input.CoreBlock`; `Memory.CoreBlock` reads and delegates.
+- AD-13: the web layer reads nothing new and never calls `Memory.*`.
 - AD-18: local days.
 - AD-20: Usage rows are the "reached a model" signal.
 - AD-21: memory, core memory, the cap and the session start.
-- AD-29 and AD-33: the lanes, with `MemoryOps` as the owner.
+- AD-29 and AD-33: the lanes, with `MemoryOps` as the only writer of `Data.Memory`.
 - AD-30: Conversation.
 
-No AC contradicts an AD's Rule. DW-967 and DW-977 refine AD-21's "session start" and "daily notes" bullets by additive lines.
+No AC contradicts an AD's Rule. AD-21's "at most 1,000 tokens, estimated at 4 characters a token" holds: the estimate is now of the rendered block, which is what reaches the model. DW-967 and DW-977 refine AD-21's "session start" and "daily notes" bullets by additive lines.
 
 **Already met (evidence):**
-- Only the person pins:
-  - `CommandsIn.cls:235-236` routes `PinMemory` and `UnpinMemory` from web_user only, and neither is in `TOOLVERBS`; `CommandsStep3:TestOrigins` and `TestContextOwnSessionOnly` pin this, with mutations recorded in 41.9.
-  - `SaveMemory` has no `Pinned` property, and `OnSave` never sets it, so the `InitialExpression` 0 holds; `Test.Memory.Ops:TestSource` asserts that every new row has Pinned 0.
-  - Compaction saves (41.10 and 41.11) are parked.
-- Forgetting deletes any own row, pinned or not (`Memory/Ops.cls:135-161`). TestForgetPinned adds the pinned case.
+- Only the person pins: `CommandsIn.cls:235-236` routes `PinMemory` and `UnpinMemory` from web_user only, and neither is in `TOOLVERBS` (`CommandsStep3:TestOrigins`, `TestContextOwnSessionOnly`, mutations recorded in 41.9). `SaveMemory` has no `Pinned` property and `OnSave` never sets it (`Test.Memory.Ops:TestSource`: every new row has Pinned 0). Compaction saves (41.10, 41.11) are parked.
+- Forgetting deletes any own row, pinned or not (`Memory/Ops.cls:135-161`); TestForgetPinned adds the pinned case.
 - The routes and their mapper (`Web/Api.cls:1908-1929`) need no change.
 
 **Decided in-stage:**
-- **The 4,000-character bound sits in the renderer.** The epics' AC sums text lengths only. Story 41.14's AC says "the block is never over 4,000 characters" with pins up to the cap, so the block's own opening, quotes and line feeds must fit inside 4,000. This follows `PRECEDENTMAX`: whole pins, newest first, no marker line, so no new text is needed.
-- Already pinned answers `pinned` and keeps `PinnedAt`, so re-pinning never moves a pin to the front. Unpinning an unpinned own row answers `unpinned`.
-- Pin answers carry an empty Message, as `OnSearch` does (41.9), so no new sentence is needed.
-- **The DW-967 signal** is a Usage row of the turn's `TurnDecisionRef`. The runner writes a Usage row after every Chat that returns, and after a thrown Chat only when it spent; a precheck writes none (`Decide.cls:1147-1161`, `Agent.cls:724`). A reason list (no_key, ...) would miss a thrown Chat ("error"). Only fallback turns are checked, so ordinary replies cost no read.
-  - (inference) A timeout whose Usage row lands after the next turn is sent counts as "not reached". The next turn then repeats the session start, which adds a block and never loses one, the direction `StartsSession` already prefers.
-- **DW-977** passes the item's ItemId (always the turn's own; `RetryItemId` is set after rendering, `Conversation.cls:430`). Build looks the turn up, which keeps the result the same on a Busy resend. Only messages and their decide decisions are cut. Incidents, approvals and reminders are no person's words.
-- The cap constants live in `OcuTalon.Memory` (AD-21's entry points), so 41.13's "{used}" figure (DW-1030) can reuse them.
+- **What "the rendered block" is.** Exactly the string Render inserts between the persona part and the notes part: the opening, each pin as `LF` + `Quoted(text)`, and the closing blank line (`LF LF`). Its `$Length` is measured, closing blank line included, as `PRECEDENTMAX` counts its block. So 41.14's "never over 4,000 characters" holds for any reading of the block's end.
+- **One computation, two layers.** `Agent.Input.CoreBlock(texts)` is the pure formatter; `Memory.CoreBlock(sessionRef, candidate)` reads the pins and calls it. The cap check and `CorePart` call `Memory.CoreBlock`, so they cannot disagree. 41.13 cannot run `Memory`'s SQL from the web layer (AD-13), so its figure comes from `Agent.Input.CoreBlock` over the pinned texts its own read returns (DW-1030), or from a `MemoryOps` read verb that calls `Memory.CoreBlock`.
+- **The candidate goes first** (it would be the newest pin). Order never changes the length, so a same-second `PinnedAt` tie cannot make the check and the render differ.
+- **The bound is enforced at pin time only.** `CorePart` never cuts, so a pinned fact is never left out. Only a direct write could make a block over 4,000; TestCoreNeverCut pins that even then nothing is dropped.
+- **A refused single pin.** A text of up to 2,000 characters with many line breaks can render over 4,000 by itself (each line adds `"> "`), so even a first pin can be `over_cap`. That follows the ruling; the card's existing text ("Unpin something first.") is 41.13's.
+- `COREMAX` is in `OcuTalon.Memory`, derived from `PINCAPTOKENS * CHARSPERTOKEN`, so the number is written once.
+- The Approach's "sums the pinned texts through `Memory.Pinned`" is read under the amended Always rule: the check measures the rendered block, which `Memory.CoreBlock` builds from `Memory.Pinned`'s rows.
+- Already pinned answers `pinned` and keeps `PinnedAt`, so re-pinning never moves a pin to the front. Unpinning an unpinned own row answers `unpinned`. Pin answers carry an empty Message, as `OnSearch` does.
+- **The DW-967 signal** is a Usage row of the turn's `TurnDecisionRef`. The runner writes one after every Chat that returns, and after a thrown Chat only when it spent; a precheck writes none (`Decide.cls:1147-1161`, `Agent.cls:724`). A reason list would miss a thrown Chat ("error"). Only fallback turns are checked, so ordinary replies cost no read. (inference) A timeout whose Usage row lands after the next turn is sent counts as "not reached"; the next turn then repeats the session start, which adds a block and never loses one.
+- **DW-977** passes the item's ItemId (always the turn's own; `RetryItemId` is set after rendering, `Conversation.cls:430`). Build looks the turn up, so a Busy resend gives the same result. Only messages and their decide decisions are cut; incidents, approvals and reminders are no person's words.
 
 **Extend, don't copy:**
 - `OnPin`/`OnUnpin` follow `OnForget`.
-- `Memory.Pinned` follows `List` and shares `Row`.
-- `CorePart` follows `PrecedentPart`'s bound and `NotesPart`'s failure handling.
+- `Memory.Pinned` follows `List` and shares `Row`; `Memory.CoreBlock` uses `Pinned`.
+- `Agent.Input.CoreBlock` reuses `Quoted`; `CorePart` follows `NotesPart`'s failure handling and `PrecedentPart`'s owner check; `CoreOf` follows the `NoteOf` seam.
 - `DecisionServed` follows `DecisionChannel`.
-- `Test.Memory.Pins` is a new class rather than an addition to `Test.Memory.Ops`, because that class needs the running production and the embedder, and the pin handlers need neither.
+- `Test.Memory.Pins` is a new class, not an addition to `Test.Memory.Ops`, because that class needs the running production and the embedder, and the pin handlers need neither.
 
-**Integration ACs:** AC 4. The consumer, `Conversation` through `Agent.Input`, reads `Memory.Pinned` against real rows, and the observable effect is the turn request's Input. The e2e test (AC 1) exercises the real gate, `MemoryOps` and the routes as LIVE.
+**Integration ACs:** AC 4 (the consumer, `Conversation` through `Agent.Input`, reads `Memory.CoreBlock` against real rows; the observable effect is the turn request's Input) and AC 3's TestCoreAgrees (the render equals the cap's computation). AC 1's e2e test exercises the real gate, `MemoryOps` and the routes as LIVE.
 
-**Consumes:**
-- 41.9's verbs, routes and `MemoryItemCommand`;
-- `Memory.Row`;
-- `Ownership.TurnOfItem`;
-- the `turnUsage` kind;
-- `Test.Data.Fixture.Usage`.
+**Consumes:** 41.9's verbs, routes and `MemoryItemCommand`; `Memory.Row`; `Agent.Input.Quoted`; `Ownership.TurnOfItem`; the `turnUsage` kind; `Test.Data.Fixture.Usage`.
 
 **Consumed-by:**
-- 41.13: the Pinned tab's pin and unpin, `over_cap`, and the cap constants for "{used}" (DW-1030 adds its own read through `Ownership.Rows`).
+- 41.13: the Pinned tab's pin and unpin and `over_cap`; "{used} of 1,000 tokens (estimated)" from the same block computation (`Agent.Input.CoreBlock` over its pinned read, or `Memory.CoreBlock` behind a `MemoryOps` read verb) and `CHARSPERTOKEN` (DW-1030).
 - 41.14: the cap and forget proofs, and the block of at most 4,000 characters.
 
 **Ledger inbox:**
 - DW-967: Tasks 5 and 7; AC 5.
 - DW-977: Tasks 4, 6 and 9; AC 6.
 - DW-1014: the COALESCE read and TestOldRow.
-- DW-1029: Tasks 2 and 8.
+- DW-1029: Tasks 3 and 8.
 - DW-1039: Task 10.
 
 None is declined.
 
 **Spec-gate items (for the Planner):**
-1. **Public text.**
-   - New in code: `COREOPENING` "Your core memory (facts you pinned):" (EXPERIENCE.md:1070; epics.md:10244).
-   - Reused unchanged: over_cap "That would go over the 1,000-token limit. Unpin something first." (approved in 41.9).
-   - Operator log, not in UX: `LOGCORE` "The core memory of the session could not be read, so it was left out of the input: " (the form of `LOGNOTES`).
+1. **Public and model-facing text.**
+   - `COREOPENING` "Your core memory (facts you pinned):" (EXPERIENCE.md:1070; epics.md): approved (2026-11-09).
+   - over_cap "That would go over the 1,000-token limit. Unpin something first.": reused unchanged, approved in 41.9; no new message.
+   - Operator log `LOGCORE` "The core memory of the session could not be read, so it was left out of the input: ": approved (2026-11-09).
    - No other new string. The pin answers' Message is empty.
-2. **Guarantee at the boundary.** Pins whose text sums near the cap (above about 3,960 characters, depending on the pin count and line breaks) cannot all fit in a 4,000-character block. The oldest pins are then left out of the session-start input while still counted as pinned. The alternative is to count the block's overhead in the cap check, which would change the epics' "text lengths" wording (a product-number decision). Recommend: keep the renderer bound as planned.
-3. **Stored data.** No schema change. `Pinned` and `PinnedAt` are written only by `OnPin` and `OnUnpin`.
-4. **Spine lines** (additive, Rule 20):
-   - (a) AD-21 Core memory, after line 727: the handlers, `Memory.Pinned`, the cap check, and the block's place and bound, as built.
-   - (b) AD-21 "At a session start", after line 756: DW-967's "reached a model" (a fallback turn counts only with a Usage row of its reply decision) and DW-977's cut (the turn being answered and later turns are left out; the Notes route reads the whole day).
+2. **Stored data.** No schema change. `Pinned` and `PinnedAt` are written only by `OnPin` and `OnUnpin`.
+3. **Spine lines** (additive, Rule 20): approved (2026-11-09). Their text now says the cap is measured on the rendered block (Task 11).
 
 ## Verification
 
-Run from the worktree root, one command per call, with `timeout: 600000`, each sized to about 150 s. Prefix every `ci/` call with `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-a OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=41 stage=<stage>'`.
-- The fresh tag is `e41s12i` and the warm tag `e41s12iw`.
-- Never run two test runs in one message.
-- Every IRIS MCP call names `server` and `namespace`. Use no real key and no Telegram bot.
+Run from the worktree root, one command per call, `timeout: 600000`, each sized to about 150 s. Prefix every `ci/` call with `OCUTALON_LOCK_DIR=<main checkout>/.worktrees/.coordination/locks/lane-a OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=41 stage=<stage>'`. The fresh tag is `e41s12i`, the warm tag `e41s12iw`. Never two test runs in one message. Every IRIS MCP call names `server` and `namespace`. No real key, no Telegram bot.
 
 **Shared surfaces:**
 - `DailyNote.Build`'s signature and `InputProbe.NoteOf`;
-- the session-start Input text, which any test that compares a rendered session-start input with a fixed text must cover (search the Test tree for `NOTESOPENING` and `sessionStart`);
+- the session-start Input text: any test that compares a rendered session-start input with a fixed text (search the Test tree for `NOTESOPENING` and `sessionStart`);
 - `StartsSession`'s answer after a fallback turn;
 - `CommandsStep3Probe`'s dispatch;
 - `MemoryApi:TestPin` real mode;
-- `memory.spec.ts`' pin step;
+- `memory.spec.ts`' pin step and the LIVE session's pins (the cap test's precondition);
 - `SecondModel:TestIntegrationWebChat`'s notes assertions.
 
-Every test added or changed passes on a fresh environment, in either order.
+Every test added or changed passes on a fresh environment, in either order, and creates and removes its own rows.
 
 **Commands:**
 - (once) `OCUTALON_RUN_TAG=e41s12iw ci/warm.sh up`. Expected: ready.
-- (loop) `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e41s12iw ci/iris.sh class <Class>`, once each for:
+- (loop) `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e41s12iw ci/iris.sh class <Class>`, one call each. None needs the production (shadow instances). Expected: passed.
   - `OcuTalon.Test.Memory.Pins`
   - `OcuTalon.Test.Agent.RenderMemory`
   - `OcuTalon.Test.Data.DailyNote`
@@ -300,23 +263,22 @@ Every test added or changed passes on a fresh environment, in either order.
   - `OcuTalon.Test.Core.CommandsStep3`
   - `OcuTalon.Test.Web.MemoryApi`
   - `OcuTalon.Test.Core.ConversationTurns`
-
-  Expected: passed.
-- (once) `OCUTALON_RUN_TAG=e41s12i ci/iris.sh class OcuTalon.Test.Bridge.SecondModel:TestIntegrationWebChat`. It needs the real production, so it runs on a fresh stack; a warm stack keeps the old Conversation running. Expected: passed. If the call nears 150 s, leave it to CI (`shard lane-a@Bridge,Agent`) and say so.
+- (once) `OCUTALON_RUN_TAG=e41s12i ci/iris.sh class OcuTalon.Test.Bridge.SecondModel:TestIntegrationWebChat`. It needs the real production, so it runs on a fresh stack. Expected: passed. If the call nears 150 s, leave it to CI (`shard lane-a@rest`) and say so.
 - (once) `bash docker/tests/test-class-rules.sh`, then `bash docker/tests/test-boundaries.sh`. Expected: pass.
 - (once) `cd web && npx tsc -p tsconfig.e2e.json`, then `npx playwright test --list e2e/api/memory.spec.ts`. Expected: exit 0, and 5 tests listed.
 - (once) `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16`. Expected: the 41.9 baseline (`"ok": false`, 10 low `placeholder` findings, nothing new).
-- (once) `ci/warm.sh down`, then `ci/iris.sh teardown` with `e41s12i`.
+- (once) `OCUTALON_RUN_TAG=e41s12iw ci/warm.sh down`, then `OCUTALON_RUN_TAG=e41s12i ci/iris.sh teardown`.
 - **Left to CI:** `live:sign-in` (the e2e spec, over 150 s locally), the shards, `bash ci/checks.sh`, and the lead's fresh-environment check.
 
-**Mutations (Rule 19), one per AC at least.** Apply each on the warm stack, observe red, revert, and confirm the files are byte-identical. Record each as `mutation: ... -> ... red`.
-- AC 1: the cap comparison `>` becomes `>=` → `Pins:TestCap` red (exactly 4,000 refused). `MemoryOps` without the `PinMemory` MapItem → `MemoryApi:TestPin` red (real mode 500).
-- DW-1014: the already-pinned check `row.Pinned '= 0` → `Pins:TestOldRow` red.
-- AC 3: `CorePart` placed after `NotesPart` → `RenderMemory:TestCoreBlock` red. `COREMAX` 4000 becomes 4100 → `TestCoreCap` red.
+**Mutations (Rule 19), at least one per AC.** Apply on the warm stack, observe red, revert, confirm the files byte-identical (`git status --short`, `git diff --stat`). Record each as `mutation: ... -> ... red`.
+- AC 1: the cap comparison `>` becomes `>=` → `Pins:TestCap` red (the 4,000 block refused). `OnPin` measures `Memory.CoreBlock(session)` without the candidate → `Pins:TestCap` red (the one-over pin accepted). `MemoryOps` without the `PinMemory` MapItem → `MemoryApi:TestPin` red (real mode 500).
+- Rendered, not summed: `CoreBlock` quotes nothing (texts joined bare) → `Pins:TestCapRendered` red.
+- DW-1014: the already-pinned check becomes `row.Pinned '= 0` → `Pins:TestOldRow` red.
+- AC 3: `CorePart` placed after `NotesPart` → `RenderMemory:TestCoreBlock` red. `CorePart` appends one more `LF` to `CoreOf`'s answer → `TestCoreAgrees` red. `CorePart` drops pins past 4,000 characters → `TestCoreNeverCut` red.
 - AC 4: `CorePart` ignores `sessionStart` → `ConversationSessionStart:TestCoreMemoryAtStart` red (a second turn holds the block).
 - AC 5: `StartsSession` without the reached-model condition → `TestStartsSessionBoundaries` red.
 - AC 6: `Build` ignores `itemId` → `DailyNote:TestLeavesOutCurrentTurn` red, and `SecondModel:TestIntegrationWebChat` red (on the fresh stack, once).
-- DW-1039: CI only. Not demonstrable locally, as in 41.9.
+- DW-1039: CI only; not demonstrable locally, as in 41.9.
 
 ## Auto Run Result
 
