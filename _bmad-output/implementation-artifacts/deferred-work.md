@@ -6225,3 +6225,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42574755205 attempt 1 (feature 0ab2eef0) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code
 - 2026-11-09T07:39:44Z status=routed owner=burndown by=orchestrator note=first sighting; rerun of the failed job 07:40Z
+
+### DW-1025: CI groups shards-2, shards-3 and shards-4 run 37.5-39.5 min on green heads (cca91ec2, 2a45f8bc) against the 40-min job timeout-minutes and the 35-min REL-4 budget; under load shard:lane-a@rest alone takes 2017-2147 s (over the 1,000 s unit split rule), so whole attempts are cancelled at 40 min with every unit that ran green
+- source: orchestrator CI / OCT-epic35 run 42633085173 | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: run 42633085173 attempts 2 and 3: shards-2/3/4 cancelled at 15:39Z and 16:22:05Z (job timeout), lane-a@rest 2017s and 2147s; attempt 1 shards-2/3 at 41.5 min; ci.yml timeout-minutes 40
+- 2026-11-09T16:25:24Z status=escalated owner=burndown by=runner note=needs a ci/units.sh group split (contended: Epic 0, Epic 11) or more capacity; reported to the orchestrator at once
