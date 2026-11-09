@@ -3089,3 +3089,4 @@
 2026-11-09T09:35:29Z	Epic 11	runner_resumed	agent=a7b14a4e288e9b748 with=plan_11.18_before_hold;no_AD-29_edit
 2026-11-09T09:35:59Z	Epic 0	ci_red_classified	sha=729ec359(0.15) run=42583740643 jobs=iris(shards-2):DW-973,iris(shards):DW-774_L6 class=inherited(both_fixed_on_feature_by_32.7) lane-a=success action=no_rerun
 2026-11-09T09:35:59Z	Epic 0	ruling	question=0.15_red_on_inherited_flakes category=decide choice=no_rerun;0.15_integrates_forward_onto_the_newest_green_feature_head_after_the_1.0.5_cut(rule_a_ends_at_the_cut;it_needs_one_anyway)_and_its_CI_is_the_gate rejected=rerun_now(wasted_capacity) policy=5086036
+2026-11-09T09:36:22Z	Run	ruling	question=lane_C_after_0.15_holds(09:40Z) category=decide choice=no_new_dispatch_tonight;DW-446/485_story(Epic_31_reopen;DW-485_is_release/demo-host-check.sh_contended_with_Epic_11+0.15)_first_in_the_morning rejected=a_new_runner_for_~1h_of_planning_near_the_95pct_quota_hold policy=5086036
