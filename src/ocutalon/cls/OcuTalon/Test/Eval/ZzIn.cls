@@ -26,6 +26,12 @@
 ///   - DocumentsUp (a documents case's documents, Story 19.4) records the case's documents under ^OcuTalonTest("EvalIn", "documents", n) as a list: the names
 ///     of the documents and their files, comma-separated, and adds nothing; it answers the reason that ^OcuTalonTest("EvalIn", "documentsFail") holds, or ""
 ///     when that is empty, with a setup record of made-up refs for Finish.
+///   - Seed (a case's SeedPrecedent, Story 41.7) records each message under ^OcuTalonTest("EvalIn", "seed", n) as a list: RunRef, Channel, MatchKey, Summary,
+///     Outcome, Answer, AnsweredAt, 1 when the newest row of the run was open and marked (Precedents 1), and 1 when the Item of that row had already been
+///     dispatched. It answers a CommandResult seeded with a made-up Ref, a CommandResult failed for its nth call when ^OcuTalonTest("EvalIn", "seedFail") holds n,
+///     and an error status for its nth call when ^OcuTalonTest("EvalIn", "seedError") holds n.
+///   - Unseed (Finish's removal of a run's seeded precedents) records each run under ^OcuTalonTest("EvalIn", "unseed", n) and sends nothing; it answers the
+///     error status that ^OcuTalonTest("EvalIn", "unseedFail") holds, or OK when that is empty.
 ///   - Pause (the wait before a Busy turn is asked again) records the seconds under ^OcuTalonTest("EvalIn", "paused", n) and waits for none.
 /// DeleteBodies deletes the TurnResult bodies of the ItemIds that Ask and Deliver recorded: EvalIn saves a TurnResult before it asks, and the
 /// double's Deliver sends nothing, so no purge would ever remove it. The tests call it before they clear the records.
@@ -150,6 +156,35 @@ Method DocumentsUp(case As %DynamicObject, folder As %String, Output documents A
 	If fail '= "" Quit fail
 	Set documents = {"refs": ["zzEvalDocRef0000000001"]}
 	Quit ""
+}
+
+Method Seed(message As OcuTalon.Core.Msg.SeedPrecedent, Output result As %Library.Persistent) As %Status [ Private ]
+{
+	Set n = $Increment(^OcuTalonTest("EvalIn", "seed"))
+	Set open = 0, dispatched = 0
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 ItemId, Precedents FROM OcuTalon_Eval_Data.CaseResult WHERE RunRef = ? ORDER BY ID DESC", ..RunRef)
+	If rows.%Next() {
+		Set open = (+rows.%Get("Precedents") = 1)
+		For i = 1:1:+$Get(^OcuTalonTest("EvalIn", "seen")) {
+			If $ListGet($Get(^OcuTalonTest("EvalIn", "seen", i)), 1) = rows.%Get("ItemId") Set dispatched = 1
+		}
+	}
+	Set ^OcuTalonTest("EvalIn", "seed", n) = $ListBuild(message.RunRef, message.Channel, message.MatchKey, message.Summary, message.Outcome, message.Answer, message.AnsweredAt, open, dispatched)
+	Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+	If $Get(^OcuTalonTest("EvalIn", "seedError")) = n Quit $SYSTEM.Status.Error(5001, "PrecedentOps could not be reached")
+	If $Get(^OcuTalonTest("EvalIn", "seedFail")) = n {
+		Set result.Ok = 0, result.Outcome = "failed"
+	} Else {
+		Set result.Ok = 1, result.Outcome = "seeded", result.Ref = $Extract("zzSeed"_$Translate($Justify(n, 16), " ", "0"), 1, 22)
+	}
+	Quit $$$OK
+}
+
+ClassMethod Unseed(runRef As %String) As %Status
+{
+	Set ^OcuTalonTest("EvalIn", "unseed", $Increment(^OcuTalonTest("EvalIn", "unseed"))) = runRef
+	Set fail = $Get(^OcuTalonTest("EvalIn", "unseedFail"))
+	Quit $Select(fail '= "": $SYSTEM.Status.Error(5001, fail), 1: $$$OK)
 }
 
 Method Pause(seconds As %Integer) [ Private ]

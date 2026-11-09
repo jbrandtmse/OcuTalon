@@ -70,6 +70,17 @@
 ///     up and keep no record of it;
 ///   - TestFinish (AC4): Finish removes exactly the rows of the records it is given, a row that is already gone is no error, and a record that names
 ///     another owner's row gives the first error and still removes the others.
+///   - TestSendsPrecedents (Story 41.7, AC 2, AC 5): a case with precedents has one SeedPrecedent sent for each entry (the run's Ref, the Item's channel, the
+///     lowercased address as MatchKey, and the entry's summary, outcome and answer; AnsweredAt that many days before now, or empty), each after the case's row is
+///     open and marked (Precedents 1) and before the Item is dispatched, and one {case, precedents{runRef}} record joins the Watches; a case without precedents seeds
+///     nothing and its row is not marked;
+///   - TestPrecedentsRefused (Matrix: bad shape): a precedents member that is not an array, is empty, holds more than 3 entries, or has an entry with a blank
+///     or long summary, an answer or an outcome that is not one of the product's, a daysAgo that is not a whole number 0 to 30, or that is not an object, and
+///     an Item whose KeyFor is "", skip the case with REASONPRECEDENTS with nothing seeded, dispatched or saved, and no watch;
+///   - TestSeedFails (Matrix: seed refused): a seed answered other than seeded, or failing, skips the case with REASONPRECEDENTS; its row and its watch are removed, the
+///     later entries are not seeded, and the setup record is kept;
+///   - TestFinishUnseeds (Matrix: end of run): Finish sends one removal for each distinct run of the records, none for a record without precedents, and gives the
+///     first error while it still tries the others.
 /// OnAfterOneTest removes, through RemoveEvalWatch, every eval watch row created since the test began.
 Class OcuTalon.Test.Eval.In Extends %UnitTest.TestCase
 {
@@ -350,6 +361,142 @@ Method TestFinish()
 	Do $$$AssertTrue($$$ISERR(sc), "a record that names another owner's row gives an error")
 	Do $$$AssertTrue($SYSTEM.Status.GetOneStatusText(sc) [ $Parameter("OcuTalon.Watch.Ops", "MESSAGENOTEVAL"), "the first one, MESSAGENOTEVAL")
 	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).%ExistsId(session)_"|"_##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(other.%Get("Ref"))_"|"_..Evals(), "1|0|"_before, "the session's row stays, and the row of the next record is removed")
+}
+
+/// A case with precedents (Story 41.7): one SeedPrecedent for each entry is sent after the case's row is open and marked and before the Item is dispatched,
+/// with the run's Ref, the Item's channel, the lowercased address as MatchKey and the entry's own fields; the time of an entry with daysAgo is that many days
+/// before now, and of one without it is empty (now). The service keeps one setup record. A case without precedents seeds nothing and its row is not marked.
+Method TestSendsPrecedents()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set entries = [{"summary": "Zz Desk <ZZ.Desk@Example.com>: Earlier notice one", "outcome": "tellnow", "answer": "noise", "daysAgo": 2}, {"summary": "Zz Desk <ZZ.Desk@Example.com>: Earlier notice two", "outcome": "digest", "answer": "approved"}]
+	Do ..WriteCase("zz-prec", {"name": "zz-prec", "kind": "item", "item": {"itemId": "zz-prec-id", "channel": "mailbox", "provenance": "untrusted", "sender": "Zz Desk <ZZ.Desk@Example.com>", "subject": "A subject", "text": "The body"}, "precedents": (entries)}.%ToJSON())
+	Set begun = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertEquals(..Process(service, "zz-prec"), "", "a case with two precedents is sent")
+	Set ended = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertEquals(..Seeds(), 2, "two precedents were seeded")
+	Do $$$AssertEquals(..Seen(), 1, "and one Item was dispatched")
+	Set seed = ..SeedAt(1)
+	Do $$$AssertEquals($List(seed, 1)_"|"_$List(seed, 2)_"|"_$List(seed, 3), ..Run_"|mailbox|zz.desk@example.com", "the first has the run's Ref, the Item's channel and the lowercased address as its match key")
+	Do $$$AssertEquals($List(seed, 4)_"|"_$List(seed, 5)_"|"_$List(seed, 6), "Zz Desk <ZZ.Desk@Example.com>: Earlier notice one|tellnow|noise", "and the entry's summary, outcome and answer")
+	Set at = ##class(OcuTalon.Data.Time).Seconds($List(seed, 7))
+	Do $$$AssertTrue(at '= "", "its time is a UTC time to the second: "_$List(seed, 7))
+	Do $$$AssertTrue((at '< (##class(OcuTalon.Data.Time).Seconds(begun) - (2 * 86400))) && (at '> (##class(OcuTalon.Data.Time).Seconds(ended) - (2 * 86400))), "and it is two days before now: "_$List(seed, 7))
+	Do $$$AssertEquals($List(seed, 8)_"|"_$List(seed, 9), "1|0", "it was sent with the case's row open and marked, before the Item was dispatched")
+	Set seed = ..SeedAt(2)
+	Do $$$AssertEquals($List(seed, 1)_"|"_$List(seed, 2)_"|"_$List(seed, 3)_"|"_$List(seed, 5)_"|"_$List(seed, 6), ..Run_"|mailbox|zz.desk@example.com|digest|approved", "the second is the second entry")
+	Do $$$AssertEquals($List(seed, 7), "", "an entry with no daysAgo has no time, which is now")
+	Do $$$AssertEquals($List(seed, 8)_"|"_$List(seed, 9), "1|0", "and was sent with the row open and marked, before the Item was dispatched")
+	Set itemId = $List(..SeenAt(1), 1)
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Data.CaseResult).SeedsPrecedents(itemId), 1, "the row of the Item is marked")
+	Do $$$AssertTrue($IsObject(service.Watches) && (service.Watches.%Size() = 1), "the service holds one setup record")
+	If '$IsObject(service.Watches) || (service.Watches.%Size() '= 1) Quit
+	Do $$$AssertEquals(service.Watches.%Get(0).%ToJSON(), {"case": "zz-prec", "precedents": {"runRef": (..Run)}}.%ToJSON(), "{case, precedents{runRef}}")
+
+	Do ..WriteCase("zz-plain", {"name": "zz-plain", "kind": "item", "item": {"itemId": "zz-plain-id", "channel": "mailbox", "provenance": "untrusted", "sender": "Zz Desk <zz.desk@example.com>"}}.%ToJSON())
+	Do $$$AssertEquals(..Process(service, "zz-plain"), "", "a case with no precedents is sent")
+	Do $$$AssertEquals(..Seeds()_"|"_..Seen()_"|"_service.Watches.%Size(), "2|2|1", "and seeds nothing and adds no record")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Data.CaseResult).SeedsPrecedents($List(..SeenAt(2), 1)), 0, "its row is not marked")
+
+	Set edge = $Translate($Justify("", 80), " ", "x")
+	Do ..WriteCase("zz-edge", {"name": "zz-edge", "kind": "item", "item": {"itemId": "zz-edge-id", "channel": "mailbox", "provenance": "untrusted", "sender": "Zz Desk <zz.desk@example.com>"}, "precedents": [{"summary": (edge), "answer": "noise", "daysAgo": 30}, {"summary": "Zz Desk <zz.desk@example.com>: Edge two", "answer": "approved", "daysAgo": 0}]}.%ToJSON())
+	Do $$$AssertEquals(..Process(service, "zz-edge"), "", "a case at the limits is sent: a summary of 80 characters, a daysAgo of 30 and of 0, and no outcome")
+	Do $$$AssertEquals(..Seeds()_"|"_..Seen(), "4|3", "with its two seeds and its Item")
+	Set seed = ..SeedAt(3)
+	Do $$$AssertEquals($Length($List(seed, 4))_"|"_$List(seed, 5)_"|"_$List(seed, 6), "80||noise", "the first keeps its 80 characters and has no outcome")
+	Set at = ##class(OcuTalon.Data.Time).Seconds($List(seed, 7))
+	Do $$$AssertTrue((at '< (##class(OcuTalon.Data.Time).Seconds(begun) - (30 * 86400))) && (at '> (##class(OcuTalon.Data.Time).Seconds(##class(OcuTalon.Data.Time).NowUtc()) - (30 * 86400))), "and its time is 30 days before now: "_$List(seed, 7))
+	Set seed = ..SeedAt(4)
+	Do $$$AssertTrue(($List(seed, 5) = "") && ($List(seed, 7) '= ""), "the second has a time of its own (daysAgo 0 is not absent) and no outcome: "_$List(seed, 7))
+}
+
+/// Each bad shape of the precedents member skips the case with REASONPRECEDENTS before anything is saved or sent: nothing is seeded or dispatched, no row is
+/// made, and a case with a watch sets none up. So does an Item whose KeyFor is "".
+Method TestPrecedentsRefused()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set in = "OcuTalon.Eval.In"
+	Set before = ..Evals()
+	Set good = {"summary": "Zz Desk <zz.desk@example.com>: One", "outcome": "tellnow", "answer": "noise", "daysAgo": 1}
+	Set long = $Translate($Justify("", 81), " ", "x")
+	Set forms = $ListBuild($ListBuild("string", """x"""), $ListBuild("null", "null"), $ListBuild("number", "5"), $ListBuild("object", "{}"), $ListBuild("empty", "[]"))
+	Set forms = forms_$ListBuild($ListBuild("four", "["_good.%ToJSON()_","_good.%ToJSON()_","_good.%ToJSON()_","_good.%ToJSON()_"]"))
+	Set forms = forms_$ListBuild($ListBuild("notobject", "[""x""]"))
+	Set forms = forms_$ListBuild($ListBuild("nosummary", "[{""answer"": ""noise""}]"), $ListBuild("blank", "[{""summary"": ""   "", ""answer"": ""noise""}]"), $ListBuild("long", "[{""summary"": """_long_""", ""answer"": ""noise""}]"))
+	Set forms = forms_$ListBuild($ListBuild("noanswer", "[{""summary"": ""a""}]"), $ListBuild("badanswer", "[{""summary"": ""a"", ""answer"": ""maybe""}]"))
+	Set forms = forms_$ListBuild($ListBuild("badoutcome", "[{""summary"": ""a"", ""answer"": ""noise"", ""outcome"": ""urgent""}]"), $ListBuild("numoutcome", "[{""summary"": ""a"", ""answer"": ""noise"", ""outcome"": 1}]"))
+	Set forms = forms_$ListBuild($ListBuild("fraction", "[{""summary"": ""a"", ""answer"": ""noise"", ""daysAgo"": 1.5}]"), $ListBuild("negative", "[{""summary"": ""a"", ""answer"": ""noise"", ""daysAgo"": -1}]"), $ListBuild("toomany", "[{""summary"": ""a"", ""answer"": ""noise"", ""daysAgo"": 31}]"), $ListBuild("text", "[{""summary"": ""a"", ""answer"": ""noise"", ""daysAgo"": ""3""}]"))
+	Set item = {"itemId": "zz-id", "channel": "mailbox", "provenance": "untrusted", "sender": "Zz Desk <zz.desk@example.com>", "subject": "S", "text": "T"}
+	Set prefix = $Piece($Parameter(in, "REASONPRECEDENTS"), "{why}", 1)
+	Set position = 0
+	While $ListNext(forms, position, form) {
+		Set name = "zz-bad-"_$List(form, 1)
+		Do ..WriteCase(name, "{""kind"": ""item"", ""item"": "_item.%ToJSON()_", ""precedents"": "_$List(form, 2)_"}")
+		Set reason = ..Process(service, name)
+		Do $$$AssertTrue($Extract(reason, 1, $Length(prefix)) = prefix, name_": the case is skipped with REASONPRECEDENTS: "_reason)
+	}
+	Do ..WriteCase("zz-bad-watch", {"kind": "injection", "item": (item), "precedents": [], "watch": (..Orders())}.%ToJSON())
+	Set reason = ..Process(service, "zz-bad-watch")
+	Do $$$AssertTrue($Extract(reason, 1, $Length(prefix)) = prefix, "a case with a watch and a bad shape is skipped with REASONPRECEDENTS: "_reason)
+	Set nokey = {"itemId": "zz-id", "channel": "mailbox", "provenance": "untrusted", "sender": "", "subject": "S", "text": "T"}
+	Do ..WriteCase("zz-nokey", {"kind": "item", "item": (nokey), "precedents": [(good)]}.%ToJSON())
+	Set reason = ..Process(service, "zz-nokey")
+	Do $$$AssertTrue($Extract(reason, 1, $Length(prefix)) = prefix, "an Item whose KeyFor is empty is skipped with REASONPRECEDENTS: "_reason)
+	Do $$$AssertEquals(..Seeds()_"|"_..Seen()_"|"_..Rows()_"|"_..Evals(), "0|0|0|"_before, "nothing was seeded or dispatched, no row was made and no watch was set up")
+	Do $$$AssertTrue('$IsObject(service.Watches) || (service.Watches.%Size() = 0), "and there is no setup record")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .text, "OnProcessInput", $Parameter(in, "LOGSKIPPED")), $ListLength(forms) + 2, "each skipped case was logged as a warning")
+}
+
+/// A seed that is not answered seeded (or that fails) skips the case with REASONPRECEDENTS: the seeds after it are not sent, the Item is not dispatched, the
+/// row and the watch are removed, and the setup record stays so that Finish removes what was seeded. The case can be sent again.
+Method TestSeedFails()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Set before = ..Evals()
+	Set prefix = $Piece($Parameter("OcuTalon.Eval.In", "REASONPRECEDENTS"), "{why}", 1)
+	Set entry = {"summary": "Zz Desk <zz.desk@example.com>: One", "outcome": "tellnow", "answer": "noise"}
+	Do ..WriteCase("zz-seed", {"kind": "injection", "item": {"itemId": "zz-seed-id", "channel": "mailbox", "provenance": "untrusted", "sender": "Zz Desk <zz.desk@example.com>"}, "precedents": [(entry), (entry), (entry)], "watch": (..Orders())}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "seedFail") = 2
+	Set reason = ..Process(service, "zz-seed")
+	Do $$$AssertTrue($Extract(reason, 1, $Length(prefix)) = prefix, "a second seed that is answered failed skips the case with REASONPRECEDENTS: "_reason)
+	Do $$$AssertTrue(reason [ "failed", "and says what PrecedentOps answered: "_reason)
+	Do $$$AssertEquals(..Seeds(), 2, "the third seed was not sent")
+	Do $$$AssertEquals(..Seen()_"|"_..Rows()_"|"_..Evals(), "0|0|"_before, "the Item was not dispatched, and its row and its watch are removed")
+	Do $$$AssertTrue($IsObject(service.Watches) && (service.Watches.%Size() = 1), "the setup record is kept")
+	If '$IsObject(service.Watches) || (service.Watches.%Size() '= 1) Quit
+	Do $$$AssertEquals(service.Watches.%Get(0).%ToJSON(), {"case": "zz-seed", "precedents": {"runRef": (..Run)}}.%ToJSON(), "{case, precedents{runRef}}, so that Finish removes the first seed")
+	Kill ^OcuTalonTest("EvalIn", "seedFail")
+	Set ^OcuTalonTest("EvalIn", "seedError") = 4
+	Set reason = ..Process(service, "zz-seed")
+	Do $$$AssertTrue($Extract(reason, 1, $Length(prefix)) = prefix, "a seed that gives an error status skips the case with REASONPRECEDENTS: "_reason)
+	Do $$$AssertTrue(reason [ "could not be reached", "with the status text: "_reason)
+	Do $$$AssertEquals(..Seeds()_"|"_..Seen()_"|"_..Rows()_"|"_..Evals(), "4|0|0|"_before, "the fourth seed (the second of the case's second try) was tried, and nothing else is left")
+	Kill ^OcuTalonTest("EvalIn", "seedError")
+	Kill ^OcuTalonTest("EvalIn", "seed"), ^OcuTalonTest("EvalIn", "seen")
+	Do $$$AssertEquals(..Process(service, "zz-seed"), "", "the case is sent when the seeds work")
+	Do $$$AssertEquals(..Seeds()_"|"_..Seen()_"|"_..Rows()_"|"_..Evals(), "3|1|1|"_(before + 1), "with its three seeds, its Item, its row and its watch")
+}
+
+/// Finish sends one removal for each distinct run of the records it is given, none for a record without precedents, and gives the first error while it
+/// still tries the others.
+Method TestFinishUnseeds()
+{
+	Set double = "OcuTalon.Test.Eval.ZzIn"
+	Set records = [{"case": "zz-a", "precedents": {"runRef": "zzRunRefOne"}}, {"case": "zz-b", "precedents": {"runRef": "zzRunRefOne"}}, {"case": "zz-c", "precedents": {"runRef": "zzRunRefTwo"}}, {"case": "zz-d"}, {"case": "zz-e", "documents": {"refs": []}}, "x", {"case": "zz-f", "precedents": {"runRef": ""}}]
+	Do $$$AssertStatusOK($ClassMethod(double, "Finish", records), "Finish answers OK")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "unseed")), 2, "two removals were sent, one for each distinct run")
+	Do $$$AssertEquals($Get(^OcuTalonTest("EvalIn", "unseed", 1))_"|"_$Get(^OcuTalonTest("EvalIn", "unseed", 2)), "zzRunRefOne|zzRunRefTwo", "for the runs, in the order of the records")
+	Kill ^OcuTalonTest("EvalIn")
+	Do $$$AssertStatusOK($ClassMethod(double, "Finish", [{"case": "zz-d"}, {"case": "zz-e", "watch": {"Ref": ""}}]), "records without precedents give OK")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "unseed")), 0, "and send no removal")
+	Set ^OcuTalonTest("EvalIn", "unseedFail") = "the removal failed"
+	Set sc = $ClassMethod(double, "Finish", records)
+	Do $$$AssertTrue($$$ISERR(sc) && ($SYSTEM.Status.GetOneStatusText(sc) [ "the removal failed"), "a removal that fails gives its error")
+	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "unseed")), 2, "and the other run is still tried")
+	Do $$$AssertStatusOK($ClassMethod(double, "Finish", ""), "no records give OK")
 }
 
 /// (QA, Story 9.8, AC4) A case that is refused before its Item is built sets up no watch, whatever watch it declares: an unknown or turn kind, a missing
@@ -1361,6 +1508,19 @@ ClassMethod Seen() As %Integer [ Private ]
 ClassMethod SeenAt(n As %Integer) As %List [ Private ]
 {
 	Quit $Get(^OcuTalonTest("EvalIn", "seen", n))
+}
+
+/// How many precedents the double was asked to seed.
+ClassMethod Seeds() As %Integer [ Private ]
+{
+	Quit +$Get(^OcuTalonTest("EvalIn", "seed"))
+}
+
+/// The nth seed the double was given, as a list: RunRef, Channel, MatchKey, Summary, Outcome, Answer, AnsweredAt, 1 when the newest row of the run was
+/// open and marked, and 1 when its Item had been dispatched.
+ClassMethod SeedAt(n As %Integer) As %List [ Private ]
+{
+	Quit $Get(^OcuTalonTest("EvalIn", "seed", n))
 }
 
 /// How many requests the double was asked to send to Decide.

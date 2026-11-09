@@ -10,6 +10,9 @@
 /// A row may name a persona (Preset and PersonaLanguage, both empty for none): the preset that the case ran under, which Agent.Input reads
 /// for the eval item with that ItemId (PersonaBlock), so that the request carries the preset's block (AD-7). The two columns are nullable and
 /// carry no initial value, so a row written without them reads as no persona.
+/// A row may be marked as a case that seeds precedents (Precedents 1, nullable with no initial value, so a row written without it reads as
+/// not marked): Agent.Input reads the eval-seeded precedent rows for the eval item with that ItemId only when it is marked
+/// (SeedsPrecedents, AD-7), and EvalIn finds the runs that left seeded rows behind by the marked rows (PrecedentRuns).
 /// The run is RunRef, the Ref that is also the SuperSession of every message of the run. The case is CaseName, the name of its
 /// folder in eval/, and SourceItemId is the case's recorded item id (for a turn case or an incident case, which record no Item, the case's name). Times are UTC to the second. A cost that is not known is empty,
 /// never 0. Rows exist only where EvalIn ran, which is throwaway stacks and CI, so the class has no purge.
@@ -89,14 +92,17 @@ Property Preset As %String(MAXLEN = 32);
 /// The language name of the preset language, or empty.
 Property PersonaLanguage As %String(MAXLEN = 40);
 
+/// 1 when the case seeded precedents through PrecedentOps before it was dispatched; empty or 0 for none.
+Property Precedents As %Boolean;
+
 Index RunCaseIndex On (RunRef, CaseName) [ Unique ];
 
 Index ItemIdIndex On ItemId;
 
 /// Saves the row of a case that was sent: state sent, SentAt now, with the ids as given. The run and the case are one row, so a second
 /// row for the same case of a run is an error status, and so is an empty run, case or ItemId. preset and language are the persona of the case,
-/// "" for none; the row keeps them as given.
-ClassMethod Open(runRef As %String, caseName As %String, sourceItemId As %String, itemId As %String, preset As %String = "", language As %String = "") As %Status
+/// "" for none; the row keeps them as given. precedents is 1 for a case that seeds precedents.
+ClassMethod Open(runRef As %String, caseName As %String, sourceItemId As %String, itemId As %String, preset As %String = "", language As %String = "", precedents As %Boolean = 0) As %Status
 {
 	If (runRef = "") || (caseName = "") || (itemId = "") Quit $SYSTEM.Status.Error(5001, "OcuTalon.Eval.Data.CaseResult.Open needs a run, a case and an ItemId")
 	Set row = ..%New()
@@ -107,6 +113,7 @@ ClassMethod Open(runRef As %String, caseName As %String, sourceItemId As %String
 	Set row.State = ..#SENT
 	Set row.Preset = preset
 	Set row.PersonaLanguage = language
+	Set row.Precedents = $Select(precedents: 1, 1: 0)
 	Set row.SentAt = ##class(OcuTalon.Bridge.Time).NowUtc()
 	Quit row.%Save()
 }
@@ -128,6 +135,29 @@ ClassMethod PersonaBlock(itemId As %String) As %String
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Preset, PersonaLanguage FROM OcuTalon_Eval_Data.CaseResult WHERE ItemId = ? ORDER BY ID DESC", itemId)
 	If (result.%SQLCODE < 0) || 'result.%Next() Quit ""
 	Quit ##class(OcuTalon.Agent.Persona).BlockFor(result.%Get("Preset"), result.%Get("PersonaLanguage"))
+}
+
+/// 1 when the row of the ItemId is marked as a case that seeds precedents; 0 for no row and for an unmarked row. Agent.Input calls it for
+/// an eval item.
+ClassMethod SeedsPrecedents(itemId As %String) As %Boolean
+{
+	If itemId = "" Quit 0
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Precedents FROM OcuTalon_Eval_Data.CaseResult WHERE ItemId = ? ORDER BY ID DESC", itemId)
+	If (result.%SQLCODE < 0) || 'result.%Next() Quit 0
+	Quit +result.%Get("Precedents") = 1
+}
+
+/// The distinct Refs of the runs that have a marked row (Precedents 1), without the run except, as a list.
+ClassMethod PrecedentRuns(except As %String = "") As %List
+{
+	Set list = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT DISTINCT RunRef FROM OcuTalon_Eval_Data.CaseResult WHERE Precedents = 1 ORDER BY RunRef")
+	If result.%SQLCODE < 0 Quit list
+	While result.%Next() {
+		Set run = result.%GetData(1)
+		If (run '= "") && (run '= except) Set list = list_$ListBuild(run)
+	}
+	Quit list
 }
 
 /// How many rows of the run are still in state sent.
@@ -220,6 +250,9 @@ Storage Default
 </Value>
 <Value name="22">
 <Value>PersonaLanguage</Value>
+</Value>
+<Value name="23">
+<Value>Precedents</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.EvalCaseResultD</DataLocation>

@@ -18,9 +18,10 @@
 ///     local date of the day (Data.Time, AD-18), then the lines of the note, every line through Quoted. A day with no note adds
 ///     nothing, and when neither day has one there is no block. When a read throws, the whole block is left out and one warning is
 ///     logged: the text is then the one without notes;
-///   - the precedent block (AD-7, AD-21) is only for an item that is not a user's, whose owner is a session, whose context has
+///   - the precedent block (AD-7, AD-21) is only for an item that is not a user's, whose owner is a session, or is eval and has a case
+///     row that seeds precedents (OcuTalon.Eval.Data.CaseResult.SeedsPrecedents of item.ItemId), whose context has
 ///     decide 1 and whose OcuTalon.Data.Precedent.KeyFor is not "": PRECEDENTSOPENING on its own line, then one quoted line for each of
-///     the newest at most 3 rows of Precedent.Similar of the item's own session and channel, newest first: the local date of the
+///     the newest at most 3 rows of Precedent.Similar of the item's own owner and channel (for an eval item, the eval-seeded rows), newest first: the local date of the
 ///     answer, the channel, the summary, what OcuTalon decided (when the row has an outcome) and the answer. A line is whole or left
 ///     out, with every older line, and the block, its closing blank line included, is at most PRECEDENTMAX characters. Intake's
 ///     decide request is the only caller that sets decide;
@@ -99,10 +100,16 @@ ClassMethod NoteOf(sessionRef As %String, day As %String) As %String [ Private ]
 /// The precedent block of an untrusted item and the blank line that follows it, or "" (see the class comment).
 ClassMethod PrecedentPart(item As OcuTalon.Msg.Item, context As %DynamicObject) As %String [ Private ]
 {
-	If (item.Provenance = "user") || '##class(OcuTalon.Bridge.Approval).IsRef(item.SessionRef) || '..Flag(context, "decide") Quit ""
+	If (item.Provenance = "user") || '..Flag(context, "decide") Quit ""
+	Set owner = item.SessionRef
+	If owner = ##class(OcuTalon.Data.Ownership).#EVAL {
+		If '##class(OcuTalon.Eval.Data.CaseResult).SeedsPrecedents(item.ItemId) Quit ""
+	} ElseIf '##class(OcuTalon.Bridge.Approval).IsRef(owner) {
+		Quit ""
+	}
 	Set key = ##class(OcuTalon.Data.Precedent).KeyFor(item)
 	If key = "" Quit ""
-	Set rows = ##class(OcuTalon.Data.Precedent).Similar(item.SessionRef, item.Channel, key, 3)
+	Set rows = ##class(OcuTalon.Data.Precedent).Similar(owner, item.Channel, key, 3)
 	Set block = ..#PRECEDENTSOPENING
 	Set lines = 0
 	For i = 0:1:rows.%Size() - 1 {

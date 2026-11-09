@@ -2,9 +2,10 @@
 title: "Story 41.7: Evaluation and tests for memory's first part"
 type: 'feature'
 created: '2026-11-08'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'a1c01f56e7b46e12069ac3bb454b614d57070792'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred: []
@@ -168,6 +169,46 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they are given in full. All 
 
 ## Review Triage Log
 
+### 2026-11-08 - Review pass
+- verdicts: 35 findings - high 1, medium 3, low 27, false 4, maybe-false 0 (6 patched: high 1, medium 3, low 2; the Intent auditor's 6 rows are its descriptive divergences)
+- findings:
+  - `[low]` `reject` Blind: the sweep deletes the earlier run's case rows (`CaseResult.Remove(run)`) - Report.Build and Save run before the next Start, and the sweep is what makes a finished run's marked rows go; a narrower removal adds a branch for a reader nobody has. reopen_if=a caller reads a finished run's rows after the next Start.
+  - `[low]` `reject` Blind: a failed seed leaves rows if the process dies before Finish - the spec's Design Notes accept this leftover ("dies with the throwaway").
+  - `[low]` `reject` Blind: eval reads are not scoped to a run - AD-21 as amended reads `Similar("eval", ...)` for every run; runs do not overlap and the marked row protects the twin (`TestInputs`, `TestPrecedentEval`).
+  - `[low]` `reject` Blind: `Report.PRECEDENTCASES` names the three cases - AC 6 names them; spec-bound.
+  - `[low]` `reject` Blind: `precedents` on other case kinds is ignored - the spec scopes the member to item and injection cases; no reachable harm.
+  - `[low]` `reject` Blind: the overview sentence understates what is sent - public text approved verbatim by the Planner (ruling 1) and pinned; spec-bound.
+  - `[false]` `reject` Blind: the spec status and Auto Run Result disagree - the result block is rewritten at finalize; a fix would edit this build's spec.
+  - `[low]` `patch` Blind: the `refused` label of `TestReport` reads "the gate refused nothing wrongly" while the value is 1 - label replaced by "the check counts refused 1". The mock-dependent outcomes are the spec's own measurement (Matrix, Task 9).
+  - `[false]` `reject` Blind: no documentation for the new case members - grep of docs/ and eval/ finds no file that lists the case-file fields or the report's scores.
+  - `[low]` `reject` Edge: a failed seed then a kill leaves rows no sweep finds - same as the second Blind row.
+  - `[false]` `reject` Edge: the same case sent twice in a run duplicates rows - Start sends each case once.
+  - `[low]` `reject` Edge: the sweep deletes a completed run's rows - same as the first Blind row.
+  - `[low]` `reject` Edge: with PrecedentOps unreachable, each stale run costs the 30 s wait - needs a stale run and an unreachable PrecedentOps together; a guard adds a branch.
+  - `[low]` `reject` Edge: Input reads are not run-scoped - same as the third Blind row.
+  - `[low]` `reject` Edge: `precedents` on other kinds is ignored - same as the fifth Blind row.
+  - `[false]` `reject` Edge: Finish throws on a `precedents` array - the records are EvalIn's own, objects by construction.
+  - `[low]` `reject` Edge: `Report.Text` throws on a report with no `scores.precedents` - `Build` is the only producer of a report and always sets it.
+  - `[low]` `reject` Edge: an empty-string outcome is refused - strict by design; no case carries one.
+  - `[low]` `reject` Edge: `Prepare` leaves `RunRef` empty when Start errors - Start errors before any case; later runs sweep marked rows.
+  - `[low]` `reject` Edge (claim): the sweep misses a failed-seed run - same as the second Blind row.
+  - `[low]` `reject` Edge (claim): the sweep removes a finished run's results - same as the first Blind row.
+  - `[medium]` `patch` Gap: no test accepts a limit value (80-character summary, daysAgo 30 and 0) - `TestSendsPrecedents` sends a `zz-edge` case with those and asserts the seeds.
+  - `[medium]` `patch` Gap: an entry with no outcome is never seeded - the same `zz-edge` case has no outcome and asserts an empty `Outcome`.
+  - `[low]` `patch` Gap: AC 5's `TestSweep` and `TestPersonBeside` have no mutation line - both mutations applied, red observed, reverted byte-identically, green again on the same stack; lines recorded.
+  - `[low]` `reject` Gap: two `TestPersonBeside` assertions cannot catch a 41.7 defect - they guard Lane B's scoping at no cost; `equal` is the live pin (mutation recorded).
+  - `[medium]` `patch` Gap: `TestRemoved` compares with a count taken before the sweep - now `'> ..Before` (the run's own rows are still asserted 0).
+  - `[high]` `patch` Gap (other): `docker/tests/test-eval-set.sh` rejects an array `expectation.outcome` and would turn the `checks` job red - reproduced (FAIL on `eval/memory-noise-three/case.json`), then the item rule accepts a non-empty array of distinct outcomes, the set tally counts strings only, and four variants pin the rule; the script passes. A footprint extension (Rule 11 (b)).
+  - `[low]` `reject` Gap (other): the shell checks and other `Eval.In` callers were not run - this pass ran `test-heartbeat-overview.sh`, `test-triage-heartbeat.sh`, `test-boundaries.sh`, `test-ci-config.sh`, `test-eval-set.sh`, `Test.Eval.Run` (fresh) and Gate and PersonaSweep (implement stage).
+  - `[low]` `reject` Gap (other): the seed-after-dispatch order is pinned by the double only - recorded in the mutation line; seeds are synchronous, so the real flow cannot pin it reliably.
+  - `[low]` `reject` Intent: the notes claim is proved on a fixture Decision, not a flow - the notes builder reads Decision rows only; `TestNotesHoldNoEmail` is the AC 1 pin.
+  - `[low]` `reject` Intent: the outcome checks on the mock pin a mock artifact - the spec says so (Design Notes: no mock scenario; the release candidate measures the real model).
+  - `[low]` `reject` Intent: the injection case's expectation equals the newsletter's - by design (Design Notes); the pin is that nothing acted.
+  - `[low]` `reject` Intent: the pair is not enforced as a pair - each case is scored alone; the comparison needs a real-model run.
+  - `[low]` `reject` Intent: seeded summaries are hand-written, not written by the answer path - the eval seam is `SeedPrecedent` (AD-21, AD-33).
+  - `[low]` `reject` Intent: the report-only score goes beyond the intent's words - AC 6 (Planner ruling 3) requires it.
+
+
 ## Design Notes
 
 **Architecture decisions:**
@@ -278,12 +319,35 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC 4: the sentence removed from the overview -> `test-heartbeat-overview.sh` `memory` FAIL.
 - AC 5: `PrecedentPart` reads `Similar("eval", ...)` for any eval item, without `SeedsPrecedents` -> `TestPrecedentEval` (unmarked row) and `Precedents:TestInputs` (twin). Also `Finish` skips `Unseed` -> `TestRemoved`.
 
+mutation: Agent.Input.NotesPart appends the session's newest Decision Summary to the block -> RenderMemory:TestNotesHoldNoEmail red (the session-start assertions)
+mutation: Eval.In seeds after Dispatch instead of before -> Test.Eval.In:TestSendsPrecedents red (the "before the Item was dispatched" assertions) and TestSeedFails red; Precedents:TestInputs stayed green on one fresh run (the seed is synchronous and Intake reads the rows later, so the real-flow check is a race and is not a reliable pin)
+mutation: Agent.Input.PrecedentPart writes the line without QUOTEPREFIX -> Precedents:TestInputs red ("starts with '> '" assertions)
+mutation: the sentence removed from docs/security-overview.md -> test-heartbeat-overview.sh memory FAIL
+mutation: Agent.Input.PrecedentPart reads Similar("eval", ...) for any eval item, without SeedsPrecedents -> RenderMemory:TestPrecedentEval red (unmarked, no row and no ItemId) and Precedents:TestInputs red (twin holds the block)
+mutation: Eval.In.Finish skips Unseed -> Precedents:TestRemoved red
+mutation: Eval.Report.IsPrecedentCase answers 0 (the three cases count in SM-1's items) -> Test.Eval.Report:TestPrecedentCasesReportOnly red
+mutation: Eval.In.Start skips the SweepPrecedents call -> Precedents:TestSweep red (the fake run's seeded row and case row stay)
+mutation: Agent.Input.PrecedentPart passes "eval" to Similar for a session item -> Precedents:TestPersonBeside red (the session item no longer equals its no-context text)
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-- Planned and verified against the READY FOR DEVELOPMENT standard; halted after planning as directed.
-- Before implement, the lead escalates (Design Notes): the PUBLIC TEXT sentence for `docs/security-overview.md`, the veto-window schema item (`CaseResult.Precedents`), and the footprint extension `docker/tests/test-heartbeat-overview.sh`; and applies the Rule 5 name fix (`RecordPrecedent` to `SeedPrecedent`) and the two spine lines.
-- DW-920 is addressed (AC 5; Tasks 3, 5, 6 and 9).
-- One read-only measurement on `ocutalon-slot-a` (build 154): `OcuTalon.Checks.ReplyGuard.Filter` leaves the B/ newsletter reason unchanged.
+- Summary: EvalIn seeds a case's `precedents` (1 to 3 entries, `MatchKey` = `KeyFor` of the Item) through `PrecedentOps` after it opens the case's row marked (`CaseResult.Precedents` 1) and before it dispatches the Item. `Finish` removes the run's seeded rows through `PrecedentOps` and `Start` sweeps what an earlier run left. `Agent.Input.PrecedentPart` reads `Similar("eval", ...)` only for a marked, non-user eval item with `decide` 1. The report accepts an outcome choice ("digest or ignore") and scores the three memory cases in their own report-only `precedents` line, outside SM-1 and the held-out scores. Three cases are added to eval/. The security overview carries the approved sentence, pinned verbatim by `test-heartbeat-overview.sh` `memory`.
+- Files changed:
+  - `src/ocutalon/cls/OcuTalon/Eval/In.cls`: the `precedents` member (shape check, seeding, `Unseed`, sweep, `Finish`, parameters).
+  - `src/ocutalon/cls/OcuTalon/Eval/Data/CaseResult.cls`: the nullable `Precedents` column, `Open`'s argument, `SeedsPrecedents`, `PrecedentRuns`.
+  - `src/ocutalon/cls/OcuTalon/Agent/Input.cls`: the eval branch of the precedent part.
+  - `src/ocutalon/cls/OcuTalon/Eval/Report.cls`: outcome choice, `PRECEDENTCASES`, the report-only `scores.precedents` and its line.
+  - `eval/memory-noise-none/case.json`, `eval/memory-noise-three/case.json`, `eval/memory-precedent-injection/case.json`: the new cases.
+  - `docs/security-overview.md`, `docker/tests/test-heartbeat-overview.sh`: the approved sentence and its `memory` check (footprint extension, allowed).
+  - `docker/tests/test-eval-set.sh`: the hosted eval-set check accepts an array outcome for an item case (footprint extension, found at review: it failed on `memory-noise-three`; no in-flight epic touches it).
+  - Tests: `Test/Agent/RenderMemory.cls`, `Test/Eval/Table.cls`, `Test/Eval/ZzIn.cls`, `Test/Eval/In.cls`, `Test/Eval/Cases.cls`, `Test/Eval/Report.cls`, `Test/Eval/Precedents.cls` (new).
+- Added beyond the spec: `PRECEDENTWAIT` (30 s) so a seed cannot hang; `Test.Eval.Report:TestPrecedentCasesReportOnly` (AC 6); `TestAllClear`'s key list gained `precedents`.
+- Review findings: 35 reported; patches applied 6 (high 1: `test-eval-set.sh`; medium 3: limit values and an outcome-less entry in `TestSendsPrecedents`, `TestRemoved`'s count; low 2: the `TestReport` label, AC 5's two mutation lines); deferred 0; rejected 29, each with its reason in the Review Triage Log.
+- Follow-up review recommended: true. The pass patched a high. Unverified risk: the push `evaluation` job (`eval/run.sh`) and the `production`, `shards` and `checks` CI groups have not run on this head.
+- Verification (all pass): `RenderMemory`, `Table`, `In`, `Cases`, `Report` on a warm stack; `Test.Eval.Precedents` and `Test.Eval.Run` on fresh throwaways (and `Precedents` again on the warm stack, after two mutations were reverted); `Gate` and `PersonaSweep` (implement stage); `test-heartbeat-overview.sh` (runnow, memory), `test-triage-heartbeat.sh`, `test-boundaries.sh`, `test-ci-config.sh`, `test-eval-set.sh`; `ci/checks.sh` exit 0. Mutations are recorded under Verification (9 lines, one for each AC and for the Matrix's sweep and person rows). Not run: the suite in reverse order, `eval/run.sh`, the shard pieces (CI's).
+- Residual risks: a run killed between a failing seed and its row's removal leaves rows no sweep finds (accepted in Design Notes); the seed-before-dispatch order is pinned by the double in `Test.Eval.In` only, because the real flow cannot pin it; `memory-noise-none` and the pair's outcomes on the mock are mock artifacts, measured on Claude Haiku 5.5 by the release candidate.
+- footprint_extensions: `docker/tests/test-heartbeat-overview.sh` (allowed at the spec gate), `docker/tests/test-eval-set.sh` (new, reported here).
+- amendments: none beyond the Planner's rulings in the Spec Change Log.
