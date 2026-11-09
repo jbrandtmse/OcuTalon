@@ -512,7 +512,7 @@ container_tree_hashes() { dc exec -T iris sh -c "cd '$1' && find . -type f | sor
 # --- the build context ---
 
 # The sources of the Dockerfile's COPY lines, as written (a trailing slash marks a directory).
-dockerfile_copy_sources() { awk '$1 == "COPY" { for (i = 2; i < NF; i++) if ($i !~ /^--/) print $i }' docker/Dockerfile | sort; }
+dockerfile_copy_sources() { awk '$1 == "COPY" { for (i = 2; i < NF; i++) if ($i !~ /^--/) print $i }' Dockerfile | sort; }
 
 # The files that the Dockerfile's COPY lines name, a directory source expanded to its files, one per line.
 copied_files() {
@@ -529,8 +529,8 @@ copied_files() {
 # copy_build_context <dir>: the Dockerfile and the files that its COPY lines name, at their repository paths.
 copy_build_context() {
   local dir=$1 f
-  mkdir -p "$dir/docker"
-  cp docker/Dockerfile "$dir/docker/Dockerfile"
+  mkdir -p "$dir"
+  cp Dockerfile "$dir/Dockerfile"
   for f in $(copied_files); do
     mkdir -p "$dir/$(dirname "$f")"
     cp "$f" "$dir/$f"

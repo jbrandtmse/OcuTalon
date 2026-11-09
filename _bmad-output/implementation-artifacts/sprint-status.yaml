@@ -29,13 +29,13 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-09-2026 17:40
+last_updated: 11-09-2026 20:58
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-0: in-progress
+  epic-0: done
   0-1-the-image-builds-and-starts-ocutalon-in-its-own-namespace: done
   0-2-the-package-installs-and-upgrades-itself-at-every-start: done
   0-3-sign-in-to-an-empty-ocutalon-page: done
@@ -50,10 +50,11 @@ development_status:
   0-12-epic-0-burn-down: done
   0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce: done
   0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv: done
-  0-15-the-dockerfile-sits-at-the-repository-root: ready-for-dev
+  0-15-the-dockerfile-sits-at-the-repository-root: done
   0-16-the-embedded-python-callback-crash-s11-is-re-verified-with-a: done
   0-17-the-readme-s-evaluation-table-shows-release-1-0-4-s-numbers: done
   0-18-the-readme-shows-judges-where-to-look: done
+  0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un: done
   epic-0-retrospective: optional
 
   epic-1: done
@@ -564,5 +565,14 @@ action_items:
     action: "Attended bmad-architecture Update: AD-19 note that the models section
       nested body is not field-to-value"
     owner: "owner"
+    status: open
+    ref: ""
+  - id: "epic-38-retro-item-12-parked-until-after-voting-owner-re-plan"
+    epic: 38
+    action: "Parked until after voting, owner re-plan 2026-11-09 (DW-1021): 41.10,
+      41.11; 11.16, 11.18, 11.29; DW-446/485 story; 35.3; Epics 21, 22, 24, 26, 27,
+      28; 25.3-25.5; 36.2 (36.1, 23.3 if not brought back). Epic 38 CLOSED (1.0.0
+      hands-on pass obsolete). Nothing deleted."
+    owner: "user"
     status: open
     ref: ""

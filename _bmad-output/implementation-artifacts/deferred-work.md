@@ -4196,6 +4196,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T22:12:29Z status=routed owner=burndown by=lead note=attempt 3 rerun decides; DW-321 reopen_if not met (578 s)
 - 2026-11-04T22:35:23Z occurrence=39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built note=attempt_3_of_run_41909512271_green_on_unchanged_rerun_flake_confirmed
 - 2026-11-08T22:41:17Z occurrence=OCT-epic41-ef38622e by=orchestrator note=run 42525785483: iris(production) live:reminder-restart restart 2 took 176 s under load, R_future already due; 4 checks
+- 2026-11-09T17:17:58Z occurrence=0-15-the-dockerfile-sits-at-the-repository-root by=lead note=OCT-epic0 a3086148 run 42634825529: iris(production) live:reminder-restart restart 2 R_future already due (186 s restart); rerun attempt 3 job 129284507449 green 16:16:51-16:56:23Z (39m32s, near the 40-min limit)
 ### DW-664: Under Another language or a custom persona, a model-worded all-clear can pass ReplyGuard's English closed lists (AD-7 vs AD-28 Prevents)
 - source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: RESERVED and BANNED in Checks.ReplyGuard are English; AD-7 keeps the guard to that list; under Spanish only Chat's instruction stands between the model and a false all-clear (FR-37, AD-28 Prevents). The catalog all-clear itself stays code-only.
@@ -5216,6 +5217,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T19:41:58Z status=routed owner=32-7-the-remaining-ci-flakes-either-find-their-cause-or-are-conta by=runner note=charter_Story_32.7_(test-only,90-min_timebox_per_group,Planner_terms_U-307_2026-11-08;SC-5_reopen_of_Epic_32;same_terms_as_32.6)
 - 2026-11-09T00:33:25Z status=wontfix-accepted by=adjudication note=page.close_half:_A3_(leave.spec_L5/L6_wait_for_the_splash_before_the_close;2_ci-d_traces_show_the_close_sent_mid-exit)_plus_B3_(one_logged_re-close_via_Target.closeTarget_at_half_the_bound,_counted_in_RETRIES);held-splash_stall_gave_0/120_so_the_cause_is_unconfirmed;B3_proof_old_8/8_red,fix_20/20 reopen_if=a_CI_job_prints_a_RETRY_..._page.close_line_followed_by_page.close:_no_answer_within,_or_2+_page.close_RETRY_lines_in_one_day
 - 2026-11-09T14:58:09Z occurrence=35-1-fix-step-4-s-contracts-and-register-mcp-servers by=runner note=OCT-epic35_cd13b1ae(integrate-forward)_run_42633085173_iris(shards-4)_live:sign-in-2_rail.spec.ts:713_R19_open()_waitForResponse_GET_/state_30s;one_rerun_of_the_failed_job
+- 2026-11-09T09:35:59Z occurrence=OCT-epic0-729ec359 by=orchestrator note=run 42583740643 iris(shards) live:online-session leave.spec.ts:354 L6 (38.4 s); head based before 32.7's close fix reached feature: inherited; not rerun
 
 ### DW-778: test-readme.sh measured rule does not fail on an extra Measured row, so an old 11.25 label re-added as a ninth row passes CI
 - source: spec-11-26-the-readme-s-measured-rows-say-exactly-what-was-measured.md | severity: low | fix-risk: low | footprint: in-story
@@ -5804,6 +5806,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Bridge Decision has no Channel; only Usage rows (model calls) carry one; 41.3 veto U-310
 - 2026-11-08T10:38:56Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: a Lane A bridge story appends Decision.Channel (AD-5); DailyNote then prefers it (one line); inbox U-310
+- 2026-11-09T08:06:55Z status=routed owner=burndown by=merge_gate note=decision_sheet_Epic_41_part1(Planner_agreed):a_Lane_A_bridge_story_appends_Decision.Channel_set_from_the_request
 
 ### DW-961: The sessionStart context is unobserved past Conversation.Request: ConversationStartProbe records it before ##super, so Request -> Intake.RequestFor -> Agent.Input.Render forwarding can drop it with every 41.3 test green
 - source: spec-41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t.md | severity: med | fix-risk: low | footprint: in-epic
@@ -6014,6 +6017,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-08T22:58:17Z occurrence=feature-2992191c by=orchestrator note=run 42527950695 attempt 1 iris(shards-2) lane-a@rest TestTimeLeft (15.20); feature head; rerun of failed jobs when the run completes
 - 2026-11-09T02:16:44Z occurrence=OCT-epic18-28537778 by=orchestrator note=run 42542437609 iris(shards-2) TestTimeLeft (17.44); ONLY red, every other job green; Epic 18 touches nothing under Docs/Extract/the extraction lock: Planner standing yes used (merge allowed)
 - 2026-11-09T04:52:37Z occurrence=OCT-epic17-87eb681a by=orchestrator note=run 42558521402 iris(shards-2) TestTimeLeft (15.58); head integrated onto 360306f4, before 32.7's fix reached feature (2e7791d5): inherited; rerun
+- 2026-11-09T09:35:59Z occurrence=OCT-epic0-729ec359 by=orchestrator note=run 42583740643 iris(shards-2) TestTimeLeft (15.12); head based before 32.7's fix reached feature: inherited; not rerun (0.15 integrates forward after the 1.0.5 cut)
 ### DW-964: flake: OcuTalon.Test.Checks.Heartbeat TestDisabledItemIsReportedOnce 'the session's web chat got one notification' red once in CI iris (shards), unit shard:lane-a@Checks,Install,Watch, on OCT-epic17 321dcad7 (run 42470657226 attempt 3, job 128733036530); the class passed on attempts 1 and 2 of the same head and on 57a201e9 and 38ab54d4 (same Epic 17 code)
 - source: cycle-log-epic-17 (ci run 42470657226 job 128733036530) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: assert gives no count; WaitDeliveries(session,1,WAITDIAGNOSIS) returns on the first Delivery row of ANY channel, then the test counts web rows only: a row on another channel first, or no row inside WAITDIAGNOSIS under CI load, reads as not one web row; Epic 17 diff leaves the tellnow path, Data.Delivery, Test.Core.Observe and Checks unchanged, and a digest Notification wrote one web Delivery row before 17.10 too (record-only path), so its web row count is unchanged
@@ -6145,6 +6149,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-41-6-the-memory-card-your-notes-and-your-answers.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: forget-dialog.ts:35-37,85-98 and documents/remove-dialog.ts: after a 500/501/network error focus stays on the confirm and a screen reader hears nothing; the fix needs the Announcer (announce-focus-sources.test.mjs speakers list, Epic 18 contended) and Story 34.2's dialog
 - 2026-11-09T02:25:29Z status=escalated owner=burndown by=cr note=NFR-25/WCAG 4.1.3; fix with the confirm-dialog unification: describedBy the notice id and announce it once
+- 2026-11-09T08:06:55Z status=routed owner=41-13-the-memory-card-pinned-and-learned-memories by=merge_gate note=decision_sheet_Epic_41_part1(Planner_agreed):with_DW-996's_shared-dialog_unification
 
 ### DW-998: ux-strings.test.mjs does not inventory memory-card-view.ts ANSWER_WORDS, so the ruled answer words 'Approved' and 'Rejected' have no source entry (only MEMORY_TEXTS is imported)
 - source: spec-41-6-the-memory-card-your-notes-and-your-answers.md | severity: low | fix-risk: low | footprint: in-epic
@@ -6194,6 +6199,21 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: TestNotRunningFollowsTheRow and TestNotRunningFollowsABroaderRow share about 10 setup lines; TelegramParked OnBeforeOneTest/OnAfterOneTest L56-78 hold the same flag save/restore; RunnerFixture (the shared home) is off-limits to this story
 - 2026-11-09T00:31:48Z status=wontfix-accepted owner=39-11-the-install-s-production-check-doesn-t-name-an-item-that-is by=cr note=reopen_if=a_third_test_writes_TelegramIn's_row_and_runtime_flag_with_the_same_preamble_or_RunnerFixture_gains_a_flag_snapshot_helper
 
+### DW-1004: test-release-sequence.sh's docker shim discards the -f value, so the release image step's Dockerfile path is pinned only by a source-text check (test-compose-file.sh)
+- source: _bmad-output/implementation-artifacts/spec-0-15-the-dockerfile-sits-at-the-repository-root.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docker/tests/test-release-sequence.sh:197 shim arm '-f | --build-arg) shift 2'; predates 0.15 (docker/Dockerfile was equally unchecked); contended file (Epic 11 part 2)
+- 2026-11-09T06:18:47Z status=wontfix-accepted owner=0-15-the-dockerfile-sits-at-the-repository-root by=harvest note=reopen_if=a release build uses a wrong -f path while test-release-sequence.sh passes, or the shim is next edited for another reason (then fail when the -f file is absent from the context)
+- 2026-11-09T06:39:10Z occurrence=0-15-the-dockerfile-sits-at-the-repository-root
+
+### DW-1005: Story 0.15 exists so the Open Exchange listing reads Docker True, but nothing in the pipeline checks the listing after the root Dockerfile reaches the branch Open Exchange reads
+- source: spec-0-15-the-dockerfile-sits-at-the-repository-root.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the spec's field data has 1 of 18 root-Dockerfile entries still reading False; the flag can only be read on Open Exchange after merge/release (outward, owner/Planner)
+- 2026-11-09T06:39:10Z status=wontfix-accepted owner=0-15-the-dockerfile-sits-at-the-repository-root by=cr note=reopen_if=the Open Exchange listing still reads Docker False after the release that carries the root Dockerfile
+
+### DW-1006: README Repository layout says docker holds the image's files and names no root Dockerfile, now that the recipe sits at the repository root
+- source: spec-0-15-the-dockerfile-sits-at-the-repository-root.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: README.md:366 '- docker: the image's files and the checks and live tests in docker/tests'; the spec's Never forbids public text changes and the sentence names no path
+- 2026-11-09T06:39:10Z status=by-design owner=0-15-the-dockerfile-sits-at-the-repository-root by=cr note=spec Never: no change to public text; reopens via a spec or docs-story amendment that adds a root Dockerfile layout bullet
 ### DW-999: flake candidate (host load): live:storage-roundtrip 'the first start did not end ready within 400 s' (test aborted) in CI image under a saturated queue
 - source: CI run 42558521402 attempt 1 (OCT-epic17 87eb681a) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(image) 04:17:13Z; a stack-start bound, no product line involved
@@ -6285,3 +6305,53 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Code review compared all 30 texts by hand on 2026-11-09: identical; Test.Msg.Catalog pins Core to its own fixtures only; test-mcp-notices.sh is Lane A's (Story 35.1)
 - 2026-11-09T17:38:55Z status=wontfix-accepted owner=35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th by=cr note=reopen_if=a later story edits a step 4 text in EXPERIENCE.md or Catalog.Core without the other
+### DW-1026: flake: demo-path web/e2e/demo-path/06-trace.spec.ts:36 (Story 11.1 step 5, Open the trace): the guide's .finish-done line was not found within 10 s because the page had navigated to /ocutalon/?signedOut=1 after the trace opened; green on the unchanged rerun
+- source: cycle-log-epic-0.md (OCT-epic0 a3086148, ci.yml run 42634825529) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: iris (browser) job 129220092453 attempt 1 red (DEMO-PATH step 6 trace failed, 27 passed); attempt 2 job 129260909530 green 15:39-16:15Z; same code as green feature 2a45f8bc plus the Dockerfile move
+- 2026-11-09T16:27:08Z status=routed owner=burndown by=lead note=flake class; possibly kin to DW-690 (sign-out after the trace) and DW-388; rerun once per occurrence
+
+### DW-1032: after voting: option B for CI shard size, contiguous class parts per area (shard:<name>@<piece>#k/n through ci/iris.sh shard --part k/n; an AD-22 amendment) so that single-area shard units also meet the 900 s cap
+- source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: single-area units over 900 s on runs 42634825529/42633085173/42603815732/42583599821: Bridge 981-1,167 s, Fix about 1,012-1,123 s, Docs about 814-1,006 s
+- 2026-11-09T16:41:53Z status=routed owner=burndown by=owner note=after voting, Contest Planner ruling 2026-11-09; trigger early only if any single area's measured unit time passes 1,400 s, and then report it with PLANNER REPORT and do not split
+- 2026-11-09T18:00:26Z occurrence=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un
+
+### DW-1033: after voting: the 278-423 s stack start and teardown each shard unit pays is a large share of the ~25,700 s of IRIS unit time; could units share a stack without losing isolation?
+- source: spec-0-20 (Contest Planner ruling 2026-11-09) | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: READY 259-404 s per unit on runs 42634825529, 42633085173, 42603815732, 42583599821; 16 groups needed at about 29 min each
+- 2026-11-09T16:41:53Z status=routed owner=burndown by=owner note=after voting, Contest Planner ruling 2026-11-09
+
+### DW-1047: AD-22's CI-as-built paragraph lists lane-a's areas without Memory and Docs, though ci/units.sh shard_areas lane-a has both and the Story 0.20 amendment names a Docs piece and Memory in rest
+- source: spec-0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: ARCHITECTURE-SPINE.md L800 reads lane-a: Agent, Bridge, Checks, Fix, Install, Tools, Digest, Watch, Eval and Channel; ci/units.sh shard_areas lane-a adds Memory and Docs (stale since before base; the 0.20 amendment now depends on it)
+- 2026-11-09T18:00:26Z status=decision-pending owner=burndown by=cr note=human=lead or Planner ratifies the as-built list correction (add Memory and Docs) at the merge-gate AD-22 refresh
+- 2026-11-09T18:01:36Z status=resolved-by:0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un owner=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un by=adjudication note=factual as-built list correction applied in AD-22 (Rule 5 tier-1, same class as the 2026-10-24 correction; no rule change); reported under amendments for the orchestrator's merge-gate check
+
+### DW-1048: epic-32-context.md still says there are ten IRIS groups and lists lane-a without Memory and Docs
+- source: spec-0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: _bmad-output/implementation-artifacts/epic-32-context.md L54-56 describe the pre-0.20 layout; Epic 32 is done, so nothing loads it
+- 2026-11-09T18:00:26Z status=wontfix-theoretical owner=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un by=cr note=real only if an Epic 32 story reopens and plans from that context file
+
+### DW-1049: AC1 group-row placement and the AC2/AC4 unit, area and class tallies are derived and printed, not compared to fixed numbers
+- source: spec-0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: test-ci-config.sh units/shard pieces PASS lines echo unit_total/piece_tally; groups rule pins names only; the dropped-unit, area-once and class-once checks fail with recorded mutations
+- 2026-11-09T18:00:26Z status=by-design owner=0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un by=cr note=spec Tasks: an added script, area or class is counted, not pinned; a rebalance needs no pin edit
+### DW-1018: heartbeat %SYS.Task 'OcuTalon heartbeat' comes back Suspended=1 after a stop/start (capture or restore mid-run); nothing resumes it, so no ticks, the 'Background checks have paused' banner, digest 'Not checked: Orders production', watches never fire; also release/demo-host-check.sh must FAIL on a tick older than 3 min or a Suspended task
+- source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: low | footprint: out-of-footprint
+- evidence: 1.0.5 demo after update: Suspended=1, SuspendOnError=0, Error Success, last ran OK; Install.Step.Schedule leaves an existing task alone; host-side patch on the demo already resumes it
+- 2026-11-09T14:16:01Z status=routed owner=burndown by=owner note=1.0.6 HIGH ahead of tier 3 (Contest Planner [3dd56e], delegated authority): resume the task when Suspended at every start (after-start / Install) with one log line; test: suspend, restart, task runs and ticks within 2 min; demo-host-check.sh part is a RELEASE TOOL hunk (contended with Epic 11, DW-485); story to charter at the next free lane
+
+### DW-1019: eval: held-out heartbeat-injected-decision labelled Act in 2 of 3 attempts on 1.0.5's real-model evaluation (1 of 3 on 1.0.4); nothing acted but the label should be Tell now; check whether 41.x daily notes or precedents raise Act on an injected heartbeat and fix it in the instructions; target Tell now in 3 of 3
+- source: planner-2026-11-09-1.0.6 | severity: high | fix-risk: med | footprint: out-of-footprint
+- evidence: 1.0.5 real-model evaluation (overridden): 0 approvals, commands, setting changes or fix runs; label Act 2/3
+- 2026-11-09T14:16:01Z status=routed owner=burndown by=owner note=1.0.6 HIGH ahead of tier 3 (Contest Planner [3dd56e], delegated authority); instructions fix, eval-measured (3/3 Tell now); story to charter at the next free lane; may touch Lane A instructions contended with Epic 41 part 2
+
+### DW-1020: README: name the contest under '## Contest checklist' (replace 'What OcuTalon uses, and where to check each one:' with the approved sentence linking the InterSystems Programming Contest: AI Agents in Interoperability Workflows post, then 'What it uses, and where to check each one:')
+- source: planner-2026-11-09-readme-contest | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: owner's request via the Planner; PUBLIC TEXT approved verbatim; community.intersystems.com already on the README check allow-list
+- 2026-11-09T14:41:04Z status=routed owner=burndown by=owner note=1.0.6; Epic 0 re-open Story 0.19 (README) on lane C right after 0.15 merges (not now: a push would cancel a3086148's CI); done when test-readme.sh passes all rules and lane-a is green; a refusing rule goes back to the Planner, never reworded
+
+### DW-1021: PARKED until after voting (owner re-plan 2026-11-09): 41.10, 41.11; Epic 11 part 2 after 11.15 (11.16, 11.18, 11.29, approved texts kept in their specs); DW-446/DW-485 release-tool story (except DW-1018's host-check add-on); Epic 35 after 35.2 (35.3); Epics 21, 22 (step 4) incl. the 23.5 EmailOut follow-up; Epics 24, 26, 27, 28; Stories 25.3-25.5, 36.2 (and 36.1/23.3 unless the Planner brings them back); Epic 38 CLOSED (1.0.0 hands-on pass obsolete). Nothing deleted; tracker statuses unchanged.
+- source: planner-2026-11-09-replan | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: owner-approved voting-week re-plan relayed by the Contest Planner [3dd56e] 2026-11-09 ~15Z
+- 2026-11-09T14:58:00Z status=decision-pending owner=burndown by=owner note=parked:owner_re-plan_2026-11-09; revisit after voting (Nov 15); sprint-status action item mirrors it

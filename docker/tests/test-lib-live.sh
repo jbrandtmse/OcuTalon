@@ -346,7 +346,7 @@ fi
 
 # --- the build context ---
 
-expected_files="docker/Dockerfile
+expected_files="Dockerfile
 docker/after-start.cos
 docker/after-start.sh
 docker/healthcheck.sh

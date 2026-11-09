@@ -712,9 +712,20 @@ incident_waiting() {
 
 # --- the throwaway stacks ---
 
+# previous_dockerfile <tree>: the path of the tree's Dockerfile, relative to the tree: the root Dockerfile, else docker/Dockerfile
+# (v1.0.4 and earlier); 1 when neither.
+previous_dockerfile() {
+  if [ -f "$1/Dockerfile" ]; then echo Dockerfile
+  elif [ -f "$1/docker/Dockerfile" ]; then echo docker/Dockerfile
+  else return 1
+  fi
+}
+
 # The context override of the previous build's tree: the next `up --build` builds the image from that tree's own Dockerfile.
 add_previous_context() {
-  printf 'services:\n  iris:\n    build:\n      context: %s\n      dockerfile: docker/Dockerfile\n' "$state/previous" > "$tmp/context.yml"
+  local df
+  df=$(previous_dockerfile "$state/previous") || die "previous build: the exported tree of ${pl_prev_sha:-the previous build} has no src/module.xml, or neither Dockerfile nor docker/Dockerfile"
+  printf 'services:\n  iris:\n    build:\n      context: %s\n      dockerfile: %s\n' "$state/previous" "$df" > "$tmp/context.yml"
   live_add_file "$tmp/context.yml"
 }
 
@@ -1206,7 +1217,7 @@ phase_build() {
   kind=$pl_prev_kind
   mkdir -p "$prev"
   if ! git archive "$pl_prev_sha" | tar -x -C "$prev"; then die "previous build: git archive of $pl_prev_sha failed"; fi
-  if [ ! -f "$prev/src/module.xml" ] || [ ! -f "$prev/docker/Dockerfile" ]; then die "previous build: the exported tree of $pl_prev_sha has no src/module.xml or docker/Dockerfile"; fi
+  if [ ! -f "$prev/src/module.xml" ] || ! previous_dockerfile "$prev" > /dev/null; then die "previous build: the exported tree of $pl_prev_sha has no src/module.xml, or neither Dockerfile nor docker/Dockerfile"; fi
   pass "previous build: the tree of the $kind build $pl_prev_sha is exported (version $pl_prev_version)"
   if [ -n "$pl_stamp" ]; then
     stamp_version "$prev/src/module.xml" "$pl_stamp" > "$prev/src/module.xml.new" && mv "$prev/src/module.xml.new" "$prev/src/module.xml"

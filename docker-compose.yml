@@ -5,7 +5,7 @@ services:
   iris:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
       args:
         IRIS_IMAGE: ${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}
     pull_policy: build

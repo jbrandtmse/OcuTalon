@@ -6,8 +6,8 @@
 # that runs this test never leaks in.
 #   - row 9, the web classifier: web is true for each web input and false for other paths, so a change to DESIGN.md runs web;
 #   - the group classifier: the script of each live unit (group_units) runs exactly its own group; the web-only set runs every group
-#     but production; a change to ci/ or the workflow runs all ten, and each product source is claimed by a pattern; each declared
-#     non-input and each bookkeeping path runs no group; a path that nothing claims or declares runs all ten, naming the path;
+#     but production; a change to ci/ or the workflow runs all sixteen, and each product source is claimed by a pattern; each declared
+#     non-input and each bookkeeping path runs no group; a path that nothing claims or declares runs all sixteen, naming the path;
 #   - row 10, the base: the first commit of the history with a green push run (HEAD itself on a re-run of a green run); no
 #     base, web true and every group running, on a pull request, with no run, with no green run in the history, with a run that is not
 #     a push, and when the answer cannot be read or holds no run list;
@@ -143,7 +143,7 @@ runs "$tmp/green-c0.json" "success:$c0"
 # --- row 9: the classifier, with the paths given ---
 
 # The groups that a web change runs: every group but production, whose units never check the built web bundle.
-web_groups="install-fresh install-upgrade browser shards shards-2 image shards-3 shards-4 shards-5"
+web_groups="install-fresh install-upgrade browser shards shards-2 image shards-3 shards-4 shards-5 shards-6 shards-7 shards-8 shards-9 shards-10 shards-11"
 
 paths_case() { # paths_case <label> <web> <groups that run: all, none or names> <path>...
   local label=$1 web=$2 groups=$3 f="$tmp/paths.txt"
@@ -230,7 +230,7 @@ claimed_case "the root .gitattributes" true .gitattributes
 claimed_case "src/bridge" false src/bridge/cls/OcuTalon/Bridge/Other.cls
 claimed_case "src/cpf" false src/cpf/x.cpf
 claimed_case "src/module.xml" false src/module.xml
-claimed_case "docker/Dockerfile" false docker/Dockerfile
+claimed_case "the root Dockerfile" false Dockerfile
 claimed_case "docker/merge.cpf" false docker/merge.cpf
 claimed_case "docker/after-start.cos" false docker/after-start.cos
 claimed_case "docker/ipm/**" false docker/ipm/x.xml
@@ -281,13 +281,13 @@ unclassified_case "an unclassified path next to a claimed one" false newdir/x.tx
 # folder is unclassified, so that no group is skipped for a path that a unit may read.
 for near in newdir/docs/x.md newdir/release/x.sh newdir/.claude/x.json newdir/README.md newdir/x.md newdir/LICENSE newdir/NOTICE \
   newdir/_bmad/x.yaml newdir/_bmad-output/x.md docker/other/test-x.sh docker/tests/sub/test-x.sh docker/tests/sub/record-eval.sh \
-  .github/workflows/other.yml .github/workflows/lane-a.yml.bak; do
+  .github/workflows/other.yml .github/workflows/lane-a.yml.bak newdir/Dockerfile docker/other/Dockerfile; do
   unclassified_case "a declared path's name in another place ($near)" false "$near" "$near"
 done
 
 # --- row 10: the base ---
 
-commit "c1 code" docker/Dockerfile
+commit "c1 code" Dockerfile
 c1=$sha
 commit "c2 code" src/module.xml
 c2=$sha
@@ -661,11 +661,11 @@ fi
 main_repo=$repo
 repo="$tmp/repo-diff"
 git init -q "$repo"
-commit "d0 dockerfile" docker/Dockerfile README.md
+commit "d0 dockerfile" Dockerfile README.md
 d0=$sha
 runs "$tmp/green-d0.json" "success:$d0"
 mkdir -p "$repo/docs"
-g mv docker/Dockerfile docs/old-Dockerfile.txt
+g mv Dockerfile docs/old-Dockerfile.txt
 g commit -q -m "d1 the Dockerfile moves into docs"
 classify "$tmp/green-d0.json" push
 expect "diff: a claimed file renamed into docs still runs every group (git's rename detection would list only the new path)" "$d0" false all
