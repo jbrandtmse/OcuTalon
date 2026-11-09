@@ -6252,6 +6252,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-09T16:25:24Z status=escalated owner=burndown by=runner note=needs a ci/units.sh group split (contended: Epic 0, Epic 11) or more capacity; reported to the orchestrator at once
 - 2026-11-09T16:26:19Z status=routed owner=burndown by=orchestrator note=resolves_by_Epic_0_Story_0.20(group_split_widened:split_unit_shard:lane-a@rest,rebalance_shards-2,-3,-4);orchestrator_ruling_2026-11-09;not_for_decisions_for_user
 - 2026-11-09T17:51:03Z note=Epic_35_burn-down:kept_owner=burndown_by_orchestrator_ruling(Story_0.20_key_not_yet_in_the_tracker);not_for_decisions_for_user by=burndown
+- 2026-11-09T21:23:49Z status=resolved-by:0-20-rebalance-the-iris-ci-groups-so-every-group-finishes-well-un by=adjudication note=merged 52cf70f6
 
 ### DW-1034: settings.refusedExpansion is stored in Catalog.Core with a {marker} slot for the two characters that open a setting reference, because Msg.Catalog.Fill rejects an unbalanced brace; producers must pass '@{' as the slot value
 - source: spec-35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th.md | severity: low | fix-risk: low | footprint: in-story

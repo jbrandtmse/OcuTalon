@@ -98,3 +98,6 @@
 2026-11-09T21:13:27Z	Story 35.2	dev_complete	spawn_at=2026-11-09T21:01:06Z model=sonnet effort=high build_sha=afe2d8d9 baseline_revision=5485b803 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=2 cycle_iteration=2 rework=1 note=wallet_read_measured(SELECT_%ID_FROM_%Wallet.Secret/Collection);TestNoMcpSettingsRoute;4_mutations
 2026-11-09T21:13:27Z	Story 35.2	adr_verifications_complete	result=none_required note=rework_touched_no_AD-tooled_AC(test-only)
 2026-11-09T21:13:27Z	Story 35.2	stage_spawned	stage=code-review spawn_at=2026-11-09T21:13:27Z model=opus effort=high agent_name=35-2-code-review-2 cycle_iteration=2 scope=5485b803..HEAD
+2026-11-09T21:23:49Z	Story 35.2	cr_complete	spawn_at=2026-11-09T21:13:27Z model=opus effort=high resolved=5 fixed_at_source=5 by_design=0 wontfix_theoretical=0 routed=0 escalated=0 decision_pending=0 deferred=0 dismissed=7 high=0 med=1 low=11 rows=12 unresolved_high_med=0 clarifications=0 closing_sections_present=true status=done review_tier=full-opus scope=rework(5485b803..HEAD) checklist=DW-1041_Planner_condition:fixed
+2026-11-09T21:23:49Z	Story 35.2	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=rework_iteration;slice_empty model=claude-opus-5-5
+2026-11-09T21:23:49Z	Epic 35	ledger_adjudicated	id=DW-1025 status=resolved-by:0-20 by=adjudication note=merged_52cf70f6

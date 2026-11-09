@@ -12,8 +12,8 @@
 ///   - TestToolVerbs: the real TOOLVERBS holds SendEmail and no MCP verb, and the real Routes send the five MCP verbs to McpOps from web_admin
 ///     only and SendEmail to EmailOut from tool and system;
 ///   - TestRestartRunnersWithoutProduction: RestartRunners' work answers OK and restarts nothing for no running production or another one;
-///   - TestMcpEntryStubs: SaveMcpEntry and RemoveMcpEntry answer code 5003 and leave no Config Store entry and the IRIS wallet (its
-///     collections and secrets) as found;
+///   - TestMcpEntryStubs: SaveMcpEntry writes no Config Store entry, RemoveMcpEntry leaves the entry the test made, both answer code 5003 and
+///     leave the IRIS wallet (its collections and secrets) as found, and the test's own entry, collection and secret are gone afterwards;
 ///   - TestNoMcpSettingsRoute: Web.Api's XData UrlMap holds no route under /v1/settings/mcp until Story 21.4 adds them.
 /// The run's calls are kept under ^OcuTalonTest("CommandsRouting", "step4<n>") and deleted after the tests; email.owner and email.address are
 /// put back as found; the context of the test process is ended before and after the tests.
@@ -29,8 +29,9 @@ Property Run As %String;
 /// The settings as found: $ListBuild(owner row exists, owner value, address row exists, address value).
 Property Found As %List;
 
-/// The wallet collection the stub test made (its secret is <collection>.Key), "" when none is left.
-Property WalletFixture As %String;
+/// The server name of the stub test's fixtures (wallet collection <server>, its secret <server>.Key, Config Store entry
+/// AI.MCP.OcuTalon_<server>), "" when none is left.
+Property StubServer As %String;
 
 Method OnBeforeAllTests() As %Status
 {
@@ -43,7 +44,7 @@ Method OnBeforeAllTests() As %Status
 Method OnAfterAllTests() As %Status
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
-	Do ..DropWalletFixture()
+	Do ..DropStubFixtures()
 	Kill ^OcuTalonTest("CommandsRouting", ..Run)
 	Do ..PutBack("email.owner", $List(..Found, 1), $List(..Found, 2))
 	Do ..PutBack("email.address", $List(..Found, 3), $List(..Found, 4))
@@ -217,28 +218,40 @@ Method TestToolVerbs()
 	Do $$$AssertEquals(other, 0, "no step 4 verb goes to another owner")
 }
 
-/// Both MCP entry stubs answer code 5003, and write no Config Store entry and nothing to the IRIS wallet: its collections and secrets, those
-/// of a collection and secret the test makes under the server's name included, are the same before and after (AD-19, AD-21: built in Story 21.4).
+/// Both MCP entry stubs answer code 5003 and write nothing (AD-19, AD-21: built in Story 21.4): SaveMcpEntry makes no Config Store entry,
+/// RemoveMcpEntry leaves the entry the test made, and the IRIS wallet's collections and secrets, those of a collection and secret the test makes
+/// under the server's name included, are the same before and after each call. The test's entry, collection and secret are removed again and
+/// the wallet is left as the test found it.
 Method TestMcpEntryStubs()
 {
 	Set server = "zzstub"_$Increment(^OcuTalonTest("CommandsStep4", "stub"))
 	Set name = "AI.MCP.OcuTalon_"_server
-	Set ..WalletFixture = server
-	Do $$$AssertStatusOK(##class(%Wallet.Collection).Create(server, {"EditResource": "%DB_%DEFAULT", "UseResource": "%DB_%DEFAULT"}), "the test's wallet collection is made")
+	Set found = ..WalletIds()
+	Do $$$AssertTrue($Extract(found, 1, 7) '= "SQLCODE", "the wallet is readable ("_found_")")
+	Do $$$AssertEquals(##class(%ConfigStore.Configuration).Exists(name), 0, "the entry is absent before")
+	If ##class(%Wallet.Collection).Exists(server) || ##class(%ConfigStore.Configuration).Exists(name) Quit
+	Set sc = ##class(%Wallet.Collection).Create(server, {"EditResource": "%DB_%DEFAULT", "UseResource": "%DB_%DEFAULT"})
+	Do $$$AssertStatusOK(sc, "the test's wallet collection is made")
+	If $$$ISERR(sc) Quit
+	Set ..StubServer = server
 	Do $$$AssertStatusOK(##class(%Wallet.KeyValue).Create(server_".Key", {"Secret": {"token": "zz"}, "RequireTLS": 0, "Usage": "CUSTOM"}), "the test's wallet secret is made")
 	Set wallet = ..WalletIds()
-	Do $$$AssertTrue($Extract(wallet, 1, 7) '= "SQLCODE", "the wallet is readable ("_wallet_")")
-	Do $$$AssertTrue(wallet [ ("Secret:"_server_".Key"), "the wallet read lists the test's secret")
-	Do $$$AssertEquals(##class(%ConfigStore.Configuration).Exists(name), 0, "the entry is absent before")
+	Do $$$AssertTrue((";"_wallet_";") [ (";Collection:"_server_";"), "the wallet read lists the test's collection")
+	Do $$$AssertTrue((";"_wallet_";") [ (";Secret:"_server_".Key;"), "the wallet read lists the test's secret")
 	Set sc = ##class(OcuTalon.Core.SettingsOps).SaveMcpEntry(server, "http://127.0.0.1:1/mcp", "secret://zz")
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "SaveMcpEntry answers the not-built code")
 	Do $$$AssertEquals(##class(%ConfigStore.Configuration).Exists(name), 0, "and writes no entry")
 	Do $$$AssertEquals(..WalletIds(), wallet, "and leaves the wallet as it was")
+	Do $$$AssertStatusOK(##class(%ConfigStore.DescriptorManager).RebuildRegistry(), "the Config Store registry is rebuilt")
+	Set details = {"transport": "remote", "url": "http://127.0.0.1:1/mcp", "auth": {"type": "header", "name": "x-zz", "value": ("secret://"_server_".Key#token")}}
+	Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).Create("AI", "MCP", "", "OcuTalon_"_server, details), "the test's entry "_name_" is made")
 	Set sc = ##class(OcuTalon.Core.SettingsOps).RemoveMcpEntry(server)
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "RemoveMcpEntry answers the not-built code")
-	Do $$$AssertEquals(##class(%ConfigStore.Configuration).Exists(name), 0, "and leaves no entry")
+	Do $$$AssertEquals(##class(%ConfigStore.Configuration).Exists(name), 1, "and leaves the entry it found")
 	Do $$$AssertEquals(..WalletIds(), wallet, "and leaves the wallet as it was")
-	Do ..DropWalletFixture()
+	Do ..DropStubFixtures()
+	Do $$$AssertEquals(..StubServer, "", "the test's entry, collection and secret are removed")
+	Do $$$AssertEquals(..WalletIds(), found, "and the wallet is left as the test found it")
 }
 
 /// The MCP settings routes belong to Story 21.4, which moves the wallet and Config Store write into McpOps: until then Web.Api's XData UrlMap
@@ -251,7 +264,7 @@ Method TestNoMcpSettingsRoute()
 	Set stream = compiled.Data
 	Set text = ""
 	While 'stream.AtEnd { Set text = text_stream.Read(32000) }
-	Set text = $Replace($Replace(text, "'", """"), " ", "")
+	Set text = $Translate($Replace(text, "'", """"), " "_$Char(9, 10, 13))
 	Do $$$AssertTrue(text [ "Url=""/v1/state""", "the UrlMap was read")
 	Set found = 0
 	For attribute = "Url", "Prefix" {
@@ -283,7 +296,8 @@ Method NewProbe(mode As %String = "ok") As OcuTalon.Test.Core.CommandsInProbe [ 
 	Quit probe
 }
 
-/// The wallet's collections and secrets in the namespace as one text, or "SQLCODE <code>" when the extents cannot be read.
+/// The wallet's collections and secrets as one text, or "SQLCODE <code>" when the extents cannot be read. The wallet is kept in the instance's
+/// security database, so the text is the same from every namespace.
 Method WalletIds() As %String [ Private ]
 {
 	Set ids = ""
@@ -296,14 +310,16 @@ Method WalletIds() As %String [ Private ]
 	Quit $ListToString(ids, ";")
 }
 
-/// Removes the wallet collection and secret the stub test made, when they are still there.
-Method DropWalletFixture() [ Private ]
+/// Removes the Config Store entry, wallet collection and secret the stub test made, when they are still there (deleting a collection deletes
+/// its secrets), and clears StubServer once none of them is left.
+Method DropStubFixtures() [ Private ]
 {
-	Set collection = ..WalletFixture
-	If collection = "" Quit
-	If ##class(%Wallet.Secret).Exists(collection_".Key") Do ##class(%Wallet.KeyValue).Delete(collection_".Key")
-	If ##class(%Wallet.Collection).Exists(collection) Do ##class(%Wallet.Collection).Delete(collection)
-	Set ..WalletFixture = ""
+	Set server = ..StubServer
+	If server = "" Quit
+	Set name = "AI.MCP.OcuTalon_"_server
+	If ##class(%ConfigStore.Configuration).Exists(name) Do ##class(%ConfigStore.Configuration).Delete(name)
+	If ##class(%Wallet.Collection).Exists(server) Do ##class(%Wallet.Collection).Delete(server)
+	If '##class(%ConfigStore.Configuration).Exists(name), '##class(%Wallet.Collection).Exists(server), '##class(%Wallet.Secret).Exists(server_".Key") Set ..StubServer = ""
 }
 
 /// A command of the verb with the origin and session.
