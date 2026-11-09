@@ -6220,3 +6220,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 42574755205 attempt 1 (feature 0ab2eef0) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: iris(install-fresh) 07:27:01Z; the head's code delta vs its green predecessors touches no connection or license code
 - 2026-11-09T07:39:44Z status=routed owner=burndown by=orchestrator note=first sighting; rerun of the failed job 07:40Z
+
+### DW-1026: flake: demo-path web/e2e/demo-path/06-trace.spec.ts:36 (Story 11.1 step 5, Open the trace): the guide's .finish-done line was not found within 10 s because the page had navigated to /ocutalon/?signedOut=1 after the trace opened; green on the unchanged rerun
+- source: cycle-log-epic-0.md (OCT-epic0 a3086148, ci.yml run 42634825529) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: iris (browser) job 129220092453 attempt 1 red (DEMO-PATH step 6 trace failed, 27 passed); attempt 2 job 129260909530 green 15:39-16:15Z; same code as green feature 2a45f8bc plus the Dockerfile move
+- 2026-11-09T16:27:08Z status=routed owner=burndown by=lead note=flake class; possibly kin to DW-690 (sign-out after the trace) and DW-388; rerun once per occurrence
