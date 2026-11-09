@@ -133,6 +133,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-09 (runner, after QA): Contest Planner Part A rulings recorded (Lane B extras allowed; mailbox name approved; email dropped, patched at code review).
+
 - 2026-11-09 (runner, spec gate): Contest Planner rulings applied: six keys reworded, rendering conditions (a)-(c), More to try fallback, README order, veto conditions, spine additions written (AD-32, AD-15), AD-33 exception scope, registry-driven count; AC13-AC18 added.
 
 - 2026-11-09 (runner, spec gate): orchestrator rulings on the contended paths recorded under Design Notes; Planner rulings pending.
@@ -217,6 +219,8 @@ deferred: []
 7. The orchestrator's plain-union rulings stand; `EXPERIENCE.md` gets the ruled texts above (this story writes its marked additive lines).
 8. The More to try count (Planner, standing): README line 30 ("N more things to try"), EXPERIENCE.md's item count and the `more-to-try-view.ts` header comment must match the number of items in the registry after merges (Story 20.2, lane B, also adds an item; whichever merges second sets the count, nine if both). Any test that pins the count reads the registry, never a literal: every count pin this story adds or changes is registry-driven now.
 9. Route rule (corrected, standing): no new `/api/v1` route in this story, so the real-HTTP route rule does not bite; the tool's second-session test is required (AC7).
+
+**Contest Planner rulings, Part A [RULED 2026-11-09, Contest Planner]:** (1) the five extra Lane B edits from implement (`Data/Ownership.cls` RecentNotices `'summary'`; `Test/Data/Tables.cls` column map; `web/e2e/support/iris.ts` seed field; `web/scripts/approval-sources.test.mjs` regexes; the moved JSDoc in `web/e2e/demo-path/08-quiet-outcomes.spec.ts`) are allowed under this story's AD-33 exception as a plain union, listed under footprint_extensions; (2) channel names: "the Simulated mailbox" is approved; "email" is DROPPED until real email exists: `Watch/Summary.cls` `CHANNELNAMES` loses `email=email`, so an answer from email gets no answer line (code review patches it, with its test).
 
 ## Public Text
 
@@ -313,6 +317,13 @@ mutation: AC15 name the answerer on the online demo too (drop the `'onlineDemo` 
 mutation: AC16 the item presses nothing when no card is resolved -> `web/e2e/guide/more-to-try.spec.ts` K26 (CI, not run here).
 mutation: AC17 n/a here: `live:install-upgrade` (CI) runs the upgrade harness; the empty-summary read is pinned by `Test.Watch.Summary:TestText` and `Test.Tools.RecentActivity:TestIncidentSummary` (a closed incident with no summary gives none).
 mutation: AC18 README line 30 says "seven more things" -> `web/scripts/more-to-try-view.test.mjs` "counts the items by the registry" red; reverted, tree byte-identical.
+
+(QA) Tests added or extended (QA stage, 2026-11-09), no test removed or weakened:
+- (QA) `Test/Watch/Summary.cls` `TestMarkupCut`, `TestPlaceholderText`, `TestInvisibleText` (AC14) and the shared fixture `Built`/`CutLine`; `Test/Core/WebChatOut.cls` `TestSummaryBuilt`, `Test/Demo/SimPhoneOut.cls` `TestSummaryBuiltMessage`, `Test/Channel/TelegramOut.cls` `TestSummaryBuilt` (AC14, one per channel, through `Build`: markup literal, sample error cut to the notice's length, Telegram with no parse mode); `Test/Tools/RecentActivityTurn.cls` `TestIncidentSummaryAnotherSessionInTheChat` (AC7 through the real chat turn).
+- (QA) Product fix inside this story's own file: `Watch/Summary.cls` `Clean` (and the sample-error part) now returns "" for text that shows nothing, so a cause, evidence, fix or sample error made of invisible characters cannot make the stored summary unrenderable (found by `TestInvisibleText`: `Catalog.Render` refused the empty `summary.cause` slot, so no card, message or tool text could be made).
+mutation: AC14 (QA) the sample error part is not cut (`Build` uses `Clean(incident.SampleError)` in place of the notice's `ErrorText.Summary`) -> `Test.Watch.Summary:TestMarkupCut`, `Test.Core.WebChatOut:TestSummaryBuilt`, `Test.Demo.SimPhoneOut:TestSummaryBuiltMessage` and `Test.Channel.TelegramOut:TestSummaryBuilt` red; reverted, tree byte-identical.
+mutation: AC14 (QA) the old `Clean` (no test for text that shows nothing) -> `Test.Watch.Summary:TestInvisibleText` red (`summary.cause` slot empty) before the fix; green with it.
+mutation: AC7 (QA) `Data.Ownership` `INCIDENTVISIBLE` gains `OR 1 = 1` (every session sees every incident) -> `Test.Tools.RecentActivityTurn:TestIncidentSummaryAnotherSessionInTheChat` red (B's tool result carried A's summary) and `Test.Tools.RecentActivity:TestIncidentSummaryAnotherSession` red; reverted, tree byte-identical.
 
 ## Auto Run Result
 

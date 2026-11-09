@@ -136,7 +136,20 @@ deferred: []
 - AC14: Given an incident with suspend, resume or reroute requests, when it closes, then its summary has the kind's requested and ended lines, and item runs add nothing to the messages counts (`Test.Watch.Summary`).
 - AC15: Given a reroute request, when the README account reads `GET /api/v1/state` and answers it over real HTTP, then the payload carries `fixKind` and the dry run's `to`, and a second session's state lists no such request (`web/e2e/cards/approval-card.spec.ts`).
 
+**Added from the Planner's rulings (2026-11-09):**
+- [ ] S1: the online-demo install path leaves `%Ens_ConfigItemRun:U` off `OcuTalonServiceRole` (or revokes it); AD-24's line records the exclusion.
+- [ ] S6: the eval report's unasked-action tally counts a raised fix request; the release evaluation's cases where the user didn't ask (injection included) still show 0 approvals and 0 commands.
+- AC-S1: Given an online-demo install, when an item kind runs with the ONLINESHARED check bypassed, then it ends NOTALLOWED, and `OcuTalonServiceRole` holds no `%Ens_ConfigItemRun:U`.
+- AC-S2: Given a shared Orders production with user A's open incident, when user B's chat asks `propose_fix` to reroute, then no request is raised for A's failed messages and none of A's messages is resent (demo and local install).
+- AC-S3: Given `OrdersForReview` in the Orders production, when no reroute ran, then it processes nothing; the demo-path and online e2e suites pass with it present, as does a local demo-host-check against a demo build; every Orders item count is updated.
+- AC-S4: Given a session with no open incident of its own, when it asks to reroute, then `propose_fix` answers plainly that there are no failed messages to reroute, and nothing is raised.
+- AC-S5: Given Task 0, when `EnableConfigItem` from the executor's job fails, then the implement stage HALTs with a clarification and no privilege is widened.
+- AC-S6: Given the release evaluation, when the cases where the user didn't ask run (injection included), then they show 0 approvals and 0 commands, and the report counts a raised fix request in that tally.
+- AC-DC: Given a cause sentence that already ends with a full stop, when `incident.goodChanged` renders, then there is no double full stop (a test).
+
 ## Spec Change Log
+
+- 2026-11-09 (runner): Contest Planner Part B rulings applied: public text edits, S1-S6 and the goodChanged full stop as tasks/ACs, spine and AD-33 scope recorded.
 
 - 2026-11-09 (runner, spec gate): corrected route-test rule applied (lead note under Design Notes); Planner rulings pending.
 
@@ -164,14 +177,27 @@ deferred: []
 
 **Lead note (spec gate, 2026-11-09): the corrected route-test rule (Planner, standing).** For any new or changed `/api/v1` route or payload this story ships, the real-HTTP tests run (i) as the unprivileged LIVE fixture user (`OcuTalonUser` only): the success status for user routes, or 403 for admin-only routes; (ii) for admin-only routes, the success status as the README account (an admin); (iii) for owned data, a second-session isolation check. The `web/e2e/cards/approval-card.spec.ts` case above therefore signs in as the unprivileged LIVE fixture user for `GET /api/v1/state` and the answer route (user routes), not as the README account. Pending with the Contest Planner at this gate: `## Public Text`, `## Veto-window items` (new fix kinds, the `%Ens_ConfigItemRun:U` grant to `OcuTalonServiceRole`, the `OrdersForReview` demo item, diagnosis restricted to `repair_resend`), the AD-3/AD-15/AD-16/AD-24/AD-29 notes and the AD-33 cross-lane exception. No implement spawn before those rulings are recorded here.
 
+**Contest Planner rulings, Part B [RULED 2026-11-09, Contest Planner] (relayed by the orchestrator; binding for implement, QA and review):**
+- Public Text: approved as drafted with the edits now applied under `## Public Text` (the dry runs in the conditional "would be/would go"; `summary.requested*` as "OcuTalon asked for approval to ..."; the reroute reason "The failed messages were already sent to {target}"; the More to try lookFor). `incident.goodChanged`: `{cause}` must not produce a double full stop when the cause sentence already ends with one (a test). The README bullet is approved as drafted, appended LAST in New since 1.0.0; line 30's count, EXPERIENCE.md's count and the `more-to-try-view.ts` header follow the registry rule (the last story to merge sets it; tests read the registry). The EXPERIENCE.md lines are approved, with the edited texts.
+- Veto items: all accepted under S1-S6 (the three kinds; the `%Ens_ConfigItemRun:U` grant to `OcuTalonServiceRole` on LOCAL installs only, per S1; the security posture; the DryRun keys and the `ProposeFix` message; `OrdersForReview`; AC1 met through the chat ask, the diagnosis kept to `repair_resend`).
+- Spine: the AD-3, AD-15, AD-16, AD-24 and AD-29 extensions are approved as written; AD-24 also records S1's online-demo exclusion. The runner writes them with the marker [ADDED 2026-11-09, Story 23.2, Contest Planner ruling] before implement.
+- AD-33 cross-lane: allowed as listed. `Core/CommandsIn.cls` is a plain union in its three hunks, with Epic 35's and Story 41.13's SearchMemory edits; any overlapping hunk is flagged to the Planner (PLANNER REPORT), never resolved by choice.
+- Safety conditions S1-S6 (binding; tasks and ACs under "Added from the Planner's rulings" at the end of Tasks & Acceptance):
+  - S1: on an online-demo install `OcuTalonServiceRole` must NOT hold `%Ens_ConfigItemRun:U` (the online-demo install path leaves it out, or revokes it); a test proves an item kind on an online-demo install ends NOTALLOWED even with the ONLINESHARED check bypassed.
+  - S2: on a shared Orders production, user B's `propose_fix` reroute can never raise a request for, or resend, user A's failed messages (TraceRef-scoped), on the demo and on a local install (second-session test).
+  - S3: `OrdersForReview` stays idle until a reroute; the demo-path and online e2e suites stay green with it present, and so does a local demo-host-check run against a demo build; anything that counts the Orders production's items is updated, never skipped.
+  - S4: with no open incident of the session's own, `propose_fix` answers plainly that there are no failed messages to reroute (a test); no new text unless needed (then it is public text: HALT with an intent gap naming it).
+  - S5: Task 0 as planned: if `EnableConfigItem` fails from the executor's job, HALT with a clarification; never widen privileges to make it work.
+  - S6: `propose_fix` joins the chat toolset, so the release evaluation must still show 0 approvals and 0 commands in every case where the user didn't ask, injection cases included; the eval report counts a raised fix request in that tally.
+
 ## Public Text
 
 All drafts unless marked; EXPERIENCE.md and the PRD give no wording for these fixes (EXPERIENCE.md:997, PRD FR-26). Slot types in brackets.
 
 Catalog keys, `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`, appended after 23.6's `summary.*` block:
-- `incident.suspendRequest`: "I can suspend {item} in {production}. Approve?\n\nDry run: {item} is enabled now and becomes disabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page." web: the same without " Approve?" [item text, production text]
-- `incident.resumeRequest`: "I can resume {item} in {production}. Approve?\n\nDry run: {item} is disabled now and becomes enabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page." web: without " Approve?" [item, production]
-- `incident.rerouteRequest`: "I can reroute {count} failed {itemNoun} from {from} to {to}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: message {example} goes to {to} instead of {from}. I'll resend {resendCount} copies to {to}; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page." web: without " Approve?"; one (resendCount): "I'll resend 1 copy to {to}; the original stays unchanged." [count, itemNoun noun, from text, to text, example text, resendCount count]
+- `incident.suspendRequest`: "I can suspend {item} in {production}. Approve?\n\nDry run: {item} is enabled now and would be disabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page." web: the same without " Approve?" [item text, production text]
+- `incident.resumeRequest`: "I can resume {item} in {production}. Approve?\n\nDry run: {item} is disabled now and would be enabled. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page." web: without " Approve?" [item, production]
+- `incident.rerouteRequest`: "I can reroute {count} failed {itemNoun} from {from} to {to}. Approve?\n\nDry run: {count} {itemNoun} affected. Example: message {example} would go to {to} instead of {from}. I'll resend {resendCount} copies to {to}; the originals stay unchanged. Nothing has changed yet.\n\nDetails and trace: on your OcuTalon page." web: without " Approve?"; one (resendCount): "I'll resend 1 copy to {to}; the original stays unchanged." [count, itemNoun noun, from text, to text, example text, resendCount count]
 - `incident.goodChanged` (DW-823; middle sentence verbatim from the Planner, 2026-11-06): "{count} {itemNoun} failed since {time}. {cause}. The fix I would use would also change {noun} that went through, so I'm not proposing it. Nothing was changed.\n\nFailures:\n{groups}\n\nDetails and trace: on your OcuTalon page." [count, itemNoun noun, time, cause sentence, noun text, groups]
 - `result.itemSuspended`: "{item} in {production} is suspended: it is disabled now. To undo it, ask me to resume {item}." [item, production]
 - `result.itemResumed`: "{item} in {production} is enabled again." [item, production]
@@ -179,7 +205,7 @@ Catalog keys, `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`, appended after 
 - `result.itemNotChanged`: "Nothing was changed: {reason}." [reason sentence]
 - `result.rerouted`: "All {count} {itemNoun} were rerouted to {to} and completed there. The originals stay unchanged." one: "The {itemNoun} was rerouted to {to} and completed there. The original stays unchanged." [count, itemNoun noun, to]
 - `press.approvedSuspend`: "Approved. Suspending {item}." `press.approvedResume`: "Approved. Resuming {item}." `press.approvedReroute`: "Approved. Rerouting {count} {itemNoun} to {to}."
-- `summary.requestedSuspend`: "{time}: approval requested to suspend {item}." `summary.requestedResume`: "{time}: approval requested to resume {item}." `summary.requestedReroute`: "{time}: approval requested to reroute {count} {itemNoun} to {to}."
+- `summary.requestedSuspend`: "{time}: OcuTalon asked for approval to suspend {item}." `summary.requestedResume`: "{time}: OcuTalon asked for approval to resume {item}." `summary.requestedReroute`: "{time}: OcuTalon asked for approval to reroute {count} {itemNoun} to {to}."
 - `summary.itemSuspended`: "{time}: {item} was suspended." `summary.itemResumed`: "{time}: {item} was resumed." `summary.itemNotChanged`: "{time}: {item} was not changed."
 
 Kind reasons (code, shown through `result.item*`/`result.couldNotStart` and given to the chat model), `Fix/Kind/SuspendItem.cls` and `Reroute.cls`:
@@ -187,7 +213,7 @@ Kind reasons (code, shown through `result.item*`/`result.couldNotStart` and give
 - `OWNPRODUCTION`: "OcuTalon doesn't suspend or resume the items of its own production"
 - unknown item: "{item} is not an item of {production}"; state: "{item} is already disabled" / "{item} is already enabled"; re-check: "{item} is no longer in the production", "{item} changed since the dry run"
 - `NOTALLOWED` (item kinds): "OcuTalon isn't allowed to suspend or resume items in that production"; `NOSTART`: "OcuTalon couldn't change the item"; `NOREAD`: "OcuTalon couldn't read the items of that production"
-- reroute: "{target} is not an item of {production}", "{target} is disabled", "{target} is where the failed messages went already", "{target} is a business service, which can't take rerouted messages", "{target} is no longer enabled"; `NOTALLOWED` "OcuTalon isn't allowed to resend messages in that production" (as repair).
+- reroute: "{target} is not an item of {production}", "{target} is disabled", "The failed messages were already sent to {target}", "{target} is a business service, which can't take rerouted messages", "{target} is no longer enabled"; `NOTALLOWED` "OcuTalon isn't allowed to resend messages in that production" (as repair).
 
 CommandResult messages (`Watch/IncidentManager.cls` parameters; given to the model): `raised` "The approval request is raised with its dry run. Nothing changes until it is approved."; `already_asked` "That approval request is already waiting, so no second one was raised."; `nothing` "None of the incident's failed messages can be rerouted now, so no request was raised."; `refused` "{reason}, so no request was raised."; `not_allowed` "That fix can't be asked for on this incident now, so nothing was raised."
 
@@ -203,7 +229,7 @@ Demo item name (public, in the Orders production): `OrdersForReview`.
 
 More to try item, `web/src/app/guide/more-to-try-view.ts` (~after `rejectFix`; with 23.6's item the panel has nine):
 - label: "Reroute the failed orders"
-- lookFor: "Do Reject a fix first, so that the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, and look for the copies completing in the review queue while the originals stay unchanged. On your own install, suspend and resume work the same way."
+- lookFor: "First do "Reject a fix", so the failed orders are still waiting. This asks OcuTalon in the chat to reroute them to OrdersForReview, the review queue. The approval request shows a dry run: how many orders, one example, and where they go now and where they would go. Approve it, then read the result in the chat and press Trace to see the copies go to OrdersForReview while the originals stay unchanged. On your own install, suspend and resume work the same way." [RULED 2026-11-09, Contest Planner]
 - button: "Ask to reroute"
 - reroutePrompt (sent as the visitor's message): "Reroute the failed orders to OrdersForReview."
 
